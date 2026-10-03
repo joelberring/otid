@@ -1,6 +1,8 @@
 services:
   postgres:
     image: postgis/postgis:17-3.5
+    # Avbildningen finns bara för amd64; på Mac med Apple-chip körs den via emulering.
+    platform: linux/amd64
     environment:
       POSTGRES_USER: otid
       POSTGRES_PASSWORD: otid

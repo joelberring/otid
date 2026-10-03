@@ -9,16 +9,21 @@ i webbläsaren.
 
 ## Kom igång lokalt
 
+Kräver Docker Desktop och Node.js 22 eller senare.
+
 ```bash
-cp .env.example .env
 docker compose up -d postgres
+corepack enable            # på Mac ofta: sudo corepack enable
 pnpm install
+export DATABASE_URL=postgresql://otid:otid@localhost:5432/otid
+export O_TID_PUBLIC_ORIGIN=http://127.0.0.1:3000
 pnpm db:migrate
 pnpm dev
 ```
 
-Öppna http://localhost:3000. `pnpm dev` och `pnpm build` bygger först de
-offlinekapabla appskalen (`/readout/`, `/checkin/`) med `pnpm --filter @o-tid/web build:shells`.
+Öppna http://127.0.0.1:3000/organizer (använd 127.0.0.1, inte localhost).
+`pnpm dev` och `pnpm build` bygger först de offlinekapabla appskalen
+(`/readout/`, `/checkin/`) med `pnpm --filter @o-tid/web build:shells`.
 
 ## Prova på fem minuter
 

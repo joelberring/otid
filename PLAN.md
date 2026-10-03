@@ -178,7 +178,7 @@ löpare genom hela kedjan: skapa → banor/klasser → förhandsanmälan +
 direktanmälan → avläsning (falsk station, en del offline) → kvar i skogen →
 en rättning (t.ex. felstämplad → godkänd) → publikt resultat → IOF-export.
 
-## [ ] Steg 6 – Gå att köra på internet
+## [x] Steg 6 – Gå att köra på internet
 
 1. `Dockerfile` för webben (Next standalone) och `docker-compose.prod.yml` med
    PostgreSQL, webb och Caddy (automatisk HTTPS).

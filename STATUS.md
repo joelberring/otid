@@ -5,9 +5,18 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 2 – Dela upp adminarbetsytan (se `PLAN.md`), därefter steg 6.
+Steg 2 – Dela upp adminarbetsytan (se `PLAN.md`). Därefter steg 7 (ägaren: hårdvara och pilot).
 
 ## Logg
+
+### 2026-10-03 – Steg 6 klart
+- `Dockerfile` (Next standalone + paketerad migrering som körs före start), `docker-compose.prod.yml` med PostgreSQL,
+  webb, Caddy (automatisk HTTPS) och backup (`pg_dump` vid start och varje natt, 14 dagars rotation). `docs/drift.md`.
+- Verifierat lokalt utan Docker (registren nås inte här): produktionsbygget bakom Caddy med HTTPS – båda webbläsarflödena
+  gröna, även offline-avläsningen. Backup, rotation och `pg_restore` provade; samma antal rader efter återställning.
+- Verifierat i CI-jobbet `production`: `docker compose up --build`, webbläsartesterna mot https://localhost och att en
+  backupfil skapas. CI är grönt för första gången: avbildningen `postgis/postgis:17-3.6` fanns inte (nu 17-3.5).
+- Rättat: IOF-exporten avvisade svar som Caddy komprimerat (ETag/content-length). Innehållshashen kontrolleras fortfarande.
 
 ### 2026-10-03 – Steg 5 klart
 - `tests/e2e/traningskvall.spec.ts`: 10 löpare genom hela kedjan – två banor/klasser (fri start är standard), åtta

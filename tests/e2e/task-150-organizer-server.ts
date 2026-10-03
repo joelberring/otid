@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { provisionUserAccount } from "@o-tid/application";
 import { createDatabase } from "@o-tid/database";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { migrate } from "@o-tid/database";
 import webNextConfig from "../../apps/web/next.config";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");

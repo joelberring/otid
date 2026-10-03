@@ -34,7 +34,7 @@ frames, replay och den falska serieporten. Markera hårdvarustöd som `untested`
 
 ---
 
-## [ ] Steg 0 – Städa och få en grön baslinje
+## [x] Steg 0 – Städa och få en grön baslinje
 
 1. `git init` och första commit **innan något annat ändras**, med meddelandet
    `Läge före omstart 2026-10-03`. Kontrollera att `.gitignore` utesluter

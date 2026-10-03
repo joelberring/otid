@@ -90,10 +90,6 @@ export { previewShortenedCourseClassTransferAsAdministrator, transferShortenedCo
 export { listUnknownReadoutResolutionCandidatesAsAdministrator, resolveUnknownReadoutAsAdministrator } from "./unknown-readout-resolution";
 export { listRaceOperatorAccessAsAdministrator, issueRaceOperatorAccessAsAdministrator, revokeRaceOperatorAccessAsAdministrator } from "./race-operator-access";
 export { listClassResultRecalculationCandidatesAsAdministrator, recalculateClassResultsAsAdministrator } from "./class-result-recalculation";
-export { mapOperationalBackupPmObjects, appliedMigrationIdentityFromRow, readAppliedMigrationIdentity, readOperationalBackupPmObjects, type OperationalBackupReadExecutor } from "./operational-backup-read-model";
-export { verifyOperationalRestore, verifyOperationalRestoreDatabase, verifyOperationalRestoreTarget, validateOperationalRestoreDatabaseEvidence, OperationalRestoreVerificationError, type OperationalRestoreDatabaseEvidence, type OperationalRestoreDatabaseEvidenceVerifier, type OperationalRestoreDumpReader, type OperationalRestorePmVerifier, type OperationalRestoreReceipt } from "./operational-restore-verification";
-export { readOperationalBackupSourceEvidence, completeOperationalBackupSourcePreflight, prepareOperationalBackupSourcePreflight, OperationalBackupSourcePreflightError, type OperationalBackupPmVerifier, type OperationalBackupSourceEvidence, type OperationalBackupSourcePreflight } from "./operational-backup-source-preflight";
-export { captureOperationalBackup, captureOperationalBackupSource, OperationalBackupCaptureError, type OperationalBackupCapturePorts, type OperationalBackupCaptureReceipt, type OperationalBackupSourceCaptureEvidence, type OperationalBackupSourcePreflightRunner } from "./operational-backup-capture";
 export { reserveMapAssetAsAdmin, allocateMapUploadAttemptAsAdmin, transferMapAssetAsAdmin, publishMapAssetAsAdmin, withdrawMapAssetAsAdmin, type MapUploadObjectStore } from "./map-asset";
 export { readActiveMapPublication, readPublicMapMetadata, type ActiveMapPublication } from "./map-asset";
 export { readMapAssetStateAsAdmin, type AdminMapAssetStateResult } from "./map-asset";

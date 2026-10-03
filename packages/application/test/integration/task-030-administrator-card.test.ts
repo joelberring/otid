@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { migrate } from "@o-tid/database";
 import { createDatabase } from "@o-tid/database";
 import { listEntryTransfersAsAdministrator } from "../../src/entry-transfer";
 import { changeEntryCardAsAdmin } from "../../src/entry-card";
@@ -45,7 +45,7 @@ async function cardInput(actor: Awaited<ReturnType<typeof auth>>, entryId: strin
   if (!entry) throw new Error("Entry missing");
   return { ...actor, entryId, idempotencyKey: `entry-card-change:${randomUUID()}`, request: {
     formatVersion: 1, expectedEntryVersion: entry.version, expectedClassId: entry.classId,
-    expectedSnapshotVersion: listed.response.snapshotVersion, expectedAssignment: entry.activeAssignment, cardNumber
+    expectedSnapshotVersion: listed.response.snapshotVersion, expectedAssignment: entry.activeAssignment ? { id: entry.activeAssignment.id, cardNumber: entry.activeAssignment.cardNumber } : null, cardNumber
   } };
 }
 async function footprint(raceId: string) {
@@ -77,7 +77,7 @@ describe("TASK030 administrator card change", () => {
     const before = await footprint(f.raceId);
     const input = await cardInput(f.administrator, f.entryId, "54321");
     const changed = await changeEntryCardAsAdmin(db, input, now);
-    if (changed.status !== "changed") throw new Error("Card change failed");
+    if (changed.status !== "changed") throw new Error("Card change failed: " + JSON.stringify(changed));
     expect(changed.response).toMatchObject({ previousAssignment: { id: f.assignmentId, cardNumber: "12345" },
       activeAssignment: { cardNumber: "54321" }, entryVersionAfter: 2, snapshotVersionAfter: 2 });
     const back = await cardInput(f.administrator, f.entryId, "12345");

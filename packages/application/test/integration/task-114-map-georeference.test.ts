@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, expect, it } from "vitest";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { migrate } from "@o-tid/database";
 import { createDatabase } from "@o-tid/database";
 import { createMapGeoreferenceAsAdmin, readMapGeoreferenceStateAsAdmin } from "../../src/map-georeference";
 import { reserveMapAssetAsAdmin, transferMapAssetAsAdmin } from "../../src/map-asset";

@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { migrate } from "./migrator";
 import { createDatabase } from "./index";
 
 const connectionString = process.env.DATABASE_URL;

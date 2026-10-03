@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { migrate } from "@o-tid/database";
 import { and, eq } from "drizzle-orm";
 import { createDatabase, schema } from "@o-tid/database";
 import { commitClassStartDrawAsAdmin, issuePairingAdminAccessCredential, listFixedStartSlotPlansAsAdministrator,

@@ -1,6 +1,6 @@
 import { randomUUID, createHash } from "node:crypto";
 import { beforeAll, afterAll, describe, it, expect, vi } from "vitest";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { migrate } from "@o-tid/database";
 import { eq, sql } from "drizzle-orm";
 import { createDatabase, schema } from "@o-tid/database";
 import { canonicalStartCheckinOperation, canonicalStartCheckinConflictReviewSource, type StartCheckinOperation } from "@o-tid/contracts";

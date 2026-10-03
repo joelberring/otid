@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DemoInstallationSchema, DemoSummarySchema } from "@o-tid/contracts";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { migrate } from "@o-tid/database";
 import { createDatabase, schema } from "@o-tid/database";
 import { provisionSyntheticDemo, type DemoInstallation } from "../../src/provision-synthetic-demo";
 

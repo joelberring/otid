@@ -3,7 +3,7 @@ import { decideDidNotStartAsAdmin } from "../../src/did-not-start";
 import { withdrawDidNotStartAsAdmin } from "../../src/did-not-start-withdrawal";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { migrate } from "@o-tid/database";
 import { createDatabase } from "@o-tid/database";
 import { getAdministratorEffectiveResult } from "../../src/administrator-effective-result";
 import { issuePairingAdminAccessCredential, loginPairingAdmin } from "../../src/pairing-admin";

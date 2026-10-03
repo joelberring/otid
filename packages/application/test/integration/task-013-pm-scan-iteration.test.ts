@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { migrate } from "@o-tid/database";
 import { createDatabase } from "@o-tid/database";
 import { claimPmScanJob } from "../../src/pm-scan-jobs";
 import { runPmScanIteration, type PmScanIterationPorts } from "../../src/pm-scan-iteration";

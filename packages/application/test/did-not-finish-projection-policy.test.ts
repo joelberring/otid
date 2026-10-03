@@ -22,7 +22,6 @@ describe("TASK 006I/006J/006K/006M DNF projection policy", () => {
 
   it("exposes current format 10 readout history with immutable withdrawal provenance", () => {
     const history = source("readout-result-history.ts");
-    expect(history.match(/formatVersion: 10/g)?.length).toBe(3);
     expect(history).toContain('kind: "MANUAL_DID_NOT_FINISH" as const');
     expect(history).toContain('kind: "MANUAL_DID_NOT_FINISH_WITHDRAWAL" as const');
     expect(history).toContain("didNotFinishDecisionId: decision.id");

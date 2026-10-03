@@ -6,7 +6,7 @@ import { join, resolve } from "node:path";
 import { test, expect } from "@playwright/test";
 import { createDatabase, schema } from "@o-tid/database";
 import { DemoInstallationSchema, DemoSummarySchema } from "@o-tid/contracts";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { migrate } from "@o-tid/database";
 import { validateDemoTarget } from "../../packages/application/src/demo-target-policy";
 
 const databaseUrl = process.env.TEST_DATABASE_URL ?? "";

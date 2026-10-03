@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, expect, it } from "vitest";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { migrate } from "@o-tid/database";
 import { createDatabase } from "@o-tid/database";
 import { createManualCourseClassAsAdministrator } from "../../src/manual-course-class";
 import { correctManualFinishTimeAsAdministrator, previewManualFinishTimeCorrectionAsAdministrator } from "../../src/manual-finish-time-correction";
@@ -67,7 +67,7 @@ it("TASK093 preserves the technical source, appends one exact correction, and re
     .toEqual([{ cause: "CARD_READOUT", revision: 1 }, { cause: "MANUAL_FINISH_TIME_CORRECTION", revision: 2 }]);
   const history = await getReadoutHistoryAsAdmin(db, { ...f.historyAuth, readoutId: f.readoutId, limit: 50 }, now);
   expect(history.status).toBe("ok");
-  if (history.status === "ok") expect(history.response).toMatchObject({ formatVersion: 12, history: { items: [
+  if (history.status === "ok") expect(history.response).toMatchObject({ formatVersion: 15, history: { items: [
     { revision: 1, source: { kind: "READOUT_RESULT" } },
     { revision: 2, source: { kind: "MANUAL_FINISH_TIME_CORRECTION", manualFinishTimeCorrectionId: request.requestId,
       sourceResultRevision: 1, sourceReadoutId: candidate.response.source.readoutId,

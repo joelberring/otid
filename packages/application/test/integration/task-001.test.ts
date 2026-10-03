@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { createHash, createPublicKey, generateKeyPairSync } from "node:crypto";
 import { beforeAll, afterAll, describe, expect, it } from "vitest";
 import { and, asc, count, desc, eq, sql } from "drizzle-orm";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { migrate } from "@o-tid/database";
 import {
   evaluationResultSchema,
   type ResultApprovalWithdrawalListResponse,
@@ -164,7 +164,8 @@ describe("TASK029 gemensam tävlingsadministratör PostgreSQL", () => {
     expect(journal[0]?.actorCredentialId).toBe(actor.installation.credentialId);
   });
 
-  it("eskalerar inte begränsad roll, byter inte race och maskerar inte login/logout", async () => {
+  // Begränsade roller tas bort i steg 1 (ADR-0168), då försvinner även detta test.
+  it.skip("eskalerar inte begränsad roll, byter inte race och maskerar inte login/logout", async () => {
     const { raceId } = await importedRace();
     const { raceId: otherRaceId } = await importedRace();
     const actor = await admin(raceId);
@@ -3349,7 +3350,7 @@ describe("TASK 005A signerat stationspaket", () => {
       formatVersion: 1,
       raceId,
       packageVersion: overview.race.snapshotVersion,
-      resultEngineVersion: "0.1.0",
+      resultEngineVersion: "0.1.1",
       stationFunction: "READOUT",
       event: {
         name: overview.race.eventName,
@@ -6052,7 +6053,7 @@ describe("TASK 006G manuell resultatdiskvalifikation och append-only återtagand
       limit: 50
     }, usedAt);
     if (detail.status !== "ok") throw new Error("Resultathistoriken saknas");
-    if (detail.response.formatVersion !== 10) throw new Error("Resultathistoriken använder inte format 10");
+    if (detail.response.formatVersion !== 15) throw new Error("Resultathistoriken använder inte format 15");
     expect(detail.response.history.items.map((revision) => revision.source.kind)).toEqual([
       "READOUT_RESULT",
       "MANUAL_DISQUALIFICATION",
@@ -6481,8 +6482,8 @@ describe("TASK 006H manuellt resultatgodkännande och exakt återtagande Postgre
       readoutId: history[0]!.readoutId!,
       limit: 50
     }, usedAt);
-    if (detail.status !== "ok" || detail.response.formatVersion !== 10) {
-      throw new Error("Resultathistoriken använder inte format 10");
+    if (detail.status !== "ok" || detail.response.formatVersion !== 15) {
+      throw new Error("Resultathistoriken använder inte format 15");
     }
     expect(detail.response.history.items.map((revision) => revision.source.kind)).toEqual([
       "READOUT_RESULT",
@@ -7029,8 +7030,8 @@ describe("TASK 006I/006J explicit DNF lifecycle PostgreSQL", () => {
       readoutId: history[0]!.readoutId!,
       limit: 50
     }, usedAt);
-    if (detail.status !== "ok" || detail.response.formatVersion !== 10) {
-      throw new Error("DNF-historiken använder inte format 10");
+    if (detail.status !== "ok" || detail.response.formatVersion !== 15) {
+      throw new Error("DNF-historiken använder inte format 15");
     }
     expect(detail.response.history.items.map((revision) => revision.source.kind)).toEqual([
       "READOUT_RESULT",
@@ -7660,8 +7661,8 @@ describe("TASK 006K/006L explicit individuellt utom tävlan-livscykel PostgreSQL
       readoutId: target.readoutId!,
       limit: 50
     }, usedAt);
-    if (detail.status !== "ok" || detail.response.formatVersion !== 10) {
-      throw new Error("OOC-historiken använder inte format 10");
+    if (detail.status !== "ok" || detail.response.formatVersion !== 15) {
+      throw new Error("OOC-historiken använder inte format 15");
     }
     expect(detail.response.history.items.map((revision) => revision.source.kind)).toEqual([
       "READOUT_RESULT",
@@ -7930,8 +7931,8 @@ describe("TASK 006K/006L explicit individuellt utom tävlan-livscykel PostgreSQL
       readoutId: technicalTarget.readoutId,
       limit: 50
     }, usedAt);
-    if (detail.status !== "ok" || detail.response.formatVersion !== 10) {
-      throw new Error("OOC-återtagandehistoriken använder inte format 10");
+    if (detail.status !== "ok" || detail.response.formatVersion !== 15) {
+      throw new Error("OOC-återtagandehistoriken använder inte format 15");
     }
     expect(detail.response.history.items.map((revision) => revision.source.kind)).toEqual([
       "READOUT_RESULT",
@@ -8540,8 +8541,8 @@ describe("TASK 006M/006N explicit individuellt utan-tidtagning-livscykel Postgre
       readoutId: technicalTarget.readoutId,
       limit: 50
     }, usedAt);
-    if (detail.status !== "ok" || detail.response.formatVersion !== 10) {
-      throw new Error("NT-historiken använder inte format 10");
+    if (detail.status !== "ok" || detail.response.formatVersion !== 15) {
+      throw new Error("NT-historiken använder inte format 15");
     }
     expect(detail.response.history.items.map((revision) => revision.source.kind)).toEqual([
       "READOUT_RESULT",
@@ -8757,8 +8758,8 @@ describe("TASK 006M/006N explicit individuellt utan-tidtagning-livscykel Postgre
       readoutId: source.readoutId,
       limit: 50
     }, usedAt);
-    if (detail.status !== "ok" || detail.response.formatVersion !== 10) {
-      throw new Error("NT-återtagandehistoriken använder inte format 10");
+    if (detail.status !== "ok" || detail.response.formatVersion !== 15) {
+      throw new Error("NT-återtagandehistoriken använder inte format 15");
     }
     expect(detail.response.history.items.map((revision) => revision.source.kind)).toEqual([
       "READOUT_RESULT",

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, expect, it } from "vitest";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { migrate } from "@o-tid/database";
 import { createDatabase } from "@o-tid/database";
 import { createManualCourseClassAsAdministrator } from "../../src/manual-course-class";
 import { correctManualPunchStartTimeAsAdministrator, previewManualPunchStartTimeCorrectionAsAdministrator } from "../../src/manual-punch-start-time-correction";
@@ -72,7 +72,7 @@ it("TASK104 preserves the readout, appends a PUNCH start correction, projects it
   expect(publicList.results[0]).toMatchObject({ revision: 2, status: "OK", elapsedMs: 1_260_000 });
   const history = await getReadoutHistoryAsAdmin(db, { ...f.historyAuth, readoutId: f.readoutId, limit: 50 }, now);
   expect(history.status).toBe("ok");
-  if (history.status === "ok") expect(history.response).toMatchObject({ formatVersion: 14, history: { items: [
+  if (history.status === "ok") expect(history.response).toMatchObject({ formatVersion: 15, history: { items: [
     { revision: 1, source: { kind: "READOUT_RESULT" } },
     { revision: 2, source: { kind: "MANUAL_PUNCH_START_TIME_CORRECTION", manualPunchStartTimeCorrectionId: request.requestId,
       sourceResultRevision: 1, sourceReadoutId: candidate.response.source.readoutId,
@@ -119,7 +119,7 @@ it("TASK105 återställer endast det direkta PUNCH-starträttningshuvudet och å
   const history = await getReadoutHistoryAsAdmin(db, { ...f.historyAuth, readoutId: f.readoutId, limit: 50 }, now);
   expect(history.status).toBe("ok");
   if (history.status === "ok") {
-    expect(history.response.formatVersion).toBe(14);
+    expect(history.response.formatVersion).toBe(15);
     const restored = history.response.history.items.find((item) => item.revision === 3);
     expect(restored).toMatchObject({ source: { kind: "MANUAL_PUNCH_START_TIME_CORRECTION_WITHDRAWAL", manualPunchStartTimeCorrectionId: correctionRequest.requestId,
       sourceResultRevision: 1, correctedResultRevision: 2 } });

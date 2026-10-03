@@ -4,7 +4,7 @@ import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { count, eq, sql } from "drizzle-orm";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { migrate } from "@o-tid/database";
 import { createDatabase, schema } from "@o-tid/database";
 import { contentHash, createEvent, importIofXml, ingestDeviceBatch,
   issuePairingAdminAccessCredential, loginPairingAdmin, listSpeakerBoardAsAdmin,

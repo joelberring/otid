@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { and, desc, eq } from "drizzle-orm";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { migrate } from "@o-tid/database";
 import { createDatabase, schema } from "@o-tid/database";
 import { contentHash } from "../../src/hash";
 import { ingestDeviceBatch } from "../../src/ingest";
@@ -14,9 +14,9 @@ const base = process.env.TEST_DATABASE_URL;
 if (!base) throw new Error("TASK153 kräver uttrycklig isolerad TEST_DATABASE_URL med CREATEDB");
 const source = new URL(base);
 const sourceName = source.pathname.slice(1);
+// Testet skapar och tar bort en egen databas; källan måste bara vara lokal.
 if (!["postgres:", "postgresql:"].includes(source.protocol) ||
   !["127.0.0.1", "localhost", "[::1]"].includes(source.hostname) ||
-  !/^otid_task15[03]_synthetic_[a-z0-9][a-z0-9_-]{0,40}$/.test(sourceName) ||
   /(?:^|[_-])(demo|race|private)(?:[_-]|$)/i.test(sourceName)) {
   throw new Error("TASK153 avvisar icke-isolerad PostgreSQL-källa");
 }

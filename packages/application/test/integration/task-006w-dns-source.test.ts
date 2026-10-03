@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { beforeAll, afterAll, describe, expect, it } from "vitest";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { migrate } from "@o-tid/database";
 import { eq } from "drizzle-orm";
 import { createDatabase, schema } from "@o-tid/database";
 import { fixture, correction, at } from "../fixtures/start-checkin-dns";
@@ -177,7 +177,7 @@ describe("TASK 006W DNS PostgreSQL provenance (no sync writer enabled)", () => {
     }, at);
     expect(history.status).toBe("ok");
     if (history.status !== "ok") throw new Error("Missing readout history");
-    expect(history.response.formatVersion).toBe(10);
+    expect(history.response.formatVersion).toBe(15);
     expect(history.response.history.items).toEqual([
       expect.objectContaining({ revision: 1, source: {
         kind: "START_CHECKIN_DID_NOT_START", startCheckinDnsDecisionId: f.decision.id,

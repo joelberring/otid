@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { count } from "drizzle-orm";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { migrate } from "@o-tid/database";
 import { createDatabase, schema } from "@o-tid/database";
 import {
   issuePairingAdminAccessCredential,

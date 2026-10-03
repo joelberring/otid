@@ -1,7 +1,7 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { migrate } from "@o-tid/database";
 import { createDatabase, schema } from "@o-tid/database";
 import { activateAccountInvitation } from "../../src/account-invitation";
 import {
@@ -32,7 +32,8 @@ afterAll(async () => {
   await admin.pool.end();
 });
 
-const now = new Date("2026-09-23T10:00:00.000Z");
+// Databasen jämför mot sin egen klocka (clock_timestamp), så testet måste använda verklig tid.
+const now = new Date(Math.floor(Date.now() / 1000) * 1000);
 
 async function account(loginName: string) {
   const installation = await provisionUserAccount(db, {

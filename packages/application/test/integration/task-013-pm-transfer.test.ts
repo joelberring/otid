@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { migrate } from "@o-tid/database";
 import { createDatabase, schema, type Database } from "@o-tid/database";
 import { createEvent, issuePairingAdminAccessCredential, loginPairingAdmin, revokePairingAdminAccessCredential,
   reservePmDocumentAsAdmin, transferPmDocumentAsAdmin, type PmUploadObjectStore } from "../../src";

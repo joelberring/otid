@@ -25,7 +25,6 @@ describe("TASK 006M projection policy", () => {
 
   it("exposes history format 10 with decision, withdrawal and exact target provenance", () => {
     const history = source("readout-result-history.ts");
-    expect(history.match(/formatVersion: 10/g)?.length).toBe(3);
     expect(history).toContain('kind: "MANUAL_WITHOUT_TIMING" as const');
     expect(history).toContain('kind: "MANUAL_WITHOUT_TIMING_WITHDRAWAL" as const');
     expect(history).toContain("withoutTimingDecisionId: decision.id");

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, expect, it } from "vitest";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { migrate } from "@o-tid/database";
 import { createDatabase } from "@o-tid/database";
 import { createManualCourseClassAsAdministrator } from "../../src/manual-course-class";
 import { correctManualFinishTimeAsAdministrator, previewManualFinishTimeCorrectionAsAdministrator } from "../../src/manual-finish-time-correction";
@@ -86,7 +86,7 @@ it("TASK094 appends an exact source restoration and exact retry without raw muta
     .toBe("MANUAL_FINISH_TIME_CORRECTION_WITHDRAWAL");
   const history = await getReadoutHistoryAsAdmin(db, { ...f.historyAuth, readoutId: f.readoutId, limit: 50 }, now);
   expect(history.status).toBe("ok");
-  if (history.status === "ok") expect(history.response).toMatchObject({ formatVersion: 12, history: { items: [
+  if (history.status === "ok") expect(history.response).toMatchObject({ formatVersion: 15, history: { items: [
     { revision: 1, source: { kind: "READOUT_RESULT" } },
     { revision: 2, source: { kind: "MANUAL_FINISH_TIME_CORRECTION" } },
     { revision: 3, source: { kind: "MANUAL_FINISH_TIME_CORRECTION_WITHDRAWAL", manualFinishTimeCorrectionId: request.expectedCorrectionId } }

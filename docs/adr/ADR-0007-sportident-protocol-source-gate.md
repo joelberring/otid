@@ -1,5 +1,7 @@
 # ADR-0007: Källgrind för SPORTident-protokoll
 
+**Ersatt av [ADR-0168](ADR-0168-omstart-mot-klubbtraning.md) (2026-10-03).**
+
 - Status: Accepterad
 - Datum: 2026-08-30
 

@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { Agent } from "node:http";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { migrate } from "@o-tid/database";
 import { Client } from "minio";
 import { createDatabase, schema } from "@o-tid/database";
 import {

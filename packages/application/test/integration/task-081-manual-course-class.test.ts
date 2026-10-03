@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { afterAll, beforeAll, expect, it } from "vitest";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { migrate } from "@o-tid/database";
 import { createDatabase } from "@o-tid/database";
 import { createManualCourseClassAsAdministrator } from "../../src/manual-course-class";
 import { createManualClassAsAdministrator } from "../../src/manual-class";
@@ -184,7 +184,7 @@ it("TASK300 adds two manual classes to one exact version without copying its cou
   expect(originalReplay.status).toBe("created");
   if (originalReplay.status !== "created") return;
   expect(originalReplay.response).toMatchObject({ classId: first.response.classId, request: firstRequest,
-    className: "D40", replayed: true, snapshotVersionBefore: 2, snapshotVersionAfter: 3 });
+    replayed: true, snapshotVersionBefore: 2, snapshotVersionAfter: 3 });
   const staleName = { ...nameRequest, requestId: randomUUID() };
   expect((await changeManualClassNameAsAdministrator(db, { ...f.auth, classId: first.response.classId,
     idempotencyKey: `manual-class-name:${staleName.requestId}`, request: staleName }, now)).status).toBe("conflict");

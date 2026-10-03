@@ -12,3 +12,4 @@ export function createDatabase(connectionString: string) {
 }
 
 export * as schema from "./schema";
+export { migrate } from "./migrator";

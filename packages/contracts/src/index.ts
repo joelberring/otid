@@ -44,8 +44,6 @@ export * from "./without-timing-withdrawal-admin";
 export * from "./pairing-admin";
 export * from "./pm-document";
 export * from "./pm-object-manifest";
-export * from "./operational-backup-manifest";
-export * from "./operational-backup-operation-state";
 export * from "./pm-scan-evidence";
 export * from "./pm-document-storage-receipt";
 export * from "./map-asset";

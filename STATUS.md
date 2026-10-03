@@ -9,6 +9,10 @@ Steg 7 – Riktig hårdvara och pilot (ägaren). Steg 0–6 är klara.
 
 ## Logg
 
+### 2026-10-03 – Förberedelse för steg 7
+- Avläsningssidan loggar all stationstrafik i minnet. "Ladda ner rålogg" ger trafiken och loppets råramar som JSON
+  (inga namn). Täcks av enhetstest och träningskvällstestet.
+
 ### 2026-10-03 – Steg 2 klart
 - `race-administrator-workspace.tsx` 4 301 → 189 rader: session, laddning och navigering. Områdena (förberedelse,
   deltagare, resultatbeslut, tävlingsdag, efter tävlingen) ligger i `components/race-administrator/` (22 filer, största 543).

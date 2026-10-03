@@ -15,6 +15,8 @@ export interface StationCallbacks {
   onCardRead(card: SiCardData, frames: readonly Uint8Array[], stationSerial: number | undefined): void;
   onReadFailed(cardNumber: number, reason: string): void;
   onUnsupportedCard(cardNumber: number): void;
+  /** Varje mottagen och skickad byteföljd, för rålogg vid felsökning med riktig station. */
+  onTraffic?(direction: "in" | "out", bytes: Uint8Array): void;
 }
 
 /**
@@ -40,7 +42,10 @@ export class StationController {
   /** Öppnar transporten och handskakar. Sant om stationen svarade. */
   async start(): Promise<boolean> {
     this.#callbacks.onStatus({ kind: "connecting" });
-    this.#unsubscribe.push(this.#transport.onBytes((chunk) => this.#handle(this.#session.receive(chunk))));
+    this.#unsubscribe.push(this.#transport.onBytes((chunk) => {
+      this.#callbacks.onTraffic?.("in", chunk);
+      this.#handle(this.#session.receive(chunk));
+    }));
     this.#unsubscribe.push(this.#transport.onState((state) => {
       if (state.status === "detached") this.#callbacks.onStatus({ kind: "error", message: state.message });
       if (state.status === "error") this.#callbacks.onStatus({ kind: "error", message: state.message });
@@ -64,6 +69,7 @@ export class StationController {
   #handle(output: SessionOutput): void {
     for (const event of output.events) this.#event(event);
     for (const bytes of output.send) {
+      this.#callbacks.onTraffic?.("out", bytes);
       void this.#transport.write(bytes).catch((error: unknown) => {
         this.#callbacks.onStatus({ kind: "error", message: error instanceof Error ? error.message : "Skrivfel mot stationen" });
       });

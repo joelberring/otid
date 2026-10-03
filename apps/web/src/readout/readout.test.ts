@@ -8,6 +8,7 @@ import { exerciseCard, exerciseRunners } from "./exercise";
 import { FakeStationTransport } from "./fake-transport";
 import { buildReadoutPayload, payloadHash } from "./payload";
 import { StationController, type StationStatus } from "./station";
+import { TrafficLog } from "./rawlog";
 import { pendingBatches, syncPending } from "./sync";
 import { ids, MemoryReadoutStore, TEST_CARD, testPackage } from "./test-support";
 import type { QueuedReadout } from "./store";
@@ -17,7 +18,8 @@ const NOW = new Date("2026-10-01T17:45:00.000Z");
 
 interface Read { card: SiCardData; frames: readonly Uint8Array[]; serial: number | undefined }
 
-async function readThroughExerciseStation(codes: readonly number[], variant: "ok" | "missing-control" | "no-finish", cardNumber = TEST_CARD) {
+async function readThroughExerciseStation(codes: readonly number[], variant: "ok" | "missing-control" | "no-finish", cardNumber = TEST_CARD,
+  traffic?: TrafficLog) {
   const transport = new FakeStationTransport();
   const statuses: StationStatus[] = [];
   let read: Read | undefined;
@@ -26,7 +28,8 @@ async function readThroughExerciseStation(codes: readonly number[], variant: "ok
     onCardInserted: () => undefined,
     onCardRead: (card, frames, serial) => { read = { card, frames, serial }; },
     onReadFailed: (cardNumber, reason) => { throw new Error(`${cardNumber}: ${reason}`); },
-    onUnsupportedCard: (card) => { throw new Error(`Okänd typ ${card}`); }
+    onUnsupportedCard: (card) => { throw new Error(`Okänd typ ${card}`); },
+    onTraffic: (direction, bytes) => traffic?.add(direction, bytes)
   }, 500);
   expect(await controller.start()).toBe(true);
   transport.insert(exerciseCard(cardNumber, codes, variant, NOW, TIME_ZONE));
@@ -81,6 +84,20 @@ describe("avläsning i webbläsaren", () => {
     expect(payload.frames.length).toBeGreaterThan(1);
     expect(deviceEventSchema.parse({ localSequence: 1, stationReceivedAt: NOW.toISOString(), transport: "sportident",
       payload, contentHash: serverHash }).transport).toBe("sportident");
+  });
+
+  it("loggar all stationstrafik för råloggen, utan namn", async () => {
+    const traffic = new TrafficLog();
+    const { read } = await readThroughExerciseStation([31, 32, 33], "ok", TEST_CARD, traffic);
+    expect(traffic.size).toBeGreaterThan(4);
+    const payload = buildReadoutPayload(read.card, read.frames, { reference: NOW, timeZone: TIME_ZONE, simulated: true });
+    const store = new MemoryReadoutStore();
+    await store.append(ids.race, { packageVersion: 3, stationReceivedAt: NOW.toISOString(), payload, contentHash: await payloadHash(payload) });
+    const log = JSON.parse(traffic.export(ids.race, store.items, "test")) as { traffic: { direction: string; hex: string }[]; readouts: { frames: string[] }[] };
+    expect(log.traffic.some((entry) => entry.direction === "out" && /^(ff)?02/.test(entry.hex))).toBe(true);
+    expect(log.traffic.some((entry) => entry.direction === "in")).toBe(true);
+    expect(log.readouts[0]!.frames).toEqual(payload.frames);
+    expect(JSON.stringify(log)).not.toContain("Anna");
   });
 
   it("räknar stationens klocka i tävlingens tidszon", () => {

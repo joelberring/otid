@@ -43,6 +43,7 @@ label { display: grid; gap: 4px; margin-bottom: 12px; }
 .recent ol { list-style: none; margin: 0; padding: 0; }
 .recent li { display: grid; grid-template-columns: 7rem 1fr 9rem 9rem; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
 .recent .card { font-variant-numeric: tabular-nums; font-weight: 600; }
+.rawlog p { color: var(--muted); font-size: 0.9rem; }
 .links { display: flex; gap: 24px; }
 a { color: inherit; }
 @media (max-width: 600px) {

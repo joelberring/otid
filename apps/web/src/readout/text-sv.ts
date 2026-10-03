@@ -72,5 +72,7 @@ export const readoutText = {
   manage: "Hantera tävling",
   results: "Resultat",
   syncFailed: (status: number) => `Servern svarade ${status}. Kön ligger kvar och skickas igen.`,
+  rawLog: "Ladda ner rålogg",
+  rawLogHelp: "All trafik med stationen sedan sidan öppnades och råramarna för loppets avläsningar, utan namn. Skicka filen till utvecklaren om en station eller bricka beter sig fel.",
   storageNotPersistent: "Webbläsaren har inte lovat att spara kön beständigt. Töm inte webbläsardata under tävlingen."
 } as const;

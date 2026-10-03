@@ -8,6 +8,7 @@ import { exerciseCard, exerciseRunners, type ExerciseVariant } from "./exercise"
 import { FakeStationTransport } from "./fake-transport";
 import { buildReadoutPayload, payloadHash } from "./payload";
 import { StationController, type StationStatus } from "./station";
+import { TrafficLog } from "./rawlog";
 import { IdbReadoutStore, type QueuedReadout, type ReadoutStore } from "./store";
 import { syncPending } from "./sync";
 import { readoutText as t } from "./text-sv";
@@ -61,6 +62,7 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
   const controllerRef = useRef<StationController | undefined>(undefined);
   const exerciseRef = useRef<FakeStationTransport | undefined>(undefined);
   const syncing = useRef(false);
+  const trafficRef = useRef(new TrafficLog());
 
   const reload = useCallback(async () => {
     if (raceId) setItems(await storeRef.current.list(raceId));
@@ -153,8 +155,20 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
         setCurrent({ phase: "failed", message: error instanceof Error ? error.message : String(error) }));
     },
     onReadFailed: (cardNumber: number) => setCurrent({ phase: "failed", message: t.readFailed(cardNumber) }),
-    onUnsupportedCard: (cardNumber: number) => setCurrent({ phase: "failed", message: t.unsupported(cardNumber) })
+    onUnsupportedCard: (cardNumber: number) => setCurrent({ phase: "failed", message: t.unsupported(cardNumber) }),
+    onTraffic: (direction: "in" | "out", bytes: Uint8Array) => trafficRef.current.add(direction, bytes)
   };
+
+  function downloadRawLog() {
+    if (!raceId) return;
+    const text = trafficRef.current.export(raceId, items, navigator.userAgent);
+    const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+    try {
+      const anchor = document.createElement("a");
+      anchor.href = url; anchor.download = `otid-ralogg-${new Date().toISOString().replaceAll(":", "")}.json`;
+      document.body.append(anchor); anchor.click(); anchor.remove();
+    } finally { URL.revokeObjectURL(url); }
+  }
 
   async function connectSerial() {
     const serial = (navigator as SerialNavigator).serial;
@@ -259,6 +273,11 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
       {recent.length === 0 ? <p>{t.none}</p> : <ol data-testid="recent-readouts">
         {recent.map((item) => <RecentRow key={item.localSequence} item={item} pkg={pkg} />)}
       </ol>}
+    </section>
+
+    <section className="rawlog">
+      <button type="button" onClick={downloadRawLog}>{t.rawLog}</button>
+      <p>{t.rawLogHelp}</p>
     </section>
 
     <nav className="links">

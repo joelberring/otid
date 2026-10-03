@@ -37,6 +37,11 @@ en post ändrar bara status när servern kvitterat den. Utgången adminsession
 förnyas med kontoinloggningen. Knappen "Starta övningsstation" kör
 `FakeSiStation` genom samma protokollkod, för övning och tester.
 
+**Rålogg:** knappen "Ladda ner rålogg" på avläsningssidan ger en JSON-fil med
+all trafik till och från stationen sedan sidan öppnades (tid, riktning, hex)
+och råramarna för loppets avläsningar. Filen innehåller bricknummer men inga
+namn. Den används i steg 7 för att rätta avvikelser och blir testfixtures.
+
 ## Inställning av stationen
 
 Ställ in med SPORTident Config+: läge *Readout*, *Extended protocol* på,

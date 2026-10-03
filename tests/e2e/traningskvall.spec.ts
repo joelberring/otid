@@ -77,6 +77,14 @@ test("träningskväll från tävling till IOF-export", async ({ browser, request
   await owner.context().setOffline(false);
   await expect(owner.getByTestId("queue-status")).toHaveText("0 väntar", { timeout: 30_000 });
 
+  // Råloggen för felsökning med riktig station: trafik och råramar, utan namn.
+  const [rawLog] = await Promise.all([owner.waitForEvent("download"), owner.getByRole("button", { name: "Ladda ner rålogg" }).click()]);
+  const log = JSON.parse(await readFile(await rawLog.path(), "utf8")) as { traffic: unknown[]; readouts: { frames: string[] }[] };
+  expect(log.readouts).toHaveLength(8);
+  expect(log.readouts.every((readout) => readout.frames.length > 0)).toBe(true);
+  expect(log.traffic.length).toBeGreaterThan(0);
+  expect(JSON.stringify(log)).not.toContain("Ek");
+
   // De två okända brickorna direktanmäls i Hantera tävling.
   await owner.goto(`/admin/${raceId}/manage`);
   await owner.getByRole("button", { name: "Under tävlingen", exact: true }).first().click();

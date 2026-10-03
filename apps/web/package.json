@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "pnpm build:shells && next dev --hostname 127.0.0.1",
+    "dev": "pnpm build:shells && node scripts/dev.mjs",
     "build:shells": "node scripts/build-shells.mjs",
     "lint": "eslint src next.config.ts scripts",
     "typecheck": "tsc --noEmit",

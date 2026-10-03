@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
     "build": "tsc -p tsconfig.build.json",
-    "migrate": "tsx src/migrate.ts"
+    "migrate": "tsx --env-file-if-exists=../../.env src/migrate.ts"
   },
   "dependencies": {
     "@o-tid/domain": "workspace:*",

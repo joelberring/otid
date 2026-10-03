@@ -36,11 +36,33 @@ function fail(message: string): never {
   throw new Error(message);
 }
 
+/** Databasen i Docker kan behöva en stund vid första starten (särskilt emulerad på Mac). */
+async function waitForDatabase(pool: { query(text: string): Promise<unknown> }): Promise<void> {
+  const deadline = Date.now() + 120_000;
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      await pool.query("select 1");
+      return;
+    } catch (error) {
+      if (Date.now() > deadline) throw new Error(`Databasen svarar inte: ${describe(error)}. Kör "docker compose ps" och kontrollera att postgres är igång.`);
+      if (attempt === 1) process.stdout.write("Väntar på databasen …\n");
+      await new Promise((resolve) => setTimeout(resolve, 2_000));
+    }
+  }
+}
+
+function describe(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  const cause = error.cause instanceof Error ? `: ${error.cause.message}` : "";
+  return `${error.message}${cause}`;
+}
+
 async function main(): Promise<void> {
   const url = process.env.DATABASE_URL ?? fail("Sätt DATABASE_URL till den lokala databasen (se .env.example).");
   if (process.env.NODE_ENV === "production") fail("pnpm demo körs inte i produktion.");
   const { db, pool } = createDatabase(url);
   try {
+    await waitForDatabase(pool);
     await migrate(db, { migrationsFolder: new URL("../packages/database/migrations", import.meta.url).pathname });
 
     const registered = await registerUserAccount(db, { formatVersion: 1, loginName: LOGIN, displayName: "Demoarrangör", password: PASSWORD });
@@ -126,6 +148,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+  process.stderr.write(`${describe(error)}\n`);
   process.exitCode = 1;
 });

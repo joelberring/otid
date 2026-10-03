@@ -12,12 +12,11 @@ i webbläsaren.
 Kräver Docker Desktop och Node.js 22 eller senare.
 
 ```bash
+cp .env.example .env       # en gång; pnpm dev, pnpm demo och pnpm db:migrate läser den
 docker compose up -d postgres
 corepack enable            # på Mac ofta: sudo corepack enable
 pnpm install
-export DATABASE_URL=postgresql://otid:otid@localhost:5432/otid
-export O_TID_PUBLIC_ORIGIN=http://127.0.0.1:3000
-pnpm db:migrate
+pnpm demo                  # skapar databastabellerna och en demotävling
 pnpm dev
 ```
 
@@ -28,7 +27,7 @@ pnpm dev
 ## Prova på fem minuter
 
 ```bash
-pnpm demo   # efter pnpm db:migrate eller direkt; använder DATABASE_URL
+pnpm demo   # läser .env (se ovan)
 pnpm dev
 ```
 

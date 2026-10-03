@@ -12,7 +12,7 @@
     "test:e2e": "playwright test",
     "build": "pnpm -r build",
     "db:migrate": "pnpm --filter @o-tid/database migrate",
-    "demo": "tsx scripts/demo.ts",
+    "demo": "tsx --env-file-if-exists=.env scripts/demo.ts",
     "station:credential:issue": "tsx scripts/station-credential.ts issue",
     "station:credential:rotate": "tsx scripts/station-credential.ts rotate",
     "station:credential:revoke": "tsx scripts/station-credential.ts revoke",

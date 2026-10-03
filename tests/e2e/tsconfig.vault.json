@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.forest-watch.json",
+  "files": ["./task-006w-vault.spec.ts", "./fixtures/checkin-vault-browser.ts", "./playwright.vault.config.ts", "../../apps/web/next-env.d.ts"],
+  "include": []
+}

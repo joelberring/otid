@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="sv">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#f4f4ed" />
+    <title></title>
+    <link rel="stylesheet" href="app.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="page-header">
+        <p id="eyebrow" class="eyebrow"></p>
+        <h1 id="page-title"></h1>
+        <p id="lead" class="lead"></p>
+      </header>
+
+      <section id="state-card" class="state-card" aria-live="polite" aria-atomic="true" data-tone="neutral">
+        <p id="state-label" class="state-label"></p>
+        <h2 id="state-title"></h2>
+        <p id="state-detail"></p>
+      </section>
+
+      <section id="facts" class="facts" aria-label="">
+        <div><span id="point-label"></span><strong id="point-count">–</strong></div>
+        <div><span id="last-fix-label"></span><strong id="last-fix">–</strong></div>
+        <div><span id="recording-label"></span><strong id="recording-id">–</strong></div>
+        <div><span id="network-label"></span><strong id="network-state">–</strong></div>
+      </section>
+
+      <div class="actions">
+        <button id="start-button" type="button" hidden></button>
+        <button id="resume-button" type="button" hidden></button>
+        <button id="stop-button" type="button" class="danger" hidden></button>
+        <button id="refresh-button" type="button" class="secondary"></button>
+      </div>
+
+      <p id="operation-message" class="operation-message" role="status" aria-live="polite"></p>
+      <aside class="privacy-note">
+        <strong id="privacy-title"></strong> <span id="privacy-detail"></span>
+      </aside>
+      <footer id="footer"></footer>
+    </main>
+    <script src="app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.forest-watch.json",
+  "files": ["./task-022-participant-navigation.spec.ts", "./playwright.participant-navigation.config.ts", "../../apps/web/next-env.d.ts"],
+  "include": []
+}

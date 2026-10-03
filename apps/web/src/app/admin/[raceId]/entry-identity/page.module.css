@@ -1,0 +1,188 @@
+@media screen {
+  :global(body):has(> .page) {
+    --identity-ink: #272c2a;
+    --identity-muted: #606a65;
+    --identity-border: #d9ddda;
+    background: #f7f7f6;
+    color: var(--identity-ink);
+  }
+
+  :global(body):has(> .page) > :global(header) {
+    padding-block: .55rem;
+    border-bottom: 1px solid var(--identity-border);
+    background: #f7f7f6;
+    color: var(--identity-ink);
+    font-size: .92rem;
+  }
+
+  :global(body):has(> .page) > :global(header) a { color: inherit; font-weight: 650; }
+
+  .page {
+    width: min(100%, 1180px);
+    max-width: 1180px;
+    min-width: 0;
+    gap: .45rem;
+    padding-block: .8rem 2rem;
+    font-size: .91rem;
+  }
+
+  .page > nav a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    color: #303942;
+    font-weight: 650;
+    text-underline-offset: .16em;
+  }
+
+  .page > h1 { margin: -.25rem 0 .1rem; font-size: 1.55rem; line-height: 1.2; }
+
+  .page :global(.entry-identity-admin) { min-width: 0; gap: .55rem; }
+  .page :global(.entry-identity-admin) :is(button, input, select) {
+    min-width: 0;
+    min-height: 52px;
+    border-radius: 5px;
+    font-size: .9rem;
+  }
+  .page :global(.entry-identity-admin) :is(input, select) {
+    border: 1px solid #aeb7b1;
+    background: #fff;
+    color: var(--identity-ink);
+  }
+  .page :global(.entry-identity-admin) button {
+    justify-self: start;
+    padding: .5rem .75rem;
+    border: 1px solid #3e4852;
+    background: #3e4852;
+    color: #fff;
+    font-weight: 650;
+  }
+  .page :global(.entry-identity-admin) :global(button.secondary) {
+    border-color: #aeb7b1;
+    background: #fff;
+    color: #303942;
+  }
+  .page :global(.entry-identity-admin) button:disabled { opacity: .6; cursor: default; }
+  .page :global(.entry-identity-admin) :is(button, input, select):focus-visible,
+  .page > nav a:focus-visible { outline: 3px solid #2368a2; outline-offset: 2px; }
+  .page :global(.entry-identity-admin) label { min-width: 0; gap: .22rem; font-size: .87rem; font-weight: 650; }
+  .page :global(.entry-identity-admin) :global(.panel) {
+    min-width: 0;
+    padding: .65rem 0;
+    border: 0;
+    border-top: 1px solid var(--identity-border);
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  .page :global(.entry-identity-admin) :global(.panel.stack) { gap: .55rem; }
+  .page :global(.entry-identity-warning) {
+    padding: .25rem 0 .4rem;
+    color: var(--identity-muted);
+    font-size: .86rem;
+  }
+  .page :global(.entry-identity-admin) > [role="status"]:empty { display: none; }
+  .page :global(.entry-identity-admin) > [role="status"]:not(:empty) {
+    padding: .4rem .6rem;
+    border-left: 3px solid var(--identity-border);
+    background: #eef0ee;
+  }
+  .page :global(.entry-identity-admin) > [role="status"][data-tone="uncertain"] {
+    border-left-color: #aa6a12;
+    background: #fff8e9;
+    color: #67420c;
+  }
+  .page :global(.entry-identity-admin) > [role="status"][data-tone="error"] {
+    border-left-color: #a43630;
+    background: #fff3f1;
+    color: #852b25;
+  }
+  .page :global(.entry-identity-login) { max-width: 31rem; }
+  .page :global(.entry-identity-session) { justify-content: flex-end; gap: .45rem; }
+  .page :global(.entry-identity-selection) {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    align-items: end;
+    gap: .7rem;
+    min-width: 0;
+  }
+  .page :global(.entry-identity-search) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: .45rem;
+    min-width: 0;
+  }
+  .page :global(.entry-identity-meta),
+  .page :global(.entry-identity-help),
+  .page :global(.entry-identity-history-help) { color: var(--identity-muted); font-size: .82rem; }
+  .page :global(.entry-identity-help) { padding-bottom: .1rem; }
+  .page :global(.entry-identity-fields) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .65rem;
+    padding-top: .55rem;
+    border-top: 1px solid var(--identity-border);
+  }
+  .page :global(.entry-identity-form) > button { margin-top: .1rem; }
+  .page :global(.entry-identity-linked) {
+    display: grid;
+    justify-items: start;
+    gap: .25rem;
+    padding: .45rem .65rem;
+    border-left: 3px solid #aeb7b1;
+    background: #eef0ee;
+  }
+  .page :global(.entry-identity-admin) :global(.entry-identity-review) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: .65rem .75rem;
+    border: 1px solid var(--identity-border);
+    border-left: 3px solid #69747b;
+    background: #f1f2f2;
+  }
+  .page :global(.entry-identity-review) > h2,
+  .page :global(.entry-identity-review) > :global(.entry-identity-unknown) { grid-column: 1 / -1; }
+  .page :global(.entry-identity-before) { grid-column: 1; }
+  .page :global(.entry-identity-after) { grid-column: 2; }
+  .page :global(.entry-identity-admin) :global(.entry-identity-review)[data-tone="uncertain"] {
+    border-left-color: #aa6a12;
+    background: #fff8e9;
+    color: #67420c;
+  }
+  .page :global(.entry-identity-admin) :global(.entry-identity-history) { gap: .45rem; }
+  .page :global(.entry-identity-history) article {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .15rem .8rem;
+    min-width: 0;
+    padding: .5rem 0;
+    border-top: 1px solid var(--identity-border);
+  }
+  .page :global(.entry-identity-history) article p:first-child {
+    grid-column: 1 / -1;
+    color: var(--identity-muted);
+    font-size: .82rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .page :global(.entry-identity-history-error) {
+    padding: .4rem .6rem;
+    border-left: 3px solid #a43630;
+    background: #fff3f1;
+    color: #852b25;
+  }
+}
+
+@media screen and (min-width: 701px) and (pointer: fine) {
+  .page :global(.entry-identity-admin) :is(button, input, select) { min-height: 40px; }
+}
+
+@media screen and (max-width: 700px) {
+  .page { padding-inline: .75rem; }
+  .page :global(.entry-identity-session) { justify-content: flex-start; }
+  .page :global(.entry-identity-selection),
+  .page :global(.entry-identity-fields),
+  .page :global(.entry-identity-history) article { grid-template-columns: minmax(0, 1fr); }
+  .page :global(.entry-identity-history) article p:first-child { grid-column: 1; }
+  .page :global(.entry-identity-admin) :global(.entry-identity-review) { grid-template-columns: minmax(0, 1fr); }
+  .page :global(.entry-identity-review) > :is(h2, p) { grid-column: 1; }
+  .page :global(.entry-identity-review) button { max-width: 100%; overflow-wrap: anywhere; }
+}

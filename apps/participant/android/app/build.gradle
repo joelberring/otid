@@ -1,0 +1,45 @@
+apply plugin: 'com.android.application'
+apply plugin: 'org.jetbrains.kotlin.android'
+
+android {
+    namespace = 'se.otid.participant'
+    compileSdk = rootProject.ext.compileSdkVersion
+
+    defaultConfig {
+        applicationId 'se.otid.participant'
+        minSdk = rootProject.ext.minSdkVersion
+        targetSdk = rootProject.ext.targetSdkVersion
+        versionCode 1
+        versionName '0.1.0'
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
+    }
+
+    kotlinOptions {
+        jvmTarget = '21'
+        freeCompilerArgs += ['-Xjsr305=strict']
+    }
+
+    testOptions {
+        unitTests.returnDefaultValues = false
+    }
+
+    lint {
+        abortOnError true
+    }
+}
+
+dependencies {
+    implementation project(':capacitor-android')
+    implementation "androidx.core:core:$androidxCoreVersion"
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+
+    testImplementation "junit:junit:$junitVersion"
+    testImplementation "org.jetbrains.kotlin:kotlin-test-junit:$kotlinVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+}

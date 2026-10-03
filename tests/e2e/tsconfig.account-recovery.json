@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.forest-watch.json",
+  "compilerOptions": {
+    "paths": {
+      "@o-tid/application": ["../../packages/application/src/index.ts"],
+      "@o-tid/database": ["../../packages/database/src/index.ts"],
+      "@o-tid/contracts": ["../../packages/contracts/src/index.ts"],
+      "drizzle-orm": ["../../packages/database/node_modules/drizzle-orm"],
+      "drizzle-orm/*": ["../../packages/database/node_modules/drizzle-orm/*"]
+    }
+  },
+  "files": [
+    "./task-161-account-recovery.spec.ts",
+    "./playwright.account-recovery.config.ts",
+    "../../apps/web/next-env.d.ts"
+  ],
+  "include": []
+}

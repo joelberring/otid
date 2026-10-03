@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<EntryList xmlns="http://www.orienteering.org/datastandard/3.0" iofVersion="3.0" createTime="2026-08-30T08:00:00Z" creator="O-Tid fixture">
+  <Event><Name>O-Tid demotävling</Name></Event>
+  <PersonEntry>
+    <Id>entry-ada</Id>
+    <Person><Id>person-ada</Id><Name><Family>Löpare</Family><Given>Ada</Given></Name></Person>
+    <Organisation><Name>Centrum OK</Name></Organisation>
+    <ControlCard punchingSystem="SPORTident">12345</ControlCard>
+    <Class><Id>class-h21</Id><Name>H21</Name></Class>
+  </PersonEntry>
+  <PersonEntry>
+    <Id>entry-bo</Id>
+    <Person><Id>person-bo</Id><Name><Family>Skog</Family><Given>Bo</Given></Name></Person>
+    <Organisation><Name>Centrum OK</Name></Organisation>
+    <ControlCard punchingSystem="SPORTident">67890</ControlCard>
+    <Class><Id>class-h21</Id><Name>H21</Name></Class>
+  </PersonEntry>
+</EntryList>

@@ -1,0 +1,4 @@
+{
+  "extends": "./tsconfig.forest-watch.json",
+  "files": ["task-006w-checkin.spec.ts", "../../apps/web/next-env.d.ts"]
+}

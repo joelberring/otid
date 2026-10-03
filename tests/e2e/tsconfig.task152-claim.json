@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.organizer.json",
+  "files": [
+    "./task-152-participant-claim.spec.ts",
+    "./task-150-organizer-server.ts",
+    "./playwright.task152-claim.config.ts",
+    "../../apps/web/next-env.d.ts"
+  ],
+  "include": []
+}

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<StartList xmlns="http://www.orienteering.org/datastandard/3.0" iofVersion="3.0" creator="O-Tid synthetic demo fixture">
+  <Event><Name>O-Tid syntetisk demonstration</Name></Event>
+  <ClassStart>
+    <Class><Id>class-d21</Id><Name>D21</Name></Class>
+    <PersonStart>
+      <EntryId>demo-entry-bo</EntryId>
+      <Start><StartTime>2026-09-19T10:00:00+02:00</StartTime></Start>
+    </PersonStart>
+  </ClassStart>
+</StartList>

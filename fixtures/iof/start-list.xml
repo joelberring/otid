@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<StartList xmlns="http://www.orienteering.org/datastandard/3.0" iofVersion="3.0" creator="O-Tid fixture">
+  <Event>
+    <Name>O-Tid testtävling</Name>
+  </Event>
+  <ClassStart>
+    <Class>
+      <Id>class-h21</Id>
+      <Name>H21</Name>
+    </Class>
+    <PersonStart>
+      <EntryId>entry-ada</EntryId>
+      <Start>
+        <BibNumber>101</BibNumber>
+        <StartTime>2026-08-31T10:00:00+02:00</StartTime>
+      </Start>
+    </PersonStart>
+    <PersonStart>
+      <EntryId>entry-bo</EntryId>
+      <Start raceNumber="1">
+        <BibNumber>102</BibNumber>
+        <StartTime>2026-08-31T08:03:00Z</StartTime>
+      </Start>
+    </PersonStart>
+  </ClassStart>
+</StartList>

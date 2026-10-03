@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.task152-claim.json",
+  "files": [
+    "./task-154-private-route.spec.ts",
+    "./task-150-organizer-server.ts",
+    "./playwright.task154-private-route.config.ts",
+    "../../apps/web/next-env.d.ts"
+  ],
+  "include": []
+}

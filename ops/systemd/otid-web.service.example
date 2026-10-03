@@ -1,0 +1,43 @@
+# Example only: do not install/enable before TASK180 Linux acceptance.
+[Unit]
+Description=O-Tid controlled web writer (unverified example)
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=exec
+User=otid-writer
+Group=otid-writer
+WorkingDirectory=/opt/o-tid/apps/web/.next/standalone/apps/web
+Environment=NODE_ENV=production
+Environment=HOSTNAME=127.0.0.1
+Environment=PORT=3000
+Environment=PATH=/usr/bin:/bin
+Environment=OTID_WRITER_STOP_PROFILE=systemd-v1
+Environment=OTID_WRITER_STOP_FILE=/var/lib/o-tid/controller/closed
+# This file may contain only non-secret store IDs/endpoints/buckets and origin.
+EnvironmentFile=/etc/o-tid/writer-config
+LoadCredential=database-url:/etc/o-tid/writer-credentials/database-url
+LoadCredential=map-store-access-key:/etc/o-tid/writer-credentials/map-store-access-key
+LoadCredential=map-store-secret-key:/etc/o-tid/writer-credentials/map-store-secret-key
+LoadCredential=route-store-access-key:/etc/o-tid/writer-credentials/route-store-access-key
+LoadCredential=route-store-secret-key:/etc/o-tid/writer-credentials/route-store-secret-key
+LoadCredential=eventor-master-key-id:/etc/o-tid/writer-credentials/eventor-master-key-id
+LoadCredential=eventor-master-key-base64:/etc/o-tid/writer-credentials/eventor-master-key-base64
+LoadCredential=package-signing-private-key-pem:/etc/o-tid/writer-credentials/package-signing-private-key-pem
+ExecStart=/bin/sh /opt/o-tid/ops/systemd/writer-start.sh /usr/bin/node /opt/o-tid/apps/web/.next/standalone/apps/web/server.js
+Restart=on-failure
+RestartPreventExitStatus=78
+RestartSec=2s
+KillMode=control-group
+TimeoutStopSec=300s
+UMask=0077
+NoNewPrivileges=true
+ProtectHome=true
+PrivateMounts=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.forest-watch.json",
+  "files": [
+    "./task-107-online-public-result.spec.ts",
+    "./playwright.online-public-result.config.ts",
+    "../../apps/web/next-env.d.ts"
+  ],
+  "include": []
+}

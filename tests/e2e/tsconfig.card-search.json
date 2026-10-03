@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.forest-watch.json",
+  "files": ["./task-018-card-search.spec.ts", "./task-249-identity-visual.spec.ts", "./task-250-registration-visual.spec.ts", "./playwright.card-search.config.ts", "../../apps/web/next-env.d.ts"],
+  "include": []
+}

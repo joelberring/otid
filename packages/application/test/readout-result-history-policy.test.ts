@@ -1,0 +1,43 @@
+import { describe, expect, it, vi } from "vitest";
+import type { Database } from "@o-tid/database";
+import { issuePairingAdminAccessCredential } from "../src/pairing-admin";
+
+const raceId = "10000000-0000-4000-8000-000000000001";
+const credentialId = "20000000-0000-4000-8000-000000000002";
+const now = new Date("2026-08-31T10:00:00.000Z");
+
+function policyDatabase(inserted: unknown[]): Database {
+  const tx = {
+    select: () => ({ from: () => ({ where: async () => [{ id: raceId }] }) }),
+    insert: () => ({ values: async (value: unknown) => { inserted.push(value); } })
+  };
+  return { transaction: async (callback: (value: typeof tx) => Promise<unknown>) => callback(tx) } as unknown as Database;
+}
+
+describe("TASK 005N historikpolicy", () => {
+  it("utfärdar separat prefix, åtta timmar och secretfri audit", async () => {
+    const inserted: unknown[] = [];
+    const result = await issuePairingAdminAccessCredential(policyDatabase(inserted), {
+      raceId, capability: "VIEW_READOUT_RESULT_HISTORY", label: "Målhistorik",
+      expiresAt: new Date("2026-08-31T18:00:00.000Z")
+    }, { now, id: credentialId, secretBytes: Buffer.alloc(32, 9) });
+    expect(result.accessCredential).toMatch(/^otid_org_readout_result_history_v1\.[0-9a-f-]{36}\.[A-Za-z0-9_-]{43}$/);
+    expect(result.capability).toBe("VIEW_READOUT_RESULT_HISTORY");
+    expect(inserted[1]).toEqual({
+      raceId, entityType: "readout_result_history_access_credential", entityId: credentialId,
+      action: "READOUT_RESULT_HISTORY_ACCESS_CREDENTIAL_ISSUED",
+      after: { capability: "VIEW_READOUT_RESULT_HISTORY", label: "Målhistorik",
+        issuedAt: "2026-08-31T10:00:00.000Z", expiresAt: "2026-08-31T18:00:00.000Z" }
+    });
+    expect(JSON.stringify(inserted[1])).not.toMatch(/secret|hash/i);
+  });
+
+  it("avvisar mer än åtta timmar före databas", async () => {
+    const transaction = vi.fn();
+    await expect(issuePairingAdminAccessCredential({ transaction } as unknown as Database, {
+      raceId, capability: "VIEW_READOUT_RESULT_HISTORY", label: "För lång",
+      expiresAt: new Date("2026-08-31T18:00:00.001Z")
+    }, { now })).rejects.toThrow("Credentialen måste gälla högst 8 timmar");
+    expect(transaction).not.toHaveBeenCalled();
+  });
+});

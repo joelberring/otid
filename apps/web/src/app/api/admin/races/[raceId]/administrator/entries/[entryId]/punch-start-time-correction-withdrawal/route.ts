@@ -1,0 +1,12 @@
+import { db } from "../../../../../../../../../lib/db";
+import { raceAdministratorRoute } from "../../../../../../../../../lib/race-administrator-route-handlers";
+
+export async function GET(request: Request, context: { params: Promise<{ raceId: string; entryId: string; }> }) {
+  const { raceId, entryId } = await context.params;
+  return raceAdministratorRoute(db, request, raceId, { kind: "manual-punch-start-time-correction-withdrawal", entryId });
+}
+
+export async function POST(request: Request, context: { params: Promise<{ raceId: string; entryId: string; }> }) {
+  const { raceId, entryId } = await context.params;
+  return raceAdministratorRoute(db, request, raceId, { kind: "manual-punch-start-time-correction-withdrawal", entryId });
+}

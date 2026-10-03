@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CourseData xmlns="http://www.orienteering.org/datastandard/3.0" iofVersion="3.0" createTime="2026-08-30T08:00:00Z" creator="O-Tid fixture">
+  <Event><Name>O-Tid demotävling</Name></Event>
+  <RaceCourseData>
+    <Control type="Start"><Id>S</Id></Control>
+    <Control><Id>31</Id></Control>
+    <Control><Id>32</Id></Control>
+    <Control><Id>33</Id></Control>
+    <Control><Id>34</Id></Control>
+    <Control type="Finish"><Id>F</Id></Control>
+    <Course>
+      <Id>course-short</Id><Name>Korta</Name>
+      <CourseControl type="Start"><Control>S</Control></CourseControl>
+      <CourseControl type="Control"><Control>31</Control></CourseControl>
+      <CourseControl type="Control"><Control>32</Control></CourseControl>
+      <CourseControl type="Control"><Control>33</Control></CourseControl>
+      <CourseControl type="Finish"><Control>F</Control></CourseControl>
+    </Course>
+    <Course>
+      <Id>course-alternative</Id><Name>Alternativa</Name>
+      <CourseControl type="Start"><Control>S</Control></CourseControl>
+      <CourseControl type="Control"><Control>31</Control></CourseControl>
+      <CourseControl type="Control"><Control>34</Control></CourseControl>
+      <CourseControl type="Finish"><Control>F</Control></CourseControl>
+    </Course>
+    <ClassCourseAssignment><ClassId>class-h21</ClassId><ClassName>H21</ClassName><CourseName>Korta</CourseName></ClassCourseAssignment>
+    <ClassCourseAssignment><ClassId>class-d21</ClassId><ClassName>D21</ClassName><CourseName>Alternativa</CourseName></ClassCourseAssignment>
+  </RaceCourseData>
+</CourseData>

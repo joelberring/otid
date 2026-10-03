@@ -1,0 +1,28 @@
+{
+  "name": "@o-tid/station",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "eslint capacitor.config.ts src ui test",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build:types": "tsc -p tsconfig.build.json",
+    "build:web": "esbuild ui/main.ts --bundle --minify --format=iife --platform=browser --target=chrome88 --outfile=www/app.js && cap copy android",
+    "build": "pnpm build:types && pnpm build:web",
+    "android:test": "./android/gradlew -p android :otid-usb-serial:testDebugUnitTest :otid-station-store:testDebugUnitTest",
+    "android:lint": "./android/gradlew -p android :otid-usb-serial:lintDebug :otid-station-store:lintDebug",
+    "android:assemble": "pnpm build:web && ./android/gradlew -p android :app:assembleDebug :app:assembleDebugAndroidTest :otid-station-store:assembleDebugAndroidTest"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.5.0",
+    "@capacitor/core": "8.5.0",
+    "@o-tid/contracts": "workspace:*",
+    "@o-tid/device-transport": "workspace:*",
+    "@o-tid/domain": "workspace:*"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.0",
+    "esbuild": "0.25.12"
+  }
+}

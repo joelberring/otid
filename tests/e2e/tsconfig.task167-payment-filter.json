@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.forest-watch.json",
+  "files": [
+    "./task-167-payment-filter.spec.ts",
+    "./task-225-after-actions.spec.ts",
+    "./task-227-class-finder.spec.ts",
+    "./task-246-import-profile.spec.ts",
+    "./playwright.task167-payment-filter.config.ts",
+    "../../apps/web/next-env.d.ts"
+  ],
+  "include": []
+}

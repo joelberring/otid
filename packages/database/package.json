@@ -1,0 +1,23 @@
+{
+  "name": "@o-tid/database",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts", "./schema": "./src/schema.ts" },
+  "scripts": {
+    "lint": "eslint src test",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "build": "tsc -p tsconfig.build.json",
+    "migrate": "tsx src/migrate.ts"
+  },
+  "dependencies": {
+    "@o-tid/domain": "workspace:*",
+    "drizzle-orm": "0.44.5",
+    "pg": "8.16.3"
+  },
+  "devDependencies": {
+    "@types/pg": "8.15.5",
+    "tsx": "4.20.5"
+  }
+}

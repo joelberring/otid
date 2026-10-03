@@ -1,0 +1,22 @@
+{
+  "name": "@o-tid/si-tools",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "ports": "tsx src/cli.ts ports",
+    "capture": "tsx src/cli.ts capture",
+    "replay": "tsx src/cli.ts replay",
+    "lint": "eslint src test",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@o-tid/device-transport": "workspace:*",
+    "serialport": "13.0.0"
+  },
+  "devDependencies": {
+    "tsx": "4.20.5"
+  }
+}

@@ -1,0 +1,231 @@
+@media screen {
+  :global(body):has(> .page) {
+    background: #f7f7f6;
+    color: #272c2a;
+  }
+
+  :global(body):has(> .page) > :global(header) {
+    padding-block: .55rem;
+    border-bottom: 1px solid #d9ddda;
+    background: #f7f7f6;
+    color: #272c2a;
+    font-size: .92rem;
+  }
+
+  :global(body):has(> .page) > :global(header) a {
+    color: inherit;
+    font-weight: 650;
+  }
+
+  .page {
+    min-width: 0;
+    max-width: 1180px;
+    gap: .45rem;
+    padding-block: .8rem 2rem;
+    font-size: .91rem;
+  }
+
+  .page > nav a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    color: #303942;
+    font-weight: 650;
+    text-underline-offset: .16em;
+  }
+
+  .page > h1 {
+    margin: -.25rem 0 .1rem;
+    font-size: 1.55rem;
+    line-height: 1.2;
+  }
+
+  .page :global(.entry-card-admin) {
+    min-width: 0;
+    gap: .55rem;
+  }
+
+  .page :global(.entry-card-intro) { color: #505b56; }
+
+  .page :global(.entry-card-warning) {
+    padding: .45rem .65rem;
+    border-left: 3px solid #aeb7b1;
+    background: #eef0ee;
+    font-size: .87rem;
+  }
+
+  .page :global(.entry-card-admin) :is(button, input, select) {
+    min-width: 0;
+    min-height: 52px;
+    font-size: .9rem;
+  }
+
+  .page :global(.entry-card-admin) button {
+    justify-self: start;
+    padding: .5rem .75rem;
+    border: 1px solid #3e4852;
+    border-radius: 5px;
+    background: #3e4852;
+    color: #fff;
+    font-weight: 650;
+  }
+
+  .page :global(.entry-card-admin) :global(button.secondary) {
+    border-color: #aeb7b1;
+    background: #fff;
+    color: #303942;
+  }
+
+  .page :global(.entry-card-admin) button:disabled { opacity: .6; cursor: default; }
+
+  .page :global(.entry-card-admin) :is(input, select) {
+    border: 1px solid #aeb7b1;
+    border-radius: 5px;
+    background: #fff;
+  }
+
+  .page :global(.entry-card-admin) label {
+    min-width: 0;
+    gap: .22rem;
+    font-size: .87rem;
+    font-weight: 650;
+  }
+
+  .page :global(.entry-card-admin) a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    color: #303942;
+    font-weight: 650;
+    text-underline-offset: .16em;
+  }
+
+  .page :global(.entry-card-admin) :global(.panel) {
+    min-width: 0;
+    padding: .65rem 0;
+    border: 0;
+    border-top: 1px solid #d9ddda;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .page :global(.entry-card-admin) :global(.panel.stack) { gap: .55rem; }
+
+  .page :global(.entry-card-toolbar) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+  }
+
+  .page :global(.entry-card-admin) :global(.entry-card-linked) {
+    display: grid;
+    gap: .2rem;
+    padding: .45rem .6rem;
+    border-left: 3px solid #aeb7b1;
+    background: #eef0ee;
+  }
+
+  .page :global(.entry-card-metadata),
+  .page :global(.entry-card-count),
+  .page :global(.entry-card-search-help) {
+    color: #606a65;
+    font-size: .82rem;
+  }
+
+  .page :global(.entry-card-form) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .45rem .85rem;
+    min-width: 0;
+  }
+
+  .page :global(.entry-card-form) > :global(.entry-card-linked),
+  .page :global(.entry-card-form) > :global(.entry-card-metadata),
+  .page :global(.entry-card-form) > :global(.entry-card-current),
+  .page :global(.entry-card-form) > :global(.entry-card-blocked),
+  .page :global(.entry-card-form) > p:not([class]) { grid-column: 1 / -1; }
+
+  .page :global(.entry-card-search) { grid-column: 1; gap: .4rem; }
+  .page :global(.entry-card-entry) { grid-column: 2; }
+  .page :global(.entry-card-search-help) { grid-column: 1; }
+  .page :global(.entry-card-count) { grid-column: 2; }
+
+  .page :global(.entry-card-current) {
+    padding-top: .45rem;
+    border-top: 1px solid #d9ddda;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .page :global(.entry-card-new) { grid-column: 1; }
+  .page :global(.entry-card-form) > button { grid-column: 2; align-self: end; }
+
+  .page :global(.entry-card-blocked) {
+    padding: .45rem .65rem;
+    border-left: 3px solid #a43630;
+    background: #fff3f1;
+    color: #852b25;
+    font-weight: 650;
+  }
+
+  .page :global(.entry-card-admin) :global(.entry-card-attempt) {
+    gap: .35rem;
+    padding: .65rem .75rem;
+    border: 1px solid #d9ddda;
+    border-left: 4px solid #69747b;
+    background: #f1f2f2;
+  }
+
+  .page :global(.entry-card-admin) :global(.entry-card-attempt)[data-unknown="true"] {
+    border-left-color: #aa6a12;
+    background: #fff8e9;
+  }
+
+  .page :global(.entry-card-attempt) h2 { font-size: 1rem; line-height: 1.35; }
+
+  .page :global(.entry-card-saved) {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .25rem 1rem;
+    padding-top: .55rem;
+    border-top: 1px solid #d9ddda;
+  }
+
+  .page :global(.entry-card-saved) p { margin: 0; font-weight: 650; }
+  .page :global(.entry-card-admin) > [role="status"]:empty { display: none; }
+
+  .page :global(.entry-card-admin) > [role="status"]:not(:empty) {
+    padding: .4rem .6rem;
+    border-left: 3px solid #b4bcb7;
+    background: #eef0ee;
+  }
+
+  .page :global(.entry-card-admin) > [role="status"][data-tone="uncertain"] {
+    border-left-color: #aa6a12;
+    background: #fff8e9;
+    color: #67420c;
+  }
+
+  .page :global(.entry-card-admin) > [role="status"][data-tone="error"] {
+    border-left-color: #a43630;
+    background: #fff3f1;
+    color: #852b25;
+  }
+}
+
+@media screen and (min-width: 701px) and (pointer: fine) {
+  .page :global(.entry-card-admin) :is(button, input, select) { min-height: 44px; }
+}
+
+@media screen and (max-width: 700px) {
+  .page { padding-inline: .75rem; }
+  .page :global(.entry-card-form) { grid-template-columns: minmax(0, 1fr); }
+  .page :global(.entry-card-form) > :global(.entry-card-search),
+  .page :global(.entry-card-form) > :global(.entry-card-entry),
+  .page :global(.entry-card-form) > :global(.entry-card-search-help),
+  .page :global(.entry-card-form) > :global(.entry-card-count),
+  .page :global(.entry-card-form) > :global(.entry-card-new),
+  .page :global(.entry-card-form) > button { grid-column: 1; }
+  .page :global(.entry-card-search) { grid-template-columns: minmax(0, 1fr); }
+}

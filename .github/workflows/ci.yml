@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:17-3.6
+        env:
+          POSTGRES_USER: otid
+          POSTGRES_PASSWORD: otid
+          POSTGRES_DB: otid_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U otid -d otid_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://otid:otid@localhost:5432/otid_test
+      TEST_DATABASE_URL: postgresql://otid:otid@localhost:5432/otid_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:migrate
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm test:integration
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+      - run: pnpm build
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21.0.12+8'
+          cache: gradle
+      - run: pnpm install --frozen-lockfile
+      - name: Install exact Android SDK packages
+        run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0' 'platform-tools'
+      - name: Verify Android SDK revisions
+        run: |
+          sdkmanager --list_installed > installed-android-sdk.txt
+          grep -E '^  build-tools;35\.0\.0 +\| 35\.0\.0 ' installed-android-sdk.txt
+          grep -E '^  platforms;android-36 +\| 2 ' installed-android-sdk.txt
+          grep -E '^  platform-tools +\| 37\.0\.1 ' installed-android-sdk.txt
+      - name: Verify Gradle wrapper JAR
+        working-directory: apps/station/android
+        run: echo '7d3a4ac4de1c32b59bc6a4eb8ecb8e612ccd0cf1ae1e99f66902da64df296172  gradle/wrapper/gradle-wrapper.jar' | sha256sum --check
+      - name: Native JVM tests
+        working-directory: apps/station/android
+        run: ./gradlew :otid-usb-serial:testDebugUnitTest :otid-station-store:testDebugUnitTest
+      - name: Android lint
+        working-directory: apps/station/android
+        run: ./gradlew :otid-usb-serial:lintDebug :otid-station-store:lintDebug
+      - name: Assemble app and instrumented-test APKs
+        working-directory: apps/station/android
+        run: ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :otid-station-store:assembleDebugAndroidTest

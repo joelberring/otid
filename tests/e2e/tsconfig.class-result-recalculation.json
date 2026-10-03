@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.race-administrator.json",
+  "files": [
+    "./task-091-class-result-recalculation.spec.ts",
+    "./playwright.class-result-recalculation.config.ts",
+    "../../apps/web/next-env.d.ts"
+  ],
+  "include": []
+}

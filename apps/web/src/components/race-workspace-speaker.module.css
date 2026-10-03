@@ -1,0 +1,249 @@
+.surface {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  gap: 0.55rem;
+}
+
+.surface p {
+  margin: 0;
+}
+
+.pageHead,
+.panelHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem 0.8rem;
+}
+
+.pageHead h2,
+.panelHead h3 { margin: 0; }
+
+.networkState,
+.sourceNote,
+.readTime {
+  color: var(--muted, #60676e);
+  font-size: 0.84rem;
+}
+
+.search {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.25rem 0.7rem;
+  max-width: 64rem;
+}
+
+.search label { font-size: 0.85rem; font-weight: 550; }
+.search > p { grid-column: 1 / -1; }
+
+.searchControls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.searchControls input {
+  flex: 1 1 14rem;
+  min-width: 0;
+  min-height: 44px;
+}
+
+.searchControls button { min-height: 44px; }
+
+.searchCount {
+  font-size: 0.84rem;
+  font-weight: 550;
+}
+
+.readWarning { color: var(--workspace-warning, #825300); font-weight: 700; }
+
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 1rem;
+  align-items: start;
+  border-top: 1px solid var(--border);
+}
+
+.singleColumn { grid-template-columns: minmax(0, 1fr); }
+
+.panel {
+  display: grid;
+  align-content: start;
+  gap: 0.4rem;
+  min-width: 0;
+  padding-top: 0.7rem;
+}
+
+.panel + .panel {
+  border-left: 1px solid var(--border);
+  padding-left: 1rem;
+}
+
+.panelHead button {
+  min-height: 44px;
+  padding: 0.35rem 0.6rem;
+}
+
+.raceName {
+  font-weight: 700;
+}
+
+.notice {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--workspace-warning, #825300);
+  border-radius: 0.25rem;
+  padding: 0.55rem 0.7rem;
+  background: var(--workspace-warning-background, #fff8eb);
+  color: var(--workspace-warning, #825300);
+}
+
+.alertCritical {
+  border-left-color: var(--workspace-danger, #a42d29);
+  background: #fff4f2;
+  color: var(--workspace-danger, #a42d29);
+  font-weight: 700;
+}
+
+.separateRole { border-top: 1px solid var(--border); padding: 0.15rem 0 0.35rem; }
+
+.separateRole summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.tableWrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  border-bottom: 1px solid var(--border);
+  padding: 0.45rem 0.55rem;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.table th {
+  font-size: 0.78rem;
+}
+
+.organisation {
+  display: block;
+  margin-top: 0.2rem;
+}
+
+.status,
+.time {
+  display: inline-block;
+  font-size: 0.95rem;
+  font-weight: 650;
+}
+.statusCritical { color: var(--workspace-danger, #a42d29); font-weight: 700; }
+.statusWarning { color: var(--workspace-warning, #825300); font-weight: 700; }
+
+.leaderTableWrap { width: 100%; }
+
+.leaderDetailLink {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.leaderDetailLink:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.leaderSignal {
+  border-left: 3px solid var(--workspace-success, #276749);
+  color: var(--workspace-success, #276749);
+  display: inline-block;
+  padding-left: 0.4rem;
+}
+
+.leaderTable .time,
+.leaderMobileRow .time { color: var(--workspace-success, #276749); }
+
+.leaderMobileRows {
+  display: none;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.leaderMobileRow {
+  border-bottom: 1px solid var(--border);
+  padding: 0.55rem 0;
+}
+
+.leaderMobileRow p { margin: 0.15rem 0; }
+
+.mobileRows {
+  display: none;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.mobileRow {
+  border-bottom: 1px solid var(--border);
+  padding: 0.55rem 0;
+}
+
+.mobileRow:last-child { border-bottom: 0; }
+
+.mobileRow h3,
+.mobileRow p {
+  margin: 0 0 0.2rem;
+}
+
+.mobileRow p:last-child {
+  margin-bottom: 0;
+}
+
+@media (max-width: 700px) {
+  .search { grid-template-columns: minmax(0, 1fr); }
+  .columns { grid-template-columns: minmax(0, 1fr); }
+
+  .panel + .panel {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+    padding-left: 0;
+  }
+
+  .tableWrap {
+    display: none;
+  }
+
+  .mobileRows {
+    display: grid;
+    gap: 0;
+  }
+
+  .mobileRow .status,
+  .mobileRow .time {
+    font-size: 1rem;
+  }
+
+  .leaderTableWrap { display: none; }
+
+  .leaderMobileRows { display: block; }
+
+  .leaderMobileRows .leaderDetailLink {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+}

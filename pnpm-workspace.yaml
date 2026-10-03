@@ -1,0 +1,12 @@
+packages:
+  - apps/*
+  - packages/*
+
+onlyBuiltDependencies:
+  - '@serialport/bindings-cpp'
+  - esbuild
+  - sharp
+allowBuilds:
+  '@serialport/bindings-cpp': true
+  esbuild: true
+  sharp: true

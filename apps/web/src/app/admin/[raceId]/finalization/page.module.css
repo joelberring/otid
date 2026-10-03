@@ -1,0 +1,164 @@
+:global(body):has(.page) {
+  --ink: #252a2d;
+  --muted: #5e686b;
+  --paper: #f7f8f8;
+  --panel: #fff;
+  --green: #3d4b4c;
+  --green-dark: #344344;
+  --border: #d6dddf;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+:global(body):has(.page) > :global(header) {
+  padding-block: .55rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+:global(body):has(.page) > :global(header) :global(a) { color: var(--ink); font-weight: 600; }
+
+.page {
+  width: min(100%, 80rem);
+  max-width: 80rem;
+  min-width: 0;
+  gap: .65rem;
+  padding-block: .85rem 2rem;
+  font-size: .92rem;
+}
+
+.page > :global(.nav) { gap: .5rem 1rem; margin: 0; }
+.page > :global(.nav) :global(a) {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.intro { min-width: 0; }
+.intro :is(h1, p) { margin: 0; overflow-wrap: anywhere; }
+.intro h1 { margin: .15rem 0 .2rem; font-size: clamp(1.4rem, 2.5vw, 1.85rem); line-height: 1.2; }
+.intro p:first-child { font-size: .8rem; }
+.intro p:last-child { color: var(--muted); }
+
+.page :global(.result-finalization-admin) { min-width: 0; gap: .65rem; }
+.page :global(.result-finalization-admin) :is(h2, h3, p) { margin: 0; overflow-wrap: anywhere; }
+.page :global(.result-finalization-admin) h2 { font-size: 1.08rem; line-height: 1.25; }
+.page :global(.result-finalization-admin) h3 { font-size: .95rem; line-height: 1.25; }
+.page :global(.result-finalization-admin) button { min-width: 0; border: 1px solid #aab4b7; border-radius: 5px; background: #e9eeef; color: var(--ink); font-weight: 650; }
+.page :global(.result-finalization-admin) button.secondary { border-color: var(--border); background: white; color: var(--ink); }
+.page :global(.result-finalization-admin) button.danger { border-color: #9b5140; color: #813524; }
+.page :global(.result-finalization-admin) button:disabled { opacity: .53; cursor: not-allowed; }
+.page :global(.result-finalization-admin) input { min-width: 0; border: 1px solid var(--border); border-radius: 5px; }
+.page :global(.result-finalization-admin) :is(button, input, a):focus-visible { outline: 3px solid #2368a2; outline-offset: 2px; }
+
+.page :global(.result-finalization-admin) > :global(.panel) {
+  min-width: 0;
+  padding: .55rem 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.page :global(.result-finalization-admin) > :global(.result-finalization-security-note) {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: .2rem .65rem;
+  padding: .3rem 0;
+  border: 0;
+  color: var(--muted);
+}
+.page :global(.result-finalization-security-note) h2 { font-size: .82rem; white-space: nowrap; }
+.page :global(.result-finalization-security-note) p { font-size: .82rem; }
+.page :global(.result-finalization-security-note) strong { color: var(--ink); font-weight: 650; }
+
+.page :global(.result-finalization-admin) > :global(.status-grid) { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border-block: 1px solid var(--border); }
+.page :global(.result-finalization-admin) > :global(.status-grid) > :global(.status) {
+  min-width: 0;
+  padding: .5rem .7rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.page :global(.result-finalization-admin) > :global(.status-grid) > :global(.status) + :global(.status) { border-left: 1px solid var(--border); }
+.page :global(.status-grid) strong { font-size: .76rem; font-weight: 700; }
+.page :global(.status-grid) span { display: block; overflow-wrap: anywhere; font-size: .85rem; }
+
+.page :global(.result-finalization-admin) > :global(form.panel) { max-width: 34rem; gap: .5rem; }
+.page :global(.result-finalization-admin) > :global(form.panel) button { justify-self: start; }
+.page :global(.result-finalization-admin) > :global(.panel.stack) { gap: .5rem; }
+.page :global(.result-finalization-heading) { align-items: center; }
+.page :global(.result-finalization-heading) > div { min-width: 0; }
+.page :global(.result-finalization-heading) p { margin-top: .15rem; }
+.page :global(.result-finalization-heading) p:last-child { font-size: .8rem; }
+
+.page :global(.result-finalization-list) { gap: 0; border-top: 1px solid var(--border); }
+.page :global(.result-finalization-scope) {
+  min-width: 0;
+  grid-template-columns: minmax(11rem, 1fr) minmax(15rem, 2fr) auto;
+  align-items: center;
+  gap: .5rem 1rem;
+  padding: .5rem .2rem;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+}
+.page :global(.result-finalization-scope) > div { min-width: 0; }
+.page :global(.result-finalization-scope) :is(h3, p, li) { overflow-wrap: anywhere; }
+.page :global(.result-finalization-scope) p { margin-top: .12rem; }
+.page :global(.result-finalization-scope) p.muted { font-size: .78rem; }
+.page :global(.result-finalization-blockers) { margin: .2rem 0; padding-left: 1.2rem; color: #813524; }
+.page :global(.result-finalization-scope) button { justify-self: end; white-space: nowrap; }
+
+.page :global(.result-finalization-admin) > :global(.result-finalization-race) {
+  grid-template-columns: minmax(10rem, 1fr) minmax(15rem, 2fr) auto;
+  align-items: center;
+  gap: .5rem 1rem;
+  border-top: 2px solid #9eaaad;
+}
+.page :global(.result-finalization-race) > div { min-width: 0; }
+.page :global(.result-finalization-race) p { margin-top: .12rem; }
+.page :global(.result-finalization-race) p.muted { font-size: .78rem; }
+.page :global(.result-finalization-race) button { justify-self: end; }
+
+.page :global(.result-finalization-admin) > :global(.result-finalization-retry) {
+  padding: .7rem;
+  border: 1px solid #d8bd8e;
+  border-left: 3px solid #825300;
+  border-radius: 5px;
+  background: #fff9ed;
+}
+.page :global(.result-finalization-retry) dl { grid-template-columns: minmax(8rem, auto) minmax(0, 1fr); }
+.page :global(.result-finalization-retry) dt { font-weight: 650; }
+.page :global(.result-finalization-retry) dd { overflow-wrap: anywhere; }
+.page :global(.result-finalization-retry) :global(.pairing-actions) { margin-top: .3rem; }
+.page :global(.result-finalization-public-link) { min-width: 0; border-radius: 5px; background: #e9eeef; color: var(--ink); border: 1px solid #aab4b7; font-weight: 650; }
+.page :global(.result-finalization-admin) > :global(.pairing-message) { margin: 0; min-height: 0; font-size: .85rem; }
+.page :global(.result-finalization-admin) > :global(.pairing-message:empty) { display: none; }
+
+@media screen and (max-width: 760px) {
+  .page { padding-inline: .75rem; }
+  .page :global(.result-finalization-admin) > :global(.status-grid) { grid-template-columns: minmax(0, 1fr); }
+  .page :global(.result-finalization-admin) > :global(.status-grid) > :global(.status) { padding: .4rem 0; }
+  .page :global(.result-finalization-admin) > :global(.status-grid) > :global(.status) + :global(.status) { border-left: 0; border-top: 1px solid var(--border); }
+  .page :global(.result-finalization-admin) > :global(form.panel) { max-width: none; }
+  .page :global(.result-finalization-admin) > :global(form.panel) button { justify-self: stretch; }
+  .page :global(.result-finalization-heading) { align-items: stretch; }
+  .page :global(.result-finalization-heading) button { width: 100%; }
+  .page :global(.result-finalization-scope),
+  .page :global(.result-finalization-admin) > :global(.result-finalization-race) { grid-template-columns: minmax(0, 1fr); align-items: stretch; gap: .25rem; }
+  .page :global(.result-finalization-scope) button,
+  .page :global(.result-finalization-race) button { justify-self: stretch; width: 100%; }
+  .page :global(.result-finalization-retry) dl { grid-template-columns: minmax(0, 1fr); gap: .1rem; }
+  .page :global(.result-finalization-retry) dd { margin-bottom: .3rem; }
+  .page :global(.result-finalization-retry) :global(.pairing-actions) { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .page :global(.result-finalization-retry) :global(.pairing-actions) button { width: 100%; }
+  .page :global(.result-finalization-admin) > :global(.panel) :global(.pairing-actions) { gap: .5rem; }
+  .page :global(.result-finalization-admin) > :global(.panel) :global(.pairing-actions) > * { width: 100%; }
+}

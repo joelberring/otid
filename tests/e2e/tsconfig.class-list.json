@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.forest-watch.json",
+  "files": ["./playwright.class-list.config.ts", "../../apps/web/next-env.d.ts"],
+  "include": []
+}

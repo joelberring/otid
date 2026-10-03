@@ -1,0 +1,26 @@
+{
+  "extends": "./tsconfig.forest-watch.json",
+  "files": [
+    "./task-128-result-finalization-public-link.spec.ts",
+    "./task-254-recalculation-visual.spec.ts",
+    "./task-255-did-not-start-visual.spec.ts",
+    "./task-256-did-not-start-withdrawal-visual.spec.ts",
+    "./task-257-disqualification-visual.spec.ts",
+    "./task-258-disqualification-withdrawal-visual.spec.ts",
+    "./task-259-result-approval-visual.spec.ts",
+    "./task-260-approval-withdrawal-visual.spec.ts",
+    "./task-261-did-not-finish-visual.spec.ts",
+    "./task-262-dnf-withdrawal-visual.spec.ts",
+    "./task-263-out-of-competition-visual.spec.ts",
+    "./task-264-out-of-competition-withdrawal-visual.spec.ts",
+    "./task-265-without-timing-visual.spec.ts",
+    "./task-266-without-timing-withdrawal-visual.spec.ts",
+    "./task-267-class-start-draw-visual.spec.ts",
+    "./task-268-start-list-publication-visual.spec.ts",
+    "./task-269-readout-history-visual.spec.ts",
+    "./task-270-event-creation-visual.spec.ts",
+    "./playwright.result-finalization-public-link.config.ts",
+    "../../apps/web/next-env.d.ts"
+  ],
+  "include": []
+}

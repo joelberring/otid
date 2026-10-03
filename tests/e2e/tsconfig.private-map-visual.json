@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.eventor.json",
+  "files": ["./task-242-private-map-visual.spec.ts", "./task-243-neutral-class-admin.spec.ts", "./playwright.private-map-visual.config.ts", "../../apps/web/next-env.d.ts"],
+  "include": []
+}

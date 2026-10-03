@@ -1,0 +1,4 @@
+.handoff { display: grid; gap: 0.25rem; min-width: 0; padding-top: 0.4rem; border-top: 1px solid var(--border); }
+.handoffLinks { display: flex; flex-wrap: wrap; gap: 0.25rem 0.8rem; min-width: 0; }
+.handoffLinks a { display: inline-flex; align-items: center; min-height: 44px; max-width: 100%; color: var(--ink); font-weight: 600; overflow-wrap: anywhere; text-underline-offset: 0.15rem; }
+.handoffLinks a:focus-visible { outline: 3px solid #2368a2; outline-offset: 2px; }

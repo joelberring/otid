@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.eventor.json",
+  "compilerOptions": {
+    "paths": {
+      "@o-tid/application": ["../../packages/application/src/index.ts"],
+      "@o-tid/database": ["../../packages/database/src/index.ts"],
+      "@o-tid/contracts": ["../../packages/contracts/src/index.ts"],
+      "drizzle-orm": ["../../packages/database/node_modules/drizzle-orm"]
+    }
+  },
+  "files": ["./task-006w-forest-watch.spec.ts", "../../apps/web/next-env.d.ts"],
+  "include": []
+}

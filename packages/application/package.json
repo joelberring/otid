@@ -1,0 +1,25 @@
+{
+  "name": "@o-tid/application",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "lint": "eslint src test",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests --exclude 'test/integration/**'",
+    "test:integration": "vitest run --no-file-parallelism test/integration",
+    "build": "tsc -p tsconfig.build.json",
+    "seed": "tsx src/seed.ts"
+  },
+  "dependencies": {
+    "@o-tid/contracts": "workspace:*",
+    "@o-tid/database": "workspace:*",
+    "@o-tid/domain": "workspace:*",
+    "@o-tid/eventor": "workspace:*",
+    "@o-tid/iof-xml": "workspace:*",
+    "@o-tid/route-xml": "workspace:*",
+    "drizzle-orm": "0.44.5"
+  },
+  "devDependencies": { "tsx": "4.20.5" }
+}

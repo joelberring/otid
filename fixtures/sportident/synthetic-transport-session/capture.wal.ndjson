@@ -1,0 +1,5 @@
+{"type":"marker","sequence":1,"monotonicTimeUs":0,"marker":"card-inserted"}
+{"type":"bytes","sequence":2,"direction":"rx","monotonicTimeUs":1000,"bytesBase64":"T1Q="}
+{"type":"bytes","sequence":3,"direction":"tx","monotonicTimeUs":1200,"bytesBase64":"SQ=="}
+{"type":"bytes","sequence":4,"direction":"rx","monotonicTimeUs":1500,"bytesBase64":"RAo="}
+{"type":"marker","sequence":5,"monotonicTimeUs":2000,"marker":"card-removed"}

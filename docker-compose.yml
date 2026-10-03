@@ -1,0 +1,46 @@
+services:
+  postgres:
+    image: postgis/postgis:17-3.6
+    environment:
+      POSTGRES_USER: otid
+      POSTGRES_PASSWORD: otid
+      POSTGRES_DB: otid
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U otid -d otid"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  minio:
+    image: minio/minio:RELEASE.2025-07-23T15-54-02Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-otid-local}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-replace-with-a-long-local-secret}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-07-21T05-28-08Z
+    depends_on:
+      - minio
+    entrypoint: >-
+      /bin/sh -c "until mc alias set local http://minio:9000
+      $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD}; do sleep 1; done;
+      mc mb --ignore-existing local/otid-private;
+      mc version enable local/otid-private;
+      mc anonymous set none local/otid-private"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-otid-local}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-replace-with-a-long-local-secret}
+
+volumes:
+  postgres-data:
+  minio-data:

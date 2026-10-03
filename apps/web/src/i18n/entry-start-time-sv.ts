@@ -1,0 +1,23 @@
+export const startTimeSv = {
+  linkedHelp: "Genväg från deltagarlistan. Kontrollera och välj deltagaren i detta behöriga underlag.", selectLinked: "Välj länkad deltagare",
+  title: "Ändra fast starttid", back: "Tävlingsöversikt", login: "Logga in", logout: "Logga ut",
+  credential: "Starttidsbehörighet", entry: "Deltagare", choose: "Välj deltagare",
+  help: "Här visas deltagare i klasser med fast starttid. Ange startdatum, klockslag och uttrycklig UTC-offset för den nya tiden.",
+  oldTime: "Nuvarande starttid", newTime: "Ny starttid", missing: "Saknas", timeZone: "Tävlingens tidszon",
+  inspect: "Granska ändring", confirm: "Bekräfta och spara starttid", cancel: "Avbryt",
+  retry: "Försök igen med samma begäran", discard: "Lämna försöket och läs aktuella tider",
+  warning: "Befintliga resultat ändras inte när starttiden sparas. Bekräfta därefter en separat omräkning om resultatet ska uppdateras. Manuella resultatbeslut fortsätter gälla.",
+  unknown: "Svaret är okänt. Ändringen kan ha sparats. Försök igen med samma begäran för att kontrollera utfallet.",
+  saved: "Starttiden är sparad. Befintliga resultat är oförändrade.", recalculate: "Gå till explicit omräkning",
+  denied: "Behörighet saknas eller har gått ut. Logga in med starttidsbehörighet.",
+  conflict: "Underlaget har ändrats eller tiden är redan sparad. Läs in aktuella tider och granska en ny ändring.",
+  error: "Begäran kunde inte genomföras.", invalid: "Ange giltigt datum, klockslag och UTC-offset (Z eller ±HH:mm).",
+  loadError: "Aktuella tider kunde inte läsas. Försök igen.", refresh: "Läs in aktuella tider",
+  empty: "Inga deltagare med fast startregel finns i loppet.", checking: "Läser aktuella tider…",
+  version: "Tävlingsversion", pending: "Bekräfta starttidsändringen", reauth: "Logga in igen och upprepa samma begäran.",
+  search: "Sök namn eller klass", clearSearch: "Rensa sökning",
+  searchHelp: "Ändrad sökning rensar deltagarval och ny starttid. Välj deltagaren uttryckligen. Sökningen låses medan ändringen granskas eller inväntar besked.",
+  shown: "Visar", of: "av", participants: "deltagare", noMatches: "Inga deltagare matchar sökningen.",
+  startDate: "Startdatum", startClock: "Klockslag", startOffset: "UTC-offset",
+  fieldsHelp: "Klockslag: HH:mm eller HH:mm:ss, valfritt med 1–3 decimaler efter sekunder. Utelämnade sekunder blir 00. Ange UTC-offset uttryckligen, exempelvis +02:00 eller Z; datum och sommartid gissas inte."
+} as const;

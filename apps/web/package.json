@@ -1,0 +1,29 @@
+{
+  "name": "@o-tid/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm build:checkin && next dev --hostname 127.0.0.1",
+    "build:checkin": "node scripts/build-checkin.mjs",
+    "lint": "eslint src next.config.ts scripts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "build": "pnpm build:checkin && next build"
+  },
+  "dependencies": {
+    "@o-tid/application": "workspace:*",
+    "@o-tid/contracts": "workspace:*",
+    "@o-tid/database": "workspace:*",
+    "@o-tid/iof-xml": "workspace:*",
+    "@o-tid/infrastructure": "workspace:*",
+    "next": "16.3.3",
+    "pg": "8.16.3",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "zod": "4.1.5"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.5"
+  }
+}

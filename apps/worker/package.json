@@ -1,0 +1,14 @@
+{
+  "name": "@o-tid/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "devDependencies": { "tsx": "4.20.5" }
+}

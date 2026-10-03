@@ -1,0 +1,130 @@
+:global(body):has(.page) {
+  --ink: #25282c;
+  --muted: #60676e;
+  --paper: #f7f8f8;
+  --panel: #fff;
+  --green: #3e4852;
+  --green-dark: #303942;
+  --border: #d9dde0;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+:global(body):has(.page) > :global(header) {
+  padding-block: .55rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+:global(body):has(.page) > :global(header) :global(a) { color: var(--ink); font-weight: 600; }
+
+.page {
+  width: min(100%, 76rem);
+  max-width: 76rem;
+  min-width: 0;
+  gap: .65rem;
+  padding-block: .85rem 2rem;
+  font-size: .9rem;
+}
+
+.page > :global(.nav) { gap: .7rem; margin: 0; }
+.page > :global(.nav) :global(a) { display: inline-flex; align-items: center; min-height: 44px; color: var(--ink); font-weight: 600; }
+.page > :global(section) { min-width: 0; }
+.page > :global(section) :is(h1, p) { margin: 0; overflow-wrap: anywhere; }
+.page > :global(section) h1 { margin: .1rem 0 .25rem; font-size: 1.45rem; line-height: 1.2; }
+.page > :global(section) p { color: var(--muted); }
+
+.page :is(:global(.import-admin), :global(.eventor-entry-import)) { min-width: 0; gap: .55rem; }
+.page :is(:global(.import-admin), :global(.eventor-entry-import)) :is(button, input, select) {
+  min-width: 0;
+  border-radius: 5px;
+}
+.page :is(:global(.import-admin), :global(.eventor-entry-import)) :is(input, select) {
+  border: 1px solid var(--border);
+  background: white;
+  color: var(--ink);
+}
+.page :is(:global(.import-admin), :global(.eventor-entry-import)) button {
+  justify-self: start;
+  border: 1px solid #aeb7b1;
+  background: #ecefec;
+  color: var(--ink);
+  font-weight: 650;
+}
+.page :is(:global(.import-admin), :global(.eventor-entry-import)) button.secondary {
+  border-color: var(--border);
+  background: white;
+  color: var(--ink);
+}
+.page :is(:global(.import-admin), :global(.eventor-entry-import)) :is(button, input, select, a):focus-visible,
+.page > :global(.nav) :global(a):focus-visible { outline: 3px solid #2368a2; outline-offset: 2px; }
+
+.page :global(.import-admin) > :global(.panel),
+.page > :global(.eventor-entry-import) {
+  min-width: 0;
+  padding: .5rem 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.page :global(.import-admin) > :global(.import-security-note) {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: .2rem .7rem;
+  border-top: 0;
+  color: var(--muted);
+}
+.page :global(.import-security-note) :is(h2, p) { margin: 0; font-size: .82rem; }
+.page :global(.import-admin) :global(.import-retry) {
+  padding: .65rem;
+  border: 1px solid #d8bd8e;
+  border-left: 3px solid #825300;
+  background: #fff8eb;
+}
+.page :global(.import-admin) > :global(.panel) :is(h2, p) { margin: 0; }
+.page :global(.import-admin) > :global(.panel) h2 { font-size: 1.08rem; }
+.page :global(.import-admin) :global(.stack),
+.page :global(.eventor-entry-import) :global(.stack) { gap: .45rem; }
+.page :is(:global(.import-admin), :global(.eventor-entry-import)) label { gap: .2rem; font-size: .82rem; font-weight: 600; }
+.page :global(.import-admin) :global(.import-result) { border-left: 3px solid var(--border); padding-left: .65rem; }
+.page :global(.import-admin) :global(.pairing-message):empty { display: none; }
+.page :global(.eventor-entry-import) :is(h2, h3, p) { margin: 0; }
+.page :global(.eventor-entry-import) h2 { font-size: 1.08rem; }
+.page :global(.eventor-entry-import) h3 { font-size: .95rem; }
+.page :global(.eventor-entry-import) :global(.eventor-entry-import-profile) {
+  padding: .3rem .55rem;
+  border-left: 2px solid var(--border);
+  color: var(--ink);
+}
+.page :global(.eventor-entry-import) :global(.eventor-entry-import-uncertain) {
+  padding: .5rem .65rem;
+  border-left: 3px solid #825300;
+  background: #fff8eb;
+}
+.page :global(.eventor-entry-import) :global(.eventor-entry-import-error) {
+  padding: .4rem .6rem;
+  border-left: 3px solid #a42d29;
+  color: #8b2925;
+}
+
+@media screen and (min-width: 960px) {
+  .page { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; column-gap: 1.25rem; }
+  .page > :global(.nav), .page > :global(section:not(.eventor-entry-import)) { grid-column: 1 / -1; }
+}
+
+@media screen and (min-width: 721px) and (pointer: fine) {
+  .page :is(:global(.import-admin), :global(.eventor-entry-import)) :is(button, input, select) {
+    min-height: 36px;
+    padding: .3rem .55rem;
+  }
+}
+
+@media screen and (max-width: 720px) {
+  .page { padding-inline: .75rem; }
+  .page :is(:global(.import-admin), :global(.eventor-entry-import)) :is(button, input, select) { min-height: 44px; }
+  .page :global(.import-admin) :global(.import-retry) dl { grid-template-columns: minmax(0, 1fr); gap: .15rem; }
+}

@@ -1,0 +1,255 @@
+import { z } from "zod";
+export * from "./administrator-effective-result";
+export * from "./manual-course-class";
+export * from "./manual-class";
+export * from "./manual-class-name";
+export * from "./manual-course-version-class-relink";
+export * from "./manual-course-result-impact";
+export * from "./manual-course-result-bearing-relink";
+export * from "./shortened-course-class-transfer";
+export * from "./manual-finish-time-correction";
+export * from "./manual-finish-time-correction-withdrawal";
+export * from "./manual-punch-start-time-correction";
+export * from "./manual-punch-start-time-correction-withdrawal";
+export * from "./unknown-readout-resolution";
+export * from "./race-operator-access";
+
+export * from "./canonical-json";
+export * from "./did-not-start-admin";
+export * from "./did-not-finish-admin";
+export * from "./did-not-finish-withdrawal-admin";
+export * from "./did-not-start-withdrawal-admin";
+export * from "./entry-class-admin";
+export * from "./entry-start-time-admin";
+export * from "./fixed-start-slot-plan";
+export * from "./entry-card-admin";
+export * from "./entry-card-rental-admin";
+export * from "./entry-card-rental-return-admin";
+export * from "./entry-card-rental-reuse-admin";
+export * from "./entry-payment-status-admin";
+export * from "./entry-registration-admin";
+export * from "./event-creation";
+export * from "./organizer-account";
+export * from "./organizer-account-invitation";
+export * from "./account-invitation";
+export * from "./account-password-recovery";
+export * from "./organizer-coadmin";
+export * from "./iof-import-admin";
+export * from "./iof-result-list-export";
+export * from "./local-station-evaluation";
+export * from "./out-of-competition-admin";
+export * from "./out-of-competition-withdrawal-admin";
+export * from "./without-timing-admin";
+export * from "./without-timing-withdrawal-admin";
+export * from "./pairing-admin";
+export * from "./pm-document";
+export * from "./pm-object-manifest";
+export * from "./operational-backup-manifest";
+export * from "./operational-backup-operation-state";
+export * from "./pm-scan-evidence";
+export * from "./pm-document-storage-receipt";
+export * from "./map-asset";
+export * from "./map-georeference";
+export * from "./private-route-preview";
+export * from "./private-route-context-admin";
+export * from "./participant-private-route-overlay";
+export * from "./participant-private-route";
+export * from "./public-participant-route";
+export * from "./public-frozen-race-results";
+export * from "./course-control-geometry";
+export * from "./route-upload";
+export * from "./public-results";
+export * from "./participant-entry-claim";
+export * from "./public-result-event-stream";
+export * from "./public-result-follow";
+export * from "./race-overview-admin";
+export * from "./readout-result-history-admin";
+export * from "./result-recalculation-admin";
+export * from "./class-result-recalculation";
+export * from "./class-control-neutralization";
+export * from "./result-finalization-admin";
+export * from "./result-approval-admin";
+export * from "./result-approval-withdrawal-admin";
+export * from "./result-disqualification-admin";
+export * from "./result-disqualification-withdrawal-admin";
+export * from "./result-outcome";
+export * from "./station-package";
+export * from "./station-pairing";
+export * from "./start-list-admin";
+export * from "./start-list-publication";
+export * from "./start-checkin";
+export * from "./start-checkin-admin";
+export * from "./start-checkin-recovery";
+
+export const createEventSchema = z.object({
+  name: z.string().trim().min(2).max(160),
+  raceName: z.string().trim().min(2).max(160),
+  raceDate: z.iso.date(),
+  timeZone: z.string().trim().min(1).default("Europe/Stockholm")
+});
+
+export const simulatorPayloadSchema = z.object({
+  cardNumber: z.string().trim().min(1).max(32),
+  startPunchedAt: z.iso.datetime({ offset: true }).optional(),
+  finishPunchedAt: z.iso.datetime({ offset: true }),
+  punches: z.array(z.object({
+    code: z.number().int().positive(),
+    punchedAt: z.iso.datetime({ offset: true })
+  }).strict()).max(256)
+}).strict();
+
+export const deviceEventSchema = z.object({
+  localSequence: z.number().int().positive(),
+  stationReceivedAt: z.iso.datetime({ offset: true }),
+  transport: z.literal("simulator"),
+  payload: simulatorPayloadSchema,
+  contentHash: z.string().regex(/^[a-f0-9]{64}$/)
+}).strict();
+
+export const deviceBatchSchema = z.object({
+  deviceId: z.uuid(),
+  sessionId: z.uuid(),
+  packageVersion: z.number().int().positive(),
+  firstSequence: z.number().int().positive(),
+  lastSequence: z.number().int().positive(),
+  events: z.array(deviceEventSchema).min(1).max(100)
+}).strict().superRefine((batch, context) => {
+  const sequences = batch.events.map((event) => event.localSequence);
+  if (Math.min(...sequences) !== batch.firstSequence || Math.max(...sequences) !== batch.lastSequence) {
+    context.addIssue({ code: "custom", message: "Sekvensintervallet matchar inte händelserna" });
+  }
+  if (new Set(sequences).size !== sequences.length) {
+    context.addIssue({ code: "custom", message: "Batchen innehåller dubbla sekvenser" });
+  }
+  if (batch.events.some((event, index) => event.localSequence !== batch.firstSequence + index) ||
+      batch.lastSequence !== batch.firstSequence + batch.events.length - 1) {
+    context.addIssue({
+      code: "custom",
+      message: "Batchens händelser måste bilda ett sammanhängande stigande sekvensintervall"
+    });
+  }
+});
+
+export const evaluationStatusSchema = z.enum(["OK", "MP", "UNKNOWN_CARD"]);
+export const evaluationReasonSchema = z.enum([
+  "COMPLETE",
+  "UNKNOWN_CARD",
+  "MISSING_START",
+  "MISSING_FINISH",
+  "MISSING_CONTROL",
+  "WRONG_ORDER",
+  "INVALID_TIME_ORDER"
+]);
+
+const serverResultVersionFields = {
+  engineVersion: z.string().trim().min(1),
+  snapshotVersion: z.number().int().positive(),
+  evaluationHash: z.string().regex(/^[a-f0-9]{64}$/)
+};
+
+const persistedServerResultFields = {
+  resultRevisionId: z.uuid(),
+  revision: z.number().int().positive(),
+  courseVersionId: z.uuid(),
+  ...serverResultVersionFields
+};
+
+export const serverResultSummarySchema = z.discriminatedUnion("status", [
+  z.object({
+    status: z.literal("UNKNOWN_CARD"),
+    reason: z.literal("UNKNOWN_CARD"),
+    ...serverResultVersionFields
+  }).strict(),
+  z.object({
+    status: z.literal("OK"),
+    reason: z.literal("COMPLETE"),
+    ...persistedServerResultFields
+  }).strict(),
+  z.object({
+    status: z.literal("MP"),
+    reason: z.enum([
+      "MISSING_START",
+      "MISSING_FINISH",
+      "MISSING_CONTROL",
+      "WRONG_ORDER",
+      "INVALID_TIME_ORDER"
+    ]),
+    ...persistedServerResultFields
+  }).strict()
+]);
+
+const acknowledgedDeviceEventSchema = z.object({
+  localSequence: z.number().int().positive(),
+  contentHash: z.string().regex(/^[a-f0-9]{64}$/),
+  rawMessageId: z.uuid(),
+  serverResult: serverResultSummarySchema.optional()
+}).strict();
+
+export const deviceEventAcknowledgementSchema = z.discriminatedUnion("status", [
+  acknowledgedDeviceEventSchema.extend({ status: z.literal("stored") }),
+  acknowledgedDeviceEventSchema.extend({ status: z.literal("duplicate") }),
+  z.object({
+    localSequence: z.number().int().positive(),
+    contentHash: z.string().regex(/^[a-f0-9]{64}$/),
+    status: z.literal("rejected"),
+    reason: z.enum([
+      "CONTENT_HASH_MISMATCH",
+      "SEQUENCE_HASH_CONFLICT",
+      "SEQUENCE_CONTEXT_CONFLICT"
+    ])
+  }).strict()
+]);
+
+export const deviceBatchAcknowledgementSchema = z.object({
+  deviceId: z.uuid(),
+  highestContiguousSequence: z.number().int().nonnegative(),
+  currentPackageVersion: z.number().int().positive(),
+  packageVersionStatus: z.enum(["current", "stale", "ahead"]),
+  packageUpdateRequired: z.boolean(),
+  acknowledgements: z.array(deviceEventAcknowledgementSchema).min(1).max(100)
+}).strict().superRefine((acknowledgement, context) => {
+  if (acknowledgement.packageUpdateRequired !== (acknowledgement.packageVersionStatus === "stale")) {
+    context.addIssue({
+      code: "custom",
+      message: "Paketuppdatering får endast krävas för en stale paketversion"
+    });
+  }
+  const sequences = acknowledgement.acknowledgements.map((event) => event.localSequence);
+  if (new Set(sequences).size !== sequences.length) {
+    context.addIssue({
+      code: "custom",
+      message: "Kvittensen innehåller flera besked för samma lokala sekvens"
+    });
+  }
+  if (sequences.some((sequence, index) => index > 0 && sequence <= sequences[index - 1]!)) {
+    context.addIssue({
+      code: "custom",
+      message: "Kvittensbeskeden måste ligga i stigande sekvensordning"
+    });
+  }
+});
+
+export type CreateEventInput = z.infer<typeof createEventSchema>;
+export type SimulatorPayload = z.infer<typeof simulatorPayloadSchema>;
+export type DeviceBatch = z.infer<typeof deviceBatchSchema>;
+export type ServerResultSummary = z.infer<typeof serverResultSummarySchema>;
+export type DeviceEventAcknowledgement = z.infer<typeof deviceEventAcknowledgementSchema>;
+export type DeviceBatchAcknowledgement = z.infer<typeof deviceBatchAcknowledgementSchema>;
+export * from "./class-start-draw";
+export * from "./class-start-rule-change";
+export * from "./eventor-import";
+export * from "./eventor-entry-import";
+export * from "./start-checkin-roster";
+export * from "./start-checkin-conflict-review";
+export * from "./demo-installation";
+export * from "./speaker-board";
+export * from "./pm-document-reservation";
+export * from "./entry-readout-history";
+export * from "./entry-identity-admin";
+export * from "./race-administrator";
+export * from "./entry-transfer";
+export * from "./class-capacity";
+export * from "./administrator-entry-changes";
+export * from "./administrator-return";
+export * from "./checkin-history";
+export * from "./administrator-forest-watch";

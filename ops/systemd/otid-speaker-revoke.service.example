@@ -1,0 +1,25 @@
+# Example only: do not install/enable before TASK180 Linux acceptance.
+[Unit]
+Description=O-Tid controlled speaker credential revocation (unverified example)
+
+[Service]
+Type=oneshot
+User=otid-writer
+Group=otid-writer
+WorkingDirectory=/opt/o-tid
+Environment=PATH=/usr/bin:/bin
+Environment=OTID_WRITER_STOP_PROFILE=systemd-v1
+Environment=OTID_WRITER_STOP_FILE=/var/lib/o-tid/controller/closed
+LoadCredential=database-url:/etc/o-tid/writer-credentials/database-url
+LoadCredential=speaker-revoke-request:/etc/o-tid/cli-requests/speaker-revoke.json
+StateDirectory=o-tid-private-cli-results
+StateDirectoryMode=0700
+ExecStart=/bin/sh /opt/o-tid/ops/systemd/writer-start.sh /usr/bin/pnpm --silent speaker:access:revoke:systemd
+StandardOutput=null
+StandardError=null
+KillMode=control-group
+UMask=0077
+NoNewPrivileges=true
+ProtectHome=true
+PrivateMounts=true
+PrivateTmp=true

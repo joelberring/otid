@@ -1,0 +1,20 @@
+export const speakerBoardSv = {
+  title: "Speaker – senaste resultatunderlag", back: "Till tävlingsöversikten",
+  scope: "Privat läsvy med högst 25 resultatunderlag – inte placering eller målgångsordning.",
+  about: "Om urvalet och uppdateringen",
+  help: "De 25 senast registrerade publicerade resultathuvudena, med aktuella manuella beslut. Detta är inte en målgångsordning eller komplett händelselogg. Ett återtagande ändrar en redan visad rad men flyttar inte in en äldre deltagare i urvalet.",
+  readOnly: "Privat läsvy. Ingen hårdvara ansluts och ingen lokal kö används. Uppdateras var femte sekund när fliken är synlig.",
+  credential: "Speakerns behörighet", login: "Logga in", logout: "Logga ut", refresh: "Uppdatera underlag",
+  checking: "Kontrollerar behörighet…", denied: "Logga in med speakerns behörighet för detta lopp.",
+  loadError: "Underlaget kunde inte uppdateras. Kontrollera anslutningen och försök igen.",
+  logoutError: "Uppgifterna är dolda här, men serverns utloggning är inte bekräftad. Försök logga ut igen när nätet fungerar; omladdning kan annars återanvända sessionen.",
+  stale: "VARNING: Underlaget kan vara gammalt. Senaste lyckade lästid visas nedan.",
+  online: "Webbläsaren uppger nätanslutning – serverkontakt verifieras vid hämtning.",
+  offline: "Webbläsaren uppger att nätanslutning saknas.",
+  generated: "Underlag läst på servern", version: "Tävlingsversion", empty: "Inga publicerade resultatunderlag finns ännu.",
+  name: "Deltagare", raceClass: "Klass", result: "Aktuellt resultat", time: "Tid", registered: "Underlag registrerat",
+  revision: "Vald revision", effective: "Effektiv revision", noResult: "Inget aktivt resultat", noTime: "Ingen tid",
+  currentNames: "Namn, klubb och klassnamn är aktuella visningsuppgifter. Radernas ordning är inte placering.",
+  statuses: { OK: "Godkänd (OK)", MP: "Felstämplad (MP)", DSQ: "Diskvalificerad (DSQ)", OOC: "Utom tävlan (OOC)",
+    DNS: "Ej start (DNS)", DNF: "Ej fullföljt (DNF)", NT: "Utan tidtagning (NT)" }
+} as const;

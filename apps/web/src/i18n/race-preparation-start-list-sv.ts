@@ -1,0 +1,26 @@
+export const racePreparationStartListSv = {
+  title: "Aktuellt startunderlag",
+  privateNotice: "Arbetslista för administratörer – inte den publicerade startlistan. Bricknummer ingår inte i den publika listan.",
+  source: (version: number, generatedAt: string) => `Underlag version ${version} · framtaget ${generatedAt}`,
+  search: "Sök namn, klubb, klass eller bricka",
+  classFilter: "Klass",
+  allClasses: "Alla klasser",
+  shown: (visible: number, matches: number, total: number) =>
+    `${visible} rader på sidan · ${matches} träffar av ${total} deltagare`,
+  empty: "Inga deltagare i underlaget.",
+  noMatches: "Inga deltagare matchar urvalet.",
+  className: "Klass",
+  plannedStart: "Planerad start",
+  name: "Deltagare",
+  organisation: "Klubb",
+  card: "Aktiv bricka",
+  noOrganisation: "–",
+  noCard: "Ingen aktiv bricka",
+  multipleCards: "Flera aktiva brickor",
+  freeStart: "Fri start",
+  missingTime: "Saknar fast starttid",
+  openPerson: (name: string) => `Öppna ${name} i deltagarvyn`,
+  previous: "Föregående",
+  next: "Nästa",
+  page: (current: number, total: number) => `Sida ${current} av ${total}`
+} as const;

@@ -1,11 +1,8 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import {
-  IOF_IMPORT_CONTENT_TYPE,
-  iofImportLoginRequestSchema,
-  iofImportLoginResponseSchema
-} from "@o-tid/contracts";
+import Link from "next/link";
+import { IOF_IMPORT_CONTENT_TYPE, raceAdministratorLoginResponseSchema } from "@o-tid/contracts";
 import { sv } from "../i18n/sv";
 import {
   createIofImportAttempt,
@@ -45,7 +42,6 @@ function reportSummary(result: IofImportResponse): string {
 }
 
 export function ImportAdmin({ raceId }: { raceId: string }) {
-  const [accessCredential, setAccessCredential] = useState("");
   const [authenticated, setAuthenticated] = useState<boolean>();
   const [attempt, setAttempt] = useState<IofImportAttempt>();
   const [attemptUncertain, setAttemptUncertain] = useState(false);
@@ -53,7 +49,8 @@ export function ImportAdmin({ raceId }: { raceId: string }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string>(sv.importCheckingSession);
   const fileInput = useRef<HTMLInputElement>(null);
-  const sessionUrl = `/api/admin/races/${raceId}/import-session`;
+  // ADR-0168: importen använder samma administratörsinloggning som /manage.
+  const sessionUrl = `/api/admin/races/${raceId}/administrator/session`;
   const importsUrl = `/api/races/${raceId}/imports`;
 
   const checkSession = useCallback(async () => {
@@ -64,8 +61,8 @@ export function ImportAdmin({ raceId }: { raceId: string }) {
       return false;
     }
     if (!response.ok) throw new Error(`${sv.importSessionFailed} (${response.status})`);
-    const parsed = iofImportLoginResponseSchema.safeParse(await responseJson(response));
-    if (!parsed.success || parsed.data.raceId !== raceId || parsed.data.capability !== "IMPORT_IOF") {
+    const parsed = raceAdministratorLoginResponseSchema.safeParse(await responseJson(response));
+    if (!parsed.success || parsed.data.raceId !== raceId) {
       throw new Error(sv.importInvalidResponse);
     }
     setAuthenticated(true);
@@ -79,36 +76,6 @@ export function ImportAdmin({ raceId }: { raceId: string }) {
       setMessage(messageFrom(error));
     });
   }, [checkSession]);
-
-  async function login(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setBusy(true);
-    setMessage(sv.importLoggingIn);
-    try {
-      const parsed = iofImportLoginRequestSchema.safeParse({ formatVersion: 1, accessCredential });
-      if (!parsed.success) throw new Error(sv.importLoginRejected);
-      const response = await fetch(sessionUrl, {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(parsed.data)
-      });
-      if (!response.ok) {
-        throw new Error(response.status === 401 ? sv.importLoginRejected : `${sv.importSessionFailed} (${response.status})`);
-      }
-      const loginResponse = iofImportLoginResponseSchema.safeParse(await responseJson(response));
-      if (!loginResponse.success || loginResponse.data.raceId !== raceId || loginResponse.data.capability !== "IMPORT_IOF") {
-        throw new Error(sv.importInvalidResponse);
-      }
-      setAuthenticated(true);
-      setMessage(attempt === undefined ? "" : sv.importReadyToRetry);
-    } catch (error) {
-      setMessage(messageFrom(error));
-    } finally {
-      setAccessCredential("");
-      setBusy(false);
-    }
-  }
 
   function clearAttempt() {
     setAttempt(undefined);
@@ -176,45 +143,21 @@ export function ImportAdmin({ raceId }: { raceId: string }) {
     }
   }
 
-  async function logout() {
-    setBusy(true);
-    try {
-      const response = await fetch(sessionUrl, {
-        method: "DELETE",
-        credentials: "same-origin",
-        headers: { "x-otid-csrf": readImportAdminCsrf(document.cookie, new URL(window.location.href)) }
-      });
-      if (!response.ok && response.status !== 401) throw new Error(`${sv.importLogoutFailed} (${response.status})`);
-      setAuthenticated(false);
-      setMessage(attempt === undefined ? sv.importLoggedOut : `${sv.importLoggedOut} ${sv.importAttemptRetained}`);
-    } catch (error) {
-      setMessage(messageFrom(error));
-    } finally {
-      setAccessCredential("");
-      setBusy(false);
-    }
-  }
-
   return <div className="stack import-admin">
     <section className="panel import-security-note" aria-labelledby="import-security-heading">
       <h2 id="import-security-heading">{sv.importSecurityHeading}</h2>
       <p>{sv.importSecurityBoundary}</p>
     </section>
 
-    {authenticated !== true && <form className="panel stack" onSubmit={(event) => void login(event)}>
+    {authenticated === false && <section className="panel stack">
       <h2>{sv.importLoginHeading}</h2>
-      <p className="muted">{sv.importLoginHelp}</p>
-      <label>{sv.importAccessCredential}
-        <input type="password" autoComplete="off" spellCheck={false} value={accessCredential}
-          onChange={(event) => setAccessCredential(event.target.value)} required />
-      </label>
-      <button type="submit" disabled={busy || accessCredential.length === 0} aria-busy={busy}>{sv.importLogin}</button>
-    </form>}
+      <p className="muted">{sv.importLoginViaAdministrator}</p>
+      <p><Link href={`/admin/${raceId}/manage`}>{sv.importOpenAdministrator}</Link></p>
+    </section>}
 
     {authenticated === true && <section className="panel stack" aria-labelledby="import-file-heading">
       <div className="import-heading-actions"><div><h2 id="import-file-heading">{sv.importFileHeading}</h2>
-        <p className="muted">{sv.importFileHelp}</p></div>
-        <button type="button" className="secondary" disabled={busy} onClick={() => void logout()}>{sv.importLogout}</button></div>
+        <p className="muted">{sv.importFileHelp}</p></div></div>
       <form className="stack" onSubmit={(event) => void importFile(event)}>
         <label>{sv.importFileLabel}
           <input ref={fileInput} type="file" accept=".xml,application/xml" required disabled={busy || attempt !== undefined} />

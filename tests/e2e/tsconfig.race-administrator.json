@@ -1,5 +1,0 @@
-{
-  "extends": "./tsconfig.forest-watch.json",
-  "files": ["./task-029-race-administrator.spec.ts", "./playwright.race-administrator.config.ts", "../../apps/web/next-env.d.ts"],
-  "include": []
-}

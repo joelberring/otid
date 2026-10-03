@@ -1,12 +1,9 @@
-import Link from "next/link";
-import { RaceOverviewAdmin } from "../../../components/race-overview-admin";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
+/** ADR-0168: all administration sker i den gemensamma arbetsytan. */
 export default async function AdminPage({ params }: { params: Promise<{ raceId: string }> }) {
   const { raceId } = await params;
-  return <main className="stack">
-    <nav className="nav"><Link href="/">Tävlingar</Link></nav>
-    <RaceOverviewAdmin raceId={raceId} />
-  </main>;
+  redirect(`/admin/${raceId}/manage`);
 }

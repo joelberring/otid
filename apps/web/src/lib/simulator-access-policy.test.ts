@@ -101,15 +101,10 @@ describe("TASK 005L simulatorgrind", () => {
     }, async () => null)).resolves.toBeNull();
   });
 
-  it("binder ordinarie devserver till loopback och kräver explicit Playwright-opt-in", () => {
+  it("binder ordinarie devserver till loopback", () => {
     const webPackage = readFileSync(fileURLToPath(new URL("../../package.json", import.meta.url)), "utf8");
     const nextConfig = readFileSync(fileURLToPath(new URL("../../next.config.ts", import.meta.url)), "utf8");
-    const playwrightConfig = readFileSync(
-      fileURLToPath(new URL("../../../../playwright.config.ts", import.meta.url)),
-      "utf8"
-    );
     expect(webPackage).toContain('"dev": "pnpm build:checkin && next dev --hostname 127.0.0.1"');
-    expect(playwrightConfig).toContain('O_TID_SIMULATOR_MODE: "loopback-development"');
     expect(nextConfig).toContain('source: "/admin/:raceId/simulator"');
     expect(nextConfig).toContain('{ key: "X-Robots-Tag", value: "noindex, nofollow" }');
   });

@@ -10,13 +10,12 @@ const data = entryTransferCandidatesSchema.parse({ formatVersion: 2, raceId,
   raceDate: "2026-09-27", generatedAt: "2026-09-27T10:00:00.000Z",
   timeZone: "Europe/Stockholm", classes: [], entries: [] });
 
-describe("TASK245 importingång i upplägget", () => {
-  it("visar exakt lopplänk och den separata importgränsen", () => {
+describe("importingång i upplägget", () => {
+  it("visar lopplänk till importen", () => {
     const html = renderToStaticMarkup(<RacePreparationGuide data={data} disabled={false} />);
     expect(html).toContain(`href="/admin/${raceId}/imports"`);
-    expect(html).toContain("IOF XML: banor, anmälningar eller startlista.");
-    expect(html).toContain("Eventoranmälningar använder separat importbidrag och manuell klasskoppling.");
-    expect(html).toContain("vanlig tävlingsadministration ger inte importrätt");
+    expect(html).toContain("IOF XML 3.0: banor (CourseData), anmälningar (EntryList) eller startlista (StartList).");
+    expect(html).toContain("Importen använder din administratörsinloggning.");
     expect(html).not.toMatch(/ApiKey|accessCredential|secretKey/i);
     expect(html).toContain("I hämtat minutstartunderlag saknas inga fasta starttider.");
   });

@@ -13,7 +13,6 @@ export default async function Home() {
     <nav className="nav">
       <Link href="/organizer">Mina tävlingar · Skapa tävling</Link>
       <Link href="/me">{participantMeSv.title}</Link>
-      <Link href="/admin/events/new">Skapa med engångskod</Link>
     </nav>
     <div className="grid" style={{ marginTop: "1rem" }}>
       <section className="panel"><h2>Tävlingar</h2><div className="stack">

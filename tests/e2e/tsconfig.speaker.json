@@ -1,5 +1,0 @@
-{
-  "extends": "./tsconfig.forest-watch.json",
-  "files": ["./task-008-speaker.spec.ts", "./task-008-speaker-manual.spec.ts", "./playwright.speaker.config.ts", "./playwright.speaker-production.config.ts", "../../apps/web/next-env.d.ts"],
-  "include": []
-}

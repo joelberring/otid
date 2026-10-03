@@ -27,19 +27,9 @@ describe("race administrator action policy", () => {
     }
   });
 
-  it("grants only explicitly integrated actions and the administrator's own scope", () => {
-    const allowed = ["MANAGE_RACE", "VIEW_RACE_OVERVIEW", "VIEW_START_LIST", "CHANGE_ENTRY_CLASS", "CHANGE_ENTRY_CARD", "CHANGE_ENTRY_START_TIME", "RECALCULATE_RESULT", "CHANGE_ENTRY_IDENTITY", "REGISTER_ENTRY", "DECIDE_DID_NOT_START", "WITHDRAW_DID_NOT_START"];
-    allowed.push("DECIDE_DID_NOT_FINISH", "WITHDRAW_DID_NOT_FINISH");
-    allowed.push("DISQUALIFY_RESULT", "WITHDRAW_DISQUALIFICATION");
-    allowed.push("APPROVE_RESULT", "WITHDRAW_RESULT_APPROVAL");
-    allowed.push("DECIDE_OUT_OF_COMPETITION", "WITHDRAW_OUT_OF_COMPETITION");
-    allowed.push("DECIDE_WITHOUT_TIMING", "WITHDRAW_WITHOUT_TIMING");
-    allowed.push("EXPORT_IOF_RESULT_LIST");
-    allowed.push("FINALIZE_RESULTS");
-    allowed.push("DRAW_CLASS_START_TIMES");
-    allowed.push("PUBLISH_START_LIST");
+  it("ger administratören alla åtgärder i tävlingen (ADR-0168)", () => {
     for (const action of capabilities) {
-      expect(raceAdministratorAllowsAction("MANAGE_RACE", action), action).toBe(allowed.includes(action));
+      expect(raceAdministratorAllowsAction("MANAGE_RACE", action), action).toBe(true);
     }
   });
 });

@@ -1111,7 +1111,7 @@ export const userAccountSessions = pgTable("user_account_session", {
   check("user_account_session_secret_hash_check", sql`${table.sessionSecretHash} ~ '^[a-f0-9]{64}$'`),
   check("user_account_session_csrf_hash_check", sql`${table.csrfSecretHash} ~ '^[a-f0-9]{64}$'`),
   check("user_account_session_lifetime_check",
-    sql`${table.expiresAt} > ${table.issuedAt} AND ${table.expiresAt} <= ${table.issuedAt} + interval '8 hours'`)
+    sql`${table.expiresAt} > ${table.issuedAt} AND ${table.expiresAt} <= ${table.issuedAt} + interval '31 days'`)
 ]);
 
 export const userAccountSessionRevocations = pgTable("user_account_session_revocation", {

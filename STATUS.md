@@ -5,9 +5,21 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 1 – Två behörighetsnivåer (se `PLAN.md`). Steg 3 är gjort separat.
+Steg 2 – Dela upp adminarbetsytan (se `PLAN.md`).
 
 ## Logg
+
+### 2026-10-03 – Steg 1 klart
+- Självregistrering på `/organizer`. Kontoinloggningen gäller i 30 dagar (migration 0087).
+- `/manage` öppnas med kontot, utan behörighetskod. En kontoinloggad admin (MANAGE_RACE) får alla funktioner i tävlingen.
+- IOF-importen använder adminsessionen. Eventor-importen är borttagen från sidan (parkerad).
+- Borttaget: 27 dubblettsidor, ~75 API-routes, 33 behörighetsskript, kontoinbjudningskoder, CREATE_EVENT-sidorna,
+  skrivstoppet (`ops/systemd`, `proxy.ts`) och 154 gamla webbläsartestfiler (38 konfigurationer, mest röda vid baslinjen).
+- Nytt: en Playwright-konfiguration, `tests/e2e/admin-access.spec.ts` (konto → tävling → bana/klass/deltagare →
+  medadmin → publik/401), integrationstestet `adr-0168-two-levels` och routetester för registrering. CI kör e2e igen.
+- **Avvikelse från planen:** tabeller och applikationskod för de gamla rollerna ligger kvar men nås inte från webben.
+  Stationsparning/-credentials, start-/målpersonalens koder och claim-koder finns kvar (parkerade, steg 4 tar stationen).
+  Publik speakervy är inte gjord. Demo (`demo:provision`) fungerar inte längre och ersätts i steg 5.
 
 ### 2026-10-03 – Steg 3 klart (gjort före steg 1–2, oberoende av dem)
 - Nytt paket `packages/sportident`: ramtolkning med CRC, tillståndsmaskin för avläsningsstation,
@@ -28,7 +40,8 @@ Steg 1 – Två behörighetsnivåer (se `PLAN.md`). Steg 3 är gjort separat.
   test (TASK160), ett för strikt namnkrav på testdatabas (TASK153), kortbyte med extra fält (TASK030), TASK300/301.
 - Gröna: lint, typecheck, `pnpm test`, `pnpm test:integration` (ett test om begränsade roller hoppas över tills steg 1), `pnpm build`.
 - **Webbläsartester:** `pnpm test:e2e` går inte att köra som helhet. Det finns 38 separata Playwright-konfigurationer
-  och flera specar kräver egna databaser och miljövariabler. Läget för adminflödet finns nedan. Konsolideras i steg 1 och 5.
+  och flera specar kräver egna databaser och miljövariabler. Adminflödets svit: 22 av de första 24 testerna föll
+  (tidsgränser). Ersatt i steg 1.
 - CI kör nu lint, typecheck, test, integration och build. Android-jobbet är borttaget (parkerat).
 
 ### 2026-10-03 – Omstart

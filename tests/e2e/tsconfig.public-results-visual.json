@@ -1,6 +1,0 @@
-{
-  "extends": "./tsconfig.eventor.json",
-  "compilerOptions": { "jsx": "react-jsx" },
-  "files": ["./task-236-public-results-visual.spec.ts", "./task-237-public-detail-visual.spec.ts", "./task-238-public-route-visual.spec.ts", "./task-239-public-route-zoom.spec.ts", "./task-240-public-route-comparison-view.spec.ts", "./task-241-public-map-view.spec.ts", "./playwright.public-results-visual.config.ts", "../../apps/web/test/fixtures/public-route-zoom-browser.tsx", "../../apps/web/test/fixtures/public-route-comparison-browser.tsx", "../../apps/web/test/fixtures/public-map-browser.tsx", "../../apps/web/next-env.d.ts"],
-  "include": []
-}

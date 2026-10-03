@@ -1,32 +1,29 @@
-import { defineConfig } from "@playwright/test";
-import { createPublicKey, generateKeyPairSync } from "node:crypto";
+import { defineConfig, devices } from "@playwright/test";
 
-const stationPackagePrivateKeyPem = process.env.O_TID_TEST_PACKAGE_PRIVATE_KEY_PEM ??
-  generateKeyPairSync("rsa", { modulusLength: 2048 }).privateKey.export({
-    type: "pkcs8",
-    format: "pem"
-  }).toString();
-process.env.O_TID_TEST_PACKAGE_PRIVATE_KEY_PEM = stationPackagePrivateKeyPem;
-const stationPackagePublicKeySpkiBase64 = createPublicKey(stationPackagePrivateKeyPem)
-  .export({ type: "spki", format: "der" }).toString("base64");
-process.env.O_TID_TEST_PACKAGE_PUBLIC_KEY_SPKI_BASE64 = stationPackagePublicKeySpkiBase64;
+/**
+ * En gemensam konfiguration för alla webbläsartester (ADR-0168).
+ * Kräver E2E_DATABASE_URL eller TEST_DATABASE_URL till en PostgreSQL/PostGIS-databas.
+ * Databasen migreras i global-setup. Testerna skapar egna unika konton och tävlingar.
+ */
+const port = Number(process.env.E2E_PORT ?? 3100);
+const origin = `http://127.0.0.1:${port}`;
+const database = process.env.E2E_DATABASE_URL ?? process.env.TEST_DATABASE_URL;
+if (!database) throw new Error("Sätt E2E_DATABASE_URL eller TEST_DATABASE_URL för webbläsartesterna");
+process.env.E2E_DATABASE_URL = database;
 
 export default defineConfig({
   testDir: "./tests/e2e",
-  // This suite needs its own explicitly selected empty demo database.
-  testIgnore: ["**/task-007-demo.spec.ts"],
-  timeout: 30_000,
-  use: { baseURL: "http://127.0.0.1:3000" },
+  globalSetup: "./tests/e2e/global-setup.ts",
+  timeout: 90_000,
+  expect: { timeout: 15_000 },
+  workers: 1,
+  reporter: process.env.CI ? "line" : "list",
+  use: { baseURL: origin, trace: "retain-on-failure", ...devices["Desktop Chrome"] },
   webServer: {
-    command: "pnpm --filter @o-tid/web dev",
-    url: "http://127.0.0.1:3000",
+    command: `pnpm --filter @o-tid/web dev --port ${port}`,
+    url: `${origin}/organizer`,
     reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-    env: {
-      ...process.env,
-      O_TID_PUBLIC_ORIGIN: "http://127.0.0.1:3000",
-      O_TID_SIMULATOR_MODE: "loopback-development",
-      O_TID_PACKAGE_SIGNING_PRIVATE_KEY_PEM: stationPackagePrivateKeyPem
-    }
+    timeout: 180_000,
+    env: { ...process.env, DATABASE_URL: database, O_TID_PUBLIC_ORIGIN: origin }
   }
 });

@@ -1,12 +1,8 @@
-export const IMPORT_ADMIN_PRODUCTION_COOKIE_NAMES = {
-  session: "__Host-otid-import-admin-session",
-  csrf: "__Host-otid-import-admin-csrf"
-} as const;
+import { RACE_ADMINISTRATOR_LOOPBACK_COOKIES, RACE_ADMINISTRATOR_PRODUCTION_COOKIES } from "./race-administrator-cookies";
 
-export const IMPORT_ADMIN_LOOPBACK_COOKIE_NAMES = {
-  session: "otid_import_admin_session",
-  csrf: "otid_import_admin_csrf"
-} as const;
+// ADR-0168: importen delar administratörens session (samma kakor som /manage).
+export const IMPORT_ADMIN_PRODUCTION_COOKIE_NAMES = RACE_ADMINISTRATOR_PRODUCTION_COOKIES;
+export const IMPORT_ADMIN_LOOPBACK_COOKIE_NAMES = RACE_ADMINISTRATOR_LOOPBACK_COOKIES;
 
 export type ImportAdminCookieNames =
   | typeof IMPORT_ADMIN_PRODUCTION_COOKIE_NAMES

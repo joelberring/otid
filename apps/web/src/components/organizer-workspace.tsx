@@ -6,11 +6,6 @@ import {
   organizerEventCreateRequestSchema,
   organizerAdminGrantRequestSchema,
   organizerAdminRevokeRequestSchema,
-  organizerAccountInvitationIssueRequestSchema,
-  organizerAccountInvitationIssueResponseSchema,
-  organizerAccountInvitationListResponseSchema,
-  organizerAccountInvitationRevokeRequestSchema,
-  organizerAccountInvitationRevokeResponseSchema,
   type OrganizerEventCreateResponse,
   type OrganizerMyEventsResponse
 } from "@o-tid/contracts";
@@ -38,7 +33,6 @@ import { organizerSv as copy } from "../i18n/organizer-sv";
 import styles from "./organizer-workspace.module.css";
 
 type Session = { accountId: string; displayName: string; expiresAt: string };
-type InvitationGrantReview = { invitationId: string; loginName: string; displayName: string };
 
 function EventAdministrators({ eventId, eventName, accountId }: { eventId: string; eventName: string; accountId: string }) {
   const [grants, setGrants] = useState<ReturnType<typeof parseOrganizerAdminList>["grants"]>([]);
@@ -46,16 +40,9 @@ function EventAdministrators({ eventId, eventName, accountId }: { eventId: strin
   const [busy, setBusy] = useState(false);
   const [loginName, setLoginName] = useState("");
   const [attempt, setAttempt] = useState<OrganizerAdminMutationAttempt>();
-  const [reviewInvitation, setReviewInvitation] = useState<InvitationGrantReview>();
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const reviewRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!reviewInvitation || attempt) return;
-    reviewRef.current?.focus({ preventScroll: true });
-    reviewRef.current?.scrollIntoView({ behavior: "instant", block: "center" });
-  }, [reviewInvitation, attempt]);
 
   async function load() {
     setLoaded(false);
@@ -112,7 +99,6 @@ function EventAdministrators({ eventId, eventName, accountId }: { eventId: strin
       setAttempt(undefined);
       setNotice(confirmed.replayed ? copy.adminRetryConfirmed : isGrant ? copy.adminGranted : copy.adminRevoked);
       setLoginName("");
-      setReviewInvitation(undefined);
       await load();
     } catch (reason) {
       setError(errorMessage(reason));
@@ -130,7 +116,6 @@ function EventAdministrators({ eventId, eventName, accountId }: { eventId: strin
       const current = { accountId, action: "grant" as const, eventId, requestId, request };
       saveOrganizerAdminAttempt(current);
       setAttempt(current);
-      setReviewInvitation(undefined);
       void submit(current);
     } catch (reason) { setError(errorMessage(reason)); }
   }
@@ -143,7 +128,6 @@ function EventAdministrators({ eventId, eventName, accountId }: { eventId: strin
       const current = { accountId, action: "revoke" as const, eventId, requestId, request };
       saveOrganizerAdminAttempt(current);
       setAttempt(current);
-      setReviewInvitation(undefined);
       void submit(current);
     } catch (reason) { setError(errorMessage(reason)); }
   }
@@ -156,13 +140,6 @@ function EventAdministrators({ eventId, eventName, accountId }: { eventId: strin
 
   const activeCount = grants.filter((grant) => !grant.revokedAt).length;
   const revokedCount = grants.length - activeCount;
-  const activeAdminLoginNames = grants.filter((grant) => !grant.revokedAt).map((grant) => grant.loginName);
-
-  function reviewInvitationGrant(invitation: InvitationGrantReview) {
-    if (busy || attempt || !loaded || error || activeAdminLoginNames.includes(invitation.loginName)) return;
-    setLoginName(invitation.loginName);
-    setReviewInvitation(invitation);
-  }
 
   return <section className={styles.adminPanel} aria-label={copy.adminPanel}>
     <div className={styles.adminHeading}><h4>{copy.adminPanel}</h4>
@@ -183,13 +160,11 @@ function EventAdministrators({ eventId, eventName, accountId }: { eventId: strin
         onClick={() => revoke(grant.grantId, grant.displayName)}>{copy.adminRevoke}</button>}
     </li>)}</ul>}
     {!attempt && <form className={styles.adminForm} onSubmit={(event) => void createGrant(event)}>
-      <label>{copy.adminLoginName}<input value={loginName} onChange={(event) => { setLoginName(event.target.value); setReviewInvitation(undefined); }}
+      <label>{copy.adminLoginName}<input value={loginName} onChange={(event) => setLoginName(event.target.value)}
         autoCapitalize="none" autoComplete="off" spellCheck={false} maxLength={80} required disabled={busy || !!attempt} /></label>
       <div ref={reviewRef} tabIndex={-1} className={styles.adminReview}>
-        {reviewInvitation
-          ? <p className={styles.adminInvitationReview}>{copy.adminInvitationReview(reviewInvitation.displayName, reviewInvitation.loginName, eventName)}</p>
-          : <><p>{loginName ? copy.adminReview(loginName.trim().toLowerCase()) : copy.adminReviewHint}</p>
-              <p>{copy.adminReviewEvent(eventName)}</p></>}
+        <p>{loginName ? copy.adminReview(loginName.trim().toLowerCase()) : copy.adminReviewHint}</p>
+        <p>{copy.adminReviewEvent(eventName)}</p>
       </div>
       <button type="submit" disabled={busy || !!attempt || !loginName}>{copy.adminGrant}</button>
     </form>}
@@ -205,259 +180,10 @@ function EventAdministrators({ eventId, eventName, accountId }: { eventId: strin
         <button className={styles.secondary} type="button" disabled={busy} onClick={abandon}>{copy.adminAbandonAttempt}</button>
       </div>
     </div>}
-    <AccountInvitationDisclosure eventId={eventId} activeAdminLoginNames={activeAdminLoginNames}
-      adminListReady={loaded && !error} reviewBlocked={busy || !!attempt} onReviewGrant={reviewInvitationGrant} />
     <p className={styles.message} role="status" aria-live="polite">{notice}</p>
   </section>;
 }
 
-type InvitationIssueAttempt = {
-  request: ReturnType<typeof organizerAccountInvitationIssueRequestSchema.parse>;
-  code: string;
-};
-type InvitationRevokeAttempt = {
-  invitationId: string;
-  requestId: string;
-  request: ReturnType<typeof organizerAccountInvitationRevokeRequestSchema.parse>;
-};
-type InvitationGrantReviewProps = {
-  eventId: string;
-  activeAdminLoginNames: string[];
-  adminListReady: boolean;
-  reviewBlocked: boolean;
-  onReviewGrant: (invitation: InvitationGrantReview) => void;
-};
-
-async function createInvitationCode(): Promise<{ code: string; codeHash: string }> {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  const code = btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
-  const codeHash = Array.from(digest, (value) => value.toString(16).padStart(2, "0")).join("");
-  return { code, codeHash };
-}
-
-function AccountInvitationManager({ eventId, activeAdminLoginNames, adminListReady, reviewBlocked, onReviewGrant }: InvitationGrantReviewProps) {
-  const [invitations, setInvitations] = useState<ReturnType<typeof organizerAccountInvitationListResponseSchema.parse>["invitations"]>([]);
-  const [loaded, setLoaded] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [loginName, setLoginName] = useState("");
-  const [displayName, setDisplayName] = useState("");
-  const [issueAttempt, setIssueAttempt] = useState<InvitationIssueAttempt>();
-  const [issued, setIssued] = useState<{ invitationId: string; loginName: string; displayName: string; expiresAt: string; code: string }>();
-  const [revokeAttempt, setRevokeAttempt] = useState<InvitationRevokeAttempt>();
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-
-  async function load() {
-    setLoaded(false);
-    setError("");
-    try {
-      const response = await fetch(`/api/organizer/events/${encodeURIComponent(eventId)}/account-invitations`, {
-        credentials: "same-origin", cache: "no-store"
-      });
-      if (!response.ok) throw new Error(copy.invitationLoadError(response.status));
-      const result = organizerAccountInvitationListResponseSchema.parse(await responseJson(response));
-      if (result.eventId !== eventId) throw new Error(copy.invalidServerResponse);
-      setInvitations(result.invitations);
-    } catch (reason) { setError(errorMessage(reason)); }
-    finally { setLoaded(true); }
-  }
-
-  useEffect(() => { void load(); }, [eventId]);
-
-  async function submitIssue(current: InvitationIssueAttempt) {
-    setBusy(true);
-    setError("");
-    setNotice(copy.invitationSending);
-    let rejected = false;
-    try {
-      const response = await fetch(`/api/organizer/events/${encodeURIComponent(eventId)}/account-invitations`, {
-        method: "POST", credentials: "same-origin",
-        headers: {
-          "content-type": "application/json",
-          "Idempotency-Key": `organizer-account-invitation-issue:${current.request.requestId}`,
-          "x-otid-csrf": readOrganizerCsrf(document.cookie, new URL(window.location.href))
-        },
-        body: JSON.stringify(current.request)
-      });
-      if (!response.ok) {
-        if (response.status === 409 || response.status === 400 || response.status === 404) {
-          rejected = true;
-          setIssueAttempt(undefined);
-          setIssued(undefined);
-          throw new Error(response.status === 409 ? copy.invitationConflict : copy.invitationInvalid);
-        }
-        if (response.status === 401 || response.status === 403) {
-          rejected = true;
-          setIssueAttempt(undefined);
-          setIssued(undefined);
-          throw new Error(copy.invitationSession(response.status));
-        }
-        throw new Error(copy.invitationUncertain(response.status));
-      }
-      const value = organizerAccountInvitationIssueResponseSchema.parse(await responseJson(response));
-      if (value.eventId !== eventId || value.requestId !== current.request.requestId || value.loginName !== current.request.loginName || value.displayName !== current.request.displayName) {
-        throw new Error(copy.invalidServerResponse);
-      }
-      setIssueAttempt(undefined);
-      setIssued({ invitationId: value.invitationId, loginName: value.loginName, displayName: value.displayName, expiresAt: value.expiresAt, code: current.code });
-      setNotice(value.replayed ? copy.invitationRetryConfirmed : copy.invitationCreated);
-      setLoginName("");
-      setDisplayName("");
-      await load();
-    } catch (reason) {
-      setError(errorMessage(reason));
-      if (!rejected) setNotice(copy.invitationPendingNotice);
-    } finally { setBusy(false); }
-  }
-
-  async function createInvitation(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    // Starting a new intent discards any prior one-time code from component memory.
-    setIssued(undefined);
-    setIssueAttempt(undefined);
-    setError("");
-    try {
-      const { code, codeHash } = await createInvitationCode();
-      const requestId = crypto.randomUUID();
-      const request = organizerAccountInvitationIssueRequestSchema.parse({
-        formatVersion: 1, requestId, eventId,
-        loginName: loginName.trim().toLowerCase(), displayName: displayName.trim(), codeHash
-      });
-      const current = { request, code };
-      setIssueAttempt(current);
-      await submitIssue(current);
-    } catch (reason) { setError(errorMessage(reason)); }
-  }
-
-  async function submitRevoke(current: InvitationRevokeAttempt) {
-    setBusy(true);
-    setError("");
-    setNotice(copy.invitationRevoking);
-    let rejected = false;
-    try {
-      const response = await fetch(`/api/organizer/events/${encodeURIComponent(eventId)}/account-invitations/${encodeURIComponent(current.invitationId)}/revoke`, {
-        method: "POST", credentials: "same-origin",
-        headers: {
-          "content-type": "application/json",
-          "Idempotency-Key": `organizer-account-invitation-revoke:${current.requestId}`,
-          "x-otid-csrf": readOrganizerCsrf(document.cookie, new URL(window.location.href))
-        },
-        body: JSON.stringify(current.request)
-      });
-      if (!response.ok) {
-        if (response.status === 409 || response.status === 400 || response.status === 401 || response.status === 403 || response.status === 404) {
-          rejected = true;
-          setRevokeAttempt(undefined);
-          throw new Error(copy.invitationRevokeRejected(response.status));
-        }
-        throw new Error(copy.invitationUncertain(response.status));
-      }
-      const result = organizerAccountInvitationRevokeResponseSchema.parse(await responseJson(response));
-      if (result.eventId !== eventId || result.invitationId !== current.invitationId || result.requestId !== current.requestId) throw new Error(copy.invalidServerResponse);
-      setRevokeAttempt(undefined);
-      setNotice(result.replayed ? copy.invitationRevokeRetryConfirmed : copy.invitationRevoked);
-      await load();
-    } catch (reason) {
-      setError(errorMessage(reason));
-      if (!rejected) setNotice(copy.invitationRevokePendingNotice);
-    } finally { setBusy(false); }
-  }
-
-  function revoke(invitationId: string, displayName: string) {
-    if (!window.confirm(copy.invitationConfirmRevoke(displayName))) return;
-    const requestId = crypto.randomUUID();
-    const request = organizerAccountInvitationRevokeRequestSchema.parse({ formatVersion: 1, requestId, eventId, invitationId });
-    const current = { invitationId, requestId, request };
-    setRevokeAttempt(current);
-    void submitRevoke(current);
-  }
-
-  async function copyCode() {
-    if (!issued) return;
-    try {
-      await navigator.clipboard.writeText(issued.code);
-      setNotice(copy.invitationCopied);
-    } catch { setError(copy.invitationCopyError); }
-  }
-
-  return <section className={styles.invitationPanel} aria-label={copy.invitationPanel}>
-    <div className={styles.adminHeading}><h4>{copy.invitationPanel}</h4>
-      <button className={styles.secondary} type="button" disabled={busy} onClick={() => void load()}>{copy.refresh}</button>
-    </div>
-    <p className={styles.muted}>{copy.invitationHint}</p>
-    {!loaded && <p aria-live="polite">{copy.invitationLoading}</p>}
-    {error && <p role="alert">{error}</p>}
-    {loaded && !error && invitations.length === 0 && <p>{copy.invitationEmpty}</p>}
-    {invitations.length > 0 && <ul className={`${styles.adminList} ${styles.invitationList}`}>{invitations.map((invitation) => <li key={invitation.invitationId}>
-      <div><strong>{invitation.displayName}</strong><span>{invitation.loginName}</span></div>
-      <span className={styles.invitationRowStatus}>{copy.invitationStatus[invitation.status]}
-        <small>{copy.invitationExpires}: {new Date(invitation.expiresAt).toLocaleString("sv-SE")}</small></span>
-      {invitation.status === "PENDING" && <button className={styles.secondary} type="button" disabled={busy || !!issueAttempt || !!revokeAttempt}
-        onClick={() => revoke(invitation.invitationId, invitation.displayName)}>{copy.invitationRevoke}</button>}
-      {invitation.status === "REDEEMED" && (adminListReady
-        ? activeAdminLoginNames.includes(invitation.loginName)
-          ? <span className={styles.invitationGrantState}>{copy.invitationGrantActive}</span>
-          : <button className={styles.secondary} type="button" disabled={busy || reviewBlocked}
-              onClick={() => onReviewGrant({ invitationId: invitation.invitationId, loginName: invitation.loginName, displayName: invitation.displayName })}>
-              {copy.invitationReviewGrant}
-            </button>
-        : <span className={styles.invitationGrantState}>{copy.invitationGrantListUnavailable}</span>)}
-    </li>)}</ul>}
-    {!issueAttempt && !revokeAttempt && !issued && <form className={styles.invitationForm} onSubmit={(event) => void createInvitation(event)}>
-      <label>{copy.invitationLoginName}<input value={loginName} onChange={(event) => setLoginName(event.target.value)}
-        autoCapitalize="none" autoComplete="off" spellCheck={false} maxLength={80} required disabled={busy} /></label>
-      <label>{copy.invitationDisplayName}<input value={displayName} onChange={(event) => setDisplayName(event.target.value)}
-        autoComplete="off" maxLength={120} required disabled={busy} /></label>
-      <p className={styles.invitationFormHint}>{copy.invitationFormHint}</p>
-      <button type="submit" disabled={busy || !loginName || !displayName}>{copy.invitationCreate}</button>
-    </form>}
-    {issueAttempt && <div className={styles.uncertain} role="alert">
-      <h5>{copy.invitationPendingTitle}</h5><p>{copy.invitationPendingHint}</p>
-      <dl><dt>{copy.invitationRequestId}</dt><dd>{issueAttempt.request.requestId}</dd>
-        <dt>{copy.invitationEventId}</dt><dd>{issueAttempt.request.eventId}</dd>
-        <dt>{copy.invitationTargetLogin}</dt><dd>{issueAttempt.request.loginName}</dd>
-        <dt>{copy.invitationTargetName}</dt><dd>{issueAttempt.request.displayName}</dd></dl>
-      <div className={styles.actions}><button type="button" disabled={busy} onClick={() => void submitIssue(issueAttempt)}>{copy.retrySameAttempt}</button></div>
-    </div>}
-    {revokeAttempt && <div className={styles.uncertain} role="alert">
-      <h5>{copy.invitationRevokePendingTitle}</h5><p>{copy.invitationRevokePendingHint}</p>
-      <dl><dt>{copy.invitationRequestId}</dt><dd>{revokeAttempt.requestId}</dd>
-        <dt>{copy.invitationEventId}</dt><dd>{revokeAttempt.request.eventId}</dd>
-        <dt>{copy.invitationTargetId}</dt><dd>{revokeAttempt.invitationId}</dd></dl>
-      <div className={styles.actions}><button type="button" disabled={busy} onClick={() => void submitRevoke(revokeAttempt)}>{copy.retrySameAttempt}</button></div>
-    </div>}
-    {issued && <div className={styles.confirmed}>
-      <strong>{copy.invitationCodeTitle}</strong>
-      <p>{copy.invitationCodeHint(issued.displayName, issued.loginName, new Date(issued.expiresAt).toLocaleString("sv-SE"))}</p>
-      <code className={styles.invitationCode}>{issued.code}</code>
-      <div className={styles.invitationCodeActions}>
-        <button className={styles.secondary} type="button" onClick={() => void copyCode()}>{copy.invitationCopy}</button>
-        <button className={styles.secondary} type="button" onClick={() => { setIssued(undefined); setNotice(copy.invitationCleared); }}>{copy.invitationHideCode}</button>
-      </div>
-      <p className={styles.invitationClipboardHint}>{copy.invitationClipboardHint}</p>
-      <p>{copy.invitationAccountOnly}</p>
-    </div>}
-    {!error && notice && <p className={styles.message} role="status" aria-live="polite">{notice}</p>}
-  </section>;
-}
-
-function AccountInvitationDisclosure({ eventId, activeAdminLoginNames, adminListReady, reviewBlocked, onReviewGrant }: InvitationGrantReviewProps) {
-  const [expanded, setExpanded] = useState(false);
-  const [hasExpanded, setHasExpanded] = useState(false);
-  const panelId = `event-account-invitations-${eventId}`;
-  return <div className={styles.invitationDisclosure}>
-    <button className={styles.secondary} type="button" aria-expanded={expanded} aria-controls={panelId}
-      onClick={() => { if (!expanded) setHasExpanded(true); setExpanded(!expanded); }}>
-      {expanded ? copy.invitationHide : copy.invitationShow}
-    </button>
-    {hasExpanded && <div id={panelId} hidden={!expanded}><AccountInvitationManager eventId={eventId}
-      activeAdminLoginNames={activeAdminLoginNames} adminListReady={adminListReady}
-      reviewBlocked={reviewBlocked} onReviewGrant={onReviewGrant} /></div>}
-  </div>;
-}
 
 function EventAdministratorsDisclosure({ eventId, eventName, accountId }: { eventId: string; eventName: string; accountId: string }) {
   const [expanded, setExpanded] = useState(false);
@@ -489,6 +215,8 @@ export function OrganizerWorkspace() {
   const [sessionChecked, setSessionChecked] = useState(false);
   const [loginName, setLoginName] = useState("");
   const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [mode, setMode] = useState<"login" | "register">("login");
   const [events, setEvents] = useState<OrganizerMyEventsResponse["events"]>([]);
   const [eventSearch, setEventSearch] = useState("");
   const [eventsLoaded, setEventsLoaded] = useState(false);
@@ -571,6 +299,34 @@ export function OrganizerWorkspace() {
     setAttempt(restoreOrganizerAttempt());
     void checkSession();
   }, []);
+
+  async function register(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setMessage(copy.registering);
+    try {
+      const response = await fetch("/api/organizer/register", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ formatVersion: 1, loginName: loginName.trim().toLowerCase(), displayName: displayName.trim(), password })
+      });
+      if (!response.ok) throw new Error(response.status === 409 ? copy.loginNameTaken
+        : response.status === 400 ? copy.registerInvalid : copy.registerError(response.status));
+      setSession(parseOrganizerSession(await responseJson(response)));
+      setMessage("");
+      try {
+        await loadEvents();
+      } catch (error) {
+        setMessage(errorMessage(error));
+      }
+    } catch (error) {
+      setMessage(errorMessage(error));
+    } finally {
+      setPassword("");
+      setBusy(false);
+    }
+  }
 
   async function login(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -740,7 +496,7 @@ export function OrganizerWorkspace() {
 
     {!sessionChecked && <section className={styles.panel} aria-live="polite"><p>{copy.checkSession}</p></section>}
 
-    {sessionChecked && !session && <section className={`${styles.panel} ${styles.narrow} ${styles.loginPanel}`}>
+    {sessionChecked && !session && mode === "login" && <section className={`${styles.panel} ${styles.narrow} ${styles.loginPanel}`}>
       <h2>{copy.login}</h2>
       <p className={styles.muted}>{copy.loginHint}</p>
       <form className={styles.form} onSubmit={(event) => void login(event)}>
@@ -756,10 +512,36 @@ export function OrganizerWorkspace() {
         {message && <p className={styles.loginMessage} role={message === copy.invalidCredentials ? "alert" : "status"} aria-live="polite">{message}</p>}
       </form>
       <nav className={styles.loginLinks} aria-label={copy.accountHelp}>
+        <button type="button" className={styles.secondary} onClick={() => { setMode("register"); setMessage(""); }}>{copy.toRegister}</button>
         <Link href="/recover">{copy.forgotPassword}</Link>
-        <Link href="/activate">{copy.activateAccount}</Link>
       </nav>
-      <p className={styles.activationHint}>{copy.activateHint}</p>
+    </section>}
+
+    {sessionChecked && !session && mode === "register" && <section className={`${styles.panel} ${styles.narrow} ${styles.loginPanel}`}>
+      <h2>{copy.register}</h2>
+      <p className={styles.muted}>{copy.registerHint}</p>
+      <form className={styles.form} onSubmit={(event) => void register(event)}>
+        <label>{copy.displayName}
+          <input autoComplete="name" value={displayName} maxLength={120}
+            onChange={(event) => setDisplayName(event.target.value)} required />
+        </label>
+        <label>{copy.loginName}
+          <input autoComplete="username" autoCapitalize="none" spellCheck={false} value={loginName}
+            pattern="[a-zA-Z0-9][a-zA-Z0-9._-]{2,79}" aria-describedby="register-login-rule"
+            onChange={(event) => setLoginName(event.target.value)} required />
+          <small id="register-login-rule" className={styles.muted}>{copy.loginNameRule}</small>
+        </label>
+        <label>{copy.password}
+          <input type="password" autoComplete="new-password" minLength={8} value={password} aria-describedby="register-password-rule"
+            onChange={(event) => setPassword(event.target.value)} required />
+          <small id="register-password-rule" className={styles.muted}>{copy.passwordRule}</small>
+        </label>
+        <button type="submit" disabled={busy || !loginName || !displayName.trim() || password.length < 8} aria-busy={busy}>{copy.register}</button>
+        {message && <p className={styles.loginMessage} role="status" aria-live="polite">{message}</p>}
+      </form>
+      <nav className={styles.loginLinks} aria-label={copy.accountHelp}>
+        <button type="button" className={styles.secondary} onClick={() => { setMode("login"); setMessage(""); }}>{copy.toLogin}</button>
+      </nav>
     </section>}
 
     {session && <div className={styles.columns}>

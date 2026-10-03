@@ -3,6 +3,7 @@ import { and, desc, eq } from "drizzle-orm";
 import {
   organizerAccountLoginRequestSchema,
   organizerAccountLoginResponseSchema,
+  organizerAccountRegistrationRequestSchema,
   type OrganizerAccountLoginRequest,
   type OrganizerAccountLoginResponse
 } from "@o-tid/contracts";
@@ -18,7 +19,8 @@ const LOGIN_NAME_PATTERN = /^[a-z0-9][a-z0-9._-]{2,79}$/;
 const DUMMY_ID = "00000000-0000-4000-8000-000000000000";
 const DUMMY_SALT = Buffer.alloc(16);
 const DUMMY_HASH = Buffer.alloc(32);
-const SESSION_LIFETIME_MS = 8 * 60 * 60 * 1000;
+// ADR-0168: en inloggning ska räcka en hel tävlingshelg.
+const SESSION_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const MAX_FAILED_ATTEMPTS = 5;
 const SCRYPT_OPTIONS = { N: 2 ** 15, r: 8, p: 3, maxmem: 64 * 1024 * 1024 } as const;
@@ -144,6 +146,44 @@ export async function provisionUserAccount(
     });
   });
   return { accountId, loginName, initialPassword };
+}
+
+export type UserAccountRegistrationResult =
+  | { status: "invalid-request" | "conflict" }
+  | UserAccountLoginResult;
+
+/**
+ * Självregistrering (ADR-0168). Skapar kontot med valt lösenord och loggar in.
+ * Ett upptaget inloggningsnamn ger `conflict`.
+ */
+export async function registerUserAccount(
+  db: Database,
+  request: unknown,
+  options: UserAccountRuntimeOptions = {}
+): Promise<UserAccountRegistrationResult> {
+  const parsed = organizerAccountRegistrationRequestSchema.safeParse(request);
+  if (!parsed.success) return { status: "invalid-request" };
+  const loginName = normalizedLoginName(parsed.data.loginName);
+  const now = validDate(options.now ?? new Date());
+  const accountId = validUuid(options.accountId ?? randomUUID());
+  const salt = bytes(options.saltBytes, 16);
+  const verifier = await scryptVerifier(parsed.data.password, salt);
+  const created = await db.transaction(async (tx) => {
+    const [existing] = await tx.select({ id: schema.userAccounts.id }).from(schema.userAccounts)
+      .where(eq(schema.userAccounts.loginName, loginName));
+    if (existing) return false;
+    const inserted = await tx.insert(schema.userAccounts)
+      .values({ id: accountId, loginName, displayName: parsed.data.displayName, createdAt: now })
+      .onConflictDoNothing().returning({ id: schema.userAccounts.id });
+    if (inserted.length === 0) return false;
+    await tx.insert(schema.userAccountPasswordVerifiers).values({
+      accountId, version: 1, algorithm: "scrypt-v1", saltHex: salt.toString("hex"),
+      verifierHex: verifier.toString("hex"), createdAt: now
+    });
+    return true;
+  });
+  if (!created) return { status: "conflict" };
+  return loginUserAccount(db, { formatVersion: 1, loginName, password: parsed.data.password }, options);
 }
 
 /** Rotation invalidates all older sessions by advancing the verifier version. */

@@ -1,5 +1,0 @@
-{
-  "extends": "./tsconfig.forest-watch.json",
-  "files": ["./task-026-entry-identity.spec.ts", "./playwright.entry-identity.config.ts", "../../apps/web/next-env.d.ts"],
-  "include": []
-}

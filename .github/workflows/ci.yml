@@ -38,5 +38,7 @@ jobs:
       - run: pnpm test
       - run: pnpm test:integration
       - run: pnpm build
-      # Webbläsartesterna slås ihop till en gemensam konfiguration i steg 1 och 5
-      # (PLAN.md). Tills dess körs de inte i CI.
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+        env:
+          E2E_DATABASE_URL: postgresql://otid:otid@localhost:5432/otid_test

@@ -31,6 +31,7 @@ import { AdministratorConflictEvidence } from "./administrator-conflict-evidence
 import { ParticipantEntryClaimAdmin } from "./participant-entry-claim-admin";
 import { RaceWorkspaceOverview } from "./race-workspace-overview";
 import { RaceOperatorAccess } from "./race-operator-access";
+import { readOrganizerCsrf } from "../lib/organizer-client";
 import { RacePreparationGuide, type PreparationStepArea } from "./race-preparation-guide";
 import { RaceParticipantFacts } from "./race-participant-facts";
 import { RaceParticipantCourse } from "./race-participant-course";
@@ -82,7 +83,7 @@ import {
   entryRegistrationCandidatesResponseSchema, type EntryRegistrationCandidatesResponse,
   entryRegistrationStartSlotCandidatesSchema, type EntryRegistrationStartSlotCandidates,
   administratorEntryChangesResponseSchema, type AdministratorEntryChangesResponse,
-  raceAdministratorLoginRequestSchema, raceAdministratorLoginResponseSchema, entryTransferStartSlotCandidatesSchema,
+  raceAdministratorLoginResponseSchema, entryTransferStartSlotCandidatesSchema,
   type EntryTransferCandidates, type EntryTransferRequest, type EntryTransferStartSlotCandidates
 } from "@o-tid/contracts";
 import { manualCourseClassCreateResponseSchema, manualCourseVersionClassRelinkPreviewSchema,
@@ -185,7 +186,6 @@ function resultDuration(ms: number) {
 }
 
 export function RaceAdministratorWorkspace({ raceId, developmentAutoLogin = false }: { raceId: string; developmentAutoLogin?: boolean }) {
-  const [credential, setCredential] = useState("");
   const [expiresAt, setExpiresAt] = useState<string>();
   const [authenticated, setAuthenticated] = useState(false);
   const [data, setData] = useState<EntryTransferCandidates>();
@@ -387,7 +387,7 @@ export function RaceAdministratorWorkspace({ raceId, developmentAutoLogin = fals
   }, []);
   const lock = useCallback((discard = false) => {
     invalidate(); deadline.current = 0;
-    setAuthenticated(false); setExpiresAt(undefined); setData(undefined); setCredential("");
+    setAuthenticated(false); setExpiresAt(undefined); setData(undefined);
     setParticipantActionPending(false);
     setFinalizations(undefined); setFinalizationId("");
     setForestData(undefined); setForestClass(""); setForestQuery(""); setForestStale(true);
@@ -563,6 +563,17 @@ export function RaceAdministratorWorkspace({ raceId, developmentAutoLogin = fals
     } catch { if (current(op)) setRegistrationStartSlots(undefined); }
     finally { finish(op); }
   }
+  /** ADR-0168: öppna tävlingen med det inloggade kontot (OWNER/ADMIN på eventet). */
+  async function enterWithAccount(op: Operation) {
+    let csrfToken: string;
+    try { csrfToken = readOrganizerCsrf(document.cookie, new URL(window.location.href)); }
+    catch { throw new Error("No account session"); }
+    const response = await fetch(`/api/organizer/races/${encodeURIComponent(raceId)}/enter`, {
+      method: "POST", credentials: "same-origin", cache: "no-store", signal: op.controller.signal,
+      headers: { "x-otid-csrf": csrfToken } });
+    if (!response.ok) throw new Error("Account enter failed");
+    await session(op);
+  }
   async function session(op: Operation, init: RequestInit = {}, development = false) {
     const response = await request(development ? "/development-session" : "/session", op, init);
     if (!response.ok) throw new Error("Session unavailable");
@@ -574,6 +585,7 @@ export function RaceAdministratorWorkspace({ raceId, developmentAutoLogin = fals
   useEffect(() => {
     const op = begin();
     void session(op, developmentAutoLogin ? { method: "POST" } : {}, developmentAutoLogin)
+      .catch(() => developmentAutoLogin ? Promise.reject(new Error("Development session unavailable")) : enterWithAccount(op))
       .catch(() => { if (current(op)) lock(); }).finally(() => finish(op));
     const hide = () => flushSync(() => lock(true));
     const visible = () => { if (document.visibilityState === "visible" && deadline.current && deadline.current <= Date.now()) lock(); };
@@ -606,10 +618,7 @@ export function RaceAdministratorWorkspace({ raceId, developmentAutoLogin = fals
     const op = begin();
     try {
       if (developmentAutoLogin) await session(op, { method: "POST" }, true);
-      else {
-        const body = raceAdministratorLoginRequestSchema.parse({ formatVersion: 1, accessCredential: credential });
-        setCredential(""); await session(op, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-      }
+      else await enterWithAccount(op);
     } catch { if (current(op)) lock(); } finally { finish(op); }
   }
   function inspectManualClass(event: FormEvent) {
@@ -2725,8 +2734,7 @@ export function RaceAdministratorWorkspace({ raceId, developmentAutoLogin = fals
     {!authenticated && !developmentAutoLogin && <p>{text.introduction}</p>}
     <p className={styles.status} role="status" aria-live="polite">{message}</p>
     {!authenticated && <form className={`${styles.panel} ${styles.login}`} onSubmit={(event) => void login(event)}>
-      {!developmentAutoLogin && <label>{text.credential}<input type="password" autoComplete="off" spellCheck={false} value={credential} disabled={busy}
-        onChange={(event) => setCredential(event.target.value)} required /></label>}
+      {!developmentAutoLogin && <p>{text.accountLoginHelp} <Link href="/organizer" prefetch={false}>{text.accountLoginLink}</Link></p>}
       <button disabled={busy}>{developmentAutoLogin ? navigationText.openDevelopmentRace : text.login}</button>
     </form>}
     {authenticated && <>
@@ -2831,7 +2839,6 @@ export function RaceAdministratorWorkspace({ raceId, developmentAutoLogin = fals
         {!workflowLocked && <nav className={styles.contextLinks} aria-label={text.overviewLinks}>
           <Link href={`/results/${raceId}`}>{text.publicResultsLink}</Link>
           <Link href={`/starts/${raceId}`}>{publicationText.publicLink}</Link>
-          <Link href={`/admin/${raceId}`}>{text.readOnlyOverviewLink}</Link>
         </nav>}
       </section>
       <section className={styles.workflowGroup} id={`workflow-${raceId}-before`} aria-label={navigationText.preparation.OVERVIEW}

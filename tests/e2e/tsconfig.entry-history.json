@@ -1,5 +1,0 @@
-{
-  "extends": "./tsconfig.forest-watch.json",
-  "files": ["./task-024-entry-history.spec.ts", "./playwright.entry-history.config.ts", "../../apps/web/next-env.d.ts"],
-  "include": []
-}

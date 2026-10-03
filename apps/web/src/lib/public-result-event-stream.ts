@@ -2,7 +2,6 @@ import { publicResultUpdateEventExists, readPublicResultEventStream } from "@o-t
 import type { Pool, PoolClient } from "@o-tid/database";
 import { db, pool } from "./db";
 import { formatPublicResultEvent, parsePublicResultUpdateNotification } from "./public-result-event-stream-wire";
-import { writerAdmissionClosed } from "./writer-stop-admission";
 
 const notificationChannel = "otid_public_result_update";
 
@@ -105,8 +104,7 @@ export function createPublicResultEventStream(
       };
       const stopIfClosed = () => {
         if (closed) return true;
-        if (request.signal.aborted || writerAdmissionClosed(
-          process.env.OTID_WRITER_STOP_PROFILE, process.env.OTID_WRITER_STOP_FILE)) {
+        if (request.signal.aborted) {
           close?.();
           return true;
         }

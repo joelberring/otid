@@ -1,7 +1,4 @@
 import { readFile } from "node:fs/promises";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { count, eq, sql } from "drizzle-orm";
 import { migrate } from "@o-tid/database";
@@ -309,30 +306,4 @@ describe("TASK 008 skyddad speakerläsning PostgreSQL", () => {
     expect(revisions.find((revision) => revision.id === source.id)).toEqual(source);
   });
 
-  it("utfärdar och spärrar genom betrodd CLI utan hemlighet i argv/fel", async () => {
-    const raceId = await fixture();
-    const root = fileURLToPath(new URL("../../../../", import.meta.url));
-    const run = ([command, ...args]: string[]) => promisify(execFile)("pnpm", ["--silent", `speaker:access:${command}`, ...args], {
-      cwd: root, env: { ...process.env, DATABASE_URL: url }, timeout: 15_000, maxBuffer: 64 * 1024
-    });
-    // execFile pipes stdout into memory; the generated secret is never an argument or log.
-    const issued = await run(["issue", "--race-id", raceId, "--label", "Syntetisk CLI",
-      "--expires-at", new Date(Date.now() + 3600_000).toISOString()]);
-    expect(issued.stderr).toBe("");
-    const installation = JSON.parse(issued.stdout) as { credentialId: string; accessCredential: string; capability: string };
-    expect(installation.capability).toBe("VIEW_SPEAKER_BOARD");
-    expect(installation.accessCredential.startsWith("otid_org_speaker_board_v1.")).toBe(true);
-    const login = await loginPairingAdmin(db, { formatVersion: 1, accessCredential: installation.accessCredential },
-      { expectedRaceId: raceId, expectedCapability: "VIEW_SPEAKER_BOARD" });
-    expect(login.status).toBe("authenticated");
-    const revoked = await run(["revoke", "--credential-id", installation.credentialId, "--reason", "SYNTHETIC_CLI_REVOKE"]);
-    expect(JSON.parse(revoked.stdout)).toMatchObject({ status: "revoked", credentialId: installation.credentialId });
-    expect(JSON.parse((await run(["revoke", "--credential-id", installation.credentialId])).stdout)).toMatchObject({ status: "already-revoked" });
-    const before = await db.select({ value: count() }).from(schema.pairingAdminAccessCredentials)
-      .where(eq(schema.pairingAdminAccessCredentials.raceId, raceId));
-    await expect(run(["issue", "--race-id", raceId, "--race-id", raceId])).rejects.toMatchObject({ code: 1, stdout: "" });
-    expect(await db.select({ value: count() }).from(schema.pairingAdminAccessCredentials)
-      .where(eq(schema.pairingAdminAccessCredentials.raceId, raceId))).toEqual(before);
-    // Four real CLI processes each have their own 15-second timeout.
-  }, 65_000);
 });

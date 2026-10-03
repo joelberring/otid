@@ -164,25 +164,6 @@ describe("TASK029 gemensam tävlingsadministratör PostgreSQL", () => {
     expect(journal[0]?.actorCredentialId).toBe(actor.installation.credentialId);
   });
 
-  // Begränsade roller tas bort i steg 1 (ADR-0168), då försvinner även detta test.
-  it.skip("eskalerar inte begränsad roll, byter inte race och maskerar inte login/logout", async () => {
-    const { raceId } = await importedRace();
-    const { raceId: otherRaceId } = await importedRace();
-    const actor = await admin(raceId);
-    const limited = await admin(raceId, "CHANGE_ENTRY_CLASS");
-    expect((await listStartListAsAdmin(db, limited.proof, now)).status).toBe("forbidden");
-    expect((await listEntryClassesAsAdmin(db, { ...actor.proof, raceId: otherRaceId }, now)).status).toBe("forbidden");
-    expect((await listEntryIdentitiesAsAdmin(db, actor.proof, now)).status).toBe("forbidden");
-    expect(await loginPairingAdmin(db, { formatVersion: 1, accessCredential: actor.installation.accessCredential },
-      { expectedRaceId: raceId, expectedCapability: "CHANGE_ENTRY_CLASS", now })).toEqual({ status: "unauthorized" });
-    expect(await logoutPairingAdminSession(db, { ...actor.proof, capability: "CHANGE_ENTRY_CLASS" }, now))
-      .toEqual({ status: "forbidden" });
-    expect(await authenticatePairingAdminSession(db, { ...actor.proof, capability: "CHANGE_ENTRY_CLASS" }, now))
-      .toMatchObject({ status: "authenticated", principal: { capability: "MANAGE_RACE" } });
-    expect(await logoutPairingAdminSession(db, { ...actor.proof, capability: "MANAGE_RACE" }, now))
-      .toEqual({ status: "logged-out" });
-    expect((await listStartListAsAdmin(db, actor.proof, now)).status).toBe("unauthorized");
-  });
 
   it("respekterar expiry, revocation och maximal livslängd även i databasen", async () => {
     const { raceId } = await importedRace();

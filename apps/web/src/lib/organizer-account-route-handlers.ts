@@ -7,6 +7,7 @@ import {
   listMyEventsAsUserAccount,
   loginUserAccount,
   logoutUserAccountSession,
+  registerUserAccount,
   revokeEventAdministratorAsUserAccount
 } from "@o-tid/application";
 import {
@@ -45,6 +46,7 @@ import {
 
 type Environment = Partial<Pick<NodeJS.ProcessEnv, "NODE_ENV" | "O_TID_PUBLIC_ORIGIN">>;
 type Login = typeof loginUserAccount;
+type Register = typeof registerUserAccount;
 type Authenticate = typeof authenticateUserAccountSession;
 type Logout = typeof logoutUserAccountSession;
 type Create = typeof createEventAsUserAccount;
@@ -93,6 +95,25 @@ export async function organizerLoginRoute(
     if (result.status === "unauthorized") return organizerFailure(401, "UNAUTHORIZED");
     const response = organizerAccountLoginResponseSchema.parse(result.response);
     return setOrganizerAccountCookies(organizerJson(response), configured.value, {
+      sessionToken: result.sessionToken, csrfToken: result.csrfToken, expiresAt: response.expiresAt
+    });
+  } catch { return organizerFailure(500, "INTERNAL_ERROR"); }
+}
+
+/** Självregistrering (ADR-0168): skapar konto och loggar in direkt. */
+export async function organizerRegisterRoute(
+  db: Database, request: Request, register: Register = registerUserAccount, environment: Environment = process.env
+): Promise<Response> {
+  const configured = policy(environment);
+  if ("response" in configured) return configured.response;
+  if (!hasExpectedOrganizerOrigin(request, configured.value)) return organizerFailure(403, "FORBIDDEN");
+  let body: unknown;
+  try { body = await readOrganizerJson(request); } catch { return organizerFailure(400, "INVALID_REQUEST"); }
+  try {
+    const result = await register(db, body);
+    if (result.status !== "authenticated") return requestFailure(result.status);
+    const response = organizerAccountLoginResponseSchema.parse(result.response);
+    return setOrganizerAccountCookies(organizerJson(response, 201), configured.value, {
       sessionToken: result.sessionToken, csrfToken: result.csrfToken, expiresAt: response.expiresAt
     });
   } catch { return organizerFailure(500, "INTERNAL_ERROR"); }

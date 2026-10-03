@@ -21,9 +21,13 @@ pnpm dev
 
 ## Behörighet
 
-- **Admin**: registrera ett konto, skapa en tävling och bjud in fler admins.
-  Admins kan ändra allt i tävlingen.
-- **Alla andra**: startlistor, resultat och sträcktider är öppna utan inloggning.
+- **Konto:** vem som helst skapar ett konto på `/organizer` (inloggningsnamn, namn, lösenord).
+  Inloggningen gäller i 30 dagar.
+- **Admin:** den som skapar en tävling äger den. Ägaren ger andra konton
+  administratörsrätt under "Visa medadministratörer". Admins kan ändra allt i
+  tävlingen, även import (`/admin/<lopp>/imports`), i samma arbetsyta `/admin/<lopp>/manage`.
+- **Alla andra:** startlistor, resultat och sträcktider är öppna utan inloggning.
+- Glömt lösenord: `pnpm organizer:account rotate` (se `docs/organizer-account-operations.md`).
 
 ## Struktur
 
@@ -45,6 +49,6 @@ docs                  arkitektur, regler, ADR:er, arkiv
 
 ```bash
 pnpm lint && pnpm typecheck && pnpm test && pnpm build
-pnpm test:integration   # kräver TEST_DATABASE_URL
-pnpm test:e2e
+pnpm test:integration   # kräver TEST_DATABASE_URL (PostgreSQL/PostGIS, roll med CREATEDB)
+pnpm test:e2e           # kräver E2E_DATABASE_URL eller TEST_DATABASE_URL; startar webben på port 3100
 ```

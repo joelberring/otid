@@ -1,1 +1,0 @@
-{ "extends": "./tsconfig.race-administrator.json", "files": ["./task-092-class-control-neutralization.spec.ts", "./playwright.class-control-neutralization.config.ts", "../../apps/web/next-env.d.ts"], "include": [] }

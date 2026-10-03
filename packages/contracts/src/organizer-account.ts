@@ -17,6 +17,16 @@ export const organizerAccountLoginRequestSchema = z.object({
   password: z.string().min(1).max(1024)
 }).strict();
 
+/** Självregistrering (ADR-0168): vem som helst kan skapa ett arrangörskonto. */
+export const organizerAccountRegistrationRequestSchema = z.object({
+  formatVersion: z.literal(1),
+  loginName,
+  displayName: z.string().trim().min(1).max(120),
+  password: z.string().min(8).max(1024)
+}).strict();
+
+export type OrganizerAccountRegistrationRequest = z.infer<typeof organizerAccountRegistrationRequestSchema>;
+
 export const organizerAccountLoginResponseSchema = z.object({
   formatVersion: z.literal(1),
   accountId: uuid,

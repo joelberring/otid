@@ -5,7 +5,8 @@ import type {
   enterRaceAsUserAccount,
   listMyEventsAsUserAccount,
   loginUserAccount,
-  logoutUserAccountSession
+  logoutUserAccountSession,
+  registerUserAccount
 } from "@o-tid/application";
 import type { Database } from "@o-tid/database";
 import {
@@ -14,6 +15,7 @@ import {
   organizerLoginRoute,
   organizerLogoutRoute,
   organizerRaceEnterRoute,
+  organizerRegisterRoute,
   organizerSessionStatusRoute
 } from "./organizer-account-route-handlers";
 
@@ -152,5 +154,38 @@ describe("TASK150 organizer account routes", () => {
     expect(response.headers.getSetCookie().join("\n")).toContain("__Host-otid-race-administrator-session");
     expect(responseBody).not.toContain("otid_org_session_v1");
     expect(enter).toHaveBeenCalledWith(db, expect.objectContaining({ raceId, requireCsrf: true, sessionToken }));
+  });
+});
+
+describe("ADR-0168 självregistrering", () => {
+  const registerRequest = (origin: string = prod.O_TID_PUBLIC_ORIGIN) => req("POST",
+    JSON.stringify({ formatVersion: 1, loginName: "ny.arrangor", displayName: "Ny Arrangör", password: "hemligt-lösen" }),
+    { origin, "content-type": "application/json" }, "https://otid.example/api/organizer/register");
+
+  it("skapar konto, sätter inloggningskakor och svarar 201 utan hemligheter i kroppen", async () => {
+    const register = vi.fn(async () => ({ status: "authenticated" as const,
+      response: { formatVersion: 1 as const, accountId, displayName: "Ny Arrangör", expiresAt: principal.expiresAt },
+      sessionToken, csrfToken: csrf })) as unknown as typeof registerUserAccount;
+    const response = await organizerRegisterRoute(db, registerRequest(), register, prod);
+    expect(response.status).toBe(201);
+    const cookies = response.headers.getSetCookie().join("\n");
+    expect(cookies).toContain("__Host-otid-organizer-session=");
+    expect(cookies).toContain("HttpOnly");
+    const text = await response.text();
+    expect(text).not.toContain(sessionToken);
+    expect(JSON.parse(text)).toMatchObject({ accountId, displayName: "Ny Arrangör" });
+  });
+
+  it("svarar 409 för upptaget namn och 400 för ogiltig begäran", async () => {
+    const conflict = vi.fn(async () => ({ status: "conflict" as const })) as unknown as typeof registerUserAccount;
+    expect((await organizerRegisterRoute(db, registerRequest(), conflict, prod)).status).toBe(409);
+    const invalid = vi.fn(async () => ({ status: "invalid-request" as const })) as unknown as typeof registerUserAccount;
+    expect((await organizerRegisterRoute(db, registerRequest(), invalid, prod)).status).toBe(400);
+  });
+
+  it("avvisar fel origin innan något registreras", async () => {
+    const register = vi.fn() as unknown as typeof registerUserAccount;
+    expect((await organizerRegisterRoute(db, registerRequest("https://evil.example"), register, prod)).status).toBe(403);
+    expect(register).not.toHaveBeenCalled();
   });
 });

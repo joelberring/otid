@@ -64,7 +64,7 @@ frames, replay och den falska serieporten. Markera hårdvarustöd som `untested`
 **Acceptans:** git-repo med två commits (före/efter städning), grön baslinje
 eller en kort lista i `STATUS.md` över exakt vilka tester som fortfarande är röda och varför.
 
-## [ ] Steg 1 – Två behörighetsnivåer: admin och alla andra
+## [x] Steg 1 – Två behörighetsnivåer: admin och alla andra
 
 Se ADR-0168 beslut 4.
 

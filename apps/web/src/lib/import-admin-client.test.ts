@@ -3,12 +3,6 @@ import {
   createIofImportAttempt,
   parseIofImportResponse
 } from "./import-admin-client";
-import {
-  IMPORT_ADMIN_LOOPBACK_COOKIE_NAMES,
-  IMPORT_ADMIN_PRODUCTION_COOKIE_NAMES,
-  importAdminCookieNamesForUrl,
-  readImportAdminCsrfCookie
-} from "./import-admin-cookies";
 
 const raceId = "10000000-0000-4000-8000-000000000001";
 const requestId = "10000000-0000-4000-8000-000000000002";
@@ -82,11 +76,4 @@ describe("TASK 005G importadmin-klient", () => {
     )).toThrow("ogiltigt importsvar");
   });
 
-  it("väljer separata host-only importcookies och avvisar dubbla CSRF-cookies", () => {
-    expect(importAdminCookieNamesForUrl(new URL("http://127.0.0.1:3000"))).toBe(IMPORT_ADMIN_LOOPBACK_COOKIE_NAMES);
-    expect(importAdminCookieNamesForUrl(new URL("https://otid.example"))).toBe(IMPORT_ADMIN_PRODUCTION_COOKIE_NAMES);
-    const csrf = "c".repeat(43);
-    expect(readImportAdminCsrfCookie(`x=1; otid_import_admin_csrf=${csrf}`, new URL("http://127.0.0.1:3000"))).toBe(csrf);
-    expect(readImportAdminCsrfCookie(`otid_import_admin_csrf=${csrf}; otid_import_admin_csrf=${csrf}`, new URL("http://127.0.0.1:3000"))).toBeUndefined();
-  });
 });

@@ -316,5 +316,7 @@
     }
     ,{ "idx": 86, "version": "7", "when": 1795708800000, "tag": "0086_task_301_manual_class_name_correction", "breakpoints": true
     }
+    ,{ "idx": 87, "version": "7", "when": 1795795200000, "tag": "0087_adr_0168_account_session_lifetime", "breakpoints": true
+    }
   ]
 }

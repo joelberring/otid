@@ -399,7 +399,7 @@ export async function importIofXmlAsAdmin(
       entityType: "import_file",
       entityId: saved.id,
       action: "IOF_IMPORT_STORED_BY_ADMIN",
-      actorKind: "IOF_IMPORT_ACCESS_CREDENTIAL",
+      actorKind: authorization.principal.capability === "MANAGE_RACE" ? "RACE_ADMIN_ACCESS_CREDENTIAL" : "IOF_IMPORT_ACCESS_CREDENTIAL",
       actorId: authorization.principal.accessCredentialId,
       requestId,
       after: {

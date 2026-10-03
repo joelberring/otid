@@ -1,5 +1,0 @@
-{
-  "extends": "./tsconfig.forest-watch.json",
-  "files": ["./task-014-workspace.spec.ts", "./task-223-organizer-visual.spec.ts", "./task-271-organizer-events-visual.spec.ts", "./task-272-organizer-entry-states-visual.spec.ts", "./task-273-organizer-create-visual.spec.ts", "./task-274-coadmin-visual.spec.ts", "./task-275-invitation-visual.spec.ts", "./task-276-invitation-grant-review.spec.ts", "./playwright.workspace.config.ts", "../../apps/web/next-env.d.ts"],
-  "include": []
-}

@@ -35,7 +35,8 @@ export function parseIofResultListExportMetadata(response: Response, raceId: str
     omittedEntryCount: integerHeader(response, "x-otid-omitted-entry-count"),
     sha256
   });
-  if (!parsed.success || response.headers.get("etag") !== `"sha256-${sha256}"`) {
+  // ETag kontrolleras inte: en komprimerande proxy (Caddy) ändrar den. Innehållshashen kontrolleras vid sparandet.
+  if (!parsed.success) {
     throw new Error(sv.resultListExportInvalidResponse);
   }
   return parsed.data;
@@ -73,8 +74,7 @@ export function validateFrozenIofResultListResponse(
       response.headers.get("x-otid-snapshot-version") !== String(expected.sourceSnapshotVersion) ||
       response.headers.get("x-otid-class-count") !== String(expected.classCount) ||
       response.headers.get("x-otid-result-count") !== String(expected.entryCount) ||
-      response.headers.get("x-otid-content-sha256") !== expected.completeXmlSha256 ||
-      response.headers.get("etag") !== `"sha256-${expected.completeXmlSha256}"`) {
+      response.headers.get("x-otid-content-sha256") !== expected.completeXmlSha256) {
     throw new Error(sv.resultListExportInvalidResponse);
   }
   return expectedFilename;

@@ -141,6 +141,9 @@ importers:
       '@types/react-dom':
         specifier: 19.2.5
         version: 19.2.5(@types/react@19.2.18)
+      esbuild:
+        specifier: 0.25.12
+        version: 0.25.12
 
   apps/worker:
     devDependencies:

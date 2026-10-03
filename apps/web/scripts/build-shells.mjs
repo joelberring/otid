@@ -1,10 +1,10 @@
-import { createRequire } from "node:module";
 import { createHash } from "node:crypto";
 import { Buffer } from "node:buffer";
 import process from "node:process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, basename, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { build } from "esbuild";
 
 /**
  * Bygger de statiska appskal som ska fungera utan nät: /checkin/ och
@@ -12,8 +12,6 @@ import { fileURLToPath } from "node:url";
  * med manifest över exakt de filerna.
  */
 const web = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const requireStation = createRequire(resolve(web, "../station/package.json"));
-const { build } = requireStation("esbuild");
 
 const shells = [
   { name: "checkin", define: "CHECKIN_SHELL", title: "O-Tid – start och mål",

@@ -47,6 +47,11 @@ finns. Se `docs/sportident.md`.
 - **Alla andra:** startlistor, resultat och sträcktider är öppna utan inloggning.
 - Glömt lösenord: `pnpm organizer:account rotate` (se `docs/organizer-account-operations.md`).
 
+## Drift
+
+`docker compose -f docker-compose.prod.yml up -d --build` med PostgreSQL, webb, Caddy (HTTPS)
+och nattlig backup. Se [docs/drift.md](docs/drift.md).
+
 ## Struktur
 
 ```text
@@ -69,4 +74,5 @@ docs                  arkitektur, regler, ADR:er, arkiv
 pnpm lint && pnpm typecheck && pnpm test && pnpm build
 pnpm test:integration   # kräver TEST_DATABASE_URL (PostgreSQL/PostGIS, roll med CREATEDB)
 pnpm test:e2e           # kräver E2E_DATABASE_URL eller TEST_DATABASE_URL; startar webben på port 3100
+E2E_BASE_URL=https://localhost pnpm test:e2e   # mot en körande driftmiljö
 ```

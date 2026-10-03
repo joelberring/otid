@@ -1,0 +1,5 @@
+# Automatisk HTTPS (Let's Encrypt) för OTID_DOMAIN. "localhost" ger ett lokalt certifikat.
+{$OTID_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy {$OTID_UPSTREAM:web:3000}
+}

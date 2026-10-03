@@ -21,3 +21,4 @@ apps/participant/android/.gradle
 apps/participant/android/.idea
 apps/participant/android/local.properties
 apps/participant/android/**/build
+backups/

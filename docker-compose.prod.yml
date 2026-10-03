@@ -1,0 +1,77 @@
+# Drift på en vanlig VPS (ADR-0168, steg 6). Se docs/drift.md.
+# Kräver en .env bredvid filen med OTID_DOMAIN och POSTGRES_PASSWORD.
+name: otid
+
+services:
+  postgres:
+    image: postgis/postgis:17-3.5
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: otid
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Sätt POSTGRES_PASSWORD i .env}
+      POSTGRES_DB: otid
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U otid -d otid"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  web:
+    build: .
+    image: otid-web
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://otid:${POSTGRES_PASSWORD}@postgres:5432/otid
+      O_TID_PUBLIC_ORIGIN: https://${OTID_DOMAIN:?Sätt OTID_DOMAIN i .env}
+      NEXT_PUBLIC_BASE_URL: https://${OTID_DOMAIN}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/organizer').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      web:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      OTID_DOMAIN: ${OTID_DOMAIN}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+  backup:
+    image: postgis/postgis:17-3.5
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGUSER: otid
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: otid
+      BACKUP_DIR: /backups
+      BACKUP_KEEP_DAYS: "14"
+      BACKUP_HOUR_UTC: "2"
+    volumes:
+      - ./backups:/backups
+      - ./deploy/backup.sh:/backup.sh:ro
+    entrypoint: ["/bin/sh", "/backup.sh"]
+
+volumes:
+  postgres-data:
+  caddy-data:
+  caddy-config:

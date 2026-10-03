@@ -1361,9 +1361,9 @@ export function RaceAdministratorWorkspace({ raceId }: { raceId: string }) {
     finally { finish(op); }
   }
   async function saveExport(response: Response, filename: string, expectedHash: string, op: Operation) {
+    // Ingen kontroll av content-length: en proxy med komprimering (Caddy) tar bort
+    // eller ändrar den. Hashen över det uppackade innehållet räcker.
     const buffer = await response.arrayBuffer();
-    const length = response.headers.get("content-length");
-    if (!length || !/^\d+$/.test(length) || Number(length) !== buffer.byteLength) throw new Error("Export length mismatch");
     const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", buffer)), byte => byte.toString(16).padStart(2, "0")).join("");
     if (hash !== expectedHash) throw new Error("Export hash mismatch");
     assertCurrent(op);

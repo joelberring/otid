@@ -38,7 +38,8 @@ describe("TASK 006B exportklient", () => {
   it("avvisar race-, hash-, heltals- och filnamnsavvikelser", () => {
     expect(() => parseIofResultListExportMetadata(response({ "x-otid-race-id":
       "20000000-0000-4000-8000-000000000002" }), raceId)).toThrow();
-    expect(() => parseIofResultListExportMetadata(response({ etag: `"sha256-${"b".repeat(64)}"` }), raceId)).toThrow();
+    // En proxy som komprimerar ändrar ETag; det ska inte stoppa exporten.
+    expect(parseIofResultListExportMetadata(response({ etag: `"sha256-${"a".repeat(64)}-zstd"` }), raceId).sha256).toHaveLength(64);
     expect(() => parseIofResultListExportMetadata(response({ "x-otid-result-count": "03" }), raceId)).toThrow();
     expect(() => iofResultListExportFilename(response({ "content-disposition": "attachment; filename=CANARY.xml" }), raceId)).toThrow();
   });

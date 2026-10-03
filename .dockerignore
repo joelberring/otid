@@ -1,0 +1,15 @@
+.git
+**/node_modules
+**/.next
+**/.next-*
+**/dist
+**/test-results
+**/playwright-report
+**/*.tsbuildinfo
+.env
+.env.*
+!.env.example
+apps/station/android
+apps/participant/android
+backups
+docs/archive

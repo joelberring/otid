@@ -7,7 +7,8 @@ const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error("DATABASE_URL måste anges");
 
 const { db, pool } = createDatabase(connectionString);
-const migrationsFolder = resolve(dirname(fileURLToPath(import.meta.url)), "../migrations");
+// I driftbilden ligger migreringarna bredvid den paketerade filen (MIGRATIONS_DIR).
+const migrationsFolder = process.env.MIGRATIONS_DIR ?? resolve(dirname(fileURLToPath(import.meta.url)), "../migrations");
 
 try {
   await migrate(db, { migrationsFolder });

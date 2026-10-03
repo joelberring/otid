@@ -5,7 +5,7 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 7 – Riktig hårdvara och pilot (ägaren). Steg 0–6 är klara.
+Steg 8 – Enkel arbetsyta för det som finns. Steg 7 (hårdvara) görs parallellt av ägaren. Steg 0–6 är klara.
 
 ## Logg
 
@@ -102,6 +102,4 @@ brickor till steg 7.
 
 ## Idéer (inte i planen än)
 
-- Varje ändring i tävlingen (t.ex. en direktanmälan) höjer tävlingsversionen, och då räknas alla tidigare resultat som
-  "äldre underlag". Manuellt godkännande kräver då en omräkning först. En snävare regel (bara klassens bana och
-  deltagarens bricka) skulle spara klick under en träningskväll.
+- …

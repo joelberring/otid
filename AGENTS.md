@@ -12,7 +12,7 @@ direkt SPORTident-avläsning som fungerar även när nätet försvinner.
 
 1. `PLAN.md` – målet och stegen. Enda backloggen.
 2. `STATUS.md` – var arbetet står.
-3. `docs/adr/ADR-0168-omstart-mot-klubbtraning.md` – gällande grundbeslut.
+3. `docs/adr/ADR-0168-omstart-mot-klubbtraning.md` och `ADR-0169-enkel-yta-gafflingar-stafett.md` – gällande grundbeslut.
 4. Närmaste `AGENTS.md` i katalogen du ändrar (t.ex. `apps/web/AGENTS.md`).
 
 `CODEX_BRIEF.md` är långsiktig vision och `docs/architecture.md`,

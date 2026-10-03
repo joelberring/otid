@@ -4,7 +4,8 @@ Beslutad 2026-10-03 av ägaren (Joel). Detta är den **enda backloggen**. Codex
 arbetar steg för steg uppifrån och ned. Nya idéer skrivs under "Idéer" i
 `STATUS.md` – de blir inte nya uppgifter förrän ägaren flyttar in dem här.
 
-Bakgrund och beslut: [ADR-0168](docs/adr/ADR-0168-omstart-mot-klubbtraning.md).
+Bakgrund och beslut: [ADR-0168](docs/adr/ADR-0168-omstart-mot-klubbtraning.md) och
+[ADR-0169](docs/adr/ADR-0169-enkel-yta-gafflingar-stafett.md) (steg 8–11).
 
 ## Målet
 
@@ -198,10 +199,79 @@ och hela "träningskväll"-testet kan köras mot den. Val av värd görs av äga
 3. Stödmatrisen uppdateras till `field-verified` för provade kombinationer.
 4. En riktig träning med 20–50 löpare, gärna med MeOS parallellt som facit.
 
+## [ ] Steg 8 – Enkel arbetsyta för det som finns
+
+Se ADR-0169 beslut 1 och 4.
+
+1. **Resultat är aktuella per löpare.** Underlagshash per resultatrevision.
+   "Äldre underlag" bara när löparens egen klass, bana, strukna kontroller,
+   startsätt, starttid eller bricka ändrats. Sådana ändringar räknar om
+   berörda resultat automatiskt (ny revision, historik kvar). En direktanmälan
+   gör inga andra resultat inaktuella.
+2. **Redigera bana:** ett ställe för att ändra kontrollföljd, stryka en
+   kontroll och flytta valda löpare till kortare bana, även när resultat finns.
+   Före sparande: besked i klartext ("12 har läst ut; 2 blir godkända, 10
+   påverkas inte"). Versioner och omräkning sköts av appen.
+3. **Banor och klasser som tabeller** med redigering i raden: bana (kontroller,
+   klasser, löpare) och klass (bana, startsätt, anmälda, status).
+4. **Deltagarkort:** bricka, klass, starttid, resultat med sträcktider och
+   historik. Resultatbesluten (ej start, brutit, disk, utom tävlan, utan
+   tidtagning, godkänn) som en meny "Ändra status".
+5. **Checklista** som navigation (Banor → Klasser → Anmälda → Start →
+   Avläsning → Resultat) med status per steg, och **tävlingsdagens kontrollvy**
+   (kvar i skogen, okända brickor, felstämplade, senaste avläsningar).
+6. **Språk och flöde:** inga id, hashar, versionsnummer, slumpfrö eller
+   UTC-offset i vyerna. Spara direkt när inget resultat ändras. Automatiska
+   omförsök i stället för "svaret saknas"-texter.
+
+**Acceptans:** träningskvällstestet går igenom med färre steg (ingen manuell
+omräkning före godkännande). Nytt Playwright-flöde: bana ändras efter att
+löpare läst ut → besked → resultaten räknas om → publikt resultat stämmer.
+Ingen vy visar uuid, hash eller "tävlingsversion".
+
+## [ ] Steg 9 – Lottning på riktigt
+
+1. Startsätt per klass: fri start, lottad minutstart, jaktstart, masstart.
+2. Lotta flera klasser på en gång: första start som klockslag, intervall i
+   minuter, startfållor/startled så att klasser med samma första kontroll inte
+   startar samma minut, klubbseparering, vakanser.
+3. Efteranmälda placeras på vakanta tider. Förhandsvisning ser ut som startlistan.
+
+**Acceptans:** domäntester för lottningsreglerna (klubbseparering,
+vakanser, startfållor, deterministiskt med frö). Playwright: lotta tre klasser
+→ startlista publiceras → efteranmäld får vakant tid.
+
+## [ ] Steg 10 – Gafflingar i individuella klasser
+
+Se ADR-0169 beslut 2.
+
+1. Banvarianter i modellen och resultatmotorn; variant per deltagare.
+2. IOF XML CourseData med varianter och CourseAssignment importeras
+   (fixtures från OCAD/Purple Pen). Varianter lottas annars jämnt i klassen.
+3. Avläsning, startlista och resultat visar variant. Kontroll som varnar om
+   varianterna inte täcker samma sträckor.
+
+**Acceptans:** domäntester för bedömning per variant; integrationstest för
+import; Playwright: gafflad klass läses av med rätt variant.
+
+## [ ] Steg 11 – Stafett
+
+Se ADR-0169 beslut 3.
+
+1. Stafettklass med sträckor och startsätt per sträcka; lag med sträcklöpare,
+   bricka och variant (gafflingar från steg 10).
+2. Avläsning per sträcka; lagresultat, växlingstider och omstart i domänen.
+3. Lagvy: anmäl lag, byt sträcklöpare, lag ute per sträcka. Publik
+   resultatlista per sträcka och lag. IOF XML-export för stafett.
+
+**Acceptans:** domäntester för lagresultat (felstämplad sträcka, omstart);
+Playwright: klubbstafett med 6 lag × 3 sträckor, en sträcka byts, avläsning,
+publikt lagresultat.
+
 ---
 
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: Eventor-import i
 produktion, minutstart med lottning för klubbtävling, startpersonalens
-offlineapp, speaker-utökningar, GPS/rutter (V2 i CODEX_BRIEF), stafett.
+offlineapp, speaker-utökningar, GPS/rutter (V2 i CODEX_BRIEF).

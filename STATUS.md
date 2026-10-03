@@ -9,6 +9,15 @@ Steg 1 – Två behörighetsnivåer (se `PLAN.md`). Steg 3 är gjort separat.
 
 ## Logg
 
+### 2026-10-03 – Steg 3 klart (gjort före steg 1–2, oberoende av dem)
+- Nytt paket `packages/sportident`: ramtolkning med CRC, tillståndsmaskin för avläsningsstation,
+  avkodning av SI5/6/8/9/10/11/SIAC/pCard, tidstolkning med tidszon samt `FakeSiStation`.
+- 55 tester: alla chunkgränser, fel CRC/ETX, trunkering, dubbletter, alla bricktyper, uttagen bricka,
+  tidsgräns, station utan handskakning, fel inställd station, AM/PM, midnatt, vintertid.
+- CRC verifierad mot publicerade ramar. Minneslayouterna är jämförda mot en oberoende öppen avkodare
+  (bara som referens, inte kopierad): allt stämmer utom SI6-kontrollkoder >255, där referensen har fel.
+- Hårdvara: alla rader `untested` i `docs/sportident.md` tills steg 7.
+
 ### 2026-10-03 – Steg 0 klart
 - Git och GitHub (`joelberring/otid`). TASK-filer, gamla status- och plandokument är flyttade till `docs/archive/`.
 - **Fel i migreringarna:** drizzles migrator kör allt i en transaktion, och PostgreSQL vägrar då använda nya

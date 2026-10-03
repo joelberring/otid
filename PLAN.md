@@ -110,7 +110,7 @@ och CSS för sidor som försvann i steg 1. Ingen ny funktionalitet.
 **Acceptans:** ingen fil i `apps/web/src` över ~800 rader (utom genererad
 text/i18n); befintligt adminflöde i Playwright passerar; lint/typecheck/build gröna.
 
-## [ ] Steg 3 – SPORTident-protokollet
+## [x] Steg 3 – SPORTident-protokollet
 
 Nytt paket `packages/sportident` (ren TypeScript, ingen I/O) ovanpå befintliga
 `packages/device-transport`. Se ADR-0168 beslut 3 för källor och licensregel.

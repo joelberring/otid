@@ -320,5 +320,7 @@
     }
     ,{ "idx": 88, "version": "7", "when": 1795881600000, "tag": "0088_adr_0168_readout_without_finish", "breakpoints": true
     }
+    ,{ "idx": 89, "version": "7", "when": 1795968000000, "tag": "0089_adr_0169_result_basis", "breakpoints": true
+    }
   ]
 }

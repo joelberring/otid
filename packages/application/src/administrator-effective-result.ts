@@ -4,6 +4,7 @@ import { administratorEffectiveResultResponseSchema, type AdministratorEffective
 import { authenticatePairingAdminSessionForProtectedRead, type PairingAdminRequestAuthentication } from "./pairing-admin";
 import { resolveStoredResultHeadStates, type StoredResultHeadState } from "./result-revision-state";
 import { parseStrictStoredResultRevision, StoredResultRevisionConflict, type StoredResultRevisionInput } from "./stored-result-revision";
+import { isResultCurrent, loadResultBasisHash } from "./result-basis";
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 export type AdministratorEffectiveResult =
@@ -148,6 +149,7 @@ export async function getAdministratorEffectiveResult(db: Database,
     return { status: "ok", response: administratorEffectiveResultResponseSchema.parse({
       ...common, state: "ACTIVE_RESULT", selectedRevision, resultClass,
       resultSnapshotVersion: resolved.head.snapshotVersion, governingDecision, controlDetails,
+      resultCurrent: isResultCurrent(resolved.head, await loadResultBasisHash(tx, entry.id), race.snapshotVersion),
       result: { revision: resolved.head.revision, status: outcome.status, reason: outcome.reason,
         ...("elapsedMs" in outcome ? { elapsedMs: outcome.elapsedMs } : {}) }
     }) };

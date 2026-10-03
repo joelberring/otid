@@ -25,6 +25,7 @@ import {
   validateStoredApproval
 } from "./stored-result-revision";
 import { loadActiveManualResultOverrideState, resolveStoredResultHeadStates } from "./result-revision-state";
+import { isResultCurrent, loadResultBasisHash, loadResultBasisHashes } from "./result-basis";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const MAX_ENTRIES = 10_000;
@@ -66,6 +67,7 @@ export async function listResultApprovalCandidatesAsAdmin(
           .orderBy(asc(schema.resultRevisions.entryId), desc(schema.resultRevisions.revision), desc(schema.resultRevisions.id))
       ]);
       if (entries.length > MAX_ENTRIES) return { status: "conflict" } as const;
+      const basisHashes = await loadResultBasisHashes(tx, race.id);
       const stateByEntry = new Map((await resolveStoredResultHeadStates(tx, race.id, latest)).map((state) => [state.selectedHead.entryId, state]));
       const latestByEntry = new Map(latest.map((row) => [row.entryId, row]));
       const parsed = resultApprovalCandidateResponseSchema.safeParse({
@@ -84,7 +86,8 @@ export async function listResultApprovalCandidatesAsAdmin(
           else if (!row.published) readiness = "UNPUBLISHED_RESULT";
           else try {
             const outcome = technicalTimedMp(row);
-            if (outcome.classId !== entry.classId || outcome.courseVersionId !== entry.courseVersionId || row.snapshotVersion !== race.snapshotVersion) readiness = "STALE_RESULT";
+            if (outcome.classId !== entry.classId || outcome.courseVersionId !== entry.courseVersionId ||
+              !isResultCurrent(row, basisHashes.get(entry.id), race.snapshotVersion)) readiness = "STALE_RESULT";
             else {
               readiness = "READY";
               targetResultRevision = { id: row.id, revision: row.revision, status: "MP", reason: outcome.reason, cause: row.cause, createdAt: row.createdAt.toISOString(), snapshotVersion: row.snapshotVersion };
@@ -185,7 +188,8 @@ export async function approveResultAsAdmin(db: Database, input: ApproveResultInp
       if (!target || target.id !== request.data.expectedResultRevision.id || target.revision !== request.data.expectedResultRevision.revision) return { status: "conflict" } as const;
       if (await loadActiveManualResultOverrideState(tx, race.id, target) !== "NONE") return { status: "conflict" } as const;
       const source = technicalTimedMp(target);
-      if (source.reason !== request.data.expectedResultRevision.reason || source.classId !== entry.classId || source.courseVersionId !== raceClass.courseVersionId || target.snapshotVersion !== race.snapshotVersion) return { status: "conflict" } as const;
+      if (source.reason !== request.data.expectedResultRevision.reason || source.classId !== entry.classId || source.courseVersionId !== raceClass.courseVersionId ||
+        !isResultCurrent(target, await loadResultBasisHash(tx, entry.id), race.snapshotVersion)) return { status: "conflict" } as const;
       const outcome = createManuallyApprovedResult(source);
       const decisionId = randomUUID(); const resultRevisionId = randomUUID(); const createdRevision = target.revision + 1;
       const [decision] = await tx.insert(schema.resultApprovalDecisions).values({ id: decisionId, requestId, actorCredentialId: authorization.principal.accessCredentialId,

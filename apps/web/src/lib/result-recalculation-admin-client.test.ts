@@ -40,7 +40,8 @@ const candidates = {
       reason: "COMPLETE" as const,
       cause: "CARD_READOUT" as const,
       createdAt: "2026-08-31T10:00:01.000Z",
-      snapshotVersion: 4
+      snapshotVersion: 4,
+      current: false
     }
   }]
 };

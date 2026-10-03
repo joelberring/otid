@@ -42,6 +42,7 @@ import {
 } from "./pairing-admin";
 import { resolveStoredResultHeadStates } from "./result-revision-state";
 import { StoredResultRevisionConflict, parseStrictStoredResultRevision } from "./stored-result-revision";
+import { isResultCurrent, loadResultBasisHashes } from "./result-basis";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const MAX_CLASSES = 1_000;
@@ -127,7 +128,8 @@ function canonicalHash(value: unknown): string {
   return sha256Bytes(canonicalJsonBytes(value));
 }
 
-function resultRevisionBasis(revision: typeof schema.resultRevisions.$inferSelect) {
+// Den frysta grunden har ett fast format; underlagshashen (ADR-0169) ingår inte i den.
+function resultRevisionBasis(revision: Omit<typeof schema.resultRevisions.$inferSelect, "basisHash">) {
   return {
     id: revision.id,
     raceId: revision.raceId,
@@ -329,6 +331,7 @@ async function buildFinalizationBasis(tx: DatabaseTransaction, race: LockedRace)
       evaluation: schema.resultRevisions.evaluation,
       engineVersion: schema.resultRevisions.engineVersion,
       snapshotVersion: schema.resultRevisions.snapshotVersion,
+      basisHash: schema.resultRevisions.basisHash,
       courseVersionId: schema.resultRevisions.courseVersionId,
       published: schema.resultRevisions.published,
       createdAt: schema.resultRevisions.createdAt
@@ -362,6 +365,7 @@ async function buildFinalizationBasis(tx: DatabaseTransaction, race: LockedRace)
   }
 
   const latestStates = await resolveStoredResultHeadStates(tx, race.id, latestRows);
+  const basisHashes = await loadResultBasisHashes(tx, race.id);
   const latestStateByEntry = new Map(latestStates.map((state) => [state.head.entryId, state]));
 
   const courseVersionIds = [...new Set(classRows.map((raceClass) => raceClass.courseVersionId))];
@@ -702,7 +706,7 @@ async function buildFinalizationBasis(tx: DatabaseTransaction, race: LockedRace)
       }
       if (evaluation.classId !== raceClass.id) blockers.add("RESULT_CLASS_MISMATCH");
       if (evaluation.courseVersionId !== raceClass.courseVersionId) blockers.add("RESULT_COURSE_MISMATCH");
-      if (revision.snapshotVersion !== race.snapshotVersion) blockers.add("STALE_RESULT_SNAPSHOT");
+      if (!isResultCurrent(revision, basisHashes.get(entry.id), race.snapshotVersion)) blockers.add("STALE_RESULT_SNAPSHOT");
 
       const expectedKeys = new Set(controls.map((control) => `${control.controlCode}:${control.occurrence}`));
       const splitKeys = new Set<string>();

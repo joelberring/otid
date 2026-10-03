@@ -18,6 +18,7 @@ import {
 } from "./pairing-admin";
 import { resolveStoredResultHeadStates } from "./result-revision-state";
 import { parseStrictStoredResultRevision } from "./stored-result-revision";
+import { isResultCurrent, loadResultBasisHashes } from "./result-basis";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const MAX_CLASSES = 1_000;
@@ -155,6 +156,7 @@ export async function exportIofResultListAsAdmin(
         evaluation: schema.resultRevisions.evaluation,
         engineVersion: schema.resultRevisions.engineVersion,
         snapshotVersion: schema.resultRevisions.snapshotVersion,
+        basisHash: schema.resultRevisions.basisHash,
         courseVersionId: schema.resultRevisions.courseVersionId,
         published: schema.resultRevisions.published,
         createdAt: schema.resultRevisions.createdAt,
@@ -181,6 +183,7 @@ export async function exportIofResultListAsAdmin(
       if (latestRows.length > MAX_RESULTS) throw new ResultListTooLarge();
 
       const headStates = await resolveStoredResultHeadStates(tx, race.id, latestRows);
+      const basisHashes = await loadResultBasisHashes(tx, race.id);
       if (headStates.some((state) =>
         state.state === "ACTIVE_RESULT" && state.withoutTiming?.withdrawal === null)) {
         throw new StoredResultListConflict("Utan tidtagning saknar sanningsenlig IOF 3.0-mappning");
@@ -431,7 +434,7 @@ export async function exportIofResultListAsAdmin(
         snapshotVersion: race.snapshotVersion,
         classCount: classes.length,
         resultCount: parsedRows.length,
-        staleResultCount: parsedRows.filter((row) => row.snapshotVersion < race.snapshotVersion).length,
+        staleResultCount: parsedRows.filter((row) => !isResultCurrent(row, basisHashes.get(row.entryId), race.snapshotVersion)).length,
         omittedEntryCount,
         sha256: createHash("sha256").update(bytes).digest("hex")
       });

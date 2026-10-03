@@ -11,6 +11,6 @@ export function projectClassResultRecalculationFollowUp(
   return candidates.entries
     .filter((entry): entry is ClassResultRecalculationRow =>
       entry.classId === classId && entry.latestResultRevision !== null &&
-      entry.latestResultRevision.snapshotVersion < candidates.snapshotVersion)
+      !entry.latestResultRevision.current)
     .sort((left, right) => left.displayName.localeCompare(right.displayName, "sv-SE") || left.id.localeCompare(right.id));
 }

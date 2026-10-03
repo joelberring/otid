@@ -202,7 +202,7 @@ export function ParticipantWorkPanel({ ws }: { ws: Workspace }) {
           {selected.resultRevisionMarker !== null && <p><strong>{text.resultFinishCorrection}:</strong> {selected.resultRevisionMarker === "MANUAL_FINISH_TIME_CORRECTION"
             ? text.rosterFinishCorrection : text.rosterFinishCorrectionWithdrawal}</p>}
           {effectiveResult.resultClass.id !== selected.classId && <p>{text.resultHistoricalClass}: {effectiveResult.resultClass.name}</p>}
-          {effectiveResult.resultSnapshotVersion < effectiveResult.snapshotVersion && <>
+          {!effectiveResult.resultCurrent && <>
             <p className={styles.resultStale}>{text.resultStale}</p>
             <button type="button" className="secondary" disabled={disabled}
               aria-label={text.resultStaleOpenFor(selected.displayName)} onClick={() => openRecalculation(selected.id)}>

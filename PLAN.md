@@ -203,15 +203,16 @@ och hela "träningskväll"-testet kan köras mot den. Val av värd görs av äga
 
 Se ADR-0169 beslut 1 och 4.
 
-1. **Resultat är aktuella per löpare.** Underlagshash per resultatrevision.
+1. [x] **Resultat är aktuella per löpare.** Underlagshash per resultatrevision.
    "Äldre underlag" bara när löparens egen klass, bana, strukna kontroller,
-   startsätt, starttid eller bricka ändrats. Sådana ändringar räknar om
-   berörda resultat automatiskt (ny revision, historik kvar). En direktanmälan
-   gör inga andra resultat inaktuella.
+   startsätt eller starttid ändrats (brickan ingår inte: löparen sprang med den
+   bricka som lästes av). En direktanmälan gör inga andra resultat inaktuella.
+   Automatisk omräkning efter sådana ändringar görs i punkt 2.
 2. **Redigera bana:** ett ställe för att ändra kontrollföljd, stryka en
    kontroll och flytta valda löpare till kortare bana, även när resultat finns.
    Före sparande: besked i klartext ("12 har läst ut; 2 blir godkända, 10
-   påverkas inte"). Versioner och omräkning sköts av appen.
+   påverkas inte"). Versioner och omräkning sköts av appen: berörda resultat
+   räknas om automatiskt i samma transaktion (ny revision, historik kvar).
 3. **Banor och klasser som tabeller** med redigering i raden: bana (kontroller,
    klasser, löpare) och klass (bana, startsätt, anmälda, status).
 4. **Deltagarkort:** bricka, klass, starttid, resultat med sträcktider och

@@ -62,7 +62,9 @@ const latestResultRevisionSchema = z.object({
   reason: storedResultReasonSchema,
   cause: resultRevisionCauseSchema,
   createdAt: z.iso.datetime({ offset: true }),
-  snapshotVersion: positiveVersionSchema
+  snapshotVersion: positiveVersionSchema,
+  // ADR-0169: sant så länge löparens eget bedömningsunderlag är oförändrat.
+  current: z.boolean()
 }).strict().superRefine((result, context) => {
   if (!isValidStoredResultPair(result.status, result.reason)) {
     context.addIssue({ code: "custom", path: ["reason"], message: "Status och orsak matchar inte" });

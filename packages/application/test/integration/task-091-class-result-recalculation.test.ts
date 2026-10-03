@@ -56,8 +56,13 @@ async function fixture() {
       firstSequence: 1, lastSequence: 1, events: [{ localSequence: 1, stationReceivedAt: `2026-09-19T10:3${index}:00Z`, transport: "simulator", payload, contentHash: contentHash(payload) }] });
     expect(result.acknowledgements[0]?.status).toBe("stored");
   }
-  // The initial immutable card results are snapshot 1. A later package version
-  // makes them deliberately stale without altering raw data or revisions.
+  // The initial immutable card results are snapshot 1. ADR-0169: a new course
+  // version for the class (and a later package version) makes them deliberately
+  // stale without altering raw data or revisions.
+  const nextCourseVersionId = randomUUID();
+  await pool.query("INSERT INTO course_version(id,course_id,version) VALUES($1,$2,2)", [nextCourseVersionId, courseId]);
+  await pool.query("INSERT INTO course_control(course_version_id,control_id,sequence) VALUES($1,$2,1)", [nextCourseVersionId, controlId]);
+  await pool.query("UPDATE class SET course_version_id=$1 WHERE id=$2", [nextCourseVersionId, classId]);
   await pool.query("UPDATE race SET snapshot_version=2 WHERE id=$1", [raceId]);
   return { raceId, classId, entryIds, administrator: await administrator(raceId) };
 }

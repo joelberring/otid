@@ -28,6 +28,7 @@ import {
   StoredResultRevisionConflict,
   validateStoredOutOfCompetition
 } from "./stored-result-revision";
+import { isResultCurrent, loadResultBasisHash, loadResultBasisHashes } from "./result-basis";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const MAX_ENTRIES = 10_000;
@@ -80,6 +81,7 @@ export async function listOutOfCompetitionCandidatesAsAdmin(
           .orderBy(asc(schema.resultRevisions.entryId), desc(schema.resultRevisions.revision), desc(schema.resultRevisions.id))
       ]);
       if (entries.length > MAX_ENTRIES) return { status: "conflict" } as const;
+      const basisHashes = await loadResultBasisHashes(tx, race.id);
 
       const stateByEntry = new Map(
         (await resolveStoredResultHeadStates(tx, race.id, latest)).map((state) => [state.selectedHead.entryId, state])
@@ -115,7 +117,7 @@ export async function listOutOfCompetitionCandidatesAsAdmin(
             try {
               const outcome = parseOutOfCompetitionTechnicalRevision(row);
               if (outcome.classId !== entry.classId || outcome.courseVersionId !== entry.courseVersionId ||
-                  row.snapshotVersion !== race.snapshotVersion) {
+                  !isResultCurrent(row, basisHashes.get(entry.id), race.snapshotVersion)) {
                 readiness = "STALE_RESULT";
               } else {
                 readiness = "READY";
@@ -288,7 +290,8 @@ export async function decideOutOfCompetitionAsAdmin(
       }
       const source = parseOutOfCompetitionTechnicalRevision(target);
       if (source.status !== request.data.expectedResultRevision.status || source.classId !== entry.classId ||
-          source.courseVersionId !== raceClass.courseVersionId || target.snapshotVersion !== race.snapshotVersion) {
+          source.courseVersionId !== raceClass.courseVersionId || 
+          !isResultCurrent(target, await loadResultBasisHash(tx, entry.id), race.snapshotVersion)) {
         return { status: "conflict" } as const;
       }
       const outcome = createOutOfCompetitionResult(source);

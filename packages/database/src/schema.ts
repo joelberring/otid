@@ -2174,6 +2174,9 @@ export const resultRevisions = pgTable("result_revision", {
   snapshotVersion: integer("snapshot_version").notNull(),
   courseVersionId: uuid("course_version_id").notNull().references(() => courseVersions.id),
   published: boolean("published").notNull().default(true),
+  // ADR-0169 beslut 1: hash av löparens bedömningsunderlag när revisionen skapades.
+  // Sätts alltid av databasutlösaren i migration 0089; äldre revisioner har NULL.
+  basisHash: text("basis_hash"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (table) => [
   uniqueIndex("result_revision_entry_revision_uidx").on(table.entryId, table.revision),

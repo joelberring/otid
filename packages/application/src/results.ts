@@ -40,6 +40,7 @@ import { resolveStoredResultHeadStates } from "./result-revision-state";
 import { parseStrictStoredResultRevision } from "./stored-result-revision";
 import { canAddClassEntry, ClassCapacityConflictError } from "./class-capacity-guard";
 import { appliedControlNeutralization } from "./class-control-neutralization";
+import { isResultCurrent, loadResultBasisHashes } from "./result-basis";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 type DatabaseTransaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
@@ -386,7 +387,8 @@ export async function listResultRecalculationCandidatesAsAdmin(
         reason: schema.resultRevisions.reason,
         cause: schema.resultRevisions.cause,
         createdAt: schema.resultRevisions.createdAt,
-        snapshotVersion: schema.resultRevisions.snapshotVersion
+        snapshotVersion: schema.resultRevisions.snapshotVersion,
+        basisHash: schema.resultRevisions.basisHash
       }
     ).from(schema.resultRevisions)
       .where(eq(schema.resultRevisions.raceId, authorization.principal.raceId))
@@ -400,6 +402,7 @@ export async function listResultRecalculationCandidatesAsAdmin(
     }
     const readoutByCard = new Map(latestReadouts.map((readout) => [readout.cardNumber, readout]));
     const revisionByEntry = new Map(latestRevisions.map((revision) => [revision.entryId, revision]));
+    const basisHashes = await loadResultBasisHashes(tx, authorization.principal.raceId);
 
     const response = resultRecalculationCandidateResponseSchema.parse({
       formatVersion: 1,
@@ -427,7 +430,8 @@ export async function listResultRecalculationCandidatesAsAdmin(
             reason: latestRevision.reason,
             cause: latestRevision.cause,
             createdAt: latestRevision.createdAt.toISOString(),
-            snapshotVersion: latestRevision.snapshotVersion
+            snapshotVersion: latestRevision.snapshotVersion,
+            current: isResultCurrent(latestRevision, basisHashes.get(entry.id), race.snapshotVersion)
           } : null
         };
       })

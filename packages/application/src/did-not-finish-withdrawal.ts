@@ -25,6 +25,7 @@ import {
   validateStoredDidNotFinish,
   validateStoredDidNotFinishWithdrawal
 } from "./stored-result-revision";
+import { isResultCurrent, loadResultBasisHash, loadResultBasisHashes } from "./result-basis";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const MAX_DECISIONS = 10_000;
@@ -79,6 +80,7 @@ export async function listDidNotFinishWithdrawalsAsAdmin(
         eq(schema.classes.raceId, race.id)
       )).where(and(eq(schema.entries.raceId, race.id), inArray(schema.entries.id, entryIds)));
       const entryById = new Map(entries.map((entry) => [entry.id, entry]));
+      const basisHashes = await loadResultBasisHashes(tx, race.id);
 
       const parsed = didNotFinishWithdrawalListResponseSchema.safeParse({
         formatVersion: 1,
@@ -98,7 +100,7 @@ export async function listDidNotFinishWithdrawalsAsAdmin(
           const outcome = parseDidNotFinishTechnicalRevision(source);
           if (state.withdrawal === null && (
             outcome.classId !== entry.classId || outcome.courseVersionId !== entry.courseVersionId ||
-            source.snapshotVersion !== race.snapshotVersion
+            !isResultCurrent(source, basisHashes.get(entry.id), race.snapshotVersion)
           )) {
             throw new StoredResultRevisionConflict("DNF-återtagandets restaureringskälla är inaktuell");
           }
@@ -314,7 +316,7 @@ export async function withdrawDidNotFinishAsAdmin(
           outcome.status !== request.data.expectedRestorationSourceResultRevision.status ||
           outcome.reason !== request.data.expectedRestorationSourceResultRevision.reason ||
           outcome.classId !== entry.classId || outcome.courseVersionId !== raceClass.courseVersionId ||
-          source.snapshotVersion !== race.snapshotVersion) {
+          !isResultCurrent(source, await loadResultBasisHash(tx, entry.id), race.snapshotVersion)) {
         return { status: "conflict" } as const;
       }
 
@@ -365,7 +367,7 @@ export async function withdrawDidNotFinishAsAdmin(
         reason: outcome.reason,
         evaluation: outcome,
         engineVersion: DID_NOT_FINISH_WITHDRAWAL_POLICY_VERSION,
-        snapshotVersion: source.snapshotVersion,
+        snapshotVersion: race.snapshotVersion,
         courseVersionId: source.courseVersionId,
         controlNeutralizationId: source.controlNeutralizationId,
         published: true,

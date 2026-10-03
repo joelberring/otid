@@ -60,9 +60,14 @@ describe("TASK029 atomiskt klass-/startbyteskontrakt", () => {
       resultFreshness, effectiveResult }] }).success).toBe(true);
     expect(entryTransferCandidatesSchema.safeParse({ ...value, snapshotVersion: 2,
       entries: [{ ...entry, resultFreshness: "OLDER_SNAPSHOT", effectiveResult: active }] }).success).toBe(true);
+    // ADR-0169: aktualiteten avgörs av löparens underlag, så ett äldre resultat kan ha samma tävlingsversion
+    // och ett aktuellt resultat en äldre.
+    expect(entryTransferCandidatesSchema.safeParse({ ...value,
+      entries: [{ ...entry, resultFreshness: "OLDER_SNAPSHOT", effectiveResult: active }] }).success).toBe(true);
+    expect(entryTransferCandidatesSchema.safeParse({ ...value, snapshotVersion: 2,
+      entries: [{ ...entry, resultFreshness: "CURRENT_SNAPSHOT", effectiveResult: active }] }).success).toBe(true);
     for (const change of [
       { resultFreshness: "CURRENT_SNAPSHOT", effectiveResult: entry.effectiveResult },
-      { resultFreshness: "OLDER_SNAPSHOT", effectiveResult: active },
       { resultFreshness: "NO_ACTIVE_RESULT", effectiveResult: { state: "NO_ACTIVE_RESULT", selectedRevision: null } },
       { resultFreshness: "CURRENT_SNAPSHOT", effectiveResult: { ...active, result: { ...active.result, revision: 3 } } },
       { resultFreshness: "CURRENT_SNAPSHOT", effectiveResult: { ...active, resultSnapshotVersion: 2 } },

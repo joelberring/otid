@@ -5,7 +5,7 @@ const common = { formatVersion: 1, raceId: id, entryId: id, entryVersion: 1, cur
   snapshotVersion: 3, generatedAt: "2026-09-12T12:00:00.000Z", timeZone: "Europe/Stockholm" };
 const active = { ...common, state: "ACTIVE_RESULT", selectedRevision: { id, revision: 4 },
   result: { revision: 2, status: "DSQ", reason: "MANUAL_DISQUALIFICATION" },
-  resultClass: { id, name: "Testklass" }, resultSnapshotVersion: 1, governingDecision: "DSQ" };
+  resultClass: { id, name: "Testklass" }, resultSnapshotVersion: 1, resultCurrent: true, governingDecision: "DSQ" };
 describe("TASK033 effective result projection", () => {
   it("separates absent, withdrawn and governing older published result", () => {
     expect(schema.safeParse({ ...common, state: "NO_PUBLISHED_RESULT", selectedRevision: null }).success).toBe(true);

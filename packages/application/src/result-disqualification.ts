@@ -25,6 +25,7 @@ import {
   validateStoredDisqualification
 } from "./stored-result-revision";
 import { loadActiveManualResultOverrideState, resolveStoredResultHeadStates } from "./result-revision-state";
+import { isResultCurrent, loadResultBasisHash, loadResultBasisHashes } from "./result-basis";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const MAX_ENTRIES = 10_000;
@@ -79,6 +80,7 @@ export async function listResultDisqualificationCandidatesAsAdmin(
       if (entries.length > MAX_ENTRIES) return { status: "conflict" } as const;
 
       const latestByEntry = new Map(latestRows.map((row) => [row.entryId, row]));
+      const basisHashes = await loadResultBasisHashes(tx, race.id);
       const stateByEntry = new Map(
         (await resolveStoredResultHeadStates(tx, race.id, latestRows)).map((state) => [state.selectedHead.entryId, state])
       );
@@ -121,7 +123,7 @@ export async function listResultDisqualificationCandidatesAsAdmin(
             try {
               const outcome = parseDisqualifiableTechnicalRevision(latest);
               if (outcome.classId !== entry.classId || outcome.courseVersionId !== entry.courseVersionId ||
-                  latest.snapshotVersion !== race.snapshotVersion) {
+                  !isResultCurrent(latest, basisHashes.get(entry.id), race.snapshotVersion)) {
                 readiness = "STALE_RESULT";
               } else {
                 readiness = "READY";
@@ -305,7 +307,7 @@ export async function disqualifyResultAsAdmin(
       }
       if (source.status !== request.data.expectedResultRevision.status ||
           source.classId !== entry.classId || source.courseVersionId !== raceClass.courseVersionId ||
-          latest.snapshotVersion !== race.snapshotVersion) {
+          !isResultCurrent(latest, await loadResultBasisHash(tx, entry.id), race.snapshotVersion)) {
         return { status: "conflict" } as const;
       }
 

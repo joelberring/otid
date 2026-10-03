@@ -26,6 +26,7 @@ import {
   validateStoredApprovalWithdrawal
 } from "./stored-result-revision";
 import { resolveStoredResultHeadStates } from "./result-revision-state";
+import { isResultCurrent, loadResultBasisHash } from "./result-basis";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const MAX_DECISIONS = 10_000;
@@ -203,7 +204,8 @@ export async function withdrawResultApprovalAsAdmin(db: Database, input: Withdra
     const source = latest.id === approved.id ? target : latest; const outcome = technicalOkOrMp(source);
     if (source.id !== request.data.expectedRestorationSourceResultRevision.id || source.revision !== request.data.expectedRestorationSourceResultRevision.revision ||
         outcome.status !== request.data.expectedRestorationSourceResultRevision.status || outcome.reason !== request.data.expectedRestorationSourceResultRevision.reason ||
-        outcome.classId !== entry.classId || outcome.courseVersionId !== raceClass.courseVersionId || source.snapshotVersion !== race.snapshotVersion) return { status: "conflict" } as const;
+        outcome.classId !== entry.classId || outcome.courseVersionId !== raceClass.courseVersionId ||
+        !isResultCurrent(source, await loadResultBasisHash(tx, entry.id), race.snapshotVersion)) return { status: "conflict" } as const;
     const withdrawalId = randomUUID(); const resultRevisionId = randomUUID(); const createdRevision = latest.revision + 1;
     const [withdrawal] = await tx.insert(schema.resultApprovalWithdrawals).values({ id: withdrawalId, requestId, actorCredentialId: authorization.principal.accessCredentialId,
       raceId: race.id, entryId: entry.id, expectedEntryVersion: request.data.expectedEntryVersion, expectedClassId: request.data.expectedClassId, expectedCourseVersionId: request.data.expectedCourseVersionId,
@@ -214,7 +216,7 @@ export async function withdrawResultApprovalAsAdmin(db: Database, input: Withdra
     const [restoration] = await tx.insert(schema.resultRevisions).values({ id: resultRevisionId, raceId: race.id, entryId: entry.id, readoutId: null, didNotStartDecisionId: null,
       disqualificationDecisionId: null, disqualificationWithdrawalId: null, approvalDecisionId: null, approvalWithdrawalId: withdrawal.id, revision: createdRevision,
       cause: "MANUAL_RESULT_APPROVAL_WITHDRAWAL", status: outcome.status, reason: outcome.reason, evaluation: outcome, engineVersion: RESULT_APPROVAL_WITHDRAWAL_POLICY_VERSION,
-      snapshotVersion: source.snapshotVersion, courseVersionId: source.courseVersionId, controlNeutralizationId: source.controlNeutralizationId, published: true, createdAt: withdrawnAt }).returning();
+      snapshotVersion: race.snapshotVersion, courseVersionId: source.courseVersionId, controlNeutralizationId: source.controlNeutralizationId, published: true, createdAt: withdrawnAt }).returning();
     if (!restoration) throw new Error("Återtagandets restaureringsrevision kunde inte sparas");
     await tx.insert(schema.auditEvents).values({ raceId: race.id, entityType: "result_revision", entityId: restoration.id, action: "RESULT_APPROVAL_WITHDRAWN",
       actorKind: authorization.principal.capability === "MANAGE_RACE"

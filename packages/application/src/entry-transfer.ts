@@ -8,6 +8,7 @@ import { authenticatePairingAdminSession, authenticatePairingAdminSessionForMuta
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
 import { canAddClassEntry } from "./class-capacity-guard";
 import { resolveStoredResultHeadStates } from "./result-revision-state";
+import { isResultCurrent, loadResultBasisHashes } from "./result-basis";
 import { parseAdministratorStoredResultHead } from "./administrator-effective-result";
 import { resolveVerifiedFixedStartSlotPlan } from "./verified-fixed-start-slot";
 
@@ -78,6 +79,8 @@ export async function listEntryTransfersAsAdministrator(db: Database, input: Aut
       throw new Error("Deltagarlistans publicerade resultathuvuden är ogiltiga");
     }
     await guardResultFreshnessHistory(tx, input.raceId, publishedHeads.map(head => head.entryId));
+    // ADR-0169: CURRENT_SNAPSHOT/OLDER_SNAPSHOT avgörs av löparens eget bedömningsunderlag.
+    const basisHashes = await loadResultBasisHashes(tx, input.raceId);
     const freshnessByEntry = new Map<string, "NO_ACTIVE_RESULT" | "CURRENT_SNAPSHOT" | "OLDER_SNAPSHOT">();
     const effectiveResultByEntry = new Map<string, {
       state: "NO_ACTIVE_RESULT"; selectedRevision: { id: string; revision: number }
@@ -102,16 +105,13 @@ export async function listEntryTransfersAsAdministrator(db: Database, input: Aut
       if (state.state === "NO_ACTIVE_RESULT") {
         freshnessByEntry.set(state.selectedHead.entryId, "NO_ACTIVE_RESULT");
         effectiveResultByEntry.set(state.selectedHead.entryId, { state: "NO_ACTIVE_RESULT", selectedRevision });
-      } else if (state.head.snapshotVersion === race.snapshotVersion) {
-        freshnessByEntry.set(state.selectedHead.entryId, "CURRENT_SNAPSHOT");
-        effectiveResultByEntry.set(state.selectedHead.entryId, { state: "ACTIVE_RESULT", selectedRevision,
-          resultSnapshotVersion: state.head.snapshotVersion, result });
-      } else if (state.head.snapshotVersion < race.snapshotVersion) {
-        freshnessByEntry.set(state.selectedHead.entryId, "OLDER_SNAPSHOT");
-        effectiveResultByEntry.set(state.selectedHead.entryId, { state: "ACTIVE_RESULT", selectedRevision,
-          resultSnapshotVersion: state.head.snapshotVersion, result });
-      } else {
+      } else if (state.head.snapshotVersion > race.snapshotVersion) {
         throw new Error("Deltagarlistans gällande resultat kommer från en framtida snapshot");
+      } else {
+        const current = isResultCurrent(state.head, basisHashes.get(state.selectedHead.entryId), race.snapshotVersion);
+        freshnessByEntry.set(state.selectedHead.entryId, current ? "CURRENT_SNAPSHOT" : "OLDER_SNAPSHOT");
+        effectiveResultByEntry.set(state.selectedHead.entryId, { state: "ACTIVE_RESULT", selectedRevision,
+          resultSnapshotVersion: state.head.snapshotVersion, result });
       }
     }
     if (freshnessByEntry.size !== publishedHeads.length || revisionMarkerByEntry.size !== publishedHeads.length ||

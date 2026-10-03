@@ -91,9 +91,9 @@ export const entryTransferCandidatesSchema = z.object({
     value.entries.every(row => classes.has(row.classId) && (
       row.effectiveResult.state === "NO_PUBLISHED_RESULT" ? row.resultFreshness === "NO_PUBLISHED_RESULT" :
       row.effectiveResult.state === "NO_ACTIVE_RESULT" ? row.resultFreshness === "NO_ACTIVE_RESULT" :
+      // ADR-0169: aktualiteten avgörs av löparens eget underlag, inte av tävlingsversionen.
       row.effectiveResult.resultSnapshotVersion <= value.snapshotVersion &&
-        row.resultFreshness === (row.effectiveResult.resultSnapshotVersion === value.snapshotVersion
-          ? "CURRENT_SNAPSHOT" : "OLDER_SNAPSHOT")
+        (row.resultFreshness === "CURRENT_SNAPSHOT" || row.resultFreshness === "OLDER_SNAPSHOT")
     ));
 });
 export const entryTransferIdempotencyKeySchema = z.string().regex(

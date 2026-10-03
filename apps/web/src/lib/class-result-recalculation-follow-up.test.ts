@@ -15,7 +15,9 @@ function entry(id: string, name: string, selectedClassId: string, resultSnapshot
     latestResultRevision: resultSnapshotVersion === null ? null : {
       id: `60000000-0000-4000-8000-00000000000${resultSnapshotVersion}`,
       revision: 1, status: "OK" as const, reason: "COMPLETE" as const,
-      cause: "CARD_READOUT" as const, createdAt: "2026-09-18T08:01:00.000Z", snapshotVersion: resultSnapshotVersion
+      cause: "CARD_READOUT" as const, createdAt: "2026-09-18T08:01:00.000Z", snapshotVersion: resultSnapshotVersion,
+      // ADR-0169: aktualiteten kommer från servern; här står versionen 2 för aktuellt underlag.
+      current: resultSnapshotVersion === 2
     }
   };
 }

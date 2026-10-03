@@ -33,6 +33,8 @@ export const administratorEffectiveResultResponseSchema = z.discriminatedUnion("
   z.object({ ...common, state: z.literal("ACTIVE_RESULT"), selectedRevision: selected,
     result: speakerBoardEffectiveResultSchema,
     resultClass: z.object({ id: uuid, name: z.string().min(1).max(160) }).strict(), resultSnapshotVersion: version,
+    // ADR-0169: sant så länge löparens eget bedömningsunderlag är oförändrat.
+    resultCurrent: z.boolean(),
     controlDetails: administratorControlDetailsSchema.nullable().optional(),
     governingDecision: z.enum(["NONE", "DNS", "CHECKIN_DNS", "DSQ", "APPROVAL", "DNF", "OOC", "NT"])
   }).strict()

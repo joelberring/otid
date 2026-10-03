@@ -112,11 +112,7 @@ test("träningskväll från tävling till IOF-export", async ({ browser, request
   await owner.getByRole("button", { name: "Deltagare", exact: true }).first().click();
   await owner.getByRole("button", { name: /David Berg/ }).first().click();
   await owner.getByText("Resultatbeslut och historik").click();
-  // Direktanmälningarna gav en ny tävlingsversion, så resultatet räknas om först.
-  await owner.getByRole("button", { name: "Omräkning", exact: true }).click();
-  await owner.getByRole("button", { name: "Granska omräkning" }).click();
-  await owner.getByRole("button", { name: "Bekräfta omräkning" }).click();
-  await expect(owner.getByText("Omräkningen är sparad.")).toBeVisible();
+  // ADR-0169: direktanmälningarna gör inte Davids resultat inaktuellt, så det godkänns direkt.
   await owner.getByRole("button", { name: "Manuellt godkännande" }).click();
   await owner.getByRole("button", { name: "Uppdatera godkännandeunderlag" }).click();
   await owner.getByRole("button", { name: "Granska godkännande" }).click();

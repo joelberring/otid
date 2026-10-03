@@ -35,8 +35,11 @@ type DatabaseStoredResultRevision = typeof schema.resultRevisions.$inferSelect;
 // TASK135 is additive. Keeping the nullable new provenance optional in
 // historical reader fixtures/projections makes their absence fail closed only
 // when the new cause is claimed, rather than treating old rows as malformed.
-export type StoredResultRevision = Omit<DatabaseStoredResultRevision, "shortenedCourseClassTransferId"> & {
+// ADR-0169: underlagshashen är också tillägg; projektioner som inte avgör om ett
+// resultat är aktuellt behöver inte läsa den.
+export type StoredResultRevision = Omit<DatabaseStoredResultRevision, "shortenedCourseClassTransferId" | "basisHash"> & {
   readonly shortenedCourseClassTransferId?: string | null;
+  readonly basisHash?: string | null;
 };
 export type StoredResultRevisionInput = Omit<StoredResultRevision, "manualFinishTimeCorrectionId" | "manualFinishTimeCorrectionWithdrawalId" | "manualPunchStartTimeCorrectionId" | "manualPunchStartTimeCorrectionWithdrawalId" | "shortenedCourseClassTransferId"> & {
   readonly manualFinishTimeCorrectionId?: string | null;
@@ -258,6 +261,8 @@ export function parseStrictStoredResultRevision(
     // Reader rows may include display columns. Compare every stored result
     // column, never accept a valid proof for a different/modified projection.
     for (const key of Object.keys(checkinSource.result) as (keyof StoredResultRevision)[]) {
+      // ADR-0169: underlagshashen sätts av databasen och behöver inte läsas av projektioner.
+      if (key === "basisHash" && !("basisHash" in row)) continue;
       const expected = checkinSource.result[key], actual = row[key];
       const matches = expected instanceof Date
         ? actual instanceof Date && expected.getTime() === actual.getTime()
@@ -652,6 +657,9 @@ export function parseWithoutTimingTechnicalRevision(
   return outcome as StoredWithoutTimingTechnicalOutcome;
 }
 
+// ADR-0169: ett beslut eller återtagande får fattas i en senare tävlingsversion än
+// källrevisionens så länge löparens underlag är oförändrat. Den nya revisionen bär
+// tävlingsversionen som beslutet fattades i (journalens expectedSnapshotVersion).
 export function validateStoredWithoutTiming(
   decision: StoredWithoutTimingDecision,
   target: StoredResultRevision,
@@ -666,7 +674,7 @@ export function validateStoredWithoutTiming(
       decision.entryId !== target.entryId || decision.entryId !== withoutTiming.entryId ||
       decision.expectedClassId !== targetOutcome.classId ||
       decision.expectedCourseVersionId !== target.courseVersionId ||
-      decision.expectedSnapshotVersion !== target.snapshotVersion ||
+      decision.expectedSnapshotVersion < target.snapshotVersion ||
       decision.createdResultRevision !== decision.targetResultRevision + 1 ||
       decision.status !== "NT" || decision.reason !== "WITHOUT_TIMING" ||
       decision.policyVersion !== WITHOUT_TIMING_DECISION_POLICY_VERSION ||
@@ -675,7 +683,7 @@ export function validateStoredWithoutTiming(
       withoutTiming.status !== "NT" || withoutTiming.reason !== "WITHOUT_TIMING" ||
       !withoutTiming.published || withoutTiming.engineVersion !== decision.policyVersion ||
       withoutTiming.courseVersionId !== target.courseVersionId ||
-      withoutTiming.snapshotVersion !== target.snapshotVersion ||
+      withoutTiming.snapshotVersion !== decision.expectedSnapshotVersion ||
       !canonicalEquals(withoutTimingOutcome, createWithoutTimingResult(targetOutcome))) {
     throw new StoredResultRevisionConflict("Utan-tidtagning-beslutet motsäger target eller NT-revision");
   }
@@ -735,7 +743,7 @@ export function validateStoredWithoutTimingWithdrawal(
       withdrawal.entryId !== source.entryId || withdrawal.entryId !== restored.entryId ||
       withdrawal.expectedClassId !== sourceOutcome.classId ||
       withdrawal.expectedCourseVersionId !== source.courseVersionId ||
-      withdrawal.expectedSnapshotVersion !== source.snapshotVersion ||
+      withdrawal.expectedSnapshotVersion < source.snapshotVersion ||
       (!noLaterTechnical && !laterTechnical) ||
       withdrawal.createdResultRevision !== withdrawal.expectedLatestResultRevision + 1 ||
       withdrawal.policyVersion !== WITHOUT_TIMING_WITHDRAWAL_POLICY_VERSION ||
@@ -744,7 +752,7 @@ export function validateStoredWithoutTimingWithdrawal(
       restored.cause !== "MANUAL_WITHOUT_TIMING_WITHDRAWAL" || !restored.published ||
       restored.engineVersion !== withdrawal.policyVersion ||
       restored.courseVersionId !== source.courseVersionId ||
-      restored.snapshotVersion !== source.snapshotVersion ||
+      restored.snapshotVersion !== withdrawal.expectedSnapshotVersion ||
       !canonicalEquals(restoredOutcome, sourceOutcome)) {
     throw new StoredResultRevisionConflict("NT-återtagandet motsäger källa eller restaureringsrevision");
   }
@@ -778,7 +786,7 @@ export function validateStoredOutOfCompetition(
       decision.entryId !== target.entryId || decision.entryId !== outOfCompetition.entryId ||
       decision.expectedClassId !== targetOutcome.classId ||
       decision.expectedCourseVersionId !== target.courseVersionId ||
-      decision.expectedSnapshotVersion !== target.snapshotVersion ||
+      decision.expectedSnapshotVersion < target.snapshotVersion ||
       decision.createdResultRevision !== decision.targetResultRevision + 1 ||
       decision.status !== "OOC" || decision.reason !== "OUT_OF_COMPETITION" ||
       decision.policyVersion !== OUT_OF_COMPETITION_DECISION_POLICY_VERSION ||
@@ -787,7 +795,7 @@ export function validateStoredOutOfCompetition(
       outOfCompetition.status !== "OOC" || outOfCompetition.reason !== "OUT_OF_COMPETITION" ||
       !outOfCompetition.published || outOfCompetition.engineVersion !== decision.policyVersion ||
       outOfCompetition.courseVersionId !== target.courseVersionId ||
-      outOfCompetition.snapshotVersion !== target.snapshotVersion ||
+      outOfCompetition.snapshotVersion !== decision.expectedSnapshotVersion ||
       !canonicalEquals(outOfCompetitionOutcome, createOutOfCompetitionResult(targetOutcome))) {
     throw new StoredResultRevisionConflict("OOC-beslutet motsäger target eller OOC-revision");
   }
@@ -830,7 +838,7 @@ export function validateStoredOutOfCompetitionWithdrawal(
       withdrawal.entryId !== source.entryId || withdrawal.entryId !== restored.entryId ||
       withdrawal.expectedClassId !== sourceOutcome.classId ||
       withdrawal.expectedCourseVersionId !== source.courseVersionId ||
-      withdrawal.expectedSnapshotVersion !== source.snapshotVersion ||
+      withdrawal.expectedSnapshotVersion < source.snapshotVersion ||
       (!noLaterTechnical && !laterTechnical) ||
       withdrawal.createdResultRevision !== withdrawal.expectedLatestResultRevision + 1 ||
       withdrawal.policyVersion !== OUT_OF_COMPETITION_WITHDRAWAL_POLICY_VERSION ||
@@ -839,7 +847,7 @@ export function validateStoredOutOfCompetitionWithdrawal(
       restored.cause !== "MANUAL_OUT_OF_COMPETITION_WITHDRAWAL" || !restored.published ||
       restored.engineVersion !== withdrawal.policyVersion ||
       restored.courseVersionId !== source.courseVersionId ||
-      restored.snapshotVersion !== source.snapshotVersion ||
+      restored.snapshotVersion !== withdrawal.expectedSnapshotVersion ||
       !canonicalEquals(restoredOutcome, sourceOutcome)) {
     throw new StoredResultRevisionConflict("OOC-återtagandet motsäger källa eller restaureringsrevision");
   }
@@ -895,7 +903,7 @@ export function validateStoredDidNotFinish(
       decision.entryId !== target.entryId || decision.entryId !== didNotFinish.entryId ||
       decision.expectedClassId !== targetOutcome.classId ||
       decision.expectedCourseVersionId !== target.courseVersionId ||
-      decision.expectedSnapshotVersion !== target.snapshotVersion ||
+      decision.expectedSnapshotVersion < target.snapshotVersion ||
       decision.createdResultRevision !== decision.targetResultRevision + 1 ||
       decision.status !== "DNF" || decision.reason !== "DID_NOT_FINISH" ||
       decision.policyVersion !== DID_NOT_FINISH_DECISION_POLICY_VERSION ||
@@ -903,7 +911,7 @@ export function validateStoredDidNotFinish(
       didNotFinish.status !== "DNF" || didNotFinish.reason !== "DID_NOT_FINISH" || !didNotFinish.published ||
       didNotFinish.engineVersion !== decision.policyVersion ||
       didNotFinish.courseVersionId !== target.courseVersionId ||
-      didNotFinish.snapshotVersion !== target.snapshotVersion ||
+      didNotFinish.snapshotVersion !== decision.expectedSnapshotVersion ||
       !canonicalEquals(didNotFinishOutcome, createDidNotFinishResult(targetOutcome))) {
     throw new StoredResultRevisionConflict("DNF-beslutet motsäger target eller DNF-revision");
   }
@@ -947,7 +955,7 @@ export function validateStoredDidNotFinishWithdrawal(
       withdrawal.entryId !== source.entryId || withdrawal.entryId !== restored.entryId ||
       withdrawal.expectedClassId !== sourceOutcome.classId ||
       withdrawal.expectedCourseVersionId !== source.courseVersionId ||
-      withdrawal.expectedSnapshotVersion !== source.snapshotVersion ||
+      withdrawal.expectedSnapshotVersion < source.snapshotVersion ||
       (!noLaterTechnical && !laterTechnical) ||
       withdrawal.createdResultRevision !== withdrawal.expectedLatestResultRevision + 1 ||
       withdrawal.policyVersion !== DID_NOT_FINISH_WITHDRAWAL_POLICY_VERSION ||
@@ -956,7 +964,7 @@ export function validateStoredDidNotFinishWithdrawal(
       restored.cause !== "MANUAL_DID_NOT_FINISH_WITHDRAWAL" || !restored.published ||
       restored.engineVersion !== withdrawal.policyVersion ||
       restored.courseVersionId !== source.courseVersionId ||
-      restored.snapshotVersion !== source.snapshotVersion ||
+      restored.snapshotVersion !== withdrawal.expectedSnapshotVersion ||
       !canonicalEquals(restoredOutcome, sourceOutcome)) {
     throw new StoredResultRevisionConflict("DNF-återtagandet motsäger källa eller restaureringsrevision");
   }
@@ -980,7 +988,8 @@ export function validateStoredDisqualification(
       disqualified.status !== "DSQ" || disqualified.reason !== "MANUAL_DISQUALIFICATION" ||
       !disqualified.published ||
       disqualified.courseVersionId !== target.courseVersionId ||
-      disqualified.snapshotVersion !== target.snapshotVersion ||
+      disqualified.snapshotVersion !== decision.expectedSnapshotVersion ||
+      decision.expectedSnapshotVersion < target.snapshotVersion ||
       !canonicalEquals(disqualifiedOutcome, createDisqualifiedResult(targetOutcome))) {
     throw new StoredResultRevisionConflict("Diskvalifikationsbeslutet motsäger target eller DSQ-revision");
   }
@@ -1008,7 +1017,8 @@ export function validateStoredDisqualificationWithdrawal(
       restored.disqualificationWithdrawalId !== withdrawal.id ||
       restored.cause !== "MANUAL_DISQUALIFICATION_WITHDRAWAL" || !restored.published ||
       restored.courseVersionId !== source.courseVersionId ||
-      restored.snapshotVersion !== source.snapshotVersion ||
+      restored.snapshotVersion !== withdrawal.expectedSnapshotVersion ||
+      withdrawal.expectedSnapshotVersion < source.snapshotVersion ||
       !canonicalEquals(restoredOutcome, sourceOutcome)) {
     throw new StoredResultRevisionConflict("Återtagandet motsäger källan eller restaureringsrevisionen");
   }
@@ -1027,11 +1037,11 @@ export function validateStoredApproval(
       decision.entryId !== target.entryId || decision.entryId !== approved.entryId ||
       decision.expectedClassId !== targetOutcome.classId ||
       decision.expectedCourseVersionId !== target.courseVersionId ||
-      decision.expectedSnapshotVersion !== target.snapshotVersion ||
+      decision.expectedSnapshotVersion < target.snapshotVersion ||
       decision.createdResultRevision !== decision.targetResultRevision + 1 ||
       approved.approvalDecisionId !== decision.id || approved.cause !== "MANUAL_RESULT_APPROVAL" ||
       approved.status !== "OK" || approved.reason !== "MANUAL_APPROVAL" || !approved.published ||
-      approved.courseVersionId !== target.courseVersionId || approved.snapshotVersion !== target.snapshotVersion ||
+      approved.courseVersionId !== target.courseVersionId || approved.snapshotVersion !== decision.expectedSnapshotVersion ||
       !canonicalEquals(approvedOutcome, createManuallyApprovedResult(targetOutcome))) {
     throw new StoredResultRevisionConflict("Godkännandebeslutet motsäger target eller approval-revision");
   }
@@ -1063,7 +1073,8 @@ export function validateStoredApprovalWithdrawal(
       withdrawal.createdResultRevision !== withdrawal.expectedLatestResultRevision + 1 ||
       restored.approvalWithdrawalId !== withdrawal.id ||
       restored.cause !== "MANUAL_RESULT_APPROVAL_WITHDRAWAL" || !restored.published ||
-      restored.courseVersionId !== source.courseVersionId || restored.snapshotVersion !== source.snapshotVersion ||
+      restored.courseVersionId !== source.courseVersionId || restored.snapshotVersion !== withdrawal.expectedSnapshotVersion ||
+      withdrawal.expectedSnapshotVersion < source.snapshotVersion ||
       !canonicalEquals(restoredOutcome, sourceOutcome)) {
     throw new StoredResultRevisionConflict("Godkännandeåtertagandet motsäger källa eller restaureringsrevision");
   }

@@ -41,7 +41,7 @@ export function fixture() {
     manualPunchStartTimeCorrectionId: null,
     manualPunchStartTimeCorrectionWithdrawalId: null,
     shortenedCourseClassTransferId: null,
-    status: "DNS", reason: "DID_NOT_START", engineVersion: "start-checkin-dns-v1", snapshotVersion: 1, courseVersionId,
+    status: "DNS", reason: "DID_NOT_START", engineVersion: "start-checkin-dns-v1", snapshotVersion: 1, basisHash: null, courseVersionId,
     published: true, createdAt: at, evaluation: { status: "DNS", reason: "DID_NOT_START", entryId, classId, courseVersionId }
   };
   return { ...r, decision, result };

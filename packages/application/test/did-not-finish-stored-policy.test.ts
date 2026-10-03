@@ -156,10 +156,23 @@ describe("TASK 006J stored DNF-withdrawal policy", () => {
     )).not.toThrow();
   });
 
+  it("ADR-0169 godtar withdrawal i en senare tävlingsversion när källan är oförändrad", () => {
+    expect(() => validateStoredDidNotFinishWithdrawal(
+      { ...withdrawal, expectedSnapshotVersion: 2 },
+      decision,
+      target,
+      didNotFinish,
+      didNotFinish,
+      target,
+      { ...restored, snapshotVersion: 2 }
+    )).not.toThrow();
+  });
+
   it.each([
     ["klass", { expectedClassId: "f0000000-0000-4000-8000-000000000015" }],
     ["bana", { expectedCourseVersionId: "f0000000-0000-4000-8000-000000000015" }],
-    ["snapshot", { expectedSnapshotVersion: 2 }]
+    // ADR-0169: en senare tävlingsversion är tillåten, men aldrig en äldre än källans.
+    ["snapshot", { expectedSnapshotVersion: 0 }]
   ])("avvisar withdrawal med motsägande fryst %s", (_name, override) => {
     expect(() => validateStoredDidNotFinishWithdrawal(
       { ...withdrawal, ...override },

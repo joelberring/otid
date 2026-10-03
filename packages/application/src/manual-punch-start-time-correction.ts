@@ -25,6 +25,7 @@ import {
   StoredResultRevisionConflict,
   validateStoredManualPunchStartTimeCorrection
 } from "./stored-result-revision";
+import { isResultCurrent, loadResultBasisHash } from "./result-basis";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const ENGINE_VERSION = "manual-punch-start-time-correction-v1";
@@ -83,7 +84,8 @@ async function candidateBasis(tx: Transaction, raceId: string, entryId: string):
       eq(schema.cardReadouts.id, source.readoutId), eq(schema.cardReadouts.raceId, raceId)
     )).limit(1);
   if (!outcome || !readout?.startPunchedAt || outcome.entryId !== entry.id || outcome.classId !== entry.classId ||
-      outcome.courseVersionId !== entry.courseVersionId || source.snapshotVersion !== race.snapshotVersion ||
+      outcome.courseVersionId !== entry.courseVersionId ||
+      !isResultCurrent(source, await loadResultBasisHash(tx, entry.id), race.snapshotVersion) ||
       readout.startPunchedAt.getTime() !== Date.parse(outcome.startTime!)) return { status: "conflict" };
   const sourceProjection = {
     resultRevisionId: source.id, resultRevision: source.revision, readoutId: source.readoutId!, cause: source.cause,
@@ -188,7 +190,8 @@ export async function correctManualPunchStartTimeAsAdministrator(
       const response = manualPunchStartTimeCorrectionResponseSchema.parse({ formatVersion: 1, replayed: false,
         requestId: request.data.requestId, correctionId: request.data.requestId, raceId: race.id, entryId: entry.id,
         classId: entry.classId, courseVersionId: current.source.courseVersionId,
-        sourceSnapshotVersion: current.source.snapshotVersion, sourceBasisHash: current.candidate.basisHash,
+        // ADR-0169: källans underlag frystes i tävlingsversionen som rättningen avser.
+        sourceSnapshotVersion: race.snapshotVersion, sourceBasisHash: current.candidate.basisHash,
         snapshotVersionAfter: race.snapshotVersion, source: current.candidate.source,
         previousStartTime: current.candidate.source.startTime, correctedStartTime: outcome.startTime,
         elapsedMs: outcome.elapsedMs, createdResultRevisionId, createdResultRevision,

@@ -24,6 +24,7 @@ import {
   validateStoredManualPunchStartTimeCorrection,
   validateStoredManualPunchStartTimeCorrectionWithdrawal
 } from "./stored-result-revision";
+import { isResultCurrent, loadResultBasisHash } from "./result-basis";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const ENGINE_VERSION = "manual-punch-start-time-correction-withdrawal-v1";
@@ -64,7 +65,8 @@ async function basis(tx: Transaction, raceId: string, entryId: string): Promise<
   if (!correction || !source || !readout?.startPunchedAt || priorWithdrawal) return { status: "conflict" };
   try { validateStoredManualPunchStartTimeCorrection({ correction, source, sourceStartPunchedAt: readout.startPunchedAt, corrected }); }
   catch (error) { if (error instanceof StoredResultRevisionConflict) return { status: "conflict" }; throw error; }
-  if (source.courseVersionId !== entry.courseVersionId || source.snapshotVersion !== race.snapshotVersion || source.entryId !== entry.id ||
+  if (source.courseVersionId !== entry.courseVersionId ||
+      !isResultCurrent(source, await loadResultBasisHash(tx, entry.id), race.snapshotVersion) || source.entryId !== entry.id ||
       source.revision + 1 !== corrected.revision) return { status: "conflict" };
   const frozen = { raceId, entryId, entryVersion: entry.version, classId: entry.classId, courseVersionId: entry.courseVersionId,
     snapshotVersion: race.snapshotVersion, correctionId: correction.requestId,

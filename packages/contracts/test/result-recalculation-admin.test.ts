@@ -61,7 +61,8 @@ describe("TASK 005I resultatomräkningskontrakt", () => {
           reason: "MISSING_CONTROL",
           cause: "CLASS_CHANGE_RECALCULATION",
           createdAt: "2026-08-31T17:01:00.000Z",
-          snapshotVersion: 7
+          snapshotVersion: 7,
+          current: true
         }
       }]
     } as const;

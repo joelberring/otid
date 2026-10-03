@@ -9,6 +9,13 @@ Steg 8 – Enkel arbetsyta för det som finns. Steg 7 (hårdvara) görs parallel
 
 ## Logg
 
+### 2026-10-03 – Steg 8.1: resultat är aktuella per löpare
+- Migration 0089: `result_revision.basis_hash`, sätts av databasen vid insert (klass, startsätt, banversion med
+  kontroller, strukna kontroller, fast starttid). Äldre revisioner utan hash jämförs som tidigare.
+- Alla ställen som avgjorde "äldre underlag" via tävlingsversionen använder nu `isResultCurrent`. Godkännande av en
+  felstämplad löpare kräver inte längre omräkning efter en direktanmälan (träningskvällstestet har en omräkning mindre).
+- Verifierat: lint, typecheck, test, test:integration (81 filer, nytt `adr-0169-result-basis`), build, e2e.
+
 ### 2026-10-03 – Förberedelse för steg 7
 - Avläsningssidan loggar all stationstrafik i minnet. "Ladda ner rålogg" ger trafiken och loppets råramar som JSON
   (inga namn). Täcks av enhetstest och träningskvällstestet.

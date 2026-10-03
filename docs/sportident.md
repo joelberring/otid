@@ -1,63 +1,78 @@
-# SPORTident-gräns
+# SPORTident i O-Tid
 
-TASK 001 använder endast syntetiska, normaliserade avläsningar i en simulator.
-Ingen riktig USB-, serie-, SPORTident-frame-, CRC- eller kortavkodning ingår och
-ingen hårdvarukombination får därför markeras högre än `untested`.
-
-Den framtida kedjan hålls uttryckligen delad:
-
-```text
-ByteTransport -> protokollparser -> kortnormalisering -> resultatmotor
-```
-
-Simulatorn ersätter de tre första leden men går därefter genom samma HTTP-ingest,
-persistens och resultatmotor som en framtida stationsklient. Rå simulatorpayload
-märks med transporttypen `simulator`; den får aldrig presenteras som fångade
-SPORTident-bytes.
-
-MeOS och Oxygen används inte som kodkälla. All framtida protokollimplementation
-kräver egen specifikation, egna anonymiserade captures och testfall för chunkning,
-CRC-fel, dubblering och trunkering.
-
-Med "anonymiserade captures" avses separata, härledda fixtures med egen hash och
-proveniens. Den privata råcapturen muteras aldrig.
-
-## TASK 002A
-
-Transport- och capturegrunden får nu byggas enligt ADR-0006. Den nya kedjan
-stannar fortfarande före protokollparsern:
+Avläsning sker med en avläsningsstation (BSM7/BSM8, SI-USB-läsare) i läget
+**Readout** med **utökat protokoll** (extended protocol). Stationen kopplas in
+via USB och läses i webbläsaren med Web Serial. Det fungerar i Chrome och Edge
+på dator och i Chrome 148 eller senare på Android.
 
 ```text
-serieport/Web Serial/Android-kontrakt -> rå capture -> verifierad replay
+Web Serial (device-transport) → ramar och protokoll (sportident) → bricka → normaliserad avläsning → resultatmotor (domain)
 ```
 
-`node-serial` är CLI-adaptern för desktop och ersätter inte `web-serial`.
-Captures lagrar både mottagna och sända bytes, monotona tider, riktning,
-ursprungliga chunkgränser, markörer och checksummor. Varken en öppningsbar port
-eller syntetisk replay får beskrivas som SPORTident-stöd.
+`packages/sportident` är ren TypeScript utan I/O:
 
-## Protokollgrind
+- `FrameDecoder` tolkar bytes till ramar och klarar chunkgränser, skräp, fel
+  CRC, saknad ETX och trunkering.
+- `ReadoutSession` är en tillståndsmaskin. Värden skickar in mottagna bytes och
+  tidsgränser och skriver ut de kommandon den returnerar. Den handskakar
+  (direktläge och läsning av systemdata), upptäcker bricka, läser block,
+  avkodar och kvitterar (pip).
+- `decodeCard` och `normalizeCard` ger bricknummer, start, mål, check, clear
+  och stämplingar med absoluta tider.
+- `FakeSiStation` är en falsk station som pratar samma protokoll, för tester och
+  för webbens utvecklingsläge.
 
-ADR-0007 stoppar SPORTident-specifik framing, CRC, DLE, ACK/NAK, probe och
-kortavkodning tills den officiella *PC Programmer's Guide*, tydliga
-licensvillkor och oberoende testvektorer finns. Publika SPORTident-sidor
-bekräftar protokolllägen och vissa baudvärden men definierar inte tillräckligt
-för en korrekt parser. Grinden dokumenteras i
-`docs/research/sportident-protocol-source-gate.md`.
+Råa ramar från varje utläsning följer med händelsen `card-read` (`frames`) och
+ska sparas oförändrade tillsammans med avläsningen.
 
-## TASK 002B: native Androidtransport
+## Inställning av stationen
 
-`apps/station/android/otid-usb-serial` listar USB-seriedrivers, begär Androids
-USB-behörighet, öppnar och konfigurerar vald port, skriver med ändlig timeout
-och emitterar råa RX-chunkar samt attach/detach/state/error. Modulen tolkar inte
-STX, ETX, DLE, CRC, ACK/NAK, stationskommandon eller kortinnehåll.
+Ställ in med SPORTident Config+: läge *Readout*, *Extended protocol* på,
+*Handshake* på (rekommenderat) och 38 400 baud. Äldre stationer kan bara
+4 800 baud. Om stationen inte svarar på 38 400 ska värden försöka med 4 800.
+Fel läge eller protokoll rapporteras som `station-misconfigured`.
 
-Nativeevent använder en global sammanhängande sekvens och
-`SystemClock.elapsedRealtimeNanos()`. En full eventkö ger ett explicit terminalt
-fel och stängning. Det finns inga VID/PID-filter eller automatisk återanslutning;
-sådana val kräver den fysiska inventeringen.
+## Tider
 
-Fake-backend-tester, Android lint och byggda APK:er lämnar samtliga rader i
-hårdvarumatrisen på `untested`. Instrumenteringstestet för explicit
-Capacitor-registrering är kompilerat men måste köras på emulator eller fysisk
-Androidenhet. Permission/open/read/write/detach mot verklig station återstår.
+Brickorna lagrar 12-timmarstid. SI6 och nyare har dessutom AM/PM och veckodag.
+`resolveSiTime` väljer den tolkning som ligger närmast före avläsningstiden,
+med 10 minuters tolerans för att stationens klocka kan gå före datorns. Den
+följer AM/PM och veckodag när de finns, och tävlingens tidszon (sommar- och
+vintertid). Ett lopp kan därmed vara högst 12 timmar med SI5 och en vecka med
+nyare brickor.
+
+SI5 sparar stämpling 31–36 utan tid. De redovisas i `untimedPunchCodes` och
+ingår inte i resultatbedömningen.
+
+## Källor och licens
+
+Implementationen är egen (ADR-0168). Underlaget är SPORTidents publika
+dokumentation och öppna beskrivningar av protokollet. CRC:n är verifierad mot
+publicerade ramar. Brickornas minneslayout är jämförd mot en oberoende öppen
+avkodare, som bara användes vid utvecklingen och inte är kopierad in i
+projektet. SPORTidents *PC Programmer's Guide* är begärd. När den kommer ska
+implementationen stämmas av mot den.
+
+## Stödmatris
+
+Status: `untested` → `captured` (rådata från riktig station sparad) →
+`decoded` (avkodning stämmer med fysisk bricka) → `field-verified` (provad
+på tävling/träning).
+
+| Bricka | Bricknummer | Läsning | Status |
+|---|---|---|---|
+| SI-Card 5 | 1–499 999 | `0xB1`, 1 block | untested |
+| SI-Card 6 / 6* | 500 000–999 999, 16 711 680– | `0xE1 0x08`, block 0/6/7 | untested |
+| SI-Card 8 | 2 000 000–2 999 999 | `0xEF` block 0, 1 | untested |
+| SI-Card 9 | 1 000 000–1 999 999 | `0xEF` block 0, 1 | untested |
+| pCard | 4 000 000–4 999 999 | `0xEF` block 0, 1 | untested |
+| SI-Card 10 | 7 000 000–7 999 999 | `0xEF 0x08`, block 0/4–7 | untested |
+| SIAC | 8 000 000–8 999 999 | `0xEF 0x08`, block 0/4–7 | untested |
+| SI-Card 11 | 9 000 000–9 999 999 | `0xEF 0x08`, block 0/4–7 | untested |
+| tCard, fCard | – | stöds inte | – |
+
+| Station | Status |
+|---|---|
+| BSM7-USB | untested |
+| BSM8-USB | untested |
+| SI-USB-läsare | untested |

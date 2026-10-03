@@ -233,6 +233,8 @@ importers:
         specifier: 5.2.5
         version: 5.2.5
 
+  packages/sportident: {}
+
 packages:
 
   '@capacitor/android@8.5.0':

@@ -318,5 +318,7 @@
     }
     ,{ "idx": 87, "version": "7", "when": 1795795200000, "tag": "0087_adr_0168_account_session_lifetime", "breakpoints": true
     }
+    ,{ "idx": 88, "version": "7", "when": 1795881600000, "tag": "0088_adr_0168_readout_without_finish", "breakpoints": true
+    }
   ]
 }

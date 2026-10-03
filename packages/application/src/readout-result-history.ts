@@ -277,7 +277,7 @@ export async function getReadoutHistoryAsAdmin(
           cardNumber: readout.cardNumber,
           readAt: readout.readAt.toISOString(),
           startPunchedAt: readout.startPunchedAt?.toISOString() ?? null,
-          finishPunchedAt: readout.finishPunchedAt.toISOString(),
+          finishPunchedAt: readout.finishPunchedAt?.toISOString() ?? null,
           punches: readout.punches
         },
         firstServerAssessment: publicAssessment(firstAssessment),
@@ -831,7 +831,7 @@ export async function getReadoutHistoryAsAdmin(
         cardNumber: readout.cardNumber,
         readAt: readout.readAt.toISOString(),
         startPunchedAt: readout.startPunchedAt?.toISOString() ?? null,
-        finishPunchedAt: readout.finishPunchedAt.toISOString(),
+        finishPunchedAt: readout.finishPunchedAt?.toISOString() ?? null,
         punches: readout.punches
       },
       firstServerAssessment: publicAssessment(firstAssessment),

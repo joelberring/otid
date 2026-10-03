@@ -5,9 +5,20 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 2 – Dela upp adminarbetsytan (se `PLAN.md`).
+Steg 5 – Hela träningskvällen hänger ihop (se `PLAN.md`). Steg 2 görs efter steg 5.
 
 ## Logg
+
+### 2026-10-03 – Steg 4 klart
+- `/admin/<lopp>/readout` leder till appskalet `/readout/` (esbuild + service worker, `build:shells`). Det startar utan nät.
+- Web Serial (38 400, sedan 4 800 baud) eller övningsstation (`FakeSiStation` genom samma protokollkod). Stort besked med
+  symbol och text, sträcktider, statusrad (station, internet, kö, underlagsversion). Serverns bedömning gäller och avvikelser visas.
+- Kö i IndexedDB per lopp med stabilt enhets-/sessions-id och löpnummer. Raderas aldrig; status ändras bara vid kvittens.
+  Utgången adminsession förnyas via kontot. Nya routes `readout-package` och `readouts` på adminsessionen.
+- Kontrakt: transport `sportident` med råramar (hex). Mål får saknas (migration 0088); bedöms som felstämplad.
+- Den gamla simulatorsidan är borttagen. Stationsappens bearer-ingest finns kvar (parkerad).
+- Verifierat: lint, typecheck, test, test:integration (81 filer), build, e2e (`readout.spec.ts`: offline-avläsning → omladdning
+  offline → synk → publikt resultat → okänd bricka direktanmäls i Hantera). Hårdvara: fortfarande `untested`.
 
 ### 2026-10-03 – Steg 1 klart
 - Självregistrering på `/organizer`. Kontoinloggningen gäller i 30 dagar (migration 0087).

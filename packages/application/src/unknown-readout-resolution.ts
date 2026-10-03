@@ -91,7 +91,7 @@ export async function listUnknownReadoutResolutionCandidatesAsAdministrator(
       readouts: readoutRows.filter((row) => isUnknownOutcome(row.serverResult) && !resolvedIds.has(row.id))
         .map((row) => ({
           id: row.id, cardNumber: row.cardNumber,
-          readAt: row.readAt.toISOString(), finishPunchedAt: row.finishPunchedAt.toISOString()
+          readAt: row.readAt.toISOString(), finishPunchedAt: row.finishPunchedAt?.toISOString() ?? null
         })),
       classes,
       entries: entries.map((entry) => {
@@ -218,7 +218,7 @@ export async function resolveUnknownReadoutAsAdministrator(
     const normalized: NormalizedCardReadout = { id: readout.readout.id, raceId: input.raceId,
       cardNumber: readout.readout.cardNumber,
       ...(readout.readout.startPunchedAt ? { startPunchedAt: readout.readout.startPunchedAt.toISOString() } : {}),
-      finishPunchedAt: readout.readout.finishPunchedAt.toISOString(), punches: readout.readout.punches,
+      ...(readout.readout.finishPunchedAt ? { finishPunchedAt: readout.readout.finishPunchedAt.toISOString() } : {}), punches: readout.readout.punches,
       rawMessageId: readout.readout.rawMessageId, readAt: readout.readout.readAt.toISOString() };
     const evaluation = evaluateCardReadout(normalized, snapshot);
     const controlNeutralizationId = appliedControlNeutralization(snapshot, evaluation);

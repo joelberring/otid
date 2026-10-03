@@ -275,7 +275,7 @@ const normalizedReadoutSchema = z.object({
   cardNumber: cardNumberSchema,
   readAt: instantSchema,
   startPunchedAt: instantSchema.nullable(),
-  finishPunchedAt: instantSchema,
+  finishPunchedAt: instantSchema.nullable(),
   punches: z.array(normalizedPunchSchema).max(256)
 }).strict();
 

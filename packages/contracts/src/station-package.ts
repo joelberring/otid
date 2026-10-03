@@ -93,7 +93,7 @@ function isStrictlySorted<T>(items: readonly T[], compare: (left: T, right: T) =
   return items.every((item, index) => index === 0 || compare(items[index - 1]!, item) < 0);
 }
 
-const raceSnapshotSchema = z.object({
+export const raceSnapshotSchema = z.object({
   race: raceSchema,
   classes: z.array(raceClassSchema).max(STATION_PACKAGE_LIMITS.classes),
   courses: z.array(courseSchema).max(STATION_PACKAGE_LIMITS.courses),
@@ -240,3 +240,32 @@ export const signedStationPackageEnvelopeSchema = z.object({
 
 export type StationPackagePayload = z.infer<typeof stationPackagePayloadSchema>;
 export type SignedStationPackageEnvelope = z.infer<typeof signedStationPackageEnvelopeSchema>;
+
+/**
+ * Avläsningspaket för webbläsarens avläsningsstation (steg 4, ADR-0168).
+ * Samma innehåll som stationspaketet men utan signatur: det hämtas med
+ * administratörens session över HTTPS och sparas lokalt för offlinebruk.
+ */
+export const readoutPackageSchema = z.object({
+  formatVersion: z.literal(1),
+  raceId: uuidSchema,
+  packageVersion: positiveIntegerSchema,
+  resultEngineVersion: z.string().trim().min(1).max(64),
+  event: z.object({
+    id: uuidSchema,
+    name: z.string().min(1).max(160),
+    startsOn: z.iso.date(),
+    timeZone: z.string().trim().min(1).max(128)
+  }).strict(),
+  raceSnapshot: raceSnapshotSchema,
+  fetchedAt: z.iso.datetime({ offset: true })
+}).strict().superRefine((value, context) => {
+  if (value.raceId !== value.raceSnapshot.race.id) {
+    context.addIssue({ code: "custom", path: ["raceId"], message: "Race-id matchar inte snapshoten" });
+  }
+  if (value.packageVersion !== value.raceSnapshot.race.snapshotVersion) {
+    context.addIssue({ code: "custom", path: ["packageVersion"], message: "Paketversionen matchar inte snapshoten" });
+  }
+});
+
+export type ReadoutPackage = z.infer<typeof readoutPackageSchema>;

@@ -280,17 +280,20 @@ describe("TASK 005M device-batch-route", () => {
   });
 
   it("rymmer ett realistiskt strikt 100×256-kontrakt under 4 MiB", async () => {
-    const events = Array.from({ length: 100 }, (_, index) => ({
-      ...validBatch(index + 1).events[0]!,
+    const events = Array.from({ length: 100 }, (_, index) => {
+      const event = validBatch(index + 1).events[0]!;
+      if (event.transport !== "simulator") throw new Error("Testet förutsätter simulatorhändelser");
+      return {
+      ...event,
       localSequence: index + 1,
       payload: {
-        ...validBatch(index + 1).events[0]!.payload,
+        ...event.payload,
         punches: Array.from({ length: 256 }, (_unused, punchIndex) => ({
           code: punchIndex + 1,
           punchedAt: "2026-08-31T09:55:00.000Z"
         }))
       }
-    }));
+    }; });
     const batch: DeviceBatch = {
       ...validBatch(), firstSequence: 1, lastSequence: 100, events
     };

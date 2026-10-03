@@ -239,7 +239,7 @@ export async function transferShortenedCourseClassAsAdministrator(
       if (!readout) throw new Error("Kortbaneöverflyttningens avläsning saknas");
       const normalized: NormalizedCardReadout = { id: readout.id, raceId: race.id, cardNumber: readout.cardNumber,
         ...(readout.startPunchedAt ? { startPunchedAt: readout.startPunchedAt.toISOString() } : {}),
-        finishPunchedAt: readout.finishPunchedAt.toISOString(), punches: readout.punches,
+        ...(readout.finishPunchedAt ? { finishPunchedAt: readout.finishPunchedAt.toISOString() } : {}), punches: readout.punches,
         rawMessageId: readout.rawMessageId, readAt: readout.readAt.toISOString() };
       const evaluation = evaluateCardReadout(normalized, snapshot);
       if (evaluation.status === "UNKNOWN_CARD" || evaluation.entryId !== entry.entryId || evaluation.classId !== shortClassId ||

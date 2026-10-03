@@ -30,11 +30,16 @@ describe("TASK 005G importadmin-UI", () => {
   });
 
 
-  it("lägger privata browserheaders på båda säkerhetsytorna", () => {
-    const nextConfig = source("../../next.config.ts");
-    expect(nextConfig).toContain('["pairing", "imports", "classes", "recalculation", "finalization"]');
-    expect(nextConfig).toContain("frame-ancestors 'none'");
-    expect(nextConfig).toContain('camera=(), geolocation=(), microphone=()');
-    expect(nextConfig).toContain('value: "DENY"');
+  it("lägger privata browserheaders på adminytor och avläsningsskalet", async () => {
+    const headers = await (await import("../../next.config")).default.headers!();
+    const forSource = (path: string) => new Map(headers.find((rule) => rule.source === path)?.headers.map((h) => [h.key, h.value]));
+    for (const path of ["/admin/:raceId/imports", "/admin/:raceId/manage"]) {
+      expect(forSource(path).get("Content-Security-Policy")).toBe("frame-ancestors 'none'");
+      expect(forSource(path).get("X-Frame-Options")).toBe("DENY");
+      expect(forSource(path).get("Cache-Control")).toBe("private, no-store");
+    }
+    const readout = forSource("/readout/:path*");
+    expect(readout.get("Permissions-Policy")).toContain("serial=(self)");
+    expect(readout.get("Content-Security-Policy")).toContain("connect-src 'self'");
   });
 });

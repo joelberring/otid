@@ -131,7 +131,7 @@ Nytt paket `packages/sportident` (ren TypeScript, ingen I/O) ovanpå befintliga
 testvektorer byggda från dokumentationen. `docs/sportident.md` skrivs om
 (högst en sida) med stödmatris – alla rader `untested` tills steg 7.
 
-## [ ] Steg 4 – Avläsning i webbläsaren, även offline
+## [x] Steg 4 – Avläsning i webbläsaren, även offline
 
 Ny sida `/admin/[raceId]/readout` (kräver admininloggning).
 

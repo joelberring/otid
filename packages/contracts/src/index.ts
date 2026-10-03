@@ -86,23 +86,51 @@ export const createEventSchema = z.object({
   timeZone: z.string().trim().min(1).default("Europe/Stockholm")
 });
 
+const readoutPunchesSchema = z.array(z.object({
+  code: z.number().int().positive(),
+  punchedAt: z.iso.datetime({ offset: true })
+}).strict()).max(256);
+
 export const simulatorPayloadSchema = z.object({
   cardNumber: z.string().trim().min(1).max(32),
   startPunchedAt: z.iso.datetime({ offset: true }).optional(),
   finishPunchedAt: z.iso.datetime({ offset: true }),
-  punches: z.array(z.object({
-    code: z.number().int().positive(),
-    punchedAt: z.iso.datetime({ offset: true })
-  }).strict()).max(256)
+  punches: readoutPunchesSchema
 }).strict();
 
-export const deviceEventSchema = z.object({
-  localSequence: z.number().int().positive(),
-  stationReceivedAt: z.iso.datetime({ offset: true }),
-  transport: z.literal("simulator"),
-  payload: simulatorPayloadSchema,
-  contentHash: z.string().regex(/^[a-f0-9]{64}$/)
+/**
+ * En avläsning från en SPORTident-station (steg 4, ADR-0168). Tiderna är redan
+ * tolkade i tävlingens tidszon; de råa ramarna sparas oförändrade som hex.
+ */
+export const sportidentReadoutPayloadSchema = z.object({
+  cardNumber: z.string().regex(/^[1-9][0-9]{0,8}$/),
+  cardType: z.enum(["SI5", "SI6", "SI8", "SI9", "SI10", "SI11", "SIAC", "pCard"]),
+  startPunchedAt: z.iso.datetime({ offset: true }).optional(),
+  finishPunchedAt: z.iso.datetime({ offset: true }).optional(),
+  checkPunchedAt: z.iso.datetime({ offset: true }).optional(),
+  clearPunchedAt: z.iso.datetime({ offset: true }).optional(),
+  punches: readoutPunchesSchema,
+  untimedPunchCodes: z.array(z.number().int().positive()).max(6),
+  frames: z.array(z.string().regex(/^(?:[0-9a-f]{2}){1,300}$/)).min(1).max(8),
+  stationSerial: z.number().int().nonnegative().optional(),
+  /** Sant när avläsningen kom från den falska övningsstationen. */
+  simulated: z.boolean()
 }).strict();
+
+export type SportidentReadoutPayload = z.infer<typeof sportidentReadoutPayloadSchema>;
+
+const localSequenceSchema = z.number().int().positive();
+const stationReceivedAtSchema = z.iso.datetime({ offset: true });
+const eventContentHashSchema = z.string().regex(/^[a-f0-9]{64}$/);
+
+// Nyckelordningen (sekvens, tid, transport, nyttolast, hash) är en del av det
+// serialiserade formatet och får inte ändras.
+export const deviceEventSchema = z.discriminatedUnion("transport", [
+  z.object({ localSequence: localSequenceSchema, stationReceivedAt: stationReceivedAtSchema,
+    transport: z.literal("simulator"), payload: simulatorPayloadSchema, contentHash: eventContentHashSchema }).strict(),
+  z.object({ localSequence: localSequenceSchema, stationReceivedAt: stationReceivedAtSchema,
+    transport: z.literal("sportident"), payload: sportidentReadoutPayloadSchema, contentHash: eventContentHashSchema }).strict()
+]);
 
 export const deviceBatchSchema = z.object({
   deviceId: z.uuid(),

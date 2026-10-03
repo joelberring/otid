@@ -2837,6 +2837,7 @@ export function RaceAdministratorWorkspace({ raceId, developmentAutoLogin = fals
         {data && <RaceWorkspaceOverview data={data} disabled={workflowLocked} onNavigate={navigateWorkflow}
           onFollowUp={followUp} onMissingFixedStart={openMissingFixedStart} onOpenClass={openClassSetup} />}
         {!workflowLocked && <nav className={styles.contextLinks} aria-label={text.overviewLinks}>
+          <a href={`/admin/${raceId}/readout`}>{text.readoutLink}</a>
           <Link href={`/results/${raceId}`}>{text.publicResultsLink}</Link>
           <Link href={`/starts/${raceId}`}>{publicationText.publicLink}</Link>
         </nav>}
@@ -3191,7 +3192,7 @@ export function RaceAdministratorWorkspace({ raceId, developmentAutoLogin = fals
             <label>{text.unknownReadoutSelect}<select value={unknownReadoutId} disabled={busy}
               onChange={event => setUnknownReadoutId(event.target.value)}>
               {unknownReadoutCandidate.readouts.map(readout => <option key={readout.id} value={readout.id}>
-                {text.rosterCard} {readout.cardNumber} · {formatStartListTime(readout.finishPunchedAt, data?.timeZone ?? "UTC")}
+                {text.rosterCard} {readout.cardNumber} · {(readout.finishPunchedAt ? formatStartListTime(readout.finishPunchedAt, data?.timeZone ?? "UTC") : "–")}
               </option>)}
             </select></label>
             <label>{text.unknownReadoutTarget}<select value={unknownReadoutTarget} disabled={busy}

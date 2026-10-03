@@ -25,6 +25,18 @@ Web Serial (device-transport) → ramar och protokoll (sportident) → bricka �
 Råa ramar från varje utläsning följer med händelsen `card-read` (`frames`) och
 ska sparas oförändrade tillsammans med avläsningen.
 
+## Avläsning i webbläsaren
+
+Admin öppnar `/admin/<lopp>/readout` (länk "Öppna avläsning" i arbetsytan).
+Adressen leder till ett statiskt appskal, `/readout/index.html#<lopp>`, som en
+service worker cachar så att sidan startar även utan nät. Varje avläsning sparas
+först i webbläsarens IndexedDB med råramarna, bedöms lokalt med samma
+resultatmotor mot senast hämtade tävlingsunderlag och skickas sedan till
+`POST /api/admin/races/<lopp>/administrator/readouts`. Kön raderas aldrig;
+en post ändrar bara status när servern kvitterat den. Utgången adminsession
+förnyas med kontoinloggningen. Knappen "Starta övningsstation" kör
+`FakeSiStation` genom samma protokollkod, för övning och tester.
+
 ## Inställning av stationen
 
 Ställ in med SPORTident Config+: läge *Readout*, *Extended protocol* på,

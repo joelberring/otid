@@ -104,12 +104,21 @@ importers:
       '@o-tid/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@o-tid/device-transport':
+        specifier: workspace:*
+        version: link:../../packages/device-transport
+      '@o-tid/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@o-tid/infrastructure':
         specifier: workspace:*
         version: link:../../packages/infrastructure
       '@o-tid/iof-xml':
         specifier: workspace:*
         version: link:../../packages/iof-xml
+      '@o-tid/sportident':
+        specifier: workspace:*
+        version: link:../../packages/sportident
       next:
         specifier: 16.3.3
         version: 16.3.3(@playwright/test@1.55.0)(@types/node@24.3.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)

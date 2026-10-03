@@ -4,6 +4,7 @@ node_modules
 .next-demo-test
 .next-local-demo
 apps/web/public/checkin/
+apps/web/public/readout/
 dist
 coverage
 playwright-report

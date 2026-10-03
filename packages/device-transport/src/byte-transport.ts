@@ -5,7 +5,9 @@ export type ByteTransportKind =
   | "web-serial"
   | "node-serial"
   | "tcp"
-  | "replay";
+  | "replay"
+  /** Falsk övningsstation i webbläsaren (steg 4). */
+  | "simulated";
 
 export type TransportCloseReason = "initial" | "requested" | "completed" | "detached" | "error";
 

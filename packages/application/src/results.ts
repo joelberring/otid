@@ -571,7 +571,7 @@ export async function recalculateEntryAsAdmin(
       raceId: authorization.principal.raceId,
       cardNumber: readout.cardNumber,
       ...(readout.startPunchedAt ? { startPunchedAt: readout.startPunchedAt.toISOString() } : {}),
-      finishPunchedAt: readout.finishPunchedAt.toISOString(),
+      ...(readout.finishPunchedAt ? { finishPunchedAt: readout.finishPunchedAt.toISOString() } : {}),
       punches: readout.punches,
       rawMessageId: readout.rawMessageId,
       readAt: readout.readAt.toISOString()
@@ -660,7 +660,7 @@ export async function recalculateEntry(db: Database, raceId: string, entryId: st
       raceId,
       cardNumber: readout.cardNumber,
       ...(readout.startPunchedAt ? { startPunchedAt: readout.startPunchedAt.toISOString() } : {}),
-      finishPunchedAt: readout.finishPunchedAt.toISOString(),
+      ...(readout.finishPunchedAt ? { finishPunchedAt: readout.finishPunchedAt.toISOString() } : {}),
       punches: readout.punches,
       rawMessageId: readout.rawMessageId,
       readAt: readout.readAt.toISOString()

@@ -17,7 +17,14 @@ pnpm db:migrate
 pnpm dev
 ```
 
-Öppna http://localhost:3000.
+Öppna http://localhost:3000. `pnpm dev` och `pnpm build` bygger först de
+offlinekapabla appskalen (`/readout/`, `/checkin/`) med `pnpm --filter @o-tid/web build:shells`.
+
+## Avläsning
+
+I arbetsytan: "Öppna avläsning". Anslut en SPORTident-station med USB (Chrome/Edge)
+eller starta övningsstationen. Avläsningar sparas i webbläsaren och skickas när nätet
+finns. Se `docs/sportident.md`.
 
 ## Behörighet
 

@@ -15,7 +15,7 @@ export const unknownReadoutResolutionCandidateResponseSchema = z.object({
     id: uuid,
     cardNumber: newEntryCardNumberSchema,
     readAt: z.iso.datetime({ offset: true }),
-    finishPunchedAt: z.iso.datetime({ offset: true })
+    finishPunchedAt: z.iso.datetime({ offset: true }).nullable()
   }).strict()).max(10_000),
   classes: z.array(z.object({
     id: uuid,

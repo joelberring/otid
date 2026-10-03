@@ -152,7 +152,7 @@ export async function ingestDeviceBatch(
         rawMessageId: inserted.id,
         cardNumber: payload.cardNumber,
         startPunchedAt: payload.startPunchedAt ? new Date(payload.startPunchedAt) : null,
-        finishPunchedAt: new Date(payload.finishPunchedAt),
+        finishPunchedAt: payload.finishPunchedAt ? new Date(payload.finishPunchedAt) : null,
         punches: payload.punches,
         readAt: new Date(event.stationReceivedAt)
       }).returning();
@@ -163,7 +163,7 @@ export async function ingestDeviceBatch(
         raceId,
         cardNumber: readoutRow.cardNumber,
         ...(readoutRow.startPunchedAt ? { startPunchedAt: readoutRow.startPunchedAt.toISOString() } : {}),
-        finishPunchedAt: readoutRow.finishPunchedAt.toISOString(),
+        ...(readoutRow.finishPunchedAt ? { finishPunchedAt: readoutRow.finishPunchedAt.toISOString() } : {}),
         punches: readoutRow.punches,
         rawMessageId: inserted.id,
         readAt: readoutRow.readAt.toISOString()

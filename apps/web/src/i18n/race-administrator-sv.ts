@@ -79,6 +79,7 @@ export const raceAdministratorSv = {
   refreshOverview: "Uppdatera underlag",
   overviewLinks: "Listor och läsöversikt",
   publicResultsLink: "Publika resultat",
+  readoutLink: "Öppna avläsning",
   readOnlyOverviewLink: "Läsande tävlingsöversikt · separat åtkomst",
   correctionTools: "Rättningar av tid och kontroller",
   correctionToolsHelp: "Öppna vid behov. Vanliga personändringar görs under Deltagare; omberäkning och fastställande finns under Efter tävlingen.",

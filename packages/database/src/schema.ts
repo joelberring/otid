@@ -2099,7 +2099,7 @@ export const cardReadouts = pgTable("card_readout", {
   rawMessageId: uuid("raw_message_id").notNull().references(() => rawDeviceMessages.id),
   cardNumber: text("card_number").notNull(),
   startPunchedAt: timestamp("start_punched_at", { withTimezone: true }),
-  finishPunchedAt: timestamp("finish_punched_at", { withTimezone: true }).notNull(),
+  finishPunchedAt: timestamp("finish_punched_at", { withTimezone: true }),
   punches: jsonb("punches").$type<Punch[]>().notNull(),
   readAt: timestamp("read_at", { withTimezone: true }).notNull()
 }, (table) => [

@@ -8,7 +8,8 @@ services:
       POSTGRES_PASSWORD: otid
       POSTGRES_DB: otid
     ports:
-      - "5432:5432"
+      # 5433 på datorn, så att en egen PostgreSQL på 5432 inte krockar.
+      - "5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U otid -d otid"]
       interval: 2s

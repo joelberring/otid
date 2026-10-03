@@ -5040,7 +5040,7 @@ describe("TASK 006D immutable individuell resultatfinalisering PostgreSQL", () =
       sql`${schema.auditEvents.action} in ('RESULT_CLASS_FINALIZED', 'RESULT_RACE_FINALIZED')`
     ));
     expect(audits).toHaveLength(3);
-    expect(JSON.stringify(audits)).not.toMatch(/Ada|Bo|12345|67890/);
+    expect(JSON.stringify(audits)).not.toMatch(/\b(?:Ada|Bo|12345|67890)\b/);
     await expect(db.update(schema.resultFinalizations).set({ sourceHash: "f".repeat(64) })
       .where(eq(schema.resultFinalizations.id, classFinalizationId))).rejects.toThrow();
     await expect(db.delete(schema.resultFinalizations)

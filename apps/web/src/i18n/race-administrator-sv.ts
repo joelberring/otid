@@ -5,6 +5,7 @@ export const raceAdministratorSv = {
   attentionUncertainty: "Osynkade köer på start- och målenheter är okända för servern. Nollor bevisar inte att skogen är tom.",
   attentionForestSource: "Start och återkomst",
   attentionReadoutSource: "Okända målavläsningar",
+  attentionInForest: "Kvar i skogen (anmälda som inte lästs av)",
   attentionConflict: "Motstridiga uppgifter",
   attentionStartedNoReturn: "Startade utan registrerad återkomst",
   attentionUnconfirmed: "Okänd startstatus",

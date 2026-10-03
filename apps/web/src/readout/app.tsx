@@ -184,14 +184,15 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
   function readExercise(variant: ExerciseVariant | "unknown") {
     const transport = exerciseRef.current;
     if (!transport || !pkg) return;
+    const runner = runners.find((candidate) => candidate.entryId === runnerId) ?? runners[0];
     if (variant === "unknown") {
+      // En löpare med en bricka som inte är anmäld, på vald deltagares bana.
       const used = new Set(pkg.raceSnapshot.cardAssignments.map((assignment) => assignment.cardNumber));
       let number = 7_100_000 + Math.floor(Math.random() * 800_000);
       while (used.has(String(number))) number += 1;
-      transport.insert(exerciseCard(number, [], "ok", new Date(), pkg.event.timeZone));
+      transport.insert(exerciseCard(number, runner?.controlCodes ?? [], "ok", new Date(), pkg.event.timeZone));
       return;
     }
-    const runner = runners.find((candidate) => candidate.entryId === runnerId) ?? runners[0];
     if (runner) transport.insert(exerciseCard(runner.cardNumber, runner.controlCodes, variant, new Date(), pkg.event.timeZone));
   }
 

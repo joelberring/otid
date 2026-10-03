@@ -185,7 +185,7 @@ function resultDuration(ms: number) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}${fraction ? `.${String(fraction).padStart(3, "0")}` : ""}`;
 }
 
-export function RaceAdministratorWorkspace({ raceId, developmentAutoLogin = false }: { raceId: string; developmentAutoLogin?: boolean }) {
+export function RaceAdministratorWorkspace({ raceId }: { raceId: string }) {
   const [expiresAt, setExpiresAt] = useState<string>();
   const [authenticated, setAuthenticated] = useState(false);
   const [data, setData] = useState<EntryTransferCandidates>();
@@ -574,8 +574,8 @@ export function RaceAdministratorWorkspace({ raceId, developmentAutoLogin = fals
     if (!response.ok) throw new Error("Account enter failed");
     await session(op);
   }
-  async function session(op: Operation, init: RequestInit = {}, development = false) {
-    const response = await request(development ? "/development-session" : "/session", op, init);
+  async function session(op: Operation) {
+    const response = await request("/session", op);
     if (!response.ok) throw new Error("Session unavailable");
     const value = raceAdministratorLoginResponseSchema.parse(await json(response, op));
     if (value.raceId !== raceId || Date.parse(value.expiresAt) <= Date.now()) throw new Error("Invalid session");
@@ -584,15 +584,15 @@ export function RaceAdministratorWorkspace({ raceId, developmentAutoLogin = fals
   }
   useEffect(() => {
     const op = begin();
-    void session(op, developmentAutoLogin ? { method: "POST" } : {}, developmentAutoLogin)
-      .catch(() => developmentAutoLogin ? Promise.reject(new Error("Development session unavailable")) : enterWithAccount(op))
+    void session(op)
+      .catch(() => enterWithAccount(op))
       .catch(() => { if (current(op)) lock(); }).finally(() => finish(op));
     const hide = () => flushSync(() => lock(true));
     const visible = () => { if (document.visibilityState === "visible" && deadline.current && deadline.current <= Date.now()) lock(); };
     window.addEventListener("pagehide", hide); document.addEventListener("visibilitychange", visible);
     return () => { invalidate(); deadline.current = 0; window.removeEventListener("pagehide", hide); document.removeEventListener("visibilitychange", visible); };
     // This private surface is remounted for each race; mutable form state must not restart login.
-  }, [raceId, developmentAutoLogin]);
+  }, [raceId]);
   useEffect(() => {
     if (!expiresAt) return;
     const timer = setTimeout(() => lock(), Math.max(0, Date.parse(expiresAt) - Date.now()));
@@ -617,8 +617,7 @@ export function RaceAdministratorWorkspace({ raceId, developmentAutoLogin = fals
     event.preventDefault(); if (busyRef.current) return;
     const op = begin();
     try {
-      if (developmentAutoLogin) await session(op, { method: "POST" }, true);
-      else await enterWithAccount(op);
+      await enterWithAccount(op);
     } catch { if (current(op)) lock(); } finally { finish(op); }
   }
   function inspectManualClass(event: FormEvent) {
@@ -2573,7 +2572,9 @@ export function RaceAdministratorWorkspace({ raceId, developmentAutoLogin = fals
   const forestAttentionCounts = forestAttentionFresh ? {
     conflict: forestData.entries.filter(row => row.forestState === "CONFLICT").length,
     startedNoReturn: forestData.entries.filter(row => row.forestState === "STARTED_NO_RETURN").length,
-    unconfirmed: forestData.entries.filter(row => row.forestState === "UNCONFIRMED").length
+    unconfirmed: forestData.entries.filter(row => row.forestState === "UNCONFIRMED").length,
+    // ADR-0168: kvar i skogen = anmälda som inte är avlästa/återkomna och inte är ej startande.
+    inForest: forestData.entries.filter(row => row.forestState !== "RETURNED" && row.forestState !== "NOT_STARTED").length
   } : undefined;
   function revealSelected() {
     if (workflowLocked || !selected || !data) return;
@@ -2599,10 +2600,10 @@ export function RaceAdministratorWorkspace({ raceId, developmentAutoLogin = fals
     setPage(Math.floor(nextIndex / pageSize));
     select(next.id);
   }
-  const eventsLabel = developmentAutoLogin ? navigationText.backToLocalEvents : navigationText.backToEvents;
+  const eventsLabel = navigationText.backToEvents;
   const eventsLink = workflowLocked
     ? <span className={styles.backUnavailable} aria-disabled="true" title={navigationText.backLocked}>{eventsLabel}</span>
-    : <Link className={styles.backToEvents} href={developmentAutoLogin ? "/" : "/organizer"} prefetch={false}>{eventsLabel}</Link>;
+    : <Link className={styles.backToEvents} href="/organizer" prefetch={false}>{eventsLabel}</Link>;
   const startRuleClass = data?.classes.find(row => row.id === startRuleClassId);
   const classNameSelected = data?.classes.find(row => row.id === classNameClassId);
   const finalizationCandidate = finalizationScope === "RACE" ? finalizationCandidates?.race
@@ -2730,12 +2731,11 @@ export function RaceAdministratorWorkspace({ raceId, developmentAutoLogin = fals
     window.print();
   }
   return <div className={styles.workspace} data-print-target={printTarget} data-authenticated={authenticated}>
-    {developmentAutoLogin && !authenticated && <p className={styles.workflowHelp}>{navigationText.developmentAccess}</p>}
-    {!authenticated && !developmentAutoLogin && <p>{text.introduction}</p>}
+    {!authenticated && <p>{text.introduction}</p>}
     <p className={styles.status} role="status" aria-live="polite">{message}</p>
     {!authenticated && <form className={`${styles.panel} ${styles.login}`} onSubmit={(event) => void login(event)}>
-      {!developmentAutoLogin && <p>{text.accountLoginHelp} <Link href="/organizer" prefetch={false}>{text.accountLoginLink}</Link></p>}
-      <button disabled={busy}>{developmentAutoLogin ? navigationText.openDevelopmentRace : text.login}</button>
+      <p>{text.accountLoginHelp} <Link href="/organizer" prefetch={false}>{text.accountLoginLink}</Link></p>
+      <button disabled={busy}>{text.login}</button>
     </form>}
     {authenticated && <>
       <div className={styles.workspaceChrome}>
@@ -2743,7 +2743,6 @@ export function RaceAdministratorWorkspace({ raceId, developmentAutoLogin = fals
           <div><div className={styles.identityTitle}>
             {eventsLink}
             <span className={styles.identityDivider} aria-hidden="true">›</span><h2>{data.eventName}</h2>
-            {developmentAutoLogin && <span className={styles.developmentBadge} title={navigationText.developmentAccess}>{navigationText.developmentBadge}</span>}
           </div><p>{data.raceName} · <time dateTime={data.raceDate}>{data.raceDate}</time> · {data.timeZone}</p></div>
           <div className={styles.identityActions}>
             <button type="button" className="secondary" disabled={workflowLocked} onClick={() => void refresh()}>{text.refreshOverview}</button>
@@ -3153,6 +3152,10 @@ export function RaceAdministratorWorkspace({ raceId, developmentAutoLogin = fals
               formatStartListTime(forestData.generatedAt, forestData.timeZone))}</p>}
             {!forestAttentionFresh && <p className={styles.attentionUnavailable} role="status">{text.attentionForestUnavailable}</p>}
             <ul className={styles.attentionItems}>
+              <li data-testid="in-forest-count"><span>{text.attentionInForest}</span><strong>{forestAttentionCounts?.inForest ?? text.attentionUnknown}</strong>
+                <button type="button" className="secondary" disabled={workflowLocked}
+                  onClick={() => openAttentionPanel("FOREST")}>{text.attentionOpen}</button>
+              </li>
               <li className={forestAttentionCounts?.conflict ? styles.attentionConflict : undefined}>
                 <span>{text.attentionConflict}</span><strong>{forestAttentionCounts?.conflict ?? text.attentionUnknown}</strong>
                 <button type="button" className="secondary" disabled={workflowLocked}

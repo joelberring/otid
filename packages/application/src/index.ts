@@ -23,7 +23,6 @@ export * from "./import-iof";
 export * from "./ingest";
 export * from "./overview";
 export * from "./pairing-admin";
-export { validateDemoTarget, DemoTargetPolicyError } from "./demo-target-policy";
 export * from "./readout-result-history";
 export * from "./result-finalization";
 export * from "./result-disqualification";

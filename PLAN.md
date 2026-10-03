@@ -161,7 +161,7 @@ Ny sida `/admin/[raceId]/readout` (kräver admininloggning).
 fortfarande fungerande → slå på nätet → kön töms → resultatet syns på den
 publika resultatsidan. Okänd bricka → direktanmälan → resultat.
 
-## [ ] Steg 5 – Hela träningskvällen hänger ihop
+## [x] Steg 5 – Hela träningskvällen hänger ihop
 
 1. Snabbstart för träning: skapa tävling → skapa banor genom att skriva
    kontrollkoder → klasser kopplade till banor → fri start (startstämpling)

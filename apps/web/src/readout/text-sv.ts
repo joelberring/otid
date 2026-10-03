@@ -60,7 +60,7 @@ export const readoutText = {
   statusDuplicate: "Redan mottagen",
   statusRejected: "Avvisad",
   exercise: "Övningsstation",
-  exerciseHelp: "Skapar en bricka för vald deltagare och läser av den genom samma protokoll som en riktig station.",
+  exerciseHelp: "Skapar en bricka för vald deltagare och läser av den genom samma protokoll som en riktig station. Okänd bricka springer vald deltagares bana med ett oanmält bricknummer.",
   exerciseRunner: "Deltagare",
   exerciseNoRunners: "Inga deltagare med SPORTident-bricka i underlaget.",
   exerciseOk: "Läs av: rätt stämplat",

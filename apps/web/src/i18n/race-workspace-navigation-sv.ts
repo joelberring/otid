@@ -1,10 +1,6 @@
 export const raceWorkspaceNavigationSv = {
   backToEvents: "Mina tävlingar",
-  backToLocalEvents: "Tävlingar",
   backLocked: "Avsluta den pågående granskningen eller åtgärden innan du lämnar arbetsytan.",
-  developmentAccess: "Lokal utveckling · testtävlingen öppnas utan manuell inloggning.",
-  developmentBadge: "Lokal demo",
-  openDevelopmentRace: "Öppna testtävlingen",
   preparationNavigation: "Tävlingsförberedelser",
   preparation: { OVERVIEW: "Upplägg", COURSES: "Banor", CLASSES: "Klasser", PARTICIPANTS: "Deltagare", DRAW: "Lottning & starttider", PUBLICATION: "Startlista", STAFF: "Funktionärer" },
   preparationMobile: { OVERVIEW: "Upplägg", COURSES: "Banor", CLASSES: "Klasser", PARTICIPANTS: "Deltagare", DRAW: "Lottning & tider", PUBLICATION: "Startlista", STAFF: "Funktionärer" },

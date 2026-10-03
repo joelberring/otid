@@ -1,8 +1,6 @@
 node_modules
 .pnpm-store
 .next
-.next-demo-test
-.next-local-demo
 apps/web/public/checkin/
 apps/web/public/readout/
 dist

@@ -20,6 +20,17 @@ pnpm dev
 Öppna http://localhost:3000. `pnpm dev` och `pnpm build` bygger först de
 offlinekapabla appskalen (`/readout/`, `/checkin/`) med `pnpm --filter @o-tid/web build:shells`.
 
+## Prova på fem minuter
+
+```bash
+pnpm demo   # efter pnpm db:migrate eller direkt; använder DATABASE_URL
+pnpm dev
+```
+
+`pnpm demo` skapar kontot `demo` (lösenord `demo-traning-1`) och en träningstävling
+med två banor, tio anmälda och sju avläsningar (en felstämplad, tre kvar i skogen).
+Adresserna skrivs ut. Kör den igen för en ny tävling.
+
 ## Avläsning
 
 I arbetsytan: "Öppna avläsning". Anslut en SPORTident-station med USB (Chrome/Edge)

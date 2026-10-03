@@ -61,7 +61,6 @@
 .backToEvents, .backUnavailable { display: inline-flex; align-items: center; min-height: 44px; font-size: 0.82rem; }
 .backUnavailable { color: var(--muted); opacity: 0.7; }
 .identityDivider { color: var(--muted); }
-.developmentBadge { color: var(--muted); font-size: 0.75rem; font-weight: 500; }
 .rosterSearch { display: grid; gap: 0.5rem; min-width: 0; }
 .rosterOrderHint { color: var(--muted); font-size: 0.8rem; }
 .raceIdentity h2 { font-size: 1.3rem; font-weight: 650; overflow-wrap: anywhere; }

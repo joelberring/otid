@@ -1,11 +1,6 @@
 import type { NextConfig } from "next";
 
-const localDemo = process.env.NODE_ENV === "development" && process.env.O_TID_LOCAL_DEMO === "1";
-const demoTest = process.env.NODE_ENV === "development" && process.env.O_TID_DEMO_E2E === "1";
-if (localDemo && demoTest) throw new Error("Lokal demo och browsertest kräver separata utvecklingsprocesser");
-
 const nextConfig: NextConfig = {
-  ...(localDemo ? { distDir: ".next-local-demo" } : demoTest ? { distDir: ".next-demo-test" } : {}),
   output: "standalone",
   allowedDevOrigins: ["127.0.0.1"],
   async headers() {

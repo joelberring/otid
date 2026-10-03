@@ -267,7 +267,6 @@ export * from "./eventor-import";
 export * from "./eventor-entry-import";
 export * from "./start-checkin-roster";
 export * from "./start-checkin-conflict-review";
-export * from "./demo-installation";
 export * from "./speaker-board";
 export * from "./pm-document-reservation";
 export * from "./entry-readout-history";

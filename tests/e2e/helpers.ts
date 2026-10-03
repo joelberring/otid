@@ -30,10 +30,10 @@ export async function createRace(owner: Page, eventName: string): Promise<string
 }
 
 export async function addCourseAndClass(owner: Page, courseName: string, className: string, controls: string): Promise<void> {
-  await owner.getByRole("button", { name: "Öppna upplägg" }).click();
+  await owner.getByRole("button", { name: "Före tävlingen", exact: true }).first().click();
   await owner.getByRole("button", { name: "Banor", exact: true }).click();
-  await owner.getByText("Förbered bana och klass").click();
   const courseForm = owner.locator("form").filter({ has: owner.getByRole("button", { name: "Granska bana och klass" }) });
+  if (!await courseForm.isVisible()) await owner.getByText("Förbered bana och klass").click();
   await courseForm.getByLabel("Bannamn").fill(courseName);
   await courseForm.getByLabel("Klassnamn").fill(className);
   await courseForm.getByLabel("Kontrollföljd").fill(controls);

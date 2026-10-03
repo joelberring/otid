@@ -5,9 +5,19 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 5 – Hela träningskvällen hänger ihop (se `PLAN.md`). Steg 2 görs efter steg 5.
+Steg 2 – Dela upp adminarbetsytan (se `PLAN.md`), därefter steg 6.
 
 ## Logg
+
+### 2026-10-03 – Steg 5 klart
+- `tests/e2e/traningskvall.spec.ts`: 10 löpare genom hela kedjan – två banor/klasser (fri start är standard), åtta
+  förhandsanmälda, avläsning med övningsstationen (delvis offline, omladdning offline), två okända brickor
+  direktanmäls, kvar i skogen = 2, felstämplad räknas om och godkänns manuellt, publikt resultat, IOF XML-export.
+- "Kvar i skogen" visas som eget tal i Under tävlingen (anmälda som varken lästs av eller är ej startande).
+- `pnpm demo` ersätter `demo:provision`, `demo:access:copy`, `db:seed` och utvecklingsinloggningen för demotävlingar.
+- `simulatedRun`/`readSimulatedCard` i `packages/sportident` används av övningsstationen, demon och tester.
+- Övningsstationens okända bricka springer vald deltagares bana. `readout.spec.ts` ingår nu i träningskvällstestet.
+- Verifierat: lint, typecheck, test, test:integration (80 filer), build, e2e (2 flöden).
 
 ### 2026-10-03 – Steg 4 klart
 - `/admin/<lopp>/readout` leder till appskalet `/readout/` (esbuild + service worker, `build:shells`). Det startar utan nät.
@@ -70,4 +80,6 @@ brickor till steg 7.
 
 ## Idéer (inte i planen än)
 
-- …
+- Varje ändring i tävlingen (t.ex. en direktanmälan) höjer tävlingsversionen, och då räknas alla tidigare resultat som
+  "äldre underlag". Manuellt godkännande kräver då en omräkning först. En snävare regel (bara klassens bana och
+  deltagarens bricka) skulle spara klick under en träningskväll.

@@ -17,3 +17,4 @@ export { cardImageFromResponses, CardDecodeError, decodeCard, type SiCardData, t
 export { normalizeCard, type NormalizedSiReadout } from "./normalize";
 export { parseSystemValues, ReadoutSession, type ReadoutEvent, type SessionOutput, type StationInfo } from "./readout-session";
 export { encodeCardImage, FakeSiStation, type FakeStationOptions, type SimulatedCard, type SimulatedTime } from "./simulator";
+export { cardTypeForNumber, readSimulatedCard, simulatedRun, stationClock, type SimulatedRunOptions } from "./simulated-run";

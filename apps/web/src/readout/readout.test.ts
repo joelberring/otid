@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import { deviceEventSchema, sportidentReadoutPayloadSchema, type DeviceBatch } from "@o-tid/contracts";
 import type { SiCardData } from "@o-tid/sportident";
 import { evaluateLocally, formatRunningTime } from "./evaluate";
-import { cardTypeForNumber, exerciseCard, exerciseRunners, stationClock } from "./exercise";
+import { cardTypeForNumber, stationClock } from "@o-tid/sportident";
+import { exerciseCard, exerciseRunners } from "./exercise";
 import { FakeStationTransport } from "./fake-transport";
 import { buildReadoutPayload, payloadHash } from "./payload";
 import { StationController, type StationStatus } from "./station";
@@ -84,7 +85,7 @@ describe("avläsning i webbläsaren", () => {
 
   it("räknar stationens klocka i tävlingens tidszon", () => {
     expect(stationClock(new Date("2026-10-01T17:45:00.000Z"), TIME_ZONE)).toEqual({ secondsOfDay: 19 * 3600 + 45 * 60, dayOfWeek: 4 });
-    expect(cardTypeForNumber(123_456)).toBe("SI5");
+    expect(cardTypeForNumber(23_456)).toBe("SI5");
     expect(cardTypeForNumber(654_321)).toBe("SI6");
     expect(cardTypeForNumber(8_000_001)).toBe("SIAC");
     expect(cardTypeForNumber(3_000_000)).toBeUndefined();

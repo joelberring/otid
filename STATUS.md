@@ -5,9 +5,18 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 2 – Dela upp adminarbetsytan (se `PLAN.md`). Därefter steg 7 (ägaren: hårdvara och pilot).
+Steg 7 – Riktig hårdvara och pilot (ägaren). Steg 0–6 är klara.
 
 ## Logg
+
+### 2026-10-03 – Steg 2 klart
+- `race-administrator-workspace.tsx` 4 301 → 189 rader: session, laddning och navigering. Områdena (förberedelse,
+  deltagare, resultatbeslut, tävlingsdag, efter tävlingen) ligger i `components/race-administrator/` (22 filer, största 543).
+- En gemensam anrops-/operationshjälp (`operations.ts`); de fem likadana resultatbesluten laddas med samma funktion.
+- `race-administrator-route-handlers.ts` 1 382 → 84 rader (dispatcher) + fyra gruppfiler; testerna delade likadant.
+- Borttaget: inloggning med åtkomstkod via `POST /session` (ger nu 405) och 1 200 rader oanvänd CSS.
+- Ingen fil i `apps/web/src` över 800 rader (största: `globals.css` 629). Markup, etiketter och roller oförändrade.
+- Verifierat: lint, typecheck, test, build, e2e (utvecklingsläge och driftbygge bakom HTTPS).
 
 ### 2026-10-03 – Steg 6 klart
 - `Dockerfile` (Next standalone + paketerad migrering som körs före start), `docker-compose.prod.yml` med PostgreSQL,

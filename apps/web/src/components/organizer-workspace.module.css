@@ -72,7 +72,6 @@
 .loginMessage[role="alert"] { color: #8c3434; }
 .loginLinks { display: flex; flex-wrap: wrap; gap: .2rem .8rem; margin-top: .65rem; padding-top: .4rem; border-top: 1px solid var(--border); }
 .loginLinks a { display: inline-flex; align-items: center; min-height: 44px; overflow-wrap: anywhere; }
-.activationHint { margin: .15rem 0 0; color: var(--muted); font-size: .82rem; overflow-wrap: anywhere; }
 .main :is(button, input) { border-radius: 5px; }
 .main button { font-weight: 600; }
 .main input { border-width: 1px; }
@@ -139,29 +138,9 @@
 .adminReview { padding: .25rem .5rem; border-left: 2px solid var(--border); background: white; font-size: .82rem; overflow-wrap: anywhere; }
 .adminReview p { margin: .15rem 0; }
 .adminReview:focus-visible { outline: 3px solid #2368a2; outline-offset: 2px; }
-.adminInvitationReview { font-weight: 400; }
 .adminStatus { display: grid; gap: .1rem; align-content: center; color: var(--ink) !important; font-size: .82rem !important; font-weight: 650; }
 .adminStatus small { color: var(--muted); font-size: .76rem; font-weight: 400; }
 .adminPanel > .adminList li { display: grid; grid-template-columns: minmax(0, 1fr) minmax(8rem, auto) auto; align-items: center; }
-.invitationDisclosure { margin-top: .7rem; padding-top: .35rem; border-top: 1px solid var(--border); }
-.invitationDisclosure > button { min-height: 44px; padding-inline: 0; border: 0; background: transparent; color: var(--ink); text-align: left; text-decoration: underline; text-underline-offset: .15rem; }
-.invitationDisclosure > button:not(:disabled):hover { background: transparent; }
-.invitationPanel { margin-top: .15rem; padding: .4rem 0 0; border: 0; border-radius: 0; background: transparent; }
-.invitationPanel .confirmed { border-left-color: var(--border); }
-.invitationPanel .confirmed strong { color: var(--ink); }
-.adminList.invitationList li { display: grid; grid-template-columns: minmax(0, 1fr) minmax(9rem, auto) auto; align-items: center; }
-.invitationRowStatus { display: grid; gap: .1rem; color: var(--ink) !important; font-size: .82rem !important; font-weight: 650; }
-.invitationRowStatus small { color: var(--muted); font-size: .76rem; font-weight: 400; overflow-wrap: anywhere; }
-.invitationGrantState { align-self: center; color: var(--muted); font-size: .82rem !important; font-weight: 650; overflow-wrap: anywhere; }
-.invitationForm { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; margin-top: .65rem; }
-.invitationForm label { display: grid; gap: .3rem; min-width: 0; font-weight: 550; }
-.invitationForm input, .invitationForm button { width: 100%; min-height: 48px; }
-.invitationFormHint { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: .82rem; }
-.invitationForm button { grid-column: 1 / -1; }
-.invitationCode { display: block; margin: .6rem 0; padding: .7rem; overflow-wrap: anywhere; user-select: all; border: 1px solid var(--border); border-radius: 5px; background: white; font-size: 1rem; }
-.invitationCodeActions { display: flex; flex-wrap: wrap; gap: .4rem; }
-.invitationCodeActions button { min-height: 44px; }
-.invitationClipboardHint { color: var(--muted); font-size: .82rem; }
 .adminDisclosure { margin: .35rem 0; }
 .adminDisclosure > button { width: auto; min-height: 44px; padding-inline: 0; border: 0; background: transparent; color: var(--ink); text-align: left; text-decoration: underline; text-underline-offset: .15rem; }
 .adminDisclosure > button:not(:disabled):hover { background: transparent; }
@@ -197,7 +176,7 @@
 .uncertain dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
 .actions { flex-wrap: wrap; justify-content: start; }
 .message { min-height: 1.5rem; margin: .8rem 0 0; font-weight: 700; }
-.adminPanel > .message:empty, .invitationPanel > .message:empty { display: none; }
+.adminPanel > .message:empty { display: none; }
 
 @media (max-width: 700px) {
   .main { padding: .75rem; }
@@ -210,14 +189,9 @@
   .raceList button { width: 100%; }
   .adminList li { align-items: stretch; flex-direction: column; }
   .adminPanel > .adminList li { grid-template-columns: minmax(0, 1fr); }
-  .adminList.invitationList li { grid-template-columns: minmax(0, 1fr); }
-  .invitationCodeActions { display: grid; grid-template-columns: minmax(0, 1fr); }
-  .invitationCodeActions button { width: 100%; }
   .adminForm { grid-template-columns: minmax(0, 1fr); }
   .adminForm button, .adminForm .adminReview { grid-column: auto; grid-row: auto; }
   .adminList button { width: 100%; }
-  .invitationForm { grid-template-columns: minmax(0, 1fr); }
-  .invitationForm button { grid-column: auto; }
   .sectionHeading { align-items: center; }
   .eventHeading { align-items: start; }
   .eventRole { flex-basis: auto; }

@@ -99,7 +99,7 @@ lägg till bana, klass och deltagare → bjud in konto B som admin → B kan
 på admin-API. `grep -r "access:issue" package.json scripts` ger inga träffar.
 README beskriver inloggningen på fem rader.
 
-## [ ] Steg 2 – Dela upp adminarbetsytan
+## [x] Steg 2 – Dela upp adminarbetsytan
 
 `apps/web/src/components/race-administrator-workspace.tsx` (4 300 rader,
 179 `useState`) delas upp i en komponent per flik/område (t.ex. Förberedelse,

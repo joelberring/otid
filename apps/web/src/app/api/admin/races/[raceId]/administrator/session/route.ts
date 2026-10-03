@@ -5,4 +5,4 @@ async function session(request: Request, context: { params: Promise<{ raceId: st
   const { raceId } = await context.params;
   return raceAdministratorRoute(db, request, raceId, { kind: "session" });
 }
-export { session as GET, session as POST, session as DELETE };
+export { session as GET, session as DELETE };

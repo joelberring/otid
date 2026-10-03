@@ -4,7 +4,6 @@
 .panel h3 { font-size: 0.95rem; }
 .sectionHeader { display: flex; align-items: start; justify-content: space-between; gap: 0.5rem; padding: 0; background: transparent; color: var(--ink); }
 .sectionHeader p { margin-top: 0.15rem; color: var(--muted); font-size: 0.82rem; }
-.selectedName { color: var(--ink) !important; font-size: 1rem !important; font-weight: 700; }
 .steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.45rem 0.7rem; margin: 0; padding: 0; list-style: none; }
 .steps li { display: grid; grid-template-columns: 1.65rem minmax(0, 1fr); align-items: start; gap: 0.4rem; min-width: 0; }
 .steps strong { font-size: 0.85rem; }
@@ -20,8 +19,8 @@
 .panel .steps .missingStartLink:focus-visible { outline: 3px solid #2368a2; outline-offset: 2px; }
 .panel .steps .missingStartLink:disabled { opacity: 0.6; cursor: default; }
 .stepNumber { display: grid; place-items: center; width: 1.5rem; height: 1.5rem; border: 1px solid var(--border); border-radius: 50%; font-size: 0.78rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-.actions, .editActions { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-.actions button, .editActions button { min-height: 44px; padding: 0.4rem 0.65rem; }
+.editActions { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.editActions button { min-height: 44px; padding: 0.4rem 0.65rem; }
 .classSection { display: grid; gap: 0.35rem; min-width: 0; }
 .preparationSteps { display: grid; gap: 0.45rem; min-width: 0; border-top: 1px solid var(--border); padding-top: 0.55rem; }
 .importEntry { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0.35rem 1rem; min-width: 0; padding: 0.5rem 0; border-top: 1px solid var(--border); }
@@ -91,9 +90,6 @@
 .courseMissingClassButton:disabled { opacity: 0.6; cursor: not-allowed; }
 .courseMissingOrdinal { color: var(--muted); font-size: 0.78rem; font-variant-numeric: tabular-nums; }
 .courseMissingOpen { margin-left: auto; color: var(--ink); font-weight: 700; text-decoration: underline; text-underline-offset: 0.15rem; }
-.selectedClassRow { background: var(--workspace-subtle, #f2f4f5); }
-.selectedClassRow:focus { outline: 3px solid #2368a2; outline-offset: -3px; }
-.selectedClassMarker { display: block; margin-top: 0.15rem; color: var(--ink); font-size: 0.78rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 @media (min-width: 1000px) {
   .courseItem { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, auto); align-items: center; column-gap: 0.5rem; }
   .courseAssignment { justify-self: end; }
@@ -106,7 +102,7 @@
   .participantCourse { padding: 0.45rem 0 0; border: 0; border-top: 1px solid var(--border); border-radius: 0; background: transparent; }
   .resultControls { padding: 0.45rem 0 0; border: 0; border-top: 1px solid var(--border); border-radius: 0; background: transparent; }
   .panel h2 { font-size: 1rem; }
-  .actions button, .editActions button { min-height: var(--workspace-control-height, 44px); padding: 0.25rem 0.5rem; font-size: 0.8rem; }
+  .editActions button { min-height: var(--workspace-control-height, 44px); padding: 0.25rem 0.5rem; font-size: 0.8rem; }
   .panel .editActions button, .panel .participantCourseRefresh, .panel .participantCourseOpen { min-height: 44px; }
   .facts { gap: 0.3rem 0.65rem; }
   .facts dd { font-size: 0.85rem; }
@@ -119,7 +115,7 @@
   .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .resultFacts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .table { min-width: 29rem; }
-  .actions button, .editActions button { flex: 1 1 9rem; }
+  .editActions button { flex: 1 1 9rem; }
 }
 @media (max-width: 420px) {
   .steps { grid-template-columns: 1fr; }

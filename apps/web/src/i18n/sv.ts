@@ -1,6 +1,6 @@
 export const sv = {
   appName: "O-Tid",
-  tagline: "Tävlingskärna för individuell orientering",
+  tagline: "Tidtagning för orientering",
   createEvent: "Skapa tävling",
   eventName: "Tävlingsnamn",
   raceName: "Loppnamn",

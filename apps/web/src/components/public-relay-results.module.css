@@ -8,10 +8,19 @@
 .position { font-variant-numeric: tabular-nums; font-weight: 800; }
 .time { font-variant-numeric: tabular-nums; }
 .club { display: block; color: var(--muted); }
-.teams th:nth-child(1) { width: 3.5rem; }
-.teams th:nth-child(3) { width: 6.5rem; }
-.teams th:nth-child(4) { width: 8rem; }
-.teams th:nth-child(5) { width: 40%; }
+/* Egna kolumnbredder: de individuella resultatlistornas bredder (sju kolumner) gäller inte här. */
+@media screen and (min-width: 641px) {
+  .table.teams.teams th:nth-child(1) { width: 7%; }
+  .table.teams.teams th:nth-child(2) { width: 28%; }
+  .table.teams.teams th:nth-child(3) { width: 12%; }
+  .table.teams.teams th:nth-child(4) { width: 15%; }
+  .table.teams.teams th:nth-child(5) { width: 38%; }
+  .table.legTable.legTable th:nth-child(1) { width: 8%; }
+  .table.legTable.legTable th:nth-child(2) { width: 34%; }
+  .table.legTable.legTable th:nth-child(3) { width: 38%; }
+  .table.legTable.legTable th:nth-child(4) { width: 20%; }
+}
+.legs a { overflow-wrap: normal; word-break: normal; }
 .legCell summary { cursor: pointer; color: var(--green-dark); font-weight: 700; }
 .legs { display: grid; gap: 0.3rem; margin: 0.5rem 0 0; padding: 0; list-style: none; }
 .legs li { display: grid; grid-template-columns: 1.6rem minmax(0, 1fr) auto; gap: 0.4rem; align-items: baseline; }

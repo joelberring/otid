@@ -28,7 +28,9 @@ export function resetWorkspaceOnLock(s: WorkspaceState, discard: boolean) {
     setGivenName, setFamilyName, setOrganisationName, setMobilePanel, setEntryChanges, setDnfAttempt, setDsqAttempt, setApprovalAttempt, setTransferAttempt, setCapacityAttempt, setCardAttempt, setRentalAttempt, setRentalReturnAttempt, setRentalReuseAttempt, setPaymentStatusAttempt, setTimeAttempt,
     setRecalculationAttempt, setIdentityAttempt, setRegistrationAttempt, setDnsAttempt, setOocAttempt, setNtAttempt,
     setCourseEditAttempt, setShortenedCourseAttempt, setUnknownReadoutAttempt, setUnknown,
-    setAction } = s;
+    setAction, setEntryVariantPreview, setEntryVariantAttempt, setDistributionAttempt, setEditingVariantCode } = s;
+  setEntryVariantPreview(undefined); setEntryVariantAttempt(undefined); setDistributionAttempt(undefined);
+  if (discard || !sent.current) setEditingVariantCode("");
   setAuthenticated(false); setExpiresAt(undefined); setData(undefined);
   setParticipantActionPending(false);
   setFinalizations(undefined); setFinalizationId("");
@@ -73,8 +75,10 @@ export function resetWorkspaceOnLock(s: WorkspaceState, discard: boolean) {
 /** Underlag som alltid läses om när en ny åtgärd startar (begin). */
 export function clearBeforeOperation(s: WorkspaceState) {
   const { setPublicationPreview, setDrawSetup, setDrawPreview, drawAttempt, setFinalizationCandidates, setEntryChanges,
-    setIdentityCandidates, setEffectiveResult, setEffectiveResultError } = s;
+    setIdentityCandidates, setEffectiveResult, setEffectiveResultError, setEntryVariantMessage, setEntryVariantError,
+    setDistributionMessage } = s;
   setPublicationPreview(undefined);
+  setEntryVariantMessage(""); setEntryVariantError(""); setDistributionMessage("");
   // Andra ändringar gör lottningens underlag inaktuellt; klasserna läses om när Start visas.
   setDrawSetup(undefined);
   if (!drawAttempt) setDrawPreview(undefined);

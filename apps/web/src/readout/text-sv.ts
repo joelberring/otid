@@ -46,6 +46,9 @@ export const readoutText = {
     UNKNOWN_CARD: "Brickan är inte kopplad till någon deltagare. Registrera den under Hantera tävling."
   } as Record<string, string>,
   missing: (codes: readonly number[]) => `Saknar: ${codes.join(", ")}`,
+  // Gafflad bana (ADR-0169 beslut 2).
+  variant: (code: string) => `Variant ${code}`,
+  variantGuessed: (code: string) => `Variant ${code} (efter stämplingarna)`,
   noPackage: "Inget tävlingsunderlag hämtat ännu. Avläsningen är sparad och bedöms av servern.",
   savedLocally: "Sparad i den här webbläsaren. Skickas när nätet finns.",
   confirmed: "Bekräftad av servern.",

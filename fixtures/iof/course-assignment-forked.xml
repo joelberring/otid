@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Varianttilldelning per löpare (IOF XML 3.0 PersonCourseAssignment) för course-data-forked.xml.
+     Ada och Bo saknar tilldelning och fördelas av O-Tid. Dan matchas på namn och klass. -->
+<CourseData xmlns="http://www.orienteering.org/datastandard/3.0" iofVersion="3.0" createTime="2026-10-01T18:05:00+02:00" creator="O-Tid fixture">
+  <Event><Name>Klubbträning med gafflingar</Name></Event>
+  <RaceCourseData>
+    <PersonCourseAssignment><EntryId>gaffel-cia</EntryId><PersonName>Cia Holm</PersonName><ClassName>H21</ClassName><CourseName>Lång-AD</CourseName><CourseFamily>Lång</CourseFamily></PersonCourseAssignment>
+    <PersonCourseAssignment><PersonName>Dan Berg</PersonName><ClassName>H21</ClassName><CourseName>Lång-BC</CourseName><CourseFamily>Lång</CourseFamily></PersonCourseAssignment>
+    <PersonCourseAssignment><EntryId>gaffel-eva</EntryId><PersonName>Eva Sjö</PersonName><ClassName>H21</ClassName><CourseName>Lång-AC</CourseName><CourseFamily>Lång</CourseFamily></PersonCourseAssignment>
+    <PersonCourseAssignment><EntryId>gaffel-fia</EntryId><PersonName>Fia Strand</PersonName><ClassName>H21</ClassName><CourseName>Lång-BD</CourseName><CourseFamily>Lång</CourseFamily></PersonCourseAssignment>
+  </RaceCourseData>
+</CourseData>

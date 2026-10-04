@@ -296,6 +296,8 @@ function Verdict({ current, item }: { current: Current | undefined; item: Queued
   return <>
     <p className="big">{symbol} {verdict ? t.verdict[verdict.status] : t.verdict.NO_PACKAGE}</p>
     <p className="card">Bricka {current.cardNumber}{verdict?.name ? ` · ${verdict.name}` : ""}{verdict?.className ? ` · ${verdict.className}` : ""}</p>
+    {verdict?.variant ? <p className="variant" data-testid="verdict-variant">{verdict.variant.assigned
+      ? t.variant(verdict.variant.code) : t.variantGuessed(verdict.variant.code)}</p> : null}
     {verdict?.elapsedMs !== undefined && verdict.status === "OK" ? <p className="time">{formatRunningTime(verdict.elapsedMs)}</p> : null}
     {verdict && verdict.status !== "OK" ? <p>{t.reason[verdict.reason]}</p> : null}
     {verdict && verdict.missingControls.length > 0 ? <p>{t.missing(verdict.missingControls)}</p> : null}

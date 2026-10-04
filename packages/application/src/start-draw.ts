@@ -6,7 +6,7 @@ import {
   type StartDrawSetupResponse
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { drawStartTimes, StartDrawError, withProposedStartTimes, type StartDrawResult } from "@o-tid/domain";
+import { drawStartTimes, StartDrawError, withProposedEntryVariants, withProposedStartTimes, type StartDrawResult } from "@o-tid/domain";
 import {
   authenticatePairingAdminSession, authenticatePairingAdminSessionForMutation,
   authenticatePairingAdminSessionForProtectedRead, type PairingAdminRequestAuthentication
@@ -15,6 +15,7 @@ import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
 import { loadRaceSnapshot } from "./snapshot";
 import { assessReadOutEntries, recalculateAssessedEntries, summarizeAssessment, type AssessedEntry } from "./result-reassessment";
 import { loadDrawClasses, loadDrawEntries, loadDrawPlans, type DrawBasisClass, type DrawBasisEntry, type DrawPlan } from "./start-draw-basis";
+import { planVariantDistribution, writeEntryVariants } from "./course-variants";
 
 /**
  * Lottning (PLAN.md steg 9): välj startsätt per klass och lotta en eller flera
@@ -64,7 +65,7 @@ const hasStartTimes = (raceClass: DrawBasisClass, entries: readonly DrawBasisEnt
 
 type Computed = {
   draw: StartDrawResult; classes: DrawBasisClass[]; entries: DrawBasisEntry[]; plans: Map<string, DrawPlan>;
-  entryTimes: Map<string, string | null>; changedEntryIds: Set<string>; assessed: AssessedEntry[];
+  entryTimes: Map<string, string | null>; changedEntryIds: Set<string>; variants: Map<string, string>; assessed: AssessedEntry[];
   preview: StartDrawPreviewResponse;
 };
 
@@ -106,18 +107,20 @@ async function compute(tx: Transaction, raceId: string, snapshotVersion: number,
     ((entry.fixedStartTime?.toISOString() ?? null) !== entryTimes.get(entry.id) || byId.get(entry.classId)!.startRule !== startRuleOf(entry.classId)))
     .map(entry => entry.id));
   const snapshot = await loadRaceSnapshot(tx, raceId);
-  const proposed = withProposedStartTimes(snapshot, { classes: settings.classes.map(row => ({ classId: row.classId, startRule: startRuleOf(row.classId) })),
-    entryTimes });
+  // Gafflade klasser: löpare utan variant får en med lottningens frö (ADR-0169 beslut 2).
+  const variants = await planVariantDistribution(tx, raceId, settings.classes.map(row => row.classId), seed, snapshot);
+  const proposed = withProposedEntryVariants(withProposedStartTimes(snapshot, {
+    classes: settings.classes.map(row => ({ classId: row.classId, startRule: startRuleOf(row.classId) })), entryTimes }), variants);
   const assessedAll = await assessReadOutEntries(tx, raceId, settings.classes.map(row => byId.get(row.classId)!), snapshot, proposed);
   if (assessedAll === "too-large") return "too-large";
-  // Bara löpare vars starttid eller startsätt ändras behöver prövas och räknas om.
-  const assessed = assessedAll.filter(row => changedEntryIds.has(row.entryId));
+  // Bara löpare vars starttid, startsätt eller variant ändras behöver prövas och räknas om.
+  const assessed = assessedAll.filter(row => changedEntryIds.has(row.entryId) || variants.has(row.entryId));
   const cards = await activeCards(tx, raceId);
   const entryById = new Map(entries.map(entry => [entry.id, entry]));
   const slotEntry = (entryId: string | null) => {
     const entry = entryId === null ? undefined : entryById.get(entryId);
     return entry ? { id: entry.id, name: `${entry.givenName} ${entry.familyName}`, club: entry.organisationName,
-      card: cards.get(entry.id) ?? null } : null;
+      card: cards.get(entry.id) ?? null, variantCode: variants.get(entry.id) ?? entry.courseVariantCode } : null;
   };
   const sortedSettings = [...settings.classes].sort((a, b) => byId.get(a.classId)!.name.localeCompare(byId.get(b.classId)!.name, "sv-SE"));
   const previewClasses = sortedSettings.map(row => {
@@ -141,7 +144,7 @@ async function compute(tx: Transaction, raceId: string, snapshotVersion: number,
         alternating: group.classIds.length === 2 && minuteClasses.every(row => row?.method === "MINUTE" && row.intervalMinutes === 2) };
     }),
     replacesStartTimes, ...summary, requiresConfirmation: summary.requiresConfirmation || replacesStartTimes });
-  return { draw, classes, entries, plans, entryTimes, changedEntryIds, assessed, preview };
+  return { draw, classes, entries, plans, entryTimes, changedEntryIds, variants, assessed, preview };
 }
 
 export type StartDrawSetupResult =
@@ -228,6 +231,7 @@ async function writeDraw(tx: Transaction, input: { raceId: string; requestId: st
     await tx.update(schema.entries).set({ fixedStartTime: time === null ? null : new Date(time), version: entry.version + 1 })
       .where(and(eq(schema.entries.id, entry.id), eq(schema.entries.raceId, raceId), eq(schema.entries.version, entry.version)));
   }
+  await writeEntryVariants(tx, raceId, computed.variants);
   return saved;
 }
 

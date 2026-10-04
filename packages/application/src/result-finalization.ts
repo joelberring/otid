@@ -43,6 +43,7 @@ import {
 import { resolveStoredResultHeadStates } from "./result-revision-state";
 import { StoredResultRevisionConflict, parseStrictStoredResultRevision } from "./stored-result-revision";
 import { isEffectiveResultCurrent, loadResultBasisHashes } from "./result-basis";
+import { loadCourseVersionVariants } from "./course-variants";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const MAX_CLASSES = 1_000;
@@ -297,7 +298,8 @@ async function buildFinalizationBasis(tx: DatabaseTransaction, race: LockedRace)
       familyName: schema.entries.familyName,
       organisationName: schema.entries.organisationName,
       externalSource: schema.entries.externalSource,
-      externalId: schema.entries.externalId
+      externalId: schema.entries.externalId,
+      courseVariantCode: schema.entries.courseVariantCode
     }).from(schema.entries).where(eq(schema.entries.raceId, race.id))
       .orderBy(asc(schema.entries.classId), asc(schema.entries.familyName), asc(schema.entries.givenName), asc(schema.entries.id))
       .limit(MAX_RESULTS + 1),
@@ -388,6 +390,8 @@ async function buildFinalizationBasis(tx: DatabaseTransaction, race: LockedRace)
     controlsByVersion.set(row.courseVersionId, controls);
   }
 
+  // Gafflad bana: varje löpare har sin variants kontroller (ADR-0169 beslut 2).
+  const variantsByVersion = await loadCourseVersionVariants(tx, courseVersionIds);
   const entriesByClass = new Map<string, typeof entryRows>();
   for (const entry of entryRows) {
     const entries = entriesByClass.get(entry.classId) ?? [];
@@ -419,9 +423,10 @@ async function buildFinalizationBasis(tx: DatabaseTransaction, race: LockedRace)
 
     const controlRowsForClass = controlsByVersion.get(raceClass.courseVersionId) ?? [];
     let controls: ReturnType<typeof expectedControls> = [];
+    const classVariants = variantsByVersion.get(raceClass.courseVersionId) ?? [];
     try {
       controls = expectedControls(controlRowsForClass);
-      if (controls.length === 0 && entries.length > 0) blockers.add("INVALID_RESULT_REVISION");
+      if (controls.length === 0 && entries.length > 0 && classVariants.length === 0) blockers.add("INVALID_RESULT_REVISION");
     } catch {
       blockers.add("INVALID_RESULT_REVISION");
     }
@@ -430,6 +435,10 @@ async function buildFinalizationBasis(tx: DatabaseTransaction, race: LockedRace)
       const absoluteRevision = latestByEntry.get(entry.id);
       const revisionState = latestStateByEntry.get(entry.id);
       if (absoluteRevision?.controlNeutralizationId !== null) blockers.add("INVALID_RESULT_REVISION");
+      const variant = classVariants.length === 0 ? undefined : classVariants.find(row => row.code === entry.courseVariantCode);
+      if (classVariants.length > 0 && !variant) blockers.add("INVALID_RESULT_REVISION");
+      const entryControls = variant
+        ? expectedControls(variant.controlCodes.map((controlCode, index) => ({ sequence: index + 1, controlCode }))) : controls;
       basisEntries.push({
         entry: {
           id: entry.id,
@@ -438,7 +447,8 @@ async function buildFinalizationBasis(tx: DatabaseTransaction, race: LockedRace)
           familyName: entry.familyName,
           organisationName: entry.organisationName,
           externalSource: entry.externalSource,
-          externalId: entry.externalId
+          externalId: entry.externalId,
+          ...(variant ? { courseVariantCode: variant.code, controls: entryControls } : {})
         },
         absoluteRevision: absoluteRevision ? resultRevisionBasis(absoluteRevision) : null,
         effectiveRevision: revisionState?.state === "ACTIVE_RESULT"
@@ -708,10 +718,10 @@ async function buildFinalizationBasis(tx: DatabaseTransaction, race: LockedRace)
       if (evaluation.courseVersionId !== raceClass.courseVersionId) blockers.add("RESULT_COURSE_MISMATCH");
       if (!isEffectiveResultCurrent(revisionState, basisHashes.get(entry.id), race.snapshotVersion)) blockers.add("STALE_RESULT_SNAPSHOT");
 
-      const expectedKeys = new Set(controls.map((control) => `${control.controlCode}:${control.occurrence}`));
+      const expectedKeys = new Set(entryControls.map((control) => `${control.controlCode}:${control.occurrence}`));
       const splitKeys = new Set<string>();
       const evaluationSplits = "splits" in evaluation ? evaluation.splits : [];
-      const resultControls = evaluation.status === "DNS" || evaluation.status === "DNF" ? [] : controls;
+      const resultControls = evaluation.status === "DNS" || evaluation.status === "DNF" ? [] : entryControls;
       for (const split of evaluationSplits) {
         const splitKey = `${split.controlCode}:${split.occurrence}`;
         if (!expectedKeys.has(splitKey) || splitKeys.has(splitKey)) blockers.add("INVALID_RESULT_REVISION");

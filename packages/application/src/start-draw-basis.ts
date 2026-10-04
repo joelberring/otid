@@ -16,14 +16,17 @@ export type DrawBasisClass = {
 };
 export type DrawBasisEntry = {
   id: string; classId: string; givenName: string; familyName: string; organisationName: string | null;
-  fixedStartTime: Date | null; version: number;
+  fixedStartTime: Date | null; version: number; courseVariantCode: string | null;
 };
 export type DrawPlan = {
   classId: string; drawId: string; method: "MINUTE" | "MASS"; firstStartTime: Date; intervalSeconds: number; vacancyCount: number;
   slots: { position: number; startTime: Date; entryId: string | null }[];
 };
 
-/** Kod för första kontrollen per banversion (null för en bana utan kontroller). */
+/**
+ * Kod för första kontrollen per banversion (null för en bana utan kontroller). En gafflad
+ * bana har sina kontroller i varianterna; första variantens första kontroll gäller.
+ */
 async function firstControlCodes(tx: Transaction, courseVersionIds: readonly string[]): Promise<Map<string, number | null>> {
   const codes = new Map<string, number | null>(courseVersionIds.map(id => [id, null]));
   if (courseVersionIds.length === 0) return codes;
@@ -33,6 +36,14 @@ async function firstControlCodes(tx: Transaction, courseVersionIds: readonly str
     .where(inArray(schema.courseControls.courseVersionId, [...courseVersionIds]))
     .orderBy(asc(schema.courseControls.courseVersionId), asc(schema.courseControls.sequence));
   for (const row of rows) codes.set(row.courseVersionId, row.code);
+  const forked = await tx.select({ courseVersionId: schema.courseVariants.courseVersionId, code: schema.controls.code })
+    .from(schema.courseVariants)
+    .innerJoin(schema.courseVariantControls, and(eq(schema.courseVariantControls.courseVariantId, schema.courseVariants.id),
+      eq(schema.courseVariantControls.sequence, 1)))
+    .innerJoin(schema.controls, eq(schema.controls.id, schema.courseVariantControls.controlId))
+    .where(inArray(schema.courseVariants.courseVersionId, [...courseVersionIds]))
+    .orderBy(asc(schema.courseVariants.courseVersionId), asc(schema.courseVariants.sequence));
+  for (const row of forked) if (codes.get(row.courseVersionId) === null) codes.set(row.courseVersionId, row.code);
   return codes;
 }
 
@@ -52,7 +63,8 @@ export async function loadDrawClasses(tx: Transaction, raceId: string): Promise<
 export async function loadDrawEntries(tx: Transaction, raceId: string, lock: boolean): Promise<DrawBasisEntry[] | "too-large"> {
   const query = tx.select({ id: schema.entries.id, classId: schema.entries.classId, givenName: schema.entries.givenName,
     familyName: schema.entries.familyName, organisationName: schema.entries.organisationName,
-    fixedStartTime: schema.entries.fixedStartTime, version: schema.entries.version }).from(schema.entries)
+    fixedStartTime: schema.entries.fixedStartTime, version: schema.entries.version,
+    courseVariantCode: schema.entries.courseVariantCode }).from(schema.entries)
     .where(eq(schema.entries.raceId, raceId)).orderBy(asc(schema.entries.id)).limit(MAX_ENTRIES + 1);
   const rows = lock ? await query.for("update") : await query;
   return rows.length > MAX_ENTRIES ? "too-large" : rows;

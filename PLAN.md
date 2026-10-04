@@ -242,7 +242,7 @@ Ingen vy visar uuid, hash eller "tävlingsversion".
 vakanser, startfållor, deterministiskt med frö). Playwright: lotta tre klasser
 → startlista publiceras → efteranmäld får vakant tid.
 
-## [ ] Steg 10 – Gafflingar i individuella klasser
+## [x] Steg 10 – Gafflingar i individuella klasser
 
 Se ADR-0169 beslut 2.
 

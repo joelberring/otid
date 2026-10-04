@@ -7,6 +7,7 @@ import { authenticatePairingAdminSession, authenticatePairingAdminSessionForMuta
   authenticatePairingAdminSessionForProtectedRead, type PairingAdminRequestAuthentication } from "./pairing-admin";
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
 import { canAddClassEntry } from "./class-capacity-guard";
+import { loadCourseVersionVariants, variantAfterClassChange } from "./course-variants";
 import { resolveStoredResultHeadStates } from "./result-revision-state";
 import { isEffectiveResultCurrent, loadResultBasisHashes } from "./result-basis";
 import { parseAdministratorStoredResultHead } from "./administrator-effective-result";
@@ -56,6 +57,7 @@ export async function listEntryTransfersAsAdministrator(db: Database, input: Aut
       familyName: schema.entries.familyName, organisationName: schema.entries.organisationName,
       classId: schema.entries.classId, version: schema.entries.version, paymentStatus: schema.entries.paymentStatus,
       paymentStatusVersion: schema.entries.paymentStatusVersion, fixedStartTime: schema.entries.fixedStartTime,
+      courseVariantCode: schema.entries.courseVariantCode,
       exactTime: sql<boolean>`${schema.entries.fixedStartTime} IS NULL OR date_trunc('milliseconds', ${schema.entries.fixedStartTime}) = ${schema.entries.fixedStartTime}`
     }).from(schema.entries).where(eq(schema.entries.raceId, input.raceId))
       .orderBy(asc(schema.entries.familyName), asc(schema.entries.givenName), asc(schema.entries.id)).limit(10_001);
@@ -125,13 +127,15 @@ export async function listEntryTransfersAsAdministrator(db: Database, input: Aut
     }
     const entryCounts = new Map<string, number>();
     for (const row of rows) entryCounts.set(row.classId, (entryCounts.get(row.classId) ?? 0) + 1);
+    const variants = await loadCourseVersionVariants(tx, classRows.map(row => row.courseVersionId));
     return { status: "ok" as const, response: entryTransferCandidatesSchema.parse({
       formatVersion: 2, raceId: input.raceId, snapshotVersion: race.snapshotVersion,
       generatedAt: now.toISOString(), ...metadata,
       classes: classRows.map(row => ({ id: row.id, name: row.name, courseVersionId: row.courseVersionId,
         courseName: row.courseName, courseVersion: row.courseVersion, startRule: row.startRule,
         maxEntries: row.maxEntries, capacityVersion: row.capacityVersion, entryCount: entryCounts.get(row.id) ?? 0,
-        startDrawn: row.startDrawId !== null })),
+        startDrawn: row.startDrawId !== null,
+        courseVariants: (variants.get(row.courseVersionId) ?? []).map(variant => variant.code) })),
       entries: rows.map(row => {
         const active = activeByEntry.get(row.id) ?? [];
         const assignment = active.length === 1 ? active[0] : undefined;
@@ -139,6 +143,7 @@ export async function listEntryTransfersAsAdministrator(db: Database, input: Aut
         id: row.id, classId: row.classId, version: row.version, paymentStatus: row.paymentStatus,
         paymentStatusVersion: row.paymentStatusVersion, organisationName: row.organisationName,
         displayName: `${row.givenName} ${row.familyName}`, fixedStartTime: row.fixedStartTime?.toISOString() ?? null,
+        courseVariantCode: row.courseVariantCode,
         resultFreshness: freshnessByEntry.get(row.id) ?? "NO_PUBLISHED_RESULT",
         effectiveResult: effectiveResultByEntry.get(row.id) ?? { state: "NO_PUBLISHED_RESULT", selectedRevision: null },
         resultRevisionMarker: revisionMarkerByEntry.get(row.id) ?? null,
@@ -199,7 +204,9 @@ export async function transferEntryAsAdministrator(db: Database,
     }
     if (!await canAddClassEntry(tx, input.raceId, intent.targetClassId)) return { status: "conflict" as const };
     const entryVersionAfter = entry.row.version + 1, snapshotVersionAfter = race.snapshotVersion + 1;
-    await tx.update(schema.entries).set({ classId: intent.targetClassId,
+    const courseVariantCode = await variantAfterClassChange(tx, input.raceId, input.entryId, intent.targetClassId,
+      entry.row.courseVariantCode);
+    await tx.update(schema.entries).set({ classId: intent.targetClassId, courseVariantCode,
       fixedStartTime: intent.fixedStartTime === null ? null : new Date(intent.fixedStartTime), version: entryVersionAfter
     }).where(and(eq(schema.entries.id, input.entryId), eq(schema.entries.raceId, input.raceId)));
     await tx.update(schema.races).set({ snapshotVersion: snapshotVersionAfter }).where(eq(schema.races.id, input.raceId));

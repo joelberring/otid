@@ -6,14 +6,19 @@ import {
   type CourseEditListResponse, type CourseEditPreviewResponse, type CourseEditResponse
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { sameControlCodes, withProposedCourseVersion, type RaceSnapshot } from "@o-tid/domain";
+import {
+  courseVariantForReadout, sameControlCodes, unevenCourseVariantLegs, withProposedCourseVersion, type RaceSnapshot
+} from "@o-tid/domain";
 import {
   authenticatePairingAdminSession, authenticatePairingAdminSessionForMutation,
   authenticatePairingAdminSessionForProtectedRead, type PairingAdminRequestAuthentication
 } from "./pairing-admin";
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
 import { loadRaceSnapshot } from "./snapshot";
-import { assessReadOutEntries, recalculateAssessedEntries, summarizeAssessment, type AssessedEntry } from "./result-reassessment";
+import {
+  assessReadOutEntries, normalizedReadout, recalculateAssessedEntries, summarizeAssessment, type AssessedEntry
+} from "./result-reassessment";
+import { insertCourseVersionControls, loadCourseVersionVariants, type StoredCourseVariant } from "./course-variants";
 
 /**
  * Redigera bana (ADR-0169 beslut 4): ändra en banas kontrollföljd, även när
@@ -42,22 +47,50 @@ async function loadCourse(tx: Transaction, raceId: string, courseId: string) {
   const classes = await tx.select({ id: schema.classes.id, name: schema.classes.name }).from(schema.classes)
     .where(and(eq(schema.classes.raceId, raceId), eq(schema.classes.courseVersionId, version.id)))
     .orderBy(asc(schema.classes.name), asc(schema.classes.id));
-  return { ...course, version, controlCodes: controls.map(row => row.code), classes };
+  const variants = (await loadCourseVersionVariants(tx, [version.id])).get(version.id) ?? [];
+  return { ...course, version, controlCodes: controls.map(row => row.code), variants, classes };
 }
 type LoadedCourse = NonNullable<Awaited<ReturnType<typeof loadCourse>>>;
 
+/**
+ * Gafflad bana: varianten som ändras måste finnas och banan behåller alla varianter.
+ * Bana utan varianter: ingen variant får anges. Ger varianternas nya kontrollföljder,
+ * eller undefined när begäran inte passar banan.
+ */
+function proposedVariants(course: LoadedCourse, variantCode: string | undefined, controlCodes: readonly number[])
+  : { variants: StoredCourseVariant[]; currentControlCodes: readonly number[] } | undefined {
+  if (course.variants.length === 0) return variantCode === undefined ? { variants: [], currentControlCodes: course.controlCodes } : undefined;
+  const current = course.variants.find(variant => variant.code === variantCode);
+  if (!current) return undefined;
+  return { currentControlCodes: current.controlCodes,
+    variants: course.variants.map(variant => variant.code === variantCode ? { code: variant.code, controlCodes: [...controlCodes] } : variant) };
+}
+
 /** Prövar varje avläst löpare på banans klasser mot den föreslagna kontrollföljden. */
 async function assess(tx: Transaction, raceId: string, course: LoadedCourse, snapshot: RaceSnapshot,
-  controlCodes: readonly number[]): Promise<AssessedEntry[] | "too-large"> {
+  controlCodes: readonly number[], variants: readonly StoredCourseVariant[]): Promise<AssessedEntry[] | "too-large"> {
+  const forked = variants.length > 0;
   const proposed = withProposedCourseVersion(snapshot, course.id, course.version.id,
-    { id: randomUUID(), version: course.version.version + 1, createdAt: new Date(0).toISOString(), controlCodes });
+    { id: randomUUID(), version: course.version.version + 1, createdAt: new Date(0).toISOString(),
+      controlCodes: forked ? [] : controlCodes, ...(forked ? { variants } : {}) });
   return assessReadOutEntries(tx, raceId, course.classes, snapshot, proposed);
 }
 
+/**
+ * Beskedet för en ändrad variant gäller löparna som springer den: tilldelade eller,
+ * utan tilldelning, de vars stämplingar passar varianten. Alla avlästa på banan räknas
+ * ändå om vid sparande eftersom banan får en ny version.
+ */
+function onVariant(assessed: readonly AssessedEntry[], snapshot: RaceSnapshot, variantCode: string | undefined): AssessedEntry[] {
+  if (variantCode === undefined) return [...assessed];
+  return assessed.filter(row => courseVariantForReadout(normalizedReadout(row.readout), snapshot)?.code === variantCode);
+}
+
 function previewResponse(raceId: string, course: LoadedCourse, snapshotVersion: number, controlCodes: number[],
-  assessed: AssessedEntry[]): CourseEditPreviewResponse {
+  variantCode: string | undefined, currentControlCodes: readonly number[], assessed: AssessedEntry[]): CourseEditPreviewResponse {
   return courseEditPreviewResponseSchema.parse({ formatVersion: 1, raceId, courseId: course.id, courseName: course.name,
-    snapshotVersion, currentControlCodes: course.controlCodes, controlCodes, ...summarizeAssessment(assessed) });
+    snapshotVersion, ...(variantCode === undefined ? {} : { variantCode }), currentControlCodes, controlCodes,
+    ...summarizeAssessment(assessed) });
 }
 
 export type CourseEditListResult = { status: "unauthorized" | "forbidden" } | { status: "ok"; response: CourseEditListResponse };
@@ -77,31 +110,46 @@ export async function listCoursesForEditAsAdministrator(db: Database, input: Aut
     const readCards = new Set((await tx.selectDistinct({ cardNumber: schema.cardReadouts.cardNumber }).from(schema.cardReadouts)
       .where(eq(schema.cardReadouts.raceId, raceId))).map(row => row.cardNumber));
     const readEntries = new Set(assignments.filter(row => readCards.has(row.cardNumber)).map(row => row.entryId));
+    const entryVariants = new Map((await tx.select({ id: schema.entries.id, code: schema.entries.courseVariantCode })
+      .from(schema.entries).where(eq(schema.entries.raceId, raceId))).map(row => [row.id, row.code]));
     const rows = [];
     for (const { id } of courses) {
       const course = await loadCourse(tx, raceId, id);
       if (!course) continue;
       const classIds = new Set(course.classes.map(row => row.id));
       const courseEntries = entries.filter(row => classIds.has(row.classId));
+      const variants = course.variants.map(variant => {
+        const onVariant = courseEntries.filter(row => entryVariants.get(row.id) === variant.code);
+        return { code: variant.code, controlCodes: [...variant.controlCodes], entryCount: onVariant.length,
+          readOutCount: onVariant.filter(row => readEntries.has(row.id)).length };
+      });
       rows.push({ courseId: course.id, courseVersionId: course.version.id, name: course.name, controlCodes: course.controlCodes,
         classes: course.classes.map(row => ({ classId: row.id, name: row.name })), entryCount: courseEntries.length,
-        readOutCount: courseEntries.filter(row => readEntries.has(row.id)).length });
+        readOutCount: courseEntries.filter(row => readEntries.has(row.id)).length, variants,
+        unevenLegs: unevenCourseVariantLegs(course.variants) });
     }
     rows.sort((left, right) => left.name.localeCompare(right.name, "sv-SE") || (left.courseId < right.courseId ? -1 : 1));
     // Klasserna som tabell: varje klass med sin bana, startsätt och läge.
     const resultEntries = new Set((await tx.selectDistinct({ entryId: schema.resultRevisions.entryId }).from(schema.resultRevisions)
       .where(and(eq(schema.resultRevisions.raceId, raceId), eq(schema.resultRevisions.published, true)))).map(row => row.entryId));
     const classRows = await tx.select({ id: schema.classes.id, name: schema.classes.name, startRule: schema.classes.startRule,
-      courseId: schema.courseVersions.courseId, externalSource: schema.classes.externalSource, externalId: schema.classes.externalId })
+      courseId: schema.courseVersions.courseId, courseVersionId: schema.classes.courseVersionId,
+      externalSource: schema.classes.externalSource, externalId: schema.classes.externalId })
       .from(schema.classes).innerJoin(schema.courseVersions, eq(schema.courseVersions.id, schema.classes.courseVersionId))
       .where(eq(schema.classes.raceId, raceId)).orderBy(asc(schema.classes.name), asc(schema.classes.id));
+    const classVariants = await loadCourseVersionVariants(tx, classRows.map(row => row.courseVersionId));
     const classes = classRows.map(row => {
       const classEntries = entries.filter(entry => entry.classId === row.id);
+      const codes = (classVariants.get(row.courseVersionId) ?? []).map(variant => variant.code);
       return { classId: row.id, name: row.name, courseId: row.courseId, startRule: row.startRule, entryCount: classEntries.length,
         readOutCount: classEntries.filter(entry => readEntries.has(entry.id)).length,
         resultCount: classEntries.filter(entry => resultEntries.has(entry.id)).length,
         missingStartTimeCount: row.startRule === "FIXED" ? classEntries.filter(entry => entry.fixedStartTime === null).length : 0,
-        renamable: row.externalSource === null && row.externalId === null };
+        renamable: row.externalSource === null && row.externalId === null, variantCount: codes.length,
+        missingVariantCount: codes.length === 0 ? 0 : classEntries.filter(entry => {
+          const code = entryVariants.get(entry.id);
+          return code === null || code === undefined || !codes.includes(code);
+        }).length };
     });
     return { status: "ok", response: courseEditListResponseSchema.parse({ formatVersion: 1, raceId,
       snapshotVersion: race.snapshotVersion, courses: rows, classes }) };
@@ -125,10 +173,13 @@ export async function previewCourseEditAsAdministrator(db: Database, input: Auth
     if (race.snapshotVersion !== parsed.data.expectedSnapshotVersion) return { status: "conflict" };
     const course = await loadCourse(tx, raceId, input.courseId);
     if (!course) return { status: "not-found" };
-    if (sameControlCodes(course.controlCodes, parsed.data.controlCodes)) return { status: "invalid-request" };
-    const assessed = await assess(tx, raceId, course, await loadRaceSnapshot(tx, raceId), parsed.data.controlCodes);
+    const plan = proposedVariants(course, parsed.data.variantCode, parsed.data.controlCodes);
+    if (!plan || sameControlCodes(plan.currentControlCodes, parsed.data.controlCodes)) return { status: "invalid-request" };
+    const snapshot = await loadRaceSnapshot(tx, raceId);
+    const assessed = await assess(tx, raceId, course, snapshot, parsed.data.controlCodes, plan.variants);
     if (assessed === "too-large") return { status: "too-large" };
-    return { status: "ok", response: previewResponse(raceId, course, race.snapshotVersion, parsed.data.controlCodes, assessed) };
+    return { status: "ok", response: previewResponse(raceId, course, race.snapshotVersion, parsed.data.controlCodes,
+      parsed.data.variantCode, plan.currentControlCodes, onVariant(assessed, snapshot, parsed.data.variantCode)) };
   }, { isolationLevel: "repeatable read" });
 }
 
@@ -168,14 +219,17 @@ export async function editCourseAsAdministrator(db: Database, input: Authenticat
     if (race.snapshotVersion !== intent.expectedSnapshotVersion || race.snapshotVersion >= 2_147_483_647) return { status: "conflict" };
     const course = await loadCourse(tx, raceId, intent.courseId);
     if (!course) return { status: "not-found" };
-    if (sameControlCodes(course.controlCodes, intent.controlCodes)) return { status: "invalid-request" };
+    const plan = proposedVariants(course, intent.variantCode, intent.controlCodes);
+    if (!plan || sameControlCodes(plan.currentControlCodes, intent.controlCodes)) return { status: "invalid-request" };
     if (course.classes.length > 0) {
       await tx.select({ id: schema.entries.id }).from(schema.entries).where(and(eq(schema.entries.raceId, raceId),
         inArray(schema.entries.classId, course.classes.map(row => row.id)))).orderBy(asc(schema.entries.id)).for("update");
     }
-    const assessed = await assess(tx, raceId, course, await loadRaceSnapshot(tx, raceId), intent.controlCodes);
+    const before = await loadRaceSnapshot(tx, raceId);
+    const assessed = await assess(tx, raceId, course, before, intent.controlCodes, plan.variants);
     if (assessed === "too-large") return { status: "too-large" };
-    const preview = previewResponse(raceId, course, race.snapshotVersion, intent.controlCodes, assessed);
+    const preview = previewResponse(raceId, course, race.snapshotVersion, intent.controlCodes, intent.variantCode,
+      plan.currentControlCodes, onVariant(assessed, before, intent.variantCode));
     if (preview.requiresConfirmation && !intent.confirmResultChanges) return { status: "confirmation-required", preview };
 
     const [latestVersion] = await tx.select({ version: max(schema.courseVersions.version) }).from(schema.courseVersions)
@@ -184,13 +238,8 @@ export async function editCourseAsAdministrator(db: Database, input: Authenticat
     if (nextVersion > 2_147_483_647) return { status: "conflict" };
     const [courseVersion] = await tx.insert(schema.courseVersions).values({ courseId: course.id, version: nextVersion }).returning();
     if (!courseVersion) throw new Error("Banversionen kunde inte skapas");
-    for (const [index, code] of intent.controlCodes.entries()) {
-      await tx.insert(schema.controls).values({ raceId, code }).onConflictDoNothing();
-      const [control] = await tx.select({ id: schema.controls.id }).from(schema.controls)
-        .where(and(eq(schema.controls.raceId, raceId), eq(schema.controls.code, code)));
-      if (!control) throw new Error("Kontrollen kunde inte skapas");
-      await tx.insert(schema.courseControls).values({ courseVersionId: courseVersion.id, controlId: control.id, sequence: index + 1 });
-    }
+    // Gafflad bana: banans egen kontrollföljd är tom och alla varianter följer med till nya versionen.
+    await insertCourseVersionControls(tx, raceId, courseVersion.id, plan.variants.length > 0 ? [] : intent.controlCodes, plan.variants);
     const classIds = course.classes.map(row => row.id);
     if (classIds.length > 0) {
       await tx.update(schema.classes).set({ courseVersionId: courseVersion.id })
@@ -211,8 +260,9 @@ export async function editCourseAsAdministrator(db: Database, input: Authenticat
       actorCredentialId: auth.principal.accessCredentialId, capability, request: intent, response, editedAt: now });
     await tx.insert(schema.auditEvents).values({ raceId, entityType: "course", entityId: course.id, requestId: intent.requestId,
       actorKind: "RACE_ADMIN_ACCESS_CREDENTIAL", actorId: auth.principal.accessCredentialId, action: "COURSE_EDITED_BY_ADMIN",
-      before: { courseVersionId: course.version.id, controlCodes: course.controlCodes, snapshotVersion: race.snapshotVersion },
-      after: { courseVersionId: courseVersion.id, controlCodes: intent.controlCodes, classIds, snapshotVersion: snapshotVersionAfter,
+      before: { courseVersionId: course.version.id, controlCodes: plan.currentControlCodes, variantCode: intent.variantCode ?? null,
+        snapshotVersion: race.snapshotVersion },
+      after: { courseVersionId: courseVersion.id, controlCodes: intent.controlCodes, variantCode: intent.variantCode ?? null, classIds, snapshotVersion: snapshotVersionAfter,
         recalculatedCount: recalculated.length }, createdAt: now });
     if (recalculated.length > 0) {
       await tx.insert(schema.auditEvents).values(recalculated.map(item => ({ raceId, entityType: "result_revision",

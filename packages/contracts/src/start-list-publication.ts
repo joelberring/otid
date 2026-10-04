@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { courseVariantCodeSchema } from "./course-edit";
 const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 const version = z.number().int().nonnegative().max(2147483647);
 const positive = z.number().int().positive().max(2147483647);
@@ -17,7 +18,9 @@ const timezone = z.string().trim().min(1).max(100).refine((value) => {
     }
 });
 const entry = z.object({
-    displayName: z.string().trim().min(1).max(321), organisationName: z.string().trim().min(1).max(240).nullable(), fixedStartTime: instant.nullable()
+    displayName: z.string().trim().min(1).max(321), organisationName: z.string().trim().min(1).max(240).nullable(), fixedStartTime: instant.nullable(),
+    /** Gafflad klass: löparens variant (ADR-0169 beslut 2). Saknas för klasser utan varianter. */
+    courseVariantCode: courseVariantCodeSchema.optional()
 }).strict();
 const raceClass = z.object({
     name: z.string().trim().min(1).max(160), startRule: z.enum(["FIXED", "PUNCH"]), entries: z.array(entry).max(10000)

@@ -1,4 +1,5 @@
 import type { RaceSnapshot } from "./types";
+import { createRandom, MAX_UINT32, shuffle } from "./seeded-random";
 
 /**
  * Lottning av starttider (PLAN.md steg 9). Ren och deterministisk: samma
@@ -84,43 +85,12 @@ export class StartDrawError extends Error {
 }
 
 const MINUTE_MS = 60_000;
-const MAX_UINT32 = 4_294_967_295;
 const MAX_INTERVAL_MINUTES = 60;
 const MAX_ENTRIES = 10_000;
 const MAX_OFFSET_MINUTES = 7 * 24 * 60;
 
 export function isValidStartDrawSeed(seed: number): boolean {
   return Number.isSafeInteger(seed) && seed >= 1 && seed <= MAX_UINT32;
-}
-
-function nextXorshift32(state: number): number {
-  let next = state >>> 0;
-  next ^= next << 13; next >>>= 0;
-  next ^= next >>> 17; next >>>= 0;
-  next ^= next << 5;
-  return next >>> 0;
-}
-
-/** Slumptalsgenerator med fröet; ger heltal i [0, bound) utan skevhet. */
-function createRandom(seed: number) {
-  let state = seed >>> 0;
-  return (bound: number): number => {
-    const limit = Math.floor(MAX_UINT32 / bound) * bound;
-    let value: number;
-    do { state = nextXorshift32(state); value = state - 1; } while (value >= limit);
-    return value % bound;
-  };
-}
-
-function shuffle<T>(items: readonly T[], random: (bound: number) => number): T[] {
-  const result = [...items];
-  for (let last = result.length - 1; last > 0; last -= 1) {
-    const pick = random(last + 1);
-    const value = result[last]!;
-    result[last] = result[pick]!;
-    result[pick] = value;
-  }
-  return result;
 }
 
 function clubKey(club: string | null): string | null {

@@ -8,6 +8,7 @@ export const STATION_PACKAGE_LIMITS = {
   courses: 2_000,
   courseVersionsPerCourse: 100,
   controlsPerCourseVersion: 1_000,
+  variantsPerCourseVersion: 100,
   entries: 50_000,
   cardAssignments: 100_000,
   classControlNeutralizations: 2_000
@@ -45,11 +46,31 @@ const courseControlSchema = z.object({
   controlCode: positiveIntegerSchema
 }).strict();
 
+const courseVariantCodeSchema = z.string().min(1).max(32).refine((value) => value === value.trim());
+
+const courseVariantControlSchema = z.object({
+  id: uuidSchema,
+  courseVariantId: uuidSchema,
+  controlId: uuidSchema,
+  sequence: positiveIntegerSchema,
+  controlCode: positiveIntegerSchema
+}).strict();
+
+/** ADR-0169 beslut 2: variant (gaffling) med egen kontrollföljd. */
+const courseVariantSchema = z.object({
+  id: uuidSchema,
+  courseVersionId: uuidSchema,
+  code: courseVariantCodeSchema,
+  sequence: positiveIntegerSchema,
+  controls: z.array(courseVariantControlSchema).max(STATION_PACKAGE_LIMITS.controlsPerCourseVersion)
+}).strict();
+
 const courseVersionSchema = z.object({
   id: uuidSchema,
   courseId: uuidSchema,
   version: positiveIntegerSchema,
   controls: z.array(courseControlSchema).max(STATION_PACKAGE_LIMITS.controlsPerCourseVersion),
+  variants: z.array(courseVariantSchema).min(1).max(STATION_PACKAGE_LIMITS.variantsPerCourseVersion).optional(),
   createdAt: z.iso.datetime({ offset: true })
 }).strict();
 
@@ -69,6 +90,7 @@ const entrySchema = z.object({
   familyName: z.string().max(160),
   organisationName: z.string().max(200).optional(),
   fixedStartTime: z.iso.datetime({ offset: true }).optional(),
+  courseVariantCode: courseVariantCodeSchema.optional(),
   externalIdentity: externalIdentitySchema.optional()
 }).strict();
 
@@ -146,6 +168,19 @@ export const raceSnapshotSchema = z.object({
             path: ["courses", courseIndex, "versions", versionIndex, "controls", controlIndex, "courseVersionId"],
             message: "Bankontrollen hör inte till banversionen"
           });
+        }
+      }
+      const variants = version.variants ?? [];
+      const variantPath = ["courses", courseIndex, "versions", versionIndex, "variants"];
+      if (!isStrictlySorted(variants, (left, right) => left.sequence - right.sequence) ||
+          new Set(variants.map((variant) => variant.code)).size !== variants.length) {
+        context.addIssue({ code: "custom", path: variantPath, message: "Varianter måste vara unika och sorterade i visningsordning" });
+      }
+      for (const [variantIndex, variant] of variants.entries()) {
+        if (variant.courseVersionId !== version.id ||
+            !isStrictlySorted(variant.controls, (left, right) => left.sequence - right.sequence) ||
+            variant.controls.some((control) => control.courseVariantId !== variant.id)) {
+          context.addIssue({ code: "custom", path: [...variantPath, variantIndex], message: "Varianten hör inte till banversionen" });
         }
       }
     }

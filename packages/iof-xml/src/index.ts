@@ -26,37 +26,15 @@ export {
   type IofStartListProjection
 } from "./export-start-list";
 
-type XmlRecord = Record<string, unknown>;
+import {
+  array, count, IofValidationError, record, rejectUnexpectedKeys, requireText, text, type XmlRecord
+} from "./xml";
+import { readCourseData, type CourseDataImport } from "./course-data";
 
-export class IofValidationError extends Error {
-  readonly issues: readonly string[];
-
-  constructor(issues: readonly string[]) {
-    super(`Ogiltig IOF XML: ${issues.join("; ")}`);
-    this.name = "IofValidationError";
-    this.issues = issues;
-  }
-}
-
-export interface CourseImport {
-  readonly externalId: string;
-  readonly name: string;
-  readonly controlCodes: readonly number[];
-}
-
-export interface ClassCourseImport {
-  readonly classExternalId: string;
-  readonly className: string;
-  readonly courseExternalId: string;
-  readonly startRule: "FIXED" | "PUNCH";
-}
-
-export interface CourseDataImport {
-  readonly kind: "CourseData";
-  readonly courses: readonly CourseImport[];
-  readonly assignments: readonly ClassCourseImport[];
-  readonly warnings: readonly string[];
-}
+export { IofValidationError } from "./xml";
+export type {
+  ClassCourseImport, CourseDataImport, CourseImport, CourseVariantImport, PersonCourseAssignmentImport
+} from "./course-data";
 
 export interface EntryImport {
   readonly externalId: string;
@@ -103,133 +81,6 @@ const parser = new XMLParser({
 
 const IOF_NAMESPACE = "http://www.orienteering.org/datastandard/3.0";
 const FORBIDDEN_DECLARATION_PATTERN = /<!\s*(?:DTD|DOCTYPE|ENTITY)\b/i;
-
-function record(value: unknown): XmlRecord {
-  return typeof value === "object" && value !== null ? value as XmlRecord : {};
-}
-
-function array(value: unknown): unknown[] {
-  if (value === undefined || value === null) return [];
-  return Array.isArray(value) ? value : [value];
-}
-
-function text(value: unknown): string {
-  if (typeof value === "string" || typeof value === "number") return String(value).trim();
-  const object = record(value);
-  const nested = object["#text"] ?? object["_text"];
-  return nested === undefined ? "" : text(nested);
-}
-
-function requireText(value: unknown, path: string, issues: string[]): string {
-  const parsed = text(value);
-  if (!parsed) issues.push(`${path} saknas`);
-  return parsed;
-}
-
-function count(value: unknown): number {
-  return array(value).length;
-}
-
-function rejectUnexpectedKeys(
-  value: XmlRecord,
-  allowed: readonly string[],
-  path: string,
-  issues: string[]
-): void {
-  const allowedKeys = new Set(allowed);
-  for (const key of Object.keys(value)) {
-    if (!allowedKeys.has(key)) issues.push(`${path}.${key} ingår inte i stödd IOF XML 3.0-struktur`);
-  }
-}
-
-function readCourseData(root: XmlRecord): CourseDataImport {
-  const issues: string[] = [];
-  const warnings: string[] = [];
-  const courses: CourseImport[] = [];
-  const assignments: ClassCourseImport[] = [];
-
-  for (const [raceIndex, rawRaceData] of array(root.RaceCourseData).entries()) {
-    const raceData = record(rawRaceData);
-    rejectUnexpectedKeys(
-      raceData,
-      ["Map", "Control", "Course", "ClassCourseAssignment", "PersonCourseAssignment", "TeamCourseAssignment", "Extensions", "@_raceNumber"],
-      `RaceCourseData[${raceIndex}]`,
-      issues
-    );
-    const controls = new Map<string, number>();
-    for (const [index, rawControl] of array(raceData.Control).entries()) {
-      const control = record(rawControl);
-      const externalId = requireText(control.Id, `RaceCourseData[${raceIndex}].Control[${index}].Id`, issues);
-      const controlType = text(control["@_type"] || "Control");
-      const code = Number(externalId);
-      if (controlType === "Control" && (!Number.isInteger(code) || code <= 0)) {
-        issues.push(`RaceCourseData[${raceIndex}].Control[${index}].Id måste vara en positiv kontrollkod`);
-      } else if (controlType === "Control") {
-        controls.set(externalId, code);
-      }
-    }
-
-    const raceCourses: CourseImport[] = array(raceData.Course).map((rawCourse, index) => {
-      const course = record(rawCourse);
-      const path = `RaceCourseData[${raceIndex}].Course[${index}]`;
-      rejectUnexpectedKeys(
-        course,
-        ["Id", "Name", "CourseFamily", "Length", "Climb", "CourseControl", "MapId", "Extensions", "@_numberOfCompetitors", "@_modifyTime"],
-        path,
-        issues
-      );
-      const externalId = requireText(course.Id, `${path}.Id`, issues);
-      const name = requireText(course.Name, `${path}.Name`, issues);
-      const controlCodes = array(course.CourseControl)
-        .map(record)
-        .filter((courseControl) => text(courseControl["@_type"] || "Control") === "Control")
-        .map((courseControl, controlIndex) => {
-          const controlId = requireText(courseControl.Control, `${path}.CourseControl[${controlIndex}].Control`, issues);
-          const code = controls.get(controlId);
-          if (code === undefined) {
-            issues.push(`${path} refererar okänd kontroll ${controlId}`);
-            return 0;
-          }
-          return code;
-        });
-      if (controlCodes.length === 0) issues.push(`${path} saknar vanliga kontroller`);
-      if (array(course.CourseControl).length < 2) issues.push(`${path} måste ha minst två CourseControl enligt IOF XML 3.0`);
-      return { externalId, name, controlCodes };
-    });
-    courses.push(...raceCourses);
-
-    for (const [index, rawAssignment] of array(raceData.ClassCourseAssignment).entries()) {
-      const assignment = record(rawAssignment);
-      const path = `RaceCourseData[${raceIndex}].ClassCourseAssignment[${index}]`;
-      rejectUnexpectedKeys(
-        assignment,
-        ["ClassId", "ClassName", "AllowedOnLeg", "CourseName", "CourseFamily", "TeamMemberCourseAssignment", "Extensions"],
-        path,
-        issues
-      );
-      const className = requireText(assignment.ClassName, `${path}.ClassName`, issues);
-      const classExternalId = text(assignment.ClassId) || className;
-      const courseName = requireText(assignment.CourseName, `${path}.CourseName`, issues);
-      const matchedCourse = raceCourses.find((course) => course.name === courseName);
-      if (!matchedCourse) issues.push(`${path} refererar okänd bana ${courseName}`);
-      assignments.push({
-        classExternalId,
-        className,
-        courseExternalId: matchedCourse?.externalId ?? courseName,
-        startRule: "PUNCH"
-      });
-    }
-  }
-
-  if (assignments.length > 0) {
-    warnings.push("Startregel saknas i IOF CourseData 3.0; PUNCH används tills en separat StartList importeras");
-  }
-
-  if (courses.length === 0) issues.push("RaceCourseData.Course saknas");
-  if (assignments.length === 0) warnings.push("Inga ClassCourseAssignment hittades");
-  if (issues.length > 0) throw new IofValidationError(issues);
-  return { kind: "CourseData", courses, assignments, warnings };
-}
 
 function readEntryList(root: XmlRecord): EntryListImport {
   const issues: string[] = [];

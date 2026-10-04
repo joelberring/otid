@@ -6,7 +6,7 @@ import {
 } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
 import { schema } from "@o-tid/database";
-import { ClassRankingError, compareResultStatuses, rankClassResults } from "@o-tid/domain";
+import { ClassRankingError, compareResultStatuses, rankClassResults, storedResultCourseVariant } from "@o-tid/domain";
 import {
   serializeIofResultList,
   type IofResultListPersonResult,
@@ -19,6 +19,7 @@ import {
 import { resolveStoredResultHeadStates } from "./result-revision-state";
 import { parseStrictStoredResultRevision } from "./stored-result-revision";
 import { isResultCurrent, loadResultBasisHashes } from "./result-basis";
+import { loadCourseVersionVariants } from "./course-variants";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const MAX_CLASSES = 1_000;
@@ -164,7 +165,8 @@ export async function exportIofResultListAsAdmin(
         familyName: schema.entries.familyName,
         organisationName: schema.entries.organisationName,
         entryExternalSource: schema.entries.externalSource,
-        entryExternalId: schema.entries.externalId
+        entryExternalId: schema.entries.externalId,
+        courseVariantCode: schema.entries.courseVariantCode
       }).from(schema.resultRevisions)
         .innerJoin(schema.entries, and(
           eq(schema.resultRevisions.entryId, schema.entries.id),
@@ -281,8 +283,10 @@ export async function exportIofResultListAsAdmin(
         if (rows.length > MAX_EXPECTED_CONTROLS) throw new ResultListTooLarge();
         controlsByVersion.set(row.courseVersionId, rows);
       }
+      // Gafflad bana: resultatets kontroller är löparens variant (ADR-0169 beslut 2).
+      const variantsByVersion = await loadCourseVersionVariants(tx, courseVersionIds);
       for (const versionId of courseVersionIds) {
-        if ((controlsByVersion.get(versionId)?.length ?? 0) === 0) {
+        if ((controlsByVersion.get(versionId)?.length ?? 0) === 0 && !variantsByVersion.has(versionId)) {
           throw new StoredResultListConflict("Historisk banversion saknar kontroller");
         }
       }
@@ -303,10 +307,17 @@ export async function exportIofResultListAsAdmin(
         internalEntryId: string;
         internalCourseVersionId: string;
       }>>();
+      const revisionControls = (row: (typeof parsedRows)[number]) => {
+        const variants = variantsByVersion.get(row.courseVersionId);
+        if (!variants) return controlsByVersion.get(row.courseVersionId) ?? [];
+        const variant = storedResultCourseVariant(variants, row.courseVariantCode,
+          ("splits" in row.evaluation ? row.evaluation.splits : []).map((split) => split.controlCode));
+        return (variant?.controlCodes ?? []).map((controlCode, index) => ({ id: `${row.courseVersionId}:${index + 1}`, sequence: index + 1, controlCode }));
+      };
       for (const row of parsedRows) {
         const projection = row.evaluation.status === "DNS" || row.evaluation.status === "DNF"
           ? { expected: [], splitKeyMap: new Map<string, { controlCode: number; occurrence: number }>() }
-          : expectedControlsForRevision(controlsByVersion.get(row.courseVersionId) ?? [],
+          : expectedControlsForRevision(revisionControls(row),
             row.controlNeutralizationId === null ? undefined : neutralizationById.get(row.controlNeutralizationId),
             row.evaluation.classId, row.courseVersionId);
         const expected = projection.expected;

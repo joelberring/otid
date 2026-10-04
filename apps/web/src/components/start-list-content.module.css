@@ -22,6 +22,7 @@
 .entry h4, .entry p { margin: 0; min-width: 0; }
 .entry h4 { font-size: 1rem; }
 .entry p { font-size: 0.9rem; }
+.variant { font-weight: 400; white-space: nowrap; }
 @media screen and (min-width: 681px) {
   .identity { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.2rem 0.8rem; }
   .identity h2 { font-size: 1.15rem; }

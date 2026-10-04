@@ -3,6 +3,7 @@
 import { publicResultDetailResponseSchema, type PublicResultDetailResponse } from "@o-tid/contracts";
 import React, { useEffect, useRef, useState } from "react";
 import { sv } from "../i18n/sv";
+import { courseVariantsSv as variantText } from "../i18n/course-variants-sv";
 import { startPublicResultEventStream } from "../lib/public-result-event-stream-client";
 
 function duration(milliseconds?: number) {
@@ -61,7 +62,7 @@ export function PublicResultDetail({ raceId, publicResultId, initial }: {
   const { result } = response;
   const hasTimeBehind = "timeBehindMs" in result && result.timeBehindMs !== undefined;
   return <article className="public-result-detail">
-    <header><p className="muted">{result.className}</p><h2>{result.givenName} {result.familyName}</h2>{result.organisationName && <p>{result.organisationName}</p>}</header>
+    <header><p className="muted">{result.className}{"courseVariantCode" in result && result.courseVariantCode && ` · ${variantText.variantShort(result.courseVariantCode)}`}</p><h2>{result.givenName} {result.familyName}</h2>{result.organisationName && <p>{result.organisationName}</p>}</header>
     <dl><div><dt>{sv.publicResultsPosition}</dt><dd>{"position" in result ? result.position ?? "–" : "–"}</dd></div>
       <div><dt>{sv.publicResultsStatus}</dt><dd className={resultClass(result.status)}>{sv.publicResultsStatusLabels[result.status]}<br /><small>{sv.publicResultsReasonLabels[result.reason]}</small></dd></div>
       <div><dt>{sv.publicResultsTime}</dt><dd>{"elapsedMs" in result ? duration(result.elapsedMs) : "–"}</dd></div>

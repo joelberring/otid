@@ -115,7 +115,7 @@ describe("ADR-0169 Redigera bana", () => {
     const listed = await listCoursesForEditAsAdministrator(db, f.proof);
     if (listed.status !== "ok") throw new Error("Banlistan saknas");
     expect(listed.response.courses).toEqual([{ courseId: f.courseId, courseVersionId: await courseVersionOf(f.classId), name: "Lång", controlCodes: [31, 32, 33],
-      classes: [{ classId: f.classId, name: "H21" }], entryCount: 3, readOutCount: 2 }]);
+      classes: [{ classId: f.classId, name: "H21" }], entryCount: 3, readOutCount: 2, variants: [], unevenLegs: [] }]);
 
     const preview = await previewCourseEditAsAdministrator(db, { ...f.proof, courseId: f.courseId,
       request: { formatVersion: 1, expectedSnapshotVersion: await snapshot(f.raceId), controlCodes: [31, 33] } });

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { courseEditChangeSchema } from "./course-edit";
+import { courseEditChangeSchema, courseVariantCodeSchema } from "./course-edit";
 
 /**
  * Lottning (PLAN.md steg 9): startsätt per klass, flera klasser på en gång,
@@ -50,7 +50,9 @@ export const startDrawPreviewRequestSchema = z.object({ formatVersion: z.literal
 const slotSchema = z.object({
   startTime: instant,
   entry: z.object({ id: uuid, name: z.string().min(1).max(321), club: z.string().min(1).max(200).nullable(),
-    card: z.string().min(1).max(32).nullable() }).strict().nullable()
+    card: z.string().min(1).max(32).nullable(),
+    /** Gafflad klass: löparens variant efter lottningen (ADR-0169 beslut 2). */
+    variantCode: courseVariantCodeSchema.nullable() }).strict().nullable()
 }).strict();
 
 export const startDrawPreviewResponseSchema = z.object({

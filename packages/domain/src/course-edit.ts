@@ -10,6 +10,8 @@ export interface ProposedCourseVersion {
   readonly version: number;
   readonly createdAt: string;
   readonly controlCodes: readonly number[];
+  /** Gafflad bana: alla varianter med kontrollföljd (banans egen följd är då tom). */
+  readonly variants?: readonly { readonly code: string; readonly controlCodes: readonly number[] }[];
 }
 
 /**
@@ -23,16 +25,26 @@ export function withProposedCourseVersion(snapshot: RaceSnapshot, courseId: stri
   const controlIdByCode = new Map<number, string>();
   for (const course of snapshot.courses) for (const version of course.versions) {
     for (const control of version.controls) controlIdByCode.set(control.controlCode, control.controlId);
+    for (const variant of version.variants ?? []) {
+      for (const control of variant.controls) controlIdByCode.set(control.controlCode, control.controlId);
+    }
   }
   const controls = proposed.controlCodes.map((code, index) => ({
     id: `${proposed.id}:${index + 1}`, courseVersionId: proposed.id,
     controlId: controlIdByCode.get(code) ?? `proposed-control:${code}`, sequence: index + 1, controlCode: code
   }));
+  const variants = proposed.variants?.map((variant, variantIndex) => {
+    const variantId = `${proposed.id}:variant:${variantIndex + 1}`;
+    return { id: variantId, courseVersionId: proposed.id, code: variant.code, sequence: variantIndex + 1,
+      controls: variant.controlCodes.map((code, index) => ({ id: `${variantId}:${index + 1}`, courseVariantId: variantId,
+        controlId: controlIdByCode.get(code) ?? `proposed-control:${code}`, sequence: index + 1, controlCode: code })) };
+  });
   return {
     ...snapshot,
     courses: snapshot.courses.map(course => course.id !== courseId ? course : {
       ...course,
-      versions: [...course.versions, { id: proposed.id, courseId, version: proposed.version, createdAt: proposed.createdAt, controls }]
+      versions: [...course.versions, { id: proposed.id, courseId, version: proposed.version, createdAt: proposed.createdAt, controls,
+        ...(variants && variants.length > 0 ? { variants } : {}) }]
     }),
     classes: snapshot.classes.map(raceClass => raceClass.courseVersionId === currentCourseVersionId
       ? { ...raceClass, courseVersionId: proposed.id } : raceClass)

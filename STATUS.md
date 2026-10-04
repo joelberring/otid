@@ -5,9 +5,22 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 10 – Gafflingar i individuella klasser. Steg 7 (hårdvara) görs parallellt av ägaren. Steg 0–6, 8 och 9 är klara.
+Steg 11 – Stafett. Steg 7 (hårdvara) görs parallellt av ägaren. Steg 0–6 och 8–10 är klara.
 
 ## Logg
+
+### 2026-10-04 – Steg 10: gafflingar i individuella klasser (steg 10 klart)
+- Migration 0093: `course_variant` + `course_variant_control` (oföränderliga, per banversion), `entry.course_variant_code` och journalen
+  `course_variant_assignment_request`. Underlagshashen tar med variant och varianternas kontroller (v2) bara för gafflade banor; övriga oförändrade.
+- Domän `course-variants.ts`: bedömning mot löparens variant (utan giltig variant: den variant stämplingarna passar bäst), gafflingskontroll
+  (samma sträckor i alla varianter), jämn fördelning med frö, minst använd variant. Slumpen med frö ligger i `seeded-random.ts`.
+- IOF: `Course` med samma `CourseFamily` blir en bana med varianter ("Lång-AC" → AC), `ClassCourseAssignment` via familj eller namn,
+  `PersonCourseAssignment` (EntryId, annars namn + klass) ger löparens variant. Fixtures `*-forked.xml` (fjärilar, fyra varianter).
+- Varianter ges av lottningen, "Fördela gafflingar" (avlästa får sin stämplade variant), efteranmälan (minst använd) och direktanmälan vid
+  avläsning (stämplad variant). Redigera bana gäller en variant åt gången; deltagarkortet byter variant med besked när resultatet ändras.
+- Variant visas i Banor (utfällbar lista, varning), Klasser, deltagarkort, lottning, startlistor, avläsningens besked, publika resultat,
+  IOF-export och fastställande. Övningsstationen stämplar löparens variant.
+- Verifierat: lint, typecheck, test, test:integration (81 filer, nytt `adr-0169-forking`), build, e2e (5 flöden, nytt `gafflingar`).
 
 ### 2026-10-04 – Steg 9: lottning på riktigt (steg 9 klart)
 - Start: tabell med Startsätt (Fri start / Lottad minutstart / Masstart), intervall, vakanser (st eller %) och "Lotta" per klass;
@@ -149,6 +162,7 @@ brickor till steg 7.
 
 ## Idéer (inte i planen än)
 
+- Gafflingar: en klass som byter till en gafflad bana (Redigera klass) får inga varianter automatiskt; "Fördela gafflingar" gör det. IOF StartList/ResultList-export skriver inte variantens namn.
 - Klassbyte till en lottad klass ger inte automatiskt en vakant tid; arrangören anger tid som förut.
 - Fastställande jämför beslutsrevisionens bana med klassens: en disk som ligger kvar efter banändring kan ge "fel bana" där. Pröva i steg 8.5/8.6.
 - …

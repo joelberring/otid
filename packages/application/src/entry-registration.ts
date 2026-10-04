@@ -7,6 +7,7 @@ import { authenticatePairingAdminSession, authenticatePairingAdminSessionForMuta
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
 import { canAddClassEntry } from "./class-capacity-guard";
 import { assignLateStartTime } from "./start-draw-basis";
+import { leastUsedVariantForClass } from "./course-variants";
 
 type Authentication = Omit<PairingAdminRequestAuthentication, "capability">;
 const capability = "REGISTER_ENTRY" as const;
@@ -92,9 +93,11 @@ export async function registerEntryAsAdmin(db: Database,
       ? await assignLateStartTime(tx, input.raceId, intent.classId, now) : null;
     if (raceClass.startRule === "FIXED" && intent.fixedStartTime === null && assignedStartTime === null) throw new Error("Lottad klass saknar plan");
     const fixedStartTime = assignedStartTime ?? (intent.fixedStartTime ? new Date(intent.fixedStartTime) : null);
+    // Efteranmäld i en gafflad klass får den minst använda varianten (ADR-0169 beslut 2).
+    const courseVariantCode = await leastUsedVariantForClass(tx, input.raceId, intent.classId);
     const [entry] = await tx.insert(schema.entries).values({ raceId: input.raceId, classId: intent.classId,
       givenName: intent.givenName, familyName: intent.familyName, organisationName: intent.organisationName,
-      fixedStartTime, version: 1 }).returning({ id: schema.entries.id });
+      fixedStartTime, courseVariantCode, version: 1 }).returning({ id: schema.entries.id });
     if (!entry) throw new Error("Deltagaren kunde inte sparas");
     let assignmentId: string | null = null;
     if (intent.cardNumber) {
@@ -114,7 +117,7 @@ export async function registerEntryAsAdmin(db: Database,
         ? "RACE_ADMIN_ACCESS_CREDENTIAL" : "ENTRY_REGISTRATION_ACCESS_CREDENTIAL",
       actorId: auth.principal.accessCredentialId, requestId, before: { snapshotVersion: race.snapshotVersion },
       after: { classId: intent.classId, assignmentId, entryVersion: 1, snapshotVersion: snapshotVersionAfter,
-        fixedStartTime: fixedStartTime?.toISOString() ?? null, startTimeAssigned: assignedStartTime !== null } });
+        fixedStartTime: fixedStartTime?.toISOString() ?? null, startTimeAssigned: assignedStartTime !== null, courseVariantCode } });
     return { status: "registered" as const, response: response(saved, false) };
   });
 }

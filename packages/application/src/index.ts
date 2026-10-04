@@ -106,3 +106,7 @@ export { redeemRouteUploadBearerLink, authenticateRouteUploadSession, authentica
 export { readRouteUploadStatusAsParticipant, reserveRouteUploadAsParticipant, transferRouteUploadAsParticipant, type RouteUploadObjectStore } from "./route-upload";
 export * from "./readout-station";
 export { isEffectiveResultCurrent, isResultCurrent, loadResultBasisHash, loadResultBasisHashes } from "./result-basis";
+export {
+  changeEntryVariantAsAdministrator, distributeClassVariantsAsAdministrator, previewEntryVariantAsAdministrator
+} from "./course-variant-assignment";
+export type { ClassVariantDistributionResult, EntryVariantPreviewResult, EntryVariantResult } from "./course-variant-assignment";

@@ -2,8 +2,12 @@
 
 import { useEffect } from "react";
 import styles from "../race-administrator-workspace.module.css";
+import type { CourseEditListResponse } from "@o-tid/contracts";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
+import { courseVariantsSv as variantText } from "../../i18n/course-variants-sv";
 import type { Workspace } from "./workspace-state";
+
+type CourseRow = CourseEditListResponse["courses"][number];
 
 /** Banor som tabell med "Redigera bana" i raden (ADR-0169 beslut 4). */
 export function CourseTable({ ws, visible }: { ws: Workspace; visible: boolean }) {
@@ -29,15 +33,16 @@ export function CourseTable({ ws, visible }: { ws: Workspace; visible: boolean }
       </tr></thead>
       <tbody>{courseList.courses.map(course => {
         const editing = course.courseId === editingCourseId;
+        const forked = course.variants.length > 0;
         return [<tr key={course.courseId}>
           <th scope="row">{course.name}</th>
-          <td className={styles.courseTableControls}>{course.controlCodes.join(" ")}</td>
+          <td className={styles.courseTableControls}>{forked ? <CourseVariants ws={ws} course={course} /> : course.controlCodes.join(" ")}</td>
           <td>{course.classes.length === 0 ? text.courseEditNoClasses : course.classes.map(raceClass =>
             <button key={raceClass.classId} type="button" className={styles.courseClassLink} disabled={workflowLocked}
               onClick={() => openAssignedClass(raceClass.classId)}>{raceClass.name}</button>)}</td>
           <td>{course.entryCount}</td>
           <td>{course.readOutCount}</td>
-          <td>{!editing && <button type="button" className="secondary" aria-label={text.courseEditOpenLabel(course.name)}
+          <td>{!editing && !forked && <button type="button" className="secondary" aria-label={text.courseEditOpenLabel(course.name)}
             disabled={busy || !!editingCourseId || !!pending.current} onClick={() => startCourseEdit(course.courseId)}>{text.courseEditOpen}</button>}</td>
         </tr>, editing && <tr key={`${course.courseId}-editor`} className={styles.courseEditorRow}>
           <td colSpan={6}><CourseEditor ws={ws} courseName={course.name} /></td>
@@ -47,12 +52,38 @@ export function CourseTable({ ws, visible }: { ws: Workspace; visible: boolean }
   </section>;
 }
 
+/** Gafflad bana: antal varianter, gafflingskontrollen och varje variant med kontroller och "Redigera". */
+function CourseVariants({ ws, course }: { ws: Workspace; course: CourseRow }) {
+  const { busy, editingCourseId, pending, startCourseEdit } = ws;
+  return <div className={styles.courseVariants}>
+    <strong>{variantText.forked(course.variants.length)}</strong>
+    {course.unevenLegs.length > 0 && <p className={styles.warning} role="status">⚠ {variantText.unevenLegs(course.unevenLegs)}</p>}
+    <details>
+      <summary>{variantText.showVariants(course.variants.length)}</summary>
+      <table className={styles.courseVariantTable}>
+        <thead><tr><th scope="col">{variantText.variant}</th><th scope="col">{variantText.variantControls}</th>
+          <th scope="col">{variantText.variantRunners}</th><th scope="col">{variantText.variantReadOut}</th>
+          <th scope="col"><span className={styles.visuallyHidden}>{text.courseEditAction}</span></th></tr></thead>
+        <tbody>{course.variants.map(variant => <tr key={variant.code}>
+          <th scope="row">{variant.code}</th><td>{variant.controlCodes.join(" ")}</td>
+          <td>{variant.entryCount}</td><td>{variant.readOutCount}</td>
+          <td><button type="button" className="secondary" aria-label={variantText.editVariantLabel(course.name, variant.code)}
+            disabled={busy || !!editingCourseId || !!pending.current}
+            onClick={() => startCourseEdit(course.courseId, variant.code)}>{variantText.editVariant}</button></td>
+        </tr>)}</tbody>
+      </table>
+    </details>
+  </div>;
+}
+
 function CourseEditor({ ws, courseName }: { ws: Workspace; courseName: string }) {
   const { busy, cancelCourseEdit, changeCourseEditControls, courseEditAttempt, courseEditControls, courseEditError,
-    courseEditPreview, previewCourseEdit, raceId, saveCourseEdit } = ws;
+    courseEditPreview, editingVariantCode, previewCourseEdit, raceId, saveCourseEdit } = ws;
   const inputId = `course-edit-controls-${raceId}`;
-  return <form className={styles.courseEditor} aria-label={text.courseEditOpenLabel(courseName)}
+  const label = editingVariantCode ? variantText.editVariantLabel(courseName, editingVariantCode) : text.courseEditOpenLabel(courseName);
+  return <form className={styles.courseEditor} aria-label={label}
     onSubmit={event => { event.preventDefault(); void saveCourseEdit(); }}>
+    {editingVariantCode && <h3>{courseName} · {variantText.editingVariant(editingVariantCode)}</h3>}
     <label htmlFor={inputId}>{text.courseEditControls}</label>
     <input id={inputId} type="text" inputMode="numeric" value={courseEditControls} maxLength={12000}
       disabled={busy || !!courseEditAttempt} aria-describedby={`${inputId}-help`}
@@ -62,6 +93,7 @@ function CourseEditor({ ws, courseName }: { ws: Workspace; courseName: string })
       {courseEditPreview.readOutCount === 0 ? <p>{text.courseEditNobodyReadOut}</p> : <p><strong>{text.courseEditSummary(
         courseEditPreview.readOutCount, courseEditPreview.becomesOkCount, courseEditPreview.becomesMispunchedCount,
         courseEditPreview.unchangedCount)}</strong></p>}
+      {editingVariantCode && <p>{variantText.variantSummaryNote}</p>}
       {courseEditPreview.notRecalculatedCount > 0 && <p className={styles.warning}>{text.courseEditNotRecalculated(courseEditPreview.notRecalculatedCount)}</p>}
       {courseEditPreview.changes.length > 0 ? <>
         <h3>{text.courseEditChangesTitle}</h3>

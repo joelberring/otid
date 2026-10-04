@@ -132,6 +132,37 @@ describe("parseIofXml", () => {
     });
   });
 
+  it("tolkar gafflingar: Course med samma CourseFamily blir en bana med varianter", () => {
+    const parsed = parseIofXml(fixture("course-data-forked.xml"));
+    if (parsed.kind !== "CourseData") throw new Error("Fel dokumenttyp");
+    expect(parsed.courses.map((course) => ({ externalId: course.externalId, name: course.name, controlCodes: course.controlCodes,
+      variants: course.variants?.map((variant) => variant.code) }))).toEqual([
+      { externalId: "5", name: "Kort", controlCodes: [31, 35, 36, 33], variants: undefined },
+      { externalId: "family:Lång", name: "Lång", controlCodes: [], variants: ["AC", "AD", "BC", "BD"] }
+    ]);
+    expect(parsed.courses[1]!.variants![1]!.controlCodes).toEqual([31, 50, 41, 42, 50, 43, 44, 50, 32, 60, 63, 64, 60, 61, 62, 60, 33]);
+    expect(parsed.assignments).toEqual([
+      { classExternalId: "gaffel-h21", className: "H21", courseExternalId: "family:Lång", startRule: "PUNCH" },
+      { classExternalId: "gaffel-d21", className: "D21", courseExternalId: "5", startRule: "PUNCH" }
+    ]);
+    expect(parsed.personAssignments).toEqual([]);
+  });
+
+  it("tolkar PersonCourseAssignment till löparens variant, även utan Course i filen", () => {
+    const parsed = parseIofXml(fixture("course-assignment-forked.xml"));
+    expect(parsed).toMatchObject({ kind: "CourseData", courses: [], assignments: [], personAssignments: [
+      { entryExternalId: "gaffel-cia", personName: "Cia Holm", className: "H21", courseExternalId: "family:Lång", variantCode: "AD" },
+      { personName: "Dan Berg", className: "H21", courseExternalId: "family:Lång", variantCode: "BC" },
+      { entryExternalId: "gaffel-eva", courseExternalId: "family:Lång", variantCode: "AC" },
+      { entryExternalId: "gaffel-fia", courseExternalId: "family:Lång", variantCode: "BD" }
+    ] });
+    const unknownVariant = fixture("course-data-forked.xml").replace("</RaceCourseData>",
+      "<PersonCourseAssignment><EntryId>x</EntryId><CourseName>Kort</CourseName></PersonCourseAssignment></RaceCourseData>");
+    expect(() => parseIofXml(unknownVariant)).toThrow(/okänd variant Kort/);
+    const duplicate = fixture("course-data-forked.xml").replace("<Name>Lång-AD</Name>", "<Name>Lång-AC</Name>");
+    expect(() => parseIofXml(duplicate)).toThrow(/samma kod/);
+  });
+
   it("tolkar en officiellt strukturerad EntryList 3.0 utan påhittad starttid", () => {
     const parsed = parseIofXml(fixture("entry-list.xml"));
     expect(parsed.kind).toBe("EntryList");

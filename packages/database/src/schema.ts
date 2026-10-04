@@ -165,6 +165,25 @@ export const courseControls = pgTable("course_control", {
   sequence: integer("sequence").notNull()
 }, (table) => [uniqueIndex("course_control_sequence_uidx").on(table.courseVersionId, table.sequence), uniqueIndex("course_control_id_version_uidx").on(table.id, table.courseVersionId)]);
 
+/** ADR-0169 beslut 2: variant (gaffling) av en banversion med egen kontrollföljd (migration 0093). */
+export const courseVariants = pgTable("course_variant", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  courseVersionId: uuid("course_version_id").notNull().references(() => courseVersions.id),
+  code: text("code").notNull(),
+  sequence: integer("sequence").notNull()
+}, (table) => [
+  uniqueIndex("course_variant_code_uidx").on(table.courseVersionId, table.code),
+  uniqueIndex("course_variant_sequence_uidx").on(table.courseVersionId, table.sequence),
+  uniqueIndex("course_variant_id_version_uidx").on(table.id, table.courseVersionId)
+]);
+
+export const courseVariantControls = pgTable("course_variant_control", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  courseVariantId: uuid("course_variant_id").notNull().references(() => courseVariants.id),
+  controlId: uuid("control_id").notNull().references(() => controls.id),
+  sequence: integer("sequence").notNull()
+}, (table) => [uniqueIndex("course_variant_control_sequence_uidx").on(table.courseVariantId, table.sequence)]);
+
 export const classes = pgTable("class", {
   id: uuid("id").primaryKey().defaultRandom(),
   raceId: uuid("race_id").notNull().references(() => races.id),
@@ -197,6 +216,8 @@ export const entries = pgTable("entry", {
   familyName: text("family_name").notNull(),
   organisationName: text("organisation_name"),
   fixedStartTime: timestamp("fixed_start_time", { withTimezone: true }),
+  /** Löparens variant av klassens gafflade bana (migration 0093). NULL = ingen tilldelad variant. */
+  courseVariantCode: text("course_variant_code"),
   externalSource: text("external_source"),
   externalId: text("external_id"),
   version: integer("version").notNull().default(1),
@@ -4289,3 +4310,18 @@ export const startDrawSlots = pgTable("start_draw_slot", {
   primaryKey({ columns: [table.drawId, table.classId, table.position] }),
   foreignKey({ name: "start_draw_slot_class_fk", columns: [table.drawId, table.classId], foreignColumns: [startDrawClasses.drawId, startDrawClasses.classId] })
 ]);
+
+/** Ändrad variant på en löpare (ENTRY) och "Fördela gafflingar" i en klass (CLASS), migration 0093. */
+export const courseVariantAssignmentRequests = pgTable("course_variant_assignment_request", {
+  requestId: uuid("request_id").primaryKey(),
+  raceId: uuid("race_id").notNull().references(() => races.id),
+  kind: text("kind").$type<"ENTRY" | "CLASS">().notNull(),
+  classId: uuid("class_id").notNull(),
+  entryId: uuid("entry_id"),
+  seed: bigint("seed", { mode: "number" }),
+  actorCredentialId: uuid("actor_credential_id").notNull(),
+  capability: pairingAdminCapabilityEnum("capability").notNull(),
+  request: jsonb("request").$type<Record<string, unknown>>().notNull(),
+  response: jsonb("response").$type<Record<string, unknown>>().notNull(),
+  assignedAt: timestamp("assigned_at", { withTimezone: true }).notNull()
+});

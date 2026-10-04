@@ -21,3 +21,4 @@ export * from "./raster-georeference";
 export * from "./route-metadata";
 export * from "./course-edit";
 export * from "./class-edit";
+export * from "./course-variants";

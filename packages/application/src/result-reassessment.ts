@@ -18,7 +18,7 @@ type Readout = typeof schema.cardReadouts.$inferSelect;
 type Revision = typeof schema.resultRevisions.$inferSelect;
 const MAX_ENTRIES = 10_000;
 
-function normalized(readout: Readout): NormalizedCardReadout {
+export function normalizedReadout(readout: Readout): NormalizedCardReadout {
   return { id: readout.id, raceId: readout.raceId, cardNumber: readout.cardNumber,
     ...(readout.startPunchedAt ? { startPunchedAt: readout.startPunchedAt.toISOString() } : {}),
     ...(readout.finishPunchedAt ? { finishPunchedAt: readout.finishPunchedAt.toISOString() } : {}),
@@ -69,8 +69,8 @@ export async function assessReadOutEntries(tx: Transaction, raceId: string, clas
     if (!readout) continue;
     const head = latestByEntry.get(entry.id) ?? null;
     const state = stateByEntry.get(entry.id);
-    const current = evaluateCardReadout(normalized(readout), snapshot);
-    const next = evaluateCardReadout(normalized(readout), proposed);
+    const current = evaluateCardReadout(normalizedReadout(readout), snapshot);
+    const next = evaluateCardReadout(normalizedReadout(readout), proposed);
     const before = head?.status === "OK" || head?.status === "MP" ? head.status : current.status;
     const base = { entryId: entry.id, classId: entry.classId, displayName: `${entry.givenName} ${entry.familyName}`,
       className: classNames.get(entry.classId)!, readout, latest: head, before, after: next.status };
@@ -109,7 +109,7 @@ export async function recalculateAssessedEntries(tx: Transaction, input: { raceI
   snapshot: RaceSnapshot; snapshotVersion: number; courseVersionId: string | ReadonlyMap<string, string> }) {
   const recalculated: { entryId: string; resultRevisionId: string; revision: number }[] = [];
   for (const row of input.assessed.filter(value => value.recalculate)) {
-    const evaluation = evaluateCardReadout(normalized(row.readout), input.snapshot);
+    const evaluation = evaluateCardReadout(normalizedReadout(row.readout), input.snapshot);
     const expectedCourseVersionId = typeof input.courseVersionId === "string" ? input.courseVersionId : input.courseVersionId.get(row.classId);
     if (!expectedCourseVersionId || evaluation.entryId !== row.entryId || evaluation.courseVersionId !== expectedCourseVersionId) {
       throw new Error("Omräkningen gav en annan deltagare eller bana än förhandsbeskedet");

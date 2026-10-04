@@ -11,12 +11,15 @@ export function useCourseEditState() {
   const [courseList, setCourseList] = useState<CourseEditListResponse>();
   const [courseListError, setCourseListError] = useState("");
   const [editingCourseId, setEditingCourseId] = useState("");
+  // Gafflad bana: varianten som redigeras ("" = banan saknar varianter).
+  const [editingVariantCode, setEditingVariantCode] = useState("");
   const [courseEditControls, setCourseEditControls] = useState("");
   const [courseEditPreview, setCourseEditPreview] = useState<CourseEditPreviewResponse>();
   const [courseEditError, setCourseEditError] = useState("");
   const [courseEditSaved, setCourseEditSaved] = useState("");
   const [courseEditAttempt, setCourseEditAttempt] = useState<CourseEditAttempt>();
   return { courseList, setCourseList, courseListError, setCourseListError, editingCourseId, setEditingCourseId,
+    editingVariantCode, setEditingVariantCode,
     courseEditControls, setCourseEditControls, courseEditPreview, setCourseEditPreview, courseEditError, setCourseEditError,
     courseEditSaved, setCourseEditSaved, courseEditAttempt, setCourseEditAttempt };
 }
@@ -25,7 +28,7 @@ const sameCodes = (left: readonly number[], right: readonly number[]) =>
   left.length === right.length && left.every((code, index) => code === right[index]);
 
 export function createCourseEditActions(ws: Base & RaceDataActions) {
-  const { raceId, courseList, editingCourseId, courseEditControls, courseEditPreview, busyRef, pending, sent, requireSession,
+  const { raceId, courseList, editingCourseId, editingVariantCode, setEditingVariantCode, courseEditControls, courseEditPreview, busyRef, pending, sent, requireSession,
     begin, finish, current, request, json, csrf, load, setCourseList, setCourseListError, setEditingCourseId,
     setCourseEditControls, setCourseEditPreview, setCourseEditError, setCourseEditSaved, setCourseEditAttempt } = ws;
 
@@ -44,16 +47,19 @@ export function createCourseEditActions(ws: Base & RaceDataActions) {
     catch { if (current(op)) setCourseListError(text.courseEditListError); }
     finally { finish(op); }
   }
-  function startCourseEdit(courseId: string) {
+  /** Öppnar redigeringen för en bana, eller för en variant av en gafflad bana. */
+  function startCourseEdit(courseId: string, variantCode = "") {
     if (busyRef.current || pending.current) return;
     const course = courseList?.courses.find(row => row.courseId === courseId);
-    if (!course) return;
-    setEditingCourseId(courseId); setCourseEditControls(course.controlCodes.join(" "));
+    const variant = course?.variants.find(row => row.code === variantCode);
+    if (!course || (variantCode !== "" && !variant)) return;
+    setEditingCourseId(courseId); setEditingVariantCode(variantCode);
+    setCourseEditControls((variant?.controlCodes ?? course.controlCodes).join(" "));
     setCourseEditPreview(undefined); setCourseEditError(""); setCourseEditSaved("");
   }
   function cancelCourseEdit() {
     if (pending.current) return;
-    setEditingCourseId(""); setCourseEditControls(""); setCourseEditPreview(undefined); setCourseEditError("");
+    setEditingCourseId(""); setEditingVariantCode(""); setCourseEditControls(""); setCourseEditPreview(undefined); setCourseEditError("");
   }
   function changeCourseEditControls(value: string) {
     setCourseEditControls(value); setCourseEditPreview(undefined); setCourseEditError("");
@@ -63,18 +69,21 @@ export function createCourseEditActions(ws: Base & RaceDataActions) {
     const course = courseList?.courses.find(row => row.courseId === editingCourseId);
     const codes = parseControlCodes(courseEditControls);
     if (!course || !codes) { setCourseEditError(text.courseEditInvalidControls); return undefined; }
-    if (sameCodes(course.controlCodes, codes)) { setCourseEditError(text.courseEditUnchanged); return undefined; }
+    const current = editingVariantCode ? course.variants.find(row => row.code === editingVariantCode)?.controlCodes : course.controlCodes;
+    if (current && sameCodes(current, codes)) { setCourseEditError(text.courseEditUnchanged); return undefined; }
     return codes;
   }
   async function readPreview(op: Operation, codes: number[]) {
     if (!courseList) throw new Error("Course list missing");
     const response = await request(`/courses/${editingCourseId}/edit-preview`, op, { method: "POST",
       headers: { "content-type": "application/json", "x-otid-csrf": csrf() },
-      body: JSON.stringify({ formatVersion: 1, expectedSnapshotVersion: courseList.snapshotVersion, controlCodes: codes }) });
+      body: JSON.stringify({ formatVersion: 1, expectedSnapshotVersion: courseList.snapshotVersion, controlCodes: codes,
+        ...(editingVariantCode ? { variantCode: editingVariantCode } : {}) }) });
     if (response.status === 409) return "conflict" as const;
     if (!response.ok) throw new Error("Course edit preview unavailable");
     const value = courseEditPreviewResponseSchema.parse(await json(response, op));
-    if (value.raceId !== raceId || value.courseId !== editingCourseId || !sameCodes(value.controlCodes, codes)) {
+    if (value.raceId !== raceId || value.courseId !== editingCourseId || !sameCodes(value.controlCodes, codes) ||
+        (value.variantCode ?? "") !== editingVariantCode) {
       throw new Error("Course edit preview scope mismatch");
     }
     setCourseEditPreview(value);
@@ -111,7 +120,7 @@ export function createCourseEditActions(ws: Base & RaceDataActions) {
     if (receipt.raceId !== raceId || receipt.requestId !== attempt.request.requestId ||
         JSON.stringify(receipt.request) !== JSON.stringify(attempt.request)) throw new Error("Course edit receipt mismatch");
     pending.current = undefined; sent.current = false; setCourseEditAttempt(undefined);
-    setEditingCourseId(""); setCourseEditControls(""); setCourseEditPreview(undefined); setCourseEditError("");
+    setEditingCourseId(""); setEditingVariantCode(""); setCourseEditControls(""); setCourseEditPreview(undefined); setCourseEditError("");
     setCourseEditSaved(text.courseEditSaved(receipt.recalculated.length));
     try { await load(op); await readCourses(op); }
     catch { if (current(op)) setCourseListError(text.courseEditSavedLoadError); }
@@ -142,7 +151,7 @@ export function createCourseEditActions(ws: Base & RaceDataActions) {
         }
         const request: CourseEditRequest = { formatVersion: 1, requestId: crypto.randomUUID(),
           expectedSnapshotVersion: preview.snapshotVersion, courseId: editingCourseId, controlCodes: codes,
-          confirmResultChanges: preview.requiresConfirmation };
+          ...(editingVariantCode ? { variantCode: editingVariantCode } : {}), confirmResultChanges: preview.requiresConfirmation };
         attempt = { kind: "COURSE_EDIT", request };
         pending.current = attempt; sent.current = false; setCourseEditAttempt(attempt);
       }

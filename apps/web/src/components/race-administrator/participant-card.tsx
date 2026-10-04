@@ -5,6 +5,7 @@ import styles from "../race-administrator-workspace.module.css";
 import { raceAdministratorSv as adminText } from "../../i18n/race-administrator-sv";
 import { raceWorkspaceNavigationSv as navigationText } from "../../i18n/race-workspace-navigation-sv";
 import { participantCardSv as text } from "../../i18n/participant-card-sv";
+import { courseVariantsSv as variantText } from "../../i18n/course-variants-sv";
 import { sv } from "../../i18n/sv";
 import { formatClockTime } from "../../lib/clock-time";
 import { availableStatusChoices, isStatusChoice } from "../../lib/participant-status-choices";
@@ -51,6 +52,7 @@ export function ParticipantCard({ ws }: { ws: Workspace }) {
     {!selected && action !== "REGISTRATION" && <p>{navigationText.selectedHelp}</p>}
     <EntryActionForms ws={ws} />
     {selected && action !== "REGISTRATION" && !entryEditing && <>
+      {selectedClass && selectedClass.courseVariants.length > 0 && <ParticipantVariant ws={ws} />}
       <CardResult ws={ws} result={result} error={effectiveResultError} />
       <StatusChange ws={ws} result={result} />
       {data && <RaceResultControls result={result} resultError={effectiveResultError} timeZone={data.timeZone} />}
@@ -64,6 +66,42 @@ export function ParticipantCard({ ws }: { ws: Workspace }) {
       <ParticipantEntryClaimAdmin key={`${raceId}:${selected.id}`} raceId={raceId} entryId={selected.id}
         displayName={selected.displayName} onPendingChange={setParticipantActionPending} />
     </details>}
+  </section>;
+}
+
+/**
+ * Gafflad klass: löparens variant och "Byt variant". Bytet sparas direkt om resultatet inte
+ * ändras; annars visas beskedet och arrangören bekräftar (ADR-0169 beslut 2).
+ */
+function ParticipantVariant({ ws }: { ws: Workspace }) {
+  const { busy, cancelEntryVariant, chooseEntryVariant, confirmEntryVariant, disabled, entryVariantError, entryVariantMessage,
+    entryVariantPreview, raceId, selected, selectedClass } = ws;
+  if (!selected || !selectedClass) return null;
+  const id = `entry-variant-${raceId}`;
+  const current = selected.courseVariantCode !== null && selectedClass.courseVariants.includes(selected.courseVariantCode)
+    ? selected.courseVariantCode : null;
+  return <section className={styles.workspace} aria-label={variantText.variant}>
+    <h3>{current ? variantText.variantShort(current) : variantText.variant}</h3>
+    {current === null && <p><strong>{variantText.noVariant}</strong></p>}
+    <label htmlFor={id}>{variantText.chooseVariant}</label>
+    <select id={id} value={current ?? ""} disabled={disabled}
+      onChange={event => void chooseEntryVariant(event.target.value)}>
+      {current === null && <option value="">–</option>}
+      {selectedClass.courseVariants.map(code => <option key={code} value={code}>{code}</option>)}
+    </select>
+    {entryVariantMessage && <p role="status" className={styles.courseEditSaved}>{entryVariantMessage}</p>}
+    {entryVariantError && <p role="alert" className={styles.warning}>{entryVariantError}</p>}
+    {entryVariantPreview && <div className={styles.review} role="alert">
+      <p><strong>{variantText.variantConfirmTitle}</strong></p>
+      <ul className={styles.courseEditChanges}>{entryVariantPreview.changes.map(change => <li key={change.entryId}>
+        {variantText.variantResultChange(change.displayName, adminText.courseEditStatus[change.before], adminText.courseEditStatus[change.after])}
+      </li>)}</ul>
+      <div className={styles.actions}>
+        <button type="button" disabled={busy} onClick={() => void confirmEntryVariant()}>
+          {variantText.variantConfirm} {entryVariantPreview.variantCode}</button>
+        <button type="button" className="secondary" disabled={busy} onClick={cancelEntryVariant}>{variantText.variantCancel}</button>
+      </div>
+    </div>}
   </section>;
 }
 

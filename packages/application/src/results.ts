@@ -28,6 +28,7 @@ import {
   RESULT_ENGINE_VERSION,
   type NormalizedCardReadout
 } from "@o-tid/domain";
+import { loadCourseVersionVariants, variantAfterClassChange } from "./course-variants";
 import { loadRaceSnapshot } from "./snapshot";
 import { lockEntryForRevision, lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
 import {
@@ -277,6 +278,8 @@ export async function changeEntryClassAsAdmin(
     const snapshotVersionAfter = race.snapshotVersion + 1;
     const [updated] = await tx.update(schema.entries).set({
       classId: request.data.classId,
+      courseVariantCode: await variantAfterClassChange(tx, authorization.principal.raceId, entry.id, request.data.classId,
+        entry.courseVariantCode),
       version: entryVersionAfter
     }).where(and(
       eq(schema.entries.id, entry.id),
@@ -749,6 +752,15 @@ export async function publicResults(db: Database, raceId: string): Promise<Publi
     }
 
     const classNameById = new Map(classRows.map((raceClass) => [raceClass.id, raceClass.name]));
+    // Gafflad bana: visa löparens variant när resultatets banversion har den.
+    const variantsByVersion = await loadCourseVersionVariants(tx, courseVersionIds);
+    const entryVariantRows = variantsByVersion.size === 0 ? [] : await tx.select({ id: schema.entries.id,
+      code: schema.entries.courseVariantCode }).from(schema.entries).where(eq(schema.entries.raceId, raceId));
+    const entryVariant = new Map(entryVariantRows.map((row) => [row.id, row.code]));
+    const variantOf = (entryId: string, courseVersionId: string) => {
+      const code = entryVariant.get(entryId);
+      return code && (variantsByVersion.get(courseVersionId) ?? []).some((variant) => variant.code === code) ? code : undefined;
+    };
     const rowsByClass = new Map<string, typeof parsedRows>();
     for (const row of parsedRows) {
       const classRowsForResult = rowsByClass.get(row.evaluation.classId) ?? [];
@@ -804,6 +816,7 @@ export async function publicResults(db: Database, raceId: string): Promise<Publi
           familyName: row.familyName,
           organisationName: row.organisationName,
           revision: row.revision,
+          ...(variantOf(row.entryId, row.courseVersionId) ? { courseVariantCode: variantOf(row.entryId, row.courseVersionId) } : {}),
           status: row.evaluation.status,
           reason: row.evaluation.reason,
           ...(row.elapsedMs === undefined ? {} : { elapsedMs: row.elapsedMs }),

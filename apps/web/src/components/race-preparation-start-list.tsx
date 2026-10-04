@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { EntryTransferCandidates } from "@o-tid/contracts";
 import { formatClockTime } from "../lib/clock-time";
 import { racePreparationStartListSv as text } from "../i18n/race-preparation-start-list-sv";
+import { courseVariantsSv as variantText } from "../i18n/course-variants-sv";
 import styles from "./race-preparation-start-list.module.css";
 
 const pageSize = 100;
@@ -52,6 +53,8 @@ export function RacePreparationStartList({ data, disabled, onSelectEntry }: {
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   const currentPage = Math.min(page, pageCount - 1);
   const visible = rows.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
+  // Gafflade klasser (ADR-0169 beslut 2): variantkoden visas i en egen kolumn.
+  const forked = data.classes.some(row => row.courseVariants.length > 0);
 
   function start(entry: Entry, raceClass: RaceClass) {
     if (raceClass.startRule === "PUNCH") return text.freeStart;
@@ -80,6 +83,7 @@ export function RacePreparationStartList({ data, disabled, onSelectEntry }: {
           <th scope="col">{text.className}</th><th scope="col">{text.plannedStart}</th>
           <th scope="col">{text.name}</th><th scope="col">{text.organisation}</th>
           <th scope="col">{text.card}</th>
+          {forked && <th scope="col">{variantText.variantColumn}</th>}
         </tr></thead>
         <tbody>{visible.map(entry => {
           const raceClass = classesById.get(entry.classId)!;
@@ -92,6 +96,8 @@ export function RacePreparationStartList({ data, disabled, onSelectEntry }: {
             <td data-label={text.card} className={entry.multipleActiveAssignments ? styles.attention : undefined}>
               {entry.multipleActiveAssignments ? text.multipleCards : entry.activeAssignment?.cardNumber ?? text.noCard}
             </td>
+            {forked && <td data-label={variantText.variantColumn}>{raceClass.courseVariants.length === 0 ? ""
+              : entry.courseVariantCode !== null && raceClass.courseVariants.includes(entry.courseVariantCode) ? entry.courseVariantCode : "–"}</td>}
           </tr>;
         })}</tbody>
       </table></div>

@@ -223,7 +223,7 @@ export async function transferShortenedCourseClassAsAdministrator(
       courseVersionId: shortCourseVersionId, startRule: candidate.sourceStartRule });
     for (const selectedEntry of selected) {
       const entry = selectedEntry!;
-      await tx.update(schema.entries).set({ classId: shortClassId, version: entry.entryVersion + 1 })
+      await tx.update(schema.entries).set({ classId: shortClassId, courseVariantCode: null, version: entry.entryVersion + 1 })
         .where(and(eq(schema.entries.id, entry.entryId), eq(schema.entries.raceId, race.id), eq(schema.entries.version, entry.entryVersion)));
     }
     const snapshotVersionAfter = race.snapshotVersion + 1;

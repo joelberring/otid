@@ -6,6 +6,8 @@ const version = z.number().int().positive().max(2_147_483_647);
 const selected = z.object({ id: uuid, revision: version }).strict();
 export const administratorControlDetailsSchema = z.object({
   courseName: z.string().min(1).max(160), courseVersionId: uuid,
+  /** Gafflad bana: varianten som kontrollerna nedan hör till (ADR-0169 beslut 2). */
+  courseVariantCode: z.string().min(1).max(32).optional(),
   startTime: z.iso.datetime({ offset: true }).nullable(), finishTime: z.iso.datetime({ offset: true }).nullable(),
   controls: z.array(z.object({ sequence: version, controlCode: version, occurrence: version,
     elapsedMs: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).nullable(),

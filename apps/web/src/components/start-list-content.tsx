@@ -5,6 +5,7 @@ import type { StartListPublicationContent } from "@o-tid/contracts";
 import { filterPublishedStartListClasses } from "../lib/start-list-filter";
 import { formatStartListTime } from "../lib/start-list-time";
 import { startListSv as text } from "../i18n/start-list-sv";
+import { courseVariantsSv as variantText } from "../i18n/course-variants-sv";
 import styles from "./start-list-content.module.css";
 
 export function StartListContent({ content }: { content: StartListPublicationContent }) {
@@ -38,7 +39,7 @@ export function StartListContent({ content }: { content: StartListPublicationCon
         <span>{text.name}</span><span>{text.organisation}</span><span>{text.plannedStart}</span>
       </div>}
       {row.entries.map((entry, entryIndex) => <article key={entryIndex} className={styles.entry}>
-        <h4>{entry.displayName}</h4>
+        <h4>{entry.displayName}{entry.courseVariantCode && <span className={styles.variant}> · {variantText.variantShort(entry.courseVariantCode)}</span>}</h4>
         <p><span className={styles.inlineLabel}>{text.organisation}: </span>{entry.organisationName ?? text.noOrganisation}</p>
         <p><span className={styles.inlineLabel}>{text.plannedStart}: </span>
           {row.startRule === "PUNCH" ? text.punch : entry.fixedStartTime ? formatStartListTime(entry.fixedStartTime, content.timeZone) : text.missingTime}</p>

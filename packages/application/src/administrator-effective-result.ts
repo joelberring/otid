@@ -5,6 +5,7 @@ import { authenticatePairingAdminSessionForProtectedRead, type PairingAdminReque
 import { resolveStoredResultHeadStates, type StoredResultHeadState } from "./result-revision-state";
 import { parseStrictStoredResultRevision, StoredResultRevisionConflict, type StoredResultRevisionInput } from "./stored-result-revision";
 import { isEffectiveResultCurrent, loadResultBasisHash } from "./result-basis";
+import { storedResultVariantControls } from "./course-variants";
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 export type AdministratorEffectiveResult =
@@ -125,7 +126,10 @@ export async function getAdministratorEffectiveResult(db: Database,
     if (technical) {
       const course = courses.find(row => row.id === resolved.head.courseVersionId);
       if (!course) throw new StoredResultRevisionConflict("Resultatets banversion saknas");
-      const controls = await tx.select({ id: schema.courseControls.id, sequence: schema.courseControls.sequence,
+      // Gafflad bana: resultatet visas mot löparens variant (ADR-0169 beslut 2).
+      const variant = await storedResultVariantControls(tx, resolved.head.courseVersionId, entry.courseVariantCode,
+        ("splits" in outcome ? outcome.splits : []).map(split => split.controlCode));
+      const controls = variant?.controls ?? await tx.select({ id: schema.courseControls.id, sequence: schema.courseControls.sequence,
         controlCode: schema.controls.code, controlRaceId: schema.controls.raceId })
         .from(schema.courseControls).innerJoin(schema.controls, eq(schema.controls.id, schema.courseControls.controlId))
         .where(eq(schema.courseControls.courseVersionId, resolved.head.courseVersionId))
@@ -148,6 +152,7 @@ export async function getAdministratorEffectiveResult(db: Database,
       const validInstant = (value: unknown) => typeof value === "string" && Number.isFinite(Date.parse(value)) &&
         /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value) ? value : null;
       controlDetails = { courseName: course.name, courseVersionId: resolved.head.courseVersionId,
+        ...(variant ? { courseVariantCode: variant.code } : {}),
         startTime: validInstant("startTime" in outcome ? outcome.startTime : null),
         finishTime: validInstant("finishTime" in outcome ? outcome.finishTime : null),
         controls: projectedControls, missingControls: "missingControls" in outcome ? outcome.missingControls : [],

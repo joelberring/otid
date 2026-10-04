@@ -330,6 +330,15 @@
 .courseTable tbody th { font-weight: 700; }
 .courseTable tr[data-selected="true"] > * { background: var(--workspace-subtle); }
 .courseTableControls { font-variant-numeric: tabular-nums; }
+/* Gafflad bana (ADR-0169 beslut 2): varianterna i en utfällbar tabell under antalet. */
+.courseVariants { display: grid; gap: 0.35rem; }
+.courseVariants summary { min-height: 44px; display: flex; align-items: center; gap: 0.3rem; cursor: pointer; text-decoration: underline; }
+.courseVariants summary::before { content: "▸"; text-decoration: none; }
+.courseVariants details[open] > summary::before { content: "▾"; }
+.courseVariantTable { width: 100%; border-collapse: collapse; }
+.courseVariantTable th, .courseVariantTable td { padding: 0.25rem 0.4rem; border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; }
+.courseVariantTable thead th { font-size: 0.8rem; color: var(--muted); font-weight: 400; }
+.variantLine { display: block; font-size: 0.85rem; color: var(--muted); }
 .courseClassLink { min-height: 44px; padding: 0.3rem 0.35rem; border: 0; background: transparent; color: var(--ink); font: inherit; text-align: left; text-decoration: underline; cursor: pointer; }
 .courseClassLink:disabled { opacity: 0.6; cursor: not-allowed; }
 .courseEditorRow > td { background: var(--panel); }

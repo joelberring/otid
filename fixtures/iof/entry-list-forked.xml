@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<EntryList xmlns="http://www.orienteering.org/datastandard/3.0" iofVersion="3.0" createTime="2026-10-01T18:00:00+02:00" creator="O-Tid fixture">
+  <Event><Name>Klubbträning med gafflingar</Name></Event>
+  <PersonEntry>
+    <Id>gaffel-ada</Id>
+    <Person><Name><Family>Ek</Family><Given>Ada</Given></Name></Person>
+    <Organisation><Name>OK Gaffel</Name></Organisation>
+    <ControlCard punchingSystem="SPORTident">8101001</ControlCard>
+    <Class><Id>gaffel-h21</Id><Name>H21</Name></Class>
+  </PersonEntry>
+  <PersonEntry>
+    <Id>gaffel-bo</Id>
+    <Person><Name><Family>Lind</Family><Given>Bo</Given></Name></Person>
+    <Organisation><Name>OK Gaffel</Name></Organisation>
+    <ControlCard punchingSystem="SPORTident">8101002</ControlCard>
+    <Class><Id>gaffel-h21</Id><Name>H21</Name></Class>
+  </PersonEntry>
+  <PersonEntry>
+    <Id>gaffel-cia</Id>
+    <Person><Name><Family>Holm</Family><Given>Cia</Given></Name></Person>
+    <Organisation><Name>OK Gaffel</Name></Organisation>
+    <ControlCard punchingSystem="SPORTident">8101003</ControlCard>
+    <Class><Id>gaffel-h21</Id><Name>H21</Name></Class>
+  </PersonEntry>
+  <PersonEntry>
+    <Id>gaffel-dan</Id>
+    <Person><Name><Family>Berg</Family><Given>Dan</Given></Name></Person>
+    <Organisation><Name>OK Gaffel</Name></Organisation>
+    <ControlCard punchingSystem="SPORTident">8101004</ControlCard>
+    <Class><Id>gaffel-h21</Id><Name>H21</Name></Class>
+  </PersonEntry>
+  <PersonEntry>
+    <Id>gaffel-eva</Id>
+    <Person><Name><Family>Sjö</Family><Given>Eva</Given></Name></Person>
+    <Organisation><Name>OK Gaffel</Name></Organisation>
+    <ControlCard punchingSystem="SPORTident">8101005</ControlCard>
+    <Class><Id>gaffel-h21</Id><Name>H21</Name></Class>
+  </PersonEntry>
+  <PersonEntry>
+    <Id>gaffel-fia</Id>
+    <Person><Name><Family>Strand</Family><Given>Fia</Given></Name></Person>
+    <Organisation><Name>OK Gaffel</Name></Organisation>
+    <ControlCard punchingSystem="SPORTident">8101006</ControlCard>
+    <Class><Id>gaffel-h21</Id><Name>H21</Name></Class>
+  </PersonEntry>
+  <PersonEntry>
+    <Id>gaffel-gun</Id>
+    <Person><Name><Family>Ås</Family><Given>Gun</Given></Name></Person>
+    <Organisation><Name>OK Gaffel</Name></Organisation>
+    <ControlCard punchingSystem="SPORTident">8101007</ControlCard>
+    <Class><Id>gaffel-d21</Id><Name>D21</Name></Class>
+  </PersonEntry>
+</EntryList>

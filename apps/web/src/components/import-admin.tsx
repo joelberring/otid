@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useRef, useState, type FormEvent } from 
 import Link from "next/link";
 import { IOF_IMPORT_CONTENT_TYPE, raceAdministratorLoginResponseSchema } from "@o-tid/contracts";
 import { sv } from "../i18n/sv";
+import { courseVariantsSv as variantText } from "../i18n/course-variants-sv";
 import {
   createIofImportAttempt,
   parseIofImportResponse,
@@ -26,7 +27,10 @@ function messageFrom(error: unknown): string {
 
 function reportSummary(result: IofImportResponse): string {
   if (result.report.kind === "CourseData") {
-    return sv.importCourseDataSummary(result.report.imported.courses, result.report.imported.classes);
+    const { courses, classes, variants, personAssignments } = result.report.imported;
+    // Gafflingar (ADR-0169 beslut 2): varianter och löpare som fått sin variant ur filen.
+    return [sv.importCourseDataSummary(courses, classes),
+      ...(variants !== undefined || personAssignments !== undefined ? [variantText.importVariants(variants ?? 0, personAssignments)] : [])].join(", ");
   }
   if (result.report.kind === "EntryList") {
     return sv.importEntryListSummary(result.report.imported.entries);

@@ -5,6 +5,7 @@ import type { CourseEditListResponse } from "@o-tid/contracts";
 import styles from "../race-administrator-workspace.module.css";
 import { classTableSv as text } from "../../i18n/class-table-sv";
 import { raceAdministratorSv as adminText } from "../../i18n/race-administrator-sv";
+import { courseVariantsSv as variantText } from "../../i18n/course-variants-sv";
 import { classTableStatus } from "../../lib/class-table-status";
 import type { Workspace } from "./workspace-state";
 
@@ -13,7 +14,7 @@ type ClassRow = CourseEditListResponse["classes"][number];
 /** Klasser som tabell med redigering i raden: namn, bana och startsätt (ADR-0169 beslut 4). */
 export function ClassTable({ ws, visible }: { ws: Workspace; visible: boolean }) {
   const { authenticated, busy, classEditSaved, courseList, courseListError, selectedClassId, data, editingClassId,
-    loadCourses, pending, raceId, startClassEdit, workflowLocked, openMissingFixedStart } = ws;
+    loadCourses, pending, raceId, startClassEdit, workflowLocked, openMissingFixedStart, distributeVariants, distributionMessage } = ws;
   const stale = !courseList || (data !== undefined && courseList.snapshotVersion < data.snapshotVersion);
   useEffect(() => {
     if (visible && authenticated && data && !busy && !pending.current && stale && !courseListError) void loadCourses();
@@ -23,6 +24,7 @@ export function ClassTable({ ws, visible }: { ws: Workspace; visible: boolean })
     <h2 id={`class-table-${raceId}`}>{text.title}</h2>
     <p className={styles.workflowHelp}>{text.help}</p>
     {classEditSaved && <p role="status" className={styles.courseEditSaved}>{classEditSaved}</p>}
+    {distributionMessage && <p role="status" className={styles.courseEditSaved}>{distributionMessage}</p>}
     {courseListError && <div className={styles.warning} role="alert"><p>{courseListError}</p>
       <button type="button" className="secondary" disabled={busy} onClick={() => void loadCourses()}>{text.retryList}</button></div>}
     {!courseList && !courseListError && <p role="status">{text.loading}</p>}
@@ -38,7 +40,14 @@ export function ClassTable({ ws, visible }: { ws: Workspace; visible: boolean })
         const selected = row.classId === selectedClassId;
         return [<tr key={row.classId} data-selected={selected ? "true" : undefined} aria-current={selected ? "true" : undefined}>
           <th scope="row">{row.name}</th>
-          <td>{courseNames.get(row.courseId) ?? "–"}</td>
+          <td>{courseNames.get(row.courseId) ?? "–"}
+            {row.variantCount > 0 && <span className={styles.variantLine}>{variantText.forked(row.variantCount)}</span>}
+            {row.missingVariantCount > 0 && <>
+              <span className={styles.variantLine}>{variantText.missingVariants(row.missingVariantCount)}</span>
+              <button type="button" className="secondary" aria-label={variantText.distributeLabel(row.name)}
+                disabled={busy || workflowLocked || !!pending.current} onClick={() => void distributeVariants(row.classId)}>
+                {variantText.distribute}</button>
+            </>}</td>
           <td>{row.startRule === "PUNCH" ? text.free : text.fixed}</td>
           <td>{row.entryCount}</td>
           <td>{text.readOutValue(row.readOutCount, row.resultCount)}</td>

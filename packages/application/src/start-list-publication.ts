@@ -5,6 +5,7 @@ import { schema, type Database } from "@o-tid/database";
 import { IofStartListSerializationError, serializeIofStartList, type IofStartListProjection } from "@o-tid/iof-xml";
 import { authenticatePairingAdminSessionForMutation, authenticatePairingAdminSessionForProtectedRead, type PairingAdminRequestAuthentication } from "./pairing-admin";
 import type { DbExecutor } from "./snapshot";
+import { loadCourseVersionVariants } from "./course-variants";
 const MAX_CLASSES = 1000, MAX_ENTRIES = 10000;
 const raceIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 type Auth = Omit<PairingAdminRequestAuthentication, "capability">;
@@ -33,19 +34,22 @@ async function projection(tx: DbExecutor, race: {
     if (!ev)
         throw new SourceProjectionError();
     const cs = await tx.select({
-        id: schema.classes.id, name: schema.classes.name, startRule: schema.classes.startRule
+        id: schema.classes.id, name: schema.classes.name, startRule: schema.classes.startRule, courseVersionId: schema.classes.courseVersionId
     }).from(schema.classes).where(eq(schema.classes.raceId, race.id)).limit(MAX_CLASSES + 1);
     const es = await tx.select({
-        id: schema.entries.id, classId: schema.entries.classId, givenName: schema.entries.givenName, familyName: schema.entries.familyName, organisationName: schema.entries.organisationName, fixedStartTime: schema.entries.fixedStartTime
+        id: schema.entries.id, classId: schema.entries.classId, givenName: schema.entries.givenName, familyName: schema.entries.familyName, organisationName: schema.entries.organisationName, fixedStartTime: schema.entries.fixedStartTime,
+        courseVariantCode: schema.entries.courseVariantCode
     }).from(schema.entries).where(eq(schema.entries.raceId, race.id)).limit(MAX_ENTRIES + 1);
     if (cs.length > MAX_CLASSES || es.length > MAX_ENTRIES)
         throw new SourceProjectionError();
     const ids = new Set(cs.map(c => c.id));
+    const variants = await loadCourseVersionVariants(tx, cs.map(c => c.courseVersionId));
     if (es.some(e => !ids.has(e.classId)))
         throw new SourceProjectionError();
     const ordered = [...cs].sort((a, b) => cmp(a.name, b.name) || cmp(a.id, b.id)).map(c => ({
             name: c.name, startRule: c.startRule, entries: es.filter(e => e.classId === c.id).map(e => ({
-                displayName: `${e.givenName} ${e.familyName}`, organisationName: e.organisationName, fixedStartTime: c.startRule === "FIXED" ? e.fixedStartTime?.toISOString() ?? null : null, id: e.id, f: e.familyName, g: e.givenName
+                displayName: `${e.givenName} ${e.familyName}`, organisationName: e.organisationName, fixedStartTime: c.startRule === "FIXED" ? e.fixedStartTime?.toISOString() ?? null : null, id: e.id, f: e.familyName, g: e.givenName,
+                variant: (variants.get(c.courseVersionId) ?? []).some(v => v.code === e.courseVariantCode) ? e.courseVariantCode : null
             })).sort((a, b) => {
                 const at = a.fixedStartTime ? Date.parse(a.fixedStartTime) : Infinity, bt = b.fixedStartTime ? Date.parse(b.fixedStartTime) : Infinity;
                 return c.startRule === "FIXED" && at !== bt ? at - bt : cmp(a.displayName, b.displayName) || cmp(a.f, b.f) || cmp(a.g, b.g) || cmp(a.id, b.id);
@@ -54,7 +58,8 @@ async function projection(tx: DbExecutor, race: {
     const parsed = startListPublicationContentSchema.safeParse({
         eventName: ev.name, raceName: race.name, raceDate: race.raceDate, timeZone: ev.timeZone,
         classes: ordered.map(c => ({ name: c.name, startRule: c.startRule, entries: c.entries.map(e => ({
-                displayName: e.displayName, organisationName: e.organisationName, fixedStartTime: e.fixedStartTime
+                displayName: e.displayName, organisationName: e.organisationName, fixedStartTime: e.fixedStartTime,
+                ...(e.variant ? { courseVariantCode: e.variant } : {})
             })) }))
     });
     if (!parsed.success) throw new SourceProjectionError();

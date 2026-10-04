@@ -8,7 +8,9 @@ import {
   type UnknownReadoutResolutionResponse
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { evaluateCardReadout, RESULT_ENGINE_VERSION, type NormalizedCardReadout } from "@o-tid/domain";
+import {
+  courseVariantForReadout, evaluateCardReadout, RESULT_ENGINE_VERSION, withProposedEntryVariants, type NormalizedCardReadout
+} from "@o-tid/domain";
 import {
   authenticatePairingAdminSession,
   authenticatePairingAdminSessionForMutation,
@@ -214,12 +216,19 @@ export async function resolveUnknownReadoutAsAdministrator(
       .where(and(eq(schema.entries.id, entry.id), eq(schema.entries.version, entry.version)));
     const snapshotVersionAfter = race.snapshotVersion + 1;
     await tx.update(schema.races).set({ snapshotVersion: snapshotVersionAfter }).where(eq(schema.races.id, input.raceId));
-    const snapshot = await loadRaceSnapshot(tx, input.raceId);
+    let snapshot = await loadRaceSnapshot(tx, input.raceId);
     const normalized: NormalizedCardReadout = { id: readout.readout.id, raceId: input.raceId,
       cardNumber: readout.readout.cardNumber,
       ...(readout.readout.startPunchedAt ? { startPunchedAt: readout.readout.startPunchedAt.toISOString() } : {}),
       ...(readout.readout.finishPunchedAt ? { finishPunchedAt: readout.readout.finishPunchedAt.toISOString() } : {}), punches: readout.readout.punches,
       rawMessageId: readout.readout.rawMessageId, readAt: readout.readout.readAt.toISOString() };
+    // Direktanmäld i en gafflad klass har redan sprungit: den får varianten som stämplingarna passar.
+    const detected = intent.target === "EXISTING_ENTRY" ? undefined : courseVariantForReadout(normalized, snapshot);
+    if (detected && !detected.assigned) {
+      await tx.update(schema.entries).set({ courseVariantCode: detected.code }).where(and(eq(schema.entries.id, entry.id),
+        eq(schema.entries.raceId, input.raceId)));
+      snapshot = withProposedEntryVariants(snapshot, new Map([[entry.id, detected.code]]));
+    }
     const evaluation = evaluateCardReadout(normalized, snapshot);
     const controlNeutralizationId = appliedControlNeutralization(snapshot, evaluation);
     if (evaluation.entryId !== entry.id || !evaluation.courseVersionId || evaluation.status === "UNKNOWN_CARD") {

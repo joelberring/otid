@@ -32,6 +32,9 @@ löpare (eller sträcka) får en variant genom lottning, import eller manuellt
 val. Resultatmotorn bedömer mot löparens variant. Utan varianter fungerar
 allt som i dag. Gafflingar kommer i första hand från IOF XML (OCAD, Purple
 Pen, Condes), inte från en egen editor.
+Saknar en löpare i en gafflad klass giltig variant bedöms avläsningen mot den
+variant som stämplingarna passar bäst (godkänd först, därefter färst saknade
+kontroller), så att en glömd tilldelning inte ger felstämpling.
 
 ### 3. Stafett: lag med sträckor
 Stafettklass har antal sträckor och startsätt per sträcka (masstart,

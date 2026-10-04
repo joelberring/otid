@@ -16,7 +16,7 @@ function entry(id: number, paymentStatus: Entry["paymentStatus"], overrides: Par
     effectiveResult: { state: "ACTIVE_RESULT", selectedRevision: {
       id: "40000000-0000-4000-8000-000000000001", revision: 1 }, resultSnapshotVersion: 1,
       result: { revision: 1, status: "OK", reason: "COMPLETE", elapsedMs: 60_000 } },
-    resultRevisionMarker: null, fixedStartTime: null, activeAssignment: null,
+    resultRevisionMarker: null, fixedStartTime: null, courseVariantCode: null, activeAssignment: null,
     multipleActiveAssignments: false, ...overrides,
   };
 }

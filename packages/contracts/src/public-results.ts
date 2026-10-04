@@ -187,6 +187,8 @@ export const publicResultIdSchema = z.uuid();
 const publicResultV7TimingFields = {
   ...publicResultCommonFields,
   publicResultId: publicResultIdSchema,
+  /** Gafflad bana: varianten som löparen bedömdes mot (ADR-0169 beslut 2). */
+  courseVariantCode: z.string().min(1).max(32).optional(),
   missingControls: z.array(z.number().int().positive()).max(256),
   extraPunches: z.array(z.number().int().positive()).max(256)
 };

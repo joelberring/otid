@@ -1,4 +1,5 @@
 import type { ReadoutPackage } from "@o-tid/contracts";
+import { entryCourseControls, type RaceSnapshot } from "@o-tid/domain";
 import { cardTypeForNumber, simulatedRun, type SimulatedCard } from "@o-tid/sportident";
 
 export type ExerciseVariant = "ok" | "missing-control" | "no-finish";
@@ -20,14 +21,14 @@ export function exerciseRunners(pkg: ReadoutPackage): ExerciseRunner[] {
     if (!cardTypeForNumber(cardNumber)) continue;
     const entry = snapshot.entries.find((candidate) => candidate.id === assignment.entryId);
     const raceClass = entry && snapshot.classes.find((candidate) => candidate.id === entry.classId);
-    const version = raceClass && snapshot.courses.flatMap((course) => course.versions)
-      .find((candidate) => candidate.id === raceClass.courseVersionId);
-    if (!entry || !raceClass || !version) continue;
+    // Gafflad bana: brickan stämplas med löparens variant (ADR-0169 beslut 2).
+    const course = entry && entryCourseControls(snapshot as RaceSnapshot, entry.id);
+    if (!entry || !raceClass || !course) continue;
     runners.push({
       entryId: entry.id,
       label: `${entry.givenName} ${entry.familyName} · ${raceClass.name} · ${cardNumber}`,
       cardNumber,
-      controlCodes: [...version.controls].sort((a, b) => a.sequence - b.sequence).map((control) => control.controlCode)
+      controlCodes: course.controlCodes
     });
   }
   return runners.sort((a, b) => a.label.localeCompare(b.label, "sv"));

@@ -10,7 +10,7 @@ import { buildReadoutPayload, payloadHash } from "./payload";
 import { StationController, type StationStatus } from "./station";
 import { TrafficLog } from "./rawlog";
 import { pendingBatches, syncPending } from "./sync";
-import { ids, MemoryReadoutStore, TEST_CARD, testPackage } from "./test-support";
+import { forkedTestPackage, ids, MemoryReadoutStore, TEST_CARD, testPackage } from "./test-support";
 import type { QueuedReadout } from "./store";
 
 const TIME_ZONE = "Europe/Stockholm";
@@ -54,6 +54,17 @@ describe("avläsning i webbläsaren", () => {
     expect(verdict).toMatchObject({ status: "OK", name: "Anna Berg", className: "Lång", elapsedMs: 30 * 60_000 });
     expect(formatRunningTime(verdict.elapsedMs!)).toBe("30:00");
     expect(verdict.splits.map((split) => [split.controlCode, formatRunningTime(split.elapsedMs)])).toEqual([[31, "7:30"], [32, "15:00"], [33, "22:30"]]);
+  });
+
+  it("gafflad bana: övningsstationen stämplar löparens variant och beskedet visar varianten", async () => {
+    const pkg = forkedTestPackage();
+    const [runner] = exerciseRunners(pkg);
+    expect(runner).toMatchObject({ entryId: ids.entry, controlCodes: [31, 34, 32, 33] });
+    const { read } = await readThroughExerciseStation(runner!.controlCodes, "ok");
+    const payload = buildReadoutPayload(read.card, read.frames, { reference: NOW, timeZone: TIME_ZONE, simulated: true });
+    expect(evaluateLocally(payload, pkg)).toMatchObject({ status: "OK", variant: { code: "BA", assigned: true } });
+    const other = { ...pkg, raceSnapshot: { ...pkg.raceSnapshot, entries: pkg.raceSnapshot.entries.map((entry) => ({ ...entry, courseVariantCode: "AB" })) } };
+    expect(evaluateLocally(payload, other)).toMatchObject({ status: "MP", variant: { code: "AB", assigned: true } });
   });
 
   it("visar felstämpling och saknat mål", async () => {

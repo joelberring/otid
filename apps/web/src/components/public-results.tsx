@@ -4,6 +4,7 @@ import { organizerAccountSessionStatusSchema, publicResultFollowIdempotencyKey, 
 import Link from "next/link";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { sv } from "../i18n/sv";
+import { courseVariantsSv as variantText } from "../i18n/course-variants-sv";
 import { hasPublicResultFavorite, parsePublicResultFavorites, publicResultFavoritesStorageKey, togglePublicResultFavorite, type PublicResultFavorite } from "../lib/public-result-favorites";
 import { startPublicResultEventStream } from "../lib/public-result-event-stream-client";
 import { filterPublicResults, publicResultClassNames } from "../lib/public-results-filter";
@@ -212,6 +213,7 @@ export function PublicResults({ raceId, initial }: { raceId: string; initial: Pu
       <td data-label={sv.publicResultsTime}>{"elapsedMs" in row ? duration(row.elapsedMs) : "–"}</td>
       <td data-label={sv.publicResultsTimeBehind}>{!("timeBehindMs" in row) || row.timeBehindMs === undefined ? "–" : `+${duration(row.timeBehindMs)}`}</td>
       <td className="public-result-details" data-label={sv.publicResultsSplits}>
+        {"courseVariantCode" in row && row.courseVariantCode && <><small>{variantText.variantShort(row.courseVariantCode)}</small><br /></>}
         {"splits" in row && row.splits.length > 0 && <details><summary>{sv.publicResultsShowSplits}</summary><ol>
           {row.splits.map((split) => <li key={`${split.controlCode}:${split.occurrence}`}>
             <span><strong>{sv.publicResultsControl}</strong> {controlLabel(split.controlCode, split.occurrence)}</span>

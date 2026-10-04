@@ -60,3 +60,19 @@ export class MemoryReadoutStore implements ReadoutStore {
     this.items[index] = item;
   }
 }
+
+/** Endast för tester: samma paket, men banan är gafflad i varianterna AB och BA och Anna har variant BA. */
+export function forkedTestPackage(): ReadoutPackage {
+  const base = testPackage();
+  const variant = (index: number, code: string, codes: readonly number[]) => {
+    const id = `10000000-0000-4000-8000-0000000003${String(index).padStart(2, "0")}`;
+    return { id, courseVersionId: ids.version, code, sequence: index, controls: codes.map((controlCode, position) => ({
+      id: `10000000-0000-4000-8000-000000000${index}${String(position + 1).padStart(2, "0")}`, courseVariantId: id,
+      controlId: `10000000-0000-4000-8000-0000000002${String(controlCode - 30).padStart(2, "0")}`, sequence: position + 1, controlCode })) };
+  };
+  const snapshot = base.raceSnapshot;
+  return readoutPackageSchema.parse({ ...base, raceSnapshot: { ...snapshot,
+    courses: snapshot.courses.map((course) => ({ ...course, versions: course.versions.map((version) => ({ ...version, controls: [],
+      variants: [variant(1, "AB", [31, 32, 34, 33]), variant(2, "BA", [31, 34, 32, 33])] })) })),
+    entries: snapshot.entries.map((entry) => ({ ...entry, courseVariantCode: "BA" })) } });
+}

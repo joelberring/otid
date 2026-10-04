@@ -49,11 +49,36 @@ export interface CourseControl {
   readonly controlCode: number;
 }
 
+export interface CourseVariantControl {
+  readonly id: UUID;
+  readonly courseVariantId: UUID;
+  readonly controlId: UUID;
+  readonly sequence: number;
+  readonly controlCode: number;
+}
+
+/**
+ * ADR-0169 beslut 2: en variant (gaffling) av en banversion, med en hel egen
+ * kontrollföljd. Koden (t.ex. "AC") identifierar varianten inom banan och följer
+ * med till nästa banversion; löparen (eller en stafettsträcka) bär koden.
+ */
+export interface CourseVariant {
+  readonly id: UUID;
+  readonly courseVersionId: UUID;
+  readonly code: string;
+  /** Visningsordning inom banversionen. */
+  readonly sequence: number;
+  readonly controls: readonly CourseVariantControl[];
+}
+
 export interface CourseVersion {
   readonly id: UUID;
   readonly courseId: UUID;
   readonly version: number;
+  /** En gafflad banversion har tom kontrollföljd och sina kontroller i varianterna. */
   readonly controls: readonly CourseControl[];
+  /** Saknas eller tom = banan är inte gafflad. */
+  readonly variants?: readonly CourseVariant[];
   readonly createdAt: string;
 }
 
@@ -73,6 +98,8 @@ export interface Entry {
   readonly familyName: string;
   readonly organisationName?: string;
   readonly fixedStartTime?: string;
+  /** Löparens variant av klassens bana (gafflad bana). Saknas = ingen tilldelad variant. */
+  readonly courseVariantCode?: string;
   readonly externalIdentity?: ExternalIdentity;
 }
 

@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Gafflad bana som Purple Pen/OCAD exporterar den: en Course per variant med gemensam CourseFamily. -->
+<CourseData xmlns="http://www.orienteering.org/datastandard/3.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" iofVersion="3.0" createTime="2026-10-01T18:00:00+02:00" creator="Purple Pen version 3.5.4">
+  <Event><Name>Klubbträning med gafflingar</Name></Event>
+  <RaceCourseData>
+    <Map><Scale>10000</Scale></Map>
+    <Control type="Start"><Id>S1</Id></Control>
+    <Control><Id>31</Id></Control>
+    <Control><Id>32</Id></Control>
+    <Control><Id>33</Id></Control>
+    <Control><Id>41</Id></Control>
+    <Control><Id>42</Id></Control>
+    <Control><Id>43</Id></Control>
+    <Control><Id>44</Id></Control>
+    <Control><Id>50</Id></Control>
+    <Control><Id>60</Id></Control>
+    <Control><Id>61</Id></Control>
+    <Control><Id>62</Id></Control>
+    <Control><Id>63</Id></Control>
+    <Control><Id>64</Id></Control>
+    <Control><Id>35</Id></Control>
+    <Control><Id>36</Id></Control>
+    <Control type="Finish"><Id>F1</Id></Control>
+    <Course numberOfCompetitors="2">
+      <Id>1</Id><Name>Lång-AC</Name><CourseFamily>Lång</CourseFamily><Length>6200</Length><Climb>85</Climb>
+      <CourseControl type="Start"><Control>S1</Control></CourseControl>
+      <CourseControl><Control>31</Control></CourseControl>
+      <CourseControl><Control>50</Control></CourseControl>
+      <CourseControl><Control>41</Control></CourseControl>
+      <CourseControl><Control>42</Control></CourseControl>
+      <CourseControl><Control>50</Control></CourseControl>
+      <CourseControl><Control>43</Control></CourseControl>
+      <CourseControl><Control>44</Control></CourseControl>
+      <CourseControl><Control>50</Control></CourseControl>
+      <CourseControl><Control>32</Control></CourseControl>
+      <CourseControl><Control>60</Control></CourseControl>
+      <CourseControl><Control>61</Control></CourseControl>
+      <CourseControl><Control>62</Control></CourseControl>
+      <CourseControl><Control>60</Control></CourseControl>
+      <CourseControl><Control>63</Control></CourseControl>
+      <CourseControl><Control>64</Control></CourseControl>
+      <CourseControl><Control>60</Control></CourseControl>
+      <CourseControl><Control>33</Control></CourseControl>
+      <CourseControl type="Finish"><Control>F1</Control></CourseControl>
+    </Course>
+    <Course numberOfCompetitors="2">
+      <Id>2</Id><Name>Lång-AD</Name><CourseFamily>Lång</CourseFamily><Length>6200</Length><Climb>85</Climb>
+      <CourseControl type="Start"><Control>S1</Control></CourseControl>
+      <CourseControl><Control>31</Control></CourseControl>
+      <CourseControl><Control>50</Control></CourseControl>
+      <CourseControl><Control>41</Control></CourseControl>
+      <CourseControl><Control>42</Control></CourseControl>
+      <CourseControl><Control>50</Control></CourseControl>
+      <CourseControl><Control>43</Control></CourseControl>
+      <CourseControl><Control>44</Control></CourseControl>
+      <CourseControl><Control>50</Control></CourseControl>
+      <CourseControl><Control>32</Control></CourseControl>
+      <CourseControl><Control>60</Control></CourseControl>
+      <CourseControl><Control>63</Control></CourseControl>
+      <CourseControl><Control>64</Control></CourseControl>
+      <CourseControl><Control>60</Control></CourseControl>
+      <CourseControl><Control>61</Control></CourseControl>
+      <CourseControl><Control>62</Control></CourseControl>
+      <CourseControl><Control>60</Control></CourseControl>
+      <CourseControl><Control>33</Control></CourseControl>
+      <CourseControl type="Finish"><Control>F1</Control></CourseControl>
+    </Course>
+    <Course numberOfCompetitors="2">
+      <Id>3</Id><Name>Lång-BC</Name><CourseFamily>Lång</CourseFamily><Length>6200</Length><Climb>85</Climb>
+      <CourseControl type="Start"><Control>S1</Control></CourseControl>
+      <CourseControl><Control>31</Control></CourseControl>
+      <CourseControl><Control>50</Control></CourseControl>
+      <CourseControl><Control>43</Control></CourseControl>
+      <CourseControl><Control>44</Control></CourseControl>
+      <CourseControl><Control>50</Control></CourseControl>
+      <CourseControl><Control>41</Control></CourseControl>
+      <CourseControl><Control>42</Control></CourseControl>
+      <CourseControl><Control>50</Control></CourseControl>
+      <CourseControl><Control>32</Control></CourseControl>
+      <CourseControl><Control>60</Control></CourseControl>
+      <CourseControl><Control>61</Control></CourseControl>
+      <CourseControl><Control>62</Control></CourseControl>
+      <CourseControl><Control>60</Control></CourseControl>
+      <CourseControl><Control>63</Control></CourseControl>
+      <CourseControl><Control>64</Control></CourseControl>
+      <CourseControl><Control>60</Control></CourseControl>
+      <CourseControl><Control>33</Control></CourseControl>
+      <CourseControl type="Finish"><Control>F1</Control></CourseControl>
+    </Course>
+    <Course numberOfCompetitors="2">
+      <Id>4</Id><Name>Lång-BD</Name><CourseFamily>Lång</CourseFamily><Length>6200</Length><Climb>85</Climb>
+      <CourseControl type="Start"><Control>S1</Control></CourseControl>
+      <CourseControl><Control>31</Control></CourseControl>
+      <CourseControl><Control>50</Control></CourseControl>
+      <CourseControl><Control>43</Control></CourseControl>
+      <CourseControl><Control>44</Control></CourseControl>
+      <CourseControl><Control>50</Control></CourseControl>
+      <CourseControl><Control>41</Control></CourseControl>
+      <CourseControl><Control>42</Control></CourseControl>
+      <CourseControl><Control>50</Control></CourseControl>
+      <CourseControl><Control>32</Control></CourseControl>
+      <CourseControl><Control>60</Control></CourseControl>
+      <CourseControl><Control>63</Control></CourseControl>
+      <CourseControl><Control>64</Control></CourseControl>
+      <CourseControl><Control>60</Control></CourseControl>
+      <CourseControl><Control>61</Control></CourseControl>
+      <CourseControl><Control>62</Control></CourseControl>
+      <CourseControl><Control>60</Control></CourseControl>
+      <CourseControl><Control>33</Control></CourseControl>
+      <CourseControl type="Finish"><Control>F1</Control></CourseControl>
+    </Course>
+    <Course numberOfCompetitors="2">
+      <Id>5</Id><Name>Kort</Name><Length>2900</Length><Climb>30</Climb>
+      <CourseControl type="Start"><Control>S1</Control></CourseControl>
+      <CourseControl><Control>31</Control></CourseControl>
+      <CourseControl><Control>35</Control></CourseControl>
+      <CourseControl><Control>36</Control></CourseControl>
+      <CourseControl><Control>33</Control></CourseControl>
+      <CourseControl type="Finish"><Control>F1</Control></CourseControl>
+    </Course>
+    <ClassCourseAssignment><ClassId>gaffel-h21</ClassId><ClassName>H21</ClassName><CourseFamily>Lång</CourseFamily></ClassCourseAssignment>
+    <ClassCourseAssignment><ClassId>gaffel-d21</ClassId><ClassName>D21</ClassName><CourseName>Kort</CourseName></ClassCourseAssignment>
+  </RaceCourseData>
+</CourseData>

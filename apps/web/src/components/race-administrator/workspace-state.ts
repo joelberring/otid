@@ -7,6 +7,7 @@ import { createResultDecisionActions, useResultDecisionState } from "./result-de
 import { createCoursePreparationActions, useCoursePreparationState } from "./course-preparation";
 import { createCourseEditActions, useCourseEditState } from "./course-edit";
 import { createClassEditActions, useClassEditState } from "./class-edit";
+import { createCourseVariantActions, useCourseVariantState } from "./course-variant-actions";
 import { createStatusChangeActions, useStatusChangeState } from "./status-change";
 import { createClassPreparationActions, deriveClassPreparation, useClassPreparationState } from "./class-preparation";
 import { createStartListActions, useStartListState } from "./start-list-preparation";
@@ -18,6 +19,7 @@ import { createAfterRaceActions, deriveAfterRace, useAfterRaceState } from "./af
 export function useWorkspaceState(raceId: string) {
   return { raceId, ...useOperationState(), ...useNavigationState(), ...useRaceDataState(), ...useRosterState(),
     ...useEntryActionState(), ...useResultDecisionState(), ...useCoursePreparationState(), ...useCourseEditState(), ...useClassEditState(),
+    ...useCourseVariantState(),
     ...useClassPreparationState(), ...useStatusChangeState(),
     ...useStartListState(), ...useStartDrawState(), ...useDuringRaceState(), ...useAfterRaceState() };
 }
@@ -33,7 +35,7 @@ export function deriveWorkspace(s: WorkspaceState) {
     !!s.rentalAttempt || !!s.rentalReturnAttempt || !!s.rentalReuseAttempt || !!s.paymentStatusAttempt || !!s.timeAttempt ||
     !!s.recalculationAttempt || !!s.identityAttempt || !!s.registrationAttempt || !!s.dnsAttempt || !!s.dnfAttempt ||
     !!s.ntAttempt || !!s.oocAttempt || !!s.dsqAttempt || !!s.approvalAttempt || !!s.courseEditAttempt ||
-    !!s.unknownReadoutAttempt || !!s.manualClassAttempt || !!s.classEditAttempt;
+    !!s.unknownReadoutAttempt || !!s.manualClassAttempt || !!s.classEditAttempt || !!s.entryVariantPreview;
   const disabled = s.busy || editing;
   // Låser byte av steg medan något granskas eller väntar på kvitto. En pågående läsning låser inte
   // checklistan: att byta steg medan data hämtas är ofarligt.
@@ -65,6 +67,7 @@ export function useWorkspace(raceId: string) {
   const withAreas = { ...withDecisions, ...createDuringRaceActions(withData), ...createStartListActions(withData),
     ...createStartDrawActions(withData),
     ...createCoursePreparationActions(withData), ...createClassEditActions(withCourses), ...createClassPreparationActions(withData),
+    ...createCourseVariantActions(withCourses),
     ...createStatusChangeActions(withDecisions), ...createEntryActions(withData), ...createAfterRaceActions(withData) };
   const withParticipants = { ...withAreas, ...createParticipantActions(withAreas) };
   return { ...withParticipants, ...createWorkflowNavigation(withParticipants) };

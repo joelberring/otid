@@ -9,23 +9,32 @@ const controlCode = z.number().int().positive().max(2_147_483_647);
 const controlCodes = z.array(controlCode).min(1).max(1000);
 const status = z.enum(["OK", "MP"]);
 const instant = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+/** ADR-0169 beslut 2: variantens kod, t.ex. "AC". */
+export const courseVariantCodeSchema = z.string().min(1).max(32).refine(value => value === value.trim(), "Koden får inte börja eller sluta med blanksteg");
+const legPoint = z.union([z.literal("START"), z.literal("FINISH"), controlCode]);
 
 export const courseEditListResponseSchema = z.object({
   formatVersion: z.literal(1), raceId: uuid, snapshotVersion: version,
   courses: z.array(z.object({
     courseId: uuid, courseVersionId: uuid, name, controlCodes: z.array(controlCode).max(1000),
     classes: z.array(z.object({ classId: uuid, name }).strict()).max(1000),
-    entryCount: count, readOutCount: count
+    entryCount: count, readOutCount: count,
+    // Gafflad bana: varianterna med kontrollföljd och löpare. Tom lista = inte gafflad.
+    variants: z.array(z.object({ code: courseVariantCodeSchema, controlCodes, entryCount: count, readOutCount: count }).strict()).max(100),
+    // Gafflingskontroll: sträckor som inte finns lika många gånger i alla varianter.
+    unevenLegs: z.array(z.object({ from: legPoint, to: legPoint, variantCodes: z.array(courseVariantCodeSchema).max(1000) }).strict()).max(1000)
   }).strict()).max(1000),
   // ADR-0169 beslut 4: klasserna som tabell (bana, startsätt, anmälda, avlästa/resultat, status).
   classes: z.array(z.object({
     classId: uuid, name, courseId: uuid, startRule: z.enum(["PUNCH", "FIXED"]), entryCount: count, readOutCount: count,
-    resultCount: count, missingStartTimeCount: count, renamable: z.boolean()
+    resultCount: count, missingStartTimeCount: count, renamable: z.boolean(),
+    // Gafflad klass: antal varianter och löpare utan variant ("Fördela gafflingar").
+    variantCount: count, missingVariantCount: count
   }).strict()).max(1000)
 }).strict();
 
 export const courseEditPreviewRequestSchema = z.object({
-  formatVersion: z.literal(1), expectedSnapshotVersion: version, controlCodes
+  formatVersion: z.literal(1), expectedSnapshotVersion: version, controlCodes, variantCode: courseVariantCodeSchema.optional()
 }).strict();
 
 export const courseEditChangeSchema = z.object({
@@ -34,7 +43,7 @@ export const courseEditChangeSchema = z.object({
 
 export const courseEditPreviewResponseSchema = z.object({
   formatVersion: z.literal(1), raceId: uuid, courseId: uuid, courseName: name, snapshotVersion: version,
-  currentControlCodes: z.array(controlCode).max(1000), controlCodes,
+  variantCode: courseVariantCodeSchema.optional(), currentControlCodes: z.array(controlCode).max(1000), controlCodes,
   readOutCount: count, becomesOkCount: count, becomesMispunchedCount: count, unchangedCount: count,
   notRecalculatedCount: count, changes: z.array(courseEditChangeSchema).max(10_000), requiresConfirmation: z.boolean()
 }).strict().superRefine((value, context) => {
@@ -47,7 +56,7 @@ export const courseEditPreviewResponseSchema = z.object({
 
 export const courseEditRequestSchema = z.object({
   formatVersion: z.literal(1), requestId: uuid, expectedSnapshotVersion: version, courseId: uuid, controlCodes,
-  confirmResultChanges: z.boolean()
+  variantCode: courseVariantCodeSchema.optional(), confirmResultChanges: z.boolean()
 }).strict();
 
 export const courseEditIdempotencyKeySchema = z.string().regex(

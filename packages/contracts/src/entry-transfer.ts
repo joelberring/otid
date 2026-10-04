@@ -3,6 +3,7 @@ import { fixedStartTimeSchema } from "./entry-start-time-admin";
 import { classMaxEntriesSchema } from "./class-capacity";
 import { entryPaymentStatusSchema } from "./entry-payment-status-admin";
 import { speakerBoardEffectiveResultSchema } from "./speaker-board";
+import { courseVariantCodeSchema } from "./course-edit";
 
 const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 const version = z.number().int().positive().max(2_147_483_647);
@@ -47,7 +48,9 @@ export const entryTransferCandidatesSchema = z.object({
     courseName: z.string().trim().min(1).max(160), courseVersion: version, startRule,
     maxEntries: classMaxEntriesSchema, capacityVersion: version, entryCount: z.number().int().min(0).max(10_000),
     /** Klassen har en gällande lottning: efteranmälda får en tid av appen (PLAN.md steg 9). */
-    startDrawn: z.boolean()
+    startDrawn: z.boolean(),
+    /** Gafflad klass: banans varianter i visningsordning (ADR-0169 beslut 2). Tom = inte gafflad. */
+    courseVariants: z.array(courseVariantCodeSchema).max(100)
   }).strict()).max(1000),
   entries: z.array(z.object({ id: uuid, displayName: z.string().min(1).max(321),
     organisationName: z.string().min(1).max(240).nullable(), classId: uuid, version,
@@ -56,6 +59,8 @@ export const entryTransferCandidatesSchema = z.object({
     effectiveResult: entryTransferEffectiveResultSchema,
     resultRevisionMarker: entryTransferResultRevisionMarkerSchema.nullable(),
     fixedStartTime: fixedStartTimeSchema.nullable(),
+    /** Löparens variant; null = ingen tilldelad variant. */
+    courseVariantCode: courseVariantCodeSchema.nullable(),
     activeAssignment: z.object({ id: uuid, cardNumber: z.string().min(1).max(32), isRental: z.boolean(),
       rentalReturned: z.boolean() }).strict().nullable(),
     multipleActiveAssignments: z.boolean()

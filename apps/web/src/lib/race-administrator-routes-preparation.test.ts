@@ -89,9 +89,9 @@ describe("administratörsroutes: förberedelse", () => {
   });
   it("Redigera bana: banlista, besked och sparande binds till administratören, banan och begäran", async () => {
     const list = { formatVersion: 1 as const, raceId: id, snapshotVersion: 2, courses: [{ courseId: other, courseVersionId: id, name: "Lång",
-      controlCodes: [31, 32, 33], classes: [{ classId: id, name: "H21" }], entryCount: 3, readOutCount: 2 }],
+      controlCodes: [31, 32, 33], classes: [{ classId: id, name: "H21" }], entryCount: 3, readOutCount: 2, variants: [], unevenLegs: [] }],
       classes: [{ classId: id, name: "H21", courseId: other, startRule: "PUNCH" as const, entryCount: 3, readOutCount: 2,
-        resultCount: 2, missingStartTimeCount: 0, renamable: true }] };
+        resultCount: 2, missingStartTimeCount: 0, renamable: true, variantCount: 0, missingVariantCount: 0 }] };
     const preview = { formatVersion: 1 as const, raceId: id, courseId: other, courseName: "Lång", snapshotVersion: 2,
       currentControlCodes: [31, 32, 33], controlCodes: [31, 33], readOutCount: 2, becomesOkCount: 1, becomesMispunchedCount: 0,
       unchangedCount: 1, notRecalculatedCount: 0, requiresConfirmation: true,

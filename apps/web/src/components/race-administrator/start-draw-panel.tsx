@@ -6,6 +6,11 @@ import styles from "../race-administrator-workspace.module.css";
 import { startDrawSv as text } from "../../i18n/start-draw-sv";
 import { formatClockTime } from "../../lib/clock-time";
 import type { Workspace } from "./workspace-state";
+import { courseVariantsSv as variantText } from "../../i18n/course-variants-sv";
+
+/** Gafflad klass (ADR-0169 beslut 2): lottningen visar löparnas varianter. */
+const forked = (raceClass: { slots: readonly { entry: { variantCode: string | null } | null }[] }) =>
+  raceClass.slots.some(slot => slot.entry?.variantCode);
 
 /**
  * Lottning under Start (PLAN.md steg 9): startsätt, intervall, vakanser och "Lotta" per klass,
@@ -96,11 +101,13 @@ function DrawPreview({ ws, preview }: { ws: Workspace; preview: StartDrawPreview
         : text.minuteStart(time(raceClass.firstStartTime!), raceClass.intervalMinutes, raceClass.vacancyCount)}</p>
       {raceClass.method !== "FREE" && (raceClass.slots.length === 0 ? <p>{text.empty}</p>
         : <div className={styles.tableScroll}><table className={styles.drawPreviewTable}>
-          <thead><tr><th scope="col">{text.time}</th><th scope="col">{text.name}</th><th scope="col">{text.club}</th><th scope="col">{text.card}</th></tr></thead>
+          <thead><tr><th scope="col">{text.time}</th><th scope="col">{text.name}</th><th scope="col">{text.club}</th><th scope="col">{text.card}</th>
+            {forked(raceClass) && <th scope="col">{variantText.variantColumn}</th>}</tr></thead>
           <tbody>{raceClass.slots.map((slot, index) => <tr key={`${slot.startTime}-${index}`} data-vacant={slot.entry ? undefined : "true"}>
             <td><time dateTime={slot.startTime}>{time(slot.startTime)}</time></td>
-            {slot.entry ? <><td>{slot.entry.name}</td><td>{slot.entry.club ?? text.none}</td><td>{slot.entry.card ?? text.none}</td></>
-              : <td colSpan={3}><strong>{text.vacant}</strong></td>}
+            {slot.entry ? <><td>{slot.entry.name}</td><td>{slot.entry.club ?? text.none}</td><td>{slot.entry.card ?? text.none}</td>
+              {forked(raceClass) && <td>{slot.entry.variantCode ?? text.none}</td>}</>
+              : <td colSpan={forked(raceClass) ? 4 : 3}><strong>{text.vacant}</strong></td>}
           </tr>)}</tbody>
         </table></div>)}
     </section>)}

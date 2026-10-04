@@ -10,6 +10,7 @@ import { handleRaceDayRoute } from "./race-administrator-routes-race-day";
 import { handlePreparationRoute } from "./race-administrator-routes-preparation";
 import { handleResultRoute } from "./race-administrator-routes-results";
 import { handleEntryRoute } from "./race-administrator-routes-entries";
+import { handleVariantRoute } from "./race-administrator-routes-variants";
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 type Environment = Partial<Pick<NodeJS.ProcessEnv, "NODE_ENV" | "O_TID_PUBLIC_ORIGIN">>;
@@ -66,7 +67,7 @@ export async function raceAdministratorRoute(db: Database, request: Request, rac
       formatVersion: 1, raceId, capability: "MANAGE_RACE", expiresAt: auth.principal.expiresAt }));
     const context: RaceAdministratorRouteContext = { db, request, raceId, action, dependencies, proof, cursor, beforeVersion };
     return await handleRaceDayRoute(context) ?? await handlePreparationRoute(context) ?? await handleResultRoute(context) ??
-      await handleEntryRoute(context) ?? failure(500, "INTERNAL_ERROR");
+      await handleEntryRoute(context) ?? await handleVariantRoute(context) ?? failure(500, "INTERNAL_ERROR");
   } catch { return failure(500, "INTERNAL_ERROR"); }
 }
 
@@ -80,6 +81,7 @@ function allowedMethods(action: Action): string[] {
     action.kind === "out-of-competition" || action.kind === "out-of-competition-withdrawal" ||
     action.kind === "without-timing" || action.kind === "without-timing-withdrawal" || action.kind === "manual-course-class" || action.kind === "manual-class" ||
     action.kind === "course-edit-preview" || action.kind === "course-edit" ||
-    action.kind === "class-edit-preview" || action.kind === "class-edit" ? ["POST"] :
+    action.kind === "class-edit-preview" || action.kind === "class-edit" ||
+    action.kind === "entry-variant-preview" || action.kind === "entry-variant" || action.kind === "class-variant-distribution" ? ["POST"] :
     "entryId" in action || action.kind === "capacity" ? ["PATCH"] : ["GET"];
 }

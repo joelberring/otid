@@ -1,53 +1,73 @@
-:root {
-  --bg: #ffffff; --fg: #111111; --muted: #555555; --line: #cccccc;
-  --good: #0b6b2e; --bad: #a40e0e; --warn: #8a5a00; --idle: #555555;
-  color-scheme: light dark;
-}
-@media (prefers-color-scheme: dark) {
-  :root { --bg: #111111; --fg: #f2f2f2; --muted: #bbbbbb; --line: #444444;
-    --good: #5fd38a; --bad: #ff7a7a; --warn: #f2c14e; --idle: #bbbbbb; }
-}
+/*
+ * Avläsningen (ADR-0170): byggd för stress, regn och handskar. Lugn bas i gråskala; beskedet är stort och
+ * får starka statusfärger eftersom färgen där betyder något – alltid tillsammans med symbol och ord.
+ */
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--fg); font: 18px/1.4 system-ui, sans-serif; }
-.readout { max-width: 960px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; }
-h1 { font-size: 1.4rem; margin: 0; }
-h2 { font-size: 1.1rem; margin: 0 0 8px; }
-.race { margin: 4px 0 0; color: var(--muted); }
-.status { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; margin: 12px 0 0; }
-.status div { border: 2px solid var(--line); border-radius: 8px; padding: 8px 12px; }
-.status dt { font-size: 0.85rem; color: var(--muted); }
-.status dd { margin: 0; font-weight: 700; }
-.status [data-state="good"] dd { color: var(--good); }
-.status [data-state="bad"] { border-color: var(--bad); }
-.status [data-state="bad"] dd { color: var(--bad); }
-.status [data-state="warn"] { border-color: var(--warn); }
-.status [data-state="warn"] dd { color: var(--warn); }
-.notice { border: 2px solid var(--warn); border-radius: 8px; padding: 12px; margin: 0; }
-.verdict { border: 4px solid var(--line); border-radius: 12px; padding: 24px; min-height: 200px; }
-.verdict[data-status="OK"] { border-color: var(--good); }
-.verdict[data-status="MP"], .verdict[data-status="UNKNOWN_CARD"], .verdict[data-status="failed"] { border-color: var(--bad); }
-.verdict p { margin: 4px 0; }
-.verdict .big { font-size: clamp(2rem, 8vw, 4rem); font-weight: 800; line-height: 1.1; }
-.verdict .card { font-size: 1.4rem; font-weight: 600; }
-.verdict .variant { font-size: 1.4rem; font-weight: 600; margin: 0; }
-.verdict .relay { font-size: 1.3rem; font-weight: 700; margin: 0; }
-.verdict .time { font-size: 2.5rem; font-weight: 800; font-variant-numeric: tabular-nums; }
-.verdict .splits { display: flex; flex-wrap: wrap; gap: 4px 16px; list-style: none; padding: 0; margin: 8px 0; font-variant-numeric: tabular-nums; }
+body { margin: 0; background: var(--canvas); color: var(--ink); font-family: var(--font-ui); font-size: 18px; line-height: 1.4; }
+.readout { display: grid; gap: 18px; max-width: 1040px; margin: 0 auto; padding: 16px 16px 32px; }
+h1 { margin: 0; font-size: var(--text-lg); font-weight: 600; }
+h2 { margin: 0 0 8px; font-size: var(--text-md); font-weight: 600; }
+p { margin: 0; }
+.race { margin-top: 2px; color: var(--muted); font-size: var(--text-sm); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Statusraden: station, internet, kö och paket. Ord och symbol, kant i färg bara när något är fel. */
+.status { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; margin: 12px 0 0; border: 1px solid var(--line);
+  border-radius: var(--radius); background: var(--surface); }
+.status div { min-width: 0; padding: 8px 12px; border-left: 1px solid var(--line); }
+.status div:first-child { border-left: 0; }
+.status dt { color: var(--muted); font-size: var(--text-xs); }
+.status dd { margin: 0; overflow-wrap: anywhere; font-family: var(--font-dense); font-size: var(--text-md); font-weight: 600; font-variant-numeric: tabular-nums; }
+.status [data-state="good"] dd { color: var(--ok); }
+.status [data-state="bad"] { box-shadow: inset 0 -3px 0 var(--mp); }
+.status [data-state="bad"] dd { color: var(--mp); }
+.status [data-state="warn"] { box-shadow: inset 0 -3px 0 var(--attention); }
+.status [data-state="warn"] dd { color: var(--attention); }
+.notice { padding: 12px 14px; border-left: 4px solid var(--attention); background: var(--attention-tint); }
+
+/* Beskedet */
+.verdict { display: grid; gap: 6px; min-height: 220px; padding: 22px 24px; border: 1px solid var(--line); border-left-width: 10px;
+  border-radius: var(--radius); background: var(--surface); }
+.verdict[data-status="OK"] { border-color: var(--ok); }
+.verdict[data-status="MP"], .verdict[data-status="UNKNOWN_CARD"], .verdict[data-status="failed"] { border-color: var(--mp); }
+.verdict .big { font-family: var(--font-dense); font-size: clamp(2.4rem, 8vw, 4.4rem); font-weight: 700; line-height: 1.05; }
+.verdict[data-status="OK"] .big { color: var(--ok); }
+.verdict[data-status="MP"] .big, .verdict[data-status="UNKNOWN_CARD"] .big, .verdict[data-status="failed"] .big { color: var(--mp); }
+.verdict .card { font-size: 1.45rem; font-weight: 600; }
+.verdict .variant, .verdict .relay { font-size: 1.3rem; font-weight: 600; }
+.verdict .time { font-family: var(--font-dense); font-size: 3rem; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.verdict .splits { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 6px 0; padding: 0; list-style: none; font-family: var(--font-dense);
+  font-size: var(--text-md); font-variant-numeric: tabular-nums; }
 .verdict .splits span:first-child { font-weight: 700; }
-.verdict .sync { color: var(--muted); }
+.verdict .splits span:last-child { color: var(--muted); }
+.verdict .sync { color: var(--muted); font-size: var(--text-sm); }
+
+/* Knappar: stora, få. */
 .controls, .row { display: flex; flex-wrap: wrap; gap: 12px; }
-button, select { font: inherit; min-height: 56px; padding: 8px 20px; border-radius: 8px; border: 2px solid var(--fg);
-  background: var(--bg); color: var(--fg); }
-button.primary { background: var(--fg); color: var(--bg); }
-button:disabled { opacity: 0.5; }
-label { display: grid; gap: 4px; margin-bottom: 12px; }
-.exercise { border: 2px dashed var(--line); border-radius: 8px; padding: 16px; }
-.recent ol { list-style: none; margin: 0; padding: 0; }
-.recent li { display: grid; grid-template-columns: 7rem 1fr 9rem 9rem; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
-.recent .card { font-variant-numeric: tabular-nums; font-weight: 600; }
-.rawlog p { color: var(--muted); font-size: 0.9rem; }
-.links { display: flex; gap: 24px; }
-a { color: inherit; }
-@media (max-width: 600px) {
+button, select { min-height: 56px; padding: 8px 22px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface);
+  color: var(--ink); font: inherit; font-weight: 600; cursor: pointer; }
+button:hover:not(:disabled) { border-color: var(--ink); }
+button.primary { border-color: var(--ink); background: var(--ink); color: var(--surface); }
+button:disabled { opacity: .5; cursor: default; }
+select { width: 100%; font-weight: 500; }
+label { display: grid; gap: 4px; margin-bottom: 12px; font-size: var(--text-sm); font-weight: 500; }
+.exercise { padding: 16px; border: 1px dashed var(--line-strong); border-radius: var(--radius); background: var(--surface); }
+.exercise p { margin-bottom: 10px; color: var(--muted); font-size: var(--text-sm); }
+
+/* Senaste avläsningar */
+.recent ol { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.recent li { display: grid; grid-template-columns: 7rem minmax(0, 1fr) 9rem 9rem; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.recent .card { font-family: var(--font-dense); font-weight: 600; font-variant-numeric: tabular-nums; }
+.recent .queue { color: var(--muted); }
+.rawlog { display: grid; gap: 6px; justify-items: start; }
+.rawlog button { min-height: 44px; padding: 6px 16px; font-size: var(--text-sm); }
+.rawlog p { color: var(--muted); font-size: var(--text-xs); }
+.links { display: flex; gap: 24px; padding-top: 8px; border-top: 1px solid var(--line); font-size: var(--text-sm); }
+a { color: var(--ink); font-weight: 500; }
+@media (max-width: 700px) {
+  .status { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .status div:nth-child(3) { border-left: 0; }
+  .status div:nth-child(n + 3) { border-top: 1px solid var(--line); }
   .recent li { grid-template-columns: 1fr 1fr; }
+  .verdict { padding: 16px; }
 }

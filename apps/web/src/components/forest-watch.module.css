@@ -23,7 +23,7 @@
   .group[data-forest-visible="0"] { grid-template-columns: minmax(0, 1fr); }
   .report table, .report tbody, .report tr, .report td { display: block; width: 100%; }
   .report thead { display: none; }
-  .report tr { border: 2px solid var(--border); margin-bottom: .75rem; padding: .4rem; }
+  .report tr { border: 2px solid var(--line); margin-bottom: .75rem; padding: .4rem; }
   .report td { border: 0; }
 }
 @media print {

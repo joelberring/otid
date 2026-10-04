@@ -1,5 +1,5 @@
 import { useOperationState, useOperations, type Operations } from "./operations";
-import { createMobileNavigation, createWorkflowNavigation, useNavigationState } from "./navigation";
+import { createMobileNavigation, createWorkflowNavigation, deriveSections, useNavigationState } from "./navigation";
 import { createRaceDataActions, useRaceDataState } from "./race-data";
 import { createParticipantActions, deriveRoster, useRosterState } from "./participant-roster";
 import { createEntryActions, deriveEntryActions, useEntryActionState } from "./entry-actions";
@@ -15,6 +15,7 @@ import { createStartListActions, useStartListState } from "./start-list-preparat
 import { createStartDrawActions, useStartDrawState } from "./start-draw";
 import { createDuringRaceActions, deriveDuringRace, useDuringRaceState } from "./during-race";
 import { createAfterRaceActions, deriveAfterRace, useAfterRaceState } from "./after-race";
+import { createSettingsActions, useSettingsState } from "./settings-actions";
 
 /** Allt tillstånd i arbetsytan, samlat per område. */
 export function useWorkspaceState(raceId: string) {
@@ -22,7 +23,7 @@ export function useWorkspaceState(raceId: string) {
     ...useEntryActionState(), ...useResultDecisionState(), ...useCoursePreparationState(), ...useCourseEditState(), ...useClassEditState(),
     ...useCourseVariantState(), ...useRelayState(),
     ...useClassPreparationState(), ...useStatusChangeState(),
-    ...useStartListState(), ...useStartDrawState(), ...useDuringRaceState(), ...useAfterRaceState() };
+    ...useStartListState(), ...useStartDrawState(), ...useDuringRaceState(), ...useAfterRaceState(), ...useSettingsState() };
 }
 export type WorkspaceState = ReturnType<typeof useWorkspaceState>;
 
@@ -30,10 +31,10 @@ export type WorkspaceState = ReturnType<typeof useWorkspaceState>;
 export function deriveWorkspace(s: WorkspaceState) {
   const roster = deriveRoster(s);
   const during = deriveDuringRace(s);
-  const editing = s.participantActionPending || during.correctionPending || s.operatorAccessPending ||
+  const editing = during.correctionPending || s.operatorAccessPending ||
     !!s.reviewAttempt || !!s.startCorrection || !!s.returnAttempt || !!s.publicationAttempt ||
     !!s.drawAttempt || !!s.finalizationAttempt || !!s.transferAttempt || !!s.capacityAttempt || !!s.cardAttempt ||
-    !!s.rentalAttempt || !!s.rentalReturnAttempt || !!s.rentalReuseAttempt || !!s.paymentStatusAttempt || !!s.timeAttempt ||
+    !!s.rentalAttempt || !!s.rentalReturnAttempt || !!s.rentalReuseAttempt || !!s.timeAttempt ||
     !!s.recalculationAttempt || !!s.identityAttempt || !!s.registrationAttempt || !!s.dnsAttempt || !!s.dnfAttempt ||
     !!s.ntAttempt || !!s.oocAttempt || !!s.dsqAttempt || !!s.approvalAttempt || !!s.courseEditAttempt ||
     !!s.unknownReadoutAttempt || !!s.manualClassAttempt || !!s.classEditAttempt || !!s.entryVariantPreview;
@@ -45,7 +46,7 @@ export function deriveWorkspace(s: WorkspaceState) {
     !!s.editingCourseId || !!s.courseEditAttempt || !!s.editingClassId || !!s.classEditAttempt || !!s.shortenedCourseCandidate ||
     !!s.shortenedCourseAttempt || !!s.classRecalculationAttempt;
   const workflowLocked = s.busy || navigationLocked;
-  return { ...roster, ...deriveEntryActions(s, roster), ...deriveClassPreparation(s),
+  return { ...deriveSections(s), ...roster, ...deriveEntryActions(s, roster), ...deriveClassPreparation(s),
     ...during, ...deriveAfterRace(s), disabled, navigationLocked, workflowLocked };
 }
 export type Derived = ReturnType<typeof deriveWorkspace>;
@@ -70,7 +71,8 @@ export function useWorkspace(raceId: string) {
     ...createStartDrawActions(withData),
     ...createCoursePreparationActions(withData), ...createClassEditActions(withCourses), ...createClassPreparationActions(withData),
     ...createCourseVariantActions(withCourses),
-    ...createStatusChangeActions(withDecisions), ...createEntryActions(withData), ...createAfterRaceActions(withData) };
+    ...createStatusChangeActions(withDecisions), ...createEntryActions(withData), ...createAfterRaceActions(withData),
+    ...createSettingsActions(withData) };
   const withParticipants = { ...withAreas, ...createParticipantActions(withAreas) };
   return { ...withParticipants, ...createWorkflowNavigation(withParticipants) };
 }

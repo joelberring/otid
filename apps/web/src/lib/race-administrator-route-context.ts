@@ -13,7 +13,7 @@ import { loadStartDrawSetupAsAdministrator, previewStartDrawAsAdministrator, com
   withdrawManualFinishTimeCorrectionAsAdministrator, listUnknownReadoutResolutionCandidatesAsAdministrator,
   resolveUnknownReadoutAsAdministrator, changeEntryCardAsAdmin, changeEntryCardRentalAsAdministrator,
   changeEntryCardRentalReturnAsAdministrator, reuseReturnedRentalCardAsAdministrator,
-  changeEntryPaymentStatusAsAdministrator, changeEntryStartTimeAsAdmin, listResultRecalculationCandidatesAsAdmin,
+  changeEntryStartTimeAsAdmin, listResultRecalculationCandidatesAsAdmin,
   recalculateEntryAsAdmin, getAdministratorEffectiveResult, listSpeakerBoardAsAdministrator,
   listClassResultRecalculationCandidatesAsAdministrator, recalculateClassResultsAsAdministrator,
   listEntryIdentitiesAsAdmin, changeEntryIdentityAsAdmin, registerEntryAsAdmin,
@@ -70,7 +70,7 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   card: changeEntryCardAsAdmin, cardRental: changeEntryCardRentalAsAdministrator,
   cardRentalReturn: changeEntryCardRentalReturnAsAdministrator,
   cardRentalReuse: reuseReturnedRentalCardAsAdministrator,
-  paymentStatus: changeEntryPaymentStatusAsAdministrator, startTime: changeEntryStartTimeAsAdmin,
+  startTime: changeEntryStartTimeAsAdmin,
   recalculationCandidates: listResultRecalculationCandidatesAsAdmin, recalculate: recalculateEntryAsAdmin,
   classResultRecalculationCandidates: listClassResultRecalculationCandidatesAsAdministrator,
   classResultRecalculate: recalculateClassResultsAsAdministrator,
@@ -111,7 +111,6 @@ export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: str
   { kind: "unknown-readout-resolution" } |
   { kind: "card"; entryId: string } | { kind: "card-rental"; entryId: string } |
   { kind: "card-rental-return"; entryId: string } | { kind: "card-rental-reuse"; entryId: string } |
-  { kind: "payment-status"; entryId: string } |
   { kind: "start-time"; entryId: string } |
   { kind: "recalculation-candidates" } | { kind: "recalculate"; entryId: string } |
   { kind: "class-result-recalculation"; classId: string } | { kind: "effective-result"; entryId: string } | { kind: "speaker-board" } |

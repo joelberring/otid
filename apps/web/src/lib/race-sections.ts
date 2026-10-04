@@ -26,7 +26,8 @@ export type RaceTypeFeatures = {
   /** Stafettklasser, lag och sträckor. */ relay: boolean;
   /** Banvarianter (gafflingar). */ variants: boolean;
   /** Banor visar varianterna och gafflingskontrollen utfällda. */ variantsProminent: boolean;
-  /** Arrangören väljer startsätt per klass (annars alltid fri start). */ startRuleChoice: boolean;
+  /** Arrangören väljer startsätt per klass. Annars alltid fri start; nya klasser får fri start och lottningen sätter minutstart. */
+  startRuleChoice: boolean;
 };
 
 export type RaceTypeProfile = {
@@ -35,8 +36,6 @@ export type RaceTypeProfile = {
   course: readonly Section[];
   settings: Section;
   features: RaceTypeFeatures;
-  /** Förvalt startsätt för nya klasser. */
-  defaultStartRule: "PUNCH" | "FIXED";
 };
 
 const section = (id: SectionId, label: SectionLabel, panels: readonly Panel[] = [id as Panel]): Section => ({ id, label, panels });
@@ -55,28 +54,28 @@ const competition: RaceTypeFeatures = { ...none, draw: true, speaker: true, impo
 const profiles: Record<RaceType, Omit<RaceTypeProfile, "type" | "settings">> = {
   TRAINING: {
     course: [section("COURSES", "COURSES_CLASSES", ["COURSES", "CLASSES"]), section("ENTRIES", "PARTICIPANTS"), readout, results],
-    features: none, defaultStartRule: "PUNCH"
+    features: none
   },
   SMALL: {
     course: [courses, classes, entries, start, readout, results],
-    features: { ...none, startRuleChoice: true }, defaultStartRule: "PUNCH"
+    features: { ...none, startRuleChoice: true }
   },
   STANDARD: {
     course: [courses, classes, entries, start, readout, results],
-    features: competition, defaultStartRule: "FIXED"
+    features: competition
   },
   FORKED: {
     course: [courses, classes, entries, start, readout, results],
-    features: { ...competition, variants: true, variantsProminent: true }, defaultStartRule: "FIXED"
+    features: { ...competition, variants: true, variantsProminent: true }
   },
   RELAY: {
     course: [courses, section("CLASSES", "CLASSES_LEGS"), section("ENTRIES", "TEAMS"), start, readout, results],
-    features: { ...none, speaker: true, finalization: true, relay: true, variants: true, startRuleChoice: true }, defaultStartRule: "FIXED"
+    features: { ...none, speaker: true, finalization: true, relay: true, variants: true, startRuleChoice: true }
   },
   ROGAINING: {
     course: [section("COURSES", "CONTROLS_POINTS", ["ROGAINING_NOTE", "COURSES", "CLASSES"]), section("ENTRIES", "PARTICIPANTS"),
       readout, results],
-    features: none, defaultStartRule: "PUNCH"
+    features: none
   }
 };
 

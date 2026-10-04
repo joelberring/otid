@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EntryTransferCandidates } from "@o-tid/contracts";
-import { filterAdministratorRoster, missingFixedStartTime, needsPaymentAttention,
-  orderAdministratorRoster } from "./administrator-roster-filter";
+import { filterAdministratorRoster, missingFixedStartTime, orderAdministratorRoster } from "./administrator-roster-filter";
 
 type Entry = EntryTransferCandidates["entries"][number];
 const classId = "20000000-0000-4000-8000-000000000001";
@@ -21,8 +20,7 @@ function entry(id: number, paymentStatus: Entry["paymentStatus"], overrides: Par
   };
 }
 
-const allFiltersOff = { query: "", olderResultsOnly: false, rentalCardsOnly: false,
-  paymentAttentionOnly: false, resultState: "ALL" as const };
+const allFiltersOff = { query: "", olderResultsOnly: false, rentalCardsOnly: false, resultState: "ALL" as const };
 
 describe("TASK208 gällande resultatläge i hela deltagarunderlaget", () => {
   it("skiljer varje publicerad status från inget aktivt och inget publicerat, och kombinerar äldre-filter", () => {
@@ -55,30 +53,16 @@ describe("TASK208 gällande resultatläge i hela deltagarunderlaget", () => {
   });
 });
 
-describe("TASK167 private roster payment-attention filter", () => {
-  it("treats only unmarked and unpaid as needing review, never an unknown status", () => {
-    expect(["UNMARKED", "UNPAID", "PAID", "WAIVED", "UNKNOWN"].map(needsPaymentAttention))
-      .toEqual([true, true, false, false, false]);
-  });
-
-  it("combines payment review with existing name/class, older-result and rental filters", () => {
+describe("TASK167 kombinerade filter", () => {
+  it("kombinerar namn/klass, äldre resultat och hyrbrickor", () => {
     const rows = [
       entry(1, "UNMARKED", { displayName: "Åsa Löpare", resultFreshness: "OLDER_SNAPSHOT",
         activeAssignment: { id: "40000000-0000-4000-8000-000000000001", cardNumber: "12345", isRental: true, rentalReturned: false } }),
       entry(2, "UNPAID", { displayName: "Bertil Löpare" }),
-      entry(3, "PAID", { displayName: "Åsa Betald" }),
-      entry(4, "WAIVED", { displayName: "Cecilia Fri" }),
+      entry(3, "PAID", { displayName: "Åsa Betald" })
     ];
-    expect(filterAdministratorRoster(rows, classes, { ...allFiltersOff, paymentAttentionOnly: true }).map(row => row.id))
-      .toEqual([rows[0]?.id, rows[1]?.id]);
-    expect(filterAdministratorRoster(rows, classes, { ...allFiltersOff, query: "åsa öppen 5", paymentAttentionOnly: true,
-      olderResultsOnly: true, rentalCardsOnly: true }).map(row => row.id)).toEqual([rows[0]?.id]);
-    expect(filterAdministratorRoster(rows, classes, allFiltersOff)).toEqual(rows);
-  });
-
-  it("returns an empty review list when all entries are paid or waived", () => {
-    const rows = [entry(1, "PAID"), entry(2, "WAIVED")];
-    expect(filterAdministratorRoster(rows, classes, { ...allFiltersOff, paymentAttentionOnly: true })).toEqual([]);
+    expect(filterAdministratorRoster(rows, classes, { ...allFiltersOff, query: "åsa öppen 5", olderResultsOnly: true,
+      rentalCardsOnly: true }).map(row => row.id)).toEqual([rows[0]?.id]);
     expect(filterAdministratorRoster(rows, classes, allFiltersOff)).toEqual(rows);
   });
 });

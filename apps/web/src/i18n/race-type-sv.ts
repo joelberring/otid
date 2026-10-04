@@ -25,6 +25,8 @@ export const raceTypeSv = {
   newTab: "öppnas i ny flik",
   attention: "Behöver åtgärd",
   liveState: "Läget just nu",
+  live: { readOut: "avlästa", inForest: "kvar i skogen", unknown: (count: number) => count === 1 ? "okänd bricka" : "okända brickor" },
+  shortcuts: "Genvägar",
   rogainingNote: "Rogaining-klasser kommer i nästa version. Tills dess kan du lägga upp kontrollerna som en bana och läsa av som vanligt.",
   settings: {
     title: "Inställningar",

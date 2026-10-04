@@ -62,12 +62,13 @@ describe("publik resultatlista", () => {
     expect(html).toContain("Sök namn eller klass");
     expect(html).toContain("Välj klass");
     expect(html).toContain("Visar 1 av 1 resultat");
-    expect(html).toContain("1:01.250");
+    expect(html).toContain("1:01");
+    expect(html).not.toContain("1:01.250");
     expect(html).toContain("+0:00");
     expect(html).toContain("Visa sträcktider");
     expect(html).toContain("Kontroll</strong> 31");
-    expect(html).toContain("Sträcka</strong> 0:30.125");
-    expect(html).toContain("Totalt</strong> 0:30.125");
+    expect(html).toContain("Sträcka</strong> 0:30");
+    expect(html).toContain("Totalt</strong> 0:30");
     expect(html).toContain("Kontroll</strong> 31 (2)");
     expect(html).not.toContain(raceId);
     expect(html).not.toContain("entryId");
@@ -197,7 +198,7 @@ describe("publik resultatlista", () => {
     expect(list).toContain("Välj rutt för jämförelse");
     expect(list).toContain("0 av 3 rutter valda för jämförelse");
     expect(list).toContain('aria-pressed="false"');
-    expect(detail).toContain("Ada Lovelace"); expect(detail).toContain("1:01.250");
+    expect(detail).toContain("Ada Lovelace"); expect(detail).toContain("1:01");
     expect(`${list}${detail}`).not.toMatch(/entryId|cardNumber|readoutId|evaluation/i);
     expect(source("../lib/public-result-favorites.ts")).toContain("otid:public-result-favorites:v1");
     expect(source("../app/globals.css")).toContain("body:has(:is(.public-results-table, .public-result-detail))");

@@ -3,16 +3,16 @@ import {
   entryCardChangeRequestSchema, entryCardChangeResponseSchema, entryCardRentalChangeRequestSchema,
   entryCardRentalChangeResponseSchema, entryCardRentalReturnChangeRequestSchema, entryCardRentalReturnChangeResponseSchema,
   entryCardRentalReuseRequestSchema, entryCardRentalReuseResponseSchema, entryIdentityAdminListResponseSchema,
-  entryIdentityChangeRequestSchema, entryPaymentStatusChangeRequestSchema, entryPaymentStatusChangeResponseSchema,
+  entryIdentityChangeRequestSchema,
   entryRegistrationCandidatesResponseSchema, entryRegistrationRequestSchema,
   entryStartTimeChangeRequestSchema, entryStartTimeChangeResponseSchema, entryTransferRequestSchema,
-  entryTransferResponseSchema, type EntryIdentityAdminListResponse, type EntryPaymentStatus
+  entryTransferResponseSchema, type EntryIdentityAdminListResponse
 } from "@o-tid/contracts";
 import { parseRaceClock } from "../../lib/clock-time";
 import { parseIdentityReceipt } from "../../lib/entry-identity-client";
 import { parseRegistrationReceipt } from "../../lib/entry-registration-client";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
-import type { CardAttempt, IdentityAttempt, PaymentStatusAttempt, RegistrationAttempt, RentalAttempt, RentalReturnAttempt,
+import type { CardAttempt, IdentityAttempt, RegistrationAttempt, RentalAttempt, RentalReturnAttempt,
   RentalReuseAttempt, TimeAttempt, TransferAttempt } from "./types";
 import type { Base, WorkspaceState } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
@@ -29,8 +29,6 @@ export function useEntryActionState() {
   const [rentalReturnAttempt, setRentalReturnAttempt] = useState<RentalReturnAttempt>();
   const [rentalReuseAttempt, setRentalReuseAttempt] = useState<RentalReuseAttempt>();
   const [rentalReuseSourceId, setRentalReuseSourceId] = useState("");
-  const [paymentStatusAttempt, setPaymentStatusAttempt] = useState<PaymentStatusAttempt>();
-  const [paymentStatus, setPaymentStatus] = useState<EntryPaymentStatus>("PAID");
   const [timeAttempt, setTimeAttempt] = useState<TimeAttempt>();
   const [identityCandidates, setIdentityCandidates] = useState<EntryIdentityAdminListResponse>();
   const [identityAttempt, setIdentityAttempt] = useState<IdentityAttempt>();
@@ -42,7 +40,7 @@ export function useEntryActionState() {
   return { classId, setClassId, startClock, setStartClock, transferAttempt,
     setTransferAttempt, newCard, setNewCard, cardAttempt, setCardAttempt, rentalAttempt, setRentalAttempt, rentalReturnAttempt,
     setRentalReturnAttempt, rentalReuseAttempt, setRentalReuseAttempt, rentalReuseSourceId, setRentalReuseSourceId,
-    paymentStatusAttempt, setPaymentStatusAttempt, paymentStatus, setPaymentStatus, timeAttempt, setTimeAttempt,
+    timeAttempt, setTimeAttempt,
     identityCandidates, setIdentityCandidates, identityAttempt, setIdentityAttempt, registrationAttempt, setRegistrationAttempt,
     confirmDistinctPerson, setConfirmDistinctPerson, givenName, setGivenName, familyName, setFamilyName, organisationName,
     setOrganisationName };
@@ -59,16 +57,16 @@ export function deriveEntryActions(s: WorkspaceState, { selected }: Pick<Roster,
 }
 
 /**
- * Ändringar som inte påverkar något resultat (namn, klubb, bricka, hyrbricka, betalning) sparas direkt när
+ * Ändringar som inte påverkar något resultat (namn, klubb, bricka, hyrbricka) sparas direkt när
  * formuläret skickas. Klassbyte, starttid och anmälan har kvar ett granskningssteg (ADR-0169 beslut 4).
  */
 export function createEntryActions(ws: Base & RaceDataActions) {
-  const { raceId, data, entryId, classId, startClock, newCard, rentalReuseSourceId, paymentStatus, givenName, familyName,
+  const { raceId, data, entryId, classId, startClock, newCard, rentalReuseSourceId, givenName, familyName,
     organisationName, confirmDistinctPerson, target, targetFull, identityCandidate, identityMatches, busyRef, pending, sent,
     requireSession, begin, finish, current, request, json, csrf, load, setGivenName, setFamilyName,
     setOrganisationName, setIdentityCandidates, setMessage, setUnknown, setTransferAttempt, setData, setEntryId, setClassId,
     setNewCard, setStartClock, setCardAttempt, setRentalAttempt, setRentalReturnAttempt,
-    setRentalReuseAttempt, setRentalReuseSourceId, setPaymentStatusAttempt, setTimeAttempt, setIdentityAttempt, setQuery,
+    setRentalReuseAttempt, setRentalReuseSourceId, setTimeAttempt, setIdentityAttempt, setQuery,
     setPage, setConfirmDistinctPerson, setRegistrationAttempt, setResultState, setAction } = ws;
   async function loadIdentity(selectedId = entryId) {
     if (busyRef.current || pending.current || !requireSession()) return;
@@ -315,50 +313,6 @@ export function createEntryActions(ws: Base & RaceDataActions) {
       if (current(op)) { setUnknown(!committed); setMessage(committed ? text.rentalReuseSavedLoadError : text.unreachable); }
     } finally { finish(op); }
   }
-  function preparePaymentStatus(event: FormEvent) {
-    event.preventDefault(); if (busyRef.current || pending.current || !requireSession()) return;
-    const entry = data?.entries.find((row) => row.id === entryId);
-    if (!entry) { setMessage(text.paymentStatusInvalid); return; }
-    const parsed = entryPaymentStatusChangeRequestSchema.safeParse({ formatVersion: 1,
-      expectedEntryVersion: entry.version, expectedClassId: entry.classId,
-      expectedPaymentStatus: entry.paymentStatus, expectedPaymentStatusVersion: entry.paymentStatusVersion,
-      paymentStatus });
-    if (!parsed.success) { setMessage(text.paymentStatusInvalid); return; }
-    const value: PaymentStatusAttempt = { kind: "PAYMENT_STATUS", id: crypto.randomUUID(), entryId: entry.id,
-      displayName: entry.displayName, request: parsed.data };
-    pending.current = value; sent.current = false; setPaymentStatusAttempt(value); setUnknown(false); setMessage("");
-    void submitPaymentStatus(value);
-  }
-  async function submitPaymentStatus(value: PaymentStatusAttempt) {
-    if (busyRef.current || pending.current !== value || !requireSession()) return;
-    const op = begin(); const wasUnknown = sent.current; let committed = false;
-    try {
-      const token = csrf(); sent.current = true;
-      const response = await request(`/entries/${value.entryId}/payment-status`, op, { method: "PATCH",
-        headers: { "content-type": "application/json", "x-otid-csrf": token,
-          "idempotency-key": `entry-payment-status-change:${value.id}` }, body: JSON.stringify(value.request) });
-      if ([400, 404, 409].includes(response.status)) {
-        if (wasUnknown) { setUnknown(true); setMessage(text.unreachable); return; }
-        pending.current = undefined; sent.current = false; setPaymentStatusAttempt(undefined); setUnknown(false);
-        setData(undefined); setEntryId(""); setMessage(text.paymentStatusConflict); return;
-      }
-      if (!response.ok) throw new Error("Unknown payment status outcome");
-      const receipt = entryPaymentStatusChangeResponseSchema.parse(await json(response, op));
-      if (receipt.requestId !== value.id || receipt.raceId !== raceId || receipt.entryId !== value.entryId ||
-        receipt.classId !== value.request.expectedClassId ||
-        receipt.entryVersionAtChange !== value.request.expectedEntryVersion ||
-        receipt.previousPaymentStatus !== value.request.expectedPaymentStatus ||
-        receipt.paymentStatus !== value.request.paymentStatus ||
-        receipt.paymentStatusVersionBefore !== value.request.expectedPaymentStatusVersion ||
-        receipt.paymentStatusVersionAfter !== value.request.expectedPaymentStatusVersion + 1) {
-        throw new Error("Payment status receipt mismatch");
-      }
-      committed = true; pending.current = undefined; sent.current = false; setPaymentStatusAttempt(undefined); setUnknown(false);
-      setData(undefined); setMessage(text.paymentStatusSaved); await load(op, value.entryId); setEntryId(value.entryId);
-    } catch {
-      if (current(op)) { setUnknown(!committed); setMessage(committed ? text.paymentStatusSavedLoadError : text.unreachable); }
-    } finally { finish(op); }
-  }
   function prepareTime(event: FormEvent) {
     event.preventDefault(); if (busyRef.current || pending.current || !requireSession()) return;
     const entry = data?.entries.find((row) => row.id === entryId);
@@ -493,7 +447,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
   }
   return { loadIdentity, prepareTransfer, submitTransfer, prepareCard,
     submitCard, prepareRental, submitRental, prepareRentalReturn, submitRentalReturn, prepareRentalReuse, submitRentalReuse,
-    preparePaymentStatus, submitPaymentStatus, prepareTime, submitTime, prepareIdentity, submitIdentity, prepareRegistration,
+    prepareTime, submitTime, prepareIdentity, submitIdentity, prepareRegistration,
     submitRegistration };
 }
 export type EntryActions = ReturnType<typeof createEntryActions>;

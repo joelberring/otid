@@ -1,13 +1,11 @@
 import type { PublicFrozenRaceResultsResponse } from "@o-tid/contracts";
 import React from "react";
 import { sv } from "../i18n/sv";
+import { formatDuration } from "../lib/clock-time";
 
 function duration(milliseconds: number | null) {
   if (milliseconds === null) return "–";
-  const wholeSeconds = Math.floor(milliseconds / 1_000);
-  const remainder = milliseconds % 1_000;
-  const base = `${Math.floor(wholeSeconds / 60)}:${String(wholeSeconds % 60).padStart(2, "0")}`;
-  return remainder === 0 ? base : `${base}.${String(remainder).padStart(3, "0")}`;
+  return formatDuration(milliseconds);
 }
 
 function resultClass(status: PublicFrozenRaceResultsResponse["results"][number]["status"]): string {

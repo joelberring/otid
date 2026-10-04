@@ -67,15 +67,15 @@ export function ManualFinishTimeCorrectionWithdrawal({ raceId, entries, timeZone
       setAttempt(undefined); setCandidate(undefined); setAcknowledged(false); setSaved(text.finishTimeCorrectionWithdrawalSaved);
     } catch { setError(text.unreachable); } finally { setBusy(false); }
   }
-  return <details className={styles.courseClassPanel} open={isOpen || pending} onToggle={(event) => {
+  return <details className={styles.disclosure} open={isOpen || pending} onToggle={(event) => {
     if (pending && !event.currentTarget.open) event.currentTarget.open = true;
     else if (!pending) setIsOpen(event.currentTarget.open);
-  }}><summary>{text.finishTimeCorrectionWithdrawalTitle}</summary><section className={styles.panel}>
+  }}><summary>{text.finishTimeCorrectionWithdrawalTitle}</summary><section className={styles.disclosureBody}>
     <p>{text.finishTimeCorrectionWithdrawalHelp}</p>
     <label>{text.finishTimeCorrectionParticipant}<select value={entryId} disabled={busy || !!attempt} onChange={(event) => { setEntryId(event.target.value); setCandidate(undefined); setAttempt(undefined); setError(""); setSaved(""); }}>
       <option value="">{text.chooseEntry}</option>{entries.map((entry) => <option key={entry.id} value={entry.id}>{entry.displayName}</option>)}</select></label>
     {!candidate && !attempt && <button type="button" disabled={!entryId || busy} onClick={() => void load()}>{text.finishTimeCorrectionWithdrawalLoad}</button>}
-    {candidate && !attempt && <><div className={styles.courseRelinkSummary}><p><strong>{candidate.entryName}</strong> · {candidate.className}</p>
+    {candidate && !attempt && <><div className={styles.summaryBox}><p><strong>{candidate.entryName}</strong> · {candidate.className}</p>
       <p><strong>{text.finishTimeCorrectionWithdrawalSource}:</strong> {formatClockTime(candidate.source.finishTime, timeZone)}</p>
       <p><strong>{text.finishTimeCorrectionWithdrawalCorrected}:</strong> {formatClockTime(candidate.corrected.finishTime, timeZone)}</p>
       <p><strong>{text.finishTimeCorrectionWithdrawalRestored}:</strong> {formatClockTime(candidate.source.finishTime, timeZone)}</p></div>

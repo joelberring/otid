@@ -4,9 +4,10 @@ import { useEffect } from "react";
 import type { RelayOverview } from "@o-tid/contracts";
 import styles from "../race-administrator-workspace.module.css";
 import relayStyles from "./relay.module.css";
-import controlStyles from "../race-workspace-checklist.module.css";
+import controlStyles from "./readout-control.module.css";
 import { relaySv as text } from "../../i18n/relay-sv";
 import { formatClockTime } from "../../lib/clock-time";
+import { Button, Notice, Section } from "../ui";
 import type { Workspace } from "./workspace-state";
 
 /** Läser in lagvyn när den visas och tävlingen har ändrats sedan senast. */
@@ -23,9 +24,9 @@ export function useRelayLoad(ws: Workspace, visible: boolean) {
 export function RelayMessages({ ws }: { ws: Workspace }) {
   const { busy, loadRelay, relayError, relayMessage } = ws;
   return <>
-    {relayMessage && <p role="status" className={styles.courseEditSaved}>{relayMessage}</p>}
-    {relayError && <div className={styles.warning} role="alert"><p>{relayError}</p>
-      <button type="button" className="secondary" disabled={busy} onClick={() => void loadRelay()}>{text.retry}</button></div>}
+    {relayMessage && <Notice role="status">{relayMessage}</Notice>}
+    {relayError && <Notice tone="error" role="alert"><p>{relayError}</p>
+      <div><Button variant="secondary" disabled={busy} onClick={() => void loadRelay()}>{text.retry}</Button></div></Notice>}
   </>;
 }
 
@@ -37,11 +38,11 @@ export function RelayClassForm({ ws, visible }: { ws: Workspace; visible: boolea
   const course = courseList?.courses.find(row => row.courseId === relayClassCourseId);
   const locked = workflowLocked || !!relayClassAttempt;
   const id = `relay-class-${raceId}`;
-  return <>{visible && <RelayMessages ws={ws} />}<details className={styles.manualClassPanel} open={relayClassAttempt ? true : undefined}>
+  return <>{visible && <RelayMessages ws={ws} />}<details className={styles.disclosure} open={relayClassAttempt ? true : undefined}>
     <summary>{text.newClass}</summary>
-    <form className={styles.manualClassBody} aria-label={text.newClass} onSubmit={event => { event.preventDefault(); void createRelayClass(); }}>
+    <form className={styles.disclosureBody} aria-label={text.newClass} onSubmit={event => { event.preventDefault(); void createRelayClass(); }}>
       <p className={styles.workflowHelp}>{text.newClassHelp}</p>
-      <div className={styles.manualClassFields}>
+      <div className={styles.fieldRow}>
         <label htmlFor={`${id}-name`}>{text.className}<input id={`${id}-name`} value={relayClassName} maxLength={160} required
           autoComplete="off" disabled={locked} onChange={event => setRelayClassName(event.target.value)} /></label>
         <label htmlFor={`${id}-course`}>{text.course}<select id={`${id}-course`} value={relayClassCourseId} required disabled={locked}
@@ -73,7 +74,7 @@ export function RelayClassForm({ ws, visible }: { ws: Workspace; visible: boolea
           </select></label> : <span />}
         </div>)}
       </div>
-      <div className={styles.actions}><button type="submit" disabled={workflowLocked}>{text.saveClass}</button></div>
+      <div className={styles.actions}><Button type="submit" disabled={workflowLocked}>{text.saveClass}</Button></div>
     </form>
   </details></>;
 }
@@ -84,9 +85,7 @@ export function RelayStartTimes({ ws, visible }: { ws: Workspace; visible: boole
   useRelayLoad(ws, visible);
   const classes = relay?.classes.filter(row => row.legs.some(leg => leg.startMethod !== "CHANGEOVER")) ?? [];
   if (classes.length === 0) return null;
-  return <section className={styles.panel} aria-label={text.startTitle}>
-    <h2>{text.startTitle}</h2>
-    <p className={styles.workflowHelp}>{text.startHelp}</p>
+  return <Section id={`relay-start-${ws.raceId}`} title={text.startTitle} help={text.startHelp}>
     {visible && <RelayMessages ws={ws} />}
     {classes.map(raceClass => <form key={raceClass.id} className={relayStyles.times} aria-label={raceClass.name}
       onSubmit={event => { event.preventDefault(); void saveRelayTimes(raceClass.id); }}>
@@ -96,10 +95,10 @@ export function RelayStartTimes({ ws, visible }: { ws: Workspace; visible: boole
           {text.legTime(leg.leg, leg.startMethod)}<input value={relayTimeValue(raceClass.id, leg.leg)} inputMode="numeric" autoComplete="off"
             placeholder={text.timeExample} disabled={workflowLocked} onChange={event => changeRelayTime(raceClass.id, leg.leg, event.target.value)} />
         </label>)}
-        <button type="submit" disabled={workflowLocked}>{text.saveTimes(raceClass.name)}</button>
+        <Button type="submit" variant="secondary" disabled={workflowLocked}>{text.saveTimes(raceClass.name)}</Button>
       </div>
     </form>)}
-  </section>;
+  </Section>;
 }
 
 /** Lagen som är ute, grupperade per sträcka. */

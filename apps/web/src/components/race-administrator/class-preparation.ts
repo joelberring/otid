@@ -44,7 +44,7 @@ export function createClassPreparationActions(ws: Base & RaceDataActions) {
     if (!target) { setManualClassError(text.manualClassMissingTarget); return; }
     const parsed = manualClassCreateRequestSchema.safeParse({
       formatVersion: 1, requestId: crypto.randomUUID(), expectedSnapshotVersion: data.snapshotVersion,
-      courseVersionId: target.courseVersionId, className: manualClassName.trim(), startRule: manualClassStartRule,
+      courseVersionId: target.courseVersionId, className: manualClassName.trim(), startRule: ws.profile.features.startRuleChoice ? manualClassStartRule : "PUNCH",
     });
     if (!parsed.success) { setManualClassError(text.manualClassInvalid); return; }
     const value: ManualClassAttempt = { kind: "MANUAL_CLASS", request: parsed.data, targetLabel: target.courseName };

@@ -86,7 +86,7 @@ export function RaceOperatorAccess({ raceId, onPendingChange }: {
       setAccesses((current) => current?.map((row) => row.credentialId === revoked.credentialId ? revoked : row));
     } catch { setMessage(text.error); } finally { setBusy(false); }
   }
-  return <details className="panel stack" open={isOpen || actionable}
+  return <details className={styles.access} open={isOpen || actionable}
     onToggle={(event) => {
       if (actionable && !event.currentTarget.open) event.currentTarget.open = true;
       else setIsOpen(event.currentTarget.open);

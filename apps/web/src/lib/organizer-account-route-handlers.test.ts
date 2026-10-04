@@ -114,7 +114,7 @@ describe("TASK150 organizer account routes", () => {
     const authenticate = vi.fn(async () => ({ status: "authenticated" as const, principal })) as unknown as typeof authenticateUserAccountSession;
     for (const replayed of [false, true]) {
       const create = vi.fn(async (_database: Database, input: Parameters<typeof createEventAsUserAccount>[1]) => {
-        expect(await input.readBody()).toEqual(intent);
+        expect(await input.readBody()).toEqual({ ...intent, raceType: "STANDARD" });
         return { status: "created" as const, response: { formatVersion: 1 as const, replayed, requestId, eventId, raceId, createdAt: "2026-09-23T08:00:00.000Z" } };
       }) as unknown as typeof createEventAsUserAccount;
       const response = await organizerEventCreateRoute(db, mutation(), authenticate, create, prod);

@@ -1,33 +1,3 @@
-export const participantClaimSv = {
-  title: "Koppla deltagarens konto",
-  help: "Kopplar kontot till just den här anmälan för personliga resultat. Det behövs inte för tävlingsadministration eller för att se publika resultat.",
-  attestation: "Jag har kontrollerat mottagarens identitet utanför systemet.",
-  issue: "Skapa engångskod",
-  issuing: "Skapar kod…",
-  retry: "Försök samma utfärdande igen",
-  codeTitle: "Lämna koden privat till deltagaren",
-  codeHelp: "Koden visas bara här tills sidan lämnas. Den kan användas en gång och gäller i högst sju dagar. Rensa urklippet efter privat överlämning.",
-  copy: "Kopiera kod",
-  copied: "Koden är kopierad.",
-  clear: "Dölj kod",
-  issued: "Engångskod skapad.",
-  expired: "Utgången",
-  active: "Aktiv",
-  redeemed: "Inlöst",
-  revoked: "Spärrad",
-  revoke: "Spärra kod eller koppling",
-  revokePrompt: "Ange orsaken till spärren:",
-  revokeAgain: "Försök spärra igen",
-  revokedNotice: "Koden eller kontokopplingen har spärrats.",
-  conflict: "En aktiv kod eller kontokoppling finns redan. Spärra den innan en ny kod skapas.",
-  unavailable: "Tävlingsadministrationen saknas eller har gått ut. Logga in igen.",
-  loadError: "Kopplingshistoriken kunde inte hämtas.",
-  saveError: "Åtgärden kunde inte bekräftas. Samma försök kan återupptas.",
-  noClaims: "Ingen kod har utfärdats för denna anmälan.",
-  expires: "Gäller till",
-  history: "Kodhistorik"
-} as const;
-
 export const participantMeSv = {
   title: "Mina resultat",
   login: "Logga in med ditt O-Tid-konto",

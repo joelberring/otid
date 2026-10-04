@@ -5,13 +5,11 @@ import React, { useEffect, useRef, useState } from "react";
 import { sv } from "../i18n/sv";
 import { courseVariantsSv as variantText } from "../i18n/course-variants-sv";
 import { startPublicResultEventStream } from "../lib/public-result-event-stream-client";
+import { formatDuration } from "../lib/clock-time";
 
 function duration(milliseconds?: number) {
   if (milliseconds === undefined) return "–";
-  const wholeSeconds = Math.floor(milliseconds / 1_000);
-  const remainder = milliseconds % 1_000;
-  const base = `${Math.floor(wholeSeconds / 60)}:${String(wholeSeconds % 60).padStart(2, "0")}`;
-  return remainder === 0 ? base : `${base}.${String(remainder).padStart(3, "0")}`;
+  return formatDuration(milliseconds);
 }
 
 function resultClass(status: PublicResultDetailResponse["result"]["status"]): string {

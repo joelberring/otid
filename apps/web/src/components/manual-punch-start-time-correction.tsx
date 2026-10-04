@@ -88,16 +88,16 @@ export function ManualPunchStartTimeCorrection({ raceId, entries, timeZone, onPe
   const source = candidate?.source;
   const newElapsed = attempt ? Date.parse(attempt.candidate.source.finishTime) - Date.parse(attempt.request.correctedStartTime) : undefined;
   const firstControl = source?.splits[0];
-  return <details className={styles.courseClassPanel} open={isOpen || pending} onToggle={(event) => {
+  return <details className={styles.disclosure} open={isOpen || pending} onToggle={(event) => {
     if (pending && !event.currentTarget.open) event.currentTarget.open = true;
     else if (!pending) setIsOpen(event.currentTarget.open);
   }}>
-    <summary>{text.punchStartTimeCorrectionTitle}</summary><form className={styles.panel} onSubmit={inspect}>
+    <summary>{text.punchStartTimeCorrectionTitle}</summary><form className={styles.disclosureBody} onSubmit={inspect}>
       <p>{text.punchStartTimeCorrectionHelp}</p><label>{text.finishTimeCorrectionParticipant}<select value={entryId} disabled={busy || !!attempt}
         onChange={(event) => { setEntryId(event.target.value); clear(); setError(""); setSaved(""); }}><option value="">{text.chooseEntry}</option>
         {entries.map((entry) => <option key={entry.id} value={entry.id}>{entry.displayName}</option>)}</select></label>
       {!candidate && !attempt && <button type="button" disabled={!entryId || busy} onClick={() => void loadCandidate()}>{text.punchStartTimeCorrectionLoad}</button>}
-      {source && !attempt && <><div className={styles.courseRelinkSummary}><p><strong>{candidate.entryName}</strong> · {candidate.className}</p>
+      {source && !attempt && <><div className={styles.summaryBox}><p><strong>{candidate.entryName}</strong> · {candidate.className}</p>
         <p><strong>{text.finishTimeCorrectionSource}:</strong> {sv.publicResultsStatusLabels[source.outcome.status]}</p>
         <p><strong>{text.finishTimeCorrectionStart}:</strong> {formatClockTime(source.startTime, timeZone)} · <strong>{text.finishTimeCorrectionFinish}:</strong> {formatClockTime(source.finishTime, timeZone)}</p>
         <p><strong>{text.finishTimeCorrectionElapsed}:</strong> {duration(source.elapsedMs)} · <strong>{text.punchStartTimeCorrectionFirstControl}:</strong> {firstControl ? `${firstControl.controlCode} · ${duration(firstControl.elapsedMs)}` : text.finishTimeCorrectionNoSplit}</p></div>

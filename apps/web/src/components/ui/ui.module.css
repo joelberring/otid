@@ -1,0 +1,60 @@
+/* Gemensamma komponenter (ADR-0170 beslut 2). Platta ytor, 1 px linjer, radie bara på knappar och fält. */
+
+/* Knappar: en primär per vy, sekundär med kant, tyst som text. */
+.button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; }
+.secondary { border-color: var(--line-strong); background: var(--surface); color: var(--ink); }
+.secondary:hover:not(:disabled) { border-color: var(--ink); background: var(--surface); }
+.quiet { min-height: var(--control); padding: 0 6px; border-color: transparent; background: transparent; color: var(--ink);
+  font-weight: 500; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: .18em; }
+.quiet:hover:not(:disabled) { background: transparent; text-decoration-color: currentcolor; }
+
+/* Fält */
+.field { display: grid; gap: 4px; min-width: 0; font-size: var(--text-xs); font-weight: 500; }
+.fieldWithHelp { display: grid; gap: 4px; min-width: 0; }
+.fieldHelp { color: var(--muted); font-size: var(--text-xs); font-weight: 400; }
+
+/* Verktygsrad */
+.toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 12px; min-width: 0; }
+.toolbarEnd { margin-inline-start: auto; display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* Avsnitt: rubrik, kort hjälptext, åtgärder till höger. Avskiljs med luft och en linje. */
+.section { display: grid; gap: 12px; min-width: 0; padding-block: 20px; border-top: 1px solid var(--line); }
+.section:first-child { padding-top: 0; border-top: 0; }
+.sectionHead { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; }
+.sectionHead > div { display: grid; gap: 2px; min-width: 0; max-width: 70ch; }
+.sectionHelp { color: var(--muted); font-size: var(--text-sm); }
+
+/* Besked: symbol + ord, färg bara som förstärkning. */
+.notice { display: flex; gap: 8px; align-items: baseline; min-width: 0; max-width: 80ch; padding: 8px 12px;
+  border-left: 3px solid var(--line-strong); background: var(--surface); overflow-wrap: anywhere; }
+.notice > span:first-child { flex: 0 0 auto; font-weight: 700; }
+.notice > div { display: grid; gap: 6px; min-width: 0; }
+.notice[data-tone="ok"] { border-left-color: var(--ok); }
+.notice[data-tone="ok"] > span:first-child { color: var(--ok); }
+.notice[data-tone="attention"] { border-left-color: var(--attention); background: var(--attention-tint); }
+.notice[data-tone="attention"] > span:first-child { color: var(--attention); }
+.notice[data-tone="error"] { border-left-color: var(--mp); background: var(--mp-tint); }
+.notice[data-tone="error"] > span:first-child { color: var(--mp); }
+
+/* Tomt läge: vad som saknas och vad man gör härnäst. */
+.empty { display: grid; gap: 6px; justify-items: start; padding: 16px 0; color: var(--muted); }
+.empty strong { color: var(--ink); font-weight: 600; }
+
+/* Tabeller: täta rader, rubriker som följer med, markering vid hovring, inga ränder. */
+.tableWrap { min-width: 0; max-width: 100%; }
+.table { width: 100%; border-collapse: separate; border-spacing: 0; font-variant-numeric: tabular-nums; }
+.table :is(th, td) { height: var(--row); padding: 6px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle;
+  overflow-wrap: anywhere; }
+.table thead th { position: sticky; top: var(--sticky-top, 0px); z-index: 1; background: var(--canvas); color: var(--muted);
+  font-family: var(--font-dense); font-size: var(--text-xs); font-weight: 600; border-bottom-color: var(--line-strong); }
+.table tbody th { color: var(--ink); font-family: var(--font-ui); font-size: var(--text-sm); font-weight: 600; }
+.table tbody tr:hover > * { background: var(--subtle); }
+.table tbody tr[data-selected="true"] > * { background: var(--subtle); }
+.table tbody tr[data-selected="true"] > :first-child { box-shadow: inset 3px 0 0 var(--accent); }
+.num { text-align: right !important; font-family: var(--font-dense); }
+@media (max-width: 760px) {
+  .tableWrap { overflow-x: auto; }
+  .table thead th { position: static; white-space: nowrap; }
+  .table :is(th, td) { overflow-wrap: normal; word-break: normal; }
+  .table tbody th { white-space: nowrap; }
+}

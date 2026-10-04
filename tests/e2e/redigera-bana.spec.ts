@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { addCourseAndClass, addEntry, createRace, openStep, registerAccount, unique } from "./helpers";
+import { addCourseAndClass, addEntry, createRace, openStep, registerAccount, unique, warmRoute } from "./helpers";
 
 /**
  * Steg 8.2–8.4 (ADR-0169): banan ändras efter att en löpare läst ut. Beskedet visar
@@ -10,7 +10,7 @@ test("redigera bana efter avläsning räknar om resultatet", async ({ browser, r
   test.setTimeout(240_000);
   const suffix = unique();
   const owner = await registerAccount(browser, `bana.${suffix}`, "Kim Klubb");
-  const raceId = await createRace(owner, `Banändring ${suffix}`);
+  const raceId = await createRace(owner, `Banändring ${suffix}`, "2026-10-08", "Liten tävling");
   await addCourseAndClass(owner, "Lång", "H21", "31 32 33 34");
   await addEntry(owner, { className: "H21", givenName: "Anna", familyName: "Ek", club: "OK Test", card: "8002001" });
 
@@ -26,6 +26,10 @@ test("redigera bana efter avläsning räknar om resultatet", async ({ browser, r
 
   // Banor: stryk kontroll 33 i Lång.
   await owner.goto(`/admin/${raceId}/manage`);
+  for (const route of ["courses", "classes"]) for (const action of ["edit-preview", "edit"]) {
+    await warmRoute(owner, `/api/admin/races/${raceId}/administrator/${route}/${raceId}/${action}`, "POST");
+  }
+  for (const path of ["approval-candidates", "approval-withdrawals"]) await warmRoute(owner, `/api/admin/races/${raceId}/administrator/${path}`);
   await openStep(owner, "Banor");
   const row = owner.getByRole("row", { name: /Lång/ });
   await expect(row).toContainText("31 32 33 34");

@@ -21,11 +21,11 @@
   .table.legTable.legTable th:nth-child(4) { width: 20%; }
 }
 .legs a { overflow-wrap: normal; word-break: normal; }
-.legCell summary { cursor: pointer; color: var(--green-dark); font-weight: 700; }
+.legCell summary { cursor: pointer; color: var(--ink); font-weight: 700; }
 .legs { display: grid; gap: 0.3rem; margin: 0.5rem 0 0; padding: 0; list-style: none; }
 .legs li { display: grid; grid-template-columns: 1.6rem minmax(0, 1fr) auto; gap: 0.4rem; align-items: baseline; }
 .legNumber { color: var(--muted); font-variant-numeric: tabular-nums; }
-.legResults > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--green-dark); font-weight: 700; }
+.legResults > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--ink); font-weight: 700; }
 .legResults { display: grid; gap: 0.6rem; }
 /* Mobil: plats och tid på första raden, sedan lag (eller löpare), status och sträckor. */
 @media screen and (max-width: 640px) {

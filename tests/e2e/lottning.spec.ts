@@ -51,7 +51,6 @@ test("lotta tre klasser, publicera startlistan och placera en efteranmäld på v
   await expect(owner.getByText("Lottningen är sparad.", { exact: false })).toBeVisible();
 
   // Startlistan publiceras och visar de lottade tiderna utan inloggning.
-  await owner.getByText("Publicera startlista").click();
   await owner.getByRole("button", { name: "Visa publicering" }).click();
   await owner.getByRole("button", { name: "Publicera startlistan" }).click();
   await expect(owner.getByText("Startlistan är publicerad.")).toBeVisible();

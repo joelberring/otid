@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { sv } from "../i18n/sv";
+import "../components/ui/tokens.css";
 import "./globals.css";
 
 export const metadata: Metadata = { title: "O-Tid", description: sv.tagline };

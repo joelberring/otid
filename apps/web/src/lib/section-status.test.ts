@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { EntryTransferCandidates } from "@o-tid/contracts";
-import { checklistFacts, checklistStatus, checklistSteps, mispunchedEntries } from "./admin-checklist";
+import { checklistFacts, mispunchedEntries, sectionStatus, type SectionFacts } from "./section-status";
+import { raceTypeProfile, visibleSections, type SectionId } from "./race-sections";
+
+const steps: SectionId[] = ["COURSES", "CLASSES", "ENTRIES", "START", "READOUT", "RESULTS"];
+const checklistStatus = (id: SectionId, facts: SectionFacts) => sectionStatus({ id, label: id }, facts, "STANDARD");
 
 type Data = Pick<EntryTransferCandidates, "classes" | "entries">;
 const raceClass = (id: string, courseName: string, startRule: "PUNCH" | "FIXED") =>
@@ -18,15 +22,15 @@ const data: Data = {
   entries: [entry("a", "H21", "OK"), entry("b", "H21", "MP"), entry("c", "D21"), entry("d", "D21", "DNS"), entry("e", "D21")]
 };
 
-describe("checklistan", () => {
+describe("status per del i sidopanelen", () => {
   it("visar status per steg i ord", () => {
     const facts = checklistFacts(data, { unknownCards: 1 });
-    expect(checklistSteps.map(step => checklistStatus(step, facts))).toEqual([
+    expect(steps.map(step => checklistStatus(step, facts))).toEqual([
       { tone: "DONE", text: "2 banor" },
       { tone: "DONE", text: "2 klasser" },
       { tone: "DONE", text: "5 anmälda" },
       { tone: "DONE", text: "Fri start" },
-      { tone: "ATTENTION", text: "2 avlästa · 2 kvar i skogen · 1 okänd bricka" },
+      { tone: "ATTENTION", text: "2 avlästa · 2 kvar · 1 okänd bricka" },
       { tone: "ATTENTION", text: "1 felstämplad att titta på" }
     ]);
     expect(mispunchedEntries(data).map(row => row.id)).toEqual(["b"]);
@@ -35,7 +39,7 @@ describe("checklistan", () => {
   it("använder bantabellen och skogsrapporten när de är inlästa", () => {
     const facts = checklistFacts(data, { courseCount: 3, inForest: 1 });
     expect(checklistStatus("COURSES", facts).text).toBe("3 banor");
-    expect(checklistStatus("READOUT", facts)).toEqual({ tone: "OPEN", text: "2 avlästa · 1 kvar i skogen" });
+    expect(checklistStatus("READOUT", facts)).toEqual({ tone: "OPEN", text: "2 avlästa · 1 kvar" });
   });
 
   it("varnar för saknade starttider i klasser med minutstart", () => {
@@ -48,7 +52,14 @@ describe("checklistan", () => {
 
   it("visar en tom tävling som inte påbörjad", () => {
     const facts = checklistFacts({ classes: [], entries: [] }, {});
-    expect(checklistSteps.map(step => checklistStatus(step, facts).tone)).toEqual(["OPEN", "OPEN", "OPEN", "OPEN", "OPEN", "OPEN"]);
+    expect(steps.map(step => checklistStatus(step, facts).tone)).toEqual(["OPEN", "OPEN", "OPEN", "OPEN", "OPEN", "OPEN"]);
     expect(checklistStatus("RESULTS", facts).text).toBe("Inga resultat ännu");
+  });
+
+  it("skriver antalet med delens namn för typen", () => {
+    const facts = checklistFacts(data, {});
+    const texts = (type: "TRAINING" | "RELAY") => visibleSections(raceTypeProfile(type)).map(section => sectionStatus(section, facts, type).text);
+    expect(texts("TRAINING")).toEqual(["2 banor · 2 klasser", "5 deltagare", "2 avlästa · 2 kvar", "1 felstämplad att titta på", "Träning"]);
+    expect(texts("RELAY")[2]).toBe("Inga lag ännu");
   });
 });

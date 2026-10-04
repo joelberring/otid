@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 export default async function Page({ params }: { params: Promise<{ raceId: string }> }) {
   const { raceId } = await params;
-  return <main className="stack race-admin-manage-page"><h1>{text.title}</h1>
+  return <main className="race-admin-manage-page"><h1 className="visually-hidden">{text.title}</h1>
     <RaceAdministratorWorkspace key={raceId} raceId={raceId} />
   </main>;
 }

@@ -5,6 +5,7 @@ import type { StartDrawPreviewResponse } from "@o-tid/contracts";
 import styles from "../race-administrator-workspace.module.css";
 import { startDrawSv as text } from "../../i18n/start-draw-sv";
 import { formatClockTime } from "../../lib/clock-time";
+import { Button, Notice, Section, Table } from "../ui";
 import type { Workspace } from "./workspace-state";
 import { courseVariantsSv as variantText } from "../../i18n/course-variants-sv";
 
@@ -25,13 +26,11 @@ export function StartDrawPanel({ ws, visible }: { ws: Workspace; visible: boolea
     if (visible && authenticated && data && !busy && !pending.current && stale && !drawError) void loadDrawSetup();
   }, [visible, authenticated, data, busy, stale, drawError]);
   const locked = disabled || !!drawPreview;
-  return <section className={styles.panel} aria-labelledby={`start-draw-${raceId}`}>
-    <h2 id={`start-draw-${raceId}`}>{text.title}</h2>
-    <p className={styles.workflowHelp}>{text.help}</p>
-    {drawSaved && <p role="status" className={styles.courseEditSaved}>{drawSaved}</p>}
-    {drawError && <div className={styles.warning} role="alert"><p>{drawError}</p>
-      {!drawSetup && <button type="button" className="secondary" disabled={busy} onClick={() => void loadDrawSetup()}>{text.load}</button>}</div>}
-    {!drawSetup && !drawError && <p role="status">{text.loading}</p>}
+  return <Section id={`start-draw-${raceId}`} title={text.title} help={text.help}>
+    {drawSaved && <Notice tone="ok" role="status">{drawSaved}</Notice>}
+    {drawError && <Notice tone="error" role="alert"><p>{drawError}</p>
+      {!drawSetup && <div><Button variant="secondary" disabled={busy} onClick={() => void loadDrawSetup()}>{text.load}</Button></div>}</Notice>}
+    {!drawSetup && !drawError && <p role="status" className={styles.workflowHelp}>{text.loading}</p>}
     {drawSetup && <form className={styles.drawForm} onSubmit={event => { event.preventDefault(); void previewDraw(); }}>
       <div className={styles.drawSettings}>
         <label>{text.first}<input value={drawFirst} inputMode="numeric" autoComplete="off" placeholder={text.firstExample} required
@@ -39,7 +38,7 @@ export function StartDrawPanel({ ws, visible }: { ws: Workspace; visible: boolea
         <label className={styles.drawCheck}><input type="checkbox" checked={drawClubSeparation} disabled={locked}
           onChange={event => changeDrawSettings({ clubSeparation: event.target.checked })} />{text.clubSeparation}</label>
       </div>
-      <div className={styles.courseTableScroll}><table className={styles.drawTable}>
+      <Table className={styles.drawTable}>
         <thead><tr>
           <th scope="col">{text.draw}</th><th scope="col">{text.className}</th><th scope="col">{text.method}</th>
           <th scope="col">{text.interval}</th><th scope="col">{text.vacancies}</th>
@@ -69,12 +68,12 @@ export function StartDrawPanel({ ws, visible }: { ws: Workspace; visible: boolea
             </div></td>
           </tr>;
         })}</tbody>
-      </table></div>
-      {!drawPreview && <button disabled={disabled}>{text.preview}</button>}
+      </Table>
+      {!drawPreview && <div className={styles.actions}><Button type="submit" disabled={disabled}>{text.preview}</Button></div>}
     </form>}
     {drawPreview && <DrawPreview ws={ws} preview={drawPreview} />}
-    {drawAttempt && unknown && <p role="status">{text.unknown}</p>}
-  </section>;
+    {drawAttempt && unknown && <Notice tone="attention" role="status">{text.unknown}</Notice>}
+  </Section>;
 }
 
 function DrawPreview({ ws, preview }: { ws: Workspace; preview: StartDrawPreviewResponse }) {
@@ -87,11 +86,11 @@ function DrawPreview({ ws, preview }: { ws: Workspace; preview: StartDrawPreview
     <h3>{text.previewTitle}</h3>
     {preview.startGroups.map(group => <p key={group.firstControlCode} className={styles.drawNote}>
       {group.alternating ? text.alternating(group.classNames) : text.sameFirstControl(group.classNames, group.firstControlCode)}</p>)}
-    {(replaced.length > 0 || statusChanges > 0) && <div className={styles.warning} role="alert">
+    {(replaced.length > 0 || statusChanges > 0) && <Notice tone="attention" role="alert">
       {replaced.length > 0 && <p>{text.replaces(replaced)}</p>}
       {recalculated > 0 && <p>{text.readOut(recalculated)}</p>}
       {statusChanges > 0 && <p>{text.statusChanges(statusChanges)}</p>}
-    </div>}
+    </Notice>}
     {replaced.length === 0 && statusChanges === 0 && recalculated > 0 && <p>{text.readOut(recalculated)}</p>}
     {preview.classes.map(raceClass => <section key={raceClass.classId} className={styles.drawPreviewClass}
       aria-label={raceClass.className}>
@@ -100,7 +99,7 @@ function DrawPreview({ ws, preview }: { ws: Workspace; preview: StartDrawPreview
         ? text.massStart(time(raceClass.firstStartTime!))
         : text.minuteStart(time(raceClass.firstStartTime!), raceClass.intervalMinutes, raceClass.vacancyCount)}</p>
       {raceClass.method !== "FREE" && (raceClass.slots.length === 0 ? <p>{text.empty}</p>
-        : <div className={styles.tableScroll}><table className={styles.drawPreviewTable}>
+        : <Table className={styles.drawPreviewTable}>
           <thead><tr><th scope="col">{text.time}</th><th scope="col">{text.name}</th><th scope="col">{text.club}</th><th scope="col">{text.card}</th>
             {forked(raceClass) && <th scope="col">{variantText.variantColumn}</th>}</tr></thead>
           <tbody>{raceClass.slots.map((slot, index) => <tr key={`${slot.startTime}-${index}`} data-vacant={slot.entry ? undefined : "true"}>
@@ -109,12 +108,12 @@ function DrawPreview({ ws, preview }: { ws: Workspace; preview: StartDrawPreview
               {forked(raceClass) && <td>{slot.entry.variantCode ?? text.none}</td>}</>
               : <td colSpan={forked(raceClass) ? 4 : 3}><strong>{text.vacant}</strong></td>}
           </tr>)}</tbody>
-        </table></div>)}
+        </Table>)}
     </section>)}
-    <div className={styles.toolbar}>
-      <button type="button" disabled={busy} onClick={() => void saveDraw()}>
-        {unknown && drawAttempt ? text.save : preview.requiresConfirmation ? text.replaceAndSave : text.save}</button>
-      {!drawAttempt && <button type="button" className="secondary" disabled={busy} onClick={cancelDrawPreview}>{text.cancel}</button>}
+    <div className={styles.actions}>
+      <Button disabled={busy} onClick={() => void saveDraw()}>
+        {unknown && drawAttempt ? text.save : preview.requiresConfirmation ? text.replaceAndSave : text.save}</Button>
+      {!drawAttempt && <Button variant="secondary" disabled={busy} onClick={cancelDrawPreview}>{text.cancel}</Button>}
     </div>
   </section>;
 }

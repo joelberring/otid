@@ -4,26 +4,29 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { flushSync } from "react-dom";
 import { raceAdministratorSv as text } from "../i18n/race-administrator-sv";
-import { raceWorkspaceNavigationSv as navigationText } from "../i18n/race-workspace-navigation-sv";
 import styles from "./race-administrator-workspace.module.css";
+import shell from "./race-administrator/shell.module.css";
 import { useWorkspace } from "./race-administrator/workspace-state";
 import { useDuringRaceEffects } from "./race-administrator/during-race";
-import { Checklist } from "./race-administrator/checklist";
+import { Sidebar, TopBar } from "./race-administrator/shell";
 import { PreparationCourses } from "./race-administrator/preparation-courses";
 import { PreparationClasses } from "./race-administrator/preparation-classes";
 import { PreparationStartList } from "./race-administrator/preparation-start-list";
 import { AfterRacePanel, ResultExportPanel } from "./race-administrator/after-race-panel";
 import { DuringRaceFollowUp, DuringRaceOverview } from "./race-administrator/during-race-panel";
 import { ParticipantsPanel, RentalPrint } from "./race-administrator/participants-panel";
+import { RogainingNote, SettingsPanel } from "./race-administrator/settings-panel";
+import { Button } from "./ui";
 
 /**
- * Adminarbetsytan för en tävling. Den här komponenten håller sessionen, laddar data och visar checklistan
- * (Banor → Klasser → Anmälda → Start → Avläsning → Resultat). Varje steg finns i `race-administrator/`.
+ * Adminarbetsytan för en tävling. Den här komponenten håller sessionen, laddar data och visar skalet:
+ * toppbalken, sidopanelen med tävlingens delar (efter tävlingstypen, ADR-0170) och den valda delen.
+ * Varje del finns i `race-administrator/`.
  */
 export function RaceAdministratorWorkspace({ raceId }: { raceId: string }) {
   const ws = useWorkspace(raceId);
-  const { authenticated, busy, message, data, expiresAt, navigationLocked, workflowLocked, printTarget, deadline, begin, session,
-    enterWithAccount, current, lock, finish, invalidate, loadRaceDayAttention, login, logout, refresh, setPrintTarget } = ws;
+  const { authenticated, busy, message, expiresAt, navigationLocked, printTarget, deadline, begin, session,
+    enterWithAccount, current, lock, finish, invalidate, loadRaceDayAttention, login, setPrintTarget } = ws;
   useEffect(() => {
     const op = begin();
     void session(op)
@@ -31,7 +34,7 @@ export function RaceAdministratorWorkspace({ raceId }: { raceId: string }) {
       .then(() => true, () => { if (current(op)) lock(); return false; })
       .then(entered => {
         finish(op);
-        // Checklistans avläsningsstatus behöver okända brickor och kvar i skogen direkt.
+        // Sidopanelens avläsningsstatus behöver okända brickor och kvar i skogen direkt.
         if (entered && current(op)) void loadRaceDayAttention();
       });
     const hide = () => flushSync(() => lock(true));
@@ -51,46 +54,34 @@ export function RaceAdministratorWorkspace({ raceId }: { raceId: string }) {
     return () => window.removeEventListener("afterprint", clearPrintTarget);
   }, []);
   useDuringRaceEffects(ws);
-  const eventsLabel = navigationText.backToEvents;
-  const eventsLink = workflowLocked
-    ? <span className={styles.backUnavailable} aria-disabled="true" title={navigationText.backLocked}>{eventsLabel}</span>
-    : <Link className={styles.backToEvents} href="/organizer" prefetch={false}>{eventsLabel}</Link>;
-  return <div className={styles.workspace} data-print-target={printTarget} data-authenticated={authenticated}>
-    {!authenticated && <p>{text.introduction}</p>}
-    <p className={styles.status} role="status" aria-live="polite">{message}</p>
-    {!authenticated && <form className={`${styles.panel} ${styles.login}`} onSubmit={(event) => void login(event)}>
+  const status = <p className={styles.status} role="status" aria-live="polite">{message}</p>;
+  if (!authenticated) return <div className={`${styles.workspace} ${styles.login}`} data-authenticated="false">
+    <p>{text.introduction}</p>
+    {status}
+    <form onSubmit={event => void login(event)}>
       <p>{text.accountLoginHelp} <Link href="/organizer" prefetch={false}>{text.accountLoginLink}</Link></p>
-      <button disabled={busy}>{text.login}</button>
-    </form>}
-    {authenticated && <>
-      <div className={styles.workspaceChrome}>
-        {data && <div className={styles.raceIdentity}>
-          <div><div className={styles.identityTitle}>
-            {eventsLink}
-            <span className={styles.identityDivider} aria-hidden="true">›</span><h2>{data.eventName}</h2>
-          </div><p>{data.raceName} · <time dateTime={data.raceDate}>{data.raceDate}</time></p></div>
-          <div className={styles.identityActions}>
-            <button type="button" className="secondary" disabled={workflowLocked} onClick={() => void refresh()}>{text.refreshOverview}</button>
-            <button className="secondary" disabled={workflowLocked} onClick={() => void logout()}>{text.logout}</button>
-          </div>
-        </div>}
-        {!data && <div className={styles.identityActions}>
-          {eventsLink}
-          <button className="secondary" disabled={workflowLocked} onClick={() => void refresh()}>{text.refreshOverview}</button>
-          <button className="secondary" disabled={workflowLocked} onClick={() => void logout()}>{text.logout}</button>
-        </div>}
+      <div><Button type="submit" disabled={busy}>{text.login}</Button></div>
+    </form>
+  </div>;
+  return <div className={`${styles.root} ${shell.shell}`} data-print-target={printTarget} data-authenticated="true">
+    <TopBar ws={ws} />
+    <div className={shell.frame}>
+      <Sidebar ws={ws} />
+      <div className={`${shell.content} ${styles.content}`}>
+        {status}
+        {navigationLocked && <p className={styles.workflowHelp} role="status">{text.workflowHelp}</p>}
+        <RogainingNote ws={ws} />
+        <PreparationCourses ws={ws} />
+        <PreparationClasses ws={ws} />
+        <ParticipantsPanel ws={ws} />
+        <RentalPrint ws={ws} />
+        <PreparationStartList ws={ws} />
+        <DuringRaceOverview ws={ws} />
+        <DuringRaceFollowUp ws={ws} />
+        <AfterRacePanel ws={ws} />
+        <ResultExportPanel ws={ws} />
+        <SettingsPanel ws={ws} />
       </div>
-      <Checklist ws={ws} />
-      {navigationLocked && <p className={styles.workflowHelp} role="status">{text.workflowHelp}</p>}
-      <PreparationCourses ws={ws} />
-      <PreparationClasses ws={ws} />
-      <ParticipantsPanel ws={ws} />
-      <RentalPrint ws={ws} />
-      <PreparationStartList ws={ws} />
-      <DuringRaceOverview ws={ws} />
-      <DuringRaceFollowUp ws={ws} />
-      <AfterRacePanel ws={ws} />
-      <ResultExportPanel ws={ws} />
-    </>}
+    </div>
   </div>;
 }

@@ -3,17 +3,11 @@
 import type { AdministratorEffectiveResultResponse } from "@o-tid/contracts";
 import { raceWorkflowDetailSv as text } from "../i18n/race-workflow-detail-sv";
 import styles from "./race-workflow-detail.module.css";
-import { formatClockTime } from "../lib/clock-time";
+import { formatClockTime, formatDuration } from "../lib/clock-time";
 
 function elapsed(value: number | null): string {
   if (value === null || !Number.isSafeInteger(value) || value < 0) return text.unknownTime;
-  const hours = Math.floor(value / 3_600_000);
-  const minutes = Math.floor(value / 60_000) % 60;
-  const seconds = Math.floor(value / 1_000) % 60;
-  const millis = value % 1_000;
-  const clock = hours > 0 ? `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}` :
-    `${minutes}:${String(seconds).padStart(2, "0")}`;
-  return `${clock},${String(millis).padStart(3, "0")}`;
+  return formatDuration(value);
 }
 
 function wallTime(value: string | null, timeZone: string): string {
@@ -47,7 +41,8 @@ export function RaceResultControls({ result, resultError, timeZone }: {
     {details.controls.length === 0 ? <p>{text.noTechnicalDetails}</p> :
       <div className={styles.tableScroll} tabIndex={0} role="region" aria-label={text.resultTitle}>
         <table className={styles.table}>
-          <thead><tr><th scope="col">{text.order}</th><th scope="col">{text.control}</th><th scope="col">{text.leg}</th><th scope="col">{text.cumulative}</th></tr></thead>
+          <thead><tr><th scope="col" className={styles.numeric}>{text.order}</th><th scope="col">{text.control}</th>
+            <th scope="col" className={styles.numeric}>{text.leg}</th><th scope="col" className={styles.numeric}>{text.cumulative}</th></tr></thead>
           <tbody>{details.controls.map((control) => <tr key={`${control.sequence}-${control.controlCode}-${control.occurrence}`}>
             <td className={styles.numeric}>{control.sequence}</td>
             <th scope="row">{control.controlCode}{control.occurrence > 1 ? <span className={styles.occurrence}> · {text.occurrence} {control.occurrence}</span> : null}</th>

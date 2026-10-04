@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { flushSync } from "react-dom";
-import { filterAdministratorRoster, missingFixedStartTime, needsPaymentAttention, orderAdministratorRoster,
+import { filterAdministratorRoster, missingFixedStartTime, orderAdministratorRoster,
   type AdministratorRosterOrder, type AdministratorRosterResultFilter } from "../../lib/administrator-roster-filter";
 import type { Action } from "./types";
 import type { Base, WorkspaceState } from "./workspace-state";
-import type { MobileNavigation } from "./navigation";
+import { deriveSections, type MobileNavigation } from "./navigation";
 import type { RaceDataActions } from "./race-data";
 import type { DuringRaceActions } from "./during-race";
 import type { ResultDecisionActions } from "./result-decisions";
@@ -15,7 +15,6 @@ export function useRosterState() {
   const [query, setQuery] = useState("");
   const [olderResultsOnly, setOlderResultsOnly] = useState(false);
   const [rentalCardsOnly, setRentalCardsOnly] = useState(false);
-  const [paymentAttentionOnly, setPaymentAttentionOnly] = useState(false);
   const [resultState, setResultState] = useState<AdministratorRosterResultFilter>("ALL");
   const [missingFixedStartOnly, setMissingFixedStartOnly] = useState(false);
   const [rosterOrder, setRosterOrder] = useState<AdministratorRosterOrder>("NAME");
@@ -25,17 +24,16 @@ export function useRosterState() {
   const [wideTable, setWideTable] = useState(false);
   const [entryId, setEntryId] = useState("");
   const [action, setAction] = useState<Action>("INFO");
-  const [participantActionPending, setParticipantActionPending] = useState(false);
-  return { query, setQuery, olderResultsOnly, setOlderResultsOnly, rentalCardsOnly, setRentalCardsOnly, paymentAttentionOnly,
-    setPaymentAttentionOnly, resultState, setResultState, missingFixedStartOnly, setMissingFixedStartOnly, rosterOrder,
+  return { query, setQuery, olderResultsOnly, setOlderResultsOnly, rentalCardsOnly, setRentalCardsOnly,
+    resultState, setResultState, missingFixedStartOnly, setMissingFixedStartOnly, rosterOrder,
     setRosterOrder, page, setPage, pageSize, setPageSize, rosterClassId, setRosterClassId, wideTable, setWideTable,
-    entryId, setEntryId, action, setAction, participantActionPending, setParticipantActionPending };
+    entryId, setEntryId, action, setAction };
 }
 
 export function deriveRoster(s: WorkspaceState) {
   const { data, entryId, step, query, olderResultsOnly, rentalCardsOnly,
-    paymentAttentionOnly, resultState, rosterClassId, missingFixedStartOnly, rosterOrder, page, pageSize } = s;
-  const participantsVisible = step === "ENTRIES";
+    resultState, rosterClassId, missingFixedStartOnly, rosterOrder, page, pageSize } = s;
+  const participantsVisible = deriveSections({ data, step }).shows("ENTRIES");
   const selected = data?.entries.find((entry) => entry.id === entryId);
   const returnedRentalSources = data?.entries.filter((entry) => entry.id !== selected?.id &&
     !entry.multipleActiveAssignments && entry.activeAssignment?.isRental && entry.activeAssignment.rentalReturned) ?? [];
@@ -46,11 +44,10 @@ export function deriveRoster(s: WorkspaceState) {
   const rentalEntries = data?.entries.filter((entry) => entry.activeAssignment?.isRental === true &&
     !entry.activeAssignment.rentalReturned) ?? [];
   const rentalCardCount = data ? rentalEntries.length : undefined;
-  const paymentAttentionCount = data?.entries.filter((entry) => needsPaymentAttention(entry.paymentStatus)).length;
   const freeStartClassCount = data?.classes.filter((raceClass) => raceClass.startRule === "PUNCH").length;
   const fixedStartClassCount = data?.classes.filter((raceClass) => raceClass.startRule === "FIXED").length;
   const matches = filterAdministratorRoster(data?.entries ?? [], classNames, {
-    query, olderResultsOnly, rentalCardsOnly, paymentAttentionOnly, resultState,
+    query, olderResultsOnly, rentalCardsOnly, resultState,
   }).filter(entry => (!rosterClassId || entry.classId === rosterClassId) &&
     (!missingFixedStartOnly || missingFixedStartTime(entry, classesById.get(entry.classId)?.startRule)));
   const filtered = orderAdministratorRoster(matches, classesById, rosterOrder);
@@ -59,7 +56,7 @@ export function deriveRoster(s: WorkspaceState) {
   const selectedIndex = selected ? filtered.findIndex(entry => entry.id === selected.id) : -1;
   const selectedPage = selectedIndex < 0 ? -1 : Math.floor(selectedIndex / pageSize);
   return { participantsVisible, selected, returnedRentalSources, selectedClass, classesById, classNames, olderResultCount,
-    rentalEntries, rentalCardCount, paymentAttentionCount, freeStartClassCount, fixedStartClassCount, filtered, lastPage,
+    rentalEntries, rentalCardCount, freeStartClassCount, fixedStartClassCount, filtered, lastPage,
     currentPage, visible, selectedIndex, selectedPage };
 }
 
@@ -68,14 +65,14 @@ export type Roster = ReturnType<typeof deriveRoster>;
 /** Val av deltagare och åtgärd. Laddar det underlag som vald åtgärd behöver. */
 export function createParticipantActions(ws: Base & MobileNavigation & RaceDataActions & DuringRaceActions &
   ResultDecisionActions & EntryActions) {
-  const { data, entryId, action, participantsVisible, workflowLocked, selected, selectedIndex, filtered,
+  const { data, action, participantsVisible, workflowLocked, selected, selectedIndex, filtered,
     classesById, rosterOrder, pageSize, registrationAttempt, unknown, busyRef, pending, sent, checkinHistoryPanel,
     workPanel, listPanel, requireSession, begin, finish, showMobilePanel, loadEffectiveResult, loadConflictReview,
     loadCheckinHistory, loadIdentity, loadHistory, setAction, setStatusChoice, setStatusBlocked, setStep, setWideTable,
     setReviewCandidate, setReviewReason, setReviewConfirmed, setEntryId, setClassId, setMessage, setNewCard,
-    setRentalReuseSourceId, setPaymentStatus, setCheckinHistory, setGivenName, setFamilyName, setOrganisationName,
+    setRentalReuseSourceId, setCheckinHistory, setGivenName, setFamilyName, setOrganisationName,
     setStartClock, setIdentityCandidates, setEntryChanges, setEffectiveResult, setEffectiveResultError, setRegistrationAttempt, setConfirmDistinctPerson,
-    setQuery, setRosterClassId, setOlderResultsOnly, setRentalCardsOnly, setPaymentAttentionOnly,
+    setQuery, setRosterClassId, setOlderResultsOnly, setRentalCardsOnly,
     setMissingFixedStartOnly, setResultState, setPage } = ws;
   function select(id: string, openJournal = false, reviewConflict = false, requestedAction?: Action) {
     if (busyRef.current || pending.current || !requireSession()) return;
@@ -90,8 +87,7 @@ export function createParticipantActions(ws: Base & MobileNavigation & RaceDataA
       showMobilePanel("WORK");
     }
     setReviewCandidate(undefined); setReviewReason(""); setReviewConfirmed(false);
-    const selectedEntry = data?.entries.find((entry) => entry.id === id);
-    setEntryId(id); setClassId(""); setMessage(""); setNewCard(""); setRentalReuseSourceId(""); setPaymentStatus(selectedEntry?.paymentStatus ?? "PAID");
+    setEntryId(id); setClassId(""); setMessage(""); setNewCard(""); setRentalReuseSourceId("");
     setCheckinHistory(undefined);
     if (action === "REGISTRATION") { setGivenName(""); setFamilyName(""); setOrganisationName(""); }
     setStartClock("");
@@ -120,7 +116,6 @@ export function createParticipantActions(ws: Base & MobileNavigation & RaceDataA
   function chooseAction(value: Action) {
     if (busyRef.current || pending.current || !requireSession()) return;
     setAction(value); setClassId(""); setNewCard(""); setStartClock(""); setMessage("");
-    if (value === "PAYMENT") setPaymentStatus(data?.entries.find((entry) => entry.id === entryId)?.paymentStatus ?? "PAID");
     setIdentityCandidates(undefined); setGivenName(""); setFamilyName(""); setOrganisationName("");
     setEntryChanges(undefined); setStatusChoice(""); setStatusBlocked("");
     if (value === "IDENTITY") void loadIdentity();
@@ -148,7 +143,7 @@ export function createParticipantActions(ws: Base & MobileNavigation & RaceDataA
     flushSync(() => {
       if (outsideFilters) {
         setQuery(""); setRosterClassId(""); setOlderResultsOnly(false); setRentalCardsOnly(false);
-        setPaymentAttentionOnly(false); setMissingFixedStartOnly(false); setResultState("ALL");
+        setMissingFixedStartOnly(false); setResultState("ALL");
       }
       setPage(Math.floor(index / pageSize));
     });

@@ -1,5 +1,6 @@
 import { createRoot } from "react-dom/client";
 import { ReadoutApp } from "./app";
+import "../components/ui/tokens.css";
 import "./readout.css";
 
 // Byggs utan Next/RSC så att hela sidan kan cachas och starta utan nät.

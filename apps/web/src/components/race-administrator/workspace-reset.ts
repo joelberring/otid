@@ -8,7 +8,7 @@ import type { WorkspaceState } from "./workspace-state";
  */
 export function resetWorkspaceOnLock(s: WorkspaceState, discard: boolean) {
   const { sent, pending, setClassEditPreview, setClassEditError, setClassEditSaved, setStatusChoice, setStatusBlocked,
-    setClassEditAttempt, setEditingClassId, setAuthenticated, setExpiresAt, setData, setParticipantActionPending, setFinalizations,
+    setClassEditAttempt, setEditingClassId, setAuthenticated, setExpiresAt, setData, setFinalizations,
     setFinalizationId, setForestData, setForestClass, setForestQuery, setForestStale, setForestAutoRefresh, setForestOpen,
     setForestSortByAge, setCourseName, setCourseClassName, setCourseControls, setCourseStartRule,
     setCourseClassError, setManualClassName, setManualClassCourseVersionId, setManualClassStartRule,
@@ -24,17 +24,17 @@ export function resetWorkspaceOnLock(s: WorkspaceState, discard: boolean) {
     setEntryId, setClassId, setQuery,
     setOlderResultsOnly, setRentalCardsOnly, setResultState, setPage, setBusy, setMessage, setStartClock,
     setCapacityClassId, setCapacityInput, setNewCard, setRentalReuseSourceId,
-    setPaymentStatus, setEffectiveResult, setEffectiveResultError, setIdentityCandidates,
-    setGivenName, setFamilyName, setOrganisationName, setMobilePanel, setEntryChanges, setDnfAttempt, setDsqAttempt, setApprovalAttempt, setTransferAttempt, setCapacityAttempt, setCardAttempt, setRentalAttempt, setRentalReturnAttempt, setRentalReuseAttempt, setPaymentStatusAttempt, setTimeAttempt,
+    setEffectiveResult, setEffectiveResultError, setIdentityCandidates,
+    setGivenName, setFamilyName, setOrganisationName, setMobilePanel, setEntryChanges, setDnfAttempt, setDsqAttempt, setApprovalAttempt, setTransferAttempt, setCapacityAttempt, setCardAttempt, setRentalAttempt, setRentalReturnAttempt, setRentalReuseAttempt, setTimeAttempt,
     setRecalculationAttempt, setIdentityAttempt, setRegistrationAttempt, setDnsAttempt, setOocAttempt, setNtAttempt,
     setCourseEditAttempt, setShortenedCourseAttempt, setUnknownReadoutAttempt, setUnknown,
     setAction, setEntryVariantPreview, setEntryVariantAttempt, setDistributionAttempt, setEditingVariantCode,
-    setRelay, setRelayError, setRelayMessage, setSelectedTeamId, setRunnerChange } = s;
+    setRelay, setRelayError, setRelayMessage, setSelectedTeamId, setRunnerChange, setSettingsForm, setSettingsMessage } = s;
+  setSettingsForm(undefined); setSettingsMessage(undefined);
   setEntryVariantPreview(undefined); setEntryVariantAttempt(undefined); setDistributionAttempt(undefined);
   setRelay(undefined); setRelayError(""); setRelayMessage(""); setSelectedTeamId(""); setRunnerChange(undefined);
   if (discard || !sent.current) setEditingVariantCode("");
   setAuthenticated(false); setExpiresAt(undefined); setData(undefined);
-  setParticipantActionPending(false);
   setFinalizations(undefined); setFinalizationId("");
   setForestData(undefined); setForestClass(""); setForestQuery(""); setForestStale(true);
   setForestAutoRefresh(false); setForestOpen(false);
@@ -64,13 +64,13 @@ export function resetWorkspaceOnLock(s: WorkspaceState, discard: boolean) {
   setEntryId(""); setClassId(""); setQuery(""); setOlderResultsOnly(false); setRentalCardsOnly(false);
   setResultState("ALL"); setPage(0); setBusy(false); setMessage(text.denied);
   setStartClock("");
-  setCapacityClassId(""); setCapacityInput(""); setNewCard(""); setRentalReuseSourceId(""); setPaymentStatus("PAID");
+  setCapacityClassId(""); setCapacityInput(""); setNewCard(""); setRentalReuseSourceId("");
   setEffectiveResult(undefined); setEffectiveResultError(false);
   setIdentityCandidates(undefined); setGivenName(""); setFamilyName(""); setOrganisationName("");
   setMobilePanel(discard || !sent.current ? "LIST" : "WORK");
   setEntryChanges(undefined);
   if (discard || !sent.current) { setDnfAttempt(undefined); setDsqAttempt(undefined); setApprovalAttempt(undefined); }
-  if (discard || !sent.current) { pending.current = undefined; sent.current = false; setTransferAttempt(undefined); setCapacityAttempt(undefined); setCardAttempt(undefined); setRentalAttempt(undefined); setRentalReturnAttempt(undefined); setRentalReuseAttempt(undefined); setPaymentStatusAttempt(undefined); setTimeAttempt(undefined); setRecalculationAttempt(undefined); setIdentityAttempt(undefined); setRegistrationAttempt(undefined); setDnsAttempt(undefined); setOocAttempt(undefined); setNtAttempt(undefined); setCourseEditAttempt(undefined); setShortenedCourseAttempt(undefined); setUnknownReadoutAttempt(undefined); setUnknown(false); setAction("INFO"); }
+  if (discard || !sent.current) { pending.current = undefined; sent.current = false; setTransferAttempt(undefined); setCapacityAttempt(undefined); setCardAttempt(undefined); setRentalAttempt(undefined); setRentalReturnAttempt(undefined); setRentalReuseAttempt(undefined); setTimeAttempt(undefined); setRecalculationAttempt(undefined); setIdentityAttempt(undefined); setRegistrationAttempt(undefined); setDnsAttempt(undefined); setOocAttempt(undefined); setNtAttempt(undefined); setCourseEditAttempt(undefined); setShortenedCourseAttempt(undefined); setUnknownReadoutAttempt(undefined); setUnknown(false); setAction("INFO"); }
   else setUnknown(true);
 }
 

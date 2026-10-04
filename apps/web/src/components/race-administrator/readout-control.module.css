@@ -1,0 +1,30 @@
+/* Tävlingsdagens kontrollvy (ADR-0169 beslut 4): platta block med rubrik och antal, status i ord och symbol. */
+.control { display: grid; gap: 16px; min-width: 0; padding-bottom: 20px; }
+.controlHeader { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px 24px; min-width: 0; }
+.controlTitle { display: grid; gap: 2px; max-width: 70ch; }
+.controlActions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.control a.openReadout { display: inline-flex; align-items: center; min-height: 48px; padding: 0 22px; border-radius: var(--radius);
+  background: var(--ink); color: var(--surface); font-size: var(--text-md); font-weight: 600; text-decoration: none; }
+.control a.openReadout:hover { background: #000; }
+.readAt { color: var(--muted); font-size: var(--text-xs); }
+.controlGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 0 32px; min-width: 0; }
+.controlCard { display: grid; align-content: start; gap: 8px; min-width: 0; padding: 14px 0 18px; border-top: 1px solid var(--line); }
+.controlCard h3 { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: var(--text-md); }
+.controlCount { font-family: var(--font-dense); font-size: var(--text-xl); font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; }
+.controlList { display: grid; margin: 0; padding: 0; list-style: none; max-height: 22rem; overflow-y: auto; }
+.controlList > li { display: grid; gap: 1px; min-width: 0; padding: 7px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+.controlList > li:last-child { border-bottom: 0; }
+.controlList > li > span, .controlList > li > span > span { color: var(--muted); font-size: var(--text-xs); }
+.controlList > li > span > strong { display: block; color: var(--ink); font-size: var(--text-sm); }
+.controlRowAction { grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px !important; }
+.controlLatestRow { grid-template-columns: 4.5rem minmax(0, 1fr) auto; align-items: baseline; gap: 8px !important; }
+.controlLatestRow time { font-family: var(--font-dense); font-variant-numeric: tabular-nums; color: var(--muted); }
+.controlLatestRow > span:nth-child(2) { display: grid; }
+.controlLatestRow > span:nth-child(2) > span { color: var(--muted); font-size: var(--text-xs); }
+.latestResult { justify-self: end; color: var(--ink) !important; font-size: var(--text-sm) !important; font-weight: 600; font-variant-numeric: tabular-nums; }
+.latestResult[data-status="OK"] > span:first-child { color: var(--ok); }
+.latestResult[data-status="MP"], .latestResult[data-status="DSQ"] { color: var(--mp) !important; }
+.controlForm { display: grid; gap: 10px; min-width: 0; }
+@media (max-width: 900px) {
+  .controlGrid { grid-template-columns: minmax(0, 1fr); }
+}

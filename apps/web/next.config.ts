@@ -14,7 +14,7 @@ const nextConfig: NextConfig = {
     ];
     const shellHeaders = [
       { key: "Cache-Control", value: "no-cache" },
-      { key: "Content-Security-Policy", value: "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'" },
+      { key: "Content-Security-Policy", value: "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'" },
       { key: "Referrer-Policy", value: "no-referrer" },
       { key: "X-Content-Type-Options", value: "nosniff" },
       { key: "X-Frame-Options", value: "DENY" }
@@ -25,7 +25,7 @@ const nextConfig: NextConfig = {
       // Avläsningen behöver Web Serial för USB-stationen.
       { source: "/readout/:path*", headers: [...shellHeaders,
         { key: "Permissions-Policy", value: "camera=(), geolocation=(), microphone=(), serial=(self)" }] },
-      ...["", "/manage", "/readout", "/imports", "/forest-watch", "/map", "/route-preview", "/route-upload"].map((surface) => ({
+      ...["", "/manage", "/readout", "/speaker", "/imports", "/forest-watch", "/map", "/route-preview", "/route-upload"].map((surface) => ({
         source: `/admin/:raceId${surface}`, headers: [...privateAdminHeaders]
       })),
       { source: "/starts/:raceId", headers: [...privateAdminHeaders] }

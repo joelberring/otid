@@ -29,7 +29,7 @@ describe("TASK029 atomiskt klass-/startbyteskontrakt", () => {
       resultFreshness: "NO_PUBLISHED_RESULT", effectiveResult: { state: "NO_PUBLISHED_RESULT", selectedRevision: null },
       resultRevisionMarker: null, activeAssignment: null, multipleActiveAssignments: false };
     const value = { formatVersion: 2, raceId: id, eventName: "Skärgårdshelgen", raceName: "Lång",
-      snapshotVersion: 1, raceDate: "2026-09-12", generatedAt: "2026-09-12T08:00:00Z",
+      snapshotVersion: 1, raceDate: "2026-09-12", raceType: "STANDARD", generatedAt: "2026-09-12T08:00:00Z",
       timeZone: "Europe/Stockholm", classes: [raceClass], entries: [entry] };
     expect(entryTransferCandidatesSchema.safeParse(value).success).toBe(true);
     expect(entryTransferCandidatesSchema.safeParse({ ...value, formatVersion: 1 }).success).toBe(false);

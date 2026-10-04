@@ -67,15 +67,15 @@ export function ManualPunchStartTimeCorrectionWithdrawal({ raceId, entries, time
       setAttempt(undefined); setCandidate(undefined); setAcknowledged(false); setSaved(text.punchStartTimeCorrectionWithdrawalSaved);
     } catch { setError(text.unreachable); } finally { setBusy(false); }
   }
-  return <details className={styles.courseClassPanel} open={isOpen || pending} onToggle={(event) => {
+  return <details className={styles.disclosure} open={isOpen || pending} onToggle={(event) => {
     if (pending && !event.currentTarget.open) event.currentTarget.open = true;
     else if (!pending) setIsOpen(event.currentTarget.open);
-  }}><summary>{text.punchStartTimeCorrectionWithdrawalTitle}</summary><section className={styles.panel}>
+  }}><summary>{text.punchStartTimeCorrectionWithdrawalTitle}</summary><section className={styles.disclosureBody}>
     <p>{text.punchStartTimeCorrectionWithdrawalHelp}</p>
     <label>{text.finishTimeCorrectionParticipant}<select value={entryId} disabled={busy || !!attempt} onChange={(event) => { setEntryId(event.target.value); setCandidate(undefined); setAttempt(undefined); setError(""); setSaved(""); }}>
       <option value="">{text.chooseEntry}</option>{entries.map((entry) => <option key={entry.id} value={entry.id}>{entry.displayName}</option>)}</select></label>
     {!candidate && !attempt && <button type="button" disabled={!entryId || busy} onClick={() => void load()}>{text.punchStartTimeCorrectionWithdrawalLoad}</button>}
-    {candidate && !attempt && <><div className={styles.courseRelinkSummary}><p><strong>{candidate.entryName}</strong> · {candidate.className}</p>
+    {candidate && !attempt && <><div className={styles.summaryBox}><p><strong>{candidate.entryName}</strong> · {candidate.className}</p>
       <p><strong>{text.punchStartTimeCorrectionWithdrawalSource}:</strong> {formatClockTime(candidate.source.startTime, timeZone)}</p>
       <p><strong>{text.punchStartTimeCorrectionWithdrawalCorrected}:</strong> {formatClockTime(candidate.corrected.startTime, timeZone)}</p>
       <p><strong>{text.punchStartTimeCorrectionWithdrawalRestored}:</strong> {formatClockTime(candidate.source.startTime, timeZone)}</p></div>

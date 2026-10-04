@@ -197,32 +197,6 @@ describe("administratörsroutes: session och deltagare", () => {
     }), { "idempotency-key": `entry-card-rental-reuse:${id}` }),
     id, { kind: "card-rental-reuse", entryId: id }, services, environment)).status).toBe(400);
   });
-  it("TASK142 binder privat betalstatus till deltagar- och betalstatusversion utan publika följder", async () => {
-    const body = { formatVersion: 1, expectedEntryVersion: 3, expectedClassId: id,
-      expectedPaymentStatus: "UNMARKED", expectedPaymentStatusVersion: 1, paymentStatus: "PAID" };
-    const receipt = { formatVersion: 1 as const, replayed: false, requestId: id, raceId: id, entryId: id,
-      classId: id, previousPaymentStatus: "UNMARKED" as const, paymentStatus: "PAID" as const,
-      entryVersionAtChange: 3, paymentStatusVersionBefore: 1, paymentStatusVersionAfter: 2,
-      changedAt: "2026-09-22T08:00:00Z" };
-    const paymentStatus = vi.fn<typeof import("@o-tid/application").changeEntryPaymentStatusAsAdministrator>()
-      .mockResolvedValue({ status: "changed", response: receipt });
-    const services = { ...dependencies(), paymentStatus };
-    const req = () => request("PATCH", JSON.stringify(body),
-      { "idempotency-key": `entry-payment-status-change:${id}` });
-    expect((await raceAdministratorRoute(db, req(), id, { kind: "payment-status", entryId: id }, services, environment)).status).toBe(200);
-    expect(paymentStatus).toHaveBeenCalledWith(db, expect.objectContaining({ request: body,
-      idempotencyKey: `entry-payment-status-change:${id}` }));
-    for (const change of [{ raceId: other }, { entryId: other }, { classId: other }, { requestId: other },
-      { entryVersionAtChange: 4 }, { previousPaymentStatus: "UNPAID" }, { paymentStatus: "UNPAID" },
-      { paymentStatusVersionBefore: 2, paymentStatusVersionAfter: 3 },
-      { paymentStatusVersionBefore: 1, paymentStatusVersionAfter: 3 }]) {
-      paymentStatus.mockResolvedValueOnce({ status: "changed", response: { ...receipt, ...change } } as never);
-      expect((await raceAdministratorRoute(db, req(), id, { kind: "payment-status", entryId: id }, services, environment)).status).toBe(500);
-    }
-    expect((await raceAdministratorRoute(db, request("PATCH", JSON.stringify({ ...body, amount: 100 }),
-      { "idempotency-key": `entry-payment-status-change:${id}` }), id,
-    { kind: "payment-status", entryId: id }, services, environment)).status).toBe(400);
-  });
   it("sessionen öppnas bara med kontot: POST /session finns inte (ADR-0168)", async () => {
     const services = dependencies();
     const result = await raceAdministratorRoute(db, request("POST", JSON.stringify({ formatVersion: 1 })), id,

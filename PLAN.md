@@ -270,7 +270,7 @@ Se ADR-0169 beslut 3.
 Playwright: klubbstafett med 6 lag × 3 sträckor, en sträcka byts, avläsning,
 publikt lagresultat.
 
-## [ ] Steg 12 – Tävlingstyp, nytt utseende och egen speakersida
+## [x] Steg 12 – Tävlingstyp, nytt utseende och egen speakersida
 
 Se ADR-0170 beslut 1–2.
 

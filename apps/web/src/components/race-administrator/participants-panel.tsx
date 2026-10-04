@@ -6,20 +6,20 @@ import { raceWorkspaceNavigationSv as navigationText } from "../../i18n/race-wor
 import { sv } from "../../i18n/sv";
 import { relaySv as relayText } from "../../i18n/relay-sv";
 import { formatClockTime } from "../../lib/clock-time";
-import { administratorRosterResultFilters, needsPaymentAttention, type AdministratorRosterResultFilter } from "../../lib/administrator-roster-filter";
+import { administratorRosterResultFilters, type AdministratorRosterResultFilter } from "../../lib/administrator-roster-filter";
 import { resultDuration } from "./types";
 import { ParticipantCard } from "./participant-card";
 import { RelayTeams } from "./relay-teams";
+import { Button } from "../ui";
 import type { Workspace } from "./workspace-state";
 
 /** Deltagare: lista och deltagarkort för vald deltagare. */
 export function ParticipantsPanel({ ws }: { ws: Workspace }) {
-  const { currentPage, disabled, mobilePanel, navigateMobile, participantsVisible, raceId, revealSelected,
+  const { currentPage, disabled, mobilePanel, navigateMobile, participantsVisible, profile, raceId, revealSelected,
     selected, selectedIndex, selectedPage, wideTable, workflowLocked } = ws;
   return <section className={styles.workflowGroup} id={`workflow-${raceId}-participants`} aria-label={navigationText.steps.ENTRIES}
       hidden={!participantsVisible}>
-    <p className={styles.workflowHelp}>{text.workflowParticipantsHelp}</p>
-    <RelayTeams ws={ws} visible={participantsVisible} />
+    {profile.features.relay && <RelayTeams ws={ws} visible={participantsVisible} />}
     <nav className={styles.mobileNavigation} aria-label={text.mobileNavigation}>
       <button type="button" className="secondary" aria-pressed={mobilePanel === "LIST"} disabled={disabled}
         aria-controls={`participant-list-${raceId}`} onClick={() => navigateMobile("LIST")}>{text.mobileList}</button>
@@ -43,20 +43,24 @@ export function ParticipantsPanel({ ws }: { ws: Workspace }) {
 /** Deltagarlistan med sökning, filter och sidindelning. */
 export function ParticipantList({ ws }: { ws: Workspace }) {
   const { classesById, currentPage, data, disabled, entryId, filtered, lastPage, listPanel, missingFixedStartOnly,
-    newParticipant, olderResultCount, olderResultsOnly, openMissingStartTime, pageSize, paymentAttentionCount,
-    paymentAttentionOnly, printPrivate, query, raceId, refresh, rentalCardCount, rentalCardsOnly, rentalEntries,
+    newParticipant, olderResultCount, olderResultsOnly, openMissingStartTime, pageSize,
+    printPrivate, query, raceId, refresh, rentalCardCount, rentalCardsOnly, rentalEntries,
     resultState, rosterClassId, rosterOrder, select, setMissingFixedStartOnly, setOlderResultsOnly, setPage,
-    setPageSize, setPaymentAttentionOnly, setQuery, setRentalCardsOnly, setResultState, setRosterClassId,
+    setPageSize, setQuery, setRentalCardsOnly, setResultState, setRosterClassId,
     setRosterOrder, setWideTable, visible, wideTable, workflowLocked } = ws;
   return <section className={styles.panel} aria-label={text.participants} data-panel="LIST" ref={listPanel} tabIndex={-1} id={`participant-list-${raceId}`}>
-    <div className={`${styles.toolbar} ${styles.participantToolbar}`}><h2>{text.participants}</h2>
-      <button disabled={disabled || !data} onClick={newParticipant}>{text.newParticipant}</button>
-      <button type="button" className={`secondary ${styles.wideTableButton}`} disabled={disabled} aria-pressed={wideTable}
-        aria-label={wideTable ? navigationText.splitTableAccessible : navigationText.wideTableAccessible}
-        onClick={() => setWideTable(!wideTable)}>{wideTable ? navigationText.splitTable : navigationText.wideTable}</button>
-      {rentalEntries.length > 0 && <button type="button" className="secondary" disabled={disabled}
-        onClick={() => printPrivate("RENTAL")}>{text.rentalPrint}</button>}
-      <button className="secondary" disabled={disabled} onClick={() => void refresh()}>{text.refresh}</button></div>
+    <div className={styles.listHead}>
+      <div><h2>{text.participants}</h2><p className={styles.workflowHelp}>{text.workflowParticipantsHelp}</p></div>
+      <div className={styles.actions}>
+        <Button disabled={disabled || !data} onClick={newParticipant}>{text.newParticipant}</Button>
+        <Button variant="secondary" className={styles.wideTableButton} disabled={disabled} aria-pressed={wideTable}
+          aria-label={wideTable ? navigationText.splitTableAccessible : navigationText.wideTableAccessible}
+          onClick={() => setWideTable(!wideTable)}>{wideTable ? navigationText.splitTable : navigationText.wideTable}</Button>
+        {rentalEntries.length > 0 && <Button variant="secondary" disabled={disabled}
+          onClick={() => printPrivate("RENTAL")}>{text.rentalPrint}</Button>}
+        <Button variant="quiet" disabled={disabled} onClick={() => void refresh()}>{text.refresh}</Button>
+      </div>
+    </div>
     <div className={styles.rosterSearch}>
     <label>{navigationText.search}<input type="search" autoComplete="off" value={query} disabled={disabled}
       onChange={(event) => { setQuery(event.target.value); setPage(0); }} /></label>
@@ -100,11 +104,6 @@ export function ParticipantList({ ws }: { ws: Workspace }) {
         onChange={(event) => { setRentalCardsOnly(event.target.checked); setPage(0); }} />
         <span className={styles.filterLabelFull}>{text.rosterRentalCardsOnly(rentalCardCount)}</span>
         <span className={styles.filterLabelCompact} aria-hidden="true">{text.rosterRentalCardsCompact(rentalCardCount)}</span></label>
-      <label className={styles.listFilter}><input type="checkbox" checked={paymentAttentionOnly} disabled={disabled}
-        aria-label={text.rosterPaymentAttentionOnly(paymentAttentionCount)}
-        onChange={(event) => { setPaymentAttentionOnly(event.target.checked); setPage(0); }} />
-        <span className={styles.filterLabelFull}>{text.rosterPaymentAttentionOnly(paymentAttentionCount)}</span>
-        <span className={styles.filterLabelCompact} aria-hidden="true">{text.rosterPaymentAttentionCompact(paymentAttentionCount)}</span></label>
     </div>
     {missingFixedStartOnly && <div className={styles.activeRosterFilter}>
       <span>{text.rosterMissingFixedStartFilter}</span>
@@ -112,7 +111,7 @@ export function ParticipantList({ ws }: { ws: Workspace }) {
         setMissingFixedStartOnly(false); setPage(0);
       }}>{text.rosterShowAllStartTimes}</button>
     </div>}
-    {data && <><p>{text.shown} {filtered.length} {text.of} {data.entries.length}
+    {data && <><p className={styles.workflowHelp}>{text.shown} {filtered.length} {text.of} {data.entries.length}
       {rosterOrder === "FIXED_START" && <span className={styles.rosterOrderHint}> · {navigationText.rosterFixedStartOrderHelp}</span>}</p>
       <div className={styles.tableScroll}><table className={`${styles.table} ${styles.rosterTable}`}><thead><tr>
         <th scope="col">{text.name}</th><th scope="col">{text.raceClass}</th>
@@ -121,7 +120,7 @@ export function ParticipantList({ ws }: { ws: Workspace }) {
         <tbody>{visible.map((entry) => {
           const raceClass = classesById.get(entry.classId);
           if (!raceClass) throw new Error("Validated participant class missing");
-          const open = () => select(entry.id, false, false, paymentAttentionOnly ? "PAYMENT" : undefined);
+          const open = () => select(entry.id);
           // ADR-0169: ett klick var som helst i raden öppnar deltagarkortet. Namnknappen är vägen för tangentbord.
           return <tr key={entry.id} className={styles.rosterRow} data-selected={entryId === entry.id ? "true" : undefined}
             onClick={event => { if (!disabled && !(event.target as HTMLElement).closest("button")) open(); }}>
@@ -133,7 +132,6 @@ export function ParticipantList({ ws }: { ws: Workspace }) {
               {entry.resultRevisionMarker === "MANUAL_FINISH_TIME_CORRECTION" && <span className={styles.resultBadge}>{text.rosterFinishCorrection}</span>}
               {entry.resultRevisionMarker === "MANUAL_FINISH_TIME_CORRECTION_WITHDRAWAL" && <span className={styles.resultBadge}>{text.rosterFinishCorrectionWithdrawal}</span>}
               {entry.activeAssignment?.isRental && <span className={`${styles.resultBadge} ${entry.activeAssignment.rentalReturned ? "" : styles.resultBadgeAttention}`}>{text.rentalBadge} · {entry.activeAssignment.cardNumber} · {entry.activeAssignment.rentalReturned ? text.rentalReturned : text.rentalOutstanding}</span>}
-              {entry.paymentStatus !== "UNMARKED" && <span className={`${styles.resultBadge} ${needsPaymentAttention(entry.paymentStatus) ? styles.resultBadgeAttention : ""}`}>{text.paymentStatusBadge} · {text.paymentStatuses[entry.paymentStatus]}</span>}
             </div>
           </td><td data-label={text.raceClass}>{raceClass.name}
             {entry.relay && <span className={styles.rosterMetadata}>{relayText.teamHeading(entry.relay.teamNumber, entry.relay.teamName)} ·
@@ -161,9 +159,9 @@ export function ParticipantList({ ws }: { ws: Workspace }) {
             </div>}</td></tr>;
         })}</tbody>
       </table></div>
-      {!filtered.length && <p>{paymentAttentionOnly && paymentAttentionCount === 0 ? text.rosterNoPaymentAttention : text.noMatches}</p>}
-      {lastPage > 0 && <div className={styles.toolbar}><button className="secondary" disabled={disabled || currentPage === 0} onClick={() => setPage(currentPage - 1)}>{text.previousPage}</button>
-        <span>{currentPage + 1} / {lastPage + 1}</span><button className="secondary" disabled={disabled || currentPage === lastPage} onClick={() => setPage(currentPage + 1)}>{text.nextPage}</button></div>}
+      {!filtered.length && <p>{text.noMatches}</p>}
+      {lastPage > 0 && <div className={styles.pager}><Button variant="secondary" disabled={disabled || currentPage === 0} onClick={() => setPage(currentPage - 1)}>{text.previousPage}</Button>
+        <span>{currentPage + 1} / {lastPage + 1}</span><Button variant="secondary" disabled={disabled || currentPage === lastPage} onClick={() => setPage(currentPage + 1)}>{text.nextPage}</Button></div>}
     </>}
   </section>;
 }

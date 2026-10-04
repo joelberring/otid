@@ -106,12 +106,12 @@ export function ManualFinishTimeCorrection({ raceId, entries, timeZone, onPendin
 
   const source = candidate?.source;
   const newElapsed = attempt ? Date.parse(attempt.request.correctedFinishTime) - Date.parse(attempt.candidate.source.startTime) : undefined;
-  return <details className={styles.courseClassPanel} open={isOpen || pending} onToggle={(event) => {
+  return <details className={styles.disclosure} open={isOpen || pending} onToggle={(event) => {
     if (pending && !event.currentTarget.open) event.currentTarget.open = true;
     else if (!pending) setIsOpen(event.currentTarget.open);
   }}>
     <summary>{text.finishTimeCorrectionTitle}</summary>
-    <form className={styles.panel} onSubmit={inspect}>
+    <form className={styles.disclosureBody} onSubmit={inspect}>
       <p>{text.finishTimeCorrectionHelp}</p>
       <label>{text.finishTimeCorrectionParticipant}<select value={entryId} disabled={busy || !!attempt}
         onChange={(event) => { setEntryId(event.target.value); setCandidate(undefined); setAttempt(undefined); setError(""); setSaved(""); }}>
@@ -119,7 +119,7 @@ export function ManualFinishTimeCorrection({ raceId, entries, timeZone, onPendin
       </select></label>
       {!candidate && !attempt && <button type="button" disabled={!entryId || busy} onClick={() => void loadCandidate()}>{text.finishTimeCorrectionLoad}</button>}
       {source && !attempt && <>
-        <div className={styles.courseRelinkSummary}>
+        <div className={styles.summaryBox}>
           <p><strong>{candidate.entryName}</strong> · {candidate.className}</p>
           <p><strong>{text.finishTimeCorrectionSource}:</strong> {sv.publicResultsStatusLabels[source.outcome.status]}</p>
           <p><strong>{text.finishTimeCorrectionStart}:</strong> {formatClockTime(source.startTime, timeZone)}</p>

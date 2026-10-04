@@ -9,13 +9,11 @@ import { hasPublicResultFavorite, parsePublicResultFavorites, publicResultFavori
 import { startPublicResultEventStream } from "../lib/public-result-event-stream-client";
 import { filterPublicResults, publicResultClassNames } from "../lib/public-results-filter";
 import { readOrganizerCsrf } from "../lib/organizer-client";
+import { formatDuration } from "../lib/clock-time";
 
 function duration(milliseconds?: number) {
   if (milliseconds === undefined) return "–";
-  const wholeSeconds = Math.floor(milliseconds / 1_000);
-  const remainder = milliseconds % 1_000;
-  const base = `${Math.floor(wholeSeconds / 60)}:${String(wholeSeconds % 60).padStart(2, "0")}`;
-  return remainder === 0 ? base : `${base}.${String(remainder).padStart(3, "0")}`;
+  return formatDuration(milliseconds);
 }
 
 function resultClass(status: PublicResultListResponse["results"][number]["status"]): string {

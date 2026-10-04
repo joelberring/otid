@@ -11,7 +11,6 @@ import { formatClockTime } from "../../lib/clock-time";
 import { availableStatusChoices, isStatusChoice } from "../../lib/participant-status-choices";
 import { RaceParticipantFacts } from "../race-participant-facts";
 import { RaceResultControls } from "../race-result-controls";
-import { ParticipantEntryClaimAdmin } from "../participant-entry-claim-admin";
 import { AdministratorEntryChanges } from "../administrator-entry-changes";
 import { resultDuration } from "./types";
 import { EntryActionForms, RegistrationForm } from "./entry-action-forms";
@@ -23,12 +22,12 @@ import type { Workspace } from "./workspace-state";
  * klass, bricka, starttid, resultat med sträcktider, historik och "Ändra status".
  */
 export function ParticipantCard({ ws }: { ws: Workspace }) {
-  const { action, authenticated, cardAttempt, classesById, data, disabled, effectiveResult, effectiveResultError, filtered,
-    identityAttempt, navigateParticipantSequence, participantActionPending, paymentStatusAttempt, raceId, rentalAttempt,
-    rentalReturnAttempt, rentalReuseAttempt, selected, selectedClass, selectedIndex, setParticipantActionPending,
+  const { action, cardAttempt, classesById, data, disabled, effectiveResult, effectiveResultError, filtered,
+    identityAttempt, navigateParticipantSequence, raceId, rentalAttempt,
+    rentalReturnAttempt, rentalReuseAttempt, selected, selectedClass, selectedIndex,
     timeAttempt, transferAttempt, workPanel, workflowLocked, chooseAction } = ws;
   const entryEditing = !!(transferAttempt || cardAttempt || rentalAttempt || rentalReturnAttempt || rentalReuseAttempt ||
-    paymentStatusAttempt || timeAttempt || identityAttempt);
+    timeAttempt || identityAttempt);
   const result = effectiveResult?.entryId === selected?.id ? effectiveResult : undefined;
   return <section className={styles.panel} aria-label={text.title} data-panel="WORK" ref={workPanel} tabIndex={-1} id={`participant-work-${raceId}`}>
     {selected && selectedClass && action !== "REGISTRATION" && <>
@@ -60,12 +59,6 @@ export function ParticipantCard({ ws }: { ws: Workspace }) {
       <EntryChanges ws={ws} />
     </>}
     <RegistrationForm ws={ws} />
-    {authenticated && selected && <details className={styles.claimPanel} open={participantActionPending || undefined}
-      onToggle={event => { if (participantActionPending && !event.currentTarget.open) event.currentTarget.open = true; }}>
-      <summary>{adminText.claimOptionalSummary}</summary>
-      <ParticipantEntryClaimAdmin key={`${raceId}:${selected.id}`} raceId={raceId} entryId={selected.id}
-        displayName={selected.displayName} onPendingChange={setParticipantActionPending} />
-    </details>}
   </section>;
 }
 
@@ -89,11 +82,11 @@ function ParticipantVariant({ ws }: { ws: Workspace }) {
       {current === null && <option value="">–</option>}
       {selectedClass.courseVariants.map(code => <option key={code} value={code}>{code}</option>)}
     </select>
-    {entryVariantMessage && <p role="status" className={styles.courseEditSaved}>{entryVariantMessage}</p>}
+    {entryVariantMessage && <p role="status" className={styles.saved}>{entryVariantMessage}</p>}
     {entryVariantError && <p role="alert" className={styles.warning}>{entryVariantError}</p>}
     {entryVariantPreview && <div className={styles.review} role="alert">
       <p><strong>{variantText.variantConfirmTitle}</strong></p>
-      <ul className={styles.courseEditChanges}>{entryVariantPreview.changes.map(change => <li key={change.entryId}>
+      <ul className={styles.changeList}>{entryVariantPreview.changes.map(change => <li key={change.entryId}>
         {variantText.variantResultChange(change.displayName, adminText.courseEditStatus[change.before], adminText.courseEditStatus[change.after])}
       </li>)}</ul>
       <div className={styles.actions}>
@@ -167,7 +160,7 @@ function StatusChange({ ws, result }: { ws: Workspace; result: AdministratorEffe
 function ResultHistory({ result, timeZone }: { result: AdministratorEffectiveResultResponse; timeZone: string }) {
   return <section className={styles.workspace} aria-label={text.history}>
     <h3>{text.history}</h3>
-    {result.history.length === 0 ? <p>{text.historyEmpty}</p> : <ul className={styles.courseEditChanges}>
+    {result.history.length === 0 ? <p>{text.historyEmpty}</p> : <ul className={styles.changeList}>
       {result.history.map(row => <li key={row.revision}>{text.historyLine(formatClockTime(row.at, timeZone),
         text.historyCauses[row.cause], sv.publicResultsStatusLabels[row.status])}</li>)}
     </ul>}
@@ -178,7 +171,7 @@ function ResultHistory({ result, timeZone }: { result: AdministratorEffectiveRes
 function EntryChanges({ ws }: { ws: Workspace }) {
   const { action, chooseAction, disabled, entryChanges, loadHistory, selected } = ws;
   if (!selected) return null;
-  return <details className={styles.resultActions} open={action === "HISTORY" || undefined}
+  return <details className={styles.disclosure} open={action === "HISTORY" || undefined}
     onToggle={event => { if (event.currentTarget.open && action !== "HISTORY") chooseAction("HISTORY"); }}>
     <summary>{text.entryChanges}</summary>
     {entryChanges?.entryId === selected.id ? <>

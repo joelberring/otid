@@ -30,6 +30,8 @@ import {
   type OrganizerAdminMutationAttempt
 } from "../lib/organizer-client";
 import { organizerSv as copy } from "../i18n/organizer-sv";
+import { raceTypeSv } from "../i18n/race-type-sv";
+import { RaceTypeChoice } from "./race-type-choice";
 import styles from "./organizer-workspace.module.css";
 
 type Session = { accountId: string; displayName: string; expiresAt: string };
@@ -416,7 +418,8 @@ export function OrganizerWorkspace() {
         eventName: form.get("eventName"),
         raceName: form.get("raceName"),
         raceDate: form.get("raceDate"),
-        timeZone: form.get("timeZone")
+        timeZone: form.get("timeZone"),
+        raceType: form.get("raceType")
       });
       if (!session) throw new Error(copy.sessionExpired);
       const current = createOrganizerAttempt(request, session.accountId, () => crypto.randomUUID());
@@ -570,8 +573,8 @@ export function OrganizerWorkspace() {
             <p className={styles.eventMeta}>{event.startsOn} · {event.timeZone} · {event.races.length} {copy.raceCountLabel}</p>
             {event.role === "OWNER" && <EventAdministratorsDisclosure eventId={event.eventId} eventName={event.eventName} accountId={session.accountId} />}
             <ul className={styles.raceList}>{event.races.map((race) => <li key={race.raceId}>
-              <div><strong>{race.raceName}</strong><span>{race.raceDate}</span></div>
-              <button type="button" disabled={busy || enteringRaceId !== undefined} aria-busy={enteringRaceId === race.raceId}
+              <div><strong>{race.raceName}</strong><span>{race.raceDate} · {raceTypeSv.types[race.raceType].name}</span></div>
+              <button type="button" className={styles.secondary} disabled={busy || enteringRaceId !== undefined} aria-busy={enteringRaceId === race.raceId}
                 onClick={() => void enterRace(race.raceId)}>{enteringRaceId === race.raceId ? copy.opening : copy.openRace}</button>
             </li>)}</ul>
           </li>)}
@@ -588,6 +591,7 @@ export function OrganizerWorkspace() {
               <label>{copy.date}<input name="raceDate" type="date" required disabled={busy} /></label>
               <label>{copy.timeZone}<input name="timeZone" defaultValue="Europe/Stockholm" required maxLength={100} disabled={busy} /></label>
             </div>
+            <RaceTypeChoice name="raceType" defaultValue="STANDARD" disabled={busy} />
             <button type="submit" disabled={busy} aria-busy={busy}>{copy.createEvent}</button>
           </form></>}
         {attempt && <div className={styles.uncertain} role="alert">
@@ -597,6 +601,7 @@ export function OrganizerWorkspace() {
             <dt>{copy.eventName}</dt><dd>{attempt.request.eventName}</dd>
             <dt>{copy.raceName}</dt><dd>{attempt.request.raceName}</dd>
             <dt>{copy.date}</dt><dd>{attempt.request.raceDate}</dd>
+            <dt>{raceTypeSv.typeLegend}</dt><dd>{raceTypeSv.types[attempt.request.raceType ?? "STANDARD"].name}</dd>
             <dt>{copy.timeZone}</dt><dd>{attempt.request.timeZone}</dd></dl>
           <div className={styles.actions}>
             {attemptMatchesSession && <button type="button" disabled={busy || !session} onClick={() => void submitCreate(attempt)}>{copy.retrySameAttempt}</button>}
@@ -606,9 +611,7 @@ export function OrganizerWorkspace() {
         {created && !attempt && !showAnotherForm && <div className={styles.confirmed} role="status">
           <strong>{created.replayed ? copy.createdOnRetry : copy.created}</strong>
           <p>{copy.nowInYourEvents}</p>
-          <dl className={styles.createReceipt}><dt>{copy.createdEventId}</dt><dd>{created.eventId}</dd>
-            <dt>{copy.createdRaceId}</dt><dd>{created.raceId}</dd>
-            <dt>{copy.createdAt}</dt><dd><time dateTime={created.createdAt}>{new Date(created.createdAt).toLocaleString("sv-SE")}</time></dd></dl>
+          <dl className={styles.createReceipt}><dt>{copy.createdAt}</dt><dd><time dateTime={created.createdAt}>{new Date(created.createdAt).toLocaleString("sv-SE")}</time></dd></dl>
           <div className={styles.actions}>
             <button type="button" disabled={busy || enteringRaceId !== undefined} aria-busy={enteringRaceId === created.raceId}
               onClick={() => void enterRace(created.raceId)}>{enteringRaceId === created.raceId ? copy.opening : copy.openRace}</button>

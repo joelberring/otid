@@ -47,8 +47,11 @@ describe("TASK150 arrangörskontokontrakt", () => {
       raceDate: "2026-10-04",
       timeZone: "Europe/Stockholm"
     };
-    expect(organizerEventCreateRequestSchema).toBe(eventCreationRequestSchema);
-    expect(organizerEventCreateRequestSchema.parse(request)).toEqual(request);
+    // ADR-0170: kontots skapande lägger till tävlingstypen; saknas den blir det Tävling.
+    expect(organizerEventCreateRequestSchema.parse(request)).toEqual({ ...request, raceType: "STANDARD" });
+    expect(organizerEventCreateRequestSchema.parse({ ...request, raceType: "TRAINING" }).raceType).toBe("TRAINING");
+    expect(organizerEventCreateRequestSchema.safeParse({ ...request, raceType: "OKÄND" }).success).toBe(false);
+    expect(eventCreationRequestSchema.parse(request)).toEqual(request);
     expect(organizerEventCreateRequestSchema.safeParse({ ...request, ownerId: eventId }).success).toBe(false);
 
     const response = {
@@ -69,7 +72,7 @@ describe("TASK150 arrangörskontokontrakt", () => {
         role: "OWNER" as const,
         startsOn: "2026-10-04",
         timeZone: "Europe/Stockholm",
-        races: [{ raceId, raceName: "Medeldistans", raceDate: "2026-10-04" }]
+        races: [{ raceId, raceName: "Medeldistans", raceDate: "2026-10-04", raceType: "STANDARD" as const }]
       }]
     };
     const event = response.events[0]!;

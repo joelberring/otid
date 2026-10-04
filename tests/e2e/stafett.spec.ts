@@ -68,12 +68,12 @@ test("klubbstafett: stafettklass, lag, byte av löpare, avläsning per sträcka,
   const suffix = unique();
   const { date, massStart } = raceClock();
   const owner = await registerAccount(browser, `stafett.${suffix}`, "Stina Stafett");
-  const raceId = await createRace(owner, `Klubbstafett ${suffix}`, date);
+  const raceId = await createRace(owner, `Klubbstafett ${suffix}`, date, "Stafett");
   await addCourseAndClass(owner, "Stafettbana", "Inskolning", "31 32 33 34");
   await compileRelayRoutes(owner, raceId);
 
   // Klasser: ny stafettklass med tre sträckor, masstart på sträcka 1 och växling på sträcka 2 och 3.
-  await openStep(owner, "Klasser");
+  await openStep(owner, "Klasser & sträckor");
   await owner.getByText("Ny stafettklass").click();
   const classForm = owner.getByRole("form", { name: "Ny stafettklass" });
   await classForm.getByLabel("Klassnamn").fill("Stafett");
@@ -85,8 +85,8 @@ test("klubbstafett: stafettklass, lag, byte av löpare, avläsning per sträcka,
   await expect(owner.getByText("Stafettklassen Stafett är sparad.")).toBeVisible();
   await expect(owner.getByRole("row", { name: /^Stafett Stafettbana/ })).toContainText("Stafett · 3 sträckor");
 
-  // Anmälda: sex lag med en löpare och bricka per sträcka, i samma formulär.
-  await openStep(owner, "Anmälda");
+  // Lag: sex lag med en löpare och bricka per sträcka, i samma formulär.
+  await openStep(owner, "Lag");
   const teamsView = owner.getByRole("region", { name: "Lag", exact: true });
   await teamsView.getByText("Nytt lag").click();
   const teamForm = owner.getByRole("form", { name: "Nytt lag" });

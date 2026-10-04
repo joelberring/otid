@@ -78,8 +78,6 @@ export const organizerSv = {
   createdOnRetry: "Tävlingen bekräftades vid retry.",
   created: "Tävlingen skapades.",
   nowInYourEvents: "Den finns nu i listan Mina tävlingar.",
-  createdEventId: "Event-id",
-  createdRaceId: "Lopp-id",
   createdAt: "Skapad",
   createAnotherEvent: "Skapa ytterligare tävling",
   adminPanel: "Medadministratörer",

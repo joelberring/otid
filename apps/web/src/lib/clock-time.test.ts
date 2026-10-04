@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatClockTime, parseRaceClock, zonedDate } from "./clock-time";
+import { formatClockTime, formatDuration, parseRaceClock, zonedDate } from "./clock-time";
 
 describe("klockslag", () => {
   it("visar tiden i tävlingens tidszon som HH:MM:SS", () => {
@@ -29,5 +29,14 @@ describe("klockslag", () => {
       expect(parseRaceClock("2026-10-08", clock, "Europe/Stockholm")).toBeNull();
     }
     expect(parseRaceClock("08-10-2026", "12:00", "Europe/Stockholm")).toBeNull();
+  });
+});
+
+describe("formatDuration", () => {
+  it("visar m:ss eller h:mm:ss utan millisekunder", () => {
+    expect(formatDuration(257_000)).toBe("4:17");
+    expect(formatDuration(257_999)).toBe("4:17");
+    expect(formatDuration(0)).toBe("0:00");
+    expect(formatDuration(3_725_400)).toBe("1:02:05");
   });
 });

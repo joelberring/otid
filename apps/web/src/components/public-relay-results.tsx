@@ -6,13 +6,10 @@ import { publicRelayResultsSchema, type PublicRelayResults } from "@o-tid/contra
 import { relaySv as text } from "../i18n/relay-sv";
 import { sv } from "../i18n/sv";
 import styles from "./public-relay-results.module.css";
+import { formatDuration } from "../lib/clock-time";
 
 function duration(milliseconds: number | null): string {
-  if (milliseconds === null) return "–";
-  const seconds = Math.floor(milliseconds / 1_000);
-  const hours = Math.floor(seconds / 3_600), minutes = Math.floor((seconds % 3_600) / 60), rest = seconds % 60;
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return hours > 0 ? `${hours}:${pad(minutes)}:${pad(rest)}` : `${minutes}:${pad(rest)}`;
+  return milliseconds === null ? "–" : formatDuration(milliseconds);
 }
 
 type Team = PublicRelayResults["classes"][number]["teams"][number];

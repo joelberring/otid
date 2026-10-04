@@ -13,7 +13,7 @@ describe("PublicFrozenRaceResults", () => {
     }} />);
     expect(html).toContain("Fastställda slutresultat");
     expect(html).toContain("Ada Löpare");
-    expect(html).toContain("60:00");
+    expect(html).toContain("1:00:00");
     expect(html).not.toMatch(/entryId|resultRevisionId|sourceHash|completeXml|decisionId|split/i);
   });
 });

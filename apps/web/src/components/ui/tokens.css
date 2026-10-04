@@ -1,0 +1,43 @@
+/*
+ * ADR-0170 beslut 2: ett återhållsamt formspråk. Vitt, gråskala och nästan svart text.
+ * Färg bara där den betyder något: godkänd, felstämplad/fel, behöver åtgärd och en enda
+ * accent (banlila) för markerat val och fokus. Status bärs aldrig av färg ensam.
+ * Används av Next-appen (layout) och avläsningens offlineskal.
+ */
+@import "./fonts.css";
+
+:root {
+  color-scheme: light;
+  /* Ytor och text */
+  --canvas: #f5f6f5;
+  --surface: #ffffff;
+  --subtle: #eef0ee;
+  --ink: #1a1d1b;
+  --muted: #5e6662;
+  --line: #dce0dd;
+  --line-strong: #b9bfbb;
+  /* Betydelse */
+  --ok: #1e7a44;
+  --mp: #b4261b;
+  --attention: #c2560f;
+  --accent: #8e2a80;
+  /* Svaga toner för besked som behöver märkas (används sparsamt) */
+  --mp-tint: #fbefed;
+  --attention-tint: #fdf3ea;
+  /* Typsnitt och skala: 13 / 15 / 17 / 21 / 28 */
+  --font-ui: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-dense: "Barlow Semi Condensed", "Barlow", system-ui, sans-serif;
+  --text-xs: 13px;
+  --text-sm: 15px;
+  --text-md: 17px;
+  --text-lg: 21px;
+  --text-xl: 28px;
+  /* Mått */
+  --radius: 6px;
+  --row: 36px;
+  --control: 40px;
+  --focus: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent);
+}
+@media (pointer: coarse) {
+  :root { --control: 44px; }
+}

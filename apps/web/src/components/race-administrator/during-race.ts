@@ -8,7 +8,7 @@ import { administratorForestWatchResponseSchema, administratorReturnRequestSchem
   type AdministratorStartCorrectionRequest, type CheckinHistoryResponse, type SpeakerBoardResponse, type StartCheckinConflictReviewCandidate,
   type UnknownReadoutResolutionCandidateResponse, type UnknownReadoutResolutionRequest } from "@o-tid/contracts";
 import { canRefreshForest } from "../../lib/forest-auto-refresh";
-import { inForest } from "../../lib/admin-checklist";
+import { inForest } from "../../lib/section-status";
 import { checkinHistorySv } from "../../i18n/checkin-history-sv";
 import { checkinConflictReviewSv as reviewText } from "../../i18n/checkin-conflict-review-sv";
 import { forestWatchSv as forestText } from "../../i18n/forest-watch-sv";

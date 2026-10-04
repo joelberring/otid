@@ -1,32 +1,34 @@
 "use client";
 
-import styles from "../race-workspace-checklist.module.css";
+import styles from "./readout-control.module.css";
 import workspaceStyles from "../race-administrator-workspace.module.css";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
 import { sv } from "../../i18n/sv";
 import { formatClockTime } from "../../lib/clock-time";
-import { inForest, mispunchedEntries } from "../../lib/admin-checklist";
+import { inForest, mispunchedEntries } from "../../lib/section-status";
 import { resultDuration, unknownReadoutTargetLabel } from "./types";
 import type { Workspace } from "./workspace-state";
 import { RelayControl } from "./relay-panels";
+import { Button, Notice } from "../ui";
 
 /**
  * Tävlingsdagens kontrollvy (ADR-0169 beslut 4): öppna avläsningen, kvar i skogen, okända brickor,
  * felstämplade att titta på och senaste avläsningar på en skärm.
  */
 export function ReadoutControlView({ ws }: { ws: Workspace }) {
-  const { busy, forestData, forestStale, loadRaceDayAttention, raceId, workflowLocked } = ws;
+  const { busy, forestData, forestStale, loadRaceDayAttention, profile, raceId, workflowLocked } = ws;
   const remaining = forestData ? inForest(forestData.entries) : undefined;
   const conflicts = forestData?.entries.filter(row => row.forestState === "CONFLICT").length ?? 0;
   return <section className={styles.control} aria-labelledby={`control-${raceId}`}>
     <div className={styles.controlHeader}>
-      <h2 id={`control-${raceId}`}>{text.controlTitle}</h2>
-      <a className={styles.openReadout} href={`/admin/${raceId}/readout`}>{text.openReadout}</a>
-      <p className={workspaceStyles.workflowHelp}>{text.openReadoutHelp}</p>
-      <div className={styles.controlRefresh}>
-        <button type="button" className="secondary" disabled={busy || workflowLocked} onClick={() => void loadRaceDayAttention()}>
-          {text.controlRefresh}</button>
-        {forestData && <span>{text.controlReadAt(formatClockTime(forestData.generatedAt, forestData.timeZone))}</span>}
+      <div className={styles.controlTitle}>
+        <h2 id={`control-${raceId}`}>{text.controlTitle}</h2>
+        <p className={workspaceStyles.workflowHelp}>{text.openReadoutHelp}</p>
+      </div>
+      <div className={styles.controlActions}>
+        <a className={styles.openReadout} href={`/admin/${raceId}/readout`}>{text.openReadout}</a>
+        <Button variant="secondary" disabled={busy || workflowLocked} onClick={() => void loadRaceDayAttention()}>{text.controlRefresh}</Button>
+        {forestData && <span className={styles.readAt}>{text.controlReadAt(formatClockTime(forestData.generatedAt, forestData.timeZone))}</span>}
       </div>
     </div>
     <div className={styles.controlGrid}>
@@ -35,8 +37,8 @@ export function ReadoutControlView({ ws }: { ws: Workspace }) {
           <strong className={styles.controlCount} data-testid="in-forest-count">{remaining ? remaining.length : "–"}</strong></h3>
         <p className={workspaceStyles.workflowHelp}>{text.controlForestHelp}</p>
         {!remaining ? <p>{text.controlNotLoaded}</p> : <>
-          {forestStale && <p className={styles.controlNote} role="status">{text.controlStale}</p>}
-          {conflicts > 0 && <p className={styles.controlNote}>{text.controlConflicts(conflicts)}</p>}
+          {forestStale && <Notice tone="attention" role="status">{text.controlStale}</Notice>}
+          {conflicts > 0 && <Notice tone="attention">{text.controlConflicts(conflicts)}</Notice>}
           {remaining.length === 0 ? <p>{text.controlForestEmpty}</p> : <ul className={styles.controlList}>
             {remaining.map(row => <li key={row.entryId}>
               <strong>{row.displayName}</strong>
@@ -46,7 +48,7 @@ export function ReadoutControlView({ ws }: { ws: Workspace }) {
           </ul>}
         </>}
       </section>
-      <RelayControl ws={ws} />
+      {profile.features.relay && <RelayControl ws={ws} />}
       <UnknownCards ws={ws} />
       <section className={styles.controlCard} aria-labelledby={`control-mp-${raceId}`}>
         <MispunchedList ws={ws} />
@@ -59,7 +61,8 @@ export function ReadoutControlView({ ws }: { ws: Workspace }) {
   </section>;
 }
 
-function MispunchedList({ ws }: { ws: Workspace }) {
+/** Felstämplade att titta på, med "Öppna" till deltagarkortet. Visas i kontrollvyn och under Resultat. */
+export function MispunchedList({ ws }: { ws: Workspace }) {
   const { classNames, data, disabled, raceId, select } = ws;
   const rows = data ? mispunchedEntries(data) : [];
   return <>
@@ -68,8 +71,8 @@ function MispunchedList({ ws }: { ws: Workspace }) {
       {rows.map(entry => <li key={entry.id} className={styles.controlRowAction}>
         <span><strong>{entry.displayName}</strong>
           <span>{[entry.organisationName ?? text.none, classNames.get(entry.classId)].join(" · ")}</span></span>
-        <button type="button" className="secondary" disabled={disabled} aria-label={text.controlOpenFor(entry.displayName)}
-          onClick={() => select(entry.id)}>{text.controlOpen}</button>
+        <Button variant="secondary" disabled={disabled} aria-label={text.controlOpenFor(entry.displayName)}
+          onClick={() => select(entry.id)}>{text.controlOpen}</Button>
       </li>)}
     </ul>}
   </>;
@@ -83,7 +86,8 @@ function LatestReadouts({ ws }: { ws: Workspace }) {
     {latestReadouts.rows.slice(0, 10).map(row => <li key={`${row.slot}-${row.selectedRevision}`} className={styles.controlLatestRow}>
       <time dateTime={row.registeredAt}>{formatClockTime(row.registeredAt, latestReadouts.timeZone)}</time>
       <span><strong>{row.givenName} {row.familyName}</strong><span>{row.className}</span></span>
-      <span className={row.state === "ACTIVE_RESULT" && row.result.status === "MP" ? workspaceStyles.rosterCritical : undefined}>
+      <span className={styles.latestResult} data-status={row.state === "ACTIVE_RESULT" ? row.result.status : undefined}>
+        {row.state === "ACTIVE_RESULT" && <span aria-hidden="true">{row.result.status === "OK" ? "✓ " : row.result.status === "MP" ? "✗ " : ""}</span>}
         {row.state === "ACTIVE_RESULT" ? sv.publicResultsStatusLabels[row.result.status] : text.noActiveResult}
         {row.state === "ACTIVE_RESULT" && "elapsedMs" in row.result && row.result.elapsedMs !== undefined &&
           <> · {resultDuration(row.result.elapsedMs)}</>}
@@ -141,7 +145,7 @@ function UnknownCards({ ws }: { ws: Workspace }) {
             onChange={event => setUnknownReadoutOrganisationName(event.target.value)} /></label>
         </>}
         <p>{text.unknownReadoutConsequence}</p>
-        <button type="button" disabled={busy || !!unknownReadoutAttempt} onClick={inspectUnknownReadoutResolution}>{text.unknownReadoutInspect}</button>
+        <div><Button disabled={busy || !!unknownReadoutAttempt} onClick={inspectUnknownReadoutResolution}>{text.unknownReadoutInspect}</Button></div>
       </div>)}
     {unknownReadoutAttempt && <div className={workspaceStyles.review} role="alert" aria-live="polite">
       <h4>{text.unknownReadoutReview}</h4>
@@ -150,10 +154,10 @@ function UnknownCards({ ws }: { ws: Workspace }) {
       <p><strong>{text.unknownReadoutTarget}:</strong> {unknownReadoutTargetLabel(unknownReadoutAttempt)}</p>
       <p>{text.unknownReadoutConsequence}</p>
       <div className={workspaceStyles.actions}>
-        <button type="button" disabled={busy} onClick={() => void submitUnknownReadoutResolution(unknownReadoutAttempt)}>{text.unknownReadoutConfirm}</button>
-        <button type="button" className="secondary" disabled={busy} onClick={() => { pending.current = undefined; sent.current = false; setUnknownReadoutAttempt(undefined); }}>{text.unknownReadoutEdit}</button>
+        <Button disabled={busy} onClick={() => void submitUnknownReadoutResolution(unknownReadoutAttempt)}>{text.unknownReadoutConfirm}</Button>
+        <Button variant="secondary" disabled={busy} onClick={() => { pending.current = undefined; sent.current = false; setUnknownReadoutAttempt(undefined); }}>{text.unknownReadoutEdit}</Button>
       </div>
     </div>}
-    {unknownReadoutError && <p className={workspaceStyles.warning} role="alert">{unknownReadoutError}</p>}
+    {unknownReadoutError && <Notice tone="error" role="alert">{unknownReadoutError}</Notice>}
   </section>;
 }

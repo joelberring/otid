@@ -8,8 +8,8 @@ import { build } from "esbuild";
 
 /**
  * Bygger de statiska appskal som ska fungera utan nät: /checkin/ och
- * /readout/. Varje skal får hashade filer, index.html och en service worker
- * med manifest över exakt de filerna.
+ * /readout/. Varje skal får hashade filer (även typsnitten, ADR-0170),
+ * index.html och en service worker med manifest över exakt de filerna.
  */
 const web = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -24,19 +24,23 @@ async function buildShell(shell) {
   const outdir = resolve(web, `public/${shell.name}`);
   const result = await build({
     absWorkingDir: web, entryPoints: [`src/${shell.name}/main.tsx`], outdir,
-    entryNames: "app-[hash]", bundle: true, write: false, minify: true,
-    format: "iife", platform: "browser", target: "chrome110", jsx: "automatic",
+    entryNames: "app-[hash]", assetNames: "[name]-[hash]", publicPath: `/${shell.name}/`, bundle: true, write: false, minify: true,
+    format: "iife", platform: "browser", target: "chrome110", jsx: "automatic", loader: { ".woff2": "file" },
     define: { "process.env.NODE_ENV": '"production"' }, sourcemap: false
   });
-  const js = result.outputFiles.find((file) => file.path.endsWith(".js"));
-  const css = result.outputFiles.find((file) => file.path.endsWith(".css"));
-  if (!js || !css || result.outputFiles.length !== 2) throw new Error(`Unexpected ${shell.name} build outputs`);
-  const html = `<!doctype html><html lang="sv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><meta name="robots" content="noindex,nofollow"><title>${shell.title}</title><link rel="stylesheet" href="/${shell.name}/${basename(css.path)}"><script defer src="/${shell.name}/${basename(js.path)}"></script></head><body><div id="root"></div><noscript>${shell.noscript}</noscript></body></html>`;
+  const js = result.outputFiles.filter((file) => file.path.endsWith(".js"));
+  const css = result.outputFiles.filter((file) => file.path.endsWith(".css"));
+  const fonts = result.outputFiles.filter((file) => file.path.endsWith(".woff2"));
+  if (js.length !== 1 || css.length !== 1 || js.length + css.length + fonts.length !== result.outputFiles.length) {
+    throw new Error(`Unexpected ${shell.name} build outputs`);
+  }
+  const html = `<!doctype html><html lang="sv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><meta name="robots" content="noindex,nofollow"><title>${shell.title}</title><link rel="stylesheet" href="/${shell.name}/${basename(css[0].path)}"><script defer src="/${shell.name}/${basename(js[0].path)}"></script></head><body><div id="root"></div><noscript>${shell.noscript}</noscript></body></html>`;
   const outputs = [...result.outputFiles.map((file) => ({ path: file.path, contents: file.contents })),
     { path: resolve(outdir, "index.html"), contents: Buffer.from(html) }];
   const manifest = outputs.map((file) => ({ url: `/${shell.name}/${basename(file.path)}`,
     sha256: createHash("sha256").update(file.contents).digest("hex"),
-    mime: file.path.endsWith(".html") ? "text/html" : file.path.endsWith(".css") ? "text/css" : "application/javascript" }));
+    mime: file.path.endsWith(".html") ? "text/html" : file.path.endsWith(".css") ? "text/css"
+      : file.path.endsWith(".woff2") ? "font/woff2" : "application/javascript" }));
   const version = createHash("sha256").update(JSON.stringify(manifest)).digest("hex");
   const worker = await build({ absWorkingDir: web, entryPoints: [`src/${shell.name}/service-worker.ts`],
     bundle: true, write: false, minify: true, format: "iife", platform: "browser", target: "chrome110",

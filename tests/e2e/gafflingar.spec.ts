@@ -29,7 +29,7 @@ test("gafflad klass: import, fördelning, avläsning mot rätt variant och publi
   test.setTimeout(300_000);
   const suffix = unique();
   const owner = await registerAccount(browser, `gaffel.${suffix}`, "Gun Gaffel");
-  const raceId = await createRace(owner, `Gafflingar ${suffix}`);
+  const raceId = await createRace(owner, `Gafflingar ${suffix}`, "2026-10-08", "Tävling med gafflade banor");
 
   // IOF XML: banor med varianter, anmälda och varianttilldelning per löpare.
   await owner.goto(`/admin/${raceId}/imports`);
@@ -42,7 +42,7 @@ test("gafflad klass: import, fördelning, avläsning mot rätt variant och publi
   await openStep(owner, "Banor");
   const course = owner.getByRole("row", { name: /^Lång Gafflad/ });
   await expect(course).toContainText("Gafflad (4 varianter)");
-  await course.getByText("Visa 4 varianter").click();
+  // Gafflade banor (ADR-0170): varianterna och gafflingskontrollen visas direkt.
   await expect(course.getByRole("row", { name: /^AD 31 50 41 42 50 43 44 50 32 60 63 64 60 61 62 60 33/ })).toBeVisible();
   await expect(course.getByRole("button", { name: "Redigera variant BC på Lång" })).toBeVisible();
   await expect(course).not.toContainText("Varianterna täcker inte samma sträckor");

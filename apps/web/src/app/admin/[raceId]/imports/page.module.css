@@ -6,14 +6,14 @@
   --green: #3e4852;
   --green-dark: #303942;
   --border: #d9dde0;
-  background: var(--paper);
+  background: var(--canvas);
   color: var(--ink);
 }
 
 :global(body):has(.page) > :global(header) {
   padding-block: .55rem;
-  border-bottom: 1px solid var(--border);
-  background: var(--paper);
+  border-bottom: 1px solid var(--line);
+  background: var(--canvas);
   color: var(--ink);
 }
 
@@ -41,7 +41,7 @@
   border-radius: 5px;
 }
 .page :is(:global(.import-admin), :global(.eventor-entry-import)) :is(input, select) {
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   background: white;
   color: var(--ink);
 }
@@ -53,7 +53,7 @@
   font-weight: 650;
 }
 .page :is(:global(.import-admin), :global(.eventor-entry-import)) button.secondary {
-  border-color: var(--border);
+  border-color: var(--line);
   background: white;
   color: var(--ink);
 }
@@ -65,7 +65,7 @@
   min-width: 0;
   padding: .5rem 0;
   border: 0;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--line);
   border-radius: 0;
   background: transparent;
   box-shadow: none;
@@ -90,14 +90,14 @@
 .page :global(.import-admin) :global(.stack),
 .page :global(.eventor-entry-import) :global(.stack) { gap: .45rem; }
 .page :is(:global(.import-admin), :global(.eventor-entry-import)) label { gap: .2rem; font-size: .82rem; font-weight: 600; }
-.page :global(.import-admin) :global(.import-result) { border-left: 3px solid var(--border); padding-left: .65rem; }
+.page :global(.import-admin) :global(.import-result) { border-left: 3px solid var(--line); padding-left: .65rem; }
 .page :global(.import-admin) :global(.pairing-message):empty { display: none; }
 .page :global(.eventor-entry-import) :is(h2, h3, p) { margin: 0; }
 .page :global(.eventor-entry-import) h2 { font-size: 1.08rem; }
 .page :global(.eventor-entry-import) h3 { font-size: .95rem; }
 .page :global(.eventor-entry-import) :global(.eventor-entry-import-profile) {
   padding: .3rem .55rem;
-  border-left: 2px solid var(--border);
+  border-left: 2px solid var(--line);
   color: var(--ink);
 }
 .page :global(.eventor-entry-import) :global(.eventor-entry-import-uncertain) {

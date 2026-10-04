@@ -1,6 +1,6 @@
 import type {
   AdministratorReturnRequest, AdministratorStartCorrectionRequest, ClassCapacityRequest, ClassEditRequest, EntryCardChangeRequest, EntryCardRentalChangeRequest, EntryCardRentalReturnChangeRequest,
-  EntryCardRentalReuseRequest, EntryIdentityChangeRequest, EntryPaymentStatusChangeRequest, EntryRegistrationCandidatesResponse,
+  EntryCardRentalReuseRequest, EntryIdentityChangeRequest, EntryRegistrationCandidatesResponse,
   EntryRegistrationRequest, EntryStartTimeChangeRequest, EntryTransferRequest, ManualClassCreateRequest,
   CourseEditRequest, ShortenedCourseClassTransferCandidate, StartDrawRequest,
   ShortenedCourseClassTransferRequest, StartCheckinConflictReviewCandidate, StartCheckinConflictReviewRequest,
@@ -22,6 +22,7 @@ import type { ResultFinalizationAttempt } from "../../lib/result-finalization-ad
 import type { ResultRecalculationAttempt } from "../../lib/result-recalculation-admin-client";
 import type { WithoutTimingAttempt } from "../../lib/without-timing-admin-client";
 import type { WithoutTimingWithdrawalAttempt } from "../../lib/without-timing-withdrawal-admin-client";
+import { formatDuration } from "../../lib/clock-time";
 
 /** Ett pågående ändringsförsök. Alla försök granskas innan de skickas och kan skickas om med samma id. */
 export type ConflictReviewAttempt = { kind: "CONFLICT_REVIEW"; candidate: StartCheckinConflictReviewCandidate; request: StartCheckinConflictReviewRequest };
@@ -46,8 +47,6 @@ export type RentalReturnAttempt = { kind: "CARD_RENTAL_RETURN"; id: string; entr
   request: EntryCardRentalReturnChangeRequest };
 export type RentalReuseAttempt = { kind: "CARD_RENTAL_REUSE"; id: string; entryId: string; displayName: string;
   sourceDisplayName: string; request: EntryCardRentalReuseRequest };
-export type PaymentStatusAttempt = { kind: "PAYMENT_STATUS"; id: string; entryId: string; displayName: string;
-  request: EntryPaymentStatusChangeRequest };
 export type TimeAttempt = { kind: "TIME"; id: string; entryId: string; displayName: string; timeZone: string; request: EntryStartTimeChangeRequest };
 export type RecalculationAttempt = { kind: "RECALCULATION"; value: ResultRecalculationAttempt; timeZone: string };
 export type IdentityAttempt = { kind: "IDENTITY"; id: string; entryId: string; request: EntryIdentityChangeRequest };
@@ -65,19 +64,17 @@ export type FinalizationAttempt = { kind: "FINALIZATION"; value: ResultFinalizat
 /** Det försök som just nu väntar på granskning eller kvitto. Bara ett åt gången. */
 export type PendingAttempt = ConflictReviewAttempt | StartCorrectionAttempt | ReturnAttempt |
   AdministratorPublicationAttempt | StartDrawAttempt | TransferAttempt | CapacityAttempt | CardAttempt | RentalAttempt |
-  RentalReturnAttempt | RentalReuseAttempt | PaymentStatusAttempt | TimeAttempt | RecalculationAttempt |
+  RentalReturnAttempt | RentalReuseAttempt | TimeAttempt | RecalculationAttempt |
   ClassResultRecalculationAttempt | IdentityAttempt | RegistrationAttempt | DnsAttempt | DnfAttempt | DsqAttempt |
   ApprovalAttempt | OocAttempt | NtAttempt | FinalizationAttempt | CourseClassAttempt | ManualClassAttempt |
   CourseEditAttempt | ClassEditAttempt |
   ShortenedCourseClassTransferAttempt | UnknownReadoutResolutionAttempt;
 
-export type Action = "INFO" | "TRANSFER" | "CARD" | "PAYMENT" | "TIME" | "IDENTITY" | "REGISTRATION" | "HISTORY";
+export type Action = "INFO" | "TRANSFER" | "CARD" | "TIME" | "IDENTITY" | "REGISTRATION" | "HISTORY";
 export type Operation = { generation: number; controller: AbortController; timer: ReturnType<typeof setTimeout> };
 
-export function resultDuration(ms: number) {
-  const seconds = Math.floor(ms / 1000), fraction = ms % 1000;
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}${fraction ? `.${String(fraction).padStart(3, "0")}` : ""}`;
-}
+/** Löptid i arbetsytan: m:ss eller h:mm:ss, utan millisekunder. */
+export const resultDuration = formatDuration;
 
 export function unknownReadoutTargetLabel(value: UnknownReadoutResolutionAttempt): string {
   return value.request.target === "NEW_ENTRY" ? `${value.request.familyName}, ${value.request.givenName}` : "Befintlig deltagare";

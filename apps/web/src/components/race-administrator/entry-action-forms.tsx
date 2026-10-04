@@ -4,18 +4,17 @@ import styles from "../race-administrator-workspace.module.css";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
 import { formatClockTime, parseRaceClock } from "../../lib/clock-time";
 import { TargetClassStartTimes } from "../target-class-start-times";
-import type { EntryPaymentStatus } from "@o-tid/contracts";
 import type { Workspace } from "./workspace-state";
 
-/** Deltagaråtgärder: byt klass, bricka och hyrbricka, betalning, starttid och identitet. */
+/** Deltagaråtgärder: byt klass, bricka och hyrbricka, starttid och identitet. */
 export function EntryActionForms({ ws }: { ws: Workspace }) {
   const { action, busy, cardAttempt, classId, data, disabled, familyName, givenName, identityAttempt,
-    identityMatches, loadIdentity, newCard, organisationName, paymentStatus,
-    paymentStatusAttempt, pending, prepareCard, prepareIdentity, preparePaymentStatus, prepareRental,
+    identityMatches, loadIdentity, newCard, organisationName,
+    pending, prepareCard, prepareIdentity, prepareRental,
     prepareRentalReturn, prepareRentalReuse, prepareTime, prepareTransfer, rentalAttempt, rentalReturnAttempt,
     rentalReuseAttempt, rentalReuseSourceId, returnedRentalSources, selected, selectedClass,
-    sent, setClassId, setFamilyName, setGivenName, setMessage, setNewCard, setOrganisationName, setPaymentStatus, setRentalReuseSourceId,
-    setStartClock, setTimeAttempt, setTransferAttempt, startClock, submitCard, submitIdentity, submitPaymentStatus, submitRental, submitRentalReturn,
+    sent, setClassId, setFamilyName, setGivenName, setMessage, setNewCard, setOrganisationName, setRentalReuseSourceId,
+    setStartClock, setTimeAttempt, setTransferAttempt, startClock, submitCard, submitIdentity, submitRental, submitRentalReturn,
     submitRentalReuse, submitTime, submitTransfer, target, targetFull, timeAttempt, transferAttempt, unknown } = ws;
   return <>
     {action === "TRANSFER" && <><h2>{text.changeClass}</h2>
@@ -111,27 +110,6 @@ export function EntryActionForms({ ws }: { ws: Workspace }) {
         </form>
       </div>}
       {!selected && !cardAttempt && !rentalAttempt && !rentalReturnAttempt && !rentalReuseAttempt && <p>{text.chooseParticipant}</p>}
-    </section>}
-    {action === "PAYMENT" && <section className={styles.workspace} aria-label={text.paymentStatusAction}>
-      <h2>{text.paymentStatusAction}</h2>
-      {paymentStatusAttempt && unknown ? <div className={styles.review} role="alert"><h2>{text.paymentStatusReview}</h2>
-        <p>{paymentStatusAttempt.displayName}</p>
-        <p>{text.paymentStatusCurrent}: {text.paymentStatuses[paymentStatusAttempt.request.expectedPaymentStatus]} → <strong>{text.paymentStatuses[paymentStatusAttempt.request.paymentStatus]}</strong></p>
-        <p><strong>{text.paymentStatusConsequence}</strong></p>
-        <p>{text.unreachable}</p>
-        <button disabled={busy} onClick={() => void submitPaymentStatus(paymentStatusAttempt)}>{text.retry}</button>
-      </div> : selected ? <form className={styles.workspace} onSubmit={preparePaymentStatus}>
-        <p>{text.paymentStatusCurrent}: <strong>{text.paymentStatuses[selected.paymentStatus]}</strong></p>
-        <label htmlFor="entry-payment-status">{text.paymentStatusNew}</label><select id="entry-payment-status" value={paymentStatus} disabled={disabled}
-          onChange={(event) => setPaymentStatus(event.target.value as EntryPaymentStatus)}>
-          <option value="UNMARKED">{text.paymentStatuses.UNMARKED}</option>
-          <option value="UNPAID">{text.paymentStatuses.UNPAID}</option>
-          <option value="PAID">{text.paymentStatuses.PAID}</option>
-          <option value="WAIVED">{text.paymentStatuses.WAIVED}</option>
-        </select>
-        <p>{text.paymentStatusHelp}</p>
-        <button disabled={disabled || paymentStatus === selected.paymentStatus}>{text.paymentStatusInspect}</button>
-      </form> : <p>{text.chooseParticipant}</p>}
     </section>}
     {action === "TIME" && <section className={styles.workspace} aria-label={text.timeTitle}>
       <h2>{text.timeTitle}</h2>

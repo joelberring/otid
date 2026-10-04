@@ -37,7 +37,8 @@ export function createCoursePreparationActions(ws: Base & RaceDataActions) {
     if (!data) { setCourseClassError(text.courseClassUnavailable); return; }
     const request: CourseClassRequest = { formatVersion: 1, requestId: crypto.randomUUID(),
       expectedSnapshotVersion: data.snapshotVersion, courseName: course, className: raceClass,
-      startRule: courseStartRule, controlCodes: codes };
+      // ADR-0170: typer utan val av startsätt (Träning, Rogaining) har alltid fri start.
+      startRule: ws.profile.features.startRuleChoice ? courseStartRule : "PUNCH", controlCodes: codes };
     const value = { kind: "COURSE_CLASS" as const, request };
     pending.current = value; sent.current = false; setCourseClassAttempt(value); void submitCourseClass(value);
   }

@@ -34,7 +34,7 @@ export function RelayTeams({ ws, visible }: { ws: Workspace; visible: boolean })
       const teams = relay.teams.filter(team => team.classId === raceClass.id);
       return <section key={raceClass.id} aria-label={raceClass.name}>
         <h3>{raceClass.name} · {text.publicLegCount(raceClass.legs.length)}</h3>
-        {teams.length === 0 ? <p>{text.noTeams}</p> : <div className={styles.courseTableScroll}><table className={relayStyles.teamTable}>
+        {teams.length === 0 ? <p>{text.noTeams}</p> : <div className={styles.tableScroll}><table className={relayStyles.teamTable}>
           <thead><tr><th scope="col">{text.columnNumber}</th><th scope="col">{text.columnTeam}</th>
             <th scope="col">{text.columnLegs}</th><th scope="col">{text.columnStatus}</th></tr></thead>
           <tbody>{teams.map(team => <tr key={team.id} data-selected={team.id === selectedTeamId ? "true" : undefined}
@@ -65,7 +65,7 @@ function TeamCard({ ws, team }: { ws: Workspace; team: Team }) {
   return <section className={`${styles.panel} ${relayStyles.card}`} aria-label={text.teamCard}>
     <h3>{text.teamHeading(team.number, team.name)}</h3>
     <p>{team.organisationName ?? ""} · <span className={relayStyles.status} data-status={team.status}>{teamStatusText(team)}</span></p>
-    <div className={styles.courseTableScroll}><table className={relayStyles.cardLegs}>
+    <div className={styles.tableScroll}><table className={relayStyles.cardLegs}>
       <thead><tr><th scope="col">{text.columnLegs}</th><th scope="col">{text.publicRunner}</th><th scope="col">{text.runnerCard}</th>
         <th scope="col">{text.legStart}</th><th scope="col">{text.legResult}</th><th scope="col"><span className={styles.visuallyHidden}>{text.actions}</span></th></tr></thead>
       <tbody>{team.legs.map(leg => <tr key={leg.leg}>
@@ -108,9 +108,9 @@ function NewTeam({ ws, relay }: { ws: Workspace; relay: RelayOverview }) {
     teamClub, teamName, teamNumber, teamRunners, workflowLocked } = ws;
   const locked = workflowLocked || !!teamAttempt;
   const id = `relay-team-${raceId}`;
-  return <details className={styles.manualClassPanel} open={teamAttempt || teamClassId ? true : undefined}>
+  return <details className={styles.disclosure} open={teamAttempt || teamClassId ? true : undefined}>
     <summary>{text.newTeam}</summary>
-    <form className={styles.manualClassBody} aria-label={text.newTeam} onSubmit={event => { event.preventDefault(); void registerTeam(); }}>
+    <form className={styles.disclosureBody} aria-label={text.newTeam} onSubmit={event => { event.preventDefault(); void registerTeam(); }}>
       <div className={relayStyles.fields}>
         <label htmlFor={`${id}-class`}>{text.teamClass}<select id={`${id}-class`} value={teamClassId} required disabled={locked}
           onChange={event => chooseTeamClass(event.target.value)}>

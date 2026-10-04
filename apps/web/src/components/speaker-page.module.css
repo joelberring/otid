@@ -1,0 +1,57 @@
+/* Speakersidan: hela fönstret, stor och lugn text, tabellsiffror. Färg bara för felstämplad. */
+.board { min-height: 100dvh; padding: 20px 28px 32px; background: var(--canvas); font-size: 19px; }
+.head { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 28px; padding-bottom: 14px; border-bottom: 1px solid var(--line-strong); }
+.title { flex: 1 1 auto; min-width: 0; }
+.title h1 { font-size: 30px; line-height: 1.1; }
+.title p { color: var(--muted); font-size: var(--text-md); }
+.state { color: var(--muted); font-family: var(--font-dense); font-size: var(--text-md); font-variant-numeric: tabular-nums; }
+.state[data-problem] { color: var(--attention); font-weight: 600; }
+.back { font-size: var(--text-sm); }
+.grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr); align-items: start; gap: 0 36px; padding-top: 6px; }
+.block { display: grid; gap: 10px; min-width: 0; padding-top: 14px; }
+.block h2 { font-family: var(--font-dense); font-size: 24px; font-weight: 700; }
+.blockHead { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 8px 16px; }
+.filter { display: flex; align-items: center; gap: 8px; font-size: var(--text-sm); font-weight: 500; }
+.filter select { width: auto; min-width: 9rem; min-height: 36px; font-size: var(--text-sm); }
+.latest { grid-row: span 2; }
+.relay { grid-column: 2 / -1; }
+.group { display: grid; gap: 4px; padding: 10px 0 12px; border-top: 1px solid var(--line); }
+.group h3 { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-family: var(--font-dense); font-size: 21px; font-weight: 700; }
+.count { color: var(--muted); font-size: var(--text-md); font-weight: 500; font-variant-numeric: tabular-nums; }
+.names { color: var(--ink); font-size: var(--text-md); line-height: 1.4; }
+.rows { display: grid; margin: 0; padding: 0; list-style: none; }
+.rows li { display: grid; grid-template-columns: 2.4rem minmax(0, 1fr) auto; align-items: baseline; gap: 10px; padding: 3px 0; }
+.table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.table td { padding: 9px 10px 9px 0; border-bottom: 1px solid var(--line); vertical-align: baseline; }
+.table tr:first-child td { border-top: 1px solid var(--line); }
+.clock { width: 5.5rem; color: var(--muted); font-family: var(--font-dense); font-size: var(--text-md); }
+.name { min-width: 0; font-size: 21px; font-weight: 600; overflow-wrap: anywhere; }
+.name small { display: block; color: var(--muted); font-size: var(--text-sm); font-weight: 400; }
+.rows .name { font-size: 20px; }
+.className { width: 5rem; font-family: var(--font-dense); font-weight: 600; }
+.result { width: 9.5rem; text-align: right; white-space: nowrap; }
+.time { font-family: var(--font-dense); font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.place { width: 2.6rem; font-family: var(--font-dense); font-size: 22px; font-weight: 700; text-align: right; }
+.rows .place { text-align: left; }
+.status { font-size: var(--text-md); font-weight: 600; color: var(--muted); }
+.table tr[data-status="MP"] .status, .table tr[data-status="DSQ"] .status { color: var(--mp); }
+.empty { padding: 12px 0; border-top: 1px solid var(--line); color: var(--muted); }
+.waiting, .notice { max-width: 40rem; margin: 20vh auto 0; padding: 16px 20px; border-left: 3px solid var(--line-strong); background: var(--surface);
+  font-size: var(--text-md); }
+.notice { border-left-color: var(--attention); }
+@media (max-width: 1100px) {
+  .grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .latest { grid-column: 1 / -1; grid-row: auto; }
+  .relay { grid-column: 1 / -1; }
+}
+@media (max-width: 700px) {
+  .board { padding: 14px 16px 24px; font-size: 17px; }
+  .title h1 { font-size: 24px; }
+  .grid { grid-template-columns: minmax(0, 1fr); }
+  .clock { display: none; }
+  .className { width: 3rem; }
+  .result { width: auto; }
+  .status { font-size: var(--text-sm); }
+  .name { font-size: 18px; }
+  .time { font-size: 20px; }
+}

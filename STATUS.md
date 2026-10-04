@@ -5,9 +5,21 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 12 – Tävlingstyp, nytt utseende och egen speakersida. Steg 7 (hårdvara) görs parallellt av ägaren.
+Steg 13 – Start- och resultatlistor. Steg 7 (hårdvara) görs parallellt av ägaren.
 
 ## Logg
+
+### 2026-10-04 – Steg 12: tävlingstyp, nytt utseende och egen speakersida (steg 12 klart)
+- Tävlingstyp (migration 0095) väljs i "Skapa tävling" och under nya Inställningar (namn, datum, typ, funktionärer, import). `lib/race-sections.ts`
+  avgör delar och funktioner: Träning (Banor & klasser, Deltagare, Avläsning, Resultat; alltid fri start), Liten tävling, Tävling (lottning, import,
+  speaker, fastställande), gafflade banor (varianter utfällda), Stafett (Klasser & sträckor, Lag), Rogaining (Kontroller & poäng med notis).
+- Skal: fast toppbalk (tävling, typ, avlästa/kvar i skogen, Öppna avläsningen/speaker) och sidopanel ritad som en bana med status per del; mobil: remsa överst.
+- Formspråk: tokens + Barlow/Barlow Semi Condensed (självhostat, även i avläsningens offlineskal via esbuild och manifest, `font-src 'self'`),
+  komponenter i `components/ui/`, platta avsnitt och täta tabeller. Färg bara för status, åtgärd och vald del. Avläsningen är bara ljus.
+- Speakern är egen sida `/admin/{id}/speaker` (senast i mål med placering, ledare per klass, kvar i skogen, stafett per sträcka); panelen i arbetsytan borta.
+- Nya klasser får fri start; lottningen sätter minutstart. Parkerat bort ur arbetsytan: ruttlänkar, betalstatus (kort, lista, route) och
+  kontokoppling (komponent, adminroutes); applikationskoden finns kvar. Löptider och sträcktider visas som m:ss/h:mm:ss utan millisekunder.
+- Verifierat: lint, typecheck, test, test:integration (83 filer), build, e2e (7 flöden, nytt `tavlingstyper`). Skärmbilder 1280/390 granskade i två omgångar.
 
 ### 2026-10-04 – Steg 11: stafett (steg 11 klart)
 - Migration 0094: `relay_leg` (sträcka, startsätt MASS_START/CHANGEOVER/RESTART, tid, valfri variant), `team` (nummer, namn, klubb),
@@ -173,6 +185,9 @@ Kvarstår för ägaren: begära *PC Programmer's Guide* från SPORTident
 brickor till steg 7.
 
 ## Idéer (inte i planen än)
+
+- Publika resultat: följ/favorit och "Välj rutt för jämförelse" (parkerat GPS) ligger kvar per rad, nu som tysta textknappar. Kan tas bort eller döljas
+  när listorna görs om i steg 13.
 
 - Stafett: bana per sträcka finns bara via en gafflad bana (variant per sträcka). IOF StartList (TeamStart) och det fastställda
   resultatets IOF-export skriver inte lag än. Kvar i skogen räknar även sträcklöpare som inte startat.

@@ -5,8 +5,7 @@ import { entryClassAdminListResponseSchema, entryClassChangeIdempotencyKeySchema
   entryCardRentalChangeIdempotencyKeySchema, entryCardRentalChangeRequestSchema, entryCardRentalChangeResponseSchema,
   entryCardRentalReturnChangeIdempotencyKeySchema, entryCardRentalReturnChangeRequestSchema,
   entryCardRentalReturnChangeResponseSchema, entryCardRentalReuseIdempotencyKeySchema,
-  entryCardRentalReuseRequestSchema, entryCardRentalReuseResponseSchema, entryPaymentStatusChangeIdempotencyKeySchema,
-  entryPaymentStatusChangeRequestSchema, entryPaymentStatusChangeResponseSchema,
+  entryCardRentalReuseRequestSchema, entryCardRentalReuseResponseSchema,
   entryStartTimeChangeIdempotencyKeySchema, entryStartTimeChangeRequestSchema, entryStartTimeChangeResponseSchema,
   entryIdentityAdminListResponseSchema, entryIdentityChangeIdempotencyKeySchema, entryIdentityChangeRequestSchema,
   entryRegistrationIdempotencyKeySchema, entryRegistrationRequestSchema, entryRegistrationCandidatesRequestSchema,
@@ -176,26 +175,6 @@ export async function handleEntryRoute(context: RaceAdministratorRouteContext): 
       response.sourceEntryVersionBefore !== parsed.data.source.entryVersion ||
       response.targetEntryVersionBefore !== parsed.data.expectedTargetEntryVersion ||
       response.snapshotVersionBefore !== parsed.data.expectedSnapshotVersion) return failure(500, "INTERNAL_ERROR");
-    return json(response);
-  }
-  if (action.kind === "payment-status") {
-    const key = entryPaymentStatusChangeIdempotencyKeySchema.safeParse(request.headers.get("idempotency-key"));
-    if (!key.success) return failure(400, "INVALID_REQUEST");
-    let body: unknown;
-    try { body = await readEntryClassAdminJson(request); } catch { return failure(400, "INVALID_REQUEST"); }
-    const parsed = entryPaymentStatusChangeRequestSchema.safeParse(body);
-    if (!parsed.success) return failure(400, "INVALID_REQUEST");
-    const result = await dependencies.paymentStatus(db, { ...proof, raceId, entryId: action.entryId,
-      idempotencyKey: key.data, request: parsed.data });
-    if (result.status !== "changed") return resultFailure(result.status);
-    const response = entryPaymentStatusChangeResponseSchema.parse(result.response);
-    if (response.raceId !== raceId || response.entryId !== action.entryId ||
-      response.classId !== parsed.data.expectedClassId ||
-      response.requestId !== key.data.slice("entry-payment-status-change:".length) ||
-      response.entryVersionAtChange !== parsed.data.expectedEntryVersion ||
-      response.previousPaymentStatus !== parsed.data.expectedPaymentStatus ||
-      response.paymentStatusVersionBefore !== parsed.data.expectedPaymentStatusVersion ||
-      response.paymentStatus !== parsed.data.paymentStatus) return failure(500, "INTERNAL_ERROR");
     return json(response);
   }
   if (action.kind === "transfer") {

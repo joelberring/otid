@@ -4317,3 +4317,20 @@ export const courseEditRequests = pgTable("course_edit_request", {
   check("course_edit_request_versions_check", sql`${table.previousCourseVersionId} <> ${table.courseVersionId}`),
   check("course_edit_request_json_check", sql`jsonb_typeof(${table.request}) = 'object' AND jsonb_typeof(${table.response}) = 'object'`)
 ]);
+
+/** ADR-0169 beslut 4: idempotent journal för "Redigera klass" (namn, bana, startsätt). */
+export const classEditRequests = pgTable("class_edit_request", {
+  requestId: uuid("request_id").primaryKey(), raceId: uuid("race_id").notNull().references(() => races.id),
+  classId: uuid("class_id").notNull(),
+  previousCourseVersionId: uuid("previous_course_version_id").notNull().references(() => courseVersions.id),
+  courseVersionId: uuid("course_version_id").notNull().references(() => courseVersions.id),
+  actorCredentialId: uuid("actor_credential_id").notNull(), capability: pairingAdminCapabilityEnum("capability").notNull(),
+  request: jsonb("request").$type<Record<string, unknown>>().notNull(), response: jsonb("response").$type<Record<string, unknown>>().notNull(),
+  editedAt: timestamp("edited_at", { withTimezone: true }).notNull()
+}, table => [
+  uniqueIndex("class_edit_request_scope_uidx").on(table.requestId, table.raceId),
+  foreignKey({ columns: [table.classId, table.raceId], foreignColumns: [classes.id, classes.raceId] }),
+  foreignKey({ columns: [table.actorCredentialId, table.raceId, table.capability], foreignColumns: [pairingAdminAccessCredentials.id, pairingAdminAccessCredentials.raceId, pairingAdminAccessCredentials.capability] }),
+  check("class_edit_request_role_check", sql`${table.capability} = 'MANAGE_RACE'`),
+  check("class_edit_request_json_check", sql`jsonb_typeof(${table.request}) = 'object' AND jsonb_typeof(${table.response}) = 'object'`)
+]);

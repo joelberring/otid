@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 import type { listFixedStartSlotPlansAsAdministrator } from "@o-tid/application";
-import type { Database } from "@o-tid/database";
 import { raceAdministratorRoute } from "./race-administrator-route-handlers";
 import { db, id, other, csrf, token, environment, dependencies, request } from "./race-administrator-route-test-helpers";
 
@@ -70,7 +69,9 @@ describe("administratörsroutes: förberedelse", () => {
   });
   it("Redigera bana: banlista, besked och sparande binds till administratören, banan och begäran", async () => {
     const list = { formatVersion: 1 as const, raceId: id, snapshotVersion: 2, courses: [{ courseId: other, courseVersionId: id, name: "Lång",
-      controlCodes: [31, 32, 33], classes: [{ classId: id, name: "H21" }], entryCount: 3, readOutCount: 2 }] };
+      controlCodes: [31, 32, 33], classes: [{ classId: id, name: "H21" }], entryCount: 3, readOutCount: 2 }],
+      classes: [{ classId: id, name: "H21", courseId: other, startRule: "PUNCH" as const, entryCount: 3, readOutCount: 2,
+        resultCount: 2, missingStartTimeCount: 0, renamable: true }] };
     const preview = { formatVersion: 1 as const, raceId: id, courseId: other, courseName: "Lång", snapshotVersion: 2,
       currentControlCodes: [31, 32, 33], controlCodes: [31, 33], readOutCount: 2, becomesOkCount: 1, becomesMispunchedCount: 0,
       unchangedCount: 1, notRecalculatedCount: 0, requiresConfirmation: true,
@@ -155,61 +156,48 @@ describe("administratörsroutes: förberedelse", () => {
     manualClass.mockResolvedValueOnce({ status: "created", response: { ...receipt, raceId: other } });
     expect((await raceAdministratorRoute(db, request("POST", JSON.stringify(body), headers), id, action, services, environment)).status).toBe(500);
   });
-  it("TASK301 scopes manual class name read and write and validates frozen receipt", async () => {
-    const candidate = { formatVersion: 1 as const, raceId: id, classId: other, snapshotVersion: 2,
-      className: "Öpen", courseVersionId: other, editable: true };
-    const body = { formatVersion: 1 as const, requestId: other, expectedSnapshotVersion: 2,
-      expectedClassName: "Öpen", className: "Öppen" };
-    const receipt = { formatVersion: 1 as const, replayed: false, requestId: other, raceId: id,
-      classId: other, courseVersionId: other, previousClassName: "Öpen", className: "Öppen",
-      request: body, snapshotVersionBefore: 2, snapshotVersionAfter: 3, changedAt: "2026-10-03T12:00:00.000Z" };
-    const manualClassNameCandidate = vi.fn(async () => ({ status: "ok" as const, response: candidate }));
-    const manualClassName = vi.fn(async () => ({ status: "changed" as const, response: receipt }));
-    const services = { ...dependencies(), manualClassNameCandidate, manualClassName };
-    const action = { kind: "manual-class-name" as const, classId: other };
-    const readRequest = () => new Request("https://otid.example/api/admin", { headers: {
-      cookie: `__Host-otid-race-administrator-session=${token}; __Host-otid-race-administrator-csrf=${csrf}` } });
-    const read = await raceAdministratorRoute(db, readRequest(), id, action, services, environment);
-    expect(read.status).toBe(200); expect(await read.json()).toEqual(candidate);
-    expect(read.headers.get("cache-control")).toContain("no-store");
-    const headers = { "idempotency-key": `manual-class-name:${other}` };
-    const write = await raceAdministratorRoute(db, request("POST", JSON.stringify(body), headers), id, action, services, environment);
+  it("Redigera klass: besked och sparande binds till administratören, klassen och begäran", async () => {
+    const shortCourse = "10000000-0000-4000-8000-000000000003";
+    const preview = { formatVersion: 1 as const, raceId: id, classId: other, className: "H21", snapshotVersion: 2,
+      courseId: shortCourse, courseName: "Kort", startRule: "PUNCH" as const, readOutCount: 1, becomesOkCount: 1,
+      becomesMispunchedCount: 0, unchangedCount: 0, notRecalculatedCount: 0, clearedStartTimeCount: 0, requiresConfirmation: true,
+      changes: [{ entryId: id, displayName: "Ada Löpare", className: "H21", before: "MP" as const, after: "OK" as const }] };
+    const body = { formatVersion: 1 as const, requestId: id, expectedSnapshotVersion: 2, classId: other, className: "H21",
+      courseId: shortCourse, startRule: "PUNCH" as const, confirmResultChanges: true };
+    const receipt = { formatVersion: 1 as const, replayed: false, requestId: id, raceId: id, classId: other, request: body,
+      previousClassName: "H21", previousCourseVersionId: id, courseVersionId: shortCourse, previousStartRule: "PUNCH" as const,
+      clearedStartTimeCount: 0, snapshotVersionBefore: 2, snapshotVersionAfter: 3,
+      recalculated: [{ entryId: id, resultRevisionId: other, revision: 2 }], editedAt: "2026-10-04T12:00:00.000Z" };
+    const classEditPreview = vi.fn<typeof import("@o-tid/application").previewClassEditAsAdministrator>()
+      .mockResolvedValue({ status: "ok", response: preview });
+    const classEdit = vi.fn<typeof import("@o-tid/application").editClassAsAdministrator>()
+      .mockResolvedValue({ status: "edited", response: receipt });
+    const services = { ...dependencies(), classEditPreview, classEdit };
+    const previewed = await raceAdministratorRoute(db, request("POST", JSON.stringify({ formatVersion: 1, expectedSnapshotVersion: 2,
+      courseId: shortCourse, startRule: "PUNCH" })), id, { kind: "class-edit-preview", classId: other }, services, environment);
+    expect(previewed.status).toBe(200); expect(await previewed.json()).toEqual(preview);
+    expect(classEditPreview).toHaveBeenCalledWith(db, expect.objectContaining({ raceId: id, classId: other, csrfHeader: csrf }));
+    const action = { kind: "class-edit" as const, classId: other };
+    const write = await raceAdministratorRoute(db, request("POST", JSON.stringify(body), { "idempotency-key": `class-edit:${id}` }),
+      id, action, services, environment);
     expect(write.status).toBe(200); expect(await write.json()).toEqual(receipt);
-    expect(manualClassName).toHaveBeenCalledWith(db, expect.objectContaining({ raceId: id, classId: other, request: body }));
-    expect((await raceAdministratorRoute(db, request("POST", JSON.stringify(body), { "idempotency-key": `manual-class-name:${id}` }), id, action, services, environment)).status).toBe(400);
-    expect((await raceAdministratorRoute(db, request("POST", JSON.stringify(body), { ...headers, origin: "https://other.example" }), id, action, services, environment)).status).toBe(403);
-    expect(manualClassName).toHaveBeenCalledTimes(1);
-    expect((await raceAdministratorRoute(db, readRequest(), id, { ...action, classId: "invalid" }, services, environment)).status).toBe(400);
-    manualClassName.mockResolvedValueOnce({ status: "changed", response: { ...receipt, classId: id } });
-    expect((await raceAdministratorRoute(db, request("POST", JSON.stringify(body), headers), id, action, services, environment)).status).toBe(500);
-  });
-  it("TASK065 binds start-rule preview and change to administrator, class and frozen intent", async () => {
-    const preview = { formatVersion: 1 as const, raceId: id, classId: other, className: "Öppen",
-      snapshotVersion: 3, startRule: "FIXED" as const, entryCount: 2, fixedStartTimeCount: 1,
-      entriesWithResults: 1, generatedAt: "2026-09-12T12:00:00.000Z" };
-    const body = { formatVersion: 1 as const, requestId: id, expectedSnapshotVersion: 3,
-      expectedStartRule: "FIXED" as const, startRule: "PUNCH" as const, reason: "Fri start" };
-    const receipt = { formatVersion: 1 as const, requestId: id, raceId: id, classId: other,
-      previousStartRule: "FIXED" as const, startRule: "PUNCH" as const, snapshotVersionBefore: 3,
-      snapshotVersionAfter: 4, entryCount: 2, clearedStartTimes: 1, changed: true,
-      changedAt: "2026-09-12T12:01:00.000Z" };
-    const startRulePreview = vi.fn(async (_db: Database, input: Parameters<typeof import("@o-tid/application").previewClassStartRuleAsAdministrator>[1]) => {
-      expect(input).toMatchObject({ raceId: id, classId: other, sessionToken: token });
-      return { status: "ok" as const, response: preview };
-    });
-    const startRule = vi.fn(async (_db: Database, input: Parameters<typeof import("@o-tid/application").changeClassStartRuleAsAdministrator>[1]) => {
-      expect(input).toMatchObject({ raceId: id, classId: other, sessionToken: token, request: body });
-      return { status: "changed" as const, response: receipt };
-    });
-    const services = { ...dependencies(), startRulePreview, startRule };
-    const action = { kind: "start-rule" as const, classId: other };
-    const read = await raceAdministratorRoute(db, new Request("https://otid.example/api/admin", { headers: {
-      cookie: `__Host-otid-race-administrator-session=${token}; __Host-otid-race-administrator-csrf=${csrf}` } }), id, action, services, environment);
-    expect(read.status).toBe(200); expect(await read.json()).toEqual(preview);
-    const write = await raceAdministratorRoute(db, request("PATCH", JSON.stringify(body)), id, action, services, environment);
-    expect(write.status).toBe(200); expect(await write.json()).toEqual(receipt);
-    startRule.mockResolvedValueOnce({ status: "changed", response: { ...receipt, classId: id } });
-    expect((await raceAdministratorRoute(db, request("PATCH", JSON.stringify(body)), id, action, services, environment)).status).toBe(500);
+    expect(classEdit).toHaveBeenCalledWith(db, expect.objectContaining({ raceId: id, idempotencyKey: `class-edit:${id}`, request: body }));
+    // Fel klass i adressen, fel nyckel, utan origin, ny statusändring sedan beskedet och fel kvitto.
+    expect((await raceAdministratorRoute(db, request("POST", JSON.stringify(body), { "idempotency-key": `class-edit:${id}` }),
+      id, { kind: "class-edit", classId: id }, services, environment)).status).toBe(400);
+    expect((await raceAdministratorRoute(db, request("POST", JSON.stringify(body), { "idempotency-key": `class-edit:${other}` }),
+      id, action, services, environment)).status).toBe(400);
+    expect((await raceAdministratorRoute(db, request("POST", JSON.stringify(body), { "idempotency-key": `class-edit:${id}`, origin: "https://evil.example" }),
+      id, action, services, environment)).status).toBe(403);
+    classEdit.mockResolvedValueOnce({ status: "confirmation-required", preview });
+    expect((await raceAdministratorRoute(db, request("POST", JSON.stringify(body), { "idempotency-key": `class-edit:${id}` }),
+      id, action, services, environment)).status).toBe(409);
+    classEdit.mockResolvedValueOnce({ status: "edited", response: { ...receipt, classId: id, request: { ...body, classId: id } } });
+    expect((await raceAdministratorRoute(db, request("POST", JSON.stringify(body), { "idempotency-key": `class-edit:${id}` }),
+      id, action, services, environment)).status).toBe(500);
+    expect((await raceAdministratorRoute(db, request("GET"), id, action, services, environment)).status).toBe(405);
+    expect((await raceAdministratorRoute(db, request("POST", JSON.stringify(body)), id, { kind: "class-edit", classId: "invalid" },
+      services, environment)).status).toBe(400);
   });
   it("binder kapacitetsändring till klass, gammalt tak och version", async () => {
     const body = { formatVersion: 1, expectedCapacityVersion: 1, expectedMaxEntries: null, maxEntries: 5 };

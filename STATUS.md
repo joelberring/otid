@@ -9,6 +9,15 @@ Steg 8 – Enkel arbetsyta för det som finns. Steg 7 (hårdvara) görs parallel
 
 ## Logg
 
+### 2026-10-04 – Steg 8.3–8.4: klasser som tabell och deltagarkort
+- Klasser som tabell (klass, bana, startsätt, anmälda, avlästa/resultat, status) med namn, bana och startsätt i raden. Byte av bana
+  eller startsätt ger besked i klartext och räknas om i samma transaktion (`editClassAsAdministrator`, migration 0091); bara namn sparas direkt.
+- Deltagarkort: klick var som helst i raden. Namn/klubb, klass, bricka, starttid (klockslag), resultat i ord, sträcktider och kort historik.
+  "Ändra status" ersätter åtta knappar: ett val, en mening om följden, en bekräftelse. Träningskvällens godkännande: två steg i stället för fem.
+- Disk/godkännande m.fl. på ett omräknat resultat räknas som aktuellt (`isEffectiveResultCurrent`), inte längre "äldre underlag".
+- Borttaget ur gränssnitt och routes: klassnamn, startregel, klassöversikten, uppföljning av starttider/klassomräkning i Klasser, åtta beslutsformulär.
+- Verifierat: lint, typecheck, test, test:integration (83 filer, nytt `adr-0169-class-edit`), build, e2e (3 flöden; `redigera-bana` byter även klassens bana och använder kortet).
+
 ### 2026-10-04 – Steg 8.2: Redigera bana
 - Banor visas som tabell (bana, kontroller, klasser, anmälda, avlästa) med "Redigera" i raden. "Visa vad som händer" prövar
   varje avläsning mot nya kontrollföljden med resultatmotorn och ger beskedet i klartext; bekräftelse krävs bara när någon byter status.
@@ -119,4 +128,5 @@ brickor till steg 7.
 
 ## Idéer (inte i planen än)
 
+- Fastställande jämför beslutsrevisionens bana med klassens: en disk som ligger kvar efter banändring kan ge "fel bana" där. Pröva i steg 8.5/8.6.
 - …

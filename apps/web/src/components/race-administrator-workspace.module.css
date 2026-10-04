@@ -152,12 +152,6 @@
 .manualClassFields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.65rem; }
 .manualClassFields > *, .manualClassFields input, .manualClassFields select { min-width: 0; max-width: 100%; }
 .workspace .manualClassBody :is(button, input, select), .workspace .manualClassPanel > summary { min-height: 44px; }
-.classNamePanel { min-width: 0; border-block-end: 1px solid var(--border); }
-.classNamePanel > summary { cursor: pointer; min-height: 44px; padding: 0.6rem 0; font-weight: 700; }
-.classNameBody { display: grid; gap: 0.55rem; padding: 0.25rem 0 0.7rem; }
-.classNameForm { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto; align-items: end; gap: 0.65rem; }
-.classNameForm > *, .classNameForm input { min-width: 0; max-width: 100%; }
-.classNameBody :is(button, input), .classNamePanel > summary { min-height: 44px; }
 .courseClassFields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.65rem; }
 .courseClassFields > *, .courseClassFields input, .courseClassFields select, .courseClassPanel textarea { min-width: 0; max-width: 100%; }
 .courseClassPanel textarea { width: 100%; resize: vertical; }
@@ -170,42 +164,6 @@
 .columns { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); align-items: start; gap: 0.75rem; }
 .panel { min-width: 0; padding: 0.85rem; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; display: grid; gap: 0.65rem; }
 .tableScroll { max-height: 29rem; overflow: auto; }
-.classOverviewSummary { color: var(--muted); font-size: 0.83rem; }
-.classWarningContext { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.2rem 0.65rem; min-width: 0; padding: 0.2rem 0; border-block: 1px solid var(--border); font-size: 0.82rem; }
-.classWarningContext p { flex: 1 1 18rem; min-width: 0; margin: 0; overflow-wrap: anywhere; }
-.classWarningReturn { flex: 0 0 auto; min-height: 44px; padding: 0.3rem 0.55rem; border: 0; background: transparent; color: var(--ink); font: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 0.15rem; cursor: pointer; }
-.classWarningReturn:focus-visible { outline: 3px solid #2368a2; outline-offset: 2px; }
-.classWarningReturn:disabled { opacity: 0.6; cursor: not-allowed; }
-.classOverviewTable .classCourseLink { min-height: 44px; padding: 0.3rem 0.35rem; border: 0; background: transparent; color: var(--ink); font: inherit; text-align: left; text-decoration: underline; cursor: pointer; }
-.classCourseLink:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-.classCourseLink:disabled { opacity: 0.6; cursor: not-allowed; }
-.classOverviewTable .classOverviewNameButton { min-height: 44px; padding: 0.3rem 0.35rem; border: 0; background: transparent; color: var(--ink); font: inherit; font-weight: 650; text-align: left; text-decoration: underline; cursor: pointer; }
-.classOverviewNameButton:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-.classOverviewNameButton:disabled { opacity: 0.6; cursor: not-allowed; }
-.classOverviewTable .classParticipantCountButton { min-height: 44px; padding: 0.3rem 0.35rem; border: 0; background: transparent; color: var(--ink); font: inherit; font-weight: 650; text-decoration: underline; font-variant-numeric: tabular-nums; cursor: pointer; }
-.classParticipantCountButton:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-.classParticipantCountButton:disabled { opacity: 0.6; cursor: not-allowed; }
-@media (min-width: 721px) {
-  .classOverviewTable tbody th, .classOverviewTable tbody td { vertical-align: middle; }
-  .classOverviewTable tbody th { padding-block: 0; }
-  .classOverviewTable tbody td.classCourseCell, .classOverviewTable tbody td.classParticipantCountCell { padding-block: 0; }
-}
-.classOverviewFinder { display: flex; align-items: end; flex-wrap: wrap; gap: 0.35rem 0.75rem; min-width: 0; }
-.classOverviewSearch { display: grid; gap: 0.2rem; width: min(100%, 22rem); min-width: 0; font-size: 0.82rem; }
-.classOverviewSearch input { width: 100%; min-width: 0; }
-.classOverviewMatchCount, .classOverviewEmpty { color: var(--muted); font-size: 0.82rem; }
-.classOverviewTable { table-layout: fixed; font-size: 0.85rem; }
-.classOverviewTable th, .classOverviewTable td { padding: 0.4rem 0.5rem; overflow-wrap: anywhere; }
-.classOverviewTable thead th { position: sticky; top: 0; z-index: 1; background: var(--panel); text-transform: none; letter-spacing: 0; font-size: 0.78rem; }
-.classOverviewTable tbody th { color: var(--ink); text-transform: none; letter-spacing: 0; font-size: inherit; }
-.classOverviewTable thead th:nth-child(1) { width: 15%; }
-.classOverviewTable thead th:nth-child(2) { width: 32%; }
-.classOverviewTable thead th:nth-child(3) { width: 29%; }
-.classOverviewTable thead th:nth-child(4) { width: 24%; }
-.classCourseVersion { color: var(--muted); white-space: nowrap; }
-.classCapacityState, .classReadinessAttention { color: var(--workspace-warning); font-weight: 700; }
-.classReadinessLink { min-height: 32px; padding: 0.1rem 0; border: 0; background: transparent; color: var(--workspace-warning); font: inherit; font-weight: 700; text-align: left; text-decoration: underline; text-underline-offset: 0.15rem; }
-.classReadinessLink:focus-visible { outline: 3px solid #2368a2; outline-offset: 2px; }
 .table { table-layout: fixed; }
 .table th, .table td { padding: 0.35rem; overflow-wrap: anywhere; }
 .table th:nth-child(1) { width: 45%; }
@@ -277,7 +235,6 @@
 .startSlotClass { display: grid; gap: 0.45rem; min-width: 0; padding-top: 0.6rem; border-top: 1px solid var(--border); }
 .startSlotClass h3, .startSlotClass p { margin: 0; }
 .startSlotClass table th:first-child { width: 42%; }
-.startTimeFollowUp { min-width: 0; display: grid; gap: 0.45rem; border-top: 1px solid var(--border); padding-top: 0.65rem; }
 .followUpList { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; }
 .followUpList li { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0.5rem; }
 .followUpList span { overflow-wrap: anywhere; }
@@ -302,7 +259,7 @@
   .workspace h2 { font-size: 1rem; }
   .workspace :is(button, input, select) { border-radius: 4px; padding: 0.3rem 0.55rem; }
   .workspace button { font-weight: 600; }
-  .workspace :is(.classReadinessLink, .classWarningReturn, .startSetButton) { font-weight: 700; }
+  .workspace .startSetButton { font-weight: 700; }
   .workspace label { gap: 0.15rem; font-size: 0.8rem; }
   .raceIdentity h2 { font-size: 1.15rem; }
   .backToEvents, .backUnavailable { min-height: 32px; font-size: 0.76rem; }
@@ -401,9 +358,6 @@
   :global(main):has(.workspace[data-authenticated="true"]) > :global(h1) {
     position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%);
   }
-  .classReadinessLink { min-height: 44px; }
-  .classOverviewSearch { width: 100%; }
-  .classOverviewSearch input { min-height: 44px; }
   .attention { padding: 0.65rem; }
   .attentionHeader { align-items: stretch; flex-direction: column; }
   .attentionHeader button { width: 100%; min-height: 44px; }
@@ -412,14 +366,6 @@
   .attentionSource + .attentionSource { border-left: 0; border-top: 1px solid var(--border); padding: 0.5rem 0 0; }
   .attentionItems li { grid-template-columns: minmax(0, 1fr) auto auto; }
   .attentionItems button { padding-inline: 0.55rem; }
-  .classOverviewTable, .classOverviewTable tbody { display: block; }
-  .classOverviewTable thead { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .classOverviewTable tbody tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.2rem 0.5rem; padding: 0.35rem 0; border-bottom: 1px solid var(--border); }
-  .classOverviewTable tbody tr:last-child { border-bottom: 0; }
-  .classOverviewTable tbody th { grid-column: 1 / -1; }
-  .classOverviewTable tbody td.classCourseCell { grid-column: 1 / -1; }
-  .classOverviewTable tbody th, .classOverviewTable tbody td { display: block; min-width: 0; padding: 0.1rem 0.25rem; border: 0; }
-  .classOverviewTable tbody td::before { content: attr(data-label); display: block; margin-bottom: 0.1rem; color: var(--muted); font-size: 0.74rem; font-weight: 650; }
   .wideTableButton { display: none; }
   .raceIdentity { align-items: flex-start; flex-direction: column; }
   .mobileNavigation { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }
@@ -453,14 +399,13 @@
   .timeFields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .timeFields > label:first-child { grid-column: 1 / -1; }
   .capacityFields { grid-template-columns: minmax(0, 1fr); }
-  .courseClassFields, .manualClassFields, .classNameForm { grid-template-columns: minmax(0, 1fr); }
+  .courseClassFields, .manualClassFields { grid-template-columns: minmax(0, 1fr); }
   .cardFields { grid-template-columns: minmax(0, 1fr); }
   .followUpList li { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 350px) {
   .mobileWorkflowNavigation label, .mobileSubNavigation label { grid-template-columns: minmax(0, 1fr); gap: 0.2rem; }
 }
-
 /* Banor: tabell med Redigera bana i raden (ADR-0169). */
 .courseTableScroll { min-width: 0; overflow-x: auto; }
 .courseTable { width: 100%; border-collapse: collapse; }
@@ -477,3 +422,7 @@
 .courseEditChanges { margin: 0; padding-left: 1.2rem; display: grid; gap: 0.2rem; }
 .courseEditSaved { border-left: 3px solid var(--ink); padding: 0.6rem; font-weight: 700; }
 .visuallyHidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* ADR-0169: hela raden öppnar deltagarkortet. Vald rad markeras även med kant, inte bara färg. */
+.rosterRow { cursor: pointer; }
+.rosterRow[data-selected="true"] > td { background: var(--workspace-subtle); }
+.rosterRow[data-selected="true"] > td:first-child { box-shadow: inset 4px 0 0 var(--ink); }

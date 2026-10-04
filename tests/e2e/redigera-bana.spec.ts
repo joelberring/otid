@@ -2,8 +2,9 @@ import { expect, test } from "@playwright/test";
 import { addCourseAndClass, addEntry, createRace, registerAccount, unique } from "./helpers";
 
 /**
- * Steg 8.2 (ADR-0169): banan ändras efter att en löpare läst ut. Beskedet visar
- * vad som händer, ändringen sparas och resultatet räknas om utan fler steg.
+ * Steg 8.2–8.4 (ADR-0169): banan ändras efter att en löpare läst ut. Beskedet visar
+ * vad som händer, ändringen sparas och resultatet räknas om utan fler steg. Sedan
+ * byter klassen bana i Klasser-tabellen och löparen godkänns i deltagarkortet.
  */
 test("redigera bana efter avläsning räknar om resultatet", async ({ browser, request }) => {
   test.setTimeout(240_000);
@@ -45,5 +46,40 @@ test("redigera bana efter avläsning räknar om resultatet", async ({ browser, r
   await expect.poll(async () => {
     const html = await (await request.get(`/results/${raceId}`)).text();
     return html.includes("Ek") && html.includes("Godkänd") && !html.includes("Felstämplad");
+  }, { timeout: 30_000 }).toBe(true);
+
+  // Steg 8.3: klassen H21 flyttas till Kort (31 33) i Klasser-tabellen. Anna har inte 33: beskedet, en bekräftelse, omräkning.
+  await addCourseAndClass(owner, "Kort", "D21", "31 33");
+  await owner.getByRole("button", { name: "Klasser", exact: true }).click();
+  const classRow = owner.getByRole("row", { name: /H21/ });
+  await expect(classRow).toContainText("Lång");
+  await expect(classRow).toContainText("Fri start");
+  await expect(classRow).toContainText("Alla har läst ut");
+  await classRow.getByRole("button", { name: "Redigera H21" }).click();
+  const classEditor = owner.getByRole("form", { name: "Redigera H21" });
+  await classEditor.getByLabel("Bana").selectOption({ label: "Kort" });
+  await classEditor.getByRole("button", { name: "Spara ändringen" }).click();
+  await expect(classEditor.getByRole("status")).toContainText("1 har läst ut. Efter ändringen: 1 blir felstämplad.");
+  await expect(classEditor.getByRole("status")).toContainText("Anna Ek · Godkänd → Felstämplad");
+  await classEditor.getByRole("button", { name: "Spara ändringen" }).click();
+  await expect(owner.getByText("Klassen är ändrad. 1 resultat räknades om.")).toBeVisible();
+  await expect(owner.getByRole("row", { name: /H21/ })).toContainText("Kort");
+
+  // Steg 8.4: deltagarkortet visar resultat, sträcktider och historik; "Ändra status" godkänner Anna manuellt.
+  await owner.getByRole("button", { name: "Deltagare", exact: true }).first().click();
+  await owner.getByRole("row", { name: /Anna Ek/ }).getByRole("cell").nth(1).click();
+  const card = owner.getByRole("region", { name: "Deltagarkort" });
+  await expect(card.getByRole("heading", { name: "Anna Ek" })).toBeVisible();
+  await expect(card.getByRole("region", { name: "Resultat", exact: true })).toContainText("Felstämplad");
+  await expect(card.getByRole("region", { name: "Historik", exact: true })).toContainText("Omräknat: Felstämplad");
+  await expect(card.getByRole("region", { name: "Sträcktider", exact: true }).first()).toContainText("31");
+  await card.getByLabel("Ändra status").selectOption({ label: "Godkänn manuellt" });
+  await expect(card.getByRole("alert")).toContainText("Löparen visas som godkänd trots felstämplingen.");
+  await card.getByRole("button", { name: "Bekräfta ändringen" }).click();
+  await expect(owner.getByText("Godkännandet är sparat.")).toBeVisible();
+  await expect(card.getByRole("region", { name: "Historik", exact: true })).toContainText("Godkänd manuellt: Godkänd");
+  await expect.poll(async () => {
+    const html = await (await request.get(`/results/${raceId}`)).text();
+    return html.includes("Ek") && html.includes("Godkänd manuellt av arrangör");
   }, { timeout: 30_000 }).toBe(true);
 });

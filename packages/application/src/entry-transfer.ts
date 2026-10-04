@@ -8,7 +8,7 @@ import { authenticatePairingAdminSession, authenticatePairingAdminSessionForMuta
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
 import { canAddClassEntry } from "./class-capacity-guard";
 import { resolveStoredResultHeadStates } from "./result-revision-state";
-import { isResultCurrent, loadResultBasisHashes } from "./result-basis";
+import { isEffectiveResultCurrent, loadResultBasisHashes } from "./result-basis";
 import { parseAdministratorStoredResultHead } from "./administrator-effective-result";
 import { resolveVerifiedFixedStartSlotPlan } from "./verified-fixed-start-slot";
 
@@ -108,7 +108,7 @@ export async function listEntryTransfersAsAdministrator(db: Database, input: Aut
       } else if (state.head.snapshotVersion > race.snapshotVersion) {
         throw new Error("Deltagarlistans gällande resultat kommer från en framtida snapshot");
       } else {
-        const current = isResultCurrent(state.head, basisHashes.get(state.selectedHead.entryId), race.snapshotVersion);
+        const current = isEffectiveResultCurrent(state, basisHashes.get(state.selectedHead.entryId), race.snapshotVersion);
         freshnessByEntry.set(state.selectedHead.entryId, current ? "CURRENT_SNAPSHOT" : "OLDER_SNAPSHOT");
         effectiveResultByEntry.set(state.selectedHead.entryId, { state: "ACTIVE_RESULT", selectedRevision,
           resultSnapshotVersion: state.head.snapshotVersion, result });

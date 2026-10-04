@@ -111,13 +111,14 @@ test("träningskväll från tävling till IOF-export", async ({ browser, request
   // Rättning: David missade en kontroll men godkänns manuellt.
   await owner.getByRole("button", { name: "Deltagare", exact: true }).first().click();
   await owner.getByRole("button", { name: /David Berg/ }).first().click();
-  await owner.getByText("Resultatbeslut och historik").click();
-  // ADR-0169: direktanmälningarna gör inte Davids resultat inaktuellt, så det godkänns direkt.
-  await owner.getByRole("button", { name: "Manuellt godkännande" }).click();
-  await owner.getByRole("button", { name: "Uppdatera godkännandeunderlag" }).click();
-  await owner.getByRole("button", { name: "Granska godkännande" }).click();
-  await owner.getByRole("button", { name: "Bekräfta godkännande" }).click();
+  // ADR-0169: deltagarkortet. Direktanmälningarna gör inte Davids resultat inaktuellt, så det godkänns direkt:
+  // ett val i "Ändra status" och en bekräftelse.
+  const card = owner.getByRole("region", { name: "Deltagarkort" });
+  await expect(card.getByRole("region", { name: "Resultat", exact: true })).toContainText("Felstämplad");
+  await card.getByLabel("Ändra status").selectOption({ label: "Godkänn manuellt" });
+  await card.getByRole("button", { name: "Bekräfta ändringen" }).click();
   await expect(owner.getByText("Godkännandet är sparat.")).toBeVisible();
+  await expect(card.getByRole("region", { name: "Resultat", exact: true })).toContainText("Godkänd");
 
   // Publikt resultat utan inloggning.
   await expect.poll(async () => {

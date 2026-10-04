@@ -4,7 +4,7 @@ import { administratorEffectiveResultResponseSchema, type AdministratorEffective
 import { authenticatePairingAdminSessionForProtectedRead, type PairingAdminRequestAuthentication } from "./pairing-admin";
 import { resolveStoredResultHeadStates, type StoredResultHeadState } from "./result-revision-state";
 import { parseStrictStoredResultRevision, StoredResultRevisionConflict, type StoredResultRevisionInput } from "./stored-result-revision";
-import { isResultCurrent, loadResultBasisHash } from "./result-basis";
+import { isEffectiveResultCurrent, loadResultBasisHash } from "./result-basis";
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 export type AdministratorEffectiveResult =
@@ -80,7 +80,14 @@ export async function getAdministratorEffectiveResult(db: Database,
     const [currentClass] = await tx.select({ id: schema.classes.id }).from(schema.classes)
       .where(and(eq(schema.classes.id, entry.classId), eq(schema.classes.raceId, race.id)));
     if (!event || !currentClass) throw new StoredResultRevisionConflict("Deltagarens lopprelation saknas");
-    const common = { formatVersion: 1 as const, raceId: race.id, entryId: entry.id,
+    // Kort historik för deltagarkortet: de senaste publicerade resultatändringarna, nyaste först.
+    const history = (await tx.select({ revision: schema.resultRevisions.revision, cause: schema.resultRevisions.cause,
+      status: schema.resultRevisions.status, at: schema.resultRevisions.createdAt }).from(schema.resultRevisions)
+      .where(and(eq(schema.resultRevisions.raceId, race.id), eq(schema.resultRevisions.entryId, entry.id),
+        eq(schema.resultRevisions.published, true)))
+      .orderBy(desc(schema.resultRevisions.revision), desc(schema.resultRevisions.id)).limit(10))
+      .map(row => ({ ...row, at: row.at.toISOString() }));
+    const common = { formatVersion: 1 as const, raceId: race.id, entryId: entry.id, history,
       entryVersion: entry.version, currentClassId: entry.classId, snapshotVersion: race.snapshotVersion,
       generatedAt: now.toISOString(), timeZone: event.timeZone };
     const [selected] = await tx.select().from(schema.resultRevisions).where(and(
@@ -149,7 +156,7 @@ export async function getAdministratorEffectiveResult(db: Database,
     return { status: "ok", response: administratorEffectiveResultResponseSchema.parse({
       ...common, state: "ACTIVE_RESULT", selectedRevision, resultClass,
       resultSnapshotVersion: resolved.head.snapshotVersion, governingDecision, controlDetails,
-      resultCurrent: isResultCurrent(resolved.head, await loadResultBasisHash(tx, entry.id), race.snapshotVersion),
+      resultCurrent: isEffectiveResultCurrent(resolved, await loadResultBasisHash(tx, entry.id), race.snapshotVersion),
       result: { revision: resolved.head.revision, status: outcome.status, reason: outcome.reason,
         ...("elapsedMs" in outcome ? { elapsedMs: outcome.elapsedMs } : {}) }
     }) };

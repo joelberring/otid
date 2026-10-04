@@ -3,6 +3,7 @@
 import type { AdministratorEffectiveResultResponse } from "@o-tid/contracts";
 import { raceWorkflowDetailSv as text } from "../i18n/race-workflow-detail-sv";
 import styles from "./race-workflow-detail.module.css";
+import { formatClockTime } from "../lib/clock-time";
 
 function elapsed(value: number | null): string {
   if (value === null || !Number.isSafeInteger(value) || value < 0) return text.unknownTime;
@@ -16,10 +17,7 @@ function elapsed(value: number | null): string {
 }
 
 function wallTime(value: string | null, timeZone: string): string {
-  if (value === null) return text.notRecorded;
-  const date = new Date(value);
-  if (!Number.isFinite(date.getTime())) return text.unknownTime;
-  return new Intl.DateTimeFormat("sv-SE", { timeZone, dateStyle: "short", timeStyle: "medium" }).format(date);
+  return value === null ? text.notRecorded : formatClockTime(value, timeZone);
 }
 
 export function RaceResultControls({ result, resultError, timeZone }: {
@@ -41,7 +39,6 @@ export function RaceResultControls({ result, resultError, timeZone }: {
     {heading}
     <p className={styles.historicalNote}>{text.historical}</p>
     <dl className={styles.resultFacts}>
-      <div><dt>{text.revision}</dt><dd>{result.result.revision}</dd></div>
       <div><dt>{text.resultClass}</dt><dd>{result.resultClass.name}</dd></div>
       <div><dt>{text.course}</dt><dd>{details.courseName}</dd></div>
       <div><dt>{text.startRecorded}</dt><dd>{wallTime(details.startTime, timeZone)}</dd></div>

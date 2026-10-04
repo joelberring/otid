@@ -1,0 +1,35 @@
+/** Klasser som tabell med redigering i raden (ADR-0169 beslut 4). */
+export const classTableSv = {
+  title: "Klasser",
+  help: "Ändra klassens namn, bana eller startsätt i raden. Resultaten räknas om när du sparar.",
+  className: "Klass", course: "Bana", startRule: "Startsätt", entries: "Anmälda", readOut: "Avlästa / resultat",
+  status: "Status", action: "Ändra",
+  free: "Fri start", fixed: "Fast starttid",
+  open: "Redigera", openLabel: (name: string) => `Redigera ${name}`,
+  readOutValue: (readOut: number, results: number) => `${readOut} / ${results}`,
+  noClasses: "Det finns inga klasser ännu. Lägg till en bana med klass under Banor.",
+  loading: "Läser in klasserna…", listError: "Klasserna kunde inte läsas in.", retryList: "Läs in klasserna igen",
+  statusNoEntries: "Inga anmälda",
+  statusMissingStartTimes: (count: number) => count === 1 ? "1 saknar starttid" : `${count} saknar starttid`,
+  statusMissingStartTimesOpen: (name: string, count: number) => `Visa de ${count} i ${name} som saknar starttid`,
+  statusAllReadOut: "Alla har läst ut",
+  statusWaiting: (count: number) => count === 1 ? "1 har inte läst ut" : `${count} har inte läst ut`,
+  statusReady: "Klar för start",
+  fieldName: "Klassnamn", fieldCourse: "Bana", fieldStartRule: "Startsätt",
+  importedName: "Namnet kommer från en import och kan inte ändras här.",
+  preview: "Visa vad som händer", save: "Spara ändringen", cancel: "Avbryt",
+  invalidName: "Skriv ett klassnamn.",
+  unchanged: "Inget är ändrat. Inget att spara.",
+  nobodyReadOut: "Ingen i klassen har läst ut. Ändringen påverkar inga resultat.",
+  clearedStartTimes: (count: number) => count === 1
+    ? "1 fast starttid tas bort eftersom startsättet ändras."
+    : `${count} fasta starttider tas bort eftersom startsättet ändras.`,
+  confirmHelp: "Tryck på Spara ändringen för att ändra klassen och räkna om resultaten.",
+  noStatusChange: "Ingen löpare får ny status. Ändringen kan sparas direkt.",
+  previewError: "Det gick inte att visa vad som händer. Försök igen.",
+  conflict: "Tävlingen har ändrats under tiden. Klasserna är inlästa igen; visa vad som händer en gång till.",
+  rejected: "Ändringen kunde inte sparas. Kontrollera uppgifterna och försök igen.",
+  unknown: "Svaret saknas. Ändringen kan redan vara sparad. Tryck på Spara ändringen igen; den sparas bara en gång.",
+  saved: (count: number) => count === 0 ? "Klassen är ändrad." : `Klassen är ändrad. ${count} resultat räknades om.`,
+  savedLoadError: "Klassen är ändrad, men listan kunde inte uppdateras. Läs in klasserna igen."
+} as const;

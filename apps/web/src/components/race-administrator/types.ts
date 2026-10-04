@@ -1,9 +1,8 @@
 import type {
-  AdministratorReturnRequest, AdministratorStartCorrectionRequest, ClassCapacityRequest, ClassStartRuleChangeRequest,
-  ClassStartRulePreview, EntryCardChangeRequest, EntryCardRentalChangeRequest, EntryCardRentalReturnChangeRequest,
+  AdministratorReturnRequest, AdministratorStartCorrectionRequest, ClassCapacityRequest, ClassEditRequest, EntryCardChangeRequest, EntryCardRentalChangeRequest, EntryCardRentalReturnChangeRequest,
   EntryCardRentalReuseRequest, EntryIdentityChangeRequest, EntryPaymentStatusChangeRequest, EntryRegistrationCandidatesResponse,
   EntryRegistrationRequest, EntryStartTimeChangeRequest, EntryTransferRequest, ManualClassCreateRequest,
-  ManualClassNameChangeRequest, CourseEditRequest, ShortenedCourseClassTransferCandidate,
+  CourseEditRequest, ShortenedCourseClassTransferCandidate,
   ShortenedCourseClassTransferRequest, StartCheckinConflictReviewCandidate, StartCheckinConflictReviewRequest,
   UnknownReadoutResolutionCandidateResponse, UnknownReadoutResolutionRequest
 } from "@o-tid/contracts";
@@ -31,9 +30,8 @@ export type ConflictReviewAttempt = { kind: "CONFLICT_REVIEW"; candidate: StartC
 export type CourseClassRequest = { formatVersion: 1; requestId: string; expectedSnapshotVersion: number; courseName: string; className: string; startRule: "PUNCH" | "FIXED"; controlCodes: number[] };
 export type CourseClassAttempt = { kind: "COURSE_CLASS"; request: CourseClassRequest };
 export type ManualClassAttempt = { kind: "MANUAL_CLASS"; request: ManualClassCreateRequest; targetLabel: string };
-export type ManualClassNameAttempt = { kind: "MANUAL_CLASS_NAME"; classId: string; courseVersionId: string;
-  request: ManualClassNameChangeRequest };
 export type CourseEditAttempt = { kind: "COURSE_EDIT"; request: CourseEditRequest };
+export type ClassEditAttempt = { kind: "CLASS_EDIT"; request: ClassEditRequest };
 export type ShortenedCourseClassTransferAttempt = { kind: "SHORTENED_COURSE_CLASS_TRANSFER";
   candidate: ShortenedCourseClassTransferCandidate; request: ShortenedCourseClassTransferRequest };
 export type UnknownReadoutResolutionAttempt = { kind: "UNKNOWN_READOUT_RESOLUTION";
@@ -43,7 +41,6 @@ export type TransferAttempt = {
   previousClassName: string; className: string; request: EntryTransferRequest;
 };
 export type CapacityAttempt = { kind: "CAPACITY"; id: string; classId: string; className: string; entryCount: number; request: ClassCapacityRequest };
-export type StartRuleAttempt = { kind: "START_RULE"; preview: ClassStartRulePreview; request: ClassStartRuleChangeRequest };
 export type CardAttempt = { kind: "CARD"; id: string; entryId: string; displayName: string; request: EntryCardChangeRequest };
 export type RentalAttempt = { kind: "CARD_RENTAL"; id: string; entryId: string; displayName: string; request: EntryCardRentalChangeRequest };
 export type RentalReturnAttempt = { kind: "CARD_RENTAL_RETURN"; id: string; entryId: string; displayName: string;
@@ -67,15 +64,15 @@ export type StartCorrectionAttempt = { kind: "START_CORRECTION"; name: string; r
 export type FinalizationAttempt = { kind: "FINALIZATION"; value: ResultFinalizationAttempt };
 
 /** Det försök som just nu väntar på granskning eller kvitto. Bara ett åt gången. */
-export type PendingAttempt = StartRuleAttempt | ConflictReviewAttempt | StartCorrectionAttempt | ReturnAttempt |
+export type PendingAttempt = ConflictReviewAttempt | StartCorrectionAttempt | ReturnAttempt |
   AdministratorPublicationAttempt | AdministratorDrawAttempt | TransferAttempt | CapacityAttempt | CardAttempt | RentalAttempt |
   RentalReturnAttempt | RentalReuseAttempt | PaymentStatusAttempt | TimeAttempt | RecalculationAttempt |
   ClassResultRecalculationAttempt | IdentityAttempt | RegistrationAttempt | DnsAttempt | DnfAttempt | DsqAttempt |
   ApprovalAttempt | OocAttempt | NtAttempt | FinalizationAttempt | CourseClassAttempt | ManualClassAttempt |
-  ManualClassNameAttempt | CourseEditAttempt |
+  CourseEditAttempt | ClassEditAttempt |
   ShortenedCourseClassTransferAttempt | UnknownReadoutResolutionAttempt;
 
-export type Action = "INFO" | "TRANSFER" | "CARD" | "PAYMENT" | "TIME" | "RECALCULATION" | "IDENTITY" | "REGISTRATION" | "HISTORY" | "DNS" | "DNF" | "DSQ" | "APPROVAL" | "OOC" | "NT";
+export type Action = "INFO" | "TRANSFER" | "CARD" | "PAYMENT" | "TIME" | "IDENTITY" | "REGISTRATION" | "HISTORY";
 export type WorkflowMode = "OVERVIEW" | "PARTICIPANTS" | "BEFORE" | "DURING" | "AFTER";
 export type PreparationArea = keyof typeof navigationText.preparation;
 export type DuringArea = keyof typeof navigationText.during;

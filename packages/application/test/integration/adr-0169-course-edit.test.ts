@@ -11,6 +11,7 @@ import { ingestReadoutsAsAdministrator } from "../../src/readout-station";
 import { getAdministratorEffectiveResult } from "../../src/administrator-effective-result";
 import { disqualifyResultAsAdmin } from "../../src/result-disqualification";
 import { editCourseAsAdministrator, listCoursesForEditAsAdministrator, previewCourseEditAsAdministrator } from "../../src/course-edit";
+import { listEntryTransfersAsAdministrator } from "../../src/entry-transfer";
 
 const base = process.env.TEST_DATABASE_URL;
 if (!base) throw new Error("ADR-0169-testet kräver TEST_DATABASE_URL till en PostgreSQL-roll med CREATEDB");
@@ -192,7 +193,11 @@ describe("ADR-0169 Redigera bana", () => {
     const saved = await edit(f, [31, 32, 33, 34], false);
     if (saved.result.status !== "edited") throw new Error(`Ändringen sparades inte: ${saved.result.status}`);
     expect(saved.result.response.recalculated).toHaveLength(1);
-    expect(await effective(f, ada)).toMatchObject({ status: "DSQ" });
+    // Disken gäller och vilar på en omräknad teknisk revision: resultatet är aktuellt, inte "äldre underlag".
+    expect(await effective(f, ada)).toEqual({ status: "DSQ", current: true });
+    const roster = await listEntryTransfersAsAdministrator(db, f.proof);
+    if (roster.status !== "ok") throw new Error("Deltagarlistan saknas");
+    expect(roster.response.entries.find(row => row.id === ada)?.resultFreshness).toBe("CURRENT_SNAPSHOT");
     // Den tekniska revisionen under disken är omräknad mot den nya banan.
     expect((await revisions(ada)).at(-1)).toMatchObject({ status: "MP", cause: "EXPLICIT_RECALCULATION" });
     const [basis] = (await pool.query<{ current: boolean }>(`select basis_hash = otid_result_basis_hash(entry_id) as current

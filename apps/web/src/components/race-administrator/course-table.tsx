@@ -7,14 +7,12 @@ import type { Workspace } from "./workspace-state";
 
 /** Banor som tabell med "Redigera bana" i raden (ADR-0169 beslut 4). */
 export function CourseTable({ ws, visible }: { ws: Workspace; visible: boolean }) {
-  const { authenticated, busy, courseEditSaved, courseList, courseListError, data, editingCourseId, loadCourses, openAssignedClass, pending, raceId, selectedCourseTarget,
+  const { authenticated, busy, courseEditSaved, courseList, courseListError, data, editingCourseId, loadCourses, openAssignedClass, pending, raceId,
     startCourseEdit, workflowLocked } = ws;
   const stale = !courseList || (data !== undefined && courseList.snapshotVersion < data.snapshotVersion);
   useEffect(() => {
     if (visible && authenticated && data && !busy && !pending.current && stale && !courseListError) void loadCourses();
   }, [visible, authenticated, data, busy, stale, courseListError]);
-  const selectedVersionId = selectedCourseTarget?.raceId === raceId && selectedCourseTarget.snapshotVersion === data?.snapshotVersion
-    ? selectedCourseTarget.courseVersionId : undefined;
   return <section className={styles.panel} aria-labelledby={`course-table-${raceId}`}>
     <h2 id={`course-table-${raceId}`}>{text.courseEditTitle}</h2>
     <p className={styles.workflowHelp}>{text.courseEditHelp}</p>
@@ -31,8 +29,7 @@ export function CourseTable({ ws, visible }: { ws: Workspace; visible: boolean }
       </tr></thead>
       <tbody>{courseList.courses.map(course => {
         const editing = course.courseId === editingCourseId;
-        return [<tr key={course.courseId} data-selected={course.courseVersionId === selectedVersionId ? "true" : undefined}
-          aria-current={course.courseVersionId === selectedVersionId ? "true" : undefined}>
+        return [<tr key={course.courseId}>
           <th scope="row">{course.name}</th>
           <td className={styles.courseTableControls}>{course.controlCodes.join(" ")}</td>
           <td>{course.classes.length === 0 ? text.courseEditNoClasses : course.classes.map(raceClass =>

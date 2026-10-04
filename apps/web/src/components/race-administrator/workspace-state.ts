@@ -3,9 +3,11 @@ import { createMobileNavigation, createWorkflowNavigation, useNavigationState } 
 import { createRaceDataActions, useRaceDataState } from "./race-data";
 import { createParticipantActions, deriveRoster, useRosterState } from "./participant-roster";
 import { createEntryActions, deriveEntryActions, useEntryActionState } from "./entry-actions";
-import { createResultDecisionActions, deriveResultDecisions, useResultDecisionState } from "./result-decisions";
+import { createResultDecisionActions, useResultDecisionState } from "./result-decisions";
 import { createCoursePreparationActions, useCoursePreparationState } from "./course-preparation";
 import { createCourseEditActions, useCourseEditState } from "./course-edit";
+import { createClassEditActions, useClassEditState } from "./class-edit";
+import { createStatusChangeActions, useStatusChangeState } from "./status-change";
 import { createClassPreparationActions, deriveClassPreparation, useClassPreparationState } from "./class-preparation";
 import { createStartListActions, useStartListState } from "./start-list-preparation";
 import { createDuringRaceActions, deriveDuringRace, useDuringRaceState } from "./during-race";
@@ -14,7 +16,8 @@ import { createAfterRaceActions, deriveAfterRace, useAfterRaceState } from "./af
 /** Allt tillstånd i arbetsytan, samlat per område. */
 export function useWorkspaceState(raceId: string) {
   return { raceId, ...useOperationState(), ...useNavigationState(), ...useRaceDataState(), ...useRosterState(),
-    ...useEntryActionState(), ...useResultDecisionState(), ...useCoursePreparationState(), ...useCourseEditState(), ...useClassPreparationState(),
+    ...useEntryActionState(), ...useResultDecisionState(), ...useCoursePreparationState(), ...useCourseEditState(), ...useClassEditState(),
+    ...useClassPreparationState(), ...useStatusChangeState(),
     ...useStartListState(), ...useDuringRaceState(), ...useAfterRaceState() };
 }
 export type WorkspaceState = ReturnType<typeof useWorkspaceState>;
@@ -24,18 +27,18 @@ export function deriveWorkspace(s: WorkspaceState) {
   const roster = deriveRoster(s);
   const during = deriveDuringRace(s);
   const disabled = s.busy || s.participantActionPending || during.correctionPending || s.operatorAccessPending ||
-    !!s.startRuleAttempt || !!s.reviewAttempt || !!s.startCorrection || !!s.returnAttempt || !!s.publicationAttempt ||
+    !!s.reviewAttempt || !!s.startCorrection || !!s.returnAttempt || !!s.publicationAttempt ||
     !!s.drawAttempt || !!s.finalizationAttempt || !!s.transferAttempt || !!s.capacityAttempt || !!s.cardAttempt ||
     !!s.rentalAttempt || !!s.rentalReturnAttempt || !!s.rentalReuseAttempt || !!s.paymentStatusAttempt || !!s.timeAttempt ||
     !!s.recalculationAttempt || !!s.identityAttempt || !!s.registrationAttempt || !!s.dnsAttempt || !!s.dnfAttempt ||
     !!s.ntAttempt || !!s.oocAttempt || !!s.dsqAttempt || !!s.approvalAttempt || !!s.courseEditAttempt ||
-    !!s.unknownReadoutAttempt || !!s.manualClassReview || !!s.manualClassAttempt || !!s.classNameReview || !!s.classNameAttempt;
+    !!s.unknownReadoutAttempt || !!s.manualClassReview || !!s.manualClassAttempt || !!s.classEditAttempt;
   // Låser byte av arbetsflöde medan något granskas eller väntar på kvitto.
   const workflowLocked = disabled || s.participantActionPending || !!s.pending.current || !!s.reviewCandidate ||
-    !!s.courseClassReview || !!s.courseClassAttempt || !!s.manualClassReview || !!s.manualClassAttempt || !!s.classNameReview ||
-    !!s.classNameAttempt || !!s.editingCourseId || !!s.courseEditAttempt || !!s.startRulePreview || !!s.shortenedCourseCandidate ||
+    !!s.courseClassReview || !!s.courseClassAttempt || !!s.manualClassReview || !!s.manualClassAttempt ||
+    !!s.editingCourseId || !!s.courseEditAttempt || !!s.editingClassId || !!s.classEditAttempt || !!s.shortenedCourseCandidate ||
     !!s.shortenedCourseAttempt || !!s.classRecalculationAttempt;
-  return { ...roster, ...deriveEntryActions(s, roster), ...deriveResultDecisions(s, roster), ...deriveClassPreparation(s),
+  return { ...roster, ...deriveEntryActions(s, roster), ...deriveClassPreparation(s),
     ...during, ...deriveAfterRace(s), disabled, workflowLocked };
 }
 export type Derived = ReturnType<typeof deriveWorkspace>;
@@ -53,9 +56,11 @@ export function useWorkspace(raceId: string) {
   const base: Base = { ...s, ...deriveWorkspace(s), ...operations };
   const withNavigation = { ...base, ...createMobileNavigation(base) };
   const withData = { ...withNavigation, ...createRaceDataActions(withNavigation) };
-  const withAreas = { ...withData, ...createDuringRaceActions(withData), ...createStartListActions(withData),
-    ...createCoursePreparationActions(withData), ...createCourseEditActions(withData), ...createClassPreparationActions(withData),
-    ...createResultDecisionActions(withData), ...createEntryActions(withData), ...createAfterRaceActions(withData) };
+  const withCourses = { ...withData, ...createCourseEditActions(withData) };
+  const withDecisions = { ...withCourses, ...createResultDecisionActions(withCourses) };
+  const withAreas = { ...withDecisions, ...createDuringRaceActions(withData), ...createStartListActions(withData),
+    ...createCoursePreparationActions(withData), ...createClassEditActions(withCourses), ...createClassPreparationActions(withData),
+    ...createStatusChangeActions(withDecisions), ...createEntryActions(withData), ...createAfterRaceActions(withData) };
   const withParticipants = { ...withAreas, ...createParticipantActions(withAreas) };
   return { ...withParticipants, ...createWorkflowNavigation(withParticipants) };
 }

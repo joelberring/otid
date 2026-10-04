@@ -22,7 +22,18 @@ export const administratorControlDetailsSchema = z.object({
     }
   });
 });
-const common = { formatVersion: z.literal(1), raceId: uuid, entryId: uuid,
+/** ADR-0169 beslut 4: deltagarkortets korta historik över resultatändringar, nyaste först. */
+export const administratorResultHistoryCauses = ["CARD_READOUT", "CLASS_CHANGE_RECALCULATION", "EXPLICIT_RECALCULATION",
+  "UNKNOWN_READOUT_RESOLUTION", "MANUAL_DID_NOT_START", "MANUAL_DISQUALIFICATION", "MANUAL_DISQUALIFICATION_WITHDRAWAL",
+  "MANUAL_RESULT_APPROVAL", "MANUAL_RESULT_APPROVAL_WITHDRAWAL", "MANUAL_DID_NOT_FINISH", "MANUAL_DID_NOT_FINISH_WITHDRAWAL",
+  "MANUAL_OUT_OF_COMPETITION", "MANUAL_OUT_OF_COMPETITION_WITHDRAWAL", "MANUAL_WITHOUT_TIMING", "MANUAL_WITHOUT_TIMING_WITHDRAWAL",
+  "START_CHECKIN_DID_NOT_START", "MANUAL_FINISH_TIME_CORRECTION", "MANUAL_FINISH_TIME_CORRECTION_WITHDRAWAL",
+  "MANUAL_PUNCH_START_TIME_CORRECTION", "MANUAL_PUNCH_START_TIME_CORRECTION_WITHDRAWAL", "SHORTENED_COURSE_CLASS_TRANSFER"] as const;
+export const administratorResultHistorySchema = z.array(z.object({
+  revision: version, cause: z.enum(administratorResultHistoryCauses),
+  status: z.enum(["OK", "MP", "DSQ", "DNF", "OOC", "DNS", "NT"]), at: z.iso.datetime({ precision: 3 })
+}).strict()).max(10);
+const common = { formatVersion: z.literal(1), raceId: uuid, entryId: uuid, history: administratorResultHistorySchema,
   entryVersion: version, currentClassId: uuid, snapshotVersion: version,
   generatedAt: z.iso.datetime({ precision: 3 }), timeZone: z.string().min(1).max(100).refine(value => {
     try { new Intl.DateTimeFormat("sv-SE", { timeZone: value }); return true; } catch { return false; }

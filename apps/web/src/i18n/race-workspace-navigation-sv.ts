@@ -22,7 +22,6 @@ export const raceWorkspaceNavigationSv = {
   splitTable: "Delad vy",
   splitTableAccessible: "Delad vy – visa tabell och person bredvid varandra",
   selectedHelp: "Välj en deltagare i tabellen för uppgifter, kontrolltider och ändringar.",
-  selectedParticipantContext: "Vald deltagare",
   selectedContext: "Vald deltagare utanför synlig tabellsida",
   selected: "Vald",
   selectedOutsideFilters: "utanför aktuellt urval",
@@ -34,5 +33,4 @@ export const raceWorkspaceNavigationSv = {
   nextParticipant: "Nästa",
   participantPosition: (position: number, total: number) => `${position} av ${total} i aktuellt urval`,
   participantOutsideSequence: "Vald deltagare är utanför aktuellt urval",
-  resultActions: "Resultatbeslut och historik",
 } as const;

@@ -253,7 +253,7 @@ describe("administratörsroutes: resultat och export", () => {
     expect(changes).toHaveBeenCalledTimes(calls);
   });
   it("TASK033 binds single-entry effective result to private race and entry scope", async () => {
-    const response = { formatVersion: 1 as const, raceId: id, entryId: id, entryVersion: 1, currentClassId: id,
+    const response = { formatVersion: 1 as const, raceId: id, entryId: id, history: [], entryVersion: 1, currentClassId: id,
       snapshotVersion: 1, generatedAt: "2026-09-12T12:00:00.000Z", timeZone: "Europe/Stockholm",
       state: "NO_PUBLISHED_RESULT" as const, selectedRevision: null };
     const effectiveResult = vi.fn(async () => ({ status: "ok" as const, response }));

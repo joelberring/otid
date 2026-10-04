@@ -16,6 +16,11 @@ export const courseEditListResponseSchema = z.object({
     courseId: uuid, courseVersionId: uuid, name, controlCodes: z.array(controlCode).max(1000),
     classes: z.array(z.object({ classId: uuid, name }).strict()).max(1000),
     entryCount: count, readOutCount: count
+  }).strict()).max(1000),
+  // ADR-0169 beslut 4: klasserna som tabell (bana, startsätt, anmälda, avlästa/resultat, status).
+  classes: z.array(z.object({
+    classId: uuid, name, courseId: uuid, startRule: z.enum(["PUNCH", "FIXED"]), entryCount: count, readOutCount: count,
+    resultCount: count, missingStartTimeCount: count, renamable: z.boolean()
   }).strict()).max(1000)
 }).strict();
 

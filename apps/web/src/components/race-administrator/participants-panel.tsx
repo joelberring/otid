@@ -5,17 +5,13 @@ import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
 import { raceWorkspaceNavigationSv as navigationText } from "../../i18n/race-workspace-navigation-sv";
 import { sv } from "../../i18n/sv";
 import { formatStartListTime } from "../../lib/start-list-time";
-import { RaceParticipantFacts } from "../race-participant-facts";
-import { RaceParticipantCourse } from "../race-participant-course";
-import { RaceResultControls } from "../race-result-controls";
-import { ParticipantEntryClaimAdmin } from "../participant-entry-claim-admin";
+import { formatClockTime } from "../../lib/clock-time";
 import { administratorRosterResultFilters, needsPaymentAttention, type AdministratorRosterResultFilter } from "../../lib/administrator-roster-filter";
-import { resultDuration, type Action } from "./types";
-import { EntryActionForms, RegistrationForm } from "./entry-action-forms";
-import { RecalculationForm, ResultDecisionForms } from "./result-decision-forms";
+import { resultDuration } from "./types";
+import { ParticipantCard } from "./participant-card";
 import type { Workspace } from "./workspace-state";
 
-/** Deltagare: lista och arbetsyta för vald deltagare. */
+/** Deltagare: lista och deltagarkort för vald deltagare. */
 export function ParticipantsPanel({ ws }: { ws: Workspace }) {
   const { currentPage, disabled, mobilePanel, navigateMobile, participantsVisible, raceId, revealSelected,
     selected, selectedIndex, selectedPage, wideTable, workflowLocked } = ws;
@@ -37,7 +33,7 @@ export function ParticipantsPanel({ ws }: { ws: Workspace }) {
     </div>}
     <div className={styles.columns} data-mobile-panel={mobilePanel} data-wide-table={wideTable}>
       <ParticipantList ws={ws} />
-      <ParticipantWorkPanel ws={ws} />
+      <ParticipantCard ws={ws} />
     </div>
   </section>;
 }
@@ -123,9 +119,13 @@ export function ParticipantList({ ws }: { ws: Workspace }) {
         <tbody>{visible.map((entry) => {
           const raceClass = classesById.get(entry.classId);
           if (!raceClass) throw new Error("Validated participant class missing");
-          return <tr key={entry.id}><td><button className={styles.participant} disabled={disabled}
+          const open = () => select(entry.id, false, false, paymentAttentionOnly ? "PAYMENT" : undefined);
+          // ADR-0169: ett klick var som helst i raden öppnar deltagarkortet. Namnknappen är vägen för tangentbord.
+          return <tr key={entry.id} className={styles.rosterRow} data-selected={entryId === entry.id ? "true" : undefined}
+            onClick={event => { if (!disabled && !(event.target as HTMLElement).closest("button")) open(); }}>
+            <td><button className={styles.participant} disabled={disabled}
             aria-label={`${entry.displayName} ${entry.organisationName ?? text.none}`}
-            aria-pressed={entryId === entry.id} onClick={() => select(entry.id, false, false, paymentAttentionOnly ? "PAYMENT" : undefined)}>{entry.displayName}</button>
+            aria-pressed={entryId === entry.id} onClick={open}>{entry.displayName}</button>
             <div className={styles.rosterMetadata}>
               <span className={styles.organisation} aria-hidden="true">{entry.organisationName ?? text.none}</span>
               {entry.resultRevisionMarker === "MANUAL_FINISH_TIME_CORRECTION" && <span className={styles.resultBadge}>{text.rosterFinishCorrection}</span>}
@@ -149,7 +149,7 @@ export function ParticipantList({ ws }: { ws: Workspace }) {
           <td data-label={text.rosterStart} className={styles.startCell}>{raceClass.startRule === "PUNCH" ? text.rosterFreeStart :
             <div className={styles.startDetail}><strong>{text.rosterFixedStart}</strong>
               {entry.fixedStartTime
-                ? <time dateTime={entry.fixedStartTime}>{formatStartListTime(entry.fixedStartTime, data.timeZone)}</time>
+                ? <time dateTime={entry.fixedStartTime}>{formatClockTime(entry.fixedStartTime, data.timeZone)}</time>
                 : <><span className={styles.startMissing}>{text.rosterMissingFixedStart}</span>
                   <button type="button" className={styles.startSetButton} disabled={workflowLocked}
                     aria-label={text.rosterSetStartTimeFor(entry.displayName)}
@@ -161,87 +161,6 @@ export function ParticipantList({ ws }: { ws: Workspace }) {
       {lastPage > 0 && <div className={styles.toolbar}><button className="secondary" disabled={disabled || currentPage === 0} onClick={() => setPage(currentPage - 1)}>{text.previousPage}</button>
         <span>{currentPage + 1} / {lastPage + 1}</span><button className="secondary" disabled={disabled || currentPage === lastPage} onClick={() => setPage(currentPage + 1)}>{text.nextPage}</button></div>}
     </>}
-  </section>;
-}
-
-/** Arbetsytan för vald deltagare: fakta, gällande resultat och åtgärder. */
-export function ParticipantWorkPanel({ ws }: { ws: Workspace }) {
-  const { action, approvalAttempt, authenticated, capacityAttempt, cardAttempt, chooseAction, classesById, data,
-    disabled, dnfAttempt, dnsAttempt, dsqAttempt, effectiveResult, effectiveResultError, filtered, identityAttempt,
-    lock, navigateParticipantSequence, ntAttempt, oocAttempt, openAssignedCourse, openRecalculation,
-    participantActionPending, paymentStatusAttempt, raceId, recalculationAttempt, rentalAttempt, rentalReturnAttempt,
-    rentalReuseAttempt, selected, selectedClass, selectedIndex, setParticipantActionPending, timeAttempt,
-    transferAttempt, workPanel, workflowLocked } = ws;
-  return <section className={styles.panel} aria-label={text.participantAction} data-panel="WORK" ref={workPanel} tabIndex={-1} id={`participant-work-${raceId}`}>
-    {selected && selectedClass && action !== "REGISTRATION" && <section className={styles.selectedParticipantContext}
-      aria-label={navigationText.selectedParticipantContext}>
-      <span className={styles.selectedParticipantLabel}>{navigationText.selectedParticipantContext}</span>
-      <strong>{selected.displayName}</strong>
-      <span className={styles.selectedParticipantClass}>{selectedClass.name}</span>
-    </section>}
-    {selected && action !== "REGISTRATION" && <nav className={styles.participantSequence}
-      aria-label={navigationText.participantSequence}>
-      <button type="button" className="secondary" disabled={workflowLocked || selectedIndex <= 0}
-        onClick={() => navigateParticipantSequence(-1)}>{navigationText.previousParticipant}</button>
-      <span>{selectedIndex < 0 ? navigationText.participantOutsideSequence
-        : navigationText.participantPosition(selectedIndex + 1, filtered.length)}</span>
-      <button type="button" className="secondary"
-        disabled={workflowLocked || selectedIndex < 0 || selectedIndex >= filtered.length - 1}
-        onClick={() => navigateParticipantSequence(1)}>{navigationText.nextParticipant}</button>
-    </nav>}
-    {selected && data && action !== "REGISTRATION" && <RaceParticipantFacts entry={selected}
-      raceClass={classesById.get(selected.classId)!} timeZone={data.timeZone} disabled={disabled} activeAction={action} onEdit={chooseAction} />}
-    {!selected && action !== "REGISTRATION" && <p>{navigationText.selectedHelp}</p>}
-    {selected && !transferAttempt && !cardAttempt && !rentalAttempt && !rentalReturnAttempt && !rentalReuseAttempt && !paymentStatusAttempt && !timeAttempt && !recalculationAttempt && !capacityAttempt && !identityAttempt && !dnsAttempt && !dnfAttempt && !ntAttempt && !oocAttempt && !dsqAttempt && !approvalAttempt && <section className={styles.resultSummary} aria-label={text.effectiveResult}>
-      {effectiveResult?.entryId === selected.id ? <>
-        <p><strong className={effectiveResult.state === "ACTIVE_RESULT" && (effectiveResult.result.status === "MP" || effectiveResult.result.status === "DSQ") ? styles.rosterCritical : undefined}>{text.effectiveResult}: {effectiveResult.state === "ACTIVE_RESULT" ? sv.publicResultsStatusLabels[effectiveResult.result.status] : effectiveResult.state === "NO_ACTIVE_RESULT" ? text.noActiveResult : text.noPublishedResult}</strong>
-          {effectiveResult.state === "ACTIVE_RESULT" && "elapsedMs" in effectiveResult.result && effectiveResult.result.elapsedMs !== undefined && <> · {resultDuration(effectiveResult.result.elapsedMs)}</>}</p>
-        {effectiveResult.state === "ACTIVE_RESULT" && <>
-          <p>{sv.publicResultsReasonLabels[effectiveResult.result.reason]}
-            {effectiveResult.governingDecision !== "NONE" && <> · {text.governingDecision}: <strong>{text.governingDecisions[effectiveResult.governingDecision]}</strong></>}</p>
-          {selected.resultRevisionMarker !== null && <p><strong>{text.resultFinishCorrection}:</strong> {selected.resultRevisionMarker === "MANUAL_FINISH_TIME_CORRECTION"
-            ? text.rosterFinishCorrection : text.rosterFinishCorrectionWithdrawal}</p>}
-          {effectiveResult.resultClass.id !== selected.classId && <p>{text.resultHistoricalClass}: {effectiveResult.resultClass.name}</p>}
-          {!effectiveResult.resultCurrent && <>
-            <p className={styles.resultStale}>{text.resultStale}</p>
-            <button type="button" className="secondary" disabled={disabled}
-              aria-label={text.resultStaleOpenFor(selected.displayName)} onClick={() => openRecalculation(selected.id)}>
-              {text.resultStaleOpen}
-            </button>
-          </>}
-          <p>{text.resultRevision}: {effectiveResult.result.revision} · {text.selectedPublishedRevision}: {effectiveResult.selectedRevision.revision}</p>
-        </>}
-        <p className={styles.organisation}>{text.resultReadAt}: {formatStartListTime(effectiveResult.generatedAt, effectiveResult.timeZone)}</p>
-      </> : <p>{effectiveResultError ? text.effectiveResultError : text.effectiveResultPending}</p>}
-    </section>}
-    {selected && selectedClass && data && action === "INFO" && <RaceParticipantCourse raceId={raceId}
-      snapshotVersion={data.snapshotVersion} raceClass={selectedClass} disabled={workflowLocked}
-      onUnauthorized={lock} onOpenCourse={openAssignedCourse} />}
-    <EntryActionForms ws={ws} />
-    {selected && data && <RaceResultControls result={effectiveResult?.entryId === selected.id ? effectiveResult : undefined}
-      resultError={effectiveResultError} timeZone={data.timeZone} />}
-    {selected && action !== "REGISTRATION" && <details className={styles.resultActions}
-      open={(["RECALCULATION", "HISTORY", "DNS", "DNF", "DSQ", "OOC", "NT", "APPROVAL"] as Action[]).includes(action) || undefined}>
-      <summary>{navigationText.resultActions}</summary>
-      <div className={styles.actions} aria-label={text.participantAction}>
-      <button type="button" className="secondary" aria-pressed={action === "RECALCULATION"} disabled={disabled} onClick={() => chooseAction("RECALCULATION")}>{text.recalculationAction}</button>
-      <button type="button" className="secondary" aria-pressed={action === "HISTORY"} disabled={disabled} onClick={() => chooseAction("HISTORY")}>{text.historyAction}</button>
-      <button type="button" className="secondary" aria-pressed={action === "DNS"} disabled={disabled} onClick={() => chooseAction("DNS")}>{text.dnsAction}</button>
-      <button type="button" className="secondary" aria-pressed={action === "DNF"} disabled={disabled} onClick={() => chooseAction("DNF")}>{text.dnfAction}</button>
-      <button type="button" className="secondary" aria-pressed={action === "DSQ"} disabled={disabled} onClick={() => chooseAction("DSQ")}>{text.dsqAction}</button>
-      <button type="button" className="secondary" aria-pressed={action === "OOC"} disabled={disabled} onClick={() => chooseAction("OOC")}>{text.oocAction}</button>
-      <button type="button" className="secondary" aria-pressed={action === "NT"} disabled={disabled} onClick={() => chooseAction("NT")}>{text.ntAction}</button>
-      <button type="button" className="secondary" aria-pressed={action === "APPROVAL"} disabled={disabled} onClick={() => chooseAction("APPROVAL")}>{text.approvalAction}</button>
-    </div></details>}
-    <ResultDecisionForms ws={ws} />
-    <RegistrationForm ws={ws} />
-    <RecalculationForm ws={ws} />
-    {authenticated && selected && <details className={styles.claimPanel} open={participantActionPending || undefined}
-      onToggle={event => { if (participantActionPending && !event.currentTarget.open) event.currentTarget.open = true; }}>
-      <summary>{text.claimOptionalSummary}</summary>
-      <ParticipantEntryClaimAdmin key={`${raceId}:${selected.id}`} raceId={raceId} entryId={selected.id}
-        displayName={selected.displayName} onPendingChange={setParticipantActionPending} />
-    </details>}
   </section>;
 }
 

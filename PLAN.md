@@ -213,9 +213,9 @@ Se ADR-0169 beslut 1 och 4.
    Före sparande: besked i klartext ("12 har läst ut; 2 blir godkända, 10
    påverkas inte"). Versioner och omräkning sköts av appen: berörda resultat
    räknas om automatiskt i samma transaktion (ny revision, historik kvar).
-3. **Banor och klasser som tabeller** med redigering i raden: bana (kontroller,
+3. [x] **Banor och klasser som tabeller** med redigering i raden: bana (kontroller,
    klasser, löpare) och klass (bana, startsätt, anmälda, status).
-4. **Deltagarkort:** bricka, klass, starttid, resultat med sträcktider och
+4. [x] **Deltagarkort:** bricka, klass, starttid, resultat med sträcktider och
    historik. Resultatbesluten (ej start, brutit, disk, utom tävlan, utan
    tidtagning, godkänn) som en meny "Ändra status".
 5. **Checklista** som navigation (Banor → Klasser → Anmälda → Start →

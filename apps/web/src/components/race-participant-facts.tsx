@@ -3,16 +3,11 @@
 import type { EntryTransferCandidates } from "@o-tid/contracts";
 import { raceWorkflowDetailSv as text } from "../i18n/race-workflow-detail-sv";
 import styles from "./race-workflow-detail.module.css";
+import { formatClockTime } from "../lib/clock-time";
 
 type Entry = EntryTransferCandidates["entries"][number];
 type RaceClass = EntryTransferCandidates["classes"][number];
 type EditAction = "IDENTITY" | "TRANSFER" | "CARD" | "TIME" | "PAYMENT";
-
-function localDateTime(value: string, timeZone: string): string {
-  const date = new Date(value);
-  if (!Number.isFinite(date.getTime())) return text.unknownTime;
-  return new Intl.DateTimeFormat("sv-SE", { timeZone, dateStyle: "short", timeStyle: "short" }).format(date);
-}
 
 export function RaceParticipantFacts({ entry, raceClass, timeZone, disabled, activeAction, onEdit }: {
   entry: Entry;
@@ -25,7 +20,7 @@ export function RaceParticipantFacts({ entry, raceClass, timeZone, disabled, act
   const assignment = entry.activeAssignment;
   const cardValue = entry.multipleActiveAssignments ? text.multipleCards : assignment === null ? text.noCard :
     `${assignment.cardNumber}${assignment.isRental ? ` · ${text.cardRental} · ${assignment.rentalReturned ? text.returned : text.notReturned}` : ""}`;
-  const startValue = raceClass.startRule === "PUNCH" ? text.free : entry.fixedStartTime === null ? text.noFixedTime : localDateTime(entry.fixedStartTime, timeZone);
+  const startValue = raceClass.startRule === "PUNCH" ? text.free : entry.fixedStartTime === null ? text.noFixedTime : formatClockTime(entry.fixedStartTime, timeZone);
   const paymentValue = entry.paymentStatus === "UNMARKED" ? text.paymentUnmarked : entry.paymentStatus === "UNPAID" ? text.paymentUnpaid :
     entry.paymentStatus === "PAID" ? text.paymentPaid : text.paymentWaived;
 

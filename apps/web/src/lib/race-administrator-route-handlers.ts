@@ -34,10 +34,9 @@ export async function raceAdministratorRoute(db: Database, request: Request, rac
     [...url.searchParams.keys()].every(key => key === "cursor") && url.searchParams.getAll("cursor").length <= 1 &&
     (cursor === null || /^[A-Za-z0-9_-]{1,1024}$/.test(cursor));
   if (!uuid.test(raceId) || ("entryId" in action && !uuid.test(action.entryId)) ||
-    (action.kind === "manual-class-name" && !uuid.test(action.classId)) ||
     ("targetClassId" in action && !uuid.test(action.targetClassId)) ||
     ("finalizationId" in action && !uuid.test(action.finalizationId)) ||
-    ((action.kind === "capacity" || action.kind === "start-rule" || action.kind === "shortened-course-class-transfer" || action.kind === "class-result-recalculation") && !uuid.test(action.classId)) ||
+    ("classId" in action && !uuid.test(action.classId)) ||
     ("courseId" in action && !uuid.test(action.courseId)) || (url.search && !validHistoryQuery && !validCheckinQuery)) {
     return failure(400, "INVALID_REQUEST");
   }
@@ -73,7 +72,7 @@ export async function raceAdministratorRoute(db: Database, request: Request, rac
 }
 
 function allowedMethods(action: Action): string[] {
-  return action.kind === "manual-class-name" ? ["GET", "POST"] : action.kind === "operator-access" ? ["GET", "POST", "DELETE"] : action.kind === "start-rule" ? ["GET", "PATCH"] : action.kind === "shortened-course-class-transfer" || action.kind === "manual-finish-time-correction" || action.kind === "manual-punch-start-time-correction" || action.kind === "manual-punch-start-time-correction-withdrawal" || action.kind === "manual-finish-time-correction-withdrawal" || action.kind === "unknown-readout-resolution" || action.kind === "class-result-recalculation" ? ["GET", "POST"] : action.kind === "review-conflicts" ? ["POST"] : action.kind === "conflict-candidate" ? ["GET"] : action.kind === "session" ? ["GET", "DELETE"] : action.kind === "checkin-history" || action.kind === "effective-result" || action.kind === "changes" || action.kind === "transfer-start-slot-candidates" || action.kind === "registration-start-slot-candidates" ? ["GET"] :
+  return action.kind === "operator-access" ? ["GET", "POST", "DELETE"] : action.kind === "shortened-course-class-transfer" || action.kind === "manual-finish-time-correction" || action.kind === "manual-punch-start-time-correction" || action.kind === "manual-punch-start-time-correction-withdrawal" || action.kind === "manual-finish-time-correction-withdrawal" || action.kind === "unknown-readout-resolution" || action.kind === "class-result-recalculation" ? ["GET", "POST"] : action.kind === "review-conflicts" ? ["POST"] : action.kind === "conflict-candidate" ? ["GET"] : action.kind === "session" ? ["GET", "DELETE"] : action.kind === "checkin-history" || action.kind === "effective-result" || action.kind === "changes" || action.kind === "transfer-start-slot-candidates" || action.kind === "registration-start-slot-candidates" ? ["GET"] :
     action.kind === "start-correction" || action.kind === "manual-return-withdrawal" || action.kind === "manual-return" || action.kind === "publication" || action.kind === "draw-preview" || action.kind === "draw" || action.kind === "finalize" || action.kind === "recalculate" || action.kind === "registration" || action.kind === "registration-candidates" ||
     action.kind === "did-not-start" || action.kind === "did-not-start-withdrawal" ||
     action.kind === "did-not-finish" || action.kind === "did-not-finish-withdrawal" ||
@@ -81,6 +80,7 @@ function allowedMethods(action: Action): string[] {
     action.kind === "approval" || action.kind === "approval-withdrawal" ||
     action.kind === "out-of-competition" || action.kind === "out-of-competition-withdrawal" ||
     action.kind === "without-timing" || action.kind === "without-timing-withdrawal" || action.kind === "manual-course-class" || action.kind === "manual-class" ||
-    action.kind === "course-edit-preview" || action.kind === "course-edit" ? ["POST"] :
+    action.kind === "course-edit-preview" || action.kind === "course-edit" ||
+    action.kind === "class-edit-preview" || action.kind === "class-edit" ? ["POST"] :
     "entryId" in action || action.kind === "capacity" ? ["PATCH"] : ["GET"];
 }

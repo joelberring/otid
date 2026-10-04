@@ -87,6 +87,8 @@ export { getManualCourseResultImpactAsAdministrator } from "./manual-course-resu
 export { previewManualCourseResultBearingRelinkAsAdministrator, relinkManualCourseResultBearingClassAsAdministrator } from "./manual-course-result-bearing-relink";
 export { editCourseAsAdministrator, listCoursesForEditAsAdministrator, previewCourseEditAsAdministrator } from "./course-edit";
 export type { CourseEditListResult, CourseEditPreviewResult, CourseEditResult } from "./course-edit";
+export { editClassAsAdministrator, previewClassEditAsAdministrator } from "./class-edit";
+export type { ClassEditPreviewResult, ClassEditResult } from "./class-edit";
 export { previewShortenedCourseClassTransferAsAdministrator, transferShortenedCourseClassAsAdministrator } from "./shortened-course-class-transfer";
 export { listUnknownReadoutResolutionCandidatesAsAdministrator, resolveUnknownReadoutAsAdministrator } from "./unknown-readout-resolution";
 export { listRaceOperatorAccessAsAdministrator, issueRaceOperatorAccessAsAdministrator, revokeRaceOperatorAccessAsAdministrator } from "./race-operator-access";
@@ -104,4 +106,4 @@ export { issueRouteUploadGrantAsAdmin, listRouteUploadGrantsAsAdmin, revokeRoute
 export { redeemRouteUploadBearerLink, authenticateRouteUploadSession, authenticateRouteUploadSessionForMutation, authenticateRouteUploadSessionForRead, routeUploadBearerTokenPrefix, type RouteUploadSessionAuthentication, type RouteUploadSessionRequestAuthentication } from "./route-upload-session";
 export { readRouteUploadStatusAsParticipant, reserveRouteUploadAsParticipant, transferRouteUploadAsParticipant, type RouteUploadObjectStore } from "./route-upload";
 export * from "./readout-station";
-export { isResultCurrent, loadResultBasisHash, loadResultBasisHashes } from "./result-basis";
+export { isEffectiveResultCurrent, isResultCurrent, loadResultBasisHash, loadResultBasisHashes } from "./result-basis";

@@ -150,6 +150,6 @@ export function createCourseEditActions(ws: Base & RaceDataActions) {
     } catch { if (current(op)) setCourseEditError(pending.current ? text.courseEditUnknown : text.courseEditPreviewError); }
     finally { finish(op); }
   }
-  return { loadCourses, startCourseEdit, cancelCourseEdit, changeCourseEditControls, previewCourseEdit, saveCourseEdit };
+  return { readCourses, loadCourses, startCourseEdit, cancelCourseEdit, changeCourseEditControls, previewCourseEdit, saveCourseEdit };
 }
 export type CourseEditActions = ReturnType<typeof createCourseEditActions>;

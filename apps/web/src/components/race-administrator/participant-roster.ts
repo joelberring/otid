@@ -73,14 +73,10 @@ export function createParticipantActions(ws: Base & MobileNavigation & RaceDataA
   const { data, entryId, action, workflowMode, participantsVisible, workflowLocked, selected, selectedIndex, filtered,
     classesById, rosterOrder, pageSize, registrationAttempt, unknown, busyRef, pending, sent, checkinHistoryPanel,
     workPanel, listPanel, requireSession, begin, finish, showMobilePanel, loadEffectiveResult, loadConflictReview,
-    loadCheckinHistory, loadRecalculation, loadIdentity, loadHistory, loadDns, loadDnf, loadDsq, loadOoc, loadNt,
-    loadApproval, setAction, setStartRulePreview, setPreparationArea, setDuringArea, setWorkflowMode, setWideTable,
+    loadCheckinHistory, loadIdentity, loadHistory, setAction, setStatusChoice, setStatusBlocked, setPreparationArea, setDuringArea, setWorkflowMode, setWideTable,
     setReviewCandidate, setReviewReason, setReviewConfirmed, setEntryId, setClassId, setMessage, setNewCard,
     setRentalReuseSourceId, setPaymentStatus, setCheckinHistory, setGivenName, setFamilyName, setOrganisationName,
-    setStartDate, setStartClock, setStartOffset, setRecalculationCandidates, setIdentityCandidates, setEntryChanges,
-    setDnsCandidates, setDnsWithdrawals, setDnfCandidates, setDnfWithdrawals, setDsqCandidates, setDsqWithdrawals,
-    setApprovalCandidates, setApprovalWithdrawals, setOocCandidates, setOocWithdrawals, setNtCandidates,
-    setNtWithdrawals, setEffectiveResult, setEffectiveResultError, setRegistrationAttempt, setConfirmDistinctPerson,
+    setStartDate, setStartClock, setStartOffset, setIdentityCandidates, setEntryChanges, setEffectiveResult, setEffectiveResultError, setRegistrationAttempt, setConfirmDistinctPerson,
     setQuery, setRosterClassId, setOlderResultsOnly, setRentalCardsOnly, setPaymentAttentionOnly,
     setMissingFixedStartOnly, setResultState, setPage } = ws;
   function select(id: string, openJournal = false, reviewConflict = false, requestedAction?: Action) {
@@ -90,7 +86,6 @@ export function createParticipantActions(ws: Base & MobileNavigation & RaceDataA
     if (!openJournal) {
       if (!participantsVisible) {
         // Follow-up actions inside preparation must reveal their participant target before focusing it.
-        setStartRulePreview(undefined);
         flushSync(() => {
           if (workflowMode === "BEFORE") setPreparationArea("PARTICIPANTS");
           else if (workflowMode === "DURING") setDuringArea("PARTICIPANTS");
@@ -106,7 +101,7 @@ export function createParticipantActions(ws: Base & MobileNavigation & RaceDataA
     setCheckinHistory(undefined);
     if (action === "REGISTRATION") { setGivenName(""); setFamilyName(""); setOrganisationName(""); }
     setStartDate(""); setStartClock(""); setStartOffset("");
-    setRecalculationCandidates(undefined);
+    setStatusChoice(""); setStatusBlocked("");
     if (openJournal) {
       if (checkinHistoryPanel.current) {
         checkinHistoryPanel.current.open = true;
@@ -117,15 +112,8 @@ export function createParticipantActions(ws: Base & MobileNavigation & RaceDataA
       else void loadCheckinHistory(undefined, id);
       return;
     }
-    if (nextAction === "RECALCULATION") void loadRecalculation(id);
-    else if (nextAction === "IDENTITY") void loadIdentity(id);
+    if (nextAction === "IDENTITY") void loadIdentity(id);
     else if (nextAction === "HISTORY") void loadHistory(id);
-    else if (nextAction === "DNS") void loadDns(id);
-    else if (nextAction === "DNF") void loadDnf(id);
-    else if (nextAction === "DSQ") void loadDsq(id);
-    else if (nextAction === "OOC") void loadOoc(id);
-    else if (nextAction === "NT") void loadNt(id);
-    else if (nextAction === "APPROVAL") void loadApproval(id);
     else if (data) {
       const op = begin(); void loadEffectiveResult(id, data, op).finally(() => finish(op));
     }
@@ -135,33 +123,14 @@ export function createParticipantActions(ws: Base & MobileNavigation & RaceDataA
     select(id, false, false, "TIME");
     window.requestAnimationFrame(() => workPanel.current?.focus());
   }
-  function openRecalculation(id: string) {
-    if (busyRef.current || pending.current || !requireSession()) return;
-    select(id, false, false, "RECALCULATION");
-    window.requestAnimationFrame(() => workPanel.current?.focus());
-  }
   function chooseAction(value: Action) {
     if (busyRef.current || pending.current || !requireSession()) return;
     setAction(value); setClassId(""); setNewCard(""); setStartDate(""); setStartClock(""); setStartOffset(""); setMessage("");
     if (value === "PAYMENT") setPaymentStatus(data?.entries.find((entry) => entry.id === entryId)?.paymentStatus ?? "PAID");
-    setRecalculationCandidates(undefined);
     setIdentityCandidates(undefined); setGivenName(""); setFamilyName(""); setOrganisationName("");
-    setEntryChanges(undefined);
-    setDnsCandidates(undefined); setDnsWithdrawals(undefined);
-    if (value === "RECALCULATION") void loadRecalculation();
+    setEntryChanges(undefined); setStatusChoice(""); setStatusBlocked("");
     if (value === "IDENTITY") void loadIdentity();
     if (value === "HISTORY") void loadHistory();
-    if (value === "DNS") void loadDns();
-    setDnfCandidates(undefined); setDnfWithdrawals(undefined);
-    if (value === "DNF") void loadDnf();
-    setDsqCandidates(undefined); setDsqWithdrawals(undefined);
-    if (value === "DSQ") void loadDsq();
-    setApprovalCandidates(undefined); setApprovalWithdrawals(undefined);
-    if (value === "APPROVAL") void loadApproval();
-    setOocCandidates(undefined); setOocWithdrawals(undefined);
-    if (value === "OOC") void loadOoc();
-    setNtCandidates(undefined); setNtWithdrawals(undefined);
-    if (value === "NT") void loadNt();
   }
   function newParticipant() {
     if (busyRef.current || pending.current || !requireSession()) return;
@@ -200,7 +169,7 @@ export function createParticipantActions(ws: Base & MobileNavigation & RaceDataA
     setPage(Math.floor(nextIndex / pageSize));
     select(next.id);
   }
-  return { select, openMissingStartTime, openRecalculation, chooseAction, newParticipant, selectRegistrationCandidate,
+  return { select, openMissingStartTime, chooseAction, newParticipant, selectRegistrationCandidate,
     revealSelected, navigateParticipantSequence };
 }
 export type ParticipantActions = ReturnType<typeof createParticipantActions>;

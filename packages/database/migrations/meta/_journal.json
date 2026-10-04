@@ -324,5 +324,7 @@
     }
     ,{ "idx": 90, "version": "7", "when": 1796054400000, "tag": "0090_adr_0169_course_edit", "breakpoints": true
     }
+    ,{ "idx": 91, "version": "7", "when": 1796140800000, "tag": "0091_adr_0169_class_edit", "breakpoints": true
+    }
   ]
 }

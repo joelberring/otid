@@ -20,3 +20,4 @@ export * from "./class-start-rule-change";
 export * from "./raster-georeference";
 export * from "./route-metadata";
 export * from "./course-edit";
+export * from "./class-edit";

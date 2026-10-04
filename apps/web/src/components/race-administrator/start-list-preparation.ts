@@ -31,7 +31,7 @@ export function useStartListState() {
 export function createStartListActions(ws: Base & RaceDataActions) {
   const { raceId, publicationPreview, drawClasses, drawFirst, drawInterval, drawClassId, drawPanel, busyRef, pending, sent,
     requireSession, beginRequest, finish, current, request, json, csrf, load, setMessage, setUnknown, setPublicationPreview,
-    setPublicationAttempt, setDrawClasses, setDrawClassId, setDrawAttempt, setStartRulePreview, setWorkflowMode,
+    setPublicationAttempt, setDrawClasses, setDrawClassId, setDrawAttempt, setWorkflowMode,
     setPreparationArea, setFinalizationCandidates } = ws;
   async function readPublication(op: Operation) {
     const response = await request("/publication-preview", op);
@@ -92,7 +92,7 @@ export function createStartListActions(ws: Base & RaceDataActions) {
   }
   function openClassDraw(classId: string) {
     if (busyRef.current || pending.current || !requireSession()) return;
-    flushSync(() => { setStartRulePreview(undefined); setWorkflowMode("BEFORE"); setPreparationArea("DRAW"); });
+    flushSync(() => { setWorkflowMode("BEFORE"); setPreparationArea("DRAW"); });
     if (drawPanel.current) {
       drawPanel.current.open = true;
       drawPanel.current.querySelector("summary")?.focus();

@@ -19,8 +19,7 @@ export function useRaceDataState() {
 /** Session och dataladdning: inloggning med kontot, utloggning och ny läsning av ögonblicksbilden. */
 export function createRaceDataActions(ws: Base & MobileNavigation) {
   const { raceId, entryId, pending, sent, busyRef, deadline, base, setEffectiveResult, setEffectiveResultError, setData,
-    setDnsCandidates, setDnsWithdrawals, setEntryChanges, setIdentityCandidates, setRecalculationCandidates,
-    setCourseWarningClassId, setSelectedCourseTarget, setExpiresAt, setAuthenticated, setMobilePanel, setMessage,
+    setEntryChanges, setIdentityCandidates, setSelectedClassId, setExpiresAt, setAuthenticated, setMobilePanel, setMessage,
     setEntryId, setClassId, setPage, setNewCard, request, json, assertCurrent, current, begin, finish, lock,
     requireSession, showMobilePanel } = ws;
   async function loadEffectiveResult(id: string, roster: EntryTransferCandidates, op: Operation) {
@@ -39,16 +38,13 @@ export function createRaceDataActions(ws: Base & MobileNavigation) {
     } catch { if (current(op)) { setEffectiveResult(undefined); setEffectiveResultError(true); } }
   }
   async function load(op: Operation, selectedId = entryId) {
-    setDnsCandidates(undefined); setDnsWithdrawals(undefined);
     setEntryChanges(undefined);
     setIdentityCandidates(undefined);
-    setRecalculationCandidates(undefined);
     const response = await request("/transfer-candidates", op);
     if (!response.ok) throw new Error("List unavailable");
     const value = entryTransferCandidatesSchema.parse(await json(response, op));
     if (value.raceId !== raceId) throw new Error("Scope mismatch");
-    setCourseWarningClassId("");
-    setSelectedCourseTarget(undefined);
+    setSelectedClassId("");
     setData(value);
     if (selectedId) await loadEffectiveResult(selectedId, value, op);
     assertCurrent(op); return value;

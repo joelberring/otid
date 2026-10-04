@@ -42,7 +42,7 @@ import {
 } from "./pairing-admin";
 import { resolveStoredResultHeadStates } from "./result-revision-state";
 import { StoredResultRevisionConflict, parseStrictStoredResultRevision } from "./stored-result-revision";
-import { isResultCurrent, loadResultBasisHashes } from "./result-basis";
+import { isEffectiveResultCurrent, loadResultBasisHashes } from "./result-basis";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const MAX_CLASSES = 1_000;
@@ -706,7 +706,7 @@ async function buildFinalizationBasis(tx: DatabaseTransaction, race: LockedRace)
       }
       if (evaluation.classId !== raceClass.id) blockers.add("RESULT_CLASS_MISMATCH");
       if (evaluation.courseVersionId !== raceClass.courseVersionId) blockers.add("RESULT_COURSE_MISMATCH");
-      if (!isResultCurrent(revision, basisHashes.get(entry.id), race.snapshotVersion)) blockers.add("STALE_RESULT_SNAPSHOT");
+      if (!isEffectiveResultCurrent(revisionState, basisHashes.get(entry.id), race.snapshotVersion)) blockers.add("STALE_RESULT_SNAPSHOT");
 
       const expectedKeys = new Set(controls.map((control) => `${control.controlCode}:${control.occurrence}`));
       const splitKeys = new Set<string>();

@@ -42,3 +42,25 @@ export function isResultCurrent(
   if (revision.basisHash !== null) return currentBasisHash !== undefined && revision.basisHash === currentBasisHash;
   return revision.snapshotVersion === raceSnapshotVersion;
 }
+
+type BasisRevision = { readonly id: string; readonly revision: number; readonly basisHash: string | null; readonly snapshotVersion: number };
+
+/**
+ * Som `isResultCurrent`, men för ett löst resultathuvud. Ett gällande manuellt
+ * beslut (disk, godkännande, brutit, utom tävlan, utan tidtagning) ligger kvar
+ * ovanpå en senare teknisk revision, till exempel när appen räknat om resultatet
+ * efter en banändring. Beslutsrevisionen bär då det gamla underlaget men beslutet
+ * gäller fortfarande. Resultatet är aktuellt när den omräknade tekniska revisionen
+ * under beslutet bygger på löparens aktuella underlag.
+ */
+export function isEffectiveResultCurrent(
+  state: { readonly head: BasisRevision; readonly selectedHead: BasisRevision & { readonly readoutId?: string | null } },
+  currentBasisHash: string | undefined,
+  raceSnapshotVersion: number
+): boolean {
+  if (isResultCurrent(state.head, currentBasisHash, raceSnapshotVersion)) return true;
+  const technical = state.selectedHead;
+  const recalculatedBelowDecision = technical.id !== state.head.id && technical.revision > state.head.revision &&
+    technical.readoutId !== undefined && technical.readoutId !== null;
+  return recalculatedBelowDecision && isResultCurrent(technical, currentBasisHash, raceSnapshotVersion);
+}

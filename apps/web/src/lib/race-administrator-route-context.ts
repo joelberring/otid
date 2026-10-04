@@ -3,9 +3,8 @@ import { listClassStartDrawClassesAsAdmin, previewClassStartDrawAsAdmin, commitC
   exportIofResultListAsAdmin, exportFrozenIofResultListAsAdmin, listFrozenRaceFinalizationsAsAdmin,
   authenticatePairingAdminSession, changeEntryClassAsAdmin, listEntryClassesAsAdmin, logoutPairingAdminSession,
   listEntryTransfersAsAdministrator, listEntryTransferStartSlotsAsAdministrator, transferEntryAsAdministrator,
-  changeClassCapacityAsAdministrator, changeClassStartRuleAsAdministrator, previewClassStartRuleAsAdministrator,
-  createManualCourseClassAsAdministrator, createManualClassAsAdministrator, listManualClassNameAsAdministrator,
-  changeManualClassNameAsAdministrator, listCoursesForEditAsAdministrator, previewCourseEditAsAdministrator,
+  changeClassCapacityAsAdministrator, editClassAsAdministrator, previewClassEditAsAdministrator,
+  createManualCourseClassAsAdministrator, createManualClassAsAdministrator, listCoursesForEditAsAdministrator, previewCourseEditAsAdministrator,
   editCourseAsAdministrator, previewShortenedCourseClassTransferAsAdministrator, transferShortenedCourseClassAsAdministrator,
   previewManualFinishTimeCorrectionAsAdministrator, correctManualFinishTimeAsAdministrator,
   previewManualPunchStartTimeCorrectionAsAdministrator, correctManualPunchStartTimeAsAdministrator,
@@ -47,10 +46,8 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   transfer: transferEntryAsAdministrator, capacity: changeClassCapacityAsAdministrator,
   manualCourseClass: createManualCourseClassAsAdministrator,
   manualClass: createManualClassAsAdministrator,
-  manualClassNameCandidate: listManualClassNameAsAdministrator,
-  manualClassName: changeManualClassNameAsAdministrator,
   courses: listCoursesForEditAsAdministrator, courseEditPreview: previewCourseEditAsAdministrator,
-  courseEdit: editCourseAsAdministrator,
+  courseEdit: editCourseAsAdministrator, classEditPreview: previewClassEditAsAdministrator, classEdit: editClassAsAdministrator,
   shortenedCourseClassTransferPreview: previewShortenedCourseClassTransferAsAdministrator,
   shortenedCourseClassTransfer: transferShortenedCourseClassAsAdministrator,
   manualFinishTimeCorrectionCandidate: previewManualFinishTimeCorrectionAsAdministrator,
@@ -63,7 +60,6 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   manualFinishTimeCorrectionWithdrawal: withdrawManualFinishTimeCorrectionAsAdministrator,
   unknownReadoutResolutionCandidates: listUnknownReadoutResolutionCandidatesAsAdministrator,
   unknownReadoutResolution: resolveUnknownReadoutAsAdministrator,
-  startRulePreview: previewClassStartRuleAsAdministrator, startRule: changeClassStartRuleAsAdministrator,
   card: changeEntryCardAsAdmin, cardRental: changeEntryCardRentalAsAdministrator,
   cardRentalReturn: changeEntryCardRentalReturnAsAdministrator,
   cardRentalReuse: reuseReturnedRentalCardAsAdministrator,
@@ -95,15 +91,15 @@ export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: str
   { kind: "transfer-start-slot-candidates"; entryId: string; targetClassId: string } |
   { kind: "registration-start-slot-candidates"; targetClassId: string } |
   { kind: "class"; entryId: string } | { kind: "transfer"; entryId: string } | { kind: "capacity"; classId: string } |
-  { kind: "manual-course-class" } | { kind: "manual-class" } | { kind: "manual-class-name"; classId: string } |
+  { kind: "manual-course-class" } | { kind: "manual-class" } |
   { kind: "courses" } | { kind: "course-edit-preview"; courseId: string } | { kind: "course-edit"; courseId: string } |
+  { kind: "class-edit-preview"; classId: string } | { kind: "class-edit"; classId: string } |
   { kind: "shortened-course-class-transfer"; classId: string } |
   { kind: "manual-finish-time-correction"; entryId: string } |
   { kind: "manual-punch-start-time-correction"; entryId: string } |
   { kind: "manual-punch-start-time-correction-withdrawal"; entryId: string } |
   { kind: "manual-finish-time-correction-withdrawal"; entryId: string } |
   { kind: "unknown-readout-resolution" } |
-  { kind: "start-rule"; classId: string } |
   { kind: "card"; entryId: string } | { kind: "card-rental"; entryId: string } |
   { kind: "card-rental-return"; entryId: string } | { kind: "card-rental-reuse"; entryId: string } |
   { kind: "payment-status"; entryId: string } |

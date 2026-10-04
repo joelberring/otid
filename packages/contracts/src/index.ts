@@ -7,6 +7,7 @@ export * from "./manual-course-version-class-relink";
 export * from "./manual-course-result-impact";
 export * from "./manual-course-result-bearing-relink";
 export * from "./course-edit";
+export * from "./class-edit";
 export * from "./shortened-course-class-transfer";
 export * from "./manual-finish-time-correction";
 export * from "./manual-finish-time-correction-withdrawal";

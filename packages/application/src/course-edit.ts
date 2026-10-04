@@ -1,23 +1,19 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, desc, eq, inArray, isNotNull, max, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, max, sql } from "drizzle-orm";
 import {
   courseEditIdempotencyKeySchema, courseEditListResponseSchema, courseEditPreviewRequestSchema,
   courseEditPreviewResponseSchema, courseEditRequestSchema, courseEditResponseSchema,
   type CourseEditListResponse, type CourseEditPreviewResponse, type CourseEditResponse
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import {
-  courseEditOutcome, evaluateCardReadout, RESULT_ENGINE_VERSION, sameControlCodes, summarizeCourseEdit,
-  withProposedCourseVersion, type CourseEditOutcome, type EvaluationStatus, type NormalizedCardReadout, type RaceSnapshot
-} from "@o-tid/domain";
+import { sameControlCodes, withProposedCourseVersion, type RaceSnapshot } from "@o-tid/domain";
 import {
   authenticatePairingAdminSession, authenticatePairingAdminSessionForMutation,
   authenticatePairingAdminSessionForProtectedRead, type PairingAdminRequestAuthentication
 } from "./pairing-admin";
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
 import { loadRaceSnapshot } from "./snapshot";
-import { resolveStoredResultHeadStates } from "./result-revision-state";
-import { appliedControlNeutralization } from "./class-control-neutralization";
+import { assessReadOutEntries, recalculateAssessedEntries, summarizeAssessment, type AssessedEntry } from "./result-reassessment";
 
 /**
  * Redigera bana (ADR-0169 beslut 4): ändra en banas kontrollföljd, även när
@@ -29,18 +25,8 @@ import { appliedControlNeutralization } from "./class-control-neutralization";
  */
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 type Authentication = Omit<PairingAdminRequestAuthentication, "capability">;
-type Readout = typeof schema.cardReadouts.$inferSelect;
-type Revision = typeof schema.resultRevisions.$inferSelect;
 const capability = "MANAGE_RACE" as const;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
-const MAX_ENTRIES = 10_000;
-
-function normalized(readout: Readout): NormalizedCardReadout {
-  return { id: readout.id, raceId: readout.raceId, cardNumber: readout.cardNumber,
-    ...(readout.startPunchedAt ? { startPunchedAt: readout.startPunchedAt.toISOString() } : {}),
-    ...(readout.finishPunchedAt ? { finishPunchedAt: readout.finishPunchedAt.toISOString() } : {}),
-    punches: readout.punches, rawMessageId: readout.rawMessageId, readAt: readout.readAt.toISOString() };
-}
 
 async function loadCourse(tx: Transaction, raceId: string, courseId: string) {
   const [course] = await tx.select({ id: schema.courses.id, name: schema.courses.name }).from(schema.courses)
@@ -60,83 +46,18 @@ async function loadCourse(tx: Transaction, raceId: string, courseId: string) {
 }
 type LoadedCourse = NonNullable<Awaited<ReturnType<typeof loadCourse>>>;
 
-type AssessedEntry = {
-  entryId: string; displayName: string; className: string; readout: Readout; latest: Revision | null;
-  outcome: CourseEditOutcome | "NOT_RECALCULATED"; before: EvaluationStatus; after: EvaluationStatus; recalculate: boolean;
-};
-
 /** Prövar varje avläst löpare på banans klasser mot den föreslagna kontrollföljden. */
 async function assess(tx: Transaction, raceId: string, course: LoadedCourse, snapshot: RaceSnapshot,
   controlCodes: readonly number[]): Promise<AssessedEntry[] | "too-large"> {
-  const classIds = course.classes.map(row => row.id);
-  if (classIds.length === 0) return [];
-  const classNames = new Map(course.classes.map(row => [row.id, row.name]));
-  const entries = await tx.select({ id: schema.entries.id, classId: schema.entries.classId,
-    givenName: schema.entries.givenName, familyName: schema.entries.familyName }).from(schema.entries)
-    .where(and(eq(schema.entries.raceId, raceId), inArray(schema.entries.classId, classIds)))
-    .orderBy(asc(schema.entries.familyName), asc(schema.entries.givenName), asc(schema.entries.id)).limit(MAX_ENTRIES + 1);
-  if (entries.length > MAX_ENTRIES) return "too-large";
-  if (entries.length === 0) return [];
-  const entryIds = entries.map(row => row.id);
-  const assignments = await tx.select({ entryId: schema.cardAssignments.entryId, cardNumber: schema.cardAssignments.cardNumber })
-    .from(schema.cardAssignments).where(and(eq(schema.cardAssignments.raceId, raceId), eq(schema.cardAssignments.active, true),
-      inArray(schema.cardAssignments.entryId, entryIds)));
-  const cardsByEntry = new Map<string, string[]>();
-  for (const row of assignments) cardsByEntry.set(row.entryId, [...cardsByEntry.get(row.entryId) ?? [], row.cardNumber]);
-  const cards = [...new Set(assignments.map(row => row.cardNumber))];
-  const readouts = cards.length === 0 ? [] : await tx.selectDistinctOn([schema.cardReadouts.cardNumber]).from(schema.cardReadouts)
-    .where(and(eq(schema.cardReadouts.raceId, raceId), inArray(schema.cardReadouts.cardNumber, cards)))
-    .orderBy(asc(schema.cardReadouts.cardNumber), desc(schema.cardReadouts.readAt), desc(schema.cardReadouts.id));
-  const readoutByCard = new Map(readouts.map(row => [row.cardNumber, row]));
-  const latest = await tx.selectDistinctOn([schema.resultRevisions.entryId]).from(schema.resultRevisions)
-    .where(and(eq(schema.resultRevisions.raceId, raceId), inArray(schema.resultRevisions.entryId, entryIds)))
-    .orderBy(asc(schema.resultRevisions.entryId), desc(schema.resultRevisions.revision), desc(schema.resultRevisions.id));
-  const latestByEntry = new Map(latest.map(row => [row.entryId, row]));
-  // Löpare med ett avläsningsbaserat resultat; ett manuellt beslut kan ligga överst utan avläsning.
-  const technical = new Set((await tx.selectDistinct({ entryId: schema.resultRevisions.entryId }).from(schema.resultRevisions)
-    .where(and(eq(schema.resultRevisions.raceId, raceId), inArray(schema.resultRevisions.entryId, entryIds),
-      isNotNull(schema.resultRevisions.readoutId)))).map(row => row.entryId));
-  const stateByEntry = new Map((await resolveStoredResultHeadStates(tx, raceId, latest)).map(state => [state.head.entryId, state]));
   const proposed = withProposedCourseVersion(snapshot, course.id, course.version.id,
     { id: randomUUID(), version: course.version.version + 1, createdAt: new Date(0).toISOString(), controlCodes });
-  const assessed: AssessedEntry[] = [];
-  for (const entry of entries) {
-    const entryCards = cardsByEntry.get(entry.id) ?? [];
-    const readout = entryCards.length === 1 ? readoutByCard.get(entryCards[0]!) : undefined;
-    if (!readout) continue;
-    const head = latestByEntry.get(entry.id) ?? null;
-    const state = stateByEntry.get(entry.id);
-    const current = evaluateCardReadout(normalized(readout), snapshot);
-    const next = evaluateCardReadout(normalized(readout), proposed);
-    const before = head?.status === "OK" || head?.status === "MP" ? head.status : current.status;
-    const base = { entryId: entry.id, displayName: `${entry.givenName} ${entry.familyName}`,
-      className: classNames.get(entry.classId)!, readout, latest: head, before, after: next.status };
-    // Manuellt rättad tid finns bara i den rättade revisionen; en omräkning från avläsningen skulle tappa den.
-    if (head && (head.manualFinishTimeCorrectionId !== null || head.manualPunchStartTimeCorrectionId !== null)) {
-      assessed.push({ ...base, outcome: "NOT_RECALCULATED", recalculate: false }); continue;
-    }
-    // Ej start gäller löparen oavsett avläsningen och får inte ersättas av en teknisk revision.
-    const didNotStart = !state || state.state === "NO_ACTIVE_RESULT" || state.head.didNotStartDecisionId !== null ||
-      state.startCheckinDns?.correction === null;
-    if (!head || !technical.has(entry.id) || didNotStart || next.entryId !== entry.id || current.entryId !== entry.id) {
-      assessed.push({ ...base, outcome: "UNCHANGED", recalculate: false }); continue;
-    }
-    const manual = state.disqualification?.withdrawal === null || state.approval?.withdrawal === null ||
-      state.didNotFinish?.withdrawal === null || state.notCompeting?.withdrawal === null || state.withoutTiming?.withdrawal === null;
-    assessed.push({ ...base, outcome: courseEditOutcome(before, next.status, manual), recalculate: true });
-  }
-  return assessed;
+  return assessReadOutEntries(tx, raceId, course.classes, snapshot, proposed);
 }
 
 function previewResponse(raceId: string, course: LoadedCourse, snapshotVersion: number, controlCodes: number[],
   assessed: AssessedEntry[]): CourseEditPreviewResponse {
-  const outcomes = assessed.flatMap(row => row.outcome === "NOT_RECALCULATED" ? [] : [row.outcome]);
-  const changes = assessed.filter(row => row.outcome === "BECOMES_OK" || row.outcome === "BECOMES_MISPUNCHED");
   return courseEditPreviewResponseSchema.parse({ formatVersion: 1, raceId, courseId: course.id, courseName: course.name,
-    snapshotVersion, currentControlCodes: course.controlCodes, controlCodes, readOutCount: assessed.length,
-    ...summarizeCourseEdit(outcomes), notRecalculatedCount: assessed.length - outcomes.length,
-    changes: changes.map(row => ({ entryId: row.entryId, displayName: row.displayName, className: row.className,
-      before: row.before, after: row.after })), requiresConfirmation: changes.length > 0 });
+    snapshotVersion, currentControlCodes: course.controlCodes, controlCodes, ...summarizeAssessment(assessed) });
 }
 
 export type CourseEditListResult = { status: "unauthorized" | "forbidden" } | { status: "ok"; response: CourseEditListResponse };
@@ -149,8 +70,8 @@ export async function listCoursesForEditAsAdministrator(db: Database, input: Aut
     const raceId = auth.principal.raceId;
     const race = await lockRaceForSnapshot(tx, raceId);
     const courses = await tx.select({ id: schema.courses.id }).from(schema.courses).where(eq(schema.courses.raceId, raceId));
-    const entries = await tx.select({ id: schema.entries.id, classId: schema.entries.classId }).from(schema.entries)
-      .where(eq(schema.entries.raceId, raceId));
+    const entries = await tx.select({ id: schema.entries.id, classId: schema.entries.classId,
+      fixedStartTime: schema.entries.fixedStartTime }).from(schema.entries).where(eq(schema.entries.raceId, raceId));
     const assignments = await tx.select({ entryId: schema.cardAssignments.entryId, cardNumber: schema.cardAssignments.cardNumber })
       .from(schema.cardAssignments).where(and(eq(schema.cardAssignments.raceId, raceId), eq(schema.cardAssignments.active, true)));
     const readCards = new Set((await tx.selectDistinct({ cardNumber: schema.cardReadouts.cardNumber }).from(schema.cardReadouts)
@@ -167,8 +88,23 @@ export async function listCoursesForEditAsAdministrator(db: Database, input: Aut
         readOutCount: courseEntries.filter(row => readEntries.has(row.id)).length });
     }
     rows.sort((left, right) => left.name.localeCompare(right.name, "sv-SE") || (left.courseId < right.courseId ? -1 : 1));
+    // Klasserna som tabell: varje klass med sin bana, startsätt och läge.
+    const resultEntries = new Set((await tx.selectDistinct({ entryId: schema.resultRevisions.entryId }).from(schema.resultRevisions)
+      .where(and(eq(schema.resultRevisions.raceId, raceId), eq(schema.resultRevisions.published, true)))).map(row => row.entryId));
+    const classRows = await tx.select({ id: schema.classes.id, name: schema.classes.name, startRule: schema.classes.startRule,
+      courseId: schema.courseVersions.courseId, externalSource: schema.classes.externalSource, externalId: schema.classes.externalId })
+      .from(schema.classes).innerJoin(schema.courseVersions, eq(schema.courseVersions.id, schema.classes.courseVersionId))
+      .where(eq(schema.classes.raceId, raceId)).orderBy(asc(schema.classes.name), asc(schema.classes.id));
+    const classes = classRows.map(row => {
+      const classEntries = entries.filter(entry => entry.classId === row.id);
+      return { classId: row.id, name: row.name, courseId: row.courseId, startRule: row.startRule, entryCount: classEntries.length,
+        readOutCount: classEntries.filter(entry => readEntries.has(entry.id)).length,
+        resultCount: classEntries.filter(entry => resultEntries.has(entry.id)).length,
+        missingStartTimeCount: row.startRule === "FIXED" ? classEntries.filter(entry => entry.fixedStartTime === null).length : 0,
+        renamable: row.externalSource === null && row.externalId === null };
+    });
     return { status: "ok", response: courseEditListResponseSchema.parse({ formatVersion: 1, raceId,
-      snapshotVersion: race.snapshotVersion, courses: rows }) };
+      snapshotVersion: race.snapshotVersion, courses: rows, classes }) };
   });
 }
 
@@ -265,19 +201,8 @@ export async function editCourseAsAdministrator(db: Database, input: Authenticat
 
     // Omräkning med den sparade banan. Databasen sätter varje ny revisions underlagshash.
     const snapshot = await loadRaceSnapshot(tx, raceId);
-    const recalculated: { entryId: string; resultRevisionId: string; revision: number }[] = [];
-    for (const row of assessed.filter(value => value.recalculate)) {
-      const evaluation = evaluateCardReadout(normalized(row.readout), snapshot);
-      if (evaluation.entryId !== row.entryId || evaluation.courseVersionId !== courseVersion.id) {
-        throw new Error("Omräkningen gav en annan deltagare eller bana än förhandsbeskedet");
-      }
-      const [created] = await tx.insert(schema.resultRevisions).values({ raceId, entryId: row.entryId, readoutId: row.readout.id,
-        revision: row.latest!.revision + 1, cause: "EXPLICIT_RECALCULATION", status: evaluation.status, reason: evaluation.reason,
-        evaluation, engineVersion: RESULT_ENGINE_VERSION, snapshotVersion: snapshotVersionAfter, courseVersionId: courseVersion.id,
-        controlNeutralizationId: appliedControlNeutralization(snapshot, evaluation), published: true }).returning();
-      if (!created) throw new Error("Resultatrevisionen kunde inte sparas");
-      recalculated.push({ entryId: row.entryId, resultRevisionId: created.id, revision: created.revision });
-    }
+    const recalculated = await recalculateAssessedEntries(tx, { raceId, assessed, snapshot,
+      snapshotVersion: snapshotVersionAfter, courseVersionId: courseVersion.id });
     const response = courseEditResponseSchema.parse({ formatVersion: 1, replayed: false, requestId: intent.requestId, raceId,
       courseId: course.id, request: intent, previousCourseVersionId: course.version.id, courseVersionId: courseVersion.id,
       classIds, snapshotVersionBefore: race.snapshotVersion, snapshotVersionAfter, recalculated, editedAt: now.toISOString() });

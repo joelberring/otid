@@ -30,8 +30,8 @@ export function RaceAdministratorWorkspace({ raceId }: { raceId: string }) {
   const { authenticated, busy, message, data, expiresAt, workflowMode, preparationArea, duringArea, workflowLocked,
     printTarget, freeStartClassCount, fixedStartClassCount, olderResultCount, rentalCardCount, deadline, begin, session,
     enterWithAccount, current, lock, finish, invalidate, login, logout, refresh, navigateWorkflow, openMissingFixedStart,
-    openClassSetup, followUp, openPreparationStep, loadRaceDayAttention, setPrintTarget, setCourseWarningClassId,
-    setSelectedCourseTarget, setPreparationArea, setDuringArea, preparationNavigation, coursesNavigationButton,
+    openClassSetup, followUp, openPreparationStep, loadRaceDayAttention, setPrintTarget, setSelectedClassId,
+    setPreparationArea, setDuringArea, preparationNavigation, coursesNavigationButton,
     coursesNavigationSelect } = ws;
   useEffect(() => {
     const op = begin();
@@ -124,7 +124,7 @@ export function RaceAdministratorWorkspace({ raceId }: { raceId: string }) {
           ref={area === "COURSES" ? coursesNavigationButton : undefined}
           data-preparation-area={area}
           className={`${styles.preparationNavigationButton} secondary`} aria-label={navigationText.preparation[area]}
-          aria-pressed={preparationArea === area} disabled={workflowLocked} onClick={() => { setCourseWarningClassId(""); setSelectedCourseTarget(undefined); setPreparationArea(area); }}>
+          aria-pressed={preparationArea === area} disabled={workflowLocked} onClick={() => { setSelectedClassId(""); setPreparationArea(area); }}>
           <span className={styles.preparationLabelDesktop} aria-hidden="true">{navigationText.preparation[area]}</span>
           <span className={styles.preparationLabelMobile} aria-hidden="true">{navigationText.preparationMobile[area]}</span>
         </button>)}
@@ -132,7 +132,7 @@ export function RaceAdministratorWorkspace({ raceId }: { raceId: string }) {
       {workflowMode === "BEFORE" && <nav className={styles.mobileSubNavigation} aria-label={navigationText.preparationNavigation}>
         <label>{navigationText.preparationNavigation}
           <select ref={coursesNavigationSelect} value={preparationArea} disabled={workflowLocked}
-            onChange={event => { setCourseWarningClassId(""); setSelectedCourseTarget(undefined); setPreparationArea(event.target.value as PreparationArea); }}>
+            onChange={event => { setSelectedClassId(""); setPreparationArea(event.target.value as PreparationArea); }}>
             {(Object.keys(navigationText.preparation) as PreparationArea[]).map(area =>
               <option key={area} value={area}>{navigationText.preparation[area]}</option>)}
           </select>

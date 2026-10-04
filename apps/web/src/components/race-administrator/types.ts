@@ -3,8 +3,7 @@ import type {
   ClassStartRulePreview, EntryCardChangeRequest, EntryCardRentalChangeRequest, EntryCardRentalReturnChangeRequest,
   EntryCardRentalReuseRequest, EntryIdentityChangeRequest, EntryPaymentStatusChangeRequest, EntryRegistrationCandidatesResponse,
   EntryRegistrationRequest, EntryStartTimeChangeRequest, EntryTransferRequest, ManualClassCreateRequest,
-  ManualClassNameChangeRequest, ManualCourseResultBearingRelinkCandidate, ManualCourseResultBearingRelinkRequest,
-  ManualCourseVersionClassRelinkPreview, ManualCourseVersionClassRelinkRequest, ShortenedCourseClassTransferCandidate,
+  ManualClassNameChangeRequest, CourseEditRequest, ShortenedCourseClassTransferCandidate,
   ShortenedCourseClassTransferRequest, StartCheckinConflictReviewCandidate, StartCheckinConflictReviewRequest,
   UnknownReadoutResolutionCandidateResponse, UnknownReadoutResolutionRequest
 } from "@o-tid/contracts";
@@ -34,10 +33,7 @@ export type CourseClassAttempt = { kind: "COURSE_CLASS"; request: CourseClassReq
 export type ManualClassAttempt = { kind: "MANUAL_CLASS"; request: ManualClassCreateRequest; targetLabel: string };
 export type ManualClassNameAttempt = { kind: "MANUAL_CLASS_NAME"; classId: string; courseVersionId: string;
   request: ManualClassNameChangeRequest };
-export type CourseVersionRelinkAttempt = { kind: "COURSE_VERSION_RELINK"; preview: ManualCourseVersionClassRelinkPreview;
-  request: ManualCourseVersionClassRelinkRequest };
-export type CourseResultBearingRelinkAttempt = { kind: "COURSE_RESULT_BEARING_RELINK";
-  candidate: ManualCourseResultBearingRelinkCandidate; request: ManualCourseResultBearingRelinkRequest };
+export type CourseEditAttempt = { kind: "COURSE_EDIT"; request: CourseEditRequest };
 export type ShortenedCourseClassTransferAttempt = { kind: "SHORTENED_COURSE_CLASS_TRANSFER";
   candidate: ShortenedCourseClassTransferCandidate; request: ShortenedCourseClassTransferRequest };
 export type UnknownReadoutResolutionAttempt = { kind: "UNKNOWN_READOUT_RESOLUTION";
@@ -76,7 +72,7 @@ export type PendingAttempt = StartRuleAttempt | ConflictReviewAttempt | StartCor
   RentalReturnAttempt | RentalReuseAttempt | PaymentStatusAttempt | TimeAttempt | RecalculationAttempt |
   ClassResultRecalculationAttempt | IdentityAttempt | RegistrationAttempt | DnsAttempt | DnfAttempt | DsqAttempt |
   ApprovalAttempt | OocAttempt | NtAttempt | FinalizationAttempt | CourseClassAttempt | ManualClassAttempt |
-  ManualClassNameAttempt | CourseVersionRelinkAttempt | CourseResultBearingRelinkAttempt |
+  ManualClassNameAttempt | CourseEditAttempt |
   ShortenedCourseClassTransferAttempt | UnknownReadoutResolutionAttempt;
 
 export type Action = "INFO" | "TRANSFER" | "CARD" | "PAYMENT" | "TIME" | "RECALCULATION" | "IDENTITY" | "REGISTRATION" | "HISTORY" | "DNS" | "DNF" | "DSQ" | "APPROVAL" | "OOC" | "NT";

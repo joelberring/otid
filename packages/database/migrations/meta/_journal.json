@@ -322,5 +322,7 @@
     }
     ,{ "idx": 89, "version": "7", "when": 1795968000000, "tag": "0089_adr_0169_result_basis", "breakpoints": true
     }
+    ,{ "idx": 90, "version": "7", "when": 1796054400000, "tag": "0090_adr_0169_course_edit", "breakpoints": true
+    }
   ]
 }

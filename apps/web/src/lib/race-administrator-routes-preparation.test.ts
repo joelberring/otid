@@ -21,36 +21,6 @@ describe("administratörsroutes: förberedelse", () => {
     fixedStartSlotPlans.mockResolvedValueOnce({ status: "forbidden" });
     expect((await raceAdministratorRoute(db, read(), id, { kind: "fixed-start-slot-plans" }, services, environment)).status).toBe(403);
   });
-  it("TASK084 binds a result-bearing course relink to its candidate basis and exact administrator intent", async () => {
-    const candidate = { formatVersion: 1 as const, raceId: id, courseId: id, courseName: "Manuell", classId: other,
-      className: "Öppen", snapshotVersion: 2, classCourseVersionId: id, classCourseVersion: 1,
-      currentControlCodes: [31, 42, 31], historicalResultRevisionCount: 1, basisHash: "a".repeat(64),
-      entries: [{ entryId: other, entryVersion: 1, latestResultRevision: { id, revision: 1, courseVersionId: id,
-        snapshotVersion: 2, published: true, status: "OK", reason: "COMPLETE", cause: "CARD_READOUT" }, effectiveManualDecision: null }] };
-    const body = { formatVersion: 1 as const, requestId: id, expectedSnapshotVersion: 2, expectedBasisHash: candidate.basisHash,
-      courseId: id, classId: other, expectedClassCourseVersionId: id, controlCodes: [31, 31, 42], acknowledgedImpact: true as const };
-    const receipt = { formatVersion: 1 as const, replayed: false, requestId: id, raceId: id, courseId: id, classId: other,
-      previousCourseVersionId: id, previousCourseVersion: 1, courseVersionId: "10000000-0000-4000-8000-000000000003", courseVersion: 2,
-      sourceSnapshotVersion: 2, sourceBasisHash: candidate.basisHash, request: body, entryCount: 1,
-      historicalResultRevisionCount: 1, snapshotVersionAfter: 3, changedAt: "2026-09-19T12:01:00.000Z" };
-    const manualCourseResultBearingRelinkCandidate = vi.fn<typeof import("@o-tid/application").previewManualCourseResultBearingRelinkAsAdministrator>()
-      .mockResolvedValue({ status: "ok", response: candidate });
-    const manualCourseResultBearingRelink = vi.fn<typeof import("@o-tid/application").relinkManualCourseResultBearingClassAsAdministrator>()
-      .mockResolvedValue({ status: "changed", response: receipt });
-    const services = { ...dependencies(), manualCourseResultBearingRelinkCandidate, manualCourseResultBearingRelink };
-    const action = { kind: "manual-course-result-bearing-link" as const, classId: other };
-    const read = await raceAdministratorRoute(db, new Request("https://otid.example/api/admin", { headers: {
-      cookie: `__Host-otid-race-administrator-session=${token}; __Host-otid-race-administrator-csrf=${csrf}` } }), id, action, services, environment);
-    expect(read.status).toBe(200); expect(await read.json()).toEqual(candidate);
-    expect(manualCourseResultBearingRelinkCandidate).toHaveBeenCalledWith(db, expect.objectContaining({ raceId: id, classId: other, sessionToken: token }));
-    const write = await raceAdministratorRoute(db, request("POST", JSON.stringify(body), {
-      "idempotency-key": `manual-course-result-bearing-link:${id}` }), id, action, services, environment);
-    expect(write.status).toBe(200); expect(await write.json()).toEqual(receipt);
-    expect(manualCourseResultBearingRelink).toHaveBeenCalledWith(db, expect.objectContaining({ raceId: id,
-      idempotencyKey: `manual-course-result-bearing-link:${id}`, request: body }));
-    expect((await raceAdministratorRoute(db, request("POST", JSON.stringify({ ...body, acknowledgedImpact: false }), {
-      "idempotency-key": `manual-course-result-bearing-link:${id}` }), id, action, services, environment)).status).toBe(400);
-  });
   it("TASK135 binds one separately ranked shortened-course transfer to its frozen class basis", async () => {
     const courseVersionId = "10000000-0000-4000-8000-000000000003";
     const controlOneId = "10000000-0000-4000-8000-000000000004";
@@ -98,59 +68,49 @@ describe("administratörsroutes: förberedelse", () => {
     expect((await raceAdministratorRoute(db, request("POST", JSON.stringify({ ...body, sourceClassId: id }), {
       "idempotency-key": `shortened-course-class-transfer:${id}` }), id, action, services, environment)).status).toBe(400);
   });
-  it("TASK083 returns a read-only manual-course result impact only for its administrator class", async () => {
-    const impact = { formatVersion: 1 as const, raceId: id, classId: other, className: "Öppen",
-      course: { id, name: "Manuell", currentVersionId: id, currentVersion: 1, controlCodes: [31, 42, 31] },
-      snapshotVersion: 2, totals: { entryCount: 1, entriesWithResults: 1, historicalResultRevisions: 2 },
-      entries: [{ entryId: other, displayName: "Ada Test", latestResultRevision: { id, revision: 2,
-        status: "OK", courseVersionId: id, snapshotVersion: 2, published: true, effectiveManualDecision: "NONE" as const } }],
-      generatedAt: "2026-09-19T12:00:00.000Z" };
-    const manualCourseResultImpact = vi.fn<typeof import("@o-tid/application").getManualCourseResultImpactAsAdministrator>()
-      .mockResolvedValue({ status: "ok", response: impact });
-    const services = { ...dependencies(), manualCourseResultImpact };
-    const action = { kind: "manual-course-result-impact" as const, classId: other };
+  it("Redigera bana: banlista, besked och sparande binds till administratören, banan och begäran", async () => {
+    const list = { formatVersion: 1 as const, raceId: id, snapshotVersion: 2, courses: [{ courseId: other, courseVersionId: id, name: "Lång",
+      controlCodes: [31, 32, 33], classes: [{ classId: id, name: "H21" }], entryCount: 3, readOutCount: 2 }] };
+    const preview = { formatVersion: 1 as const, raceId: id, courseId: other, courseName: "Lång", snapshotVersion: 2,
+      currentControlCodes: [31, 32, 33], controlCodes: [31, 33], readOutCount: 2, becomesOkCount: 1, becomesMispunchedCount: 0,
+      unchangedCount: 1, notRecalculatedCount: 0, requiresConfirmation: true,
+      changes: [{ entryId: id, displayName: "Ada Löpare", className: "H21", before: "MP" as const, after: "OK" as const }] };
+    const body = { formatVersion: 1 as const, requestId: id, expectedSnapshotVersion: 2, courseId: other, controlCodes: [31, 33],
+      confirmResultChanges: true };
+    const receipt = { formatVersion: 1 as const, replayed: false, requestId: id, raceId: id, courseId: other, request: body,
+      previousCourseVersionId: id, courseVersionId: "10000000-0000-4000-8000-000000000003", classIds: [id],
+      snapshotVersionBefore: 2, snapshotVersionAfter: 3, recalculated: [{ entryId: id, resultRevisionId: other, revision: 2 }],
+      editedAt: "2026-10-03T12:00:00.000Z" };
+    const courses = vi.fn<typeof import("@o-tid/application").listCoursesForEditAsAdministrator>().mockResolvedValue({ status: "ok", response: list });
+    const courseEditPreview = vi.fn<typeof import("@o-tid/application").previewCourseEditAsAdministrator>()
+      .mockResolvedValue({ status: "ok", response: preview });
+    const courseEdit = vi.fn<typeof import("@o-tid/application").editCourseAsAdministrator>()
+      .mockResolvedValue({ status: "edited", response: receipt });
+    const services = { ...dependencies(), courses, courseEditPreview, courseEdit };
     const read = await raceAdministratorRoute(db, new Request("https://otid.example/api/admin", { headers: {
       cookie: `__Host-otid-race-administrator-session=${token}; __Host-otid-race-administrator-csrf=${csrf}` } }),
-    id, action, services, environment);
-    expect(read.status).toBe(200); expect(await read.json()).toEqual(impact);
-    expect(manualCourseResultImpact).toHaveBeenCalledWith(db, expect.objectContaining({ raceId: id, classId: other, sessionToken: token }));
-    expect((await raceAdministratorRoute(db, request("POST"), id, action, services, environment)).status).toBe(405);
-    manualCourseResultImpact.mockResolvedValueOnce({ status: "not-found" });
-    expect((await raceAdministratorRoute(db, new Request("https://otid.example/api/admin", { headers: {
-      cookie: `__Host-otid-race-administrator-session=${token}; __Host-otid-race-administrator-csrf=${csrf}` } }),
-    id, action, services, environment)).status).toBe(404);
-  });
-  it("TASK082 binds the manual course-version preview and relink receipt to one administrator class", async () => {
-    const preview = { formatVersion: 1 as const, raceId: id, courseId: other, classId: other,
-      courseName: "Manuell", className: "Öppen", snapshotVersion: 2, classCourseVersionId: id,
-      classCourseVersion: 1, controlCodes: [31, 42, 31], entryCount: 1, resultRevisionCount: 0,
-      canRelink: true, generatedAt: "2026-09-19T12:00:00.000Z" };
-    const body = { formatVersion: 1 as const, requestId: id, expectedSnapshotVersion: 2,
-      courseId: other, classId: other, expectedClassCourseVersionId: id, controlCodes: [31, 31, 42] };
-    const receipt = { formatVersion: 1 as const, replayed: false, requestId: id, raceId: id,
-      courseId: other, classId: other, previousCourseVersionId: id, previousCourseVersion: 1,
-      courseVersionId: "10000000-0000-4000-8000-000000000003", courseVersion: 2, request: body,
-      entryCount: 1, snapshotVersionBefore: 2, snapshotVersionAfter: 3, changedAt: "2026-09-19T12:01:00.000Z" };
-    const manualCourseVersionRelinkPreview = vi.fn(async () => ({ status: "ok" as const, response: preview }));
-    const manualCourseVersionRelink = vi.fn<typeof import("@o-tid/application").relinkManualCourseVersionClassAsAdministrator>()
-      .mockResolvedValue({ status: "changed" as const, response: receipt });
-    const services = { ...dependencies(), manualCourseVersionRelinkPreview, manualCourseVersionRelink };
-    const action = { kind: "manual-course-version-link" as const, classId: other };
-    const read = await raceAdministratorRoute(db, new Request("https://otid.example/api/admin", { headers: {
-      cookie: `__Host-otid-race-administrator-session=${token}; __Host-otid-race-administrator-csrf=${csrf}` } }),
-    id, action, services, environment);
-    expect(read.status).toBe(200); expect(await read.json()).toEqual(preview);
-    expect(manualCourseVersionRelinkPreview).toHaveBeenCalledWith(db, expect.objectContaining({ raceId: id, classId: other, sessionToken: token }));
-    const write = await raceAdministratorRoute(db, request("POST", JSON.stringify(body), {
-      "idempotency-key": `manual-course-version-link:${id}` }), id, action, services, environment);
+    id, { kind: "courses" }, services, environment);
+    expect(read.status).toBe(200); expect(await read.json()).toEqual(list);
+    const previewed = await raceAdministratorRoute(db, request("POST", JSON.stringify({ formatVersion: 1, expectedSnapshotVersion: 2,
+      controlCodes: [31, 33] })), id, { kind: "course-edit-preview", courseId: other }, services, environment);
+    expect(previewed.status).toBe(200); expect(await previewed.json()).toEqual(preview);
+    expect(courseEditPreview).toHaveBeenCalledWith(db, expect.objectContaining({ raceId: id, courseId: other, csrfHeader: csrf }));
+    const action = { kind: "course-edit" as const, courseId: other };
+    const write = await raceAdministratorRoute(db, request("POST", JSON.stringify(body), { "idempotency-key": `course-edit:${id}` }),
+      id, action, services, environment);
     expect(write.status).toBe(200); expect(await write.json()).toEqual(receipt);
-    expect(manualCourseVersionRelink).toHaveBeenCalledWith(db, expect.objectContaining({ raceId: id,
-      idempotencyKey: `manual-course-version-link:${id}`, request: body }));
-    expect((await raceAdministratorRoute(db, request("POST", JSON.stringify({ ...body, classId: id }), {
-      "idempotency-key": `manual-course-version-link:${id}` }), id, action, services, environment)).status).toBe(400);
-    manualCourseVersionRelink.mockResolvedValueOnce({ status: "results-exist" as const });
-    expect((await raceAdministratorRoute(db, request("POST", JSON.stringify(body), {
-      "idempotency-key": `manual-course-version-link:${id}` }), id, action, services, environment)).status).toBe(409);
+    expect(courseEdit).toHaveBeenCalledWith(db, expect.objectContaining({ raceId: id, idempotencyKey: `course-edit:${id}`, request: body }));
+    // Fel bana i adressen, fel nyckel, utan origin och ny statusändring sedan beskedet.
+    expect((await raceAdministratorRoute(db, request("POST", JSON.stringify(body), { "idempotency-key": `course-edit:${id}` }),
+      id, { kind: "course-edit", courseId: id }, services, environment)).status).toBe(400);
+    expect((await raceAdministratorRoute(db, request("POST", JSON.stringify(body), { "idempotency-key": `course-edit:${other}` }),
+      id, action, services, environment)).status).toBe(400);
+    expect((await raceAdministratorRoute(db, request("POST", JSON.stringify(body), { "idempotency-key": `course-edit:${id}`, origin: "https://evil.example" }),
+      id, action, services, environment)).status).toBe(403);
+    courseEdit.mockResolvedValueOnce({ status: "confirmation-required", preview });
+    expect((await raceAdministratorRoute(db, request("POST", JSON.stringify(body), { "idempotency-key": `course-edit:${id}` }),
+      id, action, services, environment)).status).toBe(409);
+    expect((await raceAdministratorRoute(db, request("GET"), id, action, services, environment)).status).toBe(405);
   });
   it("TASK081 binds manual course/class creation to administrator CSRF, race and frozen request", async () => {
     const body = { formatVersion: 1 as const, requestId: other, expectedSnapshotVersion: 1,

@@ -460,3 +460,20 @@
 @media (max-width: 350px) {
   .mobileWorkflowNavigation label, .mobileSubNavigation label { grid-template-columns: minmax(0, 1fr); gap: 0.2rem; }
 }
+
+/* Banor: tabell med Redigera bana i raden (ADR-0169). */
+.courseTableScroll { min-width: 0; overflow-x: auto; }
+.courseTable { width: 100%; border-collapse: collapse; }
+.courseTable th, .courseTable td { padding: 0.4rem; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.courseTable thead th { font-size: 0.82rem; color: var(--muted); }
+.courseTable tbody th { font-weight: 700; }
+.courseTable tr[data-selected="true"] > * { background: var(--workspace-subtle); }
+.courseTableControls { font-variant-numeric: tabular-nums; }
+.courseClassLink { min-height: 44px; padding: 0.3rem 0.35rem; border: 0; background: transparent; color: var(--ink); font: inherit; text-align: left; text-decoration: underline; cursor: pointer; }
+.courseClassLink:disabled { opacity: 0.6; cursor: not-allowed; }
+.courseEditorRow > td { background: var(--panel); }
+.courseEditor { display: grid; gap: 0.5rem; min-width: 0; }
+.courseEditor input { width: 100%; min-width: 0; min-height: 44px; font-size: 1.05rem; }
+.courseEditChanges { margin: 0; padding-left: 1.2rem; display: grid; gap: 0.2rem; }
+.courseEditSaved { border-left: 3px solid var(--ink); padding: 0.6rem; font-weight: 700; }
+.visuallyHidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

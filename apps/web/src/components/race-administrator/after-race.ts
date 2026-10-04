@@ -1,8 +1,6 @@
 import { useState, type FormEvent } from "react";
-import { manualCourseResultBearingRelinkCandidateSchema, manualCourseResultBearingRelinkRequestSchema,
-  manualCourseResultBearingRelinkResponseSchema, shortenedCourseClassTransferCandidateSchema,
-  shortenedCourseClassTransferReceiptSchema, shortenedCourseClassTransferRequestSchema,
-  type ManualCourseResultBearingRelinkCandidate, type RaceResultFinalizationMetadata,
+import { shortenedCourseClassTransferCandidateSchema,
+  shortenedCourseClassTransferReceiptSchema, shortenedCourseClassTransferRequestSchema, type RaceResultFinalizationMetadata,
   type ShortenedCourseClassTransferCandidate } from "@o-tid/contracts";
 import { iofResultListExportFilename, parseFrozenRaceFinalizations, parseIofResultListExportMetadata,
   validateFrozenIofResultListResponse } from "../../lib/iof-result-list-export-admin-client";
@@ -12,14 +10,12 @@ import { createClassFinalizationAttempt, createRaceFinalizationAttempt, isDefini
 import { classResultRecalculationBody, createClassResultRecalculationAttempt, parseClassResultRecalculationCandidates,
   parseClassResultRecalculationResponse, type ClassResultRecalculationAttempt,
   type ClassResultRecalculationCandidates } from "../../lib/class-result-recalculation-admin-client";
-import { isStrictCoursePrefix } from "../../lib/course-prefix";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
-import { parseControlCodes, type CourseResultBearingRelinkAttempt, type FinalizationAttempt, type Operation,
-  type ShortenedCourseClassTransferAttempt } from "./types";
+import { type FinalizationAttempt, type Operation, type ShortenedCourseClassTransferAttempt } from "./types";
 import type { Base, WorkspaceState } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
 
-/** Efter tävlingen: omräkning per klass, fastställande, export och rättning av banor med resultat. */
+/** Efter tävlingen: omräkning per klass, fastställande, export och flytt till kortare bana. */
 export function useAfterRaceState() {
   const [classRecalculationCandidates, setClassRecalculationCandidates] = useState<ClassResultRecalculationCandidates>();
   const [classRecalculationAttempt, setClassRecalculationAttempt] = useState<ClassResultRecalculationAttempt>();
@@ -31,12 +27,6 @@ export function useAfterRaceState() {
   const [finalizationAttempt, setFinalizationAttempt] = useState<FinalizationAttempt>();
   const [finalizations, setFinalizations] = useState<RaceResultFinalizationMetadata[]>();
   const [finalizationId, setFinalizationId] = useState("");
-  const [courseResultBearingClassId, setCourseResultBearingClassId] = useState("");
-  const [courseResultBearingCandidate, setCourseResultBearingCandidate] = useState<ManualCourseResultBearingRelinkCandidate>();
-  const [courseResultBearingControls, setCourseResultBearingControls] = useState("");
-  const [courseResultBearingAcknowledged, setCourseResultBearingAcknowledged] = useState(false);
-  const [courseResultBearingAttempt, setCourseResultBearingAttempt] = useState<CourseResultBearingRelinkAttempt>();
-  const [courseResultBearingError, setCourseResultBearingError] = useState("");
   const [shortenedCourseClassId, setShortenedCourseClassId] = useState("");
   const [shortenedCourseCandidate, setShortenedCourseCandidate] = useState<ShortenedCourseClassTransferCandidate>();
   const [shortenedCourseName, setShortenedCourseName] = useState("");
@@ -49,10 +39,7 @@ export function useAfterRaceState() {
     classRecalculationUnknown, setClassRecalculationUnknown, classRecalculationError, setClassRecalculationError,
     classRecalculationSaved, setClassRecalculationSaved, finalizationCandidates, setFinalizationCandidates, finalizationScope,
     setFinalizationScope, finalizationAttempt, setFinalizationAttempt, finalizations, setFinalizations, finalizationId,
-    setFinalizationId, courseResultBearingClassId, setCourseResultBearingClassId, courseResultBearingCandidate,
-    setCourseResultBearingCandidate, courseResultBearingControls, setCourseResultBearingControls,
-    courseResultBearingAcknowledged, setCourseResultBearingAcknowledged, courseResultBearingAttempt,
-    setCourseResultBearingAttempt, courseResultBearingError, setCourseResultBearingError, shortenedCourseClassId,
+    setFinalizationId, shortenedCourseClassId,
     setShortenedCourseClassId, shortenedCourseCandidate, setShortenedCourseCandidate, shortenedCourseName,
     setShortenedCourseName, shortenedClassName, setShortenedClassName, shortenedControlCount, setShortenedControlCount,
     shortenedEntryIds, setShortenedEntryIds, shortenedCourseAttempt, setShortenedCourseAttempt, shortenedCourseError,
@@ -68,14 +55,11 @@ export function deriveAfterRace(s: WorkspaceState) {
 
 export function createAfterRaceActions(ws: Base & RaceDataActions) {
   const { raceId, classRecalculationCandidates, finalizationCandidates, finalizationScope, finalizations, finalizationId,
-    courseResultBearingClassId, courseResultBearingCandidate, courseResultBearingAcknowledged, courseResultBearingControls,
     shortenedCourseClassId, shortenedCourseCandidate, shortenedCourseName, shortenedClassName, shortenedControlCount,
     shortenedEntryIds, busyRef, pending, sent, requireSession, begin, beginRequest, finish, current, assertCurrent, request,
     json, csrf, load, setMessage, setUnknown, setData, setClassRecalculationCandidates, setClassRecalculationAttempt,
     setClassRecalculationError, setClassRecalculationSaved, setClassRecalculationUnknown, setFinalizationCandidates,
-    setFinalizationAttempt, setFinalizations, setFinalizationId, setCourseResultBearingCandidate, setCourseResultBearingError,
-    setCourseResultBearingAcknowledged, setCourseResultBearingControls, setCourseResultBearingAttempt,
-    setShortenedCourseCandidate, setShortenedCourseError, setShortenedEntryIds, setShortenedControlCount,
+    setFinalizationAttempt, setFinalizations, setFinalizationId, setShortenedCourseCandidate, setShortenedCourseError, setShortenedEntryIds, setShortenedControlCount,
     setShortenedCourseName, setShortenedClassName, setShortenedCourseAttempt } = ws;
   async function loadClassRecalculation(classId: string) {
     if (busyRef.current || pending.current || !requireSession() || !classId) return;
@@ -212,63 +196,6 @@ export function createAfterRaceActions(ws: Base & RaceDataActions) {
     } catch { if (current(op)) setMessage(text.exportError); }
     finally { finish(op); }
   }
-  async function loadCourseResultBearingCandidate() {
-    if (busyRef.current || pending.current || !requireSession() || !courseResultBearingClassId) return;
-    setCourseResultBearingCandidate(undefined); setCourseResultBearingError(""); setCourseResultBearingAcknowledged(false); setCourseResultBearingControls("");
-    const op = begin();
-    try {
-      const response = await request(`/classes/${courseResultBearingClassId}/course-result-bearing-link`, op);
-      if (!response.ok) throw new Error("Result bearing course candidate unavailable");
-      const value = manualCourseResultBearingRelinkCandidateSchema.parse(await json(response, op));
-      if (value.raceId !== raceId || value.classId !== courseResultBearingClassId) throw new Error("Result bearing course candidate scope mismatch");
-      setCourseResultBearingCandidate(value);
-    } catch { if (current(op)) setCourseResultBearingError(text.courseResultBearingLoadError); }
-    finally { finish(op); }
-  }
-  function inspectCourseResultBearingRelink(event: FormEvent) {
-    event.preventDefault();
-    if (busyRef.current || pending.current || !requireSession() || !courseResultBearingCandidate || !courseResultBearingAcknowledged) return;
-    const controlCodes = parseControlCodes(courseResultBearingControls);
-    if (!controlCodes) {
-      setCourseResultBearingError(text.courseRelinkInvalidControls); return;
-    }
-    if (courseResultBearingCandidate.historicalResultRevisionCount > 0 &&
-        isStrictCoursePrefix(courseResultBearingCandidate.currentControlCodes, controlCodes)) {
-      setCourseResultBearingError(text.courseResultBearingShortenedCourse); return;
-    }
-    const parsed = manualCourseResultBearingRelinkRequestSchema.safeParse({ formatVersion: 1, requestId: crypto.randomUUID(),
-      expectedSnapshotVersion: courseResultBearingCandidate.snapshotVersion, expectedBasisHash: courseResultBearingCandidate.basisHash,
-      courseId: courseResultBearingCandidate.courseId, classId: courseResultBearingCandidate.classId,
-      expectedClassCourseVersionId: courseResultBearingCandidate.classCourseVersionId, controlCodes, acknowledgedImpact: true });
-    if (!parsed.success) { setCourseResultBearingError(text.courseRelinkInvalidControls); return; }
-    const value: CourseResultBearingRelinkAttempt = { kind: "COURSE_RESULT_BEARING_RELINK", candidate: courseResultBearingCandidate, request: parsed.data };
-    pending.current = value; sent.current = false; setCourseResultBearingAttempt(value); setCourseResultBearingError("");
-  }
-  async function submitCourseResultBearingRelink(value: CourseResultBearingRelinkAttempt) {
-    if (busyRef.current || pending.current !== value || !requireSession()) return;
-    const op = begin(), wasUnknown = sent.current; let committed = false;
-    try {
-      sent.current = true;
-      const response = await request(`/classes/${value.candidate.classId}/course-result-bearing-link`, op, { method: "POST",
-        headers: { "content-type": "application/json", "x-otid-csrf": csrf(),
-          "idempotency-key": `manual-course-result-bearing-link:${value.request.requestId}` }, body: JSON.stringify(value.request) });
-      if ([400, 404, 409].includes(response.status)) {
-        if (wasUnknown) { setUnknown(true); setCourseResultBearingError(text.courseResultBearingUnknown); return; }
-        pending.current = undefined; sent.current = false; setCourseResultBearingAttempt(undefined); setCourseResultBearingCandidate(undefined);
-        setCourseResultBearingAcknowledged(false); setCourseResultBearingError(text.courseResultBearingConflict); return;
-      }
-      if (!response.ok) throw new Error("Unknown result bearing course outcome");
-      const receipt = manualCourseResultBearingRelinkResponseSchema.parse(await json(response, op));
-      if (receipt.raceId !== raceId || receipt.classId !== value.candidate.classId || receipt.courseId !== value.request.courseId ||
-        receipt.requestId !== value.request.requestId || receipt.sourceSnapshotVersion !== value.request.expectedSnapshotVersion ||
-        receipt.sourceBasisHash !== value.request.expectedBasisHash || receipt.previousCourseVersionId !== value.request.expectedClassCourseVersionId ||
-        JSON.stringify(receipt.request) !== JSON.stringify(value.request)) throw new Error("Result bearing course receipt mismatch");
-      committed = true; pending.current = undefined; sent.current = false; setCourseResultBearingAttempt(undefined);
-      setCourseResultBearingCandidate(undefined); setCourseResultBearingAcknowledged(false); setCourseResultBearingControls(""); setUnknown(false);
-      setData(undefined); setMessage(text.courseResultBearingSaved); await load(op);
-    } catch { if (current(op)) setCourseResultBearingError(committed ? text.courseResultBearingSavedLoadError : text.courseResultBearingUnknown); }
-    finally { finish(op); }
-  }
   async function loadShortenedCourseCandidate() {
     if (busyRef.current || pending.current || !requireSession() || !shortenedCourseClassId) return;
     setShortenedCourseCandidate(undefined); setShortenedCourseError(""); setShortenedEntryIds([]); setShortenedControlCount("1");
@@ -330,8 +257,7 @@ export function createAfterRaceActions(ws: Base & RaceDataActions) {
     finally { finish(op); }
   }
   return { loadClassRecalculation, prepareClassRecalculation, submitClassRecalculation, loadFinalizationBasis, prepareFinalization,
-    submitFinalization, loadFinalizations, downloadFinalization, downloadResults, loadCourseResultBearingCandidate,
-    inspectCourseResultBearingRelink, submitCourseResultBearingRelink, loadShortenedCourseCandidate, toggleShortenedEntry,
+    submitFinalization, loadFinalizations, downloadFinalization, downloadResults, loadShortenedCourseCandidate, toggleShortenedEntry,
     inspectShortenedCourseTransfer, submitShortenedCourseTransfer };
 }
 export type AfterRaceActions = ReturnType<typeof createAfterRaceActions>;

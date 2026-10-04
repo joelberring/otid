@@ -129,13 +129,6 @@ export function createWorkflowNavigation(ws: Base & MobileNavigation & DuringRac
   function openAssignedClass(classId: string) {
     openClassSetup(classId, true);
   }
-  function openCourseWarningClass(classId: string) {
-    if (workflowLocked || !data?.classes.some((row) => row.id === classId)) return;
-    flushSync(() => {
-      setCourseWarningClassId(classId); setCourseSelectionReason("MISSING");
-      setWorkflowMode("BEFORE"); setPreparationArea("CLASSES");
-    });
-  }
   function returnToCourses() {
     if (workflowLocked) return;
     setSelectedCourseTarget(undefined);
@@ -177,6 +170,6 @@ export function createWorkflowNavigation(ws: Base & MobileNavigation & DuringRac
     window.print();
   }
   return { navigateWorkflow, openAttentionPanel, followUp, openMissingFixedStart, openClassParticipants, openClassSetup,
-    openAssignedClass, openCourseWarningClass, returnToCourses, openPreparationStep, openAssignedCourse, openClassCourse, printPrivate };
+    openAssignedClass, returnToCourses, openPreparationStep, openAssignedCourse, openClassCourse, printPrivate };
 }
 export type WorkflowNavigation = ReturnType<typeof createWorkflowNavigation>;

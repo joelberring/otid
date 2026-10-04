@@ -35,5 +35,4 @@ export const raceWorkspaceNavigationSv = {
   participantPosition: (position: number, total: number) => `${position} av ${total} i aktuellt urval`,
   participantOutsideSequence: "Vald deltagare är utanför aktuellt urval",
   resultActions: "Resultatbeslut och historik",
-  closeCoursePreview: "Stäng banunderlaget",
 } as const;

@@ -85,6 +85,8 @@ export { listManualClassNameAsAdministrator, changeManualClassNameAsAdministrato
 export { previewManualCourseVersionClassRelinkAsAdministrator, relinkManualCourseVersionClassAsAdministrator } from "./manual-course-version-class-relink";
 export { getManualCourseResultImpactAsAdministrator } from "./manual-course-result-impact";
 export { previewManualCourseResultBearingRelinkAsAdministrator, relinkManualCourseResultBearingClassAsAdministrator } from "./manual-course-result-bearing-relink";
+export { editCourseAsAdministrator, listCoursesForEditAsAdministrator, previewCourseEditAsAdministrator } from "./course-edit";
+export type { CourseEditListResult, CourseEditPreviewResult, CourseEditResult } from "./course-edit";
 export { previewShortenedCourseClassTransferAsAdministrator, transferShortenedCourseClassAsAdministrator } from "./shortened-course-class-transfer";
 export { listUnknownReadoutResolutionCandidatesAsAdministrator, resolveUnknownReadoutAsAdministrator } from "./unknown-readout-resolution";
 export { listRaceOperatorAccessAsAdministrator, issueRaceOperatorAccessAsAdministrator, revokeRaceOperatorAccessAsAdministrator } from "./race-operator-access";

@@ -1,6 +1,4 @@
-import { classControlNeutralizationCandidateSchema, classControlNeutralizationIdempotencyKeySchema,
-  classControlNeutralizationRequestSchema, classControlNeutralizationResponseSchema,
-  manualFinishTimeCorrectionCandidateSchema, manualFinishTimeCorrectionIdempotencyKeySchema,
+import { manualFinishTimeCorrectionCandidateSchema, manualFinishTimeCorrectionIdempotencyKeySchema,
   manualFinishTimeCorrectionRequestSchema, manualFinishTimeCorrectionResponseSchema,
   manualPunchStartTimeCorrectionCandidateSchema, manualPunchStartTimeCorrectionIdempotencyKeySchema,
   manualPunchStartTimeCorrectionRequestSchema, manualPunchStartTimeCorrectionResponseSchema,
@@ -83,33 +81,6 @@ export async function handleRaceDayRoute(context: RaceAdministratorRouteContext)
       return failure(500, "INTERNAL_ERROR");
     }
     if (parsed.data.target === "NEW_ENTRY" && response.classId !== parsed.data.classId) return failure(500, "INTERNAL_ERROR");
-    return json(response);
-  }
-  if (action.kind === "class-control-neutralization" && request.method === "GET") {
-    if (!await hasNoEntryClassAdminRequestBody(request)) return failure(400, "INVALID_REQUEST");
-    const result = await dependencies.classControlNeutralizationCandidate(db, { ...proof, raceId, classId: action.classId });
-    if (result.status !== "ok") return resultFailure(result.status);
-    const response = classControlNeutralizationCandidateSchema.parse(result.response);
-    if (response.raceId !== raceId || response.classId !== action.classId) return failure(500, "INTERNAL_ERROR");
-    return json(response);
-  }
-  if (action.kind === "class-control-neutralization") {
-    const key = classControlNeutralizationIdempotencyKeySchema.safeParse(request.headers.get("idempotency-key"));
-    if (!key.success) return failure(400, "INVALID_REQUEST");
-    let body: unknown;
-    try { body = await readEntryClassAdminJson(request); } catch { return failure(400, "INVALID_REQUEST"); }
-    const parsed = classControlNeutralizationRequestSchema.safeParse(body);
-    if (!parsed.success || parsed.data.classId !== action.classId || key.data !== `class-control-neutralization:${parsed.data.requestId}`) {
-      return failure(400, "INVALID_REQUEST");
-    }
-    const result = await dependencies.classControlNeutralization(db, { ...proof, raceId, idempotencyKey: key.data, request: parsed.data });
-    if (result.status !== "changed") return resultFailure(result.status);
-    const response = classControlNeutralizationResponseSchema.parse(result.response);
-    if (response.raceId !== raceId || response.classId !== action.classId || response.requestId !== parsed.data.requestId ||
-        response.courseVersionId !== parsed.data.expectedCourseVersionId || response.courseControlId !== parsed.data.courseControlId ||
-        response.sequence !== parsed.data.sequence || response.controlCode !== parsed.data.controlCode ||
-        response.sourceSnapshotVersion !== parsed.data.expectedSnapshotVersion || response.sourceBasisHash !== parsed.data.expectedBasisHash ||
-        JSON.stringify(response.request) !== JSON.stringify(parsed.data)) return failure(500, "INTERNAL_ERROR");
     return json(response);
   }
   if (action.kind === "manual-finish-time-correction" && request.method === "GET") {

@@ -208,7 +208,7 @@ Se ADR-0169 beslut 1 och 4.
    startsätt eller starttid ändrats (brickan ingår inte: löparen sprang med den
    bricka som lästes av). En direktanmälan gör inga andra resultat inaktuella.
    Automatisk omräkning efter sådana ändringar görs i punkt 2.
-2. **Redigera bana:** ett ställe för att ändra kontrollföljd, stryka en
+2. [x] **Redigera bana:** ett ställe för att ändra kontrollföljd, stryka en
    kontroll och flytta valda löpare till kortare bana, även när resultat finns.
    Före sparande: besked i klartext ("12 har läst ut; 2 blir godkända, 10
    påverkas inte"). Versioner och omräkning sköts av appen: berörda resultat

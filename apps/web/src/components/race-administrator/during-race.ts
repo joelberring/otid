@@ -47,7 +47,6 @@ export function useDuringRaceState() {
   const [unknownReadoutAttempt, setUnknownReadoutAttempt] = useState<UnknownReadoutResolutionAttempt>();
   const [unknownReadoutError, setUnknownReadoutError] = useState("");
   const unknownReadoutPanel = useRef<HTMLDetailsElement>(null);
-  const [neutralizationPending, setNeutralizationPending] = useState(false);
   const [finishCorrectionPending, setFinishCorrectionPending] = useState(false);
   const [startCorrectionPending, setStartCorrectionPending] = useState(false);
   const [startWithdrawalPending, setStartWithdrawalPending] = useState(false);
@@ -62,14 +61,14 @@ export function useDuringRaceState() {
     unknownReadoutClassId, setUnknownReadoutClassId, unknownReadoutGivenName, setUnknownReadoutGivenName,
     unknownReadoutFamilyName, setUnknownReadoutFamilyName, unknownReadoutOrganisationName, setUnknownReadoutOrganisationName,
     unknownReadoutAttempt, setUnknownReadoutAttempt, unknownReadoutError, setUnknownReadoutError, unknownReadoutPanel,
-    neutralizationPending, setNeutralizationPending, finishCorrectionPending, setFinishCorrectionPending,
+    finishCorrectionPending, setFinishCorrectionPending,
     startCorrectionPending, setStartCorrectionPending, startWithdrawalPending, setStartWithdrawalPending,
     finishWithdrawalPending, setFinishWithdrawalPending };
 }
 
 export function deriveDuringRace(s: WorkspaceState) {
   const { forestData, forestStale, unknownReadoutCandidate, unknownReadoutFetchedAt, unknownReadoutAttentionStale } = s;
-  const correctionPending = s.neutralizationPending || s.finishCorrectionPending || s.startCorrectionPending ||
+  const correctionPending = s.finishCorrectionPending || s.startCorrectionPending ||
     s.startWithdrawalPending || s.finishWithdrawalPending;
   const forestAttentionFresh = !!forestData && !forestStale;
   const unknownReadoutAttentionFresh = !!unknownReadoutCandidate && !!unknownReadoutFetchedAt && !unknownReadoutAttentionStale;

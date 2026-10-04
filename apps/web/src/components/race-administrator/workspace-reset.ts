@@ -12,10 +12,8 @@ export function resetWorkspaceOnLock(s: WorkspaceState, discard: boolean) {
     setForestSortByAge, setCourseName, setCourseClassName, setCourseControls, setCourseStartRule, setCourseClassReview,
     setCourseClassError, setManualClassName, setManualClassCourseVersionId, setManualClassStartRule, setManualClassReview,
     setManualClassError, setClassNameClassId, setClassNameCandidate, setClassNameInput, setClassNameReview, setClassNameError,
-    setCourseRelinkClassId, setCourseRelinkPreview, setCourseRelinkControls, setCourseRelinkConfirmed, setCourseRelinkError,
-    setCourseResultImpactClassId, setCourseResultImpact, setCourseResultImpactError, setCourseResultBearingClassId,
-    setCourseResultBearingCandidate, setCourseResultBearingControls, setCourseResultBearingAcknowledged,
-    setCourseResultBearingError, setShortenedCourseClassId, setShortenedCourseCandidate, setShortenedCourseName,
+    setCourseList, setCourseListError, setEditingCourseId, setCourseEditControls, setCourseEditPreview, setCourseEditError,
+    setCourseEditSaved, setShortenedCourseClassId, setShortenedCourseCandidate, setShortenedCourseName,
     setShortenedClassName, setShortenedControlCount, setShortenedEntryIds, setShortenedCourseError,
     setUnknownReadoutCandidate, setUnknownReadoutId, setUnknownReadoutTarget, setUnknownReadoutEntryId,
     setUnknownReadoutClassId, setUnknownReadoutGivenName, setUnknownReadoutFamilyName, setUnknownReadoutOrganisationName,
@@ -34,7 +32,7 @@ export function resetWorkspaceOnLock(s: WorkspaceState, discard: boolean) {
     setApprovalWithdrawals, setDsqCandidates, setDsqWithdrawals, setTransferAttempt, setCapacityAttempt, setStartRuleAttempt,
     setCardAttempt, setRentalAttempt, setRentalReturnAttempt, setRentalReuseAttempt, setPaymentStatusAttempt, setTimeAttempt,
     setRecalculationAttempt, setIdentityAttempt, setRegistrationAttempt, setDnsAttempt, setOocAttempt, setNtAttempt,
-    setCourseRelinkAttempt, setCourseResultBearingAttempt, setShortenedCourseAttempt, setUnknownReadoutAttempt, setUnknown,
+    setCourseEditAttempt, setShortenedCourseAttempt, setUnknownReadoutAttempt, setUnknown,
     setAction } = s;
   setAuthenticated(false); setExpiresAt(undefined); setData(undefined);
   setParticipantActionPending(false);
@@ -45,9 +43,8 @@ export function resetWorkspaceOnLock(s: WorkspaceState, discard: boolean) {
   setCourseName(""); setCourseClassName(""); setCourseControls(""); setCourseStartRule("PUNCH"); setCourseClassReview(undefined); setCourseClassError("");
   setManualClassName(""); setManualClassCourseVersionId(""); setManualClassStartRule("PUNCH"); setManualClassReview(undefined); setManualClassError("");
   setClassNameClassId(""); setClassNameCandidate(undefined); setClassNameInput(""); setClassNameReview(undefined); setClassNameError("");
-  setCourseRelinkClassId(""); setCourseRelinkPreview(undefined); setCourseRelinkControls(""); setCourseRelinkConfirmed(false); setCourseRelinkError("");
-  setCourseResultImpactClassId(""); setCourseResultImpact(undefined); setCourseResultImpactError("");
-  setCourseResultBearingClassId(""); setCourseResultBearingCandidate(undefined); setCourseResultBearingControls(""); setCourseResultBearingAcknowledged(false); setCourseResultBearingError("");
+  setCourseList(undefined); setCourseListError(""); setCourseEditPreview(undefined); setCourseEditError(""); setCourseEditSaved("");
+  if (discard || !sent.current) { setEditingCourseId(""); setCourseEditControls(""); }
   setShortenedCourseClassId(""); setShortenedCourseCandidate(undefined); setShortenedCourseName(""); setShortenedClassName(""); setShortenedControlCount("1"); setShortenedEntryIds([]); setShortenedCourseError("");
   setUnknownReadoutCandidate(undefined); setUnknownReadoutId(""); setUnknownReadoutTarget("EXISTING_ENTRY"); setUnknownReadoutEntryId(""); setUnknownReadoutClassId(""); setUnknownReadoutGivenName(""); setUnknownReadoutFamilyName(""); setUnknownReadoutOrganisationName(""); setUnknownReadoutError("");
   if (discard || !sent.current) setCourseClassAttempt(undefined);
@@ -83,7 +80,7 @@ export function resetWorkspaceOnLock(s: WorkspaceState, discard: boolean) {
   if (discard || !sent.current) { setDnfAttempt(undefined); setDsqAttempt(undefined); setApprovalAttempt(undefined); }
   setApprovalCandidates(undefined); setApprovalWithdrawals(undefined);
   setDsqCandidates(undefined); setDsqWithdrawals(undefined);
-  if (discard || !sent.current) { pending.current = undefined; sent.current = false; setTransferAttempt(undefined); setCapacityAttempt(undefined); setStartRuleAttempt(undefined); setCardAttempt(undefined); setRentalAttempt(undefined); setRentalReturnAttempt(undefined); setRentalReuseAttempt(undefined); setPaymentStatusAttempt(undefined); setTimeAttempt(undefined); setRecalculationAttempt(undefined); setIdentityAttempt(undefined); setRegistrationAttempt(undefined); setDnsAttempt(undefined); setOocAttempt(undefined); setNtAttempt(undefined); setCourseRelinkAttempt(undefined); setCourseResultBearingAttempt(undefined); setShortenedCourseAttempt(undefined); setUnknownReadoutAttempt(undefined); setUnknown(false); setAction("INFO"); }
+  if (discard || !sent.current) { pending.current = undefined; sent.current = false; setTransferAttempt(undefined); setCapacityAttempt(undefined); setStartRuleAttempt(undefined); setCardAttempt(undefined); setRentalAttempt(undefined); setRentalReturnAttempt(undefined); setRentalReuseAttempt(undefined); setPaymentStatusAttempt(undefined); setTimeAttempt(undefined); setRecalculationAttempt(undefined); setIdentityAttempt(undefined); setRegistrationAttempt(undefined); setDnsAttempt(undefined); setOocAttempt(undefined); setNtAttempt(undefined); setCourseEditAttempt(undefined); setShortenedCourseAttempt(undefined); setUnknownReadoutAttempt(undefined); setUnknown(false); setAction("INFO"); }
   else setUnknown(true);
 }
 

@@ -11,7 +11,6 @@ import { RaceWorkspaceSpeaker } from "../race-workspace-speaker";
 import { ForestWatchReport } from "../forest-watch-report";
 import { CheckinHistoryTable } from "../checkin-history-table";
 import { AdministratorConflictEvidence } from "../administrator-conflict-evidence";
-import { ClassControlNeutralization } from "../class-control-neutralization";
 import { ManualFinishTimeCorrection } from "../manual-finish-time-correction";
 import { ManualFinishTimeCorrectionWithdrawal } from "../manual-finish-time-correction-withdrawal";
 import { ManualPunchStartTimeCorrection } from "../manual-punch-start-time-correction";
@@ -181,7 +180,7 @@ export function DuringRaceOverview({ ws }: { ws: Workspace }) {
 export function DuringRaceFollowUp({ ws }: { ws: Workspace }) {
   const { busy, checkinHistory, checkinHistoryPanel, data, disabled, duringArea, entryId, loadCheckinHistory,
     loadConflictReview, pending, raceId, returnAttempt, reviewAttempt, reviewCandidate, reviewConfirmed,
-    reviewReason, sent, setFinishCorrectionPending, setFinishWithdrawalPending, setNeutralizationPending,
+    reviewReason, sent, setFinishCorrectionPending, setFinishWithdrawalPending,
     setReturnAttempt, setReviewCandidate, setReviewConfirmed, setReviewReason, setStartCorrection,
     setStartCorrectionPending, setStartWithdrawalPending, startCorrection, submitConflictReview, submitReturn,
     submitStartCorrection, unknown, workflowMode } = ws;
@@ -231,7 +230,6 @@ export function DuringRaceFollowUp({ ws }: { ws: Workspace }) {
     <section className={styles.workflowGroup} aria-label={navigationText.during.CORRECTIONS} hidden={workflowMode !== "DURING" || duringArea !== "CORRECTIONS"}>
     {data && <section className={styles.correctionTools} aria-label={text.correctionTools}>
       <h2>{text.correctionTools}</h2><p className={styles.workflowHelp}>{text.correctionToolsHelp}</p>
-      <ClassControlNeutralization raceId={raceId} classes={data.classes} onCommitted={() => window.location.reload()} onPendingChange={setNeutralizationPending} />
       <ManualFinishTimeCorrection raceId={raceId} entries={data.entries} timeZone={data.timeZone} onPendingChange={setFinishCorrectionPending} />
       <ManualPunchStartTimeCorrection raceId={raceId} entries={data.entries} timeZone={data.timeZone} onPendingChange={setStartCorrectionPending} />
       <ManualPunchStartTimeCorrectionWithdrawal raceId={raceId} entries={data.entries} timeZone={data.timeZone} onPendingChange={setStartWithdrawalPending} />

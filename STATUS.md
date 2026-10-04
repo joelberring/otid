@@ -9,6 +9,16 @@ Steg 8 – Enkel arbetsyta för det som finns. Steg 7 (hårdvara) görs parallel
 
 ## Logg
 
+### 2026-10-04 – Steg 8.2: Redigera bana
+- Banor visas som tabell (bana, kontroller, klasser, anmälda, avlästa) med "Redigera" i raden. "Visa vad som händer" prövar
+  varje avläsning mot nya kontrollföljden med resultatmotorn och ger beskedet i klartext; bekräftelse krävs bara när någon byter status.
+- Sparande i en transaktion: ny banversion, alla klasser på banan flyttas, tävlingsversionen +1 och avlästa löpare räknas om
+  (ny revision, historik kvar). Ej start och manuellt rättad tid räknas inte om; disk/godkännande m.fl. gäller som förut.
+- Migration 0090 (`course_edit_request`, idempotent journal). Gamla verktygen för omlänkning, banrättning efter resultat,
+  resultatpåverkan och neutralisering är borttagna ur gränssnitt och routes; applikationsfunktionerna finns kvar.
+- Verifierat: lint, typecheck, test, test:integration (82 filer, nytt `adr-0169-course-edit`), build, e2e (3 flöden, nytt `redigera-bana`).
+- Återstår: en disk eller ett godkännande på ett omräknat resultat visas fortfarande som "äldre underlag" (beslutsrevisionen bär gamla underlaget).
+
 ### 2026-10-03 – Steg 8.1: resultat är aktuella per löpare
 - Migration 0089: `result_revision.basis_hash`, sätts av databasen vid insert (klass, startsätt, banversion med
   kontroller, strukna kontroller, fast starttid). Äldre revisioner utan hash jämförs som tidigare.

@@ -5,11 +5,8 @@ import { listClassStartDrawClassesAsAdmin, previewClassStartDrawAsAdmin, commitC
   listEntryTransfersAsAdministrator, listEntryTransferStartSlotsAsAdministrator, transferEntryAsAdministrator,
   changeClassCapacityAsAdministrator, changeClassStartRuleAsAdministrator, previewClassStartRuleAsAdministrator,
   createManualCourseClassAsAdministrator, createManualClassAsAdministrator, listManualClassNameAsAdministrator,
-  changeManualClassNameAsAdministrator, previewManualCourseVersionClassRelinkAsAdministrator,
-  relinkManualCourseVersionClassAsAdministrator, getManualCourseResultImpactAsAdministrator,
-  previewManualCourseResultBearingRelinkAsAdministrator, relinkManualCourseResultBearingClassAsAdministrator,
-  previewShortenedCourseClassTransferAsAdministrator, transferShortenedCourseClassAsAdministrator,
-  previewClassControlNeutralizationAsAdministrator, neutralizeClassControlAsAdministrator,
+  changeManualClassNameAsAdministrator, listCoursesForEditAsAdministrator, previewCourseEditAsAdministrator,
+  editCourseAsAdministrator, previewShortenedCourseClassTransferAsAdministrator, transferShortenedCourseClassAsAdministrator,
   previewManualFinishTimeCorrectionAsAdministrator, correctManualFinishTimeAsAdministrator,
   previewManualPunchStartTimeCorrectionAsAdministrator, correctManualPunchStartTimeAsAdministrator,
   previewManualPunchStartTimeCorrectionWithdrawalAsAdministrator,
@@ -52,15 +49,10 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   manualClass: createManualClassAsAdministrator,
   manualClassNameCandidate: listManualClassNameAsAdministrator,
   manualClassName: changeManualClassNameAsAdministrator,
-  manualCourseVersionRelinkPreview: previewManualCourseVersionClassRelinkAsAdministrator,
-  manualCourseVersionRelink: relinkManualCourseVersionClassAsAdministrator,
-  manualCourseResultImpact: getManualCourseResultImpactAsAdministrator,
-  manualCourseResultBearingRelinkCandidate: previewManualCourseResultBearingRelinkAsAdministrator,
-  manualCourseResultBearingRelink: relinkManualCourseResultBearingClassAsAdministrator,
+  courses: listCoursesForEditAsAdministrator, courseEditPreview: previewCourseEditAsAdministrator,
+  courseEdit: editCourseAsAdministrator,
   shortenedCourseClassTransferPreview: previewShortenedCourseClassTransferAsAdministrator,
   shortenedCourseClassTransfer: transferShortenedCourseClassAsAdministrator,
-  classControlNeutralizationCandidate: previewClassControlNeutralizationAsAdministrator,
-  classControlNeutralization: neutralizeClassControlAsAdministrator,
   manualFinishTimeCorrectionCandidate: previewManualFinishTimeCorrectionAsAdministrator,
   manualFinishTimeCorrection: correctManualFinishTimeAsAdministrator,
   manualPunchStartTimeCorrectionCandidate: previewManualPunchStartTimeCorrectionAsAdministrator,
@@ -103,11 +95,9 @@ export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: str
   { kind: "transfer-start-slot-candidates"; entryId: string; targetClassId: string } |
   { kind: "registration-start-slot-candidates"; targetClassId: string } |
   { kind: "class"; entryId: string } | { kind: "transfer"; entryId: string } | { kind: "capacity"; classId: string } |
-  { kind: "manual-course-class" } | { kind: "manual-class" } | { kind: "manual-class-name"; classId: string } | { kind: "manual-course-version-link"; classId: string } |
-  { kind: "manual-course-result-impact"; classId: string } |
-  { kind: "manual-course-result-bearing-link"; classId: string } |
+  { kind: "manual-course-class" } | { kind: "manual-class" } | { kind: "manual-class-name"; classId: string } |
+  { kind: "courses" } | { kind: "course-edit-preview"; courseId: string } | { kind: "course-edit"; courseId: string } |
   { kind: "shortened-course-class-transfer"; classId: string } |
-  { kind: "class-control-neutralization"; classId: string } |
   { kind: "manual-finish-time-correction"; entryId: string } |
   { kind: "manual-punch-start-time-correction"; entryId: string } |
   { kind: "manual-punch-start-time-correction-withdrawal"; entryId: string } |

@@ -55,47 +55,9 @@
 .occurrence { color: var(--muted); font-size: 0.75rem; font-weight: 400; }
 .controlExceptions { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; font-size: 0.8rem; }
 .controlExceptions p { overflow-wrap: anywhere; }
-.courseList { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
-.courseSearch { display: grid; gap: 0.2rem; max-width: 26rem; min-width: 0; }
-.courseSearch label { font-size: 0.82rem; font-weight: 600; }
-.courseSearch input { width: 100%; min-width: 0; min-height: 44px; padding: 0.45rem 0.6rem; border: 1px solid var(--border); border-radius: 5px; background: var(--panel); color: var(--ink); font: inherit; }
-.courseSearch input:focus-visible { outline: 3px solid #2368a2; outline-offset: 2px; }
-.courseMatchCount { color: var(--muted); font-size: 0.78rem; font-variant-numeric: tabular-nums; }
-.courseItem { min-width: 0; border-top: 1px solid var(--border); }
-.courseDisclosure { min-width: 0; }
-.panel .courseSummary { min-height: 44px; padding: 0.35rem 0; cursor: pointer; }
-.courseSummary:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-.courseHeading { display: inline-grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.15rem 0.6rem; width: calc(100% - 1.2rem); min-width: 0; vertical-align: middle; }
-.courseName { min-width: 0; overflow-wrap: anywhere; }
-.courseMeta, .courseAssignment { color: var(--muted); font-size: 0.8rem; font-weight: 400; }
-.courseMeta { white-space: nowrap; font-variant-numeric: tabular-nums; }
-.courseAssignment { display: flex; align-items: center; flex-wrap: wrap; gap: 0.1rem 0.5rem; min-width: 0; overflow-wrap: anywhere; }
-.courseAssignment strong { color: var(--ink); }
-.courseAssignedLinks { display: flex; flex-wrap: wrap; gap: 0.1rem 0.3rem; min-width: 0; }
-.panel .courseAssignedClassButton { min-height: 44px; padding: 0.3rem 0.35rem; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 0.8rem; text-align: left; text-decoration: underline; cursor: pointer; }
-.courseAssignedClassButton:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-.courseAssignedClassButton:disabled { opacity: 0.6; cursor: not-allowed; }
-.courseDetails { padding: 0.1rem 0 0.55rem 1.1rem; }
 .controlSequence { display: flex; flex-wrap: wrap; gap: 0.25rem; margin: 0; padding: 0; list-style: none; }
 .controlSequence li { display: inline-flex; align-items: baseline; gap: 0.22rem; min-width: 3.5rem; padding: 0.2rem 0.35rem; border: 1px solid var(--border); border-radius: 5px; font-variant-numeric: tabular-nums; }
 .controlSequence li span { color: var(--muted); font-size: 0.75rem; }
-.courseMissing { padding: 0.3rem 0.55rem; border-left: 3px solid var(--workspace-warning, #825300); color: var(--ink); font-size: 0.82rem; font-weight: 600; }
-.courseMissingSummary { display: list-item; min-height: 44px; padding: 0.35rem 0; cursor: pointer; }
-.courseMissingSummary:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-.courseMissingList { margin: 0.15rem 0 0; padding-left: 1.25rem; font-weight: 400; overflow-wrap: anywhere; }
-.courseMissingList li + li { margin-top: 0.15rem; }
-.courseMissingClassButton { display: flex; align-items: center; flex-wrap: wrap; gap: 0.2rem 0.6rem; width: 100%; min-height: 44px; padding: 0.35rem 0.5rem; border: 1px solid var(--border); border-radius: 5px; background: var(--panel); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
-.courseMissingClassButton:hover:not(:disabled) { border-color: var(--ink); }
-.courseMissingClassButton:focus-visible { outline: 3px solid #2368a2; outline-offset: 2px; }
-.courseMissingClassButton:disabled { opacity: 0.6; cursor: not-allowed; }
-.courseMissingOrdinal { color: var(--muted); font-size: 0.78rem; font-variant-numeric: tabular-nums; }
-.courseMissingOpen { margin-left: auto; color: var(--ink); font-weight: 700; text-decoration: underline; text-underline-offset: 0.15rem; }
-@media (min-width: 1000px) {
-  .courseItem { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, auto); align-items: center; column-gap: 0.5rem; }
-  .courseAssignment { justify-self: end; }
-  .courseDisclosure[open], .courseDisclosure[open] + .courseAssignment { grid-column: 1 / -1; }
-  .courseDisclosure[open] + .courseAssignment { justify-self: start; }
-}
 @media (min-width: 721px) {
   .panel { padding: 0.5rem; gap: 0.4rem; border-radius: 3px; }
   .participantFacts { padding: 0; border: 0; border-radius: 0; background: transparent; }

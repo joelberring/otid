@@ -2,11 +2,9 @@ import { classCapacityKeySchema, classCapacityRequestSchema, classCapacityRespon
   manualCourseClassCreateIdempotencyKeySchema, manualCourseClassCreateRequestSchema,
   manualCourseClassCreateResponseSchema, manualClassCreateIdempotencyKeySchema, manualClassCreateRequestSchema,
   manualClassCreateResponseSchema, manualClassNameCandidateSchema, manualClassNameChangeIdempotencyKeySchema,
-  manualClassNameChangeRequestSchema, manualClassNameChangeResponseSchema, manualCourseVersionClassRelinkPreviewSchema,
-  manualCourseVersionClassRelinkIdempotencyKeySchema, manualCourseVersionClassRelinkRequestSchema,
-  manualCourseVersionClassRelinkResponseSchema, manualCourseResultImpactResponseSchema,
-  manualCourseResultBearingRelinkCandidateSchema, manualCourseResultBearingRelinkIdempotencyKeySchema,
-  manualCourseResultBearingRelinkRequestSchema, manualCourseResultBearingRelinkResponseSchema,
+  manualClassNameChangeRequestSchema, manualClassNameChangeResponseSchema, courseEditListResponseSchema,
+  courseEditPreviewRequestSchema, courseEditPreviewResponseSchema, courseEditIdempotencyKeySchema, courseEditRequestSchema,
+  courseEditResponseSchema,
   shortenedCourseClassTransferCandidateSchema, shortenedCourseClassTransferIdempotencyKeySchema,
   shortenedCourseClassTransferRequestSchema, shortenedCourseClassTransferReceiptSchema, classStartRulePreviewSchema,
   classStartRuleChangeRequestSchema, classStartRuleChangeResponseSchema, classStartDrawClassesResponseSchema,
@@ -19,7 +17,7 @@ import { parseAdministratorDrawReceipt } from "./administrator-start-draw-client
 import { parseAdministratorPublicationReceipt } from "./administrator-publication-client";
 import { resultFailure, type RaceAdministratorRouteContext } from "./race-administrator-route-context";
 
-/** Förberedelse: banor, klasser, startregel, maxantal, lottning och publicering av startlista. Ger undefined för åtgärder som inte hör till gruppen. */
+/** Förberedelse: banor (Redigera bana), klasser, startregel, maxantal, lottning och publicering av startlista. Ger undefined för åtgärder som inte hör till gruppen. */
 export async function handlePreparationRoute(context: RaceAdministratorRouteContext): Promise<Response | undefined> {
   const { db, request, raceId, action, dependencies, proof } = context;
   if (action.kind === "start-rule" && request.method === "GET") {
@@ -43,44 +41,42 @@ export async function handlePreparationRoute(context: RaceAdministratorRouteCont
       response.snapshotVersionBefore !== parsed.data.expectedSnapshotVersion) return failure(500, "INTERNAL_ERROR");
     return json(response);
   }
-  if (action.kind === "manual-course-version-link" && request.method === "GET") {
+  if (action.kind === "courses") {
     if (!await hasNoEntryClassAdminRequestBody(request)) return failure(400, "INVALID_REQUEST");
-    const result = await dependencies.manualCourseVersionRelinkPreview(db, { ...proof, raceId, classId: action.classId });
+    const result = await dependencies.courses(db, { ...proof, raceId });
     if (result.status !== "ok") return resultFailure(result.status);
-    const response = manualCourseVersionClassRelinkPreviewSchema.parse(result.response);
-    if (response.raceId !== raceId || response.classId !== action.classId) return failure(500, "INTERNAL_ERROR");
+    const response = courseEditListResponseSchema.parse(result.response);
+    if (response.raceId !== raceId) return failure(500, "INTERNAL_ERROR");
     return json(response);
   }
-  if (action.kind === "manual-course-result-impact") {
-    if (!await hasNoEntryClassAdminRequestBody(request)) return failure(400, "INVALID_REQUEST");
-    const result = await dependencies.manualCourseResultImpact(db, { ...proof, raceId, classId: action.classId });
+  if (action.kind === "course-edit-preview") {
+    let body: unknown;
+    try { body = await readEntryClassAdminJson(request); } catch { return failure(400, "INVALID_REQUEST"); }
+    const parsed = courseEditPreviewRequestSchema.safeParse(body);
+    if (!parsed.success) return failure(400, "INVALID_REQUEST");
+    const result = await dependencies.courseEditPreview(db, { ...proof, raceId, courseId: action.courseId, request: parsed.data });
     if (result.status !== "ok") return resultFailure(result.status);
-    const response = manualCourseResultImpactResponseSchema.parse(result.response);
-    if (response.raceId !== raceId || response.classId !== action.classId) return failure(500, "INTERNAL_ERROR");
+    const response = courseEditPreviewResponseSchema.parse(result.response);
+    if (response.raceId !== raceId || response.courseId !== action.courseId ||
+        response.snapshotVersion !== parsed.data.expectedSnapshotVersion ||
+        JSON.stringify(response.controlCodes) !== JSON.stringify(parsed.data.controlCodes)) return failure(500, "INTERNAL_ERROR");
     return json(response);
   }
-  if (action.kind === "manual-course-result-bearing-link" && request.method === "GET") {
-    if (!await hasNoEntryClassAdminRequestBody(request)) return failure(400, "INVALID_REQUEST");
-    const result = await dependencies.manualCourseResultBearingRelinkCandidate(db, { ...proof, raceId, classId: action.classId });
-    if (result.status !== "ok") return resultFailure(result.status);
-    const response = manualCourseResultBearingRelinkCandidateSchema.parse(result.response);
-    if (response.raceId !== raceId || response.classId !== action.classId) return failure(500, "INTERNAL_ERROR");
-    return json(response);
-  }
-  if (action.kind === "manual-course-result-bearing-link") {
-    const key = manualCourseResultBearingRelinkIdempotencyKeySchema.safeParse(request.headers.get("idempotency-key"));
+  if (action.kind === "course-edit") {
+    const key = courseEditIdempotencyKeySchema.safeParse(request.headers.get("idempotency-key"));
     if (!key.success) return failure(400, "INVALID_REQUEST");
     let body: unknown;
     try { body = await readEntryClassAdminJson(request); } catch { return failure(400, "INVALID_REQUEST"); }
-    const parsed = manualCourseResultBearingRelinkRequestSchema.safeParse(body);
-    if (!parsed.success || parsed.data.classId !== action.classId ||
-        key.data.slice("manual-course-result-bearing-link:".length) !== parsed.data.requestId) return failure(400, "INVALID_REQUEST");
-    const result = await dependencies.manualCourseResultBearingRelink(db, { ...proof, raceId, idempotencyKey: key.data, request: parsed.data });
-    if (result.status !== "changed") return resultFailure(result.status);
-    const response = manualCourseResultBearingRelinkResponseSchema.parse(result.response);
-    if (response.raceId !== raceId || response.classId !== action.classId || response.requestId !== parsed.data.requestId ||
-        response.courseId !== parsed.data.courseId || response.sourceSnapshotVersion !== parsed.data.expectedSnapshotVersion ||
-        response.sourceBasisHash !== parsed.data.expectedBasisHash || response.previousCourseVersionId !== parsed.data.expectedClassCourseVersionId ||
+    const parsed = courseEditRequestSchema.safeParse(body);
+    if (!parsed.success || parsed.data.courseId !== action.courseId || key.data !== `course-edit:${parsed.data.requestId}`) {
+      return failure(400, "INVALID_REQUEST");
+    }
+    const result = await dependencies.courseEdit(db, { ...proof, raceId, idempotencyKey: key.data, request: parsed.data });
+    // Någon löpares status ändras sedan beskedet visades: klienten hämtar nytt besked och frågar igen.
+    if (result.status === "confirmation-required") return failure(409, "CONFLICT");
+    if (result.status !== "edited") return resultFailure(result.status);
+    const response = courseEditResponseSchema.parse(result.response);
+    if (response.raceId !== raceId || response.courseId !== action.courseId || response.requestId !== parsed.data.requestId ||
         JSON.stringify(response.request) !== JSON.stringify(parsed.data)) return failure(500, "INTERNAL_ERROR");
     return json(response);
   }
@@ -107,24 +103,6 @@ export async function handlePreparationRoute(context: RaceAdministratorRouteCont
     if (response.raceId !== raceId || response.requestId !== parsed.data.requestId ||
         response.sourceClassId !== action.classId || response.sourceCourseVersionId !== parsed.data.expectedSourceCourseVersionId ||
         response.sourceSnapshotVersion !== parsed.data.expectedSnapshotVersion || response.sourceBasisHash !== parsed.data.expectedBasisHash ||
-        JSON.stringify(response.request) !== JSON.stringify(parsed.data)) return failure(500, "INTERNAL_ERROR");
-    return json(response);
-  }
-  if (action.kind === "manual-course-version-link") {
-    const key = manualCourseVersionClassRelinkIdempotencyKeySchema.safeParse(request.headers.get("idempotency-key"));
-    if (!key.success) return failure(400, "INVALID_REQUEST");
-    let body: unknown;
-    try { body = await readEntryClassAdminJson(request); } catch { return failure(400, "INVALID_REQUEST"); }
-    const parsed = manualCourseVersionClassRelinkRequestSchema.safeParse(body);
-    if (!parsed.success || parsed.data.classId !== action.classId ||
-        key.data.slice("manual-course-version-link:".length) !== parsed.data.requestId) return failure(400, "INVALID_REQUEST");
-    const result = await dependencies.manualCourseVersionRelink(db, { ...proof, raceId, idempotencyKey: key.data, request: parsed.data });
-    if (result.status === "results-exist") return failure(409, "CONFLICT");
-    if (result.status !== "changed") return resultFailure(result.status);
-    const response = manualCourseVersionClassRelinkResponseSchema.parse(result.response);
-    if (response.raceId !== raceId || response.classId !== action.classId || response.requestId !== parsed.data.requestId ||
-        response.courseId !== parsed.data.courseId || response.previousCourseVersionId !== parsed.data.expectedClassCourseVersionId ||
-        response.snapshotVersionBefore !== parsed.data.expectedSnapshotVersion ||
         JSON.stringify(response.request) !== JSON.stringify(parsed.data)) return failure(500, "INTERNAL_ERROR");
     return json(response);
   }

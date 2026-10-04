@@ -1,0 +1,89 @@
+/* Checklistan och tävlingsdagens kontrollvy (ADR-0169 beslut 4). Status bärs av ord och symbol, inte bara färg. */
+.checklist ol {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: none;
+}
+.checklist li { min-width: 0; display: flex; }
+.checklist button {
+  flex: 1;
+  min-width: 0;
+  min-height: 56px;
+  display: grid;
+  align-content: start;
+  gap: 0.2rem;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--border);
+  border-bottom-width: 4px;
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.checklist button:not(:disabled):hover { background: var(--workspace-subtle); }
+.checklist button[aria-current="step"] { border-color: var(--ink); background: var(--workspace-subtle); }
+.checklist button:focus-visible { outline: 3px solid #2368a2; outline-offset: 2px; }
+.stepName { display: flex; align-items: baseline; gap: 0.4rem; font-weight: 700; font-size: 0.95rem; }
+.stepNumber {
+  display: inline-grid; place-items: center; flex: 0 0 auto;
+  width: 1.3rem; height: 1.3rem; border-radius: 50%;
+  border: 1px solid currentColor; font-size: 0.72rem; font-weight: 700;
+}
+.stepStatus { display: flex; gap: 0.3rem; color: var(--muted); font-size: 0.8rem; line-height: 1.25; overflow-wrap: anywhere; }
+.stepSymbol { flex: 0 0 auto; font-weight: 700; }
+.checklist button[data-tone="DONE"] .stepSymbol { color: var(--workspace-success); }
+.checklist button[data-tone="ATTENTION"] .stepStatus { color: var(--workspace-warning); font-weight: 650; }
+
+.control { display: grid; gap: 0.65rem; min-width: 0; }
+.controlHeader { display: grid; gap: 0.45rem; justify-items: start; min-width: 0; }
+.controlHeader h2 { margin: 0; }
+.control a.openReadout {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 56px; padding: 0.6rem 1.4rem; border-radius: 6px;
+  background: var(--green-dark); color: #fff; font-size: 1.15rem; font-weight: 700; text-decoration: none;
+}
+.control a.openReadout:hover { background: var(--ink); }
+.controlRefresh { display: flex; align-items: center; flex-wrap: wrap; gap: 0.6rem; color: var(--muted); font-size: 0.85rem; }
+.controlRefresh button { min-height: 44px; }
+.controlGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 0.6rem; min-width: 0; }
+.controlCard {
+  display: grid; align-content: start; gap: 0.45rem; min-width: 0;
+  padding: 0.7rem; border: 1px solid var(--border); border-radius: 6px; background: var(--panel);
+}
+.controlCard h3 { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6rem; margin: 0; font-size: 1rem; }
+.controlCount { font-size: 1.6rem; font-variant-numeric: tabular-nums; line-height: 1; }
+.controlNote { margin: 0; color: var(--workspace-warning); font-weight: 650; }
+.controlList { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; max-height: 22rem; overflow-y: auto; }
+.controlList li { display: grid; gap: 0.1rem; min-width: 0; padding: 0.35rem 0; border-top: 1px solid var(--border); overflow-wrap: anywhere; }
+.controlList li > span, .controlList li > span > span { color: var(--muted); font-size: 0.85rem; }
+.controlList li > span > strong, .controlList li > strong { color: var(--ink); }
+.controlList li > span > span { display: block; }
+.controlList .controlRowAction { grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 0.6rem; }
+.controlRowAction button { min-height: 44px; }
+.controlList .controlLatestRow { grid-template-columns: auto minmax(0, 1fr) auto; align-items: baseline; column-gap: 0.6rem; }
+.controlLatestRow time { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 0.85rem; }
+.controlLatestRow > span:last-child { color: var(--ink) !important; font-weight: 650; text-align: right; }
+.controlForm { display: grid; gap: 0.45rem; min-width: 0; }
+.controlForm label { display: grid; gap: 0.2rem; min-width: 0; }
+.controlForm select, .controlForm input { width: 100%; min-width: 0; min-height: 44px; }
+.controlForm button { justify-self: start; min-height: 44px; }
+
+@media (max-width: 1000px) {
+  .checklist ol { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .controlGrid { grid-template-columns: minmax(0, 1fr); }
+  .control a.openReadout { width: 100%; }
+}
+@media (max-width: 520px) {
+  .checklist ol { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .checklist button { min-height: 52px; padding: 0.4rem 0.45rem; }
+  .stepName { font-size: 0.9rem; }
+  .stepStatus { font-size: 0.76rem; }
+}

@@ -5,9 +5,11 @@ import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
 import Link from "next/link";
 import { ClassResultRecalculation } from "../class-result-recalculation";
 import { sv } from "../../i18n/sv";
+import { formatClockTime } from "../../lib/clock-time";
+import { raceWorkspaceNavigationSv as navigationText } from "../../i18n/race-workspace-navigation-sv";
 import type { Workspace } from "./workspace-state";
 
-/** Efter tävlingen: omräkning per klass, fastställande och flytt till kortare bana. */
+/** Resultat: länkar, omräkning per klass, fastställande och flytt till kortare bana. */
 export function AfterRacePanel({ ws }: { ws: Workspace }) {
   const { busy, classRecalculationAttempt, classRecalculationCandidates, classRecalculationError,
     classRecalculationSaved, classRecalculationUnknown, data, disabled, finalizationAttempt, finalizationCandidate,
@@ -18,10 +20,14 @@ export function AfterRacePanel({ ws }: { ws: Workspace }) {
     setShortenedCourseError, setShortenedCourseName, setShortenedEntryIds, shortenedClassName, shortenedControlCount,
     shortenedCourseAttempt, shortenedCourseCandidate, shortenedCourseClassId, shortenedCourseError,
     shortenedCourseName, shortenedEntryIds, submitClassRecalculation,
-    submitFinalization, submitShortenedCourseTransfer, toggleShortenedEntry, unknown, workflowLocked, workflowMode } = ws;
-  return <section className={styles.workflowGroup} id={`workflow-${raceId}-after`} aria-label={text.workflowAfter}
-      hidden={workflowMode !== "AFTER"}>
-    <p className={styles.workflowHelp}>{text.workflowAfterHelp}</p>
+    submitFinalization, submitShortenedCourseTransfer, toggleShortenedEntry, step, unknown, workflowLocked } = ws;
+  return <section className={styles.workflowGroup} id={`workflow-${raceId}-results`} aria-label={navigationText.steps.RESULTS}
+      hidden={step !== "RESULTS"}>
+    <p className={styles.workflowHelp}>{text.resultsHelp}</p>
+    {!workflowLocked && <nav className={styles.contextLinks} aria-label={text.resultsLinks}>
+      <Link href={`/results/${raceId}`}>{text.publicResultsLink}</Link>
+      <Link href={`/starts/${raceId}`}>{text.publicStartListLink}</Link>
+    </nav>}
     <details className={styles.afterRecalculation} open={classRecalculationAttempt ? true : undefined}>
       <summary>{text.classRecalculationTitle}</summary>
       {data && <ClassResultRecalculation classes={data.classes.map((item) => ({ id: item.id, name: item.name }))}
@@ -41,8 +47,9 @@ export function AfterRacePanel({ ws }: { ws: Workspace }) {
           {finalizationCandidates.classes.map(row => <option key={row.classId} value={row.classId}>{row.className}</option>)}
         </select></label>
         {finalizationCandidate && <>
-          <p>{text.participants}: {finalizationCandidate.entryCount} · {text.snapshot}: {finalizationCandidates.snapshotVersion}</p>
-          <p>{text.finalizationLatest}: {finalizationCandidate.latestFinalization?.scopeRevision ?? text.finalizationNone}</p>
+          <p>{text.participants}: {finalizationCandidate.entryCount}</p>
+          <p>{finalizationCandidate.latestFinalization ? text.finalizationDone(formatClockTime(finalizationCandidate.latestFinalization.finalizedAt,
+            data?.timeZone ?? "UTC")) : text.finalizationNone}</p>
           {finalizationCandidate.blockerCodes.length > 0 && <ul>{finalizationCandidate.blockerCodes.map(code => <li key={code}>{sv.resultFinalizationBlockers[code]}</li>)}</ul>}
           <button type="button" disabled={disabled || finalizationCandidate.blockerCodes.length > 0} onClick={prepareFinalization}>{text.finalizationReview}</button>
         </>}
@@ -50,12 +57,7 @@ export function AfterRacePanel({ ws }: { ws: Workspace }) {
       {finalizationAttempt && <section className={styles.panel} role="alert" aria-label={text.finalizationReview}>
         <h3>{text.finalizationReview}: {finalizationAttempt.value.label}</h3>
         <p>{text.finalizationConsequence}</p>
-        <p>{text.finalizationLatest}: {(finalizationAttempt.value.request.expectedLatestScopeRevision ?? 0) + 1}</p>
-        <details key={finalizationAttempt.value.requestId}><summary>{text.finalizationDetails}</summary>
-          <p>{text.snapshot}: {finalizationAttempt.value.request.expectedSnapshotVersion}</p>
-          <p style={{ overflowWrap: "anywhere" }}>{finalizationAttempt.value.request.expectedBasisHash}</p>
-        </details>
-        {unknown && <p>{text.finalizationUnknown}</p>}
+        {unknown && <p>{text.unreachable}</p>}
         <button type="button" disabled={busy} onClick={() => void submitFinalization(finalizationAttempt)}>{unknown ? text.retry : text.finalizationConfirm}</button>
         {!unknown && <button type="button" className="secondary" disabled={busy} onClick={() => {
           pending.current = undefined; sent.current = false; setFinalizationAttempt(undefined);
@@ -133,11 +135,12 @@ export function AfterRacePanel({ ws }: { ws: Workspace }) {
   </section>;
 }
 
-/** Efter tävlingen: IOF-export av resultat och fastställda versioner. */
+/** Resultat: IOF-export av aktuella och fastställda resultat. */
 export function ResultExportPanel({ ws }: { ws: Workspace }) {
-  const { disabled, downloadFinalization, downloadResults, finalizationId, finalizations, loadFinalizations,
-    setFinalizationId, workflowMode } = ws;
-  return <section className={styles.workflowGroup} aria-label={text.exportHeading} hidden={workflowMode !== "AFTER"}>
+  const { data, disabled, downloadFinalization, downloadResults, finalizationId, finalizations, loadFinalizations,
+    setFinalizationId, step } = ws;
+  const timeZone = data?.timeZone ?? "UTC";
+  return <section className={styles.workflowGroup} aria-label={text.exportHeading} hidden={step !== "RESULTS"}>
     <details className={styles.afterExport}>
       <summary>{text.exportHeading}</summary>
       <p>{text.exportHelp}</p>
@@ -147,8 +150,8 @@ export function ResultExportPanel({ ws }: { ws: Workspace }) {
       <button type="button" className="secondary" disabled={disabled} onClick={() => void loadFinalizations()}>{text.exportLoadHistory}</button>
       {finalizations?.length === 0 && <p>{text.exportEmptyHistory}</p>}
       {!!finalizations?.length && <>
-        <label>{text.exportRevision}<select value={finalizationId} disabled={disabled} onChange={event => setFinalizationId(event.target.value)}>
-          {finalizations.map(row => <option key={row.id} value={row.id}>{text.exportRevisionOption(row.scopeRevision, row.finalizedAt, row.entryCount)}</option>)}
+        <label>{text.exportFinalization}<select value={finalizationId} disabled={disabled} onChange={event => setFinalizationId(event.target.value)}>
+          {finalizations.map(row => <option key={row.id} value={row.id}>{text.exportFinalizationOption(formatClockTime(row.finalizedAt, timeZone), row.entryCount)}</option>)}
         </select></label>
         <button type="button" disabled={disabled || !finalizationId} onClick={() => void downloadFinalization()}>{text.exportDownloadComplete}</button>
       </>}

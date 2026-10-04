@@ -4,7 +4,6 @@ import styles from "../race-administrator-workspace.module.css";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
 import { raceWorkspaceNavigationSv as navigationText } from "../../i18n/race-workspace-navigation-sv";
 import { sv } from "../../i18n/sv";
-import { formatStartListTime } from "../../lib/start-list-time";
 import { formatClockTime } from "../../lib/clock-time";
 import { administratorRosterResultFilters, needsPaymentAttention, type AdministratorRosterResultFilter } from "../../lib/administrator-roster-filter";
 import { resultDuration } from "./types";
@@ -15,7 +14,7 @@ import type { Workspace } from "./workspace-state";
 export function ParticipantsPanel({ ws }: { ws: Workspace }) {
   const { currentPage, disabled, mobilePanel, navigateMobile, participantsVisible, raceId, revealSelected,
     selected, selectedIndex, selectedPage, wideTable, workflowLocked } = ws;
-  return <section className={styles.workflowGroup} id={`workflow-${raceId}-participants`} aria-label={text.workflowParticipants}
+  return <section className={styles.workflowGroup} id={`workflow-${raceId}-participants`} aria-label={navigationText.steps.ENTRIES}
       hidden={!participantsVisible}>
     <p className={styles.workflowHelp}>{text.workflowParticipantsHelp}</p>
     <nav className={styles.mobileNavigation} aria-label={text.mobileNavigation}>
@@ -171,7 +170,7 @@ export function RentalPrint({ ws }: { ws: Workspace }) {
     {data && rentalEntries.length > 0 && <section className={styles.rentalPrint} data-rental-print aria-label={text.rentalPrintHeading}>
       <h1>{text.rentalPrintHeading}</h1>
       <p>{data.eventName} · {data.raceName} · {data.raceDate}</p>
-      <p>{text.rentalPrintGenerated}: {formatStartListTime(data.generatedAt, data.timeZone)} · {data.timeZone}</p>
+      <p>{text.rentalPrintGenerated}: {formatClockTime(data.generatedAt, data.timeZone)}</p>
       <p>{text.rentalPrintCount}: {rentalEntries.length}</p>
       <p>{text.rentalPrintPrivacy}</p>
       <table><caption>{text.rentalPrintCaption}</caption><thead><tr>

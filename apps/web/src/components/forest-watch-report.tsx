@@ -1,7 +1,7 @@
 import React from "react";
 import type { StartCheckinRosterResponse } from "@o-tid/contracts";
 import { forestWatchSv as text } from "../i18n/forest-watch-sv";
-import { formatStartListTime } from "../lib/start-list-time";
+import { formatClockTime } from "../lib/clock-time";
 import { filterForestWatchEntries } from "../lib/forest-watch-filter";
 import { reportedStartMinutes } from "../lib/reported-start-age";
 import styles from "./forest-watch.module.css";
@@ -23,8 +23,7 @@ export function ForestWatchReport({ data, classId, query = "", stale, onOpenHist
     <p>{text.private}</p>
     <p className={styles.warning}>{text.uncertainty}</p>
     {stale && <p role="alert" className={styles.warning}>{text.stale}</p>}
-    <p>{text.race}: {data.raceId} · {text.version}: {data.snapshotVersion}</p>
-    <p>{text.generated}: {formatStartListTime(data.generatedAt, data.timeZone)} · {text.timeZone}: {data.timeZone}</p>
+    <p>{text.generated}: {formatClockTime(data.generatedAt, data.timeZone)}</p>
     <p>{text.raceClass}: {className} · {text.shown}: {entries.length} / {data.entries.length} ({text.total})</p>
     <p>{text.searchFilter}: {query.trim() || text.noSearch}</p>
     {sortByAge && <p>{text.ageSortHelp}</p>}
@@ -52,7 +51,7 @@ export function ForestWatchReport({ data, classId, query = "", stale, onOpenHist
               <div>{entry.organisationName ?? text.noOrganisation}</div>
               <div>{text.card}: {entry.multipleActiveAssignments ? text.multipleCards : entry.cardNumber ?? text.noCard}</div></td>
             <td><strong>{entry.className}</strong><div>{entry.startRule === "PUNCH" ? text.punch : entry.fixedStartTime
-              ? formatStartListTime(entry.fixedStartTime, data.timeZone) : text.missingTime}</div></td>
+              ? formatClockTime(entry.fixedStartTime, data.timeZone) : text.missingTime}</div></td>
             <td><div>{text.reports[entry.startState]}</div>
               {entry.manualReturnRegistered && <div>{text.manualReturn}</div>}
               {entry.readoutReturnRegistered && <div>{text.readoutReturn}</div>}
@@ -69,7 +68,7 @@ export function ForestWatchReport({ data, classId, query = "", stale, onOpenHist
       {data.devices.length === 0 && <p>{text.noDevices}</p>}
       <ul>{data.devices.map((device) => <li key={device.deviceId}><strong>{device.label}</strong> ·
         {device.capability === "START_CHECKIN" ? text.startDevice : text.finishDevice}: {device.lastReceivedAt
-          ? formatStartListTime(device.lastReceivedAt, data.timeZone) : text.noReceipt} · {text.sequence}: {device.lastSequence}</li>)}</ul>
+          ? formatClockTime(device.lastReceivedAt, data.timeZone) : text.noReceipt} · {text.sequence}: {device.lastSequence}</li>)}</ul>
     </section>
   </section>;
 }

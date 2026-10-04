@@ -26,20 +26,23 @@ export type WorkspaceState = ReturnType<typeof useWorkspaceState>;
 export function deriveWorkspace(s: WorkspaceState) {
   const roster = deriveRoster(s);
   const during = deriveDuringRace(s);
-  const disabled = s.busy || s.participantActionPending || during.correctionPending || s.operatorAccessPending ||
+  const editing = s.participantActionPending || during.correctionPending || s.operatorAccessPending ||
     !!s.reviewAttempt || !!s.startCorrection || !!s.returnAttempt || !!s.publicationAttempt ||
     !!s.drawAttempt || !!s.finalizationAttempt || !!s.transferAttempt || !!s.capacityAttempt || !!s.cardAttempt ||
     !!s.rentalAttempt || !!s.rentalReturnAttempt || !!s.rentalReuseAttempt || !!s.paymentStatusAttempt || !!s.timeAttempt ||
     !!s.recalculationAttempt || !!s.identityAttempt || !!s.registrationAttempt || !!s.dnsAttempt || !!s.dnfAttempt ||
     !!s.ntAttempt || !!s.oocAttempt || !!s.dsqAttempt || !!s.approvalAttempt || !!s.courseEditAttempt ||
-    !!s.unknownReadoutAttempt || !!s.manualClassReview || !!s.manualClassAttempt || !!s.classEditAttempt;
-  // Låser byte av arbetsflöde medan något granskas eller väntar på kvitto.
-  const workflowLocked = disabled || s.participantActionPending || !!s.pending.current || !!s.reviewCandidate ||
-    !!s.courseClassReview || !!s.courseClassAttempt || !!s.manualClassReview || !!s.manualClassAttempt ||
+    !!s.unknownReadoutAttempt || !!s.manualClassAttempt || !!s.classEditAttempt;
+  const disabled = s.busy || editing;
+  // Låser byte av steg medan något granskas eller väntar på kvitto. En pågående läsning låser inte
+  // checklistan: att byta steg medan data hämtas är ofarligt.
+  const navigationLocked = editing || !!s.pending.current || !!s.reviewCandidate ||
+    !!s.courseClassAttempt || !!s.manualClassAttempt ||
     !!s.editingCourseId || !!s.courseEditAttempt || !!s.editingClassId || !!s.classEditAttempt || !!s.shortenedCourseCandidate ||
     !!s.shortenedCourseAttempt || !!s.classRecalculationAttempt;
+  const workflowLocked = s.busy || navigationLocked;
   return { ...roster, ...deriveEntryActions(s, roster), ...deriveClassPreparation(s),
-    ...during, ...deriveAfterRace(s), disabled, workflowLocked };
+    ...during, ...deriveAfterRace(s), disabled, navigationLocked, workflowLocked };
 }
 export type Derived = ReturnType<typeof deriveWorkspace>;
 

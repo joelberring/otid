@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { addCourseAndClass, addEntry, createRace, registerAccount, unique } from "./helpers";
+import { addCourseAndClass, addEntry, createRace, openStep, registerAccount, unique } from "./helpers";
 
 /**
  * Steg 8.2–8.4 (ADR-0169): banan ändras efter att en löpare läst ut. Beskedet visar
@@ -26,8 +26,7 @@ test("redigera bana efter avläsning räknar om resultatet", async ({ browser, r
 
   // Banor: stryk kontroll 33 i Lång.
   await owner.goto(`/admin/${raceId}/manage`);
-  await owner.getByRole("button", { name: "Före tävlingen", exact: true }).first().click();
-  await owner.getByRole("button", { name: "Banor", exact: true }).click();
+  await openStep(owner, "Banor");
   const row = owner.getByRole("row", { name: /Lång/ });
   await expect(row).toContainText("31 32 33 34");
   await expect(row.getByRole("cell").nth(3)).toHaveText("1");
@@ -50,7 +49,7 @@ test("redigera bana efter avläsning räknar om resultatet", async ({ browser, r
 
   // Steg 8.3: klassen H21 flyttas till Kort (31 33) i Klasser-tabellen. Anna har inte 33: beskedet, en bekräftelse, omräkning.
   await addCourseAndClass(owner, "Kort", "D21", "31 33");
-  await owner.getByRole("button", { name: "Klasser", exact: true }).click();
+  await openStep(owner, "Klasser");
   const classRow = owner.getByRole("row", { name: /H21/ });
   await expect(classRow).toContainText("Lång");
   await expect(classRow).toContainText("Fri start");
@@ -66,7 +65,7 @@ test("redigera bana efter avläsning räknar om resultatet", async ({ browser, r
   await expect(owner.getByRole("row", { name: /H21/ })).toContainText("Kort");
 
   // Steg 8.4: deltagarkortet visar resultat, sträcktider och historik; "Ändra status" godkänner Anna manuellt.
-  await owner.getByRole("button", { name: "Deltagare", exact: true }).first().click();
+  await openStep(owner, "Anmälda");
   await owner.getByRole("row", { name: /Anna Ek/ }).getByRole("cell").nth(1).click();
   const card = owner.getByRole("region", { name: "Deltagarkort" });
   await expect(card.getByRole("heading", { name: "Anna Ek" })).toBeVisible();

@@ -9,7 +9,7 @@ import {
   entryTransferResponseSchema, entryTransferStartSlotCandidatesSchema, type EntryIdentityAdminListResponse,
   type EntryPaymentStatus, type EntryRegistrationStartSlotCandidates, type EntryTransferStartSlotCandidates
 } from "@o-tid/contracts";
-import { parseStartTimeFields } from "../../lib/start-time-fields";
+import { parseRaceClock } from "../../lib/clock-time";
 import { parseIdentityReceipt } from "../../lib/entry-identity-client";
 import { parseRegistrationReceipt } from "../../lib/entry-registration-client";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
@@ -22,9 +22,7 @@ import type { Roster } from "./participant-roster";
 /** Formulärläge för ändringar av en deltagare: klass, bricka, hyrbricka, betalning, starttid, identitet och anmälan. */
 export function useEntryActionState() {
   const [classId, setClassId] = useState("");
-  const [startDate, setStartDate] = useState("");
   const [startClock, setStartClock] = useState("");
-  const [startOffset, setStartOffset] = useState("");
   const [transferStartSlots, setTransferStartSlots] = useState<EntryTransferStartSlotCandidates>();
   const [selectedTransferStartSlot, setSelectedTransferStartSlot] = useState("");
   const [registrationStartSlots, setRegistrationStartSlots] = useState<EntryRegistrationStartSlotCandidates>();
@@ -46,7 +44,7 @@ export function useEntryActionState() {
   const [givenName, setGivenName] = useState("");
   const [familyName, setFamilyName] = useState("");
   const [organisationName, setOrganisationName] = useState("");
-  return { classId, setClassId, startDate, setStartDate, startClock, setStartClock, startOffset, setStartOffset,
+  return { classId, setClassId, startClock, setStartClock,
     transferStartSlots, setTransferStartSlots, selectedTransferStartSlot, setSelectedTransferStartSlot, registrationStartSlots,
     setRegistrationStartSlots, selectedRegistrationStartSlot, setSelectedRegistrationStartSlot, transferAttempt,
     setTransferAttempt, newCard, setNewCard, cardAttempt, setCardAttempt, rentalAttempt, setRentalAttempt, rentalReturnAttempt,
@@ -67,14 +65,18 @@ export function deriveEntryActions(s: WorkspaceState, { selected }: Pick<Roster,
   return { target, targetFull, identityCandidate, identityMatches };
 }
 
+/**
+ * Ändringar som inte påverkar något resultat (namn, klubb, bricka, hyrbricka, betalning) sparas direkt när
+ * formuläret skickas. Klassbyte, starttid och anmälan har kvar ett granskningssteg (ADR-0169 beslut 4).
+ */
 export function createEntryActions(ws: Base & RaceDataActions) {
-  const { raceId, data, entryId, classId, startDate, startClock, startOffset, transferStartSlots, selectedTransferStartSlot,
+  const { raceId, data, entryId, classId, startClock, transferStartSlots, selectedTransferStartSlot,
     registrationStartSlots, selectedRegistrationStartSlot, newCard, rentalReuseSourceId, paymentStatus, givenName, familyName,
     organisationName, confirmDistinctPerson, target, targetFull, identityCandidate, identityMatches, busyRef, pending, sent,
     requireSession, begin, beginRequest, finish, current, request, json, csrf, load, setTransferStartSlots,
     setSelectedTransferStartSlot, setRegistrationStartSlots, setSelectedRegistrationStartSlot, setGivenName, setFamilyName,
     setOrganisationName, setIdentityCandidates, setMessage, setUnknown, setTransferAttempt, setData, setEntryId, setClassId,
-    setNewCard, setStartDate, setStartClock, setStartOffset, setCardAttempt, setRentalAttempt, setRentalReturnAttempt,
+    setNewCard, setStartClock, setCardAttempt, setRentalAttempt, setRentalReturnAttempt,
     setRentalReuseAttempt, setRentalReuseSourceId, setPaymentStatusAttempt, setTimeAttempt, setIdentityAttempt, setQuery,
     setPage, setConfirmDistinctPerson, setRegistrationAttempt, setResultState, setAction } = ws;
   async function loadTransferStartSlots(targetClassId: string) {
@@ -139,7 +141,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
     if (target.maxEntries !== null && target.entryCount >= target.maxEntries) { setMessage(text.classFull); return; }
     const selectedSlot = transferStartSlots?.targetClassId === target.id && transferStartSlots.plan.status === "AVAILABLE"
       ? transferStartSlots.plan.slots.find(slot => slot.fixedStartTime === selectedTransferStartSlot) : undefined;
-    const fixedStartTime = target.startRule === "FIXED" ? selectedSlot?.fixedStartTime ?? parseStartTimeFields(startDate, startClock, startOffset) : null;
+    const fixedStartTime = target.startRule === "FIXED" ? selectedSlot?.fixedStartTime ?? parseRaceClock(data.raceDate, startClock, data.timeZone) : null;
     if (target.startRule === "FIXED" && fixedStartTime === null) { setMessage(text.invalidTime); return; }
     const value: TransferAttempt = { kind: "TRANSFER", id: crypto.randomUUID(), entryId: entry.id, displayName: entry.displayName,
       previousClassId: entry.classId, previousClassName: previous.name, className: target.name,
@@ -163,7 +165,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
         headers: { "content-type": "application/json", "x-otid-csrf": token, "idempotency-key": `entry-transfer:${value.id}` },
         body: JSON.stringify(value.request) });
       if ([400, 404, 409].includes(response.status)) {
-        if (wasUnknown) { setUnknown(true); setMessage(text.unknown); return; }
+        if (wasUnknown) { setUnknown(true); setMessage(text.unreachable); return; }
         pending.current = undefined; sent.current = false; setTransferAttempt(undefined); setUnknown(false);
         setData(undefined); setEntryId(""); setClassId(""); setMessage(text.conflict); return;
       }
@@ -173,10 +175,10 @@ export function createEntryActions(ws: Base & RaceDataActions) {
         JSON.stringify(receipt.request) !== JSON.stringify(value.request)) throw new Error("Receipt mismatch");
       committed = true; pending.current = undefined; sent.current = false; setTransferAttempt(undefined); setUnknown(false);
       setData(undefined); setClassId(""); setMessage(text.saved); setNewCard("");
-      setStartDate(""); setStartClock(""); setStartOffset("");
+      setStartClock("");
       await load(op, value.entryId); setEntryId(value.entryId);
     } catch {
-      if (current(op)) { setUnknown(!committed); setMessage(committed ? text.savedLoadError : text.unknown); }
+      if (current(op)) { setUnknown(!committed); setMessage(committed ? text.savedLoadError : text.unreachable); }
     } finally { finish(op); }
   }
   function prepareCard(event: FormEvent) {
@@ -192,6 +194,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
     const value: CardAttempt = { kind: "CARD", id: crypto.randomUUID(), entryId: entry.id,
       displayName: entry.displayName, request: parsed.data };
     pending.current = value; sent.current = false; setCardAttempt(value); setUnknown(false); setMessage("");
+    void submitCard(value);
   }
   async function submitCard(value: CardAttempt) {
     if (busyRef.current || pending.current !== value || !requireSession()) return;
@@ -203,7 +206,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
         headers: { "content-type": "application/json", "x-otid-csrf": token, "idempotency-key": `entry-card-change:${value.id}` },
         body: JSON.stringify(value.request) });
       if ([400, 404, 409].includes(response.status)) {
-        if (wasUnknown) { setUnknown(true); setMessage(text.cardUnknown); return; }
+        if (wasUnknown) { setUnknown(true); setMessage(text.unreachable); return; }
         pending.current = undefined; sent.current = false; setCardAttempt(undefined); setUnknown(false);
         setData(undefined); setEntryId(""); setClassId(""); setNewCard(""); setMessage(text.cardConflict); return;
       }
@@ -217,10 +220,10 @@ export function createEntryActions(ws: Base & RaceDataActions) {
         receipt.snapshotVersionBefore !== value.request.expectedSnapshotVersion) throw new Error("Card receipt mismatch");
       committed = true; pending.current = undefined; sent.current = false; setCardAttempt(undefined); setUnknown(false);
       setData(undefined); setClassId(""); setNewCard(""); setMessage(text.cardSaved);
-      setStartDate(""); setStartClock(""); setStartOffset("");
+      setStartClock("");
       await load(op, value.entryId); setEntryId(value.entryId);
     } catch {
-      if (current(op)) { setUnknown(!committed); setMessage(committed ? text.cardSavedLoadError : text.cardUnknown); }
+      if (current(op)) { setUnknown(!committed); setMessage(committed ? text.cardSavedLoadError : text.unreachable); }
     } finally { finish(op); }
   }
   function prepareRental() {
@@ -240,6 +243,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
     const value: RentalAttempt = { kind: "CARD_RENTAL", id: crypto.randomUUID(), entryId: entry.id,
       displayName: entry.displayName, request: parsed.data };
     pending.current = value; sent.current = false; setRentalAttempt(value); setUnknown(false); setMessage("");
+    void submitRental(value);
   }
   async function submitRental(value: RentalAttempt) {
     if (busyRef.current || pending.current !== value || !requireSession()) return;
@@ -250,7 +254,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
         headers: { "content-type": "application/json", "x-otid-csrf": token,
           "idempotency-key": `entry-card-rental-change:${value.id}` }, body: JSON.stringify(value.request) });
       if ([400, 404, 409].includes(response.status)) {
-        if (wasUnknown) { setUnknown(true); setMessage(text.rentalUnknown); return; }
+        if (wasUnknown) { setUnknown(true); setMessage(text.unreachable); return; }
         pending.current = undefined; sent.current = false; setRentalAttempt(undefined); setUnknown(false);
         setData(undefined); setEntryId(""); setMessage(text.rentalConflict); return;
       }
@@ -265,7 +269,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
       committed = true; pending.current = undefined; sent.current = false; setRentalAttempt(undefined); setUnknown(false);
       setData(undefined); setMessage(text.rentalSaved); await load(op, value.entryId); setEntryId(value.entryId);
     } catch {
-      if (current(op)) { setUnknown(!committed); setMessage(committed ? text.rentalSavedLoadError : text.rentalUnknown); }
+      if (current(op)) { setUnknown(!committed); setMessage(committed ? text.rentalSavedLoadError : text.unreachable); }
     } finally { finish(op); }
   }
   function prepareRentalReturn() {
@@ -282,6 +286,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
     const value: RentalReturnAttempt = { kind: "CARD_RENTAL_RETURN", id: crypto.randomUUID(), entryId: entry.id,
       displayName: entry.displayName, request: parsed.data };
     pending.current = value; sent.current = false; setRentalReturnAttempt(value); setUnknown(false); setMessage("");
+    void submitRentalReturn(value);
   }
   async function submitRentalReturn(value: RentalReturnAttempt) {
     if (busyRef.current || pending.current !== value || !requireSession()) return;
@@ -292,7 +297,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
         headers: { "content-type": "application/json", "x-otid-csrf": token,
           "idempotency-key": `entry-card-rental-return-change:${value.id}` }, body: JSON.stringify(value.request) });
       if ([400, 404, 409].includes(response.status)) {
-        if (wasUnknown) { setUnknown(true); setMessage(text.rentalReturnUnknown); return; }
+        if (wasUnknown) { setUnknown(true); setMessage(text.unreachable); return; }
         pending.current = undefined; sent.current = false; setRentalReturnAttempt(undefined); setUnknown(false);
         setData(undefined); setEntryId(""); setMessage(text.rentalReturnConflict); return;
       }
@@ -308,7 +313,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
       committed = true; pending.current = undefined; sent.current = false; setRentalReturnAttempt(undefined); setUnknown(false);
       setData(undefined); setMessage(text.rentalReturnSaved); await load(op, value.entryId); setEntryId(value.entryId);
     } catch {
-      if (current(op)) { setUnknown(!committed); setMessage(committed ? text.rentalReturnSavedLoadError : text.rentalReturnUnknown); }
+      if (current(op)) { setUnknown(!committed); setMessage(committed ? text.rentalReturnSavedLoadError : text.unreachable); }
     } finally { finish(op); }
   }
   function prepareRentalReuse(event: FormEvent) {
@@ -328,6 +333,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
     const value: RentalReuseAttempt = { kind: "CARD_RENTAL_REUSE", id: crypto.randomUUID(), entryId: target.id,
       displayName: target.displayName, sourceDisplayName: source.displayName, request: parsed.data };
     pending.current = value; sent.current = false; setRentalReuseAttempt(value); setUnknown(false); setMessage("");
+    void submitRentalReuse(value);
   }
   async function submitRentalReuse(value: RentalReuseAttempt) {
     if (busyRef.current || pending.current !== value || !requireSession()) return;
@@ -338,7 +344,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
         headers: { "content-type": "application/json", "x-otid-csrf": token,
           "idempotency-key": `entry-card-rental-reuse:${value.id}` }, body: JSON.stringify(value.request) });
       if ([400, 404, 409].includes(response.status)) {
-        if (wasUnknown) { setUnknown(true); setMessage(text.rentalReuseUnknown); return; }
+        if (wasUnknown) { setUnknown(true); setMessage(text.unreachable); return; }
         pending.current = undefined; sent.current = false; setRentalReuseAttempt(undefined); setUnknown(false);
         setData(undefined); setEntryId(""); setRentalReuseSourceId(""); setMessage(text.rentalReuseConflict); return;
       }
@@ -355,7 +361,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
       committed = true; pending.current = undefined; sent.current = false; setRentalReuseAttempt(undefined); setUnknown(false);
       setData(undefined); setRentalReuseSourceId(""); setMessage(text.rentalReuseSaved); await load(op, value.entryId); setEntryId(value.entryId);
     } catch {
-      if (current(op)) { setUnknown(!committed); setMessage(committed ? text.rentalReuseSavedLoadError : text.rentalReuseUnknown); }
+      if (current(op)) { setUnknown(!committed); setMessage(committed ? text.rentalReuseSavedLoadError : text.unreachable); }
     } finally { finish(op); }
   }
   function preparePaymentStatus(event: FormEvent) {
@@ -370,6 +376,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
     const value: PaymentStatusAttempt = { kind: "PAYMENT_STATUS", id: crypto.randomUUID(), entryId: entry.id,
       displayName: entry.displayName, request: parsed.data };
     pending.current = value; sent.current = false; setPaymentStatusAttempt(value); setUnknown(false); setMessage("");
+    void submitPaymentStatus(value);
   }
   async function submitPaymentStatus(value: PaymentStatusAttempt) {
     if (busyRef.current || pending.current !== value || !requireSession()) return;
@@ -380,7 +387,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
         headers: { "content-type": "application/json", "x-otid-csrf": token,
           "idempotency-key": `entry-payment-status-change:${value.id}` }, body: JSON.stringify(value.request) });
       if ([400, 404, 409].includes(response.status)) {
-        if (wasUnknown) { setUnknown(true); setMessage(text.paymentStatusUnknown); return; }
+        if (wasUnknown) { setUnknown(true); setMessage(text.unreachable); return; }
         pending.current = undefined; sent.current = false; setPaymentStatusAttempt(undefined); setUnknown(false);
         setData(undefined); setEntryId(""); setMessage(text.paymentStatusConflict); return;
       }
@@ -398,14 +405,14 @@ export function createEntryActions(ws: Base & RaceDataActions) {
       committed = true; pending.current = undefined; sent.current = false; setPaymentStatusAttempt(undefined); setUnknown(false);
       setData(undefined); setMessage(text.paymentStatusSaved); await load(op, value.entryId); setEntryId(value.entryId);
     } catch {
-      if (current(op)) { setUnknown(!committed); setMessage(committed ? text.paymentStatusSavedLoadError : text.paymentStatusUnknown); }
+      if (current(op)) { setUnknown(!committed); setMessage(committed ? text.paymentStatusSavedLoadError : text.unreachable); }
     } finally { finish(op); }
   }
   function prepareTime(event: FormEvent) {
     event.preventDefault(); if (busyRef.current || pending.current || !requireSession()) return;
     const entry = data?.entries.find((row) => row.id === entryId);
     const currentClass = data?.classes.find((row) => row.id === entry?.classId);
-    const fixedStartTime = parseStartTimeFields(startDate, startClock, startOffset);
+    const fixedStartTime = data ? parseRaceClock(data.raceDate, startClock, data.timeZone) : null;
     if (!data || !entry || currentClass?.startRule !== "FIXED" || fixedStartTime === null || fixedStartTime === entry.fixedStartTime) {
       setMessage(text.timeInvalid); return;
     }
@@ -426,7 +433,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
         headers: { "content-type": "application/json", "x-otid-csrf": token, "idempotency-key": `entry-start-time-change:${value.id}` },
         body: JSON.stringify(value.request) });
       if ([400, 404, 409].includes(response.status)) {
-        if (wasUnknown) { setUnknown(true); setMessage(text.timeUnknown); return; }
+        if (wasUnknown) { setUnknown(true); setMessage(text.unreachable); return; }
         pending.current = undefined; sent.current = false; setTimeAttempt(undefined); setUnknown(false);
         setData(undefined); setEntryId(""); setClassId(""); setMessage(text.timeConflict); return;
       }
@@ -437,10 +444,10 @@ export function createEntryActions(ws: Base & RaceDataActions) {
         receipt.fixedStartTime !== value.request.fixedStartTime || receipt.entryVersionBefore !== value.request.expectedEntryVersion ||
         receipt.snapshotVersionBefore !== value.request.expectedSnapshotVersion) throw new Error("Start time receipt mismatch");
       committed = true; pending.current = undefined; sent.current = false; setTimeAttempt(undefined); setUnknown(false);
-      setData(undefined); setStartDate(""); setStartClock(""); setStartOffset(""); setMessage(text.timeSaved);
+      setData(undefined); setStartClock(""); setMessage(text.timeSaved);
       await load(op, value.entryId); setEntryId(value.entryId);
     } catch {
-      if (current(op)) { setUnknown(!committed); setMessage(committed ? text.timeSavedLoadError : text.timeUnknown); }
+      if (current(op)) { setUnknown(!committed); setMessage(committed ? text.timeSavedLoadError : text.unreachable); }
     } finally { finish(op); }
   }
   function prepareIdentity(event: FormEvent) {
@@ -455,6 +462,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
     }
     const value: IdentityAttempt = { kind: "IDENTITY", id: crypto.randomUUID(), entryId: identityCandidate.id, request: parsed.data };
     pending.current = value; sent.current = false; setIdentityAttempt(value); setUnknown(false); setMessage("");
+    void submitIdentity(value);
   }
   async function submitIdentity(value: IdentityAttempt) {
     if (busyRef.current || pending.current !== value || !requireSession()) return;
@@ -466,7 +474,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
         headers: { "content-type": "application/json", "x-otid-csrf": token, "idempotency-key": `entry-identity-change:${value.id}` },
         body: JSON.stringify(value.request) });
       if ([400, 404, 409].includes(response.status)) {
-        if (wasUnknown) { setUnknown(true); setMessage(text.identityUnknown); return; }
+        if (wasUnknown) { setUnknown(true); setMessage(text.unreachable); return; }
         pending.current = undefined; sent.current = false; setIdentityAttempt(undefined); setUnknown(false);
         setData(undefined); setEntryId(""); setMessage(text.identityConflict); return;
       }
@@ -476,7 +484,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
       setData(undefined); setGivenName(""); setFamilyName(""); setOrganisationName(""); setQuery(""); setPage(0); setMessage(text.identitySaved);
       await load(op, value.entryId); setEntryId(value.entryId);
     } catch {
-      if (current(op)) { setUnknown(!committed); setMessage(committed ? text.identitySavedLoadError : text.identityUnknown); }
+      if (current(op)) { setUnknown(!committed); setMessage(committed ? text.identitySavedLoadError : text.unreachable); }
     } finally { finish(op); }
   }
   async function prepareRegistration(event: FormEvent) {
@@ -487,7 +495,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
     const parsed = entryRegistrationRequestSchema.safeParse({ formatVersion: 1, classId: target.id,
       expectedCourseVersionId: target.courseVersionId, expectedStartRule: target.startRule, expectedSnapshotVersion: data.snapshotVersion,
       givenName, familyName, organisationName: organisationName.trim() || null, cardNumber: newCard.trim() || null,
-      fixedStartTime: target.startRule === "FIXED" ? selectedSlot?.fixedStartTime ?? parseStartTimeFields(startDate, startClock, startOffset) : null,
+      fixedStartTime: target.startRule === "FIXED" ? selectedSlot?.fixedStartTime ?? parseRaceClock(data.raceDate, startClock, data.timeZone) : null,
       expectedTargetCapacityVersion: selectedSlot ? registrationStartSlots?.targetCapacityVersion : undefined,
       assignedStartSlot: selectedSlot && registrationStartSlots?.plan.status === "AVAILABLE" ? {
         drawRequestId: registrationStartSlots.plan.drawRequestId, sourceHash: registrationStartSlots.plan.sourceHash,
@@ -520,7 +528,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
         headers: { "content-type": "application/json", "x-otid-csrf": token, "idempotency-key": `entry-registration:${value.id}` },
         body: JSON.stringify(value.request) });
       if ([400, 404, 409].includes(response.status)) {
-        if (wasUnknown) { setUnknown(true); setMessage(text.registrationUnknown); return; }
+        if (wasUnknown) { setUnknown(true); setMessage(text.unreachable); return; }
         pending.current = undefined; sent.current = false; setRegistrationAttempt(undefined); setUnknown(false);
         setData(undefined); setMessage(text.registrationConflict); return;
       }
@@ -528,11 +536,11 @@ export function createEntryActions(ws: Base & RaceDataActions) {
       const receipt = parseRegistrationReceipt(await json(response, op), raceId, value);
       committed = true; pending.current = undefined; sent.current = false; setRegistrationAttempt(undefined); setUnknown(false);
       setData(undefined); setGivenName(""); setFamilyName(""); setOrganisationName(""); setNewCard(""); setClassId("");
-      setStartDate(""); setStartClock(""); setStartOffset(""); setQuery(""); setResultState("ALL");
+      setStartClock(""); setQuery(""); setResultState("ALL");
       setPage(0); setAction("INFO"); setEntryId(receipt.entryId);
       setMessage(text.registrationSaved); await load(op, receipt.entryId);
     } catch {
-      if (current(op)) { setUnknown(!committed); setMessage(committed ? text.registrationSavedLoadError : text.registrationUnknown); }
+      if (current(op)) { setUnknown(!committed); setMessage(committed ? text.registrationSavedLoadError : text.unreachable); }
     } finally { finish(op); }
   }
   return { loadTransferStartSlots, loadRegistrationStartSlots, loadIdentity, prepareTransfer, submitTransfer, prepareCard,

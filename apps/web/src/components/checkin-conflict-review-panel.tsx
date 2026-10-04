@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, type FormEvent } from "react";
+import { formatClockTime } from "../lib/clock-time";
 import type { StartCheckinConflictReviewCandidate, StartCheckinConflictReviewRequest, StartCheckinRosterResponse } from "@o-tid/contracts";
 import { CheckinConflictReviewClientError, loadCheckinConflictReview, submitCheckinConflictReview } from "../lib/checkin-conflict-review-client";
 import { readFinishForestWatchCsrfCookie } from "../lib/start-checkin-admin-cookies";
@@ -6,7 +7,8 @@ import { checkinConflictReviewSv as text } from "../i18n/checkin-conflict-review
 import { forestWatchSv as forest } from "../i18n/forest-watch-sv";
 import styles from "./forest-watch.module.css";
 
-export function CheckinConflictReviewPanel({ raceId, entries, onUnauthorized, onReviewed }: {
+export function CheckinConflictReviewPanel({ raceId, entries, timeZone, onUnauthorized, onReviewed }: {
+  timeZone: string;
   raceId: string; entries: StartCheckinRosterResponse["entries"]; onUnauthorized: () => void; onReviewed: () => void
 }) {
   const [entryId, setEntryId] = useState("");
@@ -76,19 +78,17 @@ export function CheckinConflictReviewPanel({ raceId, entries, onUnauthorized, on
     <button disabled={busy || !!pending || !entryId} onClick={() => void load()}>{text.load}</button>
     {source && <>
       <h3>{source.displayName} – {source.className}</h3><p>{source.organisationName}</p>
-      <p>{text.generated}: {candidate.generatedAt}</p>
+      <p>{text.generated}: {formatClockTime(candidate.generatedAt, timeZone)}</p>
       <h3>{text.current}</h3><p>{forest.reports[source.startState]}</p>
       <p>{source.manualReturnRegistered ? forest.manualReturn : text.returnNo}</p>
       <p>{source.readoutReturnRegistered ? forest.readoutReturn : (!source.manualReturnRegistered ? forest.noReturn : "")}</p>
       {source.activeDns && <p>{forest.activeDns}</p>}
-      <p>{text.revision}: {source.revision} · {text.resultRevision}: {source.resultRevision}</p>
       <h3>{text.reports} ({source.conflicts.length})</h3>
       {source.conflicts.map(row => <article className="panel stack" key={row.operation.requestId}>
         <h4>{row.deviceLabel}</h4><p>{row.operation.action.kind === "MARK_START" ? text.mark : text.correction}</p>
         <p>{forest.reports[row.operation.action.state]}</p>
         {row.operation.action.kind === "FINISH_CORRECTION" && <p>{row.operation.action.manualReturnRegistered ? text.returnYes : text.returnNo}</p>}
-        <p>{text.observed}: {row.operation.observedAt}</p><p>{text.received}: {row.receipt.receivedAt}</p>
-        <p>{text.expected}: {row.operation.expectedRevision}</p>
+        <p>{text.observed}: {formatClockTime(row.operation.observedAt, timeZone)}</p><p>{text.received}: {formatClockTime(row.receipt.receivedAt, timeZone)}</p>
         {row.receipt.effect.kind === "CONFLICT" && <p>{text.errors[row.receipt.effect.reason]}</p>}
       </article>)}
       {!source.conflicts.length ? <p>{text.noReports}</p> : <form className="stack" onSubmit={event => void submit(event)}>

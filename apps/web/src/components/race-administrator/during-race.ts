@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { administratorForestWatchResponseSchema, administratorReturnRequestSchema, administratorReturnResponseSchema,
   administratorStartCorrectionRequestSchema, administratorStartCorrectionResponseSchema, canonicalAdministratorReturnRequest,
   canonicalAdministratorStartCorrectionRequest, checkinHistoryResponseSchema, StartCheckinConflictReviewCandidateSchema,
-  StartCheckinConflictReviewRequestSchema, StartCheckinConflictReviewResponseSchema, unknownReadoutResolutionCandidateResponseSchema,
+  StartCheckinConflictReviewRequestSchema, StartCheckinConflictReviewResponseSchema, speakerBoardResponseSchema,
+  unknownReadoutResolutionCandidateResponseSchema,
   unknownReadoutResolutionRequestSchema, unknownReadoutResolutionResponseSchema, type AdministratorForestWatchResponse,
-  type AdministratorStartCorrectionRequest, type CheckinHistoryResponse, type StartCheckinConflictReviewCandidate,
+  type AdministratorStartCorrectionRequest, type CheckinHistoryResponse, type SpeakerBoardResponse, type StartCheckinConflictReviewCandidate,
   type UnknownReadoutResolutionCandidateResponse, type UnknownReadoutResolutionRequest } from "@o-tid/contracts";
 import { canRefreshForest } from "../../lib/forest-auto-refresh";
+import { inForest } from "../../lib/admin-checklist";
 import { checkinHistorySv } from "../../i18n/checkin-history-sv";
 import { checkinConflictReviewSv as reviewText } from "../../i18n/checkin-conflict-review-sv";
 import { forestWatchSv as forestText } from "../../i18n/forest-watch-sv";
@@ -32,8 +34,8 @@ export function useDuringRaceState() {
   const [forestSortByAge, setForestSortByAge] = useState(false);
   const [forestStale, setForestStale] = useState(true);
   const [forestAutoRefresh, setForestAutoRefresh] = useState(false);
-  const [forestOpen, setForestOpen] = useState(true);
-  const forestPanel = useRef<HTMLDetailsElement>(null);
+  const [forestOpen, setForestOpen] = useState(false);
+  const [latestReadouts, setLatestReadouts] = useState<SpeakerBoardResponse>();
   const [unknownReadoutCandidate, setUnknownReadoutCandidate] = useState<UnknownReadoutResolutionCandidateResponse>();
   const [unknownReadoutFetchedAt, setUnknownReadoutFetchedAt] = useState<string>();
   const [unknownReadoutAttentionStale, setUnknownReadoutAttentionStale] = useState(true);
@@ -46,7 +48,6 @@ export function useDuringRaceState() {
   const [unknownReadoutOrganisationName, setUnknownReadoutOrganisationName] = useState("");
   const [unknownReadoutAttempt, setUnknownReadoutAttempt] = useState<UnknownReadoutResolutionAttempt>();
   const [unknownReadoutError, setUnknownReadoutError] = useState("");
-  const unknownReadoutPanel = useRef<HTMLDetailsElement>(null);
   const [finishCorrectionPending, setFinishCorrectionPending] = useState(false);
   const [startCorrectionPending, setStartCorrectionPending] = useState(false);
   const [startWithdrawalPending, setStartWithdrawalPending] = useState(false);
@@ -55,12 +56,12 @@ export function useDuringRaceState() {
     setReviewReason, reviewConfirmed, setReviewConfirmed, checkinHistoryPanel, returnAttempt, setReturnAttempt, startCorrection,
     setStartCorrection, targetStartState, setTargetStartState, forestData, setForestData, forestClass, setForestClass, forestQuery,
     setForestQuery, forestSortByAge, setForestSortByAge, forestStale, setForestStale, forestAutoRefresh, setForestAutoRefresh,
-    forestOpen, setForestOpen, forestPanel, unknownReadoutCandidate, setUnknownReadoutCandidate, unknownReadoutFetchedAt,
+    forestOpen, setForestOpen, latestReadouts, setLatestReadouts, unknownReadoutCandidate, setUnknownReadoutCandidate, unknownReadoutFetchedAt,
     setUnknownReadoutFetchedAt, unknownReadoutAttentionStale, setUnknownReadoutAttentionStale, unknownReadoutId,
     setUnknownReadoutId, unknownReadoutTarget, setUnknownReadoutTarget, unknownReadoutEntryId, setUnknownReadoutEntryId,
     unknownReadoutClassId, setUnknownReadoutClassId, unknownReadoutGivenName, setUnknownReadoutGivenName,
     unknownReadoutFamilyName, setUnknownReadoutFamilyName, unknownReadoutOrganisationName, setUnknownReadoutOrganisationName,
-    unknownReadoutAttempt, setUnknownReadoutAttempt, unknownReadoutError, setUnknownReadoutError, unknownReadoutPanel,
+    unknownReadoutAttempt, setUnknownReadoutAttempt, unknownReadoutError, setUnknownReadoutError,
     finishCorrectionPending, setFinishCorrectionPending,
     startCorrectionPending, setStartCorrectionPending, startWithdrawalPending, setStartWithdrawalPending,
     finishWithdrawalPending, setFinishWithdrawalPending };
@@ -76,8 +77,7 @@ export function deriveDuringRace(s: WorkspaceState) {
     conflict: forestData.entries.filter(row => row.forestState === "CONFLICT").length,
     startedNoReturn: forestData.entries.filter(row => row.forestState === "STARTED_NO_RETURN").length,
     unconfirmed: forestData.entries.filter(row => row.forestState === "UNCONFIRMED").length,
-    // ADR-0168: kvar i skogen = anmälda som inte är avlästa/återkomna och inte är ej startande.
-    inForest: forestData.entries.filter(row => row.forestState !== "RETURNED" && row.forestState !== "NOT_STARTED").length
+    inForest: inForest(forestData.entries).length
   } : undefined;
   return { correctionPending, forestAttentionFresh, unknownReadoutAttentionFresh, forestAttentionCounts };
 }
@@ -89,7 +89,8 @@ export function createDuringRaceActions(ws: Base & RaceDataActions) {
     sent, requireSession, begin, beginRequest, finish, current, request, json, csrf, load, setMessage, setUnknown, setData,
     setCheckinHistory, setReviewCandidate, setReviewAttempt, setForestStale, setForestData, setStartCorrection,
     setReturnAttempt, setUnknownReadoutCandidate, setUnknownReadoutId, setUnknownReadoutEntryId, setUnknownReadoutClassId,
-    setUnknownReadoutFetchedAt, setUnknownReadoutAttentionStale, setUnknownReadoutError, setUnknownReadoutAttempt } = ws;
+    setUnknownReadoutFetchedAt, setUnknownReadoutAttentionStale, setUnknownReadoutError, setUnknownReadoutAttempt,
+    setLatestReadouts } = ws;
   async function loadCheckinHistory(cursor?: string, selectedId = entryId) {
     if (busyRef.current || pending.current || !requireSession() || !selectedId) return;
     const op = begin(); setMessage("");
@@ -140,7 +141,7 @@ export function createDuringRaceActions(ws: Base & RaceDataActions) {
         receipt.conflictRequestIds.some((id, index) => id !== intent.conflictRequestIds[index])) throw new Error("Review receipt mismatch");
       committed = true; pending.current = undefined; sent.current = false; setReviewAttempt(undefined); setUnknown(false);
       setMessage(reviewText.saved); await readForest(op);
-    } catch { if (current(op)) { setUnknown(!committed); setForestStale(true); setMessage(committed ? text.returnStoredLoadError : reviewText.pending); } }
+    } catch { if (current(op)) { setUnknown(!committed); setForestStale(true); setMessage(committed ? text.returnStoredLoadError : text.unreachable); } }
     finally { finish(op); }
   }
   function prepareStartCorrection() {
@@ -171,7 +172,7 @@ export function createDuringRaceActions(ws: Base & RaceDataActions) {
       committed = true; pending.current = undefined; sent.current = false; setStartCorrection(undefined); setUnknown(false);
       setMessage(receipt.receipt.effect.kind === "CONFLICT" ? text.startCorrectionConflict : text.startCorrectionSaved);
       await readForest(op);
-    } catch { if (current(op)) { setUnknown(!committed); setForestStale(true); setMessage(committed ? text.returnStoredLoadError : text.returnUnknown); } }
+    } catch { if (current(op)) { setUnknown(!committed); setForestStale(true); setMessage(committed ? text.returnStoredLoadError : text.unreachable); } }
     finally { finish(op); }
   }
   function prepareReturn(withdraw = false) {
@@ -202,7 +203,7 @@ export function createDuringRaceActions(ws: Base & RaceDataActions) {
       committed = true; pending.current = undefined; sent.current = false; setReturnAttempt(undefined); setUnknown(false);
       setMessage(receipt.receipt.effect.kind === "CONFLICT" ? text.returnConflict : value.withdraw ? text.returnWithdrawn : text.returnSaved);
       await readForest(op);
-    } catch { if (current(op)) { setUnknown(!committed); setForestStale(true); setMessage(committed ? text.returnStoredLoadError : text.returnUnknown); } }
+    } catch { if (current(op)) { setUnknown(!committed); setForestStale(true); setMessage(committed ? text.returnStoredLoadError : text.unreachable); } }
     finally { finish(op); }
   }
   async function readForest(op: Operation) {
@@ -228,20 +229,29 @@ export function createDuringRaceActions(ws: Base & RaceDataActions) {
     setUnknownReadoutEntryId(value.entries[0]?.id ?? ""); setUnknownReadoutClassId(value.classes[0]?.id ?? "");
     setUnknownReadoutFetchedAt(new Date().toISOString()); setUnknownReadoutAttentionStale(false);
   }
+  /** Senaste resultaten (de 25 senast registrerade resultatuppdateringarna) till kontrollvyn. */
+  async function readLatestReadouts(op: Operation) {
+    const response = await request("/speaker-board", op);
+    if (!response.ok) throw new Error("Latest readouts unavailable");
+    const value = speakerBoardResponseSchema.parse(await json(response, op));
+    if (value.raceId !== raceId) throw new Error("Latest readouts scope mismatch");
+    setLatestReadouts(value);
+  }
+  /** Tävlingsdagens kontrollvy: kvar i skogen, okända brickor och senaste avläsningar. Varje del läses för sig. */
   async function loadRaceDayAttention() {
     if (busyRef.current || pending.current || !requireSession()) return;
     const op = beginRequest();
     setForestStale(true); setUnknownReadoutCandidate(undefined); setUnknownReadoutFetchedAt(undefined);
     setUnknownReadoutAttentionStale(true); setUnknownReadoutError(""); setMessage("");
-    let forestLoaded = false, readoutsLoaded = false;
-    try { await readForest(op); forestLoaded = true; }
-    catch { if (!current(op)) return; }
-    try { await readUnknownReadoutCandidates(op); readoutsLoaded = true; }
-    catch { if (current(op)) setUnknownReadoutError(text.unknownReadoutLoadError); }
-    finally {
-      if (current(op) && (!forestLoaded || !readoutsLoaded)) setMessage(text.attentionPartialError);
-      finish(op);
-    }
+    const failed: string[] = [];
+    try {
+      for (const [read, label] of [[readForest, text.controlForest], [readUnknownReadoutCandidates, text.controlUnknown],
+        [readLatestReadouts, text.controlLatest]] as const) {
+        try { await read(op); }
+        catch { if (!current(op)) return; failed.push(label); }
+      }
+      if (failed.length) setMessage(text.controlPartialError(failed));
+    } finally { finish(op); }
   }
   async function loadUnknownReadoutCandidates() {
     if (busyRef.current || pending.current || !requireSession()) return;
@@ -284,7 +294,7 @@ export function createDuringRaceActions(ws: Base & RaceDataActions) {
         headers: { "content-type": "application/json", "x-otid-csrf": csrf(),
           "idempotency-key": `unknown-readout-resolution:${value.request.requestId}` }, body: JSON.stringify(value.request) });
       if ([400, 404, 409].includes(response.status)) {
-        if (wasUnknown) { setUnknown(true); setUnknownReadoutError(text.unknownReadoutUnknown); return; }
+        if (wasUnknown) { setUnknown(true); setUnknownReadoutError(text.unreachable); return; }
         pending.current = undefined; sent.current = false; setUnknownReadoutAttempt(undefined); setUnknownReadoutCandidate(undefined);
         setUnknownReadoutError(text.unknownReadoutConflict); return;
       }
@@ -299,7 +309,10 @@ export function createDuringRaceActions(ws: Base & RaceDataActions) {
       setUnknownReadoutCandidate(undefined); setUnknownReadoutFetchedAt(undefined); setUnknownReadoutAttentionStale(true);
       setUnknownReadoutError(""); setUnknown(false); setData(undefined); setMessage(text.unknownReadoutSaved);
       await load(op);
-    } catch { if (current(op)) setUnknownReadoutError(committed ? text.unknownReadoutSavedLoadError : text.unknownReadoutUnknown); }
+      // Nästa okända bricka visas direkt utan ett extra klick.
+      try { await readUnknownReadoutCandidates(op); }
+      catch { if (current(op)) setUnknownReadoutError(text.unknownReadoutLoadError); }
+    } catch { if (current(op)) setUnknownReadoutError(committed ? text.unknownReadoutSavedLoadError : text.unreachable); }
     finally { finish(op); }
   }
   return { loadCheckinHistory, loadConflictReview, submitConflictReview, prepareStartCorrection, submitStartCorrection,
@@ -310,7 +323,7 @@ export type DuringRaceActions = ReturnType<typeof createDuringRaceActions>;
 
 /** Markerar underlag som inaktuella efter 30 s och uppdaterar kvar-i-skogen automatiskt när det är påslaget. */
 export function useDuringRaceEffects(ws: Base & DuringRaceActions) {
-  const { forestData, unknownReadoutFetchedAt, forestAutoRefresh, authenticated, workflowMode, duringArea, forestOpen,
+  const { forestData, unknownReadoutFetchedAt, forestAutoRefresh, authenticated, step, forestOpen,
     reviewCandidate, busyRef, pending, checkinHistoryPanel, setForestStale, setUnknownReadoutAttentionStale, loadForest } = ws;
   useEffect(() => {
     if (!forestData) return;
@@ -324,7 +337,7 @@ export function useDuringRaceEffects(ws: Base & DuringRaceActions) {
   }, [unknownReadoutFetchedAt]);
   // Restart the idle interval after each render so the callback uses current UI/session state.
   useEffect(() => {
-    if (!forestAutoRefresh || !authenticated || workflowMode !== "DURING" || duringArea !== "OVERVIEW" || !forestOpen || reviewCandidate) return;
+    if (!forestAutoRefresh || !authenticated || step !== "READOUT" || !forestOpen || reviewCandidate) return;
     const timer = setInterval(() => {
       const editing = document.activeElement?.matches("input:not([type='checkbox']):not([type='button']):not([type='submit']), textarea, select, [contenteditable='true']") ?? false;
       if (canRefreshForest({ enabled: forestAutoRefresh, authenticated, reportOpen: forestOpen,

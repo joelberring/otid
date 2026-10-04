@@ -10,7 +10,8 @@ import {
 } from "@o-tid/contracts";
 import { raceAdministratorSv as text } from "../i18n/race-administrator-sv";
 import { readRaceAdministratorCsrfCookie } from "../lib/race-administrator-cookies";
-import { formatStartListTime } from "../lib/start-list-time";
+import { fetchWithRetry } from "../lib/retrying-fetch";
+import { formatClockTime } from "../lib/clock-time";
 import styles from "./race-administrator-workspace.module.css";
 
 type Entry = { id: string; displayName: string };
@@ -54,7 +55,7 @@ export function ManualPunchStartTimeCorrectionWithdrawal({ raceId, entries, time
       const csrf = readRaceAdministratorCsrfCookie(document.cookie, new URL(window.location.href));
       if (!csrf) throw new Error("csrf");
       setOutcomeUncertain(true);
-      const response = await fetch(`${base}/${encodeURIComponent(attempt.candidate.entryId)}/punch-start-time-correction-withdrawal`, {
+      const response = await fetchWithRetry(`${base}/${encodeURIComponent(attempt.candidate.entryId)}/punch-start-time-correction-withdrawal`, {
         method: "POST", credentials: "same-origin", headers: { "content-type": "application/json", "x-otid-csrf": csrf,
           "idempotency-key": `manual-punch-start-time-correction-withdrawal:${attempt.request.requestId}` }, body: JSON.stringify(attempt.request) });
       if (response.status === 409) { setOutcomeUncertain(false); setAttempt(undefined); setCandidate(undefined); setAcknowledged(false); setError(text.punchStartTimeCorrectionWithdrawalConflict); return; }
@@ -64,7 +65,7 @@ export function ManualPunchStartTimeCorrectionWithdrawal({ raceId, entries, time
           receipt.created.startTime !== attempt.candidate.source.startTime || JSON.stringify(receipt.request) !== JSON.stringify(attempt.request)) throw new Error("receipt");
       setOutcomeUncertain(false);
       setAttempt(undefined); setCandidate(undefined); setAcknowledged(false); setSaved(text.punchStartTimeCorrectionWithdrawalSaved);
-    } catch { setError(text.punchStartTimeCorrectionWithdrawalUnknown); } finally { setBusy(false); }
+    } catch { setError(text.unreachable); } finally { setBusy(false); }
   }
   return <details className={styles.courseClassPanel} open={isOpen || pending} onToggle={(event) => {
     if (pending && !event.currentTarget.open) event.currentTarget.open = true;
@@ -75,14 +76,14 @@ export function ManualPunchStartTimeCorrectionWithdrawal({ raceId, entries, time
       <option value="">{text.chooseEntry}</option>{entries.map((entry) => <option key={entry.id} value={entry.id}>{entry.displayName}</option>)}</select></label>
     {!candidate && !attempt && <button type="button" disabled={!entryId || busy} onClick={() => void load()}>{text.punchStartTimeCorrectionWithdrawalLoad}</button>}
     {candidate && !attempt && <><div className={styles.courseRelinkSummary}><p><strong>{candidate.entryName}</strong> · {candidate.className}</p>
-      <p><strong>{text.punchStartTimeCorrectionWithdrawalSource}:</strong> {formatStartListTime(candidate.source.startTime, timeZone)}</p>
-      <p><strong>{text.punchStartTimeCorrectionWithdrawalCorrected}:</strong> {formatStartListTime(candidate.corrected.startTime, timeZone)}</p>
-      <p><strong>{text.punchStartTimeCorrectionWithdrawalRestored}:</strong> {formatStartListTime(candidate.source.startTime, timeZone)}</p></div>
+      <p><strong>{text.punchStartTimeCorrectionWithdrawalSource}:</strong> {formatClockTime(candidate.source.startTime, timeZone)}</p>
+      <p><strong>{text.punchStartTimeCorrectionWithdrawalCorrected}:</strong> {formatClockTime(candidate.corrected.startTime, timeZone)}</p>
+      <p><strong>{text.punchStartTimeCorrectionWithdrawalRestored}:</strong> {formatClockTime(candidate.source.startTime, timeZone)}</p></div>
       <label className={styles.confirmPerson}><input type="checkbox" checked={acknowledged} disabled={busy} onChange={(event) => setAcknowledged(event.target.checked)} />{text.punchStartTimeCorrectionWithdrawalAcknowledge}</label>
       <button type="button" disabled={!acknowledged || busy} onClick={inspect}>{text.punchStartTimeCorrectionWithdrawalInspect}</button>
       <button type="button" className="secondary" disabled={busy} onClick={() => { setCandidate(undefined); setAcknowledged(false); setError(""); }}>{text.cancel}</button></>}
     {attempt && <section className={styles.review} role="alert" aria-live="polite"><h2>{text.punchStartTimeCorrectionWithdrawalReview}</h2>
-      <p>{text.punchStartTimeCorrectionWithdrawalConfirmText}</p><p><strong>{text.punchStartTimeCorrectionWithdrawalCorrected}:</strong> {formatStartListTime(attempt.candidate.corrected.startTime, timeZone)} → {formatStartListTime(attempt.candidate.source.startTime, timeZone)}</p>
+      <p>{text.punchStartTimeCorrectionWithdrawalConfirmText}</p><p><strong>{text.punchStartTimeCorrectionWithdrawalCorrected}:</strong> {formatClockTime(attempt.candidate.corrected.startTime, timeZone)} → {formatClockTime(attempt.candidate.source.startTime, timeZone)}</p>
       <div className={styles.actions}><button type="button" disabled={busy} onClick={() => void commit()}>{text.punchStartTimeCorrectionWithdrawalConfirm}</button>{!outcomeUncertain && <><button type="button" className="secondary" disabled={busy} onClick={() => setAttempt(undefined)}>{text.finishTimeCorrectionCancel}</button><button type="button" className="secondary" disabled={busy} onClick={() => { setAttempt(undefined); setCandidate(undefined); setAcknowledged(false); }}>{text.cancel}</button></>}</div></section>}
     {error && <p className={styles.warning} role="alert">{error}</p>}{saved && <p role="status">{saved}</p>}
   </section></details>;

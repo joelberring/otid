@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { readRaceAdministratorCsrfCookie } from "../../lib/race-administrator-cookies";
+import { fetchWithRetry } from "../../lib/retrying-fetch";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
 import type { Operation, PendingAttempt } from "./types";
 import type { WorkspaceState } from "./workspace-state";
@@ -21,7 +22,8 @@ export function useOperationState() {
 
 /**
  * Den enda hjälpen för API-anrop från arbetsytan. Varje anrop får en operation som avbryts när en nyare
- * startar, när sessionen går ut eller efter 15 sekunder. 401/403 låser arbetsytan.
+ * startar, när sessionen går ut eller efter 15 sekunder. 401/403 låser arbetsytan. Läsningar och skrivningar
+ * med idempotensnyckel eller requestId skickas om automatiskt vid nätfel (`fetchWithRetry`).
  */
 export function useOperations(s: WorkspaceState) {
   const { raceId, generation, operation, busyRef, deadline, setBusy } = s;
@@ -59,7 +61,7 @@ export function useOperations(s: WorkspaceState) {
     return true;
   }
   async function request(path: string, op: Operation, init: RequestInit = {}) {
-    const response = await fetch(`${base}${path}`, { ...init, credentials: "same-origin", cache: "no-store", signal: op.controller.signal });
+    const response = await fetchWithRetry(`${base}${path}`, { ...init, credentials: "same-origin", cache: "no-store", signal: op.controller.signal });
     assertCurrent(op);
     if (response.status === 401 || response.status === 403) { lock(); throw new Error("Unauthorized"); }
     return response;

@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { fixedStartSlotPlanResponseSchema, type FixedStartSlotPlanResponse } from "@o-tid/contracts";
-import { formatStartListTime } from "../lib/start-list-time";
+import { formatClockTime } from "../lib/clock-time";
 import { fixedStartSlotPlanSv as text } from "../i18n/fixed-start-slot-plan-sv";
 import styles from "./race-administrator-workspace.module.css";
 
@@ -55,10 +55,10 @@ function SlotTable({ raceClass, timeZone, page, setPage }: {
   const current = Math.min(page, lastPage);
   const rows = plan.slots.slice(current * PAGE_SIZE, (current + 1) * PAGE_SIZE);
   return <>
-    <p>{text.plan}: <time dateTime={plan.drawnAt}>{formatStartListTime(plan.drawnAt, timeZone)}</time> · {plan.slots.filter(slot => slot.state === "VACANT").length} {text.vacant.toLocaleLowerCase()}</p>
+    <p>{text.plan}: <time dateTime={plan.drawnAt}>{formatClockTime(plan.drawnAt, timeZone)}</time> · {plan.slots.filter(slot => slot.state === "VACANT").length} {text.vacant.toLocaleLowerCase()}</p>
     <div className={styles.tableScroll} tabIndex={0} role="region" aria-label={text.slots}>
       <table className={styles.table}><thead><tr><th>{text.slots}</th><th>{text.occupied}</th></tr></thead><tbody>
-        {rows.map((slot) => <tr key={slot.fixedStartTime}><td><time dateTime={slot.fixedStartTime}>{formatStartListTime(slot.fixedStartTime, timeZone)}</time></td>
+        {rows.map((slot) => <tr key={slot.fixedStartTime}><td><time dateTime={slot.fixedStartTime}>{formatClockTime(slot.fixedStartTime, timeZone)}</time></td>
           <td>{slot.state === "OCCUPIED" ? slot.entry.displayName : text.vacant}</td></tr>)}
       </tbody></table>
     </div>

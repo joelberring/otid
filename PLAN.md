@@ -199,7 +199,7 @@ och hela "träningskväll"-testet kan köras mot den. Val av värd görs av äga
 3. Stödmatrisen uppdateras till `field-verified` för provade kombinationer.
 4. En riktig träning med 20–50 löpare, gärna med MeOS parallellt som facit.
 
-## [ ] Steg 8 – Enkel arbetsyta för det som finns
+## [x] Steg 8 – Enkel arbetsyta för det som finns
 
 Se ADR-0169 beslut 1 och 4.
 
@@ -218,10 +218,10 @@ Se ADR-0169 beslut 1 och 4.
 4. [x] **Deltagarkort:** bricka, klass, starttid, resultat med sträcktider och
    historik. Resultatbesluten (ej start, brutit, disk, utom tävlan, utan
    tidtagning, godkänn) som en meny "Ändra status".
-5. **Checklista** som navigation (Banor → Klasser → Anmälda → Start →
+5. [x] **Checklista** som navigation (Banor → Klasser → Anmälda → Start →
    Avläsning → Resultat) med status per steg, och **tävlingsdagens kontrollvy**
    (kvar i skogen, okända brickor, felstämplade, senaste avläsningar).
-6. **Språk och flöde:** inga id, hashar, versionsnummer, slumpfrö eller
+6. [x] **Språk och flöde:** inga id, hashar, versionsnummer, slumpfrö eller
    UTC-offset i vyerna. Spara direkt när inget resultat ändras. Automatiska
    omförsök i stället för "svaret saknas"-texter.
 

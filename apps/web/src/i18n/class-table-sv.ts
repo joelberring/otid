@@ -8,7 +8,7 @@ export const classTableSv = {
   open: "Redigera", openLabel: (name: string) => `Redigera ${name}`,
   readOutValue: (readOut: number, results: number) => `${readOut} / ${results}`,
   noClasses: "Det finns inga klasser ännu. Lägg till en bana med klass under Banor.",
-  loading: "Läser in klasserna…", listError: "Klasserna kunde inte läsas in.", retryList: "Läs in klasserna igen",
+  loading: "Läser in klasserna…", retryList: "Läs in klasserna igen",
   statusNoEntries: "Inga anmälda",
   statusMissingStartTimes: (count: number) => count === 1 ? "1 saknar starttid" : `${count} saknar starttid`,
   statusMissingStartTimesOpen: (name: string, count: number) => `Visa de ${count} i ${name} som saknar starttid`,
@@ -29,7 +29,7 @@ export const classTableSv = {
   previewError: "Det gick inte att visa vad som händer. Försök igen.",
   conflict: "Tävlingen har ändrats under tiden. Klasserna är inlästa igen; visa vad som händer en gång till.",
   rejected: "Ändringen kunde inte sparas. Kontrollera uppgifterna och försök igen.",
-  unknown: "Svaret saknas. Ändringen kan redan vara sparad. Tryck på Spara ändringen igen; den sparas bara en gång.",
+  unknown: "Kunde inte nå servern. Försök igen.",
   saved: (count: number) => count === 0 ? "Klassen är ändrad." : `Klassen är ändrad. ${count} resultat räknades om.`,
   savedLoadError: "Klassen är ändrad, men listan kunde inte uppdateras. Läs in klasserna igen."
 } as const;

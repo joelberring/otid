@@ -1,7 +1,6 @@
 export const racePreparationStartListSv = {
   title: "Aktuellt startunderlag",
   privateNotice: "Arbetslista för administratörer – inte den publicerade startlistan. Bricknummer ingår inte i den publika listan.",
-  source: (version: number, generatedAt: string) => `Underlag version ${version} · framtaget ${generatedAt}`,
   search: "Sök namn, klubb, klass eller bricka",
   classFilter: "Klass",
   allClasses: "Alla klasser",

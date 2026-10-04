@@ -1,5 +1,4 @@
-import { useRef, useState, type FormEvent } from "react";
-import { flushSync } from "react-dom";
+import { useState, type FormEvent } from "react";
 import { classStartDrawClassesResponseSchema, classStartDrawParametersSchema, classStartDrawPreviewResponseSchema,
   startListPublicationPreviewResponseSchema, startListPublicationRequestSchema, type ClassStartDrawClassesResponse,
   type StartListPublicationPreviewResponse } from "@o-tid/contracts";
@@ -8,6 +7,7 @@ import { parseAdministratorPublicationReceipt, type AdministratorPublicationAtte
 import { classStartDrawSv as drawText } from "../../i18n/class-start-draw-sv";
 import { startListPublicationSv as publicationText } from "../../i18n/start-list-publication-sv";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
+import { parseRaceClock } from "../../lib/clock-time";
 import type { Operation } from "./types";
 import type { Base } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
@@ -21,18 +21,16 @@ export function useStartListState() {
   const [drawFirst, setDrawFirst] = useState("");
   const [drawInterval, setDrawInterval] = useState("60");
   const [drawAttempt, setDrawAttempt] = useState<AdministratorDrawAttempt>();
-  const drawPanel = useRef<HTMLDetailsElement>(null);
   const [operatorAccessPending, setOperatorAccessPending] = useState(false);
   return { publicationPreview, setPublicationPreview, publicationAttempt, setPublicationAttempt, drawClasses, setDrawClasses,
-    drawClassId, setDrawClassId, drawFirst, setDrawFirst, drawInterval, setDrawInterval, drawAttempt, setDrawAttempt, drawPanel,
+    drawClassId, setDrawClassId, drawFirst, setDrawFirst, drawInterval, setDrawInterval, drawAttempt, setDrawAttempt,
     operatorAccessPending, setOperatorAccessPending };
 }
 
 export function createStartListActions(ws: Base & RaceDataActions) {
-  const { raceId, publicationPreview, drawClasses, drawFirst, drawInterval, drawClassId, drawPanel, busyRef, pending, sent,
+  const { raceId, data, publicationPreview, drawClasses, drawFirst, drawInterval, drawClassId, busyRef, pending, sent,
     requireSession, beginRequest, finish, current, request, json, csrf, load, setMessage, setUnknown, setPublicationPreview,
-    setPublicationAttempt, setDrawClasses, setDrawClassId, setDrawAttempt, setWorkflowMode,
-    setPreparationArea, setFinalizationCandidates } = ws;
+    setPublicationAttempt, setDrawClasses, setDrawClassId, setDrawAttempt, setFinalizationCandidates } = ws;
   async function readPublication(op: Operation) {
     const response = await request("/publication-preview", op);
     if (!response.ok) throw new Error("Publication preview unavailable");
@@ -55,7 +53,9 @@ export function createStartListActions(ws: Base & RaceDataActions) {
       } : { formatVersion: 1, action, expectedRevision: publicationPreview.latestDecision?.revision });
       const value: AdministratorPublicationAttempt = { kind: "PUBLICATION", id: crypto.randomUUID(), request,
         content: action === "PUBLISH" ? publicationPreview.content : null };
+      // Publicering ändrar inga resultat eller starttider: sparas direkt utan granskningssteg (ADR-0169 beslut 4).
       pending.current = value; sent.current = false; setUnknown(false); setPublicationAttempt(value); setMessage("");
+      void submitPublication(value);
     } catch { setMessage(publicationText.error); }
   }
   async function submitPublication(value: AdministratorPublicationAttempt) {
@@ -74,7 +74,7 @@ export function createStartListActions(ws: Base & RaceDataActions) {
       parseAdministratorPublicationReceipt(await json(response, op), raceId, value);
       committed = true; pending.current = undefined; sent.current = false; setPublicationAttempt(undefined); setUnknown(false);
       setMessage(publicationText.saved); await readPublication(op);
-    } catch { if (current(op)) { setUnknown(!committed); setMessage(committed ? `${publicationText.saved} ${publicationText.loadError}` : publicationText.unknown); } }
+    } catch { if (current(op)) { setUnknown(!committed); setMessage(committed ? `${publicationText.saved} ${publicationText.loadError}` : text.unreachable); } }
     finally { finish(op); }
   }
   async function loadDrawClasses(preselectClassId = "") {
@@ -90,21 +90,13 @@ export function createStartListActions(ws: Base & RaceDataActions) {
       setDrawClasses(value); setDrawClassId(selected?.id ?? "");
     } catch { if (current(op)) setMessage(drawText.error); } finally { finish(op); }
   }
-  function openClassDraw(classId: string) {
-    if (busyRef.current || pending.current || !requireSession()) return;
-    flushSync(() => { setWorkflowMode("BEFORE"); setPreparationArea("DRAW"); });
-    if (drawPanel.current) {
-      drawPanel.current.open = true;
-      drawPanel.current.querySelector("summary")?.focus();
-      drawPanel.current.scrollIntoView({ block: "start" });
-    }
-    void loadDrawClasses(classId);
-  }
   async function previewDraw(event: FormEvent) {
     event.preventDefault();
-    if (busyRef.current || pending.current || !requireSession() || !drawClasses) return;
+    if (busyRef.current || pending.current || !requireSession() || !drawClasses || !data) return;
+    // Första start skrivs som klockslag på tävlingsdagen; appen lägger till datum och tidszon.
     const parameters = classStartDrawParametersSchema.safeParse({ algorithmVersion: "xorshift32-fisher-yates-v1",
-      seed: drawClasses.seed, firstStartTime: drawFirst.trim(), intervalSeconds: Number(drawInterval) });
+      seed: drawClasses.seed, firstStartTime: parseRaceClock(data.raceDate, drawFirst, drawClasses.timeZone),
+      intervalSeconds: Number(drawInterval) });
     if (!parameters.success || !drawClassId) { setMessage(drawText.invalid); return; }
     const op = beginRequest(); setMessage("");
     try {
@@ -140,9 +132,9 @@ export function createStartListActions(ws: Base & RaceDataActions) {
       setPublicationPreview(undefined);
       setFinalizationCandidates(undefined); setUnknown(false); setMessage(drawText.saved);
       await load(op);
-    } catch { if (current(op)) { setUnknown(!committed); setMessage(committed ? `${drawText.saved} ${text.error}` : drawText.unknown); } }
+    } catch { if (current(op)) { setUnknown(!committed); setMessage(committed ? `${drawText.saved} ${text.error}` : text.unreachable); } }
     finally { finish(op); }
   }
-  return { loadPublication, preparePublication, submitPublication, loadDrawClasses, openClassDraw, previewDraw, submitDraw };
+  return { loadPublication, preparePublication, submitPublication, loadDrawClasses, previewDraw, submitDraw };
 }
 export type StartListActions = ReturnType<typeof createStartListActions>;

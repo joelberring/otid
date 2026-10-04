@@ -53,8 +53,6 @@
 .workspace button:disabled { cursor: default; opacity: 0.55; }
 .workspaceChrome { display: grid; gap: 0.5rem; min-width: 0; }
 .toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }
-.workflowNavigation { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.45rem; }
-.mobileWorkflowNavigation, .mobileSubNavigation { display: none; }
 .raceIdentity { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; min-width: 0; }
 .raceIdentity > div { min-width: 0; }
 .identityTitle { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.3rem 0.6rem; }
@@ -70,15 +68,6 @@
 .contextLinks { border-top: 1px solid var(--border); padding-top: 0.5rem; }
 .contextLinks a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 0.5rem; }
 .correctionTools { display: grid; gap: 0.45rem; border-top: 1px solid var(--border); padding-top: 0.65rem; min-width: 0; }
-.workflowNavigation button { min-width: 0; min-height: 44px; padding: 0.45rem; overflow-wrap: anywhere; }
-.workflowNavigation button[aria-pressed="true"] { outline: 1px solid var(--border); outline-offset: -1px; background: var(--workspace-subtle); color: var(--ink); font-weight: 700; }
-.workflowNavigation button:focus-visible { outline: 3px solid #2368a2; outline-offset: 2px; }
-.subNavigation { display: flex; flex-wrap: wrap; gap: 0.25rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; }
-.subNavigation button { flex: 1 1 auto; min-height: 44px; padding: 0.35rem 0.65rem; }
-.subNavigation button[aria-pressed="true"] { background: var(--workspace-subtle); color: var(--ink); border-color: #aeb7bd; font-weight: 700; }
-.subNavigation button:focus-visible { outline: 3px solid #2368a2; outline-offset: 2px; }
-.preparationLabelMobile { display: none; }
-.duringLabelMobile { display: none; }
 .tableOptions { display: flex; align-items: end; flex-wrap: wrap; gap: 0.5rem; }
 .tableOptions label { flex: 1; min-width: 7rem; }
 .tableOptions select { width: 100%; min-width: 0; }
@@ -94,22 +83,6 @@
   .columns[data-wide-table="true"] .tableScroll { max-height: 65vh; }
 }
 .workflowHelp { color: var(--muted); font-size: 0.9rem; }
-.attention { min-width: 0; display: grid; gap: 0.55rem; padding: 0.75rem; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); }
-.attentionHeader { min-width: 0; display: flex; align-items: end; justify-content: space-between; gap: 0.75rem; }
-.attentionHeader h2, .attentionHeader p, .attentionSource h3, .attentionSource p { margin: 0; }
-.attentionHeader p, .attentionBasis { color: var(--muted); font-size: 0.8rem; overflow-wrap: anywhere; }
-.attentionCaveat { margin: 0; color: var(--muted); font-size: 0.82rem; overflow-wrap: anywhere; }
-.attentionSources { min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid var(--border); }
-.attentionSource { min-width: 0; display: grid; align-content: start; gap: 0.4rem; padding: 0.55rem 0.7rem 0 0; }
-.attentionSource + .attentionSource { border-left: 1px solid var(--border); padding-right: 0; padding-left: 0.7rem; }
-.attentionSource h3 { font-size: 0.9rem; }
-.attentionUnavailable { color: var(--workspace-warning); font-size: 0.8rem; font-weight: 650; }
-.attentionItems { min-width: 0; list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--border); }
-.attentionItems li { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 0.5rem; padding: 0.25rem 0; border-bottom: 1px solid var(--border); }
-.attentionItems span, .attentionItems strong { overflow-wrap: anywhere; }
-.attentionItems strong { font-variant-numeric: tabular-nums; }
-.attentionItems button { min-height: 44px; }
-.attentionConflict { color: #9f221d; }
 .selectionContext { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.3rem 0.65rem; min-width: 0; padding: 0.15rem 0 0.15rem 0.55rem; border-left: 2px solid var(--border); font-size: 0.85rem; overflow-wrap: anywhere; }
 .selectionContext button { min-height: 44px; padding: 0.3rem 0.5rem; font-size: inherit; }
 .selectedParticipantContext { min-width: 0; display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.1rem 0.55rem; padding: 0.35rem 0.45rem; border-bottom: 1px solid var(--border); background: var(--panel); font-size: 0.86rem; overflow-wrap: anywhere; }
@@ -136,13 +109,6 @@
 .afterExport > summary { min-height: 44px; padding: 0.6rem 0; cursor: pointer; font-weight: 650; }
 .claimPanel { border-top: 1px solid var(--border); }
 .claimPanel > summary { min-height: 44px; padding: 0.65rem 0; cursor: pointer; font-weight: 650; }
-.statusStrip { min-width: 0; flex: 1 1 52rem; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); overflow: hidden; }
-.statusMetrics { display: grid; grid-template-columns: repeat(6, minmax(6.5rem, 1fr)); margin: 0; font-variant-numeric: tabular-nums; }
-.statusMetrics > div { min-width: 0; min-height: 44px; padding: 0.4rem 0.55rem; border-right: 1px solid var(--border); }
-.statusMetrics > div:last-child { border-right: 0; }
-.statusMetrics dt { color: var(--muted); font-size: 0.78rem; line-height: 1.2; overflow-wrap: anywhere; }
-.statusMetrics dd { margin: 0.1rem 0 0; font-size: 1.15rem; font-weight: 650; line-height: 1; }
-.statusBasis { padding: 0.3rem 0.55rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.78rem; overflow-wrap: anywhere; }
 .courseClassPanel { min-width: 0; }
 .courseClassPanel > summary { cursor: pointer; min-height: 44px; padding: 0.6rem 0; font-weight: 700; }
 .manualClassPanel { min-width: 0; border-block-end: 1px solid var(--border); }
@@ -265,20 +231,6 @@
   .backToEvents, .backUnavailable { min-height: 32px; font-size: 0.76rem; }
   .raceIdentity p { font-size: 0.78rem; }
   .identityActions { gap: 0.35rem; }
-  .statusStrip { display: flex; align-items: center; flex-wrap: wrap; border-radius: 3px; background: transparent; }
-  .statusMetrics { display: flex; flex: 1 1 auto; flex-wrap: wrap; gap: 0; }
-  .statusMetrics > div { display: flex; align-items: baseline; gap: 0.35rem; min-height: 0; padding: 0.3rem 0.6rem; }
-  .statusMetrics dd { margin: 0; font-size: 0.9rem; }
-  .statusBasis { flex: 0 1 27rem; padding: 0.15rem 0.6rem; border-top: 0; border-left: 1px solid var(--border); font-size: 0.72rem; }
-  .workflowNavigation { display: flex; flex-wrap: nowrap; gap: 0; overflow-x: auto; border-bottom: 1px solid var(--border); }
-  .workflowNavigation button { flex: 0 0 auto; border: 0; border-radius: 0; border-bottom: 3px solid transparent; padding: 0.4rem 0.9rem; background: transparent; }
-  .workflowNavigation button[aria-pressed="true"] { outline: none; border-bottom-color: var(--ink); background: transparent; }
-  .workspace .workflowNavigation :global(button.secondary)[aria-pressed="true"]:hover { background: transparent; }
-  .workflowNavigation button:focus-visible { outline: 3px solid #2368a2; outline-offset: -3px; }
-  .subNavigation { flex-wrap: nowrap; gap: 0; overflow-x: auto; padding-bottom: 0; }
-  .subNavigation :global(button.secondary) { flex: 0 0 auto; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; }
-  .subNavigation button[aria-pressed="true"] { border-bottom-color: var(--ink); background: transparent; color: var(--ink); }
-  .workspace .subNavigation :global(button.secondary)[aria-pressed="true"]:hover { background: transparent; }
   .workflowHelp { font-size: 0.8rem; }
   .workflowGroup { gap: 0.45rem; }
   .columns { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 0.6rem; }
@@ -316,10 +268,6 @@
   .workspaceChrome:has(.raceIdentity) { grid-template-columns: minmax(22rem, 1fr) minmax(0, 1.8fr); align-items: center; gap: 0.8rem; }
   .workspaceChrome .raceIdentity { align-items: flex-start; flex-wrap: wrap; }
   .workspaceChrome .toolbar { min-width: 0; }
-  .workspaceChrome .statusStrip { flex-basis: auto; width: 100%; }
-  .workspaceChrome .statusMetrics { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); }
-  .workspaceChrome .statusMetrics > div { display: grid; align-content: center; gap: 0.1rem; padding: 0.2rem 0.35rem; }
-  .workspaceChrome .statusBasis { flex: auto; border-left: 0; border-top: 1px solid var(--border); padding: 0.1rem 0.35rem; }
   .rosterSearch { grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.3fr); align-items: end; gap: 0.5rem; }
   .tableOptions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr) 6.5rem 4.5rem; }
   .rosterSearch > label { align-self: end; }
@@ -333,7 +281,6 @@
   .tableOptions label { min-width: 0; }
 }
 @media screen and (min-width: 721px) and (max-width: 1199px) {
-  .statusBasis { flex: 1 1 100%; border-left: 0; border-top: 1px solid var(--border); }
   .participantToolbar { gap: 0.35rem; }
   .participantToolbar button { padding-inline: 0.4rem; }
 }
@@ -345,27 +292,10 @@
   .workspace .startSetButton { min-height: 32px; }
 }
 @media (max-width: 720px) {
-  .workflowNavigation, .subNavigation { display: none; }
-  .mobileWorkflowNavigation, .mobileSubNavigation { display: grid; min-width: 0; }
-  .mobileWorkflowNavigation label, .mobileSubNavigation label {
-    grid-template-columns: minmax(0, 9rem) minmax(0, 1fr);
-    align-items: center; min-width: 0; gap: 0.45rem; font-size: 0.85rem;
-  }
-  .mobileWorkflowNavigation select, .mobileSubNavigation select {
-    box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; min-height: 44px;
-  }
   :global(body):has(.workspace[data-authenticated="true"]) > :global(header) { display: none; }
   :global(main):has(.workspace[data-authenticated="true"]) > :global(h1) {
     position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%);
   }
-  .attention { padding: 0.65rem; }
-  .attentionHeader { align-items: stretch; flex-direction: column; }
-  .attentionHeader button { width: 100%; min-height: 44px; }
-  .attentionSources { grid-template-columns: minmax(0, 1fr); }
-  .attentionSource { padding: 0.5rem 0 0; }
-  .attentionSource + .attentionSource { border-left: 0; border-top: 1px solid var(--border); padding: 0.5rem 0 0; }
-  .attentionItems li { grid-template-columns: minmax(0, 1fr) auto auto; }
-  .attentionItems button { padding-inline: 0.55rem; }
   .wideTableButton { display: none; }
   .raceIdentity { align-items: flex-start; flex-direction: column; }
   .mobileNavigation { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }
@@ -390,11 +320,6 @@
   .rosterTable tbody td:not(:first-child)::before { content: attr(data-label); display: block; margin-bottom: 0.05rem; color: var(--muted); font-size: 0.7rem; font-weight: 650; }
   .cardCell, .startCell { font-size: 0.76rem; }
   .toolbar { align-items: stretch; }
-  .statusStrip { flex-basis: 100%; }
-  .statusMetrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .statusMetrics > div { border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-  .statusMetrics > div:nth-child(3n) { border-right: 0; }
-  .statusMetrics > div:nth-last-child(-n + 3) { border-bottom: 0; }
   .panel { padding: 0.7rem; border-radius: 6px; }
   .timeFields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .timeFields > label:first-child { grid-column: 1 / -1; }
@@ -402,9 +327,6 @@
   .courseClassFields, .manualClassFields { grid-template-columns: minmax(0, 1fr); }
   .cardFields { grid-template-columns: minmax(0, 1fr); }
   .followUpList li { grid-template-columns: minmax(0, 1fr); }
-}
-@media (max-width: 350px) {
-  .mobileWorkflowNavigation label, .mobileSubNavigation label { grid-template-columns: minmax(0, 1fr); gap: 0.2rem; }
 }
 /* Banor: tabell med Redigera bana i raden (ADR-0169). */
 .courseTableScroll { min-width: 0; overflow-x: auto; }

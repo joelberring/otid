@@ -15,7 +15,7 @@ import { type FinalizationAttempt, type Operation, type ShortenedCourseClassTran
 import type { Base, WorkspaceState } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
 
-/** Efter tävlingen: omräkning per klass, fastställande, export och flytt till kortare bana. */
+/** Resultat: omräkning per klass, fastställande, export och flytt till kortare bana. */
 export function useAfterRaceState() {
   const [classRecalculationCandidates, setClassRecalculationCandidates] = useState<ClassResultRecalculationCandidates>();
   const [classRecalculationAttempt, setClassRecalculationAttempt] = useState<ClassResultRecalculationAttempt>();
@@ -90,7 +90,7 @@ export function createAfterRaceActions(ws: Base & RaceDataActions) {
         headers: { "content-type": "application/json", "x-otid-csrf": csrf(), "idempotency-key": `class-result-recalculation:${value.requestId}` },
         body: JSON.stringify(classResultRecalculationBody(value)) });
       if ([400, 404, 409].includes(response.status)) {
-        if (wasUnknown) { setClassRecalculationUnknown(true); setClassRecalculationError(text.classRecalculationUnknown); return; }
+        if (wasUnknown) { setClassRecalculationUnknown(true); setClassRecalculationError(text.unreachable); return; }
         pending.current = undefined; sent.current = false; setClassRecalculationAttempt(undefined); setClassRecalculationError(text.classRecalculationConflict); return;
       }
       if (!response.ok) throw new Error("Unknown class recalculation outcome");
@@ -98,7 +98,7 @@ export function createAfterRaceActions(ws: Base & RaceDataActions) {
       committed = true; pending.current = undefined; sent.current = false; setClassRecalculationAttempt(undefined); setClassRecalculationUnknown(false);
       setClassRecalculationSaved(text.classRecalculationSaved(receipt.items.length));
       await load(op);
-    } catch { if (current(op)) setClassRecalculationError(committed ? text.recalculationSavedLoadError : text.classRecalculationUnknown); }
+    } catch { if (current(op)) setClassRecalculationError(committed ? text.recalculationSavedLoadError : text.unreachable); }
     finally { finish(op); }
   }
   async function readFinalizationBasis(op: Operation) {
@@ -139,7 +139,7 @@ export function createAfterRaceActions(ws: Base & RaceDataActions) {
       committed = true; pending.current = undefined; sent.current = false; setFinalizationAttempt(undefined); setUnknown(false);
       setFinalizations(undefined); setFinalizationId(""); setMessage(text.finalizationSaved);
       await readFinalizationBasis(op);
-    } catch { if (current(op)) { setUnknown(!committed); setMessage(committed ? text.finalizationSavedLoadError : text.finalizationUnknown); } }
+    } catch { if (current(op)) { setUnknown(!committed); setMessage(committed ? text.finalizationSavedLoadError : text.unreachable); } }
     finally { finish(op); }
   }
   async function saveExport(response: Response, filename: string, expectedHash: string, op: Operation) {
@@ -177,7 +177,7 @@ export function createAfterRaceActions(ws: Base & RaceDataActions) {
       if (!response.ok) throw new Error("Frozen export unavailable");
       const filename = validateFrozenIofResultListResponse(response, selected);
       await saveExport(response, filename, selected.completeXmlSha256, op);
-      assertCurrent(op); setMessage(text.exportCompleteDownloaded(selected.scopeRevision));
+      assertCurrent(op); setMessage(text.exportCompleteDownloaded);
     } catch { if (current(op)) setMessage(text.exportError); }
     finally { finish(op); }
   }
@@ -240,7 +240,7 @@ export function createAfterRaceActions(ws: Base & RaceDataActions) {
         headers: { "content-type": "application/json", "x-otid-csrf": csrf(),
           "idempotency-key": `shortened-course-class-transfer:${value.request.requestId}` }, body: JSON.stringify(value.request) });
       if ([400, 404, 409].includes(response.status)) {
-        if (wasUnknown) { setUnknown(true); setShortenedCourseError(text.shortenedCourseUnknown); return; }
+        if (wasUnknown) { setUnknown(true); setShortenedCourseError(text.unreachable); return; }
         pending.current = undefined; sent.current = false; setShortenedCourseAttempt(undefined); setShortenedCourseCandidate(undefined);
         setShortenedEntryIds([]); setShortenedCourseError(text.shortenedCourseConflict); return;
       }
@@ -253,7 +253,7 @@ export function createAfterRaceActions(ws: Base & RaceDataActions) {
       committed = true; pending.current = undefined; sent.current = false; setShortenedCourseAttempt(undefined);
       setShortenedCourseCandidate(undefined); setShortenedEntryIds([]); setShortenedCourseName(""); setShortenedClassName(""); setUnknown(false);
       setData(undefined); setMessage(text.shortenedCourseSaved); await load(op);
-    } catch { if (current(op)) setShortenedCourseError(committed ? text.shortenedCourseSavedLoadError : text.shortenedCourseUnknown); }
+    } catch { if (current(op)) setShortenedCourseError(committed ? text.shortenedCourseSavedLoadError : text.unreachable); }
     finally { finish(op); }
   }
   return { loadClassRecalculation, prepareClassRecalculation, submitClassRecalculation, loadFinalizationBasis, prepareFinalization,

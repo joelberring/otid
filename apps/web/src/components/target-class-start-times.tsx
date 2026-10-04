@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import type { EntryTransferCandidates } from "@o-tid/contracts";
 import { projectTargetClassStartTimes } from "../lib/target-class-start-times";
-import { formatStartListTime } from "../lib/start-list-time";
+import { formatClockTime } from "../lib/clock-time";
 import { raceAdministratorSv as text } from "../i18n/race-administrator-sv";
 import styles from "./race-administrator-workspace.module.css";
 
@@ -23,7 +23,7 @@ export function TargetClassStartTimes({ entries, classId, timeZone, proposedTime
         {projection.rows.length === 0 ? <p>{text.targetTimesEmpty}</p> : <>
           <div className={styles.tableScroll} tabIndex={0} role="region" aria-label={text.targetTimesTime}>
           <table className={styles.table}><thead><tr><th>{text.targetTimesParticipant}</th><th>{text.targetTimesTime}</th></tr></thead>
-            <tbody>{visible.map((row) => <tr key={row.id}><td>{row.displayName}</td><td><time dateTime={row.fixedStartTime}>{formatStartListTime(row.fixedStartTime, timeZone)}</time></td></tr>)}</tbody>
+            <tbody>{visible.map((row) => <tr key={row.id}><td>{row.displayName}</td><td><time dateTime={row.fixedStartTime}>{formatClockTime(row.fixedStartTime, timeZone)}</time></td></tr>)}</tbody>
           </table>
           </div>
           <div className={styles.toolbar}>

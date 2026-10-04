@@ -23,7 +23,6 @@ import type { ResultFinalizationAttempt } from "../../lib/result-finalization-ad
 import type { ResultRecalculationAttempt } from "../../lib/result-recalculation-admin-client";
 import type { WithoutTimingAttempt } from "../../lib/without-timing-admin-client";
 import type { WithoutTimingWithdrawalAttempt } from "../../lib/without-timing-withdrawal-admin-client";
-import type { raceWorkspaceNavigationSv as navigationText } from "../../i18n/race-workspace-navigation-sv";
 
 /** Ett pågående ändringsförsök. Alla försök granskas innan de skickas och kan skickas om med samma id. */
 export type ConflictReviewAttempt = { kind: "CONFLICT_REVIEW"; candidate: StartCheckinConflictReviewCandidate; request: StartCheckinConflictReviewRequest };
@@ -73,9 +72,6 @@ export type PendingAttempt = ConflictReviewAttempt | StartCorrectionAttempt | Re
   ShortenedCourseClassTransferAttempt | UnknownReadoutResolutionAttempt;
 
 export type Action = "INFO" | "TRANSFER" | "CARD" | "PAYMENT" | "TIME" | "IDENTITY" | "REGISTRATION" | "HISTORY";
-export type WorkflowMode = "OVERVIEW" | "PARTICIPANTS" | "BEFORE" | "DURING" | "AFTER";
-export type PreparationArea = keyof typeof navigationText.preparation;
-export type DuringArea = keyof typeof navigationText.during;
 export type Operation = { generation: number; controller: AbortController; timer: ReturnType<typeof setTimeout> };
 
 export function resultDuration(ms: number) {

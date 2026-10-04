@@ -37,7 +37,7 @@ export function PublicStartList({ raceId }: { raceId: string }) {
   }, [raceId]);
   return <div className={`stack ${styles.publication}`}>
     <p>{text.publicHelp}</p>
-    {data ? <><p>{text.publicationRevision}: {data.revision} · {text.publishedAt}: {formatStartListTime(data.publishedAt, data.content.timeZone)}</p>
+    {data ? <><p>{text.publishedAt}: {formatStartListTime(data.publishedAt, data.content.timeZone)}</p>
       {data.iofExportAvailable ? <a className={`start-list-export ${styles.export}`} href={`/api/races/${encodeURIComponent(raceId)}/start-list/iof`} download>{text.downloadXml}</a> : <p>{text.xmlUnavailable}</p>}
       <StartListContent key={data.revision} content={data.content} /></> : <p role="status">{text.publicUnavailable}</p>}
   </div>;

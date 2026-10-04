@@ -112,7 +112,7 @@ export function ForestWatchAdmin({ raceId }: { raceId: string }) {
       <p role="status" aria-live="polite">{message}</p>
     </div>
     {data && <ForestWatchReport data={data} classId={classId} query={query} stale={stale} />}
-    {authenticated && data && <CheckinConflictReviewPanel key={raceId} raceId={raceId} entries={data.entries}
+    {authenticated && data && <CheckinConflictReviewPanel key={raceId} raceId={raceId} entries={data.entries} timeZone={data.timeZone}
       onUnauthorized={() => { hide(); setMessage(text.denied); }} onReviewed={() => void load()} />}
   </div>;
 }

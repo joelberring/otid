@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { EntryTransferCandidates } from "@o-tid/contracts";
-import { formatStartListTime } from "../lib/start-list-time";
+import { formatClockTime } from "../lib/clock-time";
 import { racePreparationStartListSv as text } from "../i18n/race-preparation-start-list-sv";
 import styles from "./race-preparation-start-list.module.css";
 
@@ -56,13 +56,12 @@ export function RacePreparationStartList({ data, disabled, onSelectEntry }: {
   function start(entry: Entry, raceClass: RaceClass) {
     if (raceClass.startRule === "PUNCH") return text.freeStart;
     if (!entry.fixedStartTime) return <strong className={styles.attention}>{text.missingTime}</strong>;
-    return <time dateTime={entry.fixedStartTime}>{formatStartListTime(entry.fixedStartTime, data.timeZone)}</time>;
+    return <time dateTime={entry.fixedStartTime}>{formatClockTime(entry.fixedStartTime, data.timeZone)}</time>;
   }
 
   return <section className={styles.workspace} aria-label={text.title}>
     <div className={styles.heading}>
       <h2>{text.title}</h2>
-      <p>{text.source(data.snapshotVersion, formatStartListTime(data.generatedAt, data.timeZone))}</p>
     </div>
     <p className={styles.notice}>{text.privateNotice}</p>
     <div className={styles.filters}>

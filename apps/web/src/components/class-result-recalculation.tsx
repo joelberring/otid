@@ -31,8 +31,6 @@ export function ClassResultRecalculation({ classes, disabled, candidates, attemp
     {attempt ? <div className={styles.review} role="alert">
       <h3>{text.classRecalculationReview}</h3>
       <p>{attempt.className} · {text.classRecalculationSelected(attempt.entryIds.length)}</p>
-      <p>{text.snapshot}: {attempt.request.snapshotVersion} · {text.engine}: {attempt.request.engineVersion}</p>
-      <p>{text.classRecalculationManifest}: <code>{attempt.request.manifestHash}</code></p>
       <button disabled={disabled} onClick={() => unknown ? onRetry() : onSubmit(attempt)}>{unknown ? text.classRecalculationRetry : text.classRecalculationConfirm}</button>
       {!unknown && <button className="secondary" disabled={disabled} onClick={onCancel}>{text.cancel}</button>}
     </div> : <>
@@ -41,7 +39,7 @@ export function ClassResultRecalculation({ classes, disabled, candidates, attemp
       </select></label>
       <button type="button" className="secondary" disabled={disabled || !classId} onClick={() => { setSelected([]); onLoad(classId); }}>{text.classRecalculationLoad}</button>
       {candidates && candidates.classId === classId && <>
-        <p>{text.classRecalculationSelected(selected.length)} · {text.classRecalculationManifest}: <code>{candidates.manifestHash}</code></p>
+        <p>{text.classRecalculationSelected(selected.length)}</p>
         <div className={styles.toolbar}><button type="button" className="secondary" disabled={disabled || ready.length === 0} onClick={() => setSelected(ready.slice(0, 100).map((entry) => entry.id).sort())}>{text.classRecalculationSelectAll}</button>
           <button type="button" className="secondary" disabled={disabled || selected.length === 0} onClick={() => setSelected([])}>{text.classRecalculationClear}</button></div>
         <ul className={styles.followUpList}>{candidates.entries.map((entry) => <li key={entry.id}>

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { addCourseAndClass, addEntry, createRace, registerAccount, unique } from "./helpers";
+import { addCourseAndClass, addEntry, createRace, openStep, registerAccount, unique } from "./helpers";
 
 /**
  * Steg 1 (ADR-0168): två behörighetsnivåer.
@@ -33,7 +33,7 @@ test("konto, tävling, medadministratör och publik vy", async ({ browser, reque
   await expect(helper.getByText(eventName)).toBeVisible();
   await helper.getByRole("button", { name: "Öppna arbetsytan" }).first().click();
   await helper.waitForURL(/manage$/);
-  await helper.getByRole("button", { name: "Deltagare", exact: true }).first().click();
+  await openStep(helper, "Anmälda");
   await expect(helper.getByRole("button", { name: "Eva Löpare OK Test" })).toBeVisible();
 
   // Utloggad besökare: publika sidor fungerar, admin-API nekas.

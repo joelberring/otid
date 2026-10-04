@@ -10,8 +10,9 @@ import {
 } from "@o-tid/contracts";
 import { raceAdministratorSv as text } from "../i18n/race-administrator-sv";
 import { readRaceAdministratorCsrfCookie } from "../lib/race-administrator-cookies";
-import { formatStartListTime } from "../lib/start-list-time";
-import { parseStartTimeFields } from "../lib/start-time-fields";
+import { formatClockTime, parseRaceClock, zonedDate } from "../lib/clock-time";
+import { fetchWithRetry } from "../lib/retrying-fetch";
+import { sv } from "../i18n/sv";
 import styles from "./race-administrator-workspace.module.css";
 
 type Attempt = { candidate: ManualPunchStartTimeCorrectionCandidate; request: ManualPunchStartTimeCorrectionRequest };
@@ -21,21 +22,21 @@ function duration(milliseconds: number): string {
   const seconds = Math.floor(milliseconds / 1_000);
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}.${String(milliseconds % 1_000).padStart(3, "0")}`;
 }
-function inputInstant(value: string, offset: string): string | null {
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(value)) return null;
-  return parseStartTimeFields(value.slice(0, 10), value.slice(11), offset);
+/** Klockslaget skrivs på samma dag som den avlästa tiden, i tävlingens tidszon. */
+function inputInstant(reference: string, clock: string, timeZone: string): string | null {
+  return parseRaceClock(zonedDate(reference, timeZone), clock, timeZone);
 }
 
 export function ManualPunchStartTimeCorrection({ raceId, entries, timeZone, onPendingChange }: { raceId: string; entries: readonly Entry[]; timeZone: string; onPendingChange?: (pending: boolean) => void }) {
   const [entryId, setEntryId] = useState(""), [candidate, setCandidate] = useState<ManualPunchStartTimeCorrectionCandidate>();
-  const [startLocal, setStartLocal] = useState(""), [startOffset, setStartOffset] = useState(""), [acknowledged, setAcknowledged] = useState(false);
+  const [startLocal, setStartLocal] = useState(""), [acknowledged, setAcknowledged] = useState(false);
   const [attempt, setAttempt] = useState<Attempt>(), [error, setError] = useState(""), [saved, setSaved] = useState(""), [busy, setBusy] = useState(false), [outcomeUncertain, setOutcomeUncertain] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const pending = busy || Boolean(candidate) || Boolean(attempt);
   useEffect(() => { onPendingChange?.(pending); }, [onPendingChange, pending]);
   useEffect(() => () => onPendingChange?.(false), [onPendingChange]);
   const base = `/api/admin/races/${encodeURIComponent(raceId)}/administrator/entries`;
-  function clear() { setCandidate(undefined); setAttempt(undefined); setStartLocal(""); setStartOffset(""); setAcknowledged(false); }
+  function clear() { setCandidate(undefined); setAttempt(undefined); setStartLocal(""); setAcknowledged(false); }
   async function loadCandidate() {
     if (!entryId || busy) return;
     setBusy(true); setError(""); setSaved(""); clear();
@@ -50,7 +51,7 @@ export function ManualPunchStartTimeCorrection({ raceId, entries, timeZone, onPe
   function inspect(event: FormEvent) {
     event.preventDefault();
     if (!candidate || busy || !acknowledged) return;
-    const correctedStartTime = inputInstant(startLocal, startOffset), source = candidate.source;
+    const correctedStartTime = inputInstant(candidate.source.startTime, startLocal, timeZone), source = candidate.source;
     const absoluteSplits = source.splits.map((split) => Date.parse(source.startTime) + split.elapsedMs);
     if (!correctedStartTime || Date.parse(correctedStartTime) === Date.parse(source.startTime) ||
       Date.parse(correctedStartTime) >= Date.parse(source.finishTime) || absoluteSplits.some((value) => Date.parse(correctedStartTime) > value)) {
@@ -72,7 +73,7 @@ export function ManualPunchStartTimeCorrection({ raceId, entries, timeZone, onPe
       const csrf = readRaceAdministratorCsrfCookie(document.cookie, new URL(window.location.href));
       if (!csrf) throw new Error("csrf");
       setOutcomeUncertain(true);
-      const response = await fetch(`${base}/${encodeURIComponent(attempt.candidate.entryId)}/punch-start-time-correction`, {
+      const response = await fetchWithRetry(`${base}/${encodeURIComponent(attempt.candidate.entryId)}/punch-start-time-correction`, {
         method: "POST", credentials: "same-origin", headers: { "content-type": "application/json", "x-otid-csrf": csrf,
           "idempotency-key": `manual-punch-start-time-correction:${attempt.request.requestId}` }, body: JSON.stringify(attempt.request) });
       if (response.status === 409) { setOutcomeUncertain(false); clear(); setError(text.punchStartTimeCorrectionConflict); return; }
@@ -82,7 +83,7 @@ export function ManualPunchStartTimeCorrection({ raceId, entries, timeZone, onPe
           receipt.correctedStartTime !== attempt.request.correctedStartTime || JSON.stringify(receipt.request) !== JSON.stringify(attempt.request)) throw new Error("receipt");
       setOutcomeUncertain(false);
       clear(); setSaved(text.punchStartTimeCorrectionSaved);
-    } catch { setError(text.punchStartTimeCorrectionUnknown); } finally { setBusy(false); }
+    } catch { setError(text.unreachable); } finally { setBusy(false); }
   }
   const source = candidate?.source;
   const newElapsed = attempt ? Date.parse(attempt.candidate.source.finishTime) - Date.parse(attempt.request.correctedStartTime) : undefined;
@@ -97,16 +98,15 @@ export function ManualPunchStartTimeCorrection({ raceId, entries, timeZone, onPe
         {entries.map((entry) => <option key={entry.id} value={entry.id}>{entry.displayName}</option>)}</select></label>
       {!candidate && !attempt && <button type="button" disabled={!entryId || busy} onClick={() => void loadCandidate()}>{text.punchStartTimeCorrectionLoad}</button>}
       {source && !attempt && <><div className={styles.courseRelinkSummary}><p><strong>{candidate.entryName}</strong> · {candidate.className}</p>
-        <p><strong>{text.finishTimeCorrectionSource}:</strong> {source.outcome.status}/{source.outcome.reason} · revision {source.resultRevision}</p>
-        <p><strong>{text.finishTimeCorrectionStart}:</strong> {formatStartListTime(source.startTime, timeZone)} · <strong>{text.finishTimeCorrectionFinish}:</strong> {formatStartListTime(source.finishTime, timeZone)}</p>
+        <p><strong>{text.finishTimeCorrectionSource}:</strong> {sv.publicResultsStatusLabels[source.outcome.status]}</p>
+        <p><strong>{text.finishTimeCorrectionStart}:</strong> {formatClockTime(source.startTime, timeZone)} · <strong>{text.finishTimeCorrectionFinish}:</strong> {formatClockTime(source.finishTime, timeZone)}</p>
         <p><strong>{text.finishTimeCorrectionElapsed}:</strong> {duration(source.elapsedMs)} · <strong>{text.punchStartTimeCorrectionFirstControl}:</strong> {firstControl ? `${firstControl.controlCode} · ${duration(firstControl.elapsedMs)}` : text.finishTimeCorrectionNoSplit}</p></div>
-        <label>{text.punchStartTimeCorrectionNewStart}<input type="datetime-local" step="1" value={startLocal} disabled={busy} onChange={(event) => setStartLocal(event.target.value)} required /></label>
-        <label>{text.startOffset}<input type="text" autoComplete="off" placeholder="+02:00" value={startOffset} disabled={busy} onChange={(event) => setStartOffset(event.target.value)} required /></label>
-        <p>{text.punchStartTimeCorrectionTimeHelp} {timeZone}</p><label className={styles.confirmPerson}><input type="checkbox" checked={acknowledged} disabled={busy} onChange={(event) => setAcknowledged(event.target.checked)} />{text.punchStartTimeCorrectionAcknowledge}</label>
-        <button type="submit" disabled={!startLocal || !startOffset || !acknowledged || busy}>{text.punchStartTimeCorrectionInspect}</button>
+        <label>{text.punchStartTimeCorrectionNewStart}<input type="text" inputMode="numeric" autoComplete="off" placeholder="19:42:05" value={startLocal} disabled={busy} onChange={(event) => setStartLocal(event.target.value)} required /></label>
+        <p>{text.punchStartTimeCorrectionTimeHelp}</p><label className={styles.confirmPerson}><input type="checkbox" checked={acknowledged} disabled={busy} onChange={(event) => setAcknowledged(event.target.checked)} />{text.punchStartTimeCorrectionAcknowledge}</label>
+        <button type="submit" disabled={!startLocal || !acknowledged || busy}>{text.punchStartTimeCorrectionInspect}</button>
         <button type="button" className="secondary" disabled={busy} onClick={() => { clear(); setError(""); }}>{text.cancel}</button></>}
       {attempt && <section className={styles.review} role="alert" aria-live="polite"><h2>{text.punchStartTimeCorrectionReview}</h2><p><strong>{attempt.candidate.entryName}</strong> · {attempt.candidate.className}</p>
-        <p><strong>{text.finishTimeCorrectionStart}:</strong> {formatStartListTime(attempt.candidate.source.startTime, timeZone)} → {formatStartListTime(attempt.request.correctedStartTime, timeZone)}</p>
+        <p><strong>{text.finishTimeCorrectionStart}:</strong> {formatClockTime(attempt.candidate.source.startTime, timeZone)} → {formatClockTime(attempt.request.correctedStartTime, timeZone)}</p>
         <p><strong>{text.finishTimeCorrectionElapsed}:</strong> {duration(attempt.candidate.source.elapsedMs)} → {newElapsed === undefined ? "–" : duration(newElapsed)}</p>{!outcomeUncertain && <p>{text.finishTimeCorrectionNotSaved}</p>}
         <div className={styles.actions}><button type="button" disabled={busy} onClick={() => void commit()}>{text.punchStartTimeCorrectionConfirm}</button>{!outcomeUncertain && <button type="button" className="secondary" disabled={busy} onClick={() => setAttempt(undefined)}>{text.finishTimeCorrectionCancel}</button>}</div></section>}
       {error && <p className={styles.warning} role="alert">{error}</p>}{saved && <p role="status">{saved}</p>}

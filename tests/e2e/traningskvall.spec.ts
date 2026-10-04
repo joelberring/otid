@@ -1,13 +1,14 @@
 import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
-import { addCourseAndClass, addEntry, createRace, registerAccount, unique } from "./helpers";
+import { addCourseAndClass, addEntry, checklistStep, createRace, openStep, registerAccount, unique } from "./helpers";
 
 /**
  * Steg 4–5 (ADR-0168): en hel träningskväll med tio syntetiska löpare.
  * Skapa → banor/klasser → åtta förhandsanmälda → avläsning med
  * övningsstationen, delvis utan nät och med omladdning offline → två okända
  * brickor direktanmäls → kvar i skogen → felstämplad godkänns → publikt
- * resultat → IOF-export.
+ * resultat → IOF-export. Steg 8.5: arbetsytan nås via checklistan och
+ * tävlingsdagens kontrollvy.
  */
 const RUNNERS = [
   { givenName: "Anna", familyName: "Ek", className: "H21", card: "8001001" },
@@ -85,40 +86,55 @@ test("träningskväll från tävling till IOF-export", async ({ browser, request
   expect(log.traffic.length).toBeGreaterThan(0);
   expect(JSON.stringify(log)).not.toContain("Ek");
 
-  // De två okända brickorna direktanmäls i Hantera tävling.
+  // Checklistan visar läget direkt: åtta avlästa, två kvar i skogen, två okända brickor och en felstämplad.
   await owner.goto(`/admin/${raceId}/manage`);
-  await owner.getByRole("button", { name: "Under tävlingen", exact: true }).first().click();
-  await owner.getByText("Lös okänd brickavläsning").click();
+  await expect(checklistStep(owner, "Banor")).toHaveAccessibleDescription(/2 banor/);
+  await expect(checklistStep(owner, "Anmälda")).toHaveAccessibleDescription(/8 anmälda/);
+  await expect(checklistStep(owner, "Start")).toHaveAccessibleDescription(/Fri start/);
+  await expect(checklistStep(owner, "Avläsning")).toHaveAccessibleDescription(/2 okända brickor/);
+  await expect(checklistStep(owner, "Resultat")).toHaveAccessibleDescription(/1 felstämplad att titta på/);
+
+  // Tävlingsdagens kontrollvy: de två okända brickorna direktanmäls direkt i vyn.
+  await openStep(owner, "Avläsning");
+  const control = owner.getByRole("region", { name: "Tävlingsdagens kontrollvy" });
+  await expect(control.getByRole("link", { name: "Öppna avläsningen" })).toHaveAttribute("href", `/admin/${raceId}/readout`);
+  await expect(control.getByRole("region", { name: /Senaste avläsningar/ })).toContainText("Strand");
+  const unknownCards = control.getByRole("region", { name: /Okända brickor/ });
+  await expect(unknownCards.getByRole("heading")).toContainText("2");
   for (const [givenName, familyName] of [["Ida", "Direkt"], ["Jonas", "Direkt"]]) {
-    await expect(owner.getByLabel("Koppla till")).toBeVisible();
-    await owner.getByLabel("Koppla till").selectOption("NEW_ENTRY");
-    const classSelect = owner.getByLabel("Klass för ny deltagare");
+    await expect(unknownCards.getByLabel("Koppla till")).toBeVisible();
+    await unknownCards.getByLabel("Koppla till").selectOption("NEW_ENTRY");
+    const classSelect = unknownCards.getByLabel("Klass för ny deltagare");
     await classSelect.selectOption(await classSelect.locator("option", { hasText: "H21" }).getAttribute("value"));
-    const panel = owner.locator(`#unknown-readout-${raceId}`);
-    await panel.getByLabel("Förnamn").fill(givenName!);
-    await panel.getByLabel("Efternamn").fill(familyName!);
-    await owner.getByRole("button", { name: "Granska koppling" }).click();
-    await owner.getByRole("button", { name: "Bekräfta koppling och bedömning" }).click();
-    await expect(owner.getByRole("button", { name: "Bekräfta koppling och bedömning" })).toBeHidden();
-    const load = owner.getByRole("button", { name: "Hämta okända avläsningar" });
-    if (await load.isVisible()) await load.click();
+    await unknownCards.getByLabel("Förnamn").fill(givenName!);
+    await unknownCards.getByLabel("Efternamn").fill(familyName!);
+    await unknownCards.getByRole("button", { name: "Granska koppling" }).click();
+    await unknownCards.getByRole("button", { name: "Bekräfta koppling och bedömning" }).click();
+    await expect(unknownCards.getByRole("button", { name: "Bekräfta koppling och bedömning" })).toBeHidden();
   }
+  await expect(unknownCards).toContainText("Det finns inga olösta okända avläsningar");
 
   // Kvar i skogen: Greta och Hugo har inte lästs av.
-  await owner.getByRole("button", { name: "Uppdatera avvikelser" }).click();
-  await expect(owner.getByTestId("in-forest-count")).toContainText("2");
+  await control.getByRole("button", { name: "Uppdatera" }).click();
+  await expect(owner.getByTestId("in-forest-count")).toHaveText("2");
+  const forest = control.getByRole("region", { name: /Kvar i skogen/ });
+  await expect(forest).toContainText("Greta Ås");
+  await expect(forest).toContainText("Hugo Mo");
+  await expect(checklistStep(owner, "Avläsning")).toHaveAccessibleDescription(/2 kvar i skogen/);
 
-  // Rättning: David missade en kontroll men godkänns manuellt.
-  await owner.getByRole("button", { name: "Deltagare", exact: true }).first().click();
-  await owner.getByRole("button", { name: /David Berg/ }).first().click();
-  // ADR-0169: deltagarkortet. Direktanmälningarna gör inte Davids resultat inaktuellt, så det godkänns direkt:
-  // ett val i "Ändra status" och en bekräftelse.
+  // Rättning: David missade en kontroll. "Öppna" i kontrollvyn visar hans deltagarkort; godkänns manuellt med
+  // ett val i "Ändra status" och en bekräftelse (ingen manuell omräkning, ADR-0169).
+  const mispunched = control.getByRole("region", { name: /Felstämplade att titta på/ });
+  await mispunched.getByRole("button", { name: "Öppna David Berg" }).click();
+  await expect(checklistStep(owner, "Anmälda")).toHaveAttribute("aria-current", "step");
   const card = owner.getByRole("region", { name: "Deltagarkort" });
+  await expect(card.getByRole("heading", { name: "David Berg" })).toBeVisible();
   await expect(card.getByRole("region", { name: "Resultat", exact: true })).toContainText("Felstämplad");
   await card.getByLabel("Ändra status").selectOption({ label: "Godkänn manuellt" });
   await card.getByRole("button", { name: "Bekräfta ändringen" }).click();
   await expect(owner.getByText("Godkännandet är sparat.")).toBeVisible();
   await expect(card.getByRole("region", { name: "Resultat", exact: true })).toContainText("Godkänd");
+  await expect(checklistStep(owner, "Resultat")).not.toHaveAccessibleDescription(/felstämplad/);
 
   // Publikt resultat utan inloggning.
   await expect.poll(async () => {
@@ -128,7 +144,7 @@ test("träningskväll från tävling till IOF-export", async ({ browser, request
   }, { timeout: 30_000 }).toBe(true);
 
   // IOF XML-export av resultatlistan.
-  await owner.getByRole("button", { name: "Efter tävlingen", exact: true }).first().click();
+  await openStep(owner, "Resultat");
   await owner.getByText("Resultatexport · IOF 3.0").click();
   const [download] = await Promise.all([
     owner.waitForEvent("download"),

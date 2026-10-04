@@ -40,7 +40,7 @@ export const participantCardSv = {
   withdrawalConsequence: (status: string) => `Beslutet tas bort och löparen visas som ${status.toLocaleLowerCase("sv-SE")} igen.`,
   dnsWithdrawalConsequence: "Ej start tas bort. Löparen räknas som anmäld igen.",
   confirm: "Bekräfta ändringen", cancel: "Avbryt", retry: "Försök igen",
-  unknown: "Svaret saknas. Ändringen kan redan vara sparad. Tryck på Försök igen; den sparas bara en gång.",
+  unknown: "Kunde inte nå servern. Försök igen.",
   notAvailable: "Det valet går inte att göra för löparen just nu.",
   loadError: "Underlaget kunde inte läsas in. Välj igen.",
   entryChanges: "Ändringar i anmälan"

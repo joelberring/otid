@@ -10,8 +10,8 @@ export function resetWorkspaceOnLock(s: WorkspaceState, discard: boolean) {
   const { sent, pending, setClassEditPreview, setClassEditError, setClassEditSaved, setStatusChoice, setStatusBlocked,
     setClassEditAttempt, setEditingClassId, setAuthenticated, setExpiresAt, setData, setParticipantActionPending, setFinalizations,
     setFinalizationId, setForestData, setForestClass, setForestQuery, setForestStale, setForestAutoRefresh, setForestOpen,
-    setForestSortByAge, setCourseName, setCourseClassName, setCourseControls, setCourseStartRule, setCourseClassReview,
-    setCourseClassError, setManualClassName, setManualClassCourseVersionId, setManualClassStartRule, setManualClassReview,
+    setForestSortByAge, setCourseName, setCourseClassName, setCourseControls, setCourseStartRule,
+    setCourseClassError, setManualClassName, setManualClassCourseVersionId, setManualClassStartRule,
     setManualClassError, setCourseList, setCourseListError, setEditingCourseId, setCourseEditControls, setCourseEditPreview, setCourseEditError,
     setCourseEditSaved, setShortenedCourseClassId, setShortenedCourseCandidate, setShortenedCourseName,
     setShortenedClassName, setShortenedControlCount, setShortenedEntryIds, setShortenedCourseError,
@@ -22,10 +22,10 @@ export function resetWorkspaceOnLock(s: WorkspaceState, discard: boolean) {
     setStartCorrection, setPublicationPreview, setPublicationAttempt, setDrawClasses, setDrawClassId, setDrawFirst,
     setDrawInterval, setDrawAttempt, setFinalizationCandidates, setFinalizationScope, setFinalizationAttempt,
     setEntryId, setClassId, setQuery,
-    setOlderResultsOnly, setRentalCardsOnly, setResultState, setPage, setBusy, setMessage, setStartDate, setStartClock,
-    setStartOffset, setTransferStartSlots, setSelectedTransferStartSlot, setRegistrationStartSlots,
+    setOlderResultsOnly, setRentalCardsOnly, setResultState, setPage, setBusy, setMessage, setStartClock,
+    setTransferStartSlots, setSelectedTransferStartSlot, setRegistrationStartSlots,
     setSelectedRegistrationStartSlot, setCapacityClassId, setCapacityInput, setNewCard, setRentalReuseSourceId,
-    setPaymentStatus, setWorkflowMode, setEffectiveResult, setEffectiveResultError, setIdentityCandidates,
+    setPaymentStatus, setEffectiveResult, setEffectiveResultError, setIdentityCandidates,
     setGivenName, setFamilyName, setOrganisationName, setMobilePanel, setEntryChanges, setDnfAttempt, setDsqAttempt, setApprovalAttempt, setTransferAttempt, setCapacityAttempt, setCardAttempt, setRentalAttempt, setRentalReturnAttempt, setRentalReuseAttempt, setPaymentStatusAttempt, setTimeAttempt,
     setRecalculationAttempt, setIdentityAttempt, setRegistrationAttempt, setDnsAttempt, setOocAttempt, setNtAttempt,
     setCourseEditAttempt, setShortenedCourseAttempt, setUnknownReadoutAttempt, setUnknown,
@@ -36,8 +36,8 @@ export function resetWorkspaceOnLock(s: WorkspaceState, discard: boolean) {
   setForestData(undefined); setForestClass(""); setForestQuery(""); setForestStale(true);
   setForestAutoRefresh(false); setForestOpen(false);
   setForestSortByAge(false);
-  setCourseName(""); setCourseClassName(""); setCourseControls(""); setCourseStartRule("PUNCH"); setCourseClassReview(undefined); setCourseClassError("");
-  setManualClassName(""); setManualClassCourseVersionId(""); setManualClassStartRule("PUNCH"); setManualClassReview(undefined); setManualClassError("");
+  setCourseName(""); setCourseClassName(""); setCourseControls(""); setCourseStartRule("PUNCH"); setCourseClassError("");
+  setManualClassName(""); setManualClassCourseVersionId(""); setManualClassStartRule("PUNCH"); setManualClassError("");
   setCourseList(undefined); setCourseListError(""); setCourseEditPreview(undefined); setCourseEditError(""); setCourseEditSaved("");
   if (discard || !sent.current) { setEditingCourseId(""); setCourseEditControls(""); }
   setShortenedCourseClassId(""); setShortenedCourseCandidate(undefined); setShortenedCourseName(""); setShortenedClassName(""); setShortenedControlCount("1"); setShortenedEntryIds([]); setShortenedCourseError("");
@@ -60,9 +60,8 @@ export function resetWorkspaceOnLock(s: WorkspaceState, discard: boolean) {
   if (discard || !sent.current) setFinalizationAttempt(undefined);
   setEntryId(""); setClassId(""); setQuery(""); setOlderResultsOnly(false); setRentalCardsOnly(false);
   setResultState("ALL"); setPage(0); setBusy(false); setMessage(text.denied);
-  setStartDate(""); setStartClock(""); setStartOffset(""); setTransferStartSlots(undefined); setSelectedTransferStartSlot(""); setRegistrationStartSlots(undefined); setSelectedRegistrationStartSlot("");
+  setStartClock(""); setTransferStartSlots(undefined); setSelectedTransferStartSlot(""); setRegistrationStartSlots(undefined); setSelectedRegistrationStartSlot("");
   setCapacityClassId(""); setCapacityInput(""); setNewCard(""); setRentalReuseSourceId(""); setPaymentStatus("PAID");
-  if (discard || !sent.current) setWorkflowMode("OVERVIEW");
   setEffectiveResult(undefined); setEffectiveResultError(false);
   setIdentityCandidates(undefined); setGivenName(""); setFamilyName(""); setOrganisationName("");
   setMobilePanel(discard || !sent.current ? "LIST" : "WORK");

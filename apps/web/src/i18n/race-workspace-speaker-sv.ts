@@ -1,6 +1,5 @@
 export const raceWorkspaceSpeakerSv = {
   title: "Speaker",
-  scope: "25 senaste publicerade resultatuppdateringarna. Inte målgångsordning eller placering.",
   refresh: "Uppdatera underlag",
   loading: "Hämtar speakerunderlag …",
   loadError: "Speakerunderlaget kunde inte hämtas. Försök uppdatera igen.",
@@ -41,5 +40,5 @@ export const raceWorkspaceSpeakerSv = {
   leaderFinishTime: "Sluttid",
   separateRoleHeading: "Separat speakerinloggning",
   separateRoleHelp: "För funktionärer med en egen speakerbehörighet.",
-  separateRole: "Öppna den separata speakervyn",
+  separateRole: "Öppna den separata speakervyn"
 } as const;

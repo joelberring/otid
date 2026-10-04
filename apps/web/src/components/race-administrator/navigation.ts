@@ -1,25 +1,17 @@
 import { useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import type { PreparationStepArea } from "../race-preparation-guide";
-import type { DuringArea, PreparationArea, WorkflowMode } from "./types";
+import type { ChecklistStep } from "../../lib/admin-checklist";
 import type { Base } from "./workspace-state";
 import type { DuringRaceActions } from "./during-race";
 
-/** Vilket arbetsflöde, vilken delvy och vilken mobilpanel som visas. */
+/** Vilket steg i checklistan och vilken mobilpanel som visas. */
 export function useNavigationState() {
-  const [workflowMode, setWorkflowMode] = useState<WorkflowMode>("OVERVIEW");
-  const [preparationArea, setPreparationArea] = useState<PreparationArea>("OVERVIEW");
-  const [duringArea, setDuringArea] = useState<DuringArea>("OVERVIEW");
+  const [step, setStep] = useState<ChecklistStep>("COURSES");
   const [mobilePanel, setMobilePanel] = useState<"LIST" | "WORK">("LIST");
   const [printTarget, setPrintTarget] = useState<"FOREST" | "RENTAL">();
   const [selectedClassId, setSelectedClassId] = useState("");
-  const coursesNavigationButton = useRef<HTMLButtonElement>(null);
-  const coursesNavigationSelect = useRef<HTMLSelectElement>(null);
-  const preparationNavigation = useRef<HTMLElement>(null);
   const listPanel = useRef<HTMLElement | null>(null), workPanel = useRef<HTMLElement | null>(null);
-  return { workflowMode, setWorkflowMode, preparationArea, setPreparationArea, duringArea, setDuringArea, mobilePanel, setMobilePanel,
-    printTarget, setPrintTarget, selectedClassId, setSelectedClassId,
-    coursesNavigationButton, coursesNavigationSelect, preparationNavigation,
+  return { step, setStep, mobilePanel, setMobilePanel, printTarget, setPrintTarget, selectedClassId, setSelectedClassId,
     listPanel, workPanel };
 }
 
@@ -40,43 +32,17 @@ export function createMobileNavigation(ws: Base) {
 }
 export type MobileNavigation = ReturnType<typeof createMobileNavigation>;
 
-/** Navigering mellan arbetsflöden och genvägar från översikter till rätt formulär. */
+/** Navigering i checklistan och genvägar från tabellerna till rätt steg. */
 export function createWorkflowNavigation(ws: Base & MobileNavigation & DuringRaceActions) {
-  const { data, workflowLocked, duringArea, busyRef, pending, forestData, rentalEntries, unknownReadoutPanel, forestPanel,
-    listPanel, coursesNavigationSelect, preparationNavigation, requireSession, showMobilePanel, loadRaceDayAttention,
-    setSelectedClassId, setWorkflowMode, setForestClass, setForestQuery, setForestOpen, setQuery,
-    setPage, setRosterClassId, setOlderResultsOnly, setRentalCardsOnly, setPaymentAttentionOnly, setResultState,
-    setMissingFixedStartOnly, setCapacityClassId, setCapacityInput, setMessage, setPreparationArea, setPrintTarget } = ws;
-  function navigateWorkflow(mode: WorkflowMode) {
-    if (workflowLocked) return;
-    if (mode !== "BEFORE") setSelectedClassId("");
-    setWorkflowMode(mode);
-    if (mode === "DURING" && duringArea === "OVERVIEW") void loadRaceDayAttention();
-  }
-  function openAttentionPanel(target: "FOREST" | "CONFLICT" | "STARTED_NO_RETURN" | "UNCONFIRMED" | "READOUT") {
-    if (workflowLocked) return;
-    const panel = target === "READOUT" ? unknownReadoutPanel.current : forestPanel.current;
-    if (!panel) return;
-    if (target !== "READOUT") {
-      setForestClass(""); setForestQuery(""); setForestOpen(true);
-    }
-    panel.open = true;
-    requestAnimationFrame(() => {
-      const group = target === "FOREST" || target === "READOUT" ? undefined : panel.querySelector(`[data-forest-group="${target}"]`);
-      panel.querySelector("summary")?.focus();
-      (group ?? panel).scrollIntoView({ block: "start", behavior: "smooth" });
-    });
-  }
-  function followUp(filter: "OLDER_RESULTS" | "RENTAL_CARDS" | "PAYMENT") {
-    if (workflowLocked) return;
-    setQuery(""); setPage(0); setRosterClassId("");
-    setOlderResultsOnly(filter === "OLDER_RESULTS");
-    setRentalCardsOnly(filter === "RENTAL_CARDS");
-    setPaymentAttentionOnly(filter === "PAYMENT");
-    setResultState("ALL");
-    setMissingFixedStartOnly(false);
-    flushSync(() => setWorkflowMode("PARTICIPANTS"));
-    showMobilePanel("LIST");
+  const { data, navigationLocked, workflowLocked, busyRef, pending, forestData, rentalEntries, listPanel, requireSession, showMobilePanel,
+    loadRaceDayAttention, setSelectedClassId, setStep, setQuery, setPage, setRosterClassId, setOlderResultsOnly,
+    setRentalCardsOnly, setPaymentAttentionOnly, setResultState, setMissingFixedStartOnly, setCapacityClassId,
+    setCapacityInput, setMessage, setPrintTarget } = ws;
+  function navigateStep(next: ChecklistStep) {
+    if (navigationLocked) return;
+    setSelectedClassId("");
+    setStep(next);
+    if (next === "READOUT") void loadRaceDayAttention();
   }
   function openMissingFixedStart(classId: string) {
     if (workflowLocked) return;
@@ -84,32 +50,17 @@ export function createWorkflowNavigation(ws: Base & MobileNavigation & DuringRac
     setQuery(""); setPage(0); setRosterClassId(classId);
     setOlderResultsOnly(false); setRentalCardsOnly(false); setPaymentAttentionOnly(false); setResultState("ALL");
     setMissingFixedStartOnly(true);
-    flushSync(() => setWorkflowMode("PARTICIPANTS"));
+    flushSync(() => setStep("ENTRIES"));
     showMobilePanel("LIST");
     listPanel.current?.focus();
   }
-  function openClassSetup(classId: string) {
+  function openAssignedClass(classId: string) {
     const raceClass = data?.classes.find(row => row.id === classId);
     if (workflowLocked || !raceClass) return;
     setCapacityClassId(classId);
     setCapacityInput(raceClass.maxEntries === null ? "" : String(raceClass.maxEntries));
     setMessage("");
-    flushSync(() => {
-      setSelectedClassId(classId);
-      setWorkflowMode("BEFORE"); setPreparationArea("CLASSES");
-    });
-  }
-  function openAssignedClass(classId: string) {
-    openClassSetup(classId);
-  }
-  function openPreparationStep(area: PreparationStepArea) {
-    if (workflowLocked) return;
-    setSelectedClassId("");
-    flushSync(() => setPreparationArea(area));
-    const target = window.matchMedia("(max-width: 720px)").matches
-      ? coursesNavigationSelect.current
-      : preparationNavigation.current?.querySelector<HTMLButtonElement>(`[data-preparation-area="${area}"]`);
-    target?.focus();
+    flushSync(() => { setSelectedClassId(classId); setStep("CLASSES"); });
   }
   function printPrivate(target: "FOREST" | "RENTAL") {
     if (busyRef.current || pending.current || !requireSession() ||
@@ -117,7 +68,6 @@ export function createWorkflowNavigation(ws: Base & MobileNavigation & DuringRac
     flushSync(() => setPrintTarget(target));
     window.print();
   }
-  return { navigateWorkflow, openAttentionPanel, followUp, openMissingFixedStart, openClassSetup,
-    openAssignedClass, openPreparationStep, printPrivate };
+  return { navigateStep, openMissingFixedStart, openAssignedClass, printPrivate };
 }
 export type WorkflowNavigation = ReturnType<typeof createWorkflowNavigation>;

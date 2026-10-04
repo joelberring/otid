@@ -29,21 +29,32 @@ export async function createRace(owner: Page, eventName: string): Promise<string
   return owner.url().split("/").at(-2)!;
 }
 
+export type ChecklistStep = "Banor" | "Klasser" | "Anmälda" | "Start" | "Avläsning" | "Resultat";
+
+/** Steget i arbetsytans checklista (ADR-0169 beslut 4). Stegets status är knappens beskrivning. */
+export function checklistStep(page: Page, step: ChecklistStep) {
+  return page.getByRole("navigation", { name: "Checklista" }).getByRole("button", { name: step, exact: true });
+}
+
+export async function openStep(page: Page, step: ChecklistStep): Promise<void> {
+  await checklistStep(page, step).click();
+  await expect(checklistStep(page, step)).toHaveAttribute("aria-current", "step");
+}
+
+/** Ny bana med klass sparas direkt, utan granskningssteg (inget resultat ändras). */
 export async function addCourseAndClass(owner: Page, courseName: string, className: string, controls: string): Promise<void> {
-  await owner.getByRole("button", { name: "Före tävlingen", exact: true }).first().click();
-  await owner.getByRole("button", { name: "Banor", exact: true }).click();
-  const courseForm = owner.locator("form").filter({ has: owner.getByRole("button", { name: "Granska bana och klass" }) });
+  await openStep(owner, "Banor");
+  const courseForm = owner.locator("form").filter({ has: owner.getByRole("button", { name: "Spara bana och klass" }) });
   if (!await courseForm.isVisible()) await owner.getByText("Förbered bana och klass").click();
   await courseForm.getByLabel("Bannamn").fill(courseName);
   await courseForm.getByLabel("Klassnamn").fill(className);
   await courseForm.getByLabel("Kontrollföljd").fill(controls);
-  await courseForm.getByRole("button", { name: "Granska bana och klass" }).click();
-  await owner.getByRole("button", { name: "Bekräfta och spara" }).click();
+  await courseForm.getByRole("button", { name: "Spara bana och klass" }).click();
   await expect(owner.getByText("Banan och klassen är sparade.")).toBeVisible();
 }
 
 export async function addEntry(owner: Page, entry: { className: string; givenName: string; familyName: string; club: string; card: string }): Promise<void> {
-  await owner.getByRole("button", { name: "Deltagare", exact: true }).first().click();
+  await openStep(owner, "Anmälda");
   await owner.getByRole("button", { name: "Ny deltagare" }).click();
   const entryForm = owner.locator("form").filter({ has: owner.getByRole("button", { name: "Granska anmälan" }) });
   await entryForm.getByLabel("Anmälningsklass").selectOption({ label: entry.className });

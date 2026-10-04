@@ -9,7 +9,7 @@ export const raceOperatorAccessSv = {
   administrator: "Tävlingsadministratör", start: "Startpersonal", finish: "Målpersonal",
   issue: "Utfärda åtkomst", issuing: "Utfärdar…",
   secretTitle: "Kopiera åtkomstkoden nu", secretHelp: "Koden visas inte igen och sparas inte i denna webbläsare. Lämna den till rätt person och stäng sedan rutan.",
-  closeSecret: "Jag har kopierat koden", unknown: "Svaret saknas. Utfärda inte automatiskt igen. Hämta listan, spärra den osäkra raden och skapa sedan en ny kod.",
+  closeSecret: "Jag har kopierat koden", unknown: "Kunde inte nå servern. Hämta listan och se om koden skapades innan du försöker igen; spärra en osäker rad.",
   noAccess: "Inga behörigheter från denna administratörsväg finns ännu.",
   revoked: "Spärrad", active: "Aktiv", revoke: "Spärra", revoking: "Spärrar…",
   revokeHelp: "Spärrning gör koden och dess inloggningar obrukbara direkt.",

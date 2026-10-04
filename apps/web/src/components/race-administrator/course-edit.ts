@@ -147,7 +147,7 @@ export function createCourseEditActions(ws: Base & RaceDataActions) {
         pending.current = attempt; sent.current = false; setCourseEditAttempt(attempt);
       }
       await send(op, attempt);
-    } catch { if (current(op)) setCourseEditError(pending.current ? text.courseEditUnknown : text.courseEditPreviewError); }
+    } catch { if (current(op)) setCourseEditError(pending.current ? text.unreachable : text.courseEditPreviewError); }
     finally { finish(op); }
   }
   return { readCourses, loadCourses, startCourseEdit, cancelCourseEdit, changeCourseEditControls, previewCourseEdit, saveCourseEdit };

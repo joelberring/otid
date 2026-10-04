@@ -11,14 +11,13 @@ export function useClassPreparationState() {
   const [manualClassName, setManualClassName] = useState("");
   const [manualClassCourseVersionId, setManualClassCourseVersionId] = useState("");
   const [manualClassStartRule, setManualClassStartRule] = useState<ManualClassCreateRequest["startRule"]>("PUNCH");
-  const [manualClassReview, setManualClassReview] = useState<ManualClassAttempt>();
   const [manualClassAttempt, setManualClassAttempt] = useState<ManualClassAttempt>();
   const [manualClassError, setManualClassError] = useState("");
   const [capacityAttempt, setCapacityAttempt] = useState<CapacityAttempt>();
   const [capacityClassId, setCapacityClassId] = useState("");
   const [capacityInput, setCapacityInput] = useState("");
   return { manualClassName, setManualClassName, manualClassCourseVersionId, setManualClassCourseVersionId, manualClassStartRule,
-    setManualClassStartRule, manualClassReview, setManualClassReview, manualClassAttempt, setManualClassAttempt, manualClassError,
+    setManualClassStartRule, manualClassAttempt, setManualClassAttempt, manualClassError,
     setManualClassError, capacityAttempt, setCapacityAttempt, capacityClassId, setCapacityClassId, capacityInput,
     setCapacityInput };
 }
@@ -34,9 +33,10 @@ export function deriveClassPreparation(s: WorkspaceState) {
 export function createClassPreparationActions(ws: Base & RaceDataActions) {
   const { raceId, data, manualClassCourseVersionId, manualClassName, manualClassStartRule, capacityClassId, capacityInput,
     busyRef, pending, sent, requireSession, begin, finish, current, request, json, csrf, load, setMessage, setUnknown, setData,
-    setEntryId, setClassId, setManualClassError, setManualClassReview, setManualClassAttempt, setManualClassName,
+    setEntryId, setClassId, setManualClassError, setManualClassAttempt, setManualClassName,
     setManualClassCourseVersionId, setManualClassStartRule, setCapacityAttempt, setCapacityClassId, setCapacityInput } = ws;
-  function inspectManualClass(event: FormEvent) {
+  /** Ny klass på befintlig bana ändrar inga resultat: sparas direkt (ADR-0169 beslut 4). */
+  function saveManualClass(event: FormEvent) {
     event.preventDefault();
     if (busyRef.current || pending.current || !requireSession() || !data) return;
     setManualClassError("");
@@ -47,9 +47,8 @@ export function createClassPreparationActions(ws: Base & RaceDataActions) {
       courseVersionId: target.courseVersionId, className: manualClassName.trim(), startRule: manualClassStartRule,
     });
     if (!parsed.success) { setManualClassError(text.manualClassInvalid); return; }
-    const targetOrdinal = data.classes.findIndex(row => row.courseVersionId === target.courseVersionId) + 1;
-    setManualClassReview({ kind: "MANUAL_CLASS", request: parsed.data,
-      targetLabel: text.manualClassTargetLabel(target.courseName, target.courseVersion, targetOrdinal) });
+    const value: ManualClassAttempt = { kind: "MANUAL_CLASS", request: parsed.data, targetLabel: target.courseName };
+    pending.current = value; sent.current = false; setManualClassAttempt(value); void submitManualClass(value);
   }
   async function submitManualClass(value: ManualClassAttempt) {
     if (busyRef.current || pending.current !== value || !requireSession()) return;
@@ -61,6 +60,10 @@ export function createClassPreparationActions(ws: Base & RaceDataActions) {
         headers: { "content-type": "application/json", "x-otid-csrf": token,
           "idempotency-key": `manual-class-create:${value.request.requestId}` },
         body: JSON.stringify(value.request) });
+      if ([400, 404, 409].includes(response.status)) {
+        pending.current = undefined; sent.current = false; setManualClassAttempt(undefined);
+        setManualClassError(text.manualClassRejected); return;
+      }
       if (!response.ok) throw new Error("Manual class unavailable");
       const receipt = manualClassCreateResponseSchema.parse(await json(response, op));
       if (receipt.raceId !== raceId || receipt.requestId !== value.request.requestId ||
@@ -74,23 +77,19 @@ export function createClassPreparationActions(ws: Base & RaceDataActions) {
         receipt.courseVersionId !== value.request.courseVersionId) throw new Error("Manual class receipt mismatch");
       committed = true;
       pending.current = undefined; sent.current = false;
-      setManualClassAttempt(undefined); setManualClassReview(undefined); setManualClassError("");
+      setManualClassAttempt(undefined); setManualClassError("");
       setManualClassName(""); setManualClassCourseVersionId(""); setManualClassStartRule("PUNCH");
       setMessage(text.manualClassSaved);
       await load(op);
     } catch {
       if (current(op)) {
         if (committed) { setManualClassError(text.manualClassSavedLoadError); setMessage(text.manualClassSavedLoadError); }
-        else { pending.current = value; sent.current = true; setManualClassAttempt(value); setManualClassError(text.manualClassUnknown); }
+        else { pending.current = value; sent.current = true; setManualClassAttempt(value); setManualClassError(text.unreachable); }
       }
     } finally { finish(op); }
   }
-  /** Granskning bekräftad: försöket blir väntande och skickas direkt. */
-  function confirmManualClass(review: ManualClassAttempt) {
-    pending.current = review; sent.current = false; setManualClassAttempt(review);
-    void submitManualClass(review);
-  }
-  function prepareCapacity(event: FormEvent) {
+  /** Maxantal ändrar inga resultat: sparas direkt. */
+  function saveCapacity(event: FormEvent) {
     event.preventDefault(); if (busyRef.current || pending.current || !requireSession()) return;
     const targetClass = data?.classes.find((row) => row.id === capacityClassId);
     const input = capacityInput.trim();
@@ -104,6 +103,7 @@ export function createClassPreparationActions(ws: Base & RaceDataActions) {
     const value: CapacityAttempt = { kind: "CAPACITY", id: crypto.randomUUID(), classId: targetClass.id, className: targetClass.name,
       entryCount: targetClass.entryCount, request: parsed.data };
     pending.current = value; sent.current = false; setCapacityAttempt(value); setUnknown(false); setMessage("");
+    void submitCapacity(value);
   }
   async function submitCapacity(value: CapacityAttempt) {
     if (busyRef.current || pending.current !== value || !requireSession()) return;
@@ -115,7 +115,7 @@ export function createClassPreparationActions(ws: Base & RaceDataActions) {
         headers: { "content-type": "application/json", "x-otid-csrf": token, "idempotency-key": `class-capacity:${value.id}` },
         body: JSON.stringify(value.request) });
       if ([400, 404, 409].includes(response.status)) {
-        if (wasUnknown) { setUnknown(true); setMessage(text.capacityUnknown); return; }
+        if (wasUnknown) { setUnknown(true); setMessage(text.unreachable); return; }
         pending.current = undefined; sent.current = false; setCapacityAttempt(undefined); setUnknown(false);
         setData(undefined); setEntryId(""); setClassId(""); setCapacityClassId(""); setCapacityInput("");
         setMessage(text.capacityConflict); return;
@@ -131,9 +131,9 @@ export function createClassPreparationActions(ws: Base & RaceDataActions) {
       setData(undefined); setCapacityClassId(""); setCapacityInput(""); setMessage(text.capacitySaved);
       await load(op);
     } catch {
-      if (current(op)) { setUnknown(!committed); setMessage(committed ? text.capacitySavedLoadError : text.capacityUnknown); }
+      if (current(op)) { setUnknown(!committed); setMessage(committed ? text.capacitySavedLoadError : text.unreachable); }
     } finally { finish(op); }
   }
-  return { inspectManualClass, submitManualClass, confirmManualClass, prepareCapacity, submitCapacity };
+  return { saveManualClass, submitManualClass, saveCapacity, submitCapacity };
 }
 export type ClassPreparationActions = ReturnType<typeof createClassPreparationActions>;

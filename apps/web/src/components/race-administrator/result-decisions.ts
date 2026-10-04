@@ -67,35 +67,35 @@ function submission(value: StatusAttempt, raceId: string) {
         parse: (payload: unknown) => value.kind === "APPROVAL" ? parseResultApprovalResponse(payload, value.value, raceId)
           : parseResultApprovalWithdrawalResponse(payload, value.value, raceId),
         saved: value.kind === "APPROVAL" ? text.approvalSaved : text.approvalWithdrawalSaved,
-        unknown: text.approvalUnknown, conflict: text.approvalConflict };
+        unknown: text.unreachable, conflict: text.approvalConflict };
     }
     case "DSQ": case "DSQ_WITHDRAWAL": {
       const endpoint = value.kind === "DSQ" ? "disqualification" : "disqualification-withdrawal";
       return { entryId: value.value.entryId, endpoint, key: `manual-${endpoint}:${value.value.requestId}`, body: value.value.request,
         parse: (payload: unknown) => value.kind === "DSQ" ? parseResultDisqualificationResponse(payload, value.value, raceId)
           : parseResultDisqualificationWithdrawalResponse(payload, value.value, raceId),
-        saved: value.kind === "DSQ" ? text.dsqSaved : text.dsqWithdrawalSaved, unknown: text.dsqUnknown, conflict: text.dsqConflict };
+        saved: value.kind === "DSQ" ? text.dsqSaved : text.dsqWithdrawalSaved, unknown: text.unreachable, conflict: text.dsqConflict };
     }
     case "NT": case "NT_WITHDRAWAL": {
       const endpoint = value.kind === "NT" ? "without-timing" : "without-timing-withdrawal";
       return { entryId: value.value.entryId, endpoint, key: `${endpoint}:${value.value.requestId}`, body: value.value.request,
         parse: (payload: unknown) => value.kind === "NT" ? parseWithoutTimingResponse(payload, value.value, raceId)
           : parseWithoutTimingWithdrawalResponse(payload, value.value, raceId),
-        saved: value.kind === "NT" ? text.ntSaved : text.ntWithdrawalSaved, unknown: text.ntUnknown, conflict: text.ntConflict };
+        saved: value.kind === "NT" ? text.ntSaved : text.ntWithdrawalSaved, unknown: text.unreachable, conflict: text.ntConflict };
     }
     case "OOC": case "OOC_WITHDRAWAL": {
       const endpoint = value.kind === "OOC" ? "out-of-competition" : "out-of-competition-withdrawal";
       return { entryId: value.value.entryId, endpoint, key: `${endpoint}:${value.value.requestId}`, body: value.value.request,
         parse: (payload: unknown) => value.kind === "OOC" ? parseOutOfCompetitionResponse(payload, value.value, raceId)
           : parseOutOfCompetitionWithdrawalResponse(payload, value.value, raceId),
-        saved: value.kind === "OOC" ? text.oocSaved : text.oocWithdrawalSaved, unknown: text.oocUnknown, conflict: text.oocConflict };
+        saved: value.kind === "OOC" ? text.oocSaved : text.oocWithdrawalSaved, unknown: text.unreachable, conflict: text.oocConflict };
     }
     case "DNF": case "DNF_WITHDRAWAL": {
       const endpoint = value.kind === "DNF" ? "did-not-finish" : "did-not-finish-withdrawal";
       return { entryId: value.value.entryId, endpoint, key: `${endpoint}:${value.value.requestId}`, body: value.value.request,
         parse: (payload: unknown) => value.kind === "DNF" ? parseDidNotFinishResponse(payload, value.value, raceId)
           : parseDidNotFinishWithdrawalResponse(payload, value.value, raceId),
-        saved: value.kind === "DNF" ? text.dnfSaved : text.dnfWithdrawalSaved, unknown: text.dnfUnknown, conflict: text.dnfConflict };
+        saved: value.kind === "DNF" ? text.dnfSaved : text.dnfWithdrawalSaved, unknown: text.unreachable, conflict: text.dnfConflict };
     }
     case "DNS": case "DNS_WITHDRAWAL": {
       const endpoint = value.kind === "DNS" ? "did-not-start" : "did-not-start-withdrawal";
@@ -103,13 +103,13 @@ function submission(value: StatusAttempt, raceId: string) {
         body: value.kind === "DNS" ? didNotStartBody(value.value) : value.value.request,
         parse: (payload: unknown) => value.kind === "DNS" ? parseDidNotStartResponse(payload, value.value, raceId)
           : parseDidNotStartWithdrawalResponse(payload, value.value, raceId),
-        saved: value.kind === "DNS" ? text.dnsSaved : text.dnsWithdrawalSaved, unknown: text.dnsUnknown, conflict: text.dnsConflict };
+        saved: value.kind === "DNS" ? text.dnsSaved : text.dnsWithdrawalSaved, unknown: text.unreachable, conflict: text.dnsConflict };
     }
     case "RECALCULATION":
       return { entryId: value.value.entryId, endpoint: "recalculate", key: `result-recalculation:${value.value.requestId}`,
         body: resultRecalculationBody(value.value),
         parse: (payload: unknown) => parseResultRecalculationResponse(payload, value.value, raceId),
-        saved: text.recalculationSaved, unknown: text.recalculationUnknown, conflict: text.recalculationConflict };
+        saved: text.recalculationSaved, unknown: text.unreachable, conflict: text.recalculationConflict };
   }
 }
 

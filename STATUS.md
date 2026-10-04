@@ -5,9 +5,20 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 8 – Enkel arbetsyta för det som finns. Steg 7 (hårdvara) görs parallellt av ägaren. Steg 0–6 är klara.
+Steg 9 – Lottning på riktigt. Steg 7 (hårdvara) görs parallellt av ägaren. Steg 0–6 och 8 är klara.
 
 ## Logg
+
+### 2026-10-04 – Steg 8.5–8.6: checklista, kontrollvy och vanligt språk (steg 8 klart)
+- Checklistan Banor → Klasser → Anmälda → Start → Avläsning → Resultat ersätter arbetslägen och undermenyer. Varje steg har status
+  i ord och symbol (`lib/admin-checklist.ts`). Översikten och förberedelseguiden är borttagna.
+- Avläsning = tävlingsdagens kontrollvy: "Öppna avläsningen", kvar i skogen (lista), okända brickor (kopplas direkt i vyn),
+  felstämplade med "Öppna" till deltagarkortet och senaste avläsningar. Läses in när arbetsytan öppnas.
+- Inga id, hashar, versioner, slumpfrö eller UTC-offset i vyerna: tider som klockslag, starttider och lottningens första start
+  skrivs som klockslag (`parseRaceClock`). Nytt enhetstest granskar arbetsytans textfiler.
+- Omförsök i `operations.ts` (`fetchWithRetry`, även rättningarna); "svaret saknas" → "Kunde inte nå servern. Försök igen."
+  Namn, bricka, betalning, bana+klass, ny klass, maxantal och publicering sparas direkt; klassbyte, starttid, lottning kvar med bekräftelse.
+- Verifierat: lint, typecheck, test, test:integration (83 filer), build, e2e (3 flöden via checklistan och kontrollvyn).
 
 ### 2026-10-04 – Steg 8.3–8.4: klasser som tabell och deltagarkort
 - Klasser som tabell (klass, bana, startsätt, anmälda, avlästa/resultat, status) med namn, bana och startsätt i raden. Byte av bana

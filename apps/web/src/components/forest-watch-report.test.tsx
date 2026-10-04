@@ -54,8 +54,8 @@ describe("målpersonalens privata läsrapport", () => {
     expect(html.match(/data-forest-group=/g)).toHaveLength(5);
     expect(html).toContain("Okänd startstatus – följ upp (1)"); expect(html).toContain("Syntetisk Löpare");
     expect(html).toContain("Fri start / startstämpling"); expect(html).not.toContain("Aktivt ej-startresultat (DNS)");
-    expect(html).toContain("garanterar inte att skogen är tom"); expect(html).toContain("Tävlingsversion: 7");
-    expect(html).toContain("12:00:00"); expect(html).toContain("Europe/Stockholm");
+    expect(html).toContain("garanterar inte att skogen är tom"); expect(html).not.toContain("Tävlingsversion");
+    expect(html).toContain("12:00:00"); expect(html).not.toContain("Europe/Stockholm");
   });
   it("behåller filter, täckning och stale-varning i själva rapporten", () => {
     const html = renderToStaticMarkup(<ForestWatchReport data={data} classId="missing" stale />);

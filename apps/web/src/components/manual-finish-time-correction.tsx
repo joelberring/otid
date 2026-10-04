@@ -10,8 +10,9 @@ import {
 } from "@o-tid/contracts";
 import { raceAdministratorSv as text } from "../i18n/race-administrator-sv";
 import { readRaceAdministratorCsrfCookie } from "../lib/race-administrator-cookies";
-import { formatStartListTime } from "../lib/start-list-time";
-import { parseStartTimeFields } from "../lib/start-time-fields";
+import { formatClockTime, parseRaceClock, zonedDate } from "../lib/clock-time";
+import { fetchWithRetry } from "../lib/retrying-fetch";
+import { sv } from "../i18n/sv";
 import styles from "./race-administrator-workspace.module.css";
 
 type Attempt = { candidate: ManualFinishTimeCorrectionCandidate; request: ManualFinishTimeCorrectionRequest };
@@ -22,9 +23,9 @@ function duration(milliseconds: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}.${String(milliseconds % 1_000).padStart(3, "0")}`;
 }
 
-function inputInstant(value: string, offset: string): string | null {
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(value)) return null;
-  return parseStartTimeFields(value.slice(0, 10), value.slice(11), offset);
+/** Klockslaget skrivs på samma dag som den avlästa tiden, i tävlingens tidszon. */
+function inputInstant(reference: string, clock: string, timeZone: string): string | null {
+  return parseRaceClock(zonedDate(reference, timeZone), clock, timeZone);
 }
 
 export function ManualFinishTimeCorrection({ raceId, entries, timeZone, onPendingChange }: {
@@ -34,7 +35,7 @@ export function ManualFinishTimeCorrection({ raceId, entries, timeZone, onPendin
   onPendingChange?: (pending: boolean) => void;
 }) {
   const [entryId, setEntryId] = useState(""), [candidate, setCandidate] = useState<ManualFinishTimeCorrectionCandidate>();
-  const [correctedFinishLocal, setCorrectedFinishLocal] = useState(""), [correctedFinishOffset, setCorrectedFinishOffset] = useState("");
+  const [correctedFinishLocal, setCorrectedFinishLocal] = useState("");
   const [acknowledged, setAcknowledged] = useState(false);
   const [attempt, setAttempt] = useState<Attempt>(), [error, setError] = useState(""), [saved, setSaved] = useState(""), [busy, setBusy] = useState(false), [outcomeUncertain, setOutcomeUncertain] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
@@ -45,7 +46,7 @@ export function ManualFinishTimeCorrection({ raceId, entries, timeZone, onPendin
 
   async function loadCandidate() {
     if (!entryId || busy) return;
-    setBusy(true); setError(""); setSaved(""); setCandidate(undefined); setAttempt(undefined); setCorrectedFinishLocal(""); setCorrectedFinishOffset(""); setAcknowledged(false);
+    setBusy(true); setError(""); setSaved(""); setCandidate(undefined); setAttempt(undefined); setCorrectedFinishLocal(""); setAcknowledged(false);
     try {
       const response = await fetch(`${base}/${encodeURIComponent(entryId)}/finish-time-correction`, { credentials: "same-origin" });
       if (!response.ok) throw new Error("candidate");
@@ -59,7 +60,7 @@ export function ManualFinishTimeCorrection({ raceId, entries, timeZone, onPendin
   function inspect(event: FormEvent) {
     event.preventDefault();
     if (!candidate || busy || !acknowledged) return;
-    const correctedFinishTime = inputInstant(correctedFinishLocal, correctedFinishOffset);
+    const correctedFinishTime = inputInstant(candidate.source.finishTime, correctedFinishLocal, timeZone);
     const source = candidate.source;
     if (!correctedFinishTime || Date.parse(correctedFinishTime) === Date.parse(source.finishTime) ||
         Date.parse(correctedFinishTime) <= Date.parse(source.startTime) ||
@@ -83,13 +84,13 @@ export function ManualFinishTimeCorrection({ raceId, entries, timeZone, onPendin
       const csrf = readRaceAdministratorCsrfCookie(document.cookie, new URL(window.location.href));
       if (!csrf) throw new Error("csrf");
       setOutcomeUncertain(true);
-      const response = await fetch(`${base}/${encodeURIComponent(attempt.candidate.entryId)}/finish-time-correction`, {
+      const response = await fetchWithRetry(`${base}/${encodeURIComponent(attempt.candidate.entryId)}/finish-time-correction`, {
         method: "POST", credentials: "same-origin", headers: { "content-type": "application/json", "x-otid-csrf": csrf,
           "idempotency-key": `manual-finish-time-correction:${attempt.request.requestId}` }, body: JSON.stringify(attempt.request)
       });
       if (response.status === 409) {
         setOutcomeUncertain(false);
-        setAttempt(undefined); setCandidate(undefined); setCorrectedFinishLocal(""); setCorrectedFinishOffset(""); setAcknowledged(false); setError(text.finishTimeCorrectionConflict); return;
+        setAttempt(undefined); setCandidate(undefined); setCorrectedFinishLocal(""); setAcknowledged(false); setError(text.finishTimeCorrectionConflict); return;
       }
       if (!response.ok) throw new Error("commit");
       const receipt = manualFinishTimeCorrectionResponseSchema.parse(await response.json());
@@ -98,8 +99,8 @@ export function ManualFinishTimeCorrection({ raceId, entries, timeZone, onPendin
         throw new Error("receipt");
       }
       setOutcomeUncertain(false);
-      setAttempt(undefined); setCandidate(undefined); setCorrectedFinishLocal(""); setCorrectedFinishOffset(""); setAcknowledged(false); setSaved(text.finishTimeCorrectionSaved);
-    } catch { setError(text.finishTimeCorrectionUnknown); }
+      setAttempt(undefined); setCandidate(undefined); setCorrectedFinishLocal(""); setAcknowledged(false); setSaved(text.finishTimeCorrectionSaved);
+    } catch { setError(text.unreachable); }
     finally { setBusy(false); }
   }
 
@@ -120,25 +121,23 @@ export function ManualFinishTimeCorrection({ raceId, entries, timeZone, onPendin
       {source && !attempt && <>
         <div className={styles.courseRelinkSummary}>
           <p><strong>{candidate.entryName}</strong> · {candidate.className}</p>
-          <p><strong>{text.finishTimeCorrectionSource}:</strong> {source.outcome.status}/{source.outcome.reason} · revision {source.resultRevision}</p>
-          <p><strong>{text.finishTimeCorrectionStart}:</strong> {formatStartListTime(source.startTime, timeZone)}</p>
-          <p><strong>{text.finishTimeCorrectionFinish}:</strong> {formatStartListTime(source.finishTime, timeZone)} · <strong>{text.finishTimeCorrectionElapsed}:</strong> {duration(source.elapsedMs)}</p>
+          <p><strong>{text.finishTimeCorrectionSource}:</strong> {sv.publicResultsStatusLabels[source.outcome.status]}</p>
+          <p><strong>{text.finishTimeCorrectionStart}:</strong> {formatClockTime(source.startTime, timeZone)}</p>
+          <p><strong>{text.finishTimeCorrectionFinish}:</strong> {formatClockTime(source.finishTime, timeZone)} · <strong>{text.finishTimeCorrectionElapsed}:</strong> {duration(source.elapsedMs)}</p>
           <p><strong>{text.finishTimeCorrectionLastSplit}:</strong> {source.latestMatchedSplitElapsedMs === null ? text.finishTimeCorrectionNoSplit : duration(source.latestMatchedSplitElapsedMs)}</p>
         </div>
-        <label>{text.finishTimeCorrectionNewFinish}<input type="datetime-local" step="1" value={correctedFinishLocal} disabled={busy}
+        <label>{text.finishTimeCorrectionNewFinish}<input type="text" inputMode="numeric" autoComplete="off" placeholder="19:42:05" value={correctedFinishLocal} disabled={busy}
           onChange={(event) => setCorrectedFinishLocal(event.target.value)} required /></label>
-        <label>{text.startOffset}<input type="text" autoComplete="off" placeholder="+02:00" value={correctedFinishOffset} disabled={busy}
-          onChange={(event) => setCorrectedFinishOffset(event.target.value)} required /></label>
-        <p>{text.finishTimeCorrectionTimeHelp} {timeZone}</p>
+        <p>{text.finishTimeCorrectionTimeHelp}</p>
         <label className={styles.confirmPerson}><input type="checkbox" checked={acknowledged} disabled={busy}
           onChange={(event) => setAcknowledged(event.target.checked)} />{text.finishTimeCorrectionAcknowledge}</label>
-        <button type="submit" disabled={!correctedFinishLocal || !correctedFinishOffset || !acknowledged || busy}>{text.finishTimeCorrectionInspect}</button>
-        <button type="button" className="secondary" disabled={busy} onClick={() => { setCandidate(undefined); setCorrectedFinishLocal(""); setCorrectedFinishOffset(""); setAcknowledged(false); setError(""); }}>{text.cancel}</button>
+        <button type="submit" disabled={!correctedFinishLocal || !acknowledged || busy}>{text.finishTimeCorrectionInspect}</button>
+        <button type="button" className="secondary" disabled={busy} onClick={() => { setCandidate(undefined); setCorrectedFinishLocal(""); setAcknowledged(false); setError(""); }}>{text.cancel}</button>
       </>}
       {attempt && <section className={styles.review} role="alert" aria-live="polite">
         <h2>{text.finishTimeCorrectionReview}</h2>
         <p><strong>{attempt.candidate.entryName}</strong> · {attempt.candidate.className}</p>
-        <p><strong>{text.finishTimeCorrectionFinish}:</strong> {formatStartListTime(attempt.candidate.source.finishTime, timeZone)} → {formatStartListTime(attempt.request.correctedFinishTime, timeZone)}</p>
+        <p><strong>{text.finishTimeCorrectionFinish}:</strong> {formatClockTime(attempt.candidate.source.finishTime, timeZone)} → {formatClockTime(attempt.request.correctedFinishTime, timeZone)}</p>
         <p><strong>{text.finishTimeCorrectionElapsed}:</strong> {duration(attempt.candidate.source.elapsedMs)} → {newElapsed === undefined ? "–" : duration(newElapsed)}</p>
         {!outcomeUncertain && <p>{text.finishTimeCorrectionNotSaved}</p>}
         <div className={styles.actions}><button type="button" disabled={busy} onClick={() => void commit()}>{text.finishTimeCorrectionConfirm}</button>

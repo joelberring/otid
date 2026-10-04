@@ -33,11 +33,9 @@ export function useRosterState() {
 }
 
 export function deriveRoster(s: WorkspaceState) {
-  const { data, entryId, workflowMode, preparationArea, duringArea, query, olderResultsOnly, rentalCardsOnly,
+  const { data, entryId, step, query, olderResultsOnly, rentalCardsOnly,
     paymentAttentionOnly, resultState, rosterClassId, missingFixedStartOnly, rosterOrder, page, pageSize } = s;
-  const participantsVisible = workflowMode === "PARTICIPANTS" ||
-    (workflowMode === "BEFORE" && preparationArea === "PARTICIPANTS") ||
-    (workflowMode === "DURING" && duringArea === "PARTICIPANTS");
+  const participantsVisible = step === "ENTRIES";
   const selected = data?.entries.find((entry) => entry.id === entryId);
   const returnedRentalSources = data?.entries.filter((entry) => entry.id !== selected?.id &&
     !entry.multipleActiveAssignments && entry.activeAssignment?.isRental && entry.activeAssignment.rentalReturned) ?? [];
@@ -70,13 +68,13 @@ export type Roster = ReturnType<typeof deriveRoster>;
 /** Val av deltagare och åtgärd. Laddar det underlag som vald åtgärd behöver. */
 export function createParticipantActions(ws: Base & MobileNavigation & RaceDataActions & DuringRaceActions &
   ResultDecisionActions & EntryActions) {
-  const { data, entryId, action, workflowMode, participantsVisible, workflowLocked, selected, selectedIndex, filtered,
+  const { data, entryId, action, participantsVisible, workflowLocked, selected, selectedIndex, filtered,
     classesById, rosterOrder, pageSize, registrationAttempt, unknown, busyRef, pending, sent, checkinHistoryPanel,
     workPanel, listPanel, requireSession, begin, finish, showMobilePanel, loadEffectiveResult, loadConflictReview,
-    loadCheckinHistory, loadIdentity, loadHistory, setAction, setStatusChoice, setStatusBlocked, setPreparationArea, setDuringArea, setWorkflowMode, setWideTable,
+    loadCheckinHistory, loadIdentity, loadHistory, setAction, setStatusChoice, setStatusBlocked, setStep, setWideTable,
     setReviewCandidate, setReviewReason, setReviewConfirmed, setEntryId, setClassId, setMessage, setNewCard,
     setRentalReuseSourceId, setPaymentStatus, setCheckinHistory, setGivenName, setFamilyName, setOrganisationName,
-    setStartDate, setStartClock, setStartOffset, setIdentityCandidates, setEntryChanges, setEffectiveResult, setEffectiveResultError, setRegistrationAttempt, setConfirmDistinctPerson,
+    setStartClock, setIdentityCandidates, setEntryChanges, setEffectiveResult, setEffectiveResultError, setRegistrationAttempt, setConfirmDistinctPerson,
     setQuery, setRosterClassId, setOlderResultsOnly, setRentalCardsOnly, setPaymentAttentionOnly,
     setMissingFixedStartOnly, setResultState, setPage } = ws;
   function select(id: string, openJournal = false, reviewConflict = false, requestedAction?: Action) {
@@ -85,12 +83,8 @@ export function createParticipantActions(ws: Base & MobileNavigation & RaceDataA
     setAction(nextAction);
     if (!openJournal) {
       if (!participantsVisible) {
-        // Follow-up actions inside preparation must reveal their participant target before focusing it.
-        flushSync(() => {
-          if (workflowMode === "BEFORE") setPreparationArea("PARTICIPANTS");
-          else if (workflowMode === "DURING") setDuringArea("PARTICIPANTS");
-          else setWorkflowMode("PARTICIPANTS");
-        });
+        // Genvägar från andra steg (t.ex. kontrollvyns "Öppna") visar Anmälda innan kortet fokuseras.
+        flushSync(() => setStep("ENTRIES"));
       }
       setWideTable(false);
       showMobilePanel("WORK");
@@ -100,7 +94,7 @@ export function createParticipantActions(ws: Base & MobileNavigation & RaceDataA
     setEntryId(id); setClassId(""); setMessage(""); setNewCard(""); setRentalReuseSourceId(""); setPaymentStatus(selectedEntry?.paymentStatus ?? "PAID");
     setCheckinHistory(undefined);
     if (action === "REGISTRATION") { setGivenName(""); setFamilyName(""); setOrganisationName(""); }
-    setStartDate(""); setStartClock(""); setStartOffset("");
+    setStartClock("");
     setStatusChoice(""); setStatusBlocked("");
     if (openJournal) {
       if (checkinHistoryPanel.current) {
@@ -125,7 +119,7 @@ export function createParticipantActions(ws: Base & MobileNavigation & RaceDataA
   }
   function chooseAction(value: Action) {
     if (busyRef.current || pending.current || !requireSession()) return;
-    setAction(value); setClassId(""); setNewCard(""); setStartDate(""); setStartClock(""); setStartOffset(""); setMessage("");
+    setAction(value); setClassId(""); setNewCard(""); setStartClock(""); setMessage("");
     if (value === "PAYMENT") setPaymentStatus(data?.entries.find((entry) => entry.id === entryId)?.paymentStatus ?? "PAID");
     setIdentityCandidates(undefined); setGivenName(""); setFamilyName(""); setOrganisationName("");
     setEntryChanges(undefined); setStatusChoice(""); setStatusBlocked("");

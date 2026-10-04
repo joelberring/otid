@@ -18,6 +18,7 @@ import {
   type PairingAdminRequestAuthentication
 } from "./pairing-admin";
 import { lockEntryForRevision, lockRaceForMutation } from "./concurrency";
+import { synchronizeRelayTeams } from "./relay-sync";
 import { loadActiveManualResultOverrideState } from "./result-revision-state";
 import {
   StoredResultRevisionConflict,
@@ -167,6 +168,7 @@ export async function withdrawManualFinishTimeCorrectionAsAdministrator(
       status: current.source.status, reason: current.source.reason, evaluation: current.source.evaluation, engineVersion: ENGINE_VERSION,
       snapshotVersion: current.source.snapshotVersion, courseVersionId: current.source.courseVersionId, published: true, createdAt: withdrawnAt }).returning();
     if (!created) throw new Error("Måltidsrättningens återtagande kunde inte sparas");
+    if (entry.teamId) await synchronizeRelayTeams(tx, race.id, [entry.teamId], race.snapshotVersion);
     await tx.insert(schema.auditEvents).values({ raceId: race.id, entityType: "result_revision", entityId: created.id,
       action: "MANUAL_FINISH_TIME_CORRECTION_WITHDRAWN", actorKind: "RACE_ADMIN_ACCESS_CREDENTIAL", actorId: auth.principal.accessCredentialId,
       requestId: response.requestId, before: { correctionId: current.correction.requestId, correctedResultRevisionId: current.corrected.id },

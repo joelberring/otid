@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Varianter per sträcka för ett stafettlag (IOF XML 3.0 TeamCourseAssignment) på den gafflade banan
+     Lång i course-data-forked.xml. Lag 7 matchas på nummer, laget "Fjärilarna" på namn och klass. -->
+<CourseData xmlns="http://www.orienteering.org/datastandard/3.0" iofVersion="3.0" createTime="2026-10-01T18:10:00+02:00" creator="O-Tid fixture">
+  <Event><Name>Klubbstafett med gafflingar</Name></Event>
+  <RaceCourseData>
+    <TeamCourseAssignment>
+      <BibNumber>7</BibNumber>
+      <TeamName>OK Gaffel 1</TeamName>
+      <ClassName>Stafett</ClassName>
+      <TeamMemberCourseAssignment><Leg>1</Leg><CourseName>Lång-BD</CourseName><CourseFamily>Lång</CourseFamily></TeamMemberCourseAssignment>
+      <TeamMemberCourseAssignment><Leg>2</Leg><CourseName>Lång-AC</CourseName><CourseFamily>Lång</CourseFamily></TeamMemberCourseAssignment>
+    </TeamCourseAssignment>
+    <TeamCourseAssignment>
+      <TeamName>Fjärilarna</TeamName>
+      <ClassName>Stafett</ClassName>
+      <TeamMemberCourseAssignment><Leg>1</Leg><CourseName>Lång-AD</CourseName><CourseFamily>Lång</CourseFamily></TeamMemberCourseAssignment>
+      <TeamMemberCourseAssignment><Leg>2</Leg><CourseName>Lång-BC</CourseName><CourseFamily>Lång</CourseFamily></TeamMemberCourseAssignment>
+    </TeamCourseAssignment>
+  </RaceCourseData>
+</CourseData>

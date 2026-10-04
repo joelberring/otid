@@ -20,7 +20,11 @@ const timezone = z.string().trim().min(1).max(100).refine((value) => {
 const entry = z.object({
     displayName: z.string().trim().min(1).max(321), organisationName: z.string().trim().min(1).max(240).nullable(), fixedStartTime: instant.nullable(),
     /** Gafflad klass: löparens variant (ADR-0169 beslut 2). Saknas för klasser utan varianter. */
-    courseVariantCode: courseVariantCodeSchema.optional()
+    courseVariantCode: courseVariantCodeSchema.optional(),
+    /** Stafett (ADR-0169 beslut 3): laget och sträckan. Sträcka 2 och senare har ingen starttid före växlingen. */
+    relay: z.object({ teamNumber: z.number().int().min(1).max(99999), teamName: z.string().trim().min(1).max(160),
+        teamOrganisationName: z.string().trim().min(1).max(200).nullable(), leg: z.number().int().min(1).max(20),
+        startMethod: z.enum(["MASS_START", "CHANGEOVER", "RESTART"]) }).strict().optional()
 }).strict();
 const raceClass = z.object({
     name: z.string().trim().min(1).max(160), startRule: z.enum(["FIXED", "PUNCH"]), entries: z.array(entry).max(10000)

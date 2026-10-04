@@ -104,7 +104,7 @@ export async function listCoursesForEditAsAdministrator(db: Database, input: Aut
     const race = await lockRaceForSnapshot(tx, raceId);
     const courses = await tx.select({ id: schema.courses.id }).from(schema.courses).where(eq(schema.courses.raceId, raceId));
     const entries = await tx.select({ id: schema.entries.id, classId: schema.entries.classId,
-      fixedStartTime: schema.entries.fixedStartTime }).from(schema.entries).where(eq(schema.entries.raceId, raceId));
+      fixedStartTime: schema.entries.fixedStartTime, teamId: schema.entries.teamId }).from(schema.entries).where(eq(schema.entries.raceId, raceId));
     const assignments = await tx.select({ entryId: schema.cardAssignments.entryId, cardNumber: schema.cardAssignments.cardNumber })
       .from(schema.cardAssignments).where(and(eq(schema.cardAssignments.raceId, raceId), eq(schema.cardAssignments.active, true)));
     const readCards = new Set((await tx.selectDistinct({ cardNumber: schema.cardReadouts.cardNumber }).from(schema.cardReadouts)
@@ -144,7 +144,8 @@ export async function listCoursesForEditAsAdministrator(db: Database, input: Aut
       return { classId: row.id, name: row.name, courseId: row.courseId, startRule: row.startRule, entryCount: classEntries.length,
         readOutCount: classEntries.filter(entry => readEntries.has(entry.id)).length,
         resultCount: classEntries.filter(entry => resultEntries.has(entry.id)).length,
-        missingStartTimeCount: row.startRule === "FIXED" ? classEntries.filter(entry => entry.fixedStartTime === null).length : 0,
+        // Stafettsträckor får sin start av masstart, växling eller omstart; de saknar inte starttid.
+        missingStartTimeCount: row.startRule === "FIXED" ? classEntries.filter(entry => entry.fixedStartTime === null && entry.teamId === null).length : 0,
         renamable: row.externalSource === null && row.externalId === null, variantCount: codes.length,
         missingVariantCount: codes.length === 0 ? 0 : classEntries.filter(entry => {
           const code = entryVariants.get(entry.id);

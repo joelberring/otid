@@ -38,7 +38,9 @@ export const iofCourseDataImportReportSchema = z.object({
     classes: z.number().int().nonnegative(),
     // ADR-0169 beslut 2: gafflingar (varianter) och löpare som fått sin variant ur filen.
     variants: z.number().int().nonnegative().optional(),
-    personAssignments: z.number().int().nonnegative().optional()
+    personAssignments: z.number().int().nonnegative().optional(),
+    // ADR-0169 beslut 3: stafettsträckor som fått sin variant ur TeamCourseAssignment.
+    teamAssignments: z.number().int().nonnegative().optional()
   }).strict()
 }).strict();
 

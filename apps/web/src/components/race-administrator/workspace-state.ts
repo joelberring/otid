@@ -8,6 +8,7 @@ import { createCoursePreparationActions, useCoursePreparationState } from "./cou
 import { createCourseEditActions, useCourseEditState } from "./course-edit";
 import { createClassEditActions, useClassEditState } from "./class-edit";
 import { createCourseVariantActions, useCourseVariantState } from "./course-variant-actions";
+import { createRelayActions, useRelayState } from "./relay-actions";
 import { createStatusChangeActions, useStatusChangeState } from "./status-change";
 import { createClassPreparationActions, deriveClassPreparation, useClassPreparationState } from "./class-preparation";
 import { createStartListActions, useStartListState } from "./start-list-preparation";
@@ -19,7 +20,7 @@ import { createAfterRaceActions, deriveAfterRace, useAfterRaceState } from "./af
 export function useWorkspaceState(raceId: string) {
   return { raceId, ...useOperationState(), ...useNavigationState(), ...useRaceDataState(), ...useRosterState(),
     ...useEntryActionState(), ...useResultDecisionState(), ...useCoursePreparationState(), ...useCourseEditState(), ...useClassEditState(),
-    ...useCourseVariantState(),
+    ...useCourseVariantState(), ...useRelayState(),
     ...useClassPreparationState(), ...useStatusChangeState(),
     ...useStartListState(), ...useStartDrawState(), ...useDuringRaceState(), ...useAfterRaceState() };
 }
@@ -62,9 +63,10 @@ export function useWorkspace(raceId: string) {
   const base: Base = { ...s, ...deriveWorkspace(s), ...operations };
   const withNavigation = { ...base, ...createMobileNavigation(base) };
   const withData = { ...withNavigation, ...createRaceDataActions(withNavigation) };
+  const withRelay = { ...withData, ...createRelayActions(withData) };
   const withCourses = { ...withData, ...createCourseEditActions(withData) };
   const withDecisions = { ...withCourses, ...createResultDecisionActions(withCourses) };
-  const withAreas = { ...withDecisions, ...createDuringRaceActions(withData), ...createStartListActions(withData),
+  const withAreas = { ...withDecisions, ...withRelay, ...createDuringRaceActions(withRelay), ...createStartListActions(withData),
     ...createStartDrawActions(withData),
     ...createCoursePreparationActions(withData), ...createClassEditActions(withCourses), ...createClassPreparationActions(withData),
     ...createCourseVariantActions(withCourses),

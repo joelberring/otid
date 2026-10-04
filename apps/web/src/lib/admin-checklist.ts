@@ -45,7 +45,8 @@ export function checklistFacts(data: Pick<EntryTransferCandidates, "classes" | "
     classes: data.classes.length,
     entries: data.entries.length,
     fixedStartClasses: fixedClasses.size,
-    missingStartTimes: data.entries.filter(entry => fixedClasses.has(entry.classId) && entry.fixedStartTime === null).length,
+    missingStartTimes: data.entries.filter(entry => fixedClasses.has(entry.classId) && entry.fixedStartTime === null &&
+      entry.relay === undefined).length,
     readOut: statuses.filter(status => status !== undefined && status !== "DNS").length,
     inForest: extra.inForest ?? statuses.filter(status => status === undefined).length,
     unknownCards: extra.unknownCards,

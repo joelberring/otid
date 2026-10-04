@@ -49,6 +49,15 @@ export const readoutText = {
   // Gafflad bana (ADR-0169 beslut 2).
   variant: (code: string) => `Variant ${code}`,
   variantGuessed: (code: string) => `Variant ${code} (efter stämplingarna)`,
+  // Stafett (ADR-0169 beslut 3).
+  relayTeam: (number: number, name: string, leg: number, legCount: number) => `Lag ${number} ${name} · Sträcka ${leg} av ${legCount}`,
+  relayNext: (leg: number) => `Växlar till sträcka ${leg}`,
+  relayLast: "Sista sträckan",
+  relayTeamTime: (time: string) => `Lagets tid ${time}`,
+  relayTeamWaiting: "Lagets tid när alla sträckor är avlästa",
+  relayTeamStatus: { OK: "Laget godkänt", MP: "Laget felstämplat", DSQ: "Laget diskat", DNF: "Laget har brutit", OOC: "Laget utom tävlan",
+    NT: "Laget utan tidtagning", DNS: "Laget har en sträcka som inte startat", RUNNING: "" } as Record<string, string>,
+  relayPlace: (teamNumber: number, leg: number) => `Lag ${teamNumber} · Sträcka ${leg}`,
   noPackage: "Inget tävlingsunderlag hämtat ännu. Avläsningen är sparad och bedöms av servern.",
   savedLocally: "Sparad i den här webbläsaren. Skickas när nätet finns.",
   confirmed: "Bekräftad av servern.",

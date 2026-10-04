@@ -24,8 +24,9 @@ export function needsPaymentAttention(status: unknown): boolean {
   return status === "UNMARKED" || status === "UNPAID";
 }
 
+/** Fast start utan tid. Stafettsträckor räknas inte: deras start ges av masstart, växling eller omstart. */
 export function missingFixedStartTime(entry: Entry, startRule: StartRule | undefined): boolean {
-  return startRule === "FIXED" && entry.fixedStartTime === null;
+  return startRule === "FIXED" && entry.fixedStartTime === null && entry.relay === undefined;
 }
 
 export function filterAdministratorRoster(

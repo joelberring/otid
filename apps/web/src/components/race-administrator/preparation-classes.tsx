@@ -5,6 +5,7 @@ import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
 import { raceWorkspaceNavigationSv as navigationText } from "../../i18n/race-workspace-navigation-sv";
 import type { ManualClassCreateRequest } from "@o-tid/contracts";
 import { ClassTable } from "./class-table";
+import { RelayClassForm } from "./relay-panels";
 import type { Workspace } from "./workspace-state";
 
 /** Klasser: tabell (namn, bana, startsätt), ny klass och maxantal. Det som inte ändrar resultat sparas direkt. */
@@ -18,6 +19,7 @@ export function PreparationClasses({ ws }: { ws: Workspace }) {
   const visible = step === "CLASSES";
   return <section className={styles.workflowGroup} aria-label={navigationText.steps.CLASSES} hidden={!visible}>
     {visible && <ClassTable ws={ws} visible={visible} />}
+    <RelayClassForm ws={ws} visible={visible} />
     <details className={styles.manualClassPanel} open={manualClassAttempt ? true : undefined}
       onToggle={event => { if (manualClassAttempt && !event.currentTarget.open) event.currentTarget.open = true; }}>
       <summary>{text.manualClassTitle}</summary>

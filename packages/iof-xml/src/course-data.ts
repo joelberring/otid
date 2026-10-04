@@ -11,6 +11,8 @@ import { array, IofValidationError, record, rejectUnexpectedKeys, requireText, t
  *   (en variants namn ger hela den gafflade banan: klassen pekar på banan).
  * - `PersonCourseAssignment` ger en löpare (`EntryId`, annars `PersonName` + `ClassName`)
  *   varianten som `CourseName` anger.
+ * - `TeamCourseAssignment` ger ett stafettlag (`BibNumber`, annars `TeamName` + `ClassName`)
+ *   en variant per sträcka (`TeamMemberCourseAssignment` med `Leg` och `CourseName`).
  */
 export interface CourseVariantImport {
   readonly code: string;
@@ -40,11 +42,20 @@ export interface PersonCourseAssignmentImport {
   readonly variantCode: string;
 }
 
+/** Stafett: lagets variant per sträcka (`TeamCourseAssignment` med `TeamMemberCourseAssignment`). */
+export interface TeamCourseAssignmentImport {
+  readonly bibNumber?: number;
+  readonly teamName?: string;
+  readonly className?: string;
+  readonly legs: readonly { readonly leg: number; readonly courseExternalId: string; readonly variantCode: string }[];
+}
+
 export interface CourseDataImport {
   readonly kind: "CourseData";
   readonly courses: readonly CourseImport[];
   readonly assignments: readonly ClassCourseImport[];
   readonly personAssignments: readonly PersonCourseAssignmentImport[];
+  readonly teamAssignments: readonly TeamCourseAssignmentImport[];
   readonly warnings: readonly string[];
 }
 
@@ -73,6 +84,7 @@ export function readCourseData(root: XmlRecord): CourseDataImport {
   const courses: CourseImport[] = [];
   const assignments: ClassCourseImport[] = [];
   const personAssignments: PersonCourseAssignmentImport[] = [];
+  const teamAssignments: TeamCourseAssignmentImport[] = [];
 
   for (const [raceIndex, rawRaceData] of array(root.RaceCourseData).entries()) {
     const raceData = record(rawRaceData);
@@ -174,6 +186,13 @@ export function readCourseData(root: XmlRecord): CourseDataImport {
       });
     }
 
+    // Utan Course-element i filen (bara tilldelningar) ger familjen och namnet varianten.
+    const variantOf = (courseName: string, family: string | undefined) => {
+      const matched = courseByName.get(courseName) ??
+        (family ? { externalId: `${FAMILY_PREFIX}${family}`, variantCode: courseVariantCode(family, courseName) } : undefined);
+      return matched?.variantCode && !(family && matched.externalId !== `${FAMILY_PREFIX}${family}`)
+        ? { courseExternalId: matched.externalId, variantCode: matched.variantCode } : undefined;
+    };
     for (const [index, rawAssignment] of array(raceData.PersonCourseAssignment).entries()) {
       const assignment = record(rawAssignment);
       const path = `RaceCourseData[${raceIndex}].PersonCourseAssignment[${index}]`;
@@ -183,11 +202,8 @@ export function readCourseData(root: XmlRecord): CourseDataImport {
       const className = text(assignment.ClassName);
       const courseName = requireText(assignment.CourseName, `${path}.CourseName`, issues);
       if (!entryExternalId && !(personName && className)) issues.push(`${path} behöver EntryId eller PersonName och ClassName`);
-      const family = text(assignment.CourseFamily);
-      // Utan Course-element i filen (bara tilldelningar) ger familjen och namnet varianten.
-      const matched = courseByName.get(courseName) ??
-        (family ? { externalId: `${FAMILY_PREFIX}${family}`, variantCode: courseVariantCode(family, courseName) } : undefined);
-      if (!matched?.variantCode || (family && matched.externalId !== `${FAMILY_PREFIX}${family}`)) {
+      const matched = variantOf(courseName, text(assignment.CourseFamily));
+      if (!matched) {
         issues.push(`${path} refererar okänd variant ${courseName}`);
         continue;
       }
@@ -195,20 +211,44 @@ export function readCourseData(root: XmlRecord): CourseDataImport {
         ...(entryExternalId ? { entryExternalId } : {}),
         ...(personName ? { personName } : {}),
         ...(className ? { className } : {}),
-        courseExternalId: matched.externalId,
-        variantCode: matched.variantCode
+        ...matched
       });
     }
-    if (array(raceData.TeamCourseAssignment).length > 0) warnings.push("TeamCourseAssignment (stafett) importeras inte ännu");
+    for (const [index, rawTeam] of array(raceData.TeamCourseAssignment).entries()) {
+      const team = record(rawTeam);
+      const path = `RaceCourseData[${raceIndex}].TeamCourseAssignment[${index}]`;
+      rejectUnexpectedKeys(team, ["EntryId", "BibNumber", "TeamName", "ClassName", "TeamMemberCourseAssignment", "Extensions"], path, issues);
+      const bib = text(team.BibNumber);
+      const bibNumber = bib && /^[1-9][0-9]{0,4}$/.test(bib) ? Number(bib) : undefined;
+      const teamName = text(team.TeamName);
+      const className = text(team.ClassName);
+      if (bibNumber === undefined && !teamName) issues.push(`${path} behöver BibNumber eller TeamName`);
+      const legs: { leg: number; courseExternalId: string; variantCode: string }[] = [];
+      for (const [memberIndex, rawMember] of array(team.TeamMemberCourseAssignment).entries()) {
+        const member = record(rawMember);
+        const memberPath = `${path}.TeamMemberCourseAssignment[${memberIndex}]`;
+        rejectUnexpectedKeys(member, ["EntryId", "BibNumber", "Leg", "LegOrder", "TeamMemberName", "CourseName", "CourseFamily", "Extensions"],
+          memberPath, issues);
+        const legText = text(member.Leg);
+        const leg = legText && /^[1-9][0-9]?$/.test(legText) ? Number(legText) : undefined;
+        const courseName = requireText(member.CourseName, `${memberPath}.CourseName`, issues);
+        const variant = courseName ? variantOf(courseName, text(member.CourseFamily)) : undefined;
+        if (leg === undefined) { issues.push(`${memberPath}.Leg saknas`); continue; }
+        if (!variant) { issues.push(`${memberPath} refererar okänd variant ${courseName}`); continue; }
+        legs.push({ leg, ...variant });
+      }
+      teamAssignments.push({ ...(bibNumber === undefined ? {} : { bibNumber }), ...(teamName ? { teamName } : {}),
+        ...(className ? { className } : {}), legs });
+    }
   }
 
   if (assignments.length > 0) {
     warnings.push("Startregel saknas i IOF CourseData 3.0; PUNCH används tills en separat StartList importeras");
   }
 
-  // En fil med bara PersonCourseAssignment (varianter till redan importerade banor) är tillåten.
-  if (courses.length === 0 && personAssignments.length === 0) issues.push("RaceCourseData.Course saknas");
+  // En fil med bara Person-/TeamCourseAssignment (varianter till redan importerade banor) är tillåten.
+  if (courses.length === 0 && personAssignments.length === 0 && teamAssignments.length === 0) issues.push("RaceCourseData.Course saknas");
   if (courses.length > 0 && assignments.length === 0) warnings.push("Inga ClassCourseAssignment hittades");
   if (issues.length > 0) throw new IofValidationError(issues);
-  return { kind: "CourseData", courses, assignments, personAssignments, warnings };
+  return { kind: "CourseData", courses, assignments, personAssignments, teamAssignments, warnings };
 }

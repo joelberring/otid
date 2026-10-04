@@ -6,6 +6,7 @@ import { lockRaceForSnapshot } from "./concurrency";
 import { ingestDeviceBatch } from "./ingest";
 import { authenticatePairingAdminSession, type PairingAdminRequestAuthentication } from "./pairing-admin";
 import { loadRaceSnapshot, sortRaceSnapshotForPackage } from "./snapshot";
+import { loadRelayReadout } from "./relay-results";
 
 /**
  * Webbläsarens avläsningsstation (steg 4, ADR-0168). Administratörens session
@@ -26,9 +27,10 @@ export async function readReadoutPackageAsAdministrator(
       id: schema.events.id, name: schema.events.name, startsOn: schema.events.startsOn, timeZone: schema.events.timeZone
     }).from(schema.events).where(eq(schema.events.id, raceSnapshot.race.eventId));
     if (!event) throw new Error("Evenemanget finns inte");
+    const relay = await loadRelayReadout(tx, input.raceId);
     return readoutPackageSchema.parse({
       formatVersion: 1, raceId: raceSnapshot.race.id, packageVersion: raceSnapshot.race.snapshotVersion,
-      resultEngineVersion: RESULT_ENGINE_VERSION, event, raceSnapshot, fetchedAt: now.toISOString()
+      resultEngineVersion: RESULT_ENGINE_VERSION, event, raceSnapshot, ...(relay ? { relay } : {}), fetchedAt: now.toISOString()
     });
   });
   return { status: "ok", response };

@@ -6,6 +6,7 @@ import styles from "../race-administrator-workspace.module.css";
 import { classTableSv as text } from "../../i18n/class-table-sv";
 import { raceAdministratorSv as adminText } from "../../i18n/race-administrator-sv";
 import { courseVariantsSv as variantText } from "../../i18n/course-variants-sv";
+import { relaySv as relayText } from "../../i18n/relay-sv";
 import { classTableStatus } from "../../lib/class-table-status";
 import type { Workspace } from "./workspace-state";
 
@@ -20,6 +21,8 @@ export function ClassTable({ ws, visible }: { ws: Workspace; visible: boolean })
     if (visible && authenticated && data && !busy && !pending.current && stale && !courseListError) void loadCourses();
   }, [visible, authenticated, data, busy, stale, courseListError]);
   const courseNames = new Map(courseList?.courses.map(course => [course.courseId, course.name]));
+  // Stafettklass (ADR-0169 beslut 3): antal sträckor i stället för startsätt.
+  const relayLegs = new Map(data?.classes.flatMap(row => row.relayLegCount ? [[row.id, row.relayLegCount] as const] : []));
   return <section className={styles.panel} aria-labelledby={`class-table-${raceId}`}>
     <h2 id={`class-table-${raceId}`}>{text.title}</h2>
     <p className={styles.workflowHelp}>{text.help}</p>
@@ -48,7 +51,7 @@ export function ClassTable({ ws, visible }: { ws: Workspace; visible: boolean })
                 disabled={busy || workflowLocked || !!pending.current} onClick={() => void distributeVariants(row.classId)}>
                 {variantText.distribute}</button>
             </>}</td>
-          <td>{row.startRule === "PUNCH" ? text.free : text.fixed}</td>
+          <td>{relayLegs.get(row.classId) ? relayText.relayStartRule(relayLegs.get(row.classId)!) : row.startRule === "PUNCH" ? text.free : text.fixed}</td>
           <td>{row.entryCount}</td>
           <td>{text.readOutValue(row.readOutCount, row.resultCount)}</td>
           <td><ClassStatus row={row} disabled={workflowLocked} onMissingStartTimes={() => openMissingFixedStart(row.classId)} /></td>
@@ -89,7 +92,8 @@ function ClassEditor({ ws, row }: { ws: Workspace; row: ClassRow }) {
         onChange={event => changeClassEdit({ courseId: event.target.value })}>
         {courseList?.courses.map(course => <option key={course.courseId} value={course.courseId}>{course.name}</option>)}
       </select></label>
-      <label htmlFor={`${id}-start`}>{text.fieldStartRule}<select id={`${id}-start`} value={classEditStartRule} disabled={locked}
+      <label htmlFor={`${id}-start`}>{text.fieldStartRule}<select id={`${id}-start`} value={classEditStartRule}
+        disabled={locked || !!ws.data?.classes.some(raceClass => raceClass.id === row.classId && raceClass.relayLegCount)}
         onChange={event => changeClassEdit({ startRule: event.target.value === "FIXED" ? "FIXED" : "PUNCH" })}>
         <option value="PUNCH">{text.free}</option><option value="FIXED">{text.fixed}</option>
       </select></label>

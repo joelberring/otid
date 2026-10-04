@@ -4,10 +4,12 @@ import styles from "../race-administrator-workspace.module.css";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
 import { raceWorkspaceNavigationSv as navigationText } from "../../i18n/race-workspace-navigation-sv";
 import { sv } from "../../i18n/sv";
+import { relaySv as relayText } from "../../i18n/relay-sv";
 import { formatClockTime } from "../../lib/clock-time";
 import { administratorRosterResultFilters, needsPaymentAttention, type AdministratorRosterResultFilter } from "../../lib/administrator-roster-filter";
 import { resultDuration } from "./types";
 import { ParticipantCard } from "./participant-card";
+import { RelayTeams } from "./relay-teams";
 import type { Workspace } from "./workspace-state";
 
 /** Deltagare: lista och deltagarkort för vald deltagare. */
@@ -17,6 +19,7 @@ export function ParticipantsPanel({ ws }: { ws: Workspace }) {
   return <section className={styles.workflowGroup} id={`workflow-${raceId}-participants`} aria-label={navigationText.steps.ENTRIES}
       hidden={!participantsVisible}>
     <p className={styles.workflowHelp}>{text.workflowParticipantsHelp}</p>
+    <RelayTeams ws={ws} visible={participantsVisible} />
     <nav className={styles.mobileNavigation} aria-label={text.mobileNavigation}>
       <button type="button" className="secondary" aria-pressed={mobilePanel === "LIST"} disabled={disabled}
         aria-controls={`participant-list-${raceId}`} onClick={() => navigateMobile("LIST")}>{text.mobileList}</button>
@@ -132,7 +135,9 @@ export function ParticipantList({ ws }: { ws: Workspace }) {
               {entry.activeAssignment?.isRental && <span className={`${styles.resultBadge} ${entry.activeAssignment.rentalReturned ? "" : styles.resultBadgeAttention}`}>{text.rentalBadge} · {entry.activeAssignment.cardNumber} · {entry.activeAssignment.rentalReturned ? text.rentalReturned : text.rentalOutstanding}</span>}
               {entry.paymentStatus !== "UNMARKED" && <span className={`${styles.resultBadge} ${needsPaymentAttention(entry.paymentStatus) ? styles.resultBadgeAttention : ""}`}>{text.paymentStatusBadge} · {text.paymentStatuses[entry.paymentStatus]}</span>}
             </div>
-          </td><td data-label={text.raceClass}>{raceClass.name}</td>
+          </td><td data-label={text.raceClass}>{raceClass.name}
+            {entry.relay && <span className={styles.rosterMetadata}>{relayText.teamHeading(entry.relay.teamNumber, entry.relay.teamName)} ·
+              {" "}{relayText.leg(entry.relay.leg)}</span>}</td>
           <td data-label={text.rosterResult} className={styles.rosterResultCell}>
             {entry.effectiveResult.state === "ACTIVE_RESULT"
               ? <><span className={styles.rosterResultLine}>
@@ -146,10 +151,10 @@ export function ParticipantList({ ws }: { ws: Workspace }) {
           <td data-label={text.rosterCard} className={styles.cardCell}>{entry.multipleActiveAssignments
             ? text.rosterMultipleActiveCards : entry.activeAssignment?.cardNumber ?? text.rosterNoActiveCard}</td>
           <td data-label={text.rosterStart} className={styles.startCell}>{raceClass.startRule === "PUNCH" ? text.rosterFreeStart :
-            <div className={styles.startDetail}><strong>{text.rosterFixedStart}</strong>
+            <div className={styles.startDetail}>{!entry.relay && <strong>{text.rosterFixedStart}</strong>}
               {entry.fixedStartTime
                 ? <time dateTime={entry.fixedStartTime}>{formatClockTime(entry.fixedStartTime, data.timeZone)}</time>
-                : <><span className={styles.startMissing}>{text.rosterMissingFixedStart}</span>
+                : entry.relay ? <span>{relayText.waitingStart}</span> : <><span className={styles.startMissing}>{text.rosterMissingFixedStart}</span>
                   <button type="button" className={styles.startSetButton} disabled={workflowLocked}
                     aria-label={text.rosterSetStartTimeFor(entry.displayName)}
                     onClick={() => openMissingStartTime(entry.id)}>{text.rosterSetStartTime}</button></>}

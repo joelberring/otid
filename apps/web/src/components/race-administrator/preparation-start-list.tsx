@@ -8,6 +8,7 @@ import Link from "next/link";
 import { RaceOperatorAccess } from "../race-operator-access";
 import { RacePreparationStartList } from "../race-preparation-start-list";
 import { StartDrawPanel } from "./start-draw-panel";
+import { RelayStartTimes } from "./relay-panels";
 import type { Workspace } from "./workspace-state";
 
 /**
@@ -18,6 +19,7 @@ export function PreparationStartList({ ws }: { ws: Workspace }) {
     publicationPreview, raceId, select, setOperatorAccessPending, step, submitPublication, unknown } = ws;
   return <section className={styles.workflowGroup} aria-label={navigationText.steps.START} hidden={step !== "START"}>
     <StartDrawPanel ws={ws} visible={step === "START"} />
+    <RelayStartTimes ws={ws} visible={step === "START"} />
     {data && <RacePreparationStartList data={data} disabled={disabled} onSelectEntry={id => select(id)} />}
     <details className={styles.courseClassPanel}>
       <summary>{publicationText.title}</summary>

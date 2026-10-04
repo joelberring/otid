@@ -17,10 +17,10 @@ export async function registerAccount(browser: Browser, loginName: string, displ
 }
 
 /** Skapar tävling och öppnar arbetsytan. Returnerar loppets id. */
-export async function createRace(owner: Page, eventName: string): Promise<string> {
+export async function createRace(owner: Page, eventName: string, date = "2026-10-08"): Promise<string> {
   await owner.getByLabel("Eventnamn").fill(eventName);
   await owner.getByLabel("Loppets namn").fill("Torsdag");
-  await owner.getByLabel("Datum").fill("2026-10-08");
+  await owner.getByLabel("Datum").fill(date);
   await owner.getByRole("button", { name: "Skapa tävling" }).last().click();
   await expect(owner.getByText("Tävlingen skapades.")).toBeVisible();
   await owner.getByRole("button", { name: "Öppna arbetsytan" }).first().click();

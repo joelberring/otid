@@ -16,6 +16,8 @@ import { lockEntryForRevision, lockRaceForSnapshot } from "./concurrency";
 import { contentHash, evaluationHash as hashEvaluation } from "./hash";
 import { loadRaceSnapshot, type DbExecutor } from "./snapshot";
 import { appliedControlNeutralization } from "./class-control-neutralization";
+import { relayTeamOfEntry } from "./relay-model";
+import { synchronizeRelayTeams } from "./relay-sync";
 
 export type AckStatus = DeviceEventAcknowledgement["status"];
 
@@ -195,6 +197,9 @@ export async function ingestDeviceBatch(
           published: true
         }).returning({ id: schema.resultRevisions.id });
         if (!created) throw new Error("Resultatrevisionen kunde inte sparas");
+        // Stafett: sträckans måltid ger nästa sträckas start; senare sträckor räknas om vid behov.
+        const teamId = await relayTeamOfEntry(tx, evaluation.entryId);
+        if (teamId) await synchronizeRelayTeams(tx, raceId, [teamId], snapshot.race.snapshotVersion);
         serverResult = serverResultSummarySchema.parse({
           resultRevisionId: created.id,
           revision,

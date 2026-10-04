@@ -30,6 +30,7 @@ h2 { font-size: 1.1rem; margin: 0 0 8px; }
 .verdict .big { font-size: clamp(2rem, 8vw, 4rem); font-weight: 800; line-height: 1.1; }
 .verdict .card { font-size: 1.4rem; font-weight: 600; }
 .verdict .variant { font-size: 1.4rem; font-weight: 600; margin: 0; }
+.verdict .relay { font-size: 1.3rem; font-weight: 700; margin: 0; }
 .verdict .time { font-size: 2.5rem; font-weight: 800; font-variant-numeric: tabular-nums; }
 .verdict .splits { display: flex; flex-wrap: wrap; gap: 4px 16px; list-style: none; padding: 0; margin: 8px 0; font-variant-numeric: tabular-nums; }
 .verdict .splits span:first-child { font-weight: 700; }

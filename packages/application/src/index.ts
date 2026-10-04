@@ -110,3 +110,6 @@ export {
   changeEntryVariantAsAdministrator, distributeClassVariantsAsAdministrator, previewEntryVariantAsAdministrator
 } from "./course-variant-assignment";
 export type { ClassVariantDistributionResult, EntryVariantPreviewResult, EntryVariantResult } from "./course-variant-assignment";
+export * from "./relay-admin";
+export * from "./relay-results";
+export { synchronizeRelayTeams } from "./relay-sync";

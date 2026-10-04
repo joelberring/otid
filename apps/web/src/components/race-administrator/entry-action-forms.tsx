@@ -212,7 +212,7 @@ export function RegistrationForm({ ws }: { ws: Workspace }) {
       </div> : data ? <form className={styles.workspace} onSubmit={(event) => void prepareRegistration(event)}>
         <label>{text.registrationClass}<select value={classId} required disabled={disabled} onChange={(event) => {
           setClassId(event.target.value); setStartClock("");
-        }}><option value="">{text.chooseClass}</option>{data.classes.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></label>
+        }}><option value="">{text.chooseClass}</option>{data.classes.filter(row => row.relayLegCount === undefined).map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></label>
         {target && <p>{text.capacityCount}: {target.entryCount} / {target.maxEntries ?? text.unlimited} {targetFull && <strong>— {text.classFull}</strong>}</p>}
         <div className={styles.identityFields}>
           <label>{text.givenName}<input value={givenName} required maxLength={160} autoComplete="off" disabled={disabled} onChange={(event) => setGivenName(event.target.value)} /></label>

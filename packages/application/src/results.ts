@@ -88,7 +88,8 @@ async function selectPublishedPublicResultHeads(tx: DatabaseTransaction, raceId:
     createdAt: schema.resultRevisions.createdAt,
     givenName: schema.entries.givenName,
     familyName: schema.entries.familyName,
-    organisationName: schema.entries.organisationName
+    organisationName: schema.entries.organisationName,
+    teamId: schema.entries.teamId
   }).from(schema.resultRevisions)
     .innerJoin(schema.entries, and(
       eq(schema.resultRevisions.entryId, schema.entries.id),
@@ -116,7 +117,7 @@ export async function changeEntryClass(db: Database, raceId: string, entryId: st
       eq(schema.classes.id, classId), eq(schema.classes.raceId, raceId)
     ));
     if (!raceClass) throw new Error("Klassen finns inte i loppet");
-    if (entry.classId !== classId && !await canAddClassEntry(tx, raceId, classId)) {
+    if (entry.classId !== classId && (entry.teamId !== null || !await canAddClassEntry(tx, raceId, classId))) {
       throw new ClassCapacityConflictError("Klassens deltagargräns är nådd");
     }
     const [updated] = await tx.update(schema.entries).set({ classId, version: entry.version + 1 })
@@ -269,7 +270,8 @@ export async function changeEntryClassAsAdmin(
       eq(schema.classes.raceId, authorization.principal.raceId)
     ));
     if (!targetClass) return { status: "not-found" };
-    if (entry.version !== request.data.expectedEntryVersion || entry.classId === request.data.classId) {
+    // En sträcklöpare byter inte klass; laget hör till stafettklassen.
+    if (entry.version !== request.data.expectedEntryVersion || entry.classId === request.data.classId || entry.teamId !== null) {
       return { status: "conflict" };
     }
     if (!await canAddClassEntry(tx, authorization.principal.raceId, request.data.classId)) return { status: "conflict" };
@@ -708,7 +710,8 @@ export async function recalculateEntry(db: Database, raceId: string, entryId: st
 export async function publicResults(db: Database, raceId: string): Promise<PublicResultListResponse> {
   return db.transaction(async (tx) => {
     await lockRaceForSnapshot(tx, raceId);
-    const rows = await selectPublishedPublicResultHeads(tx, raceId);
+    // Stafettens sträcklöpare visas i lagresultaten och sträckresultaten (publicRelayResults).
+    const rows = (await selectPublishedPublicResultHeads(tx, raceId)).filter((row) => row.teamId === null);
 
     const headStates = await resolveStoredResultHeadStates(tx, raceId, rows);
     const activeStates = headStates.filter((state) =>

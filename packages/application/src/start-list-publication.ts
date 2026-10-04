@@ -6,6 +6,7 @@ import { IofStartListSerializationError, serializeIofStartList, type IofStartLis
 import { authenticatePairingAdminSessionForMutation, authenticatePairingAdminSessionForProtectedRead, type PairingAdminRequestAuthentication } from "./pairing-admin";
 import type { DbExecutor } from "./snapshot";
 import { loadCourseVersionVariants } from "./course-variants";
+import { loadRelayClassConfigs, loadRelayTeams } from "./relay-model";
 const MAX_CLASSES = 1000, MAX_ENTRIES = 10000;
 const raceIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 type Auth = Omit<PairingAdminRequestAuthentication, "capability">;
@@ -38,7 +39,7 @@ async function projection(tx: DbExecutor, race: {
     }).from(schema.classes).where(eq(schema.classes.raceId, race.id)).limit(MAX_CLASSES + 1);
     const es = await tx.select({
         id: schema.entries.id, classId: schema.entries.classId, givenName: schema.entries.givenName, familyName: schema.entries.familyName, organisationName: schema.entries.organisationName, fixedStartTime: schema.entries.fixedStartTime,
-        courseVariantCode: schema.entries.courseVariantCode
+        courseVariantCode: schema.entries.courseVariantCode, teamId: schema.entries.teamId, relayLeg: schema.entries.relayLeg
     }).from(schema.entries).where(eq(schema.entries.raceId, race.id)).limit(MAX_ENTRIES + 1);
     if (cs.length > MAX_CLASSES || es.length > MAX_ENTRIES)
         throw new SourceProjectionError();
@@ -46,11 +47,22 @@ async function projection(tx: DbExecutor, race: {
     const variants = await loadCourseVersionVariants(tx, cs.map(c => c.courseVersionId));
     if (es.some(e => !ids.has(e.classId)))
         throw new SourceProjectionError();
+    // Stafett (ADR-0169 beslut 3): sträcklöparna listas per lag i lagnummer- och sträckordning.
+    const relayClasses = await loadRelayClassConfigs(tx, race.id);
+    const teams = new Map((relayClasses.size === 0 ? [] : await loadRelayTeams(tx, race.id)).map(t => [t.id, t]));
+    const relayOf = (e: (typeof es)[number]) => {
+        const team = e.teamId ? teams.get(e.teamId) : undefined, legs = relayClasses.get(e.classId)?.legs;
+        const rule = legs?.find(l => l.leg === e.relayLeg);
+        return team && rule ? { teamNumber: team.number, teamName: team.name, teamOrganisationName: team.organisationName, leg: rule.leg,
+            startMethod: rule.startMethod } : null;
+    };
     const ordered = [...cs].sort((a, b) => cmp(a.name, b.name) || cmp(a.id, b.id)).map(c => ({
-            name: c.name, startRule: c.startRule, entries: es.filter(e => e.classId === c.id).map(e => ({
+            name: c.name, startRule: c.startRule, relay: relayClasses.has(c.id), entries: es.filter(e => e.classId === c.id).map(e => ({
                 displayName: `${e.givenName} ${e.familyName}`, organisationName: e.organisationName, fixedStartTime: c.startRule === "FIXED" ? e.fixedStartTime?.toISOString() ?? null : null, id: e.id, f: e.familyName, g: e.givenName,
-                variant: (variants.get(c.courseVersionId) ?? []).some(v => v.code === e.courseVariantCode) ? e.courseVariantCode : null
+                variant: (variants.get(c.courseVersionId) ?? []).some(v => v.code === e.courseVariantCode) ? e.courseVariantCode : null,
+                relay: relayOf(e)
             })).sort((a, b) => {
+                if (a.relay && b.relay) return a.relay.teamNumber - b.relay.teamNumber || a.relay.leg - b.relay.leg;
                 const at = a.fixedStartTime ? Date.parse(a.fixedStartTime) : Infinity, bt = b.fixedStartTime ? Date.parse(b.fixedStartTime) : Infinity;
                 return c.startRule === "FIXED" && at !== bt ? at - bt : cmp(a.displayName, b.displayName) || cmp(a.f, b.f) || cmp(a.g, b.g) || cmp(a.id, b.id);
             })
@@ -59,21 +71,23 @@ async function projection(tx: DbExecutor, race: {
         eventName: ev.name, raceName: race.name, raceDate: race.raceDate, timeZone: ev.timeZone,
         classes: ordered.map(c => ({ name: c.name, startRule: c.startRule, entries: c.entries.map(e => ({
                 displayName: e.displayName, organisationName: e.organisationName, fixedStartTime: e.fixedStartTime,
-                ...(e.variant ? { courseVariantCode: e.variant } : {})
+                ...(e.variant ? { courseVariantCode: e.variant } : {}),
+                ...(e.relay ? { relay: e.relay } : {})
             })) }))
     });
     if (!parsed.success) throw new SourceProjectionError();
     const content = parsed.data;
     const iofProjection: IofStartListProjection = {
         eventName: content.eventName,
-        classes: ordered.map(c => ({ className: c.name, startRule: c.startRule,
+        // IOF StartList för stafett (TeamStart) skrivs inte än; stafettklasserna utelämnas i XML.
+        classes: ordered.filter(c => !c.relay).map(c => ({ className: c.name, startRule: c.startRule,
             starts: c.entries.map(e => ({ givenName: e.g, familyName: e.f,
                 ...(e.organisationName === null ? {} : { organisationName: e.organisationName }),
                 ...(e.fixedStartTime === null ? {} : { startTime: e.fixedStartTime }) })) }))
     };
     let xml: string | null = null;
     try {
-        if (es.length > 0) xml = new TextDecoder().decode(serializeIofStartList(iofProjection));
+        if (iofProjection.classes.some(c => c.starts.length > 0)) xml = new TextDecoder().decode(serializeIofStartList(iofProjection));
     } catch (error) {
         if (error instanceof IofStartListSerializationError) throw new SourceProjectionError();
         throw error;

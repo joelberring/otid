@@ -76,3 +76,22 @@ export function forkedTestPackage(): ReadoutPackage {
       variants: [variant(1, "AB", [31, 32, 34, 33]), variant(2, "BA", [31, 34, 32, 33])] })) })),
     entries: snapshot.entries.map((entry) => ({ ...entry, courseVariantCode: "BA" })) } });
 }
+
+/** Endast för tester: stafettklass med två sträckor (masstart 17:00 UTC, växling) och lag 12 med Anna och Bo. */
+export const RELAY_CARDS = { first: 7_200_001, second: 7_200_002 } as const;
+export function relayTestPackage(): ReadoutPackage {
+  const base = testPackage();
+  const second = "10000000-0000-4000-8000-000000000010";
+  const team = "10000000-0000-4000-8000-000000000011";
+  const snapshot = base.raceSnapshot;
+  return readoutPackageSchema.parse({ ...base, raceSnapshot: { ...snapshot,
+    classes: snapshot.classes.map((raceClass) => ({ ...raceClass, name: "Stafett", startRule: "FIXED" })),
+    entries: [{ ...snapshot.entries[0]!, fixedStartTime: "2026-10-01T17:00:00.000Z" },
+      { id: second, raceId: ids.race, classId: ids.class, givenName: "Bo", familyName: "Ek" }],
+    cardAssignments: [{ id: ids.assignment, raceId: ids.race, entryId: ids.entry, cardNumber: String(RELAY_CARDS.first), active: true },
+      { id: "10000000-0000-4000-8000-000000000012", raceId: ids.race, entryId: second, cardNumber: String(RELAY_CARDS.second), active: true }] },
+  relay: { classes: [{ classId: ids.class, legs: [{ leg: 1, startMethod: "MASS_START", startTime: "2026-10-01T17:00:00.000Z" },
+    { leg: 2, startMethod: "CHANGEOVER", startTime: null }] }],
+  teams: [{ id: team, classId: ids.class, number: 12, name: "OK Test", legs: [{ leg: 1, entryId: ids.entry }, { leg: 2, entryId: second }] }],
+  legResults: [] } });
+}

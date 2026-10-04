@@ -255,7 +255,7 @@ Se ADR-0169 beslut 2.
 **Acceptans:** domäntester för bedömning per variant; integrationstest för
 import; Playwright: gafflad klass läses av med rätt variant.
 
-## [ ] Steg 11 – Stafett
+## [x] Steg 11 – Stafett
 
 Se ADR-0169 beslut 3.
 

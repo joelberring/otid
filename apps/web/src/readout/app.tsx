@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { sportidentReadoutPayloadSchema, type ReadoutPackage } from "@o-tid/contracts";
 import { WebSerialTransport, type WebSerialPortLike } from "@o-tid/device-transport";
 import type { SiCardData } from "@o-tid/sportident";
 import { enterRace, fetchReadoutPackage, raceAdminCsrf } from "./api";
 import { evaluateLocally, formatRunningTime, type LocalVerdict } from "./evaluate";
 import { exerciseCard, exerciseRunners, type ExerciseVariant } from "./exercise";
+import { relayExerciseWindow } from "./relay";
 import { FakeStationTransport } from "./fake-transport";
 import { buildReadoutPayload, payloadHash } from "./payload";
 import { StationController, type StationStatus } from "./station";
@@ -64,8 +65,11 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
   const syncing = useRef(false);
   const trafficRef = useRef(new TrafficLog());
 
+  const itemsRef = useRef<QueuedReadout[]>([]);
   const reload = useCallback(async () => {
-    if (raceId) setItems(await storeRef.current.list(raceId));
+    if (!raceId) return;
+    const listed = await storeRef.current.list(raceId);
+    itemsRef.current = listed; setItems(listed);
   }, [raceId]);
 
   const refreshPackage = useCallback(async () => {
@@ -136,7 +140,8 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
     });
     if (!valid) await storeRef.current.update({ ...stored, status: "rejected", rejectedReason: "LOCAL_INVALID" });
     setCurrent({ phase: "done", cardNumber: payload.cardNumber, localSequence: stored.localSequence,
-      ...(known ? { verdict: evaluateLocally(payload, known) } : {}), ...(valid ? {} : { invalid: true }) });
+      ...(known ? { verdict: evaluateLocally(payload, known, itemsRef.current.map((item) => item.payload)) } : {}),
+      ...(valid ? {} : { invalid: true }) });
     await reload();
     void sync();
   }, [raceId, reload, sync]);
@@ -207,7 +212,11 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
       transport.insert(exerciseCard(number, runner?.controlCodes ?? [], "ok", new Date(), pkg.event.timeZone));
       return;
     }
-    if (runner) transport.insert(exerciseCard(runner.cardNumber, runner.controlCodes, variant, new Date(), pkg.event.timeZone));
+    if (!runner) return;
+    const now = new Date();
+    // Stafett: sträckans tider följer lagets tidigare sträckor (ADR-0169 beslut 3).
+    const window = relayExerciseWindow(pkg, runner.entryId, now);
+    transport.insert(exerciseCard(runner.cardNumber, runner.controlCodes, variant, now, pkg.event.timeZone, window));
   }
 
   if (!raceId) return <main className="readout"><h1>{t.title}</h1><p className="notice">{t.noRace}</p></main>;
@@ -271,7 +280,8 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
     <section className="recent">
       <h2>{t.recent}</h2>
       {recent.length === 0 ? <p>{t.none}</p> : <ol data-testid="recent-readouts">
-        {recent.map((item) => <RecentRow key={item.localSequence} item={item} pkg={pkg} />)}
+        {recent.map((item) => <RecentRow key={item.localSequence} item={item} pkg={pkg}
+          local={items.filter((candidate) => candidate.localSequence < item.localSequence).map((candidate) => candidate.payload)} />)}
       </ol>}
     </section>
 
@@ -296,6 +306,7 @@ function Verdict({ current, item }: { current: Current | undefined; item: Queued
   return <>
     <p className="big">{symbol} {verdict ? t.verdict[verdict.status] : t.verdict.NO_PACKAGE}</p>
     <p className="card">Bricka {current.cardNumber}{verdict?.name ? ` · ${verdict.name}` : ""}{verdict?.className ? ` · ${verdict.className}` : ""}</p>
+    {verdict?.relay ? <RelayLine relay={verdict.relay} /> : null}
     {verdict?.variant ? <p className="variant" data-testid="verdict-variant">{verdict.variant.assigned
       ? t.variant(verdict.variant.code) : t.variantGuessed(verdict.variant.code)}</p> : null}
     {verdict?.elapsedMs !== undefined && verdict.status === "OK" ? <p className="time">{formatRunningTime(verdict.elapsedMs)}</p> : null}
@@ -316,8 +327,9 @@ function Verdict({ current, item }: { current: Current | undefined; item: Queued
   </>;
 }
 
-function RecentRow({ item, pkg }: { item: QueuedReadout; pkg: ReadoutPackage | undefined }) {
-  const verdict = pkg ? evaluateLocally(item.payload, pkg) : undefined;
+function RecentRow({ item, pkg, local }: { item: QueuedReadout; pkg: ReadoutPackage | undefined; local: readonly QueuedReadout["payload"][] }) {
+  // Bedöms om bara när avläsningen, paketet eller de tidigare avläsningarna ändras (inte vid varje stationshändelse).
+  const verdict = useMemo(() => pkg ? evaluateLocally(item.payload, pkg, local) : undefined, [item.payload, pkg, local.length]);
   const status = item.serverResult?.status ?? verdict?.status;
   const queue = item.status === "pending" ? t.statusPending : item.status === "stored" ? t.statusStored
     : item.status === "duplicate" ? t.statusDuplicate : t.statusRejected;
@@ -327,4 +339,14 @@ function RecentRow({ item, pkg }: { item: QueuedReadout; pkg: ReadoutPackage | u
     <span>{status ? t.verdict[status] : ""}</span>
     <span className="queue">{queue}</span>
   </li>;
+}
+
+/** Stafett: "Lag 12 OK Test · Sträcka 2 av 3 · Växlar till sträcka 3", eller lagets tid på sista sträckan. */
+function RelayLine({ relay }: { relay: NonNullable<LocalVerdict["relay"]> }) {
+  const last = relay.leg === relay.legCount;
+  const team = relay.team;
+  const outcome = !last ? t.relayNext(relay.leg + 1)
+    : team.status === "OK" && team.elapsedMs !== undefined ? `${t.relayLast} – ${t.relayTeamTime(formatRunningTime(team.elapsedMs))}`
+      : team.status === "RUNNING" ? `${t.relayLast} – ${t.relayTeamWaiting}` : `${t.relayLast} – ${t.relayTeamStatus[team.status]}`;
+  return <p className="relay" data-testid="verdict-relay">{t.relayTeam(relay.teamNumber, relay.teamName, relay.leg, relay.legCount)} · {outcome}</p>;
 }

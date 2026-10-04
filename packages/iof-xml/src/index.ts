@@ -15,7 +15,10 @@ export {
   type IofResultListProjection,
   type IofResultListSplit,
   type IofResultListSnapshotProjection,
-  type IofResultListStatus
+  type IofResultListStatus,
+  type IofResultListTeamMemberResult,
+  type IofResultListTeamResult,
+  type IofResultListTeamStatus
 } from "./export-result-list";
 
 export {
@@ -33,7 +36,7 @@ import { readCourseData, type CourseDataImport } from "./course-data";
 
 export { IofValidationError } from "./xml";
 export type {
-  ClassCourseImport, CourseDataImport, CourseImport, CourseVariantImport, PersonCourseAssignmentImport
+  ClassCourseImport, CourseDataImport, CourseImport, CourseVariantImport, PersonCourseAssignmentImport, TeamCourseAssignmentImport
 } from "./course-data";
 
 export interface EntryImport {

@@ -30,7 +30,8 @@ const MAX_VERSION = 2_147_483_647;
 async function loadClass(tx: Transaction, raceId: string, classId: string) {
   const [row] = await tx.select({ id: schema.classes.id, name: schema.classes.name, startRule: schema.classes.startRule,
     courseVersionId: schema.classes.courseVersionId, externalSource: schema.classes.externalSource,
-    externalId: schema.classes.externalId }).from(schema.classes)
+    externalId: schema.classes.externalId,
+    relay: sql<boolean>`exists (select 1 from relay_leg rl where rl.class_id = ${schema.classes.id})` }).from(schema.classes)
     .where(and(eq(schema.classes.id, classId), eq(schema.classes.raceId, raceId)));
   return row ?? null;
 }
@@ -88,6 +89,8 @@ export async function previewClassEditAsAdministrator(db: Database, input: Authe
     const raceClass = await loadClass(tx, raceId, input.classId);
     const target = await loadTargetCourse(tx, raceId, parsed.data.courseId);
     if (!raceClass || !target) return { status: "not-found" };
+    // Stafettklassens sträckor har fasta starter (masstart, växling, omstart); startsättet byts inte här.
+    if (raceClass.relay && parsed.data.startRule !== raceClass.startRule) return { status: "invalid-request" };
     const assessed = await assess(tx, raceId, raceClass, target, parsed.data.startRule, await loadRaceSnapshot(tx, raceId));
     if (assessed === "too-large") return { status: "too-large" };
     const cleared = await countClearedStartTimes(tx, raceId, raceClass, parsed.data.startRule);
@@ -136,7 +139,7 @@ export async function editClassAsAdministrator(db: Database, input: Authenticati
     const renamed = raceClass.name !== intent.className;
     const moved = raceClass.courseVersionId !== target.courseVersionId;
     const startRuleChanged = raceClass.startRule !== intent.startRule;
-    if (!renamed && !moved && !startRuleChanged) return { status: "invalid-request" };
+    if ((!renamed && !moved && !startRuleChanged) || (raceClass.relay && startRuleChanged)) return { status: "invalid-request" };
     if (renamed && (raceClass.externalSource !== null || raceClass.externalId !== null)) return { status: "conflict" };
 
     const entries = await tx.select({ id: schema.entries.id, version: schema.entries.version, fixedStartTime: schema.entries.fixedStartTime,

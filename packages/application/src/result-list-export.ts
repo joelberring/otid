@@ -20,6 +20,7 @@ import { resolveStoredResultHeadStates } from "./result-revision-state";
 import { parseStrictStoredResultRevision } from "./stored-result-revision";
 import { isResultCurrent, loadResultBasisHashes } from "./result-basis";
 import { loadCourseVersionVariants } from "./course-variants";
+import { relayTeamResultsForExport } from "./relay-export";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const MAX_CLASSES = 1_000;
@@ -381,11 +382,22 @@ export async function exportIofResultListAsAdmin(
         resultsByClass.set(row.evaluation.classId, results);
       }
 
+      // Stafett: sträcklöparnas personresultat samlas i lagresultat (TeamResult) per stafettklass.
+      const personByEntry = new Map([...resultsByClass.values()].flat().map(({ internalEntryId, internalCourseVersionId, ...result }) => {
+        void internalCourseVersionId;
+        return [internalEntryId, result as IofResultListPersonResult] as const;
+      }));
+      const teamResultsByClass = await relayTeamResultsForExport(tx, race.id, personByEntry);
       const classesWithInternalIds = classIds.map((classId) => {
         const raceClass = classById.get(classId);
         if (!raceClass) throw new StoredResultListConflict("Historisk resultatklass saknas");
-        const results = resultsByClass.get(classId) ?? [];
         const classExternalId = optionalIofId(raceClass.externalSource, raceClass.externalId);
+        const teamResults = teamResultsByClass.get(classId);
+        if (teamResults) {
+          return { internalClassId: classId, className: raceClass.name, ...(classExternalId === undefined ? {} : { classExternalId }),
+            results: [], teamResults };
+        }
+        const results = resultsByClass.get(classId) ?? [];
         const rankingByKey = new Map(rankClassResults(results.map((result) => ({
           key: result.internalEntryId,
           status: result.status,

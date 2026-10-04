@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
 import { placeLateEntry } from "@o-tid/domain";
 
@@ -47,13 +47,16 @@ async function firstControlCodes(tx: Transaction, courseVersionIds: readonly str
   return codes;
 }
 
+const notRelayClass = sql`not exists (select 1 from relay_leg rl where rl.class_id = ${schema.classes.id})`;
+
 export async function loadDrawClasses(tx: Transaction, raceId: string): Promise<DrawBasisClass[]> {
   const rows = await tx.select({ id: schema.classes.id, name: schema.classes.name, startRule: schema.classes.startRule,
     startDrawId: schema.classes.startDrawId, courseVersionId: schema.classes.courseVersionId, courseName: schema.courses.name,
     courseRaceId: schema.courses.raceId }).from(schema.classes)
     .innerJoin(schema.courseVersions, eq(schema.courseVersions.id, schema.classes.courseVersionId))
     .innerJoin(schema.courses, eq(schema.courses.id, schema.courseVersions.courseId))
-    .where(eq(schema.classes.raceId, raceId)).orderBy(asc(schema.classes.name), asc(schema.classes.id)).limit(1_001);
+    // Stafettklasser lottas inte: sträckorna har masstart, växling eller omstart (ADR-0169 beslut 3).
+    .where(and(eq(schema.classes.raceId, raceId), notRelayClass)).orderBy(asc(schema.classes.name), asc(schema.classes.id)).limit(1_001);
   if (rows.length > 1_000 || rows.some(row => row.courseRaceId !== raceId)) throw new Error("Ogiltigt klassunderlag för lottningen");
   const codes = await firstControlCodes(tx, [...new Set(rows.map(row => row.courseVersionId))]);
   return rows.map(row => ({ id: row.id, name: row.name, startRule: row.startRule, startDrawId: row.startDrawId,
@@ -65,7 +68,7 @@ export async function loadDrawEntries(tx: Transaction, raceId: string, lock: boo
     familyName: schema.entries.familyName, organisationName: schema.entries.organisationName,
     fixedStartTime: schema.entries.fixedStartTime, version: schema.entries.version,
     courseVariantCode: schema.entries.courseVariantCode }).from(schema.entries)
-    .where(eq(schema.entries.raceId, raceId)).orderBy(asc(schema.entries.id)).limit(MAX_ENTRIES + 1);
+    .where(and(eq(schema.entries.raceId, raceId), isNull(schema.entries.teamId))).orderBy(asc(schema.entries.id)).limit(MAX_ENTRIES + 1);
   const rows = lock ? await query.for("update") : await query;
   return rows.length > MAX_ENTRIES ? "too-large" : rows;
 }

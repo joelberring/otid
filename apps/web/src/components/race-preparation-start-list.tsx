@@ -5,6 +5,7 @@ import type { EntryTransferCandidates } from "@o-tid/contracts";
 import { formatClockTime } from "../lib/clock-time";
 import { racePreparationStartListSv as text } from "../i18n/race-preparation-start-list-sv";
 import { courseVariantsSv as variantText } from "../i18n/course-variants-sv";
+import { relaySv as relayText } from "../i18n/relay-sv";
 import styles from "./race-preparation-start-list.module.css";
 
 const pageSize = 100;
@@ -39,6 +40,8 @@ export function RacePreparationStartList({ data, disabled, onSelectEntry }: {
       const classB = classesById.get(b.classId)!;
       const classOrder = collator.compare(classA.name, classB.name);
       if (classOrder) return classOrder;
+      // Stafett: lag i nummerordning, sträckor i ordning.
+      if (a.relay && b.relay) return a.relay.teamNumber - b.relay.teamNumber || a.relay.leg - b.relay.leg;
       if (classA.startRule === "FIXED") {
         if (a.fixedStartTime === null && b.fixedStartTime !== null) return 1;
         if (a.fixedStartTime !== null && b.fixedStartTime === null) return -1;
@@ -58,6 +61,7 @@ export function RacePreparationStartList({ data, disabled, onSelectEntry }: {
 
   function start(entry: Entry, raceClass: RaceClass) {
     if (raceClass.startRule === "PUNCH") return text.freeStart;
+    if (!entry.fixedStartTime && entry.relay) return relayText.waitingStart;
     if (!entry.fixedStartTime) return <strong className={styles.attention}>{text.missingTime}</strong>;
     return <time dateTime={entry.fixedStartTime}>{formatClockTime(entry.fixedStartTime, data.timeZone)}</time>;
   }
@@ -88,7 +92,8 @@ export function RacePreparationStartList({ data, disabled, onSelectEntry }: {
         <tbody>{visible.map(entry => {
           const raceClass = classesById.get(entry.classId)!;
           return <tr key={entry.id}>
-            <td data-label={text.className}>{raceClass.name}</td>
+            <td data-label={text.className}>{raceClass.name}{entry.relay &&
+              <> · {relayText.teamHeading(entry.relay.teamNumber, entry.relay.teamName)} · {relayText.leg(entry.relay.leg)}</>}</td>
             <td data-label={text.plannedStart} className={styles.start}>{start(entry, raceClass)}</td>
             <th scope="row" data-label={text.name}><button type="button" className={styles.person} disabled={disabled}
               aria-label={text.openPerson(entry.displayName)} onClick={() => onSelectEntry(entry.id)}>{entry.displayName}</button></th>

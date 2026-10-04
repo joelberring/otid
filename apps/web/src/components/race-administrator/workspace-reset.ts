@@ -28,8 +28,10 @@ export function resetWorkspaceOnLock(s: WorkspaceState, discard: boolean) {
     setGivenName, setFamilyName, setOrganisationName, setMobilePanel, setEntryChanges, setDnfAttempt, setDsqAttempt, setApprovalAttempt, setTransferAttempt, setCapacityAttempt, setCardAttempt, setRentalAttempt, setRentalReturnAttempt, setRentalReuseAttempt, setPaymentStatusAttempt, setTimeAttempt,
     setRecalculationAttempt, setIdentityAttempt, setRegistrationAttempt, setDnsAttempt, setOocAttempt, setNtAttempt,
     setCourseEditAttempt, setShortenedCourseAttempt, setUnknownReadoutAttempt, setUnknown,
-    setAction, setEntryVariantPreview, setEntryVariantAttempt, setDistributionAttempt, setEditingVariantCode } = s;
+    setAction, setEntryVariantPreview, setEntryVariantAttempt, setDistributionAttempt, setEditingVariantCode,
+    setRelay, setRelayError, setRelayMessage, setSelectedTeamId, setRunnerChange } = s;
   setEntryVariantPreview(undefined); setEntryVariantAttempt(undefined); setDistributionAttempt(undefined);
+  setRelay(undefined); setRelayError(""); setRelayMessage(""); setSelectedTeamId(""); setRunnerChange(undefined);
   if (discard || !sent.current) setEditingVariantCode("");
   setAuthenticated(false); setExpiresAt(undefined); setData(undefined);
   setParticipantActionPending(false);

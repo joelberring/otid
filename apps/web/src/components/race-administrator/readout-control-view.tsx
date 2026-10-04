@@ -8,6 +8,7 @@ import { formatClockTime } from "../../lib/clock-time";
 import { inForest, mispunchedEntries } from "../../lib/admin-checklist";
 import { resultDuration, unknownReadoutTargetLabel } from "./types";
 import type { Workspace } from "./workspace-state";
+import { RelayControl } from "./relay-panels";
 
 /**
  * Tävlingsdagens kontrollvy (ADR-0169 beslut 4): öppna avläsningen, kvar i skogen, okända brickor,
@@ -45,6 +46,7 @@ export function ReadoutControlView({ ws }: { ws: Workspace }) {
           </ul>}
         </>}
       </section>
+      <RelayControl ws={ws} />
       <UnknownCards ws={ws} />
       <section className={styles.controlCard} aria-labelledby={`control-mp-${raceId}`}>
         <MispunchedList ws={ws} />
@@ -126,7 +128,8 @@ function UnknownCards({ ws }: { ws: Workspace }) {
         </select></label> : <>
           <label>{text.unknownReadoutNewClass}<select value={unknownReadoutClassId} disabled={busy}
             onChange={event => setUnknownReadoutClassId(event.target.value)}><option value="">{text.chooseClass}</option>
-            {unknownReadoutCandidate.classes.map(raceClass => <option key={raceClass.id} value={raceClass.id}>
+            {unknownReadoutCandidate.classes.filter(raceClass => !data?.classes.some(row => row.id === raceClass.id &&
+              row.relayLegCount !== undefined)).map(raceClass => <option key={raceClass.id} value={raceClass.id}>
               {raceClass.name} · {raceClass.entryCount}{raceClass.maxEntries === null ? "" : `/${raceClass.maxEntries}`}
             </option>)}
           </select></label>

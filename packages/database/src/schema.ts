@@ -218,6 +218,9 @@ export const entries = pgTable("entry", {
   fixedStartTime: timestamp("fixed_start_time", { withTimezone: true }),
   /** Löparens variant av klassens gafflade bana (migration 0093). NULL = ingen tilldelad variant. */
   courseVariantCode: text("course_variant_code"),
+  /** Stafett (migration 0094): laget och sträckan som löparen springer. Båda NULL för individuella löpare. */
+  teamId: uuid("team_id"),
+  relayLeg: integer("relay_leg"),
   externalSource: text("external_source"),
   externalId: text("external_id"),
   version: integer("version").notNull().default(1),
@@ -4324,4 +4327,49 @@ export const courseVariantAssignmentRequests = pgTable("course_variant_assignmen
   request: jsonb("request").$type<Record<string, unknown>>().notNull(),
   response: jsonb("response").$type<Record<string, unknown>>().notNull(),
   assignedAt: timestamp("assigned_at", { withTimezone: true }).notNull()
+});
+
+/** ADR-0169 beslut 3 (migration 0094): sträckorna i en stafettklass med startsätt per sträcka. */
+export const relayLegs = pgTable("relay_leg", {
+  classId: uuid("class_id").notNull(),
+  raceId: uuid("race_id").notNull().references(() => races.id),
+  leg: integer("leg").notNull(),
+  startMethod: text("start_method").$type<"MASS_START" | "CHANGEOVER" | "RESTART">().notNull(),
+  /** Masstart: starttiden. Omstart: tiden då lag som inte växlat startar. NULL för växling. */
+  startTime: timestamp("start_time", { withTimezone: true }),
+  /** Variant för sträckan (gafflad bana); NULL = lagen fördelas över banans varianter. */
+  courseVariantCode: text("course_variant_code")
+}, table => [
+  primaryKey({ columns: [table.classId, table.leg] }),
+  foreignKey({ name: "relay_leg_class_fk", columns: [table.classId, table.raceId], foreignColumns: [classes.id, classes.raceId] })
+]);
+
+/** Ett stafettlag. Sträcklöparna är deltagare (entry) med lag och sträcka. */
+export const teams = pgTable("team", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  raceId: uuid("race_id").notNull().references(() => races.id),
+  classId: uuid("class_id").notNull(),
+  number: integer("number").notNull(),
+  name: text("name").notNull(),
+  organisationName: text("organisation_name"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+}, table => [
+  uniqueIndex("team_race_number_uidx").on(table.raceId, table.number),
+  uniqueIndex("team_id_class_uidx").on(table.id, table.classId),
+  index("team_class_idx").on(table.classId),
+  foreignKey({ name: "team_class_fk", columns: [table.classId, table.raceId], foreignColumns: [classes.id, classes.raceId] })
+]);
+
+/** Journal för stafettens administration (migration 0094). */
+export const relayRequests = pgTable("relay_request", {
+  requestId: uuid("request_id").primaryKey(),
+  raceId: uuid("race_id").notNull().references(() => races.id),
+  kind: text("kind").$type<"CLASS" | "TEAM" | "LEG_RUNNER" | "START_TIMES">().notNull(),
+  classId: uuid("class_id").notNull(),
+  teamId: uuid("team_id"),
+  actorCredentialId: uuid("actor_credential_id").notNull(),
+  capability: pairingAdminCapabilityEnum("capability").notNull(),
+  request: jsonb("request").$type<Record<string, unknown>>().notNull(),
+  response: jsonb("response").$type<Record<string, unknown>>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull()
 });

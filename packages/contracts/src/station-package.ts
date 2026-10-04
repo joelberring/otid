@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { relayReadoutSchema } from "./relay";
 
 export const STATION_PACKAGE_LIMITS = {
   publicKeySpkiBase64Characters: 16 * 1024,
@@ -293,6 +294,8 @@ export const readoutPackageSchema = z.object({
     timeZone: z.string().trim().min(1).max(128)
   }).strict(),
   raceSnapshot: raceSnapshotSchema,
+  /** Stafett (ADR-0169 beslut 3): saknas när tävlingen inte har stafettklasser. */
+  relay: relayReadoutSchema.optional(),
   fetchedAt: z.iso.datetime({ offset: true })
 }).strict().superRefine((value, context) => {
   if (value.raceId !== value.raceSnapshot.race.id) {

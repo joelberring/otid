@@ -7,6 +7,7 @@ import { authenticatePairingAdminSession, authenticatePairingAdminSessionForMuta
   authenticatePairingAdminSessionForProtectedRead, type PairingAdminRequestAuthentication } from "./pairing-admin";
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
 import { canAddClassEntry } from "./class-capacity-guard";
+import { loadRelayClassConfigs, loadRelayTeams } from "./relay-model";
 import { loadCourseVersionVariants, variantAfterClassChange } from "./course-variants";
 import { resolveStoredResultHeadStates } from "./result-revision-state";
 import { isEffectiveResultCurrent, loadResultBasisHashes } from "./result-basis";
@@ -57,7 +58,7 @@ export async function listEntryTransfersAsAdministrator(db: Database, input: Aut
       familyName: schema.entries.familyName, organisationName: schema.entries.organisationName,
       classId: schema.entries.classId, version: schema.entries.version, paymentStatus: schema.entries.paymentStatus,
       paymentStatusVersion: schema.entries.paymentStatusVersion, fixedStartTime: schema.entries.fixedStartTime,
-      courseVariantCode: schema.entries.courseVariantCode,
+      courseVariantCode: schema.entries.courseVariantCode, teamId: schema.entries.teamId, relayLeg: schema.entries.relayLeg,
       exactTime: sql<boolean>`${schema.entries.fixedStartTime} IS NULL OR date_trunc('milliseconds', ${schema.entries.fixedStartTime}) = ${schema.entries.fixedStartTime}`
     }).from(schema.entries).where(eq(schema.entries.raceId, input.raceId))
       .orderBy(asc(schema.entries.familyName), asc(schema.entries.givenName), asc(schema.entries.id)).limit(10_001);
@@ -128,6 +129,8 @@ export async function listEntryTransfersAsAdministrator(db: Database, input: Aut
     const entryCounts = new Map<string, number>();
     for (const row of rows) entryCounts.set(row.classId, (entryCounts.get(row.classId) ?? 0) + 1);
     const variants = await loadCourseVersionVariants(tx, classRows.map(row => row.courseVersionId));
+    const relayClasses = await loadRelayClassConfigs(tx, input.raceId);
+    const teams = new Map((relayClasses.size === 0 ? [] : await loadRelayTeams(tx, input.raceId)).map(team => [team.id, team]));
     return { status: "ok" as const, response: entryTransferCandidatesSchema.parse({
       formatVersion: 2, raceId: input.raceId, snapshotVersion: race.snapshotVersion,
       generatedAt: now.toISOString(), ...metadata,
@@ -135,7 +138,8 @@ export async function listEntryTransfersAsAdministrator(db: Database, input: Aut
         courseName: row.courseName, courseVersion: row.courseVersion, startRule: row.startRule,
         maxEntries: row.maxEntries, capacityVersion: row.capacityVersion, entryCount: entryCounts.get(row.id) ?? 0,
         startDrawn: row.startDrawId !== null,
-        courseVariants: (variants.get(row.courseVersionId) ?? []).map(variant => variant.code) })),
+        courseVariants: (variants.get(row.courseVersionId) ?? []).map(variant => variant.code),
+        ...(relayClasses.has(row.id) ? { relayLegCount: relayClasses.get(row.id)!.legs.length } : {}) })),
       entries: rows.map(row => {
         const active = activeByEntry.get(row.id) ?? [];
         const assignment = active.length === 1 ? active[0] : undefined;
@@ -144,6 +148,8 @@ export async function listEntryTransfersAsAdministrator(db: Database, input: Aut
         paymentStatusVersion: row.paymentStatusVersion, organisationName: row.organisationName,
         displayName: `${row.givenName} ${row.familyName}`, fixedStartTime: row.fixedStartTime?.toISOString() ?? null,
         courseVariantCode: row.courseVariantCode,
+        ...(row.teamId && row.relayLeg ? { relay: { teamId: row.teamId, teamNumber: teams.get(row.teamId)!.number,
+          teamName: teams.get(row.teamId)!.name, leg: row.relayLeg } } : {}),
         resultFreshness: freshnessByEntry.get(row.id) ?? "NO_PUBLISHED_RESULT",
         effectiveResult: effectiveResultByEntry.get(row.id) ?? { state: "NO_PUBLISHED_RESULT", selectedRevision: null },
         resultRevisionMarker: revisionMarkerByEntry.get(row.id) ?? null,
@@ -194,7 +200,8 @@ export async function transferEntryAsAdministrator(db: Database,
     if (!entry) return { status: "not-found" as const };
     if (!entry.exactTime || entry.row.version >= maxVersion || entry.row.version !== intent.expectedEntryVersion ||
       entry.row.classId !== intent.expectedClassId ||
-      (entry.row.fixedStartTime?.toISOString() ?? null) !== intent.expectedFixedStartTime) return { status: "conflict" as const };
+      (entry.row.fixedStartTime?.toISOString() ?? null) !== intent.expectedFixedStartTime ||
+      entry.row.teamId !== null) return { status: "conflict" as const };
     const [target] = await tx.select({ courseVersionId: schema.classes.courseVersionId, startRule: schema.classes.startRule })
       .from(schema.classes).innerJoin(schema.courseVersions, eq(schema.courseVersions.id, schema.classes.courseVersionId))
       .innerJoin(schema.courses, eq(schema.courses.id, schema.courseVersions.courseId)).where(and(

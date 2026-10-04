@@ -13,8 +13,10 @@ import { checkinHistorySv } from "../../i18n/checkin-history-sv";
 import { checkinConflictReviewSv as reviewText } from "../../i18n/checkin-conflict-review-sv";
 import { forestWatchSv as forestText } from "../../i18n/forest-watch-sv";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
+import { relaySv as relayText } from "../../i18n/relay-sv";
 import type { ConflictReviewAttempt, Operation, ReturnAttempt, StartCorrectionAttempt, UnknownReadoutResolutionAttempt } from "./types";
 import type { Base, WorkspaceState } from "./workspace-state";
+import type { RelayActions } from "./relay-actions";
 import type { RaceDataActions } from "./race-data";
 
 /** Tävlingsdagen: kvar i skogen, okända avläsningar, incheckningsjournal, konfliktgranskning och manuella rättningar. */
@@ -82,7 +84,7 @@ export function deriveDuringRace(s: WorkspaceState) {
   return { correctionPending, forestAttentionFresh, unknownReadoutAttentionFresh, forestAttentionCounts };
 }
 
-export function createDuringRaceActions(ws: Base & RaceDataActions) {
+export function createDuringRaceActions(ws: Base & RaceDataActions & Pick<RelayActions, "readRelay">) {
   const { raceId, entryId, reviewAttempt, reviewCandidate, reviewConfirmed, reviewReason, forestData, forestStale,
     targetStartState, unknownReadoutCandidate, unknownReadoutId, unknownReadoutTarget, unknownReadoutEntryId,
     unknownReadoutClassId, unknownReadoutGivenName, unknownReadoutFamilyName, unknownReadoutOrganisationName, busyRef, pending,
@@ -90,7 +92,7 @@ export function createDuringRaceActions(ws: Base & RaceDataActions) {
     setCheckinHistory, setReviewCandidate, setReviewAttempt, setForestStale, setForestData, setStartCorrection,
     setReturnAttempt, setUnknownReadoutCandidate, setUnknownReadoutId, setUnknownReadoutEntryId, setUnknownReadoutClassId,
     setUnknownReadoutFetchedAt, setUnknownReadoutAttentionStale, setUnknownReadoutError, setUnknownReadoutAttempt,
-    setLatestReadouts } = ws;
+    setLatestReadouts, readRelay } = ws;
   async function loadCheckinHistory(cursor?: string, selectedId = entryId) {
     if (busyRef.current || pending.current || !requireSession() || !selectedId) return;
     const op = begin(); setMessage("");
@@ -246,7 +248,7 @@ export function createDuringRaceActions(ws: Base & RaceDataActions) {
     const failed: string[] = [];
     try {
       for (const [read, label] of [[readForest, text.controlForest], [readUnknownReadoutCandidates, text.controlUnknown],
-        [readLatestReadouts, text.controlLatest]] as const) {
+        [readLatestReadouts, text.controlLatest], [readRelay, relayText.controlTeams]] as const) {
         try { await read(op); }
         catch { if (!current(op)) return; failed.push(label); }
       }

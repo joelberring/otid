@@ -19,6 +19,7 @@ import {
   type PairingAdminRequestAuthentication
 } from "./pairing-admin";
 import { lockEntryForRevision, lockRaceForMutation } from "./concurrency";
+import { synchronizeRelayTeams } from "./relay-sync";
 import { loadActiveManualResultOverrideState } from "./result-revision-state";
 import {
   parseStrictStoredResultRevision,
@@ -220,6 +221,8 @@ export async function correctManualFinishTimeAsAdministrator(
         snapshotVersion: current.source.snapshotVersion, courseVersionId: current.source.courseVersionId,
         published: true, createdAt: correctedAt }).returning();
       if (!created) throw new Error("Måltidsrättningens resultatrevision kunde inte sparas");
+      // Stafett: den rättade måltiden är nästa sträckas växling.
+      if (entry.teamId) await synchronizeRelayTeams(tx, race.id, [entry.teamId], race.snapshotVersion);
       await tx.insert(schema.auditEvents).values({ raceId: race.id, entityType: "result_revision", entityId: created.id,
         action: "MANUAL_FINISH_TIME_CORRECTED", actorKind: "RACE_ADMIN_ACCESS_CREDENTIAL",
         actorId: auth.principal.accessCredentialId, requestId: response.requestId,

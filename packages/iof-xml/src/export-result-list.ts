@@ -78,10 +78,33 @@ export type IofResultListPersonResult =
   | IofResultListOutOfCompetitionPersonResult
   | IofResultListDidNotFinishPersonResult;
 
+/** Stafett: en sträcklöpares resultat. Placering och tid efter gäller sträckan (type="Leg"). */
+export interface IofResultListTeamMemberResult {
+  readonly leg: number;
+  readonly result: IofResultListPersonResult;
+}
+
+export type IofResultListTeamStatus = IofResultListStatus | "Active";
+
+/** Stafett: lagets resultat (lagets tid, placering och status skrivs som OverallResult på sista avlästa sträckan). */
+export interface IofResultListTeamResult {
+  readonly name: string;
+  readonly bibNumber: number;
+  readonly organisationName?: string;
+  readonly legCount: number;
+  readonly status: IofResultListTeamStatus;
+  readonly elapsedMs?: number;
+  readonly position?: number;
+  readonly timeBehindMs?: number;
+  readonly members: readonly IofResultListTeamMemberResult[];
+}
+
 export interface IofResultListClass {
   readonly className: string;
   readonly classExternalId?: string;
   readonly results: readonly IofResultListPersonResult[];
+  /** Stafettklass: lagresultat i stället för individuella resultat. */
+  readonly teamResults?: readonly IofResultListTeamResult[];
 }
 
 export interface IofResultListFinalizationProof {
@@ -474,63 +497,117 @@ function line(lines: string[], indentation: number, value: string): void {
   lines.push(`${"  ".repeat(indentation)}${value}`);
 }
 
+function iofStatus(status: IofResultListTeamStatus): string {
+  switch (status) {
+    case "OK": return "OK";
+    case "MP": return "MissingPunch";
+    case "DSQ": return "Disqualified";
+    case "DNF": return "DidNotFinish";
+    case "OOC": return "NotCompeting";
+    case "DNS": return "DidNotStart";
+    case "Active": return "Active";
+  }
+}
+
+/** Person, klubb och Result. `team` ger stafettens TeamMemberResult (sträcka, sträckplacering, lagets OverallResult). */
 function serializeResult(
   lines: string[],
   result: IofResultListPersonResult,
-  validated: ValidatedResult
+  validated: ValidatedResult,
+  team?: { readonly indent: number; readonly leg: number; readonly overall?: IofResultListTeamResult }
 ): void {
-  line(lines, 2, "<PersonResult>");
-  if (result.entryExternalId !== undefined) {
-    line(lines, 3, `<EntryId>${escapeXml(result.entryExternalId)}</EntryId>`);
+  const base = team?.indent ?? 2;
+  line(lines, base, team ? "<TeamMemberResult>" : "<PersonResult>");
+  if (result.entryExternalId !== undefined && !team) {
+    line(lines, base + 1, `<EntryId>${escapeXml(result.entryExternalId)}</EntryId>`);
   }
-  line(lines, 3, "<Person>");
-  line(lines, 4, "<Name>");
-  line(lines, 5, `<Family>${escapeXml(result.familyName)}</Family>`);
-  line(lines, 5, `<Given>${escapeXml(result.givenName)}</Given>`);
-  line(lines, 4, "</Name>");
-  line(lines, 3, "</Person>");
+  line(lines, base + 1, "<Person>");
+  line(lines, base + 2, "<Name>");
+  line(lines, base + 3, `<Family>${escapeXml(result.familyName)}</Family>`);
+  line(lines, base + 3, `<Given>${escapeXml(result.givenName)}</Given>`);
+  line(lines, base + 2, "</Name>");
+  line(lines, base + 1, "</Person>");
   if (result.organisationName !== undefined) {
-    line(lines, 3, "<Organisation>");
-    line(lines, 4, `<Name>${escapeXml(result.organisationName)}</Name>`);
-    line(lines, 3, "</Organisation>");
+    line(lines, base + 1, "<Organisation>");
+    line(lines, base + 2, `<Name>${escapeXml(result.organisationName)}</Name>`);
+    line(lines, base + 1, "</Organisation>");
   }
-  line(lines, 3, "<Result>");
-  if (validated.startTime) line(lines, 4, `<StartTime>${validated.startTime}</StartTime>`);
-  if (validated.finishTime) line(lines, 4, `<FinishTime>${validated.finishTime}</FinishTime>`);
+  line(lines, base + 1, "<Result>");
+  if (team) line(lines, base + 2, `<Leg>${team.leg}</Leg>`);
+  if (validated.startTime) line(lines, base + 2, `<StartTime>${validated.startTime}</StartTime>`);
+  if (validated.finishTime) line(lines, base + 2, `<FinishTime>${validated.finishTime}</FinishTime>`);
   if (result.elapsedMs !== undefined) {
-    line(lines, 4, `<Time>${millisecondsToSeconds(result.elapsedMs)}</Time>`);
+    line(lines, base + 2, `<Time>${millisecondsToSeconds(result.elapsedMs)}</Time>`);
   }
   if (result.timeBehindMs !== undefined && result.position !== undefined) {
-    line(lines, 4, `<TimeBehind>${millisecondsToSeconds(result.timeBehindMs)}</TimeBehind>`);
-    line(lines, 4, `<Position>${result.position}</Position>`);
+    const type = team ? ' type="Leg"' : "";
+    line(lines, base + 2, `<TimeBehind${type}>${millisecondsToSeconds(result.timeBehindMs)}</TimeBehind>`);
+    line(lines, base + 2, `<Position${type}>${result.position}</Position>`);
   }
-  const iofStatus = result.status === "OK"
-    ? "OK"
-    : result.status === "MP"
-      ? "MissingPunch"
-      : result.status === "DSQ"
-        ? "Disqualified"
-        : result.status === "DNF"
-          ? "DidNotFinish"
-          : result.status === "OOC"
-            ? "NotCompeting"
-            : "DidNotStart";
-  line(lines, 4, `<Status>${iofStatus}</Status>`);
+  line(lines, base + 2, `<Status>${iofStatus(result.status)}</Status>`);
+  const overall = team?.overall;
+  if (overall) {
+    line(lines, base + 2, "<OverallResult>");
+    if (overall.elapsedMs !== undefined) line(lines, base + 3, `<Time>${millisecondsToSeconds(overall.elapsedMs)}</Time>`);
+    if (overall.timeBehindMs !== undefined && overall.position !== undefined) {
+      line(lines, base + 3, `<TimeBehind>${millisecondsToSeconds(overall.timeBehindMs)}</TimeBehind>`);
+      line(lines, base + 3, `<Position>${overall.position}</Position>`);
+    }
+    line(lines, base + 3, `<Status>${iofStatus(overall.status)}</Status>`);
+    line(lines, base + 2, "</OverallResult>");
+  }
   if (result.status !== "DNF") for (const control of result.expectedControls) {
     const split = validated.splitByKey.get(key(control.controlCode, control.occurrence));
     if (!split) {
-      line(lines, 4, '<SplitTime status="Missing">');
-      line(lines, 5, `<ControlCode>${control.controlCode}</ControlCode>`);
-      line(lines, 4, "</SplitTime>");
+      line(lines, base + 2, '<SplitTime status="Missing">');
+      line(lines, base + 3, `<ControlCode>${control.controlCode}</ControlCode>`);
+      line(lines, base + 2, "</SplitTime>");
       continue;
     }
-    line(lines, 4, '<SplitTime status="OK">');
-    line(lines, 5, `<ControlCode>${control.controlCode}</ControlCode>`);
-    line(lines, 5, `<Time>${millisecondsToSeconds(split.elapsedMs)}</Time>`);
-    line(lines, 4, "</SplitTime>");
+    line(lines, base + 2, '<SplitTime status="OK">');
+    line(lines, base + 3, `<ControlCode>${control.controlCode}</ControlCode>`);
+    line(lines, base + 3, `<Time>${millisecondsToSeconds(split.elapsedMs)}</Time>`);
+    line(lines, base + 2, "</SplitTime>");
   }
-  line(lines, 3, "</Result>");
-  line(lines, 2, "</PersonResult>");
+  line(lines, base + 1, "</Result>");
+  line(lines, base, team ? "</TeamMemberResult>" : "</PersonResult>");
+}
+
+function validateTeamResult(team: IofResultListTeamResult, path: string, issues: string[]): void {
+  validateText(team.name, `${path}.name`, issues);
+  if (team.organisationName !== undefined) validateText(team.organisationName, `${path}.organisationName`, issues);
+  if (!Number.isSafeInteger(team.bibNumber) || team.bibNumber <= 0) issues.push(`${path}.bibNumber måste vara ett positivt heltal`);
+  if (!Number.isSafeInteger(team.legCount) || team.legCount < 2) issues.push(`${path}.legCount måste vara minst 2`);
+  if ((team.position !== undefined) !== (team.timeBehindMs !== undefined)) {
+    issues.push(`${path}.position och ${path}.timeBehindMs måste anges tillsammans`);
+  }
+  if (team.status === "OK" && team.elapsedMs === undefined) issues.push(`${path} med status OK måste ha elapsedMs`);
+  if (team.status !== "OK" && (team.elapsedMs !== undefined || team.position !== undefined)) {
+    issues.push(`${path} får bara ha tid och placering när laget är godkänt`);
+  }
+  if (team.elapsedMs !== undefined) validateMilliseconds(team.elapsedMs, `${path}.elapsedMs`, issues);
+  const legs = team.members.map((member) => member.leg);
+  if (new Set(legs).size !== legs.length || legs.some((leg, index) => !Number.isSafeInteger(leg) || leg < 1 || leg > team.legCount ||
+      (index > 0 && leg <= legs[index - 1]!))) {
+    issues.push(`${path}.members måste ha unika sträckor i ordning`);
+  }
+}
+
+function serializeTeam(lines: string[], team: IofResultListTeamResult, validated: ReadonlyMap<IofResultListPersonResult, ValidatedResult>): void {
+  line(lines, 2, "<TeamResult>");
+  line(lines, 3, `<Name>${escapeXml(team.name)}</Name>`);
+  if (team.organisationName !== undefined) {
+    line(lines, 3, "<Organisation>");
+    line(lines, 4, `<Name>${escapeXml(team.organisationName)}</Name>`);
+    line(lines, 3, "</Organisation>");
+  }
+  line(lines, 3, `<BibNumber>${team.bibNumber}</BibNumber>`);
+  // Lagets resultat efter den senaste avlästa sträckan: tid och placering när laget är klart, annars status.
+  for (const [index, member] of team.members.entries()) {
+    serializeResult(lines, member.result, validated.get(member.result)!, { indent: 3, leg: member.leg,
+      ...(index === team.members.length - 1 ? { overall: team } : {}) });
+  }
+  line(lines, 2, "</TeamResult>");
 }
 
 export function serializeIofResultList(projection: IofResultListProjection): Uint8Array {
@@ -578,6 +655,14 @@ export function serializeIofResultList(projection: IofResultListProjection): Uin
       const validated = validateResult(result, `${classPath}.results[${resultIndex}]`, issues);
       validatedResults.set(result, validated);
     }
+    for (const [teamIndex, team] of (raceClass.teamResults ?? []).entries()) {
+      const teamPath = `${classPath}.teamResults[${teamIndex}]`;
+      validateTeamResult(team, teamPath, issues);
+      resultCount += team.members.length;
+      for (const [memberIndex, member] of team.members.entries()) {
+        validatedResults.set(member.result, validateResult(member.result, `${teamPath}.members[${memberIndex}]`, issues));
+      }
+    }
   }
   if (resultCount > MAX_RESULTS) issues.push(`projektionen får innehålla högst ${MAX_RESULTS} resultat`);
   if (issues.length > 0) throw new IofResultListSerializationError(issues);
@@ -598,6 +683,7 @@ export function serializeIofResultList(projection: IofResultListProjection): Uin
     for (const result of raceClass.results) {
       serializeResult(lines, result, validatedResults.get(result)!);
     }
+    for (const team of raceClass.teamResults ?? []) serializeTeam(lines, team, validatedResults);
     line(lines, 1, "</ClassResult>");
   }
   lines.push("</ResultList>");

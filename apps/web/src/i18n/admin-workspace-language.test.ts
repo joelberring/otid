@@ -18,7 +18,7 @@ const adminFiles = [
   "race-administrator-sv.ts", "race-workspace-navigation-sv.ts", "start-draw-sv.ts", "start-list-publication-sv.ts",
   "forest-watch-sv.ts", "participant-card-sv.ts", "class-table-sv.ts", "checkin-history-sv.ts", "checkin-conflict-review-sv.ts",
   "race-operator-access-sv.ts", "race-preparation-start-list-sv.ts", "race-workflow-detail-sv.ts",
-  "race-workspace-speaker-sv.ts", "speaker-board-sv.ts", "course-variants-sv.ts"
+  "race-workspace-speaker-sv.ts", "speaker-board-sv.ts", "course-variants-sv.ts", "relay-sv.ts"
 ];
 /** Delade textfiler (även publika sidor): bara nycklarna som arbetsytan läser granskas. */
 const sharedFiles = ["sv.ts", "participant-claim-sv.ts"];

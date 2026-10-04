@@ -37,10 +37,10 @@ export function createWorkflowNavigation(ws: Base & MobileNavigation & DuringRac
   const { data, navigationLocked, workflowLocked, busyRef, pending, forestData, rentalEntries, listPanel, requireSession, showMobilePanel,
     loadRaceDayAttention, setSelectedClassId, setStep, setQuery, setPage, setRosterClassId, setOlderResultsOnly,
     setRentalCardsOnly, setPaymentAttentionOnly, setResultState, setMissingFixedStartOnly, setCapacityClassId,
-    setCapacityInput, setMessage, setPrintTarget } = ws;
+    setCapacityInput, setMessage, setPrintTarget, setRelayMessage } = ws;
   function navigateStep(next: ChecklistStep) {
     if (navigationLocked) return;
-    setSelectedClassId("");
+    setSelectedClassId(""); setRelayMessage("");
     setStep(next);
     if (next === "READOUT") void loadRaceDayAttention();
   }

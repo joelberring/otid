@@ -21,6 +21,8 @@ import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
 import { loadRaceSnapshot } from "./snapshot";
 import { appliedControlNeutralization } from "./class-control-neutralization";
 import { canAddClassEntry } from "./class-capacity-guard";
+import { relayTeamOfEntry } from "./relay-model";
+import { synchronizeRelayTeams } from "./relay-sync";
 
 type Authentication = Omit<PairingAdminRequestAuthentication, "capability">;
 const capability = "MANAGE_RACE" as const;
@@ -244,6 +246,8 @@ export async function resolveUnknownReadoutAsAdministrator(
       snapshotVersion: snapshotVersionAfter, courseVersionId: evaluation.courseVersionId, published: true,
       createdAt: resolvedAt }).returning();
     if (!result) throw new Error("Resultatrevisionen kunde inte sparas");
+    const teamId = await relayTeamOfEntry(tx, entry.id);
+    if (teamId) await synchronizeRelayTeams(tx, input.raceId, [teamId], snapshotVersionAfter);
     const response = unknownReadoutResolutionResponseSchema.parse({ formatVersion: 1, replayed: false,
       requestId, raceId: input.raceId, readoutId: readout.readout.id, cardNumber: intent.cardNumber,
       target: intent.target, entryId: entry.id, entryVersion: entryVersionAfter, classId: targetClassId,

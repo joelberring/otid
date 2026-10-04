@@ -1,0 +1,49 @@
+/* Stafett (ADR-0169 beslut 3): lagvy, lagkort, sträckor och starttider. */
+.legs { display: grid; gap: 0.5rem; }
+.leg { display: grid; grid-template-columns: 6rem repeat(3, minmax(0, 1fr)); gap: 0.5rem; align-items: end; }
+.leg > *, .leg input, .leg select { min-width: 0; max-width: 100%; }
+.legName { font-weight: 700; align-self: center; }
+.fields { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.65rem; }
+.fields > *, .fields input, .fields select { min-width: 0; max-width: 100%; }
+.runners { display: grid; gap: 0.5rem; }
+.runner { display: grid; grid-template-columns: 6rem repeat(3, minmax(0, 1fr)); gap: 0.5rem; align-items: end; }
+.runner > *, .runner input { min-width: 0; max-width: 100%; }
+.teamTable { width: 100%; border-collapse: collapse; }
+.teamTable th, .teamTable td { padding: 0.45rem; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.teamTable thead th { font-size: 0.82rem; color: var(--muted); }
+.teamTable tbody tr { cursor: pointer; }
+.teamTable tr[data-selected="true"] > * { background: var(--workspace-subtle); }
+.teamNumber { font-variant-numeric: tabular-nums; font-weight: 700; width: 3rem; }
+.teamName { display: block; font-weight: 700; }
+.muted { color: var(--muted); font-size: 0.85rem; }
+.legList { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.15rem; font-size: 0.88rem; }
+.legList li { display: flex; flex-wrap: wrap; column-gap: 0.4rem; }
+.legNumber { font-variant-numeric: tabular-nums; color: var(--muted); }
+.status { font-weight: 700; }
+.status[data-status="MP"], .status[data-status="DSQ"], .status[data-status="DNF"] { color: var(--workspace-danger); }
+.card { display: grid; gap: 0.65rem; }
+.cardLegs { width: 100%; border-collapse: collapse; }
+.cardLegs th, .cardLegs td { padding: 0.4rem; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.cardLegs thead th { font-size: 0.82rem; color: var(--muted); }
+.runnerForm { display: grid; gap: 0.5rem; padding: 0.65rem; border: 1px solid var(--border); border-radius: 8px; background: var(--workspace-subtle); }
+.times { display: grid; gap: 0.65rem; }
+.timeRow { display: flex; flex-wrap: wrap; gap: 0.65rem; align-items: end; }
+.timeRow label { min-width: 10rem; }
+.controlLegs { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.5rem; }
+.controlLegs h4 { margin: 0; font-size: 0.95rem; }
+.controlLegs ul { margin: 0.2rem 0 0; padding-left: 1.1rem; }
+
+@media (max-width: 720px) {
+  .leg, .runner { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .legName { grid-column: 1 / -1; }
+  .fields { grid-template-columns: minmax(0, 1fr); }
+  .teamTable thead { display: none; }
+  .teamTable tr { display: grid; grid-template-columns: 3rem minmax(0, 1fr); border-bottom: 1px solid var(--border); padding: 0.35rem 0; }
+  .teamTable td { border: 0; padding: 0.15rem 0.35rem; }
+  .teamTable td:nth-child(n + 3) { grid-column: 2; }
+  .cardLegs thead { display: none; }
+  .cardLegs tr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0.2rem 0.5rem; padding: 0.45rem 0;
+    border-bottom: 1px solid var(--border); }
+  .cardLegs th, .cardLegs td { border: 0; padding: 0; }
+  .cardLegs td:last-child { grid-column: 1 / -1; }
+}

@@ -5,9 +5,21 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 11 – Stafett. Steg 7 (hårdvara) görs parallellt av ägaren. Steg 0–6 och 8–10 är klara.
+Steg 7 – Riktig hårdvara och pilot (ägaren). Steg 0–6 och 8–11 är klara.
 
 ## Logg
+
+### 2026-10-04 – Steg 11: stafett (steg 11 klart)
+- Migration 0094: `relay_leg` (sträcka, startsätt MASS_START/CHANGEOVER/RESTART, tid, valfri variant), `team` (nummer, namn, klubb),
+  `entry.team_id`/`relay_leg` och journalen `relay_request`. Varje sträcklöpare är en vanlig deltagare: bricka, avläsning, revisioner och underlag fungerar som förut.
+- Domän `relay.ts`: sträckans start (växling = föregående sträckas mål; omstart när laget inte växlat före tiden), lagresultat (godkänt först när alla
+  sträckor är godkända; lagets tid = summan av sträcktiderna), placering med delade platser, sträckresultat per sträcka och varianter roterade över lagen.
+- Sträckans start sparas som fast starttid och ingår därmed i underlaget. Ny måltid (avläsning, okänd bricka, måltidsrättning) eller nya tider räknar
+  om senare sträckor i samma transaktion. En sträcka som läses före föregående sträcka får "ingen starttid" tills föregående läses av.
+- Arbetsytan: "Ny stafettklass" (Klasser), lagvy med lagkort och "Byt löpare på sträcka N" (Anmälda), masstart/omstart (Start), "Lag ute" (Avläsning).
+  Avläsningen visar lag och sträcka, växling eller lagets tid; övningsstationen lägger sträckorna efter varandra. Publikt: lagresultat med sträckor och
+  sträckresultat, startlistan per lag. IOF: ResultList med TeamResult/TeamMemberResult, `TeamCourseAssignment` ger varianter per sträcka.
+- Verifierat: lint, typecheck, test, test:integration (82 filer, nytt `adr-0169-relay`), build, e2e (6 flöden, nytt `stafett`).
 
 ### 2026-10-04 – Steg 10: gafflingar i individuella klasser (steg 10 klart)
 - Migration 0093: `course_variant` + `course_variant_control` (oföränderliga, per banversion), `entry.course_variant_code` och journalen
@@ -161,6 +173,9 @@ Kvarstår för ägaren: begära *PC Programmer's Guide* från SPORTident
 brickor till steg 7.
 
 ## Idéer (inte i planen än)
+
+- Stafett: bana per sträcka finns bara via en gafflad bana (variant per sträcka). IOF StartList (TeamStart) och det fastställda
+  resultatets IOF-export skriver inte lag än. Kvar i skogen räknar även sträcklöpare som inte startat.
 
 - Gafflingar: en klass som byter till en gafflad bana (Redigera klass) får inga varianter automatiskt; "Fördela gafflingar" gör det. IOF StartList/ResultList-export skriver inte variantens namn.
 - Klassbyte till en lottad klass ger inte automatiskt en vakant tid; arrangören anger tid som förut.

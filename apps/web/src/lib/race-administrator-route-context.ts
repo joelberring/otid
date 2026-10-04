@@ -32,7 +32,7 @@ import { loadStartDrawSetupAsAdministrator, previewStartDrawAsAdministrator, com
   listCheckinHistoryAsAdmin, readStartCheckinConflictReviewAsAdmin, reviewStartCheckinConflictsAsAdmin,
   previewEntryVariantAsAdministrator, changeEntryVariantAsAdministrator, distributeClassVariantsAsAdministrator,
   getRelayOverviewAsAdministrator, createRelayClassAsAdministrator, registerRelayTeamAsAdministrator,
-  changeRelayLegRunnerAsAdministrator, setRelayStartTimesAsAdministrator } from "@o-tid/application";
+  changeRelayLegRunnerAsAdministrator, setRelayStartTimesAsAdministrator, saveRaceSettingsAsAdministrator } from "@o-tid/application";
 import { iofResultListExportAdminFailure } from "./iof-result-list-export-admin-security";
 import type { Database } from "@o-tid/database";
 import { entryClassAdminFailure as failure, type entryClassAdminSessionProof } from "./entry-class-admin-security";
@@ -54,6 +54,7 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   classVariantDistribution: distributeClassVariantsAsAdministrator,
   relayOverview: getRelayOverviewAsAdministrator, relayClass: createRelayClassAsAdministrator, relayTeam: registerRelayTeamAsAdministrator,
   relayLegRunner: changeRelayLegRunnerAsAdministrator, relayStartTimes: setRelayStartTimesAsAdministrator,
+  raceSettings: saveRaceSettingsAsAdministrator,
   shortenedCourseClassTransferPreview: previewShortenedCourseClassTransferAsAdministrator,
   shortenedCourseClassTransfer: transferShortenedCourseClassAsAdministrator,
   manualFinishTimeCorrectionCandidate: previewManualFinishTimeCorrectionAsAdministrator,
@@ -101,6 +102,7 @@ export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: str
   { kind: "entry-variant-preview"; entryId: string } | { kind: "entry-variant"; entryId: string } |
   { kind: "class-variant-distribution"; classId: string } |
   { kind: "relay" } | { kind: "relay-class" } | { kind: "relay-team" } | { kind: "relay-leg-runner" } | { kind: "relay-start-times" } |
+  { kind: "race-settings" } |
   { kind: "shortened-course-class-transfer"; classId: string } |
   { kind: "manual-finish-time-correction"; entryId: string } |
   { kind: "manual-punch-start-time-correction"; entryId: string } |

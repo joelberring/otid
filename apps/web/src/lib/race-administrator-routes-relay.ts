@@ -8,8 +8,8 @@ type Parser = { safeParse(value: unknown): { success: true; data: { requestId: s
 type Writer = (db: RaceAdministratorRouteContext["db"], input: RaceAdministratorRouteContext["proof"] & { raceId: string;
   idempotencyKey: string; request: unknown }) => Promise<{ status: string; response?: unknown }>;
 
-/** Samma ram för stafettens fyra skrivningar: idempotensnyckel, kropp, tjänst och kontroll av kvittot. */
-async function write(context: RaceAdministratorRouteContext, prefix: string, request: Parser, response: { parse(value: unknown): unknown },
+/** Samma ram för skrivningar med request-id: idempotensnyckel, kropp, tjänst och kontroll av kvittot. */
+export async function write(context: RaceAdministratorRouteContext, prefix: string, request: Parser, response: { parse(value: unknown): unknown },
   service: Writer): Promise<Response> {
   const { db, raceId, proof } = context;
   const key = context.request.headers.get("idempotency-key");

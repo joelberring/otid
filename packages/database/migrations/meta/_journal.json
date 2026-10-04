@@ -332,5 +332,7 @@
     }
     ,{ "idx": 94, "version": "7", "when": 1796400000000, "tag": "0094_adr_0169_relay", "breakpoints": true
     }
+    ,{ "idx": 95, "version": "7", "when": 1796486400000, "tag": "0095_adr_0170_race_type", "breakpoints": true
+    }
   ]
 }

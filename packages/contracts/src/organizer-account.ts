@@ -2,9 +2,9 @@ import { z } from "zod";
 import {
   eventCreationRequestSchema,
   eventCreationResponseSchema,
-  type EventCreationRequest,
   type EventCreationResponse
 } from "./event-creation";
+import { raceTypeSchema } from "./race-settings";
 
 const canonicalUuidPattern = "[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
 const uuid = z.string().regex(new RegExp(`^${canonicalUuidPattern}$`));
@@ -43,13 +43,17 @@ export const organizerEventCreateIdempotencyKeySchema = z.string().regex(
 
 // Keep the account-bound endpoint's intent and replay response identical to the
 // established event-creation contract; authorization and idempotency scope differ.
-export const organizerEventCreateRequestSchema = eventCreationRequestSchema;
+// ADR-0170: arrangören väljer tävlingstyp när tävlingen skapas. Saknas typen blir det Tävling.
+export const organizerEventCreateRequestSchema = eventCreationRequestSchema.extend({
+  raceType: raceTypeSchema.default("STANDARD")
+});
 export const organizerEventCreateResponseSchema = eventCreationResponseSchema;
 
 const organizerEventRaceSchema = z.object({
   raceId: uuid,
   raceName: z.string().trim().min(1).max(160),
-  raceDate: z.iso.date()
+  raceDate: z.iso.date(),
+  raceType: raceTypeSchema
 }).strict();
 
 const organizerEventSchema = z.object({
@@ -76,7 +80,7 @@ export type OrganizerAccountLoginRequest = z.infer<typeof organizerAccountLoginR
 export type OrganizerAccountLoginResponse = z.infer<typeof organizerAccountLoginResponseSchema>;
 export type OrganizerAccountSessionStatus = z.infer<typeof organizerAccountSessionStatusSchema>;
 export type OrganizerEventCreateIdempotencyKey = z.infer<typeof organizerEventCreateIdempotencyKeySchema>;
-export type OrganizerEventCreateRequest = EventCreationRequest;
+export type OrganizerEventCreateRequest = z.input<typeof organizerEventCreateRequestSchema>;
 export type OrganizerEventCreateResponse = EventCreationResponse;
 export type OrganizerMyEventsResponse = z.infer<typeof organizerMyEventsResponseSchema>;
 export type OrganizerRaceEnterResponse = z.infer<typeof organizerRaceEnterResponseSchema>;

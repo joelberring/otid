@@ -81,7 +81,8 @@ export async function createEventAsUserAccount(
     if (existing) {
       if (existing.actorAccountId !== auth.principal.accountId ||
         existing.eventName !== request.data.eventName || existing.raceName !== request.data.raceName ||
-        existing.raceDate !== request.data.raceDate || existing.timeZone !== request.data.timeZone) {
+        existing.raceDate !== request.data.raceDate || existing.timeZone !== request.data.timeZone ||
+        existing.raceType !== request.data.raceType) {
         return { status: "conflict" } as const;
       }
       return { status: "created", response: responseFor(existing, true) } as const;
@@ -93,7 +94,7 @@ export async function createEventAsUserAccount(
     if (!event) throw new Error("Eventskapandet kunde inte bekräftas");
     const [race] = await tx.insert(schema.races).values({
       eventId: event.id, name: request.data.raceName, raceDate: request.data.raceDate,
-      snapshotVersion: 1, createdAt
+      raceType: request.data.raceType, snapshotVersion: 1, createdAt
     }).returning({ id: schema.races.id });
     if (!race) throw new Error("Loppskapandet kunde inte bekräftas");
     await tx.insert(schema.eventAdministrationGrants).values({
@@ -102,7 +103,7 @@ export async function createEventAsUserAccount(
     const [journal] = await tx.insert(schema.userAccountEventCreationRequests).values({
       requestId, actorAccountId: auth.principal.accountId,
       eventName: request.data.eventName, raceName: request.data.raceName,
-      raceDate: request.data.raceDate, timeZone: request.data.timeZone,
+      raceDate: request.data.raceDate, timeZone: request.data.timeZone, raceType: request.data.raceType,
       eventId: event.id, raceId: race.id, createdAt
     }).returning();
     if (!journal) throw new Error("Skapanderequesten kunde inte bekräftas");
@@ -112,7 +113,7 @@ export async function createEventAsUserAccount(
       actorId: auth.principal.accountId, requestId,
       after: {
         eventName: request.data.eventName, raceName: request.data.raceName,
-        raceDate: request.data.raceDate, timeZone: request.data.timeZone,
+        raceDate: request.data.raceDate, timeZone: request.data.timeZone, raceType: request.data.raceType,
         eventId: event.id, raceId: race.id, snapshotVersion: 1, createdAt: createdAt.toISOString()
       }
     });
@@ -183,14 +184,15 @@ export async function listMyEventsAsUserAccount(
         .from(schema.events).where(eq(schema.events.id, grant.eventId));
       if (!event) throw new Error("Eventgrant utan event");
       const races = await tx.select({ id: schema.races.id, name: schema.races.name,
-        raceDate: schema.races.raceDate })
+        raceDate: schema.races.raceDate, raceType: schema.races.raceType })
         .from(schema.races).where(eq(schema.races.eventId, event.id))
         .orderBy(asc(schema.races.raceDate), asc(schema.races.id)).limit(10_001);
       if (races.length > 10_000) throw new Error("För många lopp för detta kontrakt");
       eventIndexes.set(event.id, events.length);
       events.push({ eventId: event.id, eventName: event.name, startsOn: event.startsOn,
         timeZone: event.timeZone, role: grant.role,
-        races: races.map(race => ({ raceId: race.id, raceName: race.name, raceDate: race.raceDate })) });
+        races: races.map(race => ({ raceId: race.id, raceName: race.name, raceDate: race.raceDate,
+          raceType: race.raceType })) });
     }
     return { status: "ok", response: organizerMyEventsResponseSchema.parse({ formatVersion: 1, events }) } as const;
   });

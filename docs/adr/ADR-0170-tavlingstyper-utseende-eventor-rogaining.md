@@ -23,14 +23,16 @@ Inställningar; inga data försvinner, bara synligheten ändras. Funktionerna
 finns kvar i en gemensam kärna – typen är en vy, inte en egen kodväg.
 
 ### 2. Utseende och navigering
-- Arbetsytan får ett fast skal: en sidopanel (mobil: en remsa överst) som
+- Arbetsytan får ett fast skal: en ljus sidopanel (mobil: en remsa överst) som
   alltid syns, ritad som en bana – start, kontroller och mål – där varje steg
   är en del av tävlingen med sin status. En fast toppbalk visar tävlingen och
   läget (avläsning, kvar i skogen).
-- Ett gemensamt formspråk: färger från orienteringskartan (banlila för val och
-  fokus, skärmorange för det som behöver åtgärdas, granmörkt för skalet),
-  typsnittet Barlow och Barlow Semi Condensed (självhostat via npm), täta
-  tabeller med tabellsiffror, få och konsekventa komponenter.
+- Ett gemensamt, återhållsamt formspråk: vitt, gråskala och svart text.
+  Färg används bara där den gör något tydligare: status (grön godkänd, röd
+  felstämplad), orange för det som behöver åtgärdas och en enda accentfärg
+  (banlila) för markerat val och fokus. Typsnittet Barlow och Barlow Semi
+  Condensed (självhostat via npm), täta tabeller med tabellsiffror, få och
+  konsekventa komponenter.
 - Speakern är en egen sida som kan öppnas i ett eget fönster eller på en
   skärm och uppdateras av sig själv.
 

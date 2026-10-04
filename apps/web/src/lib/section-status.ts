@@ -1,14 +1,17 @@
-import type { EntryTransferCandidates } from "@o-tid/contracts";
+import type { EntryTransferCandidates, RaceType } from "@o-tid/contracts";
+import { raceTypeSv } from "../i18n/race-type-sv";
+import type { Section } from "./race-sections";
 
-/** Arbetsytans checklista (ADR-0169 beslut 4): Banor → Klasser → Anmälda → Start → Avläsning → Resultat. */
-export const checklistSteps = ["COURSES", "CLASSES", "ENTRIES", "START", "READOUT", "RESULTS"] as const;
-export type ChecklistStep = typeof checklistSteps[number];
+/**
+ * Status per del i sidopanelen (ADR-0169 beslut 4, ADR-0170 beslut 2): en kort rad i ord, t.ex.
+ * "7 avlästa · 3 kvar i skogen". Symbolen eller färgen bredvid bär aldrig ensam betydelsen.
+ */
 
 /** DONE = klart, ATTENTION = något att titta på, OPEN = inte påbörjat eller pågår. */
-export type ChecklistTone = "DONE" | "ATTENTION" | "OPEN";
+export type SectionTone = "DONE" | "ATTENTION" | "OPEN";
 
-export type ChecklistFacts = {
-  courses: number; classes: number; entries: number;
+export type SectionFacts = {
+  courses: number; classes: number; entries: number; teams: number;
   fixedStartClasses: number; missingStartTimes: number;
   readOut: number; inForest: number; unknownCards: number | undefined;
   results: number; mispunched: number;
@@ -37,13 +40,14 @@ export function mispunchedEntries(data: Pick<EntryTransferCandidates, "entries">
  */
 export function checklistFacts(data: Pick<EntryTransferCandidates, "classes" | "entries">, extra: {
   courseCount?: number | undefined; inForest?: number | undefined; unknownCards?: number | undefined;
-}): ChecklistFacts {
+}): SectionFacts {
   const fixedClasses = new Set(data.classes.filter(row => row.startRule === "FIXED").map(row => row.id));
   const statuses = data.entries.map(activeStatus);
   return {
     courses: extra.courseCount ?? new Set(data.classes.map(row => row.courseName)).size,
     classes: data.classes.length,
     entries: data.entries.length,
+    teams: new Set(data.entries.flatMap(entry => entry.relay ? [entry.relay.teamId] : [])).size,
     fixedStartClasses: fixedClasses.size,
     missingStartTimes: data.entries.filter(entry => fixedClasses.has(entry.classId) && entry.fixedStartTime === null &&
       entry.relay === undefined).length,
@@ -57,21 +61,30 @@ export function checklistFacts(data: Pick<EntryTransferCandidates, "classes" | "
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
-/** Stegets status i ord. Symbolen visas bredvid men bär aldrig ensam betydelsen. */
-export function checklistStatus(step: ChecklistStep, facts: ChecklistFacts): { tone: ChecklistTone; text: string } {
-  switch (step) {
-    case "COURSES": return facts.courses === 0 ? { tone: "OPEN", text: "Ingen bana ännu" }
-      : { tone: "DONE", text: plural(facts.courses, "bana", "banor") };
+/** Delens status i ord. Namnet på delen (t.ex. "Lag" i stället för "Anmälda") avgör hur antalet skrivs. */
+export function sectionStatus(section: Pick<Section, "id" | "label">, facts: SectionFacts, raceType: RaceType): { tone: SectionTone; text: string } {
+  switch (section.id) {
+    case "COURSES":
+      if (section.label === "COURSES") return facts.courses === 0 ? { tone: "OPEN", text: "Ingen bana ännu" }
+        : { tone: "DONE", text: plural(facts.courses, "bana", "banor") };
+      return facts.courses === 0 ? { tone: "OPEN", text: "Ingen bana ännu" } : {
+        tone: facts.classes === 0 ? "OPEN" : "DONE",
+        text: `${plural(facts.courses, "bana", "banor")} · ${plural(facts.classes, "klass", "klasser")}` };
     case "CLASSES": return facts.classes === 0 ? { tone: "OPEN", text: "Ingen klass ännu" }
       : { tone: "DONE", text: plural(facts.classes, "klass", "klasser") };
-    case "ENTRIES": return facts.entries === 0 ? { tone: "OPEN", text: "Inga anmälda ännu" }
-      : { tone: "DONE", text: plural(facts.entries, "anmäld", "anmälda") };
+    case "ENTRIES":
+      if (section.label === "TEAMS") return facts.teams === 0 ? { tone: "OPEN", text: "Inga lag ännu" }
+        : { tone: "DONE", text: `${plural(facts.teams, "lag", "lag")} · ${plural(facts.entries, "löpare", "löpare")}` };
+      if (section.label === "PARTICIPANTS") return facts.entries === 0 ? { tone: "OPEN", text: "Inga deltagare ännu" }
+        : { tone: "DONE", text: plural(facts.entries, "deltagare", "deltagare") };
+      return facts.entries === 0 ? { tone: "OPEN", text: "Inga anmälda ännu" }
+        : { tone: "DONE", text: plural(facts.entries, "anmäld", "anmälda") };
     case "START":
       if (facts.classes === 0) return { tone: "OPEN", text: "Inga klasser ännu" };
       if (facts.missingStartTimes > 0) return { tone: "ATTENTION", text: `${facts.missingStartTimes} saknar starttid` };
       return { tone: "DONE", text: facts.fixedStartClasses === 0 ? "Fri start" : "Starttider klara" };
     case "READOUT": {
-      const parts = [`${facts.readOut} avlästa`, `${facts.inForest} kvar i skogen`];
+      const parts = [`${facts.readOut} avlästa`, `${facts.inForest} kvar`];
       if (facts.unknownCards) parts.push(plural(facts.unknownCards, "okänd bricka", "okända brickor"));
       return { tone: facts.unknownCards ? "ATTENTION" : facts.entries > 0 && facts.inForest === 0 ? "DONE" : "OPEN",
         text: parts.join(" · ") };
@@ -81,5 +94,6 @@ export function checklistStatus(step: ChecklistStep, facts: ChecklistFacts): { t
         text: `${plural(facts.mispunched, "felstämplad", "felstämplade")} att titta på` };
       return facts.results === 0 ? { tone: "OPEN", text: "Inga resultat ännu" }
         : { tone: "DONE", text: plural(facts.results, "resultat", "resultat") };
+    case "SETTINGS": return { tone: "DONE", text: raceTypeSv.types[raceType].name };
   }
 }

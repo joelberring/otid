@@ -40,7 +40,7 @@ export async function listEntryTransfersAsAdministrator(db: Database, input: Aut
     if (auth.status !== "authenticated") return auth;
     const race = await lockRaceForSnapshot(tx, input.raceId);
     const [metadata] = await tx.select({ eventName: schema.events.name, raceName: schema.races.name,
-      raceDate: schema.races.raceDate, timeZone: schema.events.timeZone })
+      raceDate: schema.races.raceDate, raceType: schema.races.raceType, timeZone: schema.events.timeZone })
       .from(schema.races).innerJoin(schema.events, eq(schema.events.id, schema.races.eventId))
       .where(eq(schema.races.id, input.raceId));
     if (!metadata) throw new Error("Loppets metadata saknas");

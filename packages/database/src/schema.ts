@@ -114,6 +114,9 @@ export const auditActorKindEnum = pgEnum("audit_actor_kind", [
 ]);
 export const resultFinalizationScopeEnum = pgEnum("result_finalization_scope", ["CLASS", "RACE"]);
 
+/** ADR-0170 beslut 1: Träning, Liten tävling, Tävling, Gafflade banor, Stafett, Rogaining. */
+export type RaceTypeValue = "TRAINING" | "SMALL" | "STANDARD" | "FORKED" | "RELAY" | "ROGAINING";
+
 export const events = pgTable("event", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
@@ -128,8 +131,11 @@ export const races = pgTable("race", {
   name: text("name").notNull(),
   raceDate: date("race_date").notNull(),
   snapshotVersion: integer("snapshot_version").notNull().default(1),
+  /** ADR-0170 beslut 1: tävlingstyp, styr vad arbetsytan visar. */
+  raceType: text("race_type").$type<RaceTypeValue>().notNull().default("STANDARD"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (table) => [
+  check("race_type_check", sql`${table.raceType} in ('TRAINING', 'SMALL', 'STANDARD', 'FORKED', 'RELAY', 'ROGAINING')`),
   index("race_event_idx").on(table.eventId),
   uniqueIndex("race_id_event_uidx").on(table.id, table.eventId)
 ]);
@@ -1209,10 +1215,12 @@ export const userAccountEventCreationRequests = pgTable("user_account_event_crea
   raceName: text("race_name").notNull(),
   raceDate: date("race_date").notNull(),
   timeZone: text("time_zone").notNull(),
+  raceType: text("race_type").$type<RaceTypeValue>().notNull().default("STANDARD"),
   eventId: uuid("event_id").notNull().references(() => events.id),
   raceId: uuid("race_id").notNull().references(() => races.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (table) => [
+  check("user_account_event_creation_race_type_check", sql`${table.raceType} in ('TRAINING', 'SMALL', 'STANDARD', 'FORKED', 'RELAY', 'ROGAINING')`),
   uniqueIndex("user_account_event_creation_request_uidx").on(table.requestId),
   uniqueIndex("user_account_event_creation_event_uidx").on(table.eventId),
   uniqueIndex("user_account_event_creation_race_uidx").on(table.raceId),
@@ -4373,3 +4381,14 @@ export const relayRequests = pgTable("relay_request", {
   response: jsonb("response").$type<Record<string, unknown>>().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull()
 });
+
+/** ADR-0170: Inställningar (namn, datum, tävlingstyp) med idempotent request-id. */
+export const raceSettingsRequests = pgTable("race_settings_request", {
+  requestId: uuid("request_id").primaryKey(),
+  raceId: uuid("race_id").notNull().references(() => races.id),
+  actorCredentialId: uuid("actor_credential_id").notNull(),
+  capability: pairingAdminCapabilityEnum("capability").notNull(),
+  request: jsonb("request").$type<Record<string, unknown>>().notNull(),
+  response: jsonb("response").$type<Record<string, unknown>>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull()
+}, (table) => [index("race_settings_request_race_idx").on(table.raceId)]);

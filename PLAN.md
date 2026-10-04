@@ -280,7 +280,8 @@ Se ADR-0170 beslut 1–2.
 2. **Skal och navigering:** sidopanel som alltid syns (mobil: remsa överst),
    ritad som en bana med tävlingens delar som kontroller och status per del;
    fast toppbalk med tävlingen och läget. Inga delar som typen inte behöver.
-3. **Formspråk:** färger och typsnitt enligt ADR-0170, gemensamma komponenter
+3. **Formspråk:** återhållsamt (gråskala, färg bara för status, åtgärd och
+   markerat val) och typsnitt enligt ADR-0170, gemensamma komponenter
    (knappar, fält, tabeller, verktygsrad, besked, tomma lägen) i en liten
    komponentmapp; alla adminvyer, avläsningssidan och de publika sidorna
    använder dem. Tätare tabeller, tydligare hierarki.

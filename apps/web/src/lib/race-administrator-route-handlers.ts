@@ -1,5 +1,5 @@
 import type { Database } from "@o-tid/database";
-import { raceAdministratorLoginResponseSchema } from "@o-tid/contracts";
+import { raceAdministratorLoginResponseSchema, raceSettingsRequestSchema, raceSettingsResponseSchema } from "@o-tid/contracts";
 import { clearEntryClassAdminCookies, entryClassAdminFailure as failure, entryClassAdminJson as json,
   entryClassAdminSecurityPolicy, entryClassAdminSessionProof, hasExpectedEntryClassAdminOrigin,
   hasNoEntryClassAdminRequestBody, privateEntryClassAdminHeaders } from "./entry-class-admin-security";
@@ -11,7 +11,7 @@ import { handlePreparationRoute } from "./race-administrator-routes-preparation"
 import { handleResultRoute } from "./race-administrator-routes-results";
 import { handleEntryRoute } from "./race-administrator-routes-entries";
 import { handleVariantRoute } from "./race-administrator-routes-variants";
-import { handleRelayRoute } from "./race-administrator-routes-relay";
+import { handleRelayRoute, write as idempotentWrite } from "./race-administrator-routes-relay";
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 type Environment = Partial<Pick<NodeJS.ProcessEnv, "NODE_ENV" | "O_TID_PUBLIC_ORIGIN">>;
@@ -69,6 +69,8 @@ export async function raceAdministratorRoute(db: Database, request: Request, rac
     const context: RaceAdministratorRouteContext = { db, request, raceId, action, dependencies, proof, cursor, beforeVersion };
     return await handleRaceDayRoute(context) ?? await handlePreparationRoute(context) ?? await handleResultRoute(context) ??
       await handleEntryRoute(context) ?? await handleVariantRoute(context) ?? await handleRelayRoute(context) ??
+      (action.kind === "race-settings"
+        ? await idempotentWrite(context, "race-settings", raceSettingsRequestSchema, raceSettingsResponseSchema, dependencies.raceSettings) : undefined) ??
       failure(500, "INTERNAL_ERROR");
   } catch { return failure(500, "INTERNAL_ERROR"); }
 }
@@ -86,6 +88,6 @@ function allowedMethods(action: Action): string[] {
     action.kind === "class-edit-preview" || action.kind === "class-edit" ||
     action.kind === "entry-variant-preview" || action.kind === "entry-variant" || action.kind === "class-variant-distribution" ||
     action.kind === "relay-class" || action.kind === "relay-team" || action.kind === "relay-leg-runner" ||
-    action.kind === "relay-start-times" ? ["POST"] :
+    action.kind === "relay-start-times" || action.kind === "race-settings" ? ["POST"] :
     "entryId" in action || action.kind === "capacity" ? ["PATCH"] : ["GET"];
 }

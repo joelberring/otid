@@ -5,7 +5,7 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 7 – Riktig hårdvara och pilot (ägaren). Steg 0–6 och 8–11 är klara.
+Steg 12 – Tävlingstyp, nytt utseende och egen speakersida. Steg 7 (hårdvara) görs parallellt av ägaren.
 
 ## Logg
 

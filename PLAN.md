@@ -5,7 +5,8 @@ arbetar steg för steg uppifrån och ned. Nya idéer skrivs under "Idéer" i
 `STATUS.md` – de blir inte nya uppgifter förrän ägaren flyttar in dem här.
 
 Bakgrund och beslut: [ADR-0168](docs/adr/ADR-0168-omstart-mot-klubbtraning.md) och
-[ADR-0169](docs/adr/ADR-0169-enkel-yta-gafflingar-stafett.md) (steg 8–11).
+[ADR-0169](docs/adr/ADR-0169-enkel-yta-gafflingar-stafett.md) (steg 8–11) och
+[ADR-0170](docs/adr/ADR-0170-tavlingstyper-utseende-eventor-rogaining.md) (steg 12–15).
 
 ## Målet
 
@@ -268,6 +269,66 @@ Se ADR-0169 beslut 3.
 **Acceptans:** domäntester för lagresultat (felstämplad sträcka, omstart);
 Playwright: klubbstafett med 6 lag × 3 sträckor, en sträcka byts, avläsning,
 publikt lagresultat.
+
+## [ ] Steg 12 – Tävlingstyp, nytt utseende och egen speakersida
+
+Se ADR-0170 beslut 1–2.
+
+1. **Tävlingstyp** väljs när tävlingen skapas (Träning, Liten tävling,
+   Tävling, Tävling med gafflade banor, Stafett, Rogaining) och kan ändras
+   under Inställningar. Typen styr vilka delar som syns och förvalen.
+2. **Skal och navigering:** sidopanel som alltid syns (mobil: remsa överst),
+   ritad som en bana med tävlingens delar som kontroller och status per del;
+   fast toppbalk med tävlingen och läget. Inga delar som typen inte behöver.
+3. **Formspråk:** färger och typsnitt enligt ADR-0170, gemensamma komponenter
+   (knappar, fält, tabeller, verktygsrad, besked, tomma lägen) i en liten
+   komponentmapp; alla adminvyer, avläsningssidan och de publika sidorna
+   använder dem. Tätare tabeller, tydligare hierarki.
+4. **Speaker** som egen sida som uppdateras av sig själv: senast i mål,
+   ledare per klass, kvar i skogen per klass, stafett per sträcka.
+
+**Acceptans:** Playwright: skapa en tävling av varje typ och kontrollera att
+rätt delar syns; navigeringen syns efter att man rullat. Skärmbilder 1280 och
+390 px av varje huvudvy granskade. Befintliga flöden gröna.
+
+## [ ] Steg 13 – Start- och resultatlistor
+
+Se ADR-0170 beslut 3.
+
+1. Start: startlista per klass, per starttid (för startfunktionärer, minut för
+   minut och per startfålla) och per klubb.
+2. Resultat: per klass, med sträcktider, per klubb; publicera, fastställ.
+3. Verktygsrad med vy, sök/filter, utskrift (egen utskriftslayout) och export
+   (IOF XML och CSV) på samma ställe i båda.
+
+**Acceptans:** Playwright: varje vy visas, utskriftsläget ger en ren sida,
+export laddas ner. Skärmbilder granskade.
+
+## [ ] Steg 14 – Eventor och banfiler, med uppdateringar
+
+Se ADR-0170 beslut 4.
+
+1. Koppla tävlingen till Eventor (klubbens API-nyckel, krypterad) och välj
+   tävling i Eventor; hämta klasser och anmälningar med bricka.
+2. Läs in banfil (IOF XML) med banor, varianter och klasskopplingar.
+3. Båda kan läsas in igen: skillnader visas (nya, ändrade, strukna) och
+   godkänns; resultatpåverkan går genom besked och omräkning.
+
+**Acceptans:** integrationstester mot inspelade Eventor-svar; Playwright:
+första import, ändrad anmälan och struken löpare vid omläsning, ändrad bana i
+ny banfil.
+
+## [ ] Steg 15 – Rogaining
+
+Se ADR-0170 beslut 5.
+
+1. Klasstyp rogaining: tidsgräns, poäng per kontroll (förval efter
+   kontrollkodens tiotal, kan ändras), straff per påbörjad minut.
+2. Bedömning i domänen; avläsningen visar poäng, straff och summa.
+3. Resultatlista sorterad på poäng och tid; IOF-export med poäng.
+
+**Acceptans:** domäntester (dubbelstämpling räknas en gång, straff, lika
+poäng); Playwright: rogaining-tävling, två löpare, en för sen, rätt ordning.
 
 ---
 

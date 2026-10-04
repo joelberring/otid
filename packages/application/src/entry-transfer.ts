@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, getTableColumns, inArray, sql } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
 import { entryTransferCandidatesSchema, entryTransferIdempotencyKeySchema,
-  entryTransferRequestSchema, entryTransferResponseSchema, entryTransferStartSlotCandidatesSchema,
+  entryTransferRequestSchema, entryTransferResponseSchema,
   speakerBoardEffectiveResultSchema, type SpeakerBoardEffectiveResult } from "@o-tid/contracts";
 import { authenticatePairingAdminSession, authenticatePairingAdminSessionForMutation,
   authenticatePairingAdminSessionForProtectedRead, type PairingAdminRequestAuthentication } from "./pairing-admin";
@@ -10,7 +10,6 @@ import { canAddClassEntry } from "./class-capacity-guard";
 import { resolveStoredResultHeadStates } from "./result-revision-state";
 import { isEffectiveResultCurrent, loadResultBasisHashes } from "./result-basis";
 import { parseAdministratorStoredResultHead } from "./administrator-effective-result";
-import { resolveVerifiedFixedStartSlotPlan } from "./verified-fixed-start-slot";
 
 type Authentication = Omit<PairingAdminRequestAuthentication, "capability">;
 const capability = "MANAGE_RACE" as const;
@@ -46,7 +45,7 @@ export async function listEntryTransfersAsAdministrator(db: Database, input: Aut
     const classRows = await tx.select({ id: schema.classes.id, name: schema.classes.name,
       courseVersionId: schema.classes.courseVersionId, startRule: schema.classes.startRule, courseRaceId: schema.courses.raceId,
       courseName: schema.courses.name, courseVersion: schema.courseVersions.version,
-      maxEntries: schema.classes.maxEntries, capacityVersion: schema.classes.capacityVersion
+      maxEntries: schema.classes.maxEntries, capacityVersion: schema.classes.capacityVersion, startDrawId: schema.classes.startDrawId
     }).from(schema.classes).leftJoin(schema.courseVersions, eq(schema.courseVersions.id, schema.classes.courseVersionId))
       .leftJoin(schema.courses, eq(schema.courses.id, schema.courseVersions.courseId))
       .where(eq(schema.classes.raceId, input.raceId)).orderBy(asc(schema.classes.name), asc(schema.classes.id)).limit(1001);
@@ -131,7 +130,8 @@ export async function listEntryTransfersAsAdministrator(db: Database, input: Aut
       generatedAt: now.toISOString(), ...metadata,
       classes: classRows.map(row => ({ id: row.id, name: row.name, courseVersionId: row.courseVersionId,
         courseName: row.courseName, courseVersion: row.courseVersion, startRule: row.startRule,
-        maxEntries: row.maxEntries, capacityVersion: row.capacityVersion, entryCount: entryCounts.get(row.id) ?? 0 })),
+        maxEntries: row.maxEntries, capacityVersion: row.capacityVersion, entryCount: entryCounts.get(row.id) ?? 0,
+        startDrawn: row.startDrawId !== null })),
       entries: rows.map(row => {
         const active = activeByEntry.get(row.id) ?? [];
         const assignment = active.length === 1 ? active[0] : undefined;
@@ -150,41 +150,14 @@ export async function listEntryTransfersAsAdministrator(db: Database, input: Aut
   }, { isolationLevel: "repeatable read" });
 }
 
-type SlotAssignment = typeof schema.entryStartSlotAssignments.$inferSelect;
-function receipt(row: typeof schema.entryTransferRequests.$inferSelect, assignment: SlotAssignment | undefined, replayed: boolean) {
+function receipt(row: typeof schema.entryTransferRequests.$inferSelect, replayed: boolean) {
   const request = entryTransferRequestSchema.parse(row.request);
   if (row.capability !== capability || row.previousClassId !== request.expectedClassId ||
     row.targetClassId !== request.targetClassId || row.entryVersionBefore !== request.expectedEntryVersion ||
     row.snapshotVersionBefore !== request.expectedSnapshotVersion) throw new Error("Ogiltig bytesjournal");
   return entryTransferResponseSchema.parse({ formatVersion: 1, replayed, requestId: row.requestId,
     raceId: row.raceId, entryId: row.entryId, request, entryVersionAfter: row.entryVersionAfter,
-    snapshotVersionAfter: row.snapshotVersionAfter, changedAt: row.changedAt.toISOString(), assignedStartSlot: assignment
-      ? { assignmentId: assignment.id, drawRequestId: assignment.drawRequestId, sourceHash: assignment.sourceHash,
-        fixedStartTime: assignment.fixedStartTime.toISOString() } : null });
-}
-
-export async function listEntryTransferStartSlotsAsAdministrator(db: Database,
-  input: Authentication & { entryId: string; targetClassId: string }, now = new Date()) {
-  if (!uuid.test(input.raceId) || !uuid.test(input.entryId) || !uuid.test(input.targetClassId)) return { status: "invalid-request" as const };
-  return db.transaction(async tx => {
-    const auth = await authenticatePairingAdminSessionForProtectedRead(tx, { ...input, capability }, now);
-    if (auth.status !== "authenticated") return auth;
-    const race = await lockRaceForSnapshot(tx, input.raceId);
-    const [entry] = await tx.select({ classId: schema.entries.classId }).from(schema.entries).where(and(
-      eq(schema.entries.id, input.entryId), eq(schema.entries.raceId, input.raceId))).limit(1);
-    const [target] = await tx.select({ courseVersionId: schema.classes.courseVersionId, startRule: schema.classes.startRule,
-      capacityVersion: schema.classes.capacityVersion }).from(schema.classes).where(and(
-        eq(schema.classes.id, input.targetClassId), eq(schema.classes.raceId, input.raceId))).limit(1);
-    if (!entry || !target) return { status: "not-found" as const };
-    if (entry.classId === input.targetClassId || target.startRule !== "FIXED") return { status: "conflict" as const };
-    const plan = await resolveVerifiedFixedStartSlotPlan(tx, input.raceId, input.targetClassId, now);
-    return { status: "ok" as const, response: entryTransferStartSlotCandidatesSchema.parse({ formatVersion: 1,
-      raceId: input.raceId, entryId: input.entryId, targetClassId: input.targetClassId, snapshotVersion: race.snapshotVersion,
-      targetCourseVersionId: target.courseVersionId, targetCapacityVersion: target.capacityVersion, startRule: "FIXED", plan: plan.status === "AVAILABLE"
-        ? { status: plan.status, drawRequestId: plan.drawRequestId, sourceHash: plan.sourceHash,
-          slots: plan.slots.map(fixedStartTime => ({ fixedStartTime })) }
-        : plan }) };
-  }, { isolationLevel: "repeatable read" });
+    snapshotVersionAfter: row.snapshotVersionAfter, changedAt: row.changedAt.toISOString() });
 }
 
 export async function transferEntryAsAdministrator(db: Database,
@@ -203,9 +176,7 @@ export async function transferEntryAsAdministrator(db: Database,
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${requestId}, 0))`);
     const [existing] = await tx.select().from(schema.entryTransferRequests).where(eq(schema.entryTransferRequests.requestId, requestId));
     if (existing) {
-      const [assignment] = await tx.select().from(schema.entryStartSlotAssignments)
-        .where(eq(schema.entryStartSlotAssignments.transferRequestId, existing.id));
-      const original = receipt(existing, assignment, true);
+      const original = receipt(existing, true);
       if (existing.raceId !== input.raceId || existing.entryId !== input.entryId ||
         existing.actorCredentialId !== auth.principal.accessCredentialId ||
         JSON.stringify(original.request) !== JSON.stringify(intent)) return { status: "conflict" as const };
@@ -219,23 +190,14 @@ export async function transferEntryAsAdministrator(db: Database,
     if (!entry.exactTime || entry.row.version >= maxVersion || entry.row.version !== intent.expectedEntryVersion ||
       entry.row.classId !== intent.expectedClassId ||
       (entry.row.fixedStartTime?.toISOString() ?? null) !== intent.expectedFixedStartTime) return { status: "conflict" as const };
-    const [target] = await tx.select({ courseVersionId: schema.classes.courseVersionId, startRule: schema.classes.startRule,
-      capacityVersion: schema.classes.capacityVersion })
+    const [target] = await tx.select({ courseVersionId: schema.classes.courseVersionId, startRule: schema.classes.startRule })
       .from(schema.classes).innerJoin(schema.courseVersions, eq(schema.courseVersions.id, schema.classes.courseVersionId))
       .innerJoin(schema.courses, eq(schema.courses.id, schema.courseVersions.courseId)).where(and(
         eq(schema.classes.id, intent.targetClassId), eq(schema.classes.raceId, input.raceId), eq(schema.courses.raceId, input.raceId)));
-    if (!target || target.courseVersionId !== intent.expectedTargetCourseVersionId || target.startRule !== intent.expectedTargetStartRule ||
-      (intent.expectedTargetCapacityVersion !== undefined && target.capacityVersion !== intent.expectedTargetCapacityVersion)) {
+    if (!target || target.courseVersionId !== intent.expectedTargetCourseVersionId || target.startRule !== intent.expectedTargetStartRule) {
       return { status: "conflict" as const };
     }
     if (!await canAddClassEntry(tx, input.raceId, intent.targetClassId)) return { status: "conflict" as const };
-    if (intent.assignedStartSlot !== undefined && intent.assignedStartSlot !== null) {
-      const plan = await resolveVerifiedFixedStartSlotPlan(tx, input.raceId, intent.targetClassId, now);
-      if (plan.status !== "AVAILABLE" || plan.drawRequestId !== intent.assignedStartSlot.drawRequestId ||
-        plan.sourceHash !== intent.assignedStartSlot.sourceHash || !plan.slots.includes(intent.assignedStartSlot.fixedStartTime)) {
-        return { status: "conflict" as const };
-      }
-    }
     const entryVersionAfter = entry.row.version + 1, snapshotVersionAfter = race.snapshotVersion + 1;
     await tx.update(schema.entries).set({ classId: intent.targetClassId,
       fixedStartTime: intent.fixedStartTime === null ? null : new Date(intent.fixedStartTime), version: entryVersionAfter
@@ -247,17 +209,6 @@ export async function transferEntryAsAdministrator(db: Database,
       entryVersionBefore: entry.row.version, entryVersionAfter, snapshotVersionBefore: race.snapshotVersion,
       snapshotVersionAfter, changedAt: now }).returning();
     if (!saved) throw new Error("Bytesjournalen kunde inte sparas");
-    let assignment: SlotAssignment | undefined;
-    if (intent.assignedStartSlot !== undefined && intent.assignedStartSlot !== null) {
-      const [savedAssignment] = await tx.insert(schema.entryStartSlotAssignments).values({
-        transferRequestId: saved.id, raceId: input.raceId, entryId: input.entryId, targetClassId: intent.targetClassId,
-        drawRequestId: intent.assignedStartSlot.drawRequestId, sourceHash: intent.assignedStartSlot.sourceHash,
-        fixedStartTime: new Date(intent.assignedStartSlot.fixedStartTime), actorCredentialId: auth.principal.accessCredentialId,
-        capability, assignedAt: now
-      }).returning();
-      if (!savedAssignment) throw new Error("Startslotsjournalen kunde inte sparas");
-      assignment = savedAssignment;
-    }
     await tx.insert(schema.auditEvents).values({ raceId: input.raceId, entityType: "entry", entityId: input.entryId,
       action: "ENTRY_CLASS_AND_START_TRANSFERRED_BY_ADMIN", actorKind: "RACE_ADMIN_ACCESS_CREDENTIAL",
       actorId: auth.principal.accessCredentialId, requestId,
@@ -265,6 +216,6 @@ export async function transferEntryAsAdministrator(db: Database,
         entryVersion: entry.row.version, snapshotVersion: race.snapshotVersion },
       after: { classId: intent.targetClassId, fixedStartTime: intent.fixedStartTime, entryVersion: entryVersionAfter, snapshotVersion: snapshotVersionAfter }
     });
-    return { status: "transferred" as const, response: receipt(saved, assignment, false) };
+    return { status: "transferred" as const, response: receipt(saved, false) };
   });
 }

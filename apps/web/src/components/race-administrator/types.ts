@@ -2,11 +2,10 @@ import type {
   AdministratorReturnRequest, AdministratorStartCorrectionRequest, ClassCapacityRequest, ClassEditRequest, EntryCardChangeRequest, EntryCardRentalChangeRequest, EntryCardRentalReturnChangeRequest,
   EntryCardRentalReuseRequest, EntryIdentityChangeRequest, EntryPaymentStatusChangeRequest, EntryRegistrationCandidatesResponse,
   EntryRegistrationRequest, EntryStartTimeChangeRequest, EntryTransferRequest, ManualClassCreateRequest,
-  CourseEditRequest, ShortenedCourseClassTransferCandidate,
+  CourseEditRequest, ShortenedCourseClassTransferCandidate, StartDrawRequest,
   ShortenedCourseClassTransferRequest, StartCheckinConflictReviewCandidate, StartCheckinConflictReviewRequest,
   UnknownReadoutResolutionCandidateResponse, UnknownReadoutResolutionRequest
 } from "@o-tid/contracts";
-import type { AdministratorDrawAttempt } from "../../lib/administrator-start-draw-client";
 import type { AdministratorPublicationAttempt } from "../../lib/administrator-publication-client";
 import type { ClassResultRecalculationAttempt } from "../../lib/class-result-recalculation-admin-client";
 import type { DidNotFinishAttempt } from "../../lib/did-not-finish-admin-client";
@@ -31,6 +30,7 @@ export type CourseClassAttempt = { kind: "COURSE_CLASS"; request: CourseClassReq
 export type ManualClassAttempt = { kind: "MANUAL_CLASS"; request: ManualClassCreateRequest; targetLabel: string };
 export type CourseEditAttempt = { kind: "COURSE_EDIT"; request: CourseEditRequest };
 export type ClassEditAttempt = { kind: "CLASS_EDIT"; request: ClassEditRequest };
+export type StartDrawAttempt = { kind: "START_DRAW"; request: StartDrawRequest };
 export type ShortenedCourseClassTransferAttempt = { kind: "SHORTENED_COURSE_CLASS_TRANSFER";
   candidate: ShortenedCourseClassTransferCandidate; request: ShortenedCourseClassTransferRequest };
 export type UnknownReadoutResolutionAttempt = { kind: "UNKNOWN_READOUT_RESOLUTION";
@@ -64,7 +64,7 @@ export type FinalizationAttempt = { kind: "FINALIZATION"; value: ResultFinalizat
 
 /** Det försök som just nu väntar på granskning eller kvitto. Bara ett åt gången. */
 export type PendingAttempt = ConflictReviewAttempt | StartCorrectionAttempt | ReturnAttempt |
-  AdministratorPublicationAttempt | AdministratorDrawAttempt | TransferAttempt | CapacityAttempt | CardAttempt | RentalAttempt |
+  AdministratorPublicationAttempt | StartDrawAttempt | TransferAttempt | CapacityAttempt | CardAttempt | RentalAttempt |
   RentalReturnAttempt | RentalReuseAttempt | PaymentStatusAttempt | TimeAttempt | RecalculationAttempt |
   ClassResultRecalculationAttempt | IdentityAttempt | RegistrationAttempt | DnsAttempt | DnfAttempt | DsqAttempt |
   ApprovalAttempt | OocAttempt | NtAttempt | FinalizationAttempt | CourseClassAttempt | ManualClassAttempt |

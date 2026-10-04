@@ -1,5 +1,5 @@
 import { entryClassAdminListResponseSchema, entryClassChangeIdempotencyKeySchema, entryClassChangeRequestSchema,
-  entryClassChangeResponseSchema, entryTransferCandidatesSchema, entryTransferStartSlotCandidatesSchema,
+  entryClassChangeResponseSchema, entryTransferCandidatesSchema,
   entryTransferRequestSchema, entryTransferIdempotencyKeySchema, entryTransferResponseSchema,
   entryCardChangeIdempotencyKeySchema, entryCardChangeRequestSchema, entryCardChangeResponseSchema,
   entryCardRentalChangeIdempotencyKeySchema, entryCardRentalChangeRequestSchema, entryCardRentalChangeResponseSchema,
@@ -10,7 +10,7 @@ import { entryClassAdminListResponseSchema, entryClassChangeIdempotencyKeySchema
   entryStartTimeChangeIdempotencyKeySchema, entryStartTimeChangeRequestSchema, entryStartTimeChangeResponseSchema,
   entryIdentityAdminListResponseSchema, entryIdentityChangeIdempotencyKeySchema, entryIdentityChangeRequestSchema,
   entryRegistrationIdempotencyKeySchema, entryRegistrationRequestSchema, entryRegistrationCandidatesRequestSchema,
-  entryRegistrationCandidatesResponseSchema, entryRegistrationStartSlotCandidatesSchema } from "@o-tid/contracts";
+  entryRegistrationCandidatesResponseSchema } from "@o-tid/contracts";
 import { entryClassAdminFailure as failure, entryClassAdminJson as json, readEntryClassAdminJson } from "./entry-class-admin-security";
 import { readEntryIdentityAdminJson } from "./entry-identity-admin-security";
 import { parseIdentityReceipt } from "./entry-identity-client";
@@ -32,23 +32,6 @@ export async function handleEntryRoute(context: RaceAdministratorRouteContext): 
     if (result.status !== "ok") return resultFailure(result.status);
     const response = entryTransferCandidatesSchema.parse(result.response);
     if (response.raceId !== raceId) return failure(500, "INTERNAL_ERROR");
-    return json(response);
-  }
-  if (action.kind === "transfer-start-slot-candidates") {
-    const result = await dependencies.transferStartSlotCandidates(db, { ...proof, raceId, entryId: action.entryId,
-      targetClassId: action.targetClassId });
-    if (result.status !== "ok") return resultFailure(result.status);
-    const response = entryTransferStartSlotCandidatesSchema.parse(result.response);
-    if (response.raceId !== raceId || response.entryId !== action.entryId || response.targetClassId !== action.targetClassId) {
-      return failure(500, "INTERNAL_ERROR");
-    }
-    return json(response);
-  }
-  if (action.kind === "registration-start-slot-candidates") {
-    const result = await dependencies.registrationStartSlotCandidates(db, { ...proof, raceId, targetClassId: action.targetClassId });
-    if (result.status !== "ok") return resultFailure(result.status);
-    const response = entryRegistrationStartSlotCandidatesSchema.parse(result.response);
-    if (response.raceId !== raceId || response.targetClassId !== action.targetClassId) return failure(500, "INTERNAL_ERROR");
     return json(response);
   }
   if (action.kind === "registration-candidates") {

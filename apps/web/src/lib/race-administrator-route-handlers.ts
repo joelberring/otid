@@ -34,7 +34,6 @@ export async function raceAdministratorRoute(db: Database, request: Request, rac
     [...url.searchParams.keys()].every(key => key === "cursor") && url.searchParams.getAll("cursor").length <= 1 &&
     (cursor === null || /^[A-Za-z0-9_-]{1,1024}$/.test(cursor));
   if (!uuid.test(raceId) || ("entryId" in action && !uuid.test(action.entryId)) ||
-    ("targetClassId" in action && !uuid.test(action.targetClassId)) ||
     ("finalizationId" in action && !uuid.test(action.finalizationId)) ||
     ("classId" in action && !uuid.test(action.classId)) ||
     ("courseId" in action && !uuid.test(action.courseId)) || (url.search && !validHistoryQuery && !validCheckinQuery)) {
@@ -72,8 +71,8 @@ export async function raceAdministratorRoute(db: Database, request: Request, rac
 }
 
 function allowedMethods(action: Action): string[] {
-  return action.kind === "operator-access" ? ["GET", "POST", "DELETE"] : action.kind === "shortened-course-class-transfer" || action.kind === "manual-finish-time-correction" || action.kind === "manual-punch-start-time-correction" || action.kind === "manual-punch-start-time-correction-withdrawal" || action.kind === "manual-finish-time-correction-withdrawal" || action.kind === "unknown-readout-resolution" || action.kind === "class-result-recalculation" ? ["GET", "POST"] : action.kind === "review-conflicts" ? ["POST"] : action.kind === "conflict-candidate" ? ["GET"] : action.kind === "session" ? ["GET", "DELETE"] : action.kind === "checkin-history" || action.kind === "effective-result" || action.kind === "changes" || action.kind === "transfer-start-slot-candidates" || action.kind === "registration-start-slot-candidates" ? ["GET"] :
-    action.kind === "start-correction" || action.kind === "manual-return-withdrawal" || action.kind === "manual-return" || action.kind === "publication" || action.kind === "draw-preview" || action.kind === "draw" || action.kind === "finalize" || action.kind === "recalculate" || action.kind === "registration" || action.kind === "registration-candidates" ||
+  return action.kind === "operator-access" ? ["GET", "POST", "DELETE"] : action.kind === "shortened-course-class-transfer" || action.kind === "manual-finish-time-correction" || action.kind === "manual-punch-start-time-correction" || action.kind === "manual-punch-start-time-correction-withdrawal" || action.kind === "manual-finish-time-correction-withdrawal" || action.kind === "unknown-readout-resolution" || action.kind === "class-result-recalculation" || action.kind === "draw" ? ["GET", "POST"] : action.kind === "review-conflicts" ? ["POST"] : action.kind === "conflict-candidate" ? ["GET"] : action.kind === "session" ? ["GET", "DELETE"] : action.kind === "checkin-history" || action.kind === "effective-result" || action.kind === "changes" ? ["GET"] :
+    action.kind === "start-correction" || action.kind === "manual-return-withdrawal" || action.kind === "manual-return" || action.kind === "publication" || action.kind === "draw-preview" || action.kind === "finalize" || action.kind === "recalculate" || action.kind === "registration" || action.kind === "registration-candidates" ||
     action.kind === "did-not-start" || action.kind === "did-not-start-withdrawal" ||
     action.kind === "did-not-finish" || action.kind === "did-not-finish-withdrawal" ||
     action.kind === "disqualification" || action.kind === "disqualification-withdrawal" ||

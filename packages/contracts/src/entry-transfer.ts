@@ -7,12 +7,6 @@ import { speakerBoardEffectiveResultSchema } from "./speaker-board";
 const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 const version = z.number().int().positive().max(2_147_483_647);
 const startRule = z.enum(["FIXED", "PUNCH"]);
-const sha256 = z.string().regex(/^[a-f0-9]{64}$/);
-const assignedStartSlotSchema = z.object({
-  drawRequestId: uuid,
-  sourceHash: sha256,
-  fixedStartTime: fixedStartTimeSchema
-}).strict();
 export const entryTransferResultFreshnessSchema = z.enum([
   "NO_PUBLISHED_RESULT",
   "NO_ACTIVE_RESULT",
@@ -38,30 +32,9 @@ export const entryTransferRequestSchema = z.object({
   formatVersion: z.literal(1), expectedEntryVersion: version, expectedClassId: uuid,
   expectedSnapshotVersion: version, expectedFixedStartTime: fixedStartTimeSchema.nullable(),
   targetClassId: uuid, expectedTargetCourseVersionId: uuid, expectedTargetStartRule: startRule,
-  expectedTargetCapacityVersion: version.optional(),
-  fixedStartTime: fixedStartTimeSchema.nullable(),
-  assignedStartSlot: assignedStartSlotSchema.nullable().optional()
+  fixedStartTime: fixedStartTimeSchema.nullable()
 }).strict().refine(value => value.expectedClassId !== value.targetClassId &&
-  (value.expectedTargetStartRule === "FIXED" ? value.fixedStartTime !== null : value.fixedStartTime === null) &&
-  ((value.assignedStartSlot ?? null) === null || (value.expectedTargetStartRule === "FIXED" &&
-    value.expectedTargetCapacityVersion !== undefined && value.fixedStartTime === value.assignedStartSlot?.fixedStartTime)));
-
-const availableTransferStartSlotsSchema = z.object({
-  status: z.literal("AVAILABLE"), drawRequestId: uuid, sourceHash: sha256,
-  slots: z.array(z.object({ fixedStartTime: fixedStartTimeSchema }).strict()).min(1).max(10_000)
-}).strict().superRefine((value, context) => {
-  if (new Set(value.slots.map(slot => slot.fixedStartTime)).size !== value.slots.length) {
-    context.addIssue({ code: "custom", message: "Dubbla starttider i slotunderlaget" });
-  }
-});
-const unavailableTransferStartSlotsSchema = z.object({
-  status: z.literal("UNAVAILABLE"), reason: z.enum(["NO_SAVED_DRAW", "PLAN_CHANGED", "NO_FUTURE_SLOT"])
-}).strict();
-export const entryTransferStartSlotCandidatesSchema = z.object({
-  formatVersion: z.literal(1), raceId: uuid, entryId: uuid, targetClassId: uuid,
-  snapshotVersion: version, targetCourseVersionId: uuid, targetCapacityVersion: version,
-  startRule: z.literal("FIXED"), plan: z.union([availableTransferStartSlotsSchema, unavailableTransferStartSlotsSchema])
-}).strict();
+  (value.expectedTargetStartRule === "FIXED" ? value.fixedStartTime !== null : value.fixedStartTime === null));
 
 export const entryTransferCandidatesSchema = z.object({
   formatVersion: z.literal(2), raceId: uuid, eventName: z.string().trim().min(1).max(160),
@@ -72,7 +45,9 @@ export const entryTransferCandidatesSchema = z.object({
   }),
   classes: z.array(z.object({ id: uuid, name: z.string().min(1).max(160), courseVersionId: uuid,
     courseName: z.string().trim().min(1).max(160), courseVersion: version, startRule,
-    maxEntries: classMaxEntriesSchema, capacityVersion: version, entryCount: z.number().int().min(0).max(10_000)
+    maxEntries: classMaxEntriesSchema, capacityVersion: version, entryCount: z.number().int().min(0).max(10_000),
+    /** Klassen har en gällande lottning: efteranmälda får en tid av appen (PLAN.md steg 9). */
+    startDrawn: z.boolean()
   }).strict()).max(1000),
   entries: z.array(z.object({ id: uuid, displayName: z.string().min(1).max(321),
     organisationName: z.string().min(1).max(240).nullable(), classId: uuid, version,
@@ -101,18 +76,11 @@ export const entryTransferIdempotencyKeySchema = z.string().regex(
 export const entryTransferResponseSchema = z.object({
   formatVersion: z.literal(1), replayed: z.boolean(), requestId: uuid, raceId: uuid, entryId: uuid,
   request: entryTransferRequestSchema, entryVersionAfter: version, snapshotVersionAfter: version,
-  changedAt: z.iso.datetime({ offset: true }), assignedStartSlot: z.object({
-    assignmentId: uuid, drawRequestId: uuid, sourceHash: sha256, fixedStartTime: fixedStartTimeSchema
-  }).strict().nullable()
+  changedAt: z.iso.datetime({ offset: true })
 }).strict().refine(value => value.entryVersionAfter === value.request.expectedEntryVersion + 1 &&
-  value.snapshotVersionAfter === value.request.expectedSnapshotVersion + 1 &&
-  ((value.request.assignedStartSlot ?? null) === null ? value.assignedStartSlot === null : value.assignedStartSlot !== null &&
-    value.assignedStartSlot.drawRequestId === value.request.assignedStartSlot?.drawRequestId &&
-    value.assignedStartSlot.sourceHash === value.request.assignedStartSlot?.sourceHash &&
-    value.assignedStartSlot.fixedStartTime === value.request.assignedStartSlot?.fixedStartTime));
+  value.snapshotVersionAfter === value.request.expectedSnapshotVersion + 1);
 export type EntryTransferRequest = z.infer<typeof entryTransferRequestSchema>;
 export type EntryTransferResultFreshness = z.infer<typeof entryTransferResultFreshnessSchema>;
 export type EntryTransferResultRevisionMarker = z.infer<typeof entryTransferResultRevisionMarkerSchema>;
 export type EntryTransferCandidates = z.infer<typeof entryTransferCandidatesSchema>;
-export type EntryTransferStartSlotCandidates = z.infer<typeof entryTransferStartSlotCandidatesSchema>;
 export type EntryTransferResponse = z.infer<typeof entryTransferResponseSchema>;

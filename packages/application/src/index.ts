@@ -38,8 +38,7 @@ export * from "./station-package";
 export * from "./station-credentials";
 export * from "./station-pairing";
 export * from "./entry-start-time";
-export * from "./class-start-draw";
-export * from "./fixed-start-slot-plan";
+export * from "./start-draw";
 export * from "./entry-card";
 export * from "./entry-registration";
 export * from "./start-list";
@@ -70,7 +69,7 @@ export { runPmScanIteration, type PmScanIterationPorts } from "./pm-scan-iterati
 export { listEntryReadoutHistoryAsAdmin, type EntryReadoutHistoryResult } from "./entry-readout-history";
 export { listEntryIdentitiesAsAdmin, changeEntryIdentityAsAdmin } from "./entry-identity";
 export { listEntryIdentityHistoryAsAdmin, type EntryIdentityHistoryResult } from "./entry-identity-history";
-export { listEntryTransfersAsAdministrator, listEntryTransferStartSlotsAsAdministrator, transferEntryAsAdministrator } from "./entry-transfer";
+export { listEntryTransfersAsAdministrator, transferEntryAsAdministrator } from "./entry-transfer";
 export { changeEntryCardRentalAsAdministrator } from "./entry-card-rental";
 export { changeEntryCardRentalReturnAsAdministrator } from "./entry-card-rental-return";
 export { reuseReturnedRentalCardAsAdministrator } from "./entry-card-rental-reuse";

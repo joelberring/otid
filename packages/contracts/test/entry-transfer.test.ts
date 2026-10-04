@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { entryTransferRequestSchema, entryTransferResponseSchema, entryTransferCandidatesSchema, entryTransferStartSlotCandidatesSchema } from "../src";
+import { entryTransferRequestSchema, entryTransferResponseSchema, entryTransferCandidatesSchema } from "../src";
 
 const id = "10000000-0000-4000-8000-000000000001", target = "10000000-0000-4000-8000-000000000002";
 const request = { formatVersion: 1, expectedEntryVersion: 1, expectedClassId: id, expectedSnapshotVersion: 3,
@@ -16,14 +16,14 @@ describe("TASK029 atomiskt klass-/startbyteskontrakt", () => {
   });
   it("binder kvittensens båda versioner till sparat intent", () => {
     const response = { formatVersion: 1, replayed: false, requestId: id, raceId: id, entryId: id, request,
-      entryVersionAfter: 2, snapshotVersionAfter: 4, changedAt: "2026-09-12T12:00:00Z", assignedStartSlot: null };
+      entryVersionAfter: 2, snapshotVersionAfter: 4, changedAt: "2026-09-12T12:00:00Z" };
     expect(entryTransferResponseSchema.safeParse(response).success).toBe(true);
     expect(entryTransferResponseSchema.safeParse({ ...response, snapshotVersionAfter: 5 }).success).toBe(false);
     expect(entryTransferResponseSchema.safeParse({ ...response, entryVersionAfter: 1 }).success).toBe(false);
   });
   it("kräver kompletta unika klassrelationer i tidszonsbundet underlag", () => {
     const raceClass = { id, name: "Öppen", courseVersionId: id, courseName: "Utan kontroller", courseVersion: 101,
-      startRule: "FIXED", maxEntries: null, capacityVersion: 1, entryCount: 1 };
+      startRule: "FIXED", maxEntries: null, capacityVersion: 1, entryCount: 1, startDrawn: false };
     const entry = { id, displayName: "Ada Test", organisationName: null, classId: id, version: 1,
       paymentStatus: "UNMARKED", paymentStatusVersion: 1, fixedStartTime: null,
       resultFreshness: "NO_PUBLISHED_RESULT", effectiveResult: { state: "NO_PUBLISHED_RESULT", selectedRevision: null },
@@ -82,17 +82,5 @@ describe("TASK029 atomiskt klass-/startbyteskontrakt", () => {
     for (const change of [{ eventName: "" }, { raceName: "" }, { generatedAt: "2026-09-12" },
       { timeZone: "Unknown/Zone" }, { classes: [] }, { entries: [entry, entry] },
       { classes: [raceClass, raceClass] }]) expect(entryTransferCandidatesSchema.safeParse({ ...value, ...change }).success).toBe(false);
-  });
-  it("binder ett lottat slotval till exakt draw-bevis och tillåter inte en fri tid att utge sig för att vara lottad", () => {
-    const proof = { drawRequestId: target, sourceHash: "a".repeat(64), fixedStartTime: "2026-09-12T12:30:00.000Z" };
-    const assigned = { ...request, expectedTargetCapacityVersion: 1, fixedStartTime: proof.fixedStartTime, assignedStartSlot: proof };
-    expect(entryTransferRequestSchema.safeParse(assigned).success).toBe(true);
-    expect(entryTransferRequestSchema.safeParse({ ...assigned, fixedStartTime: "2026-09-12T12:31:00.000Z" }).success).toBe(false);
-    expect(entryTransferRequestSchema.safeParse({ ...assigned, expectedTargetCapacityVersion: undefined }).success).toBe(false);
-    const slots = { formatVersion: 1, raceId: id, entryId: id, targetClassId: target, snapshotVersion: 3,
-      targetCourseVersionId: id, targetCapacityVersion: 1, startRule: "FIXED", plan: { status: "AVAILABLE",
-        drawRequestId: target, sourceHash: "a".repeat(64), slots: [{ fixedStartTime: proof.fixedStartTime }] } };
-    expect(entryTransferStartSlotCandidatesSchema.safeParse(slots).success).toBe(true);
-    expect(entryTransferStartSlotCandidatesSchema.safeParse({ ...slots, plan: { ...slots.plan, slots: [proof, proof] } }).success).toBe(false);
   });
 });

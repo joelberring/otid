@@ -230,9 +230,9 @@ omräkning före godkännande). Nytt Playwright-flöde: bana ändras efter att
 löpare läst ut → besked → resultaten räknas om → publikt resultat stämmer.
 Ingen vy visar uuid, hash eller "tävlingsversion".
 
-## [ ] Steg 9 – Lottning på riktigt
+## [x] Steg 9 – Lottning på riktigt
 
-1. Startsätt per klass: fri start, lottad minutstart, jaktstart, masstart.
+1. Startsätt per klass: fri start, lottad minutstart, masstart. (Jaktstart flyttad till "Efter målet".)
 2. Lotta flera klasser på en gång: första start som klockslag, intervall i
    minuter, startfållor/startled så att klasser med samma första kontroll inte
    startar samma minut, klubbseparering, vakanser.
@@ -276,3 +276,5 @@ publikt lagresultat.
 Ordningen bestäms av ägaren efter piloten. Kandidater: Eventor-import i
 produktion, minutstart med lottning för klubbtävling, startpersonalens
 offlineapp, speaker-utökningar, GPS/rutter (V2 i CODEX_BRIEF).
+
+- Jaktstart (flyttad från steg 9): kräver resultat från flera etapper (etapptävling), som modellen inte har ännu.

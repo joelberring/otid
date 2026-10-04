@@ -74,7 +74,7 @@ export async function changeClassStartRuleAsAdministrator(db: Database, input: I
       snapshotVersionBefore: race.snapshotVersion, snapshotVersionAfter: race.snapshotVersion + (changed ? 1 : 0),
       entryCount: rows.length, clearedStartTimes: plan.clearedStartTimes, changed, changedAt: now.toISOString() });
     if (changed) {
-      await tx.update(schema.classes).set({ startRule: plan.startRule }).where(eq(schema.classes.id, input.classId));
+      await tx.update(schema.classes).set({ startRule: plan.startRule, startDrawId: null }).where(eq(schema.classes.id, input.classId));
       await tx.update(schema.entries).set({ fixedStartTime: null, version: sql`${schema.entries.version} + 1` })
         .where(and(eq(schema.entries.raceId, input.raceId), eq(schema.entries.classId, input.classId)));
       await tx.update(schema.races).set({ snapshotVersion: response.snapshotVersionAfter }).where(eq(schema.races.id, input.raceId));

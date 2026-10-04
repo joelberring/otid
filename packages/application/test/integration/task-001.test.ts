@@ -2031,7 +2031,7 @@ describe("TASK 006Q direktanmälan PostgreSQL", () => {
     expect((await ingestDeviceBatch(db, raceId, unknownBatch)).acknowledgements[0]).toEqual({ ...unknown.acknowledgements[0], status: "duplicate" });
     await db.update(schema.classes).set({ startRule: "FIXED" }).where(eq(schema.classes.id, initial.request.classId));
     const fixed = await input(authentication);
-    expect((await registerEntryAsAdmin(db, { ...fixed, request: { ...fixed.request, fixedStartTime: null } }, now)).status).toBe("invalid-request");
+    expect((await registerEntryAsAdmin(db, { ...fixed, request: { ...fixed.request, fixedStartTime: null } }, now)).status).toBe("conflict");
     const noCard = await registerEntryAsAdmin(db, { ...fixed, request: { ...fixed.request, cardNumber: null } }, now);
     expect(noCard).toMatchObject({ status: "registered", response: { cardNumber: null, assignmentId: null, fixedStartTime: "2026-08-30T10:00:00.000Z" } });
   });

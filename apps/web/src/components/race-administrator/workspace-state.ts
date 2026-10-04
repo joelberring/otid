@@ -10,6 +10,7 @@ import { createClassEditActions, useClassEditState } from "./class-edit";
 import { createStatusChangeActions, useStatusChangeState } from "./status-change";
 import { createClassPreparationActions, deriveClassPreparation, useClassPreparationState } from "./class-preparation";
 import { createStartListActions, useStartListState } from "./start-list-preparation";
+import { createStartDrawActions, useStartDrawState } from "./start-draw";
 import { createDuringRaceActions, deriveDuringRace, useDuringRaceState } from "./during-race";
 import { createAfterRaceActions, deriveAfterRace, useAfterRaceState } from "./after-race";
 
@@ -18,7 +19,7 @@ export function useWorkspaceState(raceId: string) {
   return { raceId, ...useOperationState(), ...useNavigationState(), ...useRaceDataState(), ...useRosterState(),
     ...useEntryActionState(), ...useResultDecisionState(), ...useCoursePreparationState(), ...useCourseEditState(), ...useClassEditState(),
     ...useClassPreparationState(), ...useStatusChangeState(),
-    ...useStartListState(), ...useDuringRaceState(), ...useAfterRaceState() };
+    ...useStartListState(), ...useStartDrawState(), ...useDuringRaceState(), ...useAfterRaceState() };
 }
 export type WorkspaceState = ReturnType<typeof useWorkspaceState>;
 
@@ -62,6 +63,7 @@ export function useWorkspace(raceId: string) {
   const withCourses = { ...withData, ...createCourseEditActions(withData) };
   const withDecisions = { ...withCourses, ...createResultDecisionActions(withCourses) };
   const withAreas = { ...withDecisions, ...createDuringRaceActions(withData), ...createStartListActions(withData),
+    ...createStartDrawActions(withData),
     ...createCoursePreparationActions(withData), ...createClassEditActions(withCourses), ...createClassPreparationActions(withData),
     ...createStatusChangeActions(withDecisions), ...createEntryActions(withData), ...createAfterRaceActions(withData) };
   const withParticipants = { ...withAreas, ...createParticipantActions(withAreas) };

@@ -1,25 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import type { listEntryTransferStartSlotsAsAdministrator } from "@o-tid/application";
 import { raceAdministratorRoute } from "./race-administrator-route-handlers";
 import { readRaceAdministratorCsrfCookie } from "./race-administrator-cookies";
 import { db, id, other, csrf, token, environment, session, list, dependencies, request, intent } from "./race-administrator-route-test-helpers";
 
 describe("administratörsroutes: session och deltagare", () => {
-  it("TASK109 lämnar lottade startslots endast genom den privata transfergränsen", async () => {
-    const response = { formatVersion: 1 as const, raceId: id, entryId: other, targetClassId: id, snapshotVersion: 2,
-      targetCourseVersionId: id, targetCapacityVersion: 1, startRule: "FIXED" as const,
-      plan: { status: "AVAILABLE" as const, drawRequestId: id, sourceHash: "a".repeat(64),
-        slots: [{ fixedStartTime: "2026-09-20T10:00:00.000Z" }] } };
-    const transferStartSlotCandidates = vi.fn<typeof listEntryTransferStartSlotsAsAdministrator>()
-      .mockResolvedValue({ status: "ok", response });
-    const services = { ...dependencies(), transferStartSlotCandidates };
-    const read = new Request("https://otid.example/api/admin", { headers: {
-      cookie: `__Host-otid-race-administrator-session=${token}; __Host-otid-race-administrator-csrf=${csrf}` } });
-    const result = await raceAdministratorRoute(db, read, id,
-      { kind: "transfer-start-slot-candidates", entryId: other, targetClassId: id }, services, environment);
-    expect(result.status).toBe(200); expect(await result.json()).toEqual(response);
-    expect(transferStartSlotCandidates).toHaveBeenCalledWith(db, expect.objectContaining({ raceId: id, entryId: other, targetClassId: id }));
-  });
   it("TASK036 binds read-only candidate search to snapshot and authenticates before names", async () => {
     const body = { formatVersion: 1, expectedSnapshotVersion: 6, givenName: "Test", familyName: "Person", cardNumber: null };
     const response = { formatVersion: 1 as const, raceId: id, snapshotVersion: 6, totalMatches: 0, candidates: [] };
@@ -47,7 +31,7 @@ describe("administratörsroutes: session och deltagare", () => {
     const receipt = { formatVersion: 1 as const, replayed: false, requestId: id, raceId: id,
       entryId: other, entryVersion: 1 as const, classId: id, givenName: "Ny", familyName: "Testperson",
       organisationName: null as string | null, cardNumber: null as string | null, assignmentId: null as string | null,
-      fixedStartTime: null as string | null, assignedStartSlot: null, snapshotVersionBefore: 6, snapshotVersionAfter: 7,
+      fixedStartTime: null as string | null, startTimeAssigned: false, snapshotVersionBefore: 6, snapshotVersionAfter: 7,
       createdAt: "2026-09-12T12:00:00Z" };
     const registration = vi.fn(async () => ({ status: "registered" as const, response: receipt }));
     const services = { ...dependencies(), registration };
@@ -303,7 +287,7 @@ describe("administratörsroutes: session och deltagare", () => {
       expectedTargetCourseVersionId: id, expectedTargetStartRule: "FIXED" as const,
       fixedStartTime: "2026-09-12T10:30:00.000Z" };
     const receipt = { formatVersion: 1 as const, replayed: false, requestId: id, raceId: id, entryId: id,
-      request: body, entryVersionAfter: 2, snapshotVersionAfter: 4, changedAt: "2026-09-12T12:00:00Z", assignedStartSlot: null };
+      request: body, entryVersionAfter: 2, snapshotVersionAfter: 4, changedAt: "2026-09-12T12:00:00Z" };
     const transfer = vi.fn(async () => ({ status: "transferred" as const, response: receipt }));
     const response = await raceAdministratorRoute(db, request("PATCH", JSON.stringify({ ...body, fixedStartTime: "2026-09-12T12:30:00+02:00" }),
       { "idempotency-key": `entry-transfer:${id}` }), id, { kind: "transfer", entryId: id }, { ...services, transfer }, environment);

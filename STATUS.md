@@ -5,9 +5,19 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 9 – Lottning på riktigt. Steg 7 (hårdvara) görs parallellt av ägaren. Steg 0–6 och 8 är klara.
+Steg 10 – Gafflingar i individuella klasser. Steg 7 (hårdvara) görs parallellt av ägaren. Steg 0–6, 8 och 9 är klara.
 
 ## Logg
+
+### 2026-10-04 – Steg 9: lottning på riktigt (steg 9 klart)
+- Start: tabell med Startsätt (Fri start / Lottad minutstart / Masstart), intervall, vakanser (st eller %) och "Lotta" per klass;
+  första start som klockslag och klubbseparering. "Visa lottning" visar startlistan som den blir (tider, "Vakant", startfållor).
+- Domän `start-draw.ts`: blandning med frö, klubbseparering, jämnt spridda vakanser, startfållor (samma första kontroll startar aldrig
+  samma minut; masstart först, största klassen först, första lediga minut) och placering av efteranmälda. Jaktstart flyttad till "Efter målet".
+- Migration 0092: `start_draw_request/class/slot` (fröet sparas, visas aldrig), `class.start_draw_id`. Gamla enklasslottningen,
+  slotplanen och tilldelningsjournalerna är borttagna. Ersätts tider med resultat räknas avlästa löpare om i samma transaktion.
+- Efteranmälan i lottad klass: appen ger första lediga vakanta tid efter nu, annars första fria minut efter klassens sista start i fållan.
+- Verifierat: lint, typecheck, test, test:integration (80 filer, nytt `adr-0169-draw`), build, e2e (4 flöden, nytt `lottning`).
 
 ### 2026-10-04 – Steg 8.5–8.6: checklista, kontrollvy och vanligt språk (steg 8 klart)
 - Checklistan Banor → Klasser → Anmälda → Start → Avläsning → Resultat ersätter arbetslägen och undermenyer. Varje steg har status
@@ -139,5 +149,6 @@ brickor till steg 7.
 
 ## Idéer (inte i planen än)
 
+- Klassbyte till en lottad klass ger inte automatiskt en vakant tid; arrangören anger tid som förut.
 - Fastställande jämför beslutsrevisionens bana med klassens: en disk som ligger kvar efter banändring kan ge "fel bana" där. Pröva i steg 8.5/8.6.
 - …

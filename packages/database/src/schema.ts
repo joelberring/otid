@@ -173,6 +173,8 @@ export const classes = pgTable("class", {
   startRule: startRuleEnum("start_rule").notNull().default("FIXED"),
   maxEntries: integer("max_entries"),
   capacityVersion: integer("capacity_version").notNull().default(1),
+  /** Klassens gällande lottning (startDrawClasses). Töms när startsättet ändras. */
+  startDrawId: uuid("start_draw_id"),
   externalSource: text("external_source"),
   externalId: text("external_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
@@ -1476,73 +1478,6 @@ export const entryStartTimeChangeRequests = pgTable("entry_start_time_change_req
   check("entry_start_time_change_request_time_change_check", sql`${table.previousFixedStartTime} IS DISTINCT FROM ${table.fixedStartTime}`)
 ]);
 
-/** Immutable, race-wide decision header for a reproducible FIXED-class draw. */
-export const classStartDrawRequests = pgTable("class_start_draw_request", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  requestId: uuid("request_id").notNull(),
-  raceId: uuid("race_id").notNull().references(() => races.id),
-  classId: uuid("class_id").notNull().references(() => classes.id),
-  actorCredentialId: uuid("actor_credential_id").notNull().references(() => pairingAdminAccessCredentials.id),
-  sourceHash: text("source_hash").notNull(),
-  timeZone: text("time_zone").notNull(),
-  algorithmVersion: text("algorithm_version").notNull(),
-  seed: bigint("seed", { mode: "number" }).notNull(),
-  firstStartTime: timestamp("first_start_time", { withTimezone: true }).notNull(),
-  intervalSeconds: integer("interval_seconds").notNull(),
-  entryCount: integer("entry_count").notNull(),
-  changedEntryCount: integer("changed_entry_count").notNull(),
-  snapshotVersionBefore: integer("snapshot_version_before").notNull(),
-  snapshotVersionAfter: integer("snapshot_version_after").notNull(),
-  changedAt: timestamp("changed_at", { withTimezone: true }).notNull().defaultNow()
-}, (table) => [
-  uniqueIndex("class_start_draw_request_request_uidx").on(table.requestId),
-  uniqueIndex("class_start_draw_request_scope_uidx").on(table.id, table.raceId, table.classId, table.sourceHash),
-  index("class_start_draw_request_race_time_idx").on(table.raceId, table.changedAt),
-  check("class_start_draw_request_source_hash_check", sql`${table.sourceHash} ~ '^[a-f0-9]{64}$'`),
-  check("class_start_draw_request_seed_check", sql`${table.seed} between 1 and 4294967295`),
-  check("class_start_draw_request_interval_check", sql`${table.intervalSeconds} between 1 and 3600`),
-  check("class_start_draw_request_count_check", sql`${table.entryCount} between 1 and 10000 AND ${table.changedEntryCount} between 1 and ${table.entryCount}`),
-  check("class_start_draw_request_snapshot_check", sql`${table.snapshotVersionBefore} > 0 AND ${table.snapshotVersionAfter} = ${table.snapshotVersionBefore} + 1`)
-]);
-
-/** Full pre/post roster retained even for entries whose time was already correct. */
-export const classStartDrawItems = pgTable("class_start_draw_item", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  drawRequestId: uuid("draw_request_id").notNull().references(() => classStartDrawRequests.id),
-  entryId: uuid("entry_id").notNull().references(() => entries.id),
-  displayName: text("display_name").notNull(),
-  previousFixedStartTime: timestamp("previous_fixed_start_time", { withTimezone: true }),
-  fixedStartTime: timestamp("fixed_start_time", { withTimezone: true }).notNull(),
-  entryVersionBefore: integer("entry_version_before").notNull(),
-  entryVersionAfter: integer("entry_version_after").notNull()
-}, (table) => [
-  uniqueIndex("class_start_draw_item_request_entry_uidx").on(table.drawRequestId, table.entryId),
-  check("class_start_draw_item_version_check", sql`${table.entryVersionBefore} > 0 AND ${table.entryVersionAfter} = ${table.entryVersionBefore} + CASE WHEN ${table.previousFixedStartTime} IS DISTINCT FROM ${table.fixedStartTime} THEN 1 ELSE 0 END`)
-]);
-
-/** Immutable evidence that a class transfer claimed a specific saved draw slot. */
-export const entryStartSlotAssignments = pgTable("entry_start_slot_assignment", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  transferRequestId: uuid("transfer_request_id").notNull().unique().references(() => entryTransferRequests.id),
-  raceId: uuid("race_id").notNull().references(() => races.id),
-  entryId: uuid("entry_id").notNull(), targetClassId: uuid("target_class_id").notNull(),
-  drawRequestId: uuid("draw_request_id").notNull(), sourceHash: text("source_hash").notNull(),
-  fixedStartTime: timestamp("fixed_start_time", { withTimezone: true }).notNull(),
-  actorCredentialId: uuid("actor_credential_id").notNull(), capability: pairingAdminCapabilityEnum("capability").notNull(),
-  assignedAt: timestamp("assigned_at", { withTimezone: true }).notNull().defaultNow()
-}, (table) => [
-  foreignKey({ columns: [table.entryId, table.raceId], foreignColumns: [entries.id, entries.raceId] }),
-  foreignKey({ columns: [table.targetClassId, table.raceId], foreignColumns: [classes.id, classes.raceId] }),
-  foreignKey({ columns: [table.drawRequestId, table.raceId, table.targetClassId, table.sourceHash],
-    foreignColumns: [classStartDrawRequests.id, classStartDrawRequests.raceId, classStartDrawRequests.classId, classStartDrawRequests.sourceHash] }),
-  foreignKey({ columns: [table.actorCredentialId, table.raceId, table.capability],
-    foreignColumns: [pairingAdminAccessCredentials.id, pairingAdminAccessCredentials.raceId, pairingAdminAccessCredentials.capability] }),
-  index("entry_start_slot_assignment_race_class_time_idx").on(table.raceId, table.targetClassId, table.fixedStartTime),
-  check("entry_start_slot_assignment_capability_check", sql`${table.capability}::text = 'MANAGE_RACE'`),
-  check("entry_start_slot_assignment_source_hash_check", sql`${table.sourceHash} ~ '^[a-f0-9]{64}$'`),
-  check("entry_start_slot_assignment_time_precision_check", sql`date_trunc('milliseconds', ${table.fixedStartTime}) = ${table.fixedStartTime}`)
-]);
-
 export const entryCardChangeRequests = pgTable("entry_card_change_request", {
   id: uuid("id").primaryKey().defaultRandom(),
   requestId: uuid("request_id").notNull(),
@@ -1741,6 +1676,8 @@ export const entryRegistrationRequests = pgTable("entry_registration_request", {
   assignmentId: uuid("assignment_id").references(() => cardAssignments.id),
   request: jsonb("request").notNull(),
   snapshotVersionAfter: integer("snapshot_version_after").notNull(),
+  /** Starttiden som appen gav en efteranmäld i en lottad klass. */
+  assignedStartTime: timestamp("assigned_start_time", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (table) => [
   uniqueIndex("entry_registration_request_request_uidx").on(table.requestId),
@@ -1748,29 +1685,6 @@ export const entryRegistrationRequests = pgTable("entry_registration_request", {
   index("entry_registration_request_race_time_idx").on(table.raceId, table.createdAt),
   check("entry_registration_request_object_check", sql`jsonb_typeof(${table.request}) = 'object'`),
   check("entry_registration_request_version_check", sql`${table.snapshotVersionAfter} > 1`)
-]);
-
-/** Immutable evidence that a new entry claimed a specific saved draw slot. */
-export const entryRegistrationStartSlotAssignments = pgTable("entry_registration_start_slot_assignment", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  registrationRequestId: uuid("registration_request_id").notNull().unique().references(() => entryRegistrationRequests.id),
-  raceId: uuid("race_id").notNull().references(() => races.id),
-  entryId: uuid("entry_id").notNull(), targetClassId: uuid("target_class_id").notNull(),
-  drawRequestId: uuid("draw_request_id").notNull(), sourceHash: text("source_hash").notNull(),
-  fixedStartTime: timestamp("fixed_start_time", { withTimezone: true }).notNull(),
-  actorCredentialId: uuid("actor_credential_id").notNull(), capability: pairingAdminCapabilityEnum("capability").notNull(),
-  assignedAt: timestamp("assigned_at", { withTimezone: true }).notNull().defaultNow()
-}, (table) => [
-  foreignKey({ columns: [table.entryId, table.raceId], foreignColumns: [entries.id, entries.raceId] }),
-  foreignKey({ columns: [table.targetClassId, table.raceId], foreignColumns: [classes.id, classes.raceId] }),
-  foreignKey({ columns: [table.drawRequestId, table.raceId, table.targetClassId, table.sourceHash],
-    foreignColumns: [classStartDrawRequests.id, classStartDrawRequests.raceId, classStartDrawRequests.classId, classStartDrawRequests.sourceHash] }),
-  foreignKey({ columns: [table.actorCredentialId, table.raceId, table.capability],
-    foreignColumns: [pairingAdminAccessCredentials.id, pairingAdminAccessCredentials.raceId, pairingAdminAccessCredentials.capability] }),
-  index("entry_registration_start_slot_assignment_race_class_time_idx").on(table.raceId, table.targetClassId, table.fixedStartTime),
-  check("entry_registration_start_slot_assignment_capability_check", sql`${table.capability}::text IN ('REGISTER_ENTRY', 'MANAGE_RACE')`),
-  check("entry_registration_start_slot_assignment_source_hash_check", sql`${table.sourceHash} ~ '^[a-f0-9]{64}$'`),
-  check("entry_registration_start_slot_assignment_time_precision_check", sql`date_trunc('milliseconds', ${table.fixedStartTime}) = ${table.fixedStartTime}`)
 ]);
 
 export const resultRecalculationRequests = pgTable("result_recalculation_request", {
@@ -4333,4 +4247,45 @@ export const classEditRequests = pgTable("class_edit_request", {
   foreignKey({ columns: [table.actorCredentialId, table.raceId, table.capability], foreignColumns: [pairingAdminAccessCredentials.id, pairingAdminAccessCredentials.raceId, pairingAdminAccessCredentials.capability] }),
   check("class_edit_request_role_check", sql`${table.capability} = 'MANAGE_RACE'`),
   check("class_edit_request_json_check", sql`jsonb_typeof(${table.request}) = 'object' AND jsonb_typeof(${table.response}) = 'object'`)
+]);
+
+/** PLAN.md steg 9: en sparad lottning av en eller flera klasser. Slumpfröet sparas för revision. */
+export const startDrawRequests = pgTable("start_draw_request", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  requestId: uuid("request_id").notNull().unique(),
+  raceId: uuid("race_id").notNull().references(() => races.id),
+  actorCredentialId: uuid("actor_credential_id").notNull(), capability: pairingAdminCapabilityEnum("capability").notNull(),
+  seed: bigint("seed", { mode: "number" }).notNull(),
+  request: jsonb("request").$type<Record<string, unknown>>().notNull(), response: jsonb("response").$type<Record<string, unknown>>().notNull(),
+  snapshotVersionBefore: integer("snapshot_version_before").notNull(), snapshotVersionAfter: integer("snapshot_version_after").notNull(),
+  drawnAt: timestamp("drawn_at", { withTimezone: true }).notNull()
+}, table => [
+  uniqueIndex("start_draw_request_scope_uidx").on(table.id, table.raceId),
+  index("start_draw_request_race_time_idx").on(table.raceId, table.drawnAt),
+  foreignKey({ name: "start_draw_request_actor_scope_fk", columns: [table.actorCredentialId, table.raceId, table.capability],
+    foreignColumns: [pairingAdminAccessCredentials.id, pairingAdminAccessCredentials.raceId, pairingAdminAccessCredentials.capability] }),
+  check("start_draw_request_role_check", sql`${table.capability} = 'MANAGE_RACE'`),
+  check("start_draw_request_seed_check", sql`${table.seed} BETWEEN 1 AND 4294967295`)
+]);
+
+/** Klassens plan i en lottning: MINUTE (lottad minutstart) eller MASS (masstart). */
+export const startDrawClasses = pgTable("start_draw_class", {
+  drawId: uuid("draw_id").notNull(), raceId: uuid("race_id").notNull(), classId: uuid("class_id").notNull(),
+  method: text("method").$type<"MINUTE" | "MASS">().notNull(),
+  firstStartTime: timestamp("first_start_time", { withTimezone: true }).notNull(),
+  intervalSeconds: integer("interval_seconds").notNull(), vacancyCount: integer("vacancy_count").notNull()
+}, table => [
+  primaryKey({ columns: [table.drawId, table.classId] }),
+  foreignKey({ name: "start_draw_class_draw_fk", columns: [table.drawId, table.raceId], foreignColumns: [startDrawRequests.id, startDrawRequests.raceId] }),
+  foreignKey({ name: "start_draw_class_class_fk", columns: [table.classId, table.raceId], foreignColumns: [classes.id, classes.raceId] })
+]);
+
+/** Lottade tider i startordning; entryId null = vakant tid. */
+export const startDrawSlots = pgTable("start_draw_slot", {
+  drawId: uuid("draw_id").notNull(), classId: uuid("class_id").notNull(), position: integer("position").notNull(),
+  startTime: timestamp("start_time", { withTimezone: true }).notNull(),
+  entryId: uuid("entry_id").references(() => entries.id)
+}, table => [
+  primaryKey({ columns: [table.drawId, table.classId, table.position] }),
+  foreignKey({ name: "start_draw_slot_class_fk", columns: [table.drawId, table.classId], foreignColumns: [startDrawClasses.drawId, startDrawClasses.classId] })
 ]);

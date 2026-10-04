@@ -19,12 +19,11 @@ export function resetWorkspaceOnLock(s: WorkspaceState, discard: boolean) {
     setUnknownReadoutClassId, setUnknownReadoutGivenName, setUnknownReadoutFamilyName, setUnknownReadoutOrganisationName,
     setUnknownReadoutError, setCourseClassAttempt, setManualClassAttempt, setPrintTarget,
     setReviewCandidate, setReviewReason, setReviewConfirmed, setReviewAttempt, setCheckinHistory, setReturnAttempt,
-    setStartCorrection, setPublicationPreview, setPublicationAttempt, setDrawClasses, setDrawClassId, setDrawFirst,
-    setDrawInterval, setDrawAttempt, setFinalizationCandidates, setFinalizationScope, setFinalizationAttempt,
+    setStartCorrection, setPublicationPreview, setPublicationAttempt, setDrawSetup, setDrawPreview, setDrawError, setDrawSaved,
+    setDrawAttempt, setFinalizationCandidates, setFinalizationScope, setFinalizationAttempt,
     setEntryId, setClassId, setQuery,
     setOlderResultsOnly, setRentalCardsOnly, setResultState, setPage, setBusy, setMessage, setStartClock,
-    setTransferStartSlots, setSelectedTransferStartSlot, setRegistrationStartSlots,
-    setSelectedRegistrationStartSlot, setCapacityClassId, setCapacityInput, setNewCard, setRentalReuseSourceId,
+    setCapacityClassId, setCapacityInput, setNewCard, setRentalReuseSourceId,
     setPaymentStatus, setEffectiveResult, setEffectiveResultError, setIdentityCandidates,
     setGivenName, setFamilyName, setOrganisationName, setMobilePanel, setEntryChanges, setDnfAttempt, setDsqAttempt, setApprovalAttempt, setTransferAttempt, setCapacityAttempt, setCardAttempt, setRentalAttempt, setRentalReturnAttempt, setRentalReuseAttempt, setPaymentStatusAttempt, setTimeAttempt,
     setRecalculationAttempt, setIdentityAttempt, setRegistrationAttempt, setDnsAttempt, setOocAttempt, setNtAttempt,
@@ -54,13 +53,13 @@ export function resetWorkspaceOnLock(s: WorkspaceState, discard: boolean) {
   if (discard || !sent.current) setStartCorrection(undefined);
   setPublicationPreview(undefined);
   if (discard || !sent.current) setPublicationAttempt(undefined);
-  setDrawClasses(undefined); setDrawClassId(""); setDrawFirst(""); setDrawInterval("60");
-  if (discard || !sent.current) setDrawAttempt(undefined);
+  setDrawSetup(undefined); setDrawError(""); setDrawSaved("");
+  if (discard || !sent.current) { setDrawAttempt(undefined); setDrawPreview(undefined); }
   setFinalizationCandidates(undefined); setFinalizationScope("RACE");
   if (discard || !sent.current) setFinalizationAttempt(undefined);
   setEntryId(""); setClassId(""); setQuery(""); setOlderResultsOnly(false); setRentalCardsOnly(false);
   setResultState("ALL"); setPage(0); setBusy(false); setMessage(text.denied);
-  setStartClock(""); setTransferStartSlots(undefined); setSelectedTransferStartSlot(""); setRegistrationStartSlots(undefined); setSelectedRegistrationStartSlot("");
+  setStartClock("");
   setCapacityClassId(""); setCapacityInput(""); setNewCard(""); setRentalReuseSourceId(""); setPaymentStatus("PAID");
   setEffectiveResult(undefined); setEffectiveResultError(false);
   setIdentityCandidates(undefined); setGivenName(""); setFamilyName(""); setOrganisationName("");
@@ -73,10 +72,12 @@ export function resetWorkspaceOnLock(s: WorkspaceState, discard: boolean) {
 
 /** Underlag som alltid läses om när en ny åtgärd startar (begin). */
 export function clearBeforeOperation(s: WorkspaceState) {
-  const { setPublicationPreview, setDrawClasses, setFinalizationCandidates, setEntryChanges, setIdentityCandidates,
-    setEffectiveResult, setEffectiveResultError } = s;
+  const { setPublicationPreview, setDrawSetup, setDrawPreview, drawAttempt, setFinalizationCandidates, setEntryChanges,
+    setIdentityCandidates, setEffectiveResult, setEffectiveResultError } = s;
   setPublicationPreview(undefined);
-  setDrawClasses(undefined);
+  // Andra ändringar gör lottningens underlag inaktuellt; klasserna läses om när Start visas.
+  setDrawSetup(undefined);
+  if (!drawAttempt) setDrawPreview(undefined);
   setFinalizationCandidates(undefined);
   setEntryChanges(undefined);
   setIdentityCandidates(undefined);

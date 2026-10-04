@@ -1,24 +1,44 @@
 import { describe, expect, it, vi } from "vitest";
-import type { listFixedStartSlotPlansAsAdministrator } from "@o-tid/application";
 import { raceAdministratorRoute } from "./race-administrator-route-handlers";
 import { db, id, other, csrf, token, environment, dependencies, request } from "./race-administrator-route-test-helpers";
 
 describe("administratörsroutes: förberedelse", () => {
-  it("TASK108 lämnar endast den validerade läsrapporten till raceadministratören", async () => {
-    const report = { formatVersion: 1 as const, raceId: id, snapshotVersion: 2, timeZone: "Europe/Stockholm", classes: [{
-      classId: other, className: "D21", entryCount: 1, maxEntries: 3, capacityRemaining: 2,
-      plan: { status: "AVAILABLE" as const, firstStartTime: "2026-09-20T08:00:00.000Z", intervalSeconds: 60,
-        drawnAt: "2026-09-20T07:00:00.000Z", slots: [{ state: "VACANT" as const, fixedStartTime: "2026-09-20T08:00:00.000Z" }], unassignedEntries: [] }
-    }] };
-    const fixedStartSlotPlans = vi.fn<typeof listFixedStartSlotPlansAsAdministrator>().mockResolvedValue({ status: "ok", response: report });
-    const services = { ...dependencies(), fixedStartSlotPlans };
-    const read = () => new Request("https://otid.example/api/admin", { headers: {
+  it("lottningen: klasser läses med GET, visas med POST och sparas bara med idempotensnyckel och samma begäran", async () => {
+    const setup = { formatVersion: 1 as const, raceId: id, snapshotVersion: 2, raceDate: "2026-10-08", timeZone: "Europe/Stockholm",
+      firstStartTime: null, classes: [{ id: other, name: "H21", courseName: "Lång", firstControlCode: 31, entryCount: 1,
+        method: "FREE" as const, intervalMinutes: 2, vacancies: { kind: "COUNT" as const, value: 0 }, hasStartTimes: false }] };
+    const settings = { expectedSnapshotVersion: 2, firstStartTime: "2026-10-08T08:00:00.000Z", clubSeparation: true,
+      classes: [{ classId: other, method: "MINUTE" as const, intervalMinutes: 2, vacancies: { kind: "COUNT" as const, value: 1 } }] };
+    const preview = { formatVersion: 1 as const, raceId: id, snapshotVersion: 2, timeZone: "Europe/Stockholm", seed: 7,
+      classes: [{ classId: other, className: "H21", method: "MINUTE" as const, firstStartTime: "2026-10-08T08:00:00.000Z",
+        intervalMinutes: 2, vacancyCount: 1, replacesStartTimes: false, slots: [{ startTime: "2026-10-08T08:00:00.000Z", entry: null }] }],
+      startGroups: [], replacesStartTimes: false, readOutCount: 0, becomesOkCount: 0, becomesMispunchedCount: 0, unchangedCount: 0,
+      notRecalculatedCount: 0, changes: [], requiresConfirmation: false };
+    const commit = { formatVersion: 1 as const, requestId: id, seed: 7, ...settings, confirmChanges: false };
+    const receipt = { formatVersion: 1 as const, replayed: false, requestId: id, raceId: id, request: commit, classCount: 1, entryCount: 0,
+      vacancyCount: 1, recalculatedCount: 0, snapshotVersionBefore: 2, snapshotVersionAfter: 3, drawnAt: "2026-10-04T10:00:00.000Z" };
+    const drawSetup = vi.fn(async () => ({ status: "ok" as const, response: setup }));
+    const drawPreview = vi.fn(async () => ({ status: "ok" as const, response: preview }));
+    const draw = vi.fn(async (): Promise<{ status: "drawn"; response: typeof receipt } | { status: "confirmation-required"; preview: typeof preview }> =>
+      ({ status: "drawn", response: receipt }));
+    const services = { ...dependencies(), drawSetup, drawPreview, draw };
+    const read = new Request("https://otid.example/api/admin", { headers: {
       cookie: `__Host-otid-race-administrator-session=${token}; __Host-otid-race-administrator-csrf=${csrf}` } });
-    const response = await raceAdministratorRoute(db, read(), id, { kind: "fixed-start-slot-plans" }, services, environment);
-    expect(response.status).toBe(200); expect(await response.json()).toEqual(report);
-    expect(fixedStartSlotPlans).toHaveBeenCalledWith(db, expect.objectContaining({ raceId: id }));
-    fixedStartSlotPlans.mockResolvedValueOnce({ status: "forbidden" });
-    expect((await raceAdministratorRoute(db, read(), id, { kind: "fixed-start-slot-plans" }, services, environment)).status).toBe(403);
+    const loaded = await raceAdministratorRoute(db, read, id, { kind: "draw" }, services, environment);
+    expect(loaded.status).toBe(200); expect(await loaded.json()).toEqual(setup);
+    const shown = await raceAdministratorRoute(db, request("POST", JSON.stringify({ formatVersion: 1, ...settings })), id,
+      { kind: "draw-preview" }, services, environment);
+    expect(shown.status).toBe(200); expect(await shown.json()).toEqual(preview);
+    const save = (headers: Record<string, string> = { "idempotency-key": `start-draw:${id}` }, body: unknown = commit) =>
+      raceAdministratorRoute(db, request("POST", JSON.stringify(body), headers), id, { kind: "draw" }, services, environment);
+    const saved = await save();
+    expect(saved.status).toBe(200); expect(await saved.json()).toEqual(receipt);
+    expect((await save({ "idempotency-key": `start-draw:${other}` })).status).toBe(400);
+    expect((await save(undefined, { ...commit, seed: 0 })).status).toBe(400);
+    draw.mockResolvedValueOnce({ status: "confirmation-required", preview });
+    expect((await save()).status).toBe(409);
+    draw.mockResolvedValueOnce({ status: "drawn", response: { ...receipt, raceId: other } });
+    expect((await save()).status).toBe(500);
   });
   it("TASK135 binds one separately ranked shortened-course transfer to its frozen class basis", async () => {
     const courseVersionId = "10000000-0000-4000-8000-000000000003";

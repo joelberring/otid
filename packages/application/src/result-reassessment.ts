@@ -26,7 +26,7 @@ function normalized(readout: Readout): NormalizedCardReadout {
 }
 
 export type AssessedEntry = {
-  entryId: string; displayName: string; className: string; readout: Readout; latest: Revision | null;
+  entryId: string; classId: string; displayName: string; className: string; readout: Readout; latest: Revision | null;
   outcome: CourseEditOutcome | "NOT_RECALCULATED"; before: EvaluationStatus; after: EvaluationStatus; recalculate: boolean;
 };
 
@@ -72,7 +72,7 @@ export async function assessReadOutEntries(tx: Transaction, raceId: string, clas
     const current = evaluateCardReadout(normalized(readout), snapshot);
     const next = evaluateCardReadout(normalized(readout), proposed);
     const before = head?.status === "OK" || head?.status === "MP" ? head.status : current.status;
-    const base = { entryId: entry.id, displayName: `${entry.givenName} ${entry.familyName}`,
+    const base = { entryId: entry.id, classId: entry.classId, displayName: `${entry.givenName} ${entry.familyName}`,
       className: classNames.get(entry.classId)!, readout, latest: head, before, after: next.status };
     // Manuellt rättad tid finns bara i den rättade revisionen; en omräkning från avläsningen skulle tappa den.
     if (head && (head.manualFinishTimeCorrectionId !== null || head.manualPunchStartTimeCorrectionId !== null)) {
@@ -102,20 +102,22 @@ export function summarizeAssessment(assessed: readonly AssessedEntry[]) {
 
 /**
  * Räknar om de prövade löparna mot den sparade ögonblicksbilden. Varje ny revision får
- * databasens underlagshash. Bedömningen måste gälla samma deltagare och bana som beskedet.
+ * databasens underlagshash. Bedömningen måste gälla samma deltagare och bana som beskedet
+ * (en banversion för alla, eller banversion per klass).
  */
 export async function recalculateAssessedEntries(tx: Transaction, input: { raceId: string; assessed: readonly AssessedEntry[];
-  snapshot: RaceSnapshot; snapshotVersion: number; courseVersionId: string }) {
+  snapshot: RaceSnapshot; snapshotVersion: number; courseVersionId: string | ReadonlyMap<string, string> }) {
   const recalculated: { entryId: string; resultRevisionId: string; revision: number }[] = [];
   for (const row of input.assessed.filter(value => value.recalculate)) {
     const evaluation = evaluateCardReadout(normalized(row.readout), input.snapshot);
-    if (evaluation.entryId !== row.entryId || evaluation.courseVersionId !== input.courseVersionId) {
+    const expectedCourseVersionId = typeof input.courseVersionId === "string" ? input.courseVersionId : input.courseVersionId.get(row.classId);
+    if (!expectedCourseVersionId || evaluation.entryId !== row.entryId || evaluation.courseVersionId !== expectedCourseVersionId) {
       throw new Error("Omräkningen gav en annan deltagare eller bana än förhandsbeskedet");
     }
     const [created] = await tx.insert(schema.resultRevisions).values({ raceId: input.raceId, entryId: row.entryId,
       readoutId: row.readout.id, revision: row.latest!.revision + 1, cause: "EXPLICIT_RECALCULATION", status: evaluation.status,
       reason: evaluation.reason, evaluation, engineVersion: RESULT_ENGINE_VERSION, snapshotVersion: input.snapshotVersion,
-      courseVersionId: input.courseVersionId, controlNeutralizationId: appliedControlNeutralization(input.snapshot, evaluation),
+      courseVersionId: expectedCourseVersionId, controlNeutralizationId: appliedControlNeutralization(input.snapshot, evaluation),
       published: true }).returning();
     if (!created) throw new Error("Resultatrevisionen kunde inte sparas");
     recalculated.push({ entryId: row.entryId, resultRevisionId: created.id, revision: created.revision });

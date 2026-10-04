@@ -1,13 +1,12 @@
 import { and, asc, count, eq, sql } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
 import { entryRegistrationClassesResponseSchema, entryRegistrationRequestSchema,
-  entryRegistrationIdempotencyKeySchema, entryRegistrationResponseSchema,
-  entryRegistrationStartSlotCandidatesSchema } from "@o-tid/contracts";
+  entryRegistrationIdempotencyKeySchema, entryRegistrationResponseSchema } from "@o-tid/contracts";
 import { authenticatePairingAdminSession, authenticatePairingAdminSessionForMutation,
   authenticatePairingAdminSessionForProtectedRead, type PairingAdminRequestAuthentication } from "./pairing-admin";
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
 import { canAddClassEntry } from "./class-capacity-guard";
-import { resolveVerifiedFixedStartSlotPlan } from "./verified-fixed-start-slot";
+import { assignLateStartTime } from "./start-draw-basis";
 
 type Authentication = Omit<PairingAdminRequestAuthentication, "capability">;
 const capability = "REGISTER_ENTRY" as const;
@@ -33,44 +32,22 @@ export async function listEntryRegistrationClassesAsAdmin(db: Database, input: A
   });
 }
 
-type StartSlotAssignment = typeof schema.entryRegistrationStartSlotAssignments.$inferSelect;
-function response(row: typeof schema.entryRegistrationRequests.$inferSelect, assignment: StartSlotAssignment | undefined, replayed: boolean) {
+function response(row: typeof schema.entryRegistrationRequests.$inferSelect, replayed: boolean) {
   const intent = entryRegistrationRequestSchema.parse(row.request);
   return entryRegistrationResponseSchema.parse({ formatVersion: 1, replayed, requestId: row.requestId,
     raceId: row.raceId, entryId: row.entryId, entryVersion: 1, classId: intent.classId,
     givenName: intent.givenName, familyName: intent.familyName, organisationName: intent.organisationName,
-    cardNumber: intent.cardNumber, assignmentId: row.assignmentId, fixedStartTime: intent.fixedStartTime,
-    assignedStartSlot: assignment ? { assignmentId: assignment.id, drawRequestId: assignment.drawRequestId,
-      sourceHash: assignment.sourceHash, fixedStartTime: assignment.fixedStartTime.toISOString() } : null,
+    cardNumber: intent.cardNumber, assignmentId: row.assignmentId,
+    fixedStartTime: row.assignedStartTime?.toISOString() ?? intent.fixedStartTime, startTimeAssigned: row.assignedStartTime !== null,
     snapshotVersionBefore: intent.expectedSnapshotVersion, snapshotVersionAfter: row.snapshotVersionAfter,
     createdAt: row.createdAt.toISOString() });
 }
 
-export async function listEntryRegistrationStartSlotsAsAdmin(db: Database,
-  input: Authentication & { targetClassId: string }, now = new Date()) {
-  return db.transaction(async tx => {
-    const auth = await authenticatePairingAdminSessionForProtectedRead(tx, { ...input, capability }, now);
-    if (auth.status !== "authenticated") return auth;
-    const race = await lockRaceForSnapshot(tx, input.raceId);
-    const [event] = await tx.select({ timeZone: schema.events.timeZone })
-      .from(schema.races).innerJoin(schema.events, eq(schema.events.id, schema.races.eventId))
-      .where(eq(schema.races.id, input.raceId));
-    if (!event) throw new Error("Tävlingens tidszon saknas");
-    const [target] = await tx.select({ courseVersionId: schema.classes.courseVersionId, startRule: schema.classes.startRule,
-      capacityVersion: schema.classes.capacityVersion }).from(schema.classes).where(and(
-        eq(schema.classes.id, input.targetClassId), eq(schema.classes.raceId, input.raceId))).limit(1);
-    if (!target) return { status: "not-found" as const };
-    if (target.startRule !== "FIXED" || !await canAddClassEntry(tx, input.raceId, input.targetClassId)) return { status: "conflict" as const };
-    const plan = await resolveVerifiedFixedStartSlotPlan(tx, input.raceId, input.targetClassId, now);
-    return { status: "ok" as const, response: entryRegistrationStartSlotCandidatesSchema.parse({ formatVersion: 1,
-      raceId: input.raceId, targetClassId: input.targetClassId, snapshotVersion: race.snapshotVersion,
-      timeZone: event.timeZone,
-      targetCourseVersionId: target.courseVersionId, targetCapacityVersion: target.capacityVersion, startRule: "FIXED",
-      plan: plan.status === "AVAILABLE" ? { status: "AVAILABLE", drawRequestId: plan.drawRequestId,
-        sourceHash: plan.sourceHash, slots: plan.slots.map(fixedStartTime => ({ fixedStartTime })) } : plan }) };
-  }, { isolationLevel: "repeatable read" });
-}
-
+/**
+ * Anmäler en deltagare. I en lottad klass med minutstart ger appen första lediga
+ * vakanta tid efter nu (annars första lediga minut efter klassens sista start),
+ * i en masstartsklass masstartens tid (PLAN.md steg 9). Admin anger då ingen tid.
+ */
 export async function registerEntryAsAdmin(db: Database,
   input: Authentication & { idempotencyKey: string | null; request: unknown }, now = new Date()) {
   const key = entryRegistrationIdempotencyKeySchema.safeParse(input.idempotencyKey);
@@ -90,23 +67,19 @@ export async function registerEntryAsAdmin(db: Database,
     if (existing) {
       if (existing.raceId !== input.raceId || existing.actorCredentialId !== auth.principal.accessCredentialId ||
         JSON.stringify(entryRegistrationRequestSchema.parse(existing.request)) !== JSON.stringify(intent)) return { status: "conflict" as const };
-      const [assignment] = await tx.select().from(schema.entryRegistrationStartSlotAssignments)
-        .where(eq(schema.entryRegistrationStartSlotAssignments.registrationRequestId, existing.id));
-      return { status: "registered" as const, response: response(existing, assignment, true) };
+      return { status: "registered" as const, response: response(existing, true) };
     }
     if (race.snapshotVersion !== intent.expectedSnapshotVersion || race.snapshotVersion >= 2_147_483_647) return { status: "conflict" as const };
     const [raceClass] = await tx.select({ id: schema.classes.id, startRule: schema.classes.startRule,
-      courseVersionId: schema.classes.courseVersionId, capacityVersion: schema.classes.capacityVersion }).from(schema.classes)
+      courseVersionId: schema.classes.courseVersionId, startDrawId: schema.classes.startDrawId }).from(schema.classes)
       .innerJoin(schema.courseVersions, eq(schema.courseVersions.id, schema.classes.courseVersionId))
       .innerJoin(schema.courses, eq(schema.courses.id, schema.courseVersions.courseId))
       .where(and(eq(schema.classes.id, intent.classId), eq(schema.classes.raceId, input.raceId), eq(schema.courses.raceId, input.raceId)));
     if (!raceClass || raceClass.startRule !== intent.expectedStartRule || raceClass.courseVersionId !== intent.expectedCourseVersionId) {
       return { status: "conflict" as const };
     }
-    if (intent.assignedStartSlot !== undefined && intent.assignedStartSlot !== null &&
-      (intent.expectedTargetCapacityVersion !== raceClass.capacityVersion || intent.fixedStartTime !== intent.assignedStartSlot.fixedStartTime)) {
-      return { status: "conflict" as const };
-    }
+    // Fast start utan angiven tid kräver en lottad klass som kan ge tiden.
+    if (raceClass.startRule === "FIXED" && intent.fixedStartTime === null && raceClass.startDrawId === null) return { status: "conflict" as const };
     const [total] = await tx.select({ value: count() }).from(schema.entries).where(eq(schema.entries.raceId, input.raceId));
     if (!total || total.value >= 10_000) return { status: "conflict" as const };
     if (intent.cardNumber) {
@@ -115,16 +88,13 @@ export async function registerEntryAsAdmin(db: Database,
       if (owner) return { status: "conflict" as const };
     }
     if (!await canAddClassEntry(tx, input.raceId, intent.classId)) return { status: "conflict" as const };
-    if (intent.assignedStartSlot !== undefined && intent.assignedStartSlot !== null) {
-      const plan = await resolveVerifiedFixedStartSlotPlan(tx, input.raceId, intent.classId, now);
-      if (plan.status !== "AVAILABLE" || plan.drawRequestId !== intent.assignedStartSlot.drawRequestId ||
-        plan.sourceHash !== intent.assignedStartSlot.sourceHash || !plan.slots.includes(intent.assignedStartSlot.fixedStartTime)) {
-        return { status: "conflict" as const };
-      }
-    }
+    const assignedStartTime = intent.fixedStartTime === null && raceClass.startRule === "FIXED"
+      ? await assignLateStartTime(tx, input.raceId, intent.classId, now) : null;
+    if (raceClass.startRule === "FIXED" && intent.fixedStartTime === null && assignedStartTime === null) throw new Error("Lottad klass saknar plan");
+    const fixedStartTime = assignedStartTime ?? (intent.fixedStartTime ? new Date(intent.fixedStartTime) : null);
     const [entry] = await tx.insert(schema.entries).values({ raceId: input.raceId, classId: intent.classId,
       givenName: intent.givenName, familyName: intent.familyName, organisationName: intent.organisationName,
-      fixedStartTime: intent.fixedStartTime ? new Date(intent.fixedStartTime) : null, version: 1 }).returning({ id: schema.entries.id });
+      fixedStartTime, version: 1 }).returning({ id: schema.entries.id });
     if (!entry) throw new Error("Deltagaren kunde inte sparas");
     let assignmentId: string | null = null;
     if (intent.cardNumber) {
@@ -137,24 +107,14 @@ export async function registerEntryAsAdmin(db: Database,
     await tx.update(schema.races).set({ snapshotVersion: snapshotVersionAfter }).where(eq(schema.races.id, input.raceId));
     const [saved] = await tx.insert(schema.entryRegistrationRequests).values({ requestId, raceId: input.raceId,
       actorCredentialId: auth.principal.accessCredentialId, entryId: entry.id, assignmentId, request: intent,
-      snapshotVersionAfter, createdAt: now }).returning();
+      snapshotVersionAfter, assignedStartTime, createdAt: now }).returning();
     if (!saved) throw new Error("Registreringsjournalen kunde inte sparas");
-    let startSlotAssignment: StartSlotAssignment | undefined;
-    if (intent.assignedStartSlot !== undefined && intent.assignedStartSlot !== null) {
-      const [assignment] = await tx.insert(schema.entryRegistrationStartSlotAssignments).values({
-        registrationRequestId: saved.id, raceId: input.raceId, entryId: entry.id, targetClassId: intent.classId,
-        drawRequestId: intent.assignedStartSlot.drawRequestId, sourceHash: intent.assignedStartSlot.sourceHash,
-        fixedStartTime: new Date(intent.assignedStartSlot.fixedStartTime), actorCredentialId: auth.principal.accessCredentialId,
-        capability: auth.principal.capability, assignedAt: now
-      }).returning();
-      if (!assignment) throw new Error("Startslotsjournalen kunde inte sparas");
-      startSlotAssignment = assignment;
-    }
     await tx.insert(schema.auditEvents).values({ raceId: input.raceId, entityType: "entry", entityId: entry.id,
       action: "ENTRY_REGISTERED_BY_ADMIN", actorKind: auth.principal.capability === "MANAGE_RACE"
         ? "RACE_ADMIN_ACCESS_CREDENTIAL" : "ENTRY_REGISTRATION_ACCESS_CREDENTIAL",
       actorId: auth.principal.accessCredentialId, requestId, before: { snapshotVersion: race.snapshotVersion },
-      after: { classId: intent.classId, assignmentId, entryVersion: 1, snapshotVersion: snapshotVersionAfter } });
-    return { status: "registered" as const, response: response(saved, startSlotAssignment, false) };
+      after: { classId: intent.classId, assignmentId, entryVersion: 1, snapshotVersion: snapshotVersionAfter,
+        fixedStartTime: fixedStartTime?.toISOString() ?? null, startTimeAssigned: assignedStartTime !== null } });
+    return { status: "registered" as const, response: response(saved, false) };
   });
 }

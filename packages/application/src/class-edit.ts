@@ -152,7 +152,9 @@ export async function editClassAsAdministrator(db: Database, input: Authenticati
     const preview = previewResponse(raceId, raceClass, target, intent.startRule, race.snapshotVersion, plan.clearedStartTimes, assessed);
     if (preview.requiresConfirmation && !intent.confirmResultChanges) return { status: "confirmation-required", preview };
 
-    await tx.update(schema.classes).set({ name: intent.className, courseVersionId: target.courseVersionId, startRule: plan.startRule })
+    // Nytt startsätt tömmer starttiderna och därmed klassens lottning (PLAN.md steg 9).
+    await tx.update(schema.classes).set({ name: intent.className, courseVersionId: target.courseVersionId, startRule: plan.startRule,
+      ...(startRuleChanged ? { startDrawId: null } : {}) })
       .where(and(eq(schema.classes.id, raceClass.id), eq(schema.classes.raceId, raceId)));
     if (plan.changed) {
       await tx.update(schema.entries).set({ fixedStartTime: null, version: sql`${schema.entries.version} + 1` })

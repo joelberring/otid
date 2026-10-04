@@ -10,14 +10,13 @@ import type { Workspace } from "./workspace-state";
 /** Deltagaråtgärder: byt klass, bricka och hyrbricka, betalning, starttid och identitet. */
 export function EntryActionForms({ ws }: { ws: Workspace }) {
   const { action, busy, cardAttempt, classId, data, disabled, familyName, givenName, identityAttempt,
-    identityMatches, loadIdentity, loadTransferStartSlots, newCard, organisationName, paymentStatus,
+    identityMatches, loadIdentity, newCard, organisationName, paymentStatus,
     paymentStatusAttempt, pending, prepareCard, prepareIdentity, preparePaymentStatus, prepareRental,
     prepareRentalReturn, prepareRentalReuse, prepareTime, prepareTransfer, rentalAttempt, rentalReturnAttempt,
     rentalReuseAttempt, rentalReuseSourceId, returnedRentalSources, selected, selectedClass,
-    selectedTransferStartSlot, sent, setClassId, setFamilyName, setGivenName, setMessage, setNewCard, setOrganisationName, setPaymentStatus, setRentalReuseSourceId, setSelectedTransferStartSlot,
+    sent, setClassId, setFamilyName, setGivenName, setMessage, setNewCard, setOrganisationName, setPaymentStatus, setRentalReuseSourceId,
     setStartClock, setTimeAttempt, setTransferAttempt, startClock, submitCard, submitIdentity, submitPaymentStatus, submitRental, submitRentalReturn,
-    submitRentalReuse, submitTime, submitTransfer, target, targetFull, timeAttempt, transferAttempt,
-    transferStartSlots, unknown } = ws;
+    submitRentalReuse, submitTime, submitTransfer, target, targetFull, timeAttempt, transferAttempt, unknown } = ws;
   return <>
     {action === "TRANSFER" && <><h2>{text.changeClass}</h2>
     <p className={styles.warning}>{text.limitation}</p>
@@ -33,26 +32,18 @@ export function EntryActionForms({ ws }: { ws: Workspace }) {
       <p>{text.previousTime}: {selected.fixedStartTime && data ? formatClockTime(selected.fixedStartTime, data.timeZone) : text.noFixedTime}</p>
       <label>{text.targetClass}<select value={classId} disabled={disabled} required onChange={(event) => {
         setClassId(event.target.value); setStartClock(""); setMessage("");
-        void loadTransferStartSlots(event.target.value);
       }}>
         <option value="">{text.chooseClass}</option>{data?.classes.filter((row) => row.id !== selected.classId).map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
       </select></label>
       {target && <p>{text.startRule}: <strong>{target.startRule === "FIXED" ? text.fixed : text.punch}</strong></p>}
       {target && <p>{text.capacityCount}: {target.entryCount} / {target.maxEntries ?? text.unlimited} {targetFull && <strong>— {text.classFull}</strong>}</p>}
       {target?.startRule === "FIXED" && <>
-        {transferStartSlots?.targetClassId === target.id && transferStartSlots.plan.status === "AVAILABLE" && <label>{text.transferSlotSelect}
-          <select value={selectedTransferStartSlot} disabled={disabled} onChange={(event) => setSelectedTransferStartSlot(event.target.value)}>
-            <option value="">{text.transferSlotManual}</option>
-            {transferStartSlots.plan.slots.map(slot => <option key={slot.fixedStartTime} value={slot.fixedStartTime}>{formatClockTime(slot.fixedStartTime, data?.timeZone ?? "Europe/Stockholm")}</option>)}
-          </select>
-        </label>}
-        {transferStartSlots?.targetClassId === target.id && transferStartSlots.plan.status === "UNAVAILABLE" && <p className={styles.warning}>{text.transferSlotUnavailable}</p>}
         {data && <TargetClassStartTimes key={`${target.id}:${data.snapshotVersion}`} entries={data.entries} classId={target.id}
           timeZone={data.timeZone} proposedTime={parseRaceClock(data.raceDate, startClock, data.timeZone)} />}
-        {!selectedTransferStartSlot && <div className={styles.timeFields}>
+        <div className={styles.timeFields}>
           <label>{text.startClock}<input type="text" inputMode="numeric" autoComplete="off" placeholder="18:30" value={startClock} required disabled={disabled}
             onChange={(event) => setStartClock(event.target.value)} /></label>
-        </div>}
+        </div>
         <p>{text.timeHelp}</p>
       </>}
       {target?.startRule === "PUNCH" && <p>{text.punchHelp}</p>}
@@ -189,10 +180,10 @@ export function EntryActionForms({ ws }: { ws: Workspace }) {
 /** Ny deltagare med dubblettkontroll. */
 export function RegistrationForm({ ws }: { ws: Workspace }) {
   const { action, busy, classId, confirmDistinctPerson, data, disabled, familyName, givenName,
-    loadRegistrationStartSlots, newCard, organisationName, pending, prepareRegistration, registrationAttempt,
-    registrationStartSlots, selectRegistrationCandidate, selectedRegistrationStartSlot, sent, setClassId,
+    newCard, organisationName, pending, prepareRegistration, registrationAttempt,
+    selectRegistrationCandidate, sent, setClassId,
     setConfirmDistinctPerson, setFamilyName, setGivenName, setNewCard, setOrganisationName, setRegistrationAttempt,
-    setSelectedRegistrationStartSlot, setStartClock, startClock, submitRegistration, target, targetFull, unknown } = ws;
+    setStartClock, startClock, submitRegistration, target, targetFull, unknown } = ws;
   return <>
     {action === "REGISTRATION" && <section className={styles.workspace} aria-label={text.registrationTitle}>
       <h2>{text.registrationTitle}</h2>
@@ -200,7 +191,8 @@ export function RegistrationForm({ ws }: { ws: Workspace }) {
         <p>{registrationAttempt.request.givenName} {registrationAttempt.request.familyName} · {registrationAttempt.className}</p>
         <p>{text.organisation}: {registrationAttempt.request.organisationName ?? text.none} · {text.registrationCard}: {registrationAttempt.request.cardNumber ?? text.noCard}</p>
         <p>{text.startRule}: {registrationAttempt.request.expectedStartRule === "FIXED" ? text.fixed : text.punch}</p>
-        <p>{text.newTime}: {registrationAttempt.request.fixedStartTime === null ? text.noFixedTime : formatClockTime(registrationAttempt.request.fixedStartTime, registrationAttempt.timeZone)}</p>
+        <p>{text.newTime}: {registrationAttempt.request.fixedStartTime !== null ? formatClockTime(registrationAttempt.request.fixedStartTime, registrationAttempt.timeZone)
+          : registrationAttempt.request.expectedStartRule === "FIXED" ? text.registrationDrawnTime : text.noFixedTime}</p>
         <p>{text.registrationHelp}</p>{unknown && <p>{text.unreachable}</p>}
         {!unknown && !sent.current && <div className={styles.workspace}>
           <p>{text.registrationMatches}: {registrationAttempt.candidates.totalMatches} · {text.shown}: {registrationAttempt.candidates.candidates.length}</p>
@@ -219,7 +211,7 @@ export function RegistrationForm({ ws }: { ws: Workspace }) {
         {!unknown && <button className="secondary" disabled={busy} onClick={() => { pending.current = undefined; sent.current = false; setRegistrationAttempt(undefined); }}>{text.cancel}</button>}
       </div> : data ? <form className={styles.workspace} onSubmit={(event) => void prepareRegistration(event)}>
         <label>{text.registrationClass}<select value={classId} required disabled={disabled} onChange={(event) => {
-          const value = event.target.value; setClassId(value); setStartClock(""); void loadRegistrationStartSlots(value);
+          setClassId(event.target.value); setStartClock("");
         }}><option value="">{text.chooseClass}</option>{data.classes.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></label>
         {target && <p>{text.capacityCount}: {target.entryCount} / {target.maxEntries ?? text.unlimited} {targetFull && <strong>— {text.classFull}</strong>}</p>}
         <div className={styles.identityFields}>
@@ -229,18 +221,10 @@ export function RegistrationForm({ ws }: { ws: Workspace }) {
         </div>
         <label>{text.registrationCard}<input value={newCard} inputMode="numeric" maxLength={32} autoComplete="off" disabled={disabled} onChange={(event) => setNewCard(event.target.value)} /></label>
         {target && <p>{text.startRule}: {target.startRule === "FIXED" ? text.fixed : text.punch}</p>}
-        {target?.startRule === "FIXED" && <>
-          {registrationStartSlots?.targetClassId === target.id && registrationStartSlots.plan.status === "AVAILABLE" && <label>{text.registrationLottedSlot}
-            <select value={selectedRegistrationStartSlot} disabled={disabled} onChange={(event) => setSelectedRegistrationStartSlot(event.target.value)}>
-              <option value="">{text.registrationManualTime}</option>
-              {registrationStartSlots.plan.slots.map(slot => <option key={slot.fixedStartTime} value={slot.fixedStartTime}>{formatClockTime(slot.fixedStartTime, data.timeZone)}</option>)}
-            </select>
-          </label>}
-          {registrationStartSlots?.targetClassId === target.id && registrationStartSlots.plan.status === "UNAVAILABLE" && <p className={styles.warning}>{text.registrationSlotUnavailable}</p>}
-          {!selectedRegistrationStartSlot && <div className={styles.timeFields}>
+        {target?.startRule === "FIXED" && (target.startDrawn ? <p>{text.registrationDrawnTimeHelp}</p>
+          : <div className={styles.timeFields}>
             <label>{text.startClock}<input value={startClock} required inputMode="numeric" placeholder="18:30" autoComplete="off" disabled={disabled} onChange={(event) => setStartClock(event.target.value)} /></label>
-          </div>}
-        </>}
+          </div>)}
         <p>{text.registrationHelp}</p><button disabled={disabled || !target || targetFull}>{text.registrationInspect}</button>
       </form> : <p>{text.error}</p>}
     </section>}

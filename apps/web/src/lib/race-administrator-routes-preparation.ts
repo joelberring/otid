@@ -6,13 +6,12 @@ import { classCapacityKeySchema, classCapacityRequestSchema, classCapacityRespon
   courseEditResponseSchema, classEditPreviewRequestSchema, classEditPreviewResponseSchema, classEditIdempotencyKeySchema,
   classEditRequestSchema, classEditResponseSchema,
   shortenedCourseClassTransferCandidateSchema, shortenedCourseClassTransferIdempotencyKeySchema,
-  shortenedCourseClassTransferRequestSchema, shortenedCourseClassTransferReceiptSchema, classStartDrawClassesResponseSchema,
-  classStartDrawPreviewRequestSchema, classStartDrawPreviewResponseSchema, classStartDrawRequestSchema,
-  classStartDrawIdempotencyKeySchema, fixedStartSlotPlanResponseSchema, startListPublicationPreviewResponseSchema,
+  shortenedCourseClassTransferRequestSchema, shortenedCourseClassTransferReceiptSchema, startDrawSetupResponseSchema,
+  startDrawPreviewRequestSchema, startDrawPreviewResponseSchema, startDrawRequestSchema,
+  startDrawIdempotencyKeySchema, startDrawResponseSchema, startListPublicationPreviewResponseSchema,
   startListPublicationRequestSchema, startListPublicationIdempotencyKeySchema } from "@o-tid/contracts";
 import { entryClassAdminFailure as failure, entryClassAdminJson as json, hasNoEntryClassAdminRequestBody,
   readEntryClassAdminJson } from "./entry-class-admin-security";
-import { parseAdministratorDrawReceipt } from "./administrator-start-draw-client";
 import { parseAdministratorPublicationReceipt } from "./administrator-publication-client";
 import { resultFailure, type RaceAdministratorRouteContext } from "./race-administrator-route-context";
 
@@ -136,42 +135,41 @@ export async function handlePreparationRoute(context: RaceAdministratorRouteCont
       id: key.data.slice("start-list-publication:".length), request: parsed.data
     }));
   }
-  if (action.kind === "draw-classes") {
-    const result = await dependencies.drawClasses(db, { ...proof, raceId });
-    if (result.status !== "ok") return resultFailure(result.status);
-    const response = classStartDrawClassesResponseSchema.parse(result.response);
-    if (response.raceId !== raceId) return failure(500, "INTERNAL_ERROR");
-    return json(response);
-  }
-  if (action.kind === "fixed-start-slot-plans") {
+  if (action.kind === "draw" && request.method === "GET") {
     if (!await hasNoEntryClassAdminRequestBody(request)) return failure(400, "INVALID_REQUEST");
-    const result = await dependencies.fixedStartSlotPlans(db, { ...proof, raceId });
+    const result = await dependencies.drawSetup(db, { ...proof, raceId });
     if (result.status !== "ok") return resultFailure(result.status);
-    const response = fixedStartSlotPlanResponseSchema.parse(result.response);
+    const response = startDrawSetupResponseSchema.parse(result.response);
     if (response.raceId !== raceId) return failure(500, "INTERNAL_ERROR");
     return json(response);
   }
-  if (action.kind === "draw-preview" || action.kind === "draw") {
+  if (action.kind === "draw-preview") {
     let body: unknown;
     try { body = await readEntryClassAdminJson(request); } catch { return failure(400, "INVALID_REQUEST"); }
-    if (action.kind === "draw-preview") {
-      const parsed = classStartDrawPreviewRequestSchema.safeParse(body);
-      if (!parsed.success) return failure(400, "INVALID_REQUEST");
-      const result = await dependencies.drawPreview(db, { ...proof, raceId, request: parsed.data });
-      if (result.status !== "ok") return resultFailure(result.status);
-      const response = classStartDrawPreviewResponseSchema.parse(result.response);
-      if (response.raceId !== raceId || response.classId !== parsed.data.classId ||
-        JSON.stringify(response.parameters) !== JSON.stringify(parsed.data.parameters)) return failure(500, "INTERNAL_ERROR");
-      return json(response);
-    }
-    const parsed = classStartDrawRequestSchema.safeParse(body);
-    const key = classStartDrawIdempotencyKeySchema.safeParse(request.headers.get("idempotency-key"));
-    if (!parsed.success || !key.success) return failure(400, "INVALID_REQUEST");
-    const result = await dependencies.draw(db, { ...proof, raceId, request: parsed.data, idempotencyKey: key.data });
-    if (result.status !== "changed") return resultFailure(result.status);
-    return json(parseAdministratorDrawReceipt(result.response, raceId, {
-      id: key.data.slice("class-start-draw:".length), request: parsed.data
-    }));
+    const parsed = startDrawPreviewRequestSchema.safeParse(body);
+    if (!parsed.success) return failure(400, "INVALID_REQUEST");
+    const result = await dependencies.drawPreview(db, { ...proof, raceId, request: parsed.data });
+    if (result.status !== "ok") return resultFailure(result.status);
+    const response = startDrawPreviewResponseSchema.parse(result.response);
+    if (response.raceId !== raceId || response.snapshotVersion !== parsed.data.expectedSnapshotVersion ||
+        response.classes.length !== parsed.data.classes.length) return failure(500, "INTERNAL_ERROR");
+    return json(response);
+  }
+  if (action.kind === "draw") {
+    const key = startDrawIdempotencyKeySchema.safeParse(request.headers.get("idempotency-key"));
+    if (!key.success) return failure(400, "INVALID_REQUEST");
+    let body: unknown;
+    try { body = await readEntryClassAdminJson(request); } catch { return failure(400, "INVALID_REQUEST"); }
+    const parsed = startDrawRequestSchema.safeParse(body);
+    if (!parsed.success || key.data !== `start-draw:${parsed.data.requestId}`) return failure(400, "INVALID_REQUEST");
+    const result = await dependencies.draw(db, { ...proof, raceId, idempotencyKey: key.data, request: parsed.data });
+    // Starttider eller resultat ändras sedan beskedet visades: klienten hämtar nytt besked och frågar igen.
+    if (result.status === "confirmation-required") return failure(409, "CONFLICT");
+    if (result.status !== "drawn") return resultFailure(result.status);
+    const response = startDrawResponseSchema.parse(result.response);
+    if (response.raceId !== raceId || response.requestId !== parsed.data.requestId ||
+        JSON.stringify(response.request) !== JSON.stringify(parsed.data)) return failure(500, "INTERNAL_ERROR");
+    return json(response);
   }
   if (action.kind === "manual-class") {
     const key = manualClassCreateIdempotencyKeySchema.safeParse(request.headers.get("idempotency-key"));

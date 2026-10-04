@@ -4,10 +4,9 @@ import {
   entryCardRentalChangeResponseSchema, entryCardRentalReturnChangeRequestSchema, entryCardRentalReturnChangeResponseSchema,
   entryCardRentalReuseRequestSchema, entryCardRentalReuseResponseSchema, entryIdentityAdminListResponseSchema,
   entryIdentityChangeRequestSchema, entryPaymentStatusChangeRequestSchema, entryPaymentStatusChangeResponseSchema,
-  entryRegistrationCandidatesResponseSchema, entryRegistrationRequestSchema, entryRegistrationStartSlotCandidatesSchema,
+  entryRegistrationCandidatesResponseSchema, entryRegistrationRequestSchema,
   entryStartTimeChangeRequestSchema, entryStartTimeChangeResponseSchema, entryTransferRequestSchema,
-  entryTransferResponseSchema, entryTransferStartSlotCandidatesSchema, type EntryIdentityAdminListResponse,
-  type EntryPaymentStatus, type EntryRegistrationStartSlotCandidates, type EntryTransferStartSlotCandidates
+  entryTransferResponseSchema, type EntryIdentityAdminListResponse, type EntryPaymentStatus
 } from "@o-tid/contracts";
 import { parseRaceClock } from "../../lib/clock-time";
 import { parseIdentityReceipt } from "../../lib/entry-identity-client";
@@ -23,10 +22,6 @@ import type { Roster } from "./participant-roster";
 export function useEntryActionState() {
   const [classId, setClassId] = useState("");
   const [startClock, setStartClock] = useState("");
-  const [transferStartSlots, setTransferStartSlots] = useState<EntryTransferStartSlotCandidates>();
-  const [selectedTransferStartSlot, setSelectedTransferStartSlot] = useState("");
-  const [registrationStartSlots, setRegistrationStartSlots] = useState<EntryRegistrationStartSlotCandidates>();
-  const [selectedRegistrationStartSlot, setSelectedRegistrationStartSlot] = useState("");
   const [transferAttempt, setTransferAttempt] = useState<TransferAttempt>();
   const [newCard, setNewCard] = useState("");
   const [cardAttempt, setCardAttempt] = useState<CardAttempt>();
@@ -44,9 +39,7 @@ export function useEntryActionState() {
   const [givenName, setGivenName] = useState("");
   const [familyName, setFamilyName] = useState("");
   const [organisationName, setOrganisationName] = useState("");
-  return { classId, setClassId, startClock, setStartClock,
-    transferStartSlots, setTransferStartSlots, selectedTransferStartSlot, setSelectedTransferStartSlot, registrationStartSlots,
-    setRegistrationStartSlots, selectedRegistrationStartSlot, setSelectedRegistrationStartSlot, transferAttempt,
+  return { classId, setClassId, startClock, setStartClock, transferAttempt,
     setTransferAttempt, newCard, setNewCard, cardAttempt, setCardAttempt, rentalAttempt, setRentalAttempt, rentalReturnAttempt,
     setRentalReturnAttempt, rentalReuseAttempt, setRentalReuseAttempt, rentalReuseSourceId, setRentalReuseSourceId,
     paymentStatusAttempt, setPaymentStatusAttempt, paymentStatus, setPaymentStatus, timeAttempt, setTimeAttempt,
@@ -70,50 +63,13 @@ export function deriveEntryActions(s: WorkspaceState, { selected }: Pick<Roster,
  * formuläret skickas. Klassbyte, starttid och anmälan har kvar ett granskningssteg (ADR-0169 beslut 4).
  */
 export function createEntryActions(ws: Base & RaceDataActions) {
-  const { raceId, data, entryId, classId, startClock, transferStartSlots, selectedTransferStartSlot,
-    registrationStartSlots, selectedRegistrationStartSlot, newCard, rentalReuseSourceId, paymentStatus, givenName, familyName,
+  const { raceId, data, entryId, classId, startClock, newCard, rentalReuseSourceId, paymentStatus, givenName, familyName,
     organisationName, confirmDistinctPerson, target, targetFull, identityCandidate, identityMatches, busyRef, pending, sent,
-    requireSession, begin, beginRequest, finish, current, request, json, csrf, load, setTransferStartSlots,
-    setSelectedTransferStartSlot, setRegistrationStartSlots, setSelectedRegistrationStartSlot, setGivenName, setFamilyName,
+    requireSession, begin, finish, current, request, json, csrf, load, setGivenName, setFamilyName,
     setOrganisationName, setIdentityCandidates, setMessage, setUnknown, setTransferAttempt, setData, setEntryId, setClassId,
     setNewCard, setStartClock, setCardAttempt, setRentalAttempt, setRentalReturnAttempt,
     setRentalReuseAttempt, setRentalReuseSourceId, setPaymentStatusAttempt, setTimeAttempt, setIdentityAttempt, setQuery,
     setPage, setConfirmDistinctPerson, setRegistrationAttempt, setResultState, setAction } = ws;
-  async function loadTransferStartSlots(targetClassId: string) {
-    const entry = data?.entries.find(row => row.id === entryId);
-    const target = data?.classes.find(row => row.id === targetClassId);
-    setTransferStartSlots(undefined); setSelectedTransferStartSlot("");
-    if (!entry || !target || target.startRule !== "FIXED" || !requireSession()) return;
-    const op = beginRequest();
-    try {
-      const response = await request(`/entries/${entry.id}/transfer-start-slot-candidates/${target.id}`, op);
-      if (!response.ok) throw new Error("Transfer start slots unavailable");
-      const value = entryTransferStartSlotCandidatesSchema.parse(await json(response, op));
-      if (value.raceId !== raceId || value.entryId !== entry.id || value.targetClassId !== target.id ||
-        value.snapshotVersion !== data?.snapshotVersion || value.targetCapacityVersion !== target.capacityVersion) {
-        throw new Error("Transfer start slots scope mismatch");
-      }
-      setTransferStartSlots(value);
-    } catch { if (current(op)) setTransferStartSlots(undefined); }
-    finally { finish(op); }
-  }
-  async function loadRegistrationStartSlots(targetClassId: string) {
-    const target = data?.classes.find(row => row.id === targetClassId);
-    setRegistrationStartSlots(undefined); setSelectedRegistrationStartSlot("");
-    if (!target || target.startRule !== "FIXED" || !requireSession()) return;
-    const op = beginRequest();
-    try {
-      const response = await request(`/registration-start-slot-candidates/${target.id}`, op);
-      if (!response.ok) throw new Error("Registration start slots unavailable");
-      const value = entryRegistrationStartSlotCandidatesSchema.parse(await json(response, op));
-      if (value.raceId !== raceId || value.targetClassId !== target.id || value.snapshotVersion !== data?.snapshotVersion ||
-        value.targetCourseVersionId !== target.courseVersionId || value.timeZone !== data.timeZone) {
-        throw new Error("Registration start slots scope mismatch");
-      }
-      setRegistrationStartSlots(value);
-    } catch { if (current(op)) setRegistrationStartSlots(undefined); }
-    finally { finish(op); }
-  }
   async function loadIdentity(selectedId = entryId) {
     if (busyRef.current || pending.current || !requireSession()) return;
     const op = begin(); setGivenName(""); setFamilyName(""); setOrganisationName("");
@@ -139,9 +95,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
     const previous = data?.classes.find((row) => row.id === entry?.classId);
     if (!data || !entry || !target || !previous || entry.classId === target.id) { setMessage(text.invalid); return; }
     if (target.maxEntries !== null && target.entryCount >= target.maxEntries) { setMessage(text.classFull); return; }
-    const selectedSlot = transferStartSlots?.targetClassId === target.id && transferStartSlots.plan.status === "AVAILABLE"
-      ? transferStartSlots.plan.slots.find(slot => slot.fixedStartTime === selectedTransferStartSlot) : undefined;
-    const fixedStartTime = target.startRule === "FIXED" ? selectedSlot?.fixedStartTime ?? parseRaceClock(data.raceDate, startClock, data.timeZone) : null;
+    const fixedStartTime = target.startRule === "FIXED" ? parseRaceClock(data.raceDate, startClock, data.timeZone) : null;
     if (target.startRule === "FIXED" && fixedStartTime === null) { setMessage(text.invalidTime); return; }
     const value: TransferAttempt = { kind: "TRANSFER", id: crypto.randomUUID(), entryId: entry.id, displayName: entry.displayName,
       previousClassId: entry.classId, previousClassName: previous.name, className: target.name,
@@ -149,10 +103,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
         expectedEntryVersion: entry.version, expectedClassId: entry.classId,
         expectedSnapshotVersion: data.snapshotVersion, expectedFixedStartTime: entry.fixedStartTime,
         expectedTargetCourseVersionId: target.courseVersionId, expectedTargetStartRule: target.startRule,
-        expectedTargetCapacityVersion: target.capacityVersion, fixedStartTime,
-        assignedStartSlot: selectedSlot && transferStartSlots?.plan.status === "AVAILABLE"
-          ? { drawRequestId: transferStartSlots.plan.drawRequestId, sourceHash: transferStartSlots.plan.sourceHash,
-            fixedStartTime: selectedSlot.fixedStartTime } : null }) };
+        fixedStartTime }) };
     pending.current = value; sent.current = false; setTransferAttempt(value); setUnknown(false); setMessage("");
   }
   async function submitTransfer(value: TransferAttempt) {
@@ -490,17 +441,14 @@ export function createEntryActions(ws: Base & RaceDataActions) {
   async function prepareRegistration(event: FormEvent) {
     event.preventDefault(); if (busyRef.current || pending.current || !requireSession()) return;
     if (!data || !target || targetFull) { setMessage(text.registrationInvalid); return; }
-    const selectedSlot = registrationStartSlots?.targetClassId === target.id && registrationStartSlots.plan.status === "AVAILABLE"
-      ? registrationStartSlots.plan.slots.find(slot => slot.fixedStartTime === selectedRegistrationStartSlot) : undefined;
     const parsed = entryRegistrationRequestSchema.safeParse({ formatVersion: 1, classId: target.id,
       expectedCourseVersionId: target.courseVersionId, expectedStartRule: target.startRule, expectedSnapshotVersion: data.snapshotVersion,
       givenName, familyName, organisationName: organisationName.trim() || null, cardNumber: newCard.trim() || null,
-      fixedStartTime: target.startRule === "FIXED" ? selectedSlot?.fixedStartTime ?? parseRaceClock(data.raceDate, startClock, data.timeZone) : null,
-      expectedTargetCapacityVersion: selectedSlot ? registrationStartSlots?.targetCapacityVersion : undefined,
-      assignedStartSlot: selectedSlot && registrationStartSlots?.plan.status === "AVAILABLE" ? {
-        drawRequestId: registrationStartSlots.plan.drawRequestId, sourceHash: registrationStartSlots.plan.sourceHash,
-        fixedStartTime: selectedSlot.fixedStartTime } : null });
-    if (!parsed.success) { setMessage(text.registrationInvalid); return; }
+      // Lottad klass: appen ger första lediga vakanta tid när anmälan sparas (PLAN.md steg 9).
+      fixedStartTime: target.startRule === "FIXED" && !target.startDrawn ? parseRaceClock(data.raceDate, startClock, data.timeZone) : null });
+    if (!parsed.success || (target.startRule === "FIXED" && !target.startDrawn && parsed.data.fixedStartTime === null)) {
+      setMessage(text.registrationInvalid); return;
+    }
     const frozen = { kind: "REGISTRATION" as const, id: crypto.randomUUID(), className: target.name, timeZone: data.timeZone, request: parsed.data };
     const op = begin(); setConfirmDistinctPerson(false); setMessage(text.registrationSearching);
     try {
@@ -543,7 +491,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
       if (current(op)) { setUnknown(!committed); setMessage(committed ? text.registrationSavedLoadError : text.unreachable); }
     } finally { finish(op); }
   }
-  return { loadTransferStartSlots, loadRegistrationStartSlots, loadIdentity, prepareTransfer, submitTransfer, prepareCard,
+  return { loadIdentity, prepareTransfer, submitTransfer, prepareCard,
     submitCard, prepareRental, submitRental, prepareRentalReturn, submitRentalReturn, prepareRentalReuse, submitRentalReuse,
     preparePaymentStatus, submitPaymentStatus, prepareTime, submitTime, prepareIdentity, submitIdentity, prepareRegistration,
     submitRegistration };

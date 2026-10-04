@@ -1,8 +1,8 @@
-import { listClassStartDrawClassesAsAdmin, previewClassStartDrawAsAdmin, commitClassStartDrawAsAdmin,
-  listFixedStartSlotPlansAsAdministrator, listResultFinalizationCandidatesAsAdmin, finalizeResultsAsAdmin,
+import { loadStartDrawSetupAsAdministrator, previewStartDrawAsAdministrator, commitStartDrawAsAdministrator,
+  listResultFinalizationCandidatesAsAdmin, finalizeResultsAsAdmin,
   exportIofResultListAsAdmin, exportFrozenIofResultListAsAdmin, listFrozenRaceFinalizationsAsAdmin,
   authenticatePairingAdminSession, changeEntryClassAsAdmin, listEntryClassesAsAdmin, logoutPairingAdminSession,
-  listEntryTransfersAsAdministrator, listEntryTransferStartSlotsAsAdministrator, transferEntryAsAdministrator,
+  listEntryTransfersAsAdministrator, transferEntryAsAdministrator,
   changeClassCapacityAsAdministrator, editClassAsAdministrator, previewClassEditAsAdministrator,
   createManualCourseClassAsAdministrator, createManualClassAsAdministrator, listCoursesForEditAsAdministrator, previewCourseEditAsAdministrator,
   editCourseAsAdministrator, previewShortenedCourseClassTransferAsAdministrator, transferShortenedCourseClassAsAdministrator,
@@ -16,7 +16,7 @@ import { listClassStartDrawClassesAsAdmin, previewClassStartDrawAsAdmin, commitC
   changeEntryPaymentStatusAsAdministrator, changeEntryStartTimeAsAdmin, listResultRecalculationCandidatesAsAdmin,
   recalculateEntryAsAdmin, getAdministratorEffectiveResult, listSpeakerBoardAsAdministrator,
   listClassResultRecalculationCandidatesAsAdministrator, recalculateClassResultsAsAdministrator,
-  listEntryIdentitiesAsAdmin, changeEntryIdentityAsAdmin, registerEntryAsAdmin, listEntryRegistrationStartSlotsAsAdmin,
+  listEntryIdentitiesAsAdmin, changeEntryIdentityAsAdmin, registerEntryAsAdmin,
   listEntryRegistrationCandidatesAsAdmin, listAdministratorEntryChanges, listDidNotStartCandidatesAsAdmin,
   decideDidNotStartAsAdmin, listDidNotStartWithdrawalsAsAdmin, withdrawDidNotStartAsAdmin,
   listDidNotFinishCandidatesAsAdmin, decideDidNotFinishAsAdmin, listDidNotFinishWithdrawalsAsAdmin,
@@ -36,13 +36,12 @@ import { entryClassAdminFailure as failure, type entryClassAdminSessionProof } f
 
 /** Tjänsterna som administratörsroutes använder. Tester kan ersätta enskilda tjänster. */
 export const raceAdministratorServices = { conflictCandidate: readStartCheckinConflictReviewAsAdmin, reviewConflicts: reviewStartCheckinConflictsAsAdmin, checkinHistory: listCheckinHistoryAsAdmin, correctStart: correctAdministratorStart, withdrawReturn: withdrawAdministratorReturn, manualReturn: registerAdministratorReturn, forestWatch: listAdministratorForestWatch, publicationPreview: getStartListPublicationPreviewAsAdmin, publication: decideStartListPublicationAsAdmin,
-  drawClasses: listClassStartDrawClassesAsAdmin, drawPreview: previewClassStartDrawAsAdmin, draw: commitClassStartDrawAsAdmin,
-  fixedStartSlotPlans: listFixedStartSlotPlansAsAdministrator,
+  drawSetup: loadStartDrawSetupAsAdministrator, drawPreview: previewStartDrawAsAdministrator, draw: commitStartDrawAsAdministrator,
   finalizationCandidates: listResultFinalizationCandidatesAsAdmin, finalize: finalizeResultsAsAdmin,
   frozenResults: listFrozenRaceFinalizationsAsAdmin, frozenResult: exportFrozenIofResultListAsAdmin,
   resultExport: exportIofResultListAsAdmin, authenticate: authenticatePairingAdminSession,
   logout: logoutPairingAdminSession, participants: listEntryClassesAsAdmin, changeClass: changeEntryClassAsAdmin,
-  transferCandidates: listEntryTransfersAsAdministrator, transferStartSlotCandidates: listEntryTransferStartSlotsAsAdministrator,
+  transferCandidates: listEntryTransfersAsAdministrator,
   transfer: transferEntryAsAdministrator, capacity: changeClassCapacityAsAdministrator,
   manualCourseClass: createManualCourseClassAsAdministrator,
   manualClass: createManualClassAsAdministrator,
@@ -70,7 +69,7 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   effectiveResult: getAdministratorEffectiveResult, speakerBoard: listSpeakerBoardAsAdministrator,
   identityCandidates: listEntryIdentitiesAsAdmin, identity: changeEntryIdentityAsAdmin,
   registration: registerEntryAsAdmin, registrationCandidates: listEntryRegistrationCandidatesAsAdmin,
-  registrationStartSlotCandidates: listEntryRegistrationStartSlotsAsAdmin,
+
   changes: listAdministratorEntryChanges, dnsCandidates: listDidNotStartCandidatesAsAdmin, dns: decideDidNotStartAsAdmin,
   dnsWithdrawals: listDidNotStartWithdrawalsAsAdmin, dnsWithdrawal: withdrawDidNotStartAsAdmin,
   dnfCandidates: listDidNotFinishCandidatesAsAdmin, dnf: decideDidNotFinishAsAdmin,
@@ -85,11 +84,9 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   ntWithdrawals: listWithoutTimingWithdrawalsAsAdmin, ntWithdrawal: withdrawWithoutTimingAsAdmin,
   operatorAccesses: listRaceOperatorAccessAsAdministrator, issueOperatorAccess: issueRaceOperatorAccessAsAdministrator,
   revokeOperatorAccess: revokeRaceOperatorAccessAsAdministrator };
-export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: string } | { kind: "review-conflicts" } | { kind: "checkin-history"; entryId: string } | { kind: "start-correction" } | { kind: "manual-return-withdrawal" } | { kind: "manual-return" } | { kind: "forest-watch" } | { kind: "publication-preview" } | { kind: "publication" } | { kind: "draw-classes" } | { kind: "draw-preview" } | { kind: "draw" } | { kind: "fixed-start-slot-plans" } |
+export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: string } | { kind: "review-conflicts" } | { kind: "checkin-history"; entryId: string } | { kind: "start-correction" } | { kind: "manual-return-withdrawal" } | { kind: "manual-return" } | { kind: "forest-watch" } | { kind: "publication-preview" } | { kind: "publication" } | { kind: "draw-preview" } | { kind: "draw" } |
   { kind: "finalization-candidates" } | { kind: "finalize" } | { kind: "frozen-results" } | { kind: "frozen-result"; finalizationId: string } |
   { kind: "result-export" } | { kind: "session" } | { kind: "participants" } | { kind: "transfer-candidates" } |
-  { kind: "transfer-start-slot-candidates"; entryId: string; targetClassId: string } |
-  { kind: "registration-start-slot-candidates"; targetClassId: string } |
   { kind: "class"; entryId: string } | { kind: "transfer"; entryId: string } | { kind: "capacity"; classId: string } |
   { kind: "manual-course-class" } | { kind: "manual-class" } |
   { kind: "courses" } | { kind: "course-edit-preview"; courseId: string } | { kind: "course-edit"; courseId: string } |

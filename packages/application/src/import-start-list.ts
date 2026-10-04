@@ -109,6 +109,11 @@ export async function applyStartListImport(
     entryId: schema.resultRevisions.entryId
   }).from(schema.resultRevisions).where(inArray(schema.resultRevisions.entryId, changedEntryIds));
 
+  // Importerade starttider ersätter klassernas lottning; efteranmälda placeras inte längre automatiskt.
+  if (internalClassIds.length > 0) {
+    await tx.update(schema.classes).set({ startDrawId: null }).where(and(
+      inArray(schema.classes.id, internalClassIds), eq(schema.classes.raceId, raceId)));
+  }
   for (const raceClass of changedClasses) {
     await tx.update(schema.classes).set({ startRule: "FIXED" }).where(and(
       eq(schema.classes.id, raceClass.id),

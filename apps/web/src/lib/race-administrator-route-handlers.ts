@@ -90,6 +90,7 @@ function allowedMethods(action: Action): string[] {
     action.kind === "without-timing" || action.kind === "without-timing-withdrawal" || action.kind === "manual-course-class" || action.kind === "manual-class" ||
     action.kind === "course-edit-preview" || action.kind === "course-edit" ||
     action.kind === "class-edit-preview" || action.kind === "class-edit" ||
+    action.kind === "rogaining-preview" || action.kind === "rogaining" ||
     action.kind === "entry-variant-preview" || action.kind === "entry-variant" || action.kind === "class-variant-distribution" ||
     action.kind === "relay-class" || action.kind === "relay-team" || action.kind === "relay-leg-runner" ||
     action.kind === "relay-start-times" || action.kind === "race-settings" ? ["POST"] :

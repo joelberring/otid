@@ -281,3 +281,4 @@ export * from "./checkin-history";
 export * from "./administrator-forest-watch";
 export * from "./relay";
 export * from "./race-settings";
+export * from "./rogaining";

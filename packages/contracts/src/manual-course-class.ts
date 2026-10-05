@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { rogainingClassRulesInputSchema } from "./rogaining";
 
 const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 const version = z.number().int().positive().max(2_147_483_647);
@@ -10,7 +11,9 @@ const utcMilliseconds = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.
 
 export const manualCourseClassCreateRequestSchema = z.object({
   formatVersion: z.literal(1), requestId: uuid, expectedSnapshotVersion: version,
-  courseName: name, className: name, startRule, controlCodes: z.array(controlCode).min(1).max(1000)
+  courseName: name, className: name, startRule, controlCodes: z.array(controlCode).min(1).max(1000),
+  /** Rogainingtävling: klassen blir rogaining med tidsgräns och straff (ADR-0170 beslut 5). */
+  rogaining: rogainingClassRulesInputSchema.optional()
 }).strict();
 export const manualCourseClassCreateIdempotencyKeySchema = z.string().regex(
   /^manual-course-class-create:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);

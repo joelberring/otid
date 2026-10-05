@@ -159,6 +159,23 @@ describe("serializeIofResultList", () => {
       .toThrowError(/split för varje förväntad kontroll/);
   });
 
+  it("skriver rogainingens poäng som Score efter Status och placering utan tid efter (PLAN.md steg 15)", () => {
+    const scored: IofResultListEvaluatedPersonResult = { ...completeOk, elapsedMs: 2_000, position: 1,
+      expectedControls: [{ controlCode: 45, occurrence: 1 }, { controlCode: 31, occurrence: 1 }],
+      splits: [{ controlCode: 45, occurrence: 1, elapsedMs: 1_000 }, { controlCode: 31, occurrence: 1, elapsedMs: 1_500 }],
+      scores: [{ type: "Score", value: 5 }, { type: "Penalty", value: 2 }] };
+    const xml = text(serializeIofResultList({ status: "Snapshot", eventName: "Rogaining", classes: [{ className: "R1", results: [scored] }] }));
+    expect(xml).toContain([
+      "        <Position>1</Position>",
+      "        <Status>OK</Status>",
+      '        <Score type="Score">5</Score>',
+      '        <Score type="Penalty">2</Score>',
+      '        <SplitTime status="OK">'].join("\n"));
+    expect(xml).not.toContain("<TimeBehind>");
+    expect(() => serializeIofResultList({ status: "Snapshot", eventName: "Rogaining", classes: [{ className: "R1",
+      results: [{ ...scored, timeBehindMs: 0 }] }] })).toThrow(IofResultListSerializationError);
+  });
+
   it("ger identiska UTF-8-bytes och bevarar projektionens ordning", () => {
     const first = serializeIofResultList(projection);
     for (let index = 0; index < 100; index += 1) {

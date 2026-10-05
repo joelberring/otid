@@ -1,5 +1,5 @@
 import type { ReadoutPackage, SportidentReadoutPayload } from "@o-tid/contracts";
-import { courseVariantForReadout, evaluateCardReadout, type EvaluationResult, type RaceSnapshot } from "@o-tid/domain";
+import { courseVariantForReadout, evaluateCardReadout, type EvaluationResult, type RaceSnapshot, type RogainingScore } from "@o-tid/domain";
 import { localRelay, relaySnapshot, type LocalRelay } from "./relay";
 
 /** Det som avläsningsvyn visar direkt efter en avläsning, före serverns svar. */
@@ -16,6 +16,8 @@ export interface LocalVerdict {
   readonly splits: readonly { readonly controlCode: number; readonly elapsedMs: number; readonly legMs: number }[];
   /** Stafett: laget, sträckan och lagets resultat efter sträckan. */
   readonly relay?: LocalRelay;
+  /** Rogaining (ADR-0170 beslut 5): poäng, straff, summa och de räknade kontrollerna. */
+  readonly rogaining?: RogainingScore;
 }
 
 /**
@@ -49,6 +51,7 @@ export function evaluateLocally(payload: SportidentReadoutPayload, pkg: ReadoutP
     ...(raceClass ? { className: raceClass.name } : {}),
     ...(variant ? { variant } : {}),
     ...(result.elapsedMs !== undefined ? { elapsedMs: result.elapsedMs } : {}),
+    ...(result.rogaining ? { rogaining: result.rogaining } : {}),
     missingControls: result.missingControls,
     splits: result.splits.map((split) => ({ controlCode: split.controlCode, elapsedMs: split.elapsedMs, legMs: split.legMs }))
   };

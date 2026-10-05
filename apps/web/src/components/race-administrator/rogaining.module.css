@@ -1,0 +1,22 @@
+/* Kontroller & poäng (ADR-0170 beslut 5): täta fält i gråskala; ändrade värden märks med ord, inte färg. */
+.form { display: grid; gap: 16px; min-width: 0; }
+.part { display: grid; gap: 8px; min-width: 0; }
+.part h3 { margin: 0; font-size: var(--text-md); font-weight: 600; }
+.rules { max-width: 40rem; }
+.rules td { width: 11rem; }
+.note { display: block; color: var(--muted); font-size: var(--text-xs); font-weight: 400; }
+.number { width: 5.5rem; min-height: 34px; padding: 2px 8px; text-align: right; font-family: var(--font-dense); font-size: var(--text-md);
+  font-variant-numeric: tabular-nums; }
+.controls { display: grid; grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); gap: 0; margin: 0; padding: 0; list-style: none;
+  border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.controls li { display: grid; gap: 2px; align-content: start; min-width: 0; padding: 6px 10px; border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line); background: var(--surface); }
+.controls label { display: flex; align-items: center; gap: 8px; }
+.code { min-width: 2.6rem; font-family: var(--font-dense); font-size: var(--text-md); font-weight: 700; font-variant-numeric: tabular-nums; }
+.controls .number { width: 3.6rem; }
+.unit { color: var(--muted); font-size: var(--text-xs); }
+@media (max-width: 480px) {
+  .controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rules td { width: auto; }
+  .number { width: 4.5rem; }
+}

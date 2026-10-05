@@ -319,7 +319,7 @@ Se ADR-0170 beslut 4.
 första import, ändrad anmälan och struken löpare vid omläsning, ändrad bana i
 ny banfil.
 
-## [ ] Steg 15 – Rogaining
+## [x] Steg 15 – Rogaining
 
 Se ADR-0170 beslut 5.
 

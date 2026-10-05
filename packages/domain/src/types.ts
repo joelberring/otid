@@ -22,12 +22,23 @@ export interface Race {
 
 export type StartRule = "FIXED" | "PUNCH";
 
+/**
+ * ADR-0170 beslut 5: rogaining. Löparen stämplar valfria kontroller i banversionen (kontrollmängden)
+ * inom tidsgränsen; varje påbörjad minut över gränsen kostar `penaltyPointsPerMinute` poäng.
+ */
+export interface RogainingRules {
+  readonly timeLimitSeconds: number;
+  readonly penaltyPointsPerMinute: number;
+}
+
 export interface RaceClass {
   readonly id: UUID;
   readonly raceId: UUID;
   readonly name: string;
   readonly courseVersionId: UUID;
   readonly startRule: StartRule;
+  /** Rogainingklass (ADR-0170 beslut 5). Saknas = vanlig bana i ordning. */
+  readonly rogaining?: RogainingRules | undefined;
   readonly externalIdentity?: ExternalIdentity;
 }
 
@@ -47,6 +58,8 @@ export interface CourseControl {
   readonly controlId: UUID;
   readonly sequence: number;
   readonly controlCode: number;
+  /** Rogaining: kontrollens poäng när arrangören ändrat förvalet (kontrollkoden delat med tio). */
+  readonly points?: number | undefined;
 }
 
 export interface CourseVariantControl {
@@ -171,6 +184,28 @@ export interface SplitTime {
   readonly legMs: number;
 }
 
+/** En räknad rogainingkontroll: koden och poängen den gav. */
+export interface RogainingControl {
+  readonly controlCode: number;
+  readonly points: number;
+}
+
+/** Rogaining (ADR-0170 beslut 5): kontrollernas poäng, straffet och summan. */
+export interface RogainingScore {
+  /** Summan av de unika kontrollernas poäng. */
+  readonly controlPoints: number;
+  /** Straffpoäng för påbörjade minuter över tidsgränsen. */
+  readonly penalty: number;
+  /** Kontrollpoäng minus straff, aldrig under noll. */
+  readonly total: number;
+  readonly timeLimitMs: number;
+  readonly penaltyPointsPerMinute: number;
+  /** Påbörjade minuter över tidsgränsen. */
+  readonly overtimeMinutes: number;
+  /** De räknade kontrollerna i stämplingsordning (varje kontroll en gång). */
+  readonly controls: readonly RogainingControl[];
+}
+
 export interface EvaluationResult {
   readonly status: EvaluationStatus;
   readonly reason: EvaluationReason;
@@ -183,6 +218,8 @@ export interface EvaluationResult {
   readonly missingControls: readonly number[];
   readonly extraPunches: readonly number[];
   readonly splits: readonly SplitTime[];
+  /** Rogainingklass med start och mål: poängen. */
+  readonly rogaining?: RogainingScore | undefined;
 }
 
 /**

@@ -20,6 +20,7 @@ import {
 } from "./result-reassessment";
 import { insertCourseVersionControls, loadCourseVersionVariants, type StoredCourseVariant } from "./course-variants";
 import { PLACEHOLDER_COURSE } from "./source-sync-model";
+import { loadRogainingSetup } from "./rogaining";
 
 /**
  * Redigera bana (ADR-0169 beslut 4): ändra en banas kontrollföljd, även när
@@ -158,8 +159,11 @@ export async function listCoursesForEditAsAdministrator(db: Database, input: Aut
           return code === null || code === undefined || !codes.includes(code);
         }).length };
     });
+    // Kontroller & poäng (ADR-0170 beslut 5): koderna som banorna använder i dag.
+    const rogaining = await loadRogainingSetup(tx, raceId, rows.flatMap(row => [...row.controlCodes,
+      ...row.variants.flatMap(variant => variant.controlCodes)]));
     return { status: "ok", response: courseEditListResponseSchema.parse({ formatVersion: 1, raceId,
-      snapshotVersion: race.snapshotVersion, courses: rows, classes }) };
+      snapshotVersion: race.snapshotVersion, courses: rows, classes, rogaining }) };
   });
 }
 

@@ -73,6 +73,14 @@
 .person:hover:not(:disabled) { background: transparent; text-decoration-color: currentcolor; }
 .table a { font-weight: 600; }
 .attention { color: var(--attention); font-weight: 600; }
+/* Rogaining: summan i fetstil, räknade kontroller som en rad som bryts. */
+.strong { font-weight: 700; }
+.nameCol { width: 13rem; }
+.scoreCol { width: 5rem; }
+.scoredTable :is(th, td) { vertical-align: top; }
+.scoredControls li { white-space: nowrap; }
+.scoredControls { display: flex; flex-wrap: wrap; gap: 2px 14px; margin: 0; padding: 0; list-style: none; font-family: var(--font-dense);
+  font-size: var(--text-sm); }
 .table .vacant > * { color: var(--muted); font-style: italic; }
 
 /* Status: ord först, färg bara som förstärkning */
@@ -123,6 +131,8 @@
   .time { width: 4.6rem; }
   .card { width: 5.2rem; }
   .statusCol { width: 6.5rem; }
+  .nameCol { width: 6.5rem; }
+  .scoreCol { width: 3.4rem; }
 }
 
 @media print {

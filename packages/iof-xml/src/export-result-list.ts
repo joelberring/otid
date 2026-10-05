@@ -16,6 +16,12 @@ export interface IofResultListSplit {
   readonly elapsedMs: number;
 }
 
+/** IOF 3.0 Score, t.ex. rogainingens summa (type="Score") och straff (type="Penalty"). */
+export interface IofResultListScore {
+  readonly type: string;
+  readonly value: number;
+}
+
 export interface IofResultListManualApprovalProof {
   /** Internal approval-decision identity; never written to the IOF document. */
   readonly decisionId: string;
@@ -42,6 +48,8 @@ export interface IofResultListEvaluatedPersonResult extends IofResultListPersonR
   readonly splits: readonly IofResultListSplit[];
   /** Stämplade kontroller utan giltig tid (före start eller efter mål): SplitTime utan Time (PLAN.md steg 13). */
   readonly untimedControls?: readonly IofResultListExpectedControl[];
+  /** Rogaining: poäng. En klass med poäng rangordnas på poäng, så placering anges utan tid efter. */
+  readonly scores?: readonly IofResultListScore[];
   /**
    * Internal proof for an approved OK projection whose source has a missing
    * expected split. It is runtime-validated and intentionally never emitted.
@@ -60,6 +68,7 @@ export interface IofResultListOutOfCompetitionPersonResult extends IofResultList
   readonly expectedControls: readonly IofResultListExpectedControl[];
   readonly splits: readonly IofResultListSplit[];
   readonly untimedControls?: readonly IofResultListExpectedControl[];
+  readonly scores?: readonly IofResultListScore[];
   readonly manualApprovalProof?: never;
 }
 
@@ -74,6 +83,7 @@ export interface IofResultListDidNotFinishPersonResult extends IofResultListPers
   readonly expectedControls?: never;
   readonly splits?: never;
   readonly untimedControls?: never;
+  readonly scores?: never;
   readonly manualApprovalProof?: never;
 }
 
@@ -349,6 +359,7 @@ function validateResult(
       "expectedControls",
       "splits",
       "untimedControls",
+      "scores",
       "manualApprovalProof"
     ];
     for (const property of forbidden) {
@@ -370,8 +381,16 @@ function validateResult(
 
   const positionProvided = result.position !== undefined;
   const timeBehindProvided = result.timeBehindMs !== undefined;
-  if (positionProvided !== timeBehindProvided) {
-    issues.push(`${path}.position och ${path}.timeBehindMs måste anges tillsammans`);
+  const scored = result.scores !== undefined;
+  for (const [index, score] of (result.scores ?? []).entries()) {
+    if (!/^[A-Za-z][A-Za-z0-9]{0,31}$/.test(score.type) || !Number.isSafeInteger(score.value) || score.value < 0) {
+      issues.push(`${path}.scores[${index}] måste ha en typ och ett icke-negativt heltal`);
+    }
+  }
+  // En klass med poäng (rogaining) rangordnas på poäng: placering utan tid efter.
+  if (scored ? timeBehindProvided : positionProvided !== timeBehindProvided) {
+    issues.push(scored ? `${path}.timeBehindMs anges inte för poängresultat`
+      : `${path}.position och ${path}.timeBehindMs måste anges tillsammans`);
   }
   if ((positionProvided || timeBehindProvided) && result.status !== "OK") {
     issues.push(`${path}.position och ${path}.timeBehindMs får bara anges för status OK`);
@@ -557,8 +576,14 @@ function serializeResult(
     const type = team ? ' type="Leg"' : "";
     line(lines, base + 2, `<TimeBehind${type}>${millisecondsToSeconds(result.timeBehindMs)}</TimeBehind>`);
     line(lines, base + 2, `<Position${type}>${result.position}</Position>`);
+  } else if (result.position !== undefined && result.scores !== undefined) {
+    line(lines, base + 2, `<Position>${result.position}</Position>`);
   }
   line(lines, base + 2, `<Status>${iofStatus(result.status)}</Status>`);
+  // IOF 3.0: Score kommer efter Status.
+  if (result.status !== "DNF") for (const score of result.scores ?? []) {
+    line(lines, base + 2, `<Score type="${escapeXml(score.type)}">${score.value}</Score>`);
+  }
   const overall = team?.overall;
   if (overall) {
     line(lines, base + 2, "<OverallResult>");

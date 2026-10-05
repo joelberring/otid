@@ -75,7 +75,8 @@ export async function loadRaceSnapshot(db: DbExecutor, raceId: string): Promise<
     courseVersionId: schema.courseControls.courseVersionId,
     controlId: schema.courseControls.controlId,
     sequence: schema.courseControls.sequence,
-    controlCode: schema.controls.code
+    controlCode: schema.controls.code,
+    points: schema.controls.points
   }).from(schema.courseControls)
     .innerJoin(schema.controls, eq(schema.courseControls.controlId, schema.controls.id))
     .innerJoin(schema.courseVersions, eq(schema.courseControls.courseVersionId, schema.courseVersions.id))
@@ -134,6 +135,9 @@ export async function loadRaceSnapshot(db: DbExecutor, raceId: string): Promise<
       name: row.name,
       courseVersionId: row.courseVersionId,
       startRule: row.startRule,
+      // Rogaining (ADR-0170 beslut 5): tidsgräns och straff följer med till avläsningens paket.
+      ...(row.rogainingTimeLimitSeconds !== null && row.rogainingPenaltyPointsPerMinute !== null ? { rogaining: {
+        timeLimitSeconds: row.rogainingTimeLimitSeconds, penaltyPointsPerMinute: row.rogainingPenaltyPointsPerMinute } } : {}),
       ...(row.externalId ? { externalIdentity: { source: "iof" as const, externalId: row.externalId } } : {})
     })),
     courses: courseRows.map((course) => ({
@@ -151,7 +155,9 @@ export async function loadRaceSnapshot(db: DbExecutor, raceId: string): Promise<
           courseId: version.courseId,
           version: version.version,
           createdAt: version.createdAt.toISOString(),
-          controls: courseControlRows.filter((control) => control.courseVersionId === version.id),
+          // Ändrade rogainingpoäng följer med; NULL betyder förvalet.
+          controls: courseControlRows.filter((control) => control.courseVersionId === version.id)
+            .map(({ points, ...control }) => points === null ? control : { ...control, points }),
           ...(variants.length > 0 ? { variants } : {})
         };
       })

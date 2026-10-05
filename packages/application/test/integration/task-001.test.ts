@@ -3331,7 +3331,7 @@ describe("TASK 005A signerat stationspaket", () => {
       formatVersion: 1,
       raceId,
       packageVersion: overview.race.snapshotVersion,
-      resultEngineVersion: "0.1.1",
+      resultEngineVersion: "0.2.0",
       stationFunction: "READOUT",
       event: {
         name: overview.race.eventName,

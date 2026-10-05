@@ -13,6 +13,7 @@ export {
   type IofResultListManualApprovalProof,
   type IofResultListPersonResult,
   type IofResultListProjection,
+  type IofResultListScore,
   type IofResultListSplit,
   type IofResultListSnapshotProjection,
   type IofResultListStatus,

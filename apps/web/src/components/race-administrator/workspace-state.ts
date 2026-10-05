@@ -7,6 +7,7 @@ import { createResultDecisionActions, useResultDecisionState } from "./result-de
 import { createCoursePreparationActions, useCoursePreparationState } from "./course-preparation";
 import { createCourseEditActions, useCourseEditState } from "./course-edit";
 import { createClassEditActions, useClassEditState } from "./class-edit";
+import { createRogainingActions, useRogainingState } from "./rogaining-actions";
 import { createCourseVariantActions, useCourseVariantState } from "./course-variant-actions";
 import { createRelayActions, useRelayState } from "./relay-actions";
 import { createStatusChangeActions, useStatusChangeState } from "./status-change";
@@ -21,6 +22,7 @@ import { createSettingsActions, useSettingsState } from "./settings-actions";
 export function useWorkspaceState(raceId: string) {
   return { raceId, ...useOperationState(), ...useNavigationState(), ...useRaceDataState(), ...useRosterState(),
     ...useEntryActionState(), ...useResultDecisionState(), ...useCoursePreparationState(), ...useCourseEditState(), ...useClassEditState(),
+    ...useRogainingState(),
     ...useCourseVariantState(), ...useRelayState(),
     ...useClassPreparationState(), ...useStatusChangeState(),
     ...useStartListState(), ...useStartDrawState(), ...useDuringRaceState(), ...useAfterRaceState(), ...useSettingsState() };
@@ -37,14 +39,15 @@ export function deriveWorkspace(s: WorkspaceState) {
     !!s.rentalAttempt || !!s.rentalReturnAttempt || !!s.rentalReuseAttempt || !!s.timeAttempt ||
     !!s.recalculationAttempt || !!s.identityAttempt || !!s.registrationAttempt || !!s.dnsAttempt || !!s.dnfAttempt ||
     !!s.ntAttempt || !!s.oocAttempt || !!s.dsqAttempt || !!s.approvalAttempt || !!s.courseEditAttempt ||
-    !!s.unknownReadoutAttempt || !!s.manualClassAttempt || !!s.classEditAttempt || !!s.entryVariantPreview;
+    !!s.unknownReadoutAttempt || !!s.manualClassAttempt || !!s.classEditAttempt || !!s.entryVariantPreview ||
+    !!s.rogainingAttempt;
   const disabled = s.busy || editing;
   // Låser byte av steg medan något granskas eller väntar på kvitto. En pågående läsning låser inte
   // checklistan: att byta steg medan data hämtas är ofarligt.
   const navigationLocked = editing || !!s.pending.current || !!s.reviewCandidate ||
     !!s.courseClassAttempt || !!s.manualClassAttempt ||
     !!s.editingCourseId || !!s.courseEditAttempt || !!s.editingClassId || !!s.classEditAttempt || !!s.shortenedCourseCandidate ||
-    !!s.shortenedCourseAttempt || !!s.classRecalculationAttempt;
+    !!s.shortenedCourseAttempt || !!s.classRecalculationAttempt || !!s.rogainingAttempt;
   const workflowLocked = s.busy || navigationLocked;
   return { ...deriveSections(s), ...roster, ...deriveEntryActions(s, roster), ...deriveClassPreparation(s),
     ...during, ...deriveAfterRace(s), disabled, navigationLocked, workflowLocked };
@@ -69,7 +72,7 @@ export function useWorkspace(raceId: string) {
   const withDecisions = { ...withCourses, ...createResultDecisionActions(withCourses) };
   const withAreas = { ...withDecisions, ...withRelay, ...createDuringRaceActions(withRelay), ...createStartListActions(withData),
     ...createStartDrawActions(withData),
-    ...createCoursePreparationActions(withData), ...createClassEditActions(withCourses), ...createClassPreparationActions(withData),
+    ...createCoursePreparationActions(withData), ...createClassEditActions(withCourses), ...createRogainingActions(withCourses), ...createClassPreparationActions(withData),
     ...createCourseVariantActions(withCourses),
     ...createStatusChangeActions(withDecisions), ...createEntryActions(withData), ...createAfterRaceActions(withData),
     ...createSettingsActions(withData) };

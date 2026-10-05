@@ -26,3 +26,4 @@ export * from "./relay";
 export * from "./split-table";
 export * from "./source-sync";
 export * from "./race-clock";
+export * from "./rogaining";

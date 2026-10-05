@@ -125,6 +125,36 @@ describe("resultatlistorna", () => {
   });
 });
 
+describe("rogaining i resultatlistorna (PLAN.md steg 15)", () => {
+  const score = (controlPoints: number, penalty: number, controls: [number, number][]) => ({ controlPoints, penalty,
+    total: Math.max(0, controlPoints - penalty), timeLimitMs: 3_600_000, penaltyPointsPerMinute: 2, overtimeMinutes: penalty / 2,
+    controls: controls.map(([controlCode, points]) => ({ controlCode, points })) });
+  const scored: PublicResultListResponse = { formatVersion: 7, results: [
+    { className: "R60", publicResultId: "00000000-0000-4000-8000-000000000011", givenName: "Ada", familyName: "Ek", organisationName: "OK Ek",
+      revision: 1, status: "OK", reason: "COMPLETE", elapsedMs: 3_000_000, missingControls: [], extraPunches: [], rankingState: "RANKED",
+      position: 1, splits: [{ controlCode: 45, occurrence: 1, elapsedMs: 600_000, legMs: 600_000 }], rogaining: score(7, 0, [[45, 4], [31, 3]]) },
+    { className: "R60", publicResultId: "00000000-0000-4000-8000-000000000012", givenName: "Bo", familyName: "Al", organisationName: null,
+      revision: 1, status: "OK", reason: "COMPLETE", elapsedMs: 3_661_000, missingControls: [], extraPunches: [], rankingState: "RANKED",
+      position: 2, splits: [], rogaining: score(7, 4, [[45, 4], [31, 3]]) }] };
+  const model = resultListFromPublic(scored, { ...relay, classes: [] });
+
+  it("märker klassen och bär poäng, straff och summa", () => {
+    expect(model.classes[0]!.scored).toBe(true);
+    expect(model.classes[0]!.rows.map(row => [row.place, row.score?.total])).toEqual([[1, 7], [2, 3]]);
+  });
+
+  it("CSV: poäng, straff och summa efter status; räknade kontroller i stället för sträcktider", () => {
+    const lines = resultListCsv("CLASS", model).slice(1).split("\r\n");
+    expect(lines[0]).toBe("Klass;Placering;Namn;Klubb;Tid;Efter;Status;Poäng;Straff;Summa");
+    expect(lines[2]).toBe("R60;2;Bo Al;;1:01:01;;Godkänd;7;4;3");
+    const controls = resultListCsv("SPLITS", model).slice(1).split("\r\n");
+    expect(controls[0]).toBe("Klass;Placering;Namn;Klubb;Summa;Tid;Status;Kontroll;Poäng;Totaltid");
+    expect(controls[1]).toBe("R60;1;Ada Ek;OK Ek;7;50:00;Godkänd;45;4;10:00");
+    expect(controls[2]).toBe("R60;1;Ada Ek;OK Ek;7;50:00;Godkänd;31;3;");
+    expect(resultListCsv("CLUB", model).slice(1).split("\r\n")[0]).toBe("Klubb;Namn;Lag;Klass;Placering;Tid;Status;Summa");
+  });
+});
+
 describe("CSV för startlistor", () => {
   it("tar bara med bricka när listan har bricka och skriver vakanta tider", () => {
     const admin = startListCsv("CLASS", classes.slice(0, 1), "UTC", true).slice(1).split("\r\n");

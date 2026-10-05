@@ -11,7 +11,7 @@ import {
   type ManualFinishTimeCorrectionResponse
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import type { EvaluationResult } from "@o-tid/domain";
+import { rescoreRogaining, type EvaluationResult } from "@o-tid/domain";
 import {
   authenticatePairingAdminSession,
   authenticatePairingAdminSessionForMutation,
@@ -190,7 +190,9 @@ export async function correctManualFinishTimeAsAdministrator(
           (current.candidate.source.latestMatchedSplitElapsedMs !== null && elapsedMs < current.candidate.source.latestMatchedSplitElapsedMs)) {
         return { status: "conflict" };
       }
-      const outcome = { ...current.outcome, finishTime, elapsedMs };
+      // Rogaining: ny löptid ger nytt straff (ADR-0170 beslut 5).
+      const outcome = { ...current.outcome, finishTime, elapsedMs,
+        ...("rogaining" in current.outcome && current.outcome.rogaining ? { rogaining: rescoreRogaining(current.outcome.rogaining, elapsedMs) } : {}) };
       const createdResultRevisionId = randomUUID();
       const createdResultRevision = current.source.revision + 1;
       const response = manualFinishTimeCorrectionResponseSchema.parse({ formatVersion: 1, replayed: false,

@@ -9,7 +9,7 @@ export const raceTypeSv = {
     STANDARD: { name: "Tävling", help: "Lottning, import, speaker och fastställda resultat." },
     FORKED: { name: "Tävling med gafflade banor", help: "Som Tävling, med banvarianter och gafflingskontroll." },
     RELAY: { name: "Stafett", help: "Lag och sträckor, masstart och omstart, lagresultat och speaker." },
-    ROGAINING: { name: "Rogaining", help: "Poäng per kontroll och tidsgräns. Poängbedömningen kommer i nästa version." }
+    ROGAINING: { name: "Rogaining", help: "Valfria kontroller med poäng, tidsgräns och straff. Resultat på poäng, sedan tid." }
   } satisfies Record<RaceType, { name: string; help: string }>,
   typeLegend: "Typ av tävling",
   sections: {
@@ -27,7 +27,6 @@ export const raceTypeSv = {
   liveState: "Läget just nu",
   live: { readOut: "avlästa", inForest: "kvar i skogen", unknown: (count: number) => count === 1 ? "okänd bricka" : "okända brickor" },
   shortcuts: "Genvägar",
-  rogainingNote: "Rogaining-klasser kommer i nästa version. Tills dess kan du lägga upp kontrollerna som en bana och läsa av som vanligt.",
   settings: {
     title: "Inställningar",
     help: "Namn, datum och typ. Att byta typ ändrar bara vilka delar som syns; inget tas bort.",

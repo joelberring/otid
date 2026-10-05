@@ -31,7 +31,7 @@ test("varje tävlingstyp visar sina delar och inga andra", async ({ browser }) =
     for (const name of ALL) await expect(sectionButton(owner, name)).toHaveCount(EXPECTED[type].includes(name) ? 1 : 0);
     await expect(sectionButton(owner, "Inställningar")).toHaveAccessibleDescription(type);
     await expect(owner.getByRole("link", { name: /Öppna speaker/ })).toHaveCount(SPEAKER[type] ? 1 : 0);
-    if (type === "Rogaining") await expect(owner.getByText("Rogaining-klasser kommer i nästa version", { exact: false })).toBeVisible();
+    if (type === "Rogaining") await expect(owner.getByText("Inga kontroller ännu")).toBeVisible();
     if (type === "Träning") {
       // Fri start och ingen lottning: inget startsätt att välja när banan och klassen skapas.
       await expect(owner.getByLabel("Startupplägg")).toHaveCount(0);

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { relayReadoutSchema } from "./relay";
+import { rogainingPointsSchema, rogainingRulesSchema } from "./rogaining";
 
 export const STATION_PACKAGE_LIMITS = {
   publicKeySpkiBase64Characters: 16 * 1024,
@@ -36,6 +37,8 @@ const raceClassSchema = z.object({
   name: z.string().min(1).max(160),
   courseVersionId: uuidSchema,
   startRule: z.enum(["FIXED", "PUNCH"]),
+  /** Rogainingklass (ADR-0170 beslut 5): tidsgräns och straff. */
+  rogaining: rogainingRulesSchema.optional(),
   externalIdentity: externalIdentitySchema.optional()
 }).strict();
 
@@ -44,7 +47,9 @@ const courseControlSchema = z.object({
   courseVersionId: uuidSchema,
   controlId: uuidSchema,
   sequence: positiveIntegerSchema,
-  controlCode: positiveIntegerSchema
+  controlCode: positiveIntegerSchema,
+  /** Rogaining: kontrollens poäng när förvalet ändrats. */
+  points: rogainingPointsSchema.optional()
 }).strict();
 
 const courseVariantCodeSchema = z.string().min(1).max(32).refine((value) => value === value.trim());

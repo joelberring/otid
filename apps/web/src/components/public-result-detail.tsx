@@ -4,6 +4,7 @@ import { publicResultDetailResponseSchema, type PublicResultDetailResponse } fro
 import React, { useEffect, useRef, useState } from "react";
 import { sv } from "../i18n/sv";
 import { courseVariantsSv as variantText } from "../i18n/course-variants-sv";
+import { listsSv } from "../i18n/lists-sv";
 import { startPublicResultEventStream } from "../lib/public-result-event-stream-client";
 import { formatDuration } from "../lib/clock-time";
 
@@ -59,13 +60,19 @@ export function PublicResultDetail({ raceId, publicResultId, initial }: {
   if (unavailable) return <p role="alert">{sv.publicResultUnavailable}</p>;
   const { result } = response;
   const hasTimeBehind = "timeBehindMs" in result && result.timeBehindMs !== undefined;
+  // Rogaining (ADR-0170 beslut 5): summan i stället för tid efter, och de räknade kontrollerna.
+  const rogaining = "rogaining" in result ? result.rogaining : undefined;
   return <article className="public-result-detail">
     <header><p className="muted">{result.className}{"courseVariantCode" in result && result.courseVariantCode && ` · ${variantText.variantShort(result.courseVariantCode)}`}</p><h2>{result.givenName} {result.familyName}</h2>{result.organisationName && <p>{result.organisationName}</p>}</header>
     <dl><div><dt>{sv.publicResultsPosition}</dt><dd>{"position" in result ? result.position ?? "–" : "–"}</dd></div>
       <div><dt>{sv.publicResultsStatus}</dt><dd className={resultClass(result.status)}>{sv.publicResultsStatusLabels[result.status]}<br /><small>{sv.publicResultsReasonLabels[result.reason]}</small></dd></div>
       <div><dt>{sv.publicResultsTime}</dt><dd>{"elapsedMs" in result ? duration(result.elapsedMs) : "–"}</dd></div>
-      <div><dt>{sv.publicResultsTimeBehind}</dt><dd>{hasTimeBehind ? `+${duration(result.timeBehindMs)}` : "–"}</dd></div>
+      {rogaining ? <div><dt>{listsSv.results.total}</dt><dd>{listsSv.results.pointsShort(rogaining.total)}<br />
+        <small>{listsSv.results.points} {rogaining.controlPoints} · {listsSv.results.penalty} {rogaining.penalty}</small></dd></div>
+        : <div><dt>{sv.publicResultsTimeBehind}</dt><dd>{hasTimeBehind ? `+${duration(result.timeBehindMs)}` : "–"}</dd></div>}
     </dl>
+    {rogaining && rogaining.controls.length > 0 && <p><strong>{listsSv.results.scoredControls}:</strong> {rogaining.controls
+      .map(control => listsSv.results.scoredControl(control.controlCode, control.points)).join(", ")}</p>}
     {"missingControls" in result && result.missingControls.length > 0 && <p><strong>{sv.publicResultsMissingControls}:</strong> {result.missingControls.join(", ")}</p>}
     {"extraPunches" in result && result.extraPunches.length > 0 && <p><strong>{sv.publicResultsExtraPunches}:</strong> {result.extraPunches.join(", ")}</p>}
     {"splits" in result && result.splits.length > 0 && <details><summary>{sv.publicResultsShowSplits}</summary><ol>

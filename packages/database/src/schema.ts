@@ -161,8 +161,11 @@ export const controls = pgTable("control", {
   raceId: uuid("race_id").notNull().references(() => races.id),
   code: integer("code").notNull(),
   kind: text("kind").notNull().default("CONTROL"),
+  /** Rogaining (migration 0097): poäng när arrangören ändrat förvalet (kontrollkoden delat med tio). NULL = förvalet. */
+  points: integer("points"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
-}, (table) => [uniqueIndex("control_race_code_uidx").on(table.raceId, table.code)]);
+}, (table) => [uniqueIndex("control_race_code_uidx").on(table.raceId, table.code),
+  check("control_points_check", sql`${table.points} IS NULL OR ${table.points} BETWEEN 0 AND 1000`)]);
 
 export const courseControls = pgTable("course_control", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -200,6 +203,9 @@ export const classes = pgTable("class", {
   capacityVersion: integer("capacity_version").notNull().default(1),
   /** Klassens gällande lottning (startDrawClasses). Töms när startsättet ändras. */
   startDrawId: uuid("start_draw_id"),
+  /** Rogainingklass (migration 0097): tidsgräns i sekunder och straffpoäng per påbörjad minut över. Båda NULL = vanlig klass. */
+  rogainingTimeLimitSeconds: integer("rogaining_time_limit_seconds"),
+  rogainingPenaltyPointsPerMinute: integer("rogaining_penalty_points_per_minute"),
   externalSource: text("external_source"),
   externalId: text("external_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
@@ -209,6 +215,9 @@ export const classes = pgTable("class", {
   uniqueIndex("class_id_course_version_uidx").on(table.id, table.courseVersionId)
   ,check("class_max_entries_check", sql`${table.maxEntries} IS NULL OR ${table.maxEntries} BETWEEN 0 AND 10000`)
   ,check("class_capacity_version_check", sql`${table.capacityVersion} > 0`)
+  ,check("class_rogaining_check", sql`(${table.rogainingTimeLimitSeconds} IS NULL) = (${table.rogainingPenaltyPointsPerMinute} IS NULL) AND
+    (${table.rogainingTimeLimitSeconds} IS NULL OR ${table.rogainingTimeLimitSeconds} BETWEEN 60 AND 172800) AND
+    (${table.rogainingPenaltyPointsPerMinute} IS NULL OR ${table.rogainingPenaltyPointsPerMinute} BETWEEN 0 AND 1000)`)
 ]);
 
 export const entries = pgTable("entry", {
@@ -4178,6 +4187,19 @@ export const classEditRequests = pgTable("class_edit_request", {
   foreignKey({ columns: [table.actorCredentialId, table.raceId, table.capability], foreignColumns: [pairingAdminAccessCredentials.id, pairingAdminAccessCredentials.raceId, pairingAdminAccessCredentials.capability] }),
   check("class_edit_request_role_check", sql`${table.capability} = 'MANAGE_RACE'`),
   check("class_edit_request_json_check", sql`jsonb_typeof(${table.request}) = 'object' AND jsonb_typeof(${table.response}) = 'object'`)
+]);
+
+/** ADR-0170 beslut 5: idempotent journal för rogaining (kontrollernas poäng, klassernas tidsgräns och straff). */
+export const rogainingChangeRequests = pgTable("rogaining_change_request", {
+  requestId: uuid("request_id").primaryKey(), raceId: uuid("race_id").notNull().references(() => races.id),
+  actorCredentialId: uuid("actor_credential_id").notNull(), capability: pairingAdminCapabilityEnum("capability").notNull(),
+  request: jsonb("request").$type<Record<string, unknown>>().notNull(), response: jsonb("response").$type<Record<string, unknown>>().notNull(),
+  changedAt: timestamp("changed_at", { withTimezone: true }).notNull()
+}, table => [
+  uniqueIndex("rogaining_change_request_scope_uidx").on(table.requestId, table.raceId),
+  foreignKey({ columns: [table.actorCredentialId, table.raceId, table.capability], foreignColumns: [pairingAdminAccessCredentials.id, pairingAdminAccessCredentials.raceId, pairingAdminAccessCredentials.capability] }),
+  check("rogaining_change_request_role_check", sql`${table.capability} = 'MANAGE_RACE'`),
+  check("rogaining_change_request_json_check", sql`jsonb_typeof(${table.request}) = 'object' AND jsonb_typeof(${table.response}) = 'object'`)
 ]);
 
 /** PLAN.md steg 9: en sparad lottning av en eller flera klasser. Slumpfröet sparas för revision. */

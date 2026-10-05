@@ -93,6 +93,17 @@ function expectedControlsForRevision(
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
+/** Rogaining: de räknade kontrollerna (en gång var, i stämplingsordning) som förväntade kontroller. */
+function rogainingProjection(controls: readonly { controlCode: number }[]) {
+  const expected = controls.map((control) => ({ controlCode: control.controlCode, occurrence: 1 }));
+  return { expected, splitKeyMap: new Map(expected.map((control) => [`${control.controlCode}:1`, control])) };
+}
+
+/** IOF 3.0 Score: summan (type="Score") först, straffet (type="Penalty") när löparen var för sen. */
+function rogainingScores(score: { readonly total: number; readonly penalty: number }) {
+  return [{ type: "Score", value: score.total }, ...(score.penalty > 0 ? [{ type: "Penalty", value: score.penalty }] : [])];
+}
+
 /**
  * Förväntade kontroller utan split som inte heller saknas: de stämplades men utan giltig tid (före start eller efter
  * mål, se domänens sträcktider). De skrivs som SplitTime utan Time i stället för "Missing" (PLAN.md steg 13).
@@ -360,8 +371,11 @@ async function projectIofResultList(tx: Transaction, raceId: string, options: { 
     return (variant?.controlCodes ?? []).map((controlCode, index) => ({ id: `${row.courseVersionId}:${index + 1}`, sequence: index + 1, controlCode }));
   };
   for (const row of parsedRows) {
+    // Rogaining (ADR-0170 beslut 5): de räknade kontrollerna i stämplingsordning är löparens "bana" i exporten.
+    const rogaining = "rogaining" in row.evaluation ? row.evaluation.rogaining : undefined;
     const projection = row.evaluation.status === "DNS" || row.evaluation.status === "DNF"
       ? { expected: [], splitKeyMap: new Map<string, { controlCode: number; occurrence: number }>() }
+      : rogaining ? rogainingProjection(rogaining.controls)
       : expectedControlsForRevision(revisionControls(row),
         row.controlNeutralizationId === null ? undefined : neutralizationById.get(row.controlNeutralizationId),
         row.evaluation.classId, row.courseVersionId);
@@ -408,7 +422,8 @@ async function projectIofResultList(tx: Transaction, raceId: string, options: { 
           })),
           ...("startTime" in row.evaluation ? { startTime: row.evaluation.startTime } : {}),
           ...("finishTime" in row.evaluation ? { finishTime: row.evaluation.finishTime } : {}),
-          ...("elapsedMs" in row.evaluation ? { elapsedMs: row.evaluation.elapsedMs } : {})
+          ...("elapsedMs" in row.evaluation ? { elapsedMs: row.evaluation.elapsedMs } : {}),
+          ...(rogaining ? { scores: rogainingScores(rogaining) } : {})
         }
         : {
         ...shared,
@@ -423,6 +438,7 @@ async function projectIofResultList(tx: Transaction, raceId: string, options: { 
         ...("startTime" in row.evaluation ? { startTime: row.evaluation.startTime } : {}),
         ...("finishTime" in row.evaluation ? { finishTime: row.evaluation.finishTime } : {}),
         ...("elapsedMs" in row.evaluation ? { elapsedMs: row.evaluation.elapsedMs } : {}),
+        ...(rogaining ? { scores: rogainingScores(rogaining) } : {}),
         ...(row.manualApprovalProof === null ? {} : { manualApprovalProof: row.manualApprovalProof })
       };
     const results = resultsByClass.get(row.evaluation.classId) ?? [];
@@ -450,10 +466,12 @@ async function projectIofResultList(tx: Transaction, raceId: string, options: { 
       key: result.internalEntryId,
       status: result.status,
       ...(result.elapsedMs === undefined ? {} : { elapsedMs: result.elapsedMs }),
+      ...(result.scores === undefined ? {} : { score: result.scores[0]!.value }),
       courseVersionId: result.internalCourseVersionId
     }))).map((ranking) => [ranking.key, ranking]));
     results.sort((left, right) =>
       compareResultStatuses(left.status, right.status) ||
+      ((right.scores?.[0]?.value ?? -1) - (left.scores?.[0]?.value ?? -1)) ||
       ((left.elapsedMs ?? Number.MAX_SAFE_INTEGER) - (right.elapsedMs ?? Number.MAX_SAFE_INTEGER)) ||
       compareText(left.familyName, right.familyName) ||
       compareText(left.givenName, right.givenName) ||

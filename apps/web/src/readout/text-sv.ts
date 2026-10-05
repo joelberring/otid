@@ -63,6 +63,15 @@ export const readoutText = {
   confirmed: "Bekräftad av servern.",
   serverDiffers: (status: string) => `Servern bedömde avläsningen annorlunda: ${status}. Serverns bedömning gäller.`,
   splits: "Sträcktider",
+  // Rogaining (ADR-0170 beslut 5).
+  rogainingTotal: (total: number) => `${total} poäng`,
+  rogainingBreakdown: (controlPoints: number, penalty: number) => penalty > 0
+    ? `${controlPoints} p kontroller − ${penalty} p straff` : `${controlPoints} p kontroller · inget straff`,
+  rogainingTime: (time: string, limit: string) => `Tid ${time} av ${limit}`,
+  rogainingLate: (minutes: number) => `För sen: ${minutes} ${minutes === 1 ? "påbörjad minut" : "påbörjade minuter"} över tidsgränsen`,
+  rogainingControls: "Räknade kontroller",
+  rogainingPoints: (points: number) => `${points} p`,
+  exerciseLate: "Läs av: för sen",
   rejected: (reason: string) => `Servern avvisade avläsningen (${reason}). Rådata finns kvar här.`,
   localInvalid: "Avläsningen kunde inte paketeras. Rådata finns kvar i den här webbläsaren.",
   recent: "Senaste avläsningar",

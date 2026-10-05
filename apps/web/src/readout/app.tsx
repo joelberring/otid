@@ -4,7 +4,7 @@ import { WebSerialTransport, type WebSerialPortLike } from "@o-tid/device-transp
 import type { SiCardData } from "@o-tid/sportident";
 import { enterRace, fetchReadoutPackage, raceAdminCsrf } from "./api";
 import { evaluateLocally, formatRunningTime, type LocalVerdict } from "./evaluate";
-import { exerciseCard, exerciseRunners, type ExerciseVariant } from "./exercise";
+import { exerciseCard, exerciseRunners, rogainingExerciseWindow, type ExerciseVariant } from "./exercise";
 import { relayExerciseWindow } from "./relay";
 import { FakeStationTransport } from "./fake-transport";
 import { buildReadoutPayload, payloadHash } from "./payload";
@@ -214,14 +214,16 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
     }
     if (!runner) return;
     const now = new Date();
-    // Stafett: sträckans tider följer lagets tidigare sträckor (ADR-0169 beslut 3).
-    const window = relayExerciseWindow(pkg, runner.entryId, now);
+    // Stafett: sträckans tider följer lagets tidigare sträckor (ADR-0169 beslut 3). Rogaining: inom eller efter tidsgränsen.
+    const window = runner.timeLimitMs !== undefined ? rogainingExerciseWindow(runner.timeLimitMs, variant, now)
+      : relayExerciseWindow(pkg, runner.entryId, now);
     transport.insert(exerciseCard(runner.cardNumber, runner.controlCodes, variant, now, pkg.event.timeZone, window));
   }
 
   if (!raceId) return <main className="readout"><h1>{t.title}</h1><p className="notice">{t.noRace}</p></main>;
 
   const runners = pkg ? exerciseRunners(pkg) : [];
+  const selectedRunner = runners.find((candidate) => candidate.entryId === runnerId) ?? runners[0];
   const waiting = items.filter((item) => item.status === "pending").length;
   const recent = [...items].sort((a, b) => b.localSequence - a.localSequence).slice(0, 10);
   const currentItem = current?.phase === "done" ? items.find((item) => item.localSequence === current.localSequence) : undefined;
@@ -273,6 +275,8 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
         <button type="button" disabled={runners.length === 0} onClick={() => readExercise("ok")}>{t.exerciseOk}</button>
         <button type="button" disabled={runners.length === 0} onClick={() => readExercise("missing-control")}>{t.exerciseMissing}</button>
         <button type="button" disabled={runners.length === 0} onClick={() => readExercise("no-finish")}>{t.exerciseNoFinish}</button>
+        {selectedRunner?.timeLimitMs !== undefined
+          ? <button type="button" onClick={() => readExercise("late")}>{t.exerciseLate}</button> : null}
         <button type="button" disabled={!pkg} onClick={() => readExercise("unknown")}>{t.exerciseUnknown}</button>
       </div>
     </section> : null}
@@ -309,11 +313,13 @@ function Verdict({ current, item }: { current: Current | undefined; item: Queued
     {verdict?.relay ? <RelayLine relay={verdict.relay} /> : null}
     {verdict?.variant ? <p className="variant" data-testid="verdict-variant">{verdict.variant.assigned
       ? t.variant(verdict.variant.code) : t.variantGuessed(verdict.variant.code)}</p> : null}
-    {verdict?.elapsedMs !== undefined && verdict.status === "OK" ? <p className="time">{formatRunningTime(verdict.elapsedMs)}</p> : null}
+    {verdict?.rogaining && verdict.elapsedMs !== undefined ? <Rogaining score={verdict.rogaining} elapsedMs={verdict.elapsedMs}
+      splits={verdict.splits} />
+      : verdict?.elapsedMs !== undefined && verdict.status === "OK" ? <p className="time">{formatRunningTime(verdict.elapsedMs)}</p> : null}
     {verdict && verdict.status !== "OK" ? <p>{t.reason[verdict.reason]}</p> : null}
     {verdict && verdict.missingControls.length > 0 ? <p>{t.missing(verdict.missingControls)}</p> : null}
     {!verdict ? <p>{t.noPackage}</p> : null}
-    {verdict && verdict.splits.length > 0 ? <ol className="splits" aria-label={t.splits}>
+    {verdict && !verdict.rogaining && verdict.splits.length > 0 ? <ol className="splits" aria-label={t.splits}>
       {verdict.splits.map((split, index) => <li key={index}>
         <span>{split.controlCode}</span> <span>{formatRunningTime(split.legMs)}</span> <span>({formatRunningTime(split.elapsedMs)})</span>
       </li>)}
@@ -339,6 +345,27 @@ function RecentRow({ item, pkg, local }: { item: QueuedReadout; pkg: ReadoutPack
     <span>{status ? t.verdict[status] : ""}</span>
     <span className="queue">{queue}</span>
   </li>;
+}
+
+/**
+ * Rogaining (ADR-0170 beslut 5): summan stort, kontrollpoäng och straff, tiden mot gränsen och de räknade
+ * kontrollerna med poäng och tid från start. För sent märks med ord och symbol, inte bara färg.
+ */
+function Rogaining({ score, elapsedMs, splits }: { score: NonNullable<LocalVerdict["rogaining"]>; elapsedMs: number;
+  splits: LocalVerdict["splits"] }) {
+  const times = new Map(splits.map((split) => [split.controlCode, split.elapsedMs]));
+  return <>
+    <p className="time" data-testid="verdict-total">{t.rogainingTotal(score.total)}</p>
+    <p className="breakdown" data-testid="verdict-breakdown"><span>{t.rogainingBreakdown(score.controlPoints, score.penalty)}</span>
+      {" · "}<span>{t.rogainingTime(formatRunningTime(elapsedMs), formatRunningTime(score.timeLimitMs))}</span></p>
+    {score.overtimeMinutes > 0 ? <p className="late" data-testid="verdict-late">! {t.rogainingLate(score.overtimeMinutes)}</p> : null}
+    {score.controls.length > 0 ? <ol className="splits" aria-label={t.rogainingControls}>
+      {score.controls.map((control) => <li key={control.controlCode}>
+        <span>{control.controlCode}</span> <span>{t.rogainingPoints(control.points)}</span>
+        {times.has(control.controlCode) ? <> <span>({formatRunningTime(times.get(control.controlCode)!)})</span></> : null}
+      </li>)}
+    </ol> : null}
+  </>;
 }
 
 /** Stafett: "Lag 12 OK Test · Sträcka 2 av 3 · Växlar till sträcka 3", eller lagets tid på sista sträckan. */

@@ -9,8 +9,9 @@ import type {
   SplitTime
 } from "./types";
 import { assignedCourseVariant, courseVariantsOf } from "./course-variants";
+import { rogainingControlSet, scoreRogaining } from "./rogaining";
 
-export const RESULT_ENGINE_VERSION = "0.1.1";
+export const RESULT_ENGINE_VERSION = "0.2.0";
 
 function invalid(reason: EvaluationResult["reason"], base: Partial<EvaluationResult> = {}): EvaluationResult {
   return {
@@ -280,6 +281,13 @@ export function evaluateCardReadout(
   }
 
   const window: TimeWindow = { startMs, finishMs };
+  const timing = { ...common, startTime, finishTime: readout.finishPunchedAt, elapsedMs: finishMs - startMs };
+  if (raceClass.rogaining) {
+    // Rogaining (ADR-0170 beslut 5): valfria kontroller i valfri ordning; poäng i stället för saknade kontroller.
+    const scored = scoreRogaining(readout.punches, rogainingControlSet(courseVersion), raceClass.rogaining, window);
+    return { status: "OK", reason: "COMPLETE", ...timing, missingControls: [], extraPunches: [...scored.extraPunches],
+      splits: [...scored.splits], rogaining: scored.score };
+  }
   let match: ControlMatch;
   const variant = chooseVariant(resolved, readout.punches);
   if (variant) {
@@ -303,10 +311,7 @@ export function evaluateCardReadout(
   }
 
   const timed = {
-    ...common,
-    startTime,
-    finishTime: readout.finishPunchedAt,
-    elapsedMs: finishMs - startMs,
+    ...timing,
     missingControls: [...match.missingControls],
     extraPunches: [...match.extraPunches],
     splits: [...match.splits]

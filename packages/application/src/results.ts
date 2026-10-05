@@ -728,7 +728,9 @@ export async function publicResults(db: Database, raceId: string): Promise<Publi
       return {
         ...row,
         evaluation,
-        elapsedMs: "elapsedMs" in evaluation ? evaluation.elapsedMs : undefined
+        elapsedMs: "elapsedMs" in evaluation ? evaluation.elapsedMs : undefined,
+        // Rogaining (ADR-0170 beslut 5): poängen rangordnar klassen.
+        rogaining: "rogaining" in evaluation ? evaluation.rogaining : undefined
       };
     });
     const classIds = [...new Set(parsedRows.map((row) => row.evaluation.classId))];
@@ -784,12 +786,15 @@ export async function publicResults(db: Database, raceId: string): Promise<Publi
         key: row.entryId,
         status: row.evaluation.status,
         ...(row.elapsedMs === undefined ? {} : { elapsedMs: row.elapsedMs }),
+        ...(row.rogaining === undefined ? {} : { score: row.rogaining.total }),
         courseVersionId: row.courseVersionId
       }))).map((ranking) => [ranking.key, ranking]));
       classResultRows.sort((left, right) => {
         if (left.evaluation.status !== right.evaluation.status) {
           return compareResultStatuses(left.evaluation.status, right.evaluation.status);
         }
+        const scoreDifference = (right.rogaining?.total ?? -1) - (left.rogaining?.total ?? -1);
+        if (scoreDifference !== 0) return scoreDifference;
         const elapsedDifference = (left.elapsedMs ?? Number.MAX_SAFE_INTEGER) -
           (right.elapsedMs ?? Number.MAX_SAFE_INTEGER);
         return elapsedDifference || left.familyName.localeCompare(right.familyName, "sv") ||
@@ -834,7 +839,8 @@ export async function publicResults(db: Database, raceId: string): Promise<Publi
           })),
           rankingState: ranking.rankingState,
           ...(ranking.position === undefined ? {} : { position: ranking.position }),
-          ...(ranking.timeBehindMs === undefined ? {} : { timeBehindMs: ranking.timeBehindMs })
+          ...(ranking.timeBehindMs === undefined ? {} : { timeBehindMs: ranking.timeBehindMs }),
+          ...(row.rogaining === undefined ? {} : { rogaining: row.rogaining })
         });
       }
     }

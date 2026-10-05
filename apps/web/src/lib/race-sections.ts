@@ -10,7 +10,7 @@ import type { RaceType } from "@o-tid/contracts";
 export type SectionId = "COURSES" | "CLASSES" | "ENTRIES" | "START" | "READOUT" | "RESULTS" | "SETTINGS";
 
 /** Det innehåll som en del visar. En del kan visa flera (Träning: banor och klasser på samma ställe). */
-export type Panel = "COURSES" | "CLASSES" | "ROGAINING_NOTE" | "ENTRIES" | "START" | "READOUT" | "RESULTS" | "SETTINGS";
+export type Panel = "COURSES" | "CLASSES" | "ROGAINING" | "ENTRIES" | "START" | "READOUT" | "RESULTS" | "SETTINGS";
 
 /** Delens namn; texterna finns i i18n (`raceTypeSv.sections`). */
 export type SectionLabel = "COURSES" | "COURSES_CLASSES" | "CONTROLS_POINTS" | "CLASSES" | "CLASSES_LEGS" | "ENTRIES" |
@@ -30,6 +30,8 @@ export type RaceTypeFeatures = {
   /** Banor visar varianterna och gafflingskontrollen utfällda. */ variantsProminent: boolean;
   /** Arrangören väljer startsätt per klass. Annars alltid fri start; nya klasser får fri start och lottningen sätter minutstart. */
   startRuleChoice: boolean;
+  /** Rogaining (ADR-0170 beslut 5): nya klasser får tidsgräns och straff; kontrollerna har poäng. */
+  rogaining: boolean;
 };
 
 export type RaceTypeProfile = {
@@ -50,7 +52,7 @@ const results = section("RESULTS", "RESULTS");
 const settings = section("SETTINGS", "SETTINGS");
 
 const none: RaceTypeFeatures = { draw: false, speaker: false, import: false, eventor: false, finalization: false, relay: false, variants: false,
-  variantsProminent: false, startRuleChoice: false };
+  variantsProminent: false, startRuleChoice: false, rogaining: false };
 const competition: RaceTypeFeatures = { ...none, draw: true, speaker: true, import: true, eventor: true, finalization: true, startRuleChoice: true };
 
 const profiles: Record<RaceType, Omit<RaceTypeProfile, "type" | "settings">> = {
@@ -75,9 +77,9 @@ const profiles: Record<RaceType, Omit<RaceTypeProfile, "type" | "settings">> = {
     features: { ...none, speaker: true, eventor: true, finalization: true, relay: true, variants: true, startRuleChoice: true }
   },
   ROGAINING: {
-    course: [section("COURSES", "CONTROLS_POINTS", ["ROGAINING_NOTE", "COURSES", "CLASSES"]), section("ENTRIES", "PARTICIPANTS"),
+    course: [section("COURSES", "CONTROLS_POINTS", ["ROGAINING", "COURSES", "CLASSES"]), section("ENTRIES", "PARTICIPANTS"),
       readout, results],
-    features: none
+    features: { ...none, rogaining: true }
   }
 };
 

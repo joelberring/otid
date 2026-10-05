@@ -86,7 +86,13 @@ export const listsSv = {
       NT: "Utan tidtagning" },
     teamStatus: { OK: "Godkänt", MP: "Felstämplat", DSQ: "Diskvalificerat", DNF: "Brutit", OOC: "Utom tävlan", NT: "Utan tidtagning",
       DNS: "Ej start", RUNNING: "Ute" },
-    manualApproval: "Godkänd manuellt av arrangör"
+    manualApproval: "Godkänd manuellt av arrangör",
+    // Rogaining (ADR-0170 beslut 5).
+    points: "Poäng", penalty: "Straff", total: "Summa",
+    pointsShort: (points: number) => `${points} p`,
+    scoredHelp: "Sorterad på summa och sedan tid. Summa = poäng för kontrollerna minus straff för påbörjade minuter över tidsgränsen.",
+    scoredControls: "Räknade kontroller",
+    scoredControl: (code: number, points: number) => `${code} (${points} p)`
   },
   csv: {
     start: {
@@ -97,7 +103,10 @@ export const listsSv = {
     results: {
       CLASS: ["Klass", "Placering", "Lag", "Sträcka", "Namn", "Klubb", "Tid", "Efter", "Status"],
       SPLITS: ["Klass", "Variant", "Placering", "Namn", "Klubb", "Sluttid", "Status", "Kontroll", "Sträcktid", "Sträckplacering", "Totaltid"],
-      CLUB: ["Klubb", "Namn", "Lag", "Klass", "Placering", "Tid", "Status"]
+      CLUB: ["Klubb", "Namn", "Lag", "Klass", "Placering", "Tid", "Status"],
+      /** Rogainingklasser: poäng, straff och summa efter tiden (klassvy) och summan (klubbvy). */
+      SCORE: ["Poäng", "Straff", "Summa"],
+      SCORED_CONTROLS: ["Klass", "Placering", "Namn", "Klubb", "Summa", "Tid", "Status", "Kontroll", "Poäng", "Totaltid"]
     },
     finish: "Mål",
     vacant: "Vakant",

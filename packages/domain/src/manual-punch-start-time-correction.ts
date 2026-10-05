@@ -1,4 +1,5 @@
 import type { EvaluationResult, SplitTime } from "./types";
+import { rescoreRogaining } from "./rogaining";
 
 /** A direct timed technical result eligible for an observed PUNCH-start correction. */
 export type PunchedStartTimeCorrectableResult = EvaluationResult & {
@@ -94,5 +95,7 @@ export function correctPunchedStartTime(
     }
     return { ...split, elapsedMs: elapsed, legMs: leg };
   });
-  return { ...source, startTime: new Date(correctedStartMs).toISOString(), elapsedMs, splits };
+  // Rogaining: ny löptid ger nytt straff (ADR-0170 beslut 5).
+  return { ...source, startTime: new Date(correctedStartMs).toISOString(), elapsedMs, splits,
+    ...(source.rogaining ? { rogaining: rescoreRogaining(source.rogaining, elapsedMs) } : {}) };
 }

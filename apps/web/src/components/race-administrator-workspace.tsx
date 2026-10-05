@@ -15,7 +15,8 @@ import { PreparationStartList } from "./race-administrator/preparation-start-lis
 import { AfterRacePanel } from "./race-administrator/after-race-panel";
 import { DuringRaceFollowUp, DuringRaceOverview } from "./race-administrator/during-race-panel";
 import { ParticipantsPanel, RentalPrint } from "./race-administrator/participants-panel";
-import { RogainingNote, SettingsPanel } from "./race-administrator/settings-panel";
+import { SettingsPanel } from "./race-administrator/settings-panel";
+import { RogainingPanel } from "./race-administrator/rogaining-panel";
 import { Button } from "./ui";
 
 /**
@@ -70,7 +71,7 @@ export function RaceAdministratorWorkspace({ raceId }: { raceId: string }) {
       <div className={`${shell.content} ${styles.content}`}>
         {status}
         {navigationLocked && <p className={styles.workflowHelp} role="status">{text.workflowHelp}</p>}
-        <RogainingNote ws={ws} />
+        <RogainingPanel ws={ws} />
         <PreparationCourses ws={ws} />
         <PreparationClasses ws={ws} />
         <ParticipantsPanel ws={ws} />

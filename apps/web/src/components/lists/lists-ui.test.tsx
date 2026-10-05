@@ -35,11 +35,11 @@ describe("startlistorna", () => {
   });
 });
 
-const resultModel: ResultListModel = { relayClasses: [], classes: [{ name: "H21", mixedCourses: false, rows: [
+const resultModel: ResultListModel = { relayClasses: [], classes: [{ name: "H21", mixedCourses: false, scored: false, rows: [
   { publicResultId: "00000000-0000-4000-8000-000000000001", name: "Ada Ek", club: "OK Ek", className: "H21", place: 1, timeMs: 600_000,
-    behindMs: 0, status: "OK", reason: "MANUAL_APPROVAL", variant: "AD", splits: [], missingControls: [] },
+    behindMs: 0, status: "OK", reason: "MANUAL_APPROVAL", variant: "AD", splits: [], missingControls: [], score: null },
   { publicResultId: null, name: "Bo Al", club: null, className: "H21", place: null, timeMs: 500_000, behindMs: null, status: "MP",
-    reason: "MISSING_CONTROL", variant: null, splits: [], missingControls: [33] }] }] };
+    reason: "MISSING_CONTROL", variant: null, splits: [], missingControls: [33], score: null }] }] };
 
 describe("resultatlistorna", () => {
   it("visar placering, länk till löparens resultat, variant, manuellt godkänd och saknade kontroller", () => {

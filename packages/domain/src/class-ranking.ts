@@ -9,6 +9,11 @@ export interface ClassRankingCandidate {
   readonly key: string;
   readonly status: StoredResultStatus;
   readonly elapsedMs?: number;
+  /**
+   * Rogaining (ADR-0170 beslut 5): resultatets poäng. När någon kandidat i klassen har poäng rangordnas klassen
+   * på poäng (högst först) och sedan tid; ett godkänt resultat utan poäng räknas då som noll poäng.
+   */
+  readonly score?: number;
   readonly courseVersionId: string;
 }
 
@@ -29,7 +34,8 @@ export type ClassRankingErrorCode =
   | "DUPLICATE_KEY"
   | "INVALID_STATUS"
   | "INVALID_COURSE_VERSION"
-  | "INVALID_ELAPSED_TIME";
+  | "INVALID_ELAPSED_TIME"
+  | "INVALID_SCORE";
 
 /** A fail-closed validation error for stored-result projections. */
 export class ClassRankingError extends Error {
@@ -69,6 +75,9 @@ function validateCandidate(candidate: ClassRankingCandidate, keys: Set<string>):
   if (candidate.elapsedMs !== undefined && !hasValidElapsedMs(candidate.elapsedMs)) {
     throw new ClassRankingError("INVALID_ELAPSED_TIME", "Rankingkandidaten har ogiltig sluttid");
   }
+  if (candidate.score !== undefined && !(Number.isSafeInteger(candidate.score) && candidate.score >= 0)) {
+    throw new ClassRankingError("INVALID_SCORE", "Rankingkandidaten har ogiltiga poäng");
+  }
   if (candidate.status === "OK" && !hasValidElapsedMs(candidate.elapsedMs)) {
     throw new ClassRankingError("INVALID_ELAPSED_TIME", "OK-resultat måste ha en giltig sluttid");
   }
@@ -81,6 +90,10 @@ function validateCandidate(candidate: ClassRankingCandidate, keys: Set<string>):
  * rows back to the caller's projection and must not be serialised as public
  * data. Equal elapsed milliseconds deliberately remain a tie: keys are used
  * solely for stable presentation order.
+ *
+ * Rogaining: when any candidate carries a score the class is ranked on score
+ * (highest first), then elapsed time; equal score and time share the place.
+ * Time behind is not derived for scored classes.
  */
 export function rankClassResults(
   candidates: readonly ClassRankingCandidate[]
@@ -92,19 +105,19 @@ export function rankClassResults(
   const courseVersionIds = new Set(rankedCandidates.map((candidate) => candidate.courseVersionId));
   const hasMixedCourseVersions = courseVersionIds.size > 1;
   const candidateByKey = new Map(candidates.map((candidate) => [candidate.key, candidate]));
-  const rankedByTime = [...rankedCandidates].sort((left, right) =>
-    (left.elapsedMs as number) - (right.elapsedMs as number) || compareText(left.key, right.key)
-  );
-  const rankingByKey = new Map<string, { position: number; timeBehindMs: number }>();
+  const scored = candidates.some((candidate) => candidate.score !== undefined);
+  const compareRanked = (left: ClassRankingCandidate, right: ClassRankingCandidate) =>
+    (scored ? (right.score ?? 0) - (left.score ?? 0) : 0) || (left.elapsedMs as number) - (right.elapsedMs as number);
+  const rankedByTime = [...rankedCandidates].sort((left, right) => compareRanked(left, right) || compareText(left.key, right.key));
+  const rankingByKey = new Map<string, { position: number; timeBehindMs?: number }>();
   if (!hasMixedCourseVersions && rankedByTime.length > 0) {
     const fastestMs = rankedByTime[0]!.elapsedMs as number;
-    let previousMs: number | undefined;
+    let previous: ClassRankingCandidate | undefined;
     let position = 0;
     for (const [index, candidate] of rankedByTime.entries()) {
-      const elapsedMs = candidate.elapsedMs as number;
-      if (elapsedMs !== previousMs) position = index + 1;
-      rankingByKey.set(candidate.key, { position, timeBehindMs: elapsedMs - fastestMs });
-      previousMs = elapsedMs;
+      if (!previous || compareRanked(previous, candidate) !== 0) position = index + 1;
+      rankingByKey.set(candidate.key, scored ? { position } : { position, timeBehindMs: (candidate.elapsedMs as number) - fastestMs });
+      previous = candidate;
     }
   }
 
@@ -126,7 +139,7 @@ export function rankClassResults(
       key: candidate.key,
       rankingState: "RANKED",
       position: ranking.position,
-      timeBehindMs: ranking.timeBehindMs
+      ...(ranking.timeBehindMs === undefined ? {} : { timeBehindMs: ranking.timeBehindMs })
     };
   });
 
@@ -137,8 +150,8 @@ export function rankClassResults(
     const rightRanked = right.rankingState === "RANKED";
     if (leftRanked !== rightRanked) return leftRanked ? -1 : 1;
     if (leftRanked && rightRanked) {
-      const elapsedDifference = (leftCandidate.elapsedMs as number) - (rightCandidate.elapsedMs as number);
-      if (elapsedDifference !== 0) return elapsedDifference;
+      const difference = compareRanked(leftCandidate, rightCandidate);
+      if (difference !== 0) return difference;
     }
     if (leftCandidate.status !== rightCandidate.status) {
       return compareResultStatuses(leftCandidate.status, rightCandidate.status);

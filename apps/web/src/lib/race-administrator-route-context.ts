@@ -36,7 +36,8 @@ import { loadStartDrawSetupAsAdministrator, previewStartDrawAsAdministrator, com
   changeRelayLegRunnerAsAdministrator, setRelayStartTimesAsAdministrator, saveRaceSettingsAsAdministrator,
   getEventorSettingsAsAdministrator, saveEventorKeyAsAdministrator, removeEventorKeyAsAdministrator, testEventorConnectionAsAdministrator,
   listEventorEventsAsAdministrator, chooseEventorEventAsAdministrator, previewEventorSyncAsAdministrator, previewCourseFileAsAdministrator,
-  syncConsequenceAsAdministrator, applySyncAsAdministrator, getSourceSyncStatusAsAdministrator } from "@o-tid/application";
+  syncConsequenceAsAdministrator, applySyncAsAdministrator, getSourceSyncStatusAsAdministrator,
+  previewRogainingChangeAsAdministrator, changeRogainingAsAdministrator } from "@o-tid/application";
 import { iofResultListExportAdminFailure } from "./iof-result-list-export-admin-security";
 import type { Database } from "@o-tid/database";
 import { entryClassAdminFailure as failure, type entryClassAdminSessionProof } from "./entry-class-admin-security";
@@ -55,6 +56,7 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   manualClass: createManualClassAsAdministrator,
   courses: listCoursesForEditAsAdministrator, courseEditPreview: previewCourseEditAsAdministrator,
   courseEdit: editCourseAsAdministrator, classEditPreview: previewClassEditAsAdministrator, classEdit: editClassAsAdministrator,
+  rogainingPreview: previewRogainingChangeAsAdministrator, rogaining: changeRogainingAsAdministrator,
   entryVariantPreview: previewEntryVariantAsAdministrator, entryVariant: changeEntryVariantAsAdministrator,
   classVariantDistribution: distributeClassVariantsAsAdministrator,
   relayOverview: getRelayOverviewAsAdministrator, relayClass: createRelayClassAsAdministrator, relayTeam: registerRelayTeamAsAdministrator,
@@ -108,6 +110,7 @@ export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: str
   { kind: "manual-course-class" } | { kind: "manual-class" } |
   { kind: "courses" } | { kind: "course-edit-preview"; courseId: string } | { kind: "course-edit"; courseId: string } |
   { kind: "class-edit-preview"; classId: string } | { kind: "class-edit"; classId: string } |
+  { kind: "rogaining-preview" } | { kind: "rogaining" } |
   { kind: "entry-variant-preview"; entryId: string } | { kind: "entry-variant"; entryId: string } |
   { kind: "class-variant-distribution"; classId: string } |
   { kind: "relay" } | { kind: "relay-class" } | { kind: "relay-team" } | { kind: "relay-leg-runner" } | { kind: "relay-start-times" } |

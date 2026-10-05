@@ -87,6 +87,8 @@ export { editCourseAsAdministrator, listCoursesForEditAsAdministrator, previewCo
 export type { CourseEditListResult, CourseEditPreviewResult, CourseEditResult } from "./course-edit";
 export { editClassAsAdministrator, previewClassEditAsAdministrator } from "./class-edit";
 export type { ClassEditPreviewResult, ClassEditResult } from "./class-edit";
+export { changeRogainingAsAdministrator, previewRogainingChangeAsAdministrator } from "./rogaining";
+export type { RogainingChangePreviewResult, RogainingChangeResult } from "./rogaining";
 export { previewShortenedCourseClassTransferAsAdministrator, transferShortenedCourseClassAsAdministrator } from "./shortened-course-class-transfer";
 export { listUnknownReadoutResolutionCandidatesAsAdministrator, resolveUnknownReadoutAsAdministrator } from "./unknown-readout-resolution";
 export { listRaceOperatorAccessAsAdministrator, issueRaceOperatorAccessAsAdministrator, revokeRaceOperatorAccessAsAdministrator } from "./race-operator-access";

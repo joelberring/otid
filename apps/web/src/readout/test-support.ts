@@ -22,7 +22,7 @@ export function testPackage(): ReadoutPackage {
     controlId: `10000000-0000-4000-8000-0000000002${String(n).padStart(2, "0")}`, sequence: n, controlCode: 30 + n
   });
   return readoutPackageSchema.parse({
-    formatVersion: 1, raceId: ids.race, packageVersion: 3, resultEngineVersion: "0.1.1",
+    formatVersion: 1, raceId: ids.race, packageVersion: 3, resultEngineVersion: "0.2.0",
     event: { id: ids.event, name: "Klubbträning", startsOn: "2026-10-01", timeZone: "Europe/Stockholm" },
     fetchedAt: "2026-10-01T16:00:00.000Z",
     raceSnapshot: {

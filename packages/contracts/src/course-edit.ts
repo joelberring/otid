@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { rogainingSetupSchema } from "./rogaining";
 
 /** Redigera bana (ADR-0169): ett ställe för att ändra en banas kontrollföljd, även när löpare läst ut. */
 const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
@@ -30,7 +31,9 @@ export const courseEditListResponseSchema = z.object({
     resultCount: count, missingStartTimeCount: count, renamable: z.boolean(),
     // Gafflad klass: antal varianter och löpare utan variant ("Fördela gafflingar").
     variantCount: count, missingVariantCount: count
-  }).strict()).max(1000)
+  }).strict()).max(1000),
+  // ADR-0170 beslut 5: kontrollernas poäng och klassernas rogainingregler ("Kontroller & poäng").
+  rogaining: rogainingSetupSchema
 }).strict();
 
 export const courseEditPreviewRequestSchema = z.object({

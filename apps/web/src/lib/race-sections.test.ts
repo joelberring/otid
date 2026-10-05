@@ -36,7 +36,7 @@ describe("tävlingstypen styr arbetsytans delar (ADR-0170 beslut 1)", () => {
     const training = raceTypeProfile("TRAINING");
     expect(sectionForPanel(training, "CLASSES")?.id).toBe("COURSES");
     expect(sectionForPanel(training, "START")).toBeUndefined();
-    expect(sectionForPanel(raceTypeProfile("ROGAINING"), "ROGAINING_NOTE")?.label).toBe("CONTROLS_POINTS");
+    expect(sectionForPanel(raceTypeProfile("ROGAINING"), "ROGAINING")?.label).toBe("CONTROLS_POINTS");
     expect(sectionForPanel(raceTypeProfile("STANDARD"), "CLASSES")?.id).toBe("CLASSES");
   });
 

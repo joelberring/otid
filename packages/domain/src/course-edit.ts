@@ -23,15 +23,21 @@ export interface ProposedCourseVersion {
 export function withProposedCourseVersion(snapshot: RaceSnapshot, courseId: string, currentCourseVersionId: string,
   proposed: ProposedCourseVersion): RaceSnapshot {
   const controlIdByCode = new Map<number, string>();
+  // Rogaining: poängen hör till kontrollkoden i hela tävlingen och följer med till den nya versionen.
+  const pointsByCode = new Map<number, number>();
   for (const course of snapshot.courses) for (const version of course.versions) {
-    for (const control of version.controls) controlIdByCode.set(control.controlCode, control.controlId);
+    for (const control of version.controls) {
+      controlIdByCode.set(control.controlCode, control.controlId);
+      if (control.points !== undefined) pointsByCode.set(control.controlCode, control.points);
+    }
     for (const variant of version.variants ?? []) {
       for (const control of variant.controls) controlIdByCode.set(control.controlCode, control.controlId);
     }
   }
   const controls = proposed.controlCodes.map((code, index) => ({
     id: `${proposed.id}:${index + 1}`, courseVersionId: proposed.id,
-    controlId: controlIdByCode.get(code) ?? `proposed-control:${code}`, sequence: index + 1, controlCode: code
+    controlId: controlIdByCode.get(code) ?? `proposed-control:${code}`, sequence: index + 1, controlCode: code,
+    ...(pointsByCode.has(code) ? { points: pointsByCode.get(code)! } : {})
   }));
   const variants = proposed.variants?.map((variant, variantIndex) => {
     const variantId = `${proposed.id}:variant:${variantIndex + 1}`;

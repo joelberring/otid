@@ -3,6 +3,7 @@
 import styles from "../race-administrator-workspace.module.css";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
 import { raceWorkspaceNavigationSv as navigationText } from "../../i18n/race-workspace-navigation-sv";
+import { rogainingSv } from "../../i18n/rogaining-sv";
 import { Button, Field, Notice } from "../ui";
 import { CourseTable } from "./course-table";
 import { CourseFileSection } from "./course-file-section";
@@ -11,8 +12,10 @@ import type { Workspace } from "./workspace-state";
 
 /** Banor: tabell med Redigera bana, banfil (med skillnader vid ny fil) och ny bana med klass (sparas direkt). */
 export function PreparationCourses({ ws }: { ws: Workspace }) {
-  const { busy, courseClassAttempt, courseClassError, courseClassName, courseControls, courseName, courseStartRule, profile,
-    saveCourseClass, setCourseClassName, setCourseControls, setCourseName, setCourseStartRule, shows, submitCourseClass } = ws;
+  const { busy, courseClassAttempt, courseClassError, courseClassName, courseControls, courseName, courseStartRule, coursePenalty,
+    courseTimeLimit, profile, saveCourseClass, setCourseClassName, setCourseControls, setCourseName, setCourseStartRule, setCoursePenalty,
+    setCourseTimeLimit, shows, submitCourseClass } = ws;
+  const rogaining = profile.features.rogaining;
   const visible = shows("COURSES");
   const locked = busy || !!courseClassAttempt;
   return <section className={styles.workflowGroup} aria-label={navigationText.steps.COURSES} hidden={!visible}>
@@ -31,8 +34,12 @@ export function PreparationCourses({ ws }: { ws: Workspace }) {
             onChange={event => setCourseStartRule(event.target.value as CourseClassRequest["startRule"])}>
             <option value="PUNCH">{text.courseFreeStart}</option><option value="FIXED">{text.courseFixedStart}</option>
           </select></Field>}
+          {rogaining && <Field label={rogainingSv.courseTimeLimit}><input type="text" inputMode="numeric" value={courseTimeLimit}
+            disabled={locked} onChange={event => setCourseTimeLimit(event.target.value)} required /></Field>}
+          {rogaining && <Field label={rogainingSv.coursePenalty}><input type="text" inputMode="numeric" value={coursePenalty}
+            disabled={locked} onChange={event => setCoursePenalty(event.target.value)} required /></Field>}
         </div>
-        <Field label={text.courseControls} help={text.courseControlsHelp}><textarea value={courseControls} maxLength={12000} disabled={locked}
+        <Field label={text.courseControls} help={rogaining ? rogainingSv.courseControlsHelp : text.courseControlsHelp}><textarea value={courseControls} maxLength={12000} disabled={locked}
           onChange={event => setCourseControls(event.target.value)} required rows={2} /></Field>
         {courseClassError && <Notice tone="error" role="alert">{courseClassError}</Notice>}
         <div className={styles.actions}>

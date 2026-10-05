@@ -2,7 +2,7 @@ import type {
   AdministratorReturnRequest, AdministratorStartCorrectionRequest, ClassCapacityRequest, ClassEditRequest, EntryCardChangeRequest, EntryCardRentalChangeRequest, EntryCardRentalReturnChangeRequest,
   EntryCardRentalReuseRequest, EntryIdentityChangeRequest, EntryRegistrationCandidatesResponse,
   EntryRegistrationRequest, EntryStartTimeChangeRequest, EntryTransferRequest, ManualClassCreateRequest,
-  CourseEditRequest, ShortenedCourseClassTransferCandidate, StartDrawRequest,
+  CourseEditRequest, RogainingChangeRequest, ShortenedCourseClassTransferCandidate, StartDrawRequest,
   ShortenedCourseClassTransferRequest, StartCheckinConflictReviewCandidate, StartCheckinConflictReviewRequest,
   UnknownReadoutResolutionCandidateResponse, UnknownReadoutResolutionRequest
 } from "@o-tid/contracts";
@@ -26,11 +26,13 @@ import { formatDuration } from "../../lib/clock-time";
 
 /** Ett pågående ändringsförsök. Alla försök granskas innan de skickas och kan skickas om med samma id. */
 export type ConflictReviewAttempt = { kind: "CONFLICT_REVIEW"; candidate: StartCheckinConflictReviewCandidate; request: StartCheckinConflictReviewRequest };
-export type CourseClassRequest = { formatVersion: 1; requestId: string; expectedSnapshotVersion: number; courseName: string; className: string; startRule: "PUNCH" | "FIXED"; controlCodes: number[] };
+export type CourseClassRequest = { formatVersion: 1; requestId: string; expectedSnapshotVersion: number; courseName: string; className: string;
+  startRule: "PUNCH" | "FIXED"; controlCodes: number[]; rogaining?: { timeLimitMinutes: number; penaltyPoints: number } };
 export type CourseClassAttempt = { kind: "COURSE_CLASS"; request: CourseClassRequest };
 export type ManualClassAttempt = { kind: "MANUAL_CLASS"; request: ManualClassCreateRequest; targetLabel: string };
 export type CourseEditAttempt = { kind: "COURSE_EDIT"; request: CourseEditRequest };
 export type ClassEditAttempt = { kind: "CLASS_EDIT"; request: ClassEditRequest };
+export type RogainingAttempt = { kind: "ROGAINING"; request: RogainingChangeRequest };
 export type StartDrawAttempt = { kind: "START_DRAW"; request: StartDrawRequest };
 export type ShortenedCourseClassTransferAttempt = { kind: "SHORTENED_COURSE_CLASS_TRANSFER";
   candidate: ShortenedCourseClassTransferCandidate; request: ShortenedCourseClassTransferRequest };
@@ -67,7 +69,7 @@ export type PendingAttempt = ConflictReviewAttempt | StartCorrectionAttempt | Re
   RentalReturnAttempt | RentalReuseAttempt | TimeAttempt | RecalculationAttempt |
   ClassResultRecalculationAttempt | IdentityAttempt | RegistrationAttempt | DnsAttempt | DnfAttempt | DsqAttempt |
   ApprovalAttempt | OocAttempt | NtAttempt | FinalizationAttempt | CourseClassAttempt | ManualClassAttempt |
-  CourseEditAttempt | ClassEditAttempt |
+  CourseEditAttempt | ClassEditAttempt | RogainingAttempt |
   ShortenedCourseClassTransferAttempt | UnknownReadoutResolutionAttempt;
 
 export type Action = "INFO" | "TRANSFER" | "CARD" | "TIME" | "IDENTITY" | "REGISTRATION" | "HISTORY";

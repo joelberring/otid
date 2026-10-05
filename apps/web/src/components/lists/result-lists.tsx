@@ -32,7 +32,67 @@ function Runner({ row, context, club = true }: { row: ResultRow; context: Contex
   </th>;
 }
 
+/**
+ * Rogainingklass (ADR-0170 beslut 5): placering efter summa och sedan tid. Poäng och straff visas på bred skärm;
+ * på mobil summa med tiden under.
+ */
+function ScoredClassBlock({ raceClass, context }: { raceClass: ResultClass; context: Context }) {
+  const id = `result-class-${slug(raceClass.name)}`;
+  const score = (row: ResultRow, value: (score: NonNullable<ResultRow["score"]>) => number) => row.score ? value(row.score) : "";
+  return <section className={styles.block} aria-labelledby={id}>
+    <div className={styles.blockHead}><h3 id={id}>{raceClass.name}</h3><p>{t.runners(raceClass.rows.length)}</p></div>
+    <p className={styles.note}>{t.scoredHelp}</p>
+    <table className={styles.table} aria-labelledby={id}>
+      <thead><tr><th scope="col" className={styles.place}>{t.place}</th><th scope="col">{t.name}</th>
+        <th scope="col" className={styles.wideOnly}>{t.club}</th>
+        <th scope="col" className={`${styles.num} ${styles.narrow} ${styles.wideOnly}`}>{t.points}</th>
+        <th scope="col" className={`${styles.num} ${styles.narrow} ${styles.wideOnly}`}>{t.penalty}</th>
+        <th scope="col" className={`${styles.num} ${styles.narrow}`}>{t.total}</th>
+        <th scope="col" className={`${styles.num} ${styles.narrow} ${styles.wideOnly}`}>{t.time}</th>
+        <th scope="col" className={styles.statusCol}>{t.statusColumn}</th></tr></thead>
+      <tbody>{raceClass.rows.map((row, index) => <tr key={row.publicResultId ?? `${row.name}-${index}`} data-status={row.status}>
+        <td className={styles.place}>{row.place ?? ""}</td>
+        <Runner row={row} context={context} />
+        <td className={styles.wideOnly}>{row.club ?? ""}</td>
+        <td className={`${styles.num} ${styles.wideOnly}`}>{score(row, value => value.controlPoints)}</td>
+        <td className={`${styles.num} ${styles.wideOnly} ${styles.muted}`}>{row.score && row.score.penalty > 0 ? `−${row.score.penalty}` : ""}</td>
+        <td className={styles.num}><span className={styles.strong}>{score(row, value => value.total)}</span>
+          <span className={styles.subMobile}>{duration(row.timeMs)}</span></td>
+        <td className={`${styles.num} ${styles.wideOnly}`}>{duration(row.timeMs)}</td>
+        <Status row={row} />
+      </tr>)}</tbody>
+    </table>
+  </section>;
+}
+
+/** Rogaining "med sträcktider": de räknade kontrollerna i stämplingsordning med poäng och tid från start. */
+function ScoredControlsBlock({ raceClass, context }: { raceClass: ResultClass; context: Context }) {
+  const id = `result-controls-${slug(raceClass.name)}`;
+  return <section className={styles.block} aria-labelledby={id}>
+    <div className={styles.blockHead}><h3 id={id}>{raceClass.name}</h3><p>{t.scoredControls}</p></div>
+    <table className={`${styles.table} ${styles.scoredTable}`} aria-labelledby={id}>
+      <thead><tr><th scope="col" className={styles.place}>{t.place}</th><th scope="col" className={styles.nameCol}>{t.name}</th>
+        <th scope="col" className={`${styles.num} ${styles.scoreCol}`}>{t.total}</th><th scope="col">{t.scoredControls}</th></tr></thead>
+      <tbody>{raceClass.rows.map((row, index) => {
+        const times = new Map(row.splits.map(split => [split.controlCode, split.elapsedMs]));
+        return <tr key={row.publicResultId ?? `${row.name}-${index}`}>
+          <td className={styles.place}>{row.place ?? ""}</td>
+          <th scope="row">{context.links && row.publicResultId
+            ? <Link href={`/results/${context.raceId}/participants/${row.publicResultId}`}>{row.name}</Link> : row.name}
+            <span className={styles.sub}>{row.status === "OK" ? duration(row.timeMs) : t.status[row.status]}</span></th>
+          <td className={`${styles.num} ${styles.strong}`}>{row.score?.total ?? ""}</td>
+          <td><ol className={styles.scoredControls}>{(row.score?.controls ?? []).map(control => <li key={control.controlCode}>
+            <strong>{t.scoredControl(control.controlCode, control.points)}</strong>
+            {times.has(control.controlCode) && <span className={styles.muted}> {formatDuration(times.get(control.controlCode)!)}</span>}
+          </li>)}</ol></td>
+        </tr>;
+      })}</tbody>
+    </table>
+  </section>;
+}
+
 function ClassBlock({ raceClass, context }: { raceClass: ResultClass; context: Context }) {
+  if (raceClass.scored) return <ScoredClassBlock raceClass={raceClass} context={context} />;
   const id = `result-class-${slug(raceClass.name)}`;
   return <section className={styles.block} aria-labelledby={id}>
     <div className={styles.blockHead}><h3 id={id}>{raceClass.name}</h3><p>{t.runners(raceClass.rows.length)}</p></div>
@@ -94,6 +154,7 @@ function RelayBlock({ raceClass, context }: { raceClass: RelayClass; context: Co
 }
 
 function SplitsBlock({ raceClass, context }: { raceClass: ResultClass; context: Context }) {
+  if (raceClass.scored) return <ScoredControlsBlock raceClass={raceClass} context={context} />;
   const groups = splitGroups(raceClass);
   if (groups.length === 0) return <section className={styles.block} aria-label={raceClass.name}>
     <div className={styles.blockHead}><h3>{raceClass.name}</h3></div><p className={styles.empty}>{t.noSplits}</p></section>;
@@ -167,7 +228,8 @@ function ByClub({ model, context }: { model: ResultListModel; context: Context }
             <Runner row={result} context={context} club={false} />
             <td className={styles.classCol}>{className}</td>
             <td className={styles.place}>{result.place ?? ""}</td>
-            <td className={styles.num}>{duration(result.timeMs)}</td>
+            <td className={styles.num}>{result.score && <span className={styles.strong}>{t.pointsShort(result.score.total)} · </span>}
+              {duration(result.timeMs)}</td>
             <Status row={result} />
           </tr>)}
           {group.teams.map(({ className, team }) => <tr key={`${className}-${team.number}`}>

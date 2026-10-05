@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { rogainingScoreSchema } from "./rogaining";
 
 const safeMillisecondsSchema = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 
@@ -61,12 +62,14 @@ interface PublicResultValidationValue {
   rankingState: "RANKED" | "NOT_RANKABLE_STATUS" | "MIXED_COURSE_VERSIONS";
   position?: number | undefined;
   timeBehindMs?: number | undefined;
+  rogaining?: unknown;
 }
 
 function validatePublicResult(result: PublicResultValidationValue, context: z.RefinementCtx): void {
   const hasPosition = result.position !== undefined;
   const hasTimeBehind = result.timeBehindMs !== undefined;
-  if (hasPosition !== hasTimeBehind) {
+  // Rogaining rangordnas på poäng: placering utan tid efter.
+  if (result.rogaining !== undefined ? hasTimeBehind : hasPosition !== hasTimeBehind) {
     context.addIssue({ code: "custom", message: "Position och tid efter måste förekomma tillsammans" });
   }
   if (result.status === "OK" &&
@@ -98,7 +101,7 @@ function validatePublicResult(result: PublicResultValidationValue, context: z.Re
     context.addIssue({ code: "custom", message: "OOC kräver utom-tävlan-orsak och får inte ha ranking" });
   }
   if (result.rankingState === "RANKED" &&
-      (result.status !== "OK" || !hasPosition || !hasTimeBehind)) {
+      (result.status !== "OK" || !hasPosition || (!hasTimeBehind && result.rogaining === undefined))) {
     context.addIssue({ code: "custom", message: "RANKED kräver OK, position och tid efter" });
   }
   if (result.rankingState === "NOT_RANKABLE_STATUS" &&
@@ -190,7 +193,9 @@ const publicResultV7TimingFields = {
   /** Gafflad bana: varianten som löparen bedömdes mot (ADR-0169 beslut 2). */
   courseVariantCode: z.string().min(1).max(32).optional(),
   missingControls: z.array(z.number().int().positive()).max(256),
-  extraPunches: z.array(z.number().int().positive()).max(256)
+  extraPunches: z.array(z.number().int().positive()).max(256),
+  /** Rogaining (ADR-0170 beslut 5): poäng, straff och summa. */
+  rogaining: rogainingScoreSchema.optional()
 };
 
 const publicResultV7TimedSchema = z.object({

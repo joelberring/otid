@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { evaluationResultSchema } from "./local-station-evaluation";
+import { rogainingScoreSchema } from "./rogaining";
 
 const canonicalUuidSchema = z.string().regex(
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
@@ -90,7 +91,8 @@ export const disqualifiedResultSchema = z.union([
     ...disqualifiedBaseFields,
     startTime: z.iso.datetime({ offset: true }),
     finishTime: z.iso.datetime({ offset: true }),
-    elapsedMs: z.number().int()
+    elapsedMs: z.number().int(),
+    rogaining: rogainingScoreSchema.optional()
   }).strict()
 ]);
 
@@ -107,7 +109,8 @@ export const manualApprovedResultSchema = z.object({
   startTime: z.iso.datetime({ offset: true }),
   finishTime: z.iso.datetime({ offset: true }),
   elapsedMs: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
-  ...disqualifiedExplanationFields
+  ...disqualifiedExplanationFields,
+  rogaining: rogainingScoreSchema.optional()
 }).strict().superRefine((result, context) => {
   if (Date.parse(result.finishTime) - Date.parse(result.startTime) !== result.elapsedMs) {
     context.addIssue({
@@ -151,7 +154,8 @@ export const outOfCompetitionResultSchema = z.union([
     ...outOfCompetitionBaseFields,
     startTime: z.iso.datetime({ offset: true }),
     finishTime: z.iso.datetime({ offset: true }),
-    elapsedMs: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER)
+    elapsedMs: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+    rogaining: rogainingScoreSchema.optional()
   }).strict()
 ]).superRefine((result, context) => {
   if (!("elapsedMs" in result)) {

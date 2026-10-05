@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { manualCourseClassCreateResponseSchema } from "@o-tid/contracts";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
+import { rogainingSv } from "../../i18n/rogaining-sv";
 import { parseControlCodes, type CourseClassAttempt, type CourseClassRequest } from "./types";
 import type { Base } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
@@ -11,15 +12,18 @@ export function useCoursePreparationState() {
   const [courseClassName, setCourseClassName] = useState("");
   const [courseStartRule, setCourseStartRule] = useState<CourseClassRequest["startRule"]>("PUNCH");
   const [courseControls, setCourseControls] = useState("");
+  // Rogaining (ADR-0170 beslut 5): förval en timme och en straffpoäng per påbörjad minut.
+  const [courseTimeLimit, setCourseTimeLimit] = useState("60");
+  const [coursePenalty, setCoursePenalty] = useState("1");
   const [courseClassAttempt, setCourseClassAttempt] = useState<CourseClassAttempt>();
   const [courseClassError, setCourseClassError] = useState("");
   return { courseName, setCourseName, courseClassName, setCourseClassName, courseStartRule, setCourseStartRule, courseControls,
-    setCourseControls, courseClassAttempt, setCourseClassAttempt, courseClassError,
+    setCourseControls, courseTimeLimit, setCourseTimeLimit, coursePenalty, setCoursePenalty, courseClassAttempt, setCourseClassAttempt, courseClassError,
     setCourseClassError };
 }
 
 export function createCoursePreparationActions(ws: Base & RaceDataActions) {
-  const { raceId, data, courseName, courseClassName, courseControls, courseStartRule, busyRef, pending, sent, requireSession,
+  const { raceId, data, courseName, courseClassName, courseControls, courseStartRule, courseTimeLimit, coursePenalty, busyRef, pending, sent, requireSession,
     begin, finish, current, request, json, csrf, load, setMessage, setCourseClassError,
     setCourseClassAttempt, setCourseName, setCourseClassName, setCourseControls } = ws;
   /** Ny bana med klass ändrar inga resultat: sparas direkt utan granskningssteg (ADR-0169 beslut 4). */
@@ -35,10 +39,17 @@ export function createCoursePreparationActions(ws: Base & RaceDataActions) {
       setCourseClassError(text.courseClassInvalidControls); return;
     }
     if (!data) { setCourseClassError(text.courseClassUnavailable); return; }
+    const rogaining = ws.profile.features.rogaining;
+    const limit = Number(courseTimeLimit.trim()), penalty = Number(coursePenalty.trim());
+    if (rogaining && (!/^\d+$/.test(courseTimeLimit.trim()) || !/^\d+$/.test(coursePenalty.trim()) || limit < 1 || limit > 2_880 ||
+        penalty > 1_000)) {
+      setCourseClassError(rogainingSv.invalid); return;
+    }
     const request: CourseClassRequest = { formatVersion: 1, requestId: crypto.randomUUID(),
       expectedSnapshotVersion: data.snapshotVersion, courseName: course, className: raceClass,
       // ADR-0170: typer utan val av startsätt (Träning, Rogaining) har alltid fri start.
-      startRule: ws.profile.features.startRuleChoice ? courseStartRule : "PUNCH", controlCodes: codes };
+      startRule: ws.profile.features.startRuleChoice ? courseStartRule : "PUNCH", controlCodes: codes,
+      ...(rogaining ? { rogaining: { timeLimitMinutes: limit, penaltyPoints: penalty } } : {}) };
     const value = { kind: "COURSE_CLASS" as const, request };
     pending.current = value; sent.current = false; setCourseClassAttempt(value); void submitCourseClass(value);
   }

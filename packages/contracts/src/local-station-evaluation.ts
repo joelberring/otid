@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { rogainingScoreSchema } from "./rogaining";
 
 const uuidSchema = z.uuid();
 const sha256Schema = z.string().regex(/^[a-f0-9]{64}$/);
@@ -25,7 +26,9 @@ const timedFields = {
   startTime: z.iso.datetime({ offset: true }),
   finishTime: z.iso.datetime({ offset: true }),
   elapsedMs: z.number().int(),
-  ...explanationFields
+  ...explanationFields,
+  /** Rogainingklass: poäng, straff och summa (ADR-0170 beslut 5). */
+  rogaining: rogainingScoreSchema.optional()
 };
 
 export const evaluationResultSchema = z.discriminatedUnion("reason", [

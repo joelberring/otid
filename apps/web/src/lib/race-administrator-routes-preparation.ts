@@ -9,7 +9,9 @@ import { classCapacityKeySchema, classCapacityRequestSchema, classCapacityRespon
   shortenedCourseClassTransferRequestSchema, shortenedCourseClassTransferReceiptSchema, startDrawSetupResponseSchema,
   startDrawPreviewRequestSchema, startDrawPreviewResponseSchema, startDrawRequestSchema,
   startDrawIdempotencyKeySchema, startDrawResponseSchema, startListPublicationPreviewResponseSchema,
-  startListPublicationRequestSchema, startListPublicationIdempotencyKeySchema } from "@o-tid/contracts";
+  startListPublicationRequestSchema, startListPublicationIdempotencyKeySchema, rogainingChangePreviewRequestSchema,
+  rogainingChangePreviewResponseSchema, rogainingChangeIdempotencyKeySchema, rogainingChangeRequestSchema,
+  rogainingChangeResponseSchema } from "@o-tid/contracts";
 import { entryClassAdminFailure as failure, entryClassAdminJson as json, hasNoEntryClassAdminRequestBody, privateEntryClassAdminHeaders,
   readEntryClassAdminJson } from "./entry-class-admin-security";
 import { parseAdministratorPublicationReceipt } from "./administrator-publication-client";
@@ -86,6 +88,33 @@ export async function handlePreparationRoute(context: RaceAdministratorRouteCont
     if (result.status !== "edited") return resultFailure(result.status);
     const response = classEditResponseSchema.parse(result.response);
     if (response.raceId !== raceId || response.classId !== action.classId || response.requestId !== parsed.data.requestId ||
+        JSON.stringify(response.request) !== JSON.stringify(parsed.data)) return failure(500, "INTERNAL_ERROR");
+    return json(response);
+  }
+  if (action.kind === "rogaining-preview") {
+    let body: unknown;
+    try { body = await readEntryClassAdminJson(request); } catch { return failure(400, "INVALID_REQUEST"); }
+    const parsed = rogainingChangePreviewRequestSchema.safeParse(body);
+    if (!parsed.success) return failure(400, "INVALID_REQUEST");
+    const result = await dependencies.rogainingPreview(db, { ...proof, raceId, request: parsed.data });
+    if (result.status !== "ok") return resultFailure(result.status);
+    const response = rogainingChangePreviewResponseSchema.parse(result.response);
+    if (response.raceId !== raceId || response.snapshotVersion !== parsed.data.expectedSnapshotVersion) return failure(500, "INTERNAL_ERROR");
+    return json(response);
+  }
+  if (action.kind === "rogaining") {
+    const key = rogainingChangeIdempotencyKeySchema.safeParse(request.headers.get("idempotency-key"));
+    if (!key.success) return failure(400, "INVALID_REQUEST");
+    let body: unknown;
+    try { body = await readEntryClassAdminJson(request); } catch { return failure(400, "INVALID_REQUEST"); }
+    const parsed = rogainingChangeRequestSchema.safeParse(body);
+    if (!parsed.success || key.data !== `rogaining-change:${parsed.data.requestId}`) return failure(400, "INVALID_REQUEST");
+    const result = await dependencies.rogaining(db, { ...proof, raceId, idempotencyKey: key.data, request: parsed.data });
+    // Någon löpares status eller summa ändras sedan beskedet visades: klienten hämtar nytt besked och frågar igen.
+    if (result.status === "confirmation-required") return failure(409, "CONFLICT");
+    if (result.status !== "changed") return resultFailure(result.status);
+    const response = rogainingChangeResponseSchema.parse(result.response);
+    if (response.raceId !== raceId || response.requestId !== parsed.data.requestId ||
         JSON.stringify(response.request) !== JSON.stringify(parsed.data)) return failure(500, "INTERNAL_ERROR");
     return json(response);
   }

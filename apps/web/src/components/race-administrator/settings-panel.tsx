@@ -51,9 +51,3 @@ export function SettingsPanel({ ws }: { ws: Workspace }) {
     </Section>}
   </div>;
 }
-
-/** Rogaining (ADR-0170 beslut 5): poäng per kontroll kommer i steg 15. Tills dess en kort notis där inställningen hör hemma. */
-export function RogainingNote({ ws }: { ws: Workspace }) {
-  if (!ws.shows("ROGAINING_NOTE")) return null;
-  return <Notice tone="info">{raceTypeSv.rogainingNote}</Notice>;
-}

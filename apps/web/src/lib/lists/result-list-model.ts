@@ -10,13 +10,18 @@ import { groupByClub, type ClubGroup } from "./start-list-model";
 
 export type ResultStatus = "OK" | "MP" | "DSQ" | "DNF" | "OOC" | "DNS" | "NT";
 export type ResultSplit = { controlCode: number; occurrence: number; legMs: number; elapsedMs: number };
+/** Rogaining (ADR-0170 beslut 5): kontrollpoäng, straff, summa och de räknade kontrollerna i stämplingsordning. */
+export type ResultScore = { controlPoints: number; penalty: number; total: number; controls: { controlCode: number; points: number }[] };
 export type ResultRow = {
   /** Länk till löparens resultatsida; saknas i äldre format. */
   publicResultId: string | null;
   name: string; club: string | null; className: string; place: number | null; timeMs: number | null; behindMs: number | null;
   status: ResultStatus; reason: string; variant: string | null; splits: ResultSplit[]; missingControls: number[];
+  score: ResultScore | null;
 };
 export type ResultClass = { name: string; rows: ResultRow[];
+  /** Rogainingklass: listan visar poäng, straff och summa (sorterad på summa, sedan tid). */
+  scored: boolean;
   /** Godkända resultat bygger på olika banversioner: ingen placering visas. */
   mixedCourses: boolean };
 export type RelayClass = PublicRelayResults["classes"][number];
@@ -35,16 +40,20 @@ function row(result: PublicRow): ResultRow {
     status: result.status, reason: result.reason,
     variant: "courseVariantCode" in result ? result.courseVariantCode ?? null : null,
     splits: "splits" in result ? result.splits.map(split => ({ ...split })) : [],
-    missingControls: "missingControls" in result ? [...result.missingControls] : []
+    missingControls: "missingControls" in result ? [...result.missingControls] : [],
+    score: "rogaining" in result && result.rogaining ? { controlPoints: result.rogaining.controlPoints, penalty: result.rogaining.penalty,
+      total: result.rogaining.total, controls: result.rogaining.controls.map(control => ({ ...control })) } : null
   };
 }
 
-/** Serverns ordning (status, tid, namn) behålls; klasserna kommer i bokstavsordning. */
+/** Serverns ordning (status, poäng, tid, namn) behålls; klasserna kommer i bokstavsordning. */
 export function resultListFromPublic(results: PublicResultListResponse, relay: PublicRelayResults): ResultListModel {
   const classes = new Map<string, ResultClass>();
   for (const result of results.results) {
-    const raceClass = classes.get(result.className) ?? { name: result.className, rows: [], mixedCourses: false };
-    raceClass.rows.push(row(result));
+    const raceClass = classes.get(result.className) ?? { name: result.className, rows: [], mixedCourses: false, scored: false };
+    const value = row(result);
+    raceClass.rows.push(value);
+    if (value.score) raceClass.scored = true;
     if (result.rankingState === "MIXED_COURSE_VERSIONS") raceClass.mixedCourses = true;
     classes.set(result.className, raceClass);
   }

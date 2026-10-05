@@ -336,5 +336,7 @@
     }
     ,{ "idx": 96, "version": "7", "when": 1796572800000, "tag": "0096_adr_0170_eventor_sync", "breakpoints": true
     }
+    ,{ "idx": 97, "version": "7", "when": 1796659200000, "tag": "0097_adr_0170_rogaining", "breakpoints": true
+    }
   ]
 }

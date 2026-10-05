@@ -46,7 +46,10 @@ export async function createManualCourseClassAsAdministrator(db: Database, input
       await tx.insert(schema.courseControls).values({ courseVersionId: courseVersion.id, controlId: control.id, sequence: index + 1 });
     }
     const [raceClass] = await tx.insert(schema.classes).values({ raceId: input.raceId, name: intent.className,
-      courseVersionId: courseVersion.id, startRule: intent.startRule }).returning();
+      courseVersionId: courseVersion.id, startRule: intent.startRule,
+      // Rogainingtävling (ADR-0170 beslut 5): klassen bedöms på poäng med tidsgräns och straff.
+      ...(intent.rogaining ? { rogainingTimeLimitSeconds: intent.rogaining.timeLimitMinutes * 60,
+        rogainingPenaltyPointsPerMinute: intent.rogaining.penaltyPoints } : {}) }).returning();
     if (!raceClass) throw new Error("Klassen kunde inte skapas");
     const response = manualCourseClassCreateResponseSchema.parse({ formatVersion: 1, replayed: false,
       requestId: intent.requestId, raceId: input.raceId, courseId: course.id, courseVersionId: courseVersion.id,
@@ -60,7 +63,7 @@ export async function createManualCourseClassAsAdministrator(db: Database, input
       requestId: intent.requestId, actorKind: "RACE_ADMIN_ACCESS_CREDENTIAL", actorId: auth.principal.accessCredentialId,
       action: "MANUAL_COURSE_CLASS_CREATED_BY_ADMIN", before: { snapshotVersion: race.snapshotVersion },
       after: { courseId: course.id, courseVersionId: courseVersion.id, classId: raceClass.id,
-        startRule: intent.startRule, controlCodes: intent.controlCodes, snapshotVersion: response.snapshotVersionAfter }, createdAt: now });
+        startRule: intent.startRule, controlCodes: intent.controlCodes, rogaining: intent.rogaining ?? null, snapshotVersion: response.snapshotVersionAfter }, createdAt: now });
     return { status: "created" as const, response };
   });
 }

@@ -5,9 +5,21 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 15 – Rogaining. Steg 7 (hårdvara) görs parallellt av ägaren.
+Steg 16 – Sträcktidsanalys och vägval. Steg 7 (hårdvara) görs parallellt av ägaren.
 
 ## Logg
+
+### 2026-10-05 – Steg 15: rogaining (steg 15 klart)
+- Migration 0097: `class.rogaining_time_limit_seconds`/`_penalty_points_per_minute` (rogainingklass), `control.points` (NULL = förval) och journalen
+  `rogaining_change_request`. Underlagshashen tar med tidsgräns, straff och poäng (v3) bara för rogainingklasser; övriga hashar oförändrade.
+- Domän `rogaining.ts` (via `evaluateCardReadout`, så även offlinepaket, omräkning och rättad tid): banversionen är kontrollmängden, förval = kodens
+  tiotal (31 → 3, 102 → 10), en gång per kontroll, straff per påbörjad minut, summa ≥ 0; rangordning på summa, sedan tid, delad plats vid lika.
+- Kontroller & poäng: tidsgräns och straff per klass och poäng per kontroll i raderna; sparas direkt när ingen summa/status ändras, annars besked
+  och omräkning med nya revisioner. "Förbered bana och klass" har tidsgräns (60) och straff (1) i rogainingtävlingar.
+- Avläsningen visar summa stort, kontrollpoäng − straff, tid mot gränsen, "För sen" med symbol och de räknade kontrollerna; övningsstationen har "för sen".
+- Listor: kolumner Poäng/Straff/Summa/Tid, "med sträcktider" visar räknade kontroller, CSV och IOF XML (`<Score type="Score">`, `Penalty`, placering utan TimeBehind).
+- Verifierat: lint, typecheck, test, test:integration (84 filer, nytt `adr-0170-rogaining`), build, e2e (nytt `rogaining`; i hela sviten gav lasten
+  tidsfel i listor/gafflingar/admin-access, som går igenom var för sig med omförsök). Skärmbilder 1280/390 granskade.
 
 ### 2026-10-05 – Steg 14: Eventor och banfiler, med uppdateringar (steg 14 klart)
 - Inställningar → Eventor (Tävling, gafflade banor, Stafett): klubbens API-nyckel sparas krypterad per tävling (AES-256-GCM, `OTID_EVENTOR_MASTER_KEY`

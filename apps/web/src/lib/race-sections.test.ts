@@ -27,6 +27,8 @@ describe("tävlingstypen styr arbetsytans delar (ADR-0170 beslut 1)", () => {
     for (const type of raceTypes) {
       expect(features(type).relay).toBe(type === "RELAY");
       expect(features(type).variants).toBe(type === "FORKED" || type === "RELAY");
+      // ADR-0170 beslut 4: Eventor för tävlingarna och stafetten; banfil kan alla läsa under Banor.
+      expect(features(type).eventor).toBe(type === "STANDARD" || type === "FORKED" || type === "RELAY");
     }
   });
 

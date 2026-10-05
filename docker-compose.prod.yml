@@ -31,6 +31,12 @@ services:
       DATABASE_URL: postgresql://otid:${POSTGRES_PASSWORD}@postgres:5432/otid
       O_TID_PUBLIC_ORIGIN: https://${OTID_DOMAIN:?Sätt OTID_DOMAIN i .env}
       NEXT_PUBLIC_BASE_URL: https://${OTID_DOMAIN}
+      # Eventor (docs/drift.md): masternyckel för klubbarnas API-nycklar. Tom = Eventor avstängt.
+      OTID_EVENTOR_MASTER_KEY: ${OTID_EVENTOR_MASTER_KEY:-}
+      # Endast test (CI pekar på en falsk Eventor på värden). Tom i drift = Eventor Sverige.
+      OTID_EVENTOR_BASE_URL: ${OTID_EVENTOR_BASE_URL:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/organizer').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
       interval: 5s

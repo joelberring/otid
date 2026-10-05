@@ -7,6 +7,7 @@ export * from "./manual-course-version-class-relink";
 export * from "./manual-course-result-impact";
 export * from "./manual-course-result-bearing-relink";
 export * from "./course-edit";
+export * from "./source-sync";
 export * from "./course-variant-assignment";
 export * from "./class-edit";
 export * from "./shortened-course-class-transfer";
@@ -265,8 +266,6 @@ export type DeviceEventAcknowledgement = z.infer<typeof deviceEventAcknowledgeme
 export type DeviceBatchAcknowledgement = z.infer<typeof deviceBatchAcknowledgementSchema>;
 export * from "./start-draw";
 export * from "./class-start-rule-change";
-export * from "./eventor-import";
-export * from "./eventor-entry-import";
 export * from "./start-checkin-roster";
 export * from "./start-checkin-conflict-review";
 export * from "./speaker-board";

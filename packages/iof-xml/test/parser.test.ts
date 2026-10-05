@@ -132,6 +132,15 @@ describe("parseIofXml", () => {
     });
   });
 
+  it("tolkar en banfil från OCAD utan Course.Id: banans namn är dess id", () => {
+    const parsed = parseIofXml(fixture("course-file-1.xml"));
+    if (parsed.kind !== "CourseData") throw new Error("Fel typ");
+    expect(parsed.courses.map(course => [course.externalId, course.controlCodes])).toEqual([
+      ["Bana 1", [31, 32, 33, 34]], ["Bana 2", [31, 35, 33]], ["Bana 3", [31, 36, 37]]]);
+    expect(parsed.assignments.map(row => [row.className, row.courseExternalId])).toEqual([
+      ["H21", "Bana 1"], ["D21", "Bana 2"], ["H35", "Bana 2"], ["D35", "Bana 3"]]);
+  });
+
   it("tolkar gafflingar: Course med samma CourseFamily blir en bana med varianter", () => {
     const parsed = parseIofXml(fixture("course-data-forked.xml"));
     if (parsed.kind !== "CourseData") throw new Error("Fel dokumenttyp");

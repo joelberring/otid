@@ -305,7 +305,7 @@ Se ADR-0170 beslut 3.
 **Acceptans:** Playwright: varje vy visas, utskriftsläget ger en ren sida,
 export laddas ner. Skärmbilder granskade.
 
-## [ ] Steg 14 – Eventor och banfiler, med uppdateringar
+## [x] Steg 14 – Eventor och banfiler, med uppdateringar
 
 Se ADR-0170 beslut 4.
 

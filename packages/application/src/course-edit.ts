@@ -19,6 +19,7 @@ import {
   assessReadOutEntries, normalizedReadout, recalculateAssessedEntries, summarizeAssessment, type AssessedEntry
 } from "./result-reassessment";
 import { insertCourseVersionControls, loadCourseVersionVariants, type StoredCourseVariant } from "./course-variants";
+import { PLACEHOLDER_COURSE } from "./source-sync-model";
 
 /**
  * Redigera bana (ADR-0169 beslut 4): ändra en banas kontrollföljd, även när
@@ -102,7 +103,10 @@ export async function listCoursesForEditAsAdministrator(db: Database, input: Aut
     if (auth.status !== "authenticated") return auth;
     const raceId = auth.principal.raceId;
     const race = await lockRaceForSnapshot(tx, raceId);
-    const courses = await tx.select({ id: schema.courses.id }).from(schema.courses).where(eq(schema.courses.raceId, raceId));
+    const courses = await tx.select({ id: schema.courses.id, externalSource: schema.courses.externalSource,
+      externalId: schema.courses.externalId }).from(schema.courses).where(eq(schema.courses.raceId, raceId));
+    const placeholder = new Set(courses.filter(row => row.externalSource === PLACEHOLDER_COURSE.externalSource &&
+      row.externalId === PLACEHOLDER_COURSE.externalId).map(row => row.id));
     const entries = await tx.select({ id: schema.entries.id, classId: schema.entries.classId,
       fixedStartTime: schema.entries.fixedStartTime, teamId: schema.entries.teamId }).from(schema.entries).where(eq(schema.entries.raceId, raceId));
     const assignments = await tx.select({ entryId: schema.cardAssignments.entryId, cardNumber: schema.cardAssignments.cardNumber })
@@ -116,6 +120,8 @@ export async function listCoursesForEditAsAdministrator(db: Database, input: Aut
     for (const { id } of courses) {
       const course = await loadCourse(tx, raceId, id);
       if (!course) continue;
+      // Platshållaren för Eventor-klasser utan banfil visas bara så länge någon klass står på den.
+      if (placeholder.has(course.id) && course.classes.length === 0) continue;
       const classIds = new Set(course.classes.map(row => row.id));
       const courseEntries = entries.filter(row => classIds.has(row.classId));
       const variants = course.variants.map(variant => {

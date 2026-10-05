@@ -6,13 +6,14 @@ import { raceTypeSv } from "../../i18n/race-type-sv";
 import { RaceOperatorAccess } from "../race-operator-access";
 import { RaceTypeChoice } from "../race-type-choice";
 import { Button, Field, Notice, Section } from "../ui";
+import { EventorSection } from "./eventor-section";
 import type { Workspace } from "./workspace-state";
 
 const text = raceTypeSv.settings;
 
 /**
  * Inställningar (ADR-0170 beslut 1): namn, datum och tävlingstyp. Att byta typ ändrar bara vilka delar som
- * syns; inget tas bort. Här finns också funktionärer och, för typer med import, länken till importen.
+ * syns; inget tas bort. Här finns också funktionärer, Eventor (typer som använder Eventor) och länken till importen.
  */
 export function SettingsPanel({ ws }: { ws: Workspace }) {
   const { busy, changeSettings, data, profile, raceId, saveSettings, setOperatorAccessPending, settingsAttempt, settingsForm,
@@ -44,6 +45,7 @@ export function SettingsPanel({ ws }: { ws: Workspace }) {
     <Section id={`${id}-staff`} title={text.staff} help={text.staffHelp}>
       <RaceOperatorAccess raceId={raceId} onPendingChange={setOperatorAccessPending} />
     </Section>
+    {profile.features.eventor && <EventorSection ws={ws} />}
     {profile.features.import && <Section id={`${id}-import`} title={text.import} help={text.importHelp}>
       <p><Link href={`/admin/${raceId}/imports`}>{text.importLink}</Link></p>
     </Section>}

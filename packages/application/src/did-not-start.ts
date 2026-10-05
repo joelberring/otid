@@ -144,6 +144,34 @@ function responseFor(
   });
 }
 
+type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+
+/**
+ * Sparar ett ej start-beslut och dess resultatrevision (revision 1). Anroparen har kontrollerat att
+ * deltagaren saknar resultat och håller skrivlåset. Används av "Ändra status" och av uppdateringen
+ * från Eventor, där en struken anmälan blir ej start (ADR-0170 beslut 4).
+ */
+export async function insertDidNotStartDecision(tx: Transaction, input: { requestId: string; raceId: string; actorCredentialId: string;
+  entryId: string; entryVersion: number; classId: string; courseVersionId: string; snapshotVersion: number; policyVersion: string;
+  decidedAt: Date }) {
+  const outcome = createDidNotStartResult({ entryId: input.entryId, classId: input.classId, courseVersionId: input.courseVersionId });
+  const decisionId = randomUUID();
+  const resultRevisionId = randomUUID();
+  const [decision] = await tx.insert(schema.didNotStartDecisions).values({ id: decisionId, requestId: input.requestId,
+    raceId: input.raceId, actorCredentialId: input.actorCredentialId, entryId: input.entryId,
+    expectedEntryVersion: input.entryVersion, expectedClassId: input.classId, expectedCourseVersionId: input.courseVersionId,
+    expectedSnapshotVersion: input.snapshotVersion, expectedLatestResultRevision: 0, policyVersion: input.policyVersion,
+    status: "DNS", reason: "DID_NOT_START", createdResultRevisionId: resultRevisionId, createdResultRevision: 1,
+    decidedAt: input.decidedAt }).returning();
+  if (!decision) throw new Error("Ej-startbeslutet kunde inte sparas");
+  const [revision] = await tx.insert(schema.resultRevisions).values({ id: resultRevisionId, raceId: input.raceId, entryId: input.entryId,
+    readoutId: null, didNotStartDecisionId: decision.id, revision: 1, cause: "MANUAL_DID_NOT_START", status: outcome.status,
+    reason: outcome.reason, evaluation: outcome, engineVersion: DID_NOT_START_POLICY_VERSION, snapshotVersion: input.snapshotVersion,
+    courseVersionId: input.courseVersionId, published: true, createdAt: input.decidedAt }).returning();
+  if (!revision) throw new Error("DNS-revisionen kunde inte sparas");
+  return { decision, revision };
+}
+
 export async function decideDidNotStartAsAdmin(
   db: Database,
   input: DecideDidNotStartInput,
@@ -206,50 +234,10 @@ export async function decideDidNotStartAsAdmin(
       .orderBy(desc(schema.resultRevisions.revision), desc(schema.resultRevisions.id)).limit(1);
     if (latestRevision) return { status: "conflict" } as const;
 
-    const outcome = createDidNotStartResult({
-      entryId: entry.id,
-      classId: raceClass.id,
-      courseVersionId: raceClass.courseVersionId
-    });
-    const decisionId = randomUUID();
-    const resultRevisionId = randomUUID();
-    const [decision] = await tx.insert(schema.didNotStartDecisions).values({
-      id: decisionId,
-      requestId,
-      raceId: race.id,
-      actorCredentialId: authorization.principal.accessCredentialId,
-      entryId: entry.id,
-      expectedEntryVersion: request.data.expectedEntryVersion,
-      expectedClassId: request.data.expectedClassId,
-      expectedCourseVersionId: request.data.expectedCourseVersionId,
-      expectedSnapshotVersion: request.data.expectedSnapshotVersion,
-      expectedLatestResultRevision: 0,
-      policyVersion: request.data.policyVersion,
-      status: "DNS",
-      reason: "DID_NOT_START",
-      createdResultRevisionId: resultRevisionId,
-      createdResultRevision: 1,
-      decidedAt
-    }).returning();
-    if (!decision) throw new Error("Ej-startbeslutet kunde inte sparas");
-    const [revision] = await tx.insert(schema.resultRevisions).values({
-      id: resultRevisionId,
-      raceId: race.id,
-      entryId: entry.id,
-      readoutId: null,
-      didNotStartDecisionId: decision.id,
-      revision: 1,
-      cause: "MANUAL_DID_NOT_START",
-      status: outcome.status,
-      reason: outcome.reason,
-      evaluation: outcome,
-      engineVersion: DID_NOT_START_POLICY_VERSION,
-      snapshotVersion: race.snapshotVersion,
-      courseVersionId: raceClass.courseVersionId,
-      published: true,
-      createdAt: decidedAt
-    }).returning();
-    if (!revision) throw new Error("DNS-revisionen kunde inte sparas");
+    const { decision, revision } = await insertDidNotStartDecision(tx, { requestId, raceId: race.id,
+      actorCredentialId: authorization.principal.accessCredentialId, entryId: entry.id, entryVersion: request.data.expectedEntryVersion,
+      classId: raceClass.id, courseVersionId: raceClass.courseVersionId, snapshotVersion: race.snapshotVersion,
+      policyVersion: request.data.policyVersion, decidedAt });
     await tx.insert(schema.auditEvents).values({
       raceId: race.id,
       entityType: "result_revision",

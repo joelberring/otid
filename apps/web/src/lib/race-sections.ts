@@ -21,7 +21,9 @@ export type Section = { id: SectionId; label: SectionLabel; panels: readonly Pan
 export type RaceTypeFeatures = {
   /** Lottning i Start. */ draw: boolean;
   /** Egen speakersida. */ speaker: boolean;
-  /** Import (IOF XML, Eventor i steg 14) under Inställningar. */ import: boolean;
+  /** Import av anmälda och startlistor (IOF XML) under Inställningar. */ import: boolean;
+  /** Eventor under Inställningar (ADR-0170 beslut 4): Tävling, gafflade banor och Stafett. Banfil kan alla typer läsa under Banor. */
+  eventor: boolean;
   /** Fastställande i Resultat. */ finalization: boolean;
   /** Stafettklasser, lag och sträckor. */ relay: boolean;
   /** Banvarianter (gafflingar). */ variants: boolean;
@@ -47,9 +49,9 @@ const readout = section("READOUT", "READOUT");
 const results = section("RESULTS", "RESULTS");
 const settings = section("SETTINGS", "SETTINGS");
 
-const none: RaceTypeFeatures = { draw: false, speaker: false, import: false, finalization: false, relay: false, variants: false,
+const none: RaceTypeFeatures = { draw: false, speaker: false, import: false, eventor: false, finalization: false, relay: false, variants: false,
   variantsProminent: false, startRuleChoice: false };
-const competition: RaceTypeFeatures = { ...none, draw: true, speaker: true, import: true, finalization: true, startRuleChoice: true };
+const competition: RaceTypeFeatures = { ...none, draw: true, speaker: true, import: true, eventor: true, finalization: true, startRuleChoice: true };
 
 const profiles: Record<RaceType, Omit<RaceTypeProfile, "type" | "settings">> = {
   TRAINING: {
@@ -70,7 +72,7 @@ const profiles: Record<RaceType, Omit<RaceTypeProfile, "type" | "settings">> = {
   },
   RELAY: {
     course: [courses, section("CLASSES", "CLASSES_LEGS"), section("ENTRIES", "TEAMS"), start, readout, results],
-    features: { ...none, speaker: true, finalization: true, relay: true, variants: true, startRuleChoice: true }
+    features: { ...none, speaker: true, eventor: true, finalization: true, relay: true, variants: true, startRuleChoice: true }
   },
   ROGAINING: {
     course: [section("COURSES", "CONTROLS_POINTS", ["ROGAINING_NOTE", "COURSES", "CLASSES"]), section("ENTRIES", "PARTICIPANTS"),

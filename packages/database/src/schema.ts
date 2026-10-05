@@ -1258,144 +1258,43 @@ export const userAccountRaceDelegations = pgTable("user_account_race_delegation"
     sql`${table.expiresAt} > ${table.issuedAt} AND ${table.expiresAt} <= ${table.issuedAt} + interval '1 hour'`)
 ]);
 
-export const eventorConnections = pgTable("eventor_connection", {
-  id: uuid("id").primaryKey(),
-  ownerCredentialId: uuid("owner_credential_id").notNull().references(() => eventCreationAccessCredentials.id),
-  environment: text("environment").$type<"testeventor-se" | "production-se">().notNull(),
-  label: text("label").notNull(),
-  keyId: text("key_id").notNull(),
-  formatVersion: integer("format_version").$type<1>().notNull(),
-  iv: text("iv").notNull(),
-  tag: text("tag").notNull(),
-  ciphertext: text("ciphertext").notNull(),
-  issuedAt: timestamp("issued_at", { withTimezone: true }).notNull(),
-  operatorLabel: text("operator_label").notNull(),
-}, (table) => [
-  uniqueIndex("eventor_connection_id_owner_uidx").on(table.id, table.ownerCredentialId),
-  index("eventor_connection_owner_idx").on(table.ownerCredentialId),
-  check("eventor_connection_environment_check", sql`${table.environment} IN ('testeventor-se', 'production-se')`),
-  check("eventor_connection_label_check", sql`length(btrim(${table.label})) between 1 and 120 AND length(btrim(${table.operatorLabel})) between 1 and 120`),
-  check("eventor_connection_key_check", sql`${table.keyId} ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'`),
-  check("eventor_connection_envelope_check", sql`${table.formatVersion} = 1 AND ${table.iv} ~ '^[A-Za-z0-9_-]{16}$' AND ${table.tag} ~ '^[A-Za-z0-9_-]{22}$' AND ${table.ciphertext} ~ '^[A-Za-z0-9_-]{43}$'`),
-]);
-
-export const eventorConnectionRevocations = pgTable("eventor_connection_revocation", {
-  connectionId: uuid("connection_id").primaryKey().references(() => eventorConnections.id),
-  revokedAt: timestamp("revoked_at", { withTimezone: true }).notNull(),
-  operatorLabel: text("operator_label").notNull(),
-}, (table) => [
-  check("eventor_connection_revocation_operator_check", sql`length(btrim(${table.operatorLabel})) between 1 and 120`),
-]);
-
-export const eventorImportRequests = pgTable("eventor_import_request", {
-  requestId: uuid("request_id").primaryKey(),
-  connectionId: uuid("connection_id").notNull(),
-  actorCredentialId: uuid("actor_credential_id").notNull().references(() => eventCreationAccessCredentials.id),
-  environment: text("environment").$type<"testeventor-se" | "production-se">().notNull(),
-  externalEventId: text("external_event_id").notNull(),
-  externalEventRaceId: text("external_event_race_id").notNull(),
-  sourceHash: text("source_hash").notNull(),
-  mappingVersion: integer("mapping_version").notNull(),
-  eventName: text("event_name").notNull(),
-  eventStartDate: date("event_start_date").notNull(),
-  raceName: text("race_name").notNull(),
-  raceDate: date("race_date").notNull(),
-  timeZone: text("time_zone").notNull(),
-  eventId: uuid("event_id").notNull().references(() => events.id),
-  raceId: uuid("race_id").notNull().references(() => races.id),
-  fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-}, (table) => [
-  uniqueIndex("eventor_import_external_event_uidx").on(table.environment, table.externalEventId),
-  uniqueIndex("eventor_import_event_uidx").on(table.eventId),
-  uniqueIndex("eventor_import_race_uidx").on(table.raceId),
-  uniqueIndex("eventor_import_request_provenance_uidx").on(table.requestId, table.raceId, table.actorCredentialId),
-  check("eventor_import_environment_check", sql`${table.environment} IN ('testeventor-se', 'production-se')`),
-  check("eventor_import_external_id_check", sql`length(${table.externalEventId}) between 1 and 256 AND length(${table.externalEventRaceId}) between 1 and 256`),
-  check("eventor_import_hash_check", sql`${table.sourceHash} ~ '^[a-f0-9]{64}$' AND ${table.mappingVersion} = 1`),
-  check("eventor_import_names_check", sql`length(btrim(${table.eventName})) between 2 and 160 AND length(btrim(${table.raceName})) between 2 and 160 AND length(btrim(${table.timeZone})) between 1 and 100`),
-  foreignKey({ columns: [table.connectionId, table.actorCredentialId], foreignColumns: [eventorConnections.id, eventorConnections.ownerCredentialId], name: "eventor_import_connection_owner_fk" }),
-  foreignKey({ columns: [table.raceId, table.eventId], foreignColumns: [races.id, races.eventId], name: "eventor_import_race_event_fk" }),
-]);
-
 /**
- * A server-side authorization bridge from an Eventor connection owner to one
- * already race-scoped IMPORT_IOF credential. It deliberately carries no API
- * key, browser secret or free-standing Eventor event/race identifier.
+ * ADR-0170 beslut 4: tävlingens Eventor-koppling. Klubbens API-nyckel lagras bara krypterad
+ * (AES-256-GCM, masternyckeln i serverns miljö). Eventors id är extern identitet.
  */
-export const eventorRaceImportGrants = pgTable("eventor_race_import_grant", {
-  id: uuid("id").primaryKey(),
-  eventorImportRequestId: uuid("eventor_import_request_id").notNull(),
-  raceId: uuid("race_id").notNull(),
-  recipientCredentialId: uuid("recipient_credential_id").notNull(),
-  capability: pairingAdminCapabilityEnum("capability").notNull(),
-  issuerCredentialId: uuid("issuer_credential_id").notNull(),
-  label: text("label").notNull(),
-  operatorLabel: text("operator_label").notNull(),
-  issuedAt: timestamp("issued_at", { withTimezone: true }).notNull(),
-}, (table) => [
-  uniqueIndex("eventor_race_import_grant_id_race_uidx").on(table.id, table.raceId),
-  uniqueIndex("eventor_race_import_grant_id_issuer_uidx").on(table.id, table.issuerCredentialId),
-  index("eventor_race_import_grant_race_time_idx").on(table.raceId, table.issuedAt),
-  index("eventor_race_import_grant_recipient_race_idx").on(table.recipientCredentialId, table.raceId),
-  foreignKey({
-    columns: [table.eventorImportRequestId, table.raceId, table.issuerCredentialId],
-    foreignColumns: [eventorImportRequests.requestId, eventorImportRequests.raceId, eventorImportRequests.actorCredentialId],
-    name: "eventor_race_import_grant_provenance_fk"
-  }),
-  foreignKey({
-    columns: [table.recipientCredentialId, table.raceId, table.capability],
-    foreignColumns: [pairingAdminAccessCredentials.id, pairingAdminAccessCredentials.raceId, pairingAdminAccessCredentials.capability],
-    name: "eventor_race_import_grant_recipient_scope_fk"
-  }),
-  check("eventor_race_import_grant_capability_check", sql`${table.capability} = 'IMPORT_IOF'`),
-  check("eventor_race_import_grant_text_check", sql`length(btrim(${table.label})) between 1 and 120 AND length(btrim(${table.operatorLabel})) between 1 and 120`)
-]);
+export const raceEventorLinks = pgTable("race_eventor_link", {
+  raceId: uuid("race_id").primaryKey().references(() => races.id),
+  keyId: text("key_id"),
+  iv: text("iv"),
+  tag: text("tag"),
+  ciphertext: text("ciphertext"),
+  organisationId: text("organisation_id"),
+  organisationName: text("organisation_name"),
+  eventId: text("event_id"),
+  eventName: text("event_name"),
+  eventDate: date("event_date"),
+  eventForm: text("event_form").$type<"INDIVIDUAL" | "RELAY" | "OTHER">(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull()
+});
 
-export const eventorRaceImportGrantRevocations = pgTable("eventor_race_import_grant_revocation", {
-  grantId: uuid("grant_id").primaryKey().references(() => eventorRaceImportGrants.id),
-  revokedAt: timestamp("revoked_at", { withTimezone: true }).notNull(),
-  issuerCredentialId: uuid("issuer_credential_id").notNull(),
-  operatorLabel: text("operator_label").notNull(),
-  reason: text("reason").notNull(),
+/** En läsning av Eventor eller en banfil som visas som skillnader och godkänns (migration 0096). */
+export const sourceSnapshots = pgTable("source_snapshot", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  raceId: uuid("race_id").notNull().references(() => races.id),
+  source: text("source").$type<"EVENTOR" | "COURSE_FILE">().notNull(),
+  contentHash: text("content_hash").notNull(),
+  projection: jsonb("projection").$type<Record<string, unknown>>().notNull(),
+  originalXml: text("original_xml"),
+  fileName: text("file_name"),
+  fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull(),
+  appliedRequestId: uuid("applied_request_id"),
+  appliedAt: timestamp("applied_at", { withTimezone: true }),
+  actorCredentialId: uuid("actor_credential_id"),
+  applyRequest: jsonb("apply_request").$type<Record<string, unknown>>(),
+  applyResponse: jsonb("apply_response").$type<Record<string, unknown>>()
 }, (table) => [
-  foreignKey({
-    columns: [table.grantId, table.issuerCredentialId],
-    foreignColumns: [eventorRaceImportGrants.id, eventorRaceImportGrants.issuerCredentialId],
-    name: "eventor_race_import_grant_revocation_issuer_fk"
-  }),
-  check("eventor_race_import_grant_revocation_text_check", sql`length(btrim(${table.operatorLabel})) between 1 and 120 AND length(btrim(${table.reason})) between 1 and 240`)
-]);
-
-/** Immutable receipt for an exact explicit mapping and Eventor source pair. */
-export const eventorEntryImportRequests = pgTable("eventor_entry_import_request", {
-  requestId: uuid("request_id").primaryKey(),
-  grantId: uuid("grant_id").notNull(),
-  raceId: uuid("race_id").notNull(),
-  actorCredentialId: uuid("actor_credential_id").notNull(),
-  capability: pairingAdminCapabilityEnum("capability").notNull(),
-  eventClassesSourceHash: text("event_classes_source_hash").notNull(),
-  entriesSourceHash: text("entries_source_hash").notNull(),
-  mappingHash: text("mapping_hash").notNull(),
-  intentHash: text("intent_hash").notNull(),
-  mapping: jsonb("mapping").notNull(),
-  response: jsonb("response").notNull(),
-  entriesSeen: integer("entries_seen").notNull(),
-  entriesCreated: integer("entries_created").notNull(),
-  entriesUnchanged: integer("entries_unchanged").notNull(),
-  snapshotVersionBefore: integer("snapshot_version_before").notNull(),
-  snapshotVersionAfter: integer("snapshot_version_after").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-}, (table) => [
-  index("eventor_entry_import_request_race_time_idx").on(table.raceId, table.createdAt),
-  uniqueIndex("eventor_entry_import_request_intent_uidx").on(table.raceId, table.intentHash),
-  foreignKey({ columns: [table.grantId, table.raceId], foreignColumns: [eventorRaceImportGrants.id, eventorRaceImportGrants.raceId], name: "eventor_entry_import_request_grant_scope_fk" }),
-  foreignKey({ columns: [table.actorCredentialId, table.raceId, table.capability], foreignColumns: [pairingAdminAccessCredentials.id, pairingAdminAccessCredentials.raceId, pairingAdminAccessCredentials.capability], name: "eventor_entry_import_request_actor_scope_fk" }),
-  check("eventor_entry_import_request_capability_check", sql`${table.capability} = 'IMPORT_IOF'`),
-  check("eventor_entry_import_request_hash_check", sql`${table.eventClassesSourceHash} ~ '^[a-f0-9]{64}$' AND ${table.entriesSourceHash} ~ '^[a-f0-9]{64}$' AND ${table.mappingHash} ~ '^[a-f0-9]{64}$' AND ${table.intentHash} ~ '^[a-f0-9]{64}$'`),
-  check("eventor_entry_import_request_json_check", sql`jsonb_typeof(${table.mapping}) = 'array' AND jsonb_typeof(${table.response}) = 'object'`),
-  check("eventor_entry_import_request_count_check", sql`${table.entriesSeen} between 0 and 10000 AND ${table.entriesCreated} between 0 and ${table.entriesSeen} AND ${table.entriesUnchanged} between 0 and ${table.entriesSeen} AND ${table.entriesCreated} + ${table.entriesUnchanged} = ${table.entriesSeen}`),
-  check("eventor_entry_import_request_snapshot_check", sql`${table.snapshotVersionBefore} > 0 AND ${table.snapshotVersionAfter} = ${table.snapshotVersionBefore} + CASE WHEN ${table.entriesCreated} > 0 THEN 1 ELSE 0 END`)
+  uniqueIndex("source_snapshot_applied_request_uidx").on(table.appliedRequestId),
+  index("source_snapshot_race_source_idx").on(table.raceId, table.source, table.fetchedAt)
 ]);
 
 export const iofImportRequests = pgTable("iof_import_request", {
@@ -4360,9 +4259,13 @@ export const teams = pgTable("team", {
   number: integer("number").notNull(),
   name: text("name").notNull(),
   organisationName: text("organisation_name"),
+  /** Lag från Eventor (migration 0096): lagets anmälnings-id. */
+  externalSource: text("external_source"),
+  externalId: text("external_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, table => [
   uniqueIndex("team_race_number_uidx").on(table.raceId, table.number),
+  uniqueIndex("team_external_uidx").on(table.raceId, table.externalSource, table.externalId),
   uniqueIndex("team_id_class_uidx").on(table.id, table.classId),
   index("team_class_idx").on(table.classId),
   foreignKey({ name: "team_class_fk", columns: [table.classId, table.raceId], foreignColumns: [classes.id, classes.raceId] })

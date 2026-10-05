@@ -12,6 +12,7 @@ import { handleResultRoute } from "./race-administrator-routes-results";
 import { handleEntryRoute } from "./race-administrator-routes-entries";
 import { handleVariantRoute } from "./race-administrator-routes-variants";
 import { handleRelayRoute, write as idempotentWrite } from "./race-administrator-routes-relay";
+import { handleSourceRoute } from "./race-administrator-routes-sources";
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 type Environment = Partial<Pick<NodeJS.ProcessEnv, "NODE_ENV" | "O_TID_PUBLIC_ORIGIN">>;
@@ -68,7 +69,7 @@ export async function raceAdministratorRoute(db: Database, request: Request, rac
       formatVersion: 1, raceId, capability: "MANAGE_RACE", expiresAt: auth.principal.expiresAt }));
     const context: RaceAdministratorRouteContext = { db, request, raceId, action, dependencies, proof, cursor, beforeVersion };
     return await handleRaceDayRoute(context) ?? await handlePreparationRoute(context) ?? await handleResultRoute(context) ??
-      await handleEntryRoute(context) ?? await handleVariantRoute(context) ?? await handleRelayRoute(context) ??
+      await handleEntryRoute(context) ?? await handleVariantRoute(context) ?? await handleRelayRoute(context) ?? await handleSourceRoute(context) ??
       (action.kind === "race-settings"
         ? await idempotentWrite(context, "race-settings", raceSettingsRequestSchema, raceSettingsResponseSchema, dependencies.raceSettings) : undefined) ??
       failure(500, "INTERNAL_ERROR");
@@ -76,7 +77,10 @@ export async function raceAdministratorRoute(db: Database, request: Request, rac
 }
 
 function allowedMethods(action: Action): string[] {
-  return action.kind === "operator-access" ? ["GET", "POST", "DELETE"] : action.kind === "shortened-course-class-transfer" || action.kind === "manual-finish-time-correction" || action.kind === "manual-punch-start-time-correction" || action.kind === "manual-punch-start-time-correction-withdrawal" || action.kind === "manual-finish-time-correction-withdrawal" || action.kind === "unknown-readout-resolution" || action.kind === "class-result-recalculation" || action.kind === "draw" ? ["GET", "POST"] : action.kind === "review-conflicts" ? ["POST"] : action.kind === "conflict-candidate" ? ["GET"] : action.kind === "session" ? ["GET", "DELETE"] : action.kind === "checkin-history" || action.kind === "effective-result" || action.kind === "changes" ? ["GET"] :
+  return action.kind === "operator-access" ? ["GET", "POST", "DELETE"] : action.kind === "eventor" ? ["GET", "PUT", "DELETE"] :
+    action.kind === "source-sync" ? ["GET", "POST"] : action.kind === "eventor-events" ? ["GET"] :
+    action.kind === "eventor-test" || action.kind === "eventor-event" || action.kind === "eventor-sync-preview" ||
+    action.kind === "course-file-preview" || action.kind === "source-sync-consequence" ? ["POST"] : action.kind === "shortened-course-class-transfer" || action.kind === "manual-finish-time-correction" || action.kind === "manual-punch-start-time-correction" || action.kind === "manual-punch-start-time-correction-withdrawal" || action.kind === "manual-finish-time-correction-withdrawal" || action.kind === "unknown-readout-resolution" || action.kind === "class-result-recalculation" || action.kind === "draw" ? ["GET", "POST"] : action.kind === "review-conflicts" ? ["POST"] : action.kind === "conflict-candidate" ? ["GET"] : action.kind === "session" ? ["GET", "DELETE"] : action.kind === "checkin-history" || action.kind === "effective-result" || action.kind === "changes" ? ["GET"] :
     action.kind === "start-correction" || action.kind === "manual-return-withdrawal" || action.kind === "manual-return" || action.kind === "publication" || action.kind === "draw-preview" || action.kind === "finalize" || action.kind === "recalculate" || action.kind === "registration" || action.kind === "registration-candidates" ||
     action.kind === "did-not-start" || action.kind === "did-not-start-withdrawal" ||
     action.kind === "did-not-finish" || action.kind === "did-not-finish-withdrawal" ||

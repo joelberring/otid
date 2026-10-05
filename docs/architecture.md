@@ -1215,6 +1215,9 @@ resultatändring eller ny capability tillkommer.
 
 ## TASK 006V: Testeventorgräns under implementation
 
+Ersatt av ADR-0170 beslut 4 (PLAN.md steg 14): kopplingen sköts per tävling i
+Inställningar; CLI-anslutningen, grants och tabellerna nedan togs bort i migration 0096.
+
 ADR-0046 avgränsar import till ett uttryckligt valt externt event/lopp som
 skapar nya interna UUID-objekt. Adapter och serverorkestrering hålls utanför
 domain. Befintligt CREATE_EVENT-substrat används med en privat anslutning

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<EventList>
+  <Event eventForm="IndSingleDay">
+    <EventId>47110</EventId>
+    <Name>Höstsprinten i Skogsby</Name>
+    <EventClassificationId>4</EventClassificationId>
+    <EventStatusId>3</EventStatusId>
+    <DisciplineId>1</DisciplineId>
+    <StartDate><Date>2026-10-18</Date><Clock>10:00:00</Clock></StartDate>
+    <FinishDate><Date>2026-10-18</Date><Clock>14:00:00</Clock></FinishDate>
+    <Organiser><OrganisationId>9321</OrganisationId></Organiser>
+    <EventOfficial><EventOfficialRoleId>1</EventOfficialRoleId><PersonId>555001</PersonId></EventOfficial>
+    <EventRace raceLightCondition="Day" raceDistance="Sprint">
+      <EventRaceId>51001</EventRaceId>
+      <EventId>47110</EventId>
+      <Name>Höstsprinten i Skogsby</Name>
+      <RaceDate><Date>2026-10-18</Date><Clock>10:00:00</Clock></RaceDate>
+      <EventCenterPosition x="17.9412" y="59.4021" unit="WGS-84" />
+    </EventRace>
+    <WebURL>https://example.org/hostsprinten</WebURL>
+    <ModifyDate><Date>2026-09-30</Date><Clock>20:01:00</Clock></ModifyDate>
+  </Event>
+  <Event eventForm="RelaySingleDay">
+    <EventId>47120</EventId>
+    <Name>Skogsfalkens klubbstafett</Name>
+    <EventClassificationId>5</EventClassificationId>
+    <EventStatusId>3</EventStatusId>
+    <StartDate><Date>2026-11-08</Date><Clock>11:00:00</Clock></StartDate>
+    <FinishDate><Date>2026-11-08</Date></FinishDate>
+    <Organiser><OrganisationId>9321</OrganisationId></Organiser>
+    <EventRace raceLightCondition="Day" raceDistance="Middle">
+      <EventRaceId>51002</EventRaceId>
+      <EventId>47120</EventId>
+      <Name>Skogsfalkens klubbstafett</Name>
+      <RaceDate><Date>2026-11-08</Date><Clock>11:00:00</Clock></RaceDate>
+    </EventRace>
+    <ModifyDate><Date>2026-10-01</Date><Clock>08:00:00</Clock></ModifyDate>
+  </Event>
+</EventList>

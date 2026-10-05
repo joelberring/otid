@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CourseData xmlns="http://www.orienteering.org/datastandard/3.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" iofVersion="3.0" createTime="2026-10-10T18:00:00+02:00" creator="OCAD 2018.0.0">
+  <Event>
+    <Name>Höstsprinten i Skogsby</Name>
+  </Event>
+  <RaceCourseData>
+    <Map>
+      <Scale>4000</Scale>
+      <MapPositionTopLeft x="0" y="200" unit="mm" />
+      <MapPositionBottomRight x="280" y="0" unit="mm" />
+    </Map>
+    <Control type="Start">
+      <Id>S1</Id>
+      <Position lng="17.9400" lat="59.4000" />
+    </Control>
+    <Control>
+      <Id>31</Id>
+      <Position lng="17.9431" lat="59.4031" />
+      <MapPosition x="93.0" y="62.0" unit="mm" />
+    </Control>
+    <Control>
+      <Id>32</Id>
+      <Position lng="17.9432" lat="59.4032" />
+      <MapPosition x="96.0" y="64.0" unit="mm" />
+    </Control>
+    <Control>
+      <Id>33</Id>
+      <Position lng="17.9433" lat="59.4033" />
+      <MapPosition x="99.0" y="66.0" unit="mm" />
+    </Control>
+    <Control>
+      <Id>34</Id>
+      <Position lng="17.9434" lat="59.4034" />
+      <MapPosition x="102.0" y="68.0" unit="mm" />
+    </Control>
+    <Control>
+      <Id>35</Id>
+      <Position lng="17.9435" lat="59.4035" />
+      <MapPosition x="105.0" y="70.0" unit="mm" />
+    </Control>
+    <Control>
+      <Id>36</Id>
+      <Position lng="17.9436" lat="59.4036" />
+      <MapPosition x="108.0" y="72.0" unit="mm" />
+    </Control>
+    <Control>
+      <Id>37</Id>
+      <Position lng="17.9437" lat="59.4037" />
+      <MapPosition x="111.0" y="74.0" unit="mm" />
+    </Control>
+    <Control type="Finish">
+      <Id>F1</Id>
+      <Position lng="17.9500" lat="59.4100" />
+    </Control>
+    <Course>
+      <Name>Bana 1</Name>
+      <Length>2900</Length>
+      <Climb>15</Climb>
+      <CourseControl type="Start">
+        <Control>S1</Control>
+      </CourseControl>
+      <CourseControl type="Control">
+        <Control>31</Control>
+        <LegLength>180</LegLength>
+      </CourseControl>
+      <CourseControl type="Control">
+        <Control>32</Control>
+        <LegLength>220</LegLength>
+      </CourseControl>
+      <CourseControl type="Control">
+        <Control>33</Control>
+        <LegLength>260</LegLength>
+      </CourseControl>
+      <CourseControl type="Control">
+        <Control>34</Control>
+        <LegLength>300</LegLength>
+      </CourseControl>
+      <CourseControl type="Finish">
+        <Control>F1</Control>
+        <LegLength>60</LegLength>
+      </CourseControl>
+    </Course>
+    <Course>
+      <Name>Bana 2</Name>
+      <Length>2300</Length>
+      <Climb>15</Climb>
+      <CourseControl type="Start">
+        <Control>S1</Control>
+      </CourseControl>
+      <CourseControl type="Control">
+        <Control>31</Control>
+        <LegLength>180</LegLength>
+      </CourseControl>
+      <CourseControl type="Control">
+        <Control>35</Control>
+        <LegLength>220</LegLength>
+      </CourseControl>
+      <CourseControl type="Control">
+        <Control>33</Control>
+        <LegLength>260</LegLength>
+      </CourseControl>
+      <CourseControl type="Finish">
+        <Control>F1</Control>
+        <LegLength>60</LegLength>
+      </CourseControl>
+    </Course>
+    <Course>
+      <Name>Bana 3</Name>
+      <Length>2100</Length>
+      <Climb>15</Climb>
+      <CourseControl type="Start">
+        <Control>S1</Control>
+      </CourseControl>
+      <CourseControl type="Control">
+        <Control>31</Control>
+        <LegLength>180</LegLength>
+      </CourseControl>
+      <CourseControl type="Control">
+        <Control>36</Control>
+        <LegLength>220</LegLength>
+      </CourseControl>
+      <CourseControl type="Control">
+        <Control>37</Control>
+        <LegLength>260</LegLength>
+      </CourseControl>
+      <CourseControl type="Finish">
+        <Control>F1</Control>
+        <LegLength>60</LegLength>
+      </CourseControl>
+    </Course>
+    <ClassCourseAssignment>
+      <ClassName>H21</ClassName>
+      <CourseName>Bana 1</CourseName>
+    </ClassCourseAssignment>
+    <ClassCourseAssignment>
+      <ClassName>D21</ClassName>
+      <CourseName>Bana 2</CourseName>
+    </ClassCourseAssignment>
+    <ClassCourseAssignment>
+      <ClassName>H35</ClassName>
+      <CourseName>Bana 2</CourseName>
+    </ClassCourseAssignment>
+    <ClassCourseAssignment>
+      <ClassName>D35</ClassName>
+      <CourseName>Bana 3</CourseName>
+    </ClassCourseAssignment>
+  </RaceCourseData>
+</CourseData>

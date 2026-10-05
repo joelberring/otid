@@ -180,7 +180,7 @@ export const sv = {
   entryClassUnknownError: "Ett okänt klassadminfel inträffade.",
   importAdminLink: "Importera IOF XML",
   importPageHeading: "Skyddad IOF-import",
-  importPageLead: "Importera CourseData, EntryList eller en individuell StartList till exakt detta lopp.",
+  importPageLead: "Importera anmälda (EntryList) eller en individuell StartList till exakt detta lopp. Banfiler läses in under Banor, där skillnaderna mot förra filen visas innan något sparas.",
   importBackToRace: "Till loppets arrangörssida",
   importRaceLabel: "Lopp-id",
   importSecurityHeading: "Separat importbehörighet",

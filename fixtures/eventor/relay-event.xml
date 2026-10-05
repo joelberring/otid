@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Event eventForm="RelaySingleDay">
+  <EventId>47120</EventId>
+  <Name>Skogsfalkens klubbstafett</Name>
+  <EventClassificationId>5</EventClassificationId>
+  <EventStatusId>3</EventStatusId>
+  <StartDate><Date>2026-11-08</Date><Clock>11:00:00</Clock></StartDate>
+  <Organiser><OrganisationId>9321</OrganisationId></Organiser>
+  <EventRace raceLightCondition="Day" raceDistance="Middle">
+    <EventRaceId>51002</EventRaceId>
+    <EventId>47120</EventId>
+    <Name>Skogsfalkens klubbstafett</Name>
+    <RaceDate><Date>2026-11-08</Date><Clock>11:00:00</Clock></RaceDate>
+  </EventRace>
+</Event>

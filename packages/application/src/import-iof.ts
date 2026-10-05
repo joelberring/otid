@@ -90,8 +90,10 @@ const normalize = (value: string) => value.replace(/\s+/g, " ").trim().toLocaleL
 /**
  * PersonCourseAssignment: löparen (EntryId, annars namn och klass) får varianten. Varianten
  * måste finnas i klassens bana. Löpare som inte hittas ger en varning i importrapporten.
+ * `keep` är löpare som behåller sin variant (en ny banfil ändrar inte variant för den som läst ut).
  */
-async function importPersonCourseAssignments(tx: DbExecutor, raceId: string, parsed: CourseDataImport): Promise<{ assigned: number; warnings: string[] }> {
+export async function importPersonCourseAssignments(tx: DbExecutor, raceId: string, parsed: Pick<CourseDataImport, "personAssignments">,
+  keep: ReadonlySet<string> = new Set()): Promise<{ assigned: number; warnings: string[] }> {
   const warnings: string[] = [];
   let assigned = 0;
   const entries = await tx.select({ id: schema.entries.id, externalSource: schema.entries.externalSource,
@@ -116,7 +118,7 @@ async function importPersonCourseAssignments(tx: DbExecutor, raceId: string, par
       warnings.push(`Variant ${assignment.variantCode} för ${label}: klassens bana har inte varianten`);
       continue;
     }
-    if (entry.code === assignment.variantCode) continue;
+    if (entry.code === assignment.variantCode || keep.has(entry.id)) continue;
     await tx.update(schema.entries).set({ courseVariantCode: assignment.variantCode, version: sql`${schema.entries.version} + 1` })
       .where(eq(schema.entries.id, entry.id));
     entry.code = assignment.variantCode;
@@ -129,7 +131,8 @@ async function importPersonCourseAssignments(tx: DbExecutor, raceId: string, par
  * TeamCourseAssignment (stafett, ADR-0169 beslut 3): laget (BibNumber, annars lagnamn och klass)
  * får en variant per sträcka. Varianten måste finnas i stafettklassens bana.
  */
-async function importTeamCourseAssignments(tx: DbExecutor, raceId: string, parsed: CourseDataImport): Promise<{ assigned: number; warnings: string[] }> {
+export async function importTeamCourseAssignments(tx: DbExecutor, raceId: string, parsed: Pick<CourseDataImport, "teamAssignments">,
+  keep: ReadonlySet<string> = new Set()): Promise<{ assigned: number; warnings: string[] }> {
   const warnings: string[] = [];
   let assigned = 0;
   if (parsed.teamAssignments.length === 0) return { assigned, warnings };
@@ -157,7 +160,7 @@ async function importTeamCourseAssignments(tx: DbExecutor, raceId: string, parse
         warnings.push(`Variant ${leg.variantCode} för ${label} sträcka ${leg.leg}: sträckan eller varianten saknas`);
         continue;
       }
-      if (entry.code === leg.variantCode) continue;
+      if (entry.code === leg.variantCode || keep.has(entry.id)) continue;
       await tx.update(schema.entries).set({ courseVariantCode: leg.variantCode, version: sql`${schema.entries.version} + 1` })
         .where(eq(schema.entries.id, entry.id));
       entry.code = leg.variantCode;

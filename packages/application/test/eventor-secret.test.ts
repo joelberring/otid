@@ -1,101 +1,41 @@
 import { describe, expect, it } from "vitest";
-import {
-  EventorSecretError, openEventorApiKey, sealEventorApiKey,
-  type EventorSecretContext, type EventorSecretEnvelope,
-} from "../src/eventor-secret.js";
+import { eventorConfigurationFromEnvironment, openEventorApiKey, sealEventorApiKey } from "../src/eventor-secret";
 
-const context: EventorSecretContext = {
-  environment: "testeventor-se",
-  connectionId: "10000000-0000-4000-8000-000000000001",
-  ownerCredentialId: "20000000-0000-4000-8000-000000000001",
-  keyId: "test-key-1",
-};
-const masterKey = new Uint8Array(32).fill(42);
-const apiKey = "SyntheticEventorKey-1234567890ab";
+const masterKey = Buffer.alloc(32, 7);
+const encoded = masterKey.toString("base64");
+const apiKey = "0123456789abcdef0123456789abcdef";
+const raceId = "00000000-0000-4000-8000-000000000001";
 
-describe("server-only Eventor secret envelope", () => {
-  it("roundtrips using random IVs without mutating caller-owned key/context", () => {
-    expect(apiKey).toHaveLength(32);
-    const first = sealEventorApiKey(apiKey, Object.freeze({ ...context }), masterKey);
-    const second = sealEventorApiKey(apiKey, context, masterKey);
-    expect(first).not.toEqual(second);
-    expect(Buffer.from(first.iv, "base64url")).toHaveLength(12);
-    expect(Buffer.from(first.tag, "base64url")).toHaveLength(16);
-    expect(openEventorApiKey(first, context, masterKey)).toBe(apiKey);
-    expect(openEventorApiKey(second, context, masterKey)).toBe(apiKey);
-    expect(masterKey).toEqual(new Uint8Array(32).fill(42));
-    expect(JSON.stringify(first)).not.toContain(apiKey);
-  });
-
-  it.each([
-    { connectionId: "10000000-0000-4000-8000-000000000002" },
-    { ownerCredentialId: "20000000-0000-4000-8000-000000000002" },
-    { keyId: "test-key-2" },
-  ])("binds the envelope to its full context: %j", (change) => {
-    const envelope = sealEventorApiKey(apiKey, context, masterKey);
-    expect(() => openEventorApiKey(envelope, { ...context, ...change }, masterKey))
-      .toThrowError("DECRYPTION_FAILED");
-  });
-
-  it("binds a production envelope to its exact immutable profile", () => {
-    const production = { ...context, environment: "production-se" as const };
-    const envelope = sealEventorApiKey(apiKey, production, masterKey);
-    expect(openEventorApiKey(envelope, production, masterKey)).toBe(apiKey);
-    expect(() => openEventorApiKey(envelope, context, masterKey)).toThrowError("DECRYPTION_FAILED");
-  });
-
-  it.each(["iv", "tag", "ciphertext"] as const)("rejects modified %s", (field) => {
-    const envelope = sealEventorApiKey(apiKey, context, masterKey);
-    const bytes = Buffer.from(envelope[field], "base64url");
-    bytes[0] = (bytes[0] ?? 0) ^ 1;
-    expect(() => openEventorApiKey({ ...envelope, [field]: bytes.toString("base64url") }, context, masterKey))
-      .toThrowError("DECRYPTION_FAILED");
-  });
-
-  it("rejects the wrong master key without exposing crypto internals or a cause", () => {
-    const envelope = sealEventorApiKey(apiKey, context, masterKey);
-    let caught: unknown;
-    try { openEventorApiKey(envelope, context, new Uint8Array(32).fill(43)); }
-    catch (error) { caught = error; }
-    expect(caught).toBeInstanceOf(EventorSecretError);
-    expect(caught).toMatchObject({ message: "DECRYPTION_FAILED", code: "DECRYPTION_FAILED" });
-    expect(caught).not.toHaveProperty("cause");
-    expect(JSON.stringify(caught)).not.toContain(apiKey);
-  });
-
-  it.each([null, {}, { ...context, environment: "production" },
-    { ...context, connectionId: context.connectionId.toUpperCase().replace("10000000", "AAAAAAAA") },
-    { ...context, ownerCredentialId: "not-an-id" }, { ...context, keyId: "../key" },
-    { ...context, secret: apiKey }, { ...context, keyId: "key\n" },
-    { ...context, connectionId: context.connectionId + "\n" },
-    { ...context, ownerCredentialId: context.ownerCredentialId + "\n" },
-  ])("rejects invalid context %j", (invalid) => {
-    expect(() => sealEventorApiKey(apiKey, invalid as EventorSecretContext, masterKey))
-      .toThrowError("INVALID_CONFIGURATION");
-  });
-
-  it.each([0, 16, 31, 33, 64])("requires exactly 32 master key bytes, not %i", (length) => {
-    expect(() => sealEventorApiKey(apiKey, context, new Uint8Array(length)))
-      .toThrowError("INVALID_CONFIGURATION");
-  });
-
-  it.each(["", "a".repeat(31), "a".repeat(33), "a".repeat(31) + "\r",
-    "a".repeat(31) + "\n", "a".repeat(32) + "\n", "a".repeat(31) + " ", "å".repeat(32), "\0".repeat(32),
-  ])("rejects invalid API key fixture %#", (invalid) => {
-    expect(() => sealEventorApiKey(invalid, context, masterKey))
-      .toThrowError("INVALID_CONFIGURATION");
-  });
-
-  it("rejects invalid version, extra fields, padding, truncation and noncanonical base64url", () => {
-    const envelope = sealEventorApiKey(apiKey, context, masterKey);
-    const invalid = [null, {}, { ...envelope, formatVersion: 2 }, { ...envelope, extra: 1 },
-      { ...envelope, tag: envelope.tag + "==" }, { ...envelope, iv: envelope.iv.slice(1) },
-      { ...envelope, ciphertext: "!".repeat(43) },
-      { ...envelope, tag: "A".repeat(21) + "B" },
-    ];
-    for (const value of invalid) {
-      expect(() => openEventorApiKey(value as EventorSecretEnvelope, context, masterKey))
-        .toThrowError("DECRYPTION_FAILED");
+describe("Eventor-nyckelns konfiguration och kryptering", () => {
+  it("startar utan masternyckel och avvisar en felaktig", () => {
+    expect(eventorConfigurationFromEnvironment({})).toEqual({ status: "missing" });
+    expect(eventorConfigurationFromEnvironment({ OTID_EVENTOR_MASTER_KEY: " " })).toEqual({ status: "missing" });
+    for (const invalid of ["kort", Buffer.alloc(31).toString("base64"), `${encoded}x`]) {
+      expect(eventorConfigurationFromEnvironment({ OTID_EVENTOR_MASTER_KEY: invalid })).toEqual({ status: "invalid" });
     }
+    expect(eventorConfigurationFromEnvironment({ OTID_EVENTOR_MASTER_KEY: encoded, OTID_EVENTOR_BASE_URL: "https://x/api" }))
+      .toEqual({ status: "invalid" });
+  });
+
+  it("härleder ett id för masternyckeln och tar emot driftens basadress", () => {
+    const configuration = eventorConfigurationFromEnvironment({ OTID_EVENTOR_MASTER_KEY: `${encoded}\n`,
+      OTID_EVENTOR_BASE_URL: "http://127.0.0.1:4319/" });
+    if (configuration.status !== "ok") throw new Error("Konfigurationen ska gälla");
+    expect(configuration.keyId).toMatch(/^k-[a-f0-9]{16}$/);
+    expect(configuration.baseUrl).toBe("http://127.0.0.1:4319");
+  });
+
+  it("krypterar med tävlingen som autentiserad kontext och öppnar bara med samma tävling och masternyckel", () => {
+    const context = { raceId, keyId: "k-test" };
+    const sealed = sealEventorApiKey(apiKey, context, masterKey);
+    expect(JSON.stringify(sealed)).not.toContain(apiKey);
+    expect(openEventorApiKey(sealed, context, masterKey)).toBe(apiKey);
+    expect(() => openEventorApiKey(sealed, { raceId: "00000000-0000-4000-8000-000000000002", keyId: "k-test" }, masterKey))
+      .toThrow("DECRYPTION_FAILED");
+    expect(() => openEventorApiKey(sealed, context, Buffer.alloc(32, 8))).toThrow("DECRYPTION_FAILED");
+    expect(() => openEventorApiKey({ ...sealed, keyId: "k-annan" }, context, masterKey)).toThrow("DECRYPTION_FAILED");
+    const tampered = `${sealed.tag[0] === "A" ? "B" : "A"}${sealed.tag.slice(1)}`;
+    expect(() => openEventorApiKey({ ...sealed, tag: tampered }, context, masterKey)).toThrow("DECRYPTION_FAILED");
+    expect(() => sealEventorApiKey("kort nyckel", context, masterKey)).toThrow("INVALID_KEY");
   });
 });

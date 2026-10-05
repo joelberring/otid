@@ -1,252 +1,145 @@
-import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import {
-  EventorAdapterError,
-  fetchEventorEntryImport,
-  fetchEventorEvent,
-  fetchTesteventorEntryImport,
-  fetchTesteventorEvent,
-  parseEventorEntryImport,
-  parseEventorEvent
+  EventorAdapterError, eventorClient, normalizeEventorBaseUrl, parseEventorClasses, parseEventorEntries, parseEventorEvent,
+  parseEventorEventList, parseEventorOrganisation
 } from "../src/index";
 
-const eventXml = `<?xml version="1.0" encoding="UTF-8"?>
-<Event xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="Event.xsd">
-  <EventId>event alpha</EventId>
-  <Name>  Testevent  </Name>
-  <StartDate><Date>2026-09-05</Date><Clock>08:30:00</Clock></StartDate>
-  <Ignored><Contact><Name>Private metadata</Name></Contact></Ignored>
-  <EventRace><EventRaceId>race/1</EventRaceId><EventId>event alpha</EventId><Name>  Lång  </Name><RaceDate><Date>2026-09-05</Date></RaceDate><WRSInfo>ignored</WRSInfo></EventRace>
-</Event>`;
+const fixture = (name: string) => readFileSync(new URL(`../../../fixtures/eventor/${name}`, import.meta.url), "utf8");
+const KEY = "0123456789abcdef0123456789abcdef";
 
-function errorCode(action: () => unknown, code: string): void {
-  expect(action).toThrow(EventorAdapterError);
-  try {
-    action();
-  } catch (error) {
-    expect((error as EventorAdapterError).code).toBe(code);
-  }
+function code(action: () => unknown): string | undefined {
+  try { action(); } catch (error) { return error instanceof EventorAdapterError ? error.code : "OTHER"; }
+  return undefined;
 }
 
-describe("parseEventorEvent", () => {
-  it("projects only the selected Event and direct EventRace metadata", () => {
-    expect(parseEventorEvent(eventXml)).toEqual({
-      eventId: "event alpha",
-      eventName: "Testevent",
-      startDate: "2026-09-05",
-      startClock: "08:30:00",
-      races: [{ eventRaceId: "race/1", raceName: "Lång", raceDate: "2026-09-05" }]
-    });
+async function asyncCode(action: () => Promise<unknown>): Promise<string | undefined> {
+  try { await action(); } catch (error) { return error instanceof EventorAdapterError ? error.code : "OTHER"; }
+  return undefined;
+}
+
+describe("Eventors svar → projektion", () => {
+  it("läser klubben som nyckeln tillhör", () => {
+    expect(parseEventorOrganisation(fixture("organisation.xml"))).toEqual({ id: "9321", name: "OK Skogsfalken" });
   });
 
-  it("permits zero direct races for later application-level selection handling", () => {
-    expect(parseEventorEvent("<Event><EventId>e</EventId><Name>Tv</Name><StartDate><Date>2026-01-01</Date></StartDate></Event>").races).toEqual([]);
-  });
-
-  it("accepts only supported selected-field attributes and safely decodes standard XML references", () => {
-    const xml = `<Event><EventId>event&amp;one</EventId><Name languageId="sv">Tv &amp; två</Name><StartDate><Date dateFormat="YYYY-MM-DD">0001-01-01</Date><Clock clockFormat="HH:MM:SS">08:30:00</Clock></StartDate><EventRace><EventRaceId>r</EventRaceId><EventId>event&amp;one</EventId><Name languageId="sv">Rä</Name><RaceDate><Date dateFormat="YYYY-MM-DD">0099-12-31</Date></RaceDate></EventRace></Event>`;
-    expect(parseEventorEvent(xml)).toMatchObject({ eventId: "event&one", eventName: "Tv & två", startDate: "0001-01-01", startClock: "08:30:00" });
-    for (const invalid of [
-      xml.replace('dateFormat="YYYY-MM-DD"', 'dateFormat="YYYYMMDD"'),
-      xml.replace('clockFormat="HH:MM:SS"', 'clockFormat="HH:MM"'),
-      xml.replace("event&amp;one", "event&unknown;"),
-      xml.replace("event&amp;one", "event&#0;")
-    ]) errorCode(() => parseEventorEvent(invalid), "INVALID_XML");
-  });
-
-  it("decodes each XML reference once while preserving CDATA and comments literally", () => {
-    const xml = "<Event><!-- & and </x> are comment text --><EventId>event&amp;#65;</EventId><Name><![CDATA[&amp;]]></Name><StartDate><Date>2026-01-01</Date></StartDate></Event>";
-    expect(parseEventorEvent(xml)).toMatchObject({ eventId: "event&#65;", eventName: "&amp;" });
-  });
-
-  it("fails closed for declarations, namespaces, duplicate fields, nested races and reference mismatch", () => {
-    for (const xml of [
-      "<!DOCTYPE Event><Event/>",
-      "<x:Event><EventId>e</EventId></x:Event>",
-      "<Event xmlns=\"urn:foreign\"><EventId>e</EventId><Name>Tv</Name><StartDate><Date>2026-01-01</Date></StartDate></Event>",
-      "<Event><EventId>e</EventId><Name>Tv</Name><StartDate><Date>2026-01-01</Date></StartDate></Event><Other/>",
-      "<Event><EventId>e</EventId><EventId>f</EventId><Name>Tv</Name><StartDate><Date>2026-01-01</Date></StartDate></Event>",
-      "<Event><EventId>e</EventId><Name>Tv</Name><StartDate><Date>2026-01-01</Date></StartDate><Other><EventRace/></Other></Event>",
-      "<Event><EventId>e</EventId><Name>Tv</Name><StartDate><Date>2026-01-01</Date></StartDate><EventRace><EventRaceId>r</EventRaceId><EventId>other</EventId><Name>Tv</Name><RaceDate><Date>2026-01-01</Date></RaceDate></EventRace></Event>"
-    ]) errorCode(() => parseEventorEvent(xml), "INVALID_XML");
-  });
-
-  it("enforces opaque IDs and exact supported calendar/clock fields", () => {
-    for (const xml of [
-      "<Event><EventId> e</EventId><Name>Tv</Name><StartDate><Date>2026-01-01</Date></StartDate></Event>",
-      "<Event><EventId>.</EventId><Name>Tv</Name><StartDate><Date>2026-01-01</Date></StartDate></Event>",
-      "<Event><EventId>e</EventId><Name>Tv</Name><StartDate><Date format=\"yyyyMMdd\">20260101</Date></StartDate></Event>",
-      "<Event><EventId>e</EventId><Name>Tv</Name><StartDate><Date>0000-01-01</Date></StartDate></Event>",
-      "<Event><EventId>e</EventId><Name>Tv</Name><StartDate><Date>2026-02-29</Date></StartDate></Event>",
-      "<Event><EventId>e</EventId><Name>Tv</Name><StartDate><Date>2026-01-01</Date><Clock>08:30</Clock></StartDate></Event>"
-    ]) errorCode(() => parseEventorEvent(xml), "INVALID_XML");
-  });
-
-  it("bounds hostile XML nesting and node complexity before parsing", () => {
-    const base = "<Event><EventId>e</EventId><Name>Tv</Name><StartDate><Date>2026-01-01</Date></StartDate>";
-    errorCode(() => parseEventorEvent(`${base}<Ignored>${"<x>".repeat(65)}${"</x>".repeat(65)}</Ignored></Event>`), "INVALID_XML");
-    errorCode(() => parseEventorEvent(`${base}${"<x/>".repeat(10_001)}</Event>`), "INVALID_XML");
-    expect(parseEventorEvent(`${base}<Ignored value="a > b"><!-- </x> --><![CDATA[</x> &amp;]]></Ignored></Event>`).eventId).toBe("e");
-  });
-});
-
-const eventClassesXml = `<EventClassList>
-  <EventClass sex="F"><EventClassId>class-1</EventClassId><Name>D21</Name><ClassShortName>D21</ClassShortName><EventClassStatus value="normal" /></EventClass>
-  <EventClass sex="M"><EventClassId>class-2</EventClassId><Name>H21</Name><ClassShortName>H21</ClassShortName><EventClassStatus value="normal" /></EventClass>
-</EventClassList>`;
-
-const entriesXml = `<EntryList>
-  <Entry><EntryId>entry-1</EntryId><Competitor><CompetitorId>competitor-1</CompetitorId><Person><PersonName><Family>Test</Family><Given sequence="1">Åsa</Given><Given sequence="2">Maria</Given></PersonName></Person><Organisation><OrganisationId>club-1</OrganisationId><Name>Test IF</Name><ShortName>TIF</ShortName></Organisation></Competitor><EntryClass><EventClassId>class-1</EventClassId></EntryClass></Entry>
-  <Entry><EntryId>entry-2</EntryId><Competitor><CompetitorId>competitor-2</CompetitorId><Person><PersonName><Family>Prov</Family><Given>Bo</Given></PersonName></Person><OrganisationId>club-2</OrganisationId></Competitor><EntryClass><EventClassId>class-2</EventClassId></EntryClass></Entry>
-</EntryList>`;
-
-describe("parseEventorEntryImport", () => {
-  it("projects only individual entries and class identifiers needed for explicit mapping", () => {
-    expect(parseEventorEntryImport(eventClassesXml, entriesXml)).toEqual({
-      classes: [{ externalId: "class-1", name: "D21" }, { externalId: "class-2", name: "H21" }],
-      entries: [
-        { externalId: "entry-1", externalClassId: "class-1", givenName: "Åsa Maria", familyName: "Test", organisationName: "Test IF" },
-        { externalId: "entry-2", externalClassId: "class-2", givenName: "Bo", familyName: "Prov" }
-      ]
-    });
-  });
-
-  it("fails closed for a team, multiple class selectors, deleted classes, namespaces, duplicates and unknown source classes", () => {
-    const team = entriesXml.replace("<Competitor><CompetitorId>competitor-1</CompetitorId><Person><PersonName><Family>Test</Family><Given sequence=\"1\">Åsa</Given><Given sequence=\"2\">Maria</Given></PersonName></Person><Organisation><OrganisationId>club-1</OrganisationId><Name>Test IF</Name><ShortName>TIF</ShortName></Organisation></Competitor>", "<TeamName>Lag</TeamName>");
-    const invalid: readonly [string, string][] = [
-      [eventClassesXml, team],
-      [eventClassesXml, entriesXml.replace("</EntryClass></Entry>", "</EntryClass><EntryClass><EventClassId>class-2</EventClassId></EntryClass></Entry>")],
-      [eventClassesXml.replace('value="normal"', 'value="deletedFee"'), entriesXml],
-      [eventClassesXml.replace("<EventClassList>", '<EventClassList xmlns="urn:foreign">'), entriesXml],
-      [eventClassesXml, entriesXml.replace("entry-2", "entry-1")],
-      [eventClassesXml, entriesXml.replace("class-2", "class-unknown")]
-    ];
-    for (const [classes, entries] of invalid) errorCode(() => parseEventorEntryImport(classes, entries), "INVALID_XML");
-  });
-});
-
-describe("fetchTesteventorEntryImport", () => {
-  const apiKey = "12345678901234567890123456789012";
-
-  it("reads only the two fixed Testeventor sources and hashes their complete bytes", async () => {
-    const fetch = vi.fn<typeof globalThis.fetch>()
-      .mockResolvedValueOnce(new Response(eventClassesXml, {
-        status: 200,
-        headers: { "content-type": "application/xml; charset=utf-8" }
-      }))
-      .mockResolvedValueOnce(new Response(entriesXml, {
-        status: 200,
-        headers: { "content-type": "text/xml; charset=utf-8" }
-      }));
-
-    const result = await fetchTesteventorEntryImport({ eventId: "event alpha", apiKey }, { fetch });
-
-    expect(result.projection.entries).toHaveLength(2);
-    expect(result.eventClassesSourceHash).toBe(createHash("sha256").update(new TextEncoder().encode(eventClassesXml)).digest("hex"));
-    expect(result.entriesSourceHash).toBe(createHash("sha256").update(new TextEncoder().encode(entriesXml)).digest("hex"));
-    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
-      "https://eventor-sweden-test.orientering.se/api/eventclasses?eventId=event%20alpha",
-      "https://eventor-sweden-test.orientering.se/api/entries?eventIds=event%20alpha"
+  it("läser arrangörens tävlingar med form, datum, klockslag och arrangör", () => {
+    const events = parseEventorEventList(fixture("events.xml"));
+    expect(events.map(event => [event.id, event.name, event.date, event.clock, event.form])).toEqual([
+      ["47110", "Höstsprinten i Skogsby", "2026-10-18", "10:00:00", "INDIVIDUAL"],
+      ["47120", "Skogsfalkens klubbstafett", "2026-11-08", "11:00:00", "RELAY"]
     ]);
-    for (const [, request] of fetch.mock.calls) {
-      expect(request).toMatchObject({
-        method: "GET",
-        redirect: "error",
-        cache: "no-store",
-        credentials: "omit",
-        headers: { ApiKey: apiKey }
-      });
+    expect(events[0]!.organiserIds).toEqual(["9321"]);
+    expect(events[0]!.races).toEqual([{ id: "51001", name: "Höstsprinten i Skogsby", date: "2026-10-18", clock: "10:00:00" }]);
+    expect(parseEventorEvent(fixture("event.xml")).id).toBe("47110");
+    expect(parseEventorEventList("<EventList/>")).toEqual([]);
+  });
+
+  it("läser klasser med å ä ö och inställda klasser", () => {
+    expect(parseEventorClasses(fixture("classes.xml")).map(row => row.name)).toEqual(["H21", "D21", "H35", "D35"]);
+    expect(parseEventorClasses(fixture("relay-classes.xml"))).toEqual([{ id: "91001", name: "Öppen stafett", cancelled: false }]);
+    const cancelled = "<EventClassList><EventClass><EventClassId>1</EventClassId><Name>Öppen 1</Name><EventClassStatus value=\"invalidated\"/></EventClass></EventClassList>";
+    expect(parseEventorClasses(cancelled)[0]!.cancelled).toBe(true);
+  });
+
+  it("läser individuella anmälningar: namn med å ä ö, flera förnamn, klubb, bricka och saknad bricka", () => {
+    const { entries, teams } = parseEventorEntries(fixture("entries-1.xml"));
+    expect(teams).toEqual([]);
+    expect(entries).toHaveLength(6);
+    expect(entries[0]).toEqual({ id: "800001", classId: "90002", personId: "610001", givenName: "Anna", familyName: "Åkesson",
+      club: { id: "9321", name: "OK Skogsfalken" }, cardNumber: "2101001" });
+    expect(entries.find(entry => entry.id === "800004")).not.toHaveProperty("cardNumber");
+    expect(entries.find(entry => entry.id === "800006")).toMatchObject({ givenName: "Fredrik Johan", familyName: "Nyström" });
+    expect(entries.find(entry => entry.id === "800002")).toMatchObject({ familyName: "Öberg", club: { name: "Järfälla OK" } });
+  });
+
+  it("läser stafettlag med sträcklöpare, bricka och sträcka utan löpare", () => {
+    const { entries, teams } = parseEventorEntries(fixture("relay-entries.xml"));
+    expect(entries).toEqual([]);
+    expect(teams.map(team => [team.id, team.name, team.club?.name, team.runners.length])).toEqual([
+      ["820001", "OK Skogsfalken 1", "OK Skogsfalken", 3], ["820002", "Järfälla OK 1", "Järfälla OK", 3]]);
+    expect(teams[0]!.runners[2]).toEqual({ leg: 3, personId: "610007", givenName: "Gustav", familyName: "Ek", cardNumber: "2101007" });
+    expect(teams[1]!.runners[1]).toEqual({ leg: 2, personId: "610005", givenName: "Eva", familyName: "Ström" });
+    expect(teams[1]!.runners[2]).toEqual({ leg: 3 });
+  });
+
+  it("hoppar över Emit-brickor och bricknummer som inte är siffror", () => {
+    const xml = (card: string) => `<EntryList><Entry><EntryId>1</EntryId><Competitor><Person><PersonName><Family>Ås</Family>
+      <Given>Åke</Given></PersonName></Person>${card}</Competitor><EntryClass><EventClassId>9</EventClassId></EntryClass></Entry></EntryList>`;
+    expect(parseEventorEntries(xml("<CCard><CCardId>123456</CCardId><PunchingUnitType value=\"Emit\"/></CCard>")).entries[0]).not.toHaveProperty("cardNumber");
+    expect(parseEventorEntries(xml("<CCard><CCardId>12AB</CCardId></CCard>")).entries[0]).not.toHaveProperty("cardNumber");
+    expect(parseEventorEntries(xml("<CCard><CCardId>8001234</CCardId></CCard>")).entries[0]!.cardNumber).toBe("8001234");
+  });
+
+  it("avvisar DTD, okända entiteter, fel rot, dubbla id:n och anmälan utan namn", () => {
+    expect(code(() => parseEventorOrganisation("<!DOCTYPE x [<!ENTITY a \"b\">]><Organisation/>"))).toBe("INVALID_XML");
+    expect(code(() => parseEventorOrganisation("<Organisation><OrganisationId>&secret;</OrganisationId><Name>Ok</Name></Organisation>"))).toBe("INVALID_XML");
+    expect(code(() => parseEventorClasses("<EntryList/>"))).toBe("INVALID_XML");
+    const twice = "<EventClassList><EventClass><EventClassId>1</EventClassId><Name>H21</Name></EventClass><EventClass><EventClassId>1</EventClassId><Name>D21</Name></EventClass></EventClassList>";
+    expect(code(() => parseEventorClasses(twice))).toBe("INVALID_XML");
+    expect(code(() => parseEventorEntries("<EntryList><Entry><EntryId>1</EntryId><Competitor/><EntryClass><EventClassId>9</EventClassId></EntryClass></Entry></EntryList>")))
+      .toBe("INVALID_XML");
+  });
+});
+
+function response(body: string, init: { status?: number; type?: string } = {}) {
+  return new Response(body, { status: init.status ?? 200, headers: { "content-type": init.type ?? "text/xml; charset=utf-8" } });
+}
+
+describe("eventorClient", () => {
+  it("skickar nyckeln bara i headern ApiKey och använder Eventors adresser", async () => {
+    const calls: { url: string; init: RequestInit }[] = [];
+    const fetch = vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push({ url, init: init ?? {} });
+      const path = new URL(url).pathname;
+      if (path === "/api/organisation/apiKey") return response(fixture("organisation.xml"));
+      if (path === "/api/events") return response(fixture("events.xml"));
+      if (path === "/api/eventclasses") return response(fixture("classes.xml"));
+      return response(fixture("entries-1.xml"));
+    }) as unknown as typeof globalThis.fetch;
+    const client = eventorClient({ apiKey: KEY, fetch });
+    expect((await client.organisation()).name).toBe("OK Skogsfalken");
+    expect(await client.events({ organisationId: "9321", fromDate: "2026-10-01", toDate: "2027-10-01" })).toHaveLength(2);
+    const source = await client.classesAndEntries("47110");
+    expect(source.classes).toHaveLength(4);
+    expect(source.entries.entries).toHaveLength(6);
+    expect(source.sourceHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(calls.map(call => call.url)).toEqual([
+      "https://eventor.orientering.se/api/organisation/apiKey",
+      "https://eventor.orientering.se/api/events?organisationIds=9321&fromDate=2026-10-01&toDate=2027-10-01",
+      "https://eventor.orientering.se/api/eventclasses?eventId=47110",
+      "https://eventor.orientering.se/api/entries?eventIds=47110&includePersonElement=true&includeOrganisationElement=true"]);
+    for (const call of calls) {
+      expect(call.url).not.toContain(KEY);
+      expect(call.init.headers).toMatchObject({ ApiKey: KEY });
+      expect(call.init.redirect).toBe("error");
     }
   });
 
-  it("does not fetch invalid input and fails before a partial projection on an invalid source", async () => {
-    const invalidInputFetch = vi.fn<typeof globalThis.fetch>();
-    await expect(fetchTesteventorEntryImport({ eventId: "..", apiKey }, { fetch: invalidInputFetch })).rejects.toMatchObject({ code: "INVALID_INPUT" });
-    expect(invalidInputFetch).not.toHaveBeenCalled();
-
-    const invalidSourceFetch = vi.fn<typeof globalThis.fetch>()
-      .mockResolvedValueOnce(new Response(eventClassesXml, { headers: { "content-type": "application/xml" } }))
-      .mockResolvedValueOnce(new Response("not XML", { headers: { "content-type": "text/plain" } }));
-    await expect(fetchTesteventorEntryImport({ eventId: "event alpha", apiKey }, { fetch: invalidSourceFetch })).rejects.toMatchObject({ code: "UPSTREAM_UNAVAILABLE" });
-    expect(invalidSourceFetch).toHaveBeenCalledTimes(2);
-  });
-});
-
-describe("fetchTesteventorEvent", () => {
-  const apiKey = "12345678901234567890123456789012";
-
-  it("uses only the fixed Testeventor GET boundary and hashes the complete received bytes", async () => {
-    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(new Response(eventXml, {
-      status: 200,
-      headers: { "content-type": "application/xml; charset=utf-8" }
-    }));
-    const result = await fetchTesteventorEvent({ eventId: "event alpha", apiKey }, { fetch });
-    expect(result.projection.eventId).toBe("event alpha");
-    expect(result.sourceHash).toBe(createHash("sha256").update(new TextEncoder().encode(eventXml)).digest("hex"));
-    expect(fetch.mock.calls[0]?.[0]).toBe("https://eventor-sweden-test.orientering.se/api/event/event%20alpha");
-    const request = fetch.mock.calls[0]?.[1];
-    expect(request).toMatchObject({ method: "GET", redirect: "error", cache: "no-store", credentials: "omit", headers: { ApiKey: apiKey } });
+  it("ger koder för fel nyckel, saknad tävling, serverfel, HTML och anmälan i okänd klass", async () => {
+    const client = (reply: () => Response) => eventorClient({ apiKey: KEY, fetch: (async () => reply()) as unknown as typeof fetch });
+    expect(await asyncCode(() => client(() => response("", { status: 401 })).organisation())).toBe("REJECTED");
+    expect(await asyncCode(() => client(() => response("", { status: 404 })).event("1"))).toBe("NOT_FOUND");
+    expect(await asyncCode(() => client(() => response("x", { status: 500 })).organisation())).toBe("UPSTREAM_UNAVAILABLE");
+    expect(await asyncCode(() => client(() => response("<html/>", { type: "text/html" })).organisation())).toBe("UPSTREAM_UNAVAILABLE");
+    expect(await asyncCode(() => client(() => { throw new Error("network"); }).organisation())).toBe("UPSTREAM_UNAVAILABLE");
+    const mismatched = eventorClient({ apiKey: KEY, fetch: (async (url: string) => response(String(url).includes("eventclasses")
+      ? fixture("relay-classes.xml") : fixture("entries-1.xml"))) as unknown as typeof fetch });
+    expect(await asyncCode(() => mismatched.classesAndEntries("47110"))).toBe("INVALID_XML");
   });
 
-  it("rejects invalid inputs without invoking fetch", async () => {
-    const fetch = vi.fn<typeof globalThis.fetch>();
-    await expect(fetchTesteventorEvent({ eventId: "..", apiKey }, { fetch })).rejects.toMatchObject({ code: "INVALID_INPUT" });
-    await expect(fetchTesteventorEvent({ eventId: "event", apiKey: "short" }, { fetch })).rejects.toMatchObject({ code: "INVALID_INPUT" });
-    await expect(fetchTesteventorEvent({ eventId: "event", apiKey: `${apiKey}\n` }, { fetch })).rejects.toMatchObject({ code: "INVALID_INPUT" });
-    await expect(fetchTesteventorEvent({ eventId: "\ud800", apiKey }, { fetch })).rejects.toMatchObject({ code: "INVALID_INPUT" });
+  it("avvisar ogiltig nyckel och ogiltiga id:n innan något skickas", async () => {
+    const fetch = vi.fn() as unknown as typeof globalThis.fetch;
+    expect(code(() => eventorClient({ apiKey: "kort", fetch }))).toBe("INVALID_INPUT");
+    expect(await asyncCode(() => eventorClient({ apiKey: KEY, fetch }).event("../x"))).toBe("INVALID_INPUT");
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it("does not accept a non-XML, mismatched, or over-limit upstream response", async () => {
-    await expect(fetchTesteventorEvent({ eventId: "event alpha", apiKey }, { fetch: async () => new Response("no", { headers: { "content-type": "text/plain" } }) })).rejects.toMatchObject({ code: "UPSTREAM_UNAVAILABLE" });
-    await expect(fetchTesteventorEvent({ eventId: "event alpha", apiKey }, { fetch: async () => new Response(eventXml.replace("event alpha", "another"), { headers: { "content-type": "text/xml" } }) })).rejects.toMatchObject({ code: "INVALID_XML" });
-    await expect(fetchTesteventorEvent({ eventId: "event alpha", apiKey }, { fetch: async () => new Response(eventXml, { headers: { "content-type": "application/xml", "content-length": "2097153" } }) })).rejects.toMatchObject({ code: "RESPONSE_TOO_LARGE" });
-    await expect(fetchTesteventorEvent({ eventId: "event alpha", apiKey }, { fetch: async () => new Response(new Uint8Array([0xc3, 0x28]), { headers: { "content-type": "application/xml" } }) })).rejects.toMatchObject({ code: "INVALID_XML" });
-  });
-
-  it("enforces the streaming limit even when content length is missing or lies", async () => {
-    const stream = new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new Uint8Array(2 * 1024 * 1024 + 1)); controller.close(); } });
-    await expect(fetchTesteventorEvent({ eventId: "event alpha", apiKey }, { fetch: async () => new Response(stream, { headers: { "content-type": "application/xml", "content-length": "1" } }) })).rejects.toMatchObject({ code: "RESPONSE_TOO_LARGE" });
-  });
-
-  it("times out a body read that never resolves", async () => {
-    vi.useFakeTimers();
-    try {
-      const stream = new ReadableStream<Uint8Array>({ pull: () => new Promise<void>(() => undefined) });
-      const pending = fetchTesteventorEvent({ eventId: "event alpha", apiKey }, { fetch: async () => new Response(stream, { headers: { "content-type": "application/xml" } }) });
-      const rejection = expect(pending).rejects.toMatchObject({ code: "TIMEOUT" });
-      await vi.advanceTimersByTimeAsync(10_000);
-      await rejection;
-    } finally {
-      vi.useRealTimers();
+  it("tar emot en uttrycklig basadress men bara som ren http(s)-adress", () => {
+    expect(normalizeEventorBaseUrl("http://127.0.0.1:4319")).toBe("http://127.0.0.1:4319");
+    expect(normalizeEventorBaseUrl("https://eventor-sweden-test.orientering.se/")).toBe("https://eventor-sweden-test.orientering.se");
+    for (const invalid of ["ftp://x", "https://user:pw@x", "https://x/api", "https://x?y=1", "inte en adress"]) {
+      expect(code(() => normalizeEventorBaseUrl(invalid))).toBe("INVALID_INPUT");
     }
-  });
-});
-
-describe("production Eventor profile", () => {
-  const apiKey = "12345678901234567890123456789012";
-
-  it("uses the exact fixed production origin for both read-only sources", async () => {
-    const fetch = vi.fn<typeof globalThis.fetch>()
-      .mockResolvedValueOnce(new Response(eventXml, { headers: { "content-type": "application/xml" } }))
-      .mockResolvedValueOnce(new Response(eventClassesXml, { headers: { "content-type": "application/xml" } }))
-      .mockResolvedValueOnce(new Response(entriesXml, { headers: { "content-type": "application/xml" } }));
-    await fetchEventorEvent({ profile: "production-se", eventId: "event alpha", apiKey }, { fetch });
-    await fetchEventorEntryImport({ profile: "production-se", eventId: "event alpha", apiKey }, { fetch });
-    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
-      "https://eventor.orientering.se/api/event/event%20alpha",
-      "https://eventor.orientering.se/api/eventclasses?eventId=event%20alpha",
-      "https://eventor.orientering.se/api/entries?eventIds=event%20alpha",
-    ]);
-    for (const [, request] of fetch.mock.calls) {
-      expect(request).toMatchObject({ method: "GET", redirect: "error", cache: "no-store", credentials: "omit", headers: { ApiKey: apiKey } });
-    }
-  });
-
-  it("rejects an unknown profile before opening any connection", async () => {
-    const fetch = vi.fn<typeof globalThis.fetch>();
-    await expect(fetchEventorEvent({ profile: "production" as never, eventId: "event", apiKey }, { fetch }))
-      .rejects.toMatchObject({ code: "INVALID_INPUT" });
-    expect(fetch).not.toHaveBeenCalled();
   });
 });

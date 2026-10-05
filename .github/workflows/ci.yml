@@ -54,7 +54,10 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: printf 'OTID_DOMAIN=localhost\nPOSTGRES_PASSWORD=endast-for-ci\n' > .env
+      # Eventor: slumpad masternyckel och den falska Eventor som Playwrights global-setup startar på värden (port 4319).
+      - run: |
+          printf 'OTID_DOMAIN=localhost\nPOSTGRES_PASSWORD=endast-for-ci\n' > .env
+          printf 'OTID_EVENTOR_MASTER_KEY=%s\nOTID_EVENTOR_BASE_URL=http://host.docker.internal:4319\n' "$(openssl rand -base64 32)" >> .env
       - run: docker compose -f docker-compose.prod.yml up -d --build --wait --wait-timeout 600
       - run: curl -sfk --retry 30 --retry-delay 2 --retry-all-errors -o /dev/null https://localhost/organizer
       - run: pnpm exec playwright install --with-deps chromium

@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<EntryList>
+  <Entry>
+    <EntryId>820001</EntryId>
+    <TeamName>OK Skogsfalken 1</TeamName>
+    <OrganisationId>9321</OrganisationId>
+    <Organisation><OrganisationId>9321</OrganisationId><Name>OK Skogsfalken</Name></Organisation>
+    <TeamCompetitor>
+      <TeamSequence>1</TeamSequence>
+      <PersonId>610001</PersonId>
+      <Person sex="F"><PersonName><Family>Åkesson</Family><Given sequence="1">Anna</Given></PersonName><PersonId>610001</PersonId></Person>
+      <CCard><CCardId>2101001</CCardId><PunchingUnitType value="SI" /></CCard>
+    </TeamCompetitor>
+    <TeamCompetitor>
+      <TeamSequence>2</TeamSequence>
+      <PersonId>610004</PersonId>
+      <Person sex="M"><PersonName><Family>Lund</Family><Given sequence="1">David</Given></PersonName><PersonId>610004</PersonId></Person>
+      <CCard><CCardId>2101004</CCardId><PunchingUnitType value="SI" /></CCard>
+    </TeamCompetitor>
+    <TeamCompetitor>
+      <TeamSequence>3</TeamSequence>
+      <PersonId>610007</PersonId>
+      <Person sex="M"><PersonName><Family>Ek</Family><Given sequence="1">Gustav</Given></PersonName><PersonId>610007</PersonId></Person>
+      <CCard><CCardId>2101007</CCardId><PunchingUnitType value="SI" /></CCard>
+    </TeamCompetitor>
+    <EntryClass sequence="1"><EventClassId>91001</EventClassId></EntryClass>
+    <EventId>47120</EventId>
+    <EntryDate><Date>2026-10-20</Date><Clock>18:00:00</Clock></EntryDate>
+  </Entry>
+  <Entry>
+    <EntryId>820002</EntryId>
+    <TeamName>Järfälla OK 1</TeamName>
+    <OrganisationId>9330</OrganisationId>
+    <Organisation><OrganisationId>9330</OrganisationId><Name>Järfälla OK</Name></Organisation>
+    <TeamCompetitor>
+      <TeamSequence>1</TeamSequence>
+      <PersonId>610002</PersonId>
+      <Person sex="M"><PersonName><Family>Öberg</Family><Given sequence="1">Björn</Given></PersonName><PersonId>610002</PersonId></Person>
+      <CCard><CCardId>2101002</CCardId><PunchingUnitType value="SI" /></CCard>
+    </TeamCompetitor>
+    <TeamCompetitor>
+      <TeamSequence>2</TeamSequence>
+      <PersonId>610005</PersonId>
+      <Person sex="F"><PersonName><Family>Ström</Family><Given sequence="1">Eva</Given></PersonName><PersonId>610005</PersonId></Person>
+    </TeamCompetitor>
+    <TeamCompetitor>
+      <TeamSequence>3</TeamSequence>
+    </TeamCompetitor>
+    <EntryClass sequence="1"><EventClassId>91001</EventClassId></EntryClass>
+    <EventId>47120</EventId>
+    <EntryDate><Date>2026-10-21</Date><Clock>09:12:00</Clock></EntryDate>
+  </Entry>
+</EntryList>

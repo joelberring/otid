@@ -33,7 +33,10 @@ import { loadStartDrawSetupAsAdministrator, previewStartDrawAsAdministrator, com
   listCheckinHistoryAsAdmin, readStartCheckinConflictReviewAsAdmin, reviewStartCheckinConflictsAsAdmin,
   previewEntryVariantAsAdministrator, changeEntryVariantAsAdministrator, distributeClassVariantsAsAdministrator,
   getRelayOverviewAsAdministrator, createRelayClassAsAdministrator, registerRelayTeamAsAdministrator,
-  changeRelayLegRunnerAsAdministrator, setRelayStartTimesAsAdministrator, saveRaceSettingsAsAdministrator } from "@o-tid/application";
+  changeRelayLegRunnerAsAdministrator, setRelayStartTimesAsAdministrator, saveRaceSettingsAsAdministrator,
+  getEventorSettingsAsAdministrator, saveEventorKeyAsAdministrator, removeEventorKeyAsAdministrator, testEventorConnectionAsAdministrator,
+  listEventorEventsAsAdministrator, chooseEventorEventAsAdministrator, previewEventorSyncAsAdministrator, previewCourseFileAsAdministrator,
+  syncConsequenceAsAdministrator, applySyncAsAdministrator, getSourceSyncStatusAsAdministrator } from "@o-tid/application";
 import { iofResultListExportAdminFailure } from "./iof-result-list-export-admin-security";
 import type { Database } from "@o-tid/database";
 import { entryClassAdminFailure as failure, type entryClassAdminSessionProof } from "./entry-class-admin-security";
@@ -57,6 +60,10 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   relayOverview: getRelayOverviewAsAdministrator, relayClass: createRelayClassAsAdministrator, relayTeam: registerRelayTeamAsAdministrator,
   relayLegRunner: changeRelayLegRunnerAsAdministrator, relayStartTimes: setRelayStartTimesAsAdministrator,
   raceSettings: saveRaceSettingsAsAdministrator,
+  eventorSettings: getEventorSettingsAsAdministrator, eventorKey: saveEventorKeyAsAdministrator, eventorKeyRemove: removeEventorKeyAsAdministrator,
+  eventorTest: testEventorConnectionAsAdministrator, eventorEvents: listEventorEventsAsAdministrator, eventorEvent: chooseEventorEventAsAdministrator,
+  eventorSyncPreview: previewEventorSyncAsAdministrator, courseFilePreview: previewCourseFileAsAdministrator,
+  syncConsequence: syncConsequenceAsAdministrator, syncApply: applySyncAsAdministrator, syncStatus: getSourceSyncStatusAsAdministrator,
   shortenedCourseClassTransferPreview: previewShortenedCourseClassTransferAsAdministrator,
   shortenedCourseClassTransfer: transferShortenedCourseClassAsAdministrator,
   manualFinishTimeCorrectionCandidate: previewManualFinishTimeCorrectionAsAdministrator,
@@ -105,6 +112,8 @@ export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: str
   { kind: "class-variant-distribution"; classId: string } |
   { kind: "relay" } | { kind: "relay-class" } | { kind: "relay-team" } | { kind: "relay-leg-runner" } | { kind: "relay-start-times" } |
   { kind: "race-settings" } |
+  { kind: "eventor" } | { kind: "eventor-test" } | { kind: "eventor-events" } | { kind: "eventor-event" } | { kind: "eventor-sync-preview" } |
+  { kind: "course-file-preview" } | { kind: "source-sync-consequence" } | { kind: "source-sync" } |
   { kind: "shortened-course-class-transfer"; classId: string } |
   { kind: "manual-finish-time-correction"; entryId: string } |
   { kind: "manual-punch-start-time-correction"; entryId: string } |

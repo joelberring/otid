@@ -118,8 +118,9 @@ export function readCourseData(root: XmlRecord): CourseDataImport {
       );
       const family = text(course.CourseFamily);
       const name = requireText(course.Name, `${path}.Name`, issues);
-      // En variant i en familj behöver inget eget Id: banan identifieras av familjen.
-      const externalId = family ? text(course.Id) || name : requireText(course.Id, `${path}.Id`, issues);
+      // Banan identifieras av sitt Id; OCAD skriver ofta inget Id och då gäller namnet (en variant i en familj
+      // identifieras av familjen).
+      const externalId = text(course.Id) || name;
       const controlCodes = array(course.CourseControl)
         .map(record)
         .filter((courseControl) => text(courseControl["@_type"] || "Control") === "Control")

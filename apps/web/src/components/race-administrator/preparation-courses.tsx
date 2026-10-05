@@ -5,10 +5,11 @@ import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
 import { raceWorkspaceNavigationSv as navigationText } from "../../i18n/race-workspace-navigation-sv";
 import { Button, Field, Notice } from "../ui";
 import { CourseTable } from "./course-table";
+import { CourseFileSection } from "./course-file-section";
 import type { CourseClassRequest } from "./types";
 import type { Workspace } from "./workspace-state";
 
-/** Banor: tabell med Redigera bana och ny bana med klass (sparas direkt). */
+/** Banor: tabell med Redigera bana, banfil (med skillnader vid ny fil) och ny bana med klass (sparas direkt). */
 export function PreparationCourses({ ws }: { ws: Workspace }) {
   const { busy, courseClassAttempt, courseClassError, courseClassName, courseControls, courseName, courseStartRule, profile,
     saveCourseClass, setCourseClassName, setCourseControls, setCourseName, setCourseStartRule, shows, submitCourseClass } = ws;
@@ -16,6 +17,7 @@ export function PreparationCourses({ ws }: { ws: Workspace }) {
   const locked = busy || !!courseClassAttempt;
   return <section className={styles.workflowGroup} aria-label={navigationText.steps.COURSES} hidden={!visible}>
     {visible && <CourseTable ws={ws} visible={visible} />}
+    {visible && <CourseFileSection ws={ws} />}
     <details className={styles.disclosure}>
       <summary>{text.courseClassTitle}</summary>
       <form className={styles.disclosureBody} onSubmit={saveCourseClass}>

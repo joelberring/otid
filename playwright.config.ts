@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { defineConfig, devices } from "@playwright/test";
 
 /**
@@ -9,11 +10,17 @@ import { defineConfig, devices } from "@playwright/test";
  * Mot en körande driftmiljö: sätt E2E_BASE_URL (t.ex. https://localhost från
  * docker-compose.prod.yml). Då startas ingen server och självsignerade
  * certifikat godtas.
+ *
+ * Eventor (ADR-0170 beslut 4): global-setup startar en falsk Eventor på E2E_EVENTOR_PORT (4319).
+ * Utvecklingsservern får en slumpad masternyckel och pekas dit; driftmiljön får samma inställningar
+ * via sin .env (se CI).
  */
 const external = process.env.E2E_BASE_URL;
 const port = Number(process.env.E2E_PORT ?? 3100);
 const origin = external ?? `http://127.0.0.1:${port}`;
 const database = process.env.E2E_DATABASE_URL ?? process.env.TEST_DATABASE_URL;
+/** Samma port som tests/e2e/fake-eventor.ts. */
+const eventorPort = Number(process.env.E2E_EVENTOR_PORT ?? 4319);
 if (!external && !database) throw new Error("Sätt E2E_DATABASE_URL eller TEST_DATABASE_URL för webbläsartesterna (eller E2E_BASE_URL)");
 if (!external && database) process.env.E2E_DATABASE_URL = database;
 
@@ -36,7 +43,8 @@ export default defineConfig({
       url: `${origin}/organizer`,
       reuseExistingServer: !process.env.CI,
       timeout: 180_000,
-      env: { ...process.env, DATABASE_URL: database!, O_TID_PUBLIC_ORIGIN: origin }
+      env: { ...process.env, DATABASE_URL: database!, O_TID_PUBLIC_ORIGIN: origin,
+        OTID_EVENTOR_MASTER_KEY: randomBytes(32).toString("base64"), OTID_EVENTOR_BASE_URL: `http://127.0.0.1:${eventorPort}` }
     }
   })
 });

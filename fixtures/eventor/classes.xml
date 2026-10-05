@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<EventClassList>
+  <EventClass sex="M" lowAge="21" highAge="0" numberOfEntries="3">
+    <EventClassId>90001</EventClassId>
+    <Name>H21</Name>
+    <ClassShortName>H21</ClassShortName>
+    <ClassTypeId>16</ClassTypeId>
+    <EventClassStatus value="normal" />
+    <ClassRaceInfo numberOfEntries="3"><ClassRaceInfoId>70001</ClassRaceInfoId><EventRaceId>51001</EventRaceId></ClassRaceInfo>
+  </EventClass>
+  <EventClass sex="F" lowAge="21" highAge="0" numberOfEntries="2">
+    <EventClassId>90002</EventClassId>
+    <Name>D21</Name>
+    <ClassShortName>D21</ClassShortName>
+    <ClassTypeId>16</ClassTypeId>
+    <EventClassStatus value="normal" />
+    <ClassRaceInfo numberOfEntries="2"><ClassRaceInfoId>70002</ClassRaceInfoId><EventRaceId>51001</EventRaceId></ClassRaceInfo>
+  </EventClass>
+  <EventClass sex="M" lowAge="35" highAge="0" numberOfEntries="2">
+    <EventClassId>90003</EventClassId>
+    <Name>H35</Name>
+    <ClassShortName>H35</ClassShortName>
+    <ClassTypeId>16</ClassTypeId>
+    <EventClassStatus value="normal" />
+  </EventClass>
+  <EventClass sex="F" lowAge="35" highAge="0" numberOfEntries="0">
+    <EventClassId>90004</EventClassId>
+    <Name>D35</Name>
+    <ClassShortName>D35</ClassShortName>
+    <ClassTypeId>16</ClassTypeId>
+    <EventClassStatus value="normal" />
+  </EventClass>
+</EventClassList>

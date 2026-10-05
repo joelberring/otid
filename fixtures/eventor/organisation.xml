@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Organisation>
+  <OrganisationId>9321</OrganisationId>
+  <Name>OK Skogsfalken</Name>
+  <ShortName>Skogsfalken</ShortName>
+  <MediaName>OK Skogsfalken</MediaName>
+  <OrganisationTypeId>3</OrganisationTypeId>
+  <CountryId value="752" />
+  <Address careOf="" street="Skogsvägen 1" zipCode="12345" city="Skogsby" />
+  <ParentOrganisation><OrganisationId>15</OrganisationId></ParentOrganisation>
+  <ModifyDate><Date>2025-02-11</Date><Clock>09:14:22</Clock></ModifyDate>
+</Organisation>

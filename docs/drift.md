@@ -32,6 +32,23 @@ git pull && docker compose -f docker-compose.prod.yml up -d --build
 Webben kör nya migreringar innan den startar. Om en migrering misslyckas
 startar webben inte. Läs då `docker compose -f docker-compose.prod.yml logs web`.
 
+## Eventor
+
+Klubbens Eventor-nyckel klistras in av administratören under Inställningar → Eventor
+och sparas krypterad i databasen. Krypteringen kräver en masternyckel som bara finns
+i serverns `.env` (aldrig i databasen eller dess backup):
+
+```bash
+echo "OTID_EVENTOR_MASTER_KEY=$(openssl rand -base64 32)" >> .env
+docker compose -f docker-compose.prod.yml up -d
+```
+
+Utan masternyckel startar O-Tid ändå; Inställningar visar då att Eventor inte är
+påslaget. Spara masternyckeln separat från backupen. Byts eller tappas den kan de
+sparade Eventor-nycklarna inte läsas, och administratören klistrar in klubbens nyckel igen.
+`OTID_EVENTOR_BASE_URL` används bara för test (pekar O-Tid mot en falsk Eventor) och
+ska inte sättas i drift.
+
 ## Backup
 
 Tjänsten `backup` tar en `pg_dump` direkt vid start och sedan varje natt kl.

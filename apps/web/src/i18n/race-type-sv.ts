@@ -42,7 +42,7 @@ export const raceTypeSv = {
     staff: "Funktionärer",
     staffHelp: "Personer som hjälper till vid start och mål utan eget konto.",
     import: "Import",
-    importHelp: "Läs in klasser, banor och anmälda från en IOF XML-fil. Eventor kommer i nästa version.",
+    importHelp: "Läs in anmälda eller en startlista från en IOF XML-fil. Banfiler läses in under Banor, Eventor ovan.",
     importLink: "Öppna import"
   }
 } as const;

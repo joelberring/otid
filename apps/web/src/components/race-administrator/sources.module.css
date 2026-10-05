@@ -1,0 +1,51 @@
+/* Eventor och banfil (ADR-0170 beslut 4). Färg bara för det som behöver lösas och för markerat val. */
+
+.block { display: grid; gap: 12px; min-width: 0; max-width: 80ch; }
+.line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; min-width: 0; }
+.keyState { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+.keyState::before { content: "✓"; color: var(--ok); }
+.muted { color: var(--muted); font-size: var(--text-sm); }
+.inlineForm { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 8px 10px; min-width: 0; max-width: 40rem; }
+.inlineForm > :first-child { min-width: 0; }
+.subhead { font-size: var(--text-md); }
+.eventList { display: grid; gap: 8px; max-width: 40rem; }
+.fileInput { max-width: 100%; }
+.visuallyHidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* Granskningen */
+.review { display: grid; gap: 14px; min-width: 0; padding: 14px 16px; border: 1px solid var(--line-strong); background: var(--surface); }
+.reviewHead { display: grid; gap: 2px; }
+.reviewHead h3 { font-size: var(--text-md); }
+.summary { color: var(--muted); font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
+.group { display: grid; gap: 4px; min-width: 0; }
+.group h4 { display: flex; align-items: baseline; gap: 6px; font-size: var(--text-sm); font-weight: 600; }
+.symbol { display: inline-grid; place-items: center; width: 18px; height: 18px; border: 1px solid var(--line-strong); border-radius: 50%;
+  font-family: var(--font-dense); font-size: var(--text-xs); line-height: 1; }
+.group[data-kind="CONFLICT"] .symbol { border-color: var(--attention); color: var(--attention); }
+.count { color: var(--muted); font-weight: 500; font-variant-numeric: tabular-nums; }
+.rows { display: grid; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.row { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 8px; align-items: start; padding: 7px 0; border-bottom: 1px solid var(--line); }
+.row[data-kind="CONFLICT"] { grid-template-columns: 3px minmax(0, 1fr); gap: 12px; }
+.row[data-kind="CONFLICT"] .include { align-self: stretch; background: var(--attention); }
+.include { display: flex; justify-content: center; padding-top: 2px; }
+.include input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
+.always { color: var(--muted); font-size: var(--text-xs); }
+.rowBody { display: grid; gap: 3px; min-width: 0; }
+.rowTitle { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; min-width: 0; }
+.subject { color: var(--muted); font-family: var(--font-dense); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: .04em; }
+.context { color: var(--muted); font-size: var(--text-sm); }
+.tag { padding: 0 6px; border: 1px solid var(--line-strong); border-radius: 999px; font-size: var(--text-xs); white-space: nowrap; }
+.changes { display: grid; gap: 1px; margin: 0; padding: 0; list-style: none; font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
+.field { display: inline-block; min-width: 5.5rem; color: var(--muted); font-size: var(--text-xs); }
+.from { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line-strong); }
+.note { color: var(--ink); font-size: var(--text-sm); }
+.consequence { display: grid; gap: 6px; padding: 10px 12px; border-left: 3px solid var(--ink); background: var(--canvas); }
+.consequence h4 { font-size: var(--text-sm); }
+.statusChanges { display: grid; gap: 2px; margin: 0; padding-left: 18px; font-size: var(--text-sm); }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
+@media (max-width: 760px) {
+  .inlineForm { grid-template-columns: minmax(0, 1fr); }
+  .review { padding: 12px; margin-inline: -4px; }
+  .field { min-width: 0; margin-right: 4px; }
+}

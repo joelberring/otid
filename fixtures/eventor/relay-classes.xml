@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<EventClassList>
+  <EventClass numberOfEntries="2">
+    <EventClassId>91001</EventClassId>
+    <Name>Öppen stafett</Name>
+    <ClassShortName>Öppen</ClassShortName>
+    <ClassTypeId>19</ClassTypeId>
+    <EventClassStatus value="normal" />
+  </EventClass>
+</EventClassList>

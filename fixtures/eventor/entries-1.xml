@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="utf-8"?>
+<EntryList>
+  <Entry>
+    <EntryId>800001</EntryId>
+    <Competitor>
+      <PersonId>610001</PersonId>
+      <Person sex="F">
+        <PersonName>
+          <Family>Åkesson</Family>
+          <Given sequence="1">Anna</Given>
+        </PersonName>
+        <PersonId>610001</PersonId>
+        <BirthDate><Date>1990-01-01</Date></BirthDate>
+        <Nationality><CountryId value="752" /></Nationality>
+      </Person>
+      <OrganisationId>9321</OrganisationId>
+      <Organisation>
+        <OrganisationId>9321</OrganisationId>
+        <Name>OK Skogsfalken</Name>
+        <ShortName>OK Skogsfalken</ShortName>
+        <CountryId value="752" />
+      </Organisation>
+      <CCard>
+        <CCardId>2101001</CCardId>
+        <PunchingUnitType value="SI" />
+      </CCard>
+    </Competitor>
+    <EntryClass sequence="1">
+      <EventClassId>90002</EventClassId>
+    </EntryClass>
+    <EventId>47110</EventId>
+    <EventRaceId>51001</EventRaceId>
+    <EntryEntryFee><EntryFeeId>12001</EntryFeeId></EntryEntryFee>
+    <EntryDate><Date>2026-10-01</Date><Clock>19:22:10</Clock></EntryDate>
+    <ModifyDate><Date>2026-10-01</Date><Clock>19:22:10</Clock></ModifyDate>
+  </Entry>
+  <Entry>
+    <EntryId>800002</EntryId>
+    <Competitor>
+      <PersonId>610002</PersonId>
+      <Person sex="M">
+        <PersonName>
+          <Family>Öberg</Family>
+          <Given sequence="1">Björn</Given>
+        </PersonName>
+        <PersonId>610002</PersonId>
+        <BirthDate><Date>1990-01-01</Date></BirthDate>
+        <Nationality><CountryId value="752" /></Nationality>
+      </Person>
+      <OrganisationId>9330</OrganisationId>
+      <Organisation>
+        <OrganisationId>9330</OrganisationId>
+        <Name>Järfälla OK</Name>
+        <ShortName>Järfälla OK</ShortName>
+        <CountryId value="752" />
+      </Organisation>
+      <CCard>
+        <CCardId>2101002</CCardId>
+        <PunchingUnitType value="SI" />
+      </CCard>
+    </Competitor>
+    <EntryClass sequence="1">
+      <EventClassId>90001</EventClassId>
+    </EntryClass>
+    <EventId>47110</EventId>
+    <EventRaceId>51001</EventRaceId>
+    <EntryEntryFee><EntryFeeId>12001</EntryFeeId></EntryEntryFee>
+    <EntryDate><Date>2026-10-01</Date><Clock>19:22:10</Clock></EntryDate>
+    <ModifyDate><Date>2026-10-01</Date><Clock>19:22:10</Clock></ModifyDate>
+  </Entry>
+  <Entry>
+    <EntryId>800003</EntryId>
+    <Competitor>
+      <PersonId>610003</PersonId>
+      <Person sex="F">
+        <PersonName>
+          <Family>Ärlig</Family>
+          <Given sequence="1">Cecilia</Given>
+        </PersonName>
+        <PersonId>610003</PersonId>
+        <BirthDate><Date>1990-01-01</Date></BirthDate>
+        <Nationality><CountryId value="752" /></Nationality>
+      </Person>
+      <OrganisationId>9340</OrganisationId>
+      <Organisation>
+        <OrganisationId>9340</OrganisationId>
+        <Name>IFK Lidingö SOK</Name>
+        <ShortName>IFK Lidingö SOK</ShortName>
+        <CountryId value="752" />
+      </Organisation>
+      <CCard>
+        <CCardId>2101003</CCardId>
+        <PunchingUnitType value="SI" />
+      </CCard>
+    </Competitor>
+    <EntryClass sequence="1">
+      <EventClassId>90002</EventClassId>
+    </EntryClass>
+    <EventId>47110</EventId>
+    <EventRaceId>51001</EventRaceId>
+    <EntryEntryFee><EntryFeeId>12001</EntryFeeId></EntryEntryFee>
+    <EntryDate><Date>2026-10-01</Date><Clock>19:22:10</Clock></EntryDate>
+    <ModifyDate><Date>2026-10-01</Date><Clock>19:22:10</Clock></ModifyDate>
+  </Entry>
+  <Entry>
+    <EntryId>800004</EntryId>
+    <Competitor>
+      <PersonId>610004</PersonId>
+      <Person sex="M">
+        <PersonName>
+          <Family>Lund</Family>
+          <Given sequence="1">David</Given>
+        </PersonName>
+        <PersonId>610004</PersonId>
+        <BirthDate><Date>1990-01-01</Date></BirthDate>
+        <Nationality><CountryId value="752" /></Nationality>
+      </Person>
+      <OrganisationId>9321</OrganisationId>
+      <Organisation>
+        <OrganisationId>9321</OrganisationId>
+        <Name>OK Skogsfalken</Name>
+        <ShortName>OK Skogsfalken</ShortName>
+        <CountryId value="752" />
+      </Organisation>
+    </Competitor>
+    <EntryClass sequence="1">
+      <EventClassId>90001</EventClassId>
+    </EntryClass>
+    <EventId>47110</EventId>
+    <EventRaceId>51001</EventRaceId>
+    <EntryEntryFee><EntryFeeId>12001</EntryFeeId></EntryEntryFee>
+    <EntryDate><Date>2026-10-01</Date><Clock>19:22:10</Clock></EntryDate>
+    <ModifyDate><Date>2026-10-01</Date><Clock>19:22:10</Clock></ModifyDate>
+  </Entry>
+  <Entry>
+    <EntryId>800005</EntryId>
+    <Competitor>
+      <PersonId>610005</PersonId>
+      <Person sex="F">
+        <PersonName>
+          <Family>Ström</Family>
+          <Given sequence="1">Eva</Given>
+        </PersonName>
+        <PersonId>610005</PersonId>
+        <BirthDate><Date>1990-01-01</Date></BirthDate>
+        <Nationality><CountryId value="752" /></Nationality>
+      </Person>
+      <OrganisationId>9330</OrganisationId>
+      <Organisation>
+        <OrganisationId>9330</OrganisationId>
+        <Name>Järfälla OK</Name>
+        <ShortName>Järfälla OK</ShortName>
+        <CountryId value="752" />
+      </Organisation>
+      <CCard>
+        <CCardId>2101005</CCardId>
+        <PunchingUnitType value="SI" />
+      </CCard>
+    </Competitor>
+    <EntryClass sequence="1">
+      <EventClassId>90003</EventClassId>
+    </EntryClass>
+    <EventId>47110</EventId>
+    <EventRaceId>51001</EventRaceId>
+    <EntryEntryFee><EntryFeeId>12001</EntryFeeId></EntryEntryFee>
+    <EntryDate><Date>2026-10-01</Date><Clock>19:22:10</Clock></EntryDate>
+    <ModifyDate><Date>2026-10-01</Date><Clock>19:22:10</Clock></ModifyDate>
+  </Entry>
+  <Entry>
+    <EntryId>800006</EntryId>
+    <Competitor>
+      <PersonId>610006</PersonId>
+      <Person sex="M">
+        <PersonName>
+          <Family>Nyström</Family>
+          <Given sequence="1">Fredrik</Given><Given sequence="2">Johan</Given>
+        </PersonName>
+        <PersonId>610006</PersonId>
+        <BirthDate><Date>1990-01-01</Date></BirthDate>
+        <Nationality><CountryId value="752" /></Nationality>
+      </Person>
+      <OrganisationId>9340</OrganisationId>
+      <Organisation>
+        <OrganisationId>9340</OrganisationId>
+        <Name>IFK Lidingö SOK</Name>
+        <ShortName>IFK Lidingö SOK</ShortName>
+        <CountryId value="752" />
+      </Organisation>
+      <CCard>
+        <CCardId>2101006</CCardId>
+        <PunchingUnitType value="SI" />
+      </CCard>
+    </Competitor>
+    <EntryClass sequence="1">
+      <EventClassId>90003</EventClassId>
+    </EntryClass>
+    <EventId>47110</EventId>
+    <EventRaceId>51001</EventRaceId>
+    <EntryEntryFee><EntryFeeId>12001</EntryFeeId></EntryEntryFee>
+    <EntryDate><Date>2026-10-01</Date><Clock>19:22:10</Clock></EntryDate>
+    <ModifyDate><Date>2026-10-01</Date><Clock>19:22:10</Clock></ModifyDate>
+  </Entry>
+</EntryList>

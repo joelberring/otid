@@ -5,9 +5,22 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 14 – Eventor och banfiler, med uppdateringar. Steg 7 (hårdvara) görs parallellt av ägaren.
+Steg 15 – Rogaining. Steg 7 (hårdvara) görs parallellt av ägaren.
 
 ## Logg
+
+### 2026-10-05 – Steg 14: Eventor och banfiler, med uppdateringar (steg 14 klart)
+- Inställningar → Eventor (Tävling, gafflade banor, Stafett): klubbens API-nyckel sparas krypterad per tävling (AES-256-GCM, `OTID_EVENTOR_MASTER_KEY`
+  i miljön; utan den startar appen och visar "inte påslaget"), visas som "Nyckel sparad", testas, byts eller tas bort. Tävlingen väljs ur klubbens lista eller med nummer.
+- "Hämta/Uppdatera från Eventor" och Banor → "Läs in (ny) banfil" sparar källan som ögonblicksbild (migration 0096) och visar nya, ändrade, strukna och
+  "lös själv"; rader kan bockas ur och beskedet följer urvalet. Klassbyte, ny bana och ny banversion räknas om som Redigera bana (besked, bekräftelse, ny revision).
+- Matchning på Eventors id, annars namn+klubb+klass mot deltagare från fil ("matchad på namn"); direktanmälda rörs aldrig. Struken utan resultat blir ej start;
+  avläst/med resultat blir konflikt. Ny bricka efter avläsning behåller resultatet. Stafettlag med sträcklöpare (vakant sträcka fylls i senare).
+- Eventor-klasser utan banfil står på banan "Bana saknas" tills banfilen läses in. Adaptern `packages/eventor` omskriven (tolerant men härdad läsning, client).
+- Borttaget: CLI-anslutning och grants (`scripts/eventor-*.ts`, fyra `package.json`-skript), tabellerna `eventor_*`, gamla kontrakt och tester.
+- Verifierat: lint, typecheck, test, test:integration (83 filer, nytt `adr-0170-eventor-sync`), build, e2e (9 flöden, nytt `eventor` mot falsk Eventor; i hela sviten
+  gav maskinens last tidsfel i listor/stafett/gafflingar, som går igenom var för sig utan omförsök). Skärmbilder granskade.
+- Återstår: prov mot riktiga Eventor med klubbens nyckel (svarsformatet är byggt efter dokumentationen, fixtures är konstruerade).
 
 ### 2026-10-05 – Steg 13: start- och resultatlistor (steg 13 klart)
 - Ett listmönster (`components/lists/`, modeller i `lib/lists/`, sträckplaceringar i domänens `split-table.ts`) i Start, Resultat och de publika sidorna:

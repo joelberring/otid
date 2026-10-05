@@ -13,10 +13,6 @@ captures
 .env.local
 *.tsbuildinfo
 .DS_Store
-apps/station/android/.gradle
-apps/station/android/.idea
-apps/station/android/local.properties
-apps/station/android/**/build
 apps/participant/android/.gradle
 apps/participant/android/.idea
 apps/participant/android/local.properties

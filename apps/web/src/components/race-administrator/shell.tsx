@@ -25,7 +25,7 @@ function facts(ws: Workspace): SectionFacts | undefined {
  * speakern i egna flikar. Följer med när man rullar.
  */
 export function TopBar({ ws }: { ws: Workspace }) {
-  const { data, profile, raceId, refresh, logout, workflowLocked } = ws;
+  const { data, functionary, profile, raceId, refresh, logout, workflowLocked } = ws;
   const current = facts(ws);
   const back = workflowLocked
     ? <span className={styles.back} aria-disabled="true" title={navigationText.backLocked}>‹ {navigationText.backToEvents}</span>
@@ -35,7 +35,8 @@ export function TopBar({ ws }: { ws: Workspace }) {
       {back}
       {data && <div className={styles.race}>
         <h2>{data.eventName}</h2>
-        <p>{data.raceName} · <time dateTime={data.raceDate}>{data.raceDate}</time> · {typeText.types[data.raceType].name}</p>
+        <p>{data.raceName} · <time dateTime={data.raceDate}>{data.raceDate}</time> · {typeText.types[data.raceType].name}
+          {functionary && <> · <strong className={styles.role}>{typeText.functionary}</strong></>}</p>
       </div>}
     </div>
     {current && <p className={styles.live} aria-label={typeText.liveState}>
@@ -91,6 +92,6 @@ export function Sidebar({ ws }: { ws: Workspace }) {
       <li className={styles.finish} aria-hidden="true"><svg viewBox="0 0 22 22" width="22" height="22">
         <circle cx="11" cy="11" r="9.5" /><circle cx="11" cy="11" r="5.5" /></svg></li>
     </ol>
-    <ol className={styles.after}>{item(profile.settings, true)}</ol>
+    {profile.settings && <ol className={styles.after}>{item(profile.settings, true)}</ol>}
   </nav>;
 }

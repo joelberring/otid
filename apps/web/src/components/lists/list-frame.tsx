@@ -14,7 +14,8 @@ export type ListToolbarProps<View extends string> = {
   classes: readonly string[]; className: string; onClass: (className: string) => void;
   count: string;
   iof?: IofExport | undefined;
-  onCsv: () => void;
+  /** Saknas när listan inte får exporteras (funktionären, ADR-0172 beslut 3); då visas ingen exportmeny. */
+  onCsv?: (() => void) | undefined;
 };
 
 const printTime = () => new Intl.DateTimeFormat("sv-SE", { dateStyle: "short", timeStyle: "short" }).format(new Date());
@@ -78,7 +79,7 @@ export function ListFrame<View extends string>({ toolbar, title, race, children 
       <p className={styles.count} aria-live="polite">{count}</p>
       <div className={styles.tools}>
         <button type="button" onClick={() => { setPrintedAt(printTime()); window.print(); }}>{text.print}</button>
-        <details className={styles.menu} ref={menu}>
+        {onCsv && <details className={styles.menu} ref={menu}>
           <summary>{text.export}</summary>
           <div className={styles.menuItems}>
             {!iof ? <span>{text.exportIofUnavailable}</span> : "href" in iof
@@ -86,7 +87,7 @@ export function ListFrame<View extends string>({ toolbar, title, race, children 
               : <button type="button" disabled={iof.disabled} onClick={() => { close(); iof.onSelect(); }}>{text.exportIof}</button>}
             <button type="button" onClick={() => { close(); onCsv(); }}>{text.exportCsv}</button>
           </div>
-        </details>
+        </details>}
       </div>
     </div>
     <header className={styles.printHeader}>

@@ -16,7 +16,6 @@ export * from "./manual-finish-time-correction-withdrawal";
 export * from "./manual-punch-start-time-correction";
 export * from "./manual-punch-start-time-correction-withdrawal";
 export * from "./unknown-readout-resolution";
-export * from "./race-operator-access";
 
 export * from "./canonical-json";
 export * from "./did-not-start-admin";
@@ -35,7 +34,7 @@ export * from "./event-creation";
 export * from "./account";
 export * from "./organizer-account";
 export * from "./superadmin";
-export * from "./organizer-coadmin";
+export * from "./race-people";
 export * from "./iof-import-admin";
 export * from "./iof-result-list-export";
 export * from "./local-station-evaluation";
@@ -43,16 +42,13 @@ export * from "./out-of-competition-admin";
 export * from "./out-of-competition-withdrawal-admin";
 export * from "./without-timing-admin";
 export * from "./without-timing-withdrawal-admin";
-export * from "./pairing-admin";
 export * from "./pm-document";
 export * from "./pm-object-manifest";
 export * from "./pm-scan-evidence";
 export * from "./pm-document-storage-receipt";
 export * from "./public-frozen-race-results";
 export * from "./public-results";
-export * from "./participant-entry-claim";
 export * from "./public-result-event-stream";
-export * from "./public-result-follow";
 export * from "./race-overview-admin";
 export * from "./readout-result-history-admin";
 export * from "./result-recalculation-admin";
@@ -64,13 +60,10 @@ export * from "./result-approval-withdrawal-admin";
 export * from "./result-disqualification-admin";
 export * from "./result-disqualification-withdrawal-admin";
 export * from "./result-outcome";
-export * from "./station-package";
-export * from "./station-pairing";
+export * from "./readout-package";
 export * from "./start-list-admin";
 export * from "./start-list-publication";
 export * from "./start-checkin";
-export * from "./start-checkin-admin";
-export * from "./start-checkin-recovery";
 
 export const createEventSchema = z.object({
   name: z.string().trim().min(2).max(160),

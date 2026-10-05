@@ -26,8 +26,7 @@ import { loadStartDrawSetupAsAdministrator, previewStartDrawAsAdministrator, com
   withdrawResultApprovalAsAdmin, listOutOfCompetitionCandidatesAsAdmin, decideOutOfCompetitionAsAdmin,
   listOutOfCompetitionWithdrawalsAsAdmin, withdrawOutOfCompetitionAsAdmin, listWithoutTimingCandidatesAsAdmin,
   decideWithoutTimingAsAdmin, listWithoutTimingWithdrawalsAsAdmin, withdrawWithoutTimingAsAdmin,
-  listRaceOperatorAccessAsAdministrator, issueRaceOperatorAccessAsAdministrator,
-  revokeRaceOperatorAccessAsAdministrator, getStartListPublicationPreviewAsAdmin, decideStartListPublicationAsAdmin,
+  getStartListPublicationPreviewAsAdmin, decideStartListPublicationAsAdmin,
   exportCurrentStartListXmlAsAdmin,
   listAdministratorForestWatch, registerAdministratorReturn, withdrawAdministratorReturn, correctAdministratorStart,
   listCheckinHistoryAsAdmin, readStartCheckinConflictReviewAsAdmin, reviewStartCheckinConflictsAsAdmin,
@@ -39,7 +38,8 @@ import { loadStartDrawSetupAsAdministrator, previewStartDrawAsAdministrator, com
   syncConsequenceAsAdministrator, applySyncAsAdministrator, getSourceSyncStatusAsAdministrator,
   previewRogainingChangeAsAdministrator, changeRogainingAsAdministrator,
   readRaceMapStateAsAdministrator, readRaceMapImageAsAdministrator, saveRaceMapAsAdministrator, georeferenceRaceMapAsAdministrator,
-  removeRaceMapAsAdministrator, saveParticipantRouteAsAdministrator, removeParticipantRouteAsAdministrator } from "@o-tid/application";
+  removeRaceMapAsAdministrator, saveParticipantRouteAsAdministrator, removeParticipantRouteAsAdministrator,
+  listRacePeopleAsAdministrator, grantRacePersonAsAdministrator, revokeRacePersonAsAdministrator } from "@o-tid/application";
 import { iofResultListExportAdminFailure } from "./iof-result-list-export-admin-security";
 import type { Database } from "@o-tid/database";
 import { entryClassAdminFailure as failure, type entryClassAdminSessionProof } from "./entry-class-admin-security";
@@ -106,8 +106,7 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   raceMapState: readRaceMapStateAsAdministrator, raceMapImage: readRaceMapImageAsAdministrator, raceMapSave: saveRaceMapAsAdministrator,
   raceMapGeoreference: georeferenceRaceMapAsAdministrator, raceMapRemove: removeRaceMapAsAdministrator,
   participantRouteSave: saveParticipantRouteAsAdministrator, participantRouteRemove: removeParticipantRouteAsAdministrator,
-  operatorAccesses: listRaceOperatorAccessAsAdministrator, issueOperatorAccess: issueRaceOperatorAccessAsAdministrator,
-  revokeOperatorAccess: revokeRaceOperatorAccessAsAdministrator };
+  people: listRacePeopleAsAdministrator, grantPerson: grantRacePersonAsAdministrator, revokePerson: revokeRacePersonAsAdministrator };
 export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: string } | { kind: "review-conflicts" } | { kind: "checkin-history"; entryId: string } | { kind: "start-correction" } | { kind: "manual-return-withdrawal" } | { kind: "manual-return" } | { kind: "forest-watch" } | { kind: "publication-preview" } | { kind: "publication" } | { kind: "start-list-export" } | { kind: "draw-preview" } | { kind: "draw" } |
   { kind: "finalization-candidates" } | { kind: "finalize" } | { kind: "frozen-results" } | { kind: "frozen-result"; finalizationId: string } |
   { kind: "result-export" } | { kind: "session" } | { kind: "participants" } | { kind: "transfer-candidates" } |
@@ -146,8 +145,8 @@ export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: str
   { kind: "out-of-competition"; entryId: string } | { kind: "out-of-competition-withdrawal"; entryId: string } |
   { kind: "without-timing-candidates" } | { kind: "without-timing-withdrawals" } |
   { kind: "without-timing"; entryId: string } | { kind: "without-timing-withdrawal"; entryId: string } |
-  { kind: "operator-access" } |
-  { kind: "race-map" } | { kind: "race-map-image" } | { kind: "race-map-georeference" } | { kind: "participant-route" };
+  { kind: "race-map" } | { kind: "race-map-image" } | { kind: "race-map-georeference" } | { kind: "participant-route" } |
+  { kind: "people" };
 
 export function resultFailure(status: string): Response {
   switch (status) {

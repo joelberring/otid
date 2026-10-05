@@ -9,8 +9,8 @@ import { loadRaceSnapshot, sortRaceSnapshotForPackage } from "./snapshot";
 import { loadRelayReadout } from "./relay-results";
 
 /**
- * Webbläsarens avläsningsstation (steg 4, ADR-0168). Administratörens session
- * räcker; ingen separat stationsparning eller stationsnyckel behövs.
+ * Webbläsarens avläsningsstation (steg 4, ADR-0168). Administratörens eller
+ * funktionärens session räcker (ADR-0172 beslut 3); inga stationsnycklar.
  */
 type Proof = Omit<PairingAdminRequestAuthentication, "capability" | "requireCsrf">;
 type Failure = { status: "unauthorized" | "forbidden" };
@@ -18,7 +18,7 @@ type Failure = { status: "unauthorized" | "forbidden" };
 export async function readReadoutPackageAsAdministrator(
   db: Database, input: Proof, now = new Date()
 ): Promise<Failure | { status: "ok"; response: ReadoutPackage }> {
-  const auth = await authenticatePairingAdminSession(db, { ...input, capability: "MANAGE_RACE" }, now);
+  const auth = await authenticatePairingAdminSession(db, { ...input, capability: "RACE_FUNCTIONARY" }, now);
   if (auth.status !== "authenticated") return auth;
   const response = await db.transaction(async (tx) => {
     await lockRaceForSnapshot(tx, input.raceId);
@@ -40,7 +40,7 @@ export async function ingestReadoutsAsAdministrator(
   db: Database, input: Proof & { batch: DeviceBatch }, now = new Date()
 ): Promise<Failure | { status: "ok"; response: DeviceBatchAcknowledgement }> {
   const auth = await authenticatePairingAdminSession(db,
-    { ...input, capability: "MANAGE_RACE", requireCsrf: true }, now);
+    { ...input, capability: "RACE_FUNCTIONARY", requireCsrf: true }, now);
   if (auth.status !== "authenticated") return auth;
   return { status: "ok", response: await ingestDeviceBatch(db, input.raceId, input.batch) };
 }

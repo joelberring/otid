@@ -1,9 +1,7 @@
-import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrate } from "@o-tid/database";
 import { createDatabase } from "@o-tid/database";
-import { canonicalStartCheckinOperation } from "@o-tid/contracts";
 import {
   approveResultAsAdmin,
   contentHash,
@@ -25,9 +23,9 @@ import {
   listSpeakerBoardAsAdmin,
   listWithoutTimingCandidatesAsAdmin,
   loginPairingAdmin,
-  listStartCheckinRosterAsAdmin,
-  registerStartCheckinDeviceAsAdmin,
-  syncStartCheckinAsAdmin,
+  listAdministratorForestWatch,
+  correctAdministratorStart,
+  registerAdministratorReturn,
   withdrawDidNotStartAsAdmin
 } from "../../src";
 
@@ -43,7 +41,7 @@ afterAll(async () => { await pool.end(); });
 
 type Capability = "VIEW_SPEAKER_BOARD" | "DISQUALIFY_RESULT" | "APPROVE_RESULT" |
   "DECIDE_DID_NOT_START" | "WITHDRAW_DID_NOT_START" | "DECIDE_DID_NOT_FINISH" |
-  "DECIDE_OUT_OF_COMPETITION" | "DECIDE_WITHOUT_TIMING" | "START_CHECKIN" | "FINISH_FOREST_WATCH";
+  "DECIDE_OUT_OF_COMPETITION" | "DECIDE_WITHOUT_TIMING" | "RACE_FUNCTIONARY";
 
 async function fixture() {
   const { race } = await createEvent(db, { name: "Manuell speakertest", raceName: "Lång",
@@ -236,23 +234,17 @@ describe("TASK 008 speaker: manuella resultatlivscykler PostgreSQL", () => {
 
   it("tolkar avpricknings-DNS med exakt källa och döljer den efter målkorrektion", async () => {
     const raceId = await fixture();
-    const start = await admin(raceId, "START_CHECKIN", 101);
-    const startDeviceId = crypto.randomUUID();
-    expect((await registerStartCheckinDeviceAsAdmin(db, { ...start, capability: "START_CHECKIN",
-      readBody: async () => ({ formatVersion: 1, deviceId: startDeviceId, label: "Starttelefon" }) }, () => now)).status)
-      .toBe("registered");
-    const roster = await listStartCheckinRosterAsAdmin(db, { ...start, capability: "START_CHECKIN" }, now);
+    // Funktionären vid starten rapporterar Ada som ej startad (ADR-0172 beslut 3).
+    const start = await admin(raceId, "RACE_FUNCTIONARY", 101);
+    const roster = await listAdministratorForestWatch(db, start, now);
     if (roster.status !== "ok") throw new Error("Avprickningsroster saknas");
     const ada = roster.response.entries.find((entry) => entry.displayName.includes("Ada"));
     if (!ada) throw new Error("Ada saknas i avprickningsroster");
-    const dnsOperation = { formatVersion: 1 as const, requestId: crypto.randomUUID(), dependsOnRequestId: null,
-      deviceId: startDeviceId, actorCredentialId: start.credentialId, raceId, entryId: ada.entryId,
-      localSequence: 1, packageVersion: roster.response.snapshotVersion, expectedEntryVersion: ada.entryVersion,
-      expectedRevision: ada.revision, observedAt: now.toISOString(), action: { kind: "MARK_START" as const, state: "REPORTED_NOT_STARTED" as const } };
-    const dns = await syncStartCheckinAsAdmin(db, { ...start, capability: "START_CHECKIN", readBody: async () => ({
-      operation: dnsOperation, contentHash: createHash("sha256").update(canonicalStartCheckinOperation(dnsOperation)).digest("hex")
-    }) }, () => now);
-    expect(dns).toMatchObject({ status: "stored", response: { effect: { kind: "APPLIED" } } });
+    const common = { formatVersion: 1 as const, entryId: ada.entryId, packageVersion: roster.response.snapshotVersion,
+      expectedEntryVersion: ada.entryVersion, observedAt: now.toISOString() };
+    const dns = await correctAdministratorStart(db, { ...start, request: { ...common, requestId: crypto.randomUUID(),
+      expectedRevision: ada.revision, targetStartState: "REPORTED_NOT_STARTED" } }, now);
+    expect(dns).toMatchObject({ status: "stored", response: { receipt: { effect: { kind: "APPLIED" } } } });
 
     const speaker = await admin(raceId, "VIEW_SPEAKER_BOARD", 111);
     const before = await listSpeakerBoardAsAdmin(db, { raceId, sessionToken: speaker.sessionToken }, now);
@@ -260,20 +252,10 @@ describe("TASK 008 speaker: manuella resultatlivscykler PostgreSQL", () => {
     const beforeRow = before.response.rows.find((row) => row.givenName === "Ada");
     expect(beforeRow).toMatchObject({ state: "ACTIVE_RESULT", result: { status: "DNS", reason: "DID_NOT_START" } });
 
-    const finish = await admin(raceId, "FINISH_FOREST_WATCH", 121);
-    const finishDeviceId = crypto.randomUUID();
-    expect((await registerStartCheckinDeviceAsAdmin(db, { ...finish, capability: "FINISH_FOREST_WATCH",
-      readBody: async () => ({ formatVersion: 1, deviceId: finishDeviceId, label: "Måltelefon" }) }, () => now)).status)
-      .toBe("registered");
-    const correction = { formatVersion: 1 as const, requestId: crypto.randomUUID(), dependsOnRequestId: null,
-      deviceId: finishDeviceId, actorCredentialId: finish.credentialId, raceId, entryId: ada.entryId,
-      localSequence: 1, packageVersion: roster.response.snapshotVersion, expectedEntryVersion: ada.entryVersion,
-      expectedRevision: 1, observedAt: now.toISOString(),
-      action: { kind: "FINISH_CORRECTION" as const, state: "UNMARKED" as const, manualReturnRegistered: true } };
-    const withdrawn = await syncStartCheckinAsAdmin(db, { ...finish, capability: "FINISH_FOREST_WATCH", readBody: async () => ({
-      operation: correction, contentHash: createHash("sha256").update(canonicalStartCheckinOperation(correction)).digest("hex")
-    }) }, () => now);
-    expect(withdrawn).toMatchObject({ status: "stored", response: { effect: { kind: "APPLIED" } } });
+    // Funktionären i mål registrerar återkomst; avpricknings-DNS:et tas tillbaka.
+    const withdrawn = await registerAdministratorReturn(db, { ...start, request: { ...common, requestId: crypto.randomUUID(),
+      expectedRevision: 1, expectedStartState: "REPORTED_NOT_STARTED" } }, now);
+    expect(withdrawn).toMatchObject({ status: "stored", response: { receipt: { effect: { kind: "APPLIED" } } } });
 
     const after = await listSpeakerBoardAsAdmin(db, { raceId, sessionToken: speaker.sessionToken }, now);
     if (after.status !== "ok") throw new Error("Korrigerat avpricknings-DNS speakerunderlag saknas");

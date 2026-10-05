@@ -33,7 +33,7 @@ export type WorkspaceState = ReturnType<typeof useWorkspaceState>;
 export function deriveWorkspace(s: WorkspaceState) {
   const roster = deriveRoster(s);
   const during = deriveDuringRace(s);
-  const editing = during.correctionPending || s.operatorAccessPending ||
+  const editing = during.correctionPending || s.peoplePending ||
     !!s.reviewAttempt || !!s.startCorrection || !!s.returnAttempt || !!s.publicationAttempt ||
     !!s.drawAttempt || !!s.finalizationAttempt || !!s.transferAttempt || !!s.capacityAttempt || !!s.cardAttempt ||
     !!s.rentalAttempt || !!s.rentalReturnAttempt || !!s.rentalReuseAttempt || !!s.timeAttempt ||

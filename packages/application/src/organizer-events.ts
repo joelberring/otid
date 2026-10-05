@@ -121,11 +121,18 @@ export async function createEventAsUserAccount(
   });
 }
 
+export type EventGrantRole = "OWNER" | "ADMIN" | "FUNCTIONARY";
+const ROLE_ORDER: Record<EventGrantRole, number> = { OWNER: 0, ADMIN: 1, FUNCTIONARY: 2 };
+
+/**
+ * Kontots gällande behörighet på eventet. `roles` begränsar vilka roller som räknas (förval: OWNER och ADMIN).
+ * Har kontot flera gäller den starkaste (ägare före administratör före funktionär).
+ */
 export async function activeEventAdministrationGrant(
   tx: DatabaseTransaction,
-  input: { accountId: string; eventId: string; grantId?: string; ownerOnly?: boolean },
+  input: { accountId: string; eventId: string; grantId?: string; ownerOnly?: boolean; roles?: readonly EventGrantRole[] },
   lock: "share" | "update"
-): Promise<{ id: string; role: "OWNER" | "ADMIN" } | undefined> {
+): Promise<{ id: string; role: EventGrantRole } | undefined> {
   const grantQuery = tx.select({ id: schema.eventAdministrationGrants.id,
     role: schema.eventAdministrationGrants.role })
     .from(schema.eventAdministrationGrants)
@@ -133,9 +140,10 @@ export async function activeEventAdministrationGrant(
       eq(schema.eventAdministrationGrants.eventId, input.eventId),
       input.grantId ? eq(schema.eventAdministrationGrants.id, input.grantId) : undefined,
       input.ownerOnly ? eq(schema.eventAdministrationGrants.role, "OWNER") :
-        inArray(schema.eventAdministrationGrants.role, ["OWNER", "ADMIN"])))
+        inArray(schema.eventAdministrationGrants.role, [...(input.roles ?? ["OWNER", "ADMIN"])])))
     .orderBy(asc(schema.eventAdministrationGrants.grantedAt), asc(schema.eventAdministrationGrants.id));
-  const grants = lock === "share" ? await grantQuery.for("share") : await grantQuery.for("update");
+  const grants = (lock === "share" ? await grantQuery.for("share") : await grantQuery.for("update"))
+    .sort((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role]);
   for (const grant of grants) {
     const guardQuery = tx.select({ grantId: schema.eventAdministrationGrantGuards.grantId })
       .from(schema.eventAdministrationGrantGuards)
@@ -150,7 +158,7 @@ export async function activeEventAdministrationGrant(
   return undefined;
 }
 
-/** SQL-minimized owner list. Legacy-created races have no owner grant. */
+/** Mina tävlingar: där kontot är ägare, administratör eller funktionär (ADR-0172 beslut 3). */
 export async function listMyEventsAsUserAccount(
   db: Database,
   proof: UserAccountSessionProof,
@@ -164,19 +172,19 @@ export async function listMyEventsAsUserAccount(
       role: schema.eventAdministrationGrants.role })
       .from(schema.eventAdministrationGrants)
       .where(and(eq(schema.eventAdministrationGrants.accountId, auth.principal.accountId),
-        inArray(schema.eventAdministrationGrants.role, ["OWNER", "ADMIN"])))
+        inArray(schema.eventAdministrationGrants.role, ["OWNER", "ADMIN", "FUNCTIONARY"])))
       .orderBy(asc(schema.eventAdministrationGrants.grantedAt)).limit(10_001);
     if (grants.length > 10_000) throw new Error("För många administrerade event för detta kontrakt");
     const events: OrganizerMyEventsResponse["events"] = [];
     const eventIndexes = new Map<string, number>();
     for (const grant of grants) {
       if (!await activeEventAdministrationGrant(tx, {
-        accountId: auth.principal.accountId, eventId: grant.eventId, grantId: grant.id
+        accountId: auth.principal.accountId, eventId: grant.eventId, grantId: grant.id, roles: [grant.role]
       }, "share")) continue;
       const existingIndex = eventIndexes.get(grant.eventId);
       if (existingIndex !== undefined) {
         const existing = events[existingIndex];
-        if (existing && grant.role === "OWNER") existing.role = "OWNER";
+        if (existing && ROLE_ORDER[grant.role] < ROLE_ORDER[existing.role]) existing.role = grant.role;
         continue;
       }
       const [event] = await tx.select({ id: schema.events.id, name: schema.events.name,
@@ -198,7 +206,11 @@ export async function listMyEventsAsUserAccount(
   });
 }
 
-/** Internal account-to-MANAGE_RACE bridge: no credential secret reaches the browser. */
+/**
+ * Kontot öppnar tävlingen: en dold, kortlivad delegering till MANAGE_RACE (ägare/administratör) eller
+ * RACE_FUNCTIONARY (funktionär). Ingen credentialhemlighet når webbläsaren. Varje enhet får sin egen session,
+ * så samma konto kan vara inloggat på flera enheter samtidigt (ADR-0172 beslut 3).
+ */
 export async function enterRaceAsUserAccount(
   db: Database,
   input: UserAccountSessionProof & { raceId: string },
@@ -213,23 +225,24 @@ export async function enterRaceAsUserAccount(
       .from(schema.races).where(eq(schema.races.id, input.raceId)).for("share");
     if (!race) return { status: "not-found" } as const;
     const grant = await activeEventAdministrationGrant(tx, {
-      accountId: auth.principal.accountId, eventId: race.eventId
+      accountId: auth.principal.accountId, eventId: race.eventId, roles: ["OWNER", "ADMIN", "FUNCTIONARY"]
     }, "update");
     if (!grant) return { status: "not-found" } as const;
+    const capability = grant.role === "FUNCTIONARY" ? "RACE_FUNCTIONARY" as const : "MANAGE_RACE" as const;
     const expiresAt = new Date(Math.min(enteredAt.getTime() + ONE_HOUR_MS,
       new Date(auth.principal.expiresAt).getTime()));
     if (expiresAt.getTime() <= enteredAt.getTime()) return { status: "unauthorized" } as const;
     const credentialId = randomUUID(), sessionId = randomUUID();
     const hiddenCredentialSecret = randomBytes(32), sessionSecret = randomBytes(32), csrfSecret = randomBytes(32);
     await tx.insert(schema.pairingAdminAccessCredentials).values({
-      id: credentialId, raceId: race.id, capability: "MANAGE_RACE",
+      id: credentialId, raceId: race.id, capability,
       label: "Kontobunden delegation", secretHash: sha256(hiddenCredentialSecret),
       issuedAt: enteredAt, expiresAt
     });
     await tx.insert(schema.userAccountRaceDelegations).values({
       credentialId, accountId: auth.principal.accountId,
       accountSessionId: auth.principal.sessionId, grantId: grant.id,
-      eventId: race.eventId, raceId: race.id, capability: "MANAGE_RACE",
+      eventId: race.eventId, raceId: race.id, capability,
       issuedAt: enteredAt, expiresAt
     });
     await tx.insert(schema.pairingAdminSessions).values({
@@ -242,12 +255,13 @@ export async function enterRaceAsUserAccount(
       action: "RACE_ADMIN_DELEGATED_BY_ACCOUNT", actorKind: "USER_ACCOUNT",
       actorId: auth.principal.accountId,
       after: { accountId: auth.principal.accountId, eventId: race.eventId,
-        raceId: race.id, capability: "MANAGE_RACE", expiresAt: expiresAt.toISOString() }
+        raceId: race.id, capability, role: grant.role, expiresAt: expiresAt.toISOString() }
     });
     return {
       status: "entered",
       response: organizerRaceEnterResponseSchema.parse({
-        formatVersion: 1, raceId: race.id, expiresAt: expiresAt.toISOString()
+        formatVersion: 1, raceId: race.id, role: capability === "MANAGE_RACE" ? "ADMIN" : "FUNCTIONARY",
+        expiresAt: expiresAt.toISOString()
       }),
       sessionToken: `${RACE_SESSION_PREFIX}.${sessionId}.${sessionSecret.toString("base64url")}`,
       csrfToken: csrfSecret.toString("base64url")

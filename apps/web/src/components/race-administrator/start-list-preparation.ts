@@ -9,13 +9,13 @@ import type { Base } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
 import { download } from "../lists/list-frame";
 
-/** Startlistan: publicering och funktionärer. Lottningen finns i `start-draw.ts`. */
+/** Startlistan: publicering (och om behörighetslistan väntar på kvitto). Lottningen finns i `start-draw.ts`. */
 export function useStartListState() {
   const [publicationPreview, setPublicationPreview] = useState<StartListPublicationPreviewResponse>();
   const [publicationAttempt, setPublicationAttempt] = useState<AdministratorPublicationAttempt>();
-  const [operatorAccessPending, setOperatorAccessPending] = useState(false);
+  const [peoplePending, setPeoplePending] = useState(false);
   return { publicationPreview, setPublicationPreview, publicationAttempt, setPublicationAttempt,
-    operatorAccessPending, setOperatorAccessPending };
+    peoplePending, setPeoplePending };
 }
 
 export function createStartListActions(ws: Base & RaceDataActions) {

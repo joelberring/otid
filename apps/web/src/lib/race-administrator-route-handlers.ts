@@ -14,14 +14,16 @@ import { handleVariantRoute } from "./race-administrator-routes-variants";
 import { handleRelayRoute, write as idempotentWrite } from "./race-administrator-routes-relay";
 import { handleSourceRoute } from "./race-administrator-routes-sources";
 import { handleMapRoute } from "./race-administrator-routes-maps";
+import { handlePeopleRoute } from "./race-administrator-routes-people";
+import { raceRoleFor, requireRaceRole } from "./race-roles";
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 type Environment = Partial<Pick<NodeJS.ProcessEnv, "NODE_ENV" | "O_TID_PUBLIC_ORIGIN">>;
 
 /**
- * Dedicated administrator cookie boundary; never falls back to a limited-role cookie.
- * Kontrollerar adress, metod, origin och verklig administratörsroll innan åtgärden lämnas till sin grupp.
- * Sessionen öppnas med kontot via /api/organizer/races/{id}/enter (ADR-0168); här finns bara läsning och utloggning.
+ * Tävlingens adminroutes. Kontrollerar adress, metod, origin och rollen (administratör eller funktionär,
+ * `race-roles.ts`) innan åtgärden lämnas till sin grupp. Sessionen öppnas med kontot via
+ * /api/organizer/races/{id}/enter (ADR-0168, ADR-0172); här finns bara läsning och utloggning av den.
  */
 export async function raceAdministratorRoute(db: Database, request: Request, raceId: string, action: Action,
   overrides: Partial<typeof services> = services, environment: Environment = process.env): Promise<Response> {
@@ -56,22 +58,22 @@ export async function raceAdministratorRoute(db: Database, request: Request, rac
   const proof = entryClassAdminSessionProof(request, policy, write);
   try {
     if (action.kind === "session" && request.method === "DELETE") {
-      const result = await dependencies.logout(db, { ...proof, raceId, capability: "MANAGE_RACE",
+      const result = await dependencies.logout(db, { ...proof, raceId, capability: "RACE_FUNCTIONARY",
         readBodyIsEmpty: () => hasNoEntryClassAdminRequestBody(request) });
       if (result.status === "unauthorized") return clearEntryClassAdminCookies(resultFailure(result.status), policy);
       if (result.status !== "logged-out" && result.status !== "already-logged-out") return resultFailure(result.status);
       return clearEntryClassAdminCookies(new Response(null, { status: 204, headers: privateEntryClassAdminHeaders }), policy);
     }
-    // Verify actual administrator role before parsing mutations or reading participant data.
-    const auth = await dependencies.authenticate(db, { ...proof, raceId, capability: "MANAGE_RACE", requireCsrf: write });
+    // Rollen kontrolleras innan en ändring tolkas eller deltagardata läses. Funktionären får 403 för allt annat.
+    const auth = await requireRaceRole(dependencies.authenticate, db, { ...proof, raceId, write },
+      raceRoleFor(action.kind, request.method));
     if (auth.status !== "authenticated") return resultFailure(auth.status);
-    if (auth.principal.raceId !== raceId || auth.principal.capability !== "MANAGE_RACE") return failure(403, "FORBIDDEN");
     if (action.kind === "session") return json(raceAdministratorLoginResponseSchema.parse({
-      formatVersion: 1, raceId, capability: "MANAGE_RACE", expiresAt: auth.principal.expiresAt }));
+      formatVersion: 1, raceId, capability: auth.principal.capability, expiresAt: auth.principal.expiresAt }));
     const context: RaceAdministratorRouteContext = { db, request, raceId, action, dependencies, proof, cursor, beforeVersion };
     return await handleRaceDayRoute(context) ?? await handlePreparationRoute(context) ?? await handleResultRoute(context) ??
       await handleEntryRoute(context) ?? await handleVariantRoute(context) ?? await handleRelayRoute(context) ?? await handleSourceRoute(context) ??
-      await handleMapRoute(context) ??
+      await handleMapRoute(context) ?? await handlePeopleRoute(context) ??
       (action.kind === "race-settings"
         ? await idempotentWrite(context, "race-settings", raceSettingsRequestSchema, raceSettingsResponseSchema, dependencies.raceSettings) : undefined) ??
       failure(500, "INTERNAL_ERROR");
@@ -79,7 +81,7 @@ export async function raceAdministratorRoute(db: Database, request: Request, rac
 }
 
 function allowedMethods(action: Action): string[] {
-  return action.kind === "operator-access" ? ["GET", "POST", "DELETE"] : action.kind === "race-map" ? ["GET", "PUT", "DELETE"] :
+  return action.kind === "people" ? ["GET", "POST", "DELETE"] : action.kind === "race-map" ? ["GET", "PUT", "DELETE"] :
     action.kind === "race-map-image" ? ["GET"] : action.kind === "race-map-georeference" ? ["POST"] :
     action.kind === "participant-route" ? ["POST", "DELETE"] : action.kind === "eventor" ? ["GET", "PUT", "DELETE"] :
     action.kind === "source-sync" ? ["GET", "POST"] : action.kind === "eventor-events" ? ["GET"] :

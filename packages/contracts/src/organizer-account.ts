@@ -62,7 +62,8 @@ const organizerEventRaceSchema = z.object({
 const organizerEventSchema = z.object({
   eventId: uuid,
   eventName: z.string().trim().min(1).max(160),
-  role: z.enum(["OWNER", "ADMIN"]),
+  /** FUNCTIONARY (ADR-0172 beslut 3): når bara avläsning, kvar i skogen, start och speaker. */
+  role: z.enum(["OWNER", "ADMIN", "FUNCTIONARY"]),
   startsOn: z.iso.date(),
   timeZone: z.string().trim().min(1).max(100),
   races: z.array(organizerEventRaceSchema).max(10_000)
@@ -76,6 +77,7 @@ export const organizerMyEventsResponseSchema = z.object({
 export const organizerRaceEnterResponseSchema = z.object({
   formatVersion: z.literal(1),
   raceId: uuid,
+  role: z.enum(["ADMIN", "FUNCTIONARY"]),
   expiresAt: instant
 }).strict();
 

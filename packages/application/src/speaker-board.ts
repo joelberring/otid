@@ -32,18 +32,19 @@ export async function listSpeakerBoardAsAdmin(
   return listSpeakerBoardForCapability(db, input, "VIEW_SPEAKER_BOARD", now);
 }
 
+/** Speaker och kontrollvyns senaste avläsningar: administratören och funktionären (ADR-0172 beslut 3). */
 export async function listSpeakerBoardAsAdministrator(
   db: Database,
   input: Omit<PairingAdminRequestAuthentication, "capability">,
   now = new Date()
 ): Promise<SpeakerBoardResult> {
-  return listSpeakerBoardForCapability(db, input, "MANAGE_RACE", now);
+  return listSpeakerBoardForCapability(db, input, "RACE_FUNCTIONARY", now);
 }
 
 async function listSpeakerBoardForCapability(
   db: Database,
   input: Omit<PairingAdminRequestAuthentication, "capability">,
-  capability: "VIEW_SPEAKER_BOARD" | "MANAGE_RACE",
+  capability: "VIEW_SPEAKER_BOARD" | "RACE_FUNCTIONARY",
   now: Date
 ): Promise<SpeakerBoardResult> {
   if (!Number.isFinite(now.getTime())) throw new Error("Lästiden är ogiltig");

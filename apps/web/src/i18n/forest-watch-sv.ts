@@ -5,6 +5,8 @@ export const forestWatchSv = {
   unknownStartAge: "Okänd tid",
   minutes: "min",
   history: "Journal",
+  choose: "Välj",
+  chooseFor: (name: string) => `Välj ${name}`,
   reviewConflict: "Granska konflikt",
   title: "Kvar i skogen – målpersonal",
   back: "Till tävlingsöversikten",

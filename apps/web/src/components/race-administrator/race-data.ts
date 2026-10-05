@@ -4,6 +4,7 @@ import { administratorEffectiveResultResponseSchema, entryTransferCandidatesSche
 import { readOrganizerCsrf } from "../../lib/organizer-client";
 import { readRaceAdministratorCsrfCookie } from "../../lib/race-administrator-cookies";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
+import type { WorkspaceRole } from "../../lib/race-sections";
 import type { Operation } from "./types";
 import type { Base } from "./workspace-state";
 import type { MobileNavigation } from "./navigation";
@@ -13,14 +14,16 @@ export function useRaceDataState() {
   const [data, setData] = useState<EntryTransferCandidates>();
   const [effectiveResult, setEffectiveResult] = useState<AdministratorEffectiveResultResponse>();
   const [effectiveResultError, setEffectiveResultError] = useState(false);
-  return { data, setData, effectiveResult, setEffectiveResult, effectiveResultError, setEffectiveResultError };
+  /** Administratör eller funktionär (ADR-0172 beslut 3), från tävlingssessionen. */
+  const [role, setRole] = useState<WorkspaceRole>("ADMIN");
+  return { data, setData, effectiveResult, setEffectiveResult, effectiveResultError, setEffectiveResultError, role, setRole };
 }
 
 /** Session och dataladdning: inloggning med kontot, utloggning och ny läsning av ögonblicksbilden. */
 export function createRaceDataActions(ws: Base & MobileNavigation) {
   const { raceId, entryId, pending, sent, busyRef, deadline, base, setEffectiveResult, setEffectiveResultError, setData,
     setEntryChanges, setIdentityCandidates, setSelectedClassId, setExpiresAt, setAuthenticated, setMobilePanel, setMessage,
-    setEntryId, setClassId, setPage, setNewCard, request, json, assertCurrent, current, begin, finish, lock,
+    setEntryId, setClassId, setPage, setNewCard, setRole, request, json, assertCurrent, current, begin, finish, lock,
     requireSession, showMobilePanel } = ws;
   async function loadEffectiveResult(id: string, roster: EntryTransferCandidates, op: Operation) {
     setEffectiveResult(undefined); setEffectiveResultError(false);
@@ -49,7 +52,7 @@ export function createRaceDataActions(ws: Base & MobileNavigation) {
     if (selectedId) await loadEffectiveResult(selectedId, value, op);
     assertCurrent(op); return value;
   }
-  /** ADR-0168: öppna tävlingen med det inloggade kontot (OWNER/ADMIN på eventet). */
+  /** ADR-0168/0172: öppna tävlingen med det inloggade kontot (ägare, administratör eller funktionär på eventet). */
   async function enterWithAccount(op: Operation) {
     let csrfToken: string;
     try { csrfToken = readOrganizerCsrf(document.cookie, new URL(window.location.href)); }
@@ -66,6 +69,7 @@ export function createRaceDataActions(ws: Base & MobileNavigation) {
     const value = raceAdministratorLoginResponseSchema.parse(await json(response, op));
     if (value.raceId !== raceId || Date.parse(value.expiresAt) <= Date.now()) throw new Error("Invalid session");
     deadline.current = Date.parse(value.expiresAt); setExpiresAt(value.expiresAt);
+    setRole(value.capability === "RACE_FUNCTIONARY" ? "FUNCTIONARY" : "ADMIN");
     await load(op); assertCurrent(op); setAuthenticated(true); if (pending.current) setMobilePanel("WORK"); setMessage("");
   }
   async function login(event: FormEvent) {

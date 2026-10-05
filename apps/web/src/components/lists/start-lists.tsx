@@ -173,8 +173,10 @@ function ByClub({ classes, context }: { classes: StartClass[]; context: Context 
  * Startlistorna (PLAN.md steg 13): per klass, per starttid (minut för minut och per startfålla, med vakanta tider
  * och nuvarande minut markerad) och per klubb. Samma komponent i arbetsytan och på den publika sidan.
  */
-export function StartLists({ model, onSelectEntry, disabled, iof }: {
+export function StartLists({ model, onSelectEntry, disabled, iof, exportable = true }: {
   model: StartListModel; onSelectEntry?: ((id: string) => void) | undefined; disabled?: boolean | undefined; iof?: IofExport | undefined;
+  /** Funktionären skriver ut men exporterar inte (ADR-0172 beslut 3). */
+  exportable?: boolean;
 }) {
   const [view, setView] = useState<StartView>("CLASS");
   const [query, setQuery] = useState("");
@@ -196,7 +198,7 @@ export function StartLists({ model, onSelectEntry, disabled, iof }: {
   return <ListFrame title={t.titles[view]} race={race} toolbar={{
     views, view, onView: setView, query, onQuery: setQuery, searchPlaceholder: model.cards ? text.searchPlaceholderCards : text.searchPlaceholder,
     classes: classNames, className: selected, onClass: setClassName, count: t.runners(runners), iof,
-    onCsv: () => download(`${text.csv.files.start[view]}-${model.raceDate}.csv`, startListCsv(view, classes, model.timeZone, model.cards),
+    onCsv: !exportable ? undefined : () => download(`${text.csv.files.start[view]}-${model.raceDate}.csv`, startListCsv(view, classes, model.timeZone, model.cards),
       "text/csv;charset=utf-8")
   }}>
     {model.classes.every(row => row.entries.length === 0) ? <p className={styles.nothing}>{t.noEntries}</p>

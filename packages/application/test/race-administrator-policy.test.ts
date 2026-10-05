@@ -3,11 +3,11 @@ import { raceAdministratorAllowsAction } from "../src/race-administrator-policy"
 import type { RaceAdminCapability } from "../src/pairing-admin";
 
 const capabilities = [
-  "MANAGE_RACE", "PAIR_STATION", "IMPORT_IOF", "CHANGE_ENTRY_CLASS",
+  "MANAGE_RACE", "RACE_FUNCTIONARY", "IMPORT_IOF", "CHANGE_ENTRY_CLASS",
   "CHANGE_ENTRY_START_TIME", "DRAW_CLASS_START_TIMES", "CHANGE_ENTRY_CARD",
   "CHANGE_ENTRY_IDENTITY", "REGISTER_ENTRY", "RECALCULATE_RESULT",
   "VIEW_RACE_OVERVIEW", "VIEW_START_LIST", "VIEW_SPEAKER_BOARD",
-  "MANAGE_PM_DOCUMENT", "START_CHECKIN", "FINISH_FOREST_WATCH",
+  "MANAGE_PM_DOCUMENT",
   "PUBLISH_START_LIST", "VIEW_READOUT_RESULT_HISTORY", "EXPORT_IOF_RESULT_LIST",
   "FINALIZE_RESULTS", "DECIDE_DID_NOT_START", "WITHDRAW_DID_NOT_START",
   "DISQUALIFY_RESULT", "WITHDRAW_DISQUALIFICATION", "APPROVE_RESULT",
@@ -24,6 +24,12 @@ describe("race administrator action policy", () => {
         expect(raceAdministratorAllowsAction(credential, action), `${credential} -> ${action}`)
           .toBe(credential === action);
       }
+    }
+  });
+
+  it("ger funktionären bara funktionärsnivån och aldrig administratörens (ADR-0172)", () => {
+    for (const action of capabilities) {
+      expect(raceAdministratorAllowsAction("RACE_FUNCTIONARY", action), action).toBe(action === "RACE_FUNCTIONARY");
     }
   });
 

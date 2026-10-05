@@ -21,8 +21,8 @@ pnpm dev
 ```
 
 Öppna http://127.0.0.1:3000/organizer (använd 127.0.0.1, inte localhost).
-`pnpm dev` och `pnpm build` bygger först de offlinekapabla appskalen
-(`/readout/`, `/checkin/`) med `pnpm --filter @o-tid/web build:shells`.
+`pnpm dev` och `pnpm build` bygger först det offlinekapabla
+appskalet för avläsningen (`/readout/`) med `pnpm --filter @o-tid/web build:shells`.
 
 ## Prova på fem minuter
 
@@ -46,9 +46,13 @@ finns. Se `docs/sportident.md`.
 - **Konto:** vem som helst skapar ett konto på `/organizer` (e-post, namn, lösenord), med spärr mot
   upprepade försök. Inloggningen gäller i 30 dagar. Under "Mitt konto" (`/konto`) byter man namn och
   lösenord eller tar bort kontot (tävlingar man äger tas bort samtidigt).
-- **Admin:** den som skapar en tävling äger den. Ägaren ger andra konton
-  administratörsrätt under "Visa medadministratörer". Admins kan ändra allt i
-  tävlingen, även import (`/admin/<lopp>/imports`), i samma arbetsyta `/admin/<lopp>/manage`.
+- **Admin:** den som skapar en tävling äger den. Under Inställningar → "Personer med behörighet"
+  lägger ägaren till administratörer och alla administratörer funktionärer, med e-postadressen till ett
+  befintligt konto. Admins kan ändra allt i tävlingen, även import (`/admin/<lopp>/imports`), i samma
+  arbetsyta `/admin/<lopp>/manage`.
+- **Funktionär:** loggar in med sitt eget konto och ser tävlingen under Mina tävlingar. Arbetsytan har bara
+  Start och Avläsning: avläsning, direktanmälan av okänd bricka, kvar i skogen, startlistor och speaker.
+  Samma konto kan vara inloggat på flera enheter.
 - **Alla andra:** startlistor, resultat och sträcktider är öppna utan inloggning.
 - **Superadmin:** sätts med `pnpm account:superadmin grant <e-post>` (i drift: se `docs/drift.md`) och
   städar konton och tävlingar på `/superadmin`. Åtgärderna loggas.
@@ -72,7 +76,7 @@ packages/contracts    validerade API-kontrakt
 packages/database     Drizzle-schema och migrationer
 packages/iof-xml      IOF XML 3.0 import/export
 apps/si-tools         CLI för portlista, rå capture och replay
-apps/station, apps/participant  parkerade Android-appar
+apps/participant      parkerad Android-app (GPS)
 docs                  arkitektur, regler, ADR:er, arkiv
 ```
 

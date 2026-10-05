@@ -1,7 +1,8 @@
 import { useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import type { RaceType } from "@o-tid/contracts";
-import { activeSection, raceTypeProfile, sectionForPanel, type Panel, type SectionId } from "../../lib/race-sections";
+import { activeSection, profileForRole, raceTypeProfile, sectionForPanel, type Panel, type SectionId,
+  type WorkspaceRole } from "../../lib/race-sections";
 import type { Base } from "./workspace-state";
 import type { DuringRaceActions } from "./during-race";
 
@@ -17,13 +18,15 @@ export function useNavigationState() {
 }
 
 /**
- * ADR-0170: tävlingstypen avgör delarna. `section` är delen som visas (den valda om typen har den, annars
- * den första) och `shows` säger om ett visst innehåll hör till den.
+ * ADR-0170: tävlingstypen avgör delarna och ADR-0172 rollen (funktionären ser färre). `section` är delen som
+ * visas (den valda om den finns, annars Avläsning för funktionären och den första för administratören) och
+ * `shows` säger om ett visst innehåll hör till den.
  */
-export function deriveSections(s: { data?: { raceType: RaceType } | undefined; step: SectionId }) {
-  const profile = raceTypeProfile(s.data?.raceType ?? "STANDARD");
-  const section = activeSection(profile, s.step);
-  return { profile, section, shows: (panel: Panel) => section.panels.includes(panel) };
+export function deriveSections(s: { data?: { raceType: RaceType } | undefined; step: SectionId; role: WorkspaceRole }) {
+  const profile = profileForRole(raceTypeProfile(s.data?.raceType ?? "STANDARD"), s.role);
+  const functionary = s.role === "FUNCTIONARY";
+  const section = activeSection(profile, s.step, functionary ? "READOUT" : undefined);
+  return { profile, section, functionary, shows: (panel: Panel) => section.panels.includes(panel) };
 }
 
 export function createMobileNavigation(ws: Base) {

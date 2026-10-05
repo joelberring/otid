@@ -68,31 +68,6 @@ importers:
         specifier: 4.20.5
         version: 4.20.5
 
-  apps/station:
-    dependencies:
-      '@capacitor/android':
-        specifier: 8.5.0
-        version: 8.5.0(@capacitor/core@8.5.0)
-      '@capacitor/core':
-        specifier: 8.5.0
-        version: 8.5.0
-      '@o-tid/contracts':
-        specifier: workspace:*
-        version: link:../../packages/contracts
-      '@o-tid/device-transport':
-        specifier: workspace:*
-        version: link:../../packages/device-transport
-      '@o-tid/domain':
-        specifier: workspace:*
-        version: link:../../packages/domain
-    devDependencies:
-      '@capacitor/cli':
-        specifier: 8.5.0
-        version: 8.5.0(supports-color@7.2.0)
-      esbuild:
-        specifier: 0.25.12
-        version: 0.25.12
-
   apps/web:
     dependencies:
       '@fontsource/barlow':

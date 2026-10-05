@@ -342,5 +342,7 @@
     }
     ,{ "idx": 99, "version": "7", "when": 1796832000000, "tag": "0099_adr_0172_accounts_superadmin", "breakpoints": true
     }
+    ,{ "idx": 100, "version": "7", "when": 1796918400000, "tag": "0100_adr_0172_functionaries", "breakpoints": true
+    }
   ]
 }

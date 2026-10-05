@@ -9,7 +9,6 @@
 .env
 .env.*
 !.env.example
-apps/station/android
 apps/participant/android
 backups
 docs/archive

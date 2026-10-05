@@ -71,16 +71,21 @@ export function RaceAdministratorWorkspace({ raceId }: { raceId: string }) {
       <div className={`${shell.content} ${styles.content}`}>
         {status}
         {navigationLocked && <p className={styles.workflowHelp} role="status">{text.workflowHelp}</p>}
-        <RogainingPanel ws={ws} />
-        <PreparationCourses ws={ws} />
-        <PreparationClasses ws={ws} />
-        <ParticipantsPanel ws={ws} />
-        <RentalPrint ws={ws} />
+        {/* Funktionären (ADR-0172 beslut 3): bara Start och Avläsning. Servern nekar allt annat ändå. */}
+        {!ws.functionary && <>
+          <RogainingPanel ws={ws} />
+          <PreparationCourses ws={ws} />
+          <PreparationClasses ws={ws} />
+          <ParticipantsPanel ws={ws} />
+          <RentalPrint ws={ws} />
+        </>}
         <PreparationStartList ws={ws} />
         <DuringRaceOverview ws={ws} />
         <DuringRaceFollowUp ws={ws} />
-        <AfterRacePanel ws={ws} />
-        <SettingsPanel ws={ws} />
+        {!ws.functionary && <>
+          <AfterRacePanel ws={ws} />
+          <SettingsPanel ws={ws} />
+        </>}
       </div>
     </div>
   </div>;

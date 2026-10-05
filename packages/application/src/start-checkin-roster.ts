@@ -7,39 +7,24 @@ import { resolveStoredResultHeadStates } from "./result-revision-state";
 import { parseStrictStoredResultRevision } from "./stored-result-revision";
 import { validateStoredStartCheckinReceipt } from "./start-checkin-sync";
 import { reviewedCheckinRequests } from "./checkin-conflict-review-journal";
-import { allowsStartCheckinSourceAction } from "./start-checkin-source-action";
+import { allowsStartCheckinSourceAction, isOnlineStartCheckinSource } from "./start-checkin-source-action";
 
-type Input = Omit<PairingAdminRequestAuthentication, "capability"> & {
-  capability: "START_CHECKIN" | "FINISH_FOREST_WATCH";
-  reviewDetails?: boolean;
-};
 const compare = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0;
 const validDate = (value: Date) => { if (!Number.isFinite(value.getTime())) throw new Error("Lästiden är ogiltig"); return value; };
 
+/** Kvar i skogen (ADR-0172 beslut 3): administratören och funktionären läser samma lista. */
 export async function listAdministratorForestWatch(
   db: Database, input: Omit<PairingAdminRequestAuthentication, "capability">, now = new Date()
 ) {
   now = validDate(now);
   return db.transaction(async (tx) => {
     const authorization = await authenticatePairingAdminSessionForProtectedRead(tx, {
-      ...input, capability: "MANAGE_RACE"
+      ...input, capability: "RACE_FUNCTIONARY"
     }, now);
     if (authorization.status !== "authenticated") return authorization;
-    if (authorization.principal.capability !== "MANAGE_RACE") return { status: "forbidden" as const };
     const result = await readAuthorizedStartCheckinRoster(tx, authorization.principal.raceId, now, false, true);
     if (result.status !== "ok") return result;
     return { status: "ok" as const, response: administratorForestWatchResponseSchema.parse({ ...result.response, reportedStarts: result.reportedStarts }) };
-  }, { isolationLevel: "repeatable read" });
-}
-
-/** Full private roster; a read never implies that remote devices have empty queues. */
-export async function listStartCheckinRosterAsAdmin(db: Database, input: Input, now = new Date()) {
-  if (input.capability !== "START_CHECKIN" && input.capability !== "FINISH_FOREST_WATCH") return { status: "forbidden" as const };
-  if (!Number.isFinite(now.getTime())) throw new Error("Lästiden är ogiltig");
-  return db.transaction(async (tx) => {
-    const authorization = await authenticatePairingAdminSessionForProtectedRead(tx, input, now);
-    if (authorization.status !== "authenticated") return authorization;
-    return readAuthorizedStartCheckinRoster(tx, authorization.principal.raceId, now, input.reviewDetails === true);
   }, { isolationLevel: "repeatable read" });
 }
 
@@ -139,7 +124,7 @@ export async function readAuthorizedStartCheckinRoster(tx: Parameters<Parameters
       compare(a.fixedStartTime ?? "~", b.fixedStartTime ?? "~") || compare(a.displayName, b.displayName) || compare(a.entryId, b.entryId));
     const response = StartCheckinRosterResponseSchema.parse({ formatVersion: 1, raceId: race.id,
       snapshotVersion: race.snapshotVersion, timeZone: event.timeZone, generatedAt: now.toISOString(), knowledge: "LAST_SYNCED_ONLY",
-      entries: rows, devices: devices.filter(device => device.capability !== "MANAGE_RACE").map(device => ({ deviceId: device.id, label: device.label, capability: device.capability,
+      entries: rows, devices: devices.filter(device => !isOnlineStartCheckinSource(device.capability)).map(device => ({ deviceId: device.id, label: device.label, capability: device.capability,
         lastSequence: lastByDevice.get(device.id)?.localSequence ?? 0, lastReceivedAt: lastByDevice.get(device.id)?.receivedAt.toISOString() ?? null
       })).sort((a, b) => compare(a.label, b.label) || compare(a.deviceId, b.deviceId)) });
     return { status: "ok" as const, response, ...(includeReportedStarts ? {

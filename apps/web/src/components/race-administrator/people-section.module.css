@@ -1,0 +1,20 @@
+/* Personer med behörighet (ADR-0172 beslut 3): en tät lista som staplas på mobil. */
+.people { display: grid; max-width: 52rem; margin: 0 0 16px; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.people li { display: grid; grid-template-columns: minmax(0, 1fr) 9rem 6.5rem; align-items: center; gap: 4px 16px;
+  min-height: var(--row); padding: 8px 0; border-bottom: 1px solid var(--line); }
+.who { display: grid; min-width: 0; }
+.who strong { font-weight: 600; overflow-wrap: anywhere; }
+.email { color: var(--muted); font-size: var(--text-xs); overflow-wrap: anywhere; }
+.role { font-size: var(--text-sm); }
+.role[data-role="OWNER"], .role[data-role="ADMIN"] { font-weight: 600; }
+.action { display: flex; justify-content: flex-end; }
+.muted { color: var(--muted); font-weight: 400; }
+.add { display: grid; grid-template-columns: minmax(0, 22rem) minmax(0, 12rem) auto; justify-content: start; align-items: start; gap: 8px 12px; }
+.add > button { margin-top: 24px; }
+@media (max-width: 600px) {
+  .people li { grid-template-columns: minmax(0, 1fr) auto; }
+  .role { grid-column: 1; grid-row: 2; color: var(--muted); }
+  .action { grid-column: 2; grid-row: 1 / span 2; }
+  .add { grid-template-columns: minmax(0, 1fr); }
+  .add > button { margin-top: 0; justify-self: start; }
+}

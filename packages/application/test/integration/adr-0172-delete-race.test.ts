@@ -5,7 +5,6 @@ import { createDatabase, migrate } from "@o-tid/database";
 import type { DeviceBatch, SportidentReadoutPayload } from "@o-tid/contracts";
 import { contentHash } from "../../src/hash";
 import { createEventAsUserAccount, enterRaceAsUserAccount } from "../../src/organizer-events";
-import { grantEventAdministratorAsUserAccount } from "../../src/organizer-coadministration";
 import { createManualCourseClassAsAdministrator } from "../../src/manual-course-class";
 import { registerEntryAsAdmin } from "../../src/entry-registration";
 import { ingestReadoutsAsAdministrator } from "../../src/readout-station";
@@ -18,7 +17,7 @@ import { georeferenceRaceMapAsAdministrator, saveParticipantRouteAsAdministrator
 import { publicResults } from "../../src/results";
 import { deleteEventAsOwner } from "../../src/account-self-service";
 import { loginUserAccount } from "../../src/user-account";
-import { registerTestAccount } from "./accounts";
+import { grantRacePerson, registerTestAccount } from "./accounts";
 
 /**
  * ADR-0172 beslut 2: en borttagen tävling tar med sig allt – anmälda, råa avläsningar, resultatrevisioner,
@@ -57,7 +56,7 @@ const snapshot = async (raceId: string) =>
 
 /** Konton, sessioner och spärrar hör till personerna, inte till tävlingen, och får bli fler. */
 const ACCOUNT_TABLES = new Set(["user_account_session", "user_account_session_revocation", "user_account_login_throttle",
-  "account_request_throttle", "station_device", "spatial_ref_sys"]);
+  "account_request_throttle", "spatial_ref_sys"]);
 
 async function tableCounts(): Promise<Map<string, number>> {
   const tables = await pool.query<{ table_name: string }>(
@@ -170,9 +169,7 @@ async function fillRace(f: { proof: Proof; eventId: string; classId: string }, o
     fileName: "anna.gpx" })).status).toBe("ok");
 
   // Medadministratör som har öppnat arbetsytan.
-  const requestId = randomUUID();
-  expect((await grantEventAdministratorAsUserAccount(db, { ...owner, idempotencyKey: `organizer-admin-grant:${requestId}`,
-    readBody: async () => ({ formatVersion: 1, requestId, eventId: f.eventId, email: helperEmail, role: "ADMIN" }) })).status).toBe("granted");
+  expect((await grantRacePerson(db, owner, proof.raceId, helperEmail, "ADMIN")).status).toBe("granted");
   expect((await enterRaceAsUserAccount(db, { ...helper, raceId: proof.raceId })).status).toBe("entered");
 }
 

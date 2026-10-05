@@ -243,11 +243,11 @@ describe("administratörsroutes: session och deltagare", () => {
     services.changeClass.mockResolvedValue({ status: "changed", response: { ...receipt, entryId: other } });
     expect((await raceAdministratorRoute(db, request("PATCH", intent), id, { kind: "class", entryId: id }, services, environment)).status).toBe(500);
   });
-  it("logout gäller gemensam roll och rensar just dess cookies", async () => {
+  it("logout gäller både administratör och funktionär och rensar just dess cookies", async () => {
     const services = dependencies();
     const response = await raceAdministratorRoute(db, request("DELETE"), id, { kind: "session" }, services, environment);
     expect(response.status).toBe(204);
-    expect(services.logout).toHaveBeenCalledWith(db, expect.objectContaining({ capability: "MANAGE_RACE", sessionToken: token }));
+    expect(services.logout).toHaveBeenCalledWith(db, expect.objectContaining({ capability: "RACE_FUNCTIONARY", sessionToken: token }));
     expect(response.headers.getSetCookie()).toHaveLength(2);
     expect(response.headers.getSetCookie().every((cookie) => cookie.includes("Max-Age=0"))).toBe(true);
     expect(readRaceAdministratorCsrfCookie(`__Host-otid-race-administrator-csrf=${csrf}`, new URL(environment.O_TID_PUBLIC_ORIGIN))).toBe(csrf);

@@ -1,20 +1,19 @@
-import { randomUUID, createHash } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { afterAll, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { createDatabase, schema } from "@o-tid/database";
-import { canonicalStartCheckinOperation, DID_NOT_START_DECISION_POLICY_VERSION, type AdministratorReturnRequest, StartCheckinRosterResponseSchema, administratorForestWatchResponseSchema } from "@o-tid/contracts";
+import { DID_NOT_START_DECISION_POLICY_VERSION, type AdministratorReturnRequest, administratorForestWatchResponseSchema } from "@o-tid/contracts";
 import { issuePairingAdminAccessCredential, loginPairingAdmin, registerAdministratorReturn,
   withdrawAdministratorReturn, correctAdministratorStart, listCheckinHistoryAsAdmin,
   readStartCheckinConflictReviewAsAdmin, reviewStartCheckinConflictsAsAdmin, changeClassStartRuleAsAdministrator,
   previewClassStartRuleAsAdministrator, decideDidNotStartAsAdmin,
-  listAdministratorForestWatch, registerStartCheckinDeviceAsAdmin, syncStartCheckinAsAdmin,
-  listStartCheckinRosterAsAdmin } from "../../src";
+  listAdministratorForestWatch, type RaceAdminCapability } from "../../src";
 
 const url = process.env.TEST_DATABASE_URL;
 if (!url || !new URL(url).pathname.startsWith("/otid_") || !new URL(url).pathname.includes("test")) throw new Error("Explicit isolated test database required");
 const { db, pool } = createDatabase(url);
 afterAll(() => pool.end());
-async function authority(raceId: string, capability: "MANAGE_RACE" | "START_CHECKIN" | "FINISH_FOREST_WATCH") {
+async function authority(raceId: string, capability: RaceAdminCapability) {
   const credential = await issuePairingAdminAccessCredential(db, { raceId, capability, label: "TASK054 synthetic", expiresAt: new Date(Date.now() + 3600_000) });
   const login = await loginPairingAdmin(db, { formatVersion: 1, accessCredential: credential.accessCredential }, { expectedRaceId: raceId, expectedCapability: capability });
   if (login.status !== "authenticated") throw new Error("Fixture login failed");
@@ -92,13 +91,16 @@ it("TASK065 changes both directions, preserves times in journal and replays with
   expect(await db.select().from(schema.classStartRuleChanges).where(eq(schema.classStartRuleChanges.raceId, rollback.raceId))).toHaveLength(0);
 });
 
-it.each(["FINISH_FOREST_WATCH", "MANAGE_RACE"] as const)("TASK063 %s reviews administrative conflicts with honest authority and unchanged originals", async capability => {
+it.each(["MANAGE_RACE"] as const)("TASK063 %s reviews administrative conflicts with honest authority and unchanged originals", async capability => {
   const f = await fixture();
   expect((await registerAdministratorReturn(db, { ...f.auth, request: f.request })).status).toBe("stored");
   const stale = await registerAdministratorReturn(db, { ...f.auth, request: { ...f.request, requestId: randomUUID() } });
   expect(stale.status === "stored" && stale.response.receipt.effect.kind).toBe("CONFLICT");
   const before = await db.select().from(schema.startCheckinOperations).where(eq(schema.startCheckinOperations.raceId, f.raceId));
-  const staff = capability === "MANAGE_RACE" ? f.auth : await authority(f.raceId, capability);
+  const staff = f.auth;
+  // Funktionären granskar inga konflikter (ADR-0172 beslut 3).
+  const functionary = await authority(f.raceId, "RACE_FUNCTIONARY");
+  expect((await readStartCheckinConflictReviewAsAdmin(db, { ...functionary, capability: "RACE_FUNCTIONARY", entryId: f.entryId })).status).toBe("forbidden");
   const candidate = await readStartCheckinConflictReviewAsAdmin(db, { ...staff, capability, entryId: f.entryId });
   if (candidate.status !== "ok") throw new Error("Missing review source");
   expect(candidate.response.source.conflicts).toHaveLength(1);
@@ -118,11 +120,9 @@ it.each(["FINISH_FOREST_WATCH", "MANAGE_RACE"] as const)("TASK063 %s reviews adm
   expect(headers[0]).toMatchObject({ actorCredentialId: staff.actorId, capability });
   const audit = await db.select().from(schema.auditEvents).where(eq(schema.auditEvents.entityId, headers[0]!.id));
   expect(audit).toHaveLength(1);
-  expect(audit[0]).toMatchObject({ actorId: staff.actorId,
-    actorKind: capability === "MANAGE_RACE" ? "RACE_ADMIN_ACCESS_CREDENTIAL" : "FINISH_FOREST_WATCH_ACCESS_CREDENTIAL" });
+  expect(audit[0]).toMatchObject({ actorId: staff.actorId, actorKind: "RACE_ADMIN_ACCESS_CREDENTIAL" });
   expect(await db.select().from(schema.startCheckinOperations).where(eq(schema.startCheckinOperations.raceId, f.raceId))).toEqual(before);
-  const personnel = capability === "FINISH_FOREST_WATCH" ? staff : await authority(f.raceId, "FINISH_FOREST_WATCH");
-  const roster = await listStartCheckinRosterAsAdmin(db, { ...personnel, capability: "FINISH_FOREST_WATCH" });
+  const roster = await listAdministratorForestWatch(db, functionary);
   expect(roster.status === "ok" && roster.response.devices).toEqual([]);
   expect(roster.status === "ok" && roster.response.entries[0]?.conflictingReports).toBe(false);
   const history = await listCheckinHistoryAsAdmin(db, { ...f.auth, entryId: f.entryId, limit: 25 });
@@ -138,7 +138,7 @@ it.each(["FINISH_FOREST_WATCH", "MANAGE_RACE"] as const)("TASK063 %s reviews adm
   expect(secondHistory.status === "ok" && secondHistory.response.rows).toEqual([]);
   expect((await registerAdministratorReturn(db, { ...f.auth, request: { ...f.request, requestId: randomUUID() } })).status).toBe("stored");
   expect(await review()).toEqual(reviewed);
-  const later = await listStartCheckinRosterAsAdmin(db, { ...personnel, capability: "FINISH_FOREST_WATCH" });
+  const later = await listAdministratorForestWatch(db, functionary);
   expect(later.status === "ok" && later.response.entries[0]?.conflictingReports).toBe(true);
 });
 
@@ -160,11 +160,11 @@ it("TASK061 extends only admin roster and preserves the current start episode ac
   expect(admin.response.reportedStarts).toEqual([{ entryId: f.entryId, observedAt: first }]);
   expect(administratorForestWatchResponseSchema.safeParse({ ...admin.response, reportedStarts: [] }).success).toBe(false);
   expect(administratorForestWatchResponseSchema.safeParse({ ...admin.response, reportedStarts: [...admin.response.reportedStarts, ...admin.response.reportedStarts] }).success).toBe(false);
-  const staff = await authority(f.raceId, "START_CHECKIN");
-  const personnel = await listStartCheckinRosterAsAdmin(db, { ...staff, capability: "START_CHECKIN" });
-  if (personnel.status !== "ok") throw new Error("Missing personnel roster");
-  expect(StartCheckinRosterResponseSchema.safeParse(personnel.response).success).toBe(true);
-  expect(personnel.response).not.toHaveProperty("reportedStarts");
+  // Funktionären läser samma kvar i skogen-lista som administratören.
+  const staff = await authority(f.raceId, "RACE_FUNCTIONARY");
+  const personnel = await listAdministratorForestWatch(db, staff);
+  if (personnel.status !== "ok") throw new Error("Missing functionary roster");
+  expect(personnel.response.reportedStarts).toEqual(admin.response.reportedStarts);
   expect((await correctAdministratorStart(db, { ...f.auth, request: { ...request, requestId: randomUUID(), expectedRevision: 3, targetStartState: "UNMARKED" } })).status).toBe("stored");
   const reset = await listAdministratorForestWatch(db, f.auth);
   expect(reset.status === "ok" && reset.response.reportedStarts[0]?.observedAt).toBeNull();
@@ -176,28 +176,18 @@ it("TASK061 extends only admin roster and preserves the current start episode ac
 
 it("TASK057 pages tied receipt times, validates scope, preserves all source roles/effects and never writes", async () => {
   const f = await fixture();
-  const sources = [
-    { capability: "FINISH_FOREST_WATCH" as const, staff: await authority(f.raceId, "FINISH_FOREST_WATCH"), deviceId: randomUUID() },
-    { capability: "START_CHECKIN" as const, staff: await authority(f.raceId, "START_CHECKIN"), deviceId: randomUUID() }
-  ];
-  for (const { staff, capability, deviceId } of sources) {
-    expect((await registerStartCheckinDeviceAsAdmin(db, { ...staff, capability, readBody: async () => ({ formatVersion: 1, deviceId, label: "Synthetic source" }) })).status).toBe("registered");
-  }
+  const functionary = await authority(f.raceId, "RACE_FUNCTIONARY");
   const now = new Date();
   const base = { formatVersion: 1, entryId: f.entryId, packageVersion: 1, expectedEntryVersion: 1,
     expectedRevision: 0, observedAt: now.toISOString(), targetStartState: "UNMARKED" };
   for (const targetStartState of ["UNMARKED", "STARTED", "REPORTED_NOT_STARTED"]) {
     expect((await correctAdministratorStart(db, { ...f.auth, request: { ...base, requestId: randomUUID(), targetStartState } }, now)).status).toBe("stored");
   }
-  for (const [index, { staff, capability, deviceId }] of sources.entries()) {
-    const expectedRevision = index + 1;
-    const operation = { formatVersion: 1, requestId: randomUUID(), dependsOnRequestId: null, deviceId,
-      actorCredentialId: staff.actorId, raceId: f.raceId, entryId: f.entryId, localSequence: 1, packageVersion: 1,
-      expectedEntryVersion: 1, expectedRevision, observedAt: now.toISOString(), action: capability === "START_CHECKIN"
-        ? { kind: "MARK_START", state: "UNMARKED" } : { kind: "FINISH_CORRECTION", state: "STARTED", manualReturnRegistered: true } };
-    expect((await syncStartCheckinAsAdmin(db, { ...staff, capability, readBody: async () => ({ operation,
-      contentHash: createHash("sha256").update(canonicalStartCheckinOperation(operation)).digest("hex") }) }, () => now)).status).toBe("stored");
-  }
+  // Funktionären är en egen källa: återkomst och sedan startläget tillbaka till omarkerad.
+  expect((await registerAdministratorReturn(db, { ...functionary, request: { ...f.request, requestId: randomUUID(),
+    expectedRevision: 1, expectedStartState: "STARTED", observedAt: now.toISOString() } }, now)).status).toBe("stored");
+  expect((await correctAdministratorStart(db, { ...functionary, request: { ...base, requestId: randomUUID(),
+    expectedRevision: 2, targetStartState: "UNMARKED" } }, now)).status).toBe("stored");
   const before = await db.select().from(schema.startCheckinOperations).where(eq(schema.startCheckinOperations.raceId, f.raceId));
   const first = await listCheckinHistoryAsAdmin(db, { ...f.auth, entryId: f.entryId, limit: 2 });
   if (first.status !== "ok" || !first.response.nextCursor) throw new Error("Missing first history page");
@@ -208,15 +198,14 @@ it("TASK057 pages tied receipt times, validates scope, preserves all source role
     rows.push(...page.response.rows); cursor = page.response.nextCursor;
   }
   expect(rows.map(row => row.requestId)).toEqual(before.map(row => row.requestId).sort().reverse());
-  expect(new Set(rows.map(row => row.source))).toEqual(new Set(["MANAGE_RACE", "START_CHECKIN", "FINISH_FOREST_WATCH"]));
+  expect(new Set(rows.map(row => row.source))).toEqual(new Set(["MANAGE_RACE", "RACE_FUNCTIONARY"]));
   expect(new Set(rows.map(row => row.effect.kind))).toEqual(new Set(["APPLIED", "UNCHANGED", "CONFLICT"]));
   expect((await listCheckinHistoryAsAdmin(db, { ...f.auth, entryId: randomUUID(), limit: 2, cursor: first.response.nextCursor })).status).toBe("invalid-request");
   expect((await listCheckinHistoryAsAdmin(db, { ...f.auth, entryId: randomUUID(), limit: 2 })).status).toBe("not-found");
   const badCursor = JSON.parse(Buffer.from(first.response.nextCursor, "base64url").toString("utf8")) as Record<string, unknown>;
   badCursor.receivedAt = "not-a-time";
   expect((await listCheckinHistoryAsAdmin(db, { ...f.auth, entryId: f.entryId, limit: 2, cursor: Buffer.from(JSON.stringify(badCursor)).toString("base64url") })).status).toBe("invalid-request");
-  const staff = await authority(f.raceId, "START_CHECKIN");
-  expect((await listCheckinHistoryAsAdmin(db, { ...staff, entryId: f.entryId, limit: 2 })).status).toBe("forbidden");
+  expect((await listCheckinHistoryAsAdmin(db, { ...functionary, entryId: f.entryId, limit: 2 })).status).toBe("forbidden");
   expect(await db.select().from(schema.startCheckinOperations).where(eq(schema.startCheckinOperations.raceId, f.raceId))).toEqual(before);
   expect(await db.select().from(schema.resultRevisions).where(eq(schema.resultRevisions.raceId, f.raceId))).toHaveLength(0);
 });
@@ -243,8 +232,8 @@ it("TASK056 corrects start without erasing return, binds replay and withdraws ch
   const replay = await correctAdministratorStart(db, { ...f.auth, request: start });
   expect(replay.status === "stored" && replay.response.replayed).toBe(true);
   expect((await correctAdministratorStart(db, { ...f.auth, request: { ...start, targetStartState: "UNMARKED" } })).status).toBe("conflict");
-  const staff = await authority(f.raceId, "START_CHECKIN");
-  const roster = await listStartCheckinRosterAsAdmin(db, { ...staff, capability: "START_CHECKIN" });
+  const staff = await authority(f.raceId, "RACE_FUNCTIONARY");
+  const roster = await listAdministratorForestWatch(db, staff);
   expect(roster.status === "ok" && roster.response.entries[0]).toMatchObject({ revision: 4, startState: "UNMARKED", manualReturnRegistered: true });
   expect(await db.select().from(schema.resultRevisions).where(eq(schema.resultRevisions.raceId, f.raceId))).toHaveLength(1);
 });
@@ -257,9 +246,10 @@ it("TASK054 concurrent retry is one honest source/operation, altered intent conf
   expect((await registerAdministratorReturn(db, { ...f.auth, request: { ...f.request, observedAt: "2026-01-01T00:00:00.000Z" } })).status).toBe("conflict");
   const other = await authority(f.raceId, "MANAGE_RACE");
   expect((await registerAdministratorReturn(db, { ...other, request: f.request })).status).toBe("conflict");
-  const personnel = await authority(f.raceId, "START_CHECKIN");
-  expect((await registerAdministratorReturn(db, { ...personnel, request: { ...f.request, requestId: randomUUID() } })).status).toBe("forbidden");
-  const roster = await listStartCheckinRosterAsAdmin(db, { ...personnel, capability: "START_CHECKIN" });
+  const unrelated = await authority(f.raceId, "VIEW_START_LIST");
+  expect((await registerAdministratorReturn(db, { ...unrelated, request: { ...f.request, requestId: randomUUID() } })).status).toBe("forbidden");
+  const personnel = await authority(f.raceId, "RACE_FUNCTIONARY");
+  const roster = await listAdministratorForestWatch(db, personnel);
   expect(roster.status === "ok" && roster.response.entries[0]?.manualReturnRegistered).toBe(true);
   expect(roster.status === "ok" && roster.response.devices).toEqual([]);
   const adminRoster = await listAdministratorForestWatch(db, f.auth);
@@ -286,13 +276,12 @@ it("TASK054 concurrent retry is one honest source/operation, altered intent conf
 });
 
 it("TASK054 return withdraws checkin DNS without rewriting its result or fabricating a start", async () => {
-  const f = await fixture(), staff = await authority(f.raceId, "START_CHECKIN"), deviceId = randomUUID();
-  expect((await registerStartCheckinDeviceAsAdmin(db, { ...staff, capability: "START_CHECKIN", readBody: async () => ({ formatVersion: 1, deviceId, label: "Synthetic start" }) })).status).toBe("registered");
-  const operation = { formatVersion: 1, requestId: randomUUID(), dependsOnRequestId: null, deviceId,
-    actorCredentialId: staff.actorId, raceId: f.raceId, entryId: f.entryId, localSequence: 1, packageVersion: 1,
-    expectedEntryVersion: 1, expectedRevision: 0, observedAt: new Date().toISOString(), action: { kind: "MARK_START", state: "REPORTED_NOT_STARTED" } };
-  expect((await syncStartCheckinAsAdmin(db, { ...staff, capability: "START_CHECKIN", readBody: async () => ({ operation,
-    contentHash: createHash("sha256").update(canonicalStartCheckinOperation(operation)).digest("hex") }) })).status).toBe("stored");
+  // Funktionären vid starten rapporterar ej start; det ger ett DNS-resultat (ADR-0172 beslut 3).
+  const f = await fixture(), staff = await authority(f.raceId, "RACE_FUNCTIONARY");
+  const { expectedStartState, ...base } = f.request;
+  expect(expectedStartState).toBe("UNMARKED");
+  expect((await correctAdministratorStart(db, { ...staff, request: { ...base, requestId: randomUUID(),
+    targetStartState: "REPORTED_NOT_STARTED" } })).status).toBe("stored");
   const original = await db.select().from(schema.resultRevisions).where(eq(schema.resultRevisions.raceId, f.raceId));
   expect(original).toHaveLength(1);
   const result = await registerAdministratorReturn(db, { ...f.auth, request: { ...f.request, expectedRevision: 1, expectedStartState: "REPORTED_NOT_STARTED" } });

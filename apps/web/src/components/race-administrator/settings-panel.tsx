@@ -3,22 +3,22 @@
 import Link from "next/link";
 import styles from "../race-administrator-workspace.module.css";
 import { raceTypeSv } from "../../i18n/race-type-sv";
-import { RaceOperatorAccess } from "../race-operator-access";
 import { RaceTypeChoice } from "../race-type-choice";
 import { Button, Field, Notice, Section } from "../ui";
 import { EventorSection } from "./eventor-section";
 import { RaceDeleteSection } from "./race-delete-section";
+import { PeopleSection } from "./people-section";
 import type { Workspace } from "./workspace-state";
 
 const text = raceTypeSv.settings;
 
 /**
  * Inställningar (ADR-0170 beslut 1): namn, datum och tävlingstyp. Att byta typ ändrar bara vilka delar som
- * syns; inget tas bort. Här finns också funktionärer, Eventor (typer som använder Eventor), länken till importen och
+ * syns; inget tas bort. Här finns också personer med behörighet (ADR-0172), Eventor (typer som använder Eventor), länken till importen och
  * (för ägaren) att ta bort tävlingen.
  */
 export function SettingsPanel({ ws }: { ws: Workspace }) {
-  const { busy, changeSettings, data, profile, raceId, saveSettings, setOperatorAccessPending, settingsAttempt, settingsForm,
+  const { busy, changeSettings, data, profile, raceId, saveSettings, setPeoplePending, settingsAttempt, settingsForm,
     settingsMessage, shows, workflowLocked } = ws;
   if (!shows("SETTINGS") || !data) return null;
   const form = settingsForm ?? { eventName: data.eventName, raceName: data.raceName, raceDate: data.raceDate, raceType: data.raceType };
@@ -44,9 +44,7 @@ export function SettingsPanel({ ws }: { ws: Workspace }) {
         <div><Button type="submit" disabled={locked}>{text.save}</Button></div>
       </form>
     </Section>
-    <Section id={`${id}-staff`} title={text.staff} help={text.staffHelp}>
-      <RaceOperatorAccess raceId={raceId} onPendingChange={setOperatorAccessPending} />
-    </Section>
+    <PeopleSection raceId={raceId} disabled={locked} onPendingChange={setPeoplePending} />
     {profile.features.eventor && <EventorSection ws={ws} />}
     {profile.features.import && <Section id={`${id}-import`} title={text.import} help={text.importHelp}>
       <p><Link href={`/admin/${raceId}/imports`}>{text.importLink}</Link></p>

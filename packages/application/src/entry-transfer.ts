@@ -34,10 +34,14 @@ async function guardResultFreshnessHistory(tx: Transaction, raceId: string, entr
   }
 }
 
+/**
+ * Arbetsytans ögonblicksbild (klasser och deltagare). Funktionären läser den också: startlistan, direktanmälan
+ * och kvar i skogen bygger på den (ADR-0172 beslut 3). Klassbytet nedan kräver administratör.
+ */
 export async function listEntryTransfersAsAdministrator(db: Database, input: Authentication, now = new Date()) {
   if (!uuid.test(input.raceId)) return { status: "invalid-request" as const };
   return db.transaction(async (tx) => {
-    const auth = await authenticatePairingAdminSessionForProtectedRead(tx, { ...input, capability }, now);
+    const auth = await authenticatePairingAdminSessionForProtectedRead(tx, { ...input, capability: "RACE_FUNCTIONARY" }, now);
     if (auth.status !== "authenticated") return auth;
     const race = await lockRaceForSnapshot(tx, input.raceId);
     const [metadata] = await tx.select({ eventName: schema.events.name, raceName: schema.races.name,

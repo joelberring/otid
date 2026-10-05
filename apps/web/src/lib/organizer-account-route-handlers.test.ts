@@ -143,14 +143,14 @@ describe("TASK150 organizer account routes", () => {
 
   it("enters only the requested race and puts delegated credentials only in admin cookies", async () => {
     const enter = vi.fn(async () => ({ status: "entered" as const,
-      response: { formatVersion: 1 as const, raceId, expiresAt: principal.expiresAt },
+      response: { formatVersion: 1 as const, raceId, role: "FUNCTIONARY" as const, expiresAt: principal.expiresAt },
       sessionToken: `otid_org_session_v1.${sessionId}.${"r".repeat(43)}`, csrfToken: csrf })) as unknown as typeof enterRaceAsUserAccount;
     const response = await organizerRaceEnterRoute(db, req("POST", undefined, {
       origin: prod.O_TID_PUBLIC_ORIGIN, cookie: accountCookies, "x-otid-csrf": csrf
     }, `https://otid.example/api/organizer/races/${raceId}/enter`), raceId, enter, prod);
     expect(response.status).toBe(200);
     const responseBody = await response.clone().text();
-    expect(await response.json()).toEqual({ formatVersion: 1, raceId, expiresAt: principal.expiresAt });
+    expect(await response.json()).toEqual({ formatVersion: 1, raceId, role: "FUNCTIONARY", expiresAt: principal.expiresAt });
     expect(response.headers.getSetCookie().join("\n")).toContain("__Host-otid-race-administrator-session");
     expect(responseBody).not.toContain("otid_org_session_v1");
     expect(enter).toHaveBeenCalledWith(db, expect.objectContaining({ raceId, requireCsrf: true, sessionToken }));

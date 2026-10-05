@@ -5,11 +5,6 @@ import {
   organizerEventCreateResponseSchema,
   organizerMyEventsResponseSchema,
   organizerRaceEnterResponseSchema,
-  organizerAdminGrantRequestSchema,
-  organizerAdminGrantResponseSchema,
-  organizerAdminListResponseSchema,
-  organizerAdminRevokeRequestSchema,
-  organizerAdminRevokeResponseSchema,
   type OrganizerAccountLoginRequest,
   type OrganizerEventCreateRequest,
   type OrganizerEventCreateResponse,
@@ -18,72 +13,6 @@ import {
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const PENDING_ATTEMPT_KEY = "otid.organizer.pending-event-create.v1";
-const PENDING_ADMIN_KEY = "otid.organizer.pending-admin-mutation.v1";
-const pendingAdminKey = (accountId: string, eventId: string) => `${PENDING_ADMIN_KEY}.${accountId}.${eventId}`;
-
-export type OrganizerAdminMutationAttempt = {
-  accountId: string;
-  action: "grant" | "revoke";
-  eventId: string;
-  requestId: string;
-  request: Record<string, unknown>;
-};
-
-export function parseOrganizerAdminList(value: unknown) {
-  const parsed = organizerAdminListResponseSchema.safeParse(value);
-  if (!parsed.success) throw new Error("Administratörslistan hade ett ogiltigt format.");
-  return parsed.data;
-}
-
-export function parseOrganizerAdminGrantResponse(value: unknown, attempt: OrganizerAdminMutationAttempt) {
-  const parsed = organizerAdminGrantResponseSchema.safeParse(value);
-  if (!parsed.success || parsed.data.eventId !== attempt.eventId || parsed.data.requestId !== attempt.requestId ||
-    parsed.data.email !== attempt.request.email) {
-    throw new Error("Servern kunde inte bekräfta tilldelningen.");
-  }
-  return parsed.data;
-}
-
-export function parseOrganizerAdminRevokeResponse(value: unknown, attempt: OrganizerAdminMutationAttempt) {
-  const parsed = organizerAdminRevokeResponseSchema.safeParse(value);
-  if (!parsed.success || parsed.data.eventId !== attempt.eventId || parsed.data.requestId !== attempt.requestId ||
-    parsed.data.grantId !== attempt.request.grantId) {
-    throw new Error("Servern kunde inte bekräfta återkallelsen.");
-  }
-  return parsed.data;
-}
-
-export function saveOrganizerAdminAttempt(attempt: OrganizerAdminMutationAttempt): void {
-  window.sessionStorage.setItem(pendingAdminKey(attempt.accountId, attempt.eventId), JSON.stringify(attempt));
-}
-
-export function restoreOrganizerAdminAttempt(accountId: string, eventId: string): OrganizerAdminMutationAttempt | undefined {
-  const storageKey = pendingAdminKey(accountId, eventId);
-  const raw = window.sessionStorage.getItem(storageKey);
-  if (!raw) return undefined;
-  try {
-    const candidate: unknown = JSON.parse(raw);
-    if (!candidate || typeof candidate !== "object") throw new Error("Ogiltigt försök");
-    const record = candidate as OrganizerAdminMutationAttempt;
-    if (!UUID_PATTERN.test(record.accountId) || !UUID_PATTERN.test(record.eventId) ||
-      !UUID_PATTERN.test(record.requestId) || (record.action !== "grant" && record.action !== "revoke")) throw new Error("Ogiltig identitet");
-    if (record.action === "grant") {
-      const request = organizerAdminGrantRequestSchema.parse(record.request);
-      if (request.requestId !== record.requestId || request.eventId !== record.eventId) throw new Error("Försöksidentiteten stämmer inte");
-    } else {
-      const request = organizerAdminRevokeRequestSchema.parse(record.request);
-      if (request.requestId !== record.requestId || request.eventId !== record.eventId) throw new Error("Försöksidentiteten stämmer inte");
-    }
-    return record;
-  } catch {
-    window.sessionStorage.removeItem(storageKey);
-    return undefined;
-  }
-}
-
-export function clearOrganizerAdminAttempt(accountId: string, eventId: string): void {
-  window.sessionStorage.removeItem(pendingAdminKey(accountId, eventId));
-}
 
 export interface OrganizerCreateAttempt {
   accountId: string;

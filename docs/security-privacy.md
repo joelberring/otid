@@ -5,11 +5,30 @@ att hela produktionssäkerheten är färdig eller granskad.
 
 ## Grundgränser
 
-Racebundna capabilities och global CREATE_EVENT har separata lagrings-/
-behörighetsgränser. Privata operativa vyer använder host-only sessionscookies,
+Privata operativa vyer använder host-only sessionscookies (httpOnly, SameSite=Lax),
 CSRF/Origin och no-store. Publika projektioner väljer uttryckliga fält.
 Kartor, GPS, dokument och API-nycklar är privata som standard. Servergenererade
 interna IDs och immutable beslut används för spårbarhet, inte externa PK:n.
+
+## Behörighet (ADR-0168 beslut 4, ADR-0172 beslut 3)
+
+Det finns tre roller på en tävling och inga koder eller credentials som delas ut i appen:
+
+- **Ägare och administratör** (konto med `OWNER`/`ADMIN` på eventet): allt i tävlingen.
+- **Funktionär** (konto med rollen `FUNCTIONARY`): avläsning (avläsningspaket och inskickade
+  avläsningar), direktanmälan av okänd bricka (inte koppling till en anmäld löpare), kvar i skogen
+  (läsa, registrera och ta tillbaka återkomst), startläge, startlistor i arbetsytan och speaker.
+  Funktionären når inte banor, klasser, anmälda, lottning, resultatändringar, fastställande,
+  publicering, inställningar, import, Eventor, kartor, exporter eller listan över behörigheter.
+- **Alla andra** läser publicerat innehåll utan inloggning.
+
+Administratören lägger till ett befintligt konto med dess e-post under Inställningar → Personer med
+behörighet; bara ägaren lägger till och tar bort administratörer. En borttagen behörighet gäller
+direkt, även för öppna sessioner. Samma konto kan vara inloggat på flera enheter (en session per enhet).
+Servern avgör rollen för varje adminroute på ett ställe (`apps/web/src/lib/race-roles.ts`) och
+tjänsterna och databasen kontrollerar den igen. Borttaget i steg 18: funktionärskoder, stationsparning
+och stationscredentials, egna inloggningar för kvar i skogen och incheckning, återställningskoder för
+incheckningsappen, eventskapande med credential och "Mina resultat" (`/me`) med deltagarkoder.
 
 ## Eventor (ADR-0170 beslut 4)
 

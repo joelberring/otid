@@ -3,8 +3,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { StartCheckinRosterResponse } from "@o-tid/contracts";
 import { ForestWatchReport } from "./forest-watch-report";
-import { ForestWatchAdmin } from "./forest-watch-admin";
-import { readFinishForestWatchCsrfCookie, FINISH_FOREST_WATCH_ADMIN_LOOPBACK_COOKIE_NAMES as names } from "../lib/start-checkin-admin-cookies";
 
 const raceId = "10000000-0000-4000-8000-000000000001";
 const data: StartCheckinRosterResponse = { formatVersion: 1, raceId, snapshotVersion: 7, timeZone: "Europe/Stockholm",
@@ -14,7 +12,7 @@ const data: StartCheckinRosterResponse = { formatVersion: 1, raceId, snapshotVer
     revision: 0, startState: "UNMARKED", manualReturnRegistered: false, readoutReturnRegistered: false, activeDns: false,
     conflictingReports: false, forestState: "UNCONFIRMED", needsFollowUp: true
   }] };
-describe("målpersonalens privata läsrapport", () => {
+describe("kvar i skogen-rapporten", () => {
   it("TASK062 sorts only started entries, unknown first, retaining ties and default order", () => {
     const names = ["KortTest", "OkändTest", "LångTest", "LikaTest", "KonfliktTest"];
     const entries = names.map((displayName, index) => ({ ...data.entries[0]!, displayName,
@@ -44,11 +42,6 @@ describe("målpersonalens privata läsrapport", () => {
     expect(future).toContain("Okänd tid");
     expect(renderToStaticMarkup(<ForestWatchReport data={started} classId="" stale={false} />)).not.toContain("ej löptid");
   });
-  it("serverrenderar bara inloggningsskal, inga deltagare", () => {
-    const html = renderToStaticMarkup(<ForestWatchAdmin raceId={raceId} />);
-    expect(html).toContain('type="password"'); expect(html).not.toContain("Syntetisk Löpare");
-    expect(html).not.toContain("data-forest-group");
-  });
   it("visar alla fem grupper och okänd start utan att fabricera DNS", () => {
     const html = renderToStaticMarkup(<ForestWatchReport data={data} classId="" stale={false} />);
     expect(html.match(/data-forest-group=/g)).toHaveLength(5);
@@ -66,13 +59,6 @@ describe("målpersonalens privata läsrapport", () => {
     const entry = { ...data.entries[0]!, revision: 2, manualReturnRegistered: true, forestState: "CONFLICT" as const, conflictingReports: true };
     const html = renderToStaticMarkup(<ForestWatchReport data={{ ...data, entries: [entry] }} classId="" stale={false} />);
     expect(html).toContain("Återkomst: manuellt registrerad"); expect(html).toContain("Motstridiga uppgifter – kontrollera (1)");
-  });
-  it("läser endast målrollens unika giltiga CSRF-cookie", () => {
-    const token = "A".repeat(43), url = new URL("http://127.0.0.1:3000");
-    expect(readFinishForestWatchCsrfCookie(`${names.csrf}=${token}`, url)).toBe(token);
-    expect(readFinishForestWatchCsrfCookie(`${names.csrf}=${token}; ${names.csrf}=${token}`, url)).toBeUndefined();
-    expect(readFinishForestWatchCsrfCookie(`otid_start_checkin_admin_csrf=${token}`, url)).toBeUndefined();
-    expect(readFinishForestWatchCsrfCookie(`${names.csrf}=${token}`, new URL("http://example.org"))).toBeUndefined();
   });
   it("behåller hela loppets gruppantal och enhetsosäkerhet vid noll sökträffar", () => {
     const html = renderToStaticMarkup(<ForestWatchReport data={data} classId="" query="ingen träff" stale />);

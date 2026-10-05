@@ -16,6 +16,7 @@ a.back:hover { color: var(--ink); }
 .race { display: grid; min-width: 0; padding-left: 18px; border-left: 1px solid var(--line); }
 .race h2 { overflow: hidden; font-size: var(--text-md); font-weight: 600; white-space: nowrap; text-overflow: ellipsis; }
 .race p { overflow: hidden; color: var(--muted); font-size: var(--text-xs); white-space: nowrap; text-overflow: ellipsis; }
+.race .role { color: var(--ink); font-weight: 600; }
 .live { display: flex; flex: 0 0 auto; gap: 16px; color: var(--muted); font-family: var(--font-dense); font-size: var(--text-sm);
   white-space: nowrap; font-variant-numeric: tabular-nums; }
 .live strong { color: var(--ink); font-weight: 600; }

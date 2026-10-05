@@ -144,58 +144,6 @@ datapartition. Därför är A5A-005–A5A-010 inte markerade som runtime-verifie
 | A5C-011 | `stale` och `ahead` kvitteras men visas utan automatisk downgrade eller implicit ack | Stationsenhetstest |
 | A5C-012 | Native HTTP-adaptern bygger och Android connected-teststatus redovisas explicit | Android build/instrumentering |
 
-## TASK 005D: device-bunden stationsautentisering
-
-| ID | Scenario | Automatisering |
-|---|---|---|
-| A5D-001 | Rätt aktiv credential är bunden till exakt device, lopp och `READOUT` och bevarar stored/duplicate-idempotens | PostgreSQL-integrationstest |
-| A5D-002 | Saknad, trasig, felaktig, utgången eller spärrad credential ger generiskt 401 utan mutation eller privat läcka | PostgreSQL-integration/Playwright |
-| A5D-003 | Giltig secret med fel race, device eller funktion ger generiskt 403 före ingest | PostgreSQL-integration/Playwright |
-| A5D-004 | Servern lagrar endast secrethash; audit innehåller varken token eller hash | PostgreSQL-integrationstest |
-| A5D-005 | Rotation skapar högre append-only generation och gammal credential fungerar tills explicit revocation | PostgreSQL-integrationstest |
-| A5D-006 | Credential- och revocationrader samt audit kan inte uppdateras eller raderas | PostgreSQL-integrationstest |
-| A5D-007 | Paketroute använder samma device-/race-bundna credential och svarar privat/no-store | Playwright |
-| A5D-008 | Native credentialkuvert krypteras med Keystore/AES-GCM och skrivs atomiskt i no-backup-sökväg | Android instrumenteringstest |
-| A5D-009 | Plugin returnerar endast credentialmetadata och native request injicerar auth endast till tillåten HTTPS/loopback-route | JVM-/instrumenteringstest |
-| A5D-010 | 401/403, nätfel och credentialfel lämnar outbox pending och stoppar ordnad flush | Stationsenhetstest/Android instrumenteringstest |
-| A5D-011 | UI visar saknad, aktiv, utgången och ogiltig auth med text/symbol utan färgberoende | Vy-/bundle-test |
-| A5D-012 | CLI utfärdar, roterar och spärrar utan publikt provisionerings-API eller återläsbar plaintext | Applikations-/CLI-test |
-
-## TASK 005E: kortlivad engångsparning
-
-| ID | Scenario | Automatisering |
-|---|---|---|
-| A5E-001 | Giltigt kortlivat grant skapar exakt en device-/race-/READOUT-bunden credential och redemption | PostgreSQL-integrationstest |
-| A5E-002 | Hundra samtidiga identiska inlösningar ger samma credentialmetadata och exakt en credential/redemption | PostgreSQL-integrationstest |
-| A5E-003 | Ett konkurrerande annat attempt, device eller credentialhash kan inte ta över ett redan inlöst grant | PostgreSQL-integrationstest |
-| A5E-004 | Exakt retry efter tappat svar eller grant-expiry returnerar samma metadata utan ny credential eller secret | PostgreSQL-integrationstest |
-| A5E-005 | Utgånget, spärrat, felaktigt eller okänt grant ger generiskt negativt svar utan credential- eller rådatamutation | PostgreSQL-integration/Playwright |
-| A5E-006 | Fem felaktiga försök inom tio minuter ger PostgreSQL-baserat 429 och fönstret återställs deterministiskt | PostgreSQL-integrationstest |
-| A5E-007 | Grant-, revocation-, attempt- och redemptionrader är append-only och audit innehåller inga secrets eller hashvärden | PostgreSQL-integrationstest |
-| A5E-008 | Pairing-route autentiserar före trasig JSON, validerar exakt kontrakt och svarar privat/no-store | Route-/Playwrighttest |
-| A5E-009 | Native `begin` skapar SecureRandom-secret och krypterad pendingstate utan nätverk; separat `redeem` och reopen använder samma attempt/hash | JVM-/Android instrumenteringstest |
-| A5E-010 | Native installerar credential före completed-markör och kan återhämta fel mellan stegen utan outboxmutation | Android instrumenteringstest |
-| A5E-011 | Pluginstatus eller WebView får aldrig granttoken, credential-secret, token eller hash efter start | Stations-/Androidtest |
-| A5E-012 | UI visar parning krävs, pågår, återuppta och lyckad med text/symbol utan färgberoende | Vy-/bundle-/Playwrighttest |
-| A5E-013 | Den inlösta credentialen autentiserar befintliga package- och ingestflöden med oförändrad idempotens | PostgreSQL-integration/Playwright |
-
-## TASK 005F: autentiserad pairingadministration
-
-| ID | Scenario | Automatisering |
-|---|---|---|
-| A5F-001 | Accesscredential, session och CSRF lagras endast hashade; malformed/okänd/fel/expired/revoked ger generiskt 401 utan mutation | PostgreSQL-integration/route-test |
-| A5F-002 | Produktionscookie är `__Host-`, Secure, HttpOnly för session, SameSite Strict och Path `/`; logout/revocation ogiltigförklarar sessionen | Route-/Playwrighttest |
-| A5F-003 | Fel eller saknad Origin/CSRF, content type, för stor/extra body eller fel race avvisas före body/mutation/audit | Route-/PostgreSQLtest |
-| A5F-004 | Hundra samtidiga identiska issue skapar ett grant och en actor-audit och returnerar samma metadata | PostgreSQL-integrationstest |
-| A5F-005 | Samma idempotensnyckel med annan hash, actor eller race ger 409 utan ny rad | PostgreSQL-integrationstest |
-| A5F-006 | Grantlistan är race-scopad, privat och visar ACTIVE/REDEEMED/REVOKED/EXPIRED utan token eller hash | Route-/Playwrighttest |
-| A5F-007 | Hundra samtidiga revoke skapar en revocation/audit och samma `revokedAt`; fel races grant ger generisk 404 | PostgreSQL-integrationstest |
-| A5F-008 | Sessionrevoke och issue/revoke följer sessions→grant-låsning och ingen mutation committar efter vunnen revoke | PostgreSQL-integrationstest |
-| A5F-009 | Revoke före redeem stoppar inlösen; redeem före revoke lämnar skapad stationcredential giltig | PostgreSQL-integrationstest |
-| A5F-010 | UI lagrar inga credentials/secrets i URL eller Web Storage, visar token exakt en gång och rensar vid explicit bekräftelse/reload | Vy-/Playwrighttest |
-| A5F-011 | Webbutfärdat grant löses in via 005E och credentialen autentiserar package/ingest | Playwrighttest |
-| A5F-012 | Audit identifierar operatorcredential/request men innehåller aldrig access-, session-, CSRF- eller pairingsecret/hash | PostgreSQL-integrationstest |
-
 ## TASK 005G: autentiserad IOF-import
 
 | ID | Scenario | Automatisering |
@@ -274,23 +222,6 @@ datapartition. Därför är A5A-005–A5A-010 inte markerade som runtime-verifie
 | A5J-013 | Publikresultatsidan använder en separat minimal publik projektion och överläser ingen privat admin-/rawdata | Applikations-/Playwrighttest |
 | A5J-014 | Befintlig pairing, import, klassändring, omräkning, station, ingest och publikresultat regresserar inte | Full grind |
 
-## TASK 005K: autentiserat och idempotent tävlingsskapande
-
-| ID | Scenario | Automatisering |
-|---|---|---|
-| A5K-001 | Global event-creation-credential loggar in endast med rätt prefix, hash, expiry och revocation | PostgreSQL-/route-test |
-| A5K-002 | Sessionen har separata host-only cookies, max 1 h och rätt Secure/HttpOnly/SameSite/Path-policy | Route-/Playwrighttest |
-| A5K-003 | Origin, session och CSRF avvisas före body-pull; application återautentiserar under lås | Route-/PostgreSQLtest |
-| A5K-004 | Endast canonical key och strikt versionsmärkt UTF-8 JSON i högst 4 KiB accepteras; fel är detaljfria | Kontrakts-/route-test |
-| A5K-005 | Event, exakt ett första lopp, requestjournal och actor-audit committar atomiskt | PostgreSQL-integrationstest |
-| A5K-006 | Exact retry returnerar samma IDs; ändrad aktör eller något intentfält ger 409 utan write | PostgreSQL-integrationstest |
-| A5K-007 | Hundra samtidiga identiska request ger en create/journal/audit och 99 replay utan deadlock | PostgreSQL-integrationstest |
-| A5K-008 | Logout/revocation och create serialiseras i samma låsordning; journal och säkerhetsrader är immutable | PostgreSQL-integrationstest |
-| A5K-009 | Audit/journal/svar saknar access-, session-, CSRF- och hashhemligheter | Kontrakts-/PostgreSQLtest |
-| A5K-010 | UI håller credential och okänd commit endast i minnet, dubbelinskickslåser och retryar endast explicit | Vy-/Playwrighttest |
-| A5K-011 | Publika `/` saknar createformulär/admincookies och ingen parallell öppen HTTP-bypass finns | Route-/Playwrighttest |
-| A5K-012 | E2E-fixtures använder betrodd applicationkod; racecapabilities, station, ingest och publikresultat regresserar inte | Full grind |
-
 ## TASK 005L: fail-closed lokal utvecklingssimulator
 
 | ID | Scenario | Automatisering |
@@ -304,23 +235,6 @@ datapartition. Därför är A5A-005–A5A-010 inte markerade som runtime-verifie
 | A5L-007 | Standalone-produktion ger verklig generisk 404 med privata/noindex-headers trots fientlig modekonfiguration och otillgänglig DB | Produktionsprobe |
 | A5L-008 | Station-package, device-batch, offline-SQLite, resultatrevision och publikresultat är oförändrade | Full grind |
 | A5L-009 | Ingen migration, ny capability, SPORTidentparser, riktig USB, stafett, GPS eller höjd hårdvarustatus tillkommer | Dokument-/diffgranskning |
-
-## TASK 005M: begränsad och strikt device-batch-ingress
-
-| ID | Scenario | Automatisering |
-|---|---|---|
-| A5M-001 | Saknad/fel bearer och rätt credential med fel race/READOUT-scope ger 401/403 före första bodybyte | Webb-enhetstest/standaloneprobe |
-| A5M-002 | Endast exakt `application/json` accepteras; annan eller parameteriserad medietyp ger detaljfritt privat 415 | Webb-enhetstest/E2E |
-| A5M-003 | Canonical deklarerad längd 1–4 MiB krävs när headern finns; malformed, noll och faktisk mismatch ger 400 före ingest | Webb-enhetstest |
-| A5M-004 | Faktisk chunked/streamad body räknas oberoende av header; exakt 4 MiB kan läsas och byte 4 MiB+1 ger 413 samt cancel | Webb-enhetstest |
-| A5M-005 | Tom body, ogiltig UTF-8, trasig JSON, schemasvikt och okända batch/event/payload/punchfält ger generiskt 400 utan Zoddetalj | Kontrakts-/webbtest |
-| A5M-006 | Fel body-device eller idempotency-key ger 403/400; ingest anropas noll gånger | Webb-enhetstest/E2E |
-| A5M-007 | Realistisk 100×256-batch under 4 MiB når oförändrad ingest; Android behåller 512 KiB och single-event | Kontrakts-/webb-/stationstest |
-| A5M-008 | Avslag skapar noll raw/readout/outcome/revision; efterföljande korrekt request blir stored och exact retry duplicate | PostgreSQL-/Playwrighttest |
-| A5M-009 | 413/415 lämnar stationens pendingpost orörd, stoppar flush och applicerar ingen ack | Station-enhetstest |
-| A5M-010 | Standalone med död DB svarar 401 på oavslutad chunked unauth-request före body completion utan DB-försök | Produktionsprobe |
-| A5M-011 | Befintlig station-package, simulator, pairing, ingest, resultat och publikvy regresserar inte | Full grind |
-| A5M-012 | Ingen migration, dependency, rate-limit/proxy, SPORTidentparser, riktig USB, stafett eller GPS tillkommer | Dokument-/diffgranskning |
 
 ## TASK 005N: autentiserad avläsnings- och resultathistorik
 

@@ -166,31 +166,6 @@ describe("administratörsroutes: tävlingsdagen", () => {
     expect((await raceAdministratorRoute(db, request("POST", JSON.stringify({ ...body, requestId: other }), {
       "idempotency-key": `unknown-readout-resolution:${id}` }), id, action, services, environment)).status).toBe(400);
   });
-  it("TASK102 binds operator issue, metadata list and revocation to the administrator session", async () => {
-    const access = { formatVersion: 1 as const, credentialId: other, raceId: id, capability: "START_CHECKIN" as const,
-      label: "Start", issuedAt: "2026-09-20T10:00:00.000Z", expiresAt: "2026-09-20T14:00:00.000Z", revokedAt: null };
-    const issueBody = { formatVersion: 1 as const, capability: "START_CHECKIN" as const, label: "Start", expiresAt: access.expiresAt };
-    const listAccesses = vi.fn(async () => ({ status: "ok" as const, response: { formatVersion: 1 as const, accesses: [access] } }));
-    const issueOperatorAccess = vi.fn(async () => ({ status: "issued" as const, response: {
-      formatVersion: 1 as const, accessCredential: `otid_org_start_checkin_v1.${other}.${"a".repeat(43)}`, access
-    } }));
-    const revokeOperatorAccess = vi.fn(async () => ({ status: "revoked" as const, response: {
-      formatVersion: 1 as const, status: "revoked" as const, access: { ...access, revokedAt: "2026-09-20T10:01:00.000Z" }
-    } }));
-    const services = { ...dependencies(), operatorAccesses: listAccesses, issueOperatorAccess, revokeOperatorAccess };
-    const action = { kind: "operator-access" as const };
-    const read = await raceAdministratorRoute(db, new Request("https://otid.example/api/admin", { headers: {
-      cookie: `__Host-otid-race-administrator-session=${token}; __Host-otid-race-administrator-csrf=${csrf}` } }), id, action, services, environment);
-    expect(read.status).toBe(200); expect(await read.json()).toEqual({ formatVersion: 1, accesses: [access] });
-    const issued = await raceAdministratorRoute(db, request("POST", JSON.stringify(issueBody)), id, action, services, environment);
-    expect(issued.status).toBe(201);
-    expect(await issued.text()).toMatch(/"accessCredential":"otid_org_start_checkin_v1\./);
-    expect(issueOperatorAccess).toHaveBeenCalledWith(db, expect.objectContaining({ raceId: id, request: issueBody }));
-    const revoked = await raceAdministratorRoute(db, request("DELETE", JSON.stringify({ formatVersion: 1, credentialId: other })), id, action, services, environment);
-    expect(revoked.status).toBe(200); expect(await revoked.json()).toMatchObject({ status: "revoked" });
-    expect(revokeOperatorAccess).toHaveBeenCalledWith(db, expect.objectContaining({ raceId: id, request: { formatVersion: 1, credentialId: other } }));
-    expect((await raceAdministratorRoute(db, request("POST", JSON.stringify({ ...issueBody, capability: "PAIR_STATION" })), id, action, services, environment)).status).toBe(400);
-  });
   it("TASK063 uses administrator authority and binds review receipts to the submitted intent", async () => {
     const body = { formatVersion: 1, requestId: id, entryId: other, sourceHash: "a".repeat(64),
       conflictRequestIds: [id], decision: "KEEP_CURRENT_STATE", reason: "Kontrollerat" };

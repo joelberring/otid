@@ -119,3 +119,18 @@ export async function addEntry(owner: Page, entry: { className: string; givenNam
   await owner.getByRole("button", { name: "Bekräfta anmälan" }).click();
   await expect(owner.getByText("Deltagaren är anmäld.")).toBeVisible();
 }
+
+/**
+ * Inställningar → Personer med behörighet (ADR-0172 beslut 3): lägger till ett befintligt konto med e-post och roll.
+ * Arbetsytan måste vara öppen som administratör.
+ */
+export async function addPerson(owner: Page, email: string, role: "Funktionär" | "Administratör"): Promise<void> {
+  await openStep(owner, "Inställningar");
+  const people = owner.getByRole("region", { name: "Personer med behörighet" });
+  const form = people.getByRole("form", { name: "Lägg till person" });
+  await form.getByLabel("E-postadress").fill(email);
+  await form.getByLabel("Roll").selectOption({ label: role });
+  await form.getByRole("button", { name: "Lägg till" }).click();
+  await expect(people.getByRole("status")).toContainText(`som ${role.toLowerCase()}`);
+  await expect(people.getByRole("list", { name: "Personer med behörighet" })).toContainText(email);
+}

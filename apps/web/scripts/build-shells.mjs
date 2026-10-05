@@ -7,15 +7,13 @@ import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 
 /**
- * Bygger de statiska appskal som ska fungera utan nät: /checkin/ och
- * /readout/. Varje skal får hashade filer (även typsnitten, ADR-0170),
+ * Bygger det statiska appskal som ska fungera utan nät: /readout/.
+ * Skalet får hashade filer (även typsnitten, ADR-0170),
  * index.html och en service worker med manifest över exakt de filerna.
  */
 const web = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const shells = [
-  { name: "checkin", define: "CHECKIN_SHELL", title: "O-Tid – start och mål",
-    noscript: "JavaScript behövs för lokal avprickning." },
   { name: "readout", define: "READOUT_SHELL", title: "O-Tid – avläsning",
     noscript: "JavaScript behövs för avläsningen." }
 ];

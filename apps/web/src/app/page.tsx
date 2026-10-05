@@ -3,7 +3,6 @@ import { listEvents } from "@o-tid/application";
 import { db } from "../lib/db";
 import { startListPublicationSv } from "../i18n/start-list-publication-sv";
 import { raceAdministratorSv } from "../i18n/race-administrator-sv";
-import { participantMeSv } from "../i18n/participant-claim-sv";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +11,6 @@ export default async function Home() {
   return <main>
     <nav className="nav">
       <Link href="/organizer">Mina tävlingar · Skapa tävling</Link>
-      <Link href="/me">{participantMeSv.title}</Link>
     </nav>
     <div className="grid" style={{ marginTop: "1rem" }}>
       <section className="panel"><h2>Tävlingar</h2><div className="stack">

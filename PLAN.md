@@ -367,7 +367,7 @@ Se ADR-0172 beslut 1–2.
 borttagning; Playwright: registrera med e-post, glömt lösenord (med fångad
 e-post i test), superadmin tar bort en skräptävling och spärrar kontot.
 
-## [ ] Steg 18 – Funktionärer och städning av gamla behörigheter
+## [x] Steg 18 – Funktionärer och städning av gamla behörigheter
 
 Se ADR-0172 beslut 3.
 

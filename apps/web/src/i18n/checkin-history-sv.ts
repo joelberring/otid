@@ -5,7 +5,7 @@ export const checkinHistorySv = {
   latest: "Visa senaste journalen", older: "Visa äldre journalrader", empty: "Inga journalförda avprickningar.",
   error: "Journalen kunde inte hämtas. Försök igen.", choose: "Välj deltagare i deltagarlistan.",
   observed: "Observerat", received: "Mottaget", source: "Källa", action: "Uppgift", effect: "Effekt",
-  roles: { MANAGE_RACE: "Administratör", START_CHECKIN: "Startpersonal", FINISH_FOREST_WATCH: "Målpersonal" },
+  roles: { MANAGE_RACE: "Administratör", RACE_FUNCTIONARY: "Funktionär", START_CHECKIN: "Startpersonal", FINISH_FOREST_WATCH: "Målpersonal" },
   states: { UNMARKED: "Okänd start", STARTED: "Startad", REPORTED_NOT_STARTED: "Rapporterad ej startande" },
   returned: "Manuell återkomst: ja", notReturned: "Manuell återkomst: nej",
   effects: { APPLIED: "Tillämpad", UNCHANGED: "Oförändrad", CONFLICT: "Konflikt – inte tillämpad" }, reviewed: "Granskad", reviewedAt: "Granskad",

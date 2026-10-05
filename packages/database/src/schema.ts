@@ -16,7 +16,7 @@ import {
   uniqueIndex,
   uuid
 } from "drizzle-orm/pg-core";
-import { desc, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import type { Punch, ResultOutcome } from "@o-tid/domain";
 
 export const startRuleEnum = pgEnum("start_rule", ["FIXED", "PUNCH"]);
@@ -45,9 +45,10 @@ export const revisionCauseEnum = pgEnum("revision_cause", [
   "MANUAL_PUNCH_START_TIME_CORRECTION_WITHDRAWAL",
   "SHORTENED_COURSE_CLASS_TRANSFER"
 ]);
-export const stationCredentialScopeEnum = pgEnum("station_credential_scope", ["READOUT"]);
+/** PAIR_STATION, START_CHECKIN och FINISH_FOREST_WATCH används inte längre (ADR-0172) men finns kvar i enum-typen. */
 export const pairingAdminCapabilityEnum = pgEnum("pairing_admin_capability", [
   "MANAGE_RACE",
+  "RACE_FUNCTIONARY",
   "PAIR_STATION",
   "IMPORT_IOF",
   "CHANGE_ENTRY_CLASS",
@@ -81,7 +82,7 @@ export const pairingAdminCapabilityEnum = pgEnum("pairing_admin_capability", [
   "MANAGE_PM_DOCUMENT"
 ]);
 export const pmScanJobStateEnum = pgEnum("pm_scan_job_state", ["PENDING", "LEASED", "FINISHED"]);
-export const eventAdministrationRoleEnum = pgEnum("event_administration_role", ["OWNER", "ADMIN"]);
+export const eventAdministrationRoleEnum = pgEnum("event_administration_role", ["OWNER", "ADMIN", "FUNCTIONARY"]);
 export const auditActorKindEnum = pgEnum("audit_actor_kind", [
   "RACE_ADMIN_ACCESS_CREDENTIAL",
   "PAIRING_ADMIN_ACCESS_CREDENTIAL",
@@ -251,28 +252,6 @@ export const entries = pgTable("entry", {
   index("entry_class_idx").on(table.classId)
 ]);
 
-/** TASK153: private account preference history for following public result links. */
-export const userPublicResultFollowEvents = pgTable("account_public_result_follow", {
-  eventSequence: bigint("event_sequence", { mode: "bigint" }).primaryKey().generatedAlwaysAsIdentity(),
-  requestId: uuid("request_id").notNull(),
-  accountId: uuid("account_id").notNull().references(() => userAccounts.id),
-  raceId: uuid("race_id").notNull(),
-  publicResultId: uuid("public_result_id").notNull(),
-  followed: boolean("followed").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
-}, (table) => [
-  uniqueIndex("account_public_result_follow_request_uidx").on(table.requestId),
-  index("account_public_result_follow_account_latest_idx")
-    .on(table.accountId, table.raceId, table.publicResultId, desc(table.eventSequence)),
-  index("account_public_result_follow_account_sequence_idx")
-    .on(table.accountId, desc(table.eventSequence)),
-  foreignKey({
-    name: "account_public_result_follow_target_fk",
-    columns: [table.raceId, table.publicResultId],
-    foreignColumns: [entries.raceId, entries.publicResultId]
-  })
-]);
-
 export const cardAssignments = pgTable("card_assignment", {
   id: uuid("id").primaryKey().defaultRandom(),
   raceId: uuid("race_id").notNull().references(() => races.id),
@@ -315,34 +294,6 @@ export const rawDeviceMessages = pgTable("raw_device_message", {
   index("raw_device_message_race_received_id_idx").on(table.raceId, table.serverReceivedAt, table.id)
 ]);
 
-export const stationDevices = pgTable("station_device", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  deviceId: uuid("device_id").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
-}, (table) => [uniqueIndex("station_device_external_uidx").on(table.deviceId)]);
-
-export const stationCredentials = pgTable("station_credential", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  stationDeviceId: uuid("station_device_id").notNull().references(() => stationDevices.id),
-  raceId: uuid("race_id").notNull().references(() => races.id),
-  scope: stationCredentialScopeEnum("scope").notNull(),
-  generation: integer("generation").notNull(),
-  secretHash: text("secret_hash").notNull(),
-  issuedAt: timestamp("issued_at", { withTimezone: true }).notNull(),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull()
-}, (table) => [
-  uniqueIndex("station_credential_generation_uidx")
-    .on(table.stationDeviceId, table.raceId, table.scope, table.generation),
-  index("station_credential_race_idx").on(table.raceId, table.scope)
-]);
-
-export const stationCredentialRevocations = pgTable("station_credential_revocation", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  credentialId: uuid("credential_id").notNull().references(() => stationCredentials.id),
-  revokedAt: timestamp("revoked_at", { withTimezone: true }).notNull(),
-  reason: text("reason").notNull()
-}, (table) => [uniqueIndex("station_credential_revocation_credential_uidx").on(table.credentialId)]);
-
 export const pairingAdminAccessCredentials = pgTable("pairing_admin_access_credential", {
   id: uuid("id").primaryKey().defaultRandom(),
   raceId: uuid("race_id").notNull().references(() => races.id),
@@ -356,6 +307,8 @@ export const pairingAdminAccessCredentials = pgTable("pairing_admin_access_crede
   uniqueIndex("pairing_admin_credential_scope_uidx").on(table.id, table.raceId, table.capability),
   check("pairing_admin_race_administrator_lifetime_check",
     sql`${table.capability}::text <> 'MANAGE_RACE' OR ${table.expiresAt} <= ${table.issuedAt} + interval '8 hours'`),
+  check("pairing_admin_race_functionary_lifetime_check",
+    sql`${table.capability}::text <> 'RACE_FUNCTIONARY' OR ${table.expiresAt} <= ${table.issuedAt} + interval '8 hours'`),
   check("pairing_admin_start_checkin_lifetime_check",
     sql`${table.capability}::text NOT IN ('START_CHECKIN', 'FINISH_FOREST_WATCH') OR ${table.expiresAt} <= ${table.issuedAt} + interval '8 hours'`),
   check("pairing_admin_entry_start_time_lifetime_check",
@@ -614,83 +567,6 @@ export const pmScanReports = pgTable("pm_scan_report", {
 ]);
 
 
-export const eventCreationAccessCredentials = pgTable("event_creation_access_credential", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  label: text("label").notNull(),
-  secretHash: text("secret_hash").notNull(),
-  issuedAt: timestamp("issued_at", { withTimezone: true }).notNull(),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull()
-}, (table) => [
-  check("event_creation_access_credential_label_check", sql`length(btrim(${table.label})) between 1 and 120`),
-  check("event_creation_access_credential_secret_hash_check", sql`${table.secretHash} ~ '^[a-f0-9]{64}$'`),
-  check("event_creation_access_credential_expiry_check", sql`${table.expiresAt} > ${table.issuedAt}`),
-  check(
-    "event_creation_access_credential_lifetime_check",
-    sql`${table.expiresAt} <= ${table.issuedAt} + interval '8 hours'`
-  )
-]);
-
-export const eventCreationAccessCredentialRevocations = pgTable("event_creation_access_credential_revocation", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  credentialId: uuid("credential_id").notNull().references(() => eventCreationAccessCredentials.id),
-  revokedAt: timestamp("revoked_at", { withTimezone: true }).notNull(),
-  reason: text("reason").notNull()
-}, (table) => [
-  uniqueIndex("event_creation_access_credential_revocation_uidx").on(table.credentialId),
-  check("event_creation_access_credential_revocation_reason_check", sql`length(btrim(${table.reason})) between 1 and 240`)
-]);
-
-export const eventCreationSessions = pgTable("event_creation_session", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  accessCredentialId: uuid("access_credential_id").notNull().references(() => eventCreationAccessCredentials.id),
-  sessionSecretHash: text("session_secret_hash").notNull(),
-  csrfSecretHash: text("csrf_secret_hash").notNull(),
-  issuedAt: timestamp("issued_at", { withTimezone: true }).notNull(),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull()
-}, (table) => [
-  index("event_creation_session_credential_idx").on(table.accessCredentialId),
-  check("event_creation_session_secret_hash_check", sql`${table.sessionSecretHash} ~ '^[a-f0-9]{64}$'`),
-  check("event_creation_session_csrf_hash_check", sql`${table.csrfSecretHash} ~ '^[a-f0-9]{64}$'`),
-  check("event_creation_session_expiry_check", sql`${table.expiresAt} > ${table.issuedAt}`),
-  check("event_creation_session_lifetime_check", sql`${table.expiresAt} <= ${table.issuedAt} + interval '1 hour'`)
-]);
-
-export const eventCreationSessionRevocations = pgTable("event_creation_session_revocation", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  sessionId: uuid("session_id").notNull().references(() => eventCreationSessions.id),
-  revokedAt: timestamp("revoked_at", { withTimezone: true }).notNull(),
-  reason: text("reason").notNull()
-}, (table) => [
-  uniqueIndex("event_creation_session_revocation_uidx").on(table.sessionId),
-  check("event_creation_session_revocation_reason_check", sql`length(btrim(${table.reason})) between 1 and 240`)
-]);
-
-export const eventCreationRequests = pgTable("event_creation_request", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  requestId: uuid("request_id").notNull(),
-  actorCredentialId: uuid("actor_credential_id").notNull().references(() => eventCreationAccessCredentials.id),
-  eventName: text("event_name").notNull(),
-  raceName: text("race_name").notNull(),
-  raceDate: date("race_date").notNull(),
-  timeZone: text("time_zone").notNull(),
-  eventId: uuid("event_id").notNull().references(() => events.id),
-  raceId: uuid("race_id").notNull().references(() => races.id),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
-}, (table) => [
-  uniqueIndex("event_creation_request_request_uidx").on(table.requestId),
-  uniqueIndex("event_creation_request_event_uidx").on(table.eventId),
-  uniqueIndex("event_creation_request_race_uidx").on(table.raceId),
-  index("event_creation_request_actor_time_idx").on(table.actorCredentialId, table.createdAt),
-  check("event_creation_request_event_name_check", sql`length(btrim(${table.eventName})) between 2 and 160`),
-  check("event_creation_request_race_name_check", sql`length(btrim(${table.raceName})) between 2 and 160`),
-  check("event_creation_request_time_zone_check", sql`length(btrim(${table.timeZone})) between 1 and 100`),
-  foreignKey({
-    columns: [table.raceId, table.eventId],
-    foreignColumns: [races.id, races.eventId],
-    name: "event_creation_request_race_event_fk"
-  })
-]);
-
 /** Kontot (ADR-0172): e-post (normaliserad, unik), namn, superadmin, spärr och senaste inloggning. */
 export const userAccounts = pgTable("user_account", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -837,7 +713,7 @@ export const eventAdministrationGrants = pgTable("event_administration_grant", {
 
 export const eventAdministrationAccessRequests = pgTable("event_administration_access_request", {
   requestId: uuid("request_id").primaryKey(),
-  action: text("action").$type<"GRANT_ADMIN" | "REVOKE_ADMIN">().notNull(),
+  action: text("action").$type<"GRANT_ADMIN" | "REVOKE_ADMIN" | "GRANT_FUNCTIONARY" | "REVOKE_FUNCTIONARY">().notNull(),
   actorAccountId: uuid("actor_account_id").notNull().references(() => userAccounts.id),
   eventId: uuid("event_id").notNull().references(() => events.id),
   targetAccountId: uuid("target_account_id").notNull().references(() => userAccounts.id),
@@ -850,7 +726,8 @@ export const eventAdministrationAccessRequests = pgTable("event_administration_a
   foreignKey({ name: "event_administration_access_request_grant_scope_fk",
     columns: [table.grantId, table.targetAccountId, table.eventId],
     foreignColumns: [eventAdministrationGrants.id, eventAdministrationGrants.accountId, eventAdministrationGrants.eventId] }),
-  check("event_administration_access_request_action_check", sql`${table.action} IN ('GRANT_ADMIN', 'REVOKE_ADMIN')`),
+  check("event_administration_access_request_action_check",
+    sql`${table.action} IN ('GRANT_ADMIN', 'REVOKE_ADMIN', 'GRANT_FUNCTIONARY', 'REVOKE_FUNCTIONARY')`),
   check("event_administration_access_request_target_check", sql`${table.actorAccountId} <> ${table.targetAccountId}`),
   check("event_administration_access_request_reason_check",
     sql`${table.reason} IS NULL OR length(btrim(${table.reason})) BETWEEN 1 AND 240`)
@@ -897,7 +774,7 @@ export const userAccountEventCreationRequests = pgTable("user_account_event_crea
     foreignColumns: [races.id, races.eventId] })
 ]);
 
-/** A hidden, short-lived MANAGE_RACE delegation stays bound to its parent account session and grant. */
+/** A hidden, short-lived MANAGE_RACE or RACE_FUNCTIONARY delegation stays bound to its parent account session and grant. */
 export const userAccountRaceDelegations = pgTable("user_account_race_delegation", {
   credentialId: uuid("credential_id").primaryKey().references(() => pairingAdminAccessCredentials.id),
   accountId: uuid("account_id").notNull().references(() => userAccounts.id),
@@ -918,7 +795,7 @@ export const userAccountRaceDelegations = pgTable("user_account_race_delegation"
     foreignColumns: [races.id, races.eventId] }),
   foreignKey({ name: "user_account_race_delegation_credential_scope_fk", columns: [table.credentialId, table.raceId, table.capability],
     foreignColumns: [pairingAdminAccessCredentials.id, pairingAdminAccessCredentials.raceId, pairingAdminAccessCredentials.capability] }),
-  check("user_account_race_delegation_capability_check", sql`${table.capability} = 'MANAGE_RACE'`),
+  check("user_account_race_delegation_capability_check", sql`${table.capability}::text IN ('MANAGE_RACE', 'RACE_FUNCTIONARY')`),
   check("user_account_race_delegation_lifetime_check",
     sql`${table.expiresAt} > ${table.issuedAt} AND ${table.expiresAt} <= ${table.issuedAt} + interval '1 hour'`)
 ]);
@@ -1342,46 +1219,6 @@ export const classResultRecalculationItems = pgTable("class_result_recalculation
   createdResultRevisionId: uuid("created_result_revision_id").notNull(), createdResultRevision: integer("created_result_revision").notNull()
 }, (table) => [primaryKey({ columns: [table.requestId, table.entryId] }), uniqueIndex("class_result_recalculation_item_created_uidx").on(table.createdResultRevisionId)]);
 
-export const stationPairingGrants = pgTable("station_pairing_grant", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  raceId: uuid("race_id").notNull().references(() => races.id),
-  scope: stationCredentialScopeEnum("scope").notNull(),
-  secretHash: text("secret_hash").notNull(),
-  issuedAt: timestamp("issued_at", { withTimezone: true }).notNull(),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-  credentialExpiresAt: timestamp("credential_expires_at", { withTimezone: true }).notNull(),
-  issuerCredentialId: uuid("issuer_credential_id").references(() => pairingAdminAccessCredentials.id)
-}, (table) => [index("station_pairing_grant_race_idx").on(table.raceId, table.scope)]);
-
-export const stationPairingGrantRevocations = pgTable("station_pairing_grant_revocation", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  grantId: uuid("grant_id").notNull().references(() => stationPairingGrants.id),
-  revokedAt: timestamp("revoked_at", { withTimezone: true }).notNull(),
-  reason: text("reason").notNull()
-}, (table) => [uniqueIndex("station_pairing_grant_revocation_grant_uidx").on(table.grantId)]);
-
-export const stationPairingAttempts = pgTable("station_pairing_attempt", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  grantId: uuid("grant_id").notNull().references(() => stationPairingGrants.id),
-  attemptId: uuid("attempt_id"),
-  deviceId: uuid("device_id"),
-  outcome: text("outcome").notNull(),
-  attemptedAt: timestamp("attempted_at", { withTimezone: true }).notNull()
-}, (table) => [index("station_pairing_attempt_grant_time_idx").on(table.grantId, table.attemptedAt)]);
-
-export const stationPairingRedemptions = pgTable("station_pairing_redemption", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  grantId: uuid("grant_id").notNull().references(() => stationPairingGrants.id),
-  attemptId: uuid("attempt_id").notNull(),
-  stationDeviceId: uuid("station_device_id").notNull().references(() => stationDevices.id),
-  credentialId: uuid("credential_id").notNull().references(() => stationCredentials.id),
-  redeemedAt: timestamp("redeemed_at", { withTimezone: true }).notNull()
-}, (table) => [
-  uniqueIndex("station_pairing_redemption_grant_uidx").on(table.grantId),
-  uniqueIndex("station_pairing_redemption_attempt_uidx").on(table.attemptId),
-  uniqueIndex("station_pairing_redemption_credential_uidx").on(table.credentialId)
-]);
-
 export const deviceIngestOutcomes = pgTable("device_ingest_outcome", {
   rawMessageId: uuid("raw_message_id").primaryKey().references(() => rawDeviceMessages.id),
   serverResult: jsonb("server_result").$type<Record<string, unknown>>().notNull(),
@@ -1714,7 +1551,8 @@ export const unknownReadoutResolutions = pgTable("unknown_readout_resolution", {
   uniqueIndex("unknown_readout_resolution_readout_uidx").on(table.readoutId),
   uniqueIndex("unknown_readout_resolution_result_uidx").on(table.createdResultRevisionId),
   index("unknown_readout_resolution_race_time_idx").on(table.raceId, table.resolvedAt),
-  check("unknown_readout_resolution_capability_check", sql`${table.capability}::text = 'MANAGE_RACE'`),
+  check("unknown_readout_resolution_capability_check",
+    sql`${table.capability}::text = 'MANAGE_RACE' OR (${table.capability}::text = 'RACE_FUNCTIONARY' AND ${table.target} = 'NEW_ENTRY')`),
   check("unknown_readout_resolution_target_check", sql`${table.target} IN ('EXISTING_ENTRY', 'NEW_ENTRY')`),
   check("unknown_readout_resolution_snapshot_check", sql`${table.expectedSnapshotVersion} > 0 AND ${table.snapshotVersionAfter}::bigint = ${table.expectedSnapshotVersion}::bigint + 1`),
   check("unknown_readout_resolution_revision_check", sql`${table.createdResultRevision} > 0`),
@@ -3075,8 +2913,10 @@ export const startCheckinDevices = pgTable("start_checkin_device", {
   uniqueIndex("start_checkin_device_scope_uidx").on(table.id, table.raceId, table.actorCredentialId),
   uniqueIndex("start_checkin_device_capability_scope_uidx").on(table.id, table.raceId, table.actorCredentialId, table.capability),
   index("start_checkin_device_race_idx").on(table.raceId),
-  check("start_checkin_device_capability_check", sql`${table.capability}::text IN ('START_CHECKIN', 'FINISH_FOREST_WATCH', 'MANAGE_RACE')`),
-  uniqueIndex("start_checkin_device_manage_race_credential_uidx").on(table.actorCredentialId).where(sql`${table.capability} = 'MANAGE_RACE'`),
+  check("start_checkin_device_capability_check",
+    sql`${table.capability}::text IN ('START_CHECKIN', 'FINISH_FOREST_WATCH', 'MANAGE_RACE', 'RACE_FUNCTIONARY')`),
+  uniqueIndex("start_checkin_device_online_credential_uidx").on(table.actorCredentialId)
+    .where(sql`${table.capability} IN ('MANAGE_RACE', 'RACE_FUNCTIONARY')`),
   check("start_checkin_device_label_check", sql`length(btrim(${table.label})) BETWEEN 1 AND 120`),
   foreignKey({ name: "start_checkin_device_actor_scope_fk",
     columns: [table.actorCredentialId, table.raceId, table.capability],
@@ -3253,88 +3093,6 @@ export const startListPublications = pgTable("start_list_publication", {
   check("start_list_publication_payload_check", sql`(${table.action} = 'PUBLISH' AND ${table.sourceHash} IS NOT NULL AND ${table.sourceHash} ~ '^[a-f0-9]{64}$' AND ${table.content} IS NOT NULL AND jsonb_typeof(${table.content}) = 'object') OR (${table.action} = 'WITHDRAW' AND ${table.sourceHash} IS NULL AND ${table.content} IS NULL)`)
 ]);
 
-/**
- * Immutable, one-hour authority to replay only an exact exported check-in
- * manifest. Manifest semantics (count and contiguous sequence) remain at the
- * application boundary; this table only freezes the reviewed evidence.
- */
-export const checkinRecoveryGrants = pgTable("checkin_recovery_grant", {
-  id: uuid("id").primaryKey(),
-  deviceId: uuid("device_id").notNull(),
-  actorCredentialId: uuid("actor_credential_id").notNull(),
-  raceId: uuid("race_id").notNull(),
-  capability: pairingAdminCapabilityEnum("capability").notNull(),
-  manifestCanonicalJson: text("manifest_canonical_json").notNull(),
-  manifestHash: text("manifest_hash").notNull(),
-  secretHash: text("secret_hash").notNull(),
-  firstSequence: integer("first_sequence").notNull(),
-  lastSequence: integer("last_sequence").notNull(),
-  operatorLabel: text("operator_label").notNull(),
-  reason: text("reason").notNull(),
-  issuedAt: timestamp("issued_at", { withTimezone: true }).notNull(),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull()
-}, (table) => [
-  uniqueIndex("checkin_recovery_grant_scope_uidx").on(table.id, table.deviceId, table.actorCredentialId, table.raceId),
-  index("checkin_recovery_grant_race_expiry_idx").on(table.raceId, table.expiresAt),
-  check("checkin_recovery_grant_capability_check", sql`${table.capability}::text IN ('START_CHECKIN', 'FINISH_FOREST_WATCH')`),
-  check("checkin_recovery_grant_manifest_check", sql`jsonb_typeof(${table.manifestCanonicalJson}::jsonb) = 'object'`),
-  check("checkin_recovery_grant_hash_check", sql`${table.manifestHash} ~ '^[a-f0-9]{64}$' AND ${table.secretHash} ~ '^[a-f0-9]{64}$'`),
-  check("checkin_recovery_grant_sequence_check", sql`${table.firstSequence} > 0 AND ${table.lastSequence} >= ${table.firstSequence}`),
-  check("checkin_recovery_grant_operator_label_check", sql`length(btrim(${table.operatorLabel})) BETWEEN 1 AND 120`),
-  check("checkin_recovery_grant_reason_check", sql`length(btrim(${table.reason})) BETWEEN 1 AND 500`),
-  check("checkin_recovery_grant_lifetime_check", sql`${table.expiresAt} > ${table.issuedAt} AND ${table.expiresAt} <= ${table.issuedAt} + interval '1 hour'`),
-  foreignKey({ name: "checkin_recovery_grant_device_scope_fk", columns: [table.deviceId, table.raceId, table.actorCredentialId, table.capability], foreignColumns: [startCheckinDevices.id, startCheckinDevices.raceId, startCheckinDevices.actorCredentialId, startCheckinDevices.capability] }),
-  foreignKey({ name: "checkin_recovery_grant_credential_scope_fk", columns: [table.actorCredentialId, table.raceId, table.capability], foreignColumns: [pairingAdminAccessCredentials.id, pairingAdminAccessCredentials.raceId, pairingAdminAccessCredentials.capability] })
-]);
-
-/** Exact, immutable operation membership in a recovery grant. */
-export const checkinRecoveryGrantItems = pgTable("checkin_recovery_grant_item", {
-  grantId: uuid("grant_id").notNull(),
-  requestId: uuid("request_id").notNull(),
-  deviceId: uuid("device_id").notNull(),
-  actorCredentialId: uuid("actor_credential_id").notNull(),
-  raceId: uuid("race_id").notNull(),
-  localSequence: integer("local_sequence").notNull(),
-  contentHash: text("content_hash").notNull()
-}, (table) => [
-  uniqueIndex("checkin_recovery_grant_item_pk").on(table.grantId, table.requestId),
-  uniqueIndex("checkin_recovery_grant_item_sequence_uidx").on(table.grantId, table.localSequence),
-  uniqueIndex("checkin_recovery_grant_item_delivery_scope_uidx").on(table.grantId, table.requestId, table.deviceId, table.actorCredentialId, table.raceId, table.localSequence, table.contentHash),
-  check("checkin_recovery_grant_item_sequence_check", sql`${table.localSequence} > 0`),
-  check("checkin_recovery_grant_item_hash_check", sql`${table.contentHash} ~ '^[a-f0-9]{64}$'`),
-  foreignKey({ name: "checkin_recovery_grant_item_grant_scope_fk", columns: [table.grantId, table.deviceId, table.actorCredentialId, table.raceId], foreignColumns: [checkinRecoveryGrants.id, checkinRecoveryGrants.deviceId, checkinRecoveryGrants.actorCredentialId, checkinRecoveryGrants.raceId] })
-]);
-
-/** Immutable, separate revocation record for one recovery grant. */
-export const checkinRecoveryGrantRevocations = pgTable("checkin_recovery_grant_revocation", {
-  grantId: uuid("grant_id").primaryKey(),
-  operatorLabel: text("operator_label").notNull(),
-  reason: text("reason").notNull(),
-  revokedAt: timestamp("revoked_at", { withTimezone: true }).notNull()
-}, (table) => [
-  check("checkin_recovery_grant_revocation_operator_label_check", sql`length(btrim(${table.operatorLabel})) BETWEEN 1 AND 120`),
-  check("checkin_recovery_grant_revocation_reason_check", sql`length(btrim(${table.reason})) BETWEEN 1 AND 500`),
-  foreignKey({ name: "checkin_recovery_grant_revocation_grant_fk", columns: [table.grantId], foreignColumns: [checkinRecoveryGrants.id] })
-]);
-
-/** Immutable proof that recovery returned the exact original operation. */
-export const checkinRecoveryDeliveries = pgTable("checkin_recovery_delivery", {
-  grantId: uuid("grant_id").notNull(),
-  requestId: uuid("request_id").notNull(),
-  deviceId: uuid("device_id").notNull(),
-  actorCredentialId: uuid("actor_credential_id").notNull(),
-  raceId: uuid("race_id").notNull(),
-  localSequence: integer("local_sequence").notNull(),
-  contentHash: text("content_hash").notNull(),
-  deliveredAt: timestamp("delivered_at", { withTimezone: true }).notNull()
-}, (table) => [
-  uniqueIndex("checkin_recovery_delivery_pk").on(table.grantId, table.requestId),
-  check("checkin_recovery_delivery_sequence_check", sql`${table.localSequence} > 0`),
-  check("checkin_recovery_delivery_hash_check", sql`${table.contentHash} ~ '^[a-f0-9]{64}$'`),
-  foreignKey({ name: "checkin_recovery_delivery_item_scope_hash_fk", columns: [table.grantId, table.requestId, table.deviceId, table.actorCredentialId, table.raceId, table.localSequence, table.contentHash], foreignColumns: [checkinRecoveryGrantItems.grantId, checkinRecoveryGrantItems.requestId, checkinRecoveryGrantItems.deviceId, checkinRecoveryGrantItems.actorCredentialId, checkinRecoveryGrantItems.raceId, checkinRecoveryGrantItems.localSequence, checkinRecoveryGrantItems.contentHash] }),
-  foreignKey({ name: "checkin_recovery_delivery_operation_scope_hash_fk", columns: [table.requestId, table.deviceId, table.actorCredentialId, table.raceId, table.localSequence, table.contentHash], foreignColumns: [startCheckinOperations.requestId, startCheckinOperations.deviceId, startCheckinOperations.actorCredentialId, startCheckinOperations.raceId, startCheckinOperations.localSequence, startCheckinOperations.contentHash] })
-]);
-
 export const classStartRuleChanges = pgTable("class_start_rule_change", {
   requestId: uuid("request_id").primaryKey(), raceId: uuid("race_id").notNull(), classId: uuid("class_id").notNull(),
   actorCredentialId: uuid("actor_credential_id").notNull(), capability: pairingAdminCapabilityEnum("capability").notNull(),
@@ -3497,61 +3255,6 @@ export const shortenedCourseClassTransferItems = pgTable("shortened_course_class
     ${table.createdResultRevisionId} IS NOT NULL AND ${table.createdResultRevision} IS NOT NULL AND
     ${table.createdResultRevision}::bigint = ${table.sourceResultRevision}::bigint + 1
   )`)
-]);
-
-/** Immutable TASK152 one-time participant claim and its terminal journals. */
-export const participantEntryClaimIssues = pgTable("participant_entry_claim_issue", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  requestId: uuid("request_id").notNull(),
-  raceId: uuid("race_id").notNull(),
-  entryId: uuid("entry_id").notNull(),
-  issuerCredentialId: uuid("issuer_credential_id").notNull(),
-  capability: pairingAdminCapabilityEnum("capability").notNull(),
-  secretHash: text("secret_hash").notNull(),
-  issuedAt: timestamp("issued_at", { withTimezone: true }).notNull(),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-  attestation: text("attestation").$type<"IDENTITY_CHECKED">().notNull()
-}, table => [
-  uniqueIndex("participant_entry_claim_issue_request_uidx").on(table.requestId),
-  uniqueIndex("participant_entry_claim_issue_secret_hash_uidx").on(table.secretHash),
-  uniqueIndex("participant_entry_claim_issue_scope_uidx").on(table.id, table.raceId, table.entryId),
-  uniqueIndex("participant_entry_claim_issue_race_scope_uidx").on(table.id, table.raceId),
-  foreignKey({ name: "participant_entry_claim_issue_entry_scope_fk", columns: [table.entryId, table.raceId], foreignColumns: [entries.id, entries.raceId] }),
-  foreignKey({ name: "participant_entry_claim_issue_issuer_scope_fk", columns: [table.issuerCredentialId, table.raceId, table.capability], foreignColumns: [pairingAdminAccessCredentials.id, pairingAdminAccessCredentials.raceId, pairingAdminAccessCredentials.capability] }),
-  check("participant_entry_claim_issue_capability_check", sql`${table.capability} = 'MANAGE_RACE'`),
-  check("participant_entry_claim_issue_secret_hash_check", sql`${table.secretHash} ~ '^[a-f0-9]{64}$'`),
-  check("participant_entry_claim_issue_expiry_check", sql`${table.expiresAt} > ${table.issuedAt} AND ${table.expiresAt} <= ${table.issuedAt} + interval '7 days'`),
-  check("participant_entry_claim_issue_attestation_check", sql`${table.attestation} = 'IDENTITY_CHECKED'`)
-]);
-
-export const participantEntryClaimRedemptions = pgTable("participant_entry_claim_redemption", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  requestId: uuid("request_id").notNull(),
-  claimId: uuid("claim_id").notNull(),
-  accountId: uuid("account_id").notNull().references(() => userAccounts.id),
-  redeemedAt: timestamp("redeemed_at", { withTimezone: true }).notNull()
-}, table => [
-  uniqueIndex("participant_entry_claim_redemption_request_uidx").on(table.requestId),
-  uniqueIndex("participant_entry_claim_redemption_claim_uidx").on(table.claimId),
-  foreignKey({ name: "participant_entry_claim_redemption_claim_fk", columns: [table.claimId], foreignColumns: [participantEntryClaimIssues.id] })
-]);
-
-export const participantEntryClaimRevocations = pgTable("participant_entry_claim_revocation", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  requestId: uuid("request_id").notNull(),
-  claimId: uuid("claim_id").notNull(),
-  raceId: uuid("race_id").notNull(),
-  actorCredentialId: uuid("actor_credential_id").notNull(),
-  capability: pairingAdminCapabilityEnum("capability").notNull(),
-  revokedAt: timestamp("revoked_at", { withTimezone: true }).notNull(),
-  reason: text("reason").notNull()
-}, table => [
-  uniqueIndex("participant_entry_claim_revocation_request_uidx").on(table.requestId),
-  uniqueIndex("participant_entry_claim_revocation_claim_uidx").on(table.claimId),
-  foreignKey({ name: "participant_entry_claim_revocation_claim_scope_fk", columns: [table.claimId, table.raceId], foreignColumns: [participantEntryClaimIssues.id, participantEntryClaimIssues.raceId] }),
-  foreignKey({ name: "participant_entry_claim_revocation_actor_scope_fk", columns: [table.actorCredentialId, table.raceId, table.capability], foreignColumns: [pairingAdminAccessCredentials.id, pairingAdminAccessCredentials.raceId, pairingAdminAccessCredentials.capability] }),
-  check("participant_entry_claim_revocation_capability_check", sql`${table.capability} = 'MANAGE_RACE'`),
-  check("participant_entry_claim_revocation_reason_check", sql`length(btrim(${table.reason})) between 1 and 240`)
 ]);
 
 /** ADR-0169: Redigera bana. Oföränderlig journal för en ändrad kontrollföljd och dess omräkning. */

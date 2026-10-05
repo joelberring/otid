@@ -1,18 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
 import { and, desc, eq, ne, or, sql } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
-import { canonicalStartCheckinOperation, StartCheckinOperationSchema, StartCheckinReceiptSchema, StartCheckinSyncRequestSchema,
+import { canonicalStartCheckinOperation, StartCheckinOperationSchema, StartCheckinReceiptSchema,
   type StartCheckinReceipt, type StartCheckinSyncRequest } from "@o-tid/contracts";
 import { createDidNotStartResult, planStartCheckinSync } from "@o-tid/domain";
-import { authenticatePairingAdminSession, authenticatePairingAdminSessionForMutation,
-  type PairingAdminRequestAuthentication } from "./pairing-admin";
 import { resolveStoredResultHeadStates } from "./result-revision-state";
-import { allowsStartCheckinSourceAction } from "./start-checkin-source-action";
+import { allowsStartCheckinSourceAction, type OnlineStartCheckinCapability } from "./start-checkin-source-action";
 
-type Input = Omit<PairingAdminRequestAuthentication, "capability" | "requireCsrf"> & {
-  capability: "START_CHECKIN" | "FINISH_FOREST_WATCH";
-  readBody: () => Promise<unknown>;
-};
 type StoredOperation = typeof schema.startCheckinOperations.$inferSelect;
 
 function hash(value: unknown) {
@@ -40,36 +34,13 @@ function storedReceipt(row: StoredOperation): StartCheckinReceipt {
 
 export { storedReceipt as validateStoredStartCheckinReceipt };
 
-/** One frozen operation, durable acknowledgement only after the entire transaction commits. */
-export async function syncStartCheckinAsAdmin(db: Database, input: Input, clock: () => Date = () => new Date()) {
-  if (input.capability !== "START_CHECKIN" && input.capability !== "FINISH_FOREST_WATCH") return { status: "forbidden" as const };
-  const authentication = { ...input, requireCsrf: true };
-  const initial = await authenticatePairingAdminSession(db, authentication, clock());
-  if (initial.status !== "authenticated") return initial;
-  const parsed = StartCheckinSyncRequestSchema.safeParse(await input.readBody());
-  if (!parsed.success) return { status: "invalid-request" as const };
-  const { operation: op, contentHash } = parsed.data;
-  if (hash(op) !== contentHash) return { status: "invalid-request" as const };
-  if (op.raceId !== input.raceId || op.actorCredentialId !== initial.principal.accessCredentialId ||
-      (op.action.kind === "MARK_START" ? input.capability !== "START_CHECKIN" : input.capability !== "FINISH_FOREST_WATCH")) {
-    return { status: "forbidden" as const };
-  }
-  return db.transaction(async (tx) => {
-    const now = clock();
-    const auth = await authenticatePairingAdminSessionForMutation(tx, authentication, now);
-    if (auth.status !== "authenticated") return auth;
-    if (auth.principal.accessCredentialId !== op.actorCredentialId) return { status: "forbidden" as const };
-    return storeAuthorizedStartCheckinOperation(tx, parsed.data, input.capability, now);
-  });
-}
-
-/** Internal transaction boundary. Caller must hold verified session or recovery authority.
- * Not exported from the package entry point; both auth paths preserve the same domain writer.
+/** Internal transaction boundary. Caller must hold a verified administrator or functionary session
+ * (`administrator-return.ts`). Not exported from the package entry point.
  */
 export async function storeAuthorizedStartCheckinOperation(
   tx: Parameters<Parameters<Database["transaction"]>[0]>[0],
   request: StartCheckinSyncRequest,
-  capability: "START_CHECKIN" | "FINISH_FOREST_WATCH" | "MANAGE_RACE",
+  capability: OnlineStartCheckinCapability,
   now: Date
 ) {
     const { operation: op, contentHash } = request;
@@ -105,7 +76,7 @@ export async function storeAuthorizedStartCheckinOperation(
       .where(and(eq(schema.startCheckinRevisions.raceId, race.id), eq(schema.startCheckinRevisions.entryId, entry.id)))
       .orderBy(desc(schema.startCheckinRevisions.revision)).limit(1);
     const revision = current?.revision ?? 0;
-    if (capability === "MANAGE_RACE" && (op.dependsOnRequestId !== null ||
+    if ((op.dependsOnRequestId !== null ||
       (op.action.kind === "FINISH_CORRECTION" && revision === op.expectedRevision && op.action.state !== (current?.startState ?? "UNMARKED")))) {
       return { status: "invalid-request" as const };
     }
@@ -191,8 +162,7 @@ export async function storeAuthorizedStartCheckinOperation(
     }
     await tx.insert(schema.auditEvents).values({ raceId: race.id, entityType: "start_checkin_operation", entityId: op.requestId,
       requestId: op.requestId, action: "START_CHECKIN_OPERATION_STORED", actorId: op.actorCredentialId,
-      actorKind: capability === "MANAGE_RACE" ? "RACE_ADMIN_ACCESS_CREDENTIAL"
-        : capability === "START_CHECKIN" ? "START_CHECKIN_ACCESS_CREDENTIAL" : "FINISH_FOREST_WATCH_ACCESS_CREDENTIAL",
+      actorKind: "RACE_ADMIN_ACCESS_CREDENTIAL",
       after: { deviceId: op.deviceId, entryId: entry.id, effect: receipt.effect }, createdAt: now });
     return { status: "stored" as const, response: receipt };
 }

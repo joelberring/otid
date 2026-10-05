@@ -85,30 +85,6 @@
 .createReceipt dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
 .createPanel .actions { gap: .4rem; }
 .createPanel .actions button { min-height: 44px; }
-.adminPanel { margin: .45rem 0; padding: .45rem 0 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; }
-.adminContext { margin: .35rem 0 .2rem; font-size: .82rem; overflow-wrap: anywhere; }
-.adminContext span { color: var(--muted); }
-.adminSummary { margin: .3rem 0; padding: .25rem 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); color: var(--muted); font-size: .82rem; font-weight: 650; }
-.adminReview { padding: 4px 8px; border-left: 2px solid var(--line); font-size: var(--text-xs); overflow-wrap: anywhere; }
-.adminReview p { margin: .15rem 0; }
-.adminStatus { display: grid; gap: .1rem; align-content: center; color: var(--ink) !important; font-size: .82rem !important; font-weight: 650; }
-.adminStatus small { color: var(--muted); font-size: .76rem; font-weight: 400; }
-.adminPanel > .adminList li { display: grid; grid-template-columns: minmax(0, 1fr) minmax(8rem, auto) auto; align-items: center; }
-.adminDisclosure { margin: .35rem 0; }
-.adminDisclosure > button { width: auto; min-height: 44px; padding-inline: 0; border: 0; background: transparent; color: var(--ink); text-align: left; text-decoration: underline; text-underline-offset: .15rem; }
-.adminDisclosure > button:not(:disabled):hover { background: transparent; }
-.adminHeading { display: flex; align-items: center; justify-content: space-between; gap: .6rem; }
-.adminHeading h4 { margin: 0; }
-.adminList { display: grid; gap: .45rem; margin: .6rem 0; padding: 0; list-style: none; }
-.adminList li { display: flex; align-items: center; justify-content: space-between; gap: .6rem; min-width: 0; padding: .5rem 0; border-bottom: 1px solid var(--line); }
-.adminList li > div { display: grid; min-width: 0; gap: .15rem; }
-.adminList strong, .adminList span { overflow-wrap: anywhere; }
-.adminList span { color: var(--muted); font-size: .9rem; }
-.adminForm { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .35rem .5rem; margin-top: .7rem; }
-.adminForm label { display: grid; gap: .3rem; font-weight: 550; }
-.adminForm input, .adminForm button { width: 100%; min-height: 48px; }
-.adminForm button { grid-column: 2; grid-row: 1; align-self: end; }
-.adminForm .adminReview { grid-column: 1 / -1; }
 .raceList { gap: 0; border-top: 1px solid var(--line); }
 .raceList li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .5rem .65rem; min-width: 0; padding: .38rem .2rem; border-bottom: 1px solid var(--line); }
 .raceList li > div { display: flex; align-items: baseline; justify-content: space-between; min-width: 0; gap: .65rem; }
@@ -116,7 +92,6 @@
 .raceList span { color: var(--muted); font-size: .82rem; }
 .raceList button, .actions button { min-height: 44px; flex: 0 0 auto; }
 .raceList li > div > span { font-family: var(--font-dense); }
-.adminList button { min-height: 44px; flex: 0 0 auto; }
 .uncertain, .confirmed { margin-top: 12px; padding: 12px 14px; }
 .uncertain { border-left: 3px solid var(--attention); background: var(--attention-tint); }
 .confirmed { border-left: 3px solid var(--ok); background: var(--surface); }
@@ -127,7 +102,6 @@
 .uncertain dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
 .actions { flex-wrap: wrap; justify-content: start; }
 .message { min-height: 1.5rem; margin: .8rem 0 0; font-weight: 600; }
-.adminPanel > .message:empty { display: none; }
 
 @media (max-width: 700px) {
   .main { padding: .75rem; }
@@ -138,11 +112,6 @@
   .raceList li { grid-template-columns: minmax(0, 1fr); align-items: stretch; }
   .raceList li > div { display: grid; gap: .1rem; }
   .raceList button { width: 100%; }
-  .adminList li { align-items: stretch; flex-direction: column; }
-  .adminPanel > .adminList li { grid-template-columns: minmax(0, 1fr); }
-  .adminForm { grid-template-columns: minmax(0, 1fr); }
-  .adminForm button, .adminForm .adminReview { grid-column: auto; grid-row: auto; }
-  .adminList button { width: 100%; }
   .sectionHeading { align-items: center; }
   .eventHeading { align-items: start; }
   .eventRole { flex-basis: auto; }

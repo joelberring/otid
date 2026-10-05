@@ -31,9 +31,9 @@ export function useRosterState() {
 }
 
 export function deriveRoster(s: WorkspaceState) {
-  const { data, entryId, step, query, olderResultsOnly, rentalCardsOnly,
+  const { data, entryId, role, step, query, olderResultsOnly, rentalCardsOnly,
     resultState, rosterClassId, missingFixedStartOnly, rosterOrder, page, pageSize } = s;
-  const participantsVisible = deriveSections({ data, step }).shows("ENTRIES");
+  const participantsVisible = deriveSections({ data, step, role }).shows("ENTRIES");
   const selected = data?.entries.find((entry) => entry.id === entryId);
   const returnedRentalSources = data?.entries.filter((entry) => entry.id !== selected?.id &&
     !entry.multipleActiveAssignments && entry.activeAssignment?.isRental && entry.activeAssignment.rentalReturned) ?? [];

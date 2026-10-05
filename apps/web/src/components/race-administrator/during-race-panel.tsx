@@ -21,7 +21,7 @@ import type { Workspace } from "./workspace-state";
 /** Avläsning: kontrollvyn och hela skogslistan med manuell återkomst. Speakern har en egen sida (ADR-0170). */
 export function DuringRaceOverview({ ws }: { ws: Workspace }) {
   const { data, disabled, entryId, forestAutoRefresh, forestClass, forestData, forestOpen, forestQuery, forestSortByAge,
-    forestStale, loadForest, prepareReturn, prepareStartCorrection, printPrivate, raceId, select, setForestAutoRefresh,
+    forestStale, functionary, loadForest, prepareReturn, prepareStartCorrection, printPrivate, raceId, select, setEntryId, setForestAutoRefresh,
     setForestClass, setForestOpen, setForestQuery, setForestSortByAge, setTargetStartState, shows, targetStartState } = ws;
   const selectedForest = forestData?.entries.find(row => row.entryId === entryId);
   return <>
@@ -65,7 +65,11 @@ export function DuringRaceOverview({ ws }: { ws: Workspace }) {
               onClick={prepareStartCorrection}>{text.startCorrectionReview}</Button>
           </div>
         </details>
-        <ForestWatchReport data={forestData} reportedStarts={forestData.reportedStarts} sortByAge={forestSortByAge} classId={forestClass} query={forestQuery} stale={forestStale} disabled={disabled} onOpenHistory={id => select(id, true)} onReviewConflict={id => select(id, true, true)} />
+        {/* Journal och konfliktgranskning är administratörens; funktionären väljer bara löparen (ADR-0172 beslut 3). */}
+        <ForestWatchReport data={forestData} reportedStarts={forestData.reportedStarts} sortByAge={forestSortByAge} classId={forestClass}
+          query={forestQuery} stale={forestStale} disabled={disabled}
+          {...functionary ? { onChoose: (id: string) => setEntryId(id) }
+            : { onOpenHistory: (id: string) => select(id, true), onReviewConflict: (id: string) => select(id, true, true) }} />
       </>}
       </div>
     </details>
@@ -76,9 +80,12 @@ export function DuringRaceOverview({ ws }: { ws: Workspace }) {
   </>;
 }
 
-/** Avläsning: incheckningsjournal, konfliktgranskning, start- och målrättningar. */
+/**
+ * Avläsning: incheckningsjournal, konfliktgranskning, start- och målrättningar. Funktionären ser bara granskningen
+ * av sin egen återkomst eller sitt startläge; journalen, konflikterna och tidsrättningarna är administratörens.
+ */
 export function DuringRaceFollowUp({ ws }: { ws: Workspace }) {
-  const { busy, checkinHistory, checkinHistoryPanel, data, disabled, entryId, loadCheckinHistory,
+  const { busy, checkinHistory, checkinHistoryPanel, data, disabled, entryId, functionary, loadCheckinHistory,
     loadConflictReview, pending, raceId, returnAttempt, reviewAttempt, reviewCandidate, reviewConfirmed,
     reviewReason, sent, setFinishCorrectionPending, setFinishWithdrawalPending,
     setReturnAttempt, setReviewCandidate, setReviewConfirmed, setReviewReason, setStartCorrection,
@@ -86,7 +93,7 @@ export function DuringRaceFollowUp({ ws }: { ws: Workspace }) {
     submitStartCorrection, shows, unknown } = ws;
   return <>
     <section className={styles.workflowGroup} aria-label={text.followUpTitle} hidden={!shows("READOUT")}>
-    <details ref={checkinHistoryPanel} className={styles.disclosure}>
+    {!functionary && <details ref={checkinHistoryPanel} className={styles.disclosure}>
       <summary>{checkinHistorySv.title}</summary>
       <div className={styles.disclosureBody}>
       <p className={styles.workflowHelp}>{checkinHistorySv.help}</p>
@@ -100,7 +107,7 @@ export function DuringRaceFollowUp({ ws }: { ws: Workspace }) {
         {checkinHistory.nextCursor && <Button variant="secondary" disabled={disabled} onClick={() => void loadCheckinHistory(checkinHistory.nextCursor!)}>{checkinHistorySv.older}</Button>}
       </section>}
       </div>
-    </details>
+    </details>}
     {(reviewAttempt || reviewCandidate) && <section className={styles.review} aria-label={reviewText.title}>
       <h2>{reviewText.title}</h2><p>{reviewText.adminHelp}</p>
       <AdministratorConflictEvidence candidate={reviewAttempt?.candidate ?? reviewCandidate!} timeZone={data?.timeZone ?? "UTC"} />
@@ -130,7 +137,7 @@ export function DuringRaceFollowUp({ ws }: { ws: Workspace }) {
       <button type="button" disabled={busy} onClick={() => void submitReturn(returnAttempt)}>{unknown ? text.retry : returnAttempt.withdraw ? text.returnWithdrawalConfirm : text.returnConfirm}</button>
       {!unknown && <button type="button" className="secondary" disabled={busy} onClick={() => { pending.current = undefined; sent.current = false; setReturnAttempt(undefined); }}>{text.cancel}</button>}
     </section>}
-    {data && <Section id={`corrections-${raceId}`} title={text.correctionTools} help={text.correctionToolsHelp}>
+    {data && !functionary && <Section id={`corrections-${raceId}`} title={text.correctionTools} help={text.correctionToolsHelp}>
       <div className={styles.disclosureList}>
       <ManualFinishTimeCorrection raceId={raceId} entries={data.entries} timeZone={data.timeZone} onPendingChange={setFinishCorrectionPending} />
       <ManualPunchStartTimeCorrection raceId={raceId} entries={data.entries} timeZone={data.timeZone} onPendingChange={setStartCorrectionPending} />

@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { createHash, createPublicKey, generateKeyPairSync } from "node:crypto";
+import { createHash } from "node:crypto";
 import { beforeAll, afterAll, describe, expect, it } from "vitest";
 import { and, asc, count, desc, eq, sql } from "drizzle-orm";
 import { migrate } from "@o-tid/database";
@@ -23,10 +23,8 @@ import {
   listEntryCardsAsAdmin,
   listEntryRegistrationClassesAsAdmin,
   registerEntryAsAdmin,
-  buildSignedStationPackage,
   contentHash,
   createEvent,
-  createEventAsAdmin,
   decideDidNotFinishAsAdmin,
   decideDidNotStartAsAdmin,
   decideOutOfCompetitionAsAdmin,
@@ -45,11 +43,6 @@ import {
   importIofXmlAsAdmin,
   ingestDeviceBatch,
   evaluationHash,
-  authenticateStationBearer,
-  hasStationCredentialScope,
-  issueStationPairingGrant,
-  issueStationCredential,
-  issueEventCreationAccessCredential,
   exportIofResultListAsAdmin,
   exportFrozenIofResultListAsAdmin,
   finalizeResultsAsAdmin,
@@ -72,30 +65,18 @@ import {
   publicResults,
   recalculateEntry,
   recalculateEntryAsAdmin,
-  redeemStationPairingGrant,
-  revokeStationPairingGrant,
-  revokeStationCredential,
-  revokeEventCreationAccessCredential,
-  rotateStationCredential,
-  verifySignedStationPackage,
   withdrawDidNotFinishAsAdmin,
   withdrawOutOfCompetitionAsAdmin,
   withdrawWithoutTimingAsAdmin
 } from "../../src";
 import {
-  loginEventCreationAdmin,
-  logoutEventCreationAdminSession
-} from "../../src/event-creation-admin";
-import {
   authenticatePairingAdminSession,
   issuePairingAdminAccessCredential,
-  issuePairingGrantAsAdmin,
-  listPairingGrantsAsAdmin,
   loginPairingAdmin,
   logoutPairingAdminSession,
-  revokePairingAdminAccessCredential,
-  revokePairingGrantAsAdmin
+  revokePairingAdminAccessCredential
 } from "../../src/pairing-admin";
+import { loadRaceSnapshot, sortRaceSnapshotForPackage } from "../../src/snapshot";
 import { decideStartListPublicationAsAdmin, getStartListPublicationPreviewAsAdmin, getPublishedStartListXml } from "../../src/start-list-publication";
 import { listStartListAsAdmin } from "../../src/start-list";
 
@@ -106,10 +87,12 @@ const { db, pool } = database;
 let courseXml: string;
 let entryXml: string;
 let startListXml: string;
-const stationPackagePrivateKey = generateKeyPairSync("rsa", { modulusLength: 2048 }).privateKey;
-const stationPackagePrivateKeyPem = stationPackagePrivateKey.export({ format: "pem", type: "pkcs8" }).toString();
-const stationPackagePublicKeySpkiBase64 = createPublicKey(stationPackagePrivateKey)
-  .export({ format: "der", type: "spki" }).toString("base64");
+
+/** Avläsningens ögonblicksbild av loppet (samma innehåll som avläsningspaketet). */
+async function readoutPackage(raceId: string) {
+  const raceSnapshot = sortRaceSnapshotForPackage(await loadRaceSnapshot(db, raceId));
+  return { packageVersion: raceSnapshot.race.snapshotVersion, raceSnapshot };
+}
 
 beforeAll(async () => {
   await migrate(db, { migrationsFolder: new URL("../../../database/migrations", import.meta.url).pathname });
@@ -185,14 +168,14 @@ describe("TASK 005F pairing-admin PostgreSQL", () => {
 
   async function adminSession(raceId: string, marker: number) {
     const installation = await issuePairingAdminAccessCredential(db, {
-      raceId, capability: "PAIR_STATION", label: `Målvagn ${marker}`,
-      expiresAt: new Date("2026-09-01T14:00:00.000Z")
+      raceId, capability: "IMPORT_IOF", label: `Målvagn ${marker}`,
+      expiresAt: new Date("2026-08-31T21:00:00.000Z")
     }, { now: accessIssuedAt, secretBytes: Buffer.alloc(32, marker) });
     const login = await loginPairingAdmin(db, {
       formatVersion: 1, accessCredential: installation.accessCredential
     }, {
       expectedRaceId: raceId,
-      expectedCapability: "PAIR_STATION",
+      expectedCapability: "IMPORT_IOF",
       now: new Date("2026-08-31T14:01:00.000Z"),
       sessionSecretBytes: Buffer.alloc(32, marker + 1), csrfSecretBytes: Buffer.alloc(32, marker + 2)
     });
@@ -205,7 +188,7 @@ describe("TASK 005F pairing-admin PostgreSQL", () => {
     const other = await importedRace();
     const { installation, login } = await adminSession(raceId, 61);
     expect(login.response).toEqual({
-      formatVersion: 1, raceId, capability: "PAIR_STATION", expiresAt: "2026-08-31T22:01:00.000Z"
+      formatVersion: 1, raceId, capability: "IMPORT_IOF", expiresAt: "2026-08-31T15:01:00.000Z"
     });
     const [storedCredential] = await db.select().from(schema.pairingAdminAccessCredentials)
       .where(eq(schema.pairingAdminAccessCredentials.id, installation.credentialId));
@@ -219,202 +202,32 @@ describe("TASK 005F pairing-admin PostgreSQL", () => {
     expect(JSON.stringify({ storedCredential, storedSession })).not.toContain(login.csrfToken);
 
     await expect(authenticatePairingAdminSession(db, {
-      sessionToken: login.sessionToken, raceId, capability: "PAIR_STATION",
+      sessionToken: login.sessionToken, raceId, capability: "IMPORT_IOF",
       requireCsrf: true, csrfCookie: login.csrfToken, csrfHeader: login.csrfToken
     }, new Date("2026-08-31T14:02:00.000Z"))).resolves.toMatchObject({ status: "authenticated" });
     await expect(authenticatePairingAdminSession(db, {
-      sessionToken: login.sessionToken, raceId, capability: "PAIR_STATION",
+      sessionToken: login.sessionToken, raceId, capability: "IMPORT_IOF",
       requireCsrf: true, csrfCookie: login.csrfToken, csrfHeader: "A".repeat(43)
     }, new Date("2026-08-31T14:02:00.000Z"))).resolves.toEqual({ status: "forbidden" });
     await expect(authenticatePairingAdminSession(db, {
-      sessionToken: login.sessionToken, raceId: other.raceId, capability: "PAIR_STATION"
+      sessionToken: login.sessionToken, raceId: other.raceId, capability: "IMPORT_IOF"
     }, new Date("2026-08-31T14:02:00.000Z"))).resolves.toEqual({ status: "forbidden" });
     await expect(loginPairingAdmin(db, {
       formatVersion: 1, accessCredential: installation.accessCredential.replace(/.$/, "A")
     }, {
-      expectedRaceId: raceId, expectedCapability: "PAIR_STATION",
+      expectedRaceId: raceId, expectedCapability: "IMPORT_IOF",
       now: new Date("2026-08-31T14:02:00.000Z")
     })).resolves.toEqual({ status: "unauthorized" });
     const [beforeUnknown] = await db.select({ value: count() }).from(schema.pairingAdminSessions);
     await expect(loginPairingAdmin(db, {
       formatVersion: 1,
-      accessCredential: `otid_org_pair_v1.${crypto.randomUUID()}.${Buffer.alloc(32, 63).toString("base64url")}`
+      accessCredential: `otid_org_import_v1.${crypto.randomUUID()}.${Buffer.alloc(32, 63).toString("base64url")}`
     }, {
-      expectedRaceId: raceId, expectedCapability: "PAIR_STATION",
+      expectedRaceId: raceId, expectedCapability: "IMPORT_IOF",
       now: new Date("2026-08-31T14:02:00.000Z")
     })).resolves.toEqual({ status: "unauthorized" });
     const [afterUnknown] = await db.select({ value: count() }).from(schema.pairingAdminSessions);
     expect(afterUnknown?.value).toBe(beforeUnknown?.value);
-  });
-
-  it("utfärdar klienthashat grant exakt idempotent och auditerar bara första mutation", async () => {
-    const { raceId } = await importedRace();
-    const { installation, login } = await adminSession(raceId, 71);
-    const grantId = crypto.randomUUID();
-    const body = { formatVersion: 1 as const, grantId, grantSecretHash: "b".repeat(64), credentialLifetimeHours: 24 as const };
-    const call = () => issuePairingGrantAsAdmin(db, {
-      sessionToken: login.sessionToken, raceId, capability: "PAIR_STATION",
-      csrfCookie: login.csrfToken, csrfHeader: login.csrfToken,
-      idempotencyKey: `pairing-grant:${grantId}`, readBody: async () => body
-    }, new Date("2026-08-31T14:03:00.000Z"));
-    const results = await Promise.all(Array.from({ length: 100 }, call));
-    expect(results.filter((result) => result.status === "stored")).toHaveLength(1);
-    expect(results.filter((result) => result.status === "duplicate")).toHaveLength(99);
-    const [stored] = await db.select().from(schema.stationPairingGrants)
-      .where(eq(schema.stationPairingGrants.id, grantId));
-    expect(stored).toMatchObject({ raceId, secretHash: body.grantSecretHash,
-      issuerCredentialId: installation.credentialId });
-    expect(stored?.expiresAt.toISOString()).toBe("2026-08-31T14:13:00.000Z");
-    expect(stored?.credentialExpiresAt.toISOString()).toBe("2026-09-01T14:03:00.000Z");
-    const audits = await db.select().from(schema.auditEvents).where(and(
-      eq(schema.auditEvents.entityId, grantId),
-      eq(schema.auditEvents.action, "STATION_PAIRING_GRANT_ISSUED_BY_ADMIN")
-    ));
-    expect(audits).toHaveLength(1);
-    expect(audits[0]).toMatchObject({ actorKind: "PAIRING_ADMIN_ACCESS_CREDENTIAL",
-      actorId: installation.credentialId, requestId: grantId });
-    expect(JSON.stringify(audits)).not.toContain(body.grantSecretHash);
-    await expect(issuePairingGrantAsAdmin(db, {
-      sessionToken: login.sessionToken, raceId, capability: "PAIR_STATION",
-      csrfCookie: login.csrfToken, csrfHeader: login.csrfToken,
-      idempotencyKey: `pairing-grant:${grantId}`,
-      readBody: async () => ({ ...body, grantSecretHash: "c".repeat(64) })
-    }, new Date("2026-08-31T14:03:01.000Z"))).resolves.toEqual({ status: "conflict" });
-    const otherActor = await adminSession(raceId, 76);
-    await expect(issuePairingGrantAsAdmin(db, {
-      sessionToken: otherActor.login.sessionToken, raceId, capability: "PAIR_STATION",
-      csrfCookie: otherActor.login.csrfToken, csrfHeader: otherActor.login.csrfToken,
-      idempotencyKey: `pairing-grant:${grantId}`,
-      readBody: async () => body
-    }, new Date("2026-08-31T14:03:02.000Z"))).resolves.toEqual({ status: "conflict" });
-  });
-
-  it("autentiserar före body, listar metadata och spärrar endast inom loppet idempotent", async () => {
-    const first = await importedRace();
-    const second = await importedRace();
-    const admin = await adminSession(first.raceId, 81);
-    const otherAdmin = await adminSession(second.raceId, 91);
-    let reads = 0;
-    await expect(issuePairingGrantAsAdmin(db, {
-      sessionToken: "otid_org_session_v1.00000000-0000-4000-8000-000000000000." + "A".repeat(43),
-      raceId: first.raceId, capability: "PAIR_STATION", csrfCookie: null, csrfHeader: null,
-      idempotencyKey: null, readBody: async () => { reads += 1; return {}; }
-    }, new Date("2026-08-31T14:03:00.000Z"))).resolves.toEqual({ status: "unauthorized" });
-    expect(reads).toBe(0);
-    await expect(revokePairingGrantAsAdmin(db, {
-      sessionToken: "otid_org_session_v1.00000000-0000-4000-8000-000000000000." + "A".repeat(43),
-      raceId: first.raceId, capability: "PAIR_STATION", csrfCookie: null, csrfHeader: null,
-      grantId: crypto.randomUUID(), readBodyIsEmpty: async () => { reads += 1; return false; }
-    }, new Date("2026-08-31T14:03:00.000Z"))).resolves.toEqual({ status: "unauthorized" });
-    await expect(logoutPairingAdminSession(db, {
-      sessionToken: "otid_org_session_v1.00000000-0000-4000-8000-000000000000." + "A".repeat(43),
-      raceId: first.raceId, capability: "PAIR_STATION",
-      csrfCookie: null, csrfHeader: null,
-      readBodyIsEmpty: async () => { reads += 1; return false; }
-    }, new Date("2026-08-31T14:03:00.000Z"))).resolves.toEqual({ status: "unauthorized" });
-    expect(reads).toBe(0);
-
-    const grantId = crypto.randomUUID();
-    await issuePairingGrantAsAdmin(db, {
-      sessionToken: admin.login.sessionToken, raceId: first.raceId, capability: "PAIR_STATION",
-      csrfCookie: admin.login.csrfToken, csrfHeader: admin.login.csrfToken,
-      idempotencyKey: `pairing-grant:${grantId}`,
-      readBody: async () => ({ formatVersion: 1, grantId, grantSecretHash: "d".repeat(64), credentialLifetimeHours: 8 })
-    }, new Date("2026-08-31T14:03:00.000Z"));
-    const list = await listPairingGrantsAsAdmin(db, {
-      sessionToken: admin.login.sessionToken, raceId: first.raceId, capability: "PAIR_STATION"
-    }, new Date("2026-08-31T14:04:00.000Z"));
-    expect(list.status === "ok" && list.response.grants.find((grant) => grant.grantId === grantId))
-      .toMatchObject({ status: "ACTIVE", redeemedAt: null, revokedAt: null });
-    await expect(revokePairingGrantAsAdmin(db, {
-      sessionToken: otherAdmin.login.sessionToken, raceId: second.raceId, capability: "PAIR_STATION",
-      csrfCookie: otherAdmin.login.csrfToken, csrfHeader: otherAdmin.login.csrfToken, grantId
-    }, new Date("2026-08-31T14:05:00.000Z"))).resolves.toEqual({ status: "not-found" });
-    await expect(revokePairingGrantAsAdmin(db, {
-      sessionToken: admin.login.sessionToken, raceId: first.raceId, capability: "PAIR_STATION",
-      csrfCookie: admin.login.csrfToken, csrfHeader: admin.login.csrfToken, grantId,
-      readBodyIsEmpty: async () => false
-    }, new Date("2026-08-31T14:05:00.000Z"))).resolves.toEqual({ status: "invalid-request" });
-    const revoke = () => revokePairingGrantAsAdmin(db, {
-      sessionToken: admin.login.sessionToken, raceId: first.raceId, capability: "PAIR_STATION" as const,
-      csrfCookie: admin.login.csrfToken, csrfHeader: admin.login.csrfToken, grantId
-    }, new Date("2026-08-31T14:05:00.000Z"));
-    const revokeResults = await Promise.all(Array.from({ length: 100 }, revoke));
-    expect(revokeResults.filter((result) => result.status === "revoked")).toHaveLength(1);
-    expect(revokeResults.filter((result) => result.status === "already-revoked")).toHaveLength(99);
-    const revoked = revokeResults.find((result) => result.status === "revoked");
-    expect(revoked?.status === "revoked" && revoked.response.grant).toMatchObject({ status: "REVOKED" });
-    const audits = await db.select().from(schema.auditEvents).where(and(
-      eq(schema.auditEvents.entityId, grantId), eq(schema.auditEvents.action, "STATION_PAIRING_GRANT_REVOKED_BY_ADMIN")
-    ));
-    expect(audits).toHaveLength(1);
-  });
-
-  it("serialiserar grantspärr och inlösen så att den första commiten vinner", async () => {
-    const { raceId } = await importedRace();
-    const admin = await adminSession(raceId, 96);
-
-    async function issueKnownGrant(marker: number) {
-      const grantId = crypto.randomUUID();
-      const grantSecret = Buffer.alloc(32, marker);
-      const result = await issuePairingGrantAsAdmin(db, {
-        sessionToken: admin.login.sessionToken, raceId, capability: "PAIR_STATION",
-        csrfCookie: admin.login.csrfToken, csrfHeader: admin.login.csrfToken,
-        idempotencyKey: `pairing-grant:${grantId}`,
-        readBody: async () => ({
-          formatVersion: 1, grantId,
-          grantSecretHash: createHash("sha256").update(grantSecret).digest("hex"),
-          credentialLifetimeHours: 24
-        })
-      }, new Date("2026-08-31T14:03:00.000Z"));
-      expect(result.status).toBe("stored");
-      return { grantId, token: `otid_pair_v1.${grantId}.${grantSecret.toString("base64url")}` };
-    }
-
-    function redemption(marker: number) {
-      const credentialSecret = Buffer.alloc(32, marker);
-      return {
-        credentialSecret,
-        body: {
-          formatVersion: 1 as const,
-          attemptId: crypto.randomUUID(),
-          deviceId: crypto.randomUUID(),
-          credentialSecretHash: createHash("sha256").update(credentialSecret).digest("hex")
-        }
-      };
-    }
-
-    const revokedFirst = await issueKnownGrant(121);
-    await expect(revokePairingGrantAsAdmin(db, {
-      sessionToken: admin.login.sessionToken, raceId, capability: "PAIR_STATION",
-      csrfCookie: admin.login.csrfToken, csrfHeader: admin.login.csrfToken,
-      grantId: revokedFirst.grantId
-    }, new Date("2026-08-31T14:04:00.000Z"))).resolves.toMatchObject({ status: "revoked" });
-    const blockedRedemption = redemption(122);
-    await expect(redeemStationPairingGrant(db, {
-      authorization: `Bearer ${revokedFirst.token}`,
-      idempotencyKey: `pairing:${blockedRedemption.body.attemptId}`,
-      readBody: async () => blockedRedemption.body
-    }, new Date("2026-08-31T14:05:00.000Z"))).resolves.toEqual({ status: "unauthorized" });
-
-    const redeemedFirst = await issueKnownGrant(123);
-    const successfulRedemption = redemption(124);
-    const redeemed = await redeemStationPairingGrant(db, {
-      authorization: `Bearer ${redeemedFirst.token}`,
-      idempotencyKey: `pairing:${successfulRedemption.body.attemptId}`,
-      readBody: async () => successfulRedemption.body
-    }, new Date("2026-08-31T14:04:00.000Z"));
-    expect(redeemed.status).toBe("stored");
-    if (redeemed.status !== "stored") throw new Error("Grantet löstes inte in");
-    await expect(revokePairingGrantAsAdmin(db, {
-      sessionToken: admin.login.sessionToken, raceId, capability: "PAIR_STATION",
-      csrfCookie: admin.login.csrfToken, csrfHeader: admin.login.csrfToken,
-      grantId: redeemedFirst.grantId
-    }, new Date("2026-08-31T14:05:00.000Z"))).resolves.toMatchObject({ status: "revoked" });
-    const credentialToken = `otid_stn_v1.${redeemed.response.credential.credentialId}.` +
-      successfulRedemption.credentialSecret.toString("base64url");
-    await expect(authenticateStationBearer(db, `Bearer ${credentialToken}`,
-      new Date("2026-08-31T14:06:00.000Z"))).resolves.toMatchObject({ status: "authenticated" });
   });
 
   it("spärr och logout slår igenom direkt och auth-tabellerna är append-only", async () => {
@@ -422,40 +235,32 @@ describe("TASK 005F pairing-admin PostgreSQL", () => {
     const first = await adminSession(raceId, 101);
     await expect(logoutPairingAdminSession(db, {
       sessionToken: first.login.sessionToken, csrfCookie: first.login.csrfToken, csrfHeader: first.login.csrfToken,
-      raceId, capability: "PAIR_STATION",
+      raceId, capability: "IMPORT_IOF",
       readBodyIsEmpty: async () => false
     }, new Date("2026-08-31T14:02:00.000Z"))).resolves.toEqual({ status: "invalid-request" });
     await expect(authenticatePairingAdminSession(db, {
-      sessionToken: first.login.sessionToken, raceId, capability: "PAIR_STATION"
+      sessionToken: first.login.sessionToken, raceId, capability: "IMPORT_IOF"
     }, new Date("2026-08-31T14:02:30.000Z"))).resolves.toMatchObject({ status: "authenticated" });
     await expect(logoutPairingAdminSession(db, {
-      sessionToken: first.login.sessionToken, raceId, capability: "PAIR_STATION",
+      sessionToken: first.login.sessionToken, raceId, capability: "IMPORT_IOF",
       csrfCookie: first.login.csrfToken, csrfHeader: first.login.csrfToken
     }, new Date("2026-08-31T14:03:00.000Z"))).resolves.toEqual({ status: "logged-out" });
     await expect(logoutPairingAdminSession(db, {
-      sessionToken: first.login.sessionToken, raceId, capability: "PAIR_STATION",
+      sessionToken: first.login.sessionToken, raceId, capability: "IMPORT_IOF",
       csrfCookie: first.login.csrfToken, csrfHeader: first.login.csrfToken
     }, new Date("2026-08-31T14:04:00.000Z"))).resolves.toEqual({ status: "already-logged-out" });
     await expect(authenticatePairingAdminSession(db, {
-      sessionToken: first.login.sessionToken, raceId, capability: "PAIR_STATION"
+      sessionToken: first.login.sessionToken, raceId, capability: "IMPORT_IOF"
     }, new Date("2026-08-31T14:04:00.000Z"))).resolves.toEqual({ status: "unauthorized" });
-    let bodyReads = 0;
-    await expect(issuePairingGrantAsAdmin(db, {
-      sessionToken: first.login.sessionToken, raceId, capability: "PAIR_STATION",
-      csrfCookie: first.login.csrfToken, csrfHeader: first.login.csrfToken,
-      idempotencyKey: `pairing-grant:${crypto.randomUUID()}`,
-      readBody: async () => { bodyReads += 1; return {}; }
-    }, new Date("2026-08-31T14:04:00.000Z"))).resolves.toEqual({ status: "unauthorized" });
-    expect(bodyReads).toBe(0);
 
     const second = await adminSession(raceId, 111);
     await revokePairingAdminAccessCredential(db, {
       credentialId: second.installation.credentialId,
-      capability: "PAIR_STATION"
+      capability: "IMPORT_IOF"
     },
       new Date("2026-08-31T14:03:00.000Z"));
     await expect(authenticatePairingAdminSession(db, {
-      sessionToken: second.login.sessionToken, raceId, capability: "PAIR_STATION"
+      sessionToken: second.login.sessionToken, raceId, capability: "IMPORT_IOF"
     }, new Date("2026-08-31T14:04:00.000Z"))).resolves.toEqual({ status: "unauthorized" });
     const [credential] = await db.select().from(schema.pairingAdminAccessCredentials)
       .where(eq(schema.pairingAdminAccessCredentials.id, second.installation.credentialId));
@@ -556,7 +361,7 @@ describe("TASK 005G autentiserad IOF-import PostgreSQL", () => {
     await expect(authenticatePairingAdminSession(db, {
       sessionToken: admin.login.sessionToken,
       raceId,
-      capability: "PAIR_STATION"
+      capability: "VIEW_START_LIST"
     }, usedAt)).resolves.toEqual({ status: "forbidden" });
 
     const beforeSessions = await db.select({ value: count() }).from(schema.pairingAdminSessions);
@@ -573,14 +378,14 @@ describe("TASK 005G autentiserad IOF-import PostgreSQL", () => {
       accessCredential: admin.installation.accessCredential
     }, {
       expectedRaceId: raceId,
-      expectedCapability: "PAIR_STATION",
+      expectedCapability: "VIEW_START_LIST",
       now: usedAt
     })).resolves.toEqual({ status: "unauthorized" });
     const afterSessions = await db.select({ value: count() }).from(schema.pairingAdminSessions);
     expect(afterSessions[0]?.value).toBe(beforeSessions[0]?.value);
     await expect(revokePairingAdminAccessCredential(db, {
       credentialId: admin.installation.credentialId,
-      capability: "PAIR_STATION"
+      capability: "VIEW_START_LIST"
     }, usedAt)).rejects.toThrow(/finns inte/);
     await expect(authenticatePairingAdminSession(db, {
       sessionToken: admin.login.sessionToken,
@@ -709,7 +514,7 @@ describe("TASK 005G autentiserad IOF-import PostgreSQL", () => {
     await expect(logoutPairingAdminSession(db, {
       sessionToken: admin.login.sessionToken,
       raceId,
-      capability: "PAIR_STATION",
+      capability: "VIEW_START_LIST",
       csrfCookie: admin.login.csrfToken,
       csrfHeader: admin.login.csrfToken
     }, usedAt)).resolves.toEqual({ status: "forbidden" });
@@ -769,8 +574,7 @@ describe("TASK 005G autentiserad IOF-import PostgreSQL", () => {
       .where(eq(schema.cardReadouts.raceId, raceId));
     const revisionsBefore = await db.select().from(schema.resultRevisions)
       .where(eq(schema.resultRevisions.raceId, raceId));
-    const oldSigned = await buildSignedStationPackage(db, raceId, stationPackagePrivateKeyPem);
-    const oldPayload = verifySignedStationPackage(oldSigned, stationPackagePublicKeySpkiBase64);
+    const oldPayload = await readoutPackage(raceId);
 
     const result = await importIofXmlAsAdmin(
       db,
@@ -850,9 +654,7 @@ describe("TASK 005G autentiserad IOF-import PostgreSQL", () => {
     expect(JSON.stringify(audits)).not.toContain("entry-ada");
     expect(JSON.stringify(audits)).not.toContain(startListXml);
 
-    const signed = await buildSignedStationPackage(db, raceId, stationPackagePrivateKeyPem);
-    const payload = verifySignedStationPackage(signed, stationPackagePublicKeySpkiBase64);
-    expect(verifySignedStationPackage(oldSigned, stationPackagePublicKeySpkiBase64)).toEqual(oldPayload);
+    const payload = await readoutPackage(raceId);
     expect(oldPayload.raceSnapshot.classes.find((item) => item.externalIdentity?.externalId === "class-h21")?.startRule)
       .toBe("PUNCH");
     expect(oldPayload.raceSnapshot.entries.find((item) => item.externalIdentity?.externalId === "entry-ada")?.fixedStartTime)
@@ -1971,7 +1773,7 @@ describe("TASK 006Q direktanmälan PostgreSQL", () => {
     expect(result.response).toMatchObject({ givenName: "Anna", familyName: "Andersson", entryVersion: 1 });
     expect(await publicResults(db, raceId)).toEqual(original);
     expect(await db.select().from(schema.resultRevisions).where(eq(schema.resultRevisions.entryId, result.response.entryId))).toHaveLength(0);
-    const packet = verifySignedStationPackage(await buildSignedStationPackage(db, raceId, stationPackagePrivateKeyPem), stationPackagePublicKeySpkiBase64);
+    const packet = await readoutPackage(raceId);
     expect(packet.packageVersion).toBe(request.request.expectedSnapshotVersion + 1);
     expect(packet.raceSnapshot.entries.find((row) => row.id === result.response.entryId)).toBeDefined();
     expect(packet.raceSnapshot.cardAssignments.find((row) => row.cardNumber === "54321")).toMatchObject({ entryId: result.response.entryId, active: true });
@@ -2073,7 +1875,7 @@ describe("TASK 006P individuellt brickbyte PostgreSQL", () => {
     expect(await changeEntryCardAsAdmin(db, request, now)).toEqual({ status: "changed", response: { ...result.response, replayed: true } });
     expect(await publicResults(db, raceId)).toEqual(oldResults);
     expect(await db.select().from(schema.rawDeviceMessages).where(eq(schema.rawDeviceMessages.raceId, raceId)).orderBy(asc(schema.rawDeviceMessages.id))).toEqual(raw);
-    const packet = verifySignedStationPackage(await buildSignedStationPackage(db, raceId, stationPackagePrivateKeyPem), stationPackagePublicKeySpkiBase64);
+    const packet = await readoutPackage(raceId);
     expect(packet.packageVersion).toBe(request.request.expectedSnapshotVersion + 1);
     expect(packet.raceSnapshot.cardAssignments.find((row) => row.cardNumber === "12345")?.active).toBe(false);
     expect(packet.raceSnapshot.cardAssignments.find((row) => row.cardNumber === "54321")?.active).toBe(true);
@@ -2232,7 +2034,7 @@ describe("TASK 006O individuell fast starttid PostgreSQL", () => {
     const raw = await db.select().from(schema.rawDeviceMessages).where(eq(schema.rawDeviceMessages.raceId, f.raceId));
     const readouts = await db.select().from(schema.cardReadouts).where(eq(schema.cardReadouts.raceId, f.raceId));
     const publicBefore = await publicResults(db, f.raceId);
-    const oldPackage = await buildSignedStationPackage(db, f.raceId, stationPackagePrivateKeyPem);
+    const oldPackage = await readoutPackage(f.raceId);
     const saved = await changeEntryStartTimeAsAdmin(db, f.input, now);
     expect(saved.status).toBe("changed");
     expect(await publicResults(db, f.raceId)).toEqual(publicBefore);
@@ -2242,10 +2044,10 @@ describe("TASK 006O individuell fast starttid PostgreSQL", () => {
     const stale = await listResultFinalizationCandidatesAsAdmin(db, finalAuth, now);
     if (stale.status !== "ok") throw new Error("Finaliseringslista saknas");
     expect(stale.response.classes.find((row) => row.classId === f.entry.classId)?.blockerCodes).toContain("STALE_RESULT_SNAPSHOT");
-    const nextPackage = verifySignedStationPackage(await buildSignedStationPackage(db, f.raceId, stationPackagePrivateKeyPem), stationPackagePublicKeySpkiBase64);
+    const nextPackage = await readoutPackage(f.raceId);
     expect(nextPackage.packageVersion).toBe(f.input.request.expectedSnapshotVersion + 1);
     expect(nextPackage.raceSnapshot.entries.find((row) => row.id === f.entry.id)?.fixedStartTime).toBe("2026-08-31T08:05:00.000Z");
-    expect(verifySignedStationPackage(oldPackage, stationPackagePublicKeySpkiBase64).raceSnapshot.entries.find((row) => row.id === f.entry.id)?.fixedStartTime).toBe("2026-08-31T08:00:00.000Z");
+    expect(oldPackage.raceSnapshot.entries.find((row) => row.id === f.entry.id)?.fixedStartTime).toBe("2026-08-31T08:00:00.000Z");
     const recalcAuth = await access(f.raceId, "RECALCULATE_RESULT");
     const list = await listResultRecalculationCandidatesAsAdmin(db, recalcAuth, now);
     if (list.status !== "ok") throw new Error("Omräkningslista saknas");
@@ -2335,329 +2137,6 @@ describe("TASK 006O individuell fast starttid PostgreSQL", () => {
     const isNew = last.snapshotVersion === f.input.request.expectedSnapshotVersion + 1;
     expect(last.snapshotVersion).toBe(isNew ? f.input.request.expectedSnapshotVersion + 1 : f.input.request.expectedSnapshotVersion);
     expect(last.evaluation).toMatchObject({ elapsedMs: (isNew ? 35 : 40) * 60_000 });
-  });
-});
-
-describe("TASK 005K autentiserat idempotent eventskapande PostgreSQL", () => {
-  const issuedAt = new Date("2026-08-31T06:00:00.000Z");
-  const usedAt = new Date("2026-08-31T06:02:00.000Z");
-  const baseIntent = {
-    formatVersion: 1 as const,
-    eventName: "Nattcupen final",
-    raceName: "Individuellt",
-    raceDate: "2026-09-12",
-    timeZone: "Europe/Stockholm"
-  };
-
-  async function eventCreationAdmin(marker: number) {
-    const installation = await issueEventCreationAccessCredential(db, {
-      label: `Tävlingsskapare ${marker}`,
-      expiresAt: new Date("2026-08-31T14:00:00.000Z")
-    }, { now: issuedAt, secretBytes: Buffer.alloc(32, marker) });
-    const login = await loginEventCreationAdmin(db, {
-      formatVersion: 1,
-      accessCredential: installation.accessCredential
-    }, {
-      now: new Date("2026-08-31T06:01:00.000Z"),
-      sessionSecretBytes: Buffer.alloc(32, marker + 1),
-      csrfSecretBytes: Buffer.alloc(32, marker + 2)
-    });
-    if (login.status !== "authenticated") throw new Error("Eventskaparsession kunde inte skapas");
-    return { installation, login };
-  }
-
-  function createInput(
-    admin: Awaited<ReturnType<typeof eventCreationAdmin>>,
-    requestId: string,
-    body: unknown = baseIntent,
-    onRead?: () => void
-  ) {
-    return {
-      sessionToken: admin.login.sessionToken,
-      csrfCookie: admin.login.csrfToken,
-      csrfHeader: admin.login.csrfToken,
-      idempotencyKey: `event-create:${requestId}`,
-      readBody: async () => { onRead?.(); return body; }
-    };
-  }
-
-  it("skapar atomiskt, auditerar utan hemligheter och gör 100 samtidiga retries exakta", async () => {
-    const admin = await eventCreationAdmin(171);
-    expect(admin.login.response).toEqual({
-      formatVersion: 1,
-      capability: "CREATE_EVENT",
-      expiresAt: "2026-08-31T07:01:00.000Z"
-    });
-    const requestId = crypto.randomUUID();
-    const responses = await Promise.all(Array.from({ length: 100 }, () =>
-      createEventAsAdmin(db, createInput(admin, requestId), usedAt)
-    ));
-    expect(responses.every((response) => response.status === "created")).toBe(true);
-    const created = responses.flatMap((response) => response.status === "created" ? [response.response] : []);
-    expect(created.filter((response) => !response.replayed)).toHaveLength(1);
-    expect(created.filter((response) => response.replayed)).toHaveLength(99);
-    expect(new Set(created.map((response) => response.eventId)).size).toBe(1);
-    expect(new Set(created.map((response) => response.raceId)).size).toBe(1);
-    expect(new Set(created.map((response) => response.createdAt))).toEqual(new Set([usedAt.toISOString()]));
-
-    const requests = await db.select().from(schema.eventCreationRequests)
-      .where(eq(schema.eventCreationRequests.requestId, requestId));
-    const events = await db.select().from(schema.events)
-      .where(eq(schema.events.id, created[0]!.eventId));
-    const races = await db.select().from(schema.races)
-      .where(eq(schema.races.id, created[0]!.raceId));
-    const audits = await db.select().from(schema.auditEvents).where(and(
-      eq(schema.auditEvents.requestId, requestId),
-      eq(schema.auditEvents.action, "EVENT_CREATED_BY_ADMIN")
-    ));
-    const [credential] = await db.select().from(schema.eventCreationAccessCredentials)
-      .where(eq(schema.eventCreationAccessCredentials.id, admin.installation.credentialId));
-    const [session] = await db.select().from(schema.eventCreationSessions)
-      .where(eq(schema.eventCreationSessions.accessCredentialId, admin.installation.credentialId));
-    expect(credential?.secretHash).toMatch(/^[a-f0-9]{64}$/);
-    expect(session?.sessionSecretHash).toMatch(/^[a-f0-9]{64}$/);
-    expect(session?.csrfSecretHash).toMatch(/^[a-f0-9]{64}$/);
-    expect(requests).toHaveLength(1);
-    expect(requests[0]).toMatchObject({
-      actorCredentialId: admin.installation.credentialId,
-      eventName: baseIntent.eventName,
-      raceName: baseIntent.raceName,
-      raceDate: baseIntent.raceDate,
-      timeZone: baseIntent.timeZone,
-      eventId: created[0]!.eventId,
-      raceId: created[0]!.raceId,
-      createdAt: usedAt
-    });
-    expect(events).toHaveLength(1);
-    expect(events[0]).toMatchObject({
-      name: baseIntent.eventName,
-      startsOn: baseIntent.raceDate,
-      timeZone: baseIntent.timeZone,
-      createdAt: usedAt
-    });
-    expect(races).toHaveLength(1);
-    expect(races[0]).toMatchObject({
-      eventId: created[0]!.eventId,
-      name: baseIntent.raceName,
-      raceDate: baseIntent.raceDate,
-      snapshotVersion: 1,
-      createdAt: usedAt
-    });
-    expect(audits).toHaveLength(1);
-    expect(audits[0]).toMatchObject({
-      raceId: created[0]!.raceId,
-      entityType: "event",
-      entityId: created[0]!.eventId,
-      action: "EVENT_CREATED_BY_ADMIN",
-      actorKind: "EVENT_CREATION_ACCESS_CREDENTIAL",
-      actorId: admin.installation.credentialId,
-      requestId
-    });
-    const storedSecurity = JSON.stringify({ credential, session });
-    const mutationEvidence = JSON.stringify({ requests, audits });
-    for (const value of [admin.installation.accessCredential, admin.login.sessionToken, admin.login.csrfToken]) {
-      expect(storedSecurity).not.toContain(value);
-      expect(mutationEvidence).not.toContain(value);
-    }
-    expect(mutationEvidence).not.toContain("secretHash");
-
-    const [sessionsBeforeExpiry] = await db.select({ value: count() }).from(schema.eventCreationSessions)
-      .where(eq(schema.eventCreationSessions.accessCredentialId, admin.installation.credentialId));
-    await expect(loginEventCreationAdmin(db, {
-      formatVersion: 1,
-      accessCredential: admin.installation.accessCredential
-    }, { now: new Date("2026-08-31T14:00:00.000Z") })).resolves.toEqual({ status: "unauthorized" });
-    const [sessionsAfterExpiry] = await db.select({ value: count() }).from(schema.eventCreationSessions)
-      .where(eq(schema.eventCreationSessions.accessCredentialId, admin.installation.credentialId));
-    expect(sessionsAfterExpiry?.value).toBe(sessionsBeforeExpiry?.value);
-  });
-
-  it("returnerar originalcreatedAt vid replay och konflikt för varje ändrat intentfält eller aktör", async () => {
-    const firstAdmin = await eventCreationAdmin(181);
-    const secondAdmin = await eventCreationAdmin(191);
-    const requestId = crypto.randomUUID();
-    const first = await createEventAsAdmin(db, createInput(firstAdmin, requestId), usedAt);
-    if (first.status !== "created") throw new Error("Första eventet skapades inte");
-    const replay = await createEventAsAdmin(db, createInput(firstAdmin, requestId), new Date(usedAt.getTime() + 60_000));
-    expect(replay).toEqual({
-      status: "created",
-      response: { ...first.response, replayed: true }
-    });
-
-    const changedBodies = [
-      { ...baseIntent, eventName: "Annan nattcup" },
-      { ...baseIntent, raceName: "Annat lopp" },
-      { ...baseIntent, raceDate: "2026-09-13" },
-      { ...baseIntent, timeZone: "Europe/Oslo" }
-    ];
-    for (const body of changedBodies) {
-      await expect(createEventAsAdmin(db, createInput(firstAdmin, requestId, body), usedAt))
-        .resolves.toEqual({ status: "conflict" });
-    }
-    await expect(createEventAsAdmin(db, createInput(secondAdmin, requestId), usedAt))
-      .resolves.toEqual({ status: "conflict" });
-    const separateDecision = await createEventAsAdmin(db, createInput(
-      secondAdmin,
-      crypto.randomUUID()
-    ), usedAt);
-    expect(separateDecision.status).toBe("created");
-    if (separateDecision.status === "created") {
-      expect(separateDecision.response.eventId).not.toBe(first.response.eventId);
-      expect(separateDecision.response.raceId).not.toBe(first.response.raceId);
-    }
-    expect(await db.select().from(schema.eventCreationRequests)
-      .where(eq(schema.eventCreationRequests.requestId, requestId))).toHaveLength(1);
-    expect(await db.select().from(schema.auditEvents).where(and(
-      eq(schema.auditEvents.requestId, requestId),
-      eq(schema.auditEvents.action, "EVENT_CREATED_BY_ADMIN")
-    ))).toHaveLength(1);
-  });
-
-  it("autentiserar och validerar key före body samt avvisar ogiltig strict body", async () => {
-    const admin = await eventCreationAdmin(201);
-    let reads = 0;
-    const countRead = () => { reads += 1; };
-    await expect(createEventAsAdmin(db, {
-      ...createInput(admin, crypto.randomUUID(), baseIntent, countRead),
-      sessionToken: "felaktig-session"
-    }, usedAt)).resolves.toEqual({ status: "unauthorized" });
-    await expect(createEventAsAdmin(db, {
-      ...createInput(admin, crypto.randomUUID(), baseIntent, countRead),
-      csrfHeader: "A".repeat(43)
-    }, usedAt)).resolves.toEqual({ status: "forbidden" });
-    await expect(createEventAsAdmin(db, {
-      ...createInput(admin, crypto.randomUUID(), baseIntent, countRead),
-      idempotencyKey: "event-create:INTE-UUID"
-    }, usedAt)).resolves.toEqual({ status: "invalid-request" });
-    expect(reads).toBe(0);
-
-    await expect(createEventAsAdmin(db, createInput(admin, crypto.randomUUID(), {
-      ...baseIntent,
-      extra: "avvisas"
-    }, countRead), usedAt)).resolves.toEqual({ status: "invalid-request" });
-    expect(reads).toBe(1);
-  });
-
-  it("stoppar efter logout och credentialrevocation utan att läsa body", async () => {
-    const loggedOut = await eventCreationAdmin(211);
-    await expect(logoutEventCreationAdminSession(db, {
-      sessionToken: loggedOut.login.sessionToken,
-      csrfCookie: loggedOut.login.csrfToken,
-      csrfHeader: loggedOut.login.csrfToken
-    }, usedAt)).resolves.toEqual({ status: "logged-out" });
-    let reads = 0;
-    await expect(createEventAsAdmin(db, createInput(loggedOut, crypto.randomUUID(), baseIntent, () => {
-      reads += 1;
-    }), usedAt)).resolves.toEqual({ status: "unauthorized" });
-
-    const revoked = await eventCreationAdmin(221);
-    await expect(revokeEventCreationAccessCredential(db, {
-      credentialId: revoked.installation.credentialId
-    }, usedAt)).resolves.toMatchObject({ status: "revoked" });
-    await expect(createEventAsAdmin(db, createInput(revoked, crypto.randomUUID(), baseIntent, () => {
-      reads += 1;
-    }), usedAt)).resolves.toEqual({ status: "unauthorized" });
-    await expect(loginEventCreationAdmin(db, {
-      formatVersion: 1,
-      accessCredential: revoked.installation.accessCredential
-    }, { now: usedAt })).resolves.toEqual({ status: "unauthorized" });
-    expect(reads).toBe(0);
-  });
-
-  it("rullar tillbaka event och race när auditinsert misslyckas", async () => {
-    const admin = await eventCreationAdmin(231);
-    const requestId = crypto.randomUUID();
-    const eventName = `Rollback ${crypto.randomUUID()}`;
-    await db.execute(sql`drop trigger if exists task_005k_reject_audit on audit_event`);
-    await db.execute(sql`drop function if exists task_005k_reject_audit()`);
-    await db.execute(sql`
-      create function task_005k_reject_audit() returns trigger language plpgsql as $$
-      begin
-        if NEW.action = 'EVENT_CREATED_BY_ADMIN' then raise exception 'task 005k rollback'; end if;
-        return NEW;
-      end $$
-    `);
-    await db.execute(sql`
-      create trigger task_005k_reject_audit before insert on audit_event
-      for each row execute function task_005k_reject_audit()
-    `);
-    try {
-      await expect(createEventAsAdmin(db, createInput(admin, requestId, {
-        ...baseIntent,
-        eventName
-      }), usedAt)).rejects.toThrow();
-    } finally {
-      await db.execute(sql`drop trigger if exists task_005k_reject_audit on audit_event`);
-      await db.execute(sql`drop function if exists task_005k_reject_audit()`);
-    }
-    expect(await db.select().from(schema.events).where(eq(schema.events.name, eventName))).toHaveLength(0);
-    expect(await db.select().from(schema.eventCreationRequests)
-      .where(eq(schema.eventCreationRequests.requestId, requestId))).toHaveLength(0);
-    expect(await db.select().from(schema.auditEvents).where(eq(schema.auditEvents.requestId, requestId)))
-      .toHaveLength(0);
-  });
-
-  it("avvisar update/delete av credential-, session-, revocation-, journal- och auditbevis", async () => {
-    const admin = await eventCreationAdmin(241);
-    const requestId = crypto.randomUUID();
-    const created = await createEventAsAdmin(db, createInput(admin, requestId), usedAt);
-    if (created.status !== "created") throw new Error("Eventet skapades inte");
-    await logoutEventCreationAdminSession(db, {
-      sessionToken: admin.login.sessionToken,
-      csrfCookie: admin.login.csrfToken,
-      csrfHeader: admin.login.csrfToken
-    }, usedAt);
-    await revokeEventCreationAccessCredential(db, {
-      credentialId: admin.installation.credentialId
-    }, usedAt);
-    const [session] = await db.select().from(schema.eventCreationSessions)
-      .where(eq(schema.eventCreationSessions.accessCredentialId, admin.installation.credentialId));
-    const [sessionRevocation] = await db.select().from(schema.eventCreationSessionRevocations)
-      .where(eq(schema.eventCreationSessionRevocations.sessionId, session?.id ?? crypto.randomUUID()));
-    const [credentialRevocation] = await db.select().from(schema.eventCreationAccessCredentialRevocations)
-      .where(eq(schema.eventCreationAccessCredentialRevocations.credentialId, admin.installation.credentialId));
-    const [request] = await db.select().from(schema.eventCreationRequests)
-      .where(eq(schema.eventCreationRequests.requestId, requestId));
-    const [audit] = await db.select().from(schema.auditEvents).where(eq(schema.auditEvents.requestId, requestId));
-    if (!session || !sessionRevocation || !credentialRevocation || !request || !audit) {
-      throw new Error("005K-bevisrader saknas");
-    }
-    await expect(db.update(schema.eventCreationAccessCredentials).set({ label: "Ändrad" })
-      .where(eq(schema.eventCreationAccessCredentials.id, admin.installation.credentialId))).rejects.toThrow();
-    await expect(db.delete(schema.eventCreationSessions)
-      .where(eq(schema.eventCreationSessions.id, session.id))).rejects.toThrow();
-    await expect(db.update(schema.eventCreationSessionRevocations).set({ reason: "Ändrad" })
-      .where(eq(schema.eventCreationSessionRevocations.id, sessionRevocation.id))).rejects.toThrow();
-    await expect(db.delete(schema.eventCreationAccessCredentialRevocations)
-      .where(eq(schema.eventCreationAccessCredentialRevocations.id, credentialRevocation.id))).rejects.toThrow();
-    await expect(db.update(schema.eventCreationRequests).set({ eventName: "Ändrat" })
-      .where(eq(schema.eventCreationRequests.id, request.id))).rejects.toThrow();
-    await expect(db.delete(schema.auditEvents).where(eq(schema.auditEvents.id, audit.id))).rejects.toThrow();
-  });
-
-  it("serialiserar samtidig create och revocation till full commit eller ingen domänwrite", async () => {
-    const admin = await eventCreationAdmin(251);
-    const requestId = crypto.randomUUID();
-    const [creation, revocation] = await Promise.all([
-      createEventAsAdmin(db, createInput(admin, requestId), usedAt),
-      revokeEventCreationAccessCredential(db, { credentialId: admin.installation.credentialId }, usedAt)
-    ]);
-    expect(revocation.status).toBe("revoked");
-    expect(["created", "unauthorized"]).toContain(creation.status);
-    const requests = await db.select().from(schema.eventCreationRequests)
-      .where(eq(schema.eventCreationRequests.requestId, requestId));
-    const audits = await db.select().from(schema.auditEvents).where(and(
-      eq(schema.auditEvents.requestId, requestId),
-      eq(schema.auditEvents.action, "EVENT_CREATED_BY_ADMIN")
-    ));
-    expect(requests).toHaveLength(creation.status === "created" ? 1 : 0);
-    expect(audits).toHaveLength(creation.status === "created" ? 1 : 0);
-    if (creation.status === "created") {
-      expect(await db.select().from(schema.events).where(eq(schema.events.id, creation.response.eventId)))
-        .toHaveLength(1);
-      expect(await db.select().from(schema.races).where(eq(schema.races.id, creation.response.raceId)))
-        .toHaveLength(1);
-    }
   });
 });
 
@@ -2788,16 +2267,16 @@ describe("TASK 005J capability-skyddad raceöversikt PostgreSQL", () => {
 
     const pairingCredential = await issuePairingAdminAccessCredential(db, {
       raceId: fixture.raceId,
-      capability: "PAIR_STATION",
+      capability: "VIEW_START_LIST",
       label: "Fel capability",
-      expiresAt: new Date("2026-09-01T20:00:00.000Z")
+      expiresAt: new Date("2026-09-01T04:00:00.000Z")
     }, { now: issuedAt, secretBytes: Buffer.alloc(32, 124) });
     const pairingLogin = await loginPairingAdmin(db, {
       formatVersion: 1,
       accessCredential: pairingCredential.accessCredential
     }, {
       expectedRaceId: fixture.raceId,
-      expectedCapability: "PAIR_STATION",
+      expectedCapability: "VIEW_START_LIST",
       now: new Date("2026-08-31T20:01:00.000Z"),
       sessionSecretBytes: Buffer.alloc(32, 125),
       csrfSecretBytes: Buffer.alloc(32, 126)
@@ -2825,7 +2304,7 @@ describe("TASK 005J capability-skyddad raceöversikt PostgreSQL", () => {
     await expect(logoutPairingAdminSession(db, {
       sessionToken: loggedOut.login.sessionToken,
       raceId: fixture.raceId,
-      capability: "PAIR_STATION",
+      capability: "VIEW_START_LIST",
       csrfCookie: loggedOut.login.csrfToken,
       csrfHeader: loggedOut.login.csrfToken
     }, usedAt)).resolves.toEqual({ status: "forbidden" });
@@ -2844,7 +2323,7 @@ describe("TASK 005J capability-skyddad raceöversikt PostgreSQL", () => {
     const revoked = await overviewAdmin(fixture.raceId, 141);
     await expect(revokePairingAdminAccessCredential(db, {
       credentialId: revoked.installation.credentialId,
-      capability: "PAIR_STATION"
+      capability: "VIEW_START_LIST"
     }, usedAt)).rejects.toThrow(/finns inte/);
     await expect(revokePairingAdminAccessCredential(db, {
       credentialId: revoked.installation.credentialId,
@@ -3319,546 +2798,6 @@ describe("TASK 005C beständigt serverutfall", () => {
   });
 });
 
-describe("TASK 005A signerat stationspaket", () => {
-  it("bygger samma signerade bytes deterministiskt med komplett och explicit sorterad snapshot", async () => {
-    const { raceId, overview } = await importedRace();
-    const first = await buildSignedStationPackage(db, raceId, stationPackagePrivateKeyPem);
-    const second = await buildSignedStationPackage(db, raceId, stationPackagePrivateKeyPem);
-    expect(second).toEqual(first);
-
-    const payload = verifySignedStationPackage(first, stationPackagePublicKeySpkiBase64);
-    expect(payload).toMatchObject({
-      formatVersion: 1,
-      raceId,
-      packageVersion: overview.race.snapshotVersion,
-      resultEngineVersion: "0.2.0",
-      stationFunction: "READOUT",
-      event: {
-        name: overview.race.eventName,
-        startsOn: overview.race.raceDate,
-        timeZone: "Europe/Stockholm"
-      },
-      raceSnapshot: {
-        race: {
-          id: overview.race.id,
-          name: overview.race.name,
-          raceDate: overview.race.raceDate,
-          snapshotVersion: overview.race.snapshotVersion
-        }
-      }
-    });
-    expect(payload.raceSnapshot.race.eventId).toBe(payload.event.id);
-    expect(payload.raceSnapshot.entries.some((entry) => entry.givenName === "Ada")).toBe(true);
-    expect(payload.raceSnapshot.cardAssignments.some((assignment) => assignment.cardNumber === "12345")).toBe(true);
-
-    expect(payload.raceSnapshot.classes.map((item) => item.id))
-      .toEqual(payload.raceSnapshot.classes.map((item) => item.id).sort());
-    expect(payload.raceSnapshot.courses.map((item) => item.id))
-      .toEqual(payload.raceSnapshot.courses.map((item) => item.id).sort());
-    expect(payload.raceSnapshot.entries.map((item) => item.id))
-      .toEqual(payload.raceSnapshot.entries.map((item) => item.id).sort());
-    expect(payload.raceSnapshot.cardAssignments.map((item) => item.id))
-      .toEqual(payload.raceSnapshot.cardAssignments.map((item) => item.id).sort());
-    for (const course of payload.raceSnapshot.courses) {
-      expect(course.versions.map((version) => [version.version, version.id]))
-        .toEqual(course.versions.map((version) => [version.version, version.id])
-          .sort(([leftVersion, leftId], [rightVersion, rightId]) =>
-            Number(leftVersion) - Number(rightVersion) || String(leftId).localeCompare(String(rightId))));
-      for (const version of course.versions) {
-        expect(version.controls.map((control) => [control.sequence, control.id]))
-          .toEqual(version.controls.map((control) => [control.sequence, control.id])
-            .sort(([leftSequence, leftId], [rightSequence, rightId]) =>
-              Number(leftSequence) - Number(rightSequence) || String(leftId).localeCompare(String(rightId))));
-      }
-    }
-  });
-
-  it("ger paketbyggaren en hel snapshot före eller efter en samtidig mutation", async () => {
-    const { raceId, overview } = await importedRace();
-    const ada = overview.entries.find((entry) => entry.givenName === "Ada");
-    const h21 = overview.classes.find((raceClass) => raceClass.name === "H21");
-    const d21 = overview.classes.find((raceClass) => raceClass.name === "D21");
-    if (!ada || !h21 || !d21) throw new Error("Fixture saknar Ada, H21 eller D21");
-
-    const [envelope] = await Promise.all([
-      buildSignedStationPackage(db, raceId, stationPackagePrivateKeyPem),
-      changeEntryClass(db, raceId, ada.id, d21.id)
-    ]);
-    const payload = verifySignedStationPackage(envelope, stationPackagePublicKeySpkiBase64);
-    const packagedAda = payload.raceSnapshot.entries.find((entry) => entry.id === ada.id);
-    const expectedClassId = payload.packageVersion === overview.race.snapshotVersion
-      ? h21.id
-      : payload.packageVersion === overview.race.snapshotVersion + 1 ? d21.id : undefined;
-    expect(expectedClassId).toBeDefined();
-    expect(packagedAda?.classId).toBe(expectedClassId);
-  });
-});
-
-describe("TASK 005D device-bundna stationscredentials", () => {
-  const issuedAt = new Date("2026-08-31T12:00:00.000Z");
-  const expiresAt = new Date("2026-09-01T12:00:00.000Z");
-
-  it("utfärdar exakt nativeformat, lagrar bara secrethash och verifierar strikt bearer", async () => {
-    const { raceId } = await importedRace();
-    const deviceId = crypto.randomUUID();
-    const secret = Buffer.alloc(32, 7);
-    const issued = await issueStationCredential(db, {
-      deviceId,
-      raceId,
-      scope: "READOUT",
-      expiresAt
-    }, { now: issuedAt, secretBytes: secret });
-
-    expect(issued).toEqual({
-      formatVersion: 1,
-      token: `otid_stn_v1.${issued.credentialId}.${secret.toString("base64url")}`,
-      credentialId: issued.credentialId,
-      deviceId,
-      raceId,
-      scope: "READOUT",
-      generation: 1,
-      issuedAt: issuedAt.toISOString(),
-      expiresAt: expiresAt.toISOString()
-    });
-    const [device] = await db.select().from(schema.stationDevices)
-      .where(eq(schema.stationDevices.deviceId, deviceId));
-    const [credential] = await db.select().from(schema.stationCredentials)
-      .where(eq(schema.stationCredentials.id, issued.credentialId));
-    expect(device).toBeDefined();
-    expect(device?.id).not.toBe(deviceId);
-    expect(credential?.stationDeviceId).toBe(device?.id);
-    expect(credential?.secretHash).toBe(createHash("sha256").update(secret).digest("hex"));
-    expect(JSON.stringify(credential)).not.toContain(issued.token);
-
-    const authenticated = await authenticateStationBearer(db, `Bearer ${issued.token}`, new Date("2026-08-31T13:00:00Z"));
-    expect(authenticated).toMatchObject({
-      status: "authenticated",
-      principal: { credentialId: issued.credentialId, deviceId, raceId, scope: "READOUT", generation: 1 }
-    });
-    if (authenticated.status !== "authenticated") throw new Error("Credentialen autentiserades inte");
-    expect(hasStationCredentialScope(authenticated.principal, { raceId, deviceId, scope: "READOUT" })).toBe(true);
-    expect(hasStationCredentialScope(authenticated.principal, {
-      raceId: crypto.randomUUID(), deviceId, scope: "READOUT"
-    })).toBe(false);
-    expect(hasStationCredentialScope(authenticated.principal, {
-      raceId, deviceId: crypto.randomUUID(), scope: "READOUT"
-    })).toBe(false);
-    expect(hasStationCredentialScope(authenticated.principal, { raceId, deviceId, scope: "START" })).toBe(false);
-
-    const otherSecret = Buffer.alloc(32, 8).toString("base64url");
-    const unknownCredential = crypto.randomUUID();
-    await expect(authenticateStationBearer(db, `Bearer otid_stn_v1.${issued.credentialId}.${otherSecret}`, issuedAt))
-      .resolves.toEqual({ status: "unauthorized" });
-    await expect(authenticateStationBearer(db, `Bearer otid_stn_v1.${unknownCredential}.${otherSecret}`, issuedAt))
-      .resolves.toEqual({ status: "unauthorized" });
-    await expect(authenticateStationBearer(db, issued.token, issuedAt))
-      .resolves.toEqual({ status: "unauthorized" });
-    await expect(authenticateStationBearer(db, `bearer ${issued.token}`, issuedAt))
-      .resolves.toEqual({ status: "unauthorized" });
-    await expect(authenticateStationBearer(db, `Bearer ${issued.token}=`, issuedAt))
-      .resolves.toEqual({ status: "unauthorized" });
-    await expect(authenticateStationBearer(db, `Bearer ${issued.token}`, expiresAt))
-      .resolves.toEqual({ status: "unauthorized" });
-
-    const audits = await db.select().from(schema.auditEvents)
-      .where(eq(schema.auditEvents.entityId, issued.credentialId));
-    expect(audits).toHaveLength(1);
-    expect(audits[0]).toMatchObject({ action: "STATION_CREDENTIAL_ISSUED", after: {
-      generation: 1, scope: "READOUT", issuedAt: issuedAt.toISOString(), expiresAt: expiresAt.toISOString()
-    } });
-    const serializedAudit = JSON.stringify(audits);
-    expect(serializedAudit).not.toContain(issued.token);
-    expect(serializedAudit).not.toContain(credential?.secretHash ?? "saknad-hash");
-  });
-
-  it("roterar med ökande generation och spärrar endast vald credential append-only", async () => {
-    const { raceId } = await importedRace();
-    const deviceId = crypto.randomUUID();
-    const first = await issueStationCredential(db, {
-      deviceId, raceId, scope: "READOUT", expiresAt
-    }, { now: issuedAt, secretBytes: Buffer.alloc(32, 11) });
-    const rotatedAt = new Date("2026-08-31T13:00:00.000Z");
-    const second = await rotateStationCredential(db, {
-      credentialId: first.credentialId,
-      expiresAt: new Date("2026-09-02T12:00:00.000Z")
-    }, { now: rotatedAt, secretBytes: Buffer.alloc(32, 12) });
-
-    expect(second).toMatchObject({
-      formatVersion: 1, deviceId, raceId, scope: "READOUT", generation: 2,
-      issuedAt: rotatedAt.toISOString()
-    });
-    await expect(authenticateStationBearer(db, `Bearer ${first.token}`, rotatedAt))
-      .resolves.toMatchObject({ status: "authenticated" });
-    await expect(authenticateStationBearer(db, `Bearer ${second.token}`, rotatedAt))
-      .resolves.toMatchObject({ status: "authenticated" });
-
-    const revokedAt = new Date("2026-08-31T14:00:00.000Z");
-    await expect(revokeStationCredential(db, { credentialId: first.credentialId }, revokedAt))
-      .resolves.toEqual({ status: "revoked", credentialId: first.credentialId, revokedAt: revokedAt.toISOString() });
-    await expect(revokeStationCredential(db, { credentialId: first.credentialId }, new Date("2026-08-31T15:00:00Z")))
-      .resolves.toEqual({ status: "already-revoked", credentialId: first.credentialId, revokedAt: revokedAt.toISOString() });
-    await expect(authenticateStationBearer(db, `Bearer ${first.token}`, revokedAt))
-      .resolves.toEqual({ status: "unauthorized" });
-    await expect(authenticateStationBearer(db, `Bearer ${second.token}`, revokedAt))
-      .resolves.toMatchObject({ status: "authenticated" });
-
-    const credentials = await db.select().from(schema.stationCredentials)
-      .where(eq(schema.stationCredentials.stationDeviceId,
-        (await db.select({ id: schema.stationDevices.id }).from(schema.stationDevices)
-          .where(eq(schema.stationDevices.deviceId, deviceId)))[0]!.id));
-    const revocations = await db.select().from(schema.stationCredentialRevocations)
-      .where(eq(schema.stationCredentialRevocations.credentialId, first.credentialId));
-    expect(credentials.map((row) => row.generation).sort()).toEqual([1, 2]);
-    expect(revocations).toHaveLength(1);
-
-    await expect(db.update(schema.stationCredentials).set({ secretHash: "f".repeat(64) })
-      .where(eq(schema.stationCredentials.id, first.credentialId))).rejects.toThrow();
-    await expect(db.delete(schema.stationCredentialRevocations)
-      .where(eq(schema.stationCredentialRevocations.credentialId, first.credentialId))).rejects.toThrow();
-    const [audit] = await db.select().from(schema.auditEvents)
-      .where(eq(schema.auditEvents.entityId, first.credentialId)).limit(1);
-    if (!audit) throw new Error("Credentialaudit saknas");
-    await expect(db.delete(schema.auditEvents).where(eq(schema.auditEvents.id, audit.id))).rejects.toThrow();
-  });
-
-  it("återanvänder extern device-identitet mellan lopp men kräver rotation inom samma scope", async () => {
-    const firstRace = await importedRace();
-    const secondRace = await importedRace();
-    const deviceId = crypto.randomUUID();
-    await issueStationCredential(db, {
-      deviceId, raceId: firstRace.raceId, scope: "READOUT", expiresAt
-    }, { now: issuedAt, secretBytes: Buffer.alloc(32, 21) });
-    await issueStationCredential(db, {
-      deviceId, raceId: secondRace.raceId, scope: "READOUT", expiresAt
-    }, { now: issuedAt, secretBytes: Buffer.alloc(32, 22) });
-    await expect(issueStationCredential(db, {
-      deviceId, raceId: firstRace.raceId, scope: "READOUT", expiresAt
-    }, { now: issuedAt, secretBytes: Buffer.alloc(32, 23) })).rejects.toThrow("rotation");
-
-    const devices = await db.select().from(schema.stationDevices)
-      .where(eq(schema.stationDevices.deviceId, deviceId));
-    const credentials = await db.select().from(schema.stationCredentials)
-      .where(eq(schema.stationCredentials.stationDeviceId, devices[0]!.id));
-    expect(devices).toHaveLength(1);
-    expect(credentials).toHaveLength(2);
-  });
-});
-
-describe("TASK 005E kortlivad engångsparning", () => {
-  const issuedAt = new Date("2026-08-31T12:00:00.000Z");
-  const grantExpiresAt = new Date("2026-08-31T12:15:00.000Z");
-  const credentialExpiresAt = new Date("2026-09-01T12:00:00.000Z");
-
-  function redemptionRequest(deviceId = crypto.randomUUID(), attemptId = crypto.randomUUID()) {
-    const credentialSecret = Buffer.alloc(32, 51);
-    return {
-      credentialSecret,
-      body: {
-        formatVersion: 1 as const,
-        attemptId,
-        deviceId,
-        credentialSecretHash: createHash("sha256").update(credentialSecret).digest("hex")
-      }
-    };
-  }
-
-  async function issueGrant(raceId: string, secret = Buffer.alloc(32, 41)) {
-    return issueStationPairingGrant(db, {
-      raceId,
-      scope: "READOUT",
-      expiresAt: grantExpiresAt,
-      credentialExpiresAt
-    }, { now: issuedAt, secretBytes: secret });
-  }
-
-  function redeem(grantToken: string, request: ReturnType<typeof redemptionRequest>["body"], now = issuedAt) {
-    return redeemStationPairingGrant(db, {
-      authorization: `Bearer ${grantToken}`,
-      idempotencyKey: `pairing:${request.attemptId}`,
-      readBody: async () => request
-    }, now);
-  }
-
-  it("begränsar grant till 15 minuter och kräver credentialgiltighet efter grantet", async () => {
-    const { raceId } = await importedRace();
-    await expect(issueStationPairingGrant(db, {
-      raceId,
-      scope: "READOUT",
-      expiresAt: new Date(issuedAt.getTime() + 15 * 60 * 1000 + 1),
-      credentialExpiresAt
-    }, { now: issuedAt, secretBytes: Buffer.alloc(32, 40) })).rejects.toThrow("högst 15 minuter");
-    await expect(issueStationPairingGrant(db, {
-      raceId,
-      scope: "READOUT",
-      expiresAt: grantExpiresAt,
-      credentialExpiresAt: grantExpiresAt
-    }, { now: issuedAt, secretBytes: Buffer.alloc(32, 40) })).rejects.toThrow("efter grantets utgångstid");
-    expect(await db.select().from(schema.stationPairingGrants)
-      .where(eq(schema.stationPairingGrants.raceId, raceId))).toHaveLength(0);
-  });
-
-  it("utfärdar hash-only grant och återhämtar ett tappat svar med exakt samma credential", async () => {
-    const { raceId } = await importedRace();
-    const grantSecret = Buffer.alloc(32, 41);
-    const grant = await issueGrant(raceId, grantSecret);
-    const request = redemptionRequest();
-
-    expect(grant).toEqual({
-      formatVersion: 1,
-      token: `otid_pair_v1.${grant.grantId}.${grantSecret.toString("base64url")}`,
-      grantId: grant.grantId,
-      raceId,
-      scope: "READOUT",
-      issuedAt: issuedAt.toISOString(),
-      expiresAt: grantExpiresAt.toISOString(),
-      credentialExpiresAt: credentialExpiresAt.toISOString()
-    });
-    const [storedGrant] = await db.select().from(schema.stationPairingGrants)
-      .where(eq(schema.stationPairingGrants.id, grant.grantId));
-    expect(storedGrant?.secretHash).toBe(createHash("sha256").update(grantSecret).digest("hex"));
-    expect(JSON.stringify(storedGrant)).not.toContain(grant.token);
-
-    const first = await redeem(grant.token, request.body);
-    expect(first).toMatchObject({
-      status: "stored",
-      response: {
-        formatVersion: 1,
-        attemptId: request.body.attemptId,
-        credential: {
-          deviceId: request.body.deviceId,
-          raceId,
-          scope: "READOUT",
-          generation: 1,
-          issuedAt: issuedAt.toISOString(),
-          expiresAt: credentialExpiresAt.toISOString()
-        }
-      }
-    });
-    if (first.status !== "stored") throw new Error("Första inlösen lagrades inte");
-
-    const retryAfterGrantExpiry = await redeem(
-      grant.token,
-      request.body,
-      new Date("2026-08-31T12:20:00.000Z")
-    );
-    expect(retryAfterGrantExpiry).toEqual({ status: "duplicate", response: first.response });
-
-    const credentialToken = `otid_stn_v1.${first.response.credential.credentialId}.` +
-      request.credentialSecret.toString("base64url");
-    await expect(authenticateStationBearer(db, `Bearer ${credentialToken}`, new Date("2026-08-31T12:21:00Z")))
-      .resolves.toMatchObject({
-        status: "authenticated",
-        principal: { deviceId: request.body.deviceId, raceId, scope: "READOUT", generation: 1 }
-      });
-
-    const redemptions = await db.select().from(schema.stationPairingRedemptions)
-      .where(eq(schema.stationPairingRedemptions.grantId, grant.grantId));
-    const credentials = await db.select().from(schema.stationCredentials)
-      .where(eq(schema.stationCredentials.id, first.response.credential.credentialId));
-    expect(redemptions).toHaveLength(1);
-    expect(credentials).toHaveLength(1);
-    expect(credentials[0]?.secretHash).toBe(request.body.credentialSecretHash);
-
-    const attempts = await db.select().from(schema.stationPairingAttempts)
-      .where(eq(schema.stationPairingAttempts.grantId, grant.grantId));
-    expect(attempts.map((attempt) => attempt.outcome)).toEqual(["REDEEMED"]);
-    const audits = await db.select().from(schema.auditEvents)
-      .where(eq(schema.auditEvents.raceId, raceId));
-    const serializedAudit = JSON.stringify(audits);
-    expect(serializedAudit).not.toContain(grant.token);
-    expect(serializedAudit).not.toContain(storedGrant?.secretHash ?? "saknad-granthash");
-    expect(serializedAudit).not.toContain(request.body.credentialSecretHash);
-  });
-
-  it("serialiserar 100 samtidiga identiska requests till en credential och samma metadata", async () => {
-    const { raceId } = await importedRace();
-    const grant = await issueGrant(raceId, Buffer.alloc(32, 42));
-    const request = redemptionRequest();
-    const results = await Promise.all(Array.from({ length: 100 }, () => redeem(grant.token, request.body)));
-    expect(results.filter((result) => result.status === "stored")).toHaveLength(1);
-    expect(results.filter((result) => result.status === "duplicate")).toHaveLength(99);
-    const responses = results.flatMap((result) =>
-      result.status === "stored" || result.status === "duplicate" ? [JSON.stringify(result.response)] : []);
-    expect(new Set(responses).size).toBe(1);
-    expect(await db.select().from(schema.stationPairingRedemptions)
-      .where(eq(schema.stationPairingRedemptions.grantId, grant.grantId))).toHaveLength(1);
-    expect(await db.select().from(schema.stationPairingAttempts)
-      .where(eq(schema.stationPairingAttempts.grantId, grant.grantId))).toHaveLength(1);
-    const credentialId = results[0]?.status === "stored" || results[0]?.status === "duplicate"
-      ? results[0].response.credential.credentialId
-      : undefined;
-    expect(credentialId).toBeDefined();
-    expect(await db.select().from(schema.stationCredentials)
-      .where(eq(schema.stationCredentials.id, credentialId!))).toHaveLength(1);
-  }, 30_000);
-
-  it("avvisar konkurrerande attempt och återanvänder aldrig grantet för en ny credential", async () => {
-    const { raceId } = await importedRace();
-    const grant = await issueGrant(raceId, Buffer.alloc(32, 43));
-    const firstRequest = redemptionRequest();
-    const first = await redeem(grant.token, firstRequest.body);
-    const competing = redemptionRequest(firstRequest.body.deviceId);
-    await expect(redeem(grant.token, competing.body)).resolves.toEqual({ status: "conflict" });
-    expect(await db.select().from(schema.stationPairingRedemptions)
-      .where(eq(schema.stationPairingRedemptions.grantId, grant.grantId))).toHaveLength(1);
-    const device = await db.select().from(schema.stationDevices)
-      .where(eq(schema.stationDevices.deviceId, firstRequest.body.deviceId));
-    expect(device).toHaveLength(1);
-    const credentials = await db.select().from(schema.stationCredentials)
-      .where(eq(schema.stationCredentials.stationDeviceId, device[0]!.id));
-    expect(credentials).toHaveLength(1);
-    expect(first.status).toBe("stored");
-  });
-
-  it("kräver exakt body och exakt pairing-idempotensnyckel efter autentisering", async () => {
-    const { raceId } = await importedRace();
-    const grant = await issueGrant(raceId, Buffer.alloc(32, 48));
-    const request = redemptionRequest();
-    await expect(redeemStationPairingGrant(db, {
-      authorization: `Bearer ${grant.token}`,
-      idempotencyKey: `pairing:${request.body.attemptId}`,
-      readBody: async () => ({ ...request.body, raceId })
-    }, issuedAt)).resolves.toEqual({ status: "invalid-request" });
-    await expect(redeemStationPairingGrant(db, {
-      authorization: `Bearer ${grant.token}`,
-      idempotencyKey: request.body.attemptId,
-      readBody: async () => request.body
-    }, new Date(issuedAt.getTime() + 1))).resolves.toEqual({ status: "invalid-request" });
-
-    const attempts = await db.select().from(schema.stationPairingAttempts)
-      .where(eq(schema.stationPairingAttempts.grantId, grant.grantId));
-    expect(attempts).toHaveLength(2);
-    expect(attempts[0]).toMatchObject({ outcome: "BODY_INVALID", attemptId: null, deviceId: null });
-    expect(attempts[1]).toMatchObject({
-      outcome: "IDEMPOTENCY_KEY_INVALID",
-      attemptId: request.body.attemptId,
-      deviceId: request.body.deviceId
-    });
-    expect(await db.select().from(schema.stationCredentials)
-      .where(eq(schema.stationCredentials.raceId, raceId))).toHaveLength(0);
-  });
-
-  it("kör okänt syntaktiskt grant genom auth utan body eller databasmutation", async () => {
-    const request = redemptionRequest();
-    let reads = 0;
-    const beforeAttempts = await db.select({ value: count() }).from(schema.stationPairingAttempts);
-    const unknownToken = `otid_pair_v1.${crypto.randomUUID()}.${Buffer.alloc(32, 77).toString("base64url")}`;
-    await expect(redeemStationPairingGrant(db, {
-      authorization: `Bearer ${unknownToken}`,
-      idempotencyKey: `pairing:${request.body.attemptId}`,
-      readBody: async () => { reads += 1; return request.body; }
-    }, issuedAt)).resolves.toEqual({ status: "unauthorized" });
-    const afterAttempts = await db.select({ value: count() }).from(schema.stationPairingAttempts);
-    expect(reads).toBe(0);
-    expect(afterAttempts[0]?.value).toBe(beforeAttempts[0]?.value);
-  });
-
-  it("räknar fem fel före body, gör fortsatt 429 read-only och tillåter exakt replay även under block", async () => {
-    const { raceId } = await importedRace();
-    const grant = await issueGrant(raceId, Buffer.alloc(32, 44));
-    const request = redemptionRequest();
-    const wrongSecretToken = `otid_pair_v1.${grant.grantId}.${Buffer.alloc(32, 99).toString("base64url")}`;
-    let bodyReads = 0;
-
-    const wrong = (now: Date) => redeemStationPairingGrant(db, {
-      authorization: `Bearer ${wrongSecretToken}`,
-      idempotencyKey: `pairing:${request.body.attemptId}`,
-      readBody: async () => {
-        bodyReads += 1;
-        return request.body;
-      }
-    }, now);
-    const failures = [];
-    for (let index = 0; index < 5; index += 1) {
-      failures.push(await wrong(new Date(issuedAt.getTime() + index)));
-    }
-    expect(failures.map((result) => result.status)).toEqual([
-      "unauthorized", "unauthorized", "unauthorized", "unauthorized", "rate-limited"
-    ]);
-    expect(bodyReads).toBe(0);
-    const beforeBlockedRetry = await db.select().from(schema.stationPairingAttempts)
-      .where(eq(schema.stationPairingAttempts.grantId, grant.grantId));
-    expect(beforeBlockedRetry).toHaveLength(5);
-    expect(beforeBlockedRetry.every((attempt) =>
-      attempt.outcome === "AUTH_FAILED" && attempt.attemptId === null && attempt.deviceId === null)).toBe(true);
-    await expect(wrong(new Date(issuedAt.getTime() + 5))).resolves.toMatchObject({ status: "rate-limited" });
-    expect(await db.select().from(schema.stationPairingAttempts)
-      .where(eq(schema.stationPairingAttempts.grantId, grant.grantId))).toHaveLength(5);
-
-    let validBodyReads = 0;
-    await expect(redeemStationPairingGrant(db, {
-      authorization: `Bearer ${grant.token}`,
-      idempotencyKey: `pairing:${request.body.attemptId}`,
-      readBody: async () => {
-        validBodyReads += 1;
-        return request.body;
-      }
-    }, new Date(issuedAt.getTime() + 6))).resolves.toMatchObject({ status: "rate-limited" });
-    expect(validBodyReads).toBe(0);
-
-    const reopenedAt = new Date("2026-08-31T12:10:01.000Z");
-    const stored = await redeem(grant.token, request.body, reopenedAt);
-    if (stored.status !== "stored") throw new Error("Grantet återöppnades inte efter rate-limitfönstret");
-    for (let index = 1; index <= 5; index += 1) {
-      await wrong(new Date(reopenedAt.getTime() + index));
-    }
-    const replay = await redeem(grant.token, request.body, new Date(reopenedAt.getTime() + 6));
-    expect(replay).toEqual({ status: "duplicate", response: stored.response });
-  });
-
-  it("spärrar grant append-only och förbjuder mutation av samtliga pairing-spår", async () => {
-    const { raceId } = await importedRace();
-    const grant = await issueGrant(raceId, Buffer.alloc(32, 45));
-    const request = redemptionRequest();
-    const stored = await redeem(grant.token, request.body);
-    if (stored.status !== "stored") throw new Error("Fixture kunde inte lösa in grantet");
-    await expect(revokeStationPairingGrant(db, { grantId: grant.grantId }, new Date("2026-08-31T12:05:00Z")))
-      .resolves.toMatchObject({ status: "revoked", grantId: grant.grantId });
-
-    const [revocation] = await db.select().from(schema.stationPairingGrantRevocations)
-      .where(eq(schema.stationPairingGrantRevocations.grantId, grant.grantId));
-    const [attempt] = await db.select().from(schema.stationPairingAttempts)
-      .where(eq(schema.stationPairingAttempts.grantId, grant.grantId));
-    const [redemption] = await db.select().from(schema.stationPairingRedemptions)
-      .where(eq(schema.stationPairingRedemptions.grantId, grant.grantId));
-    if (!revocation || !attempt || !redemption) throw new Error("Pairingspåren saknas");
-    await expect(db.update(schema.stationPairingGrants).set({ secretHash: "f".repeat(64) })
-      .where(eq(schema.stationPairingGrants.id, grant.grantId))).rejects.toThrow();
-    await expect(db.delete(schema.stationPairingGrantRevocations)
-      .where(eq(schema.stationPairingGrantRevocations.id, revocation.id))).rejects.toThrow();
-    await expect(db.update(schema.stationPairingAttempts).set({ outcome: "CONFLICT" })
-      .where(eq(schema.stationPairingAttempts.id, attempt.id))).rejects.toThrow();
-    await expect(db.delete(schema.stationPairingRedemptions)
-      .where(eq(schema.stationPairingRedemptions.id, redemption.id))).rejects.toThrow();
-  });
-
-  it("avvisar utgånget och spärrat grant utan bodyparsning eller credential", async () => {
-    const expiredRace = await importedRace();
-    const expiredGrant = await issueGrant(expiredRace.raceId, Buffer.alloc(32, 46));
-    const expiredRequest = redemptionRequest();
-    let reads = 0;
-    await expect(redeemStationPairingGrant(db, {
-      authorization: `Bearer ${expiredGrant.token}`,
-      idempotencyKey: `pairing:${expiredRequest.body.attemptId}`,
-      readBody: async () => { reads += 1; return expiredRequest.body; }
-    }, new Date("2026-08-31T12:16:00Z"))).resolves.toEqual({ status: "unauthorized" });
-
-    const revokedRace = await importedRace();
-    const revokedGrant = await issueGrant(revokedRace.raceId, Buffer.alloc(32, 47));
-    await revokeStationPairingGrant(db, { grantId: revokedGrant.grantId }, new Date("2026-08-31T12:01:00Z"));
-    const revokedRequest = redemptionRequest();
-    await expect(redeemStationPairingGrant(db, {
-      authorization: `Bearer ${revokedGrant.token}`,
-      idempotencyKey: `pairing:${revokedRequest.body.attemptId}`,
-      readBody: async () => { reads += 1; return revokedRequest.body; }
-    }, new Date("2026-08-31T12:02:00Z"))).resolves.toEqual({ status: "unauthorized" });
-    expect(reads).toBe(0);
-    const credentialRows = await db.select().from(schema.stationCredentials)
-      .where(eq(schema.stationCredentials.raceId, expiredRace.raceId));
-    expect(credentialRows).toHaveLength(0);
-  });
-});
-
 describe("TASK 005N capability-skyddad avläsnings- och resultathistorik PostgreSQL", () => {
   const issuedAt = new Date("2026-08-31T21:00:00.000Z");
   const usedAt = new Date("2026-08-31T21:02:00.000Z");
@@ -4282,7 +3221,7 @@ describe("TASK026 versionsbunden namn- och klubbrättning PostgreSQL", () => {
     ]);
     const preserved = await unchanged();
     const beforeEntries = await db.select().from(schema.entries).where(eq(schema.entries.raceId, raceId)).orderBy(asc(schema.entries.id));
-    const oldPackage = await buildSignedStationPackage(db, raceId, stationPackagePrivateKeyPem);
+    const oldPackage = await readoutPackage(raceId);
     const authentication = await auth(raceId);
     const input = await inputFor(authentication, ada.id);
     input.request.identity.organisationName = "K".repeat(200);
@@ -4294,10 +3233,10 @@ describe("TASK026 versionsbunden namn- och klubbrättning PostgreSQL", () => {
     const afterEntries = await db.select().from(schema.entries).where(eq(schema.entries.raceId, raceId)).orderBy(asc(schema.entries.id));
     expect(afterEntries).toEqual(beforeEntries.map((entry) => entry.id === ada.id
       ? { ...entry, ...input.request.identity, version: entry.version + 1 } : entry));
-    const nextPackage = verifySignedStationPackage(await buildSignedStationPackage(db, raceId, stationPackagePrivateKeyPem), stationPackagePublicKeySpkiBase64);
+    const nextPackage = await readoutPackage(raceId);
     expect(nextPackage.packageVersion).toBe(input.request.expectedSnapshotVersion + 1);
     expect(nextPackage.raceSnapshot.entries.find((row) => row.id === ada.id)).toMatchObject(input.request.identity);
-    expect(verifySignedStationPackage(oldPackage, stationPackagePublicKeySpkiBase64).raceSnapshot.entries.find((row) => row.id === ada.id))
+    expect(oldPackage.raceSnapshot.entries.find((row) => row.id === ada.id))
       .toMatchObject({ givenName: ada.givenName, familyName: ada.familyName });
     const next = await inputFor(authentication, ada.id);
     next.request.identity.givenName = "Alice";

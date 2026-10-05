@@ -38,9 +38,13 @@ export type RaceTypeProfile = {
   type: RaceType;
   /** Delarna längs banan, från start till mål (Resultat). */
   course: readonly Section[];
-  settings: Section;
+  /** Saknas för funktionären (ADR-0172 beslut 3). */
+  settings?: Section | undefined;
   features: RaceTypeFeatures;
 };
+
+/** Vem som arbetar i arbetsytan (ADR-0172 beslut 3). */
+export type WorkspaceRole = "ADMIN" | "FUNCTIONARY";
 
 const section = (id: SectionId, label: SectionLabel, panels: readonly Panel[] = [id as Panel]): Section => ({ id, label, panels });
 const courses = section("COURSES", "COURSES");
@@ -87,9 +91,22 @@ export function raceTypeProfile(type: RaceType): RaceTypeProfile {
   return { type, settings, ...profiles[type] };
 }
 
+/**
+ * Funktionärens del av arbetsytan (ADR-0172 beslut 3): Start (startlistorna, om typen har Start) och Avläsning
+ * (kontrollvyn, okända brickor med direktanmälan och kvar i skogen). Inga Inställningar. Samma delar som
+ * administratören ser, bara färre; servern nekar allt annat oavsett vad vyn visar.
+ */
+const FUNCTIONARY_SECTIONS: readonly SectionId[] = ["START", "READOUT"];
+
+export function profileForRole(profile: RaceTypeProfile, role: WorkspaceRole): RaceTypeProfile {
+  if (role === "ADMIN") return profile;
+  return { ...profile, settings: undefined,
+    course: profile.course.filter(row => FUNCTIONARY_SECTIONS.includes(row.id)).map(row => ({ ...row, panels: [row.id as Panel] })) };
+}
+
 /** Alla delar som typen visar: banans delar och Inställningar. */
 export function visibleSections(profile: RaceTypeProfile): readonly Section[] {
-  return [...profile.course, profile.settings];
+  return profile.settings ? [...profile.course, profile.settings] : profile.course;
 }
 
 /** Delen med ett visst id, eller undefined om typen inte visar den. */
@@ -102,7 +119,7 @@ export function sectionForPanel(profile: RaceTypeProfile, panel: Panel): Section
   return visibleSections(profile).find(row => row.panels.includes(panel));
 }
 
-/** Delen som ska visas: den valda om typen har den, annars banans första del. */
-export function activeSection(profile: RaceTypeProfile, id: SectionId): Section {
-  return sectionById(profile, id) ?? profile.course[0]!;
+/** Delen som ska visas: den valda om typen har den, annars `fallback` eller banans första del. */
+export function activeSection(profile: RaceTypeProfile, id: SectionId, fallback?: SectionId): Section {
+  return sectionById(profile, id) ?? (fallback ? sectionById(profile, fallback) : undefined) ?? profile.course[0]!;
 }

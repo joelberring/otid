@@ -25,7 +25,11 @@ import { relayTeamOfEntry } from "./relay-model";
 import { synchronizeRelayTeams } from "./relay-sync";
 
 type Authentication = Omit<PairingAdminRequestAuthentication, "capability">;
-const capability = "MANAGE_RACE" as const;
+/**
+ * ADR-0172 beslut 3: funktionären får läsa okända brickor och direktanmäla en ny deltagare för en okänd bricka.
+ * Att koppla brickan till en befintlig deltagare ändrar en anmälan och kräver administratör.
+ */
+const capability = "RACE_FUNCTIONARY" as const;
 
 function isUnknownOutcome(value: unknown): boolean {
   if (!value || typeof value !== "object") return false;
@@ -128,10 +132,12 @@ export async function resolveUnknownReadoutAsAdministrator(
   const authentication = { ...input, capability, requireCsrf: true };
   const preflight = await authenticatePairingAdminSession(db, authentication, resolvedAt);
   if (preflight.status !== "authenticated") return preflight;
+  if (intent.target !== "NEW_ENTRY" && preflight.principal.capability !== "MANAGE_RACE") return { status: "forbidden" };
 
   return db.transaction(async (tx) => {
     const auth = await authenticatePairingAdminSessionForMutation(tx, authentication, resolvedAt);
     if (auth.status !== "authenticated") return auth;
+    if (intent.target !== "NEW_ENTRY" && auth.principal.capability !== "MANAGE_RACE") return { status: "forbidden" };
     const race = await lockRaceForMutation(tx, input.raceId);
     const [journalBeforeRequestLock] = await tx.select({ entryId: schema.unknownReadoutResolutions.entryId })
       .from(schema.unknownReadoutResolutions).where(eq(schema.unknownReadoutResolutions.requestId, requestId));
@@ -257,7 +263,7 @@ export async function resolveUnknownReadoutAsAdministrator(
       courseVersionId: evaluation.courseVersionId, resolvedAt: resolvedAt.toISOString() });
     await tx.insert(schema.unknownReadoutResolutions).values({ requestId, raceId: input.raceId,
       readoutId: readout.readout.id, rawMessageId: readout.readout.rawMessageId, cardNumber: intent.cardNumber,
-      actorCredentialId: auth.principal.accessCredentialId, capability, target: intent.target,
+      actorCredentialId: auth.principal.accessCredentialId, capability: auth.principal.capability, target: intent.target,
       entryId: entry.id, classId: targetClassId, assignmentId, createdResultRevisionId: result.id,
       createdResultRevision: revision, expectedSnapshotVersion: race.snapshotVersion, snapshotVersionAfter,
       request: intent, response, resolvedAt });

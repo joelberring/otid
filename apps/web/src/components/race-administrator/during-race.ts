@@ -85,7 +85,7 @@ export function deriveDuringRace(s: WorkspaceState) {
 }
 
 export function createDuringRaceActions(ws: Base & RaceDataActions & Pick<RelayActions, "readRelay">) {
-  const { raceId, entryId, reviewAttempt, reviewCandidate, reviewConfirmed, reviewReason, forestData, forestStale,
+  const { raceId, entryId, functionary, reviewAttempt, reviewCandidate, reviewConfirmed, reviewReason, forestData, forestStale,
     targetStartState, unknownReadoutCandidate, unknownReadoutId, unknownReadoutTarget, unknownReadoutEntryId,
     unknownReadoutClassId, unknownReadoutGivenName, unknownReadoutFamilyName, unknownReadoutOrganisationName, busyRef, pending,
     sent, requireSession, begin, beginRequest, finish, current, request, json, csrf, load, setMessage, setUnknown, setData,
@@ -271,7 +271,8 @@ export function createDuringRaceActions(ws: Base & RaceDataActions & Pick<RelayA
     const common = { formatVersion: 1 as const, requestId: crypto.randomUUID(), readoutId: readout.id,
       cardNumber: readout.cardNumber, expectedSnapshotVersion: unknownReadoutCandidate.snapshotVersion,
       expectedEngineVersion: unknownReadoutCandidate.engineVersion };
-    const parsed = unknownReadoutTarget === "EXISTING_ENTRY" ? (() => {
+    // Funktionären direktanmäler bara (ADR-0172 beslut 3); kopplingen till en befintlig deltagare är administratörens.
+    const parsed = unknownReadoutTarget === "EXISTING_ENTRY" && !functionary ? (() => {
       const entry = unknownReadoutCandidate.entries.find(row => row.id === unknownReadoutEntryId);
       return entry ? unknownReadoutResolutionRequestSchema.safeParse({ ...common, target: "EXISTING_ENTRY" as const,
         entryId: entry.id, expectedEntryVersion: entry.entryVersion, expectedClassId: entry.classId,

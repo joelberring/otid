@@ -91,8 +91,12 @@ describe("TASK150 arrangörskontokontrakt", () => {
       events: [{ ...event, eventId: eventId.toUpperCase() }]
     }).success).toBe(false);
 
-    const enter = { formatVersion: 1 as const, raceId, expiresAt };
+    const enter = { formatVersion: 1 as const, raceId, role: "ADMIN" as const, expiresAt };
     expect(organizerRaceEnterResponseSchema.parse(enter)).toEqual(enter);
+    // ADR-0172 beslut 3: funktionären går in med sin egen roll; ägaren som administratör.
+    expect(organizerRaceEnterResponseSchema.parse({ ...enter, role: "FUNCTIONARY" }).role).toBe("FUNCTIONARY");
+    expect(organizerRaceEnterResponseSchema.safeParse({ ...enter, role: "OWNER" }).success).toBe(false);
+    expect(organizerMyEventsResponseSchema.safeParse({ ...response, events: [{ ...event, role: "FUNCTIONARY" }] }).success).toBe(true);
     expect(organizerRaceEnterResponseSchema.safeParse({ ...enter, accessToken: "secret" }).success).toBe(false);
     expect(organizerRaceEnterResponseSchema.safeParse({ ...enter, expiresAt: "tomorrow" }).success).toBe(false);
   });

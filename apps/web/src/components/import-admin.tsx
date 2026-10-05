@@ -71,6 +71,12 @@ export function ImportAdmin({ raceId }: { raceId: string }) {
     if (!parsed.success || parsed.data.raceId !== raceId) {
       throw new Error(sv.importInvalidResponse);
     }
+    // Funktionären har ingen import (ADR-0172 beslut 3); servern nekar den också.
+    if (parsed.data.capability !== "MANAGE_RACE") {
+      setAuthenticated(false);
+      setMessage(sv.importAdminOnly);
+      return false;
+    }
     setAuthenticated(true);
     setMessage("");
     return true;

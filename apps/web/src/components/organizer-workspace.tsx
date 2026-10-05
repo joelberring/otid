@@ -4,30 +4,21 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import {
   organizerEventCreateRequestSchema,
-  organizerAdminGrantRequestSchema,
-  organizerAdminRevokeRequestSchema,
   type OrganizerEventCreateResponse,
   type OrganizerMyEventsResponse
 } from "@o-tid/contracts";
 import {
   clearOrganizerAttempt,
-  clearOrganizerAdminAttempt,
   createOrganizerAttempt,
   parseOrganizerCreateResponse,
-  parseOrganizerAdminGrantResponse,
-  parseOrganizerAdminList,
-  parseOrganizerAdminRevokeResponse,
   parseOrganizerEnterResponse,
   parseOrganizerEvents,
   parseOrganizerLoginRequest,
   parseOrganizerSession,
   readOrganizerCsrf,
   restoreOrganizerAttempt,
-  restoreOrganizerAdminAttempt,
-  saveOrganizerAdminAttempt,
   saveOrganizerAttempt,
-  type OrganizerCreateAttempt,
-  type OrganizerAdminMutationAttempt
+  type OrganizerCreateAttempt
 } from "../lib/organizer-client";
 import { organizerSv as copy } from "../i18n/organizer-sv";
 import { raceTypeSv } from "../i18n/race-type-sv";
@@ -35,177 +26,6 @@ import { RaceTypeChoice } from "./race-type-choice";
 import styles from "./organizer-workspace.module.css";
 
 type Session = { accountId: string; email: string; displayName: string; superadmin: boolean; expiresAt: string };
-
-function EventAdministrators({ eventId, eventName, accountId }: { eventId: string; eventName: string; accountId: string }) {
-  const [grants, setGrants] = useState<ReturnType<typeof parseOrganizerAdminList>["grants"]>([]);
-  const [loaded, setLoaded] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [email, setEmail] = useState("");
-  const [attempt, setAttempt] = useState<OrganizerAdminMutationAttempt>();
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  const reviewRef = useRef<HTMLDivElement>(null);
-
-  async function load() {
-    setLoaded(false);
-    setError("");
-    try {
-      const response = await fetch(`/api/organizer/events/${encodeURIComponent(eventId)}/administrators`, {
-        credentials: "same-origin", cache: "no-store"
-      });
-      if (!response.ok) throw new Error(`Kunde inte hämta administratörer (${response.status}).`);
-      const result = parseOrganizerAdminList(await responseJson(response));
-      if (result.eventId !== eventId) throw new Error(copy.invalidServerResponse);
-      setGrants(result.grants);
-    } catch (reason) { setError(errorMessage(reason)); }
-    finally { setLoaded(true); }
-  }
-
-  useEffect(() => {
-    const pending = restoreOrganizerAdminAttempt(accountId, eventId);
-    if (pending) setAttempt(pending);
-    void load();
-  }, [accountId, eventId]);
-
-  async function submit(current: OrganizerAdminMutationAttempt) {
-    if (current.accountId !== accountId || current.eventId !== eventId) {
-      setError(copy.adminAttemptOtherAccount);
-      return;
-    }
-    setBusy(true);
-    setError("");
-    setNotice(copy.adminSending);
-    try {
-      const isGrant = current.action === "grant";
-      const response = await fetch(isGrant
-        ? `/api/organizer/events/${encodeURIComponent(eventId)}/administrators`
-        : `/api/organizer/events/${encodeURIComponent(eventId)}/administrators/${encodeURIComponent(String(current.request.grantId))}/revoke`, {
-        method: "POST", credentials: "same-origin",
-        headers: {
-          "content-type": "application/json",
-          "Idempotency-Key": `organizer-admin-${current.action}:${current.requestId}`,
-          "x-otid-csrf": readOrganizerCsrf(document.cookie, new URL(window.location.href))
-        },
-        body: JSON.stringify(current.request)
-      });
-      if (response.status === 404 && isGrant) {
-        clearOrganizerAdminAttempt(accountId, eventId);
-        setAttempt(undefined);
-        setNotice("");
-        setError(copy.adminNotFound);
-        return;
-      }
-      if (!response.ok) {
-        if (response.status === 401 || response.status === 403) throw new Error(copy.adminSessionRenewal(response.status));
-        if (response.status === 409) throw new Error(copy.adminRequestConflict);
-        throw new Error(copy.adminUncertain(response.status));
-      }
-      const value = await responseJson(response);
-      const confirmed = isGrant
-        ? parseOrganizerAdminGrantResponse(value, current)
-        : parseOrganizerAdminRevokeResponse(value, current);
-      clearOrganizerAdminAttempt(accountId, eventId);
-      setAttempt(undefined);
-      setNotice(confirmed.replayed ? copy.adminRetryConfirmed : isGrant ? copy.adminGranted : copy.adminRevoked);
-      setEmail("");
-      await load();
-    } catch (reason) {
-      setError(errorMessage(reason));
-      setNotice(copy.adminPendingNotice);
-    } finally { setBusy(false); }
-  }
-
-  function createGrant(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    try {
-      const requestId = crypto.randomUUID();
-      const request = organizerAdminGrantRequestSchema.parse({
-        formatVersion: 1, requestId, eventId, email, role: "ADMIN"
-      });
-      const current = { accountId, action: "grant" as const, eventId, requestId, request };
-      saveOrganizerAdminAttempt(current);
-      setAttempt(current);
-      void submit(current);
-    } catch (reason) { setError(errorMessage(reason)); }
-  }
-
-  function revoke(grantId: string, displayName: string) {
-    if (!window.confirm(copy.adminConfirmRevoke(displayName))) return;
-    try {
-      const requestId = crypto.randomUUID();
-      const request = organizerAdminRevokeRequestSchema.parse({ formatVersion: 1, requestId, eventId, grantId });
-      const current = { accountId, action: "revoke" as const, eventId, requestId, request };
-      saveOrganizerAdminAttempt(current);
-      setAttempt(current);
-      void submit(current);
-    } catch (reason) { setError(errorMessage(reason)); }
-  }
-
-  function abandon() {
-    clearOrganizerAdminAttempt(accountId, eventId);
-    setAttempt(undefined);
-    setNotice(copy.adminAbandoned);
-  }
-
-  const activeCount = grants.filter((grant) => !grant.revokedAt).length;
-  const revokedCount = grants.length - activeCount;
-
-  return <section className={styles.adminPanel} aria-label={copy.adminPanel}>
-    <div className={styles.adminHeading}><h4>{copy.adminPanel}</h4>
-      <button className={styles.secondary} type="button" disabled={busy} onClick={() => void load()}>{copy.refresh}</button>
-    </div>
-    <p className={styles.adminContext}>{copy.adminForEvent} <strong>{eventName}</strong> <span>({eventId})</span></p>
-    <p className={styles.muted}>{copy.adminHint}</p>
-    {!loaded && <p aria-live="polite">{copy.adminLoading}</p>}
-    {error && <p role="alert">{error}</p>}
-    {loaded && !error && <p className={styles.adminSummary}>{copy.adminSummary(activeCount, revokedCount)}</p>}
-    {loaded && !error && grants.length === 0 && <p>{copy.adminEmpty}</p>}
-    {loaded && grants.length > 0 && <ul className={styles.adminList}>{grants.map((grant) => <li key={grant.grantId}>
-      <div><strong>{grant.displayName}</strong><span>{grant.email}</span>
-        <span>{copy.adminGrantedAt} {new Date(grant.grantedAt).toLocaleString("sv-SE")}</span></div>
-      <span className={styles.adminStatus}>{grant.revokedAt ? copy.adminRevokedLabel : copy.adminActiveLabel}
-        {grant.revokedAt && <small>{copy.adminRevokedAt} {new Date(grant.revokedAt).toLocaleString("sv-SE")}</small>}</span>
-      {!grant.revokedAt && <button className={styles.secondary} type="button" disabled={busy}
-        onClick={() => revoke(grant.grantId, grant.displayName)}>{copy.adminRevoke}</button>}
-    </li>)}</ul>}
-    {!attempt && <form className={styles.adminForm} onSubmit={(event) => void createGrant(event)}>
-      <label>{copy.adminEmail}<input type="email" value={email} onChange={(event) => setEmail(event.target.value)}
-        autoCapitalize="none" autoComplete="off" spellCheck={false} maxLength={254} required disabled={busy || !!attempt} /></label>
-      <div ref={reviewRef} tabIndex={-1} className={styles.adminReview}>
-        <p>{email ? copy.adminReview(email.trim().toLowerCase()) : copy.adminReviewHint}</p>
-        <p>{copy.adminReviewEvent(eventName)}</p>
-      </div>
-      <button type="submit" disabled={busy || !!attempt || !email}>{copy.adminGrant}</button>
-    </form>}
-    {attempt && <div className={styles.uncertain} role="alert">
-      <h5>{copy.adminPendingTitle}</h5>
-      <p>{copy.adminPendingHint}</p>
-      <dl><dt>{copy.adminAction}</dt><dd>{attempt.action === "grant" ? copy.adminGrantAction : copy.adminRevokeAction}</dd>
-        <dt>{copy.adminEvent}</dt><dd>{eventName} · {attempt.eventId}</dd>
-        <dt>{copy.adminRequestId}</dt><dd>{attempt.requestId}</dd>
-        <dt>{copy.adminTarget}</dt><dd>{String(attempt.request.email ?? attempt.request.grantId)}</dd></dl>
-      <div className={styles.actions}>
-        <button type="button" disabled={busy} onClick={() => void submit(attempt)}>{copy.retrySameAttempt}</button>
-        <button className={styles.secondary} type="button" disabled={busy} onClick={abandon}>{copy.adminAbandonAttempt}</button>
-      </div>
-    </div>}
-    <p className={styles.message} role="status" aria-live="polite">{notice}</p>
-  </section>;
-}
-
-
-function EventAdministratorsDisclosure({ eventId, eventName, accountId }: { eventId: string; eventName: string; accountId: string }) {
-  const [expanded, setExpanded] = useState(false);
-  const [hasExpanded, setHasExpanded] = useState(false);
-  const panelId = `event-administrators-${eventId}`;
-  return <div className={styles.adminDisclosure}>
-    <button className={styles.secondary} type="button" aria-expanded={expanded} aria-controls={panelId}
-      onClick={() => { if (!expanded) setHasExpanded(true); setExpanded(!expanded); }}>
-      {expanded ? copy.adminHide : copy.adminShow}
-    </button>
-    {hasExpanded && <div id={panelId} hidden={!expanded}><EventAdministrators eventId={eventId} eventName={eventName} accountId={accountId} /></div>}
-  </div>;
-}
 
 async function responseJson(response: Response): Promise<unknown> {
   try {
@@ -583,7 +403,6 @@ export function OrganizerWorkspace() {
               <span className={styles.eventRole}>{copy.eventRole[event.role]}</span>
             </div>
             <p className={styles.eventMeta}>{event.startsOn} · {event.timeZone} · {event.races.length} {copy.raceCountLabel}</p>
-            {event.role === "OWNER" && <EventAdministratorsDisclosure eventId={event.eventId} eventName={event.eventName} accountId={session.accountId} />}
             <ul className={styles.raceList}>{event.races.map((race) => <li key={race.raceId}>
               <div><strong>{race.raceName}</strong><span>{race.raceDate} · {raceTypeSv.types[race.raceType].name}</span></div>
               <button type="button" className={styles.secondary} disabled={busy || enteringRaceId !== undefined} aria-busy={enteringRaceId === race.raceId}

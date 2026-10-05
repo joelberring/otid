@@ -5,9 +5,20 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 18 – Funktionärer och städning av gamla behörigheter (ADR-0172). Steg 7 (hårdvara) väntar på att ägaren har stationen till hands.
+Steg 19 – Publik startsida och tävlingssida (ADR-0172). Steg 7 (hårdvara) väntar på att ägaren har stationen till hands.
 
 ## Logg
+
+### 2026-10-05 – Steg 18: funktionärer och städning av gamla behörigheter (steg 18 klart)
+- Rollen Funktionär (migration 0100: `FUNCTIONARY`, delegeringen `RACE_FUNCTIONARY`). Inställningar → "Personer med behörighet": ägare, administratörer och
+  funktionärer i en lista; admin lägger till funktionär med e-post till befintligt konto ("Be personen skapa ett konto … först"), ägaren även administratörer.
+  Medadministratörer på /organizer är borta (samma lista). Borttagen behörighet gäller direkt även för öppna sessioner; en session per enhet.
+- Funktionären: Mina tävlingar "Funktionär", arbetsyta med bara Start (startlistor, utan export) och Avläsning (avläsning, direktanmälan av okänd bricka –
+  inte koppling till anmäld –, kvar i skogen med återkomst/startläge, speaker). En tabell i `lib/race-roles.ts` + `requireRaceRole`; tjänsterna och DB kontrollerar igen.
+- Borttaget: funktionärskoder, stationsparning/-credentials/-paket/device-batches, `apps/station`, incheckningsappen `/checkin` med egna sessioner och
+  återställningskoder, egen inloggning för kvar i skogen, `api/events` (CREATE_EVENT), `/me` med deltagarkoder och följningar; 20 tabeller (migration 0100).
+- Verifierat: lint, typecheck, test (nytt `race-roles.test` anropar alla adminroutes som funktionär/admin), test:integration (nytt `adr-0172-functionaries`),
+  build, e2e i grupper (nytt `funktionarer`, två enheter på samma konto). Skärmbilder 1280/390 granskade.
 
 ### 2026-10-05 – Steg 17: konton och superadmin (steg 17 klart)
 - Konto med e-post (normaliserad, unik oavsett versaler) i stället för inloggningsnamn; medadministratör läggs till med e-post. Öppen registrering
@@ -248,6 +259,9 @@ Kvarstår för ägaren: begära *PC Programmer's Guide* från SPORTident
 brickor till steg 7.
 
 ## Idéer (inte i planen än)
+
+- Start: incheckningsappen (offline, krypterad lista) togs bort i steg 18 (halvfärdig, nåddes bara via funktionärskoderna). Funktionären sätter startläget
+  online under Avläsning → kvar i skogen; avprickning direkt i startlistan (per starttid) och offline vore bättre vid starten.
 
 - Vägval: justera tidsförskjutning mellan GPS-klocka och stationer per rutt; georeferens från KMZ eller världsfil (OCAD) i stället för tre punkter;
   kontrollernas lägen från banfilens koordinater; sträcktidsanalys för stafett (per sträcka); uppladdning av flera GPX-filer matchade på namn.

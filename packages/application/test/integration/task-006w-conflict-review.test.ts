@@ -5,9 +5,8 @@ import { eq, sql } from "drizzle-orm";
 import { createDatabase, schema } from "@o-tid/database";
 import { canonicalStartCheckinOperation, canonicalStartCheckinConflictReviewSource, type StartCheckinOperation } from "@o-tid/contracts";
 import { issuePairingAdminAccessCredential, loginPairingAdmin } from "../../src/pairing-admin";
-import { registerStartCheckinDeviceAsAdmin } from "../../src/start-checkin-device";
-import { syncStartCheckinAsAdmin, storeAuthorizedStartCheckinOperation } from "../../src/start-checkin-sync";
-import { listStartCheckinRosterAsAdmin } from "../../src/start-checkin-roster";
+import { storeAuthorizedStartCheckinOperation } from "../../src/start-checkin-sync";
+import { readAuthorizedStartCheckinRoster } from "../../src/start-checkin-roster";
 import { readStartCheckinConflictReviewAsAdmin, reviewStartCheckinConflictsAsAdmin } from "../../src/checkin-conflict-review";
 
 const url = process.env.TEST_DATABASE_URL;
@@ -15,13 +14,15 @@ if (!url) throw new Error("TEST_DATABASE_URL krävs");
 const { db, pool } = createDatabase(url), at = new Date("2026-09-05T10:00:00.000Z");
 beforeAll(async () => migrate(db, { migrationsFolder: new URL("../../../database/migrations", import.meta.url).pathname }));
 afterAll(async () => pool.end());
-async function admin(raceId: string, capability: "START_CHECKIN" | "FINISH_FOREST_WATCH") {
+/** Funktionären (onlinekälla) rapporterar; administratören granskar konflikter (ADR-0172 beslut 3). */
+async function admin(raceId: string, capability: "RACE_FUNCTIONARY" | "MANAGE_RACE") {
   const issued = await issuePairingAdminAccessCredential(db, { raceId, capability, label: "Synthetic review", expiresAt: new Date("2026-09-05T18:00:00.000Z") }, { now: at });
   const login = await loginPairingAdmin(db, { formatVersion: 1, accessCredential: issued.accessCredential }, { expectedRaceId: raceId, expectedCapability: capability, now: at });
   if (login.status !== "authenticated") throw new Error("Synthetic auth failed");
   const auth = { raceId, capability, sessionToken: login.sessionToken, csrfCookie: login.csrfToken, csrfHeader: login.csrfToken };
   const deviceId = randomUUID();
-  await registerStartCheckinDeviceAsAdmin(db, { ...auth, readBody: async () => ({ formatVersion: 1, deviceId, label: "Synthetic mobile" }) }, () => at);
+  await db.insert(schema.startCheckinDevices).values({ id: deviceId, raceId, actorCredentialId: issued.credentialId, capability,
+    label: capability === "MANAGE_RACE" ? "Onlineadministration" : "Funktionär", registeredAt: at });
   return { auth, deviceId, actorCredentialId: issued.credentialId };
 }
 const body = (operation: StartCheckinOperation) => ({ operation, contentHash: createHash("sha256").update(canonicalStartCheckinOperation(operation)).digest("hex") });
@@ -33,12 +34,14 @@ async function setup() {
   await db.insert(schema.courseVersions).values({ id: courseVersionId, courseId, version: 1 });
   await db.insert(schema.classes).values({ id: classId, raceId, courseVersionId, name: "Fri klass", startRule: "PUNCH" });
   await db.insert(schema.entries).values({ id: entryId, raceId, classId, givenName: "Synthetic", familyName: "Runner" });
-  const start = await admin(raceId, "START_CHECKIN"), finish = await admin(raceId, "FINISH_FOREST_WATCH");
+  const start = await admin(raceId, "RACE_FUNCTIONARY"), finish = await admin(raceId, "MANAGE_RACE");
   const operation = (sequence: number): StartCheckinOperation => ({ formatVersion: 1, raceId, entryId, deviceId: start.deviceId,
     actorCredentialId: start.actorCredentialId, requestId: randomUUID(), localSequence: sequence, packageVersion: 1,
     expectedEntryVersion: 1, expectedRevision: 0, dependsOnRequestId: null, observedAt: at.toISOString(),
     action: { kind: "MARK_START", state: sequence === 1 ? "STARTED" : "REPORTED_NOT_STARTED" } });
-  const send = (op: StartCheckinOperation) => syncStartCheckinAsAdmin(db, { ...start.auth, readBody: async () => body(op) }, () => at);
+  const send = (op: StartCheckinOperation, capability: "RACE_FUNCTIONARY" | "MANAGE_RACE" = "RACE_FUNCTIONARY") =>
+    db.transaction(tx => storeAuthorizedStartCheckinOperation(tx, body(op), capability, at));
+  const roster = (reviewDetails = false) => db.transaction(tx => readAuthorizedStartCheckinRoster(tx, raceId, at, reviewDetails));
   await send(operation(1)); const conflicted = operation(2); await send(conflicted);
   const candidate = async () => {
     const result = await readStartCheckinConflictReviewAsAdmin(db, { ...finish.auth, entryId }, at);
@@ -51,7 +54,7 @@ async function setup() {
       conflictRequestIds: current.source.conflicts.map(row => row.operation.requestId), decision: "KEEP_CURRENT_STATE", reason: "Kontrollerad uppgift" };
   };
   const review = (value: unknown) => reviewStartCheckinConflictsAsAdmin(db, { ...finish.auth, readBody: async () => value }, () => at);
-  return { raceId, entryId, start, finish, operation, send, conflicted, candidate, intent, review };
+  return { raceId, entryId, start, finish, operation, send, roster, conflicted, candidate, intent, review };
 }
 
 describe("authenticated conflict review", () => {
@@ -64,25 +67,25 @@ describe("authenticated conflict review", () => {
     const audits = await db.select().from(schema.auditEvents).where(eq(schema.auditEvents.requestId, intent.requestId));
     expect(audits).toHaveLength(1);
     expect(createHash("sha256").update(canonicalStartCheckinConflictReviewSource(audits[0]?.after?.source)).digest("hex")).toBe(intent.sourceHash);
-    const roster = await listStartCheckinRosterAsAdmin(db, f.finish.auth, at);
+    const roster = await f.roster();
     if (roster.status !== "ok") throw new Error("Roster missing");
     expect(roster.response.entries[0]).not.toHaveProperty("reviewedConflictRequestIds");
-    expect(await listStartCheckinRosterAsAdmin(db, { ...f.finish.auth, reviewDetails: true }, at))
+    expect(await f.roster(true))
       .toMatchObject({ status: "ok", response: { entries: [{ reviewedConflictRequestIds: [f.conflicted.requestId] }] } });
     expect(roster).toMatchObject({ status: "ok", response: { entries: [{ conflictingReports: false, forestState: "STARTED_NO_RETURN", needsFollowUp: true }] } });
     expect(await db.select().from(schema.startCheckinOperations).where(eq(schema.startCheckinOperations.raceId, f.raceId))).toEqual(originals);
     expect((await f.candidate()).source.conflicts).toHaveLength(0);
     expect(await f.review({ ...intent, reason: "Ändrad" })).toEqual({ status: "conflict" });
-    const another = await admin(f.raceId, "FINISH_FOREST_WATCH");
+    const another = await admin(f.raceId, "MANAGE_RACE");
     expect(await reviewStartCheckinConflictsAsAdmin(db, { ...another.auth, readBody: async () => intent }, () => at)).toEqual({ status: "conflict" });
     const late = f.operation(3); await f.send(late);
-    expect(await listStartCheckinRosterAsAdmin(db, { ...f.finish.auth, reviewDetails: true }, at))
+    expect(await f.roster(true))
       .toMatchObject({ status: "ok", response: { entries: [{ reviewedConflictRequestIds: [f.conflicted.requestId], conflictingReports: true }] } });
     expect(await f.review(intent)).toEqual(response);
     expect((await f.candidate()).source.conflicts.map(row => row.operation.requestId)).toEqual([late.requestId]);
-    expect(await listStartCheckinRosterAsAdmin(db, f.finish.auth, at)).toMatchObject({ status: "ok", response: { entries: [{ conflictingReports: true, forestState: "CONFLICT" }] } });
+    expect(await f.roster()).toMatchObject({ status: "ok", response: { entries: [{ conflictingReports: true, forestState: "CONFLICT" }] } });
   });
-  it("checks finish authority and CSRF before body, and read time does not change source hash", async () => {
+  it("checks administrator authority and CSRF before body, and read time does not change source hash", async () => {
     const f = await setup(), readBody = vi.fn(async () => f.intent());
     expect(await reviewStartCheckinConflictsAsAdmin(db, { ...f.start.auth, readBody }, () => at)).toEqual({ status: "forbidden" });
     expect((await reviewStartCheckinConflictsAsAdmin(db, { ...f.finish.auth, sessionToken: "invalid", readBody }, () => at)).status).toBe("unauthorized");
@@ -105,11 +108,11 @@ describe("authenticated conflict review", () => {
     const correction: StartCheckinOperation = { ...f.operation(1), requestId: randomUUID(), deviceId: f.finish.deviceId,
       actorCredentialId: f.finish.actorCredentialId, expectedRevision: 1,
       action: { kind: "FINISH_CORRECTION", state: "STARTED", manualReturnRegistered: true } };
-    expect(await syncStartCheckinAsAdmin(db, { ...f.finish.auth, readBody: async () => body(correction) }, () => at))
+    expect(await f.send(correction, "MANAGE_RACE"))
       .toMatchObject({ status: "stored", response: { effect: { kind: "APPLIED" } } });
     expect(await f.review(stale)).toEqual({ status: "conflict" });
     expect((await f.review(await f.intent())).status).toBe("reviewed");
-    expect(await listStartCheckinRosterAsAdmin(db, f.finish.auth, at)).toMatchObject({ status: "ok", response: {
+    expect(await f.roster()).toMatchObject({ status: "ok", response: {
       entries: [{ conflictingReports: false, forestState: "RETURNED", needsFollowUp: false, manualReturnRegistered: true }]
     } });
   });
@@ -119,7 +122,7 @@ describe("authenticated conflict review", () => {
     const gate = new Promise<void>(resolve => { release = resolve; }), locked = new Promise<void>(resolve => { ready = resolve; });
     const reporting = db.transaction(async tx => {
       await tx.select().from(schema.entries).where(eq(schema.entries.id, f.entryId)).for("update");
-      await storeAuthorizedStartCheckinOperation(tx, body(late), "START_CHECKIN", at);
+      await storeAuthorizedStartCheckinOperation(tx, body(late), "RACE_FUNCTIONARY", at);
       ready(); await gate;
     });
     await locked; const reviewing = f.review(intent);

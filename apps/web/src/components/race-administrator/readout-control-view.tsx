@@ -63,7 +63,7 @@ export function ReadoutControlView({ ws }: { ws: Workspace }) {
 
 /** Felstämplade att titta på, med "Öppna" till deltagarkortet. Visas i kontrollvyn och under Resultat. */
 export function MispunchedList({ ws }: { ws: Workspace }) {
-  const { classNames, data, disabled, raceId, select } = ws;
+  const { classNames, data, disabled, functionary, raceId, select } = ws;
   const rows = data ? mispunchedEntries(data) : [];
   return <>
     <h3 id={`control-mp-${raceId}`}>{text.controlMispunched}{" "}<strong className={styles.controlCount}>{rows.length}</strong></h3>
@@ -71,8 +71,9 @@ export function MispunchedList({ ws }: { ws: Workspace }) {
       {rows.map(entry => <li key={entry.id} className={styles.controlRowAction}>
         <span><strong>{entry.displayName}</strong>
           <span>{[entry.organisationName ?? text.none, classNames.get(entry.classId)].join(" · ")}</span></span>
-        <Button variant="secondary" disabled={disabled} aria-label={text.controlOpenFor(entry.displayName)}
-          onClick={() => select(entry.id)}>{text.controlOpen}</Button>
+        {/* Deltagarkortet är administratörens; funktionären ser bara listan (ADR-0172 beslut 3). */}
+        {!functionary && <Button variant="secondary" disabled={disabled} aria-label={text.controlOpenFor(entry.displayName)}
+          onClick={() => select(entry.id)}>{text.controlOpen}</Button>}
       </li>)}
     </ul>}
   </>;
@@ -96,9 +97,12 @@ function LatestReadouts({ ws }: { ws: Workspace }) {
   </ol>;
 }
 
-/** Okända brickor: antal och kopplingen till befintlig deltagare eller direktanmälan, direkt i vyn. */
+/**
+ * Okända brickor: antal och kopplingen till befintlig deltagare eller direktanmälan, direkt i vyn.
+ * Funktionären direktanmäler bara (ADR-0172 beslut 3).
+ */
 function UnknownCards({ ws }: { ws: Workspace }) {
-  const { busy, data, inspectUnknownReadoutResolution, pending, raceId, sent, setUnknownReadoutAttempt,
+  const { busy, data, functionary, inspectUnknownReadoutResolution, pending, raceId, sent, setUnknownReadoutAttempt,
     setUnknownReadoutClassId, setUnknownReadoutEntryId, setUnknownReadoutFamilyName, setUnknownReadoutGivenName,
     setUnknownReadoutId, setUnknownReadoutOrganisationName, setUnknownReadoutTarget, submitUnknownReadoutResolution,
     unknownReadoutAttempt, unknownReadoutCandidate, unknownReadoutClassId, unknownReadoutEntryId, unknownReadoutError,
@@ -112,18 +116,18 @@ function UnknownCards({ ws }: { ws: Workspace }) {
     {!unknownReadoutCandidate && !unknownReadoutAttempt && <p>{text.controlNotLoaded}</p>}
     {unknownReadoutCandidate && !unknownReadoutAttempt && (unknownReadoutCandidate.readouts.length === 0
       ? <p>{text.unknownReadoutNone}</p> : <div className={styles.controlForm}>
-        <p className={workspaceStyles.workflowHelp}>{text.unknownReadoutHelp}</p>
+        <p className={workspaceStyles.workflowHelp}>{functionary ? text.unknownReadoutHelpFunctionary : text.unknownReadoutHelp}</p>
         <label>{text.unknownReadoutSelect}<select value={unknownReadoutId} disabled={busy}
           onChange={event => setUnknownReadoutId(event.target.value)}>
           {unknownReadoutCandidate.readouts.map(readout => <option key={readout.id} value={readout.id}>
             {text.rosterCard} {readout.cardNumber} · {readoutTime(readout.finishPunchedAt)}
           </option>)}
         </select></label>
-        <label>{text.unknownReadoutTarget}<select value={unknownReadoutTarget} disabled={busy}
+        {!functionary && <label>{text.unknownReadoutTarget}<select value={unknownReadoutTarget} disabled={busy}
           onChange={event => setUnknownReadoutTarget(event.target.value === "NEW_ENTRY" ? "NEW_ENTRY" : "EXISTING_ENTRY")}>
           <option value="EXISTING_ENTRY">{text.unknownReadoutExisting}</option><option value="NEW_ENTRY">{text.unknownReadoutNew}</option>
-        </select></label>
-        {unknownReadoutTarget === "EXISTING_ENTRY" ? <label>{text.unknownReadoutEntry}<select value={unknownReadoutEntryId} disabled={busy}
+        </select></label>}
+        {unknownReadoutTarget === "EXISTING_ENTRY" && !functionary ? <label>{text.unknownReadoutEntry}<select value={unknownReadoutEntryId} disabled={busy}
           onChange={event => setUnknownReadoutEntryId(event.target.value)}>
           <option value="">{text.chooseParticipant}</option>
           {unknownReadoutCandidate.entries.map(entry => <option key={entry.id} value={entry.id}>

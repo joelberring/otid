@@ -193,6 +193,7 @@ export const sv = {
   importLogin: "Logga in säkert",
   importCheckingSession: "Kontrollerar importsession …",
   importLoginRequired: "Inloggning med importbehörighet krävs för detta lopp.",
+  importAdminOnly: "Behörighet saknas: importen är bara för tävlingens administratörer.",
   importLoggingIn: "Loggar in …",
   importLoginRejected: "Accesscredentialen godkändes inte för detta lopp och denna importbehörighet.",
   importSessionFailed: "Importsessionen kunde inte användas",

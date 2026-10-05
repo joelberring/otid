@@ -6,11 +6,10 @@ import { authenticateUserAccountSession, loginUserAccount, registerUserAccount }
 import { completePasswordReset, requestPasswordReset } from "../../src/password-reset";
 import { deleteOwnAccount, readAccountProfile } from "../../src/account-self-service";
 import { createEventAsUserAccount, enterRaceAsUserAccount, listMyEventsAsUserAccount } from "../../src/organizer-events";
-import { grantEventAdministratorAsUserAccount } from "../../src/organizer-coadministration";
 import { performSuperadminAction, readSuperadminOverview, setSuperadmin } from "../../src/superadmin";
 import { isRacePubliclyVisible } from "../../src/public-race-visibility";
 import { listEvents } from "../../src/events";
-import { registerTestAccount, TEST_PASSWORD } from "./accounts";
+import { grantRacePerson, registerTestAccount, TEST_PASSWORD } from "./accounts";
 
 /**
  * ADR-0172 beslut 1–2 / PLAN.md steg 17: konton med e-post, spärr mot upprepade försök, glömt lösenord,
@@ -192,10 +191,7 @@ describe("ADR-0172 konton", () => {
     const leaving = await registerTestAccount(db, `lamnar.${suffix()}`);
     const own = await createEvent(leaving.proof, "Egen träning");
     const shared = await createEvent(owner.proof, "Klubbens tävling");
-    const requestId = randomUUID();
-    expect((await grantEventAdministratorAsUserAccount(db, { ...owner.proof, idempotencyKey: `organizer-admin-grant:${requestId}`,
-      readBody: async () => ({ formatVersion: 1, requestId, eventId: shared.eventId, email: leaving.email, role: "ADMIN" }) })).status)
-      .toBe("granted");
+    expect((await grantRacePerson(db, owner.proof, shared.raceId, leaving.email, "ADMIN")).status).toBe("granted");
     expect((await enterRaceAsUserAccount(db, { ...leaving.proof, raceId: shared.raceId })).status).toBe("entered");
 
     const profile = await readAccountProfile(db, leaving.proof);

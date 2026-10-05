@@ -12,9 +12,9 @@ tävling, IOF-import, simulerad avläsning, resultat och offentlig visning.
   publikgränssnitt samt HTTP-API.
 - `apps/worker`: placeholder som kör ur samma kodbas och delar databaslager. Inga
   bakgrundsjobb behövs i TASK 001.
-- `apps/station`: minimalt Capacitor-skal för Androidstationen. Dess native
-  `:otid-usb-serial`-modul transporterar endast råbytes och importeras inte av
-  webb-, domän- eller databaslagret.
+- Avläsningen sker i webbläsaren (`apps/web/src/readout`, Web Serial, ADR-0168).
+  Den tidigare Androidstationen (`apps/station`) med stationsparning och
+  stationscredentials är borttagen (ADR-0172).
 - PostgreSQL med PostGIS: auktoritativ lagring.
 - Privat MinIO: objektlagring. I TASK 001 lagras IOF-originalet i PostgreSQL för
   att importen ska kunna vara atomär; MinIO finns i driftmiljön men används inte
@@ -87,8 +87,11 @@ och polling är fortsatt reserv. Se ADR-0004 och ADR-0135.
 ## Säkerhets- och integritetsgränser
 
 - Publikvyn kräver inget konto men läser bara publicerade resultatfält.
-- Arrangörs-API saknar full autentisering i TASK 001 och får därför inte exponeras
-  som produktionstjänst.
+- Behörighet (ADR-0168 beslut 4, ADR-0172 beslut 3): ett inloggat konto med
+  `OWNER`/`ADMIN` på eventet är administratör och får allt i tävlingen; ett konto
+  med rollen `FUNCTIONARY` är funktionär och når bara avläsning, direktanmälan av
+  okänd bricka, kvar i skogen, start och speaker. Se avsnittet om funktionärer
+  sist i dokumentet. Inga koder eller credentials delas ut i appen.
 - MinIO-buckets skapas privata. Åtkomstnycklar finns endast i miljövariabler.
 - Råmeddelanden uppdateras eller raderas inte via applikations-API.
 
@@ -117,35 +120,6 @@ Det återanvändbara transportpaketet importerar inte native Node-moduler.
 Desktop-CLI och native serieportsberoende ligger i ett separat appskal. Capture
 är privat och checksummekontrollerat. Se ADR-0006.
 
-## TASK 002B: Androids råtransport
-
-Androidkedjan följer samma transportgräns utan protokolltolkning:
-
-```text
-apps/station TypeScript
-        |
-        v
-Capacitor wire-plugin
-        |
-        v
-RawUsbController -> Mik3yUsbSerialBackend -> Android USB host
-        |
-        v
-globala, ordnade raw-byte/state-events -> AndroidUsbTransport
-```
-
-Capacitor-pluginen mappar endast validerad JSON. Controllern äger en aktiv
-anslutning, FIFO-writes, explicit timeout, generation, cleanup och en begränsad
-eventkö. Endast `Mik3yUsbSerialBackend` känner till
-`usb-serial-for-android`. Reader och writer kör utanför UI-tråden och råbytes
-kopieras vid varje ägargräns. Inga enhetsserienummer, råbytes eller
-exceptiondetaljer loggas.
-
-Androidprojektet är en separat buildgräns med Gradle dependency locks och
-strict checksum verification. JVM-test, Android lint och APK-assemble bevisar
-nativekodens kontrakt och byggbarhet, inte fysisk USB eller SPORTident-stöd. Se
-ADR-0008 och ADR-0009.
-
 ## TASK 004: multi-station-ingest
 
 Device-batch-API:t använder ett delat, runtimevaliderat kontrakt för både server
@@ -160,153 +134,6 @@ samma deltagare serialiseras. En `stored`/`duplicate`-kvittens lämnas efter
 commit; okänd commitstatus vid systemfel förvandlas inte till ett falskt
 per-event-avslag. Snittet kräver ingen migration och bygger ännu inte den lokala
 SQLite-/IndexedDB-kön. Se ADR-0010.
-
-## TASK 005A: signerat paket och beständig stationskärna
-
-Serverns paketbyggare tar samma delade lopplås som resultatberäkningen, läser en
-sammanhängande `RaceSnapshot`, sorterar samlingar deterministiskt och signerar
-canonical UTF-8-JSON med en miljöinläst RSA-nyckel. Det privata HTTP-skalet är
-avstängt utan både signing key och stationstoken och sätter `no-store`; detta är
-en bootstrapgräns, inte den slutliga enhetsparningen.
-
-```text
-PostgreSQL snapshot --RS256--> privat package route
-                                      |
-                              betrodd SPKI separat
-                                      v
-Capacitor TS --------> OtidStationStore --------> app-privat SQLite
-                           |                          |-- package history
-                           | verifierar signatur      |-- active package
-                           | före lagring             |-- device identity
-                           `--------------------------|-- append-only outbox
-```
-
-Native lagring ligger i `:otid-station-store`, helt separat från
-`:otid-usb-serial`. Paketinstallation, sekvensallokering + enqueue och
-kvittensapplicering är atomiska SQLite-transaktioner. Gamla paket, kvitterade
-händelser och avvisningar behålls. Databasen använder foreign keys, WAL och
-`synchronous=FULL` och undantas från Android backup/device transfer. Se ADR-0011.
-
-## TASK 005B: lokal resultatmotor och operativ station
-
-Stationens browserbundle importerar den rena motorn direkt från
-`packages/domain`; den importerar aldrig serverns `packages/application`.
-Aktivt pakets verifierade payload läses tillbaka genom native lagret och
-runtimevalideras innan dess `RaceSnapshot` används.
-
-```text
-SQLite active payload --hashkontroll--> station runtime
-                                           |
-simulatornormaliserad readout --------------+--> packages/domain
-                                                      |
-                                           EvaluationResult
-                                                      |
-                                      append-only local_evaluation
-                                                      |
-                                             operatörsbesked/status
-```
-
-Outboxposten committas före evaluering så att ett motorfel aldrig kan förlora
-den normaliserade händelsen. Exakt motorversionsmatchning krävs för lokalt
-besked. Utfallet är informativt och versionsmärkt; serverns append-only-
-resultatrevision är fortsatt auktoritativ. En minimal `esbuild`-bundle gör
-Capacitors statiska `www` körbart utan nytt UI-ramverk. Se ADR-0012.
-
-## TASK 005C: beständig stationssynk
-
-Varje accepterat serverevent får nu också ett append-only `device_ingest_outcome`
-i samma PostgreSQL-transaktion. Det bevarar den första centrala bedömningen för
-retry även när ingen `ResultRevision` skapas, exempelvis för `UNKNOWN_CARD`.
-Bedömningen binds till en canonical `evaluationHash` över hela domänutfallet.
-
-```text
-SQLite pending --Capacitor native HTTP--> device-batch API
-      |                                      |
-      |                              raw + readout + outcome
-      |                                      |
-      `-- receipt + ack observation <--------'
-                    |
-          local evaluation + central hash
-                    |
-        härledd versionsmedveten UI-jämförelse
-```
-
-Stationen skickar ett event per request, validerar en exakt svarsbijection och
-committar receipt, observation och outboxövergång atomiskt. Endast explicita
-eventkvittensposter påverkar kön. SQLite-observationer och serverutfall är
-append-only; jämförelsestatus härleds och lagras inte. Se ADR-0013.
-
-## TASK 005D: device-bunden stationsautentisering
-
-Servern skiljer nu den stationsrapporterade identiteten från en intern
-`station_device` och en append-only credentialhistorik. Varje credential är
-bunden till exakt lopp, device och funktionen `READOUT`; revocation är en egen
-append-only rad. Ingestens befintliga idempotensnyckel ändras inte.
-
-```text
-betrodd CLI --> station_device + credential hash + audit
-                       |
-Android Keystore --> native authenticated request
-                       |
-               server-only auth/authz
-                       |
-                 device-batch ingest
-```
-
-Routebarriären verifierar credentialen före bodyparsning och mutation. Samma
-modell skyddar privat stationspaketdownload. Servern lagrar aldrig plaintext och
-Android lämnar inte ut installerad token via plugin-API. Den krypterade filen är
-separat från SQLite v3 och ligger i `noBackupFilesDir`. Se ADR-0014.
-
-## TASK 005E: kortlivad engångsparning
-
-Ett append-only `station_pairing_grant` utfärdas av en betrodd CLI för exakt
-lopp och `READOUT`. Grantets bearer-secret lagras endast hashad, gäller högst
-15 minuter och kan spärras innan inlösen. PostgreSQL-baserade attempt- och
-redemptionrader ger rate limit, engångsbarriär och audit över flera webbprocesser.
-
-```text
-betrodd CLI --> kortlivat pairing grant
-                         |
-Android Keystore --> krypterat pending attempt före HTTP
-                         | device + attempt + credential hash
-                         v
-                  pairing redemption
-                         |
-               credential-id + metadata
-                         v
-             native credentialinstallation
-```
-
-Credential-secret genereras av Android och skickas aldrig till servern;
-servern lagrar endast dess SHA-256-hash. Exakt samma pendingattempt kan därför
-retryas efter tappat svar och få samma metadata utan ny credential eller
-återläsbar serversecret. Pendinghemligheter ersätts först efter lyckad
-installation av en icke-hemlig completed-markör.
-SQLite, outbox, resultatmotor och ingest-idempotens ändras inte. Se ADR-0015.
-
-## TASK 005F: autentiserad pairingadministration
-
-En CLI-provisionerad accesscredential är bunden till exakt race och capabilityn
-`PAIR_STATION`. Den skapar en kort serverlagrad session med HttpOnly-cookie och
-sessionbunden CSRF-cookie. Session, accesscredential och deras revocations är
-append-only; varje mutation kontrollerar race/capability igen under sessionslås.
-
-```text
-betrodd CLI --> racebunden accesscredential (hash only)
-                         |
-                    kort session
-                         | Origin + CSRF + race/capability
-Web Crypto --> grant-id + secret-hash --> admin issue
-     |                                      |
-     `--> one-shot pairingtoken       metadata + actor audit
-```
-
-Webbläsaren äger pairingsecretens enda plaintext och servern bestämmer
-`READOUT`, tio minuters granttid och credentialexpiry. Samma grant-id, hash,
-actor och race är idempotent; en annan kontext ger konflikt. Privata list- och
-revokeroutes exponerar endast metadata. Denna gräns skyddar pairingadmin, inte
-de äldre öppna TASK 001-adminfunktionerna. Se ADR-0016.
 
 ## TASK 005G: capability-separerad IOF-importadministration
 
@@ -447,46 +274,6 @@ resultatraden. Den oinloggade detaljsidan tar både lopp och opaque identitet,
 okänd/felscopad/opublicerad rad. Den ersätter varken Entry-id, importidentitet
 eller behörighet och ger inte åtkomst till rådata. Se ADR-0108.
 
-TASK152:s personliga ingång ligger **ovanpå** denna publika resultatkälla, inte
-i en ny resultatmotor. `user_account` autentiserar kontot; en separat
-engångskodsjournal binder därefter kontot till exakt race-/entry-id efter
-operatörsattesterad privat överlämning. Endast kodhash lagras. Issue, redeem
-och revoke serialiserar på samma entry-rad och bevarar immutable historik.
-Kontobunden läsning resolverar aktiva kopplingar server-side och väljer enbart
-V7-rader från den befintliga validerade offentliga resultatprojektionen.
-Opublicerat resultat ger vänteläge, inte privat resultatutdrag. Denna länk
-ger ingen GPS-, rutt-, karta- eller adminrätt. Se ADR-0146;
-kontoinbjudan/återställning ligger i separata A3-snitt (TASK159–161), som
-ännu inte har verklig kodöverlämnings- eller fältacceptans.
-
-TASK153 lägger en separat kontobunden följjournal bredvid TASK152:s
-ägarkoppling. Endast ett just nu publicerat `raceId` + `publicResultId` kan
-nyföljas. Account-session och CSRF skyddar mutation; kontoradlås ordnar
-samtidiga följ/avfölj-kommandon, och senaste immutable journalhändelsen anger
-aktivt val. Den privata läsaren resolverar åter varje valt par genom aktuell
-offentlig V7-projektion; när raden försvinner finns ingen gammal resultat-DTO
-kvar i svaret. Public endpoint, resultatrevision, B1-claim och anonym lokal
-favoritlista ändras inte. Se ADR-0147 och TASK153.
-
-## TASK 005K: separat icke-racebundet bootstrapflöde
-
-Tävlingsskapande sker innan ett race-id finns och kan därför inte använda de
-racebundna `pairing_admin_*`-credentials utan att deras domängräns försvagas.
-TASK 005K inför ett separat append-only säkerhetssubstrat vars enda capability
-är global `CREATE_EVENT`. Det ger ingen rätt till befintliga event eller race
-och är inte en generell arrangörsroll.
-
-`POST /api/events` blir den enda skyddade create-mutationsvägen. En transaktion
-låser event-creation-session och credential, serialiserar ett canonical
-request-id och skapar event, första individuella lopp, requestjournal och
-racebunden auditpost atomiskt. Journalen binder aktör, hela normaliserade
-intentet och interna IDs; exakt replay returnerar samma svar medan ändrad aktör
-eller intent ger konflikt.
-
-Det separata `/admin/events/new`-shellet håller credential och okänd commit i
-React-minne. Publika `/` listar fortsatt endast publik rubrikmetadata och sätter
-inga admincookies. Se ADR-0021.
-
 ## TASK 005L: fail-closed lokal utvecklingssimulator
 
 Webbsimulatorn förblir en adapter ovanpå samma autentiserade, idempotenta
@@ -516,32 +303,6 @@ Grinden ändrar inte stationscredential, station-package, device-batch,
 simulatorpayloadens nuvarande transportfält, rawdata, resultatrevision eller
 offlinekö. En framtida fjärrsimulator kräver separat capability-, audit- och
 ADR-beslut. Se ADR-0022.
-
-## TASK 005M: begränsad device-batch-ingress
-
-Device-batch-routen behåller samma application-usecase men får en explicit
-webbadaptergräns före JSON- och schemavalidering:
-
-```text
-Bearer -> race/READOUT-scope -> 4 MiB faktisk stream
-                                  | exact application/json
-                                  | fatal UTF-8
-                                  | strict batch/event/payload/punch
-                                  v
-                       device + idempotency key
-                                  |
-                       befintlig idempotent ingest
-```
-
-401 och cross-race/scope-403 sker utan body-pull. Deklarerad storlek är endast
-en tidig kontroll; faktisk stream räknas alltid och cancelas vid overflow.
-Serverkuvertet är 4 MiB för att rymma det delade 100×256-kontraktet, medan
-Androids avsiktliga single-event-policy förblir 512 KiB.
-
-Body-/schemafel är detaljfria och skapar inga raw-, readout-, outcome- eller
-revisionsrader. `stored`/`duplicate`, kvittens och transaktionsgräns är
-oförändrade. Reverse-proxy-buffering och rate-limit ligger utanför
-applikationsgränsen. Se ADR-0023.
 
 ## TASK 005N: capability-separerad avläsnings- och resultathistorik
 
@@ -1323,46 +1084,10 @@ Enstegstransport binder capability/race och väntar på lokal receiptcommit;
 ingen radering eller ombasering sker vid nät-, auth- eller CAS-fel.
 Detta är lagrings-/transportsubstrat, ännu inte mobilens offline-appskal/UI.
 
-ADR-0054 tillägger persondatafritt React-appskal /checkin/index.html som byggs
-med workspace-esbuild före web dev/build och serveras av samma Next.js.
-Service worker har scope /checkin/ och SHA-256-verifierad exakt allowlist av
-egna HTML/JS/CSS. Ingen Next/RSC/API/roster cacheas. Explicit förberedelse
-använder separata skyddade login/device/roster-anrop och krypterad IDB;
-lokal upplåsning fungerar utan nät och låsning/pagehide döljer persondata.
-Skriv-/rättningsknappar och integrerad synk från vyn återstår.
-
-Avprickningsvyn kopplar nu explicit skrivläge till befintlig IDB-writer och
-enstegstransport. Gemensam checkinLocalView visar endast operativa lokala
-intents och deras kvittenser, aldrig DNS/resultat/skogsklassificering.
-Startrollens tre knappar och målrollens sammanhållna rättningsformulär är
-separata. Synk verifierar samma registrering/actor före sekventiella retries.
-Privat startlista och översikt länkar till appskalet med race-id i fragment,
-inte query/cache. Inga nya serverbehörigheter följer av länken.
-## TASK 006W: begränsad köåterhämtning, första byggstenen
-
-ADR-0055 beslutar om en separat kortlivad behörighet för ett exakt fryst
-intervall av ursprungliga köoperationer, inte en överlåtelse av device/actor.
-Kontraktets privata manifest och mobilens read-only-export finns nu.
-Additiv migration 0034 innehåller immutable grant, manifestitems, revocation
-och delivery. Canonical manifest lagras som text så att de hashbundna byten
-bevaras. Delivery har separata sammansatta främmande nycklar mot både exakt
-grantitem och originaloperationens scope/sekvens/hash.
-
-Betrodd serverutfärdning/spärrning finns nu med oförändrad permanent actorbindning.
-Utfärdaren låser credential → race → device, kontrollerar inaktiv original-
-credential och exakt överlapp/sekvensgrund och skriver grant/items/audit atomärt.
-Spärrning låser grant och skapar immutable revocation/audit med same-intent-retry.
-Endast hash av den separata 32-byte-hemligheten lagras. Privata in-/utdata och
-serverdrift beskrivs i checkin-recovery-operations.md.
-Recovery-synktjänst och separat bearer/same-origin-HTTP-route finns nu.
-Ordinarie auth och recovery använder samma interna transaktionsskrivare och
-domänregler. Recovery lägger till exact-manifest-grind, grant SHARE-lås samt
-atomisk delivery/audit; den gamla credentialen blir inte giltig igen.
-Browserns explicita tokenflöde är nu kopplat, med samma receipt-/CAS-grind som
-vanlig synk och credentials:omit. Det hämtar inte ny roster eller registrerar
-ny enhet. Token stannar i försökets minne, fältet töms vid submit/låsning och
-recovery används aldrig av automatisk synk. Browser/HTTP/PG har verifierats med
-syntetisk kö, tappat svar, spärrad originalcredential och låsning mitt i svaret.
+Incheckningsappen (`/checkin/`, ADR-0054) med krypterad lokal lista, egna inloggningar
+för start- och målpersonal och återhämtningskoder togs bort i steg 18 (ADR-0172).
+Startläge och återkomst registreras online i arbetsytan av administratören eller
+funktionären och skrivs i samma avprickningsjournal.
 ## TASK 006W: konfliktgranskning under implementation
 
 ADR-0056 separerar immutable granskningsbeslut från ursprunglig operation och
@@ -1481,14 +1206,6 @@ ADR-0059:s authlås hålls tills läsningen committar. RECALCULATE_RESULT,
 readiness, sortering, senaste readout/revision och strikt DTO är oförändrade.
 Ingen mutation, råhistorik eller offlinekö påverkas. Detta stänger en bevisad
 spärrlucka, men gör inte andra preflight-läsare automatiskt spärrsäkra.
-
-## TASK 012: privat parkopplingslista inom authtransaktionen
-
-listPairingGrantsAsAdmin använder ADR-0059:s protected-read först, sedan
-granturval och samtliga metadatauppslag i samma READ COMMITTED-transaktion.
-Authlåsen hålls till commit även när metadatajoinen väntar. PAIR_STATION,
-1000-gräns, sortering och statusprioritet behålls. Ingen ny race/grant-låsning,
-schemaändring eller ändring av utfärdning/inlösen/spärrning ingår.
 
 ## TASK 013: beslutad PM-dokumentgräns, ännu inte aktiverad
 
@@ -1664,17 +1381,6 @@ skiljs från den publika release-gatade kartvägen och exponerar inga
 lagringsidentifierare. Browsern laddar först efter explicit val;
 publiceringsjournal och kartdomän ändras inte. Se
 [TASK244](../TASK_244_PRIVATE_MAP_CANDIDATE_PREVIEW.md) och ADR-0120.
-
-## TASK107: verifierad onlinekedja från station till publik resultatvy
-
-ADR-0004:s femsekunderspolling är oförändrad. Ett separat browserfall öppnar
-den publika 390 px-resultatsidan före resultat, skickar sedan en syntetisk
-stationsreadout via den riktiga, idempotenta device-batch-routen och ser den
-publicerade resultatrevisionen på den redan öppna sidan vid nästa poll. Ett
-avlyssnat efterföljande pollfel behåller den senaste validerade raden och
-visar textlig varning. Det bevisar den befintliga server-/station-/publik-
-sammanfogningen utan att införa SSE, ändra resultatområde eller påstå fysisk
-SPORTident/USB- eller produktionsdriftacceptans.
 
 ## TASK026: deltagarens namn och klubb
 
@@ -2141,6 +1847,28 @@ SMTP (`apps/web/src/lib/mail.ts`, nodemailer) eller från superadmin. Superadmin
 `event` eller `user_account` och tar bort barn före förälder i en transaktion;
 skyddstriggrarna släpper igenom DELETE bara med `otid.purge` satt. Publika sidor
 frågar `isRacePubliclyVisible` (inte dold av superadmin).
+
+## ADR-0172: funktionärer och en behörighetskontroll
+
+Rollerna finns i `event_administration_grant.role` (`OWNER`, `ADMIN`,
+`FUNCTIONARY`). När ett konto öppnar tävlingen (`enterRaceAsUserAccount`) skapas
+en dold, kortlivad delegering med behörigheten `MANAGE_RACE` (ägare/administratör)
+eller `RACE_FUNCTIONARY` (funktionär) och en egen session per enhet, så samma konto
+kan vara inloggat på flera enheter. `authorizeSession` i
+`packages/application/src/pairing-admin.ts` kontrollerar vid varje anrop att
+delegeringens behörighet stämmer med rollen och att behörigheten inte är borttagen;
+en borttagen funktionär nekas alltså direkt. `raceAdministratorAllowsAction` ger
+`MANAGE_RACE` allt och `RACE_FUNCTIONARY` bara det som kräver `RACE_FUNCTIONARY`.
+
+I webben avgör `apps/web/src/lib/race-roles.ts` (`FUNCTIONARY_ROUTES`,
+`requireRaceRole`) vilken roll varje adminroute kräver; allt som inte står i
+tabellen kräver administratör. Tjänsterna kontrollerar samma sak igen, och
+databasen tillåter `RACE_FUNCTIONARY` bara i avprickningsjournalen och i
+direktanmälan av okänd bricka (`unknown_readout_resolution`, bara `NEW_ENTRY`).
+`apps/web/src/lib/race-roles.test.ts` anropar varje adminroute som funktionär och
+som administratör. Personer med behörighet hanteras under Inställningar
+(`race-people.ts`): administratörer lägger till och tar bort funktionärer, ägaren
+också administratörer, alltid med ett befintligt kontos e-post.
 
 ## TASK162: relativ uppspelning av egen privat rutt
 

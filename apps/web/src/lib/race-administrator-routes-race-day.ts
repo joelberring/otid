@@ -8,51 +8,19 @@ import { manualFinishTimeCorrectionCandidateSchema, manualFinishTimeCorrectionId
   manualFinishTimeCorrectionWithdrawalIdempotencyKeySchema, manualFinishTimeCorrectionWithdrawalRequestSchema,
   manualFinishTimeCorrectionWithdrawalResponseSchema, unknownReadoutResolutionCandidateResponseSchema,
   unknownReadoutResolutionIdempotencyKeySchema, unknownReadoutResolutionRequestSchema,
-  unknownReadoutResolutionResponseSchema, speakerBoardResponseSchema, raceOperatorAccessIssueRequestSchema,
-  raceOperatorAccessIssueResponseSchema, raceOperatorAccessListResponseSchema, raceOperatorAccessRevokeRequestSchema,
-  raceOperatorAccessRevokeResponseSchema, checkinHistoryResponseSchema, StartCheckinConflictReviewCandidateSchema,
+  unknownReadoutResolutionResponseSchema, speakerBoardResponseSchema, checkinHistoryResponseSchema, StartCheckinConflictReviewCandidateSchema,
   StartCheckinConflictReviewRequestSchema, StartCheckinConflictReviewResponseSchema,
   administratorForestWatchResponseSchema, administratorStartCorrectionRequestSchema,
   administratorStartCorrectionResponseSchema, canonicalAdministratorStartCorrectionRequest,
   administratorReturnRequestSchema, administratorReturnResponseSchema, canonicalAdministratorReturnRequest } from "@o-tid/contracts";
 import { entryClassAdminFailure as failure, entryClassAdminJson as json, hasNoEntryClassAdminRequestBody,
   readEntryClassAdminJson } from "./entry-class-admin-security";
-import { ConflictReviewRequestError, readReviewJson } from "./checkin-conflict-review-route-handlers";
+import { ConflictReviewRequestError, readReviewJson } from "./checkin-conflict-review-body";
 import { resultFailure, type RaceAdministratorRouteContext } from "./race-administrator-route-context";
 
-/** Tävlingsdagen: funktionärskoder, okända avläsningar, manuella rättningar, konfliktgranskning, kvar i skogen och speaker. Ger undefined för åtgärder som inte hör till gruppen. */
+/** Tävlingsdagen: okända avläsningar, manuella rättningar, konfliktgranskning, kvar i skogen och speaker. Ger undefined för åtgärder som inte hör till gruppen. */
 export async function handleRaceDayRoute(context: RaceAdministratorRouteContext): Promise<Response | undefined> {
   const { db, request, raceId, action, dependencies, proof, cursor } = context;
-  if (action.kind === "operator-access" && request.method === "GET") {
-    if (!await hasNoEntryClassAdminRequestBody(request)) return failure(400, "INVALID_REQUEST");
-    const result = await dependencies.operatorAccesses(db, { ...proof, raceId });
-    if (result.status !== "ok") return resultFailure(result.status);
-    return json(raceOperatorAccessListResponseSchema.parse(result.response));
-  }
-  if (action.kind === "operator-access" && request.method === "POST") {
-    let body: unknown;
-    try { body = await readEntryClassAdminJson(request); } catch { return failure(400, "INVALID_REQUEST"); }
-    const parsed = raceOperatorAccessIssueRequestSchema.safeParse(body);
-    if (!parsed.success) return failure(400, "INVALID_REQUEST");
-    const result = await dependencies.issueOperatorAccess(db, { ...proof, raceId, request: parsed.data });
-    if (result.status !== "issued") return resultFailure(result.status);
-    const response = raceOperatorAccessIssueResponseSchema.parse(result.response);
-    if (response.access.raceId !== raceId || response.access.capability !== parsed.data.capability || response.access.label !== parsed.data.label || response.access.expiresAt !== parsed.data.expiresAt) {
-      return failure(500, "INTERNAL_ERROR");
-    }
-    return json(response, 201);
-  }
-  if (action.kind === "operator-access") {
-    let body: unknown;
-    try { body = await readEntryClassAdminJson(request); } catch { return failure(400, "INVALID_REQUEST"); }
-    const parsed = raceOperatorAccessRevokeRequestSchema.safeParse(body);
-    if (!parsed.success) return failure(400, "INVALID_REQUEST");
-    const result = await dependencies.revokeOperatorAccess(db, { ...proof, raceId, request: parsed.data });
-    if (result.status !== "revoked") return resultFailure(result.status);
-    const response = raceOperatorAccessRevokeResponseSchema.parse(result.response);
-    if (response.access.raceId !== raceId || response.access.credentialId !== parsed.data.credentialId) return failure(500, "INTERNAL_ERROR");
-    return json(response);
-  }
   if (action.kind === "unknown-readout-resolution" && request.method === "GET") {
     if (!await hasNoEntryClassAdminRequestBody(request)) return failure(400, "INVALID_REQUEST");
     const result = await dependencies.unknownReadoutResolutionCandidates(db, { ...proof, raceId });

@@ -6,7 +6,7 @@ import { createDatabase } from "@o-tid/database";
 import { authenticatePairingAdminSession, type RaceAdminCapability } from "../../src/pairing-admin";
 import { registerUserAccount } from "../../src/user-account";
 import { createEventAsUserAccount, enterRaceAsUserAccount } from "../../src/organizer-events";
-import { grantEventAdministratorAsUserAccount } from "../../src/organizer-coadministration";
+import { grantRacePerson } from "./accounts";
 import { importIofXmlAsAdmin } from "../../src/import-iof";
 
 const base = process.env.TEST_DATABASE_URL;
@@ -52,15 +52,12 @@ describe("ADR-0168 två behörighetsnivåer", () => {
       readBody: async () => ({ formatVersion: 1, eventName: "Klubbträning", raceName: "Torsdagsträning",
         raceDate: "2026-10-08", timeZone: "Europe/Stockholm" }) });
     if (created.status !== "created") throw new Error("Tävlingen kunde inte skapas");
-    const { eventId, raceId } = created.response;
+    const { raceId } = created.response;
 
     // En annan registrerad person har ingen åtkomst förrän ägaren bjuder in.
     const helper = await register(`hjalp.${suffix}`);
     expect((await enterRaceAsUserAccount(db, { ...helper.proof, raceId })).status).toBe("not-found");
-    const requestId = randomUUID();
-    const granted = await grantEventAdministratorAsUserAccount(db, { ...owner.proof,
-      idempotencyKey: `organizer-admin-grant:${requestId}`,
-      readBody: async () => ({ formatVersion: 1, requestId, eventId, email: `hjalp.${suffix}@test.o-tid.se`, role: "ADMIN" }) });
+    const granted = await grantRacePerson(db, owner.proof, raceId, `hjalp.${suffix}@test.o-tid.se`, "ADMIN");
     expect(granted.status).toBe("granted");
 
     const entered = await enterRaceAsUserAccount(db, { ...helper.proof, raceId });

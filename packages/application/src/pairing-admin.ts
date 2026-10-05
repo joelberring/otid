@@ -1,5 +1,5 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
-import { desc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import {
   didNotFinishAdminLoginRequestSchema,
   didNotFinishWithdrawalAdminLoginRequestSchema,
@@ -17,16 +17,13 @@ import {
   entryRegistrationAdminLoginRequestSchema,
   iofResultListExportAdminLoginRequestSchema,
   iofImportLoginRequestSchema,
-  pairingAdminGrantIssueRequestSchema,
-  pairingAdminLoginRequestSchema,
   pmDocumentLoginRequestSchema,
   raceOverviewAdminLoginRequestSchema,
   raceAdministratorLoginRequestSchema,
+  raceFunctionaryLoginRequestSchema,
   startListAdminLoginRequestSchema,
   speakerBoardLoginRequestSchema,
   startListPublicationAdminLoginRequestSchema,
-  startCheckinAdminLoginRequestSchema,
-  finishForestWatchAdminLoginRequestSchema,
   readoutResultHistoryAdminLoginRequestSchema,
   resultDisqualificationAdminLoginRequestSchema,
   resultDisqualificationWithdrawalAdminLoginRequestSchema,
@@ -34,10 +31,6 @@ import {
   resultApprovalWithdrawalAdminLoginRequestSchema,
   resultFinalizationAdminLoginRequestSchema,
   resultRecalculationAdminLoginRequestSchema,
-  type PairingAdminGrantIssueResponse,
-  type PairingAdminGrantListResponse,
-  type PairingAdminGrantMetadata,
-  type PairingAdminGrantRevokeResponse,
   type DidNotFinishAdminLoginRequest,
   type DidNotFinishWithdrawalAdminLoginRequest,
   type OutOfCompetitionAdminLoginRequest,
@@ -52,14 +45,11 @@ import {
   type EntryRegistrationAdminLoginRequest,
   type IofResultListExportAdminLoginRequest,
   type IofImportLoginRequest,
-  type PairingAdminLoginRequest,
   type PmDocumentLoginRequest,
   type RaceOverviewAdminLoginRequest,
   type StartListAdminLoginRequest,
   type SpeakerBoardLoginRequest,
   type StartListPublicationAdminLoginRequest,
-  type StartCheckinAdminLoginRequest,
-  type FinishForestWatchAdminLoginRequest,
   type ReadoutResultHistoryAdminLoginRequest,
   type ResultDisqualificationAdminLoginRequest,
   type ResultDisqualificationWithdrawalAdminLoginRequest,
@@ -80,12 +70,16 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3
 const SECRET_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 const HASH_PATTERN = /^[a-f0-9]{64}$/;
 const SESSION_PREFIX = "otid_org_session_v1";
-const GRANT_LIFETIME_MS = 10 * 60 * 1000;
 const DUMMY_HASH = Buffer.from("0e0c2fb493e4475d4ee4055cc5cb7c8229399d72a775ae5c346b57466b72d081", "hex");
 
+/**
+ * MANAGE_RACE är administratören (OWNER/ADMIN), RACE_FUNCTIONARY funktionären (ADR-0172 beslut 3). Båda fås bara
+ * genom att ett inloggat konto öppnar tävlingen (`enterRaceAsUserAccount`). De övriga är äldre funktionsvisa
+ * behörigheter som bara finns kvar för testernas skull och aldrig delas ut i appen.
+ */
 export type RaceAdminCapability =
   | "MANAGE_RACE"
-  | "PAIR_STATION"
+  | "RACE_FUNCTIONARY"
   | "IMPORT_IOF"
   | "CHANGE_ENTRY_CLASS"
   | "CHANGE_ENTRY_START_TIME"
@@ -98,8 +92,6 @@ export type RaceAdminCapability =
   | "VIEW_START_LIST"
   | "VIEW_SPEAKER_BOARD"
   | "MANAGE_PM_DOCUMENT"
-  | "START_CHECKIN"
-  | "FINISH_FOREST_WATCH"
   | "PUBLISH_START_LIST"
   | "VIEW_READOUT_RESULT_HISTORY"
   | "EXPORT_IOF_RESULT_LIST"
@@ -127,14 +119,14 @@ const CAPABILITY_POLICY = {
     issueAuditAction: "RACE_ADMIN_ACCESS_CREDENTIAL_ISSUED",
     revokeAuditAction: "RACE_ADMIN_ACCESS_CREDENTIAL_REVOKED"
   },
-  PAIR_STATION: {
-    accessPrefix: "otid_org_pair_v1",
-    maxAccessLifetimeMs: 24 * 60 * 60 * 1000,
-    maxSessionLifetimeMs: 8 * 60 * 60 * 1000,
-    loginRequestSchema: pairingAdminLoginRequestSchema,
-    auditEntityType: "pairing_admin_access_credential",
-    issueAuditAction: "PAIRING_ADMIN_ACCESS_CREDENTIAL_ISSUED",
-    revokeAuditAction: "PAIRING_ADMIN_ACCESS_CREDENTIAL_REVOKED"
+  RACE_FUNCTIONARY: {
+    accessPrefix: "otid_org_race_functionary_v1",
+    maxAccessLifetimeMs: 8 * 60 * 60 * 1000,
+    maxSessionLifetimeMs: 60 * 60 * 1000,
+    loginRequestSchema: raceFunctionaryLoginRequestSchema,
+    auditEntityType: "race_functionary_access_credential",
+    issueAuditAction: "RACE_FUNCTIONARY_ACCESS_CREDENTIAL_ISSUED",
+    revokeAuditAction: "RACE_FUNCTIONARY_ACCESS_CREDENTIAL_REVOKED"
   },
   IMPORT_IOF: {
     accessPrefix: "otid_org_import_v1",
@@ -243,24 +235,6 @@ const CAPABILITY_POLICY = {
     auditEntityType: "pm_document_access_credential",
     issueAuditAction: "PM_DOCUMENT_ACCESS_CREDENTIAL_ISSUED",
     revokeAuditAction: "PM_DOCUMENT_ACCESS_CREDENTIAL_REVOKED"
-  },
-  START_CHECKIN: {
-    accessPrefix: "otid_org_start_checkin_v1",
-    maxAccessLifetimeMs: 8 * 60 * 60 * 1000,
-    maxSessionLifetimeMs: 60 * 60 * 1000,
-    loginRequestSchema: startCheckinAdminLoginRequestSchema,
-    auditEntityType: "start_checkin_access_credential",
-    issueAuditAction: "START_CHECKIN_ACCESS_CREDENTIAL_ISSUED",
-    revokeAuditAction: "START_CHECKIN_ACCESS_CREDENTIAL_REVOKED"
-  },
-  FINISH_FOREST_WATCH: {
-    accessPrefix: "otid_org_finish_forest_watch_v1",
-    maxAccessLifetimeMs: 8 * 60 * 60 * 1000,
-    maxSessionLifetimeMs: 60 * 60 * 1000,
-    loginRequestSchema: finishForestWatchAdminLoginRequestSchema,
-    auditEntityType: "finish_forest_watch_access_credential",
-    issueAuditAction: "FINISH_FOREST_WATCH_ACCESS_CREDENTIAL_ISSUED",
-    revokeAuditAction: "FINISH_FOREST_WATCH_ACCESS_CREDENTIAL_REVOKED"
   },
   PUBLISH_START_LIST: { accessPrefix: "otid_org_start_list_publication_v1", maxAccessLifetimeMs: 8 * 60 * 60 * 1000, maxSessionLifetimeMs: 60 * 60 * 1000, loginRequestSchema: startListPublicationAdminLoginRequestSchema, auditEntityType: "start_list_publication_access_credential", issueAuditAction: "START_LIST_PUBLICATION_ACCESS_CREDENTIAL_ISSUED", revokeAuditAction: "START_LIST_PUBLICATION_ACCESS_CREDENTIAL_REVOKED" },
   VIEW_READOUT_RESULT_HISTORY: {
@@ -408,8 +382,8 @@ const CAPABILITY_POLICY = {
   revokeAuditAction: string;
 }>;
 
-type RaceAdminLoginRequest = typeof raceAdministratorLoginRequestSchema._output | PairingAdminLoginRequest | IofImportLoginRequest | SpeakerBoardLoginRequest | PmDocumentLoginRequest |
-  EntryClassAdminLoginRequest | EntryStartTimeAdminLoginRequest | ClassStartDrawAdminLoginRequest | EntryCardAdminLoginRequest | EntryRegistrationAdminLoginRequest | ResultRecalculationAdminLoginRequest | RaceOverviewAdminLoginRequest | StartListAdminLoginRequest | StartCheckinAdminLoginRequest | FinishForestWatchAdminLoginRequest | StartListPublicationAdminLoginRequest |
+type RaceAdminLoginRequest = typeof raceAdministratorLoginRequestSchema._output | typeof raceFunctionaryLoginRequestSchema._output | IofImportLoginRequest | SpeakerBoardLoginRequest | PmDocumentLoginRequest |
+  EntryClassAdminLoginRequest | EntryStartTimeAdminLoginRequest | ClassStartDrawAdminLoginRequest | EntryCardAdminLoginRequest | EntryRegistrationAdminLoginRequest | ResultRecalculationAdminLoginRequest | RaceOverviewAdminLoginRequest | StartListAdminLoginRequest | StartListPublicationAdminLoginRequest |
   ReadoutResultHistoryAdminLoginRequest | IofResultListExportAdminLoginRequest |
   ResultFinalizationAdminLoginRequest | DidNotStartAdminLoginRequest |
   DidNotStartWithdrawalAdminLoginRequest | ResultDisqualificationAdminLoginRequest |
@@ -432,6 +406,8 @@ export interface PairingAdminPrincipal {
   capability: RaceAdminCapability;
   sessionId: string;
   expiresAt: string;
+  /** Kontot och dess roll på eventet när sessionen öppnats med ett konto (ADR-0168/0172). */
+  account?: { accountId: string; grantId: string; role: "OWNER" | "ADMIN" | "FUNCTIONARY" };
 }
 
 export interface PairingAdminAccessCredentialInstallation {
@@ -464,18 +440,6 @@ export type PairingAdminLogoutResult =
   | { status: "forbidden" }
   | { status: "invalid-request" }
   | { status: "logged-out" | "already-logged-out" };
-
-export type PairingAdminGrantIssueResult =
-  | { status: "unauthorized" | "forbidden" | "invalid-request" | "conflict" }
-  | { status: "stored" | "duplicate"; response: PairingAdminGrantIssueResponse };
-
-export type PairingAdminGrantListResult =
-  | { status: "unauthorized" | "forbidden" }
-  | { status: "ok"; response: PairingAdminGrantListResponse };
-
-export type PairingAdminGrantRevokeResult =
-  | { status: "unauthorized" | "forbidden" | "invalid-request" | "not-found" }
-  | { status: "revoked" | "already-revoked"; response: PairingAdminGrantRevokeResponse };
 
 export interface PairingAdminRuntimeOptions {
   now?: Date;
@@ -593,6 +557,7 @@ async function authorizeSession(
   if (input.requireCsrf && !csrfMatches(input.csrfCookie, input.csrfHeader, session.csrfSecretHash)) {
     return { status: "forbidden" };
   }
+  let account: PairingAdminPrincipal["account"];
   const delegationQuery = tx.select().from(schema.userAccountRaceDelegations)
     .where(eq(schema.userAccountRaceDelegations.credentialId, credential.id));
   const [delegation] = lock === "share" ? await delegationQuery.for("share") :
@@ -609,8 +574,12 @@ async function authorizeSession(
       .where(eq(schema.eventAdministrationGrants.id, delegation.grantId));
     const [grant] = lock === "share" ? await grantQuery.for("share") :
       lock === "update" ? await grantQuery.for("update") : await grantQuery;
-    if (!grant || grant.accountId !== delegation.accountId || grant.eventId !== delegation.eventId ||
-      (grant.role !== "OWNER" && grant.role !== "ADMIN")) return { status: "unauthorized" };
+    // Administratörens delegering kräver OWNER/ADMIN, funktionärens rollen FUNCTIONARY (ADR-0172 beslut 3).
+    const roleMatches = credential.capability === "MANAGE_RACE" ? grant?.role === "OWNER" || grant?.role === "ADMIN"
+      : credential.capability === "RACE_FUNCTIONARY" && grant?.role === "FUNCTIONARY";
+    if (!grant || grant.accountId !== delegation.accountId || grant.eventId !== delegation.eventId || !roleMatches) {
+      return { status: "unauthorized" };
+    }
     if (lock !== "none") {
       const guardQuery = tx.select({ grantId: schema.eventAdministrationGrantGuards.grantId })
         .from(schema.eventAdministrationGrantGuards)
@@ -622,15 +591,17 @@ async function authorizeSession(
       .from(schema.eventAdministrationGrantRevocations)
       .where(eq(schema.eventAdministrationGrantRevocations.grantId, grant.id)).limit(1);
     if (grantRevocation) return { status: "unauthorized" };
+    account = { accountId: delegation.accountId, grantId: grant.id, role: grant.role };
   }
   return {
     status: "authenticated",
     principal: {
       accessCredentialId: credential.id,
       raceId: credential.raceId,
-      capability: credential.capability,
+      capability: credential.capability as RaceAdminCapability,
       sessionId: session.id,
-      expiresAt: session.expiresAt.toISOString()
+      expiresAt: session.expiresAt.toISOString(),
+      ...(account ? { account } : {})
     }
   };
 }
@@ -696,7 +667,8 @@ export async function revokePairingAdminAccessCredentialInTransaction(
     if (!existing) throw new Error("Credentialspärren kunde inte läsas");
     return { status: "already-revoked" as const, credentialId, revokedAt: existing.revokedAt.toISOString() };
   }
-  const policy = CAPABILITY_POLICY[credential.capability];
+  const policy = CAPABILITY_POLICY[credential.capability as RaceAdminCapability];
+  if (!policy) throw new Error("Credentialens behörighet används inte längre");
   await tx.insert(schema.auditEvents).values({
     raceId: credential.raceId,
     entityType: policy.auditEntityType,
@@ -850,7 +822,7 @@ export async function logoutPairingAdminSession(
       credential.issuedAt.getTime() > loggedOutAt.getTime() || credential.expiresAt.getTime() <= loggedOutAt.getTime()) {
       return { status: "unauthorized" };
     }
-    if (credential.raceId !== input.raceId || credential.capability !== input.capability) {
+    if (credential.raceId !== input.raceId || !raceAdministratorAllowsAction(credential.capability, input.capability)) {
       return { status: "forbidden" };
     }
     if (!csrfMatches(input.csrfCookie, input.csrfHeader, session.csrfSecretHash)) return { status: "forbidden" };
@@ -868,147 +840,5 @@ export async function logoutPairingAdminSession(
       sessionId: session.id, revokedAt: loggedOutAt, reason: "USER_LOGOUT"
     });
     return { status: "logged-out" };
-  });
-}
-
-async function grantMetadata(tx: DbExecutor, grantId: string, now: Date): Promise<PairingAdminGrantMetadata | undefined> {
-  const [row] = await tx.select({
-    grant: schema.stationPairingGrants,
-    redeemedAt: schema.stationPairingRedemptions.redeemedAt,
-    revokedAt: schema.stationPairingGrantRevocations.revokedAt
-  }).from(schema.stationPairingGrants)
-    .leftJoin(schema.stationPairingRedemptions, eq(schema.stationPairingRedemptions.grantId, schema.stationPairingGrants.id))
-    .leftJoin(schema.stationPairingGrantRevocations, eq(schema.stationPairingGrantRevocations.grantId, schema.stationPairingGrants.id))
-    .where(eq(schema.stationPairingGrants.id, grantId)).limit(1);
-  if (!row) return undefined;
-  const status = row.redeemedAt ? "REDEEMED" : row.revokedAt ? "REVOKED" :
-    row.grant.expiresAt.getTime() <= now.getTime() ? "EXPIRED" : "ACTIVE";
-  return {
-    formatVersion: 1, grantId: row.grant.id, raceId: row.grant.raceId, scope: row.grant.scope, status,
-    issuedAt: row.grant.issuedAt.toISOString(), expiresAt: row.grant.expiresAt.toISOString(),
-    credentialExpiresAt: row.grant.credentialExpiresAt.toISOString(),
-    redeemedAt: row.redeemedAt?.toISOString() ?? null, revokedAt: row.revokedAt?.toISOString() ?? null
-  };
-}
-
-export async function issuePairingGrantAsAdmin(
-  db: Database,
-  input: PairingAdminRequestAuthentication & { idempotencyKey: string | null; readBody: () => Promise<unknown> },
-  now = new Date()
-): Promise<PairingAdminGrantIssueResult> {
-  const issuedAt = validDate(now, "Utfärdandetiden");
-  return db.transaction(async (tx) => {
-    const authorization = await authorizeSession(
-      tx,
-      { ...input, capability: "PAIR_STATION", requireCsrf: true },
-      issuedAt,
-      "update"
-    );
-    if (authorization.status !== "authenticated") return authorization;
-    let body: unknown;
-    try { body = await input.readBody(); } catch { return { status: "invalid-request" }; }
-    const parsed = pairingAdminGrantIssueRequestSchema.safeParse(body);
-    if (!parsed.success || input.idempotencyKey !== `pairing-grant:${parsed.data.grantId}`) {
-      return { status: "invalid-request" };
-    }
-    const request = parsed.data;
-    const expiresAt = new Date(issuedAt.getTime() + GRANT_LIFETIME_MS);
-    const credentialExpiresAt = new Date(issuedAt.getTime() + request.credentialLifetimeHours * 60 * 60 * 1000);
-    const [created] = await tx.insert(schema.stationPairingGrants).values({
-      id: request.grantId, raceId: authorization.principal.raceId, scope: "READOUT",
-      secretHash: request.grantSecretHash, issuedAt, expiresAt, credentialExpiresAt,
-      issuerCredentialId: authorization.principal.accessCredentialId
-    }).onConflictDoNothing().returning({ id: schema.stationPairingGrants.id });
-    if (!created) {
-      const [existing] = await tx.select().from(schema.stationPairingGrants)
-        .where(eq(schema.stationPairingGrants.id, request.grantId)).for("update");
-      const durationHours = existing ?
-        (existing.credentialExpiresAt.getTime() - existing.issuedAt.getTime()) / (60 * 60 * 1000) : -1;
-      const exact = existing?.raceId === authorization.principal.raceId && existing.scope === "READOUT" &&
-        existing.secretHash === request.grantSecretHash &&
-        existing.issuerCredentialId === authorization.principal.accessCredentialId &&
-        durationHours === request.credentialLifetimeHours;
-      if (!exact) return { status: "conflict" };
-      const metadata = await grantMetadata(tx, request.grantId, issuedAt);
-      if (!metadata) throw new Error("Grantet kunde inte läsas");
-      return { status: "duplicate", response: { formatVersion: 1, status: "duplicate", grant: metadata } };
-    }
-    await tx.insert(schema.auditEvents).values({
-      raceId: authorization.principal.raceId, entityType: "station_pairing_grant", entityId: request.grantId,
-      action: "STATION_PAIRING_GRANT_ISSUED_BY_ADMIN",
-      actorKind: "PAIRING_ADMIN_ACCESS_CREDENTIAL", actorId: authorization.principal.accessCredentialId,
-      requestId: request.grantId,
-      after: { scope: "READOUT", issuedAt: issuedAt.toISOString(), expiresAt: expiresAt.toISOString(),
-        credentialExpiresAt: credentialExpiresAt.toISOString() }
-    });
-    const metadata = await grantMetadata(tx, request.grantId, issuedAt);
-    if (!metadata) throw new Error("Grantet kunde inte läsas");
-    return { status: "stored", response: { formatVersion: 1, status: "stored", grant: metadata } };
-  });
-}
-
-export async function listPairingGrantsAsAdmin(
-  db: Database,
-  input: PairingAdminRequestAuthentication,
-  now = new Date()
-): Promise<PairingAdminGrantListResult> {
-  const listedAt = validDate(now, "Listningstiden");
-  return db.transaction(async (tx) => {
-    const authorization = await authenticatePairingAdminSessionForProtectedRead(
-      tx, { ...input, capability: "PAIR_STATION" }, listedAt
-    );
-    if (authorization.status !== "authenticated") return authorization;
-    const rows = await tx.select({ id: schema.stationPairingGrants.id }).from(schema.stationPairingGrants)
-      .where(eq(schema.stationPairingGrants.raceId, authorization.principal.raceId))
-      .orderBy(desc(schema.stationPairingGrants.issuedAt)).limit(1000);
-    const grants: PairingAdminGrantMetadata[] = [];
-    for (const row of rows) {
-      const metadata = await grantMetadata(tx, row.id, listedAt);
-      if (metadata) grants.push(metadata);
-    }
-    return { status: "ok", response: { formatVersion: 1, grants } };
-  });
-}
-
-export async function revokePairingGrantAsAdmin(
-  db: Database,
-  input: PairingAdminRequestAuthentication & { grantId: string; readBodyIsEmpty?: () => Promise<boolean> },
-  now = new Date()
-): Promise<PairingAdminGrantRevokeResult> {
-  const revokedAt = validDate(now, "Spärrtiden");
-  if (!UUID_PATTERN.test(input.grantId)) return { status: "not-found" };
-  return db.transaction(async (tx) => {
-    const authorization = await authorizeSession(
-      tx,
-      { ...input, capability: "PAIR_STATION", requireCsrf: true },
-      revokedAt,
-      "update"
-    );
-    if (authorization.status !== "authenticated") return authorization;
-    if (input.readBodyIsEmpty !== undefined) {
-      try {
-        if (!await input.readBodyIsEmpty()) return { status: "invalid-request" };
-      } catch {
-        return { status: "invalid-request" };
-      }
-    }
-    const [grant] = await tx.select().from(schema.stationPairingGrants)
-      .where(eq(schema.stationPairingGrants.id, input.grantId)).for("update");
-    if (!grant || grant.raceId !== authorization.principal.raceId) return { status: "not-found" };
-    const [created] = await tx.insert(schema.stationPairingGrantRevocations).values({
-      grantId: grant.id, revokedAt, reason: "PAIRING_ADMIN_REVOKED"
-    }).onConflictDoNothing().returning({ id: schema.stationPairingGrantRevocations.id });
-    if (created) {
-      await tx.insert(schema.auditEvents).values({
-        raceId: grant.raceId, entityType: "station_pairing_grant", entityId: grant.id,
-        action: "STATION_PAIRING_GRANT_REVOKED_BY_ADMIN",
-        actorKind: "PAIRING_ADMIN_ACCESS_CREDENTIAL", actorId: authorization.principal.accessCredentialId,
-        requestId: grant.id, after: { revokedAt: revokedAt.toISOString() }
-      });
-    }
-    const metadata = await grantMetadata(tx, grant.id, revokedAt);
-    if (!metadata) throw new Error("Grantet kunde inte läsas");
-    const status = created ? "revoked" as const : "already-revoked" as const;
-    return { status, response: { formatVersion: 1, status, grant: metadata } };
   });
 }

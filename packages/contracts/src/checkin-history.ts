@@ -5,7 +5,7 @@ export const checkinHistoryRowSchema = z.object({
   requestId: StartCheckinOperationSchema.shape.requestId,
   observedAt: StartCheckinOperationSchema.shape.observedAt,
   receivedAt: StartCheckinReceiptSchema.shape.receivedAt,
-  source: z.enum(["MANAGE_RACE", "START_CHECKIN", "FINISH_FOREST_WATCH"]),
+  source: z.enum(["MANAGE_RACE", "RACE_FUNCTIONARY", "START_CHECKIN", "FINISH_FOREST_WATCH"]),
   sourceLabel: z.string().min(1).max(256),
   action: StartCheckinOperationSchema.shape.action,
   effect: StartCheckinReceiptSchema.shape.effect,

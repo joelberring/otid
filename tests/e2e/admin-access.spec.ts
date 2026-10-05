@@ -1,10 +1,10 @@
 import { expect, test } from "@playwright/test";
-import { addCourseAndClass, addEntry, createRace, openStep, registerAccount, unique } from "./helpers";
+import { addCourseAndClass, addEntry, addPerson, createRace, openStep, registerAccount, unique } from "./helpers";
 
 /**
  * Steg 1 (ADR-0168): två behörighetsnivåer.
- * Konto → tävling → bana/klass/deltagare → bjud in en administratör →
- * den inbjudna kan arbeta → en utloggad besökare ser publikt men inte admin.
+ * Konto → tävling → bana/klass/deltagare → lägg till en administratör under
+ * Inställningar (ADR-0172) → den tillagda kan arbeta → en utloggad besökare ser publikt men inte admin.
  */
 
 test("konto, tävling, medadministratör och publik vy", async ({ browser, request }) => {
@@ -23,14 +23,11 @@ test("konto, tävling, medadministratör och publik vy", async ({ browser, reque
   const helperForbidden = await helper.request.get(`/api/admin/races/${raceId}/administrator/participants`);
   expect(helperForbidden.status()).toBe(401);
 
-  await owner.goto("/organizer");
-  await owner.getByText("Visa medadministratörer").click();
-  await owner.getByLabel("Befintligt kontos e-postadress").fill(helperEmail);
-  await owner.getByRole("button", { name: "Ge eventåtkomst" }).click();
-  await expect(owner.getByText("aktiv åtkomst")).toBeVisible();
+  await addPerson(owner, helperEmail, "Administratör");
 
   await helper.reload();
   await expect(helper.getByText(eventName)).toBeVisible();
+  await expect(helper.getByText("Administratör", { exact: true })).toBeVisible();
   await helper.getByRole("button", { name: "Öppna arbetsytan" }).first().click();
   await helper.waitForURL(/manage$/);
   await openStep(helper, "Anmälda");

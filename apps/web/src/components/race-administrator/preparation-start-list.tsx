@@ -63,14 +63,16 @@ function StartPublication({ ws, visible }: { ws: Workspace; visible: boolean }) 
  * per klass, per starttid och per klubb (PLAN.md steg 13). Funktionärer finns under Inställningar (ADR-0170).
  */
 export function PreparationStartList({ ws }: { ws: Workspace }) {
-  const { data, disabled, downloadStartList, profile, select, shows } = ws;
+  const { data, disabled, downloadStartList, functionary, profile, select, shows } = ws;
   const visible = shows("START");
   const model = useMemo(() => data ? startListFromWorkspace(data) : undefined, [data]);
   return <section className={styles.workflowGroup} aria-label={navigationText.steps.START} hidden={!visible}>
-    {profile.features.draw && <StartDrawPanel ws={ws} visible={visible} />}
-    {profile.features.relay && <RelayStartTimes ws={ws} visible={visible} />}
-    <StartPublication ws={ws} visible={visible} />
-    {model && <StartLists model={model} onSelectEntry={id => select(id)} disabled={disabled}
-      iof={{ onSelect: () => void downloadStartList(), disabled }} />}
+    {/* Funktionären ser startlistorna; lottning, masstart, publicering, deltagarkort och export är administratörens. */}
+    {!functionary && profile.features.draw && <StartDrawPanel ws={ws} visible={visible} />}
+    {!functionary && profile.features.relay && <RelayStartTimes ws={ws} visible={visible} />}
+    {!functionary && <StartPublication ws={ws} visible={visible} />}
+    {model && (functionary ? <StartLists model={model} disabled={disabled} exportable={false} />
+      : <StartLists model={model} onSelectEntry={id => select(id)} disabled={disabled}
+        iof={{ onSelect: () => void downloadStartList(), disabled }} />)}
   </section>;
 }

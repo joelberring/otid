@@ -52,25 +52,13 @@ preliminär, versionsmärkt och append-only lagrad; den skapar ingen
 TASK 005C hashar den fulla bedömningen canonicalt för transportjämförelse och
 sparar den första serverbedömningen som append-only ingestutfall. Detta är ett
 retry-/auditobjekt, inte en ny resultatrevision eller en alternativ resultatkälla.
-TASK 005D inför `StationDevice`, `StationCredential` och
-`StationCredentialRevocation` som säkerhets-/adapterobjekt. De hör inte till
-resultatmotorn och påverkar inte `EvaluationResult`, resultatrevisioner eller
-råmeddelandets idempotens. Credentialscope avgör endast om en request får nå
-ingestgränsen.
-TASK 005E inför `StationPairingGrant`, `StationPairingAttempt` och
-`StationPairingRedemption` som append-only säkerhetsobjekt. De provisionerar en
-credential men är inte tävlings-, resultat- eller rådatadomän. Ett grant får
-exakt en redemption; retry identifieras av samma attempt/device/hash och skapar
-aldrig en ny credentialgeneration.
-TASK 005F inför racebunden `PairingOperatorAccessCredential` och
-`PairingOperatorSession` som adapter-/säkerhetsobjekt med endast capabilityn
-`PAIR_STATION`. De är inte deltagaridentitet, generell arrangörsroll eller del av
-resultatdomänen. En sessionsaktör får endast skapa, lista och spärra pairinggrant
-för credentialens exakta race. Grantets issuer och auditaktör är append-only;
-inga token-, secret- eller hashvärden är domändata.
+Stationsenheter, stationscredentials, stationsparning och den racebundna
+parningsoperatören (TASK 005D–005F) togs bort i steg 18 (ADR-0172).
+Behörigheten på en tävling är nu administratör (`MANAGE_RACE`) eller funktionär
+(`RACE_FUNCTIONARY`), båda via kontots delegering; se `docs/security-privacy.md`.
 TASK 005G generaliserar endast säkerhetssubstratet till den separata capabilityn
 `IMPORT_IOF`. En sådan accesscredential får importera CourseData eller EntryList
-för exakt sitt race men får inte administrera pairing. `IofImportRequest` är ett
+för exakt sitt race. `IofImportRequest` är ett
 append-only retry-/auditobjekt som binder request-id, actor, race, serverhash,
 importfil och ursprungligt utfall. Det är inte en tävlingsrevision, deltagar-
 identitet eller alternativ importkälla. Endast en ny innehållslagring ändrar

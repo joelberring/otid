@@ -8,9 +8,11 @@ import styles from "./forest-watch.module.css";
 
 const groups = ["CONFLICT", "STARTED_NO_RETURN", "UNCONFIRMED", "NOT_STARTED", "RETURNED"] as const;
 
-export function ForestWatchReport({ data, classId, query = "", stale, onOpenHistory, onReviewConflict, disabled = false, reportedStarts, sortByAge = false }: {
+export function ForestWatchReport({ data, classId, query = "", stale, onOpenHistory, onChoose, onReviewConflict, disabled = false, reportedStarts, sortByAge = false }: {
   data: StartCheckinRosterResponse; classId: string; query?: string; stale: boolean;
   onOpenHistory?: (entryId: string) => void; disabled?: boolean;
+  /** Funktionären väljer löparen för återkomst eller startläge utan journalen (ADR-0172 beslut 3). */
+  onChoose?: (entryId: string) => void;
   onReviewConflict?: (entryId: string) => void;
   reportedStarts?: ReadonlyArray<{ entryId: string; observedAt: string | null }>;
   sortByAge?: boolean;
@@ -46,6 +48,8 @@ export function ForestWatchReport({ data, classId, query = "", stale, onOpenHist
           <tbody>{rows.map((entry) => <tr key={entry.entryId}>
             <td><strong>{entry.displayName}</strong>{onOpenHistory && <button type="button" disabled={disabled}
               onClick={() => onOpenHistory(entry.entryId)}>{text.history}</button>}
+              {onChoose && <button type="button" disabled={disabled} aria-label={text.chooseFor(entry.displayName)}
+                onClick={() => onChoose(entry.entryId)}>{text.choose}</button>}
               {onReviewConflict && entry.conflictingReports && <button type="button" disabled={disabled}
                 onClick={() => onReviewConflict(entry.entryId)}>{text.reviewConflict}</button>}
               <div>{entry.organisationName ?? text.noOrganisation}</div>

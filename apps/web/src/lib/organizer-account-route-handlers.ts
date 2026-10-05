@@ -2,13 +2,10 @@ import {
   authenticateUserAccountSession,
   createEventAsUserAccount,
   enterRaceAsUserAccount,
-  grantEventAdministratorAsUserAccount,
-  listEventAdministratorsAsUserAccount,
   listMyEventsAsUserAccount,
   loginUserAccount,
   logoutUserAccountSession,
-  registerUserAccount,
-  revokeEventAdministratorAsUserAccount
+  registerUserAccount
 } from "@o-tid/application";
 import {
   organizerAccountLoginRequestSchema,
@@ -18,15 +15,7 @@ import {
   organizerEventCreateRequestSchema,
   organizerMyEventsResponseSchema,
   organizerRaceEnterResponseSchema,
-  organizerAccountSessionStatusSchema,
-  organizerAdminGrantIdempotencyKeySchema,
-  organizerAdminGrantRequestSchema,
-  organizerAdminGrantResponseSchema,
-  organizerAdminListRequestSchema,
-  organizerAdminListResponseSchema,
-  organizerAdminRevokeIdempotencyKeySchema,
-  organizerAdminRevokeRequestSchema,
-  organizerAdminRevokeResponseSchema
+  organizerAccountSessionStatusSchema
 } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
 import {
@@ -54,9 +43,6 @@ type Logout = typeof logoutUserAccountSession;
 type Create = typeof createEventAsUserAccount;
 type List = typeof listMyEventsAsUserAccount;
 type Enter = typeof enterRaceAsUserAccount;
-type AdminGrant = typeof grantEventAdministratorAsUserAccount;
-type AdminList = typeof listEventAdministratorsAsUserAccount;
-type AdminRevoke = typeof revokeEventAdministratorAsUserAccount;
 const raceIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 function policy(environment: Environment) {
@@ -223,84 +209,5 @@ export async function organizerRaceEnterRoute(
     return setOrganizerRaceCookies(organizerJson(response), configured.value, {
       sessionToken: result.sessionToken, csrfToken: result.csrfToken, expiresAt: response.expiresAt
     });
-  } catch { return organizerFailure(500, "INTERNAL_ERROR"); }
-}
-
-export async function organizerEventAdministratorsListRoute(
-  db: Database, request: Request, eventId: string, list: AdminList = listEventAdministratorsAsUserAccount,
-  environment: Environment = process.env
-): Promise<Response> {
-  const configured = policy(environment);
-  if ("response" in configured) return configured.response;
-  if (request.method !== "GET" || !raceIdPattern.test(eventId) || !await hasNoOrganizerRequestBody(request)) {
-    return organizerFailure(400, "INVALID_REQUEST");
-  }
-  const parsed = organizerAdminListRequestSchema.safeParse({ formatVersion: 1, eventId });
-  if (!parsed.success) return organizerFailure(400, "INVALID_REQUEST");
-  try {
-    const result = await list(db, { ...organizerSessionProof(request, configured.value, false), eventId });
-    if (result.status !== "ok") return requestFailure(result.status);
-    const response = organizerAdminListResponseSchema.parse(result.response);
-    if (response.eventId !== eventId) return organizerFailure(500, "INTERNAL_ERROR");
-    return organizerJson(response);
-  } catch { return organizerFailure(500, "INTERNAL_ERROR"); }
-}
-
-export async function organizerEventAdministratorGrantRoute(
-  db: Database, request: Request, eventId: string, grant: AdminGrant = grantEventAdministratorAsUserAccount,
-  authenticate: Authenticate = authenticateUserAccountSession, environment: Environment = process.env
-): Promise<Response> {
-  const configured = policy(environment);
-  if ("response" in configured) return configured.response;
-  if (!hasExpectedOrganizerOrigin(request, configured.value)) return organizerFailure(403, "FORBIDDEN");
-  if (!raceIdPattern.test(eventId)) return organizerFailure(400, "INVALID_REQUEST");
-  const proof = organizerSessionProof(request, configured.value, true);
-  try {
-    const auth = await authenticate(db, { ...proof, requireCsrf: true });
-    if (auth.status !== "authenticated") return authenticationFailure(auth.status);
-  } catch { return organizerFailure(500, "INTERNAL_ERROR"); }
-  const idempotencyKey = request.headers.get("idempotency-key");
-  if (!organizerAdminGrantIdempotencyKeySchema.safeParse(idempotencyKey).success) return organizerFailure(400, "INVALID_REQUEST");
-  let body: unknown;
-  try { body = await readOrganizerJson(request); } catch { return organizerFailure(400, "INVALID_REQUEST"); }
-  const parsed = organizerAdminGrantRequestSchema.safeParse(body);
-  if (!parsed.success || parsed.data.eventId !== eventId) return organizerFailure(400, "INVALID_REQUEST");
-  try {
-    const result = await grant(db, { ...proof, requireCsrf: true, idempotencyKey,
-      readBody: async () => parsed.data });
-    if (result.status !== "granted") return requestFailure(result.status);
-    const response = organizerAdminGrantResponseSchema.parse(result.response);
-    if (response.eventId !== eventId || response.requestId !== parsed.data.requestId) return organizerFailure(500, "INTERNAL_ERROR");
-    return organizerJson(response, response.replayed ? 200 : 201);
-  } catch { return organizerFailure(500, "INTERNAL_ERROR"); }
-}
-
-export async function organizerEventAdministratorRevokeRoute(
-  db: Database, request: Request, eventId: string, grantId: string,
-  revoke: AdminRevoke = revokeEventAdministratorAsUserAccount,
-  authenticate: Authenticate = authenticateUserAccountSession, environment: Environment = process.env
-): Promise<Response> {
-  const configured = policy(environment);
-  if ("response" in configured) return configured.response;
-  if (!hasExpectedOrganizerOrigin(request, configured.value)) return organizerFailure(403, "FORBIDDEN");
-  if (!raceIdPattern.test(eventId) || !raceIdPattern.test(grantId)) return organizerFailure(400, "INVALID_REQUEST");
-  const proof = organizerSessionProof(request, configured.value, true);
-  try {
-    const auth = await authenticate(db, { ...proof, requireCsrf: true });
-    if (auth.status !== "authenticated") return authenticationFailure(auth.status);
-  } catch { return organizerFailure(500, "INTERNAL_ERROR"); }
-  const idempotencyKey = request.headers.get("idempotency-key");
-  if (!organizerAdminRevokeIdempotencyKeySchema.safeParse(idempotencyKey).success) return organizerFailure(400, "INVALID_REQUEST");
-  let body: unknown;
-  try { body = await readOrganizerJson(request); } catch { return organizerFailure(400, "INVALID_REQUEST"); }
-  const parsed = organizerAdminRevokeRequestSchema.safeParse(body);
-  if (!parsed.success || parsed.data.eventId !== eventId || parsed.data.grantId !== grantId) return organizerFailure(400, "INVALID_REQUEST");
-  try {
-    const result = await revoke(db, { ...proof, requireCsrf: true, idempotencyKey, grantId,
-      readBody: async () => parsed.data });
-    if (result.status !== "revoked") return requestFailure(result.status);
-    const response = organizerAdminRevokeResponseSchema.parse(result.response);
-    if (response.eventId !== eventId || response.grantId !== grantId || response.requestId !== parsed.data.requestId) return organizerFailure(500, "INTERNAL_ERROR");
-    return organizerJson(response);
   } catch { return organizerFailure(500, "INTERNAL_ERROR"); }
 }

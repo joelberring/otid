@@ -1,5 +1,10 @@
 # Offline-synk och idempotens
 
+> **Steg 18 (ADR-0172):** Androidstationen med stationsparning och stationscredentials och
+> incheckningsappen (`/checkin/`) med egna inloggningar och återhämtningskoder är borttagna.
+> Avläsningen sker i webbläsaren (steg 4) med kontots session; start och kvar i skogen
+> registreras online i arbetsytan. Avsnitten om stationen nedan är historik.
+
 ## TASK 001
 
 TASK 001 bygger inte den fulla offline-stationen, men simulatorn etablerar samma
@@ -129,47 +134,6 @@ avvikelse och annan versionsgrund. Servern är alltid auktoritativ.
 Bas-URL får lagras som icke-hemlig konfiguration. Token och betrodd SPKI hålls
 endast i minnet. Ingest-routen saknar ännu produktionsautentisering och 005C
 utgör därför inte färdig enhetsparning. Se ADR-0013.
-
-## TASK 005D: autentiserad synk utan köförlust
-
-Varje native synkrequest använder en tidsbegränsad credential bunden till
-stationens beständiga `deviceId`, loppet och `READOUT`. Native kod läser den
-Keystore-krypterade credentialen, validerar URL/rutt och injicerar bearerheadern.
-Token lämnas inte tillbaka till TypeScript efter installation.
-
-Auth sker före serverns bodyparsning och ingest. `401` eller `403` är därför ett
-säkert negativt besked om requestens behörighet, men aldrig en kvittens för
-outboxeventet. Stationen lämnar posten `PENDING`, stoppar ordnad flush och visar
-att operatörsåtgärd krävs. Den raderar varken event eller credential automatiskt.
-Nätfel, timeout och 5xx behåller samma tidigare retrysemantik och
-idempotency-key.
-
-Credentialfilen ingår inte i SQLitebackup eller device transfer. Om filen,
-Keystore-nyckeln eller GCM-taggen saknas/är ogiltig fortsätter offlineavläsning
-och lokal bedömning; endast synk blockeras. Ny credential kan installeras utan
-att ändra deviceidentitet, paket, outbox eller historik. Se ADR-0014.
-
-## TASK 005E: crash-säker parning och återupptagning
-
-Före första inlösen skapar native kod credential-secret och attempt-id och
-committar dem tillsammans med grant och bas-URL i en Keystore-krypterad
-AtomicFile. Inget nätanrop får starta innan denna pendingstate är beständig.
-
-`beginDevicePairing` committar pendingstate utan att öppna nätverk. Först ett
-separat `redeemDevicePairing` får använda den beständiga staten.
-
-Servern ser endast credential-secretens SHA-256-hash. Grantets unika redemption
-och samma attempt/device/hash gör ett tappat svar idempotent: retry returnerar
-samma metadata och skapar ingen ny credential. Native installerar den lokalt
-konstruerade credentialtokenen före pendinghemligheterna ersätts av en
-icke-hemlig completed-markör. Processdöd före eller efter servercommit eller ett
-tappat pluginsvar kan därför återupptas utan att ändra SQLite, outbox eller
-sekvensutrymme.
-
-HTTP-, auth-, rate-limit-, kontrakts-, decrypt- eller installationsfel lämnar
-pendingstate och outbox orörda. Operatören kan uttryckligen återuppta samma
-försök. En skadad pendingfil ger ett säkert felläge; automatisk rensning eller
-nytt grant får inte dölja att servern kan ha committat. Se ADR-0015.
 
 ## TASK 005F: onlineadministration ändrar inte stationens offlineväg
 
@@ -714,25 +678,6 @@ avpricknings-DNS, målrättning med separat DNS-withdrawal och en sen negativ
 rapport som inte ersätter återkomst. Testdata är syntetiska; fysisk mobil,
 spärrad credentials återhämtning och auto-online-kapplöpningar är inte bevisade
 av detta prov.
-## TASK 006W: privat återhämtningsunderlag
-
-En upplåst mobilkö kan nu exportera ett strikt manifest med endast scope-ID,
-capability och pending-posternas request-id/sekvens/hash enligt ADR-0055.
-Exporten ändrar inte kö, kvittenser eller krypterat arkiv och stänger skrivläge.
-Den innehåller inte namn, lösenfras, credential eller operationernas innehåll.
-Tom eller låst kö ger ingen export. Underlaget är privat och ger i sig ingen
-behörighet. Administrativ serverutfärdning/spärrning och separat HTTP-leverans
-finns nu, liksom mobilens explicita token-/kvittensflöde för återhämtning.
-Originalkön måste därför bevaras även efter en lyckad manifestnedladdning.
-
-Recovery använder samma ordnade receiptvalidering och durabla CAS-commit som
-vanlig synk. Token finns bara i minnet under försöket; skrivläge och automatisk
-synk stängs av. Låsning avbryter och sena svar får inte återöppna listan eller
-kvittera lokalt. Efter omladdning/upplåsning kan samma giltiga token återanvändas
-för exakt retry. Ingen rosterläsning sker: även lyckad recovery lämnar det gamla
-underlaget tydligt daterat och ger inte fortsatt arbetsbehörighet. Syntetiskt
-browserprov visar att token/lösenfras/namn saknas i plaintext i IDB, Web Storage
-och appcache efter återföring; fysisk mobil/lagerutrymning är inte fältverifierad.
 ## TASK 006W: granskning ändrar inte offline-intents
 
 ADR-0056 beslutar om en separat onlinegranskning, inte en ny lokal operations-

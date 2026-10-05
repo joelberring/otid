@@ -17,6 +17,13 @@ const slug = (value: string) => value.replace(/\W+/g, "-");
 
 type Context = { raceId: string; links: boolean };
 
+/** Länk till sträcktidsanalysen för klassen (bara publikt; rogaining har ingen). */
+function AnalysisLink({ className, context }: { className: string; context: Context }) {
+  if (!context.links) return null;
+  return <Link className={styles.headLink} href={`/results/${context.raceId}/splits?class=${encodeURIComponent(className)}`}
+    aria-label={t.analysisLinkLabel(className)}>{t.analysisLink}</Link>;
+}
+
 function Status({ row }: { row: ResultRow }) {
   const label = row.status === "OK" && row.reason === "MANUAL_APPROVAL" ? t.manualApproval : t.status[row.status];
   return <td className={`${styles.status} ${styles.statusCol}`} data-status={row.status}>{label}
@@ -95,7 +102,8 @@ function ClassBlock({ raceClass, context }: { raceClass: ResultClass; context: C
   if (raceClass.scored) return <ScoredClassBlock raceClass={raceClass} context={context} />;
   const id = `result-class-${slug(raceClass.name)}`;
   return <section className={styles.block} aria-labelledby={id}>
-    <div className={styles.blockHead}><h3 id={id}>{raceClass.name}</h3><p>{t.runners(raceClass.rows.length)}</p></div>
+    <div className={styles.blockHead}><h3 id={id}>{raceClass.name}</h3><p>{t.runners(raceClass.rows.length)}</p>
+      {raceClass.rows.some(row => row.splits.length > 0) && <AnalysisLink className={raceClass.name} context={context} />}</div>
     {raceClass.mixedCourses && <p className={styles.notice}>{t.mixedCourses}</p>}
     <table className={styles.table} aria-labelledby={id}>
       <thead><tr><th scope="col" className={styles.place}>{t.place}</th><th scope="col">{t.name}</th>
@@ -162,7 +170,8 @@ function SplitsBlock({ raceClass, context }: { raceClass: ResultClass; context: 
     const title = group.variant ? t.variantHeading(group.className, group.variant) : group.className;
     const id = `result-splits-${slug(title)}`;
     return <section key={title} className={styles.block} aria-labelledby={id}>
-      <div className={styles.blockHead}><h3 id={id}>{title}</h3><p>{t.runners(group.rows.length)}</p></div>
+      <div className={styles.blockHead}><h3 id={id}>{title}</h3><p>{t.runners(group.rows.length)}</p>
+        <AnalysisLink className={group.className} context={context} /></div>
       <div className={styles.splitScroll}>
         <table className={`${styles.table} ${styles.splitTable}`} aria-labelledby={id}>
           <thead><tr><th scope="col" className={styles.place}>{t.place}</th><th scope="col" className={styles.stick}>{t.name}</th>
@@ -177,7 +186,8 @@ function SplitsBlock({ raceClass, context }: { raceClass: ResultClass; context: 
               <span className={styles.sub}>{row.status === "OK" ? row.club ?? "" : t.status[row.status]}</span></th>
             <td className={styles.num}>{duration(row.timeMs)}{row.behindMs ? <span className={styles.sub}>{behind(row.behindMs)}</span> : null}</td>
             {group.table.rows[index]!.cells.map((cell, column) => <td key={column} className={styles.leg}>
-              {cell ? <><span className={cell.best ? styles.best : undefined}>{formatDuration(cell.legMs)}</span>
+              {cell ? <>{cell.legMs === null ? <span className={styles.muted}>–</span>
+                : <span className={cell.best ? styles.best : undefined}>{formatDuration(cell.legMs)}</span>}
                 {cell.best && <span className={styles.hiddenLabel}> ({t.bestLeg})</span>}
                 {cell.place !== null && <small> ({cell.place})</small>}
                 <span className={styles.total}>{formatDuration(cell.elapsedMs)}</span></> : <span className={styles.muted}>–</span>}

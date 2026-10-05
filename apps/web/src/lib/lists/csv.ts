@@ -80,7 +80,7 @@ export function resultListCsv(view: ResultView, model: ResultListModel): string 
         const cell = group.table.rows[index]!.cells[columnIndex];
         return [[raceClass.name, group.variant ?? "", result.place ?? "", result.name, result.club ?? "", duration(result.timeMs), status(result.status),
           column.kind === "FINISH" ? text.csv.finish : column.occurrence > 1 ? `${column.controlCode} (${column.occurrence})` : column.controlCode,
-          cell ? formatDuration(cell.legMs) : "", cell?.place ?? "", cell ? formatDuration(cell.elapsedMs) : ""]];
+          cell?.legMs != null ? formatDuration(cell.legMs) : "", cell?.place ?? "", cell ? formatDuration(cell.elapsedMs) : ""]];
       }))));
     return toCsv(text.csv.results.SPLITS, rows);
   }

@@ -3,14 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "exports": { ".": "./src/index.ts", "./map-object-store": "./src/map-object-store.ts", "./route-object-store": "./src/route-object-store.ts" },
+  "exports": { ".": "./src/index.ts" },
   "scripts": {
     "lint": "eslint src test",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --exclude 'test/integration/**'",
     "test:integration": "vitest run --no-file-parallelism test/integration",
     "test:integration:minio": "vitest run --no-file-parallelism test/integration/pm-minio.test.ts",
-    "test:integration:minio-route": "vitest run --no-file-parallelism test/integration/route-minio.test.ts",
     "test:integration:minio-transfer": "vitest run --no-file-parallelism test/integration/pm-transfer.test.ts",
     "test:integration:minio-scan": "vitest run --no-file-parallelism test/integration/pm-scan-iteration.test.ts",
     "build": "tsc -p tsconfig.build.json"

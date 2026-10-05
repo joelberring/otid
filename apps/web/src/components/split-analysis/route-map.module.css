@@ -1,0 +1,46 @@
+/*
+ * Vägval på kartan (PLAN.md steg 16). Kartan är i färg; ovanpå den bara två linjetyper: den valda löparen röd och
+ * tjock med vit kant (klassisk GPS-färg som syns mot både skog och banlila tryck) och andra löpare tunna och mörka.
+ * Listan bredvid visar samma skillnad med en tjock och en tunn linje, inte bara med färg.
+ */
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 17rem; gap: 16px; min-width: 0; align-items: start; }
+.mapPane { display: grid; gap: 8px; min-width: 0; }
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.controls button { min-height: 36px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface);
+  color: var(--ink); font-size: var(--text-sm); font-weight: 600; }
+.controls button:hover:not(:disabled) { border-color: var(--ink); background: var(--subtle); color: var(--ink); }
+.toggle { display: inline-flex; align-items: center; gap: 6px; margin-inline-start: auto; font-size: var(--text-sm); }
+.toggle input { width: 18px; height: 18px; }
+.map { display: block; width: 100%; height: min(72vh, 46rem); border: 1px solid var(--line-strong); border-radius: var(--radius);
+  background: #e9e8df; touch-action: none; cursor: grab; user-select: none; }
+.map:active { cursor: grabbing; }
+.hint, .sub { color: var(--muted); font-size: var(--text-xs); }
+.error { padding: 8px 12px; border-left: 3px solid var(--mp); background: var(--mp-tint); font-size: var(--text-sm); }
+
+.halo { fill: none; stroke: #fff; stroke-linecap: round; stroke-linejoin: round; }
+.line { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.selected .halo { stroke-width: 8px; }
+.selected .line { stroke: #d7191c; stroke-width: 4px; }
+.end { fill: none; stroke: #d7191c; stroke-width: 3px; }
+.other .halo { stroke-width: 4.5px; opacity: .8; }
+.other .line { stroke: #1d2220; stroke-width: 2px; opacity: .8; }
+.other[data-highlight] .line { stroke-width: 3.5px; opacity: 1; }
+.other[data-highlight] .halo { stroke-width: 6.5px; opacity: 1; }
+
+.runners { display: grid; gap: 8px; min-width: 0; }
+.runners h2 { font-family: var(--font-dense); font-size: var(--text-md); font-weight: 700; }
+.runners ol { display: grid; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.runners li { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 6px 0;
+  border-bottom: 1px solid var(--line); font-size: var(--text-sm); }
+.runners li[data-selected] { font-weight: 600; }
+.who { display: grid; min-width: 0; overflow-wrap: anywhere; }
+.who a { font-weight: 600; }
+.time { display: grid; justify-items: end; font-family: var(--font-dense); font-variant-numeric: tabular-nums; }
+.swatch { display: block; height: 0; border-top: 2px solid #1d2220; }
+.swatch[data-kind="selected"] { border-top: 5px solid #d7191c; }
+
+@media (max-width: 900px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  .map { height: 62vh; }
+  .toggle { margin-inline-start: 0; flex-basis: 100%; }
+}

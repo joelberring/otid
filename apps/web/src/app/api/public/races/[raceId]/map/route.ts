@@ -1,25 +1,17 @@
-import { readActiveMapPublication } from "@o-tid/application";
-import { createConfiguredMapStore } from "../../../../../../lib/map-store";
+import { readPublicRaceMapImage } from "@o-tid/application";
 import { db } from "../../../../../../lib/db";
 
-export const dynamic = "force-dynamic";
-export const runtime = "nodejs";
-
-export async function GET(request: Request, { params }: { params: Promise<{ raceId: string }> }) {
-  const { raceId } = await params;
-  const active = await readActiveMapPublication(db, raceId);
-  if (!active) return new Response(null, { status: 404, headers: { "cache-control": "no-store" } });
-  try {
-    const store = createConfiguredMapStore();
-    const bytes = await store.read(active.manifest, request.signal);
-    const current = await readActiveMapPublication(db, raceId);
-    if (!current || current.publication.id !== active.publication.id || current.manifest.versionId !== active.manifest.versionId) {
-      return new Response(null, { status: 404, headers: { "cache-control": "no-store", "x-content-type-options": "nosniff" } });
-    }
-    const body = new Uint8Array(bytes.byteLength);
-    body.set(bytes);
-    return new Response(body.buffer, { headers: { "content-type": active.manifest.mediaType, "content-length": String(bytes.byteLength), "cache-control": "no-store", "x-content-type-options": "nosniff" } });
-  } catch {
-    return new Response(null, { status: 404, headers: { "cache-control": "no-store", "x-content-type-options": "nosniff" } });
-  }
+/**
+ * Kartbilden för vägvalen (PLAN.md steg 16), bara när kartan är georefererad. Med rätt version (`?v=`, början av
+ * bildens SHA-256) får webbläsaren spara den länge; en ny bild får en ny version.
+ */
+export async function GET(request: Request, context: { params: Promise<{ raceId: string }> }) {
+  const map = await readPublicRaceMapImage(db, (await context.params).raceId);
+  if (!map) return new Response(null, { status: 404, headers: { "cache-control": "no-store" } });
+  const version = new URL(request.url).searchParams.get("v");
+  return new Response(new Uint8Array(map.image), { headers: {
+    "content-type": map.mediaType, "content-length": String(map.image.byteLength), "x-content-type-options": "nosniff",
+    "content-security-policy": "default-src 'none'", etag: `"${map.sha256}"`,
+    "cache-control": version === map.sha256.slice(0, 16) ? "public, max-age=31536000, immutable" : "public, max-age=60"
+  } });
 }

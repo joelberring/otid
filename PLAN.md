@@ -20,8 +20,9 @@ Bakgrund och beslut: [ADR-0168](docs/adr/ADR-0168-omstart-mot-klubbtraning.md) o
 > Alla kan följa resultat och sträcktider på mobilen utan att logga in.
 > Arrangören ser vilka som är kvar i skogen och kan rätta fel.
 
-Det som **inte** behövs för målet är parkerat (se ADR-0168): GPS/rutter/kartor,
-deltagarkonton, Android-stationsappen, betalstatus, backup-replikering m.m.
+Det som **inte** behövs för målet är parkerat (se ADR-0168): GPS-följning,
+deltagarkonton, Android-stationsappen, betalstatus, backup-replikering m.m. Kartor och rutter för
+vägval i sträcktidsanalysen lyftes ur parkeringen i steg 16 (ADR-0171).
 
 ## Definition av klart för ett steg
 
@@ -331,7 +332,7 @@ Se ADR-0170 beslut 5.
 **Acceptans:** domäntester (dubbelstämpling räknas en gång, straff, lika
 poäng); Playwright: rogaining-tävling, två löpare, en för sen, rätt ordning.
 
-## [ ] Steg 16 – Sträcktidsanalys och vägval (görs sist)
+## [x] Steg 16 – Sträcktidsanalys och vägval (görs sist)
 
 Ägarens önskemål 2026-10-05: en separat lista i stil med WinSplits som man kan
 trycka på och komma vidare till vägval på kartan när sådana finns.
@@ -345,6 +346,8 @@ trycka på och komma vidare till vägval på kartan när sådana finns.
 
 **Acceptans:** Playwright: öppna sträcktidsanalysen från resultatlistan, sortera
 på en sträcka, öppna vägval för en löpare med uppladdad rutt.
+
+Se ADR-0171 (karta och rutter i PostgreSQL, bara admin laddar upp, den gamla kartkoden borttagen).
 
 ---
 

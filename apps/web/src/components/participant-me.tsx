@@ -6,7 +6,6 @@ import {
   organizerAccountLoginRequestSchema, organizerAccountLoginResponseSchema,
   organizerAccountSessionStatusSchema, participantClaimRedeemRequestSchema,
   participantClaimRedeemResponseSchema, participantOwnResultsResponseSchema,
-  participantPrivateRouteListResponseSchema,
   publicResultFollowIdempotencyKey, publicResultFollowListResponseSchema,
   publicResultFollowSetRequestSchema, publicResultFollowSetResponseSchema
 } from "@o-tid/contracts";
@@ -27,7 +26,6 @@ export function ParticipantMe() {
   const [pendingRedeem, setPendingRedeem] = useState<{ requestId: string; code: string }>();
   const [data, setData] = useState<ReturnType<typeof participantOwnResultsResponseSchema.parse>>();
   const [follows, setFollows] = useState<ReturnType<typeof publicResultFollowListResponseSchema.parse>["items"]>([]);
-  const [privateRoutes, setPrivateRoutes] = useState<ReturnType<typeof participantPrivateRouteListResponseSchema.parse>["items"]>([]);
   const [pendingUnfollow, setPendingUnfollow] = useState<{ request: ReturnType<typeof publicResultFollowSetRequestSchema.parse>; key: string }>();
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -45,36 +43,28 @@ export function ParticipantMe() {
     if (!response.ok || !parsed.success) throw new Error(text.followsLoadError);
     setFollows(parsed.data.items);
   }, []);
-  const loadPrivateRoutes = useCallback(async () => {
-    const response = await fetch("/api/participant/me/routes", { credentials: "same-origin", cache: "no-store" });
-    if (response.status === 401 || response.status === 403) { setSession(undefined); setPrivateRoutes([]); throw new Error(text.sessionError); }
-    const parsed = participantPrivateRouteListResponseSchema.safeParse(await json(response));
-    if (!response.ok || !parsed.success) { setPrivateRoutes([]); throw new Error(text.privateRoutesLoadError); }
-    setPrivateRoutes(parsed.data.items);
-  }, []);
   const checkSession = useCallback(async () => {
     setChecked(false);
     try {
       const response = await fetch("/api/organizer/session", { credentials: "same-origin", cache: "no-store" });
       const parsed = organizerAccountSessionStatusSchema.safeParse(await json(response));
-      if (!response.ok || !parsed.success) { setSession(undefined); setData(undefined); setPrivateRoutes([]); return; }
-      setPrivateRoutes([]);
+      if (!response.ok || !parsed.success) { setSession(undefined); setData(undefined); return; }
       setSession({ displayName: parsed.data.displayName });
-      await Promise.all([loadResults(), loadFollows(), loadPrivateRoutes()]);
+      await Promise.all([loadResults(), loadFollows()]);
     } catch (error) { setMessage(errorText(error)); }
     finally { setChecked(true); }
-  }, [loadResults, loadFollows, loadPrivateRoutes]);
+  }, [loadResults, loadFollows]);
   useEffect(() => { void checkSession(); }, [checkSession]);
 
   async function login(event: FormEvent) {
-    event.preventDefault(); setBusy(true); setMessage(""); setPrivateRoutes([]);
+    event.preventDefault(); setBusy(true); setMessage("");
     try {
       const request = organizerAccountLoginRequestSchema.parse({ formatVersion: 1, loginName: loginName.trim().toLowerCase(), password });
       const response = await fetch("/api/organizer/login", { method: "POST", credentials: "same-origin", cache: "no-store",
         headers: { "content-type": "application/json" }, body: JSON.stringify(request) });
       const parsed = organizerAccountLoginResponseSchema.safeParse(await json(response));
       if (!response.ok || !parsed.success) throw new Error(text.sessionError);
-      setPassword(""); setPendingRedeem(undefined); setSession({ displayName: parsed.data.displayName }); await Promise.all([loadResults(), loadFollows(), loadPrivateRoutes()]);
+      setPassword(""); setPendingRedeem(undefined); setSession({ displayName: parsed.data.displayName }); await Promise.all([loadResults(), loadFollows()]);
     } catch (error) { setMessage(errorText(error)); }
     finally { setBusy(false); setChecked(true); }
   }
@@ -106,7 +96,7 @@ export function ParticipantMe() {
       const response = await fetch("/api/organizer/logout", { method: "POST", credentials: "same-origin", cache: "no-store",
         headers: { "x-otid-csrf": readOrganizerCsrf(document.cookie, new URL(window.location.href)) } });
       if (!response.ok && response.status !== 401) throw new Error(text.logoutError);
-      setSession(undefined); setPendingRedeem(undefined); setPendingUnfollow(undefined); setFollows([]); setPrivateRoutes([]); setCode(""); setLoginName(""); setMessage("");
+      setSession(undefined); setPendingRedeem(undefined); setPendingUnfollow(undefined); setFollows([]); setCode(""); setLoginName(""); setMessage("");
     } catch (error) { setMessage(errorText(error)); }
     finally { setBusy(false); }
   }
@@ -169,15 +159,6 @@ export function ParticipantMe() {
           <button type="button" className="secondary" disabled={busy || pendingUnfollow !== undefined} onClick={() => void beginUnfollow(item.raceId, item.publicResultId)}>{text.unfollow}</button>
         </article>)}
         {pendingUnfollow && <button type="button" className="secondary" disabled={busy} onClick={() => void unfollow()}>{text.retryFollow}</button>}
-      </section>
-      <section className="participant-private-routes" aria-labelledby="participant-private-routes-title">
-        <h2 id="participant-private-routes-title">{text.privateRoutesTitle}</h2>
-        {privateRoutes.length === 0 ? <p className="muted">{text.privateRoutesEmpty}</p> : privateRoutes.map(item => <article key={item.routeUploadId}>
-          <h3>{item.eventName}</h3>
-          <p>{text.race}: {item.raceName}</p>
-          <p>{text.privateRouteStoredAt} {new Date(item.storedAt).toLocaleString("sv-SE")} · {item.pointCount} {text.privateRoutePoints} · {item.segmentCount} {text.privateRouteSegments}</p>
-          <Link className="public-result-route-summary-link" href={`/me/routes/${encodeURIComponent(item.routeUploadId)}`}>{text.privateRouteOpen}</Link>
-        </article>)}
       </section>
       <p className="muted">{text.contact}</p>
     </>}

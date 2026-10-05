@@ -73,6 +73,7 @@ deltagarkonton och följning, betalstatus, PM-PDF, MinIO-replikering och
 avancerad backup, Eventor-produktionsprofil, utökade hyrbricksflöden.
 Parkerad kod får lämnas orörd. Den får tas bort om den försvårar stegen i
 planen eller om dess tester blockerar bygget.
+(Eventor lyftes ur parkeringen i ADR-0170, kartor och rutter för vägval i ADR-0171.)
 
 ### 6. Databas
 Det finns ingen produktionsdata. Fram till första riktiga användning får

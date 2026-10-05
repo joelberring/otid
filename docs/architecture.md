@@ -1626,6 +1626,9 @@ container-/leaf-cgroup-/skannerprov återstår; inget produktionsproof tillkom.
 
 ## TASK106: separat privat kartasset och explicit kartsläpp
 
+> Ersatt av ADR-0171 (PLAN.md steg 16): kartor och rutter ligger i PostgreSQL, se `docs/map-and-route-model.md`.
+> Kart- och ruttavsnitten för TASK106–155 nedan är historik.
+
 ADR-0120 beslutar en separat kartassetgräns, inte en utvidgning av
 ADR-0061:s PM-PDF-flöde. En första kartasset är en race-scopad PNG/JPEG med
 egen immutable reservation, överföringsförsök, versionsmanifest och

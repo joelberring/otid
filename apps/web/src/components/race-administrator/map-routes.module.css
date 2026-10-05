@@ -1,0 +1,43 @@
+/* Karta och vägval i arbetsytan (PLAN.md steg 16). Gråskala; accent bara för vald punkt, grönt bara för "georefererad" (med ord). */
+.body { display: grid; gap: 14px; min-width: 0; }
+.part { display: grid; gap: 10px; min-width: 0; padding-top: 12px; border-top: 1px solid var(--line); }
+.part h3 { font-size: var(--text-md); }
+.muted { max-width: 80ch; color: var(--muted); font-size: var(--text-sm); }
+.current { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; font-size: var(--text-sm); }
+.state { font-weight: 600; }
+.state[data-ok="true"]::before { content: "✓ "; color: var(--ok); }
+.state[data-ok="false"] { color: var(--attention); }
+.state[data-ok="false"]::before { content: "! "; }
+.inlineForm, .routeForm { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 8px 12px; min-width: 0; max-width: 46rem; }
+.routeForm { grid-template-columns: minmax(0, 16rem) minmax(0, 1fr) auto; }
+.routeForm select { min-width: 0; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.inlineForm input[type="file"], .routeForm input[type="file"] { max-width: 100%; }
+
+.georeference { display: grid; grid-template-columns: minmax(16rem, 20rem) minmax(0, 1fr); gap: 16px; align-items: start; min-width: 0; }
+.points { display: grid; gap: 10px; min-width: 0; }
+.point { display: grid; gap: 6px; min-width: 0; margin: 0; padding: 8px 10px 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.point[data-active] { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.point legend { padding: 0 4px; }
+.choose { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; cursor: pointer; }
+.choose input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
+.pixels { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pin, .marker { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--ink); color: var(--surface);
+  font-family: var(--font-dense); font-size: var(--text-xs); font-weight: 700; }
+.mapFrame { position: relative; min-width: 0; max-height: 70vh; overflow: auto; border: 1px solid var(--line-strong); background: var(--subtle); }
+.mapFrame img { display: block; width: 100%; height: auto; cursor: crosshair; user-select: none; }
+.marker { position: absolute; transform: translate(-50%, -50%); box-shadow: 0 0 0 2px var(--surface); pointer-events: none; }
+
+.table { width: 100%; max-width: 52rem; border-collapse: collapse; font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
+.table :is(th, td) { padding: 5px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; overflow-wrap: anywhere; }
+.table thead th { color: var(--muted); font-family: var(--font-dense); font-size: var(--text-xs); font-weight: 600; }
+.table tbody th { color: var(--ink); font-family: var(--font-ui); font-size: var(--text-sm); font-weight: 600; }
+.num { font-family: var(--font-dense); white-space: nowrap; }
+.hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+@media (max-width: 760px) {
+  .georeference { grid-template-columns: minmax(0, 1fr); }
+  .mapFrame { order: -1; }
+  .inlineForm, .routeForm { grid-template-columns: minmax(0, 1fr); }
+  .wide { display: none; }
+}

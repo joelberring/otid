@@ -18,6 +18,7 @@ import { listsSv as listText } from "../../i18n/lists-sv";
 import listStyles from "../lists/lists.module.css";
 import { useMemo } from "react";
 import type { Workspace } from "./workspace-state";
+import { MapRoutesSection } from "./map-routes-section";
 
 /**
  * Resultatlistorna i arbetsytan (PLAN.md steg 13): samma vyer som den publika sidan, med de publicerade
@@ -168,6 +169,8 @@ export function AfterRacePanel({ ws }: { ws: Workspace }) {
     </details>
     </div>
     </Section>
+    {/* Karta och vägval (PLAN.md steg 16): inte för rogaining (inga sträckor) eller stafett (stöds inte än). */}
+    {shows("RESULTS") && !profile.features.rogaining && !profile.features.relay && <MapRoutesSection ws={ws} />}
   </section>;
 }
 

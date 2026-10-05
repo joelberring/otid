@@ -37,7 +37,9 @@ import { loadStartDrawSetupAsAdministrator, previewStartDrawAsAdministrator, com
   getEventorSettingsAsAdministrator, saveEventorKeyAsAdministrator, removeEventorKeyAsAdministrator, testEventorConnectionAsAdministrator,
   listEventorEventsAsAdministrator, chooseEventorEventAsAdministrator, previewEventorSyncAsAdministrator, previewCourseFileAsAdministrator,
   syncConsequenceAsAdministrator, applySyncAsAdministrator, getSourceSyncStatusAsAdministrator,
-  previewRogainingChangeAsAdministrator, changeRogainingAsAdministrator } from "@o-tid/application";
+  previewRogainingChangeAsAdministrator, changeRogainingAsAdministrator,
+  readRaceMapStateAsAdministrator, readRaceMapImageAsAdministrator, saveRaceMapAsAdministrator, georeferenceRaceMapAsAdministrator,
+  removeRaceMapAsAdministrator, saveParticipantRouteAsAdministrator, removeParticipantRouteAsAdministrator } from "@o-tid/application";
 import { iofResultListExportAdminFailure } from "./iof-result-list-export-admin-security";
 import type { Database } from "@o-tid/database";
 import { entryClassAdminFailure as failure, type entryClassAdminSessionProof } from "./entry-class-admin-security";
@@ -101,6 +103,9 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   oocWithdrawals: listOutOfCompetitionWithdrawalsAsAdmin, oocWithdrawal: withdrawOutOfCompetitionAsAdmin,
   ntCandidates: listWithoutTimingCandidatesAsAdmin, nt: decideWithoutTimingAsAdmin,
   ntWithdrawals: listWithoutTimingWithdrawalsAsAdmin, ntWithdrawal: withdrawWithoutTimingAsAdmin,
+  raceMapState: readRaceMapStateAsAdministrator, raceMapImage: readRaceMapImageAsAdministrator, raceMapSave: saveRaceMapAsAdministrator,
+  raceMapGeoreference: georeferenceRaceMapAsAdministrator, raceMapRemove: removeRaceMapAsAdministrator,
+  participantRouteSave: saveParticipantRouteAsAdministrator, participantRouteRemove: removeParticipantRouteAsAdministrator,
   operatorAccesses: listRaceOperatorAccessAsAdministrator, issueOperatorAccess: issueRaceOperatorAccessAsAdministrator,
   revokeOperatorAccess: revokeRaceOperatorAccessAsAdministrator };
 export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: string } | { kind: "review-conflicts" } | { kind: "checkin-history"; entryId: string } | { kind: "start-correction" } | { kind: "manual-return-withdrawal" } | { kind: "manual-return" } | { kind: "forest-watch" } | { kind: "publication-preview" } | { kind: "publication" } | { kind: "start-list-export" } | { kind: "draw-preview" } | { kind: "draw" } |
@@ -141,7 +146,8 @@ export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: str
   { kind: "out-of-competition"; entryId: string } | { kind: "out-of-competition-withdrawal"; entryId: string } |
   { kind: "without-timing-candidates" } | { kind: "without-timing-withdrawals" } |
   { kind: "without-timing"; entryId: string } | { kind: "without-timing-withdrawal"; entryId: string } |
-  { kind: "operator-access" };
+  { kind: "operator-access" } |
+  { kind: "race-map" } | { kind: "race-map-image" } | { kind: "race-map-georeference" } | { kind: "participant-route" };
 
 export function resultFailure(status: string): Response {
   switch (status) {

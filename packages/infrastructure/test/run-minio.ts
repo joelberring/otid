@@ -5,7 +5,7 @@ import { createServer } from "node:net";
 import { join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { Client } from "minio";
-import { createPmObjectStore, createRouteObjectStore } from "../src";
+import { createPmObjectStore } from "../src";
 
 // Opt-in native test runner. It creates its own target, never adopts a server.
 const expectedSha = "0939ce5553ce9e6451b69e049fbf399794368276b61da8166f84cbd8c7f2d641";
@@ -86,7 +86,7 @@ try {
   try {
     const testEnvironment = { ...process.env, CI: "true", OTID_MINIO_TEST_CONFIRM: "isolated-disposable-minio", OTID_MINIO_TEST_ENDPOINT: endpoint,
       OTID_MINIO_TEST_ACCESS_KEY: accessKey, OTID_MINIO_TEST_SECRET_KEY: secretKey };
-    const scripts = process.env.TEST_DATABASE_URL ? ["test:integration:minio", "test:integration:minio-route", "test:integration:minio-transfer"] : ["test:integration:minio", "test:integration:minio-route"];
+    const scripts = process.env.TEST_DATABASE_URL ? ["test:integration:minio", "test:integration:minio-transfer"] : ["test:integration:minio"];
     if (process.env.OTID_PM_NATIVE_SCANNER_ROOT) {
       if (!process.env.TEST_DATABASE_URL) throw new Error("Native scan integration requires isolated TEST_DATABASE_URL");
       scripts.push("test:integration:minio-scan");
@@ -113,18 +113,6 @@ try {
   await start();
   const restored = await createPmObjectStore(config).read(manifest);
   if (!restored.equals(bytes)) throw new Error("Version changed across restart");
-  const routeBucket = `otid-route-restart-${randomUUID()}`;
-  await client.makeBucket(routeBucket, "us-east-1");
-  await client.setBucketVersioning(routeBucket, { Status: "Enabled" });
-  const routeConfig = { storeId: randomUUID(), endpoint, bucket: routeBucket, region: "us-east-1", accessKey, secretKey, mode: "loopback-development" as const };
-  const routeBytes = Buffer.from('<?xml version="1.0"?><gpx xmlns="http://www.topografix.com/GPX/1/1" version="1.1" creator="O-Tid"><trk><trkseg><trkpt lat="59.1" lon="18.1"/><trkpt lat="59.2" lon="18.2"/></trkseg></trk></gpx>');
-  const routeManifest = await createRouteObjectStore(routeConfig).put({ raceId: randomUUID(), attemptId: randomUUID(), mediaType: "application/gpx+xml", sha256: createHash("sha256").update(routeBytes).digest("hex"), byteLength: routeBytes.length }, routeBytes);
-  await client.putObject(routeBucket, routeManifest.key, Buffer.from("later route version"));
-  await stop();
-  console.log("MinIO stopped cleanly; restarting the same private data directory for route version verification.");
-  await start();
-  const routeRestored = await createRouteObjectStore(routeConfig).read(routeManifest);
-  if (!routeRestored.equals(routeBytes)) throw new Error("Route version changed across restart");
   console.log("Integration passed; exact older version survived process restart. No buckets deleted.");
 } finally {
   try { await stop(); } finally { await log.close(); }

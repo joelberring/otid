@@ -338,5 +338,7 @@
     }
     ,{ "idx": 97, "version": "7", "when": 1796659200000, "tag": "0097_adr_0170_rogaining", "breakpoints": true
     }
+    ,{ "idx": 98, "version": "7", "when": 1796745600000, "tag": "0098_adr_0171_map_routes", "breakpoints": true
+    }
   ]
 }

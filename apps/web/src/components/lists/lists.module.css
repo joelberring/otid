@@ -43,6 +43,7 @@
 .blockHead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; }
 .blockHead h3 { font-family: var(--font-dense); font-size: var(--text-lg); font-weight: 700; }
 .blockHead p { color: var(--muted); font-size: var(--text-sm); }
+.headLink { margin-inline-start: auto; font-size: var(--text-sm); font-weight: 600; }
 .empty { padding: 6px 0 2px; color: var(--muted); font-size: var(--text-sm); }
 .nothing { padding: 24px 0; color: var(--muted); }
 .notice { max-width: 80ch; margin-top: 14px; padding: 8px 12px; border-left: 3px solid var(--attention); background: var(--attention-tint); font-size: var(--text-sm); }
@@ -136,7 +137,7 @@
 }
 
 @media print {
-  .toolbar, .noPrint { display: none !important; }
+  .toolbar, .noPrint, .headLink { display: none !important; }
   .lists { display: block; color: #000; font-size: 9pt; }
   .printHeader { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 16px; margin-bottom: 4mm;
     padding-bottom: 2mm; border-bottom: 1.5pt solid #000; }

@@ -870,32 +870,39 @@ export type PublicResultDetailLookup =
   | { status: "not-found" }
   | { status: "ok"; response: PublicResultDetailResponse };
 
-/** Server-only historical course binding for another public projection. */
-export async function resolvePublicActiveResultHead(
-  tx: DatabaseTransaction,
-  raceId: string,
-  publicResultId: string
-): Promise<{ resultRevisionId: string; resultRevision: number; entryId: string; courseVersionId: string; givenName: string; familyName: string; resultSplits: { status: "AVAILABLE"; splits: Array<{ controlCode: number; occurrence: number; legMs: number; elapsedMs: number }> } | { status: "UNAVAILABLE" }; resultStart: { status: "AVAILABLE"; startedAt: string } | { status: "UNAVAILABLE" } } | null> {
-  if (!publicResultIdSchema.safeParse(publicResultId).success) return null;
-  const rows = await selectPublishedPublicResultHeads(tx, raceId);
+/** Tider för ett publicerat individuellt resultat: starttid, sträcktider och löptid (vägval, PLAN.md steg 16). */
+export type PublicResultTiming = {
+  entryId: string; publicResultId: string; givenName: string; familyName: string; classId: string; status: string;
+  /** Starttiden som klockslag i ms, eller null när den saknas. */
+  startMs: number | null;
+  splits: { controlCode: number; occurrence: number; elapsedMs: number }[];
+  elapsedMs: number | null;
+};
+
+/**
+ * Server-only: starttid och stämplingstider för alla publicerade, aktiva individuella resultat i loppet. Samma
+ * urval och tolkning som den publika resultatlistan, så att vägvalen aldrig visar något som listan inte visar.
+ */
+export async function publicResultTimings(tx: DatabaseTransaction, raceId: string): Promise<PublicResultTiming[]> {
+  const rows = (await selectPublishedPublicResultHeads(tx, raceId)).filter((row) => row.teamId === null);
   const states = await resolveStoredResultHeadStates(tx, raceId, rows);
-  const state = states.find((candidate) =>
-    candidate.state === "ACTIVE_RESULT" && candidate.head.publicResultId === publicResultId
-  );
-  if (state?.state !== "ACTIVE_RESULT") return null;
-  const evaluation = parseStrictStoredResultRevision(state.head,
-    state.startCheckinDns?.source, state.finishTimeCorrection ?? undefined, state.finishTimeCorrectionWithdrawal ?? undefined,
-    state.punchStartTimeCorrection ?? undefined, state.punchStartTimeCorrectionWithdrawal ?? undefined,
-    state.shortenedCourseClassTransfer ?? undefined);
-  const resultSplits = evaluation.status === "OK" && "elapsedMs" in evaluation && "splits" in evaluation && evaluation.splits.length > 0
-    ? { status: "AVAILABLE" as const, splits: evaluation.splits.map((split) => ({ controlCode: split.controlCode, occurrence: split.occurrence, legMs: split.legMs, elapsedMs: split.elapsedMs })) }
-    : { status: "UNAVAILABLE" as const };
-  const startTime = "startTime" in evaluation ? evaluation.startTime : undefined;
-  const resultStart = (evaluation.status === "OK" || evaluation.status === "MP") &&
-    evaluation.reason !== "INVALID_TIME_ORDER" && typeof startTime === "string" && Number.isFinite(Date.parse(startTime))
-    ? { status: "AVAILABLE" as const, startedAt: new Date(startTime).toISOString() }
-    : { status: "UNAVAILABLE" as const };
-  return { resultRevisionId: state.head.id, resultRevision: state.head.revision, entryId: state.head.entryId, courseVersionId: state.head.courseVersionId, givenName: state.head.givenName, familyName: state.head.familyName, resultSplits, resultStart };
+  return states.flatMap((state) => {
+    if (state.state !== "ACTIVE_RESULT") return [];
+    const evaluation = parseStrictStoredResultRevision(state.head,
+      state.startCheckinDns?.source, state.finishTimeCorrection ?? undefined, state.finishTimeCorrectionWithdrawal ?? undefined,
+      state.punchStartTimeCorrection ?? undefined, state.punchStartTimeCorrectionWithdrawal ?? undefined,
+      state.shortenedCourseClassTransfer ?? undefined);
+    const startTime = "startTime" in evaluation ? evaluation.startTime : undefined;
+    const startMs = typeof startTime === "string" && evaluation.reason !== "INVALID_TIME_ORDER" ? Date.parse(startTime) : Number.NaN;
+    return [{
+      entryId: state.head.entryId, publicResultId: state.head.publicResultId, givenName: state.head.givenName,
+      familyName: state.head.familyName, classId: evaluation.classId, status: evaluation.status,
+      startMs: Number.isFinite(startMs) ? startMs : null,
+      splits: ("splits" in evaluation ? evaluation.splits : []).map((split) => ({ controlCode: split.controlCode,
+        occurrence: split.occurrence, elapsedMs: split.elapsedMs })),
+      elapsedMs: "elapsedMs" in evaluation && typeof evaluation.elapsedMs === "number" ? evaluation.elapsedMs : null
+    }];
+  });
 }
 
 /**

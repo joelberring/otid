@@ -1,11 +1,13 @@
 import { XMLParser, XMLValidator } from "fast-xml-parser";
 
-const GPX_NAMESPACE = "http://www.topografix.com/GPX/1/1";
+/** GPX 1.1 (Garmin, Strava, Suunto, Polar …) och äldre GPX 1.0. */
+const GPX_NAMESPACES: Record<string, string> = { "http://www.topografix.com/GPX/1/1": "1.1", "http://www.topografix.com/GPX/1/0": "1.0" };
 const MAX_GPX_BYTES = 8 * 1024 * 1024;
 const MAX_SEGMENTS = 2_000;
 const MAX_POINTS = 100_000;
 const FORBIDDEN_DECLARATION = /<!\s*(?:DTD|DOCTYPE|ENTITY)\b/i;
-const RFC3339_WITH_OFFSET = /^(\d{4}-\d{2}-\d{2})T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:0\d|1[0-4]):[0-5]\d)$/;
+/** RFC 3339-tid. Saknas tidszon tolkas tiden som UTC, som GPX-standarden föreskriver. */
+const RFC3339 = /^(\d{4}-\d{2}-\d{2})T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(Z|[+-](?:0\d|1[0-4]):[0-5]\d)?$/;
 
 type XmlRecord = Record<string, unknown>;
 
@@ -26,7 +28,7 @@ export interface GpxTrackPoint {
 }
 
 export interface GpxTrackImport {
-  readonly parser: "otid-gpx-1.1";
+  readonly parser: "otid-gpx";
   readonly points: readonly GpxTrackPoint[];
   readonly segmentCount: number;
 }
@@ -72,9 +74,9 @@ function parseNumber(value: unknown, field: string, issues: string[]): number | 
 function parsePointTime(value: unknown, field: string, issues: string[]): string | undefined {
   const source = text(value);
   if (!source) return undefined;
-  const match = RFC3339_WITH_OFFSET.exec(source);
+  const match = RFC3339.exec(source);
   if (!match) {
-    issues.push(`${field} måste vara RFC3339 med UTC-offset`);
+    issues.push(`${field} måste vara en RFC3339-tid`);
     return undefined;
   }
   const calendarDate = new Date(`${match[1]}T00:00:00.000Z`);
@@ -82,7 +84,7 @@ function parsePointTime(value: unknown, field: string, issues: string[]): string
     issues.push(`${field} har ogiltigt datum`);
     return undefined;
   }
-  const instant = new Date(source);
+  const instant = new Date(match[2] ? source : `${source}Z`);
   if (Number.isNaN(instant.valueOf())) {
     issues.push(`${field} är ogiltig`);
     return undefined;
@@ -129,10 +131,9 @@ export function parseGpxTrack(bytes: Uint8Array): GpxTrackImport {
   const root = record(parsed.gpx);
   const issues: string[] = [];
   if (!Object.hasOwn(parsed, "gpx")) issues.push("GPX root saknas");
-  if (root["@_xmlns"] !== GPX_NAMESPACE) issues.push("GPX 1.1-namnrymden saknas eller stöds inte");
-  if (root["@_version"] !== "1.1") issues.push("Endast GPX 1.1 stöds");
-  if (!text(root["@_creator"])) issues.push("GPX creator saknas");
-  if (root.rte !== undefined || root.wpt !== undefined) issues.push("GPX-ruttplaner och waypoints stöds inte");
+  const version = GPX_NAMESPACES[text(root["@_xmlns"])];
+  if (!version || text(root["@_version"]) !== version) issues.push("Endast GPX 1.1 och 1.0 stöds");
+  // Ruttplaner (rte) och waypoints (wpt) läses inte; bara spåret (trk) är löparens rutt.
 
   const points: GpxTrackPoint[] = [];
   let segmentCount = 0;
@@ -156,7 +157,7 @@ export function parseGpxTrack(bytes: Uint8Array): GpxTrackImport {
   if (!array(root.trk).length) issues.push("GPX track saknas");
   if (points.length < 2) issues.push("GPX måste innehålla minst två giltiga trackpunkter");
   if (issues.length) throw new GpxValidationError(issues);
-  return { parser: "otid-gpx-1.1", points, segmentCount };
+  return { parser: "otid-gpx", points, segmentCount };
 }
 
 export { MAX_GPX_BYTES, MAX_POINTS, MAX_SEGMENTS };

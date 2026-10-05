@@ -116,9 +116,6 @@ importers:
       '@o-tid/domain':
         specifier: workspace:*
         version: link:../../packages/domain
-      '@o-tid/infrastructure':
-        specifier: workspace:*
-        version: link:../../packages/infrastructure
       '@o-tid/iof-xml':
         specifier: workspace:*
         version: link:../../packages/iof-xml

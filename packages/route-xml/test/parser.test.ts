@@ -16,7 +16,7 @@ describe("parseGpxTrack", () => {
     expect(parseGpxTrack(bytes(track(
       '<trkpt lat="59.321" lon="18.071"><ele>15.5</ele><time>2026-09-20T10:01:02+02:00</time></trkpt><trkpt lat="59.322" lon="18.072" />'
     )))).toEqual({
-      parser: "otid-gpx-1.1",
+      parser: "otid-gpx",
       segmentCount: 1,
       points: [
         { segment: 0, latitude: 59.321, longitude: 18.071, elevationMeters: 15.5, recordedAt: "2026-09-20T08:01:02.000Z" },
@@ -27,12 +27,18 @@ describe("parseGpxTrack", () => {
 
   it.each([
     ["DOCTYPE", '<!DOCTYPE gpx [<!ENTITY x "x">]>' + track('<trkpt lat="59" lon="18"/><trkpt lat="60" lon="19"/>')],
-    ["ruttplan", '<gpx xmlns="http://www.topografix.com/GPX/1/1" version="1.1" creator="O-Tid"><rte/><trk><trkseg><trkpt lat="59" lon="18"/><trkpt lat="60" lon="19"/></trkseg></trk></gpx>'],
     ["fel namnrymd", track('<trkpt lat="59" lon="18"/><trkpt lat="60" lon="19"/>').replace("http://www.topografix.com/GPX/1/1", "https://example.test/gpx")],
     ["fel koordinat", track('<trkpt lat="91" lon="18"/><trkpt lat="60" lon="19"/>')],
-    ["tid utan offset", track('<trkpt lat="59" lon="18"><time>2026-09-20T10:01:02</time></trkpt><trkpt lat="60" lon="19"/>')]
+    ["ogiltig tid", track('<trkpt lat="59" lon="18"><time>20 sep 2026 10:01</time></trkpt><trkpt lat="60" lon="19"/>')],
+    ["GPX 2.0", track('<trkpt lat="59" lon="18"/><trkpt lat="60" lon="19"/>').replace('version="1.1"', 'version="2.0"')]
   ])("avvisar %s", (_description, source) => {
     expect(() => parseGpxTrack(bytes(source))).toThrow(GpxValidationError);
+  });
+
+  it("läser GPX 1.0, hoppar över waypoints och ruttplaner och tolkar tid utan tidszon som UTC", () => {
+    const source = '<?xml version="1.0"?><gpx xmlns="http://www.topografix.com/GPX/1/0" version="1.0"><wpt lat="59" lon="18"/><rte/>' +
+      '<trk><trkseg><trkpt lat="59" lon="18"><time>2026-09-20T10:01:02</time></trkpt><trkpt lat="60" lon="19"/></trkseg></trk></gpx>';
+    expect(parseGpxTrack(bytes(source)).points[0]).toEqual({ segment: 0, latitude: 59, longitude: 18, recordedAt: "2026-09-20T10:01:02.000Z" });
   });
 
   it("begränsar bytes, segment och punkter", () => {

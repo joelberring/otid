@@ -1,5 +1,5 @@
 import type { PublicRelayResults, PublicResultListResponse } from "@o-tid/contracts";
-import { buildSplitTable, type SplitTable } from "@o-tid/domain";
+import { splitTablesByVariant, type SplitTable } from "@o-tid/domain";
 import { compareText, matches, searchable } from "./search";
 import { groupByClub, type ClubGroup } from "./start-list-model";
 
@@ -89,21 +89,14 @@ export function filterResults(model: ResultListModel, query: string, className: 
 export type SplitGroup = { className: string; variant: string | null; rows: ResultRow[]; table: SplitTable };
 
 /**
- * Sträcktider per klass. En gafflad klass delas per variant, eftersom sträckorna bara kan jämföras inom samma
- * variant. Löpare utan sträcktider (ej start, ej fullföljt, utan tidtagning) visas inte i sträcktidslistan.
+ * Sträcktider per klass (domänens sträcktidsanalys). En gafflad klass delas per variant, eftersom sträckorna bara
+ * kan jämföras inom samma variant. Löpare utan sträcktider (ej start, ej fullföljt, utan tidtagning) visas inte.
  */
 export function splitGroups(raceClass: ResultClass): SplitGroup[] {
-  const groups = new Map<string, ResultRow[]>();
-  for (const result of raceClass.rows) {
-    if (result.splits.length === 0 && result.timeMs === null) continue;
-    const key = result.variant ?? "";
-    groups.set(key, [...(groups.get(key) ?? []), result]);
-  }
-  return [...groups.entries()].sort(([a], [b]) => compareText(a, b)).map(([variant, rows]) => ({
-    className: raceClass.name, variant: variant || null, rows,
-    table: buildSplitTable(rows.map((result, index) => ({ key: String(index), ok: result.status === "OK",
-      ...(result.timeMs === null ? {} : { elapsedMs: result.timeMs }), splits: result.splits })))
-  }));
+  const rows = raceClass.rows.filter(result => result.splits.length > 0 || result.timeMs !== null);
+  return splitTablesByVariant(rows.map((result, index) => ({ key: String(index), ok: result.status === "OK", variant: result.variant,
+    ...(result.timeMs === null ? {} : { elapsedMs: result.timeMs }), splits: result.splits })))
+    .map(group => ({ className: raceClass.name, variant: group.variant, rows: group.keys.map(key => rows[Number(key)]!), table: group.table }));
 }
 
 export type ClubResultRow = { className: string; result: ResultRow };

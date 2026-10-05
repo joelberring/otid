@@ -13,6 +13,7 @@ import { handleEntryRoute } from "./race-administrator-routes-entries";
 import { handleVariantRoute } from "./race-administrator-routes-variants";
 import { handleRelayRoute, write as idempotentWrite } from "./race-administrator-routes-relay";
 import { handleSourceRoute } from "./race-administrator-routes-sources";
+import { handleMapRoute } from "./race-administrator-routes-maps";
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 type Environment = Partial<Pick<NodeJS.ProcessEnv, "NODE_ENV" | "O_TID_PUBLIC_ORIGIN">>;
@@ -70,6 +71,7 @@ export async function raceAdministratorRoute(db: Database, request: Request, rac
     const context: RaceAdministratorRouteContext = { db, request, raceId, action, dependencies, proof, cursor, beforeVersion };
     return await handleRaceDayRoute(context) ?? await handlePreparationRoute(context) ?? await handleResultRoute(context) ??
       await handleEntryRoute(context) ?? await handleVariantRoute(context) ?? await handleRelayRoute(context) ?? await handleSourceRoute(context) ??
+      await handleMapRoute(context) ??
       (action.kind === "race-settings"
         ? await idempotentWrite(context, "race-settings", raceSettingsRequestSchema, raceSettingsResponseSchema, dependencies.raceSettings) : undefined) ??
       failure(500, "INTERNAL_ERROR");
@@ -77,7 +79,9 @@ export async function raceAdministratorRoute(db: Database, request: Request, rac
 }
 
 function allowedMethods(action: Action): string[] {
-  return action.kind === "operator-access" ? ["GET", "POST", "DELETE"] : action.kind === "eventor" ? ["GET", "PUT", "DELETE"] :
+  return action.kind === "operator-access" ? ["GET", "POST", "DELETE"] : action.kind === "race-map" ? ["GET", "PUT", "DELETE"] :
+    action.kind === "race-map-image" ? ["GET"] : action.kind === "race-map-georeference" ? ["POST"] :
+    action.kind === "participant-route" ? ["POST", "DELETE"] : action.kind === "eventor" ? ["GET", "PUT", "DELETE"] :
     action.kind === "source-sync" ? ["GET", "POST"] : action.kind === "eventor-events" ? ["GET"] :
     action.kind === "eventor-test" || action.kind === "eventor-event" || action.kind === "eventor-sync-preview" ||
     action.kind === "course-file-preview" || action.kind === "source-sync-consequence" ? ["POST"] : action.kind === "shortened-course-class-transfer" || action.kind === "manual-finish-time-correction" || action.kind === "manual-punch-start-time-correction" || action.kind === "manual-punch-start-time-correction-withdrawal" || action.kind === "manual-finish-time-correction-withdrawal" || action.kind === "unknown-readout-resolution" || action.kind === "class-result-recalculation" || action.kind === "draw" ? ["GET", "POST"] : action.kind === "review-conflicts" ? ["POST"] : action.kind === "conflict-candidate" ? ["GET"] : action.kind === "session" ? ["GET", "DELETE"] : action.kind === "checkin-history" || action.kind === "effective-result" || action.kind === "changes" ? ["GET"] :

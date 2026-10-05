@@ -7,7 +7,8 @@ O-Tid körs med `docker-compose.prod.yml` på en vanlig VPS:
 - Caddy (HTTPS med Let's Encrypt),
 - en backuptjänst.
 
-MinIO behövs inte för klubbträningen (kartor och rutter är parkerade).
+All data, även kartbilder och GPS-rutter för vägval (PLAN.md steg 16), ligger i PostgreSQL och kommer
+med i den nattliga backupen. MinIO behövs inte.
 
 ## Starta
 

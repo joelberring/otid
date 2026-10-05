@@ -70,6 +70,9 @@ export const listsSv = {
     missing: (codes: string) => `Saknar ${codes}`,
     bestLeg: "bästa sträcka",
     splitHelp: "Sträcktid och placering på sträckan överst, tid totalt under. Bästa sträcka är understruken.",
+    /** Länk till sträcktidsanalysen (PLAN.md steg 16) från klassrubriken. */
+    analysisLink: "Sträcktidsanalys",
+    analysisLinkLabel: (className: string) => `Sträcktidsanalys för ${className}`,
     noClub: "Utan klubb",
     clubSummary: (runners: number, approved: number, podium: number) =>
       `${plural(runners, "löpare", "löpare")} · ${approved} godkända${podium > 0 ? ` · ${plural(podium, "pallplats", "pallplatser")}` : ""}`,

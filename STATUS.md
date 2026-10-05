@@ -5,9 +5,22 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 16 – Sträcktidsanalys och vägval. Steg 7 (hårdvara) görs parallellt av ägaren.
+Steg 7 – Riktig hårdvara och pilot (ägaren + Codex). Alla andra steg i `PLAN.md` är klara.
 
 ## Logg
+
+### 2026-10-05 – Steg 16: sträcktidsanalys och vägval (steg 16 klart)
+- Publik `/results/{id}/splits?class=…` (länk från resultatlistornas klassrubrik, "Med sträcktider" och sidhuvudet): löpare × sträckor med
+  sträcktid och placering, förlust mot bästa, totaltid med placering; bästa sträcka fetstil + ★; sortering per sträcka; vyn "Tidsförlust" med idealtid.
+- Domänen `split-table.ts`: sträcka bara mellan två kända tider (missad kontroll/stämpling före start ger "–", även i steg 13-listan), sträckidentitet
+  från–till, gafflat per variant, felstämplade under utan placering. Stafett: inte stödd (besked på sidan); rogaining: ingen länk.
+- Vägval: Resultat → Karta och vägval (admin): kartbild, georeferens med tre punkter (klick + koordinat), GPX per löpare med "täcker x av y sträckor".
+  `/results/{id}/routes` visar sträckans del av rutten på kartan (SVG, zoom/dra) med andras vägval att jämföra; aldrig före start/efter mål.
+- ADR-0171, migration 0098: `race_map` och `participant_route` i PostgreSQL (bytea). Borttaget: 17 kart-/rutt-/geometritabeller, MinIO-adaptrarna
+  för karta/rutt, deltagarlänkar för uppladdning, gamla kart-/ruttsidor och API:er, `route-metadata`, privata rutter i "Mina resultat".
+- Verifierat: lint, typecheck, test, test:integration (78 filer, nytt `adr-0171-map-routes`; ett tidsfel efter omstart av maskinen gick igenom vid
+  omkörning), build, e2e (nytt `strackanalys` grönt ensamt; hela sviten 13 flöden gröna, fyra efter omförsök av last). Skärmbilder 1280/390 granskade.
+- Idéer nedan: tidsförskjutning GPS–station, KMZ/världsfil för georeferens, kontrollernas lägen från banfilen, stafettanalys.
 
 ### 2026-10-05 – Steg 15: rogaining (steg 15 klart)
 - Migration 0097: `class.rogaining_time_limit_seconds`/`_penalty_points_per_minute` (rogainingklass), `control.points` (NULL = förval) och journalen
@@ -222,6 +235,9 @@ Kvarstår för ägaren: begära *PC Programmer's Guide* från SPORTident
 brickor till steg 7.
 
 ## Idéer (inte i planen än)
+
+- Vägval: justera tidsförskjutning mellan GPS-klocka och stationer per rutt; georeferens från KMZ eller världsfil (OCAD) i stället för tre punkter;
+  kontrollernas lägen från banfilens koordinater; sträcktidsanalys för stafett (per sträcka); uppladdning av flera GPX-filer matchade på namn.
 
 - Stafett: bana per sträcka finns bara via en gafflad bana (variant per sträcka). Det fastställda resultatets IOF-export skriver inte lag än. Kvar i skogen räknar även sträcklöpare som inte startat.
 

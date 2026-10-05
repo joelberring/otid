@@ -2,8 +2,8 @@ import {
   boolean,
   bigint,
   check,
+  customType,
   date,
-  doublePrecision,
   foreignKey,
   index,
   integer,
@@ -611,218 +611,6 @@ export const pmScanReports = pgTable("pm_scan_report", {
   check("pm_scan_report_hash_check", sql`${table.contentHash} ~ '^[a-f0-9]{64}$'`)
 ]);
 
-/** Immutable race-scoped reservation for one renderable private map asset. */
-export const mapUploadReservations = pgTable("map_upload_reservation", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  requestId: uuid("request_id").notNull(),
-  raceId: uuid("race_id").notNull(),
-  actorCredentialId: uuid("actor_credential_id").notNull(),
-  capability: pairingAdminCapabilityEnum("capability").notNull(),
-  slot: integer("slot").notNull(),
-  title: text("title").notNull(),
-  mediaType: text("media_type").notNull(),
-  sha256: text("sha256").notNull(),
-  byteLength: integer("byte_length").notNull(),
-  reservedAt: timestamp("reserved_at", { withTimezone: true }).notNull()
-}, (table) => [
-  uniqueIndex("map_upload_reservation_request_uidx").on(table.requestId),
-  uniqueIndex("map_upload_reservation_race_slot_uidx").on(table.raceId, table.slot),
-  uniqueIndex("map_upload_reservation_scope_content_uidx").on(table.id, table.raceId, table.mediaType, table.sha256, table.byteLength),
-  check("map_upload_reservation_capability_check", sql`${table.capability}::text = 'MANAGE_RACE'`),
-  check("map_upload_reservation_slot_check", sql`${table.slot} BETWEEN 1 AND 100`),
-  check("map_upload_reservation_title_check", sql`char_length(${table.title}) BETWEEN 1 AND 120 AND ${table.title} = btrim(${table.title})`),
-  check("map_upload_reservation_media_type_check", sql`${table.mediaType} IN ('image/png', 'image/jpeg')`),
-  check("map_upload_reservation_sha256_check", sql`${table.sha256} ~ '^[a-f0-9]{64}$'`),
-  check("map_upload_reservation_byte_length_check", sql`${table.byteLength} BETWEEN 1 AND 52428800`),
-  foreignKey({ name: "map_upload_reservation_race_fk", columns: [table.raceId], foreignColumns: [races.id] }),
-  foreignKey({
-    name: "map_upload_reservation_actor_scope_fk",
-    columns: [table.actorCredentialId, table.raceId, table.capability],
-    foreignColumns: [pairingAdminAccessCredentials.id, pairingAdminAccessCredentials.raceId, pairingAdminAccessCredentials.capability]
-  })
-]);
-
-/** Every charged object-store PUT attempt; failed attempts remain evidence. */
-export const mapUploadAttempts = pgTable("map_upload_attempt", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  uploadId: uuid("upload_id").notNull(),
-  raceId: uuid("race_id").notNull(),
-  attemptNumber: integer("attempt_number").notNull(),
-  mediaType: text("media_type").notNull(),
-  sha256: text("sha256").notNull(),
-  byteLength: integer("byte_length").notNull(),
-  chargedAt: timestamp("charged_at", { withTimezone: true }).notNull()
-}, (table) => [
-  uniqueIndex("map_upload_attempt_upload_number_uidx").on(table.uploadId, table.attemptNumber),
-  uniqueIndex("map_upload_attempt_manifest_scope_uidx").on(table.id, table.uploadId, table.raceId, table.mediaType, table.sha256, table.byteLength),
-  check("map_upload_attempt_number_check", sql`${table.attemptNumber} BETWEEN 1 AND 8`),
-  check("map_upload_attempt_media_type_check", sql`${table.mediaType} IN ('image/png', 'image/jpeg')`),
-  check("map_upload_attempt_sha256_check", sql`${table.sha256} ~ '^[a-f0-9]{64}$'`),
-  check("map_upload_attempt_byte_length_check", sql`${table.byteLength} BETWEEN 1 AND 52428800`),
-  foreignKey({
-    name: "map_upload_attempt_reservation_content_fk",
-    columns: [table.uploadId, table.raceId, table.mediaType, table.sha256, table.byteLength],
-    foreignColumns: [mapUploadReservations.id, mapUploadReservations.raceId, mapUploadReservations.mediaType, mapUploadReservations.sha256, mapUploadReservations.byteLength]
-  })
-]);
-
-/** One verified exact private object version per reservation. */
-export const mapObjectManifests = pgTable("map_object_manifest", {
-  uploadId: uuid("upload_id").primaryKey(),
-  attemptId: uuid("attempt_id").notNull(),
-  raceId: uuid("race_id").notNull(),
-  storeId: uuid("store_id").notNull(),
-  objectKey: text("object_key").notNull(),
-  versionId: text("version_id").notNull(),
-  mediaType: text("media_type").notNull(),
-  sha256: text("sha256").notNull(),
-  byteLength: integer("byte_length").notNull(),
-  storedAt: timestamp("stored_at", { withTimezone: true }).notNull()
-}, (table) => [
-  uniqueIndex("map_object_manifest_store_key_version_uidx").on(table.storeId, table.objectKey, table.versionId),
-  uniqueIndex("map_object_manifest_attempt_uidx").on(table.attemptId),
-  uniqueIndex("map_object_manifest_upload_race_uidx").on(table.uploadId, table.raceId),
-  uniqueIndex("map_object_manifest_context_scope_uidx").on(table.uploadId, table.raceId, table.sha256),
-  check("map_object_manifest_media_type_check", sql`${table.mediaType} IN ('image/png', 'image/jpeg')`),
-  check("map_object_manifest_sha256_check", sql`${table.sha256} ~ '^[a-f0-9]{64}$'`),
-  check("map_object_manifest_byte_length_check", sql`${table.byteLength} BETWEEN 1 AND 52428800`),
-  check("map_object_manifest_object_key_check", sql`${table.objectKey} = 'map/' || ${table.raceId}::text || '/' || ${table.attemptId}::text`),
-  check("map_object_manifest_version_id_check", sql`char_length(${table.versionId}) BETWEEN 1 AND 1024 AND ${table.versionId} ~ '^[A-Za-z0-9._~+/-]+$' AND ${table.versionId} <> 'null'`),
-  foreignKey({
-    name: "map_object_manifest_attempt_scope_fk",
-    columns: [table.attemptId, table.uploadId, table.raceId, table.mediaType, table.sha256, table.byteLength],
-    foreignColumns: [mapUploadAttempts.id, mapUploadAttempts.uploadId, mapUploadAttempts.raceId, mapUploadAttempts.mediaType, mapUploadAttempts.sha256, mapUploadAttempts.byteLength]
-  })
-]);
-
-/** Immutable publish/withdraw journal; the latest race revision is current. */
-export const mapPublications = pgTable("map_publication", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  requestId: uuid("request_id").notNull(),
-  raceId: uuid("race_id").notNull(),
-  actorCredentialId: uuid("actor_credential_id").notNull(),
-  capability: pairingAdminCapabilityEnum("capability").notNull(),
-  revision: integer("revision").notNull(),
-  action: text("action").$type<"PUBLISH" | "WITHDRAW">().notNull(),
-  manifestId: uuid("manifest_id"),
-  sourceHash: text("source_hash"),
-  intent: jsonb("intent").$type<Record<string, unknown>>().notNull(),
-  decidedAt: timestamp("decided_at", { withTimezone: true }).notNull()
-}, (table) => [
-  uniqueIndex("map_publication_request_uidx").on(table.requestId),
-  uniqueIndex("map_publication_race_revision_uidx").on(table.raceId, table.revision),
-  index("map_publication_race_revision_idx").on(table.raceId, table.revision.desc()),
-  uniqueIndex("map_publication_id_scope_uidx").on(table.id, table.raceId, table.revision),
-  check("map_publication_capability_check", sql`${table.capability}::text = 'MANAGE_RACE'`),
-  check("map_publication_revision_check", sql`${table.revision} > 0`),
-  check("map_publication_action_check", sql`${table.action} IN ('PUBLISH', 'WITHDRAW')`),
-  check("map_publication_intent_check", sql`jsonb_typeof(${table.intent}) = 'object'`),
-  check("map_publication_payload_check", sql`(${table.action} = 'PUBLISH' AND ${table.manifestId} IS NOT NULL AND ${table.sourceHash} IS NOT NULL AND ${table.sourceHash} ~ '^[a-f0-9]{64}$') OR (${table.action} = 'WITHDRAW' AND ${table.manifestId} IS NULL AND ${table.sourceHash} IS NULL)`),
-  foreignKey({ name: "map_publication_race_fk", columns: [table.raceId], foreignColumns: [races.id] }),
-  foreignKey({
-    name: "map_publication_actor_scope_fk",
-    columns: [table.actorCredentialId, table.raceId, table.capability],
-    foreignColumns: [pairingAdminAccessCredentials.id, pairingAdminAccessCredentials.raceId, pairingAdminAccessCredentials.capability]
-  }),
-  foreignKey({
-    name: "map_publication_manifest_scope_fk",
-    columns: [table.manifestId, table.raceId],
-    foreignColumns: [mapObjectManifests.uploadId, mapObjectManifests.raceId]
-  })
-]);
-
-/** Immutable private calibration of one exact raster manifest; never a public release. */
-export const mapGeoreferences = pgTable("map_georeference", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  requestId: uuid("request_id").notNull(),
-  raceId: uuid("race_id").notNull(),
-  manifestId: uuid("manifest_id").notNull(),
-  actorCredentialId: uuid("actor_credential_id").notNull(),
-  capability: pairingAdminCapabilityEnum("capability").notNull(),
-  revision: integer("revision").notNull(),
-  sourceHash: text("source_hash").notNull(),
-  intent: jsonb("intent").$type<Record<string, unknown>>().notNull(),
-  imageWidth: integer("image_width").notNull(),
-  imageHeight: integer("image_height").notNull(),
-  crs: text("crs").notNull(),
-  tiePoints: jsonb("tie_points").$type<unknown>().notNull(),
-  transform: jsonb("transform").$type<Record<string, number>>().notNull(),
-  maxResidualMeters: doublePrecision("max_residual_meters").notNull(),
-  decidedAt: timestamp("decided_at", { withTimezone: true }).notNull()
-}, (table) => [
-  uniqueIndex("map_georeference_request_uidx").on(table.requestId),
-  uniqueIndex("map_georeference_id_race_uidx").on(table.id, table.raceId),
-  uniqueIndex("map_georeference_context_scope_uidx").on(table.id, table.raceId, table.manifestId),
-  uniqueIndex("map_georeference_race_revision_uidx").on(table.raceId, table.revision),
-  index("map_georeference_race_revision_idx").on(table.raceId, table.revision.desc()),
-  check("map_georeference_capability_check", sql`${table.capability}::text = 'MANAGE_RACE'`),
-  check("map_georeference_revision_check", sql`${table.revision} > 0`),
-  check("map_georeference_source_hash_check", sql`${table.sourceHash} ~ '^[a-f0-9]{64}$'`),
-  check("map_georeference_intent_check", sql`jsonb_typeof(${table.intent}) = 'object'`),
-  check("map_georeference_dimensions_check", sql`${table.imageWidth} BETWEEN 1 AND 200000 AND ${table.imageHeight} BETWEEN 1 AND 200000`),
-  check("map_georeference_crs_check", sql`${table.crs} = 'EPSG:4326'`),
-  check("map_georeference_tie_points_check", sql`jsonb_typeof(${table.tiePoints}) = 'array' AND jsonb_array_length(${table.tiePoints}) = 3`),
-  check("map_georeference_transform_check", sql`jsonb_typeof(${table.transform}) = 'object'`),
-  check("map_georeference_residual_check", sql`${table.maxResidualMeters} >= 0 AND ${table.maxResidualMeters} <= 0.01`),
-  foreignKey({ name: "map_georeference_race_fk", columns: [table.raceId], foreignColumns: [races.id] }),
-  foreignKey({
-    name: "map_georeference_actor_scope_fk",
-    columns: [table.actorCredentialId, table.raceId, table.capability],
-    foreignColumns: [pairingAdminAccessCredentials.id, pairingAdminAccessCredentials.raceId, pairingAdminAccessCredentials.capability]
-  }),
-  foreignKey({
-    name: "map_georeference_manifest_scope_fk",
-    columns: [table.manifestId, table.raceId],
-    foreignColumns: [mapObjectManifests.uploadId, mapObjectManifests.raceId]
-  })
-]);
-
-/** Immutable private geometry for every control occurrence of one exact course/map calibration. */
-export const courseControlGeometryRevisions = pgTable("course_control_geometry_revision", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  requestId: uuid("request_id").notNull(),
-  raceId: uuid("race_id").notNull(),
-  courseVersionId: uuid("course_version_id").notNull(),
-  mapManifestId: uuid("map_manifest_id").notNull(),
-  georeferenceId: uuid("georeference_id").notNull(),
-  actorCredentialId: uuid("actor_credential_id").notNull(),
-  capability: pairingAdminCapabilityEnum("capability").notNull(),
-  revision: integer("revision").notNull(),
-  sourceHash: text("source_hash").notNull(),
-  intent: jsonb("intent").$type<Record<string, unknown>>().notNull(),
-  decidedAt: timestamp("decided_at", { withTimezone: true }).notNull()
-}, (table) => [
-  uniqueIndex("course_control_geometry_request_uidx").on(table.requestId),
-  uniqueIndex("course_control_geometry_id_race_uidx").on(table.id, table.raceId),
-  uniqueIndex("course_control_geometry_context_scope_uidx").on(table.id, table.raceId, table.courseVersionId, table.mapManifestId, table.georeferenceId),
-  uniqueIndex("course_control_geometry_revision_uidx").on(table.courseVersionId, table.mapManifestId, table.revision),
-  index("course_control_geometry_latest_idx").on(table.courseVersionId, table.mapManifestId, table.revision.desc()),
-  check("course_control_geometry_capability_check", sql`${table.capability}::text = 'MANAGE_RACE'`),
-  check("course_control_geometry_revision_check", sql`${table.revision} > 0`),
-  check("course_control_geometry_source_hash_check", sql`${table.sourceHash} ~ '^[a-f0-9]{64}$'`),
-  check("course_control_geometry_intent_check", sql`jsonb_typeof(${table.intent}) = 'object'`),
-  foreignKey({ name: "course_control_geometry_race_fk", columns: [table.raceId], foreignColumns: [races.id] }),
-  foreignKey({ name: "course_control_geometry_course_version_fk", columns: [table.courseVersionId], foreignColumns: [courseVersions.id] }),
-  foreignKey({ name: "course_control_geometry_map_scope_fk", columns: [table.mapManifestId, table.raceId], foreignColumns: [mapObjectManifests.uploadId, mapObjectManifests.raceId] }),
-  foreignKey({ name: "course_control_geometry_georeference_scope_fk", columns: [table.georeferenceId, table.raceId], foreignColumns: [mapGeoreferences.id, mapGeoreferences.raceId] }),
-  foreignKey({ name: "course_control_geometry_actor_scope_fk", columns: [table.actorCredentialId, table.raceId, table.capability], foreignColumns: [pairingAdminAccessCredentials.id, pairingAdminAccessCredentials.raceId, pairingAdminAccessCredentials.capability] })
-]);
-
-export const courseControlGeometryPoints = pgTable("course_control_geometry_point", {
-  revisionId: uuid("revision_id").notNull(),
-  courseControlId: uuid("course_control_id").notNull(),
-  courseVersionId: uuid("course_version_id").notNull(),
-  sequence: integer("sequence").notNull(),
-  pixelX: doublePrecision("pixel_x").notNull(),
-  pixelY: doublePrecision("pixel_y").notNull()
-}, (table) => [
-  uniqueIndex("course_control_geometry_point_control_uidx").on(table.revisionId, table.courseControlId),
-  uniqueIndex("course_control_geometry_point_sequence_uidx").on(table.revisionId, table.sequence),
-  check("course_control_geometry_point_sequence_check", sql`${table.sequence} > 0`),
-  check("course_control_geometry_point_finite_check", sql`${table.pixelX} = ${table.pixelX} AND ${table.pixelY} = ${table.pixelY}`),
-  foreignKey({ name: "course_control_geometry_point_revision_fk", columns: [table.revisionId], foreignColumns: [courseControlGeometryRevisions.id] }),
-  foreignKey({ name: "course_control_geometry_point_control_scope_fk", columns: [table.courseControlId, table.courseVersionId], foreignColumns: [courseControls.id, courseControls.courseVersionId] })
-]);
 
 export const eventCreationAccessCredentials = pgTable("event_creation_access_credential", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -1733,220 +1521,6 @@ export const deviceIngestOutcomes = pgTable("device_ingest_outcome", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 });
 
-/** TASK111: browser-originated, hash-only authority for one participant's private route upload. */
-export const routeUploadGrants = pgTable("route_upload_grant", {
-  id: uuid("id").primaryKey(),
-  requestId: uuid("request_id").notNull(),
-  raceId: uuid("race_id").notNull(),
-  entryId: uuid("entry_id").notNull(),
-  issuerCredentialId: uuid("issuer_credential_id").notNull(),
-  capability: pairingAdminCapabilityEnum("capability").notNull(),
-  secretHash: text("secret_hash").notNull(),
-  issuedAt: timestamp("issued_at", { withTimezone: true }).notNull(),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull()
-}, (table) => [
-  uniqueIndex("route_upload_grant_request_uidx").on(table.requestId),
-  uniqueIndex("route_upload_grant_scope_uidx").on(table.id, table.raceId, table.entryId),
-  index("route_upload_grant_entry_idx").on(table.raceId, table.entryId, table.expiresAt),
-  check("route_upload_grant_capability_check", sql`${table.capability}::text = 'MANAGE_RACE'`),
-  check("route_upload_grant_secret_hash_check", sql`${table.secretHash} ~ '^[a-f0-9]{64}$'`),
-  check("route_upload_grant_expiry_check", sql`${table.expiresAt} > ${table.issuedAt} AND ${table.expiresAt} <= ${table.issuedAt} + interval '30 days'`),
-  foreignKey({ name: "route_upload_grant_entry_scope_fk", columns: [table.entryId, table.raceId], foreignColumns: [entries.id, entries.raceId] }),
-  foreignKey({ name: "route_upload_grant_issuer_scope_fk", columns: [table.issuerCredentialId, table.raceId, table.capability], foreignColumns: [pairingAdminAccessCredentials.id, pairingAdminAccessCredentials.raceId, pairingAdminAccessCredentials.capability] })
-]);
-
-/** One immutable revocation can stop all future sessions and uploads for a grant. */
-export const routeUploadGrantRevocations = pgTable("route_upload_grant_revocation", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  requestId: uuid("request_id").notNull(),
-  grantId: uuid("grant_id").notNull(),
-  raceId: uuid("race_id").notNull(),
-  entryId: uuid("entry_id").notNull(),
-  actorCredentialId: uuid("actor_credential_id").notNull(),
-  capability: pairingAdminCapabilityEnum("capability").notNull(),
-  revokedAt: timestamp("revoked_at", { withTimezone: true }).notNull(),
-  reason: text("reason").notNull()
-}, (table) => [
-  uniqueIndex("route_upload_grant_revocation_request_uidx").on(table.requestId),
-  uniqueIndex("route_upload_grant_revocation_grant_uidx").on(table.grantId),
-  check("route_upload_grant_revocation_capability_check", sql`${table.capability}::text = 'MANAGE_RACE'`),
-  check("route_upload_grant_revocation_reason_check", sql`char_length(btrim(${table.reason})) BETWEEN 1 AND 240`),
-  foreignKey({ name: "route_upload_grant_revocation_grant_scope_fk", columns: [table.grantId, table.raceId, table.entryId], foreignColumns: [routeUploadGrants.id, routeUploadGrants.raceId, routeUploadGrants.entryId] }),
-  foreignKey({ name: "route_upload_grant_revocation_actor_scope_fk", columns: [table.actorCredentialId, table.raceId, table.capability], foreignColumns: [pairingAdminAccessCredentials.id, pairingAdminAccessCredentials.raceId, pairingAdminAccessCredentials.capability] })
-]);
-
-/** Short, hash-only browser session created after the bearer link is immediately removed from the URL. */
-export const routeUploadSessions = pgTable("route_upload_session", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  grantId: uuid("grant_id").notNull(),
-  raceId: uuid("race_id").notNull(),
-  entryId: uuid("entry_id").notNull(),
-  sessionSecretHash: text("session_secret_hash").notNull(),
-  csrfSecretHash: text("csrf_secret_hash").notNull(),
-  issuedAt: timestamp("issued_at", { withTimezone: true }).notNull(),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull()
-}, (table) => [
-  index("route_upload_session_grant_idx").on(table.grantId, table.expiresAt),
-  check("route_upload_session_secret_hash_check", sql`${table.sessionSecretHash} ~ '^[a-f0-9]{64}$' AND ${table.csrfSecretHash} ~ '^[a-f0-9]{64}$'`),
-  check("route_upload_session_expiry_check", sql`${table.expiresAt} > ${table.issuedAt} AND ${table.expiresAt} <= ${table.issuedAt} + interval '1 hour'`),
-  foreignKey({ name: "route_upload_session_grant_scope_fk", columns: [table.grantId, table.raceId, table.entryId], foreignColumns: [routeUploadGrants.id, routeUploadGrants.raceId, routeUploadGrants.entryId] })
-]);
-
-/** A single immutable reservation is all a participant grant may ever store. */
-export const routeUploadReservations = pgTable("route_upload_reservation", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  requestId: uuid("request_id").notNull(),
-  grantId: uuid("grant_id").notNull(),
-  raceId: uuid("race_id").notNull(),
-  entryId: uuid("entry_id").notNull(),
-  fileName: text("file_name").notNull(),
-  mediaType: text("media_type").notNull(),
-  sha256: text("sha256").notNull(),
-  byteLength: integer("byte_length").notNull(),
-  reservedAt: timestamp("reserved_at", { withTimezone: true }).notNull()
-}, (table) => [
-  uniqueIndex("route_upload_reservation_request_uidx").on(table.requestId),
-  uniqueIndex("route_upload_reservation_grant_uidx").on(table.grantId),
-  uniqueIndex("route_upload_reservation_scope_content_uidx").on(table.id, table.grantId, table.raceId, table.entryId, table.mediaType, table.sha256, table.byteLength),
-  check("route_upload_reservation_file_name_check", sql`char_length(${table.fileName}) BETWEEN 1 AND 120 AND ${table.fileName} = btrim(${table.fileName}) AND ${table.fileName} !~ '[\\\\/[:cntrl:]]'`),
-  check("route_upload_reservation_media_type_check", sql`${table.mediaType} = 'application/gpx+xml'`),
-  check("route_upload_reservation_sha256_check", sql`${table.sha256} ~ '^[a-f0-9]{64}$'`),
-  check("route_upload_reservation_byte_length_check", sql`${table.byteLength} BETWEEN 1 AND 8388608`),
-  foreignKey({ name: "route_upload_reservation_grant_scope_fk", columns: [table.grantId, table.raceId, table.entryId], foreignColumns: [routeUploadGrants.id, routeUploadGrants.raceId, routeUploadGrants.entryId] })
-]);
-
-/** Every charged private object PUT remains immutable evidence, including a failed attempt. */
-export const routeUploadAttempts = pgTable("route_upload_attempt", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  uploadId: uuid("upload_id").notNull(),
-  grantId: uuid("grant_id").notNull(),
-  raceId: uuid("race_id").notNull(),
-  entryId: uuid("entry_id").notNull(),
-  attemptNumber: integer("attempt_number").notNull(),
-  mediaType: text("media_type").notNull(),
-  sha256: text("sha256").notNull(),
-  byteLength: integer("byte_length").notNull(),
-  chargedAt: timestamp("charged_at", { withTimezone: true }).notNull()
-}, (table) => [
-  uniqueIndex("route_upload_attempt_upload_number_uidx").on(table.uploadId, table.attemptNumber),
-  uniqueIndex("route_upload_attempt_manifest_scope_uidx").on(table.id, table.uploadId, table.grantId, table.raceId, table.entryId, table.mediaType, table.sha256, table.byteLength),
-  check("route_upload_attempt_number_check", sql`${table.attemptNumber} BETWEEN 1 AND 8`),
-  check("route_upload_attempt_media_type_check", sql`${table.mediaType} = 'application/gpx+xml'`),
-  check("route_upload_attempt_sha256_check", sql`${table.sha256} ~ '^[a-f0-9]{64}$'`),
-  check("route_upload_attempt_byte_length_check", sql`${table.byteLength} BETWEEN 1 AND 8388608`),
-  foreignKey({ name: "route_upload_attempt_reservation_content_fk", columns: [table.uploadId, table.grantId, table.raceId, table.entryId, table.mediaType, table.sha256, table.byteLength], foreignColumns: [routeUploadReservations.id, routeUploadReservations.grantId, routeUploadReservations.raceId, routeUploadReservations.entryId, routeUploadReservations.mediaType, routeUploadReservations.sha256, routeUploadReservations.byteLength] })
-]);
-
-/** One exact private GPX object version, bound to the successful charged attempt. */
-export const routeObjectManifests = pgTable("route_object_manifest", {
-  uploadId: uuid("upload_id").primaryKey(),
-  attemptId: uuid("attempt_id").notNull(),
-  grantId: uuid("grant_id").notNull(),
-  raceId: uuid("race_id").notNull(),
-  entryId: uuid("entry_id").notNull(),
-  storeId: uuid("store_id").notNull(),
-  objectKey: text("object_key").notNull(),
-  versionId: text("version_id").notNull(),
-  mediaType: text("media_type").notNull(),
-  sha256: text("sha256").notNull(),
-  byteLength: integer("byte_length").notNull(),
-  pointCount: integer("point_count").notNull(),
-  segmentCount: integer("segment_count").notNull(),
-  firstRecordedAt: timestamp("first_recorded_at", { withTimezone: true }),
-  lastRecordedAt: timestamp("last_recorded_at", { withTimezone: true }),
-  parser: text("parser").notNull(),
-  storedAt: timestamp("stored_at", { withTimezone: true }).notNull()
-}, (table) => [
-  uniqueIndex("route_object_manifest_store_key_version_uidx").on(table.storeId, table.objectKey, table.versionId),
-  uniqueIndex("route_object_manifest_attempt_uidx").on(table.attemptId),
-  uniqueIndex("route_object_manifest_upload_scope_uidx").on(table.uploadId, table.raceId, table.entryId),
-  uniqueIndex("route_object_manifest_context_scope_uidx").on(table.uploadId, table.raceId, table.entryId, table.sha256),
-  check("route_object_manifest_media_type_check", sql`${table.mediaType} = 'application/gpx+xml'`),
-  check("route_object_manifest_sha256_check", sql`${table.sha256} ~ '^[a-f0-9]{64}$'`),
-  check("route_object_manifest_byte_length_check", sql`${table.byteLength} BETWEEN 1 AND 8388608`),
-  check("route_object_manifest_counts_check", sql`${table.pointCount} BETWEEN 2 AND 100000 AND ${table.segmentCount} BETWEEN 1 AND 2000`),
-  // These are the first and last supplied timestamps in source order, not a computed time range.
-  check("route_object_manifest_time_range_check", sql`(${table.firstRecordedAt} IS NULL AND ${table.lastRecordedAt} IS NULL) OR (${table.firstRecordedAt} IS NOT NULL AND ${table.lastRecordedAt} IS NOT NULL)`),
-  check("route_object_manifest_parser_check", sql`${table.parser} = 'otid-gpx-1.1'`),
-  check("route_object_manifest_object_key_check", sql`${table.objectKey} = 'route/' || ${table.raceId}::text || '/' || ${table.attemptId}::text`),
-  check("route_object_manifest_version_id_check", sql`char_length(${table.versionId}) BETWEEN 1 AND 1024 AND ${table.versionId} ~ '^[A-Za-z0-9._~+/-]+$' AND ${table.versionId} <> 'null'`),
-  foreignKey({ name: "route_object_manifest_attempt_scope_fk", columns: [table.attemptId, table.uploadId, table.grantId, table.raceId, table.entryId, table.mediaType, table.sha256, table.byteLength], foreignColumns: [routeUploadAttempts.id, routeUploadAttempts.uploadId, routeUploadAttempts.grantId, routeUploadAttempts.raceId, routeUploadAttempts.entryId, routeUploadAttempts.mediaType, routeUploadAttempts.sha256, routeUploadAttempts.byteLength] })
-]);
-
-/** Normalized point order is immutable; this is not map alignment or result evidence. */
-export const routePoints = pgTable("route_point", {
-  uploadId: uuid("upload_id").notNull().references(() => routeObjectManifests.uploadId),
-  sequence: integer("sequence").notNull(),
-  segment: integer("segment").notNull(),
-  latitude: doublePrecision("latitude").notNull(),
-  longitude: doublePrecision("longitude").notNull(),
-  elevationMeters: doublePrecision("elevation_meters"),
-  recordedAt: timestamp("recorded_at", { withTimezone: true })
-}, (table) => [
-  primaryKey({ name: "route_point_pk", columns: [table.uploadId, table.sequence] }),
-  check("route_point_sequence_check", sql`${table.sequence} BETWEEN 0 AND 99999`),
-  check("route_point_segment_check", sql`${table.segment} BETWEEN 0 AND 1999`),
-  check("route_point_latitude_check", sql`${table.latitude} BETWEEN -90 AND 90`),
-  check("route_point_longitude_check", sql`${table.longitude} BETWEEN -180 AND 180`)
-]);
-
-/** TASK116: participant decisions remain private evidence; they are not a public release. */
-export const routePublicationConsents = pgTable("route_publication_consent", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  requestId: uuid("request_id").notNull(),
-  grantId: uuid("grant_id").notNull(),
-  raceId: uuid("race_id").notNull(),
-  entryId: uuid("entry_id").notNull(),
-  manifestId: uuid("manifest_id").notNull(),
-  sourceHash: text("source_hash").notNull(),
-  revision: integer("revision").notNull(),
-  decision: text("decision").notNull(),
-  decidedAt: timestamp("decided_at", { withTimezone: true }).notNull()
-}, (table) => [
-  uniqueIndex("route_publication_consent_request_uidx").on(table.requestId),
-  uniqueIndex("route_publication_consent_manifest_revision_uidx").on(table.manifestId, table.revision),
-  index("route_publication_consent_manifest_latest_idx").on(table.manifestId, desc(table.revision)),
-  check("route_publication_consent_hash_check", sql`${table.sourceHash} ~ '^[a-f0-9]{64}$'`),
-  check("route_publication_consent_revision_check", sql`${table.revision} BETWEEN 1 AND 2147483647`),
-  check("route_publication_consent_decision_check", sql`${table.decision} IN ('GRANT', 'WITHDRAW')`),
-  foreignKey({ name: "route_publication_consent_manifest_scope_fk", columns: [table.manifestId, table.raceId, table.entryId], foreignColumns: [routeObjectManifests.uploadId, routeObjectManifests.raceId, routeObjectManifests.entryId] }),
-  foreignKey({ name: "route_publication_consent_grant_scope_fk", columns: [table.grantId, table.raceId, table.entryId], foreignColumns: [routeUploadGrants.id, routeUploadGrants.raceId, routeUploadGrants.entryId] })
-]);
-
-/** TASK117: an admin-selected public view; consent remains a separate participant journal. */
-export const routePublications = pgTable("route_publication", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  requestId: uuid("request_id").notNull(),
-  raceId: uuid("race_id").notNull(),
-  entryId: uuid("entry_id").notNull(),
-  actorCredentialId: uuid("actor_credential_id").notNull(),
-  capability: pairingAdminCapabilityEnum("capability").notNull(),
-  revision: integer("revision").notNull(),
-  action: text("action").$type<"RELEASE" | "WITHDRAW">().notNull(),
-  routeManifestId: uuid("route_manifest_id"),
-  routeSourceHash: text("route_source_hash"),
-  mapManifestId: uuid("map_manifest_id"),
-  mapSourceHash: text("map_source_hash"),
-  georeferenceId: uuid("georeference_id"),
-  intent: jsonb("intent").$type<Record<string, unknown>>().notNull(),
-  decidedAt: timestamp("decided_at", { withTimezone: true }).notNull()
-}, (table) => [
-  uniqueIndex("route_publication_request_uidx").on(table.requestId),
-  uniqueIndex("route_publication_entry_revision_uidx").on(table.entryId, table.revision),
-  index("route_publication_entry_latest_idx").on(table.entryId, desc(table.revision)),
-  check("route_publication_capability_check", sql`${table.capability}::text = 'MANAGE_RACE'`),
-  check("route_publication_revision_check", sql`${table.revision} BETWEEN 1 AND 2147483647`),
-  check("route_publication_action_check", sql`${table.action} IN ('RELEASE', 'WITHDRAW')`),
-  check("route_publication_intent_check", sql`jsonb_typeof(${table.intent}) = 'object'`),
-  check("route_publication_payload_check", sql`(${table.action} = 'RELEASE' AND ${table.routeManifestId} IS NOT NULL AND ${table.routeSourceHash} ~ '^[a-f0-9]{64}$' AND ${table.mapManifestId} IS NOT NULL AND ${table.mapSourceHash} ~ '^[a-f0-9]{64}$' AND ${table.georeferenceId} IS NOT NULL) OR (${table.action} = 'WITHDRAW' AND ${table.routeManifestId} IS NULL AND ${table.routeSourceHash} IS NULL AND ${table.mapManifestId} IS NULL AND ${table.mapSourceHash} IS NULL AND ${table.georeferenceId} IS NULL)`),
-  foreignKey({ name: "route_publication_race_fk", columns: [table.raceId], foreignColumns: [races.id] }),
-  foreignKey({ name: "route_publication_entry_scope_fk", columns: [table.entryId, table.raceId], foreignColumns: [entries.id, entries.raceId] }),
-  foreignKey({ name: "route_publication_route_scope_fk", columns: [table.routeManifestId, table.raceId, table.entryId], foreignColumns: [routeObjectManifests.uploadId, routeObjectManifests.raceId, routeObjectManifests.entryId] }),
-  foreignKey({ name: "route_publication_map_scope_fk", columns: [table.mapManifestId, table.raceId], foreignColumns: [mapObjectManifests.uploadId, mapObjectManifests.raceId] }),
-  foreignKey({ name: "route_publication_georeference_scope_fk", columns: [table.georeferenceId, table.raceId], foreignColumns: [mapGeoreferences.id, mapGeoreferences.raceId] }),
-  foreignKey({ name: "route_publication_actor_scope_fk", columns: [table.actorCredentialId, table.raceId, table.capability], foreignColumns: [pairingAdminAccessCredentials.id, pairingAdminAccessCredentials.raceId, pairingAdminAccessCredentials.capability] })
-]);
-
 export const cardReadouts = pgTable("card_readout", {
   id: uuid("id").primaryKey().defaultRandom(),
   raceId: uuid("race_id").notNull().references(() => races.id),
@@ -2089,47 +1663,6 @@ export const resultRevisions = pgTable("result_revision", {
   uniqueIndex("result_revision_shortened_course_class_transfer_source_tuple_uidx")
     .on(table.id, table.shortenedCourseClassTransferId, table.raceId, table.entryId, table.revision),
   index("result_revision_public_idx").on(table.raceId, table.published)
-]);
-
-/** TASK155: explicit immutable private map/course context for one exact GPX version. */
-export const privateRouteContexts = pgTable("private_route_context", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  requestId: uuid("request_id").notNull(),
-  raceId: uuid("race_id").notNull(),
-  entryId: uuid("entry_id").notNull(),
-  routeManifestId: uuid("route_manifest_id").notNull(),
-  routeSourceHash: text("route_source_hash").notNull(),
-  mapManifestId: uuid("map_manifest_id").notNull(),
-  mapSourceHash: text("map_source_hash").notNull(),
-  georeferenceId: uuid("georeference_id").notNull(),
-  geometryRevisionId: uuid("geometry_revision_id").notNull(),
-  sourceResultRevisionId: uuid("source_result_revision_id").notNull(),
-  sourceResultRevision: integer("source_result_revision").notNull(),
-  courseVersionId: uuid("course_version_id").notNull(),
-  actorCredentialId: uuid("actor_credential_id").notNull(),
-  capability: pairingAdminCapabilityEnum("capability").notNull(),
-  revision: integer("revision").notNull(),
-  intent: jsonb("intent").$type<Record<string, unknown>>().notNull(),
-  decidedAt: timestamp("decided_at", { withTimezone: true }).notNull()
-}, (table) => [
-  uniqueIndex("private_route_context_request_uidx").on(table.requestId),
-  uniqueIndex("private_route_context_route_revision_uidx").on(table.routeManifestId, table.revision),
-  index("private_route_context_route_latest_idx").on(table.routeManifestId, table.revision.desc()),
-  check("private_route_context_capability_check", sql`${table.capability}::text = 'MANAGE_RACE'`),
-  check("private_route_context_revision_check", sql`${table.revision} BETWEEN 1 AND 2147483647`),
-  check("private_route_context_source_result_revision_check", sql`${table.sourceResultRevision} BETWEEN 1 AND 2147483647`),
-  check("private_route_context_route_hash_check", sql`${table.routeSourceHash} ~ '^[a-f0-9]{64}$'`),
-  check("private_route_context_map_hash_check", sql`${table.mapSourceHash} ~ '^[a-f0-9]{64}$'`),
-  check("private_route_context_intent_check", sql`jsonb_typeof(${table.intent}) = 'object'`),
-  foreignKey({ name: "private_route_context_race_fk", columns: [table.raceId], foreignColumns: [races.id] }),
-  foreignKey({ name: "private_route_context_entry_scope_fk", columns: [table.entryId, table.raceId], foreignColumns: [entries.id, entries.raceId] }),
-  foreignKey({ name: "private_route_context_route_scope_fk", columns: [table.routeManifestId, table.raceId, table.entryId, table.routeSourceHash], foreignColumns: [routeObjectManifests.uploadId, routeObjectManifests.raceId, routeObjectManifests.entryId, routeObjectManifests.sha256] }),
-  foreignKey({ name: "private_route_context_map_scope_fk", columns: [table.mapManifestId, table.raceId, table.mapSourceHash], foreignColumns: [mapObjectManifests.uploadId, mapObjectManifests.raceId, mapObjectManifests.sha256] }),
-  foreignKey({ name: "private_route_context_georeference_scope_fk", columns: [table.georeferenceId, table.raceId, table.mapManifestId], foreignColumns: [mapGeoreferences.id, mapGeoreferences.raceId, mapGeoreferences.manifestId] }),
-  foreignKey({ name: "private_route_context_geometry_scope_fk", columns: [table.geometryRevisionId, table.raceId, table.courseVersionId, table.mapManifestId, table.georeferenceId], foreignColumns: [courseControlGeometryRevisions.id, courseControlGeometryRevisions.raceId, courseControlGeometryRevisions.courseVersionId, courseControlGeometryRevisions.mapManifestId, courseControlGeometryRevisions.georeferenceId] }),
-  foreignKey({ name: "private_route_context_result_scope_fk", columns: [table.sourceResultRevisionId, table.raceId, table.entryId, table.sourceResultRevision, table.courseVersionId], foreignColumns: [resultRevisions.id, resultRevisions.raceId, resultRevisions.entryId, resultRevisions.revision, resultRevisions.courseVersionId] }),
-  foreignKey({ name: "private_route_context_course_version_fk", columns: [table.courseVersionId], foreignColumns: [courseVersions.id] }),
-  foreignKey({ name: "private_route_context_actor_scope_fk", columns: [table.actorCredentialId, table.raceId, table.capability], foreignColumns: [pairingAdminAccessCredentials.id, pairingAdminAccessCredentials.raceId, pairingAdminAccessCredentials.capability] })
 ]);
 
 /**
@@ -4317,3 +3850,44 @@ export const raceSettingsRequests = pgTable("race_settings_request", {
   response: jsonb("response").$type<Record<string, unknown>>().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull()
 }, (table) => [index("race_settings_request_race_idx").on(table.raceId)]);
+
+/** Binära filer (kartbild, GPX) lagras i PostgreSQL; node-postgres ger och tar emot Buffer. */
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => "bytea" });
+
+/** Kartans georeferens (ADR-0171): tre punkter med pixel och WGS84 och den affina transformen pixel → lon/lat. */
+export type RaceMapTiePoint = { pixelX: number; pixelY: number; longitude: number; latitude: number };
+export type RaceMapTransform = { a: number; b: number; c: number; d: number; e: number; f: number };
+
+/** PLAN.md steg 16 (migration 0098): tävlingens karta för vägval, en per lopp. Bilden ligger i databasen. */
+export const raceMaps = pgTable("race_map", {
+  raceId: uuid("race_id").primaryKey().references(() => races.id),
+  fileName: text("file_name").notNull(),
+  mediaType: text("media_type").$type<"image/png" | "image/jpeg">().notNull(),
+  image: bytea("image").notNull(),
+  sha256: text("sha256").notNull(),
+  byteLength: integer("byte_length").notNull(),
+  width: integer("width").notNull(),
+  height: integer("height").notNull(),
+  tiePoints: jsonb("tie_points").$type<RaceMapTiePoint[]>(),
+  transform: jsonb("transform").$type<RaceMapTransform>(),
+  uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull(),
+  georeferencedAt: timestamp("georeferenced_at", { withTimezone: true })
+});
+
+/** PLAN.md steg 16 (migration 0098): löparens GPS-rutt. Punkterna är [tid ms, lat, lon] i tidsordning. */
+export const participantRoutes = pgTable("participant_route", {
+  entryId: uuid("entry_id").primaryKey(),
+  raceId: uuid("race_id").notNull().references(() => races.id),
+  fileName: text("file_name").notNull(),
+  gpx: bytea("gpx").notNull(),
+  sha256: text("sha256").notNull(),
+  byteLength: integer("byte_length").notNull(),
+  points: jsonb("points").$type<(readonly [number, number, number])[]>().notNull(),
+  pointCount: integer("point_count").notNull(),
+  startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+  endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+  uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull()
+}, (table) => [
+  index("participant_route_race_idx").on(table.raceId),
+  foreignKey({ name: "participant_route_entry_scope_fk", columns: [table.entryId, table.raceId], foreignColumns: [entries.id, entries.raceId] })
+]);

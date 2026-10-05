@@ -101,7 +101,7 @@ export function importAdminSessionProof(
   };
 }
 
-async function readBoundedBytes(request: Request, limit: number): Promise<Uint8Array> {
+export async function readBoundedBytes(request: Request, limit: number): Promise<Uint8Array> {
   if (!request.body) throw new ImportAdminRequestError("Body saknas");
   const reader = request.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -128,7 +128,7 @@ async function readBoundedBytes(request: Request, limit: number): Promise<Uint8A
   return bytes;
 }
 
-function validDeclaredLength(request: Request, maximum: number): boolean {
+export function validDeclaredLength(request: Request, maximum: number): boolean {
   const value = request.headers.get("content-length");
   return value === null || (/^\d+$/.test(value) && Number(value) >= 1 && Number(value) <= maximum);
 }

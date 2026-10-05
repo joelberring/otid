@@ -4,11 +4,13 @@ import { notFound } from "next/navigation";
 import { PublicFrozenRaceResults } from "../../../../../components/public-frozen-race-results";
 import { sv } from "../../../../../i18n/sv";
 import { db } from "../../../../../lib/db";
+import { requirePublicRace } from "../../../../../lib/public-race-gate";
 
 export const dynamic = "force-dynamic";
 
 export default async function PublicFrozenRaceResultsPage({ params }: { params: Promise<{ raceId: string; finalizationId: string }> }) {
   const { raceId, finalizationId } = await params;
+  await requirePublicRace(raceId);
   const result = await readPublicFrozenRaceResults(db, raceId, finalizationId);
   if (result.status !== "ok") notFound();
   return <main className="stack">

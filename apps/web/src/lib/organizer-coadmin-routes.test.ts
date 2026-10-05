@@ -51,23 +51,23 @@ describe("TASK151 organizer coadministrator HTTP routes", () => {
     const denied = await organizerEventAdministratorGrantRoute(db, badOrigin, eventId, grant, auth, environment);
     expect(denied.status).toBe(403);
     expect(grant).not.toHaveBeenCalled();
-    const body = { formatVersion: 1, requestId, eventId, loginName: "coadmin", role: "ADMIN" };
+    const body = { formatVersion: 1, requestId, eventId, email: "coadmin@klubb.se", role: "ADMIN" };
     const response = await organizerEventAdministratorGrantRoute(db, req("POST", body, {
       ...proofHeaders, "idempotency-key": `organizer-admin-grant:${requestId}`
     }), eventId, vi.fn(async (_database: Database, input: Parameters<typeof grantEventAdministratorAsUserAccount>[1]) => {
       expect(await input.readBody()).toEqual(body);
       return { status: "granted" as const, response: { formatVersion: 1 as const, replayed: false,
-        requestId, eventId, grantId, accountId: "10000000-0000-4000-8000-000000000006", loginName: "coadmin",
+        requestId, eventId, grantId, accountId: "10000000-0000-4000-8000-000000000006", email: "coadmin@klubb.se",
         displayName: "Medarrangör", role: "ADMIN" as const, grantedAt: "2026-09-23T08:00:00.000Z" } };
     }) as unknown as typeof grantEventAdministratorAsUserAccount, auth, environment);
     expect(response.status).toBe(201);
-    expect(await response.json()).toMatchObject({ eventId, grantId, loginName: "coadmin" });
+    expect(await response.json()).toMatchObject({ eventId, grantId, email: "coadmin@klubb.se" });
   });
 
   it("rejects a body for another event before calling the grant service", async () => {
     const grant = vi.fn() as unknown as typeof grantEventAdministratorAsUserAccount;
     const response = await organizerEventAdministratorGrantRoute(db, req("POST", {
-      formatVersion: 1, requestId, eventId: "10000000-0000-4000-8000-000000000007", loginName: "coadmin", role: "ADMIN"
+      formatVersion: 1, requestId, eventId: "10000000-0000-4000-8000-000000000007", email: "coadmin@klubb.se", role: "ADMIN"
     }, { ...proofHeaders, "idempotency-key": `organizer-admin-grant:${requestId}` }), eventId, grant, auth, environment);
     expect(response.status).toBe(400);
     expect(grant).not.toHaveBeenCalled();

@@ -23,3 +23,18 @@ storleksgräns och härdad XML-läsning. Basadressen är Eventor Sverige; bara d
 kan peka om den (`OTID_EVENTOR_BASE_URL`, för test). Fel visas som läge
 ("Eventor godkände inte nyckeln") utan innehåll från Eventor. Liveprov mot Eventor
 med klubbens riktiga nyckel återstår.
+
+## Konton och superadmin (ADR-0172)
+
+Kontot identifieras med normaliserad e-post. Lösenord lagras som `scrypt`-verifierare (minst 8 tecken).
+Inloggning spärras efter fem fel per adress i 15 minuter; registrering och återställningsförfrågningar
+räknas per IP-adress (och per e-post) och timme, med nycklarna hashade. Glömt lösenord svarar likadant
+oavsett om adressen finns. Länken bär en slumpad engångsnyckel (bara hashen sparas), gäller en timme och
+en gång, och alla kontots sessioner spärras när lösenordet byts. Länken ligger i adressens fragment
+(`/recover#token=…`), så den hamnar inte i serverloggar, och sidan tar bort den ur adressfältet.
+SMTP-fel loggas med felkod, aldrig med adress eller länk.
+
+Superadmin sätts bara med kommando på servern. Varje superadminåtgärd kräver ett skäl och skrivs i en
+append-only-logg utan främmande nycklar, så den finns kvar när kontot eller tävlingen är borttagen.
+Borttagning av tävling eller konto tar bort alla rader som hör till, också råa avläsningar, i en
+transaktion. Vilka personuppgifter som sparas står på `/integritet` (kontakt: `OTID_CONTACT_EMAIL`).

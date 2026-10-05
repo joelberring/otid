@@ -28,7 +28,9 @@ const nextConfig: NextConfig = {
       ...["", "/manage", "/readout", "/speaker", "/imports", "/forest-watch"].map((surface) => ({
         source: `/admin/:raceId${surface}`, headers: [...privateAdminHeaders]
       })),
-      { source: "/starts/:raceId", headers: [...privateAdminHeaders] }
+      { source: "/starts/:raceId", headers: [...privateAdminHeaders] },
+      // Kontosidorna (ADR-0172): inte i cache, inte i ram och ingen referer (återställningslänken).
+      ...["/superadmin", "/konto", "/recover"].map((source) => ({ source, headers: [...privateAdminHeaders] }))
     ];
   },
   transpilePackages: [

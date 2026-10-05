@@ -20,7 +20,7 @@ function errorText(error: unknown) { return error instanceof Error ? error.messa
 export function ParticipantMe() {
   const [session, setSession] = useState<Session>();
   const [checked, setChecked] = useState(false);
-  const [loginName, setLoginName] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [pendingRedeem, setPendingRedeem] = useState<{ requestId: string; code: string }>();
@@ -59,7 +59,7 @@ export function ParticipantMe() {
   async function login(event: FormEvent) {
     event.preventDefault(); setBusy(true); setMessage("");
     try {
-      const request = organizerAccountLoginRequestSchema.parse({ formatVersion: 1, loginName: loginName.trim().toLowerCase(), password });
+      const request = organizerAccountLoginRequestSchema.parse({ formatVersion: 1, email, password });
       const response = await fetch("/api/organizer/login", { method: "POST", credentials: "same-origin", cache: "no-store",
         headers: { "content-type": "application/json" }, body: JSON.stringify(request) });
       const parsed = organizerAccountLoginResponseSchema.safeParse(await json(response));
@@ -96,7 +96,7 @@ export function ParticipantMe() {
       const response = await fetch("/api/organizer/logout", { method: "POST", credentials: "same-origin", cache: "no-store",
         headers: { "x-otid-csrf": readOrganizerCsrf(document.cookie, new URL(window.location.href)) } });
       if (!response.ok && response.status !== 401) throw new Error(text.logoutError);
-      setSession(undefined); setPendingRedeem(undefined); setPendingUnfollow(undefined); setFollows([]); setCode(""); setLoginName(""); setMessage("");
+      setSession(undefined); setPendingRedeem(undefined); setPendingUnfollow(undefined); setFollows([]); setCode(""); setEmail(""); setMessage("");
     } catch (error) { setMessage(errorText(error)); }
     finally { setBusy(false); }
   }
@@ -128,7 +128,7 @@ export function ParticipantMe() {
     {!checked && <p aria-live="polite">{text.loading}</p>}
     {checked && !session && <form className="panel stack" onSubmit={event => void login(event)}>
       <h2>{text.login}</h2>
-      <label>{text.loginName}<input autoCapitalize="none" autoComplete="username" value={loginName} onChange={event => setLoginName(event.target.value)} required disabled={busy} /></label>
+      <label>{text.email}<input type="email" autoCapitalize="none" autoComplete="username" value={email} onChange={event => setEmail(event.target.value)} required disabled={busy} /></label>
       <label>{text.password}<input type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} required disabled={busy} /></label>
       <button disabled={busy}>{busy ? text.loggingIn : text.loginAction}</button>
       <Link href="/recover">{text.forgotPassword}</Link>

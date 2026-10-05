@@ -67,7 +67,7 @@ test("klubbstafett: stafettklass, lag, byte av löpare, avläsning per sträcka,
   test.setTimeout(420_000);
   const suffix = unique();
   const { date, massStart } = raceClock();
-  const owner = await registerAccount(browser, `stafett.${suffix}`, "Stina Stafett");
+  const owner = await registerAccount(browser, `stafett.${suffix}@exempel.se`, "Stina Stafett");
   const raceId = await createRace(owner, `Klubbstafett ${suffix}`, date, "Stafett");
   await addCourseAndClass(owner, "Stafettbana", "Inskolning", "31 32 33 34");
   await compileRelayRoutes(owner, raceId);

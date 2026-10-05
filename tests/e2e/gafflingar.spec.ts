@@ -28,7 +28,7 @@ async function readExercise(page: Page, label: string, name: string, variant: st
 test("gafflad klass: import, fördelning, avläsning mot rätt variant och publikt resultat", async ({ browser, request }) => {
   test.setTimeout(300_000);
   const suffix = unique();
-  const owner = await registerAccount(browser, `gaffel.${suffix}`, "Gun Gaffel");
+  const owner = await registerAccount(browser, `gaffel.${suffix}@exempel.se`, "Gun Gaffel");
   const raceId = await createRace(owner, `Gafflingar ${suffix}`, "2026-10-08", "Tävling med gafflade banor");
 
   // IOF XML: banor med varianter, anmälda och varianttilldelning per löpare.

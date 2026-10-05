@@ -3,6 +3,7 @@ import { publicRaceSummary, publicRelayResults, publicResults, readPublicRouteIn
 import { db } from "../../../../lib/db";
 import { SplitAnalysis } from "../../../../components/split-analysis/split-analysis";
 import { splitAnalysisSv as text } from "../../../../i18n/split-analysis-sv";
+import { requirePublicRace } from "../../../../lib/public-race-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,7 @@ export default async function SplitAnalysisPage({ params, searchParams }: {
   params: Promise<{ raceId: string }>; searchParams: Promise<{ class?: string | string[] }>;
 }) {
   const [{ raceId }, query] = await Promise.all([params, searchParams]);
+  await requirePublicRace(raceId);
   const [summary, results, relay, routes] = await Promise.all([publicRaceSummary(db, raceId), publicResults(db, raceId),
     publicRelayResults(db, raceId), readPublicRouteIndex(db, raceId)]);
   const className = typeof query.class === "string" ? query.class : null;

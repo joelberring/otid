@@ -13,7 +13,8 @@ import {
   redeemParticipantEntryClaimAsAccount,
   revokeParticipantEntryClaimAsAdmin
 } from "../../src/participant-entry-claim";
-import { loginUserAccount, logoutUserAccountSession, provisionUserAccount } from "../../src/user-account";
+import { logoutUserAccountSession } from "../../src/user-account";
+import { registerTestAccount } from "./accounts";
 import { recalculateEntry } from "../../src/results";
 
 const base = process.env.TEST_DATABASE_URL;
@@ -59,9 +60,8 @@ async function fixture() {
 }
 
 async function account(prefix: string) {
-  const loginName = `${prefix}.${randomUUID().slice(0, 8)}`;
-  const created = await provisionUserAccount(db, { loginName, displayName: `Test ${prefix}` }, { now: at });
-  const login = await loginUserAccount(db, { formatVersion: 1, loginName, password: created.initialPassword }, { now: at });
+  const created = await registerTestAccount(db, `${prefix}.${randomUUID().slice(0, 8)}`, at);
+  const login = created.login;
   if (login.status !== "authenticated") throw new Error("Syntetiskt deltagarkonto saknas");
   return { created, proof: { sessionToken: login.sessionToken,
     csrfCookie: login.csrfToken, csrfHeader: login.csrfToken } };

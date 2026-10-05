@@ -12,7 +12,7 @@ describe("TASK151 event admin panel", () => {
     expect(component).toContain('event.role === "OWNER" && <EventAdministratorsDisclosure');
     expect(component).toContain("{hasExpanded && <div id={panelId} hidden={!expanded}>");
     expect(component).toContain("aria-expanded={expanded}");
-    expect(component).toContain("copy.adminReview(loginName.trim().toLowerCase())");
+    expect(component).toContain("copy.adminReview(email.trim().toLowerCase())");
     expect(component).toContain("saveOrganizerAdminAttempt(current)");
     expect(component).toContain("onClick={() => void submit(attempt)}");
     expect(component).toContain("copy.adminAbandonAttempt");

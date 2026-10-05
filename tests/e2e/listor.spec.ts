@@ -61,7 +61,7 @@ test("start- och resultatlistor: vyer, sök, utskrift och export i arbetsytan oc
   // före avläsningen, så de som startar sist stämplar den före sin starttid: sträcktiden är då okänd, inget annat ändras.
   const firstStart = new Date(Math.floor(Date.now() / 60_000) * 60_000 - 25 * 60_000);
   const raceDate = zoned(firstStart, { year: "numeric", month: "2-digit", day: "2-digit" });
-  const owner = await registerAccount(browser, `listor.${suffix}`, "Lisa Lista");
+  const owner = await registerAccount(browser, `listor.${suffix}@exempel.se`, "Lisa Lista");
   const raceId = await createRace(owner, `Listor ${suffix}`, raceDate, "Tävling");
   await addCourseAndClass(owner, "Lång", "H21", "31 32 33");
   await addCourseAndClass(owner, "Mellan", "D21", "31 34 33");

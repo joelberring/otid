@@ -21,6 +21,7 @@
     "@o-tid/iof-xml": "workspace:*",
     "@o-tid/sportident": "workspace:*",
     "next": "16.3.3",
+    "nodemailer": "10.0.12",
     "pg": "8.16.3",
     "react": "19.2.8",
     "react-dom": "19.2.8",

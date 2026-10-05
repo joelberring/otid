@@ -14,6 +14,8 @@ COPY --chown=node:node --from=build /src/apps/web/.next/standalone ./
 COPY --chown=node:node --from=build /src/apps/web/.next/static ./apps/web/.next/static
 COPY --chown=node:node --from=build /src/apps/web/public ./apps/web/public
 COPY --chown=node:node --from=build /src/apps/web/.next/migrate.mjs ./migrate.mjs
+# Superadmin sätts bara med kommando på servern (ADR-0172): node superadmin.mjs grant <e-post>
+COPY --chown=node:node --from=build /src/apps/web/.next/superadmin.mjs ./superadmin.mjs
 COPY --chown=node:node --from=build /src/packages/database/migrations ./migrations
 USER node
 EXPOSE 3000

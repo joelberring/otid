@@ -835,29 +835,15 @@ blev inaktiv; målets att en ny aktiv hyrbricka tilldelades och inte är
 och tid. En senare brickändring får aldrig ändra textens grund eller skapa en
 ytterligare historisk reuse-rad.
 
-## TASK159–160: kontoinbjudan är inte tävlings- eller anmälningsrätt
+## ADR-0172: konto, återställning och borttagning
 
-Ett kontos normaliserade `loginName` är en autentiseringsidentitet, inte
-bevis på deltagare, klubbmedlemskap eller behörighet i ett event. En A3a-
-inbjudan kan skapa exakt ett nytt konto och ingen grant. En A3b-
-eventbunden inbjudan till samma typ av nytt konto är en immutable
-utfärdande-/spårbarhetsrelation, inte en rättighet. Inlösen ger fortfarande
-endast kontot. `ADMIN` uppstår först genom en aktiv OWNER:s separata A2-
-mutation efter att kontot finns; anmälningskoppling kräver fortsatt B1:s
-separata exakta, återkalleliga bevis. Koder kan inte användas för
-återställning av ett befintligt konto och får inte ändra resultat, rawdata,
-start-/målstatus eller stationspaket.
-
-## TASK161: återställningskod ändrar autentiserare, inte tävlingsidentitet
-
-En A3c-kod får endast vara utfärdad av betrodd serveroperatör för ett redan
-existerande aktivt konto med exakt konto-ID, loginName och verifierarversion.
-Den kan inte skapa konto, byta konto-ID eller bevisa en viss tävlings-/
-anmälningsrelation. En giltig engångsinlösen appenderar en ny verifierare
-och ogiltigförklarar äldre kontosessioner; den skriver inte om OWNER-/ADMIN-
-grants, B1:s exakta entry claims, resultatrevisioner, rawdata eller
-stationspaket. Nya sessioner måste etableras med det nya lösenordet och
-fortsätter att passera varje separat rättighetsgrind.
+Kontots normaliserade e-postadress är en inloggning, inte bevis på deltagare,
+klubbmedlemskap eller behörighet i ett event. En återställningslänk byter bara
+lösenordet (ny verifierarversion, alla sessioner spärras); den rör inga grants,
+resultat eller rådata. Att ta bort en tävling eller ett konto är den enda väg
+där annars oföränderliga rader (rådata, journaler, revisioner) tas bort, och den
+tar då bort allt som hör till tävlingen. Superadmins åtgärder loggas och
+loggen överlever borttagningen.
 
 ## TASK162: GPX-tid är inte kontrollpassage
 

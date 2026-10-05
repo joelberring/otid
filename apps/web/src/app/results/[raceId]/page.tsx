@@ -7,11 +7,13 @@ import { splitAnalysisSv } from "../../../i18n/split-analysis-sv";
 import { analysisClassNames } from "../../../lib/split-analysis";
 import { resultListFromPublic } from "../../../lib/lists/result-list-model";
 import Link from "next/link";
+import { requirePublicRace } from "../../../lib/public-race-gate";
 
 export const dynamic = "force-dynamic";
 
 export default async function ResultsPage({ params }: { params: Promise<{ raceId: string }> }) {
   const { raceId } = await params;
+  await requirePublicRace(raceId);
   const [summary, results, relay, finalization] = await Promise.all([publicRaceSummary(db, raceId), publicResults(db, raceId),
     publicRelayResults(db, raceId), readLatestPublicFrozenRaceFinalization(db, raceId)]);
   // Sträcktidsanalysen (PLAN.md steg 16) finns när någon individuell klass har sträcktider.

@@ -17,11 +17,12 @@ const accountId = "50000000-0000-4000-8000-000000000005";
 const grantedAt = "2026-09-23T10:00:00.000Z";
 
 describe("TASK151 eventbundna medadministratörskontrakt", () => {
-  it("binder grant till request, event, exakt login och ADMIN-rollen", () => {
-    const request = { formatVersion: 1 as const, requestId, eventId, loginName: "ol.runner-1", role: "ADMIN" as const };
+  it("binder grant till request, event, kontots e-post och ADMIN-rollen", () => {
+    const request = { formatVersion: 1 as const, requestId, eventId, email: "ol.runner@klubb.se", role: "ADMIN" as const };
     expect(organizerAdminGrantRequestSchema.parse(request)).toEqual(request);
-    for (const loginName of ["OL.runner", "ab", "ol runner", "åsa.runner"]) {
-      expect(organizerAdminGrantRequestSchema.safeParse({ ...request, loginName }).success).toBe(false);
+    expect(organizerAdminGrantRequestSchema.parse({ ...request, email: " OL.Runner@Klubb.SE " }).email).toBe("ol.runner@klubb.se");
+    for (const email of ["ol.runner", "ab", "ol runner@klubb.se", "a@b"]) {
+      expect(organizerAdminGrantRequestSchema.safeParse({ ...request, email }).success).toBe(false);
     }
     expect(organizerAdminGrantRequestSchema.safeParse({ ...request, requestId: requestId.toUpperCase() }).success).toBe(false);
     expect(organizerAdminGrantRequestSchema.safeParse({ ...request, role: "OWNER" }).success).toBe(false);
@@ -33,7 +34,7 @@ describe("TASK151 eventbundna medadministratörskontrakt", () => {
 
     const response = {
       formatVersion: 1 as const, replayed: false, requestId, eventId, grantId, accountId,
-      loginName: "ol.runner-1", displayName: "Ol Runner", role: "ADMIN" as const, grantedAt
+      email: "ol.runner@klubb.se", displayName: "Ol Runner", role: "ADMIN" as const, grantedAt
     };
     expect(organizerAdminGrantResponseSchema.parse(response)).toEqual(response);
     expect(organizerAdminGrantResponseSchema.safeParse({ ...response, passwordHash: "secret" }).success).toBe(false);
@@ -43,7 +44,7 @@ describe("TASK151 eventbundna medadministratörskontrakt", () => {
   it("listar bara medadministratörsmetadata för uttryckligt event och bevarar återkallelsetid", () => {
     const request = { formatVersion: 1 as const, eventId };
     const listItem = {
-      grantId, accountId, loginName: "ol.runner-1", displayName: "Ol Runner", role: "ADMIN" as const,
+      grantId, accountId, email: "ol.runner@klubb.se", displayName: "Ol Runner", role: "ADMIN" as const,
       grantedAt, revokedAt: null
     };
     const response = { formatVersion: 1 as const, eventId, grants: [listItem] };
@@ -57,7 +58,7 @@ describe("TASK151 eventbundna medadministratörskontrakt", () => {
       ...response, grants: [{ ...listItem, role: "OWNER" }]
     }).success).toBe(false);
     expect(organizerAdminListResponseSchema.safeParse({
-      ...response, grants: [{ ...listItem, email: "private@example.test" }]
+      ...response, grants: [{ ...listItem, passwordHash: "secret" }]
     }).success).toBe(false);
     expect(organizerAdminListResponseSchema.safeParse({ ...response, ownerId: accountId }).success).toBe(false);
   });

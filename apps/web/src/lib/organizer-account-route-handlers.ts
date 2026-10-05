@@ -31,7 +31,9 @@ import {
 import type { Database } from "@o-tid/database";
 import {
   OrganizerConfigurationError,
+  accountFailure,
   clearOrganizerAccountCookies,
+  clientAddress,
   hasExpectedOrganizerOrigin,
   hasNoOrganizerRequestBody,
   organizerFailure,
@@ -44,7 +46,7 @@ import {
   setOrganizerRaceCookies
 } from "./organizer-account-security";
 
-type Environment = Partial<Pick<NodeJS.ProcessEnv, "NODE_ENV" | "O_TID_PUBLIC_ORIGIN">>;
+type Environment = Partial<Pick<NodeJS.ProcessEnv, "NODE_ENV" | "O_TID_PUBLIC_ORIGIN" | "OTID_REGISTRATION_LIMIT_PER_HOUR">>;
 type Login = typeof loginUserAccount;
 type Register = typeof registerUserAccount;
 type Authenticate = typeof authenticateUserAccountSession;
@@ -92,7 +94,10 @@ export async function organizerLoginRoute(
   if (!parsed.success) return organizerFailure(400, "INVALID_REQUEST");
   try {
     const result = await login(db, parsed.data);
-    if (result.status === "unauthorized") return organizerFailure(401, "UNAUTHORIZED");
+    if (result.status !== "authenticated") {
+      return result.status === "rate-limited" ? accountFailure(429, "RATE_LIMITED")
+        : result.status === "blocked" ? accountFailure(403, "ACCOUNT_BLOCKED") : organizerFailure(401, "UNAUTHORIZED");
+    }
     const response = organizerAccountLoginResponseSchema.parse(result.response);
     return setOrganizerAccountCookies(organizerJson(response), configured.value, {
       sessionToken: result.sessionToken, csrfToken: result.csrfToken, expiresAt: response.expiresAt
@@ -100,7 +105,13 @@ export async function organizerLoginRoute(
   } catch { return organizerFailure(500, "INTERNAL_ERROR"); }
 }
 
-/** Självregistrering (ADR-0168): skapar konto och loggar in direkt. */
+/** Antal registreringar per IP och timme (`OTID_REGISTRATION_LIMIT_PER_HOUR`, förval 10). */
+export function registrationsPerHour(environment: Environment): number | undefined {
+  const value = environment.OTID_REGISTRATION_LIMIT_PER_HOUR?.trim();
+  return value && /^[1-9]\d{0,5}$/.test(value) ? Number(value) : undefined;
+}
+
+/** Öppen registrering (ADR-0172): skapar konto och loggar in direkt, med spärr per IP. */
 export async function organizerRegisterRoute(
   db: Database, request: Request, register: Register = registerUserAccount, environment: Environment = process.env
 ): Promise<Response> {
@@ -110,7 +121,9 @@ export async function organizerRegisterRoute(
   let body: unknown;
   try { body = await readOrganizerJson(request); } catch { return organizerFailure(400, "INVALID_REQUEST"); }
   try {
-    const result = await register(db, body);
+    const limit = registrationsPerHour(environment);
+    const result = await register(db, body, { clientKey: clientAddress(request), ...(limit ? { registrationsPerHour: limit } : {}) });
+    if (result.status === "rate-limited") return accountFailure(429, "RATE_LIMITED");
     if (result.status !== "authenticated") return requestFailure(result.status);
     const response = organizerAccountLoginResponseSchema.parse(result.response);
     return setOrganizerAccountCookies(organizerJson(response, 201), configured.value, {
@@ -130,8 +143,8 @@ export async function organizerSessionStatusRoute(
     const result = await authenticate(db, organizerSessionProof(request, configured.value, false));
     if (result.status !== "authenticated") return authenticationFailure(result.status);
     return organizerJson(organizerAccountSessionStatusSchema.parse({
-      formatVersion: 1, accountId: result.principal.accountId,
-      displayName: result.principal.displayName, expiresAt: result.principal.expiresAt
+      formatVersion: 1, accountId: result.principal.accountId, email: result.principal.email,
+      displayName: result.principal.displayName, superadmin: result.principal.superadmin, expiresAt: result.principal.expiresAt
     }));
   } catch { return organizerFailure(500, "INTERNAL_ERROR"); }
 }

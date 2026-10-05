@@ -22,7 +22,8 @@ cp deploy/prod.env.example .env      # fyll i OTID_DOMAIN och POSTGRES_PASSWORD
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
-Öppna `https://<OTID_DOMAIN>/organizer` och skapa det första kontot.
+Öppna `https://<OTID_DOMAIN>/organizer` och skapa det första kontot (e-post, namn och lösenord).
+Gör sedan dig själv till superadmin (se nedan).
 
 **Uppdatera:**
 
@@ -49,6 +50,41 @@ påslaget. Spara masternyckeln separat från backupen. Byts eller tappas den kan
 sparade Eventor-nycklarna inte läsas, och administratören klistrar in klubbens nyckel igen.
 `OTID_EVENTOR_BASE_URL` används bara för test (pekar O-Tid mot en falsk Eventor) och
 ska inte sättas i drift.
+
+## Superadmin
+
+Superadmin ser alla konton och tävlingar på `/superadmin` och kan dölja eller ta bort en tävling,
+spärra eller ta bort ett konto och skapa en återställningslänk. Varje åtgärd loggas med vem, när och varför.
+Rollen sätts bara med kommando på servern, aldrig i appen. Kontot måste finnas först:
+
+```bash
+docker compose -f docker-compose.prod.yml exec web node superadmin.mjs grant anna@exempelklubb.se
+docker compose -f docker-compose.prod.yml exec web node superadmin.mjs revoke anna@exempelklubb.se
+```
+
+Ett skäl kan läggas sist (`… grant anna@exempelklubb.se "Driftansvarig"`); det syns i loggen på
+`/superadmin` med "Serverkommando" som utförare. Lokalt: `pnpm account:superadmin grant <e-post>`.
+
+## E-post och glömt lösenord
+
+Med e-post inställd skickar O-Tid en återställningslänk till den som har glömt sitt lösenord. Länken gäller
+en timme och en gång, och alla kontots inloggningar slutar gälla när lösenordet byts. Svaret på sidan är
+detsamma oavsett om adressen har ett konto. Lägg till i `.env` och starta om:
+
+```bash
+OTID_SMTP_URL=smtp://användare:lösenord@smtp.exempelklubb.se:587   # STARTTLS; eller smtps://…:465
+OTID_MAIL_FROM=O-Tid <noreply@exempelklubb.se>
+```
+
+Utan `OTID_SMTP_URL` säger sidan "Glömt lösenordet" att man ska kontakta den som driver O-Tid. Superadmin
+skapar då en länk på `/superadmin` (Konton → Återställningslänk) och ger den till personen. Länken visas
+en gång. En felaktig inställning stänger av e-posten och skrivs i `logs web` (utan lösenord eller adresser).
+
+`OTID_CONTACT_EMAIL` (valfri) visas på sidan om personuppgifter (`/integritet`) och på "Glömt lösenordet".
+`OTID_REGISTRATION_LIMIT_PER_HOUR` (valfri, förval 10) är hur många konton som får skapas per IP-adress och timme.
+
+Endast test: CI pekar `OTID_SMTP_URL` mot en falsk SMTP-server på värden (`tests/e2e/fake-smtp.ts`), på samma
+sätt som `OTID_EVENTOR_BASE_URL`. Appen har ingen särskild testväg för e-post.
 
 ## Backup
 

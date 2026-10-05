@@ -17,12 +17,13 @@ const csrf = "c".repeat(43);
 const eventId = "22222222-2222-4222-8222-222222222222";
 
 describe("organizer browser client", () => {
-  it("normalizes the login name but keeps the password in the request only", () => {
-    expect(parseOrganizerLoginRequest("  OLLE.KLUBB ", "hemligt")).toEqual({
+  it("normalizes the email address but keeps the password in the request only", () => {
+    expect(parseOrganizerLoginRequest("  Olle.Klubb@Exempel.SE ", "hemligt")).toEqual({
       formatVersion: 1,
-      loginName: "olle.klubb",
+      email: "olle.klubb@exempel.se",
       password: "hemligt"
     });
+    expect(() => parseOrganizerLoginRequest("olle.klubb", "hemligt")).toThrow("giltig e-postadress");
   });
 
   it("uses only the organizer CSRF cookie for loopback and production", () => {
@@ -60,17 +61,17 @@ describe("organizer browser client", () => {
 
   it("validates administrator history and binds grant confirmation to the retained intent", () => {
     const attempt = { accountId: id, action: "grant" as const, eventId, requestId: id,
-      request: { formatVersion: 1, requestId: id, eventId, loginName: "coadmin", role: "ADMIN" } };
+      request: { formatVersion: 1, requestId: id, eventId, email: "coadmin@klubb.se", role: "ADMIN" } };
     expect(parseOrganizerAdminList({ formatVersion: 1, eventId, grants: [] }).eventId).toBe(eventId);
     expect(parseOrganizerAdminGrantResponse({ formatVersion: 1, replayed: true, requestId: id, eventId,
-      grantId: id, accountId: eventId, loginName: "coadmin", displayName: "Medarrangör", role: "ADMIN",
+      grantId: id, accountId: eventId, email: "coadmin@klubb.se", displayName: "Medarrangör", role: "ADMIN",
       grantedAt: "2026-09-23T09:00:00Z" }, attempt).replayed).toBe(true);
     expect(() => parseOrganizerAdminGrantResponse({ formatVersion: 1, replayed: true, requestId: id, eventId,
-      grantId: id, accountId: eventId, loginName: "someoneelse", displayName: "Medarrangör", role: "ADMIN",
+      grantId: id, accountId: eventId, email: "someoneelse@klubb.se", displayName: "Medarrangör", role: "ADMIN",
       grantedAt: "2026-09-23T09:00:00Z" }, attempt)).toThrow();
     expect(() => parseOrganizerAdminGrantResponse({ formatVersion: 1, replayed: true,
       requestId: "33333333-3333-4333-8333-333333333333", eventId, grantId: id, accountId: eventId,
-      loginName: "coadmin", displayName: "Medarrangör", role: "ADMIN", grantedAt: "2026-09-23T09:00:00Z" }, attempt)).toThrow();
+      email: "coadmin@klubb.se", displayName: "Medarrangör", role: "ADMIN", grantedAt: "2026-09-23T09:00:00Z" }, attempt)).toThrow();
     const revokeAttempt = { accountId: id, action: "revoke" as const, eventId, requestId: id,
       request: { formatVersion: 1, requestId: id, eventId, grantId: eventId } };
     const revoked = { formatVersion: 1, replayed: false, requestId: id, eventId, grantId: eventId,
@@ -87,7 +88,7 @@ describe("organizer browser client", () => {
       removeItem: (key: string) => values.delete(key)
     } });
     const attempt = { accountId: id, action: "grant" as const, eventId, requestId: id,
-      request: { formatVersion: 1, requestId: id, eventId, loginName: "coadmin", role: "ADMIN" } };
+      request: { formatVersion: 1, requestId: id, eventId, email: "coadmin@klubb.se", role: "ADMIN" } };
     saveOrganizerAdminAttempt(attempt);
     expect(restoreOrganizerAdminAttempt(id, eventId)).toEqual(attempt);
     clearOrganizerAdminAttempt(id, eventId);

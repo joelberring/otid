@@ -47,7 +47,7 @@ const courseVersionOf = async (classId: string) =>
 
 async function race(controlCodes: number[]): Promise<Race> {
   const suffix = randomUUID().slice(0, 8);
-  const account = await registerUserAccount(db, { formatVersion: 1, loginName: `rogaining.${suffix}`, displayName: "Arrangör", password: "hemligt-lösen" });
+  const account = await registerUserAccount(db, { formatVersion: 1, email: `rogaining.${suffix}@test.o-tid.se`, displayName: "Arrangör", password: "hemligt-lösen" });
   if (account.status !== "authenticated") throw new Error("Kontot kunde inte skapas");
   const accountProof = { sessionToken: account.sessionToken, csrfCookie: account.csrfToken, csrfHeader: account.csrfToken };
   const created = await createEventAsUserAccount(db, { ...accountProof, idempotencyKey: `organizer-event-create:${randomUUID()}`,

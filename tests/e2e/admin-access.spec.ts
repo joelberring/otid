@@ -9,7 +9,7 @@ import { addCourseAndClass, addEntry, createRace, openStep, registerAccount, uni
 
 test("konto, tävling, medadministratör och publik vy", async ({ browser, request }) => {
   const suffix = unique();
-  const owner = await registerAccount(browser, `anna.${suffix}`, "Anna Arrangör");
+  const owner = await registerAccount(browser, `anna.${suffix}@exempel.se`, "Anna Arrangör");
 
   const eventName = `Klubbträning ${suffix}`;
   const raceId = await createRace(owner, eventName);
@@ -17,15 +17,15 @@ test("konto, tävling, medadministratör och publik vy", async ({ browser, reque
   await addEntry(owner, { className: "H21", givenName: "Eva", familyName: "Löpare", club: "OK Test", card: "8001234" });
 
   // En annan person registrerar sig men ser ingenting förrän ägaren bjuder in.
-  const helperLogin = `bertil.${suffix}`;
-  const helper = await registerAccount(browser, helperLogin, "Bertil Hjälpare");
+  const helperEmail = `bertil.${suffix}@exempel.se`;
+  const helper = await registerAccount(browser, helperEmail, "Bertil Hjälpare");
   await expect(helper.getByText("Inga tävlingar ännu")).toBeVisible();
   const helperForbidden = await helper.request.get(`/api/admin/races/${raceId}/administrator/participants`);
   expect(helperForbidden.status()).toBe(401);
 
   await owner.goto("/organizer");
   await owner.getByText("Visa medadministratörer").click();
-  await owner.getByLabel("Befintligt kontos inloggningsnamn").fill(helperLogin);
+  await owner.getByLabel("Befintligt kontos e-postadress").fill(helperEmail);
   await owner.getByRole("button", { name: "Ge eventåtkomst" }).click();
   await expect(owner.getByText("aktiv åtkomst")).toBeVisible();
 

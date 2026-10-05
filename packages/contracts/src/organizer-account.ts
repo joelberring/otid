@@ -5,24 +5,25 @@ import {
   type EventCreationResponse
 } from "./event-creation";
 import { raceTypeSchema } from "./race-settings";
+import { accountEmailSchema, ACCOUNT_PASSWORD_MIN_LENGTH, storedAccountEmailSchema } from "./account";
 
 const canonicalUuidPattern = "[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
 const uuid = z.string().regex(new RegExp(`^${canonicalUuidPattern}$`));
 const instant = z.iso.datetime({ offset: true });
-const loginName = z.string().regex(/^[a-z0-9][a-z0-9._-]{2,79}$/);
 
+/** Inloggning med e-post och lösenord (ADR-0172 beslut 1). */
 export const organizerAccountLoginRequestSchema = z.object({
   formatVersion: z.literal(1),
-  loginName,
+  email: accountEmailSchema,
   password: z.string().min(1).max(1024)
 }).strict();
 
-/** Självregistrering (ADR-0168): vem som helst kan skapa ett arrangörskonto. */
+/** Öppen registrering (ADR-0172 beslut 1): e-post, namn och lösenord. */
 export const organizerAccountRegistrationRequestSchema = z.object({
   formatVersion: z.literal(1),
-  loginName,
+  email: accountEmailSchema,
   displayName: z.string().trim().min(1).max(120),
-  password: z.string().min(8).max(1024)
+  password: z.string().min(ACCOUNT_PASSWORD_MIN_LENGTH).max(1024)
 }).strict();
 
 export type OrganizerAccountRegistrationRequest = z.infer<typeof organizerAccountRegistrationRequestSchema>;
@@ -30,7 +31,9 @@ export type OrganizerAccountRegistrationRequest = z.infer<typeof organizerAccoun
 export const organizerAccountLoginResponseSchema = z.object({
   formatVersion: z.literal(1),
   accountId: uuid,
+  email: storedAccountEmailSchema,
   displayName: z.string().trim().min(1).max(120),
+  superadmin: z.boolean(),
   expiresAt: instant
 }).strict();
 
@@ -76,7 +79,7 @@ export const organizerRaceEnterResponseSchema = z.object({
   expiresAt: instant
 }).strict();
 
-export type OrganizerAccountLoginRequest = z.infer<typeof organizerAccountLoginRequestSchema>;
+export type OrganizerAccountLoginRequest = z.input<typeof organizerAccountLoginRequestSchema>;
 export type OrganizerAccountLoginResponse = z.infer<typeof organizerAccountLoginResponseSchema>;
 export type OrganizerAccountSessionStatus = z.infer<typeof organizerAccountSessionStatusSchema>;
 export type OrganizerEventCreateIdempotencyKey = z.infer<typeof organizerEventCreateIdempotencyKeySchema>;

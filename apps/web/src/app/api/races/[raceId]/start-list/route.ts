@@ -1,5 +1,7 @@
 import { db } from "../../../../../lib/db";
 import { publicStartListRoute } from "../../../../../lib/public-start-list-route";
+import { hiddenRaceResponse } from "../../../../../lib/public-race-gate";
 export async function GET(_request: Request, { params }: { params: Promise<{ raceId: string }> }) {
-  return publicStartListRoute(db, (await params).raceId);
+  const { raceId } = await params;
+  return await hiddenRaceResponse(raceId) ?? publicStartListRoute(db, raceId);
 }

@@ -24,7 +24,7 @@ async function screenshots(page: Page, name: string) {
 test("Eventor: koppla, importera, uppdatera med skillnader och läs in ny banfil", async ({ browser, request }) => {
   test.setTimeout(300_000);
   const suffix = unique();
-  const owner = await registerAccount(browser, `eventor.${suffix}`, "Eva Eventor");
+  const owner = await registerAccount(browser, `eventor.${suffix}@exempel.se`, "Eva Eventor");
   const raceId = await createRace(owner, `Höstsprinten ${suffix}`, "2026-10-18", "Tävling");
   const api = `/api/admin/races/${raceId}/administrator`;
   for (const path of ["eventor", "eventor/events", "source-sync"]) await warmRoute(owner, `${api}/${path}`);

@@ -32,7 +32,7 @@ type AccountProof = { sessionToken: string; csrfCookie: string; csrfHeader: stri
 type Proof = { raceId: string; sessionToken: string; csrfCookie: string; csrfHeader: string };
 
 async function account(): Promise<AccountProof> {
-  const created = await registerUserAccount(db, { formatVersion: 1, loginName: `typ.${randomUUID().slice(0, 8)}`,
+  const created = await registerUserAccount(db, { formatVersion: 1, email: `typ.${randomUUID().slice(0, 8)}@test.o-tid.se`,
     displayName: "Arrangör", password: "hemligt-lösen" });
   if (created.status !== "authenticated") throw new Error("Kontot kunde inte skapas");
   return { sessionToken: created.sessionToken, csrfCookie: created.csrfToken, csrfHeader: created.csrfToken };

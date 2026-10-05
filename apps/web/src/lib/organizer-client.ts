@@ -38,7 +38,7 @@ export function parseOrganizerAdminList(value: unknown) {
 export function parseOrganizerAdminGrantResponse(value: unknown, attempt: OrganizerAdminMutationAttempt) {
   const parsed = organizerAdminGrantResponseSchema.safeParse(value);
   if (!parsed.success || parsed.data.eventId !== attempt.eventId || parsed.data.requestId !== attempt.requestId ||
-    parsed.data.loginName !== attempt.request.loginName) {
+    parsed.data.email !== attempt.request.email) {
     throw new Error("Servern kunde inte bekräfta tilldelningen.");
   }
   return parsed.data;
@@ -119,8 +119,11 @@ export function parseOrganizerSession(value: unknown) {
   return parsed.data;
 }
 
-export function parseOrganizerLoginRequest(loginName: string, password: string): OrganizerAccountLoginRequest {
-  return organizerAccountLoginRequestSchema.parse({ formatVersion: 1, loginName: loginName.trim().toLowerCase(), password });
+/** Inloggning med e-post (ADR-0172). Ogiltig adress ger ett begripligt fel innan något skickas. */
+export function parseOrganizerLoginRequest(email: string, password: string): OrganizerAccountLoginRequest {
+  const parsed = organizerAccountLoginRequestSchema.safeParse({ formatVersion: 1, email, password });
+  if (!parsed.success) throw new Error("Skriv en giltig e-postadress och ditt lösenord.");
+  return parsed.data;
 }
 
 export function parseOrganizerEnterResponse(value: unknown, expectedRaceId: string): void {

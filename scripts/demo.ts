@@ -1,6 +1,6 @@
 /**
  * `pnpm demo` – skapar en färdig träningstävling i den lokala databasen
- * (ADR-0168, steg 5). Kör migreringar, skapar kontot `demo`, en tävling med
+ * (ADR-0168, steg 5). Kör migreringar, skapar kontot `demo@o-tid.local`, en tävling med
  * två banor, tio anmälda löpare och sju avläsningar. Tre löpare är kvar i
  * skogen och en är felstämplad, så att allt i arbetsytan går att prova.
  *
@@ -20,7 +20,7 @@ import {
 } from "../packages/application/src/index.ts";
 import { normalizeCard, readSimulatedCard, simulatedRun } from "../packages/sportident/src/index.ts";
 
-const LOGIN = "demo";
+const EMAIL = "demo@o-tid.local";
 const PASSWORD = "demo-traning-1";
 const TIME_ZONE = "Europe/Stockholm";
 const COURSES = [
@@ -65,11 +65,11 @@ async function main(): Promise<void> {
     await waitForDatabase(pool);
     await migrate(db, { migrationsFolder: new URL("../packages/database/migrations", import.meta.url).pathname });
 
-    const registered = await registerUserAccount(db, { formatVersion: 1, loginName: LOGIN, displayName: "Demoarrangör", password: PASSWORD });
+    const registered = await registerUserAccount(db, { formatVersion: 1, email: EMAIL, displayName: "Demoarrangör", password: PASSWORD });
     const account = registered.status === "conflict"
-      ? await loginUserAccount(db, { formatVersion: 1, loginName: LOGIN, password: PASSWORD })
+      ? await loginUserAccount(db, { formatVersion: 1, email: EMAIL, password: PASSWORD })
       : registered;
-    if (account.status !== "authenticated") fail("Kontot demo finns men lösenordet är ändrat. Använd en tom databas.");
+    if (account.status !== "authenticated") fail(`Kontot ${EMAIL} finns men lösenordet är ändrat. Använd en tom databas.`);
     const owner = { sessionToken: account.sessionToken, csrfCookie: account.csrfToken, csrfHeader: account.csrfToken };
 
     const today = new Intl.DateTimeFormat("sv-SE", { timeZone: TIME_ZONE }).format(new Date());
@@ -135,7 +135,7 @@ async function main(): Promise<void> {
     const origin = process.env.O_TID_PUBLIC_ORIGIN ?? "http://localhost:3000";
     process.stdout.write([
       "Demoträningen är klar.",
-      `  Logga in:   ${origin}/organizer  (konto: ${LOGIN}, lösenord: ${PASSWORD})`,
+      `  Logga in:   ${origin}/organizer  (e-post: ${EMAIL}, lösenord: ${PASSWORD})`,
       `  Hantera:    ${origin}/admin/${raceId}/manage`,
       `  Avläsning:  ${origin}/admin/${raceId}/readout  (starta övningsstationen)`,
       `  Resultat:   ${origin}/results/${raceId}  (öppen för alla)`,

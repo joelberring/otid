@@ -1,8 +1,8 @@
 import { z } from "zod";
+import { accountEmailSchema, storedAccountEmailSchema } from "./account";
 
 const canonicalUuidPattern = "[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
 const canonicalUuidSchema = z.string().regex(new RegExp(`^${canonicalUuidPattern}$`));
-const loginNameSchema = z.string().regex(/^[a-z0-9][a-z0-9._-]{2,79}$/);
 const instantSchema = z.iso.datetime({ offset: true });
 
 export const organizerAdminGrantIdempotencyKeySchema = z.string().regex(
@@ -19,7 +19,7 @@ export const organizerAdminGrantRequestSchema = z.object({
   formatVersion: z.literal(1),
   requestId: canonicalUuidSchema,
   eventId: canonicalUuidSchema,
-  loginName: loginNameSchema,
+  email: accountEmailSchema,
   role: z.literal("ADMIN")
 }).strict();
 
@@ -30,7 +30,7 @@ export const organizerAdminGrantResponseSchema = z.object({
   eventId: canonicalUuidSchema,
   grantId: canonicalUuidSchema,
   accountId: canonicalUuidSchema,
-  loginName: loginNameSchema,
+  email: storedAccountEmailSchema,
   displayName: z.string().trim().min(1).max(120),
   role: z.literal("ADMIN"),
   grantedAt: instantSchema
@@ -44,7 +44,7 @@ export const organizerAdminListRequestSchema = z.object({
 export const organizerAdminGrantMetadataSchema = z.object({
   grantId: canonicalUuidSchema,
   accountId: canonicalUuidSchema,
-  loginName: loginNameSchema,
+  email: storedAccountEmailSchema,
   displayName: z.string().trim().min(1).max(120),
   role: z.literal("ADMIN"),
   grantedAt: instantSchema,

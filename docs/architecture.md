@@ -2127,43 +2127,20 @@ identifierare, actorcredential eller den andra deltagarens identitet är en del
 av kontraktet. Ingen ny route, tabell, capability eller generisk
 historieinfrastruktur införs.
 
-## TASK159–160: kontoaktivering och ägarstyrd kontoinbjudan
+## ADR-0172: konton med e-post, superadmin och borttagning
 
-ADR-0152/TASK159 införde en betrodd server-CLI som skapar en kortlivad
-engångsinbjudan till ett ännu obefintligt normaliserat konto. PostgreSQL
-bevarar immutable issue/redemption/revocation, endast kodhash och en
-per-loginName reservationsrad. `/activate` skapar konto och första
-`scrypt`-verifierare atomiskt utan event-, race- eller entrybehörighet.
-
-ADR-0153/TASK160 utökar endast **utfärdaren**: aktuell event-OWNER kan i
-kontoskyddad `/organizer`-yta utfärda och spärra en eventbunden
-kontoinbjudan. En immutable journal binder A3a:s invitation-id till exakt
-event och actor; klienten skapar engångskoden med Web Crypto och skickar
-endast hash. Kontoaktivering behåller A3a:s rättighetslösa transaktion.
-Först ett separat, explicit A2-ADMIN-beslut för det aktiverade kontot ger
-access till eventet. Varken eventbindning, namnmatchning eller inlöst kod
-är en grant. Skrivordningen är kontosession → event/aktiv OWNER →
-loginName-reservation → issue/revocationjournal och audit; aktivering
-behöver aldrig eventlås. Station/offline, resultatrevisioner och publikvy
-förblir utanför denna identitetsgräns.
-
-## TASK161: betrodd återställning av befintligt konto
-
-ADR-0154 skiljer en **befintlig** kontoåterställning från A3a/A3b:s
-nykontoinbjudan. En betrodd serveroperatör intygar identitet utanför
-systemet och utfärdar en 24-timmars engångskod bunden till exakt konto-ID,
-loginName och aktuell verifierarversion. Endast hash och immutable issue-/
-revokejournal sparas; privat CLI-artefakt skrivs före issue-transaktionen.
-Mottagaren skapar nästa permanenta hemlighet på sin egen enhet och löser in
-online utan tidigare session. Samma transaktion appenderar ny `scrypt-v1`-
-verifierare och immutable redemptionjournal; ingen session skapas automatiskt.
-
-Gammal konto- och race-delegerad session faller på befintlig versionskontroll
-efter commit. Kontoraden och authvakt är låsgräns för inlösen/rotation;
-en separat per-login gissningsspärr hanterar även okända namn. Eventgrant,
-anmälningskoppling, följval, rutt och resultat ligger utanför denna skrivning
-och omprövas först av sina ordinarie kontroller vid ny login. Ingen event-
-OWNER får global reset-rätt av sin A3b-inbjudningsrätt. Se TASK161.
+Konton identifieras med normaliserad e-post (`user_account.email`, unik). Öppen
+registrering spärras per IP och timme och inloggning per adress
+(`account_request_throttle`, `user_account_login_throttle`; nycklarna hashade).
+Glömt lösenord ger en engångslänk (`password_reset_token`, hash, en timme) via
+SMTP (`apps/web/src/lib/mail.ts`, nodemailer) eller från superadmin. Superadmin
+är en flagga som bara sätts med serverkommando; `requireSuperadmin` i
+`packages/application/src/superadmin.ts` kontrollerar varje anrop och varje
+åtgärd skrivs i `superadmin_action` (utan främmande nycklar). Borttagning
+(`packages/application/src/purge.ts`) följer databasens främmande nycklar från
+`event` eller `user_account` och tar bort barn före förälder i en transaktion;
+skyddstriggrarna släpper igenom DELETE bara med `otid.purge` satt. Publika sidor
+frågar `isRacePubliclyVisible` (inte dold av superadmin).
 
 ## TASK162: relativ uppspelning av egen privat rutt
 

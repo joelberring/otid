@@ -133,6 +133,8 @@ export const races = pgTable("race", {
   snapshotVersion: integer("snapshot_version").notNull().default(1),
   /** ADR-0170 beslut 1: tävlingstyp, styr vad arbetsytan visar. */
   raceType: text("race_type").$type<RaceTypeValue>().notNull().default("STANDARD"),
+  /** ADR-0172 beslut 2: superadmin döljer tävlingen från de publika sidorna. */
+  hiddenBySuperadmin: boolean("hidden_by_superadmin").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (table) => [
   check("race_type_check", sql`${table.raceType} in ('TRAINING', 'SMALL', 'STANDARD', 'FORKED', 'RELAY', 'ROGAINING')`),
@@ -689,26 +691,19 @@ export const eventCreationRequests = pgTable("event_creation_request", {
   })
 ]);
 
-/** Durable identity; a legacy CREATE_EVENT credential never becomes an account. */
+/** Kontot (ADR-0172): e-post (normaliserad, unik), namn, superadmin, spärr och senaste inloggning. */
 export const userAccounts = pgTable("user_account", {
   id: uuid("id").primaryKey().defaultRandom(),
-  loginName: text("login_name").notNull(),
+  email: text("email").notNull(),
   displayName: text("display_name").notNull(),
+  isSuperadmin: boolean("is_superadmin").notNull().default(false),
+  blockedAt: timestamp("blocked_at", { withTimezone: true }),
+  lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (table) => [
-  uniqueIndex("user_account_login_name_uidx").on(table.loginName),
-  check("user_account_login_name_check", sql`${table.loginName} ~ '^[a-z0-9][a-z0-9._-]{2,79}$'`),
+  uniqueIndex("user_account_email_uidx").on(table.email),
+  check("user_account_email_check", sql`${table.email} = lower(btrim(${table.email})) AND length(${table.email}) BETWEEN 3 AND 254 AND ${table.email} ~ '^[^@[:space:]]+@[^@[:space:]]+$'`),
   check("user_account_display_name_check", sql`length(btrim(${table.displayName})) between 1 and 120`)
-]);
-
-export const userAccountRevocations = pgTable("user_account_revocation", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  accountId: uuid("account_id").notNull().references(() => userAccounts.id),
-  revokedAt: timestamp("revoked_at", { withTimezone: true }).notNull(),
-  reason: text("reason").notNull()
-}, (table) => [
-  uniqueIndex("user_account_revocation_account_uidx").on(table.accountId),
-  check("user_account_revocation_reason_check", sql`length(btrim(${table.reason})) between 1 and 240`)
 ]);
 
 /** Mutable MVCC marker only; immutable account/password/session journals remain authority. */
@@ -745,183 +740,56 @@ export const userAccountLoginThrottles = pgTable("user_account_login_throttle", 
   check("user_account_login_throttle_attempts_check", sql`${table.failedAttempts} >= 0`)
 ]);
 
-/** Per normalized login reservation and serialization marker for trusted invitations. */
-export const accountInvitationSubjects = pgTable("account_invitation_subject", {
-  loginName: text("login_name").primaryKey(),
-  generation: bigint("generation", { mode: "bigint" }).notNull().default(0n),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
-}, (table) => [
-  check("account_invitation_subject_login_name_check", sql`${table.loginName} ~ '^[a-z0-9][a-z0-9._-]{2,79}$'`),
-  check("account_invitation_subject_generation_check", sql`${table.generation} >= 0`)
-]);
-
-export const accountInvitationIssues = pgTable("account_invitation_issue", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  requestId: uuid("request_id").notNull(),
-  codeHash: text("code_hash").notNull(),
-  loginName: text("login_name").notNull().references(() => accountInvitationSubjects.loginName),
-  displayName: text("display_name").notNull(),
-  operatorLabel: text("operator_label").notNull(),
-  issuedAt: timestamp("issued_at", { withTimezone: true }).notNull(),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull()
-}, (table) => [
-  uniqueIndex("account_invitation_issue_request_uidx").on(table.requestId),
-  uniqueIndex("account_invitation_issue_code_hash_uidx").on(table.codeHash),
-  index("account_invitation_issue_login_issued_idx").on(table.loginName, table.issuedAt),
-  check("account_invitation_issue_code_hash_check", sql`${table.codeHash} ~ '^[a-f0-9]{64}$'`),
-  check("account_invitation_issue_login_name_check", sql`${table.loginName} ~ '^[a-z0-9][a-z0-9._-]{2,79}$'`),
-  check("account_invitation_issue_display_name_check", sql`length(btrim(${table.displayName})) between 1 and 120`),
-  check("account_invitation_issue_operator_label_check", sql`length(btrim(${table.operatorLabel})) between 1 and 120`),
-  check("account_invitation_issue_lifetime_check",
-    sql`${table.expiresAt} > ${table.issuedAt} AND ${table.expiresAt} <= ${table.issuedAt} + interval '48 hours'`)
-]);
-
-export const accountInvitationRevocations = pgTable("account_invitation_revocation", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  requestId: uuid("request_id").notNull(),
-  invitationId: uuid("invitation_id").notNull().references(() => accountInvitationIssues.id),
-  operatorLabel: text("operator_label").notNull(),
-  reason: text("reason").notNull(),
-  revokedAt: timestamp("revoked_at", { withTimezone: true }).notNull()
-}, (table) => [
-  uniqueIndex("account_invitation_revocation_request_uidx").on(table.requestId),
-  uniqueIndex("account_invitation_revocation_invitation_uidx").on(table.invitationId),
-  check("account_invitation_revocation_operator_label_check", sql`length(btrim(${table.operatorLabel})) between 1 and 120`),
-  check("account_invitation_revocation_reason_check", sql`length(btrim(${table.reason})) between 1 and 240`)
-]);
-
-export const accountInvitationRedemptions = pgTable("account_invitation_redemption", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  requestId: uuid("request_id").notNull(),
-  invitationId: uuid("invitation_id").notNull().references(() => accountInvitationIssues.id),
-  accountId: uuid("account_id").notNull().references(() => userAccounts.id),
-  intentHash: text("intent_hash").notNull(),
-  redeemedAt: timestamp("redeemed_at", { withTimezone: true }).notNull()
-}, (table) => [
-  uniqueIndex("account_invitation_redemption_request_uidx").on(table.requestId),
-  uniqueIndex("account_invitation_redemption_invitation_uidx").on(table.invitationId),
-  uniqueIndex("account_invitation_redemption_account_uidx").on(table.accountId),
-  check("account_invitation_redemption_intent_hash_check", sql`${table.intentHash} ~ '^[a-f0-9]{64}$'`)
-]);
-
-/** Mutable rate-limit state; the hash avoids retaining login names for unknown attempts. */
-export const accountInvitationThrottles = pgTable("account_invitation_throttle", {
-  loginKeyHash: text("login_key_hash").primaryKey(),
+/** Spärr mot upprepade registreringar och återställningsförfrågningar; nyckeln (IP eller e-post) lagras hashad. */
+export const accountRequestThrottles = pgTable("account_request_throttle", {
+  scope: text("scope").$type<"REGISTER_IP" | "RESET_IP" | "RESET_EMAIL">().notNull(),
+  keyHash: text("key_hash").notNull(),
   windowStartedAt: timestamp("window_started_at", { withTimezone: true }).notNull(),
-  failedAttempts: integer("failed_attempts").notNull(),
-  blockedUntil: timestamp("blocked_until", { withTimezone: true })
+  attempts: integer("attempts").notNull()
 }, (table) => [
-  check("account_invitation_throttle_key_check", sql`${table.loginKeyHash} ~ '^[a-f0-9]{64}$'`),
-  check("account_invitation_throttle_attempts_check", sql`${table.failedAttempts} >= 0`)
+  primaryKey({ columns: [table.scope, table.keyHash] }),
+  check("account_request_throttle_scope_check", sql`${table.scope} IN ('REGISTER_IP', 'RESET_IP', 'RESET_EMAIL')`),
+  check("account_request_throttle_key_check", sql`${table.keyHash} ~ '^[a-f0-9]{64}$'`),
+  check("account_request_throttle_attempts_check", sql`${table.attempts} >= 0`)
 ]);
 
-/** TASK161: trusted, one-time recovery for an existing account. */
-export const accountPasswordRecoveryIssues = pgTable("account_password_recovery_issue", {
+/** Återställningslänk: hash av engångsnyckeln, en timme, en gång. */
+export const passwordResetTokens = pgTable("password_reset_token", {
   id: uuid("id").primaryKey().defaultRandom(),
-  requestId: uuid("request_id").notNull(),
   accountId: uuid("account_id").notNull().references(() => userAccounts.id),
-  loginName: text("login_name").notNull(),
-  operatorLabel: text("operator_label").notNull(),
-  reason: text("reason").notNull(),
-  codeHash: text("code_hash").notNull(),
-  expectedPasswordVersion: integer("expected_password_version").notNull(),
-  issuedAt: timestamp("issued_at", { withTimezone: true }).notNull(),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull()
+  tokenHash: text("token_hash").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  usedAt: timestamp("used_at", { withTimezone: true }),
+  createdBySuperadmin: boolean("created_by_superadmin").notNull().default(false)
 }, (table) => [
-  uniqueIndex("account_password_recovery_issue_request_uidx").on(table.requestId),
-  uniqueIndex("account_password_recovery_issue_code_hash_uidx").on(table.codeHash),
-  uniqueIndex("account_password_recovery_issue_id_account_uidx").on(table.id, table.accountId),
-  index("account_password_recovery_issue_account_issued_idx").on(table.accountId, table.issuedAt),
-  check("account_password_recovery_issue_login_name_check", sql`${table.loginName} ~ '^[a-z0-9][a-z0-9._-]{2,79}$'`),
-  check("account_password_recovery_issue_operator_label_check", sql`length(btrim(${table.operatorLabel})) between 1 and 120`),
-  check("account_password_recovery_issue_reason_check", sql`length(btrim(${table.reason})) between 1 and 240`),
-  check("account_password_recovery_issue_code_hash_check", sql`${table.codeHash} ~ '^[a-f0-9]{64}$'`),
-  check("account_password_recovery_issue_version_check", sql`${table.expectedPasswordVersion} > 0`),
-  check("account_password_recovery_issue_lifetime_check",
-    sql`${table.expiresAt} > ${table.issuedAt} AND ${table.expiresAt} <= ${table.issuedAt} + interval '24 hours'`),
-  foreignKey({
-    name: "account_password_recovery_issue_verifier_fk",
-    columns: [table.accountId, table.expectedPasswordVersion],
-    foreignColumns: [userAccountPasswordVerifiers.accountId, userAccountPasswordVerifiers.version]
-  })
+  uniqueIndex("password_reset_token_hash_uidx").on(table.tokenHash),
+  index("password_reset_token_account_idx").on(table.accountId, table.createdAt),
+  check("password_reset_token_hash_check", sql`${table.tokenHash} ~ '^[a-f0-9]{64}$'`),
+  check("password_reset_token_lifetime_check",
+    sql`${table.expiresAt} > ${table.createdAt} AND ${table.expiresAt} <= ${table.createdAt} + interval '1 hour'`)
 ]);
 
-export const accountPasswordRecoveryRevocations = pgTable("account_password_recovery_revocation", {
+export type SuperadminActionKind = "GRANT_SUPERADMIN" | "REVOKE_SUPERADMIN" | "HIDE_RACE" | "UNHIDE_RACE" |
+  "DELETE_EVENT" | "BLOCK_ACCOUNT" | "UNBLOCK_ACCOUNT" | "DELETE_ACCOUNT" | "CREATE_RESET_LINK";
+
+/** Superadmins åtgärder (append-only, utan främmande nycklar så att loggen överlever borttagningar). */
+export const superadminActions = pgTable("superadmin_action", {
   id: uuid("id").primaryKey().defaultRandom(),
-  requestId: uuid("request_id").notNull(),
-  recoveryId: uuid("recovery_id").notNull().references(() => accountPasswordRecoveryIssues.id),
-  operatorLabel: text("operator_label").notNull(),
-  reason: text("reason").notNull(),
-  revokedAt: timestamp("revoked_at", { withTimezone: true }).notNull()
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  actorAccountId: uuid("actor_account_id"),
+  actorLabel: text("actor_label").notNull(),
+  action: text("action").$type<SuperadminActionKind>().notNull(),
+  targetType: text("target_type").$type<"ACCOUNT" | "EVENT" | "RACE">().notNull(),
+  targetId: uuid("target_id").notNull(),
+  targetLabel: text("target_label").notNull(),
+  reason: text("reason").notNull()
 }, (table) => [
-  uniqueIndex("account_password_recovery_revocation_request_uidx").on(table.requestId),
-  uniqueIndex("account_password_recovery_revocation_recovery_uidx").on(table.recoveryId),
-  check("account_password_recovery_revocation_operator_label_check", sql`length(btrim(${table.operatorLabel})) between 1 and 120`),
-  check("account_password_recovery_revocation_reason_check", sql`length(btrim(${table.reason})) between 1 and 240`)
-]);
-
-export const accountPasswordRecoveryRedemptions = pgTable("account_password_recovery_redemption", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  requestId: uuid("request_id").notNull(),
-  recoveryId: uuid("recovery_id").notNull(),
-  accountId: uuid("account_id").notNull().references(() => userAccounts.id),
-  passwordVersion: integer("password_version").notNull(),
-  intentHash: text("intent_hash").notNull(),
-  redeemedAt: timestamp("redeemed_at", { withTimezone: true }).notNull()
-}, (table) => [
-  uniqueIndex("account_password_recovery_redemption_request_uidx").on(table.requestId),
-  uniqueIndex("account_password_recovery_redemption_recovery_uidx").on(table.recoveryId),
-  foreignKey({
-    name: "account_password_recovery_redemption_issue_account_fk",
-    columns: [table.recoveryId, table.accountId],
-    foreignColumns: [accountPasswordRecoveryIssues.id, accountPasswordRecoveryIssues.accountId]
-  }),
-  foreignKey({
-    name: "account_password_recovery_redemption_verifier_fk",
-    columns: [table.accountId, table.passwordVersion],
-    foreignColumns: [userAccountPasswordVerifiers.accountId, userAccountPasswordVerifiers.version]
-  }),
-  check("account_password_recovery_redemption_version_check", sql`${table.passwordVersion} > 0`),
-  check("account_password_recovery_redemption_intent_hash_check", sql`${table.intentHash} ~ '^[a-f0-9]{64}$'`)
-]);
-
-/** Mutable, hashed per-login guessing control; includes unknown login names. */
-export const accountPasswordRecoveryThrottles = pgTable("account_password_recovery_throttle", {
-  loginKeyHash: text("login_key_hash").primaryKey(),
-  windowStartedAt: timestamp("window_started_at", { withTimezone: true }).notNull(),
-  failedAttempts: integer("failed_attempts").notNull(),
-  blockedUntil: timestamp("blocked_until", { withTimezone: true })
-}, (table) => [
-  check("account_password_recovery_throttle_key_check", sql`${table.loginKeyHash} ~ '^[a-f0-9]{64}$'`),
-  check("account_password_recovery_throttle_attempts_check", sql`${table.failedAttempts} >= 0`)
-]);
-
-/** TASK160: immutable event/actor scope for OWNER-issued invitation actions. */
-export const eventAccountInvitationIssues = pgTable("event_account_invitation_issue", {
-  requestId: uuid("request_id").primaryKey(),
-  invitationId: uuid("invitation_id").notNull().unique().references(() => accountInvitationIssues.id),
-  eventId: uuid("event_id").notNull().references(() => events.id),
-  actorAccountId: uuid("actor_account_id").notNull().references(() => userAccounts.id),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
-}, (table) => [
-  uniqueIndex("event_account_invitation_issue_scope_uidx").on(table.invitationId, table.eventId),
-  index("event_account_invitation_issue_event_created_idx").on(table.eventId, table.createdAt)
-]);
-
-export const eventAccountInvitationRevocations = pgTable("event_account_invitation_revocation", {
-  requestId: uuid("request_id").primaryKey(),
-  revocationId: uuid("revocation_id").notNull().unique().references(() => accountInvitationRevocations.id),
-  invitationId: uuid("invitation_id").notNull().unique(),
-  eventId: uuid("event_id").notNull(),
-  actorAccountId: uuid("actor_account_id").notNull().references(() => userAccounts.id),
-  reason: text("reason").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
-}, (table) => [
-  foreignKey({ name: "event_account_invitation_revocation_scope_fk",
-    columns: [table.invitationId, table.eventId],
-    foreignColumns: [eventAccountInvitationIssues.invitationId, eventAccountInvitationIssues.eventId] }),
-  index("event_account_invitation_revocation_event_created_idx").on(table.eventId, table.createdAt),
-  check("event_account_invitation_revocation_reason_check", sql`length(btrim(${table.reason})) between 1 and 240`)
+  index("superadmin_action_created_idx").on(table.createdAt.desc()),
+  check("superadmin_action_target_type_check", sql`${table.targetType} IN ('ACCOUNT', 'EVENT', 'RACE')`),
+  check("superadmin_action_actor_label_check", sql`length(btrim(${table.actorLabel})) BETWEEN 1 AND 254`),
+  check("superadmin_action_target_label_check", sql`length(btrim(${table.targetLabel})) BETWEEN 1 AND 320`),
+  check("superadmin_action_reason_check", sql`length(btrim(${table.reason})) BETWEEN 1 AND 500`)
 ]);
 
 export const userAccountSessions = pgTable("user_account_session", {

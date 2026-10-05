@@ -15,7 +15,7 @@ async function readExercise(page: Page, label: string, button: string) {
 test("rogaining: poäng, straff och resultatlista på summa", async ({ browser }) => {
   test.setTimeout(300_000);
   const suffix = unique();
-  const owner = await registerAccount(browser, `poang.${suffix}`, "Rut Rogaining");
+  const owner = await registerAccount(browser, `poang.${suffix}@exempel.se`, "Rut Rogaining");
   const raceId = await createRace(owner, `Poängjakt ${suffix}`, "2026-10-08", "Rogaining");
   for (const path of ["rogaining", "rogaining/preview"]) await warmRoute(owner, `/api/admin/races/${raceId}/administrator/${path}`, "POST");
 

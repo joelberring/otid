@@ -31,7 +31,7 @@ pnpm demo   # läser .env (se ovan)
 pnpm dev
 ```
 
-`pnpm demo` skapar kontot `demo` (lösenord `demo-traning-1`) och en träningstävling
+`pnpm demo` skapar kontot `demo@o-tid.local` (lösenord `demo-traning-1`) och en träningstävling
 med två banor, tio anmälda och sju avläsningar (en felstämplad, tre kvar i skogen).
 Adresserna skrivs ut. Kör den igen för en ny tävling.
 
@@ -43,13 +43,17 @@ finns. Se `docs/sportident.md`.
 
 ## Behörighet
 
-- **Konto:** vem som helst skapar ett konto på `/organizer` (inloggningsnamn, namn, lösenord).
-  Inloggningen gäller i 30 dagar.
+- **Konto:** vem som helst skapar ett konto på `/organizer` (e-post, namn, lösenord), med spärr mot
+  upprepade försök. Inloggningen gäller i 30 dagar. Under "Mitt konto" (`/konto`) byter man namn och
+  lösenord eller tar bort kontot (tävlingar man äger tas bort samtidigt).
 - **Admin:** den som skapar en tävling äger den. Ägaren ger andra konton
   administratörsrätt under "Visa medadministratörer". Admins kan ändra allt i
   tävlingen, även import (`/admin/<lopp>/imports`), i samma arbetsyta `/admin/<lopp>/manage`.
 - **Alla andra:** startlistor, resultat och sträcktider är öppna utan inloggning.
-- Glömt lösenord: `pnpm organizer:account rotate` (se `docs/organizer-account-operations.md`).
+- **Superadmin:** sätts med `pnpm account:superadmin grant <e-post>` (i drift: se `docs/drift.md`) och
+  städar konton och tävlingar på `/superadmin`. Åtgärderna loggas.
+- Glömt lösenord: länk via e-post när `OTID_SMTP_URL` är satt, annars skapar superadmin en länk.
+  Vilka personuppgifter som sparas står på `/integritet`.
 
 ## Drift
 

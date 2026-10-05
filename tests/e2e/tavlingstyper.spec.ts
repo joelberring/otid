@@ -22,7 +22,7 @@ const SPEAKER: Record<RaceTypeName, boolean> = { "Träning": false, "Liten tävl
 test("varje tävlingstyp visar sina delar och inga andra", async ({ browser }) => {
   test.setTimeout(240_000);
   const suffix = unique();
-  const owner = await registerAccount(browser, `typer.${suffix}`, "Tea Typ");
+  const owner = await registerAccount(browser, `typer.${suffix}@exempel.se`, "Tea Typ");
   for (const type of Object.keys(EXPECTED) as RaceTypeName[]) {
     await owner.goto("/organizer");
     await createRace(owner, `${type} ${suffix}`, "2026-10-08", type);
@@ -43,7 +43,7 @@ test("varje tävlingstyp visar sina delar och inga andra", async ({ browser }) =
 test("typen byts under Inställningar utan att något försvinner, och navigeringen syns när man rullar", async ({ browser }) => {
   test.setTimeout(180_000);
   const suffix = unique();
-  const owner = await registerAccount(browser, `byt.${suffix}`, "Bo Byt");
+  const owner = await registerAccount(browser, `byt.${suffix}@exempel.se`, "Bo Byt");
   const raceId = await createRace(owner, `Byt typ ${suffix}`, "2026-10-08", "Träning");
   await addCourseAndClass(owner, "Lång", "H21", "31 32 33");
   await addEntry(owner, { className: "H21", givenName: "Anna", familyName: "Ek", club: "OK Test", card: "8003001" });
@@ -79,7 +79,7 @@ test("typen byts under Inställningar utan att något försvinner, och navigerin
 test("speakern har en egen sida som visar den som gått i mål", async ({ browser }) => {
   test.setTimeout(240_000);
   const suffix = unique();
-  const owner = await registerAccount(browser, `speaker.${suffix}`, "Sara Speaker");
+  const owner = await registerAccount(browser, `speaker.${suffix}@exempel.se`, "Sara Speaker");
   const raceId = await createRace(owner, `Speaker ${suffix}`, "2026-10-08", "Tävling");
   await addCourseAndClass(owner, "Lång", "H21", "31 32 33");
   await addEntry(owner, { className: "H21", givenName: "Anna", familyName: "Ek", club: "OK Test", card: "8004001" });

@@ -35,6 +35,12 @@ services:
       OTID_EVENTOR_MASTER_KEY: ${OTID_EVENTOR_MASTER_KEY:-}
       # Endast test (CI pekar på en falsk Eventor på värden). Tom i drift = Eventor Sverige.
       OTID_EVENTOR_BASE_URL: ${OTID_EVENTOR_BASE_URL:-}
+      # E-post för återställningslänkar (docs/drift.md). Tom = ingen e-post; superadmin skapar länken.
+      OTID_SMTP_URL: ${OTID_SMTP_URL:-}
+      OTID_MAIL_FROM: ${OTID_MAIL_FROM:-}
+      OTID_CONTACT_EMAIL: ${OTID_CONTACT_EMAIL:-}
+      # Registreringar per IP och timme. Tom = 10. CI höjer gränsen för webbläsartesterna.
+      OTID_REGISTRATION_LIMIT_PER_HOUR: ${OTID_REGISTRATION_LIMIT_PER_HOUR:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:

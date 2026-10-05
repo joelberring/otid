@@ -1,19 +1,47 @@
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { expect, type Browser, type Page } from "@playwright/test";
 
-/** Gemensamma steg för webbläsartesterna (ADR-0168). */
+/** Gemensamma steg för webbläsartesterna (ADR-0168, ADR-0172). */
 export const password = "hemligt-lösen-1";
 export const unique = () => Math.random().toString(36).slice(2, 8);
+const root = fileURLToPath(new URL("../../", import.meta.url));
 
-export async function registerAccount(browser: Browser, loginName: string, displayName: string): Promise<Page> {
+/** Registrerar ett konto med e-post (ADR-0172) i en egen webbläsarkontext och landar i Mina tävlingar. */
+export async function registerAccount(browser: Browser, email: string, displayName: string): Promise<Page> {
   const page = await (await browser.newContext()).newPage();
   await page.goto("/organizer");
   await page.getByRole("button", { name: "Har du inget konto? Skapa ett" }).click();
   await page.getByLabel("Ditt namn").fill(displayName);
-  await page.getByLabel("Inloggningsnamn").fill(loginName);
+  await page.getByLabel("E-postadress").fill(email);
   await page.getByLabel("Lösenord").fill(password);
   await page.getByRole("button", { name: "Skapa konto" }).click();
   await expect(page.getByRole("heading", { name: "Dina tävlingar" })).toBeVisible();
   return page;
+}
+
+/** Loggar in på /organizer med e-post och lösenord. */
+export async function logIn(page: Page, email: string, secret = password): Promise<void> {
+  await page.goto("/organizer");
+  await page.getByLabel("E-postadress").fill(email);
+  await page.getByLabel("Lösenord").fill(secret);
+  await page.getByRole("button", { name: "Logga in" }).click();
+}
+
+/**
+ * Ger kontot superadmin med samma serverkommando som i drift (ADR-0172): mot driftmiljön i webbens
+ * avbildning (`node superadmin.mjs`), annars `pnpm account:superadmin` mot testdatabasen.
+ */
+export function grantSuperadmin(email: string): void {
+  if (process.env.E2E_BASE_URL) {
+    execFileSync("docker", ["compose", "-f", "docker-compose.prod.yml", "exec", "-T", "web", "node", "superadmin.mjs", "grant", email,
+      "Webbläsartest"], { cwd: root, stdio: "pipe" });
+    return;
+  }
+  const database = process.env.E2E_DATABASE_URL;
+  if (!database) throw new Error("E2E_DATABASE_URL saknas");
+  execFileSync("pnpm", ["-s", "account:superadmin", "grant", email, "Webbläsartest"], { cwd: root, stdio: "pipe",
+    env: { ...process.env, DATABASE_URL: database } });
 }
 
 /** Tävlingstyperna i "Skapa tävling" (ADR-0170 beslut 1). */

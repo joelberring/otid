@@ -32,7 +32,7 @@ async function readExercise(page: Page, runner: typeof RUNNERS[number], button: 
 test("träningskväll från tävling till IOF-export", async ({ browser, request }) => {
   test.setTimeout(360_000);
   const suffix = unique();
-  const owner = await registerAccount(browser, `kvall.${suffix}`, "Kim Klubb");
+  const owner = await registerAccount(browser, `kvall.${suffix}@exempel.se`, "Kim Klubb");
   const raceId = await createRace(owner, `Träningskväll ${suffix}`, "2026-10-08", "Träning");
   await addCourseAndClass(owner, "Lång", "H21", "31 32 33 34");
   await addCourseAndClass(owner, "Kort", "D21", "31 33");

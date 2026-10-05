@@ -34,13 +34,13 @@ import { raceTypeSv } from "../i18n/race-type-sv";
 import { RaceTypeChoice } from "./race-type-choice";
 import styles from "./organizer-workspace.module.css";
 
-type Session = { accountId: string; displayName: string; expiresAt: string };
+type Session = { accountId: string; email: string; displayName: string; superadmin: boolean; expiresAt: string };
 
 function EventAdministrators({ eventId, eventName, accountId }: { eventId: string; eventName: string; accountId: string }) {
   const [grants, setGrants] = useState<ReturnType<typeof parseOrganizerAdminList>["grants"]>([]);
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [loginName, setLoginName] = useState("");
+  const [email, setEmail] = useState("");
   const [attempt, setAttempt] = useState<OrganizerAdminMutationAttempt>();
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -88,6 +88,13 @@ function EventAdministrators({ eventId, eventName, accountId }: { eventId: strin
         },
         body: JSON.stringify(current.request)
       });
+      if (response.status === 404 && isGrant) {
+        clearOrganizerAdminAttempt(accountId, eventId);
+        setAttempt(undefined);
+        setNotice("");
+        setError(copy.adminNotFound);
+        return;
+      }
       if (!response.ok) {
         if (response.status === 401 || response.status === 403) throw new Error(copy.adminSessionRenewal(response.status));
         if (response.status === 409) throw new Error(copy.adminRequestConflict);
@@ -100,7 +107,7 @@ function EventAdministrators({ eventId, eventName, accountId }: { eventId: strin
       clearOrganizerAdminAttempt(accountId, eventId);
       setAttempt(undefined);
       setNotice(confirmed.replayed ? copy.adminRetryConfirmed : isGrant ? copy.adminGranted : copy.adminRevoked);
-      setLoginName("");
+      setEmail("");
       await load();
     } catch (reason) {
       setError(errorMessage(reason));
@@ -113,7 +120,7 @@ function EventAdministrators({ eventId, eventName, accountId }: { eventId: strin
     try {
       const requestId = crypto.randomUUID();
       const request = organizerAdminGrantRequestSchema.parse({
-        formatVersion: 1, requestId, eventId, loginName: loginName.trim().toLowerCase(), role: "ADMIN"
+        formatVersion: 1, requestId, eventId, email, role: "ADMIN"
       });
       const current = { accountId, action: "grant" as const, eventId, requestId, request };
       saveOrganizerAdminAttempt(current);
@@ -154,7 +161,7 @@ function EventAdministrators({ eventId, eventName, accountId }: { eventId: strin
     {loaded && !error && <p className={styles.adminSummary}>{copy.adminSummary(activeCount, revokedCount)}</p>}
     {loaded && !error && grants.length === 0 && <p>{copy.adminEmpty}</p>}
     {loaded && grants.length > 0 && <ul className={styles.adminList}>{grants.map((grant) => <li key={grant.grantId}>
-      <div><strong>{grant.displayName}</strong><span>{grant.loginName}</span>
+      <div><strong>{grant.displayName}</strong><span>{grant.email}</span>
         <span>{copy.adminGrantedAt} {new Date(grant.grantedAt).toLocaleString("sv-SE")}</span></div>
       <span className={styles.adminStatus}>{grant.revokedAt ? copy.adminRevokedLabel : copy.adminActiveLabel}
         {grant.revokedAt && <small>{copy.adminRevokedAt} {new Date(grant.revokedAt).toLocaleString("sv-SE")}</small>}</span>
@@ -162,13 +169,13 @@ function EventAdministrators({ eventId, eventName, accountId }: { eventId: strin
         onClick={() => revoke(grant.grantId, grant.displayName)}>{copy.adminRevoke}</button>}
     </li>)}</ul>}
     {!attempt && <form className={styles.adminForm} onSubmit={(event) => void createGrant(event)}>
-      <label>{copy.adminLoginName}<input value={loginName} onChange={(event) => setLoginName(event.target.value)}
-        autoCapitalize="none" autoComplete="off" spellCheck={false} maxLength={80} required disabled={busy || !!attempt} /></label>
+      <label>{copy.adminEmail}<input type="email" value={email} onChange={(event) => setEmail(event.target.value)}
+        autoCapitalize="none" autoComplete="off" spellCheck={false} maxLength={254} required disabled={busy || !!attempt} /></label>
       <div ref={reviewRef} tabIndex={-1} className={styles.adminReview}>
-        <p>{loginName ? copy.adminReview(loginName.trim().toLowerCase()) : copy.adminReviewHint}</p>
+        <p>{email ? copy.adminReview(email.trim().toLowerCase()) : copy.adminReviewHint}</p>
         <p>{copy.adminReviewEvent(eventName)}</p>
       </div>
-      <button type="submit" disabled={busy || !!attempt || !loginName}>{copy.adminGrant}</button>
+      <button type="submit" disabled={busy || !!attempt || !email}>{copy.adminGrant}</button>
     </form>}
     {attempt && <div className={styles.uncertain} role="alert">
       <h5>{copy.adminPendingTitle}</h5>
@@ -176,7 +183,7 @@ function EventAdministrators({ eventId, eventName, accountId }: { eventId: strin
       <dl><dt>{copy.adminAction}</dt><dd>{attempt.action === "grant" ? copy.adminGrantAction : copy.adminRevokeAction}</dd>
         <dt>{copy.adminEvent}</dt><dd>{eventName} · {attempt.eventId}</dd>
         <dt>{copy.adminRequestId}</dt><dd>{attempt.requestId}</dd>
-        <dt>{copy.adminTarget}</dt><dd>{String(attempt.request.loginName ?? attempt.request.grantId)}</dd></dl>
+        <dt>{copy.adminTarget}</dt><dd>{String(attempt.request.email ?? attempt.request.grantId)}</dd></dl>
       <div className={styles.actions}>
         <button type="button" disabled={busy} onClick={() => void submit(attempt)}>{copy.retrySameAttempt}</button>
         <button className={styles.secondary} type="button" disabled={busy} onClick={abandon}>{copy.adminAbandonAttempt}</button>
@@ -212,10 +219,13 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : copy.genericError;
 }
 
+/** Besked vid inloggning som är fel (läses upp direkt); övriga är lägesbesked. */
+const loginProblems = new Set<string>([copy.invalidCredentials, copy.loginRateLimited, copy.accountBlocked]);
+
 export function OrganizerWorkspace() {
   const [session, setSession] = useState<Session>();
   const [sessionChecked, setSessionChecked] = useState(false);
-  const [loginName, setLoginName] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [mode, setMode] = useState<"login" | "register">("login");
@@ -311,9 +321,9 @@ export function OrganizerWorkspace() {
         method: "POST",
         credentials: "same-origin",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ formatVersion: 1, loginName: loginName.trim().toLowerCase(), displayName: displayName.trim(), password })
+        body: JSON.stringify({ formatVersion: 1, email: email.trim(), displayName: displayName.trim(), password })
       });
-      if (!response.ok) throw new Error(response.status === 409 ? copy.loginNameTaken
+      if (!response.ok) throw new Error(response.status === 409 ? copy.emailTaken : response.status === 429 ? copy.registerRateLimited
         : response.status === 400 ? copy.registerInvalid : copy.registerError(response.status));
       setSession(parseOrganizerSession(await responseJson(response)));
       setMessage("");
@@ -335,16 +345,16 @@ export function OrganizerWorkspace() {
     setBusy(true);
     setMessage(copy.loggingIn);
     try {
-      const request = parseOrganizerLoginRequest(loginName, password);
+      const request = parseOrganizerLoginRequest(email, password);
       const response = await fetch("/api/organizer/login", {
         method: "POST",
         credentials: "same-origin",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(request)
       });
-      if (!response.ok) throw new Error(response.status === 401
-        ? copy.invalidCredentials
-        : copy.loginError(response.status));
+      if (!response.ok) throw new Error(response.status === 401 ? copy.invalidCredentials
+        : response.status === 429 ? copy.loginRateLimited : response.status === 403 ? copy.accountBlocked
+          : copy.loginError(response.status));
       setSession(parseOrganizerSession(await responseJson(response)));
       setMessage("");
       try {
@@ -454,6 +464,7 @@ export function OrganizerWorkspace() {
       setEventsLoaded(false);
       setCreated(undefined);
       setShowAnotherForm(false);
+      setMode("login");
       setMessage(copy.loggedOut);
     } catch (error) {
       setMessage(copy.checkSessionBeforeContinue(errorMessage(error)));
@@ -493,6 +504,8 @@ export function OrganizerWorkspace() {
       <div><p className={styles.kicker}>O-Tid · Arrangör</p><h1>{copy.yourEvents}</h1>
         {session && events.length > 0 && <a className={styles.createJump} href="#organizer-create-event">{copy.createJump}</a>}</div>
       {session && <div className={styles.account}><span>{session.displayName}</span>
+        {session.superadmin && <Link href="/superadmin">{copy.superadmin}</Link>}
+        <Link href="/konto">{copy.myAccount}</Link>
         <button className={styles.secondary} type="button" disabled={busy} onClick={() => void logout()}>{copy.logout}</button>
       </div>}
     </header>
@@ -503,16 +516,16 @@ export function OrganizerWorkspace() {
       <h2>{copy.login}</h2>
       <p className={styles.muted}>{copy.loginHint}</p>
       <form className={styles.form} onSubmit={(event) => void login(event)}>
-        <label>{copy.loginName}
-          <input autoComplete="username" autoCapitalize="none" spellCheck={false} value={loginName}
-            onChange={(event) => setLoginName(event.target.value)} required />
+        <label>{copy.email}
+          <input type="email" autoComplete="username" autoCapitalize="none" spellCheck={false} value={email}
+            onChange={(event) => setEmail(event.target.value)} required />
         </label>
         <label>{copy.password}
           <input type="password" autoComplete="current-password" value={password}
             onChange={(event) => setPassword(event.target.value)} required />
         </label>
-        <button type="submit" disabled={busy || !loginName || !password} aria-busy={busy}>{copy.login}</button>
-        {message && <p className={styles.loginMessage} role={message === copy.invalidCredentials ? "alert" : "status"} aria-live="polite">{message}</p>}
+        <button type="submit" disabled={busy || !email || !password} aria-busy={busy}>{copy.login}</button>
+        {message && <p className={styles.loginMessage} role={loginProblems.has(message) ? "alert" : "status"} aria-live="polite">{message}</p>}
       </form>
       <nav className={styles.loginLinks} aria-label={copy.accountHelp}>
         <button type="button" className={styles.secondary} onClick={() => { setMode("register"); setMessage(""); }}>{copy.toRegister}</button>
@@ -528,19 +541,18 @@ export function OrganizerWorkspace() {
           <input autoComplete="name" value={displayName} maxLength={120}
             onChange={(event) => setDisplayName(event.target.value)} required />
         </label>
-        <label>{copy.loginName}
-          <input autoComplete="username" autoCapitalize="none" spellCheck={false} value={loginName}
-            pattern="[a-zA-Z0-9][a-zA-Z0-9._-]{2,79}" aria-describedby="register-login-rule"
-            onChange={(event) => setLoginName(event.target.value)} required />
-          <small id="register-login-rule" className={styles.muted}>{copy.loginNameRule}</small>
+        <label>{copy.email}
+          <input type="email" autoComplete="email" autoCapitalize="none" spellCheck={false} value={email} maxLength={254}
+            onChange={(event) => setEmail(event.target.value)} required />
         </label>
         <label>{copy.password}
           <input type="password" autoComplete="new-password" minLength={8} value={password} aria-describedby="register-password-rule"
             onChange={(event) => setPassword(event.target.value)} required />
           <small id="register-password-rule" className={styles.muted}>{copy.passwordRule}</small>
         </label>
-        <button type="submit" disabled={busy || !loginName || !displayName.trim() || password.length < 8} aria-busy={busy}>{copy.register}</button>
-        {message && <p className={styles.loginMessage} role="status" aria-live="polite">{message}</p>}
+        <p className={styles.muted}>{copy.registerPrivacy} <Link href="/integritet">{copy.privacyLink}</Link></p>
+        <button type="submit" disabled={busy || !email || !displayName.trim() || password.length < 8} aria-busy={busy}>{copy.register}</button>
+        {message && <p className={styles.loginMessage} role={message === copy.registering ? "status" : "alert"} aria-live="polite">{message}</p>}
       </form>
       <nav className={styles.loginLinks} aria-label={copy.accountHelp}>
         <button type="button" className={styles.secondary} onClick={() => { setMode("login"); setMessage(""); }}>{copy.toLogin}</button>

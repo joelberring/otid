@@ -63,11 +63,11 @@ async function activeOwner(tx: DatabaseTransaction, accountId: string, eventId: 
 
 function grantResponse(input: {
   requestId: string; eventId: string; grantId: string; accountId: string;
-  loginName: string; displayName: string; grantedAt: Date;
+  email: string; displayName: string; grantedAt: Date;
 }, replayed: boolean): OrganizerAdminGrantResponse {
   return organizerAdminGrantResponseSchema.parse({
     formatVersion: 1, replayed, requestId: input.requestId, eventId: input.eventId,
-    grantId: input.grantId, accountId: input.accountId, loginName: input.loginName,
+    grantId: input.grantId, accountId: input.accountId, email: input.email,
     displayName: input.displayName, role: "ADMIN", grantedAt: input.grantedAt.toISOString()
   });
 }
@@ -107,12 +107,12 @@ export async function grantEventAdministratorAsUserAccount(
         .where(eq(schema.userAccounts.id, existing.targetAccountId));
       const [grant] = await tx.select().from(schema.eventAdministrationGrants)
         .where(eq(schema.eventAdministrationGrants.id, existing.grantId));
-      if (!target || !grant || target.loginName !== request.data.loginName || grant.role !== "ADMIN") {
+      if (!target || !grant || target.email !== request.data.email || grant.role !== "ADMIN") {
         return { status: "conflict" } as const;
       }
       return { status: "granted", response: grantResponse({ requestId: existing.requestId,
         eventId: existing.eventId, grantId: grant.id, accountId: target.id,
-        loginName: target.loginName, displayName: target.displayName, grantedAt: grant.grantedAt }, true) } as const;
+        email: target.email, displayName: target.displayName, grantedAt: grant.grantedAt }, true) } as const;
     }
     const [event] = await tx.select({ id: schema.events.id }).from(schema.events)
       .where(eq(schema.events.id, request.data.eventId)).for("update");
@@ -120,11 +120,8 @@ export async function grantEventAdministratorAsUserAccount(
       return { status: "not-found" } as const;
     }
     const [target] = await tx.select().from(schema.userAccounts)
-      .where(eq(schema.userAccounts.loginName, request.data.loginName));
-    if (!target || target.id === auth.principal.accountId) return { status: "not-found" } as const;
-    const [targetRevocation] = await tx.select({ id: schema.userAccountRevocations.id })
-      .from(schema.userAccountRevocations).where(eq(schema.userAccountRevocations.accountId, target.id));
-    if (targetRevocation) return { status: "not-found" } as const;
+      .where(eq(schema.userAccounts.email, request.data.email));
+    if (!target || target.id === auth.principal.accountId || target.blockedAt) return { status: "not-found" } as const;
     const existingGrants = await tx.select({ id: schema.eventAdministrationGrants.id,
       role: schema.eventAdministrationGrants.role })
       .from(schema.eventAdministrationGrants)
@@ -155,7 +152,7 @@ export async function grantEventAdministratorAsUserAccount(
     });
     return { status: "granted", response: grantResponse({ requestId: request.data.requestId,
       eventId: event.id, grantId: grant.id, accountId: target.id,
-      loginName: target.loginName, displayName: target.displayName, grantedAt }, false) } as const;
+      email: target.email, displayName: target.displayName, grantedAt }, false) } as const;
   });
 }
 
@@ -176,7 +173,7 @@ export async function listEventAdministratorsAsUserAccount(
     const grants = await tx.select({ id: schema.eventAdministrationGrants.id,
       accountId: schema.eventAdministrationGrants.accountId,
       grantedAt: schema.eventAdministrationGrants.grantedAt,
-      loginName: schema.userAccounts.loginName, displayName: schema.userAccounts.displayName })
+      email: schema.userAccounts.email, displayName: schema.userAccounts.displayName })
       .from(schema.eventAdministrationGrants)
       .innerJoin(schema.userAccounts, eq(schema.userAccounts.id, schema.eventAdministrationGrants.accountId))
       .where(and(eq(schema.eventAdministrationGrants.eventId, event.id),
@@ -189,7 +186,7 @@ export async function listEventAdministratorsAsUserAccount(
       const [revocation] = await tx.select({ revokedAt: schema.eventAdministrationGrantRevocations.revokedAt })
         .from(schema.eventAdministrationGrantRevocations)
         .where(eq(schema.eventAdministrationGrantRevocations.grantId, grant.id));
-      items.push({ grantId: grant.id, accountId: grant.accountId, loginName: grant.loginName,
+      items.push({ grantId: grant.id, accountId: grant.accountId, email: grant.email,
         displayName: grant.displayName, role: "ADMIN", grantedAt: grant.grantedAt.toISOString(),
         revokedAt: revocation?.revokedAt.toISOString() ?? null });
     }

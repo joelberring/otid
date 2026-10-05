@@ -58,7 +58,7 @@ test("sträcktidsanalys: från resultatlistan, sortering på en sträcka och vä
   const suffix = unique();
   const firstStart = new Date(Math.floor(Date.now() / 60_000) * 60_000 - 40 * 60_000);
   const raceDate = zoned(firstStart, { year: "numeric", month: "2-digit", day: "2-digit" });
-  const owner = await registerAccount(browser, `stracka.${suffix}`, "Sara Sträcka");
+  const owner = await registerAccount(browser, `stracka.${suffix}@exempel.se`, "Sara Sträcka");
   const raceId = await createRace(owner, `Sträckor ${suffix}`, raceDate, "Tävling");
   await addCourseAndClass(owner, "Lång", "H21", "31 32 33");
   for (const runner of RUNNERS) await addEntry(owner, runner);

@@ -349,7 +349,7 @@ på en sträcka, öppna vägval för en löpare med uppladdad rutt.
 
 Se ADR-0171 (karta och rutter i PostgreSQL, bara admin laddar upp, den gamla kartkoden borttagen).
 
-## [ ] Steg 17 – Konton och superadmin
+## [x] Steg 17 – Konton och superadmin
 
 Se ADR-0172 beslut 1–2.
 

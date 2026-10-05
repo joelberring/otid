@@ -2,7 +2,7 @@ export const participantMeSv = {
   title: "Mina resultat",
   login: "Logga in med ditt O-Tid-konto",
   accountHelp: "Saknar du konto eller engångskod? Kontakta arrangören.",
-  loginName: "Användarnamn",
+  email: "E-postadress",
   password: "Lösenord",
   forgotPassword: "Glömt lösenordet?",
   loginAction: "Logga in",

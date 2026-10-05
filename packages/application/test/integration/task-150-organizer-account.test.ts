@@ -9,12 +9,9 @@ import {
   issuePairingAdminAccessCredential,
   loginPairingAdmin
 } from "../../src/pairing-admin";
-import {
-  loginUserAccount,
-  logoutUserAccountSession,
-  provisionUserAccount,
-  rotateUserAccountPassword
-} from "../../src/user-account";
+import { loginUserAccount, logoutUserAccountSession } from "../../src/user-account";
+import { changeAccountPassword } from "../../src/account-self-service";
+import { registerTestAccount } from "./accounts";
 import { createEventAsUserAccount, enterRaceAsUserAccount, listMyEventsAsUserAccount } from "../../src/organizer-events";
 import { createManualCourseClassAsAdministrator } from "../../src/manual-course-class";
 
@@ -38,15 +35,9 @@ afterAll(async () => {
   await admin.pool.end();
 });
 
-async function account(loginName: string) {
-  const installation = await provisionUserAccount(db, { loginName, displayName: `Arrangör ${loginName}` }, { now });
-  const login = await loginUserAccount(db, {
-    formatVersion: 1, loginName, password: installation.initialPassword
-  }, { now });
-  if (login.status !== "authenticated") throw new Error("Kontots testinloggning misslyckades");
-  return { installation, login, proof: {
-    sessionToken: login.sessionToken, csrfCookie: login.csrfToken, csrfHeader: login.csrfToken
-  } };
+async function account(name: string) {
+  const installation = await registerTestAccount(db, name, now);
+  return { installation, login: installation.login, proof: installation.proof };
 }
 
 function createInput(proof: Awaited<ReturnType<typeof account>>["proof"], key: string, name: string) {
@@ -86,7 +77,7 @@ describe("TASK150 kontobunden tävlingsadministration", () => {
     expect([first.response.replayed, second.response.replayed].sort()).toEqual([false, true]);
     expect((await db.select().from(schema.events).where(eq(schema.events.id, created.response.eventId)))).toHaveLength(1);
     const ownerAgain = await loginUserAccount(db, { formatVersion: 1,
-      loginName: owner.installation.loginName, password: owner.installation.initialPassword
+      email: owner.installation.email, password: owner.installation.password
     }, { now: new Date(now.getTime() + 1000) });
     if (ownerAgain.status !== "authenticated") throw new Error("Återinloggning misslyckades");
     const listed = await listMyEventsAsUserAccount(db, { sessionToken: ownerAgain.sessionToken },
@@ -151,13 +142,14 @@ describe("TASK150 kontobunden tävlingsadministration", () => {
     if (entered.status !== "entered") throw new Error("Delegeringen misslyckades");
     const delegatedProof = { raceId: created.response.raceId, capability: "MANAGE_RACE" as const,
       sessionToken: entered.sessionToken };
-    const rotated = await rotateUserAccountPassword(db, owner.installation.accountId,
-      { now: new Date(now.getTime() + 2000) });
-    expect(rotated.version).toBe(2);
+    const rotated = await changeAccountPassword(db, owner.proof, { formatVersion: 1,
+      currentPassword: owner.installation.password, newPassword: "nytt-hemligt-lösen" }, new Date(now.getTime() + 2000));
+    expect(rotated.status).toBe("authenticated");
+    expect((await listMyEventsAsUserAccount(db, owner.proof, new Date(now.getTime() + 3000))).status).toBe("unauthorized");
     expect((await authenticatePairingAdminSession(db, delegatedProof, new Date(now.getTime() + 3000))).status)
       .toBe("unauthorized");
-    const relogin = await loginUserAccount(db, { formatVersion: 1, loginName: owner.installation.loginName,
-      password: rotated.password }, { now: new Date(now.getTime() + 4000) });
+    const relogin = await loginUserAccount(db, { formatVersion: 1, email: owner.installation.email,
+      password: "nytt-hemligt-lösen" }, { now: new Date(now.getTime() + 4000) });
     expect(relogin.status).toBe("authenticated");
     if (relogin.status !== "authenticated") return;
     const newProof = { sessionToken: relogin.sessionToken, csrfCookie: relogin.csrfToken, csrfHeader: relogin.csrfToken };
@@ -183,9 +175,8 @@ describe("TASK150 kontobunden tävlingsadministration", () => {
     if (created.status !== "created") throw new Error("Skapandet misslyckades");
     const entered = await enterRaceAsUserAccount(db, { ...owner.proof, raceId: created.response.raceId }, now);
     if (entered.status !== "entered") throw new Error("Delegeringen misslyckades");
-    await db.insert(schema.userAccountRevocations).values({
-      accountId: owner.installation.accountId, revokedAt: new Date(now.getTime() + 1000), reason: "TEST_REVOKED"
-    });
+    await db.update(schema.userAccounts).set({ blockedAt: new Date(now.getTime() + 1000) })
+      .where(eq(schema.userAccounts.id, owner.installation.accountId));
     expect((await listMyEventsAsUserAccount(db, owner.proof, new Date(now.getTime() + 2000))).status)
       .toBe("unauthorized");
     expect((await authenticatePairingAdminSession(db, { sessionToken: entered.sessionToken,
@@ -194,19 +185,17 @@ describe("TASK150 kontobunden tävlingsadministration", () => {
   });
 
   it("begränsar felaktig inloggning beständigt, även när rätt lösenord senare anges", async () => {
-    const installation = await provisionUserAccount(db, {
-      loginName: `throttle.${randomUUID().slice(0, 8)}`, displayName: "Test av spärr"
-    }, { now });
+    const installation = await registerTestAccount(db, `throttle.${randomUUID().slice(0, 8)}`, now);
     for (let attempt = 0; attempt < 5; attempt++) {
-      expect((await loginUserAccount(db, { formatVersion: 1, loginName: installation.loginName,
+      expect((await loginUserAccount(db, { formatVersion: 1, email: installation.email,
         password: "felaktigt lösenord" }, { now: new Date(now.getTime() + attempt * 1000) })).status)
         .toBe("unauthorized");
     }
-    expect((await loginUserAccount(db, { formatVersion: 1, loginName: installation.loginName,
-      password: installation.initialPassword }, { now: new Date(now.getTime() + 5000) })).status)
-      .toBe("unauthorized");
-    expect((await loginUserAccount(db, { formatVersion: 1, loginName: installation.loginName,
-      password: installation.initialPassword }, { now: new Date(now.getTime() + 16 * 60 * 1000) })).status)
+    expect((await loginUserAccount(db, { formatVersion: 1, email: installation.email,
+      password: installation.password }, { now: new Date(now.getTime() + 5000) })).status)
+      .toBe("rate-limited");
+    expect((await loginUserAccount(db, { formatVersion: 1, email: installation.email.toUpperCase(),
+      password: installation.password }, { now: new Date(now.getTime() + 16 * 60 * 1000) })).status)
       .toBe("authenticated");
   });
 });

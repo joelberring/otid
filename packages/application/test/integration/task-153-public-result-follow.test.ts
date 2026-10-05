@@ -5,7 +5,7 @@ import { migrate } from "@o-tid/database";
 import { createDatabase, schema } from "@o-tid/database";
 import { contentHash } from "../../src/hash";
 import { ingestDeviceBatch } from "../../src/ingest";
-import { loginUserAccount, provisionUserAccount } from "../../src/user-account";
+import { registerTestAccount } from "./accounts";
 import { listMyPublicResultFollows, setPublicResultFollow } from "../../src/public-result-follow";
 import { recalculateEntry } from "../../src/results";
 import { publicResultFollowIdempotencyKey } from "@o-tid/contracts";
@@ -39,9 +39,8 @@ afterAll(async () => {
 });
 
 async function account(prefix: string) {
-  const loginName = `${prefix}.${randomUUID().slice(0, 8)}`;
-  const created = await provisionUserAccount(db, { loginName, displayName: `Test ${prefix}` }, { now: at });
-  const login = await loginUserAccount(db, { formatVersion: 1, loginName, password: created.initialPassword }, { now: at });
+  const created = await registerTestAccount(db, `${prefix}.${randomUUID().slice(0, 8)}`, at);
+  const login = created.login;
   if (login.status !== "authenticated") throw new Error("Syntetiskt användarkonto saknas");
   return { accountId: login.response.accountId,
     proof: { sessionToken: login.sessionToken, csrfCookie: login.csrfToken, csrfHeader: login.csrfToken } };

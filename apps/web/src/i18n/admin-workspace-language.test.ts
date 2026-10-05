@@ -21,7 +21,7 @@ const adminFiles = [
   "speaker-sv.ts", "course-variants-sv.ts", "relay-sv.ts", "race-type-sv.ts", "sources-sv.ts", "rogaining-sv.ts", "race-map-sv.ts"
 ];
 /** Delade textfiler (även publika sidor): bara nycklarna som arbetsytan läser granskas. */
-const sharedFiles = ["sv.ts", "participant-claim-sv.ts"];
+const sharedFiles = ["sv.ts", "participant-claim-sv.ts", "account-sv.ts"];
 
 function resolveImport(from: string, specifier: string): string | undefined {
   const base = join(dirname(from), specifier);

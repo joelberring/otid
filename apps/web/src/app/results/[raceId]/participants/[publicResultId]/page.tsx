@@ -4,11 +4,13 @@ import { publicRaceSummary, publicResultDetail } from "@o-tid/application";
 import { PublicResultDetail } from "../../../../../components/public-result-detail";
 import { db } from "../../../../../lib/db";
 import { sv } from "../../../../../i18n/sv";
+import { requirePublicRace } from "../../../../../lib/public-race-gate";
 
 export const dynamic = "force-dynamic";
 
 export default async function PublicResultDetailPage({ params }: { params: Promise<{ raceId: string; publicResultId: string }> }) {
   const { raceId, publicResultId } = await params;
+  await requirePublicRace(raceId);
   const [summary, detail] = await Promise.all([publicRaceSummary(db, raceId), publicResultDetail(db, raceId, publicResultId)]);
   if (detail.status === "not-found") notFound();
   return <main className="stack public-result-detail-page">

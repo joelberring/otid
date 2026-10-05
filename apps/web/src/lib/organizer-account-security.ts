@@ -1,5 +1,7 @@
 import {
+  accountErrorResponseSchema,
   eventCreationErrorResponseSchema,
+  type AccountErrorCode,
   type EventCreationErrorCode
 } from "@o-tid/contracts";
 import {
@@ -192,4 +194,18 @@ export function organizerJson(body: unknown, status = 200): Response {
 
 export function organizerFailure(status: 400 | 401 | 403 | 404 | 409 | 500, error: EventCreationErrorCode): Response {
   return organizerJson(eventCreationErrorResponseSchema.parse({ formatVersion: 1, error }), status);
+}
+
+/** Fel från kontots egna anrop (ADR-0172): också spärr, spärrat konto, e-post avstängd och fel bekräftelse. */
+export function accountFailure(status: 400 | 401 | 403 | 404 | 409 | 429 | 500 | 503, error: AccountErrorCode): Response {
+  return organizerJson(accountErrorResponseSchema.parse({ formatVersion: 1, error }), status);
+}
+
+/**
+ * Klientens adress för spärren mot upprepade försök. I drift sätter Caddy X-Forwarded-For till klientens
+ * adress (inkommande värden från klienten litar Caddy inte på), och Next nås bara via Caddy.
+ */
+export function clientAddress(request: Request): string {
+  const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  return forwarded || request.headers.get("x-real-ip")?.trim() || "okänd";
 }

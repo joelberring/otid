@@ -18,20 +18,23 @@ const raceId = "40000000-0000-4000-8000-000000000004";
 const expiresAt = "2026-09-23T12:00:00.000Z";
 
 describe("TASK150 arrangörskontokontrakt", () => {
-  it("validerar kanoniskt konto-login och strikt svar/sessionstatus", () => {
-    const login = { formatVersion: 1 as const, loginName: "ol.runner-1", password: "generated-secret" };
+  it("validerar inloggning med e-post och strikt svar/sessionstatus", () => {
+    const login = { formatVersion: 1 as const, email: "ol.runner@klubb.se", password: "generated-secret" };
     expect(organizerAccountLoginRequestSchema.parse(login)).toEqual(login);
-    for (const invalidName of ["OL.runner", "ab", " leading", "two words", "åsa.runner"]) {
-      expect(organizerAccountLoginRequestSchema.safeParse({ ...login, loginName: invalidName }).success).toBe(false);
+    expect(organizerAccountLoginRequestSchema.parse({ ...login, email: "OL.Runner@Klubb.se" }).email).toBe("ol.runner@klubb.se");
+    for (const invalid of ["ol.runner", "ab", "two words@klubb.se", "a@b", "@klubb.se"]) {
+      expect(organizerAccountLoginRequestSchema.safeParse({ ...login, email: invalid }).success).toBe(false);
     }
     expect(organizerAccountLoginRequestSchema.safeParse({ ...login, surprise: true }).success).toBe(false);
     expect(organizerAccountLoginRequestSchema.safeParse({ ...login, password: "" }).success).toBe(false);
 
-    const response = { formatVersion: 1 as const, accountId: eventId, displayName: "Ol Runner", expiresAt };
+    const response = { formatVersion: 1 as const, accountId: eventId, email: "ol.runner@klubb.se", displayName: "Ol Runner",
+      superadmin: false, expiresAt };
     expect(organizerAccountLoginResponseSchema.parse(response)).toEqual(response);
     expect(organizerAccountSessionStatusSchema.parse(response)).toEqual(response);
     expect(organizerAccountLoginResponseSchema.safeParse({ ...response, accountId: eventId.toUpperCase() }).success).toBe(false);
     expect(organizerAccountLoginResponseSchema.safeParse({ ...response, expiresAt: "tomorrow" }).success).toBe(false);
+    expect(organizerAccountLoginResponseSchema.safeParse({ ...response, email: "Ol.Runner@klubb.se" }).success).toBe(false);
   });
 
   it("avgränsar kontoskapandets idempotensnyckel och återanvänder eventkontrakten", () => {

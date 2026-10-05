@@ -16,7 +16,7 @@ import {
   issuePairingAdminAccessCredential,
   loginPairingAdmin
 } from "../../src/pairing-admin";
-import { loginUserAccount, provisionUserAccount } from "../../src/user-account";
+import { registerTestAccount } from "./accounts";
 
 const base = process.env.TEST_DATABASE_URL;
 if (!base) throw new Error("TASK151 kräver uttrycklig TEST_DATABASE_URL till en isolerad PostgreSQL-roll med CREATEDB");
@@ -38,9 +38,9 @@ afterAll(async () => {
   await admin.pool.end();
 });
 
-async function account(loginName: string) {
-  const installation = await provisionUserAccount(db, { loginName, displayName: `Arrangör ${loginName}` }, { now });
-  const login = await loginUserAccount(db, { formatVersion: 1, loginName, password: installation.initialPassword }, { now });
+async function account(name: string) {
+  const installation = await registerTestAccount(db, name, now);
+  const login = installation.login;
   if (login.status !== "authenticated") throw new Error("Syntetiskt testkonto kunde inte logga in");
   return { installation, proof: {
     sessionToken: login.sessionToken, csrfCookie: login.csrfToken, csrfHeader: login.csrfToken
@@ -55,8 +55,8 @@ function createEvent(proof: Awaited<ReturnType<typeof account>>["proof"], name: 
   }, now);
 }
 
-function grant(proof: Awaited<ReturnType<typeof account>>["proof"], eventId: string, loginName: string, requestId = randomUUID()) {
-  const body = { formatVersion: 1, requestId, eventId, loginName, role: "ADMIN" as const };
+function grant(proof: Awaited<ReturnType<typeof account>>["proof"], eventId: string, email: string, requestId = randomUUID()) {
+  const body = { formatVersion: 1, requestId, eventId, email, role: "ADMIN" as const };
   return { requestId, input: { ...proof, idempotencyKey: `organizer-admin-grant:${requestId}`,
     readBody: async () => body } };
 }
@@ -78,27 +78,27 @@ describe("TASK151 ägarstyrd eventbunden medadministration", () => {
     ]);
     if (eventA.status !== "created" || eventB.status !== "created") throw new Error("Syntetiskt event kunde inte skapas");
 
-    const firstIntent = grant(owner.proof, eventA.response.eventId, administrator.installation.loginName);
+    const firstIntent = grant(owner.proof, eventA.response.eventId, administrator.installation.email);
     const first = await grantEventAdministratorAsUserAccount(db, firstIntent.input, now);
     expect(first.status).toBe("granted");
     if (first.status !== "granted") throw new Error("ADMIN-tilldelning misslyckades");
     const replay = await grantEventAdministratorAsUserAccount(db, firstIntent.input, new Date(now.getTime() + 1));
     expect(replay).toMatchObject({ status: "granted", response: { grantId: first.response.grantId, replayed: true } });
     expect((await grantEventAdministratorAsUserAccount(db,
-      grant(owner.proof, eventA.response.eventId, `other.${randomUUID().slice(0, 8)}`, firstIntent.requestId).input, now))
+      grant(owner.proof, eventA.response.eventId, `other.${randomUUID().slice(0, 8)}@test.o-tid.se`, firstIntent.requestId).input, now))
       .status).toBe("conflict");
     expect((await grantEventAdministratorAsUserAccount(db,
-      grant(administrator.proof, eventA.response.eventId, administrator.installation.loginName, firstIntent.requestId).input,
+      grant(administrator.proof, eventA.response.eventId, administrator.installation.email, firstIntent.requestId).input,
       now)).status).toBe("conflict");
     expect((await grantEventAdministratorAsUserAccount(db,
-      grant(owner.proof, eventB.response.eventId, administrator.installation.loginName, firstIntent.requestId).input,
+      grant(owner.proof, eventB.response.eventId, administrator.installation.email, firstIntent.requestId).input,
       now)).status).toBe("conflict");
 
     const simultaneous = await Promise.all([
       grantEventAdministratorAsUserAccount(db, grant(owner.proof, eventB.response.eventId,
-        concurrentAdministrator.installation.loginName).input, new Date(now.getTime() + 2)),
+        concurrentAdministrator.installation.email).input, new Date(now.getTime() + 2)),
       grantEventAdministratorAsUserAccount(db, grant(owner.proof, eventB.response.eventId,
-        concurrentAdministrator.installation.loginName).input, new Date(now.getTime() + 2))
+        concurrentAdministrator.installation.email).input, new Date(now.getTime() + 2))
     ]);
     expect(simultaneous.map(result => result.status).sort()).toEqual(["conflict", "granted"]);
     const adminGrants = await db.select().from(schema.eventAdministrationGrants).where(eq(
@@ -141,7 +141,7 @@ describe("TASK151 ägarstyrd eventbunden medadministration", () => {
     expect((await listEventAdministratorsAsUserAccount(db, { ...administrator.proof,
       eventId: eventA.response.eventId }, now)).status).toBe("not-found");
     expect((await grantEventAdministratorAsUserAccount(db,
-      grant(administrator.proof, eventA.response.eventId, owner.installation.loginName).input, now)).status)
+      grant(administrator.proof, eventA.response.eventId, owner.installation.email).input, now)).status)
       .toBe("not-found");
 
     const revokeIntent = revoke(owner.proof, eventA.response.eventId, first.response.grantId);
@@ -174,7 +174,7 @@ describe("TASK151 ägarstyrd eventbunden medadministration", () => {
       action: "EVENT_ADMIN_REVOKED_BY_OWNER" });
 
     const regrant = await grantEventAdministratorAsUserAccount(db,
-      grant(owner.proof, eventA.response.eventId, administrator.installation.loginName).input,
+      grant(owner.proof, eventA.response.eventId, administrator.installation.email).input,
       new Date(now.getTime() + 7000));
     expect(regrant.status).toBe("granted");
     if (regrant.status !== "granted") throw new Error("Återtilldelning misslyckades");

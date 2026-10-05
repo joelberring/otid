@@ -1,5 +1,5 @@
-import { AccountRecovery } from "../../components/account-recovery";
+import { PasswordReset } from "../../components/password-reset";
 
 export default function RecoverPage() {
-  return <AccountRecovery />;
+  return <PasswordReset />;
 }

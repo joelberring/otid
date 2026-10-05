@@ -14,6 +14,10 @@ import { defineConfig, devices } from "@playwright/test";
  * Eventor (ADR-0170 beslut 4): global-setup startar en falsk Eventor på E2E_EVENTOR_PORT (4319).
  * Utvecklingsservern får en slumpad masternyckel och pekas dit; driftmiljön får samma inställningar
  * via sin .env (se CI).
+ *
+ * E-post (ADR-0172): global-setup startar en falsk SMTP-server på E2E_SMTP_PORT (4325) som sparar
+ * mejlen i E2E_MAIL_DIR. Webben skickar dit med vanlig SMTP (OTID_SMTP_URL). Många konton skapas
+ * från samma adress, så gränsen för registreringar höjs (OTID_REGISTRATION_LIMIT_PER_HOUR).
  */
 const external = process.env.E2E_BASE_URL;
 const port = Number(process.env.E2E_PORT ?? 3100);
@@ -21,6 +25,8 @@ const origin = external ?? `http://127.0.0.1:${port}`;
 const database = process.env.E2E_DATABASE_URL ?? process.env.TEST_DATABASE_URL;
 /** Samma port som tests/e2e/fake-eventor.ts. */
 const eventorPort = Number(process.env.E2E_EVENTOR_PORT ?? 4319);
+/** Samma port som tests/e2e/fake-smtp.ts. */
+const smtpPort = Number(process.env.E2E_SMTP_PORT ?? 4325);
 if (!external && !database) throw new Error("Sätt E2E_DATABASE_URL eller TEST_DATABASE_URL för webbläsartesterna (eller E2E_BASE_URL)");
 if (!external && database) process.env.E2E_DATABASE_URL = database;
 
@@ -44,7 +50,9 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
       timeout: 180_000,
       env: { ...process.env, DATABASE_URL: database!, O_TID_PUBLIC_ORIGIN: origin,
-        OTID_EVENTOR_MASTER_KEY: randomBytes(32).toString("base64"), OTID_EVENTOR_BASE_URL: `http://127.0.0.1:${eventorPort}` }
+        OTID_EVENTOR_MASTER_KEY: randomBytes(32).toString("base64"), OTID_EVENTOR_BASE_URL: `http://127.0.0.1:${eventorPort}`,
+        OTID_SMTP_URL: `smtp://127.0.0.1:${smtpPort}`, OTID_MAIL_FROM: "O-Tid test <noreply@o-tid.test>",
+        OTID_REGISTRATION_LIMIT_PER_HOUR: "1000" }
     }
   })
 });

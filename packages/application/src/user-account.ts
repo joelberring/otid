@@ -1,5 +1,5 @@
 import { createHash, randomBytes, randomUUID, scrypt, timingSafeEqual } from "node:crypto";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, gt, isNull } from "drizzle-orm";
 import {
   organizerAccountLoginRequestSchema,
   organizerAccountLoginResponseSchema,
@@ -10,12 +10,12 @@ import {
 import type { Database } from "@o-tid/database";
 import { schema } from "@o-tid/database";
 import type { DbExecutor } from "./snapshot";
+import { consumeAccountRequestAllowance, DEFAULT_REGISTRATIONS_PER_HOUR } from "./account-throttle";
 
 const TOKEN_PREFIX = "otid_user_session_v1";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const SECRET_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 const HASH_PATTERN = /^[a-f0-9]{64}$/;
-const LOGIN_NAME_PATTERN = /^[a-z0-9][a-z0-9._-]{2,79}$/;
 const DUMMY_ID = "00000000-0000-4000-8000-000000000000";
 const DUMMY_SALT = Buffer.alloc(16);
 const DUMMY_HASH = Buffer.alloc(32);
@@ -31,7 +31,9 @@ interface ParsedToken { id: string; secret: Buffer }
 export interface UserAccountPrincipal {
   accountId: string;
   sessionId: string;
+  email: string;
   displayName: string;
+  superadmin: boolean;
   expiresAt: string;
 }
 
@@ -47,13 +49,12 @@ export type UserAccountAuthenticationResult =
   | { status: "authenticated"; principal: UserAccountPrincipal };
 
 export type UserAccountLoginResult =
-  | { status: "unauthorized" }
+  | { status: "unauthorized" | "rate-limited" | "blocked" }
   | { status: "authenticated"; response: OrganizerAccountLoginResponse; sessionToken: string; csrfToken: string };
 
 export interface UserAccountRuntimeOptions {
   now?: Date;
   accountId?: string;
-  passwordBytes?: Uint8Array;
   saltBytes?: Uint8Array;
   sessionId?: string;
   sessionSecretBytes?: Uint8Array;
@@ -80,7 +81,7 @@ function sha256(value: Uint8Array | string): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
-/** Shared verifier policy for trusted provisioning and invitation activation. */
+/** Lösenordets verifierare (scrypt). */
 export async function scryptVerifier(password: string, salt: Buffer): Promise<Buffer> {
   return new Promise<Buffer>((resolve, reject) => {
     scrypt(password, salt, 32, SCRYPT_OPTIONS, (error, derived) => {
@@ -118,104 +119,127 @@ function csrfMatches(cookie: string | null | undefined, header: string | null | 
     timingSafeEqual(cookieBytes, headerBytes);
 }
 
-function normalizedLoginName(value: string): string {
-  const result = value.trim().toLowerCase();
-  if (!LOGIN_NAME_PATTERN.test(result)) throw new Error("Ogiltigt inloggningsnamn");
-  return result;
+type AccountRow = typeof schema.userAccounts.$inferSelect;
+
+/** Lägger till en ny verifierarversion. Sessioner med äldre version slutar gälla (lösenordsbyte loggar ut). */
+export async function appendUserAccountPasswordVerifier(
+  tx: DbExecutor,
+  input: { accountId: string; password: string; previousVersion: number },
+  now: Date,
+  saltBytes?: Uint8Array
+): Promise<number> {
+  if (input.previousVersion >= 2_147_483_647) throw new Error("Verifierarversionen är full");
+  const salt = bytes(saltBytes, 16);
+  const verifier = await scryptVerifier(input.password, salt);
+  const version = input.previousVersion + 1;
+  await tx.insert(schema.userAccountPasswordVerifiers).values({
+    accountId: input.accountId, version, algorithm: "scrypt-v1", saltHex: salt.toString("hex"),
+    verifierHex: verifier.toString("hex"), createdAt: now
+  });
+  return version;
 }
 
-/** Trusted provisioning only. Never return this plaintext secret to a browser route. */
-export async function provisionUserAccount(
-  db: Database,
-  input: { loginName: string; displayName: string },
+export async function currentUserAccountVerifier(tx: DbExecutor, accountId: string) {
+  const [verifier] = await tx.select().from(schema.userAccountPasswordVerifiers)
+    .where(eq(schema.userAccountPasswordVerifiers.accountId, accountId))
+    .orderBy(desc(schema.userAccountPasswordVerifiers.version)).limit(1);
+  return verifier;
+}
+
+/** Jämför lösenordet med kontots senaste verifierare i konstant tid (även när kontot saknas). */
+export async function userAccountPasswordMatches(
+  verifier: { saltHex: string; verifierHex: string } | undefined,
+  password: string
+): Promise<boolean> {
+  const derived = await scryptVerifier(password, verifier?.saltHex ? Buffer.from(verifier.saltHex, "hex") : DUMMY_SALT);
+  const expected = verifier?.verifierHex && HASH_PATTERN.test(verifier.verifierHex)
+    ? Buffer.from(verifier.verifierHex, "hex") : DUMMY_HASH;
+  return timingSafeEqual(derived, expected) && !!verifier;
+}
+
+/** Ny session för kontot på den här enheten. */
+export async function issueUserAccountSession(
+  tx: DbExecutor,
+  account: AccountRow,
+  passwordVersion: number,
+  now: Date,
   options: UserAccountRuntimeOptions = {}
-): Promise<{ accountId: string; loginName: string; initialPassword: string }> {
-  const loginName = normalizedLoginName(input.loginName);
-  const displayName = input.displayName.trim();
-  if (displayName.length < 1 || displayName.length > 120) throw new Error("Ogiltigt visningsnamn");
-  const accountId = validUuid(options.accountId ?? randomUUID());
-  const now = validDate(options.now ?? new Date());
-  const initialPassword = bytes(options.passwordBytes, 32).toString("base64url");
-  const salt = bytes(options.saltBytes, 16);
-  const verifier = await scryptVerifier(initialPassword, salt);
-  await db.transaction(async (tx) => {
-    await tx.insert(schema.userAccounts).values({ id: accountId, loginName, displayName, createdAt: now });
-    await tx.insert(schema.userAccountPasswordVerifiers).values({
-      accountId, version: 1, algorithm: "scrypt-v1", saltHex: salt.toString("hex"),
-      verifierHex: verifier.toString("hex"), createdAt: now
-    });
+): Promise<Extract<UserAccountLoginResult, { status: "authenticated" }>> {
+  const sessionId = validUuid(options.sessionId ?? randomUUID());
+  const sessionSecret = bytes(options.sessionSecretBytes, 32);
+  const csrfSecret = bytes(options.csrfSecretBytes, 32);
+  const expiresAt = new Date(now.getTime() + SESSION_LIFETIME_MS);
+  await tx.insert(schema.userAccountSessions).values({
+    id: sessionId, accountId: account.id, passwordVersion,
+    sessionSecretHash: sha256(sessionSecret), csrfSecretHash: sha256(csrfSecret), issuedAt: now, expiresAt
   });
-  return { accountId, loginName, initialPassword };
+  return {
+    status: "authenticated",
+    response: organizerAccountLoginResponseSchema.parse({
+      formatVersion: 1, accountId: account.id, email: account.email, displayName: account.displayName,
+      superadmin: account.isSuperadmin, expiresAt: expiresAt.toISOString()
+    }),
+    sessionToken: token(sessionId, sessionSecret),
+    csrfToken: csrfSecret.toString("base64url")
+  };
+}
+
+/** Spärrar alla kontots giltiga sessioner (spärr av kontot, borttagning, återställning). */
+export async function revokeAllUserAccountSessions(tx: DbExecutor, accountId: string, now: Date, reason: string): Promise<number> {
+  const sessions = await tx.select({ id: schema.userAccountSessions.id }).from(schema.userAccountSessions)
+    .leftJoin(schema.userAccountSessionRevocations,
+      eq(schema.userAccountSessionRevocations.sessionId, schema.userAccountSessions.id))
+    .where(and(eq(schema.userAccountSessions.accountId, accountId), gt(schema.userAccountSessions.expiresAt, now),
+      isNull(schema.userAccountSessionRevocations.id)));
+  for (const session of sessions) {
+    await tx.insert(schema.userAccountSessionRevocations).values({ sessionId: session.id, revokedAt: now, reason });
+  }
+  return sessions.length;
 }
 
 export type UserAccountRegistrationResult =
-  | { status: "invalid-request" | "conflict" }
-  | UserAccountLoginResult;
+  | { status: "invalid-request" | "conflict" | "rate-limited" }
+  | Extract<UserAccountLoginResult, { status: "authenticated" }>;
+
+export interface UserAccountRegistrationOptions extends UserAccountRuntimeOptions {
+  /** Klientens adress (IP). Med adress räknas försöket mot `registrationsPerHour`. */
+  clientKey?: string;
+  registrationsPerHour?: number;
+}
 
 /**
- * Självregistrering (ADR-0168). Skapar kontot med valt lösenord och loggar in.
- * Ett upptaget inloggningsnamn ger `conflict`.
+ * Öppen registrering (ADR-0172 beslut 1). Skapar kontot och loggar in. Upptagen adress ger `conflict`,
+ * för många försök från samma adress inom en timme ger `rate-limited`.
  */
 export async function registerUserAccount(
   db: Database,
   request: unknown,
-  options: UserAccountRuntimeOptions = {}
+  options: UserAccountRegistrationOptions = {}
 ): Promise<UserAccountRegistrationResult> {
+  const now = validDate(options.now ?? new Date());
+  if (options.clientKey !== undefined) {
+    const allowed = await db.transaction((tx) => consumeAccountRequestAllowance(tx, {
+      scope: "REGISTER_IP", key: options.clientKey!, limit: options.registrationsPerHour ?? DEFAULT_REGISTRATIONS_PER_HOUR
+    }, now));
+    if (!allowed) return { status: "rate-limited" };
+  }
   const parsed = organizerAccountRegistrationRequestSchema.safeParse(request);
   if (!parsed.success) return { status: "invalid-request" };
-  const loginName = normalizedLoginName(parsed.data.loginName);
-  const now = validDate(options.now ?? new Date());
   const accountId = validUuid(options.accountId ?? randomUUID());
   const salt = bytes(options.saltBytes, 16);
   const verifier = await scryptVerifier(parsed.data.password, salt);
-  const created = await db.transaction(async (tx) => {
-    const [existing] = await tx.select({ id: schema.userAccounts.id }).from(schema.userAccounts)
-      .where(eq(schema.userAccounts.loginName, loginName));
-    if (existing) return false;
+  return db.transaction(async (tx) => {
     const inserted = await tx.insert(schema.userAccounts)
-      .values({ id: accountId, loginName, displayName: parsed.data.displayName, createdAt: now })
-      .onConflictDoNothing().returning({ id: schema.userAccounts.id });
-    if (inserted.length === 0) return false;
+      .values({ id: accountId, email: parsed.data.email, displayName: parsed.data.displayName, createdAt: now, lastLoginAt: now })
+      .onConflictDoNothing().returning();
+    const account = inserted[0];
+    if (!account) return { status: "conflict" } as const;
     await tx.insert(schema.userAccountPasswordVerifiers).values({
       accountId, version: 1, algorithm: "scrypt-v1", saltHex: salt.toString("hex"),
       verifierHex: verifier.toString("hex"), createdAt: now
     });
-    return true;
+    return issueUserAccountSession(tx, account, 1, now, options);
   });
-  if (!created) return { status: "conflict" };
-  return loginUserAccount(db, { formatVersion: 1, loginName, password: parsed.data.password }, options);
-}
-
-/** Rotation invalidates all older sessions by advancing the verifier version. */
-export async function rotateUserAccountPassword(
-  db: Database,
-  accountIdInput: string,
-  options: UserAccountRuntimeOptions = {}
-): Promise<{ accountId: string; password: string; version: number }> {
-  const accountId = validUuid(accountIdInput);
-  const now = validDate(options.now ?? new Date());
-  const password = bytes(options.passwordBytes, 32).toString("base64url");
-  const salt = bytes(options.saltBytes, 16);
-  const verifier = await scryptVerifier(password, salt);
-  const version = await db.transaction(async (tx) => {
-    const [account] = await tx.select({ id: schema.userAccounts.id }).from(schema.userAccounts)
-      .where(eq(schema.userAccounts.id, accountId)).for("update");
-    if (!account) throw new Error("Kontot finns inte");
-    const [revocation] = await tx.select({ id: schema.userAccountRevocations.id })
-      .from(schema.userAccountRevocations).where(eq(schema.userAccountRevocations.accountId, accountId));
-    if (revocation) throw new Error("Kontot är spärrat");
-    const [current] = await tx.select({ version: schema.userAccountPasswordVerifiers.version })
-      .from(schema.userAccountPasswordVerifiers).where(eq(schema.userAccountPasswordVerifiers.accountId, accountId))
-      .orderBy(desc(schema.userAccountPasswordVerifiers.version)).limit(1);
-    if (!current || current.version >= 2_147_483_647) throw new Error("Verifierarversion saknas eller är full");
-    const next = current.version + 1;
-    await tx.insert(schema.userAccountPasswordVerifiers).values({
-      accountId, version: next, algorithm: "scrypt-v1", saltHex: salt.toString("hex"),
-      verifierHex: verifier.toString("hex"), createdAt: now
-    });
-    return next;
-  });
-  return { accountId, password, version };
 }
 
 export async function loginUserAccount(
@@ -226,7 +250,7 @@ export async function loginUserAccount(
   const parsed = organizerAccountLoginRequestSchema.safeParse(request);
   if (!parsed.success) return { status: "unauthorized" };
   const now = validDate(options.now ?? new Date());
-  const loginKeyHash = sha256(parsed.data.loginName);
+  const loginKeyHash = loginThrottleKey(parsed.data.email);
   return db.transaction(async (tx) => {
     await tx.insert(schema.userAccountLoginThrottles).values({
       loginKeyHash, windowStartedAt: now, failedAttempts: 0
@@ -235,21 +259,13 @@ export async function loginUserAccount(
       .where(eq(schema.userAccountLoginThrottles.loginKeyHash, loginKeyHash)).for("update");
     if (!throttle) throw new Error("Inloggningsspärr saknas");
     if (throttle.blockedUntil && throttle.blockedUntil.getTime() > now.getTime()) {
-      return { status: "unauthorized" } as const;
+      return { status: "rate-limited" } as const;
     }
     const [account] = await tx.select().from(schema.userAccounts)
-      .where(eq(schema.userAccounts.loginName, parsed.data.loginName)).for("share");
-    const [verifier] = account ? await tx.select().from(schema.userAccountPasswordVerifiers)
-      .where(eq(schema.userAccountPasswordVerifiers.accountId, account.id))
-      .orderBy(desc(schema.userAccountPasswordVerifiers.version)).limit(1) : [];
-    const derived = await scryptVerifier(parsed.data.password,
-      verifier?.saltHex ? Buffer.from(verifier.saltHex, "hex") : DUMMY_SALT);
-    const expected = verifier?.verifierHex && HASH_PATTERN.test(verifier.verifierHex)
-      ? Buffer.from(verifier.verifierHex, "hex") : DUMMY_HASH;
-    const passwordMatches = timingSafeEqual(derived, expected);
-    const [revocation] = account ? await tx.select({ id: schema.userAccountRevocations.id })
-      .from(schema.userAccountRevocations).where(eq(schema.userAccountRevocations.accountId, account.id)) : [];
-    if (!account || !verifier || !passwordMatches || revocation) {
+      .where(eq(schema.userAccounts.email, parsed.data.email)).for("update");
+    const verifier = account ? await currentUserAccountVerifier(tx, account.id) : undefined;
+    const passwordMatches = await userAccountPasswordMatches(verifier, parsed.data.password);
+    if (!account || !verifier || !passwordMatches) {
       const inWindow = now.getTime() - throttle.windowStartedAt.getTime() < LOGIN_WINDOW_MS;
       const failedAttempts = inWindow ? throttle.failedAttempts + 1 : 1;
       await tx.update(schema.userAccountLoginThrottles).set({
@@ -259,27 +275,22 @@ export async function loginUserAccount(
       }).where(eq(schema.userAccountLoginThrottles.loginKeyHash, loginKeyHash));
       return { status: "unauthorized" } as const;
     }
-    await tx.update(schema.userAccountLoginThrottles).set({
-      windowStartedAt: now, failedAttempts: 0, blockedUntil: null
-    }).where(eq(schema.userAccountLoginThrottles.loginKeyHash, loginKeyHash));
-    const sessionId = validUuid(options.sessionId ?? randomUUID());
-    const sessionSecret = bytes(options.sessionSecretBytes, 32);
-    const csrfSecret = bytes(options.csrfSecretBytes, 32);
-    const expiresAt = new Date(now.getTime() + SESSION_LIFETIME_MS);
-    await tx.insert(schema.userAccountSessions).values({
-      id: sessionId, accountId: account.id, passwordVersion: verifier.version,
-      sessionSecretHash: sha256(sessionSecret), csrfSecretHash: sha256(csrfSecret), issuedAt: now, expiresAt
-    });
-    return {
-      status: "authenticated" as const,
-      response: organizerAccountLoginResponseSchema.parse({
-        formatVersion: 1, accountId: account.id,
-        displayName: account.displayName, expiresAt: expiresAt.toISOString()
-      }),
-      sessionToken: token(sessionId, sessionSecret),
-      csrfToken: csrfSecret.toString("base64url")
-    };
+    await clearUserAccountLoginThrottle(tx, account.email, now);
+    // Ett spärrat konto får veta det först när lösenordet stämmer.
+    if (account.blockedAt) return { status: "blocked" } as const;
+    await tx.update(schema.userAccounts).set({ lastLoginAt: now }).where(eq(schema.userAccounts.id, account.id));
+    return issueUserAccountSession(tx, account, verifier.version, now, options);
   });
+}
+
+function loginThrottleKey(email: string): string {
+  return sha256(`login\u0000${email}`);
+}
+
+/** Nollställer inloggningsspärren för adressen (lyckad inloggning eller nytt lösenord). */
+export async function clearUserAccountLoginThrottle(tx: DbExecutor, email: string, now: Date): Promise<void> {
+  await tx.update(schema.userAccountLoginThrottles).set({ windowStartedAt: now, failedAttempts: 0, blockedUntil: null })
+    .where(eq(schema.userAccountLoginThrottles.loginKeyHash, loginThrottleKey(email)));
 }
 
 async function authorize(
@@ -307,11 +318,9 @@ async function authorize(
     .from(schema.userAccountPasswordVerifiers)
     .where(eq(schema.userAccountPasswordVerifiers.accountId, session.accountId))
     .orderBy(desc(schema.userAccountPasswordVerifiers.version)).limit(1);
-  const [accountRevocation] = await tx.select({ id: schema.userAccountRevocations.id })
-    .from(schema.userAccountRevocations).where(eq(schema.userAccountRevocations.accountId, session.accountId)).limit(1);
   const [sessionRevocation] = await tx.select({ id: schema.userAccountSessionRevocations.id })
     .from(schema.userAccountSessionRevocations).where(eq(schema.userAccountSessionRevocations.sessionId, session.id)).limit(1);
-  if (!account || !currentVerifier || accountRevocation || sessionRevocation ||
+  if (!account || !currentVerifier || account.blockedAt || sessionRevocation ||
     session.passwordVersion !== currentVerifier.version ||
     session.issuedAt.getTime() > now.getTime() || session.expiresAt.getTime() <= now.getTime()) {
     return { status: "unauthorized" };
@@ -320,8 +329,8 @@ async function authorize(
     return { status: "forbidden" };
   }
   return { status: "authenticated", principal: {
-    accountId: account.id, sessionId: session.id, displayName: account.displayName,
-    expiresAt: session.expiresAt.toISOString()
+    accountId: account.id, sessionId: session.id, email: account.email, displayName: account.displayName,
+    superadmin: account.isSuperadmin, expiresAt: session.expiresAt.toISOString()
   } };
 }
 
@@ -392,11 +401,11 @@ export async function activeUserAccountParentSession(
     .from(schema.userAccountPasswordVerifiers)
     .where(eq(schema.userAccountPasswordVerifiers.accountId, input.accountId))
     .orderBy(desc(schema.userAccountPasswordVerifiers.version)).limit(1);
-  const [revokedAccount] = await tx.select({ id: schema.userAccountRevocations.id })
-    .from(schema.userAccountRevocations).where(eq(schema.userAccountRevocations.accountId, input.accountId));
+  const [account] = await tx.select({ blockedAt: schema.userAccounts.blockedAt }).from(schema.userAccounts)
+    .where(eq(schema.userAccounts.id, input.accountId));
   const [revokedSession] = await tx.select({ id: schema.userAccountSessionRevocations.id })
     .from(schema.userAccountSessionRevocations).where(eq(schema.userAccountSessionRevocations.sessionId, input.sessionId));
   return Boolean(currentVerifier && currentVerifier.version === session.passwordVersion &&
-    !revokedAccount && !revokedSession &&
+    account && !account.blockedAt && !revokedSession &&
     session.issuedAt.getTime() <= now.getTime() && session.expiresAt.getTime() > now.getTime());
 }

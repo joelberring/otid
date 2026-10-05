@@ -29,8 +29,8 @@ afterAll(async () => {
   await admin.pool.end();
 });
 
-async function register(loginName: string) {
-  const result = await registerUserAccount(db, { formatVersion: 1, loginName, displayName: `Person ${loginName}`, password: "hemligt-lösen" });
+async function register(name: string) {
+  const result = await registerUserAccount(db, { formatVersion: 1, email: `${name}@test.o-tid.se`, displayName: `Person ${name}`, password: "hemligt-lösen" });
   if (result.status !== "authenticated") throw new Error(`Registreringen misslyckades: ${result.status}`);
   return { result, proof: { sessionToken: result.sessionToken, csrfCookie: result.csrfToken, csrfHeader: result.csrfToken } };
 }
@@ -42,10 +42,10 @@ describe("ADR-0168 två behörighetsnivåer", () => {
     const expiresIn = Date.parse(owner.result.response.expiresAt) - Date.now();
     expect(expiresIn).toBeGreaterThan(29 * 24 * 3600_000);
 
-    // Upptaget namn och för kort lösenord avvisas.
-    expect(await registerUserAccount(db, { formatVersion: 1, loginName: `agare.${suffix}`, displayName: "X", password: "annat-lösen" }))
+    // Upptagen adress (oavsett versaler) och för kort lösenord avvisas.
+    expect(await registerUserAccount(db, { formatVersion: 1, email: `AGARE.${suffix}@Test.O-Tid.se`, displayName: "X", password: "annat-lösen" }))
       .toEqual({ status: "conflict" });
-    expect(await registerUserAccount(db, { formatVersion: 1, loginName: `kort.${suffix}`, displayName: "X", password: "kort" }))
+    expect(await registerUserAccount(db, { formatVersion: 1, email: `kort.${suffix}@test.o-tid.se`, displayName: "X", password: "kort" }))
       .toEqual({ status: "invalid-request" });
 
     const created = await createEventAsUserAccount(db, { ...owner.proof, idempotencyKey: `organizer-event-create:${randomUUID()}`,
@@ -60,7 +60,7 @@ describe("ADR-0168 två behörighetsnivåer", () => {
     const requestId = randomUUID();
     const granted = await grantEventAdministratorAsUserAccount(db, { ...owner.proof,
       idempotencyKey: `organizer-admin-grant:${requestId}`,
-      readBody: async () => ({ formatVersion: 1, requestId, eventId, loginName: `hjalp.${suffix}`, role: "ADMIN" }) });
+      readBody: async () => ({ formatVersion: 1, requestId, eventId, email: `hjalp.${suffix}@test.o-tid.se`, role: "ADMIN" }) });
     expect(granted.status).toBe("granted");
 
     const entered = await enterRaceAsUserAccount(db, { ...helper.proof, raceId });

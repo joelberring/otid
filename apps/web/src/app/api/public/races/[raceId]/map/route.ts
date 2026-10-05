@@ -1,12 +1,16 @@
 import { readPublicRaceMapImage } from "@o-tid/application";
 import { db } from "../../../../../../lib/db";
+import { hiddenRaceResponse } from "../../../../../../lib/public-race-gate";
 
 /**
  * Kartbilden för vägvalen (PLAN.md steg 16), bara när kartan är georefererad. Med rätt version (`?v=`, början av
  * bildens SHA-256) får webbläsaren spara den länge; en ny bild får en ny version.
  */
 export async function GET(request: Request, context: { params: Promise<{ raceId: string }> }) {
-  const map = await readPublicRaceMapImage(db, (await context.params).raceId);
+  const { raceId } = await context.params;
+  const hidden = await hiddenRaceResponse(raceId);
+  if (hidden) return hidden;
+  const map = await readPublicRaceMapImage(db, raceId);
   if (!map) return new Response(null, { status: 404, headers: { "cache-control": "no-store" } });
   const version = new URL(request.url).searchParams.get("v");
   return new Response(new Uint8Array(map.image), { headers: {

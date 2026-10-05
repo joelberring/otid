@@ -31,7 +31,7 @@ const sessionToken = `otid_user_session_v1.${sessionId}.${"s".repeat(43)}`;
 const csrf = "c".repeat(43);
 const accountCookies = `__Host-otid-organizer-session=${sessionToken}; __Host-otid-organizer-csrf=${csrf}`;
 const intent = { formatVersion: 1, eventName: "Testtävling", raceName: "Individuellt", raceDate: "2026-09-23", timeZone: "Europe/Stockholm" };
-const principal = { accountId, sessionId, displayName: "Arrangör", expiresAt: "2026-09-23T12:00:00.000Z" };
+const principal = { accountId, sessionId, email: "joel@klubb.se", displayName: "Arrangör", superadmin: false, expiresAt: "2026-09-23T12:00:00.000Z" };
 
 function req(method: string, body?: BodyInit, headers: Record<string, string> = {}, url = "https://otid.example/api/organizer/events"): Request {
   const init: RequestInit = { method, headers };
@@ -54,14 +54,14 @@ function bodyTrackedRequest(headers: Record<string, string>) {
 describe("TASK150 organizer account routes", () => {
   it("logs in with host-only production cookies and never returns session secrets", async () => {
     const login = vi.fn(async () => ({ status: "authenticated" as const,
-      response: { formatVersion: 1 as const, accountId, displayName: principal.displayName, expiresAt: principal.expiresAt },
+      response: { formatVersion: 1 as const, accountId, email: principal.email, displayName: principal.displayName, superadmin: false, expiresAt: principal.expiresAt },
       sessionToken, csrfToken: csrf })) as unknown as typeof loginUserAccount;
-    const response = await organizerLoginRoute(db, req("POST", JSON.stringify({ formatVersion: 1, loginName: "joel", password: "secret" }), {
+    const response = await organizerLoginRoute(db, req("POST", JSON.stringify({ formatVersion: 1, email: "Joel@Klubb.se", password: "secret" }), {
       origin: prod.O_TID_PUBLIC_ORIGIN, "content-type": "application/json"
     }, "https://otid.example/api/organizer/login"), login, prod);
     expect(response.status).toBe(200);
     const responseBody = await response.clone().text();
-    expect(await response.json()).toEqual({ formatVersion: 1, accountId, displayName: "Arrangör", expiresAt: principal.expiresAt });
+    expect(await response.json()).toEqual({ formatVersion: 1, accountId, email: "joel@klubb.se", displayName: "Arrangör", superadmin: false, expiresAt: principal.expiresAt });
     expect(responseBody).not.toContain(sessionToken);
     const cookies = response.headers.getSetCookie().join("\n");
     expect(cookies).toContain(`__Host-otid-organizer-session=${sessionToken}`);
@@ -73,9 +73,9 @@ describe("TASK150 organizer account routes", () => {
 
   it("uses explicitly separate non-Secure loopback cookies", async () => {
     const login = vi.fn(async () => ({ status: "authenticated" as const,
-      response: { formatVersion: 1 as const, accountId, displayName: principal.displayName, expiresAt: principal.expiresAt },
+      response: { formatVersion: 1 as const, accountId, email: principal.email, displayName: principal.displayName, superadmin: false, expiresAt: principal.expiresAt },
       sessionToken, csrfToken: csrf })) as unknown as typeof loginUserAccount;
-    const response = await organizerLoginRoute(db, req("POST", JSON.stringify({ formatVersion: 1, loginName: "joel", password: "secret" }), {
+    const response = await organizerLoginRoute(db, req("POST", JSON.stringify({ formatVersion: 1, email: "Joel@Klubb.se", password: "secret" }), {
       origin: dev.O_TID_PUBLIC_ORIGIN, "content-type": "application/json"
     }, "http://127.0.0.1:3000/api/organizer/login"), login, dev);
     const cookies = response.headers.getSetCookie().join("\n");
@@ -88,7 +88,7 @@ describe("TASK150 organizer account routes", () => {
     const authenticate = vi.fn(async () => ({ status: "authenticated" as const, principal })) as unknown as typeof authenticateUserAccountSession;
     const response = await organizerSessionStatusRoute(db, req("GET", undefined, { cookie: accountCookies }), authenticate, prod);
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ formatVersion: 1, accountId, displayName: "Arrangör", expiresAt: principal.expiresAt });
+    expect(await response.json()).toEqual({ formatVersion: 1, accountId, email: "joel@klubb.se", displayName: "Arrangör", superadmin: false, expiresAt: principal.expiresAt });
     expect(authenticate).toHaveBeenCalledWith(db, expect.objectContaining({ sessionToken }));
     const unauthorized = vi.fn(async () => ({ status: "unauthorized" as const })) as unknown as typeof authenticateUserAccountSession;
     expect((await organizerSessionStatusRoute(db, req("GET", undefined), unauthorized, prod)).status).toBe(401);
@@ -157,14 +157,29 @@ describe("TASK150 organizer account routes", () => {
   });
 });
 
+describe("ADR-0172 inloggning med spärr", () => {
+  const loginRequest = () => req("POST", JSON.stringify({ formatVersion: 1, email: "spam@exempel.se", password: "hemligt-lösen" }),
+    { origin: prod.O_TID_PUBLIC_ORIGIN, "content-type": "application/json" }, "https://otid.example/api/organizer/login");
+  it("skiljer spärrat konto och för många försök från fel lösenord", async () => {
+    for (const [status, code, error] of [["blocked", 403, "ACCOUNT_BLOCKED"], ["rate-limited", 429, "RATE_LIMITED"],
+      ["unauthorized", 401, "UNAUTHORIZED"]] as const) {
+      const login = vi.fn(async () => ({ status })) as unknown as typeof loginUserAccount;
+      const response = await organizerLoginRoute(db, loginRequest(), login, prod);
+      expect(response.status).toBe(code);
+      expect(await response.json()).toEqual({ formatVersion: 1, error });
+      expect(response.headers.getSetCookie()).toEqual([]);
+    }
+  });
+});
+
 describe("ADR-0168 självregistrering", () => {
   const registerRequest = (origin: string = prod.O_TID_PUBLIC_ORIGIN) => req("POST",
-    JSON.stringify({ formatVersion: 1, loginName: "ny.arrangor", displayName: "Ny Arrangör", password: "hemligt-lösen" }),
+    JSON.stringify({ formatVersion: 1, email: "ny.arrangor@klubb.se", displayName: "Ny Arrangör", password: "hemligt-lösen" }),
     { origin, "content-type": "application/json" }, "https://otid.example/api/organizer/register");
 
   it("skapar konto, sätter inloggningskakor och svarar 201 utan hemligheter i kroppen", async () => {
     const register = vi.fn(async () => ({ status: "authenticated" as const,
-      response: { formatVersion: 1 as const, accountId, displayName: "Ny Arrangör", expiresAt: principal.expiresAt },
+      response: { formatVersion: 1 as const, accountId, email: "ny.arrangor@klubb.se", displayName: "Ny Arrangör", superadmin: false, expiresAt: principal.expiresAt },
       sessionToken, csrfToken: csrf })) as unknown as typeof registerUserAccount;
     const response = await organizerRegisterRoute(db, registerRequest(), register, prod);
     expect(response.status).toBe(201);
@@ -181,6 +196,17 @@ describe("ADR-0168 självregistrering", () => {
     expect((await organizerRegisterRoute(db, registerRequest(), conflict, prod)).status).toBe(409);
     const invalid = vi.fn(async () => ({ status: "invalid-request" as const })) as unknown as typeof registerUserAccount;
     expect((await organizerRegisterRoute(db, registerRequest(), invalid, prod)).status).toBe(400);
+  });
+
+  it("räknar försöket per klientadress, med gränsen från miljön, och svarar 429 vid spärr", async () => {
+    const limited = vi.fn(async () => ({ status: "rate-limited" as const })) as unknown as typeof registerUserAccount;
+    const request = req("POST", JSON.stringify({ formatVersion: 1, email: "spam@exempel.se", displayName: "S", password: "hemligt-lösen" }),
+      { origin: prod.O_TID_PUBLIC_ORIGIN, "content-type": "application/json", "x-forwarded-for": "203.0.113.7, 10.0.0.2" },
+      "https://otid.example/api/organizer/register");
+    const response = await organizerRegisterRoute(db, request, limited, { ...prod, OTID_REGISTRATION_LIMIT_PER_HOUR: "25" });
+    expect(response.status).toBe(429);
+    expect(await response.json()).toEqual({ formatVersion: 1, error: "RATE_LIMITED" });
+    expect(limited).toHaveBeenCalledWith(db, expect.anything(), { clientKey: "203.0.113.7", registrationsPerHour: 25 });
   });
 
   it("avvisar fel origin innan något registreras", async () => {

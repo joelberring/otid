@@ -32,6 +32,9 @@ body > header { background: var(--surface); color: var(--ink); border-bottom: 1p
   font-size: var(--text-xs); color: var(--muted); }
 body > header a { color: var(--ink); font-weight: 600; text-decoration: none; }
 main { max-width: 1120px; margin: 0 auto; padding: 16px; }
+body > .site-footer { padding: 16px max(16px, calc((100vw - 1120px) / 2)) 24px; border-top: 1px solid var(--line); font-size: var(--text-xs); }
+body:has(> main.speaker-page) > .site-footer, body:has(.race-admin-manage-page) > .site-footer { display: none; }
+@media print { body > .site-footer { display: none; } }
 main.race-admin-manage-page, main.speaker-page { max-width: none; padding: 0; }
 body:has(> main.speaker-page) > header { display: none; }
 body:has(.race-admin-manage-page [data-authenticated="true"]) > header { display: none; }

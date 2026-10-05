@@ -4,6 +4,7 @@ import { db } from "../../../../lib/db";
 import { RouteMap } from "../../../../components/split-analysis/route-map";
 import { routeChoiceSv as text } from "../../../../i18n/split-analysis-sv";
 import { legLabel, splitsHref } from "../../../../lib/split-analysis";
+import { requirePublicRace } from "../../../../lib/public-race-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,7 @@ export default async function RouteChoicePage({ params, searchParams }: {
   params: Promise<{ raceId: string }>; searchParams: Promise<{ runner?: string | string[]; leg?: string | string[] }>;
 }) {
   const [{ raceId }, query] = await Promise.all([params, searchParams]);
+  await requirePublicRace(raceId);
   const runner = typeof query.runner === "string" ? query.runner : "";
   const leg = typeof query.leg === "string" ? query.leg : "";
   const [summary, data] = await Promise.all([publicRaceSummary(db, raceId), readPublicLegRoutes(db, raceId, runner, leg)]);

@@ -5,9 +5,22 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 17 – Konton och superadmin (ADR-0172). Steg 7 (hårdvara) väntar på att ägaren har stationen till hands.
+Steg 18 – Funktionärer och städning av gamla behörigheter (ADR-0172). Steg 7 (hårdvara) väntar på att ägaren har stationen till hands.
 
 ## Logg
+
+### 2026-10-05 – Steg 17: konton och superadmin (steg 17 klart)
+- Konto med e-post (normaliserad, unik oavsett versaler) i stället för inloggningsnamn; medadministratör läggs till med e-post. Öppen registrering
+  spärras per IP och timme (`OTID_REGISTRATION_LIMIT_PER_HOUR`, förval 10) utöver inloggningsspärren. Demo: `demo@o-tid.local`.
+- Glömt lösenord: engångslänk via SMTP (nodemailer, `OTID_SMTP_URL`/`OTID_MAIL_FROM`), hash i databasen, en timme, en gång, alla sessioner spärras,
+  samma svar oavsett adress. Utan SMTP: "kontakta den som driver O-Tid" och superadmin skapar länken. Kodflödet i fil, inbjudningar och deras CLI borta.
+- Superadmin sätts bara med `pnpm account:superadmin grant <e-post>` (driften: `node superadmin.mjs` i webbens avbildning). `/superadmin`: sök konton och
+  tävlingar, dölj/visa, ta bort tävling (skriv namnet), spärra/släpp, ta bort konto (skriv adressen), återställningslänk; allt loggas i append-only
+  `superadmin_action`. Kontrollen i `requireSuperadmin`; publika sidor och API:er visar inte dolda tävlingar (`isRacePubliclyVisible`).
+- Ägaren tar bort sin tävling (Inställningar); Mitt konto (`/konto`): namn, lösenord, ta bort konto – tävlingar man äger (alltid ensam ägare) listas och
+  tas bort samtidigt. Borttagningen följer databasens nycklar (`purge.ts`). `/integritet` med `OTID_CONTACT_EMAIL`. Migration 0099.
+- Verifierat: lint, typecheck, test, test:integration (77 filer, nya `adr-0172-accounts`, `adr-0172-delete-race`), build, e2e varje spec för sig grön (nytt
+  `konton` mot falsk SMTP). Hela sviten i en process: utvecklingsservern dödas av minnestaket (OOM, ~5 GB) efter fyra flöden. Skärmbilder granskade.
 
 ### 2026-10-05 – Steg 16: sträcktidsanalys och vägval (steg 16 klart)
 - Publik `/results/{id}/splits?class=…` (länk från resultatlistornas klassrubrik, "Med sträcktider" och sidhuvudet): löpare × sträckor med

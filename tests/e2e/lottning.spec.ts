@@ -9,7 +9,7 @@ import { addCourseAndClass, addEntry, createRace, openStep, registerAccount, uni
 test("lotta tre klasser, publicera startlistan och placera en efteranmäld på vakant tid", async ({ browser }) => {
   test.setTimeout(300_000);
   const suffix = unique();
-  const owner = await registerAccount(browser, `lotta.${suffix}`, "Lo Lottare");
+  const owner = await registerAccount(browser, `lotta.${suffix}@exempel.se`, "Lo Lottare");
   const raceId = await createRace(owner, `Lottning ${suffix}`);
   await addCourseAndClass(owner, "Lång", "H21", "31 32 33");
   await addCourseAndClass(owner, "Mellan", "D21", "31 34 33");

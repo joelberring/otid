@@ -9,7 +9,7 @@ import { addCourseAndClass, addEntry, createRace, openStep, registerAccount, uni
 test("redigera bana efter avläsning räknar om resultatet", async ({ browser, request }) => {
   test.setTimeout(240_000);
   const suffix = unique();
-  const owner = await registerAccount(browser, `bana.${suffix}`, "Kim Klubb");
+  const owner = await registerAccount(browser, `bana.${suffix}@exempel.se`, "Kim Klubb");
   const raceId = await createRace(owner, `Banändring ${suffix}`, "2026-10-08", "Liten tävling");
   await addCourseAndClass(owner, "Lång", "H21", "31 32 33 34");
   await addEntry(owner, { className: "H21", givenName: "Anna", familyName: "Ek", club: "OK Test", card: "8002001" });

@@ -1,10 +1,15 @@
 import { createDatabase, migrate } from "@o-tid/database";
 import { startFakeEventor } from "./fake-eventor";
+import { startFakeSmtp } from "./fake-smtp";
 
 export default async function globalSetup(): Promise<() => Promise<void>> {
-  // Den falska Eventor behövs både mot utvecklingsservern och mot driftmiljön (som når den via host.docker.internal).
+  // Falsk Eventor och SMTP behövs både mot utvecklingsservern och mot driftmiljön (som når dem via host.docker.internal).
   const eventor = await startFakeEventor();
-  const stop = () => new Promise<void>(resolve => eventor.close(() => resolve()));
+  const smtp = await startFakeSmtp();
+  const stop = async () => {
+    await new Promise<void>(resolve => eventor.close(() => resolve()));
+    await new Promise<void>(resolve => smtp.close(() => resolve()));
+  };
   // Mot en körande driftmiljö migrerar servern själv vid start.
   if (process.env.E2E_BASE_URL) return stop;
   const url = process.env.E2E_DATABASE_URL;

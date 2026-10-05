@@ -52,6 +52,8 @@ Hårdvarustöd märks `untested` tills ägaren har provat med riktig station
 (PLAN steg 7). Avsaknad av hårdvara blockerar inte implementationen.
 
 ### 4. Två behörighetsnivåer
+*Ändrat 2026-10-05 av ADR-0172: rollen Funktionär och en superadmin läggs till.*
+
 Orienteringstävlingar behöver inte bankliknande säkerhet.
 
 - **Admin:** ett inloggat konto med `OWNER` eller `ADMIN` på eventet. Admin

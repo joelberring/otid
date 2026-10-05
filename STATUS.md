@@ -5,7 +5,7 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 7 – Riktig hårdvara och pilot (ägaren + Codex). Alla andra steg i `PLAN.md` är klara.
+Steg 17 – Konton och superadmin (ADR-0172). Steg 7 (hårdvara) väntar på att ägaren har stationen till hands.
 
 ## Logg
 

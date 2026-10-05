@@ -349,12 +349,84 @@ på en sträcka, öppna vägval för en löpare med uppladdad rutt.
 
 Se ADR-0171 (karta och rutter i PostgreSQL, bara admin laddar upp, den gamla kartkoden borttagen).
 
+## [ ] Steg 17 – Konton och superadmin
+
+Se ADR-0172 beslut 1–2.
+
+1. Inloggning och registrering med e-post. Öppen registrering med spärr mot
+   upprepade försök.
+2. Glömt lösenord via e-post när SMTP är inställt; annars återställningslänk
+   från superadmin. Det gamla kodflödet i fil tas bort.
+3. Superadmin (sätts med kommando på servern): lista konton och tävlingar,
+   dölja/ta bort tävling, spärra/ta bort konto, skapa återställningslänk.
+   Åtgärderna loggas.
+4. Ägaren kan ta bort sin tävling; användaren kan ta bort sitt konto. Kort text
+   om vilka personuppgifter som sparas.
+
+**Acceptans:** integrationstester för registrering, återställning, spärr och
+borttagning; Playwright: registrera med e-post, glömt lösenord (med fångad
+e-post i test), superadmin tar bort en skräptävling och spärrar kontot.
+
+## [ ] Steg 18 – Funktionärer och städning av gamla behörigheter
+
+Se ADR-0172 beslut 3.
+
+1. Rollen Funktionär på tävlingen, kopplad via e-post under Inställningar.
+2. Funktionären når avläsning, direktanmälan av okänd bricka, kvar i skogen,
+   start och speaker, men inget annat. Samma kontroll på servern överallt.
+3. Ta bort funktionärskoder, stationsparning och stationscredentials, separata
+   inloggningar för kvar i skogen och incheckning, gamla `api/events`-flödet med
+   credential, `/me` och deltagarkoderna.
+
+**Acceptans:** integrationstester för vad Funktionär får och inte får;
+Playwright: admin lägger till funktionär, funktionären läser av och ser kvar i
+skogen men når inte banor eller resultatändring; två enheter på samma konto.
+
+## [ ] Steg 19 – Publik startsida och tävlingssida
+
+Se ADR-0172 beslut 4.
+
+1. Tävlingen är dold tills den publiceras; steget syns i checklistan.
+2. Startsidan: Pågår nu, Kommande, Senaste och sök. Inga adminlänkar för besökare.
+3. Publik tävlingssida med kort adress och utskrivbar QR-kod: startlista,
+   resultat, sträcktidsanalys.
+
+**Acceptans:** Playwright: opublicerad tävling syns inte för besökare;
+publicerad syns under rätt rubrik; QR-sidan skrivs ut rent; 390 px.
+
+## [ ] Steg 20 – Radiokontroller via ROC
+
+Se ADR-0172 beslut 5.
+
+1. Koppla tävlingen till ROC eller OResults (enhetens id) och välj
+   radiokontroller.
+2. Servern hämtar stämplingar med `lastId`, sparar dem oföränderligt och
+   idempotent, och visar fel och senaste hämtning i klartext.
+3. Mellantider live i resultatlistan och sträcktidsanalysen; speakern visar
+   "passerat radiokontroll" och ledare vid radiokontrollen.
+
+**Acceptans:** adaptertester mot inspelade ROC-svar (dubbletter, okända
+brickor, trasiga rader); integrationstest för hämtning med `lastId`;
+Playwright mot falsk ROC: radiostämpling syns som mellantid och hos speakern
+innan löparen läst av.
+
+## [ ] Steg 21 – Kopiera tävling och kvitto vid avläsning
+
+1. "Ny tävling som …": kopierar banor, klasser, inställningar och funktionärer
+   men inga deltagare eller resultat. Gör återkommande träningar snabba.
+2. Efter avläsning: sträcktidskvitto att skriva ut (smal layout för
+   kvittoskrivare) och QR-kod till löparens resultat.
+
+**Acceptans:** Playwright: kopiera förra veckans träning och läs av en löpare
+i kopian; kvittot visar sträcktider och skrivs ut rent.
+
 ---
 
 ## Efter målet (inte nu)
 
-Ordningen bestäms av ägaren efter piloten. Kandidater: Eventor-import i
-produktion, minutstart med lottning för klubbtävling, startpersonalens
-offlineapp, speaker-utökningar, GPS-följning (V2 i CODEX_BRIEF).
+Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google
+eller Eventor, självanmälan till träningar, resultat tillbaka till Eventor,
+flerdagarstävlingar, deltagarkonton med egna resultat, avgifter och betalning,
+engelska, GPS-följning (V2 i CODEX_BRIEF).
 
 - Jaktstart (flyttad från steg 9): kräver resultat från flera etapper (etapptävling), som modellen inte har ännu.

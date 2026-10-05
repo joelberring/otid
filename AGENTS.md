@@ -57,12 +57,15 @@ historik. Läs den inte om du inte letar efter något specifikt.
   underhållna bibliotek är annars okej.
 - Håll filer under ~800 rader. Dela upp hellre än att växa.
 
-## Behörighet (ADR-0168 beslut 4)
+## Behörighet (ADR-0168 beslut 4, ändrat av ADR-0172)
 
 - **Admin** = inloggat konto med `OWNER`/`ADMIN` på eventet. Admin får göra
   allt i eventets tävlingar. Kontrollera alltid med samma serverfunktion
-  (`requireRaceAdmin` eller motsvarande). Skapa inga nya rolltyper eller
-  credentials.
+  (`requireRaceAdmin` eller motsvarande).
+- **Funktionär** = inloggat konto med rollen Funktionär på tävlingen: avläsning,
+  direktanmälan av okänd bricka, kvar i skogen, start och speaker. Inget annat.
+- **Superadmin** = systemroll som sätts med kommando på servern; städar konton
+  och tävlingar. Skapa inga andra rolltyper och inga koder eller credentials.
 - **Alla andra** läser publicerat innehåll utan inloggning.
 - Grundskydd som behålls: hashade lösenord, httpOnly SameSite=Lax-cookie,
   Origin-kontroll på skrivande anrop, HTTPS i drift.

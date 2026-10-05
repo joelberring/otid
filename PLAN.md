@@ -331,12 +331,27 @@ Se ADR-0170 beslut 5.
 **Acceptans:** domäntester (dubbelstämpling räknas en gång, straff, lika
 poäng); Playwright: rogaining-tävling, två löpare, en för sen, rätt ordning.
 
+## [ ] Steg 16 – Sträcktidsanalys och vägval (görs sist)
+
+Ägarens önskemål 2026-10-05: en separat lista i stil med WinSplits som man kan
+trycka på och komma vidare till vägval på kartan när sådana finns.
+
+1. Publik sträcktidsanalys per klass: sträcktider och placering per sträcka,
+   bästa sträcka markerad, tidsförlust mot bästa, sortering per sträcka.
+2. Från en sträcka eller löpare: länk till vägval på kartan när karta och
+   rutter finns (bygger på den parkerade kart- och ruttkoden, som lyfts ur
+   parkeringen i det här steget).
+3. Resultatlistorna i steg 13 länkar hit men visar inte själva vägvalen.
+
+**Acceptans:** Playwright: öppna sträcktidsanalysen från resultatlistan, sortera
+på en sträcka, öppna vägval för en löpare med uppladdad rutt.
+
 ---
 
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: Eventor-import i
 produktion, minutstart med lottning för klubbtävling, startpersonalens
-offlineapp, speaker-utökningar, GPS/rutter (V2 i CODEX_BRIEF).
+offlineapp, speaker-utökningar, GPS-följning (V2 i CODEX_BRIEF).
 
 - Jaktstart (flyttad från steg 9): kräver resultat från flera etapper (etapptävling), som modellen inte har ännu.

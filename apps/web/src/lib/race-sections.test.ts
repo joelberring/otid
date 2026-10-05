@@ -7,12 +7,12 @@ const names = (type: RaceType) => visibleSections(raceTypeProfile(type)).map(sec
 
 describe("tävlingstypen styr arbetsytans delar (ADR-0170 beslut 1)", () => {
   it("visar rätt delar per typ, med Inställningar sist", () => {
-    expect(names("TRAINING")).toEqual(["Banor & klasser", "Deltagare", "Avläsning", "Resultat", "Inställningar"]);
-    expect(names("SMALL")).toEqual(["Banor", "Klasser", "Anmälda", "Start", "Avläsning", "Resultat", "Inställningar"]);
-    expect(names("STANDARD")).toEqual(["Banor", "Klasser", "Anmälda", "Start", "Avläsning", "Resultat", "Inställningar"]);
-    expect(names("FORKED")).toEqual(["Banor", "Klasser", "Anmälda", "Start", "Avläsning", "Resultat", "Inställningar"]);
-    expect(names("RELAY")).toEqual(["Banor", "Klasser & sträckor", "Lag", "Start", "Avläsning", "Resultat", "Inställningar"]);
-    expect(names("ROGAINING")).toEqual(["Kontroller & poäng", "Deltagare", "Avläsning", "Resultat", "Inställningar"]);
+    expect(names("TRAINING")).toEqual(["Banor & klasser", "Deltagare", "Publicera", "Avläsning", "Resultat", "Inställningar"]);
+    expect(names("SMALL")).toEqual(["Banor", "Klasser", "Anmälda", "Start", "Publicera", "Avläsning", "Resultat", "Inställningar"]);
+    expect(names("STANDARD")).toEqual(["Banor", "Klasser", "Anmälda", "Start", "Publicera", "Avläsning", "Resultat", "Inställningar"]);
+    expect(names("FORKED")).toEqual(["Banor", "Klasser", "Anmälda", "Start", "Publicera", "Avläsning", "Resultat", "Inställningar"]);
+    expect(names("RELAY")).toEqual(["Banor", "Klasser & sträckor", "Lag", "Start", "Publicera", "Avläsning", "Resultat", "Inställningar"]);
+    expect(names("ROGAINING")).toEqual(["Kontroller & poäng", "Deltagare", "Publicera", "Avläsning", "Resultat", "Inställningar"]);
   });
 
   it("styr funktioner och förval", () => {

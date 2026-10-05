@@ -1,6 +1,6 @@
 import { readPublicRaceMapImage } from "@o-tid/application";
 import { db } from "../../../../../../lib/db";
-import { hiddenRaceResponse } from "../../../../../../lib/public-race-gate";
+import { publicRaceResponse } from "../../../../../../lib/public-race-gate";
 
 /**
  * Kartbilden för vägvalen (PLAN.md steg 16), bara när kartan är georefererad. Med rätt version (`?v=`, början av
@@ -8,14 +8,14 @@ import { hiddenRaceResponse } from "../../../../../../lib/public-race-gate";
  */
 export async function GET(request: Request, context: { params: Promise<{ raceId: string }> }) {
   const { raceId } = await context.params;
-  const hidden = await hiddenRaceResponse(raceId);
-  if (hidden) return hidden;
-  const map = await readPublicRaceMapImage(db, raceId);
-  if (!map) return new Response(null, { status: 404, headers: { "cache-control": "no-store" } });
-  const version = new URL(request.url).searchParams.get("v");
-  return new Response(new Uint8Array(map.image), { headers: {
-    "content-type": map.mediaType, "content-length": String(map.image.byteLength), "x-content-type-options": "nosniff",
-    "content-security-policy": "default-src 'none'", etag: `"${map.sha256}"`,
-    "cache-control": version === map.sha256.slice(0, 16) ? "public, max-age=31536000, immutable" : "public, max-age=60"
-  } });
+  return publicRaceResponse(raceId, async () => {
+    const map = await readPublicRaceMapImage(db, raceId);
+    if (!map) return new Response(null, { status: 404, headers: { "cache-control": "no-store" } });
+    const version = new URL(request.url).searchParams.get("v");
+    return new Response(new Uint8Array(map.image), { headers: {
+      "content-type": map.mediaType, "content-length": String(map.image.byteLength), "x-content-type-options": "nosniff",
+      "content-security-policy": "default-src 'none'", etag: `"${map.sha256}"`,
+      "cache-control": version === map.sha256.slice(0, 16) ? "public, max-age=31536000, immutable" : "public, max-age=60"
+    } });
+  });
 }

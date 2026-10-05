@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import { latestMailTo } from "./fake-smtp";
-import { grantSuperadmin, logIn, password, registerAccount, unique, warmRoute } from "./helpers";
+import { grantSuperadmin, logIn, password, publishRaceViaApi, registerAccount, unique, warmRoute } from "./helpers";
 
 /**
  * Steg 17 (ADR-0172 beslut 1–2): konton med e-post, glömt lösenord med länk via e-post (fångad av en falsk
@@ -111,6 +111,9 @@ test("superadmin döljer och tar bort en skräptävling och spärrar kontot", as
   const raceId = await createRaceViaApi(spam, spamName);
   await spam.reload();
   await expect(spam.getByRole("heading", { name: spamName })).toBeVisible();
+  // Opublicerad syns inte; publicerad syns tills superadmin döljer den (ADR-0172 beslut 4).
+  expect((await request.get(`/api/public/races/${raceId}/results`)).status()).toBe(404);
+  await publishRaceViaApi(spam, raceId);
   expect((await request.get(`/api/public/races/${raceId}/results`)).status()).toBe(200);
 
   const bossEmail = `sara.${suffix}@exempel.se`;

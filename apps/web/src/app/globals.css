@@ -37,6 +37,9 @@ body:has(> main.speaker-page) > .site-footer, body:has(.race-admin-manage-page) 
 @media print { body > .site-footer { display: none; } }
 main.race-admin-manage-page, main.speaker-page { max-width: none; padding: 0; }
 body:has(> main.speaker-page) > header { display: none; }
+/* Startsidan har ett eget sidhuvud (ADR-0172 beslut 4). */
+body:has(> [data-site-head]) > header:not([data-site-head]) { display: none; }
+body:has(> [data-site-head]) > .site-footer { padding-inline: max(16px, calc((100vw - 880px) / 2 + 16px)); }
 body:has(.race-admin-manage-page [data-authenticated="true"]) > header { display: none; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }

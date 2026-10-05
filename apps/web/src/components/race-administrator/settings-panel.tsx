@@ -8,13 +8,14 @@ import { Button, Field, Notice, Section } from "../ui";
 import { EventorSection } from "./eventor-section";
 import { RaceDeleteSection } from "./race-delete-section";
 import { PeopleSection } from "./people-section";
+import { RacePublicationSection } from "./race-publication-section";
 import type { Workspace } from "./workspace-state";
 
 const text = raceTypeSv.settings;
 
 /**
  * Inställningar (ADR-0170 beslut 1): namn, datum och tävlingstyp. Att byta typ ändrar bara vilka delar som
- * syns; inget tas bort. Här finns också personer med behörighet (ADR-0172), Eventor (typer som använder Eventor), länken till importen och
+ * syns; inget tas bort. Här finns också publiceringen och personer med behörighet (ADR-0172), Eventor (typer som använder Eventor), länken till importen och
  * (för ägaren) att ta bort tävlingen.
  */
 export function SettingsPanel({ ws }: { ws: Workspace }) {
@@ -44,6 +45,7 @@ export function SettingsPanel({ ws }: { ws: Workspace }) {
         <div><Button type="submit" disabled={locked}>{text.save}</Button></div>
       </form>
     </Section>
+    <RacePublicationSection ws={ws} id={`${id}-publish`} />
     <PeopleSection raceId={raceId} disabled={locked} onPendingChange={setPeoplePending} />
     {profile.features.eventor && <EventorSection ws={ws} />}
     {profile.features.import && <Section id={`${id}-import`} title={text.import} help={text.importHelp}>

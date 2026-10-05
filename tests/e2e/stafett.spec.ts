@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { addCourseAndClass, createRace, openStep, registerAccount, unique } from "./helpers";
+import { addCourseAndClass, createRace, openStep, publishRace, registerAccount, unique } from "./helpers";
 
 /**
  * PLAN.md steg 11 (ADR-0169 beslut 3): klubbstafett med 6 lag × 3 sträckor. Stafettklassen skapas
@@ -69,6 +69,8 @@ test("klubbstafett: stafettklass, lag, byte av löpare, avläsning per sträcka,
   const { date, massStart } = raceClock();
   const owner = await registerAccount(browser, `stafett.${suffix}@exempel.se`, "Stina Stafett");
   const raceId = await createRace(owner, `Klubbstafett ${suffix}`, date, "Stafett");
+  // Besökarna ska se tävlingen (ADR-0172 beslut 4).
+  await publishRace(owner);
   await addCourseAndClass(owner, "Stafettbana", "Inskolning", "31 32 33 34");
   await compileRelayRoutes(owner, raceId);
 

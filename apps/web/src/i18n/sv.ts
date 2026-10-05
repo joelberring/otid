@@ -13,7 +13,6 @@ export const sv = {
   publicFrozenResultsLink: "Visa fastställda slutresultat",
   publicFrozenResultsBack: "Till levande resultatlista",
   publicFrozenResultsFinalizedAt: (instant: string) => `Fastställda ${new Intl.DateTimeFormat("sv-SE", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Stockholm" }).format(new Date(instant))}`,
-  publicResultsBack: "Tävlingar",
   publicResultsClass: "Klass",
   publicResultsPosition: "Placering",
   publicResultsParticipant: "Deltagare",

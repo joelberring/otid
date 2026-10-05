@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { addCourseAndClass, addEntry, addPerson, createRace, openStep, registerAccount, unique } from "./helpers";
+import { addCourseAndClass, addEntry, addPerson, createRace, openStep, publishRace, registerAccount, unique } from "./helpers";
 
 /**
  * Steg 1 (ADR-0168): två behörighetsnivåer.
@@ -13,6 +13,8 @@ test("konto, tävling, medadministratör och publik vy", async ({ browser, reque
 
   const eventName = `Klubbträning ${suffix}`;
   const raceId = await createRace(owner, eventName);
+  // Besökarna ska se tävlingen (ADR-0172 beslut 4).
+  await publishRace(owner);
   await addCourseAndClass(owner, "Lång", "H21", "31 32 33");
   await addEntry(owner, { className: "H21", givenName: "Eva", familyName: "Löpare", club: "OK Test", card: "8001234" });
 

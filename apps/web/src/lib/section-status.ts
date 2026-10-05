@@ -1,5 +1,6 @@
 import type { EntryTransferCandidates, RaceType } from "@o-tid/contracts";
 import { raceTypeSv } from "../i18n/race-type-sv";
+import { publicRaceSv } from "../i18n/public-race-sv";
 import type { Section } from "./race-sections";
 
 /**
@@ -15,6 +16,8 @@ export type SectionFacts = {
   fixedStartClasses: number; missingStartTimes: number;
   readOut: number; inForest: number; unknownCards: number | undefined;
   results: number; mispunched: number;
+  /** ADR-0172 beslut 4: publicerad, inte publicerad eller dold av superadmin. */
+  publication: "PUBLISHED" | "UNPUBLISHED" | "HIDDEN";
 };
 
 type Entry = EntryTransferCandidates["entries"][number];
@@ -38,7 +41,8 @@ export function mispunchedEntries(data: Pick<EntryTransferCandidates, "entries">
  * inläst, annars ur klassernas banor. Kvar i skogen tas ur skogsrapporten när den finns, annars är det anmälda
  * utan resultat (ej start räknas som resultat).
  */
-export function checklistFacts(data: Pick<EntryTransferCandidates, "classes" | "entries">, extra: {
+export function checklistFacts(data: Pick<EntryTransferCandidates, "classes" | "entries"> &
+  Partial<Pick<EntryTransferCandidates, "publication">>, extra: {
   courseCount?: number | undefined; inForest?: number | undefined; unknownCards?: number | undefined;
 }): SectionFacts {
   const fixedClasses = new Set(data.classes.filter(row => row.startRule === "FIXED").map(row => row.id));
@@ -55,7 +59,8 @@ export function checklistFacts(data: Pick<EntryTransferCandidates, "classes" | "
     inForest: extra.inForest ?? statuses.filter(status => status === undefined).length,
     unknownCards: extra.unknownCards,
     results: statuses.filter(status => status !== undefined).length,
-    mispunched: statuses.filter(status => status === "MP").length
+    mispunched: statuses.filter(status => status === "MP").length,
+    publication: data.publication?.hiddenBySuperadmin ? "HIDDEN" : data.publication?.publishedAt ? "PUBLISHED" : "UNPUBLISHED"
   };
 }
 
@@ -83,6 +88,11 @@ export function sectionStatus(section: Pick<Section, "id" | "label">, facts: Sec
       if (facts.classes === 0) return { tone: "OPEN", text: "Inga klasser ännu" };
       if (facts.missingStartTimes > 0) return { tone: "ATTENTION", text: `${facts.missingStartTimes} saknar starttid` };
       return { tone: "DONE", text: facts.fixedStartClasses === 0 ? "Fri start" : "Starttider klara" };
+    case "PUBLISH": {
+      const text = publicRaceSv.publish.status;
+      return facts.publication === "PUBLISHED" ? { tone: "DONE", text: text.published }
+        : facts.publication === "HIDDEN" ? { tone: "ATTENTION", text: text.hidden } : { tone: "OPEN", text: text.unpublished };
+    }
     case "READOUT": {
       const parts = [`${facts.readOut} avlästa`, `${facts.inForest} kvar`];
       if (facts.unknownCards) parts.push(plural(facts.unknownCards, "okänd bricka", "okända brickor"));

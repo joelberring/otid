@@ -30,9 +30,14 @@ describe("TASK029 atomiskt klass-/startbyteskontrakt", () => {
       resultRevisionMarker: null, activeAssignment: null, multipleActiveAssignments: false };
     const value = { formatVersion: 2, raceId: id, eventName: "Skärgårdshelgen", raceName: "Lång",
       snapshotVersion: 1, raceDate: "2026-09-12", raceType: "STANDARD", generatedAt: "2026-09-12T08:00:00Z",
+      publication: { shortCode: "k7m2qx", publishedAt: null, hiddenBySuperadmin: false },
       timeZone: "Europe/Stockholm", classes: [raceClass], entries: [entry] };
     expect(entryTransferCandidatesSchema.safeParse(value).success).toBe(true);
     expect(entryTransferCandidatesSchema.safeParse({ ...value, formatVersion: 1 }).success).toBe(false);
+    // Kort adress: sex tecken utan förväxlingsbara tecken (ADR-0172 beslut 4).
+    for (const shortCode of ["k7m2q", "k7m2qxx", "k7m2q0", "k7m2ql", "K7M2QX"]) {
+      expect(entryTransferCandidatesSchema.safeParse({ ...value, publication: { ...value.publication, shortCode } }).success).toBe(false);
+    }
     const manyClasses = Array.from({ length: 101 }, (_, index) => ({ ...raceClass,
       id: `10000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
       courseVersionId: `20000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,

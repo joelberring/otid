@@ -17,6 +17,7 @@ import { DuringRaceFollowUp, DuringRaceOverview } from "./race-administrator/dur
 import { ParticipantsPanel, RentalPrint } from "./race-administrator/participants-panel";
 import { SettingsPanel } from "./race-administrator/settings-panel";
 import { RogainingPanel } from "./race-administrator/rogaining-panel";
+import { PublishPanel } from "./race-administrator/race-publication-section";
 import { Button } from "./ui";
 
 /**
@@ -80,6 +81,7 @@ export function RaceAdministratorWorkspace({ raceId }: { raceId: string }) {
           <RentalPrint ws={ws} />
         </>}
         <PreparationStartList ws={ws} />
+        {!ws.functionary && <PublishPanel ws={ws} />}
         <DuringRaceOverview ws={ws} />
         <DuringRaceFollowUp ws={ws} />
         {!ws.functionary && <>

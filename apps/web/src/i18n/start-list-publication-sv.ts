@@ -11,8 +11,9 @@ export const startListPublicationSv = {
   publicHelp: "Planerad start, inte bekräftelse på faktisk start. Listan uppdateras automatiskt var femte sekund.",
   publicRefreshFailed: "Startlistan kunde inte uppdateras. Senast hämtade lista visas.",
   publishedAt: "Publicerad",
-  heading: "Publicering",
-  shortHelp: "Den publika startlistan visar namn, klubb, klass och starttid, inte bricka. Ändringar syns först när du publicerar igen.",
+  heading: "Publicera startlistan",
+  shortHelp: "Den publika startlistan visar namn, klubb, klass och starttid, inte bricka. Ändringar syns först när du publicerar igen. " +
+    "Besökare ser den när även tävlingen är publicerad (steget Publicera).",
   loading: "Läser publiceringen…",
   statusNone: "Startlistan är inte publicerad.",
   statusPublished: (time: string) => `Publicerad kl. ${time}. Den publika listan är aktuell.`,

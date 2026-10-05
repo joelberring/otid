@@ -12,6 +12,8 @@ export interface PublicRaceSummary {
   eventName: string;
   name: string;
   raceDate: string;
+  /** Kort adress till tävlingssidan (/t/{kod}), som de publika sidorna länkar tillbaka till. */
+  shortCode: string;
 }
 
 export async function publicRaceSummary(db: Database, raceId: string): Promise<PublicRaceSummary> {
@@ -19,7 +21,8 @@ export async function publicRaceSummary(db: Database, raceId: string): Promise<P
     id: schema.races.id,
     eventName: schema.events.name,
     name: schema.races.name,
-    raceDate: schema.races.raceDate
+    raceDate: schema.races.raceDate,
+    shortCode: schema.races.shortCode
   }).from(schema.races)
     .innerJoin(schema.events, eq(schema.races.eventId, schema.events.id))
     .where(eq(schema.races.id, raceId));

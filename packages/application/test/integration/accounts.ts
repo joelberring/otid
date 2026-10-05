@@ -3,6 +3,7 @@ import type { Database } from "@o-tid/database";
 import { registerUserAccount } from "../../src/user-account";
 import { enterRaceAsUserAccount } from "../../src/organizer-events";
 import { grantRacePersonAsAdministrator } from "../../src/race-people";
+import { setRacePublicationAsAdministrator } from "../../src/race-publication";
 
 export const TEST_PASSWORD = "hemligt-lösen";
 
@@ -32,4 +33,12 @@ export async function grantRacePerson(db: Database, actor: AccountProof, raceId:
   return grantRacePersonAsAdministrator(db, { sessionToken: entered.sessionToken, csrfCookie: entered.csrfToken,
     csrfHeader: entered.csrfToken, raceId, idempotencyKey: `race-person-grant:${requestId}`,
     readBody: async () => ({ formatVersion: 1, requestId, email, role }) }, now);
+}
+
+/** Publicerar tävlingen (eller slutar publicera den) som admin gör i arbetsytan (ADR-0172 beslut 4). */
+export async function setRacePublished(db: Database, actor: AccountProof, raceId: string, published = true, now?: Date) {
+  const entered = await enterRaceAsUserAccount(db, { ...actor, raceId }, now);
+  if (entered.status !== "entered") throw new Error(`Kontot kom inte in i tävlingen: ${entered.status}`);
+  return setRacePublicationAsAdministrator(db, { sessionToken: entered.sessionToken, csrfCookie: entered.csrfToken,
+    csrfHeader: entered.csrfToken, raceId, published }, now);
 }

@@ -2245,9 +2245,11 @@ describe("TASK 005J capability-skyddad raceöversikt PostgreSQL", () => {
       id: fixture.raceId,
       eventName: fixture.overview.race.eventName,
       name: fixture.overview.race.name,
-      raceDate: fixture.overview.race.raceDate
+      raceDate: fixture.overview.race.raceDate,
+      shortCode: summary.shortCode
     });
-    expect(Object.keys(summary).sort()).toEqual(["eventName", "id", "name", "raceDate"]);
+    expect(summary.shortCode).toMatch(/^[2-9a-hjkmnp-z]{6}$/);
+    expect(Object.keys(summary).sort()).toEqual(["eventName", "id", "name", "raceDate", "shortCode"]);
   });
 
   it("isolerar race och capability samt gör 100 samtidiga läsningar utan skrivningar", async () => {

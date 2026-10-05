@@ -43,6 +43,10 @@
 .toolbarRow > label:not(.check), .toolbarRow > div { min-width: 12rem; }
 .check { display: flex; align-items: center; gap: 8px; min-height: var(--control); font-size: var(--text-sm); font-weight: 400; }
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+/* Publicera (ADR-0172 beslut 4): tävlingssidans adress och länkar under åtgärden. */
+.publicationAddress { display: grid; gap: 6px; min-width: 0; padding-top: 12px; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+.publicationAddress .actions { gap: 4px 18px; }
+.publicationAddress .actions > a { display: inline-flex; align-items: center; min-height: var(--control); }
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .controlInput { font-family: var(--font-dense); font-size: var(--text-md) !important; letter-spacing: .02em; }
 .timeFields { display: grid; grid-template-columns: minmax(0, 1.3fr) repeat(2, minmax(0, 1fr)); gap: 10px; }

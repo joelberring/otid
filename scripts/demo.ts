@@ -1,6 +1,6 @@
 /**
  * `pnpm demo` – skapar en färdig träningstävling i den lokala databasen
- * (ADR-0168, steg 5). Kör migreringar, skapar kontot `demo@o-tid.local`, en tävling med
+ * (ADR-0168, steg 5). Kör migreringar, skapar kontot `demo@o-tid.local`, en publicerad tävling med
  * två banor, tio anmälda löpare och sju avläsningar. Tre löpare är kvar i
  * skogen och en är felstämplad, så att allt i arbetsytan går att prova.
  *
@@ -16,7 +16,8 @@ import {
   ingestReadoutsAsAdministrator,
   loginUserAccount,
   registerEntryAsAdmin,
-  registerUserAccount
+  registerUserAccount,
+  setRacePublicationAsAdministrator
 } from "../packages/application/src/index.ts";
 import { normalizeCard, readSimulatedCard, simulatedRun } from "../packages/sportident/src/index.ts";
 
@@ -80,6 +81,9 @@ async function main(): Promise<void> {
     const entered = await enterRaceAsUserAccount(db, { ...owner, raceId });
     if (entered.status !== "entered") fail(`Kom inte in i tävlingen (${entered.status}).`);
     const admin = { sessionToken: entered.sessionToken, csrfCookie: entered.csrfToken, csrfHeader: entered.csrfToken, raceId };
+    // ADR-0172 beslut 4: publicerad, så att startsidan och tävlingssidan visar demoträningen.
+    const published = await setRacePublicationAsAdministrator(db, { ...admin, published: true });
+    if (published.status !== "saved") fail(`Tävlingen kunde inte publiceras (${published.status}).`);
     const snapshotVersion = async () =>
       (await pool.query<{ snapshot_version: number }>("select snapshot_version from race where id = $1", [raceId])).rows[0]!.snapshot_version;
 
@@ -138,7 +142,8 @@ async function main(): Promise<void> {
       `  Logga in:   ${origin}/organizer  (e-post: ${EMAIL}, lösenord: ${PASSWORD})`,
       `  Hantera:    ${origin}/admin/${raceId}/manage`,
       `  Avläsning:  ${origin}/admin/${raceId}/readout  (starta övningsstationen)`,
-      `  Resultat:   ${origin}/results/${raceId}  (öppen för alla)`,
+      `  Tävlingen:  ${origin}/t/${published.response.publication.shortCode}  (publicerad, öppen för alla)`,
+      `  Resultat:   ${origin}/results/${raceId}`,
       "  10 anmälda, 7 avlästa (1 felstämplad), 3 kvar i skogen.",
       ""
     ].join("\n"));

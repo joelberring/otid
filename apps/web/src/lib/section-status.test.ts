@@ -50,6 +50,17 @@ describe("status per del i sidopanelen", () => {
     expect(checklistStatus("START", checklistFacts(done, {}))).toEqual({ tone: "DONE", text: "Starttider klara" });
   });
 
+  it("visar om tävlingen är publicerad (ADR-0172 beslut 4)", () => {
+    const status = (publication?: EntryTransferCandidates["publication"]) =>
+      checklistStatus("PUBLISH", checklistFacts({ ...data, ...(publication ? { publication } : {}) }, {}));
+    expect(status()).toEqual({ tone: "OPEN", text: "Inte publicerad" });
+    expect(status({ shortCode: "k7m2qx", publishedAt: null, hiddenBySuperadmin: false })).toEqual({ tone: "OPEN", text: "Inte publicerad" });
+    expect(status({ shortCode: "k7m2qx", publishedAt: "2026-10-05T10:00:00Z", hiddenBySuperadmin: false }))
+      .toEqual({ tone: "DONE", text: "Publicerad" });
+    expect(status({ shortCode: "k7m2qx", publishedAt: "2026-10-05T10:00:00Z", hiddenBySuperadmin: true }))
+      .toEqual({ tone: "ATTENTION", text: "Dold" });
+  });
+
   it("visar en tom tävling som inte påbörjad", () => {
     const facts = checklistFacts({ classes: [], entries: [] }, {});
     expect(steps.map(step => checklistStatus(step, facts).tone)).toEqual(["OPEN", "OPEN", "OPEN", "OPEN", "OPEN", "OPEN"]);
@@ -59,7 +70,7 @@ describe("status per del i sidopanelen", () => {
   it("skriver antalet med delens namn för typen", () => {
     const facts = checklistFacts(data, {});
     const texts = (type: "TRAINING" | "RELAY") => visibleSections(raceTypeProfile(type)).map(section => sectionStatus(section, facts, type).text);
-    expect(texts("TRAINING")).toEqual(["2 banor · 2 klasser", "5 deltagare", "2 avlästa · 2 kvar", "1 felstämplad att titta på", "Träning"]);
+    expect(texts("TRAINING")).toEqual(["2 banor · 2 klasser", "5 deltagare", "Inte publicerad", "2 avlästa · 2 kvar", "1 felstämplad att titta på", "Träning"]);
     expect(texts("RELAY")[2]).toBe("Inga lag ännu");
   });
 });

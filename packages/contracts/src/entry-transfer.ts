@@ -5,6 +5,7 @@ import { entryPaymentStatusSchema } from "./entry-payment-status-admin";
 import { speakerBoardEffectiveResultSchema } from "./speaker-board";
 import { courseVariantCodeSchema } from "./course-edit";
 import { raceTypeSchema } from "./race-settings";
+import { racePublicationStateSchema } from "./race-publication";
 
 const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 const version = z.number().int().positive().max(2_147_483_647);
@@ -43,6 +44,8 @@ export const entryTransferCandidatesSchema = z.object({
   raceName: z.string().trim().min(1).max(160), snapshotVersion: version, raceDate: z.iso.date(),
   /** ADR-0170: tävlingstypen styr vilka delar arbetsytan visar. */
   raceType: raceTypeSchema,
+  /** ADR-0172 beslut 4: publicerad tävling och kort adress till tävlingssidan. */
+  publication: racePublicationStateSchema,
   generatedAt: z.iso.datetime({ offset: true }),
   timeZone: z.string().min(1).max(100).refine(value => {
     try { new Intl.DateTimeFormat("sv-SE", { timeZone: value }); return true; } catch { return false; }

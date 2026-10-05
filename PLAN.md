@@ -382,7 +382,7 @@ Se ADR-0172 beslut 3.
 Playwright: admin lägger till funktionär, funktionären läser av och ser kvar i
 skogen men når inte banor eller resultatändring; två enheter på samma konto.
 
-## [ ] Steg 19 – Publik startsida och tävlingssida
+## [x] Steg 19 – Publik startsida och tävlingssida
 
 Se ADR-0172 beslut 4.
 

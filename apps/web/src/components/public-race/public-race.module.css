@@ -1,0 +1,119 @@
+/*
+ * Den publika ytan (ADR-0172 beslut 4): startsidan, tävlingssidan, förhandsvisningen och QR-sidan.
+ * Samma återhållsamma formspråk som resten (ADR-0170 beslut 2): gråskala, linjer i stället för lådor och
+ * färg bara där den betyder något. Inga animationer. Fungerar från 390 px.
+ */
+
+.muted { color: var(--muted); }
+
+/* Förhandsvisning: ord först, accentfärgen bara som kant. Skrivs aldrig ut. */
+.preview { display: grid; gap: 2px; padding: 10px 14px; border: 1px solid var(--line-strong); border-left: 4px solid var(--attention);
+  background: var(--attention-tint); overflow-wrap: anywhere; }
+.preview span { color: var(--ink); font-size: var(--text-xs); }
+@media print { .preview { display: none !important; } }
+
+/* Opublicerad tävling. */
+.notPublished { display: grid; gap: 10px; max-width: 40rem; padding-block: 48px; }
+.notPublishedLinks { display: flex; flex-wrap: wrap; gap: 4px 20px; }
+.notPublishedLinks a { display: inline-flex; align-items: center; min-height: 40px; }
+
+/* Startsidan: eget sidhuvud i stället för det gemensamma. */
+.siteHead { background: var(--surface); border-bottom: 1px solid var(--line); }
+.siteHeadInner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 16px;
+  max-width: 880px; margin: 0 auto; padding: 14px 16px; }
+.brand { display: grid; gap: 0; }
+.brand strong { font-size: var(--text-lg); font-weight: 700; letter-spacing: .01em; }
+.brand span { color: var(--muted); font-size: var(--text-xs); }
+.siteHeadInner nav a { display: inline-flex; align-items: center; min-height: 40px; font-size: var(--text-sm); }
+
+.home { display: grid; gap: 28px; max-width: 880px; padding-top: 24px; padding-bottom: 32px; }
+.homeIntro { display: grid; gap: 4px; }
+.homeIntro p { color: var(--muted); max-width: 60ch; }
+.search { display: flex; gap: 8px; align-items: end; max-width: 36rem; }
+.search label { flex: 1 1 auto; min-width: 0; }
+.search button { flex: 0 0 auto; }
+.searchMeta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; }
+.searchMeta a { display: inline-flex; align-items: center; min-height: 40px; }
+
+.raceSection { display: grid; gap: 6px; min-width: 0; }
+.raceSection > h2 { font-size: var(--text-md); }
+.raceSection > .empty { padding: 10px 0; border-top: 1px solid var(--line); color: var(--muted); }
+.more { display: inline-flex; align-items: center; min-height: 40px; justify-self: start; }
+
+/* En tävling per rad: datum, namn med typ och lopp, länkar. Linjer mellan raderna. */
+.raceList { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.raceRow { display: grid; grid-template-columns: 8.5rem minmax(0, 1fr) auto; align-items: center; gap: 4px 16px;
+  padding: 10px 0; border-bottom: 1px solid var(--line); }
+.raceDate { color: var(--muted); font-family: var(--font-dense); font-size: var(--text-sm); white-space: nowrap; }
+.raceName { display: grid; gap: 0; min-width: 0; }
+.raceName a { font-size: var(--text-md); font-weight: 600; text-decoration: none; overflow-wrap: anywhere; }
+.raceName a:hover { text-decoration: underline; }
+.raceName span { color: var(--muted); font-size: var(--text-xs); overflow-wrap: anywhere; }
+.raceLinks { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0 14px; font-size: var(--text-sm); }
+.raceLinks a { display: inline-flex; align-items: center; min-height: 36px; }
+
+/* Tävlingssidan: rubrik, vägar vidare som en lista, adressen sist. */
+/* Vänsterställd i samma bredd som det gemensamma sidhuvudet, med läsbar radlängd. */
+.hub { display: grid; gap: 20px; padding-bottom: 32px; }
+.hub > * { max-width: 760px; }
+.hubNav { display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: var(--text-sm); }
+.hubNav a { display: inline-flex; align-items: center; min-height: 40px; }
+.hubHeading { display: grid; gap: 4px; }
+.hubHeading h1 { overflow-wrap: anywhere; }
+.hubHeading p { color: var(--muted); }
+.hubLinks { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.hubLinks li { border-bottom: 1px solid var(--line); }
+.hubLink { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 12px; min-height: 64px;
+  padding: 10px 2px; text-decoration: none; }
+.hubLink strong { font-size: var(--text-md); font-weight: 600; }
+.hubLink span { grid-column: 1; color: var(--muted); font-size: var(--text-sm); font-weight: 400; }
+.hubLink::after { content: "›"; grid-column: 2; grid-row: 1 / span 2; color: var(--muted); font-size: var(--text-lg); }
+a.hubLink:hover strong { text-decoration: underline; }
+.hubPending { display: grid; gap: 2px; min-height: 64px; align-content: center; padding: 10px 2px; }
+.hubPending strong { color: var(--muted); font-size: var(--text-md); font-weight: 600; }
+.hubPending span { color: var(--muted); font-size: var(--text-sm); }
+.hubFoot { display: grid; gap: 10px; color: var(--muted); font-size: var(--text-sm); }
+.hubAddress { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; color: var(--ink); }
+.hubAddress code { font-family: var(--font-dense); font-size: var(--text-md); overflow-wrap: anywhere; }
+
+/* QR-sidan: verktygsraden syns bara på skärmen; arket skrivs ut utan navigering. */
+.qrPage { display: grid; gap: 20px; justify-items: center; max-width: 880px; }
+.qrTools { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 10px 16px; width: 100%; }
+.qrTools a { display: inline-flex; align-items: center; min-height: 40px; }
+.qrTools fieldset { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; padding: 0; border: 0; }
+.qrTools legend { margin-bottom: 4px; font-size: var(--text-xs); font-weight: 500; }
+.qrTools fieldset label { display: flex; align-items: center; gap: 6px; min-height: 40px; font-size: var(--text-sm); font-weight: 400; }
+.sheet { display: grid; justify-items: center; align-content: start; gap: 6mm; width: 100%; max-width: 190mm; padding: 14mm 10mm;
+  border: 1px solid var(--line); background: #fff; color: #000; text-align: center; }
+.sheet h1 { font-size: 30pt; line-height: 1.1; overflow-wrap: anywhere; }
+.sheet .sheetMeta { font-size: 14pt; color: #333; }
+.sheet .sheetLine { font-size: 20pt; font-weight: 600; }
+.sheet img { display: block; width: min(120mm, 70vw); height: auto; image-rendering: pixelated; }
+.sheet .sheetScan { font-size: 12pt; color: #333; }
+.sheet .sheetAddress { font-family: var(--font-dense); font-size: 22pt; font-weight: 600; overflow-wrap: anywhere; }
+.sheet[data-size="A5"] { max-width: 128mm; padding: 8mm 6mm; gap: 4mm; }
+.sheet[data-size="A5"] h1 { font-size: 22pt; }
+.sheet[data-size="A5"] .sheetLine { font-size: 15pt; }
+.sheet[data-size="A5"] img { width: min(80mm, 70vw); }
+.sheet[data-size="A5"] .sheetAddress { font-size: 16pt; }
+
+@media (max-width: 640px) {
+  .home { gap: 22px; padding-top: 16px; }
+  .raceRow { grid-template-columns: minmax(0, 1fr); gap: 2px; padding: 12px 0; }
+  .raceDate { order: -1; font-size: var(--text-xs); }
+  .raceLinks { justify-content: flex-start; }
+  .sheet { padding: 8mm 4mm; }
+  .sheet h1 { font-size: 22pt; }
+  .sheet .sheetAddress { font-size: 16pt; }
+}
+
+@media print {
+  body:has(.sheet) { background: #fff; }
+  body:has(.sheet) > header, body:has(.sheet) > .site-footer, .qrTools { display: none !important; }
+  body:has(.sheet) main { max-width: none; margin: 0; padding: 0; }
+  .qrPage { display: block; max-width: none; }
+  .sheet { max-width: none; margin: 0 auto; border: 0; padding: 10mm 0 0; }
+  .sheet img { width: 120mm; }
+  .sheet[data-size="A5"] { padding-top: 4mm; }
+  .sheet[data-size="A5"] img { width: 80mm; }
+}

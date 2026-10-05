@@ -63,6 +63,29 @@ export async function createRace(owner: Page, eventName: string, date = "2026-10
 }
 
 /**
+ * Steget Publicera i arbetsytan (ADR-0172 beslut 4): en ny tävling syns inte för besökare förrän den är publicerad.
+ * Arbetsytan måste vara öppen som administratör.
+ */
+export async function publishRace(owner: Page): Promise<void> {
+  await openStep(owner, "Publicera");
+  await owner.getByRole("button", { name: "Publicera tävlingen" }).click();
+  await expect(owner.getByText("Tävlingen är publicerad.")).toBeVisible();
+  await expect(sectionButton(owner, "Publicera")).toHaveAccessibleDescription("Publicerad");
+}
+
+/** Publicerar en tävling utan arbetsytan: öppnar tävlingen med kontot och anropar samma API som steget Publicera. */
+export async function publishRaceViaApi(page: Page, raceId: string): Promise<void> {
+  const origin = new URL(page.url()).origin;
+  const cookie = async (pattern: RegExp) => (await page.context().cookies()).find(row => pattern.test(row.name))?.value ?? "";
+  const entered = await page.request.post(`/api/organizer/races/${raceId}/enter`, {
+    headers: { origin, "x-otid-csrf": await cookie(/otid[-_]organizer[-_]csrf$/) } });
+  expect(entered.ok()).toBe(true);
+  const published = await page.request.put(`/api/admin/races/${raceId}/administrator/race-publication`, {
+    headers: { origin, "x-otid-csrf": await cookie(/otid[-_]race[-_]administrator[-_]csrf$/) } });
+  expect(published.status()).toBe(200);
+}
+
+/**
  * Utvecklingsservern kompilerar en route vid första anropet, ibland långsammare än arbetsytans gräns på 15 s.
  * Ett anrop i förväg (svaret spelar ingen roll) gör att flödet sedan mäter appen, inte kompileringen.
  */
@@ -72,7 +95,7 @@ export async function warmRoute(page: Page, path: string, method: "GET" | "POST"
 
 /** Delarna i sidopanelen; vilka som finns avgörs av tävlingstypen (ADR-0170). */
 export type SectionName = "Banor" | "Banor & klasser" | "Kontroller & poäng" | "Klasser" | "Klasser & sträckor" | "Anmälda" | "Deltagare" |
-  "Lag" | "Start" | "Avläsning" | "Resultat" | "Inställningar";
+  "Lag" | "Start" | "Publicera" | "Avläsning" | "Resultat" | "Inställningar";
 
 /** En del i sidopanelen "Tävlingens delar". Delens status är knappens beskrivning. */
 export function sectionButton(page: Page, name: SectionName) {

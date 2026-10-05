@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { addCourseAndClass, addEntry, createRace, openStep, registerAccount, unique, warmRoute } from "./helpers";
+import { addCourseAndClass, addEntry, createRace, openStep, publishRace, registerAccount, unique, warmRoute } from "./helpers";
 
 /**
  * Steg 15 (ADR-0170 beslut 5): rogaining. Kontrollerna läggs in som en bana med klass och tidsgräns, poängen
@@ -17,6 +17,8 @@ test("rogaining: poäng, straff och resultatlista på summa", async ({ browser }
   const suffix = unique();
   const owner = await registerAccount(browser, `poang.${suffix}@exempel.se`, "Rut Rogaining");
   const raceId = await createRace(owner, `Poängjakt ${suffix}`, "2026-10-08", "Rogaining");
+  // Besökarna ska se tävlingen (ADR-0172 beslut 4).
+  await publishRace(owner);
   for (const path of ["rogaining", "rogaining/preview"]) await warmRoute(owner, `/api/admin/races/${raceId}/administrator/${path}`, "POST");
 
   // Kontrollerna som en bana med klass; tidsgränsen 60 minuter och 1 poäng i straff är förval.

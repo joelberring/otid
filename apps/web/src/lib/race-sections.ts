@@ -7,14 +7,14 @@ import type { RaceType } from "@o-tid/contracts";
  */
 
 /** Delarna i sidopanelen, i banans ordning. Inställningar ligger alltid sist, utanför banan. */
-export type SectionId = "COURSES" | "CLASSES" | "ENTRIES" | "START" | "READOUT" | "RESULTS" | "SETTINGS";
+export type SectionId = "COURSES" | "CLASSES" | "ENTRIES" | "START" | "PUBLISH" | "READOUT" | "RESULTS" | "SETTINGS";
 
 /** Det innehåll som en del visar. En del kan visa flera (Träning: banor och klasser på samma ställe). */
-export type Panel = "COURSES" | "CLASSES" | "ROGAINING" | "ENTRIES" | "START" | "READOUT" | "RESULTS" | "SETTINGS";
+export type Panel = "COURSES" | "CLASSES" | "ROGAINING" | "ENTRIES" | "START" | "PUBLISH" | "READOUT" | "RESULTS" | "SETTINGS";
 
 /** Delens namn; texterna finns i i18n (`raceTypeSv.sections`). */
 export type SectionLabel = "COURSES" | "COURSES_CLASSES" | "CONTROLS_POINTS" | "CLASSES" | "CLASSES_LEGS" | "ENTRIES" |
-  "PARTICIPANTS" | "TEAMS" | "START" | "READOUT" | "RESULTS" | "SETTINGS";
+  "PARTICIPANTS" | "TEAMS" | "START" | "PUBLISH" | "READOUT" | "RESULTS" | "SETTINGS";
 
 export type Section = { id: SectionId; label: SectionLabel; panels: readonly Panel[] };
 
@@ -51,6 +51,8 @@ const courses = section("COURSES", "COURSES");
 const classes = section("CLASSES", "CLASSES");
 const entries = section("ENTRIES", "ENTRIES");
 const start = section("START", "START");
+/** ADR-0172 beslut 4: tävlingen syns publikt först när den är publicerad. Före avläsningen, så att resultaten kan följas. */
+const publish = section("PUBLISH", "PUBLISH");
 const readout = section("READOUT", "READOUT");
 const results = section("RESULTS", "RESULTS");
 const settings = section("SETTINGS", "SETTINGS");
@@ -61,28 +63,28 @@ const competition: RaceTypeFeatures = { ...none, draw: true, speaker: true, impo
 
 const profiles: Record<RaceType, Omit<RaceTypeProfile, "type" | "settings">> = {
   TRAINING: {
-    course: [section("COURSES", "COURSES_CLASSES", ["COURSES", "CLASSES"]), section("ENTRIES", "PARTICIPANTS"), readout, results],
+    course: [section("COURSES", "COURSES_CLASSES", ["COURSES", "CLASSES"]), section("ENTRIES", "PARTICIPANTS"), publish, readout, results],
     features: none
   },
   SMALL: {
-    course: [courses, classes, entries, start, readout, results],
+    course: [courses, classes, entries, start, publish, readout, results],
     features: { ...none, startRuleChoice: true }
   },
   STANDARD: {
-    course: [courses, classes, entries, start, readout, results],
+    course: [courses, classes, entries, start, publish, readout, results],
     features: competition
   },
   FORKED: {
-    course: [courses, classes, entries, start, readout, results],
+    course: [courses, classes, entries, start, publish, readout, results],
     features: { ...competition, variants: true, variantsProminent: true }
   },
   RELAY: {
-    course: [courses, section("CLASSES", "CLASSES_LEGS"), section("ENTRIES", "TEAMS"), start, readout, results],
+    course: [courses, section("CLASSES", "CLASSES_LEGS"), section("ENTRIES", "TEAMS"), start, publish, readout, results],
     features: { ...none, speaker: true, eventor: true, finalization: true, relay: true, variants: true, startRuleChoice: true }
   },
   ROGAINING: {
     course: [section("COURSES", "CONTROLS_POINTS", ["ROGAINING", "COURSES", "CLASSES"]), section("ENTRIES", "PARTICIPANTS"),
-      readout, results],
+      publish, readout, results],
     features: { ...none, rogaining: true }
   }
 };

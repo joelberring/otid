@@ -14,7 +14,7 @@ export const raceTypeSv = {
   typeLegend: "Typ av tävling",
   sections: {
     COURSES: "Banor", COURSES_CLASSES: "Banor & klasser", CONTROLS_POINTS: "Kontroller & poäng", CLASSES: "Klasser",
-    CLASSES_LEGS: "Klasser & sträckor", ENTRIES: "Anmälda", PARTICIPANTS: "Deltagare", TEAMS: "Lag", START: "Start",
+    CLASSES_LEGS: "Klasser & sträckor", ENTRIES: "Anmälda", PARTICIPANTS: "Deltagare", TEAMS: "Lag", START: "Start", PUBLISH: "Publicera",
     READOUT: "Avläsning", RESULTS: "Resultat", SETTINGS: "Inställningar"
   } satisfies Record<SectionLabel, string>,
   navigation: "Tävlingens delar",

@@ -15,3 +15,8 @@ export type OrganizerAccountCookieNames =
 export function isOrganizerLoopback(hostname: string): boolean {
   return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
 }
+
+/** Kontots sessionscookie för serverns sidor: samma val som `organizerSecurityPolicy` (drift eller lokal adress). */
+export function organizerAccountSessionCookieName(environment: Partial<Pick<NodeJS.ProcessEnv, "NODE_ENV">> = process.env): string {
+  return environment.NODE_ENV === "production" ? ORGANIZER_ACCOUNT_PRODUCTION_COOKIES.session : ORGANIZER_ACCOUNT_LOOPBACK_COOKIES.session;
+}

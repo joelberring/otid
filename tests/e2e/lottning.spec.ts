@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { addCourseAndClass, addEntry, createRace, openStep, registerAccount, unique } from "./helpers";
+import { addCourseAndClass, addEntry, createRace, openStep, publishRace, registerAccount, unique } from "./helpers";
 
 /**
  * PLAN.md steg 9: tre klasser lottas på en gång (H21 och D21 har samma första kontroll),
@@ -11,6 +11,8 @@ test("lotta tre klasser, publicera startlistan och placera en efteranmäld på v
   const suffix = unique();
   const owner = await registerAccount(browser, `lotta.${suffix}@exempel.se`, "Lo Lottare");
   const raceId = await createRace(owner, `Lottning ${suffix}`);
+  // Besökarna ska se tävlingen (ADR-0172 beslut 4).
+  await publishRace(owner);
   await addCourseAndClass(owner, "Lång", "H21", "31 32 33");
   await addCourseAndClass(owner, "Mellan", "D21", "31 34 33");
   await addCourseAndClass(owner, "Kort", "H16", "45 33");

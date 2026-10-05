@@ -344,5 +344,7 @@
     }
     ,{ "idx": 100, "version": "7", "when": 1796918400000, "tag": "0100_adr_0172_functionaries", "breakpoints": true
     }
+    ,{ "idx": 101, "version": "7", "when": 1797004800000, "tag": "0101_adr_0172_public_race", "breakpoints": true
+    }
   ]
 }

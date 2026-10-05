@@ -136,9 +136,15 @@ export const races = pgTable("race", {
   raceType: text("race_type").$type<RaceTypeValue>().notNull().default("STANDARD"),
   /** ADR-0172 beslut 2: superadmin döljer tävlingen från de publika sidorna. */
   hiddenBySuperadmin: boolean("hidden_by_superadmin").notNull().default(false),
+  /** ADR-0172 beslut 4: när admin publicerade tävlingen. NULL = inte publicerad (syns inte publikt). */
+  publishedAt: timestamp("published_at", { withTimezone: true }),
+  /** Kort adress till tävlingssidan (/t/{kod}), sätts av databasen (migration 0101). */
+  shortCode: text("short_code").notNull().default(sql`generate_race_short_code()`),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (table) => [
   check("race_type_check", sql`${table.raceType} in ('TRAINING', 'SMALL', 'STANDARD', 'FORKED', 'RELAY', 'ROGAINING')`),
+  check("race_short_code_check", sql`${table.shortCode} ~ '^[2-9a-hjkmnp-z]{6}$'`),
+  uniqueIndex("race_short_code_uidx").on(table.shortCode),
   index("race_event_idx").on(table.eventId),
   uniqueIndex("race_id_event_uidx").on(table.id, table.eventId)
 ]);

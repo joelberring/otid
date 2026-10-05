@@ -23,7 +23,7 @@ export function PublicStartList({ raceId, initial }: { raceId: string; initial: 
       const controller = new AbortController();
       const timeout = window.setTimeout(() => controller.abort(), 10_000);
       try {
-        const response = await fetch(`/api/races/${encodeURIComponent(raceId)}/start-list`, { cache: "no-store", credentials: "omit",
+        const response = await fetch(`/api/races/${encodeURIComponent(raceId)}/start-list`, { cache: "no-store", credentials: "same-origin",
           signal: controller.signal });
         if (response.status === 404) { if (!stopped) { setData(null); setFailed(false); } return; }
         if (!response.ok) throw new Error("Startlistan kunde inte hämtas");

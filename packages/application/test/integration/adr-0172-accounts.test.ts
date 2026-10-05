@@ -8,8 +8,8 @@ import { deleteOwnAccount, readAccountProfile } from "../../src/account-self-ser
 import { createEventAsUserAccount, enterRaceAsUserAccount, listMyEventsAsUserAccount } from "../../src/organizer-events";
 import { performSuperadminAction, readSuperadminOverview, setSuperadmin } from "../../src/superadmin";
 import { isRacePubliclyVisible } from "../../src/public-race-visibility";
-import { listEvents } from "../../src/events";
-import { grantRacePerson, registerTestAccount, TEST_PASSWORD } from "./accounts";
+import { listPublicRaces } from "../../src/public-races";
+import { grantRacePerson, registerTestAccount, setRacePublished, TEST_PASSWORD } from "./accounts";
 
 /**
  * ADR-0172 beslut 1–2 / PLAN.md steg 17: konton med e-post, spärr mot upprepade försök, glömt lösenord,
@@ -172,11 +172,13 @@ describe("ADR-0172 konton", () => {
     const boss = await superadmin();
     const owner = await registerTestAccount(db, `dold.${suffix()}`);
     const event = await createEvent(owner.proof, `Dold ${suffix()}`);
+    expect(await setRacePublished(db, owner.proof, event.raceId)).toMatchObject({ status: "saved" });
     expect(await isRacePubliclyVisible(db, event.raceId)).toBe(true);
     expect(await performSuperadminAction(db, boss.proof, { formatVersion: 1, action: "HIDE_RACE", raceId: event.raceId,
       reason: "Stötande namn" })).toEqual({ status: "done", action: "HIDE_RACE" });
     expect(await isRacePubliclyVisible(db, event.raceId)).toBe(false);
-    expect((await listEvents(db)).map((row) => row.raceId)).not.toContain(event.raceId);
+    const listing = await listPublicRaces(db, { recentLimit: 200 });
+    expect([...listing.ongoing, ...listing.upcoming, ...listing.recent].map((row) => row.raceId)).not.toContain(event.raceId);
     // Ägaren ser fortfarande sin tävling.
     const mine = await listMyEventsAsUserAccount(db, owner.proof);
     expect(mine.status === "ok" && mine.response.events.map((row) => row.eventId)).toContain(event.eventId);

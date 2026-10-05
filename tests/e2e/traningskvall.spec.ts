@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
-import { addCourseAndClass, addEntry, createRace, openStep, registerAccount, sectionButton, unique, warmRoute } from "./helpers";
+import { addCourseAndClass, addEntry, createRace, openStep, publishRace, registerAccount, sectionButton, unique, warmRoute } from "./helpers";
 
 /**
  * Steg 4–5 (ADR-0168): en hel träningskväll med tio syntetiska löpare.
@@ -34,6 +34,8 @@ test("träningskväll från tävling till IOF-export", async ({ browser, request
   const suffix = unique();
   const owner = await registerAccount(browser, `kvall.${suffix}@exempel.se`, "Kim Klubb");
   const raceId = await createRace(owner, `Träningskväll ${suffix}`, "2026-10-08", "Träning");
+  // Besökarna ska se tävlingen (ADR-0172 beslut 4).
+  await publishRace(owner);
   await addCourseAndClass(owner, "Lång", "H21", "31 32 33 34");
   await addCourseAndClass(owner, "Kort", "D21", "31 33");
   for (const runner of RUNNERS) await addEntry(owner, { ...runner, club: "OK Test" });

@@ -16,6 +16,8 @@ export * from "./race-people";
 export * from "./purge";
 export * from "./superadmin";
 export * from "./public-race-visibility";
+export * from "./public-races";
+export * from "./race-publication";
 export * from "./hash";
 export * from "./import-iof";
 export * from "./ingest";

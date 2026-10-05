@@ -45,10 +45,12 @@ export async function listEntryTransfersAsAdministrator(db: Database, input: Aut
     if (auth.status !== "authenticated") return auth;
     const race = await lockRaceForSnapshot(tx, input.raceId);
     const [metadata] = await tx.select({ eventName: schema.events.name, raceName: schema.races.name,
-      raceDate: schema.races.raceDate, raceType: schema.races.raceType, timeZone: schema.events.timeZone })
+      raceDate: schema.races.raceDate, raceType: schema.races.raceType, timeZone: schema.events.timeZone,
+      shortCode: schema.races.shortCode, publishedAt: schema.races.publishedAt, hiddenBySuperadmin: schema.races.hiddenBySuperadmin })
       .from(schema.races).innerJoin(schema.events, eq(schema.events.id, schema.races.eventId))
       .where(eq(schema.races.id, input.raceId));
     if (!metadata) throw new Error("Loppets metadata saknas");
+    const { shortCode, publishedAt, hiddenBySuperadmin, ...raceFacts } = metadata;
     const classRows = await tx.select({ id: schema.classes.id, name: schema.classes.name,
       courseVersionId: schema.classes.courseVersionId, startRule: schema.classes.startRule, courseRaceId: schema.courses.raceId,
       courseName: schema.courses.name, courseVersion: schema.courseVersions.version,
@@ -139,7 +141,8 @@ export async function listEntryTransfersAsAdministrator(db: Database, input: Aut
     const startFacts = await loadStartListFacts(tx, input.raceId);
     return { status: "ok" as const, response: entryTransferCandidatesSchema.parse({
       formatVersion: 2, raceId: input.raceId, snapshotVersion: race.snapshotVersion,
-      generatedAt: now.toISOString(), ...metadata,
+      generatedAt: now.toISOString(), ...raceFacts,
+      publication: { shortCode, publishedAt: publishedAt?.toISOString() ?? null, hiddenBySuperadmin },
       classes: classRows.map(row => ({ id: row.id, name: row.name, courseVersionId: row.courseVersionId,
         courseName: row.courseName, courseVersion: row.courseVersion, startRule: row.startRule,
         maxEntries: row.maxEntries, capacityVersion: row.capacityVersion, entryCount: entryCounts.get(row.id) ?? 0,

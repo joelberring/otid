@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
-import { addCourseAndClass, addEntry, createRace, openStep, registerAccount, unique, warmRoute } from "./helpers";
+import { addCourseAndClass, addEntry, createRace, openStep, publishRace, registerAccount, unique, warmRoute } from "./helpers";
 
 /**
  * PLAN.md steg 16 (ADR-0171): sträcktidsanalys och vägval. Tre löpare lottas med fem minuter mellan starterna och
@@ -60,6 +60,8 @@ test("sträcktidsanalys: från resultatlistan, sortering på en sträcka och vä
   const raceDate = zoned(firstStart, { year: "numeric", month: "2-digit", day: "2-digit" });
   const owner = await registerAccount(browser, `stracka.${suffix}@exempel.se`, "Sara Sträcka");
   const raceId = await createRace(owner, `Sträckor ${suffix}`, raceDate, "Tävling");
+  // Besökarna ska se tävlingen (ADR-0172 beslut 4).
+  await publishRace(owner);
   await addCourseAndClass(owner, "Lång", "H21", "31 32 33");
   for (const runner of RUNNERS) await addEntry(owner, runner);
   for (const path of ["map", "map/image"]) await warmRoute(owner, `/api/admin/races/${raceId}/administrator/${path}`);

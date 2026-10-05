@@ -5,9 +5,21 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 19 – Publik startsida och tävlingssida (ADR-0172). Steg 7 (hårdvara) väntar på att ägaren har stationen till hands.
+Steg 20 – Radiokontroller via ROC (ADR-0172). Steg 7 (hårdvara) väntar på att ägaren har stationen till hands.
 
 ## Logg
+
+### 2026-10-06 – Steg 19: publik startsida och tävlingssida (steg 19 klart)
+- Migration 0101: `race.published_at` (NULL = inte publicerad) och `race.short_code` (6 tecken utan 0/1/i/l/o, unik, sätts av databasen).
+  Synlig = publicerad och inte dold; en grind (`publicRaceAccess` + `lib/public-race-gate.ts`) för alla publika sidor, API:er, resultatströmmen och exporter.
+- Arbetsytan: steget Publicera (före Avläsning, status Publicerad/Inte publicerad/Dold) och samma del under Inställningar: publicera/sluta publicera,
+  tävlingssidans adress, kopiera länk, "Skriv ut QR-kod". Texten förklarar att startlistan har egen publicering och att resultaten syns vid avläsning.
+- Opublicerad: "Tävlingen är inte publicerad" (404, inget namn). Ägare/administratör/funktionär inloggad med kontot ser publika sidor med
+  bannern "Förhandsvisning – inte publicerad" (svaren `private, no-store`).
+- Startsidan: sök på namn, Pågår nu (dagen i tävlingens tidszon), Kommande, Senaste med "Visa fler", inga adminlänkar. `/t/{kod}`: tävlingssidan
+  (startlista, resultat, sträcktider, vägval, senast uppdaterad); `/t/{kod}/qr`: QR-kod (`qrcode`), A4/A5, ren utskrift. Listorna länkar dit.
+- Verifierat: lint, typecheck, test (nytt `public-race-gate.test` över alla publika routes), test:integration (nytt `adr-0172-public-race`), build,
+  e2e alla 14 specar var för sig gröna (nytt `publikt`; `listor` efter omförsök, avläsningens timing). Utvecklingsservern kräver lokalt `--max-old-space-size=1536`.
 
 ### 2026-10-05 – Steg 18: funktionärer och städning av gamla behörigheter (steg 18 klart)
 - Rollen Funktionär (migration 0100: `FUNCTIONARY`, delegeringen `RACE_FUNCTIONARY`). Inställningar → "Personer med behörighet": ägare, administratörer och

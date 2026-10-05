@@ -15,7 +15,8 @@ import {
 } from "../../src/relay-admin";
 import { getRelayOverviewAsAdministrator, publicRelayResults } from "../../src/relay-results";
 import { publicResults } from "../../src/results";
-import { exportIofResultListAsAdmin } from "../../src/result-list-export";
+import { exportIofResultListAsAdmin, exportPublicIofResultList } from "../../src/result-list-export";
+import { exportCurrentStartListXmlAsAdmin } from "../../src/start-list-publication";
 import { registerEntryAsAdmin } from "../../src/entry-registration";
 import { listEntryTransfersAsAdministrator } from "../../src/entry-transfer";
 
@@ -231,6 +232,20 @@ describe("ADR-0169 stafett", () => {
     expect(xml).toContain("<Status>MissingPunch</Status>");
     expect(xml).toContain("<Status>Active</Status>");
     expect(xml).not.toContain("<PersonResult>");
+
+    // PLAN.md steg 13: samma resultatlista publikt (utan externa id:n) och startlistan med lagen som TeamStart.
+    const publicExport = await exportPublicIofResultList(db, proof.raceId);
+    if (publicExport.status !== "ok") throw new Error(`Den publika exporten misslyckades: ${publicExport.status}`);
+    const publicXml = new TextDecoder().decode(publicExport.bytes);
+    expect(publicXml).toContain("<BibNumber>12</BibNumber>");
+    expect(publicXml).not.toMatch(/<Id[ >]/);
+    const startList = await exportCurrentStartListXmlAsAdmin(db, proof);
+    if (startList.status !== "exported") throw new Error(`Startlistan saknas: ${startList.status}`);
+    expect(startList.xml.match(/<TeamStart>/g)).toHaveLength(4);
+    expect(startList.xml).toMatch(/<BibNumber>12<\/BibNumber>\s*<TeamMemberStart>/);
+    expect(startList.xml).toMatch(/<Leg>1<\/Leg>\s*<StartTime>/);
+    expect(startList.xml).toContain("<Leg>3</Leg>");
+    expect(startList.xml).toContain("<Family>Löpare</Family>");
   });
 
   it("gafflad stafett: lagen roteras över varianterna och TeamCourseAssignment ger varianter per sträcka", async () => {

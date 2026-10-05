@@ -7,6 +7,7 @@ import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
 import type { Operation } from "./types";
 import type { Base } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
+import { download } from "../lists/list-frame";
 
 /** Startlistan: publicering och funktionärer. Lottningen finns i `start-draw.ts`. */
 export function useStartListState() {
@@ -18,7 +19,7 @@ export function useStartListState() {
 }
 
 export function createStartListActions(ws: Base & RaceDataActions) {
-  const { raceId, publicationPreview, busyRef, pending, sent, requireSession, beginRequest, finish, current, request, json, csrf,
+  const { raceId, data, publicationPreview, busyRef, pending, sent, requireSession, beginRequest, finish, current, assertCurrent, request, json, csrf,
     setMessage, setUnknown, setPublicationPreview, setPublicationAttempt } = ws;
   async function readPublication(op: Operation) {
     const response = await request("/publication-preview", op);
@@ -27,11 +28,13 @@ export function createStartListActions(ws: Base & RaceDataActions) {
     if (value.raceId !== raceId) throw new Error("Publication scope mismatch");
     setPublicationPreview(value);
   }
-  async function loadPublication() {
-    if (busyRef.current || pending.current || !requireSession()) return;
+  /** Läser publiceringens läge. Svarar false om inget anrop gjordes (en annan åtgärd pågår). */
+  async function loadPublication(): Promise<boolean> {
+    if (busyRef.current || pending.current || !requireSession()) return false;
     const op = beginRequest(); setPublicationPreview(undefined); setMessage("");
     try { await readPublication(op); }
     catch { if (current(op)) setMessage(publicationText.loadError); } finally { finish(op); }
+    return true;
   }
   function preparePublication(action: "PUBLISH" | "WITHDRAW") {
     if (busyRef.current || pending.current || !requireSession() || !publicationPreview) return;
@@ -50,6 +53,7 @@ export function createStartListActions(ws: Base & RaceDataActions) {
   async function submitPublication(value: AdministratorPublicationAttempt) {
     if (busyRef.current || pending.current !== value || !requireSession()) return;
     const op = beginRequest(); const wasSent = sent.current; let committed = false;
+    const saved = value.request.action === "PUBLISH" ? publicationText.published : publicationText.withdrawn;
     try {
       const token = csrf(); sent.current = true;
       const response = await request("/publication", op, { method: "POST", headers: {
@@ -62,10 +66,25 @@ export function createStartListActions(ws: Base & RaceDataActions) {
       if (!response.ok) throw new Error("Unknown publication outcome");
       parseAdministratorPublicationReceipt(await json(response, op), raceId, value);
       committed = true; pending.current = undefined; sent.current = false; setPublicationAttempt(undefined); setUnknown(false);
-      setMessage(publicationText.saved); await readPublication(op);
-    } catch { if (current(op)) { setUnknown(!committed); setMessage(committed ? `${publicationText.saved} ${publicationText.loadError}` : text.unreachable); } }
+      setMessage(saved); await readPublication(op);
+    } catch { if (current(op)) { setUnknown(!committed); setMessage(committed ? `${saved} ${publicationText.loadError}` : text.unreachable); } }
     finally { finish(op); }
   }
-  return { loadPublication, preparePublication, submitPublication };
+  /** PLAN.md steg 13: startlistan som den ser ut nu som IOF XML (inte den publicerade). */
+  async function downloadStartList() {
+    if (busyRef.current || pending.current || !requireSession()) return;
+    const op = beginRequest(); setMessage(publicationText.exportDownloading);
+    try {
+      const response = await request("/start-list-export", op);
+      if (response.status === 404 || response.status === 409) { setMessage(publicationText.exportEmpty); return; }
+      if (!response.ok || response.headers.get("content-type") !== "application/xml; charset=utf-8") throw new Error("Export unavailable");
+      const xml = await response.text();
+      assertCurrent(op);
+      download(`startlista-${data?.raceDate ?? raceId}.xml`, xml, "application/xml;charset=utf-8");
+      setMessage(publicationText.exportDownloaded);
+    } catch { if (current(op)) setMessage(publicationText.exportError); }
+    finally { finish(op); }
+  }
+  return { loadPublication, preparePublication, submitPublication, downloadStartList };
 }
 export type StartListActions = ReturnType<typeof createStartListActions>;

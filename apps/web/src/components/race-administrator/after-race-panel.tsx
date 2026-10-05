@@ -11,9 +11,32 @@ import { Button, Field, Notice, Section } from "../ui";
 import { mispunchedEntries } from "../../lib/section-status";
 import { MispunchedList } from "./readout-control-view";
 import controlStyles from "./readout-control.module.css";
+import { ResultLists } from "../lists/result-lists";
+import { useResultListData } from "../lists/use-result-list-data";
+import { resultListFromPublic } from "../../lib/lists/result-list-model";
+import { listsSv as listText } from "../../i18n/lists-sv";
+import listStyles from "../lists/lists.module.css";
+import { useMemo } from "react";
 import type { Workspace } from "./workspace-state";
 
-/** Resultat: länkar, omräkning per klass, fastställande och flytt till kortare bana. */
+/**
+ * Resultatlistorna i arbetsytan (PLAN.md steg 13): samma vyer som den publika sidan, med de publicerade
+ * resultaten. Hämtas när Resultat visas och uppdateras sedan av sig själv.
+ */
+function AdminResultLists({ ws }: { ws: Workspace }) {
+  const { authenticated, data, disabled, downloadResults, raceId, shows } = ws;
+  const { data: lists, failed } = useResultListData(raceId, undefined, authenticated && shows("RESULTS"), 15_000);
+  const model = useMemo(() => lists ? resultListFromPublic(lists.results, lists.relay) : undefined, [lists]);
+  if (!model || !data) return <p className={styles.muted} role="status">{failed ? listText.results.refreshFailed : listText.results.loading}</p>;
+  return <ResultLists model={model} raceId={raceId} race={`${data.eventName} · ${data.raceName} · ${data.raceDate}`} raceDate={data.raceDate}
+    links={false} iof={{ onSelect: () => void downloadResults(), disabled }}
+    status={failed ? <p className={listStyles.notice} role="alert">{listText.results.refreshFailed}</p> : undefined} />;
+}
+
+/**
+ * Resultat (PLAN.md steg 13): felstämplade att titta på, resultatlistorna (per klass, med sträcktider, per klubb) och
+ * under dem efterarbetet: fastställande (typer som har det), omräkning och flytt till kortare bana.
+ */
 export function AfterRacePanel({ ws }: { ws: Workspace }) {
   const { busy, classRecalculationAttempt, classRecalculationCandidates, classRecalculationError,
     classRecalculationSaved, classRecalculationUnknown, data, disabled, finalizationAttempt, finalizationCandidate,
@@ -30,12 +53,17 @@ export function AfterRacePanel({ ws }: { ws: Workspace }) {
     <Section id={`results-${raceId}`} title={navigationText.steps.RESULTS} help={text.resultsHelp}
       actions={!workflowLocked && <nav className={styles.contextLinks} aria-label={text.resultsLinks}>
         <Link href={`/results/${raceId}`}>{text.publicResultsLink}</Link>
-        <Link href={`/starts/${raceId}`}>{text.publicStartListLink}</Link>
       </nav>} />
     {data && mispunchedEntries(data).length > 0 && <section className={controlStyles.controlCard} aria-labelledby={`control-mp-${raceId}`}>
       <MispunchedList ws={ws} />
     </section>}
-    {profile.features.finalization && <Section id={`finalization-${raceId}`} title={text.finalizationHeading} help={text.finalizationHelp}>
+    <AdminResultLists ws={ws} />
+    <Section id={`results-follow-up-${raceId}`} title={text.followUpHeading} help={text.followUpHelp}>
+    <div className={styles.disclosureList}>
+    {profile.features.finalization && <details className={styles.disclosure} open={finalizationAttempt ? true : undefined}>
+      <summary>{text.finalizationHeading}</summary>
+      <div className={styles.disclosureBody}>
+      <p className={styles.workflowHelp}>{text.finalizationHelp}</p>
       <div><Button variant="secondary" disabled={disabled} onClick={() => void loadFinalizationBasis()}>{text.finalizationLoad}</Button></div>
       {finalizationCandidates && <>
         <Field label={text.finalizationScope} className={styles.narrowField}><select value={finalizationScope} disabled={disabled}
@@ -63,7 +91,9 @@ export function AfterRacePanel({ ws }: { ws: Workspace }) {
           }}>{text.cancel}</Button>}
         </div>
       </section>}
-    </Section>}
+      <FinalizedExports ws={ws} />
+      </div>
+    </details>}
     <details className={styles.disclosure} open={classRecalculationAttempt ? true : undefined}>
       <summary>{text.classRecalculationTitle}</summary>
       {data && <ClassResultRecalculation classes={data.classes.map((item) => ({ id: item.id, name: item.name }))}
@@ -136,34 +166,26 @@ export function AfterRacePanel({ ws }: { ws: Workspace }) {
         </section>}
       </form>
     </details>
+    </div>
+    </Section>
   </section>;
 }
 
-/** Resultat: IOF-export av aktuella och fastställda resultat. */
-export function ResultExportPanel({ ws }: { ws: Workspace }) {
-  const { data, disabled, downloadFinalization, downloadResults, finalizationId, finalizations, loadFinalizations, profile,
-    setFinalizationId, shows } = ws;
+/** Fastställda listor (IOF XML) i fastställandet. Den aktuella resultatlistan exporteras från listornas verktygsrad. */
+function FinalizedExports({ ws }: { ws: Workspace }) {
+  const { data, disabled, downloadFinalization, finalizationId, finalizations, loadFinalizations, setFinalizationId } = ws;
   const timeZone = data?.timeZone ?? "UTC";
-  return <section className={styles.workflowGroup} aria-label={text.exportHeading} hidden={!shows("RESULTS")}>
-    <details className={styles.disclosure}>
-      <summary>{text.exportHeading}</summary>
-      <div className={styles.disclosureBody}>
-        <p className={styles.workflowHelp}>{text.exportHelp}</p>
-        <div><Button variant="secondary" disabled={disabled} onClick={() => void downloadResults()}>{text.exportDownload}</Button></div>
-        {profile.features.finalization && <>
-          <h3>{text.exportCompleteHeading}</h3>
-          <p className={styles.workflowHelp}>{text.exportCompleteHelp}</p>
-          <div><Button variant="secondary" disabled={disabled} onClick={() => void loadFinalizations()}>{text.exportLoadHistory}</Button></div>
-          {finalizations?.length === 0 && <p>{text.exportEmptyHistory}</p>}
-          {!!finalizations?.length && <>
-            <Field label={text.exportFinalization} className={styles.narrowField}><select value={finalizationId} disabled={disabled}
-              onChange={event => setFinalizationId(event.target.value)}>
-              {finalizations.map(row => <option key={row.id} value={row.id}>{text.exportFinalizationOption(formatClockTime(row.finalizedAt, timeZone), row.entryCount)}</option>)}
-            </select></Field>
-            <div><Button disabled={disabled || !finalizationId} onClick={() => void downloadFinalization()}>{text.exportDownloadComplete}</Button></div>
-          </>}
-        </>}
-      </div>
-    </details>
-  </section>;
+  return <>
+    <h3>{text.exportCompleteHeading}</h3>
+    <p className={styles.workflowHelp}>{text.exportCompleteHelp}</p>
+    <div><Button variant="secondary" disabled={disabled} onClick={() => void loadFinalizations()}>{text.exportLoadHistory}</Button></div>
+    {finalizations?.length === 0 && <p>{text.exportEmptyHistory}</p>}
+    {!!finalizations?.length && <>
+      <Field label={text.exportFinalization} className={styles.narrowField}><select value={finalizationId} disabled={disabled}
+        onChange={event => setFinalizationId(event.target.value)}>
+        {finalizations.map(row => <option key={row.id} value={row.id}>{text.exportFinalizationOption(formatClockTime(row.finalizedAt, timeZone), row.entryCount)}</option>)}
+      </select></Field>
+      <div><Button disabled={disabled || !finalizationId} onClick={() => void downloadFinalization()}>{text.exportDownloadComplete}</Button></div>
+    </>}
+  </>;
 }

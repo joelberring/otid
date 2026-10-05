@@ -95,6 +95,41 @@ describe("serializeIofStartList", () => {
     expect(() => serializeIofStartList(value as unknown as IofStartListProjection)).toThrowError(pattern);
   });
 
+  it("skriver stafettlag som TeamStart med sträcka och starttid bara där den finns", () => {
+    const xml = text(serializeIofStartList({ eventName: "Klubbstafett", classes: [{ className: "Stafett", startRule: "FIXED", starts: [],
+      teamStarts: [{ name: "OK Ek 1", bibNumber: 1, organisationName: "OK Ek", members: [
+        { leg: 1, givenName: "Anna", familyName: "Ek", startTime: "2026-08-31T10:00:00Z" },
+        { leg: 2, givenName: "Bo", familyName: "Ek", organisationName: "OK Ek" }] }] }] }));
+    expect(xml).toContain(`    <TeamStart>
+      <Name>OK Ek 1</Name>
+      <Organisation>
+        <Name>OK Ek</Name>
+      </Organisation>
+      <BibNumber>1</BibNumber>
+      <TeamMemberStart>
+        <Person>
+          <Name>
+            <Family>Ek</Family>
+            <Given>Anna</Given>
+          </Name>
+        </Person>
+        <Start>
+          <Leg>1</Leg>
+          <StartTime>2026-08-31T10:00:00.000Z</StartTime>
+        </Start>
+      </TeamMemberStart>`);
+    expect(xml).toContain(`        <Start>
+          <Leg>2</Leg>
+        </Start>`);
+    expect(xml).not.toContain("<PersonStart>");
+  });
+
+  it("avvisar stafettlag med sträckor i fel ordning", () => {
+    expect(() => serializeIofStartList({ eventName: "Test", classes: [{ className: "Stafett", startRule: "FIXED", starts: [],
+      teamStarts: [{ name: "Lag", bibNumber: 1, members: [{ leg: 2, givenName: "A", familyName: "B" }, { leg: 1, givenName: "C", familyName: "D" }] }] }] }))
+      .toThrowError(/sträckor i ordning/);
+  });
+
   it("avvisar gränser", () => {
     const tooManyClasses = Array.from({ length: 1_001 }, () => ({ className: "H21", startRule: "PUNCH" as const, starts: [] }));
     expect(() => serializeIofStartList({ eventName: "Test", classes: tooManyClasses })).toThrowError(/1000/);

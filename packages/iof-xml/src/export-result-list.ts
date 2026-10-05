@@ -40,6 +40,8 @@ export interface IofResultListEvaluatedPersonResult extends IofResultListPersonR
   readonly timeBehindMs?: number;
   readonly expectedControls: readonly IofResultListExpectedControl[];
   readonly splits: readonly IofResultListSplit[];
+  /** Stämplade kontroller utan giltig tid (före start eller efter mål): SplitTime utan Time (PLAN.md steg 13). */
+  readonly untimedControls?: readonly IofResultListExpectedControl[];
   /**
    * Internal proof for an approved OK projection whose source has a missing
    * expected split. It is runtime-validated and intentionally never emitted.
@@ -57,6 +59,7 @@ export interface IofResultListOutOfCompetitionPersonResult extends IofResultList
   readonly timeBehindMs?: never;
   readonly expectedControls: readonly IofResultListExpectedControl[];
   readonly splits: readonly IofResultListSplit[];
+  readonly untimedControls?: readonly IofResultListExpectedControl[];
   readonly manualApprovalProof?: never;
 }
 
@@ -70,6 +73,7 @@ export interface IofResultListDidNotFinishPersonResult extends IofResultListPers
   readonly timeBehindMs?: never;
   readonly expectedControls?: never;
   readonly splits?: never;
+  readonly untimedControls?: never;
   readonly manualApprovalProof?: never;
 }
 
@@ -313,6 +317,7 @@ interface ValidatedResult {
   readonly startTime?: string;
   readonly finishTime?: string;
   readonly splitByKey: ReadonlyMap<string, IofResultListSplit>;
+  readonly untimedKeys?: ReadonlySet<string>;
 }
 
 function validateResult(
@@ -343,6 +348,7 @@ function validateResult(
       "timeBehindMs",
       "expectedControls",
       "splits",
+      "untimedControls",
       "manualApprovalProof"
     ];
     for (const property of forbidden) {
@@ -484,13 +490,21 @@ function validateResult(
     }
     previousElapsedMs = split.elapsedMs;
   }
+  const untimedKeys = new Set<string>();
+  for (const [index, control] of (result.untimedControls ?? []).entries()) {
+    const untimedKey = key(control.controlCode, control.occurrence);
+    if (!expectedKeys.has(untimedKey) || splitByKey.has(untimedKey) || untimedKeys.has(untimedKey)) {
+      issues.push(`${path}.untimedControls[${index}] måste vara en förväntad kontroll utan split`);
+    }
+    untimedKeys.add(untimedKey);
+  }
   const hasMissingExpectedSplit = expectedControls.some((control) =>
-    !splitByKey.has(key(control.controlCode, control.occurrence)));
+    !splitByKey.has(key(control.controlCode, control.occurrence)) && !untimedKeys.has(key(control.controlCode, control.occurrence)));
   if (result.status === "OK" && hasMissingExpectedSplit && !manualApprovalProofValid) {
     issues.push(`${path} med status OK måste ha en split för varje förväntad kontroll eller ett giltigt manualApprovalProof`);
   }
 
-  return { ...(startTime ? { startTime } : {}), ...(finishTime ? { finishTime } : {}), splitByKey };
+  return { ...(startTime ? { startTime } : {}), ...(finishTime ? { finishTime } : {}), splitByKey, untimedKeys };
 }
 
 function line(lines: string[], indentation: number, value: string): void {
@@ -558,6 +572,13 @@ function serializeResult(
   }
   if (result.status !== "DNF") for (const control of result.expectedControls) {
     const split = validated.splitByKey.get(key(control.controlCode, control.occurrence));
+    if (!split && validated.untimedKeys?.has(key(control.controlCode, control.occurrence))) {
+      // Stämplad men utan giltig tid: SplitTime utan Time (IOF 3.0 tillåter det).
+      line(lines, base + 2, '<SplitTime status="OK">');
+      line(lines, base + 3, `<ControlCode>${control.controlCode}</ControlCode>`);
+      line(lines, base + 2, "</SplitTime>");
+      continue;
+    }
     if (!split) {
       line(lines, base + 2, '<SplitTime status="Missing">');
       line(lines, base + 3, `<ControlCode>${control.controlCode}</ControlCode>`);

@@ -146,6 +146,19 @@ describe("serializeIofResultList", () => {
 `);
   });
 
+  it("skriver en stämplad kontroll utan giltig tid som SplitTime utan Time och kräver den för OK", () => {
+    const early: IofResultListEvaluatedPersonResult = { ...completeOk, elapsedMs: 2_000,
+      expectedControls: [{ controlCode: 31, occurrence: 1 }, { controlCode: 32, occurrence: 1 }],
+      splits: [{ controlCode: 32, occurrence: 1, elapsedMs: 1_000 }], untimedControls: [{ controlCode: 31, occurrence: 1 }] };
+    const xml = text(serializeIofResultList({ status: "Snapshot", eventName: "E", classes: [{ className: "H21", results: [early] }] }));
+    expect(xml).toMatch(/<SplitTime status="OK">\s*<ControlCode>31<\/ControlCode>\s*<\/SplitTime>/);
+    expect(xml).toMatch(/<ControlCode>32<\/ControlCode>\s*<Time>1<\/Time>/);
+    const { untimedControls: _untimed, ...withoutUntimed } = early;
+    void _untimed;
+    expect(() => serializeIofResultList({ status: "Snapshot", eventName: "E", classes: [{ className: "H21", results: [withoutUntimed] }] }))
+      .toThrowError(/split för varje förväntad kontroll/);
+  });
+
   it("ger identiska UTF-8-bytes och bevarar projektionens ordning", () => {
     const first = serializeIofResultList(projection);
     for (let index = 0; index < 100; index += 1) {

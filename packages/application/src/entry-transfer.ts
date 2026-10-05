@@ -12,6 +12,7 @@ import { loadCourseVersionVariants, variantAfterClassChange } from "./course-var
 import { resolveStoredResultHeadStates } from "./result-revision-state";
 import { isEffectiveResultCurrent, loadResultBasisHashes } from "./result-basis";
 import { parseAdministratorStoredResultHead } from "./administrator-effective-result";
+import { loadStartListFacts } from "./start-draw-basis";
 
 type Authentication = Omit<PairingAdminRequestAuthentication, "capability">;
 const capability = "MANAGE_RACE" as const;
@@ -131,6 +132,7 @@ export async function listEntryTransfersAsAdministrator(db: Database, input: Aut
     const variants = await loadCourseVersionVariants(tx, classRows.map(row => row.courseVersionId));
     const relayClasses = await loadRelayClassConfigs(tx, input.raceId);
     const teams = new Map((relayClasses.size === 0 ? [] : await loadRelayTeams(tx, input.raceId)).map(team => [team.id, team]));
+    const startFacts = await loadStartListFacts(tx, input.raceId);
     return { status: "ok" as const, response: entryTransferCandidatesSchema.parse({
       formatVersion: 2, raceId: input.raceId, snapshotVersion: race.snapshotVersion,
       generatedAt: now.toISOString(), ...metadata,
@@ -139,7 +141,8 @@ export async function listEntryTransfersAsAdministrator(db: Database, input: Aut
         maxEntries: row.maxEntries, capacityVersion: row.capacityVersion, entryCount: entryCounts.get(row.id) ?? 0,
         startDrawn: row.startDrawId !== null,
         courseVariants: (variants.get(row.courseVersionId) ?? []).map(variant => variant.code),
-        ...(relayClasses.has(row.id) ? { relayLegCount: relayClasses.get(row.id)!.legs.length } : {}) })),
+        ...(relayClasses.has(row.id) ? { relayLegCount: relayClasses.get(row.id)!.legs.length } : {}),
+        ...startFacts.get(row.id) })),
       entries: rows.map(row => {
         const active = activeByEntry.get(row.id) ?? [];
         const assignment = active.length === 1 ? active[0] : undefined;

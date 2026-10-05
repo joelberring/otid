@@ -190,7 +190,10 @@
 @media print {
   .root[data-print-target] .content > :not(.forestPrint):not(.rentalPrint) { display: none !important; }
   .root[data-print-target="FOREST"] .forestPrint, .root[data-print-target="RENTAL"] .rentalPrint { display: block; }
-  .root:not([data-print-target]) { display: none; }
+  /* Utan särskilt utskriftsmål skrivs den synliga delens lista ut (PLAN.md steg 13), inget annat. */
+  .root:not([data-print-target]) .content > :not(.workflowGroup:has(> [data-list])),
+  .root:not([data-print-target]) .workflowGroup > :not([data-list]) { display: none !important; }
+  .root:not([data-print-target]) .content { display: block; padding: 0; max-width: none; }
   .rentalPrint { color: black; font-size: 10pt; }
   .rentalPrint h1 { margin: 0 0 6px; font-size: 15pt; }
   .rentalPrint p { margin: 2px 0; }

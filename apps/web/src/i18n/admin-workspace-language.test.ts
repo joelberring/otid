@@ -17,7 +17,7 @@ const entry = join(src, "components/race-administrator-workspace.tsx");
 const adminFiles = [
   "race-administrator-sv.ts", "race-workspace-navigation-sv.ts", "start-draw-sv.ts", "start-list-publication-sv.ts",
   "forest-watch-sv.ts", "participant-card-sv.ts", "class-table-sv.ts", "checkin-history-sv.ts", "checkin-conflict-review-sv.ts",
-  "race-operator-access-sv.ts", "race-preparation-start-list-sv.ts", "race-workflow-detail-sv.ts",
+  "race-operator-access-sv.ts", "race-workflow-detail-sv.ts", "lists-sv.ts",
   "speaker-sv.ts", "course-variants-sv.ts", "relay-sv.ts", "race-type-sv.ts"
 ];
 /** Delade textfiler (även publika sidor): bara nycklarna som arbetsytan läser granskas. */

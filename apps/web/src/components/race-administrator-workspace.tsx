@@ -12,7 +12,7 @@ import { Sidebar, TopBar } from "./race-administrator/shell";
 import { PreparationCourses } from "./race-administrator/preparation-courses";
 import { PreparationClasses } from "./race-administrator/preparation-classes";
 import { PreparationStartList } from "./race-administrator/preparation-start-list";
-import { AfterRacePanel, ResultExportPanel } from "./race-administrator/after-race-panel";
+import { AfterRacePanel } from "./race-administrator/after-race-panel";
 import { DuringRaceFollowUp, DuringRaceOverview } from "./race-administrator/during-race-panel";
 import { ParticipantsPanel, RentalPrint } from "./race-administrator/participants-panel";
 import { RogainingNote, SettingsPanel } from "./race-administrator/settings-panel";
@@ -79,7 +79,6 @@ export function RaceAdministratorWorkspace({ raceId }: { raceId: string }) {
         <DuringRaceOverview ws={ws} />
         <DuringRaceFollowUp ws={ws} />
         <AfterRacePanel ws={ws} />
-        <ResultExportPanel ws={ws} />
         <SettingsPanel ws={ws} />
       </div>
     </div>

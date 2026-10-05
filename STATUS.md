@@ -5,9 +5,21 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 13 – Start- och resultatlistor. Steg 7 (hårdvara) görs parallellt av ägaren.
+Steg 14 – Eventor och banfiler, med uppdateringar. Steg 7 (hårdvara) görs parallellt av ägaren.
 
 ## Logg
+
+### 2026-10-05 – Steg 13: start- och resultatlistor (steg 13 klart)
+- Ett listmönster (`components/lists/`, modeller i `lib/lists/`, sträckplaceringar i domänens `split-table.ts`) i Start, Resultat och de publika sidorna:
+  fast verktygsrad med vy, sök, klass, "Skriv ut" (egen A4-layout med tävling, lista och utskriftstid) och "Exportera" (IOF XML, CSV med BOM och semikolon).
+- Start: per klass (bana, startsätt, vakanser, fri start/masstart, stafettlag), per starttid (minut för minut per startfålla, vakanser, "Nu"), per klubb.
+  Publiceringen läses in av sig själv: läget i en mening och "Publicera startlistan". Lottningen överst som förut.
+- Resultat: per klass, med sträcktider (per variant, bästa sträcka), per klubb; stafett som lag med sträcklöpare och sträckresultat. Efterarbete under listorna.
+- Startfålla, startsätt, vakanser och bana i deltagarlistan och publiceringen; IOF StartList med TeamStart; publik IOF-resultatlista utan externa id:n.
+- Borttaget: gamla publika resultat-, stafett- och startlistkomponenter, följ/favorit och ruttval i listan, adminens startunderlag och exportpanel.
+- Stämpling före start eller efter mål: kontrollen räknas som stämplad men får ingen sträcktid ("–", IOF SplitTime utan Time), statusen följer vanliga regler
+  och deltagarkortet visar en notis. En ogiltig rad visas utan sträcktider i stället för att fälla hela den publika listan.
+- Verifierat: lint, typecheck, test, test:integration, build, e2e (8 flöden, nytt `listor`). Skärmbilder 1280/390 och utskrifts-PDF granskade.
 
 ### 2026-10-04 – Steg 12: tävlingstyp, nytt utseende och egen speakersida (steg 12 klart)
 - Tävlingstyp (migration 0095) väljs i "Skapa tävling" och under nya Inställningar (namn, datum, typ, funktionärer, import). `lib/race-sections.ts`
@@ -186,11 +198,7 @@ brickor till steg 7.
 
 ## Idéer (inte i planen än)
 
-- Publika resultat: följ/favorit och "Välj rutt för jämförelse" (parkerat GPS) ligger kvar per rad, nu som tysta textknappar. Kan tas bort eller döljas
-  när listorna görs om i steg 13.
-
-- Stafett: bana per sträcka finns bara via en gafflad bana (variant per sträcka). IOF StartList (TeamStart) och det fastställda
-  resultatets IOF-export skriver inte lag än. Kvar i skogen räknar även sträcklöpare som inte startat.
+- Stafett: bana per sträcka finns bara via en gafflad bana (variant per sträcka). Det fastställda resultatets IOF-export skriver inte lag än. Kvar i skogen räknar även sträcklöpare som inte startat.
 
 - Gafflingar: en klass som byter till en gafflad bana (Redigera klass) får inga varianter automatiskt; "Fördela gafflingar" gör det. IOF StartList/ResultList-export skriver inte variantens namn.
 - Klassbyte till en lottad klass ger inte automatiskt en vakant tid; arrangören anger tid som förut.

@@ -7,6 +7,7 @@ import {
   publicResultDetailResponseSchema,
   publicResultIdSchema,
   publicResultListResponseSchema,
+  publicResultV7Schema,
   resultRecalculationCandidateResponseSchema,
   resultRecalculationIdempotencyKeySchema,
   resultRecalculationRequestSchema,
@@ -839,9 +840,24 @@ export async function publicResults(db: Database, raceId: string): Promise<Publi
     }
     return publicResultListResponseSchema.parse({
       formatVersion: 7,
-      results
+      results: results.flatMap((row) => publicRow(row, raceId))
     });
   }, { isolationLevel: "repeatable read" });
+}
+
+/**
+ * PLAN.md steg 13: en enskild rad som inte passar det publika formatet får aldrig fälla hela resultatlistan.
+ * Raden visas då utan tekniska detaljer (sträcktider, saknade och extra kontroller); går inte heller det
+ * utelämnas den. Båda fallen loggas utan namn så att felet kan följas upp.
+ */
+function publicRow(row: PublicResultV7, raceId: string): PublicResultV7[] {
+  if (publicResultV7Schema.safeParse(row).success) return [row];
+  const reduced = "splits" in row ? { ...row, splits: [], missingControls: [], extraPunches: [] } : row;
+  const parsed = publicResultV7Schema.safeParse(reduced);
+  console.error(parsed.success
+    ? `Publikt resultat visas utan sträcktider: ogiltiga tekniska detaljer (lopp ${raceId}, resultat ${row.publicResultId})`
+    : `Publikt resultat utelämnat: ogiltig rad (lopp ${raceId}, resultat ${row.publicResultId})`);
+  return parsed.success ? [parsed.data] : [];
 }
 
 export type PublicResultDetailLookup =

@@ -51,6 +51,8 @@ export function RaceResultControls({ result, resultError, timeZone }: {
           </tr>)}</tbody>
         </table>
       </div>}
+    {!!details.untimedControls?.length && <p className={styles.untimedNote} role="note">
+      {text.untimedControls(details.untimedControls.join(", "))}</p>}
     <div className={styles.controlExceptions}>
       <p><strong>{text.missingControls}:</strong> {details.missingControls.length === 0 ? text.none : details.missingControls.join(", ")}</p>
       <p><strong>{text.extraPunches}:</strong> {details.extraPunches.length === 0 ? text.none : details.extraPunches.join(", ")}</p>

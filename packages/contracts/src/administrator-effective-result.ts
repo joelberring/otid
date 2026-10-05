@@ -12,7 +12,9 @@ export const administratorControlDetailsSchema = z.object({
   controls: z.array(z.object({ sequence: version, controlCode: version, occurrence: version,
     elapsedMs: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).nullable(),
     legMs: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).nullable() }).strict()).max(1_000),
-  missingControls: z.array(version).max(1_000), extraPunches: z.array(version).max(1_000)
+  missingControls: z.array(version).max(1_000), extraPunches: z.array(version).max(1_000),
+  /** PLAN.md steg 13: stämplade kontroller utan giltig tid (före start eller efter mål). Arbetsytan visar en notis. */
+  untimedControls: z.array(version).max(1_000).optional()
 }).strict().superRefine((details, ctx) => {
   const occurrences = new Map<number, number>();
   details.controls.forEach((control, index) => {

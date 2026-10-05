@@ -26,7 +26,9 @@ export {
   serializeIofStartList,
   type IofStartListClass,
   type IofStartListPersonStart,
-  type IofStartListProjection
+  type IofStartListProjection,
+  type IofStartListTeamMemberStart,
+  type IofStartListTeamStart
 } from "./export-start-list";
 
 import {

@@ -55,7 +55,11 @@ export const entryTransferCandidatesSchema = z.object({
     /** Gafflad klass: banans varianter i visningsordning (ADR-0169 beslut 2). Tom = inte gafflad. */
     courseVariants: z.array(courseVariantCodeSchema).max(100),
     /** Stafettklass (ADR-0169 beslut 3): antal sträckor. Saknas för individuella klasser. */
-    relayLegCount: z.number().int().min(2).max(20).optional()
+    relayLegCount: z.number().int().min(2).max(20).optional(),
+    /** Startlistorna (PLAN.md steg 13): första kontroll (startfålla), lottningens startsätt och vakanta tider. */
+    firstControlCode: z.number().int().positive().max(2_147_483_647).nullable().optional(),
+    drawMethod: z.enum(["MINUTE", "MASS"]).nullable().optional(),
+    vacancies: z.array(z.iso.datetime({ offset: true })).max(10_000).optional()
   }).strict()).max(1000),
   entries: z.array(z.object({ id: uuid, displayName: z.string().min(1).max(321),
     organisationName: z.string().min(1).max(240).nullable(), classId: uuid, version,

@@ -1,0 +1,157 @@
+/*
+ * Start- och resultatlistor (PLAN.md steg 13, ADR-0170 beslut 2–3): en verktygsrad som följer med vid rullning,
+ * täta tabeller per klass, starttid eller klubb. Färg bara för status, "nu" och markerat val.
+ * Utskriften är en egen layout: bara rubrik och tabeller, kompakt, A4 stående.
+ */
+.lists { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; min-width: 0; }
+
+/* Verktygsrad */
+.toolbar { position: sticky; top: var(--list-toolbar-top, var(--sticky-top, 0px)); z-index: 5; display: flex; flex-wrap: wrap;
+  align-items: center; gap: 8px 12px; margin: 0 -4px; padding: 10px 4px; background: var(--canvas); border-bottom: 1px solid var(--line-strong); }
+.segmented { display: inline-flex; flex: 0 0 auto; padding: 2px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); }
+.segmented button { min-height: 34px; padding: 0 12px; border: 0; border-radius: 4px; background: transparent; color: var(--ink);
+  font-family: var(--font-dense); font-size: var(--text-sm); font-weight: 500; white-space: nowrap; }
+.segmented button:hover:not(:disabled) { background: var(--subtle); }
+.segmented button[aria-pressed="true"], .segmented button[aria-pressed="true"]:hover:not(:disabled) { background: var(--ink); color: var(--surface);
+  font-weight: 600; }
+.filters { display: flex; flex: 1 1 22rem; gap: 8px; min-width: 0; }
+.filters label { display: block; min-width: 0; }
+.filters .search { flex: 1 1 14rem; }
+.filters .classFilter { flex: 0 1 11rem; }
+.filters input, .filters select { min-height: 38px; }
+.hiddenLabel { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.tools { display: flex; flex: 0 0 auto; align-items: center; gap: 6px; margin-inline-start: auto; }
+.tools > button, .menu > summary { min-height: 38px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: var(--radius);
+  background: var(--surface); color: var(--ink); font-size: var(--text-sm); font-weight: 600; }
+.tools > button:hover:not(:disabled), .menu > summary:hover { border-color: var(--ink); background: var(--surface); }
+.menu { position: relative; }
+.menu > summary { display: inline-flex; align-items: center; gap: 6px; list-style: none; cursor: pointer; }
+.menu > summary::-webkit-details-marker { display: none; }
+.menu > summary::after { content: ""; width: 6px; height: 6px; margin-top: -3px; border-right: 2px solid currentcolor; border-bottom: 2px solid currentcolor;
+  transform: rotate(45deg); }
+.menuItems { position: absolute; right: 0; top: calc(100% + 4px); z-index: 6; display: grid; min-width: 11rem; padding: 4px;
+  border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); box-shadow: 0 6px 18px rgba(0, 0, 0, .08); }
+.menuItems :is(a, button) { display: flex; align-items: center; min-height: 36px; padding: 0 10px; border: 0; border-radius: 4px; background: transparent;
+  color: var(--ink); font-size: var(--text-sm); font-weight: 500; text-align: left; text-decoration: none; }
+.menuItems :is(a, button):hover:not(:disabled) { background: var(--subtle); }
+.menuItems span { padding: 6px 10px; color: var(--muted); font-size: var(--text-xs); }
+.count { flex: 0 0 auto; color: var(--muted); font-family: var(--font-dense); font-size: var(--text-sm); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Block: en klass, en startfålla eller en klubb */
+.body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; min-width: 0; }
+.block { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; min-width: 0; padding-top: 18px; }
+.blockHead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; }
+.blockHead h3 { font-family: var(--font-dense); font-size: var(--text-lg); font-weight: 700; }
+.blockHead p { color: var(--muted); font-size: var(--text-sm); }
+.empty { padding: 6px 0 2px; color: var(--muted); font-size: var(--text-sm); }
+.nothing { padding: 24px 0; color: var(--muted); }
+.notice { max-width: 80ch; margin-top: 14px; padding: 8px 12px; border-left: 3px solid var(--attention); background: var(--attention-tint); font-size: var(--text-sm); }
+.notice strong { display: block; }
+.note { color: var(--muted); font-size: var(--text-sm); }
+
+/* Tabeller */
+/* Fast tabellayout: kolumnerna står på samma ställe i alla klasser (namn och klubb delar resten lika). */
+.table { width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0; font-variant-numeric: tabular-nums; }
+.table :is(th, td) { height: 34px; padding: 5px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+.table thead th { position: sticky; top: var(--sticky-top, 0px); z-index: 1; background: var(--canvas); color: var(--muted);
+  font-family: var(--font-dense); font-size: var(--text-xs); font-weight: 600; white-space: nowrap; border-bottom-color: var(--line-strong); }
+.table tbody th { color: var(--ink); font-family: var(--font-ui); font-size: var(--text-sm); font-weight: 600; overflow-wrap: anywhere; }
+.table td { overflow-wrap: anywhere; }
+.table tbody tr:hover > * { background: var(--subtle); }
+.num { text-align: right !important; font-family: var(--font-dense); white-space: nowrap; }
+.time { width: 6.5rem; font-family: var(--font-dense); white-space: nowrap; }
+.place { width: 3rem; font-family: var(--font-dense); font-weight: 600; text-align: right !important; }
+.narrow { width: 5.5rem; white-space: nowrap; }
+.classCol { width: 6rem; font-family: var(--font-dense); font-weight: 600; }
+.card { width: 7rem; font-family: var(--font-dense); white-space: nowrap; }
+.statusCol { width: 9rem; }
+.muted, .sub { color: var(--muted); }
+.sub { display: block; font-size: var(--text-xs); font-weight: 400; }
+.subMobile { display: none; }
+.person { min-height: 0; padding: 0; border: 0; background: transparent; color: var(--ink); font: inherit; font-weight: 600; text-align: left;
+  text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: .18em; }
+.person:hover:not(:disabled) { background: transparent; text-decoration-color: currentcolor; }
+.table a { font-weight: 600; }
+.attention { color: var(--attention); font-weight: 600; }
+.table .vacant > * { color: var(--muted); font-style: italic; }
+
+/* Status: ord först, färg bara som förstärkning */
+.status[data-status="OK"] { color: var(--ink); }
+.status[data-status="MP"], .status[data-status="DSQ"] { color: var(--mp); font-weight: 600; }
+.status:is([data-status="DNS"], [data-status="DNF"], [data-status="OOC"], [data-status="NT"], [data-status="RUNNING"]) { color: var(--muted); }
+
+/* Per starttid: en tbody per minut, nuvarande minut markerad med accent och ordet "Nu" */
+.minute > tr:first-child > * { border-top: 1px solid var(--line-strong); }
+.minute .clock { width: 5rem; font-family: var(--font-dense); font-size: var(--text-md); font-weight: 600; vertical-align: top; }
+.minute[data-current="true"] > tr > * { background: var(--subtle); }
+.minute[data-current="true"] .clock { box-shadow: inset 4px 0 0 var(--accent); }
+.nowMark { display: block; color: var(--accent); font-size: var(--text-xs); font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.placeHead { padding-top: 22px; }
+
+/* Stafett: lagrad och sträcklöpare under */
+.team > tr:first-child > * { border-top: 1px solid var(--line-strong); }
+.team > tr:not(:first-child) > :first-child { color: var(--muted); }
+.legRow > * { font-size: var(--text-sm); }
+.legRow th { font-weight: 500; padding-left: 22px; }
+
+/* Sträcktider: rullar i sidled inne i tabellen, namnkolumnen står kvar */
+.splitScroll { position: relative; min-width: 0; max-width: 100%; overflow-x: auto; border-bottom: 1px solid var(--line); }
+.splitTable { table-layout: auto; }
+.splitTable :is(th, td) { white-space: nowrap; }
+.splitTable thead th { position: static; }
+.splitTable .leg { min-width: 4.6rem; font-family: var(--font-dense); text-align: right; }
+.splitTable .total { display: block; color: var(--muted); font-size: var(--text-xs); }
+.splitTable .leg small { color: var(--muted); font-size: var(--text-xs); }
+.splitTable .best { font-weight: 700; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: .2em; }
+.stick { position: sticky; left: 0; z-index: 1; background: var(--canvas); box-shadow: inset -1px 0 0 var(--line); }
+.splitTable tbody tr:hover > .stick { background: var(--subtle); }
+
+/* Utskriftsrubrik: bara på papper */
+.printHeader { display: none; }
+
+@media (max-width: 760px) {
+  .toolbar { margin: 0; padding: 8px 0; gap: 8px; }
+  .segmented { flex: 1 1 100%; }
+  .segmented button { flex: 1 1 0; padding: 0 6px; }
+  .filters { flex: 1 1 100%; }
+  .tools { margin-inline-start: 0; }
+  .count { margin-inline-start: auto; }
+  .table :is(th, td) { padding: 5px 6px; }
+  .wideOnly { display: none; }
+  .subMobile { display: block; color: var(--muted); font-size: var(--text-xs); font-weight: 400; }
+  .table thead th { position: static; }
+  .time { width: 4.6rem; }
+  .card { width: 5.2rem; }
+  .statusCol { width: 6.5rem; }
+}
+
+@media print {
+  .toolbar, .noPrint { display: none !important; }
+  .lists { display: block; color: #000; font-size: 9pt; }
+  .printHeader { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 16px; margin-bottom: 4mm;
+    padding-bottom: 2mm; border-bottom: 1.5pt solid #000; }
+  .printHeader h2 { width: 100%; font-size: 15pt; }
+  .printHeader p { font-size: 9pt; }
+  .block { display: block; padding-top: 4mm; break-inside: avoid; }
+  .blockHead { break-after: avoid; margin-bottom: 1mm; }
+  .blockHead h3 { font-size: 11pt; }
+  .blockHead p, .note { color: #000; font-size: 8.5pt; }
+  .table :is(th, td) { height: auto; padding: 1mm 1.5mm; border-bottom: .5pt solid #999; color: #000; background: none !important;
+    font-size: 8.5pt; }
+  .table tbody th { font-size: 8.5pt; }
+  .table :is(.sub, .total, small) { color: #333; font-size: 7pt; }
+  .table thead { display: table-header-group; }
+  .table thead th { position: static; color: #000; border-bottom: 1pt solid #000; }
+  .table tr, .minute, .team { break-inside: avoid; }
+  .wideOnly { display: table-cell; }
+  .subMobile { display: none; }
+  .splitScroll { overflow: visible; border: 0; }
+  .splitTable :is(th, td), .splitTable tbody th { padding: .6mm 1mm; font-size: 7.5pt; }
+  .clock { font-size: 9pt !important; }
+  .stick { position: static; box-shadow: none; }
+  .minute[data-current="true"] .clock { box-shadow: none; }
+  .nowMark { display: none; }
+  .person { text-decoration: none; }
+  .table a { color: #000; text-decoration: none; }
+  .status, .attention { color: #000 !important; }
+}

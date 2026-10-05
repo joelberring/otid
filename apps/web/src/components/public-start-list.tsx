@@ -1,44 +1,57 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { publicStartListResponseSchema, type PublicStartListResponse } from "@o-tid/contracts";
-import { StartListContent } from "./start-list-content";
-import { formatStartListTime } from "../lib/start-list-time";
+import { StartLists } from "./lists/start-lists";
+import { startListFromPublication } from "../lib/lists/start-list-model";
+import { formatClockTime, zonedDate } from "../lib/clock-time";
 import { startListPublicationSv as text } from "../i18n/start-list-publication-sv";
-import styles from "./public-start-list.module.css";
+import styles from "./lists/lists.module.css";
 
-export function PublicStartList({ raceId }: { raceId: string }) {
-  const [data, setData] = useState<PublicStartListResponse>();
+/**
+ * Den publicerade startlistan (PLAN.md steg 13): samma tre vyer som i arbetsytan, utan bricka. Hämtas på nytt
+ * var femte sekund så att en ny publicering syns utan omladdning.
+ */
+export function PublicStartList({ raceId, initial }: { raceId: string; initial: PublicStartListResponse | null }) {
+  const [data, setData] = useState<PublicStartListResponse | null>(initial);
+  const [failed, setFailed] = useState(false);
   useEffect(() => {
-    let stopped = false;
-    let running = false;
-    let active: AbortController | undefined;
+    let stopped = false, running = false;
     async function refresh() {
       if (running || stopped) return;
       running = true;
       const controller = new AbortController();
-      active = controller;
       const timeout = window.setTimeout(() => controller.abort(), 10_000);
       try {
-        const response = await fetch(`/api/races/${encodeURIComponent(raceId)}/start-list`, {
-          cache: "no-store", credentials: "omit", signal: controller.signal });
-        if (!response.ok) throw new Error("unavailable");
+        const response = await fetch(`/api/races/${encodeURIComponent(raceId)}/start-list`, { cache: "no-store", credentials: "omit",
+          signal: controller.signal });
+        if (response.status === 404) { if (!stopped) { setData(null); setFailed(false); } return; }
+        if (!response.ok) throw new Error("Startlistan kunde inte hämtas");
         const result = publicStartListResponseSchema.parse(await response.json());
-        if (!stopped) setData((previous) => previous?.revision === result.revision &&
-          previous.iofExportAvailable === result.iofExportAvailable ? previous : result);
-      } catch { if (!stopped) setData(undefined); }
-      finally { window.clearTimeout(timeout); active = undefined; running = false; }
+        if (!stopped) {
+          setFailed(false);
+          setData(previous => previous?.revision === result.revision && previous.iofExportAvailable === result.iofExportAvailable ? previous : result);
+        }
+      } catch {
+        // Visas som besked; senast hämtade lista ligger kvar och nästa försök sker om fem sekunder.
+        if (!stopped) setFailed(true);
+      } finally { window.clearTimeout(timeout); running = false; }
     }
-    void refresh();
     const timer = window.setInterval(() => { void refresh(); }, 5_000);
     const onVisible = () => { if (document.visibilityState === "visible") void refresh(); };
     document.addEventListener("visibilitychange", onVisible);
-    return () => { stopped = true; active?.abort(); window.clearInterval(timer); document.removeEventListener("visibilitychange", onVisible); };
+    return () => { stopped = true; window.clearInterval(timer); document.removeEventListener("visibilitychange", onVisible); };
   }, [raceId]);
-  return <div className={`stack ${styles.publication}`}>
-    <p>{text.publicHelp}</p>
-    {data ? <><p>{text.publishedAt}: {formatStartListTime(data.publishedAt, data.content.timeZone)}</p>
-      {data.iofExportAvailable ? <a className={`start-list-export ${styles.export}`} href={`/api/races/${encodeURIComponent(raceId)}/start-list/iof`} download>{text.downloadXml}</a> : <p>{text.xmlUnavailable}</p>}
-      <StartListContent key={data.revision} content={data.content} /></> : <p role="status">{text.publicUnavailable}</p>}
-  </div>;
+  const model = useMemo(() => data ? startListFromPublication(data.content) : undefined, [data]);
+  if (!data || !model) return <section className="public-list-heading"><h1>{text.publicTitle}</h1>
+    <p role="status">{text.publicUnavailable}</p></section>;
+  const zone = data.content.timeZone;
+  return <>
+    <section className="public-list-heading"><h1>{data.content.eventName}</h1>
+      <p>{data.content.raceName} · {data.content.raceDate} · {text.publishedAt} {zonedDate(data.publishedAt, zone)} {formatClockTime(data.publishedAt, zone).slice(0, 5)}</p>
+      <p className="public-list-help">{text.publicHelp}</p></section>
+    {failed && <p className={styles.notice} role="alert">{text.publicRefreshFailed}</p>}
+    <StartLists model={model}
+      iof={data.iofExportAvailable ? { href: `/api/races/${encodeURIComponent(raceId)}/start-list/iof` } : undefined} />
+  </>;
 }

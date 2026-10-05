@@ -7,6 +7,7 @@ import { authenticatePairingAdminSessionForMutation, authenticatePairingAdminSes
 import type { DbExecutor } from "./snapshot";
 import { loadCourseVersionVariants } from "./course-variants";
 import { loadRelayClassConfigs, loadRelayTeams } from "./relay-model";
+import { loadStartListFacts } from "./start-draw-basis";
 const MAX_CLASSES = 1000, MAX_ENTRIES = 10000;
 const raceIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 type Auth = Omit<PairingAdminRequestAuthentication, "capability">;
@@ -35,8 +36,11 @@ async function projection(tx: DbExecutor, race: {
     if (!ev)
         throw new SourceProjectionError();
     const cs = await tx.select({
-        id: schema.classes.id, name: schema.classes.name, startRule: schema.classes.startRule, courseVersionId: schema.classes.courseVersionId
-    }).from(schema.classes).where(eq(schema.classes.raceId, race.id)).limit(MAX_CLASSES + 1);
+        id: schema.classes.id, name: schema.classes.name, startRule: schema.classes.startRule, courseVersionId: schema.classes.courseVersionId,
+        courseName: schema.courses.name
+    }).from(schema.classes).innerJoin(schema.courseVersions, eq(schema.courseVersions.id, schema.classes.courseVersionId))
+        .innerJoin(schema.courses, eq(schema.courses.id, schema.courseVersions.courseId))
+        .where(eq(schema.classes.raceId, race.id)).limit(MAX_CLASSES + 1);
     const es = await tx.select({
         id: schema.entries.id, classId: schema.entries.classId, givenName: schema.entries.givenName, familyName: schema.entries.familyName, organisationName: schema.entries.organisationName, fixedStartTime: schema.entries.fixedStartTime,
         courseVariantCode: schema.entries.courseVariantCode, teamId: schema.entries.teamId, relayLeg: schema.entries.relayLeg
@@ -56,8 +60,11 @@ async function projection(tx: DbExecutor, race: {
         return team && rule ? { teamNumber: team.number, teamName: team.name, teamOrganisationName: team.organisationName, leg: rule.leg,
             startMethod: rule.startMethod } : null;
     };
+    // PLAN.md steg 13: bana, startfålla (första kontroll), lottningens startsätt och vakanta tider per klass.
+    const facts = await loadStartListFacts(tx, race.id);
     const ordered = [...cs].sort((a, b) => cmp(a.name, b.name) || cmp(a.id, b.id)).map(c => ({
-            name: c.name, startRule: c.startRule, relay: relayClasses.has(c.id), entries: es.filter(e => e.classId === c.id).map(e => ({
+            name: c.name, startRule: c.startRule, relay: relayClasses.has(c.id), courseName: c.courseName, facts: facts.get(c.id),
+            relayLegCount: relayClasses.get(c.id)?.legs.length, entries: es.filter(e => e.classId === c.id).map(e => ({
                 displayName: `${e.givenName} ${e.familyName}`, organisationName: e.organisationName, fixedStartTime: c.startRule === "FIXED" ? e.fixedStartTime?.toISOString() ?? null : null, id: e.id, f: e.familyName, g: e.givenName,
                 variant: (variants.get(c.courseVersionId) ?? []).some(v => v.code === e.courseVariantCode) ? e.courseVariantCode : null,
                 relay: relayOf(e)
@@ -69,7 +76,8 @@ async function projection(tx: DbExecutor, race: {
         }));
     const parsed = startListPublicationContentSchema.safeParse({
         eventName: ev.name, raceName: race.name, raceDate: race.raceDate, timeZone: ev.timeZone,
-        classes: ordered.map(c => ({ name: c.name, startRule: c.startRule, entries: c.entries.map(e => ({
+        classes: ordered.map(c => ({ name: c.name, startRule: c.startRule, courseName: c.courseName, ...c.facts,
+            ...(c.relayLegCount === undefined ? {} : { relayLegCount: c.relayLegCount }), entries: c.entries.map(e => ({
                 displayName: e.displayName, organisationName: e.organisationName, fixedStartTime: e.fixedStartTime,
                 ...(e.variant ? { courseVariantCode: e.variant } : {}),
                 ...(e.relay ? { relay: e.relay } : {})
@@ -77,17 +85,22 @@ async function projection(tx: DbExecutor, race: {
     });
     if (!parsed.success) throw new SourceProjectionError();
     const content = parsed.data;
+    const person = (e: (typeof ordered)[number]["entries"][number]) => ({ givenName: e.g, familyName: e.f,
+        ...(e.organisationName === null ? {} : { organisationName: e.organisationName }),
+        ...(e.fixedStartTime === null ? {} : { startTime: e.fixedStartTime }) });
     const iofProjection: IofStartListProjection = {
         eventName: content.eventName,
-        // IOF StartList för stafett (TeamStart) skrivs inte än; stafettklasserna utelämnas i XML.
-        classes: ordered.filter(c => !c.relay).map(c => ({ className: c.name, startRule: c.startRule,
-            starts: c.entries.map(e => ({ givenName: e.g, familyName: e.f,
-                ...(e.organisationName === null ? {} : { organisationName: e.organisationName }),
-                ...(e.fixedStartTime === null ? {} : { startTime: e.fixedStartTime }) })) }))
+        // Stafett (PLAN.md steg 13): lagen som TeamStart med sträcklöparna i sträckordning.
+        classes: ordered.map(c => c.relay ? { className: c.name, startRule: c.startRule, starts: [],
+            teamStarts: [...new Map(c.entries.flatMap(e => e.relay ? [[e.relay.teamNumber, e.relay] as const] : [])).values()].map(team => ({
+                name: team.teamName, bibNumber: team.teamNumber,
+                ...(team.teamOrganisationName === null ? {} : { organisationName: team.teamOrganisationName }),
+                members: c.entries.filter(e => e.relay?.teamNumber === team.teamNumber).map(e => ({ leg: e.relay!.leg, ...person(e) })) })) }
+            : { className: c.name, startRule: c.startRule, starts: c.entries.map(person) })
     };
     let xml: string | null = null;
     try {
-        if (iofProjection.classes.some(c => c.starts.length > 0)) xml = new TextDecoder().decode(serializeIofStartList(iofProjection));
+        if (iofProjection.classes.some(c => c.starts.length > 0 || (c.teamStarts?.length ?? 0) > 0)) xml = new TextDecoder().decode(serializeIofStartList(iofProjection));
     } catch (error) {
         if (error instanceof IofStartListSerializationError) throw new SourceProjectionError();
         throw error;
@@ -136,6 +149,25 @@ export async function getStartListPublicationPreviewAsAdmin(db: Database, input:
                     } : null, content: null
                 })
             };
+        }
+    });
+}
+/**
+ * PLAN.md steg 13: startlistan som den ser ut nu, som IOF XML för arrangören (samma projektion som publiceringen,
+ * inte den senast publicerade).
+ */
+export async function exportCurrentStartListXmlAsAdmin(db: Database, input: Auth, now = new Date()) {
+    return db.transaction(async (tx) => {
+        const a = await authenticatePairingAdminSessionForProtectedRead(tx, { ...input, capability: "PUBLISH_START_LIST" }, now);
+        if (a.status !== "authenticated") return a;
+        const race = await locked(tx, input.raceId, "share");
+        if (!race) return { status: "not-found" as const };
+        try {
+            const s = await projection(tx, race);
+            return s.xml === null ? { status: "empty" as const } : { status: "exported" as const, xml: s.xml, snapshotVersion: race.snapshotVersion };
+        } catch (error) {
+            if (error instanceof SourceProjectionError) return { status: "conflict" as const };
+            throw error;
         }
     });
 }

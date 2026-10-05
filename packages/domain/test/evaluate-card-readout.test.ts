@@ -59,6 +59,35 @@ function readout(codes: number[], overrides: Partial<NormalizedCardReadout> = {}
 }
 
 describe("evaluateCardReadout", () => {
+  it("en kontroll stämplad före den lottade starten får ingen sträcktid men räknas som stämplad (PLAN.md steg 13)", () => {
+    const early = readout([31, 32, 33], { punches: [
+      { code: 31, punchedAt: "2026-08-30T09:58:00Z" },
+      { code: 32, punchedAt: "2026-08-30T10:12:00Z" },
+      { code: 33, punchedAt: "2026-08-30T10:20:00Z" }] });
+    const result = evaluateCardReadout(early, snapshot());
+    expect(result).toMatchObject({ status: "OK", reason: "COMPLETE", startTime: "2026-08-30T10:00:00Z", elapsedMs: 40 * 60_000,
+      missingControls: [] });
+    // 31 är okänd; 32 räknas från starten (som efter en saknad stämpling), 33 från 32.
+    expect(result.splits).toEqual([
+      { controlCode: 32, occurrence: 1, elapsedMs: 12 * 60_000, legMs: 12 * 60_000 },
+      { controlCode: 33, occurrence: 1, elapsedMs: 20 * 60_000, legMs: 8 * 60_000 }]);
+    expect(result.splits.every(split => split.elapsedMs >= 0 && split.legMs >= 0)).toBe(true);
+  });
+
+  it("utelämnar sträcktider som ligger efter målet eller före föregående kända tid", () => {
+    const result = evaluateCardReadout(readout([31, 32, 33], { punches: [
+      { code: 31, punchedAt: "2026-08-30T10:15:00Z" },
+      { code: 32, punchedAt: "2026-08-30T10:12:00Z" },
+      { code: 33, punchedAt: "2026-08-30T10:45:00Z" }] }), snapshot());
+    expect(result).toMatchObject({ status: "OK", elapsedMs: 40 * 60_000 });
+    expect(result.splits).toEqual([{ controlCode: 31, occurrence: 1, elapsedMs: 15 * 60_000, legMs: 15 * 60_000 }]);
+    // En felstämplad med tidig stämpling får heller inga negativa tider.
+    const mp = evaluateCardReadout(readout([31, 33], { punches: [
+      { code: 31, punchedAt: "2026-08-30T09:50:00Z" }, { code: 33, punchedAt: "2026-08-30T10:20:00Z" }] }), snapshot());
+    expect(mp).toMatchObject({ status: "MP", reason: "MISSING_CONTROL", missingControls: [32] });
+    expect(mp.splits).toEqual([{ controlCode: 33, occurrence: 1, elapsedMs: 20 * 60_000, legMs: 20 * 60_000 }]);
+  });
+
   it("ger MP för saknad kontroll", () => {
     const result = evaluateCardReadout(readout([31, 33]), snapshot());
     expect(result).toMatchObject({ status: "MP", reason: "MISSING_CONTROL", missingControls: [32] });

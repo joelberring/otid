@@ -156,21 +156,24 @@ test("klubbstafett: stafettklass, lag, byte av löpare, avläsning per sträcka,
   // Publika lagresultat utan inloggning: fart per lag ger ordningen 3, 2, 1/6, 5; lag 4 är felstämplat och orankat.
   const visitor = await (await browser.newContext()).newPage();
   await visitor.goto(`/results/${raceId}`);
+  // PLAN.md steg 13: varje lag är en grupp (tbody) med lagraden först och sträcklöparna under.
   const results = visitor.getByRole("table", { name: "Lagresultat Stafett" });
-  await expect(results.getByRole("row")).toHaveCount(TEAMS + 1);
-  const rows = results.getByRole("row");
-  await expect(rows.nth(1)).toContainText("3 OK Test 3");
-  await expect(rows.nth(1).getByRole("cell").first()).toHaveText("1");
-  await expect(rows.nth(2)).toContainText("2 OK Test 2");
-  await expect(rows.nth(5)).toContainText("5 OK Test 5");
-  await expect(rows.nth(5).getByRole("cell").first()).toHaveText("5");
-  await expect(rows.nth(6)).toContainText("4 OK Test 4");
-  await expect(rows.nth(6)).toContainText("Felstämplat");
-  await expect(rows.nth(6).getByRole("cell").first()).toHaveText("–");
-  await rows.nth(1).getByText("Visa sträckor").click();
-  await expect(rows.nth(1)).toContainText("Dan Bytt");
-  await visitor.getByText("Sträckresultat").click();
+  const teams = results.locator("tbody");
+  await expect(teams).toHaveCount(TEAMS);
+  const teamRow = (index: number) => teams.nth(index).getByRole("row").first();
+  await expect(teamRow(0)).toContainText("3 OK Test 3");
+  await expect(teamRow(0).getByRole("cell").first()).toHaveText("1");
+  await expect(teamRow(1)).toContainText("2 OK Test 2");
+  await expect(teamRow(4)).toContainText("5 OK Test 5");
+  await expect(teamRow(4).getByRole("cell").first()).toHaveText("5");
+  await expect(teamRow(5)).toContainText("4 OK Test 4");
+  await expect(teamRow(5)).toContainText("Felstämplat");
+  await expect(teamRow(5).getByRole("cell").first()).toHaveText("");
+  await expect(teams.nth(0).getByRole("row")).toHaveCount(4);
+  await expect(teams.nth(0)).toContainText("Dan Bytt");
+  // Sträckresultaten finns i vyn "Med sträcktider".
+  await visitor.getByRole("button", { name: "Med sträcktider" }).click();
   await expect(visitor.getByRole("table", { name: "Stafett sträcka 2" }).getByRole("row")).toHaveCount(TEAMS + 1);
-  await visitor.getByText("Sträckresultat").click();
+  await visitor.getByRole("button", { name: "Per klass" }).click();
   await screenshots(visitor, "stafett-resultat");
 });

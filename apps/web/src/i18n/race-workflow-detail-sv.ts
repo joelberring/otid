@@ -41,6 +41,7 @@ export const raceWorkflowDetailSv = {
   notRecorded: "Ej angiven",
   unknownTime: "Okänd tid",
   missingControls: "Saknade kontroller",
+  untimedControls: (codes: string) => `Stämplad utan giltig tid: ${codes}. Stämplingen ligger före starten eller efter målet, så sträcktiden är okänd. Kontrollera löparens starttid och enhetens klocka.`,
   extraPunches: "Extra stämplingar",
   none: "Inga"
 } as const;

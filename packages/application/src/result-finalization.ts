@@ -194,11 +194,18 @@ function asIofPerson(result: FrozenIofPersonProjection): IofResultListPersonResu
       ...(result.elapsedMs === null ? {} : { elapsedMs: result.elapsedMs })
     };
   }
+  // Ett tekniskt godkänt resultat saknar inga kontroller: en förväntad kontroll utan split stämplades utan giltig tid
+  // (före start eller efter mål) och skrivs som SplitTime utan Time (PLAN.md steg 13).
+  const approved = "manualApprovalProof" in result && result.manualApprovalProof !== null;
+  const timed = new Set(result.splits.map((split) => `${split.controlCode}:${split.occurrence}`));
+  const untimed = result.status === "OK" && !approved
+    ? result.expectedControls.filter((control) => !timed.has(`${control.controlCode}:${control.occurrence}`)) : [];
   return {
     ...identity,
     status: result.status,
     expectedControls: result.expectedControls,
     splits: result.splits,
+    ...(untimed.length === 0 ? {} : { untimedControls: untimed }),
     ...(result.startTime === null ? {} : { startTime: result.startTime }),
     ...(result.finishTime === null ? {} : { finishTime: result.finishTime }),
     ...(result.elapsedMs === null ? {} : { elapsedMs: result.elapsedMs }),

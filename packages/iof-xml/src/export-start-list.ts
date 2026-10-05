@@ -9,10 +9,29 @@ export interface IofStartListPersonStart {
   readonly startTime?: string;
 }
 
+/** Stafett: en sträcklöpare i laget. Sträcka 2 och senare saknar starttid före växlingen. */
+export interface IofStartListTeamMemberStart {
+  readonly leg: number;
+  readonly givenName: string;
+  readonly familyName: string;
+  readonly organisationName?: string;
+  readonly startTime?: string;
+}
+
+/** Stafett (ADR-0169 beslut 3): ett lag med lagnummer och sträcklöpare i sträckordning. */
+export interface IofStartListTeamStart {
+  readonly name: string;
+  readonly bibNumber: number;
+  readonly organisationName?: string;
+  readonly members: readonly IofStartListTeamMemberStart[];
+}
+
 export interface IofStartListClass {
   readonly className: string;
   readonly startRule: "FIXED" | "PUNCH";
   readonly starts: readonly IofStartListPersonStart[];
+  /** Stafettklassens lag (TeamStart). Saknas för individuella klasser. */
+  readonly teamStarts?: readonly IofStartListTeamStart[];
 }
 
 export interface IofStartListProjection {
@@ -153,7 +172,58 @@ function validateStart(value: unknown, path: string, issues: string[]): Validate
   };
 }
 
-/** Serializes the deliberately small, individual and single-race IOF StartList subset. */
+interface ValidatedTeam {
+  readonly name: string;
+  readonly bibNumber: number;
+  readonly organisationName?: string;
+  readonly members: readonly (ValidatedStart & { readonly leg: number })[];
+}
+
+function validateTeam(value: unknown, path: string, issues: string[]): ValidatedTeam {
+  if (!isRecord(value)) {
+    issues.push(`${path} måste vara ett objekt`);
+    return { name: "", bibNumber: 0, members: [] };
+  }
+  rejectUnknownKeys(value, ["name", "bibNumber", "organisationName", "members"], path, issues);
+  validateText(value.name, `${path}.name`, 160, issues);
+  if (!Number.isSafeInteger(value.bibNumber) || (value.bibNumber as number) < 1) issues.push(`${path}.bibNumber måste vara ett positivt heltal`);
+  if (value.organisationName !== undefined) validateText(value.organisationName, `${path}.organisationName`, 240, issues);
+  if (!Array.isArray(value.members)) {
+    issues.push(`${path}.members måste vara en lista`);
+    return { name: "", bibNumber: 0, members: [] };
+  }
+  const members = value.members.map((member, index) => {
+    const memberPath = `${path}.members[${index}]`;
+    const leg = isRecord(member) ? member.leg : undefined;
+    if (!Number.isSafeInteger(leg) || (leg as number) < 1 || (leg as number) > 20) issues.push(`${memberPath}.leg måste vara 1–20`);
+    const { leg: _leg, ...rest } = isRecord(member) ? member : {};
+    void _leg;
+    return { ...validateStart(rest, memberPath, issues), leg: typeof leg === "number" ? leg : 0 };
+  });
+  if (members.some((member, index) => index > 0 && member.leg <= members[index - 1]!.leg)) issues.push(`${path}.members måste ha unika sträckor i ordning`);
+  return {
+    name: typeof value.name === "string" ? value.name : "",
+    bibNumber: typeof value.bibNumber === "number" ? value.bibNumber : 0,
+    ...(typeof value.organisationName === "string" ? { organisationName: value.organisationName } : {}),
+    members
+  };
+}
+
+function serializePerson(lines: string[], indent: number, start: ValidatedStart): void {
+  line(lines, indent, "<Person>");
+  line(lines, indent + 1, "<Name>");
+  line(lines, indent + 2, `<Family>${escapeXml(start.familyName)}</Family>`);
+  line(lines, indent + 2, `<Given>${escapeXml(start.givenName)}</Given>`);
+  line(lines, indent + 1, "</Name>");
+  line(lines, indent, "</Person>");
+  if (start.organisationName !== undefined) {
+    line(lines, indent, "<Organisation>");
+    line(lines, indent + 1, `<Name>${escapeXml(start.organisationName)}</Name>`);
+    line(lines, indent, "</Organisation>");
+  }
+}
+
+/** Serializes the deliberately small, single-race IOF StartList subset (individual starts and relay teams). */
 export function serializeIofStartList(projection: IofStartListProjection): Uint8Array {
   const issues: string[] = [];
   if (!isRecord(projection)) {
@@ -171,16 +241,17 @@ export function serializeIofStartList(projection: IofStartListProjection): Uint8
     const path = `classes[${classIndex}]`;
     if (!isRecord(raceClass)) {
       issues.push(`${path} måste vara ett objekt`);
-      return { className: "", starts: [] as ValidatedStart[] };
+      return { className: "", starts: [] as ValidatedStart[], teams: [] as ValidatedTeam[] };
     }
-    rejectUnknownKeys(raceClass, ["className", "startRule", "starts"], path, issues);
+    rejectUnknownKeys(raceClass, ["className", "startRule", "starts", "teamStarts"], path, issues);
     validateText(raceClass.className, `${path}.className`, 160, issues);
     if (raceClass.startRule !== "FIXED" && raceClass.startRule !== "PUNCH") {
       issues.push(`${path}.startRule måste vara FIXED eller PUNCH`);
     }
     if (!Array.isArray(raceClass.starts)) {
       issues.push(`${path}.starts måste vara en lista`);
-      return { className: typeof raceClass.className === "string" ? raceClass.className : "", starts: [] as ValidatedStart[] };
+      return { className: typeof raceClass.className === "string" ? raceClass.className : "", starts: [] as ValidatedStart[],
+        teams: [] as ValidatedTeam[] };
     }
     const starts = raceClass.starts.map((start, startIndex) => {
       const checked = validateStart(start, `${path}.starts[${startIndex}]`, issues);
@@ -189,10 +260,14 @@ export function serializeIofStartList(projection: IofStartListProjection): Uint8
       }
       return checked;
     });
-    return { className: typeof raceClass.className === "string" ? raceClass.className : "", starts };
+    if (raceClass.teamStarts !== undefined && !Array.isArray(raceClass.teamStarts)) issues.push(`${path}.teamStarts måste vara en lista`);
+    const teams = Array.isArray(raceClass.teamStarts)
+      ? raceClass.teamStarts.map((team, teamIndex) => validateTeam(team, `${path}.teamStarts[${teamIndex}]`, issues)) : [];
+    return { className: typeof raceClass.className === "string" ? raceClass.className : "", starts, teams };
   });
-  const totalStarts = validated.reduce((total, raceClass) => total + raceClass.starts.length, 0);
-  if (totalStarts === 0) issues.push("minst en PersonStart krävs");
+  const totalStarts = validated.reduce((total, raceClass) => total + raceClass.starts.length +
+    raceClass.teams.reduce((members, team) => members + team.members.length, 0), 0);
+  if (totalStarts === 0) issues.push("minst en PersonStart eller TeamStart krävs");
   if (totalStarts > MAX_STARTS) issues.push(`starts får innehålla högst ${MAX_STARTS} deltagare`);
   if (issues.length > 0) throw new IofStartListSerializationError(issues);
 
@@ -210,17 +285,7 @@ export function serializeIofStartList(projection: IofStartListProjection): Uint8
     line(lines, 2, "</Class>");
     for (const start of raceClass.starts) {
       line(lines, 2, "<PersonStart>");
-      line(lines, 3, "<Person>");
-      line(lines, 4, "<Name>");
-      line(lines, 5, `<Family>${escapeXml(start.familyName)}</Family>`);
-      line(lines, 5, `<Given>${escapeXml(start.givenName)}</Given>`);
-      line(lines, 4, "</Name>");
-      line(lines, 3, "</Person>");
-      if (start.organisationName !== undefined) {
-        line(lines, 3, "<Organisation>");
-        line(lines, 4, `<Name>${escapeXml(start.organisationName)}</Name>`);
-        line(lines, 3, "</Organisation>");
-      }
+      serializePerson(lines, 3, start);
       if (start.startTime) {
         line(lines, 3, "<Start>");
         line(lines, 4, `<StartTime>${start.startTime}</StartTime>`);
@@ -229,6 +294,26 @@ export function serializeIofStartList(projection: IofStartListProjection): Uint8
         line(lines, 3, "<Start/>");
       }
       line(lines, 2, "</PersonStart>");
+    }
+    for (const team of raceClass.teams) {
+      line(lines, 2, "<TeamStart>");
+      line(lines, 3, `<Name>${escapeXml(team.name)}</Name>`);
+      if (team.organisationName !== undefined) {
+        line(lines, 3, "<Organisation>");
+        line(lines, 4, `<Name>${escapeXml(team.organisationName)}</Name>`);
+        line(lines, 3, "</Organisation>");
+      }
+      line(lines, 3, `<BibNumber>${team.bibNumber}</BibNumber>`);
+      for (const member of team.members) {
+        line(lines, 3, "<TeamMemberStart>");
+        serializePerson(lines, 4, member);
+        line(lines, 4, "<Start>");
+        line(lines, 5, `<Leg>${member.leg}</Leg>`);
+        if (member.startTime) line(lines, 5, `<StartTime>${member.startTime}</StartTime>`);
+        line(lines, 4, "</Start>");
+        line(lines, 3, "</TeamMemberStart>");
+      }
+      line(lines, 2, "</TeamStart>");
     }
     line(lines, 1, "</ClassStart>");
   }

@@ -147,10 +147,12 @@ test("träningskväll från tävling till IOF-export", async ({ browser, request
   // IOF XML-export av resultatlistan.
   await warmRoute(owner, `/api/admin/races/${raceId}/administrator/result-export`);
   await openStep(owner, "Resultat");
-  await owner.getByText("Resultatexport · IOF 3.0").click();
+  const toolbar = owner.getByRole("toolbar", { name: "Listans verktyg" });
+  await expect(owner.getByRole("table", { name: "H21" })).toBeVisible();
+  await toolbar.getByText("Exportera").click();
   const [download] = await Promise.all([
     owner.waitForEvent("download"),
-    owner.getByRole("button", { name: "Ladda ner aktuell IOF-resultatlista" }).click()
+    toolbar.getByRole("button", { name: "IOF XML" }).click()
   ]);
   const xml = await readFile(await download.path(), "utf8");
   expect(xml).toContain("<ResultList");

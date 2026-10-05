@@ -45,6 +45,22 @@ export function projectAdministratorControlTimes(controls: readonly HistoricalCo
   return projected;
 }
 
+/**
+ * PLAN.md steg 13: kontroller som stämplades men saknar sträcktid, eftersom stämplingen låg före starten eller efter
+ * målet (domänens sträcktider). Neutraliserade och saknade kontroller räknas inte. Bara för resultat med löptid.
+ */
+export function untimedAdministratorControls(projected: readonly { sequence: number; controlCode: number; elapsedMs: number | null }[],
+  neutralizedSequence: number | null, missingControls: readonly number[]): number[] {
+  const missing = new Map<number, number>();
+  for (const code of missingControls) missing.set(code, (missing.get(code) ?? 0) + 1);
+  return projected.flatMap(control => {
+    if (control.elapsedMs !== null || control.sequence === neutralizedSequence) return [];
+    const left = missing.get(control.controlCode) ?? 0;
+    if (left > 0) { missing.set(control.controlCode, left - 1); return []; }
+    return [control.controlCode];
+  });
+}
+
 async function guardHistory(tx: Transaction, raceId: string, entryId: string) {
   let count = 0;
   for (const table of [schema.resultDisqualificationDecisions, schema.resultApprovalDecisions,
@@ -157,6 +173,9 @@ export async function getAdministratorEffectiveResult(db: Database,
         finishTime: validInstant("finishTime" in outcome ? outcome.finishTime : null),
         controls: projectedControls, missingControls: "missingControls" in outcome ? outcome.missingControls : [],
         extraPunches: "extraPunches" in outcome ? outcome.extraPunches : [] };
+      const untimed = "elapsedMs" in outcome && outcome.elapsedMs !== undefined
+        ? untimedAdministratorControls(projectedControls, neutralized?.sequence ?? null, controlDetails.missingControls) : [];
+      if (untimed.length > 0) controlDetails = { ...controlDetails, untimedControls: untimed };
     }
     return { status: "ok", response: administratorEffectiveResultResponseSchema.parse({
       ...common, state: "ACTIVE_RESULT", selectedRevision, resultClass,

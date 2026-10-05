@@ -10,7 +10,7 @@ import { classCapacityKeySchema, classCapacityRequestSchema, classCapacityRespon
   startDrawPreviewRequestSchema, startDrawPreviewResponseSchema, startDrawRequestSchema,
   startDrawIdempotencyKeySchema, startDrawResponseSchema, startListPublicationPreviewResponseSchema,
   startListPublicationRequestSchema, startListPublicationIdempotencyKeySchema } from "@o-tid/contracts";
-import { entryClassAdminFailure as failure, entryClassAdminJson as json, hasNoEntryClassAdminRequestBody,
+import { entryClassAdminFailure as failure, entryClassAdminJson as json, hasNoEntryClassAdminRequestBody, privateEntryClassAdminHeaders,
   readEntryClassAdminJson } from "./entry-class-admin-security";
 import { parseAdministratorPublicationReceipt } from "./administrator-publication-client";
 import { resultFailure, type RaceAdministratorRouteContext } from "./race-administrator-route-context";
@@ -114,6 +114,14 @@ export async function handlePreparationRoute(context: RaceAdministratorRouteCont
         response.sourceSnapshotVersion !== parsed.data.expectedSnapshotVersion || response.sourceBasisHash !== parsed.data.expectedBasisHash ||
         JSON.stringify(response.request) !== JSON.stringify(parsed.data)) return failure(500, "INTERNAL_ERROR");
     return json(response);
+  }
+  if (action.kind === "start-list-export") {
+    // PLAN.md steg 13: startlistan som den ser ut nu (inte den publicerade) som IOF XML.
+    const result = await dependencies.startListExport(db, { ...proof, raceId });
+    if (result.status === "empty") return failure(404, "NOT_FOUND");
+    if (result.status !== "exported") return resultFailure(result.status);
+    return new Response(result.xml, { headers: { ...privateEntryClassAdminHeaders, "content-type": "application/xml; charset=utf-8",
+      "content-disposition": `attachment; filename="startlista.xml"` } });
   }
   if (action.kind === "publication-preview") {
     const result = await dependencies.publicationPreview(db, { ...proof, raceId });

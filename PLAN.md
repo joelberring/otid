@@ -292,7 +292,7 @@ Se ADR-0170 beslut 1–2.
 rätt delar syns; navigeringen syns efter att man rullat. Skärmbilder 1280 och
 390 px av varje huvudvy granskade. Befintliga flöden gröna.
 
-## [ ] Steg 13 – Start- och resultatlistor
+## [x] Steg 13 – Start- och resultatlistor
 
 Se ADR-0170 beslut 3.
 

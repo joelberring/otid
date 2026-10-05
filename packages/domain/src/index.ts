@@ -23,3 +23,4 @@ export * from "./course-edit";
 export * from "./class-edit";
 export * from "./course-variants";
 export * from "./relay";
+export * from "./split-table";

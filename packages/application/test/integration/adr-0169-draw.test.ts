@@ -9,6 +9,11 @@ import { createManualCourseClassAsAdministrator } from "../../src/manual-course-
 import { registerEntryAsAdmin } from "../../src/entry-registration";
 import { ingestReadoutsAsAdministrator } from "../../src/readout-station";
 import { commitStartDrawAsAdministrator, loadStartDrawSetupAsAdministrator, previewStartDrawAsAdministrator } from "../../src/start-draw";
+import { listEntryTransfersAsAdministrator } from "../../src/entry-transfer";
+import { exportCurrentStartListXmlAsAdmin, getStartListPublicationPreviewAsAdmin } from "../../src/start-list-publication";
+import { publicResults } from "../../src/results";
+import { exportPublicIofResultList } from "../../src/result-list-export";
+import { getAdministratorEffectiveResult } from "../../src/administrator-effective-result";
 
 const base = process.env.TEST_DATABASE_URL;
 if (!base) throw new Error("Lottningstestet kräver TEST_DATABASE_URL till en PostgreSQL-roll med CREATEDB");
@@ -78,10 +83,12 @@ async function register(f: Race, classId: string, givenName: string, club: strin
     cardNumber, fixedStartTime: null } }, now);
 }
 
-async function readout(f: Race, cardNumber: string, codes: number[]) {
+async function readout(f: Race, cardNumber: string, codes: number[],
+  punches = codes.map((code, index) => ({ code, punchedAt: `2026-10-08T08:${String(35 + index * 5).padStart(2, "0")}:00.000Z` })),
+  finishPunchedAt = "2026-10-08T09:00:00.000Z") {
   const payload: SportidentReadoutPayload = {
-    cardNumber, cardType: "SI10", startPunchedAt: "2026-10-08T08:30:00.000Z", finishPunchedAt: "2026-10-08T09:00:00.000Z",
-    punches: codes.map((code, index) => ({ code, punchedAt: `2026-10-08T08:${String(35 + index * 5).padStart(2, "0")}:00.000Z` })),
+    cardNumber, cardType: "SI10", startPunchedAt: "2026-10-08T08:30:00.000Z", finishPunchedAt,
+    punches,
     untimedPunchCodes: [], frames: ["02ef8300"], stationSerial: 999001, simulated: true
   };
   const batch: DeviceBatch = { deviceId: randomUUID(), sessionId: randomUUID(), packageVersion: await snapshot(f.raceId),
@@ -166,11 +173,31 @@ describe("PLAN.md steg 9: lottning på riktigt", () => {
     const replay = await commit(f, settings(f, version), shown.seed, false, saved.response.requestId);
     expect(replay).toMatchObject({ status: "drawn", response: { replayed: true } });
 
+    // PLAN.md steg 13: startlistornas fakta (startfålla, startsätt, vakanta tider) i arbetsytan och i publiceringen,
+    // och IOF XML för startlistan som den ser ut nu.
+    const vacancies = (name: "H21" | "D21" | "H16") => shown.classes.find(row => row.classId === f.classes[name])!.slots
+      .flatMap(slot => slot.entry ? [] : [slot.startTime]);
+    const facts = async () => {
+      const listed = await listEntryTransfersAsAdministrator(db, f.proof, before());
+      if (listed.status !== "ok") throw new Error("Deltagarlistan saknas");
+      return Object.fromEntries(listed.response.classes.map(row => [row.name, [row.firstControlCode, row.drawMethod, row.vacancies]]));
+    };
+    expect(await facts()).toEqual({ D21: [31, "MINUTE", vacancies("D21")], H16: [45, "MINUTE", vacancies("H16")], H21: [31, "MINUTE", vacancies("H21")] });
+    const publication = await getStartListPublicationPreviewAsAdmin(db, f.proof, before());
+    if (publication.status !== "ok" || !publication.response.content) throw new Error("Publiceringen saknas");
+    expect(publication.response.content.classes.map(row => [row.name, row.courseName, row.firstControlCode, row.drawMethod, row.vacancies]))
+      .toEqual([["D21", "Mellan", 31, "MINUTE", vacancies("D21")], ["H16", "Kort", 45, "MINUTE", vacancies("H16")],
+        ["H21", "Lång", 31, "MINUTE", vacancies("H21")]]);
+    const startXml = await exportCurrentStartListXmlAsAdmin(db, f.proof, before());
+    if (startXml.status !== "exported") throw new Error(`Startlistan saknas: ${startXml.status}`);
+    expect(startXml.xml.match(/<PersonStart>/g)).toHaveLength(12);
+
     // Efteranmäld: första lediga vakanta tid efter nu, utan att admin väljer tid.
     const vacantH21 = shown.classes.find(row => row.classId === f.classes.H21)!.slots.find(slot => slot.entry === null)!.startTime;
     const late = await register(f, f.classes.H21, "Sen", "OK Ek", null);
     if (late.status !== "registered") throw new Error(`Efteranmälan misslyckades: ${late.status}`);
     expect(late.response).toMatchObject({ fixedStartTime: vacantH21, startTimeAssigned: true });
+    expect((await facts()).H21).toEqual([31, "MINUTE", []]);
     // Vakanserna slut: första minut efter klassens sista start som D21 inte använder.
     const later = await register(f, f.classes.H21, "Senare", "IFK Lidingö", null);
     if (later.status !== "registered") throw new Error(`Efteranmälan misslyckades: ${later.status}`);
@@ -187,6 +214,7 @@ describe("PLAN.md steg 9: lottning på riktigt", () => {
     expect(await snapshot(f.raceId)).toBe(current);
     const mass = await commit(f, settings(f, current, "MASS"), again.seed, true);
     expect(mass.status).toBe("drawn");
+    expect((await facts()).H16).toEqual([45, "MASS", []]);
     const massLate = await register(f, f.classes.H16, "Mass", null, null);
     if (massLate.status !== "registered") throw new Error(`Efteranmälan misslyckades: ${massLate.status}`);
     expect(massLate.response.fixedStartTime).toBe(again.classes.find(row => row.classId === f.classes.H16)!.firstStartTime);
@@ -198,6 +226,51 @@ describe("PLAN.md steg 9: lottning på riktigt", () => {
     expect(freed.status).toBe("drawn");
     expect(await classRow(f.classes.H21)).toMatchObject({ start_rule: "PUNCH", start_draw_id: null });
     expect((await pool.query("select 1 from entry where class_id = $1 and fixed_start_time is not null", [f.classes.H21])).rowCount).toBe(0);
+  });
+
+  it("en kontroll stämplad före den lottade starten fäller inte resultatlistan (PLAN.md steg 13)", async () => {
+    const f = await race();
+    for (const [index, card] of ["700101", "700102"].entries()) {
+      expect((await register(f, f.classes.H21, `Tidig-${index}`, "OK Ek", card)).status).toBe("registered");
+    }
+    const version = await snapshot(f.raceId);
+    const one = { ...settings(f, version), classes: settings(f, version).classes.slice(0, 1) };
+    const shown = await preview(f, { ...one, classes: one.classes.map(row => ({ ...row, vacancies: { kind: "COUNT" as const, value: 0 } })) });
+    const drawn = await commit(f, { ...one, classes: one.classes.map(row => ({ ...row, vacancies: { kind: "COUNT" as const, value: 0 } })) },
+      shown.seed, false);
+    expect(drawn.status).toBe("drawn");
+    const starts = await pool.query<{ id: string; card: string; fixed_start_time: Date }>(`select e.id, a.card_number as card, e.fixed_start_time
+      from entry e join card_assignment a on a.entry_id = e.id where e.race_id = $1 order by a.card_number`, [f.raceId]);
+    // Löparen stämplar 31 en minut före sin lottade start (fel klocka eller tjuvstart), sedan 32 och 33 och mål.
+    const early = starts.rows[0]!, start = early.fixed_start_time.getTime(), at = (minutes: number) => new Date(start + minutes * 60_000).toISOString();
+    await readout(f, early.card, [], [{ code: 31, punchedAt: at(-1) }, { code: 32, punchedAt: at(10) }, { code: 33, punchedAt: at(20) }], at(30));
+
+    const listed = await publicResults(db, f.raceId);
+    const row = listed.results.find(result => result.givenName === "Tidig-0")!;
+    expect(row).toMatchObject({ status: "OK", reason: "COMPLETE", elapsedMs: 30 * 60_000, position: 1 });
+    expect("splits" in row && row.splits).toEqual([{ controlCode: 32, occurrence: 1, elapsedMs: 10 * 60_000, legMs: 10 * 60_000 },
+      { controlCode: 33, occurrence: 1, elapsedMs: 20 * 60_000, legMs: 10 * 60_000 }]);
+    const effective = await getAdministratorEffectiveResult(db, { ...f.proof, entryId: early.id }, before());
+    if (effective.status !== "ok" || effective.response.state !== "ACTIVE_RESULT") throw new Error("Resultatet saknas");
+    expect(effective.response.controlDetails?.untimedControls).toEqual([31]);
+    const iof = await exportPublicIofResultList(db, f.raceId);
+    if (iof.status !== "ok") throw new Error(`Exporten misslyckades: ${iof.status}`);
+    expect(new TextDecoder().decode(iof.bytes)).toMatch(/<SplitTime status="OK">\s*<ControlCode>31<\/ControlCode>\s*<\/SplitTime>/);
+
+    // En lagrad rad med ogiltiga sträcktider (t.ex. från en äldre version) fäller inte heller listan: den visas utan sträcktider.
+    const other = starts.rows[1]!;
+    await readout(f, other.card, [31, 32, 33], [{ code: 31, punchedAt: new Date(other.fixed_start_time.getTime() + 60_000).toISOString() },
+      { code: 32, punchedAt: new Date(other.fixed_start_time.getTime() + 120_000).toISOString() },
+      { code: 33, punchedAt: new Date(other.fixed_start_time.getTime() + 180_000).toISOString() }],
+      new Date(other.fixed_start_time.getTime() + 240_000).toISOString());
+    // Lagrade revisioner kan inte ändras; skyddet stängs av bara i den här testdatabasen för att efterlikna gammal data.
+    await pool.query("alter table result_revision disable trigger user");
+    await pool.query(`update result_revision set evaluation = jsonb_set(evaluation, '{splits,0,elapsedMs}', '-60000'::jsonb)
+      where entry_id = $1`, [other.id]);
+    await pool.query("alter table result_revision enable trigger user");
+    const robust = await publicResults(db, f.raceId);
+    expect(robust.results.map(result => [result.givenName, result.status])).toEqual(expect.arrayContaining([["Tidig-0", "OK"], ["Tidig-1", "OK"]]));
+    expect(robust.results.find(result => result.givenName === "Tidig-1")).toMatchObject({ splits: [] });
   });
 
   it("vägrar fast start utan tid i en klass som inte är lottad", async () => {

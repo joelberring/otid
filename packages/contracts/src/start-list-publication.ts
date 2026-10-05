@@ -26,8 +26,21 @@ const entry = z.object({
         teamOrganisationName: z.string().trim().min(1).max(200).nullable(), leg: z.number().int().min(1).max(20),
         startMethod: z.enum(["MASS_START", "CHANGEOVER", "RESTART"]) }).strict().optional()
 }).strict();
+/** Startlistans fakta om klassen (PLAN.md steg 13). Saknas i publiceringar gjorda före steg 13. */
+export const startListClassFactsSchema = z.object({
+    courseName: z.string().trim().min(1).max(160).optional(),
+    /** Banans första kontroll: klasser med samma första kontroll startar från samma startfålla. */
+    firstControlCode: z.number().int().positive().max(2_147_483_647).nullable().optional(),
+    /** Lottningens startsätt; null när klassen inte är lottad. */
+    drawMethod: z.enum(["MINUTE", "MASS"]).nullable().optional(),
+    /** Lediga lottade starttider (vakanser). */
+    vacancies: z.array(instant).max(10000).optional(),
+    /** Stafettklass: antal sträckor. */
+    relayLegCount: z.number().int().min(2).max(20).optional()
+}).strict();
 const raceClass = z.object({
-    name: z.string().trim().min(1).max(160), startRule: z.enum(["FIXED", "PUNCH"]), entries: z.array(entry).max(10000)
+    name: z.string().trim().min(1).max(160), startRule: z.enum(["FIXED", "PUNCH"]), entries: z.array(entry).max(10000),
+    ...startListClassFactsSchema.shape
 }).strict().refine((v) => v.startRule === "FIXED" || v.entries.every((e) => e.fixedStartTime === null));
 export const startListPublicationContentSchema = z.object({
     eventName: z.string().trim().min(1).max(160), raceName: z.string().trim().min(1).max(160), raceDate: z.iso.date(), timeZone: timezone, classes: z.array(raceClass).max(1000)
@@ -64,6 +77,7 @@ export const publicStartListResponseSchema = z.object({
 }).strict();
 export { entryClassAdminErrorResponseSchema as startListPublicationAdminErrorResponseSchema } from "./entry-class-admin";
 export type StartListPublicationContent = z.infer<typeof startListPublicationContentSchema>;
+export type StartListClassFacts = z.infer<typeof startListClassFactsSchema>;
 export type StartListPublicationAdminLoginRequest = z.infer<typeof startListPublicationAdminLoginRequestSchema>;
 export type StartListPublicationAdminLoginResponse = z.infer<typeof startListPublicationAdminLoginResponseSchema>;
 export type StartListPublicationPreviewResponse = z.infer<typeof startListPublicationPreviewResponseSchema>;

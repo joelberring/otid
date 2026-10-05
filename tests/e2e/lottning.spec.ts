@@ -51,13 +51,12 @@ test("lotta tre klasser, publicera startlistan och placera en efteranmäld på v
   await expect(owner.getByText("Lottningen är sparad.", { exact: false })).toBeVisible();
 
   // Startlistan publiceras och visar de lottade tiderna utan inloggning.
-  await owner.getByRole("button", { name: "Visa publicering" }).click();
   await owner.getByRole("button", { name: "Publicera startlistan" }).click();
   await expect(owner.getByText("Startlistan är publicerad.")).toBeVisible();
   const visitor = await (await browser.newContext()).newPage();
   await visitor.goto(`/starts/${raceId}`);
   await expect(visitor.getByText("H16A Löpare").or(visitor.getByText("H16B Löpare")).first()).toBeVisible();
-  await expect(visitor.getByText("10:00:00").first()).toBeVisible();
+  await expect(visitor.getByRole("cell", { name: "10:00", exact: true }).first()).toBeVisible();
 
   // Efteranmäld i H21 får den vakanta tiden; arrangören anger ingen tid.
   await openStep(owner, "Anmälda");
@@ -75,5 +74,5 @@ test("lotta tre klasser, publicera startlistan och placera en efteranmäld på v
   await owner.getByRole("button", { name: "Bekräfta anmälan" }).click();
   await expect(owner.getByText("Deltagaren är anmäld.")).toBeVisible();
   await openStep(owner, "Start");
-  await expect(owner.getByRole("row", { name: /Sen Anmäld/ })).toContainText(vacantH21);
+  await expect(owner.getByRole("row", { name: /Sen Anmäld/ })).toContainText(vacantH21.slice(0, 5));
 });

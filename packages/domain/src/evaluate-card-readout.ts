@@ -95,6 +95,11 @@ function alignWithNeutralization(expected: readonly ExpectedControl[], punches: 
   return matches;
 }
 
+/** Starten och målet som sträcktiderna måste ligga mellan. */
+interface TimeWindow { readonly startMs: number; readonly finishMs: number }
+/** Variantvalet bryr sig inte om tiderna; sträcktiderna räknas när utfallet byggs. */
+const ANY_TIME: TimeWindow = { startMs: -Infinity, finishMs: Infinity };
+
 interface ControlMatch {
   readonly missingControls: readonly number[];
   readonly extraPunches: readonly number[];
@@ -104,7 +109,7 @@ interface ControlMatch {
 
 /** Matchar stämplingarna mot en kontrollföljd där en förekomst kan vara struken (neutraliserad). */
 function matchNeutralized(orderedControls: readonly ExpectedControl[], neutralizedId: string, punches: readonly Punch[],
-  startMs: number, startTime: string): ControlMatch {
+  window: TimeWindow): ControlMatch {
   const expected = orderedControls.map((control) => control.controlCode);
   const aligned = alignWithNeutralization(orderedControls, punches);
   const matchedByExpected = new Map(aligned.map((match) => [match.expectedIndex, match.punchIndex]));
@@ -124,25 +129,36 @@ function matchNeutralized(orderedControls: readonly ExpectedControl[], neutraliz
     orderedControls.some((control, controlIndex) => controlIndex < greatestMatchedIndex &&
       control.id !== neutralizedId && control.controlCode === punch.code));
   return { missingControls, extraPunches, wrongOrder,
-    splits: splitTimes(matched, matchedExpectedIndexes, expected, startMs, startTime) };
+    splits: splitTimes(matched, matchedExpectedIndexes, expected, window) };
 }
 
+/**
+ * Sträcktider från start. En stämplingstid räknas bara när den ligger mellan föregående kända tid (först starten)
+ * och målet. En kontroll stämplad före starten (fel klocka i en enhet, fel starttid eller tjuvstart) eller efter målet
+ * får ingen sträcktid: den utelämnas precis som en saknad stämpling och nästa sträcka räknas från föregående kontroll
+ * med känd tid. Kontrollen räknas ändå som stämplad, så statusen följer de vanliga reglerna och löptiden är mål minus
+ * start. Arbetsytan visar en notis i deltagarkortet så att arbetsledningen kan kontrollera starttiden (PLAN.md steg 13).
+ */
 function splitTimes(matched: readonly Punch[], matchedExpectedIndexes: readonly number[], expected: readonly number[],
-  startMs: number, startTime: string): SplitTime[] {
-  return matched.map((punch, index) => {
+  window: TimeWindow): SplitTime[] {
+  const splits: SplitTime[] = [];
+  let previousMs = window.startMs;
+  matched.forEach((punch, index) => {
     const punchMs = Date.parse(punch.punchedAt);
-    const previousMs = index === 0 ? startMs : Date.parse(matched[index - 1]?.punchedAt ?? startTime);
-    return {
+    if (!Number.isFinite(punchMs) || punchMs < previousMs || punchMs > window.finishMs) return;
+    splits.push({
       controlCode: punch.code,
       occurrence: occurrenceAt(expected, matchedExpectedIndexes[index] ?? index),
-      elapsedMs: punchMs - startMs,
+      elapsedMs: punchMs - window.startMs,
       legMs: punchMs - previousMs
-    };
+    });
+    previousMs = punchMs;
   });
+  return splits;
 }
 
 /** Matchar stämplingarna mot kontrollföljden i ordning. */
-function matchControls(expected: readonly number[], punches: readonly Punch[], startMs: number, startTime: string): ControlMatch {
+function matchControls(expected: readonly number[], punches: readonly Punch[], window: TimeWindow): ControlMatch {
   const matched: Punch[] = [];
   const matchedExpectedIndexes: number[] = [];
   const missingControls: number[] = [];
@@ -173,7 +189,7 @@ function matchControls(expected: readonly number[], punches: readonly Punch[], s
   }
 
   missingControls.push(...expected.slice(expectedIndex));
-  return { missingControls, extraPunches, wrongOrder, splits: splitTimes(matched, matchedExpectedIndexes, expected, startMs, startTime) };
+  return { missingControls, extraPunches, wrongOrder, splits: splitTimes(matched, matchedExpectedIndexes, expected, window) };
 }
 
 /** Ett utfall är bättre om det är godkänt, annars om färre kontroller saknas. */
@@ -215,10 +231,10 @@ function chooseVariant(resolved: ResolvedEntry, punches: readonly Punch[]): { co
     .sort((left, right) => left.sequence - right.sequence).map((control) => control.controlCode);
   const assigned = assignedCourseVariant(resolved.courseVersion, resolved.entry.courseVariantCode);
   // Tiderna påverkar inte vilken variant som passar; sträcktiderna räknas om när utfallet byggs.
-  if (assigned) return { code: assigned.code, assigned: true, match: matchControls(codesOf(assigned), punches, 0, new Date(0).toISOString()) };
+  if (assigned) return { code: assigned.code, assigned: true, match: matchControls(codesOf(assigned), punches, ANY_TIME) };
   let best: { code: string; assigned: boolean; match: ControlMatch } | undefined;
   for (const variant of variants) {
-    const match = matchControls(codesOf(variant), punches, 0, new Date(0).toISOString());
+    const match = matchControls(codesOf(variant), punches, ANY_TIME);
     if (!best || betterMatch(match, best.match)) best = { code: variant.code, assigned: false, match };
   }
   return best;
@@ -263,12 +279,13 @@ export function evaluateCardReadout(
     });
   }
 
+  const window: TimeWindow = { startMs, finishMs };
   let match: ControlMatch;
   const variant = chooseVariant(resolved, readout.punches);
   if (variant) {
     const chosen = courseVariantsOf(courseVersion).find((candidate) => candidate.code === variant.code)!;
     const codes = [...chosen.controls].sort((left, right) => left.sequence - right.sequence).map((control) => control.controlCode);
-    match = matchControls(codes, readout.punches, startMs, startTime);
+    match = matchControls(codes, readout.punches, window);
   } else {
     const orderedControls = [...courseVersion.controls].sort((left, right) => left.sequence - right.sequence);
     const neutralizations = snapshot.classControlNeutralizations.filter((candidate) =>
@@ -281,8 +298,8 @@ export function evaluateCardReadout(
     }
     match = neutralization
       ? matchNeutralized(orderedControls.map((control) => ({ id: control.id, controlCode: control.controlCode,
-        neutralized: control.id === neutralization.courseControlId })), neutralization.courseControlId, readout.punches, startMs, startTime)
-      : matchControls(orderedControls.map((control) => control.controlCode), readout.punches, startMs, startTime);
+        neutralized: control.id === neutralization.courseControlId })), neutralization.courseControlId, readout.punches, window)
+      : matchControls(orderedControls.map((control) => control.controlCode), readout.punches, window);
   }
 
   const timed = {

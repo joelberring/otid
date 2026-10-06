@@ -27,7 +27,7 @@ import { MapRoutesSection } from "./map-routes-section";
 function AdminResultLists({ ws }: { ws: Workspace }) {
   const { authenticated, data, disabled, downloadResults, raceId, shows } = ws;
   const { data: lists, failed } = useResultListData(raceId, undefined, authenticated && shows("RESULTS"), 15_000);
-  const model = useMemo(() => lists ? resultListFromPublic(lists.results, lists.relay) : undefined, [lists]);
+  const model = useMemo(() => lists ? resultListFromPublic(lists.results, lists.relay, lists.radio) : undefined, [lists]);
   if (!model || !data) return <p className={styles.muted} role="status">{failed ? listText.results.refreshFailed : listText.results.loading}</p>;
   return <ResultLists model={model} raceId={raceId} race={`${data.eventName} · ${data.raceName} · ${data.raceDate}`} raceDate={data.raceDate}
     links={false} iof={{ onSelect: () => void downloadResults(), disabled }}

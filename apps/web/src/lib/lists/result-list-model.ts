@@ -1,4 +1,4 @@
-import type { PublicRelayResults, PublicResultListResponse } from "@o-tid/contracts";
+import type { PublicRadioResponse, PublicRelayResults, PublicResultListResponse } from "@o-tid/contracts";
 import { splitTablesByVariant, type SplitTable } from "@o-tid/domain";
 import { compareText, matches, searchable } from "./search";
 import { groupByClub, type ClubGroup } from "./start-list-model";
@@ -19,14 +19,20 @@ export type ResultRow = {
   status: ResultStatus; reason: string; variant: string | null; splits: ResultSplit[]; missingControls: number[];
   score: ResultScore | null;
 };
+/** Mellantider vid klassens radiokontroller (ADR-0172 beslut 5). */
+export type RadioClass = PublicRadioResponse["classes"][number];
 export type ResultClass = { name: string; rows: ResultRow[];
+  /** Radiokontrollerna: de som är ute i skogen och tiderna vid varje kontroll. Saknas utan radio. */
+  radio?: RadioClass | undefined;
   /** Rogainingklass: listan visar poäng, straff och summa (sorterad på summa, sedan tid). */
   scored: boolean;
   /** Godkända resultat bygger på olika banversioner: ingen placering visas. */
   mixedCourses: boolean };
 export type RelayClass = PublicRelayResults["classes"][number];
 export type RelayTeam = RelayClass["teams"][number];
-export type ResultListModel = { classes: ResultClass[]; relayClasses: RelayClass[] };
+export type ResultListModel = { classes: ResultClass[]; relayClasses: RelayClass[];
+  /** Tidszonen för radiopassagernas klockslag; saknas utan radio. */
+  radioTimeZone?: string | null | undefined };
 
 type PublicRow = PublicResultListResponse["results"][number];
 
@@ -46,8 +52,12 @@ function row(result: PublicRow): ResultRow {
   };
 }
 
-/** Serverns ordning (status, poäng, tid, namn) behålls; klasserna kommer i bokstavsordning. */
-export function resultListFromPublic(results: PublicResultListResponse, relay: PublicRelayResults): ResultListModel {
+/**
+ * Serverns ordning (status, poäng, tid, namn) behålls; klasserna kommer i bokstavsordning. Med radio får klasserna
+ * sina mellantider, och en klass där ingen läst av än men någon passerat en radiokontroll finns med utan resultat.
+ */
+export function resultListFromPublic(results: PublicResultListResponse, relay: PublicRelayResults,
+  radio?: PublicRadioResponse): ResultListModel {
   const classes = new Map<string, ResultClass>();
   for (const result of results.results) {
     const raceClass = classes.get(result.className) ?? { name: result.className, rows: [], mixedCourses: false, scored: false };
@@ -57,7 +67,14 @@ export function resultListFromPublic(results: PublicResultListResponse, relay: P
     if (result.rankingState === "MIXED_COURSE_VERSIONS") raceClass.mixedCourses = true;
     classes.set(result.className, raceClass);
   }
-  return { classes: [...classes.values()], relayClasses: relay.classes };
+  const live = radio?.enabled ? radio.classes : [];
+  for (const radioClass of live) {
+    const raceClass = classes.get(radioClass.className) ?? { name: radioClass.className, rows: [], mixedCourses: false, scored: false };
+    classes.set(radioClass.className, { ...raceClass, radio: radioClass });
+  }
+  // Samma ordning som servern (svensk bokstavsordning); radioklasserna sorteras in.
+  return { classes: [...classes.values()].sort((a, b) => a.name.localeCompare(b.name, "sv")), relayClasses: relay.classes,
+    radioTimeZone: live.length > 0 ? radio!.timeZone : null };
 }
 
 /** Alla klassnamn (individuella och stafett) för klassfiltret. */
@@ -73,8 +90,10 @@ export function filterResults(model: ResultListModel, query: string, className: 
   const needle = searchable(query.trim());
   return {
     classes: model.classes.filter(row => !className || row.name === className).flatMap(raceClass => {
-      const rows = needle ? raceClass.rows.filter(result => matches(needle, result.name, result.club)) : raceClass.rows;
-      return rows.length ? [{ ...raceClass, rows }] : [];
+      if (!needle) return [raceClass];
+      const rows = raceClass.rows.filter(result => matches(needle, result.name, result.club));
+      const radio = raceClass.radio ? filterRadio(raceClass.radio, needle) : undefined;
+      return rows.length || radio ? [{ ...raceClass, rows, radio }] : [];
     }),
     relayClasses: model.relayClasses.filter(row => !className || row.name === className).flatMap(raceClass => {
       if (!needle) return [raceClass];
@@ -82,8 +101,18 @@ export function filterResults(model: ResultListModel, query: string, className: 
       const numbers = new Set(teams.map(team => team.number));
       return teams.length ? [{ ...raceClass, teams, legs: raceClass.legs.map(leg => ({ ...leg,
         results: leg.results.filter(result => numbers.has(result.teamNumber)) })) }] : [];
-    })
+    }),
+    radioTimeZone: model.radioTimeZone
   };
+}
+
+/** Sökningen i radiodelen: löpare (namn, klubb) som är ute och vid kontrollerna. Undefined utan träffar. */
+function filterRadio(radio: RadioClass, needle: string): RadioClass | undefined {
+  const hit = (passage: RadioClass["onTheWay"][number]) =>
+    matches(needle, `${passage.givenName} ${passage.familyName}`, passage.organisationName);
+  const onTheWay = radio.onTheWay.filter(hit);
+  const controls = radio.controls.map(control => ({ ...control, passages: control.passages.filter(hit) }));
+  return onTheWay.length || controls.some(control => control.passages.length) ? { ...radio, onTheWay, controls } : undefined;
 }
 
 export type SplitGroup = { className: string; variant: string | null; rows: ResultRow[]; table: SplitTable };

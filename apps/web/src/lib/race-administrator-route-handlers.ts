@@ -16,6 +16,7 @@ import { handleSourceRoute } from "./race-administrator-routes-sources";
 import { handleMapRoute } from "./race-administrator-routes-maps";
 import { handlePeopleRoute } from "./race-administrator-routes-people";
 import { handlePublicationRoute } from "./race-administrator-routes-publication";
+import { handleRadioRoute } from "./race-administrator-routes-radio";
 import { raceRoleFor, requireRaceRole } from "./race-roles";
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -74,7 +75,7 @@ export async function raceAdministratorRoute(db: Database, request: Request, rac
     const context: RaceAdministratorRouteContext = { db, request, raceId, action, dependencies, proof, cursor, beforeVersion };
     return await handleRaceDayRoute(context) ?? await handlePreparationRoute(context) ?? await handleResultRoute(context) ??
       await handleEntryRoute(context) ?? await handleVariantRoute(context) ?? await handleRelayRoute(context) ?? await handleSourceRoute(context) ??
-      await handleMapRoute(context) ?? await handlePeopleRoute(context) ?? await handlePublicationRoute(context) ??
+      await handleMapRoute(context) ?? await handlePeopleRoute(context) ?? await handlePublicationRoute(context) ?? await handleRadioRoute(context) ??
       (action.kind === "race-settings"
         ? await idempotentWrite(context, "race-settings", raceSettingsRequestSchema, raceSettingsResponseSchema, dependencies.raceSettings) : undefined) ??
       failure(500, "INTERNAL_ERROR");
@@ -82,7 +83,8 @@ export async function raceAdministratorRoute(db: Database, request: Request, rac
 }
 
 function allowedMethods(action: Action): string[] {
-  return action.kind === "people" ? ["GET", "POST", "DELETE"] : action.kind === "race-publication" ? ["PUT", "DELETE"] : action.kind === "race-map" ? ["GET", "PUT", "DELETE"] :
+  return action.kind === "people" ? ["GET", "POST", "DELETE"] : action.kind === "radio" ? ["GET", "PUT"] :
+    action.kind === "radio-fetch" ? ["POST"] : action.kind === "race-publication" ? ["PUT", "DELETE"] : action.kind === "race-map" ? ["GET", "PUT", "DELETE"] :
     action.kind === "race-map-image" ? ["GET"] : action.kind === "race-map-georeference" ? ["POST"] :
     action.kind === "participant-route" ? ["POST", "DELETE"] : action.kind === "eventor" ? ["GET", "PUT", "DELETE"] :
     action.kind === "source-sync" ? ["GET", "POST"] : action.kind === "eventor-events" ? ["GET"] :

@@ -394,7 +394,7 @@ Se ADR-0172 beslut 4.
 **Acceptans:** Playwright: opublicerad tävling syns inte för besökare;
 publicerad syns under rätt rubrik; QR-sidan skrivs ut rent; 390 px.
 
-## [ ] Steg 20 – Radiokontroller via ROC
+## [x] Steg 20 – Radiokontroller via ROC
 
 Se ADR-0172 beslut 5.
 

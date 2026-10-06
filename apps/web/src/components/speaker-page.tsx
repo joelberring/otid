@@ -2,19 +2,22 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { administratorForestWatchResponseSchema, publicResultListResponseV7Schema, relayOverviewSchema, speakerBoardResponseSchema,
-  type AdministratorForestWatchResponse, type PublicResultListResponseV7, type RelayOverview, type SpeakerBoardResponse } from "@o-tid/contracts";
+import { administratorForestWatchResponseSchema, publicRadioResponseSchema, publicResultListResponseV7Schema, relayOverviewSchema,
+  speakerBoardResponseSchema, type AdministratorForestWatchResponse, type PublicRadioResponse, type PublicResultListResponseV7, type RelayOverview,
+  type SpeakerBoardResponse } from "@o-tid/contracts";
 import { speakerSv as text } from "../i18n/speaker-sv";
+import { radioControlName, radioSv } from "../i18n/radio-sv";
+import { passageTime } from "./radio/radio-live";
 import { formatClockTime, formatDuration } from "../lib/clock-time";
 import { readOrganizerCsrf } from "../lib/organizer-client";
 import { startPublicResultEventStream } from "../lib/public-result-event-stream-client";
-import { classLeaders, forestByClass, latestFinishers, relayLegs, type Finisher } from "../lib/speaker";
+import { classLeaders, forestByClass, isOnTheWay, latestFinishers, onTheWayKeys, radioLeaders, relayLegs, type Finisher } from "../lib/speaker";
 import styles from "./speaker-page.module.css";
 
 const REFRESH_MS = 10_000;
 
 type Data = { board: SpeakerBoardResponse; results?: PublicResultListResponseV7 | undefined; forest?: AdministratorForestWatchResponse | undefined;
-  relay?: RelayOverview | undefined; at: string };
+  relay?: RelayOverview | undefined; radio?: PublicRadioResponse | undefined; at: string };
 
 const duration = formatDuration;
 
@@ -57,12 +60,13 @@ export function SpeakerPage({ raceId }: { raceId: string }) {
         board = speakerBoardResponseSchema.parse(await get(`${base}/speaker-board`));
       }
       if (board.raceId !== raceId) throw new Error("Speakerunderlaget gäller en annan tävling");
-      const [results, forest, relay] = await Promise.all([
+      const [results, forest, relay, radio] = await Promise.all([
         get(`/api/public/races/${encodeURIComponent(raceId)}/results`).then(value => publicResultListResponseV7Schema.parse(value)),
         get(`${base}/forest-watch`).then(value => administratorForestWatchResponseSchema.parse(value)),
-        get(`${base}/relay`).then(value => relayOverviewSchema.parse(value))
+        get(`${base}/relay`).then(value => relayOverviewSchema.parse(value)),
+        get(`/api/public/races/${encodeURIComponent(raceId)}/radio`).then(value => publicRadioResponseSchema.parse(value))
       ]);
-      setData({ board, results, forest, relay, at: new Date().toISOString() });
+      setData({ board, results, forest, relay, radio, at: new Date().toISOString() });
       setProblem(undefined);
     } catch (error) {
       setProblem(error instanceof Unauthorized ? "login" : data ? "stale" : "error");
@@ -98,6 +102,9 @@ export function SpeakerPage({ raceId }: { raceId: string }) {
   const shownLeaders = classFilter ? leaders.filter(row => row.className === classFilter) : leaders;
   const forest = data.forest ? forestByClass(data.forest) : [];
   const relay = data.relay && data.relay.classes.length > 0 ? relayLegs(data.relay) : [];
+  const radio = data.radio?.enabled ? data.radio : undefined;
+  const radioTop = radioLeaders(radio).filter(row => !classFilter || row.className === classFilter);
+  const onTheWay = onTheWayKeys(radio);
   return <div className={styles.board}>
     <header className={styles.head}>
       <div className={styles.title}><h1>{data.board.eventName}</h1><p>{data.board.raceName} · {text.title}</p></div>
@@ -134,9 +141,25 @@ export function SpeakerPage({ raceId }: { raceId: string }) {
         {forest.length === 0 ? <p className={styles.empty}>{text.forestEmpty}</p> : forest.map(row =>
           <div key={row.className} className={styles.group}>
             <h3>{row.className}<span className={styles.count}>{text.forestCount(row.runners.length)}</span></h3>
-            <p className={styles.names}>{row.runners.map(runner => runner.displayName).join(", ")}</p>
+            <p className={styles.names}>{row.runners.map((runner, index) => <span key={runner.entryId}>{index > 0 && ", "}
+              {runner.displayName}{isOnTheWay(onTheWay, row.className, runner.displayName) &&
+                <strong className={styles.onTheWay}> ({radioSv.speaker.onTheWay})</strong>}</span>)}</p>
           </div>)}
       </section>
+      {radio && <section className={`${styles.block} ${styles.radioLatest}`} aria-labelledby="speaker-radio">
+        <h2 id="speaker-radio">{radioSv.speaker.latestTitle}</h2>
+        <RadioLatest rows={radio.latest} timeZone={timeZone} />
+      </section>}
+      {radio && radioTop.length > 0 && <section className={`${styles.block} ${styles.radioLeaders}`} aria-label={radioSv.live.title}>
+        {radioTop.map(row => <div key={`${row.className}-${row.controlCode}`} className={styles.group}>
+          <h3>{radioSv.speaker.leadersTitle(radioControlName(row.controlCode, row.label))}<span className={styles.count}>{row.className}</span></h3>
+          <ol className={styles.rows}>{row.leaders.map(leader => <li key={leader.publicResultId}>
+            <span className={styles.place}>{text.place(leader.place!)}</span>
+            <span className={styles.name}>{leader.givenName} {leader.familyName}<small>{leader.organisationName ?? ""}</small></span>
+            <span className={styles.time}>{passageTime(leader, timeZone)}</span>
+          </li>)}</ol>
+        </div>)}
+      </section>}
       {relay.length > 0 && <section className={`${styles.block} ${styles.relay}`} aria-labelledby="speaker-relay">
         <h2 id="speaker-relay">{text.relayTitle}</h2>
         {relay.map(row => <div key={row.raceClass.id} className={styles.group}>
@@ -171,5 +194,20 @@ function Latest({ rows, timeZone }: { rows: Finisher[]; timeZone: string }) {
         <td className={styles.place}>{row.position ? text.place(row.position) : ""}</td>
       </tr>;
     })}</tbody>
+  </table>;
+}
+
+/** Senaste radiostämplingarna (ADR-0172 beslut 5): klockslag, löpare, klass, kontroll, tid sedan start och placering där. */
+function RadioLatest({ rows, timeZone }: { rows: PublicRadioResponse["latest"]; timeZone: string }) {
+  if (rows.length === 0) return <p className={styles.empty}>{radioSv.speaker.latestEmpty}</p>;
+  return <table className={`${styles.table} ${styles.radioTable}`}>
+    <tbody>{rows.slice(0, 12).map(row => <tr key={`${row.publicResultId}-${row.controlCode}`}>
+      <td className={styles.clock}>{row.passedAt ? formatClockTime(row.passedAt, timeZone) : ""}</td>
+      <td className={styles.name}>{row.givenName} {row.familyName}<small>{radioSv.live.passed(radioControlName(row.controlCode, row.label))}
+        {row.organisationName ? ` · ${row.organisationName}` : ""}</small></td>
+      <td className={styles.className}>{row.className}</td>
+      <td className={styles.result}><span className={styles.time}>{passageTime(row, timeZone)}</span></td>
+      <td className={styles.place}>{row.place ? text.place(row.place) : ""}</td>
+    </tr>)}</tbody>
   </table>;
 }

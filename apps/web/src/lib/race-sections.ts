@@ -32,6 +32,8 @@ export type RaceTypeFeatures = {
   startRuleChoice: boolean;
   /** Rogaining (ADR-0170 beslut 5): nya klasser får tidsgräns och straff; kontrollerna har poäng. */
   rogaining: boolean;
+  /** Radiokontroller via ROC/OResults under Inställningar (ADR-0172 beslut 5): alla typer utom Träning och Rogaining. */
+  radio: boolean;
 };
 
 export type RaceTypeProfile = {
@@ -58,8 +60,9 @@ const results = section("RESULTS", "RESULTS");
 const settings = section("SETTINGS", "SETTINGS");
 
 const none: RaceTypeFeatures = { draw: false, speaker: false, import: false, eventor: false, finalization: false, relay: false, variants: false,
-  variantsProminent: false, startRuleChoice: false, rogaining: false };
-const competition: RaceTypeFeatures = { ...none, draw: true, speaker: true, import: true, eventor: true, finalization: true, startRuleChoice: true };
+  variantsProminent: false, startRuleChoice: false, rogaining: false, radio: false };
+const competition: RaceTypeFeatures = { ...none, draw: true, speaker: true, import: true, eventor: true, finalization: true, startRuleChoice: true,
+  radio: true };
 
 const profiles: Record<RaceType, Omit<RaceTypeProfile, "type" | "settings">> = {
   TRAINING: {
@@ -68,7 +71,7 @@ const profiles: Record<RaceType, Omit<RaceTypeProfile, "type" | "settings">> = {
   },
   SMALL: {
     course: [courses, classes, entries, start, publish, readout, results],
-    features: { ...none, startRuleChoice: true }
+    features: { ...none, startRuleChoice: true, radio: true }
   },
   STANDARD: {
     course: [courses, classes, entries, start, publish, readout, results],
@@ -80,7 +83,7 @@ const profiles: Record<RaceType, Omit<RaceTypeProfile, "type" | "settings">> = {
   },
   RELAY: {
     course: [courses, section("CLASSES", "CLASSES_LEGS"), section("ENTRIES", "TEAMS"), start, publish, readout, results],
-    features: { ...none, speaker: true, eventor: true, finalization: true, relay: true, variants: true, startRuleChoice: true }
+    features: { ...none, speaker: true, eventor: true, finalization: true, relay: true, variants: true, startRuleChoice: true, radio: true }
   },
   ROGAINING: {
     course: [section("COURSES", "CONTROLS_POINTS", ["ROGAINING", "COURSES", "CLASSES"]), section("ENTRIES", "PARTICIPANTS"),

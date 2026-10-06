@@ -346,5 +346,7 @@
     }
     ,{ "idx": 101, "version": "7", "when": 1797004800000, "tag": "0101_adr_0172_public_race", "breakpoints": true
     }
+    ,{ "idx": 102, "version": "7", "when": 1797091200000, "tag": "0102_adr_0172_radio", "breakpoints": true
+    }
   ]
 }

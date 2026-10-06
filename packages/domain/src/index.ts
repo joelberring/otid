@@ -27,3 +27,4 @@ export * from "./source-sync";
 export * from "./race-clock";
 export * from "./rogaining";
 export * from "./route-legs";
+export * from "./radio-controls";

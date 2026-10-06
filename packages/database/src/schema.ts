@@ -3468,3 +3468,50 @@ export const participantRoutes = pgTable("participant_route", {
   index("participant_route_race_idx").on(table.raceId),
   foreignKey({ name: "participant_route_entry_scope_fk", columns: [table.entryId, table.raceId], foreignColumns: [entries.id, entries.raceId] })
 ]);
+
+/** ADR-0172 beslut 5 (migration 0102): radiokontroller via ROC eller OResults. */
+export type RadioSourceValue = "ROC" | "ORESULTS";
+export type RadioErrorValue = "INVALID_INPUT" | "INVALID_RESPONSE" | "UPSTREAM_UNAVAILABLE" | "REJECTED" | "NOT_FOUND" |
+  "RESPONSE_TOO_LARGE" | "TIMEOUT";
+
+/** Tävlingens koppling till ROC/OResults, lastId och senaste hämtningens läge. */
+export const raceRadioLinks = pgTable("race_radio_link", {
+  raceId: uuid("race_id").primaryKey().references(() => races.id),
+  source: text("source").$type<RadioSourceValue>().notNull(),
+  unitId: text("unit_id").notNull(),
+  enabled: boolean("enabled").notNull().default(true),
+  lastPunchId: bigint("last_punch_id", { mode: "number" }).notNull().default(0),
+  lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
+  lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
+  lastError: text("last_error").$type<RadioErrorValue>(),
+  lastErrorAt: timestamp("last_error_at", { withTimezone: true }),
+  consecutiveFailures: integer("consecutive_failures").notNull().default(0),
+  malformedLines: integer("malformed_lines").notNull().default(0),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull()
+});
+
+/** Kontrollerna som är radiokontroller, med valfritt namn. */
+export const raceRadioControls = pgTable("race_radio_control", {
+  raceId: uuid("race_id").notNull().references(() => races.id),
+  controlCode: integer("control_code").notNull(),
+  label: text("label")
+}, (table) => [primaryKey({ columns: [table.raceId, table.controlCode] })]);
+
+/** Radiostämplingarna som de kom (oföränderliga, skilda från avläsningarna). */
+export const radioPunches = pgTable("radio_punch", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  raceId: uuid("race_id").notNull().references(() => races.id),
+  source: text("source").$type<RadioSourceValue>().notNull(),
+  unitId: text("unit_id").notNull(),
+  punchId: bigint("punch_id", { mode: "number" }).notNull(),
+  controlCode: integer("control_code").notNull(),
+  cardNumber: text("card_number").notNull(),
+  punchedAt: timestamp("punched_at", { withTimezone: true }).notNull(),
+  localTime: text("local_time").notNull(),
+  rawLine: text("raw_line").notNull(),
+  receivedAt: timestamp("received_at", { withTimezone: true }).notNull()
+}, (table) => [
+  uniqueIndex("radio_punch_source_uidx").on(table.raceId, table.source, table.unitId, table.punchId),
+  uniqueIndex("radio_punch_content_uidx").on(table.raceId, table.cardNumber, table.controlCode, table.punchedAt),
+  index("radio_punch_race_time_idx").on(table.raceId, table.punchedAt)
+]);

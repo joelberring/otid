@@ -172,3 +172,29 @@ describe("CSV för startlistor", () => {
     expect(toCsv(["A"], [[null]])).toBe(`${CSV_BOM}A\r\n\r\n`);
   });
 });
+
+describe("resultatlistan med radiokontroller (ADR-0172 beslut 5)", () => {
+  const passage = (givenName: string, place: number | null, finished = false) => ({
+    publicResultId: `00000000-0000-4000-8000-0000000000${givenName.length}${place ?? 0}`, givenName, familyName: "Radio",
+    organisationName: "OK Radio", className: "D21", controlCode: 50, label: "Radio 1", passedAt: "2026-10-08T16:07:20.000Z",
+    elapsedMs: 440_000, place, finished });
+  const radio = { formatVersion: 1 as const, raceId: "00000000-0000-4000-8000-000000000099", enabled: true, timeZone: "Europe/Stockholm",
+    latest: [], classes: [{ className: "D21", onTheWay: [passage("Ada", 1)],
+      controls: [{ controlCode: 50, label: "Radio 1", passages: [passage("Ada", 1), passage("Bea", 2, true)] }] }] };
+
+  it("tar med en klass där ingen läst av men någon passerat radiokontrollen, i bokstavsordning", () => {
+    const model = resultListFromPublic(results, { ...relay, classes: [] }, radio);
+    expect(model.classes.map(row => [row.name, row.rows.length, row.radio?.onTheWay.length ?? 0])).toEqual([["D21", 0, 1], ["H21", 4, 0]]);
+    expect(model.radioTimeZone).toBe("Europe/Stockholm");
+    // Avstängd radio: ingenting från radion.
+    expect(resultListFromPublic(results, { ...relay, classes: [] }, { ...radio, enabled: false }).classes.map(row => row.name)).toEqual(["H21"]);
+  });
+
+  it("söker också bland löparna vid radiokontrollerna", () => {
+    const model = resultListFromPublic(results, { ...relay, classes: [] }, radio);
+    expect(filterResults(model, "bea", "").classes.map(row => [row.name, row.radio?.onTheWay.length, row.radio?.controls[0]!.passages.length]))
+      .toEqual([["D21", 0, 1]]);
+    expect(filterResults(model, "ada", "D21").classes[0]!.radio!.onTheWay.map(row => row.givenName)).toEqual(["Ada"]);
+    expect(filterResults(model, "finns inte", "").classes).toEqual([]);
+  });
+});

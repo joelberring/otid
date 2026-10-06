@@ -7,6 +7,8 @@ import { formatDuration } from "../../lib/clock-time";
 import { resultListCsv, type ResultView } from "../../lib/lists/csv";
 import { filterResults, resultClassNames, resultsByClub, splitGroups, type RelayClass, type RelayTeam, type ResultClass, type ResultListModel,
   type ResultRow } from "../../lib/lists/result-list-model";
+import { RadioLive } from "../radio/radio-live";
+import { radioSv } from "../../i18n/radio-sv";
 import { download, ListFrame, type IofExport } from "./list-frame";
 import styles from "./lists.module.css";
 
@@ -15,7 +17,13 @@ const duration = (ms: number | null) => ms === null ? "" : formatDuration(ms);
 const behind = (ms: number | null) => ms === null ? "" : ms === 0 ? "" : `+${formatDuration(ms)}`;
 const slug = (value: string) => value.replace(/\W+/g, "-");
 
-type Context = { raceId: string; links: boolean };
+type Context = { raceId: string; links: boolean; radioTimeZone: string };
+
+/** Klassens radiokontroller (ADR-0172 beslut 5), om tävlingen har radio och någon passerat. */
+function ClassRadio({ raceClass, context }: { raceClass: ResultClass; context: Context }) {
+  if (!raceClass.radio) return null;
+  return <RadioLive radio={raceClass.radio} timeZone={context.radioTimeZone} raceId={context.raceId} links={context.links} className={raceClass.name} />;
+}
 
 /** Länk till sträcktidsanalysen för klassen (bara publikt; rogaining har ingen). */
 function AnalysisLink({ className, context }: { className: string; context: Context }) {
@@ -102,10 +110,11 @@ function ClassBlock({ raceClass, context }: { raceClass: ResultClass; context: C
   if (raceClass.scored) return <ScoredClassBlock raceClass={raceClass} context={context} />;
   const id = `result-class-${slug(raceClass.name)}`;
   return <section className={styles.block} aria-labelledby={id}>
-    <div className={styles.blockHead}><h3 id={id}>{raceClass.name}</h3><p>{t.runners(raceClass.rows.length)}</p>
+    <div className={styles.blockHead}><h3 id={id}>{raceClass.name}</h3>
+      <p>{raceClass.rows.length === 0 && raceClass.radio ? radioSv.live.noneFinished : t.runners(raceClass.rows.length)}</p>
       {raceClass.rows.some(row => row.splits.length > 0) && <AnalysisLink className={raceClass.name} context={context} />}</div>
     {raceClass.mixedCourses && <p className={styles.notice}>{t.mixedCourses}</p>}
-    <table className={styles.table} aria-labelledby={id}>
+    {raceClass.rows.length > 0 && <table className={styles.table} aria-labelledby={id}>
       <thead><tr><th scope="col" className={styles.place}>{t.place}</th><th scope="col">{t.name}</th>
         <th scope="col" className={styles.wideOnly}>{t.club}</th><th scope="col" className={`${styles.num} ${styles.narrow}`}>{t.time}</th>
         <th scope="col" className={`${styles.num} ${styles.narrow} ${styles.wideOnly}`}>{t.behind}</th>
@@ -118,7 +127,8 @@ function ClassBlock({ raceClass, context }: { raceClass: ResultClass; context: C
         <td className={`${styles.num} ${styles.wideOnly} ${styles.muted}`}>{behind(row.behindMs)}</td>
         <Status row={row} />
       </tr>)}</tbody>
-    </table>
+    </table>}
+    <ClassRadio raceClass={raceClass} context={context} />
   </section>;
 }
 
@@ -165,7 +175,8 @@ function SplitsBlock({ raceClass, context }: { raceClass: ResultClass; context: 
   if (raceClass.scored) return <ScoredControlsBlock raceClass={raceClass} context={context} />;
   const groups = splitGroups(raceClass);
   if (groups.length === 0) return <section className={styles.block} aria-label={raceClass.name}>
-    <div className={styles.blockHead}><h3>{raceClass.name}</h3></div><p className={styles.empty}>{t.noSplits}</p></section>;
+    <div className={styles.blockHead}><h3>{raceClass.name}</h3></div>
+    {raceClass.radio ? <ClassRadio raceClass={raceClass} context={context} /> : <p className={styles.empty}>{t.noSplits}</p>}</section>;
   return <>{groups.map(group => {
     const title = group.variant ? t.variantHeading(group.className, group.variant) : group.className;
     const id = `result-splits-${slug(title)}`;
@@ -196,7 +207,8 @@ function SplitsBlock({ raceClass, context }: { raceClass: ResultClass; context: 
         </table>
       </div>
     </section>;
-  })}</>;
+  })}
+  {raceClass.radio && <section className={styles.block} aria-label={raceClass.name}><ClassRadio raceClass={raceClass} context={context} /></section>}</>;
 }
 
 function RelayLegs({ raceClass }: { raceClass: RelayClass }) {
@@ -271,7 +283,7 @@ export function ResultLists({ model, raceId, race, raceDate, links, iof, status 
   const shown = useMemo(() => filterResults(model, query, selected), [model, query, selected]);
   const count = shown.classes.reduce((sum, row) => sum + row.rows.length, 0);
   const teams = shown.relayClasses.reduce((sum, row) => sum + row.teams.length, 0);
-  const context: Context = { raceId, links };
+  const context: Context = { raceId, links, radioTimeZone: model.radioTimeZone ?? "Europe/Stockholm" };
   const views = (["CLASS", "SPLITS", "CLUB"] as const).map(id => ({ id, label: t.views[id] }));
   const empty = model.classes.length === 0 && model.relayClasses.every(row => row.teams.length === 0);
   return <ListFrame title={t.titles[view]} race={race} toolbar={{

@@ -86,6 +86,27 @@ en gång. En felaktig inställning stänger av e-posten och skrivs i `logs web` 
 Endast test: CI pekar `OTID_SMTP_URL` mot en falsk SMTP-server på värden (`tests/e2e/fake-smtp.ts`), på samma
 sätt som `OTID_EVENTOR_BASE_URL`. Appen har ingen särskild testväg för e-post.
 
+## Radiokontroller (ROC/OResults)
+
+Administratören kopplar tävlingen under Inställningar → Radiokontroller: källa (ROC eller OResults), enhetens id
+och vilka kontroller som är radiokontroller. Webbprocessen hämtar sedan nya stämplingar själv:
+
+- Pollern startar med servern (`apps/web/src/instrumentation.ts`, inte under `next build`) och går var tionde sekund.
+  Den frågar bara tävlingar med radion påslagen och tävlingsdagen i tävlingens tidszon; "Hämta nu" fungerar alla dagar.
+- Bara en instans hämtar: den som håller PostgreSQL-låset (`pg_try_advisory_lock`, egen anslutning). Dör den tar
+  nästa instans över inom tio sekunder. Varje hämtning frågar med tävlingens `lastId` och sparar stämplingarna och det
+  nya `lastId` i samma transaktion; samma stämpling sparas aldrig två gånger.
+- Fel (tjänsten svarar inte, nekar, fel enhet, oläsbart svar) sparas och visas i klartext för admin. Efter fel väntar
+  pollern längre: 20, 40 och sedan 60 sekunder. `logs web` visar felkoden, aldrig bricknummer eller namn.
+- `OTID_RADIO_POLLER=off` stänger av hämtningen i en instans (t.ex. om en annan process ska hämta).
+- Adresserna: OResults `https://api.oresults.eu/roc?unitId=…&lastId=…` (dokumenterad) och ROC
+  `https://roc.olresultat.se/ver7.1/getpunches.php?unitId=…&lastId=…`. **ROC-adressen är inte provad mot den
+  riktiga tjänsten** – kontrollera den med en riktig enhet före första tävlingen (konstanterna finns i
+  `packages/roc/src/client.ts`).
+
+Endast test: `OTID_ROC_BASE_URL` pekar O-Tid mot en falsk ROC (`tests/e2e/fake-roc.ts`, port 4331 i CI) och ska inte
+sättas i drift.
+
 ## Backup
 
 Tjänsten `backup` tar en `pg_dump` direkt vid start och sedan varje natt kl.

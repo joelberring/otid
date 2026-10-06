@@ -41,6 +41,10 @@ services:
       OTID_CONTACT_EMAIL: ${OTID_CONTACT_EMAIL:-}
       # Registreringar per IP och timme. Tom = 10. CI höjer gränsen för webbläsartesterna.
       OTID_REGISTRATION_LIMIT_PER_HOUR: ${OTID_REGISTRATION_LIMIT_PER_HOUR:-}
+      # Radiokontroller (docs/drift.md). Endast test: CI pekar på en falsk ROC på värden. Tom i drift = ROC/OResults.
+      OTID_ROC_BASE_URL: ${OTID_ROC_BASE_URL:-}
+      # off = den här instansen hämtar inga radiostämplingar. Tom = hämtar (bara en instans åt gången, PostgreSQL-lås).
+      OTID_RADIO_POLLER: ${OTID_RADIO_POLLER:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:

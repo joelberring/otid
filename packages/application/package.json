@@ -17,6 +17,7 @@
     "@o-tid/domain": "workspace:*",
     "@o-tid/eventor": "workspace:*",
     "@o-tid/iof-xml": "workspace:*",
+    "@o-tid/roc": "workspace:*",
     "@o-tid/route-xml": "workspace:*",
     "drizzle-orm": "0.44.5"
   },

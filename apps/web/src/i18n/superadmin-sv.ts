@@ -41,7 +41,7 @@ export const superadminSv = {
   confirmHelp: {
     HIDE_RACE: "Startlistor, resultat och sträcktider slutar synas för besökare. Arrangören ser tävlingen som vanligt.",
     UNHIDE_RACE: "Tävlingen syns igen för besökare.",
-    DELETE_EVENT: "Allt tas bort: anmälda, råa avläsningar, resultat, karta, rutter och Eventor-koppling. Det går inte att ångra.",
+    DELETE_EVENT: "Allt tas bort: anmälda, råa avläsningar, radiostämplingar, resultat, karta, rutter och Eventor-koppling. Det går inte att ångra.",
     BLOCK_ACCOUNT: "Kontot loggas ut överallt och kan inte logga in förrän spärren släpps.",
     UNBLOCK_ACCOUNT: "Kontot kan logga in igen. Gamla inloggningar gäller inte.",
     DELETE_ACCOUNT: "Kontot och tävlingarna det äger tas bort. Det går inte att ångra.",

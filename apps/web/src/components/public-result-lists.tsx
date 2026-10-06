@@ -13,7 +13,7 @@ import styles from "./lists/lists.module.css";
  */
 export function PublicResultLists({ raceId, initial, race, raceDate }: { raceId: string; initial: ResultListData; race: string; raceDate: string }) {
   const { data, failed } = useResultListData(raceId, initial);
-  const model = useMemo(() => resultListFromPublic((data ?? initial).results, (data ?? initial).relay), [data, initial]);
+  const model = useMemo(() => resultListFromPublic((data ?? initial).results, (data ?? initial).relay, (data ?? initial).radio), [data, initial]);
   return <ResultLists model={model} raceId={raceId} race={race} raceDate={raceDate} links
     iof={{ href: `/api/public/races/${encodeURIComponent(raceId)}/iof-results` }}
     status={failed ? <p className={styles.notice} role="alert">{text.results.refreshFailed}</p> : undefined} />;

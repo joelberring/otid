@@ -5,9 +5,21 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 20 – Radiokontroller via ROC (ADR-0172). Steg 7 (hårdvara) väntar på att ägaren har stationen till hands.
+Steg 21 – Kopiera tävling och kvitto vid avläsning. Steg 7 (hårdvara) väntar på att ägaren har stationen till hands.
 
 ## Logg
+
+### 2026-10-06 – Steg 20: radiokontroller via ROC/OResults (steg 20 klart)
+- Inställningar → Radiokontroller (ej Träning/Rogaining, bara admin): källa ROC/OResults, enhetens id, radiokontroller ur banorna med namn, på/av;
+  läget (senaste hämtning, stämplingar, okända brickor, oläsbara rader, fel i klartext) och "Hämta nu". Stafettens sträcklöpare får inga mellantider än.
+- `packages/roc`: tolerant läsning (BOM, CRLF, trasiga rader räknas, dubbletter, id som inte ökar, lokal tid → tävlingens tidszon) och tunn klient.
+  Migration 0102: `race_radio_link`, `race_radio_control`, `radio_punch` (rå rad, oföränderlig, unik på källa+enhet+id och bricka+kontroll+tid).
+- Pollern i webbprocessen (`instrumentation.ts`): var 10:e s på tävlingsdagen, PostgreSQL-lås (en instans), 20/40/60 s efter fel, stämplingar och lastId
+  i en transaktion. `OTID_RADIO_POLLER=off` stänger av; `OTID_ROC_BASE_URL` bara för test (falsk ROC på 4331, även i CI:s driftjobb).
+- Domänen `radio-controls.ts` (tid och plats vid kontrollen, bricka matchas vid läsning). Resultatlistan och sträcktidsanalysen: "Ute i skogen" och
+  "Vid radiokontroll"; speakern: senaste radiostämplingar, ledare vid kontrollen, "på väg in"; tävlingssidan: "Radiokontroller live".
+- Verifierat: lint, typecheck, test, test:integration (70 filer, nytt `adr-0172-radio`), build (pollern provad i driftbygget: lås, fel, väntan), e2e alla
+  15 specar gröna (nytt `radio`; grupp med publikt dödades av minnestaket och kördes om; funktionarer, lottning, stafett efter omförsök). ROC-adressen ska provas av ägaren.
 
 ### 2026-10-06 – Steg 19: publik startsida och tävlingssida (steg 19 klart)
 - Migration 0101: `race.published_at` (NULL = inte publicerad) och `race.short_code` (6 tecken utan 0/1/i/l/o, unik, sätts av databasen).
@@ -274,6 +286,8 @@ brickor till steg 7.
 
 - Start: incheckningsappen (offline, krypterad lista) togs bort i steg 18 (halvfärdig, nåddes bara via funktionärskoderna). Funktionären sätter startläget
   online under Avläsning → kvar i skogen; avprickning direkt i startlistan (per starttid) och offline vore bättre vid starten.
+
+- Radio: mellantider för stafettens sträcklöpare; speakerns klassfilter även för radioklasser; radiostämpling som starttid vid fri start.
 
 - Vägval: justera tidsförskjutning mellan GPS-klocka och stationer per rutt; georeferens från KMZ eller världsfil (OCAD) i stället för tre punkter;
   kontrollernas lägen från banfilens koordinater; sträcktidsanalys för stafett (per sträcka); uppladdning av flera GPX-filer matchade på namn.

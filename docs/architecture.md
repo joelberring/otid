@@ -39,6 +39,9 @@ apps/web, apps/worker
 - `packages/contracts` äger validerade HTTP-kontrakt.
 - `packages/iof-xml` tolkar extern IOF XML till interna importförslag. Paketet
   skriver aldrig till databas.
+- `packages/roc` (ADR-0172 beslut 5) tolkar ROC/OResults-svar (en stämpling per rad,
+  lokal tid i tävlingens tidszon) och har en tunn fetch-klient. Ingen databas; mellantid och
+  placering vid radiokontrollen räknas i `packages/domain` (`radio-controls.ts`).
 - `packages/database` äger Drizzle-schema, migrationer och PostgreSQL-adapter.
 - `packages/application` orkestrerar transaktioner, import, ingest, audit och
   omräkning. Resultatregler delegeras alltid till `packages/domain`.

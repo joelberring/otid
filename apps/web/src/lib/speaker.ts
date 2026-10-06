@@ -1,4 +1,5 @@
-import type { AdministratorForestWatchResponse, PublicResultListResponseV7, RelayOverview, SpeakerBoardResponse } from "@o-tid/contracts";
+import type { AdministratorForestWatchResponse, PublicRadioPassage, PublicRadioResponse, PublicResultListResponseV7, RelayOverview,
+  SpeakerBoardResponse } from "@o-tid/contracts";
 import { inForest } from "./section-status";
 
 /**
@@ -55,4 +56,29 @@ export function relayLegs(relay: RelayOverview) {
       out: teams.filter(team => team.status === "RUNNING" && team.currentLeg === leg.leg) })),
     finished: teams.filter(team => team.status === "OK").sort((a, b) => (a.position ?? 9999) - (b.position ?? 9999)) };
   });
+}
+
+/** Ledare vid radiokontrollerna (ADR-0172 beslut 5): de `limit` bästa per klass och kontroll, i banans ordning. */
+export function radioLeaders(radio: PublicRadioResponse | undefined, limit = 3):
+  { className: string; controlCode: number; label: string | null; leaders: PublicRadioPassage[] }[] {
+  if (!radio?.enabled) return [];
+  return radio.classes.flatMap(raceClass => raceClass.controls.flatMap(control => {
+    const leaders = control.passages.filter(passage => passage.place !== null && passage.place <= limit);
+    return leaders.length ? [{ className: raceClass.className, controlCode: control.controlCode, label: control.label, leaders }] : [];
+  }));
+}
+
+const runnerKey = (className: string, name: string) => `${className}\u0000${name}`;
+
+/**
+ * Löpare som är kvar i skogen och har passerat en radiokontroll ("på väg in"), som klass och namn. Samma nyckel som
+ * kvar i skogen-listans klass och visningsnamn.
+ */
+export function onTheWayKeys(radio: PublicRadioResponse | undefined): Set<string> {
+  return new Set((radio?.enabled ? radio.classes : []).flatMap(raceClass => raceClass.onTheWay
+    .map(passage => runnerKey(raceClass.className, `${passage.givenName} ${passage.familyName}`))));
+}
+
+export function isOnTheWay(keys: Set<string>, className: string, displayName: string): boolean {
+  return keys.has(runnerKey(className, displayName));
 }

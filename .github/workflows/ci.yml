@@ -56,11 +56,13 @@ jobs:
       - run: pnpm install --frozen-lockfile
       # Eventor: slumpad masternyckel och den falska Eventor som Playwrights global-setup startar på värden (port 4319).
       # E-post: den falska SMTP-servern från global-setup (port 4325). Många testkonton från samma adress.
+      # Radio: den falska ROC-servern från global-setup (port 4331).
       - run: |
           printf 'OTID_DOMAIN=localhost\nPOSTGRES_PASSWORD=endast-for-ci\n' > .env
           printf 'OTID_EVENTOR_MASTER_KEY=%s\nOTID_EVENTOR_BASE_URL=http://host.docker.internal:4319\n' "$(openssl rand -base64 32)" >> .env
           printf 'OTID_SMTP_URL=smtp://host.docker.internal:4325\nOTID_MAIL_FROM=O-Tid test <noreply@o-tid.test>\n' >> .env
           printf 'OTID_REGISTRATION_LIMIT_PER_HOUR=1000\n' >> .env
+          printf 'OTID_ROC_BASE_URL=http://host.docker.internal:4331\n' >> .env
       - run: docker compose -f docker-compose.prod.yml up -d --build --wait --wait-timeout 600
       - run: curl -sfk --retry 30 --retry-delay 2 --retry-all-errors -o /dev/null https://localhost/organizer
       - run: pnpm exec playwright install --with-deps chromium

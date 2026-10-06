@@ -15,6 +15,12 @@
 .filter select { width: auto; min-width: 9rem; min-height: 36px; font-size: var(--text-sm); }
 .latest { grid-row: span 2; }
 .relay { grid-column: 2 / -1; }
+/* Radiokontroller (ADR-0172 beslut 5): senaste stämplingarna under "Senast i mål", ledarna bredvid. */
+.radioLatest { grid-column: 1; }
+.radioLeaders { grid-column: 2 / -1; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr)); gap: 0 28px; }
+.radioLeaders .group { min-width: 0; }
+.onTheWay { color: var(--ink); font-weight: 600; }
+.radioTable .result { width: 5.5rem; }
 .group { display: grid; gap: 4px; padding: 10px 0 12px; border-top: 1px solid var(--line); }
 .group h3 { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-family: var(--font-dense); font-size: 21px; font-weight: 700; }
 .count { color: var(--muted); font-size: var(--text-md); font-weight: 500; font-variant-numeric: tabular-nums; }
@@ -42,7 +48,7 @@
 @media (max-width: 1100px) {
   .grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .latest { grid-column: 1 / -1; grid-row: auto; }
-  .relay { grid-column: 1 / -1; }
+  .relay, .radioLatest, .radioLeaders { grid-column: 1 / -1; }
 }
 @media (max-width: 700px) {
   .board { padding: 14px 16px 24px; font-size: 17px; }

@@ -61,7 +61,7 @@ export const accountSv = {
   },
   raceDelete: {
     title: "Ta bort tävling",
-    help: "Tävlingen tas bort helt: banor, klasser, anmälda, råa avläsningar, resultat, karta, rutter och Eventor-koppling. Det går inte att ångra.",
+    help: "Tävlingen tas bort helt: banor, klasser, anmälda, råa avläsningar, radiostämplingar, resultat, karta, rutter och Eventor-koppling. Det går inte att ångra.",
     ownerOnly: "Bara den som skapade tävlingen kan ta bort den.",
     confirm: (name: string) => `Skriv tävlingens namn, ${name}, för att bekräfta`,
     button: "Ta bort tävlingen",
@@ -73,7 +73,7 @@ export const accountSv = {
     intro: "O-Tid sparar bara det som behövs för att arrangera tävlingar och visa resultat.",
     whatTitle: "Vad som sparas",
     accounts: "Konton: e-postadress, namn och lösenordet i krypterad form (det går inte att läsa tillbaka), när kontot skapades och senast loggade in.",
-    races: "Tävlingar: löparnas namn, klubbar, klasser, bricknummer, starttider, stämplingar och resultat, råa avläsningar från stationerna och, om arrangören laddar upp dem, karta och GPS-rutter.",
+    races: "Tävlingar: löparnas namn, klubbar, klasser, bricknummer, starttider, stämplingar och resultat, råa avläsningar från stationerna, radiostämplingar från ROC eller OResults och, om arrangören laddar upp dem, karta och GPS-rutter.",
     logs: "Loggar: vem som ändrade vad i en tävling och vad superadmin har gjort (dolt eller tagit bort tävlingar, spärrat eller tagit bort konton). Antal försök att logga in, skapa konto och återställa lösenord räknas per adress, som sparas i hashad form.",
     whyTitle: "Varför",
     why: "För att arrangörer ska kunna genomföra tävlingen, räkna fram resultat och publicera start- och resultatlistor, och för att skydda kontona mot intrång och missbruk.",

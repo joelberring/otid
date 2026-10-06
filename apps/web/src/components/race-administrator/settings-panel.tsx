@@ -9,13 +9,15 @@ import { EventorSection } from "./eventor-section";
 import { RaceDeleteSection } from "./race-delete-section";
 import { PeopleSection } from "./people-section";
 import { RacePublicationSection } from "./race-publication-section";
+import { RadioSection } from "./radio-section";
 import type { Workspace } from "./workspace-state";
 
 const text = raceTypeSv.settings;
 
 /**
  * Inställningar (ADR-0170 beslut 1): namn, datum och tävlingstyp. Att byta typ ändrar bara vilka delar som
- * syns; inget tas bort. Här finns också publiceringen och personer med behörighet (ADR-0172), Eventor (typer som använder Eventor), länken till importen och
+ * syns; inget tas bort. Här finns också publiceringen och personer med behörighet (ADR-0172), Eventor (typer som använder Eventor), radiokontroller
+ * (typer med tävlingsmoment), länken till importen och
  * (för ägaren) att ta bort tävlingen.
  */
 export function SettingsPanel({ ws }: { ws: Workspace }) {
@@ -48,6 +50,7 @@ export function SettingsPanel({ ws }: { ws: Workspace }) {
     <RacePublicationSection ws={ws} id={`${id}-publish`} />
     <PeopleSection raceId={raceId} disabled={locked} onPendingChange={setPeoplePending} />
     {profile.features.eventor && <EventorSection ws={ws} />}
+    {profile.features.radio && <RadioSection raceId={raceId} disabled={locked} />}
     {profile.features.import && <Section id={`${id}-import`} title={text.import} help={text.importHelp}>
       <p><Link href={`/admin/${raceId}/imports`}>{text.importLink}</Link></p>
     </Section>}

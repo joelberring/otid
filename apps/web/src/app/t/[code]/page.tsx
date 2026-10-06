@@ -3,6 +3,7 @@ import Link from "next/link";
 import { sv } from "../../../i18n/sv";
 import { publicRaceSv } from "../../../i18n/public-race-sv";
 import { raceTypeSv } from "../../../i18n/race-type-sv";
+import { radioSv } from "../../../i18n/radio-sv";
 import { loadRaceHub, requireRaceHub } from "../../../lib/public-race-hub";
 import { publicOrigin } from "../../../lib/public-origin";
 import { displayAddress, formatRaceDate, formatRaceInstant, raceHubPath } from "../../../lib/public-race-format";
@@ -29,7 +30,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 
 /**
  * Tävlingssidan (ADR-0172 beslut 4) med kort adress: navet för besökare. Startlista, resultat, sträcktidsanalys och
- * vägval när de finns, senaste uppdatering och adressen att dela. Fler vägar (radio, live) läggs i samma lista.
+ * vägval när de finns, radiokontroller live, senaste uppdatering och adressen att dela.
  */
 export default async function RaceHubPage({ params }: Params) {
   const hub = await requireRaceHub((await params).code);
@@ -50,6 +51,7 @@ export default async function RaceHubPage({ params }: Params) {
       {hub.startListPublished ? link(`/starts/${hub.raceId}`, text.startList, text.startListHelp)
         : hasStartSection && <li><div className={styles.hubPending}><strong>{text.startList}</strong><span>{text.startListPending}</span></div></li>}
       {link(`/results/${hub.raceId}`, text.results, hub.hasResults ? text.resultsHelp : text.resultsPending)}
+      {hub.radio && link(`/results/${hub.raceId}`, radioSv.hub.title, radioSv.hub.help)}
       {hub.hasResults && hasSplitAnalysis(hub.raceType) && link(`/results/${hub.raceId}/splits`, text.splits, text.splitsHelp)}
       {hub.routes && link(`/results/${hub.raceId}/splits`, text.routes, text.routesHelp)}
     </ul>

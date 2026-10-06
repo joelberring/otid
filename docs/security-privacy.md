@@ -43,6 +43,15 @@ kan peka om den (`OTID_EVENTOR_BASE_URL`, för test). Fel visas som läge
 ("Eventor godkände inte nyckeln") utan innehåll från Eventor. Liveprov mot Eventor
 med klubbens riktiga nyckel återstår.
 
+## Radiokontroller (ADR-0172 beslut 5)
+
+Bara administratören ställer in radion (källa, enhetens id, radiokontroller); funktionären och besökare når inte
+inställningarna. Radiostämplingarna sparas oförändrade med bricknummer, kontroll och tid. Publikt (resultatlistan,
+sträcktidsanalysen, tävlingssidan) och för speakern visas bara namn, klubb, klass, kontroll, tid och placering för
+anmälda löpare – aldrig bricknummer eller okända brickor. Okända brickor syns bara för administratören. Tjänsten anropas
+utan nyckel, utan omdirigeringar, med tidsgräns och storleksgräns; loggarna har felkod och tävlingens id men inga
+bricknummer eller namn. Stämplingarna tas bort med tävlingen.
+
 ## Konton och superadmin (ADR-0172)
 
 Kontot identifieras med normaliserad e-post. Lösenord lagras som `scrypt`-verifierare (minst 8 tecken).

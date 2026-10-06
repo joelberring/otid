@@ -1,4 +1,4 @@
-import { publicRaceSummary, publicRelayResults, publicResults, readLatestPublicFrozenRaceFinalization } from "@o-tid/application";
+import { publicRaceSummary, publicRelayResults, publicResults, readLatestPublicFrozenRaceFinalization, readPublicRadio } from "@o-tid/application";
 import { db } from "../../../lib/db";
 import { PublicResultLists } from "../../../components/public-result-lists";
 import { PublicRaceNavigation } from "../../../components/public-race-navigation";
@@ -15,8 +15,8 @@ export const dynamic = "force-dynamic";
 export default async function ResultsPage({ params }: { params: Promise<{ raceId: string }> }) {
   const { raceId } = await params;
   const access = await requirePublicRace(raceId);
-  const [summary, results, relay, finalization] = await Promise.all([publicRaceSummary(db, raceId), publicResults(db, raceId),
-    publicRelayResults(db, raceId), readLatestPublicFrozenRaceFinalization(db, raceId)]);
+  const [summary, results, relay, finalization, radio] = await Promise.all([publicRaceSummary(db, raceId), publicResults(db, raceId),
+    publicRelayResults(db, raceId), readLatestPublicFrozenRaceFinalization(db, raceId), readPublicRadio(db, raceId)]);
   // Sträcktidsanalysen (PLAN.md steg 16) finns när någon individuell klass har sträcktider.
   const analysis = analysisClassNames(resultListFromPublic(results, relay)).length > 0;
   return <main className="stack public-list-page">
@@ -27,7 +27,7 @@ export default async function ResultsPage({ params }: { params: Promise<{ raceId
         {analysis && <Link href={`/results/${raceId}/splits`}>{splitAnalysisSv.title}</Link>}
         {finalization.status === "ok" && <Link href={`/results/${raceId}/finalizations/${finalization.finalizationId}`}>{sv.publicFrozenResultsLink}</Link>}
       </p>}</section>
-    <PublicResultLists raceId={raceId} initial={{ results, relay }} race={`${summary.eventName} · ${summary.name} · ${summary.raceDate}`}
+    <PublicResultLists raceId={raceId} initial={{ results, relay, radio }} race={`${summary.eventName} · ${summary.name} · ${summary.raceDate}`}
       raceDate={summary.raceDate} />
   </main>;
 }

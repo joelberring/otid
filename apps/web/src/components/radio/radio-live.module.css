@@ -1,0 +1,20 @@
+/* Radiokontroller i resultatlistan (ADR-0172 beslut 5): samma täta tabeller som listan, en tunn accentlinje för "ute". */
+.radio { display: grid; gap: 10px; min-width: 0; padding-top: 6px; }
+.head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
+.head p { color: var(--muted); font-size: var(--text-xs); }
+.radio h4 { font-family: var(--font-dense); font-size: var(--text-md); font-weight: 600; }
+.radio tr[data-radio="out"] > :first-child { box-shadow: inset 3px 0 0 var(--line-strong); }
+.provisional { color: var(--muted); font-weight: 600; }
+.controls { display: grid; gap: 0; min-width: 0; }
+.controls h4 { padding-bottom: 4px; }
+.control { border-top: 1px solid var(--line); }
+.control:last-child { border-bottom: 1px solid var(--line); }
+.control summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; min-height: 38px; padding: 8px 0;
+  cursor: pointer; font-size: var(--text-sm); }
+.control summary strong { font-family: var(--font-dense); font-weight: 600; }
+.leader { color: var(--muted); font-variant-numeric: tabular-nums; }
+.control[open] summary { border-bottom: 1px solid var(--line-strong); }
+.control table { margin-bottom: 8px; }
+@media print {
+  .control:not([open]) { display: none; }
+}

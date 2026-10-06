@@ -9,6 +9,7 @@ import { formatDuration } from "../../lib/clock-time";
 import { resultListFromPublic, splitGroups, type ResultRow, type SplitGroup } from "../../lib/lists/result-list-model";
 import { analysisClassNames, legLabel, routeHref } from "../../lib/split-analysis";
 import { useResultListData, type ResultListData } from "../lists/use-result-list-data";
+import { RadioLive } from "../radio/radio-live";
 import styles from "./split-analysis.module.css";
 
 type View = "SPLITS" | "LOSS";
@@ -123,8 +124,10 @@ function LossTable({ group, raceId, title }: { group: SplitGroup; raceId: string
  */
 export function SplitAnalysis({ raceId, initial, routeLegs, initialClass }: Props) {
   const { data, failed } = useResultListData(raceId, initial);
-  const model = useMemo(() => resultListFromPublic((data ?? initial).results, (data ?? initial).relay), [data, initial]);
-  const classNames = useMemo(() => analysisClassNames(model), [model]);
+  const model = useMemo(() => resultListFromPublic((data ?? initial).results, (data ?? initial).relay, (data ?? initial).radio), [data, initial]);
+  // Klasser med sträcktider, och (ADR-0172 beslut 5) klasser där någon passerat en radiokontroll.
+  const classNames = useMemo(() => [...new Set([...analysisClassNames(model),
+    ...model.classes.filter(row => row.radio && !row.scored).map(row => row.name)])].sort((a, b) => a.localeCompare(b, "sv")), [model]);
   const [chosen, setChosen] = useState(initialClass ?? "");
   const [view, setView] = useState<View>("SPLITS");
   const className = classNames.includes(chosen) ? chosen : classNames[0] ?? "";
@@ -165,6 +168,8 @@ export function SplitAnalysis({ raceId, initial, routeLegs, initialClass }: Prop
           ? <SplitGroupTable key={`${className}-${title}`} group={group} raceId={raceId} routeLegs={routeLegs} title={title} />
           : <LossTable key={`${className}-${title}`} group={group} raceId={raceId} title={title} />;
       })}
+      {raceClass?.radio && model.radioTimeZone && <section className={styles.block} aria-label={raceClass.name}>
+        <RadioLive radio={raceClass.radio} timeZone={model.radioTimeZone} raceId={raceId} links className={raceClass.name} /></section>}
     </>}
     {relayClasses.length > 0 && <p className={styles.note}>{text.relayNotSupported(relayClasses.join(", "))}</p>}
   </div>;

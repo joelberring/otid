@@ -267,3 +267,4 @@ export * from "./relay";
 export * from "./race-settings";
 export * from "./rogaining";
 export * from "./race-map";
+export * from "./radio";

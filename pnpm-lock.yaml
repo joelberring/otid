@@ -155,6 +155,9 @@ importers:
       '@o-tid/iof-xml':
         specifier: workspace:*
         version: link:../iof-xml
+      '@o-tid/roc':
+        specifier: workspace:*
+        version: link:../roc
       '@o-tid/route-xml':
         specifier: workspace:*
         version: link:../route-xml
@@ -228,6 +231,12 @@ importers:
       fast-xml-parser:
         specifier: 5.2.5
         version: 5.2.5
+
+  packages/roc:
+    dependencies:
+      '@o-tid/domain':
+        specifier: workspace:*
+        version: link:../domain
 
   packages/route-xml:
     dependencies:

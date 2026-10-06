@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { AdministratorForestWatchResponse, PublicResultListResponseV7, SpeakerBoardResponse } from "@o-tid/contracts";
-import { classLeaders, forestByClass, latestFinishers } from "./speaker";
+import type { AdministratorForestWatchResponse, PublicRadioResponse, PublicResultListResponseV7, SpeakerBoardResponse } from "@o-tid/contracts";
+import { classLeaders, forestByClass, isOnTheWay, latestFinishers, onTheWayKeys, radioLeaders } from "./speaker";
 
 let ids = 0;
 const id = () => `00000000-0000-4000-8000-${String(++ids).padStart(12, "0")}`;
@@ -39,5 +39,21 @@ describe("speakersidan", () => {
     expect(forestByClass(forest).map(row => [row.className, row.runners.map(runner => runner.displayName)])).toEqual([
       ["D21", ["Dora"]], ["H21", ["Å", "Ö"]]
     ]);
+  });
+
+  it("visar ledare vid radiokontrollerna och vilka i skogen som är på väg in (ADR-0172 beslut 5)", () => {
+    const passage = (givenName: string, place: number | null) => ({ publicResultId: id(), givenName, familyName: "Löpare",
+      organisationName: null, className: "H21", controlCode: 50, label: null, passedAt: null, elapsedMs: null, place, finished: false });
+    const radio = { formatVersion: 1, raceId: id(), enabled: true, timeZone: "Europe/Stockholm", latest: [],
+      classes: [{ className: "H21", onTheWay: [passage("Bo", 1)],
+        controls: [{ controlCode: 50, label: null, passages: [passage("Bo", 1), passage("Cia", 2), passage("Dan", 3), passage("Eva", 4),
+          passage("Fri", null)] }, { controlCode: 60, label: "Förvarning", passages: [] }] }] } as PublicRadioResponse;
+    expect(radioLeaders(radio).map(row => [row.className, row.controlCode, row.leaders.map(leader => leader.givenName)]))
+      .toEqual([["H21", 50, ["Bo", "Cia", "Dan"]]]);
+    expect(radioLeaders({ ...radio, enabled: false })).toEqual([]);
+    const keys = onTheWayKeys(radio);
+    expect(isOnTheWay(keys, "H21", "Bo Löpare")).toBe(true);
+    expect(isOnTheWay(keys, "D21", "Bo Löpare")).toBe(false);
+    expect(isOnTheWay(onTheWayKeys(undefined), "H21", "Bo Löpare")).toBe(false);
   });
 });

@@ -271,7 +271,10 @@ describe("ADR-0172 radiokontroller", () => {
       ["Dan", 31, 3], ["Anna", 31, 4]]);
     expect(radio.latest.map(row => [row.givenName, row.controlCode])).toEqual([["Bo", 50], ["Cia", 31], ["Anna", 31], ["Dan", 31], ["Bo", 31]]);
     // Inga bricknummer publikt.
-    expect(JSON.stringify(radio)).not.toMatch(/72\d\d/);
+    // Jämför hela värden (inte delsträngar): slumpade UUID:n kan innehålla siffrorna 72xx.
+    const leaves = (value: unknown): unknown[] => value !== null && typeof value === "object"
+      ? Object.values(value as Record<string, unknown>).flatMap(leaves) : [value];
+    expect(leaves(radio).filter(value => /^72\d\d$/.test(String(value)))).toEqual([]);
 
     // Anna läses av (godkänd, avläsningens tid vid 31 är 7:28) och Dan felstämplar: Annas tid kommer från avläsningen.
     await readout(f, "7201", [[31, 448], [32, 800], [50, 1150], [33, 1500]], 1800);

@@ -101,3 +101,4 @@ export * from "./race-map";
 export * from "./radio-ingest";
 export * from "./radio-settings";
 export * from "./radio-standings";
+export * from "./race-copy";

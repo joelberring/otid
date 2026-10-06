@@ -348,5 +348,7 @@
     }
     ,{ "idx": 102, "version": "7", "when": 1797091200000, "tag": "0102_adr_0172_radio", "breakpoints": true
     }
+    ,{ "idx": 103, "version": "7", "when": 1797177600000, "tag": "0103_plan_21_race_copy", "breakpoints": true
+    }
   ]
 }

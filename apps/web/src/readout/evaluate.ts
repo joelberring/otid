@@ -6,7 +6,10 @@ import { localRelay, relaySnapshot, type LocalRelay } from "./relay";
 export interface LocalVerdict {
   readonly status: EvaluationResult["status"];
   readonly reason: EvaluationResult["reason"];
+  /** Deltagaren som brickan hör till (för kvittots länk till löparens resultat). */
+  readonly entryId?: string;
   readonly name?: string;
+  readonly club?: string;
   readonly className?: string;
   /** Gafflad bana: varianten som avläsningen bedömdes mot; `assigned` är falskt när den valts efter stämplingarna. */
   readonly variant?: { readonly code: string; readonly assigned: boolean };
@@ -47,7 +50,8 @@ export function evaluateLocally(payload: SportidentReadoutPayload, pkg: ReadoutP
     ...(relay ? { relay } : {}),
     status: result.status,
     reason: result.reason,
-    ...(entry ? { name: `${entry.givenName} ${entry.familyName}`.trim() } : {}),
+    ...(entry ? { entryId: entry.id, name: `${entry.givenName} ${entry.familyName}`.trim() } : {}),
+    ...(entry?.organisationName ? { club: entry.organisationName } : {}),
     ...(raceClass ? { className: raceClass.name } : {}),
     ...(variant ? { variant } : {}),
     ...(result.elapsedMs !== undefined ? { elapsedMs: result.elapsedMs } : {}),

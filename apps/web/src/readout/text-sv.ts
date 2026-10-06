@@ -95,5 +95,31 @@ export const readoutText = {
   syncFailed: (status: number) => `Servern svarade ${status}. Kön ligger kvar och skickas igen.`,
   rawLog: "Ladda ner rålogg",
   rawLogHelp: "All trafik med stationen sedan sidan öppnades och råramarna för loppets avläsningar, utan namn. Skicka filen till utvecklaren om en station eller bricka beter sig fel.",
+  // Kvitto och QR-kod (PLAN.md steg 21).
+  receipt: {
+    print: "Skriv ut kvitto",
+    auto: "Skriv ut kvitto automatiskt",
+    showQr: "Visa QR-kod för löparen",
+    paper: "Kvittobredd",
+    paperOption: (millimetres: number) => `${millimetres} mm`,
+    preview: "Kvitto",
+    close: "Dölj kvitto",
+    region: "Kvitto",
+    card: (card: string) => `Bricka ${card}`,
+    columns: ["", "Kontroll", "Sträcka", "Tid"] as const,
+    rogainingColumns: ["", "Kontroll", "Poäng", "Tid"] as const,
+    finish: "Mål",
+    time: "Tid",
+    controlPoints: "Kontrollpoäng",
+    penalty: "Straff",
+    total: "Summa",
+    timeOfLimit: (time: string, limit: string) => `${time} av ${limit}`,
+    missing: (codes: readonly number[]) => `Saknar: ${codes.join(", ")}`,
+    noSplits: "Inga sträcktider.",
+    scan: "Skanna för dina resultat",
+    notPublished: "Resultatsidan syns när tävlingen publiceras.",
+    printedAt: (time: string) => `Utskrivet ${time}`,
+    footer: "O-Tid"
+  },
   storageNotPersistent: "Webbläsaren har inte lovat att spara kön beständigt. Töm inte webbläsardata under tävlingen."
 } as const;

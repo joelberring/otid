@@ -27,6 +27,8 @@ async function readRunner(page: Page, runner: typeof RUNNERS[number]): Promise<v
   await page.getByRole("button", { name: "Läs av: rätt stämplat" }).click();
   await expect(page.getByTestId("verdict")).toContainText("GODKÄND");
   await expect(page.getByTestId("verdict")).toContainText(`${runner.givenName} ${runner.familyName}`);
+  // Funktionären skriver ut kvitton (steg 21).
+  await expect(page.getByRole("button", { name: "Skriv ut kvitto" })).toBeVisible();
 }
 
 test("admin lägger till funktionär som läser av från två enheter men inte når banor", async ({ browser }) => {
@@ -57,6 +59,8 @@ test("admin lägger till funktionär som läser av från två enheter men inte n
   await staff.reload();
   await expect(staff.getByText(`Klubbtävling ${suffix}`)).toBeVisible();
   await expect(staff.getByText("Funktionär", { exact: true })).toBeVisible();
+  // Kopiera tävlingen (steg 21) är bara för ägare och administratörer.
+  await expect(staff.getByRole("button", { name: /^Kopiera / })).toHaveCount(0);
   await staff.getByRole("button", { name: "Öppna arbetsytan" }).click();
   await staff.waitForURL(/manage$/);
   await expect(sectionButton(staff, "Avläsning")).toHaveAttribute("aria-current", "step");

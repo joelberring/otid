@@ -87,11 +87,12 @@
 .createPanel .actions button { min-height: 44px; }
 .raceList { gap: 0; border-top: 1px solid var(--line); }
 .raceList li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .5rem .65rem; min-width: 0; padding: .38rem .2rem; border-bottom: 1px solid var(--line); }
-.raceList li > div { display: flex; align-items: baseline; justify-content: space-between; min-width: 0; gap: .65rem; }
+.raceList li > div:first-child { display: flex; align-items: baseline; justify-content: space-between; min-width: 0; gap: .65rem; }
 .raceList strong, .raceList span { overflow-wrap: anywhere; }
 .raceList span { color: var(--muted); font-size: .82rem; }
 .raceList button, .actions button { min-height: 44px; flex: 0 0 auto; }
 .raceList li > div > span { font-family: var(--font-dense); }
+.raceActions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: end; }
 .uncertain, .confirmed { margin-top: 12px; padding: 12px 14px; }
 .uncertain { border-left: 3px solid var(--attention); background: var(--attention-tint); }
 .confirmed { border-left: 3px solid var(--ok); background: var(--surface); }
@@ -110,7 +111,8 @@
   .account { justify-content: space-between; }
   .columns { grid-template-columns: minmax(0, 1fr); }
   .raceList li { grid-template-columns: minmax(0, 1fr); align-items: stretch; }
-  .raceList li > div { display: grid; gap: .1rem; }
+  .raceList li > div:first-child { display: grid; gap: .1rem; }
+  .raceActions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
   .raceList button { width: 100%; }
   .sectionHeading { align-items: center; }
   .eventHeading { align-items: start; }

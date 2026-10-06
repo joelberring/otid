@@ -1,4 +1,5 @@
 import {
+  copyRaceAsUserAccount,
   changeAccountDisplayName,
   changeAccountPassword,
   completePasswordReset,
@@ -13,7 +14,8 @@ import {
   organizerAccountLoginResponseSchema,
   passwordResetAvailabilitySchema,
   passwordResetCompleteResponseSchema,
-  passwordResetRequestResponseSchema
+  passwordResetRequestResponseSchema,
+  raceCopyResponseSchema
 } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
 import {
@@ -57,6 +59,7 @@ function failure(status: string): Response {
     case "not-found": case "invalid-token": return accountFailure(404, "NOT_FOUND");
     // Fel lösenord vid byte eller borttagning är en felaktig bekräftelse, inte saknad behörighet.
     case "wrong-password": case "confirmation-mismatch": return accountFailure(409, "CONFIRMATION_MISMATCH");
+    case "conflict": return accountFailure(409, "CONFLICT");
     default: return accountFailure(500, "INTERNAL_ERROR");
   }
 }
@@ -168,5 +171,23 @@ export async function organizerRaceDeleteRoute(
     const result = await deleteEventAsOwner(db, { ...input.proof, raceId }, input.body);
     if (result.status !== "deleted") return failure(result.status);
     return organizerJson(deletedResponseSchema.parse({ formatVersion: 1, status: "deleted" }));
+  } catch { return accountFailure(500, "INTERNAL_ERROR"); }
+}
+
+/**
+ * "Ny tävling som …" (PLAN.md steg 21): ägare och administratörer kopierar tävlingen med kontots inloggning, både från
+ * Mina tävlingar och från Inställningar. Samma request-id ger samma kopia (200), en ny kopia ger 201.
+ */
+export async function organizerRaceCopyRoute(
+  db: Database, request: Request, raceId: string, environment: Environment = process.env, copy: typeof copyRaceAsUserAccount = copyRaceAsUserAccount
+): Promise<Response> {
+  if (!UUID.test(raceId)) return accountFailure(400, "INVALID_REQUEST");
+  const input = await mutation(request, environment);
+  if ("response" in input) return input.response;
+  try {
+    const result = await copy(db, { ...input.proof, raceId, request: input.body });
+    if (result.status !== "copied") return failure(result.status);
+    const response = raceCopyResponseSchema.parse(result.response);
+    return organizerJson(response, response.replayed ? 200 : 201);
   } catch { return accountFailure(500, "INTERNAL_ERROR"); }
 }

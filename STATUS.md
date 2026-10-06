@@ -5,9 +5,22 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 21 – Kopiera tävling och kvitto vid avläsning. Steg 7 (hårdvara) väntar på att ägaren har stationen till hands.
+Steg 7 – Riktig hårdvara och pilot (ägaren). Alla andra steg i `PLAN.md` är klara.
+Måste provas mot riktiga tjänster: Eventor med klubbens API-nyckel, ROC:s sökväg för stämplingar (bara provad mot falsk ROC) och e-post via SMTP.
 
 ## Logg
+
+### 2026-10-06 – Steg 21: kopiera tävling och kvitto vid avläsning (steg 21 klart)
+- "Ny tävling som …": "Kopiera" per lopp i Mina tävlingar (ej funktionär) och under Inställningar. Dialog: namn, loppnamn, datum (samma veckodag
+  nästa gång om källan passerat), "Ta med funktionärer och administratörer" (förval på; kopieraren blir ägare, källans ägare blir administratör).
+- `copyRaceAsUserAccount` i en transaktion (källan låst): typ, tidszon, kontroller/poäng, banor med alla versioner och varianter, klasser (startsätt,
+  maxantal, rogaining), sträckor (starttid samma klockslag nytt datum), karta med georeferens, radiokontroller (avstängda) – nya rader. Inte: deltagare,
+  lag, lottning, avläsningar, resultat, rutter, radiostämplingar, Eventor (klassernas Eventor-id tas bort), publicering (ny kort kod). Migration 0103 (journal).
+- Avläsningen: "Skriv ut kvitto" efter beskedet, "Skriv ut kvitto automatiskt", QR på skärmen och kvittobredd 80/58 mm per enhet (localStorage).
+  Kvittot: tävling, datum, löpare, klass, klubb, bricka, status, tid, sträcktider med mål, rogainingpoäng/straff, QR (`qrcode` i skalet) till löparens resultat
+  eller `/t/{kod}`. Paketet bär kort kod och publika resultat-id, så allt fungerar utan nät. Ingen placering: offline känner enheten bara sina egna avläsningar.
+- Verifierat: lint, typecheck, test (nya `receipt.test`, `race-copy.test`), test:integration (71 filer, nytt `steg-21-copy-race`), build, e2e alla 16 specar gröna i grupper (nytt `kopiera`;
+  funktionarer, admin-access, listor efter omförsök; publikt, radio, redigera-bana var för sig sedan servern dött av minnet). Skärmbilder granskade.
 
 ### 2026-10-06 – Steg 20: radiokontroller via ROC/OResults (steg 20 klart)
 - Inställningar → Radiokontroller (ej Träning/Rogaining, bara admin): källa ROC/OResults, enhetens id, radiokontroller ur banorna med namn, på/av;

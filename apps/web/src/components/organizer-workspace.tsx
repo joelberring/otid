@@ -23,6 +23,8 @@ import {
 import { organizerSv as copy } from "../i18n/organizer-sv";
 import { raceTypeSv } from "../i18n/race-type-sv";
 import { RaceTypeChoice } from "./race-type-choice";
+import { CopyRaceDialog, type CopySource } from "./copy-race-dialog";
+import { raceCopySv } from "../i18n/race-copy-sv";
 import styles from "./organizer-workspace.module.css";
 
 type Session = { accountId: string; email: string; displayName: string; superadmin: boolean; expiresAt: string };
@@ -58,6 +60,7 @@ export function OrganizerWorkspace() {
   const [showAnotherForm, setShowAnotherForm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [enteringRaceId, setEnteringRaceId] = useState<string>();
+  const [copySource, setCopySource] = useState<CopySource>();
   const [message, setMessage] = useState("");
   const createHeadingRef = useRef<HTMLHeadingElement>(null);
   const createNameRef = useRef<HTMLInputElement>(null);
@@ -405,8 +408,13 @@ export function OrganizerWorkspace() {
             <p className={styles.eventMeta}>{event.startsOn} · {event.timeZone} · {event.races.length} {copy.raceCountLabel}</p>
             <ul className={styles.raceList}>{event.races.map((race) => <li key={race.raceId}>
               <div><strong>{race.raceName}</strong><span>{race.raceDate} · {raceTypeSv.types[race.raceType].name}</span></div>
-              <button type="button" className={styles.secondary} disabled={busy || enteringRaceId !== undefined} aria-busy={enteringRaceId === race.raceId}
-                onClick={() => void enterRace(race.raceId)}>{enteringRaceId === race.raceId ? copy.opening : copy.openRace}</button>
+              <div className={styles.raceActions}>
+                {event.role !== "FUNCTIONARY" && <button type="button" className={styles.secondary} disabled={busy || enteringRaceId !== undefined}
+                  aria-label={raceCopySv.actionLabel(race.raceName)} onClick={() => setCopySource({ raceId: race.raceId, eventName: event.eventName,
+                    raceName: race.raceName, raceDate: race.raceDate })}>{raceCopySv.action}</button>}
+                <button type="button" className={styles.secondary} disabled={busy || enteringRaceId !== undefined} aria-busy={enteringRaceId === race.raceId}
+                  onClick={() => void enterRace(race.raceId)}>{enteringRaceId === race.raceId ? copy.opening : copy.openRace}</button>
+              </div>
             </li>)}</ul>
           </li>)}
         </ul>}
@@ -453,5 +461,7 @@ export function OrganizerWorkspace() {
     </div>}
 
     {session && <p className={styles.message} role="status" aria-live="polite">{message}</p>}
+    <CopyRaceDialog source={copySource} onClose={() => setCopySource(undefined)}
+      onCopied={() => void loadEvents().catch((error) => setMessage(errorMessage(error)))} />
   </main>;
 }

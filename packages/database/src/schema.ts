@@ -3515,3 +3515,20 @@ export const radioPunches = pgTable("radio_punch", {
   uniqueIndex("radio_punch_content_uidx").on(table.raceId, table.cardNumber, table.controlCode, table.punchedAt),
   index("radio_punch_race_time_idx").on(table.raceId, table.punchedAt)
 ]);
+
+/** PLAN.md steg 21 (migration 0103): "Ny tävling som …" – idempotent journal över kopior och deras källa. */
+export const raceCopyRequests = pgTable("race_copy_request", {
+  requestId: uuid("request_id").primaryKey(),
+  actorAccountId: uuid("actor_account_id").notNull().references(() => userAccounts.id),
+  sourceRaceId: uuid("source_race_id").notNull().references(() => races.id),
+  eventId: uuid("event_id").notNull().references(() => events.id),
+  raceId: uuid("race_id").notNull().references(() => races.id),
+  request: jsonb("request").$type<Record<string, unknown>>().notNull(),
+  response: jsonb("response").$type<Record<string, unknown>>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull()
+}, (table) => [
+  uniqueIndex("race_copy_request_race_uidx").on(table.raceId),
+  index("race_copy_request_source_idx").on(table.sourceRaceId, table.createdAt),
+  check("race_copy_request_distinct_check", sql`${table.sourceRaceId} <> ${table.raceId}`),
+  foreignKey({ name: "race_copy_request_race_event_fk", columns: [table.raceId, table.eventId], foreignColumns: [races.id, races.eventId] })
+]);

@@ -410,7 +410,7 @@ brickor, trasiga rader); integrationstest för hämtning med `lastId`;
 Playwright mot falsk ROC: radiostämpling syns som mellantid och hos speakern
 innan löparen läst av.
 
-## [ ] Steg 21 – Kopiera tävling och kvitto vid avläsning
+## [x] Steg 21 – Kopiera tävling och kvitto vid avläsning
 
 1. "Ny tävling som …": kopierar banor, klasser, inställningar och funktionärer
    men inga deltagare eller resultat. Gör återkommande träningar snabba.

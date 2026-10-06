@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { raceShortCodeSchema } from "./race-publication";
 import { relayReadoutSchema } from "./relay";
 import { rogainingPointsSchema, rogainingRulesSchema } from "./rogaining";
 
@@ -250,6 +251,15 @@ export const readoutPackageSchema = z.object({
   raceSnapshot: raceSnapshotSchema,
   /** Stafett (ADR-0169 beslut 3): saknas när tävlingen inte har stafettklasser. */
   relay: relayReadoutSchema.optional(),
+  /**
+   * Kvittots och skärmens QR-kod (PLAN.md steg 21), så att de kan skapas utan nät: tävlingssidans korta kod,
+   * om tävlingen är publicerad och deltagarnas publika resultat-id. Saknas i paket sparade före steg 21.
+   */
+  publicLinks: z.object({
+    shortCode: raceShortCodeSchema,
+    published: z.boolean(),
+    participants: z.array(z.object({ entryId: uuidSchema, publicResultId: uuidSchema }).strict()).max(STATION_PACKAGE_LIMITS.entries)
+  }).strict().optional(),
   fetchedAt: z.iso.datetime({ offset: true })
 }).strict().superRefine((value, context) => {
   if (value.raceId !== value.raceSnapshot.race.id) {

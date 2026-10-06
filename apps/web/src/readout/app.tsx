@@ -13,6 +13,10 @@ import { TrafficLog } from "./rawlog";
 import { IdbReadoutStore, type QueuedReadout, type ReadoutStore } from "./store";
 import { syncPending } from "./sync";
 import { readoutText as t } from "./text-sv";
+import { ReceiptPanel, type Printable } from "./receipt-panel";
+import { QrCode } from "./receipt-view";
+import { receiptLink } from "./receipt";
+import { loadReceiptSettings, saveReceiptSettings, type ReceiptSettings } from "./receipt-settings";
 
 type Current =
   | { readonly phase: "reading"; readonly cardNumber: number }
@@ -58,6 +62,7 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
   const [current, setCurrent] = useState<Current>();
   const [runnerId, setRunnerId] = useState("");
   const [persistent, setPersistent] = useState(true);
+  const [receiptSettings, setReceiptSettings] = useState<ReceiptSettings>(() => loadReceiptSettings());
   const storeRef = useRef(store);
   const pkgRef = useRef<ReadoutPackage | undefined>(undefined);
   const controllerRef = useRef<StationController | undefined>(undefined);
@@ -228,6 +233,11 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
   const recent = [...items].sort((a, b) => b.localSequence - a.localSequence).slice(0, 10);
   const currentItem = current?.phase === "done" ? items.find((item) => item.localSequence === current.localSequence) : undefined;
   const connected = station.kind === "ready" || station.kind === "misconfigured" || station.kind === "connecting";
+  const printable: Printable | undefined = current?.phase === "done" && current.verdict && pkg
+    ? { localSequence: current.localSequence, cardNumber: current.cardNumber, verdict: current.verdict } : undefined;
+  // QR-koden på skärmen: för en känd löpare, så att hen kan skanna i stället för att ta ett papperskvitto.
+  const screenQr = printable && receiptSettings.showQr && pkg && printable.verdict.entryId
+    ? receiptLink(pkg, printable.verdict.entryId, window.location.origin) : undefined;
 
   return <main className="readout">
     <header>
@@ -252,8 +262,11 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
 
     <section className="verdict" aria-live="assertive" data-testid="verdict"
       data-status={current?.phase === "done" ? current.verdict?.status ?? "NO_PACKAGE" : current?.phase ?? "idle"}>
-      <Verdict current={current} item={currentItem} />
+      <Verdict current={current} item={currentItem} qr={screenQr} />
     </section>
+
+    <ReceiptPanel printable={printable} pkg={pkg} settings={receiptSettings}
+      onSettings={(settings) => { setReceiptSettings(settings); saveReceiptSettings(settings); }} />
 
     <section className="controls">
       {connected
@@ -301,13 +314,14 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
   </main>;
 }
 
-function Verdict({ current, item }: { current: Current | undefined; item: QueuedReadout | undefined }) {
+function Verdict({ current, item, qr }: { current: Current | undefined; item: QueuedReadout | undefined;
+  qr: ReturnType<typeof receiptLink> | undefined }) {
   if (!current) return <p className="big">{t.waitingForCard}</p>;
   if (current.phase === "reading") return <p className="big">{t.reading(current.cardNumber)}</p>;
   if (current.phase === "failed") return <p className="big">✗ {current.message}</p>;
   const verdict = current.verdict;
   const symbol = !verdict ? "✓" : verdict.status === "OK" ? "✓" : verdict.status === "MP" ? "✗" : "?";
-  return <>
+  return <div className="verdict-layout"><div className="verdict-body">
     <p className="big">{symbol} {verdict ? t.verdict[verdict.status] : t.verdict.NO_PACKAGE}</p>
     <p className="card">Bricka {current.cardNumber}{verdict?.name ? ` · ${verdict.name}` : ""}{verdict?.className ? ` · ${verdict.className}` : ""}</p>
     {verdict?.relay ? <RelayLine relay={verdict.relay} /> : null}
@@ -330,7 +344,12 @@ function Verdict({ current, item }: { current: Current | undefined; item: Queued
     <p className="sync">{item?.status === "pending" ? t.savedLocally
       : item?.status === "rejected" ? t.rejected(item.rejectedReason ?? "")
       : item ? t.confirmed : t.savedLocally}</p>
-  </>;
+  </div>
+  {qr ? <figure className="verdict-qr" data-testid="screen-qr">
+    <QrCode value={qr.url} label={t.receipt.scan} />
+    <figcaption>{t.receipt.scan}{qr.published ? null : <small>{t.receipt.notPublished}</small>}</figcaption>
+  </figure> : null}
+  </div>;
 }
 
 function RecentRow({ item, pkg, local }: { item: QueuedReadout; pkg: ReadoutPackage | undefined; local: readonly QueuedReadout["payload"][] }) {

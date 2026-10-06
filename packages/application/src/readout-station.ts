@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { readoutPackageSchema, type DeviceBatch, type DeviceBatchAcknowledgement, type ReadoutPackage } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { RESULT_ENGINE_VERSION } from "@o-tid/domain";
@@ -14,6 +14,7 @@ import { loadRelayReadout } from "./relay-results";
  */
 type Proof = Omit<PairingAdminRequestAuthentication, "capability" | "requireCsrf">;
 type Failure = { status: "unauthorized" | "forbidden" };
+type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 export async function readReadoutPackageAsAdministrator(
   db: Database, input: Proof, now = new Date()
@@ -28,12 +29,27 @@ export async function readReadoutPackageAsAdministrator(
     }).from(schema.events).where(eq(schema.events.id, raceSnapshot.race.eventId));
     if (!event) throw new Error("Evenemanget finns inte");
     const relay = await loadRelayReadout(tx, input.raceId);
+    const publicLinks = await loadPublicLinks(tx, input.raceId);
     return readoutPackageSchema.parse({
       formatVersion: 1, raceId: raceSnapshot.race.id, packageVersion: raceSnapshot.race.snapshotVersion,
-      resultEngineVersion: RESULT_ENGINE_VERSION, event, raceSnapshot, ...(relay ? { relay } : {}), fetchedAt: now.toISOString()
+      resultEngineVersion: RESULT_ENGINE_VERSION, event, raceSnapshot, ...(relay ? { relay } : {}), publicLinks,
+      fetchedAt: now.toISOString()
     });
   });
   return { status: "ok", response };
+}
+
+/**
+ * Kvittots QR-kod (PLAN.md steg 21) skapas i webbläsaren, även utan nät: tävlingssidans korta kod och deltagarnas
+ * publika resultat-id (samma id som i de publika resultatlänkarna) följer med paketet.
+ */
+async function loadPublicLinks(tx: Transaction, raceId: string) {
+  const [race] = await tx.select({ shortCode: schema.races.shortCode, publishedAt: schema.races.publishedAt,
+    hidden: schema.races.hiddenBySuperadmin }).from(schema.races).where(eq(schema.races.id, raceId));
+  if (!race) throw new Error("Loppet finns inte");
+  const participants = await tx.select({ entryId: schema.entries.id, publicResultId: schema.entries.publicResultId })
+    .from(schema.entries).where(eq(schema.entries.raceId, raceId)).orderBy(asc(schema.entries.id));
+  return { shortCode: race.shortCode, published: race.publishedAt !== null && !race.hidden, participants };
 }
 
 export async function ingestReadoutsAsAdministrator(

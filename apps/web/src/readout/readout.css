@@ -47,6 +47,56 @@ p { margin: 0; }
 .verdict .late { justify-self: start; padding: 2px 10px; border-left: 4px solid var(--attention); background: var(--attention-tint);
   font-size: 1.2rem; font-weight: 700; }
 
+/* Beskedet med QR-kod till höger (under på smal skärm). */
+.verdict-layout { display: flex; flex-wrap: wrap; align-items: start; gap: 12px 24px; }
+.verdict-body { display: grid; flex: 1 1 320px; gap: 6px; min-width: 0; }
+.verdict-qr { display: grid; flex: 0 0 auto; gap: 4px; justify-items: center; width: 148px; margin: 0; text-align: center; }
+.verdict-qr svg { display: block; width: 148px; height: 148px; }
+.verdict-qr figcaption { display: grid; gap: 2px; color: var(--muted); font-size: var(--text-xs); font-weight: 600; }
+.verdict-qr small { font-weight: 400; }
+
+/* Kvitto: knappen och valen under beskedet, sedan förhandsvisningen. */
+.receipt-panel { display: grid; gap: 12px; }
+.receipt-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; }
+.receipt-actions .toggle { display: flex; align-items: center; gap: 8px; margin: 0; min-height: 44px; font-size: var(--text-sm); cursor: pointer; }
+.receipt-actions .toggle input { width: 24px; height: 24px; margin: 0; accent-color: var(--accent); }
+.receipt-actions .paper { display: flex; align-items: center; gap: 8px; margin: 0; font-size: var(--text-sm); }
+.receipt-actions .paper select { width: auto; min-height: 44px; padding: 4px 12px; }
+.receipt-preview { display: grid; gap: 8px; justify-items: start; }
+.receipt-preview-head { display: flex; align-items: baseline; gap: 16px; }
+.receipt-preview-head h2 { margin: 0; }
+button.quiet { min-height: 44px; padding: 4px 6px; border-color: transparent; background: transparent; font-size: var(--text-sm); font-weight: 500;
+  text-decoration: underline; text-underline-offset: .18em; }
+.receipt-paper { width: 80mm; max-width: 100%; border: 1px solid var(--line-strong); background: #fff; }
+.receipt-preview[data-paper="58"] .receipt-paper { width: 58mm; }
+
+/*
+ * Själva kvittot: svart på vitt, täta tabellsiffror i ett smalt typsnitt, inga färger, inga knappar.
+ * Samma regler på skärmen och vid utskrift (58 eller 80 mm kvittoskrivare).
+ */
+.receipt { display: grid; gap: 2.5mm; padding: 3mm 3.5mm 5mm; color: #000; background: #fff; font-family: var(--font-dense);
+  font-size: 9.5pt; line-height: 1.25; font-variant-numeric: tabular-nums; }
+.receipt p { margin: 0; overflow-wrap: anywhere; }
+.receipt > header, .receipt > section { display: grid; gap: .5mm; padding-bottom: 2mm; border-bottom: .3mm dashed #000; }
+.receipt-event { font-size: 11pt; font-weight: 700; }
+.receipt-runner { font-size: 12pt; font-weight: 700; }
+.receipt-status > p:first-child { display: flex; justify-content: space-between; gap: 2mm; font-size: 13pt; }
+.receipt-result { white-space: nowrap; }
+.receipt dl { display: grid; gap: .5mm; margin: 0; }
+.receipt dl div { display: flex; justify-content: space-between; gap: 2mm; }
+.receipt dd { margin: 0; font-weight: 600; }
+.receipt-splits { width: 100%; border-collapse: collapse; }
+.receipt-splits th { font-size: 8pt; font-weight: 600; text-align: right; }
+.receipt-splits th, .receipt-splits td { padding: .3mm 0 .3mm 1.5mm; text-align: right; white-space: nowrap; }
+.receipt-splits th:nth-child(-n + 2), .receipt-splits td:nth-child(-n + 2) { text-align: left; padding-left: 0; }
+.receipt-splits td:first-child { width: 5mm; }
+.receipt-splits td:nth-child(2) { font-weight: 700; }
+.receipt-splits tbody tr:last-child td { padding-top: .6mm; }
+.receipt > footer { display: grid; gap: .5mm; justify-items: center; text-align: center; }
+.receipt-qr { width: 30mm; height: 30mm; margin-bottom: 1mm; }
+.receipt-address { font-weight: 600; }
+.receipt-printed { font-size: 8pt; }
+
 /* Knappar: stora, få. */
 .controls, .row { display: flex; flex-wrap: wrap; gap: 12px; }
 button, select { min-height: 56px; padding: 8px 22px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface);
@@ -75,4 +125,19 @@ a { color: var(--ink); font-weight: 500; }
   .status div:nth-child(n + 3) { border-top: 1px solid var(--line); }
   .recent li { grid-template-columns: 1fr 1fr; }
   .verdict { padding: 16px; }
+}
+
+/*
+ * Utskrift (PLAN.md steg 21): bara kvittot. Sidans bredd och längd sätts när utskriften startar (receipt-settings.ts);
+ * förvalet nedan gäller om någon skriver ut på annat sätt.
+ */
+@page { size: 80mm 297mm; margin: 0; }
+@media print {
+  body { background: #fff; }
+  .readout { display: block; max-width: none; margin: 0; padding: 0; }
+  .readout > :not(.receipt-panel), .receipt-panel > :not(.receipt-preview), .receipt-preview > :not(.receipt-paper) { display: none !important; }
+  .receipt-panel, .receipt-preview { display: block; justify-items: normal; }
+  .receipt-paper, .receipt-preview[data-paper="58"] .receipt-paper { width: auto; max-width: none; border: 0; }
+  .receipt { break-inside: auto; }
+  .receipt-splits tr { break-inside: avoid; }
 }

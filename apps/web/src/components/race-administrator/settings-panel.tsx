@@ -1,9 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import styles from "../race-administrator-workspace.module.css";
 import { raceTypeSv } from "../../i18n/race-type-sv";
+import { raceCopySv } from "../../i18n/race-copy-sv";
 import { RaceTypeChoice } from "../race-type-choice";
+import { CopyRaceDialog, type CopySource } from "../copy-race-dialog";
 import { Button, Field, Notice, Section } from "../ui";
 import { EventorSection } from "./eventor-section";
 import { RaceDeleteSection } from "./race-delete-section";
@@ -17,12 +20,13 @@ const text = raceTypeSv.settings;
 /**
  * Inställningar (ADR-0170 beslut 1): namn, datum och tävlingstyp. Att byta typ ändrar bara vilka delar som
  * syns; inget tas bort. Här finns också publiceringen och personer med behörighet (ADR-0172), Eventor (typer som använder Eventor), radiokontroller
- * (typer med tävlingsmoment), länken till importen och
+ * (typer med tävlingsmoment), länken till importen, "Ny tävling som den här" (PLAN.md steg 21) och
  * (för ägaren) att ta bort tävlingen.
  */
 export function SettingsPanel({ ws }: { ws: Workspace }) {
   const { busy, changeSettings, data, profile, raceId, saveSettings, setPeoplePending, settingsAttempt, settingsForm,
     settingsMessage, shows, workflowLocked } = ws;
+  const [copySource, setCopySource] = useState<CopySource>();
   if (!shows("SETTINGS") || !data) return null;
   const form = settingsForm ?? { eventName: data.eventName, raceName: data.raceName, raceDate: data.raceDate, raceType: data.raceType };
   // Tiderna tolkas mot loppets datum: med starttider eller resultat går datumet inte att ändra (servern kontrollerar också).
@@ -54,6 +58,11 @@ export function SettingsPanel({ ws }: { ws: Workspace }) {
     {profile.features.import && <Section id={`${id}-import`} title={text.import} help={text.importHelp}>
       <p><Link href={`/admin/${raceId}/imports`}>{text.importLink}</Link></p>
     </Section>}
+    <Section id={`${id}-copy`} title={raceCopySv.settingsTitle} help={raceCopySv.settingsHelp}>
+      <div><Button variant="secondary" disabled={locked} onClick={() => setCopySource({ raceId, eventName: data.eventName,
+        raceName: data.raceName, raceDate: data.raceDate })}>{raceCopySv.settingsAction}</Button></div>
+      <CopyRaceDialog source={copySource} onClose={() => setCopySource(undefined)} />
+    </Section>
     <RaceDeleteSection raceId={raceId} eventName={data.eventName} disabled={locked} />
   </div>;
 }

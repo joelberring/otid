@@ -268,3 +268,4 @@ export * from "./race-settings";
 export * from "./rogaining";
 export * from "./race-map";
 export * from "./radio";
+export * from "./race-copy";

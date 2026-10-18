@@ -185,8 +185,9 @@ test("start- och resultatlistor: vyer, sök, utskrift och export i arbetsytan oc
   }
   await expect(owner.getByTestId("queue-status")).toHaveText("0 väntar", { timeout: 30_000 });
 
-  // Stämpling före starten (fel klocka eller tjuvstart): Filip får starttid 15 minuter bakåt, men brickan stämplar 45
-  // ungefär 20 minuter före avläsningen. Han blir godkänd, sträcktiden vid 45 är okänd och deltagarkortet säger det.
+  // Stämpling före starten (fel klocka eller tjuvstart): Filip får starttid 45 minuter bakåt och läses av (övningsstationen
+  // lägger stämplingarna efter starten, steg 22). Sedan flyttas starten till 20 minuter bakåt, så att 45 ligger före starten.
+  // Han är fortfarande godkänd, sträcktiden vid 45 är okänd och deltagarkortet säger det.
   await owner.goto(`/admin/${raceId}/manage`);
   await openStep(owner, "Anmälda");
   const card = owner.getByRole("region", { name: "Deltagarkort" });
@@ -195,7 +196,7 @@ test("start- och resultatlistor: vyer, sök, utskrift och export i arbetsytan oc
     await expect(card.getByRole("heading", { name: "Filip Ås" })).toBeVisible({ timeout: 2_000 });
   }).toPass({ timeout: 30_000 });
   await card.getByRole("button", { name: "Ändra starttid" }).click();
-  await card.getByLabel("Starttid (klockslag)").fill(clockSeconds(new Date(Date.now() - 15 * 60_000)));
+  await card.getByLabel("Starttid (klockslag)").fill(clockSeconds(new Date(Date.now() - 45 * 60_000)));
   await card.getByRole("button", { name: "Granska starttid" }).click();
   await card.getByRole("button", { name: "Bekräfta starttid" }).click();
   await expect(owner.getByText("Starttiden är sparad.")).toBeVisible();
@@ -212,6 +213,11 @@ test("start- och resultatlistor: vyer, sök, utskrift och export i arbetsytan oc
     await owner.getByRole("row", { name: /Filip Ås/ }).getByRole("cell").nth(1).click();
     await expect(card.getByRole("heading", { name: "Filip Ås" })).toBeVisible({ timeout: 2_000 });
   }).toPass({ timeout: 30_000 });
+  await card.getByRole("button", { name: "Ändra starttid" }).click();
+  await card.getByLabel("Starttid (klockslag)").fill(clockSeconds(new Date(Date.now() - 20 * 60_000)));
+  await card.getByRole("button", { name: "Granska starttid" }).click();
+  await card.getByRole("button", { name: "Bekräfta starttid" }).click();
+  await expect(owner.getByText("Starttiden är sparad.")).toBeVisible();
   await expect(card.getByRole("note")).toContainText("Stämplad utan giltig tid: 45");
 
   // Resultat per klass: placering, tid, efter och status; den felstämplade saknar placering.

@@ -7,7 +7,6 @@ import {
   type ResultApprovalWithdrawalResponse
 } from "@o-tid/contracts";
 import { sv } from "../i18n/sv";
-import { readResultApprovalWithdrawalAdminCsrfCookie } from "./result-approval-withdrawal-admin-cookies";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -84,12 +83,6 @@ export function parseResultApprovalWithdrawalResponse(
     throw new Error(sv.resultApprovalWithdrawalInvalidResponse);
   }
   return response;
-}
-
-export function readResultApprovalWithdrawalAdminCsrf(cookieText: string, currentUrl: URL): string {
-  const value = readResultApprovalWithdrawalAdminCsrfCookie(cookieText, currentUrl);
-  if (value !== undefined && /^[A-Za-z0-9_-]{43}$/.test(value)) return value;
-  throw new Error(sv.resultApprovalWithdrawalLoginAgain);
 }
 
 export function isDefinitiveResultApprovalWithdrawalRejection(status: number): boolean {

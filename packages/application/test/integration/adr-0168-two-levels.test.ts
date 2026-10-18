@@ -66,7 +66,7 @@ describe("ADR-0168 två behörighetsnivåer", () => {
 
     // Administratören har alla funktioner, även de som tidigare krävde egen inloggning.
     const capabilities: RaceAdminCapability[] = ["IMPORT_IOF", "DECIDE_DID_NOT_START", "FINALIZE_RESULTS",
-      "VIEW_READOUT_RESULT_HISTORY", "VIEW_SPEAKER_BOARD", "PUBLISH_START_LIST"];
+      "VIEW_SPEAKER_BOARD", "PUBLISH_START_LIST"];
     for (const capability of capabilities) {
       const auth = await authenticatePairingAdminSession(db, { ...raceProof, raceId, capability, requireCsrf: true });
       expect(auth.status, capability).toBe("authenticated");

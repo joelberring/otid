@@ -20,7 +20,7 @@ import { sql } from "drizzle-orm";
 import type { Punch, ResultOutcome } from "@o-tid/domain";
 
 export const startRuleEnum = pgEnum("start_rule", ["FIXED", "PUNCH"]);
-export const paymentStatusEnum = pgEnum("payment_status", ["UNMARKED", "UNPAID", "PAID", "WAIVED"]);
+
 export const importKindEnum = pgEnum("import_kind", ["CourseData", "EntryList", "StartList"]);
 export const revisionCauseEnum = pgEnum("revision_cause", [
   "CARD_READOUT",
@@ -81,7 +81,7 @@ export const pairingAdminCapabilityEnum = pgEnum("pairing_admin_capability", [
   "WITHDRAW_WITHOUT_TIMING",
   "MANAGE_PM_DOCUMENT"
 ]);
-export const pmScanJobStateEnum = pgEnum("pm_scan_job_state", ["PENDING", "LEASED", "FINISHED"]);
+
 export const eventAdministrationRoleEnum = pgEnum("event_administration_role", ["OWNER", "ADMIN", "FUNCTIONARY"]);
 export const auditActorKindEnum = pgEnum("audit_actor_kind", [
   "RACE_ADMIN_ACCESS_CREDENTIAL",
@@ -248,8 +248,6 @@ export const entries = pgTable("entry", {
   externalSource: text("external_source"),
   externalId: text("external_id"),
   version: integer("version").notNull().default(1),
-  paymentStatus: paymentStatusEnum("payment_status").notNull().default("UNMARKED"),
-  paymentStatusVersion: integer("payment_status_version").notNull().default(1),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (table) => [
   uniqueIndex("entry_external_uidx").on(table.raceId, table.externalSource, table.externalId),
@@ -441,136 +439,13 @@ export const pairingAdminSessionRevocations = pgTable("pairing_admin_session_rev
   reason: text("reason").notNull()
 }, (table) => [uniqueIndex("pairing_admin_session_revocation_uidx").on(table.sessionId)]);
 
-/**
- * Immutable, race-scoped reservation for one PM upload. Slots make the 100
- * reservation ceiling concurrency-safe without a mutable quota counter.
- */
-export const pmUploadReservations = pgTable("pm_upload_reservation", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  requestId: uuid("request_id").notNull(),
-  raceId: uuid("race_id").notNull().references(() => races.id),
-  actorCredentialId: uuid("actor_credential_id").notNull(),
-  capability: pairingAdminCapabilityEnum("capability").notNull(),
-  slot: integer("slot").notNull(),
-  title: text("title").notNull(),
-  mediaType: text("media_type").notNull(),
-  sha256: text("sha256").notNull(),
-  byteLength: integer("byte_length").notNull(),
-  reservedAt: timestamp("reserved_at", { withTimezone: true }).notNull()
-}, (table) => [
-  uniqueIndex("pm_upload_reservation_request_uidx").on(table.requestId),
-  uniqueIndex("pm_upload_reservation_race_slot_uidx").on(table.raceId, table.slot),
-  uniqueIndex("pm_upload_reservation_scope_content_uidx").on(table.id, table.raceId, table.sha256, table.byteLength),
-  check("pm_upload_reservation_capability_check", sql`${table.capability}::text = 'MANAGE_PM_DOCUMENT'`),
-  check("pm_upload_reservation_slot_check", sql`${table.slot} BETWEEN 1 AND 100`),
-  check("pm_upload_reservation_title_check", sql`char_length(${table.title}) BETWEEN 1 AND 120 AND ${table.title} = btrim(${table.title})`),
-  check("pm_upload_reservation_media_type_check", sql`${table.mediaType} = 'application/pdf'`),
-  check("pm_upload_reservation_sha256_check", sql`${table.sha256} ~ '^[a-f0-9]{64}$'`),
-  check("pm_upload_reservation_byte_length_check", sql`${table.byteLength} BETWEEN 1 AND 10485760`),
-  foreignKey({
-    name: "pm_upload_reservation_actor_scope_fk",
-    columns: [table.actorCredentialId, table.raceId, table.capability],
-    foreignColumns: [pairingAdminAccessCredentials.id, pairingAdminAccessCredentials.raceId, pairingAdminAccessCredentials.capability]
-  })
-]);
 
-/** Every charged object-store PUT attempt; it is immutable even when PUT fails. */
-export const pmUploadAttempts = pgTable("pm_upload_attempt", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  uploadId: uuid("upload_id").notNull(),
-  raceId: uuid("race_id").notNull(),
-  attemptNumber: integer("attempt_number").notNull(),
-  sha256: text("sha256").notNull(),
-  byteLength: integer("byte_length").notNull(),
-  chargedAt: timestamp("charged_at", { withTimezone: true }).notNull()
-}, (table) => [
-  uniqueIndex("pm_upload_attempt_upload_number_uidx").on(table.uploadId, table.attemptNumber),
-  uniqueIndex("pm_upload_attempt_manifest_scope_uidx").on(table.id, table.uploadId, table.raceId, table.sha256, table.byteLength),
-  check("pm_upload_attempt_number_check", sql`${table.attemptNumber} BETWEEN 1 AND 8`),
-  check("pm_upload_attempt_sha256_check", sql`${table.sha256} ~ '^[a-f0-9]{64}$'`),
-  check("pm_upload_attempt_byte_length_check", sql`${table.byteLength} BETWEEN 1 AND 10485760`),
-  foreignKey({
-    name: "pm_upload_attempt_reservation_content_fk",
-    columns: [table.uploadId, table.raceId, table.sha256, table.byteLength],
-    foreignColumns: [pmUploadReservations.id, pmUploadReservations.raceId, pmUploadReservations.sha256, pmUploadReservations.byteLength]
-  })
-]);
 
-/** One verified, exact object version at most for each reservation. */
-export const pmObjectManifests = pgTable("pm_object_manifest", {
-  uploadId: uuid("upload_id").primaryKey(),
-  attemptId: uuid("attempt_id").notNull(),
-  raceId: uuid("race_id").notNull(),
-  storeId: uuid("store_id").notNull(),
-  objectKey: text("object_key").notNull(),
-  versionId: text("version_id").notNull(),
-  sha256: text("sha256").notNull(),
-  byteLength: integer("byte_length").notNull(),
-  storedAt: timestamp("stored_at", { withTimezone: true }).notNull()
-}, (table) => [
-  uniqueIndex("pm_object_manifest_store_key_version_uidx").on(table.storeId, table.objectKey, table.versionId),
-  check("pm_object_manifest_sha256_check", sql`${table.sha256} ~ '^[a-f0-9]{64}$'`),
-  check("pm_object_manifest_byte_length_check", sql`${table.byteLength} BETWEEN 1 AND 10485760`),
-  check("pm_object_manifest_object_key_check", sql`${table.objectKey} = 'pm/' || ${table.raceId}::text || '/' || ${table.attemptId}::text`),
-  check("pm_object_manifest_version_id_check", sql`char_length(${table.versionId}) BETWEEN 1 AND 1024 AND ${table.versionId} ~ '^[A-Za-z0-9._~+/-]+$' AND ${table.versionId} <> 'null'`),
-  foreignKey({
-    name: "pm_object_manifest_attempt_scope_fk",
-    columns: [table.attemptId, table.uploadId, table.raceId, table.sha256, table.byteLength],
-    foreignColumns: [pmUploadAttempts.id, pmUploadAttempts.uploadId, pmUploadAttempts.raceId, pmUploadAttempts.sha256, pmUploadAttempts.byteLength]
-  })
-]);
 
-/** Mutable orchestration only; a lease is never scan evidence. */
-export const pmScanJobs = pgTable("pm_scan_job", {
-  uploadId: uuid("upload_id").primaryKey().references(() => pmObjectManifests.uploadId),
-  state: pmScanJobStateEnum("state").notNull().default("PENDING"),
-  generation: bigint("generation", { mode: "bigint" }).notNull().default(0n),
-  leaseOwner: uuid("lease_owner"),
-  leaseUntil: timestamp("lease_until", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull()
-}, (table) => [
-  check("pm_scan_job_generation_check", sql`${table.generation} >= 0`),
-  check(
-    "pm_scan_job_lease_shape_check",
-    sql`(${table.state}::text = 'LEASED' AND ${table.leaseOwner} IS NOT NULL AND ${table.leaseUntil} IS NOT NULL AND ${table.generation} > 0 AND ${table.leaseUntil} > ${table.createdAt}) OR (${table.state}::text <> 'LEASED' AND ${table.leaseOwner} IS NULL AND ${table.leaseUntil} IS NULL)`
-  )
-]);
+
 // SQL migration adds the deferred reverse pm_object_manifest(upload_id) ->
 // pm_scan_job(upload_id) FK, so a manifest and its initial PENDING job commit atomically.
 
-export const pmScanAttempts = pgTable("pm_scan_attempt", {
-  uploadId: uuid("upload_id").notNull().references(() => pmScanJobs.uploadId),
-  generation: bigint("generation", { mode: "bigint" }).notNull(),
-  leaseOwner: uuid("lease_owner").notNull(),
-  leasedAt: timestamp("leased_at", { withTimezone: true }).notNull(),
-  leaseUntil: timestamp("lease_until", { withTimezone: true }).notNull()
-}, (table) => [
-  primaryKey({ name: "pm_scan_attempt_pk", columns: [table.uploadId, table.generation] }),
-  uniqueIndex("pm_scan_attempt_owner_uidx").on(table.uploadId, table.generation, table.leaseOwner),
-  check("pm_scan_attempt_generation_check", sql`${table.generation} > 0`),
-  check("pm_scan_attempt_lease_check", sql`${table.leaseUntil} = ${table.leasedAt} + interval '5 minutes'`)
-]);
-
-export const pmScanReports = pgTable("pm_scan_report", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  uploadId: uuid("upload_id").notNull().references(() => pmObjectManifests.uploadId),
-  generation: bigint("generation", { mode: "bigint" }).notNull(),
-  leaseOwner: uuid("lease_owner").notNull(),
-  outcome: text("outcome").notNull(),
-  publishable: boolean("publishable").notNull().default(false),
-  evidence: jsonb("evidence").$type<Record<string, unknown>>().notNull(),
-  contentHash: text("content_hash").notNull(),
-  recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().default(sql`clock_timestamp()`)
-}, (table) => [
-  uniqueIndex("pm_scan_report_attempt_uidx").on(table.uploadId, table.generation),
-  foreignKey({ name: "pm_scan_report_attempt_owner_fk",
-    columns: [table.uploadId, table.generation, table.leaseOwner],
-    foreignColumns: [pmScanAttempts.uploadId, pmScanAttempts.generation, pmScanAttempts.leaseOwner] }),
-  check("pm_scan_report_outcome_check", sql`${table.outcome} IN ('PASSED','REJECTED','FAILED')`),
-  check("pm_scan_report_native_only_check", sql`NOT ${table.publishable}`),
-  check("pm_scan_report_evidence_check", sql`jsonb_typeof(${table.evidence}) = 'object'`),
-  check("pm_scan_report_hash_check", sql`${table.contentHash} ~ '^[a-f0-9]{64}$'`)
-]);
 
 
 /** Kontot (ADR-0172): e-post (normaliserad, unik), namn, superadmin, spärr och senaste inloggning. */
@@ -1089,32 +964,6 @@ export const entryCardRentalReuseRequests = pgTable("entry_card_rental_reuse_req
     foreignColumns: [pairingAdminAccessCredentials.id, pairingAdminAccessCredentials.raceId, pairingAdminAccessCredentials.capability] })
 ]);
 
-export const entryPaymentStatusChanges = pgTable("entry_payment_status_change", {
-  requestId: uuid("request_id").primaryKey(),
-  raceId: uuid("race_id").notNull(),
-  entryId: uuid("entry_id").notNull(),
-  classId: uuid("class_id").notNull(),
-  actorCredentialId: uuid("actor_credential_id").notNull(),
-  capability: pairingAdminCapabilityEnum("capability").notNull(),
-  previousPaymentStatus: paymentStatusEnum("previous_payment_status").notNull(),
-  paymentStatus: paymentStatusEnum("payment_status").notNull(),
-  entryVersionAtChange: integer("entry_version_at_change").notNull(),
-  paymentStatusVersionBefore: integer("payment_status_version_before").notNull(),
-  paymentStatusVersionAfter: integer("payment_status_version_after").notNull(),
-  changedAt: timestamp("changed_at", { withTimezone: true }).notNull().defaultNow()
-}, (table) => [
-  uniqueIndex("entry_payment_status_change_entry_version_uidx").on(table.entryId, table.paymentStatusVersionBefore),
-  index("entry_payment_status_change_race_time_idx").on(table.raceId, table.changedAt),
-  check("entry_payment_status_change_capability_check", sql`${table.capability}::text = 'MANAGE_RACE'`),
-  check("entry_payment_status_change_value_check", sql`${table.previousPaymentStatus} IS DISTINCT FROM ${table.paymentStatus}`),
-  check("entry_payment_status_change_versions_check", sql`${table.entryVersionAtChange} > 0 AND ${table.paymentStatusVersionBefore} > 0 AND ${table.paymentStatusVersionAfter}::bigint = ${table.paymentStatusVersionBefore}::bigint + 1`),
-  foreignKey({ name: "entry_payment_status_change_entry_scope_fk", columns: [table.entryId, table.raceId],
-    foreignColumns: [entries.id, entries.raceId] }),
-  foreignKey({ name: "entry_payment_status_change_class_scope_fk", columns: [table.classId, table.raceId],
-    foreignColumns: [classes.id, classes.raceId] }),
-  foreignKey({ name: "entry_payment_status_change_actor_scope_fk", columns: [table.actorCredentialId, table.raceId, table.capability],
-    foreignColumns: [pairingAdminAccessCredentials.id, pairingAdminAccessCredentials.raceId, pairingAdminAccessCredentials.capability] })
-]);
 
 export const entryIdentityChangeRequests = pgTable("entry_identity_change_request", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -3102,28 +2951,7 @@ export const startListPublications = pgTable("start_list_publication", {
   check("start_list_publication_payload_check", sql`(${table.action} = 'PUBLISH' AND ${table.sourceHash} IS NOT NULL AND ${table.sourceHash} ~ '^[a-f0-9]{64}$' AND ${table.content} IS NOT NULL AND jsonb_typeof(${table.content}) = 'object') OR (${table.action} = 'WITHDRAW' AND ${table.sourceHash} IS NULL AND ${table.content} IS NULL)`)
 ]);
 
-export const classStartRuleChanges = pgTable("class_start_rule_change", {
-  requestId: uuid("request_id").primaryKey(), raceId: uuid("race_id").notNull(), classId: uuid("class_id").notNull(),
-  actorCredentialId: uuid("actor_credential_id").notNull(), capability: pairingAdminCapabilityEnum("capability").notNull(),
-  request: jsonb("request").notNull(), response: jsonb("response").notNull()
-}, table => [
-  uniqueIndex("class_start_rule_change_scope_uidx").on(table.requestId, table.raceId, table.classId),
-  foreignKey({ columns: [table.classId, table.raceId], foreignColumns: [classes.id, classes.raceId] }),
-  foreignKey({ columns: [table.actorCredentialId, table.raceId, table.capability], foreignColumns: [pairingAdminAccessCredentials.id, pairingAdminAccessCredentials.raceId, pairingAdminAccessCredentials.capability] }),
-  check("class_start_rule_change_role_check", sql`${table.capability} = 'MANAGE_RACE'`),
-  check("class_start_rule_change_json_check", sql`jsonb_typeof(${table.request}) = 'object' AND jsonb_typeof(${table.response}) = 'object'`)
-]);
-export const classStartRuleChangeItems = pgTable("class_start_rule_change_item", {
-  requestId: uuid("request_id").notNull(), raceId: uuid("race_id").notNull(), classId: uuid("class_id").notNull(), entryId: uuid("entry_id").notNull(),
-  versionBefore: integer("version_before").notNull(), versionAfter: integer("version_after").notNull(),
-  previousFixedStartTime: timestamp("previous_fixed_start_time", { withTimezone: true }),
-  fixedStartTime: timestamp("fixed_start_time", { withTimezone: true })
-}, table => [
-  primaryKey({ columns: [table.requestId, table.entryId] }),
-  foreignKey({ columns: [table.requestId, table.raceId, table.classId], foreignColumns: [classStartRuleChanges.requestId, classStartRuleChanges.raceId, classStartRuleChanges.classId] }),
-  foreignKey({ columns: [table.entryId, table.raceId], foreignColumns: [entries.id, entries.raceId] }),
-  check("class_start_rule_change_item_versions_check", sql`${table.versionBefore} > 0 AND ${table.versionAfter}::bigint IN (${table.versionBefore}::bigint,${table.versionBefore}::bigint+1)`)
-]);
+
 
 export const manualCourseClassCreateRequests = pgTable("manual_course_class_create_request", {
   requestId: uuid("request_id").primaryKey(), raceId: uuid("race_id").notNull().references(() => races.id),
@@ -3155,59 +2983,8 @@ export const manualClassCreateRequests = pgTable("manual_class_create_request", 
   check("manual_class_create_request_json_check", sql`jsonb_typeof(${table.request}) = 'object' AND jsonb_typeof(${table.response}) = 'object'`)
 ]);
 
-export const manualClassNameChangeRequests = pgTable("manual_class_name_change_request", {
-  requestId: uuid("request_id").primaryKey(), raceId: uuid("race_id").notNull().references(() => races.id),
-  classId: uuid("class_id").notNull(), courseVersionId: uuid("course_version_id").notNull().references(() => courseVersions.id),
-  actorCredentialId: uuid("actor_credential_id").notNull(), capability: pairingAdminCapabilityEnum("capability").notNull(),
-  request: jsonb("request").$type<Record<string, unknown>>().notNull(), response: jsonb("response").$type<Record<string, unknown>>().notNull()
-}, table => [
-  uniqueIndex("manual_class_name_change_request_scope_uidx").on(table.requestId, table.raceId, table.classId),
-  foreignKey({ columns: [table.classId, table.raceId], foreignColumns: [classes.id, classes.raceId] }),
-  foreignKey({ columns: [table.actorCredentialId, table.raceId, table.capability], foreignColumns: [pairingAdminAccessCredentials.id, pairingAdminAccessCredentials.raceId, pairingAdminAccessCredentials.capability] }),
-  check("manual_class_name_change_request_role_check", sql`${table.capability} = 'MANAGE_RACE'`),
-  check("manual_class_name_change_request_json_check", sql`jsonb_typeof(${table.request}) = 'object' AND jsonb_typeof(${table.response}) = 'object'`)
-]);
 
-export const manualCourseVersionClassRelinkRequests = pgTable("manual_course_version_class_relink_request", {
-  requestId: uuid("request_id").primaryKey(), raceId: uuid("race_id").notNull().references(() => races.id),
-  courseId: uuid("course_id").notNull(), classId: uuid("class_id").notNull(),
-  previousCourseVersionId: uuid("previous_course_version_id").notNull(), courseVersionId: uuid("course_version_id").notNull(),
-  actorCredentialId: uuid("actor_credential_id").notNull(), capability: pairingAdminCapabilityEnum("capability").notNull(),
-  request: jsonb("request").$type<Record<string, unknown>>().notNull(), response: jsonb("response").$type<Record<string, unknown>>().notNull()
-}, table => [
-  uniqueIndex("manual_course_version_class_relink_request_scope_uidx").on(table.requestId, table.raceId),
-  foreignKey({ columns: [table.courseId, table.raceId], foreignColumns: [courses.id, courses.raceId] }),
-  foreignKey({ columns: [table.previousCourseVersionId, table.courseId], foreignColumns: [courseVersions.id, courseVersions.courseId] }),
-  foreignKey({ columns: [table.courseVersionId, table.courseId], foreignColumns: [courseVersions.id, courseVersions.courseId] }),
-  foreignKey({ columns: [table.classId, table.raceId], foreignColumns: [classes.id, classes.raceId] }),
-  foreignKey({ columns: [table.actorCredentialId, table.raceId, table.capability], foreignColumns: [pairingAdminAccessCredentials.id, pairingAdminAccessCredentials.raceId, pairingAdminAccessCredentials.capability] }),
-  check("manual_course_version_class_relink_request_role_check", sql`${table.capability} = 'MANAGE_RACE'`),
-  check("manual_course_version_class_relink_request_versions_check", sql`${table.previousCourseVersionId} <> ${table.courseVersionId}`),
-  check("manual_course_version_class_relink_request_json_check", sql`jsonb_typeof(${table.request}) = 'object' AND jsonb_typeof(${table.response}) = 'object'`)
-]);
 
-export const manualCourseResultBearingRelinkRequests = pgTable("manual_course_result_bearing_relink_request", {
-  requestId: uuid("request_id").primaryKey(), raceId: uuid("race_id").notNull().references(() => races.id),
-  courseId: uuid("course_id").notNull(), classId: uuid("class_id").notNull(),
-  previousCourseVersionId: uuid("previous_course_version_id").notNull(), courseVersionId: uuid("course_version_id").notNull(),
-  actorCredentialId: uuid("actor_credential_id").notNull(), capability: pairingAdminCapabilityEnum("capability").notNull(),
-  sourceSnapshotVersion: integer("source_snapshot_version").notNull(), sourceHash: text("source_hash").notNull(),
-  frozenBasis: jsonb("frozen_basis").$type<Record<string, unknown>>().notNull(),
-  request: jsonb("request").$type<Record<string, unknown>>().notNull(), response: jsonb("response").$type<Record<string, unknown>>().notNull(),
-  changedAt: timestamp("changed_at", { withTimezone: true }).notNull()
-}, table => [
-  uniqueIndex("manual_course_result_bearing_relink_request_scope_uidx").on(table.requestId, table.raceId),
-  foreignKey({ columns: [table.courseId, table.raceId], foreignColumns: [courses.id, courses.raceId] }),
-  foreignKey({ columns: [table.previousCourseVersionId, table.courseId], foreignColumns: [courseVersions.id, courseVersions.courseId] }),
-  foreignKey({ columns: [table.courseVersionId, table.courseId], foreignColumns: [courseVersions.id, courseVersions.courseId] }),
-  foreignKey({ columns: [table.classId, table.raceId], foreignColumns: [classes.id, classes.raceId] }),
-  foreignKey({ columns: [table.actorCredentialId, table.raceId, table.capability], foreignColumns: [pairingAdminAccessCredentials.id, pairingAdminAccessCredentials.raceId, pairingAdminAccessCredentials.capability] }),
-  check("manual_course_result_bearing_relink_request_role_check", sql`${table.capability} = 'MANAGE_RACE'`),
-  check("manual_course_result_bearing_relink_request_versions_check", sql`${table.previousCourseVersionId} <> ${table.courseVersionId}`),
-  check("manual_course_result_bearing_relink_request_source_snapshot_check", sql`${table.sourceSnapshotVersion} > 0`),
-  check("manual_course_result_bearing_relink_request_source_hash_check", sql`${table.sourceHash} ~ '^[a-f0-9]{64}$'`),
-  check("manual_course_result_bearing_relink_request_json_check", sql`jsonb_typeof(${table.frozenBasis}) = 'object' AND jsonb_typeof(${table.request}) = 'object' AND jsonb_typeof(${table.response}) = 'object'`)
-]);
 
 /**
  * Immutable TASK135 decision header. The source basis binds a selected set of

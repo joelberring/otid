@@ -208,7 +208,7 @@ describe("ADR-0172 funktionärer", () => {
     // Ingen av administratörens eller de äldre funktionsvisa behörigheterna gäller funktionären.
     const adminCapabilities: RaceAdminCapability[] = ["MANAGE_RACE", "IMPORT_IOF", "CHANGE_ENTRY_CLASS", "CHANGE_ENTRY_CARD",
       "REGISTER_ENTRY", "RECALCULATE_RESULT", "DRAW_CLASS_START_TIMES", "PUBLISH_START_LIST", "EXPORT_IOF_RESULT_LIST",
-      "FINALIZE_RESULTS", "DECIDE_DID_NOT_START", "DISQUALIFY_RESULT", "APPROVE_RESULT", "VIEW_READOUT_RESULT_HISTORY"];
+      "FINALIZE_RESULTS", "DECIDE_DID_NOT_START", "DISQUALIFY_RESULT", "APPROVE_RESULT"];
     for (const capability of adminCapabilities) {
       expect((await authenticatePairingAdminSession(db, { ...device1, capability })).status, capability).toBe("forbidden");
     }

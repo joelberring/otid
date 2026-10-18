@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { fixedStartTimeSchema } from "./entry-start-time-admin";
 import { classMaxEntriesSchema } from "./class-capacity";
-import { entryPaymentStatusSchema } from "./entry-payment-status-admin";
 import { speakerBoardEffectiveResultSchema } from "./speaker-board";
 import { courseVariantCodeSchema } from "./course-edit";
 import { raceTypeSchema } from "./race-settings";
@@ -66,7 +65,6 @@ export const entryTransferCandidatesSchema = z.object({
   }).strict()).max(1000),
   entries: z.array(z.object({ id: uuid, displayName: z.string().min(1).max(321),
     organisationName: z.string().min(1).max(240).nullable(), classId: uuid, version,
-    paymentStatus: entryPaymentStatusSchema, paymentStatusVersion: version,
     resultFreshness: entryTransferResultFreshnessSchema,
     effectiveResult: entryTransferEffectiveResultSchema,
     resultRevisionMarker: entryTransferResultRevisionMarkerSchema.nullable(),

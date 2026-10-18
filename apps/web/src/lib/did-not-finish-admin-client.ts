@@ -1,6 +1,5 @@
 import { didNotFinishCandidateResponseSchema, didNotFinishRequestSchema, didNotFinishResponseSchema, type DidNotFinishCandidateResponse, type DidNotFinishRequest, type DidNotFinishResponse } from "@o-tid/contracts";
 import { sv } from "../i18n/sv";
-import { readDidNotFinishAdminCsrfCookie } from "./did-not-finish-admin-cookies";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 export type DidNotFinishCandidates = DidNotFinishCandidateResponse;
@@ -31,12 +30,6 @@ export function parseDidNotFinishResponse(value: unknown, attempt: DidNotFinishA
   if (!response || response.requestId !== attempt.requestId || response.raceId !== expectedRaceId || response.entryId !== attempt.entryId || response.targetResultRevisionId !== attempt.request.expectedResultRevision.id || response.targetResultRevision !== attempt.request.expectedResultRevision.revision || response.policyVersion !== attempt.request.policyVersion || response.snapshotVersion !== attempt.request.expectedSnapshotVersion || response.courseVersionId !== attempt.request.expectedCourseVersionId) throw new Error(sv.didNotFinishInvalidResponse);
   if (response.revision !== attempt.request.expectedResultRevision.revision + 1) throw new Error(sv.didNotFinishInvalidResponse);
   return response;
-}
-
-export function readDidNotFinishAdminCsrf(cookieText: string, currentUrl: URL): string {
-  const value = readDidNotFinishAdminCsrfCookie(cookieText, currentUrl);
-  if (value !== undefined && /^[A-Za-z0-9_-]{43}$/.test(value)) return value;
-  throw new Error(sv.didNotFinishLoginAgain);
 }
 
 export function isDefinitiveDidNotFinishRejection(status: number): boolean { return status === 400 || status === 404 || status === 409 || status === 413; }

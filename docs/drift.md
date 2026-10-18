@@ -34,6 +34,13 @@ git pull && docker compose -f docker-compose.prod.yml up -d --build
 Webben kör nya migreringar innan den startar. Om en migrering misslyckas
 startar webben inte. Läs då `docker compose -f docker-compose.prod.yml logs web`.
 
+**Baslinjen i steg 23 (2026-10-18):** de 106 gamla migrationerna (och borttagningen av tolv döda
+tabeller) är ihopslagna till `0000_baseline.sql` (ADR-0173; det fanns ingen produktionsdata). En databas som skapats med de gamla
+migrationerna kan inte uppgraderas. Skapa den på nytt: `docker compose -f docker-compose.prod.yml down -v`
+(driftmiljön; raderar databasen och Caddys
+certifikat men inte `./backups`, vars dumpar hör till det gamla schemat) eller `docker compose down -v` (lokalt), och starta igen.
+Testdatabaser (`otid_test`, `otid_e2e`) tas bort med `DROP DATABASE` och skapas tomma igen.
+
 ## Eventor
 
 Klubbens Eventor-nyckel klistras in av administratören under Inställningar → Eventor

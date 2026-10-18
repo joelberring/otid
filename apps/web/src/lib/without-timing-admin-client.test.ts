@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createWithoutTimingAttempt, isDefinitiveWithoutTimingRejection, parseWithoutTimingCandidates, readWithoutTimingAdminCsrf } from "./without-timing-admin-client";
+import { createWithoutTimingAttempt, isDefinitiveWithoutTimingRejection, parseWithoutTimingCandidates } from "./without-timing-admin-client";
 
 const raceId = "10000000-0000-4000-8000-000000000001";
 const entryId = "10000000-0000-4000-8000-000000000002";
@@ -29,8 +29,6 @@ describe("TASK 006M utan-tidtagning-klient", () => {
     expect(() => createWithoutTimingAttempt({ ...parsed.entries[0]!, readiness: "ACTIVE_WITHOUT_TIMING", targetResultRevision: null }, parsed, { randomUUID: () => requestId } as Crypto)).toThrow();
   });
   it("läser endast egen CSRF-cookie och skiljer definitivt avslag från okänd commit", () => {
-    const csrf = "c".repeat(43);
-    expect(readWithoutTimingAdminCsrf(`otid_out_of_competition_admin_csrf=${csrf}; otid_without_timing_admin_csrf=${csrf}`, new URL("http://127.0.0.1:3000/admin/race/without-timing"))).toBe(csrf);
     expect([400, 404, 409, 413].every(isDefinitiveWithoutTimingRejection)).toBe(true);
     expect(isDefinitiveWithoutTimingRejection(500)).toBe(false);
   });

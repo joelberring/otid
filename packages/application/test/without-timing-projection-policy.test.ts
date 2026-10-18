@@ -23,12 +23,4 @@ describe("TASK 006M projection policy", () => {
     expect(finalization).not.toContain('status: "NT"');
   });
 
-  it("exposes history format 10 with decision, withdrawal and exact target provenance", () => {
-    const history = source("readout-result-history.ts");
-    expect(history).toContain('kind: "MANUAL_WITHOUT_TIMING" as const');
-    expect(history).toContain('kind: "MANUAL_WITHOUT_TIMING_WITHDRAWAL" as const');
-    expect(history).toContain("withoutTimingDecisionId: decision.id");
-    expect(history).toContain("targetResultRevisionId: decision.targetResultRevisionId");
-    expect(history).toContain("withoutTimingWithdrawalId: withdrawal.id");
-  });
 });

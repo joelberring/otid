@@ -7,7 +7,6 @@ import {
   type ResultDisqualificationWithdrawalResponse
 } from "@o-tid/contracts";
 import { sv } from "../i18n/sv";
-import { readResultDisqualificationWithdrawalAdminCsrfCookie } from "./result-disqualification-withdrawal-admin-cookies";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -84,12 +83,6 @@ export function parseResultDisqualificationWithdrawalResponse(
     throw new Error(sv.resultDisqualificationWithdrawalInvalidResponse);
   }
   return response;
-}
-
-export function readResultDisqualificationWithdrawalAdminCsrf(cookieText: string, currentUrl: URL): string {
-  const value = readResultDisqualificationWithdrawalAdminCsrfCookie(cookieText, currentUrl);
-  if (value !== undefined && /^[A-Za-z0-9_-]{43}$/.test(value)) return value;
-  throw new Error(sv.resultDisqualificationWithdrawalLoginAgain);
 }
 
 export function isDefinitiveResultDisqualificationWithdrawalRejection(status: number): boolean {

@@ -7,7 +7,6 @@ import {
   type WithoutTimingResponse
 } from "@o-tid/contracts";
 import { sv } from "../i18n/sv";
-import { readWithoutTimingAdminCsrfCookie } from "./without-timing-admin-cookies";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 export type WithoutTimingCandidates = WithoutTimingCandidateResponse;
@@ -75,12 +74,6 @@ export function parseWithoutTimingResponse(
     throw new Error(sv.withoutTimingInvalidResponse);
   }
   return response;
-}
-
-export function readWithoutTimingAdminCsrf(cookieText: string, currentUrl: URL): string {
-  const value = readWithoutTimingAdminCsrfCookie(cookieText, currentUrl);
-  if (value !== undefined && /^[A-Za-z0-9_-]{43}$/.test(value)) return value;
-  throw new Error(sv.withoutTimingLoginAgain);
 }
 
 export function isDefinitiveWithoutTimingRejection(status: number): boolean {

@@ -17,14 +17,11 @@ import {
   entryRegistrationAdminLoginRequestSchema,
   iofResultListExportAdminLoginRequestSchema,
   iofImportLoginRequestSchema,
-  pmDocumentLoginRequestSchema,
   raceOverviewAdminLoginRequestSchema,
   raceAdministratorLoginRequestSchema,
   raceFunctionaryLoginRequestSchema,
-  startListAdminLoginRequestSchema,
   speakerBoardLoginRequestSchema,
   startListPublicationAdminLoginRequestSchema,
-  readoutResultHistoryAdminLoginRequestSchema,
   resultDisqualificationAdminLoginRequestSchema,
   resultDisqualificationWithdrawalAdminLoginRequestSchema,
   resultApprovalAdminLoginRequestSchema,
@@ -45,12 +42,9 @@ import {
   type EntryRegistrationAdminLoginRequest,
   type IofResultListExportAdminLoginRequest,
   type IofImportLoginRequest,
-  type PmDocumentLoginRequest,
   type RaceOverviewAdminLoginRequest,
-  type StartListAdminLoginRequest,
   type SpeakerBoardLoginRequest,
   type StartListPublicationAdminLoginRequest,
-  type ReadoutResultHistoryAdminLoginRequest,
   type ResultDisqualificationAdminLoginRequest,
   type ResultDisqualificationWithdrawalAdminLoginRequest,
   type ResultApprovalAdminLoginRequest,
@@ -89,11 +83,8 @@ export type RaceAdminCapability =
   | "REGISTER_ENTRY"
   | "RECALCULATE_RESULT"
   | "VIEW_RACE_OVERVIEW"
-  | "VIEW_START_LIST"
   | "VIEW_SPEAKER_BOARD"
-  | "MANAGE_PM_DOCUMENT"
   | "PUBLISH_START_LIST"
-  | "VIEW_READOUT_RESULT_HISTORY"
   | "EXPORT_IOF_RESULT_LIST"
   | "FINALIZE_RESULTS"
   | "DECIDE_DID_NOT_START"
@@ -209,15 +200,6 @@ const CAPABILITY_POLICY = {
     issueAuditAction: "RACE_OVERVIEW_ACCESS_CREDENTIAL_ISSUED",
     revokeAuditAction: "RACE_OVERVIEW_ACCESS_CREDENTIAL_REVOKED"
   },
-  VIEW_START_LIST: {
-    accessPrefix: "otid_org_start_list_v1",
-    maxAccessLifetimeMs: 8 * 60 * 60 * 1000,
-    maxSessionLifetimeMs: 60 * 60 * 1000,
-    loginRequestSchema: startListAdminLoginRequestSchema,
-    auditEntityType: "start_list_access_credential",
-    issueAuditAction: "START_LIST_ACCESS_CREDENTIAL_ISSUED",
-    revokeAuditAction: "START_LIST_ACCESS_CREDENTIAL_REVOKED"
-  },
   VIEW_SPEAKER_BOARD: {
     accessPrefix: "otid_org_speaker_board_v1",
     maxAccessLifetimeMs: 8 * 60 * 60 * 1000,
@@ -227,25 +209,7 @@ const CAPABILITY_POLICY = {
     issueAuditAction: "SPEAKER_BOARD_ACCESS_CREDENTIAL_ISSUED",
     revokeAuditAction: "SPEAKER_BOARD_ACCESS_CREDENTIAL_REVOKED"
   },
-  MANAGE_PM_DOCUMENT: {
-    accessPrefix: "otid_org_pm_document_v1",
-    maxAccessLifetimeMs: 8 * 60 * 60 * 1000,
-    maxSessionLifetimeMs: 60 * 60 * 1000,
-    loginRequestSchema: pmDocumentLoginRequestSchema,
-    auditEntityType: "pm_document_access_credential",
-    issueAuditAction: "PM_DOCUMENT_ACCESS_CREDENTIAL_ISSUED",
-    revokeAuditAction: "PM_DOCUMENT_ACCESS_CREDENTIAL_REVOKED"
-  },
   PUBLISH_START_LIST: { accessPrefix: "otid_org_start_list_publication_v1", maxAccessLifetimeMs: 8 * 60 * 60 * 1000, maxSessionLifetimeMs: 60 * 60 * 1000, loginRequestSchema: startListPublicationAdminLoginRequestSchema, auditEntityType: "start_list_publication_access_credential", issueAuditAction: "START_LIST_PUBLICATION_ACCESS_CREDENTIAL_ISSUED", revokeAuditAction: "START_LIST_PUBLICATION_ACCESS_CREDENTIAL_REVOKED" },
-  VIEW_READOUT_RESULT_HISTORY: {
-    accessPrefix: "otid_org_readout_result_history_v1",
-    maxAccessLifetimeMs: 8 * 60 * 60 * 1000,
-    maxSessionLifetimeMs: 60 * 60 * 1000,
-    loginRequestSchema: readoutResultHistoryAdminLoginRequestSchema,
-    auditEntityType: "readout_result_history_access_credential",
-    issueAuditAction: "READOUT_RESULT_HISTORY_ACCESS_CREDENTIAL_ISSUED",
-    revokeAuditAction: "READOUT_RESULT_HISTORY_ACCESS_CREDENTIAL_REVOKED"
-  },
   EXPORT_IOF_RESULT_LIST: {
     accessPrefix: "otid_org_result_list_export_v1",
     maxAccessLifetimeMs: 8 * 60 * 60 * 1000,
@@ -382,9 +346,9 @@ const CAPABILITY_POLICY = {
   revokeAuditAction: string;
 }>;
 
-type RaceAdminLoginRequest = typeof raceAdministratorLoginRequestSchema._output | typeof raceFunctionaryLoginRequestSchema._output | IofImportLoginRequest | SpeakerBoardLoginRequest | PmDocumentLoginRequest |
-  EntryClassAdminLoginRequest | EntryStartTimeAdminLoginRequest | ClassStartDrawAdminLoginRequest | EntryCardAdminLoginRequest | EntryRegistrationAdminLoginRequest | ResultRecalculationAdminLoginRequest | RaceOverviewAdminLoginRequest | StartListAdminLoginRequest | StartListPublicationAdminLoginRequest |
-  ReadoutResultHistoryAdminLoginRequest | IofResultListExportAdminLoginRequest |
+type RaceAdminLoginRequest = typeof raceAdministratorLoginRequestSchema._output | typeof raceFunctionaryLoginRequestSchema._output | IofImportLoginRequest | SpeakerBoardLoginRequest |
+  EntryClassAdminLoginRequest | EntryStartTimeAdminLoginRequest | ClassStartDrawAdminLoginRequest | EntryCardAdminLoginRequest | EntryRegistrationAdminLoginRequest | ResultRecalculationAdminLoginRequest | RaceOverviewAdminLoginRequest | StartListPublicationAdminLoginRequest |
+  IofResultListExportAdminLoginRequest |
   ResultFinalizationAdminLoginRequest | DidNotStartAdminLoginRequest |
   DidNotStartWithdrawalAdminLoginRequest | ResultDisqualificationAdminLoginRequest |
   ResultDisqualificationWithdrawalAdminLoginRequest | ResultApprovalAdminLoginRequest |

@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { appendIdentityHistory, filterEntryIdentities, parseIdentityReceipt, type IdentityAttempt } from "./entry-identity-client";
+import { filterEntryIdentities, parseIdentityReceipt, type IdentityAttempt } from "./entry-identity-client";
 const id = "10000000-0000-4000-8000-000000000001", other = "10000000-0000-4000-8000-000000000002";
 const before = { givenName: "Åsa", familyName: "Löpare", organisationName: "Östra OK" };
 const after = { ...before, givenName: "Åse", organisationName: null };
@@ -23,16 +23,5 @@ it("requires exact receipt scope, previous values, normalized intent and version
     { previousIdentity: { ...before, givenName: "Fel" } }, { identity: { ...after, organisationName: "Fel" } },
     { entryVersionBefore: 2, entryVersionAfter: 3 }, { snapshotVersionBefore: 4, snapshotVersionAfter: 5 }]) {
     expect(() => parseIdentityReceipt({ ...receipt, ...patch }, id, attempt)).toThrow();
-  }
-});
-it("appends ordered explicit pages and rejects cross-scope, duplicates and cursor loops", () => {
-  const older = { ...item, requestId: other };
-  const newer = { ...item, entryVersionBefore: 2, entryVersionAfter: 3, snapshotVersionBefore: 4, snapshotVersionAfter: 5 };
-  const page = { formatVersion: 1 as const, raceId: id, entryId: id, items: [newer], nextCursor: "YWJj" };
-  const next = { ...page, items: [older], nextCursor: null };
-  expect(appendIdentityHistory(next, id, id, page).items).toEqual([newer, older]);
-  for (const bad of [{ ...next, entryId: other }, { ...next, raceId: other },
-    { ...next, items: [newer] }, { ...next, nextCursor: "YWJj" }]) {
-    expect(() => appendIdentityHistory(bad, id, id, page)).toThrow();
   }
 });

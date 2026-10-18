@@ -1,11 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  iofResultListExportFilename,
-  parseFrozenRaceFinalizations,
-  parseIofResultListExportMetadata,
-  readIofResultListExportAdminCsrf,
-  validateFrozenIofResultListResponse
-} from "./iof-result-list-export-admin-client";
+import { iofResultListExportFilename, parseFrozenRaceFinalizations, parseIofResultListExportMetadata, validateFrozenIofResultListResponse } from "./iof-result-list-export-admin-client";
 
 const raceId = "10000000-0000-4000-8000-000000000001";
 const sha256 = "a".repeat(64);
@@ -42,17 +36,6 @@ describe("TASK 006B exportklient", () => {
     expect(parseIofResultListExportMetadata(response({ etag: `"sha256-${"a".repeat(64)}-zstd"` }), raceId).sha256).toHaveLength(64);
     expect(() => parseIofResultListExportMetadata(response({ "x-otid-result-count": "03" }), raceId)).toThrow();
     expect(() => iofResultListExportFilename(response({ "content-disposition": "attachment; filename=CANARY.xml" }), raceId)).toThrow();
-  });
-
-  it("läser endast exportens miljöbundna och entydiga CSRF-cookie", () => {
-    const csrf = "c".repeat(43);
-    expect(readIofResultListExportAdminCsrf(
-      `otid_result_list_export_csrf=${csrf}; other=value`, new URL("http://127.0.0.1:3000/admin")
-    )).toBe(csrf);
-    expect(() => readIofResultListExportAdminCsrf(
-      `otid_result_list_export_csrf=${csrf}; otid_result_list_export_csrf=${csrf}`,
-      new URL("http://127.0.0.1:3000/admin")
-    )).toThrow();
   });
 
   it("validerar fryst finaliseringslista och binder Complete-headers till exakt manifest", () => {

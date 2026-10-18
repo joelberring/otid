@@ -1,12 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  createDidNotStartAttempt,
-  didNotStartBody,
-  isDefinitiveDidNotStartRejection,
-  parseDidNotStartCandidates,
-  parseDidNotStartResponse,
-  readDidNotStartAdminCsrf
-} from "./did-not-start-admin-client";
+import { createDidNotStartAttempt, didNotStartBody, isDefinitiveDidNotStartRejection, parseDidNotStartCandidates, parseDidNotStartResponse } from "./did-not-start-admin-client";
 
 const raceId = "10000000-0000-4000-8000-000000000001";
 const entryId = "10000000-0000-4000-8000-000000000002";
@@ -57,9 +50,6 @@ describe("TASK 006E ej-start-klient", () => {
   });
 
   it("läser bara DNS-cookie och lämnar okänd commit icke-definitiv", () => {
-    const csrf = "c".repeat(43);
-    expect(readDidNotStartAdminCsrf(`otid_finalization_admin_csrf=${csrf}; otid_did_not_start_admin_csrf=${csrf}`,
-      new URL("http://127.0.0.1:3000/admin/race/did-not-start"))).toBe(csrf);
     expect([400, 404, 409].every(isDefinitiveDidNotStartRejection)).toBe(true);
     expect([401, 403, 500, 502].some(isDefinitiveDidNotStartRejection)).toBe(false);
   });

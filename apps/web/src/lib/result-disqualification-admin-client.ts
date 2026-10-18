@@ -7,7 +7,6 @@ import {
   type ResultDisqualificationResponse
 } from "@o-tid/contracts";
 import { sv } from "../i18n/sv";
-import { readResultDisqualificationAdminCsrfCookie } from "./result-disqualification-admin-cookies";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -81,12 +80,6 @@ export function parseResultDisqualificationResponse(
     throw new Error(sv.resultDisqualificationInvalidResponse);
   }
   return response;
-}
-
-export function readResultDisqualificationAdminCsrf(cookieText: string, currentUrl: URL): string {
-  const value = readResultDisqualificationAdminCsrfCookie(cookieText, currentUrl);
-  if (value !== undefined && /^[A-Za-z0-9_-]{43}$/.test(value)) return value;
-  throw new Error(sv.resultDisqualificationLoginAgain);
 }
 
 export function isDefinitiveResultDisqualificationRejection(status: number): boolean {

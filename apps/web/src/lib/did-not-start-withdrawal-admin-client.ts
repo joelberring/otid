@@ -7,7 +7,6 @@ import {
   type DidNotStartWithdrawalResponse
 } from "@o-tid/contracts";
 import { sv } from "../i18n/sv";
-import { readDidNotStartWithdrawalAdminCsrfCookie } from "./did-not-start-withdrawal-admin-cookies";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -81,12 +80,6 @@ export function parseDidNotStartWithdrawalResponse(
     throw new Error(sv.didNotStartWithdrawalInvalidResponse);
   }
   return response;
-}
-
-export function readDidNotStartWithdrawalAdminCsrf(cookieText: string, currentUrl: URL): string {
-  const value = readDidNotStartWithdrawalAdminCsrfCookie(cookieText, currentUrl);
-  if (value !== undefined && /^[A-Za-z0-9_-]{43}$/.test(value)) return value;
-  throw new Error(sv.didNotStartWithdrawalLoginAgain);
 }
 
 export function isDefinitiveDidNotStartWithdrawalRejection(status: number): boolean {

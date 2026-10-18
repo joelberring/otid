@@ -1,12 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  createResultRecalculationAttempt,
-  isDefinitiveResultRecalculationRejection,
-  parseResultRecalculationCandidates,
-  parseResultRecalculationResponse,
-  readResultRecalculationAdminCsrf,
-  resultRecalculationBody
-} from "./result-recalculation-admin-client";
+import { createResultRecalculationAttempt, isDefinitiveResultRecalculationRejection, parseResultRecalculationCandidates, parseResultRecalculationResponse, resultRecalculationBody } from "./result-recalculation-admin-client";
 
 const raceId = "10000000-0000-4000-8000-000000000001";
 const entryId = "10000000-0000-4000-8000-000000000002";
@@ -118,18 +111,6 @@ describe("TASK 005I omräkningsklient", () => {
       .toThrow("ogiltigt omräkningssvar");
     expect(() => parseResultRecalculationResponse({ ...response, readoutId: courseVersionId }, attempt, raceId))
       .toThrow("ogiltigt omräkningssvar");
-  });
-
-  it("läser endast den separata CSRF-cookien för rätt miljö", () => {
-    const csrf = "c".repeat(43);
-    expect(readResultRecalculationAdminCsrf(
-      `otid_entry_class_admin_csrf=${"x".repeat(43)}; otid_recalculation_admin_csrf=${csrf}`,
-      new URL("http://127.0.0.1:3000/admin/race/recalculation")
-    )).toBe(csrf);
-    expect(() => readResultRecalculationAdminCsrf(
-      `__Host-otid-recalculation-admin-csrf=${csrf}`,
-      new URL("http://127.0.0.1:3000/admin/race/recalculation")
-    )).toThrow("Logga in igen");
   });
 
   it("klassar endast säkra negativa svar som definitiva", () => {

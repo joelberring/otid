@@ -1,4 +1,3 @@
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   auditActorKindEnum,
@@ -8,11 +7,6 @@ import {
   resultRevisions,
   revisionCauseEnum
 } from "../src/schema";
-
-const migration = readFileSync(
-  new URL("../migrations/0016_task_006g_manual_result_disqualification.sql", import.meta.url),
-  "utf8"
-);
 
 describe("TASK 006G database schema", () => {
   it("keeps decision and withdrawal behind separate least-privilege capabilities", () => {
@@ -59,28 +53,5 @@ describe("TASK 006G database schema", () => {
     expect(resultDisqualificationWithdrawals.createdResultRevision.name)
       .toBe("created_result_revision");
     expect(resultDisqualificationWithdrawals).not.toHaveProperty("readoutId");
-  });
-
-  it("uses only declarative pairing constraints and the generic immutable trigger", () => {
-    expect(migration).toContain("result_disqualification_decision_target_fk");
-    expect(migration).toContain("result_disqualification_decision_result_pair_fk");
-    expect(migration).toContain("result_revision_disqualification_decision_pair_fk");
-    expect(migration).toContain("result_disqualification_withdrawal_decision_fk");
-    expect(migration).toContain("result_disqualification_withdrawal_latest_result_fk");
-    expect(migration).toContain("result_disqualification_withdrawal_restored_from_fk");
-    expect(migration).toContain("result_disqualification_withdrawal_result_pair_fk");
-    expect(migration).toContain("result_revision_disqualification_withdrawal_pair_fk");
-    expect(migration.match(/DEFERRABLE INITIALLY DEFERRED/g)).toHaveLength(8);
-    expect(migration.match(/EXECUTE FUNCTION reject_immutable_change\(\)/g)).toHaveLength(2);
-    expect(migration).not.toContain("CREATE FUNCTION");
-  });
-
-  it("requires null direct readout for both manual revision paths", () => {
-    expect(migration).toMatch(
-      /"cause"::text = 'MANUAL_DISQUALIFICATION'[\s\S]*?"readout_id" IS NULL[\s\S]*?"disqualification_decision_id" IS NOT NULL/
-    );
-    expect(migration).toMatch(
-      /"cause"::text = 'MANUAL_DISQUALIFICATION_WITHDRAWAL'[\s\S]*?"readout_id" IS NULL[\s\S]*?"disqualification_withdrawal_id" IS NOT NULL/
-    );
   });
 });

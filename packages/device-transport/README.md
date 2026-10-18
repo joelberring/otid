@@ -68,7 +68,7 @@ schemalagda callbacks.
 Skrivningar matchas som standard exakt mot inspelade `tx`-chunkar i ordning.
 `writeMode: "ignore"` finns för rena uppspelningskonsumenter.
 
-## Web Serial och Android
+## Web Serial
 
 `WebSerialTransport` tar en redan vald `WebSerialPortLike`. UI:t äger därmed
 behörighetsdialogen medan paketet äger read-loop, bytes, write-lås och städning
@@ -77,19 +77,5 @@ stället för experimentella globala browserdeklarationer. `close()` väntar in
 redan accepterade writes. Om den fysiska porten inte kan stängas avvisas anropet
 och aktuell state förblir `error`; ett falskt rent `closed` skickas inte.
 
-`AndroidUsbCapacitorPlugin` är det JSON-säkra wire-kontraktet mot den separata
-Capacitor/Kotlin-modulen i `apps/station/android`. Både `nativeSequence` och Androids monotontid är
-decimalsträngar så Kotlin `Long` inte tappar precision i JavaScript. Klienten
-väljer `connectionId` och explicit portindex; `open` bär fullständiga
-serieparametrar. Varje write bär dessutom ett explicit `writeTimeoutMs`; native
-får inte använda obegränsat blockerande skrivning.
-
-`AndroidUsbTransport` registrerar eventlyssnaren före permission/open,
-runtimevaliderar all native JSON, filtrerar främmande anslutningar, bevarar
-råbytes och chunkgränser, serialiserar writes och stänger explicit vid ogiltig
-wireordning eller sekvensgap, detach eller I/O-fel. Bytes som kommer under
-native open buffras till fysisk open-commit, och requested close bevarar RX fram
-till native close. `listAndroidUsbDevices` validerar även
-descriptors och flerportsindex. Paketenhetstesterna använder ett fake plugin;
-paketet innehåller fortfarande ingen Kotlinkod och gör inget påstående om
-verifierat hårdvarustöd.
+Android-transporten (Capacitor) togs bort i steg 23; `android-usb` finns kvar som `kind` så att äldre
+capturefiler går att läsa.

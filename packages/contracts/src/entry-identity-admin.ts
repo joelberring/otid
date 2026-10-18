@@ -56,17 +56,6 @@ export const entryIdentityChangeResponseSchema = identityChangeRecord.extend({
   formatVersion: z.literal(1), replayed: z.boolean(), raceId: uuid, entryId: uuid
 }).strict().refine(isActualChange);
 
-export const entryIdentityHistoryResponseSchema = z.object({
-  formatVersion: z.literal(1), raceId: uuid, entryId: uuid,
-  items: z.array(identityChangeRecord.refine(isActualChange)).max(50),
-  nextCursor: z.string().regex(/^[A-Za-z0-9_-]{1,1024}$/).nullable()
-}).strict().refine((value) =>
-  (value.nextCursor === null || value.items.length > 0) &&
-  new Set(value.items.map((item) => item.requestId)).size === value.items.length &&
-  value.items.every((item, index) => index === 0 ||
-    item.entryVersionBefore < value.items[index - 1]!.entryVersionBefore)
-);
-
 export { entryClassAdminErrorResponseSchema as entryIdentityAdminErrorResponseSchema } from "./entry-class-admin";
 export type { EntryClassAdminErrorCode as EntryIdentityAdminErrorCode } from "./entry-class-admin";
 export type EntryIdentityValues = z.infer<typeof entryIdentityValuesSchema>;
@@ -74,4 +63,3 @@ export type EntryIdentityAdminLoginRequest = z.infer<typeof entryIdentityAdminLo
 export type EntryIdentityAdminListResponse = z.infer<typeof entryIdentityAdminListResponseSchema>;
 export type EntryIdentityChangeRequest = z.infer<typeof entryIdentityChangeRequestSchema>;
 export type EntryIdentityChangeResponse = z.infer<typeof entryIdentityChangeResponseSchema>;
-export type EntryIdentityHistoryResponse = z.infer<typeof entryIdentityHistoryResponseSchema>;

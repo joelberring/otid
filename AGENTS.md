@@ -15,8 +15,8 @@ direkt SPORTident-avläsning som fungerar även när nätet försvinner.
 3. `docs/adr/ADR-0168-omstart-mot-klubbtraning.md` `ADR-0169-enkel-yta-gafflingar-stafett.md` och `ADR-0170-tavlingstyper-utseende-eventor-rogaining.md` – gällande grundbeslut.
 4. Närmaste `AGENTS.md` i katalogen du ändrar (t.ex. `apps/web/AGENTS.md`).
 
-`CODEX_BRIEF.md` är långsiktig vision och `docs/architecture.md`,
-`docs/domain-rules.md` och `docs/offline-sync.md` är referens. Läs dem vid
+`CODEX_BRIEF.md` är långsiktig vision och `docs/architecture.md` och
+`docs/domain-rules.md` är referens. Läs dem vid
 behov. Vid konflikt gäller `PLAN.md` och ADR-0168. `docs/archive/` är
 historik. Läs den inte om du inte letar efter något specifikt.
 

@@ -1,11 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  createResultDisqualificationWithdrawalAttempt,
-  isDefinitiveResultDisqualificationWithdrawalRejection,
-  parseResultDisqualificationWithdrawalResponse,
-  parseResultDisqualificationWithdrawals,
-  readResultDisqualificationWithdrawalAdminCsrf
-} from "./result-disqualification-withdrawal-admin-client";
+import { createResultDisqualificationWithdrawalAttempt, isDefinitiveResultDisqualificationWithdrawalRejection, parseResultDisqualificationWithdrawalResponse, parseResultDisqualificationWithdrawals } from "./result-disqualification-withdrawal-admin-client";
 
 const raceId = "10000000-0000-4000-8000-000000000001";
 const entryId = "10000000-0000-4000-8000-000000000002";
@@ -84,11 +78,6 @@ describe("TASK 006G DSQ-återtagningsklient", () => {
   });
 
   it("läser endast egen CSRF-cookie och auto-retryar inte 5xx", () => {
-    const csrf = "c".repeat(43);
-    expect(readResultDisqualificationWithdrawalAdminCsrf(
-      `otid_result_disqualification_admin_csrf=${csrf}; otid_result_disqualification_withdrawal_admin_csrf=${csrf}`,
-      new URL("http://127.0.0.1:3000/admin/race/disqualification-withdrawals")
-    )).toBe(csrf);
     expect([400, 404, 409, 413].every(isDefinitiveResultDisqualificationWithdrawalRejection)).toBe(true);
     expect([401, 403, 500].some(isDefinitiveResultDisqualificationWithdrawalRejection)).toBe(false);
   });

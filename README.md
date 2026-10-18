@@ -67,18 +67,21 @@ och nattlig backup. Se [docs/drift.md](docs/drift.md).
 ## Struktur
 
 ```text
-apps/web              Next.js: webb, API, admin, avläsning, publika sidor
-packages/domain       ren resultatmotor
-packages/sportident   SPORTident-protokoll och brickavkodning (steg 3)
-packages/device-transport  bytetransport (Web Serial m.fl.), capture, replay
-packages/application  användningsfall och transaktioner
-packages/contracts    validerade API-kontrakt
-packages/database     Drizzle-schema och migrationer
-packages/iof-xml      IOF XML 3.0 import/export
+apps/web              Next.js: webb, API, adminarbetsyta, avläsning (src/readout), publika sidor
 apps/si-tools         CLI för portlista, rå capture och replay
-apps/participant      parkerad Android-app (GPS)
-docs                  arkitektur, regler, ADR:er, arkiv
+packages/domain       ren resultatmotor (ingen I/O)
+packages/sportident   SPORTident-protokoll och brickavkodning
+packages/device-transport  bytetransport (Web Serial, falsk station), capture, replay
+packages/application  användningsfall, transaktioner och behörighetskontroll
+packages/contracts    validerade API-kontrakt (zod)
+packages/database     Drizzle-schema och migrationer (baslinje från steg 23)
+packages/iof-xml      IOF XML 3.0 import/export och GPX-spår
+packages/eventor      Eventor-klient
+packages/roc          ROC/OResults-klient (radiokontroller)
+docs                  arkitektur, domänregler, drift, ADR:er, arkiv
 ```
+
+Se [docs/architecture.md](docs/architecture.md) och [docs/domain-rules.md](docs/domain-rules.md).
 
 ## Verifiering
 

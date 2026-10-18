@@ -1,6 +1,5 @@
 import { didNotFinishWithdrawalListResponseSchema, didNotFinishWithdrawalRequestSchema, didNotFinishWithdrawalResponseSchema, type DidNotFinishWithdrawalListResponse, type DidNotFinishWithdrawalRequest, type DidNotFinishWithdrawalResponse } from "@o-tid/contracts";
 import { sv } from "../i18n/sv";
-import { readDidNotFinishWithdrawalAdminCsrfCookie } from "./did-not-finish-withdrawal-admin-cookies";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 export type DidNotFinishWithdrawals = DidNotFinishWithdrawalListResponse;
@@ -39,12 +38,6 @@ export function parseDidNotFinishWithdrawalResponse(value: unknown, attempt: Did
     response.status !== attempt.request.expectedRestorationSourceResultRevision.status ||
     response.reason !== attempt.request.expectedRestorationSourceResultRevision.reason) throw new Error(sv.didNotFinishWithdrawalInvalidResponse);
   return response;
-}
-
-export function readDidNotFinishWithdrawalAdminCsrf(cookieText: string, currentUrl: URL): string {
-  const value = readDidNotFinishWithdrawalAdminCsrfCookie(cookieText, currentUrl);
-  if (value !== undefined && /^[A-Za-z0-9_-]{43}$/.test(value)) return value;
-  throw new Error(sv.didNotFinishWithdrawalLoginAgain);
 }
 
 export function isDefinitiveDidNotFinishWithdrawalRejection(status: number): boolean { return status === 400 || status === 404 || status === 409 || status === 413; }

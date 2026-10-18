@@ -25,7 +25,7 @@ describe("TASK029 atomiskt klass-/startbyteskontrakt", () => {
     const raceClass = { id, name: "Öppen", courseVersionId: id, courseName: "Utan kontroller", courseVersion: 101,
       startRule: "FIXED", maxEntries: null, capacityVersion: 1, entryCount: 1, startDrawn: false, courseVariants: [] };
     const entry = { id, displayName: "Ada Test", organisationName: null, classId: id, version: 1,
-      paymentStatus: "UNMARKED", paymentStatusVersion: 1, fixedStartTime: null, courseVariantCode: null,
+      fixedStartTime: null, courseVariantCode: null,
       resultFreshness: "NO_PUBLISHED_RESULT", effectiveResult: { state: "NO_PUBLISHED_RESULT", selectedRevision: null },
       resultRevisionMarker: null, activeAssignment: null, multipleActiveAssignments: false };
     const value = { formatVersion: 2, raceId: id, eventName: "Skärgårdshelgen", raceName: "Lång",

@@ -6,7 +6,6 @@ import {
   type IofResultListExportMetadata
 } from "@o-tid/contracts";
 import { sv } from "../i18n/sv";
-import { readIofResultListExportAdminCsrfCookie } from "./iof-result-list-export-admin-security";
 
 const INTEGER_HEADER = /^(0|[1-9]\d*)$/;
 const SHA256_HEADER = /^[a-f0-9]{64}$/;
@@ -78,10 +77,4 @@ export function validateFrozenIofResultListResponse(
     throw new Error(sv.resultListExportInvalidResponse);
   }
   return expectedFilename;
-}
-
-export function readIofResultListExportAdminCsrf(cookieText: string, currentUrl: URL): string {
-  const value = readIofResultListExportAdminCsrfCookie(cookieText, currentUrl);
-  if (value !== undefined && /^[A-Za-z0-9_-]{43}$/.test(value)) return value;
-  throw new Error(sv.resultListExportLoginAgain);
 }

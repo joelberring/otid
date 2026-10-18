@@ -1,12 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  createClassFinalizationAttempt,
-  createRaceFinalizationAttempt,
-  isDefinitiveResultFinalizationRejection,
-  parseResultFinalizationCandidates,
-  parseResultFinalizationResponse,
-  readResultFinalizationAdminCsrf
-} from "./result-finalization-admin-client";
+import { createClassFinalizationAttempt, createRaceFinalizationAttempt, isDefinitiveResultFinalizationRejection, parseResultFinalizationCandidates, parseResultFinalizationResponse } from "./result-finalization-admin-client";
 
 const raceId = "10000000-0000-4000-8000-000000000001";
 const classId = "10000000-0000-4000-8000-000000000002";
@@ -102,11 +95,6 @@ describe("TASK 006D finaliseringsklient", () => {
   });
 
   it("läser endast finaliseringens separata CSRF-cookie och behåller auth/5xx som okänd commit", () => {
-    const csrf = "c".repeat(43);
-    expect(readResultFinalizationAdminCsrf(
-      `otid_recalculation_admin_csrf=${"x".repeat(43)}; otid_finalization_admin_csrf=${csrf}`,
-      new URL("http://127.0.0.1:3000/admin/race/finalization")
-    )).toBe(csrf);
     expect([400, 404, 409, 413].every(isDefinitiveResultFinalizationRejection)).toBe(true);
     expect([401, 403, 500, 502].some(isDefinitiveResultFinalizationRejection)).toBe(false);
   });

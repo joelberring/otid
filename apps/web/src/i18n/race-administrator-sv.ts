@@ -188,7 +188,7 @@ export const raceAdministratorSv = {
   unknownReadoutReview: "Granska lösning av okänd bricka",
   unknownReadoutConfirm: "Bekräfta koppling och bedömning",
   unknownReadoutEdit: "Ändra val",
-  unknownReadoutConsequence: "Kontrollera bricknummer och tid noga. Brickan kopplas och resultatet räknas fram direkt. Senare avläsningar med samma bricka kopplas inte automatiskt.",
+  unknownReadoutConsequence: "Kontrollera bricknummer och tid noga. Brickan kopplas till deltagaren och resultatet räknas fram direkt. Senare avläsningar med samma bricka kopplas automatiskt.",
   unknownReadoutLoadError: "Okända avläsningar kunde inte hämtas. Ingen ändring har gjorts.",
   unknownReadoutInvalid: "Välj en aktuell avläsning och fullständiga uppgifter för målgruppen.",
   unknownReadoutConflict: "Kopplingen avvisades eftersom underlaget, brickan eller deltagaren ändrades. Hämta aktuellt underlag och granska igen.",

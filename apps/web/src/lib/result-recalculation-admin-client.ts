@@ -7,7 +7,6 @@ import {
   type ResultRecalculationResponse
 } from "@o-tid/contracts";
 import { sv } from "../i18n/sv";
-import { readResultRecalculationAdminCsrfCookie } from "./result-recalculation-admin-cookies";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -91,12 +90,6 @@ export function parseResultRecalculationResponse(
     throw new Error(sv.resultRecalculationInvalidResponse);
   }
   return parsed.data;
-}
-
-export function readResultRecalculationAdminCsrf(cookieText: string, currentUrl: URL): string {
-  const value = readResultRecalculationAdminCsrfCookie(cookieText, currentUrl);
-  if (value !== undefined && /^[A-Za-z0-9_-]{43}$/.test(value)) return value;
-  throw new Error(sv.resultRecalculationLoginAgain);
 }
 
 export function isDefinitiveResultRecalculationRejection(status: number): boolean {

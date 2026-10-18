@@ -22,20 +22,3 @@ export function entryClassAdminCookieNamesForUrl(url: URL): EntryClassAdminCooki
   }
   return ENTRY_CLASS_ADMIN_PRODUCTION_COOKIE_NAMES;
 }
-
-function readUniqueCookie(cookieHeader: string, name: string): string | undefined {
-  let found: string | undefined;
-  for (const part of cookieHeader.split(";")) {
-    const separator = part.indexOf("=");
-    if (separator < 0 || part.slice(0, separator).trim() !== name) continue;
-    if (found !== undefined) return undefined;
-    const value = part.slice(separator + 1).trim();
-    if (!/^[A-Za-z0-9_-]{43}$/.test(value)) return undefined;
-    found = value;
-  }
-  return found;
-}
-
-export function readEntryClassAdminCsrfCookie(cookieHeader: string, currentUrl: URL): string | undefined {
-  return readUniqueCookie(cookieHeader, entryClassAdminCookieNamesForUrl(currentUrl).csrf);
-}

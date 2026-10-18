@@ -10,6 +10,13 @@ Måste provas mot riktiga tjänster: Eventor med klubbens API-nyckel, ROC:s sök
 
 ## Logg
 
+### 2026-10-18 – Steg 23 (del 1): död kod, baslinjemigration, tester och dokument
+- Borttaget: `packages/infrastructure` (MinIO), 16 applikationsmoduler och 14 kontrakt som inget anropade (PM-kedjan, avläsningshistoriken, manuella om-länkningar m.m.), Android-transporten, `apps/participant`, `apps/worker`, `packages/route-xml` (GPX nu i `iof-xml`), 14 cookie-filer, 1 319 av 1 436 nycklar i `i18n/sv.ts`, betalstatus, MinIO i compose och döda miljövariabler.
+- TS-rader 123 711 → 108 776 (utan tester 78 340 → 69 497); tabeller 114 → 102; rutter 131 → 131; migrationer 106 (7 790 rader) → 1 baslinje (4 469), pg_dump identisk med gamla kedjan; befintliga databaser skapas om (`docs/drift.md`).
+- Kvar med flit: `/imports` (EntryList/StartList-filer, Playwright använder sidan), hyrbricksflödena (knappar i deltagarkortet), enum-värdena för borttagna capabilities (försvinner med `pairing_admin_*` i del 2).
+- Tester: `task-001` delad i 14 filer efter beteende, övriga `task-NNN` omdöpta; enhet 230 filer/1 492 → 205/1 269; integration 72/391 → 74/300 (borta = tester av borttagen kod). `docs/architecture.md`/`domain-rules.md` nyskrivna, gamla i `docs/archive/`.
+- Verifierat: install (frozen), lint, typecheck, test, test:integration, build, pg_dump baslinje = gamla kedjan; Playwright 15 av 16 specar gröna (eventor, redigera-bana, tavlingstyper, traningskvall efter omförsök), `funktionarer` faller (speaker/kvar i skogen) men faller likadant på orörd HEAD i kväll. Kvar i steg 23: punkt 2–5 (statusflöde, versionsgrind, en session, ett skrivställe).
+
 ### 2026-10-18 – Steg 22: buggarna från granskningen (steg 22 klart)
 - Resultatmotorn 0.3.0: en aligner (`alignControls`, ordnad delföljd, flest obligatoriska sedan strukna, tidigaste stämpling vid lika) för alla
   vägar, även gaffling och neutralisering. Extra-/dubbelstämplingar och återkommande kontroller (fjäril) ger godkänt; fel ordning = en saknad kontroll

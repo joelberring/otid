@@ -1,11 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  createDidNotStartWithdrawalAttempt,
-  isDefinitiveDidNotStartWithdrawalRejection,
-  parseDidNotStartWithdrawalResponse,
-  parseDidNotStartWithdrawals,
-  readDidNotStartWithdrawalAdminCsrf
-} from "./did-not-start-withdrawal-admin-client";
+import { createDidNotStartWithdrawalAttempt, isDefinitiveDidNotStartWithdrawalRejection, parseDidNotStartWithdrawalResponse, parseDidNotStartWithdrawals } from "./did-not-start-withdrawal-admin-client";
 
 const raceId = "10000000-0000-4000-8000-000000000001";
 const entryId = "10000000-0000-4000-8000-000000000002";
@@ -106,11 +100,6 @@ describe("TASK 006F DNS-återtagningsklient", () => {
   });
 
   it("läser endast återtagningscookien och klassar nät/5xx som icke-definitiva", () => {
-    const csrf = "c".repeat(43);
-    expect(readDidNotStartWithdrawalAdminCsrf(
-      `otid_did_not_start_admin_csrf=${csrf}; otid_dns_withdrawal_admin_csrf=${csrf}`,
-      new URL("http://127.0.0.1:3000/admin/race/did-not-start-withdrawals")
-    )).toBe(csrf);
     expect([400, 404, 409, 413].every(isDefinitiveDidNotStartWithdrawalRejection)).toBe(true);
     expect([401, 403, 500, 502].some(isDefinitiveDidNotStartWithdrawalRejection)).toBe(false);
   });

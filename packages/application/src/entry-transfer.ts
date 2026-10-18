@@ -63,8 +63,8 @@ export async function listEntryTransfersAsAdministrator(db: Database, input: Aut
     }
     const rows = await tx.select({ id: schema.entries.id, givenName: schema.entries.givenName,
       familyName: schema.entries.familyName, organisationName: schema.entries.organisationName,
-      classId: schema.entries.classId, version: schema.entries.version, paymentStatus: schema.entries.paymentStatus,
-      paymentStatusVersion: schema.entries.paymentStatusVersion, fixedStartTime: schema.entries.fixedStartTime,
+      classId: schema.entries.classId, version: schema.entries.version,
+      fixedStartTime: schema.entries.fixedStartTime,
       courseVariantCode: schema.entries.courseVariantCode, teamId: schema.entries.teamId, relayLeg: schema.entries.relayLeg,
       exactTime: sql<boolean>`${schema.entries.fixedStartTime} IS NULL OR date_trunc('milliseconds', ${schema.entries.fixedStartTime}) = ${schema.entries.fixedStartTime}`
     }).from(schema.entries).where(eq(schema.entries.raceId, input.raceId))
@@ -154,8 +154,7 @@ export async function listEntryTransfersAsAdministrator(db: Database, input: Aut
         const active = activeByEntry.get(row.id) ?? [];
         const assignment = active.length === 1 ? active[0] : undefined;
         return {
-        id: row.id, classId: row.classId, version: row.version, paymentStatus: row.paymentStatus,
-        paymentStatusVersion: row.paymentStatusVersion, organisationName: row.organisationName,
+        id: row.id, classId: row.classId, version: row.version, organisationName: row.organisationName,
         displayName: `${row.givenName} ${row.familyName}`, fixedStartTime: row.fixedStartTime?.toISOString() ?? null,
         courseVariantCode: row.courseVariantCode,
         ...(row.teamId && row.relayLeg ? { relay: { teamId: row.teamId, teamNumber: teams.get(row.teamId)!.number,

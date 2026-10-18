@@ -7,7 +7,7 @@ import {
 import { deriveRasterGeoreference, projectRoute, RasterGeoreferenceError, routeLegs, routeSegment, runnerLegs, timedRoutePoints,
   type RoutePoint } from "@o-tid/domain";
 import { schema, type Database } from "@o-tid/database";
-import { GpxValidationError, parseGpxTrack } from "@o-tid/route-xml";
+import { GpxValidationError, parseGpxTrack } from "@o-tid/iof-xml";
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
 import { authenticatePairingAdminSessionForMutation, authenticatePairingAdminSessionForProtectedRead,
   type PairingAdminRequestAuthentication } from "./pairing-admin";

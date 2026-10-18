@@ -7,11 +7,11 @@ const classId = "20000000-0000-4000-8000-000000000001";
 const fixedClassId = "20000000-0000-4000-8000-000000000002";
 const classes = new Map([[classId, "Öppen 5"]]);
 
-function entry(id: number, paymentStatus: Entry["paymentStatus"], overrides: Partial<Entry> = {}): Entry {
+function entry(id: number, overrides: Partial<Entry> = {}): Entry {
   return {
     id: `30000000-0000-4000-8000-${String(id).padStart(12, "0")}`,
     displayName: `Löpare ${id}`, organisationName: "Skärgårdens OK", classId, version: 1,
-    paymentStatus, paymentStatusVersion: 1, resultFreshness: "CURRENT_SNAPSHOT",
+    resultFreshness: "CURRENT_SNAPSHOT",
     effectiveResult: { state: "ACTIVE_RESULT", selectedRevision: {
       id: "40000000-0000-4000-8000-000000000001", revision: 1 }, resultSnapshotVersion: 1,
       result: { revision: 1, status: "OK", reason: "COMPLETE", elapsedMs: 60_000 } },
@@ -26,7 +26,7 @@ describe("TASK208 gällande resultatläge i hela deltagarunderlaget", () => {
   it("skiljer varje publicerad status från inget aktivt och inget publicerat, och kombinerar äldre-filter", () => {
     const selectedRevision = { id: "40000000-0000-4000-8000-000000000001", revision: 1 };
     const statusRows = (["OK", "MP", "DNS", "DNF", "DSQ", "OOC", "NT"] as const).map((status, index) =>
-      entry(index + 1, "PAID", { resultFreshness: status === "MP" ? "OLDER_SNAPSHOT" : "CURRENT_SNAPSHOT",
+      entry(index + 1, { resultFreshness: status === "MP" ? "OLDER_SNAPSHOT" : "CURRENT_SNAPSHOT",
         effectiveResult: { state: "ACTIVE_RESULT", selectedRevision, resultSnapshotVersion: status === "MP" ? 1 : 2,
           result: status === "OK" ? { revision: 1, status, reason: "COMPLETE", elapsedMs: 60_000 } :
             status === "MP" ? { revision: 1, status, reason: "MISSING_CONTROL", elapsedMs: 60_000 } :
@@ -36,9 +36,9 @@ describe("TASK208 gällande resultatläge i hela deltagarunderlaget", () => {
                     status === "OOC" ? { revision: 1, status, reason: "OUT_OF_COMPETITION" } :
                       { revision: 1, status, reason: "WITHOUT_TIMING" } } }));
     const rows = [...statusRows,
-      entry(8, "PAID", { resultFreshness: "NO_ACTIVE_RESULT",
+      entry(8, { resultFreshness: "NO_ACTIVE_RESULT",
         effectiveResult: { state: "NO_ACTIVE_RESULT", selectedRevision } }),
-      entry(9, "PAID", { resultFreshness: "NO_PUBLISHED_RESULT",
+      entry(9, { resultFreshness: "NO_PUBLISHED_RESULT",
         effectiveResult: { state: "NO_PUBLISHED_RESULT", selectedRevision: null } })];
     for (const [resultState, expected] of [
       ["OK", 1], ["MP", 2], ["DNS", 3], ["DNF", 4], ["DSQ", 5], ["OOC", 6], ["NT", 7],
@@ -56,10 +56,10 @@ describe("TASK208 gällande resultatläge i hela deltagarunderlaget", () => {
 describe("TASK167 kombinerade filter", () => {
   it("kombinerar namn/klass, äldre resultat och hyrbrickor", () => {
     const rows = [
-      entry(1, "UNMARKED", { displayName: "Åsa Löpare", resultFreshness: "OLDER_SNAPSHOT",
+      entry(1, { displayName: "Åsa Löpare", resultFreshness: "OLDER_SNAPSHOT",
         activeAssignment: { id: "40000000-0000-4000-8000-000000000001", cardNumber: "12345", isRental: true, rentalReturned: false } }),
-      entry(2, "UNPAID", { displayName: "Bertil Löpare" }),
-      entry(3, "PAID", { displayName: "Åsa Betald" })
+      entry(2, { displayName: "Bertil Löpare" }),
+      entry(3, { displayName: "Åsa Betald" })
     ];
     expect(filterAdministratorRoster(rows, classes, { ...allFiltersOff, query: "åsa öppen 5", olderResultsOnly: true,
       rentalCardsOnly: true }).map(row => row.id)).toEqual([rows[0]?.id]);
@@ -69,8 +69,8 @@ describe("TASK167 kombinerade filter", () => {
 
 describe("TASK201 fixed-start follow-up", () => {
   it("only flags a missing time in a fixed-start class", () => {
-    const noTime = entry(1, "PAID");
-    const assigned = entry(2, "PAID", { fixedStartTime: "2026-09-23T08:00:00.000Z" });
+    const noTime = entry(1);
+    const assigned = entry(2, { fixedStartTime: "2026-09-23T08:00:00.000Z" });
     expect(missingFixedStartTime(noTime, "FIXED")).toBe(true);
     expect(missingFixedStartTime(noTime, "PUNCH")).toBe(false);
     expect(missingFixedStartTime(noTime, undefined)).toBe(false);
@@ -80,7 +80,7 @@ describe("TASK201 fixed-start follow-up", () => {
 
 describe("TASK203 participant order before pagination", () => {
   it("keeps server name order, sorts assigned fixed times first, and preserves ties and input", () => {
-    const rows = Array.from({ length: 28 }, (_, index) => entry(index + 1, "PAID"));
+    const rows = Array.from({ length: 28 }, (_, index) => entry(index + 1));
     rows[0] = { ...rows[0]!, classId: fixedClassId, fixedStartTime: "2026-09-23T08:00:00.000Z" };
     rows[20] = { ...rows[20]!, classId: fixedClassId, fixedStartTime: null };
     rows[25] = { ...rows[25]!, classId: fixedClassId, fixedStartTime: "2026-09-23T10:00:00.000+02:00" };

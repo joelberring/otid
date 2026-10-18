@@ -7,7 +7,6 @@ import {
   type DidNotStartResponse
 } from "@o-tid/contracts";
 import { sv } from "../i18n/sv";
-import { readDidNotStartAdminCsrfCookie } from "./did-not-start-admin-cookies";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -77,12 +76,6 @@ export function parseDidNotStartResponse(
     throw new Error(sv.didNotStartInvalidResponse);
   }
   return parsed.data;
-}
-
-export function readDidNotStartAdminCsrf(cookieText: string, currentUrl: URL): string {
-  const value = readDidNotStartAdminCsrfCookie(cookieText, currentUrl);
-  if (value !== undefined && /^[A-Za-z0-9_-]{43}$/.test(value)) return value;
-  throw new Error(sv.didNotStartLoginAgain);
 }
 
 export function isDefinitiveDidNotStartRejection(status: number): boolean {

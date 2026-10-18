@@ -20,15 +20,6 @@ describe("TASK 006I/006J/006K/006M DNF projection policy", () => {
     expect(resultList).toContain('if (result.status === "DNF" || result.status === "OOC")');
   });
 
-  it("exposes current format 10 readout history with immutable withdrawal provenance", () => {
-    const history = source("readout-result-history.ts");
-    expect(history).toContain('kind: "MANUAL_DID_NOT_FINISH" as const');
-    expect(history).toContain('kind: "MANUAL_DID_NOT_FINISH_WITHDRAWAL" as const');
-    expect(history).toContain("didNotFinishDecisionId: decision.id");
-    expect(history).toContain("targetResultRevisionId: decision.targetResultRevisionId");
-    expect(history).toContain("restorationSourceResultRevisionId: withdrawal.restoredFromResultRevisionId");
-  });
-
   it("freezes current format 9 provenance including withdrawals and the absolute selected head", () => {
     const finalization = source("result-finalization.ts");
     expect(finalization).toContain('kind: "MANUAL_DID_NOT_FINISH"');

@@ -1,9 +1,5 @@
 import { expect, it } from "vitest";
-import {
-  entryIdentityAdminListResponseSchema, entryIdentityAdminLoginRequestSchema,
-  entryIdentityAdminLoginResponseSchema, entryIdentityChangeIdempotencyKeySchema,
-  entryIdentityChangeRequestSchema, entryIdentityChangeResponseSchema, entryIdentityHistoryResponseSchema
-} from "../src/entry-identity-admin";
+import { entryIdentityAdminListResponseSchema, entryIdentityAdminLoginRequestSchema, entryIdentityAdminLoginResponseSchema, entryIdentityChangeIdempotencyKeySchema, entryIdentityChangeRequestSchema, entryIdentityChangeResponseSchema } from "../src/entry-identity-admin";
 
 const raceId = "10000000-0000-4000-8000-000000000001";
 const entryId = "20000000-0000-4000-8000-000000000001";
@@ -73,19 +69,4 @@ it("rejects duplicate entries and unrelated private data in the bounded list", (
   expect(entryIdentityAdminListResponseSchema.safeParse({ ...list, entries: [entry, entry] }).success).toBe(false);
   expect(entryIdentityAdminListResponseSchema.safeParse({ ...list,
     entries: [{ ...entry, credential: "secret" }] }).success).toBe(false);
-});
-
-it("keeps journal records strict, unique and ordered by entry version rather than timestamp", () => {
-  const item = { requestId, classId, previousIdentity: before, identity: after,
-    entryVersionBefore: 2, entryVersionAfter: 3, snapshotVersionBefore: 4, snapshotVersionAfter: 5,
-    changedAt: response.changedAt };
-  const older = { ...item, requestId: entryId, entryVersionBefore: 1, entryVersionAfter: 2 };
-  const history = { formatVersion: 1, raceId, entryId, items: [item, older], nextCursor: null };
-  expect(entryIdentityHistoryResponseSchema.parse(history)).toEqual(history);
-  expect(entryIdentityHistoryResponseSchema.safeParse({ ...history, items: [] }).success).toBe(true);
-  for (const items of [[older, item], [item, item], [{ ...item, actorCredentialId: raceId }],
-    [{ ...item, entryVersionAfter: 4 }], [{ ...item, identity: before }]]) {
-    expect(entryIdentityHistoryResponseSchema.safeParse({ ...history, items }).success).toBe(false);
-  }
-  expect(entryIdentityHistoryResponseSchema.safeParse({ ...history, items: [], nextCursor: "abc" }).success).toBe(false);
 });

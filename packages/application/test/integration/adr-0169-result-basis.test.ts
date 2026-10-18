@@ -17,10 +17,6 @@ import { listResultFinalizationCandidatesAsAdmin } from "../../src/result-finali
 import { exportIofResultListAsAdmin } from "../../src/result-list-export";
 import { listEntryTransfersAsAdministrator } from "../../src/entry-transfer";
 import { getAdministratorEffectiveResult } from "../../src/administrator-effective-result";
-import {
-  previewManualCourseResultBearingRelinkAsAdministrator,
-  relinkManualCourseResultBearingClassAsAdministrator
-} from "../../src/manual-course-result-bearing-relink";
 import { neutralizeClassControlAsAdministrator, previewClassControlNeutralizationAsAdministrator } from "../../src/class-control-neutralization";
 
 const base = process.env.TEST_DATABASE_URL;
@@ -126,6 +122,29 @@ const current = { approval: "READY", recalculation: "CURRENT", freshness: "CURRE
 const stale = { approval: "STALE_RESULT", recalculation: "READY", freshness: "OLDER_SNAPSHOT", effectiveCurrent: false,
   staleBlocker: true, staleResultCount: 1 };
 
+/** En ny banversion för klassen utan omräkning (samma skrivningar som en banändring gör före omräkningen). */
+async function newCourseVersion(f: Awaited<ReturnType<typeof race>>, controlCodes: number[]) {
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const [version] = (await client.query<{ id: string }>(`insert into course_version (course_id, version)
+      select $1, max(version) + 1 from course_version where course_id = $1 returning id`, [f.courseId])).rows;
+    for (const [index, code] of controlCodes.entries()) {
+      await client.query("insert into control (race_id, code) values ($1, $2) on conflict do nothing", [f.raceId, code]);
+      await client.query(`insert into course_control (course_version_id, control_id, sequence)
+        select $1, id, $2 from control where race_id = $3 and code = $4`, [version!.id, index + 1, f.raceId, code]);
+    }
+    await client.query("update class set course_version_id = $1 where id = $2", [version!.id, f.classId]);
+    await client.query("update race set snapshot_version = snapshot_version + 1 where id = $1", [f.raceId]);
+    await client.query("commit");
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 async function recalculateClass(f: Awaited<ReturnType<typeof race>>, entryIds: string[]) {
   const candidates = await listClassResultRecalculationCandidatesAsAdministrator(db, { ...f.proof, classId: f.classId });
   if (candidates.status !== "ok") throw new Error("Omräkningsunderlaget saknas");
@@ -161,15 +180,7 @@ describe("ADR-0169 resultatets underlag gäller löparen", () => {
     expect(await view(f, ada)).toMatchObject(current);
 
     // Ny banversion för klassen gör Adas resultat inaktuellt.
-    const preview = await previewManualCourseResultBearingRelinkAsAdministrator(db, { ...f.proof, classId: f.classId });
-    if (preview.status !== "ok") throw new Error("Förhandsgranskningen saknas");
-    const relinkId = randomUUID();
-    const relinked = await relinkManualCourseResultBearingClassAsAdministrator(db, { ...f.proof,
-      idempotencyKey: `manual-course-result-bearing-link:${relinkId}`, request: { formatVersion: 1, requestId: relinkId,
-        expectedSnapshotVersion: preview.response.snapshotVersion, expectedBasisHash: preview.response.basisHash,
-        courseId: f.courseId, classId: f.classId, expectedClassCourseVersionId: preview.response.classCourseVersionId,
-        controlCodes: [31, 33, 34], acknowledgedImpact: true } });
-    expect(relinked.status).toBe("changed");
+    await newCourseVersion(f, [31, 33, 34]);
     expect(await view(f, ada)).toMatchObject(stale);
 
     // Omräkning ger en ny revision med aktuellt underlag; historiken finns kvar.

@@ -7,7 +7,6 @@ import {
   type OutOfCompetitionWithdrawalResponse
 } from "@o-tid/contracts";
 import { sv } from "../i18n/sv";
-import { readOutOfCompetitionWithdrawalAdminCsrfCookie } from "./out-of-competition-withdrawal-admin-cookies";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -85,12 +84,6 @@ export function parseOutOfCompetitionWithdrawalResponse(
     throw new Error(sv.outOfCompetitionWithdrawalInvalidResponse);
   }
   return response;
-}
-
-export function readOutOfCompetitionWithdrawalAdminCsrf(cookieText: string, currentUrl: URL): string {
-  const value = readOutOfCompetitionWithdrawalAdminCsrfCookie(cookieText, currentUrl);
-  if (value !== undefined && /^[A-Za-z0-9_-]{43}$/.test(value)) return value;
-  throw new Error(sv.outOfCompetitionWithdrawalLoginAgain);
 }
 
 export function isDefinitiveOutOfCompetitionWithdrawalRejection(status: number): boolean {

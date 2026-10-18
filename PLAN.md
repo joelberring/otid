@@ -422,6 +422,76 @@ i kopian; kvittot visar sträcktider och skrivs ut rent.
 
 ---
 
+## [ ] Steg 22 – Rätta buggarna från granskningen 2026-10-18
+
+Granskningen (ägaren 2026-10-18) hittade fel som ska bort före hårdvarutestet.
+
+1. Resultatmotorn: matcha banan mot stämplingarna som ordnad delföljd, så att
+   extra- och dubbelstämplingar (även vid kontroller som återkommer i
+   fjärilsslingor) ger godkänd, inte "fel ordning". Höj motorversionen.
+2. Tid: stationens klocka som referens vid tidsupplösning (GET_TIME), större
+   tolerans och varning vid klockskillnad i stället för tyst förskjutning.
+3. Övningsstationen simulerar relativt löparens starttid, så att en riktig
+   avläsning på en kommande tävling blir godkänd; bricka som sitter i före
+   handskakningen läses; avsluta pågående falsk bricka vid ny insättning.
+4. Dubbla klass- och bannamn avvisas. "Kvar i skogen" räknar inte anmälda
+   före tävlingsdagen. "Ej start" visas inte som målgång hos speakern.
+   "Karta och rutter kunde inte hämtas" på Resultat-steget. IOF-import
+   validerar bricknummer.
+
+**Acceptans:** domäntester för fallen ovan; Playwright: övningsstation på
+kommande tävling ger godkänd; dubbelt klassnamn ger fel.
+
+## [ ] Steg 23 – Storstädning av koden
+
+Se ADR-0173.
+
+1. Ta bort död kod: `packages/infrastructure`, PM-kedjan, moduler och kontrakt
+   som inget anropar, cookie-filer per funktion, `apps/participant`,
+   `apps/worker`, Android-transporten, oanvända tabeller, döda i18n-nycklar,
+   gamla importsidan `/imports`.
+2. Ett statusflöde: `setEntryStatus` som lägger till en resultatrevision
+   ersätter de tolv besluts- och återtagandetjänsterna med tabeller, kontrakt
+   och rutter. Återta = ny revision. Historik = revisionerna.
+3. Ta bort tävlingsversionsgrinden (`expectedSnapshotVersion`) ur
+   adminåtgärder; underlagshash per löpare gäller (ADR-0169).
+4. En sessionsnivå: kontosession + rollkontroll per tävling. `pairing_admin_*`
+   och delegationer bort. Ingen "Öppna med mitt konto".
+5. En `appendResultRevision` och en `evaluateAndStore` som alla skrivställen
+   använder. En säkerhetspolicy. Ett suffix (`AsAdmin`).
+6. Slå ihop migrationerna till en baslinje. Dela `task-001.test.ts` efter
+   beteende och ta bort tester för borttagen kod. Uppdatera referensdokumenten
+   eller arkivera dem.
+
+**Acceptans:** alla flöden i Playwright passerar oförändrade; `pnpm test`,
+`test:integration` och `build` gröna; radantal och tabellantal i `STATUS.md`.
+
+## [ ] Steg 24 – Enklare arbetsyta
+
+1. Primära knappar i tomlägen ("Ny bana", "Ny klass", "Ny deltagare");
+   banfil och hopfällda formulär sekundära.
+2. Ny deltagare i ett steg; starttid frivillig när klassen lottas.
+3. Ett ordval för startsätt överallt. Sidopanel och rubriker säger samma sak.
+   Publicera på ett ställe. Start i ordningen lottning → lista → publicera.
+4. Ingen låsning av hela arbetsytan vid sparning. Direkt in i arbetsytan
+   efter "Skapa tävling".
+5. Svenska fältfel i stället för webbläsarens. Jargongen bort (lista i
+   granskningen). Filterraden på Anmälda minskad.
+
+**Acceptans:** Playwright: tre deltagare på under tio klick; skärmbilder
+granskade på 1280 och 390 px.
+
+## [ ] Steg 25 – Saknade tävlingsfunktioner
+
+1. Startstämpling som reserv vid lottad start, med varning vid sen start.
+2. Direktanmälan av okänd bricka på avläsningssidan, även offline.
+3. Maxtid per klass (OverTime) och "markera alla kvar som ej start".
+4. Banlängd och stigning lagras; IOF-resultat med person-/klubb-id, bricka
+   och bana. Livelistan märkt preliminär. Disk med orsak. Hyrbricksvarning
+   vid avläsning.
+
+**Acceptans:** domän- och integrationstester per punkt; Playwright för 1–2.
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

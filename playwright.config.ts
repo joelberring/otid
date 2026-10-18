@@ -43,7 +43,7 @@ export default defineConfig({
   workers: 1,
   // Utvecklingsservern kompilerar sidor vid första besöket, vilket kan vara långsamt i CI.
   retries: process.env.CI ? 1 : 0,
-  reporter: process.env.CI ? "line" : "list",
+  reporter: process.env.CI ? [["line"], ["github"]] : "list",
   use: {
     baseURL: origin, trace: "retain-on-failure", ...devices["Desktop Chrome"],
     ...(external ? { ignoreHTTPSErrors: true, launchOptions: { args: ["--ignore-certificate-errors"] } } : {})

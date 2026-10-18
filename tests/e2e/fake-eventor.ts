@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
+import { daysFromToday, today } from "./helpers";
 
 /**
  * Falsk Eventor för webbläsartesterna (ADR-0170 beslut 4). Svarar med konstruerade svar ur
@@ -11,7 +12,14 @@ export const FAKE_EVENTOR_PORT = Number(process.env.E2E_EVENTOR_PORT ?? 4319);
 /** Klubbnyckeln som den falska Eventor godtar (påhittad, används bara mot den här servern). */
 export const FAKE_EVENTOR_API_KEY = "e2e0fake0eventor0club0key0000001";
 
-const fixture = (name: string) => readFileSync(new URL(`../../fixtures/eventor/${name}.xml`, import.meta.url), "utf8");
+/** Fixturernas tävlingsdatum. Den falska Eventor byter dem vid varje svar mot datum räknade från i dag. */
+const FIXTURE_EVENT_DATE = "2026-10-18";
+const FIXTURE_RELAY_DATE = "2026-11-08";
+/** Höstsprintens datum som den falska Eventor svarar med: i dag, så att den importerade tävlingen har tävlingsdag nu. */
+export const fakeEventorEventDate = () => today();
+
+const fixture = (name: string) => readFileSync(new URL(`../../fixtures/eventor/${name}.xml`, import.meta.url), "utf8")
+  .replaceAll(FIXTURE_EVENT_DATE, fakeEventorEventDate()).replaceAll(FIXTURE_RELAY_DATE, daysFromToday(21));
 const routes: Record<string, string> = {
   "/api/organisation/apiKey": "organisation", "/api/events": "events", "/api/event/47110": "event", "/api/eventclasses": "classes"
 };

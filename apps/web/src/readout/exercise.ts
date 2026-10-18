@@ -70,18 +70,24 @@ export function exerciseAnchor(raceDate: string, timeZone: string, now: Date): D
 /**
  * Tiderna för en övningsbricka (PLAN.md steg 22): relativt löparens fasta starttid när den finns (start där,
  * mål efter loppets längd), annars i mål fem sekunder före "nu" på tävlingsdagen. En stafettsträcka följer
- * lagets tidigare sträckor (ADR-0169 beslut 3) när masstarten har passerats.
+ * lagets tidigare sträckor (ADR-0169 beslut 3) när masstarten har passerats. På tävlingsdagen går en löpare
+ * med fast start som startat mer än loppets längd sedan i mål nu, som en riktig löpare (inte i rogaining,
+ * där tiden mot tidsgränsen är själva övningen).
  */
 export function exerciseWindow(pkg: ReadoutPackage, runner: ExerciseRunner, variant: ExerciseVariant, now: Date): ExerciseWindow {
   const relay = relayExerciseWindow(pkg, runner.entryId, now);
   if (relay) return relay;
   const duration = exerciseDuration(runner, variant);
+  const anchor = exerciseAnchor(pkg.raceSnapshot.race.raceDate, pkg.event.timeZone, now);
+  const finishedNow = new Date(anchor.getTime() - 5_000);
   if (runner.fixedStartTime) {
     const startAt = new Date(runner.fixedStartTime);
-    return { startAt, finishAt: new Date(startAt.getTime() + duration) };
+    const raceDay = anchor === now;
+    const finishAt = raceDay && runner.timeLimitMs === undefined && finishedNow.getTime() - startAt.getTime() > duration
+      ? finishedNow : new Date(startAt.getTime() + duration);
+    return { startAt, finishAt };
   }
-  const finishAt = new Date(exerciseAnchor(pkg.raceSnapshot.race.raceDate, pkg.event.timeZone, now).getTime() - 5_000);
-  return { startAt: new Date(finishAt.getTime() - duration), finishAt };
+  return { startAt: new Date(finishedNow.getTime() - duration), finishAt: finishedNow };
 }
 
 /**

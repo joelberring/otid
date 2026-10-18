@@ -7,6 +7,20 @@ export const password = "hemligt-lösen-1";
 export const unique = () => Math.random().toString(36).slice(2, 8);
 const root = fileURLToPath(new URL("../../", import.meta.url));
 
+/** Tävlingarnas tidszon i testerna. */
+export const TIME_ZONE = "Europe/Stockholm";
+
+/** Dagens datum (ÅÅÅÅ-MM-DD) i Stockholm. Testerna räknar alla tävlingsdatum härifrån, aldrig från ett fast datum. */
+export function today(now = new Date()): string {
+  return new Intl.DateTimeFormat("sv-SE", { timeZone: TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+}
+
+/** Datumet `days` dagar från i dag (negativt bakåt), ÅÅÅÅ-MM-DD i Stockholm. */
+export function daysFromToday(days: number, now = new Date()): string {
+  const [year, month, day] = today(now).split("-").map(Number) as [number, number, number];
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+}
+
 /** Registrerar ett konto med e-post (ADR-0172) i en egen webbläsarkontext och landar i Mina tävlingar. */
 export async function registerAccount(browser: Browser, email: string, displayName: string): Promise<Page> {
   const page = await (await browser.newContext()).newPage();
@@ -47,8 +61,8 @@ export function grantSuperadmin(email: string): void {
 /** Tävlingstyperna i "Skapa tävling" (ADR-0170 beslut 1). */
 export type RaceTypeName = "Träning" | "Liten tävling" | "Tävling" | "Tävling med gafflade banor" | "Stafett" | "Rogaining";
 
-/** Skapar tävling av vald typ och öppnar arbetsytan. Returnerar loppets id. */
-export async function createRace(owner: Page, eventName: string, date = "2026-10-08", type: RaceTypeName = "Tävling"): Promise<string> {
+/** Skapar tävling av vald typ och öppnar arbetsytan (som standard i dag, tävlingsdagen). Returnerar loppets id. */
+export async function createRace(owner: Page, eventName: string, date = today(), type: RaceTypeName = "Tävling"): Promise<string> {
   await owner.getByLabel("Eventnamn").fill(eventName);
   await owner.getByLabel("Loppets namn").fill("Torsdag");
   await owner.getByLabel("Datum").fill(date);

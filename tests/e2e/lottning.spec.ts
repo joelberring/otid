@@ -1,9 +1,8 @@
 import { expect, test } from "@playwright/test";
-import { addCourseAndClass, addEntry, createRace, openStep, publishRace, registerAccount, unique } from "./helpers";
+import { addCourseAndClass, addEntry, createRace, daysFromToday, openStep, publishRace, registerAccount, unique } from "./helpers";
 
 /** Tävlingsdagen i tävlingens tidszon, 30 dagar fram: tävlingen är inte igång när testet körs. */
-const raceDate = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Stockholm", year: "numeric", month: "2-digit", day: "2-digit" })
-  .format(new Date(Date.now() + 30 * 86_400_000));
+const raceDate = daysFromToday(30);
 
 /**
  * PLAN.md steg 9: tre klasser lottas på en gång (H21 och D21 har samma första kontroll),

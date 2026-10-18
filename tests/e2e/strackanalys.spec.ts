@@ -151,13 +151,20 @@ test("sträcktidsanalys: från resultatlistan, sortering på en sträcka och vä
   await expect(bodyRows.nth(2).locator("td").nth(3)).toContainText("–");
   await expect(table.locator("td[data-best]").first()).toContainText("★");
 
-  // Sortera på Start–31: den felstämplade startade sist och har kortast sträcka, sedan i startordning baklänges.
+  // Sortera på Start–31: raderna står i stigande sträcktid. Övningsstationen fördelar kontrollerna jämnt mellan löparens
+  // start och målgången (PLAN.md steg 22), så vem som har kortast sträcka beror på starttiden; testet läser tiderna.
   await table.getByRole("button", { name: "Sortera på sträcka Start–31" }).click();
   await expect(table.getByRole("columnheader", { name: "Sortera på sträcka Start–31" })).toHaveAttribute("aria-sort", "ascending");
   await expect(visitor.getByText("Sorterad på sträcka Start–31.")).toBeVisible();
-  await expect(bodyRows.nth(0)).toContainText(fullName(late));
-  await expect(bodyRows.nth(1)).toContainText(fullName(middle));
-  await expect(bodyRows.nth(2)).toContainText(fullName(early));
+  // Kolumnerna: placering, namn, tid och sedan sträckorna; Start–31 är den fjärde.
+  const firstLeg = async (row: number) => {
+    const [, minutes, seconds] = /(\d+):(\d\d)/.exec(await bodyRows.nth(row).locator("th, td").nth(3).innerText()) ?? [];
+    return Number(minutes) * 60 + Number(seconds);
+  };
+  const legs = [await firstLeg(0), await firstLeg(1), await firstLeg(2)];
+  expect(legs.every(Number.isFinite)).toBe(true);
+  expect(legs).toEqual([...legs].sort((a, b) => a - b));
+  for (const runner of [early, middle, late]) await expect(bodyRows.filter({ hasText: fullName(runner) })).toHaveCount(1);
   await screenshots(visitor, "stracktidsanalys-sorterad");
   await noPageScroll(visitor);
 

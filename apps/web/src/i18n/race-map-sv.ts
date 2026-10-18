@@ -12,6 +12,7 @@ export const raceMapSv = {
     heading: "1. Kartbild",
     file: "Kartbild (PNG eller JPEG, högst 30 MB)",
     fileHelp: "Exportera kartan med banorna från OCAD, Purple Pen eller Condes, eller skanna den.",
+    none: "Ingen karta uppladdad än. Ladda upp kartbilden när banorna är klara.",
     upload: "Ladda upp karta", replace: "Byt karta", remove: "Ta bort kartan",
     current: (fileName: string, width: number, height: number) => `${fileName} · ${width} × ${height} px`,
     georeferenced: "Georefererad", notGeoreferenced: "Inte georefererad än",

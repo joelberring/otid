@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
-import { addCourseAndClass, addEntry, createRace, openStep, publishRace, registerAccount, sectionButton, unique, warmRoute } from "./helpers";
+import { addCourseAndClass, addEntry, createRace, openStep, publishRace, registerAccount, sectionButton, today, unique, warmRoute } from "./helpers";
 
 /**
  * Steg 4–5 (ADR-0168): en hel träningskväll med tio syntetiska löpare.
@@ -33,7 +33,7 @@ test("träningskväll från tävling till IOF-export", async ({ browser, request
   test.setTimeout(360_000);
   const suffix = unique();
   const owner = await registerAccount(browser, `kvall.${suffix}@exempel.se`, "Kim Klubb");
-  const raceId = await createRace(owner, `Träningskväll ${suffix}`, "2026-10-08", "Träning");
+  const raceId = await createRace(owner, `Träningskväll ${suffix}`, today(), "Träning");
   // Besökarna ska se tävlingen (ADR-0172 beslut 4).
   await publishRace(owner);
   await addCourseAndClass(owner, "Lång", "H21", "31 32 33 34");
@@ -151,6 +151,10 @@ test("träningskväll från tävling till IOF-export", async ({ browser, request
   await openStep(owner, "Resultat");
   const toolbar = owner.getByRole("toolbar", { name: "Listans verktyg" });
   await expect(owner.getByRole("table", { name: "H21" })).toBeVisible();
+  // Ingen karta uppladdad: ett vanligt tomt läge i Karta och vägval, inget felbesked.
+  const mapSection = owner.getByRole("region", { name: "Karta och vägval" });
+  await expect(mapSection.getByText(/^Ingen karta uppladdad än/)).toBeVisible();
+  await expect(mapSection.getByRole("alert")).toHaveCount(0);
   await toolbar.getByText("Exportera").click();
   const [download] = await Promise.all([
     owner.waitForEvent("download"),

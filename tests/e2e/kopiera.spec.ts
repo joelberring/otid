@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { addCourseAndClass, addEntry, createRace, publishRace, registerAccount, sectionButton, unique } from "./helpers";
+import { addCourseAndClass, addEntry, createRace, daysFromToday, publishRace, registerAccount, sectionButton, today, unique } from "./helpers";
 
 /**
  * Steg 21 (PLAN.md): "Ny tävling som …" och kvitto vid avläsning. Förra veckans träning kopieras från Mina tävlingar;
@@ -17,16 +17,11 @@ async function screenshots(page: Page, name: string, widths: readonly number[] =
   await page.setViewportSize({ width: 1280, height: 720 });
 }
 
-/** ÅÅÅÅ-MM-DD i webbläsarens (och testets) lokala tid. */
-function localDate(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
 test("kopiera förra veckans träning, läs av i kopian och skriv ut kvitto", async ({ browser }) => {
   test.setTimeout(300_000);
   const suffix = unique();
-  const lastWeek = localDate(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
-  const thisWeek = localDate(new Date());
+  const lastWeek = daysFromToday(-7);
+  const thisWeek = today();
   const owner = await registerAccount(browser, `kopia.${suffix}@exempel.se`, "Karin Kopia");
   await createRace(owner, `Träning v${suffix}`, lastWeek, "Träning");
   await addCourseAndClass(owner, "Lång", "H21", "31 32 33 34");

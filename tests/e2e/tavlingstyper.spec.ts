@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { addCourseAndClass, addEntry, createRace, openStep, registerAccount, sectionButton, unique, warmRoute, type RaceTypeName,
+import { addCourseAndClass, addEntry, createRace, openStep, registerAccount, sectionButton, today, unique, warmRoute, type RaceTypeName,
   type SectionName } from "./helpers";
 
 /**
@@ -25,7 +25,7 @@ test("varje tävlingstyp visar sina delar och inga andra", async ({ browser }) =
   const owner = await registerAccount(browser, `typer.${suffix}@exempel.se`, "Tea Typ");
   for (const type of Object.keys(EXPECTED) as RaceTypeName[]) {
     await owner.goto("/organizer");
-    await createRace(owner, `${type} ${suffix}`, "2026-10-08", type);
+    await createRace(owner, `${type} ${suffix}`, today(), type);
     const navigation = owner.getByRole("navigation", { name: "Tävlingens delar" });
     await expect(navigation.getByRole("button")).toHaveCount(EXPECTED[type].length);
     for (const name of ALL) await expect(sectionButton(owner, name)).toHaveCount(EXPECTED[type].includes(name) ? 1 : 0);
@@ -44,7 +44,7 @@ test("typen byts under Inställningar utan att något försvinner, och navigerin
   test.setTimeout(180_000);
   const suffix = unique();
   const owner = await registerAccount(browser, `byt.${suffix}@exempel.se`, "Bo Byt");
-  const raceId = await createRace(owner, `Byt typ ${suffix}`, "2026-10-08", "Träning");
+  const raceId = await createRace(owner, `Byt typ ${suffix}`, today(), "Träning");
   await addCourseAndClass(owner, "Lång", "H21", "31 32 33");
   await addEntry(owner, { className: "H21", givenName: "Anna", familyName: "Ek", club: "OK Test", card: "8003001" });
 
@@ -80,7 +80,7 @@ test("speakern har en egen sida som visar den som gått i mål", async ({ browse
   test.setTimeout(240_000);
   const suffix = unique();
   const owner = await registerAccount(browser, `speaker.${suffix}@exempel.se`, "Sara Speaker");
-  const raceId = await createRace(owner, `Speaker ${suffix}`, "2026-10-08", "Tävling");
+  const raceId = await createRace(owner, `Speaker ${suffix}`, today(), "Tävling");
   await addCourseAndClass(owner, "Lång", "H21", "31 32 33");
   await addEntry(owner, { className: "H21", givenName: "Anna", familyName: "Ek", club: "OK Test", card: "8004001" });
   await addEntry(owner, { className: "H21", givenName: "Bo", familyName: "Berg", club: "OK Test", card: "8004002" });

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import { latestMailTo } from "./fake-smtp";
-import { grantSuperadmin, logIn, password, publishRaceViaApi, registerAccount, unique, warmRoute } from "./helpers";
+import { grantSuperadmin, logIn, password, publishRaceViaApi, registerAccount, today, unique, warmRoute } from "./helpers";
 
 /**
  * Steg 17 (ADR-0172 beslut 1–2): konton med e-post, glömt lösenord med länk via e-post (fångad av en falsk
@@ -25,7 +25,7 @@ async function createRaceViaApi(page: Page, eventName: string): Promise<string> 
   const csrf = (await page.context().cookies()).find(cookie => /otid[-_]organizer[-_]csrf$/.test(cookie.name))?.value;
   const response = await page.request.post("/api/organizer/events", {
     headers: { origin: new URL(page.url()).origin, "x-otid-csrf": csrf ?? "", "idempotency-key": `organizer-event-create:${randomUUID()}` },
-    data: { formatVersion: 1, eventName, raceName: "Torsdag", raceDate: "2026-10-08", timeZone: "Europe/Stockholm", raceType: "TRAINING" }
+    data: { formatVersion: 1, eventName, raceName: "Torsdag", raceDate: today(), timeZone: "Europe/Stockholm", raceType: "TRAINING" }
   });
   expect(response.status()).toBe(201);
   return (await response.json() as { raceId: string }).raceId;

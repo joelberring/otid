@@ -41,16 +41,20 @@ export function MapRoutesSection({ ws }: { ws: Workspace }) {
       const response = await request("/map", op);
       if (!response.ok) throw new Error("Kartan kunde inte hämtas");
       const next = adminRaceMapStateSchema.parse(await json(response, op));
-      // Bilden hämtas bara när kartan är ny eller utbytt.
+      // Ingen karta än är ett vanligt läge (map: null), inget fel. Bilden hämtas bara när kartan är ny eller utbytt;
+      // finns den inte (404, t.ex. borttagen under tiden) visas tillståndet ändå, utan bild.
       const version = next.map?.uploadedAt;
+      let blob: Blob | undefined;
       if (version && version !== imageVersion.current) {
         const imageResponse = await request("/map/image", op);
-        if (!imageResponse.ok) throw new Error("Kartbilden kunde inte hämtas");
-        const blob = await imageResponse.blob();
-        setImage(previous => { if (previous) URL.revokeObjectURL(previous); return URL.createObjectURL(blob); });
-        imageVersion.current = version;
+        if (imageResponse.ok) blob = await imageResponse.blob();
+        else if (imageResponse.status !== 404) throw new Error("Kartbilden kunde inte hämtas");
       }
-      if (!version) { setImage(previous => { if (previous) URL.revokeObjectURL(previous); return undefined; }); imageVersion.current = undefined; }
+      if (!current(op)) return;
+      if (blob || !version || version !== imageVersion.current) {
+        setImage(previous => { if (previous) URL.revokeObjectURL(previous); return blob ? URL.createObjectURL(blob) : undefined; });
+        imageVersion.current = blob ? version : undefined;
+      }
       setState(next); setLoadFailed(false);
     } catch { if (current(op)) setLoadFailed(true); } finally { finish(op); }
   }
@@ -112,6 +116,7 @@ export function MapRoutesSection({ ws }: { ws: Workspace }) {
       {state && <>
         <section className={styles.part} aria-labelledby={`map-image-${raceId}`}>
           <h3 id={`map-image-${raceId}`}>{text.map.heading}</h3>
+          {!map && <p className={styles.muted}>{text.map.none}</p>}
           {map && <p className={styles.current}><span>{text.map.current(map.fileName, map.width, map.height)}</span>
             <span className={styles.state} data-ok={map.georeferencedAt ? "true" : "false"}>
               {map.georeferencedAt ? text.map.georeferenced : text.map.notGeoreferenced}</span></p>}

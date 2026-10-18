@@ -8,6 +8,8 @@ import { addCourseAndClass, addEntry, addPerson, createRace, openStep, publishRa
  */
 
 test("konto, tävling, medadministratör och publik vy", async ({ browser, request }) => {
+  // Första flödet mot en nystartad utvecklingsserver: varje sida och route kompileras vid första besöket.
+  test.setTimeout(240_000);
   const suffix = unique();
   const owner = await registerAccount(browser, `anna.${suffix}@exempel.se`, "Anna Arrangör");
 

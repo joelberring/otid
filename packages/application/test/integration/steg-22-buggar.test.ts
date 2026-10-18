@@ -124,19 +124,21 @@ describe("steg 22: avläsningens klocka och motorversion", () => {
       cardNumber: "8123456", fixedStartTime: null } });
     if (registered.status !== "registered") throw new Error(registered.status);
     const at = (minute: number) => new Date(Date.parse("2026-10-08T16:00:00.000Z") + minute * 60_000).toISOString();
+    // Avvikelsen är större än integer rymmer (24,8 dygn): övningsstationen på en tävling en månad fram (migration 0105).
+    const OFFSET_MS = -(30 * 86_400_000 + 840_000);
     // Dubbelstämpling vid 31 och en extra stämpling av 33 före rätt följd: godkänd med motor 0.3.0.
     const codes = [31, 31, 33, 32, 33];
     const payload: SportidentReadoutPayload = { cardNumber: "8123456", cardType: "SI10", startPunchedAt: at(0), finishPunchedAt: at(30),
       punches: codes.map((code, index) => ({ code, punchedAt: at(index + 1) })), untimedPunchCodes: [], frames: ["02ef8300"],
-      stationSerial: 999001, clockSource: "station", clockOffsetMs: -840_000, simulated: false };
+      stationSerial: 999001, clockSource: "station", clockOffsetMs: OFFSET_MS, simulated: false };
     const batch: DeviceBatch = { deviceId: randomUUID(), sessionId: randomUUID(), packageVersion: await snapshot(proof.raceId),
       firstSequence: 1, lastSequence: 1,
       events: [{ localSequence: 1, stationReceivedAt: at(31), transport: "sportident", payload, contentHash: contentHash(payload) }] };
     const ingested = await ingestReadoutsAsAdministrator(db, { ...proof, batch });
     expect(ingested.status).toBe("ok");
     const [readout] = (await pool.query<{ clock_source: string | null; clock_offset_ms: number | null }>(
-      "select clock_source, clock_offset_ms from card_readout where race_id = $1", [proof.raceId])).rows;
-    expect(readout).toEqual({ clock_source: "station", clock_offset_ms: -840_000 });
+      "select clock_source, clock_offset_ms::float8 as clock_offset_ms from card_readout where race_id = $1", [proof.raceId])).rows;
+    expect(readout).toEqual({ clock_source: "station", clock_offset_ms: OFFSET_MS });
     const [result] = (await pool.query<{ status: string; engine_version: string; evaluation: { extraPunches: number[] } }>(
       "select status::text, engine_version, evaluation from result_revision where entry_id = $1", [registered.response.entryId])).rows;
     expect(result).toMatchObject({ status: "OK", engine_version: RESULT_ENGINE_VERSION, evaluation: { extraPunches: [31, 33] } });

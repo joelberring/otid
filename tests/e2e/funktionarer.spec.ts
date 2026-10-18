@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { addCourseAndClass, addEntry, addPerson, createRace, logIn, openStep, registerAccount, sectionButton, unique, warmRoute } from "./helpers";
+import { addCourseAndClass, addEntry, addPerson, createRace, logIn, openStep, registerAccount, sectionButton, today, unique, warmRoute } from "./helpers";
 
 /**
  * Steg 18 (ADR-0172 beslut 3): funktionärer. Ägaren lägger till ett befintligt konto som funktionär under
@@ -35,7 +35,7 @@ test("admin lägger till funktionär som läser av från två enheter men inte n
   test.setTimeout(300_000);
   const suffix = unique();
   const owner = await registerAccount(browser, `agare.${suffix}@exempel.se`, "Olle Ägare");
-  const raceId = await createRace(owner, `Klubbtävling ${suffix}`, "2026-10-08", "Tävling");
+  const raceId = await createRace(owner, `Klubbtävling ${suffix}`, today(), "Tävling");
   await addCourseAndClass(owner, "Lång", "H21", "31 32 33");
   for (const runner of RUNNERS) await addEntry(owner, { ...runner, club: "OK Test" });
 

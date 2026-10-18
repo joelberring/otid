@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
-import { FAKE_EVENTOR_API_KEY, FAKE_EVENTOR_PORT } from "./fake-eventor";
+import { FAKE_EVENTOR_API_KEY, FAKE_EVENTOR_PORT, fakeEventorEventDate } from "./fake-eventor";
 import { createRace, openStep, registerAccount, unique, warmRoute } from "./helpers";
 
 /**
@@ -25,7 +25,8 @@ test("Eventor: koppla, importera, uppdatera med skillnader och läs in ny banfil
   test.setTimeout(300_000);
   const suffix = unique();
   const owner = await registerAccount(browser, `eventor.${suffix}@exempel.se`, "Eva Eventor");
-  const raceId = await createRace(owner, `Höstsprinten ${suffix}`, "2026-10-18", "Tävling");
+  const eventDate = fakeEventorEventDate();
+  const raceId = await createRace(owner, `Höstsprinten ${suffix}`, eventDate, "Tävling");
   const api = `/api/admin/races/${raceId}/administrator`;
   for (const path of ["eventor", "eventor/events", "source-sync"]) await warmRoute(owner, `${api}/${path}`);
   for (const path of ["eventor/test", "eventor/event", "eventor/preview", "course-file/preview", "source-sync/consequence"]) {
@@ -45,9 +46,9 @@ test("Eventor: koppla, importera, uppdatera med skillnader och läs in ny banfil
 
   // Välj tävlingen ur klubbens lista.
   await eventor.getByRole("button", { name: "Visa klubbens tävlingar" }).click();
-  await eventor.getByLabel("Välj tävling").selectOption({ label: "2026-10-18 · Höstsprinten i Skogsby (individuell)" });
+  await eventor.getByLabel("Välj tävling").selectOption({ label: `${eventDate} · Höstsprinten i Skogsby (individuell)` });
   await eventor.getByRole("button", { name: "Välj", exact: true }).first().click();
-  await expect(eventor.getByText("Höstsprinten i Skogsby · 2026-10-18 · individuell · nummer 47110")).toBeVisible();
+  await expect(eventor.getByText(`Höstsprinten i Skogsby · ${eventDate} · individuell · nummer 47110`)).toBeVisible();
   await screenshots(owner, "step14-eventor-settings");
 
   // Första importen: fyra klasser och sex anmälda.

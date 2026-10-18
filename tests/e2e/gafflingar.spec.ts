@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
-import { createRace, openStep, publishRace, registerAccount, unique } from "./helpers";
+import { createRace, openStep, publishRace, registerAccount, today, unique } from "./helpers";
 
 /**
  * PLAN.md steg 10 (ADR-0169 beslut 2): en gafflad klass importeras från IOF XML
@@ -29,7 +29,7 @@ test("gafflad klass: import, fördelning, avläsning mot rätt variant och publi
   test.setTimeout(300_000);
   const suffix = unique();
   const owner = await registerAccount(browser, `gaffel.${suffix}@exempel.se`, "Gun Gaffel");
-  const raceId = await createRace(owner, `Gafflingar ${suffix}`, "2026-10-08", "Tävling med gafflade banor");
+  const raceId = await createRace(owner, `Gafflingar ${suffix}`, today(), "Tävling med gafflade banor");
   // Besökarna ska se tävlingen (ADR-0172 beslut 4).
   await publishRace(owner);
 

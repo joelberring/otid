@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { addCourseAndClass, addEntry, createRace, openStep, publishRace, registerAccount, unique, warmRoute } from "./helpers";
+import { addCourseAndClass, addEntry, createRace, openStep, publishRace, registerAccount, today, unique, warmRoute } from "./helpers";
 
 /**
  * Steg 8.2–8.4 (ADR-0169): banan ändras efter att en löpare läst ut. Beskedet visar
@@ -10,7 +10,7 @@ test("redigera bana efter avläsning räknar om resultatet", async ({ browser, r
   test.setTimeout(240_000);
   const suffix = unique();
   const owner = await registerAccount(browser, `bana.${suffix}@exempel.se`, "Kim Klubb");
-  const raceId = await createRace(owner, `Banändring ${suffix}`, "2026-10-08", "Liten tävling");
+  const raceId = await createRace(owner, `Banändring ${suffix}`, today(), "Liten tävling");
   // Besökarna ska se tävlingen (ADR-0172 beslut 4).
   await publishRace(owner);
   await addCourseAndClass(owner, "Lång", "H21", "31 32 33 34");

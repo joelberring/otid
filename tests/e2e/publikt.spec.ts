@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { expect, test, type Browser, type Page } from "@playwright/test";
-import { createRace, openStep, publishRace, publishRaceViaApi, registerAccount, unique, warmRoute } from "./helpers";
+import { createRace, daysFromToday, openStep, publishRace, publishRaceViaApi, registerAccount, TIME_ZONE, today as todayDate, unique, warmRoute }
+  from "./helpers";
 
 /**
  * Steg 19 (ADR-0172 beslut 4): en ny tävling är dold tills admin publicerar den. Besökare ser publicerade tävlingar
@@ -18,9 +19,10 @@ async function screenshots(page: Page, name: string, widths = [1280, 390]) {
   if (viewport) await page.setViewportSize(viewport);
 }
 
-const zone = "Europe/Stockholm";
-const today = new Intl.DateTimeFormat("sv-SE", { timeZone: zone }).format(new Date());
-const shift = (days: number) => new Date(Date.parse(`${today}T12:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
+const zone = TIME_ZONE;
+/** Datumen räknas när testet körs, så att Pågår nu, Kommande och Senaste stämmer vilken dag det än är. */
+const today = todayDate();
+const shift = daysFromToday;
 
 /** Fler tävlingar på startsidan, skapade och publicerade med samma API:er som arbetsytan använder. */
 async function createPublishedRaceViaApi(page: Page, eventName: string, raceDate: string, raceType: string): Promise<void> {

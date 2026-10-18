@@ -157,6 +157,11 @@ describe("avläsning i webbläsaren", () => {
     expect(fixed).toEqual({ startAt: new Date("2026-10-01T09:00:00.000Z"), finishAt: new Date("2026-10-01T09:30:00.000Z") });
     const late = exerciseWindow(pkg, { ...runner!, fixedStartTime: "2026-10-01T09:00:00.000Z", timeLimitMs: 60 * 60_000 }, "late", now);
     expect(late.finishAt.toISOString()).toBe("2026-10-01T10:01:30.000Z");
+    // På tävlingsdagen: startade löparen för mer än loppets längd sedan går hen i mål nu (fem sekunder före).
+    const started = exerciseWindow(pkg, { ...runner!, fixedStartTime: "2026-10-01T17:00:00.000Z" }, "ok", NOW);
+    expect(started).toEqual({ startAt: new Date("2026-10-01T17:00:00.000Z"), finishAt: new Date("2026-10-01T17:44:55.000Z") });
+    const recent = exerciseWindow(pkg, { ...runner!, fixedStartTime: "2026-10-01T17:30:00.000Z" }, "ok", NOW);
+    expect(recent.finishAt.toISOString()).toBe("2026-10-01T18:00:00.000Z");
   });
 
   it("läser en bricka som sätts i strax efter den föregående", async () => {

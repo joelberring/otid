@@ -10,6 +10,8 @@ import {
   type PairingAdminRequestAuthentication
 } from "./pairing-admin";
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
+import { assessReadOutEntries, recalculateAssessedEntries } from "./result-reassessment";
+import { loadRaceSnapshot } from "./snapshot";
 
 type Authentication = Omit<PairingAdminRequestAuthentication, "capability">;
 const capability = "CHANGE_ENTRY_START_TIME" as const;
@@ -105,9 +107,18 @@ export async function changeEntryStartTimeAsAdmin(db: Database,
 
     const entryVersionAfter = entry.version + 1;
     const snapshotVersionAfter = race.snapshotVersion + 1;
+    const snapshotBefore = await loadRaceSnapshot(tx, input.raceId);
     await tx.update(schema.entries).set({ fixedStartTime: new Date(intent.fixedStartTime), version: entryVersionAfter })
       .where(and(eq(schema.entries.id, entry.id), eq(schema.entries.version, entry.version)));
     await tx.update(schema.races).set({ snapshotVersion: snapshotVersionAfter }).where(eq(schema.races.id, input.raceId));
+    // Den fasta starttiden ingår i bedömningsunderlaget (ADR-0169 beslut 1): ett avläst resultat räknas om direkt.
+    const snapshotAfter = await loadRaceSnapshot(tx, input.raceId);
+    const assessed = await assessReadOutEntries(tx, input.raceId, [{ id: raceClass.id, name: raceClass.name }],
+      snapshotBefore, snapshotAfter);
+    if (assessed === "too-large") throw new Error("Klassen har för många deltagare för omräkning");
+    const recalculated = raceClass.courseVersionId === null ? [] : await recalculateAssessedEntries(tx, {
+      raceId: input.raceId, assessed: assessed.filter(row => row.entryId === entry.id), snapshot: snapshotAfter,
+      snapshotVersion: snapshotVersionAfter, courseVersionId: raceClass.courseVersionId });
     const [saved] = await tx.insert(schema.entryStartTimeChangeRequests).values({
       requestId, raceId: input.raceId, actorCredentialId: authorization.principal.accessCredentialId,
       entryId: entry.id, expectedEntryVersion: entry.version, classId: entry.classId,
@@ -124,6 +135,14 @@ export async function changeEntryStartTimeAsAdmin(db: Database,
       before: { fixedStartTime: iso(entry.fixedStartTime), entryVersion: entry.version, snapshotVersion: race.snapshotVersion },
       after: { fixedStartTime: intent.fixedStartTime, entryVersion: entryVersionAfter, snapshotVersion: snapshotVersionAfter }
     });
+    if (recalculated.length > 0) {
+      await tx.insert(schema.auditEvents).values(recalculated.map(item => ({ raceId: input.raceId, entityType: "result_revision",
+        entityId: item.resultRevisionId, action: "RESULT_RECALCULATED_AFTER_START_TIME_CHANGE",
+        actorKind: authorization.principal.capability === "MANAGE_RACE"
+          ? "RACE_ADMIN_ACCESS_CREDENTIAL" as const : "ENTRY_START_TIME_ACCESS_CREDENTIAL" as const,
+        actorId: authorization.principal.accessCredentialId, requestId,
+        after: { entryId: item.entryId, revision: item.revision, cause: "EXPLICIT_RECALCULATION" } })));
+    }
     return { status: "changed" as const, response: response(saved, false) };
   });
 }

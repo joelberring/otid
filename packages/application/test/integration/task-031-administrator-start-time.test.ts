@@ -47,17 +47,20 @@ async function state(raceId: string) {
   const audit = (await pool.query("SELECT * FROM audit_event WHERE race_id=$1 ORDER BY id", [raceId])).rows;
   return JSON.stringify({ entries, race, journal, audit });
 }
+async function results(raceId: string) {
+  type Row = { revision: number; cause: string; evaluation: { elapsedMs: number } };
+  return (await pool.query<Row>("SELECT * FROM result_revision WHERE race_id=$1 ORDER BY revision", [raceId])).rows;
+}
 async function preserved(raceId: string) {
   const classes = (await pool.query("SELECT * FROM class WHERE race_id=$1 ORDER BY id", [raceId])).rows;
   const raw = (await pool.query("SELECT * FROM raw_device_message WHERE race_id=$1 ORDER BY id", [raceId])).rows;
-  const results = (await pool.query("SELECT * FROM result_revision WHERE race_id=$1 ORDER BY id", [raceId])).rows;
   const readouts = (await pool.query("SELECT * FROM card_readout WHERE race_id=$1 ORDER BY id", [raceId])).rows;
   const cards = (await pool.query("SELECT * FROM card_assignment WHERE race_id=$1 ORDER BY id", [raceId])).rows;
-  return JSON.stringify({ classes, raw, results, readouts, cards });
+  return JSON.stringify({ classes, raw, readouts, cards });
 }
 
 describe("TASK031 administrator start-time correction", () => {
-  it("retains genuine admin/limited actors, exact historical retry and untouched class/raw/results", async () => {
+  it("retains genuine admin/limited actors, exact historical retry, untouched class/raw and appends recalculated results", async () => {
     const f = await fixture(), limited = await auth(f.raceId, "CHANGE_ENTRY_START_TIME"), other = await auth(f.raceId);
     const payload = { cardNumber: "12345", startPunchedAt: "2026-09-12T10:00:00Z", finishPunchedAt: "2026-09-12T10:20:00Z",
       punches: [{ code: 31, punchedAt: "2026-09-12T10:10:00Z" }] };
@@ -67,6 +70,7 @@ describe("TASK031 administrator start-time correction", () => {
         transport: "simulator", payload, contentHash: contentHash(payload) }] });
     expect(ingested.acknowledgements[0]?.status).toBe("stored");
     const original = await preserved(f.raceId);
+    const originalResults = await results(f.raceId);
     const changed = await changeEntryStartTimeAsAdmin(db, f.input, now);
     if (changed.status !== "changed") throw new Error("Start-time change failed");
     expect(changed.response).toMatchObject({ previousFixedStartTime: "2026-09-12T10:00:00.000Z",
@@ -79,6 +83,11 @@ describe("TASK031 administrator start-time correction", () => {
       .toEqual({ status: "changed", response: { ...changed.response, replayed: true } });
     expect((await changeEntryStartTimeAsAdmin(db, { ...f.input, ...other }, now)).status).toBe("conflict");
     expect(await state(f.raceId)).toBe(beforeReplay); expect(await preserved(f.raceId)).toBe(original);
+    // Fast starttid ingår i bedömningsunderlaget: varje ändring räknar om resultatet med en ny revision (ADR-0169 beslut 1).
+    const recalculated = await results(f.raceId);
+    expect(recalculated.slice(0, originalResults.length)).toEqual(originalResults);
+    expect(recalculated.slice(originalResults.length).map((row) => [row.revision, row.cause, row.evaluation.elapsedMs]))
+      .toEqual([[2, "EXPLICIT_RECALCULATION", 14 * 60_000 + 59_875], [3, "EXPLICIT_RECALCULATION", 14 * 60_000]]);
     expect((await pool.query<{ actor_kind: string }>("SELECT actor_kind FROM audit_event WHERE race_id=$1 AND action='ENTRY_START_TIME_CHANGED_BY_ADMIN' ORDER BY actor_kind::text", [f.raceId])).rows)
       .toEqual([{ actor_kind: "ENTRY_START_TIME_ACCESS_CREDENTIAL" }, { actor_kind: "RACE_ADMIN_ACCESS_CREDENTIAL" }]);
     await pool.query("UPDATE entry SET fixed_start_time='2026-09-12T10:06:00.000001Z' WHERE id=$1", [f.entryId]);

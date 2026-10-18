@@ -2007,7 +2007,7 @@ describe("TASK 006O individuell fast starttid PostgreSQL", () => {
   const payload = { ...okPayload, startPunchedAt: "2026-08-31T08:00:00Z", finishPunchedAt: "2026-08-31T08:40:00Z",
     punches: [31, 32, 33].map((code, i) => ({ code, punchedAt: `2026-08-31T08:${10 + i * 10}:00Z` })) };
 
-  it("bevarar resultat och Complete, omräknar explicit och ger nytt paket samt stale ingest", async () => {
+  it("räknar om avläst resultat direkt, bevarar råa avläsningar och Complete, ger nytt paket samt stale ingest", async () => {
     const f = await fixture();
     for (const cardNumber of ["12345", "67890"]) {
       await ingestDeviceBatch(db, f.raceId, batch(crypto.randomUUID(), { ...payload, cardNumber },
@@ -2037,29 +2037,19 @@ describe("TASK 006O individuell fast starttid PostgreSQL", () => {
     const oldPackage = await readoutPackage(f.raceId);
     const saved = await changeEntryStartTimeAsAdmin(db, f.input, now);
     expect(saved.status).toBe("changed");
-    expect(await publicResults(db, f.raceId)).toEqual(publicBefore);
-    expect(await db.select().from(schema.resultRevisions).where(eq(schema.resultRevisions.raceId, f.raceId)).orderBy(asc(schema.resultRevisions.id))).toEqual(revisions);
+    expect(await publicResults(db, f.raceId)).not.toEqual(publicBefore);
+    const after = await db.select().from(schema.resultRevisions).where(eq(schema.resultRevisions.raceId, f.raceId)).orderBy(asc(schema.resultRevisions.id));
+    expect(after.filter((row) => revisions.some((old) => old.id === row.id))).toEqual(revisions);
+    expect(after.filter((row) => !revisions.some((old) => old.id === row.id)).map((row) => row.entryId)).toEqual([f.entry.id]);
     expect(await db.select().from(schema.rawDeviceMessages).where(eq(schema.rawDeviceMessages.raceId, f.raceId))).toEqual(raw);
     expect(await db.select().from(schema.cardReadouts).where(eq(schema.cardReadouts.raceId, f.raceId))).toEqual(readouts);
-    const stale = await listResultFinalizationCandidatesAsAdmin(db, finalAuth, now);
-    if (stale.status !== "ok") throw new Error("Finaliseringslista saknas");
-    expect(stale.response.classes.find((row) => row.classId === f.entry.classId)?.blockerCodes).toContain("STALE_RESULT_SNAPSHOT");
+    const current = await listResultFinalizationCandidatesAsAdmin(db, finalAuth, now);
+    if (current.status !== "ok") throw new Error("Finaliseringslista saknas");
+    expect(current.response.classes.find((row) => row.classId === f.entry.classId)?.blockerCodes).not.toContain("STALE_RESULT_SNAPSHOT");
     const nextPackage = await readoutPackage(f.raceId);
     expect(nextPackage.packageVersion).toBe(f.input.request.expectedSnapshotVersion + 1);
     expect(nextPackage.raceSnapshot.entries.find((row) => row.id === f.entry.id)?.fixedStartTime).toBe("2026-08-31T08:05:00.000Z");
     expect(oldPackage.raceSnapshot.entries.find((row) => row.id === f.entry.id)?.fixedStartTime).toBe("2026-08-31T08:00:00.000Z");
-    const recalcAuth = await access(f.raceId, "RECALCULATE_RESULT");
-    const list = await listResultRecalculationCandidatesAsAdmin(db, recalcAuth, now);
-    if (list.status !== "ok") throw new Error("Omräkningslista saknas");
-    const candidate = list.response.entries.find((row) => row.id === f.entry.id);
-    if (!candidate?.latestReadout || !candidate.latestResultRevision) throw new Error("Omräkningsgrund saknas");
-    const recalculated = await recalculateEntryAsAdmin(db, { ...recalcAuth, entryId: f.entry.id,
-      idempotencyKey: `result-recalculation:${crypto.randomUUID()}`, request: { formatVersion: 1,
-        expectedEntryVersion: candidate.entryVersion, expectedClassId: candidate.classId,
-        expectedSnapshotVersion: list.response.snapshotVersion, expectedCardAssignmentId: candidate.cardAssignmentId,
-        expectedReadoutId: candidate.latestReadout.id, expectedLatestResultRevision: { id: candidate.latestResultRevision.id,
-          revision: candidate.latestResultRevision.revision }, expectedEngineVersion: list.response.engineVersion } }, now);
-    expect(recalculated.status).toBe("recalculated");
     const updated = await db.select().from(schema.resultRevisions).where(eq(schema.resultRevisions.entryId, f.entry.id)).orderBy(asc(schema.resultRevisions.revision));
     expect(updated).toHaveLength(2);
     expect(updated[1]).toMatchObject({ cause: "EXPLICIT_RECALCULATION", evaluation: { elapsedMs: 35 * 60_000, startTime: "2026-08-31T08:05:00.000Z" } });
@@ -2132,11 +2122,11 @@ describe("TASK 006O individuell fast starttid PostgreSQL", () => {
     expect(ingested.acknowledgements[0]?.status).toBe("stored");
     expect(await publicResults(db, f.raceId)).toEqual(before);
     const revisions = await db.select().from(schema.resultRevisions).where(eq(schema.resultRevisions.entryId, f.entry.id)).orderBy(asc(schema.resultRevisions.revision));
-    expect(revisions.map((row) => row.revision)).toEqual([1, 2, 3]);
-    const last = revisions[2]!;
-    const isNew = last.snapshotVersion === f.input.request.expectedSnapshotVersion + 1;
-    expect(last.snapshotVersion).toBe(isNew ? f.input.request.expectedSnapshotVersion + 1 : f.input.request.expectedSnapshotVersion);
-    expect(last.evaluation).toMatchObject({ elapsedMs: (isNew ? 35 : 40) * 60_000 });
+    // Oavsett ordning: ingest och omräkningen efter starttidsändringen ger var sin revision, och den sista bygger på den nya starttiden.
+    expect(revisions.map((row) => row.revision)).toEqual([1, 2, 3, 4]);
+    const last = revisions[3]!;
+    expect(last.snapshotVersion).toBe(f.input.request.expectedSnapshotVersion + 1);
+    expect(last.evaluation).toMatchObject({ elapsedMs: 35 * 60_000 });
   });
 });
 

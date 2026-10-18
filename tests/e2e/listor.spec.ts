@@ -184,10 +184,14 @@ test("start- och resultatlistor: vyer, sök, utskrift och export i arbetsytan oc
     await expect(owner.getByTestId("verdict")).toContainText(missing ? "FELSTÄMPLAD" : "GODKÄND");
   }
   await expect(owner.getByTestId("queue-status")).toHaveText("0 väntar", { timeout: 30_000 });
+  const packageVersion = Number(/^v(\d+) /.exec(await owner.getByTestId("package-status").innerText())?.[1]);
+  expect(packageVersion).toBeGreaterThan(0);
 
   // Stämpling före starten (fel klocka eller tjuvstart): Filip får starttid 45 minuter bakåt och läses av (övningsstationen
   // lägger stämplingarna efter starten, steg 22). Sedan flyttas starten till 20 minuter bakåt, så att 45 ligger före starten.
   // Han är fortfarande godkänd, sträcktiden vid 45 är okänd och deltagarkortet säger det.
+  // Värm rutten: en kall kompilering i dev kan ta längre tid än klientens väntetid.
+  await warmRoute(owner, `/api/admin/races/${raceId}/administrator/entries/00000000-0000-4000-8000-000000000000/start-time`);
   await owner.goto(`/admin/${raceId}/manage`);
   await openStep(owner, "Anmälda");
   const card = owner.getByRole("region", { name: "Deltagarkort" });
@@ -202,6 +206,8 @@ test("start- och resultatlistor: vyer, sök, utskrift och export i arbetsytan oc
   await expect(owner.getByText("Starttiden är sparad.")).toBeVisible();
   await owner.goto(`/admin/${raceId}/readout`);
   await owner.waitForURL(`**/readout/index.html#${raceId}`);
+  // Stationen visar först sitt sparade paket; övningen ska bygga på paketet med den nya starttiden.
+  await expect(owner.getByTestId("package-status")).toContainText(`v${packageVersion + 1} ·`, { timeout: 30_000 });
   await owner.getByRole("button", { name: "Starta övningsstation" }).click();
   await owner.getByLabel("Deltagare").selectOption({ label: "Filip Ås · H16 · 8301006" });
   await owner.getByRole("button", { name: "Läs av: rätt stämplat" }).click();
@@ -221,7 +227,7 @@ test("start- och resultatlistor: vyer, sök, utskrift och export i arbetsytan oc
   await expect(card.getByRole("note")).toContainText("Stämplad utan giltig tid: 45");
 
   // Resultat per klass: placering, tid, efter och status; den felstämplade saknar placering.
-  await warmRoute(owner, `/api/public/races/${raceId}/results`);
+  for (const path of ["results", "relay-results", "radio"]) await warmRoute(owner, `/api/public/races/${raceId}/${path}`);
   await warmRoute(owner, `/api/admin/races/${raceId}/administrator/result-export`);
   await openStep(owner, "Resultat");
   const results = owner.locator(`#workflow-${raceId}-results [data-list]`);

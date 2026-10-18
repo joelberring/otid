@@ -208,7 +208,7 @@ export const raceAdministratorSv = {
   changeClass: "Byt klass", targetClass: "Ny klass", chooseClass: "Välj ny klass",
   inspect: "Granska klassbyte", review: "Granska före sparande", confirm: "Bekräfta klassbyte", cancel: "Ändra val",
   limitation: "Klass och fast starttid sparas tillsammans. Klassens deltagargräns kontrolleras vid sparande. Ingen minutstartlucka reserveras – kontrollera starttiden före bytet.",
-  resultImpact: "Tidigare resultat och publicerade listor bevaras. Ett befintligt resultat kan behöva separat omräkning.",
+  resultImpact: "Tidigare resultat och publicerade listor bevaras. Ett avläst resultat räknas om med den nya starttiden.",
   retry: "Försök igen", conflict: "Klassbytet avvisades. Läs in aktuella deltagare och granska på nytt.",
   saved: "Klassbytet och starttiden är sparade.", savedLoadError: "Klassbytet och starttiden är sparade, men den aktuella listan kunde inte hämtas.",
   previousTime: "Tidigare fast starttid", newTime: "Ny fast starttid", noFixedTime: "Ingen fast starttid",

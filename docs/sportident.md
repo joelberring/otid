@@ -15,8 +15,10 @@ Web Serial (device-transport) → ramar och protokoll (sportident) → bricka �
   CRC, saknad ETX och trunkering.
 - `ReadoutSession` är en tillståndsmaskin. Värden skickar in mottagna bytes och
   tidsgränser och skriver ut de kommandon den returnerar. Den handskakar
-  (direktläge och läsning av systemdata), upptäcker bricka, läser block,
-  avkodar och kvitterar (pip).
+  (direktläge, läsning av systemdata och stationens klocka med `GET_TIME`),
+  upptäcker bricka, läser block, avkodar och kvitterar (pip). En bricka som
+  sitter i stationen när handskakningen börjar läses så snart den är klar.
+  Svarar stationen inte på `GET_TIME` fortsätter sessionen utan klocka.
 - `decodeCard` och `normalizeCard` ger bricknummer, start, mål, check, clear
   och stämplingar med absoluta tider.
 - `FakeSiStation` är en falsk station som pratar samma protokoll, för tester och
@@ -52,11 +54,15 @@ Fel läge eller protokoll rapporteras som `station-misconfigured`.
 ## Tider
 
 Brickorna lagrar 12-timmarstid. SI6 och nyare har dessutom AM/PM och veckodag.
-`resolveSiTime` väljer den tolkning som ligger närmast före avläsningstiden,
-med 10 minuters tolerans för att stationens klocka kan gå före datorns. Den
-följer AM/PM och veckodag när de finns, och tävlingens tidszon (sommar- och
-vintertid). Ett lopp kan därmed vara högst 12 timmar med SI5 och en vecka med
-nyare brickor.
+`resolveSiTime` väljer den tolkning som ligger närmast före referensen, med
+två timmars tolerans för att en kontrollenhets klocka kan gå före. Referensen
+är avläsningsstationens klocka (`GET_TIME` vid handskakningen, framräknad med
+datorns gång sedan dess), i andra hand datorns klocka; avläsningen bär
+`clockSource` och `clockOffsetMs` (stationens klocka minus datorns) och
+avläsningsvyn varnar vid mer än fem minuters skillnad. Den följer AM/PM och
+veckodag när de finns, och tävlingens tidszon (sommar- och vintertid). Ett lopp
+kan därmed vara högst 12 timmar med SI5 och en vecka med nyare brickor.
+Motsägelsefull tid ger `SiTimeError`, aldrig en gissad tid (PLAN.md steg 22).
 
 SI5 sparar stämpling 31–36 utan tid. De redovisas i `untimedPunchCodes` och
 ingår inte i resultatbedömningen.

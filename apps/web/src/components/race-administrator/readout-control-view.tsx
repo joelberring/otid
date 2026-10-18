@@ -5,6 +5,7 @@ import workspaceStyles from "../race-administrator-workspace.module.css";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
 import { sv } from "../../i18n/sv";
 import { formatClockTime } from "../../lib/clock-time";
+import { raceDayStarted } from "@o-tid/domain";
 import { inForest, mispunchedEntries } from "../../lib/section-status";
 import { resultDuration, unknownReadoutTargetLabel } from "./types";
 import type { Workspace } from "./workspace-state";
@@ -17,7 +18,8 @@ import { Button, Notice } from "../ui";
  */
 export function ReadoutControlView({ ws }: { ws: Workspace }) {
   const { busy, forestData, forestStale, loadRaceDayAttention, profile, raceId, workflowLocked } = ws;
-  const remaining = forestData ? inForest(forestData.entries) : undefined;
+  const remaining = forestData ? inForest(forestData.entries, forestData) : undefined;
+  const notStarted = forestData !== undefined && !raceDayStarted(forestData.raceDate, forestData.timeZone, new Date());
   const conflicts = forestData?.entries.filter(row => row.forestState === "CONFLICT").length ?? 0;
   return <section className={styles.control} aria-labelledby={`control-${raceId}`}>
     <div className={styles.controlHeader}>
@@ -39,7 +41,8 @@ export function ReadoutControlView({ ws }: { ws: Workspace }) {
         {!remaining ? <p>{text.controlNotLoaded}</p> : <>
           {forestStale && <Notice tone="attention" role="status">{text.controlStale}</Notice>}
           {conflicts > 0 && <Notice tone="attention">{text.controlConflicts(conflicts)}</Notice>}
-          {remaining.length === 0 ? <p>{text.controlForestEmpty}</p> : <ul className={styles.controlList}>
+          {notStarted ? <p data-testid="in-forest-not-started">{text.controlForestNotStarted}</p>
+            : remaining.length === 0 ? <p>{text.controlForestEmpty}</p> : <ul className={styles.controlList}>
             {remaining.map(row => <li key={row.entryId}>
               <strong>{row.displayName}</strong>
               <span>{[row.organisationName ?? text.none, row.className,

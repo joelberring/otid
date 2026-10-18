@@ -3,6 +3,7 @@ import { schema, type Database } from "@o-tid/database";
 import { manualClassCreateIdempotencyKeySchema, manualClassCreateRequestSchema, manualClassCreateResponseSchema } from "@o-tid/contracts";
 import { authenticatePairingAdminSession, authenticatePairingAdminSessionForMutation, type PairingAdminRequestAuthentication } from "./pairing-admin";
 import { lockRaceForMutation } from "./concurrency";
+import { classNameTaken } from "./duplicate-names";
 
 type Input = Omit<PairingAdminRequestAuthentication, "capability"> & { idempotencyKey: string | null; request: unknown };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -39,6 +40,7 @@ export async function createManualClassAsAdministrator(db: Database, input: Inpu
       .from(schema.courseVersions).innerJoin(schema.courses, eq(schema.courses.id, schema.courseVersions.courseId))
       .where(and(eq(schema.courseVersions.id, intent.courseVersionId), eq(schema.courses.raceId, input.raceId)));
     if (!target) return { status: "not-found" as const };
+    if (await classNameTaken(tx, input.raceId, intent.className)) return { status: "duplicate-name" as const };
     if (!target.courseName.trim() || !Number.isInteger(target.courseVersion) ||
       target.courseVersion <= 0 || target.courseVersion > 2_147_483_647) return { status: "conflict" as const };
     const controls = await tx.select({ sequence: schema.courseControls.sequence, code: schema.controls.code,

@@ -29,21 +29,32 @@ const personKey = (row: { givenName: string; familyName: string; className: stri
 
 export type Finisher = SpeakerBoardResponse["rows"][number] & { position: number | undefined };
 
+/** En rad som faktiskt gått i mål: en avläsning med målstämpling. Ej start, brutit och manuella beslut utan mål visas inte. */
+function finished(row: SpeakerBoardResponse["rows"][number]): boolean {
+  if (row.state !== "ACTIVE_RESULT") return false;
+  const result = row.result;
+  if (result.status === "DNS" || result.status === "DNF") return false;
+  if (result.status === "MP") return result.reason !== "MISSING_FINISH";
+  return result.status === "OK" || ("elapsedMs" in result && result.elapsedMs !== undefined);
+}
+
 /**
- * Senast i mål: speakerunderlagets senaste resultat, nyaste först, med placeringen ur den publika listan
- * (samma klass, namn och klubb). Löpare utan publicerad placering får ingen.
+ * Senast i mål: speakerunderlagets senaste resultat med målgång, nyaste först, med placeringen ur den publika
+ * listan (samma klass, namn och klubb). Löpare utan publicerad placering får ingen. Ej start, brutit och
+ * manuella beslut utan måltid hör inte hemma här (PLAN.md steg 22).
  */
 export function latestFinishers(board: SpeakerBoardResponse, results: PublicResultListResponseV7 | undefined, limit = 12): Finisher[] {
   const positions = new Map<string, number>();
   for (const row of results?.results ?? []) if (ranked(row)) positions.set(personKey(row), row.position);
-  return [...board.rows].sort((a, b) => b.registeredAt.localeCompare(a.registeredAt)).slice(0, limit)
+  return board.rows.filter(finished).sort((a, b) => b.registeredAt.localeCompare(a.registeredAt)).slice(0, limit)
     .map(row => ({ ...row, position: row.state === "ACTIVE_RESULT" && row.result.status === "OK" ? positions.get(personKey(row)) : undefined }));
 }
 
 /** Kvar i skogen per klass, klasserna i namnordning och löparna i namnordning. */
-export function forestByClass(forest: AdministratorForestWatchResponse): { className: string; runners: AdministratorForestWatchResponse["entries"] }[] {
+export function forestByClass(forest: AdministratorForestWatchResponse, now = new Date()):
+  { className: string; runners: AdministratorForestWatchResponse["entries"] }[] {
   const byClass = new Map<string, AdministratorForestWatchResponse["entries"]>();
-  for (const row of inForest(forest.entries)) byClass.set(row.className, [...(byClass.get(row.className) ?? []), row]);
+  for (const row of inForest(forest.entries, forest, now)) byClass.set(row.className, [...(byClass.get(row.className) ?? []), row]);
   return [...byClass.entries()].sort(([a], [b]) => a.localeCompare(b, "sv"))
     .map(([className, runners]) => ({ className, runners: [...runners].sort((a, b) => a.displayName.localeCompare(b.displayName, "sv")) }));
 }

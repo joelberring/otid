@@ -5,10 +5,25 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 22 – Rätta buggarna från granskningen (ADR-0173 gäller steg 23). Steg 7 (hårdvara) väntar på ägaren.
+Steg 23 – Storstädning av koden (ADR-0173). Steg 7 (hårdvara) väntar på ägaren.
 Måste provas mot riktiga tjänster: Eventor med klubbens API-nyckel, ROC:s sökväg för stämplingar (bara provad mot falsk ROC) och e-post via SMTP.
 
 ## Logg
+
+### 2026-10-18 – Steg 22: buggarna från granskningen (steg 22 klart)
+- Resultatmotorn 0.3.0: en aligner (`alignControls`, ordnad delföljd, flest obligatoriska sedan strukna, tidigaste stämpling vid lika) för alla
+  vägar, även gaffling och neutralisering. Extra-/dubbelstämplingar och återkommande kontroller (fjäril) ger godkänt; fel ordning = en saknad kontroll
+  som finns på annan plats. Motorversionen ingår inte i underlagshashen (databasfunktionen känner inte TS-konstanten, ingen produktionsdata, varje
+  revision bär `engine_version`, omräkning finns); gamla resultat flaggas alltså inte. `docs/domain-rules.md` regel 6–7 uppdaterade.
+- Tid: handskakningen frågar stationens klocka (`GET_TIME`), offset mot datorn blir referens (datorn som reserv), tolerans 2 h, `SiTimeError` i stället
+  för gissad tid, varning i avläsningsvyn vid >5 min skillnad, `clockSource`/`clockOffsetMs` i nyttolasten och på `card_readout` (migration 0104).
+- Övningsstationen: tider relativt fast starttid och tävlingsdagen, stationens klocka ställs efter brickan, ny bricka tar ur den gamla först,
+  bricka som sitter i före handskakningen läses (sessionen sparar detekteringsramen). Falska stationen svarar på `GET_TIME`.
+- Dubbla klass-/bannamn: `duplicate-name` → 409 `DUPLICATE_NAME` med svensk text i alla skrivvägar, unika index (migration 0104), banfilen avvisar
+  med namnet. Kvar i skogen räknas från tävlingsdagen (`raceDayStarted`, `raceDate` i skogsrapporten). Speakerns "Senast i mål" bara med målgång.
+  IOF EntryList validerar `ControlCard` som Eventor och 422 bär felen. Sessionsfrågorna (organizer, tävling) svarar 200 `authenticated: false`.
+- Verifierat: lint, typecheck, test, test:integration (72 filer; `adr-0169-draw` flyttad till 2027 eftersom vakanstiderna måste ligga efter nu,
+  `task-001`/`task-008` gick igenom vid omkörning efter tidsgräns under last), build, e2e (se nedan).
 
 ### 2026-10-06 – Steg 21: kopiera tävling och kvitto vid avläsning (steg 21 klart)
 - "Ny tävling som …": "Kopiera" per lopp i Mina tävlingar (ej funktionär) och under Inställningar. Dialog: namn, loppnamn, datum (samma veckodag

@@ -24,7 +24,8 @@ export const relaySv = {
   classSaved: (name: string) => `Stafettklassen ${name} är sparad.`,
   classInvalid: "Fyll i namn, bana och en tid (HH:MM) för masstart och omstart.",
   classError: "Stafettklassen kunde inte sparas. Försök igen.",
-  classConflict: "Klassnamnet finns redan, eller så har tävlingen ändrats under tiden. Försök igen.",
+  classConflict: "Tävlingen har ändrats under tiden. Försök igen.",
+  classDuplicate: "Det finns redan en klass med det namnet i tävlingen. Välj ett annat namn.",
   relayStartRule: (legs: number) => `Stafett · ${legs} sträckor`,
   // Anmälda (lagvy)
   teams: "Lag",

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { administratorEffectiveResultResponseSchema, entryTransferCandidatesSchema, raceAdministratorLoginResponseSchema,
+import { administratorEffectiveResultResponseSchema, entryTransferCandidatesSchema, raceAdministratorSessionStatusSchema,
   type AdministratorEffectiveResultResponse, type EntryTransferCandidates } from "@o-tid/contracts";
 import { readOrganizerCsrf } from "../../lib/organizer-client";
 import { readRaceAdministratorCsrfCookie } from "../../lib/race-administrator-cookies";
@@ -66,7 +66,8 @@ export function createRaceDataActions(ws: Base & MobileNavigation) {
   async function session(op: Operation) {
     const response = await request("/session", op);
     if (!response.ok) throw new Error("Session unavailable");
-    const value = raceAdministratorLoginResponseSchema.parse(await json(response, op));
+    const value = raceAdministratorSessionStatusSchema.parse(await json(response, op));
+    if ("authenticated" in value) throw new Error("No race session");
     if (value.raceId !== raceId || Date.parse(value.expiresAt) <= Date.now()) throw new Error("Invalid session");
     deadline.current = Date.parse(value.expiresAt); setExpiresAt(value.expiresAt);
     setRole(value.capability === "RACE_FUNCTIONARY" ? "FUNCTIONARY" : "ADMIN");

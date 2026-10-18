@@ -24,7 +24,8 @@ export async function listAdministratorForestWatch(
     if (authorization.status !== "authenticated") return authorization;
     const result = await readAuthorizedStartCheckinRoster(tx, authorization.principal.raceId, now, false, true);
     if (result.status !== "ok") return result;
-    return { status: "ok" as const, response: administratorForestWatchResponseSchema.parse({ ...result.response, reportedStarts: result.reportedStarts }) };
+    return { status: "ok" as const, response: administratorForestWatchResponseSchema.parse({ ...result.response, raceDate: result.raceDate,
+      reportedStarts: result.reportedStarts }) };
   }, { isolationLevel: "repeatable read" });
 }
 
@@ -127,7 +128,7 @@ export async function readAuthorizedStartCheckinRoster(tx: Parameters<Parameters
       entries: rows, devices: devices.filter(device => !isOnlineStartCheckinSource(device.capability)).map(device => ({ deviceId: device.id, label: device.label, capability: device.capability,
         lastSequence: lastByDevice.get(device.id)?.localSequence ?? 0, lastReceivedAt: lastByDevice.get(device.id)?.receivedAt.toISOString() ?? null
       })).sort((a, b) => compare(a.label, b.label) || compare(a.deviceId, b.deviceId)) });
-    return { status: "ok" as const, response, ...(includeReportedStarts ? {
+    return { status: "ok" as const, response, raceDate: race.raceDate, ...(includeReportedStarts ? {
       reportedStarts: rows.map(row => ({ entryId: row.entryId,
         observedAt: reportedStartAt({ revision: row.revision, state: row.startState }, startObservations.get(row.entryId) ?? []) }))
     } : {}) };

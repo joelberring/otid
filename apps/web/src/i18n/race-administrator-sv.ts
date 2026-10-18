@@ -3,6 +3,10 @@ export const raceAdministratorSv = {
   courseClassRejected: "Banan och klassen kunde inte sparas. Kontrollera uppgifterna och försök igen.",
   manualClassSave: "Spara klass",
   manualClassRejected: "Klassen kunde inte sparas. Kontrollera uppgifterna och försök igen.",
+  // Dubbla namn avvisas (PLAN.md steg 22).
+  duplicateClassName: (name: string) => `Det finns redan en klass som heter ${name} i tävlingen. Välj ett annat namn.`,
+  duplicateCourseOrClassName: (courseName: string, className: string) =>
+    `Det finns redan en bana som heter ${courseName} eller en klass som heter ${className} i tävlingen. Välj ett annat namn.`,
   capacitySave: "Spara maxantal",
   resultsHelp: "Resultaten räknas automatiskt när löpare läser ut och när en bana eller klass ändras. Listorna kan skrivas ut och exporteras.",
   followUpHeading: "Efterarbete",
@@ -24,6 +28,7 @@ export const raceAdministratorSv = {
   controlStale: "Listan kan vara gammal. Tryck på Uppdatera.",
   controlConflicts: (count: number) => `${count} med motstridiga uppgifter – se hela listan nedan.`,
   controlForestEmpty: "Alla anmälda har läst ut eller har ej start. Stäm ändå av med målet.",
+  controlForestNotStarted: "Tävlingen har inte börjat. Anmälda räknas som kvar i skogen från tävlingsdagen.",
   controlUnknown: "Okända brickor",
   controlMispunched: "Felstämplade att titta på",
   controlMispunchedNone: "Inga felstämplade.",

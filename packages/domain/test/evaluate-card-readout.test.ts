@@ -121,6 +121,39 @@ describe("evaluateCardReadout", () => {
 
   it("ger MP för fel ordning", () => {
     expect(evaluateCardReadout(readout([32, 31, 33]), snapshot())).toMatchObject({ status: "MP", reason: "WRONG_ORDER" });
+    // Kontrollen finns bara efter en senare obligatorisk kontroll (regel 6), även med stämplingar runt omkring.
+    expect(evaluateCardReadout(readout([31, 33, 32, 91]), snapshot())).toMatchObject({ status: "MP", reason: "WRONG_ORDER" });
+  });
+
+  // PLAN.md steg 22: kontrollföljden matchas som ordnad delföljd; extra- och dubbelstämplingar ger godkänt.
+  it("ignorerar en extra stämpling av en senare kontroll före rätt följd", () => {
+    expect(evaluateCardReadout(readout([31, 33, 32, 33]), snapshot())).toMatchObject({
+      status: "OK", reason: "COMPLETE", missingControls: [], extraPunches: [33] });
+  });
+
+  it("godkänner dubbelstämpling vid en kontroll som återkommer i en fjärilsslinga", () => {
+    const course = [31, 40, 41, 31, 42, 43, 31, 32];
+    expect(evaluateCardReadout(readout([31, 31, 40, 41, 31, 42, 43, 31, 32]), snapshot(course))).toMatchObject({
+      status: "OK", reason: "COMPLETE", missingControls: [], extraPunches: [31] });
+    expect(evaluateCardReadout(readout([31, 40, 31, 42, 43, 31, 32]), snapshot(course))).toMatchObject({
+      status: "MP", reason: "MISSING_CONTROL", missingControls: [41], extraPunches: [] });
+  });
+
+  it("godkänner dubbelstämpling vid en upprepad kontroll", () => {
+    expect(evaluateCardReadout(readout([31, 31, 32, 31, 33]), snapshot([31, 32, 31, 33]))).toMatchObject({
+      status: "OK", reason: "COMPLETE", missingControls: [], extraPunches: [31] });
+  });
+
+  it("räknar sträcktiderna från den första stämplingen vid dubbelstämpling", () => {
+    // Stämplingarna ligger 5 minuter isär: 31 vid 10:10, 31 igen 10:15, 32 vid 10:20, 33 vid 10:25.
+    const result = evaluateCardReadout(readout([31, 31, 32, 33]), snapshot());
+    expect(result).toMatchObject({ status: "OK", extraPunches: [31] });
+    expect(result.splits).toEqual([
+      { controlCode: 31, occurrence: 1, elapsedMs: 10 * 60_000, legMs: 10 * 60_000 },
+      { controlCode: 32, occurrence: 1, elapsedMs: 20 * 60_000, legMs: 10 * 60_000 },
+      { controlCode: 33, occurrence: 1, elapsedMs: 25 * 60_000, legMs: 5 * 60_000 }]);
+    // En extra stämpling efter målet (t.ex. en kontroll nära målet) ändrar inget.
+    expect(evaluateCardReadout(readout([31, 32, 33, 31]), snapshot())).toMatchObject({ status: "OK", extraPunches: [31] });
   });
 
   it("förklarar okänd bricka", () => {

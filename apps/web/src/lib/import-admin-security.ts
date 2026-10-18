@@ -214,6 +214,7 @@ export function importAdminJson(body: unknown, status = 200): Response {
   return Response.json(body, { status, headers: privateImportAdminHeaders });
 }
 
-export function importAdminFailure(status: 400 | 401 | 403 | 409 | 422 | 500, code: IofImportErrorCode): Response {
-  return importAdminJson(iofImportErrorResponseSchema.parse({ formatVersion: 1, error: code }), status);
+export function importAdminFailure(status: 400 | 401 | 403 | 409 | 422 | 500, code: IofImportErrorCode, issues?: readonly string[]): Response {
+  return importAdminJson(iofImportErrorResponseSchema.parse({ formatVersion: 1, error: code,
+    ...(issues && issues.length > 0 ? { issues: issues.slice(0, 50).map(issue => issue.slice(0, 500)) } : {}) }), status);
 }

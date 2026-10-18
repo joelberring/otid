@@ -18,6 +18,7 @@ export const speakerSv = {
   classFilter: "Klass",
   forestTitle: "Kvar i skogen",
   forestEmpty: "Ingen är kvar i skogen.",
+  forestNotStarted: "Tävlingen har inte börjat.",
   forestCount: (count: number) => `${count} kvar`,
   relayTitle: "Lag per sträcka",
   relayOut: (leg: number, count: number) => `Ute på sträcka ${leg}: ${count}`,

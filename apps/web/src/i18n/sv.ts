@@ -205,6 +205,8 @@ export const sv = {
   importPreparing: "Förbereder ett beständigt request-id och beräknar filhash …",
   importUploading: "Skickar importförsöket …",
   importFailed: "Importen kunde inte bekräftas",
+  importRejected: "Filen avvisades:",
+  importInvalidXml: "Filen är inte giltig IOF XML 3.0.",
   importLoginAgain: "Logga in igen och återuppta sedan samma försök uttryckligen.",
   importAttemptRetained: "Samma fil, hash och request-id finns kvar endast i denna flik.",
   importAttemptReady: "Importförsöket är bevarat",

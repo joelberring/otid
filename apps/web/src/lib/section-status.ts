@@ -1,4 +1,5 @@
 import type { EntryTransferCandidates, RaceType } from "@o-tid/contracts";
+import { raceDayStarted } from "@o-tid/domain";
 import { raceTypeSv } from "../i18n/race-type-sv";
 import { publicRaceSv } from "../i18n/public-race-sv";
 import type { Section } from "./race-sections";
@@ -26,8 +27,14 @@ function activeStatus(entry: Entry) {
   return entry.effectiveResult.state === "ACTIVE_RESULT" ? entry.effectiveResult.result.status : undefined;
 }
 
-/** ADR-0168: kvar i skogen = anmälda som varken är avlästa/återkomna eller ej startande (ur skogsrapporten). */
-export function inForest<T extends { forestState: string }>(entries: readonly T[]): T[] {
+/**
+ * ADR-0168: kvar i skogen = anmälda som varken är avlästa/återkomna eller ej startande (ur skogsrapporten).
+ * Före tävlingsdagen (i tävlingens tidszon) är ingen kvar i skogen (PLAN.md steg 22): rapporten tas med
+ * `raceDate` och `timeZone` så att listan är tom tills tävlingen kan ha börjat.
+ */
+export function inForest<T extends { forestState: string }>(entries: readonly T[],
+  race?: { readonly raceDate?: string; readonly timeZone?: string }, now = new Date()): T[] {
+  if (race?.raceDate !== undefined && race.timeZone !== undefined && !raceDayStarted(race.raceDate, race.timeZone, now)) return [];
   return entries.filter(row => row.forestState !== "RETURNED" && row.forestState !== "NOT_STARTED");
 }
 
@@ -42,11 +49,12 @@ export function mispunchedEntries(data: Pick<EntryTransferCandidates, "entries">
  * utan resultat (ej start räknas som resultat).
  */
 export function checklistFacts(data: Pick<EntryTransferCandidates, "classes" | "entries"> &
-  Partial<Pick<EntryTransferCandidates, "publication">>, extra: {
-  courseCount?: number | undefined; inForest?: number | undefined; unknownCards?: number | undefined;
+  Partial<Pick<EntryTransferCandidates, "publication" | "raceDate" | "timeZone">>, extra: {
+  courseCount?: number | undefined; inForest?: number | undefined; unknownCards?: number | undefined; now?: Date;
 }): SectionFacts {
   const fixedClasses = new Set(data.classes.filter(row => row.startRule === "FIXED").map(row => row.id));
   const statuses = data.entries.map(activeStatus);
+  const started = data.raceDate === undefined || data.timeZone === undefined || raceDayStarted(data.raceDate, data.timeZone, extra.now ?? new Date());
   return {
     courses: extra.courseCount ?? new Set(data.classes.map(row => row.courseName)).size,
     classes: data.classes.length,
@@ -56,7 +64,7 @@ export function checklistFacts(data: Pick<EntryTransferCandidates, "classes" | "
     missingStartTimes: data.entries.filter(entry => fixedClasses.has(entry.classId) && entry.fixedStartTime === null &&
       entry.relay === undefined).length,
     readOut: statuses.filter(status => status !== undefined && status !== "DNS").length,
-    inForest: extra.inForest ?? statuses.filter(status => status === undefined).length,
+    inForest: extra.inForest ?? (started ? statuses.filter(status => status === undefined).length : 0),
     unknownCards: extra.unknownCards,
     results: statuses.filter(status => status !== undefined).length,
     mispunched: statuses.filter(status => status === "MP").length,

@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { classCapacityRequestSchema, classCapacityResponseSchema, manualClassCreateRequestSchema,
   manualClassCreateResponseSchema, type ManualClassCreateRequest } from "@o-tid/contracts";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
+import { isDuplicateName } from "../../lib/duplicate-name";
 import type { CapacityAttempt, ManualClassAttempt } from "./types";
 import type { Base, WorkspaceState } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
@@ -61,8 +62,9 @@ export function createClassPreparationActions(ws: Base & RaceDataActions) {
           "idempotency-key": `manual-class-create:${value.request.requestId}` },
         body: JSON.stringify(value.request) });
       if ([400, 404, 409].includes(response.status)) {
+        const duplicate = await isDuplicateName(response);
         pending.current = undefined; sent.current = false; setManualClassAttempt(undefined);
-        setManualClassError(text.manualClassRejected); return;
+        setManualClassError(duplicate ? text.duplicateClassName(value.request.className) : text.manualClassRejected); return;
       }
       if (!response.ok) throw new Error("Manual class unavailable");
       const receipt = manualClassCreateResponseSchema.parse(await json(response, op));

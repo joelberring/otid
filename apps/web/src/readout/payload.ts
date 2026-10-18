@@ -10,6 +10,9 @@ export interface PayloadOptions {
   readonly reference: Date;
   readonly timeZone: string;
   readonly stationSerial?: number;
+  /** Vilken klocka referensen kom från och stationens avvikelse från datorn (PLAN.md steg 22). */
+  readonly clockSource?: "station" | "device";
+  readonly clockOffsetMs?: number;
   readonly simulated: boolean;
 }
 
@@ -30,6 +33,8 @@ export function buildReadoutPayload(card: SiCardData, frames: readonly Uint8Arra
     untimedPunchCodes: [...normalized.untimedPunchCodes],
     frames: frames.map(toHex),
     ...(options.stationSerial !== undefined ? { stationSerial: options.stationSerial } : {}),
+    ...(options.clockSource !== undefined ? { clockSource: options.clockSource } : {}),
+    ...(options.clockOffsetMs !== undefined ? { clockOffsetMs: options.clockOffsetMs } : {}),
     simulated: options.simulated
   };
 }

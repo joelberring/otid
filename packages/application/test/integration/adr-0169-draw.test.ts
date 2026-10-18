@@ -35,8 +35,8 @@ afterAll(async () => {
 });
 
 const MINUTE = 60_000;
-const firstStart = "2026-10-08T08:00:00.000Z"; // 10:00 i Stockholm
-/** Nu, före tävlingsdagen (2026-10-08). Läses vid varje anrop så att sessionen redan finns. */
+const firstStart = "2027-10-07T08:00:00.000Z"; // 10:00 i Stockholm
+/** Nu, före tävlingsdagen (2027-10-07, så att vakanta tider ligger efter nu). Läses vid varje anrop så att sessionen redan finns. */
 const before = () => new Date();
 type Proof = { raceId: string; sessionToken: string; csrfCookie: string; csrfHeader: string };
 type Race = { proof: Proof; raceId: string; classes: Record<"H21" | "D21" | "H16", string> };
@@ -51,7 +51,7 @@ async function race(): Promise<Race> {
   if (account.status !== "authenticated") throw new Error("Kontot kunde inte skapas");
   const accountProof = { sessionToken: account.sessionToken, csrfCookie: account.csrfToken, csrfHeader: account.csrfToken };
   const created = await createEventAsUserAccount(db, { ...accountProof, idempotencyKey: `organizer-event-create:${randomUUID()}`,
-    readBody: async () => ({ formatVersion: 1, eventName: "Klubbtävling", raceName: "Torsdag", raceDate: "2026-10-08", timeZone: "Europe/Stockholm" }) });
+    readBody: async () => ({ formatVersion: 1, eventName: "Klubbtävling", raceName: "Torsdag", raceDate: "2027-10-07", timeZone: "Europe/Stockholm" }) });
   if (created.status !== "created") throw new Error("Tävlingen kunde inte skapas");
   const { raceId } = created.response;
   const entered = await enterRaceAsUserAccount(db, { ...accountProof, raceId });
@@ -84,16 +84,16 @@ async function register(f: Race, classId: string, givenName: string, club: strin
 }
 
 async function readout(f: Race, cardNumber: string, codes: number[],
-  punches = codes.map((code, index) => ({ code, punchedAt: `2026-10-08T08:${String(35 + index * 5).padStart(2, "0")}:00.000Z` })),
-  finishPunchedAt = "2026-10-08T09:00:00.000Z") {
+  punches = codes.map((code, index) => ({ code, punchedAt: `2027-10-07T08:${String(35 + index * 5).padStart(2, "0")}:00.000Z` })),
+  finishPunchedAt = "2027-10-07T09:00:00.000Z") {
   const payload: SportidentReadoutPayload = {
-    cardNumber, cardType: "SI10", startPunchedAt: "2026-10-08T08:30:00.000Z", finishPunchedAt,
+    cardNumber, cardType: "SI10", startPunchedAt: "2027-10-07T08:30:00.000Z", finishPunchedAt,
     punches,
     untimedPunchCodes: [], frames: ["02ef8300"], stationSerial: 999001, simulated: true
   };
   const batch: DeviceBatch = { deviceId: randomUUID(), sessionId: randomUUID(), packageVersion: await snapshot(f.raceId),
     firstSequence: 1, lastSequence: 1,
-    events: [{ localSequence: 1, stationReceivedAt: "2026-10-08T09:01:00.000Z", transport: "sportident", payload, contentHash: contentHash(payload) }] };
+    events: [{ localSequence: 1, stationReceivedAt: "2027-10-07T09:01:00.000Z", transport: "sportident", payload, contentHash: contentHash(payload) }] };
   const ingested = await ingestReadoutsAsAdministrator(db, { ...f.proof, batch });
   if (ingested.status !== "ok") throw new Error(`Avläsningen togs inte emot: ${ingested.status}`);
 }

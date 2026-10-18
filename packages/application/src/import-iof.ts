@@ -24,6 +24,7 @@ import { lockRaceForMutation } from "./concurrency";
 import { applyStartListImport, StartListImportConflictError } from "./import-start-list";
 import { assertRaceClassCapacities, ClassCapacityConflictError } from "./class-capacity-guard";
 import { insertCourseVersionControls, loadCourseVersionVariants } from "./course-variants";
+import { DuplicateNameError } from "./duplicate-names";
 export class EntryCardImportConflictError extends Error {}
 export class EntryIdentityImportConflictError extends Error {}
 import {
@@ -35,6 +36,12 @@ import {
 async function importCourses(tx: DbExecutor, raceId: string, parsed: CourseDataImport) {
   const versionByCourse = new Map<string, string>();
   for (const imported of parsed.courses) {
+    // En bana med samma namn men annan identitet (manuellt skapad eller annan fil) får inte dubbleras (PLAN.md steg 22).
+    const [sameName] = await tx.select({ externalSource: schema.courses.externalSource, externalId: schema.courses.externalId })
+      .from(schema.courses).where(and(eq(schema.courses.raceId, raceId), sql`lower(${schema.courses.name}) = lower(${imported.name})`)).limit(1);
+    if (sameName && (sameName.externalSource !== "iof" || sameName.externalId !== imported.externalId)) {
+      throw new DuplicateNameError("course", imported.name);
+    }
     await tx.insert(schema.courses).values({
       raceId,
       name: imported.name,
@@ -67,6 +74,9 @@ async function importCourses(tx: DbExecutor, raceId: string, parsed: CourseDataI
       eq(schema.classes.externalSource, "iof"),
       eq(schema.classes.externalId, assignment.classExternalId)
     ));
+    const [sameName] = await tx.select({ id: schema.classes.id }).from(schema.classes)
+      .where(and(eq(schema.classes.raceId, raceId), sql`lower(${schema.classes.name}) = lower(${assignment.className})`)).limit(1);
+    if (sameName && sameName.id !== existing?.id) throw new DuplicateNameError("class", assignment.className);
     if (existing) {
       await tx.update(schema.classes).set({
         name: assignment.className,
@@ -311,7 +321,8 @@ export async function importIofXml(db: DbExecutor, raceId: string, xml: string) 
 }
 
 export type AuthenticatedIofImportResult =
-  | { status: "unauthorized" | "forbidden" | "invalid-request" | "invalid-iof-xml" | "conflict" }
+  | { status: "unauthorized" | "forbidden" | "invalid-request" | "conflict" }
+  | { status: "invalid-iof-xml"; issues: readonly string[] }
   | { status: "stored" | "duplicate"; response: IofImportResponse };
 
 export type AuthenticatedIofImportInput = Omit<PairingAdminRequestAuthentication, "capability"> & {
@@ -377,7 +388,7 @@ export async function importIofXmlAsAdmin(
   try {
     parsed = parseIofXml(xml);
   } catch (error) {
-    if (error instanceof IofValidationError) return { status: "invalid-iof-xml" };
+    if (error instanceof IofValidationError) return { status: "invalid-iof-xml", issues: error.issues };
     throw error;
   }
   try {
@@ -514,6 +525,7 @@ export async function importIofXmlAsAdmin(
   } catch (error) {
     if (error instanceof StartListImportConflictError || error instanceof EntryCardImportConflictError ||
       error instanceof EntryIdentityImportConflictError || error instanceof ClassCapacityConflictError) return { status: "conflict" };
+    if (error instanceof DuplicateNameError) return { status: "invalid-iof-xml", issues: [error.message] };
     throw error;
   }
 }

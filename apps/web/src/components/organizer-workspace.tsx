@@ -15,6 +15,7 @@ import {
   parseOrganizerEvents,
   parseOrganizerLoginRequest,
   parseOrganizerSession,
+  parseOrganizerSessionStatus,
   readOrganizerCsrf,
   restoreOrganizerAttempt,
   saveOrganizerAttempt,
@@ -120,7 +121,14 @@ export function OrganizerWorkspace() {
         return;
       }
       if (!response.ok) throw new Error(copy.sessionCheckError(response.status));
-      const current = parseOrganizerSession(await responseJson(response));
+      const current = parseOrganizerSessionStatus(await responseJson(response));
+      if (!current) {
+        setSession(undefined);
+        setEventSearch("");
+        setCreated(undefined);
+        setShowAnotherForm(false);
+        return;
+      }
       setSession(current);
       await loadEvents();
     } catch (error) {

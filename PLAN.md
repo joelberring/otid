@@ -422,7 +422,7 @@ i kopian; kvittot visar sträcktider och skrivs ut rent.
 
 ---
 
-## [ ] Steg 22 – Rätta buggarna från granskningen 2026-10-18
+## [x] Steg 22 – Rätta buggarna från granskningen 2026-10-18
 
 Granskningen (ägaren 2026-10-18) hittade fel som ska bort före hårdvarutestet.
 

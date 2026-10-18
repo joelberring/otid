@@ -100,6 +100,13 @@ export const sportidentReadoutPayloadSchema = z.object({
   untimedPunchCodes: z.array(z.number().int().positive()).max(6),
   frames: z.array(z.string().regex(/^(?:[0-9a-f]{2}){1,300}$/)).min(1).max(8),
   stationSerial: z.number().int().nonnegative().optional(),
+  /**
+   * Klockan som stämplingstiderna löstes mot (PLAN.md steg 22): avläsningsstationens
+   * (GET_TIME vid handskakningen) eller datorns när stationen inte svarade.
+   */
+  clockSource: z.enum(["station", "device"]).optional(),
+  /** Stationens klocka minus datorns vid handskakningen, i millisekunder. */
+  clockOffsetMs: z.number().int().min(-1_000_000_000_000).max(1_000_000_000_000).optional(),
   /** Sant när avläsningen kom från den falska övningsstationen. */
   simulated: z.boolean()
 }).strict();

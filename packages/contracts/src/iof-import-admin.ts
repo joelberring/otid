@@ -96,7 +96,9 @@ export const iofImportErrorCodeSchema = z.enum([
 
 export const iofImportErrorResponseSchema = z.object({
   formatVersion: z.literal(1),
-  error: iofImportErrorCodeSchema
+  error: iofImportErrorCodeSchema,
+  /** INVALID_IOF_XML: tolkens fel i klartext, t.ex. vilken anmälan som har ett ogiltigt bricknummer. */
+  issues: z.array(z.string().trim().min(1).max(500)).max(50).optional()
 }).strict();
 
 export type IofImportRequestId = z.infer<typeof iofImportRequestIdSchema>;

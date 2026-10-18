@@ -67,7 +67,7 @@ export async function handleSourceRoute(context: RaceAdministratorRouteContext):
       let fileName = "banfil.xml";
       try { fileName = decodeURIComponent(request.headers.get("x-otid-file-name") ?? fileName); } catch { return failure(400, "INVALID_REQUEST"); }
       const result = await dependencies.courseFilePreview(db, { ...input, xml, fileName });
-      if (result.status === "invalid-iof-xml") return importAdminFailure(422, "INVALID_IOF_XML");
+      if (result.status === "invalid-iof-xml") return importAdminFailure(422, "INVALID_IOF_XML", result.issues);
       if (result.status !== "ok") return resultFailure(result.status);
       return json(syncPreviewResponseSchema.parse(result.response));
     }

@@ -156,7 +156,10 @@ export async function ingestDeviceBatch(
         startPunchedAt: payload.startPunchedAt ? new Date(payload.startPunchedAt) : null,
         finishPunchedAt: payload.finishPunchedAt ? new Date(payload.finishPunchedAt) : null,
         punches: payload.punches,
-        readAt: new Date(event.stationReceivedAt)
+        readAt: new Date(event.stationReceivedAt),
+        // Klockan bakom tiderna (PLAN.md steg 22) finns bara i SPORTident-nyttolasten.
+        clockSource: event.transport === "sportident" ? event.payload.clockSource ?? null : null,
+        clockOffsetMs: event.transport === "sportident" ? event.payload.clockOffsetMs ?? null : null
       }).returning();
       if (!readoutRow) throw new Error("Normaliserad avläsning kunde inte sparas");
 

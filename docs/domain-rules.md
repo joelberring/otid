@@ -38,10 +38,13 @@ För TASK 001 gäller:
 4. Kontroller matchas som en ordnad delsekvens. Extra stämplingar ignoreras för
    godkännandet men redovisas.
 5. Saknad obligatorisk kontroll ger `MP/MISSING_CONTROL`.
-6. En obligatorisk kontroll som endast förekommer efter en senare obligatorisk
-   kontroll ger `MP/WRONG_ORDER`.
+6. En obligatorisk kontroll som är stämplad men bara utanför sin plats i
+   följden (före föregående matchade kontroll eller efter en senare obligatorisk
+   kontroll) ger `MP/WRONG_ORDER`. En extra stämpling av en kontroll som också
+   finns på rätt plats påverkar inte bedömningen (motor 0.3.0, PLAN.md steg 22).
 7. Om banan kräver samma kod flera gånger måste lika många förekomster matchas i
-   rätt ordning. Övriga förekomster redovisas som extra.
+   rätt ordning. Övriga förekomster (även dubbelstämplingar vid kontroller som
+   återkommer i fjärilsslingor) redovisas som extra.
 8. Ett godkänt resultat får status `OK`; löptid och sträcktider räknas i hela
    millisekunder från vald start till kontroller och mål.
 

@@ -5,6 +5,7 @@ import { manualClassNameCandidateSchema, manualClassNameChangeIdempotencyKeySche
 import { authenticatePairingAdminSession, authenticatePairingAdminSessionForMutation,
   authenticatePairingAdminSessionForProtectedRead, type PairingAdminRequestAuthentication } from "./pairing-admin";
 import { lockRaceForMutation } from "./concurrency";
+import { classNameTaken } from "./duplicate-names";
 
 type ReadInput = Omit<PairingAdminRequestAuthentication, "capability"> & { classId: string };
 type ChangeInput = ReadInput & { idempotencyKey: string | null; request: unknown };
@@ -61,6 +62,7 @@ export async function changeManualClassNameAsAdministrator(db: Database, input: 
     if (raceClass.externalSource !== null || raceClass.externalId !== null ||
       race.snapshotVersion !== intent.expectedSnapshotVersion || raceClass.name !== intent.expectedClassName ||
       raceClass.name === intent.className || race.snapshotVersion >= 2_147_483_647) return { status: "conflict" as const };
+    if (await classNameTaken(tx, input.raceId, intent.className, input.classId)) return { status: "duplicate-name" as const };
     const response = manualClassNameChangeResponseSchema.parse({ formatVersion: 1, replayed: false,
       requestId: intent.requestId, raceId: input.raceId, classId: input.classId,
       courseVersionId: raceClass.courseVersionId, previousClassName: raceClass.name, className: intent.className,

@@ -117,13 +117,13 @@ export async function previewEventorSyncAsAdministrator(db: Database, input: Aut
 
 /** "Läs in banfil" / "Läs in ny banfil": IOF XML CourseData (OCAD, Purple Pen, Condes). */
 export async function previewCourseFileAsAdministrator(db: Database, input: Authentication & { xml: string; fileName: string },
-  now = new Date()): Promise<Failure | { status: "invalid-iof-xml" } | { status: "ok"; response: SyncPreviewResponse }> {
+  now = new Date()): Promise<Failure | { status: "invalid-iof-xml"; issues: readonly string[] } | { status: "ok"; response: SyncPreviewResponse }> {
   const auth = await authenticatePairingAdminSession(db, { ...input, capability, requireCsrf: true }, now);
   if (auth.status !== "authenticated") return auth;
   let parsed;
   try { parsed = parseIofXml(input.xml); }
-  catch (error) { if (error instanceof IofValidationError) return { status: "invalid-iof-xml" }; throw error; }
-  if (parsed.kind !== "CourseData") return { status: "invalid-iof-xml" };
+  catch (error) { if (error instanceof IofValidationError) return { status: "invalid-iof-xml", issues: error.issues }; throw error; }
+  if (parsed.kind !== "CourseData") return { status: "invalid-iof-xml", issues: ["Filen är inte en banfil (CourseData)"] };
   const data = { courses: parsed.courses, assignments: parsed.assignments, personAssignments: parsed.personAssignments,
     teamAssignments: parsed.teamAssignments, warnings: parsed.warnings };
   const fileName = input.fileName.trim().slice(0, 260) || "banfil.xml";

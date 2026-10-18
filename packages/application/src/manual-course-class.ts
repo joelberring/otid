@@ -3,6 +3,7 @@ import { schema, type Database } from "@o-tid/database";
 import { manualCourseClassCreateIdempotencyKeySchema, manualCourseClassCreateRequestSchema, manualCourseClassCreateResponseSchema } from "@o-tid/contracts";
 import { authenticatePairingAdminSession, authenticatePairingAdminSessionForMutation, type PairingAdminRequestAuthentication } from "./pairing-admin";
 import { lockRaceForMutation } from "./concurrency";
+import { classNameTaken, courseNameTaken } from "./duplicate-names";
 
 type Input = Omit<PairingAdminRequestAuthentication, "capability"> & { idempotencyKey: string | null; request: unknown };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -33,6 +34,9 @@ export async function createManualCourseClassAsAdministrator(db: Database, input
       return { status: "created" as const, response: { ...response, replayed: true } };
     }
     if (race.snapshotVersion !== intent.expectedSnapshotVersion || race.snapshotVersion >= 2_147_483_647) return { status: "conflict" as const };
+    if (await courseNameTaken(tx, input.raceId, intent.courseName) || await classNameTaken(tx, input.raceId, intent.className)) {
+      return { status: "duplicate-name" as const };
+    }
     const [course] = await tx.insert(schema.courses).values({ raceId: input.raceId, name: intent.courseName }).returning();
     if (!course) throw new Error("Banan kunde inte skapas");
     const [courseVersion] = await tx.insert(schema.courseVersions).values({ courseId: course.id, version: 1 }).returning();

@@ -188,6 +188,16 @@ describe("parseIofXml", () => {
     expect(parsed.entries[0]).not.toHaveProperty("fixedStartTime");
   });
 
+  it("avvisar ett bricknummer som Eventor inte godtar och pekar ut anmälan (PLAN.md steg 22)", () => {
+    const card = '<ControlCard punchingSystem="SPORTident">12345</ControlCard>';
+    const withBadCard = fixture("entry-list.xml").replace(card, card.replace("12345", "012345"));
+    expect(() => parseIofXml(withBadCard)).toThrow(/PersonEntry\[0\] Ada Löpare: ControlCard "012345"/);
+    const withLetters = fixture("entry-list.xml").replace(card, card.replace("12345", "SI-12345"));
+    expect(() => parseIofXml(withLetters)).toThrow(IofValidationError);
+    const withoutCard = fixture("entry-list.xml").replace(card, "");
+    expect(parseIofXml(withoutCard).kind).toBe("EntryList");
+  });
+
   it("avvisar den gamla icke-standardiserade CourseData-dialekten", () => {
     const oldDialect = `<?xml version="1.0"?>
       <CourseData xmlns="http://www.orienteering.org/datastandard/3.0" iofVersion="3.0">

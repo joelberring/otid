@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { sportidentReadoutPayloadSchema, type ReadoutPackage } from "@o-tid/contracts";
 import { WebSerialTransport, type WebSerialPortLike } from "@o-tid/device-transport";
-import type { SiCardData } from "@o-tid/sportident";
+import { SiTimeError, type SiCardData } from "@o-tid/sportident";
 import { enterRace, fetchReadoutPackage, raceAdminCsrf } from "./api";
 import { evaluateLocally, formatRunningTime, type LocalVerdict } from "./evaluate";
-import { exerciseCard, exerciseRunners, rogainingExerciseWindow, type ExerciseVariant } from "./exercise";
-import { relayExerciseWindow } from "./relay";
+import { exerciseAnchor, exerciseCard, exerciseRunners, exerciseWindow, type ExerciseVariant } from "./exercise";
 import { FakeStationTransport } from "./fake-transport";
 import { buildReadoutPayload, payloadHash } from "./payload";
-import { StationController, type StationStatus } from "./station";
+import { StationController, type StationFacts, type StationStatus } from "./station";
 import { TrafficLog } from "./rawlog";
 import { IdbReadoutStore, type QueuedReadout, type ReadoutStore } from "./store";
 import { syncPending } from "./sync";
@@ -28,6 +27,8 @@ type SerialNavigator = Navigator & { serial?: { requestPort(): Promise<WebSerial
 const SYNC_INTERVAL_MS = 5_000;
 const PACKAGE_INTERVAL_MS = 60_000;
 const BAUD_RATES = [38_400, 4_800];
+/** Större klockskillnad mellan stationen och datorn än så visas som en varning (PLAN.md steg 22). */
+const CLOCK_SKEW_WARNING_MS = 5 * 60_000;
 
 function raceIdFromHash(): string | undefined {
   const value = window.location.hash.slice(1);
@@ -129,14 +130,21 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
     };
   }, [raceId, refreshPackage, sync, reload]);
 
-  const onCardRead = useCallback(async (card: SiCardData, frames: readonly Uint8Array[], serial: number | undefined) => {
+  const onCardRead = useCallback(async (card: SiCardData, frames: readonly Uint8Array[], station: StationFacts) => {
     if (!raceId) return;
     const now = new Date();
     const known = pkgRef.current;
     const timeZone = known?.event.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+    // Stämplingstiderna löses mot stationens klocka när den finns (PLAN.md steg 22); övningsstationens klocka
+    // står på tävlingsdagen. Datorns klocka är reservalternativet och avläsningen bär vilken som användes.
+    const exercise = exerciseRef.current;
+    const reference = exercise ? exercise.now() : station.clock ? new Date(now.getTime() + station.clock.clockOffsetMs) : now;
+    const clockOffsetMs = exercise ? exercise.now().getTime() - now.getTime() : station.clock?.clockOffsetMs;
     const payload = buildReadoutPayload(card, frames, {
-      reference: now, timeZone, simulated: exerciseRef.current !== undefined,
-      ...(serial !== undefined ? { stationSerial: serial } : {})
+      reference, timeZone, simulated: exercise !== undefined,
+      ...(station.serialNumber !== undefined ? { stationSerial: station.serialNumber } : {}),
+      clockSource: clockOffsetMs === undefined ? "device" : "station",
+      ...(clockOffsetMs === undefined ? {} : { clockOffsetMs: Math.round(clockOffsetMs) })
     });
     const valid = sportidentReadoutPayloadSchema.safeParse(payload).success;
     const stored = await storeRef.current.append(raceId, {
@@ -160,9 +168,10 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
   const callbacks = {
     onStatus: setStation,
     onCardInserted: (cardNumber: number) => setCurrent({ phase: "reading", cardNumber }),
-    onCardRead: (card: SiCardData, frames: readonly Uint8Array[], serial: number | undefined) => {
-      onCardRead(card, frames, serial).catch((error: unknown) =>
-        setCurrent({ phase: "failed", message: error instanceof Error ? error.message : String(error) }));
+    onCardRead: (card: SiCardData, frames: readonly Uint8Array[], station: StationFacts) => {
+      onCardRead(card, frames, station).catch((error: unknown) =>
+        setCurrent({ phase: "failed", message: error instanceof SiTimeError ? t.timeUnresolvable(error.message)
+          : error instanceof Error ? error.message : String(error) }));
     },
     onReadFailed: (cardNumber: number) => setCurrent({ phase: "failed", message: t.readFailed(cardNumber) }),
     onUnsupportedCard: (cardNumber: number) => setCurrent({ phase: "failed", message: t.unsupported(cardNumber) }),
@@ -187,17 +196,19 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
     try { port = await serial.requestPort(); }
     catch { setStation({ kind: "disconnected" }); return; }
     exerciseRef.current = undefined; setExercise(false);
+    const timeZone = pkgRef.current?.event.timeZone;
     for (const baudRate of BAUD_RATES) {
-      if (await attach(new StationController(new WebSerialTransport(port, { baudRate }), callbacks))) return;
+      if (await attach(new StationController(new WebSerialTransport(port, { baudRate }), callbacks, timeZone ? { timeZone } : {}))) return;
     }
     await controllerRef.current?.stop();
     setStation({ kind: "error", message: t.serialFailed });
   }
 
   async function connectExercise() {
-    const transport = new FakeStationTransport();
+    const timeZone = pkgRef.current?.event.timeZone;
+    const transport = new FakeStationTransport(timeZone ? { timeZone } : {});
     exerciseRef.current = transport; setExercise(true);
-    await attach(new StationController(transport, callbacks));
+    await attach(new StationController(transport, callbacks, timeZone ? { timeZone } : {}));
   }
 
   async function disconnect() {
@@ -209,20 +220,21 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
     const transport = exerciseRef.current;
     if (!transport || !pkg) return;
     const runner = runners.find((candidate) => candidate.entryId === runnerId) ?? runners[0];
+    const now = new Date();
     if (variant === "unknown") {
-      // En löpare med en bricka som inte är anmäld, på vald deltagares bana.
+      // En löpare med en bricka som inte är anmäld, på vald deltagares bana, i mål strax före "nu" på tävlingsdagen.
       const used = new Set(pkg.raceSnapshot.cardAssignments.map((assignment) => assignment.cardNumber));
       let number = 7_100_000 + Math.floor(Math.random() * 800_000);
       while (used.has(String(number))) number += 1;
-      transport.insert(exerciseCard(number, runner?.controlCodes ?? [], "ok", new Date(), pkg.event.timeZone));
+      const anchor = exerciseAnchor(pkg.raceSnapshot.race.raceDate, pkg.event.timeZone, now);
+      transport.insert(exerciseCard(number, runner?.controlCodes ?? [], "ok", anchor, pkg.event.timeZone), new Date(anchor.getTime() + 5_000));
       return;
     }
     if (!runner) return;
-    const now = new Date();
-    // Stafett: sträckans tider följer lagets tidigare sträckor (ADR-0169 beslut 3). Rogaining: inom eller efter tidsgränsen.
-    const window = runner.timeLimitMs !== undefined ? rogainingExerciseWindow(runner.timeLimitMs, variant, now)
-      : relayExerciseWindow(pkg, runner.entryId, now);
-    transport.insert(exerciseCard(runner.cardNumber, runner.controlCodes, variant, now, pkg.event.timeZone, window));
+    // Tiderna följer löparens starttid och tävlingsdagen; övningsstationens klocka ställs strax efter målgången.
+    const window = exerciseWindow(pkg, runner, variant, now);
+    transport.insert(exerciseCard(runner.cardNumber, runner.controlCodes, variant, now, pkg.event.timeZone, window),
+      new Date(window.finishAt.getTime() + 5_000));
   }
 
   if (!raceId) return <main className="readout"><h1>{t.title}</h1><p className="notice">{t.noRace}</p></main>;
@@ -233,6 +245,9 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
   const recent = [...items].sort((a, b) => b.localSequence - a.localSequence).slice(0, 10);
   const currentItem = current?.phase === "done" ? items.find((item) => item.localSequence === current.localSequence) : undefined;
   const connected = station.kind === "ready" || station.kind === "misconfigured" || station.kind === "connecting";
+  // Klockskillnad i hela minuter, bara för en riktig station (övningsstationens klocka står med flit på tävlingsdagen).
+  const clockSkew = !exercise && station.kind === "ready" && station.clock && Math.abs(station.clock.clockOffsetMs) >= CLOCK_SKEW_WARNING_MS
+    ? Math.round(station.clock.clockOffsetMs / 60_000) : undefined;
   const printable: Printable | undefined = current?.phase === "done" && current.verdict && pkg
     ? { localSequence: current.localSequence, cardNumber: current.cardNumber, verdict: current.verdict } : undefined;
   // QR-koden på skärmen: för en känd löpare, så att hen kan skanna i stället för att ta ett papperskvitto.
@@ -259,6 +274,8 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
     {syncProblem ? <p className="notice" role="alert">{syncProblem}</p> : null}
     {!persistent ? <p className="notice">{t.storageNotPersistent}</p> : null}
     {station.kind === "misconfigured" ? <p className="notice" role="alert">{t.misconfiguredHelp} ({station.problems.join(", ")})</p> : null}
+    {clockSkew !== undefined ? <p className="notice" role="alert" data-testid="clock-skew">{t.clockSkew(clockSkew)}</p> : null}
+    {!exercise && station.kind === "ready" && !station.clock ? <p className="notice" data-testid="clock-missing">{t.clockMissing}</p> : null}
 
     <section className="verdict" aria-live="assertive" data-testid="verdict"
       data-status={current?.phase === "done" ? current.verdict?.status ?? "NO_PACKAGE" : current?.phase ?? "idle"}>

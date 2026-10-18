@@ -102,3 +102,4 @@ export * from "./radio-ingest";
 export * from "./radio-settings";
 export * from "./radio-standings";
 export * from "./race-copy";
+export { classNameTaken, courseNameTaken, DuplicateNameError } from "./duplicate-names";

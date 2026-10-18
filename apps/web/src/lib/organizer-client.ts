@@ -1,6 +1,7 @@
 import {
   organizerAccountLoginRequestSchema,
   organizerAccountLoginResponseSchema,
+  organizerAccountSessionStatusSchema,
   organizerEventCreateRequestSchema,
   organizerEventCreateResponseSchema,
   organizerMyEventsResponseSchema,
@@ -42,10 +43,18 @@ export function parseOrganizerEvents(value: unknown): OrganizerMyEventsResponse 
   return parsed.data;
 }
 
+/** Inloggnings- eller registreringssvaret: kontot. */
 export function parseOrganizerSession(value: unknown) {
   const parsed = organizerAccountLoginResponseSchema.safeParse(value);
   if (!parsed.success) throw new Error("Sessionssvaret hade ett ogiltigt format.");
   return parsed.data;
+}
+
+/** Sessionsstatus: kontot, eller undefined när ingen är inloggad (svaret är då 200 med `authenticated: false`, PLAN.md steg 22). */
+export function parseOrganizerSessionStatus(value: unknown) {
+  const parsed = organizerAccountSessionStatusSchema.safeParse(value);
+  if (!parsed.success) throw new Error("Sessionssvaret hade ett ogiltigt format.");
+  return "authenticated" in parsed.data ? undefined : parsed.data;
 }
 
 /** Inloggning med e-post (ADR-0172). Ogiltig adress ger ett begripligt fel innan något skickas. */

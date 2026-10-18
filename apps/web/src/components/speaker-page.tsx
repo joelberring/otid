@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { administratorForestWatchResponseSchema, publicRadioResponseSchema, publicResultListResponseV7Schema, relayOverviewSchema,
   speakerBoardResponseSchema, type AdministratorForestWatchResponse, type PublicRadioResponse, type PublicResultListResponseV7, type RelayOverview,
   type SpeakerBoardResponse } from "@o-tid/contracts";
+import { raceDayStarted } from "@o-tid/domain";
 import { speakerSv as text } from "../i18n/speaker-sv";
 import { radioControlName, radioSv } from "../i18n/radio-sv";
 import { passageTime } from "./radio/radio-live";
@@ -101,6 +102,7 @@ export function SpeakerPage({ raceId }: { raceId: string }) {
   const leaders = data.results ? classLeaders(data.results) : [];
   const shownLeaders = classFilter ? leaders.filter(row => row.className === classFilter) : leaders;
   const forest = data.forest ? forestByClass(data.forest) : [];
+  const forestNotStarted = data.forest !== undefined && !raceDayStarted(data.forest.raceDate, data.forest.timeZone, new Date());
   const relay = data.relay && data.relay.classes.length > 0 ? relayLegs(data.relay) : [];
   const radio = data.radio?.enabled ? data.radio : undefined;
   const radioTop = radioLeaders(radio).filter(row => !classFilter || row.className === classFilter);
@@ -138,7 +140,8 @@ export function SpeakerPage({ raceId }: { raceId: string }) {
       </section>
       <section className={styles.block} aria-labelledby="speaker-forest">
         <h2 id="speaker-forest">{text.forestTitle}</h2>
-        {forest.length === 0 ? <p className={styles.empty}>{text.forestEmpty}</p> : forest.map(row =>
+        {forestNotStarted ? <p className={styles.empty}>{text.forestNotStarted}</p>
+          : forest.length === 0 ? <p className={styles.empty}>{text.forestEmpty}</p> : forest.map(row =>
           <div key={row.className} className={styles.group}>
             <h3>{row.className}<span className={styles.count}>{text.forestCount(row.runners.length)}</span></h3>
             <p className={styles.names}>{row.runners.map((runner, index) => <span key={runner.entryId}>{index > 0 && ", "}

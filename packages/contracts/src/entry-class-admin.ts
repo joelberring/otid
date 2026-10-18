@@ -101,6 +101,8 @@ export const entryClassAdminErrorCodeSchema = z.enum([
   "FORBIDDEN",
   "NOT_FOUND",
   "CONFLICT",
+  /** Klass- eller bannamnet finns redan i tävlingen (PLAN.md steg 22). */
+  "DUPLICATE_NAME",
   "INTERNAL_ERROR"
 ]);
 

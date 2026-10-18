@@ -86,6 +86,8 @@ const parser = new XMLParser({
 });
 
 const IOF_NAMESPACE = "http://www.orienteering.org/datastandard/3.0";
+/** Bricknummer som Eventor godtar: 1–9 siffror utan inledande nolla. */
+export const CONTROL_CARD_PATTERN = /^[1-9][0-9]{0,8}$/;
 const FORBIDDEN_DECLARATION_PATTERN = /<!\s*(?:DTD|DOCTYPE|ENTITY)\b/i;
 
 function readEntryList(root: XmlRecord): EntryListImport {
@@ -110,6 +112,10 @@ function readEntryList(root: XmlRecord): EntryListImport {
     const className = text(classValue.Name) || classExternalId;
     const organisationName = text(organisation.Name);
     const cardNumber = text(array(entry.ControlCard)[0]);
+    // Samma regel som Eventor och avläsningens kontrakt: 1–9 siffror utan inledande nolla (PLAN.md steg 22).
+    if (cardNumber && !CONTROL_CARD_PATTERN.test(cardNumber)) {
+      issues.push(`PersonEntry[${index}] ${givenName} ${familyName}: ControlCard "${cardNumber}" är inte ett giltigt bricknummer`);
+    }
     return {
       externalId,
       givenName,

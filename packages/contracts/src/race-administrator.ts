@@ -20,5 +20,9 @@ export const raceAdministratorLoginResponseSchema = z.object({
   expiresAt: z.iso.datetime({ offset: true })
 }).strict();
 
+/** GET …/administrator/session utan tävlingssession: 200 med `authenticated: false` i stället för 401 (PLAN.md steg 22). */
+export const raceAdministratorSessionAbsentSchema = z.object({ formatVersion: z.literal(1), raceId: uuid, authenticated: z.literal(false) }).strict();
+export const raceAdministratorSessionStatusSchema = z.union([raceAdministratorLoginResponseSchema, raceAdministratorSessionAbsentSchema]);
+
 export type RaceAdministratorLoginRequest = z.infer<typeof raceAdministratorLoginRequestSchema>;
 export type RaceAdministratorLoginResponse = z.infer<typeof raceAdministratorLoginResponseSchema>;

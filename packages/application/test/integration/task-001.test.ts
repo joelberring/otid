@@ -506,7 +506,7 @@ describe("TASK 005G autentiserad IOF-import PostgreSQL", () => {
       admin.login,
       crypto.randomUUID(),
       `<!DOCTYPE EntryList [<!ENTITY x "y">]><EntryList>&x;</EntryList>`
-    ), usedAt)).resolves.toEqual({ status: "invalid-iof-xml" });
+    ), usedAt)).resolves.toMatchObject({ status: "invalid-iof-xml", issues: [expect.any(String)] });
     const after = await db.select({ value: count() }).from(schema.iofImportRequests)
       .where(eq(schema.iofImportRequests.raceId, raceId));
     expect(after[0]?.value).toBe(before[0]?.value);

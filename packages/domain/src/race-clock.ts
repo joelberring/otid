@@ -27,3 +27,18 @@ export function parseRaceClock(date: string, clock: string, timeZone: string): s
   }).filter(instant => wallClock(instant, timeZone) === wanted).sort((a, b) => a - b);
   return candidates.length ? new Date(candidates[0]!).toISOString() : null;
 }
+
+/** Tävlingsdagens datum i tävlingens tidszon för ett ögonblick, som "ÅÅÅÅ-MM-DD". */
+export function localRaceDate(instant: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat("sv-SE", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(instant);
+  const value = (type: string) => parts.find(part => part.type === type)?.value ?? "";
+  return `${value("year")}-${value("month")}-${value("day")}`;
+}
+
+/**
+ * Sant från midnatt på tävlingsdagen i tävlingens tidszon (PLAN.md steg 22). Före det är ingen "kvar i skogen":
+ * anmälda som inte lästs av räknas först när tävlingen kan ha börjat.
+ */
+export function raceDayStarted(raceDate: string, timeZone: string, now: Date): boolean {
+  return localRaceDate(now, timeZone) >= raceDate;
+}

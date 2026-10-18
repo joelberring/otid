@@ -3,6 +3,7 @@ import { relayClassCreateResponseSchema, relayLegRunnerResponseSchema, relayOver
   relayTeamCreateResponseSchema, type RelayClassCreateRequest, type RelayLegRunnerRequest, type RelayOverview,
   type RelayStartTimesRequest, type RelayTeamCreateRequest } from "@o-tid/contracts";
 import { relaySv as text } from "../../i18n/relay-sv";
+import { isDuplicateName } from "../../lib/duplicate-name";
 import { formatClockTime, parseRaceClock } from "../../lib/clock-time";
 import type { Operation } from "./types";
 import type { Base } from "./workspace-state";
@@ -80,7 +81,8 @@ export function createRelayActions(ws: Base & RaceDataActions) {
       const response = await request(path, op, { method: "POST", headers: { "content-type": "application/json", "x-otid-csrf": csrf(),
         "idempotency-key": `${prefix}:${attempt.requestId}` }, body: JSON.stringify(attempt) });
       if (response.status === 400 || response.status === 404 || response.status === 409) {
-        clear(); setRelayMessage(messages.conflict);
+        const duplicate = await isDuplicateName(response);
+        clear(); setRelayMessage(duplicate ? text.classDuplicate : messages.conflict);
         await load(op); await readRelay(op);
         return;
       }

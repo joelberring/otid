@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { decodeSiTime, resolveSiTime, wallClockToUtc } from "../src";
+import {
+  DEFAULT_TIME_TOLERANCE_MS, decodeSiTime, decodeStationClock, encodeStationClock, resolveSiTime, SiTimeError, stationClockFromDate,
+  stationClockToDate, wallClockToUtc
+} from "../src";
 
 const zone = "Europe/Stockholm";
 
@@ -40,6 +43,46 @@ describe("resolveSiTime", () => {
     const t = { secondsIn12h: 2 * 3600 + 35 * 60, pm: true, dayOfWeek: 6 }; // 14:35
     expect(resolveSiTime(t, { reference, timeZone: zone }).toISOString()).toBe("2026-10-03T12:35:00.000Z");
     expect(resolveSiTime(t, { reference, timeZone: zone, toleranceMs: 0 }).toISOString()).toBe("2026-09-26T12:35:00.000Z");
+  });
+
+  // PLAN.md steg 22: klockskillnad mellan kontrollenheter, avläsningsstation och dator.
+  it("flyttar inte en stämpling 11 minuter 'i framtiden' en vecka eller tolv timmar bakåt", () => {
+    expect(DEFAULT_TIME_TOLERANCE_MS).toBe(2 * 3_600_000);
+    // Datorn tror att klockan är 12:08 lokal tid; målstämplingen är 12:20 (SI6+ med veckodag, och SI5 utan).
+    const reference = new Date("2026-10-03T10:08:00Z");
+    expect(resolveSiTime({ secondsIn12h: 20 * 60, pm: true, dayOfWeek: 6 }, { reference, timeZone: zone }).toISOString())
+      .toBe("2026-10-03T10:20:00.000Z");
+    expect(resolveSiTime({ secondsIn12h: 20 * 60 }, { reference, timeZone: zone }).toISOString()).toBe("2026-10-03T10:20:00.000Z");
+    // Mer än toleransen före referensen tolkas som förra veckan (SI6+) respektive förra halvdygnet (SI5).
+    expect(resolveSiTime({ secondsIn12h: 2 * 3600 + 30 * 60, pm: true, dayOfWeek: 6 }, { reference, timeZone: zone }).toISOString())
+      .toBe("2026-09-26T12:30:00.000Z");
+    expect(resolveSiTime({ secondsIn12h: 2 * 3600 + 30 * 60 }, { reference, timeZone: zone }).toISOString()).toBe("2026-10-03T00:30:00.000Z");
+  });
+
+  it("vägrar motsägelsefulla bricktider i stället för att gissa", () => {
+    const reference = new Date("2026-10-03T10:08:00Z");
+    expect(() => resolveSiTime({ secondsIn12h: 12 * 3600 }, { reference, timeZone: zone })).toThrow(SiTimeError);
+    expect(() => resolveSiTime({ secondsIn12h: 60, dayOfWeek: 7 }, { reference, timeZone: zone })).toThrow(SiTimeError);
+    expect(() => resolveSiTime({ secondsIn12h: 60 }, { reference: new Date(Number.NaN), timeZone: zone })).toThrow(SiTimeError);
+  });
+});
+
+describe("stationens klocka (GET_TIME)", () => {
+  it("kodar och tolkar klockan åt båda hållen", () => {
+    const clock = { year: 2026, month: 10, day: 3, secondsOfDay: 14 * 3600 + 35 * 60 + 7, milliseconds: 500 };
+    const bytes = encodeStationClock(clock, 6);
+    expect(bytes).toEqual([26, 10, 3, 0b1101, (2 * 3600 + 35 * 60 + 7) >> 8, (2 * 3600 + 35 * 60 + 7) & 0xff, 128]);
+    expect(decodeStationClock(Uint8Array.from(bytes))).toEqual(clock);
+    expect(stationClockToDate(clock, zone).toISOString()).toBe("2026-10-03T12:35:07.500Z");
+    const fromDate = stationClockFromDate(new Date("2026-10-03T12:35:07.500Z"), zone);
+    expect(fromDate).toEqual({ clock, dayOfWeek: 6 });
+  });
+
+  it("ger undefined för korta eller orimliga svar", () => {
+    expect(decodeStationClock(Uint8Array.from([26, 10, 3]))).toBeUndefined();
+    expect(decodeStationClock(Uint8Array.from([26, 13, 3, 0, 0, 0, 0]))).toBeUndefined();
+    expect(decodeStationClock(Uint8Array.from([26, 2, 30, 0, 0, 0, 0]))).toBeUndefined();
+    expect(decodeStationClock(Uint8Array.from([26, 10, 3, 0, 0xee, 0xee, 0]))).toBeUndefined();
   });
 
   it("hanterar lopp över midnatt", () => {

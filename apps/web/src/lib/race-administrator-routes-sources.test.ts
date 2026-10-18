@@ -42,7 +42,7 @@ describe("administratörsroutes: Eventor och banfil", () => {
   });
 
   it("läser banfilen som XML med filnamn och svarar 422 för fel filtyp", async () => {
-    const courseFilePreview = vi.fn<typeof Application.previewCourseFileAsAdministrator>().mockResolvedValue({ status: "invalid-iof-xml" });
+    const courseFilePreview = vi.fn<typeof Application.previewCourseFileAsAdministrator>().mockResolvedValue({ status: "invalid-iof-xml", issues: ["Fel"] });
     const services = { ...dependencies(), courseFilePreview };
     const response = await raceAdministratorRoute(db, bare("POST", "<CourseData/>", { "content-type": "application/xml",
       "x-otid-file-name": encodeURIComponent("Höstsprinten bana.xml") }), id, { kind: "course-file-preview" }, services, environment);

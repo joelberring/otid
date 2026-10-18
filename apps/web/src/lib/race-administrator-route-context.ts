@@ -159,6 +159,7 @@ export function resultFailure(status: string): Response {
     case "invalid-request": return failure(400, "INVALID_REQUEST");
     case "not-found": return failure(404, "NOT_FOUND");
     case "conflict": return failure(409, "CONFLICT");
+    case "duplicate-name": return failure(409, "DUPLICATE_NAME");
     case "too-large": return iofResultListExportAdminFailure(413, "TOO_LARGE");
     default: return failure(500, "INTERNAL_ERROR");
   }

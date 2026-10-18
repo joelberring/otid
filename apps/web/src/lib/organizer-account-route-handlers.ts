@@ -127,6 +127,8 @@ export async function organizerSessionStatusRoute(
   if (!await hasNoOrganizerRequestBody(request)) return organizerFailure(400, "INVALID_REQUEST");
   try {
     const result = await authenticate(db, organizerSessionProof(request, configured.value, false));
+    // Frågan "är jag inloggad?" är ett normalt svar, inte ett fel: inget 401 i webbläsarens konsol (PLAN.md steg 22).
+    if (result.status === "unauthorized") return organizerJson(organizerAccountSessionStatusSchema.parse({ formatVersion: 1, authenticated: false }));
     if (result.status !== "authenticated") return authenticationFailure(result.status);
     return organizerJson(organizerAccountSessionStatusSchema.parse({
       formatVersion: 1, accountId: result.principal.accountId, email: result.principal.email,

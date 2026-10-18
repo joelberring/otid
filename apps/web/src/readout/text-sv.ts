@@ -26,6 +26,10 @@ export const readoutText = {
   serialUnsupported: "Den här webbläsaren kan inte ansluta USB-stationer. Använd Chrome eller Edge på dator.",
   serialFailed: "Stationen svarade inte. Kontrollera kabeln och att stationen är i avläsningsläge.",
   misconfiguredHelp: "Ställ stationen i läget avläsning (Readout) med utökat protokoll och anslut igen.",
+  // Stationens klocka (PLAN.md steg 22).
+  clockSkew: (minutes: number) => `Stationens klocka avviker ${Math.abs(minutes)} min från datorn (${minutes > 0 ? "går före" : "går efter"}). Stämplingstiderna räknas mot stationens klocka. Kontrollera att kontrollenheterna och stationen är tidsynkade.`,
+  clockMissing: "Stationen svarade inte på klockfrågan. Stämplingstiderna räknas mot datorns klocka.",
+  timeUnresolvable: (detail: string) => `Brickans tider går inte att tolka (${detail}). Avläsningen sparades inte; råtrafiken finns i råloggen.`,
   waitingForCard: "Sätt i brickan",
   reading: (card: number) => `Läser bricka ${card} …`,
   readFailed: (card: number) => `Bricka ${card} lästes inte färdigt. Sätt i den igen.`,

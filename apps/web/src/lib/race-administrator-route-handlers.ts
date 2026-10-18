@@ -1,5 +1,5 @@
 import type { Database } from "@o-tid/database";
-import { raceAdministratorLoginResponseSchema, raceSettingsRequestSchema, raceSettingsResponseSchema } from "@o-tid/contracts";
+import { raceAdministratorLoginResponseSchema, raceAdministratorSessionAbsentSchema, raceSettingsRequestSchema, raceSettingsResponseSchema } from "@o-tid/contracts";
 import { clearEntryClassAdminCookies, entryClassAdminFailure as failure, entryClassAdminJson as json,
   entryClassAdminSecurityPolicy, entryClassAdminSessionProof, hasExpectedEntryClassAdminOrigin,
   hasNoEntryClassAdminRequestBody, privateEntryClassAdminHeaders } from "./entry-class-admin-security";
@@ -69,6 +69,10 @@ export async function raceAdministratorRoute(db: Database, request: Request, rac
     // Rollen kontrolleras innan en ändring tolkas eller deltagardata läses. Funktionären får 403 för allt annat.
     const auth = await requireRaceRole(dependencies.authenticate, db, { ...proof, raceId, write },
       raceRoleFor(action.kind, request.method));
+    // Frågan "har jag en session?" utan session är ett normalt svar, inte ett fel i webbläsarens konsol (PLAN.md steg 22).
+    if (action.kind === "session" && auth.status === "unauthorized") {
+      return json(raceAdministratorSessionAbsentSchema.parse({ formatVersion: 1, raceId, authenticated: false }));
+    }
     if (auth.status !== "authenticated") return resultFailure(auth.status);
     if (action.kind === "session") return json(raceAdministratorLoginResponseSchema.parse({
       formatVersion: 1, raceId, capability: auth.principal.capability, expiresAt: auth.principal.expiresAt }));

@@ -13,6 +13,7 @@ import { lockRaceForMutation } from "./concurrency";
 import { loadCourseVersionVariants } from "./course-variants";
 import { loadRelayClassConfigs } from "./relay-model";
 import { synchronizeRelayClass, synchronizeRelayTeams } from "./relay-sync";
+import { classNameTaken } from "./duplicate-names";
 
 /**
  * Stafettens administration (ADR-0169 beslut 3): ny stafettklass, nytt lag, byt sträcklöpare
@@ -23,7 +24,7 @@ import { synchronizeRelayClass, synchronizeRelayTeams } from "./relay-sync";
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 type Authentication = Omit<PairingAdminRequestAuthentication, "capability">;
 type Kind = "CLASS" | "TEAM" | "LEG_RUNNER" | "START_TIMES";
-type Failure = { status: "unauthorized" | "forbidden" | "invalid-request" | "not-found" | "conflict" };
+type Failure = { status: "unauthorized" | "forbidden" | "invalid-request" | "not-found" | "conflict" | "duplicate-name" };
 const capability = "MANAGE_RACE" as const;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const MAX_VERSION = 2_147_483_647;
@@ -102,9 +103,7 @@ export async function createRelayClassAsAdministrator(db: Database, input: Authe
     if (intent.legs.some(leg => leg.variantCode !== null && !variants.some(variant => variant.code === leg.variantCode))) {
       return { status: "invalid-request" };
     }
-    const [duplicate] = await tx.select({ id: schema.classes.id }).from(schema.classes)
-      .where(and(eq(schema.classes.raceId, raceId), sql`lower(${schema.classes.name}) = lower(${intent.name})`)).limit(1);
-    if (duplicate) return { status: "conflict" };
+    if (await classNameTaken(tx, raceId, intent.name)) return { status: "duplicate-name" };
     const [raceClass] = await tx.insert(schema.classes).values({ raceId, name: intent.name, courseVersionId: version.id,
       startRule: "FIXED" }).returning({ id: schema.classes.id });
     if (!raceClass) throw new Error("Stafettklassen kunde inte skapas");

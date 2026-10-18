@@ -1,6 +1,7 @@
-import { BLOCK_SIZE, Command, MASTER_DIRECT, READ_ALL_BLOCKS, StationMode, SystemOffset } from "./constants";
+import { BLOCK_SIZE, Command, MASTER_DIRECT, NAK, READ_ALL_BLOCKS, StationMode, SystemOffset } from "./constants";
 import { CARD_LAYOUTS, expectedImageSize, type FieldLayout, type SiCardType } from "./card-types";
 import { encodeStationFrame, FrameDecoder } from "./frame";
+import { encodeStationClock, stationClockFromDate, type StationClock } from "./time";
 
 /** Lokal väggklocka för en stämpling på den falska brickan. */
 export interface SimulatedTime {
@@ -91,6 +92,11 @@ export interface FakeStationOptions {
   readonly mode?: number;
   readonly extendedProtocol?: boolean;
   readonly handshake?: boolean;
+  /**
+   * Stationens klocka vid GET_TIME. Standard: datorns klocka i UTC. `null`
+   * betyder att stationen svarar NAK (äldre station utan klockfråga).
+   */
+  readonly clock?: (() => { clock: StationClock; dayOfWeek: number }) | null;
 }
 
 /**
@@ -108,7 +114,8 @@ export class FakeSiStation {
       serialNumber: options.serialNumber ?? 123_456,
       mode: options.mode ?? StationMode.READOUT,
       extendedProtocol: options.extendedProtocol ?? true,
-      handshake: options.handshake ?? true
+      handshake: options.handshake ?? true,
+      clock: options.clock === undefined ? () => stationClockFromDate(new Date(), "UTC") : options.clock
     };
   }
 
@@ -184,6 +191,12 @@ export class FakeSiStation {
         sys[SystemOffset.STATION_CODE] = this.#options.stationCode & 0xff;
         sys[SystemOffset.PROTOCOL] = (this.#options.extendedProtocol ? 0b001 : 0) | (this.#options.handshake ? 0b100 : 0);
         return [this.#frame(Command.GET_SYSTEM_VALUE, [params[0] ?? 0, ...sys])];
+      }
+      case Command.GET_TIME: {
+        const clock = this.#options.clock;
+        if (clock === null) return [Uint8Array.of(NAK)];
+        const now = clock();
+        return [this.#frame(Command.GET_TIME, encodeStationClock(now.clock, now.dayOfWeek))];
       }
     }
     const card = this.#card;

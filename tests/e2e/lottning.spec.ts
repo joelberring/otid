@@ -1,19 +1,33 @@
 import { expect, test } from "@playwright/test";
 import { addCourseAndClass, addEntry, createRace, openStep, publishRace, registerAccount, unique } from "./helpers";
 
+/** Tävlingsdagen i tävlingens tidszon, 30 dagar fram: tävlingen är inte igång när testet körs. */
+const raceDate = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Stockholm", year: "numeric", month: "2-digit", day: "2-digit" })
+  .format(new Date(Date.now() + 30 * 86_400_000));
+
 /**
  * PLAN.md steg 9: tre klasser lottas på en gång (H21 och D21 har samma första kontroll),
  * förhandsvisningen ser ut som startlistan med vakanta tider, startlistan publiceras med
  * tiderna och en efteranmäld får den vakanta tiden utan att arrangören väljer tid.
+ * PLAN.md steg 22: tävlingen ligger en månad fram; dubbelt klassnamn avvisas, ingen är kvar i
+ * skogen före tävlingsdagen och övningsstationen läser den efteranmälde som godkänd mot hens fasta start.
  */
 test("lotta tre klasser, publicera startlistan och placera en efteranmäld på vakant tid", async ({ browser }) => {
   test.setTimeout(300_000);
   const suffix = unique();
   const owner = await registerAccount(browser, `lotta.${suffix}@exempel.se`, "Lo Lottare");
-  const raceId = await createRace(owner, `Lottning ${suffix}`);
+  const raceId = await createRace(owner, `Lottning ${suffix}`, raceDate);
   // Besökarna ska se tävlingen (ADR-0172 beslut 4).
   await publishRace(owner);
   await addCourseAndClass(owner, "Lång", "H21", "31 32 33");
+  // Dubbelt klassnamn avvisas med ett begripligt besked (PLAN.md steg 22).
+  const courseForm = owner.locator("form").filter({ has: owner.getByRole("button", { name: "Spara bana och klass" }) });
+  if (!await courseForm.isVisible()) await owner.getByText("Förbered bana och klass").click();
+  await courseForm.getByLabel("Bannamn").fill("Lång igen");
+  await courseForm.getByLabel("Klassnamn").fill("h21");
+  await courseForm.getByLabel("Kontrollföljd").fill("31 32");
+  await courseForm.getByRole("button", { name: "Spara bana och klass" }).click();
+  await expect(owner.getByText("Det finns redan en bana som heter Lång igen eller en klass som heter h21 i tävlingen.")).toBeVisible();
   await addCourseAndClass(owner, "Mellan", "D21", "31 34 33");
   await addCourseAndClass(owner, "Kort", "H16", "45 33");
   const clubs = ["OK Ek", "OK Ek", "IFK Lidingö", "Tullinge SK"];
@@ -77,4 +91,23 @@ test("lotta tre klasser, publicera startlistan och placera en efteranmäld på v
   await expect(owner.getByText("Deltagaren är anmäld.")).toBeVisible();
   await openStep(owner, "Start");
   await expect(owner.getByRole("row", { name: /Sen Anmäld/ })).toContainText(vacantH21.slice(0, 5));
+
+  // Före tävlingsdagen är ingen kvar i skogen, varken i toppbalken eller i kontrollvyn (PLAN.md steg 22).
+  await expect(owner.getByText("0 kvar i skogen")).toBeVisible();
+  await openStep(owner, "Avläsning");
+  await expect(owner.getByTestId("in-forest-count")).toHaveText("0");
+  await expect(owner.getByTestId("in-forest-not-started")).toBeVisible();
+
+  // Övningsstationen på en kommande tävling: den efteranmälde läses mot sin fasta starttid och blir godkänd.
+  await owner.goto(`/admin/${raceId}/readout`);
+  await owner.waitForURL(`**/readout/index.html#${raceId}`);
+  await expect(owner.getByTestId("package-status")).toContainText("v");
+  await owner.getByRole("button", { name: "Starta övningsstation" }).click();
+  await expect(owner.getByTestId("station-status")).toContainText("Övningsstation");
+  await owner.getByLabel("Deltagare").selectOption({ label: `Sen Anmäld · H21 · ${card - 1}` });
+  await owner.getByRole("button", { name: "Läs av: rätt stämplat" }).click();
+  await expect(owner.getByTestId("verdict")).toContainText("GODKÄND");
+  await expect(owner.getByTestId("verdict")).toContainText("Sen Anmäld");
+  await expect(owner.getByTestId("verdict")).toContainText("30:00");
+  await expect(owner.getByTestId("verdict")).toContainText("Bekräftad av servern.");
 });

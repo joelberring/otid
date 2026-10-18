@@ -12,6 +12,7 @@ import {
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
 import { loadRaceSnapshot } from "./snapshot";
 import { assessReadOutEntries, recalculateAssessedEntries, summarizeAssessment, type AssessedEntry } from "./result-reassessment";
+import { classNameTaken } from "./duplicate-names";
 
 /**
  * Redigera klass (ADR-0169 beslut 4): klassnamn, bana och startsätt ändras i
@@ -100,7 +101,7 @@ export async function previewClassEditAsAdministrator(db: Database, input: Authe
 }
 
 export type ClassEditResult =
-  | { status: "unauthorized" | "forbidden" | "invalid-request" | "not-found" | "conflict" | "too-large" }
+  | { status: "unauthorized" | "forbidden" | "invalid-request" | "not-found" | "conflict" | "too-large" | "duplicate-name" }
   | { status: "confirmation-required"; preview: ClassEditPreviewResponse }
   | { status: "edited"; response: ClassEditResponse };
 
@@ -141,6 +142,7 @@ export async function editClassAsAdministrator(db: Database, input: Authenticati
     const startRuleChanged = raceClass.startRule !== intent.startRule;
     if ((!renamed && !moved && !startRuleChanged) || (raceClass.relay && startRuleChanged)) return { status: "invalid-request" };
     if (renamed && (raceClass.externalSource !== null || raceClass.externalId !== null)) return { status: "conflict" };
+    if (renamed && await classNameTaken(tx, raceId, intent.className, raceClass.id)) return { status: "duplicate-name" };
 
     const entries = await tx.select({ id: schema.entries.id, version: schema.entries.version, fixedStartTime: schema.entries.fixedStartTime,
       exactTime: sql<boolean>`${schema.entries.fixedStartTime} IS NULL OR date_trunc('milliseconds',${schema.entries.fixedStartTime}) = ${schema.entries.fixedStartTime}`

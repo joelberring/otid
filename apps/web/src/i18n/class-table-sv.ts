@@ -29,6 +29,7 @@ export const classTableSv = {
   previewError: "Det gick inte att visa vad som händer. Försök igen.",
   conflict: "Tävlingen har ändrats under tiden. Klasserna är inlästa igen; visa vad som händer en gång till.",
   rejected: "Ändringen kunde inte sparas. Kontrollera uppgifterna och försök igen.",
+  duplicateName: (name: string) => `Det finns redan en klass som heter ${name} i tävlingen. Välj ett annat namn.`,
   unknown: "Kunde inte nå servern. Försök igen.",
   saved: (count: number) => count === 0 ? "Klassen är ändrad." : `Klassen är ändrad. ${count} resultat räknades om.`,
   savedLoadError: "Klassen är ändrad, men listan kunde inte uppdateras. Läs in klasserna igen."

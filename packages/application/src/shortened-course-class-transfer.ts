@@ -143,7 +143,7 @@ export async function previewShortenedCourseClassTransferAsAdministrator(
 }
 
 export type ShortenedCourseClassTransferResult =
-  | { status: "unauthorized" | "forbidden" | "invalid-request" | "not-found" | "too-large" | "conflict" }
+  | { status: "unauthorized" | "forbidden" | "invalid-request" | "not-found" | "too-large" | "conflict" | "duplicate-name" }
   | { status: "transferred"; response: ShortenedCourseClassTransferReceipt };
 
 export async function transferShortenedCourseClassAsAdministrator(
@@ -190,7 +190,7 @@ export async function transferShortenedCourseClassAsAdministrator(
       tx.select({ id: schema.courses.id }).from(schema.courses).where(and(eq(schema.courses.raceId, race.id), eq(schema.courses.name, intent.shortCourseName))).limit(1),
       tx.select({ id: schema.classes.id }).from(schema.classes).where(and(eq(schema.classes.raceId, race.id), eq(schema.classes.name, intent.shortClassName))).limit(1)
     ]);
-    if (sameCourseName.length > 0 || sameClassName.length > 0) return { status: "conflict" };
+    if (sameCourseName.length > 0 || sameClassName.length > 0) return { status: "duplicate-name" };
     for (const selectedEntry of selected) {
       const entry = selectedEntry!;
       const [locked] = await tx.select({ row: schema.entries,

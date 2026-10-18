@@ -2,6 +2,7 @@ import { ACK, Command, MASTER_DIRECT, StationMode, SystemOffset } from "./consta
 import { cardReadPlan, cardTypeFromSi8PlusNumber, decodeCardNumber, type SiCardType } from "./card-types";
 import { cardImageFromResponses, CardDecodeError, decodeCard, type SiCardData } from "./decode";
 import { encodeCommand, FrameDecoder, type SiFrame } from "./frame";
+import { decodeStationClock, type StationClock } from "./time";
 
 export interface StationInfo {
   readonly serialNumber: number;
@@ -9,6 +10,11 @@ export interface StationInfo {
   readonly mode: number;
   readonly extendedProtocol: boolean;
   readonly handshake: boolean;
+  /**
+   * Stationens klocka vid handskakningen (GET_TIME). Saknas när stationen
+   * inte svarade på frågan; då får värden använda datorns klocka.
+   */
+  readonly clock?: StationClock;
 }
 
 export type ReadoutEvent =
@@ -51,6 +57,7 @@ type State =
   | { readonly name: "idle" }
   | { readonly name: "set-master" }
   | { readonly name: "get-config" }
+  | { readonly name: "get-time"; readonly station: StationInfo }
   | { readonly name: "waiting"; readonly station: StationInfo }
   | { readonly name: "reading"; readonly station: StationInfo; readonly reading: Reading };
 
@@ -58,22 +65,30 @@ type State =
  * Tillståndsmaskin för en avläsningsstation (BSM7/BSM8/SI-USB i läget
  * "Readout" med utökat protokoll). Den gör ingen I/O: värden skickar in
  * mottagna bytes och tidsgränser och skriver ut `send`-bytes.
+ *
+ * Handskakning: SET_MASTER_SLAVE → GET_SYSTEM_VALUE → GET_TIME. En bricka som
+ * redan sitter i stationen (eller sätts i under handskakningen) ger en
+ * detekteringsram innan sessionen väntar på brickor; den sparas och läses så
+ * snart handskakningen är klar.
  */
 export class ReadoutSession {
   readonly #decoder = new FrameDecoder();
   #state: State = { name: "idle" };
+  /** Senaste detekteringsram som kom under handskakningen. */
+  #earlyCard: SiFrame | undefined;
 
   /** Startar handskakningen: direktläge och läsning av stationens inställningar. */
   start(): SessionOutput {
     this.#decoder.flush();
     this.#state = { name: "set-master" };
+    this.#earlyCard = undefined;
     return { send: [encodeCommand(Command.SET_MASTER_SLAVE, [MASTER_DIRECT])], events: [] };
   }
 
   /** Sant när sessionen väntar på svar och värden bör ha en tidsgräns igång. */
   get expectsResponse(): boolean {
     const name = this.#state.name;
-    return name === "set-master" || name === "get-config" || name === "reading";
+    return name === "set-master" || name === "get-config" || name === "get-time" || name === "reading";
   }
 
   get station(): StationInfo | undefined {
@@ -86,7 +101,7 @@ export class ReadoutSession {
     const events: ReadoutEvent[] = [];
     for (const event of this.#decoder.push(chunk)) {
       if (event.kind === "frame") this.#onFrame(event.frame, send, events);
-      else if (event.kind === "nak") this.#onNak(events);
+      else if (event.kind === "nak") this.#onNak(send, events);
       else if (event.kind === "error") events.push({ type: "frame-error", reason: event.reason });
     }
     return { send, events };
@@ -94,6 +109,7 @@ export class ReadoutSession {
 
   /** Värdens tidsgräns löpte ut utan svar. */
   timeout(): SessionOutput {
+    const send: Uint8Array[] = [];
     const events: ReadoutEvent[] = [];
     for (const event of this.#decoder.flush()) {
       if (event.kind === "error") events.push({ type: "frame-error", reason: event.reason });
@@ -102,14 +118,17 @@ export class ReadoutSession {
     if (state.name === "set-master" || state.name === "get-config") {
       this.#state = { name: "idle" };
       events.push({ type: "no-response" });
+    } else if (state.name === "get-time") {
+      // Stationen svarade inte på GET_TIME: fortsätt utan stationsklocka.
+      this.#ready(state.station, send, events);
     } else if (state.name === "reading") {
       this.#state = { name: "waiting", station: state.station };
       events.push({ type: "read-failed", cardNumber: state.reading.cardNumber, reason: "timeout", frames: state.reading.frames });
     }
-    return { send: [], events };
+    return { send, events };
   }
 
-  #onNak(events: ReadoutEvent[]): void {
+  #onNak(send: Uint8Array[], events: ReadoutEvent[]): void {
     const state = this.#state;
     if (state.name === "reading") {
       this.#state = { name: "waiting", station: state.station };
@@ -117,7 +136,28 @@ export class ReadoutSession {
     } else if (state.name === "set-master" || state.name === "get-config") {
       this.#state = { name: "idle" };
       events.push({ type: "no-response" });
+    } else if (state.name === "get-time") {
+      // Stationen kan inte svara på GET_TIME: fortsätt utan stationsklocka.
+      this.#ready(state.station, send, events);
     }
+  }
+
+  /** Handskakningen är klar: rapportera stationen och läs en bricka som satt i under tiden. */
+  #ready(station: StationInfo, send: Uint8Array[], events: ReadoutEvent[]): void {
+    const problems: ("not-extended-protocol" | "not-readout-mode")[] = [];
+    if (!station.extendedProtocol) problems.push("not-extended-protocol");
+    if (station.mode !== StationMode.READOUT) problems.push("not-readout-mode");
+    this.#state = { name: "waiting", station };
+    events.push(problems.length === 0 ? { type: "station-ready", station } : { type: "station-misconfigured", station, problems });
+    const early = this.#earlyCard;
+    this.#earlyCard = undefined;
+    if (early) this.#onWaitingFrame(station, early, send, events);
+  }
+
+  /** Under handskakningen: kom ihåg en bricka som sätts i (eller redan sitter i) tills stationen är redo. */
+  #rememberEarlyCard(frame: SiFrame): void {
+    if (frame.command === Command.CARD_REMOVED) this.#earlyCard = undefined;
+    else if (detectCard(frame)) this.#earlyCard = frame;
   }
 
   #onFrame(frame: SiFrame, send: Uint8Array[], events: ReadoutEvent[]): void {
@@ -129,16 +169,18 @@ export class ReadoutSession {
         if (frame.command === Command.SET_MASTER_SLAVE) {
           this.#state = { name: "get-config" };
           send.push(encodeCommand(Command.GET_SYSTEM_VALUE, [0x00, 0x80]));
-        }
+        } else this.#rememberEarlyCard(frame);
         return;
       case "get-config": {
-        if (frame.command !== Command.GET_SYSTEM_VALUE) return;
-        const station = parseSystemValues(frame);
-        const problems: ("not-extended-protocol" | "not-readout-mode")[] = [];
-        if (!station.extendedProtocol) problems.push("not-extended-protocol");
-        if (station.mode !== StationMode.READOUT) problems.push("not-readout-mode");
-        this.#state = { name: "waiting", station };
-        events.push(problems.length === 0 ? { type: "station-ready", station } : { type: "station-misconfigured", station, problems });
+        if (frame.command !== Command.GET_SYSTEM_VALUE) { this.#rememberEarlyCard(frame); return; }
+        this.#state = { name: "get-time", station: parseSystemValues(frame) };
+        send.push(encodeCommand(Command.GET_TIME));
+        return;
+      }
+      case "get-time": {
+        if (frame.command !== Command.GET_TIME) { this.#rememberEarlyCard(frame); return; }
+        const clock = decodeStationClock(frame.data);
+        this.#ready(clock ? { ...state.station, clock } : state.station, send, events);
         return;
       }
       case "waiting":

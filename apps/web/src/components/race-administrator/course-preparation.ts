@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { manualCourseClassCreateResponseSchema } from "@o-tid/contracts";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
+import { isDuplicateName } from "../../lib/duplicate-name";
 import { rogainingSv } from "../../i18n/rogaining-sv";
 import { parseControlCodes, type CourseClassAttempt, type CourseClassRequest } from "./types";
 import type { Base } from "./workspace-state";
@@ -63,8 +64,10 @@ export function createCoursePreparationActions(ws: Base & RaceDataActions) {
         headers: { "content-type": "application/json", "x-otid-csrf": token, "idempotency-key": `manual-course-class-create:${value.request.requestId}` },
         body: JSON.stringify(value.request) });
       if ([400, 409].includes(response.status)) {
+        const duplicate = await isDuplicateName(response);
         pending.current = undefined; sent.current = false; setCourseClassAttempt(undefined);
-        setCourseClassError(text.courseClassRejected); return;
+        setCourseClassError(duplicate ? text.duplicateCourseOrClassName(value.request.courseName, value.request.className) : text.courseClassRejected);
+        return;
       }
       if (!response.ok) throw new Error("Course class unavailable");
       const receipt = manualCourseClassCreateResponseSchema.parse(await json(response, op));

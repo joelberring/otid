@@ -6,6 +6,7 @@ import { sourcesSv } from "../../i18n/sources-sv";
 import { Button, Field, Notice, Section } from "../ui";
 import styles from "./sources.module.css";
 import { sourceTime } from "./eventor-section";
+import { importIssues } from "../../lib/import-issues";
 import { SourceReviewPanel } from "./source-review";
 import { useSourceReview, type Message } from "./source-sync-actions";
 import type { Workspace } from "./workspace-state";
@@ -49,7 +50,8 @@ export function CourseFileSection({ ws }: { ws: Workspace }) {
     try {
       const response = await request("/course-file/preview", op, { method: "POST", headers: { "content-type": IOF_IMPORT_CONTENT_TYPE,
         "x-otid-csrf": csrf(), "x-otid-file-name": encodeURIComponent(chosen.name.slice(0, 200)) }, body: await chosen.arrayBuffer() });
-      if (response.status === 422 || response.status === 400) { setMessage({ tone: "error", text: text.invalid }); return; }
+      if (response.status === 422) { setMessage({ tone: "error", text: `${text.invalid} ${await importIssues(response, "")}`.trim() }); return; }
+      if (response.status === 400) { setMessage({ tone: "error", text: text.invalid }); return; }
       if (!response.ok) throw new Error("Preview failed");
       review.show(syncPreviewResponseSchema.parse(await json(response, op)));
     } catch { if (current(op)) setMessage({ tone: "error", text: text.failed }); }

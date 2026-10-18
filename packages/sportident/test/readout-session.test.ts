@@ -1,12 +1,19 @@
 import { describe, expect, it } from "vitest";
 import {
   ACK,
+  Command,
+  encodeStationClock,
+  encodeStationFrame,
   FakeSiStation,
   ReadoutSession,
   StationMode,
   type ReadoutEvent,
-  type SimulatedCard
+  type SimulatedCard,
+  type StationClock
 } from "../src";
+
+const CLOCK: StationClock = { year: 2026, month: 10, day: 3, secondsOfDay: 10 * 3600 + 31 * 60 + 5, milliseconds: 500 };
+const clock = () => ({ clock: CLOCK, dayOfWeek: SAT });
 
 const SAT = 6;
 const at = (h: number, m: number, s = 0) => ({ secondsOfDay: h * 3600 + m * 60 + s, dayOfWeek: SAT });
@@ -53,15 +60,17 @@ function wire(station: FakeSiStation, chunkSize = Infinity) {
 
 describe("ReadoutSession", () => {
   it("handskakar, läser en SIAC och kvitterar", () => {
-    const station = new FakeSiStation({ stationCode: 10, serialNumber: 501_234 });
+    const station = new FakeSiStation({ stationCode: 10, serialNumber: 501_234, clock });
     const w = wire(station);
     w.start();
     expect(w.events).toEqual([
       {
         type: "station-ready",
-        station: { serialNumber: 501_234, stationCode: 10, mode: StationMode.READOUT, extendedProtocol: true, handshake: true }
+        station: { serialNumber: 501_234, stationCode: 10, mode: StationMode.READOUT, extendedProtocol: true, handshake: true, clock: CLOCK }
       }
     ]);
+    // Handskakningen frågar efter stationens klocka (GET_TIME) sist.
+    expect(w.written.slice(0, 3).map((bytes) => bytes[2])).toEqual([Command.SET_MASTER_SLAVE, Command.GET_SYSTEM_VALUE, Command.GET_TIME]);
     w.deliver(station.insert(siac));
     const read = w.events.find((e) => e.type === "card-read");
     expect(read?.type === "card-read" && read.card).toMatchObject({ cardType: "SIAC", cardNumber: 8_001_234 });
@@ -119,12 +128,14 @@ describe("ReadoutSession", () => {
     const station = new FakeSiStation();
     const session = new ReadoutSession();
     const events: ReadoutEvent[] = [];
-    for (const command of session.start().send) {
-      for (const reply of station.receive(command)) {
+    const pump = (bytes: readonly Uint8Array[]): void => {
+      for (const command of bytes) for (const reply of station.receive(command)) {
         const output = session.receive(reply);
-        for (const next of output.send) for (const r of station.receive(next)) events.push(...session.receive(r).events);
+        events.push(...output.events);
+        pump(output.send);
       }
-    }
+    };
+    pump(session.start().send);
     // Detektering, men stationen hinner inte svara innan brickan tas ur.
     const [detection] = station.insert(siac);
     events.push(...session.receive(detection!).events);
@@ -153,6 +164,95 @@ describe("ReadoutSession", () => {
     expect(session.expectsResponse).toBe(true);
     expect(session.timeout().events).toEqual([{ type: "no-response" }]);
     expect(session.expectsResponse).toBe(false);
+  });
+
+  // PLAN.md steg 22: stationens klocka och brickor som sitter i före handskakningen.
+  it("fortsätter utan stationsklocka när stationen svarar NAK eller inte alls på GET_TIME", () => {
+    const naks = new FakeSiStation({ clock: null });
+    const w = wire(naks);
+    w.start();
+    expect(w.events).toEqual([expect.objectContaining({ type: "station-ready" })]);
+    expect("clock" in (w.events[0] as { station: object }).station).toBe(false);
+    w.deliver(naks.insert(siac));
+    expect(w.events.some((e) => e.type === "card-read")).toBe(true);
+
+    const silent = new ReadoutSession();
+    const station = new FakeSiStation();
+    let output = silent.start();
+    for (let round = 0; round < 2; round += 1) {
+      const [command] = output.send;
+      output = silent.receive(station.receive(command!)[0]!);
+    }
+    // GET_TIME är skickat men inget svar kommer.
+    expect(output.send[0]?.[2]).toBe(Command.GET_TIME);
+    expect(silent.expectsResponse).toBe(true);
+    const timedOut = silent.timeout();
+    expect(timedOut.events).toEqual([expect.objectContaining({ type: "station-ready" })]);
+    expect(silent.station?.clock).toBeUndefined();
+    expect(silent.expectsResponse).toBe(false);
+  });
+
+  it("tolkar GET_TIME byte för byte och förkastar fel kontrollsumma", () => {
+    const station = new FakeSiStation({ clock });
+    const w = wire(station, 1);
+    w.start();
+    expect(w.session.station?.clock).toEqual(CLOCK);
+
+    // Samma svar med förstörd kontrollsumma: ramen kastas, stationen svarar inte och tidsgränsen löper ut.
+    const broken = new ReadoutSession();
+    let output = broken.start();
+    for (let round = 0; round < 2; round += 1) output = broken.receive(station.receive(output.send[0]!)[0]!);
+    const reply = encodeStationFrame(Command.GET_TIME, 10, encodeStationClock(CLOCK, SAT));
+    reply[reply.length - 2] = (reply[reply.length - 2]! ^ 0xff) & 0xff;
+    const bad = broken.receive(reply);
+    expect(bad.events).toEqual([expect.objectContaining({ type: "frame-error", reason: "crc" })]);
+    expect(broken.expectsResponse).toBe(true);
+    expect(broken.timeout().events).toEqual([expect.objectContaining({ type: "station-ready" })]);
+    expect(broken.station?.clock).toBeUndefined();
+
+    // Ett för kort GET_TIME-svar ger en station utan klocka.
+    const short = new ReadoutSession();
+    output = short.start();
+    for (let round = 0; round < 2; round += 1) output = short.receive(station.receive(output.send[0]!)[0]!);
+    expect(short.receive(encodeStationFrame(Command.GET_TIME, 10, [26, 10, 3])).events)
+      .toEqual([expect.objectContaining({ type: "station-ready" })]);
+    expect(short.station?.clock).toBeUndefined();
+  });
+
+  it("läser en bricka som sitter i stationen när handskakningen börjar", () => {
+    const station = new FakeSiStation();
+    const session = new ReadoutSession();
+    const events: ReadoutEvent[] = [];
+    const [detection] = station.insert(siac);
+    // Detekteringsramen kommer innan stationen har svarat på SET_MASTER_SLAVE.
+    const output = session.start();
+    events.push(...session.receive(detection!).events);
+    expect(events).toEqual([]);
+    const pump = (bytes: readonly Uint8Array[]): void => {
+      for (const command of bytes) for (const reply of station.receive(command)) {
+        const next = session.receive(reply);
+        events.push(...next.events);
+        pump(next.send);
+      }
+    };
+    pump(output.send);
+    expect(events.map((e) => e.type)).toEqual(["station-ready", "card-inserted", "card-read"]);
+
+    // Togs brickan ur innan handskakningen var klar läses inget.
+    const removedStation = new FakeSiStation();
+    const removedSession = new ReadoutSession();
+    const removedEvents: ReadoutEvent[] = [];
+    const start = removedSession.start();
+    removedEvents.push(...removedSession.receive(removedStation.insert(siac)[0]!).events);
+    removedEvents.push(...removedSession.receive(removedStation.remove()).events);
+    let pendingSend = start.send;
+    while (pendingSend.length > 0) {
+      const [command] = pendingSend;
+      const next = removedSession.receive(removedStation.receive(command!)[0]!);
+      removedEvents.push(...next.events);
+      pendingSend = next.send;
+    }
+    expect(removedEvents.map((e) => e.type)).toEqual(["station-ready"]);
   });
 
   it("rapporterar okänd bricktyp", () => {

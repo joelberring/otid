@@ -15,7 +15,7 @@ function facts(ws: Workspace): SectionFacts | undefined {
   if (!data) return undefined;
   return checklistFacts(data, {
     courseCount: courseList && courseList.snapshotVersion >= data.snapshotVersion ? courseList.courses.length : undefined,
-    inForest: forestData ? inForest(forestData.entries).length : undefined,
+    inForest: forestData ? inForest(forestData.entries, forestData).length : undefined,
     unknownCards: unknownReadoutCandidate?.readouts.length
   });
 }

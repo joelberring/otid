@@ -30,6 +30,23 @@ describe("speakersidan", () => {
     const board = { rows: [row("Anna", "H21", "2026-10-08T16:01:00.000Z", "OK"), row("Eva", "D21", "2026-10-08T16:03:00.000Z", "MP")] } as unknown as SpeakerBoardResponse;
     expect(latestFinishers(board, results).map(row => [row.givenName, row.position])).toEqual([["Eva", undefined], ["Anna", 1]]);
     expect(latestFinishers(board, undefined)[1]!.position).toBeUndefined();
+    // Ej start, brutit och manuella beslut utan måltid är inga målgångar (PLAN.md steg 22); utan mål heller inte.
+    const decided = (givenName: string, result: Record<string, unknown>) => ({ ...row(givenName, "H21", "2026-10-08T16:05:00.000Z", "OK"), result });
+    const mixed = { rows: [...board.rows,
+      decided("Dns", { revision: 1, status: "DNS", reason: "DID_NOT_START" }),
+      decided("Dnf", { revision: 1, status: "DNF", reason: "DID_NOT_FINISH" }),
+      decided("Utanmål", { revision: 1, status: "MP", reason: "MISSING_FINISH" }),
+      decided("Disk", { revision: 1, status: "DSQ", reason: "MANUAL_DISQUALIFICATION" }),
+      decided("DiskMedTid", { revision: 1, status: "DSQ", reason: "MANUAL_DISQUALIFICATION", elapsedMs: 70_000 })] } as unknown as SpeakerBoardResponse;
+    expect(latestFinishers(mixed, results).map(row => row.givenName)).toEqual(["DiskMedTid", "Eva", "Anna"]);
+  });
+
+  it("räknar ingen som kvar i skogen före tävlingsdagen", () => {
+    const entry = (displayName: string, className: string, forestState: string) => ({ displayName, className, forestState });
+    const forest = { raceDate: "2026-10-10", timeZone: "Europe/Stockholm", entries: [entry("Ö", "H21", "UNCONFIRMED")] } as unknown as AdministratorForestWatchResponse;
+    expect(forestByClass(forest, new Date("2026-10-09T21:59:00.000Z"))).toEqual([]);
+    expect(forestByClass(forest, new Date("2026-10-09T22:00:00.000Z")).map(row => row.className)).toEqual(["H21"]);
+    expect(forestByClass(forest, new Date("2026-10-12T10:00:00.000Z")).map(row => row.className)).toEqual(["H21"]);
   });
 
   it("grupperar kvar i skogen per klass", () => {

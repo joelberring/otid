@@ -2,7 +2,8 @@
 
 import React, { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { IOF_IMPORT_CONTENT_TYPE, raceAdministratorLoginResponseSchema } from "@o-tid/contracts";
+import { IOF_IMPORT_CONTENT_TYPE, raceAdministratorSessionStatusSchema } from "@o-tid/contracts";
+import { importIssues } from "../lib/import-issues";
 import { sv } from "../i18n/sv";
 import { courseVariantsSv as variantText } from "../i18n/course-variants-sv";
 import { relaySv as relayText } from "../i18n/relay-sv";
@@ -67,9 +68,14 @@ export function ImportAdmin({ raceId }: { raceId: string }) {
       return false;
     }
     if (!response.ok) throw new Error(`${sv.importSessionFailed} (${response.status})`);
-    const parsed = raceAdministratorLoginResponseSchema.safeParse(await responseJson(response));
+    const parsed = raceAdministratorSessionStatusSchema.safeParse(await responseJson(response));
     if (!parsed.success || parsed.data.raceId !== raceId) {
       throw new Error(sv.importInvalidResponse);
+    }
+    if ("authenticated" in parsed.data) {
+      setAuthenticated(false);
+      setMessage(sv.importLoginRequired);
+      return false;
     }
     // Funktionären har ingen import (ADR-0172 beslut 3); servern nekar den också.
     if (parsed.data.capability !== "MANAGE_RACE") {
@@ -116,6 +122,7 @@ export function ImportAdmin({ raceId }: { raceId: string }) {
       if (!response.ok) {
         commitMayBeUnknown = false;
         if (response.status === 401 || response.status === 403) setAuthenticated(false);
+        if (response.status === 422) throw new Error(`${sv.importRejected} ${await importIssues(response, sv.importInvalidXml)}`);
         const suffix = response.status === 401 || response.status === 403
           ? sv.importLoginAgain
           : sv.importRetrySameHelp;

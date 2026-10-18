@@ -37,7 +37,9 @@ export const organizerAccountLoginResponseSchema = z.object({
   expiresAt: instant
 }).strict();
 
-export const organizerAccountSessionStatusSchema = organizerAccountLoginResponseSchema;
+/** GET /api/organizer/session utan inloggning: 200 med `authenticated: false` i stället för 401 (PLAN.md steg 22). */
+export const organizerAccountSessionAbsentSchema = z.object({ formatVersion: z.literal(1), authenticated: z.literal(false) }).strict();
+export const organizerAccountSessionStatusSchema = z.union([organizerAccountLoginResponseSchema, organizerAccountSessionAbsentSchema]);
 
 export const organizerEventCreateIdempotencyKeySchema = z.string().regex(
   new RegExp(`^organizer-event-create:${canonicalUuidPattern}$`),

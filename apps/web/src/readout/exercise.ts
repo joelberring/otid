@@ -1,7 +1,7 @@
 import type { ReadoutPackage } from "@o-tid/contracts";
-import { entryCourseControls, type RaceSnapshot } from "@o-tid/domain";
+import { entryCourseControls, parseRaceClock, type RaceSnapshot } from "@o-tid/domain";
 import { cardTypeForNumber, simulatedRun, type SimulatedCard } from "@o-tid/sportident";
-import { relayPlace } from "./relay";
+import { relayExerciseWindow, relayPlace } from "./relay";
 import { readoutText as t } from "./text-sv";
 
 /** "late": rogaining, i mål 1:30 efter tidsgränsen (två påbörjade minuter). */
@@ -14,6 +14,8 @@ export interface ExerciseRunner {
   readonly controlCodes: readonly number[];
   /** Rogainingklass: tidsgränsen. */
   readonly timeLimitMs?: number;
+  /** Löparens fasta starttid (lottad eller satt), när klassen har fast start. */
+  readonly fixedStartTime?: string;
 }
 
 /** Deltagare med aktiv bricka och bana, som övningsstationen kan skapa brickor för. */
@@ -37,19 +39,48 @@ export function exerciseRunners(pkg: ReadoutPackage): ExerciseRunner[] {
         String(cardNumber)].join(" · "),
       cardNumber,
       controlCodes: course.controlCodes,
-      ...(raceClass.rogaining ? { timeLimitMs: raceClass.rogaining.timeLimitSeconds * 1_000 } : {})
+      ...(raceClass.rogaining ? { timeLimitMs: raceClass.rogaining.timeLimitSeconds * 1_000 } : {}),
+      ...(raceClass.startRule === "FIXED" && entry.fixedStartTime ? { fixedStartTime: entry.fixedStartTime } : {})
     });
   }
   return runners.sort((a, b) => a.label.localeCompare(b.label, "sv"));
 }
 
+export interface ExerciseWindow { readonly startAt: Date; readonly finishAt: Date }
+
+/** Loppets längd i övningen: 30 minuter; rogaining inom tidsgränsen (fyra femtedelar av en kortare gräns) eller 1:30 över. */
+function exerciseDuration(runner: Pick<ExerciseRunner, "timeLimitMs">, variant: ExerciseVariant): number {
+  if (runner.timeLimitMs === undefined) return 30 * 60_000;
+  return variant === "late" ? runner.timeLimitMs + 90_000 : Math.min(30 * 60_000, Math.floor(runner.timeLimitMs * 0.8));
+}
+
 /**
- * Rogaining: rätt stämplat går i mål inom tidsgränsen (30 minuter eller fyra femtedelar av en kortare gräns);
- * för sen går i mål 1:30 efter gränsen.
+ * "Nu" på tävlingsdagen: är tävlingen idag är det datorns klocka, annars samma klockslag på tävlingsdagen
+ * (i tävlingens tidszon). Övningen läses då som om det vore tävlingsdag.
  */
-export function rogainingExerciseWindow(timeLimitMs: number, variant: ExerciseVariant, now: Date): { startAt: Date; finishAt: Date } {
-  const finishAt = new Date(now.getTime() - 5_000);
-  const duration = variant === "late" ? timeLimitMs + 90_000 : Math.min(30 * 60_000, Math.floor(timeLimitMs * 0.8));
+export function exerciseAnchor(raceDate: string, timeZone: string, now: Date): Date {
+  const parts = new Intl.DateTimeFormat("sv-SE", { timeZone, year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }).formatToParts(now);
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((value) => value.type === type)?.value ?? "00";
+  if (`${part("year")}-${part("month")}-${part("day")}` === raceDate) return now;
+  const shifted = parseRaceClock(raceDate, `${part("hour")}:${part("minute")}:${part("second")}`, timeZone);
+  return shifted ? new Date(shifted) : now;
+}
+
+/**
+ * Tiderna för en övningsbricka (PLAN.md steg 22): relativt löparens fasta starttid när den finns (start där,
+ * mål efter loppets längd), annars i mål fem sekunder före "nu" på tävlingsdagen. En stafettsträcka följer
+ * lagets tidigare sträckor (ADR-0169 beslut 3) när masstarten har passerats.
+ */
+export function exerciseWindow(pkg: ReadoutPackage, runner: ExerciseRunner, variant: ExerciseVariant, now: Date): ExerciseWindow {
+  const relay = relayExerciseWindow(pkg, runner.entryId, now);
+  if (relay) return relay;
+  const duration = exerciseDuration(runner, variant);
+  if (runner.fixedStartTime) {
+    const startAt = new Date(runner.fixedStartTime);
+    return { startAt, finishAt: new Date(startAt.getTime() + duration) };
+  }
+  const finishAt = new Date(exerciseAnchor(pkg.raceSnapshot.race.raceDate, pkg.event.timeZone, now).getTime() - 5_000);
   return { startAt: new Date(finishAt.getTime() - duration), finishAt };
 }
 
@@ -59,7 +90,7 @@ export function rogainingExerciseWindow(timeLimitMs: number, variant: ExerciseVa
  * får sitt eget fönster (`relayExerciseWindow`) så att lagets sträckor följer på varandra.
  */
 export function exerciseCard(cardNumber: number, controlCodes: readonly number[], variant: ExerciseVariant,
-  now: Date, timeZone: string, window?: { readonly startAt: Date; readonly finishAt: Date }): SimulatedCard {
+  now: Date, timeZone: string, window?: ExerciseWindow): SimulatedCard {
   const finishAt = window?.finishAt ?? new Date(now.getTime() - 5_000);
   const startAt = window?.startAt ?? new Date(finishAt.getTime() - 30 * 60_000);
   const codes = variant === "missing-control" && controlCodes.length > 0

@@ -91,7 +91,9 @@ describe("TASK150 organizer account routes", () => {
     expect(await response.json()).toEqual({ formatVersion: 1, accountId, email: "joel@klubb.se", displayName: "Arrangör", superadmin: false, expiresAt: principal.expiresAt });
     expect(authenticate).toHaveBeenCalledWith(db, expect.objectContaining({ sessionToken }));
     const unauthorized = vi.fn(async () => ({ status: "unauthorized" as const })) as unknown as typeof authenticateUserAccountSession;
-    expect((await organizerSessionStatusRoute(db, req("GET", undefined), unauthorized, prod)).status).toBe(401);
+    const absent = await organizerSessionStatusRoute(db, req("GET", undefined), unauthorized, prod);
+    expect(absent.status).toBe(200);
+    expect(await absent.json()).toEqual({ formatVersion: 1, authenticated: false });
   });
 
   it("checks origin, CSRF, and idempotency key before consuming create bodies", async () => {

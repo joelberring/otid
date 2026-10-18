@@ -2,6 +2,7 @@ import { useState } from "react";
 import { classEditPreviewResponseSchema, classEditResponseSchema, type ClassEditPreviewResponse,
   type ClassEditRequest } from "@o-tid/contracts";
 import { classTableSv as text } from "../../i18n/class-table-sv";
+import { isDuplicateName } from "../../lib/duplicate-name";
 import type { ClassEditAttempt, Operation } from "./types";
 import type { Base } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
@@ -95,8 +96,10 @@ export function createClassEditActions(ws: Base & RaceDataActions & CourseEditAc
       headers: { "content-type": "application/json", "x-otid-csrf": csrf(), "idempotency-key": `class-edit:${attempt.request.requestId}` },
       body: JSON.stringify(attempt.request) });
     if (response.status === 409 || response.status === 400 || response.status === 404) {
+      const duplicate = await isDuplicateName(response);
       pending.current = undefined; sent.current = false; setClassEditAttempt(undefined);
-      if (response.status === 409) await staleClassList(op);
+      if (duplicate) setClassEditError(text.duplicateName(attempt.request.className));
+      else if (response.status === 409) await staleClassList(op);
       else setClassEditError(text.rejected);
       return;
     }

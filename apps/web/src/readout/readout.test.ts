@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import { deviceEventSchema, sportidentReadoutPayloadSchema, type DeviceBatch } from "@o-tid/contracts";
 import type { SiCardData } from "@o-tid/sportident";
 import { evaluateLocally, formatRunningTime } from "./evaluate";
-import { cardTypeForNumber, stationClock } from "@o-tid/sportident";
-import { exerciseCard, exerciseRunners } from "./exercise";
+import { cardTypeForNumber, simulatedRun, stationClock } from "@o-tid/sportident";
+import { exerciseAnchor, exerciseCard, exerciseRunners, exerciseWindow } from "./exercise";
 import { FakeStationTransport } from "./fake-transport";
 import { buildReadoutPayload, payloadHash } from "./payload";
 import { StationController, type StationStatus } from "./station";
@@ -16,7 +16,7 @@ import type { QueuedReadout } from "./store";
 const TIME_ZONE = "Europe/Stockholm";
 const NOW = new Date("2026-10-01T17:45:00.000Z");
 
-interface Read { card: SiCardData; frames: readonly Uint8Array[]; serial: number | undefined }
+interface Read { card: SiCardData; frames: readonly Uint8Array[]; serial: number | undefined; clockOffsetMs: number | undefined }
 
 async function readThroughExerciseStation(codes: readonly number[], variant: "ok" | "missing-control" | "no-finish", cardNumber = TEST_CARD,
   traffic?: TrafficLog) {
@@ -26,11 +26,11 @@ async function readThroughExerciseStation(codes: readonly number[], variant: "ok
   const controller = new StationController(transport, {
     onStatus: (status) => statuses.push(status),
     onCardInserted: () => undefined,
-    onCardRead: (card, frames, serial) => { read = { card, frames, serial }; },
+    onCardRead: (card, frames, station) => { read = { card, frames, serial: station.serialNumber, clockOffsetMs: station.clock?.clockOffsetMs }; },
     onReadFailed: (cardNumber, reason) => { throw new Error(`${cardNumber}: ${reason}`); },
     onUnsupportedCard: (card) => { throw new Error(`Okänd typ ${card}`); },
     onTraffic: (direction, bytes) => traffic?.add(direction, bytes)
-  }, 500);
+  }, { timeoutMs: 500, timeZone: TIME_ZONE });
   expect(await controller.start()).toBe(true);
   transport.insert(exerciseCard(cardNumber, codes, variant, NOW, TIME_ZONE));
   for (let i = 0; i < 200 && !read; i += 1) await new Promise((resolve) => setTimeout(resolve, 5));
@@ -45,7 +45,9 @@ describe("avläsning i webbläsaren", () => {
     const [runner] = exerciseRunners(pkg);
     expect(runner).toMatchObject({ entryId: ids.entry, cardNumber: TEST_CARD, controlCodes: [31, 32, 33] });
     const { read, statuses } = await readThroughExerciseStation(runner!.controlCodes, "ok");
-    expect(statuses).toContainEqual({ kind: "ready", serialNumber: 999_001 });
+    const ready = statuses.find((status) => status.kind === "ready");
+    expect(ready).toMatchObject({ kind: "ready", serialNumber: 999_001 });
+    expect(ready?.kind === "ready" && typeof ready.clock?.clockOffsetMs).toBe("number");
     expect(read.card.cardType).toBe("SI10");
     const payload = buildReadoutPayload(read.card, read.frames, { reference: NOW, timeZone: TIME_ZONE, ...(read.serial !== undefined ? { stationSerial: read.serial } : {}), simulated: true });
     expect(payload.finishPunchedAt).toBe("2026-10-01T17:44:55.000Z");
@@ -109,6 +111,70 @@ describe("avläsning i webbläsaren", () => {
     expect(log.traffic.some((entry) => entry.direction === "in")).toBe(true);
     expect(log.readouts[0]!.frames).toEqual(payload.frames);
     expect(JSON.stringify(log)).not.toContain("Anna");
+  });
+
+  // PLAN.md steg 22: stationens klocka, övning på tävlingsdagen och brickbyte i övningsstationen.
+  it("rapporterar övningsstationens klocka och löser tiderna mot den", async () => {
+    const transport = new FakeStationTransport({ timeZone: TIME_ZONE });
+    const statuses: StationStatus[] = [];
+    let read: Read | undefined;
+    const controller = new StationController(transport, {
+      onStatus: (status) => statuses.push(status), onCardInserted: () => undefined,
+      onCardRead: (card, frames, station) => { read = { card, frames, serial: station.serialNumber, clockOffsetMs: station.clock?.clockOffsetMs }; },
+      onReadFailed: (cardNumber, reason) => { throw new Error(`${cardNumber}: ${reason}`); }, onUnsupportedCard: () => undefined
+    }, { timeoutMs: 500, timeZone: TIME_ZONE });
+    expect(await controller.start()).toBe(true);
+    const ready = statuses.find((status) => status.kind === "ready");
+    expect(ready?.kind === "ready" && Math.abs(ready.clock!.clockOffsetMs) < 2_000).toBe(true);
+    // Brickan sätts i med klockan ställd strax efter målet, som på en kommande tävlingsdag.
+    const finishAt = new Date("2026-11-07T10:30:00.000Z");
+    const card = simulatedRun(TEST_CARD, { startAt: new Date("2026-11-07T10:00:00.000Z"), finishAt, controlCodes: [31, 32, 33], timeZone: TIME_ZONE });
+    transport.insert(card, new Date(finishAt.getTime() + 5_000));
+    for (let i = 0; i < 200 && !read; i += 1) await new Promise((resolve) => setTimeout(resolve, 5));
+    await controller.stop();
+    expect(Math.abs(transport.now().getTime() - (finishAt.getTime() + 5_000))).toBeLessThan(2_000);
+    const payload = buildReadoutPayload(read!.card, read!.frames, { reference: transport.now(), timeZone: TIME_ZONE, simulated: true,
+      clockSource: "station", clockOffsetMs: 1234 });
+    expect(payload).toMatchObject({ startPunchedAt: "2026-11-07T10:00:00.000Z", finishPunchedAt: finishAt.toISOString(),
+      clockSource: "station", clockOffsetMs: 1234 });
+    expect(sportidentReadoutPayloadSchema.safeParse(payload).success).toBe(true);
+    // Nycklarna ligger i kontraktets ordning så att hashen stämmer med serverns.
+    expect(JSON.stringify(sportidentReadoutPayloadSchema.parse(JSON.parse(JSON.stringify(payload))))).toBe(JSON.stringify(payload));
+  });
+
+  it("lägger övningen relativt löparens fasta start på tävlingsdagen", () => {
+    const pkg = testPackage();
+    const [runner] = exerciseRunners(pkg);
+    expect(runner?.fixedStartTime).toBeUndefined();
+    const now = new Date("2026-09-20T07:12:34.000Z");
+    // Tävlingen är 2026-10-01: samma klockslag den dagen.
+    expect(exerciseAnchor(pkg.raceSnapshot.race.raceDate, TIME_ZONE, now).toISOString()).toBe("2026-10-01T07:12:34.000Z");
+    expect(exerciseAnchor(pkg.raceSnapshot.race.raceDate, TIME_ZONE, NOW)).toBe(NOW);
+    const open = exerciseWindow(pkg, runner!, "ok", now);
+    expect(open.finishAt.toISOString()).toBe("2026-10-01T07:12:29.000Z");
+    expect(open.finishAt.getTime() - open.startAt.getTime()).toBe(30 * 60_000);
+    const fixed = exerciseWindow(pkg, { ...runner!, fixedStartTime: "2026-10-01T09:00:00.000Z" }, "ok", now);
+    expect(fixed).toEqual({ startAt: new Date("2026-10-01T09:00:00.000Z"), finishAt: new Date("2026-10-01T09:30:00.000Z") });
+    const late = exerciseWindow(pkg, { ...runner!, fixedStartTime: "2026-10-01T09:00:00.000Z", timeLimitMs: 60 * 60_000 }, "late", now);
+    expect(late.finishAt.toISOString()).toBe("2026-10-01T10:01:30.000Z");
+  });
+
+  it("läser en bricka som sätts i strax efter den föregående", async () => {
+    const transport = new FakeStationTransport({ timeZone: TIME_ZONE });
+    const events: string[] = [];
+    const controller = new StationController(transport, {
+      onStatus: () => undefined, onCardInserted: (card) => events.push(`inserted ${card}`),
+      onCardRead: (card) => events.push(`read ${card.cardNumber}`), onReadFailed: (card, reason) => events.push(`failed ${card} ${reason}`),
+      onUnsupportedCard: () => undefined
+    }, { timeoutMs: 3000, timeZone: TIME_ZONE });
+    expect(await controller.start()).toBe(true);
+    const card = (n: number) => simulatedRun(n, { startAt: new Date(NOW.getTime() - 60_000), controlCodes: [31, 32], timeZone: TIME_ZONE, finishAt: NOW });
+    transport.insert(card(8_001_001));
+    await new Promise((resolve) => setTimeout(resolve, 398));
+    transport.insert(card(8_001_002));
+    for (let i = 0; i < 300 && !events.includes("read 8001002"); i += 1) await new Promise((resolve) => setTimeout(resolve, 5));
+    await controller.stop();
+    expect(events).toEqual(["inserted 8001001", "read 8001001", "inserted 8001002", "read 8001002"]);
   });
 
   it("räknar stationens klocka i tävlingens tidszon", () => {

@@ -75,7 +75,7 @@ export async function authenticatedIofImportRoute(
     if (result.status === "unauthorized") return importAdminFailure(401, "UNAUTHORIZED");
     if (result.status === "forbidden") return importAdminFailure(403, "FORBIDDEN");
     if (result.status === "invalid-request") return importAdminFailure(400, "INVALID_REQUEST");
-    if (result.status === "invalid-iof-xml") return importAdminFailure(422, "INVALID_IOF_XML");
+    if (result.status === "invalid-iof-xml") return importAdminFailure(422, "INVALID_IOF_XML", result.issues);
     if (result.status === "conflict") return importAdminFailure(409, "CONFLICT");
     if (!("response" in result)) return importAdminFailure(500, "INTERNAL_ERROR");
     return importAdminJson(iofImportResponseSchema.parse(result.response), result.status === "stored" ? 201 : 200);

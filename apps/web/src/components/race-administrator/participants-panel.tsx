@@ -13,6 +13,7 @@ import { rosterStatusOptions } from "../../lib/administrator-roster-filter";
 import { sectionForPanel } from "../../lib/race-sections";
 import { resultDuration } from "./types";
 import { ParticipantCard } from "./participant-card";
+import { RemovalReview } from "./removal-review";
 import { RelayTeams } from "./relay-teams";
 import { Button, EmptyState } from "../ui";
 import type { Workspace } from "./workspace-state";
@@ -79,6 +80,8 @@ export function ParticipantList({ ws }: { ws: Workspace }) {
           onClick={() => printPrivate("RENTAL")}>{text.rentalPrint}</Button>}
       </div>}
     </div>
+    {/* PLAN.md steg 27: beskedet efter "Ta bort deltagare" eller "Stryk" står över listan när kortet är stängt. */}
+    {ws.removalMessage?.kind === "ENTRY" && !ws.selected && <RemovalReview ws={ws} kind="ENTRY" id={ws.removalMessage.id} />}
     {empty && <EmptyState title={navigationText.entriesEmpty} action={<>
       <Button disabled={disabled} onClick={newParticipant}>{text.newParticipant}</Button>
       {profile.features.import && <Link href={`/admin/${raceId}/imports`}>{navigationText.entriesImport}</Link>}

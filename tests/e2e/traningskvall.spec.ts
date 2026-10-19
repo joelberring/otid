@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
-import { addCourseAndClass, addEntry, createRace, openStep, publishRace, registerAccount, sectionButton, today, unique, warmRoute } from "./helpers";
+import { addCourseAndClass, addEntry, createRace, daysFromToday, openStep, publishRace, registerAccount, reviewScreenshots, sectionButton,
+  sendReadout, today, unique, warmRoute } from "./helpers";
 
 /**
  * Steg 4–5 (ADR-0168): en hel träningskväll med tio syntetiska löpare.
@@ -9,7 +10,8 @@ import { addCourseAndClass, addEntry, createRace, openStep, publishRace, registe
  * brickor direktanmäls → kvar i skogen → felstämplad godkänns → publikt
  * resultat → IOF-export. Steg 8.5: arbetsytan nås via checklistan och
  * tävlingsdagens kontrollvy. Steg 12: tävlingstypen Träning (banor och klasser
- * på samma ställe, deltagare, ingen start- eller lottningsdel).
+ * på samma ställe, deltagare, ingen start- eller lottningsdel). Steg 27: ta bort deltagare, klass och bana; brickans
+ * stämplingar i avläsningen och på deltagarkortet, även en bricka med stämplingar från ett tidigare lopp.
  */
 const RUNNERS = [
   { givenName: "Anna", familyName: "Ek", className: "H21", card: "8001001" },
@@ -40,6 +42,44 @@ test("träningskväll från tävling till IOF-export", async ({ browser, request
   await addCourseAndClass(owner, "Kort", "D21", "31 33");
   for (const runner of RUNNERS) await addEntry(owner, { ...runner, club: "OK Test" });
 
+  // PLAN.md steg 27: en felanmäld deltagare tas bort (har inte läst ut), en klass och en bana utan något på dem likaså.
+  await addEntry(owner, { className: "D21", givenName: "Kalle", familyName: "Fel", club: "OK Test", card: "8001099" });
+  await addCourseAndClass(owner, "Prov", "P10", "31 32");
+  await warmRoute(owner, `/api/admin/races/${raceId}/administrator/entries/00000000-0000-4000-8000-000000000000/removal`, "POST");
+  await openStep(owner, "Deltagare");
+  const entryCard = owner.getByRole("region", { name: "Deltagarkort" });
+  await expect(async () => {
+    await owner.getByRole("row", { name: /Kalle Fel/ }).getByRole("cell").nth(1).click();
+    await expect(entryCard.getByRole("heading", { name: "Kalle Fel" })).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
+  await expect(entryCard.getByRole("region", { name: "Resultat", exact: true })).toContainText("Inte avläst ännu");
+  await entryCard.getByRole("button", { name: "Ta bort deltagare" }).click();
+  const entryRemoval = entryCard.getByTestId("removal-review");
+  await expect(entryRemoval).toContainText("Kalle Fel tas bort ur tävlingen. Brickan och en lottad starttid blir lediga.");
+  await reviewScreenshots(owner, "step27-delete-entry");
+  await entryRemoval.getByRole("button", { name: "Ta bort", exact: true }).click();
+  const roster = owner.getByRole("region", { name: "Deltagare", exact: true });
+  await expect(roster.getByRole("status").filter({ hasText: "Kalle Fel är borttagen." })).toBeVisible();
+  await expect(owner.getByRole("row", { name: /Kalle Fel/ })).toHaveCount(0);
+
+  await openStep(owner, "Banor & klasser");
+  const classes = owner.getByRole("region", { name: "Klasser" });
+  await classes.getByRole("button", { name: "Ta bort klassen H21" }).click();
+  await expect(classes.getByRole("alert")).toHaveText(/Klassen har 4 anmälda\. Flytta dem till en annan klass eller ta bort dem först\./);
+  await classes.getByRole("button", { name: "Ta bort klassen P10" }).click();
+  const classRemoval = classes.getByTestId("removal-review");
+  await expect(classRemoval).toContainText("Klassen P10 tas bort.");
+  await reviewScreenshots(owner, "step27-delete-class");
+  await classRemoval.getByRole("button", { name: "Ta bort klass" }).click();
+  await expect(classes.getByRole("status").filter({ hasText: "Klassen P10 är borttagen." })).toBeVisible();
+  const courses = owner.getByRole("region", { name: "Banor", exact: true });
+  await courses.getByRole("button", { name: "Ta bort banan Lång" }).click();
+  await expect(courses.getByRole("alert")).toContainText("Banan används av H21. Byt bana på klassen först.");
+  await courses.getByRole("button", { name: "Ta bort banan Prov" }).click();
+  await courses.getByTestId("removal-review").getByRole("button", { name: "Ta bort bana" }).click();
+  await expect(courses.getByRole("status").filter({ hasText: "Banan Prov är borttagen." })).toBeVisible();
+  await expect(courses.getByRole("rowheader", { name: "Prov", exact: true })).toHaveCount(0);
+
   // Avläsning: öppnas via adminadressen och fungerar sedan utan nät.
   await owner.goto(`/admin/${raceId}/readout`);
   await owner.waitForURL(`**/readout/index.html#${raceId}`);
@@ -62,6 +102,8 @@ test("träningskväll från tävling till IOF-export", async ({ browser, request
   await owner.context().setOffline(true);
   await expect(owner.getByTestId("internet-status")).toContainText("Ej ansluten");
   await readExercise(owner, RUNNERS[3], "Läs av: missad kontroll", "FELSTÄMPLAD");
+  // Steg 27: beskedet visar brickans stämplingar i ordning med klockslag.
+  await expect(owner.getByTestId("verdict-punches").getByRole("list", { name: "Brickans stämplingar i ordning" })).toContainText("31");
   await readExercise(owner, RUNNERS[4], "Läs av: rätt stämplat", "GODKÄND");
   await owner.getByRole("button", { name: "Läs av: okänd bricka" }).click();
   await expect(owner.getByTestId("verdict")).toContainText("OKÄND BRICKA");
@@ -133,6 +175,11 @@ test("träningskväll från tävling till IOF-export", async ({ browser, request
   const card = owner.getByRole("region", { name: "Deltagarkort" });
   await expect(card.getByRole("heading", { name: "David Berg" })).toBeVisible();
   await expect(card.getByRole("region", { name: "Resultat", exact: true })).toContainText("Felstämplad");
+  // Steg 27: alla stämplingar från avläsningen, med den saknade kontrollen i ord.
+  const davidPunches = card.getByTestId("card-punches");
+  await expect(davidPunches).toContainText("Brickans stämplingar");
+  await expect(davidPunches.getByRole("note")).toContainText("Saknade kontroller: 33.");
+  await expect(davidPunches.getByRole("row", { name: /^1 31 / })).toContainText("på banan");
   await card.getByLabel("Ändra status").selectOption({ label: "Godkänn manuellt" });
   await card.getByRole("button", { name: "Bekräfta ändringen" }).click();
   await expect(owner.getByText("Godkännandet är sparat.")).toBeVisible();
@@ -167,4 +214,33 @@ test("träningskväll från tävling till IOF-export", async ({ browser, request
   expect(xml).toContain("<ResultList");
   for (const name of ["Ek", "Berg", "Direkt"]) expect(xml).toContain(`<Family>${name}</Family>`);
   expect(xml).not.toContain("<Family>Mo</Family>");
+
+  // Steg 27 (piloten): en bricka som inte tömts, med stämplingar från ett lopp i förra veckan och utan startstämpling.
+  // Deltagarkortet visar alla stämplingar, märkta "utanför tävlingsdagen", och förklarar varför.
+  await addEntry(owner, { className: "H21", givenName: "Olle", familyName: "Gammal", club: "OK Test", card: "8001010" });
+  const old = daysFromToday(-5);
+  await sendReadout(owner, raceId, { cardNumber: "8001010", checkPunchedAt: `${old}T15:55:00.000Z`, finishPunchedAt: `${old}T16:50:00.000Z`,
+    punches: [{ code: 114, punchedAt: `${old}T16:05:00.000Z` }, { code: 81, punchedAt: `${old}T16:12:00.000Z` },
+      { code: 31, punchedAt: `${old}T16:20:00.000Z` }, { code: 100, punchedAt: `${old}T16:41:00.000Z` }] });
+  await owner.reload();
+  await openStep(owner, "Deltagare");
+  await expect(async () => {
+    await owner.getByRole("row", { name: /Olle Gammal/ }).getByRole("cell").nth(1).click();
+    await expect(card.getByRole("heading", { name: "Olle Gammal" })).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
+  await expect(card.getByRole("region", { name: "Resultat", exact: true })).toContainText("Felstämplad");
+  const oldPunches = card.getByTestId("card-punches");
+  await expect(oldPunches.getByRole("note")).toContainText(/^Stämplingarna är från \S+ \d+ \S+, inte från tävlingsdagen \(\S+ \d+ \S+\)\./);
+  await expect(oldPunches.getByRole("note")).toContainText("Brickan har ingen startstämpling.");
+  await expect(oldPunches.getByRole("row", { name: /^1 114 / })).toContainText("utanför tävlingsdagen");
+  await expect(oldPunches.getByRole("row")).toHaveCount(5);
+  await expect(oldPunches.getByRole("term").filter({ hasText: "Start" }).locator("xpath=following-sibling::dd")).toHaveText("saknas");
+  await card.getByTestId("card-punches").scrollIntoViewIfNeeded();
+  await reviewScreenshots(owner, "step27-participant-old-punches");
+  // Stryk: Olle har läst ut, så han stryks i stället för att tas bort och försvinner ur listorna.
+  await card.getByRole("button", { name: "Stryk" }).click();
+  await card.getByTestId("removal-review").getByRole("button", { name: "Stryk deltagaren" }).click();
+  await expect(owner.getByRole("region", { name: "Deltagare", exact: true }).getByRole("status")
+    .filter({ hasText: "Olle Gammal är struken." })).toBeVisible();
+  await expect(owner.getByRole("row", { name: /Olle Gammal/ })).toHaveCount(0);
 });

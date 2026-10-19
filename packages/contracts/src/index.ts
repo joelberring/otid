@@ -256,3 +256,5 @@ export * from "./radio";
 export * from "./race-copy";
 export * from "./readout-registration";
 export * from "./remaining-runners";
+export * from "./race-removal";
+export * from "./results-official";

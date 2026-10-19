@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createClassFinalizationAttempt, createRaceFinalizationAttempt, isDefinitiveResultFinalizationRejection, parseResultFinalizationCandidates, parseResultFinalizationResponse } from "./result-finalization-admin-client";
+import { createClassFinalizationAttempt, isDefinitiveResultFinalizationRejection, parseResultFinalizationCandidates, parseResultFinalizationResponse } from "./result-finalization-admin-client";
 
 const raceId = "10000000-0000-4000-8000-000000000001";
 const classId = "10000000-0000-4000-8000-000000000002";
@@ -50,18 +50,6 @@ describe("TASK 006D finaliseringsklient", () => {
         expectedBasisHash: hashA,
         expectedLatestScopeRevision: null
       }
-    });
-  });
-
-  it("vägrar blockerade scopes men bygger ett race-intent när alla klassmanifest är aktuella", () => {
-    expect(() => createRaceFinalizationAttempt(candidates, cryptoStub)).toThrow();
-    const ready = { ...candidates, race: { ...candidates.race, blockerCodes: [] } };
-    expect(createRaceFinalizationAttempt(ready, cryptoStub).request).toEqual({
-      formatVersion: 1,
-      scope: "RACE",
-      classId: null,
-      expectedBasisHash: hashB,
-      expectedLatestScopeRevision: null
     });
   });
 

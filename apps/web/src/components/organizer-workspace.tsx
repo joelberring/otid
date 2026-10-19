@@ -23,6 +23,7 @@ import { CopyRaceDialog, type CopySource } from "./copy-race-dialog";
 import { raceCopySv } from "../i18n/race-copy-sv";
 import { hasErrors, validateCreateRace, type CreateRaceInput, type FieldErrors } from "../lib/form-validation";
 import { DateInput, Field, focusFirstError } from "./ui";
+import { orderMyEvents } from "../lib/my-events-order";
 import styles from "./organizer-workspace.module.css";
 
 type Session = { accountId: string; email: string; displayName: string; superadmin: boolean; expiresAt: string };
@@ -286,10 +287,12 @@ export function OrganizerWorkspace() {
   const attemptMatchesSession = !!session && !!attempt && attempt.accountId === session.accountId;
   const attemptBelongsToOtherAccount = !!session && !!attempt && attempt.accountId !== session.accountId;
   const searchTerm = eventSearch.trim().normalize("NFC").toLocaleLowerCase("sv-SE");
+  // PLAN.md steg 27: idag och kommande först, sedan gångna.
+  const orderedEvents = orderMyEvents(events, new Date());
   const visibleEvents = searchTerm
-    ? events.filter((event) => event.eventName.normalize("NFC").toLocaleLowerCase("sv-SE").includes(searchTerm)
+    ? orderedEvents.filter((event) => event.eventName.normalize("NFC").toLocaleLowerCase("sv-SE").includes(searchTerm)
       || event.races.some((race) => race.raceName.normalize("NFC").toLocaleLowerCase("sv-SE").includes(searchTerm)))
-    : events;
+    : orderedEvents;
 
   return <main className={styles.main}>
     <header className={styles.header}>

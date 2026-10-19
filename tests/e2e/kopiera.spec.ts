@@ -1,11 +1,13 @@
 import { expect, test, type Page } from "@playwright/test";
-import { addCourseAndClass, addEntry, createRace, daysFromToday, publishRace, registerAccount, sectionButton, today, unique } from "./helpers";
+import { addCourseAndClass, addEntry, createRace, daysFromToday, publishRace, registerAccount, reviewScreenshots, sectionButton, today,
+  unique } from "./helpers";
 
 /**
  * Steg 21 (PLAN.md): "Ny tävling som …" och kvitto vid avläsning. Förra veckans träning kopieras från Mina tävlingar;
  * kopian har banor och klasser men inga deltagare. En löpare anmäls och läses av med övningsstationen i kopian.
  * "Skriv ut kvitto" visar kvittot och startar utskriften; i utskriftsläge syns bara kvittot med sträcktider och
- * QR-kod, inga knappar eller länkar. QR-koden syns också på skärmen.
+ * QR-kod, inga knappar eller länkar. QR-koden syns också på skärmen. Steg 27: Mina tävlingar visar idag och kommande
+ * först (närmast först) och sedan de som varit.
  */
 async function screenshots(page: Page, name: string, widths: readonly number[] = [1280, 390]) {
   const directory = process.env.E2E_SCREENSHOT_DIR;
@@ -114,4 +116,15 @@ test("kopiera förra veckans träning, läs av i kopian och skriv ut kvitto", as
   await expect.poll(() => owner.evaluate(() => (window as unknown as { otidPrints: number }).otidPrints)).toBe(2);
   await expect(receipt).toContainText("FELSTÄMPLAD");
   await expect(receipt).toContainText("Saknar:");
+
+  // Steg 27: Mina tävlingar i ordningen idag, kommande (närmast först), sedan gångna (senaste först).
+  await owner.goto("/organizer");
+  await createRace(owner, `Nästa månad ${suffix}`, daysFromToday(30), "Träning");
+  await owner.goto("/organizer");
+  await createRace(owner, `Nästa vecka ${suffix}`, daysFromToday(7), "Träning");
+  await owner.goto("/organizer");
+  const events = owner.locator("section").filter({ has: owner.getByRole("heading", { name: "Dina tävlingar" }) })
+    .getByRole("heading", { level: 3 });
+  await expect(events).toHaveText([`Träning denna vecka ${suffix}`, `Nästa vecka ${suffix}`, `Nästa månad ${suffix}`, `Träning v${suffix}`]);
+  await reviewScreenshots(owner, "step27-mina-tavlingar");
 });

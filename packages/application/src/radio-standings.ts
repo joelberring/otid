@@ -55,7 +55,7 @@ async function read(tx: Transaction, raceId: string): Promise<PublicRadioRespons
     tx.select({ id: schema.entries.id, publicResultId: schema.entries.publicResultId, classId: schema.entries.classId,
       givenName: schema.entries.givenName, familyName: schema.entries.familyName, organisationName: schema.entries.organisationName,
       fixedStartTime: schema.entries.fixedStartTime }).from(schema.entries)
-      .where(and(eq(schema.entries.raceId, raceId), isNull(schema.entries.teamId))) as Promise<Entry[]>,
+      .where(and(eq(schema.entries.raceId, raceId), isNull(schema.entries.teamId), isNull(schema.entries.struckAt))) as Promise<Entry[]>,
     tx.select({ entryId: schema.cardAssignments.entryId, cardNumber: schema.cardAssignments.cardNumber }).from(schema.cardAssignments)
       .where(and(eq(schema.cardAssignments.raceId, raceId), eq(schema.cardAssignments.active, true))),
     tx.select({ cardNumber: schema.radioPunches.cardNumber, controlCode: schema.radioPunches.controlCode, punchedAt: schema.radioPunches.punchedAt })

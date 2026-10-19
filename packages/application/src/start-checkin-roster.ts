@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
 import { StartCheckinOperationSchema, StartCheckinRosterResponseSchema, administratorForestWatchResponseSchema } from "@o-tid/contracts";
 import { buildForestWatchList, reportedStartAt, type AppliedStartObservation } from "@o-tid/domain";
@@ -36,7 +36,7 @@ export async function readAuthorizedStartCheckinRoster(tx: Parameters<Parameters
     const [event] = await tx.select({ timeZone: schema.events.timeZone }).from(schema.events).where(eq(schema.events.id, race.eventId));
     if (!event) throw new Error("Loppets tävling saknas");
     const [entries, classes, assignments, operations, devices, revisions, heads] = await Promise.all([
-      tx.select().from(schema.entries).where(eq(schema.entries.raceId, race.id)).limit(10_001),
+      tx.select().from(schema.entries).where(and(eq(schema.entries.raceId, race.id), isNull(schema.entries.struckAt))).limit(10_001),
       tx.select().from(schema.classes).where(eq(schema.classes.raceId, race.id)).limit(1_001),
       tx.select().from(schema.cardAssignments).where(and(eq(schema.cardAssignments.raceId, race.id), eq(schema.cardAssignments.active, true))).limit(20_001),
       tx.select().from(schema.startCheckinOperations).where(eq(schema.startCheckinOperations.raceId, race.id)).limit(100_001),

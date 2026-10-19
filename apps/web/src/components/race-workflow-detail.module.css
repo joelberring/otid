@@ -32,3 +32,8 @@
   .editActions button { flex: 1 1 9rem; min-height: 44px; }
 }
 .untimedNote { margin: 8px 0 0; padding: 8px 12px; border-left: 3px solid var(--attention); background: var(--attention-tint); }
+/* Brickans stämplingar (PLAN.md steg 27): förklaringen överst och det som inte hör till banan i ord, inte bara färg. */
+.punchSummary { margin: 0; padding: 8px 12px 8px 28px; border-left: 3px solid var(--attention); background: var(--attention-tint); font-size: var(--text-sm); }
+.punchOff { font-weight: 600; }
+.missing { color: var(--muted); font-weight: 400; }
+.punchDate { display: block; color: var(--muted); font-size: var(--text-xs); }

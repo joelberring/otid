@@ -9,6 +9,7 @@ import { saveCourseDetailsAsAdmin } from "../../src/course-details";
 import { setEntryStatus } from "../../src/entry-status";
 import { exportIofResultListAsAdmin, exportPublicIofResultList } from "../../src/result-list-export";
 import { finalizeResultsAsAdmin, listResultFinalizationCandidatesAsAdmin } from "../../src/result-finalization";
+import { setResultsOfficialAsAdmin } from "../../src/result-official";
 import { markRemainingDidNotStartAsAdmin, previewRemainingRunnersAsAdmin } from "../../src/remaining-runners";
 import { publicResults } from "../../src/results";
 import { applySyncAsAdmin, previewCourseFileAsAdmin } from "../../src/source-sync";
@@ -172,11 +173,11 @@ describe("disk med orsak, Eventor-id, bana och listans ställning (punkt 4)", ()
     expect(v7(before).standing).toEqual({ kind: "PRELIMINARY" });
     expect(v7(before).classCourses).toContainEqual({ className: "H21", courseName: "Lång", lengthMeters: 4200, climbMeters: 120 });
 
-    // Fastställ klasserna och tävlingen: listan blir officiell och den fastställda filen bär samma uppgifter.
-    const finalize = async (scope: "CLASS" | "RACE", classId: string | null) => {
+    // Fastställ en klass och sedan "Resultaten är klara": listan blir officiell och den fastställda filen bär samma uppgifter.
+    const finalize = async (scope: "CLASS", classId: string) => {
       const candidates = await listResultFinalizationCandidatesAsAdmin(db, admin, NOW);
       if (candidates.status !== "ok") throw new Error(candidates.status);
-      const candidate = scope === "RACE" ? candidates.response.race : candidates.response.classes.find((row) => row.classId === classId)!;
+      const candidate = candidates.response.classes.find((row) => row.classId === classId)!;
       expect(candidate.blockerCodes).toEqual([]);
       const requestId = randomUUID();
       const result = await finalizeResultsAsAdmin(db, { ...admin, idempotencyKey: `result-finalization:${requestId}`,
@@ -186,11 +187,15 @@ describe("disk med orsak, Eventor-id, bana och listans ställning (punkt 4)", ()
       return result;
     };
     await finalize("CLASS", ids.fixed);
-    await finalize("CLASS", ids.free);
-    await finalize("RACE", null);
+    // En klass räcker inte; "Resultaten är klara" fastställer resten och gör listan officiell (PLAN.md steg 27).
+    expect(v7(await publicResults(db, ids.race)).standing).toEqual({ kind: "PRELIMINARY" });
+    const doneId = randomUUID();
+    const done = await setResultsOfficialAsAdmin(db, { ...admin, idempotencyKey: `results-official:${doneId}`,
+      request: { formatVersion: 1, requestId: doneId, action: "OFFICIAL" } }, new Date(NOW.getTime() + 60_000));
+    expect(done.status === "saved" && done.response.result.outcome).toBe("OFFICIAL");
     const after = await publicResults(db, ids.race);
     expect(v7(after).standing).toEqual({ kind: "OFFICIAL", finalizedAt: "2026-09-19T15:01:00.000Z", timeZone: "Europe/Stockholm" });
-    const complete = (await pool.query<{ complete_xml: string }>("SELECT complete_xml FROM result_finalization WHERE race_id=$1 AND scope='RACE'", [ids.race])).rows[0]!;
+    const complete = (await pool.query<{ complete_xml: string }>("SELECT complete_xml FROM result_finalization WHERE race_id=$1 AND scope='RACE' ORDER BY scope_revision DESC", [ids.race])).rows[0]!;
     expect(complete.complete_xml).toContain('<Id type="Eventor">610001</Id>');
     expect(complete.complete_xml).toContain(`<ControlCard punchingSystem="SI">${cards.ada}</ControlCard>`);
     expect(complete.complete_xml).toMatch(/<Course>\s*<Name>Lång<\/Name>\s*<Length>4200<\/Length>/);

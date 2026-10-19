@@ -5,10 +5,20 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 7 – Riktig hårdvara och pilot (ägaren). Alla andra steg i `PLAN.md` är klara.
-Måste provas mot riktiga tjänster: Eventor med klubbens API-nyckel, ROC:s sökväg för stämplingar (bara provad mot falsk ROC) och e-post via SMTP.
+Steg 28 – Löpardatabas från Eventor.
+Steg 7 – Riktig hårdvara och pilot (ägaren) pågår: SI9 via BSM på Mac/Chrome provad 2026-10-19 (`docs/sportident.md`).
+Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan och klubben) provad mot riktiga Eventor 2026-10-19; ROC:s sökväg för stämplingar (bara provad mot falsk ROC) och e-post via SMTP är inte provade.
 
 ## Logg
+
+### 2026-10-19 – Steg 27: rättelser efter första piloten (steg 27 klart)
+- Brickans stämplingar: domänens `cardPunchList` (ordning, kod, tid, på banan/extra/utanför tävlingsdagen, check/start/mål, "från ons 14 okt", "ingen startstämpling") i deltagarkortet och kompakt i avläsningens besked för felstämplad/okänd bricka; aldrig publikt. "Inte avläst ännu" i stället för "publicerat resultat". "Ny klass" listar alla banor och läser in dem själv.
+- Ta bort/stryk (migration 0006 `entry.struck_at`): utan resultatrevision tas deltagaren bort med `purgeRows` (lottad tid blir vakant); med revision stryks den – dold i alla listor, paketet, lottning, speaker, kvar i skogen, IOF och fastställande, bricka släppt, historik kvar. Ta bort klass/bana när inget hänger på dem, annars besked. Eventors "struken" ger fortfarande ej start.
+- "Resultaten är klara" (0006 `race.official_result_finalization_id`): en knapp fastställer klasserna och loppet i en transaktion, listorna blir "Officiella resultat", IOF-filen laddas ner, "Gör resultaten preliminära igen" ångrar; klassvis under Avancerat. Rättat: OK med kontroll stämplad före start gick inte att frysa (500), saknat resultat gav också "ogiltigt resultat".
+- "Exportera tävlingen" (Inställningar): JSON `otid-race-export` v1 med allt (`docs/export.md`). Mina tävlingar: idag/kommande först, sedan gångna. Varning vid gamla Eventor-namn, "(se drift-instruktionen)", tom tävlingslista i klartext, radiopollern väntar 20/40/60 s vid databasfel, Mac-drivrutin och stödmatris (SI9 `field-verified` för nummer/antal/tider) i `docs/sportident.md` och README.
+- Tester: domän `card-punch-list` (5), webb (texter, ordning, Eventor-miljö, pollervänta), integration `steg-27-rattelser` (6; `steg-25-competition` använder nya knappen), Playwright `traningskvall` (stämplingar, ta bort/stryk, klass, bana), `listor` (Resultaten är klara/ångra, publikt Officiella), `kopiera` (Mina tävlingar).
+- Verifierat: install (frozen), lint, typecheck, test, test:integration (67/280), build, Playwright alla 19 specar gröna i grupper; `radio`, `listor`, `strackanalys` och `tavlingsfunktioner` föll strax efter midnatt (tider "för 30–45 min sedan" hamnade på gårdagen) och gick igenom efter 01:00 (de två sista efter omförsök), `tavlingstyper` efter omförsök. Skärmbilder 1280/390 granskade; klubbvyns kolumner smalare på 390 px.
+- Kvar: import av exportfilen (Idéer); ett lopp i ett arrangemang med flera lopp kan fortfarande inte bli "klart" (`MULTI_RACE_EVENT`); strykning går inte att ångra i ytan.
 
 ### 2026-10-19 – Steg 26: avancerad lottning (steg 26 klart)
 - Lottning: enkla läget som förut; under "Avancerat" (öppnas själv när något avviker, sparas med lottningen i `race.start_draw_settings`) kryssa i alla/olottade klasser, startgrupp av de första 1–3 kontrollerna, max starter per minut totalt och per startfålla, sista start, startordning (upp/ned) och senare start per klass (klockslag eller minuter efter första start), seedning per löpare och ranking från CSV (bricka, annars namn och klubb).
@@ -350,6 +360,8 @@ Kvarstår för ägaren: begära *PC Programmer's Guide* från SPORTident
 brickor till steg 7.
 
 ## Idéer (inte i planen än)
+
+- Import av "Exportera tävlingen" (`otid-race-export` v1) till en ny tävling; ångra strykning; Eventors "struken" som strykning i stället för ej start.
 
 - Start: incheckningsappen (offline, krypterad lista) togs bort i steg 18 (halvfärdig, nåddes bara via funktionärskoderna). Funktionären sätter startläget
   online under Avläsning → kvar i skogen; avprickning direkt i startlistan (per starttid) och offline vore bättre vid starten.

@@ -1,20 +1,25 @@
-import { listRadioRacesDue, pollRadioRace, RADIO_POLL_INTERVAL_MS } from "@o-tid/application";
+import { listRadioRacesDue, pollRadioRace } from "@o-tid/application";
 import type { PoolClient } from "@o-tid/database";
 import { db, pool } from "./db";
 import { radioRuntime } from "./radio-runtime";
+import { radioPollDelay } from "./radio-poll-delay";
 
 /**
  * Pollern för radiokontroller (ADR-0172 beslut 5). Körs i webbprocessen (startas från `instrumentation.ts`)
  * var tionde sekund. Bara den instans som håller PostgreSQL-låset frågar ROC/OResults; låset hålls av en egen
  * anslutning och släpps när den stängs, så en annan instans tar över om den här dör. Varje tävling hämtas med
  * sitt lastId och sin väntan efter fel (`listRadioRacesDue`). Fel för en tävling sparas och visas för admin;
- * programfel loggas utan personuppgifter och stoppar inte de andra tävlingarna.
+ * programfel loggas utan personuppgifter och stoppar inte de andra tävlingarna. Kan databasen inte läsas väntar pollern
+ * längre (20, 40, 60 s) och loggar en gång per steg.
  *
  * Stängs av med `OTID_RADIO_POLLER=off` (t.ex. när en annan process ska hämta). Startar aldrig under `next build`.
  */
 const LOCK = "select pg_try_advisory_lock(hashtextextended('otid.radio-poller', 0)) as locked";
 
-type PollerState = { started: boolean; running: boolean; lock: PoolClient | undefined; timer: ReturnType<typeof setTimeout> | undefined };
+type PollerState = { started: boolean; running: boolean; lock: PoolClient | undefined; timer: ReturnType<typeof setTimeout> | undefined;
+  /** Databasfel i följd (PLAN.md steg 27): väntan växer 20, 40, 60 s och loggas en gång per steg. */
+  databaseFailures: number };
+
 const globalPoller = globalThis as typeof globalThis & { oTidRadioPoller?: PollerState };
 
 function message(error: unknown): string {
@@ -62,12 +67,19 @@ async function tick(state: PollerState): Promise<void> {
         console.error(`Radiokontroller: hämtningen för lopp ${raceId} avbröts av ett fel: ${message(error)}`);
       }
     }
+    if (state.databaseFailures > 0) console.info("Radiokontroller: databasen svarar igen");
+    state.databaseFailures = 0;
   } catch (error) {
-    console.error(`Radiokontroller: pollern kunde inte läsa databasen: ${message(error)}`);
+    state.databaseFailures += 1;
+    // Samma fel var tionde sekund (t.ex. databasen är inte migrerad) fyller loggen; logga när väntan ändras.
+    if (state.databaseFailures <= 3) {
+      console.error(`Radiokontroller: pollern kunde inte läsa databasen: ${message(error)}; ` +
+        `försöker igen om ${radioPollDelay(state.databaseFailures) / 1_000} s`);
+    }
     releaseLock(state);
   } finally {
     state.running = false;
-    schedule(state, RADIO_POLL_INTERVAL_MS);
+    schedule(state, radioPollDelay(state.databaseFailures));
   }
 }
 
@@ -82,7 +94,7 @@ export function startRadioPoller(environment: Record<string, string | undefined>
     console.info("Radiokontroller: hämtningen är avstängd (OTID_RADIO_POLLER=off)");
     return;
   }
-  const state = globalPoller.oTidRadioPoller ??= { started: false, running: false, lock: undefined, timer: undefined };
+  const state = globalPoller.oTidRadioPoller ??= { started: false, running: false, lock: undefined, timer: undefined, databaseFailures: 0 };
   if (state.started) return;
   state.started = true;
   schedule(state, 3_000);

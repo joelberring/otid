@@ -19,6 +19,8 @@ import { createStartDrawActions, useStartDrawState } from "./start-draw";
 import { createDuringRaceActions, deriveDuringRace, useDuringRaceState } from "./during-race";
 import { createAfterRaceActions, deriveAfterRace, useAfterRaceState } from "./after-race";
 import { createSettingsActions, useSettingsState } from "./settings-actions";
+import { createRemovalActions, useRemovalState } from "./removal";
+import { createResultsOfficialActions, useResultsOfficialState } from "./results-official";
 
 /** Allt tillstånd i arbetsytan, samlat per område. */
 export function useWorkspaceState(raceId: string) {
@@ -28,7 +30,8 @@ export function useWorkspaceState(raceId: string) {
     ...useRogainingState(),
     ...useCourseVariantState(), ...useRelayState(),
     ...useClassPreparationState(), ...useStatusChangeState(),
-    ...useStartListState(), ...useStartDrawState(), ...useDuringRaceState(), ...useAfterRaceState(), ...useSettingsState() };
+    ...useStartListState(), ...useStartDrawState(), ...useDuringRaceState(), ...useAfterRaceState(), ...useSettingsState(),
+    ...useRemovalState(), ...useResultsOfficialState() };
 }
 export type WorkspaceState = ReturnType<typeof useWorkspaceState>;
 
@@ -42,7 +45,7 @@ export function deriveWorkspace(s: WorkspaceState) {
     !!s.rentalAttempt || !!s.rentalReturnAttempt || !!s.rentalReuseAttempt || !!s.timeAttempt ||
     !!s.recalculationAttempt || !!s.identityAttempt || !!s.registrationAttempt || !!s.decisionAttempt || !!s.courseEditAttempt ||
     !!s.unknownReadoutAttempt || !!s.manualClassAttempt || !!s.classEditAttempt || !!s.entryVariantPreview ||
-    !!s.rogainingAttempt;
+    !!s.rogainingAttempt || !!s.removalAttempt;
   // PLAN.md steg 24: bara det som sparas låses. En skrivning pågår när ett försök väntar på kvitto; läsningar låser inget.
   const saving = s.busy && s.writingRef.current;
   const disabled = saving || editing;
@@ -86,7 +89,8 @@ export function useWorkspace(raceId: string) {
     ...createRogainingActions(withCourses), ...createClassPreparationActions(withData),
     ...createCourseVariantActions(withCourses),
     ...createStatusChangeActions(withDecisions), ...createEntryActions(withData), ...createAfterRaceActions(withData), ...createRemainingRunnersActions(withData),
-    ...createSettingsActions(withData) };
+    ...createSettingsActions(withData), ...createRemovalActions(withCourses),
+    ...createResultsOfficialActions(withData) };
   const withParticipants = { ...withAreas, ...createParticipantActions(withAreas) };
   return { ...withParticipants, ...createWorkflowNavigation(withParticipants) };
 }

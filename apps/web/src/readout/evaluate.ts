@@ -1,6 +1,6 @@
 import type { ReadoutPackage, SportidentReadoutPayload } from "@o-tid/contracts";
-import { courseVariantForReadout, evaluateCardReadout, startPunchNote, type EvaluationResult, type RaceSnapshot, type RogainingScore,
-  type StartPunchNote } from "@o-tid/domain";
+import { cardPunchList, courseVariantForReadout, evaluateCardReadout, startPunchNote, type CardPunchList, type EvaluationResult,
+  type RaceSnapshot, type RogainingScore, type StartPunchNote } from "@o-tid/domain";
 import { localRelay, relaySnapshot, type LocalRelay } from "./relay";
 import type { QueuedRegistration } from "./store";
 
@@ -27,6 +27,8 @@ export interface LocalVerdict {
   readonly startNote?: StartPunchNote;
   /** Hyrbricka som ska samlas in (PLAN.md steg 25). */
   readonly rental?: boolean;
+  /** Felstämplad eller okänd bricka (PLAN.md steg 27): alla stämplingar på brickan mot banan och tävlingsdagen. */
+  readonly punchList?: CardPunchList;
 }
 
 /**
@@ -73,6 +75,8 @@ export function evaluateLocally(payload: SportidentReadoutPayload, pkg: ReadoutP
   const raceClass = result.classId ? pkg.raceSnapshot.classes.find((candidate) => candidate.id === result.classId) : undefined;
   const relay = result.entryId && result.status !== "UNKNOWN_CARD" ? localRelay(pkg, result.entryId, { status: result.status,
     ...(result.elapsedMs !== undefined ? { elapsedMs: result.elapsedMs } : {}) }, earlier) : undefined;
+  const punchList = result.status === "MP" || result.status === "UNKNOWN_CARD"
+    ? cardPunchList({ ...readout, checkPunchedAt: payload.checkPunchedAt }, snapshot, result.entryId, pkg.event.timeZone) : undefined;
   const startNote = entry && raceClass && !relay ? startPunchNote({ startRule: raceClass.startRule, fixedStartTime: entry.fixedStartTime,
     startPunchedAt: payload.startPunchedAt }) : undefined;
   return {
@@ -87,6 +91,7 @@ export function evaluateLocally(payload: SportidentReadoutPayload, pkg: ReadoutP
     ...(result.rogaining ? { rogaining: result.rogaining } : {}),
     ...(startNote ? { startNote } : {}),
     ...(owner?.rental ? { rental: true } : {}),
+    ...(punchList ? { punchList } : {}),
     missingControls: result.missingControls,
     splits: result.splits.map((split) => ({ controlCode: split.controlCode, elapsedMs: split.elapsedMs, legMs: split.legMs }))
   };

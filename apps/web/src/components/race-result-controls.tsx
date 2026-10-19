@@ -23,11 +23,15 @@ export function RaceResultControls({ result, resultError, timeZone }: {
   const panelClass = `${styles.panel} ${styles.resultControls}`;
   if (resultError) return <section className={panelClass} aria-labelledby="race-result-controls-title">{heading}<p role="status">{text.resultError}</p></section>;
   if (result === undefined) return <section className={panelClass} aria-labelledby="race-result-controls-title">{heading}<p role="status">{text.loading}</p></section>;
-  if (result.state === "NO_PUBLISHED_RESULT") return <section className={panelClass} aria-labelledby="race-result-controls-title">{heading}<p>{text.noResult}</p></section>;
+  // Utan resultat säger kortets resultatrad redan "Inte avläst ännu" (PLAN.md steg 27).
+  if (result.state === "NO_PUBLISHED_RESULT") return null;
   if (result.state === "NO_ACTIVE_RESULT") return <section className={panelClass} aria-labelledby="race-result-controls-title">{heading}<p>{text.noActiveResult}</p></section>;
   const details = result.controlDetails;
   if (details === undefined) return <section className={panelClass} aria-labelledby="race-result-controls-title">{heading}<p>{text.missingDetails}</p></section>;
-  if (details === null) return <section className={panelClass} aria-labelledby="race-result-controls-title">{heading}<p>{text.noTechnicalDetails}</p></section>;
+  // En avläsning utan start eller mål har inga sträcktider; brickans stämplingar visas ovanför (PLAN.md steg 27).
+  if (details === null) return <section className={panelClass} aria-labelledby="race-result-controls-title">{heading}
+    <p>{result.cardPunches?.noStartPunch || result.cardPunches?.noFinishPunch ? text.noSplitsWithoutStartFinish
+      : text.noTechnicalDetails}</p></section>;
 
   return <section className={panelClass} aria-labelledby="race-result-controls-title">
     {heading}

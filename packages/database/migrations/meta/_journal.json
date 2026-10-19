@@ -7,6 +7,7 @@
     { "idx": 2, "version": "7", "when": 1797696000000, "tag": "0002_en_session", "breakpoints": true },
     { "idx": 3, "version": "7", "when": 1797782400000, "tag": "0003_paketversion", "breakpoints": true },
     { "idx": 4, "version": "7", "when": 1797868800000, "tag": "0004_tavlingsfunktioner", "breakpoints": true },
-    { "idx": 5, "version": "7", "when": 1797955200000, "tag": "0005_avancerad_lottning", "breakpoints": true }
+    { "idx": 5, "version": "7", "when": 1797955200000, "tag": "0005_avancerad_lottning", "breakpoints": true },
+    { "idx": 6, "version": "7", "when": 1798041600000, "tag": "0006_rattelser_efter_piloten", "breakpoints": true }
   ]
 }

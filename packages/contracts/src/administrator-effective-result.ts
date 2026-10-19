@@ -43,6 +43,25 @@ export const administratorControlDetailsSchema = z.object({
     }
   });
 });
+/**
+ * Brickans stämplingar från senaste avläsningen (domänens `cardPunchList`), oavsett bana och dag. Bara i arbetsytan
+ * (admin), aldrig publikt. Tiderna är oförändrade från den normaliserade avläsningen; datum i tävlingens tidszon.
+ */
+const localDate = z.iso.date();
+const stationPunch = z.object({ punchedAt: z.iso.datetime({ offset: true }), localDate }).strict();
+export const cardPunchListSchema = z.object({
+  readAt: z.iso.datetime({ offset: true }),
+  raceDate: localDate,
+  check: stationPunch.optional(), start: stationPunch.optional(), finish: stationPunch.optional(),
+  punches: z.array(z.object({ order: version, code: version, punchedAt: z.iso.datetime({ offset: true }), localDate,
+    placement: z.enum(["ON_COURSE", "EXTRA", "OTHER_DAY", "NO_COURSE"]) }).strict()).max(256),
+  missingControls: z.array(version).max(1_000),
+  otherDates: z.array(localDate).max(260),
+  allOtherDay: z.boolean(),
+  noStartPunch: z.boolean(),
+  noFinishPunch: z.boolean()
+}).strict();
+export type CardPunchListDto = z.infer<typeof cardPunchListSchema>;
 /** ADR-0169 beslut 4: deltagarkortets korta historik över resultatändringar, nyaste först. */
 export const administratorResultHistoryCauses = ["CARD_READOUT", "CLASS_CHANGE_RECALCULATION", "EXPLICIT_RECALCULATION",
   "UNKNOWN_READOUT_RESOLUTION", "MANUAL_DID_NOT_START", "MANUAL_DISQUALIFICATION", "MANUAL_DISQUALIFICATION_WITHDRAWAL",
@@ -57,6 +76,8 @@ export const administratorResultHistorySchema = z.array(z.object({
 }).strict()).max(10);
 const common = { formatVersion: z.literal(1), raceId: uuid, entryId: uuid, history: administratorResultHistorySchema,
   entryVersion: version, currentClassId: uuid, snapshotVersion: version,
+  /** Senaste avläsningens stämplingar; `null` när löparen inte lästs av. */
+  cardPunches: cardPunchListSchema.nullable().optional(),
   generatedAt: z.iso.datetime({ precision: 3 }), timeZone: z.string().min(1).max(100).refine(value => {
     try { new Intl.DateTimeFormat("sv-SE", { timeZone: value }); return true; } catch { return false; }
   }) };

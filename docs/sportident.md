@@ -44,6 +44,22 @@ all trafik till och från stationen sedan sidan öppnades (tid, riktning, hex)
 och råramarna för loppets avläsningar. Filen innehåller bricknummer men inga
 namn. Den används i steg 7 för att rätta avvikelser och blir testfixtures.
 
+## Mac: drivrutin för stationen
+
+En SPORTident-station med USB (BSM7/BSM8-USB) har en USB-seriell krets från Silicon Labs (CP210x). macOS visar den
+som *SPORTident USB to UART Bridge Controller* (USB-id `0x10c4:0x800a`) men skapar ingen serieport utan drivrutin.
+
+1. Hämta *CP210x VCP Mac OSX Driver* från Silicon Labs (silabs.com → Developers → USB to UART Bridge VCP Drivers) och
+   installera den.
+2. Tillåt drivrutinen: *Systeminställningar → Allmänt → Inloggningsobjekt och tillägg → Drivrutinstillägg* (slå på
+   Silicon Labs). På äldre macOS: *Systeminställningar → Integritet och säkerhet*, "Tillåt" vid meddelandet om blockerad
+   systemprogramvara från Silicon Laboratories. Starta om datorn om porten inte syns.
+3. Kontrollera porten i Terminal: `ls /dev/cu.*` ska visa `cu.SLAB_USBtoUART` eller `cu.usbserial-…` när stationen sitter i.
+   `cu.Bluetooth-Incoming-Port` och `cu.debug-console` finns på alla Mac och är **inte** stationen.
+4. I Chrome eller Edge: "Anslut station" och välj porten med Silicon Labs/CP210x i namnet.
+
+Windows hämtar drivrutinen själv i regel; Linux har den i kärnan (`/dev/ttyUSB0`, användaren behöver gruppen `dialout`).
+
 ## Inställning av stationen
 
 Ställ in med SPORTident Config+: läge *Readout*, *Extended protocol* på,
@@ -87,7 +103,7 @@ på tävling/träning).
 | SI-Card 5 | 1–499 999 | `0xB1`, 1 block | untested |
 | SI-Card 6 / 6* | 500 000–999 999, 16 711 680– | `0xE1 0x08`, block 0/6/7 | untested |
 | SI-Card 8 | 2 000 000–2 999 999 | `0xEF` block 0, 1 | untested |
-| SI-Card 9 | 1 000 000–1 999 999 | `0xEF` block 0, 1 | untested |
+| SI-Card 9 | 1 000 000–1 999 999 | `0xEF` block 0, 1 | field-verified¹ |
 | pCard | 4 000 000–4 999 999 | `0xEF` block 0, 1 | untested |
 | SI-Card 10 | 7 000 000–7 999 999 | `0xEF 0x08`, block 0/4–7 | untested |
 | SIAC | 8 000 000–8 999 999 | `0xEF 0x08`, block 0/4–7 | untested |
@@ -98,4 +114,10 @@ på tävling/träning).
 |---|---|
 | BSM7-USB | untested |
 | BSM8-USB | untested |
+| BSM-USB, modell ej noterad (CP210x, macOS, Chrome) | field-verified¹ för SI9-avläsning |
 | SI-USB-läsare | untested |
+
+¹ 2026-10-19, ägarens pilot: två SI9-brickor lästa med en BSM-station på macOS i Chrome. Bricknummer, antal stämplingar
+och stämplingarnas tider avkodades rätt (jämfört med brickorna). Stationens modell och firmware är inte noterade.
+Inget annat är provat på riktig hårdvara: start-, mål- och checkstämplingens tider, andra bricktyper, 4 800 baud,
+Windows och Linux är fortfarande `untested`.

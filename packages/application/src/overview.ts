@@ -1,4 +1,4 @@
-import { and, asc, count, eq, max } from "drizzle-orm";
+import { and, asc, count, eq, max, isNull } from "drizzle-orm";
 import { raceOverviewResponseSchema, type RaceOverviewResponse } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
 import { schema } from "@o-tid/database";
@@ -69,7 +69,8 @@ export async function getRaceOverviewAsAdmin(
     }).from(schema.classes)
       .leftJoin(schema.entries, and(
         eq(schema.entries.classId, schema.classes.id),
-        eq(schema.entries.raceId, authorization.principal.raceId)
+        eq(schema.entries.raceId, authorization.principal.raceId),
+        isNull(schema.entries.struckAt)
       ))
       .where(eq(schema.classes.raceId, authorization.principal.raceId))
       .groupBy(schema.classes.id, schema.classes.name, schema.classes.startRule)

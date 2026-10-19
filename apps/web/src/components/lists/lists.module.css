@@ -140,6 +140,9 @@
   .time { width: 4.6rem; }
   .card { width: 5.2rem; }
   .statusCol { width: 6.5rem; }
+  /* Per klubb på 390 px: klass och tid smalare så att namnet får plats (PLAN.md steg 27, granskning). */
+  .classCol { width: 3.6rem; }
+  .narrow { width: 4.4rem; }
   .nameCol { width: 6.5rem; }
   .scoreCol { width: 3.4rem; }
 }

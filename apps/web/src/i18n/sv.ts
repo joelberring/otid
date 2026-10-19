@@ -123,7 +123,6 @@ export const sv = {
   resultDisqualificationWithdrawalInvalidAttempt: "Återtagningsförsöket är ogiltigt eller restaureringskällan är inte längre valbar.",
   resultFinalizationInvalidResponse: "Servern gav ett ogiltigt finaliseringssvar.",
   resultFinalizationInvalidAttempt: "Fastställandet kan inte göras just nu. Visa vad som kan fastställas igen.",
-  resultFinalizationRaceScope: "Hela loppet",
   resultFinalizationLoginAgain: "Logga in igen för att fortsätta med samma försök.",
   resultFinalizationBlockers: {
     EMPTY_CLASS: "Klassen är tom och finaliseras inte separat.",

@@ -70,6 +70,55 @@ export interface ResultFinalizationRuntimeOptions {
 
 
 
+type DatabaseTransaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+
+/**
+ * Sparar ett fastställande (klass eller hela loppet) ur ett underlag som anroparen redan kontrollerat: den frysta
+ * projektionen, för loppet den kompletta IOF-filen, och en auditpost. Används av "Fastställ klass" och av
+ * "Resultaten är klara" (PLAN.md steg 27). Ger `undefined` när underlaget saknar projektionen.
+ */
+export async function insertResultFinalization(tx: DatabaseTransaction, basis: Awaited<ReturnType<typeof buildFinalizationBasis>>,
+  input: { raceId: string; snapshotVersion: number; scope: "CLASS" | "RACE"; classId: string | null; scopeRevision: number;
+    sourceHash: string; requestId: string; finalizationId: string; actorAccountId: string; finalizedAt: Date }) {
+  const { scopeRevision, finalizationId } = input;
+  let frozenProjection: FrozenClassFinalizationProjection | FrozenRaceFinalizationProjection;
+  let completeXml: string | null = null;
+  let completeXmlHash: string | null = null;
+  if (input.scope === "CLASS") {
+    const projection = input.classId === null ? undefined : basis.classProjectionById.get(input.classId);
+    if (!projection) return undefined;
+    frozenProjection = projection;
+  } else {
+    if (!basis.raceProjection) return undefined;
+    frozenProjection = basis.raceProjection;
+    const bytes = serializeIofResultList({
+      status: "Complete",
+      finalizationProof: { finalizationId, revision: scopeRevision, sourceHash: input.sourceHash },
+      eventName: basis.raceProjection.eventName,
+      classes: basis.raceProjection.classes.map((raceClass) => asIofClass(raceClass.class))
+    });
+    completeXml = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    completeXmlHash = sha256Bytes(bytes);
+  }
+  const [saved] = await tx.insert(schema.resultFinalizations).values({
+    id: finalizationId, requestId: input.requestId, raceId: input.raceId, scope: input.scope, classId: input.classId, scopeRevision,
+    sourceSnapshotVersion: input.snapshotVersion, sourceHash: input.sourceHash, frozenProjection, completeXml, completeXmlHash,
+    actorAccountId: input.actorAccountId, finalizedAt: input.finalizedAt
+  }).returning();
+  if (!saved) throw new Error("Finaliseringen kunde inte sparas");
+  const metadata = finalizationMetadata(saved);
+  await tx.insert(schema.auditEvents).values({
+    raceId: input.raceId, entityType: "result_finalization", entityId: saved.id,
+    action: saved.scope === "CLASS" ? "RESULT_CLASS_FINALIZED" : "RESULT_RACE_FINALIZED",
+    actorKind: "USER_ACCOUNT", actorId: input.actorAccountId, requestId: input.requestId,
+    after: { scope: metadata.scope, classId: metadata.classId, scopeRevision: metadata.scopeRevision,
+      sourceSnapshotVersion: metadata.sourceSnapshotVersion, basisHash: metadata.basisHash,
+      frozenProjectionHash: metadata.frozenProjectionHash, entryCount: metadata.entryCount, classCount: metadata.classCount,
+      completeXmlSha256: metadata.completeXmlSha256, finalizedAt: metadata.finalizedAt }
+  });
+  return metadata;
+}
+
 export async function listResultFinalizationCandidatesAsAdmin(
   db: Database,
   input: RaceSessionProof,
@@ -174,69 +223,10 @@ export async function finalizeResultsAsAdmin(
         return { status: "conflict" } as const;
       }
       const scopeRevision = (latest?.scopeRevision ?? 0) + 1;
-
-      let frozenProjection: FrozenClassFinalizationProjection | FrozenRaceFinalizationProjection;
-      let completeXml: string | null = null;
-      let completeXmlHash: string | null = null;
-      if (request.data.scope === "CLASS") {
-        const projection = basis.classProjectionById.get(request.data.classId);
-        if (!projection) return { status: "conflict" } as const;
-        frozenProjection = projection;
-      } else {
-        if (!basis.raceProjection) return { status: "conflict" } as const;
-        frozenProjection = basis.raceProjection;
-        const bytes = serializeIofResultList({
-          status: "Complete",
-          finalizationProof: {
-            finalizationId,
-            revision: scopeRevision,
-            sourceHash: request.data.expectedBasisHash
-          },
-          eventName: basis.raceProjection.eventName,
-          classes: basis.raceProjection.classes.map((raceClass) => asIofClass(raceClass.class))
-        });
-        completeXml = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-        completeXmlHash = sha256Bytes(bytes);
-      }
-
-      const [saved] = await tx.insert(schema.resultFinalizations).values({
-        id: finalizationId,
-        requestId,
-        raceId: race.id,
-        scope: request.data.scope,
-        classId: request.data.classId,
-        scopeRevision,
-        sourceSnapshotVersion: race.snapshotVersion,
-        sourceHash: request.data.expectedBasisHash,
-        frozenProjection,
-        completeXml,
-        completeXmlHash,
-        actorAccountId: authorization.principal.accountId,
-        finalizedAt
-      }).returning();
-      if (!saved) throw new Error("Finaliseringen kunde inte sparas");
-      const metadata = finalizationMetadata(saved);
-      await tx.insert(schema.auditEvents).values({
-        raceId: race.id,
-        entityType: "result_finalization",
-        entityId: saved.id,
-        action: saved.scope === "CLASS" ? "RESULT_CLASS_FINALIZED" : "RESULT_RACE_FINALIZED",
-        actorKind: "USER_ACCOUNT",
-        actorId: authorization.principal.accountId,
-        requestId,
-        after: {
-          scope: metadata.scope,
-          classId: metadata.classId,
-          scopeRevision: metadata.scopeRevision,
-          sourceSnapshotVersion: metadata.sourceSnapshotVersion,
-          basisHash: metadata.basisHash,
-          frozenProjectionHash: metadata.frozenProjectionHash,
-          entryCount: metadata.entryCount,
-          classCount: metadata.classCount,
-          completeXmlSha256: metadata.completeXmlSha256,
-          finalizedAt: metadata.finalizedAt
-        }
-      });
+      const metadata = await insertResultFinalization(tx, basis, { raceId: race.id, snapshotVersion: race.snapshotVersion,
+        scope: request.data.scope, classId: request.data.classId, scopeRevision, sourceHash: request.data.expectedBasisHash,
+        requestId, finalizationId, actorAccountId: authorization.principal.accountId, finalizedAt });
+      if (!metadata) return { status: "conflict" } as const;
       return {
         status: "finalized",
         response: resultFinalizationResponseSchema.parse({

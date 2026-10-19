@@ -3,7 +3,7 @@ import type { StatusChoice } from "../lib/participant-status-choices";
 /** Deltagarkortet: allt om en löpare på ett ställe (ADR-0169 beslut 4). */
 export const participantCardSv = {
   title: "Deltagarkort",
-  result: "Resultat", runningTime: "Löptid", noResult: "Inget resultat ännu",
+  result: "Resultat", runningTime: "Löptid", noResult: "Inte avläst ännu",
   resultLoading: "Läser in resultatet…", resultError: "Resultatet kunde inte läsas in.",
   decision: "Beslut",
   history: "Historik", historyEmpty: "Inga resultatändringar ännu.",

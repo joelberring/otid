@@ -1,12 +1,13 @@
 import { readFile } from "node:fs/promises";
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { addCourseAndClass, addEntry, createRace, openStep, publishRace, registerAccount, unique, warmRoute } from "./helpers";
+import { addCourseAndClass, addEntry, createRace, openStep, publishRace, registerAccount, reviewScreenshots, unique, warmRoute } from "./helpers";
 
 /**
  * PLAN.md steg 13 (ADR-0170 beslut 3): start- och resultatlistor med samma verktygsrad i arbetsytan och på de
  * publika sidorna. En tävling med två startfållor (första kontroll 31 och 45), en lottad minutstart som redan
  * har startat och en klass med fri start. Varje vy visas, sök och klassfilter fungerar, utskriftsläget visar bara
- * listan och CSV och IOF XML laddas ner. Fem löpare läses av med övningsstationen för resultatlistorna.
+ * listan och CSV och IOF XML laddas ner. Fem löpare läses av med övningsstationen för resultatlistorna. Steg 27:
+ * "Resultaten är klara" gör listorna officiella och ger IOF-filen för Eventor; det går att ångra.
  */
 const TIME_ZONE = "Europe/Stockholm";
 const RUNNERS = [
@@ -231,6 +232,8 @@ test("start- och resultatlistor: vyer, sök, utskrift och export i arbetsytan oc
   // Resultat per klass: placering, tid, efter och status; den felstämplade saknar placering.
   for (const path of ["results", "relay-results", "radio"]) await warmRoute(owner, `/api/public/races/${raceId}/${path}`);
   await warmRoute(owner, `/api/admin/races/${raceId}/administrator/result-export`);
+  // Resultatsteget läser också kartan och "Resultaten är klara"; första kompileringen i dev kan ta längre än väntetiden.
+  for (const path of ["map", "results-official"]) await warmRoute(owner, `/api/admin/races/${raceId}/administrator/${path}`);
   await openStep(owner, "Resultat");
   const results = owner.locator(`#workflow-${raceId}-results [data-list]`);
   const resultBar = results.getByRole("toolbar", { name: "Listans verktyg" });
@@ -274,9 +277,36 @@ test("start- och resultatlistor: vyer, sök, utskrift och export i arbetsytan oc
   expect(resultXml).toContain("<ResultList");
   expect(resultXml).toContain("<Family>Lind</Family>");
 
+  // Steg 27: "Resultaten är klara". Gun och Hugo har inte läst ut, så knappen säger vad som måste ordnas först.
+  for (const path of ["results-official", "remaining-runners", "result-finalizations"]) {
+    await warmRoute(owner, `/api/admin/races/${raceId}/administrator/${path}`);
+  }
+  const done = owner.getByRole("region", { name: "Resultaten är klara" });
+  await expect(done).toContainText("Listorna visas som Preliminära resultat.");
+  await expect(results.getByTestId("result-standing")).toHaveText("Preliminära resultat");
+  await done.getByRole("button", { name: "Resultaten är klara", exact: true }).click();
+  await expect(done.getByRole("alert")).toContainText("Det här måste ordnas först:");
+  await expect(done.getByRole("alert")).toContainText("H16:");
+  await owner.getByText("Markera alla kvar i skogen som ej start", { exact: true }).click();
+  await owner.getByRole("button", { name: "Visa vilka som berörs" }).click();
+  await owner.getByRole("button", { name: "Markera 2 som ej start" }).click();
+  await expect(owner.getByText(/^Klart: 2 löpare är ej start\./)).toBeVisible();
+  await done.getByRole("button", { name: "Resultaten är klara", exact: true }).click();
+  await expect(done.getByRole("status").filter({ hasText: "Resultaten är klara. Listorna visar Officiella resultat." })).toBeVisible();
+  await expect(done).toContainText(/Officiella resultat sedan \d+ \S+ \d\d:\d\d\./);
+  await expect(results.getByTestId("result-standing")).toHaveText(/^Officiella resultat \(fastställda /, { timeout: 30_000 });
+  const [official] = await Promise.all([owner.waitForEvent("download"),
+    done.getByRole("button", { name: "Ladda ner IOF-fil för Eventor" }).click()]);
+  const officialXml = await readFile(await official.path(), "utf8");
+  expect(officialXml).toContain('status="Complete"');
+  expect(officialXml).toContain("<Family>Mo</Family>");
+  await done.scrollIntoViewIfNeeded();
+  await reviewScreenshots(owner, "step27-results-done");
+
   // Publika resultat: samma tre vyer, ingen följ- eller ruttknapp, namnen länkar till löparens resultat.
   await visitor.clock.setFixedTime(new Date());
   await visitor.goto(`/results/${raceId}`);
+  await expect(visitor.getByTestId("result-standing")).toHaveText(/^Officiella resultat \(fastställda /);
   const publicResults = visitor.getByRole("toolbar", { name: "Listans verktyg" });
   await expect(visitor.getByRole("table", { name: "D21" }).getByRole("row")).toHaveCount(3);
   await expect(visitor.getByRole("link", { name: "Anna Ek" })).toHaveAttribute("href", new RegExp(`/results/${raceId}/participants/`));
@@ -300,6 +330,12 @@ test("start- och resultatlistor: vyer, sök, utskrift och export i arbetsytan oc
   const publicResultXml = await download(visitor, publicResults, "IOF XML");
   expect(publicResultXml).toContain("<ResultList");
   expect(publicResultXml).toContain("<Family>Sjö</Family>");
+  // Ångra: "Gör resultaten preliminära igen" och den publika listan är preliminär.
+  await done.getByRole("button", { name: "Gör resultaten preliminära igen" }).click();
+  await expect(done.getByRole("status").filter({ hasText: "Resultaten är preliminära igen." })).toBeVisible();
+  await expect(done.getByRole("button", { name: "Resultaten är klara", exact: true })).toBeVisible();
+  await visitor.reload();
+  await expect(visitor.getByTestId("result-standing")).toHaveText("Preliminära resultat");
   // Sidorna hämtar resultat av sig själva; stäng dem så att de inte belastar servern under senare flöden.
   await visitor.context().close();
   await owner.context().close();

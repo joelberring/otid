@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, getTableColumns, sql } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, sql, isNull } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
 import { entryTransferCandidatesSchema, entryTransferIdempotencyKeySchema,
   entryTransferRequestSchema, entryTransferResponseSchema,
@@ -54,7 +54,7 @@ export async function listEntryTransfersAsAdmin(db: Database, input: Authenticat
       fixedStartTime: schema.entries.fixedStartTime,
       courseVariantCode: schema.entries.courseVariantCode, teamId: schema.entries.teamId, relayLeg: schema.entries.relayLeg,
       exactTime: sql<boolean>`${schema.entries.fixedStartTime} IS NULL OR date_trunc('milliseconds', ${schema.entries.fixedStartTime}) = ${schema.entries.fixedStartTime}`
-    }).from(schema.entries).where(eq(schema.entries.raceId, input.raceId))
+    }).from(schema.entries).where(and(eq(schema.entries.raceId, input.raceId), isNull(schema.entries.struckAt)))
       .orderBy(asc(schema.entries.familyName), asc(schema.entries.givenName), asc(schema.entries.id)).limit(10_001);
     if (rows.some(row => !row.exactTime)) throw new Error("Starttidens precision stöds inte");
     if (rows.length > 10_000) throw new Error("För många deltagare");
@@ -67,7 +67,9 @@ export async function listEntryTransfersAsAdmin(db: Database, input: Authenticat
     const latestPublished = tx.selectDistinctOn([schema.resultRevisions.entryId], {
       ...getTableColumns(schema.resultRevisions)
     }).from(schema.resultRevisions).where(and(
-      eq(schema.resultRevisions.raceId, input.raceId), eq(schema.resultRevisions.published, true)
+      eq(schema.resultRevisions.raceId, input.raceId), eq(schema.resultRevisions.published, true),
+      // Strukna deltagare (PLAN.md steg 27) finns inte i listan, men deras revisioner står kvar.
+      sql`not exists (select 1 from entry struck where struck.id = ${schema.resultRevisions.entryId} and struck.struck_at is not null)`
     )).orderBy(asc(schema.resultRevisions.entryId), desc(schema.resultRevisions.revision),
       desc(schema.resultRevisions.id)).as("administrator_roster_latest_published");
     const publishedHeads = await tx.select().from(latestPublished).limit(10_001);

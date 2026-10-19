@@ -32,8 +32,12 @@ export function useClassPreparationState() {
 export function deriveClassPreparation(s: WorkspaceState) {
   const { data, capacityClassId } = s;
   const capacityClass = data?.classes.find((row) => row.id === capacityClassId);
-  const manualClassTargets = data?.classes.filter((row, index, rows) =>
-    rows.findIndex(candidate => candidate.courseVersionId === row.courseVersionId) === index) ?? [];
+  // Alla banor i loppet, även de som ännu inte har någon klass (annars går en ny bana inte att välja).
+  const fromCourses = (s.courseList?.courses ?? []).map(row => ({ courseVersionId: row.courseVersionId, courseName: row.name }));
+  const fromClasses = (data?.classes ?? []).map(row => ({ courseVersionId: row.courseVersionId, courseName: row.courseName }));
+  const manualClassTargets = [...fromCourses, ...fromClasses].filter((row, index, rows) =>
+    rows.findIndex(candidate => candidate.courseVersionId === row.courseVersionId) === index)
+    .sort((a, b) => a.courseName.localeCompare(b.courseName, "sv"));
   return { capacityClass, manualClassTargets };
 }
 

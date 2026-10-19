@@ -167,3 +167,13 @@ a { color: var(--ink); font-weight: 500; }
   .register { padding: 16px; }
   .register-fields { grid-template-columns: minmax(0, 1fr); }
 }
+/* Brickans stämplingar vid felstämplad eller okänd bricka (PLAN.md steg 27): förklaringen först, sedan kod och klockslag. */
+.verdict .punch-list { display: grid; gap: 4px; justify-items: start; }
+.verdict .punch-note { padding: 2px 10px; border-left: 4px solid var(--attention); background: var(--attention-tint); font-size: 1.15rem;
+  font-weight: 600; }
+.verdict .punches { display: flex; flex-wrap: wrap; gap: 2px 16px; margin: 2px 0; padding: 0; list-style: none; font-family: var(--font-dense);
+  font-size: var(--text-md); font-variant-numeric: tabular-nums; }
+.verdict .punches span:first-child { font-weight: 700; }
+.verdict .punches span:last-child { color: var(--muted); }
+.verdict .punches li[data-placement="EXTRA"] span:first-child, .verdict .punches li[data-placement="OTHER_DAY"] span:first-child { color: var(--attention); }
+.verdict .punch-legend { color: var(--muted); font-size: var(--text-sm); }

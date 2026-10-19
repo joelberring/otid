@@ -12,7 +12,15 @@ import type { DbExecutor } from "./snapshot";
  * nycklar kommer därför med automatiskt. Skyddstriggrarna släpper igenom DELETE bara när
  * `otid.purge` är satt i samma transaktion (migration 0099).
  */
-export type PurgeRoot = "event" | "user_account";
+export type PurgeRoot = "event" | "user_account" | "entry" | "class" | "course";
+
+/**
+ * Borttagningen skulle ta rader i en skyddad tabell (`table`), till exempel resultatrevisioner eller råa avläsningar när en
+ * anmälan, klass eller bana tas bort (PLAN.md steg 27). Inget har tagits bort; anroparens transaktion ska rullas tillbaka.
+ */
+export class PurgeProtectedError extends Error {
+  constructor(readonly table: string) { super(`Borttagningen skulle ta rader i ${table}`); }
+}
 
 interface ForeignKey { child: string; parent: string; childColumns: string[]; parentColumns: string[]; deferrable: boolean }
 
@@ -40,7 +48,8 @@ async function foreignKeys(tx: DbExecutor): Promise<ForeignKey[]> {
  * Tar bort raderna med id `ids` i `root` och allt som pekar på dem. Körs i anroparens transaktion och
  * returnerar antal borttagna rader per tabell.
  */
-export async function purgeRows(tx: DbExecutor, root: PurgeRoot, ids: readonly string[]): Promise<Map<string, number>> {
+export async function purgeRows(tx: DbExecutor, root: PurgeRoot, ids: readonly string[],
+  options: { readonly protect?: readonly string[] } = {}): Promise<Map<string, number>> {
   for (const id of ids) if (!UUID_PATTERN.test(id)) throw new Error("Ogiltigt id för borttagning");
   const deleted = new Map<string, number>();
   if (ids.length === 0) return deleted;
@@ -99,6 +108,8 @@ export async function purgeRows(tx: DbExecutor, root: PurgeRoot, ids: readonly s
     const count = await tx.execute<{ count: string }>(sql.raw(`select count(*)::text as count from ${mark}`));
     if (Number(count.rows[0]?.count ?? 0) > 0) remaining.add(table);
   }
+  const protectedTable = options.protect?.find((table) => remaining.has(table));
+  if (protectedTable) throw new PurgeProtectedError(protectedTable);
   while (remaining.size > 0) {
     const ready = [...remaining].filter((table) => !keys.some((key) => key.parent === table && key.child !== table &&
       !key.deferrable && remaining.has(key.child)));
@@ -110,5 +121,7 @@ export async function purgeRows(tx: DbExecutor, root: PurgeRoot, ids: readonly s
     }
   }
   for (const mark of marked.values()) await tx.execute(sql.raw(`drop table ${mark}`));
+  // Skyddet gäller igen för resten av transaktionen (en borttagen anmälan följs av nya rader i journalerna).
+  await tx.execute(sql`select set_config('otid.purge', 'off', true)`);
   return deleted;
 }

@@ -41,6 +41,13 @@ I arbetsytan: "Öppna avläsning". Anslut en SPORTident-station med USB (Chrome/
 eller starta övningsstationen. Avläsningar sparas i webbläsaren och skickas när nätet
 finns. Se `docs/sportident.md`.
 
+**Mac:** stationen behöver Silicon Labs drivrutin *CP210x VCP* (silabs.com). Installera den och tillåt den under
+*Systeminställningar → Allmänt → Inloggningsobjekt och tillägg → Drivrutinstillägg* (äldre macOS: *Integritet och
+säkerhet*). Porten heter sedan `cu.SLAB_USBtoUART` eller `cu.usbserial-…` (`ls /dev/cu.*`); `cu.Bluetooth-Incoming-Port`
+och `cu.debug-console` är inte stationen. Steg för steg i `docs/sportident.md`.
+
+**Export:** Inställningar → "Exportera tävlingen" ger en JSON-fil med allt om loppet (`docs/export.md`).
+
 ## Behörighet
 
 - **Konto:** vem som helst skapar ett konto på `/organizer` (e-post, namn, lösenord), med spärr mot

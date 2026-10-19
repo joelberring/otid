@@ -89,7 +89,8 @@ export async function loadDrawEntries(tx: Transaction, raceId: string, lock: boo
     familyName: schema.entries.familyName, organisationName: schema.entries.organisationName,
     fixedStartTime: schema.entries.fixedStartTime, version: schema.entries.version,
     courseVariantCode: schema.entries.courseVariantCode, seedRank: schema.entries.seedRank }).from(schema.entries)
-    .where(and(eq(schema.entries.raceId, raceId), isNull(schema.entries.teamId))).orderBy(asc(schema.entries.id)).limit(MAX_ENTRIES + 1);
+    .where(and(eq(schema.entries.raceId, raceId), isNull(schema.entries.teamId), isNull(schema.entries.struckAt)))
+    .orderBy(asc(schema.entries.id)).limit(MAX_ENTRIES + 1);
   const rows = lock ? await query.for("update") : await query;
   return rows.length > MAX_ENTRIES ? "too-large" : rows;
 }
@@ -128,7 +129,8 @@ export async function assignLateStartTime(tx: Transaction, raceId: string, class
   const plans = await loadDrawPlans(tx, group);
   const plan = plans.get(target.id)!;
   const entries = await tx.select({ classId: schema.entries.classId, fixedStartTime: schema.entries.fixedStartTime })
-    .from(schema.entries).where(and(eq(schema.entries.raceId, raceId), inArray(schema.entries.classId, group.map(row => row.id))));
+    .from(schema.entries).where(and(eq(schema.entries.raceId, raceId), inArray(schema.entries.classId, group.map(row => row.id)),
+      isNull(schema.entries.struckAt)));
   const times = (rows: readonly { fixedStartTime: Date | null }[]) => rows.flatMap(row => row.fixedStartTime ? [row.fixedStartTime.getTime()] : []);
   const others = group.filter(row => row.id !== target.id).map(row => row.id);
   const time = placeLateEntry({ method: plan.method, firstStartMs: plan.firstStartTime.getTime(), intervalMinutes: plan.intervalSeconds / 60,
@@ -152,7 +154,7 @@ export async function loadStartListFacts(tx: DbExecutor, raceId: string): Promis
   const taken = new Map<string, Set<number>>();
   if (plans.size > 0) {
     const rows = await tx.select({ classId: schema.entries.classId, fixedStartTime: schema.entries.fixedStartTime }).from(schema.entries)
-      .where(and(eq(schema.entries.raceId, raceId), inArray(schema.entries.classId, [...plans.keys()])));
+      .where(and(eq(schema.entries.raceId, raceId), inArray(schema.entries.classId, [...plans.keys()]), isNull(schema.entries.struckAt)));
     for (const row of rows) {
       if (row.fixedStartTime) taken.set(row.classId, (taken.get(row.classId) ?? new Set()).add(row.fixedStartTime.getTime()));
     }

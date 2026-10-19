@@ -52,27 +52,6 @@ export function createClassFinalizationAttempt(
   };
 }
 
-export function createRaceFinalizationAttempt(
-  candidates: ResultFinalizationCandidates,
-  webCrypto: Crypto = globalThis.crypto
-): ResultFinalizationAttempt {
-  const requestId = webCrypto.randomUUID();
-  if (!UUID_PATTERN.test(requestId) || candidates.race.blockerCodes.length > 0) {
-    throw new Error(sv.resultFinalizationInvalidAttempt);
-  }
-  return {
-    requestId,
-    label: sv.resultFinalizationRaceScope,
-    request: resultFinalizationRequestSchema.parse({
-      formatVersion: 1,
-      scope: "RACE",
-      classId: null,
-      expectedBasisHash: candidates.race.basisHash,
-      expectedLatestScopeRevision: candidates.race.latestFinalization?.scopeRevision ?? null
-    })
-  };
-}
-
 export function parseResultFinalizationResponse(
   value: unknown,
   attempt: ResultFinalizationAttempt,

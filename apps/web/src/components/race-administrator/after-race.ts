@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { RaceResultFinalizationMetadata } from "@o-tid/contracts";
 import { iofResultListExportFilename, parseFrozenRaceFinalizations, parseIofResultListExportMetadata,
   validateFrozenIofResultListResponse } from "../../lib/iof-result-list-export-admin-client";
-import { createClassFinalizationAttempt, createRaceFinalizationAttempt, isDefinitiveResultFinalizationRejection,
+import { createClassFinalizationAttempt, isDefinitiveResultFinalizationRejection,
   parseResultFinalizationCandidates, parseResultFinalizationResponse,
   type ResultFinalizationCandidates } from "../../lib/result-finalization-admin-client";
 import { classResultRecalculationBody, createClassResultRecalculationAttempt, parseClassResultRecalculationCandidates,
@@ -12,6 +12,7 @@ import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
 import type { FinalizationAttempt, Operation } from "./types";
 import type { Base, WorkspaceState } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
+import { saveVerifiedDownload } from "../../lib/verified-download";
 
 /** Resultat: omräkning per klass, fastställande och export. */
 export function useAfterRaceState() {
@@ -21,7 +22,8 @@ export function useAfterRaceState() {
   const [classRecalculationError, setClassRecalculationError] = useState("");
   const [classRecalculationSaved, setClassRecalculationSaved] = useState("");
   const [finalizationCandidates, setFinalizationCandidates] = useState<ResultFinalizationCandidates>();
-  const [finalizationScope, setFinalizationScope] = useState("RACE");
+  /** Klassen som fastställs under Avancerat (PLAN.md steg 27); hela loppet görs med "Resultaten är klara". */
+  const [finalizationScope, setFinalizationScope] = useState("");
   const [finalizationAttempt, setFinalizationAttempt] = useState<FinalizationAttempt>();
   const [finalizations, setFinalizations] = useState<RaceResultFinalizationMetadata[]>();
   const [finalizationId, setFinalizationId] = useState("");
@@ -34,8 +36,7 @@ export function useAfterRaceState() {
 
 export function deriveAfterRace(s: WorkspaceState) {
   const { finalizationScope, finalizationCandidates } = s;
-  const finalizationCandidate = finalizationScope === "RACE" ? finalizationCandidates?.race
-    : finalizationCandidates?.classes.find(row => row.classId === finalizationScope);
+  const finalizationCandidate = finalizationCandidates?.classes.find(row => row.classId === finalizationScope);
   return { finalizationCandidate };
 }
 
@@ -98,10 +99,9 @@ export function createAfterRaceActions(ws: Base & RaceDataActions) {
     catch { if (current(op)) setMessage(text.error); } finally { finish(op); }
   }
   function prepareFinalization() {
-    if (writingRef.current || pending.current || !requireSession() || !finalizationCandidates) return;
+    if (writingRef.current || pending.current || !requireSession() || !finalizationCandidates || !finalizationScope) return;
     try {
-      const value = finalizationScope === "RACE" ? createRaceFinalizationAttempt(finalizationCandidates)
-        : createClassFinalizationAttempt(finalizationCandidates, finalizationScope);
+      const value = createClassFinalizationAttempt(finalizationCandidates, finalizationScope);
       const attempt = { kind: "FINALIZATION" as const, value };
       pending.current = attempt; sent.current = false; setUnknown(false); setFinalizationAttempt(attempt); setMessage("");
     } catch { setMessage(text.error); }
@@ -126,20 +126,8 @@ export function createAfterRaceActions(ws: Base & RaceDataActions) {
     } catch { if (current(op)) { setUnknown(!committed); setMessage(committed ? text.finalizationSavedLoadError : text.unreachable); } }
     finally { finish(op); }
   }
-  async function saveExport(response: Response, filename: string, expectedHash: string, op: Operation) {
-    // Ingen kontroll av content-length: en proxy med komprimering (Caddy) tar bort
-    // eller ändrar den. Hashen över det uppackade innehållet räcker.
-    const buffer = await response.arrayBuffer();
-    const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", buffer)), byte => byte.toString(16).padStart(2, "0")).join("");
-    if (hash !== expectedHash) throw new Error("Export hash mismatch");
-    assertCurrent(op);
-    const objectUrl = URL.createObjectURL(new Blob([buffer], { type: "application/xml;charset=utf-8" }));
-    try {
-      const anchor = document.createElement("a");
-      anchor.href = objectUrl; anchor.download = filename; anchor.rel = "noopener";
-      document.body.append(anchor); anchor.click(); anchor.remove();
-    } finally { URL.revokeObjectURL(objectUrl); }
-  }
+  const saveExport = (response: Response, filename: string, expectedHash: string, op: Operation) =>
+    saveVerifiedDownload(response, filename, expectedHash, () => assertCurrent(op));
   async function loadFinalizations() {
     if (writingRef.current || pending.current || !requireSession()) return;
     const op = beginRequest(); setFinalizations(undefined); setFinalizationId(""); setMessage(text.exportLoadingHistory);

@@ -231,6 +231,40 @@ export function courseVariantForReadout(readout: EvaluationReadout, snapshot: Ra
   return chosen && { code: chosen.code, assigned: chosen.assigned };
 }
 
+/**
+ * Brickans stämplingar mot en deltagares bana, utan hänsyn till tider (deltagarkortets stämplingslista): vilka
+ * stämplingar som hör till banan (index i `punches`) och vilka obligatoriska kontroller som saknas. Samma matchning
+ * som bedömningen (gaffling, neutralisering, rogainingens kontrollmängd), men deltagaren anges med id i stället för
+ * via brickan, så att även en avläsning som bedömdes som felstämplad redan vid starten kan visas mot banan.
+ * `undefined` när deltagaren, klassen eller banan saknas i paketet.
+ */
+export function alignReadoutToCourse(punches: readonly Punch[], snapshot: RaceSnapshot, entryId: string):
+  { readonly onCourse: ReadonlySet<number>; readonly missingControls: readonly number[] } | undefined {
+  const entry = snapshot.entries.find((candidate) => candidate.id === entryId);
+  const raceClass = entry && snapshot.classes.find((candidate) => candidate.id === entry.classId);
+  const courseVersion = raceClass && activeVersion(snapshot, raceClass.courseVersionId);
+  if (!entry || !raceClass || !courseVersion) return undefined;
+  if (raceClass.rogaining) {
+    const set = rogainingControlSet(courseVersion);
+    return { onCourse: new Set(punches.flatMap((punch, index) => set.has(punch.code) ? [index] : [])), missingControls: [] };
+  }
+  const variant = chooseVariant({ entry, raceClass, courseVersion }, punches);
+  let expected: ExpectedControl[];
+  if (variant) {
+    const chosen = courseVariantsOf(courseVersion).find((candidate) => candidate.code === variant.code)!;
+    expected = required([...chosen.controls].sort((left, right) => left.sequence - right.sequence).map((control) => control.controlCode));
+  } else {
+    const neutralization = snapshot.classControlNeutralizations.find((candidate) =>
+      candidate.classId === raceClass.id && candidate.courseVersionId === courseVersion.id);
+    expected = [...courseVersion.controls].sort((left, right) => left.sequence - right.sequence)
+      .map((control) => ({ controlCode: control.controlCode, neutralized: control.id === neutralization?.courseControlId }));
+  }
+  const aligned = alignControls(expected, punches);
+  const matchedExpected = new Set(aligned.map((match) => match.expectedIndex));
+  return { onCourse: new Set(aligned.map((match) => match.punchIndex)),
+    missingControls: expected.flatMap((control, index) => matchedExpected.has(index) || control.neutralized ? [] : [control.controlCode]) };
+}
+
 export function evaluateCardReadout(
   readout: EvaluationReadout,
   snapshot: RaceSnapshot

@@ -272,7 +272,7 @@ export async function buildFinalizationBasis(tx: DatabaseTransaction, race: Lock
       eventorPersonId: schema.entries.eventorPersonId,
       eventorOrganisationId: schema.entries.eventorOrganisationId,
       courseVariantCode: schema.entries.courseVariantCode
-    }).from(schema.entries).where(eq(schema.entries.raceId, race.id))
+    }).from(schema.entries).where(and(eq(schema.entries.raceId, race.id), isNull(schema.entries.struckAt)))
       .orderBy(asc(schema.entries.classId), asc(schema.entries.familyName), asc(schema.entries.givenName), asc(schema.entries.id))
       .limit(MAX_RESULTS + 1),
     tx.selectDistinctOn([schema.resultRevisions.entryId], {
@@ -297,7 +297,8 @@ export async function buildFinalizationBasis(tx: DatabaseTransaction, race: Lock
     }).from(schema.resultRevisions)
       .innerJoin(schema.entries, and(
         eq(schema.resultRevisions.entryId, schema.entries.id),
-        eq(schema.entries.raceId, race.id)
+        eq(schema.entries.raceId, race.id),
+        isNull(schema.entries.struckAt)
       ))
       .where(eq(schema.resultRevisions.raceId, race.id))
       .orderBy(asc(schema.resultRevisions.entryId), desc(schema.resultRevisions.revision), desc(schema.resultRevisions.id))
@@ -395,7 +396,8 @@ export async function buildFinalizationBasis(tx: DatabaseTransaction, race: Lock
     for (const entry of entries) {
       const absoluteRevision = latestByEntry.get(entry.id);
       const revisionState = latestStateByEntry.get(entry.id);
-      if (absoluteRevision?.controlNeutralizationId !== null) blockers.add("INVALID_RESULT_REVISION");
+      // En saknad revision är MISSING_RESULT_REVISION nedan, inte ett ogiltigt resultat (PLAN.md steg 27).
+      if (absoluteRevision && absoluteRevision.controlNeutralizationId !== null) blockers.add("INVALID_RESULT_REVISION");
       const variant = classVariants.length === 0 ? undefined : classVariants.find(row => row.code === entry.courseVariantCode);
       if (classVariants.length > 0 && !variant) blockers.add("INVALID_RESULT_REVISION");
       const entryControls = variant

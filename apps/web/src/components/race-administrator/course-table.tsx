@@ -6,6 +6,8 @@ import type { CourseEditListResponse } from "@o-tid/contracts";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
 import { courseVariantsSv as variantText } from "../../i18n/course-variants-sv";
 import { Button, EmptyState, Field, Notice, Section, Table, numeric } from "../ui";
+import { RemovalReview } from "./removal-review";
+import { removalSv as removalText } from "../../i18n/removal-sv";
 import { courseMeasures } from "../../lib/lists/result-list-model";
 import { focusCourseFile } from "./course-file-section";
 import type { Workspace } from "./workspace-state";
@@ -37,6 +39,8 @@ export function CourseTable({ ws, visible }: { ws: Workspace; visible: boolean }
     {empty && !courseFormOpen && <EmptyState title={text.courseEditNoCourses} action={<>{newCourse(true)}
       <Button variant="quiet" onClick={() => focusCourseFile(raceId)}>{text.courseClassFileAlternative}</Button></>}>
       {text.courseEmptyHelp}</EmptyState>}
+    {ws.removalMessage?.kind === "COURSE" && !courseList?.courses.some(row => row.courseId === ws.removalMessage?.id) &&
+      <RemovalReview ws={ws} kind="COURSE" id={ws.removalMessage.id} />}
     {courseList && courseList.courses.length > 0 && <Table>
       <thead><tr>
         <th scope="col">{text.courseEditCourse}</th><th scope="col">{text.courseLengthColumn}</th>
@@ -45,6 +49,8 @@ export function CourseTable({ ws, visible }: { ws: Workspace; visible: boolean }
         <th scope="col" className={numeric}>{text.courseEditReadOut}</th><th scope="col"><span className={styles.visuallyHidden}>{text.courseEditAction}</span></th>
       </tr></thead>
       <tbody>{courseList.courses.map(course => {
+        const removing = (courseId: string) => (ws.removalAttempt?.kind === "COURSE" && ws.removalAttempt.id === courseId) ||
+          (ws.removalMessage?.kind === "COURSE" && ws.removalMessage.id === courseId);
         const editing = course.courseId === editingCourseId;
         const details = course.courseId === ws.detailsCourseId;
         const forked = course.variants.length > 0;
@@ -62,11 +68,16 @@ export function CourseTable({ ws, visible }: { ws: Workspace; visible: boolean }
           <td className={styles.rowAction}>{!editing && !forked && <Button variant="secondary" aria-label={text.courseEditOpenLabel(course.name)}
             disabled={saving || !!editingCourseId} onClick={() => startCourseEdit(course.courseId)}>{text.courseEditOpen}</Button>}
             {!details && <Button variant="quiet" aria-label={text.courseDetailsOpenLabel(course.name)} disabled={saving || !!ws.detailsCourseId}
-              onClick={() => ws.startCourseDetails(course.courseId)}>{text.courseDetailsOpen}</Button>}</td>
+              onClick={() => ws.startCourseDetails(course.courseId)}>{text.courseDetailsOpen}</Button>}
+            {/* PLAN.md steg 27: ta bort en bana som ingen klass använder; annars ett besked om vilka klasser. */}
+            {!editing && !details && <Button variant="quiet" aria-label={removalText.courseDeleteLabel(course.name)}
+              disabled={ws.disabled || !!editingCourseId} onClick={() => ws.prepareCourseRemoval(course.courseId)}>{removalText.courseDelete}</Button>}</td>
         </tr>, editing && <tr key={`${course.courseId}-editor`} className={styles.editorRow}>
           <td colSpan={7}><CourseEditor ws={ws} courseName={course.name} /></td>
         </tr>, details && <tr key={`${course.courseId}-details`} className={styles.editorRow}>
           <td colSpan={7}><CourseDetailsEditor ws={ws} courseName={course.name} /></td>
+        </tr>, removing(course.courseId) && <tr key={`${course.courseId}-removal`} className={styles.editorRow}>
+          <td colSpan={7}><div className={styles.rowReview}><RemovalReview ws={ws} kind="COURSE" id={course.courseId} /></div></td>
         </tr>];
       })}</tbody>
     </Table>}

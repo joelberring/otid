@@ -70,7 +70,7 @@ export async function readRaceMapStateAsAdmin(db: Database, input: Authenticatio
     const runners = await tx.select({ entryId: schema.entries.id, givenName: schema.entries.givenName, familyName: schema.entries.familyName,
       club: schema.entries.organisationName, className: schema.classes.name })
       .from(schema.entries).innerJoin(schema.classes, eq(schema.classes.id, schema.entries.classId))
-      .where(and(eq(schema.entries.raceId, raceId), isNull(schema.entries.teamId)))
+      .where(and(eq(schema.entries.raceId, raceId), isNull(schema.entries.teamId), isNull(schema.entries.struckAt)))
       .orderBy(asc(schema.classes.name), asc(schema.entries.familyName), asc(schema.entries.givenName));
     const routes = await tx.select({ entryId: schema.participantRoutes.entryId, fileName: schema.participantRoutes.fileName,
       pointCount: schema.participantRoutes.pointCount, startsAt: schema.participantRoutes.startsAt, endsAt: schema.participantRoutes.endsAt,

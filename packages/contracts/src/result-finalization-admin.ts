@@ -341,10 +341,8 @@ function validateFrozenIofPerson(result: FrozenPersonValidationValue, context: z
     previousElapsedMs = split.elapsedMs;
     splitKeys.add(key);
   }
-  if (result.status === "OK" && result.manualApprovalProof == null &&
-      [...expectedKeys].some((key) => !splitKeys.has(key))) {
-    context.addIssue({ code: "custom", path: ["splits"], message: "Finaliserad OK saknar split" });
-  }
+  // Ett tekniskt godkänt resultat kan sakna split för en kontroll som stämplades före start eller efter mål (PLAN.md
+  // steg 13); IOF-filen skriver den som SplitTime utan Time. Saknade kontroller ger aldrig OK (domänen avgör).
   if (result.status !== "OK" && result.manualApprovalProof != null) {
     context.addIssue({ code: "custom", path: ["manualApprovalProof"], message: "Manuellt godkännandebevis kräver OK" });
   }

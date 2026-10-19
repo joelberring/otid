@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import {
   markRemainingDidNotStartIdempotencyKeySchema, markRemainingDidNotStartRequestSchema, markRemainingDidNotStartResponseSchema,
   remainingRunnersResponseSchema, type MarkRemainingDidNotStartResponse, type RemainingRunnersResponse
@@ -28,7 +28,8 @@ interface RemainingRunner {
 async function loadRemainingRunners(tx: DbExecutor, raceId: string): Promise<{ didNotStart: RemainingRunner[]; missingAtFinish: RemainingRunner[] }> {
   const entries = await tx.select({ id: schema.entries.id, givenName: schema.entries.givenName, familyName: schema.entries.familyName,
     organisationName: schema.entries.organisationName, className: schema.classes.name }).from(schema.entries)
-    .innerJoin(schema.classes, eq(schema.classes.id, schema.entries.classId)).where(eq(schema.entries.raceId, raceId))
+    .innerJoin(schema.classes, eq(schema.classes.id, schema.entries.classId))
+    .where(and(eq(schema.entries.raceId, raceId), isNull(schema.entries.struckAt)))
     .orderBy(asc(schema.classes.name), asc(schema.entries.familyName), asc(schema.entries.givenName), asc(schema.entries.id)).limit(10_001);
   if (entries.length > 10_000) throw new Error("För många deltagare");
   const withResult = new Set((await tx.selectDistinct({ entryId: schema.resultRevisions.entryId }).from(schema.resultRevisions)

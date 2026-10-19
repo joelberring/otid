@@ -23,6 +23,8 @@ import type { ResultRowNote } from "../lists/result-lists";
 import type { Workspace } from "./workspace-state";
 import { MapRoutesSection } from "./map-routes-section";
 import { RemainingRunnersSection } from "./remaining-runners";
+import { ResultsOfficialSection } from "./results-official-section";
+import { resultsOfficialSv as officialText } from "../../i18n/results-official-sv";
 
 /**
  * Resultatlistorna i arbetsytan (PLAN.md steg 13): samma vyer som den publika sidan, med de publicerade
@@ -71,6 +73,7 @@ export function AfterRacePanel({ ws }: { ws: Workspace }) {
       <MispunchedList ws={ws} />
     </section>}
     <AdminResultLists ws={ws} />
+    {profile.features.finalization && <ResultsOfficialSection ws={ws} />}
     <Section id={`results-follow-up-${raceId}`} title={text.followUpHeading} help={text.followUpHelp}>
     <div className={styles.disclosureList}>
     {/* PLAN.md steg 25: efter tävlingen, alla som är kvar utan tecken på start blir ej start. */}
@@ -78,15 +81,16 @@ export function AfterRacePanel({ ws }: { ws: Workspace }) {
       <summary>{text.remainingTitle}</summary>
       <RemainingRunnersSection ws={ws} />
     </details>
+    {/* PLAN.md steg 27: hela loppet fastställs med "Resultaten är klara"; en klass i taget bara här. */}
     {profile.features.finalization && <details className={styles.disclosure} open={finalizationAttempt ? true : undefined}>
-      <summary>{text.finalizationHeading}</summary>
+      <summary>{officialText.advanced}</summary>
       <div className={styles.disclosureBody}>
-      <p className={styles.workflowHelp}>{text.finalizationHelp}</p>
+      <p className={styles.workflowHelp}>{officialText.advancedHelp}</p>
       <div><Button variant="secondary" disabled={disabled} onClick={() => void loadFinalizationBasis()}>{text.finalizationLoad}</Button></div>
       {finalizationCandidates && <>
-        <Field label={text.finalizationScope} className={styles.narrowField}><select value={finalizationScope} disabled={disabled}
+        <Field label={text.finalizationClass} className={styles.narrowField}><select value={finalizationScope} disabled={disabled}
           onChange={event => setFinalizationScope(event.target.value)}>
-          <option value="RACE">{sv.resultFinalizationRaceScope}</option>
+          <option value="">{text.finalizationChooseClass}</option>
           {finalizationCandidates.classes.map(row => <option key={row.classId} value={row.classId}>{row.className}</option>)}
         </select></Field>
         {finalizationCandidate && <>

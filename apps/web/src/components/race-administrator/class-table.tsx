@@ -9,6 +9,8 @@ import { courseVariantsSv as variantText } from "../../i18n/course-variants-sv";
 import { relaySv as relayText } from "../../i18n/relay-sv";
 import { classTableStatus } from "../../lib/class-table-status";
 import { Button, EmptyState, Field, Notice, Section, Table, numeric } from "../ui";
+import { RemovalReview } from "./removal-review";
+import { removalSv as removalText } from "../../i18n/removal-sv";
 import type { Workspace } from "./workspace-state";
 
 type ClassRow = CourseEditListResponse["classes"][number];
@@ -26,6 +28,8 @@ export function ClassTable({ ws, visible }: { ws: Workspace; visible: boolean })
     if (visible && authenticated && data && !busy && !operation.current && !pending.current && stale && !courseListError) void loadCourses();
   }, [visible, authenticated, data, busy, stale, courseListError]);
   const courseNames = new Map(courseList?.courses.map(course => [course.courseId, course.name]));
+  const removing = (classId: string) => (ws.removalAttempt?.kind === "CLASS" && ws.removalAttempt.id === classId) ||
+    (ws.removalMessage?.kind === "CLASS" && ws.removalMessage.id === classId);
   // Stafettklass (ADR-0169 beslut 3): antal sträckor i stället för startsätt.
   const relayLegs = new Map(data?.classes.flatMap(row => row.relayLegCount ? [[row.id, row.relayLegCount] as const] : []));
   const noCourses = courseList?.courses.length === 0, empty = courseList?.classes.length === 0;
@@ -36,6 +40,8 @@ export function ClassTable({ ws, visible }: { ws: Workspace; visible: boolean })
   return <Section id={`class-table-${raceId}`} title={text.title} help={empty ? undefined : text.help}
     actions={!empty && courseList && !manualClassOpen ? newClass(false) : undefined}>
     {classEditSaved && <Notice tone="ok" role="status">{classEditSaved}</Notice>}
+    {ws.removalMessage?.kind === "CLASS" && !courseList?.classes.some(row => row.classId === ws.removalMessage?.id) &&
+      <RemovalReview ws={ws} kind="CLASS" id={ws.removalMessage.id} />}
     {distributionMessage && <Notice tone="ok" role="status">{distributionMessage}</Notice>}
     {courseListError && <Notice tone="error" role="alert"><p>{courseListError}</p>
       <div><Button variant="secondary" disabled={saving} onClick={() => void loadCourses()}>{text.retryList}</Button></div></Notice>}
@@ -68,10 +74,15 @@ export function ClassTable({ ws, visible }: { ws: Workspace; visible: boolean })
           <td className={numeric}>{row.entryCount}</td>
           <td>{text.readOutValue(row.readOutCount, row.resultCount)}</td>
           <td><ClassStatus row={row} disabled={workflowLocked} onMissingStartTimes={() => openMissingFixedStart(row.classId)} /></td>
-          <td className={styles.rowAction}>{!editing && <Button variant="secondary" aria-label={text.openLabel(row.name)}
-            disabled={saving || !!editingClassId} onClick={() => startClassEdit(row.classId)}>{text.open}</Button>}</td>
+          <td className={styles.rowAction}>{!editing && <><Button variant="secondary" aria-label={text.openLabel(row.name)}
+            disabled={saving || !!editingClassId} onClick={() => startClassEdit(row.classId)}>{text.open}</Button>
+            {/* PLAN.md steg 27: ta bort en klass utan anmälda; annars ett besked om vad som måste flyttas. */}
+            <Button variant="quiet" aria-label={removalText.classDeleteLabel(row.name)} disabled={ws.disabled || !!editingClassId}
+              onClick={() => ws.prepareClassRemoval(row.classId)}>{removalText.classDelete}</Button></>}</td>
         </tr>, editing && <tr key={`${row.classId}-editor`} className={styles.editorRow}>
           <td colSpan={columns}><ClassEditor ws={ws} row={row} /></td>
+        </tr>, removing(row.classId) && <tr key={`${row.classId}-removal`} className={styles.editorRow}>
+          <td colSpan={columns}><div className={styles.rowReview}><RemovalReview ws={ws} kind="CLASS" id={row.classId} /></div></td>
         </tr>];
       })}</tbody>
     </Table>}

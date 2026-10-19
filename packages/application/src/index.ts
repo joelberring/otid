@@ -77,3 +77,7 @@ export { classNameTaken, courseNameTaken, DuplicateNameError } from "./duplicate
 export { registerReadoutCard } from "./readout-registration";
 export { markRemainingDidNotStartAsAdmin, previewRemainingRunnersAsAdmin, remainingDecisionRequestId } from "./remaining-runners";
 export { saveCourseDetailsAsAdmin } from "./course-details";
+export { removeEntryAsAdmin, removeClassAsAdmin, removeCourseAsAdmin } from "./race-removal";
+export { loadEntryCardPunches } from "./card-punches";
+export { officialResultState, readResultsOfficialAsAdmin, setResultsOfficialAsAdmin } from "./result-official";
+export { exportRaceAsAdmin, RACE_EXPORT_FORMAT, RACE_EXPORT_FORMAT_VERSION } from "./race-export";

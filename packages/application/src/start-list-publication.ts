@@ -1,4 +1,4 @@
-import { desc, eq, sql } from "drizzle-orm";
+import { desc, eq, sql, and, isNull } from "drizzle-orm";
 import { publicStartListResponseSchema, startListPublicationContentSchema, startListPublicationIdempotencyKeySchema, startListPublicationPreviewResponseSchema, startListPublicationRequestSchema, startListPublicationResponseSchema, type PublicStartListResponse } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { IofStartListSerializationError, serializeIofStartList, type IofStartListProjection } from "@o-tid/iof-xml";
@@ -43,7 +43,7 @@ async function projection(tx: DbExecutor, race: {
         id: schema.entries.id, classId: schema.entries.classId, givenName: schema.entries.givenName, familyName: schema.entries.familyName, organisationName: schema.entries.organisationName, fixedStartTime: schema.entries.fixedStartTime,
         eventorPersonId: schema.entries.eventorPersonId, eventorOrganisationId: schema.entries.eventorOrganisationId,
         courseVariantCode: schema.entries.courseVariantCode, teamId: schema.entries.teamId, relayLeg: schema.entries.relayLeg
-    }).from(schema.entries).where(eq(schema.entries.raceId, race.id)).limit(MAX_ENTRIES + 1);
+    }).from(schema.entries).where(and(eq(schema.entries.raceId, race.id), isNull(schema.entries.struckAt))).limit(MAX_ENTRIES + 1);
     if (cs.length > MAX_CLASSES || es.length > MAX_ENTRIES)
         throw new SourceProjectionError();
     const ids = new Set(cs.map(c => c.id));

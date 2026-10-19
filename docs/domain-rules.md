@@ -63,7 +63,17 @@ funktion lokalt; dess besked är preliminärt och serverns revision är auktorit
 - "Markera alla kvar i skogen som ej start" (Resultat) sätter ej start på alla utan avläsning och beslut, efter
   en förhandsvisning och en bekräftelse; den som stämplat vid radio eller prickats av vid starten listas för
   kontroll i stället. Samma begäran igen ändrar inget.
-- Fastställda resultat fryses per klass eller tävling. Senare revisioner ändrar inte en fastställd export.
+- "Resultaten är klara" (PLAN.md steg 27) fastställer i en transaktion varje klass med anmälda vars senaste fastställande
+  inte stämmer och sedan hela loppet, och loppet pekar på det (`race.official_result_finalization_id`). Listorna är
+  "Officiella resultat" så länge varje icke struken löpares senaste revision är den fastställda; annars preliminära tills
+  arrangören trycker igen. "Gör resultaten preliminära igen" nollställer bara pekaren. Klassvis fastställande finns under
+  Avancerat. Fastställda resultat fryses och senare revisioner ändrar inte en fastställd export.
+- Ta bort och stryk (steg 27): en deltagare utan resultatrevision tas bort helt med det som bara hör till den (journaler,
+  brickkoppling), och en lottad tid blir vakant igen. Med en revision (avläst, beslut) stryks deltagaren i stället:
+  `entry.struck_at` döljer den i alla listor, avläsningspaketet, lottning, kvar i skogen, speaker, IOF-export och
+  fastställande, och brickan släpps. Revisionerna och de råa avläsningarna står kvar. Eventors "struken" ger fortfarande
+  ej start (ADR-0170 beslut 4). En klass utan anmälda och en bana som ingen klass använder och inget resultat bedömts mot
+  kan tas bort.
 
 ## Lottning
 
@@ -111,8 +121,9 @@ samma frö ger alltid samma tider.
 
 Applikationslagret erbjuder ingen ändring eller borttagning av råmeddelanden, banversioner,
 resultatrevisioner, importfiler eller journaler. Databasen avvisar `UPDATE` och `DELETE` på dessa tabeller
-med triggers. Enda undantaget är superadminens borttagning av en hel tävling eller ett konto, som körs med
-purge-flaggan (`otid.purge`) i samma transaktion.
+med triggers. Undantagen körs med purge-flaggan (`otid.purge`) i samma transaktion: superadminens borttagning av en
+hel tävling eller ett konto, och (steg 27) borttagning av en deltagare, klass eller bana, där resultatrevisioner,
+avläsningar, råa meddelanden och fastställanden är skyddade och stoppar borttagningen.
 
 ## Publik resultatidentitet
 

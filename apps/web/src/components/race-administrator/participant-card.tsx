@@ -16,6 +16,10 @@ import { AdministratorEntryChanges } from "../administrator-entry-changes";
 import { resultDuration } from "./types";
 import { startPunchText } from "../../lib/start-punch-text";
 import { EntryActionForms, RegistrationForm } from "./entry-action-forms";
+import { CardPunches } from "./card-punches";
+import { RemovalReview } from "./removal-review";
+import { removalSv as removalText } from "../../i18n/removal-sv";
+import { Button } from "../ui";
 import type { StatusAttempt } from "./result-decisions";
 import type { Workspace } from "./workspace-state";
 
@@ -57,10 +61,13 @@ export function ParticipantCard({ ws }: { ws: Workspace }) {
     {selected && action !== "REGISTRATION" && !entryEditing && <>
       {selectedClass && selectedClass.courseVariants.length > 0 && <ParticipantVariant ws={ws} />}
       <CardResult ws={ws} result={result} error={effectiveResultError} />
+      {/* PLAN.md steg 27: brickans alla stämplingar, även från en annan dag eller bana. */}
+      {result?.cardPunches && data && <CardPunches punches={result.cardPunches} timeZone={data.timeZone} />}
       <StatusChange ws={ws} result={result} />
       {data && <RaceResultControls result={result} resultError={effectiveResultError} timeZone={data.timeZone} />}
       {result && data && <ResultHistory result={result} timeZone={data.timeZone} />}
       <EntryChanges ws={ws} />
+      <EntryRemoval ws={ws} result={result} />
     </>}
     <RegistrationForm ws={ws} />
   </section>;
@@ -197,4 +204,23 @@ function EntryChanges({ ws }: { ws: Workspace }) {
         onClick={() => void loadHistory(selected.id, entryChanges.nextBeforeVersion ?? undefined)}>{adminText.historyOlder}</button>}
     </> : <p>{adminText.historyNotLoaded}</p>}
   </details>;
+}
+
+/**
+ * "Ta bort deltagare" för den som inte läst ut och saknar resultat, annars "Stryk" (PLAN.md steg 27): döljs i alla listor
+ * men avläsningen och historiken sparas. Bekräftas i kortet.
+ */
+function EntryRemoval({ ws, result }: { ws: Workspace; result: AdministratorEffectiveResultResponse | undefined }) {
+  const { disabled, prepareEntryRemoval, removalAttempt, selected } = ws;
+  if (!selected || !result) return null;
+  const strike = result.state !== "NO_PUBLISHED_RESULT" || result.history.length > 0 || !!result.cardPunches;
+  const open = removalAttempt?.kind === "ENTRY" && removalAttempt.id === selected.id;
+  return <section className={styles.workspace} aria-label={removalText.entryHeading}>
+    {!open && <>
+      <p className={styles.workflowHelp}>{strike ? removalText.entryStrikeHelp : removalText.entryDeleteHelp}</p>
+      <div><Button variant="secondary" disabled={disabled} onClick={prepareEntryRemoval}>
+        {strike ? removalText.entryStrike : removalText.entryDelete}</Button></div>
+    </>}
+    <RemovalReview ws={ws} kind="ENTRY" id={selected.id} />
+  </section>;
 }

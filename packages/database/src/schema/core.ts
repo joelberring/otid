@@ -101,6 +101,8 @@ export const races = pgTable("race", {
   shortCode: text("short_code").notNull().default(sql`generate_race_short_code()`),
   /** Lottningens inställningar under "Avancerat" (migration 0005), sparade med senaste lottningen. NULL = standard. */
   startDrawSettings: jsonb("start_draw_settings"),
+  /** "Resultaten är klara" (migration 0006): loppets fastställande som gäller som officiellt. NULL = preliminära. */
+  officialResultFinalizationId: uuid("official_result_finalization_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (table) => [
   check("race_type_check", sql`${table.raceType} in ('TRAINING', 'SMALL', 'STANDARD', 'FORKED', 'RELAY', 'ROGAINING')`),
@@ -220,6 +222,8 @@ export const entries = pgTable("entry", {
   eventorOrganisationId: text("eventor_organisation_id"),
   /** Seedning i lottningen (migration 0005): 1 = bäst. NULL = inte seedad. */
   seedRank: integer("seed_rank"),
+  /** "Stryk" (migration 0006): dold i alla listor, historik och råa avläsningar finns kvar. NULL = inte struken. */
+  struckAt: timestamp("struck_at", { withTimezone: true }),
   version: integer("version").notNull().default(1),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (table) => [

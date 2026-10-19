@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, getTableColumns, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, inArray, isNull } from "drizzle-orm";
 import { speakerBoardResponseSchema, speakerBoardRowSchema, type SpeakerBoardResponse, type SpeakerBoardRow } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
@@ -49,7 +49,7 @@ export async function listSpeakerBoardAsAdmin(
       entryIds.length === 0 ? Promise.resolve([]) : tx.select({ id: schema.entries.id,
         givenName: schema.entries.givenName, familyName: schema.entries.familyName,
         organisationName: schema.entries.organisationName }).from(schema.entries)
-        .where(and(eq(schema.entries.raceId, race.id), inArray(schema.entries.id, entryIds))),
+        .where(and(eq(schema.entries.raceId, race.id), inArray(schema.entries.id, entryIds), isNull(schema.entries.struckAt))),
       classIds.length === 0 ? Promise.resolve([]) : tx.select({ id: schema.classes.id, name: schema.classes.name })
         .from(schema.classes).where(and(eq(schema.classes.raceId, race.id), inArray(schema.classes.id, classIds))),
       courseVersionIds.length === 0 ? Promise.resolve([]) : tx.select({ id: schema.courseVersions.id })

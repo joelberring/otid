@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull } from "drizzle-orm";
 import {
   iofResultListExportMetadataSchema,
   type IofResultListExportMetadata
@@ -175,7 +175,7 @@ async function projectIofResultList(tx: Transaction, raceId: string, options: { 
     tx.select({ id: schema.races.id }).from(schema.races)
       .where(eq(schema.races.eventId, race.eventId)).orderBy(asc(schema.races.id)).limit(2),
     tx.select({ value: count(schema.entries.id) }).from(schema.entries)
-      .where(eq(schema.entries.raceId, race.id))
+      .where(and(eq(schema.entries.raceId, race.id), isNull(schema.entries.struckAt)))
   ]);
   if (!event[0]) return { status: "not-found" } as const;
   if (siblingRaces.length !== 1 || siblingRaces[0]?.id !== race.id) {
@@ -212,7 +212,8 @@ async function projectIofResultList(tx: Transaction, raceId: string, options: { 
   }).from(schema.resultRevisions)
     .innerJoin(schema.entries, and(
       eq(schema.resultRevisions.entryId, schema.entries.id),
-      eq(schema.entries.raceId, race.id)
+      eq(schema.entries.raceId, race.id),
+      isNull(schema.entries.struckAt)
     ))
     .where(and(
       eq(schema.resultRevisions.raceId, race.id),

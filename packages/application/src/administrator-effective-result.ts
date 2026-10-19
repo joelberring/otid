@@ -8,6 +8,7 @@ import { isEffectiveResultCurrent, loadResultBasisHash } from "./result-basis";
 import { storedResultVariantControls } from "./course-variants";
 import { UUID_PATTERN as uuid } from "./serialization";
 import { applicableResultNotes, loadResultNotes } from "./result-notes";
+import { loadEntryCardPunches } from "./card-punches";
 
 export type AdministratorEffectiveResult =
   | { status: "unauthorized" | "forbidden" | "not-found" | "invalid-request" }
@@ -89,9 +90,11 @@ export async function getAdministratorEffectiveResult(db: Database,
         eq(schema.resultRevisions.published, true)))
       .orderBy(desc(schema.resultRevisions.revision), desc(schema.resultRevisions.id)).limit(10))
       .map(row => ({ ...row, at: row.at.toISOString() }));
+    // PLAN.md steg 27: brickans alla stämplingar, även när bedömningen stannade vid "Start saknas".
+    const cardPunches = await loadEntryCardPunches(tx, race.id, entry.id, event.timeZone);
     const common = { formatVersion: 1 as const, raceId: race.id, entryId: entry.id, history,
       entryVersion: entry.version, currentClassId: entry.classId, snapshotVersion: race.snapshotVersion,
-      generatedAt: now.toISOString(), timeZone: event.timeZone };
+      generatedAt: now.toISOString(), timeZone: event.timeZone, cardPunches };
     const [selected] = await tx.select().from(schema.resultRevisions).where(and(
       eq(schema.resultRevisions.raceId, race.id), eq(schema.resultRevisions.entryId, entry.id),
       eq(schema.resultRevisions.published, true)

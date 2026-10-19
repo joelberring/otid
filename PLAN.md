@@ -517,6 +517,78 @@ senare klass, seedning, delvis lottning bevarar befintliga tider);
 Playwright: lotta en klass, efteranmäl en klass och lotta bara den, en klass
 med senare start och seedad löpare sist.
 
+## [x] Steg 27 – Rättelser efter första piloten (2026-10-19)
+
+Ägaren provade riktig station (BSM, SI9) och riktiga Eventor ikväll.
+
+1. Deltagarkortet och avläsningen visar alla brickans stämplingar, även från
+   annan dag eller annan bana, med förklaring ("från ons 14 okt", "ingen
+   startstämpling").
+2. "Ny klass" listar alla banor, även de som saknar klass.
+3. "Ta bort deltagare" utan avläsning; "Stryk" (dold i listor, historik kvar)
+   med avläsning. "Ta bort bana" och "Ta bort klass" när inget hänger på dem
+   (klass utan anmälda; bana utan klass); annars ett besked om vad som måste
+   flyttas först.
+4. Mina tävlingar: idag och kommande först (närmast först), sedan gångna.
+5. Fastställande blir en knapp "Resultaten är klara" (fryser listan, märker
+   "Officiella resultat", ger IOF-fil för Eventor, kan ångras); klassvis
+   fastställande under Avancerat; dold för träning och liten tävling.
+6. "Exportera tävlingen" till en fil med allt (banor, klasser, anmälda,
+   starttider, råa avläsningar, resultat, historik).
+7. Småsaker: varning vid gamla Eventor-variabelnamn i `.env`; "inga
+   tävlingar" i stället för "Eventor svarar inte"; jargong ("publicerat
+   resultat") bort; drivrutin för Mac i instruktionen för stationen; radiohämtningen
+   väntar längre vid databasfel.
+
+**Acceptans:** Playwright för 1–5; integrationstest för export.
+
+## [ ] Steg 28 – Vanlig PostgreSQL i stället för PostGIS
+
+PostGIS-tillägget skapas i baslinjen men används inte längre (kartor och rutter
+ligger som bytea, ADR-0171). Byt till den officiella `postgres:17`-bilden i
+`docker-compose.yml`, `docker-compose.prod.yml` och CI, ta bort
+`CREATE EXTENSION postgis` och `platform: linux/amd64`. Då fungerar O-Tid på
+ARM (Apple-datorer utan Rosetta, Oracle Cloud gratis, Hetzner CAX) och drar
+mindre minne.
+
+**Acceptans:** alla tester och CI-jobbet `production` gröna med `postgres:17`;
+`docs/drift.md` nämner billiga och gratis serveralternativ.
+
+## [ ] Steg 29 – Löpardatabas från Eventor
+
+1. Hämta klubbens (och vid behov hela landets) löpare med bricka och Sveriges
+   klubbar från Eventor (`/api/export/cachedcompetitors`, `/api/organisations`,
+   IOF 3.0 CompetitorList); uppdateras med en knapp; ligger med i
+   avläsningspaketet för offline.
+2. Okänd bricka: namn och klubb fylls i ur databasen. Namnfält föreslår löpare,
+   klubbfält föreslår klubbar (med Eventor-id), i avläsningen och i "Ny
+   deltagare".
+3. Personuppgifter: bara admin och funktionärer, aldrig publikt; kan raderas;
+   står i integritetstexten.
+4. Okänd bricka: stämplingarna jämförs mot alla banor (samma bästa-passning som
+   gafflingar); klassen vars bana passar förväljs ("Passar H21 (Lång), alla
+   kontroller"). Anmälda i de klasserna utan bricka eller utan avläsning
+   föreslås överst ("Koppla brickan till Anna Ek?"). Arrangören väljer alltid
+   själv; fungerar offline.
+
+**Acceptans:** adaptertester mot inspelad struktur; Playwright: okänd bricka
+fylls i från databasen offline.
+
+## [ ] Steg 30 – Live för publiken
+
+Ägarens önskemål 2026-10-19: följa tävlingen i mobilen utan inloggning.
+
+1. "Live" på den publika tävlingssidan: senast i mål (namn, klass, tid,
+   placering), ledare per klass med markering vid ny ledare, radiopassager när
+   radiokontroller används. Uppdateras av sig själv (samma ström som
+   resultatlistan).
+2. Följ löpare eller klubb: stjärnmärkta hamnar överst; valet sparas bara i
+   mobilen, inget konto.
+3. Inga bricknummer eller interna uppgifter; fungerar på 390 px.
+
+**Acceptans:** Playwright: avläsning syns i Live inom några sekunder hos en
+anonym besökare; följd klubb hamnar överst efter omladdning.
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

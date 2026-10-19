@@ -1,4 +1,5 @@
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { officialResultState } from "./result-official";
+import { and, asc, desc, eq, inArray, sql, isNull } from "drizzle-orm";
 import {
   entryClassAdminListResponseSchema,
   entryClassChangeIdempotencyKeySchema,
@@ -65,7 +66,8 @@ async function selectPublishedPublicResultHeads(tx: DatabaseTransaction, raceId:
   }).from(schema.resultRevisions)
     .innerJoin(schema.entries, and(
       eq(schema.resultRevisions.entryId, schema.entries.id),
-      eq(schema.entries.raceId, raceId)
+      eq(schema.entries.raceId, raceId),
+      isNull(schema.entries.struckAt)
     ))
     .where(and(
       eq(schema.resultRevisions.raceId, raceId),
@@ -136,7 +138,7 @@ export async function listEntryClassesAsAdmin(
       classId: schema.entries.classId,
       version: schema.entries.version
     }).from(schema.entries)
-      .where(eq(schema.entries.raceId, authorization.principal.raceId))
+      .where(and(eq(schema.entries.raceId, authorization.principal.raceId), isNull(schema.entries.struckAt)))
       .orderBy(asc(schema.entries.familyName), asc(schema.entries.givenName), asc(schema.entries.id));
     const response = entryClassAdminListResponseSchema.parse({
       formatVersion: 1,
@@ -441,40 +443,16 @@ export async function publicResults(db: Database, raceId: string): Promise<Publi
   }, { isolationLevel: "repeatable read" });
 }
 
-/** Resultatrevisionerna som den frysta loppsprojektionen bygger på (beslutets absoluta revision eller resultatet). */
-function frozenRevisionIds(projection: unknown): Set<string> | undefined {
-  const classes = (projection as { classes?: unknown })?.classes;
-  if (!Array.isArray(classes)) return undefined;
-  const ids = new Set<string>();
-  for (const selected of classes as { class?: { results?: { source?: { resultRevisionId?: unknown; absoluteResultRevisionId?: unknown } }[] } }[]) {
-    for (const result of selected.class?.results ?? []) {
-      const id = result.source?.absoluteResultRevisionId ?? result.source?.resultRevisionId;
-      if (typeof id !== "string") return undefined;
-      ids.add(id);
-    }
-  }
-  return ids;
-}
-
 /**
- * PLAN.md steg 25: listan är preliminär tills hela tävlingen fastställts, och officiell så länge varje löpares senaste
- * resultatrevision är den som fastställdes (ingen ändring efter fastställandet). Jämförelsen bygger på revisionerna,
- * inte på klockslag.
+ * PLAN.md steg 25/27: listan är preliminär tills arrangören tryckt "Resultaten är klara", och officiell så länge varje
+ * löpares senaste resultatrevision är den som fastställdes (`officialResultState`).
  */
 async function publicResultStanding(tx: DatabaseTransaction, raceId: string): Promise<PublicResultStanding> {
-  const [finalization] = await tx.select({ finalizedAt: schema.resultFinalizations.finalizedAt,
-    projection: schema.resultFinalizations.frozenProjection }).from(schema.resultFinalizations)
-    .where(and(eq(schema.resultFinalizations.raceId, raceId), eq(schema.resultFinalizations.scope, "RACE")))
-    .orderBy(desc(schema.resultFinalizations.scopeRevision)).limit(1);
-  if (!finalization) return { kind: "PRELIMINARY" };
-  const frozen = frozenRevisionIds(finalization.projection);
-  const latest = await tx.selectDistinctOn([schema.resultRevisions.entryId], { id: schema.resultRevisions.id })
-    .from(schema.resultRevisions).where(eq(schema.resultRevisions.raceId, raceId))
-    .orderBy(asc(schema.resultRevisions.entryId), desc(schema.resultRevisions.revision));
-  if (!frozen || latest.some((row) => !frozen.has(row.id))) return { kind: "PRELIMINARY" };
+  const official = await officialResultState(tx, raceId);
+  if (!official?.current) return { kind: "PRELIMINARY" };
   const [event] = await tx.select({ timeZone: schema.events.timeZone }).from(schema.races)
     .innerJoin(schema.events, eq(schema.events.id, schema.races.eventId)).where(eq(schema.races.id, raceId));
-  return { kind: "OFFICIAL", finalizedAt: finalization.finalizedAt.toISOString(), timeZone: event?.timeZone ?? "Europe/Stockholm" };
+  return { kind: "OFFICIAL", finalizedAt: official.finalizedAt.toISOString(), timeZone: event?.timeZone ?? "Europe/Stockholm" };
 }
 
 /** Klassernas banor med längd och stigning för listornas rubriker (PLAN.md steg 25). */

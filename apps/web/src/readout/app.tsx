@@ -16,6 +16,7 @@ import { syncPending } from "./sync";
 import { readoutText as t } from "./text-sv";
 import { ReceiptPanel, type Printable } from "./receipt-panel";
 import { QrCode } from "./receipt-view";
+import { PunchListView } from "./punch-list-view";
 import { receiptLink } from "./receipt";
 import { loadReceiptSettings, saveReceiptSettings, type ReceiptSettings } from "./receipt-settings";
 
@@ -403,6 +404,7 @@ function Verdict({ current, verdict, item, qr, registration, timeZone }: { curre
       {verdict.startNote.kind === "FROM_PUNCH" ? "" : "! "}{startPunchText(verdict.startNote, timeZone)}</p> : null}
     {verdict && verdict.status !== "OK" ? <p>{t.reason[verdict.reason]}</p> : null}
     {verdict && verdict.missingControls.length > 0 ? <p>{t.missing(verdict.missingControls)}</p> : null}
+    {verdict?.punchList ? <PunchListView list={verdict.punchList} timeZone={timeZone} /> : null}
     {!verdict ? <p>{t.noPackage}</p> : null}
     {verdict && !verdict.rogaining && verdict.splits.length > 0 ? <ol className="splits" aria-label={t.splits}>
       {verdict.splits.map((split, index) => <li key={index}>

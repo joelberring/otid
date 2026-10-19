@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import styles from "../race-administrator-workspace.module.css";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
 import { raceWorkspaceNavigationSv as navigationText } from "../../i18n/race-workspace-navigation-sv";
@@ -53,7 +54,11 @@ export function PreparationClasses({ ws }: { ws: Workspace }) {
 function ManualClassForm({ ws }: { ws: Workspace }) {
   const { busy, manualClassAttempt, manualClassCourseVersionId, manualClassError, manualClassErrors, manualClassForm, manualClassName,
     manualClassOpen, manualClassStartRule, manualClassTargets, profile, raceId, saveManualClass, setManualClassCourseVersionId,
-    setManualClassErrors, setManualClassName, setManualClassOpen, setManualClassStartRule, submitManualClass } = ws;
+    setManualClassErrors, setManualClassName, setManualClassOpen, setManualClassStartRule, submitManualClass, courseList, courseListError, loadCourses } = ws;
+  // Banor utan klass finns bara i banlistan; hämta den när formuläret öppnas (t.ex. direkt på Klasser utan att ha varit på Banor).
+  useEffect(() => {
+    if (manualClassOpen && !courseList && !courseListError && !busy) void loadCourses();
+  }, [manualClassOpen, courseList, courseListError, busy, loadCourses]);
   if (!manualClassOpen && !manualClassAttempt) return null;
   const locked = !!manualClassAttempt;
   const id = `manual-class-${raceId}`;

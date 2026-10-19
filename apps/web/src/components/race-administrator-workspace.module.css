@@ -258,3 +258,5 @@
   .disclosureBody { padding-left: 0; }
   .disclosure > :not(summary):not(.disclosureBody) { margin-left: 0; }
 }
+/* PLAN.md steg 27: bekräftelsen under en tabellrad stannar inom skärmen när tabellen rullar i sidled (mobil). */
+.rowReview { position: sticky; left: 0; max-width: min(100%, calc(100vw - 56px)); }

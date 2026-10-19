@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { createHash, randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { expect, type Browser, type Page } from "@playwright/test";
 
@@ -194,4 +195,41 @@ export async function addPerson(owner: Page, email: string, role: "Funktionär" 
   await form.getByRole("button", { name: "Lägg till" }).click();
   await expect(people.getByRole("status")).toContainText(`som ${role.toLowerCase()}`);
   await expect(people.getByRole("list", { name: "Personer med behörighet" })).toContainText(email);
+}
+
+/** Skärmbilder för granskning när E2E_SCREENSHOT_DIR är satt: `<namn>-1280.png` och `<namn>-390.png`, hela sidan. */
+export async function reviewScreenshots(page: Page, name: string, widths: readonly number[] = [1280, 390]): Promise<void> {
+  const directory = process.env.E2E_SCREENSHOT_DIR;
+  if (!directory) return;
+  for (const width of widths) {
+    await page.setViewportSize({ width, height: 900 });
+    // Överst först: fasta rubriker hamnar annars mitt i en helsidesbild.
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({ path: `${directory}/${name}-${width}.png`, fullPage: true });
+  }
+  await page.setViewportSize({ width: 1280, height: 720 });
+}
+
+/**
+ * Skickar en avläsning till tävlingen med kontots session, som avläsningssidan gör (PLAN.md steg 27): en SI9-bricka med
+ * check, mål och stämplingar vid valfria tider, till exempel från ett tidigare lopp. Ramarna är påhittade.
+ */
+export async function sendReadout(page: Page, raceId: string, readout: { cardNumber: string; checkPunchedAt?: string;
+  startPunchedAt?: string; finishPunchedAt?: string; punches: { code: number; punchedAt: string }[] }): Promise<void> {
+  const origin = new URL(page.url()).origin;
+  const csrf = (await page.context().cookies()).find(row => /otid[-_]organizer[-_]csrf$/.test(row.name))?.value ?? "";
+  // Fälten i kontraktets ordning: servern räknar hashen över den tolkade nyttolasten.
+  const payload = { cardNumber: readout.cardNumber, cardType: "SI9",
+    ...(readout.startPunchedAt ? { startPunchedAt: readout.startPunchedAt } : {}),
+    ...(readout.finishPunchedAt ? { finishPunchedAt: readout.finishPunchedAt } : {}),
+    ...(readout.checkPunchedAt ? { checkPunchedAt: readout.checkPunchedAt } : {}),
+    punches: readout.punches, untimedPunchCodes: [], frames: ["02ef0100"], simulated: true };
+  const deviceId = randomUUID();
+  const response = await page.request.post(`/api/admin/races/${raceId}/administrator/readouts`, {
+    headers: { origin, "x-otid-csrf": csrf, "content-type": "application/json" },
+    data: { deviceId, sessionId: deviceId, packageVersion: 1, firstSequence: 1, lastSequence: 1, events: [{ localSequence: 1,
+      stationReceivedAt: new Date().toISOString(), transport: "sportident", payload,
+      contentHash: createHash("sha256").update(JSON.stringify(payload)).digest("hex") }] } });
+  expect(response.status()).toBe(200);
+  expect(((await response.json()) as { acknowledgements: { status: string }[] }).acknowledgements[0]?.status).toBe("stored");
 }

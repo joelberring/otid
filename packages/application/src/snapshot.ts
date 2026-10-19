@@ -1,4 +1,4 @@
-import { asc, eq, sql } from "drizzle-orm";
+import { asc, eq, sql, and, isNull } from "drizzle-orm";
 import type { Database } from "@o-tid/database";
 import { schema } from "@o-tid/database";
 import type { RaceSnapshot } from "@o-tid/domain";
@@ -119,8 +119,9 @@ export async function loadRaceSnapshot(db: DbExecutor, raceId: string): Promise<
     .innerJoin(schema.courses, eq(schema.courseVersions.courseId, schema.courses.id))
     .where(eq(schema.courses.raceId, raceId))
     .orderBy(asc(schema.courseVariantControls.courseVariantId), asc(schema.courseVariantControls.sequence));
+  // Strukna deltagare (PLAN.md steg 27) finns inte i paketet; deras bricka är släppt.
   const entryRows = await db.select().from(schema.entries)
-    .where(eq(schema.entries.raceId, raceId))
+    .where(and(eq(schema.entries.raceId, raceId), isNull(schema.entries.struckAt)))
     .orderBy(asc(schema.entries.id));
   const assignmentRows = await db.select().from(schema.cardAssignments)
     .where(eq(schema.cardAssignments.raceId, raceId))

@@ -30,7 +30,8 @@ import { loadStartDrawSetupAsAdmin, previewStartDrawAsAdmin, commitStartDrawAsAd
   listRacePeopleAsAdmin, grantRacePersonAsAdmin, revokeRacePersonAsAdmin,
   setRacePublicationAsAdmin, getRadioSettingsAsAdmin, saveRadioSettingsAsAdmin,
   fetchRadioNowAsAdmin, registerReadoutCard, previewRemainingRunnersAsAdmin, markRemainingDidNotStartAsAdmin,
-  saveCourseDetailsAsAdmin } from "@o-tid/application";
+  saveCourseDetailsAsAdmin, removeEntryAsAdmin, removeClassAsAdmin, removeCourseAsAdmin, readResultsOfficialAsAdmin,
+  setResultsOfficialAsAdmin, exportRaceAsAdmin } from "@o-tid/application";
 import {
   adminFailure as failure,
   resultExportFailure,
@@ -85,7 +86,10 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   radioSettings: getRadioSettingsAsAdmin, radioSave: saveRadioSettingsAsAdmin, radioFetch: fetchRadioNowAsAdmin,
   // PLAN.md steg 25: direktanmälan från avläsningssidan, kvar i skogen som ej start och banans längd och stigning.
   readoutRegistration: registerReadoutCard, remainingRunners: previewRemainingRunnersAsAdmin,
-  markRemainingDidNotStart: markRemainingDidNotStartAsAdmin, courseDetails: saveCourseDetailsAsAdmin };
+  markRemainingDidNotStart: markRemainingDidNotStartAsAdmin, courseDetails: saveCourseDetailsAsAdmin,
+  // PLAN.md steg 27: ta bort och stryk, "Resultaten är klara" och export av hela tävlingen.
+  removeEntry: removeEntryAsAdmin, removeClass: removeClassAsAdmin, removeCourse: removeCourseAsAdmin,
+  resultsOfficial: setResultsOfficialAsAdmin, resultsOfficialState: readResultsOfficialAsAdmin, raceExport: exportRaceAsAdmin };
 export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: string } | { kind: "review-conflicts" } | { kind: "checkin-history"; entryId: string } | { kind: "start-correction" } | { kind: "manual-return-withdrawal" } | { kind: "manual-return" } | { kind: "forest-watch" } | { kind: "publication-preview" } | { kind: "publication" } | { kind: "start-list-export" } | { kind: "draw-preview" } | { kind: "draw" } |
   { kind: "finalization-candidates" } | { kind: "finalize" } | { kind: "frozen-results" } | { kind: "frozen-result"; finalizationId: string } |
   { kind: "result-export" } | { kind: "session" } | { kind: "participants" } | { kind: "transfer-candidates" } |
@@ -111,7 +115,9 @@ export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: str
   { kind: "changes"; entryId: string } |
   { kind: "race-map" } | { kind: "race-map-image" } | { kind: "race-map-georeference" } | { kind: "participant-route" } |
   { kind: "people" } | { kind: "race-publication" } | { kind: "radio" } | { kind: "radio-fetch" } |
-  { kind: "readout-registrations" } | { kind: "remaining-runners" } | { kind: "course-details"; courseId: string };
+  { kind: "readout-registrations" } | { kind: "remaining-runners" } | { kind: "course-details"; courseId: string } |
+  { kind: "entry-removal"; entryId: string } | { kind: "class-removal"; classId: string } | { kind: "course-removal"; courseId: string } |
+  { kind: "results-official" } | { kind: "race-export" };
 
 export function resultFailure(status: string): Response {
   switch (status) {

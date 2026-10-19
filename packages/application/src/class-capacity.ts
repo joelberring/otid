@@ -1,4 +1,4 @@
-import { and, count, eq, sql } from "drizzle-orm";
+import { and, count, eq, sql, isNull } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
 import { classCapacityKeySchema, classCapacityRequestSchema, classCapacityResponseSchema } from "@o-tid/contracts";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
@@ -33,7 +33,8 @@ export async function changeClassCapacityAsAdmin(db: Database, input: Input, now
     if (!raceClass) return { status: "not-found" as const };
     if (raceClass.capacityVersion !== intent.expectedCapacityVersion || raceClass.maxEntries !== intent.expectedMaxEntries ||
       raceClass.capacityVersion >= 2_147_483_647) return { status: "conflict" as const };
-    const [total] = await tx.select({ value: count() }).from(schema.entries).where(and(eq(schema.entries.raceId, input.raceId), eq(schema.entries.classId, input.classId)));
+    const [total] = await tx.select({ value: count() }).from(schema.entries).where(and(eq(schema.entries.raceId, input.raceId), eq(schema.entries.classId, input.classId),
+      isNull(schema.entries.struckAt)));
     if (!total || (intent.maxEntries !== null && total.value > intent.maxEntries)) return { status: "conflict" as const };
     const versionAfter = raceClass.capacityVersion + 1;
     await tx.update(schema.classes).set({ maxEntries: intent.maxEntries, capacityVersion: versionAfter }).where(eq(schema.classes.id, input.classId));

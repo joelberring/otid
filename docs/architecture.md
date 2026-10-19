@@ -66,6 +66,8 @@ Gemensamma hjälpare: UUID-mönstret och idempotensnycklarnas form (`UUID_PATTER
 
 - Bedömningen av en avläsning: `packages/domain/src/evaluate-card-readout.ts` (regler i `docs/domain-rules.md`).
   Samma funktion körs i avläsningsskalet (preliminärt besked) och på servern (auktoritativt).
+- Brickans stämplingar mot banan och tävlingsdagen (deltagarkortet och avläsningens besked, PLAN.md steg 27):
+  `packages/domain/src/card-punch-list.ts`; påverkar inte bedömningen.
 - Rankning och listor: `class-ranking.ts`, `split-table.ts`, `relay.ts`, `rogaining.ts` i `packages/domain`.
 - Lagring: `result_revision` är append-only. Varje ändring av ett resultat (avläsning, beslut, omräkning,
   ändrad tid) lägger till en revision med orsak, motorversion och underlag. Alla skrivställen går genom
@@ -98,14 +100,16 @@ Gemensamma hjälpare: UUID-mönstret och idempotensnycklarnas form (`UUID_PATTER
 - Källor (Inställningar → Källor, `application/src/source-sync*.ts`): Eventor och banfiler (CourseData) med
   förhandsvisning av skillnader innan något sparas.
 - Filimport av EntryList, StartList och varianttilldelning: `/admin/[raceId]/imports` (`application/src/import-iof.ts`).
-- Export: IOF StartList och ResultList från listorna och fastställandet.
+- Export: IOF StartList och ResultList från listorna och "Resultaten är klara"; hela loppet som JSON
+  (`application/src/race-export.ts`, format i `docs/export.md`).
 
 ## Databas
 
 - Schemat finns i `packages/database/src/schema/*.ts` (samlat i `schema.ts`); migrationerna börjar med
   `0000_baseline.sql` följd av `0001_ett_statusflode`, `0002_en_session` och `0003_paketversion` (steg 23) och
   `0004_tavlingsfunktioner` (steg 25: maxtid, banlängd, Eventor-id, diskorsak, `readout_registration`) och
-  `0005_avancerad_lottning` (steg 26: `entry.seed_rank`, `race.start_draw_settings`).
+  `0005_avancerad_lottning` (steg 26: `entry.seed_rank`, `race.start_draw_settings`) och `0006_rattelser_efter_piloten`
+  (steg 27: `entry.struck_at`, `race.official_result_finalization_id`).
   Varje schemaändring kräver en ny migration.
 - `pnpm db:migrate` committar nya enum-värden först och kör sedan varje migration i en egen transaktion.
 - Externa id:n (Eventor, IOF) lagras med källa men är aldrig primärnycklar.

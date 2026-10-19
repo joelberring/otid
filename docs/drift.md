@@ -53,7 +53,9 @@ docker compose -f docker-compose.prod.yml up -d
 ```
 
 Utan masternyckel startar O-Tid ändå; Inställningar visar då att Eventor inte är
-påslaget. Spara masternyckeln separat från backupen. Byts eller tappas den kan de
+påslaget, och serverns logg säger "Eventor: servern saknar OTID_EVENTOR_MASTER_KEY". De gamla namnen
+`OTID_EVENTOR_MASTER_KEY_ID` och `OTID_EVENTOR_MASTER_KEY_BASE64` används inte längre; står de kvar i `.env`
+varnar servern vid start. Byt dem mot raden ovan. Spara masternyckeln separat från backupen. Byts eller tappas den kan de
 sparade Eventor-nycklarna inte läsas, och administratören klistrar in klubbens nyckel igen.
 `OTID_EVENTOR_BASE_URL` används bara för test (pekar O-Tid mot en falsk Eventor) och
 ska inte sättas i drift.
@@ -150,3 +152,8 @@ E2E_BASE_URL=https://localhost pnpm test:e2e
 ```
 
 CI-jobbet `production` gör samma sak vid varje push.
+
+## Export av en tävling
+
+Inställningar → "Exportera tävlingen" ger en JSON-fil med allt om loppet, för att spara efter tävlingen
+(format i `docs/export.md`). Databasens backup är fortfarande den som gäller för hela servern.

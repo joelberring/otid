@@ -9,6 +9,6 @@ export const checkinHistorySv = {
   states: { UNMARKED: "Okänd start", STARTED: "Startad", REPORTED_NOT_STARTED: "Rapporterad ej startande" },
   returned: "Manuell återkomst: ja", notReturned: "Manuell återkomst: nej",
   effects: { APPLIED: "Tillämpad", UNCHANGED: "Oförändrad", CONFLICT: "Konflikt – inte tillämpad" }, reviewed: "Granskad", reviewedAt: "Granskad",
-  reasons: { STALE_ENTRY: "Deltagaren ändrad", STALE_PACKAGE: "Underlaget ändrat", STALE_REVISION: "Nyare avprickning finns",
+  reasons: { STALE_ENTRY: "Deltagaren ändrad", STALE_PACKAGE: "Tävlingen ändrad", STALE_REVISION: "Nyare avprickning finns",
     DEPENDENCY_CONFLICT: "Tidigare begäran i konflikt", RETURN_ALREADY_REGISTERED: "Återkomst finns", RESULT_CONFLICT: "Motstridigt resultat" }
 } as const;

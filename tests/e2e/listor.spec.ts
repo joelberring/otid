@@ -78,7 +78,7 @@ test("start- och resultatlistor: vyer, sök, utskrift och export i arbetsytan oc
   await expect(draw.getByRole("row", { name: /H21/ })).toBeVisible();
   await draw.getByLabel("Första start (klockslag)").fill(clock(firstStart));
   for (const className of ["H21", "D21", "H16"]) {
-    await draw.getByLabel(`Startsätt ${className}`).selectOption({ label: "Lottad minutstart" });
+    await draw.getByLabel(`Startsätt ${className}`).selectOption({ label: "Minutstart" });
     await draw.getByLabel(`Vakanser ${className}`).fill("1");
   }
   await draw.getByRole("button", { name: "Visa lottning" }).click();
@@ -184,7 +184,7 @@ test("start- och resultatlistor: vyer, sök, utskrift och export i arbetsytan oc
     await expect(owner.getByTestId("verdict")).toContainText(missing ? "FELSTÄMPLAD" : "GODKÄND");
   }
   await expect(owner.getByTestId("queue-status")).toHaveText("0 väntar", { timeout: 30_000 });
-  const packageVersion = Number(/^v(\d+) /.exec(await owner.getByTestId("package-status").innerText())?.[1]);
+  const packageVersion = Number(/v(\d+)$/.exec((await owner.getByTestId("package-status").innerText()).trim())?.[1]);
   expect(packageVersion).toBeGreaterThan(0);
 
   // Stämpling före starten (fel klocka eller tjuvstart): Filip får starttid 45 minuter bakåt och läses av (övningsstationen
@@ -207,7 +207,7 @@ test("start- och resultatlistor: vyer, sök, utskrift och export i arbetsytan oc
   await owner.goto(`/admin/${raceId}/readout`);
   await owner.waitForURL(`**/readout/index.html#${raceId}`);
   // Stationen visar först sitt sparade paket; övningen ska bygga på paketet med den nya starttiden.
-  await expect(owner.getByTestId("package-status")).toContainText(`v${packageVersion + 1} ·`, { timeout: 30_000 });
+  await expect(owner.getByTestId("package-status")).toHaveText(new RegExp(`v${packageVersion + 1}$`), { timeout: 30_000 });
   await owner.getByRole("button", { name: "Starta övningsstation" }).click();
   await owner.getByLabel("Deltagare").selectOption({ label: "Filip Ås · H16 · 8301006" });
   await owner.getByRole("button", { name: "Läs av: rätt stämplat" }).click();

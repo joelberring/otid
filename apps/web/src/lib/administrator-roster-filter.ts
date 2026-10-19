@@ -57,3 +57,20 @@ export function orderAdministratorRoster(
     return left.startMs - right.startMs || left.index - right.index;
   }).map(({ entry }) => entry);
 }
+
+/** Ett lägesval i Anmäldas filter med antalet deltagare i läget. */
+export type RosterStatusOption = { value: AdministratorRosterResultFilter; count: number };
+
+const entryState = (entry: Entry): Exclude<AdministratorRosterResultFilter, "ALL"> =>
+  entry.effectiveResult.state === "ACTIVE_RESULT" ? entry.effectiveResult.result.status : entry.effectiveResult.state;
+
+/**
+ * Statusvalen som är värda att visa (PLAN.md steg 24): "Alla" och de lägen som någon deltagare har, i filtrets ordning,
+ * plus det valda även när det blivit tomt (annars försvinner valet under användaren).
+ */
+export function rosterStatusOptions(entries: readonly Entry[], selected: AdministratorRosterResultFilter): RosterStatusOption[] {
+  const counts = new Map<AdministratorRosterResultFilter, number>();
+  for (const entry of entries) counts.set(entryState(entry), (counts.get(entryState(entry)) ?? 0) + 1);
+  return administratorRosterResultFilters.filter(value => value === "ALL" || value === selected || (counts.get(value) ?? 0) > 0)
+    .map(value => ({ value, count: value === "ALL" ? entries.length : counts.get(value) ?? 0 }));
+}

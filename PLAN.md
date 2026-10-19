@@ -466,7 +466,7 @@ Se ADR-0173.
 **Acceptans:** alla flöden i Playwright passerar oförändrade; `pnpm test`,
 `test:integration` och `build` gröna; radantal och tabellantal i `STATUS.md`.
 
-## [ ] Steg 24 – Enklare arbetsyta
+## [x] Steg 24 – Enklare arbetsyta
 
 1. Primära knappar i tomlägen ("Ny bana", "Ny klass", "Ny deltagare");
    banfil och hopfällda formulär sekundära.

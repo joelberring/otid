@@ -61,6 +61,8 @@
 .table tbody tr:hover > * { background: var(--subtle); }
 .num { text-align: right !important; font-family: var(--font-dense); white-space: nowrap; }
 .time { width: 6.5rem; font-family: var(--font-dense); white-space: nowrap; }
+/* "Saknar starttid" får brytas i den smala tidskolumnen i stället för att gå in i namnet. */
+.time > .attention { display: inline-block; white-space: normal; line-height: 1.2; }
 .place { width: 3rem; font-family: var(--font-dense); font-weight: 600; text-align: right !important; }
 .narrow { width: 5.5rem; white-space: nowrap; }
 .classCol { width: 6rem; font-family: var(--font-dense); font-weight: 600; }

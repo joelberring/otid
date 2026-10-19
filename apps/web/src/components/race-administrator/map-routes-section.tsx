@@ -24,7 +24,7 @@ async function problemOf(response: Response): Promise<RaceMapProblem | undefined
  * GPX-rutter. Bara admin skriver; den publika sträcktidsanalysen visar vägvalen när kartan är georefererad.
  */
 export function MapRoutesSection({ ws }: { ws: Workspace }) {
-  const { authenticated, busy, busyRef, beginRequest, request, json, finish, current, csrf, requireSession, raceId } = ws;
+  const { authenticated, busy, operation, writingRef, beginRequest, request, json, finish, current, csrf, requireSession, raceId } = ws;
   const [state, setState] = useState<AdminRaceMapState>();
   const [loadFailed, setLoadFailed] = useState(false);
   const [image, setImage] = useState<string>();
@@ -34,7 +34,7 @@ export function MapRoutesSection({ ws }: { ws: Workspace }) {
   const imageVersion = useRef<string | undefined>(undefined);
 
   async function load(preserveMessage = false) {
-    if (busyRef.current) return;
+    if (writingRef.current) return;
     if (!preserveMessage) setMessage(undefined);
     const op = beginRequest();
     try {
@@ -58,15 +58,15 @@ export function MapRoutesSection({ ws }: { ws: Workspace }) {
       setState(next); setLoadFailed(false);
     } catch { if (current(op)) setLoadFailed(true); } finally { finish(op); }
   }
-  useEffect(() => { if (authenticated && !state && !loadFailed && !busy && !busyRef.current) void load(); }, [authenticated, state, loadFailed, busy]);
+  useEffect(() => { if (authenticated && !state && !loadFailed && !busy && !operation.current) void load(); }, [authenticated, state, loadFailed, busy]);
   useEffect(() => () => { if (image) URL.revokeObjectURL(image); }, [image]);
 
   /** En skrivning med besked: ok → nytt tillstånd, 422 → begripligt fel, annat → allmänt fel. */
   async function write(path: string, init: RequestInit, done: (response: Response) => Promise<Message>, problems: Partial<Record<RaceMapProblem, string>>,
     failed: string) {
-    if (busyRef.current || !requireSession()) return;
+    if (writingRef.current || !requireSession()) return;
     setMessage(undefined);
-    const op = beginRequest();
+    const op = beginRequest(true);
     let next: Message | undefined;
     try {
       const response = await request(path, op, { ...init, headers: { ...init.headers, "x-otid-csrf": csrf() } });

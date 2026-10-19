@@ -79,7 +79,7 @@ function TeamCard({ ws, team }: { ws: Workspace; team: Team }) {
           onClick={() => startRunnerChange(team.id, leg.leg)}>{text.changeRunner(leg.leg)}</button></td>
       </tr>)}</tbody>
     </table></div>
-    {runnerChange && runnerChange.teamId === team.id && <form className={relayStyles.runnerForm} aria-label={text.changeRunner(runnerChange.leg)}
+    {runnerChange && runnerChange.teamId === team.id && <form noValidate className={relayStyles.runnerForm} aria-label={text.changeRunner(runnerChange.leg)}
       onSubmit={event => { event.preventDefault(); void saveRunnerChange(); }}>
       <h4>{text.changeRunner(runnerChange.leg)}</h4>
       <div className={relayStyles.fields}>
@@ -110,7 +110,7 @@ function NewTeam({ ws, relay }: { ws: Workspace; relay: RelayOverview }) {
   const id = `relay-team-${raceId}`;
   return <details className={styles.disclosure} open={teamAttempt || teamClassId ? true : undefined}>
     <summary>{text.newTeam}</summary>
-    <form className={styles.disclosureBody} aria-label={text.newTeam} onSubmit={event => { event.preventDefault(); void registerTeam(); }}>
+    <form noValidate className={styles.disclosureBody} aria-label={text.newTeam} onSubmit={event => { event.preventDefault(); void registerTeam(); }}>
       <div className={relayStyles.fields}>
         <label htmlFor={`${id}-class`}>{text.teamClass}<select id={`${id}-class`} value={teamClassId} required disabled={locked}
           onChange={event => chooseTeamClass(event.target.value)}>

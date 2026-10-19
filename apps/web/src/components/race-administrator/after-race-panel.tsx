@@ -36,19 +36,15 @@ function AdminResultLists({ ws }: { ws: Workspace }) {
 
 /**
  * Resultat (PLAN.md steg 13): felstämplade att titta på, resultatlistorna (per klass, med sträcktider, per klubb) och
- * under dem efterarbetet: fastställande (typer som har det), omräkning och flytt till kortare bana.
+ * under dem efterarbetet: fastställande (typer som har det) och omräkning. En bana rättas med "Redigera bana" (ADR-0169).
  */
 export function AfterRacePanel({ ws }: { ws: Workspace }) {
   const { busy, classRecalculationAttempt, classRecalculationCandidates, classRecalculationError,
     classRecalculationSaved, classRecalculationUnknown, data, disabled, finalizationAttempt, finalizationCandidate,
-    finalizationCandidates, finalizationScope, inspectShortenedCourseTransfer, loadClassRecalculation,
-    loadFinalizationBasis, loadShortenedCourseCandidate, pending, prepareClassRecalculation, prepareFinalization, raceId,
-    sent, setClassRecalculationAttempt, setClassRecalculationUnknown, setFinalizationAttempt, setFinalizationScope, setShortenedClassName,
-    setShortenedControlCount, setShortenedCourseAttempt, setShortenedCourseCandidate, setShortenedCourseClassId,
-    setShortenedCourseError, setShortenedCourseName, setShortenedEntryIds, shortenedClassName, shortenedControlCount,
-    shortenedCourseAttempt, shortenedCourseCandidate, shortenedCourseClassId, shortenedCourseError,
-    shortenedCourseName, shortenedEntryIds, submitClassRecalculation,
-    profile, shows, submitFinalization, submitShortenedCourseTransfer, toggleShortenedEntry, unknown, workflowLocked } = ws;
+    finalizationCandidates, finalizationScope, loadClassRecalculation,
+    loadFinalizationBasis, pending, prepareClassRecalculation, prepareFinalization, raceId,
+    sent, setClassRecalculationAttempt, setClassRecalculationUnknown, setFinalizationAttempt, setFinalizationScope,
+    submitClassRecalculation, profile, shows, submitFinalization, unknown, workflowLocked } = ws;
   return <section className={styles.workflowGroup} id={`workflow-${raceId}-results`} aria-label={navigationText.steps.RESULTS}
       hidden={!shows("RESULTS")}>
     <Section id={`results-${raceId}`} title={navigationText.steps.RESULTS} help={text.resultsHelp}
@@ -103,69 +99,6 @@ export function AfterRacePanel({ ws }: { ws: Workspace }) {
         onLoad={(id) => void loadClassRecalculation(id)} onPrepare={prepareClassRecalculation}
         onSubmit={(value) => void submitClassRecalculation(value)} onRetry={() => classRecalculationAttempt && void submitClassRecalculation(classRecalculationAttempt)}
         onCancel={() => { pending.current = undefined; sent.current = false; setClassRecalculationAttempt(undefined); setClassRecalculationUnknown(false); }} />}
-    </details>
-    <details className={styles.disclosure}>
-      <summary>{text.shortenedCourseTitle}</summary>
-      <form className={styles.disclosureBody} onSubmit={inspectShortenedCourseTransfer}>
-        <p className={styles.workflowHelp}>{text.shortenedCourseHelp}</p>
-        <label>{text.shortenedCourseSourceClass}<select value={shortenedCourseClassId} disabled={busy || !!shortenedCourseAttempt}
-          onChange={event => { setShortenedCourseClassId(event.target.value); setShortenedCourseCandidate(undefined); setShortenedCourseError(""); setShortenedEntryIds([]); }}>
-          <option value="">{text.chooseClass}</option>
-          {data?.classes.map(raceClass => <option key={raceClass.id} value={raceClass.id}>{raceClass.name}</option>)}
-        </select></label>
-        {!shortenedCourseCandidate && !shortenedCourseAttempt && <button type="button" disabled={busy || !shortenedCourseClassId}
-          onClick={() => void loadShortenedCourseCandidate()}>{text.shortenedCourseLoad}</button>}
-        {shortenedCourseCandidate && !shortenedCourseAttempt && <>
-          <div className={styles.summaryBox}>
-            <p><strong>{text.shortenedCourseSourceCourse}:</strong> {shortenedCourseCandidate.sourceCourseName} · {text.raceClass}: {shortenedCourseCandidate.sourceClassName}</p>
-            <p><strong>{text.courseStartRule}:</strong> {shortenedCourseCandidate.sourceStartRule === "PUNCH" ? text.courseFreeStart : text.courseFixedStart}</p>
-            <p><strong>{text.courseControls}:</strong> {shortenedCourseCandidate.sourceControls.map(control => control.controlCode).join(" → ")}</p>
-          </div>
-          <div className={styles.fieldRow}>
-            <label>{text.shortenedCourseName}<input value={shortenedCourseName} maxLength={160} disabled={busy}
-              onChange={event => setShortenedCourseName(event.target.value)} required /></label>
-            <label>{text.shortenedCourseClassName}<input value={shortenedClassName} maxLength={160} disabled={busy}
-              onChange={event => setShortenedClassName(event.target.value)} required /></label>
-            <label>{text.shortenedCoursePrefix}<select value={shortenedControlCount} disabled={busy}
-              onChange={event => setShortenedControlCount(event.target.value)}>
-              {shortenedCourseCandidate.sourceControls.slice(0, -1).map((_, index) => <option key={index + 1} value={index + 1}>
-                {shortenedCourseCandidate.sourceControls.slice(0, index + 1).map(control => control.controlCode).join(" → ")}
-              </option>)}
-            </select></label>
-          </div>
-          {shortenedCourseCandidate.entries.length === 0 ? <p>{text.shortenedCourseNoEligibleEntries}</p> : <>
-            <fieldset className={styles.shortenedEntries} disabled={busy}>
-              <legend>{text.shortenedCourseEntries} ({shortenedEntryIds.length}/100)</legend>
-              {shortenedCourseCandidate.entries.map(entry => <label key={entry.entryId}>
-                <input type="checkbox" checked={shortenedEntryIds.includes(entry.entryId)}
-                  disabled={busy || (!shortenedEntryIds.includes(entry.entryId) && shortenedEntryIds.length >= 100)}
-                  onChange={event => toggleShortenedEntry(entry.entryId, event.target.checked)} />
-                <span>{entry.displayName} · {entry.sourceResult.kind === "NO_RESULT" ? text.shortenedCourseNoResult : text.shortenedCourseMpResult}</span>
-              </label>)}
-            </fieldset>
-            <p>{text.shortenedCourseConsequence}</p>
-            {shortenedCourseError && <p className={styles.warning} role="alert">{shortenedCourseError}</p>}
-            <button type="submit" disabled={busy || shortenedEntryIds.length === 0}>{text.shortenedCourseInspect}</button>
-          </>}
-        </>}
-        {shortenedCourseError && !shortenedCourseCandidate && !shortenedCourseAttempt && <p className={styles.warning} role="alert">{shortenedCourseError}</p>}
-        {shortenedCourseAttempt && <section className={styles.review} role="alert" aria-live="polite">
-          <h2>{text.shortenedCourseReview}</h2>
-          <p><strong>{text.raceClass}:</strong> {shortenedCourseAttempt.candidate.sourceClassName} → {shortenedCourseAttempt.request.shortClassName}</p>
-          <p><strong>{text.shortenedCourseSourceCourse}:</strong> {shortenedCourseAttempt.candidate.sourceCourseName} → {shortenedCourseAttempt.request.shortCourseName}</p>
-          <p><strong>{text.shortenedCoursePrefix}:</strong> {shortenedCourseAttempt.request.controlPrefix.map(control => control.controlCode).join(" → ")}</p>
-          <ul className={styles.shortenedReviewList}>{shortenedCourseAttempt.request.entryIds.map(entryId => {
-            const entry = shortenedCourseAttempt.candidate.entries.find(value => value.entryId === entryId);
-            return <li key={entryId}>{entry?.displayName ?? entryId} · {entry?.sourceResult.kind === "NO_RESULT" ? text.shortenedCourseNoResult : text.shortenedCourseMpResult}</li>;
-          })}</ul>
-          <p>{text.shortenedCourseConsequence}</p><p>{text.shortenedCourseNotSaved}</p>
-          <div className={styles.actions}>
-            <button type="button" disabled={busy} onClick={() => void submitShortenedCourseTransfer(shortenedCourseAttempt)}>{text.shortenedCourseConfirm}</button>
-            <button type="button" className="secondary" disabled={busy} onClick={() => { pending.current = undefined; setShortenedCourseAttempt(undefined); }}>{text.shortenedCourseEdit}</button>
-          </div>
-          {shortenedCourseError && <p className={styles.warning} role="alert">{shortenedCourseError}</p>}
-        </section>}
-      </form>
     </details>
     </div>
     </Section>

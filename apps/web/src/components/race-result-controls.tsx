@@ -22,7 +22,7 @@ export function RaceResultControls({ result, resultError, timeZone }: {
   const heading = <h2 id="race-result-controls-title">{text.resultTitle}</h2>;
   const panelClass = `${styles.panel} ${styles.resultControls}`;
   if (resultError) return <section className={panelClass} aria-labelledby="race-result-controls-title">{heading}<p role="status">{text.resultError}</p></section>;
-  if (result === undefined) return <section className={panelClass} aria-labelledby="race-result-controls-title">{heading}<p>{text.missingDetails}</p></section>;
+  if (result === undefined) return <section className={panelClass} aria-labelledby="race-result-controls-title">{heading}<p role="status">{text.loading}</p></section>;
   if (result.state === "NO_PUBLISHED_RESULT") return <section className={panelClass} aria-labelledby="race-result-controls-title">{heading}<p>{text.noResult}</p></section>;
   if (result.state === "NO_ACTIVE_RESULT") return <section className={panelClass} aria-labelledby="race-result-controls-title">{heading}<p>{text.noActiveResult}</p></section>;
   const details = result.controlDetails;

@@ -78,8 +78,9 @@ export async function registerEntryAsAdmin(db: Database,
     if (!raceClass || raceClass.startRule !== intent.expectedStartRule || raceClass.courseVersionId !== intent.expectedCourseVersionId) {
       return { status: "conflict" as const };
     }
-    // Fast start utan angiven tid kräver en lottad klass som kan ge tiden.
-    if (raceClass.startRule === "FIXED" && intent.fixedStartTime === null && raceClass.startDrawId === null) return { status: "conflict" as const };
+    // Minutstart utan angiven tid (PLAN.md steg 24): en lottad klass ger första lediga tid; en klass som inte är lottad
+    // än får tiden när den lottas.
+    const drawnLate = raceClass.startRule === "FIXED" && intent.fixedStartTime === null && raceClass.startDrawId !== null;
     const [total] = await tx.select({ value: count() }).from(schema.entries).where(eq(schema.entries.raceId, input.raceId));
     if (!total || total.value >= 10_000) return { status: "conflict" as const };
     if (intent.cardNumber) {
@@ -88,9 +89,8 @@ export async function registerEntryAsAdmin(db: Database,
       if (owner) return { status: "conflict" as const };
     }
     if (!await canAddClassEntry(tx, input.raceId, intent.classId)) return { status: "conflict" as const };
-    const assignedStartTime = intent.fixedStartTime === null && raceClass.startRule === "FIXED"
-      ? await assignLateStartTime(tx, input.raceId, intent.classId, now) : null;
-    if (raceClass.startRule === "FIXED" && intent.fixedStartTime === null && assignedStartTime === null) throw new Error("Lottad klass saknar plan");
+    const assignedStartTime = drawnLate ? await assignLateStartTime(tx, input.raceId, intent.classId, now) : null;
+    if (drawnLate && assignedStartTime === null) throw new Error("Lottad klass saknar plan");
     const fixedStartTime = assignedStartTime ?? (intent.fixedStartTime ? new Date(intent.fixedStartTime) : null);
     // Efteranmäld i en gafflad klass får den minst använda varianten (ADR-0169 beslut 2).
     const courseVariantCode = await leastUsedVariantForClass(tx, input.raceId, intent.classId);

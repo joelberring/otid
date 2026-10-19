@@ -5,6 +5,7 @@ import {
 } from "@o-tid/contracts";
 import { startDrawSv as text } from "../../i18n/start-draw-sv";
 import { formatClockTime, parseRaceClock } from "../../lib/clock-time";
+import { validateFirstStart } from "../../lib/form-validation";
 import type { Operation, StartDrawAttempt } from "./types";
 import type { Base } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
@@ -21,7 +22,9 @@ export function useStartDrawState() {
   const [drawError, setDrawError] = useState("");
   const [drawSaved, setDrawSaved] = useState("");
   const [drawAttempt, setDrawAttempt] = useState<StartDrawAttempt>();
-  return { drawSetup, setDrawSetup, drawRows, setDrawRows, drawFirst, setDrawFirst, drawClubSeparation, setDrawClubSeparation,
+  /** Fältfelet för första start (PLAN.md steg 24). */
+  const [drawFirstError, setDrawFirstError] = useState("");
+  return { drawFirstError, setDrawFirstError, drawSetup, setDrawSetup, drawRows, setDrawRows, drawFirst, setDrawFirst, drawClubSeparation, setDrawClubSeparation,
     drawPreview, setDrawPreview, drawError, setDrawError, drawSaved, setDrawSaved, drawAttempt, setDrawAttempt };
 }
 
@@ -44,9 +47,9 @@ function settingsFrom(setup: StartDrawSetupResponse, rows: Record<string, DrawRo
 }
 
 export function createStartDrawActions(ws: Base & RaceDataActions) {
-  const { raceId, drawSetup, drawRows, drawFirst, drawClubSeparation, drawPreview, setDrawClubSeparation, busyRef, pending, sent, requireSession,
+  const { raceId, drawSetup, drawRows, drawFirst, drawClubSeparation, drawPreview, setDrawClubSeparation, writingRef, pending, sent, requireSession,
     beginRequest, finish, current, request, json, csrf, load, setDrawSetup, setDrawRows, setDrawFirst, setDrawPreview, setDrawError,
-    setDrawSaved, setDrawAttempt, setPublicationPreview } = ws;
+    setDrawSaved, setDrawAttempt, setPublicationPreview, setDrawFirstError } = ws;
 
   async function readSetup(op: Operation) {
     const response = await request("/draw", op);
@@ -62,7 +65,7 @@ export function createStartDrawActions(ws: Base & RaceDataActions) {
     return value;
   }
   async function loadDrawSetup() {
-    if (busyRef.current || pending.current || !requireSession()) return;
+    if (writingRef.current || pending.current || !requireSession()) return;
     const op = beginRequest(); setDrawError("");
     try { await readSetup(op); }
     catch { if (current(op)) setDrawError(text.error); }
@@ -80,7 +83,7 @@ export function createStartDrawActions(ws: Base & RaceDataActions) {
   }
   function changeDrawSettings(change: { first?: string; clubSeparation?: boolean }) {
     setDrawPreview(undefined); setDrawError(""); setDrawSaved("");
-    if (change.first !== undefined) setDrawFirst(change.first);
+    if (change.first !== undefined) { setDrawFirst(change.first); setDrawFirstError(""); }
     if (change.clubSeparation !== undefined) setDrawClubSeparation(change.clubSeparation);
   }
   async function readPreview(op: Operation, settings: Exclude<ReturnType<typeof settingsFrom>, "none" | undefined>) {
@@ -95,8 +98,11 @@ export function createStartDrawActions(ws: Base & RaceDataActions) {
   }
   /** Visar lottningen som den blir. Läser om klasserna först om tävlingen ändrats. */
   async function previewDraw() {
-    if (busyRef.current || pending.current || !requireSession() || !drawSetup) return;
+    if (writingRef.current || pending.current || !requireSession() || !drawSetup) return;
     setDrawError(""); setDrawSaved(""); setDrawPreview(undefined);
+    const firstError = validateFirstStart(drawFirst);
+    setDrawFirstError(firstError ?? "");
+    if (firstError) { document.getElementById(`draw-first-${raceId}`)?.focus(); return; }
     const op = beginRequest();
     try {
       let setup = drawSetup;
@@ -138,7 +144,7 @@ export function createStartDrawActions(ws: Base & RaceDataActions) {
   }
   /** Sparar lottningen som förhandsvisningen visar (samma underlag och samma lottning). */
   async function saveDraw() {
-    if (busyRef.current || !requireSession()) return;
+    if (writingRef.current || !requireSession()) return;
     const waiting = pending.current;
     const retry = waiting && "kind" in waiting && waiting.kind === "START_DRAW" ? waiting : undefined;
     if (pending.current && !retry) return;

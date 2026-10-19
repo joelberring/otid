@@ -112,6 +112,14 @@ describe("TASK035 administrator registration", () => {
     expect(changed.response.fixedStartTime).toBe("2026-09-12T10:05:00.000Z");
     expect((await pool.query("SELECT fixed_start_time FROM entry WHERE id=$1", [changed.response.entryId])).rows)
       .toEqual([{ fixed_start_time: new Date("2026-09-12T10:05:00Z") }]);
+    // PLAN.md steg 24: minutstart utan tid i en klass som inte är lottad än. Tiden ges vid lottningen.
+    const later = await inputFor(f.administrator, f.classId);
+    const withoutTime = await registerEntryAsAdmin(db, { ...later, request: { ...later.request, givenName: "Ingen", cardNumber: null,
+      fixedStartTime: null } }, now);
+    if (withoutTime.status !== "registered") throw new Error("Registration without start time failed");
+    expect([withoutTime.response.fixedStartTime, withoutTime.response.startTimeAssigned]).toEqual([null, false]);
+    expect((await pool.query("SELECT fixed_start_time FROM entry WHERE id=$1", [withoutTime.response.entryId])).rows)
+      .toEqual([{ fixed_start_time: null }]);
   });
 });
 

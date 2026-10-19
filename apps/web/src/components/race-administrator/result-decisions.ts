@@ -58,7 +58,7 @@ function submission(value: StatusAttempt, raceId: string) {
 }
 
 export function createResultDecisionActions(ws: Base & RaceDataActions) {
-  const { raceId, entryId, busyRef, pending, sent, requireSession, begin, finish, current, request, json, csrf, load, setMessage,
+  const { raceId, entryId, writingRef, pending, sent, requireSession, begin, finish, current, request, json, csrf, load, setMessage,
     setUnknown, setEntryId, setEntryChanges, setRecalculationAttempt, setDecisionAttempt } = ws;
   /** Löparens läge (senaste revision, gällande beslut, vilka beslut som går) bundet till deltagarlistan. */
   async function readEntryStatus(op: Operation, selectedId: string) {
@@ -85,7 +85,7 @@ export function createResultDecisionActions(ws: Base & RaceDataActions) {
     return { roster, candidate, candidates };
   }
   async function loadHistory(selectedId = entryId, beforeVersion?: number) {
-    if (busyRef.current || pending.current || !requireSession()) return;
+    if (writingRef.current || pending.current || !requireSession()) return;
     const op = begin();
     try {
       if (!selectedId) { setMessage(""); return; }
@@ -112,7 +112,7 @@ export function createResultDecisionActions(ws: Base & RaceDataActions) {
    * ett försök utan svar ligger kvar och kan skickas om med samma nyckel.
    */
   async function submitStatusAttempt(value: StatusAttempt) {
-    if (busyRef.current || pending.current !== value || !requireSession()) return;
+    if (writingRef.current || pending.current !== value || !requireSession()) return;
     const wasUnknown = sent.current, op = begin();
     const target = submission(value, raceId);
     let committed = false;

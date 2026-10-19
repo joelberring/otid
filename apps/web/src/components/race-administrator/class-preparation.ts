@@ -1,8 +1,10 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { classCapacityRequestSchema, classCapacityResponseSchema, manualClassCreateRequestSchema,
   manualClassCreateResponseSchema, type ManualClassCreateRequest } from "@o-tid/contracts";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
 import { isDuplicateName } from "../../lib/duplicate-name";
+import { hasErrors, validateManualClass, type FieldErrors } from "../../lib/form-validation";
+import { focusFirstError } from "../ui";
 import type { CapacityAttempt, ManualClassAttempt } from "./types";
 import type { Base, WorkspaceState } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
@@ -17,7 +19,11 @@ export function useClassPreparationState() {
   const [capacityAttempt, setCapacityAttempt] = useState<CapacityAttempt>();
   const [capacityClassId, setCapacityClassId] = useState("");
   const [capacityInput, setCapacityInput] = useState("");
-  return { manualClassName, setManualClassName, manualClassCourseVersionId, setManualClassCourseVersionId, manualClassStartRule,
+  /** "Ny klass" öppnar formuläret direkt (PLAN.md steg 24). */
+  const [manualClassOpen, setManualClassOpen] = useState(false);
+  const [manualClassErrors, setManualClassErrors] = useState<FieldErrors<"className" | "courseVersionId">>({});
+  const manualClassForm = useRef<HTMLFormElement | null>(null);
+  return { manualClassOpen, setManualClassOpen, manualClassErrors, setManualClassErrors, manualClassForm, manualClassName, setManualClassName, manualClassCourseVersionId, setManualClassCourseVersionId, manualClassStartRule,
     setManualClassStartRule, manualClassAttempt, setManualClassAttempt, manualClassError,
     setManualClassError, capacityAttempt, setCapacityAttempt, capacityClassId, setCapacityClassId, capacityInput,
     setCapacityInput };
@@ -33,14 +39,18 @@ export function deriveClassPreparation(s: WorkspaceState) {
 
 export function createClassPreparationActions(ws: Base & RaceDataActions) {
   const { raceId, data, manualClassCourseVersionId, manualClassName, manualClassStartRule, capacityClassId, capacityInput,
-    busyRef, pending, sent, requireSession, begin, finish, current, request, json, csrf, load, setMessage, setUnknown, setData,
+    writingRef, pending, sent, requireSession, begin, finish, current, request, json, csrf, load, setMessage, setUnknown, setData,
     setEntryId, setClassId, setManualClassError, setManualClassAttempt, setManualClassName,
-    setManualClassCourseVersionId, setManualClassStartRule, setCapacityAttempt, setCapacityClassId, setCapacityInput } = ws;
+    setManualClassCourseVersionId, setManualClassStartRule, setCapacityAttempt, setCapacityClassId, setCapacityInput,
+    setManualClassErrors, manualClassForm } = ws;
   /** Ny klass på befintlig bana ändrar inga resultat: sparas direkt (ADR-0169 beslut 4). */
   function saveManualClass(event: FormEvent) {
     event.preventDefault();
-    if (busyRef.current || pending.current || !requireSession() || !data) return;
+    if (writingRef.current || pending.current || !requireSession() || !data) return;
     setManualClassError("");
+    const errors = validateManualClass({ className: manualClassName, courseVersionId: manualClassCourseVersionId });
+    setManualClassErrors(errors);
+    if (hasErrors(errors)) { focusFirstError(manualClassForm.current); return; }
     const target = data.classes.find(row => row.courseVersionId === manualClassCourseVersionId);
     if (!target) { setManualClassError(text.manualClassMissingTarget); return; }
     const parsed = manualClassCreateRequestSchema.safeParse({
@@ -51,7 +61,7 @@ export function createClassPreparationActions(ws: Base & RaceDataActions) {
     pending.current = value; sent.current = false; setManualClassAttempt(value); void submitManualClass(value);
   }
   async function submitManualClass(value: ManualClassAttempt) {
-    if (busyRef.current || pending.current !== value || !requireSession()) return;
+    if (writingRef.current || pending.current !== value || !requireSession()) return;
     const op = begin();
     let committed = false;
     try {
@@ -77,9 +87,10 @@ export function createClassPreparationActions(ws: Base & RaceDataActions) {
       committed = true;
       pending.current = undefined; sent.current = false;
       setManualClassAttempt(undefined); setManualClassError("");
-      setManualClassName(""); setManualClassCourseVersionId(""); setManualClassStartRule("PUNCH");
+      setManualClassName(""); setManualClassCourseVersionId(""); setManualClassStartRule("PUNCH"); setManualClassErrors({});
       setMessage(text.manualClassSaved);
       await load(op);
+      manualClassForm.current?.querySelector<HTMLInputElement>("input")?.focus();
     } catch {
       if (current(op)) {
         if (committed) { setManualClassError(text.manualClassSavedLoadError); setMessage(text.manualClassSavedLoadError); }
@@ -89,7 +100,7 @@ export function createClassPreparationActions(ws: Base & RaceDataActions) {
   }
   /** Maxantal ändrar inga resultat: sparas direkt. */
   function saveCapacity(event: FormEvent) {
-    event.preventDefault(); if (busyRef.current || pending.current || !requireSession()) return;
+    event.preventDefault(); if (writingRef.current || pending.current || !requireSession()) return;
     const targetClass = data?.classes.find((row) => row.id === capacityClassId);
     const input = capacityInput.trim();
     if (!targetClass || (input !== "" && !/^\d{1,5}$/.test(input))) { setMessage(text.capacityInvalid); return; }
@@ -105,7 +116,7 @@ export function createClassPreparationActions(ws: Base & RaceDataActions) {
     void submitCapacity(value);
   }
   async function submitCapacity(value: CapacityAttempt) {
-    if (busyRef.current || pending.current !== value || !requireSession()) return;
+    if (writingRef.current || pending.current !== value || !requireSession()) return;
     const op = begin(); const wasUnknown = sent.current;
     let committed = false;
     try {

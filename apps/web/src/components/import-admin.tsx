@@ -177,9 +177,9 @@ export function ImportAdmin({ raceId }: { raceId: string }) {
     {authenticated === true && <section className="panel stack" aria-labelledby="import-file-heading">
       <div className="import-heading-actions"><div><h2 id="import-file-heading">{sv.importFileHeading}</h2>
         <p className="muted">{sv.importFileHelp}</p></div></div>
-      <form className="stack" onSubmit={(event) => void importFile(event)}>
+      <form className="stack" noValidate onSubmit={(event) => void importFile(event)}>
         <label>{sv.importFileLabel}
-          <input ref={fileInput} type="file" accept=".xml,application/xml" required disabled={busy || attempt !== undefined} />
+          <input ref={fileInput} type="file" accept=".xml,application/xml" disabled={busy || attempt !== undefined} />
         </label>
         <button type="submit" disabled={busy || attempt !== undefined} aria-busy={busy}>{sv.importButton}</button>
       </form>
@@ -188,9 +188,7 @@ export function ImportAdmin({ raceId }: { raceId: string }) {
     {attempt !== undefined && <section className="panel import-retry stack" role="alert" aria-labelledby="import-retry-heading">
       <h2 id="import-retry-heading">{busy ? "…" : attemptUncertain ? "△" : "↻"} {busy ? sv.importUploading : attemptUncertain ? sv.importUnknownCommit : sv.importAttemptReady}</h2>
       <p>{busy ? sv.importInFlightHelp : attemptUncertain ? sv.importRetrySameHelp : sv.importRetryKnownHelp}</p>
-      <dl><dt>{sv.importPendingFile}</dt><dd>{attempt.file.name} · {sv.importByteCount(attempt.file.size)}</dd>
-        <dt>{sv.importPendingRequest}</dt><dd className="pairing-grant-id">{attempt.requestId}</dd>
-        <dt>{sv.importPendingHash}</dt><dd className="pairing-grant-id">{attempt.contentHash}</dd></dl>
+      <dl><dt>{sv.importPendingFile}</dt><dd>{attempt.file.name} · {sv.importByteCount(attempt.file.size)}</dd></dl>
       <div className="pairing-actions">
         {authenticated === true && <button type="button" disabled={busy} onClick={() => void submitAttempt(attempt)}>{sv.importRetrySame}</button>}
         <button type="button" className="secondary danger" disabled={busy} onClick={clearAttempt}>{sv.importClearAttempt}</button>

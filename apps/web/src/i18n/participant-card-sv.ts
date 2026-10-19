@@ -42,6 +42,6 @@ export const participantCardSv = {
   confirm: "Bekräfta ändringen", cancel: "Avbryt", retry: "Försök igen",
   unknown: "Kunde inte nå servern. Försök igen.",
   notAvailable: "Det valet går inte att göra för löparen just nu.",
-  loadError: "Underlaget kunde inte läsas in. Välj igen.",
+  loadError: "Deltagaren kunde inte läsas in. Välj igen.",
   entryChanges: "Ändringar i anmälan"
 } as const;

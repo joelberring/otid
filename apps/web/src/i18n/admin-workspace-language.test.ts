@@ -8,7 +8,9 @@ import { describe, expect, it } from "vitest";
  * "svaret saknas"-texter i det som visas för administratören.
  */
 const banned = ["uuid", "hash", "tävlingsversion", "revision", "banversion", "slumpfrö", "begäran-id", "lopp-id", "klass-id",
-  "svaret saknas", "samma begäran", "utc-offset"];
+  "svaret saknas", "samma begäran", "utc-offset",
+  // PLAN.md steg 24: fler interna ord bort ur det som visas.
+  "underlag", "snapshot", "atomär", "capability", "policy", "request-id", "otid_", "unitid", "retry"];
 
 const src = join(dirname(fileURLToPath(import.meta.url)), "..");
 const entry = join(src, "components/race-administrator-workspace.tsx");
@@ -19,7 +21,7 @@ const adminFiles = [
   "forest-watch-sv.ts", "participant-card-sv.ts", "class-table-sv.ts", "checkin-history-sv.ts", "checkin-conflict-review-sv.ts",
   "race-workflow-detail-sv.ts", "lists-sv.ts",
   "speaker-sv.ts", "course-variants-sv.ts", "relay-sv.ts", "race-type-sv.ts", "sources-sv.ts", "rogaining-sv.ts", "race-map-sv.ts",
-  "public-race-sv.ts", "public-link-share-sv.ts", "radio-sv.ts", "race-copy-sv.ts"
+  "public-race-sv.ts", "public-link-share-sv.ts", "radio-sv.ts", "race-copy-sv.ts", "form-errors-sv.ts", "start-rule-sv.ts"
 ];
 /** Delade textfiler (även publika sidor): bara nycklarna som arbetsytan läser granskas. */
 const sharedFiles = ["sv.ts", "account-sv.ts"];

@@ -23,7 +23,7 @@ describe("TASK 005G importadmin-klient", () => {
 
   it.each([0, 5_000_001])("avvisar %i bytes före request", async (size) => {
     const file = new File([new Uint8Array(size)], "fel.xml");
-    await expect(createIofImportAttempt(file, cryptoStub)).rejects.toThrow("1–5 000 000");
+    await expect(createIofImportAttempt(file, cryptoStub)).rejects.toThrow("större än 5 MB");
   });
 
   it("godtar endast ett bekräftat svar bundet till samma request, race, hash och byteantal", async () => {

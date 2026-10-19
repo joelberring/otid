@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
-import { createRace, openStep, publishRace, registerAccount, today, unique } from "./helpers";
+import { createRace, openStep, publishRace, registerAccount, today, unique, warmRoute } from "./helpers";
 
 /**
  * PLAN.md steg 10 (ADR-0169 beslut 2): en gafflad klass importeras från IOF XML
@@ -13,8 +13,8 @@ const fixture = (name: string) => fileURLToPath(new URL(`../../fixtures/iof/${na
 
 async function importFile(page: Page, name: string, summary: string) {
   await page.getByLabel("IOF XML 3.0").setInputFiles(fixture(name));
-  await page.getByRole("button", { name: "Importera atomärt" }).click();
-  await expect(page.getByRole("status").filter({ hasText: "Importen lagrades" })).toContainText(summary);
+  await page.getByRole("button", { name: "Importera", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Filen är inläst" })).toContainText(summary);
 }
 
 async function readExercise(page: Page, label: string, name: string, variant: string) {
@@ -40,6 +40,10 @@ test("gafflad klass: import, fördelning, avläsning mot rätt variant och publi
   await importFile(owner, "course-assignment-forked.xml", "4 löpare fick sin variant");
 
   // Banor: den gafflade banan med fyra varianter och kontrollföljder.
+  // Rutterna kompileras vid första anropet; under last tar det ibland längre än arbetsytans 15 s.
+  const admin = `/api/admin/races/${raceId}/administrator`;
+  await warmRoute(owner, `${admin}/courses`);
+  await warmRoute(owner, `${admin}/classes/00000000-0000-4000-8000-000000000000/variant-distribution`, "POST");
   await owner.goto(`/admin/${raceId}/manage`);
   await openStep(owner, "Banor");
   const course = owner.getByRole("row", { name: /^Lång Gafflad/ });

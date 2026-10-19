@@ -4,13 +4,16 @@ export const readoutText = {
   station: "Station",
   internet: "Internet",
   queue: "Kö",
-  packageLabel: "Underlag",
+  packageLabel: "Tävlingsdata",
   online: "Ansluten",
   offline: "Ej ansluten",
   queueEmpty: "0 väntar",
   queueWaiting: (count: number) => `${count} väntar`,
   packageMissing: "Saknas",
-  packageVersion: (version: number, fetched: string) => `v${version} · hämtat ${fetched}`,
+  // Paketversionen syns alltid (AGENTS.md) men som en liten detalj; rubriken är när datan hämtades (PLAN.md steg 24).
+  packageUpdated: (fetched: string) => `Uppdaterad ${fetched}`,
+  packageVersion: (version: number) => `v${version}`,
+  packageVersionTitle: (version: number) => `Tävlingsdatans version ${version}`,
   stationStatus: {
     disconnected: "Ej ansluten",
     connecting: "Ansluter …",
@@ -29,7 +32,7 @@ export const readoutText = {
   // Stationens klocka (PLAN.md steg 22).
   clockSkew: (minutes: number) => `Stationens klocka avviker ${Math.abs(minutes)} min från datorn (${minutes > 0 ? "går före" : "går efter"}). Stämplingstiderna räknas mot stationens klocka. Kontrollera att kontrollenheterna och stationen är tidsynkade.`,
   clockMissing: "Stationen svarade inte på klockfrågan. Stämplingstiderna räknas mot datorns klocka.",
-  timeUnresolvable: (detail: string) => `Brickans tider går inte att tolka (${detail}). Avläsningen sparades inte; råtrafiken finns i råloggen.`,
+  timeUnresolvable: (detail: string) => `Brickans tider går inte att tolka (${detail}). Avläsningen sparades inte; trafiken finns i felsökningsloggen.`,
   waitingForCard: "Sätt i brickan",
   reading: (card: number) => `Läser bricka ${card} …`,
   readFailed: (card: number) => `Bricka ${card} lästes inte färdigt. Sätt i den igen.`,
@@ -62,9 +65,9 @@ export const readoutText = {
   relayTeamStatus: { OK: "Laget godkänt", MP: "Laget felstämplat", DSQ: "Laget diskat", DNF: "Laget har brutit", OOC: "Laget utom tävlan",
     NT: "Laget utan tidtagning", DNS: "Laget har en sträcka som inte startat", RUNNING: "" } as Record<string, string>,
   relayPlace: (teamNumber: number, leg: number) => `Lag ${teamNumber} · Sträcka ${leg}`,
-  noPackage: "Inget tävlingsunderlag hämtat ännu. Avläsningen är sparad och bedöms av servern.",
+  noPackage: "Tävlingens data är inte hämtad ännu. Avläsningen är sparad och bedöms när nätet finns.",
   savedLocally: "Sparad i den här webbläsaren. Skickas när nätet finns.",
-  confirmed: "Bekräftad av servern.",
+  confirmed: "Sparad.",
   serverDiffers: (status: string) => `Servern bedömde avläsningen annorlunda: ${status}. Serverns bedömning gäller.`,
   splits: "Sträcktider",
   // Rogaining (ADR-0170 beslut 5).
@@ -76,8 +79,8 @@ export const readoutText = {
   rogainingControls: "Räknade kontroller",
   rogainingPoints: (points: number) => `${points} p`,
   exerciseLate: "Läs av: för sen",
-  rejected: (reason: string) => `Servern avvisade avläsningen (${reason}). Rådata finns kvar här.`,
-  localInvalid: "Avläsningen kunde inte paketeras. Rådata finns kvar i den här webbläsaren.",
+  rejected: (reason: string) => `Servern tog inte emot avläsningen (${reason}). Avläsningen finns kvar här.`,
+  localInvalid: "Avläsningen kunde inte skickas. Den finns kvar i den här webbläsaren.",
   recent: "Senaste avläsningar",
   none: "Inga avläsningar ännu.",
   statusPending: "Väntar",
@@ -87,7 +90,7 @@ export const readoutText = {
   exercise: "Övningsstation",
   exerciseHelp: "Skapar en bricka för vald deltagare och läser av den genom samma protokoll som en riktig station. Okänd bricka springer vald deltagares bana med ett oanmält bricknummer.",
   exerciseRunner: "Deltagare",
-  exerciseNoRunners: "Inga deltagare med SPORTident-bricka i underlaget.",
+  exerciseNoRunners: "Inga deltagare med SPORTident-bricka i tävlingen.",
   exerciseOk: "Läs av: rätt stämplat",
   exerciseMissing: "Läs av: missad kontroll",
   exerciseNoFinish: "Läs av: utan mål",
@@ -97,8 +100,8 @@ export const readoutText = {
   manage: "Hantera tävling",
   results: "Resultat",
   syncFailed: (status: number) => `Servern svarade ${status}. Kön ligger kvar och skickas igen.`,
-  rawLog: "Ladda ner rålogg",
-  rawLogHelp: "All trafik med stationen sedan sidan öppnades och råramarna för loppets avläsningar, utan namn. Skicka filen till utvecklaren om en station eller bricka beter sig fel.",
+  rawLog: "Ladda ner felsökningslogg",
+  rawLogHelp: "Stationens trafik sedan sidan öppnades, utan namn. Skicka filen till den som driver O-Tid om en station eller bricka beter sig fel.",
   // Kvitto och QR-kod (PLAN.md steg 21).
   receipt: {
     print: "Skriv ut kvitto",
@@ -125,5 +128,5 @@ export const readoutText = {
     printedAt: (time: string) => `Utskrivet ${time}`,
     footer: "O-Tid"
   },
-  storageNotPersistent: "Webbläsaren har inte lovat att spara kön beständigt. Töm inte webbläsardata under tävlingen."
+  storageNotPersistent: "Spara-läget är inte bekräftat av webbläsaren. Stäng inte fliken och töm inte webbläsardata under tävlingen."
 } as const;

@@ -27,13 +27,13 @@ export function useClassEditState() {
 
 export function createClassEditActions(ws: Base & RaceDataActions & CourseEditActions) {
   const { raceId, courseList, editingClassId, classEditName, classEditCourseId, classEditStartRule, classEditPreview,
-    busyRef, pending, sent, requireSession, begin, finish, current, request, json, csrf, load, readCourses, setCourseListError,
+    writingRef, pending, sent, requireSession, begin, finish, current, request, json, csrf, load, readCourses, setCourseListError,
     setEditingClassId, setClassEditName, setClassEditCourseId, setClassEditStartRule, setClassEditPreview, setClassEditError,
     setClassEditSaved, setClassEditAttempt } = ws;
   const editingRow = () => courseList?.classes.find(row => row.classId === editingClassId);
 
   function startClassEdit(classId: string) {
-    if (busyRef.current || pending.current) return;
+    if (writingRef.current || pending.current) return;
     const row = courseList?.classes.find(item => item.classId === classId);
     if (!row) return;
     setEditingClassId(classId); setClassEditName(row.name); setClassEditCourseId(row.courseId); setClassEditStartRule(row.startRule);
@@ -81,7 +81,7 @@ export function createClassEditActions(ws: Base & RaceDataActions & CourseEditAc
     await readCourses(op);
   }
   async function previewClassEdit() {
-    if (busyRef.current || pending.current || !requireSession()) return;
+    if (writingRef.current || pending.current || !requireSession()) return;
     setClassEditError(""); setClassEditSaved("");
     const change = proposed();
     if (!change) return;
@@ -118,12 +118,12 @@ export function createClassEditActions(ws: Base & RaceDataActions & CourseEditAc
    * ändringen sparas när arrangören trycker på "Spara ändringen" igen.
    */
   async function saveClassEdit() {
-    if (busyRef.current || !requireSession()) return;
+    if (writingRef.current || !requireSession()) return;
     const waiting = pending.current;
     const retry = waiting && "kind" in waiting && waiting.kind === "CLASS_EDIT" ? waiting : undefined;
     if (pending.current && !retry) return;
     setClassEditError(""); setClassEditSaved("");
-    const op = begin();
+    const op = begin(true);
     try {
       let attempt = retry;
       if (!attempt) {

@@ -5,7 +5,7 @@ import { loadStartDrawSetupAsAdmin, previewStartDrawAsAdmin, commitStartDrawAsAd
   listEntryTransfersAsAdmin, transferEntryAsAdmin,
   changeClassCapacityAsAdmin, editClassAsAdmin, previewClassEditAsAdmin,
   createManualCourseClassAsAdmin, createManualClassAsAdmin, listCoursesForEditAsAdmin, previewCourseEditAsAdmin,
-  editCourseAsAdmin, previewShortenedCourseClassTransferAsAdmin, transferShortenedCourseClassAsAdmin,
+  editCourseAsAdmin,
   getEntryStatusAsAdmin, setEntryStatus, listUnknownReadoutResolutionCandidatesAsAdmin,
   resolveUnknownReadoutAsAdmin, changeEntryCardAsAdmin, changeEntryCardRentalAsAdmin,
   changeEntryCardRentalReturnAsAdmin, reuseReturnedRentalCardAsAdmin,
@@ -61,8 +61,6 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   eventorTest: testEventorConnectionAsAdmin, eventorEvents: listEventorEventsAsAdmin, eventorEvent: chooseEventorEventAsAdmin,
   eventorSyncPreview: previewEventorSyncAsAdmin, courseFilePreview: previewCourseFileAsAdmin,
   syncConsequence: syncConsequenceAsAdmin, syncApply: applySyncAsAdmin, syncStatus: getSourceSyncStatusAsAdmin,
-  shortenedCourseClassTransferPreview: previewShortenedCourseClassTransferAsAdmin,
-  shortenedCourseClassTransfer: transferShortenedCourseClassAsAdmin,
   entryStatus: getEntryStatusAsAdmin, setEntryStatus,
   unknownReadoutResolutionCandidates: listUnknownReadoutResolutionCandidatesAsAdmin,
   unknownReadoutResolution: resolveUnknownReadoutAsAdmin,
@@ -98,7 +96,6 @@ export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: str
   { kind: "race-settings" } |
   { kind: "eventor" } | { kind: "eventor-test" } | { kind: "eventor-events" } | { kind: "eventor-event" } | { kind: "eventor-sync-preview" } |
   { kind: "course-file-preview" } | { kind: "source-sync-consequence" } | { kind: "source-sync" } |
-  { kind: "shortened-course-class-transfer"; classId: string } |
   { kind: "entry-status"; entryId: string } |
   { kind: "unknown-readout-resolution" } |
   { kind: "card"; entryId: string } | { kind: "card-rental"; entryId: string } |

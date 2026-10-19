@@ -65,14 +65,14 @@ test("sträcktidsanalys: från resultatlistan, sortering på en sträcka och vä
   await addCourseAndClass(owner, "Lång", "H21", "31 32 33");
   for (const runner of RUNNERS) await addEntry(owner, runner);
   for (const path of ["map", "map/image"]) await warmRoute(owner, `/api/admin/races/${raceId}/administrator/${path}`);
-  for (const path of ["map/georeference", "routes"]) await warmRoute(owner, `/api/admin/races/${raceId}/administrator/${path}`, "POST");
+  for (const path of ["map/georeference", "routes", "draw-preview", "draw"]) await warmRoute(owner, `/api/admin/races/${raceId}/administrator/${path}`, "POST");
 
   // Lottning: fem minuter mellan starterna, med första start 40 minuter bakåt.
   await openStep(owner, "Start");
   const draw = owner.getByRole("region", { name: "Lottning" });
   await expect(draw.getByRole("row", { name: /H21/ })).toBeVisible();
   await draw.getByLabel("Första start (klockslag)").fill(clock(firstStart));
-  await draw.getByLabel("Startsätt H21").selectOption({ label: "Lottad minutstart" });
+  await draw.getByLabel("Startsätt H21").selectOption({ label: "Minutstart" });
   await draw.getByLabel("Intervall (min) H21").fill("5");
   await draw.getByLabel("Vakanser H21").fill("0");
   await draw.getByRole("button", { name: "Visa lottning" }).click();

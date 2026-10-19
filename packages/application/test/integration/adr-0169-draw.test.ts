@@ -272,9 +272,17 @@ describe("PLAN.md steg 9: lottning på riktigt", () => {
     expect(robust.results.find(result => result.givenName === "Tidig-1")).toMatchObject({ splits: [] });
   });
 
-  it("vägrar fast start utan tid i en klass som inte är lottad", async () => {
+  it("tar emot minutstart utan tid före lottningen; lottningen ger löparen en tid (PLAN.md steg 24)", async () => {
     const f = await race();
     await pool.query("update class set start_rule = 'FIXED' where id = $1", [f.classes.H21]);
-    expect((await register(f, f.classes.H21, "Ingen", null, null)).status).toBe("conflict");
+    const registered = await register(f, f.classes.H21, "Senare", null, null);
+    if (registered.status !== "registered") throw new Error(`Anmälan avvisades: ${registered.status}`);
+    expect([registered.response.fixedStartTime, registered.response.startTimeAssigned]).toEqual([null, false]);
+    const request = { ...settings(f), classes: settings(f).classes.filter(row => row.classId === f.classes.H21) };
+    const drawn = await commit(f, request, 7, true);
+    expect(drawn.status).toBe("drawn");
+    const { rows } = await pool.query<{ fixed_start_time: Date | null }>("select fixed_start_time from entry where id = $1",
+      [registered.response.entryId]);
+    expect(rows[0]!.fixed_start_time).not.toBeNull();
   });
 });

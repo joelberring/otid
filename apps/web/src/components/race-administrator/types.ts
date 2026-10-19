@@ -2,8 +2,7 @@ import type {
   AdministratorReturnRequest, AdministratorStartCorrectionRequest, ClassCapacityRequest, ClassEditRequest, EntryCardChangeRequest, EntryCardRentalChangeRequest, EntryCardRentalReturnChangeRequest,
   EntryCardRentalReuseRequest, EntryIdentityChangeRequest, EntryRegistrationCandidatesResponse,
   EntryRegistrationRequest, EntryStartTimeChangeRequest, EntryTransferRequest, ManualClassCreateRequest,
-  CourseEditRequest, RogainingChangeRequest, ShortenedCourseClassTransferCandidate, StartDrawRequest,
-  ShortenedCourseClassTransferRequest, StartCheckinConflictReviewCandidate, StartCheckinConflictReviewRequest,
+  CourseEditRequest, RogainingChangeRequest, StartDrawRequest, StartCheckinConflictReviewCandidate, StartCheckinConflictReviewRequest,
   UnknownReadoutResolutionCandidateResponse, UnknownReadoutResolutionRequest, EntryStatusRequest, EntryStatusResponse
 } from "@o-tid/contracts";
 import type { StatusChoice } from "../../lib/participant-status-choices";
@@ -23,8 +22,6 @@ export type CourseEditAttempt = { kind: "COURSE_EDIT"; request: CourseEditReques
 export type ClassEditAttempt = { kind: "CLASS_EDIT"; request: ClassEditRequest };
 export type RogainingAttempt = { kind: "ROGAINING"; request: RogainingChangeRequest };
 export type StartDrawAttempt = { kind: "START_DRAW"; request: StartDrawRequest };
-export type ShortenedCourseClassTransferAttempt = { kind: "SHORTENED_COURSE_CLASS_TRANSFER";
-  candidate: ShortenedCourseClassTransferCandidate; request: ShortenedCourseClassTransferRequest };
 export type UnknownReadoutResolutionAttempt = { kind: "UNKNOWN_READOUT_RESOLUTION";
   candidate: UnknownReadoutResolutionCandidateResponse; request: UnknownReadoutResolutionRequest };
 export type TransferAttempt = {
@@ -55,7 +52,7 @@ export type PendingAttempt = ConflictReviewAttempt | StartCorrectionAttempt | Re
   RentalReturnAttempt | RentalReuseAttempt | TimeAttempt | RecalculationAttempt |
   ClassResultRecalculationAttempt | IdentityAttempt | RegistrationAttempt | DecisionAttempt | FinalizationAttempt | CourseClassAttempt | ManualClassAttempt |
   CourseEditAttempt | ClassEditAttempt | RogainingAttempt |
-  ShortenedCourseClassTransferAttempt | UnknownReadoutResolutionAttempt;
+  UnknownReadoutResolutionAttempt;
 
 export type Action = "INFO" | "TRANSFER" | "CARD" | "TIME" | "IDENTITY" | "REGISTRATION" | "HISTORY";
 export type Operation = { generation: number; controller: AbortController; timer: ReturnType<typeof setTimeout> };
@@ -67,10 +64,4 @@ export function unknownReadoutTargetLabel(value: UnknownReadoutResolutionAttempt
   return value.request.target === "NEW_ENTRY" ? `${value.request.familyName}, ${value.request.givenName}` : "Befintlig deltagare";
 }
 
-/** Tolkar kontrollkoder skrivna med mellanslag eller komma. Ger undefined om listan är tom, för lång eller ogiltig. */
-export function parseControlCodes(input: string): number[] | undefined {
-  const tokens = input.trim().split(/[\s,]+/).filter(Boolean);
-  const codes = tokens.map(Number);
-  if (!tokens.length || tokens.length > 1000 || codes.some(code => !Number.isInteger(code) || code <= 0 || code > 2147483647)) return undefined;
-  return codes;
-}
+export { parseControlCodes } from "../../lib/form-validation";

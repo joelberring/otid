@@ -27,7 +27,7 @@ export function sourceTime(instant: string, timeZone: string): string {
  * uppdatera klasser och anmälningar med granskning av skillnaderna.
  */
 export function EventorSection({ ws }: { ws: Workspace }) {
-  const { authenticated, busy, busyRef, beginRequest, request, json, finish, current, csrf, requireSession, data, raceId } = ws;
+  const { authenticated, busy, operation, writingRef, beginRequest, request, json, finish, current, csrf, requireSession, data, raceId } = ws;
   const [settings, setSettings] = useState<EventorSettingsResponse>();
   const [keyInput, setKeyInput] = useState("");
   const [editingKey, setEditingKey] = useState(false);
@@ -40,9 +40,10 @@ export function EventorSection({ ws }: { ws: Workspace }) {
   const review = useSourceReview(ws);
   const timeZone = data?.timeZone ?? "Europe/Stockholm";
 
-  async function run(action: (op: ReturnType<typeof beginRequest>) => Promise<void>) {
-    if (busyRef.current || !requireSession()) return;
-    const op = beginRequest();
+  /** Kör en Eventor-åtgärd. Nyckel, koppling och import skriver (`write`); läsningar låser inget (PLAN.md steg 24). */
+  async function run(action: (op: ReturnType<typeof beginRequest>) => Promise<void>, write = true) {
+    if (writingRef.current || !requireSession()) return;
+    const op = beginRequest(write);
     try { await action(op); } catch { if (current(op)) setMessage({ tone: "error", text: text.failed }); } finally { finish(op); }
   }
   const post = (path: string, op: ReturnType<typeof beginRequest>, body?: unknown, method = "POST") => request(path, op, { method,
@@ -50,12 +51,12 @@ export function EventorSection({ ws }: { ws: Workspace }) {
     ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
 
   useEffect(() => {
-    if (!authenticated || settings || loadFailed || busy || busyRef.current) return;
+    if (!authenticated || settings || loadFailed || busy || operation.current) return;
     void run(async op => {
       const response = await request("/eventor", op);
       if (!response.ok) { setLoadFailed(true); throw new Error("Eventor settings unavailable"); }
       setSettings(eventorSettingsResponseSchema.parse(await json(response, op)));
-    });
+    }, false);
   }, [authenticated, settings, loadFailed, busy]);
 
   const saveKey = () => run(async op => {
@@ -110,7 +111,7 @@ export function EventorSection({ ws }: { ws: Workspace }) {
       : <p className={styles.muted}>…</p>}
   </Section>;
   const locked = busy;
-  const keyForm = <form className={styles.inlineForm} onSubmit={event => { event.preventDefault(); void saveKey(); }}>
+  const keyForm = <form className={styles.inlineForm} noValidate onSubmit={event => { event.preventDefault(); void saveKey(); }}>
     <Field label={text.keyLabel} help={text.keyHelp}><input type="password" autoComplete="off" spellCheck={false} value={keyInput}
       minLength={16} maxLength={128} required disabled={locked} onChange={event => setKeyInput(event.target.value)} /></Field>
     <div className={styles.actions}><Button type="submit" disabled={locked || keyInput.trim().length < 16}>{text.saveKey}</Button>

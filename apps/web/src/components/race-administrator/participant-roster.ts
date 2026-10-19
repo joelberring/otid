@@ -21,12 +21,11 @@ export function useRosterState() {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
   const [rosterClassId, setRosterClassId] = useState("");
-  const [wideTable, setWideTable] = useState(false);
   const [entryId, setEntryId] = useState("");
   const [action, setAction] = useState<Action>("INFO");
   return { query, setQuery, olderResultsOnly, setOlderResultsOnly, rentalCardsOnly, setRentalCardsOnly,
     resultState, setResultState, missingFixedStartOnly, setMissingFixedStartOnly, rosterOrder,
-    setRosterOrder, page, setPage, pageSize, setPageSize, rosterClassId, setRosterClassId, wideTable, setWideTable,
+    setRosterOrder, page, setPage, pageSize, setPageSize, rosterClassId, setRosterClassId,
     entryId, setEntryId, action, setAction };
 }
 
@@ -66,16 +65,16 @@ export type Roster = ReturnType<typeof deriveRoster>;
 export function createParticipantActions(ws: Base & MobileNavigation & RaceDataActions & DuringRaceActions &
   ResultDecisionActions & EntryActions) {
   const { data, action, participantsVisible, workflowLocked, selected, selectedIndex, filtered,
-    classesById, rosterOrder, pageSize, registrationAttempt, unknown, busyRef, pending, sent, checkinHistoryPanel,
+    classesById, rosterOrder, pageSize, registrationAttempt, unknown, writingRef, pending, sent, checkinHistoryPanel,
     workPanel, listPanel, requireSession, begin, finish, showMobilePanel, loadEffectiveResult, loadConflictReview,
-    loadCheckinHistory, loadIdentity, loadHistory, setAction, setStatusChoice, setStatusBlocked, setStep, setWideTable,
+    loadCheckinHistory, loadIdentity, loadHistory, setAction, setStatusChoice, setStatusBlocked, setStep,
     setReviewCandidate, setReviewReason, setReviewConfirmed, setEntryId, setClassId, setMessage, setNewCard,
     setRentalReuseSourceId, setCheckinHistory, setGivenName, setFamilyName, setOrganisationName,
     setStartClock, setIdentityCandidates, setEntryChanges, setEffectiveResult, setEffectiveResultError, setRegistrationAttempt, setConfirmDistinctPerson,
     setQuery, setRosterClassId, setOlderResultsOnly, setRentalCardsOnly,
-    setMissingFixedStartOnly, setResultState, setPage } = ws;
+    setMissingFixedStartOnly, setResultState, setPage, setRegistrationErrors, setRegistrationSaved, registrationForm } = ws;
   function select(id: string, openJournal = false, reviewConflict = false, requestedAction?: Action) {
-    if (busyRef.current || pending.current || !requireSession()) return;
+    if (writingRef.current || pending.current || !requireSession()) return;
     const nextAction = requestedAction ?? "INFO";
     setAction(nextAction);
     if (!openJournal) {
@@ -83,7 +82,6 @@ export function createParticipantActions(ws: Base & MobileNavigation & RaceDataA
         // Genvägar från andra steg (t.ex. kontrollvyns "Öppna") visar Anmälda innan kortet fokuseras.
         flushSync(() => setStep("ENTRIES"));
       }
-      setWideTable(false);
       showMobilePanel("WORK");
     }
     setReviewCandidate(undefined); setReviewReason(""); setReviewConfirmed(false);
@@ -109,26 +107,30 @@ export function createParticipantActions(ws: Base & MobileNavigation & RaceDataA
     }
   }
   function openMissingStartTime(id: string) {
-    if (busyRef.current || pending.current || !requireSession()) return;
+    if (writingRef.current || pending.current || !requireSession()) return;
     select(id, false, false, "TIME");
     window.requestAnimationFrame(() => workPanel.current?.focus());
   }
   function chooseAction(value: Action) {
-    if (busyRef.current || pending.current || !requireSession()) return;
+    if (writingRef.current || pending.current || !requireSession()) return;
     setAction(value); setClassId(""); setNewCard(""); setStartClock(""); setMessage("");
     setIdentityCandidates(undefined); setGivenName(""); setFamilyName(""); setOrganisationName("");
-    setEntryChanges(undefined); setStatusChoice(""); setStatusBlocked("");
+    setEntryChanges(undefined); setStatusChoice(""); setStatusBlocked(""); setRegistrationErrors({}); setRegistrationSaved("");
     if (value === "IDENTITY") void loadIdentity();
     if (value === "HISTORY") void loadHistory();
   }
+  /** "Ny deltagare" öppnar formuläret direkt med fokus i första fältet; en ensam klass är förvald (PLAN.md steg 24). */
   function newParticipant() {
-    if (busyRef.current || pending.current || !requireSession()) return;
-    setWideTable(false);
+    if (writingRef.current || pending.current || !requireSession()) return;
     chooseAction("REGISTRATION"); setEntryId(""); setEffectiveResult(undefined); setEffectiveResultError(false);
+    const individual = data?.classes.filter(row => row.relayLegCount === undefined) ?? [];
+    if (individual.length === 1) setClassId(individual[0]!.id);
     showMobilePanel("WORK");
+    requestAnimationFrame(() => registrationForm.current
+      ?.querySelector<HTMLElement>(individual.length === 1 ? 'input[name="givenName"]' : "select")?.focus());
   }
   function selectRegistrationCandidate(id: string) {
-    if (busyRef.current || sent.current || unknown || !registrationAttempt || pending.current !== registrationAttempt || !requireSession()) return;
+    if (writingRef.current || sent.current || unknown || !registrationAttempt || pending.current !== registrationAttempt || !requireSession()) return;
     const candidate = registrationAttempt.candidates.candidates.find((row) => row.entryId === id);
     if (!candidate || !data?.entries.some((row) => row.id === id && row.classId === candidate.classId)) return;
     pending.current = undefined; setRegistrationAttempt(undefined); setConfirmDistinctPerson(false);

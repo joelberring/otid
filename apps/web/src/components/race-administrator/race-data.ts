@@ -20,7 +20,7 @@ export function useRaceDataState() {
 
 /** Session och dataladdning: inloggning med kontot, utloggning och ny läsning av ögonblicksbilden. */
 export function createRaceDataActions(ws: Base & MobileNavigation) {
-  const { raceId, entryId, pending, sent, busyRef, deadline, base, setEffectiveResult, setEffectiveResultError, setData,
+  const { raceId, entryId, pending, sent, writingRef, deadline, base, setEffectiveResult, setEffectiveResultError, setData,
     setEntryChanges, setIdentityCandidates, setSelectedClassId, setExpiresAt, setAuthenticated, setMobilePanel, setMessage,
     setEntryId, setClassId, setPage, setNewCard, setRole, request, json, assertCurrent, current, begin, finish, lock,
     requireSession, showMobilePanel } = ws;
@@ -78,7 +78,7 @@ export function createRaceDataActions(ws: Base & MobileNavigation) {
     finally { finish(op); }
   }
   async function refresh() {
-    if (busyRef.current || pending.current || !requireSession()) return;
+    if (writingRef.current || pending.current || !requireSession()) return;
     showMobilePanel("LIST");
     const op = begin(); setData(undefined); setEntryId(""); setClassId(""); setPage(0); setNewCard("");
     try { await load(op); setMessage(""); }

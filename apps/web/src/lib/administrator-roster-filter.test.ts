@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EntryTransferCandidates } from "@o-tid/contracts";
-import { filterAdministratorRoster, missingFixedStartTime, orderAdministratorRoster } from "./administrator-roster-filter";
+import { filterAdministratorRoster, missingFixedStartTime, orderAdministratorRoster, rosterStatusOptions } from "./administrator-roster-filter";
 
 type Entry = EntryTransferCandidates["entries"][number];
 const classId = "20000000-0000-4000-8000-000000000001";
@@ -99,5 +99,17 @@ describe("TASK203 participant order before pagination", () => {
     expect(rows.map(row => row.id)).toEqual(originalIds);
     const matches = filterAdministratorRoster(rows, classes, { ...allFiltersOff, query: "Löpare 2" });
     expect(orderAdministratorRoster(matches, startRules, "FIXED_START")[0]?.id).toBe(rows[26]?.id);
+  });
+});
+
+describe("Anmäldas statusfilter (PLAN.md steg 24)", () => {
+  it("visar bara lägen som någon har, plus Alla och det valda", () => {
+    const selectedRevision = { id: "40000000-0000-4000-8000-000000000001", revision: 1 };
+    const rows = [entry(1), entry(2), entry(3, { effectiveResult: { state: "NO_PUBLISHED_RESULT" } as Entry["effectiveResult"] }),
+      entry(4, { effectiveResult: { state: "ACTIVE_RESULT", selectedRevision, resultSnapshotVersion: 1,
+        result: { revision: 1, status: "MP", reason: "MISSING_CONTROL", elapsedMs: 1 } } })];
+    expect(rosterStatusOptions(rows, "ALL")).toEqual([{ value: "ALL", count: 4 }, { value: "OK", count: 2 }, { value: "MP", count: 1 },
+      { value: "NO_PUBLISHED_RESULT", count: 1 }]);
+    expect(rosterStatusOptions([], "DNS")).toEqual([{ value: "ALL", count: 0 }, { value: "DNS", count: 0 }]);
   });
 });

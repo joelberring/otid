@@ -36,7 +36,7 @@ function whole(value: string, min: number, max: number): number | null | undefin
 type Change = Pick<RogainingChangeRequest, "controlPoints" | "classRules">;
 
 export function createRogainingActions(ws: Base & RaceDataActions & CourseEditActions) {
-  const { raceId, courseList, rogainingPoints, rogainingRules, rogainingPreview, busyRef, pending, sent, requireSession, begin, finish,
+  const { raceId, courseList, rogainingPoints, rogainingRules, rogainingPreview, writingRef, pending, sent, requireSession, begin, finish,
     current, request, json, csrf, load, readCourses, setCourseListError, setRogainingPoints, setRogainingRules, setRogainingPreview,
     setRogainingError, setRogainingSaved, setRogainingAttempt } = ws;
 
@@ -102,7 +102,7 @@ export function createRogainingActions(ws: Base & RaceDataActions & CourseEditAc
     await readCourses(op);
   }
   async function previewRogaining() {
-    if (busyRef.current || pending.current || !requireSession()) return;
+    if (writingRef.current || pending.current || !requireSession()) return;
     setRogainingError(""); setRogainingSaved("");
     const change = proposed();
     if (!change) return;
@@ -137,12 +137,12 @@ export function createRogainingActions(ws: Base & RaceDataActions & CourseEditAc
    * när arrangören trycker på "Spara och räkna om".
    */
   async function saveRogaining() {
-    if (busyRef.current || !requireSession()) return;
+    if (writingRef.current || !requireSession()) return;
     const waiting = pending.current;
     const retry = waiting && "kind" in waiting && waiting.kind === "ROGAINING" ? waiting : undefined;
     if (pending.current && !retry) return;
     setRogainingError(""); setRogainingSaved("");
-    const op = begin();
+    const op = begin(true);
     try {
       let attempt = retry;
       if (!attempt) {

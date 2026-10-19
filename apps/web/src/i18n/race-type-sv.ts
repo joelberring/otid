@@ -28,11 +28,12 @@ export const raceTypeSv = {
   functionary: "Funktionär",
   live: { readOut: "avlästa", inForest: "kvar i skogen", unknown: (count: number) => count === 1 ? "okänd bricka" : "okända brickor" },
   shortcuts: "Genvägar",
+  menu: "Meny",
   settings: {
     title: "Inställningar",
     help: "Namn, datum och typ. Att byta typ ändrar bara vilka delar som syns; inget tas bort.",
     eventName: "Tävlingens namn",
-    raceName: "Loppets namn",
+    raceName: "Etapp/lopp",
     raceDate: "Datum",
     raceDateLocked: "Datumet kan inte ändras när det finns starttider eller avläsningar.",
     save: "Spara inställningar",
@@ -65,6 +66,8 @@ export const raceTypeSv = {
       failed: "Ändringen kunde inte sparas. Försök igen.",
       sessionExpired: "Sessionen har gått ut. Ladda om sidan och försök igen."
     },
+    publishLink: "Publiceringen och tävlingssidans adress finns i steget Publicera.",
+    publishOpen: "Gå till Publicera",
     import: "Import",
     importHelp: "Läs in anmälda eller en startlista från en IOF XML-fil. Banfiler läses in under Banor, Eventor ovan.",
     importLink: "Öppna import"

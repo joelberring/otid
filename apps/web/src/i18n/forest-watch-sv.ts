@@ -1,3 +1,4 @@
+import { startRuleSv as rule } from "./start-rule-sv";
 export const forestWatchSv = {
   ageSort: "Sortera startade utan återkomst efter rapporterad tid",
   ageSortHelp: "Startade utan återkomst: okänd tid först för uppföljning, därefter längst rapporterad tid. Konfliktgruppen ligger kvar överst. Detta är inte en riskklassning.",
@@ -10,13 +11,13 @@ export const forestWatchSv = {
   reviewConflict: "Granska konflikt",
   title: "Kvar i skogen – målpersonal",
   back: "Till tävlingsöversikten",
-  help: "Privat uppföljningsunderlag. Registrerad återkomst betyder inte godkänt resultat.",
+  help: "Privat lista för uppföljning. Registrerad återkomst betyder inte godkänt resultat.",
   uncertainty: "Endast senast synkade uppgifter. Offlineenheter kan ha nya markeringar som saknas här. Listan visar inte faktisk position och garanterar inte att skogen är tom.",
   refresh: "Uppdatera lista", print: "Skriv ut listan",
   loadError: "Listan kunde inte uppdateras. Kontrollera anslutningen och försök igen.",
-  stale: "VARNING: Uppdatering saknas. Underlaget nedan kan vara gammalt.",
+  stale: "VARNING: Listan är inte uppdaterad och kan vara gammal.",
   private: "PRIVAT – daterad ögonblicksbild för målpersonal. Förvara och förstör utskriften säkert.",
-  generated: "Underlag läst på servern",
+  generated: "Uppdaterad",
   raceClass: "Klassfilter", allClasses: "Alla klasser", shown: "Visade deltagare", total: "hela loppet",
   search: "Sök namn, klubb eller bricknummer", clearFilters: "Rensa filter",
   searchFilter: "Sökfilter", noSearch: "Ingen sökning", visibleSelection: "Visat urval",
@@ -25,7 +26,7 @@ export const forestWatchSv = {
   groups: { CONFLICT: "Motstridiga uppgifter – kontrollera", STARTED_NO_RETURN: "Startat – ingen registrerad återkomst",
     UNCONFIRMED: "Okänd startstatus – följ upp", NOT_STARTED: "Ej startande enligt registrerade uppgifter", RETURNED: "Registrerad återkomst" },
   name: "Namn / klubb", status: "Uppgifter och källa", start: "Planerad start", card: "Bricka", noCard: "Ingen aktiv bricka",
-  multipleCards: "Flera aktiva brickor – kontrollera", noOrganisation: "Klubb saknas", punch: "Fri start / startstämpling", missingTime: "Fast starttid saknas",
+  multipleCards: "Flera aktiva brickor – kontrollera", noOrganisation: "Klubb saknas", punch: rule.rules.PUNCH, missingTime: "Starttid saknas",
   reports: { UNMARKED: "Start: omarkerad / okänd", STARTED: "Start: manuellt rapporterad", REPORTED_NOT_STARTED: "Start: uttryckligt rapporterad ej start" },
   manualReturn: "Återkomst: manuellt registrerad", readoutReturn: "Återkomst: kopplad avläsning / teknisk källa",
   noReturn: "Ingen återkomst registrerad", activeDns: "Aktivt ej-startresultat (DNS)", conflict: "Konfliktrapport eller motsägelse behöver granskas",
@@ -33,5 +34,5 @@ export const forestWatchSv = {
   noReceipt: "Ingen operation mottagen", sequence: "Senast mottagen sekvens", startDevice: "Startpersonal", finishDevice: "Målpersonal",
   deviceWarning: "Mottagningstid är inte en aktuell kontaktkontroll. Enheternas osynkade köer är okända för servern.",
   online: "Webbläsaren uppger nätanslutning – serverkontakt verifieras vid hämtning.", offline: "Webbläsaren uppger att nätanslutning saknas.",
-  readOnly: "Listan är ett läsunderlag. Separat explicit konfliktgranskning kräver nät. Ingen hårdvara ansluts och inga markeringar köas på denna sida."
+  readOnly: "Listan går bara att läsa. Att granska motstridiga uppgifter kräver nät."
 } as const;

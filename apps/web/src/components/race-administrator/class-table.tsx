@@ -15,25 +15,35 @@ type ClassRow = CourseEditListResponse["classes"][number];
 
 /** Klasser som tabell med redigering i raden: namn, bana och startsätt (ADR-0169 beslut 4). */
 export function ClassTable({ ws, visible }: { ws: Workspace; visible: boolean }) {
-  const { authenticated, busy, classEditSaved, courseList, courseListError, selectedClassId, data, editingClassId,
-    loadCourses, pending, profile, raceId, startClassEdit, workflowLocked, openMissingFixedStart, distributeVariants, distributionMessage } = ws;
+  const { authenticated, busy, classEditSaved, courseList, courseListError, selectedClassId, data, editingClassId, manualClassOpen,
+    loadCourses, navigateStep, pending, profile, raceId, saving, section, setManualClassOpen, startClassEdit, workflowLocked,
+    openMissingFixedStart, distributeVariants, distributionMessage, operation } = ws;
   // ADR-0170: startsätt bara där typen har val, varianter bara med gafflingar.
   const { startRuleChoice, variants } = profile.features;
   const columns = startRuleChoice ? 7 : 6;
   const stale = !courseList || (data !== undefined && courseList.snapshotVersion < data.snapshotVersion);
   useEffect(() => {
-    if (visible && authenticated && data && !busy && !pending.current && stale && !courseListError) void loadCourses();
+    if (visible && authenticated && data && !busy && !operation.current && !pending.current && stale && !courseListError) void loadCourses();
   }, [visible, authenticated, data, busy, stale, courseListError]);
   const courseNames = new Map(courseList?.courses.map(course => [course.courseId, course.name]));
   // Stafettklass (ADR-0169 beslut 3): antal sträckor i stället för startsätt.
   const relayLegs = new Map(data?.classes.flatMap(row => row.relayLegCount ? [[row.id, row.relayLegCount] as const] : []));
-  return <Section id={`class-table-${raceId}`} title={text.title} help={text.help}>
+  const noCourses = courseList?.courses.length === 0, empty = courseList?.classes.length === 0;
+  // Banor och klasser i samma steg (Träning, Rogaining): tomläget står under Banor, inte två gånger (PLAN.md steg 24).
+  if (noCourses && section.panels.includes("COURSES")) return null;
+  const newClass = (primary: boolean) => <Button variant={primary ? "primary" : "secondary"} disabled={manualClassOpen}
+    onClick={() => setManualClassOpen(true)}>{adminText.manualClassOpen}</Button>;
+  return <Section id={`class-table-${raceId}`} title={text.title} help={empty ? undefined : text.help}
+    actions={!empty && courseList && !manualClassOpen ? newClass(false) : undefined}>
     {classEditSaved && <Notice tone="ok" role="status">{classEditSaved}</Notice>}
     {distributionMessage && <Notice tone="ok" role="status">{distributionMessage}</Notice>}
     {courseListError && <Notice tone="error" role="alert"><p>{courseListError}</p>
-      <div><Button variant="secondary" disabled={busy} onClick={() => void loadCourses()}>{text.retryList}</Button></div></Notice>}
+      <div><Button variant="secondary" disabled={saving} onClick={() => void loadCourses()}>{text.retryList}</Button></div></Notice>}
     {!courseList && !courseListError && <p role="status" className={styles.workflowHelp}>{text.loading}</p>}
-    {courseList && courseList.classes.length === 0 && <EmptyState title={text.noClasses} />}
+    {empty && !manualClassOpen && (noCourses
+      ? <EmptyState title={adminText.classEmptyTitle} action={<Button onClick={() => navigateStep("COURSES")}>{adminText.manualClassGoCourses}</Button>}>
+        {adminText.classEmptyNoCourse}</EmptyState>
+      : <EmptyState title={adminText.classEmptyTitle} action={newClass(true)}>{adminText.classEmptyHelp}</EmptyState>)}
     {courseList && courseList.classes.length > 0 && <Table>
       <thead><tr>
         <th scope="col">{text.className}</th><th scope="col">{text.course}</th>{startRuleChoice && <th scope="col">{text.startRule}</th>}
@@ -50,7 +60,7 @@ export function ClassTable({ ws, visible }: { ws: Workspace; visible: boolean })
             {variants && row.missingVariantCount > 0 && <>
               <span className={styles.subLine}>{variantText.missingVariants(row.missingVariantCount)}</span>
               <Button variant="secondary" aria-label={variantText.distributeLabel(row.name)}
-                disabled={busy || workflowLocked || !!pending.current} onClick={() => void distributeVariants(row.classId)}>
+                disabled={workflowLocked} onClick={() => void distributeVariants(row.classId)}>
                 {variantText.distribute}</Button>
             </>}</td>
           {startRuleChoice && <td>{relayLegs.get(row.classId) ? relayText.relayStartRule(relayLegs.get(row.classId)!)
@@ -59,7 +69,7 @@ export function ClassTable({ ws, visible }: { ws: Workspace; visible: boolean })
           <td>{text.readOutValue(row.readOutCount, row.resultCount)}</td>
           <td><ClassStatus row={row} disabled={workflowLocked} onMissingStartTimes={() => openMissingFixedStart(row.classId)} /></td>
           <td className={styles.rowAction}>{!editing && <Button variant="secondary" aria-label={text.openLabel(row.name)}
-            disabled={busy || !!editingClassId || !!pending.current} onClick={() => startClassEdit(row.classId)}>{text.open}</Button>}</td>
+            disabled={saving || !!editingClassId} onClick={() => startClassEdit(row.classId)}>{text.open}</Button>}</td>
         </tr>, editing && <tr key={`${row.classId}-editor`} className={styles.editorRow}>
           <td colSpan={columns}><ClassEditor ws={ws} row={row} /></td>
         </tr>];

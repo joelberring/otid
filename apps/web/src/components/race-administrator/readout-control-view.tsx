@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import styles from "./readout-control.module.css";
 import workspaceStyles from "../race-administrator-workspace.module.css";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
@@ -17,7 +18,16 @@ import { Button, Notice } from "../ui";
  * felstämplade att titta på och senaste avläsningar på en skärm.
  */
 export function ReadoutControlView({ ws }: { ws: Workspace }) {
-  const { busy, forestData, forestStale, loadRaceDayAttention, profile, raceId, workflowLocked } = ws;
+  const { authenticated, busy, data, forestData, forestStale, loadRaceDayAttention, operation, pending, profile, raceId, shows, workflowLocked } = ws;
+  // PLAN.md steg 24: läget läses in av sig självt när steget visas (en gång; sedan finns Uppdatera).
+  const attempted = useRef(false);
+  const visible = shows("READOUT");
+  useEffect(() => {
+    if (!visible || !authenticated || !data || busy || operation.current || pending.current || forestData || attempted.current) return;
+    attempted.current = true;
+    void loadRaceDayAttention();
+  }, [visible, authenticated, data, busy, forestData]);
+  const notLoaded = busy || !attempted.current ? text.controlNotLoaded : text.controlLoadFailed;
   const remaining = forestData ? inForest(forestData.entries, forestData) : undefined;
   const notStarted = forestData !== undefined && !raceDayStarted(forestData.raceDate, forestData.timeZone, new Date());
   const conflicts = forestData?.entries.filter(row => row.forestState === "CONFLICT").length ?? 0;
@@ -38,7 +48,7 @@ export function ReadoutControlView({ ws }: { ws: Workspace }) {
         <h3 id={`control-forest-${raceId}`}>{text.controlForest}{" "}
           <strong className={styles.controlCount} data-testid="in-forest-count">{remaining ? remaining.length : "–"}</strong></h3>
         <p className={workspaceStyles.workflowHelp}>{text.controlForestHelp}</p>
-        {!remaining ? <p>{text.controlNotLoaded}</p> : <>
+        {!remaining ? <p role="status">{notLoaded}</p> : <>
           {forestStale && <Notice tone="attention" role="status">{text.controlStale}</Notice>}
           {conflicts > 0 && <Notice tone="attention">{text.controlConflicts(conflicts)}</Notice>}
           {notStarted ? <p data-testid="in-forest-not-started">{text.controlForestNotStarted}</p>

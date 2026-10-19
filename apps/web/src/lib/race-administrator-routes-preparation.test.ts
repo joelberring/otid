@@ -40,53 +40,6 @@ describe("administratörsroutes: förberedelse", () => {
     draw.mockResolvedValueOnce({ status: "drawn", response: { ...receipt, raceId: other } });
     expect((await save()).status).toBe(500);
   });
-  it("TASK135 binds one separately ranked shortened-course transfer to its frozen class basis", async () => {
-    const courseVersionId = "10000000-0000-4000-8000-000000000003";
-    const controlOneId = "10000000-0000-4000-8000-000000000004";
-    const controlTwoId = "10000000-0000-4000-8000-000000000005";
-    const entryId = "10000000-0000-4000-8000-000000000006";
-    const sourceResultId = "10000000-0000-4000-8000-000000000007";
-    const readoutId = "10000000-0000-4000-8000-000000000008";
-    const createdResultId = "10000000-0000-4000-8000-000000000009";
-    const shortCourseId = "10000000-0000-4000-8000-000000000010";
-    const shortCourseVersionId = "10000000-0000-4000-8000-000000000011";
-    const shortClassId = "10000000-0000-4000-8000-000000000012";
-    const candidate = { formatVersion: 1 as const, raceId: id, sourceClassId: other, sourceClassName: "D21",
-      sourceCourseId: other, sourceCourseName: "Långa", sourceCourseVersionId: courseVersionId, sourceCourseVersion: 1,
-      sourceStartRule: "PUNCH" as const, snapshotVersion: 2, basisHash: "a".repeat(64),
-      sourceControls: [{ courseControlId: controlOneId, sequence: 1, controlCode: 31 }, { courseControlId: controlTwoId, sequence: 2, controlCode: 42 }],
-      entries: [{ entryId, entryVersion: 1, displayName: "Ada Löpare", startRule: "PUNCH" as const, fixedStartTime: null,
-        sourceResult: { kind: "CARD_READOUT_MP" as const, resultRevisionId: sourceResultId, resultRevision: 1,
-          readoutId, snapshotVersion: 2, courseVersionId, status: "MP" as const, cause: "CARD_READOUT" as const, published: true as const } }] };
-    const body = { formatVersion: 1 as const, requestId: id, sourceClassId: other, expectedSourceCourseVersionId: courseVersionId,
-      expectedSourceStartRule: "PUNCH" as const, expectedBasisHash: candidate.basisHash,
-      shortCourseName: "Långa kort", shortClassName: "D21 kort", expectedSourceControlCount: 2,
-      controlPrefix: [candidate.sourceControls[0]!], entryIds: [entryId] };
-    const receipt = { formatVersion: 1 as const, replayed: false, requestId: id, transferId: id, raceId: id,
-      sourceClassId: other, sourceCourseVersionId: courseVersionId, shortCourseId, shortCourseVersionId, shortClassId,
-      sourceSnapshotVersion: 2, snapshotVersionAfter: 3, sourceBasisHash: candidate.basisHash, request: body,
-      transferredAt: "2026-09-22T12:01:00.000Z", items: [{ entryId, entryVersionBefore: 1, entryVersionAfter: 2,
-        effect: "MOVED_AND_REEVALUATED" as const, sourceResultRevisionId: sourceResultId, sourceReadoutId: readoutId,
-        createdResultRevisionId: createdResultId, createdResultRevision: 2, resultingStatus: "OK" as const }] };
-    const shortenedCourseClassTransferPreview = vi.fn<typeof import("@o-tid/application").previewShortenedCourseClassTransferAsAdmin>()
-      .mockResolvedValue({ status: "ok", response: candidate });
-    const shortenedCourseClassTransfer = vi.fn<typeof import("@o-tid/application").transferShortenedCourseClassAsAdmin>()
-      .mockResolvedValue({ status: "transferred", response: receipt });
-    const services = { ...dependencies(), shortenedCourseClassTransferPreview, shortenedCourseClassTransfer };
-    const action = { kind: "shortened-course-class-transfer" as const, classId: other };
-    const read = await raceAdministratorRoute(db, new Request("https://otid.example/api/admin", { headers: {
-      cookie: `__Host-otid-organizer-session=${token}; __Host-otid-organizer-csrf=${csrf}` } }), id, action, services, environment);
-    expect(read.status).toBe(200); expect(await read.json()).toEqual(candidate);
-    expect(shortenedCourseClassTransferPreview).toHaveBeenCalledWith(db, expect.objectContaining({ raceId: id,
-      request: { formatVersion: 1, sourceClassId: other } }));
-    const write = await raceAdministratorRoute(db, request("POST", JSON.stringify(body), {
-      "idempotency-key": `shortened-course-class-transfer:${id}` }), id, action, services, environment);
-    expect(write.status).toBe(200); expect(await write.json()).toEqual(receipt);
-    expect(shortenedCourseClassTransfer).toHaveBeenCalledWith(db, expect.objectContaining({ raceId: id,
-      idempotencyKey: `shortened-course-class-transfer:${id}`, request: body }));
-    expect((await raceAdministratorRoute(db, request("POST", JSON.stringify({ ...body, sourceClassId: id }), {
-      "idempotency-key": `shortened-course-class-transfer:${id}` }), id, action, services, environment)).status).toBe(400);
-  });
   it("Redigera bana: banlista, besked och sparande binds till administratören, banan och begäran", async () => {
     const list = { formatVersion: 1 as const, raceId: id, snapshotVersion: 2, courses: [{ courseId: other, courseVersionId: id, name: "Lång",
       controlCodes: [31, 32, 33], classes: [{ classId: id, name: "H21" }], entryCount: 3, readOutCount: 2, variants: [], unevenLegs: [] }],

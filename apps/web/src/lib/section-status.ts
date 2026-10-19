@@ -80,7 +80,8 @@ export function sectionStatus(section: Pick<Section, "id" | "label">, facts: Sec
     case "COURSES":
       if (section.label === "COURSES") return facts.courses === 0 ? { tone: "OPEN", text: "Ingen bana ännu" }
         : { tone: "DONE", text: plural(facts.courses, "bana", "banor") };
-      return facts.courses === 0 ? { tone: "OPEN", text: "Ingen bana ännu" } : {
+      if (facts.courses === 0) return { tone: "OPEN", text: section.label === "CONTROLS_POINTS" ? "Inga kontroller ännu" : "Ingen bana ännu" };
+      return {
         tone: facts.classes === 0 ? "OPEN" : "DONE",
         text: `${plural(facts.courses, "bana", "banor")} · ${plural(facts.classes, "klass", "klasser")}` };
     case "CLASSES": return facts.classes === 0 ? { tone: "OPEN", text: "Ingen klass ännu" }

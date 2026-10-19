@@ -28,7 +28,7 @@ const sameCodes = (left: readonly number[], right: readonly number[]) =>
   left.length === right.length && left.every((code, index) => code === right[index]);
 
 export function createCourseEditActions(ws: Base & RaceDataActions) {
-  const { raceId, courseList, editingCourseId, editingVariantCode, setEditingVariantCode, courseEditControls, courseEditPreview, busyRef, pending, sent, requireSession,
+  const { raceId, courseList, editingCourseId, editingVariantCode, setEditingVariantCode, courseEditControls, courseEditPreview, writingRef, pending, sent, requireSession,
     begin, finish, current, request, json, csrf, load, setCourseList, setCourseListError, setEditingCourseId,
     setCourseEditControls, setCourseEditPreview, setCourseEditError, setCourseEditSaved, setCourseEditAttempt } = ws;
 
@@ -41,7 +41,7 @@ export function createCourseEditActions(ws: Base & RaceDataActions) {
     return value;
   }
   async function loadCourses() {
-    if (busyRef.current || pending.current || !requireSession()) return;
+    if (writingRef.current || pending.current || !requireSession()) return;
     const op = begin();
     try { await readCourses(op); }
     catch { if (current(op)) setCourseListError(text.courseEditListError); }
@@ -49,7 +49,7 @@ export function createCourseEditActions(ws: Base & RaceDataActions) {
   }
   /** Öppnar redigeringen för en bana, eller för en variant av en gafflad bana. */
   function startCourseEdit(courseId: string, variantCode = "") {
-    if (busyRef.current || pending.current) return;
+    if (writingRef.current || pending.current) return;
     const course = courseList?.courses.find(row => row.courseId === courseId);
     const variant = course?.variants.find(row => row.code === variantCode);
     if (!course || (variantCode !== "" && !variant)) return;
@@ -95,7 +95,7 @@ export function createCourseEditActions(ws: Base & RaceDataActions) {
     await readCourses(op);
   }
   async function previewCourseEdit() {
-    if (busyRef.current || pending.current || !requireSession()) return;
+    if (writingRef.current || pending.current || !requireSession()) return;
     setCourseEditError(""); setCourseEditSaved("");
     const codes = proposedCodes();
     if (!codes) return;
@@ -130,12 +130,12 @@ export function createCourseEditActions(ws: Base & RaceDataActions) {
    * ändringen sparas när arrangören trycker på "Spara ändringen" igen.
    */
   async function saveCourseEdit() {
-    if (busyRef.current || !requireSession()) return;
+    if (writingRef.current || !requireSession()) return;
     const waiting = pending.current;
     const retry = waiting && "kind" in waiting && waiting.kind === "COURSE_EDIT" ? waiting : undefined;
     if (pending.current && !retry) return;
     setCourseEditError(""); setCourseEditSaved("");
-    const op = begin();
+    const op = begin(true);
     try {
       let attempt = retry;
       if (!attempt) {

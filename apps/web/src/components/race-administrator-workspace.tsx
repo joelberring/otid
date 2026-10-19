@@ -18,6 +18,7 @@ import { ParticipantsPanel, RentalPrint } from "./race-administrator/participant
 import { SettingsPanel } from "./race-administrator/settings-panel";
 import { RogainingPanel } from "./race-administrator/rogaining-panel";
 import { PublishPanel } from "./race-administrator/race-publication-section";
+import { Notice } from "./ui";
 
 /**
  * Adminarbetsytan för en tävling. Den här komponenten håller sessionen, laddar data och visar skalet:
@@ -26,7 +27,7 @@ import { PublishPanel } from "./race-administrator/race-publication-section";
  */
 export function RaceAdministratorWorkspace({ raceId }: { raceId: string }) {
   const ws = useWorkspace(raceId);
-  const { authenticated, message, expiresAt, navigationLocked, printTarget, deadline, begin, session,
+  const { authenticated, message, expiresAt, navigationBlocked, navigationLocked, printTarget, deadline, begin, session,
     current, lock, finish, invalidate, loadRaceDayAttention, setPrintTarget } = ws;
   useEffect(() => {
     const op = begin();
@@ -69,7 +70,8 @@ export function RaceAdministratorWorkspace({ raceId }: { raceId: string }) {
       <Sidebar ws={ws} />
       <div className={`${shell.content} ${styles.content}`}>
         {status}
-        {navigationLocked && <p className={styles.workflowHelp} role="status">{text.workflowHelp}</p>}
+        {/* Bara när användaren försökte lämna steget med något som inte är sparat (PLAN.md steg 24). */}
+        {navigationBlocked && navigationLocked && <Notice tone="attention" role="alert">{text.workflowHelp}</Notice>}
         {/* Funktionären (ADR-0172 beslut 3): bara Start och Avläsning. Servern nekar allt annat ändå. */}
         {!ws.functionary && <>
           <RogainingPanel ws={ws} />

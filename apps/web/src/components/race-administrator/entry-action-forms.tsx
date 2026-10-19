@@ -4,6 +4,7 @@ import styles from "../race-administrator-workspace.module.css";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
 import { formatClockTime, parseRaceClock } from "../../lib/clock-time";
 import { TargetClassStartTimes } from "../target-class-start-times";
+import { Button, Field, Notice } from "../ui";
 import type { Workspace } from "./workspace-state";
 
 /** Deltagaråtgärder: byt klass, bricka och hyrbricka, starttid och identitet. */
@@ -27,7 +28,7 @@ export function EntryActionForms({ ws }: { ws: Workspace }) {
       {unknown && <p>{text.unreachable}</p>}
       <button disabled={busy} onClick={() => void submitTransfer(transferAttempt)}>{unknown ? text.retry : text.confirm}</button>
       {!unknown && <button className="secondary" disabled={busy} onClick={() => { pending.current = undefined; sent.current = false; setTransferAttempt(undefined); }}>{text.cancel}</button>}
-    </div> : selected ? <form className={styles.workspace} onSubmit={prepareTransfer}>
+    </div> : selected ? <form className={styles.workspace} noValidate onSubmit={prepareTransfer}>
       <p>{text.previousTime}: {selected.fixedStartTime && data ? formatClockTime(selected.fixedStartTime, data.timeZone) : text.noFixedTime}</p>
       <label>{text.targetClass}<select value={classId} disabled={disabled} required onChange={(event) => {
         setClassId(event.target.value); setStartClock(""); setMessage("");
@@ -84,7 +85,7 @@ export function EntryActionForms({ ws }: { ws: Workspace }) {
         </>}
         {!selected.activeAssignment && <>
           <p>{text.rentalNeedsCard}</p>
-          <form className={styles.workspace} onSubmit={prepareRentalReuse}>
+          <form className={styles.workspace} noValidate onSubmit={prepareRentalReuse}>
             <label htmlFor="returned-rental-card">{text.rentalReuseCard}</label>
             <select id="returned-rental-card" value={rentalReuseSourceId} disabled={disabled}
               onChange={(event) => setRentalReuseSourceId(event.target.value)}>
@@ -99,7 +100,7 @@ export function EntryActionForms({ ws }: { ws: Workspace }) {
             </>}
           </form>
         </>}
-        <form className={styles.workspace} onSubmit={prepareCard}>
+        <form className={styles.workspace} noValidate onSubmit={prepareCard}>
         <p>{text.currentCard}: <strong>{selected.activeAssignment?.cardNumber ?? text.noCard}</strong></p>
         <div className={styles.cardFields}>
           <label>{text.newCard}<input type="text" inputMode="numeric" autoComplete="off" spellCheck={false}
@@ -122,7 +123,7 @@ export function EntryActionForms({ ws }: { ws: Workspace }) {
         {!unknown && <button className="secondary" disabled={busy} onClick={() => {
           pending.current = undefined; sent.current = false; setTimeAttempt(undefined);
         }}>{text.cancel}</button>}
-      </div> : selected && selectedClass?.startRule === "FIXED" && data ? <form className={styles.workspace} onSubmit={prepareTime}>
+      </div> : selected && selectedClass?.startRule === "FIXED" && data ? <form className={styles.workspace} noValidate onSubmit={prepareTime}>
         <p>{text.previousTime}: {selected.fixedStartTime === null ? text.noFixedTime : formatClockTime(selected.fixedStartTime, data.timeZone)}</p>
         <div className={styles.timeFields}>
           <label>{text.startClock}<input type="text" inputMode="numeric" autoComplete="off" placeholder="18:30" value={startClock} required disabled={disabled} onChange={(event) => setStartClock(event.target.value)} /></label>
@@ -141,7 +142,7 @@ export function EntryActionForms({ ws }: { ws: Workspace }) {
         <button disabled={busy} onClick={() => void submitIdentity(identityAttempt)}>{text.retry}</button>
       </div> : <>
         {!identityMatches && <button className="secondary" disabled={disabled} onClick={() => void loadIdentity()}>{text.identityRefresh}</button>}
-        {!selected ? <p>{text.chooseParticipant}</p> : !identityMatches ? <p>{text.identityLoadError}</p> : <form className={styles.workspace} onSubmit={prepareIdentity}>
+        {!selected ? <p>{text.chooseParticipant}</p> : !identityMatches ? <p>{text.identityLoadError}</p> : <form className={styles.workspace} noValidate onSubmit={prepareIdentity}>
           <div className={styles.identityFields}>
             <label>{text.givenName}<input autoComplete="off" value={givenName} required maxLength={160} disabled={disabled} onChange={(event) => setGivenName(event.target.value)} /></label>
             <label>{text.familyName}<input autoComplete="off" value={familyName} required maxLength={160} disabled={disabled} onChange={(event) => setFamilyName(event.target.value)} /></label>
@@ -155,56 +156,77 @@ export function EntryActionForms({ ws }: { ws: Workspace }) {
   </>;
 }
 
-/** Ny deltagare med dubblettkontroll. */
+/**
+ * Ny deltagare i ett steg (PLAN.md steg 24): fyll i och tryck Lägg till (eller Enter). Formuläret står kvar för nästa
+ * deltagare och raden under säger vem som lades till. Bara en möjlig dubblett kräver ett val, direkt i formuläret.
+ */
 export function RegistrationForm({ ws }: { ws: Workspace }) {
-  const { action, busy, classId, confirmDistinctPerson, data, disabled, familyName, givenName,
-    newCard, organisationName, pending, prepareRegistration, registrationAttempt,
-    selectRegistrationCandidate, sent, setClassId,
-    setConfirmDistinctPerson, setFamilyName, setGivenName, setNewCard, setOrganisationName, setRegistrationAttempt,
-    setStartClock, startClock, submitRegistration, target, targetFull, unknown } = ws;
-  return <>
-    {action === "REGISTRATION" && <section className={styles.workspace} aria-label={text.registrationTitle}>
-      <h2>{text.registrationTitle}</h2>
-      {registrationAttempt ? <div className={styles.review} role="alert"><h2>{text.registrationReview}</h2>
-        <p>{registrationAttempt.request.givenName} {registrationAttempt.request.familyName} · {registrationAttempt.className}</p>
-        <p>{text.organisation}: {registrationAttempt.request.organisationName ?? text.none} · {text.registrationCard}: {registrationAttempt.request.cardNumber ?? text.noCard}</p>
-        <p>{text.startRule}: {registrationAttempt.request.expectedStartRule === "FIXED" ? text.fixed : text.punch}</p>
-        <p>{text.newTime}: {registrationAttempt.request.fixedStartTime !== null ? formatClockTime(registrationAttempt.request.fixedStartTime, registrationAttempt.timeZone)
-          : registrationAttempt.request.expectedStartRule === "FIXED" ? text.registrationDrawnTime : text.noFixedTime}</p>
-        <p>{text.registrationHelp}</p>{unknown && <p>{text.unreachable}</p>}
-        {!unknown && !sent.current && <div className={styles.workspace}>
-          <p>{text.registrationMatches}: {registrationAttempt.candidates.totalMatches} · {text.shown}: {registrationAttempt.candidates.candidates.length}</p>
-          {registrationAttempt.candidates.candidates.length > 0 && <ul className={styles.duplicateList}>{registrationAttempt.candidates.candidates.map((row) => <li key={row.entryId}>
-            <p><strong>{row.givenName} {row.familyName}</strong> · {row.className} · {row.organisationName ?? text.none}</p>
-            <p>{row.reasons.map((reason) => text.registrationReasons[reason]).join(" · ")}</p>
-            <button type="button" className="secondary" disabled={busy} onClick={() => selectRegistrationCandidate(row.entryId)}>{text.registrationSelectExisting}: {row.givenName} {row.familyName}</button>
-          </li>)}</ul>}
-          {registrationAttempt.candidates.candidates.some((row) => row.reasons.includes("CARD_ALREADY_ASSIGNED")) ? <p className={styles.warning}>{text.registrationCardConflict}</p> :
-            registrationAttempt.candidates.candidates.some((row) => row.reasons.includes("SAME_NAME")) && <label className={styles.confirmPerson}>
-              <input type="checkbox" checked={confirmDistinctPerson} disabled={busy} onChange={(event) => setConfirmDistinctPerson(event.target.checked)} />{text.registrationDistinctPerson}
-            </label>}
-        </div>}
-        <button disabled={busy || (!sent.current && (registrationAttempt.candidates.candidates.some((row) => row.reasons.includes("CARD_ALREADY_ASSIGNED")) ||
-          (registrationAttempt.candidates.candidates.some((row) => row.reasons.includes("SAME_NAME")) && !confirmDistinctPerson)))} onClick={() => void submitRegistration(registrationAttempt)}>{unknown ? text.retry : text.registrationConfirm}</button>
-        {!unknown && <button className="secondary" disabled={busy} onClick={() => { pending.current = undefined; sent.current = false; setRegistrationAttempt(undefined); }}>{text.cancel}</button>}
-      </div> : data ? <form className={styles.workspace} onSubmit={(event) => void prepareRegistration(event)}>
-        <label>{text.registrationClass}<select value={classId} required disabled={disabled} onChange={(event) => {
-          setClassId(event.target.value); setStartClock("");
-        }}><option value="">{text.chooseClass}</option>{data.classes.filter(row => row.relayLegCount === undefined).map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></label>
-        {target && <p>{text.capacityCount}: {target.entryCount} / {target.maxEntries ?? text.unlimited} {targetFull && <strong>— {text.classFull}</strong>}</p>}
-        <div className={styles.identityFields}>
-          <label>{text.givenName}<input value={givenName} required maxLength={160} autoComplete="off" disabled={disabled} onChange={(event) => setGivenName(event.target.value)} /></label>
-          <label>{text.familyName}<input value={familyName} required maxLength={160} autoComplete="off" disabled={disabled} onChange={(event) => setFamilyName(event.target.value)} /></label>
-          <label>{text.organisation}<input value={organisationName} maxLength={200} autoComplete="off" disabled={disabled} onChange={(event) => setOrganisationName(event.target.value)} /></label>
+  const { action, busy, chooseAction, classId, confirmDistinctPerson, data, familyName, givenName, newCard, organisationName,
+    prepareRegistration, raceId, registrationAttempt, registrationErrors, registrationForm, registrationSaved, selectRegistrationCandidate,
+    sent, setClassId, setConfirmDistinctPerson, setFamilyName, setGivenName, setNewCard, setOrganisationName, setRegistrationAttempt,
+    setRegistrationErrors, setRegistrationSaved, setStartClock, startClock, startTimeOptional, submitRegistration, target, targetFull,
+    pending, unknown } = ws;
+  if (action !== "REGISTRATION") return null;
+  const id = `registration-${raceId}`;
+  const locked = busy || !!registrationAttempt;
+  const duplicates = registrationAttempt && !unknown && !sent.current ? registrationAttempt.candidates.candidates : [];
+  const clear = (field: keyof typeof registrationErrors) => {
+    if (registrationErrors[field]) setRegistrationErrors({ ...registrationErrors, [field]: undefined });
+    if (registrationSaved) setRegistrationSaved("");
+  };
+  const clubs = [...new Set(data?.entries.map(row => row.organisationName).filter((name): name is string => name !== null))].sort();
+  return <section className={styles.workspace} aria-labelledby={`${id}-title`}>
+    <div className={styles.inlineFormHead}>
+      <h2 id={`${id}-title`}>{text.registrationTitle}</h2>
+      <Button variant="quiet" disabled={locked} onClick={() => chooseAction("INFO")}>{text.registrationClose}</Button>
+    </div>
+    {!data ? <p>{text.error}</p> : <form ref={registrationForm} className={styles.registrationForm} noValidate
+      onSubmit={event => void prepareRegistration(event)}>
+      <Field label={text.registrationClass} error={registrationErrors.classId}
+        help={target ? text.classFacts(target.entryCount, target.maxEntries, target.startRule === "FIXED" ? text.fixed : text.punch) : undefined}>
+        <select value={classId} disabled={locked} onChange={event => { setClassId(event.target.value); setStartClock(""); clear("classId"); }}>
+          <option value="">{text.chooseClass}</option>
+          {data.classes.filter(row => row.relayLegCount === undefined).map(row => <option key={row.id} value={row.id}>{row.name}</option>)}
+        </select></Field>
+      <div className={styles.identityFields}>
+        <Field label={text.givenName} error={registrationErrors.givenName}><input name="givenName" value={givenName} maxLength={160}
+          autoComplete="off" disabled={locked} onChange={event => { setGivenName(event.target.value); clear("givenName"); }} /></Field>
+        <Field label={text.familyName} error={registrationErrors.familyName}><input name="familyName" value={familyName} maxLength={160}
+          autoComplete="off" disabled={locked} onChange={event => { setFamilyName(event.target.value); clear("familyName"); }} /></Field>
+        <Field label={text.organisation}><input value={organisationName} maxLength={200} autoComplete="off" list={`${id}-clubs`}
+          disabled={locked} onChange={event => setOrganisationName(event.target.value)} /></Field>
+        <Field label={text.registrationCard} error={registrationErrors.card}><input value={newCard} inputMode="numeric" maxLength={32}
+          autoComplete="off" disabled={locked} onChange={event => { setNewCard(event.target.value); clear("card"); }} /></Field>
+      </div>
+      <datalist id={`${id}-clubs`}>{clubs.map(name => <option key={name} value={name} />)}</datalist>
+      {target?.startRule === "FIXED" && (target.startDrawn
+        ? <Notice tone="info">{text.registrationDrawnTimeHelp}</Notice>
+        : <Field label={text.startClock} error={registrationErrors.startClock}
+          help={startTimeOptional ? text.registrationLaterTimeHelp : text.timeHelp}><input value={startClock} inputMode="numeric"
+          placeholder="18:30" autoComplete="off" disabled={locked} onChange={event => { setStartClock(event.target.value); clear("startClock"); }} /></Field>)}
+      {targetFull && <Notice tone="attention">{text.classFull}</Notice>}
+      {duplicates.length > 0 && registrationAttempt && <div className={styles.review} role="alert">
+        <h3>{text.registrationReview}</h3>
+        <ul className={styles.duplicateList}>{duplicates.map(row => <li key={row.entryId}>
+          <span><strong>{row.givenName} {row.familyName}</strong> · {row.className} · {row.organisationName ?? text.none}
+            {" · "}{row.reasons.map(reason => text.registrationReasons[reason]).join(" · ")}</span>
+          <Button variant="quiet" disabled={busy} onClick={() => selectRegistrationCandidate(row.entryId)}>{text.registrationSelectExisting}</Button>
+        </li>)}</ul>
+        <label className={styles.confirmPerson}><input type="checkbox" checked={confirmDistinctPerson} disabled={busy}
+          onChange={event => setConfirmDistinctPerson(event.target.checked)} />{text.registrationDistinctPerson}</label>
+        <div className={styles.actions}>
+          <Button disabled={busy || !confirmDistinctPerson} onClick={() => void submitRegistration(registrationAttempt)}>{text.registrationConfirm}</Button>
+          <Button variant="secondary" disabled={busy} onClick={() => { pending.current = undefined; sent.current = false;
+            setRegistrationAttempt(undefined); }}>{text.cancel}</Button>
         </div>
-        <label>{text.registrationCard}<input value={newCard} inputMode="numeric" maxLength={32} autoComplete="off" disabled={disabled} onChange={(event) => setNewCard(event.target.value)} /></label>
-        {target && <p>{text.startRule}: {target.startRule === "FIXED" ? text.fixed : text.punch}</p>}
-        {target?.startRule === "FIXED" && (target.startDrawn ? <p>{text.registrationDrawnTimeHelp}</p>
-          : <div className={styles.timeFields}>
-            <label>{text.startClock}<input value={startClock} required inputMode="numeric" placeholder="18:30" autoComplete="off" disabled={disabled} onChange={(event) => setStartClock(event.target.value)} /></label>
-          </div>)}
-        <p>{text.registrationHelp}</p><button disabled={disabled || !target || targetFull}>{text.registrationInspect}</button>
-      </form> : <p>{text.error}</p>}
-    </section>}
-  </>;
+      </div>}
+      {registrationAttempt && unknown && <Notice tone="attention" role="alert"><p>{text.unreachable}</p>
+        <div><Button disabled={busy} onClick={() => void submitRegistration(registrationAttempt)}>{text.retry}</Button></div></Notice>}
+      {!registrationAttempt && <div className={styles.actions}>
+        <Button type="submit" disabled={busy}>{text.registrationInspect}</Button>
+        <span className={styles.muted}>{text.registrationHelp}</span>
+      </div>}
+      {registrationSaved && <Notice tone="ok" role="status">{registrationSaved}</Notice>}
+    </form>}
+  </section>;
 }

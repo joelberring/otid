@@ -264,7 +264,8 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
         <div data-state={waiting === 0 ? "good" : "warn"}>
           <dt>{t.queue}</dt><dd data-testid="queue-status">{waiting === 0 ? t.queueEmpty : t.queueWaiting(waiting)}</dd></div>
         <div data-state={pkg ? "good" : "bad"}>
-          <dt>{t.packageLabel}</dt><dd data-testid="package-status">{pkg ? t.packageVersion(pkg.packageVersion, fetchedAt(pkg)) : t.packageMissing}</dd></div>
+          <dt>{t.packageLabel}</dt><dd data-testid="package-status">{pkg ? <>{t.packageUpdated(fetchedAt(pkg))} <small className="package-version"
+            title={t.packageVersionTitle(pkg.packageVersion)}>{t.packageVersion(pkg.packageVersion)}</small></> : t.packageMissing}</dd></div>
       </dl>
     </header>
 

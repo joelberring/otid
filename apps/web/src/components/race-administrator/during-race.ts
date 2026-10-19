@@ -87,14 +87,14 @@ export function deriveDuringRace(s: WorkspaceState) {
 export function createDuringRaceActions(ws: Base & RaceDataActions & Pick<RelayActions, "readRelay">) {
   const { raceId, entryId, functionary, reviewAttempt, reviewCandidate, reviewConfirmed, reviewReason, forestData, forestStale,
     targetStartState, unknownReadoutCandidate, unknownReadoutId, unknownReadoutTarget, unknownReadoutEntryId,
-    unknownReadoutClassId, unknownReadoutGivenName, unknownReadoutFamilyName, unknownReadoutOrganisationName, busyRef, pending,
+    unknownReadoutClassId, unknownReadoutGivenName, unknownReadoutFamilyName, unknownReadoutOrganisationName, writingRef, pending,
     sent, requireSession, begin, beginRequest, finish, current, request, json, csrf, load, setMessage, setUnknown, setData,
     setCheckinHistory, setReviewCandidate, setReviewAttempt, setForestStale, setForestData, setStartCorrection,
     setReturnAttempt, setUnknownReadoutCandidate, setUnknownReadoutId, setUnknownReadoutEntryId, setUnknownReadoutClassId,
     setUnknownReadoutFetchedAt, setUnknownReadoutAttentionStale, setUnknownReadoutError, setUnknownReadoutAttempt,
     setLatestReadouts, readRelay } = ws;
   async function loadCheckinHistory(cursor?: string, selectedId = entryId) {
-    if (busyRef.current || pending.current || !requireSession() || !selectedId) return;
+    if (writingRef.current || pending.current || !requireSession() || !selectedId) return;
     const op = begin(); setMessage("");
     try {
       const response = await request(`/entries/${selectedId}/checkin-history${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`, op);
@@ -106,7 +106,7 @@ export function createDuringRaceActions(ws: Base & RaceDataActions & Pick<RelayA
     finally { finish(op); }
   }
   async function loadConflictReview(selectedId = entryId) {
-    if (busyRef.current || pending.current || !requireSession() || !selectedId) return;
+    if (writingRef.current || pending.current || !requireSession() || !selectedId) return;
     const op = begin(); setMessage("");
     try {
       const response = await request(`/conflict-reviews/${selectedId}`, op);
@@ -118,7 +118,7 @@ export function createDuringRaceActions(ws: Base & RaceDataActions & Pick<RelayA
     finally { finish(op); }
   }
   async function submitConflictReview() {
-    if (busyRef.current || !requireSession() || (pending.current && pending.current !== reviewAttempt)) return;
+    if (writingRef.current || !requireSession() || (pending.current && pending.current !== reviewAttempt)) return;
     if (!reviewAttempt && (!reviewCandidate || !reviewConfirmed || !reviewReason.trim() || !reviewCandidate.source.conflicts.length)) return;
     const value = reviewAttempt ?? { kind: "CONFLICT_REVIEW" as const, candidate: reviewCandidate!, request: StartCheckinConflictReviewRequestSchema.parse({
       formatVersion: 1, requestId: crypto.randomUUID(), entryId: reviewCandidate!.source.entryId,
@@ -147,7 +147,7 @@ export function createDuringRaceActions(ws: Base & RaceDataActions & Pick<RelayA
     finally { finish(op); }
   }
   function prepareStartCorrection() {
-    if (busyRef.current || pending.current || !requireSession() || !forestData || forestStale) return;
+    if (writingRef.current || pending.current || !requireSession() || !forestData || forestStale) return;
     const entry = forestData.entries.find(row => row.entryId === entryId);
     if (!entry || entry.startState === targetStartState) return;
     const value = { kind: "START_CORRECTION" as const, name: entry.displayName, request: administratorStartCorrectionRequestSchema.parse({
@@ -158,7 +158,7 @@ export function createDuringRaceActions(ws: Base & RaceDataActions & Pick<RelayA
     pending.current = value; sent.current = false; setUnknown(false); setStartCorrection(value); setMessage("");
   }
   async function submitStartCorrection(value: StartCorrectionAttempt) {
-    if (busyRef.current || pending.current !== value || !requireSession()) return;
+    if (writingRef.current || pending.current !== value || !requireSession()) return;
     const op = beginRequest(); const wasSent = sent.current; let committed = false;
     try {
       const token = csrf(); sent.current = true;
@@ -178,7 +178,7 @@ export function createDuringRaceActions(ws: Base & RaceDataActions & Pick<RelayA
     finally { finish(op); }
   }
   function prepareReturn(withdraw = false) {
-    if (busyRef.current || pending.current || !requireSession() || !forestData || forestStale) return;
+    if (writingRef.current || pending.current || !requireSession() || !forestData || forestStale) return;
     const entry = forestData.entries.find(row => row.entryId === entryId);
     if (!entry || entry.manualReturnRegistered !== withdraw) return;
     const value = { kind: "RETURN" as const, withdraw, name: entry.displayName, request: administratorReturnRequestSchema.parse({
@@ -189,7 +189,7 @@ export function createDuringRaceActions(ws: Base & RaceDataActions & Pick<RelayA
     pending.current = value; sent.current = false; setUnknown(false); setReturnAttempt(value); setMessage("");
   }
   async function submitReturn(value: ReturnAttempt) {
-    if (busyRef.current || pending.current !== value || !requireSession()) return;
+    if (writingRef.current || pending.current !== value || !requireSession()) return;
     const op = beginRequest(); const wasSent = sent.current; let committed = false;
     try {
       const token = csrf(); sent.current = true;
@@ -216,7 +216,7 @@ export function createDuringRaceActions(ws: Base & RaceDataActions & Pick<RelayA
     setForestData(value); setForestStale(false);
   }
   async function loadForest() {
-    if (busyRef.current || pending.current || !requireSession()) return;
+    if (writingRef.current || pending.current || !requireSession()) return;
     const op = beginRequest(); setForestStale(true); setMessage("");
     try {
       await readForest(op);
@@ -241,14 +241,16 @@ export function createDuringRaceActions(ws: Base & RaceDataActions & Pick<RelayA
   }
   /** Tävlingsdagens kontrollvy: kvar i skogen, okända brickor och senaste avläsningar. Varje del läses för sig. */
   async function loadRaceDayAttention() {
-    if (busyRef.current || pending.current || !requireSession()) return;
+    if (writingRef.current || pending.current || !requireSession()) return;
     const op = beginRequest();
     setForestStale(true); setUnknownReadoutCandidate(undefined); setUnknownReadoutFetchedAt(undefined);
     setUnknownReadoutAttentionStale(true); setUnknownReadoutError(""); setMessage("");
     const failed: string[] = [];
     try {
-      for (const [read, label] of [[readForest, text.controlForest], [readUnknownReadoutCandidates, text.controlUnknown],
-        [readLatestReadouts, text.controlLatest], [readRelay, relayText.controlTeams]] as const) {
+      // Lagen läses bara i stafett; andra typer har inga lag att visa.
+      const parts = [[readForest, text.controlForest], [readUnknownReadoutCandidates, text.controlUnknown],
+        [readLatestReadouts, text.controlLatest], ...ws.profile.features.relay ? [[readRelay, relayText.controlTeams] as const] : []] as const;
+      for (const [read, label] of parts) {
         try { await read(op); }
         catch { if (!current(op)) return; failed.push(label); }
       }
@@ -256,7 +258,7 @@ export function createDuringRaceActions(ws: Base & RaceDataActions & Pick<RelayA
     } finally { finish(op); }
   }
   async function loadUnknownReadoutCandidates() {
-    if (busyRef.current || pending.current || !requireSession()) return;
+    if (writingRef.current || pending.current || !requireSession()) return;
     setUnknownReadoutCandidate(undefined); setUnknownReadoutFetchedAt(undefined); setUnknownReadoutAttentionStale(true);
     setUnknownReadoutId(""); setUnknownReadoutEntryId(""); setUnknownReadoutClassId(""); setUnknownReadoutError("");
     const op = begin();
@@ -288,7 +290,7 @@ export function createDuringRaceActions(ws: Base & RaceDataActions & Pick<RelayA
     pending.current = value; sent.current = false; setUnknownReadoutAttempt(value); setUnknownReadoutError("");
   }
   async function submitUnknownReadoutResolution(value: UnknownReadoutResolutionAttempt) {
-    if (busyRef.current || pending.current !== value || !requireSession()) return;
+    if (writingRef.current || pending.current !== value || !requireSession()) return;
     const op = begin(), wasUnknown = sent.current; let committed = false;
     try {
       sent.current = true;
@@ -326,7 +328,7 @@ export type DuringRaceActions = ReturnType<typeof createDuringRaceActions>;
 /** Markerar underlag som inaktuella efter 30 s och uppdaterar kvar-i-skogen automatiskt när det är påslaget. */
 export function useDuringRaceEffects(ws: Base & DuringRaceActions) {
   const { forestData, unknownReadoutFetchedAt, forestAutoRefresh, authenticated, step, forestOpen,
-    reviewCandidate, busyRef, pending, checkinHistoryPanel, setForestStale, setUnknownReadoutAttentionStale, loadForest } = ws;
+    reviewCandidate, writingRef, pending, checkinHistoryPanel, setForestStale, setUnknownReadoutAttentionStale, loadForest } = ws;
   useEffect(() => {
     if (!forestData) return;
     const timer = setTimeout(() => setForestStale(true), 30_000);
@@ -343,7 +345,7 @@ export function useDuringRaceEffects(ws: Base & DuringRaceActions) {
     const timer = setInterval(() => {
       const editing = document.activeElement?.matches("input:not([type='checkbox']):not([type='button']):not([type='submit']), textarea, select, [contenteditable='true']") ?? false;
       if (canRefreshForest({ enabled: forestAutoRefresh, authenticated, reportOpen: forestOpen,
-        visible: document.visibilityState === "visible", busy: busyRef.current, pending: !!pending.current,
+        visible: document.visibilityState === "visible", busy: writingRef.current, pending: !!pending.current,
         journalOpen: checkinHistoryPanel.current?.open ?? false, editing })) void loadForest();
     }, 15_000);
     return () => clearInterval(timer);

@@ -68,7 +68,7 @@ test("radiokontroller: mellantid och speaker före avläsning, avläsningen avg�
   const draw = owner.getByRole("region", { name: "Lottning" });
   await expect(draw.getByRole("row", { name: /H21/ })).toBeVisible();
   await draw.getByLabel("Första start (klockslag)").fill(clock(firstStart));
-  await draw.getByLabel("Startsätt H21").selectOption({ label: "Lottad minutstart" });
+  await draw.getByLabel("Startsätt H21").selectOption({ label: "Minutstart" });
   await draw.getByLabel("Intervall (min) H21").fill("2");
   await draw.getByLabel("Vakanser H21").fill("0");
   await draw.getByRole("button", { name: "Visa lottning" }).click();
@@ -87,7 +87,7 @@ test("radiokontroller: mellantid och speaker före avläsning, avläsningen avg�
   await openStep(owner, "Inställningar");
   const radio = owner.getByRole("region", { name: "Radiokontroller" });
   await radio.getByLabel("Källa").selectOption("ORESULTS");
-  await radio.getByLabel("Enhetens id").fill(unitId);
+  await radio.getByLabel("ROC-id").fill(unitId);
   await radio.getByRole("checkbox", { name: /^Kontroll 50\b/ }).check();
   await radio.getByLabel("Namn på kontroll 50").fill("Radio 1");
   await radio.getByRole("button", { name: "Spara" }).click();

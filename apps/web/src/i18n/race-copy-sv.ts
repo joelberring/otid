@@ -10,7 +10,7 @@ export const raceCopySv = {
   title: "Ny tävling som …",
   intro: (name: string) => `Skapar en ny tävling med samma banor, klasser och inställningar som ${name}.`,
   eventName: "Tävlingens namn",
-  raceName: "Loppets namn",
+  raceName: "Etapp/lopp",
   raceDate: "Datum",
   includePeople: "Ta med funktionärer och administratörer",
   includePeopleHelp: "Du blir ägare. Övriga administratörer (även nuvarande ägare) blir administratörer, funktionärer blir funktionärer.",

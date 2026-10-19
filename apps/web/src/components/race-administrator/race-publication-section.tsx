@@ -13,10 +13,10 @@ const text = publicRaceSv.publish;
 
 /**
  * Publicera tävlingen (ADR-0172 beslut 4): läget i en mening, en åtgärd, tävlingssidans korta adress och QR-koden.
- * Visas som eget steg i sidopanelen och under Inställningar. Sparas direkt; inget resultat ändras.
+ * Finns bara som eget steg i sidopanelen; Inställningar länkar hit (PLAN.md steg 24). Sparas direkt; inget resultat ändras.
  */
-export function RacePublicationSection({ ws, id }: { ws: Workspace; id: string }) {
-  const { begin, busy, busyRef, csrf, current, data, finish, load, pending, profile, raceId, request, json, requireSession,
+function RacePublicationSection({ ws, id }: { ws: Workspace; id: string }) {
+  const { begin, busy, writingRef, csrf, current, data, finish, load, pending, profile, raceId, request, json, requireSession,
     workflowLocked } = ws;
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
   const [origin, setOrigin] = useState("");
@@ -27,9 +27,9 @@ export function RacePublicationSection({ ws, id }: { ws: Workspace; id: string }
   const hub = raceHubPath(publication.shortCode);
 
   async function change(publish: boolean) {
-    if (busyRef.current || pending.current || !requireSession()) return;
+    if (writingRef.current || pending.current || !requireSession()) return;
     setMessage(undefined);
-    const op = begin();
+    const op = begin(true);
     try {
       const response = await request("/race-publication", op, { method: publish ? "PUT" : "DELETE", headers: { "x-otid-csrf": csrf() } });
       if (!response.ok) throw new Error("Publication failed");

@@ -10,10 +10,12 @@ import type { DuringRaceActions } from "./during-race";
 export function useNavigationState() {
   const [step, setStep] = useState<SectionId>("COURSES");
   const [mobilePanel, setMobilePanel] = useState<"LIST" | "WORK">("LIST");
+  /** Användaren försökte lämna steget med inmatning som inte är sparad (PLAN.md steg 24). */
+  const [navigationBlocked, setNavigationBlocked] = useState(false);
   const [printTarget, setPrintTarget] = useState<"FOREST" | "RENTAL">();
   const [selectedClassId, setSelectedClassId] = useState("");
   const listPanel = useRef<HTMLElement | null>(null), workPanel = useRef<HTMLElement | null>(null);
-  return { step, setStep, mobilePanel, setMobilePanel, printTarget, setPrintTarget, selectedClassId, setSelectedClassId,
+  return { step, setStep, mobilePanel, setMobilePanel, navigationBlocked, setNavigationBlocked, printTarget, setPrintTarget, selectedClassId, setSelectedClassId,
     listPanel, workPanel };
 }
 
@@ -30,7 +32,7 @@ export function deriveSections(s: { data?: { raceType: RaceType } | undefined; s
 }
 
 export function createMobileNavigation(ws: Base) {
-  const { busyRef, pending, requireSession, setMobilePanel, listPanel, workPanel } = ws;
+  const { writingRef, pending, requireSession, setMobilePanel, listPanel, workPanel } = ws;
   function showMobilePanel(value: "LIST" | "WORK") {
     // Read viewport only for this explicit navigation event; CSS owns responsive visibility.
     if (window.matchMedia("(max-width: 720px)").matches) {
@@ -39,7 +41,7 @@ export function createMobileNavigation(ws: Base) {
     } else setMobilePanel(value);
   }
   function navigateMobile(value: "LIST" | "WORK") {
-    if (busyRef.current || pending.current || !requireSession()) return;
+    if (writingRef.current || pending.current || !requireSession()) return;
     showMobilePanel(value);
   }
   return { showMobilePanel, navigateMobile };
@@ -48,15 +50,28 @@ export type MobileNavigation = ReturnType<typeof createMobileNavigation>;
 
 /** Navigering i checklistan och genvägar från tabellerna till rätt steg. */
 export function createWorkflowNavigation(ws: Base & MobileNavigation & DuringRaceActions) {
-  const { data, profile, navigationLocked, workflowLocked, busyRef, pending, forestData, rentalEntries, listPanel, requireSession, showMobilePanel,
+  const { data, profile, navigationLocked, workflowLocked, writingRef, pending, forestData, rentalEntries, listPanel, requireSession, showMobilePanel,
     loadRaceDayAttention, setSelectedClassId, setStep, setQuery, setPage, setRosterClassId, setOlderResultsOnly,
     setRentalCardsOnly, setResultState, setMissingFixedStartOnly, setCapacityClassId,
-    setCapacityInput, setMessage, setPrintTarget, setRelayMessage } = ws;
+    setCapacityInput, setMessage, setPrintTarget, setRelayMessage, setNavigationBlocked, setEditingCourseId, setEditingClassId,
+    setCourseEditError, setClassEditError } = ws;
+  /**
+   * Byter steg. Sidopanelen är aldrig låst; bara när något inte är sparat (ett beslut som väntar, en granskning eller
+   * en ändrad rad) stannar man kvar och får beskedet. En öppen rad utan ändring stängs.
+   */
   function navigateStep(next: SectionId) {
-    if (navigationLocked) return;
+    if (navigationLocked) { setNavigationBlocked(true); return; }
+    setNavigationBlocked(false);
+    setEditingCourseId(""); setEditingClassId(""); setCourseEditError(""); setClassEditError("");
     setSelectedClassId(""); setRelayMessage("");
     setStep(next);
     if (next === "READOUT") void loadRaceDayAttention();
+  }
+  /** "Mina tävlingar" i toppbalken: samma regel som stegen. Ger false när man ska stanna kvar. */
+  function mayLeave(): boolean {
+    if (!navigationLocked) return true;
+    setNavigationBlocked(true);
+    return false;
   }
   function openMissingFixedStart(classId: string) {
     if (workflowLocked) return;
@@ -77,11 +92,11 @@ export function createWorkflowNavigation(ws: Base & MobileNavigation & DuringRac
     flushSync(() => { setSelectedClassId(classId); setStep(sectionForPanel(profile, "CLASSES")?.id ?? "CLASSES"); });
   }
   function printPrivate(target: "FOREST" | "RENTAL") {
-    if (busyRef.current || pending.current || !requireSession() ||
+    if (writingRef.current || pending.current || !requireSession() ||
       (target === "FOREST" ? !forestData : !data || rentalEntries.length === 0)) return;
     flushSync(() => setPrintTarget(target));
     window.print();
   }
-  return { navigateStep, openMissingFixedStart, openAssignedClass, printPrivate };
+  return { navigateStep, mayLeave, openMissingFixedStart, openAssignedClass, printPrivate };
 }
 export type WorkflowNavigation = ReturnType<typeof createWorkflowNavigation>;

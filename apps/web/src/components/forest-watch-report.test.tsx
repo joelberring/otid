@@ -25,7 +25,7 @@ describe("kvar i skogen-rapporten", () => {
     const ordered = ["KonfliktTest", "OkändTest", "LångTest", "KortTest", "LikaTest"];
     for (let index = 1; index < ordered.length; index++) expect(html.indexOf(ordered[index - 1]!)).toBeLessThan(html.indexOf(ordered[index]!));
     expect(html).toContain("okänd tid först");
-    expect(html).toContain("Underlaget nedan kan vara gammalt");
+    expect(html).toContain("Listan är inte uppdaterad och kan vara gammal");
     const original = renderToStaticMarkup(<ForestWatchReport data={roster} reportedStarts={reportedStarts} classId="" stale={false} />);
     expect(original.indexOf("KortTest")).toBeLessThan(original.indexOf("OkändTest"));
     expect(roster.entries.map(entry => entry.displayName)).toEqual(names);
@@ -36,7 +36,7 @@ describe("kvar i skogen-rapporten", () => {
     const html = renderToStaticMarkup(<ForestWatchReport data={started} classId="" stale
       reportedStarts={[{ entryId: started.entries[0]!.entryId, observedAt: "2026-09-05T09:40:00.000Z" }]} />);
     expect(html).toContain("20 min"); expect(html).toContain("ej löptid");
-    expect(html).toContain("Underlaget nedan kan vara gammalt");
+    expect(html).toContain("Listan är inte uppdaterad och kan vara gammal");
     const future = renderToStaticMarkup(<ForestWatchReport data={started} classId="" stale={false}
       reportedStarts={[{ entryId: started.entries[0]!.entryId, observedAt: "2026-09-05T11:00:00.000Z" }]} />);
     expect(future).toContain("Okänd tid");
@@ -46,14 +46,14 @@ describe("kvar i skogen-rapporten", () => {
     const html = renderToStaticMarkup(<ForestWatchReport data={data} classId="" stale={false} />);
     expect(html.match(/data-forest-group=/g)).toHaveLength(5);
     expect(html).toContain("Okänd startstatus – följ upp (1)"); expect(html).toContain("Syntetisk Löpare");
-    expect(html).toContain("Fri start / startstämpling"); expect(html).not.toContain("Aktivt ej-startresultat (DNS)");
+    expect(html).toContain("Fri start"); expect(html).not.toContain("Aktivt ej-startresultat (DNS)");
     expect(html).toContain("garanterar inte att skogen är tom"); expect(html).not.toContain("Tävlingsversion");
     expect(html).toContain("12:00:00"); expect(html).not.toContain("Europe/Stockholm");
   });
   it("behåller filter, täckning och stale-varning i själva rapporten", () => {
     const html = renderToStaticMarkup(<ForestWatchReport data={data} classId="missing" stale />);
     expect(html).not.toContain("Syntetisk Löpare"); expect(html).toContain("0 / 1");
-    expect(html).toContain("VARNING: Uppdatering saknas"); expect(html).toContain("Klassfilter: missing");
+    expect(html).toContain("VARNING: Listan är inte uppdaterad"); expect(html).toContain("Klassfilter: missing");
   });
   it("visar återkomstkällan även i konfliktgruppen", () => {
     const entry = { ...data.entries[0]!, revision: 2, manualReturnRegistered: true, forestState: "CONFLICT" as const, conflictingReports: true };
@@ -67,7 +67,7 @@ describe("kvar i skogen-rapporten", () => {
     expect(html.match(/data-forest-group=/g)).toHaveLength(5);
     expect(html).toContain("ingen träff");
     expect(html).toContain("garanterar inte att skogen är tom");
-    expect(html).toContain("VARNING: Uppdatering saknas");
+    expect(html).toContain("VARNING: Listan är inte uppdaterad");
     expect(html).toContain("osynkade köer är okända");
   });
   it("kombinerar klass och sökning utan att ändra status eller indata", () => {

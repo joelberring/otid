@@ -61,16 +61,16 @@ export function grantSuperadmin(email: string): void {
 /** Tävlingstyperna i "Skapa tävling" (ADR-0170 beslut 1). */
 export type RaceTypeName = "Träning" | "Liten tävling" | "Tävling" | "Tävling med gafflade banor" | "Stafett" | "Rogaining";
 
-/** Skapar tävling av vald typ och öppnar arbetsytan (som standard i dag, tävlingsdagen). Returnerar loppets id. */
+/**
+ * Skapar tävling av vald typ (som standard i dag, tävlingsdagen). "Skapa tävling" leder direkt in i den nya
+ * tävlingens arbetsyta (PLAN.md steg 24). Returnerar loppets id.
+ */
 export async function createRace(owner: Page, eventName: string, date = today(), type: RaceTypeName = "Tävling"): Promise<string> {
-  await owner.getByLabel("Eventnamn").fill(eventName);
-  await owner.getByLabel("Loppets namn").fill("Torsdag");
+  await owner.getByLabel("Tävlingens namn").fill(eventName);
+  await owner.getByLabel("Etapp/lopp (valfritt)").fill("Torsdag");
   await owner.getByLabel("Datum").fill(date);
   await owner.getByRole("radio", { name: type, exact: true }).check();
   await owner.getByRole("button", { name: "Skapa tävling" }).last().click();
-  await expect(owner.getByText("Tävlingen skapades.")).toBeVisible();
-  // Kvittot under "Skapa tävling" står sist på sidan; listan ovanför kan ha fler tävlingar.
-  await owner.getByRole("button", { name: "Öppna arbetsytan" }).last().click();
   await owner.waitForURL(/\/admin\/[0-9a-f-]+\/manage$/);
   await expect(owner.getByRole("heading", { name: eventName })).toBeVisible();
   return owner.url().split("/").at(-2)!;
@@ -128,30 +128,57 @@ async function openFirst(page: Page, names: SectionName[]): Promise<void> {
   throw new Error(`Ingen av delarna ${names.join(", ")} finns`);
 }
 
+/** Formuläret "Ny bana" (PLAN.md steg 24): öppnas med knappen i tomläget eller i Banors rubrik. */
+export async function openCourseForm(owner: Page) {
+  const courseForm = owner.locator("form").filter({ has: owner.getByRole("button", { name: "Spara bana och klass" }) });
+  if (!await courseForm.isVisible()) {
+    await owner.getByRole("button", { name: "Ny bana" }).or(owner.getByRole("button", { name: "Lägg till kontroller och klass" })).first().click();
+  }
+  await expect(courseForm).toBeVisible();
+  return courseForm;
+}
+
 /** Ny bana med klass sparas direkt, utan granskningssteg (inget resultat ändras). */
 export async function addCourseAndClass(owner: Page, courseName: string, className: string, controls: string): Promise<void> {
+  // Sparandet kompilerar rutten vid första anropet; ett anrop i förväg håller det under arbetsytans gräns på 15 s.
+  const raceId = /\/admin\/([^/]+)\//.exec(owner.url())?.[1];
+  if (raceId) await warmRoute(owner, `/api/admin/races/${raceId}/administrator/course-classes`, "POST");
   await openFirst(owner, ["Banor", "Banor & klasser", "Kontroller & poäng"]);
-  const courseForm = owner.locator("form").filter({ has: owner.getByRole("button", { name: "Spara bana och klass" }) });
-  if (!await courseForm.isVisible()) await owner.getByText("Förbered bana och klass").click();
+  const courseForm = await openCourseForm(owner);
   await courseForm.getByLabel("Bannamn").fill(courseName);
   await courseForm.getByLabel("Klassnamn").fill(className);
   await courseForm.getByLabel("Kontrollföljd").fill(controls);
   await courseForm.getByRole("button", { name: "Spara bana och klass" }).click();
+  // Meddelandet kan stå kvar från förra banan; banan i tabellen visar att just den här är sparad.
+  await expect(owner.getByRole("rowheader", { name: courseName, exact: true })
+    .or(owner.getByRole("cell", { name: courseName, exact: true })).first()).toBeVisible({ timeout: 30_000 });
   await expect(owner.getByText("Banan och klassen är sparade.")).toBeVisible();
+  await expect(courseForm.getByLabel("Bannamn")).toBeEnabled();
 }
 
-export async function addEntry(owner: Page, entry: { className: string; givenName: string; familyName: string; club: string; card: string }): Promise<void> {
-  await openFirst(owner, ["Anmälda", "Deltagare"]);
-  await owner.getByRole("button", { name: "Ny deltagare" }).click();
-  const entryForm = owner.locator("form").filter({ has: owner.getByRole("button", { name: "Granska anmälan" }) });
-  await entryForm.getByLabel("Anmälningsklass").selectOption({ label: entry.className });
+/** Formuläret "Ny deltagare" (PLAN.md steg 24). Står kvar mellan deltagarna; öppnas bara när det inte redan syns. */
+export async function openEntryForm(owner: Page) {
+  const entryForm = owner.locator("form").filter({ has: owner.getByRole("button", { name: "Lägg till", exact: true }) });
+  if (!await entryForm.isVisible()) {
+    await openFirst(owner, ["Anmälda", "Deltagare"]);
+    await owner.getByRole("button", { name: "Ny deltagare" }).first().click();
+  }
+  await expect(entryForm).toBeVisible();
+  return entryForm;
+}
+
+/** Ny deltagare i ett steg: fyll i och Lägg till. Raden under formuläret säger vem som anmäldes. */
+export async function addEntry(owner: Page, entry: { className: string; givenName: string; familyName: string; club: string; card: string;
+  startTime?: string }): Promise<void> {
+  const entryForm = await openEntryForm(owner);
+  await entryForm.getByRole("combobox", { name: "Klass" }).selectOption({ label: entry.className });
   await entryForm.getByLabel("Förnamn").fill(entry.givenName);
   await entryForm.getByRole("textbox", { name: "Efternamn" }).fill(entry.familyName);
   await entryForm.getByLabel("Klubb").fill(entry.club);
-  await entryForm.getByLabel("Bricknummer (valfritt)").fill(entry.card);
-  await entryForm.getByRole("button", { name: "Granska anmälan" }).click();
-  await owner.getByRole("button", { name: "Bekräfta anmälan" }).click();
-  await expect(owner.getByText("Deltagaren är anmäld.")).toBeVisible();
+  await entryForm.getByLabel("Bricka (valfritt)").fill(entry.card);
+  if (entry.startTime) await entryForm.getByLabel("Starttid (klockslag)").fill(entry.startTime);
+  await entryForm.getByRole("button", { name: "Lägg till", exact: true }).click();
+  await expect(entryForm.getByRole("status")).toContainText(`${entry.givenName} ${entry.familyName} är anmäld i ${entry.className}`);
 }
 
 /**

@@ -4,6 +4,7 @@ import type { EntryTransferCandidates } from "@o-tid/contracts";
 import { raceWorkflowDetailSv as text } from "../i18n/race-workflow-detail-sv";
 import styles from "./race-workflow-detail.module.css";
 import { formatClockTime } from "../lib/clock-time";
+import { startRuleSv } from "../i18n/start-rule-sv";
 
 type Entry = EntryTransferCandidates["entries"][number];
 type RaceClass = EntryTransferCandidates["classes"][number];
@@ -20,7 +21,9 @@ export function RaceParticipantFacts({ entry, raceClass, timeZone, disabled, act
   const assignment = entry.activeAssignment;
   const cardValue = entry.multipleActiveAssignments ? text.multipleCards : assignment === null ? text.noCard :
     `${assignment.cardNumber}${assignment.isRental ? ` · ${text.cardRental} · ${assignment.rentalReturned ? text.returned : text.notReturned}` : ""}`;
-  const startValue = raceClass.startRule === "PUNCH" ? text.free : entry.fixedStartTime === null ? text.noFixedTime : formatClockTime(entry.fixedStartTime, timeZone);
+  // Ett ordval för startsätt (PLAN.md steg 24): Fri start, eller Minutstart med tiden.
+  const startValue = raceClass.startRule === "PUNCH" ? text.free : `${startRuleSv.rules.FIXED} · ${entry.fixedStartTime === null
+    ? text.noFixedTime : formatClockTime(entry.fixedStartTime, timeZone)}`;
 
   return <section className={`${styles.panel} ${styles.participantFacts}`} aria-labelledby="race-participant-facts-title">
     <header className={styles.sectionHeader}><h2 id="race-participant-facts-title">{text.factsTitle}</h2></header>

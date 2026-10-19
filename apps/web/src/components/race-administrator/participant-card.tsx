@@ -25,11 +25,13 @@ export function ParticipantCard({ ws }: { ws: Workspace }) {
   const { action, cardAttempt, classesById, data, disabled, effectiveResult, effectiveResultError, filtered,
     identityAttempt, navigateParticipantSequence, raceId, rentalAttempt,
     rentalReturnAttempt, rentalReuseAttempt, selected, selectedClass, selectedIndex,
-    timeAttempt, transferAttempt, workPanel, workflowLocked, chooseAction } = ws;
+    timeAttempt, transferAttempt, workPanel, workflowLocked, chooseAction, navigateMobile } = ws;
   const entryEditing = !!(transferAttempt || cardAttempt || rentalAttempt || rentalReturnAttempt || rentalReuseAttempt ||
     timeAttempt || identityAttempt);
   const result = effectiveResult?.entryId === selected?.id ? effectiveResult : undefined;
   return <section className={styles.panel} aria-label={text.title} data-panel="WORK" ref={workPanel} tabIndex={-1} id={`participant-work-${raceId}`}>
+    {/* Mobil: kortet ersätter listan; vägen tillbaka står först (PLAN.md steg 24). */}
+    <button type="button" className={`secondary ${styles.backToList}`} onClick={() => navigateMobile("LIST")}>{adminText.backToList}</button>
     {selected && selectedClass && action !== "REGISTRATION" && <>
       <header className={styles.selectedParticipantContext}>
         <span className={styles.selectedParticipantLabel}>{text.title}</span>

@@ -12,12 +12,12 @@ import type { Workspace } from "./workspace-state";
 
 /** Läser in lagvyn när den visas och tävlingen har ändrats sedan senast. */
 export function useRelayLoad(ws: Workspace, visible: boolean) {
-  const { authenticated, busy, data, loadRelay, pending, relay, relayError } = ws;
+  const { authenticated, busy, data, loadRelay, operation, pending, relay, relayError } = ws;
   // Bara när tävlingen har stafettklasser; annars finns inget att läsa.
   const stale = !!data?.classes.some(row => row.relayLegCount) &&
     (!relay || relay.snapshotVersion < data.snapshotVersion);
   useEffect(() => {
-    if (visible && authenticated && data && !busy && !pending.current && stale && !relayError) void loadRelay();
+    if (visible && authenticated && data && !busy && !operation.current && !pending.current && stale && !relayError) void loadRelay();
   }, [visible, authenticated, data, busy, stale, relayError]);
 }
 
@@ -40,7 +40,7 @@ export function RelayClassForm({ ws, visible }: { ws: Workspace; visible: boolea
   const id = `relay-class-${raceId}`;
   return <>{visible && <RelayMessages ws={ws} />}<details className={styles.disclosure} open={relayClassAttempt ? true : undefined}>
     <summary>{text.newClass}</summary>
-    <form className={styles.disclosureBody} aria-label={text.newClass} onSubmit={event => { event.preventDefault(); void createRelayClass(); }}>
+    <form noValidate className={styles.disclosureBody} aria-label={text.newClass} onSubmit={event => { event.preventDefault(); void createRelayClass(); }}>
       <p className={styles.workflowHelp}>{text.newClassHelp}</p>
       <div className={styles.fieldRow}>
         <label htmlFor={`${id}-name`}>{text.className}<input id={`${id}-name`} value={relayClassName} maxLength={160} required
@@ -80,12 +80,12 @@ export function RelayClassForm({ ws, visible }: { ws: Workspace; visible: boolea
 }
 
 /** Start: masstart- och omstartstider per stafettklass, som klockslag. */
-export function RelayStartTimes({ ws, visible }: { ws: Workspace; visible: boolean }) {
+export function RelayStartTimes({ ws, visible, number }: { ws: Workspace; visible: boolean; number: number }) {
   const { changeRelayTime, relay, relayTimeValue, saveRelayTimes, workflowLocked } = ws;
   useRelayLoad(ws, visible);
   const classes = relay?.classes.filter(row => row.legs.some(leg => leg.startMethod !== "CHANGEOVER")) ?? [];
   if (classes.length === 0) return null;
-  return <Section id={`relay-start-${ws.raceId}`} title={text.startTitle} help={text.startHelp}>
+  return <Section id={`relay-start-${ws.raceId}`} title={text.startTitle} number={number} help={text.startHelp}>
     {visible && <RelayMessages ws={ws} />}
     {classes.map(raceClass => <form key={raceClass.id} className={relayStyles.times} aria-label={raceClass.name}
       onSubmit={event => { event.preventDefault(); void saveRelayTimes(raceClass.id); }}>

@@ -34,7 +34,7 @@ test("kopiera förra veckans träning, läs av i kopian och skriv ut kvitto", as
   await owner.getByRole("button", { name: "Kopiera Torsdag till en ny tävling" }).click();
   const dialog = owner.getByRole("dialog", { name: "Ny tävling som …" });
   await expect(dialog.getByLabel("Tävlingens namn")).toHaveValue(`Träning v${suffix}`);
-  await expect(dialog.getByLabel("Loppets namn")).toHaveValue("Torsdag");
+  await expect(dialog.getByLabel("Etapp/lopp")).toHaveValue("Torsdag");
   await expect(dialog.getByLabel("Datum")).toHaveValue(thisWeek);
   await expect(dialog.getByRole("checkbox", { name: /Ta med funktionärer och administratörer/ })).toBeChecked();
   await dialog.getByLabel("Tävlingens namn").fill(`Träning denna vecka ${suffix}`);
@@ -97,7 +97,7 @@ test("kopiera förra veckans träning, läs av i kopian och skriv ut kvitto", as
   await expect(receipt).toBeVisible();
   await expect(receipt.getByRole("table")).toContainText("Mål");
   await expect(receipt.getByTestId("qr-code")).toBeVisible();
-  for (const name of ["Skriv ut kvitto", "Koppla från station", "Ladda ner rålogg", "Dölj kvitto"]) {
+  for (const name of ["Skriv ut kvitto", "Koppla från station", "Ladda ner felsökningslogg", "Dölj kvitto"]) {
     await expect(owner.getByRole("button", { name })).toBeHidden();
   }
   await expect(owner.getByRole("link", { name: "Hantera tävling" })).toBeHidden();

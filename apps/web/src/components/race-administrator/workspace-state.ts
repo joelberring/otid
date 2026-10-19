@@ -40,16 +40,24 @@ export function deriveWorkspace(s: WorkspaceState) {
     !!s.recalculationAttempt || !!s.identityAttempt || !!s.registrationAttempt || !!s.decisionAttempt || !!s.courseEditAttempt ||
     !!s.unknownReadoutAttempt || !!s.manualClassAttempt || !!s.classEditAttempt || !!s.entryVariantPreview ||
     !!s.rogainingAttempt;
-  const disabled = s.busy || editing;
-  // Låser byte av steg medan något granskas eller väntar på kvitto. En pågående läsning låser inte
-  // checklistan: att byta steg medan data hämtas är ofarligt.
-  const navigationLocked = editing || !!s.pending.current || !!s.reviewCandidate ||
-    !!s.courseClassAttempt || !!s.manualClassAttempt ||
-    !!s.editingCourseId || !!s.courseEditAttempt || !!s.editingClassId || !!s.classEditAttempt || !!s.shortenedCourseCandidate ||
-    !!s.shortenedCourseAttempt || !!s.classRecalculationAttempt || !!s.rogainingAttempt;
-  const workflowLocked = s.busy || navigationLocked;
+  // PLAN.md steg 24: bara det som sparas låses. En skrivning pågår när ett försök väntar på kvitto; läsningar låser inget.
+  const saving = s.busy && s.writingRef.current;
+  const disabled = saving || editing;
+  // Inmatning som går förlorad om man byter steg: ett försök som väntar på svar från användaren, en öppen granskning
+  // eller ett beslut som inte är bekräftat. En skrivning som är på väg avslutas av sig själv och hindrar inget.
+  const course = s.courseList?.courses.find(row => row.courseId === s.editingCourseId);
+  const original = (s.editingVariantCode ? course?.variants.find(row => row.code === s.editingVariantCode)?.controlCodes : course?.controlCodes) ?? [];
+  const courseEdited = !!course && s.courseEditControls.trim().split(/[\s,]+/).filter(Boolean).join(" ") !== original.join(" ");
+  const classRow = s.courseList?.classes.find(row => row.classId === s.editingClassId);
+  const classEdited = !!classRow && (s.classEditName.trim() !== classRow.name || s.classEditCourseId !== classRow.courseId ||
+    s.classEditStartRule !== classRow.startRule);
+  const unsavedInput = !saving && (editing || courseEdited || classEdited || !!s.pending.current || !!s.reviewCandidate || !!s.courseClassAttempt ||
+    !!s.manualClassAttempt || !!s.courseEditAttempt || !!s.courseEditPreview || !!s.classEditAttempt || !!s.classEditPreview ||
+    !!s.classRecalculationAttempt || !!s.rogainingAttempt);
+  const navigationLocked = unsavedInput;
+  const workflowLocked = saving || navigationLocked;
   return { ...deriveSections(s), ...roster, ...deriveEntryActions(s, roster), ...deriveClassPreparation(s),
-    ...during, ...deriveAfterRace(s), disabled, navigationLocked, workflowLocked };
+    ...during, ...deriveAfterRace(s), saving, disabled, navigationLocked, workflowLocked };
 }
 export type Derived = ReturnType<typeof deriveWorkspace>;
 

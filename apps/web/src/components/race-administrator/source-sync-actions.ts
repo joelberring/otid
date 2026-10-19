@@ -14,7 +14,7 @@ export type Message = { tone: "ok" | "error" | "attention"; text: string };
  * behålls tills kvittot kommit (samma id ger samma kvitto vid omförsök).
  */
 export function useSourceReview(ws: Workspace) {
-  const { busyRef, beginRequest, request, json, finish, current, csrf, requireSession, load, raceId } = ws;
+  const { writingRef, beginRequest, request, json, finish, current, csrf, requireSession, load, raceId } = ws;
   const [preview, setPreview] = useState<SyncPreviewResponse>();
   const [excluded, setExcluded] = useState<string[]>([]);
   const [consequence, setConsequence] = useState<SyncConsequence>();
@@ -28,7 +28,7 @@ export function useSourceReview(ws: Workspace) {
 
   /** Bocka ur eller i en rad; beskedet räknas om för det nya urvalet. */
   async function toggle(rowId: string) {
-    if (!preview || busyRef.current || attempt || !requireSession()) return;
+    if (!preview || writingRef.current || attempt || !requireSession()) return;
     const next = excluded.includes(rowId) ? excluded.filter(id => id !== rowId) : [...excluded, rowId];
     setExcluded(next); setConsequence(undefined); setMessage(undefined);
     const op = beginRequest();
@@ -46,11 +46,11 @@ export function useSourceReview(ws: Workspace) {
   }
 
   async function apply() {
-    if (!preview || !consequence || busyRef.current || !requireSession()) return;
+    if (!preview || !consequence || writingRef.current || !requireSession()) return;
     const value: SyncApplyRequest = attempt ?? { formatVersion: 1, requestId: crypto.randomUUID(), snapshotId: preview.snapshotId,
       excludedRowIds: excluded, confirmResultChanges: consequence.requiresConfirmation };
     setAttempt(value); setMessage(undefined);
-    const op = beginRequest();
+    const op = beginRequest(true);
     try {
       const response = await request("/source-sync", op, { method: "POST", headers: { "content-type": "application/json",
         "x-otid-csrf": csrf(), "idempotency-key": `source-sync:${value.requestId}` }, body: JSON.stringify(value) });

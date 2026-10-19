@@ -6,7 +6,6 @@ export * from "./course-edit";
 export * from "./source-sync";
 export * from "./course-variant-assignment";
 export * from "./class-edit";
-export * from "./shortened-course-class-transfer";
 export * from "./unknown-readout-resolution";
 
 export * from "./canonical-json";

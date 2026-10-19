@@ -34,6 +34,12 @@ Beroenderiktning: `apps/web` → `application` → `domain`, `database`, `contra
    resultatpåverkan och en auditpost.
 4. Databasen bär sista skyddet: immutabilitetstriggers, check-villkor och unika index.
 
+I arbetsytan (`components/race-administrator/operations.ts`) går ett anrop i taget. En skrivning (ett försök som väntar
+på kvitto, eller ett anrop som anges som skrivning) låser bara formuläret som sparas och hindrar andra åtgärder tills den är
+klar; en läsning låser inget och avbryts om användaren startar något annat (steg 24). Läsningar som startar av sig själva
+(när ett steg visas) väntar tills inget anrop pågår (`operation.current`), så att de inte avbryter varandra. Formulären har `noValidate` och visar
+svenska fältfel med `Field error` (`lib/form-validation.ts`); startsättens ord finns bara i `i18n/start-rule-sv.ts`.
+
 Gemensamma hjälpare: UUID-mönstret och idempotensnycklarnas form (`UUID_PATTERN`, `uuidSchema`,
 `prefixedUuidPattern`) finns i `contracts/src/ids.ts` (domänen, som saknar beroenden, har sitt `UUID_PATTERN` i
 `domain/src/types.ts`); SHA-256 och kanonisk hash i `application/src/serialization.ts` (`sha256Hex`,

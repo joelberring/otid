@@ -19,14 +19,14 @@ describe("TASK 005G importadmin-UI", () => {
     expect(component).not.toMatch(/setTimeout|setInterval/);
   });
 
-  it("visar StartList-delta och kräver uttrycklig resultatomräkning", () => {
+  it("visar StartList-delta och säger var resultaten räknas om", () => {
     const component = source("./import-admin.tsx");
     const translations = source("../i18n/sv.ts");
     expect(component).toContain('result.report.kind === "EntryList"');
     expect(component).toContain("sv.importStartListSummary(");
-    expect(translations).toContain("Inga resultat räknades om automatiskt");
-    expect(translations).toContain("resultat behöver uttrycklig omräkning");
-    expect(translations).toContain("tävlingsversionen ${snapshotChanged ? \"uppdaterades\" : \"var oförändrad\"}");
+    expect(translations).toContain("resultat behöver räknas om under Resultat");
+    // PLAN.md steg 24: inga interna ord på importsidan.
+    for (const word of ["atomärt", "request-id", "SHA-256", "application/xml", "byte\" ", "Skyddad"]) expect(translations).not.toContain(word);
   });
 
 

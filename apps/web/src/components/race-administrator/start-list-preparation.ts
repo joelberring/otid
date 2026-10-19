@@ -19,7 +19,7 @@ export function useStartListState() {
 }
 
 export function createStartListActions(ws: Base & RaceDataActions) {
-  const { raceId, data, publicationPreview, busyRef, pending, sent, requireSession, beginRequest, finish, current, assertCurrent, request, json, csrf,
+  const { raceId, data, publicationPreview, writingRef, pending, sent, requireSession, beginRequest, finish, current, assertCurrent, request, json, csrf,
     setMessage, setUnknown, setPublicationPreview, setPublicationAttempt } = ws;
   async function readPublication(op: Operation) {
     const response = await request("/publication-preview", op);
@@ -30,14 +30,14 @@ export function createStartListActions(ws: Base & RaceDataActions) {
   }
   /** Läser publiceringens läge. Svarar false om inget anrop gjordes (en annan åtgärd pågår). */
   async function loadPublication(): Promise<boolean> {
-    if (busyRef.current || pending.current || !requireSession()) return false;
+    if (writingRef.current || pending.current || !requireSession()) return false;
     const op = beginRequest(); setPublicationPreview(undefined); setMessage("");
     try { await readPublication(op); }
     catch { if (current(op)) setMessage(publicationText.loadError); } finally { finish(op); }
     return true;
   }
   function preparePublication(action: "PUBLISH" | "WITHDRAW") {
-    if (busyRef.current || pending.current || !requireSession() || !publicationPreview) return;
+    if (writingRef.current || pending.current || !requireSession() || !publicationPreview) return;
     try {
       const request = startListPublicationRequestSchema.parse(action === "PUBLISH" ? {
         formatVersion: 1, action, expectedRevision: publicationPreview.latestDecision?.revision ?? 0,
@@ -51,7 +51,7 @@ export function createStartListActions(ws: Base & RaceDataActions) {
     } catch { setMessage(publicationText.error); }
   }
   async function submitPublication(value: AdministratorPublicationAttempt) {
-    if (busyRef.current || pending.current !== value || !requireSession()) return;
+    if (writingRef.current || pending.current !== value || !requireSession()) return;
     const op = beginRequest(); const wasSent = sent.current; let committed = false;
     const saved = value.request.action === "PUBLISH" ? publicationText.published : publicationText.withdrawn;
     try {
@@ -72,7 +72,7 @@ export function createStartListActions(ws: Base & RaceDataActions) {
   }
   /** PLAN.md steg 13: startlistan som den ser ut nu som IOF XML (inte den publicerade). */
   async function downloadStartList() {
-    if (busyRef.current || pending.current || !requireSession()) return;
+    if (writingRef.current || pending.current || !requireSession()) return;
     const op = beginRequest(); setMessage(publicationText.exportDownloading);
     try {
       const response = await request("/start-list-export", op);

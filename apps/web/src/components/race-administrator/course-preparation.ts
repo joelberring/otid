@@ -1,11 +1,14 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { manualCourseClassCreateResponseSchema } from "@o-tid/contracts";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
 import { isDuplicateName } from "../../lib/duplicate-name";
-import { rogainingSv } from "../../i18n/rogaining-sv";
+import { hasErrors, validateCourseClass, type FieldErrors } from "../../lib/form-validation";
+import { focusFirstError, focusWhenEnabled } from "../ui";
 import { parseControlCodes, type CourseClassAttempt, type CourseClassRequest } from "./types";
 import type { Base } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
+
+export type CourseClassField = "courseName" | "className" | "controls" | "timeLimit" | "penalty";
 
 /** Förberedelse av banor: ny bana med klass. Ändring av en befintlig bana finns i course-edit.ts. */
 export function useCoursePreparationState() {
@@ -18,44 +21,45 @@ export function useCoursePreparationState() {
   const [coursePenalty, setCoursePenalty] = useState("1");
   const [courseClassAttempt, setCourseClassAttempt] = useState<CourseClassAttempt>();
   const [courseClassError, setCourseClassError] = useState("");
-  return { courseName, setCourseName, courseClassName, setCourseClassName, courseStartRule, setCourseStartRule, courseControls,
+  /** "Ny bana" öppnar formuläret direkt (PLAN.md steg 24); fälten visar sina egna fel. */
+  const [courseFormOpen, setCourseFormOpen] = useState(false);
+  const [courseClassErrors, setCourseClassErrors] = useState<FieldErrors<CourseClassField>>({});
+  const courseForm = useRef<HTMLFormElement | null>(null);
+  return { courseFormOpen, setCourseFormOpen, courseClassErrors, setCourseClassErrors, courseForm, courseName, setCourseName, courseClassName, setCourseClassName, courseStartRule, setCourseStartRule, courseControls,
     setCourseControls, courseTimeLimit, setCourseTimeLimit, coursePenalty, setCoursePenalty, courseClassAttempt, setCourseClassAttempt, courseClassError,
     setCourseClassError };
 }
 
 export function createCoursePreparationActions(ws: Base & RaceDataActions) {
-  const { raceId, data, courseName, courseClassName, courseControls, courseStartRule, courseTimeLimit, coursePenalty, busyRef, pending, sent, requireSession,
-    begin, finish, current, request, json, csrf, load, setMessage, setCourseClassError,
-    setCourseClassAttempt, setCourseName, setCourseClassName, setCourseControls } = ws;
+  const { raceId, data, courseName, courseClassName, courseControls, courseStartRule, courseTimeLimit, coursePenalty, writingRef, pending, sent, requireSession,
+    begin, finish, current, request, json, csrf, load, setMessage, setCourseClassError, setCourseClassErrors, courseForm,
+    setCourseClassAttempt, setCourseName, setCourseClassName, setCourseControls, setCourseStartRule, setCourseTimeLimit, setCoursePenalty } = ws;
   /** Ny bana med klass ändrar inga resultat: sparas direkt utan granskningssteg (ADR-0169 beslut 4). */
   function saveCourseClass(event: FormEvent) {
     event.preventDefault();
+    // Ett sparande i taget: medan förra banan skrivs väntar formuläret (fälten är inaktiva).
+    if (writingRef.current || pending.current || !requireSession()) return;
     setCourseClassError("");
-    const course = courseName.trim(), raceClass = courseClassName.trim();
-    const codes = parseControlCodes(courseControls);
-    if (!course || course.length > 160 || !raceClass || raceClass.length > 160) {
-      setCourseClassError(text.courseClassInvalidName); return;
-    }
-    if (!codes) {
-      setCourseClassError(text.courseClassInvalidControls); return;
-    }
-    if (!data) { setCourseClassError(text.courseClassUnavailable); return; }
     const rogaining = ws.profile.features.rogaining;
+    const errors = validateCourseClass({ courseName, className: courseClassName, controls: courseControls,
+      rogaining: rogaining ? { timeLimit: courseTimeLimit, penalty: coursePenalty } : undefined });
+    setCourseClassErrors(errors);
+    if (hasErrors(errors)) { focusFirstError(courseForm.current); return; }
+    const course = courseName.trim(), raceClass = courseClassName.trim();
+    const codes = parseControlCodes(courseControls)!;
+    if (!data) { setCourseClassError(text.courseClassUnavailable); return; }
     const limit = Number(courseTimeLimit.trim()), penalty = Number(coursePenalty.trim());
-    if (rogaining && (!/^\d+$/.test(courseTimeLimit.trim()) || !/^\d+$/.test(coursePenalty.trim()) || limit < 1 || limit > 2_880 ||
-        penalty > 1_000)) {
-      setCourseClassError(rogainingSv.invalid); return;
-    }
     const request: CourseClassRequest = { formatVersion: 1, requestId: crypto.randomUUID(),
       courseName: course, className: raceClass,
       // ADR-0170: typer utan val av startsätt (Träning, Rogaining) har alltid fri start.
       startRule: ws.profile.features.startRuleChoice ? courseStartRule : "PUNCH", controlCodes: codes,
       ...(rogaining ? { rogaining: { timeLimitMinutes: limit, penaltyPoints: penalty } } : {}) };
     const value = { kind: "COURSE_CLASS" as const, request };
+    setMessage("");
     pending.current = value; sent.current = false; setCourseClassAttempt(value); void submitCourseClass(value);
   }
   async function submitCourseClass(value: CourseClassAttempt) {
-    if (busyRef.current || !requireSession() || (pending.current && pending.current !== value)) return;
+    if (writingRef.current || !requireSession() || (pending.current && pending.current !== value)) return;
     const op = begin();
     let committed = false;
     try {
@@ -75,14 +79,19 @@ export function createCoursePreparationActions(ws: Base & RaceDataActions) {
         JSON.stringify(receipt.request) !== JSON.stringify(value.request)) throw new Error("Course class receipt mismatch");
       committed = true;
       pending.current = undefined; sent.current = false; setCourseClassAttempt(undefined); setCourseClassError("");
-      setCourseName(""); setCourseClassName(""); setCourseControls(""); setMessage(text.courseClassSaved);
-      await load(op);
+      // Formuläret töms helt, även startsättet och rogainingens förval (PLAN.md steg 24), och står kvar för nästa bana.
+      setCourseName(""); setCourseClassName(""); setCourseControls(""); setCourseStartRule("PUNCH");
+      setCourseTimeLimit("60"); setCoursePenalty("1"); setCourseClassErrors({}); setMessage("");
+      await load(op); setMessage(text.courseClassSaved);
     } catch {
       if (current(op)) {
         if (committed) { setCourseClassError(text.courseClassSavedLoadError); setMessage(text.courseClassSavedLoadError); }
         else { pending.current = value; sent.current = true; setCourseClassAttempt(value); setCourseClassError(text.unreachable); }
       }
-    } finally { finish(op); }
+    } finally {
+      finish(op);
+      if (committed) focusWhenEnabled(courseForm, "input");
+    }
   }
   return { saveCourseClass, submitCourseClass };
 }

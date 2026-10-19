@@ -3,56 +3,26 @@
 import styles from "../race-administrator-workspace.module.css";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
 import { raceWorkspaceNavigationSv as navigationText } from "../../i18n/race-workspace-navigation-sv";
+import { startRuleSv } from "../../i18n/start-rule-sv";
 import type { ManualClassCreateRequest } from "@o-tid/contracts";
 import { Button, Field, Notice } from "../ui";
 import { ClassTable } from "./class-table";
 import { RelayClassForm } from "./relay-panels";
 import type { Workspace } from "./workspace-state";
 
-/** Klasser: tabell (namn, bana, startsätt), ny klass och maxantal. Det som inte ändrar resultat sparas direkt. */
+/** Klasser: tabell (namn, bana, startsätt), "Ny klass" och maxantal. Det som inte ändrar resultat sparas direkt. */
 export function PreparationClasses({ ws }: { ws: Workspace }) {
   const { busy, capacityAttempt, capacityClass, capacityClassId, capacityInput, selectedClassId, data,
-    disabled, manualClassAttempt, manualClassCourseVersionId, manualClassError, manualClassName,
-    manualClassStartRule, manualClassTargets, navigateStep, profile, saveCapacity, saveManualClass,
-    setCapacityClassId, setCapacityInput, setSelectedClassId, setManualClassCourseVersionId,
-    setManualClassName, setManualClassStartRule, setMessage, shows, submitCapacity,
-    submitManualClass, unknown, workflowLocked } = ws;
+    disabled, courseList, profile, saveCapacity, setCapacityClassId, setCapacityInput, setSelectedClassId, setMessage, shows,
+    submitCapacity, unknown } = ws;
   const visible = shows("CLASSES");
+  // Utan banor finns inga klasser att visa; tomläget står under Banor (eller i klasstabellen när Klasser är ett eget steg).
+  const hasClasses = (courseList?.classes.length ?? 0) > 0;
   return <section className={styles.workflowGroup} aria-label={navigationText.steps.CLASSES} hidden={!visible}>
     {visible && <ClassTable ws={ws} visible={visible} />}
     {profile.features.relay && <RelayClassForm ws={ws} visible={visible} />}
-    <details className={styles.disclosure} open={manualClassAttempt ? true : undefined}
-      onToggle={event => { if (manualClassAttempt && !event.currentTarget.open) event.currentTarget.open = true; }}>
-      <summary>{text.manualClassTitle}</summary>
-      <div className={styles.disclosureBody}>
-        <p className={styles.workflowHelp}>{text.manualClassHelp}</p>
-        {manualClassTargets.length === 0 ? <p>{text.manualClassNoTargets}{" "}
-          <Button variant="quiet" disabled={workflowLocked} onClick={() => navigateStep("COURSES")}>{text.manualClassGoCourses}</Button>
-        </p> : <form className={styles.form} onSubmit={saveManualClass}>
-          <div className={styles.fieldRow}>
-            <Field label={text.manualClassName}><input value={manualClassName} maxLength={160} required autoComplete="off"
-              disabled={workflowLocked} onChange={event => setManualClassName(event.target.value)} /></Field>
-            <Field label={text.manualClassTarget}><select value={manualClassCourseVersionId} required disabled={workflowLocked}
-              onChange={event => setManualClassCourseVersionId(event.target.value)}>
-              <option value="">{text.manualClassChooseTarget}</option>
-              {manualClassTargets.map(target => <option key={target.courseVersionId} value={target.courseVersionId}>
-                {target.courseName}</option>)}
-            </select></Field>
-            {profile.features.startRuleChoice && <Field label={text.manualClassStartRule}><select value={manualClassStartRule}
-              disabled={workflowLocked}
-              onChange={event => setManualClassStartRule(event.target.value as ManualClassCreateRequest["startRule"])}>
-              <option value="PUNCH">{text.courseFreeStart}</option><option value="FIXED">{text.courseFixedStart}</option>
-            </select></Field>}
-          </div>
-          {manualClassError && <Notice tone="error" role="alert">{manualClassError}</Notice>}
-          {!manualClassAttempt && <div className={styles.actions}><Button type="submit" disabled={workflowLocked}>{text.manualClassSave}</Button></div>}
-        </form>}
-        {manualClassAttempt && !busy && <div className={styles.actions}>
-          <Button onClick={() => void submitManualClass(manualClassAttempt)}>{text.retry}</Button>
-        </div>}
-      </div>
-    </details>
-    <details className={styles.disclosure} open={capacityAttempt ? true : undefined}>
+    <ManualClassForm ws={ws} />
+    {hasClasses && <details className={styles.disclosure} open={capacityAttempt ? true : undefined}>
       <summary>{text.capacityTitle}{capacityClass && text.classOverviewSelected(capacityClass.name)}</summary>
       <div className={styles.disclosureBody}>
         <p className={styles.workflowHelp}>{text.capacityHelp}</p>
@@ -60,9 +30,9 @@ export function PreparationClasses({ ws }: { ws: Workspace }) {
           <p>{capacityAttempt.className} · {text.capacityLimit}: {capacityAttempt.request.maxEntries ?? text.unlimited}</p>
           <p>{text.unreachable}</p>
           <div><Button disabled={busy} onClick={() => void submitCapacity(capacityAttempt)}>{text.retry}</Button></div>
-        </Notice> : <form className={styles.form} onSubmit={saveCapacity}>
+        </Notice> : <form className={styles.form} noValidate onSubmit={saveCapacity}>
           <div className={styles.fieldRow}>
-            <Field label={text.capacityClass}><select required value={capacityClassId} disabled={disabled || !data} onChange={(event) => {
+            <Field label={text.capacityClass}><select value={capacityClassId} disabled={disabled || !data} onChange={(event) => {
               if (event.target.value !== selectedClassId) setSelectedClassId("");
               setCapacityClassId(event.target.value);
               const row = data?.classes.find((item) => item.id === event.target.value);
@@ -75,6 +45,44 @@ export function PreparationClasses({ ws }: { ws: Workspace }) {
           {capacityClass && <p className={styles.workflowHelp}>{text.capacityCount}: {capacityClass.entryCount} / {capacityClass.maxEntries ?? text.unlimited}</p>}
         </form>}
       </div>
-    </details>
+    </details>}
   </section>;
+}
+
+/** "Ny klass" på en bana som finns. Banan ändras inte. Står kvar efter sparandet för nästa klass. */
+function ManualClassForm({ ws }: { ws: Workspace }) {
+  const { busy, manualClassAttempt, manualClassCourseVersionId, manualClassError, manualClassErrors, manualClassForm, manualClassName,
+    manualClassOpen, manualClassStartRule, manualClassTargets, profile, raceId, saveManualClass, setManualClassCourseVersionId,
+    setManualClassErrors, setManualClassName, setManualClassOpen, setManualClassStartRule, submitManualClass } = ws;
+  if (!manualClassOpen && !manualClassAttempt) return null;
+  const locked = !!manualClassAttempt;
+  const id = `manual-class-${raceId}`;
+  return <form ref={manualClassForm} className={styles.inlineForm} aria-labelledby={`${id}-title`} noValidate onSubmit={saveManualClass}>
+    <div className={styles.inlineFormHead}>
+      <h3 id={`${id}-title`}>{text.manualClassTitle}</h3>
+      <Button variant="quiet" disabled={locked} onClick={() => { setManualClassOpen(false); setManualClassErrors({}); }}>{text.courseClassClose}</Button>
+    </div>
+    <p className={styles.workflowHelp}>{text.manualClassHelp}</p>
+    <div className={styles.fieldRow}>
+      <Field label={text.manualClassName} error={manualClassErrors.className}><input value={manualClassName} maxLength={160}
+        autoComplete="off" disabled={locked} onChange={event => { setManualClassName(event.target.value);
+          setManualClassErrors({ ...manualClassErrors, className: undefined }); }} /></Field>
+      <Field label={text.manualClassTarget} error={manualClassErrors.courseVersionId}><select value={manualClassCourseVersionId}
+        disabled={locked} onChange={event => { setManualClassCourseVersionId(event.target.value);
+          setManualClassErrors({ ...manualClassErrors, courseVersionId: undefined }); }}>
+        <option value="">{text.manualClassChooseTarget}</option>
+        {manualClassTargets.map(target => <option key={target.courseVersionId} value={target.courseVersionId}>{target.courseName}</option>)}
+      </select></Field>
+      {profile.features.startRuleChoice && <Field label={text.manualClassStartRule} help={startRuleSv.details[manualClassStartRule]}>
+        <select value={manualClassStartRule} disabled={locked}
+          onChange={event => setManualClassStartRule(event.target.value as ManualClassCreateRequest["startRule"])}>
+          <option value="PUNCH">{text.courseFreeStart}</option><option value="FIXED">{text.courseFixedStart}</option>
+        </select></Field>}
+    </div>
+    {manualClassError && <Notice tone="error" role="alert">{manualClassError}</Notice>}
+    <div className={styles.actions}>
+      {!manualClassAttempt && <Button type="submit">{text.manualClassSave}</Button>}
+      {manualClassAttempt && !busy && <Button onClick={() => void submitManualClass(manualClassAttempt)}>{text.retry}</Button>}
+    </div>
+  </form>;
 }

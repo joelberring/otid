@@ -13,8 +13,7 @@ export function resetWorkspaceOnLock(s: WorkspaceState, discard: boolean) {
     setForestSortByAge, setCourseName, setCourseClassName, setCourseControls, setCourseStartRule,
     setCourseClassError, setManualClassName, setManualClassCourseVersionId, setManualClassStartRule,
     setManualClassError, setCourseList, setCourseListError, setEditingCourseId, setCourseEditControls, setCourseEditPreview, setCourseEditError,
-    setCourseEditSaved, setShortenedCourseClassId, setShortenedCourseCandidate, setShortenedCourseName,
-    setShortenedClassName, setShortenedControlCount, setShortenedEntryIds, setShortenedCourseError,
+    setCourseEditSaved,
     setUnknownReadoutCandidate, setUnknownReadoutId, setUnknownReadoutTarget, setUnknownReadoutEntryId,
     setUnknownReadoutClassId, setUnknownReadoutGivenName, setUnknownReadoutFamilyName, setUnknownReadoutOrganisationName,
     setUnknownReadoutError, setCourseClassAttempt, setManualClassAttempt, setPrintTarget,
@@ -27,7 +26,7 @@ export function resetWorkspaceOnLock(s: WorkspaceState, discard: boolean) {
     setEffectiveResult, setEffectiveResultError, setIdentityCandidates,
     setGivenName, setFamilyName, setOrganisationName, setMobilePanel, setEntryChanges, setTransferAttempt, setCapacityAttempt, setCardAttempt, setRentalAttempt, setRentalReturnAttempt, setRentalReuseAttempt, setTimeAttempt,
     setRecalculationAttempt, setIdentityAttempt, setRegistrationAttempt, setDecisionAttempt,
-    setCourseEditAttempt, setShortenedCourseAttempt, setUnknownReadoutAttempt, setUnknown,
+    setCourseEditAttempt, setUnknownReadoutAttempt, setUnknown,
     setAction, setEntryVariantPreview, setEntryVariantAttempt, setDistributionAttempt, setEditingVariantCode,
     setRelay, setRelayError, setRelayMessage, setSelectedTeamId, setRunnerChange, setSettingsForm, setSettingsMessage } = s;
   setSettingsForm(undefined); setSettingsMessage(undefined);
@@ -43,7 +42,6 @@ export function resetWorkspaceOnLock(s: WorkspaceState, discard: boolean) {
   setManualClassName(""); setManualClassCourseVersionId(""); setManualClassStartRule("PUNCH"); setManualClassError("");
   setCourseList(undefined); setCourseListError(""); setCourseEditPreview(undefined); setCourseEditError(""); setCourseEditSaved("");
   if (discard || !sent.current) { setEditingCourseId(""); setCourseEditControls(""); }
-  setShortenedCourseClassId(""); setShortenedCourseCandidate(undefined); setShortenedCourseName(""); setShortenedClassName(""); setShortenedControlCount("1"); setShortenedEntryIds([]); setShortenedCourseError("");
   setUnknownReadoutCandidate(undefined); setUnknownReadoutId(""); setUnknownReadoutTarget("EXISTING_ENTRY"); setUnknownReadoutEntryId(""); setUnknownReadoutClassId(""); setUnknownReadoutGivenName(""); setUnknownReadoutFamilyName(""); setUnknownReadoutOrganisationName(""); setUnknownReadoutError("");
   if (discard || !sent.current) setCourseClassAttempt(undefined);
   if (discard || !sent.current) setManualClassAttempt(undefined);
@@ -69,7 +67,7 @@ export function resetWorkspaceOnLock(s: WorkspaceState, discard: boolean) {
   setIdentityCandidates(undefined); setGivenName(""); setFamilyName(""); setOrganisationName("");
   setMobilePanel(discard || !sent.current ? "LIST" : "WORK");
   setEntryChanges(undefined);
-  if (discard || !sent.current) { pending.current = undefined; sent.current = false; setTransferAttempt(undefined); setCapacityAttempt(undefined); setCardAttempt(undefined); setRentalAttempt(undefined); setRentalReturnAttempt(undefined); setRentalReuseAttempt(undefined); setTimeAttempt(undefined); setRecalculationAttempt(undefined); setIdentityAttempt(undefined); setRegistrationAttempt(undefined); setDecisionAttempt(undefined); setCourseEditAttempt(undefined); setShortenedCourseAttempt(undefined); setUnknownReadoutAttempt(undefined); setUnknown(false); setAction("INFO"); }
+  if (discard || !sent.current) { pending.current = undefined; sent.current = false; setTransferAttempt(undefined); setCapacityAttempt(undefined); setCardAttempt(undefined); setRentalAttempt(undefined); setRentalReturnAttempt(undefined); setRentalReuseAttempt(undefined); setTimeAttempt(undefined); setRecalculationAttempt(undefined); setIdentityAttempt(undefined); setRegistrationAttempt(undefined); setDecisionAttempt(undefined); setCourseEditAttempt(undefined); setUnknownReadoutAttempt(undefined); setUnknown(false); setAction("INFO"); }
   else setUnknown(true);
 }
 

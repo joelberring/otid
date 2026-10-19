@@ -1,13 +1,13 @@
+import { startRuleSv as rule } from "./start-rule-sv";
 /** Klasser som tabell med redigering i raden (ADR-0169 beslut 4). */
 export const classTableSv = {
   title: "Klasser",
   help: "Ändra klassens namn, bana eller startsätt i raden. Resultaten räknas om när du sparar.",
-  className: "Klass", course: "Bana", startRule: "Startsätt", entries: "Anmälda", readOut: "Avlästa / resultat",
+  className: "Klass", course: "Bana", startRule: rule.label, entries: "Anmälda", readOut: "Avlästa / resultat",
   status: "Status", action: "Ändra",
-  free: "Fri start", fixed: "Fast starttid",
+  free: rule.rules.PUNCH, fixed: rule.rules.FIXED,
   open: "Redigera", openLabel: (name: string) => `Redigera ${name}`,
   readOutValue: (readOut: number, results: number) => `${readOut} / ${results}`,
-  noClasses: "Det finns inga klasser ännu. Lägg till en bana med klass under Banor.",
   loading: "Läser in klasserna…", retryList: "Läs in klasserna igen",
   statusNoEntries: "Inga anmälda",
   statusMissingStartTimes: (count: number) => count === 1 ? "1 saknar starttid" : `${count} saknar starttid`,
@@ -15,7 +15,7 @@ export const classTableSv = {
   statusAllReadOut: "Alla har läst ut",
   statusWaiting: (count: number) => count === 1 ? "1 har inte läst ut" : `${count} har inte läst ut`,
   statusReady: "Klar för start",
-  fieldName: "Klassnamn", fieldCourse: "Bana", fieldStartRule: "Startsätt",
+  fieldName: "Klassnamn", fieldCourse: "Bana", fieldStartRule: rule.label,
   importedName: "Namnet kommer från en import och kan inte ändras här.",
   preview: "Visa vad som händer", save: "Spara ändringen", cancel: "Avbryt",
   invalidName: "Skriv ett klassnamn.",

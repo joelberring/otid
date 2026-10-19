@@ -18,16 +18,16 @@ import type { Workspace } from "./workspace-state";
  * Publiceringen av startlistan (PLAN.md steg 13): läget i en mening och en tydlig åtgärd. Läses in när Start visas
  * och igen när deltagarlistan ändrats, så att "ändrad sedan publiceringen" alltid stämmer.
  */
-function StartPublication({ ws, visible }: { ws: Workspace; visible: boolean }) {
+function StartPublication({ ws, visible, number }: { ws: Workspace; visible: boolean; number: number }) {
   const { busy, data, disabled, loadPublication, preparePublication, publicationAttempt, publicationPreview, raceId, submitPublication,
-    unknown, pending } = ws;
+    unknown, operation, pending } = ws;
   const attempted = useRef<number | undefined>(undefined);
   const snapshot = data?.snapshotVersion;
   // Andra åtgärder rensar publiceringens underlag; då läses det in igen. Ett misslyckat försök görs inte om av sig
   // självt för samma läge (knappen "Försök igen" finns), så att ett fel inte ger en slinga.
   useEffect(() => { if (publicationPreview) attempted.current = undefined; }, [publicationPreview]);
   useEffect(() => {
-    if (!visible || snapshot === undefined || busy || pending.current || publicationPreview?.snapshotVersion === snapshot ||
+    if (!visible || snapshot === undefined || busy || operation.current || pending.current || publicationPreview?.snapshotVersion === snapshot ||
       attempted.current === snapshot) return;
     attempted.current = snapshot;
     void loadPublication().then(started => { if (!started) attempted.current = undefined; });
@@ -37,7 +37,8 @@ function StartPublication({ ws, visible }: { ws: Workspace; visible: boolean }) 
   const published = latest?.action === "PUBLISH";
   const changed = published && latest.sourceHash !== publicationPreview?.sourceHash;
   const publishable = !!publicationPreview?.content?.classes.some(row => row.entries.length > 0);
-  return <Section id={`start-publication-${raceId}`} title={publicationText.heading} help={publicationText.shortHelp}
+  return <Section id={`start-publication-${raceId}`} title={publicationText.heading} number={number}
+    help={publicationText.shortHelp}
     actions={<Link href={`/starts/${raceId}`}>{publicationText.publicLink}</Link>}>
     {!publicationPreview ? <div className={styles.actions}><p className={styles.muted}>{publicationText.loading}</p>
       {!busy && <Button variant="quiet" disabled={disabled} onClick={() => { attempted.current = undefined; void loadPublication(); }}>{text.retry}</Button>}</div>
@@ -59,20 +60,23 @@ function StartPublication({ ws, visible }: { ws: Workspace; visible: boolean }) 
 }
 
 /**
- * Start: lottningen (typer med lottning) eller stafettens masstart överst, publiceringen och sedan startlistorna
- * per klass, per starttid och per klubb (PLAN.md steg 13). Funktionärer finns under Inställningar (ADR-0170).
+ * Start i ordningen 1 Lottning (typer med lottning; stafetten: masstart och omstart), 2 Startlistan (visa, skriv ut,
+ * exportera) och 3 Publicera startlistan (PLAN.md steg 24). Funktionären ser bara startlistan (ADR-0172 beslut 3).
  */
 export function PreparationStartList({ ws }: { ws: Workspace }) {
-  const { data, disabled, downloadStartList, functionary, profile, select, shows } = ws;
+  const { data, disabled, downloadStartList, functionary, profile, raceId, select, shows } = ws;
   const visible = shows("START");
   const model = useMemo(() => data ? startListFromWorkspace(data) : undefined, [data]);
+  const lists = model && (functionary ? <StartLists model={model} disabled={disabled} exportable={false} />
+    : <StartLists model={model} onSelectEntry={id => select(id)} disabled={disabled}
+      iof={{ onSelect: () => void downloadStartList(), disabled }} />);
+  if (functionary) return <section className={styles.workflowGroup} aria-label={navigationText.steps.START} hidden={!visible}>{lists}</section>;
+  const first = profile.features.draw || profile.features.relay;
   return <section className={styles.workflowGroup} aria-label={navigationText.steps.START} hidden={!visible}>
-    {/* Funktionären ser startlistorna; lottning, masstart, publicering, deltagarkort och export är administratörens. */}
-    {!functionary && profile.features.draw && <StartDrawPanel ws={ws} visible={visible} />}
-    {!functionary && profile.features.relay && <RelayStartTimes ws={ws} visible={visible} />}
-    {!functionary && <StartPublication ws={ws} visible={visible} />}
-    {model && (functionary ? <StartLists model={model} disabled={disabled} exportable={false} />
-      : <StartLists model={model} onSelectEntry={id => select(id)} disabled={disabled}
-        iof={{ onSelect: () => void downloadStartList(), disabled }} />)}
+    {profile.features.draw && <StartDrawPanel ws={ws} visible={visible} number={1} />}
+    {profile.features.relay && <RelayStartTimes ws={ws} visible={visible} number={1} />}
+    <Section id={`start-lists-${raceId}`} title={publicationText.listHeading} number={first ? 2 : 1}
+      help={publicationText.listHelp}>{lists}</Section>
+    <StartPublication ws={ws} visible={visible} number={first ? 3 : 2} />
   </section>;
 }

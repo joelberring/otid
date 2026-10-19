@@ -82,7 +82,7 @@ test("träningskväll från tävling till IOF-export", async ({ browser, request
   await expect(owner.getByTestId("queue-status")).toHaveText("0 väntar", { timeout: 30_000 });
 
   // Råloggen för felsökning med riktig station: trafik och råramar, utan namn.
-  const [rawLog] = await Promise.all([owner.waitForEvent("download"), owner.getByRole("button", { name: "Ladda ner rålogg" }).click()]);
+  const [rawLog] = await Promise.all([owner.waitForEvent("download"), owner.getByRole("button", { name: "Ladda ner felsökningslogg" }).click()]);
   const log = JSON.parse(await readFile(await rawLog.path(), "utf8")) as { traffic: unknown[]; readouts: { frames: string[] }[] };
   expect(log.readouts).toHaveLength(8);
   expect(log.readouts.every((readout) => readout.frames.length > 0)).toBe(true);
@@ -148,6 +148,9 @@ test("träningskväll från tävling till IOF-export", async ({ browser, request
 
   // IOF XML-export av resultatlistan.
   await warmRoute(owner, `/api/admin/races/${raceId}/administrator/result-export`);
+  // Resultatsteget läser resultatlistan och kartan; första kompileringen i dev-servern kan ta längre än väntetiden.
+  for (const list of ["results", "relay-results", "radio"]) await warmRoute(owner, `/api/public/races/${raceId}/${list}`);
+  await warmRoute(owner, `/api/admin/races/${raceId}/administrator/map`);
   await openStep(owner, "Resultat");
   const toolbar = owner.getByRole("toolbar", { name: "Listans verktyg" });
   await expect(owner.getByRole("table", { name: "H21" })).toBeVisible();

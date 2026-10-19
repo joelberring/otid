@@ -6,26 +6,35 @@ import type { CourseEditListResponse } from "@o-tid/contracts";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
 import { courseVariantsSv as variantText } from "../../i18n/course-variants-sv";
 import { Button, EmptyState, Notice, Section, Table, numeric } from "../ui";
+import { focusCourseFile } from "./course-file-section";
 import type { Workspace } from "./workspace-state";
 
 type CourseRow = CourseEditListResponse["courses"][number];
 
 /** Banor som tabell med "Redigera bana" i raden (ADR-0169 beslut 4). */
 export function CourseTable({ ws, visible }: { ws: Workspace; visible: boolean }) {
-  const { authenticated, busy, courseEditSaved, courseList, courseListError, data, editingCourseId, loadCourses, openAssignedClass, pending,
-    profile, raceId, startCourseEdit, workflowLocked } = ws;
+  const { authenticated, busy, courseEditSaved, courseFormOpen, courseList, courseListError, data, editingCourseId, loadCourses,
+    openAssignedClass, operation, pending, profile, raceId, saving, setCourseFormOpen, startCourseEdit, workflowLocked } = ws;
   const stale = !courseList || (data !== undefined && courseList.snapshotVersion < data.snapshotVersion);
   useEffect(() => {
-    if (visible && authenticated && data && !busy && !pending.current && stale && !courseListError) void loadCourses();
+    if (visible && authenticated && data && !busy && !operation.current && !pending.current && stale && !courseListError) void loadCourses();
   }, [visible, authenticated, data, busy, stale, courseListError]);
   // ADR-0170: varianter och gafflingskontroll bara i typerna som har gafflingar.
   const variants = profile.features.variants;
-  return <Section id={`course-table-${raceId}`} title={text.courseEditTitle} help={text.courseEditHelp}>
+  const empty = courseList?.courses.length === 0;
+  // Rogaining: kontrollerna med poäng står först och har sitt eget tomläge; banorna visas först när de finns.
+  if (empty && profile.features.rogaining) return null;
+  const newCourse = (primary: boolean) => <Button variant={primary ? "primary" : "secondary"} disabled={courseFormOpen}
+    onClick={() => setCourseFormOpen(true)}>{text.courseClassOpen}</Button>;
+  return <Section id={`course-table-${raceId}`} title={text.courseEditTitle} help={empty ? undefined : text.courseEditHelp}
+    actions={!empty && courseList && !courseFormOpen ? newCourse(false) : undefined}>
     {courseEditSaved && <Notice tone="ok" role="status">{courseEditSaved}</Notice>}
     {courseListError && <Notice tone="error" role="alert"><p>{courseListError}</p>
-      <div><Button variant="secondary" disabled={busy} onClick={() => void loadCourses()}>{text.courseEditRetryList}</Button></div></Notice>}
+      <div><Button variant="secondary" disabled={saving} onClick={() => void loadCourses()}>{text.courseEditRetryList}</Button></div></Notice>}
     {!courseList && !courseListError && <p role="status" className={styles.workflowHelp}>{text.courseEditLoading}</p>}
-    {courseList && courseList.courses.length === 0 && <EmptyState title={text.courseEditNoCourses}>{text.courseClassHelp}</EmptyState>}
+    {empty && !courseFormOpen && <EmptyState title={text.courseEditNoCourses} action={<>{newCourse(true)}
+      <Button variant="quiet" onClick={() => focusCourseFile(raceId)}>{text.courseClassFileAlternative}</Button></>}>
+      {text.courseEmptyHelp}</EmptyState>}
     {courseList && courseList.courses.length > 0 && <Table>
       <thead><tr>
         <th scope="col">{text.courseEditCourse}</th><th scope="col">{text.courseEditControlsColumn}</th>
@@ -44,7 +53,7 @@ export function CourseTable({ ws, visible }: { ws: Workspace; visible: boolean }
           <td className={numeric}>{course.entryCount}</td>
           <td className={numeric}>{course.readOutCount}</td>
           <td className={styles.rowAction}>{!editing && !forked && <Button variant="secondary" aria-label={text.courseEditOpenLabel(course.name)}
-            disabled={busy || !!editingCourseId || !!pending.current} onClick={() => startCourseEdit(course.courseId)}>{text.courseEditOpen}</Button>}</td>
+            disabled={saving || !!editingCourseId} onClick={() => startCourseEdit(course.courseId)}>{text.courseEditOpen}</Button>}</td>
         </tr>, editing && <tr key={`${course.courseId}-editor`} className={styles.editorRow}>
           <td colSpan={6}><CourseEditor ws={ws} courseName={course.name} /></td>
         </tr>];
@@ -55,7 +64,7 @@ export function CourseTable({ ws, visible }: { ws: Workspace; visible: boolean }
 
 /** Gafflad bana: antal varianter, gafflingskontrollen och varje variant med kontroller och "Redigera". */
 function CourseVariants({ ws, course }: { ws: Workspace; course: CourseRow }) {
-  const { busy, editingCourseId, pending, profile, startCourseEdit } = ws;
+  const { editingCourseId, profile, saving, startCourseEdit } = ws;
   return <div className={styles.courseVariants}>
     <strong>{variantText.forked(course.variants.length)}</strong>
     {course.unevenLegs.length > 0 && <Notice tone="attention" role="status">{variantText.unevenLegs(course.unevenLegs)}</Notice>}
@@ -69,7 +78,7 @@ function CourseVariants({ ws, course }: { ws: Workspace; course: CourseRow }) {
           <th scope="row">{variant.code}</th><td>{variant.controlCodes.join(" ")}</td>
           <td>{variant.entryCount}</td><td>{variant.readOutCount}</td>
           <td className={styles.rowAction}><Button variant="quiet" aria-label={variantText.editVariantLabel(course.name, variant.code)}
-            disabled={busy || !!editingCourseId || !!pending.current}
+            disabled={saving || !!editingCourseId}
             onClick={() => startCourseEdit(course.courseId, variant.code)}>{variantText.editVariant}</Button></td>
         </tr>)}</tbody>
       </table>

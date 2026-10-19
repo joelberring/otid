@@ -5,10 +5,18 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 24 – Enklare arbetsyta. Steg 7 (hårdvara) väntar på ägaren.
+Steg 25 – Saknade tävlingsfunktioner. Steg 7 (hårdvara) väntar på ägaren.
 Måste provas mot riktiga tjänster: Eventor med klubbens API-nyckel, ROC:s sökväg för stämplingar (bara provad mot falsk ROC) och e-post via SMTP.
 
 ## Logg
+
+### 2026-10-19 – Steg 24: enklare arbetsyta (steg 24 klart)
+- Flöde: "Skapa tävling" går direkt till arbetsytan; tomlägen har en primärknapp (Ny bana, Ny deltagare, Lag). Ny deltagare i ett steg med Enter, raden "Anna Ek är anmäld i H21." och fokus tillbaka i Förnamn; minutstart utan tid före lottningen ("Lämna tomt – lottas senare", servern lottar in löparen). Tre deltagare: 13 → 6 klick.
+- Låsning: bara en skrivning (`writingRef`) låser, och bara formuläret som sparas; läsningar avbryts av användaren, och läsningar som startar själva väntar på `operation.current`. Sidopanelen är aldrig inaktiv; "Slutför eller avbryt …" visas först vid försök att byta steg.
+- Start: 1 Lottning, 2 Startlistan, 3 Publicera startlistan. Publicera bara i checklistan (länk från Inställningar). Avläsning läser in läget själv. "Flytta till kortare bana" och dess rutt/tjänst/kontrakt borttagna (tabellerna står kvar utan skrivare).
+- Ord: startsätten bara i `i18n/start-rule-sv.ts`; jargong omskriven (avläsningssidan, import, Eventor, ROC-id, "Tävlingens namn" + "Etapp/lopp (valfritt)", tidszon under "Mer"); språkvakten förbjuder interna ord.
+- Fältfel: `noValidate` och svenska fel per fält (`lib/form-validation.ts`, `Field error`), datum som ÅÅÅÅ-MM-DD (`DateInput`). Kompakt mobilhuvud med Meny, kompakta rader, numrerade steg, vanlig lottningstabell.
+- Verifierat: install (frozen), lint, typecheck, test, test:integration (63/261), build, Playwright alla 17 specar gröna i fem grupper (ny `arbetsyta`); efter omförsök under last: `lottning`, `traningskvall`, `listor`, `strackanalys` och speakerns "Senast i mål" i `funktionarer`/`tavlingstyper` som tidigare. Fler uppvärmda rutter i e2e.
 
 ### 2026-10-19 – Steg 23 (del 2): ett statusflöde, en session, ingen versionsgrind (steg 23 klart)
 - Ett skrivställe: `appendResultRevision`/`evaluateAndStore` (`result-revisions.ts`) skriver alla revisioner. Ett statusflöde: `setEntryStatus` (beslutsunion med återta, idempotent på begärans id, `expectedRevision`) + domänens `applyManualDecision` ersätter de tolv besluts-/återtagandetjänsterna; en rutt `…/entries/[entryId]/status` i stället för 24 (migration 0001).

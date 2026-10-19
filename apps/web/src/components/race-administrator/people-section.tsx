@@ -8,6 +8,7 @@ import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
 import { readAccountCsrfCookie } from "../../lib/organizer-account-cookies";
 import { Button, Field, Notice, Section } from "../ui";
 import styles from "./people-section.module.css";
+import { formErrorsSv } from "../../i18n/form-errors-sv";
 
 const text = raceTypeSv.settings.people;
 type Message = { tone: "ok" | "error"; text: string };
@@ -25,6 +26,7 @@ export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: s
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"FUNCTIONARY" | "ADMIN">("FUNCTIONARY");
   const [busy, setBusy] = useState(false);
+  const [emailError, setEmailError] = useState("");
   const [message, setMessage] = useState<Message>();
 
   const load = useCallback(async () => {
@@ -55,6 +57,8 @@ export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: s
   async function add(event: FormEvent) {
     event.preventDefault();
     if (busy) return;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setEmailError(formErrorsSv.email); return; }
+    setEmailError("");
     const requestId = crypto.randomUUID();
     setBusy(true); onPendingChange(true); setMessage(undefined);
     try {
@@ -103,10 +107,10 @@ export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: s
       </li>)}
     </ul>}
     {message && <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>{message.text}</Notice>}
-    {data && <form className={styles.add} onSubmit={event => void add(event)} aria-label={text.addTitle}>
-      <Field label={text.addEmail} help={text.addEmailHelp}>
-        <input type="email" value={email} autoComplete="off" required maxLength={320} disabled={locked}
-          onChange={event => setEmail(event.target.value)} />
+    {data && <form className={styles.add} noValidate onSubmit={event => void add(event)} aria-label={text.addTitle}>
+      <Field label={text.addEmail} help={text.addEmailHelp} error={emailError}>
+        <input type="email" value={email} autoComplete="off" maxLength={320} disabled={locked}
+          onChange={event => { setEmail(event.target.value); setEmailError(""); }} />
       </Field>
       <Field label={text.addRole}>
         <select value={role} disabled={locked || !owner} onChange={event => setRole(event.target.value === "ADMIN" ? "ADMIN" : "FUNCTIONARY")}>

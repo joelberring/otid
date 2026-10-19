@@ -5,7 +5,7 @@ import type { StartDrawPreviewResponse } from "@o-tid/contracts";
 import styles from "../race-administrator-workspace.module.css";
 import { startDrawSv as text } from "../../i18n/start-draw-sv";
 import { formatClockTime } from "../../lib/clock-time";
-import { Button, Notice, Section, Table } from "../ui";
+import { Button, Field, Notice, Section, Table } from "../ui";
 import type { Workspace } from "./workspace-state";
 import { courseVariantsSv as variantText } from "../../i18n/course-variants-sv";
 
@@ -18,23 +18,23 @@ const forked = (raceClass: { slots: readonly { entry: { variantCode: string | nu
  * första start och klubbseparering gemensamt. "Visa lottning" visar startlistan som den blir;
  * "Spara lottningen" sparar exakt den. Befintliga starttider ersätts bara efter en tydlig fråga.
  */
-export function StartDrawPanel({ ws, visible }: { ws: Workspace; visible: boolean }) {
-  const { authenticated, busy, data, disabled, drawAttempt, drawClubSeparation, drawError, drawFirst, drawPreview, drawRows,
-    drawSaved, drawSetup, changeDrawRow, changeDrawSettings, loadDrawSetup, pending, previewDraw, raceId, unknown } = ws;
+export function StartDrawPanel({ ws, visible, number }: { ws: Workspace; visible: boolean; number: number }) {
+  const { authenticated, busy, data, disabled, drawAttempt, drawClubSeparation, drawError, drawFirst, drawFirstError, drawPreview, drawRows,
+    drawSaved, drawSetup, changeDrawRow, changeDrawSettings, loadDrawSetup, operation, pending, previewDraw, raceId, unknown } = ws;
   const stale = !drawSetup || (data !== undefined && drawSetup.snapshotVersion < data.snapshotVersion);
   useEffect(() => {
-    if (visible && authenticated && data && !busy && !pending.current && stale && !drawError) void loadDrawSetup();
+    if (visible && authenticated && data && !busy && !operation.current && !pending.current && stale && !drawError) void loadDrawSetup();
   }, [visible, authenticated, data, busy, stale, drawError]);
   const locked = disabled || !!drawPreview;
-  return <Section id={`start-draw-${raceId}`} title={text.title} help={text.help}>
+  return <Section id={`start-draw-${raceId}`} title={text.title} number={number} help={text.help}>
     {drawSaved && <Notice tone="ok" role="status">{drawSaved}</Notice>}
     {drawError && <Notice tone="error" role="alert"><p>{drawError}</p>
       {!drawSetup && <div><Button variant="secondary" disabled={busy} onClick={() => void loadDrawSetup()}>{text.load}</Button></div>}</Notice>}
     {!drawSetup && !drawError && <p role="status" className={styles.workflowHelp}>{text.loading}</p>}
-    {drawSetup && <form className={styles.drawForm} onSubmit={event => { event.preventDefault(); void previewDraw(); }}>
+    {drawSetup && <form className={styles.drawForm} noValidate onSubmit={event => { event.preventDefault(); void previewDraw(); }}>
       <div className={styles.drawSettings}>
-        <label>{text.first}<input value={drawFirst} inputMode="numeric" autoComplete="off" placeholder={text.firstExample} required
-          disabled={locked} onChange={event => changeDrawSettings({ first: event.target.value })} /></label>
+        <Field label={text.first} error={drawFirstError}><input id={`draw-first-${raceId}`} value={drawFirst} inputMode="numeric"
+          autoComplete="off" placeholder={text.firstExample} disabled={locked} onChange={event => changeDrawSettings({ first: event.target.value })} /></Field>
         <label className={styles.drawCheck}><input type="checkbox" checked={drawClubSeparation} disabled={locked}
           onChange={event => changeDrawSettings({ clubSeparation: event.target.checked })} />{text.clubSeparation}</label>
       </div>
@@ -47,7 +47,7 @@ export function StartDrawPanel({ ws, visible }: { ws: Workspace; visible: boolea
           const row = drawRows[raceClass.id];
           if (!row) return null;
           const timed = row.method === "MINUTE";
-          return <tr key={raceClass.id} data-selected={row.selected ? "true" : undefined}>
+          return <tr key={raceClass.id}>
             <td className={styles.drawSelectCell}><input type="checkbox" aria-label={text.drawClass(raceClass.name)} checked={row.selected}
               disabled={locked} onChange={event => changeDrawRow(raceClass.id, { selected: event.target.checked })} /></td>
             <th scope="row" className={styles.drawClassCell}>{raceClass.name}

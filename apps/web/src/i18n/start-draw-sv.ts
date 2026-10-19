@@ -1,3 +1,4 @@
+import { startRuleSv as rule } from "./start-rule-sv";
 /** Lottning i arbetsytans Start-steg (PLAN.md steg 9). Tider skrivs som klockslag. */
 const names = (list: readonly string[]) =>
   list.length <= 1 ? list.join("") : `${list.slice(0, -1).join(", ")} och ${list[list.length - 1]}`;
@@ -8,8 +9,8 @@ export const startDrawSv = {
   load: "Visa klasserna", loading: "Läser klasserna…",
   first: "Första start (klockslag)", firstExample: "10:00",
   clubSeparation: "Klubbseparering: två från samma klubb startar inte efter varandra",
-  className: "Klass", method: "Startsätt", interval: "Intervall (min)", vacancies: "Vakanser", draw: "Lotta", entries: "Anmälda",
-  methods: { FREE: "Fri start", MINUTE: "Lottad minutstart", MASS: "Masstart" },
+  className: "Klass", method: rule.label, interval: "Intervall (min)", vacancies: "Vakanser", draw: "Lotta", entries: "Anmälda",
+  methods: rule.methods,
   vacancyKinds: { COUNT: "st", PERCENT: "%" },
   vacancyKind: "Vakanser som",
   hasTimes: "Har starttider",

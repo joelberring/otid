@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { addCourseAndClass, addEntry, createRace, daysFromToday, openStep, publishRace, registerAccount, unique } from "./helpers";
+import { addCourseAndClass, addEntry, createRace, daysFromToday, openEntryForm, openStep, publishRace, registerAccount, unique } from "./helpers";
 
 /** Tävlingsdagen i tävlingens tidszon, 30 dagar fram: tävlingen är inte igång när testet körs. */
 const raceDate = daysFromToday(30);
@@ -20,8 +20,9 @@ test("lotta tre klasser, publicera startlistan och placera en efteranmäld på v
   await publishRace(owner);
   await addCourseAndClass(owner, "Lång", "H21", "31 32 33");
   // Dubbelt klassnamn avvisas med ett begripligt besked (PLAN.md steg 22).
+  // Formuläret "Ny bana" står kvar efter sparandet, tömt (PLAN.md steg 24).
   const courseForm = owner.locator("form").filter({ has: owner.getByRole("button", { name: "Spara bana och klass" }) });
-  if (!await courseForm.isVisible()) await owner.getByText("Förbered bana och klass").click();
+  await expect(courseForm.getByLabel("Bannamn")).toHaveValue("");
   await courseForm.getByLabel("Bannamn").fill("Lång igen");
   await courseForm.getByLabel("Klassnamn").fill("h21");
   await courseForm.getByLabel("Kontrollföljd").fill("31 32");
@@ -43,7 +44,7 @@ test("lotta tre klasser, publicera startlistan och placera en efteranmäld på v
   await expect(draw.getByRole("row", { name: /H21/ })).toBeVisible();
   await draw.getByLabel("Första start (klockslag)").fill("10:00");
   for (const className of ["H21", "D21", "H16"]) {
-    await draw.getByLabel(`Startsätt ${className}`).selectOption({ label: "Lottad minutstart" });
+    await draw.getByLabel(`Startsätt ${className}`).selectOption({ label: "Minutstart" });
     await expect(draw.getByLabel(`Lotta ${className}`)).toBeChecked();
     await expect(draw.getByLabel(`Intervall (min) ${className}`)).toHaveValue("2");
     await draw.getByLabel(`Vakanser ${className}`).fill("1");
@@ -73,21 +74,18 @@ test("lotta tre klasser, publicera startlistan och placera en efteranmäld på v
   await expect(visitor.getByText("H16A Löpare").or(visitor.getByText("H16B Löpare")).first()).toBeVisible();
   await expect(visitor.getByRole("cell", { name: "10:00", exact: true }).first()).toBeVisible();
 
-  // Efteranmäld i H21 får den vakanta tiden; arrangören anger ingen tid.
+  // Efteranmäld i H21 får den vakanta tiden; arrangören anger ingen tid. Beskedet står i formuläret, inget extra steg.
   await openStep(owner, "Anmälda");
-  await owner.getByRole("button", { name: "Ny deltagare" }).click();
-  const entryForm = owner.locator("form").filter({ has: owner.getByRole("button", { name: "Granska anmälan" }) });
-  await entryForm.getByLabel("Anmälningsklass").selectOption({ label: "H21" });
+  const entryForm = await openEntryForm(owner);
+  await entryForm.getByRole("combobox", { name: "Klass" }).selectOption({ label: "H21" });
   await expect(entryForm.getByText("Klassen är lottad.", { exact: false })).toBeVisible();
   await expect(entryForm.getByLabel("Starttid (klockslag)")).toHaveCount(0);
   await entryForm.getByLabel("Förnamn").fill("Sen");
   await entryForm.getByRole("textbox", { name: "Efternamn" }).fill("Anmäld");
   await entryForm.getByLabel("Klubb").fill("OK Ek");
-  await entryForm.getByLabel("Bricknummer (valfritt)").fill(String(card++));
-  await entryForm.getByRole("button", { name: "Granska anmälan" }).click();
-  await expect(owner.getByText("Första lediga vakanta tid i lottningen", { exact: false })).toBeVisible();
-  await owner.getByRole("button", { name: "Bekräfta anmälan" }).click();
-  await expect(owner.getByText("Deltagaren är anmäld.")).toBeVisible();
+  await entryForm.getByLabel("Bricka (valfritt)").fill(String(card++));
+  await entryForm.getByRole("button", { name: "Lägg till", exact: true }).click();
+  await expect(entryForm.getByRole("status")).toContainText(`Sen Anmäld är anmäld i H21 med start ${vacantH21.slice(0, 5)}`);
   await openStep(owner, "Start");
   await expect(owner.getByRole("row", { name: /Sen Anmäld/ })).toContainText(vacantH21.slice(0, 5));
 
@@ -108,5 +106,5 @@ test("lotta tre klasser, publicera startlistan och placera en efteranmäld på v
   await expect(owner.getByTestId("verdict")).toContainText("GODKÄND");
   await expect(owner.getByTestId("verdict")).toContainText("Sen Anmäld");
   await expect(owner.getByTestId("verdict")).toContainText("30:00");
-  await expect(owner.getByTestId("verdict")).toContainText("Bekräftad av servern.");
+  await expect(owner.getByTestId("verdict")).toContainText("Sparad.");
 });

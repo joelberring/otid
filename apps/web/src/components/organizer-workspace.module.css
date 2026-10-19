@@ -1,8 +1,8 @@
 .main {
-  width: min(100%, 80rem);
-  max-width: 80rem;
+  width: min(100%, 1120px);
+  max-width: 1120px;
   margin-inline: auto;
-  padding: 24px 20px 48px;
+  padding: 24px 16px 48px;
 }
 
 .header,
@@ -74,15 +74,10 @@
 .events { min-width: 0; }
 .createPanel { min-width: 0; scroll-margin-top: .75rem; container-type: inline-size; }
 .createForm { gap: .55rem; }
-.createDateZone { display: grid; gap: .55rem; min-width: 0; }
-.createDateZone label { min-width: 0; }
-.createDateZone input { min-width: 0; max-width: 100%; }
-@container (min-width: 20.5rem) {
-  .createDateZone { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-}
-.createReceipt { display: grid; grid-template-columns: 5.8rem minmax(0, 1fr); gap: .25rem .5rem; margin: .55rem 0; font-size: .82rem; }
-.createReceipt dt { color: var(--muted); }
-.createReceipt dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.createDate { max-width: 14rem; }
+.more { border-top: 1px solid var(--line); padding-top: 6px; }
+.more > summary { min-height: 36px; display: flex; align-items: center; color: var(--muted); font-size: var(--text-sm); font-weight: 600; }
+.more[open] > summary { margin-bottom: 6px; }
 .createPanel .actions { gap: .4rem; }
 .createPanel .actions button { min-height: 44px; }
 .raceList { gap: 0; border-top: 1px solid var(--line); }
@@ -93,11 +88,10 @@
 .raceList button, .actions button { min-height: 44px; flex: 0 0 auto; }
 .raceList li > div > span { font-family: var(--font-dense); }
 .raceActions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: end; }
-.uncertain, .confirmed { margin-top: 12px; padding: 12px 14px; }
+.uncertain { margin-top: 12px; padding: 12px 14px; }
 .uncertain { border-left: 3px solid var(--attention); background: var(--attention-tint); }
-.confirmed { border-left: 3px solid var(--ok); background: var(--surface); }
 .uncertain h3 { margin: 0; font-size: 1.05rem; }
-.uncertain p, .confirmed p { margin: .35rem 0; }
+.uncertain p { margin: .35rem 0; }
 .uncertain dl { display: grid; grid-template-columns: 6.5rem minmax(0, 1fr); gap: .3rem .6rem; margin: .6rem 0; }
 .uncertain dt { font-weight: 600; }
 .uncertain dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }

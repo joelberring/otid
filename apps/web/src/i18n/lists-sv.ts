@@ -1,3 +1,4 @@
+import { startRuleSv as rule } from "./start-rule-sv";
 /** Start- och resultatlistorna (PLAN.md steg 13): verktygsraden, vyerna, utskriften och CSV-exporten. */
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
@@ -25,9 +26,9 @@ export const listsSv = {
     runners: (count: number) => plural(count, "löpare", "löpare"),
     teams: (count: number) => plural(count, "lag", "lag"),
     legs: (count: number) => `${count} sträckor`,
-    freeStart: "Fri start",
-    minuteStart: "Minutstart",
-    massStart: (time: string | null) => time ? `Masstart ${time}` : "Masstart",
+    freeStart: rule.methods.FREE,
+    minuteStart: rule.methods.MINUTE,
+    massStart: (time: string | null) => time ? `${rule.methods.MASS} ${time}` : rule.methods.MASS,
     relay: "Stafett",
     course: (name: string) => `Bana ${name}`,
     vacant: "Vakant",
@@ -43,7 +44,7 @@ export const listsSv = {
     startPlaceUnknown: "Övriga klasser",
     now: "Nu",
     nowLabel: "Startar nu",
-    freeClasses: "Fri start",
+    freeClasses: rule.methods.FREE,
     freeHelp: "Löparna stämplar start när de går ut. Klasserna har inga starttider.",
     missingTitle: "Saknar starttid",
     missingHelp: "De här löparna har ingen starttid än. Ge dem en tid under Anmälda eller lotta om klassen.",
@@ -113,7 +114,7 @@ export const listsSv = {
     },
     finish: "Mål",
     vacant: "Vakant",
-    free: "Fri start", minute: "Minutstart", mass: "Masstart", relay: "Stafett",
+    free: rule.methods.FREE, minute: rule.methods.MINUTE, mass: rule.methods.MASS, relay: "Stafett",
     files: {
       start: { CLASS: "startlista-per-klass", TIME: "startlista-per-starttid", CLUB: "startlista-per-klubb" },
       results: { CLASS: "resultat-per-klass", SPLITS: "resultat-med-stracktider", CLUB: "resultat-per-klubb" }

@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { raceSettingsResponseSchema, type RaceSettingsRequest, type RaceType } from "@o-tid/contracts";
 import { raceTypeSv } from "../../i18n/race-type-sv";
+import { formErrorsSv } from "../../i18n/form-errors-sv";
+import { isIsoDate, type FieldErrors } from "../../lib/form-validation";
 import type { Base } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
 
@@ -11,17 +13,18 @@ export function useSettingsState() {
   const [settingsForm, setSettingsForm] = useState<SettingsForm>();
   const [settingsAttempt, setSettingsAttempt] = useState<RaceSettingsRequest>();
   const [settingsMessage, setSettingsMessage] = useState<{ tone: "ok" | "error"; text: string }>();
-  return { settingsForm, setSettingsForm, settingsAttempt, setSettingsAttempt, settingsMessage, setSettingsMessage };
+  const [settingsErrors, setSettingsErrors] = useState<FieldErrors<"eventName" | "raceName" | "raceDate">>({});
+  return { settingsErrors, setSettingsErrors, settingsForm, setSettingsForm, settingsAttempt, setSettingsAttempt, settingsMessage, setSettingsMessage };
 }
 
 export function createSettingsActions(ws: Base & RaceDataActions) {
-  const { raceId, data, busyRef, pending, settingsForm, settingsAttempt, requireSession, begin, finish, current, request, json, csrf, load,
-    setSettingsForm, setSettingsAttempt, setSettingsMessage } = ws;
+  const { raceId, data, writingRef, pending, settingsForm, settingsAttempt, requireSession, begin, finish, current, request, json, csrf, load,
+    setSettingsForm, setSettingsAttempt, setSettingsMessage, setSettingsErrors } = ws;
   const text = raceTypeSv.settings;
 
   function changeSettings(change: Partial<SettingsForm>) {
     if (!data) return;
-    setSettingsMessage(undefined);
+    setSettingsMessage(undefined); setSettingsErrors({});
     setSettingsForm({ ...(settingsForm ?? { eventName: data.eventName, raceName: data.raceName, raceDate: data.raceDate,
       raceType: data.raceType }), ...change });
   }
@@ -31,13 +34,19 @@ export function createSettingsActions(ws: Base & RaceDataActions) {
    * 400/404/409 betyder att något ändrats under tiden och försöket släpps.
    */
   async function saveSettings() {
-    if (busyRef.current || pending.current || !requireSession() || !data) return;
+    if (writingRef.current || pending.current || !requireSession() || !data) return;
     const form = settingsForm ?? { eventName: data.eventName, raceName: data.raceName, raceDate: data.raceDate, raceType: data.raceType };
+    // Svenska fältfel i stället för webbläsarens (PLAN.md steg 24).
+    const errors = { eventName: form.eventName.trim().length >= 2 ? undefined : formErrorsSv.eventName,
+      raceName: form.raceName.trim().length >= 2 ? undefined : formErrorsSv.stageName,
+      raceDate: isIsoDate(form.raceDate) ? undefined : formErrorsSv.raceDate };
+    setSettingsErrors(errors);
+    if (!settingsAttempt && Object.values(errors).some(Boolean)) return;
     const attempt: RaceSettingsRequest = settingsAttempt ?? { formatVersion: 1, requestId: crypto.randomUUID(),
       eventName: form.eventName.trim(), raceName: form.raceName.trim(),
       raceDate: form.raceDate, raceType: form.raceType };
     setSettingsAttempt(attempt); setSettingsMessage(undefined);
-    const op = begin();
+    const op = begin(true);
     try {
       const response = await request("/settings", op, { method: "POST", headers: { "content-type": "application/json",
         "x-otid-csrf": csrf(), "idempotency-key": `race-settings:${attempt.requestId}` }, body: JSON.stringify(attempt) });

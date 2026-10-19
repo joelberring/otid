@@ -18,7 +18,7 @@
 .prose { display: grid; gap: 12px; max-width: 68ch; }
 .prose h2 { margin-top: 12px; font-size: var(--text-md); }
 .search { display: flex; gap: 8px; align-items: end; max-width: 32rem; }
-.search > label { flex: 1 1 auto; }
+.search > :first-child { flex: 1 1 auto; }
 .search button { flex: 0 0 auto; }
 .rowActions { display: flex; flex-wrap: nowrap; gap: 4px; }
 .rowActions button { min-height: 32px; padding: 0 10px; font-size: var(--text-xs); }

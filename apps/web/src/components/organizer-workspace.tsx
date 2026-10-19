@@ -2,11 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
-import {
-  organizerEventCreateRequestSchema,
-  type OrganizerEventCreateResponse,
-  type OrganizerMyEventsResponse
-} from "@o-tid/contracts";
+import { organizerEventCreateRequestSchema, type OrganizerMyEventsResponse } from "@o-tid/contracts";
 import {
   clearOrganizerAttempt,
   createOrganizerAttempt,
@@ -25,6 +21,8 @@ import { raceTypeSv } from "../i18n/race-type-sv";
 import { RaceTypeChoice } from "./race-type-choice";
 import { CopyRaceDialog, type CopySource } from "./copy-race-dialog";
 import { raceCopySv } from "../i18n/race-copy-sv";
+import { hasErrors, validateCreateRace, type CreateRaceInput, type FieldErrors } from "../lib/form-validation";
+import { DateInput, Field, focusFirstError } from "./ui";
 import styles from "./organizer-workspace.module.css";
 
 type Session = { accountId: string; email: string; displayName: string; superadmin: boolean; expiresAt: string };
@@ -56,34 +54,18 @@ export function OrganizerWorkspace() {
   const [eventsLoaded, setEventsLoaded] = useState(false);
   const [eventsError, setEventsError] = useState("");
   const [attempt, setAttempt] = useState<OrganizerCreateAttempt>();
-  const [created, setCreated] = useState<OrganizerEventCreateResponse>();
-  const [showAnotherForm, setShowAnotherForm] = useState(false);
+  const [createErrors, setCreateErrors] = useState<FieldErrors<keyof CreateRaceInput>>({});
   const [busy, setBusy] = useState(false);
   const [enteringRaceId, setEnteringRaceId] = useState<string>();
   const [copySource, setCopySource] = useState<CopySource>();
   const [message, setMessage] = useState("");
   const createHeadingRef = useRef<HTMLHeadingElement>(null);
-  const createNameRef = useRef<HTMLInputElement>(null);
-  const receiptFocusPendingRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     if (!session || !attempt) return;
     createHeadingRef.current?.focus({ preventScroll: true });
     createHeadingRef.current?.scrollIntoView({ behavior: "auto", block: "start" });
   }, [session?.accountId, attempt?.requestId]);
-
-  useEffect(() => {
-    if (!session || !created || !eventsLoaded || receiptFocusPendingRef.current !== created.requestId) return;
-    receiptFocusPendingRef.current = undefined;
-    createHeadingRef.current?.focus({ preventScroll: true });
-    createHeadingRef.current?.scrollIntoView({ behavior: "auto", block: "start" });
-  }, [session?.accountId, created?.requestId, eventsLoaded]);
-
-  useEffect(() => {
-    if (!session || !created || !showAnotherForm) return;
-    createNameRef.current?.focus({ preventScroll: true });
-    createNameRef.current?.scrollIntoView({ behavior: "auto", block: "nearest" });
-  }, [session?.accountId, created?.requestId, showAnotherForm]);
 
   async function loadEvents() {
     setEventsLoaded(false);
@@ -94,8 +76,6 @@ export function OrganizerWorkspace() {
         setSession(undefined);
         setEvents([]);
         setEventSearch("");
-        setCreated(undefined);
-        setShowAnotherForm(false);
         throw new Error(copy.sessionExpired);
       }
       if (!response.ok) throw new Error(copy.eventsLoadError(response.status));
@@ -115,8 +95,6 @@ export function OrganizerWorkspace() {
       if (response.status === 401 || response.status === 403) {
         setSession(undefined);
         setEventSearch("");
-        setCreated(undefined);
-        setShowAnotherForm(false);
         return;
       }
       if (!response.ok) throw new Error(copy.sessionCheckError(response.status));
@@ -124,8 +102,6 @@ export function OrganizerWorkspace() {
       if (!current) {
         setSession(undefined);
         setEventSearch("");
-        setCreated(undefined);
-        setShowAnotherForm(false);
         return;
       }
       setSession(current);
@@ -232,16 +208,9 @@ export function OrganizerWorkspace() {
       const result = parseOrganizerCreateResponse(await responseJson(response), current);
       clearOrganizerAttempt();
       setAttempt(undefined);
-      receiptFocusPendingRef.current = result.requestId;
-      const refreshedEvents = loadEvents();
-      setCreated(result);
-      setShowAnotherForm(false);
-      setMessage("");
-      try {
-        await refreshedEvents;
-      } catch (error) {
-        setMessage(copy.eventCreatedButListFailed(errorMessage(error)));
-      }
+      // PLAN.md steg 24: direkt in i den nya tävlingens arbetsyta.
+      setMessage(copy.created);
+      enterRace(result.raceId);
     } catch (error) {
       setMessage(errorMessage(error));
     } finally {
@@ -251,21 +220,27 @@ export function OrganizerWorkspace() {
 
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const element = event.currentTarget;
+    const form = new FormData(element);
+    const value = (name: string) => { const field = form.get(name); return typeof field === "string" ? field : ""; };
+    const input = { eventName: value("eventName"), stageName: value("raceName"), raceDate: value("raceDate").trim(), timeZone: value("timeZone") };
+    // Svenska fältfel i stället för webbläsarens (PLAN.md steg 24).
+    const errors = validateCreateRace(input);
+    setCreateErrors(errors);
+    if (hasErrors(errors)) { focusFirstError(element); return; }
     try {
       const request = organizerEventCreateRequestSchema.parse({
         formatVersion: 1,
-        eventName: form.get("eventName"),
-        raceName: form.get("raceName"),
-        raceDate: form.get("raceDate"),
-        timeZone: form.get("timeZone"),
+        eventName: input.eventName,
+        raceName: input.stageName.trim() || copy.defaultRaceName,
+        raceDate: input.raceDate,
+        timeZone: input.timeZone.trim(),
         raceType: form.get("raceType")
       });
       if (!session) throw new Error(copy.sessionExpired);
       const current = createOrganizerAttempt(request, session.accountId, () => crypto.randomUUID());
       saveOrganizerAttempt(current);
       setAttempt(current);
-      setCreated(undefined);
       await submitCreate(current);
     } catch (error) {
       setMessage(errorMessage(error));
@@ -292,8 +267,6 @@ export function OrganizerWorkspace() {
       setEvents([]);
       setEventSearch("");
       setEventsLoaded(false);
-      setCreated(undefined);
-      setShowAnotherForm(false);
       setMode("login");
       setMessage(copy.loggedOut);
     } catch (error) {
@@ -418,22 +391,27 @@ export function OrganizerWorkspace() {
 
       <section id="organizer-create-event" className={`${styles.panel} ${styles.createPanel}`}>
         <h2 ref={createHeadingRef} tabIndex={-1}>{copy.createEvent}</h2>
-        {!attempt && (!created || showAnotherForm) && <><p className={styles.muted}>{copy.createHint}</p>
-          <form className={`${styles.form} ${styles.createForm}`} onSubmit={(event) => void create(event)}>
-            <label>{copy.eventName}<input ref={createNameRef} name="eventName" required minLength={2} maxLength={160} disabled={busy} /></label>
-            <label>{copy.raceName}<input name="raceName" required minLength={2} maxLength={160} disabled={busy} /></label>
-            <div className={styles.createDateZone}>
-              <label>{copy.date}<input name="raceDate" type="date" required disabled={busy} /></label>
-              <label>{copy.timeZone}<input name="timeZone" defaultValue="Europe/Stockholm" required maxLength={100} disabled={busy} /></label>
-            </div>
+        {!attempt && <><p className={styles.muted}>{copy.createHint}</p>
+          <form className={`${styles.form} ${styles.createForm}`} noValidate onSubmit={(event) => void create(event)}>
+            <Field label={copy.eventName} error={createErrors.eventName}><input name="eventName" maxLength={160} disabled={busy}
+              onChange={() => createErrors.eventName && setCreateErrors({ ...createErrors, eventName: undefined })} /></Field>
+            <Field label={copy.raceName} error={createErrors.stageName} help={copy.raceNameHelp}><input name="raceName" maxLength={160}
+              disabled={busy} onChange={() => createErrors.stageName && setCreateErrors({ ...createErrors, stageName: undefined })} /></Field>
+            <Field label={copy.date} error={createErrors.raceDate} className={styles.createDate}><DateInput name="raceDate"
+              disabled={busy} onChange={() => createErrors.raceDate && setCreateErrors({ ...createErrors, raceDate: undefined })} /></Field>
             <RaceTypeChoice name="raceType" defaultValue="STANDARD" disabled={busy} />
+            {/* Tidszonen behövs nästan aldrig: förvald Europe/Stockholm och ändras under "Mer". */}
+            <details className={styles.more} open={createErrors.timeZone ? true : undefined}>
+              <summary>{copy.more}</summary>
+              <Field label={copy.timeZone} error={createErrors.timeZone} help={copy.timeZoneHelp}><input name="timeZone"
+                defaultValue="Europe/Stockholm" maxLength={100} disabled={busy} /></Field>
+            </details>
             <button type="submit" disabled={busy} aria-busy={busy}>{copy.createEvent}</button>
           </form></>}
         {attempt && <div className={styles.uncertain} role="alert">
           <h3>{attemptMatchesSession ? copy.createUnconfirmed : copy.savedAttemptOtherAccountTitle}</h3>
           <p>{attemptBelongsToOtherAccount ? copy.attemptBelongsToOtherAccount : copy.createUnconfirmedHint}</p>
-          <dl><dt>{copy.requestId}</dt><dd>{attempt.requestId}</dd>
-            <dt>{copy.eventName}</dt><dd>{attempt.request.eventName}</dd>
+          <dl><dt>{copy.eventName}</dt><dd>{attempt.request.eventName}</dd>
             <dt>{copy.raceName}</dt><dd>{attempt.request.raceName}</dd>
             <dt>{copy.date}</dt><dd>{attempt.request.raceDate}</dd>
             <dt>{raceTypeSv.typeLegend}</dt><dd>{raceTypeSv.types[attempt.request.raceType ?? "STANDARD"].name}</dd>
@@ -441,16 +419,6 @@ export function OrganizerWorkspace() {
           <div className={styles.actions}>
             {attemptMatchesSession && <button type="button" disabled={busy || !session} onClick={() => void submitCreate(attempt)}>{copy.retrySameAttempt}</button>}
             <button type="button" className={styles.secondary} disabled={busy} onClick={cancelAttempt}>{attemptBelongsToOtherAccount ? copy.abandonSavedAttempt : copy.abandonAttempt}</button>
-          </div>
-        </div>}
-        {created && !attempt && !showAnotherForm && <div className={styles.confirmed} role="status">
-          <strong>{created.replayed ? copy.createdOnRetry : copy.created}</strong>
-          <p>{copy.nowInYourEvents}</p>
-          <dl className={styles.createReceipt}><dt>{copy.createdAt}</dt><dd><time dateTime={created.createdAt}>{new Date(created.createdAt).toLocaleString("sv-SE")}</time></dd></dl>
-          <div className={styles.actions}>
-            <button type="button" disabled={busy || enteringRaceId !== undefined} aria-busy={enteringRaceId === created.raceId}
-              onClick={() => enterRace(created.raceId)}>{enteringRaceId === created.raceId ? copy.opening : copy.openRace}</button>
-            <button type="button" className={styles.secondary} disabled={busy} onClick={() => { setShowAnotherForm(true); setMessage(""); }}>{copy.createAnotherEvent}</button>
           </div>
         </div>}
       </section>

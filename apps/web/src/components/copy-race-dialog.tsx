@@ -5,7 +5,9 @@ import { createPortal } from "react-dom";
 import { defaultRaceCopyDate, raceCopyResponseSchema, type RaceCopyResponse } from "@o-tid/contracts";
 import { raceCopySv as text } from "../i18n/race-copy-sv";
 import { accountRequest } from "../lib/account-client";
-import { Button, Field, Notice } from "./ui";
+import { formErrorsSv } from "../i18n/form-errors-sv";
+import { hasErrors, isIsoDate, type FieldErrors } from "../lib/form-validation";
+import { Button, DateInput, Field, Notice, focusFirstError } from "./ui";
 import styles from "./copy-race-dialog.module.css";
 
 export interface CopySource { raceId: string; eventName: string; raceName: string; raceDate: string }
@@ -55,6 +57,7 @@ function CopyRaceDialogContent({ source, onClose, onCopied }: {
   const [problem, setProblem] = useState<string>();
   const [result, setResult] = useState<RaceCopyResponse>();
   const [opening, setOpening] = useState(false);
+  const [errors, setErrors] = useState<FieldErrors<"eventName" | "raceName" | "raceDate">>({});
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -62,13 +65,19 @@ function CopyRaceDialogContent({ source, onClose, onCopied }: {
   }, []);
 
   function change(patch: Partial<Form>) {
-    setForm(current => ({ ...current, ...patch }));
+    setForm(current => ({ ...current, ...patch })); setErrors({});
     // Ändrat innehåll är ett nytt försök.
     setRequestId(crypto.randomUUID());
   }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    // Svenska fältfel i stället för webbläsarens (PLAN.md steg 24).
+    const next = { eventName: form.eventName.trim().length >= 2 ? undefined : formErrorsSv.eventName,
+      raceName: form.raceName.trim().length >= 2 ? undefined : formErrorsSv.stageName,
+      raceDate: isIsoDate(form.raceDate) ? undefined : formErrorsSv.raceDate };
+    setErrors(next);
+    if (hasErrors(next)) { focusFirstError(event.currentTarget as HTMLFormElement); return; }
     setBusy(true);
     setProblem(undefined);
     try {
@@ -93,14 +102,14 @@ function CopyRaceDialogContent({ source, onClose, onCopied }: {
   const titleId = `copy-race-${source.raceId}-title`;
   return <dialog ref={dialogRef} className={styles.dialog} aria-labelledby={titleId} onClose={onClose}>
     <h2 id={titleId}>{text.title}</h2>
-    {!result && <form className={styles.form} onSubmit={event => void submit(event)}>
+    {!result && <form className={styles.form} noValidate onSubmit={event => void submit(event)}>
       <p className={styles.intro}>{text.intro(source.raceName === source.eventName ? source.eventName : `${source.eventName} · ${source.raceName}`)}</p>
-      <Field label={text.eventName}><input value={form.eventName} minLength={2} maxLength={160} required disabled={busy}
+      <Field label={text.eventName} error={errors.eventName}><input value={form.eventName} maxLength={160} disabled={busy}
         onChange={event => change({ eventName: event.target.value })} /></Field>
       <div className={styles.row}>
-        <Field label={text.raceName}><input value={form.raceName} minLength={2} maxLength={160} required disabled={busy}
+        <Field label={text.raceName} error={errors.raceName}><input value={form.raceName} maxLength={160} disabled={busy}
           onChange={event => change({ raceName: event.target.value })} /></Field>
-        <Field label={text.raceDate}><input type="date" value={form.raceDate} required disabled={busy}
+        <Field label={text.raceDate} error={errors.raceDate}><DateInput value={form.raceDate} disabled={busy}
           onChange={event => change({ raceDate: event.target.value })} /></Field>
       </div>
       <label className={styles.check}>

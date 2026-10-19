@@ -1,9 +1,10 @@
+import { startRuleSv as rule } from "./start-rule-sv";
 /** Stafett (ADR-0169 beslut 3): stafettklass, lag, sträcklöpare, starttider och lagresultat. */
 type Method = "MASS_START" | "CHANGEOVER" | "RESTART";
 type TeamStatus = "OK" | "MP" | "DSQ" | "DNF" | "OOC" | "NT" | "DNS" | "RUNNING";
 
 export const relaySv = {
-  methods: { MASS_START: "Masstart", CHANGEOVER: "Växling", RESTART: "Växling med omstart" } satisfies Record<Method, string>,
+  methods: rule.relay satisfies Record<Method, string>,
   methodHelp: "Sträcka 1 startar alltid med masstart. Växling: sträckan startar när föregående löpare går i mål. Omstart: lag som inte växlat före omstartstiden startar då.",
   // Klasser
   newClass: "Ny stafettklass",
@@ -15,7 +16,7 @@ export const relaySv = {
   actions: "Åtgärd",
   legCount: "Antal sträckor",
   leg: (leg: number) => `Sträcka ${leg}`,
-  legMethod: (leg: number) => `Startsätt sträcka ${leg}`,
+  legMethod: (leg: number) => `${rule.label} sträcka ${leg}`,
   legTime: (leg: number, method: Method) => method === "RESTART" ? `Omstart sträcka ${leg}` : `Masstart sträcka ${leg}`,
   legVariant: (leg: number) => `Variant sträcka ${leg}`,
   forkedVariants: "Fördelas över lagen",
@@ -30,6 +31,9 @@ export const relaySv = {
   // Anmälda (lagvy)
   teams: "Lag",
   teamsHelp: "Lagen i stafettklasserna. Klicka på ett lag för att se sträckorna och byta löpare.",
+  noRelayClassTitle: "Det finns ingen stafettklass ännu.",
+  noRelayClassHelp: "Skapa först en stafettklass under Klasser & sträckor. Sedan lägger du in lagen här.",
+  goToClasses: "Gå till Klasser & sträckor",
   noTeams: "Inga lag anmälda ännu.",
   newTeam: "Nytt lag",
   teamClass: "Stafettklass",

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import {
   entryCardChangeRequestSchema, entryCardChangeResponseSchema, entryCardRentalChangeRequestSchema,
   entryCardRentalChangeResponseSchema, entryCardRentalReturnChangeRequestSchema, entryCardRentalReturnChangeResponseSchema,
@@ -8,7 +8,9 @@ import {
   entryStartTimeChangeRequestSchema, entryStartTimeChangeResponseSchema, entryTransferRequestSchema,
   entryTransferResponseSchema, type EntryIdentityAdminListResponse
 } from "@o-tid/contracts";
-import { parseRaceClock } from "../../lib/clock-time";
+import { formatClockTime, parseRaceClock } from "../../lib/clock-time";
+import { hasErrors, validateRegistration, type FieldErrors } from "../../lib/form-validation";
+import { focusFirstError, focusWhenEnabled } from "../ui";
 import { parseIdentityReceipt } from "../../lib/entry-identity-client";
 import { parseRegistrationReceipt } from "../../lib/entry-registration-client";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
@@ -17,6 +19,9 @@ import type { CardAttempt, IdentityAttempt, RegistrationAttempt, RentalAttempt, 
 import type { Base, WorkspaceState } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
 import type { Roster } from "./participant-roster";
+import { deriveSections } from "./navigation";
+
+export type RegistrationField = "classId" | "givenName" | "familyName" | "card" | "startClock";
 
 /** Formulärläge för ändringar av en deltagare: klass, bricka, hyrbricka, betalning, starttid, identitet och anmälan. */
 export function useEntryActionState() {
@@ -37,7 +42,11 @@ export function useEntryActionState() {
   const [givenName, setGivenName] = useState("");
   const [familyName, setFamilyName] = useState("");
   const [organisationName, setOrganisationName] = useState("");
-  return { classId, setClassId, startClock, setStartClock, transferAttempt,
+  /** Ny deltagare i ett steg (PLAN.md steg 24): fälten visar sina fel, raden under formuläret säger vem som lades till. */
+  const [registrationErrors, setRegistrationErrors] = useState<FieldErrors<RegistrationField>>({});
+  const [registrationSaved, setRegistrationSaved] = useState("");
+  const registrationForm = useRef<HTMLFormElement | null>(null);
+  return { registrationErrors, setRegistrationErrors, registrationSaved, setRegistrationSaved, registrationForm, classId, setClassId, startClock, setStartClock, transferAttempt,
     setTransferAttempt, newCard, setNewCard, cardAttempt, setCardAttempt, rentalAttempt, setRentalAttempt, rentalReturnAttempt,
     setRentalReturnAttempt, rentalReuseAttempt, setRentalReuseAttempt, rentalReuseSourceId, setRentalReuseSourceId,
     timeAttempt, setTimeAttempt,
@@ -53,7 +62,10 @@ export function deriveEntryActions(s: WorkspaceState, { selected }: Pick<Roster,
   const identityMatches = !!data && !!selected && !!identityCandidate && identityCandidates?.snapshotVersion === data.snapshotVersion &&
     identityCandidate.classId === selected.classId && identityCandidate.version === selected.version;
   const targetFull = !!target && target.maxEntries !== null && target.entryCount >= target.maxEntries;
-  return { target, targetFull, identityCandidate, identityMatches };
+  // Minutstart får lämnas utan tid när typen lottar: tiden ges när klassen lottas (PLAN.md steg 24).
+  const startTimeOptional = !!target && target.startRule === "FIXED" && !target.startDrawn && s.data !== undefined &&
+    deriveSections(s).profile.features.draw;
+  return { target, targetFull, startTimeOptional, identityCandidate, identityMatches };
 }
 
 /**
@@ -62,14 +74,14 @@ export function deriveEntryActions(s: WorkspaceState, { selected }: Pick<Roster,
  */
 export function createEntryActions(ws: Base & RaceDataActions) {
   const { raceId, data, entryId, classId, startClock, newCard, rentalReuseSourceId, givenName, familyName,
-    organisationName, confirmDistinctPerson, target, targetFull, identityCandidate, identityMatches, busyRef, pending, sent,
+    organisationName, confirmDistinctPerson, target, targetFull, startTimeOptional, registrationForm, identityCandidate, identityMatches, writingRef, pending, sent,
     requireSession, begin, finish, current, request, json, csrf, load, setGivenName, setFamilyName,
     setOrganisationName, setIdentityCandidates, setMessage, setUnknown, setTransferAttempt, setData, setEntryId, setClassId,
     setNewCard, setStartClock, setCardAttempt, setRentalAttempt, setRentalReturnAttempt,
     setRentalReuseAttempt, setRentalReuseSourceId, setTimeAttempt, setIdentityAttempt, setQuery,
-    setPage, setConfirmDistinctPerson, setRegistrationAttempt, setResultState, setAction } = ws;
+    setPage, setConfirmDistinctPerson, setRegistrationAttempt, setRegistrationErrors, setRegistrationSaved } = ws;
   async function loadIdentity(selectedId = entryId) {
-    if (busyRef.current || pending.current || !requireSession()) return;
+    if (writingRef.current || pending.current || !requireSession()) return;
     const op = begin(); setGivenName(""); setFamilyName(""); setOrganisationName("");
     try {
       const roster = await load(op, selectedId);
@@ -87,7 +99,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
     finally { finish(op); }
   }
   function prepareTransfer(event: FormEvent) {
-    event.preventDefault(); if (busyRef.current || pending.current || !requireSession()) return;
+    event.preventDefault(); if (writingRef.current || pending.current || !requireSession()) return;
     const entry = data?.entries.find((row) => row.id === entryId);
     const target = data?.classes.find((row) => row.id === classId);
     const previous = data?.classes.find((row) => row.id === entry?.classId);
@@ -105,7 +117,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
     pending.current = value; sent.current = false; setTransferAttempt(value); setUnknown(false); setMessage("");
   }
   async function submitTransfer(value: TransferAttempt) {
-    if (busyRef.current || pending.current !== value || !requireSession()) return;
+    if (writingRef.current || pending.current !== value || !requireSession()) return;
     const op = begin(); const wasUnknown = sent.current;
     let committed = false;
     try {
@@ -131,7 +143,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
     } finally { finish(op); }
   }
   function prepareCard(event: FormEvent) {
-    event.preventDefault(); if (busyRef.current || pending.current || !requireSession()) return;
+    event.preventDefault(); if (writingRef.current || pending.current || !requireSession()) return;
     const entry = data?.entries.find((row) => row.id === entryId);
     if (!data || !entry || entry.multipleActiveAssignments) { setMessage(text.cardInvalid); return; }
     const parsed = entryCardChangeRequestSchema.safeParse({ formatVersion: 1,
@@ -145,7 +157,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
     void submitCard(value);
   }
   async function submitCard(value: CardAttempt) {
-    if (busyRef.current || pending.current !== value || !requireSession()) return;
+    if (writingRef.current || pending.current !== value || !requireSession()) return;
     const op = begin(); const wasUnknown = sent.current;
     let committed = false;
     try {
@@ -174,7 +186,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
     } finally { finish(op); }
   }
   function prepareRental() {
-    if (busyRef.current || pending.current || !requireSession()) return;
+    if (writingRef.current || pending.current || !requireSession()) return;
     const entry = data?.entries.find((row) => row.id === entryId);
     if (!data || !entry || entry.multipleActiveAssignments || !entry.activeAssignment) {
       setMessage(text.rentalInvalid); return;
@@ -193,7 +205,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
     void submitRental(value);
   }
   async function submitRental(value: RentalAttempt) {
-    if (busyRef.current || pending.current !== value || !requireSession()) return;
+    if (writingRef.current || pending.current !== value || !requireSession()) return;
     const op = begin(); const wasUnknown = sent.current; let committed = false;
     try {
       const token = csrf(); sent.current = true;
@@ -219,7 +231,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
     } finally { finish(op); }
   }
   function prepareRentalReturn() {
-    if (busyRef.current || pending.current || !requireSession()) return;
+    if (writingRef.current || pending.current || !requireSession()) return;
     const entry = data?.entries.find((row) => row.id === entryId);
     if (!data || !entry || entry.multipleActiveAssignments || !entry.activeAssignment?.isRental) {
       setMessage(text.rentalReturnInvalid); return;
@@ -235,7 +247,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
     void submitRentalReturn(value);
   }
   async function submitRentalReturn(value: RentalReturnAttempt) {
-    if (busyRef.current || pending.current !== value || !requireSession()) return;
+    if (writingRef.current || pending.current !== value || !requireSession()) return;
     const op = begin(); const wasUnknown = sent.current; let committed = false;
     try {
       const token = csrf(); sent.current = true;
@@ -262,7 +274,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
     } finally { finish(op); }
   }
   function prepareRentalReuse(event: FormEvent) {
-    event.preventDefault(); if (busyRef.current || pending.current || !requireSession()) return;
+    event.preventDefault(); if (writingRef.current || pending.current || !requireSession()) return;
     const target = data?.entries.find((row) => row.id === entryId);
     const source = data?.entries.find((row) => row.activeAssignment?.id === rentalReuseSourceId);
     if (!data || !target || !source || target.id === source.id || target.multipleActiveAssignments ||
@@ -280,7 +292,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
     void submitRentalReuse(value);
   }
   async function submitRentalReuse(value: RentalReuseAttempt) {
-    if (busyRef.current || pending.current !== value || !requireSession()) return;
+    if (writingRef.current || pending.current !== value || !requireSession()) return;
     const op = begin(); const wasUnknown = sent.current; let committed = false;
     try {
       const token = csrf(); sent.current = true;
@@ -308,7 +320,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
     } finally { finish(op); }
   }
   function prepareTime(event: FormEvent) {
-    event.preventDefault(); if (busyRef.current || pending.current || !requireSession()) return;
+    event.preventDefault(); if (writingRef.current || pending.current || !requireSession()) return;
     const entry = data?.entries.find((row) => row.id === entryId);
     const currentClass = data?.classes.find((row) => row.id === entry?.classId);
     const fixedStartTime = data ? parseRaceClock(data.raceDate, startClock, data.timeZone) : null;
@@ -322,7 +334,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
     pending.current = value; sent.current = false; setTimeAttempt(value); setUnknown(false); setMessage("");
   }
   async function submitTime(value: TimeAttempt) {
-    if (busyRef.current || pending.current !== value || !requireSession()) return;
+    if (writingRef.current || pending.current !== value || !requireSession()) return;
     const op = begin(); const wasUnknown = sent.current;
     let committed = false;
     try {
@@ -348,7 +360,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
     } finally { finish(op); }
   }
   function prepareIdentity(event: FormEvent) {
-    event.preventDefault(); if (busyRef.current || pending.current || !requireSession()) return;
+    event.preventDefault(); if (writingRef.current || pending.current || !requireSession()) return;
     if (!data || !identityMatches || !identityCandidate) { setMessage(text.identityLoadError); return; }
     const parsed = entryIdentityChangeRequestSchema.safeParse({ formatVersion: 1, expectedEntryVersion: identityCandidate.version,
       expectedClassId: identityCandidate.classId, expectedIdentity: identityCandidate.identity,
@@ -362,7 +374,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
     void submitIdentity(value);
   }
   async function submitIdentity(value: IdentityAttempt) {
-    if (busyRef.current || pending.current !== value || !requireSession()) return;
+    if (writingRef.current || pending.current !== value || !requireSession()) return;
     const op = begin(); const wasUnknown = sent.current;
     let committed = false;
     try {
@@ -384,18 +396,29 @@ export function createEntryActions(ws: Base & RaceDataActions) {
       if (current(op)) { setUnknown(!committed); setMessage(committed ? text.identitySavedLoadError : text.unreachable); }
     } finally { finish(op); }
   }
+  /**
+   * Ny deltagare i ett steg (PLAN.md steg 24): fälten kontrolleras, möjliga dubbletter söks och finns inga läggs
+   * deltagaren till direkt. Formuläret står kvar med klass och klubb för nästa deltagare. Bara en möjlig dubblett
+   * (samma namn eller bricka) visas och kräver ett val.
+   */
   async function prepareRegistration(event: FormEvent) {
-    event.preventDefault(); if (busyRef.current || pending.current || !requireSession()) return;
-    if (!data || !target || targetFull) { setMessage(text.registrationInvalid); return; }
+    event.preventDefault(); if (writingRef.current || pending.current || !requireSession() || !data) return;
+    setRegistrationSaved("");
+    const errors = validateRegistration({ classId: target?.id ?? "", classFull: targetFull, givenName, familyName, card: newCard,
+      startClock, fixedStart: target?.startRule === "FIXED" && !target.startDrawn, timeOptional: startTimeOptional });
+    setRegistrationErrors(errors);
+    if (hasErrors(errors) || !target) { focusFirstError(registrationForm.current); return; }
+    const clock = startClock.trim();
     const parsed = entryRegistrationRequestSchema.safeParse({ formatVersion: 1, classId: target.id,
-      expectedCourseVersionId: target.courseVersionId, expectedStartRule: target.startRule, givenName, familyName, organisationName: organisationName.trim() || null, cardNumber: newCard.trim() || null,
-      // Lottad klass: appen ger första lediga vakanta tid när anmälan sparas (PLAN.md steg 9).
-      fixedStartTime: target.startRule === "FIXED" && !target.startDrawn ? parseRaceClock(data.raceDate, startClock, data.timeZone) : null });
-    if (!parsed.success || (target.startRule === "FIXED" && !target.startDrawn && parsed.data.fixedStartTime === null)) {
-      setMessage(text.registrationInvalid); return;
-    }
+      expectedCourseVersionId: target.courseVersionId, expectedStartRule: target.startRule, givenName, familyName,
+      organisationName: organisationName.trim() || null, cardNumber: newCard.trim() || null,
+      // Lottad klass: appen ger första lediga vakanta tid. Inte lottad än och tomt fält: tiden ges vid lottningen.
+      fixedStartTime: target.startRule === "FIXED" && !target.startDrawn && clock ? parseRaceClock(data.raceDate, clock, data.timeZone) : null });
+    if (!parsed.success) { setMessage(text.registrationConflict); return; }
     const frozen = { kind: "REGISTRATION" as const, id: crypto.randomUUID(), className: target.name, timeZone: data.timeZone, request: parsed.data };
-    const op = begin(); setConfirmDistinctPerson(false); setMessage(text.registrationSearching);
+    // Dubblettsökningen hör till anmälan och räknas som en skrivning, så att inget annat avbryter den.
+    const op = begin(true); setConfirmDistinctPerson(false);
+    let value: RegistrationAttempt | undefined;
     try {
       const response = await request("/registration-candidates", op, { method: "POST",
         headers: { "content-type": "application/json", "x-otid-csrf": csrf() },
@@ -403,14 +426,20 @@ export function createEntryActions(ws: Base & RaceDataActions) {
       if (!response.ok) throw new Error("Registration candidate search failed");
       const candidates = entryRegistrationCandidatesResponseSchema.parse(await json(response, op));
       if (candidates.raceId !== raceId) throw new Error("Registration candidate scope mismatch");
-      const value: RegistrationAttempt = { ...frozen, candidates };
+      value = { ...frozen, candidates };
       pending.current = value; sent.current = false; setRegistrationAttempt(value); setUnknown(false); setMessage("");
-    } catch { if (current(op)) setMessage(text.registrationSearchError); }
+      if (candidates.candidates.some(row => row.reasons.includes("CARD_ALREADY_ASSIGNED"))) {
+        // Brickan är tagen: felet står vid fältet och inget sparas.
+        pending.current = undefined; setRegistrationAttempt(undefined); value = undefined;
+        setRegistrationErrors({ card: text.registrationCardConflict }); focusFirstError(registrationForm.current);
+      }
+    } catch { if (current(op)) setMessage(text.registrationSearchError); value = undefined; }
     finally { finish(op); }
+    if (value && value.candidates.candidates.length === 0) await submitRegistration(value, true);
   }
-  async function submitRegistration(value: RegistrationAttempt) {
-    if (busyRef.current || pending.current !== value || !requireSession()) return;
-    if (!sent.current && (value.candidates.candidates.some((row) => row.reasons.includes("CARD_ALREADY_ASSIGNED")) ||
+  async function submitRegistration(value: RegistrationAttempt, direct = false) {
+    if (writingRef.current || pending.current !== value || !requireSession()) return;
+    if (!direct && !sent.current && (value.candidates.candidates.some((row) => row.reasons.includes("CARD_ALREADY_ASSIGNED")) ||
       (value.candidates.candidates.some((row) => row.reasons.includes("SAME_NAME")) && !confirmDistinctPerson))) return;
     const op = begin(); const wasUnknown = sent.current;
     let committed = false;
@@ -422,18 +451,24 @@ export function createEntryActions(ws: Base & RaceDataActions) {
       if ([400, 404, 409].includes(response.status)) {
         if (wasUnknown) { setUnknown(true); setMessage(text.unreachable); return; }
         pending.current = undefined; sent.current = false; setRegistrationAttempt(undefined); setUnknown(false);
-        setData(undefined); setMessage(text.registrationConflict); return;
+        setMessage(text.registrationConflict); return;
       }
       if (!response.ok) throw new Error("Unknown registration outcome");
       const receipt = parseRegistrationReceipt(await json(response, op), raceId, value);
       committed = true; pending.current = undefined; sent.current = false; setRegistrationAttempt(undefined); setUnknown(false);
-      setData(undefined); setGivenName(""); setFamilyName(""); setOrganisationName(""); setNewCard(""); setClassId("");
-      setStartClock(""); setQuery(""); setResultState("ALL");
-      setPage(0); setAction("INFO"); setEntryId(receipt.entryId);
-      setMessage(text.registrationSaved); await load(op, receipt.entryId);
+      // Klass och klubb står kvar för nästa deltagare; namn, bricka och tid töms.
+      setGivenName(""); setFamilyName(""); setNewCard(""); setStartClock(""); setRegistrationErrors({});
+      const runner = `${receipt.givenName} ${receipt.familyName}`;
+      setRegistrationSaved(receipt.fixedStartTime ? text.registrationAddedTime(runner, value.className,
+        formatClockTime(receipt.fixedStartTime, value.timeZone)) : text.registrationAdded(runner, value.className));
+      setMessage(""); await load(op);
     } catch {
       if (current(op)) { setUnknown(!committed); setMessage(committed ? text.registrationSavedLoadError : text.unreachable); }
-    } finally { finish(op); }
+    } finally {
+      finish(op);
+      // Fokus till Förnamn när formuläret är upplåst igen, så att nästa deltagare kan skrivas direkt.
+      if (committed) focusWhenEnabled(registrationForm, 'input[name="givenName"]');
+    }
   }
   return { loadIdentity, prepareTransfer, submitTransfer, prepareCard,
     submitCard, prepareRental, submitRental, prepareRentalReturn, submitRentalReturn, prepareRentalReuse, submitRentalReuse,

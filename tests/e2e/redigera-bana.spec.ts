@@ -31,7 +31,7 @@ test("redigera bana efter avläsning räknar om resultatet", async ({ browser, r
   for (const route of ["courses", "classes"]) for (const action of ["edit-preview", "edit"]) {
     await warmRoute(owner, `/api/admin/races/${raceId}/administrator/${route}/${raceId}/${action}`, "POST");
   }
-  await warmRoute(owner, `/api/admin/races/${raceId}/administrator/entries/${raceId}/status`);
+  for (const route of ["status", "effective-result"]) await warmRoute(owner, `/api/admin/races/${raceId}/administrator/entries/${raceId}/${route}`);
   await openStep(owner, "Banor");
   const row = owner.getByRole("row", { name: /Lång/ });
   await expect(row).toContainText("31 32 33 34");

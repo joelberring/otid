@@ -10,7 +10,7 @@ export const entryRegistrationClassesResponseSchema = z.object({ formatVersion: 
 export const entryRegistrationRequestSchema = z.object({ formatVersion: z.literal(1),
   classId: uuid, expectedCourseVersionId: uuid, expectedStartRule: z.enum(["FIXED", "PUNCH"]),   givenName: z.string().trim().min(1).max(160), familyName: z.string().trim().min(1).max(160),
   organisationName: z.string().trim().min(1).max(200).nullable(), cardNumber: newEntryCardNumberSchema.nullable(),
-  // Fast start utan tid: klassen är lottad och appen ger första lediga tid (PLAN.md steg 9).
+  // Minutstart utan tid: en lottad klass ger första lediga tid (PLAN.md steg 9), annars ges tiden vid lottningen (steg 24).
   fixedStartTime: fixedStartTimeSchema.nullable()
 }).strict().refine((row) => row.expectedStartRule === "FIXED" || row.fixedStartTime === null);
 export const entryRegistrationIdempotencyKeySchema = z.string().regex(

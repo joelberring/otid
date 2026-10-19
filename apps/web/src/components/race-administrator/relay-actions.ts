@@ -50,7 +50,7 @@ export function useRelayState() {
 }
 
 export function createRelayActions(ws: Base & RaceDataActions) {
-  const { raceId, data, relay, busyRef, pending, requireSession, begin, beginRequest, finish, current, request, json, csrf, load,
+  const { raceId, data, relay, writingRef, pending, requireSession, begin, beginRequest, finish, current, request, json, csrf, load,
     relayClassName, relayClassCourseId, relayLegForms, relayClassAttempt, teamClassId, teamNumber, teamName, teamClub, teamRunners,
     teamAttempt, runnerChange, runnerAttempt, relayTimes, timesAttempt, setRelay, setRelayError, setRelayMessage, setRelayLegForms,
     setRelayClassAttempt, setRelayClassName, setTeamAttempt, setTeamName, setTeamNumber, setTeamRunners, setTeamClassId,
@@ -66,7 +66,7 @@ export function createRelayActions(ws: Base & RaceDataActions) {
   }
   /** Läser lagvyn utan att röra andra områdens underlag (som `begin` gör). */
   async function loadRelay() {
-    if (busyRef.current || pending.current || !requireSession()) return;
+    if (writingRef.current || pending.current || !requireSession()) return;
     const op = beginRequest();
     try { await readRelay(op); }
     catch { if (current(op)) setRelayError(text.loadError); }
@@ -76,7 +76,7 @@ export function createRelayActions(ws: Base & RaceDataActions) {
   /** Skickar en stafettändring. 400/404/409: beskedet visas och lagvyn läses om; försöket släpps. */
   async function send<T extends { requestId: string }>(path: string, prefix: string, attempt: T, parse: (value: unknown) => unknown,
     messages: { conflict: string; error: string }, clear: () => void, done: (receipt: unknown) => string) {
-    const op = begin();
+    const op = begin(true);
     try {
       const response = await request(path, op, { method: "POST", headers: { "content-type": "application/json", "x-otid-csrf": csrf(),
         "idempotency-key": `${prefix}:${attempt.requestId}` }, body: JSON.stringify(attempt) });
@@ -102,7 +102,7 @@ export function createRelayActions(ws: Base & RaceDataActions) {
     setRelayLegForms(relayLegForms.map((leg, current) => current === index ? { ...leg, ...change } : leg));
   }
   async function createRelayClass() {
-    if (busyRef.current || pending.current || !requireSession() || !data) return;
+    if (writingRef.current || pending.current || !requireSession() || !data) return;
     setRelayMessage("");
     let attempt = relayClassAttempt;
     if (!attempt) {
@@ -134,7 +134,7 @@ export function createRelayActions(ws: Base & RaceDataActions) {
     setTeamRunners(teamRunners.map((runner, current) => current === index ? { ...runner, ...change } : runner));
   }
   async function registerTeam() {
-    if (busyRef.current || pending.current || !requireSession() || !relay) return;
+    if (writingRef.current || pending.current || !requireSession() || !relay) return;
     setRelayMessage("");
     let attempt = teamAttempt;
     if (!attempt) {
@@ -168,7 +168,7 @@ export function createRelayActions(ws: Base & RaceDataActions) {
     setRunnerAttempt(undefined); setRelayMessage("");
   }
   async function saveRunnerChange() {
-    if (busyRef.current || pending.current || !requireSession() || !relay || !runnerChange) return;
+    if (writingRef.current || pending.current || !requireSession() || !relay || !runnerChange) return;
     let attempt = runnerAttempt;
     if (!attempt) {
       const leg = relay.teams.find(row => row.id === runnerChange.teamId)?.legs.find(row => row.leg === runnerChange.leg);
@@ -209,7 +209,7 @@ export function createRelayActions(ws: Base & RaceDataActions) {
     setRelayTimes({ ...relayTimes, [`${classId}:${leg}`]: value });
   }
   async function saveRelayTimes(classId: string) {
-    if (busyRef.current || pending.current || !requireSession() || !relay || !data) return;
+    if (writingRef.current || pending.current || !requireSession() || !relay || !data) return;
     const raceClass = relay.classes.find(row => row.id === classId);
     if (!raceClass) return;
     let attempt = timesAttempt?.classId === classId ? timesAttempt : undefined;

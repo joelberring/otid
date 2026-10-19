@@ -5,8 +5,8 @@ export const sourcesSv = {
   eventor: {
     title: "Eventor",
     help: "Hämta klasser och anmälningar med bricka från Eventor. Du kan läsa in igen när anmälningarna ändras.",
-    serverMissing: "Eventor är inte påslaget på servern. Den som sköter driften behöver sätta en masternyckel (OTID_EVENTOR_MASTER_KEY, se drift-instruktionen).",
-    serverInvalid: "Serverns masternyckel för Eventor är felaktig. Den som sköter driften behöver rätta OTID_EVENTOR_MASTER_KEY.",
+    serverMissing: "Eventor är inte påslaget på den här servern. Den som driver O-Tid behöver slå på det.",
+    serverInvalid: "Eventor är felinställt på den här servern. Den som driver O-Tid behöver rätta det.",
     keyLabel: "Klubbens API-nyckel",
     keyHelp: "Finns i Eventor under klubbens administration. Nyckeln sparas krypterad och visas aldrig igen.",
     saveKey: "Spara nyckel",

@@ -43,7 +43,7 @@ function blocked(choice: DecisionChoice, readiness: EntryStatusReadiness): strin
 }
 
 export function createStatusChangeActions(ws: Base & RaceDataActions & ResultDecisionActions) {
-  const { entryId, data, busyRef, pending, sent, requireSession, begin, finish, current, setMessage, setUnknown,
+  const { entryId, data, writingRef, pending, sent, requireSession, begin, finish, current, setMessage, setUnknown,
     setStatusChoice, setStatusBlocked, setDecisionAttempt, setRecalculationAttempt, readEntryStatus,
     readRecalculationBasis, submitStatusAttempt, cancelStatusAttempt } = ws;
 
@@ -67,7 +67,7 @@ export function createStatusChangeActions(ws: Base & RaceDataActions & ResultDec
   }
   /** Ett val i menyn: läs underlaget och visa beskedet med en bekräftelseknapp. */
   async function chooseStatusChange(choice: StatusChoice | "", selectedId = entryId) {
-    if (busyRef.current || pending.current || !requireSession()) return;
+    if (writingRef.current || pending.current || !requireSession()) return;
     setStatusChoice(choice); setStatusBlocked(""); setMessage("");
     if (!choice || !selectedId || !data) return;
     const op = begin();

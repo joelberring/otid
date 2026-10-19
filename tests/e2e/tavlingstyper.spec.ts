@@ -34,7 +34,7 @@ test("varje tävlingstyp visar sina delar och inga andra", async ({ browser }) =
     if (type === "Rogaining") await expect(owner.getByText("Inga kontroller ännu")).toBeVisible();
     if (type === "Träning") {
       // Fri start och ingen lottning: inget startsätt att välja när banan och klassen skapas.
-      await expect(owner.getByLabel("Startupplägg")).toHaveCount(0);
+      await expect(owner.getByLabel("Startsätt")).toHaveCount(0);
       await expect(owner.getByRole("region", { name: "Lottning" })).toHaveCount(0);
     }
   }

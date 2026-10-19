@@ -5,8 +5,7 @@ import { classCapacityKeySchema, classCapacityRequestSchema, classCapacityRespon
   courseEditPreviewRequestSchema, courseEditPreviewResponseSchema, courseEditIdempotencyKeySchema, courseEditRequestSchema,
   courseEditResponseSchema, classEditPreviewRequestSchema, classEditPreviewResponseSchema, classEditIdempotencyKeySchema,
   classEditRequestSchema, classEditResponseSchema,
-  shortenedCourseClassTransferCandidateSchema, shortenedCourseClassTransferIdempotencyKeySchema,
-  shortenedCourseClassTransferRequestSchema, shortenedCourseClassTransferReceiptSchema, startDrawSetupResponseSchema,
+  startDrawSetupResponseSchema,
   startDrawPreviewRequestSchema, startDrawPreviewResponseSchema, startDrawRequestSchema,
   startDrawIdempotencyKeySchema, startDrawResponseSchema, startListPublicationPreviewResponseSchema,
   startListPublicationRequestSchema, startListPublicationIdempotencyKeySchema, rogainingChangePreviewRequestSchema,
@@ -119,32 +118,6 @@ export async function handlePreparationRoute(context: RaceAdministratorRouteCont
     if (result.status !== "changed") return resultFailure(result.status);
     const response = rogainingChangeResponseSchema.parse(result.response);
     if (response.raceId !== raceId || response.requestId !== parsed.data.requestId ||
-        JSON.stringify(response.request) !== JSON.stringify(parsed.data)) return failure(500, "INTERNAL_ERROR");
-    return json(response);
-  }
-  if (action.kind === "shortened-course-class-transfer" && request.method === "GET") {
-    if (!await hasNoRequestBody(request)) return failure(400, "INVALID_REQUEST");
-    const result = await dependencies.shortenedCourseClassTransferPreview(db, { ...proof, raceId,
-      request: { formatVersion: 1, sourceClassId: action.classId } });
-    if (result.status !== "ok") return resultFailure(result.status);
-    const response = shortenedCourseClassTransferCandidateSchema.parse(result.response);
-    if (response.raceId !== raceId || response.sourceClassId !== action.classId) return failure(500, "INTERNAL_ERROR");
-    return json(response);
-  }
-  if (action.kind === "shortened-course-class-transfer") {
-    const key = shortenedCourseClassTransferIdempotencyKeySchema.safeParse(request.headers.get("idempotency-key"));
-    if (!key.success) return failure(400, "INVALID_REQUEST");
-    let body: unknown;
-    try { body = await readJsonBody(request); } catch { return failure(400, "INVALID_REQUEST"); }
-    const parsed = shortenedCourseClassTransferRequestSchema.safeParse(body);
-    if (!parsed.success || parsed.data.sourceClassId !== action.classId ||
-        key.data !== `shortened-course-class-transfer:${parsed.data.requestId}`) return failure(400, "INVALID_REQUEST");
-    const result = await dependencies.shortenedCourseClassTransfer(db, { ...proof, raceId, idempotencyKey: key.data, request: parsed.data });
-    if (result.status !== "transferred") return resultFailure(result.status);
-    const response = shortenedCourseClassTransferReceiptSchema.parse(result.response);
-    if (response.raceId !== raceId || response.requestId !== parsed.data.requestId ||
-        response.sourceClassId !== action.classId || response.sourceCourseVersionId !== parsed.data.expectedSourceCourseVersionId ||
-        response.sourceBasisHash !== parsed.data.expectedBasisHash ||
         JSON.stringify(response.request) !== JSON.stringify(parsed.data)) return failure(500, "INTERNAL_ERROR");
     return json(response);
   }

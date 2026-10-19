@@ -25,7 +25,7 @@ export function useCourseVariantState() {
 }
 
 export function createCourseVariantActions(ws: Base & RaceDataActions & CourseEditActions) {
-  const { raceId, data, selected, courseList, entryVariantAttempt, distributionAttempt, busyRef, pending, requireSession,
+  const { raceId, data, selected, courseList, entryVariantAttempt, distributionAttempt, writingRef, pending, requireSession,
     begin, finish, current, request, json, csrf, load, readCourses, setEntryVariantPreview, setEntryVariantAttempt,
     setEntryVariantMessage, setEntryVariantError, setDistributionAttempt, setDistributionMessage, setCourseListError } = ws;
 
@@ -49,10 +49,10 @@ export function createCourseVariantActions(ws: Base & RaceDataActions & CourseEd
 
   /** Arrangören väljer en variant i deltagarkortet: besked först om resultatet ändras, annars sparas direkt. */
   async function chooseEntryVariant(variantCode: string) {
-    if (busyRef.current || pending.current || !requireSession() || !data || !selected || !variantCode ||
+    if (writingRef.current || pending.current || !requireSession() || !data || !selected || !variantCode ||
         variantCode === selected.courseVariantCode) return;
     setEntryVariantMessage(""); setEntryVariantError(""); setEntryVariantPreview(undefined);
-    const op = begin();
+    const op = begin(true);
     try {
       const response = await request(`/entries/${selected.id}/variant-preview`, op, { method: "POST",
         headers: { "content-type": "application/json", "x-otid-csrf": csrf() },
@@ -75,9 +75,9 @@ export function createCourseVariantActions(ws: Base & RaceDataActions & CourseEd
     finally { finish(op); }
   }
   async function confirmEntryVariant() {
-    if (busyRef.current || !entryVariantAttempt || !requireSession()) return;
+    if (writingRef.current || !entryVariantAttempt || !requireSession()) return;
     setEntryVariantError("");
-    const op = begin();
+    const op = begin(true);
     try { await sendEntryVariant(op, entryVariantAttempt); }
     catch { if (current(op)) setEntryVariantError(text.variantError); }
     finally { finish(op); }
@@ -88,13 +88,13 @@ export function createCourseVariantActions(ws: Base & RaceDataActions & CourseEd
 
   /** "Fördela gafflingar": löpare i klassen utan variant får en. Inget resultat ändras, så det sparas direkt. */
   async function distributeVariants(classId: string) {
-    if (busyRef.current || pending.current || !requireSession() || !courseList) return;
+    if (writingRef.current || pending.current || !requireSession() || !courseList) return;
     setDistributionMessage("");
     const retry = distributionAttempt?.classId === classId ? distributionAttempt : undefined;
     const attempt: ClassVariantDistributionRequest = retry ?? { formatVersion: 1, requestId: crypto.randomUUID(),
       classId };
     setDistributionAttempt(attempt);
-    const op = begin();
+    const op = begin(true);
     try {
       const response = await request(`/classes/${classId}/variant-distribution`, op, { method: "POST",
         headers: { "content-type": "application/json", "x-otid-csrf": csrf(), "idempotency-key": `variant-distribution:${attempt.requestId}` },

@@ -115,7 +115,10 @@ test("admin lägger till funktionär som läser av från två enheter men inte n
   await unknownCards.getByRole("button", { name: "Bekräfta koppling och bedömning" }).click();
   await expect(unknownCards).toContainText("Det finns inga olösta okända avläsningar");
 
-  // Speakern: Anna och Bo i mål, Cia kvar i skogen.
+  // Speakern: Anna och Bo i mål, Cia kvar i skogen. Sidan och återkomsten kompileras i förväg: en kall kompilering i dev
+  // kan ta längre tid än klientens väntetid.
+  for (const path of [`/admin/${raceId}/speaker`, `/api/admin/races/${raceId}/administrator/speaker-board`]) await warmRoute(staff, path);
+  await warmRoute(staff, `/api/admin/races/${raceId}/administrator/manual-return`, "POST");
   const [speaker] = await Promise.all([staff.context().waitForEvent("page"), staff.getByRole("link", { name: /Öppna speaker/ }).click()]);
   await speaker.waitForURL(`**/admin/${raceId}/speaker`);
   await expect(speaker.getByRole("region", { name: "Senast i mål" })).toContainText("Bo Lind");

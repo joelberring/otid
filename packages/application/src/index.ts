@@ -54,7 +54,6 @@ export { editClassAsAdmin, previewClassEditAsAdmin } from "./class-edit";
 export type { ClassEditPreviewResult, ClassEditResult } from "./class-edit";
 export { changeRogainingAsAdmin, previewRogainingChangeAsAdmin } from "./rogaining";
 export type { RogainingChangePreviewResult, RogainingChangeResult } from "./rogaining";
-export { previewShortenedCourseClassTransferAsAdmin, transferShortenedCourseClassAsAdmin } from "./shortened-course-class-transfer";
 export { listUnknownReadoutResolutionCandidatesAsAdmin, resolveUnknownReadoutAsAdmin } from "./unknown-readout-resolution";
 export { listClassResultRecalculationCandidatesAsAdmin, recalculateClassResultsAsAdmin } from "./class-result-recalculation";
 export * from "./readout-station";

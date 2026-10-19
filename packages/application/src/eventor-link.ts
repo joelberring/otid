@@ -167,7 +167,7 @@ export async function listEventorEventsAsAdmin(db: Database, input: Authenticati
   try {
     const organisation = link?.organisationId ?? (await client.client.organisation()).id;
     const iso = (value: number) => new Date(value).toISOString().slice(0, 10);
-    const events = await client.client.events({ organisationId: organisation, fromDate: iso(now.getTime() - 30 * day), toDate: iso(now.getTime() + 365 * day) });
+    const events = await client.client.events({ organisationId: organisation, fromDate: iso(now.getTime() - 365 * day), toDate: iso(now.getTime() + 365 * day) });
     return reply("CONNECTED", [...events].sort((left, right) => left.date.localeCompare(right.date))
       .map(event => ({ id: event.id, name: event.name, date: event.date, form: event.form })));
   } catch (error) {

@@ -23,6 +23,13 @@ describe("Eventors svar → projektion", () => {
     expect(parseEventorOrganisation(fixture("organisation.xml"))).toEqual({ id: "9321", name: "OK Skogsfalken" });
   });
 
+  it("läser ett riktigt svar från Eventor (OK Älvsjö-Örby 2026, inspelat 2026-10-19) med tomt loppnamn", () => {
+    const events = parseEventorEventList(fixture("events-real-2026.xml"));
+    expect(events).toHaveLength(6);
+    expect(events[0]).toMatchObject({ id: "55578", name: "DM, lång, Stockholm", date: "2026-08-29", clock: "10:00:00", form: "INDIVIDUAL",
+      organiserIds: ["489"], races: [{ id: "57440", name: "", date: "2026-08-29", clock: "10:00:00" }] });
+  });
+
   it("läser arrangörens tävlingar med form, datum, klockslag och arrangör", () => {
     const events = parseEventorEventList(fixture("events.xml"));
     expect(events.map(event => [event.id, event.name, event.date, event.clock, event.form])).toEqual([

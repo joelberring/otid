@@ -112,7 +112,9 @@ function readEvent(raw: unknown): EventorEvent {
     const race = record(rawRace);
     if (!race) fail("INVALID_XML");
     const raceDate = dateTime(race.RaceDate);
-    return { id: externalId(race.EventRaceId), name: displayText(race.Name), date: raceDate.date,
+    // Eventor skickar ofta ett tomt <Name></Name> för loppet i endagstävlingar.
+    const raceName = textOf(race.Name)?.trim() ? displayText(race.Name) : "";
+    return { id: externalId(race.EventRaceId), name: raceName, date: raceDate.date,
       ...(raceDate.clock ? { clock: raceDate.clock } : {}) };
   });
   return { id, name: displayText(event.Name), date: start.date, ...(start.clock ? { clock: start.clock } : {}),

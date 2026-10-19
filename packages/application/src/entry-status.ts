@@ -41,7 +41,7 @@ const AUDIT_ACTION: Partial<Record<ResultRevisionRow["cause"], string>> = {
 interface EntryContext {
   readonly race: { id: string; snapshotVersion: number };
   readonly entry: { id: string; givenName: string; familyName: string; teamId: string | null; className: string;
-    classId: string; courseVersionId: string; startRule: "FIXED" | "PUNCH" };
+    classId: string; courseVersionId: string; startRule: "FIXED" | "PUNCH"; maxTimeMinutes: number | null };
   readonly history: ResultHistory<ResultRevisionRow>;
   readonly context: ManualDecisionContext;
 }
@@ -52,7 +52,8 @@ async function loadEntryContext(tx: Transaction, raceId: string, entryId: string
     .from(schema.races).where(eq(schema.races.id, raceId));
   const [entry] = await tx.select({ id: schema.entries.id, givenName: schema.entries.givenName,
     familyName: schema.entries.familyName, teamId: schema.entries.teamId, className: schema.classes.name,
-    classId: schema.entries.classId, courseVersionId: schema.classes.courseVersionId, startRule: schema.classes.startRule })
+    classId: schema.entries.classId, courseVersionId: schema.classes.courseVersionId, startRule: schema.classes.startRule,
+    maxTimeMinutes: schema.classes.maxTimeMinutes })
     .from(schema.entries).innerJoin(schema.classes, and(eq(schema.classes.id, schema.entries.classId), eq(schema.classes.raceId, raceId)))
     .where(and(eq(schema.entries.id, entryId), eq(schema.entries.raceId, raceId)));
   if (!race || !entry) return undefined;
@@ -71,7 +72,7 @@ async function loadEntryContext(tx: Transaction, raceId: string, entryId: string
   const [readout] = head?.readoutId ? await tx.select({ startPunchedAt: schema.cardReadouts.startPunchedAt })
     .from(schema.cardReadouts).where(eq(schema.cardReadouts.id, head.readoutId)) : [];
   return { race, entry, history, context: { entryId: entry.id, classId: entry.classId, courseVersionId: entry.courseVersionId,
-    startRule: entry.startRule, headStartPunchedAt: readout?.startPunchedAt?.toISOString() ?? null,
+    startRule: entry.startRule, headStartPunchedAt: readout?.startPunchedAt?.toISOString() ?? null, maxTimeMinutes: entry.maxTimeMinutes,
     isCurrent: (revision) => isResultCurrent(revision as ResultRevisionRow, basisHash, race.snapshotVersion) } };
 }
 
@@ -161,7 +162,8 @@ export async function applyEntryDecision(tx: Transaction, input: { raceId: strin
     outcome: outcome.outcome, engineVersion: outcome.engineVersion,
     snapshotVersion: input.snapshotVersion ?? value.race.snapshotVersion, courseVersionId,
     controlNeutralizationId: outcome.source?.controlNeutralizationId ?? null, requestId: input.requestId,
-    actorAccountId: input.actorAccountId, expectedRevision: headRevision + 1, createdAt: input.decidedAt });
+    actorAccountId: input.actorAccountId, expectedRevision: headRevision + 1, createdAt: input.decidedAt,
+    note: input.decision.kind === "DISQUALIFIED" ? input.decision.reason?.trim() || null : null });
   // Stafett: en ändrad måltid är nästa sträckas växling.
   if (value.entry.teamId && (outcome.cause === "MANUAL_FINISH_TIME_CORRECTION" || outcome.cause === "MANUAL_FINISH_TIME_CORRECTION_WITHDRAWAL")) {
     await synchronizeRelayTeams(tx, input.raceId, [value.entry.teamId], value.race.snapshotVersion);

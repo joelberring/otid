@@ -3,7 +3,7 @@ const MAX_CLASSES = 1_000;
 const MAX_RESULTS = 10_000;
 const MAX_EXPECTED_CONTROLS = 256;
 
-export type IofResultListStatus = "OK" | "MP" | "DSQ" | "DNF" | "OOC" | "DNS";
+export type IofResultListStatus = "OK" | "OVERTIME" | "MP" | "DSQ" | "DNF" | "OOC" | "DNS";
 
 export interface IofResultListExpectedControl {
   readonly controlCode: number;
@@ -29,11 +29,25 @@ export interface IofResultListManualApprovalProof {
   readonly targetResultRevisionId: string;
 }
 
+/** Banan i resultatet (IOF 3.0 SimpleCourse): namn (variantens namn i en gafflad klass), längd och stigning i meter. */
+export interface IofResultListCourse {
+  readonly name?: string | undefined;
+  readonly lengthMeters?: number | undefined;
+  readonly climbMeters?: number | undefined;
+}
+
 interface IofResultListPersonResultBase {
   readonly entryExternalId?: string;
+  /** Eventors person- och klubb-id (PLAN.md steg 25), skrivs som Id type="Eventor". */
+  readonly personEventorId?: string;
+  readonly organisationEventorId?: string;
   readonly givenName: string;
   readonly familyName: string;
   readonly organisationName?: string;
+  /** SPORTident-brickan (ControlCard punchingSystem="SI"). */
+  readonly cardNumber?: string;
+  /** Löparens bana: varianten i en gafflad klass med banans längd och stigning. */
+  readonly course?: IofResultListCourse;
 }
 
 export interface IofResultListEvaluatedPersonResult extends IofResultListPersonResultBase {
@@ -116,6 +130,8 @@ export interface IofResultListTeamResult {
 export interface IofResultListClass {
   readonly className: string;
   readonly classExternalId?: string;
+  /** Klassens bana med längd och stigning (ClassResult/Course). */
+  readonly course?: IofResultListCourse;
   readonly results: readonly IofResultListPersonResult[];
   /** Stafettklass: lagresultat i stället för individuella resultat. */
   readonly teamResults?: readonly IofResultListTeamResult[];
@@ -323,6 +339,26 @@ function validateFinalizationProof(value: unknown, issues: string[]): void {
   }
 }
 
+function validateCourse(course: IofResultListCourse, path: string, issues: string[]): void {
+  if (course.name !== undefined) validateText(course.name, `${path}.name`, issues);
+  if (course.lengthMeters !== undefined && (!Number.isSafeInteger(course.lengthMeters) || course.lengthMeters <= 0)) {
+    issues.push(`${path}.lengthMeters måste vara ett positivt heltal`);
+  }
+  if (course.climbMeters !== undefined && (!Number.isSafeInteger(course.climbMeters) || course.climbMeters < 0)) {
+    issues.push(`${path}.climbMeters måste vara ett icke-negativt heltal`);
+  }
+}
+
+/** IOF 3.0 SimpleCourse: Name, Length, Climb i den ordningen. Inget skrivs för en tom bana. */
+function serializeCourse(lines: string[], indentation: number, course: IofResultListCourse | undefined): void {
+  if (!course || (course.name === undefined && course.lengthMeters === undefined && course.climbMeters === undefined)) return;
+  line(lines, indentation, "<Course>");
+  if (course.name !== undefined) line(lines, indentation + 1, `<Name>${escapeXml(course.name)}</Name>`);
+  if (course.lengthMeters !== undefined) line(lines, indentation + 1, `<Length>${course.lengthMeters}</Length>`);
+  if (course.climbMeters !== undefined) line(lines, indentation + 1, `<Climb>${course.climbMeters}</Climb>`);
+  line(lines, indentation, "</Course>");
+}
+
 interface ValidatedResult {
   readonly startTime?: string;
   readonly finishTime?: string;
@@ -343,10 +379,17 @@ function validateResult(
   if (result.organisationName !== undefined) {
     validateText(result.organisationName, `${path}.organisationName`, issues);
   }
-  if (result.status !== "OK" && result.status !== "MP" &&
+  for (const [field, value] of [["personEventorId", result.personEventorId], ["organisationEventorId", result.organisationEventorId]] as const) {
+    if (value !== undefined && !/^[0-9A-Za-z_-]{1,64}$/.test(value)) issues.push(`${path}.${field} är ogiltigt`);
+  }
+  if (result.cardNumber !== undefined && !/^[1-9][0-9]{0,31}$/.test(result.cardNumber)) {
+    issues.push(`${path}.cardNumber måste vara ett bricknummer`);
+  }
+  if (result.course !== undefined) validateCourse(result.course, `${path}.course`, issues);
+  if (result.status !== "OK" && result.status !== "OVERTIME" && result.status !== "MP" &&
       result.status !== "DSQ" && result.status !== "DNF" &&
       result.status !== "OOC" && result.status !== "DNS") {
-    issues.push(`${path}.status måste vara OK, MP, DSQ, DNF, OOC eller DNS`);
+    issues.push(`${path}.status måste vara OK, OVERTIME, MP, DSQ, DNF, OOC eller DNS`);
   }
 
   if (result.status === "DNF") {
@@ -420,8 +463,8 @@ function validateResult(
   const elapsedValid = result.elapsedMs === undefined
     ? false
     : validateMilliseconds(result.elapsedMs, `${path}.elapsedMs`, issues);
-  if (result.status === "OK" && (!startTime || !finishTime || !elapsedValid)) {
-    issues.push(`${path} med status OK måste ha startTime, finishTime och elapsedMs`);
+  if ((result.status === "OK" || result.status === "OVERTIME") && (!startTime || !finishTime || !elapsedValid)) {
+    issues.push(`${path} med status ${result.status} måste ha startTime, finishTime och elapsedMs`);
   }
   if (result.status === "DNS" &&
       (result.startTime !== undefined || result.finishTime !== undefined || result.elapsedMs !== undefined ||
@@ -533,6 +576,7 @@ function line(lines: string[], indentation: number, value: string): void {
 function iofStatus(status: IofResultListTeamStatus): string {
   switch (status) {
     case "OK": return "OK";
+    case "OVERTIME": return "OverTime";
     case "MP": return "MissingPunch";
     case "DSQ": return "Disqualified";
     case "DNF": return "DidNotFinish";
@@ -555,14 +599,18 @@ function serializeResult(
     line(lines, base + 1, `<EntryId>${escapeXml(result.entryExternalId)}</EntryId>`);
   }
   line(lines, base + 1, "<Person>");
+  if (result.personEventorId !== undefined) line(lines, base + 2, `<Id type="Eventor">${escapeXml(result.personEventorId)}</Id>`);
   line(lines, base + 2, "<Name>");
   line(lines, base + 3, `<Family>${escapeXml(result.familyName)}</Family>`);
   line(lines, base + 3, `<Given>${escapeXml(result.givenName)}</Given>`);
   line(lines, base + 2, "</Name>");
   line(lines, base + 1, "</Person>");
-  if (result.organisationName !== undefined) {
+  if (result.organisationName !== undefined || result.organisationEventorId !== undefined) {
     line(lines, base + 1, "<Organisation>");
-    line(lines, base + 2, `<Name>${escapeXml(result.organisationName)}</Name>`);
+    if (result.organisationEventorId !== undefined) {
+      line(lines, base + 2, `<Id type="Eventor">${escapeXml(result.organisationEventorId)}</Id>`);
+    }
+    if (result.organisationName !== undefined) line(lines, base + 2, `<Name>${escapeXml(result.organisationName)}</Name>`);
     line(lines, base + 1, "</Organisation>");
   }
   line(lines, base + 1, "<Result>");
@@ -595,6 +643,8 @@ function serializeResult(
     line(lines, base + 3, `<Status>${iofStatus(overall.status)}</Status>`);
     line(lines, base + 2, "</OverallResult>");
   }
+  // IOF 3.0: Course efter OverallResult och före SplitTime.
+  if (result.status !== "DNF") serializeCourse(lines, base + 2, result.course);
   if (result.status !== "DNF") for (const control of result.expectedControls) {
     const split = validated.splitByKey.get(key(control.controlCode, control.occurrence));
     if (!split && validated.untimedKeys?.has(key(control.controlCode, control.occurrence))) {
@@ -614,6 +664,10 @@ function serializeResult(
     line(lines, base + 3, `<ControlCode>${control.controlCode}</ControlCode>`);
     line(lines, base + 3, `<Time>${millisecondsToSeconds(split.elapsedMs)}</Time>`);
     line(lines, base + 2, "</SplitTime>");
+  }
+  // IOF 3.0: ControlCard efter SplitTime (och Route).
+  if (result.cardNumber !== undefined) {
+    line(lines, base + 2, `<ControlCard punchingSystem="SI">${escapeXml(result.cardNumber)}</ControlCard>`);
   }
   line(lines, base + 1, "</Result>");
   line(lines, base, team ? "</TeamMemberResult>" : "</PersonResult>");
@@ -691,6 +745,7 @@ export function serializeIofResultList(projection: IofResultListProjection): Uin
     if (raceClass.classExternalId !== undefined) {
       validateText(raceClass.classExternalId, `${classPath}.classExternalId`, issues);
     }
+    if (raceClass.course !== undefined) validateCourse(raceClass.course, `${classPath}.course`, issues);
     if (!Array.isArray(raceClass.results)) {
       issues.push(`${classPath}.results måste vara en lista`);
       continue;
@@ -726,6 +781,7 @@ export function serializeIofResultList(projection: IofResultListProjection): Uin
     }
     line(lines, 3, `<Name>${escapeXml(raceClass.className)}</Name>`);
     line(lines, 2, "</Class>");
+    serializeCourse(lines, 2, raceClass.course);
     for (const result of raceClass.results) {
       serializeResult(lines, result, validatedResults.get(result)!);
     }

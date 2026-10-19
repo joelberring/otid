@@ -12,6 +12,8 @@ export interface ProposedClassSetup {
   readonly classId: string;
   readonly courseVersionId: string;
   readonly startRule: StartRule;
+  /** Ny maxtid (PLAN.md steg 25): null tar bort gränsen, saknas = oförändrad. */
+  readonly maxTimeMinutes?: number | null;
 }
 
 export function withProposedClassSetup(snapshot: RaceSnapshot, proposed: ProposedClassSetup): RaceSnapshot {
@@ -24,7 +26,8 @@ export function withProposedClassSetup(snapshot: RaceSnapshot, proposed: Propose
   return {
     ...snapshot,
     classes: snapshot.classes.map(raceClass => raceClass.id !== proposed.classId ? raceClass
-      : { ...raceClass, courseVersionId: proposed.courseVersionId, startRule: proposed.startRule }),
+      : withMaxTimeMinutes({ ...raceClass, courseVersionId: proposed.courseVersionId, startRule: proposed.startRule },
+        proposed.maxTimeMinutes)),
     entries: !startRuleChanged ? snapshot.entries : snapshot.entries.map(entry => {
       if (entry.classId !== proposed.classId || entry.fixedStartTime === undefined) return entry;
       const rest = { ...entry };
@@ -32,4 +35,11 @@ export function withProposedClassSetup(snapshot: RaceSnapshot, proposed: Propose
       return rest;
     })
   };
+}
+
+function withMaxTimeMinutes<T extends { readonly maxTimeMinutes?: number | undefined }>(raceClass: T, maxTimeMinutes: number | null | undefined): T {
+  if (maxTimeMinutes === undefined) return raceClass;
+  const rest = { ...raceClass };
+  delete (rest as { maxTimeMinutes?: number }).maxTimeMinutes;
+  return maxTimeMinutes === null ? rest : { ...rest, maxTimeMinutes };
 }

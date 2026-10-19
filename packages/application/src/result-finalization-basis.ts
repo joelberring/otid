@@ -21,7 +21,7 @@ import type { Database } from "@o-tid/database";
 import { schema } from "@o-tid/database";
 import { ClassRankingError, compareResultStatuses, rankClassResults } from "@o-tid/domain";
 import {
-  type IofResultListClass,
+  type IofResultListClass, type IofResultListCourse,
   type IofResultListPersonResult
 } from "@o-tid/iof-xml";
 import { resolveStoredResultHeadStates } from "./result-revision-state";
@@ -77,7 +77,7 @@ function optionalIofId(source: string | null, externalId: string | null): string
 
 // Den frysta grunden har ett fast format; underlagshashen (ADR-0169) ingår inte i den.
 function resultRevisionBasis(revision: Omit<typeof schema.resultRevisions.$inferSelect,
-  "basisHash" | "requestId" | "actorAccountId" | "shortenedCourseClassTransferId">) {
+  "basisHash" | "requestId" | "actorAccountId" | "shortenedCourseClassTransferId" | "note">) {
   return {
     id: revision.id,
     raceId: revision.raceId,
@@ -98,6 +98,21 @@ function resultRevisionBasis(revision: Omit<typeof schema.resultRevisions.$infer
   };
 }
 
+/** Banan i den fastställda filen: variantens namn i en gafflad klass ("Lång-AC"), längd och stigning. */
+function frozenCourse(raceClass: { courseName: string; lengthMeters: number | null; climbMeters: number | null }, variantCode: string | undefined) {
+  return { name: variantCode ? `${raceClass.courseName}-${variantCode}` : raceClass.courseName,
+    ...(raceClass.lengthMeters === null ? {} : { lengthMeters: raceClass.lengthMeters }),
+    ...(raceClass.climbMeters === null ? {} : { climbMeters: raceClass.climbMeters }) };
+}
+
+/** Eventors person- och klubb-id, brickan och löparens bana för IOF-filen (PLAN.md steg 25). */
+function iofIdentity(entry: { eventorPersonId: string | null; eventorOrganisationId: string | null }, cardNumber: string | undefined,
+  course: ReturnType<typeof frozenCourse> | undefined) {
+  return { ...(entry.eventorPersonId ? { personEventorId: entry.eventorPersonId } : {}),
+    ...(entry.eventorOrganisationId ? { organisationEventorId: entry.eventorOrganisationId } : {}),
+    ...(cardNumber ? { cardNumber } : {}), ...(course ? { course } : {}) };
+}
+
 function expectedControls(rows: readonly { sequence: number; controlCode: number }[]) {
   const occurrences = new Map<number, number>();
   return rows.map((row, index) => {
@@ -116,7 +131,11 @@ function asIofPerson(result: FrozenIofPersonProjection): IofResultListPersonResu
     givenName: result.givenName,
     familyName: result.familyName,
     ...(result.entryExternalId === null ? {} : { entryExternalId: result.entryExternalId }),
-    ...(result.organisationName === null ? {} : { organisationName: result.organisationName })
+    ...(result.organisationName === null ? {} : { organisationName: result.organisationName }),
+    ...(result.personEventorId === undefined ? {} : { personEventorId: result.personEventorId }),
+    ...(result.organisationEventorId === undefined ? {} : { organisationEventorId: result.organisationEventorId }),
+    ...(result.cardNumber === undefined ? {} : { cardNumber: result.cardNumber }),
+    ...(result.course === undefined ? {} : { course: result.course })
   };
   if (result.status === "DNF") return { ...identity, status: "DNF" };
   if (result.status === "OOC") {
@@ -153,9 +172,11 @@ function asIofPerson(result: FrozenIofPersonProjection): IofResultListPersonResu
   };
 }
 
-export function asIofClass(value: { name: string; externalId: string | null; results: readonly { personResult: FrozenIofPersonProjection }[] }): IofResultListClass {
+export function asIofClass(value: { name: string; externalId: string | null; course?: IofResultListCourse | undefined;
+  results: readonly { personResult: FrozenIofPersonProjection }[] }): IofResultListClass {
   return {
     className: value.name,
+    ...(value.course === undefined ? {} : { course: value.course }),
     results: value.results.map((result) => asIofPerson(result.personResult)),
     ...(value.externalId === null ? {} : { classExternalId: value.externalId })
   };
@@ -231,8 +252,14 @@ export async function buildFinalizationBasis(tx: DatabaseTransaction, race: Lock
       name: schema.classes.name,
       courseVersionId: schema.classes.courseVersionId,
       externalSource: schema.classes.externalSource,
-      externalId: schema.classes.externalId
-    }).from(schema.classes).where(eq(schema.classes.raceId, race.id))
+      externalId: schema.classes.externalId,
+      courseName: schema.courses.name,
+      lengthMeters: schema.courses.lengthMeters,
+      climbMeters: schema.courses.climbMeters
+    }).from(schema.classes)
+      .innerJoin(schema.courseVersions, eq(schema.courseVersions.id, schema.classes.courseVersionId))
+      .innerJoin(schema.courses, eq(schema.courses.id, schema.courseVersions.courseId))
+      .where(eq(schema.classes.raceId, race.id))
       .orderBy(asc(schema.classes.name), asc(schema.classes.id)).limit(MAX_CLASSES + 1),
     tx.select({
       id: schema.entries.id,
@@ -242,6 +269,8 @@ export async function buildFinalizationBasis(tx: DatabaseTransaction, race: Lock
       organisationName: schema.entries.organisationName,
       externalSource: schema.entries.externalSource,
       externalId: schema.entries.externalId,
+      eventorPersonId: schema.entries.eventorPersonId,
+      eventorOrganisationId: schema.entries.eventorOrganisationId,
       courseVariantCode: schema.entries.courseVariantCode
     }).from(schema.entries).where(eq(schema.entries.raceId, race.id))
       .orderBy(asc(schema.entries.classId), asc(schema.entries.familyName), asc(schema.entries.givenName), asc(schema.entries.id))
@@ -327,6 +356,10 @@ export async function buildFinalizationBasis(tx: DatabaseTransaction, race: Lock
     entriesByClass.set(entry.classId, entries);
   }
   const latestByEntry = new Map(latestRows.map((row) => [row.entryId, row]));
+  // PLAN.md steg 25: brickan i den fastställda IOF-filen (ControlCard).
+  const cardRows = await tx.select({ entryId: schema.cardAssignments.entryId, cardNumber: schema.cardAssignments.cardNumber })
+    .from(schema.cardAssignments).where(and(eq(schema.cardAssignments.raceId, race.id), eq(schema.cardAssignments.active, true)));
+  const cardByEntry = new Map(cardRows.filter((row) => /^[1-9][0-9]{0,31}$/.test(row.cardNumber)).map((row) => [row.entryId, row.cardNumber]));
 
   const latestClassFinalizationByClass = new Map<string, ResultFinalizationRow>();
   let latestRaceFinalization: ResultFinalizationRow | undefined;
@@ -367,6 +400,8 @@ export async function buildFinalizationBasis(tx: DatabaseTransaction, race: Lock
       if (classVariants.length > 0 && !variant) blockers.add("INVALID_RESULT_REVISION");
       const entryControls = variant
         ? expectedControls(variant.controlCodes.map((controlCode, index) => ({ sequence: index + 1, controlCode }))) : controls;
+      const identity = iofIdentity(entry, cardByEntry.get(entry.id),
+        variant ? frozenCourse(raceClass, variant.code) : undefined);
       basisEntries.push({
         entry: {
           id: entry.id,
@@ -376,6 +411,7 @@ export async function buildFinalizationBasis(tx: DatabaseTransaction, race: Lock
           organisationName: entry.organisationName,
           externalSource: entry.externalSource,
           externalId: entry.externalId,
+          ...identity,
           ...(variant ? { courseVariantCode: variant.code, controls: entryControls } : {})
         },
         absoluteRevision: absoluteRevision ? resultRevisionBasis(absoluteRevision) : null,
@@ -473,6 +509,7 @@ export async function buildFinalizationBasis(tx: DatabaseTransaction, race: Lock
         source,
         person: {
           entryExternalId: optionalIofId(entry.externalSource, entry.externalId),
+          ...identity,
           givenName: entry.givenName,
           familyName: entry.familyName,
           organisationName: entry.organisationName,
@@ -542,6 +579,7 @@ export async function buildFinalizationBasis(tx: DatabaseTransaction, race: Lock
             class: {
               name: raceClass.name,
               externalId: optionalIofId(raceClass.externalSource, raceClass.externalId),
+              course: frozenCourse(raceClass, undefined),
               results: validResults.map((result) => {
                 const ranked = ranking.get(result.source.entryId);
                 if (!ranked) throw new StoredFinalizationConflict("Resultatet saknar ranking");

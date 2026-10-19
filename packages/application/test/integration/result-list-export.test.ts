@@ -91,8 +91,10 @@ describe("TASK 006B capability-skyddad IOF ResultList-export PostgreSQL", () => 
     expect(xml).toContain("entry-ada");
     expect(xml).toContain("Ada");
     expect(xml).not.toContain("class-h21");
+    // PLAN.md steg 25: arbetsytans export bär brickan (ControlCard), men aldrig interna id:n eller sessionen.
+    expect(xml).toContain(`<ControlCard punchingSystem="SI">${okPayload.cardNumber}</ControlCard>`);
     for (const secret of [fixture.raceId, ada.id, d21.id, historical.id,
-      admin.login.sessionToken, okPayload.cardNumber]) {
+      admin.login.sessionToken]) {
       expect(xml).not.toContain(secret);
     }
   }, 30_000);

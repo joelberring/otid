@@ -19,6 +19,8 @@ export const listsSv = {
   noMatches: "Inget i listan matchar sökningen.",
   clear: "Rensa",
   printedAt: (time: string) => `Utskriven ${time}`,
+  /** Klassens bana i listornas rubriker (PLAN.md steg 25): "Bana Lång · 4,2 km · 120 m". */
+  course: { name: (name: string) => `Bana ${name}`, km: (km: string) => `${km} km`, climb: (meters: number) => `${meters} m` },
   start: {
     title: "Startlista",
     views: { CLASS: "Per klass", TIME: "Per starttid", CLUB: "Per klubb" },
@@ -53,6 +55,9 @@ export const listsSv = {
   },
   results: {
     title: "Resultat",
+    /** PLAN.md steg 25: listans ställning. */
+    preliminary: "Preliminära resultat",
+    official: (finalizedAt: string) => `Officiella resultat (fastställda ${finalizedAt})`,
     views: { CLASS: "Per klass", SPLITS: "Med sträcktider", CLUB: "Per klubb" },
     titles: { CLASS: "Resultatlista per klass", SPLITS: "Resultatlista med sträcktider", CLUB: "Resultatlista per klubb" },
     place: "Plac", name: "Namn", club: "Klubb", time: "Tid", behind: "Efter", statusColumn: "Status", className: "Klass",
@@ -86,9 +91,9 @@ export const listsSv = {
     restarted: "omstart",
     refreshFailed: "Resultaten kunde inte uppdateras. Senast hämtade resultat visas.",
     loading: "Hämtar resultaten…",
-    status: { OK: "Godkänd", MP: "Felstämplad", DSQ: "Diskvalificerad", DNF: "Ej fullföljt", OOC: "Utom tävlan", DNS: "Ej start",
+    status: { OK: "Godkänd", OVERTIME: "Maxtid överskriden", MP: "Felstämplad", DSQ: "Disk.", DNF: "Ej fullföljt", OOC: "Utom tävlan", DNS: "Ej start",
       NT: "Utan tidtagning" },
-    teamStatus: { OK: "Godkänt", MP: "Felstämplat", DSQ: "Diskvalificerat", DNF: "Brutit", OOC: "Utom tävlan", NT: "Utan tidtagning",
+    teamStatus: { OK: "Godkänt", OVERTIME: "Maxtid överskriden", MP: "Felstämplat", DSQ: "Diskvalificerat", DNF: "Brutit", OOC: "Utom tävlan", NT: "Utan tidtagning",
       DNS: "Ej start", RUNNING: "Ute" },
     manualApproval: "Godkänd manuellt av arrangör",
     // Rogaining (ADR-0170 beslut 5).

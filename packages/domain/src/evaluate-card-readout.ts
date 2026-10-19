@@ -10,12 +10,15 @@ import type {
 } from "./types";
 import { assignedCourseVariant, courseVariantsOf } from "./course-variants";
 import { rogainingControlSet, scoreRogaining } from "./rogaining";
+import { officialStartTime } from "./start-punch";
+import { withMaxTime } from "./max-time";
 
 /**
  * Versionen sparas på varje resultatrevision. 0.3.0 (PLAN.md steg 22): kontrollföljden matchas som ordnad
- * delföljd, så att extra- och dubbelstämplingar ger godkänt.
+ * delföljd, så att extra- och dubbelstämplingar ger godkänt. 0.4.0 (PLAN.md steg 25): fast start utan lottad tid
+ * räknas från startstämplingen, och klassens maxtid ger `OVERTIME`.
  */
-export const RESULT_ENGINE_VERSION = "0.3.0";
+export const RESULT_ENGINE_VERSION = "0.4.0";
 
 function invalid(reason: EvaluationResult["reason"], base: Partial<EvaluationResult> = {}): EvaluationResult {
   return {
@@ -241,7 +244,9 @@ export function evaluateCardReadout(
     classId: raceClass.id,
     courseVersionId: courseVersion.id
   };
-  const startTime = raceClass.startRule === "PUNCH" ? readout.startPunchedAt : entry.fixedStartTime;
+  // Fast start: lottad tid, med startstämplingen som reserv när löparen saknar lottad tid (PLAN.md steg 25).
+  const startTime = officialStartTime({ startRule: raceClass.startRule, fixedStartTime: entry.fixedStartTime,
+    startPunchedAt: readout.startPunchedAt });
   if (!startTime) return invalid("MISSING_START", common);
   if (!readout.finishPunchedAt) return invalid("MISSING_FINISH", { ...common, startTime });
 
@@ -292,5 +297,6 @@ export function evaluateCardReadout(
 
   if (match.wrongOrder) return { status: "MP", reason: "WRONG_ORDER", ...timed };
   if (match.missingControls.length > 0) return { status: "MP", reason: "MISSING_CONTROL", ...timed };
-  return { status: "OK", reason: "COMPLETE", ...timed };
+  // Maxtid (PLAN.md steg 25): ett fullständigt resultat över klassens maxtid blir OVERTIME.
+  return withMaxTime({ status: "OK", reason: "COMPLETE", ...timed }, raceClass.maxTimeMinutes);
 }

@@ -148,6 +148,21 @@ export interface ApplyInput {
 }
 
 /** Sparar de godkända raderna från Eventor och räknar om berörda resultat. Ger antal omräknade. */
+const EVENTOR_ID = /^[0-9A-Za-z_-]{1,64}$/;
+
+/**
+ * Eventors person- och klubb-id för anmälningarna (PLAN.md steg 25), så att IOF-resultatet kan bära dem. Sätts för
+ * varje deltagare som är kopplad till anmälan i Eventor, även när inget annat ändrats.
+ */
+async function storeEventorIdentities(tx: Transaction, raceId: string, projection: EventorProjection): Promise<void> {
+  const rows = projection.entries.map(entry => ({ id: entry.id, person: entry.personId && EVENTOR_ID.test(entry.personId) ? entry.personId : null,
+    org: entry.clubId && EVENTOR_ID.test(entry.clubId) ? entry.clubId : null })).filter(row => row.person !== null || row.org !== null);
+  if (rows.length === 0) return;
+  await tx.execute(sql`update entry e set eventor_person_id = v.person, eventor_organisation_id = v.org
+    from jsonb_to_recordset(${JSON.stringify(rows)}::jsonb) as v(id text, person text, org text)
+    where e.race_id = ${raceId} and e.external_source = 'eventor' and e.external_id = v.id`);
+}
+
 export async function applyEventor(tx: Transaction, input: ApplyInput, projection: EventorProjection, rows: readonly PlannedRow<EventorAction>[],
   links: readonly { id: string; externalId: string }[], assessment: Assessment & { ids: Ids }): Promise<number> {
   const { raceId, state, now } = input;
@@ -208,6 +223,7 @@ export async function applyEventor(tx: Transaction, input: ApplyInput, projectio
     }
     if (action.type === "CREATE_TEAM") relayTeams.add(await createTeam(tx, raceId, action, classIdOf(action.classRef, ids), legCount));
   }
+  await storeEventorIdentities(tx, raceId, projection);
   await bumpReadoutPackageVersion(tx, raceId);
   if (relayTeams.size > 0) await synchronizeRelayTeams(tx, raceId, [...relayTeams], input.snapshotVersionAfter);
   return recalculate(tx, raceId, assessment, input.snapshotVersionAfter);
@@ -300,6 +316,23 @@ export async function assessCourseFile(tx: Transaction, raceId: string, rows: re
   return { consequence: consequence(assessed, []), assessed, finalClass: new Map(), ids };
 }
 
+/**
+ * Banans längd och stigning ur banfilen (PLAN.md steg 25) för varje bana i filen som finns i tävlingen. Uppgifterna
+ * påverkar inga resultat och sparas därför även för banor vars kontroller inte ändrats.
+ */
+async function storeCourseMeasurements(tx: Transaction, raceId: string, projection: CourseFileProjection, state: CurrentState,
+  links: readonly { id: string; externalId: string }[], ids: Ids): Promise<void> {
+  for (const course of projection.data.courses) {
+    if (course.lengthMeters === undefined && course.climbMeters === undefined) continue;
+    const courseId = ids.courses.get(course.externalId)?.courseId ?? links.find(link => link.externalId === course.externalId)?.id ??
+      state.courses.find(row => row.externalSource === "iof" && row.externalId === course.externalId)?.id;
+    if (!courseId) continue;
+    await tx.update(schema.courses).set({ ...(course.lengthMeters !== undefined ? { lengthMeters: course.lengthMeters } : {}),
+      ...(course.climbMeters !== undefined ? { climbMeters: course.climbMeters } : {}) })
+      .where(and(eq(schema.courses.id, courseId), eq(schema.courses.raceId, raceId)));
+  }
+}
+
 /** Sparar de godkända raderna ur banfilen och räknar om berörda resultat. Ger antal omräknade. */
 export async function applyCourseFile(tx: Transaction, input: ApplyInput, projection: CourseFileProjection,
   rows: readonly PlannedRow<CourseFileAction>[], links: readonly { id: string; externalId: string }[],
@@ -330,6 +363,7 @@ export async function applyCourseFile(tx: Transaction, input: ApplyInput, projec
     if (action.type === "CHANGE_CLASS_COURSE") await tx.update(schema.classes).set({ courseVersionId: versionOf(action.courseRef, ids, state) })
       .where(and(eq(schema.classes.id, action.classId), eq(schema.classes.raceId, raceId)));
   }
+  await storeCourseMeasurements(tx, raceId, projection, state, links, ids);
   // Varianter per löpare och lag ur filen; den som läst ut behåller sin variant.
   const keep = new Set(state.entries.filter(entry => entry.readOut || entry.hasResult).map(entry => entry.id));
   await importPersonCourseAssignments(tx, raceId, projection.data, keep);

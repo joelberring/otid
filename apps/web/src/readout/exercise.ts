@@ -4,8 +4,13 @@ import { cardTypeForNumber, simulatedRun, type SimulatedCard } from "@o-tid/spor
 import { relayExerciseWindow, relayPlace } from "./relay";
 import { readoutText as t } from "./text-sv";
 
-/** "late": rogaining, i mål 1:30 efter tidsgränsen (två påbörjade minuter). */
-export type ExerciseVariant = "ok" | "missing-control" | "no-finish" | "late";
+/**
+ * "late": rogaining, i mål 1:30 efter tidsgränsen (två påbörjade minuter). "late-start" (PLAN.md steg 25): minutstart,
+ * startstämplingen 2:12 efter den lottade tiden.
+ */
+export type ExerciseVariant = "ok" | "missing-control" | "no-finish" | "late" | "late-start";
+/** Övningens sena start vid minutstart. */
+export const EXERCISE_LATE_START_MS = 132_000;
 
 export interface ExerciseRunner {
   readonly entryId: string;
@@ -81,10 +86,12 @@ export function exerciseWindow(pkg: ReadoutPackage, runner: ExerciseRunner, vari
   const anchor = exerciseAnchor(pkg.raceSnapshot.race.raceDate, pkg.event.timeZone, now);
   const finishedNow = new Date(anchor.getTime() - 5_000);
   if (runner.fixedStartTime) {
-    const startAt = new Date(runner.fixedStartTime);
+    const scheduled = new Date(runner.fixedStartTime);
     const raceDay = anchor === now;
-    const finishAt = raceDay && runner.timeLimitMs === undefined && finishedNow.getTime() - startAt.getTime() > duration
-      ? finishedNow : new Date(startAt.getTime() + duration);
+    const finishAt = raceDay && runner.timeLimitMs === undefined && finishedNow.getTime() - scheduled.getTime() > duration
+      ? finishedNow : new Date(scheduled.getTime() + duration);
+    // Sen start: löparen stämplar start efter den lottade tiden; den lottade tiden gäller ändå.
+    const startAt = variant === "late-start" ? new Date(scheduled.getTime() + EXERCISE_LATE_START_MS) : scheduled;
     return { startAt, finishAt };
   }
   return { startAt: new Date(finishedNow.getTime() - duration), finishAt: finishedNow };

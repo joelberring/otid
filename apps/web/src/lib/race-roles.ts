@@ -25,6 +25,8 @@ export const FUNCTIONARY_ROUTES: Readonly<Record<string, readonly string[]>> = {
   readouts: ["POST"],
   /** Okända brickor: läsa och direktanmäla (koppling till befintlig deltagare kräver administratör i tjänsten). */
   "unknown-readout-resolution": ["GET", "POST"],
+  /** Direktanmälan på avläsningssidan, även köad offline (PLAN.md steg 25). */
+  "readout-registrations": ["POST"],
   /** Kvar i skogen: läsa, registrera och ta tillbaka återkomst. */
   "forest-watch": ["GET"],
   "manual-return": ["POST"],

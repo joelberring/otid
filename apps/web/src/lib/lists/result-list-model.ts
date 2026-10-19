@@ -1,14 +1,16 @@
-import type { PublicRadioResponse, PublicRelayResults, PublicResultListResponse } from "@o-tid/contracts";
+import type { PublicClassCourse, PublicRadioResponse, PublicRelayResults, PublicResultListResponse,
+  PublicResultStanding } from "@o-tid/contracts";
 import { splitTablesByVariant, type SplitTable } from "@o-tid/domain";
 import { compareText, matches, searchable } from "./search";
 import { groupByClub, type ClubGroup } from "./start-list-model";
+import { listsSv } from "../../i18n/lists-sv";
 
 /**
  * PLAN.md steg 13: en gemensam modell för resultatlistorna i arbetsytan och på den publika sidan. Båda läser de
  * publicerade resultaten; placering, tid efter och sträckplaceringar kommer från resultatmotorn och domänen.
  */
 
-export type ResultStatus = "OK" | "MP" | "DSQ" | "DNF" | "OOC" | "DNS" | "NT";
+export type ResultStatus = "OK" | "OVERTIME" | "MP" | "DSQ" | "DNF" | "OOC" | "DNS" | "NT";
 export type ResultSplit = { controlCode: number; occurrence: number; legMs: number; elapsedMs: number };
 /** Rogaining (ADR-0170 beslut 5): kontrollpoäng, straff, summa och de räknade kontrollerna i stämplingsordning. */
 export type ResultScore = { controlPoints: number; penalty: number; total: number; controls: { controlCode: number; points: number }[] };
@@ -27,12 +29,16 @@ export type ResultClass = { name: string; rows: ResultRow[];
   /** Rogainingklass: listan visar poäng, straff och summa (sorterad på summa, sedan tid). */
   scored: boolean;
   /** Godkända resultat bygger på olika banversioner: ingen placering visas. */
-  mixedCourses: boolean };
+  mixedCourses: boolean;
+  /** Klassens bana med längd och stigning (PLAN.md steg 25); saknas i äldre format. */
+  course?: PublicClassCourse | undefined };
 export type RelayClass = PublicRelayResults["classes"][number];
 export type RelayTeam = RelayClass["teams"][number];
 export type ResultListModel = { classes: ResultClass[]; relayClasses: RelayClass[];
   /** Tidszonen för radiopassagernas klockslag; saknas utan radio. */
-  radioTimeZone?: string | null | undefined };
+  radioTimeZone?: string | null | undefined;
+  /** Preliminär eller officiell lista (PLAN.md steg 25); saknas i äldre format. */
+  standing?: PublicResultStanding | undefined };
 
 type PublicRow = PublicResultListResponse["results"][number];
 
@@ -72,9 +78,11 @@ export function resultListFromPublic(results: PublicResultListResponse, relay: P
     const raceClass = classes.get(radioClass.className) ?? { name: radioClass.className, rows: [], mixedCourses: false, scored: false };
     classes.set(radioClass.className, { ...raceClass, radio: radioClass });
   }
+  const courses = new Map(("classCourses" in results ? results.classCourses ?? [] : []).map(course => [course.className, course]));
   // Samma ordning som servern (svensk bokstavsordning); radioklasserna sorteras in.
-  return { classes: [...classes.values()].sort((a, b) => a.name.localeCompare(b.name, "sv")), relayClasses: relay.classes,
-    radioTimeZone: live.length > 0 ? radio!.timeZone : null };
+  return { classes: [...classes.values()].map(raceClass => courses.has(raceClass.name) ? { ...raceClass, course: courses.get(raceClass.name) } : raceClass)
+    .sort((a, b) => a.name.localeCompare(b.name, "sv")), relayClasses: relay.classes,
+    radioTimeZone: live.length > 0 ? radio!.timeZone : null, ...("standing" in results && results.standing ? { standing: results.standing } : {}) };
 }
 
 /** Alla klassnamn (individuella och stafett) för klassfiltret. */
@@ -102,7 +110,8 @@ export function filterResults(model: ResultListModel, query: string, className: 
       return teams.length ? [{ ...raceClass, teams, legs: raceClass.legs.map(leg => ({ ...leg,
         results: leg.results.filter(result => numbers.has(result.teamNumber)) })) }] : [];
     }),
-    radioTimeZone: model.radioTimeZone
+    radioTimeZone: model.radioTimeZone,
+    standing: model.standing
   };
 }
 
@@ -150,4 +159,17 @@ export function resultsByClub(model: ResultListModel): ClubResults[] {
         summary: { runners: runners.length, approved: runners.filter(row => row.result.status === "OK").length,
           podium: runners.filter(row => row.result.place !== null && row.result.place <= 3).length } };
     });
+}
+
+/** "Bana Lång · 4,2 km · 120 m" för listornas klassrubriker (PLAN.md steg 25). Längd och stigning visas när de finns. */
+export function courseLine(course: { courseName: string; lengthMeters: number | null; climbMeters: number | null }): string {
+  return [listsSv.course.name(course.courseName), courseMeasures(course.lengthMeters, course.climbMeters)].filter(Boolean).join(" · ");
+}
+
+/** "4,2 km · 120 m", eller tom text när varken längd eller stigning är känd. */
+export function courseMeasures(lengthMeters: number | null, climbMeters: number | null): string {
+  const text = listsSv.course;
+  const km = lengthMeters === null ? null
+    : text.km((lengthMeters / 1000).toLocaleString("sv-SE", { minimumFractionDigits: 1, maximumFractionDigits: 1 }));
+  return [km, climbMeters === null ? null : text.climb(climbMeters)].filter(Boolean).join(" · ");
 }

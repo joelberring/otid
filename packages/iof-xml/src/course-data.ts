@@ -25,6 +25,9 @@ export interface CourseImport {
   /** Tom för en gafflad bana; kontrollerna finns då i varianterna. */
   readonly controlCodes: readonly number[];
   readonly variants?: readonly CourseVariantImport[];
+  /** Banans längd och stigning i hela meter (IOF Length/Climb). En gafflad bana får den längsta variantens värden. */
+  readonly lengthMeters?: number;
+  readonly climbMeters?: number;
 }
 
 export interface ClassCourseImport {
@@ -76,6 +79,24 @@ interface ParsedCourse {
   readonly name: string;
   readonly family: string;
   readonly controlCodes: number[];
+  readonly lengthMeters?: number;
+  readonly climbMeters?: number;
+}
+
+/** Längd eller stigning i meter: ett icke-negativt tal, avrundat till hela meter. Tomt eller ogiltigt = saknas. */
+function meters(value: unknown, path: string, warnings: string[], minimum: number): number | undefined {
+  const raw = text(value);
+  if (!raw) return undefined;
+  const parsed = Number(raw.replace(",", "."));
+  if (!Number.isFinite(parsed) || parsed < minimum || parsed > 1_000_000) {
+    warnings.push(`${path} är ogiltig och hoppas över`);
+    return undefined;
+  }
+  return Math.round(parsed);
+}
+
+function measured(lengthMeters: number | undefined, climbMeters: number | undefined) {
+  return { ...(lengthMeters !== undefined && lengthMeters > 0 ? { lengthMeters } : {}), ...(climbMeters !== undefined ? { climbMeters } : {}) };
 }
 
 export function readCourseData(root: XmlRecord): CourseDataImport {
@@ -135,7 +156,8 @@ export function readCourseData(root: XmlRecord): CourseDataImport {
         });
       if (controlCodes.length === 0) issues.push(`${path} saknar vanliga kontroller`);
       if (array(course.CourseControl).length < 2) issues.push(`${path} måste ha minst två CourseControl enligt IOF XML 3.0`);
-      return { externalId, name, family, controlCodes };
+      return { externalId, name, family, controlCodes,
+        ...measured(meters(course.Length, `${path}.Length`, warnings, 0), meters(course.Climb, `${path}.Climb`, warnings, 0)) };
     });
 
     const raceCourses: CourseImport[] = [];
@@ -143,7 +165,8 @@ export function readCourseData(root: XmlRecord): CourseDataImport {
     const families = new Map<string, ParsedCourse[]>();
     for (const course of parsed) {
       if (!course.family) {
-        raceCourses.push({ externalId: course.externalId, name: course.name, controlCodes: course.controlCodes });
+        raceCourses.push({ externalId: course.externalId, name: course.name, controlCodes: course.controlCodes,
+          ...measured(course.lengthMeters, course.climbMeters) });
         courseByName.set(course.name, { externalId: course.externalId });
       } else {
         families.set(course.family, [...families.get(course.family) ?? [], course]);
@@ -157,7 +180,8 @@ export function readCourseData(root: XmlRecord): CourseDataImport {
       if (variants.length > MAX_VARIANTS) issues.push(`CourseFamily ${family} får ha högst ${MAX_VARIANTS} varianter`);
       for (const variant of variants) if (variant.code.length > 32) issues.push(`Variantkoden ${variant.code} är för lång`);
       if (family.length > 160) issues.push(`CourseFamily ${family} är för långt`);
-      raceCourses.push({ externalId, name: family, controlCodes: [], variants });
+      const longest = [...members].sort((left, right) => (right.lengthMeters ?? 0) - (left.lengthMeters ?? 0))[0];
+      raceCourses.push({ externalId, name: family, controlCodes: [], variants, ...measured(longest?.lengthMeters, longest?.climbMeters) });
       courseByName.set(family, { externalId });
       for (const [index, member] of members.entries()) courseByName.set(member.name, { externalId, variantCode: variants[index]!.code });
     }

@@ -72,6 +72,12 @@ export const evaluationResultSchema = z.discriminatedUnion("reason", [
     status: z.literal("OK"),
     reason: z.literal("COMPLETE"),
     ...timedFields
+  }).strict(),
+  /** PLAN.md steg 25: alla kontroller men löptiden är längre än klassens maxtid. */
+  z.object({
+    status: z.literal("OVERTIME"),
+    reason: z.literal("MAX_TIME_EXCEEDED"),
+    ...timedFields
   }).strict()
 ]);
 

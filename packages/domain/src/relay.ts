@@ -111,7 +111,7 @@ export interface RelayTeamResult {
 }
 
 /** Underkända lagstatusar i den ordning de gäller när flera sträckor är underkända. */
-const TEAM_FAILURE_ORDER: readonly StoredResultStatus[] = ["DSQ", "MP", "DNF", "DNS", "OOC", "NT"];
+const TEAM_FAILURE_ORDER: readonly StoredResultStatus[] = ["DSQ", "MP", "DNF", "DNS", "OOC", "NT", "OVERTIME"];
 
 /** Lagets resultat ur sträckornas resultat. */
 export function relayTeamResult(legCount: number, legs: readonly RelayLegOutcome[]): RelayTeamResult {

@@ -43,5 +43,8 @@ export const participantCardSv = {
   unknown: "Kunde inte nå servern. Försök igen.",
   notAvailable: "Det valet går inte att göra för löparen just nu.",
   loadError: "Deltagaren kunde inte läsas in. Välj igen.",
-  entryChanges: "Ändringar i anmälan"
+  entryChanges: "Ändringar i anmälan",
+  /** Disk med orsak (PLAN.md steg 25): orsaken visas bara i arbetsytan. */
+  dsqReason: "Orsak (valfritt)",
+  dsqReasonShown: (reason: string) => `Orsak: ${reason}`
 } as const;

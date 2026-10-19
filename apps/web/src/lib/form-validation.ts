@@ -84,3 +84,14 @@ export function validateRegistration(input: RegistrationInput): FieldErrors<"cla
 export function validateFirstStart(value: string): string | undefined {
   return isClock(value) ? undefined : text.firstStart;
 }
+
+/** Direktanmälan på avläsningssidan (PLAN.md steg 25): klass, förnamn och efternamn krävs; klubben är valfri. */
+export type ReadoutRegistrationInput = { classId: string; givenName: string; familyName: string; club: string };
+export function validateReadoutRegistration(input: ReadoutRegistrationInput): FieldErrors<keyof ReadoutRegistrationInput> {
+  return {
+    classId: input.classId ? undefined : text.chooseClass,
+    givenName: !input.givenName.trim() ? text.givenName : input.givenName.trim().length > 160 ? text.tooLong(160) : undefined,
+    familyName: !input.familyName.trim() ? text.familyName : input.familyName.trim().length > 160 ? text.tooLong(160) : undefined,
+    club: input.club.trim().length > 200 ? text.tooLong(200) : undefined
+  };
+}

@@ -112,6 +112,9 @@ export const courses = pgTable("course", {
   id: uuid("id").primaryKey().defaultRandom(),
   raceId: uuid("race_id").notNull().references(() => races.id),
   name: text("name").notNull(),
+  /** Längd och stigning i meter (migration 0004): från banfilen eller banformuläret. */
+  lengthMeters: integer("length_meters"),
+  climbMeters: integer("climb_meters"),
   externalSource: text("external_source"),
   externalId: text("external_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
@@ -174,6 +177,8 @@ export const classes = pgTable("class", {
   /** Rogainingklass (migration 0097): tidsgräns i sekunder och straffpoäng per påbörjad minut över. Båda NULL = vanlig klass. */
   rogainingTimeLimitSeconds: integer("rogaining_time_limit_seconds"),
   rogainingPenaltyPointsPerMinute: integer("rogaining_penalty_points_per_minute"),
+  /** Maxtid i minuter (migration 0004, PLAN.md steg 25). NULL = ingen gräns; aldrig för rogaining. */
+  maxTimeMinutes: integer("max_time_minutes"),
   externalSource: text("external_source"),
   externalId: text("external_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
@@ -186,6 +191,8 @@ export const classes = pgTable("class", {
   ,check("class_rogaining_check", sql`(${table.rogainingTimeLimitSeconds} IS NULL) = (${table.rogainingPenaltyPointsPerMinute} IS NULL) AND
     (${table.rogainingTimeLimitSeconds} IS NULL OR ${table.rogainingTimeLimitSeconds} BETWEEN 60 AND 172800) AND
     (${table.rogainingPenaltyPointsPerMinute} IS NULL OR ${table.rogainingPenaltyPointsPerMinute} BETWEEN 0 AND 1000)`)
+  ,check("class_max_time_check", sql`${table.maxTimeMinutes} IS NULL OR (${table.maxTimeMinutes} BETWEEN 1 AND 1440 AND
+    ${table.rogainingTimeLimitSeconds} IS NULL)`)
 ]);
 
 export const entries = pgTable("entry", {
@@ -206,6 +213,9 @@ export const entries = pgTable("entry", {
   relayLeg: integer("relay_leg"),
   externalSource: text("external_source"),
   externalId: text("external_id"),
+  /** Eventors id för personen och klubben (migration 0004), för IOF-resultatets Person/Organisation Id. */
+  eventorPersonId: text("eventor_person_id"),
+  eventorOrganisationId: text("eventor_organisation_id"),
   version: integer("version").notNull().default(1),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (table) => [

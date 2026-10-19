@@ -23,6 +23,8 @@ export const speakerBoardEffectiveResultSchema = z.discriminatedUnion("status", 
     reason: z.enum(["COMPLETE", "MANUAL_APPROVAL"]),
     elapsedMs: milliseconds
   }).strict(),
+  /** PLAN.md steg 25: maxtid överskriden, med tid men utan placering. */
+  z.object({ revision, status: z.literal("OVERTIME"), reason: z.literal("MAX_TIME_EXCEEDED"), elapsedMs: milliseconds }).strict(),
   z.object({
     revision,
     status: z.literal("MP"),

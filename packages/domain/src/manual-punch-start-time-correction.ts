@@ -3,8 +3,8 @@ import { rescoreRogaining } from "./rogaining";
 
 /** A direct timed technical result eligible for an observed PUNCH-start correction. */
 export type PunchedStartTimeCorrectableResult = EvaluationResult & {
-  readonly status: "OK" | "MP";
-  readonly reason: "COMPLETE" | "MISSING_CONTROL" | "WRONG_ORDER";
+  readonly status: "OK" | "OVERTIME" | "MP";
+  readonly reason: "COMPLETE" | "MAX_TIME_EXCEEDED" | "MISSING_CONTROL" | "WRONG_ORDER";
   readonly entryId: string;
   readonly classId: string;
   readonly courseVersionId: string;
@@ -63,10 +63,11 @@ export function correctPunchedStartTime(
   source: PunchedStartTimeCorrectableResult,
   correctedStartTime: string
 ): PunchedStartTimeCorrectableResult {
-  if (source.status !== "OK" && source.status !== "MP") {
-    throw new ManualPunchStartTimeCorrectionError("UNSUPPORTED_STATUS", "Endast OK eller MP kan rättas");
+  if (source.status !== "OK" && source.status !== "OVERTIME" && source.status !== "MP") {
+    throw new ManualPunchStartTimeCorrectionError("UNSUPPORTED_STATUS", "Endast OK, maxtid eller MP kan rättas");
   }
-  if (source.reason !== "COMPLETE" && source.reason !== "MISSING_CONTROL" && source.reason !== "WRONG_ORDER") {
+  if (source.reason !== "COMPLETE" && source.reason !== "MAX_TIME_EXCEEDED" && source.reason !== "MISSING_CONTROL" &&
+    source.reason !== "WRONG_ORDER") {
     throw new ManualPunchStartTimeCorrectionError("UNSUPPORTED_REASON", "Resultatets orsak kan inte rättas");
   }
   const sourceStartMs = finiteTime(source.startTime);

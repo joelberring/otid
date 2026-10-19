@@ -8,7 +8,7 @@ import { raceAdministratorSv as adminText } from "../../i18n/race-administrator-
 import { courseVariantsSv as variantText } from "../../i18n/course-variants-sv";
 import { relaySv as relayText } from "../../i18n/relay-sv";
 import { classTableStatus } from "../../lib/class-table-status";
-import { Button, EmptyState, Notice, Section, Table, numeric } from "../ui";
+import { Button, EmptyState, Field, Notice, Section, Table, numeric } from "../ui";
 import type { Workspace } from "./workspace-state";
 
 type ClassRow = CourseEditListResponse["classes"][number];
@@ -93,11 +93,11 @@ function ClassStatus({ row, disabled, onMissingStartTimes }: { row: ClassRow; di
 
 function ClassEditor({ ws, row }: { ws: Workspace; row: ClassRow }) {
   const { busy, cancelClassEdit, changeClassEdit, classEditAttempt, classEditCourseId, classEditError, classEditName,
-    classEditPreview, classEditStartRule, courseList, previewClassEdit, raceId, saveClassEdit } = ws;
+    classEditPreview, classEditStartRule, courseList, previewClassEdit, raceId, saveClassEdit, classEditMaxTime, classEditMaxTimeError } = ws;
   const id = `class-edit-${raceId}`;
   const locked = busy || !!classEditAttempt;
   const startRuleChoice = ws.profile.features.startRuleChoice;
-  return <form className={styles.editor} aria-label={text.openLabel(row.name)}
+  return <form className={styles.editor} aria-label={text.openLabel(row.name)} noValidate
     onSubmit={event => { event.preventDefault(); void saveClassEdit(); }}>
     <div className={styles.fieldRow}>
       <label htmlFor={`${id}-name`}>{text.fieldName}<input id={`${id}-name`} value={classEditName} maxLength={160}
@@ -111,12 +111,18 @@ function ClassEditor({ ws, row }: { ws: Workspace; row: ClassRow }) {
         onChange={event => changeClassEdit({ startRule: event.target.value === "FIXED" ? "FIXED" : "PUNCH" })}>
         <option value="PUNCH">{text.free}</option><option value="FIXED">{text.fixed}</option>
       </select></label>}
+      {/* Maxtid (PLAN.md steg 25); rogainingklassen har egen tidsgräns. */}
+      {!row.rogaining && <Field label={text.fieldMaxTime} help={text.maxTimeHelp} error={classEditMaxTimeError || undefined}
+        className={styles.narrowField}>
+        <input id={`${id}-max-time`} inputMode="numeric" autoComplete="off" value={classEditMaxTime} maxLength={4} disabled={locked}
+          onChange={event => changeClassEdit({ maxTime: event.target.value })} /></Field>}
     </div>
     {!row.renamable && <p className={styles.workflowHelp}>{text.importedName}</p>}
     {classEditPreview && <section className={styles.review} role="status" aria-live="polite">
       {classEditPreview.readOutCount === 0 ? <p>{text.nobodyReadOut}</p> : <p><strong>{adminText.courseEditSummary(
         classEditPreview.readOutCount, classEditPreview.becomesOkCount, classEditPreview.becomesMispunchedCount,
-        classEditPreview.unchangedCount)}</strong></p>}
+        classEditPreview.unchangedCount,
+        classEditPreview.changes.filter(change => change.after === "OVERTIME").length)}</strong></p>}
       {classEditPreview.clearedStartTimeCount > 0 && <p>{text.clearedStartTimes(classEditPreview.clearedStartTimeCount)}</p>}
       {classEditPreview.notRecalculatedCount > 0 && <Notice tone="attention">{adminText.courseEditNotRecalculated(classEditPreview.notRecalculatedCount)}</Notice>}
       {classEditPreview.changes.length > 0 ? <>

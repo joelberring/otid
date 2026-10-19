@@ -30,6 +30,8 @@ export interface AppendResultRevisionInput {
   readonly startCheckinDnsDecisionId?: string | null;
   readonly actorAccountId?: string | null;
   readonly requestId?: string | null;
+  /** Disk med orsak (PLAN.md steg 25): arrangörens text, bara på MANUAL_DISQUALIFICATION. */
+  readonly note?: string | null;
   readonly id?: string;
   readonly createdAt?: Date;
   /** Kräver att revisionen blir exakt detta nummer (anroparen har läst huvudet under samma lås). */
@@ -69,6 +71,7 @@ export async function appendResultRevision(tx: DbExecutor, input: AppendResultRe
     startCheckinDnsDecisionId: input.startCheckinDnsDecisionId ?? null,
     requestId: input.requestId ?? null,
     actorAccountId: input.actorAccountId ?? null,
+    note: input.note ?? null,
     published: true,
     ...(input.createdAt ? { createdAt: input.createdAt } : {})
   }).returning();

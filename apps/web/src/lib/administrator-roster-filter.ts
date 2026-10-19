@@ -3,7 +3,7 @@ import type { EntryTransferCandidates, SpeakerBoardEffectiveResult } from "@o-ti
 type Entry = EntryTransferCandidates["entries"][number];
 type StartRule = EntryTransferCandidates["classes"][number]["startRule"];
 
-export const administratorRosterResultFilters = ["ALL", "OK", "MP", "DNS", "DNF", "DSQ", "OOC", "NT",
+export const administratorRosterResultFilters = ["ALL", "OK", "OVERTIME", "MP", "DNS", "DNF", "DSQ", "OOC", "NT",
   "NO_ACTIVE_RESULT", "NO_PUBLISHED_RESULT"] as const satisfies readonly ("ALL" | SpeakerBoardEffectiveResult["status"] |
     "NO_ACTIVE_RESULT" | "NO_PUBLISHED_RESULT")[];
 export type AdministratorRosterResultFilter = typeof administratorRosterResultFilters[number];

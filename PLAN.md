@@ -481,7 +481,7 @@ Se ADR-0173.
 **Acceptans:** Playwright: tre deltagare på under tio klick; skärmbilder
 granskade på 1280 och 390 px.
 
-## [ ] Steg 25 – Saknade tävlingsfunktioner
+## [x] Steg 25 – Saknade tävlingsfunktioner
 
 1. Startstämpling som reserv vid lottad start, med varning vid sen start.
 2. Direktanmälan av okänd bricka på avläsningssidan, även offline.

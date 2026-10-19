@@ -17,10 +17,10 @@ const club = z.string().trim().min(1).max(200).nullable();
 const card = newEntryCardNumberSchema.nullable();
 const legNumber = z.number().int().min(1).max(20);
 const teamNumber = z.number().int().min(1).max(99_999);
-const resultStatus = z.enum(["OK", "MP", "DSQ", "DNF", "OOC", "NT", "DNS"]);
+const resultStatus = z.enum(["OK", "OVERTIME", "MP", "DSQ", "DNF", "OOC", "NT", "DNS"]);
 
 export const relayStartMethodSchema = z.enum(["MASS_START", "CHANGEOVER", "RESTART"]);
-export const relayTeamStatusSchema = z.enum(["OK", "MP", "DSQ", "DNF", "OOC", "NT", "DNS", "RUNNING"]);
+export const relayTeamStatusSchema = z.enum(["OK", "OVERTIME", "MP", "DSQ", "DNF", "OOC", "NT", "DNS", "RUNNING"]);
 
 export const relayLegSettingSchema = z.object({
   leg: legNumber, startMethod: relayStartMethodSchema, startTime: instant.nullable(), variantCode: courseVariantCodeSchema.nullable()

@@ -109,6 +109,8 @@ function validTechnicalShape(source: EvaluationResult): boolean {
   switch (source.reason) {
     case "COMPLETE":
       return source.status === "OK" && validTimedSource(source) && source.missingControls.length === 0;
+    case "MAX_TIME_EXCEEDED":
+      return source.status === "OVERTIME" && validTimedSource(source) && source.missingControls.length === 0;
     case "MISSING_START":
       return source.status === "MP" && source.startTime === undefined && source.finishTime === undefined &&
         source.elapsedMs === undefined && emptyExplanations(source);
@@ -130,15 +132,15 @@ function validTechnicalShape(source: EvaluationResult): boolean {
 
 /** Creates a stored-only OOC outcome from one strict direct technical OK/MP result. */
 export function createOutOfCompetitionResult(source: EvaluationResult): OutOfCompetitionResult {
-  if (typeof source !== "object" || source === null || (source.status !== "OK" && source.status !== "MP")) {
+  if (typeof source !== "object" || source === null || (source.status !== "OK" && source.status !== "OVERTIME" && source.status !== "MP")) {
     throw new OutOfCompetitionError(
       "UNSUPPORTED_SOURCE_STATUS",
       "Endast ett tekniskt OK- eller MP-resultat kan markeras utom tävlan"
     );
   }
-  const reasonMatchesStatus = source.status === "OK"
-    ? source.reason === "COMPLETE"
-    : source.reason !== "COMPLETE" && source.reason !== "UNKNOWN_CARD";
+  const reasonMatchesStatus = source.status === "OK" ? source.reason === "COMPLETE"
+    : source.status === "OVERTIME" ? source.reason === "MAX_TIME_EXCEEDED"
+      : source.reason !== "COMPLETE" && source.reason !== "MAX_TIME_EXCEEDED" && source.reason !== "UNKNOWN_CARD";
   if (!reasonMatchesStatus) {
     throw new OutOfCompetitionError("INVALID_SOURCE_REASON", "Källresultatets status och orsak motsäger varandra");
   }

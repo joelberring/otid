@@ -725,3 +725,38 @@ describe("serializeIofResultList", () => {
     })).toThrow(/högst 256/);
   });
 });
+
+describe("IOF ResultList med maxtid, Eventor-id, bricka och bana (PLAN.md steg 25)", () => {
+  const overtime: IofResultListEvaluatedPersonResult = {
+    givenName: "Cia", familyName: "Sen", status: "OVERTIME", startTime: "2026-08-31T08:00:00Z", finishTime: "2026-08-31T10:00:00Z",
+    elapsedMs: 7_200_000, expectedControls: [{ controlCode: 31, occurrence: 1 }], splits: [{ controlCode: 31, occurrence: 1, elapsedMs: 1_000 }],
+    personEventorId: "610001", organisationEventorId: "9321", organisationName: "OK Test", cardNumber: "7123456",
+    course: { name: "Lång-AC", lengthMeters: 4200, climbMeters: 120 }
+  };
+  const xml = text(serializeIofResultList({ status: "Snapshot", eventName: "Test", classes: [{ className: "H21",
+    course: { name: "Lång", lengthMeters: 4200, climbMeters: 120 }, results: [overtime] }] }));
+
+  it("skriver OverTime, Person- och Organisation-Id, bana och bricka i IOF 3.0-ordning", () => {
+    expect(xml).toContain("<Status>OverTime</Status>");
+    expect(xml).toMatch(/<Person>\s*<Id type="Eventor">610001<\/Id>\s*<Name>/);
+    expect(xml).toMatch(/<Organisation>\s*<Id type="Eventor">9321<\/Id>\s*<Name>OK Test<\/Name>/);
+    expect(xml).toMatch(/<\/Class>\s*<Course>\s*<Name>Lång<\/Name>\s*<Length>4200<\/Length>\s*<Climb>120<\/Climb>\s*<\/Course>\s*<PersonResult>/);
+    // PersonRaceResult: Status, Course, SplitTime, ControlCard.
+    const order = ["<Status>OverTime", "<Name>Lång-AC</Name>", "<SplitTime", '<ControlCard punchingSystem="SI">7123456</ControlCard>'];
+    const positions = order.map(part => xml.indexOf(part));
+    expect(positions.every(position => position > 0)).toBe(true);
+    expect([...positions].sort((a, b) => a - b)).toEqual(positions);
+    expect(xml).not.toContain("<Position>");
+  });
+
+  it("maxtid kräver tider och får ingen placering; ogiltiga id avvisas", () => {
+    expect(() => serializeIofResultList({ status: "Snapshot", eventName: "Test", classes: [{ className: "H21",
+      results: [{ ...overtime, position: 1, timeBehindMs: 0 }] }] })).toThrow(IofResultListSerializationError);
+    const untimed: IofResultListEvaluatedPersonResult = { givenName: "Cia", familyName: "Sen", status: "OVERTIME",
+      expectedControls: [], splits: [] };
+    expect(() => serializeIofResultList({ status: "Snapshot", eventName: "Test", classes: [{ className: "H21",
+      results: [untimed] }] })).toThrow(/OVERTIME måste ha startTime/);
+    expect(() => serializeIofResultList({ status: "Snapshot", eventName: "Test", classes: [{ className: "H21",
+      results: [{ ...overtime, personEventorId: "<x>" }] }] })).toThrow(/personEventorId/);
+  });
+});

@@ -18,6 +18,8 @@ export type StartEntry = {
 };
 export type StartClass = {
   name: string; courseName: string | null; firstControlCode: number | null; mode: StartMode; entries: StartEntry[];
+  /** Banans längd och stigning i meter (PLAN.md steg 25). */
+  lengthMeters?: number | null; climbMeters?: number | null;
   /** Lediga lottade starttider. */
   vacancies: string[];
 };
@@ -58,6 +60,7 @@ export function startListFromWorkspace(data: EntryTransferCandidates): StartList
         card: entry.activeAssignment?.cardNumber ?? null, multipleCards: entry.multipleActiveAssignments
       })).sort(compareStartEntries);
       return { name: raceClass.name, courseName: raceClass.courseName, firstControlCode: raceClass.firstControlCode ?? null,
+        lengthMeters: raceClass.courseLengthMeters ?? null, climbMeters: raceClass.courseClimbMeters ?? null,
         mode: mode(raceClass, entries.map(entry => entry.startTime)), entries, vacancies: raceClass.vacancies ?? [] };
     })
   };
@@ -76,6 +79,7 @@ export function startListFromPublication(content: StartListPublicationContent): 
       const relayLegCount = raceClass.relayLegCount ?? (entries.some(entry => entry.relay)
         ? Math.max(...entries.map(entry => entry.relay?.leg ?? 1)) : undefined);
       return { name: raceClass.name, courseName: raceClass.courseName ?? null, firstControlCode: raceClass.firstControlCode ?? null,
+        lengthMeters: raceClass.courseLengthMeters ?? null, climbMeters: raceClass.courseClimbMeters ?? null,
         mode: mode({ ...raceClass, relayLegCount }, entries.map(entry => entry.startTime)), entries, vacancies: raceClass.vacancies ?? [] };
     })
   };

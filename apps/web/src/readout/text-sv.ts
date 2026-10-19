@@ -39,6 +39,7 @@ export const readoutText = {
   unsupported: (card: number) => `Bricka ${card} har en typ som inte stöds.`,
   verdict: {
     OK: "GODKÄND",
+    OVERTIME: "MAXTID ÖVERSKRIDEN",
     MP: "FELSTÄMPLAD",
     UNKNOWN_CARD: "OKÄND BRICKA",
     NO_PACKAGE: "SPARAD"
@@ -50,9 +51,24 @@ export const readoutText = {
     MISSING_START: "Ingen starttid",
     MISSING_FINISH: "Ingen målstämpling",
     INVALID_TIME_ORDER: "Målet ligger före starten",
-    UNKNOWN_CARD: "Brickan är inte kopplad till någon deltagare. Registrera den under Hantera tävling."
+    MAX_TIME_EXCEEDED: "Löptiden är längre än klassens maxtid",
+    UNKNOWN_CARD: "Brickan är inte kopplad till någon deltagare. Anmäl löparen nedan."
   } as Record<string, string>,
   missing: (codes: readonly number[]) => `Saknar: ${codes.join(", ")}`,
+  // Hyrbricka och startstämpling (PLAN.md steg 25). Status med ord och symbol, inte bara färg.
+  rental: "HYRBRICKA – samla in",
+  // Direktanmälan av okänd bricka (PLAN.md steg 25), även utan nät.
+  register: {
+    title: (card: string) => `Anmäl löparen med bricka ${card}`,
+    help: "Löparen läggs till i tävlingen med den här brickan. Det fungerar utan nät; anmälan skickas när nätet finns.",
+    className: "Klass", chooseClass: "Välj klass …", givenName: "Förnamn", familyName: "Efternamn", club: "Klubb (valfritt)",
+    submit: "Lägg till",
+    pending: (name: string, className: string) => `${name} är anmäld i ${className} här. Skickas när nätet finns.`,
+    stored: (name: string, className: string) => `${name} är anmäld i ${className}.`,
+    existing: (name: string, className: string) => `Brickan fanns redan anmäld som ${name} (${className}). Den anmälan gäller.`,
+    rejected: (name: string) => `Anmälan av ${name} togs inte emot av servern (klassen kan vara full). Registrera löparen under Hantera tävling.`,
+    noClasses: "Tävlingen har inga klasser att anmäla till här."
+  },
   // Gafflad bana (ADR-0169 beslut 2).
   variant: (code: string) => `Variant ${code}`,
   variantGuessed: (code: string) => `Variant ${code} (efter stämplingarna)`,
@@ -79,6 +95,7 @@ export const readoutText = {
   rogainingControls: "Räknade kontroller",
   rogainingPoints: (points: number) => `${points} p`,
   exerciseLate: "Läs av: för sen",
+  exerciseLateStart: "Läs av: sen start",
   rejected: (reason: string) => `Servern tog inte emot avläsningen (${reason}). Avläsningen finns kvar här.`,
   localInvalid: "Avläsningen kunde inte skickas. Den finns kvar i den här webbläsaren.",
   recent: "Senaste avläsningar",
@@ -125,6 +142,7 @@ export const readoutText = {
     noSplits: "Inga sträcktider.",
     scan: "Skanna för dina resultat",
     notPublished: "Resultatsidan syns när tävlingen publiceras.",
+    rental: "Lämna tillbaka hyrbrickan",
     printedAt: (time: string) => `Utskrivet ${time}`,
     footer: "O-Tid"
   },

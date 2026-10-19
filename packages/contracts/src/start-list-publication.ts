@@ -29,6 +29,9 @@ const entry = z.object({
 /** Startlistans fakta om klassen (PLAN.md steg 13). Saknas i publiceringar gjorda före steg 13. */
 export const startListClassFactsSchema = z.object({
     courseName: z.string().trim().min(1).max(160).optional(),
+    /** Banans längd och stigning i meter (PLAN.md steg 25); null när de inte är kända. */
+    courseLengthMeters: z.number().int().min(1).max(1_000_000).nullable().optional(),
+    courseClimbMeters: z.number().int().min(0).max(100_000).nullable().optional(),
     /** Banans första kontroll: klasser med samma första kontroll startar från samma startfålla. */
     firstControlCode: z.number().int().positive().max(2_147_483_647).nullable().optional(),
     /** Lottningens startsätt; null när klassen inte är lottad. */

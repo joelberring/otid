@@ -17,8 +17,12 @@ import { resultListFromPublic } from "../../lib/lists/result-list-model";
 import { listsSv as listText } from "../../i18n/lists-sv";
 import listStyles from "../lists/lists.module.css";
 import { useMemo } from "react";
+import { startRuleSv } from "../../i18n/start-rule-sv";
+import { startPunchText } from "../../lib/start-punch-text";
+import type { ResultRowNote } from "../lists/result-lists";
 import type { Workspace } from "./workspace-state";
 import { MapRoutesSection } from "./map-routes-section";
+import { RemainingRunnersSection } from "./remaining-runners";
 
 /**
  * Resultatlistorna i arbetsytan (PLAN.md steg 13): samma vyer som den publika sidan, med de publicerade
@@ -28,9 +32,21 @@ function AdminResultLists({ ws }: { ws: Workspace }) {
   const { authenticated, data, disabled, downloadResults, raceId, shows } = ws;
   const { data: lists, failed } = useResultListData(raceId, undefined, authenticated && shows("RESULTS"), 15_000);
   const model = useMemo(() => lists ? resultListFromPublic(lists.results, lists.relay, lists.radio) : undefined, [lists]);
+  // PLAN.md steg 25: startstämplingens varning och diskens orsak märks bara i arbetsytans lista.
+  const notes = useMemo(() => {
+    const map = new Map<string, ResultRowNote>();
+    for (const entry of data?.entries ?? []) {
+      if (!entry.publicResultId || !entry.notes) continue;
+      const punch = entry.notes.startPunch;
+      map.set(entry.publicResultId, { ...(punch ? { mark: startRuleSv.startPunch.mark[punch.kind],
+        detail: startPunchText(punch, data!.timeZone), warning: punch.kind !== "FROM_PUNCH" } : {}),
+        ...(entry.notes.disqualificationReason ? { disqualificationReason: entry.notes.disqualificationReason } : {}) });
+    }
+    return map;
+  }, [data]);
   if (!model || !data) return <p className={styles.muted} role="status">{failed ? listText.results.refreshFailed : listText.results.loading}</p>;
   return <ResultLists model={model} raceId={raceId} race={`${data.eventName} · ${data.raceName} · ${data.raceDate}`} raceDate={data.raceDate}
-    links={false} iof={{ onSelect: () => void downloadResults(), disabled }}
+    links={false} iof={{ onSelect: () => void downloadResults(), disabled }} notes={notes}
     status={failed ? <p className={listStyles.notice} role="alert">{listText.results.refreshFailed}</p> : undefined} />;
 }
 
@@ -57,6 +73,11 @@ export function AfterRacePanel({ ws }: { ws: Workspace }) {
     <AdminResultLists ws={ws} />
     <Section id={`results-follow-up-${raceId}`} title={text.followUpHeading} help={text.followUpHelp}>
     <div className={styles.disclosureList}>
+    {/* PLAN.md steg 25: efter tävlingen, alla som är kvar utan tecken på start blir ej start. */}
+    <details className={styles.disclosure} open={ws.remaining || ws.remainingMessage ? true : undefined}>
+      <summary>{text.remainingTitle}</summary>
+      <RemainingRunnersSection ws={ws} />
+    </details>
     {profile.features.finalization && <details className={styles.disclosure} open={finalizationAttempt ? true : undefined}>
       <summary>{text.finalizationHeading}</summary>
       <div className={styles.disclosureBody}>

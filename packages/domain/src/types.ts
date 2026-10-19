@@ -41,6 +41,8 @@ export interface RaceClass {
   readonly startRule: StartRule;
   /** Rogainingklass (ADR-0170 beslut 5). Saknas = vanlig bana i ordning. */
   readonly rogaining?: RogainingRules | undefined;
+  /** Maxtid i minuter (PLAN.md steg 25). Saknas = ingen gräns. Gäller inte rogaining, som har egen tidsgräns. */
+  readonly maxTimeMinutes?: number | undefined;
   readonly externalIdentity?: ExternalIdentity;
 }
 
@@ -124,6 +126,8 @@ export interface CardAssignment {
   readonly entryId: UUID;
   readonly cardNumber: string;
   readonly active: boolean;
+  /** Hyrbricka som ska samlas in vid avläsningen (PLAN.md steg 25). */
+  readonly rental?: boolean | undefined;
 }
 
 /**
@@ -169,7 +173,7 @@ export interface RaceSnapshot {
   readonly classControlNeutralizations: readonly ClassControlNeutralization[];
 }
 
-export type EvaluationStatus = "OK" | "MP" | "UNKNOWN_CARD";
+export type EvaluationStatus = "OK" | "OVERTIME" | "MP" | "UNKNOWN_CARD";
 export type EvaluationReason =
   | "COMPLETE"
   | "UNKNOWN_CARD"
@@ -177,7 +181,8 @@ export type EvaluationReason =
   | "MISSING_FINISH"
   | "MISSING_CONTROL"
   | "WRONG_ORDER"
-  | "INVALID_TIME_ORDER";
+  | "INVALID_TIME_ORDER"
+  | "MAX_TIME_EXCEEDED";
 
 export interface SplitTime {
   readonly controlCode: number;

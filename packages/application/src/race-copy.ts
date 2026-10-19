@@ -110,7 +110,8 @@ async function copyRaceContent(tx: Transaction, input: ContentInput) {
   const courses = await tx.select().from(schema.courses).where(eq(schema.courses.raceId, sourceRaceId)).orderBy(asc(schema.courses.createdAt));
   const courseIds = new Map(courses.map(course => [course.id, randomUUID()]));
   await insertChunked(courses, chunk => tx.insert(schema.courses).values(chunk.map(course => ({ id: mapped(courseIds, course.id), raceId,
-    name: course.name, externalSource: course.externalSource, externalId: course.externalId, createdAt: now }))));
+    name: course.name, lengthMeters: course.lengthMeters, climbMeters: course.climbMeters,
+    externalSource: course.externalSource, externalId: course.externalId, createdAt: now }))));
 
   const versions = courses.length === 0 ? [] : await tx.select().from(schema.courseVersions)
     .where(inArray(schema.courseVersions.courseId, [...courseIds.keys()])).orderBy(asc(schema.courseVersions.version));
@@ -142,7 +143,7 @@ async function copyRaceContent(tx: Transaction, input: ContentInput) {
     return { id: mapped(classIds, raceClass.id), raceId, name: raceClass.name, courseVersionId: mapped(versionIds, raceClass.courseVersionId),
       startRule: raceClass.startRule, maxEntries: raceClass.maxEntries, capacityVersion: 1, startDrawId: null,
       rogainingTimeLimitSeconds: raceClass.rogainingTimeLimitSeconds, rogainingPenaltyPointsPerMinute: raceClass.rogainingPenaltyPointsPerMinute,
-      ...external, createdAt: now };
+      maxTimeMinutes: raceClass.maxTimeMinutes, ...external, createdAt: now };
   })));
 
   const legs = await tx.select().from(schema.relayLegs).where(eq(schema.relayLegs.raceId, sourceRaceId))

@@ -1,7 +1,7 @@
 import { startRuleSv as rule } from "./start-rule-sv";
 /** Stafett (ADR-0169 beslut 3): stafettklass, lag, sträcklöpare, starttider och lagresultat. */
 type Method = "MASS_START" | "CHANGEOVER" | "RESTART";
-type TeamStatus = "OK" | "MP" | "DSQ" | "DNF" | "OOC" | "NT" | "DNS" | "RUNNING";
+type TeamStatus = "OK" | "OVERTIME" | "MP" | "DSQ" | "DNF" | "OOC" | "NT" | "DNS" | "RUNNING";
 
 export const relaySv = {
   methods: rule.relay satisfies Record<Method, string>,
@@ -73,7 +73,7 @@ export const relaySv = {
   runnerError: "Löparen kunde inte bytas. Försök igen.",
   runnerConflict: "Brickan används redan, eller så har laget ändrats under tiden. Laget är inläst igen.",
   // Status
-  status: { OK: "Godkänt", MP: "Felstämplat", DSQ: "Diskat", DNF: "Brutit", OOC: "Utom tävlan", NT: "Utan tidtagning",
+  status: { OK: "Godkänt", OVERTIME: "Maxtid överskriden", MP: "Felstämplat", DSQ: "Diskat", DNF: "Brutit", OOC: "Utom tävlan", NT: "Utan tidtagning",
     DNS: "Ej start", RUNNING: "Ute" } satisfies Record<TeamStatus, string>,
   outOnLeg: (leg: number) => `Ute på sträcka ${leg}`,
   placed: (position: number) => `${position}:a`,

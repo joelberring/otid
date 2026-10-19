@@ -64,7 +64,7 @@ function validateCandidate(candidate: ClassRankingCandidate, keys: Set<string>):
     throw new ClassRankingError("DUPLICATE_KEY", "Rankingkandidatens resultatnyckel förekommer flera gånger");
   }
   keys.add(candidate.key);
-  if (candidate.status !== "OK" && candidate.status !== "MP" &&
+  if (candidate.status !== "OK" && candidate.status !== "OVERTIME" && candidate.status !== "MP" &&
       candidate.status !== "DSQ" && candidate.status !== "DNF" &&
       candidate.status !== "OOC" && candidate.status !== "NT" && candidate.status !== "DNS") {
     throw new ClassRankingError("INVALID_STATUS", "Rankingkandidaten har en okänd status");
@@ -122,7 +122,7 @@ export function rankClassResults(
   }
 
   const output = candidates.map<ClassRankingResult>((candidate) => {
-    if (candidate.status === "MP" || candidate.status === "DSQ" ||
+    if (candidate.status === "OVERTIME" || candidate.status === "MP" || candidate.status === "DSQ" ||
         candidate.status === "DNF" || candidate.status === "OOC" || candidate.status === "NT" ||
         candidate.status === "DNS") {
       return { key: candidate.key, rankingState: "NOT_RANKABLE_STATUS" };

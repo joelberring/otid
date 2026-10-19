@@ -141,3 +141,16 @@ describe("serializeIofStartList", () => {
     expect(() => serializeIofStartList(null as unknown as IofStartListProjection)).toThrow(IofStartListSerializationError);
   });
 });
+
+describe("IOF StartList med Eventor-id och bana (PLAN.md steg 25)", () => {
+  it("skriver klassens bana med längd och stigning, Eventor-id och löparens variant", () => {
+    const xml = text(serializeIofStartList({ eventName: "Test", classes: [{ className: "H21", startRule: "FIXED",
+      course: { name: "Lång", lengthMeters: 4200, climbMeters: 120 },
+      starts: [{ givenName: "Ada", familyName: "Ek", organisationName: "OK Test", personEventorId: "610001", organisationEventorId: "9321",
+        startTime: "2026-08-31T10:00:00Z", courseName: "Lång-AC" }] }] }));
+    expect(xml).toMatch(/<\/Class>\s*<Course>\s*<Name>Lång<\/Name>\s*<Length>4200<\/Length>\s*<Climb>120<\/Climb>\s*<\/Course>\s*<PersonStart>/);
+    expect(xml).toMatch(/<Person>\s*<Id type="Eventor">610001<\/Id>/);
+    expect(xml).toMatch(/<Organisation>\s*<Id type="Eventor">9321<\/Id>\s*<Name>OK Test<\/Name>/);
+    expect(xml).toMatch(/<StartTime>2026-08-31T10:00:00.000Z<\/StartTime>\s*<Course>\s*<Name>Lång-AC<\/Name>\s*<\/Course>\s*<\/Start>/);
+  });
+});

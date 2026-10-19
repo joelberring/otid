@@ -67,7 +67,8 @@ export type CourseEditOutcome = "BECOMES_OK" | "BECOMES_MISPUNCHED" | "UNCHANGED
 export function courseEditOutcome(before: EvaluationStatus, after: EvaluationStatus, manualDecision: boolean): CourseEditOutcome {
   if (manualDecision || before === after) return "UNCHANGED";
   if (after === "OK") return "BECOMES_OK";
-  if (after === "MP") return "BECOMES_MISPUNCHED";
+  // Maxtid överskriden (PLAN.md steg 25) räknas som underkänd; listan visar den nya statusen.
+  if (after === "MP" || after === "OVERTIME") return "BECOMES_MISPUNCHED";
   return "UNCHANGED";
 }
 

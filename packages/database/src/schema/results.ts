@@ -74,6 +74,8 @@ export const resultRevisions = pgTable("result_revision", {
   // ADR-0173 beslut 1: arrangörens beslut bär begärans-id (idempotens) och kontot som fattade det.
   requestId: uuid("request_id"),
   actorAccountId: uuid("actor_account_id"),
+  /** Disk med orsak (migration 0004): arrangörens text, bara på MANUAL_DISQUALIFICATION. */
+  note: text("note"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (table) => [
   uniqueIndex("result_revision_entry_revision_uidx").on(table.entryId, table.revision),
@@ -231,3 +233,26 @@ export const auditEvents = pgTable("audit_event", {
   requestId: uuid("request_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 });
+
+/**
+ * Direktanmälan av okänd bricka på avläsningssidan (migration 0004, PLAN.md steg 25). En rad per begäran
+ * (idempotens): ny deltagare (CREATED) eller brickan fanns redan anmäld (EXISTING). Append-only.
+ */
+export const readoutRegistrations = pgTable("readout_registration", {
+  requestId: uuid("request_id").primaryKey(),
+  raceId: uuid("race_id").notNull().references(() => races.id),
+  cardNumber: text("card_number").notNull(),
+  classId: uuid("class_id").notNull().references(() => classes.id),
+  givenName: text("given_name").notNull(),
+  familyName: text("family_name").notNull(),
+  organisationName: text("organisation_name"),
+  outcome: text("outcome").$type<"CREATED" | "EXISTING">().notNull(),
+  entryId: uuid("entry_id").notNull().references(() => entries.id),
+  actorAccountId: uuid("actor_account_id").notNull(),
+  request: jsonb("request").$type<Record<string, unknown>>().notNull(),
+  response: jsonb("response").$type<Record<string, unknown>>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+}, (table) => [
+  index("readout_registration_race_idx").on(table.raceId, table.createdAt),
+  check("readout_registration_outcome_check", sql`${table.outcome} IN ('CREATED', 'EXISTING')`)
+]);

@@ -142,7 +142,8 @@ describe("steg 22: avläsningens klocka och motorversion", () => {
     const [result] = (await pool.query<{ status: string; engine_version: string; evaluation: { extraPunches: number[] } }>(
       "select status::text, engine_version, evaluation from result_revision where entry_id = $1", [registered.response.entryId])).rows;
     expect(result).toMatchObject({ status: "OK", engine_version: RESULT_ENGINE_VERSION, evaluation: { extraPunches: [31, 33] } });
-    expect(RESULT_ENGINE_VERSION).toBe("0.3.0");
+    // Steg 25 höjde motorn till 0.4.0 (startstämpling som reserv vid fast start, maxtid); aligner-reglerna är desamma.
+    expect(RESULT_ENGINE_VERSION).toBe("0.4.0");
     // Skogsrapporten bär tävlingsdagen så att kvar i skogen kan räknas från den.
     const forest = await listAdministratorForestWatch(db, proof);
     expect(forest.status === "ok" && forest.response.raceDate).toBe("2026-10-08");

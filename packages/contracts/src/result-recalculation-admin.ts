@@ -25,18 +25,21 @@ export const resultRecalculationReadinessSchema = z.enum([
 
 export const resultRevisionCauseSchema = storedResultRevisionCauseSchema;
 
-const cardResultStatusSchema = z.enum(["OK", "MP"]);
+const cardResultStatusSchema = z.enum(["OK", "OVERTIME", "MP"]);
 const cardResultReasonSchema = z.enum([
   "COMPLETE",
   "MISSING_START",
   "MISSING_FINISH",
   "MISSING_CONTROL",
   "WRONG_ORDER",
-  "INVALID_TIME_ORDER"
+  "INVALID_TIME_ORDER",
+  "MAX_TIME_EXCEEDED"
 ]);
 
 function validCardResultPair(status: z.infer<typeof cardResultStatusSchema>, reason: z.infer<typeof cardResultReasonSchema>): boolean {
-  return status === "OK" ? reason === "COMPLETE" : reason !== "COMPLETE";
+  if (status === "OK") return reason === "COMPLETE";
+  if (status === "OVERTIME") return reason === "MAX_TIME_EXCEEDED";
+  return reason !== "COMPLETE" && reason !== "MAX_TIME_EXCEEDED";
 }
 
 const latestReadoutSchema = z.object({

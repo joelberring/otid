@@ -7,7 +7,7 @@ import { validateStoredStartCheckinDns } from "./start-checkin-dns-source";
  * stämma med radens status, orsak, deltagare och bana. Avpricknings-DNS har sin egen journal och prövas mot den.
  */
 type DatabaseStoredResultRevision = typeof schema.resultRevisions.$inferSelect;
-type OptionalColumns = "shortenedCourseClassTransferId" | "basisHash" | "requestId" | "actorAccountId";
+type OptionalColumns = "shortenedCourseClassTransferId" | "basisHash" | "requestId" | "actorAccountId" | "note";
 export type StoredResultRevision = Omit<DatabaseStoredResultRevision, OptionalColumns> &
   Partial<Pick<DatabaseStoredResultRevision, OptionalColumns>>;
 export type StoredResultRevisionInput = StoredResultRevision;
@@ -16,7 +16,8 @@ export type StoredPublishedResultOutcome = Exclude<ResultOutcome, { readonly sta
 export class StoredResultRevisionConflict extends Error {}
 
 type Cause = DatabaseStoredResultRevision["cause"];
-const TIMED = ["OK", "MP"] as const;
+/** Tekniska utfall: godkänt, maxtid överskriden (PLAN.md steg 25) och felstämplat. */
+const TIMED = ["OK", "OVERTIME", "MP"] as const;
 /** Tillåtna utfall per orsak (samma regel som databasens `result_revision_cause_check`). */
 const STATUS_BY_CAUSE: Record<Cause, { readonly statuses: readonly string[]; readonly readout: boolean; readonly reason?: string }> = {
   CARD_READOUT: { statuses: TIMED, readout: true },
@@ -59,7 +60,7 @@ export function parseStrictStoredResultRevision(
     for (const key of Object.keys(checkinSource.result) as (keyof StoredResultRevision)[]) {
       // Projektioner behöver inte läsa kolumner som databasen sätter eller som bara gäller beslut.
       if (!(key in row) && (key === "basisHash" || key === "requestId" || key === "actorAccountId" ||
-        key === "shortenedCourseClassTransferId")) continue;
+        key === "shortenedCourseClassTransferId" || key === "note")) continue;
       const expected = checkinSource.result[key], actual = row[key];
       const matches = expected instanceof Date
         ? actual instanceof Date && expected.getTime() === actual.getTime()

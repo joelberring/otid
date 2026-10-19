@@ -32,7 +32,12 @@ export const publicResultReasonV6Schema = z.enum([
   ...publicResultReasonV5Schema.options,
   "WITHOUT_TIMING"
 ]);
-export const publicResultReasonSchema = publicResultReasonV6Schema;
+/** PLAN.md steg 25: maxtid överskriden. */
+export const publicResultReasonV7Schema = z.enum([
+  ...publicResultReasonV6Schema.options,
+  "MAX_TIME_EXCEEDED"
+]);
+export const publicResultReasonSchema = publicResultReasonV7Schema;
 
 export const publicResultSplitSchema = z.object({
   controlCode: z.number().int().positive(),
@@ -55,7 +60,7 @@ const publicResultCommonFields = {
 };
 
 interface PublicResultValidationValue {
-  status: "OK" | "MP" | "DSQ" | "DNF" | "OOC" | "DNS";
+  status: "OK" | "OVERTIME" | "MP" | "DSQ" | "DNF" | "OOC" | "DNS";
   reason: string;
   elapsedMs?: number | undefined;
   splits: readonly { elapsedMs: number }[];
@@ -75,6 +80,10 @@ function validatePublicResult(result: PublicResultValidationValue, context: z.Re
   if (result.status === "OK" &&
       ((result.reason !== "COMPLETE" && result.reason !== "MANUAL_APPROVAL") || result.elapsedMs === undefined)) {
     context.addIssue({ code: "custom", message: "OK kräver teknisk eller manuell godkännandeorsak och totaltid" });
+  }
+  if (result.status === "OVERTIME" &&
+      (result.reason !== "MAX_TIME_EXCEEDED" || result.elapsedMs === undefined || hasPosition || hasTimeBehind)) {
+    context.addIssue({ code: "custom", message: "OVERTIME kräver maxtidsorsak och totaltid men ingen ranking" });
   }
   if (result.status === "MP" &&
       result.reason !== "MISSING_START" && result.reason !== "MISSING_FINISH" &&
@@ -105,7 +114,7 @@ function validatePublicResult(result: PublicResultValidationValue, context: z.Re
     context.addIssue({ code: "custom", message: "RANKED kräver OK, position och tid efter" });
   }
   if (result.rankingState === "NOT_RANKABLE_STATUS" &&
-      ((result.status !== "MP" && result.status !== "DSQ" && result.status !== "DNF" &&
+      ((result.status !== "OVERTIME" && result.status !== "MP" && result.status !== "DSQ" && result.status !== "DNF" &&
         result.status !== "OOC" && result.status !== "DNS") ||
        hasPosition || hasTimeBehind)) {
     context.addIssue({
@@ -200,8 +209,8 @@ const publicResultV7TimingFields = {
 
 const publicResultV7TimedSchema = z.object({
   ...publicResultV7TimingFields,
-  status: z.enum(["OK", "MP", "DSQ", "DNF", "OOC", "DNS"]),
-  reason: publicResultReasonV6Schema
+  status: z.enum(["OK", "OVERTIME", "MP", "DSQ", "DNF", "OOC", "DNS"]),
+  reason: publicResultReasonV7Schema
 }).strict().superRefine(validatePublicResult);
 
 const publicWithoutTimingResultV7Schema = z.object({
@@ -261,9 +270,30 @@ export const publicResultListResponseV6Schema = z.object({
   results: z.array(publicResultV6Schema).max(10_000)
 }).strict();
 
+/**
+ * PLAN.md steg 25: listans ställning. Preliminär tills tävlingen fastställts; officiell när den senaste fastställda
+ * hela tävlingen har samma resultat som listan (inget har ändrats efter fastställandet).
+ */
+export const publicResultStandingSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("PRELIMINARY") }).strict(),
+  z.object({ kind: z.literal("OFFICIAL"), finalizedAt: z.iso.datetime({ offset: true }),
+    /** Tävlingens tidszon för fastställandets klockslag. */
+    timeZone: z.string().trim().min(1).max(100) }).strict()
+]);
+
+/** Klassens bana med längd och stigning för listornas rubriker (PLAN.md steg 25). */
+export const publicClassCourseSchema = z.object({
+  className: z.string().trim().min(1).max(160),
+  courseName: z.string().trim().min(1).max(160),
+  lengthMeters: z.number().int().min(1).max(1_000_000).nullable(),
+  climbMeters: z.number().int().min(0).max(100_000).nullable()
+}).strict();
+
 export const publicResultListResponseV7Schema = z.object({
   formatVersion: z.literal(7),
-  results: z.array(publicResultV7Schema).max(10_000)
+  results: z.array(publicResultV7Schema).max(10_000),
+  standing: publicResultStandingSchema.optional(),
+  classCourses: z.array(publicClassCourseSchema).max(1_000).optional()
 }).strict();
 
 /** Detail deliberately contains exactly one list-format public row. */
@@ -300,3 +330,5 @@ export type PublicResultListResponseV6 = z.infer<typeof publicResultListResponse
 export type PublicResultListResponseV7 = z.infer<typeof publicResultListResponseV7Schema>;
 export type PublicResultListResponse = z.infer<typeof publicResultListResponseSchema>;
 export type PublicResultDetailResponse = z.infer<typeof publicResultDetailResponseSchema>;
+export type PublicResultStanding = z.infer<typeof publicResultStandingSchema>;
+export type PublicClassCourse = z.infer<typeof publicClassCourseSchema>;

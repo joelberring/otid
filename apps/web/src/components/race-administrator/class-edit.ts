@@ -16,20 +16,33 @@ export function useClassEditState() {
   const [classEditName, setClassEditName] = useState("");
   const [classEditCourseId, setClassEditCourseId] = useState("");
   const [classEditStartRule, setClassEditStartRule] = useState<StartRule>("PUNCH");
+  /** Maxtid i minuter som text (PLAN.md steg 25); tomt = ingen gräns. */
+  const [classEditMaxTime, setClassEditMaxTime] = useState("");
+  const [classEditMaxTimeError, setClassEditMaxTimeError] = useState("");
   const [classEditPreview, setClassEditPreview] = useState<ClassEditPreviewResponse>();
   const [classEditError, setClassEditError] = useState("");
   const [classEditSaved, setClassEditSaved] = useState("");
   const [classEditAttempt, setClassEditAttempt] = useState<ClassEditAttempt>();
   return { editingClassId, setEditingClassId, classEditName, setClassEditName, classEditCourseId, setClassEditCourseId,
     classEditStartRule, setClassEditStartRule, classEditPreview, setClassEditPreview, classEditError, setClassEditError,
-    classEditSaved, setClassEditSaved, classEditAttempt, setClassEditAttempt };
+    classEditSaved, setClassEditSaved, classEditAttempt, setClassEditAttempt, classEditMaxTime, setClassEditMaxTime,
+    classEditMaxTimeError, setClassEditMaxTimeError };
+}
+
+/** Maxtiden som text: tomt = ingen gräns (null), annars hela minuter 1–1440; undefined betyder ogiltig. */
+export function parseMaxTime(value: string): number | null | undefined {
+  const trimmed = value.trim();
+  if (trimmed === "") return null;
+  if (!/^\d{1,4}$/.test(trimmed)) return undefined;
+  const minutes = Number(trimmed);
+  return minutes >= 1 && minutes <= 1440 ? minutes : undefined;
 }
 
 export function createClassEditActions(ws: Base & RaceDataActions & CourseEditActions) {
-  const { raceId, courseList, editingClassId, classEditName, classEditCourseId, classEditStartRule, classEditPreview,
+  const { raceId, courseList, editingClassId, classEditName, classEditCourseId, classEditStartRule, classEditPreview, classEditMaxTime,
     writingRef, pending, sent, requireSession, begin, finish, current, request, json, csrf, load, readCourses, setCourseListError,
     setEditingClassId, setClassEditName, setClassEditCourseId, setClassEditStartRule, setClassEditPreview, setClassEditError,
-    setClassEditSaved, setClassEditAttempt } = ws;
+    setClassEditSaved, setClassEditAttempt, setClassEditMaxTime, setClassEditMaxTimeError } = ws;
   const editingRow = () => courseList?.classes.find(row => row.classId === editingClassId);
 
   function startClassEdit(classId: string) {
@@ -37,18 +50,20 @@ export function createClassEditActions(ws: Base & RaceDataActions & CourseEditAc
     const row = courseList?.classes.find(item => item.classId === classId);
     if (!row) return;
     setEditingClassId(classId); setClassEditName(row.name); setClassEditCourseId(row.courseId); setClassEditStartRule(row.startRule);
+    setClassEditMaxTime(row.maxTimeMinutes ? String(row.maxTimeMinutes) : ""); setClassEditMaxTimeError("");
     setClassEditPreview(undefined); setClassEditError(""); setClassEditSaved("");
   }
   function cancelClassEdit() {
     if (pending.current) return;
     setEditingClassId(""); setClassEditPreview(undefined); setClassEditError("");
   }
-  function changeClassEdit(change: { name?: string; courseId?: string; startRule?: StartRule }) {
+  function changeClassEdit(change: { name?: string; courseId?: string; startRule?: StartRule; maxTime?: string }) {
     if (change.name !== undefined) setClassEditName(change.name);
     if (change.courseId !== undefined) setClassEditCourseId(change.courseId);
     if (change.startRule !== undefined) setClassEditStartRule(change.startRule);
-    // Beskedet gäller bara bana och startsätt; ett nytt namn påverkar inga resultat.
-    if (change.courseId !== undefined || change.startRule !== undefined) setClassEditPreview(undefined);
+    if (change.maxTime !== undefined) { setClassEditMaxTime(change.maxTime); setClassEditMaxTimeError(""); }
+    // Beskedet gäller bana, startsätt och maxtid; ett nytt namn påverkar inga resultat.
+    if (change.courseId !== undefined || change.startRule !== undefined || change.maxTime !== undefined) setClassEditPreview(undefined);
     setClassEditError("");
   }
   /** Kontrollerar raden. Ger ändringen eller visar vad som är fel. */
@@ -56,16 +71,20 @@ export function createClassEditActions(ws: Base & RaceDataActions & CourseEditAc
     const row = editingRow();
     const name = classEditName.trim();
     if (!row || !name || name.length > 160) { setClassEditError(text.invalidName); return undefined; }
-    if (name === row.name && classEditCourseId === row.courseId && classEditStartRule === row.startRule) {
+    const maxTime = row.rogaining ? null : parseMaxTime(classEditMaxTime);
+    // Fältfel vid fältet (PLAN.md steg 24).
+    if (maxTime === undefined) { setClassEditMaxTimeError(text.maxTimeInvalid); return undefined; }
+    const maxTimeChanged = maxTime !== (row.maxTimeMinutes ?? null);
+    if (name === row.name && classEditCourseId === row.courseId && classEditStartRule === row.startRule && !maxTimeChanged) {
       setClassEditError(text.unchanged); return undefined;
     }
-    return { name, courseId: classEditCourseId, startRule: classEditStartRule };
+    return { name, courseId: classEditCourseId, startRule: classEditStartRule, ...(maxTimeChanged ? { maxTimeMinutes: maxTime } : {}) };
   }
-  async function readPreview(op: Operation, courseId: string, startRule: StartRule) {
+  async function readPreview(op: Operation, courseId: string, startRule: StartRule, maxTimeMinutes?: number | null) {
     if (!courseList) throw new Error("Class list missing");
     const response = await request(`/classes/${editingClassId}/edit-preview`, op, { method: "POST",
       headers: { "content-type": "application/json", "x-otid-csrf": csrf() },
-      body: JSON.stringify({ formatVersion: 1, courseId, startRule }) });
+      body: JSON.stringify({ formatVersion: 1, courseId, startRule, ...(maxTimeMinutes !== undefined ? { maxTimeMinutes } : {}) }) });
     if (response.status === 409) return "conflict" as const;
     if (!response.ok) throw new Error("Class edit preview unavailable");
     const value = classEditPreviewResponseSchema.parse(await json(response, op));
@@ -86,7 +105,7 @@ export function createClassEditActions(ws: Base & RaceDataActions & CourseEditAc
     const change = proposed();
     if (!change) return;
     const op = begin();
-    try { if (await readPreview(op, change.courseId, change.startRule) === "conflict") await staleClassList(op); }
+    try { if (await readPreview(op, change.courseId, change.startRule, change.maxTimeMinutes) === "conflict") await staleClassList(op); }
     catch { if (current(op)) setClassEditError(text.previewError); }
     finally { finish(op); }
   }
@@ -130,8 +149,9 @@ export function createClassEditActions(ws: Base & RaceDataActions & CourseEditAc
         const change = proposed();
         if (!change || !courseList) return;
         let preview = classEditPreview;
+        // Beskedet nollställs när maxtiden ändras (changeClassEdit), så ett kvarvarande besked gäller samma maxtid.
         if (!preview || preview.courseId !== change.courseId || preview.startRule !== change.startRule) {
-          const read = await readPreview(op, change.courseId, change.startRule);
+          const read = await readPreview(op, change.courseId, change.startRule, change.maxTimeMinutes);
           if (read === "conflict") { await staleClassList(op); return; }
           // Någon löpares status ändras: visa beskedet och vänta på bekräftelse.
           if (read.requiresConfirmation) return;
@@ -139,7 +159,9 @@ export function createClassEditActions(ws: Base & RaceDataActions & CourseEditAc
         }
         const request: ClassEditRequest = { formatVersion: 1, requestId: crypto.randomUUID(),
           classId: editingClassId, className: change.name,
-          courseId: change.courseId, startRule: change.startRule, confirmResultChanges: preview.requiresConfirmation };
+          courseId: change.courseId, startRule: change.startRule,
+          ...(change.maxTimeMinutes !== undefined ? { maxTimeMinutes: change.maxTimeMinutes } : {}),
+          confirmResultChanges: preview.requiresConfirmation };
         attempt = { kind: "CLASS_EDIT", request };
         pending.current = attempt; sent.current = false; setClassEditAttempt(attempt);
       }

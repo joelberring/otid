@@ -15,7 +15,9 @@ export interface EventorProjection {
     readonly form: "INDIVIDUAL" | "RELAY" | "OTHER" };
   readonly classes: readonly { readonly id: string; readonly name: string; readonly cancelled: boolean }[];
   readonly entries: readonly { readonly id: string; readonly classId: string; readonly givenName: string; readonly familyName: string;
-    readonly club: string | null; readonly cardNumber: string | null }[];
+    readonly club: string | null; readonly cardNumber: string | null;
+    /** Eventors person- och klubb-id (PLAN.md steg 25); saknas i förhandsvisningar sparade före steg 25. */
+    readonly personId?: string | null; readonly clubId?: string | null }[];
   readonly teams: readonly { readonly id: string; readonly classId: string; readonly name: string; readonly club: string | null;
     readonly runners: readonly { readonly leg: number; readonly givenName: string | null; readonly familyName: string | null;
       readonly club: string | null; readonly cardNumber: string | null }[] }[];

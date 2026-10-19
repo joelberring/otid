@@ -32,7 +32,8 @@ type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 type Authentication = RaceSessionProof;
 
 async function loadCourse(tx: Transaction, raceId: string, courseId: string) {
-  const [course] = await tx.select({ id: schema.courses.id, name: schema.courses.name }).from(schema.courses)
+  const [course] = await tx.select({ id: schema.courses.id, name: schema.courses.name, lengthMeters: schema.courses.lengthMeters,
+    climbMeters: schema.courses.climbMeters }).from(schema.courses)
     .where(and(eq(schema.courses.id, courseId), eq(schema.courses.raceId, raceId)));
   if (!course) return null;
   const [version] = await tx.select({ id: schema.courseVersions.id, version: schema.courseVersions.version })
@@ -127,6 +128,7 @@ export async function listCoursesForEditAsAdmin(db: Database, input: Authenticat
           readOutCount: onVariant.filter(row => readEntries.has(row.id)).length };
       });
       rows.push({ courseId: course.id, courseVersionId: course.version.id, name: course.name, controlCodes: course.controlCodes,
+        lengthMeters: course.lengthMeters, climbMeters: course.climbMeters,
         classes: course.classes.map(row => ({ classId: row.id, name: row.name })), entryCount: courseEntries.length,
         readOutCount: courseEntries.filter(row => readEntries.has(row.id)).length, variants,
         unevenLegs: unevenCourseVariantLegs(course.variants) });
@@ -137,7 +139,8 @@ export async function listCoursesForEditAsAdmin(db: Database, input: Authenticat
       .where(and(eq(schema.resultRevisions.raceId, raceId), eq(schema.resultRevisions.published, true)))).map(row => row.entryId));
     const classRows = await tx.select({ id: schema.classes.id, name: schema.classes.name, startRule: schema.classes.startRule,
       courseId: schema.courseVersions.courseId, courseVersionId: schema.classes.courseVersionId,
-      externalSource: schema.classes.externalSource, externalId: schema.classes.externalId })
+      externalSource: schema.classes.externalSource, externalId: schema.classes.externalId, maxTimeMinutes: schema.classes.maxTimeMinutes,
+      rogainingTimeLimitSeconds: schema.classes.rogainingTimeLimitSeconds })
       .from(schema.classes).innerJoin(schema.courseVersions, eq(schema.courseVersions.id, schema.classes.courseVersionId))
       .where(eq(schema.classes.raceId, raceId)).orderBy(asc(schema.classes.name), asc(schema.classes.id));
     const classVariants = await loadCourseVersionVariants(tx, classRows.map(row => row.courseVersionId));
@@ -150,6 +153,7 @@ export async function listCoursesForEditAsAdmin(db: Database, input: Authenticat
         // Stafettsträckor får sin start av masstart, växling eller omstart; de saknar inte starttid.
         missingStartTimeCount: row.startRule === "FIXED" ? classEntries.filter(entry => entry.fixedStartTime === null && entry.teamId === null).length : 0,
         renamable: row.externalSource === null && row.externalId === null, variantCount: codes.length,
+        maxTimeMinutes: row.maxTimeMinutes, rogaining: row.rogainingTimeLimitSeconds !== null,
         missingVariantCount: codes.length === 0 ? 0 : classEntries.filter(entry => {
           const code = entryVariants.get(entry.id);
           return code === null || code === undefined || !codes.includes(code);

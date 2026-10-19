@@ -3,6 +3,23 @@ import { speakerBoardEffectiveResultSchema } from "./speaker-board";
 import { uuidSchema as uuid } from "./ids";
 
 const version = z.number().int().positive().max(2_147_483_647);
+
+/**
+ * PLAN.md steg 25: startstämplingen vid lottad start, som varning (sen eller tidig start) eller notis (starttiden kom från
+ * startstämplingen eftersom lottad tid saknades). Domänens `startPunchNote`. Visas i arbetsytan, aldrig publikt.
+ */
+export const startPunchNoteSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.enum(["LATE", "EARLY"]), punchedAt: z.iso.datetime({ offset: true }), scheduledAt: z.iso.datetime({ offset: true }),
+    deviationMs: z.number().int().positive().max(Number.MAX_SAFE_INTEGER) }).strict(),
+  z.object({ kind: z.literal("FROM_PUNCH"), punchedAt: z.iso.datetime({ offset: true }) }).strict()
+]);
+/** Arbetsytans anteckningar om ett resultat: startstämplingen och diskens orsak (PLAN.md steg 25). */
+export const resultNotesSchema = z.object({
+  startPunch: startPunchNoteSchema.optional(),
+  disqualificationReason: z.string().trim().min(1).max(500).optional()
+}).strict();
+export type StartPunchNoteDto = z.infer<typeof startPunchNoteSchema>;
+export type ResultNotes = z.infer<typeof resultNotesSchema>;
 const selected = z.object({ id: uuid, revision: version }).strict();
 export const administratorControlDetailsSchema = z.object({
   courseName: z.string().min(1).max(160), courseVersionId: uuid,
@@ -36,7 +53,7 @@ export const administratorResultHistoryCauses = ["CARD_READOUT", "CLASS_CHANGE_R
   "MANUAL_DID_NOT_START_WITHDRAWAL"] as const;
 export const administratorResultHistorySchema = z.array(z.object({
   revision: version, cause: z.enum(administratorResultHistoryCauses),
-  status: z.enum(["OK", "MP", "DSQ", "DNF", "OOC", "DNS", "NT"]), at: z.iso.datetime({ precision: 3 })
+  status: z.enum(["OK", "OVERTIME", "MP", "DSQ", "DNF", "OOC", "DNS", "NT"]), at: z.iso.datetime({ precision: 3 })
 }).strict()).max(10);
 const common = { formatVersion: z.literal(1), raceId: uuid, entryId: uuid, history: administratorResultHistorySchema,
   entryVersion: version, currentClassId: uuid, snapshotVersion: version,
@@ -52,12 +69,13 @@ export const administratorEffectiveResultResponseSchema = z.discriminatedUnion("
     // ADR-0169: sant så länge löparens eget bedömningsunderlag är oförändrat.
     resultCurrent: z.boolean(),
     controlDetails: administratorControlDetailsSchema.nullable().optional(),
+    notes: resultNotesSchema.optional(),
     governingDecision: z.enum(["NONE", "DNS", "CHECKIN_DNS", "DSQ", "APPROVAL", "DNF", "OOC", "NT"])
   }).strict()
 ]).superRefine((value, ctx) => {
   if (value.state !== "ACTIVE_RESULT") return;
   const expected = value.result.status === "OK" ? (value.result.reason === "MANUAL_APPROVAL" ? ["APPROVAL"] : ["NONE"]) :
-    value.result.status === "MP" ? ["NONE"] : value.result.status === "DNS" ? ["DNS", "CHECKIN_DNS"] : [value.result.status];
+    value.result.status === "MP" || value.result.status === "OVERTIME" ? ["NONE"] : value.result.status === "DNS" ? ["DNS", "CHECKIN_DNS"] : [value.result.status];
   if (!expected.includes(value.governingDecision) || value.result.revision > value.selectedRevision.revision ||
     value.resultSnapshotVersion > value.snapshotVersion) ctx.addIssue({ code: "custom", message: "Resultatets beslut eller versionsunderlag stämmer inte" });
   if (["DNS", "DNF", "NT"].includes(value.result.status) && value.controlDetails != null) {

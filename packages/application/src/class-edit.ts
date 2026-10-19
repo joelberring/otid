@@ -27,7 +27,8 @@ const MAX_VERSION = 2_147_483_647;
 async function loadClass(tx: Transaction, raceId: string, classId: string) {
   const [row] = await tx.select({ id: schema.classes.id, name: schema.classes.name, startRule: schema.classes.startRule,
     courseVersionId: schema.classes.courseVersionId, externalSource: schema.classes.externalSource,
-    externalId: schema.classes.externalId,
+    externalId: schema.classes.externalId, maxTimeMinutes: schema.classes.maxTimeMinutes,
+    rogaining: sql<boolean>`${schema.classes.rogainingTimeLimitSeconds} IS NOT NULL`,
     relay: sql<boolean>`exists (select 1 from relay_leg rl where rl.class_id = ${schema.classes.id})` }).from(schema.classes)
     .where(and(eq(schema.classes.id, classId), eq(schema.classes.raceId, raceId)));
   return row ?? null;
@@ -55,9 +56,11 @@ async function countClearedStartTimes(tx: Transaction, raceId: string, raceClass
 }
 
 async function assess(tx: Transaction, raceId: string, raceClass: LoadedClass, target: TargetCourse, startRule: StartRule,
-  snapshot: RaceSnapshot): Promise<AssessedEntry[] | "too-large"> {
-  if (raceClass.courseVersionId === target.courseVersionId && raceClass.startRule === startRule) return [];
-  const proposed = withProposedClassSetup(snapshot, { classId: raceClass.id, courseVersionId: target.courseVersionId, startRule });
+  snapshot: RaceSnapshot, maxTimeMinutes: number | null | undefined): Promise<AssessedEntry[] | "too-large"> {
+  const maxTimeChanged = maxTimeMinutes !== undefined && maxTimeMinutes !== raceClass.maxTimeMinutes;
+  if (raceClass.courseVersionId === target.courseVersionId && raceClass.startRule === startRule && !maxTimeChanged) return [];
+  const proposed = withProposedClassSetup(snapshot, { classId: raceClass.id, courseVersionId: target.courseVersionId, startRule,
+    ...(maxTimeChanged ? { maxTimeMinutes } : {}) });
   return assessReadOutEntries(tx, raceId, [raceClass], snapshot, proposed);
 }
 
@@ -87,7 +90,10 @@ export async function previewClassEditAsAdmin(db: Database, input: Authenticatio
     if (!raceClass || !target) return { status: "not-found" };
     // Stafettklassens sträckor har fasta starter (masstart, växling, omstart); startsättet byts inte här.
     if (raceClass.relay && parsed.data.startRule !== raceClass.startRule) return { status: "invalid-request" };
-    const assessed = await assess(tx, raceId, raceClass, target, parsed.data.startRule, await loadRaceSnapshot(tx, raceId));
+    // Rogaining har egen tidsgräns med straff (ADR-0170 beslut 5); maxtid gäller inte där.
+    if (raceClass.rogaining && parsed.data.maxTimeMinutes != null) return { status: "invalid-request" };
+    const assessed = await assess(tx, raceId, raceClass, target, parsed.data.startRule, await loadRaceSnapshot(tx, raceId),
+      parsed.data.maxTimeMinutes);
     if (assessed === "too-large") return { status: "too-large" };
     const cleared = await countClearedStartTimes(tx, raceId, raceClass, parsed.data.startRule);
     return { status: "ok", response: previewResponse(raceId, raceClass, target, parsed.data.startRule, race.snapshotVersion,
@@ -135,7 +141,9 @@ export async function editClassAsAdmin(db: Database, input: Authentication & { i
     const renamed = raceClass.name !== intent.className;
     const moved = raceClass.courseVersionId !== target.courseVersionId;
     const startRuleChanged = raceClass.startRule !== intent.startRule;
-    if ((!renamed && !moved && !startRuleChanged) || (raceClass.relay && startRuleChanged)) return { status: "invalid-request" };
+    const maxTimeChanged = intent.maxTimeMinutes !== undefined && intent.maxTimeMinutes !== raceClass.maxTimeMinutes;
+    if ((!renamed && !moved && !startRuleChanged && !maxTimeChanged) || (raceClass.relay && startRuleChanged) ||
+      (raceClass.rogaining && intent.maxTimeMinutes != null)) return { status: "invalid-request" };
     if (renamed && (raceClass.externalSource !== null || raceClass.externalId !== null)) return { status: "conflict" };
     if (renamed && await classNameTaken(tx, raceId, intent.className, raceClass.id)) return { status: "duplicate-name" };
 
@@ -145,7 +153,8 @@ export async function editClassAsAdmin(db: Database, input: Authentication & { i
       .orderBy(asc(schema.entries.id)).limit(10_001).for("update");
     if (entries.length > 10_000) return { status: "too-large" };
     if (entries.some(row => !row.exactTime || (startRuleChanged && row.version >= MAX_VERSION))) return { status: "conflict" };
-    const assessed = await assess(tx, raceId, raceClass, target, intent.startRule, await loadRaceSnapshot(tx, raceId));
+    const assessed = await assess(tx, raceId, raceClass, target, intent.startRule, await loadRaceSnapshot(tx, raceId),
+      intent.maxTimeMinutes);
     if (assessed === "too-large") return { status: "too-large" };
     const plan = planClassStartRuleChange({ current: raceClass.startRule, target: intent.startRule,
       entries: entries.map(row => ({ id: row.id, version: row.version, fixedStartTime: row.fixedStartTime?.toISOString() ?? null })) });
@@ -154,7 +163,7 @@ export async function editClassAsAdmin(db: Database, input: Authentication & { i
 
     // Nytt startsätt tömmer starttiderna och därmed klassens lottning (PLAN.md steg 9).
     await tx.update(schema.classes).set({ name: intent.className, courseVersionId: target.courseVersionId, startRule: plan.startRule,
-      ...(startRuleChanged ? { startDrawId: null } : {}) })
+      ...(startRuleChanged ? { startDrawId: null } : {}), ...(maxTimeChanged ? { maxTimeMinutes: intent.maxTimeMinutes } : {}) })
       .where(and(eq(schema.classes.id, raceClass.id), eq(schema.classes.raceId, raceId)));
     if (plan.changed) {
       await tx.update(schema.entries).set({ fixedStartTime: null, version: sql`${schema.entries.version} + 1` })
@@ -168,7 +177,8 @@ export async function editClassAsAdmin(db: Database, input: Authentication & { i
       snapshotVersion: snapshotVersionAfter, courseVersionId: target.courseVersionId });
     const response = classEditResponseSchema.parse({ formatVersion: 1, replayed: false, requestId: intent.requestId, raceId,
       classId: raceClass.id, request: intent, previousClassName: raceClass.name, previousCourseVersionId: raceClass.courseVersionId,
-      courseVersionId: target.courseVersionId, previousStartRule: raceClass.startRule, clearedStartTimeCount: plan.clearedStartTimes,
+      courseVersionId: target.courseVersionId, previousStartRule: raceClass.startRule, previousMaxTimeMinutes: raceClass.maxTimeMinutes,
+      clearedStartTimeCount: plan.clearedStartTimes,
       snapshotVersionBefore: race.snapshotVersion, snapshotVersionAfter, recalculated, editedAt: now.toISOString() });
     await tx.insert(schema.classEditRequests).values({ requestId: intent.requestId, raceId, classId: raceClass.id,
       previousCourseVersionId: raceClass.courseVersionId, courseVersionId: target.courseVersionId,
@@ -176,8 +186,9 @@ export async function editClassAsAdmin(db: Database, input: Authentication & { i
     await tx.insert(schema.auditEvents).values({ raceId, entityType: "class", entityId: raceClass.id, requestId: intent.requestId,
       actorKind: "USER_ACCOUNT", actorId: auth.principal.accountId, action: "CLASS_EDITED_BY_ADMIN",
       before: { className: raceClass.name, courseVersionId: raceClass.courseVersionId, startRule: raceClass.startRule,
-        snapshotVersion: race.snapshotVersion },
+        maxTimeMinutes: raceClass.maxTimeMinutes, snapshotVersion: race.snapshotVersion },
       after: { className: intent.className, courseVersionId: target.courseVersionId, startRule: intent.startRule,
+        maxTimeMinutes: maxTimeChanged ? intent.maxTimeMinutes : raceClass.maxTimeMinutes,
         snapshotVersion: snapshotVersionAfter, clearedStartTimeCount: plan.clearedStartTimes, recalculatedCount: recalculated.length },
       createdAt: now });
     if (recalculated.length > 0) {

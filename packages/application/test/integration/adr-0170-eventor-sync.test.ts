@@ -169,6 +169,9 @@ describe("ADR-0170 Eventor och banfiler, med uppdateringar", () => {
     expect(firstApplied.result).toMatchObject({ status: "saved", response: { appliedRows: 10, recalculatedCount: 0 } });
     const david = await entry(proof.raceId, "Lund");
     expect(david).toMatchObject({ class_name: "H21", external_source: "eventor", external_id: "800004" });
+    // PLAN.md steg 25: Eventors person- och klubb-id sparas för IOF-resultatet.
+    expect((await pool.query("select eventor_person_id, eventor_organisation_id from entry where race_id=$1 and external_id='800001'",
+      [proof.raceId])).rows).toEqual([{ eventor_person_id: "610001", eventor_organisation_id: "9321" }]);
     expect(await activeCard(david.id)).toEqual([]);
     expect((await entry(proof.raceId, "Nyström")).class_name).toBe("H35");
     // Samma kvitto för samma request-id.

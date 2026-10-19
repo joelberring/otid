@@ -34,7 +34,7 @@ export const splitAnalysisSv = {
   missingLabel: "tid saknas",
   route: "Vägval",
   routeLabel: (name: string, leg: string) => `Vägval för ${name} på sträcka ${leg}`,
-  status: { OK: "Godkänd", MP: "Felstämplad", DSQ: "Diskvalificerad", DNF: "Ej fullföljt", OOC: "Utom tävlan", DNS: "Ej start",
+  status: { OK: "Godkänd", OVERTIME: "Maxtid överskriden", MP: "Felstämplad", DSQ: "Diskvalificerad", DNF: "Ej fullföljt", OOC: "Utom tävlan", DNS: "Ej start",
     NT: "Utan tidtagning" } as Record<string, string>,
   legName: (from: string, to: string) => `${from}–${to}`
 } as const;

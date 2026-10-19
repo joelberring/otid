@@ -8,7 +8,7 @@ const count = z.number().int().nonnegative().max(10_000);
 const name = z.string().trim().min(1).max(160);
 const controlCode = z.number().int().positive().max(2_147_483_647);
 const controlCodes = z.array(controlCode).min(1).max(1000);
-const status = z.enum(["OK", "MP"]);
+const status = z.enum(["OK", "OVERTIME", "MP"]);
 const instant = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
 /** ADR-0169 beslut 2: variantens kod, t.ex. "AC". */
 export const courseVariantCodeSchema = z.string().min(1).max(32).refine(value => value === value.trim(), "Koden får inte börja eller sluta med blanksteg");
@@ -18,6 +18,9 @@ export const courseEditListResponseSchema = z.object({
   formatVersion: z.literal(1), raceId: uuid, snapshotVersion: version,
   courses: z.array(z.object({
     courseId: uuid, courseVersionId: uuid, name, controlCodes: z.array(controlCode).max(1000),
+    /** Längd och stigning i meter (PLAN.md steg 25); null när de inte är kända. */
+    lengthMeters: z.number().int().min(1).max(1_000_000).nullable().optional(),
+    climbMeters: z.number().int().min(0).max(100_000).nullable().optional(),
     classes: z.array(z.object({ classId: uuid, name }).strict()).max(1000),
     entryCount: count, readOutCount: count,
     // Gafflad bana: varianterna med kontrollföljd och löpare. Tom lista = inte gafflad.
@@ -30,7 +33,9 @@ export const courseEditListResponseSchema = z.object({
     classId: uuid, name, courseId: uuid, startRule: z.enum(["PUNCH", "FIXED"]), entryCount: count, readOutCount: count,
     resultCount: count, missingStartTimeCount: count, renamable: z.boolean(),
     // Gafflad klass: antal varianter och löpare utan variant ("Fördela gafflingar").
-    variantCount: count, missingVariantCount: count
+    variantCount: count, missingVariantCount: count,
+    /** Maxtid i minuter (PLAN.md steg 25); null = ingen. Rogainingklasser har egen tidsgräns och ingen maxtid. */
+    maxTimeMinutes: z.number().int().min(1).max(1440).nullable().optional(), rogaining: z.boolean().optional()
   }).strict()).max(1000),
   // ADR-0170 beslut 5: kontrollernas poäng och klassernas rogainingregler ("Kontroller & poäng").
   rogaining: rogainingSetupSchema
@@ -78,6 +83,22 @@ export const courseEditResponseSchema = z.object({
     context.addIssue({ code: "custom", message: "Kvittensen måste binda begäran och versionsföljd" });
   }
 });
+
+/**
+ * Banans längd och stigning (PLAN.md steg 25). Uppgifterna påverkar inga resultat och sparas direkt (ADR-0169 beslut 4).
+ */
+export const courseDetailsRequestSchema = z.object({
+  formatVersion: z.literal(1), requestId: uuid, courseId: uuid,
+  lengthMeters: z.number().int().min(1).max(1_000_000).nullable(),
+  climbMeters: z.number().int().min(0).max(100_000).nullable()
+}).strict();
+export const courseDetailsIdempotencyKeySchema = z.string().regex(prefixedUuidPattern("course-details"));
+export const courseDetailsResponseSchema = z.object({
+  formatVersion: z.literal(1), replayed: z.boolean(), requestId: uuid, raceId: uuid, request: courseDetailsRequestSchema,
+  savedAt: instant
+}).strict();
+export type CourseDetailsRequest = z.infer<typeof courseDetailsRequestSchema>;
+export type CourseDetailsResponse = z.infer<typeof courseDetailsResponseSchema>;
 
 export type CourseEditListResponse = z.infer<typeof courseEditListResponseSchema>;
 export type CourseEditPreviewRequest = z.infer<typeof courseEditPreviewRequestSchema>;

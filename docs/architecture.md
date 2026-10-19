@@ -88,6 +88,10 @@ Gemensamma hjälpare: UUID-mönstret och idempotensnycklarnas form (`UUID_PATTER
 - Kön skickas till `POST …/administrator/readouts` (`application/src/ingest.ts`). Mottagningen är idempotent
   på enhet, löpnummer och hash; samma avläsning två gånger ger samma kvitto. Råa bytes sparas oförändrade.
 - En post tas bort ur kön först när servern har kvitterat den.
+- Direktanmälan av okänd bricka på avläsningssidan (PLAN.md steg 25) köas i samma IndexedDB med egen
+  idempotensnyckel och bedöms om lokalt. Anmälningar skickas före avläsningarna
+  (`POST …/administrator/readout-registrations`, `application/src/readout-registration.ts`); servern kopplar
+  en redan mottagen okänd avläsning via bricknumret, och är brickan anmäld någon annanstans gäller den anmälan.
 
 ## Import och källor
 
@@ -99,7 +103,8 @@ Gemensamma hjälpare: UUID-mönstret och idempotensnycklarnas form (`UUID_PATTER
 ## Databas
 
 - Schemat finns i `packages/database/src/schema/*.ts` (samlat i `schema.ts`); migrationerna börjar med
-  `0000_baseline.sql` följd av `0001_ett_statusflode`, `0002_en_session` och `0003_paketversion` (steg 23).
+  `0000_baseline.sql` följd av `0001_ett_statusflode`, `0002_en_session` och `0003_paketversion` (steg 23) och
+  `0004_tavlingsfunktioner` (steg 25: maxtid, banlängd, Eventor-id, diskorsak, `readout_registration`).
   Varje schemaändring kräver en ny migration.
 - `pnpm db:migrate` committar nya enum-värden först och kör sedan varje migration i en egen transaktion.
 - Externa id:n (Eventor, IOF) lagras med källa men är aldrig primärnycklar.

@@ -12,6 +12,7 @@ import { resolveStoredResultHeadStates } from "./result-revision-state";
 import { isEffectiveResultCurrent, loadResultBasisHashes } from "./result-basis";
 import { parseAdministratorStoredResultHead } from "./administrator-effective-result";
 import { loadStartListFacts } from "./start-draw-basis";
+import { applicableResultNotes, loadResultNotes } from "./result-notes";
 import { bumpReadoutPackageVersion } from "./snapshot";
 import { UUID_PATTERN as uuid } from "./serialization";
 
@@ -39,6 +40,7 @@ export async function listEntryTransfersAsAdmin(db: Database, input: Authenticat
     const classRows = await tx.select({ id: schema.classes.id, name: schema.classes.name,
       courseVersionId: schema.classes.courseVersionId, startRule: schema.classes.startRule, courseRaceId: schema.courses.raceId,
       courseName: schema.courses.name, courseVersion: schema.courseVersions.version,
+      courseLengthMeters: schema.courses.lengthMeters, courseClimbMeters: schema.courses.climbMeters, maxTimeMinutes: schema.classes.maxTimeMinutes,
       maxEntries: schema.classes.maxEntries, capacityVersion: schema.classes.capacityVersion, startDrawId: schema.classes.startDrawId
     }).from(schema.classes).leftJoin(schema.courseVersions, eq(schema.courseVersions.id, schema.classes.courseVersionId))
       .leftJoin(schema.courses, eq(schema.courses.id, schema.courseVersions.courseId))
@@ -46,7 +48,7 @@ export async function listEntryTransfersAsAdmin(db: Database, input: Authenticat
     if (classRows.some(row => row.courseRaceId !== input.raceId || row.courseName === null || row.courseVersion === null)) {
       throw new Error("Ogiltig klass–ban-koppling");
     }
-    const rows = await tx.select({ id: schema.entries.id, givenName: schema.entries.givenName,
+    const rows = await tx.select({ id: schema.entries.id, publicResultId: schema.entries.publicResultId, givenName: schema.entries.givenName,
       familyName: schema.entries.familyName, organisationName: schema.entries.organisationName,
       classId: schema.entries.classId, version: schema.entries.version,
       fixedStartTime: schema.entries.fixedStartTime,
@@ -120,12 +122,14 @@ export async function listEntryTransfersAsAdmin(db: Database, input: Authenticat
     const relayClasses = await loadRelayClassConfigs(tx, input.raceId);
     const teams = new Map((relayClasses.size === 0 ? [] : await loadRelayTeams(tx, input.raceId)).map(team => [team.id, team]));
     const startFacts = await loadStartListFacts(tx, input.raceId);
+    const resultNotes = await loadResultNotes(tx, input.raceId);
     return { status: "ok" as const, response: entryTransferCandidatesSchema.parse({
       formatVersion: 2, raceId: input.raceId, snapshotVersion: race.snapshotVersion,
       generatedAt: now.toISOString(), ...raceFacts,
       publication: { shortCode, publishedAt: publishedAt?.toISOString() ?? null, hiddenBySuperadmin },
       classes: classRows.map(row => ({ id: row.id, name: row.name, courseVersionId: row.courseVersionId,
         courseName: row.courseName, courseVersion: row.courseVersion, startRule: row.startRule,
+        courseLengthMeters: row.courseLengthMeters, courseClimbMeters: row.courseClimbMeters, maxTimeMinutes: row.maxTimeMinutes,
         maxEntries: row.maxEntries, capacityVersion: row.capacityVersion, entryCount: entryCounts.get(row.id) ?? 0,
         startDrawn: row.startDrawId !== null,
         courseVariants: (variants.get(row.courseVersionId) ?? []).map(variant => variant.code),
@@ -134,6 +138,8 @@ export async function listEntryTransfersAsAdmin(db: Database, input: Authenticat
       entries: rows.map(row => {
         const active = activeByEntry.get(row.id) ?? [];
         const assignment = active.length === 1 ? active[0] : undefined;
+        const effective = effectiveResultByEntry.get(row.id);
+        const notes = applicableResultNotes(resultNotes.get(row.id), effective?.state === "ACTIVE_RESULT" ? effective.result.status : undefined);
         return {
         id: row.id, classId: row.classId, version: row.version, organisationName: row.organisationName,
         displayName: `${row.givenName} ${row.familyName}`, fixedStartTime: row.fixedStartTime?.toISOString() ?? null,
@@ -145,7 +151,9 @@ export async function listEntryTransfersAsAdmin(db: Database, input: Authenticat
         resultRevisionMarker: revisionMarkerByEntry.get(row.id) ?? null,
         activeAssignment: assignment ? { id: assignment.id, cardNumber: assignment.cardNumber,
           isRental: assignment.isRental, rentalReturned: assignment.rentalReturned } : null,
-        multipleActiveAssignments: active.length > 1
+        multipleActiveAssignments: active.length > 1,
+        publicResultId: row.publicResultId,
+        ...(notes ? { notes } : {})
       }; })
     }) };
   }, { isolationLevel: "repeatable read" });

@@ -147,6 +147,8 @@ export async function loadRaceSnapshot(db: DbExecutor, raceId: string): Promise<
       // Rogaining (ADR-0170 beslut 5): tidsgräns och straff följer med till avläsningens paket.
       ...(row.rogainingTimeLimitSeconds !== null && row.rogainingPenaltyPointsPerMinute !== null ? { rogaining: {
         timeLimitSeconds: row.rogainingTimeLimitSeconds, penaltyPointsPerMinute: row.rogainingPenaltyPointsPerMinute } } : {}),
+      // Maxtid (PLAN.md steg 25) följer med till avläsningens paket och bedömningen.
+      ...(row.maxTimeMinutes !== null && row.rogainingTimeLimitSeconds === null ? { maxTimeMinutes: row.maxTimeMinutes } : {}),
       ...(row.externalId ? { externalIdentity: { source: "iof" as const, externalId: row.externalId } } : {})
     })),
     courses: courseRows.map((course) => ({
@@ -187,7 +189,9 @@ export async function loadRaceSnapshot(db: DbExecutor, raceId: string): Promise<
       raceId: row.raceId,
       entryId: row.entryId,
       cardNumber: row.cardNumber,
-      active: row.active
+      active: row.active,
+      // Hyrbricka (PLAN.md steg 25): avläsningen ber funktionären samla in den.
+      ...(row.isRental && !row.rentalReturned ? { rental: true } : {})
     })),
     classControlNeutralizations: neutralizationRows.map((row) => ({
       id: row.id,

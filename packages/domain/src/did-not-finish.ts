@@ -103,6 +103,8 @@ function validateTechnicalShape(source: EvaluationResult): boolean {
   switch (source.reason) {
     case "COMPLETE":
       return source.status === "OK" && validateTimedSource(source) && source.missingControls.length === 0;
+    case "MAX_TIME_EXCEEDED":
+      return source.status === "OVERTIME" && validateTimedSource(source) && source.missingControls.length === 0;
     case "MISSING_START":
       return source.status === "MP" && source.startTime === undefined && source.finishTime === undefined &&
         source.elapsedMs === undefined && emptyExplanations(source);
@@ -128,15 +130,15 @@ function validateTechnicalShape(source: EvaluationResult): boolean {
  * status-only outcome.
  */
 export function createDidNotFinishResult(source: EvaluationResult): DidNotFinishResult {
-  if (typeof source !== "object" || source === null || (source.status !== "OK" && source.status !== "MP")) {
+  if (typeof source !== "object" || source === null || (source.status !== "OK" && source.status !== "OVERTIME" && source.status !== "MP")) {
     throw new DidNotFinishError(
       "UNSUPPORTED_SOURCE_STATUS",
       "Endast ett tekniskt OK- eller MP-resultat kan markeras som ej fullföljt"
     );
   }
-  const reasonMatchesStatus = source.status === "OK"
-    ? source.reason === "COMPLETE"
-    : source.reason !== "COMPLETE" && source.reason !== "UNKNOWN_CARD";
+  const reasonMatchesStatus = source.status === "OK" ? source.reason === "COMPLETE"
+    : source.status === "OVERTIME" ? source.reason === "MAX_TIME_EXCEEDED"
+      : source.reason !== "COMPLETE" && source.reason !== "MAX_TIME_EXCEEDED" && source.reason !== "UNKNOWN_CARD";
   if (!reasonMatchesStatus) {
     throw new DidNotFinishError("INVALID_SOURCE_REASON", "Källresultatets status och orsak motsäger varandra");
   }

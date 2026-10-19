@@ -37,6 +37,8 @@ const raceClassSchema = z.object({
   startRule: z.enum(["FIXED", "PUNCH"]),
   /** Rogainingklass (ADR-0170 beslut 5): tidsgräns och straff. */
   rogaining: rogainingRulesSchema.optional(),
+  /** Maxtid i minuter (PLAN.md steg 25); saknas = ingen gräns. */
+  maxTimeMinutes: z.number().int().min(1).max(1440).optional(),
   externalIdentity: externalIdentitySchema.optional()
 }).strict();
 
@@ -103,7 +105,9 @@ const cardAssignmentSchema = z.object({
   raceId: uuidSchema,
   entryId: uuidSchema,
   cardNumber: z.string().min(1).max(32),
-  active: z.boolean()
+  active: z.boolean(),
+  /** Hyrbricka som ska samlas in vid avläsningen (PLAN.md steg 25). Saknas = egen bricka. */
+  rental: z.boolean().optional()
 }).strict();
 
 const classControlNeutralizationSchema = z.object({

@@ -23,6 +23,7 @@ import { handleMapRoute } from "./race-administrator-routes-maps";
 import { handlePeopleRoute } from "./race-administrator-routes-people";
 import { handlePublicationRoute } from "./race-administrator-routes-publication";
 import { handleRadioRoute } from "./race-administrator-routes-radio";
+import { handleCompetitionRoute } from "./race-administrator-routes-competition";
 import { principalAllows, raceRoleFor } from "./race-roles";
 import { UUID_PATTERN as uuid } from "@o-tid/contracts";
 
@@ -84,6 +85,7 @@ export async function raceAdministratorRoute(db: Database, request: Request, rac
     return await handleRaceDayRoute(context) ?? await handlePreparationRoute(context) ?? await handleResultRoute(context) ??
       await handleEntryRoute(context) ?? await handleVariantRoute(context) ?? await handleRelayRoute(context) ?? await handleSourceRoute(context) ??
       await handleMapRoute(context) ?? await handlePeopleRoute(context) ?? await handlePublicationRoute(context) ?? await handleRadioRoute(context) ??
+      await handleCompetitionRoute(context) ??
       (action.kind === "race-settings"
         ? await idempotentWrite(context, "race-settings", raceSettingsRequestSchema, raceSettingsResponseSchema, dependencies.raceSettings) : undefined) ??
       failure(500, "INTERNAL_ERROR");
@@ -97,7 +99,7 @@ function allowedMethods(action: Action): string[] {
     action.kind === "participant-route" ? ["POST", "DELETE"] : action.kind === "eventor" ? ["GET", "PUT", "DELETE"] :
     action.kind === "source-sync" ? ["GET", "POST"] : action.kind === "eventor-events" ? ["GET"] :
     action.kind === "eventor-test" || action.kind === "eventor-event" || action.kind === "eventor-sync-preview" ||
-    action.kind === "course-file-preview" || action.kind === "source-sync-consequence" ? ["POST"] : action.kind === "entry-status" || action.kind === "unknown-readout-resolution" || action.kind === "class-result-recalculation" || action.kind === "draw" ? ["GET", "POST"] : action.kind === "review-conflicts" ? ["POST"] : action.kind === "conflict-candidate" ? ["GET"] : action.kind === "session" ? ["GET", "DELETE"] : action.kind === "checkin-history" || action.kind === "effective-result" || action.kind === "changes" ? ["GET"] :
+    action.kind === "course-file-preview" || action.kind === "source-sync-consequence" ? ["POST"] : action.kind === "entry-status" || action.kind === "unknown-readout-resolution" || action.kind === "remaining-runners" || action.kind === "class-result-recalculation" || action.kind === "draw" ? ["GET", "POST"] : action.kind === "review-conflicts" ? ["POST"] : action.kind === "conflict-candidate" ? ["GET"] : action.kind === "session" ? ["GET", "DELETE"] : action.kind === "checkin-history" || action.kind === "effective-result" || action.kind === "changes" ? ["GET"] :
     action.kind === "start-correction" || action.kind === "manual-return-withdrawal" || action.kind === "manual-return" || action.kind === "publication" || action.kind === "draw-preview" || action.kind === "finalize" || action.kind === "recalculate" || action.kind === "registration" || action.kind === "registration-candidates" ||
     action.kind === "manual-course-class" || action.kind === "manual-class" ||
     action.kind === "course-edit-preview" || action.kind === "course-edit" ||
@@ -105,6 +107,7 @@ function allowedMethods(action: Action): string[] {
     action.kind === "rogaining-preview" || action.kind === "rogaining" ||
     action.kind === "entry-variant-preview" || action.kind === "entry-variant" || action.kind === "class-variant-distribution" ||
     action.kind === "relay-class" || action.kind === "relay-team" || action.kind === "relay-leg-runner" ||
-    action.kind === "relay-start-times" || action.kind === "race-settings" ? ["POST"] :
+    action.kind === "relay-start-times" || action.kind === "race-settings" || action.kind === "readout-registrations" ||
+    action.kind === "course-details" ? ["POST"] :
     "entryId" in action || action.kind === "capacity" ? ["PATCH"] : ["GET"];
 }

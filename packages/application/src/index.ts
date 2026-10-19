@@ -74,3 +74,6 @@ export * from "./radio-settings";
 export * from "./radio-standings";
 export * from "./race-copy";
 export { classNameTaken, courseNameTaken, DuplicateNameError } from "./duplicate-names";
+export { registerReadoutCard } from "./readout-registration";
+export { markRemainingDidNotStartAsAdmin, previewRemainingRunnersAsAdmin, remainingDecisionRequestId } from "./remaining-runners";
+export { saveCourseDetailsAsAdmin } from "./course-details";

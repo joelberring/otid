@@ -79,10 +79,21 @@ export function createStatusChangeActions(ws: Base & RaceDataActions & ResultDec
     } catch { if (current(op)) setStatusBlocked(text.loadError); }
     finally { finish(op); }
   }
-  async function confirmStatusChange(attempt: StatusAttempt) {
-    await submitStatusAttempt(attempt);
+  /**
+   * Bekräftar beslutet. Disk (PLAN.md steg 25) kan få en orsak; den läggs i beslutet innan det skickas första gången,
+   * så att ett omförsök efter uteblivet svar bär exakt samma begäran.
+   */
+  async function confirmStatusChange(attempt: StatusAttempt, reason = "") {
+    let value = attempt;
+    if (attempt.kind === "DECISION" && attempt.choice === "DSQ" && pending.current === attempt && !sent.current) {
+      const trimmed = reason.trim();
+      value = { ...attempt, request: { ...attempt.request, decision: trimmed ? { kind: "DISQUALIFIED", reason: trimmed }
+        : { kind: "DISQUALIFIED" } } };
+      pending.current = value; setDecisionAttempt(value);
+    }
+    await submitStatusAttempt(value);
     // Sparat eller avvisat: menyn återgår. Ett försök utan svar ligger kvar för ett nytt försök.
-    if (pending.current !== attempt) { setStatusChoice(""); setStatusBlocked(""); }
+    if (pending.current !== value) { setStatusChoice(""); setStatusBlocked(""); }
   }
   function cancelStatusChange(attempt: StatusAttempt | undefined) {
     if (attempt) cancelStatusAttempt(attempt);

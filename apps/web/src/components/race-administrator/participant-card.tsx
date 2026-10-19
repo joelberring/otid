@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { AdministratorEffectiveResultResponse } from "@o-tid/contracts";
 import styles from "../race-administrator-workspace.module.css";
 import { raceAdministratorSv as adminText } from "../../i18n/race-administrator-sv";
@@ -13,6 +14,7 @@ import { RaceParticipantFacts } from "../race-participant-facts";
 import { RaceResultControls } from "../race-result-controls";
 import { AdministratorEntryChanges } from "../administrator-entry-changes";
 import { resultDuration } from "./types";
+import { startPunchText } from "../../lib/start-punch-text";
 import { EntryActionForms, RegistrationForm } from "./entry-action-forms";
 import type { StatusAttempt } from "./result-decisions";
 import type { Workspace } from "./workspace-state";
@@ -108,11 +110,17 @@ function CardResult({ ws, result, error }: { ws: Workspace; result: Administrato
     {!result ? <p>{error ? text.resultError : text.resultLoading}</p>
       : result.state !== "ACTIVE_RESULT" ? <p><strong>{result.state === "NO_ACTIVE_RESULT" ? adminText.noActiveResult : text.noResult}</strong></p>
         : <>
-          <p><strong className={result.result.status === "MP" || result.result.status === "DSQ" ? styles.rosterCritical : undefined}>
+          <p><strong className={result.result.status === "MP" || result.result.status === "DSQ" || result.result.status === "OVERTIME"
+            ? styles.rosterCritical : undefined}>
             {sv.publicResultsStatusLabels[result.result.status]}</strong>
             {"elapsedMs" in result.result && result.result.elapsedMs !== undefined && <> · {text.runningTime} {resultDuration(result.result.elapsedMs)}</>}</p>
           <p>{sv.publicResultsReasonLabels[result.result.reason]}
             {result.governingDecision !== "NONE" && <> · {text.decision}: <strong>{adminText.governingDecisions[result.governingDecision]}</strong></>}</p>
+          {/* PLAN.md steg 25: diskens orsak och startstämplingen vid minutstart, bara i arbetsytan. */}
+          {result.notes?.disqualificationReason && <p data-testid="dsq-reason">{text.dsqReasonShown(result.notes.disqualificationReason)}</p>}
+          {result.notes?.startPunch && <p className={result.notes.startPunch.kind === "FROM_PUNCH" ? styles.muted : styles.warning} role="note"
+            data-testid="start-punch-note">
+            {result.notes.startPunch.kind === "FROM_PUNCH" ? "" : "! "}{startPunchText(result.notes.startPunch, result.timeZone)}</p>}
           {!result.resultCurrent && <>
             <p className={styles.resultStale}>{adminText.resultStale}</p>
             <button type="button" className="secondary" disabled={disabled} onClick={() => void chooseStatusChange("RECALCULATION")}>
@@ -139,6 +147,8 @@ function StatusChange({ ws, result }: { ws: Workspace; result: AdministratorEffe
   const attempt: StatusAttempt | undefined = decisionAttempt ?? recalculationAttempt;
   const choices = availableStatusChoices(result);
   const id = `status-change-${raceId}`;
+  const [reason, setReason] = useState("");
+  const asksReason = attempt?.kind === "DECISION" && attempt.choice === "DSQ";
   return <section className={styles.workspace}>
     <label htmlFor={id}>{text.changeStatus}</label>
     <select id={id} value={statusChoice} disabled={disabled || choices.length === 0}
@@ -149,9 +159,14 @@ function StatusChange({ ws, result }: { ws: Workspace; result: AdministratorEffe
     {statusBlocked && <p className={styles.warning} role="status">{statusBlocked}</p>}
     {attempt && <div className={styles.review} role="alert">
       <p><strong>{consequence(attempt)}</strong></p>
+      {/* Disk med orsak (PLAN.md steg 25): orsaken visas bara i arbetsytan, aldrig publikt. */}
+      {asksReason && <label className={styles.narrowField} htmlFor={`${id}-reason`}>{text.dsqReason}
+        <input id={`${id}-reason`} value={reason} maxLength={240} disabled={busy || unknown} autoComplete="off"
+          onChange={event => setReason(event.target.value)} /></label>}
       {unknown && <p>{text.unknown}</p>}
       <div className={styles.actions}>
-        <button type="button" disabled={busy} onClick={() => void confirmStatusChange(attempt)}>{unknown ? text.retry : text.confirm}</button>
+        <button type="button" disabled={busy} onClick={() => { void confirmStatusChange(attempt, reason); setReason(""); }}>
+          {unknown ? text.retry : text.confirm}</button>
         {!unknown && <button type="button" className="secondary" disabled={busy} onClick={() => cancelStatusChange(attempt)}>{text.cancel}</button>}
       </div>
     </div>}

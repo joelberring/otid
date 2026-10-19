@@ -6,6 +6,7 @@ import { formatClockTime } from "../../lib/clock-time";
 import { startListCsv, type StartView } from "../../lib/lists/csv";
 import { classStartRows, filterStartList, groupByStartTime, startClub, startListByClub, type StartClass, type StartEntry,
   type StartListModel, type StartMode } from "../../lib/lists/start-list-model";
+import { courseLine } from "../../lib/lists/result-list-model";
 import { download, ListFrame, type IofExport } from "./list-frame";
 import styles from "./lists.module.css";
 
@@ -48,7 +49,8 @@ function ClassBlock({ raceClass, context }: { raceClass: StartClass; context: Co
   const relay = raceClass.mode.kind === "RELAY", free = raceClass.mode.kind === "FREE";
   const variants = raceClass.entries.some(entry => entry.variant);
   const teams = relay ? [...new Set(raceClass.entries.map(entry => entry.relay?.teamNumber ?? 0))] : [];
-  const facts = [raceClass.courseName && t.course(raceClass.courseName), modeText(raceClass.mode, timeZone),
+  const facts = [raceClass.courseName && courseLine({ courseName: raceClass.courseName, lengthMeters: raceClass.lengthMeters ?? null,
+    climbMeters: raceClass.climbMeters ?? null }), modeText(raceClass.mode, timeZone),
     relay ? t.teams(teams.length) : t.runners(raceClass.entries.length),
     raceClass.vacancies.length > 0 && t.vacancies(raceClass.vacancies.length)].filter(Boolean).join(" · ");
   const id = `start-class-${raceClass.name.replace(/\W+/g, "-")}`;

@@ -1,5 +1,5 @@
 import { readoutPackageSchema, type ReadoutPackage } from "@o-tid/contracts";
-import type { QueuedReadout, ReadoutStore, NewReadout } from "./store";
+import type { QueuedReadout, QueuedRegistration, ReadoutStore, NewReadout } from "./store";
 
 /** Endast för tester: ett litet avläsningspaket med en deltagare och tre kontroller. */
 export const ids = {
@@ -58,6 +58,19 @@ export class MemoryReadoutStore implements ReadoutStore {
   async update(item: QueuedReadout) {
     const index = this.items.findIndex((candidate) => candidate.localSequence === item.localSequence);
     this.items[index] = item;
+  }
+  readonly registrations: QueuedRegistration[] = [];
+  async addRegistration(item: QueuedRegistration) {
+    if (this.registrations.some((row) => row.raceId === item.raceId && row.requestId === item.requestId)) throw new Error("Finns redan");
+    this.registrations.push(item);
+  }
+  async listRegistrations(raceId: string) {
+    return this.registrations.filter((row) => row.raceId === raceId).sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+  }
+  async updateRegistration(item: QueuedRegistration) {
+    const index = this.registrations.findIndex((row) => row.raceId === item.raceId && row.requestId === item.requestId);
+    if (index < 0) throw new Error("Saknas");
+    this.registrations[index] = item;
   }
 }
 

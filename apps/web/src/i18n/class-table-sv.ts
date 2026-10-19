@@ -16,6 +16,9 @@ export const classTableSv = {
   statusWaiting: (count: number) => count === 1 ? "1 har inte läst ut" : `${count} har inte läst ut`,
   statusReady: "Klar för start",
   fieldName: "Klassnamn", fieldCourse: "Bana", fieldStartRule: rule.label,
+  /** Maxtid (PLAN.md steg 25): tomt = ingen gräns. */
+  fieldMaxTime: "Maxtid (minuter)", maxTimeHelp: "Lämna tomt för ingen maxtid.",
+  maxTimeInvalid: "Maxtid: skriv hela minuter (1–1440) eller lämna tomt.",
   importedName: "Namnet kommer från en import och kan inte ändras här.",
   preview: "Visa vad som händer", save: "Spara ändringen", cancel: "Avbryt",
   invalidName: "Skriv ett klassnamn.",

@@ -24,7 +24,18 @@ export const startRuleSv = {
   relay: { MASS_START: "Masstart", CHANGEOVER: "Växling", RESTART: "Omstart" },
   startTime: "Starttid",
   noStartTime: "Ingen starttid",
-  noStartTimeYet: "Lottas senare"
+  noStartTimeYet: "Lottas senare",
+  /**
+   * Startstämplingen vid minutstart (PLAN.md steg 25): varning när den avviker mer än en minut från den lottade tiden,
+   * och notis när starttiden kom från stämplingen eftersom lottad tid saknades. Bara i arbetsytan och avläsningen.
+   */
+  startPunch: {
+    LATE: (punched: string, scheduled: string, deviation: string) => `Startstämpling ${punched}, lottad ${scheduled} – ${deviation} sen`,
+    EARLY: (punched: string, scheduled: string, deviation: string) => `Startstämpling ${punched}, lottad ${scheduled} – ${deviation} tidig`,
+    FROM_PUNCH: (punched: string) => `Starttid från startstämpling ${punched} – lottad tid saknas`,
+    /** Kort märkning i arbetsytans resultatlista. */
+    mark: { LATE: "Sen start", EARLY: "Tidig start", FROM_PUNCH: "Start från stämpling" }
+  }
 } as const;
 
 export type ClassStartRule = keyof typeof startRuleSv.rules;

@@ -133,6 +133,29 @@ export const raceAdministratorSv = {
   courseEditCourse: "Bana", courseEditControlsColumn: "Kontroller", courseEditClasses: "Klasser",
   courseEditEntries: "Anmälda", courseEditReadOut: "Avlästa", courseEditAction: "Ändra",
   courseEditOpen: "Redigera", courseEditOpenLabel: (name: string) => `Redigera ${name}`,
+  // Längd och stigning (PLAN.md steg 25).
+  // Efter tävlingen: kvar i skogen blir ej start (PLAN.md steg 25).
+  remainingTitle: "Markera alla kvar i skogen som ej start",
+  remainingHelp: "Löpare utan avläsning och utan beslut blir ej start. De som stämplat vid en radiokontroll eller prickats av vid starten ändras inte; de listas för kontroll.",
+  remainingLoad: "Visa vilka som berörs",
+  remainingDidNotStart: (count: number) => count === 1 ? "1 löpare blir ej start" : `${count} löpare blir ej start`,
+  remainingNone: "Ingen saknar avläsning. Inget att markera.",
+  remainingMissing: (count: number) => `Saknas i mål – kontrollera (${count})`,
+  remainingMissingHelp: "De här har startat men inte läst ut. Leta efter dem, eller sätt status i deltagarkortet.",
+  remainingEvidence: { RADIO: "stämplat vid radiokontroll", START_CHECKIN: "avprickad vid starten" } as const,
+  remainingConfirm: (count: number) => count === 1 ? "Markera 1 som ej start" : `Markera ${count} som ej start`,
+  remainingCancel: "Avbryt",
+  remainingSaved: (marked: number, skipped: number) => `Klart: ${marked} löpare är ej start.` +
+    (skipped > 0 ? ` ${skipped} hade läst ut eller fått status under tiden och ändrades inte.` : ""),
+  remainingLoadError: "Listan kunde inte läsas in. Försök igen.",
+  remainingSaveError: "Kunde inte nå servern. Tryck på Försök igen.",
+  courseLengthColumn: "Längd", courseDetailsOpen: "Längd och stigning",
+  courseDetailsOpenLabel: (name: string) => `Längd och stigning för ${name}`,
+  courseLength: "Längd (meter)", courseClimb: "Stigning (meter)", courseDetailsHelp: "Lämna tomt om du inte vet.",
+  courseLengthInvalid: "Längd: skriv hela meter, till exempel 4200, eller lämna tomt.",
+  courseClimbInvalid: "Stigning: skriv hela meter, till exempel 120, eller lämna tomt.",
+  courseDetailsSave: "Spara", courseDetailsSaved: "Längd och stigning är sparade.",
+  courseDetailsError: "Längd och stigning kunde inte sparas. Försök igen.",
   courseEditNoCourses: "Det finns inga banor ännu.", courseEditNoClasses: "Ingen klass",
   courseEditLoading: "Läser in banorna…", courseEditListError: "Banorna kunde inte läsas in.",
   courseEditRetryList: "Läs in banorna igen",
@@ -142,9 +165,12 @@ export const raceAdministratorSv = {
   courseEditInvalidControls: "Skriv minst en kontrollkod. Koderna ska vara positiva heltal.",
   courseEditUnchanged: "Kontrollerna är desamma som förut. Inget att spara.",
   courseEditNobodyReadOut: "Ingen har läst ut på banan ännu. Ändringen påverkar inga resultat.",
-  courseEditSummary: (readOut: number, ok: number, mispunched: number, unchanged: number) => {
+  /** `overtime` (PLAN.md steg 25) ingår i `notApproved`: de som går över klassens maxtid. */
+  courseEditSummary: (readOut: number, ok: number, notApproved: number, unchanged: number, overtime = 0) => {
+    const mispunched = notApproved - overtime;
     const parts = [ok > 0 ? `${ok} blir ${ok === 1 ? "godkänd" : "godkända"}` : "",
       mispunched > 0 ? `${mispunched} blir ${mispunched === 1 ? "felstämplad" : "felstämplade"}` : "",
+      overtime > 0 ? `${overtime} går över maxtiden` : "",
       unchanged > 0 ? `${unchanged} påverkas inte` : ""].filter(Boolean);
     return `${readOut} har läst ut. Efter ändringen: ${parts.join(", ")}.`;
   },
@@ -152,7 +178,7 @@ export const raceAdministratorSv = {
     ? "1 löpare har manuellt rättad tid och räknas inte om. Kontrollera den löparen efteråt."
     : `${count} löpare har manuellt rättad tid och räknas inte om. Kontrollera dem efteråt.`,
   courseEditChangesTitle: "De här får ny status",
-  courseEditStatus: { OK: "Godkänd", MP: "Felstämplad" } as const,
+  courseEditStatus: { OK: "Godkänd", OVERTIME: "Maxtid överskriden", MP: "Felstämplad" } as const,
   courseEditConfirmHelp: "Tryck på Spara ändringen för att ändra banan och räkna om resultaten.",
   courseEditNoStatusChange: "Ingen löpare får ny status. Ändringen kan sparas direkt.",
   courseEditPreviewError: "Det gick inte att visa vad som händer. Försök igen.",

@@ -49,6 +49,12 @@
 .notice { max-width: 80ch; margin-top: 14px; padding: 8px 12px; border-left: 3px solid var(--attention); background: var(--attention-tint); font-size: var(--text-sm); }
 .notice strong { display: block; }
 .note { color: var(--muted); font-size: var(--text-sm); }
+/* PLAN.md steg 25: klassens bana, listans ställning (preliminär/officiell) och arbetsytans märkning av en rad. */
+.blockHead .course { color: var(--ink); font-family: var(--font-dense); }
+.standing { margin-top: 12px; color: var(--muted); font-size: var(--text-sm); font-weight: 600; }
+.standing[data-standing="OFFICIAL"] { color: var(--ink); }
+.rowMark { display: block; color: var(--attention); font-size: var(--text-xs); font-weight: 600; }
+.rowNotice { display: block; color: var(--muted); font-size: var(--text-xs); font-weight: 400; }
 
 /* Tabeller */
 /* Fast tabellayout: kolumnerna står på samma ställe i alla klasser (namn och klubb delar resten lika). */
@@ -88,7 +94,7 @@
 
 /* Status: ord först, färg bara som förstärkning */
 .status[data-status="OK"] { color: var(--ink); }
-.status[data-status="MP"], .status[data-status="DSQ"] { color: var(--mp); font-weight: 600; }
+.status[data-status="MP"], .status[data-status="DSQ"], .status[data-status="OVERTIME"] { color: var(--mp); font-weight: 600; }
 .status:is([data-status="DNS"], [data-status="DNF"], [data-status="OOC"], [data-status="NT"], [data-status="RUNNING"]) { color: var(--muted); }
 
 /* Per starttid: en tbody per minut, nuvarande minut markerad med accent och ordet "Nu" */

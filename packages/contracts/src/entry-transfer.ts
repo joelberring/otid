@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { resultNotesSchema } from "./administrator-effective-result";
 import { fixedStartTimeSchema } from "./entry-start-time-admin";
 import { classMaxEntriesSchema } from "./class-capacity";
 import { speakerBoardEffectiveResultSchema } from "./speaker-board";
@@ -61,7 +62,11 @@ export const entryTransferCandidatesSchema = z.object({
     /** Startlistorna (PLAN.md steg 13): första kontroll (startfålla), lottningens startsätt och vakanta tider. */
     firstControlCode: z.number().int().positive().max(2_147_483_647).nullable().optional(),
     drawMethod: z.enum(["MINUTE", "MASS"]).nullable().optional(),
-    vacancies: z.array(z.iso.datetime({ offset: true })).max(10_000).optional()
+    vacancies: z.array(z.iso.datetime({ offset: true })).max(10_000).optional(),
+    /** Banans längd och stigning i meter (PLAN.md steg 25); maxtid i minuter (null = ingen). */
+    courseLengthMeters: z.number().int().min(1).max(1_000_000).nullable().optional(),
+    courseClimbMeters: z.number().int().min(0).max(100_000).nullable().optional(),
+    maxTimeMinutes: z.number().int().min(1).max(1440).nullable().optional()
   }).strict()).max(1000),
   entries: z.array(z.object({ id: uuid, displayName: z.string().min(1).max(321),
     organisationName: z.string().min(1).max(240).nullable(), classId: uuid, version,
@@ -76,7 +81,11 @@ export const entryTransferCandidatesSchema = z.object({
       leg: z.number().int().min(1).max(20) }).strict().optional(),
     activeAssignment: z.object({ id: uuid, cardNumber: z.string().min(1).max(32), isRental: z.boolean(),
       rentalReturned: z.boolean() }).strict().nullable(),
-    multipleActiveAssignments: z.boolean()
+    multipleActiveAssignments: z.boolean(),
+    /** Den publika resultatlänkens id (för arbetsytans resultatlista). */
+    publicResultId: uuid.optional(),
+    /** PLAN.md steg 25: startstämplingens varning och diskens orsak, bara i arbetsytan. */
+    notes: resultNotesSchema.optional()
   }).strict().refine(row => !row.multipleActiveAssignments || row.activeAssignment === null)).max(10_000)
 }).strict().refine(value => {
   const classes = new Set(value.classes.map(row => row.id));

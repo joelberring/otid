@@ -3,7 +3,7 @@ import type { DisqualifiedResult, EvaluationResult } from "./types";
 export const MANUAL_DISQUALIFICATION_POLICY_VERSION = "manual-disqualification-v1";
 
 export type DisqualifiableResult = EvaluationResult & {
-  readonly status: "OK" | "MP";
+  readonly status: "OK" | "OVERTIME" | "MP";
   readonly entryId: string;
   readonly classId: string;
   readonly courseVersionId: string;
@@ -35,15 +35,15 @@ function nonEmpty(value: unknown): value is string {
 
 /** Pure constructor; application validation must additionally compare it to the immutable target row. */
 export function createDisqualifiedResult(source: DisqualifiableResult): DisqualifiedResult {
-  if (source.status !== "OK" && source.status !== "MP") {
+  if (source.status !== "OK" && source.status !== "OVERTIME" && source.status !== "MP") {
     throw new ResultDisqualificationError(
       "UNSUPPORTED_SOURCE_STATUS",
-      "Endast ett lagrat OK- eller MP-resultat kan diskvalificeras"
+      "Endast ett lagrat OK-, maxtids- eller MP-resultat kan diskvalificeras"
     );
   }
-  const validReason = source.status === "OK"
-    ? source.reason === "COMPLETE"
-    : source.reason !== "COMPLETE" && source.reason !== "UNKNOWN_CARD";
+  const validReason = source.status === "OK" ? source.reason === "COMPLETE"
+    : source.status === "OVERTIME" ? source.reason === "MAX_TIME_EXCEEDED"
+      : source.reason !== "COMPLETE" && source.reason !== "MAX_TIME_EXCEEDED" && source.reason !== "UNKNOWN_CARD";
   if (!validReason) {
     throw new ResultDisqualificationError(
       "INVALID_SOURCE_REASON",

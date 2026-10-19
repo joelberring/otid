@@ -35,12 +35,13 @@ async function projection(tx: DbExecutor, race: {
         throw new SourceProjectionError();
     const cs = await tx.select({
         id: schema.classes.id, name: schema.classes.name, startRule: schema.classes.startRule, courseVersionId: schema.classes.courseVersionId,
-        courseName: schema.courses.name
+        courseName: schema.courses.name, courseLengthMeters: schema.courses.lengthMeters, courseClimbMeters: schema.courses.climbMeters
     }).from(schema.classes).innerJoin(schema.courseVersions, eq(schema.courseVersions.id, schema.classes.courseVersionId))
         .innerJoin(schema.courses, eq(schema.courses.id, schema.courseVersions.courseId))
         .where(eq(schema.classes.raceId, race.id)).limit(MAX_CLASSES + 1);
     const es = await tx.select({
         id: schema.entries.id, classId: schema.entries.classId, givenName: schema.entries.givenName, familyName: schema.entries.familyName, organisationName: schema.entries.organisationName, fixedStartTime: schema.entries.fixedStartTime,
+        eventorPersonId: schema.entries.eventorPersonId, eventorOrganisationId: schema.entries.eventorOrganisationId,
         courseVariantCode: schema.entries.courseVariantCode, teamId: schema.entries.teamId, relayLeg: schema.entries.relayLeg
     }).from(schema.entries).where(eq(schema.entries.raceId, race.id)).limit(MAX_ENTRIES + 1);
     if (cs.length > MAX_CLASSES || es.length > MAX_ENTRIES)
@@ -62,8 +63,10 @@ async function projection(tx: DbExecutor, race: {
     const facts = await loadStartListFacts(tx, race.id);
     const ordered = [...cs].sort((a, b) => cmp(a.name, b.name) || cmp(a.id, b.id)).map(c => ({
             name: c.name, startRule: c.startRule, relay: relayClasses.has(c.id), courseName: c.courseName, facts: facts.get(c.id),
+            courseLengthMeters: c.courseLengthMeters, courseClimbMeters: c.courseClimbMeters,
             relayLegCount: relayClasses.get(c.id)?.legs.length, entries: es.filter(e => e.classId === c.id).map(e => ({
-                displayName: `${e.givenName} ${e.familyName}`, organisationName: e.organisationName, fixedStartTime: c.startRule === "FIXED" ? e.fixedStartTime?.toISOString() ?? null : null, id: e.id, f: e.familyName, g: e.givenName,
+                displayName: `${e.givenName} ${e.familyName}`, organisationName: e.organisationName,
+                personEventorId: e.eventorPersonId, organisationEventorId: e.eventorOrganisationId, fixedStartTime: c.startRule === "FIXED" ? e.fixedStartTime?.toISOString() ?? null : null, id: e.id, f: e.familyName, g: e.givenName,
                 variant: (variants.get(c.courseVersionId) ?? []).some(v => v.code === e.courseVariantCode) ? e.courseVariantCode : null,
                 relay: relayOf(e)
             })).sort((a, b) => {
@@ -75,6 +78,7 @@ async function projection(tx: DbExecutor, race: {
     const parsed = startListPublicationContentSchema.safeParse({
         eventName: ev.name, raceName: race.name, raceDate: race.raceDate, timeZone: ev.timeZone,
         classes: ordered.map(c => ({ name: c.name, startRule: c.startRule, courseName: c.courseName, ...c.facts,
+            courseLengthMeters: c.courseLengthMeters, courseClimbMeters: c.courseClimbMeters,
             ...(c.relayLegCount === undefined ? {} : { relayLegCount: c.relayLegCount }), entries: c.entries.map(e => ({
                 displayName: e.displayName, organisationName: e.organisationName, fixedStartTime: e.fixedStartTime,
                 ...(e.variant ? { courseVariantCode: e.variant } : {}),
@@ -83,18 +87,25 @@ async function projection(tx: DbExecutor, race: {
     });
     if (!parsed.success) throw new SourceProjectionError();
     const content = parsed.data;
-    const person = (e: (typeof ordered)[number]["entries"][number]) => ({ givenName: e.g, familyName: e.f,
+    const person = (e: (typeof ordered)[number]["entries"][number], courseName?: string) => ({ givenName: e.g, familyName: e.f,
         ...(e.organisationName === null ? {} : { organisationName: e.organisationName }),
-        ...(e.fixedStartTime === null ? {} : { startTime: e.fixedStartTime }) });
+        ...(e.fixedStartTime === null ? {} : { startTime: e.fixedStartTime }),
+        // PLAN.md steg 25: Eventors person- och klubb-id och (gafflad klass) löparens variant som bana.
+        ...(e.personEventorId ? { personEventorId: e.personEventorId } : {}),
+        ...(e.organisationEventorId ? { organisationEventorId: e.organisationEventorId } : {}),
+        ...(courseName && e.variant ? { courseName: `${courseName}-${e.variant}` } : {}) });
+    const course = (c: (typeof ordered)[number]) => ({ name: c.courseName,
+        ...(c.courseLengthMeters === null ? {} : { lengthMeters: c.courseLengthMeters }),
+        ...(c.courseClimbMeters === null ? {} : { climbMeters: c.courseClimbMeters }) });
     const iofProjection: IofStartListProjection = {
         eventName: content.eventName,
         // Stafett (PLAN.md steg 13): lagen som TeamStart med sträcklöparna i sträckordning.
-        classes: ordered.map(c => c.relay ? { className: c.name, startRule: c.startRule, starts: [],
+        classes: ordered.map(c => c.relay ? { className: c.name, startRule: c.startRule, course: course(c), starts: [],
             teamStarts: [...new Map(c.entries.flatMap(e => e.relay ? [[e.relay.teamNumber, e.relay] as const] : [])).values()].map(team => ({
                 name: team.teamName, bibNumber: team.teamNumber,
                 ...(team.teamOrganisationName === null ? {} : { organisationName: team.teamOrganisationName }),
                 members: c.entries.filter(e => e.relay?.teamNumber === team.teamNumber).map(e => ({ leg: e.relay!.leg, ...person(e) })) })) }
-            : { className: c.name, startRule: c.startRule, starts: c.entries.map(person) })
+            : { className: c.name, startRule: c.startRule, course: course(c), starts: c.entries.map(e => person(e, c.courseName)) })
     };
     let xml: string | null = null;
     try {

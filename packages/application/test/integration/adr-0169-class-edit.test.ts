@@ -174,11 +174,12 @@ describe("ADR-0169 Redigera klass", () => {
     const f = await race();
     const ada = await register(f, "Ada", "8301");
     await readout(f, "8301", [31, 32, 33]);
-    // Fast starttid utan tilldelade tider: Ada saknar starttid och blir felstämplad. Det kräver bekräftelse.
-    expect(await preview(f, f.longId, "FIXED")).toMatchObject({ readOutCount: 1, becomesMispunchedCount: 1, requiresConfirmation: true });
-    const toFixed = await edit(f, { startRule: "FIXED" }, true);
+    // Fast starttid utan tilldelade tider: Ada saknar lottad tid, så startstämplingen gäller (PLAN.md steg 25) och
+    // statusen ändras inte. Resultatet räknas ändå om mot det nya startsättet.
+    expect(await preview(f, f.longId, "FIXED")).toMatchObject({ readOutCount: 1, becomesMispunchedCount: 0, requiresConfirmation: false });
+    const toFixed = await edit(f, { startRule: "FIXED" }, false);
     if (toFixed.result.status !== "edited") throw new Error(`Ändringen sparades inte: ${toFixed.result.status}`);
-    expect(await effective(f, ada)).toEqual({ status: "MP", current: true });
+    expect(await effective(f, ada)).toEqual({ status: "OK", current: true });
     const toPunch = await edit(f, { startRule: "PUNCH" }, true);
     if (toPunch.result.status !== "edited") throw new Error(`Ändringen sparades inte: ${toPunch.result.status}`);
     expect(await effective(f, ada)).toEqual({ status: "OK", current: true });

@@ -158,14 +158,14 @@ async function structure(raceId: string) {
   return {
     race,
     controls: await q("select code, kind, points from control where race_id = $1 order by code"),
-    courses: await q(`select c.name, c.external_source, c.external_id, v.version,
+    courses: await q(`select c.name, c.external_source, c.external_id, c.length_meters, c.climb_meters, v.version,
         (select array_agg(k.code order by cc.sequence) from course_control cc join control k on k.id = cc.control_id
           where cc.course_version_id = v.id) as controls,
         (select json_agg(json_build_object('code', cv.code, 'sequence', cv.sequence, 'controls',
           (select array_agg(k.code order by cvc.sequence) from course_variant_control cvc join control k on k.id = cvc.control_id
             where cvc.course_variant_id = cv.id)) order by cv.sequence) from course_variant cv where cv.course_version_id = v.id) as variants
       from course c join course_version v on v.course_id = c.id where c.race_id = $1 order by c.name, v.version`),
-    classes: await q(`select cl.name, c.name as course, v.version, cl.start_rule::text, cl.max_entries, cl.rogaining_time_limit_seconds,
+    classes: await q(`select cl.name, c.name as course, v.version, cl.start_rule::text, cl.max_entries, cl.max_time_minutes, cl.rogaining_time_limit_seconds,
         cl.rogaining_penalty_points_per_minute, cl.external_source, cl.external_id
       from class cl join course_version v on v.id = cl.course_version_id join course c on c.id = v.course_id
       where cl.race_id = $1 order by cl.name`),
@@ -212,7 +212,11 @@ describe("PLAN.md steg 21 kopiera tävling", () => {
     for (const table of ["entry", "team", "card_readout", "result_revision", "race_eventor_link", "race_map", "relay_leg", "race_radio_control"]) {
       expect(await count(table, source.proof.raceId), table).toBeGreaterThan(0);
     }
+    // PLAN.md steg 25: maxtid och banornas längd och stigning följer med kopian.
+    await pool.query("UPDATE course SET length_meters=4200, climb_meters=120 WHERE race_id=$1", [source.proof.raceId]);
+    await pool.query("UPDATE class SET max_time_minutes=90 WHERE race_id=$1 AND rogaining_time_limit_seconds IS NULL", [source.proof.raceId]);
     const sourceBefore = await structure(source.proof.raceId);
+    expect(sourceBefore.classes.some(row => row.max_time_minutes === 90)).toBe(true);
     const sourceResults = await publicResults(db, source.proof.raceId);
 
     const request = { formatVersion: 1, requestId: randomUUID(), eventName: "Klubbträning v44", raceName: "Torsdag kväll",

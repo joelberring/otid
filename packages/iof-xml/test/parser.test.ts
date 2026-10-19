@@ -139,6 +139,18 @@ describe("parseIofXml", () => {
       ["Bana 1", [31, 32, 33, 34]], ["Bana 2", [31, 35, 33]], ["Bana 3", [31, 36, 37]]]);
     expect(parsed.assignments.map(row => [row.className, row.courseExternalId])).toEqual([
       ["H21", "Bana 1"], ["D21", "Bana 2"], ["H35", "Bana 2"], ["D35", "Bana 3"]]);
+    // PLAN.md steg 25: banans längd och stigning i hela meter.
+    expect(parsed.courses.map(course => [course.name, course.lengthMeters, course.climbMeters])).toEqual([
+      ["Bana 1", 2900, 15], ["Bana 2", 2300, 15], ["Bana 3", 2100, 15]]);
+  });
+
+  it("ogiltig längd hoppas över med en varning och decimaler avrundas", () => {
+    const xml = fixture("course-file-1.xml").replace("<Length>2900</Length>", "<Length>abc</Length>")
+      .replace("<Length>2300</Length>", "<Length>2349.6</Length>");
+    const parsed = parseIofXml(xml);
+    if (parsed.kind !== "CourseData") throw new Error("Fel typ");
+    expect(parsed.courses.map(course => course.lengthMeters)).toEqual([undefined, 2350, 2100]);
+    expect(parsed.warnings.some(warning => warning.includes("Length"))).toBe(true);
   });
 
   it("tolkar gafflingar: Course med samma CourseFamily blir en bana med varianter", () => {

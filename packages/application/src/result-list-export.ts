@@ -8,6 +8,7 @@ import { schema } from "@o-tid/database";
 import { ClassRankingError, compareResultStatuses, rankClassResults, storedResultCourseVariant } from "@o-tid/domain";
 import {
   serializeIofResultList,
+  type IofResultListCourse,
   type IofResultListPersonResult,
   type IofResultListProjection,
 } from "@o-tid/iof-xml";
@@ -148,6 +149,15 @@ async function exportIofResultList(db: Database, run: (tx: Transaction) => Promi
   }
 }
 
+/** IOF-banan: namn (varianten i en gafflad klass, annars banans namn), längd och stigning i meter. */
+function iofCourse(course: { courseName: string; lengthMeters: number | null; climbMeters: number | null } | undefined,
+  variantCode: string | undefined): IofResultListCourse | undefined {
+  if (!course) return undefined;
+  return { name: variantCode ? `${course.courseName}-${variantCode}` : course.courseName,
+    ...(course.lengthMeters === null ? {} : { lengthMeters: course.lengthMeters }),
+    ...(course.climbMeters === null ? {} : { climbMeters: course.climbMeters }) };
+}
+
 async function projectIofResultList(tx: Transaction, raceId: string, options: { externalIds: boolean }): Promise<IofResultListExportResult> {
   const optionalIofId = (source: string | null, externalId: string | null) => options.externalIds ? externalIofId(source, externalId) : undefined;
   const [race] = await tx.select({
@@ -196,6 +206,8 @@ async function projectIofResultList(tx: Transaction, raceId: string, options: { 
     organisationName: schema.entries.organisationName,
     entryExternalSource: schema.entries.externalSource,
     entryExternalId: schema.entries.externalId,
+    eventorPersonId: schema.entries.eventorPersonId,
+    eventorOrganisationId: schema.entries.eventorOrganisationId,
     courseVariantCode: schema.entries.courseVariantCode
   }).from(schema.resultRevisions)
     .innerJoin(schema.entries, and(
@@ -257,8 +269,13 @@ async function projectIofResultList(tx: Transaction, raceId: string, options: { 
     id: schema.classes.id,
     name: schema.classes.name,
     externalSource: schema.classes.externalSource,
-    externalId: schema.classes.externalId
-  }).from(schema.classes).where(and(
+    externalId: schema.classes.externalId,
+    courseName: schema.courses.name,
+    lengthMeters: schema.courses.lengthMeters,
+    climbMeters: schema.courses.climbMeters
+  }).from(schema.classes)
+    .innerJoin(schema.courseVersions, eq(schema.courseVersions.id, schema.classes.courseVersionId))
+    .innerJoin(schema.courses, eq(schema.courses.id, schema.courseVersions.courseId)).where(and(
     eq(schema.classes.raceId, race.id),
     inArray(schema.classes.id, classIds)
   ));
@@ -268,7 +285,10 @@ async function projectIofResultList(tx: Transaction, raceId: string, options: { 
 
   const versionRows = courseVersionIds.length === 0 ? [] : await tx.select({
     id: schema.courseVersions.id,
-    raceId: schema.courses.raceId
+    raceId: schema.courses.raceId,
+    courseName: schema.courses.name,
+    lengthMeters: schema.courses.lengthMeters,
+    climbMeters: schema.courses.climbMeters
   }).from(schema.courseVersions)
     .innerJoin(schema.courses, eq(schema.courseVersions.courseId, schema.courses.id))
     .where(inArray(schema.courseVersions.id, courseVersionIds));
@@ -310,6 +330,11 @@ async function projectIofResultList(tx: Transaction, raceId: string, options: { 
   }
 
   const classById = new Map(classRows.map((row) => [row.id, row]));
+  const courseByVersion = new Map(versionRows.map((row) => [row.id, row]));
+  // Brickan (ControlCard) bara i arbetsytans export; den publika exporten bär inga bricknummer eller Eventor-id.
+  const cardRows = !options.externalIds ? [] : await tx.select({ entryId: schema.cardAssignments.entryId, cardNumber: schema.cardAssignments.cardNumber })
+    .from(schema.cardAssignments).where(and(eq(schema.cardAssignments.raceId, race.id), eq(schema.cardAssignments.active, true)));
+  const cardByEntry = new Map(cardRows.map((row) => [row.entryId, row.cardNumber]));
   const neutralizationIds = [...new Set(parsedRows.flatMap((row) => row.controlNeutralizationId === null ? [] : [row.controlNeutralizationId]))];
   const neutralizationRows = neutralizationIds.length === 0 ? [] : await tx.select({
     id: schema.classControlNeutralizations.id, raceId: schema.classControlNeutralizations.raceId,
@@ -361,13 +386,23 @@ async function projectIofResultList(tx: Transaction, raceId: string, options: { 
     const untimed = row.evaluation.status === "DNS" || row.evaluation.status === "DNF" ? []
       : untimedControls(expected, evaluationSplits, "missingControls" in row.evaluation ? row.evaluation.missingControls : []);
     const entryExternalId = optionalIofId(row.entryExternalSource, row.entryExternalId);
+    const card = cardByEntry.get(row.entryId);
+    const variantCode = variantsByVersion.has(row.courseVersionId)
+      ? storedResultCourseVariant(variantsByVersion.get(row.courseVersionId)!, row.courseVariantCode,
+        ("splits" in row.evaluation ? row.evaluation.splits : []).map((split) => split.controlCode))?.code : undefined;
+    const course = variantCode ? iofCourse(courseByVersion.get(row.courseVersionId), variantCode) : undefined;
     const shared = {
       internalEntryId: row.entryId,
       internalCourseVersionId: row.courseVersionId,
       givenName: row.givenName,
       familyName: row.familyName,
       ...(entryExternalId === undefined ? {} : { entryExternalId }),
-      ...(row.organisationName === null ? {} : { organisationName: row.organisationName })
+      ...(options.externalIds && row.eventorPersonId ? { personEventorId: row.eventorPersonId } : {}),
+      ...(options.externalIds && row.eventorOrganisationId ? { organisationEventorId: row.eventorOrganisationId } : {}),
+      ...(row.organisationName === null ? {} : { organisationName: row.organisationName }),
+      ...(card && /^[1-9][0-9]{0,31}$/.test(card) ? { cardNumber: card } : {}),
+      // Gafflad klass: löparens variant som egen bana ("Lång-AC") med banans längd och stigning.
+      ...(course ? { course } : {})
     };
     const result: IofResultListPersonResult & typeof shared = row.evaluation.status === "DNF"
       ? { ...shared, status: "DNF" }
@@ -418,6 +453,7 @@ async function projectIofResultList(tx: Transaction, raceId: string, options: { 
     const raceClass = classById.get(classId);
     if (!raceClass) throw new StoredResultListConflict("Historisk resultatklass saknas");
     const classExternalId = optionalIofId(raceClass.externalSource, raceClass.externalId);
+    const classCourse = iofCourse(raceClass, undefined);
     const teamResults = teamResultsByClass.get(classId);
     if (teamResults) {
       return { internalClassId: classId, className: raceClass.name, ...(classExternalId === undefined ? {} : { classExternalId }),
@@ -444,6 +480,7 @@ async function projectIofResultList(tx: Transaction, raceId: string, options: { 
       internalClassId: classId,
       className: raceClass.name,
       ...(classExternalId === undefined ? {} : { classExternalId }),
+      ...(classCourse ? { course: classCourse } : {}),
       results: results.map(({ internalEntryId, internalCourseVersionId, ...result }) => {
         void internalCourseVersionId;
         const ranking = rankingByKey.get(internalEntryId);

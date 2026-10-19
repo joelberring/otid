@@ -124,7 +124,7 @@ export const deviceBatchSchema = z.object({
   }
 });
 
-export const evaluationStatusSchema = z.enum(["OK", "MP", "UNKNOWN_CARD"]);
+export const evaluationStatusSchema = z.enum(["OK", "OVERTIME", "MP", "UNKNOWN_CARD"]);
 export const evaluationReasonSchema = z.enum([
   "COMPLETE",
   "UNKNOWN_CARD",
@@ -132,7 +132,8 @@ export const evaluationReasonSchema = z.enum([
   "MISSING_FINISH",
   "MISSING_CONTROL",
   "WRONG_ORDER",
-  "INVALID_TIME_ORDER"
+  "INVALID_TIME_ORDER",
+  "MAX_TIME_EXCEEDED"
 ]);
 
 const serverResultVersionFields = {
@@ -157,6 +158,12 @@ export const serverResultSummarySchema = z.discriminatedUnion("status", [
   z.object({
     status: z.literal("OK"),
     reason: z.literal("COMPLETE"),
+    ...persistedServerResultFields
+  }).strict(),
+  /** PLAN.md steg 25: godkänt men över klassens maxtid. */
+  z.object({
+    status: z.literal("OVERTIME"),
+    reason: z.literal("MAX_TIME_EXCEEDED"),
     ...persistedServerResultFields
   }).strict(),
   z.object({
@@ -247,3 +254,5 @@ export * from "./rogaining";
 export * from "./race-map";
 export * from "./radio";
 export * from "./race-copy";
+export * from "./readout-registration";
+export * from "./remaining-runners";

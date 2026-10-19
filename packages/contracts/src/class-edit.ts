@@ -11,9 +11,11 @@ const count = z.number().int().nonnegative().max(10_000);
 const name = z.string().trim().min(1).max(160);
 const startRule = z.enum(["PUNCH", "FIXED"]);
 const instant = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+/** Maxtid i minuter (PLAN.md steg 25); null = ingen gräns. Saknas i begäran = oförändrad. */
+const maxTimeMinutes = z.number().int().min(1).max(1440).nullable();
 
 export const classEditPreviewRequestSchema = z.object({
-  formatVersion: z.literal(1), courseId: uuid, startRule
+  formatVersion: z.literal(1), courseId: uuid, startRule, maxTimeMinutes: maxTimeMinutes.optional()
 }).strict();
 
 export const classEditPreviewResponseSchema = z.object({
@@ -31,7 +33,7 @@ export const classEditPreviewResponseSchema = z.object({
 
 export const classEditRequestSchema = z.object({
   formatVersion: z.literal(1), requestId: uuid, classId: uuid,
-  className: name, courseId: uuid, startRule, confirmResultChanges: z.boolean()
+  className: name, courseId: uuid, startRule, maxTimeMinutes: maxTimeMinutes.optional(), confirmResultChanges: z.boolean()
 }).strict();
 
 export const classEditIdempotencyKeySchema = z.string().regex(
@@ -40,14 +42,15 @@ export const classEditIdempotencyKeySchema = z.string().regex(
 export const classEditResponseSchema = z.object({
   formatVersion: z.literal(1), replayed: z.boolean(), requestId: uuid, raceId: uuid, classId: uuid,
   request: classEditRequestSchema, previousClassName: name, previousCourseVersionId: uuid, courseVersionId: uuid,
-  previousStartRule: startRule, clearedStartTimeCount: count, snapshotVersionBefore: version, snapshotVersionAfter: version,
+  previousStartRule: startRule, previousMaxTimeMinutes: maxTimeMinutes.optional(), clearedStartTimeCount: count, snapshotVersionBefore: version, snapshotVersionAfter: version,
   recalculated: z.array(z.object({ entryId: uuid, resultRevisionId: uuid, revision: version }).strict()).max(10_000),
   editedAt: instant
 }).strict().superRefine((value, context) => {
   if (value.snapshotVersionAfter !== value.snapshotVersionBefore + 1 || value.requestId !== value.request.requestId ||
       value.classId !== value.request.classId ||
       (value.previousClassName === value.request.className && value.previousCourseVersionId === value.courseVersionId &&
-        value.previousStartRule === value.request.startRule)) {
+        value.previousStartRule === value.request.startRule &&
+        (value.request.maxTimeMinutes === undefined || value.request.maxTimeMinutes === (value.previousMaxTimeMinutes ?? null)))) {
     context.addIssue({ code: "custom", message: "Kvittensen måste binda begäran, en ändring och ett steg i versionsföljden" });
   }
 });

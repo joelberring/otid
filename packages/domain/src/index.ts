@@ -28,3 +28,6 @@ export * from "./race-clock";
 export * from "./rogaining";
 export * from "./route-legs";
 export * from "./radio-controls";
+export * from "./start-punch";
+export * from "./max-time";
+export * from "./remaining-runners";

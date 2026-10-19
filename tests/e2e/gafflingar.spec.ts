@@ -46,7 +46,7 @@ test("gafflad klass: import, fördelning, avläsning mot rätt variant och publi
   await warmRoute(owner, `${admin}/classes/00000000-0000-4000-8000-000000000000/variant-distribution`, "POST");
   await owner.goto(`/admin/${raceId}/manage`);
   await openStep(owner, "Banor");
-  const course = owner.getByRole("row", { name: /^Lång Gafflad/ });
+  const course = owner.getByRole("row", { name: /^Lång .*Gafflad/ });
   await expect(course).toContainText("Gafflad (4 varianter)");
   // Gafflade banor (ADR-0170): varianterna och gafflingskontrollen visas direkt.
   await expect(course.getByRole("row", { name: /^AD 31 50 41 42 50 43 44 50 32 60 63 64 60 61 62 60 33/ })).toBeVisible();

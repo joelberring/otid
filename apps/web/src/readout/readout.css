@@ -142,3 +142,28 @@ a { color: var(--ink); font-weight: 500; }
   .receipt { break-inside: auto; }
   .receipt-splits tr { break-inside: avoid; }
 }
+
+/* PLAN.md steg 25: hyrbricka, startstämpling och direktanmälan av okänd bricka. Ord och symbol, inte bara färg. */
+.verdict[data-status="OVERTIME"] { border-color: var(--mp); }
+.verdict[data-status="OVERTIME"] .big { color: var(--mp); }
+.verdict .rental { justify-self: start; padding: 4px 12px; border: 2px solid var(--ink); font-size: 1.5rem; font-weight: 700;
+  letter-spacing: .02em; }
+.verdict .start-note, .verdict .registration { justify-self: start; padding: 2px 10px; border-left: 4px solid var(--attention);
+  background: var(--attention-tint); font-size: 1.2rem; font-weight: 600; }
+.verdict .start-note[data-kind="FROM_PUNCH"], .verdict .registration[data-state="stored"]:not([data-outcome="EXISTING"]),
+.verdict .registration[data-state="pending"] { border-left-color: var(--line-strong); background: var(--subtle, var(--surface)); }
+.register { display: grid; gap: 12px; padding: 20px 24px; border: 1px solid var(--line); border-left: 10px solid var(--mp);
+  border-radius: var(--radius); background: var(--surface); }
+.register h2 { margin: 0; font-size: 1.5rem; }
+.register .help { color: var(--muted); font-size: var(--text-sm); }
+.register-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 16px; }
+.register .field { display: grid; gap: 4px; min-width: 0; }
+.register .field label { margin: 0; }
+.register input { width: 100%; min-height: 56px; padding: 8px 14px; border: 1px solid var(--line-strong); border-radius: var(--radius);
+  background: var(--surface); color: var(--ink); font: inherit; }
+.register [aria-invalid="true"] { border-color: var(--mp); }
+.field-error { color: var(--mp); font-size: var(--text-sm); font-weight: 600; }
+@media (max-width: 700px) {
+  .register { padding: 16px; }
+  .register-fields { grid-template-columns: minmax(0, 1fr); }
+}

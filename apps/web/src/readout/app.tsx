@@ -3,13 +3,15 @@ import { sportidentReadoutPayloadSchema, type ReadoutPackage } from "@o-tid/cont
 import { WebSerialTransport, type WebSerialPortLike } from "@o-tid/device-transport";
 import { SiTimeError, type SiCardData } from "@o-tid/sportident";
 import { accountCsrf, fetchReadoutPackage } from "./api";
-import { evaluateLocally, formatRunningTime, type LocalVerdict } from "./evaluate";
+import { evaluateLocally, formatRunningTime, withLocalRegistrations, type LocalVerdict } from "./evaluate";
 import { exerciseAnchor, exerciseCard, exerciseRunners, exerciseWindow, type ExerciseVariant } from "./exercise";
 import { FakeStationTransport } from "./fake-transport";
 import { buildReadoutPayload, payloadHash } from "./payload";
 import { StationController, type StationFacts, type StationStatus } from "./station";
 import { TrafficLog } from "./rawlog";
-import { IdbReadoutStore, type QueuedReadout, type ReadoutStore } from "./store";
+import { IdbReadoutStore, type QueuedReadout, type QueuedRegistration, type ReadoutStore } from "./store";
+import { RegistrationForm, RegistrationStatus } from "./registration-form";
+import { startPunchText } from "../lib/start-punch-text";
 import { syncPending } from "./sync";
 import { readoutText as t } from "./text-sv";
 import { ReceiptPanel, type Printable } from "./receipt-panel";
@@ -55,6 +57,8 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
   const [raceId] = useState(raceIdFromHash);
   const [pkg, setPkg] = useState<ReadoutPackage>();
   const [items, setItems] = useState<QueuedReadout[]>([]);
+  /** Direktanmälningar av okända brickor (PLAN.md steg 25), köade som avläsningarna. */
+  const [registrations, setRegistrations] = useState<QueuedRegistration[]>([]);
   const [station, setStation] = useState<StationStatus>({ kind: "disconnected" });
   const [exercise, setExercise] = useState(false);
   const [online, setOnline] = useState(navigator.onLine);
@@ -72,10 +76,12 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
   const trafficRef = useRef(new TrafficLog());
 
   const itemsRef = useRef<QueuedReadout[]>([]);
+  const registrationsRef = useRef<QueuedRegistration[]>([]);
   const reload = useCallback(async () => {
     if (!raceId) return;
-    const listed = await storeRef.current.list(raceId);
+    const [listed, registered] = await Promise.all([storeRef.current.list(raceId), storeRef.current.listRegistrations(raceId)]);
     itemsRef.current = listed; setItems(listed);
+    registrationsRef.current = registered; setRegistrations(registered);
   }, [raceId]);
 
   const refreshPackage = useCallback(async () => {
@@ -98,13 +104,15 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
       if (outcome.kind === "offline") setOnline(false);
       if (outcome.kind === "synced" || outcome.kind === "idle") { setOnline(true); setSyncProblem(undefined); }
       if (outcome.kind === "failed") setSyncProblem(t.syncFailed(outcome.status));
+      // Kvitterade direktanmälningar finns nu i serverns paket; hämta det så att brickan är känd även utan den lokala kön.
+      if (outcome.kind === "synced" && outcome.registered) await refreshPackage();
     } catch (error) {
       setSyncProblem(error instanceof Error ? error.message : String(error));
     } finally {
       syncing.current = false;
       await reload();
     }
-  }, [raceId, reload]);
+  }, [raceId, reload, refreshPackage]);
 
   useEffect(() => {
     if (!raceId) return;
@@ -151,7 +159,8 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
     });
     if (!valid) await storeRef.current.update({ ...stored, status: "rejected", rejectedReason: "LOCAL_INVALID" });
     setCurrent({ phase: "done", cardNumber: payload.cardNumber, localSequence: stored.localSequence,
-      ...(known ? { verdict: evaluateLocally(payload, known, itemsRef.current.map((item) => item.payload)) } : {}),
+      ...(known ? { verdict: evaluateLocally(payload, withLocalRegistrations(known, registrationsRef.current),
+        itemsRef.current.map((item) => item.payload)) } : {}),
       ...(valid ? {} : { invalid: true }) });
     await reload();
     void sync();
@@ -235,19 +244,41 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
       new Date(window.finishAt.getTime() + 5_000));
   }
 
+  // Paketet med den här webbläsarens direktanmälningar, så att en anmäld bricka bedöms lokalt även utan nät (PLAN.md steg 25).
+  const effectivePkg = useMemo(() => pkg ? withLocalRegistrations(pkg, registrations) : undefined, [pkg, registrations]);
+  const currentItem = current?.phase === "done" ? items.find((item) => item.localSequence === current.localSequence) : undefined;
+  // Beskedet bedöms om när paketet eller anmälningarna ändras, så att "Lägg till" ger beskedet för den nya löparen direkt.
+  const verdict = useMemo(() => {
+    if (current?.phase !== "done") return undefined;
+    if (!currentItem || !effectivePkg) return current.verdict;
+    const earlier = items.filter((item) => item.localSequence < currentItem.localSequence).map((item) => item.payload);
+    return evaluateLocally(currentItem.payload, effectivePkg, earlier);
+  }, [current, currentItem, effectivePkg, items]);
+  const currentRegistration = current?.phase === "done"
+    ? registrations.filter((row) => row.request.cardNumber === current.cardNumber).at(-1) : undefined;
+
+  async function register(fields: { classId: string; givenName: string; familyName: string; club: string }) {
+    if (!raceId || current?.phase !== "done") return;
+    const requestId = crypto.randomUUID();
+    await storeRef.current.addRegistration({ raceId, requestId, localSequence: current.localSequence, createdAt: new Date().toISOString(),
+      status: "pending", request: { formatVersion: 1, requestId, cardNumber: current.cardNumber, classId: fields.classId,
+        givenName: fields.givenName.trim(), familyName: fields.familyName.trim(), organisationName: fields.club.trim() || null } });
+    await reload();
+    void sync();
+  }
+
   if (!raceId) return <main className="readout"><h1>{t.title}</h1><p className="notice">{t.noRace}</p></main>;
 
   const runners = pkg ? exerciseRunners(pkg) : [];
   const selectedRunner = runners.find((candidate) => candidate.entryId === runnerId) ?? runners[0];
   const waiting = items.filter((item) => item.status === "pending").length;
   const recent = [...items].sort((a, b) => b.localSequence - a.localSequence).slice(0, 10);
-  const currentItem = current?.phase === "done" ? items.find((item) => item.localSequence === current.localSequence) : undefined;
   const connected = station.kind === "ready" || station.kind === "misconfigured" || station.kind === "connecting";
   // Klockskillnad i hela minuter, bara för en riktig station (övningsstationens klocka står med flit på tävlingsdagen).
   const clockSkew = !exercise && station.kind === "ready" && station.clock && Math.abs(station.clock.clockOffsetMs) >= CLOCK_SKEW_WARNING_MS
     ? Math.round(station.clock.clockOffsetMs / 60_000) : undefined;
-  const printable: Printable | undefined = current?.phase === "done" && current.verdict && pkg
-    ? { localSequence: current.localSequence, cardNumber: current.cardNumber, verdict: current.verdict } : undefined;
+  const printable: Printable | undefined = current?.phase === "done" && verdict && pkg
+    ? { localSequence: current.localSequence, cardNumber: current.cardNumber, verdict } : undefined;
   // QR-koden på skärmen: för en känd löpare, så att hen kan skanna i stället för att ta ett papperskvitto.
   const screenQr = printable && receiptSettings.showQr && pkg && printable.verdict.entryId
     ? receiptLink(pkg, printable.verdict.entryId, window.location.origin) : undefined;
@@ -277,9 +308,15 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
     {!exercise && station.kind === "ready" && !station.clock ? <p className="notice" data-testid="clock-missing">{t.clockMissing}</p> : null}
 
     <section className="verdict" aria-live="assertive" data-testid="verdict"
-      data-status={current?.phase === "done" ? current.verdict?.status ?? "NO_PACKAGE" : current?.phase ?? "idle"}>
-      <Verdict current={current} item={currentItem} qr={screenQr} />
+      data-status={current?.phase === "done" ? verdict?.status ?? "NO_PACKAGE" : current?.phase ?? "idle"}>
+      <Verdict current={current} verdict={verdict} item={currentItem} qr={screenQr} registration={currentRegistration}
+        timeZone={pkg?.event.timeZone ?? "Europe/Stockholm"} />
     </section>
+
+    {/* Okänd bricka (PLAN.md steg 25): anmäl löparen här, även utan nät. */}
+    {current?.phase === "done" && effectivePkg && (verdict?.status === "UNKNOWN_CARD" || currentRegistration?.status === "rejected") &&
+      (!currentRegistration || currentRegistration.status === "rejected")
+      ? <RegistrationForm key={current.localSequence} pkg={effectivePkg} cardNumber={current.cardNumber} onSubmit={register} /> : null}
 
     <ReceiptPanel printable={printable} pkg={pkg} settings={receiptSettings}
       onSettings={(settings) => { setReceiptSettings(settings); saveReceiptSettings(settings); }} />
@@ -306,6 +343,8 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
         <button type="button" disabled={runners.length === 0} onClick={() => readExercise("no-finish")}>{t.exerciseNoFinish}</button>
         {selectedRunner?.timeLimitMs !== undefined
           ? <button type="button" onClick={() => readExercise("late")}>{t.exerciseLate}</button> : null}
+        {selectedRunner?.fixedStartTime !== undefined && selectedRunner.timeLimitMs === undefined
+          ? <button type="button" onClick={() => readExercise("late-start")}>{t.exerciseLateStart}</button> : null}
         <button type="button" disabled={!pkg} onClick={() => readExercise("unknown")}>{t.exerciseUnknown}</button>
       </div>
     </section> : null}
@@ -313,7 +352,8 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
     <section className="recent">
       <h2>{t.recent}</h2>
       {recent.length === 0 ? <p>{t.none}</p> : <ol data-testid="recent-readouts">
-        {recent.map((item) => <RecentRow key={item.localSequence} item={item} pkg={pkg}
+        {recent.map((item) => <RecentRow key={item.localSequence} item={item} pkg={effectivePkg}
+          registration={registrations.filter((row) => row.request.cardNumber === item.payload.cardNumber).at(-1)}
           local={items.filter((candidate) => candidate.localSequence < item.localSequence).map((candidate) => candidate.payload)} />)}
       </ol>}
     </section>
@@ -330,22 +370,37 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
   </main>;
 }
 
-function Verdict({ current, item, qr }: { current: Current | undefined; item: QueuedReadout | undefined;
-  qr: ReturnType<typeof receiptLink> | undefined }) {
+/** Serverns status för avläsningen; en okänd bricka som sedan direktanmälts har anmälans bedömning (PLAN.md steg 25). */
+function serverStatus(item: QueuedReadout | undefined, registration: QueuedRegistration | undefined) {
+  const status = item?.serverResult?.status;
+  if (status !== "UNKNOWN_CARD" || !registration || registration.status === "rejected") return status;
+  return registration.response?.linkedResult?.status;
+}
+
+function Verdict({ current, verdict, item, qr, registration, timeZone }: { current: Current | undefined; verdict: LocalVerdict | undefined;
+  item: QueuedReadout | undefined; qr: ReturnType<typeof receiptLink> | undefined; registration: QueuedRegistration | undefined;
+  timeZone: string }) {
   if (!current) return <p className="big">{t.waitingForCard}</p>;
   if (current.phase === "reading") return <p className="big">{t.reading(current.cardNumber)}</p>;
   if (current.phase === "failed") return <p className="big">✗ {current.message}</p>;
-  const verdict = current.verdict;
-  const symbol = !verdict ? "✓" : verdict.status === "OK" ? "✓" : verdict.status === "MP" ? "✗" : "?";
+  const symbol = !verdict ? "✓" : verdict.status === "OK" ? "✓" : verdict.status === "MP" || verdict.status === "OVERTIME" ? "✗" : "?";
+  const server = serverStatus(item, registration);
   return <div className="verdict-layout"><div className="verdict-body">
     <p className="big">{symbol} {verdict ? t.verdict[verdict.status] : t.verdict.NO_PACKAGE}</p>
     <p className="card">Bricka {current.cardNumber}{verdict?.name ? ` · ${verdict.name}` : ""}{verdict?.className ? ` · ${verdict.className}` : ""}</p>
+    {/* Hyrbricka (PLAN.md steg 25): en egen rad med ord och symbol, inte bara färg. */}
+    {verdict?.rental ? <p className="rental" data-testid="verdict-rental">▲ {t.rental}</p> : null}
+    {registration ? <RegistrationStatus registration={registration} className={verdict?.className ?? ""} /> : null}
     {verdict?.relay ? <RelayLine relay={verdict.relay} /> : null}
     {verdict?.variant ? <p className="variant" data-testid="verdict-variant">{verdict.variant.assigned
       ? t.variant(verdict.variant.code) : t.variantGuessed(verdict.variant.code)}</p> : null}
     {verdict?.rogaining && verdict.elapsedMs !== undefined ? <Rogaining score={verdict.rogaining} elapsedMs={verdict.elapsedMs}
       splits={verdict.splits} />
-      : verdict?.elapsedMs !== undefined && verdict.status === "OK" ? <p className="time">{formatRunningTime(verdict.elapsedMs)}</p> : null}
+      : verdict?.elapsedMs !== undefined && (verdict.status === "OK" || verdict.status === "OVERTIME")
+        ? <p className="time">{formatRunningTime(verdict.elapsedMs)}</p> : null}
+    {/* Minutstart (PLAN.md steg 25): sen eller tidig startstämpling är en varning, inte en ny status. */}
+    {verdict?.startNote ? <p className="start-note" role="note" data-testid="verdict-start-punch" data-kind={verdict.startNote.kind}>
+      {verdict.startNote.kind === "FROM_PUNCH" ? "" : "! "}{startPunchText(verdict.startNote, timeZone)}</p> : null}
     {verdict && verdict.status !== "OK" ? <p>{t.reason[verdict.reason]}</p> : null}
     {verdict && verdict.missingControls.length > 0 ? <p>{t.missing(verdict.missingControls)}</p> : null}
     {!verdict ? <p>{t.noPackage}</p> : null}
@@ -355,8 +410,7 @@ function Verdict({ current, item, qr }: { current: Current | undefined; item: Qu
       </li>)}
     </ol> : null}
     {current.invalid ? <p>{t.localInvalid}</p> : null}
-    {verdict && item?.serverResult && item.serverResult.status !== verdict.status
-      ? <p role="alert">{t.serverDiffers(t.verdict[item.serverResult.status])}</p> : null}
+    {verdict && server && server !== verdict.status ? <p role="alert">{t.serverDiffers(t.verdict[server])}</p> : null}
     <p className="sync">{item?.status === "pending" ? t.savedLocally
       : item?.status === "rejected" ? t.rejected(item.rejectedReason ?? "")
       : item ? t.confirmed : t.savedLocally}</p>
@@ -368,10 +422,11 @@ function Verdict({ current, item, qr }: { current: Current | undefined; item: Qu
   </div>;
 }
 
-function RecentRow({ item, pkg, local }: { item: QueuedReadout; pkg: ReadoutPackage | undefined; local: readonly QueuedReadout["payload"][] }) {
+function RecentRow({ item, pkg, local, registration }: { item: QueuedReadout; pkg: ReadoutPackage | undefined;
+  local: readonly QueuedReadout["payload"][]; registration: QueuedRegistration | undefined }) {
   // Bedöms om bara när avläsningen, paketet eller de tidigare avläsningarna ändras (inte vid varje stationshändelse).
   const verdict = useMemo(() => pkg ? evaluateLocally(item.payload, pkg, local) : undefined, [item.payload, pkg, local.length]);
-  const status = item.serverResult?.status ?? verdict?.status;
+  const status = serverStatus(item, registration) ?? verdict?.status;
   const queue = item.status === "pending" ? t.statusPending : item.status === "stored" ? t.statusStored
     : item.status === "duplicate" ? t.statusDuplicate : t.statusRejected;
   return <li data-sequence={item.localSequence}>

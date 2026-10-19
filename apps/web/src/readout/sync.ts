@@ -1,9 +1,10 @@
-import { deviceBatchAcknowledgementSchema, type DeviceBatch } from "@o-tid/contracts";
+import { deviceBatchAcknowledgementSchema, readoutRegistrationResponseSchema, type DeviceBatch } from "@o-tid/contracts";
 import type { QueuedReadout, ReadoutStore } from "./store";
 
 export type SyncOutcome =
   | { readonly kind: "idle" }
-  | { readonly kind: "synced"; readonly count: number }
+  /** `registered`: direktanmälningar som servern kvitterade nu (avläsningspaketet behöver hämtas igen). */
+  | { readonly kind: "synced"; readonly count: number; readonly registered?: number }
   | { readonly kind: "offline" }
   | { readonly kind: "unauthorized" }
   | { readonly kind: "failed"; readonly status: number };
@@ -34,13 +35,52 @@ export function pendingBatches(items: readonly QueuedReadout[]): QueuedReadout[]
   return batches;
 }
 
+type RegistrationOutcome = { readonly kind: "done"; readonly count: number } | Exclude<SyncOutcome, { kind: "idle" | "synced" }>;
+
 /**
- * Skickar väntande avläsningar till servern. En avläsning ändrar status först
+ * Direktanmälningar (PLAN.md steg 25) skickas först, i den ordning de gjordes, så att servern känner brickan när
+ * avläsningen kommer. En anmälan ändrar status först när servern svarat: kvitto (stored) eller avvisad (rejected, till
+ * exempel full klass). Vid nätfel ligger den kvar och avläsningarna väntar till nästa försök.
+ */
+async function syncRegistrations(store: ReadoutStore, raceId: string, deps: SyncDependencies): Promise<RegistrationOutcome> {
+  let count = 0;
+  for (const item of (await store.listRegistrations(raceId)).filter((row) => row.status === "pending")) {
+    const csrf = deps.csrf();
+    if (!csrf) return { kind: "unauthorized" };
+    let response: Response;
+    try {
+      response = await deps.fetch(`/api/admin/races/${encodeURIComponent(raceId)}/administrator/readout-registrations`, {
+        method: "POST", credentials: "same-origin", cache: "no-store",
+        headers: { "content-type": "application/json", "x-otid-csrf": csrf, "idempotency-key": `readout-registration:${item.requestId}` },
+        body: JSON.stringify(item.request)
+      });
+    } catch {
+      return { kind: "offline" };
+    }
+    if (response.status === 401 || response.status === 403) return { kind: "unauthorized" };
+    if (response.status === 400 || response.status === 404 || response.status === 409) {
+      await store.updateRegistration({ ...item, status: "rejected", rejectedReason: String(response.status) });
+      continue;
+    }
+    if (!response.ok) return { kind: "failed", status: response.status };
+    const receipt = readoutRegistrationResponseSchema.parse(await response.json());
+    if (receipt.requestId !== item.requestId || receipt.raceId !== raceId) throw new Error("Direktanmälans kvitto gäller en annan begäran");
+    await store.updateRegistration({ ...item, status: "stored", response: receipt });
+    count += 1;
+  }
+  return { kind: "done", count };
+}
+
+/**
+ * Skickar väntande direktanmälningar och avläsningar till servern. En avläsning ändrar status först
  * när servern har kvitterat den; vid nätfel eller fel svar ligger den kvar.
  */
 export async function syncPending(store: ReadoutStore, raceId: string, deps: SyncDependencies): Promise<SyncOutcome> {
+  const registrations = await syncRegistrations(store, raceId, deps);
+  if (registrations.kind !== "done") return registrations;
+  const registered = registrations.count;
   const batches = pendingBatches(await store.list(raceId));
-  if (batches.length === 0) return { kind: "idle" };
+  if (batches.length === 0) return registered > 0 ? { kind: "synced", count: 0, registered } : { kind: "idle" };
   let count = 0;
   for (const items of batches) {
     const first = items[0]!;
@@ -76,5 +116,5 @@ export async function syncPending(store: ReadoutStore, raceId: string, deps: Syn
       count += 1;
     }
   }
-  return { kind: "synced", count };
+  return { kind: "synced", count, ...(registered > 0 ? { registered } : {}) };
 }

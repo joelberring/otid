@@ -5,8 +5,8 @@ import React, { useMemo, useState, type ReactNode } from "react";
 import { listsSv as text } from "../../i18n/lists-sv";
 import { formatDuration } from "../../lib/clock-time";
 import { resultListCsv, type ResultView } from "../../lib/lists/csv";
-import { filterResults, resultClassNames, resultsByClub, splitGroups, type RelayClass, type RelayTeam, type ResultClass, type ResultListModel,
-  type ResultRow } from "../../lib/lists/result-list-model";
+import { courseLine, filterResults, resultClassNames, resultsByClub, splitGroups, type RelayClass, type RelayTeam, type ResultClass,
+  type ResultListModel, type ResultRow } from "../../lib/lists/result-list-model";
 import { RadioLive } from "../radio/radio-live";
 import { radioSv } from "../../i18n/radio-sv";
 import { download, ListFrame, type IofExport } from "./list-frame";
@@ -17,7 +17,13 @@ const duration = (ms: number | null) => ms === null ? "" : formatDuration(ms);
 const behind = (ms: number | null) => ms === null ? "" : ms === 0 ? "" : `+${formatDuration(ms)}`;
 const slug = (value: string) => value.replace(/\W+/g, "-");
 
-type Context = { raceId: string; links: boolean; radioTimeZone: string };
+/** Arbetsytans märkning av en rad (PLAN.md steg 25): kort märke med förklaring och diskens orsak. Aldrig publikt. */
+/** `warning`: sen eller tidig start ("! Sen start"); annars en notis utan utropstecken (start från stämpling). */
+export type ResultRowNote = { mark?: string | undefined; detail?: string | undefined; warning?: boolean | undefined;
+  disqualificationReason?: string | undefined };
+type Context = { raceId: string; links: boolean; radioTimeZone: string; notes?: ReadonlyMap<string, ResultRowNote> | undefined };
+
+const noteOf = (row: ResultRow, context: Context) => row.publicResultId ? context.notes?.get(row.publicResultId) : undefined;
 
 /** Klassens radiokontroller (ADR-0172 beslut 5), om tävlingen har radio och någon passerat. */
 function ClassRadio({ raceClass, context }: { raceClass: ResultClass; context: Context }) {
@@ -32,10 +38,12 @@ function AnalysisLink({ className, context }: { className: string; context: Cont
     aria-label={t.analysisLinkLabel(className)}>{t.analysisLink}</Link>;
 }
 
-function Status({ row }: { row: ResultRow }) {
+function Status({ row, context }: { row: ResultRow; context: Context }) {
   const label = row.status === "OK" && row.reason === "MANUAL_APPROVAL" ? t.manualApproval : t.status[row.status];
+  const reason = row.status === "DSQ" ? noteOf(row, context)?.disqualificationReason : undefined;
   return <td className={`${styles.status} ${styles.statusCol}`} data-status={row.status}>{label}
-    {row.status === "MP" && row.missingControls.length > 0 && <span className={styles.sub}>{t.missing(row.missingControls.join(", "))}</span>}</td>;
+    {row.status === "MP" && row.missingControls.length > 0 && <span className={styles.sub}>{t.missing(row.missingControls.join(", "))}</span>}
+    {reason && <span className={styles.sub} data-testid="list-dsq-reason">{reason}</span>}</td>;
 }
 
 /** Löparens namn, länkat till resultatsidan på den publika sidan. Klubb och variant under namnet. */
@@ -44,7 +52,17 @@ function Runner({ row, context, club = true }: { row: ResultRow; context: Contex
     {context.links && row.publicResultId ? <Link href={`/results/${context.raceId}/participants/${row.publicResultId}`}>{row.name}</Link> : row.name}
     {club && <span className={styles.subMobile}>{row.club ?? ""}</span>}
     {row.variant && <span className={styles.sub}>{t.variant(row.variant)}</span>}
+    <RowMark row={row} context={context} />
   </th>;
+}
+
+/** Arbetsytan: "! Sen start" (eller notisen "Start från stämpling") med förklaringen för skärmläsare och som verktygstips. */
+function RowMark({ row, context }: { row: ResultRow; context: Context }) {
+  const note = noteOf(row, context);
+  if (!note?.mark) return null;
+  return <span className={note.warning ? styles.rowMark : styles.rowNotice} title={note.detail} data-testid="list-row-mark">
+    {note.warning ? "! " : ""}{note.mark}
+    {note.detail && <span className={styles.hiddenLabel}>: {note.detail}</span>}</span>;
 }
 
 /**
@@ -74,7 +92,7 @@ function ScoredClassBlock({ raceClass, context }: { raceClass: ResultClass; cont
         <td className={styles.num}><span className={styles.strong}>{score(row, value => value.total)}</span>
           <span className={styles.subMobile}>{duration(row.timeMs)}</span></td>
         <td className={`${styles.num} ${styles.wideOnly}`}>{duration(row.timeMs)}</td>
-        <Status row={row} />
+        <Status row={row} context={context} />
       </tr>)}</tbody>
     </table>
   </section>;
@@ -111,6 +129,7 @@ function ClassBlock({ raceClass, context }: { raceClass: ResultClass; context: C
   const id = `result-class-${slug(raceClass.name)}`;
   return <section className={styles.block} aria-labelledby={id}>
     <div className={styles.blockHead}><h3 id={id}>{raceClass.name}</h3>
+      {raceClass.course && <p className={styles.course}>{courseLine(raceClass.course)}</p>}
       <p>{raceClass.rows.length === 0 && raceClass.radio ? radioSv.live.noneFinished : t.runners(raceClass.rows.length)}</p>
       {raceClass.rows.some(row => row.splits.length > 0) && <AnalysisLink className={raceClass.name} context={context} />}</div>
     {raceClass.mixedCourses && <p className={styles.notice}>{t.mixedCourses}</p>}
@@ -125,7 +144,7 @@ function ClassBlock({ raceClass, context }: { raceClass: ResultClass; context: C
         <td className={styles.wideOnly}>{row.club ?? ""}</td>
         <td className={styles.num}>{duration(row.timeMs)}{row.behindMs ? <span className={`${styles.subMobile}`}>{behind(row.behindMs)}</span> : null}</td>
         <td className={`${styles.num} ${styles.wideOnly} ${styles.muted}`}>{behind(row.behindMs)}</td>
-        <Status row={row} />
+        <Status row={row} context={context} />
       </tr>)}</tbody>
     </table>}
     <ClassRadio raceClass={raceClass} context={context} />
@@ -252,7 +271,7 @@ function ByClub({ model, context }: { model: ResultListModel; context: Context }
             <td className={styles.place}>{result.place ?? ""}</td>
             <td className={styles.num}>{result.score && <span className={styles.strong}>{t.pointsShort(result.score.total)} · </span>}
               {duration(result.timeMs)}</td>
-            <Status row={result} />
+            <Status row={result} context={context} />
           </tr>)}
           {group.teams.map(({ className, team }) => <tr key={`${className}-${team.number}`}>
             <th scope="row">{team.number} {team.name}<span className={styles.sub}>{team.legs.map(leg => `${leg.givenName} ${leg.familyName}`).join(", ")}</span></th>
@@ -272,8 +291,10 @@ function ByClub({ model, context }: { model: ResultListModel; context: Context }
  * sträcklöpare och sträckresultat. Samma komponent i arbetsytan och på den publika sidan (där namnen länkar
  * till löparens resultatsida).
  */
-export function ResultLists({ model, raceId, race, raceDate, links, iof, status }: {
+export function ResultLists({ model, raceId, race, raceDate, links, iof, status, notes }: {
   model: ResultListModel; raceId: string; race: string; raceDate: string; links: boolean; iof?: IofExport | undefined; status?: ReactNode;
+  /** Arbetsytans märkning per publikt resultat-id (PLAN.md steg 25). */
+  notes?: ReadonlyMap<string, ResultRowNote> | undefined;
 }) {
   const [view, setView] = useState<ResultView>("CLASS");
   const [query, setQuery] = useState("");
@@ -283,7 +304,7 @@ export function ResultLists({ model, raceId, race, raceDate, links, iof, status 
   const shown = useMemo(() => filterResults(model, query, selected), [model, query, selected]);
   const count = shown.classes.reduce((sum, row) => sum + row.rows.length, 0);
   const teams = shown.relayClasses.reduce((sum, row) => sum + row.teams.length, 0);
-  const context: Context = { raceId, links, radioTimeZone: model.radioTimeZone ?? "Europe/Stockholm" };
+  const context: Context = { raceId, links, radioTimeZone: model.radioTimeZone ?? "Europe/Stockholm", notes };
   const views = (["CLASS", "SPLITS", "CLUB"] as const).map(id => ({ id, label: t.views[id] }));
   const empty = model.classes.length === 0 && model.relayClasses.every(row => row.teams.length === 0);
   return <ListFrame title={t.titles[view]} race={race} toolbar={{
@@ -293,6 +314,7 @@ export function ResultLists({ model, raceId, race, raceDate, links, iof, status 
     onCsv: () => download(`${text.csv.files.results[view]}-${raceDate}.csv`, resultListCsv(view, shown), "text/csv;charset=utf-8")
   }}>
     {status}
+    <Standing model={model} />
     {empty ? <p className={styles.nothing}>{t.empty}</p>
       : shown.classes.length === 0 && shown.relayClasses.length === 0 ? <p className={styles.nothing}>{text.noMatches}</p>
         : view === "CLASS" ? <>
@@ -303,4 +325,15 @@ export function ResultLists({ model, raceId, race, raceDate, links, iof, status 
             {shown.classes.map(raceClass => <SplitsBlock key={raceClass.name} raceClass={raceClass} context={context} />)}</>
             : <ByClub model={shown} context={context} />}
   </ListFrame>;
+}
+
+/** "Preliminära resultat" tills tävlingen fastställts, sedan "Officiella resultat (fastställda …)" (PLAN.md steg 25). */
+function Standing({ model }: { model: ResultListModel }) {
+  if (!model.standing) return null;
+  const label = model.standing.kind === "OFFICIAL"
+    ? t.official(new Intl.DateTimeFormat("sv-SE", { timeZone: model.standing.timeZone, day: "numeric", month: "short",
+      hour: "2-digit", minute: "2-digit" })
+      .format(new Date(model.standing.finalizedAt)))
+    : t.preliminary;
+  return <p className={styles.standing} data-standing={model.standing.kind} data-testid="result-standing">{label}</p>;
 }

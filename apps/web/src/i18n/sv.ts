@@ -24,6 +24,7 @@ export const sv = {
   publicResultsExtraPunches: "Extra",
   publicResultsStatusLabels: {
     OK: "Godkänd",
+    OVERTIME: "Maxtid överskriden",
     MP: "Felstämplad",
     DSQ: "Diskvalificerad",
     DNF: "Ej fullföljt",
@@ -33,6 +34,7 @@ export const sv = {
   },
   publicResultsReasonLabels: {
     COMPLETE: "Godkänt resultat",
+    MAX_TIME_EXCEEDED: "Löptiden är längre än klassens maxtid",
     MISSING_START: "Start saknas",
     MISSING_FINISH: "Mål saknas",
     MISSING_CONTROL: "Obligatorisk kontroll saknas",

@@ -7,6 +7,7 @@ import { parseStrictStoredResultRevision, StoredResultRevisionConflict, type Sto
 import { isEffectiveResultCurrent, loadResultBasisHash } from "./result-basis";
 import { storedResultVariantControls } from "./course-variants";
 import { UUID_PATTERN as uuid } from "./serialization";
+import { applicableResultNotes, loadResultNotes } from "./result-notes";
 
 export type AdministratorEffectiveResult =
   | { status: "unauthorized" | "forbidden" | "not-found" | "invalid-request" }
@@ -160,8 +161,9 @@ export async function getAdministratorEffectiveResult(db: Database,
         ? untimedAdministratorControls(projectedControls, neutralized?.sequence ?? null, controlDetails.missingControls) : [];
       if (untimed.length > 0) controlDetails = { ...controlDetails, untimedControls: untimed };
     }
+    const notes = applicableResultNotes((await loadResultNotes(tx, race.id, [entry.id])).get(entry.id), outcome.status);
     return { status: "ok", response: administratorEffectiveResultResponseSchema.parse({
-      ...common, state: "ACTIVE_RESULT", selectedRevision, resultClass,
+      ...common, state: "ACTIVE_RESULT", selectedRevision, resultClass, ...(notes ? { notes } : {}),
       resultSnapshotVersion: resolved.head.snapshotVersion, governingDecision, controlDetails,
       resultCurrent: isEffectiveResultCurrent(resolved, await loadResultBasisHash(tx, entry.id), race.snapshotVersion),
       result: { revision: resolved.head.revision, status: outcome.status, reason: outcome.reason,

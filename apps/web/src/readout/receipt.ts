@@ -64,8 +64,10 @@ export function receiptLink(pkg: ReadoutPackage, entryId: string | undefined, or
 
 export function buildReceipt({ verdict, cardNumber, pkg, origin, printedAt }: ReceiptInput): Receipt {
   const race = pkg.raceSnapshot.race;
-  const symbol = verdict.status === "OK" ? "✓" : verdict.status === "MP" ? "✗" : "?";
+  const symbol = verdict.status === "OK" ? "✓" : verdict.status === "MP" || verdict.status === "OVERTIME" ? "✗" : "?";
   const notes: string[] = [];
+  // Hyrbricka (PLAN.md steg 25): först på kvittot.
+  if (verdict.rental) notes.push(t.rental);
   const reason = readoutText.reason[verdict.reason];
   if (verdict.status !== "OK" && reason) notes.push(reason);
   if (verdict.missingControls.length > 0) notes.push(t.missing(verdict.missingControls));
@@ -89,7 +91,8 @@ export function buildReceipt({ verdict, cardNumber, pkg, origin, printedAt }: Re
     symbol,
     status: readoutText.verdict[verdict.status],
     ...(score ? { result: readoutText.rogainingTotal(score.total) }
-      : verdict.status === "OK" && verdict.elapsedMs !== undefined ? { result: formatRunningTime(verdict.elapsedMs) } : {}),
+      : (verdict.status === "OK" || verdict.status === "OVERTIME") && verdict.elapsedMs !== undefined
+        ? { result: formatRunningTime(verdict.elapsedMs) } : {}),
     notes,
     lines,
     columns: score ? t.rogainingColumns : t.columns,

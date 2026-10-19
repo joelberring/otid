@@ -224,7 +224,9 @@ test("start- och resultatlistor: vyer, sök, utskrift och export i arbetsytan oc
   await card.getByRole("button", { name: "Granska starttid" }).click();
   await card.getByRole("button", { name: "Bekräfta starttid" }).click();
   await expect(owner.getByText("Starttiden är sparad.")).toBeVisible();
-  await expect(card.getByRole("note")).toContainText("Stämplad utan giltig tid: 45");
+  await expect(card.getByRole("note").filter({ hasText: "Stämplad utan giltig tid" })).toContainText("Stämplad utan giltig tid: 45");
+  // Minutstart (PLAN.md steg 25): startstämplingen ligger nu 25 minuter före den lottade tiden, en varning i kortet.
+  await expect(card.getByTestId("start-punch-note")).toContainText(/^! Startstämpling [\d:]+, lottad [\d:]+ – 2[45]:\d\d tidig$/);
 
   // Resultat per klass: placering, tid, efter och status; den felstämplade saknar placering.
   for (const path of ["results", "relay-results", "radio"]) await warmRoute(owner, `/api/public/races/${raceId}/${path}`);

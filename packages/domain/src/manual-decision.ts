@@ -6,6 +6,7 @@ import { createOutOfCompetitionResult } from "./out-of-competition";
 import { createWithoutTimingResult } from "./without-timing";
 import { correctPunchedStartTime, type PunchedStartTimeCorrectableResult } from "./manual-punch-start-time-correction";
 import { rescoreRogaining } from "./rogaining";
+import { withMaxTime } from "./max-time";
 import type { EvaluationResult, ResultOutcome, RevisionCause } from "./types";
 
 /**
@@ -132,6 +133,8 @@ export interface ManualDecisionContext {
   readonly isCurrent: (revision: DecisionRevision) => boolean;
   /** Avläsningens startstämpling för huvudets avläsning (rättad starttid). */
   readonly headStartPunchedAt?: string | null;
+  /** Klassens maxtid (PLAN.md steg 25): en rättad tid avgör om resultatet är godkänt eller över maxtid. */
+  readonly maxTimeMinutes?: number | null | undefined;
 }
 
 export type ManualDecisionOutcome<T extends DecisionRevision = DecisionRevision> =
@@ -157,7 +160,8 @@ function technicalHead<T extends DecisionRevision>(history: ResultHistory<T>, co
   const head = history.head;
   if (!head || history.noActiveResult) return "NO_ACTIVE_RESULT";
   const outcome = head.evaluation as EvaluationResult;
-  if (!TECHNICAL_CAUSES.has(head.cause) || head.readoutId === null || (outcome.status !== "OK" && outcome.status !== "MP")) {
+  if (!TECHNICAL_CAUSES.has(head.cause) || head.readoutId === null ||
+    (outcome.status !== "OK" && outcome.status !== "OVERTIME" && outcome.status !== "MP")) {
     return "UNSUPPORTED_RESULT";
   }
   if (outcome.entryId !== context.entryId || outcome.classId !== context.classId ||
@@ -231,8 +235,10 @@ export function applyManualDecision<T extends DecisionRevision>(history: ResultH
       if (!Number.isSafeInteger(elapsedMs) || elapsedMs <= 0 || finishMs === Date.parse(outcome.finishTime) ||
         (lastSplit !== null && elapsedMs < lastSplit)) return fail("INVALID_TIME");
       // Rogaining: ny löptid ger nytt straff (ADR-0170 beslut 5).
-      return done("MANUAL_FINISH_TIME_CORRECTION", { ...outcome, finishTime: new Date(finishMs).toISOString(), elapsedMs,
-        ...(outcome.rogaining ? { rogaining: rescoreRogaining(outcome.rogaining, elapsedMs) } : {}) }, revision);
+      // Maxtid (PLAN.md steg 25): den rättade löptiden avgör om resultatet är godkänt eller över maxtid.
+      return done("MANUAL_FINISH_TIME_CORRECTION", withMaxTime({ ...outcome, finishTime: new Date(finishMs).toISOString(), elapsedMs,
+        ...(outcome.rogaining ? { rogaining: rescoreRogaining(outcome.rogaining, elapsedMs) } : {}) },
+      outcome.rogaining ? undefined : context.maxTimeMinutes), revision);
     }
     case "START_TIME": {
       if (context.startRule !== "PUNCH") return fail("NOT_PUNCH_START");
@@ -242,7 +248,8 @@ export function applyManualDecision<T extends DecisionRevision>(history: ResultH
       const corrected = Number.isFinite(startMs)
         ? guarded(() => correctPunchedStartTime(outcome as PunchedStartTimeCorrectableResult, new Date(startMs).toISOString()))
         : undefined;
-      return corrected ? done("MANUAL_PUNCH_START_TIME_CORRECTION", corrected, revision) : fail("INVALID_TIME");
+      return corrected ? done("MANUAL_PUNCH_START_TIME_CORRECTION",
+        withMaxTime(corrected, corrected.rogaining ? undefined : context.maxTimeMinutes), revision) : fail("INVALID_TIME");
     }
   }
 }

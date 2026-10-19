@@ -76,7 +76,7 @@ function validChange(value: { controlPoints: readonly { code: number }[]; classR
 export const rogainingChangePreviewRequestSchema = z.object({ formatVersion: z.literal(1), ...changeFields }).strict()
   .superRefine(validChange);
 
-const outcome = z.object({ status: z.enum(["OK", "MP"]), total: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional() }).strict();
+const outcome = z.object({ status: z.enum(["OK", "OVERTIME", "MP"]), total: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional() }).strict();
 
 export const rogainingChangePreviewResponseSchema = z.object({
   formatVersion: z.literal(1), raceId: uuid, snapshotVersion: version,

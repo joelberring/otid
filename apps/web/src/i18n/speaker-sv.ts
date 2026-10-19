@@ -28,6 +28,6 @@ export const speakerSv = {
   place: (position: number) => `${position}.`,
   noTime: "–",
   noResult: "Inget resultat",
-  statuses: { OK: "Godkänd", MP: "Felstämplad", DSQ: "Diskvalificerad", OOC: "Utom tävlan", DNS: "Ej start", DNF: "Ej fullföljt",
+  statuses: { OK: "Godkänd", OVERTIME: "Maxtid överskriden", MP: "Felstämplad", DSQ: "Diskvalificerad", OOC: "Utom tävlan", DNS: "Ej start", DNF: "Ej fullföljt",
     NT: "Utan tidtagning" }
 } as const;

@@ -36,7 +36,7 @@ export const entryStatusIdempotencyKeySchema = z.string().regex(
   prefixedUuidPattern("entry-status"),
   "Idempotency-Key måste vara entry-status:<request-id>");
 
-const statusSchema = z.enum(["OK", "MP", "DSQ", "DNF", "OOC", "DNS", "NT"]);
+const statusSchema = z.enum(["OK", "OVERTIME", "MP", "DSQ", "DNF", "OOC", "DNS", "NT"]);
 export const entryStatusGoverningDecisionSchema = z.enum(["NONE", "DNS", "CHECKIN_DNS", "DSQ", "APPROVAL", "DNF", "OOC",
   "NT", "FINISH_TIME", "START_TIME"]);
 export const entryStatusReadinessSchema = z.enum(["READY", "HAS_RESULT", "NO_ACTIVE_RESULT", "UNSUPPORTED_RESULT",
@@ -46,7 +46,7 @@ export const entryStatusReadinessSchema = z.enum(["READY", "HAS_RESULT", "NO_ACT
 const splitSchema = z.object({ controlCode: z.number().int().positive(), occurrence: z.number().int().positive(),
   elapsedMs: z.number().int().min(0), legMs: z.number().int().min(0) }).strict();
 /** Tiderna i det resultat som en tidsrättning utgår från (eller som ett återtagande återställer). */
-const timingSchema = z.object({ status: z.enum(["OK", "MP"]), startTime: instant, finishTime: instant,
+const timingSchema = z.object({ status: z.enum(["OK", "OVERTIME", "MP"]), startTime: instant, finishTime: instant,
   elapsedMs: z.number().int().positive(), latestMatchedSplitElapsedMs: z.number().int().min(0).nullable(),
   splits: z.array(splitSchema).max(1_000) }).strict();
 

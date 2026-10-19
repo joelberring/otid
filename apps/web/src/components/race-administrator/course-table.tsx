@@ -5,7 +5,8 @@ import styles from "../race-administrator-workspace.module.css";
 import type { CourseEditListResponse } from "@o-tid/contracts";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
 import { courseVariantsSv as variantText } from "../../i18n/course-variants-sv";
-import { Button, EmptyState, Notice, Section, Table, numeric } from "../ui";
+import { Button, EmptyState, Field, Notice, Section, Table, numeric } from "../ui";
+import { courseMeasures } from "../../lib/lists/result-list-model";
 import { focusCourseFile } from "./course-file-section";
 import type { Workspace } from "./workspace-state";
 
@@ -29,6 +30,7 @@ export function CourseTable({ ws, visible }: { ws: Workspace; visible: boolean }
   return <Section id={`course-table-${raceId}`} title={text.courseEditTitle} help={empty ? undefined : text.courseEditHelp}
     actions={!empty && courseList && !courseFormOpen ? newCourse(false) : undefined}>
     {courseEditSaved && <Notice tone="ok" role="status">{courseEditSaved}</Notice>}
+    {ws.detailsMessage && <Notice tone={ws.detailsMessage === text.courseDetailsSaved ? "ok" : "error"} role="status">{ws.detailsMessage}</Notice>}
     {courseListError && <Notice tone="error" role="alert"><p>{courseListError}</p>
       <div><Button variant="secondary" disabled={saving} onClick={() => void loadCourses()}>{text.courseEditRetryList}</Button></div></Notice>}
     {!courseList && !courseListError && <p role="status" className={styles.workflowHelp}>{text.courseEditLoading}</p>}
@@ -37,15 +39,20 @@ export function CourseTable({ ws, visible }: { ws: Workspace; visible: boolean }
       {text.courseEmptyHelp}</EmptyState>}
     {courseList && courseList.courses.length > 0 && <Table>
       <thead><tr>
-        <th scope="col">{text.courseEditCourse}</th><th scope="col">{text.courseEditControlsColumn}</th>
+        <th scope="col">{text.courseEditCourse}</th><th scope="col">{text.courseLengthColumn}</th>
+        <th scope="col">{text.courseEditControlsColumn}</th>
         <th scope="col">{text.courseEditClasses}</th><th scope="col" className={numeric}>{text.courseEditEntries}</th>
         <th scope="col" className={numeric}>{text.courseEditReadOut}</th><th scope="col"><span className={styles.visuallyHidden}>{text.courseEditAction}</span></th>
       </tr></thead>
       <tbody>{courseList.courses.map(course => {
         const editing = course.courseId === editingCourseId;
+        const details = course.courseId === ws.detailsCourseId;
         const forked = course.variants.length > 0;
+        const measured = course.lengthMeters != null || course.climbMeters != null;
         return [<tr key={course.courseId}>
           <th scope="row">{course.name}</th>
+          <td className={styles.courseLength}>{measured ? courseMeasures(course.lengthMeters ?? null, course.climbMeters ?? null)
+            : <span className={styles.muted}>–</span>}</td>
           <td className={styles.controlCodes}>{forked && variants ? <CourseVariants ws={ws} course={course} /> : course.controlCodes.join(" ")}</td>
           <td>{course.classes.length === 0 ? <span className={styles.muted}>{text.courseEditNoClasses}</span> : course.classes.map(raceClass =>
             <button key={raceClass.classId} type="button" className={styles.inlineLink} disabled={workflowLocked}
@@ -53,9 +60,13 @@ export function CourseTable({ ws, visible }: { ws: Workspace; visible: boolean }
           <td className={numeric}>{course.entryCount}</td>
           <td className={numeric}>{course.readOutCount}</td>
           <td className={styles.rowAction}>{!editing && !forked && <Button variant="secondary" aria-label={text.courseEditOpenLabel(course.name)}
-            disabled={saving || !!editingCourseId} onClick={() => startCourseEdit(course.courseId)}>{text.courseEditOpen}</Button>}</td>
+            disabled={saving || !!editingCourseId} onClick={() => startCourseEdit(course.courseId)}>{text.courseEditOpen}</Button>}
+            {!details && <Button variant="quiet" aria-label={text.courseDetailsOpenLabel(course.name)} disabled={saving || !!ws.detailsCourseId}
+              onClick={() => ws.startCourseDetails(course.courseId)}>{text.courseDetailsOpen}</Button>}</td>
         </tr>, editing && <tr key={`${course.courseId}-editor`} className={styles.editorRow}>
-          <td colSpan={6}><CourseEditor ws={ws} courseName={course.name} /></td>
+          <td colSpan={7}><CourseEditor ws={ws} courseName={course.name} /></td>
+        </tr>, details && <tr key={`${course.courseId}-details`} className={styles.editorRow}>
+          <td colSpan={7}><CourseDetailsEditor ws={ws} courseName={course.name} /></td>
         </tr>];
       })}</tbody>
     </Table>}
@@ -102,7 +113,8 @@ function CourseEditor({ ws, courseName }: { ws: Workspace; courseName: string })
     {courseEditPreview && <section className={styles.review} role="status" aria-live="polite">
       {courseEditPreview.readOutCount === 0 ? <p>{text.courseEditNobodyReadOut}</p> : <p><strong>{text.courseEditSummary(
         courseEditPreview.readOutCount, courseEditPreview.becomesOkCount, courseEditPreview.becomesMispunchedCount,
-        courseEditPreview.unchangedCount)}</strong></p>}
+        courseEditPreview.unchangedCount,
+        courseEditPreview.changes.filter(change => change.after === "OVERTIME").length)}</strong></p>}
       {editingVariantCode && <p>{variantText.variantSummaryNote}</p>}
       {courseEditPreview.notRecalculatedCount > 0 && <Notice tone="attention">{text.courseEditNotRecalculated(courseEditPreview.notRecalculatedCount)}</Notice>}
       {courseEditPreview.changes.length > 0 ? <>
@@ -118,6 +130,27 @@ function CourseEditor({ ws, courseName }: { ws: Workspace; courseName: string })
       <Button variant="secondary" disabled={busy || !!courseEditAttempt} onClick={() => void previewCourseEdit()}>{text.courseEditPreview}</Button>
       <Button type="submit" disabled={busy}>{text.courseEditSave}</Button>
       {!courseEditAttempt && <Button variant="quiet" disabled={busy} onClick={cancelCourseEdit}>{text.courseEditCancel}</Button>}
+    </div>
+  </form>;
+}
+
+/** Längd och stigning i meter (PLAN.md steg 25). Påverkar inga resultat och sparas direkt. */
+function CourseDetailsEditor({ ws, courseName }: { ws: Workspace; courseName: string }) {
+  const { busy, cancelCourseDetails, changeCourseDetails, detailsClimb, detailsErrors, detailsLength, saveCourseDetails } = ws;
+  return <form className={styles.editor} aria-label={text.courseDetailsOpenLabel(courseName)} noValidate
+    onSubmit={event => { event.preventDefault(); void saveCourseDetails(); }}>
+    <div className={styles.fieldRow}>
+      <Field label={text.courseLength} error={detailsErrors.length} className={styles.narrowField}>
+        <input inputMode="numeric" autoComplete="off" value={detailsLength} maxLength={8} disabled={busy}
+          onChange={event => changeCourseDetails({ length: event.target.value })} /></Field>
+      <Field label={text.courseClimb} error={detailsErrors.climb} className={styles.narrowField}>
+        <input inputMode="numeric" autoComplete="off" value={detailsClimb} maxLength={6} disabled={busy}
+          onChange={event => changeCourseDetails({ climb: event.target.value })} /></Field>
+    </div>
+    <p className={styles.workflowHelp}>{text.courseDetailsHelp}</p>
+    <div className={styles.actions}>
+      <Button type="submit" disabled={busy}>{text.courseDetailsSave}</Button>
+      <Button variant="quiet" disabled={busy} onClick={cancelCourseDetails}>{text.courseEditCancel}</Button>
     </div>
   </form>;
 }

@@ -238,8 +238,21 @@ const frozenSplitSchema = z.object({
   elapsedMs: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER)
 }).strict();
 
+/** Banan i IOF-exporten (PLAN.md steg 25): namn, längd och stigning i meter. */
+export const frozenIofCourseSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  lengthMeters: z.number().int().min(1).max(1_000_000).optional(),
+  climbMeters: z.number().int().min(0).max(100_000).optional()
+}).strict();
+const eventorId = z.string().regex(/^[0-9A-Za-z_-]{1,64}$/);
+
 const frozenIofPersonCommonFields = {
   entryExternalId: z.string().trim().min(1).max(160).nullable(),
+  /** PLAN.md steg 25: Eventors person- och klubb-id, brickan och (gafflad klass) löparens variant som bana. */
+  personEventorId: eventorId.optional(),
+  organisationEventorId: eventorId.optional(),
+  cardNumber: z.string().regex(/^[1-9][0-9]{0,31}$/).optional(),
+  course: frozenIofCourseSchema.optional(),
   givenName: z.string().trim().min(1).max(160),
   familyName: z.string().trim().min(1).max(160),
   organisationName: z.string().trim().min(1).max(240).nullable(),
@@ -258,7 +271,7 @@ const frozenManualApprovalProofSchema = z.object({
 }).strict();
 
 interface FrozenPersonValidationValue {
-  status: "OK" | "MP" | "DSQ" | "DNF" | "OOC" | "DNS";
+  status: "OK" | "OVERTIME" | "MP" | "DSQ" | "DNF" | "OOC" | "DNS";
   startTime: string | null;
   finishTime: string | null;
   elapsedMs: number | null;
@@ -279,7 +292,7 @@ function validateFrozenIofPerson(result: FrozenPersonValidationValue, context: z
       (result.startTime === null || result.finishTime === null || result.elapsedMs === null || !hasPosition)) {
     context.addIssue({ code: "custom", path: ["status"], message: "Finaliserad OK kräver tid och ranking" });
   }
-  if ((result.status === "MP" || result.status === "DSQ" || result.status === "OOC") &&
+  if ((result.status === "OVERTIME" || result.status === "MP" || result.status === "DSQ" || result.status === "OOC") &&
       (hasPosition || hasTimeBehind)) {
     context.addIssue({ code: "custom", path: ["position"], message: "MP, DSQ och OOC får inte ha ranking" });
   }
@@ -340,7 +353,7 @@ function validateFrozenIofPerson(result: FrozenPersonValidationValue, context: z
 /** Den frysta personraden (IOF 3.0 PersonResult) i nuvarande format (9). */
 export const frozenIofPersonProjectionV9Schema = z.object({
   ...frozenIofPersonCommonFields,
-  status: z.enum(["OK", "MP", "DSQ", "DNF", "OOC", "DNS"]),
+  status: z.enum(["OK", "OVERTIME", "MP", "DSQ", "DNF", "OOC", "DNS"]),
   manualApprovalProof: frozenManualApprovalProofSchema.nullable()
 }).strict().superRefine(validateFrozenIofPerson);
 export const frozenIofPersonProjectionSchema = frozenIofPersonProjectionV9Schema;
@@ -388,9 +401,9 @@ export const frozenFinalizationResultSourceV9Schema = z.discriminatedUnion("kind
 const EXPECTED_STATUSES: Record<z.infer<typeof frozenManualDecisionCauseSchema>, readonly string[]> = {
   MANUAL_DID_NOT_START: ["DNS"], MANUAL_DISQUALIFICATION: ["DSQ"], MANUAL_RESULT_APPROVAL: ["OK"],
   MANUAL_DID_NOT_FINISH: ["DNF"], MANUAL_OUT_OF_COMPETITION: ["OOC"],
-  MANUAL_DISQUALIFICATION_WITHDRAWAL: ["OK", "MP"], MANUAL_RESULT_APPROVAL_WITHDRAWAL: ["OK", "MP"],
-  MANUAL_DID_NOT_FINISH_WITHDRAWAL: ["OK", "MP"], MANUAL_OUT_OF_COMPETITION_WITHDRAWAL: ["OK", "MP"],
-  MANUAL_WITHOUT_TIMING_WITHDRAWAL: ["OK", "MP"]
+  MANUAL_DISQUALIFICATION_WITHDRAWAL: ["OK", "OVERTIME", "MP"], MANUAL_RESULT_APPROVAL_WITHDRAWAL: ["OK", "OVERTIME", "MP"],
+  MANUAL_DID_NOT_FINISH_WITHDRAWAL: ["OK", "OVERTIME", "MP"], MANUAL_OUT_OF_COMPETITION_WITHDRAWAL: ["OK", "OVERTIME", "MP"],
+  MANUAL_WITHOUT_TIMING_WITHDRAWAL: ["OK", "OVERTIME", "MP"]
 };
 
 export const frozenFinalizationResultV9Schema = z.object({
@@ -399,7 +412,7 @@ export const frozenFinalizationResultV9Schema = z.object({
 }).strict().superRefine((result, context) => {
   const source = result.source;
   const expectedStatuses = source.kind === "START_CHECKIN_DID_NOT_START" ? ["DNS"]
-    : source.kind === "MANUAL_DECISION" ? EXPECTED_STATUSES[source.cause] : ["OK", "MP"];
+    : source.kind === "MANUAL_DECISION" ? EXPECTED_STATUSES[source.cause] : ["OK", "OVERTIME", "MP"];
   if (!expectedStatuses.includes(result.personResult.status)) {
     context.addIssue({ code: "custom", path: ["personResult", "status"], message: "Resultatstatus motsäger fryst proveniens" });
   }
@@ -436,6 +449,8 @@ function validateFrozenClassData(
 export const frozenClassDataV9Schema = z.object({
   name: z.string().trim().min(1).max(160),
   externalId: z.string().trim().min(1).max(160).nullable(),
+  /** Klassens bana med längd och stigning (PLAN.md steg 25). */
+  course: frozenIofCourseSchema.optional(),
   results: z.array(frozenFinalizationResultV9Schema).min(1).max(10_000)
 }).strict().superRefine(validateFrozenClassData);
 

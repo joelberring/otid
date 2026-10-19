@@ -1,4 +1,5 @@
-import type { ReadoutPackage, ServerResultSummary, SportidentReadoutPayload } from "@o-tid/contracts";
+import type { ReadoutPackage, ReadoutRegistrationRequest, ReadoutRegistrationResponse, ServerResultSummary,
+  SportidentReadoutPayload } from "@o-tid/contracts";
 
 export type QueueStatus = "pending" | "stored" | "duplicate" | "rejected";
 
@@ -20,6 +21,22 @@ export interface QueuedReadout {
 
 export type NewReadout = Omit<QueuedReadout, "raceId" | "deviceId" | "sessionId" | "localSequence" | "status">;
 
+/**
+ * Direktanmälan av en okänd bricka (PLAN.md steg 25), köad som avläsningarna. Raderas aldrig; status ändras när servern
+ * kvitterat (stored) eller avvisat (rejected). Skickas före avläsningarna.
+ */
+export interface QueuedRegistration {
+  readonly raceId: string;
+  readonly requestId: string;
+  readonly request: ReadoutRegistrationRequest;
+  /** Avläsningen som anmälan gjordes för. */
+  readonly localSequence: number;
+  readonly createdAt: string;
+  readonly status: "pending" | "stored" | "rejected";
+  readonly response?: ReadoutRegistrationResponse;
+  readonly rejectedReason?: string;
+}
+
 export interface ReadoutStore {
   loadPackage(raceId: string): Promise<ReadoutPackage | undefined>;
   savePackage(value: ReadoutPackage): Promise<void>;
@@ -29,10 +46,15 @@ export interface ReadoutStore {
   append(raceId: string, item: NewReadout): Promise<QueuedReadout>;
   list(raceId: string): Promise<QueuedReadout[]>;
   update(item: QueuedReadout): Promise<void>;
+  /** Direktanmälningar (PLAN.md steg 25). `addRegistration` lägger till; en befintlig begäran skrivs aldrig över. */
+  addRegistration(item: QueuedRegistration): Promise<void>;
+  listRegistrations(raceId: string): Promise<QueuedRegistration[]>;
+  updateRegistration(item: QueuedRegistration): Promise<void>;
 }
 
 const DB_NAME = "otid-readout";
-const DB_VERSION = 1;
+/** Version 2 (PLAN.md steg 25): kön för direktanmälningar. */
+const DB_VERSION = 2;
 
 function request<T>(value: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -58,9 +80,11 @@ export class IdbReadoutStore implements ReadoutStore {
       const open = factory.open(DB_NAME, DB_VERSION);
       open.onupgradeneeded = () => {
         const db = open.result;
-        db.createObjectStore("packages", { keyPath: "raceId" });
-        db.createObjectStore("meta");
-        db.createObjectStore("readouts", { keyPath: ["raceId", "localSequence"] });
+        // Uppgradering från version 1 behåller avläsningarna och lägger bara till det som saknas.
+        if (!db.objectStoreNames.contains("packages")) db.createObjectStore("packages", { keyPath: "raceId" });
+        if (!db.objectStoreNames.contains("meta")) db.createObjectStore("meta");
+        if (!db.objectStoreNames.contains("readouts")) db.createObjectStore("readouts", { keyPath: ["raceId", "localSequence"] });
+        if (!db.objectStoreNames.contains("registrations")) db.createObjectStore("registrations", { keyPath: ["raceId", "requestId"] });
       };
       open.onsuccess = () => resolve(open.result);
       open.onerror = () => reject(open.error ?? new Error("IndexedDB kunde inte öppnas"));
@@ -117,6 +141,27 @@ export class IdbReadoutStore implements ReadoutStore {
     const db = await this.#db;
     const tx = db.transaction("readouts", "readwrite");
     tx.objectStore("readouts").put(item);
+    await done(tx);
+  }
+
+  async addRegistration(item: QueuedRegistration): Promise<void> {
+    const db = await this.#db;
+    const tx = db.transaction("registrations", "readwrite");
+    tx.objectStore("registrations").add(item);
+    await done(tx);
+  }
+
+  async listRegistrations(raceId: string): Promise<QueuedRegistration[]> {
+    const db = await this.#db;
+    const range = IDBKeyRange.bound([raceId, ""], [raceId, "\uffff"]);
+    const rows = await request(db.transaction("registrations").objectStore("registrations").getAll(range)) as QueuedRegistration[];
+    return rows.sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.requestId.localeCompare(right.requestId));
+  }
+
+  async updateRegistration(item: QueuedRegistration): Promise<void> {
+    const db = await this.#db;
+    const tx = db.transaction("registrations", "readwrite");
+    tx.objectStore("registrations").put(item);
     await done(tx);
   }
 }

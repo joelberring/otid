@@ -104,7 +104,8 @@ export async function previewEventorSyncAsAdmin(db: Database, input: Authenticat
     event: { id: event.id, name: event.name, date: event.date, clock: event.clock ?? null, form: event.form },
     classes: fetched.classes.map(row => ({ id: row.id, name: row.name, cancelled: row.cancelled })),
     entries: fetched.entries.entries.map(entry => ({ id: entry.id, classId: entry.classId, givenName: entry.givenName,
-      familyName: entry.familyName, club: entry.club?.name ?? null, cardNumber: entry.cardNumber ?? null })),
+      familyName: entry.familyName, club: entry.club?.name ?? null, cardNumber: entry.cardNumber ?? null,
+      personId: entry.personId ?? null, clubId: entry.club?.id ?? null })),
     teams: fetched.entries.teams.map(team => ({ id: team.id, classId: team.classId, name: team.name, club: team.club?.name ?? null,
       runners: team.runners.map(runner => ({ leg: runner.leg, givenName: runner.givenName ?? null, familyName: runner.familyName ?? null,
         club: runner.club?.name ?? null, cardNumber: runner.cardNumber ?? null })) })) };

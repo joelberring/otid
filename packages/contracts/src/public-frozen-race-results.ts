@@ -2,7 +2,7 @@ import { z } from "zod";
 
 const safeMillisecondsSchema = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 
-export const publicFrozenRaceResultStatusSchema = z.enum(["OK", "MP", "DSQ", "DNF", "OOC", "DNS"]);
+export const publicFrozenRaceResultStatusSchema = z.enum(["OK", "OVERTIME", "MP", "DSQ", "DNF", "OOC", "DNS"]);
 
 export const publicFrozenRaceResultSchema = z.object({
   className: z.string().trim().min(1).max(160),

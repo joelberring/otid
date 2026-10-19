@@ -14,7 +14,7 @@ export interface Printable { readonly localSequence: number; readonly cardNumber
 
 /** Godkänd eller felstämplad: en känd löpare med ett resultat att ta med sig. */
 export function autoPrintable(verdict: LocalVerdict): boolean {
-  return verdict.status === "OK" || verdict.status === "MP";
+  return verdict.status === "OK" || verdict.status === "OVERTIME" || verdict.status === "MP";
 }
 
 /**

@@ -236,7 +236,7 @@ export const resultOutcomeSchema = resultOutcomeV8Schema;
 export const storedResultStatusV4Schema = z.enum(["OK", "MP", "DSQ", "DNF", "DNS"]);
 /** TASK 006K/006L status union, retained for historical format readers. */
 export const storedResultStatusV6Schema = z.enum(["OK", "MP", "DSQ", "DNF", "OOC", "DNS"]);
-export const storedResultStatusSchema = z.enum(["OK", "MP", "DSQ", "DNF", "OOC", "NT", "DNS"]);
+export const storedResultStatusSchema = z.enum(["OK", "OVERTIME", "MP", "DSQ", "DNF", "OOC", "NT", "DNS"]);
 export const storedResultReasonV4Schema = z.enum([
   "COMPLETE",
   "MISSING_START",
@@ -256,7 +256,8 @@ export const storedResultReasonV6Schema = z.enum([
 ]);
 export const storedResultReasonSchema = z.enum([
   ...storedResultReasonV6Schema.options,
-  "WITHOUT_TIMING"
+  "WITHOUT_TIMING",
+  "MAX_TIME_EXCEEDED"
 ]);
 
 /** Alla orsaker till en resultatrevision (ADR-0173: beslut och återtaganden är orsaker på revisionen). */
@@ -275,6 +276,7 @@ export function isValidStoredResultPair(
   reason: z.infer<typeof storedResultReasonSchema>
 ): boolean {
   if (status === "OK") return reason === "COMPLETE" || reason === "MANUAL_APPROVAL";
+  if (status === "OVERTIME") return reason === "MAX_TIME_EXCEEDED";
   if (status === "MP") return reason === "MISSING_START" || reason === "MISSING_FINISH" ||
     reason === "MISSING_CONTROL" || reason === "WRONG_ORDER" || reason === "INVALID_TIME_ORDER";
   if (status === "DSQ") return reason === "MANUAL_DISQUALIFICATION";

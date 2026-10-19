@@ -7,6 +7,8 @@ import { createResultDecisionActions, useResultDecisionState } from "./result-de
 import { createCoursePreparationActions, useCoursePreparationState } from "./course-preparation";
 import { createCourseEditActions, useCourseEditState } from "./course-edit";
 import { createClassEditActions, useClassEditState } from "./class-edit";
+import { createCourseDetailsActions, useCourseDetailsState } from "./course-details";
+import { createRemainingRunnersActions, useRemainingRunnersState } from "./remaining-runners";
 import { createRogainingActions, useRogainingState } from "./rogaining-actions";
 import { createCourseVariantActions, useCourseVariantState } from "./course-variant-actions";
 import { createRelayActions, useRelayState } from "./relay-actions";
@@ -22,6 +24,7 @@ import { createSettingsActions, useSettingsState } from "./settings-actions";
 export function useWorkspaceState(raceId: string) {
   return { raceId, ...useOperationState(), ...useNavigationState(), ...useRaceDataState(), ...useRosterState(),
     ...useEntryActionState(), ...useResultDecisionState(), ...useCoursePreparationState(), ...useCourseEditState(), ...useClassEditState(),
+    ...useCourseDetailsState(), ...useRemainingRunnersState(),
     ...useRogainingState(),
     ...useCourseVariantState(), ...useRelayState(),
     ...useClassPreparationState(), ...useStatusChangeState(),
@@ -50,7 +53,7 @@ export function deriveWorkspace(s: WorkspaceState) {
   const courseEdited = !!course && s.courseEditControls.trim().split(/[\s,]+/).filter(Boolean).join(" ") !== original.join(" ");
   const classRow = s.courseList?.classes.find(row => row.classId === s.editingClassId);
   const classEdited = !!classRow && (s.classEditName.trim() !== classRow.name || s.classEditCourseId !== classRow.courseId ||
-    s.classEditStartRule !== classRow.startRule);
+    s.classEditStartRule !== classRow.startRule || s.classEditMaxTime.trim() !== (classRow.maxTimeMinutes ? String(classRow.maxTimeMinutes) : ""));
   const unsavedInput = !saving && (editing || courseEdited || classEdited || !!s.pending.current || !!s.reviewCandidate || !!s.courseClassAttempt ||
     !!s.manualClassAttempt || !!s.courseEditAttempt || !!s.courseEditPreview || !!s.classEditAttempt || !!s.classEditPreview ||
     !!s.classRecalculationAttempt || !!s.rogainingAttempt);
@@ -79,9 +82,10 @@ export function useWorkspace(raceId: string) {
   const withDecisions = { ...withCourses, ...createResultDecisionActions(withCourses) };
   const withAreas = { ...withDecisions, ...withRelay, ...createDuringRaceActions(withRelay), ...createStartListActions(withData),
     ...createStartDrawActions(withData),
-    ...createCoursePreparationActions(withData), ...createClassEditActions(withCourses), ...createRogainingActions(withCourses), ...createClassPreparationActions(withData),
+    ...createCoursePreparationActions(withData), ...createClassEditActions(withCourses), ...createCourseDetailsActions(withCourses),
+    ...createRogainingActions(withCourses), ...createClassPreparationActions(withData),
     ...createCourseVariantActions(withCourses),
-    ...createStatusChangeActions(withDecisions), ...createEntryActions(withData), ...createAfterRaceActions(withData),
+    ...createStatusChangeActions(withDecisions), ...createEntryActions(withData), ...createAfterRaceActions(withData), ...createRemainingRunnersActions(withData),
     ...createSettingsActions(withData) };
   const withParticipants = { ...withAreas, ...createParticipantActions(withAreas) };
   return { ...withParticipants, ...createWorkflowNavigation(withParticipants) };

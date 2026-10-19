@@ -26,7 +26,10 @@ bricknummer, valfri start- och målstämpling och stämplingar.
    sedan kopplas uttryckligen (direktanmälan eller befintlig deltagare); kopplingen lägger till en revision
    och ändrar aldrig råmeddelandet eller den första bedömningen.
 2. Starttid väljs från startstämpling när klassens startsätt är `PUNCH`, annars från deltagarens fasta
-   starttid.
+   starttid. Saknar en löpare med fast start lottad tid används startstämplingen (notis "starttid från
+   startstämpling"). En startstämpling mer än `START_PUNCH_TOLERANCE_MS` (60 s) före eller efter den lottade
+   tiden är en varning i avläsningen, deltagarkortet och arbetsytans resultatlista, aldrig publikt; den lottade
+   tiden gäller (motor 0.4.0, PLAN.md steg 25).
 3. Målstämpling krävs för en sluttid. Saknad start eller mål ger `MP` med stabil förklaringskod.
 4. Kontroller matchas som en ordnad delsekvens. Extra stämplingar ignoreras för godkännandet men redovisas.
 5. Saknad obligatorisk kontroll ger `MP/MISSING_CONTROL`.
@@ -37,6 +40,10 @@ bricknummer, valfri start- och målstämpling och stämplingar.
    förekomster (även dubbelstämplingar vid kontroller som återkommer i fjärilsslingor) redovisas som extra.
 8. Ett godkänt resultat får status `OK`; löptid och sträcktider räknas i hela millisekunder från vald start
    till kontroller och mål.
+9. Har klassen maxtid (`class.max_time_minutes`, inte rogaining) och ett annars godkänt resultat har längre
+   löptid blir det `OVERTIME/MAX_TIME_EXCEEDED`: tid och sträcktider står kvar, ingen placering, ordnas direkt
+   efter godkända och exporteras som IOF `OverTime`. Exakt maxtid är godkänt; felstämpling går före. En rättad
+   start- eller måltid avgör maxtiden på nytt.
 
 Motorn returnerar stabila koder. Svenska texter hör till `apps/web/src/i18n`. Avläsningsskalet kör samma
 funktion lokalt; dess besked är preliminärt och serverns revision är auktoritativ.
@@ -51,6 +58,11 @@ funktion lokalt; dess besked är preliminärt och serverns revision är auktorit
 - Ett beslut bär löparens senaste revisionsnummer (`expectedRevision`). Har en annan revision tillkommit sedan
   formuläret öppnades avvisas beslutet (konflikt), och arrangören får se det nya läget. Tävlingens version
   jämförs inte (steg 23).
+- Disk kan ha en valfri orsak (`result_revision.note`, bara på `MANUAL_DISQUALIFICATION`); den syns bara för
+  arrangören. Publikt står "Disk." och orsaken exporteras inte.
+- "Markera alla kvar i skogen som ej start" (Resultat) sätter ej start på alla utan avläsning och beslut, efter
+  en förhandsvisning och en bekräftelse; den som stämplat vid radio eller prickats av vid starten listas för
+  kontroll i stället. Samma begäran igen ändrar inget.
 - Fastställda resultat fryses per klass eller tävling. Senare revisioner ändrar inte en fastställd export.
 
 ## Revisionsregler

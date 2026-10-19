@@ -12,7 +12,9 @@ import {
   type EntryClassChangeResponse,
   type PublicResultDetailResponse,
   type PublicResultListResponse,
-  type PublicResultV7
+  type PublicResultV7,
+  type PublicClassCourse,
+  type PublicResultStanding
 } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
 import { schema } from "@o-tid/database";
@@ -432,9 +434,57 @@ export async function publicResults(db: Database, raceId: string): Promise<Publi
     }
     return publicResultListResponseSchema.parse({
       formatVersion: 7,
-      results: results.flatMap((row) => publicRow(row, raceId))
+      results: results.flatMap((row) => publicRow(row, raceId)),
+      standing: await publicResultStanding(tx, raceId),
+      classCourses: await publicClassCourses(tx, raceId)
     });
   }, { isolationLevel: "repeatable read" });
+}
+
+/** Resultatrevisionerna som den frysta loppsprojektionen bygger på (beslutets absoluta revision eller resultatet). */
+function frozenRevisionIds(projection: unknown): Set<string> | undefined {
+  const classes = (projection as { classes?: unknown })?.classes;
+  if (!Array.isArray(classes)) return undefined;
+  const ids = new Set<string>();
+  for (const selected of classes as { class?: { results?: { source?: { resultRevisionId?: unknown; absoluteResultRevisionId?: unknown } }[] } }[]) {
+    for (const result of selected.class?.results ?? []) {
+      const id = result.source?.absoluteResultRevisionId ?? result.source?.resultRevisionId;
+      if (typeof id !== "string") return undefined;
+      ids.add(id);
+    }
+  }
+  return ids;
+}
+
+/**
+ * PLAN.md steg 25: listan är preliminär tills hela tävlingen fastställts, och officiell så länge varje löpares senaste
+ * resultatrevision är den som fastställdes (ingen ändring efter fastställandet). Jämförelsen bygger på revisionerna,
+ * inte på klockslag.
+ */
+async function publicResultStanding(tx: DatabaseTransaction, raceId: string): Promise<PublicResultStanding> {
+  const [finalization] = await tx.select({ finalizedAt: schema.resultFinalizations.finalizedAt,
+    projection: schema.resultFinalizations.frozenProjection }).from(schema.resultFinalizations)
+    .where(and(eq(schema.resultFinalizations.raceId, raceId), eq(schema.resultFinalizations.scope, "RACE")))
+    .orderBy(desc(schema.resultFinalizations.scopeRevision)).limit(1);
+  if (!finalization) return { kind: "PRELIMINARY" };
+  const frozen = frozenRevisionIds(finalization.projection);
+  const latest = await tx.selectDistinctOn([schema.resultRevisions.entryId], { id: schema.resultRevisions.id })
+    .from(schema.resultRevisions).where(eq(schema.resultRevisions.raceId, raceId))
+    .orderBy(asc(schema.resultRevisions.entryId), desc(schema.resultRevisions.revision));
+  if (!frozen || latest.some((row) => !frozen.has(row.id))) return { kind: "PRELIMINARY" };
+  const [event] = await tx.select({ timeZone: schema.events.timeZone }).from(schema.races)
+    .innerJoin(schema.events, eq(schema.events.id, schema.races.eventId)).where(eq(schema.races.id, raceId));
+  return { kind: "OFFICIAL", finalizedAt: finalization.finalizedAt.toISOString(), timeZone: event?.timeZone ?? "Europe/Stockholm" };
+}
+
+/** Klassernas banor med längd och stigning för listornas rubriker (PLAN.md steg 25). */
+export async function publicClassCourses(tx: DatabaseTransaction, raceId: string): Promise<PublicClassCourse[]> {
+  const rows = await tx.select({ className: schema.classes.name, courseName: schema.courses.name,
+    lengthMeters: schema.courses.lengthMeters, climbMeters: schema.courses.climbMeters }).from(schema.classes)
+    .innerJoin(schema.courseVersions, eq(schema.courseVersions.id, schema.classes.courseVersionId))
+    .innerJoin(schema.courses, eq(schema.courses.id, schema.courseVersions.courseId))
+    .where(eq(schema.classes.raceId, raceId)).orderBy(asc(schema.classes.name)).limit(1_000);
+  return rows;
 }
 
 /**

@@ -5,10 +5,18 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 25 – Saknade tävlingsfunktioner. Steg 7 (hårdvara) väntar på ägaren.
+Steg 7 – Riktig hårdvara och pilot (ägaren). Alla andra steg i `PLAN.md` är klara.
 Måste provas mot riktiga tjänster: Eventor med klubbens API-nyckel, ROC:s sökväg för stämplingar (bara provad mot falsk ROC) och e-post via SMTP.
 
 ## Logg
+
+### 2026-10-19 – Steg 25: saknade tävlingsfunktioner (steg 25 klart)
+- Minutstart: lottad tid gäller; startstämpling mer än 60 s (`START_PUNCH_TOLERANCE_MS`) från den ger varning i avläsningen, deltagarkortet och arbetsytans lista ("! Sen start"), aldrig publikt. Utan lottad tid används startstämplingen (notis). Motor 0.4.0.
+- Direktanmälan av okänd bricka på avläsningssidan, även utan nät: egen kö i IndexedDB med egen idempotensnyckel (servern: `readout_registration`), beskedet bedöms om lokalt, anmälningar skickas före avläsningarna; servern kopplar okänd avläsning via bricknumret, "Brickan fanns redan anmäld som …" om någon hann före.
+- Maxtid per klass (Klasser, kopieras): `OVERTIME/MAX_TIME_EXCEEDED` efter godkända, utan placering, IOF `OverTime`; inte rogaining. "Markera alla kvar i skogen som ej start" i Resultat: förhandsvisning, en bekräftelse, radio/avprickade listas som "Saknas i mål – kontrollera", idempotent.
+- Banlängd/stigning från banfil och Banor ("Bana Lång · 4,2 km · 120 m"), kopieras. IOF-listor med Eventor-id för person/klubb, ControlCard (admin), Course och OverTime, validerade mot IOF 3.0 XSD. "Preliminära resultat"/"Officiella resultat (fastställda …)". Disk med valfri orsak (bara arrangören, publikt "Disk."). Hyrbricka: "HYRBRICKA – samla in" och "Lämna tillbaka hyrbrickan" på kvittot.
+- Migration 0004 (maxtid, banlängd, Eventor-id, `result_revision.note`, `readout_registration`). Nya tester: domän (start/maxtid/kvar), integration `steg-25-*` (11), avläsningskön (8), Playwright `tavlingsfunktioner`.
+- Verifierat: install (frozen), lint, typecheck, test, test:integration (65/272), build, IOF-XML mot XSD, Playwright alla 18 specar gröna i fem grupper (ny `tavlingsfunktioner`; `gafflingar`/`listor` anpassade till Längd-kolumnen och tidig-start-varningen); efter omförsök under last: `funktionarer`, `radio`, `strackanalys`, `tavlingstyper` (speakern som tidigare) och `kopiera`.
 
 ### 2026-10-19 – Steg 24: enklare arbetsyta (steg 24 klart)
 - Flöde: "Skapa tävling" går direkt till arbetsytan; tomlägen har en primärknapp (Ny bana, Ny deltagare, Lag). Ny deltagare i ett steg med Enter, raden "Anna Ek är anmäld i H21." och fokus tillbaka i Förnamn; minutstart utan tid före lottningen ("Lämna tomt – lottas senare", servern lottar in löparen). Tre deltagare: 13 → 6 klick.

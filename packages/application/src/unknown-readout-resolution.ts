@@ -19,6 +19,7 @@ import { canAddClassEntry } from "./class-capacity-guard";
 import { relayTeamOfEntry } from "./relay-model";
 import { synchronizeRelayTeams } from "./relay-sync";
 import { appendResultRevision } from "./result-revisions";
+import { readoutsWithResults } from "./readout-registration";
 
 type Authentication = RaceSessionProof;
 /**
@@ -88,10 +89,12 @@ export async function listUnknownReadoutResolutionCandidatesAsAdmin(
       rows.push(assignment); byEntry.set(assignment.entryId, rows);
     }
     const revisionByEntry = new Map(revisions.map((row) => [row.entryId, row]));
+    // Direktanmälan på avläsningssidan (PLAN.md steg 25) bedömer avläsningen utan resolutionsjournal.
+    const withResults = await readoutsWithResults(tx, readoutRows.filter((row) => isUnknownOutcome(row.serverResult)).map((row) => row.id));
     return { status: "ok", response: unknownReadoutResolutionCandidateResponseSchema.parse({
       formatVersion: 1, raceId: input.raceId, snapshotVersion: race.snapshotVersion,
       engineVersion: RESULT_ENGINE_VERSION,
-      readouts: readoutRows.filter((row) => isUnknownOutcome(row.serverResult) && !resolvedIds.has(row.id))
+      readouts: readoutRows.filter((row) => isUnknownOutcome(row.serverResult) && !resolvedIds.has(row.id) && !withResults.has(row.id))
         .map((row) => ({
           id: row.id, cardNumber: row.cardNumber,
           readAt: row.readAt.toISOString(), finishPunchedAt: row.finishPunchedAt?.toISOString() ?? null
@@ -165,7 +168,7 @@ export async function resolveUnknownReadoutAsAdmin(
     }
     const [alreadyResolved] = await tx.select({ requestId: schema.unknownReadoutResolutions.requestId })
       .from(schema.unknownReadoutResolutions).where(eq(schema.unknownReadoutResolutions.readoutId, intent.readoutId));
-    if (alreadyResolved) return { status: "conflict" };
+    if (alreadyResolved || (await readoutsWithResults(tx, [intent.readoutId])).size > 0) return { status: "conflict" };
     const [cardOwner] = await tx.select().from(schema.cardAssignments).where(and(
       eq(schema.cardAssignments.raceId, input.raceId), eq(schema.cardAssignments.cardNumber, intent.cardNumber)));
     if (cardOwner?.active) return { status: "conflict" };

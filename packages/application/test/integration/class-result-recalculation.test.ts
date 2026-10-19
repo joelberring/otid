@@ -3,12 +3,12 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrate } from "@o-tid/database";
 import { createDatabase } from "@o-tid/database";
 import {
-  listClassResultRecalculationCandidatesAsAdministrator,
-  recalculateClassResultsAsAdministrator
+  listClassResultRecalculationCandidatesAsAdmin,
+  recalculateClassResultsAsAdmin
 } from "../../src/class-result-recalculation";
-import { issuePairingAdminAccessCredential, loginPairingAdmin } from "../../src/pairing-admin";
-import { contentHash } from "../../src/hash";
+import { contentHash } from "../../src/serialization";
 import { ingestDeviceBatch } from "../../src/ingest";
+import { raceLogin } from "./accounts";
 
 const url = process.env.TEST_DATABASE_URL;
 if (!url) throw new Error("TEST_DATABASE_URL krävs för vald isolerad testdatabas");
@@ -21,17 +21,10 @@ beforeAll(async () => migrate(db, {
 afterAll(async () => pool.end());
 
 async function administrator(raceId: string) {
-  const issued = await issuePairingAdminAccessCredential(db, {
-    raceId, capability: "MANAGE_RACE", label: "Synthetic class recalculation",
-    expiresAt: new Date(now.getTime() + 3_600_000)
-  }, { now });
-  const login = await loginPairingAdmin(db, { formatVersion: 1, accessCredential: issued.accessCredential }, {
-    expectedRaceId: raceId, expectedCapability: "MANAGE_RACE", now
-  });
-  if (login.status !== "authenticated") throw new Error("Synthetic administrator login failed");
+  const login = await raceLogin(db, raceId, "ADMIN", now);
   return {
     raceId, sessionToken: login.sessionToken, csrfCookie: login.csrfToken,
-    csrfHeader: login.csrfToken, actorId: issued.credentialId
+    csrfHeader: login.csrfToken, actorId: login.accountId
   };
 }
 
@@ -68,12 +61,12 @@ async function fixture() {
 }
 
 async function intent(f: Awaited<ReturnType<typeof fixture>>) {
-  const listed = await listClassResultRecalculationCandidatesAsAdministrator(db, {
+  const listed = await listClassResultRecalculationCandidatesAsAdmin(db, {
     ...f.administrator, classId: f.classId
   }, now);
   if (listed.status !== "ok") throw new Error("Class candidates unavailable");
   expect(listed.response.entries.map((entry) => entry.readiness)).toEqual(["READY", "READY"]);
-  return { formatVersion: 1 as const, classId: f.classId, snapshotVersion: listed.response.snapshotVersion,
+  return { formatVersion: 1 as const, classId: f.classId,
     engineVersion: listed.response.engineVersion, manifestHash: listed.response.manifestHash, entryIds: f.entryIds };
 }
 
@@ -84,7 +77,7 @@ describe("TASK091 atomic class result recalculation", () => {
     if (!firstEntry || !secondEntry) throw new Error("Synthetic entries missing");
     const input = { ...f.administrator, idempotencyKey: `class-result-recalculation:${randomUUID()}`, request };
     const before = await pool.query<{ id: string; revision: number }>("SELECT id,revision FROM result_revision WHERE race_id=$1 ORDER BY entry_id,revision", [f.raceId]);
-    const saved = await recalculateClassResultsAsAdministrator(db, input, now);
+    const saved = await recalculateClassResultsAsAdmin(db, input, now);
     if (saved.status !== "recalculated") throw new Error(`Group recalculation failed: ${saved.status}`);
     expect(saved.response.replayed).toBe(false);
     expect(saved.response.classId).toBe(f.classId);
@@ -92,8 +85,8 @@ describe("TASK091 atomic class result recalculation", () => {
     expect(saved.response.items).toHaveLength(2);
     expect(saved.response.items.some((item) => item.entryId === firstEntry && item.revision === 2)).toBe(true);
     expect(saved.response.items.some((item) => item.entryId === secondEntry && item.revision === 2)).toBe(true);
-    expect(await recalculateClassResultsAsAdministrator(db, input, now)).toEqual({ status: "recalculated", response: { ...saved.response, replayed: true } });
-    expect((await recalculateClassResultsAsAdministrator(db, { ...input, request: { ...request, manifestHash: "b".repeat(64) } }, now)).status).toBe("conflict");
+    expect(await recalculateClassResultsAsAdmin(db, input, now)).toEqual({ status: "recalculated", response: { ...saved.response, replayed: true } });
+    expect((await recalculateClassResultsAsAdmin(db, { ...input, request: { ...request, manifestHash: "b".repeat(64) } }, now)).status).toBe("conflict");
     const revisions = await pool.query<{ id: string; entry_id: string; revision: number; cause: string }>("SELECT id,entry_id,revision,cause FROM result_revision WHERE race_id=$1 ORDER BY entry_id,revision", [f.raceId]);
     expect(revisions.rows).toHaveLength(4);
     // Rows are ordered by participant first, so each old revision must still
@@ -119,7 +112,7 @@ describe("TASK091 atomic class result recalculation", () => {
     const deviceId = randomUUID();
     await ingestDeviceBatch(db, f.raceId, { deviceId, sessionId: deviceId, packageVersion: 2, firstSequence: 1, lastSequence: 1,
       events: [{ localSequence: 1, stationReceivedAt: "2026-09-19T11:21:00Z", transport: "simulator", payload, contentHash: contentHash(payload) }] });
-    const result = await recalculateClassResultsAsAdministrator(db, { ...f.administrator,
+    const result = await recalculateClassResultsAsAdmin(db, { ...f.administrator,
       idempotencyKey: `class-result-recalculation:${randomUUID()}`, request }, now);
     expect(result.status).toBe("conflict");
     expect((await pool.query("SELECT * FROM class_result_recalculation WHERE race_id=$1", [f.raceId])).rowCount).toBe(0);

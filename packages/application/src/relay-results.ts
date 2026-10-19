@@ -3,7 +3,7 @@ import { publicRelayResultsSchema, relayOverviewSchema, relayReadoutSchema, type
   type RelayReadout } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { rankRelayLegs, rankRelayTeams, relayLegRestarted, relayTeamResult, type RelayTeamResult } from "@o-tid/domain";
-import { authenticatePairingAdminSessionForProtectedRead, type PairingAdminRequestAuthentication } from "./pairing-admin";
+import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForSnapshot } from "./concurrency";
 import { loadCourseVersionVariants } from "./course-variants";
 import {
@@ -77,15 +77,15 @@ export async function loadRelayView(tx: Transaction, raceId: string) {
   return { classes, finishes };
 }
 
-type Authentication = Omit<PairingAdminRequestAuthentication, "capability" | "requireCsrf" | "csrfCookie" | "csrfHeader">;
+type Authentication = Omit<RaceSessionProof, "csrfCookie" | "csrfHeader">;
 
 export type RelayOverviewResult = { status: "unauthorized" | "forbidden" | "invalid-request" } | { status: "ok"; response: RelayOverview };
 
 /** Lagvyn i arbetsytan: klasser med sträckor, lag i nummerordning med sträcklöpare, bricka och status. */
 /** Lagöversikten läses också av funktionären i kontrollvyn och hos speakern (ADR-0172 beslut 3). */
-export async function getRelayOverviewAsAdministrator(db: Database, input: Authentication, now = new Date()): Promise<RelayOverviewResult> {
+export async function getRelayOverviewAsAdmin(db: Database, input: Authentication, now = new Date()): Promise<RelayOverviewResult> {
   return db.transaction(async tx => {
-    const auth = await authenticatePairingAdminSessionForProtectedRead(tx, { ...input, capability: "RACE_FUNCTIONARY" }, now);
+    const auth = await requireRaceRole(tx, { ...input, role: "FUNCTIONARY" }, now, "share");
     if (auth.status !== "authenticated") return auth;
     const raceId = auth.principal.raceId;
     const race = await lockRaceForSnapshot(tx, raceId);

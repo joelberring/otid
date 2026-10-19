@@ -1,10 +1,10 @@
 import { z } from "zod";
+import { uuidSchema as canonicalUuidSchema } from "./ids";
 
 /**
  * Publicering av tävlingen (ADR-0172 beslut 4). En ny tävling syns inte publikt förrän admin publicerar den.
  * Tävlingssidan har en kort adress (/t/{kod}) som skapas med tävlingen.
  */
-const canonicalUuidSchema = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 
 /** Sex tecken ur ett alfabet utan förväxlingsbara tecken (inga 0, 1, i, l, o). */
 export const raceShortCodeSchema = z.string().regex(/^[2-9a-hjkmnp-z]{6}$/);

@@ -3,14 +3,14 @@ import { and, desc, eq, lt, or, sql } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
 import { checkinHistoryResponseSchema, StartCheckinOperationSchema,
   type CheckinHistoryResponse } from "@o-tid/contracts";
-import { authenticatePairingAdminSessionForProtectedRead, type PairingAdminRequestAuthentication } from "./pairing-admin";
+import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { validateStoredStartCheckinReceipt } from "./start-checkin-sync";
 import { allowsStartCheckinSourceAction } from "./start-checkin-source-action";
 import { reviewedCheckinRequests } from "./checkin-conflict-review-journal";
+import { UUID_PATTERN as uuid } from "./serialization";
 
-type Input = Omit<PairingAdminRequestAuthentication, "capability" | "requireCsrf"> & { entryId: string; limit: number; cursor?: string };
+type Input = RaceSessionProof & { entryId: string; limit: number; cursor?: string };
 type Cursor = { v: 1; kind: "checkin-history"; raceId: string; entryId: string; receivedAt: string; requestId: string };
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 function cursor(value: string | undefined, raceId: string, entryId: string): Cursor | undefined {
   if (value === undefined) return undefined;
   if (!/^[A-Za-z0-9_-]{1,1024}$/.test(value)) throw new Error();
@@ -29,14 +29,14 @@ export async function listCheckinHistoryAsAdmin(db: Database, input: Input, now 
   let c: Cursor | undefined;
   try { if (!uuid.test(input.raceId) || !uuid.test(input.entryId) || !Number.isSafeInteger(input.limit) || input.limit < 1 || input.limit > 50) throw new Error(); c = cursor(input.cursor, input.raceId, input.entryId); } catch { return { status: "invalid-request" }; }
   return db.transaction(async tx => {
-    const auth = await authenticatePairingAdminSessionForProtectedRead(tx, { sessionToken: input.sessionToken, raceId: input.raceId, capability: "MANAGE_RACE" }, now);
+    const auth = await requireRaceRole(tx, { sessionToken: input.sessionToken, raceId: input.raceId, role: "ADMIN" }, now, "share");
     if (auth.status !== "authenticated") return auth;
-    if (auth.principal.capability !== "MANAGE_RACE" || auth.principal.raceId !== input.raceId) return { status: "forbidden" } as const;
+    if (auth.principal.raceId !== input.raceId) return { status: "forbidden" } as const;
     const [entry] = await tx.select({ id: schema.entries.id }).from(schema.entries).where(and(eq(schema.entries.id, input.entryId), eq(schema.entries.raceId, auth.principal.raceId)));
     if (!entry) return { status: "not-found" } as const;
     const seek = c ? or(lt(schema.startCheckinOperations.receivedAt, sql`${c.receivedAt}::timestamptz`), and(eq(schema.startCheckinOperations.receivedAt, sql`${c.receivedAt}::timestamptz`), lt(schema.startCheckinOperations.requestId, c.requestId))) : undefined;
     const rows = await tx.select({ op: schema.startCheckinOperations, label: schema.startCheckinDevices.label,
-      capability: schema.startCheckinDevices.capability, deviceActor: schema.startCheckinDevices.actorCredentialId,
+      role: schema.startCheckinDevices.role, deviceActor: schema.startCheckinDevices.actorAccountId,
       deviceRace: schema.startCheckinDevices.raceId,
       exactReceivedAt: sql<string>`to_char(${schema.startCheckinOperations.receivedAt} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`
     }).from(schema.startCheckinOperations)
@@ -53,10 +53,10 @@ export async function listCheckinHistoryAsAdmin(db: Database, input: Input, now 
     const mapped = page.map(row => {
       const op = StartCheckinOperationSchema.parse(row.op.intent);
       const receipt = validateStoredStartCheckinReceipt(row.op);
-      if (row.op.actorCredentialId !== row.deviceActor || row.deviceRace !== input.raceId ||
-          !allowsStartCheckinSourceAction(row.capability, op.action)) throw new Error("Ogiltig journalkälla");
+      if (row.op.actorAccountId !== row.deviceActor || row.deviceRace !== input.raceId ||
+          !allowsStartCheckinSourceAction(row.role, op.action)) throw new Error("Ogiltig journalkälla");
       return { requestId: op.requestId, observedAt: op.observedAt, receivedAt: receipt.receivedAt,
-        source: row.capability, sourceLabel: row.label, action: op.action, effect: receipt.effect,
+        source: row.role, sourceLabel: row.label, action: op.action, effect: receipt.effect,
         reviewed: receipt.effect.kind === "CONFLICT" ? reviewByConflict.get(op.requestId) ?? null : null };
     });
     return { status: "ok", response: checkinHistoryResponseSchema.parse({ formatVersion: 1, raceId: auth.principal.raceId, entryId: entry.id, rows: mapped, nextCursor: next ? Buffer.from(JSON.stringify(next)).toString("base64url") : null }) };

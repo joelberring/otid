@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   canonicalJsonBytes,
@@ -11,30 +11,23 @@ import {
   type ShortenedCourseClassTransferReceipt
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { evaluateCardReadout, RESULT_ENGINE_VERSION, type NormalizedCardReadout } from "@o-tid/domain";
-import {
-  authenticatePairingAdminSession,
-  authenticatePairingAdminSessionForMutation,
-  authenticatePairingAdminSessionForProtectedRead,
-  type PairingAdminRequestAuthentication
-} from "./pairing-admin";
+import { evaluateCardReadout, RESULT_ENGINE_VERSION } from "@o-tid/domain";
+import { appendResultRevision, normalizedReadout } from "./result-revisions";
+import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
 import { resolveStoredResultHeadStates } from "./result-revision-state";
-import { loadRaceSnapshot } from "./snapshot";
+import { bumpReadoutPackageVersion, loadRaceSnapshot } from "./snapshot";
 import { parseStrictStoredResultRevision, StoredResultRevisionConflict } from "./stored-result-revision";
+import { UUID_PATTERN as uuid, canonicalHash as sha256 } from "./serialization";
 
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const maxVersion = 2_147_483_647;
 const maxEntries = 10_000;
 const maxControls = 1_000;
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
-type Authentication = Omit<PairingAdminRequestAuthentication, "capability">;
+type Authentication = RaceSessionProof;
 type PreviewInput = Authentication & { request: unknown };
 type CommitInput = Authentication & { idempotencyKey: string | null; request: unknown };
 
-function sha256(value: unknown): string {
-  return createHash("sha256").update(canonicalJsonBytes(value)).digest("hex");
-}
 
 function canonicalEquals(left: unknown, right: unknown): boolean {
   const leftBytes = canonicalJsonBytes(left);
@@ -101,10 +94,7 @@ async function buildBasis(tx: Transaction, raceId: string, sourceClassId: string
     if (!state || state.state !== "ACTIVE_RESULT" || head.cause !== "CARD_READOUT" || !head.published || head.status !== "MP" ||
         head.readoutId === null || head.courseVersionId !== current.sourceCourseVersionId || head.shortenedCourseClassTransferId !== null) continue;
     try {
-      parseStrictStoredResultRevision(head, state.startCheckinDns?.source,
-        state.finishTimeCorrection ?? undefined, state.finishTimeCorrectionWithdrawal ?? undefined,
-        state.punchStartTimeCorrection ?? undefined, state.punchStartTimeCorrectionWithdrawal ?? undefined,
-        state.shortenedCourseClassTransfer ?? undefined);
+      parseStrictStoredResultRevision(head, state.startCheckinDns?.source);
     } catch (error) {
       if (error instanceof StoredResultRevisionConflict) continue;
       throw error;
@@ -128,13 +118,13 @@ export type ShortenedCourseClassTransferPreviewResult =
   | { status: "unauthorized" | "forbidden" | "invalid-request" | "not-found" | "too-large" }
   | { status: "ok"; response: ShortenedCourseClassTransferCandidate };
 
-export async function previewShortenedCourseClassTransferAsAdministrator(
+export async function previewShortenedCourseClassTransferAsAdmin(
   db: Database, input: PreviewInput, now = new Date()
 ): Promise<ShortenedCourseClassTransferPreviewResult> {
   const request = shortenedCourseClassTransferPreviewRequestSchema.safeParse(input.request);
   if (!request.success || !uuid.test(input.raceId)) return { status: "invalid-request" };
   return db.transaction(async (tx) => {
-    const auth = await authenticatePairingAdminSessionForProtectedRead(tx, { ...input, capability: "MANAGE_RACE" }, now);
+    const auth = await requireRaceRole(tx, { ...input, role: "ADMIN" }, now, "share");
     if (auth.status !== "authenticated") return auth;
     await lockRaceForSnapshot(tx, auth.principal.raceId);
     const basis = await buildBasis(tx, auth.principal.raceId, request.data.sourceClassId);
@@ -146,7 +136,7 @@ export type ShortenedCourseClassTransferResult =
   | { status: "unauthorized" | "forbidden" | "invalid-request" | "not-found" | "too-large" | "conflict" | "duplicate-name" }
   | { status: "transferred"; response: ShortenedCourseClassTransferReceipt };
 
-export async function transferShortenedCourseClassAsAdministrator(
+export async function transferShortenedCourseClassAsAdmin(
   db: Database, input: CommitInput, now = new Date()
 ): Promise<ShortenedCourseClassTransferResult> {
   const request = shortenedCourseClassTransferRequestSchema.safeParse(input.request);
@@ -154,11 +144,11 @@ export async function transferShortenedCourseClassAsAdministrator(
   if (!request.success || !key.success || !uuid.test(input.raceId) ||
       key.data.slice("shortened-course-class-transfer:".length) !== request.data.requestId) return { status: "invalid-request" };
   const intent = request.data;
-  const authentication = { ...input, capability: "MANAGE_RACE" as const, requireCsrf: true };
-  const initial = await authenticatePairingAdminSession(db, authentication, now);
+  const authentication = { ...input, role: "ADMIN" as const, requireCsrf: true };
+  const initial = await requireRaceRole(db, authentication, now);
   if (initial.status !== "authenticated") return initial;
   return db.transaction(async (tx) => {
-    const auth = await authenticatePairingAdminSessionForMutation(tx, authentication, now);
+    const auth = await requireRaceRole(tx, authentication, now, "update");
     if (auth.status !== "authenticated") return auth;
     const race = await lockRaceForMutation(tx, auth.principal.raceId);
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${"shortened-course-class-transfer:" + intent.requestId}, 0))`);
@@ -168,19 +158,19 @@ export async function transferShortenedCourseClassAsAdministrator(
       const storedRequest = shortenedCourseClassTransferRequestSchema.safeParse(prior.request);
       const storedReceipt = shortenedCourseClassTransferReceiptSchema.safeParse(prior.response);
       if (!storedRequest.success || !storedReceipt.success || storedReceipt.data.replayed || prior.raceId !== race.id ||
-          prior.actorCredentialId !== auth.principal.accessCredentialId || !canonicalEquals(storedRequest.data, intent) ||
+          prior.actorAccountId !== auth.principal.accountId || !canonicalEquals(storedRequest.data, intent) ||
           storedReceipt.data.transferId !== prior.requestId || storedReceipt.data.sourceBasisHash !== prior.sourceHash ||
           storedReceipt.data.sourceSnapshotVersion !== prior.sourceSnapshotVersion || storedReceipt.data.shortCourseId !== prior.shortCourseId ||
           storedReceipt.data.shortCourseVersionId !== prior.shortCourseVersionId || storedReceipt.data.shortClassId !== prior.shortClassId ||
           !canonicalEquals(storedReceipt.data.request, storedRequest.data)) return { status: "conflict" };
       return { status: "transferred", response: { ...storedReceipt.data, replayed: true } };
     }
-    if (race.snapshotVersion !== intent.expectedSnapshotVersion || race.snapshotVersion >= maxVersion) return { status: "conflict" };
+    if (race.snapshotVersion >= maxVersion) return { status: "conflict" };
     const basis = await buildBasis(tx, race.id, intent.sourceClassId);
     if (basis.status !== "ok") return basis;
     const candidate = basis.value.candidate;
     if (candidate.sourceCourseVersionId !== intent.expectedSourceCourseVersionId || candidate.sourceStartRule !== intent.expectedSourceStartRule ||
-        candidate.snapshotVersion !== intent.expectedSnapshotVersion || candidate.basisHash !== intent.expectedBasisHash ||
+        candidate.basisHash !== intent.expectedBasisHash ||
         candidate.sourceControls.length !== intent.expectedSourceControlCount ||
         !canonicalEquals(candidate.sourceControls.slice(0, intent.controlPrefix.length), intent.controlPrefix)) return { status: "conflict" };
     const candidateByEntry = new Map(candidate.entries.map((entry) => [entry.entryId, entry]));
@@ -227,7 +217,7 @@ export async function transferShortenedCourseClassAsAdministrator(
         .where(and(eq(schema.entries.id, entry.entryId), eq(schema.entries.raceId, race.id), eq(schema.entries.version, entry.entryVersion)));
     }
     const snapshotVersionAfter = race.snapshotVersion + 1;
-    await tx.update(schema.races).set({ snapshotVersion: snapshotVersionAfter }).where(eq(schema.races.id, race.id));
+    await bumpReadoutPackageVersion(tx, race.id);
     const snapshot = await loadRaceSnapshot(tx, race.id);
     const reEvaluations = new Map<string, { id: string; revision: number; status: "OK" | "MP"; evaluation: Exclude<ReturnType<typeof evaluateCardReadout>, { status: "UNKNOWN_CARD" }> }>();
     for (const selectedEntry of selected) {
@@ -237,11 +227,7 @@ export async function transferShortenedCourseClassAsAdministrator(
         eq(schema.cardReadouts.id, entry.sourceResult.readoutId), eq(schema.cardReadouts.raceId, race.id)
       ));
       if (!readout) throw new Error("Kortbaneöverflyttningens avläsning saknas");
-      const normalized: NormalizedCardReadout = { id: readout.id, raceId: race.id, cardNumber: readout.cardNumber,
-        ...(readout.startPunchedAt ? { startPunchedAt: readout.startPunchedAt.toISOString() } : {}),
-        ...(readout.finishPunchedAt ? { finishPunchedAt: readout.finishPunchedAt.toISOString() } : {}), punches: readout.punches,
-        rawMessageId: readout.rawMessageId, readAt: readout.readAt.toISOString() };
-      const evaluation = evaluateCardReadout(normalized, snapshot);
+      const evaluation = evaluateCardReadout(normalizedReadout(readout), snapshot);
       if (evaluation.status === "UNKNOWN_CARD" || evaluation.entryId !== entry.entryId || evaluation.classId !== shortClassId ||
           evaluation.courseVersionId !== shortCourseVersionId || (evaluation.status !== "OK" && evaluation.status !== "MP")) {
         throw new Error("Kortbaneöverflyttningens avläsning kunde inte utvärderas");
@@ -265,19 +251,17 @@ export async function transferShortenedCourseClassAsAdministrator(
       }) });
     await tx.insert(schema.shortenedCourseClassTransfers).values({ requestId: intent.requestId, raceId: race.id,
       sourceClassId: candidate.sourceClassId, sourceCourseId: candidate.sourceCourseId, sourceCourseVersionId: candidate.sourceCourseVersionId,
-      shortCourseId, shortCourseVersionId, shortClassId, actorCredentialId: auth.principal.accessCredentialId,
-      capability: "MANAGE_RACE", sourceSnapshotVersion: race.snapshotVersion, sourceHash: candidate.basisHash,
+      shortCourseId, shortCourseVersionId, shortClassId, actorAccountId: auth.principal.accountId,
+      sourceSnapshotVersion: race.snapshotVersion, sourceHash: candidate.basisHash,
       frozenBasis: basis.value.frozenBasis, request: intent, response: receipt, transferredAt: now });
-    const resultRows = selected.flatMap((entry) => {
+    for (const entry of selected) {
       const value = entry!, reEvaluation = reEvaluations.get(value.entryId);
-      if (!reEvaluation || value.sourceResult.kind !== "CARD_READOUT_MP") return [];
-      return [{ id: reEvaluation.id, raceId: race.id, entryId: value.entryId, readoutId: value.sourceResult.readoutId,
-        revision: reEvaluation.revision, cause: "SHORTENED_COURSE_CLASS_TRANSFER" as const, status: reEvaluation.evaluation.status,
-        reason: reEvaluation.evaluation.reason, evaluation: reEvaluation.evaluation, engineVersion: RESULT_ENGINE_VERSION,
-        snapshotVersion: snapshotVersionAfter, courseVersionId: shortCourseVersionId, published: true,
-        shortenedCourseClassTransferId: intent.requestId, createdAt: now }];
-    });
-    if (resultRows.length > 0) await tx.insert(schema.resultRevisions).values(resultRows);
+      if (!reEvaluation || value.sourceResult.kind !== "CARD_READOUT_MP") continue;
+      await appendResultRevision(tx, { id: reEvaluation.id, raceId: race.id, entryId: value.entryId,
+        readoutId: value.sourceResult.readoutId, expectedRevision: reEvaluation.revision, cause: "SHORTENED_COURSE_CLASS_TRANSFER",
+        outcome: reEvaluation.evaluation, engineVersion: RESULT_ENGINE_VERSION, snapshotVersion: snapshotVersionAfter,
+        courseVersionId: shortCourseVersionId, shortenedCourseClassTransferId: intent.requestId, createdAt: now });
+    }
     await tx.insert(schema.shortenedCourseClassTransferItems).values(selected.map((entry) => {
       const value = entry!, reEvaluation = reEvaluations.get(value.entryId);
       return { requestId: intent.requestId, raceId: race.id, entryId: value.entryId, entryVersionBefore: value.entryVersion,
@@ -287,7 +271,7 @@ export async function transferShortenedCourseClassAsAdministrator(
         createdResultRevisionId: reEvaluation?.id ?? null, createdResultRevision: reEvaluation?.revision ?? null };
     }));
     await tx.insert(schema.auditEvents).values({ raceId: race.id, entityType: "class", entityId: shortClassId,
-      action: "SHORTENED_COURSE_CLASS_TRANSFERRED_BY_ADMIN", actorKind: "RACE_ADMIN_ACCESS_CREDENTIAL", actorId: auth.principal.accessCredentialId,
+      action: "SHORTENED_COURSE_CLASS_TRANSFERRED_BY_ADMIN", actorKind: "USER_ACCOUNT", actorId: auth.principal.accountId,
       requestId: intent.requestId, before: { sourceClassId: candidate.sourceClassId, sourceCourseVersionId: candidate.sourceCourseVersionId,
         snapshotVersion: race.snapshotVersion, sourceBasisHash: candidate.basisHash }, after: { shortCourseId, shortCourseVersionId, shortClassId,
         transferredEntries: intent.entryIds, reEvaluatedEntries: receipt.items.filter((item) => item.effect === "MOVED_AND_REEVALUATED").map((item) => item.entryId),

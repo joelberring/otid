@@ -1,5 +1,6 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { isPlausibleEventorApiKey, normalizeEventorBaseUrl } from "@o-tid/eventor";
+import { sha256Hex } from "./serialization";
 
 /**
  * Klubbens Eventor-nyckel (ADR-0170 beslut 4) lagras bara krypterad med AES-256-GCM.
@@ -25,7 +26,7 @@ export function eventorConfigurationFromEnvironment(environment: Record<string, 
   if (!/^[A-Za-z0-9+/]{43}=$/.test(encoded)) return { status: "invalid" };
   const masterKey = Buffer.from(encoded, "base64");
   if (masterKey.length !== 32) return { status: "invalid" };
-  const keyId = `k-${createHash("sha256").update(masterKey).digest("hex").slice(0, 16)}`;
+  const keyId = `k-${sha256Hex(masterKey).slice(0, 16)}`;
   const base = environment.OTID_EVENTOR_BASE_URL?.trim();
   if (!base) return { status: "ok", keyId, masterKey };
   try {

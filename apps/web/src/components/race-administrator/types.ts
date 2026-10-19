@@ -4,29 +4,18 @@ import type {
   EntryRegistrationRequest, EntryStartTimeChangeRequest, EntryTransferRequest, ManualClassCreateRequest,
   CourseEditRequest, RogainingChangeRequest, ShortenedCourseClassTransferCandidate, StartDrawRequest,
   ShortenedCourseClassTransferRequest, StartCheckinConflictReviewCandidate, StartCheckinConflictReviewRequest,
-  UnknownReadoutResolutionCandidateResponse, UnknownReadoutResolutionRequest
+  UnknownReadoutResolutionCandidateResponse, UnknownReadoutResolutionRequest, EntryStatusRequest, EntryStatusResponse
 } from "@o-tid/contracts";
+import type { StatusChoice } from "../../lib/participant-status-choices";
 import type { AdministratorPublicationAttempt } from "../../lib/administrator-publication-client";
 import type { ClassResultRecalculationAttempt } from "../../lib/class-result-recalculation-admin-client";
-import type { DidNotFinishAttempt } from "../../lib/did-not-finish-admin-client";
-import type { DidNotFinishWithdrawalAttempt } from "../../lib/did-not-finish-withdrawal-admin-client";
-import type { DidNotStartAttempt } from "../../lib/did-not-start-admin-client";
-import type { DidNotStartWithdrawalAttempt } from "../../lib/did-not-start-withdrawal-admin-client";
-import type { OutOfCompetitionAttempt } from "../../lib/out-of-competition-admin-client";
-import type { OutOfCompetitionWithdrawalAttempt } from "../../lib/out-of-competition-withdrawal-admin-client";
-import type { ResultApprovalAttempt } from "../../lib/result-approval-admin-client";
-import type { ResultApprovalWithdrawalAttempt } from "../../lib/result-approval-withdrawal-admin-client";
-import type { ResultDisqualificationAttempt } from "../../lib/result-disqualification-admin-client";
-import type { ResultDisqualificationWithdrawalAttempt } from "../../lib/result-disqualification-withdrawal-admin-client";
 import type { ResultFinalizationAttempt } from "../../lib/result-finalization-admin-client";
 import type { ResultRecalculationAttempt } from "../../lib/result-recalculation-admin-client";
-import type { WithoutTimingAttempt } from "../../lib/without-timing-admin-client";
-import type { WithoutTimingWithdrawalAttempt } from "../../lib/without-timing-withdrawal-admin-client";
 import { formatDuration } from "../../lib/clock-time";
 
 /** Ett pågående ändringsförsök. Alla försök granskas innan de skickas och kan skickas om med samma id. */
 export type ConflictReviewAttempt = { kind: "CONFLICT_REVIEW"; candidate: StartCheckinConflictReviewCandidate; request: StartCheckinConflictReviewRequest };
-export type CourseClassRequest = { formatVersion: 1; requestId: string; expectedSnapshotVersion: number; courseName: string; className: string;
+export type CourseClassRequest = { formatVersion: 1; requestId: string; courseName: string; className: string;
   startRule: "PUNCH" | "FIXED"; controlCodes: number[]; rogaining?: { timeLimitMinutes: number; penaltyPoints: number } };
 export type CourseClassAttempt = { kind: "COURSE_CLASS"; request: CourseClassRequest };
 export type ManualClassAttempt = { kind: "MANUAL_CLASS"; request: ManualClassCreateRequest; targetLabel: string };
@@ -53,12 +42,9 @@ export type TimeAttempt = { kind: "TIME"; id: string; entryId: string; displayNa
 export type RecalculationAttempt = { kind: "RECALCULATION"; value: ResultRecalculationAttempt; timeZone: string };
 export type IdentityAttempt = { kind: "IDENTITY"; id: string; entryId: string; request: EntryIdentityChangeRequest };
 export type RegistrationAttempt = { kind: "REGISTRATION"; id: string; className: string; timeZone: string; request: EntryRegistrationRequest; candidates: EntryRegistrationCandidatesResponse };
-export type DnsAttempt = { kind: "DNS"; value: DidNotStartAttempt } | { kind: "DNS_WITHDRAWAL"; value: DidNotStartWithdrawalAttempt };
-export type DnfAttempt = { kind: "DNF"; value: DidNotFinishAttempt } | { kind: "DNF_WITHDRAWAL"; value: DidNotFinishWithdrawalAttempt };
-export type DsqAttempt = { kind: "DSQ"; value: ResultDisqualificationAttempt } | { kind: "DSQ_WITHDRAWAL"; value: ResultDisqualificationWithdrawalAttempt };
-export type ApprovalAttempt = { kind: "APPROVAL"; value: ResultApprovalAttempt } | { kind: "APPROVAL_WITHDRAWAL"; value: ResultApprovalWithdrawalAttempt };
-export type NtAttempt = { kind: "NT"; value: WithoutTimingAttempt } | { kind: "NT_WITHDRAWAL"; value: WithoutTimingWithdrawalAttempt };
-export type OocAttempt = { kind: "OOC"; value: OutOfCompetitionAttempt } | { kind: "OOC_WITHDRAWAL"; value: OutOfCompetitionWithdrawalAttempt };
+/** Ett beslut i "Ändra status" (ADR-0173: ett statusflöde) med underlaget det fattades mot. */
+export type DecisionAttempt = { kind: "DECISION"; choice: Exclude<StatusChoice, "RECALCULATION">; entryId: string;
+  request: EntryStatusRequest; restores: EntryStatusResponse["withdrawRestores"] };
 export type ReturnAttempt = { kind: "RETURN"; withdraw: boolean; name: string; request: AdministratorReturnRequest };
 export type StartCorrectionAttempt = { kind: "START_CORRECTION"; name: string; request: AdministratorStartCorrectionRequest };
 export type FinalizationAttempt = { kind: "FINALIZATION"; value: ResultFinalizationAttempt };
@@ -67,8 +53,7 @@ export type FinalizationAttempt = { kind: "FINALIZATION"; value: ResultFinalizat
 export type PendingAttempt = ConflictReviewAttempt | StartCorrectionAttempt | ReturnAttempt |
   AdministratorPublicationAttempt | StartDrawAttempt | TransferAttempt | CapacityAttempt | CardAttempt | RentalAttempt |
   RentalReturnAttempt | RentalReuseAttempt | TimeAttempt | RecalculationAttempt |
-  ClassResultRecalculationAttempt | IdentityAttempt | RegistrationAttempt | DnsAttempt | DnfAttempt | DsqAttempt |
-  ApprovalAttempt | OocAttempt | NtAttempt | FinalizationAttempt | CourseClassAttempt | ManualClassAttempt |
+  ClassResultRecalculationAttempt | IdentityAttempt | RegistrationAttempt | DecisionAttempt | FinalizationAttempt | CourseClassAttempt | ManualClassAttempt |
   CourseEditAttempt | ClassEditAttempt | RogainingAttempt |
   ShortenedCourseClassTransferAttempt | UnknownReadoutResolutionAttempt;
 

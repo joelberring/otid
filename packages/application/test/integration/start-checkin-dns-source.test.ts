@@ -1,17 +1,17 @@
 import { randomUUID } from "node:crypto";
 import { beforeAll, afterAll, describe, expect, it } from "vitest";
 import { migrate } from "@o-tid/database";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { createDatabase, schema } from "@o-tid/database";
 import { fixture, correction, at } from "../fixtures/start-checkin-dns";
 import { validateStoredStartCheckinDns, validateStoredStartCheckinDnsWithdrawal } from "../../src/start-checkin-dns-source";
-import { resolveStoredResultHeadStates, loadActiveManualResultOverrideState } from "../../src/result-revision-state";
+import { resolveStoredResultHeadStates } from "../../src/result-revision-state";
 import { publicResults } from "../../src/results";
 import { exportIofResultListAsAdmin } from "../../src/result-list-export";
-import { issuePairingAdminAccessCredential, loginPairingAdmin } from "../../src/pairing-admin";
 import { ingestDeviceBatch } from "../../src/ingest";
-import { contentHash } from "../../src/hash";
+import { contentHash } from "../../src/serialization";
 import { listResultFinalizationCandidatesAsAdmin, finalizeResultsAsAdmin, exportFrozenIofResultListAsAdmin } from "../../src/result-finalization";
+import { raceLogin } from "./accounts";
 
 const url = process.env.TEST_DATABASE_URL;
 if (!url) throw new Error("TEST_DATABASE_URL krävs");
@@ -20,9 +20,6 @@ beforeAll(async () => migrate(db, { migrationsFolder: new URL("../../../database
 afterAll(async () => pool.end());
 
 async function device(row: typeof schema.startCheckinDevices.$inferSelect) {
-  await db.insert(schema.pairingAdminAccessCredentials).values({ id: row.actorCredentialId, raceId: row.raceId,
-    capability: row.capability, label: "Synthetic operator", secretHash: "a".repeat(64), issuedAt: at,
-    expiresAt: new Date("2026-09-05T18:00:00.000Z") });
   await db.insert(schema.startCheckinDevices).values(row);
 }
 async function setup() {
@@ -54,24 +51,17 @@ describe("TASK 006W DNS PostgreSQL provenance (no sync writer enabled)", () => {
   it("uses one validated active head for public results and the manual-write guard, then hides an exact withdrawal", async () => {
     const f = await setup(); await save(f);
     const resolve = () => db.transaction(async (tx) => ({
-      states: await resolveStoredResultHeadStates(tx, f.result.raceId, [f.result]),
-      guard: await loadActiveManualResultOverrideState(tx, f.result.raceId, f.result)
-    }));
+      states: await resolveStoredResultHeadStates(tx, f.result.raceId, [f.result])
+    })).then((value) => ({ ...value,
+      guard: value.states[0]?.state === "ACTIVE_RESULT" ? value.states[0].governing : "NONE" }));
     const active = await resolve();
     expect(active.states[0]?.state).toBe("ACTIVE_RESULT");
     expect(active.states[0]?.startCheckinDns?.source.decision.id).toBe(f.decision.id);
-    expect(active.guard).toBe("ACTIVE_DID_NOT_START");
+    expect(active.guard).toBe("CHECKIN_DNS");
     expect((await publicResults(db, f.result.raceId)).results).toEqual([
       expect.objectContaining({ status: "DNS", reason: "DID_NOT_START", revision: 1 })
     ]);
-    const credential = await issuePairingAdminAccessCredential(db, {
-      raceId: f.result.raceId, capability: "EXPORT_IOF_RESULT_LIST", label: "Synthetic export",
-      expiresAt: new Date("2026-09-05T18:00:00.000Z")
-    }, { now: at });
-    const login = await loginPairingAdmin(db, { formatVersion: 1, accessCredential: credential.accessCredential }, {
-      expectedRaceId: f.result.raceId, expectedCapability: "EXPORT_IOF_RESULT_LIST", now: at
-    });
-    if (login.status !== "authenticated") throw new Error("Synthetic export login failed");
+    const login = await raceLogin(db, f.result.raceId, "ADMIN", at);
     const exportSnapshot = () => exportIofResultListAsAdmin(db, { raceId: f.result.raceId, sessionToken: login.sessionToken }, at);
     const snapshot = await exportSnapshot();
     expect(snapshot.status).toBe("ok");
@@ -82,14 +72,7 @@ describe("TASK 006W DNS PostgreSQL provenance (no sync writer enabled)", () => {
     expect(xml).not.toContain("<Position>");
     expect(xml).not.toContain(f.decision.id);
     expect(xml).not.toContain(f.operation.requestId);
-    const finalCredential = await issuePairingAdminAccessCredential(db, {
-      raceId: f.result.raceId, capability: "FINALIZE_RESULTS", label: "Synthetic finalization",
-      expiresAt: new Date("2026-09-05T18:00:00.000Z")
-    }, { now: at });
-    const finalLogin = await loginPairingAdmin(db, { formatVersion: 1, accessCredential: finalCredential.accessCredential }, {
-      expectedRaceId: f.result.raceId, expectedCapability: "FINALIZE_RESULTS", now: at
-    });
-    if (finalLogin.status !== "authenticated") throw new Error("Synthetic finalization login failed");
+    const finalLogin = await raceLogin(db, f.result.raceId, "ADMIN", at);
     const finalAuth = { raceId: f.result.raceId, sessionToken: finalLogin.sessionToken,
       csrfCookie: finalLogin.csrfToken, csrfHeader: finalLogin.csrfToken };
     const candidates = () => listResultFinalizationCandidatesAsAdmin(db, finalAuth, at);
@@ -99,7 +82,7 @@ describe("TASK 006W DNS PostgreSQL provenance (no sync writer enabled)", () => {
     const classResult = await finalizeResultsAsAdmin(db, { ...finalAuth,
       idempotencyKey: `result-finalization:${randomUUID()}`, request: {
         formatVersion: 1, scope: "CLASS", classId: f.decision.classId,
-        expectedSnapshotVersion: 1, expectedBasisHash: ready.response.classes[0].basisHash,
+        expectedBasisHash: ready.response.classes[0].basisHash,
         expectedLatestScopeRevision: null
       } }, { now: at });
     expect(classResult.status).toBe("finalized");
@@ -108,8 +91,7 @@ describe("TASK 006W DNS PostgreSQL provenance (no sync writer enabled)", () => {
     expect(raceReady.response.race.blockerCodes).toEqual([]);
     const finalizationId = randomUUID();
     const finalRequest = { ...finalAuth, idempotencyKey: `result-finalization:${randomUUID()}`, request: {
-      formatVersion: 1, scope: "RACE", classId: null, expectedSnapshotVersion: 1,
-      expectedBasisHash: raceReady.response.race.basisHash, expectedLatestScopeRevision: null
+      formatVersion: 1, scope: "RACE", classId: null, expectedBasisHash: raceReady.response.race.basisHash, expectedLatestScopeRevision: null
     } };
     const finalized = await finalizeResultsAsAdmin(db, finalRequest, { now: at, finalizationId });
     expect(finalized.status).toBe("finalized");
@@ -173,7 +155,8 @@ describe("TASK 006W DNS PostgreSQL provenance (no sync writer enabled)", () => {
     if (!result || !decision) throw new Error("Missing source");
     expect(validateStoredStartCheckinDns({ ...f, result, decision })).toEqual(f.result.evaluation);
     expect(await db.select().from(schema.rawDeviceMessages).where(eq(schema.rawDeviceMessages.raceId, f.decision.raceId))).toHaveLength(0);
-    expect(await db.select().from(schema.didNotStartDecisions).where(eq(schema.didNotStartDecisions.raceId, f.decision.raceId))).toHaveLength(0);
+    expect(await db.select().from(schema.resultRevisions).where(and(eq(schema.resultRevisions.raceId, f.decision.raceId),
+      eq(schema.resultRevisions.cause, "MANUAL_DID_NOT_START")))).toHaveLength(0);
   });
 
   it("rejects orphaned and mismatched result links at commit without partial journal writes", async () => {
@@ -192,7 +175,7 @@ describe("TASK 006W DNS PostgreSQL provenance (no sync writer enabled)", () => {
   it("does not allow the new source to masquerade as manual/technical or carry non-DNS status", async () => {
     const changes: Partial<typeof schema.resultRevisions.$inferInsert>[] = [
       { cause: "MANUAL_DID_NOT_START" }, { cause: "CARD_READOUT" }, { startCheckinDnsDecisionId: null },
-      { status: "MP", reason: "MISSING_START" }, { didNotStartDecisionId: randomUUID() }, { reason: "COMPLETE" }
+      { status: "MP", reason: "MISSING_START" }, { shortenedCourseClassTransferId: randomUUID() }, { reason: "COMPLETE" }
     ];
     for (const change of changes) {
       const f = await setup();

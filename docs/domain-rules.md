@@ -1,6 +1,6 @@
 # Domänregler
 
-Gäller från steg 23. Äldre version med regler per TASK och capabilitytabeller:
+Gäller från steg 23. Äldre version med regler per TASK och de borttagna behörighetsnivåerna:
 `docs/archive/domain-rules-2026-10-18.md`. Koden för reglerna finns i `packages/domain`.
 
 ## Modellgränser
@@ -44,10 +44,13 @@ funktion lokalt; dess besked är preliminärt och serverns revision är auktorit
 ## Statusbeslut
 
 - Arrangören kan sätta ej start, ej fullföljt, disk, utom tävlan, utan tidtagning, godkänt manuellt samt
-  ändra start- eller sluttid. Varje beslut lägger till en ny revision med orsak och aktör.
+  ändra start- eller sluttid. Alla beslut går genom ett flöde (`setEntryStatus`) och lägger till en ny
+  revision med orsak och aktör (kontot).
 - Ett återtagande är också en ny revision; den återställer det tidigare utfallet men räknar inte om.
-- Ett beslut mot ett underlag som har ändrats sedan formuläret öppnades avvisas (konflikt), och
-  arrangören får se det nya läget.
+  Historiken för en löpare är dess revisioner; det finns inga separata besluts- eller återtagandetabeller.
+- Ett beslut bär löparens senaste revisionsnummer (`expectedRevision`). Har en annan revision tillkommit sedan
+  formuläret öppnades avvisas beslutet (konflikt), och arrangören får se det nya läget. Tävlingens version
+  jämförs inte (steg 23).
 - Fastställda resultat fryses per klass eller tävling. Senare revisioner ändrar inte en fastställd export.
 
 ## Revisionsregler
@@ -55,7 +58,9 @@ funktion lokalt; dess besked är preliminärt och serverns revision är auktorit
 - En ny avläsning skapar en ny revision när brickan är känd.
 - Ändrad bana, redigerad klass, ny lottning och ändrad starttid räknar om berörda löpares avlästa resultat
   med en ny revision (`EXPLICIT_RECALCULATION`) och en auditpost; tidigare revisioner skrivs aldrig om.
-- Revisionen lagrar motorversion, snapshotversion, banversion och orsak.
+- Revisionen lagrar motorversion, avläsningspaketets version (`snapshot_version`), banversion, orsak och
+  underlagshash. Paketversionen höjs bara när avläsningspaketets innehåll ändras; underlagshashen per löpare
+  (ADR-0169) avgör om ett resultat är aktuellt.
 - Placering och tid efter lagras inte; de härleds från de senaste publicerade revisionerna i klassen.
 - Samtidig mottagning och omräkning serialiserar nästa revisionsnummer per deltagare (deltagarraden låses).
 

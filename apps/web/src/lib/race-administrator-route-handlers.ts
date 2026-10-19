@@ -1,9 +1,15 @@
 import type { Database } from "@o-tid/database";
-import { raceAdministratorLoginResponseSchema, raceAdministratorSessionAbsentSchema, raceSettingsRequestSchema, raceSettingsResponseSchema } from "@o-tid/contracts";
-import { clearEntryClassAdminCookies, entryClassAdminFailure as failure, entryClassAdminJson as json,
-  entryClassAdminSecurityPolicy, entryClassAdminSessionProof, hasExpectedEntryClassAdminOrigin,
-  hasNoEntryClassAdminRequestBody, privateEntryClassAdminHeaders } from "./entry-class-admin-security";
-import { RACE_ADMINISTRATOR_LOOPBACK_COOKIES, RACE_ADMINISTRATOR_PRODUCTION_COOKIES } from "./race-administrator-cookies";
+import { raceSessionAbsentSchema, raceSessionResponseSchema, raceSettingsRequestSchema, raceSettingsResponseSchema } from "@o-tid/contracts";
+import {
+  clearSessionCookies,
+  adminFailure as failure,
+  hasExpectedOrigin,
+  hasNoRequestBody,
+  privateJson as json,
+  privateHeaders,
+  securityPolicy,
+  sessionProof
+} from "./security-policy";
 import { raceAdministratorServices as services, resultFailure, type RaceAdministratorAction as Action,
   type RaceAdministratorRouteContext } from "./race-administrator-route-context";
 import { handleRaceDayRoute } from "./race-administrator-routes-race-day";
@@ -17,15 +23,15 @@ import { handleMapRoute } from "./race-administrator-routes-maps";
 import { handlePeopleRoute } from "./race-administrator-routes-people";
 import { handlePublicationRoute } from "./race-administrator-routes-publication";
 import { handleRadioRoute } from "./race-administrator-routes-radio";
-import { raceRoleFor, requireRaceRole } from "./race-roles";
+import { principalAllows, raceRoleFor } from "./race-roles";
+import { UUID_PATTERN as uuid } from "@o-tid/contracts";
 
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 type Environment = Partial<Pick<NodeJS.ProcessEnv, "NODE_ENV" | "O_TID_PUBLIC_ORIGIN">>;
 
 /**
  * Tävlingens adminroutes. Kontrollerar adress, metod, origin och rollen (administratör eller funktionär,
- * `race-roles.ts`) innan åtgärden lämnas till sin grupp. Sessionen öppnas med kontot via
- * /api/organizer/races/{id}/enter (ADR-0168, ADR-0172); här finns bara läsning och utloggning av den.
+ * `race-roles.ts`) innan åtgärden lämnas till sin grupp. Förfrågan bär kontots session (ADR-0173 beslut 4);
+ * här finns läsning av rollen och utloggning.
  */
 export async function raceAdministratorRoute(db: Database, request: Request, raceId: string, action: Action,
   overrides: Partial<typeof services> = services, environment: Environment = process.env): Promise<Response> {
@@ -49,33 +55,31 @@ export async function raceAdministratorRoute(db: Database, request: Request, rac
   }
   const allowed = allowedMethods(action);
   if (!allowed.includes(request.method)) return new Response(null, { status: 405,
-    headers: { ...privateEntryClassAdminHeaders, allow: allowed.join(", ") } });
+    headers: { ...privateHeaders, allow: allowed.join(", ") } });
   let policy;
-  try {
-    const base = entryClassAdminSecurityPolicy(environment);
-    policy = { ...base, cookieNames: base.secureCookies ? RACE_ADMINISTRATOR_PRODUCTION_COOKIES : RACE_ADMINISTRATOR_LOOPBACK_COOKIES };
-  } catch { return failure(500, "INTERNAL_ERROR"); }
+  try { policy = securityPolicy(environment); } catch { return failure(500, "INTERNAL_ERROR"); }
   const write = request.method !== "GET";
-  if (write && !hasExpectedEntryClassAdminOrigin(request, policy)) return failure(403, "FORBIDDEN");
-  const proof = entryClassAdminSessionProof(request, policy, write);
+  if (write && !hasExpectedOrigin(request, policy)) return failure(403, "FORBIDDEN");
+  const proof = sessionProof(request, policy, write);
   try {
     if (action.kind === "session" && request.method === "DELETE") {
-      const result = await dependencies.logout(db, { ...proof, raceId, capability: "RACE_FUNCTIONARY",
-        readBodyIsEmpty: () => hasNoEntryClassAdminRequestBody(request) });
-      if (result.status === "unauthorized") return clearEntryClassAdminCookies(resultFailure(result.status), policy);
+      if (!await hasNoRequestBody(request).catch(() => false)) return failure(400, "INVALID_REQUEST");
+      const result = await dependencies.logout(db, proof);
+      if (result.status === "unauthorized") return clearSessionCookies(resultFailure(result.status), policy);
       if (result.status !== "logged-out" && result.status !== "already-logged-out") return resultFailure(result.status);
-      return clearEntryClassAdminCookies(new Response(null, { status: 204, headers: privateEntryClassAdminHeaders }), policy);
+      return clearSessionCookies(new Response(null, { status: 204, headers: privateHeaders }), policy);
     }
     // Rollen kontrolleras innan en ändring tolkas eller deltagardata läses. Funktionären får 403 för allt annat.
-    const auth = await requireRaceRole(dependencies.authenticate, db, { ...proof, raceId, write },
-      raceRoleFor(action.kind, request.method));
+    const role = raceRoleFor(action.kind, request.method);
+    const auth = await dependencies.authenticate(db, { ...proof, raceId, role, requireCsrf: write });
     // Frågan "har jag en session?" utan session är ett normalt svar, inte ett fel i webbläsarens konsol (PLAN.md steg 22).
     if (action.kind === "session" && auth.status === "unauthorized") {
-      return json(raceAdministratorSessionAbsentSchema.parse({ formatVersion: 1, raceId, authenticated: false }));
+      return json(raceSessionAbsentSchema.parse({ formatVersion: 1, raceId, authenticated: false }));
     }
     if (auth.status !== "authenticated") return resultFailure(auth.status);
-    if (action.kind === "session") return json(raceAdministratorLoginResponseSchema.parse({
-      formatVersion: 1, raceId, capability: auth.principal.capability, expiresAt: auth.principal.expiresAt }));
+    if (!principalAllows(auth.principal, raceId, role)) return failure(403, "FORBIDDEN");
+    if (action.kind === "session") return json(raceSessionResponseSchema.parse({
+      formatVersion: 1, raceId, role: auth.principal.role, expiresAt: auth.principal.expiresAt }));
     const context: RaceAdministratorRouteContext = { db, request, raceId, action, dependencies, proof, cursor, beforeVersion };
     return await handleRaceDayRoute(context) ?? await handlePreparationRoute(context) ?? await handleResultRoute(context) ??
       await handleEntryRoute(context) ?? await handleVariantRoute(context) ?? await handleRelayRoute(context) ?? await handleSourceRoute(context) ??
@@ -93,14 +97,9 @@ function allowedMethods(action: Action): string[] {
     action.kind === "participant-route" ? ["POST", "DELETE"] : action.kind === "eventor" ? ["GET", "PUT", "DELETE"] :
     action.kind === "source-sync" ? ["GET", "POST"] : action.kind === "eventor-events" ? ["GET"] :
     action.kind === "eventor-test" || action.kind === "eventor-event" || action.kind === "eventor-sync-preview" ||
-    action.kind === "course-file-preview" || action.kind === "source-sync-consequence" ? ["POST"] : action.kind === "shortened-course-class-transfer" || action.kind === "manual-finish-time-correction" || action.kind === "manual-punch-start-time-correction" || action.kind === "manual-punch-start-time-correction-withdrawal" || action.kind === "manual-finish-time-correction-withdrawal" || action.kind === "unknown-readout-resolution" || action.kind === "class-result-recalculation" || action.kind === "draw" ? ["GET", "POST"] : action.kind === "review-conflicts" ? ["POST"] : action.kind === "conflict-candidate" ? ["GET"] : action.kind === "session" ? ["GET", "DELETE"] : action.kind === "checkin-history" || action.kind === "effective-result" || action.kind === "changes" ? ["GET"] :
+    action.kind === "course-file-preview" || action.kind === "source-sync-consequence" ? ["POST"] : action.kind === "shortened-course-class-transfer" || action.kind === "entry-status" || action.kind === "unknown-readout-resolution" || action.kind === "class-result-recalculation" || action.kind === "draw" ? ["GET", "POST"] : action.kind === "review-conflicts" ? ["POST"] : action.kind === "conflict-candidate" ? ["GET"] : action.kind === "session" ? ["GET", "DELETE"] : action.kind === "checkin-history" || action.kind === "effective-result" || action.kind === "changes" ? ["GET"] :
     action.kind === "start-correction" || action.kind === "manual-return-withdrawal" || action.kind === "manual-return" || action.kind === "publication" || action.kind === "draw-preview" || action.kind === "finalize" || action.kind === "recalculate" || action.kind === "registration" || action.kind === "registration-candidates" ||
-    action.kind === "did-not-start" || action.kind === "did-not-start-withdrawal" ||
-    action.kind === "did-not-finish" || action.kind === "did-not-finish-withdrawal" ||
-    action.kind === "disqualification" || action.kind === "disqualification-withdrawal" ||
-    action.kind === "approval" || action.kind === "approval-withdrawal" ||
-    action.kind === "out-of-competition" || action.kind === "out-of-competition-withdrawal" ||
-    action.kind === "without-timing" || action.kind === "without-timing-withdrawal" || action.kind === "manual-course-class" || action.kind === "manual-class" ||
+    action.kind === "manual-course-class" || action.kind === "manual-class" ||
     action.kind === "course-edit-preview" || action.kind === "course-edit" ||
     action.kind === "class-edit-preview" || action.kind === "class-edit" ||
     action.kind === "rogaining-preview" || action.kind === "rogaining" ||

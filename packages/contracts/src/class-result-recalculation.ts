@@ -1,6 +1,6 @@
 import { z } from "zod";
+import { prefixedUuidPattern, uuidSchema as uuid } from "./ids";
 
-const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 const positive = z.number().int().positive();
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
 const engine = z.string().trim().min(1).max(64);
@@ -27,7 +27,7 @@ export const classResultRecalculationCandidateResponseSchema = z.object({
 });
 
 export const classResultRecalculationRequestSchema = z.object({
-  formatVersion: z.literal(1), classId: uuid, snapshotVersion: positive, engineVersion: engine,
+  formatVersion: z.literal(1), classId: uuid, engineVersion: engine,
   manifestHash: hash, entryIds: z.array(uuid).min(1).max(100)
 }).strict().superRefine((value, ctx) => {
   if (new Set(value.entryIds).size !== value.entryIds.length) ctx.addIssue({ code: "custom", path: ["entryIds"], message: "Deltagare måste vara unika" });
@@ -35,7 +35,7 @@ export const classResultRecalculationRequestSchema = z.object({
 });
 
 export const classResultRecalculationIdempotencyKeySchema = z.string().regex(
-  /^class-result-recalculation:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+  prefixedUuidPattern("class-result-recalculation")
 );
 
 const itemSchema = z.object({ entryId: uuid, resultRevisionId: uuid, revision: positive }).strict();

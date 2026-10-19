@@ -19,7 +19,7 @@ describe("TASK 006S publiceringskontrakt", () => {
     const base = { formatVersion: 1, raceId: "10000000-0000-4000-8000-000000000001", snapshotVersion: 1, latestDecision: null };
     expect(startListPublicationPreviewResponseSchema.safeParse({ ...base, sourceHash: null, content: null }).success).toBe(true);
     expect(startListPublicationPreviewResponseSchema.safeParse({ ...base, sourceHash: "a".repeat(64), content: null }).success).toBe(false);
-    expect(startListPublicationRequestSchema.safeParse({ formatVersion: 1, action: "PUBLISH", expectedSnapshotVersion: 1, expectedSourceHash: "a".repeat(64), expectedRevision: 0 }).success).toBe(true);
+    expect(startListPublicationRequestSchema.safeParse({ formatVersion: 1, action: "PUBLISH", expectedSourceHash: "a".repeat(64), expectedRevision: 0 }).success).toBe(true);
     expect(startListPublicationRequestSchema.safeParse({ formatVersion: 1, action: "WITHDRAW", expectedRevision: 0 }).success).toBe(false);
   });
 });

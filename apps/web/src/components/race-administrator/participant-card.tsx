@@ -121,20 +121,20 @@ function CardResult({ ws, result, error }: { ws: Workspace; result: Administrato
 }
 
 function consequence(attempt: StatusAttempt): string {
-  switch (attempt.kind) {
+  if (attempt.kind === "RECALCULATION") return text.consequences.RECALCULATION;
+  switch (attempt.choice) {
     case "APPROVAL_WITHDRAWAL": case "DSQ_WITHDRAWAL": case "NT_WITHDRAWAL": case "OOC_WITHDRAWAL": case "DNF_WITHDRAWAL":
-      return text.withdrawalConsequence(sv.publicResultsStatusLabels[attempt.value.request.expectedRestorationSourceResultRevision.status]);
+      return attempt.restores ? text.withdrawalConsequence(sv.publicResultsStatusLabels[attempt.restores.status]) : text.notAvailable;
     case "DNS_WITHDRAWAL": return text.dnsWithdrawalConsequence;
-    default: return text.consequences[attempt.kind];
+    default: return text.consequences[attempt.choice];
   }
 }
 
 /** "Ändra status": ett val, ett besked i en mening och en bekräftelse. */
 function StatusChange({ ws, result }: { ws: Workspace; result: AdministratorEffectiveResultResponse | undefined }) {
-  const { approvalAttempt, busy, cancelStatusChange, chooseStatusChange, confirmStatusChange, disabled, dnfAttempt, dnsAttempt,
-    dsqAttempt, ntAttempt, oocAttempt, raceId, recalculationAttempt, statusBlocked, statusChoice, unknown } = ws;
-  const attempt: StatusAttempt | undefined = approvalAttempt ?? dsqAttempt ?? ntAttempt ?? oocAttempt ?? dnfAttempt ?? dnsAttempt ??
-    recalculationAttempt;
+  const { busy, cancelStatusChange, chooseStatusChange, confirmStatusChange, decisionAttempt, disabled, raceId,
+    recalculationAttempt, statusBlocked, statusChoice, unknown } = ws;
+  const attempt: StatusAttempt | undefined = decisionAttempt ?? recalculationAttempt;
   const choices = availableStatusChoices(result);
   const id = `status-change-${raceId}`;
   return <section className={styles.workspace}>

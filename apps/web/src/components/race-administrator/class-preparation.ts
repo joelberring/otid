@@ -44,8 +44,7 @@ export function createClassPreparationActions(ws: Base & RaceDataActions) {
     const target = data.classes.find(row => row.courseVersionId === manualClassCourseVersionId);
     if (!target) { setManualClassError(text.manualClassMissingTarget); return; }
     const parsed = manualClassCreateRequestSchema.safeParse({
-      formatVersion: 1, requestId: crypto.randomUUID(), expectedSnapshotVersion: data.snapshotVersion,
-      courseVersionId: target.courseVersionId, className: manualClassName.trim(), startRule: ws.profile.features.startRuleChoice ? manualClassStartRule : "PUNCH",
+      formatVersion: 1, requestId: crypto.randomUUID(), courseVersionId: target.courseVersionId, className: manualClassName.trim(), startRule: ws.profile.features.startRuleChoice ? manualClassStartRule : "PUNCH",
     });
     if (!parsed.success) { setManualClassError(text.manualClassInvalid); return; }
     const value: ManualClassAttempt = { kind: "MANUAL_CLASS", request: parsed.data, targetLabel: target.courseName };
@@ -71,11 +70,9 @@ export function createClassPreparationActions(ws: Base & RaceDataActions) {
       if (receipt.raceId !== raceId || receipt.requestId !== value.request.requestId ||
         receipt.request.formatVersion !== value.request.formatVersion ||
         receipt.request.requestId !== value.request.requestId ||
-        receipt.request.expectedSnapshotVersion !== value.request.expectedSnapshotVersion ||
         receipt.request.courseVersionId !== value.request.courseVersionId ||
         receipt.request.className !== value.request.className ||
         receipt.request.startRule !== value.request.startRule ||
-        receipt.snapshotVersionBefore !== value.request.expectedSnapshotVersion ||
         receipt.courseVersionId !== value.request.courseVersionId) throw new Error("Manual class receipt mismatch");
       committed = true;
       pending.current = undefined; sent.current = false;

@@ -35,7 +35,7 @@ export function useSourceReview(ws: Workspace) {
     try {
       const response = await request("/source-sync/consequence", op, { method: "POST", headers: { "content-type": "application/json",
         "x-otid-csrf": csrf() }, body: JSON.stringify({ formatVersion: 1, snapshotId: preview.snapshotId,
-        expectedSnapshotVersion: preview.snapshotVersion, excludedRowIds: next }) });
+        excludedRowIds: next }) });
       if (response.status === 404 || response.status === 409) { close(); setMessage({ tone: "error", text: text.stale }); return; }
       if (!response.ok) throw new Error("Consequence unavailable");
       const value = syncConsequenceResponseSchema.parse(await json(response, op));
@@ -48,7 +48,7 @@ export function useSourceReview(ws: Workspace) {
   async function apply() {
     if (!preview || !consequence || busyRef.current || !requireSession()) return;
     const value: SyncApplyRequest = attempt ?? { formatVersion: 1, requestId: crypto.randomUUID(), snapshotId: preview.snapshotId,
-      expectedSnapshotVersion: preview.snapshotVersion, excludedRowIds: excluded, confirmResultChanges: consequence.requiresConfirmation };
+      excludedRowIds: excluded, confirmResultChanges: consequence.requiresConfirmation };
     setAttempt(value); setMessage(undefined);
     const op = beginRequest();
     try {
@@ -59,7 +59,7 @@ export function useSourceReview(ws: Workspace) {
         setAttempt(undefined);
         const fresh = await request("/source-sync/consequence", op, { method: "POST", headers: { "content-type": "application/json",
           "x-otid-csrf": csrf() }, body: JSON.stringify({ formatVersion: 1, snapshotId: preview.snapshotId,
-          expectedSnapshotVersion: preview.snapshotVersion, excludedRowIds: excluded }) });
+          excludedRowIds: excluded }) });
         if (fresh.ok) {
           setConsequence(syncConsequenceResponseSchema.parse(await json(fresh, op)).consequence);
           setMessage({ tone: "attention", text: text.consequenceChanged });

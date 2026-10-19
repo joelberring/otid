@@ -3,16 +3,14 @@ import { describe, expect, it } from "vitest";
 import { and, asc, count, eq } from "drizzle-orm";
 import { schema } from "@o-tid/database";
 import { contentHash, createEvent, importIofXml, importIofXmlAsAdmin, ingestDeviceBatch } from "../../src";
-import {
-  authenticatePairingAdminSession, issuePairingAdminAccessCredential, loginPairingAdmin,
-  logoutPairingAdminSession, revokePairingAdminAccessCredential
-} from "../../src/pairing-admin";
+import { requireRaceRole } from "../../src/race-session";
+import { logoutUserAccountSession } from "../../src/user-account";
 import { db, courseXml, entryXml, startListXml, readoutPackage, batch, okPayload, useRaceDatabase } from "./race-fixtures";
+import { raceLogin, revokeRaceGrants } from "./accounts";
 
 useRaceDatabase();
 
 describe("TASK 005G autentiserad IOF-import PostgreSQL", () => {
-  const issuedAt = new Date("2026-08-31T16:00:00.000Z");
   const usedAt = new Date("2026-08-31T16:02:00.000Z");
 
   async function emptyRace() {
@@ -25,25 +23,9 @@ describe("TASK 005G autentiserad IOF-import PostgreSQL", () => {
     return created.race.id;
   }
 
-  async function importAdmin(raceId: string, marker: number) {
-    const installation = await issuePairingAdminAccessCredential(db, {
-      raceId,
-      capability: "IMPORT_IOF",
-      label: `Importör ${marker}`,
-      expiresAt: new Date(issuedAt.getTime() + 8 * 60 * 60 * 1000)
-    }, { now: issuedAt, secretBytes: Buffer.alloc(32, marker) });
-    const login = await loginPairingAdmin(db, {
-      formatVersion: 1,
-      accessCredential: installation.accessCredential
-    }, {
-      expectedRaceId: raceId,
-      expectedCapability: "IMPORT_IOF",
-      now: new Date("2026-08-31T16:01:00.000Z"),
-      sessionSecretBytes: Buffer.alloc(32, marker + 1),
-      csrfSecretBytes: Buffer.alloc(32, marker + 2)
-    });
-    if (login.status !== "authenticated") throw new Error("Importsession kunde inte skapas");
-    return { installation, login };
+  async function importAdmin(raceId: string) {
+    const login = await raceLogin(db, raceId, "ADMIN", new Date("2026-08-31T16:01:00.000Z"));
+    return { login };
   }
 
   function authenticatedInput(
@@ -63,73 +45,22 @@ describe("TASK 005G autentiserad IOF-import PostgreSQL", () => {
     };
   }
 
-  it("separerar prefix, race, capability och kortare livslängder utan orphan-session", async () => {
+  it("gäller administratören på tävlingens event men inte en annan tävling eller funktionären", async () => {
     const raceId = await emptyRace();
     const otherRaceId = await emptyRace();
-    const admin = await importAdmin(raceId, 131);
-    expect(admin.installation.accessCredential).toMatch(/^otid_org_import_v1\./);
-    expect(admin.login.response).toEqual({
-      formatVersion: 1,
-      raceId,
-      capability: "IMPORT_IOF",
-      expiresAt: "2026-08-31T17:01:00.000Z"
-    });
-    const credentialAudits = await db.select().from(schema.auditEvents).where(and(
-      eq(schema.auditEvents.entityId, admin.installation.credentialId),
-      eq(schema.auditEvents.action, "IOF_IMPORT_ACCESS_CREDENTIAL_ISSUED")
-    ));
-    expect(credentialAudits).toHaveLength(1);
-    expect(credentialAudits[0]?.entityType).toBe("iof_import_access_credential");
-    await expect(authenticatePairingAdminSession(db, {
-      sessionToken: admin.login.sessionToken,
-      raceId,
-      capability: "IMPORT_IOF"
-    }, usedAt)).resolves.toMatchObject({ status: "authenticated" });
-    await expect(authenticatePairingAdminSession(db, {
-      sessionToken: admin.login.sessionToken,
-      raceId,
-      capability: "VIEW_SPEAKER_BOARD"
-    }, usedAt)).resolves.toEqual({ status: "forbidden" });
-
-    const beforeSessions = await db.select({ value: count() }).from(schema.pairingAdminSessions);
-    await expect(loginPairingAdmin(db, {
-      formatVersion: 1,
-      accessCredential: admin.installation.accessCredential
-    }, {
-      expectedRaceId: otherRaceId,
-      expectedCapability: "IMPORT_IOF",
-      now: usedAt
-    })).resolves.toEqual({ status: "unauthorized" });
-    await expect(loginPairingAdmin(db, {
-      formatVersion: 1,
-      accessCredential: admin.installation.accessCredential
-    }, {
-      expectedRaceId: raceId,
-      expectedCapability: "VIEW_SPEAKER_BOARD",
-      now: usedAt
-    })).resolves.toEqual({ status: "unauthorized" });
-    const afterSessions = await db.select({ value: count() }).from(schema.pairingAdminSessions);
-    expect(afterSessions[0]?.value).toBe(beforeSessions[0]?.value);
-    await expect(revokePairingAdminAccessCredential(db, {
-      credentialId: admin.installation.credentialId,
-      capability: "VIEW_SPEAKER_BOARD"
-    }, usedAt)).rejects.toThrow(/finns inte/);
-    await expect(authenticatePairingAdminSession(db, {
-      sessionToken: admin.login.sessionToken,
-      raceId,
-      capability: "IMPORT_IOF"
-    }, usedAt)).resolves.toMatchObject({ status: "authenticated" });
-    await expect(issuePairingAdminAccessCredential(db, {
-      raceId,
-      capability: "IMPORT_IOF",
-      label: "För lång",
-      expiresAt: new Date(issuedAt.getTime() + 8 * 60 * 60 * 1000 + 1)
-    }, { now: issuedAt })).rejects.toThrow(/högst 8 timmar/);
+    const admin = await importAdmin(raceId);
+    await expect(requireRaceRole(db, { sessionToken: admin.login.sessionToken, raceId, role: "ADMIN" }, usedAt))
+      .resolves.toMatchObject({ status: "authenticated" });
+    await expect(requireRaceRole(db, { sessionToken: admin.login.sessionToken, raceId: otherRaceId, role: "ADMIN" }, usedAt))
+      .resolves.toEqual({ status: "unauthorized" });
+    const functionary = await raceLogin(db, raceId, "FUNCTIONARY", usedAt);
+    await expect(importIofXmlAsAdmin(db, authenticatedInput(raceId, functionary, crypto.randomUUID(), courseXml), usedAt))
+      .resolves.toEqual({ status: "forbidden" });
   });
 
   it("committar 100 samtidiga exakta requests en gång och spårar nya content-duplicates", async () => {
     const raceId = await emptyRace();
-    const admin = await importAdmin(raceId, 141);
+    const admin = await importAdmin(raceId);
     const requestId = crypto.randomUUID();
     const input = authenticatedInput(raceId, admin.login, requestId, courseXml);
     const results = await Promise.all(Array.from({ length: 100 }, () => importIofXmlAsAdmin(db, input, usedAt)));
@@ -151,8 +82,8 @@ describe("TASK 005G autentiserad IOF-import PostgreSQL", () => {
     expect(audits[0]).toMatchObject({
       entityType: "import_file",
       entityId: imports[0]?.id,
-      actorKind: "IOF_IMPORT_ACCESS_CREDENTIAL",
-      actorId: admin.installation.credentialId,
+      actorKind: "USER_ACCOUNT",
+      actorId: admin.login.accountId,
       requestId,
       after: {
         kind: "CourseData",
@@ -166,7 +97,6 @@ describe("TASK 005G autentiserad IOF-import PostgreSQL", () => {
     expect(JSON.stringify(audits)).not.toContain("course-short");
     expect(JSON.stringify(audits)).not.toContain("Korta");
     expect(JSON.stringify(audits)).not.toContain(courseXml);
-    expect(JSON.stringify(audits)).not.toContain(admin.installation.accessCredential);
     expect(JSON.stringify(audits)).not.toContain(admin.login.sessionToken);
     expect(JSON.stringify(audits)).not.toContain(admin.login.csrfToken);
     expect(JSON.stringify(audits)).not.toContain("secret-course-data.xml");
@@ -197,9 +127,9 @@ describe("TASK 005G autentiserad IOF-import PostgreSQL", () => {
   it("ger request-konflikt före parserfel och binder request till actor, race och hash", async () => {
     const raceId = await emptyRace();
     const otherRaceId = await emptyRace();
-    const first = await importAdmin(raceId, 151);
-    const otherActor = await importAdmin(raceId, 161);
-    const otherRaceActor = await importAdmin(otherRaceId, 171);
+    const first = await importAdmin(raceId);
+    const otherActor = await importAdmin(raceId);
+    const otherRaceActor = await importAdmin(otherRaceId);
     const requestId = crypto.randomUUID();
     await expect(importIofXmlAsAdmin(
       db,
@@ -225,7 +155,7 @@ describe("TASK 005G autentiserad IOF-import PostgreSQL", () => {
 
   it("avvisar ogiltig XML atomärt och stoppar import efter capability-säker logout", async () => {
     const raceId = await emptyRace();
-    const admin = await importAdmin(raceId, 181);
+    const admin = await importAdmin(raceId);
     const before = await db.select({ value: count() }).from(schema.iofImportRequests)
       .where(eq(schema.iofImportRequests.raceId, raceId));
     await expect(importIofXmlAsAdmin(db, authenticatedInput(
@@ -238,31 +168,16 @@ describe("TASK 005G autentiserad IOF-import PostgreSQL", () => {
       .where(eq(schema.iofImportRequests.raceId, raceId));
     expect(after[0]?.value).toBe(before[0]?.value);
 
-    await expect(logoutPairingAdminSession(db, {
-      sessionToken: admin.login.sessionToken,
-      raceId,
-      capability: "VIEW_SPEAKER_BOARD",
-      csrfCookie: admin.login.csrfToken,
-      csrfHeader: admin.login.csrfToken
-    }, usedAt)).resolves.toEqual({ status: "forbidden" });
-    await expect(logoutPairingAdminSession(db, {
-      sessionToken: admin.login.sessionToken,
-      raceId,
-      capability: "IMPORT_IOF",
-      csrfCookie: admin.login.csrfToken,
-      csrfHeader: admin.login.csrfToken
-    }, usedAt)).resolves.toEqual({ status: "logged-out" });
+    await expect(logoutUserAccountSession(db, { sessionToken: admin.login.sessionToken, csrfCookie: admin.login.csrfToken,
+      csrfHeader: admin.login.csrfToken }, usedAt)).resolves.toEqual({ status: "logged-out" });
     await expect(importIofXmlAsAdmin(
       db,
       authenticatedInput(raceId, admin.login, crypto.randomUUID(), courseXml),
       usedAt
     )).resolves.toEqual({ status: "unauthorized" });
 
-    const revokedAdmin = await importAdmin(raceId, 186);
-    await revokePairingAdminAccessCredential(db, {
-      credentialId: revokedAdmin.installation.credentialId,
-      capability: "IMPORT_IOF"
-    }, usedAt);
+    const revokedAdmin = await importAdmin(raceId);
+    await revokeRaceGrants(db, revokedAdmin.login.accountId, usedAt);
     await expect(importIofXmlAsAdmin(
       db,
       authenticatedInput(raceId, revokedAdmin.login, crypto.randomUUID(), courseXml),
@@ -273,7 +188,7 @@ describe("TASK 005G autentiserad IOF-import PostgreSQL", () => {
   it("importerar EntryList genom skyddad yta efter betrodd CourseData-setup", async () => {
     const raceId = await emptyRace();
     await importIofXml(db, raceId, courseXml);
-    const admin = await importAdmin(raceId, 191);
+    const admin = await importAdmin(raceId);
     const result = await importIofXmlAsAdmin(
       db,
       authenticatedInput(raceId, admin.login, crypto.randomUUID(), entryXml),
@@ -290,7 +205,7 @@ describe("TASK 005G autentiserad IOF-import PostgreSQL", () => {
     await importIofXml(db, raceId, courseXml);
     await importIofXml(db, raceId, entryXml);
     await ingestDeviceBatch(db, raceId, batch(crypto.randomUUID(), okPayload));
-    const admin = await importAdmin(raceId, 196);
+    const admin = await importAdmin(raceId);
     const requestId = crypto.randomUUID();
     const [raceBefore] = await db.select().from(schema.races).where(eq(schema.races.id, raceId));
     const entriesBefore = await db.select().from(schema.entries)
@@ -409,7 +324,7 @@ describe("TASK 005G autentiserad IOF-import PostgreSQL", () => {
     const raceId = await emptyRace();
     await importIofXml(db, raceId, courseXml);
     await importIofXml(db, raceId, entryXml);
-    const admin = await importAdmin(raceId, 197);
+    const admin = await importAdmin(raceId);
     const firstRequestId = crypto.randomUUID();
     const input = authenticatedInput(raceId, admin.login, firstRequestId, startListXml);
     const first = await importIofXmlAsAdmin(db, input, usedAt);
@@ -463,7 +378,7 @@ describe("TASK 005G autentiserad IOF-import PostgreSQL", () => {
     const raceId = await emptyRace();
     await importIofXml(db, raceId, courseXml);
     await importIofXml(db, raceId, entryXml);
-    const admin = await importAdmin(raceId, 198);
+    const admin = await importAdmin(raceId);
     const startList = (classId: string, entryIds: readonly string[]) => `<StartList xmlns="http://www.orienteering.org/datastandard/3.0" iofVersion="3.0"><Event><Name>Test</Name></Event><ClassStart><Class><Id>${classId}</Id></Class>${entryIds.map((entryId, index) => `<PersonStart><EntryId>${entryId}</EntryId><Start><StartTime>2026-08-31T08:0${index}:00Z</StartTime></Start></PersonStart>`).join("")}</ClassStart></StartList>`;
     const [raceBefore] = await db.select().from(schema.races).where(eq(schema.races.id, raceId));
     const entriesBefore = await db.select().from(schema.entries).where(eq(schema.entries.raceId, raceId));
@@ -498,7 +413,7 @@ describe("TASK 005G autentiserad IOF-import PostgreSQL", () => {
     const raceId = await emptyRace();
     await importIofXml(db, raceId, courseXml);
     await importIofXml(db, raceId, entryXml);
-    const admin = await importAdmin(raceId, 199);
+    const admin = await importAdmin(raceId);
     await importIofXmlAsAdmin(
       db,
       authenticatedInput(raceId, admin.login, crypto.randomUUID(), startListXml),
@@ -535,7 +450,7 @@ describe("TASK 005G autentiserad IOF-import PostgreSQL", () => {
 
   it("binder hash och byteantal till exakta UTF-8-bytes inklusive BOM", async () => {
     const raceId = await emptyRace();
-    const admin = await importAdmin(raceId, 201);
+    const admin = await importAdmin(raceId);
     const xmlBytes = Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from(courseXml, "utf8")]);
     const requestId = crypto.randomUUID();
     const result = await importIofXmlAsAdmin(db, {

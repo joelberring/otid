@@ -5,13 +5,12 @@ import { canonicalStartCheckinConflictReviewRequest, canonicalStartCheckinConfli
   StartCheckinConflictReviewCandidateSchema, StartCheckinConflictReviewRequestSchema, StartCheckinConflictReviewSourceSchema,
   StartCheckinOperationSchema } from "@o-tid/contracts";
 import { planStartCheckinConflictReview } from "@o-tid/domain";
-import { authenticatePairingAdminSession, authenticatePairingAdminSessionForMutation,
-  authenticatePairingAdminSessionForProtectedRead, type PairingAdminRequestAuthentication } from "./pairing-admin";
+import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { readAuthorizedStartCheckinRoster } from "./start-checkin-roster";
 import { validateStoredStartCheckinReceipt } from "./start-checkin-sync";
 import { reviewHash, validateStoredCheckinConflictReview } from "./checkin-conflict-review-journal";
+import { UUID_PATTERN as uuid } from "./serialization";
 
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 async function sourceFor(tx: Parameters<Parameters<Database["transaction"]>[0]>[0], raceId: string, entryId: string, now: Date) {
   const roster = await readAuthorizedStartCheckinRoster(tx, raceId, now);
   if (roster.status !== "ok") return roster;
@@ -43,29 +42,26 @@ async function sourceFor(tx: Parameters<Parameters<Database["transaction"]>[0]>[
     sourceHash: reviewHash(canonicalStartCheckinConflictReviewSource(source)), generatedAt: now.toISOString() }) };
 }
 
-export async function readStartCheckinConflictReviewAsAdmin(db: Database, input: PairingAdminRequestAuthentication & { entryId: string }, now = new Date()) {
-  if (input.capability !== "MANAGE_RACE") return { status: "forbidden" as const };
+export async function readStartCheckinConflictReviewAsAdmin(db: Database, input: RaceSessionProof & { entryId: string }, now = new Date()) {
   return db.transaction(async tx => {
-    const auth = await authenticatePairingAdminSessionForProtectedRead(tx, input, now);
+    const auth = await requireRaceRole(tx, { ...input, role: "ADMIN" }, now, "share");
     if (auth.status !== "authenticated") return auth;
     if (!uuid.test(input.entryId)) return { status: "invalid-request" as const };
     return sourceFor(tx, auth.principal.raceId, input.entryId, now);
   }, { isolationLevel: "repeatable read" });
 }
 
-export async function reviewStartCheckinConflictsAsAdmin(db: Database, input: PairingAdminRequestAuthentication & {
+export async function reviewStartCheckinConflictsAsAdmin(db: Database, input: RaceSessionProof & {
   readBody: () => Promise<unknown>;
 }, clock: () => Date = () => new Date()) {
-  if (input.capability !== "MANAGE_RACE") return { status: "forbidden" as const };
-  const capability = input.capability;
-  const authentication = { ...input, requireCsrf: true };
-  const initial = await authenticatePairingAdminSession(db, authentication, clock());
+  const authentication = { ...input, role: "ADMIN" as const, requireCsrf: true };
+  const initial = await requireRaceRole(db, authentication, clock());
   if (initial.status !== "authenticated") return initial;
   const parsed = StartCheckinConflictReviewRequestSchema.safeParse(await input.readBody());
   if (!parsed.success) return { status: "invalid-request" as const };
   const intent = parsed.data, canonical = canonicalStartCheckinConflictReviewRequest(intent), intentHash = reviewHash(canonical);
   return db.transaction(async tx => {
-    const now = clock(), auth = await authenticatePairingAdminSessionForMutation(tx, authentication, now);
+    const now = clock(), auth = await requireRaceRole(tx, authentication, now, "update");
     if (auth.status !== "authenticated") return auth;
     const raceId = auth.principal.raceId;
     const [race] = await tx.select({ id: schema.races.id }).from(schema.races).where(eq(schema.races.id, raceId)).for("share");
@@ -74,7 +70,7 @@ export async function reviewStartCheckinConflictsAsAdmin(db: Database, input: Pa
     const [prior] = await tx.select().from(schema.startCheckinConflictReviews).where(eq(schema.startCheckinConflictReviews.requestId, intent.requestId));
     if (prior) {
       const saved = validateStoredCheckinConflictReview(prior);
-      if (prior.raceId !== raceId || prior.actorCredentialId !== auth.principal.accessCredentialId || prior.intentHash !== intentHash) return { status: "conflict" as const };
+      if (prior.raceId !== raceId || prior.actorAccountId !== auth.principal.accountId || prior.intentHash !== intentHash) return { status: "conflict" as const };
       const items = await tx.select().from(schema.startCheckinConflictReviewItems).where(eq(schema.startCheckinConflictReviewItems.reviewId, prior.id))
         .orderBy(schema.startCheckinConflictReviewItems.conflictRequestId);
       if (items.length !== saved.intent.conflictRequestIds.length || items.some((item, index) => item.conflictRequestId !== saved.intent.conflictRequestIds[index] ||
@@ -93,14 +89,14 @@ export async function reviewStartCheckinConflictsAsAdmin(db: Database, input: Pa
         startState: current.startState, returnRegistered: current.manualReturnRegistered || current.readoutReturnRegistered, activeDns: current.activeDns } });
     if (plan.kind === "CONFLICT") return { status: "conflict" as const };
     const row = { id: randomUUID(), requestId: intent.requestId, raceId, entryId: entry.id,
-      actorCredentialId: auth.principal.accessCredentialId, capability, decision: intent.decision,
+      actorAccountId: auth.principal.accountId, decision: intent.decision,
       reason: intent.reason, sourceHash: intent.sourceHash, intentCanonicalJson: new TextDecoder().decode(canonical), intentHash, reviewedAt: now };
     await tx.insert(schema.startCheckinConflictReviews).values(row);
     await tx.insert(schema.startCheckinConflictReviewItems).values(current.conflicts.map(conflict => ({ reviewId: row.id,
       conflictRequestId: conflict.operation.requestId, raceId, entryId: entry.id, contentHash: conflict.contentHash, operationEffect: "CONFLICT" as const })));
     await tx.insert(schema.auditEvents).values({ raceId, entityType: "start_checkin_conflict_review", entityId: row.id,
-      requestId: intent.requestId, actorId: row.actorCredentialId,
-      actorKind: "RACE_ADMIN_ACCESS_CREDENTIAL",
+      requestId: intent.requestId, actorId: row.actorAccountId,
+      actorKind: "USER_ACCOUNT",
       action: "START_CHECKIN_CONFLICTS_REVIEWED", after: { entryId: entry.id, sourceHash: intent.sourceHash,
         decision: intent.decision, reason: intent.reason, conflictRequestIds: intent.conflictRequestIds, source: current }, createdAt: now });
     return { status: "reviewed" as const, response: validateStoredCheckinConflictReview(row).response };

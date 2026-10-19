@@ -1,4 +1,4 @@
-import { createHash, randomBytes, randomUUID, scrypt, timingSafeEqual } from "node:crypto";
+import { randomBytes, randomUUID, scrypt, timingSafeEqual } from "node:crypto";
 import { and, desc, eq, gt, isNull } from "drizzle-orm";
 import {
   organizerAccountLoginRequestSchema,
@@ -11,9 +11,9 @@ import type { Database } from "@o-tid/database";
 import { schema } from "@o-tid/database";
 import type { DbExecutor } from "./snapshot";
 import { consumeAccountRequestAllowance, DEFAULT_REGISTRATIONS_PER_HOUR } from "./account-throttle";
+import { UUID_PATTERN, sha256Hex as sha256 } from "./serialization";
 
 const TOKEN_PREFIX = "otid_user_session_v1";
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const SECRET_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 const HASH_PATTERN = /^[a-f0-9]{64}$/;
 const DUMMY_ID = "00000000-0000-4000-8000-000000000000";
@@ -77,9 +77,6 @@ function bytes(value: Uint8Array | undefined, length: number): Buffer {
   return result;
 }
 
-function sha256(value: Uint8Array | string): string {
-  return createHash("sha256").update(value).digest("hex");
-}
 
 /** Lösenordets verifierare (scrypt). */
 export async function scryptVerifier(password: string, salt: Buffer): Promise<Buffer> {
@@ -293,7 +290,8 @@ export async function clearUserAccountLoginThrottle(tx: DbExecutor, email: strin
     .where(eq(schema.userAccountLoginThrottles.loginKeyHash, loginThrottleKey(email)));
 }
 
-async function authorize(
+/** Kontots session (och CSRF-paret för en skrivning). Används också av tävlingens rollkontroll (`race-session.ts`). */
+export async function authorizeUserAccountSession(
   tx: DbExecutor,
   proof: UserAccountSessionProof,
   now: Date,
@@ -339,7 +337,7 @@ export async function authenticateUserAccountSession(
   proof: UserAccountSessionProof,
   now = new Date()
 ): Promise<UserAccountAuthenticationResult> {
-  return db.transaction((tx) => authorize(tx, proof, validDate(now), "share"));
+  return db.transaction((tx) => authorizeUserAccountSession(tx, proof, validDate(now), "share"));
 }
 
 export async function authenticateUserAccountSessionForMutation(
@@ -347,7 +345,7 @@ export async function authenticateUserAccountSessionForMutation(
   proof: UserAccountSessionProof,
   now = new Date()
 ): Promise<UserAccountAuthenticationResult> {
-  return authorize(tx, proof, validDate(now), "update");
+  return authorizeUserAccountSession(tx, proof, validDate(now), "update");
 }
 
 export async function authenticateUserAccountSessionForProtectedRead(
@@ -355,7 +353,7 @@ export async function authenticateUserAccountSessionForProtectedRead(
   proof: UserAccountSessionProof,
   now = new Date()
 ): Promise<UserAccountAuthenticationResult> {
-  return authorize(tx, proof, validDate(now), "share");
+  return authorizeUserAccountSession(tx, proof, validDate(now), "share");
 }
 
 export async function logoutUserAccountSession(
@@ -376,36 +374,4 @@ export async function logoutUserAccountSession(
     });
     return { status: "logged-out" } as const;
   });
-}
-
-/** Used by delegated race auth after its credential/session locks. */
-export async function activeUserAccountParentSession(
-  tx: DbExecutor,
-  input: { accountId: string; sessionId: string },
-  now: Date,
-  lock: "none" | "share" | "update"
-): Promise<boolean> {
-  const sessionQuery = tx.select().from(schema.userAccountSessions)
-    .where(and(eq(schema.userAccountSessions.id, input.sessionId),
-      eq(schema.userAccountSessions.accountId, input.accountId)));
-  const [session] = lock === "share" ? await sessionQuery.for("share") :
-    lock === "update" ? await sessionQuery.for("update") : await sessionQuery;
-  if (!session) return false;
-  const guardQuery = tx.select({ accountId: schema.userAccountAuthGuards.accountId })
-    .from(schema.userAccountAuthGuards).where(eq(schema.userAccountAuthGuards.accountId, input.accountId));
-  if (lock !== "none") {
-    const [guard] = lock === "share" ? await guardQuery.for("share") : await guardQuery.for("update");
-    if (!guard) return false;
-  }
-  const [currentVerifier] = await tx.select({ version: schema.userAccountPasswordVerifiers.version })
-    .from(schema.userAccountPasswordVerifiers)
-    .where(eq(schema.userAccountPasswordVerifiers.accountId, input.accountId))
-    .orderBy(desc(schema.userAccountPasswordVerifiers.version)).limit(1);
-  const [account] = await tx.select({ blockedAt: schema.userAccounts.blockedAt }).from(schema.userAccounts)
-    .where(eq(schema.userAccounts.id, input.accountId));
-  const [revokedSession] = await tx.select({ id: schema.userAccountSessionRevocations.id })
-    .from(schema.userAccountSessionRevocations).where(eq(schema.userAccountSessionRevocations.sessionId, input.sessionId));
-  return Boolean(currentVerifier && currentVerifier.version === session.passwordVersion &&
-    account && !account.blockedAt && !revokedSession &&
-    session.issuedAt.getTime() <= now.getTime() && session.expiresAt.getTime() > now.getTime());
 }

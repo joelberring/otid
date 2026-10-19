@@ -1,32 +1,21 @@
 import { z } from "zod";
+import { UUID_PATTERN, prefixedUuidPattern } from "./ids";
 
 export const IOF_IMPORT_CONTENT_TYPE = "application/xml" as const;
 export const IOF_IMPORT_MIN_BYTES = 1;
 export const IOF_IMPORT_MAX_BYTES = 5_000_000;
 
 export const iofImportRequestIdSchema = z.string().regex(
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+  UUID_PATTERN,
   "Request-id måste vara ett kanoniskt gemener-UUID"
 );
 
 export const iofImportIdempotencyKeySchema = z.string().regex(
-  /^iof-import:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+  prefixedUuidPattern("iof-import"),
   "Idempotency-Key måste vara iof-import:<kanoniskt request-uuid>"
 );
 
-export const iofImportLoginRequestSchema = z.object({
-  formatVersion: z.literal(1),
-  accessCredential: z.string().regex(
-    /^otid_org_import_v1\.[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.[A-Za-z0-9_-]{43}$/
-  )
-}).strict();
 
-export const iofImportLoginResponseSchema = z.object({
-  formatVersion: z.literal(1),
-  raceId: iofImportRequestIdSchema,
-  capability: z.literal("IMPORT_IOF"),
-  expiresAt: z.iso.datetime({ offset: true })
-}).strict();
 
 const warningSchema = z.string().min(1).max(500);
 
@@ -102,8 +91,6 @@ export const iofImportErrorResponseSchema = z.object({
 }).strict();
 
 export type IofImportRequestId = z.infer<typeof iofImportRequestIdSchema>;
-export type IofImportLoginRequest = z.infer<typeof iofImportLoginRequestSchema>;
-export type IofImportLoginResponse = z.infer<typeof iofImportLoginResponseSchema>;
 export type IofCourseDataImportReport = z.infer<typeof iofCourseDataImportReportSchema>;
 export type IofEntryListImportReport = z.infer<typeof iofEntryListImportReportSchema>;
 export type IofStartListImportReport = z.infer<typeof iofStartListImportReportSchema>;

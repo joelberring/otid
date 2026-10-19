@@ -6,7 +6,7 @@ export function parseAdministratorPublicationReceipt(value: unknown, raceId: str
   const result = startListPublicationResponseSchema.parse(value);
   if (result.raceId !== raceId || result.requestId !== attempt.id || result.action !== attempt.request.action ||
     result.revision !== attempt.request.expectedRevision + 1 || (attempt.request.action === "PUBLISH" &&
-      (result.sourceHash !== attempt.request.expectedSourceHash || result.sourceSnapshotVersion !== attempt.request.expectedSnapshotVersion))) {
+      (result.sourceHash !== attempt.request.expectedSourceHash))) {
     throw new Error("Publication receipt mismatch");
   }
   return result;

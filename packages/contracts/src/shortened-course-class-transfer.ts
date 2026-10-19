@@ -1,6 +1,6 @@
 import { z } from "zod";
+import { prefixedUuidPattern, uuidSchema as uuid } from "./ids";
 
-const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 const version = z.number().int().positive().max(2_147_483_647);
 const sha256 = z.string().regex(/^[a-f0-9]{64}$/);
 const name = z.string().trim().min(1).max(160);
@@ -65,7 +65,7 @@ export const shortenedCourseClassTransferCandidateSchema = z.object({
 export const shortenedCourseClassTransferRequestSchema = z.object({
   formatVersion: z.literal(1), requestId: uuid,
   sourceClassId: uuid, expectedSourceCourseVersionId: uuid, expectedSourceStartRule: startRule,
-  expectedSnapshotVersion: version, expectedBasisHash: sha256,
+  expectedBasisHash: sha256,
   shortCourseName: name, shortClassName: name,
   expectedSourceControlCount: z.number().int().min(2).max(1_000),
   controlPrefix: z.array(sourceControlSchema).min(1).max(999),
@@ -85,7 +85,7 @@ export const shortenedCourseClassTransferRequestSchema = z.object({
 });
 
 export const shortenedCourseClassTransferIdempotencyKeySchema = z.string().regex(
-  /^shortened-course-class-transfer:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+  prefixedUuidPattern("shortened-course-class-transfer")
 );
 
 const receiptItemSchema = z.object({
@@ -120,7 +120,7 @@ export const shortenedCourseClassTransferReceiptSchema = z.object({
   if (value.transferId !== value.requestId || value.requestId !== value.request.requestId ||
       value.sourceClassId !== value.request.sourceClassId ||
       value.sourceCourseVersionId !== value.request.expectedSourceCourseVersionId ||
-      value.sourceSnapshotVersion !== value.request.expectedSnapshotVersion ||
+     
       value.sourceBasisHash !== value.request.expectedBasisHash ||
       value.snapshotVersionAfter !== value.sourceSnapshotVersion + 1) {
     context.addIssue({ code: "custom", message: "Kvittensen måste binda request, källgrund och exakt snapshotsprång" });

@@ -7,8 +7,8 @@ import {
   type ClassResultRecalculationResponse
 } from "@o-tid/contracts";
 import { sv } from "../i18n/sv";
+import { UUID_PATTERN as UUID } from "@o-tid/contracts";
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 export type ClassResultRecalculationCandidates = ClassResultRecalculationCandidateResponse;
 export type ClassResultRecalculationRequestWithId = ClassResultRecalculationRequest & { requestId: string };
@@ -38,7 +38,7 @@ export function createClassResultRecalculationAttempt(
     throw new Error(sv.resultRecalculationInvalidResponse);
   }
   const request = classResultRecalculationRequestSchema.parse({ formatVersion: 1, classId: candidate.classId,
-    snapshotVersion: candidate.snapshotVersion, engineVersion: candidate.engineVersion,
+    engineVersion: candidate.engineVersion,
     manifestHash: candidate.manifestHash, entryIds: selected });
   return { requestId, classId: candidate.classId, className: candidate.className, entryIds: selected, request };
 }
@@ -47,7 +47,7 @@ export function parseClassResultRecalculationResponse(value: unknown, attempt: C
   const parsed = classResultRecalculationResponseSchema.safeParse(value);
   if (!parsed.success || parsed.data.raceId !== raceId || parsed.data.classId !== attempt.classId ||
       parsed.data.requestId !== attempt.requestId || parsed.data.manifestHash !== attempt.request.manifestHash ||
-      parsed.data.snapshotVersion !== attempt.request.snapshotVersion || parsed.data.engineVersion !== attempt.request.engineVersion ||
+      parsed.data.engineVersion !== attempt.request.engineVersion ||
       parsed.data.items.length !== attempt.entryIds.length || parsed.data.items.some((item) => !attempt.entryIds.includes(item.entryId))) {
     throw new Error(sv.resultRecalculationInvalidResponse);
   }

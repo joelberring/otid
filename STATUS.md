@@ -5,10 +5,17 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 23 – Storstädning av koden (ADR-0173). Steg 7 (hårdvara) väntar på ägaren.
+Steg 24 – Enklare arbetsyta. Steg 7 (hårdvara) väntar på ägaren.
 Måste provas mot riktiga tjänster: Eventor med klubbens API-nyckel, ROC:s sökväg för stämplingar (bara provad mot falsk ROC) och e-post via SMTP.
 
 ## Logg
+
+### 2026-10-19 – Steg 23 (del 2): ett statusflöde, en session, ingen versionsgrind (steg 23 klart)
+- Ett skrivställe: `appendResultRevision`/`evaluateAndStore` (`result-revisions.ts`) skriver alla revisioner. Ett statusflöde: `setEntryStatus` (beslutsunion med återta, idempotent på begärans id, `expectedRevision`) + domänens `applyManualDecision` ersätter de tolv besluts-/återtagandetjänsterna; en rutt `…/entries/[entryId]/status` i stället för 24 (migration 0001).
+- En session: `requireRaceRole` på kontosessionen; `pairing_admin_*`, delegationer, kakor per tävling och capability-enumen borta, journalerna har `actor_account_id` (0002). "Öppna med mitt konto" borta; avläsningsskalet och demot använder kontosessionen.
+- Ingen `expectedSnapshotVersion` i adminåtgärder; `race.snapshot_version` är bara paketversion via `bumpReadoutPackageVersion` (0003). En `security-policy.ts`, ett suffix `AsAdmin` (kontonivån utan suffix: `createOrganizerEvent`, `listMyEvents`; `copyRaceAsAdmin`), UUID i `contracts/src/ids.ts` och SHA-256 i `serialization.ts`.
+- TS-rader 108 759 → 81 771 (utan tester 69 497 → 52 932); tabeller 102 → 80; rutter 131 → 103; kontraktsfiler 73 → 59; applikationsfiler 106 → 93. Integration 74/300 → 64/264 (besluts-/sessionstesterna skrivna om mot `setEntryStatus`/`requireRaceRole`).
+- Verifierat: install (frozen), lint, typecheck, test, test:integration, build, demo på tom databas (inloggningen öppnar arbetsytan direkt), Playwright alla 16 specar gröna i fem grupper (`funktionarer` efter omförsök, speakerns "Senast i mål" som i del 1; `traningskvall` efter omförsök i gruppen, tidsgräns under last, grönt direkt ensam). Ingen användarsynlig ändring; e2e: bara tävlingssessionssteget och uppvärmning av borttagna rutter.
 
 ### 2026-10-18 – Steg 23 (del 1): död kod, baslinjemigration, tester och dokument
 - Borttaget: `packages/infrastructure` (MinIO), 16 applikationsmoduler och 14 kontrakt som inget anropade (PM-kedjan, avläsningshistoriken, manuella om-länkningar m.m.), Android-transporten, `apps/participant`, `apps/worker`, `packages/route-xml` (GPX nu i `iof-xml`), 14 cookie-filer, 1 319 av 1 436 nycklar i `i18n/sv.ts`, betalstatus, MinIO i compose och döda miljövariabler.

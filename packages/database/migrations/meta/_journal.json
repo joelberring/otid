@@ -2,6 +2,9 @@
   "version": "7",
   "dialect": "postgresql",
   "entries": [
-    { "idx": 0, "version": "7", "when": 1797523200000, "tag": "0000_baseline", "breakpoints": true }
+    { "idx": 0, "version": "7", "when": 1797523200000, "tag": "0000_baseline", "breakpoints": true },
+    { "idx": 1, "version": "7", "when": 1797609600000, "tag": "0001_ett_statusflode", "breakpoints": true },
+    { "idx": 2, "version": "7", "when": 1797696000000, "tag": "0002_en_session", "breakpoints": true },
+    { "idx": 3, "version": "7", "when": 1797782400000, "tag": "0003_paketversion", "breakpoints": true }
   ]
 }

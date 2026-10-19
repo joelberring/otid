@@ -1,5 +1,9 @@
 import { racePublicationResponseSchema } from "@o-tid/contracts";
-import { entryClassAdminFailure as failure, entryClassAdminJson as json, hasNoEntryClassAdminRequestBody } from "./entry-class-admin-security";
+import {
+  adminFailure as failure,
+  hasNoRequestBody,
+  privateJson as json
+} from "./security-policy";
 import { resultFailure, type RaceAdministratorRouteContext } from "./race-administrator-route-context";
 
 /**
@@ -9,7 +13,7 @@ import { resultFailure, type RaceAdministratorRouteContext } from "./race-admini
 export async function handlePublicationRoute(context: RaceAdministratorRouteContext): Promise<Response | undefined> {
   const { db, request, raceId, action, dependencies, proof } = context;
   if (action.kind !== "race-publication") return undefined;
-  if (!await hasNoEntryClassAdminRequestBody(request)) return failure(400, "INVALID_REQUEST");
+  if (!await hasNoRequestBody(request)) return failure(400, "INVALID_REQUEST");
   const result = await dependencies.racePublication(db, { ...proof, raceId, published: request.method === "PUT" });
   if (result.status !== "saved") return resultFailure(result.status);
   const response = racePublicationResponseSchema.parse(result.response);

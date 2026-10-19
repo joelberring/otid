@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { entryIdentityAdminListResponseSchema, entryIdentityAdminLoginRequestSchema, entryIdentityAdminLoginResponseSchema, entryIdentityChangeIdempotencyKeySchema, entryIdentityChangeRequestSchema, entryIdentityChangeResponseSchema } from "../src/entry-identity-admin";
+import { entryIdentityAdminListResponseSchema, entryIdentityChangeRequestSchema, entryIdentityChangeResponseSchema } from "../src/entry-identity-admin";
 
 const raceId = "10000000-0000-4000-8000-000000000001";
 const entryId = "20000000-0000-4000-8000-000000000001";
@@ -8,7 +8,7 @@ const requestId = "40000000-0000-4000-8000-000000000001";
 const before = { givenName: "Åsa", familyName: "Exempel", organisationName: "Test OK" };
 const after = { ...before, familyName: "Exempelsson", organisationName: null };
 const request = { formatVersion: 1, expectedEntryVersion: 2, expectedClassId: classId,
-  expectedSnapshotVersion: 4, expectedIdentity: before, identity: after };
+  expectedIdentity: before, identity: after };
 const response = { formatVersion: 1, raceId, entryId, classId, requestId, replayed: false,
   previousIdentity: before, identity: after, entryVersionBefore: 2, entryVersionAfter: 3,
   snapshotVersionBefore: 4, snapshotVersionAfter: 5, changedAt: "2026-09-09T10:00:00Z" };
@@ -26,7 +26,7 @@ it("trims only new input and represents intentional removal of club", () => {
 });
 
 it("rejects missing concurrency fields, unrelated edits and invalid new text", () => {
-  for (const key of ["expectedEntryVersion", "expectedClassId", "expectedSnapshotVersion", "expectedIdentity"]) {
+  for (const key of ["expectedEntryVersion", "expectedClassId", "expectedIdentity"]) {
     expect(entryIdentityChangeRequestSchema.safeParse({ ...request, [key]: undefined }).success).toBe(false);
   }
   for (const identity of [
@@ -50,16 +50,6 @@ it("validates actual change and exact version increments in both initial and rep
   ]) expect(entryIdentityChangeResponseSchema.safeParse(changed).success).toBe(false);
 });
 
-it("binds login and retry formats to the new capability", () => {
-  const accessCredential = `otid_org_entry_identity_v1.${requestId}.${"a".repeat(43)}`;
-  expect(entryIdentityAdminLoginRequestSchema.parse({ formatVersion: 1, accessCredential }).accessCredential).toBe(accessCredential);
-  expect(entryIdentityAdminLoginResponseSchema.safeParse({ formatVersion: 1, raceId,
-    capability: "REGISTER_ENTRY", expiresAt: response.changedAt }).success).toBe(false);
-  expect(entryIdentityAdminLoginRequestSchema.safeParse({ formatVersion: 1,
-    accessCredential: accessCredential.replace("entry_identity", "entry_card") }).success).toBe(false);
-  expect(entryIdentityChangeIdempotencyKeySchema.parse(`entry-identity-change:${requestId}`)).toContain(requestId);
-  expect(entryIdentityChangeIdempotencyKeySchema.safeParse(`entry-card-change:${requestId}`).success).toBe(false);
-});
 
 it("rejects duplicate entries and unrelated private data in the bounded list", () => {
   const entry = { id: entryId, classId, className: "Öppen", version: 2, identity: before };

@@ -92,7 +92,7 @@ export const raceAdministratorSv = {
   introduction: "Den här sidan är för tävlingens administratörer.",
   accountLoginHelp: "Logga in med ditt konto. Du måste ha skapat tävlingen eller vara inbjuden som administratör.",
   accountLoginLink: "Gå till Mina tävlingar",
-  login: "Öppna med mitt konto", logout: "Logga ut",
+  logout: "Logga ut",
   checking: "Kontrollerar behörighet…", denied: "Behörighet saknas eller har gått ut. Logga in igen.",
   error: "Underlaget kunde inte hämtas. Försök igen när anslutningen fungerar.",
   logoutError: "Vyn är låst, men utloggningen kunde inte bekräftas av servern.",

@@ -1,7 +1,7 @@
-import { createHash } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { schema } from "@o-tid/database";
 import type { DbExecutor } from "./snapshot";
+import { sha256Hex } from "./serialization";
 
 /**
  * Spärr mot upprepade försök (ADR-0172 beslut 1): registreringar per IP och återställningsförfrågningar per
@@ -14,7 +14,7 @@ export const RESET_REQUESTS_PER_IP_AND_HOUR = 10;
 export const RESET_REQUESTS_PER_EMAIL_AND_HOUR = 3;
 
 export function throttleKeyHash(scope: AccountThrottleScope, key: string): string {
-  return createHash("sha256").update(`${scope}\u0000${key}`).digest("hex");
+  return sha256Hex(`${scope}\u0000${key}`);
 }
 
 /** Räknar ett försök och svarar om det ryms inom gränsen. Körs i anroparens transaktion. */

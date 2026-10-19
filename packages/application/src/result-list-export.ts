@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { and, asc, count, desc, eq, inArray } from "drizzle-orm";
 import {
   iofResultListExportMetadataSchema,
@@ -12,17 +11,14 @@ import {
   type IofResultListPersonResult,
   type IofResultListProjection,
 } from "@o-tid/iof-xml";
-import {
-  authenticatePairingAdminSessionForProtectedRead,
-  type PairingAdminRequestAuthentication
-} from "./pairing-admin";
+import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { resolveStoredResultHeadStates } from "./result-revision-state";
 import { parseStrictStoredResultRevision } from "./stored-result-revision";
 import { isResultCurrent, loadResultBasisHashes } from "./result-basis";
 import { loadCourseVersionVariants } from "./course-variants";
 import { relayTeamResultsForExport } from "./relay-export";
+import { UUID_PATTERN, compareText, sha256Hex } from "./serialization";
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const MAX_CLASSES = 1_000;
 const MAX_RESULTS = 10_000;
 const MAX_OMITTED_ENTRIES = 10_000;
@@ -32,17 +28,10 @@ export type IofResultListExportResult =
   | { status: "invalid-request" | "unauthorized" | "forbidden" | "not-found" | "conflict" | "too-large" }
   | { status: "ok"; bytes: Uint8Array; metadata: IofResultListExportMetadata };
 
-export type AuthenticatedIofResultListExportInput = Omit<
-  PairingAdminRequestAuthentication,
-  "capability" | "requireCsrf" | "csrfCookie" | "csrfHeader"
->;
+export type AuthenticatedIofResultListExportInput = Omit<RaceSessionProof, "csrfCookie" | "csrfHeader">;
 
 class StoredResultListConflict extends Error {}
 class ResultListTooLarge extends Error {}
-
-function compareText(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
-}
 
 function externalIofId(source: string | null, externalId: string | null): string | undefined {
   return source === "iof" && externalId !== null && externalId.length > 0 ? externalId : undefined;
@@ -128,11 +117,11 @@ export async function exportIofResultListAsAdmin(
 ): Promise<IofResultListExportResult> {
   if (!UUID_PATTERN.test(input.raceId)) return { status: "invalid-request" };
   return exportIofResultList(db, async (tx) => {
-    const authorization = await authenticatePairingAdminSessionForProtectedRead(tx, {
+    const authorization = await requireRaceRole(tx, {
       sessionToken: input.sessionToken,
       raceId: input.raceId,
-      capability: "EXPORT_IOF_RESULT_LIST"
-    }, now);
+      role: "ADMIN"
+    }, now, "share");
     if (authorization.status !== "authenticated") return authorization;
     return projectIofResultList(tx, authorization.principal.raceId, { externalIds: true });
   });
@@ -192,23 +181,8 @@ async function projectIofResultList(tx: Transaction, raceId: string, options: { 
     reason: schema.resultRevisions.reason,
     cause: schema.resultRevisions.cause,
     readoutId: schema.resultRevisions.readoutId,
-  didNotStartDecisionId: schema.resultRevisions.didNotStartDecisionId,
   startCheckinDnsDecisionId: schema.resultRevisions.startCheckinDnsDecisionId,
   controlNeutralizationId: schema.resultRevisions.controlNeutralizationId,
-    disqualificationDecisionId: schema.resultRevisions.disqualificationDecisionId,
-    disqualificationWithdrawalId: schema.resultRevisions.disqualificationWithdrawalId,
-    approvalDecisionId: schema.resultRevisions.approvalDecisionId,
-    approvalWithdrawalId: schema.resultRevisions.approvalWithdrawalId,
-    didNotFinishDecisionId: schema.resultRevisions.didNotFinishDecisionId,
-    didNotFinishWithdrawalId: schema.resultRevisions.didNotFinishWithdrawalId,
-    notCompetingDecisionId: schema.resultRevisions.notCompetingDecisionId,
-    notCompetingWithdrawalId: schema.resultRevisions.notCompetingWithdrawalId,
-    withoutTimingDecisionId: schema.resultRevisions.withoutTimingDecisionId,
-    withoutTimingWithdrawalId: schema.resultRevisions.withoutTimingWithdrawalId,
-    manualFinishTimeCorrectionId: schema.resultRevisions.manualFinishTimeCorrectionId,
-    manualFinishTimeCorrectionWithdrawalId: schema.resultRevisions.manualFinishTimeCorrectionWithdrawalId,
-    manualPunchStartTimeCorrectionId: schema.resultRevisions.manualPunchStartTimeCorrectionId,
-    manualPunchStartTimeCorrectionWithdrawalId: schema.resultRevisions.manualPunchStartTimeCorrectionWithdrawalId,
     shortenedCourseClassTransferId: schema.resultRevisions.shortenedCourseClassTransferId,
     evaluation: schema.resultRevisions.evaluation,
     engineVersion: schema.resultRevisions.engineVersion,
@@ -243,24 +217,16 @@ async function projectIofResultList(tx: Transaction, raceId: string, options: { 
   const headStates = await resolveStoredResultHeadStates(tx, race.id, latestRows);
   const basisHashes = await loadResultBasisHashes(tx, race.id);
   if (headStates.some((state) =>
-    state.state === "ACTIVE_RESULT" && state.withoutTiming?.withdrawal === null)) {
+    state.state === "ACTIVE_RESULT" && state.governing === "NT")) {
     throw new StoredResultListConflict("Utan tidtagning saknar sanningsenlig IOF 3.0-mappning");
   }
   const stateByHeadId = new Map(headStates.map((state) => [state.head.id, state]));
   const activeRows = headStates.flatMap((state) => {
     if (state.state !== "ACTIVE_RESULT") return [];
-    const approval = state.approval;
     return [{
       ...state.head,
-      manualApprovalProof: state.head.cause === "MANUAL_RESULT_APPROVAL" && approval !== null &&
-        approval.withdrawal === null && approval.approved.id === state.head.id ? {
-          decisionId: approval.decision.id,
-          targetResultRevisionId: approval.target.id
-        } : null,
-      finishTimeCorrectionProof: state.finishTimeCorrection,
-      finishTimeCorrectionWithdrawalProof: state.finishTimeCorrectionWithdrawal,
-      punchStartTimeCorrectionProof: state.punchStartTimeCorrection,
-      punchStartTimeCorrectionWithdrawalProof: state.punchStartTimeCorrectionWithdrawal
+      manualApprovalProof: state.head.cause === "MANUAL_RESULT_APPROVAL" && state.governing === "APPROVAL" &&
+        state.underlyingId !== null ? { decisionId: state.head.id, targetResultRevisionId: state.underlyingId } : null
     }];
   });
   const totalEntries = entryAggregate[0]?.value ?? 0;
@@ -273,11 +239,7 @@ async function projectIofResultList(tx: Transaction, raceId: string, options: { 
   const parsedRows = activeRows.map((row) => {
     const state = stateByHeadId.get(row.id);
     if (!state) throw new StoredResultListConflict("Resultatets livscykel saknas");
-    const evaluation = parseStrictStoredResultRevision(row,
-      state.startCheckinDns?.source,
-      row.finishTimeCorrectionProof ?? undefined, row.finishTimeCorrectionWithdrawalProof ?? undefined,
-      row.punchStartTimeCorrectionProof ?? undefined, row.punchStartTimeCorrectionWithdrawalProof ?? undefined,
-      state.shortenedCourseClassTransfer ?? undefined);
+    const evaluation = parseStrictStoredResultRevision(row, state.startCheckinDns?.source);
     if (evaluation.status === "NT") {
       throw new StoredResultListConflict("Utan tidtagning saknar sanningsenlig IOF 3.0-mappning");
     }
@@ -525,7 +487,7 @@ async function projectIofResultList(tx: Transaction, raceId: string, options: { 
     resultCount: parsedRows.length,
     staleResultCount: parsedRows.filter((row) => !isResultCurrent(row, basisHashes.get(row.entryId), race.snapshotVersion)).length,
     omittedEntryCount,
-    sha256: createHash("sha256").update(bytes).digest("hex")
+    sha256: sha256Hex(bytes)
   });
   return { status: "ok", bytes, metadata } as const;
 }

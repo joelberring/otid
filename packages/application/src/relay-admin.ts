@@ -8,12 +8,14 @@ import {
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { relayLegRuleProblem, relayTeamVariants } from "@o-tid/domain";
-import { authenticatePairingAdminSession, authenticatePairingAdminSessionForMutation, type PairingAdminRequestAuthentication } from "./pairing-admin";
+import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation } from "./concurrency";
 import { loadCourseVersionVariants } from "./course-variants";
 import { loadRelayClassConfigs } from "./relay-model";
 import { synchronizeRelayClass, synchronizeRelayTeams } from "./relay-sync";
 import { classNameTaken } from "./duplicate-names";
+import { bumpReadoutPackageVersion } from "./snapshot";
+import { UUID_PATTERN as uuid } from "./serialization";
 
 /**
  * Stafettens administration (ADR-0169 beslut 3): ny stafettklass, nytt lag, byt sträcklöpare
@@ -22,11 +24,9 @@ import { classNameTaken } from "./duplicate-names";
  * avläsningspaketet hämtas på nytt.
  */
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
-type Authentication = Omit<PairingAdminRequestAuthentication, "capability">;
+type Authentication = RaceSessionProof;
 type Kind = "CLASS" | "TEAM" | "LEG_RUNNER" | "START_TIMES";
 type Failure = { status: "unauthorized" | "forbidden" | "invalid-request" | "not-found" | "conflict" | "duplicate-name" };
-const capability = "MANAGE_RACE" as const;
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const MAX_VERSION = 2_147_483_647;
 
 /**
@@ -34,14 +34,14 @@ const MAX_VERSION = 2_147_483_647;
  * kontroll av tävlingsversionen. `apply` gör ändringen och ger kvittot och journalens klass/lag.
  */
 async function mutate<T extends { request: unknown }>(db: Database, input: Authentication, kind: Kind,
-  intent: { requestId: string; expectedSnapshotVersion: number }, parse: (value: unknown) => T, now: Date,
+  intent: { requestId: string }, parse: (value: unknown) => T, now: Date,
   apply: (tx: Transaction, raceId: string, snapshotVersionAfter: number) => Promise<Failure | { response: T; classId: string; teamId: string | null }>)
   : Promise<Failure | { status: "saved"; response: T }> {
-  const authentication = { ...input, capability, requireCsrf: true };
-  const initial = await authenticatePairingAdminSession(db, authentication, now);
+  const authentication = { ...input, role: "ADMIN" as const, requireCsrf: true };
+  const initial = await requireRaceRole(db, authentication, now);
   if (initial.status !== "authenticated") return initial;
   return db.transaction(async tx => {
-    const auth = await authenticatePairingAdminSessionForMutation(tx, authentication, now);
+    const auth = await requireRaceRole(tx, authentication, now, "update");
     if (auth.status !== "authenticated") return auth;
     const raceId = auth.principal.raceId;
     const race = await lockRaceForMutation(tx, raceId);
@@ -49,21 +49,21 @@ async function mutate<T extends { request: unknown }>(db: Database, input: Authe
     const [prior] = await tx.select().from(schema.relayRequests).where(eq(schema.relayRequests.requestId, intent.requestId));
     if (prior) {
       const response = parse(prior.response);
-      if (prior.kind !== kind || prior.raceId !== raceId || prior.actorCredentialId !== auth.principal.accessCredentialId ||
+      if (prior.kind !== kind || prior.raceId !== raceId || prior.actorAccountId !== auth.principal.accountId ||
           JSON.stringify(response.request) !== JSON.stringify(intent)) return { status: "conflict" };
       return { status: "saved", response: { ...response, replayed: true } };
     }
-    if (race.snapshotVersion !== intent.expectedSnapshotVersion || race.snapshotVersion >= MAX_VERSION) return { status: "conflict" };
+    if (race.snapshotVersion >= MAX_VERSION) return { status: "conflict" };
     const snapshotVersionAfter = race.snapshotVersion + 1;
     const outcome = await apply(tx, raceId, snapshotVersionAfter);
     if ("status" in outcome) return outcome;
-    await tx.update(schema.races).set({ snapshotVersion: snapshotVersionAfter }).where(eq(schema.races.id, raceId));
+    await bumpReadoutPackageVersion(tx, raceId);
     await tx.insert(schema.relayRequests).values({ requestId: intent.requestId, raceId, kind, classId: outcome.classId,
-      teamId: outcome.teamId, actorCredentialId: auth.principal.accessCredentialId, capability,
+      teamId: outcome.teamId, actorAccountId: auth.principal.accountId,
       request: intent as unknown as Record<string, unknown>, response: outcome.response as unknown as Record<string, unknown>, createdAt: now });
     await tx.insert(schema.auditEvents).values({ raceId, entityType: outcome.teamId ? "team" : "class",
-      entityId: outcome.teamId ?? outcome.classId, requestId: intent.requestId, actorKind: "RACE_ADMIN_ACCESS_CREDENTIAL",
-      actorId: auth.principal.accessCredentialId, action: `RELAY_${kind}_SAVED_BY_ADMIN`,
+      entityId: outcome.teamId ?? outcome.classId, requestId: intent.requestId, actorKind: "USER_ACCOUNT",
+      actorId: auth.principal.accountId, action: `RELAY_${kind}_SAVED_BY_ADMIN`,
       before: { snapshotVersion: race.snapshotVersion }, after: { snapshotVersion: snapshotVersionAfter }, createdAt: now });
     return { status: "saved", response: outcome.response };
   });
@@ -86,7 +86,7 @@ async function cardsInUse(tx: Transaction, raceId: string, cards: readonly strin
 export type RelayClassCreateResult = Failure | { status: "saved"; response: RelayClassCreateResponse };
 
 /** "Ny stafettklass": klass på en bana med sträckor och startsätt per sträcka. */
-export async function createRelayClassAsAdministrator(db: Database, input: Authentication & { idempotencyKey: string | null; request: unknown },
+export async function createRelayClassAsAdmin(db: Database, input: Authentication & { idempotencyKey: string | null; request: unknown },
   now = new Date()): Promise<RelayClassCreateResult> {
   const intent = parseIntent(relayClassCreateRequestSchema, input.request);
   const key = relayClassCreateIdempotencyKeySchema.safeParse(input.idempotencyKey);
@@ -121,7 +121,7 @@ export type RelayTeamCreateResult = Failure | { status: "saved"; response: Relay
  * "Nytt lag": namn, klubb, nummer och en löpare (med bricka) per sträcka. En gafflad bana ger
  * varianter per sträcka (sträckans bestämda variant, annars roterade över lagen).
  */
-export async function registerRelayTeamAsAdministrator(db: Database, input: Authentication & { idempotencyKey: string | null; request: unknown },
+export async function registerRelayTeamAsAdmin(db: Database, input: Authentication & { idempotencyKey: string | null; request: unknown },
   now = new Date()): Promise<RelayTeamCreateResult> {
   const intent = parseIntent(relayTeamCreateRequestSchema, input.request);
   const key = relayTeamCreateIdempotencyKeySchema.safeParse(input.idempotencyKey);
@@ -168,7 +168,7 @@ export type RelayLegRunnerResult = Failure | { status: "saved"; response: RelayL
  * "Byt löpare på sträcka N": ny löpare (namn, klubb, bricka) på sträckan. Sträckans resultat
  * och historik följer sträckan; en ny bricka kopplas och den gamla släpps.
  */
-export async function changeRelayLegRunnerAsAdministrator(db: Database, input: Authentication & { idempotencyKey: string | null; request: unknown },
+export async function changeRelayLegRunnerAsAdmin(db: Database, input: Authentication & { idempotencyKey: string | null; request: unknown },
   now = new Date()): Promise<RelayLegRunnerResult> {
   const intent = parseIntent(relayLegRunnerRequestSchema, input.request);
   const key = relayLegRunnerIdempotencyKeySchema.safeParse(input.idempotencyKey);
@@ -202,7 +202,7 @@ export async function changeRelayLegRunnerAsAdministrator(db: Database, input: A
 export type RelayStartTimesResult = Failure | { status: "saved"; response: RelayStartTimesResponse };
 
 /** Masstart- och omstartstider för en stafettklass. Sträckor som får ny start räknas om. */
-export async function setRelayStartTimesAsAdministrator(db: Database, input: Authentication & { idempotencyKey: string | null; request: unknown },
+export async function setRelayStartTimesAsAdmin(db: Database, input: Authentication & { idempotencyKey: string | null; request: unknown },
   now = new Date()): Promise<RelayStartTimesResult> {
   const intent = parseIntent(relayStartTimesRequestSchema, input.request);
   const key = relayStartTimesIdempotencyKeySchema.safeParse(input.idempotencyKey);

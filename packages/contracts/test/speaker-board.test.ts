@@ -1,12 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  speakerBoardEffectiveResultSchema,
-  speakerBoardErrorResponseSchema,
-  speakerBoardLoginRequestSchema,
-  speakerBoardLoginResponseSchema,
-  speakerBoardResponseSchema,
-  speakerBoardRowSchema
-} from "../src";
+import { speakerBoardEffectiveResultSchema, speakerBoardResponseSchema, speakerBoardRowSchema } from "../src";
 
 const raceId = "10000000-0000-4000-8000-000000000002";
 const at = "2026-09-06T10:00:00.000Z";
@@ -22,20 +15,6 @@ const response = {
 };
 
 describe("TASK 008 speakerkontrakt", () => {
-  it("kräver separat capability och canonical credential/scope", () => {
-    const accessCredential = `otid_org_speaker_board_v1.${raceId}.${"A".repeat(43)}`;
-    expect(speakerBoardLoginRequestSchema.parse({ formatVersion: 1, accessCredential }).accessCredential).toBe(accessCredential);
-    expect(speakerBoardLoginRequestSchema.safeParse({ formatVersion: 1,
-      accessCredential: accessCredential.replace("speaker_board", "race_overview") }).success).toBe(false);
-    const login = { formatVersion: 1, raceId, capability: "VIEW_SPEAKER_BOARD", expiresAt: at };
-    expect(speakerBoardLoginResponseSchema.parse(login)).toEqual(login);
-    expect(speakerBoardLoginResponseSchema.safeParse({ ...login, capability: "VIEW_RACE_OVERVIEW" }).success).toBe(false);
-    expect(speakerBoardLoginResponseSchema.safeParse({ ...login, secret: "forbidden" }).success).toBe(false);
-    expect(speakerBoardErrorResponseSchema.parse({ formatVersion: 1, error: "UNAUTHORIZED" }))
-      .toEqual({ formatVersion: 1, error: "UNAUTHORIZED" });
-    expect(speakerBoardErrorResponseSchema.safeParse({ formatVersion: 1, error: "UNAUTHORIZED", givenName: "private" }).success).toBe(false);
-    expect(speakerBoardLoginRequestSchema.safeParse({ formatVersion: 1, accessCredential, actor: "extra" }).success).toBe(false);
-  });
 
   it("bevarar äldre effektivt NT utan tid och tillåter tomt underlag", () => {
     expect(speakerBoardResponseSchema.parse(response)).toEqual(response);

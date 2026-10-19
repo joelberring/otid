@@ -5,8 +5,8 @@ import { speakerBoardEffectiveResultSchema } from "./speaker-board";
 import { courseVariantCodeSchema } from "./course-edit";
 import { raceTypeSchema } from "./race-settings";
 import { racePublicationStateSchema } from "./race-publication";
+import { prefixedUuidPattern, uuidSchema as uuid } from "./ids";
 
-const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 const version = z.number().int().positive().max(2_147_483_647);
 const startRule = z.enum(["FIXED", "PUNCH"]);
 export const entryTransferResultFreshnessSchema = z.enum([
@@ -32,7 +32,7 @@ export const entryTransferResultRevisionMarkerSchema = z.enum([
 ]);
 export const entryTransferRequestSchema = z.object({
   formatVersion: z.literal(1), expectedEntryVersion: version, expectedClassId: uuid,
-  expectedSnapshotVersion: version, expectedFixedStartTime: fixedStartTimeSchema.nullable(),
+  expectedFixedStartTime: fixedStartTimeSchema.nullable(),
   targetClassId: uuid, expectedTargetCourseVersionId: uuid, expectedTargetStartRule: startRule,
   fixedStartTime: fixedStartTimeSchema.nullable()
 }).strict().refine(value => value.expectedClassId !== value.targetClassId &&
@@ -90,13 +90,12 @@ export const entryTransferCandidatesSchema = z.object({
     ));
 });
 export const entryTransferIdempotencyKeySchema = z.string().regex(
-  /^entry-transfer:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  prefixedUuidPattern("entry-transfer"));
 export const entryTransferResponseSchema = z.object({
   formatVersion: z.literal(1), replayed: z.boolean(), requestId: uuid, raceId: uuid, entryId: uuid,
   request: entryTransferRequestSchema, entryVersionAfter: version, snapshotVersionAfter: version,
   changedAt: z.iso.datetime({ offset: true })
-}).strict().refine(value => value.entryVersionAfter === value.request.expectedEntryVersion + 1 &&
-  value.snapshotVersionAfter === value.request.expectedSnapshotVersion + 1);
+}).strict().refine(value => value.entryVersionAfter === value.request.expectedEntryVersion + 1);
 export type EntryTransferRequest = z.infer<typeof entryTransferRequestSchema>;
 export type EntryTransferResultFreshness = z.infer<typeof entryTransferResultFreshnessSchema>;
 export type EntryTransferResultRevisionMarker = z.infer<typeof entryTransferResultRevisionMarkerSchema>;

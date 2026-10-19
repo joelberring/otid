@@ -2,13 +2,13 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { migrate } from "@o-tid/database";
 import { createDatabase } from "@o-tid/database";
-import { createManualCourseClassAsAdministrator } from "../../src/manual-course-class";
-import { neutralizeClassControlAsAdministrator, previewClassControlNeutralizationAsAdministrator } from "../../src/class-control-neutralization";
-import { issuePairingAdminAccessCredential, loginPairingAdmin } from "../../src/pairing-admin";
+import { createManualCourseClassAsAdmin } from "../../src/manual-course-class";
+import { neutralizeClassControlAsAdmin, previewClassControlNeutralizationAsAdmin } from "../../src/class-control-neutralization";
 import { ingestDeviceBatch } from "../../src/ingest";
 import { exportIofResultListAsAdmin } from "../../src/result-list-export";
 import { listResultFinalizationCandidatesAsAdmin } from "../../src/result-finalization";
-import { contentHash } from "../../src/hash";
+import { contentHash } from "../../src/serialization";
+import { raceLogin } from "./accounts";
 
 const url = process.env.TEST_DATABASE_URL;
 if (!url) throw new Error("TEST_DATABASE_URL krävs för en uttryckligen isolerad testdatabas");
@@ -21,21 +21,15 @@ async function fixture() {
   const eventId = randomUUID(), raceId = randomUUID();
   await pool.query("INSERT INTO event(id,name,starts_on,time_zone) VALUES($1,'TASK092','2026-09-19','Europe/Stockholm')", [eventId]);
   await pool.query("INSERT INTO race(id,event_id,name,race_date) VALUES($1,$2,'TASK092','2026-09-19')", [raceId, eventId]);
-  const issued = await issuePairingAdminAccessCredential(db, { raceId, capability: "MANAGE_RACE", label: "TASK092", expiresAt: new Date(now.getTime() + 3_600_000) }, { now });
-  const login = await loginPairingAdmin(db, { formatVersion: 1, accessCredential: issued.accessCredential }, { expectedRaceId: raceId, expectedCapability: "MANAGE_RACE", now });
-  if (login.status !== "authenticated") throw new Error("Synthetic login failed");
+  const login = await raceLogin(db, raceId, "ADMIN", now);
   const auth = { raceId, sessionToken: login.sessionToken, csrfCookie: login.csrfToken, csrfHeader: login.csrfToken };
-  const exportIssued = await issuePairingAdminAccessCredential(db, { raceId, capability: "EXPORT_IOF_RESULT_LIST", label: "TASK092 export", expiresAt: new Date(now.getTime() + 3_600_000) }, { now });
-  const exportLogin = await loginPairingAdmin(db, { formatVersion: 1, accessCredential: exportIssued.accessCredential }, { expectedRaceId: raceId, expectedCapability: "EXPORT_IOF_RESULT_LIST", now });
-  if (exportLogin.status !== "authenticated") throw new Error("Synthetic export login failed");
+  const exportLogin = await raceLogin(db, raceId, "ADMIN", now);
   const exportAuth = { raceId, sessionToken: exportLogin.sessionToken };
-  const finalIssued = await issuePairingAdminAccessCredential(db, { raceId, capability: "FINALIZE_RESULTS", label: "TASK092 final", expiresAt: new Date(now.getTime() + 3_600_000) }, { now });
-  const finalLogin = await loginPairingAdmin(db, { formatVersion: 1, accessCredential: finalIssued.accessCredential }, { expectedRaceId: raceId, expectedCapability: "FINALIZE_RESULTS", now });
-  if (finalLogin.status !== "authenticated") throw new Error("Synthetic finalization login failed");
+  const finalLogin = await raceLogin(db, raceId, "ADMIN", now);
   const finalAuth = { raceId, sessionToken: finalLogin.sessionToken };
   const createRequestId = randomUUID();
-  const created = await createManualCourseClassAsAdministrator(db, { ...auth, idempotencyKey: `manual-course-class-create:${createRequestId}`,
-    request: { formatVersion: 1, requestId: createRequestId, expectedSnapshotVersion: 1, courseName: "Manuell", className: "Öppen", startRule: "PUNCH", controlCodes: [31, 31, 42] } }, now);
+  const created = await createManualCourseClassAsAdmin(db, { ...auth, idempotencyKey: `manual-course-class-create:${createRequestId}`,
+    request: { formatVersion: 1, requestId: createRequestId, courseName: "Manuell", className: "Öppen", startRule: "PUNCH", controlCodes: [31, 31, 42] } }, now);
   if (created.status !== "created") throw new Error("Fixture class failed");
   const entryId = randomUUID();
   await pool.query("INSERT INTO entry(id,race_id,class_id,given_name,family_name) VALUES($1,$2,$3,'Ada','TASK092')", [entryId, raceId, created.response.classId]);
@@ -50,16 +44,15 @@ async function fixture() {
 
 it("TASK092 journals one exact repeated-code occurrence, preserves history, and exactly replays", async () => {
   const f = await fixture();
-  const candidate = await previewClassControlNeutralizationAsAdministrator(db, { ...f.auth, classId: f.created.classId }, now);
+  const candidate = await previewClassControlNeutralizationAsAdmin(db, { ...f.auth, classId: f.created.classId }, now);
   expect(candidate.status).toBe("ok");
   if (candidate.status !== "ok") return;
   expect(candidate.response.controls.map((control) => [control.sequence, control.controlCode])).toEqual([[1, 31], [2, 31], [3, 42]]);
   const control = candidate.response.controls[0]!;
   const before = await pool.query("SELECT id,revision,evaluation FROM result_revision WHERE entry_id=$1", [f.entryId]);
-  const request = { formatVersion: 1 as const, requestId: randomUUID(), expectedSnapshotVersion: candidate.response.snapshotVersion,
-    expectedBasisHash: candidate.response.basisHash, classId: f.created.classId, expectedCourseVersionId: candidate.response.courseVersionId,
+  const request = { formatVersion: 1 as const, requestId: randomUUID(), expectedBasisHash: candidate.response.basisHash, classId: f.created.classId, expectedCourseVersionId: candidate.response.courseVersionId,
     courseControlId: control.id, sequence: control.sequence, controlCode: control.controlCode, acknowledgedNoAutomaticRecalculation: true as const };
-  const changed = await neutralizeClassControlAsAdministrator(db, { ...f.auth, idempotencyKey: `class-control-neutralization:${request.requestId}`, request }, now);
+  const changed = await neutralizeClassControlAsAdmin(db, { ...f.auth, idempotencyKey: `class-control-neutralization:${request.requestId}`, request }, now);
   expect(changed.status).toBe("changed");
   if (changed.status !== "changed") return;
   expect(changed.response).toMatchObject({ courseControlId: control.id, sequence: 1, controlCode: 31, snapshotVersionAfter: candidate.response.snapshotVersion + 1 });
@@ -82,14 +75,14 @@ it("TASK092 journals one exact repeated-code occurrence, preserves history, and 
     expect(finalization.response.classes.find((row) => row.classId === f.created.classId)?.blockerCodes)
       .toContain("INVALID_RESULT_REVISION");
   }
-  expect(await neutralizeClassControlAsAdministrator(db, { ...f.auth, idempotencyKey: `class-control-neutralization:${request.requestId}`, request }, now))
+  expect(await neutralizeClassControlAsAdmin(db, { ...f.auth, idempotencyKey: `class-control-neutralization:${request.requestId}`, request }, now))
     .toEqual({ status: "changed", response: { ...changed.response, replayed: true } });
   await expect(pool.query("UPDATE class_control_neutralization SET request=request WHERE id=$1", [request.requestId])).rejects.toThrow();
 });
 
 it("TASK092 rejects stale result basis without writing a neutralization", async () => {
   const f = await fixture();
-  const candidate = await previewClassControlNeutralizationAsAdministrator(db, { ...f.auth, classId: f.created.classId }, now);
+  const candidate = await previewClassControlNeutralizationAsAdmin(db, { ...f.auth, classId: f.created.classId }, now);
   if (candidate.status !== "ok") throw new Error("candidate missing");
   const payload = { cardNumber: "92001", startPunchedAt: "2026-09-19T12:00:00Z", finishPunchedAt: "2026-09-19T12:21:00Z", punches: [
     { code: 31, punchedAt: "2026-09-19T12:05:00Z" }, { code: 31, punchedAt: "2026-09-19T12:08:00Z" }, { code: 42, punchedAt: "2026-09-19T12:10:00Z" }
@@ -97,10 +90,10 @@ it("TASK092 rejects stale result basis without writing a neutralization", async 
   await ingestDeviceBatch(db, f.raceId, { deviceId: randomUUID(), sessionId: randomUUID(), packageVersion: candidate.response.snapshotVersion, firstSequence: 1, lastSequence: 1,
     events: [{ localSequence: 1, stationReceivedAt: "2026-09-19T12:22:00Z", transport: "simulator", payload, contentHash: contentHash(payload) }] });
   const control = candidate.response.controls[0]!, request = { formatVersion: 1 as const, requestId: randomUUID(),
-    expectedSnapshotVersion: candidate.response.snapshotVersion, expectedBasisHash: candidate.response.basisHash,
+    expectedBasisHash: candidate.response.basisHash,
     classId: f.created.classId, expectedCourseVersionId: candidate.response.courseVersionId, courseControlId: control.id,
     sequence: control.sequence, controlCode: control.controlCode, acknowledgedNoAutomaticRecalculation: true as const };
-  expect((await neutralizeClassControlAsAdministrator(db, { ...f.auth,
+  expect((await neutralizeClassControlAsAdmin(db, { ...f.auth,
     idempotencyKey: `class-control-neutralization:${request.requestId}`, request }, now)).status).toBe("conflict");
   expect((await pool.query<{ count: string }>("SELECT count(*) FROM class_control_neutralization WHERE race_id=$1", [f.raceId])).rows[0]?.count).toBe("0");
 });

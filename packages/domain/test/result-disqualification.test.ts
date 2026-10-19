@@ -1,11 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   createDisqualifiedResult,
-  resolveManualDisqualificationResultHead,
   ResultDisqualificationError,
   type DisqualifiableResult,
-  type ManualDisqualificationDecisionReference,
-  type ManualDisqualificationResultHead
 } from "../src";
 
 const entryId = "10000000-0000-4000-8000-000000000001";
@@ -25,21 +22,6 @@ const ok: DisqualifiableResult = {
   extraPunches: [99],
   splits: [{ controlCode: 31, occurrence: 1, elapsedMs: 30_000, legMs: 30_000 }]
 };
-
-function head(id: string, revision: number, value = id): ManualDisqualificationResultHead<string> {
-  return { resultRevisionId: id, revision, value };
-}
-
-function decision(
-  withdrawal: ManualDisqualificationDecisionReference<string>["withdrawal"] = null
-): ManualDisqualificationDecisionReference<string> {
-  return {
-    id: "decision",
-    targetResultRevisionId: "target",
-    disqualifiedResultHead: head("dsq", 2, "frozen-dsq"),
-    withdrawal
-  };
-}
 
 describe("createDisqualifiedResult", () => {
   const explanations = { missingControls: [45], extraPunches: [99], splits: [] };
@@ -78,55 +60,3 @@ describe("createDisqualifiedResult", () => {
   });
 });
 
-describe("resolveManualDisqualificationResultHead", () => {
-  it("väljer normalt huvud utan beslut och NO_ACTIVE_RESULT utan huvud", () => {
-    expect(resolveManualDisqualificationResultHead(null, null)).toEqual({ state: "NO_ACTIVE_RESULT" });
-    expect(resolveManualDisqualificationResultHead(head("normal", 1), null)).toEqual({
-      state: "ACTIVE_RESULT",
-      source: "RESULT_HEAD",
-      resultHead: head("normal", 1)
-    });
-  });
-
-  it("håller den frysta DSQ-revisionen aktiv över ett senare tekniskt huvud", () => {
-    expect(resolveManualDisqualificationResultHead(head("later", 3), decision())).toEqual({
-      state: "ACTIVE_RESULT",
-      source: "MANUAL_DISQUALIFICATION",
-      resultHead: head("dsq", 2, "frozen-dsq"),
-      decisionId: "decision",
-      underlyingResultHead: head("later", 3)
-    });
-  });
-
-  it("accepterar exakt restaureringshuvud och senare tekniskt huvud efter withdrawal", () => {
-    const withdrawn = decision({
-      id: "withdrawal",
-      resultDisqualificationDecisionId: "decision",
-      disqualifiedResultRevisionId: "dsq",
-      restorationResultRevisionId: "restored",
-      restorationResultRevision: 4
-    });
-    expect(resolveManualDisqualificationResultHead(head("restored", 4), withdrawn)).toMatchObject({
-      source: "RESULT_HEAD", resultHead: head("restored", 4)
-    });
-    expect(resolveManualDisqualificationResultHead(head("technical", 5), withdrawn)).toMatchObject({
-      source: "RESULT_HEAD", resultHead: head("technical", 5)
-    });
-  });
-
-  it("avvisar historisk fallback och bruten withdrawalprovenans", () => {
-    const baseWithdrawal = {
-      id: "withdrawal",
-      resultDisqualificationDecisionId: "decision",
-      disqualifiedResultRevisionId: "dsq",
-      restorationResultRevisionId: "restored",
-      restorationResultRevision: 4
-    };
-    expect(() => resolveManualDisqualificationResultHead(head("old", 3), decision(baseWithdrawal)))
-      .toThrowError(ResultDisqualificationError);
-    expect(() => resolveManualDisqualificationResultHead(head("restored", 4), decision({
-      ...baseWithdrawal,
-      resultDisqualificationDecisionId: "other"
-    }))).toThrowError(ResultDisqualificationError);
-  });
-});

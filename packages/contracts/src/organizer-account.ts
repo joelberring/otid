@@ -6,8 +6,8 @@ import {
 } from "./event-creation";
 import { raceTypeSchema } from "./race-settings";
 import { accountEmailSchema, ACCOUNT_PASSWORD_MIN_LENGTH, storedAccountEmailSchema } from "./account";
+import { UUID_SOURCE as canonicalUuidPattern } from "./ids";
 
-const canonicalUuidPattern = "[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
 const uuid = z.string().regex(new RegExp(`^${canonicalUuidPattern}$`));
 const instant = z.iso.datetime({ offset: true });
 
@@ -76,12 +76,6 @@ export const organizerMyEventsResponseSchema = z.object({
   events: z.array(organizerEventSchema).max(10_000)
 }).strict();
 
-export const organizerRaceEnterResponseSchema = z.object({
-  formatVersion: z.literal(1),
-  raceId: uuid,
-  role: z.enum(["ADMIN", "FUNCTIONARY"]),
-  expiresAt: instant
-}).strict();
 
 export type OrganizerAccountLoginRequest = z.input<typeof organizerAccountLoginRequestSchema>;
 export type OrganizerAccountLoginResponse = z.infer<typeof organizerAccountLoginResponseSchema>;
@@ -90,4 +84,3 @@ export type OrganizerEventCreateIdempotencyKey = z.infer<typeof organizerEventCr
 export type OrganizerEventCreateRequest = z.input<typeof organizerEventCreateRequestSchema>;
 export type OrganizerEventCreateResponse = EventCreationResponse;
 export type OrganizerMyEventsResponse = z.infer<typeof organizerMyEventsResponseSchema>;
-export type OrganizerRaceEnterResponse = z.infer<typeof organizerRaceEnterResponseSchema>;

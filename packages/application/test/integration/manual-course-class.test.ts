@@ -3,10 +3,10 @@ import { readFile } from "node:fs/promises";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { migrate } from "@o-tid/database";
 import { createDatabase } from "@o-tid/database";
-import { createManualCourseClassAsAdministrator } from "../../src/manual-course-class";
-import { createManualClassAsAdministrator } from "../../src/manual-class";
-import { issuePairingAdminAccessCredential, loginPairingAdmin } from "../../src/pairing-admin";
+import { createManualCourseClassAsAdmin } from "../../src/manual-course-class";
+import { createManualClassAsAdmin } from "../../src/manual-class";
 import { importIofXml } from "../../src/import-iof";
+import { raceLogin } from "./accounts";
 
 const url = process.env.TEST_DATABASE_URL;
 if (!url) throw new Error("TEST_DATABASE_URL krävs för en uttryckligen isolerad testdatabas");
@@ -19,62 +19,44 @@ async function fixture() {
   const eventId = randomUUID(), raceId = randomUUID();
   await pool.query("INSERT INTO event(id,name,starts_on,time_zone) VALUES($1,'TASK081','2026-09-19','Europe/Stockholm')", [eventId]);
   await pool.query("INSERT INTO race(id,event_id,name,race_date) VALUES($1,$2,'TASK081','2026-09-19')", [raceId, eventId]);
-  const issued = await issuePairingAdminAccessCredential(db, { raceId, capability: "MANAGE_RACE", label: "TASK081",
-    expiresAt: new Date(now.getTime() + 3_600_000) }, { now });
-  const login = await loginPairingAdmin(db, { formatVersion: 1, accessCredential: issued.accessCredential }, { expectedRaceId: raceId, expectedCapability: "MANAGE_RACE", now });
-  if (login.status !== "authenticated") throw new Error("Synthetic login failed");
+  const login = await raceLogin(db, raceId, "ADMIN", now);
   const auth = { raceId, sessionToken: login.sessionToken, csrfCookie: login.csrfToken, csrfHeader: login.csrfToken };
-  const request = { formatVersion: 1 as const, requestId: randomUUID(), expectedSnapshotVersion: 1,
-    courseName: "Manuell bana", className: "Öppen", startRule: "PUNCH" as const, controlCodes: [31, 42, 31] };
+  const request = { formatVersion: 1 as const, requestId: randomUUID(), courseName: "Manuell bana", className: "Öppen", startRule: "PUNCH" as const, controlCodes: [31, 42, 31] };
   return { raceId, auth, request, key: `manual-course-class-create:${request.requestId}` };
 }
 
 it("TASK081 creates an ordered manual course/class once and protects its history", async () => {
   const f = await fixture();
-  const created = await createManualCourseClassAsAdministrator(db, { ...f.auth, idempotencyKey: f.key, request: f.request }, now);
+  const created = await createManualCourseClassAsAdmin(db, { ...f.auth, idempotencyKey: f.key, request: f.request }, now);
   expect(created.status).toBe("created");
   if (created.status !== "created") return;
   expect(created.response).toMatchObject({ snapshotVersionBefore: 1, snapshotVersionAfter: 2, request: f.request });
   expect((await pool.query("SELECT external_source,external_id,start_rule,max_entries,capacity_version FROM class WHERE id=$1", [created.response.classId])).rows[0])
     .toEqual({ external_source: null, external_id: null, start_rule: "PUNCH", max_entries: null, capacity_version: 1 });
   expect((await pool.query<{ code: number }>("SELECT c.code FROM course_control cc JOIN control c ON c.id=cc.control_id WHERE cc.course_version_id=$1 ORDER BY cc.sequence", [created.response.courseVersionId])).rows.map(row => row.code)).toEqual([31, 42, 31]);
-  const replay = await createManualCourseClassAsAdministrator(db, { ...f.auth, idempotencyKey: f.key, request: f.request }, now);
+  const replay = await createManualCourseClassAsAdmin(db, { ...f.auth, idempotencyKey: f.key, request: f.request }, now);
   expect(replay.status === "created" && replay.response.replayed).toBe(true);
-  const otherIssued = await issuePairingAdminAccessCredential(db, { raceId: f.raceId, capability: "MANAGE_RACE", label: "Other TASK081 admin",
-    expiresAt: new Date(now.getTime() + 3_600_000) }, { now });
-  const otherLogin = await loginPairingAdmin(db, { formatVersion: 1, accessCredential: otherIssued.accessCredential },
-    { expectedRaceId: f.raceId, expectedCapability: "MANAGE_RACE", now });
-  if (otherLogin.status !== "authenticated") throw new Error("Synthetic second login failed");
-  expect((await createManualCourseClassAsAdministrator(db, { raceId: f.raceId, sessionToken: otherLogin.sessionToken,
+  const otherLogin = await raceLogin(db, f.raceId, "ADMIN", now);
+  expect((await createManualCourseClassAsAdmin(db, { raceId: f.raceId, sessionToken: otherLogin.sessionToken,
     csrfCookie: otherLogin.csrfToken, csrfHeader: otherLogin.csrfToken, idempotencyKey: f.key, request: f.request }, now)).status).toBe("conflict");
   expect((await pool.query<{ snapshot_version: number }>("SELECT snapshot_version FROM race WHERE id=$1", [f.raceId])).rows[0]?.snapshot_version).toBe(2);
   await expect(pool.query("UPDATE course_control SET sequence=sequence WHERE course_version_id=$1", [created.response.courseVersionId])).rejects.toThrow();
   await expect(pool.query("UPDATE manual_course_class_create_request SET request=request WHERE request_id=$1", [f.request.requestId])).rejects.toThrow();
   await expect(pool.query("DELETE FROM manual_course_class_create_request WHERE request_id=$1", [f.request.requestId])).rejects.toThrow();
   await expect(pool.query("DELETE FROM course_control WHERE course_version_id=$1", [created.response.courseVersionId])).rejects.toThrow();
-  expect((await createManualCourseClassAsAdministrator(db, { ...f.auth, idempotencyKey: f.key,
+  expect((await createManualCourseClassAsAdmin(db, { ...f.auth, idempotencyKey: f.key,
     request: { ...f.request, className: "Ändrad" } }, now)).status).toBe("conflict");
-});
-
-it("TASK081 rolls back stale requests", async () => {
-  const f = await fixture();
-  const result = await createManualCourseClassAsAdministrator(db, { ...f.auth, idempotencyKey: f.key, request: { ...f.request, expectedSnapshotVersion: 2 } }, now);
-  expect(result.status).toBe("conflict");
-  expect((await pool.query<{ count: string }>("SELECT count(*) FROM course WHERE race_id=$1", [f.raceId])).rows[0]?.count).toBe("0");
 });
 
 it("TASK081 preserves manual objects across IOF import and rejects a limited credential", async () => {
   const f = await fixture();
-  const limitedIssued = await issuePairingAdminAccessCredential(db, { raceId: f.raceId, capability: "CHANGE_ENTRY_CLASS", label: "Limited",
-    expiresAt: new Date(now.getTime() + 3_600_000) }, { now });
-  const limitedLogin = await loginPairingAdmin(db, { formatVersion: 1, accessCredential: limitedIssued.accessCredential }, { expectedRaceId: f.raceId, expectedCapability: "CHANGE_ENTRY_CLASS", now });
-  if (limitedLogin.status !== "authenticated") throw new Error("Synthetic limited login failed");
-  expect((await createManualCourseClassAsAdministrator(db, { raceId: f.raceId, sessionToken: limitedLogin.sessionToken,
+  const limitedLogin = await raceLogin(db, f.raceId, "FUNCTIONARY", now);
+  expect((await createManualCourseClassAsAdmin(db, { raceId: f.raceId, sessionToken: limitedLogin.sessionToken,
     csrfCookie: limitedLogin.csrfToken, csrfHeader: limitedLogin.csrfToken, idempotencyKey: f.key, request: f.request }, now)).status).toBe("forbidden");
   const xml = await readFile(new URL("../../../../fixtures/iof/course-data.xml", import.meta.url), "utf8");
   await importIofXml(db, f.raceId, xml);
-  const created = await createManualCourseClassAsAdministrator(db, { ...f.auth, idempotencyKey: f.key,
-    request: { ...f.request, expectedSnapshotVersion: 2 } }, now);
+  const created = await createManualCourseClassAsAdmin(db, { ...f.auth, idempotencyKey: f.key,
+    request: f.request }, now);
   expect(created.status).toBe("created");
   if (created.status !== "created") return;
   await importIofXml(db, f.raceId, xml);
@@ -85,11 +67,8 @@ it("TASK081 preserves manual objects across IOF import and rejects a limited cre
     "WHERE c.race_id=$1 AND c.external_source IS NOT NULL AND EXISTS " +
     "(SELECT 1 FROM course_control cc WHERE cc.course_version_id=cv.id) ORDER BY cv.version LIMIT 1", [f.raceId])).rows[0];
   if (!imported) throw new Error("Synthetic IOF course version missing");
-  const snapshotVersion = (await pool.query<{ snapshot_version: number }>(
-    "SELECT snapshot_version FROM race WHERE id=$1", [f.raceId])).rows[0]!.snapshot_version;
-  const importedRequest = { formatVersion: 1 as const, requestId: randomUUID(), expectedSnapshotVersion: snapshotVersion,
-    courseVersionId: imported.course_version_id, className: "Manuell klass på IOF-bana", startRule: "FIXED" as const };
-  const importedClass = await createManualClassAsAdministrator(db, { ...f.auth,
+  const importedRequest = { formatVersion: 1 as const, requestId: randomUUID(), courseVersionId: imported.course_version_id, className: "Manuell klass på IOF-bana", startRule: "FIXED" as const };
+  const importedClass = await createManualClassAsAdmin(db, { ...f.auth,
     idempotencyKey: `manual-class-create:${importedRequest.requestId}`, request: importedRequest }, now);
   expect(importedClass.status).toBe("created");
   if (importedClass.status !== "created") return;
@@ -99,7 +78,7 @@ it("TASK081 preserves manual objects across IOF import and rejects a limited cre
 
 it("TASK300 adds two manual classes to one exact version without copying its course or controls", async () => {
   const f = await fixture();
-  const source = await createManualCourseClassAsAdministrator(db, { ...f.auth, idempotencyKey: f.key, request: f.request }, now);
+  const source = await createManualCourseClassAsAdmin(db, { ...f.auth, idempotencyKey: f.key, request: f.request }, now);
   if (source.status !== "created") throw new Error("Synthetic source course not created");
   const counts = async () => (await pool.query<{ courses: string; versions: string; controls: string }>(
     "SELECT (SELECT count(*) FROM course WHERE race_id=$1) AS courses, " +
@@ -107,18 +86,16 @@ it("TASK300 adds two manual classes to one exact version without copying its cou
     "(SELECT count(*) FROM course_control WHERE course_version_id=$3) AS controls",
     [f.raceId, source.response.courseId, source.response.courseVersionId])).rows[0];
   const before = await counts();
-  const firstRequest = { formatVersion: 1 as const, requestId: randomUUID(), expectedSnapshotVersion: 2,
-    courseVersionId: source.response.courseVersionId, className: "D40", startRule: "PUNCH" as const };
+  const firstRequest = { formatVersion: 1 as const, requestId: randomUUID(), courseVersionId: source.response.courseVersionId, className: "D40", startRule: "PUNCH" as const };
   const firstKey = `manual-class-create:${firstRequest.requestId}`;
-  const first = await createManualClassAsAdministrator(db, { ...f.auth, idempotencyKey: firstKey, request: firstRequest }, now);
+  const first = await createManualClassAsAdmin(db, { ...f.auth, idempotencyKey: firstKey, request: firstRequest }, now);
   expect(first.status).toBe("created");
   if (first.status !== "created") return;
   expect(first.response).toMatchObject({ courseId: source.response.courseId,
     courseVersionId: source.response.courseVersionId, courseName: "Manuell bana", courseVersion: 1,
     snapshotVersionBefore: 2, snapshotVersionAfter: 3, request: firstRequest });
-  const secondRequest = { ...firstRequest, requestId: randomUUID(), expectedSnapshotVersion: 3,
-    className: "H55", startRule: "FIXED" as const };
-  const second = await createManualClassAsAdministrator(db, { ...f.auth,
+  const secondRequest = { ...firstRequest, requestId: randomUUID(), className: "H55", startRule: "FIXED" as const };
+  const second = await createManualClassAsAdmin(db, { ...f.auth,
     idempotencyKey: `manual-class-create:${secondRequest.requestId}`, request: secondRequest }, now);
   expect(second.status).toBe("created");
   if (second.status !== "created") return;
@@ -132,38 +109,34 @@ it("TASK300 adds two manual classes to one exact version without copying its cou
     { id: first.response.classId, course_version_id: source.response.courseVersionId, start_rule: "PUNCH",
       external_source: null, external_id: null, max_entries: null, capacity_version: 1 }
   ]);
-  const replay = await createManualClassAsAdministrator(db, { ...f.auth, idempotencyKey: firstKey, request: firstRequest }, now);
+  const replay = await createManualClassAsAdmin(db, { ...f.auth, idempotencyKey: firstKey, request: firstRequest }, now);
   expect(replay.status === "created" && replay.response.replayed).toBe(true);
   expect(replay.status === "created" && replay.response.classId).toBe(first.response.classId);
-  expect((await createManualClassAsAdministrator(db, { ...f.auth, idempotencyKey: firstKey,
+  expect((await createManualClassAsAdmin(db, { ...f.auth, idempotencyKey: firstKey,
     request: { ...firstRequest, className: "Ändrad" } }, now)).status).toBe("conflict");
-  expect((await createManualClassAsAdministrator(db, { ...f.auth,
+  expect((await createManualClassAsAdmin(db, { ...f.auth,
     idempotencyKey: `manual-class-create:${randomUUID()}`, request: { ...firstRequest, requestId: randomUUID() } }, now)).status).toBe("invalid-request");
-  const stale = { ...firstRequest, requestId: randomUUID(), expectedSnapshotVersion: 2 };
-  expect((await createManualClassAsAdministrator(db, { ...f.auth,
-    idempotencyKey: `manual-class-create:${stale.requestId}`, request: stale }, now)).status).toBe("conflict");
-  const otherIssued = await issuePairingAdminAccessCredential(db, { raceId: f.raceId, capability: "MANAGE_RACE", label: "TASK300 second actor",
-    expiresAt: new Date(now.getTime() + 3_600_000) }, { now });
-  const otherLogin = await loginPairingAdmin(db, { formatVersion: 1, accessCredential: otherIssued.accessCredential },
-    { expectedRaceId: f.raceId, expectedCapability: "MANAGE_RACE", now });
-  if (otherLogin.status !== "authenticated") throw new Error("Synthetic second login failed");
-  expect((await createManualClassAsAdministrator(db, { raceId: f.raceId, sessionToken: otherLogin.sessionToken,
+  // En ny förfrågan med samma klassnamn avvisas; versionen kontrolleras inte längre (steg 23).
+  const sameName = { ...firstRequest, requestId: randomUUID() };
+  expect((await createManualClassAsAdmin(db, { ...f.auth,
+    idempotencyKey: `manual-class-create:${sameName.requestId}`, request: sameName }, now)).status).toBe("duplicate-name");
+  const otherLogin = await raceLogin(db, f.raceId, "ADMIN", now);
+  expect((await createManualClassAsAdmin(db, { raceId: f.raceId, sessionToken: otherLogin.sessionToken,
     csrfCookie: otherLogin.csrfToken, csrfHeader: otherLogin.csrfToken,
     idempotencyKey: firstKey, request: firstRequest }, now)).status).toBe("conflict");
   const foreign = await fixture();
-  const foreignSource = await createManualCourseClassAsAdministrator(db, { ...foreign.auth,
+  const foreignSource = await createManualCourseClassAsAdmin(db, { ...foreign.auth,
     idempotencyKey: foreign.key, request: foreign.request }, now);
   if (foreignSource.status !== "created") throw new Error("Synthetic foreign course not created");
-  const wrongRace = { ...firstRequest, requestId: randomUUID(), expectedSnapshotVersion: 4,
-    courseVersionId: foreignSource.response.courseVersionId };
-  expect((await createManualClassAsAdministrator(db, { ...f.auth,
+  const wrongRace = { ...firstRequest, requestId: randomUUID(), courseVersionId: foreignSource.response.courseVersionId };
+  expect((await createManualClassAsAdmin(db, { ...f.auth,
     idempotencyKey: `manual-class-create:${wrongRace.requestId}`, request: wrongRace }, now)).status).toBe("not-found");
   expect((await pool.query<{ snapshot_version: number }>("SELECT snapshot_version FROM race WHERE id=$1", [f.raceId])).rows[0]?.snapshot_version).toBe(4);
   expect(await counts()).toEqual(before);
   expect((await pool.query<{ count: string }>("SELECT count(*) FROM manual_class_create_request WHERE race_id=$1", [f.raceId])).rows[0]?.count).toBe("2");
   await expect(pool.query("UPDATE manual_class_create_request SET request=request WHERE request_id=$1", [firstRequest.requestId])).rejects.toThrow();
   await expect(pool.query("DELETE FROM manual_class_create_request WHERE request_id=$1", [firstRequest.requestId])).rejects.toThrow();
-  const originalReplay = await createManualClassAsAdministrator(db, { ...f.auth,
+  const originalReplay = await createManualClassAsAdmin(db, { ...f.auth,
     idempotencyKey: firstKey, request: firstRequest }, now);
   expect(originalReplay.status).toBe("created");
   if (originalReplay.status !== "created") return;

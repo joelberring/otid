@@ -3,10 +3,10 @@ import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrate } from "@o-tid/database";
 import { createDatabase } from "@o-tid/database";
-import { authenticatePairingAdminSession, type RaceAdminCapability } from "../../src/pairing-admin";
+import { requireRaceRole } from "../../src/race-session";
 import { registerUserAccount } from "../../src/user-account";
-import { createEventAsUserAccount, enterRaceAsUserAccount } from "../../src/organizer-events";
-import { grantRacePerson } from "./accounts";
+import { createOrganizerEvent } from "../../src/organizer-events";
+import { grantRacePerson, accountOnRace } from "./accounts";
 import { importIofXmlAsAdmin } from "../../src/import-iof";
 
 const base = process.env.TEST_DATABASE_URL;
@@ -48,7 +48,7 @@ describe("ADR-0168 två behörighetsnivåer", () => {
     expect(await registerUserAccount(db, { formatVersion: 1, email: `kort.${suffix}@test.o-tid.se`, displayName: "X", password: "kort" }))
       .toEqual({ status: "invalid-request" });
 
-    const created = await createEventAsUserAccount(db, { ...owner.proof, idempotencyKey: `organizer-event-create:${randomUUID()}`,
+    const created = await createOrganizerEvent(db, { ...owner.proof, idempotencyKey: `organizer-event-create:${randomUUID()}`,
       readBody: async () => ({ formatVersion: 1, eventName: "Klubbträning", raceName: "Torsdagsträning",
         raceDate: "2026-10-08", timeZone: "Europe/Stockholm" }) });
     if (created.status !== "created") throw new Error("Tävlingen kunde inte skapas");
@@ -56,27 +56,25 @@ describe("ADR-0168 två behörighetsnivåer", () => {
 
     // En annan registrerad person har ingen åtkomst förrän ägaren bjuder in.
     const helper = await register(`hjalp.${suffix}`);
-    expect((await enterRaceAsUserAccount(db, { ...helper.proof, raceId })).status).toBe("not-found");
+    expect((await accountOnRace(db, { ...helper.proof, raceId })).status).toBe("unauthorized");
     const granted = await grantRacePerson(db, owner.proof, raceId, `hjalp.${suffix}@test.o-tid.se`, "ADMIN");
     expect(granted.status).toBe("granted");
 
-    const entered = await enterRaceAsUserAccount(db, { ...helper.proof, raceId });
-    if (entered.status !== "entered") throw new Error("Administratören kom inte in");
+    const entered = await accountOnRace(db, { ...helper.proof, raceId });
+    if (entered.status !== "authenticated") throw new Error("Administratören kom inte in");
     const raceProof = { sessionToken: entered.sessionToken, csrfCookie: entered.csrfToken, csrfHeader: entered.csrfToken };
 
-    // Administratören har alla funktioner, även de som tidigare krävde egen inloggning.
-    const capabilities: RaceAdminCapability[] = ["IMPORT_IOF", "DECIDE_DID_NOT_START", "FINALIZE_RESULTS",
-      "VIEW_SPEAKER_BOARD", "PUBLISH_START_LIST"];
-    for (const capability of capabilities) {
-      const auth = await authenticatePairingAdminSession(db, { ...raceProof, raceId, capability, requireCsrf: true });
-      expect(auth.status, capability).toBe("authenticated");
+    // Administratören har alla funktioner, också funktionärens.
+    for (const role of ["ADMIN", "FUNCTIONARY"] as const) {
+      const auth = await requireRaceRole(db, { ...raceProof, raceId, role, requireCsrf: true });
+      expect(auth.status, role).toBe("authenticated");
     }
     const imported = await importIofXmlAsAdmin(db, { ...raceProof, raceId,
       idempotencyKey: `iof-import:${randomUUID()}`, xmlBytes: courseData });
     expect(imported.status).toBe("stored");
 
     // Fel tävling ger ingen åtkomst.
-    const other = await authenticatePairingAdminSession(db, { ...raceProof, raceId: randomUUID(), capability: "IMPORT_IOF" });
+    const other = await requireRaceRole(db, { ...raceProof, raceId: randomUUID(), role: "FUNCTIONARY" });
     expect(other.status).not.toBe("authenticated");
   });
 });

@@ -3,9 +3,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrate } from "@o-tid/database";
 import { createDatabase } from "@o-tid/database";
 import { listEntryRegistrationClassesAsAdmin, registerEntryAsAdmin } from "../../src/entry-registration";
-import { issuePairingAdminAccessCredential, loginPairingAdmin } from "../../src/pairing-admin";
 import { ingestDeviceBatch } from "../../src/ingest";
-import { contentHash } from "../../src/hash";
+import { contentHash } from "../../src/serialization";
+import { raceLogin } from "./accounts";
 
 const url = process.env.TEST_DATABASE_URL;
 if (!url) throw new Error("TEST_DATABASE_URL krävs för vald isolerad testdatabas");
@@ -13,13 +13,9 @@ const { db, pool } = createDatabase(url);
 const now = new Date("2026-09-12T14:00:00Z");
 beforeAll(async () => migrate(db, { migrationsFolder: new URL("../../../database/migrations", import.meta.url).pathname }));
 afterAll(async () => pool.end());
-async function auth(raceId: string, capability: "MANAGE_RACE" | "REGISTER_ENTRY" | "VIEW_SPEAKER_BOARD" = "MANAGE_RACE") {
-  const installation = await issuePairingAdminAccessCredential(db, { raceId, capability, label: "Synthetic recalculation",
-    expiresAt: new Date(now.getTime() + 3600_000) }, { now });
-  const login = await loginPairingAdmin(db, { formatVersion: 1, accessCredential: installation.accessCredential },
-    { expectedRaceId: raceId, expectedCapability: capability, now });
-  if (login.status !== "authenticated") throw new Error("Synthetic login failed");
-  return { raceId, sessionToken: login.sessionToken, csrfCookie: login.csrfToken, csrfHeader: login.csrfToken, actorId: installation.credentialId };
+async function auth(raceId: string, role: "ADMIN" | "FUNCTIONARY" = "ADMIN") {
+  const login = await raceLogin(db, raceId, role, now);
+  return { raceId, sessionToken: login.sessionToken, csrfCookie: login.csrfToken, csrfHeader: login.csrfToken, actorId: login.accountId };
 }
 async function fixture() {
   const eventId = randomUUID(), raceId = randomUUID(), courseId = randomUUID(), courseVersionId = randomUUID();
@@ -49,7 +45,7 @@ async function inputFor(actor: Awaited<ReturnType<typeof auth>>, classId: string
   const target = list.response.classes.find(row => row.id === classId);
   if (!target) throw new Error("Missing class");
   return { ...actor, idempotencyKey: `entry-registration:${randomUUID()}`, request: {
-    formatVersion: 1, expectedSnapshotVersion: list.response.snapshotVersion, classId,
+    formatVersion: 1, classId,
     expectedCourseVersionId: target.courseVersionId, expectedStartRule: target.startRule,
     givenName: "Alva", familyName: "Synthetic new", organisationName: "Synthetic OK", cardNumber: "54321",
     fixedStartTime: target.startRule === "FIXED" ? "2026-09-12T12:05:00+02:00" : null } };
@@ -70,7 +66,7 @@ async function mutableState(raceId: string) {
 }
 describe("TASK035 administrator registration", () => {
   it("registers with real admin and limited actors and replays historical identity without new results", async () => {
-    const f = await fixture(), limited = await auth(f.raceId, "REGISTER_ENTRY");
+    const f = await fixture(), limited = await auth(f.raceId, "ADMIN");
     const input = await inputFor(f.administrator, f.classId), before = await preserved(f.raceId);
     const first = await registerEntryAsAdmin(db, input, now);
     if (first.status !== "registered") throw new Error("Registration failed");
@@ -88,21 +84,21 @@ describe("TASK035 administrator registration", () => {
     expect((await registerEntryAsAdmin(db, { ...input, ...limited }, now)).status).toBe("conflict");
     expect((await registerEntryAsAdmin(db, { ...input, request: { ...input.request, givenName: "Other" } }, now)).status).toBe("conflict");
     expect(await mutableState(f.raceId)).toBe(state); expect(await preserved(f.raceId)).toBe(before);
-    expect((await pool.query("SELECT actor_credential_id FROM entry_registration_request WHERE race_id=$1 ORDER BY snapshot_version_after", [f.raceId])).rows)
-      .toEqual([{ actor_credential_id: f.administrator.actorId }, { actor_credential_id: limited.actorId }]);
-    expect((await pool.query("SELECT actor_kind,actor_id FROM audit_event WHERE race_id=$1 AND action='ENTRY_REGISTERED_BY_ADMIN' ORDER BY actor_kind::text", [f.raceId])).rows)
-      .toEqual([{ actor_kind: "ENTRY_REGISTRATION_ACCESS_CREDENTIAL", actor_id: limited.actorId },
-        { actor_kind: "RACE_ADMIN_ACCESS_CREDENTIAL", actor_id: f.administrator.actorId }]);
+    expect((await pool.query("SELECT actor_account_id FROM entry_registration_request WHERE race_id=$1 ORDER BY snapshot_version_after", [f.raceId])).rows)
+      .toEqual([{ actor_account_id: f.administrator.actorId }, { actor_account_id: limited.actorId }]);
+    expect((await pool.query("SELECT actor_kind,actor_id FROM audit_event WHERE race_id=$1 AND action='ENTRY_REGISTERED_BY_ADMIN' ", [f.raceId])).rows)
+      .toEqual(expect.arrayContaining([{ actor_kind: "USER_ACCOUNT", actor_id: limited.actorId },
+        { actor_kind: "USER_ACCOUNT", actor_id: f.administrator.actorId }]));
     await expect(pool.query("UPDATE entry_registration_request SET created_at=created_at WHERE race_id=$1", [f.raceId])).rejects.toThrow();
   });
 
   it("rejects stale, forbidden, historically owned cards and full classes atomically; honors fixed starts", async () => {
-    const f = await fixture(), reader = await auth(f.raceId, "VIEW_SPEAKER_BOARD"), input = await inputFor(f.administrator, f.classId);
+    const f = await fixture(), reader = await auth(f.raceId, "FUNCTIONARY"), input = await inputFor(f.administrator, f.classId);
     await pool.query("UPDATE card_assignment SET active=false WHERE race_id=$1", [f.raceId]);
     const before = await mutableState(f.raceId);
     expect((await registerEntryAsAdmin(db, { ...input, csrfHeader: null }, now)).status).toBe("forbidden");
     expect((await registerEntryAsAdmin(db, { ...input, ...reader }, now)).status).toBe("forbidden");
-    for (const patch of [{ expectedSnapshotVersion: 2 }, { expectedCourseVersionId: randomUUID() }, { cardNumber: "12345" }]) {
+    for (const patch of [{ expectedCourseVersionId: randomUUID() }, { cardNumber: "12345" }]) {
       expect((await registerEntryAsAdmin(db, { ...input, request: { ...input.request, ...patch } }, now)).status).toBe("conflict");
     }
     expect(await mutableState(f.raceId)).toBe(before);

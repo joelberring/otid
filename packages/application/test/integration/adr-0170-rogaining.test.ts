@@ -2,17 +2,18 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase, migrate } from "@o-tid/database";
 import type { DeviceBatch, SportidentReadoutPayload } from "@o-tid/contracts";
-import { contentHash } from "../../src/hash";
-import { createEventAsUserAccount, enterRaceAsUserAccount } from "../../src/organizer-events";
+import { contentHash } from "../../src/serialization";
+import { createOrganizerEvent } from "../../src/organizer-events";
 import { registerUserAccount } from "../../src/user-account";
-import { createManualCourseClassAsAdministrator } from "../../src/manual-course-class";
+import { createManualCourseClassAsAdmin } from "../../src/manual-course-class";
 import { registerEntryAsAdmin } from "../../src/entry-registration";
-import { ingestReadoutsAsAdministrator, readReadoutPackageAsAdministrator } from "../../src/readout-station";
+import { ingestReadoutsAsAdmin, readReadoutPackageAsAdmin } from "../../src/readout-station";
 import { getAdministratorEffectiveResult } from "../../src/administrator-effective-result";
-import { listCoursesForEditAsAdministrator } from "../../src/course-edit";
-import { changeRogainingAsAdministrator, previewRogainingChangeAsAdministrator } from "../../src/rogaining";
+import { listCoursesForEditAsAdmin } from "../../src/course-edit";
+import { changeRogainingAsAdmin, previewRogainingChangeAsAdmin } from "../../src/rogaining";
 import { publicResults } from "../../src/results";
 import { exportIofResultListAsAdmin } from "../../src/result-list-export";
+import { accountOnRace } from "./accounts";
 
 /**
  * ADR-0170 beslut 5 / PLAN.md steg 15: rogaining. Avläsningen ger poäng, straff och summa; resultatlistan
@@ -50,17 +51,17 @@ async function race(controlCodes: number[]): Promise<Race> {
   const account = await registerUserAccount(db, { formatVersion: 1, email: `rogaining.${suffix}@test.o-tid.se`, displayName: "Arrangör", password: "hemligt-lösen" });
   if (account.status !== "authenticated") throw new Error("Kontot kunde inte skapas");
   const accountProof = { sessionToken: account.sessionToken, csrfCookie: account.csrfToken, csrfHeader: account.csrfToken };
-  const created = await createEventAsUserAccount(db, { ...accountProof, idempotencyKey: `organizer-event-create:${randomUUID()}`,
+  const created = await createOrganizerEvent(db, { ...accountProof, idempotencyKey: `organizer-event-create:${randomUUID()}`,
     readBody: async () => ({ formatVersion: 1, eventName: "Poängjakt", raceName: "Torsdag", raceDate: "2026-10-08",
       timeZone: "Europe/Stockholm", raceType: "ROGAINING" }) });
   if (created.status !== "created") throw new Error("Tävlingen kunde inte skapas");
   const { raceId } = created.response;
-  const entered = await enterRaceAsUserAccount(db, { ...accountProof, raceId });
-  if (entered.status !== "entered") throw new Error("Kom inte in i tävlingen");
+  const entered = await accountOnRace(db, { ...accountProof, raceId });
+  if (entered.status !== "authenticated") throw new Error("Kom inte in i tävlingen");
   const proof: Proof = { raceId, sessionToken: entered.sessionToken, csrfCookie: entered.csrfToken, csrfHeader: entered.csrfToken };
   const requestId = randomUUID();
-  const course = await createManualCourseClassAsAdministrator(db, { ...proof, idempotencyKey: `manual-course-class-create:${requestId}`,
-    request: { formatVersion: 1, requestId, expectedSnapshotVersion: await snapshot(raceId), courseName: "Kontroller",
+  const course = await createManualCourseClassAsAdmin(db, { ...proof, idempotencyKey: `manual-course-class-create:${requestId}`,
+    request: { formatVersion: 1, requestId, courseName: "Kontroller",
       className: "Rogaining 60", startRule: "PUNCH", controlCodes, rogaining: { timeLimitMinutes: 60, penaltyPoints: 2 } } });
   if (course.status !== "created") throw new Error(`Banan kunde inte skapas: ${course.status}`);
   return { proof, raceId, classId: course.response.classId };
@@ -69,7 +70,7 @@ async function race(controlCodes: number[]): Promise<Race> {
 async function register(f: Race, givenName: string, cardNumber: string): Promise<string> {
   const registered = await registerEntryAsAdmin(db, { ...f.proof, idempotencyKey: `entry-registration:${randomUUID()}`, request: {
     formatVersion: 1, classId: f.classId, expectedCourseVersionId: await courseVersionOf(f.classId), expectedStartRule: "PUNCH",
-    expectedSnapshotVersion: await snapshot(f.raceId), givenName, familyName: "Löpare", organisationName: null,
+    givenName, familyName: "Löpare", organisationName: null,
     cardNumber, fixedStartTime: null } });
   if (registered.status !== "registered") throw new Error(`Anmälan misslyckades: ${registered.status}`);
   return registered.response.entryId;
@@ -86,7 +87,7 @@ async function readout(f: Race, cardNumber: string, punches: [number, number][],
   const batch: DeviceBatch = { deviceId: randomUUID(), sessionId: randomUUID(), packageVersion: await snapshot(f.raceId),
     firstSequence: 1, lastSequence: 1,
     events: [{ localSequence: 1, stationReceivedAt: at(59), transport: "sportident", payload, contentHash: contentHash(payload) }] };
-  const ingested = await ingestReadoutsAsAdministrator(db, { ...f.proof, batch });
+  const ingested = await ingestReadoutsAsAdmin(db, { ...f.proof, batch });
   if (ingested.status !== "ok") throw new Error(`Avläsningen togs inte emot: ${ingested.status}`);
 }
 
@@ -103,9 +104,9 @@ const revisions = async (entryId: string) => (await pool.query<{ revision: numbe
 async function change(f: Race, body: { controlPoints?: { code: number; points: number }[];
   classRules?: { classId: string; timeLimitMinutes: number; penaltyPoints: number }[] }, confirmResultChanges: boolean) {
   const requestId = randomUUID();
-  const request = { formatVersion: 1, requestId, expectedSnapshotVersion: await snapshot(f.raceId), controlPoints: body.controlPoints ?? [],
+  const request = { formatVersion: 1, requestId, controlPoints: body.controlPoints ?? [],
     classRules: body.classRules ?? [], confirmResultChanges };
-  return { request, result: await changeRogainingAsAdministrator(db, { ...f.proof, idempotencyKey: `rogaining-change:${requestId}`, request }) };
+  return { request, result: await changeRogainingAsAdmin(db, { ...f.proof, idempotencyKey: `rogaining-change:${requestId}`, request }) };
 }
 
 describe("ADR-0170 rogaining", () => {
@@ -121,11 +122,11 @@ describe("ADR-0170 rogaining", () => {
     expect(await revisions(bo)).toEqual([{ revision: 1, cause: "CARD_READOUT", total: 3 }]);
 
     // Avläsningens paket bär poäng och regler så att offlinebeskedet blir rätt.
-    const pkg = await readReadoutPackageAsAdministrator(db, { raceId: f.raceId, sessionToken: f.proof.sessionToken });
+    const pkg = await readReadoutPackageAsAdmin(db, { raceId: f.raceId, sessionToken: f.proof.sessionToken });
     if (pkg.status !== "ok") throw new Error("Paketet saknas");
     expect(pkg.response.raceSnapshot.classes[0]!.rogaining).toEqual({ timeLimitSeconds: 3_600, penaltyPointsPerMinute: 2 });
 
-    const listed = await listCoursesForEditAsAdministrator(db, f.proof);
+    const listed = await listCoursesForEditAsAdmin(db, f.proof);
     if (listed.status !== "ok") throw new Error("Banlistan saknas");
     expect(listed.response.rogaining).toEqual({
       controls: [{ code: 31, points: 3, defaultPoints: 3 }, { code: 45, points: 4, defaultPoints: 4 }, { code: 52, points: 5, defaultPoints: 5 },
@@ -145,8 +146,8 @@ describe("ADR-0170 rogaining", () => {
 
     // 45 ger nu 10 poäng: Ada 18, Bo 13 − 4 = 9. Beskedet kräver bekräftelse.
     const before = await snapshot(f.raceId);
-    const preview = await previewRogainingChangeAsAdministrator(db, { ...f.proof,
-      request: { formatVersion: 1, expectedSnapshotVersion: before, controlPoints: [{ code: 45, points: 10 }], classRules: [] } });
+    const preview = await previewRogainingChangeAsAdmin(db, { ...f.proof,
+      request: { formatVersion: 1, controlPoints: [{ code: 45, points: 10 }], classRules: [] } });
     if (preview.status !== "ok") throw new Error(`Beskedet saknas: ${preview.status}`);
     expect(preview.response).toMatchObject({ readOutCount: 2, notRecalculatedCount: 0, requiresConfirmation: true, changes: [
       { entryId: ada, displayName: "Ada Löpare", before: { status: "OK", total: 12 }, after: { status: "OK", total: 18 } },
@@ -162,7 +163,7 @@ describe("ADR-0170 rogaining", () => {
     expect((await pool.query("select points from control where race_id = $1 and code = 45", [f.raceId])).rows).toEqual([{ points: 10 }]);
 
     // Samma begäran igen ger samma kvitto.
-    const replay = await changeRogainingAsAdministrator(db, { ...f.proof, idempotencyKey: `rogaining-change:${saved.request.requestId}`,
+    const replay = await changeRogainingAsAdmin(db, { ...f.proof, idempotencyKey: `rogaining-change:${saved.request.requestId}`,
       request: saved.request });
     expect(replay).toMatchObject({ status: "changed", response: { replayed: true, requestId: saved.request.requestId } });
 

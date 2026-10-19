@@ -1,11 +1,11 @@
 import { z } from "zod";
 import { accountEmailSchema, storedAccountEmailSchema } from "./account";
+import { UUID_SOURCE as canonicalUuidPattern } from "./ids";
 
 /**
  * Personer med behörighet på tävlingen (ADR-0172 beslut 3): ägaren, administratörer och funktionärer.
  * Administratören lägger till ett befintligt konto med dess e-postadress; inga inbjudningar eller koder.
  */
-const canonicalUuidPattern = "[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
 const canonicalUuidSchema = z.string().regex(new RegExp(`^${canonicalUuidPattern}$`));
 const instantSchema = z.iso.datetime({ offset: true });
 

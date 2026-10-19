@@ -1,116 +1,89 @@
-import { loadStartDrawSetupAsAdministrator, previewStartDrawAsAdministrator, commitStartDrawAsAdministrator,
+import { loadStartDrawSetupAsAdmin, previewStartDrawAsAdmin, commitStartDrawAsAdmin,
   listResultFinalizationCandidatesAsAdmin, finalizeResultsAsAdmin,
   exportIofResultListAsAdmin, exportFrozenIofResultListAsAdmin, listFrozenRaceFinalizationsAsAdmin,
-  authenticatePairingAdminSession, changeEntryClassAsAdmin, listEntryClassesAsAdmin, logoutPairingAdminSession,
-  listEntryTransfersAsAdministrator, transferEntryAsAdministrator,
-  changeClassCapacityAsAdministrator, editClassAsAdministrator, previewClassEditAsAdministrator,
-  createManualCourseClassAsAdministrator, createManualClassAsAdministrator, listCoursesForEditAsAdministrator, previewCourseEditAsAdministrator,
-  editCourseAsAdministrator, previewShortenedCourseClassTransferAsAdministrator, transferShortenedCourseClassAsAdministrator,
-  previewManualFinishTimeCorrectionAsAdministrator, correctManualFinishTimeAsAdministrator,
-  previewManualPunchStartTimeCorrectionAsAdministrator, correctManualPunchStartTimeAsAdministrator,
-  previewManualPunchStartTimeCorrectionWithdrawalAsAdministrator,
-  withdrawManualPunchStartTimeCorrectionAsAdministrator, previewManualFinishTimeCorrectionWithdrawalAsAdministrator,
-  withdrawManualFinishTimeCorrectionAsAdministrator, listUnknownReadoutResolutionCandidatesAsAdministrator,
-  resolveUnknownReadoutAsAdministrator, changeEntryCardAsAdmin, changeEntryCardRentalAsAdministrator,
-  changeEntryCardRentalReturnAsAdministrator, reuseReturnedRentalCardAsAdministrator,
+  requireRaceRole, changeEntryClassAsAdmin, listEntryClassesAsAdmin, logoutUserAccountSession,
+  listEntryTransfersAsAdmin, transferEntryAsAdmin,
+  changeClassCapacityAsAdmin, editClassAsAdmin, previewClassEditAsAdmin,
+  createManualCourseClassAsAdmin, createManualClassAsAdmin, listCoursesForEditAsAdmin, previewCourseEditAsAdmin,
+  editCourseAsAdmin, previewShortenedCourseClassTransferAsAdmin, transferShortenedCourseClassAsAdmin,
+  getEntryStatusAsAdmin, setEntryStatus, listUnknownReadoutResolutionCandidatesAsAdmin,
+  resolveUnknownReadoutAsAdmin, changeEntryCardAsAdmin, changeEntryCardRentalAsAdmin,
+  changeEntryCardRentalReturnAsAdmin, reuseReturnedRentalCardAsAdmin,
   changeEntryStartTimeAsAdmin, listResultRecalculationCandidatesAsAdmin,
-  recalculateEntryAsAdmin, getAdministratorEffectiveResult, listSpeakerBoardAsAdministrator,
-  listClassResultRecalculationCandidatesAsAdministrator, recalculateClassResultsAsAdministrator,
+  recalculateEntryAsAdmin, getAdministratorEffectiveResult, listSpeakerBoardAsAdmin,
+  listClassResultRecalculationCandidatesAsAdmin, recalculateClassResultsAsAdmin,
   listEntryIdentitiesAsAdmin, changeEntryIdentityAsAdmin, registerEntryAsAdmin,
-  listEntryRegistrationCandidatesAsAdmin, listAdministratorEntryChanges, listDidNotStartCandidatesAsAdmin,
-  decideDidNotStartAsAdmin, listDidNotStartWithdrawalsAsAdmin, withdrawDidNotStartAsAdmin,
-  listDidNotFinishCandidatesAsAdmin, decideDidNotFinishAsAdmin, listDidNotFinishWithdrawalsAsAdmin,
-  withdrawDidNotFinishAsAdmin, listResultDisqualificationCandidatesAsAdmin, disqualifyResultAsAdmin,
-  listResultDisqualificationWithdrawalsAsAdmin, withdrawResultDisqualificationAsAdmin,
-  listResultApprovalCandidatesAsAdmin, approveResultAsAdmin, listResultApprovalWithdrawalsAsAdmin,
-  withdrawResultApprovalAsAdmin, listOutOfCompetitionCandidatesAsAdmin, decideOutOfCompetitionAsAdmin,
-  listOutOfCompetitionWithdrawalsAsAdmin, withdrawOutOfCompetitionAsAdmin, listWithoutTimingCandidatesAsAdmin,
-  decideWithoutTimingAsAdmin, listWithoutTimingWithdrawalsAsAdmin, withdrawWithoutTimingAsAdmin,
+  listEntryRegistrationCandidatesAsAdmin, listAdministratorEntryChanges,
   getStartListPublicationPreviewAsAdmin, decideStartListPublicationAsAdmin,
   exportCurrentStartListXmlAsAdmin,
   listAdministratorForestWatch, registerAdministratorReturn, withdrawAdministratorReturn, correctAdministratorStart,
   listCheckinHistoryAsAdmin, readStartCheckinConflictReviewAsAdmin, reviewStartCheckinConflictsAsAdmin,
-  previewEntryVariantAsAdministrator, changeEntryVariantAsAdministrator, distributeClassVariantsAsAdministrator,
-  getRelayOverviewAsAdministrator, createRelayClassAsAdministrator, registerRelayTeamAsAdministrator,
-  changeRelayLegRunnerAsAdministrator, setRelayStartTimesAsAdministrator, saveRaceSettingsAsAdministrator,
-  getEventorSettingsAsAdministrator, saveEventorKeyAsAdministrator, removeEventorKeyAsAdministrator, testEventorConnectionAsAdministrator,
-  listEventorEventsAsAdministrator, chooseEventorEventAsAdministrator, previewEventorSyncAsAdministrator, previewCourseFileAsAdministrator,
-  syncConsequenceAsAdministrator, applySyncAsAdministrator, getSourceSyncStatusAsAdministrator,
-  previewRogainingChangeAsAdministrator, changeRogainingAsAdministrator,
-  readRaceMapStateAsAdministrator, readRaceMapImageAsAdministrator, saveRaceMapAsAdministrator, georeferenceRaceMapAsAdministrator,
-  removeRaceMapAsAdministrator, saveParticipantRouteAsAdministrator, removeParticipantRouteAsAdministrator,
-  listRacePeopleAsAdministrator, grantRacePersonAsAdministrator, revokeRacePersonAsAdministrator,
-  setRacePublicationAsAdministrator, getRadioSettingsAsAdministrator, saveRadioSettingsAsAdministrator,
-  fetchRadioNowAsAdministrator } from "@o-tid/application";
-import { iofResultListExportAdminFailure } from "./iof-result-list-export-admin-security";
+  previewEntryVariantAsAdmin, changeEntryVariantAsAdmin, distributeClassVariantsAsAdmin,
+  getRelayOverviewAsAdmin, createRelayClassAsAdmin, registerRelayTeamAsAdmin,
+  changeRelayLegRunnerAsAdmin, setRelayStartTimesAsAdmin, saveRaceSettingsAsAdmin,
+  getEventorSettingsAsAdmin, saveEventorKeyAsAdmin, removeEventorKeyAsAdmin, testEventorConnectionAsAdmin,
+  listEventorEventsAsAdmin, chooseEventorEventAsAdmin, previewEventorSyncAsAdmin, previewCourseFileAsAdmin,
+  syncConsequenceAsAdmin, applySyncAsAdmin, getSourceSyncStatusAsAdmin,
+  previewRogainingChangeAsAdmin, changeRogainingAsAdmin,
+  readRaceMapStateAsAdmin, readRaceMapImageAsAdmin, saveRaceMapAsAdmin, georeferenceRaceMapAsAdmin,
+  removeRaceMapAsAdmin, saveParticipantRouteAsAdmin, removeParticipantRouteAsAdmin,
+  listRacePeopleAsAdmin, grantRacePersonAsAdmin, revokeRacePersonAsAdmin,
+  setRacePublicationAsAdmin, getRadioSettingsAsAdmin, saveRadioSettingsAsAdmin,
+  fetchRadioNowAsAdmin } from "@o-tid/application";
+import {
+  adminFailure as failure,
+  resultExportFailure,
+  type sessionProof
+} from "./security-policy";
 import type { Database } from "@o-tid/database";
-import { entryClassAdminFailure as failure, type entryClassAdminSessionProof } from "./entry-class-admin-security";
 
 /** Tjänsterna som administratörsroutes använder. Tester kan ersätta enskilda tjänster. */
 export const raceAdministratorServices = { conflictCandidate: readStartCheckinConflictReviewAsAdmin, reviewConflicts: reviewStartCheckinConflictsAsAdmin, checkinHistory: listCheckinHistoryAsAdmin, correctStart: correctAdministratorStart, withdrawReturn: withdrawAdministratorReturn, manualReturn: registerAdministratorReturn, forestWatch: listAdministratorForestWatch, publicationPreview: getStartListPublicationPreviewAsAdmin, publication: decideStartListPublicationAsAdmin,
   startListExport: exportCurrentStartListXmlAsAdmin,
-  drawSetup: loadStartDrawSetupAsAdministrator, drawPreview: previewStartDrawAsAdministrator, draw: commitStartDrawAsAdministrator,
+  drawSetup: loadStartDrawSetupAsAdmin, drawPreview: previewStartDrawAsAdmin, draw: commitStartDrawAsAdmin,
   finalizationCandidates: listResultFinalizationCandidatesAsAdmin, finalize: finalizeResultsAsAdmin,
   frozenResults: listFrozenRaceFinalizationsAsAdmin, frozenResult: exportFrozenIofResultListAsAdmin,
-  resultExport: exportIofResultListAsAdmin, authenticate: authenticatePairingAdminSession,
-  logout: logoutPairingAdminSession, participants: listEntryClassesAsAdmin, changeClass: changeEntryClassAsAdmin,
-  transferCandidates: listEntryTransfersAsAdministrator,
-  transfer: transferEntryAsAdministrator, capacity: changeClassCapacityAsAdministrator,
-  manualCourseClass: createManualCourseClassAsAdministrator,
-  manualClass: createManualClassAsAdministrator,
-  courses: listCoursesForEditAsAdministrator, courseEditPreview: previewCourseEditAsAdministrator,
-  courseEdit: editCourseAsAdministrator, classEditPreview: previewClassEditAsAdministrator, classEdit: editClassAsAdministrator,
-  rogainingPreview: previewRogainingChangeAsAdministrator, rogaining: changeRogainingAsAdministrator,
-  entryVariantPreview: previewEntryVariantAsAdministrator, entryVariant: changeEntryVariantAsAdministrator,
-  classVariantDistribution: distributeClassVariantsAsAdministrator,
-  relayOverview: getRelayOverviewAsAdministrator, relayClass: createRelayClassAsAdministrator, relayTeam: registerRelayTeamAsAdministrator,
-  relayLegRunner: changeRelayLegRunnerAsAdministrator, relayStartTimes: setRelayStartTimesAsAdministrator,
-  raceSettings: saveRaceSettingsAsAdministrator,
-  eventorSettings: getEventorSettingsAsAdministrator, eventorKey: saveEventorKeyAsAdministrator, eventorKeyRemove: removeEventorKeyAsAdministrator,
-  eventorTest: testEventorConnectionAsAdministrator, eventorEvents: listEventorEventsAsAdministrator, eventorEvent: chooseEventorEventAsAdministrator,
-  eventorSyncPreview: previewEventorSyncAsAdministrator, courseFilePreview: previewCourseFileAsAdministrator,
-  syncConsequence: syncConsequenceAsAdministrator, syncApply: applySyncAsAdministrator, syncStatus: getSourceSyncStatusAsAdministrator,
-  shortenedCourseClassTransferPreview: previewShortenedCourseClassTransferAsAdministrator,
-  shortenedCourseClassTransfer: transferShortenedCourseClassAsAdministrator,
-  manualFinishTimeCorrectionCandidate: previewManualFinishTimeCorrectionAsAdministrator,
-  manualFinishTimeCorrection: correctManualFinishTimeAsAdministrator,
-  manualPunchStartTimeCorrectionCandidate: previewManualPunchStartTimeCorrectionAsAdministrator,
-  manualPunchStartTimeCorrection: correctManualPunchStartTimeAsAdministrator,
-  manualPunchStartTimeCorrectionWithdrawalCandidate: previewManualPunchStartTimeCorrectionWithdrawalAsAdministrator,
-  manualPunchStartTimeCorrectionWithdrawal: withdrawManualPunchStartTimeCorrectionAsAdministrator,
-  manualFinishTimeCorrectionWithdrawalCandidate: previewManualFinishTimeCorrectionWithdrawalAsAdministrator,
-  manualFinishTimeCorrectionWithdrawal: withdrawManualFinishTimeCorrectionAsAdministrator,
-  unknownReadoutResolutionCandidates: listUnknownReadoutResolutionCandidatesAsAdministrator,
-  unknownReadoutResolution: resolveUnknownReadoutAsAdministrator,
-  card: changeEntryCardAsAdmin, cardRental: changeEntryCardRentalAsAdministrator,
-  cardRentalReturn: changeEntryCardRentalReturnAsAdministrator,
-  cardRentalReuse: reuseReturnedRentalCardAsAdministrator,
+  resultExport: exportIofResultListAsAdmin, authenticate: requireRaceRole,
+  logout: logoutUserAccountSession, participants: listEntryClassesAsAdmin, changeClass: changeEntryClassAsAdmin,
+  transferCandidates: listEntryTransfersAsAdmin,
+  transfer: transferEntryAsAdmin, capacity: changeClassCapacityAsAdmin,
+  manualCourseClass: createManualCourseClassAsAdmin,
+  manualClass: createManualClassAsAdmin,
+  courses: listCoursesForEditAsAdmin, courseEditPreview: previewCourseEditAsAdmin,
+  courseEdit: editCourseAsAdmin, classEditPreview: previewClassEditAsAdmin, classEdit: editClassAsAdmin,
+  rogainingPreview: previewRogainingChangeAsAdmin, rogaining: changeRogainingAsAdmin,
+  entryVariantPreview: previewEntryVariantAsAdmin, entryVariant: changeEntryVariantAsAdmin,
+  classVariantDistribution: distributeClassVariantsAsAdmin,
+  relayOverview: getRelayOverviewAsAdmin, relayClass: createRelayClassAsAdmin, relayTeam: registerRelayTeamAsAdmin,
+  relayLegRunner: changeRelayLegRunnerAsAdmin, relayStartTimes: setRelayStartTimesAsAdmin,
+  raceSettings: saveRaceSettingsAsAdmin,
+  eventorSettings: getEventorSettingsAsAdmin, eventorKey: saveEventorKeyAsAdmin, eventorKeyRemove: removeEventorKeyAsAdmin,
+  eventorTest: testEventorConnectionAsAdmin, eventorEvents: listEventorEventsAsAdmin, eventorEvent: chooseEventorEventAsAdmin,
+  eventorSyncPreview: previewEventorSyncAsAdmin, courseFilePreview: previewCourseFileAsAdmin,
+  syncConsequence: syncConsequenceAsAdmin, syncApply: applySyncAsAdmin, syncStatus: getSourceSyncStatusAsAdmin,
+  shortenedCourseClassTransferPreview: previewShortenedCourseClassTransferAsAdmin,
+  shortenedCourseClassTransfer: transferShortenedCourseClassAsAdmin,
+  entryStatus: getEntryStatusAsAdmin, setEntryStatus,
+  unknownReadoutResolutionCandidates: listUnknownReadoutResolutionCandidatesAsAdmin,
+  unknownReadoutResolution: resolveUnknownReadoutAsAdmin,
+  card: changeEntryCardAsAdmin, cardRental: changeEntryCardRentalAsAdmin,
+  cardRentalReturn: changeEntryCardRentalReturnAsAdmin,
+  cardRentalReuse: reuseReturnedRentalCardAsAdmin,
   startTime: changeEntryStartTimeAsAdmin,
   recalculationCandidates: listResultRecalculationCandidatesAsAdmin, recalculate: recalculateEntryAsAdmin,
-  classResultRecalculationCandidates: listClassResultRecalculationCandidatesAsAdministrator,
-  classResultRecalculate: recalculateClassResultsAsAdministrator,
-  effectiveResult: getAdministratorEffectiveResult, speakerBoard: listSpeakerBoardAsAdministrator,
+  classResultRecalculationCandidates: listClassResultRecalculationCandidatesAsAdmin,
+  classResultRecalculate: recalculateClassResultsAsAdmin,
+  effectiveResult: getAdministratorEffectiveResult, speakerBoard: listSpeakerBoardAsAdmin,
   identityCandidates: listEntryIdentitiesAsAdmin, identity: changeEntryIdentityAsAdmin,
   registration: registerEntryAsAdmin, registrationCandidates: listEntryRegistrationCandidatesAsAdmin,
 
-  changes: listAdministratorEntryChanges, dnsCandidates: listDidNotStartCandidatesAsAdmin, dns: decideDidNotStartAsAdmin,
-  dnsWithdrawals: listDidNotStartWithdrawalsAsAdmin, dnsWithdrawal: withdrawDidNotStartAsAdmin,
-  dnfCandidates: listDidNotFinishCandidatesAsAdmin, dnf: decideDidNotFinishAsAdmin,
-  dnfWithdrawals: listDidNotFinishWithdrawalsAsAdmin, dnfWithdrawal: withdrawDidNotFinishAsAdmin,
-  dsqCandidates: listResultDisqualificationCandidatesAsAdmin, dsq: disqualifyResultAsAdmin,
-  dsqWithdrawals: listResultDisqualificationWithdrawalsAsAdmin, dsqWithdrawal: withdrawResultDisqualificationAsAdmin,
-  approvalCandidates: listResultApprovalCandidatesAsAdmin, approval: approveResultAsAdmin,
-  approvalWithdrawals: listResultApprovalWithdrawalsAsAdmin, approvalWithdrawal: withdrawResultApprovalAsAdmin,
-  oocCandidates: listOutOfCompetitionCandidatesAsAdmin, ooc: decideOutOfCompetitionAsAdmin,
-  oocWithdrawals: listOutOfCompetitionWithdrawalsAsAdmin, oocWithdrawal: withdrawOutOfCompetitionAsAdmin,
-  ntCandidates: listWithoutTimingCandidatesAsAdmin, nt: decideWithoutTimingAsAdmin,
-  ntWithdrawals: listWithoutTimingWithdrawalsAsAdmin, ntWithdrawal: withdrawWithoutTimingAsAdmin,
-  raceMapState: readRaceMapStateAsAdministrator, raceMapImage: readRaceMapImageAsAdministrator, raceMapSave: saveRaceMapAsAdministrator,
-  raceMapGeoreference: georeferenceRaceMapAsAdministrator, raceMapRemove: removeRaceMapAsAdministrator,
-  participantRouteSave: saveParticipantRouteAsAdministrator, participantRouteRemove: removeParticipantRouteAsAdministrator,
-  people: listRacePeopleAsAdministrator, grantPerson: grantRacePersonAsAdministrator, revokePerson: revokeRacePersonAsAdministrator,
-  racePublication: setRacePublicationAsAdministrator,
-  radioSettings: getRadioSettingsAsAdministrator, radioSave: saveRadioSettingsAsAdministrator, radioFetch: fetchRadioNowAsAdministrator };
+  changes: listAdministratorEntryChanges,
+  raceMapState: readRaceMapStateAsAdmin, raceMapImage: readRaceMapImageAsAdmin, raceMapSave: saveRaceMapAsAdmin,
+  raceMapGeoreference: georeferenceRaceMapAsAdmin, raceMapRemove: removeRaceMapAsAdmin,
+  participantRouteSave: saveParticipantRouteAsAdmin, participantRouteRemove: removeParticipantRouteAsAdmin,
+  people: listRacePeopleAsAdmin, grantPerson: grantRacePersonAsAdmin, revokePerson: revokeRacePersonAsAdmin,
+  racePublication: setRacePublicationAsAdmin,
+  radioSettings: getRadioSettingsAsAdmin, radioSave: saveRadioSettingsAsAdmin, radioFetch: fetchRadioNowAsAdmin };
 export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: string } | { kind: "review-conflicts" } | { kind: "checkin-history"; entryId: string } | { kind: "start-correction" } | { kind: "manual-return-withdrawal" } | { kind: "manual-return" } | { kind: "forest-watch" } | { kind: "publication-preview" } | { kind: "publication" } | { kind: "start-list-export" } | { kind: "draw-preview" } | { kind: "draw" } |
   { kind: "finalization-candidates" } | { kind: "finalize" } | { kind: "frozen-results" } | { kind: "frozen-result"; finalizationId: string } |
   { kind: "result-export" } | { kind: "session" } | { kind: "participants" } | { kind: "transfer-candidates" } |
@@ -126,10 +99,7 @@ export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: str
   { kind: "eventor" } | { kind: "eventor-test" } | { kind: "eventor-events" } | { kind: "eventor-event" } | { kind: "eventor-sync-preview" } |
   { kind: "course-file-preview" } | { kind: "source-sync-consequence" } | { kind: "source-sync" } |
   { kind: "shortened-course-class-transfer"; classId: string } |
-  { kind: "manual-finish-time-correction"; entryId: string } |
-  { kind: "manual-punch-start-time-correction"; entryId: string } |
-  { kind: "manual-punch-start-time-correction-withdrawal"; entryId: string } |
-  { kind: "manual-finish-time-correction-withdrawal"; entryId: string } |
+  { kind: "entry-status"; entryId: string } |
   { kind: "unknown-readout-resolution" } |
   { kind: "card"; entryId: string } | { kind: "card-rental"; entryId: string } |
   { kind: "card-rental-return"; entryId: string } | { kind: "card-rental-reuse"; entryId: string } |
@@ -137,18 +107,7 @@ export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: str
   { kind: "recalculation-candidates" } | { kind: "recalculate"; entryId: string } |
   { kind: "class-result-recalculation"; classId: string } | { kind: "effective-result"; entryId: string } | { kind: "speaker-board" } |
   { kind: "identity-candidates" } | { kind: "identity"; entryId: string } | { kind: "registration" } | { kind: "registration-candidates" } |
-  { kind: "changes"; entryId: string } | { kind: "did-not-start-candidates" } | { kind: "did-not-start-withdrawals" } |
-  { kind: "did-not-start"; entryId: string } | { kind: "did-not-start-withdrawal"; entryId: string } |
-  { kind: "did-not-finish-candidates" } | { kind: "did-not-finish-withdrawals" } |
-  { kind: "did-not-finish"; entryId: string } | { kind: "did-not-finish-withdrawal"; entryId: string } |
-  { kind: "disqualification-candidates" } | { kind: "disqualification-withdrawals" } |
-  { kind: "disqualification"; entryId: string } | { kind: "disqualification-withdrawal"; entryId: string } |
-  { kind: "approval-candidates" } | { kind: "approval-withdrawals" } |
-  { kind: "approval"; entryId: string } | { kind: "approval-withdrawal"; entryId: string } |
-  { kind: "out-of-competition-candidates" } | { kind: "out-of-competition-withdrawals" } |
-  { kind: "out-of-competition"; entryId: string } | { kind: "out-of-competition-withdrawal"; entryId: string } |
-  { kind: "without-timing-candidates" } | { kind: "without-timing-withdrawals" } |
-  { kind: "without-timing"; entryId: string } | { kind: "without-timing-withdrawal"; entryId: string } |
+  { kind: "changes"; entryId: string } |
   { kind: "race-map" } | { kind: "race-map-image" } | { kind: "race-map-georeference" } | { kind: "participant-route" } |
   { kind: "people" } | { kind: "race-publication" } | { kind: "radio" } | { kind: "radio-fetch" };
 
@@ -160,7 +119,7 @@ export function resultFailure(status: string): Response {
     case "not-found": return failure(404, "NOT_FOUND");
     case "conflict": return failure(409, "CONFLICT");
     case "duplicate-name": return failure(409, "DUPLICATE_NAME");
-    case "too-large": return iofResultListExportAdminFailure(413, "TOO_LARGE");
+    case "too-large": return resultExportFailure(413, "TOO_LARGE");
     default: return failure(500, "INTERNAL_ERROR");
   }
 }
@@ -170,5 +129,5 @@ export type RaceAdministratorServices = typeof raceAdministratorServices;
 /** Det som varje grupp av administratörsroutes får efter att verklig administratörsroll är kontrollerad. */
 export type RaceAdministratorRouteContext = {
   db: Database; request: Request; raceId: string; action: RaceAdministratorAction; dependencies: RaceAdministratorServices;
-  proof: ReturnType<typeof entryClassAdminSessionProof>; cursor: string | null; beforeVersion: number | undefined;
+  proof: ReturnType<typeof sessionProof>; cursor: string | null; beforeVersion: number | undefined;
 };

@@ -1,42 +1,11 @@
 import { describe, expect, it } from "vitest";
-import {
-  IOF_IMPORT_MAX_BYTES,
-  iofImportErrorResponseSchema,
-  iofImportIdempotencyKeySchema,
-  iofImportLoginRequestSchema,
-  iofImportLoginResponseSchema,
-  iofImportResponseSchema
-} from "../src";
+import { IOF_IMPORT_MAX_BYTES, iofImportErrorResponseSchema, iofImportIdempotencyKeySchema, iofImportResponseSchema } from "../src";
 
 const requestId = "a0000000-0000-4000-8000-000000000001";
 const raceId = "20000000-0000-4000-8000-000000000002";
 const importFileId = "30000000-0000-4000-8000-000000000003";
 
 describe("TASK 005G IOF-importkontrakt", () => {
-  it("separerar importcredential och race-scopad login från pairing", () => {
-    const request = {
-      formatVersion: 1 as const,
-      accessCredential: `otid_org_import_v1.${requestId}.${"A".repeat(43)}`
-    };
-    expect(iofImportLoginRequestSchema.parse(request)).toEqual(request);
-    expect(iofImportLoginRequestSchema.safeParse({
-      ...request,
-      accessCredential: request.accessCredential.replace("otid_org_import_v1", "otid_org_pair_v1")
-    }).success).toBe(false);
-    expect(iofImportLoginRequestSchema.safeParse({ ...request, raceId }).success).toBe(false);
-    expect(iofImportLoginResponseSchema.parse({
-      formatVersion: 1,
-      raceId,
-      capability: "IMPORT_IOF",
-      expiresAt: "2026-08-31T11:00:00.000Z"
-    }).capability).toBe("IMPORT_IOF");
-    expect(iofImportLoginResponseSchema.safeParse({
-      formatVersion: 1,
-      raceId,
-      capability: "PAIR_STATION",
-      expiresAt: "2026-08-31T11:00:00.000Z"
-    }).success).toBe(false);
-  });
 
   it("kräver exakt content-oberoende request-UUID i idempotensnyckeln", () => {
     expect(iofImportIdempotencyKeySchema.parse(`iof-import:${requestId}`)).toBe(`iof-import:${requestId}`);

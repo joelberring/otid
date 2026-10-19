@@ -3,12 +3,12 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrate } from "@o-tid/database";
 import { createDatabase } from "@o-tid/database";
 import { ClassCapacityConflictError } from "../../src/class-capacity-guard";
-import { changeClassCapacityAsAdministrator } from "../../src/class-capacity";
-import { issuePairingAdminAccessCredential, loginPairingAdmin } from "../../src/pairing-admin";
-import { listEntryTransfersAsAdministrator, transferEntryAsAdministrator } from "../../src/entry-transfer";
+import { changeClassCapacityAsAdmin } from "../../src/class-capacity";
+import { listEntryTransfersAsAdmin, transferEntryAsAdmin } from "../../src/entry-transfer";
 import { registerEntryAsAdmin } from "../../src/entry-registration";
 import { changeEntryClass, changeEntryClassAsAdmin } from "../../src/results";
 import { importIofXml, importIofXmlAsAdmin } from "../../src/import-iof";
+import { raceLogin } from "./accounts";
 
 const url = process.env.TEST_DATABASE_URL;
 if (!url) throw new Error("TEST_DATABASE_URL krävs för en uttryckligen isolerad testdatabas");
@@ -17,12 +17,8 @@ const now = new Date("2026-09-12T12:00:00Z");
 beforeAll(async () => migrate(db, { migrationsFolder: new URL("../../../database/migrations", import.meta.url).pathname }));
 afterAll(async () => pool.end());
 
-async function auth(raceId: string, capability: "MANAGE_RACE" | "REGISTER_ENTRY" | "CHANGE_ENTRY_CLASS" | "IMPORT_IOF") {
-  const installation = await issuePairingAdminAccessCredential(db, { raceId, capability, label: "Synthetic capacity",
-    expiresAt: new Date(now.getTime() + 3600_000) }, { now });
-  const login = await loginPairingAdmin(db, { formatVersion: 1, accessCredential: installation.accessCredential },
-    { expectedRaceId: raceId, expectedCapability: capability, now });
-  if (login.status !== "authenticated") throw new Error("Synthetic login failed");
+async function auth(raceId: string, role: "ADMIN" | "FUNCTIONARY") {
+  const login = await raceLogin(db, raceId, role, now);
   return { raceId, sessionToken: login.sessionToken, csrfCookie: login.csrfToken, csrfHeader: login.csrfToken };
 }
 async function fixture() {
@@ -36,13 +32,12 @@ async function fixture() {
     [sourceId, targetId, raceId, courseVersionId]);
   await pool.query("INSERT INTO entry(id,race_id,class_id,given_name,family_name,external_source,external_id) VALUES($1,$2,$3,'Ada','Synthetic','iof','ada')",
     [entryId, raceId, sourceId]);
-  const administrator = await auth(raceId, "MANAGE_RACE"), registration = await auth(raceId, "REGISTER_ENTRY");
-  const legacy = await auth(raceId, "CHANGE_ENTRY_CLASS"), importer = await auth(raceId, "IMPORT_IOF");
-  const request = { formatVersion: 1, expectedEntryVersion: 1, expectedClassId: sourceId, expectedSnapshotVersion: 1,
-    expectedFixedStartTime: null, targetClassId: targetId, expectedTargetCourseVersionId: courseVersionId,
+  const administrator = await auth(raceId, "ADMIN"), registration = await auth(raceId, "ADMIN");
+  const legacy = await auth(raceId, "ADMIN"), importer = await auth(raceId, "ADMIN");
+  const request = { formatVersion: 1, expectedEntryVersion: 1, expectedClassId: sourceId, expectedFixedStartTime: null, targetClassId: targetId, expectedTargetCourseVersionId: courseVersionId,
     expectedTargetStartRule: "PUNCH", fixedStartTime: null };
   const registrationRequest = { formatVersion: 1, classId: targetId, expectedCourseVersionId: courseVersionId,
-    expectedStartRule: "PUNCH", expectedSnapshotVersion: 1, givenName: "Bo", familyName: "Synthetic",
+    expectedStartRule: "PUNCH", givenName: "Bo", familyName: "Synthetic",
     organisationName: null, cardNumber: null, fixedStartTime: null };
   return { raceId, sourceId, targetId, entryId, courseVersionId, administrator, registration, legacy, importer, request, registrationRequest };
 }
@@ -67,27 +62,29 @@ function xml(rows: Array<{ id: string; name: string; raceClass: "source" | "targ
 
 describe("TASK029 shared class capacity guard, real PostgreSQL", () => {
   it("sets a versioned capacity with immutable exact retry but never changes the race snapshot", async () => {
-    const f = await fixture(), other = await auth(f.raceId, "MANAGE_RACE");
+    const f = await fixture(), other = await auth(f.raceId, "ADMIN");
     const key = `class-capacity:${randomUUID()}`;
     const request = { formatVersion: 1, expectedCapacityVersion: 1, expectedMaxEntries: null, maxEntries: 1 };
     const input = { ...f.administrator, classId: f.sourceId, idempotencyKey: key, request };
     const before = await footprint(f.raceId);
-    expect((await changeClassCapacityAsAdministrator(db, { ...input, request: { ...request, maxEntries: 0 } }, now)).status).toBe("conflict");
-    expect((await changeClassCapacityAsAdministrator(db, { ...input, request: { ...request, maxEntries: null } }, now)).status).toBe("invalid-request");
-    expect((await changeClassCapacityAsAdministrator(db, { ...input, request: { ...request, expectedCapacityVersion: 2 } }, now)).status).toBe("conflict");
-    expect((await changeClassCapacityAsAdministrator(db, { ...input, csrfHeader: null }, now)).status).toBe("forbidden");
-    expect((await changeClassCapacityAsAdministrator(db, { ...input, ...f.legacy }, now)).status).toBe("forbidden");
+    expect((await changeClassCapacityAsAdmin(db, { ...input, request: { ...request, maxEntries: 0 } }, now)).status).toBe("conflict");
+    expect((await changeClassCapacityAsAdmin(db, { ...input, request: { ...request, maxEntries: null } }, now)).status).toBe("invalid-request");
+    expect((await changeClassCapacityAsAdmin(db, { ...input, request: { ...request, expectedCapacityVersion: 2 } }, now)).status).toBe("conflict");
+    expect((await changeClassCapacityAsAdmin(db, { ...input, csrfHeader: null }, now)).status).toBe("forbidden");
+    // Funktionären ändrar inte klassens storlek.
+    expect((await changeClassCapacityAsAdmin(db, { ...input, ...await auth(f.raceId, "FUNCTIONARY") }, now)).status)
+      .toBe("forbidden");
     expect(await footprint(f.raceId)).toBe(before);
-    const changed = await changeClassCapacityAsAdministrator(db, input, now);
+    const changed = await changeClassCapacityAsAdmin(db, input, now);
     if (changed.status !== "changed") throw new Error("Capacity change failed");
     expect(changed.response).toMatchObject({ previousMaxEntries: null, maxEntries: 1, entryCount: 1, versionBefore: 1, versionAfter: 2 });
-    expect((await changeClassCapacityAsAdministrator(db, { ...input, idempotencyKey: `class-capacity:${randomUUID()}`,
+    expect((await changeClassCapacityAsAdmin(db, { ...input, idempotencyKey: `class-capacity:${randomUUID()}`,
       request: { formatVersion: 1, expectedCapacityVersion: 2, expectedMaxEntries: 1, maxEntries: 2 } }, now)).status).toBe("changed");
     const after = await footprint(f.raceId);
-    expect(await changeClassCapacityAsAdministrator(db, input, now)).toEqual({ status: "changed", response: { ...changed.response, replayed: true } });
-    expect((await changeClassCapacityAsAdministrator(db, { ...input, ...other }, now)).status).toBe("conflict");
-    expect((await changeClassCapacityAsAdministrator(db, { ...input, request: { ...request, maxEntries: 2 } }, now)).status).toBe("conflict");
-    expect((await changeClassCapacityAsAdministrator(db, { ...input, classId: f.targetId }, now)).status).toBe("conflict");
+    expect(await changeClassCapacityAsAdmin(db, input, now)).toEqual({ status: "changed", response: { ...changed.response, replayed: true } });
+    expect((await changeClassCapacityAsAdmin(db, { ...input, ...other }, now)).status).toBe("conflict");
+    expect((await changeClassCapacityAsAdmin(db, { ...input, request: { ...request, maxEntries: 2 } }, now)).status).toBe("conflict");
+    expect((await changeClassCapacityAsAdmin(db, { ...input, classId: f.targetId }, now)).status).toBe("conflict");
     expect(await footprint(f.raceId)).toBe(after);
     expect((await pool.query<{ snapshot_version: number }>("SELECT snapshot_version FROM race WHERE id=$1", [f.raceId])).rows[0]?.snapshot_version).toBe(1);
     expect((await pool.query<{ version: number }>("SELECT version FROM entry WHERE id=$1", [f.entryId])).rows[0]?.version).toBe(1);
@@ -97,7 +94,7 @@ describe("TASK029 shared class capacity guard, real PostgreSQL", () => {
   it("blocks cap zero/full in every single-entry writer and preserves exact successful retries", async () => {
     const f = await fixture();
     const transferKey = `entry-transfer:${randomUUID()}`;
-    const transfer = () => transferEntryAsAdministrator(db, { ...f.administrator, entryId: f.entryId, idempotencyKey: transferKey, request: f.request }, now);
+    const transfer = () => transferEntryAsAdmin(db, { ...f.administrator, entryId: f.entryId, idempotencyKey: transferKey, request: f.request }, now);
     const registration = () => registerEntryAsAdmin(db, { ...f.registration, idempotencyKey: `entry-registration:${randomUUID()}`, request: f.registrationRequest }, now);
     const legacyKey = `entry-class-change:${randomUUID()}`;
     const legacy = () => changeEntryClassAsAdmin(db, { ...f.legacy, entryId: f.entryId, idempotencyKey: legacyKey,
@@ -114,8 +111,8 @@ describe("TASK029 shared class capacity guard, real PostgreSQL", () => {
     const replay = await transfer(); expect(replay.status === "transferred" && replay.response.replayed).toBe(true);
     expect(await footprint(f.raceId)).toBe(full);
     expect((await registerEntryAsAdmin(db, { ...f.registration, idempotencyKey: `entry-registration:${randomUUID()}`,
-      request: { ...f.registrationRequest, expectedSnapshotVersion: 2 } }, now)).status).toBe("conflict");
-    const list = await listEntryTransfersAsAdministrator(db, f.administrator, now);
+      request: { ...f.registrationRequest } }, now)).status).toBe("conflict");
+    const list = await listEntryTransfersAsAdmin(db, f.administrator, now);
     expect(list.status === "ok" && list.response.classes.find(row => row.id === f.targetId))
       .toMatchObject({ maxEntries: 1, entryCount: 1, capacityVersion: 1 });
     // Legacy exact-retry is checked before today's full-class guard as well.
@@ -132,16 +129,16 @@ describe("TASK029 shared class capacity guard, real PostgreSQL", () => {
     const f = await fixture();
     await pool.query("UPDATE class SET max_entries=1 WHERE id=$1", [f.targetId]);
     const outcomes = await Promise.all([
-      transferEntryAsAdministrator(db, { ...f.administrator, entryId: f.entryId, idempotencyKey: `entry-transfer:${randomUUID()}`, request: f.request }, now),
+      transferEntryAsAdmin(db, { ...f.administrator, entryId: f.entryId, idempotencyKey: `entry-transfer:${randomUUID()}`, request: f.request }, now),
       registerEntryAsAdmin(db, { ...f.registration, idempotencyKey: `entry-registration:${randomUUID()}`, request: f.registrationRequest }, now)
     ]);
     expect(outcomes.filter(row => row.status === "conflict")).toHaveLength(1);
     expect((await pool.query<{ count: string }>("SELECT count(*) FROM entry WHERE class_id=$1", [f.targetId])).rows[0]?.count).toBe("1");
     expect((await registerEntryAsAdmin(db, { ...f.registration, idempotencyKey: `entry-registration:${randomUUID()}`,
-      request: { ...f.registrationRequest, expectedSnapshotVersion: 2 } }, now)).status).toBe("conflict");
+      request: { ...f.registrationRequest } }, now)).status).toBe("conflict");
     await pool.query("UPDATE class SET max_entries=null WHERE id=$1", [f.targetId]);
     const key = `entry-registration:${randomUUID()}`;
-    const input = { ...f.registration, idempotencyKey: key, request: { ...f.registrationRequest, expectedSnapshotVersion: 2 } };
+    const input = { ...f.registration, idempotencyKey: key, request: { ...f.registrationRequest } };
     expect((await registerEntryAsAdmin(db, input, now)).status).toBe("registered");
     await pool.query("UPDATE class SET max_entries=2 WHERE id=$1", [f.targetId]);
     const beforeRetry = await footprint(f.raceId);

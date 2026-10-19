@@ -1,15 +1,14 @@
 import { z } from "zod";
+import { prefixedUuidPattern, uuidSchema as uuid } from "./ids";
 
-const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 const version = z.number().int().positive().max(2_147_483_647);
 const sourceAssignmentSchema = z.object({ id: uuid, cardNumber: z.string().min(1).max(32),
   isRental: z.literal(true), rentalReturned: z.literal(true) }).strict();
 
 export const entryCardRentalReuseIdempotencyKeySchema = z.string().regex(
-  /^entry-card-rental-reuse:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  prefixedUuidPattern("entry-card-rental-reuse"));
 export const entryCardRentalReuseRequestSchema = z.object({
-  formatVersion: z.literal(1), expectedSnapshotVersion: version,
-  source: z.object({ entryId: uuid, classId: uuid, entryVersion: version,
+  formatVersion: z.literal(1),   source: z.object({ entryId: uuid, classId: uuid, entryVersion: version,
     assignment: sourceAssignmentSchema }).strict(),
   expectedTargetClassId: uuid, expectedTargetEntryVersion: version
 }).strict();

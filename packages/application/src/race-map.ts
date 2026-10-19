@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import {
   adminRaceMapStateSchema, publicLegRoutesSchema, raceMapGeoreferenceRequestSchema, participantRouteUploadResponseSchema,
@@ -9,23 +8,20 @@ import { deriveRasterGeoreference, projectRoute, RasterGeoreferenceError, routeL
 import { schema, type Database } from "@o-tid/database";
 import { GpxValidationError, parseGpxTrack } from "@o-tid/iof-xml";
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
-import { authenticatePairingAdminSessionForMutation, authenticatePairingAdminSessionForProtectedRead,
-  type PairingAdminRequestAuthentication } from "./pairing-admin";
+import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { publicResultTimings, type PublicResultTiming } from "./results";
 import { imageDimensions } from "./image-dimensions";
+import { UUID_PATTERN as uuid, sha256Hex as sha256 } from "./serialization";
 
 /**
  * Karta och vägval (ADR-0171, PLAN.md steg 16). Kartbilden och GPX-filerna sparas i PostgreSQL. Bara admin
  * skriver (samma serverkontroll som resten av arbetsytan, ADR-0168 beslut 4). Det publika läser bara kartan när
  * den är georefererad och bara rutternas delar mellan stämplingarna för en sträcka, aldrig hela rutten.
  */
-type Authentication = Omit<PairingAdminRequestAuthentication, "capability">;
+type Authentication = RaceSessionProof;
 type DatabaseTransaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 type Failure = { status: "unauthorized" | "forbidden" | "invalid-request" | "not-found" };
 type Problem = { status: "problem"; problem: RaceMapProblem };
-const capability = "MANAGE_RACE" as const;
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
-const sha256 = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
 const fileName = (value: string, fallback: string) => value.replace(/\p{Cc}/gu, "").trim().slice(0, 200) || fallback;
 const iso = (value: Date) => value.toISOString();
 
@@ -40,7 +36,7 @@ function coverage(points: readonly RoutePoint[], timing: PublicResultTiming | un
 async function adminRead<T>(db: Database, input: Authentication, now: Date, read: (tx: DatabaseTransaction) => Promise<T>): Promise<Failure | T> {
   if (!uuid.test(input.raceId)) return { status: "invalid-request" };
   return db.transaction(async tx => {
-    const auth = await authenticatePairingAdminSessionForProtectedRead(tx, { ...input, capability }, now);
+    const auth = await requireRaceRole(tx, { ...input, role: "ADMIN" }, now, "share");
     if (auth.status !== "authenticated") return auth;
     return read(tx);
   });
@@ -50,20 +46,20 @@ async function adminWrite<T>(db: Database, input: Authentication, now: Date,
   write: (tx: DatabaseTransaction, actorId: string) => Promise<T>): Promise<Failure | T> {
   if (!uuid.test(input.raceId)) return { status: "invalid-request" };
   return db.transaction(async tx => {
-    const auth = await authenticatePairingAdminSessionForMutation(tx, { ...input, capability, requireCsrf: true }, now);
+    const auth = await requireRaceRole(tx, { ...input, role: "ADMIN", requireCsrf: true }, now, "update");
     if (auth.status !== "authenticated") return auth;
     await lockRaceForMutation(tx, input.raceId);
-    return write(tx, auth.principal.accessCredentialId);
+    return write(tx, auth.principal.accountId);
   });
 }
 
 async function audit(tx: DatabaseTransaction, raceId: string, entityId: string, actorId: string, action: string, after: Record<string, unknown>) {
   await tx.insert(schema.auditEvents).values({ raceId, entityType: "race_map", entityId, action,
-    actorKind: "RACE_ADMIN_ACCESS_CREDENTIAL", actorId, after });
+    actorKind: "USER_ACCOUNT", actorId, after });
 }
 
 /** Kartan (utan bilden), löparna som kan få rutt och de uppladdade rutterna med hur många sträckor de täcker. */
-export async function readRaceMapStateAsAdministrator(db: Database, input: Authentication, now = new Date())
+export async function readRaceMapStateAsAdmin(db: Database, input: Authentication, now = new Date())
   : Promise<Failure | { status: "ok"; response: AdminRaceMapState }> {
   return adminRead(db, input, now, async tx => {
     const raceId = input.raceId;
@@ -98,7 +94,7 @@ export async function readRaceMapStateAsAdministrator(db: Database, input: Authe
 }
 
 /** Kartbilden för georeferensen i arbetsytan (även innan den är georefererad). */
-export async function readRaceMapImageAsAdministrator(db: Database, input: Authentication, now = new Date())
+export async function readRaceMapImageAsAdmin(db: Database, input: Authentication, now = new Date())
   : Promise<Failure | { status: "ok"; mediaType: string; image: Buffer }> {
   return adminRead(db, input, now, async tx => {
     const [map] = await tx.select({ mediaType: schema.raceMaps.mediaType, image: schema.raceMaps.image })
@@ -108,7 +104,7 @@ export async function readRaceMapImageAsAdministrator(db: Database, input: Authe
 }
 
 /** Ny eller utbytt kartbild (PNG eller JPEG). En ny bild måste georefereras igen. */
-export async function saveRaceMapAsAdministrator(db: Database, input: Authentication & { bytes: Uint8Array; fileName: string }, now = new Date())
+export async function saveRaceMapAsAdmin(db: Database, input: Authentication & { bytes: Uint8Array; fileName: string }, now = new Date())
   : Promise<Failure | Problem | { status: "ok" }> {
   const image = imageDimensions(input.bytes);
   if (!image) return { status: "problem", problem: "INVALID_IMAGE" };
@@ -125,7 +121,7 @@ export async function saveRaceMapAsAdministrator(db: Database, input: Authentica
 }
 
 /** Georeferens med tre punkter (pixel och WGS84). Domänen räknar ut och kontrollerar den affina transformen. */
-export async function georeferenceRaceMapAsAdministrator(db: Database, input: Authentication & { request: unknown }, now = new Date())
+export async function georeferenceRaceMapAsAdmin(db: Database, input: Authentication & { request: unknown }, now = new Date())
   : Promise<Failure | Problem | { status: "ok" }> {
   const request = raceMapGeoreferenceRequestSchema.safeParse(input.request);
   if (!request.success) return { status: "invalid-request" };
@@ -148,7 +144,7 @@ export async function georeferenceRaceMapAsAdministrator(db: Database, input: Au
 }
 
 /** Tar bort kartan. Rutterna finns kvar men visas inte förrän en ny karta är georefererad. */
-export async function removeRaceMapAsAdministrator(db: Database, input: Authentication, now = new Date()): Promise<Failure | { status: "ok" }> {
+export async function removeRaceMapAsAdmin(db: Database, input: Authentication, now = new Date()): Promise<Failure | { status: "ok" }> {
   return adminWrite(db, input, now, async (tx, actorId) => {
     const removed = await tx.delete(schema.raceMaps).where(eq(schema.raceMaps.raceId, input.raceId)).returning({ raceId: schema.raceMaps.raceId });
     if (removed.length === 0) return { status: "not-found" as const };
@@ -158,7 +154,7 @@ export async function removeRaceMapAsAdministrator(db: Database, input: Authenti
 }
 
 /** Löparens GPX-rutt; ersätter en tidigare. Bara punkter med tid sparas, eftersom de kopplas till stämplingarna. */
-export async function saveParticipantRouteAsAdministrator(db: Database,
+export async function saveParticipantRouteAsAdmin(db: Database,
   input: Authentication & { entryId: string; bytes: Uint8Array; fileName: string }, now = new Date())
   : Promise<Failure | Problem | { status: "ok"; response: ParticipantRouteUploadResponse }> {
   if (!uuid.test(input.entryId)) return { status: "invalid-request" };
@@ -189,7 +185,7 @@ export async function saveParticipantRouteAsAdministrator(db: Database,
   });
 }
 
-export async function removeParticipantRouteAsAdministrator(db: Database, input: Authentication & { entryId: string }, now = new Date())
+export async function removeParticipantRouteAsAdmin(db: Database, input: Authentication & { entryId: string }, now = new Date())
   : Promise<Failure | { status: "ok" }> {
   if (!uuid.test(input.entryId)) return { status: "invalid-request" };
   return adminWrite(db, input, now, async (tx, actorId) => {

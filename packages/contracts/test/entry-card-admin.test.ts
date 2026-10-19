@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { entryCardChangeRequestSchema, entryCardChangeResponseSchema, entryCardAdminListResponseSchema } from "../src";
 const id = "10000000-0000-4000-8000-000000000001";
-const request = { formatVersion: 1, expectedEntryVersion: 1, expectedClassId: id, expectedSnapshotVersion: 3,
-  expectedAssignment: { id, cardNumber: "12345" }, cardNumber: "54321" };
+const request = { formatVersion: 1, expectedEntryVersion: 1, expectedClassId: id, expectedAssignment: { id, cardNumber: "12345" }, cardNumber: "54321" };
 describe("TASK 006P brickbyteskontrakt", () => {
   it("binder exakt tidigare assignment, kräver kanoniskt nytt nummer och avvisar extra mutationsfält", () => {
     expect(entryCardChangeRequestSchema.parse({ ...request, cardNumber: " 54321 " }).cardNumber).toBe("54321");

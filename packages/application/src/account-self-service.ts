@@ -10,7 +10,7 @@ import {
 import type { Database } from "@o-tid/database";
 import { schema } from "@o-tid/database";
 import type { DbExecutor } from "./snapshot";
-import { activeEventAdministrationGrant } from "./organizer-events";
+import { activeEventAdministrationGrant } from "./race-session";
 import { purgeRows } from "./purge";
 import {
   appendUserAccountPasswordVerifier,

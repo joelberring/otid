@@ -1,21 +1,19 @@
-import { createHash } from "node:crypto";
 import { desc, eq, sql } from "drizzle-orm";
-import { canonicalJsonBytes, publicStartListResponseSchema, startListPublicationContentSchema, startListPublicationIdempotencyKeySchema, startListPublicationPreviewResponseSchema, startListPublicationRequestSchema, startListPublicationResponseSchema, type PublicStartListResponse } from "@o-tid/contracts";
+import { publicStartListResponseSchema, startListPublicationContentSchema, startListPublicationIdempotencyKeySchema, startListPublicationPreviewResponseSchema, startListPublicationRequestSchema, startListPublicationResponseSchema, type PublicStartListResponse } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { IofStartListSerializationError, serializeIofStartList, type IofStartListProjection } from "@o-tid/iof-xml";
-import { authenticatePairingAdminSessionForMutation, authenticatePairingAdminSessionForProtectedRead, type PairingAdminRequestAuthentication } from "./pairing-admin";
+import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import type { DbExecutor } from "./snapshot";
 import { loadCourseVersionVariants } from "./course-variants";
 import { loadRelayClassConfigs, loadRelayTeams } from "./relay-model";
 import { loadStartListFacts } from "./start-draw-basis";
+import { canonicalHash as hh, UUID_PATTERN as raceIdPattern } from "./serialization";
 const MAX_CLASSES = 1000, MAX_ENTRIES = 10000;
-const raceIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
-type Auth = Omit<PairingAdminRequestAuthentication, "capability">;
+type Auth = RaceSessionProof;
 type Row = typeof schema.startListPublications.$inferSelect;
 class SourceProjectionError extends Error {
 }
 const cmp = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0;
-const hh = (v: unknown) => createHash("sha256").update(canonicalJsonBytes(v)).digest("hex");
 async function locked(tx: DbExecutor, raceId: string, lock: "share" | "update") {
     const q = tx.select({
         id: schema.races.id, eventId: schema.races.eventId, name: schema.races.name, raceDate: schema.races.raceDate, snapshotVersion: schema.races.snapshotVersion
@@ -118,9 +116,9 @@ function out(row: Row, replayed: boolean) {
 }
 export async function getStartListPublicationPreviewAsAdmin(db: Database, input: Auth, now = new Date()) {
     return db.transaction(async (tx) => {
-        const a = await authenticatePairingAdminSessionForProtectedRead(tx, {
-            ...input, capability: "PUBLISH_START_LIST"
-        }, now);
+        const a = await requireRaceRole(tx, {
+            ...input, role: "ADMIN"
+        }, now, "share");
         if (a.status !== "authenticated")
             return a;
         const race = await locked(tx, input.raceId, "share");
@@ -158,7 +156,7 @@ export async function getStartListPublicationPreviewAsAdmin(db: Database, input:
  */
 export async function exportCurrentStartListXmlAsAdmin(db: Database, input: Auth, now = new Date()) {
     return db.transaction(async (tx) => {
-        const a = await authenticatePairingAdminSessionForProtectedRead(tx, { ...input, capability: "PUBLISH_START_LIST" }, now);
+        const a = await requireRaceRole(tx, { ...input, role: "ADMIN" }, now, "share");
         if (a.status !== "authenticated") return a;
         const race = await locked(tx, input.raceId, "share");
         if (!race) return { status: "not-found" as const };
@@ -182,9 +180,9 @@ export async function decideStartListPublicationAsAdmin(db: Database, input: Aut
         };
     const id = k.data.slice("start-list-publication:".length);
     return db.transaction(async (tx) => {
-        const a = await authenticatePairingAdminSessionForMutation(tx, {
-            ...input, capability: "PUBLISH_START_LIST", requireCsrf: true
-        }, now);
+        const a = await requireRaceRole(tx, {
+            ...input, role: "ADMIN", requireCsrf: true
+        }, now, "update");
         if (a.status !== "authenticated")
             return a;
         const race = await locked(tx, input.raceId, "update");
@@ -196,7 +194,7 @@ export async function decideStartListPublicationAsAdmin(db: Database, input: Aut
         const [old] = await tx.select().from(schema.startListPublications).where(eq(schema.startListPublications.requestId, id));
         if (old) {
             const oi = startListPublicationRequestSchema.safeParse(old.intent);
-            if (old.raceId !== input.raceId || old.actorCredentialId !== a.principal.accessCredentialId || !oi.success || JSON.stringify(oi.data) !== JSON.stringify(r.data))
+            if (old.raceId !== input.raceId || old.actorAccountId !== a.principal.accountId || !oi.success || JSON.stringify(oi.data) !== JSON.stringify(r.data))
                 return {
                     status: "conflict" as const
                 };
@@ -220,7 +218,7 @@ export async function decideStartListPublicationAsAdmin(db: Database, input: Aut
                 if (error instanceof SourceProjectionError) return { status: "conflict" as const };
                 throw error;
             }
-            if (r.data.expectedRevision !== rev || r.data.expectedSnapshotVersion !== race.snapshotVersion || r.data.expectedSourceHash !== s.hash || s.content.classes.every(c => c.entries.length === 0) || (last?.action === "PUBLISH" && last.sourceHash === s.hash))
+            if (r.data.expectedRevision !== rev || r.data.expectedSourceHash !== s.hash || s.content.classes.every(c => c.entries.length === 0) || (last?.action === "PUBLISH" && last.sourceHash === s.hash))
                 return {
                     status: "conflict" as const
                 };
@@ -234,12 +232,12 @@ export async function decideStartListPublicationAsAdmin(db: Database, input: Aut
             };
         const [saved] = await tx.insert(schema.startListPublications).values({
             iofStartListXml,
-            requestId: id, raceId: race.id, actorCredentialId: a.principal.accessCredentialId, revision: rev + 1, action: r.data.action, intent: r.data, sourceSnapshotVersion: race.snapshotVersion, sourceHash: hash, content, decidedAt: now
+            requestId: id, raceId: race.id, actorAccountId: a.principal.accountId, revision: rev + 1, action: r.data.action, intent: r.data, sourceSnapshotVersion: race.snapshotVersion, sourceHash: hash, content, decidedAt: now
         }).returning();
         if (!saved)
             throw new Error("Beslut saknas");
         await tx.insert(schema.auditEvents).values({
-            raceId: race.id, entityType: "start_list_publication", entityId: saved.id, action: saved.action === "PUBLISH" ? "START_LIST_PUBLISHED" : "START_LIST_WITHDRAWN", actorKind: a.principal.capability === "MANAGE_RACE" ? "RACE_ADMIN_ACCESS_CREDENTIAL" : "START_LIST_PUBLICATION_ACCESS_CREDENTIAL", actorId: a.principal.accessCredentialId, requestId: id, after: {
+            raceId: race.id, entityType: "start_list_publication", entityId: saved.id, action: saved.action === "PUBLISH" ? "START_LIST_PUBLISHED" : "START_LIST_WITHDRAWN", actorKind: "USER_ACCOUNT", actorId: a.principal.accountId, requestId: id, after: {
                 revision: saved.revision
             }
         });

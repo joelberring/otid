@@ -1,7 +1,8 @@
 import { z } from "zod";
+import { UUID_PATTERN, prefixedUuidPattern } from "./ids";
 
 const canonicalUuidSchema = z.string().regex(
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+  UUID_PATTERN,
   "Id måste vara ett kanoniskt gemener-UUID"
 );
 const sha256Schema = z.string().regex(/^[a-f0-9]{64}$/, "Hash måste vara SHA-256 i gemener");
@@ -56,19 +57,7 @@ const raceBlockerCodes = new Set<z.infer<typeof resultFinalizationBlockerCodeSch
   "MULTI_RACE_EVENT"
 ]);
 
-export const resultFinalizationAdminLoginRequestSchema = z.object({
-  formatVersion: z.literal(1),
-  accessCredential: z.string().regex(
-    /^otid_org_result_finalize_v1\.[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.[A-Za-z0-9_-]{43}$/
-  )
-}).strict();
 
-export const resultFinalizationAdminLoginResponseSchema = z.object({
-  formatVersion: z.literal(1),
-  raceId: canonicalUuidSchema,
-  capability: z.literal("FINALIZE_RESULTS"),
-  expiresAt: instantSchema
-}).strict();
 
 const finalizationCommonMetadata = {
   id: canonicalUuidSchema,
@@ -189,8 +178,7 @@ export const resultFinalizationCandidateResponseSchema = z.object({
 const expectedLatestScopeRevisionSchema = positiveVersionSchema.nullable();
 const mutationCommon = {
   formatVersion: z.literal(1),
-  expectedSnapshotVersion: positiveVersionSchema,
-  expectedBasisHash: sha256Schema,
+    expectedBasisHash: sha256Schema,
   expectedLatestScopeRevision: expectedLatestScopeRevisionSchema
 };
 
@@ -212,7 +200,7 @@ export const resultFinalizationRequestSchema = z.discriminatedUnion("scope", [
 ]);
 
 export const resultFinalizationIdempotencyKeySchema = z.string().regex(
-  /^result-finalization:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+  prefixedUuidPattern("result-finalization"),
   "Idempotency-Key måste vara result-finalization:<kanoniskt request-uuid>"
 );
 
@@ -349,48 +337,13 @@ function validateFrozenIofPerson(result: FrozenPersonValidationValue, context: z
   }
 }
 
-export const frozenIofPersonProjectionV1Schema = z.object({
-  ...frozenIofPersonCommonFields,
-  status: z.enum(["OK", "MP", "DNS"])
-}).strict().superRefine(validateFrozenIofPerson);
-
-export const frozenIofPersonProjectionV2Schema = z.object({
-  ...frozenIofPersonCommonFields,
-  status: z.enum(["OK", "MP", "DSQ", "DNS"])
-}).strict().superRefine(validateFrozenIofPerson);
-
-export const frozenIofPersonProjectionV3Schema = z.object({
-  ...frozenIofPersonCommonFields,
-  status: z.enum(["OK", "MP", "DSQ", "DNS"]),
-  manualApprovalProof: frozenManualApprovalProofSchema.nullable()
-}).strict().superRefine(validateFrozenIofPerson);
-
-export const frozenIofPersonProjectionV4Schema = z.object({
-  ...frozenIofPersonCommonFields,
-  status: z.enum(["OK", "MP", "DSQ", "DNF", "DNS"]),
-  manualApprovalProof: frozenManualApprovalProofSchema.nullable()
-}).strict().superRefine(validateFrozenIofPerson);
-
-export const frozenIofPersonProjectionV5Schema = z.object({
-  ...frozenIofPersonCommonFields,
-  status: z.enum(["OK", "MP", "DSQ", "DNF", "DNS"]),
-  manualApprovalProof: frozenManualApprovalProofSchema.nullable()
-}).strict().superRefine(validateFrozenIofPerson);
-
-export const frozenIofPersonProjectionV6Schema = z.object({
+/** Den frysta personraden (IOF 3.0 PersonResult) i nuvarande format (9). */
+export const frozenIofPersonProjectionV9Schema = z.object({
   ...frozenIofPersonCommonFields,
   status: z.enum(["OK", "MP", "DSQ", "DNF", "OOC", "DNS"]),
   manualApprovalProof: frozenManualApprovalProofSchema.nullable()
 }).strict().superRefine(validateFrozenIofPerson);
-
-export const frozenIofPersonProjectionSchema = z.union([
-  frozenIofPersonProjectionV1Schema,
-  frozenIofPersonProjectionV2Schema,
-  frozenIofPersonProjectionV3Schema,
-  frozenIofPersonProjectionV4Schema,
-  frozenIofPersonProjectionV5Schema,
-  frozenIofPersonProjectionV6Schema
-]);
+export const frozenIofPersonProjectionSchema = frozenIofPersonProjectionV9Schema;
 
 const frozenSourceBase = {
   entryId: canonicalUuidSchema,
@@ -399,254 +352,19 @@ const frozenSourceBase = {
   courseVersionId: canonicalUuidSchema
 };
 
-export const frozenFinalizationResultSourceV1Schema = z.object(frozenSourceBase).strict();
+/** Arrangörens beslut som kan frysas (ADR-0173 beslut 1: beslutet finns bara som resultatrevision). */
+export const frozenManualDecisionCauseSchema = z.enum(["MANUAL_DID_NOT_START", "MANUAL_DISQUALIFICATION",
+  "MANUAL_DISQUALIFICATION_WITHDRAWAL", "MANUAL_RESULT_APPROVAL", "MANUAL_RESULT_APPROVAL_WITHDRAWAL",
+  "MANUAL_DID_NOT_FINISH", "MANUAL_DID_NOT_FINISH_WITHDRAWAL", "MANUAL_OUT_OF_COMPETITION",
+  "MANUAL_OUT_OF_COMPETITION_WITHDRAWAL", "MANUAL_WITHOUT_TIMING_WITHDRAWAL"]);
 
-export const frozenFinalizationResultSourceV2Schema = z.discriminatedUnion("kind", [
-  z.object({
-    ...frozenSourceBase,
-    kind: z.literal("READOUT_RESULT"),
-    readoutId: canonicalUuidSchema
-  }).strict(),
-  z.object({
-    ...frozenSourceBase,
-    kind: z.literal("MANUAL_DID_NOT_START"),
-    didNotStartDecisionId: canonicalUuidSchema
-  }).strict(),
-  z.object({
-    ...frozenSourceBase,
-    kind: z.literal("MANUAL_DISQUALIFICATION"),
-    resultDisqualificationDecisionId: canonicalUuidSchema,
-    targetResultRevisionId: canonicalUuidSchema,
-    absoluteResultRevisionId: canonicalUuidSchema,
-    absoluteResultRevision: positiveVersionSchema
-  }).strict(),
-  z.object({
-    ...frozenSourceBase,
-    kind: z.literal("MANUAL_DISQUALIFICATION_WITHDRAWAL"),
-    resultDisqualificationWithdrawalId: canonicalUuidSchema,
-    resultDisqualificationDecisionId: canonicalUuidSchema,
-    targetResultRevisionId: canonicalUuidSchema,
-    disqualifiedResultRevisionId: canonicalUuidSchema,
-    restorationSourceResultRevisionId: canonicalUuidSchema
-  }).strict()
-]);
-
-export const frozenFinalizationResultSourceV3Schema = z.discriminatedUnion("kind", [
-  z.object({
-    ...frozenSourceBase,
-    kind: z.literal("READOUT_RESULT"),
-    readoutId: canonicalUuidSchema
-  }).strict(),
-  z.object({
-    ...frozenSourceBase,
-    kind: z.literal("MANUAL_DID_NOT_START"),
-    didNotStartDecisionId: canonicalUuidSchema
-  }).strict(),
-  z.object({
-    ...frozenSourceBase,
-    kind: z.literal("MANUAL_DISQUALIFICATION"),
-    resultDisqualificationDecisionId: canonicalUuidSchema,
-    targetResultRevisionId: canonicalUuidSchema,
-    absoluteResultRevisionId: canonicalUuidSchema,
-    absoluteResultRevision: positiveVersionSchema
-  }).strict(),
-  z.object({
-    ...frozenSourceBase,
-    kind: z.literal("MANUAL_DISQUALIFICATION_WITHDRAWAL"),
-    resultDisqualificationWithdrawalId: canonicalUuidSchema,
-    resultDisqualificationDecisionId: canonicalUuidSchema,
-    targetResultRevisionId: canonicalUuidSchema,
-    disqualifiedResultRevisionId: canonicalUuidSchema,
-    restorationSourceResultRevisionId: canonicalUuidSchema
-  }).strict(),
-  z.object({
-    ...frozenSourceBase,
-    kind: z.literal("MANUAL_RESULT_APPROVAL"),
-    resultApprovalDecisionId: canonicalUuidSchema,
-    targetResultRevisionId: canonicalUuidSchema,
-    approvedResultRevisionId: canonicalUuidSchema,
-    absoluteResultRevisionId: canonicalUuidSchema,
-    absoluteResultRevision: positiveVersionSchema
-  }).strict(),
-  z.object({
-    ...frozenSourceBase,
-    kind: z.literal("MANUAL_RESULT_APPROVAL_WITHDRAWAL"),
-    resultApprovalWithdrawalId: canonicalUuidSchema,
-    resultApprovalDecisionId: canonicalUuidSchema,
-    targetResultRevisionId: canonicalUuidSchema,
-    approvedResultRevisionId: canonicalUuidSchema,
-    restorationSourceResultRevisionId: canonicalUuidSchema
-  }).strict()
-]);
-
-export const frozenFinalizationResultSourceV4Schema = z.discriminatedUnion("kind", [
-  z.object({
-    ...frozenSourceBase,
-    kind: z.literal("READOUT_RESULT"),
-    readoutId: canonicalUuidSchema
-  }).strict(),
-  z.object({
-    ...frozenSourceBase,
-    kind: z.literal("MANUAL_DID_NOT_START"),
-    didNotStartDecisionId: canonicalUuidSchema
-  }).strict(),
-  z.object({
-    ...frozenSourceBase,
-    kind: z.literal("MANUAL_DID_NOT_FINISH"),
-    didNotFinishDecisionId: canonicalUuidSchema,
-    targetResultRevisionId: canonicalUuidSchema,
-    absoluteResultRevisionId: canonicalUuidSchema,
-    absoluteResultRevision: positiveVersionSchema
-  }).strict(),
-  z.object({
-    ...frozenSourceBase,
-    kind: z.literal("MANUAL_DISQUALIFICATION"),
-    resultDisqualificationDecisionId: canonicalUuidSchema,
-    targetResultRevisionId: canonicalUuidSchema,
-    absoluteResultRevisionId: canonicalUuidSchema,
-    absoluteResultRevision: positiveVersionSchema
-  }).strict(),
-  z.object({
-    ...frozenSourceBase,
-    kind: z.literal("MANUAL_DISQUALIFICATION_WITHDRAWAL"),
-    resultDisqualificationWithdrawalId: canonicalUuidSchema,
-    resultDisqualificationDecisionId: canonicalUuidSchema,
-    targetResultRevisionId: canonicalUuidSchema,
-    disqualifiedResultRevisionId: canonicalUuidSchema,
-    restorationSourceResultRevisionId: canonicalUuidSchema
-  }).strict(),
-  z.object({
-    ...frozenSourceBase,
-    kind: z.literal("MANUAL_RESULT_APPROVAL"),
-    resultApprovalDecisionId: canonicalUuidSchema,
-    targetResultRevisionId: canonicalUuidSchema,
-    approvedResultRevisionId: canonicalUuidSchema,
-    absoluteResultRevisionId: canonicalUuidSchema,
-    absoluteResultRevision: positiveVersionSchema
-  }).strict(),
-  z.object({
-    ...frozenSourceBase,
-    kind: z.literal("MANUAL_RESULT_APPROVAL_WITHDRAWAL"),
-    resultApprovalWithdrawalId: canonicalUuidSchema,
-    resultApprovalDecisionId: canonicalUuidSchema,
-    targetResultRevisionId: canonicalUuidSchema,
-    approvedResultRevisionId: canonicalUuidSchema,
-    restorationSourceResultRevisionId: canonicalUuidSchema
-  }).strict()
-]);
-
-export const frozenFinalizationResultSourceV5Schema = z.discriminatedUnion("kind", [
-  z.object({
-    ...frozenSourceBase,
-    kind: z.literal("READOUT_RESULT"),
-    readoutId: canonicalUuidSchema
-  }).strict(),
-  z.object({
-    ...frozenSourceBase,
-    kind: z.literal("MANUAL_DID_NOT_START"),
-    didNotStartDecisionId: canonicalUuidSchema
-  }).strict(),
-  z.object({
-    ...frozenSourceBase,
-    kind: z.literal("MANUAL_DID_NOT_FINISH"),
-    didNotFinishDecisionId: canonicalUuidSchema,
-    targetResultRevisionId: canonicalUuidSchema,
-    absoluteResultRevisionId: canonicalUuidSchema,
-    absoluteResultRevision: positiveVersionSchema
-  }).strict(),
-  z.object({
-    ...frozenSourceBase,
-    kind: z.literal("MANUAL_DID_NOT_FINISH_WITHDRAWAL"),
-    didNotFinishWithdrawalId: canonicalUuidSchema,
-    didNotFinishDecisionId: canonicalUuidSchema,
-    targetResultRevisionId: canonicalUuidSchema,
-    didNotFinishResultRevisionId: canonicalUuidSchema,
-    restorationSourceResultRevisionId: canonicalUuidSchema
-  }).strict(),
-  z.object({
-    ...frozenSourceBase,
-    kind: z.literal("MANUAL_DISQUALIFICATION"),
-    resultDisqualificationDecisionId: canonicalUuidSchema,
-    targetResultRevisionId: canonicalUuidSchema,
-    absoluteResultRevisionId: canonicalUuidSchema,
-    absoluteResultRevision: positiveVersionSchema
-  }).strict(),
-  z.object({
-    ...frozenSourceBase,
-    kind: z.literal("MANUAL_DISQUALIFICATION_WITHDRAWAL"),
-    resultDisqualificationWithdrawalId: canonicalUuidSchema,
-    resultDisqualificationDecisionId: canonicalUuidSchema,
-    targetResultRevisionId: canonicalUuidSchema,
-    disqualifiedResultRevisionId: canonicalUuidSchema,
-    restorationSourceResultRevisionId: canonicalUuidSchema
-  }).strict(),
-  z.object({
-    ...frozenSourceBase,
-    kind: z.literal("MANUAL_RESULT_APPROVAL"),
-    resultApprovalDecisionId: canonicalUuidSchema,
-    targetResultRevisionId: canonicalUuidSchema,
-    approvedResultRevisionId: canonicalUuidSchema,
-    absoluteResultRevisionId: canonicalUuidSchema,
-    absoluteResultRevision: positiveVersionSchema
-  }).strict(),
-  z.object({
-    ...frozenSourceBase,
-    kind: z.literal("MANUAL_RESULT_APPROVAL_WITHDRAWAL"),
-    resultApprovalWithdrawalId: canonicalUuidSchema,
-    resultApprovalDecisionId: canonicalUuidSchema,
-    targetResultRevisionId: canonicalUuidSchema,
-    approvedResultRevisionId: canonicalUuidSchema,
-    restorationSourceResultRevisionId: canonicalUuidSchema
-  }).strict()
-]);
-
-export const frozenFinalizationResultSourceV6Schema = z.discriminatedUnion("kind", [
-  ...frozenFinalizationResultSourceV5Schema.options,
-  z.object({
-    ...frozenSourceBase,
-    kind: z.literal("MANUAL_OUT_OF_COMPETITION"),
-    notCompetingDecisionId: canonicalUuidSchema,
-    targetResultRevisionId: canonicalUuidSchema,
-    absoluteResultRevisionId: canonicalUuidSchema,
-    absoluteResultRevision: positiveVersionSchema
-  }).strict()
-]);
-
-/** TASK 006L freezes every reciprocal OOC withdrawal identity. */
-export const frozenFinalizationResultSourceV7Schema = z.discriminatedUnion("kind", [
-  ...frozenFinalizationResultSourceV6Schema.options,
-  z.object({
-    ...frozenSourceBase,
-    kind: z.literal("MANUAL_OUT_OF_COMPETITION_WITHDRAWAL"),
-    notCompetingWithdrawalId: canonicalUuidSchema,
-    notCompetingDecisionId: canonicalUuidSchema,
-    targetResultRevisionId: canonicalUuidSchema,
-    outOfCompetitionResultRevisionId: canonicalUuidSchema,
-    absoluteResultRevisionId: canonicalUuidSchema,
-    absoluteResultRevision: positiveVersionSchema,
-    restorationSourceResultRevisionId: canonicalUuidSchema
-  }).strict()
-]);
-
-/** TASK 006N freezes every reciprocal NT withdrawal identity. */
-export const frozenFinalizationResultSourceV8Schema = z.discriminatedUnion("kind", [
-  ...frozenFinalizationResultSourceV7Schema.options,
-  z.object({
-    ...frozenSourceBase,
-    kind: z.literal("MANUAL_WITHOUT_TIMING_WITHDRAWAL"),
-    withoutTimingWithdrawalId: canonicalUuidSchema,
-    withoutTimingDecisionId: canonicalUuidSchema,
-    targetResultRevisionId: canonicalUuidSchema,
-    withoutTimingResultRevisionId: canonicalUuidSchema,
-    absoluteResultRevisionId: canonicalUuidSchema,
-    absoluteResultRevision: positiveVersionSchema,
-    restorationSourceResultRevisionId: canonicalUuidSchema
-  }).strict()
-]);
-
-/** TASK 006W freezes verified start-checkin DNS separately from manual DNS. */
+/** Var det frysta resultatet kommer ifrån: en avläsning, avprickningens ej start eller ett beslut. */
 export const frozenFinalizationResultSourceV9Schema = z.discriminatedUnion("kind", [
-  ...frozenFinalizationResultSourceV8Schema.options,
+  z.object({
+    ...frozenSourceBase,
+    kind: z.literal("READOUT_RESULT"),
+    readoutId: canonicalUuidSchema
+  }).strict(),
   z.object({
     ...frozenSourceBase,
     kind: z.literal("START_CHECKIN_DID_NOT_START"),
@@ -655,251 +373,40 @@ export const frozenFinalizationResultSourceV9Schema = z.discriminatedUnion("kind
     startCheckinRevisionId: canonicalUuidSchema,
     operationalRevision: positiveVersionSchema,
     withdrawal: z.null()
+  }).strict(),
+  z.object({
+    ...frozenSourceBase,
+    kind: z.literal("MANUAL_DECISION"),
+    cause: frozenManualDecisionCauseSchema,
+    absoluteResultRevisionId: canonicalUuidSchema,
+    absoluteResultRevision: positiveVersionSchema,
+    /** Revisionen under ett kvarliggande beslut (disk, godkännande, brutit, utom tävlan). */
+    underlyingResultRevisionId: canonicalUuidSchema.nullable()
   }).strict()
 ]);
 
-export const frozenFinalizationResultV1Schema = z.object({
-  source: frozenFinalizationResultSourceV1Schema,
-  personResult: frozenIofPersonProjectionV1Schema
-}).strict();
-
-export const frozenFinalizationResultV2Schema = z.object({
-  source: frozenFinalizationResultSourceV2Schema,
-  personResult: frozenIofPersonProjectionV2Schema
-}).strict().superRefine((result, context) => {
-  const expectedStatuses = result.source.kind === "MANUAL_DID_NOT_START"
-    ? ["DNS"]
-    : result.source.kind === "MANUAL_DISQUALIFICATION"
-      ? ["DSQ"]
-      : result.source.kind === "MANUAL_DISQUALIFICATION_WITHDRAWAL"
-        ? ["OK", "MP"]
-        : ["OK", "MP"];
-  if (!expectedStatuses.includes(result.personResult.status)) {
-    context.addIssue({ code: "custom", path: ["personResult", "status"], message: "Resultatstatus motsäger fryst proveniens" });
-  }
-});
-
-export const frozenFinalizationResultV3Schema = z.object({
-  source: frozenFinalizationResultSourceV3Schema,
-  personResult: frozenIofPersonProjectionV3Schema
-}).strict().superRefine((result, context) => {
-  const expectedStatuses = result.source.kind === "MANUAL_DID_NOT_START"
-    ? ["DNS"]
-    : result.source.kind === "MANUAL_DISQUALIFICATION"
-      ? ["DSQ"]
-      : result.source.kind === "MANUAL_DISQUALIFICATION_WITHDRAWAL"
-        ? ["OK", "MP"]
-        : result.source.kind === "MANUAL_RESULT_APPROVAL"
-          ? ["OK"]
-          : ["OK", "MP"];
-  if (!expectedStatuses.includes(result.personResult.status)) {
-    context.addIssue({ code: "custom", path: ["personResult", "status"], message: "Resultatstatus motsäger fryst proveniens" });
-  }
-  if (result.source.kind === "MANUAL_RESULT_APPROVAL") {
-    const proof = result.personResult.manualApprovalProof;
-    if (proof === null || proof.decisionId !== result.source.resultApprovalDecisionId ||
-        proof.targetResultRevisionId !== result.source.targetResultRevisionId) {
-      context.addIssue({ code: "custom", path: ["personResult", "manualApprovalProof"], message: "Godkännandebeviset måste matcha fryst proveniens" });
-    }
-  } else if (result.personResult.manualApprovalProof !== null) {
-    context.addIssue({ code: "custom", path: ["personResult", "manualApprovalProof"], message: "Endast aktivt manuellt godkännande får bära bevis" });
-  }
-});
-
-export const frozenFinalizationResultV4Schema = z.object({
-  source: frozenFinalizationResultSourceV4Schema,
-  personResult: frozenIofPersonProjectionV4Schema
-}).strict().superRefine((result, context) => {
-  const expectedStatuses = result.source.kind === "MANUAL_DID_NOT_START"
-    ? ["DNS"]
-    : result.source.kind === "MANUAL_DID_NOT_FINISH"
-      ? ["DNF"]
-      : result.source.kind === "MANUAL_DISQUALIFICATION"
-        ? ["DSQ"]
-        : result.source.kind === "MANUAL_DISQUALIFICATION_WITHDRAWAL"
-          ? ["OK", "MP"]
-          : result.source.kind === "MANUAL_RESULT_APPROVAL"
-            ? ["OK"]
-            : ["OK", "MP"];
-  if (!expectedStatuses.includes(result.personResult.status)) {
-    context.addIssue({ code: "custom", path: ["personResult", "status"], message: "Resultatstatus motsäger fryst proveniens" });
-  }
-  if (result.source.kind === "MANUAL_RESULT_APPROVAL") {
-    const proof = result.personResult.manualApprovalProof;
-    if (proof === null || proof.decisionId !== result.source.resultApprovalDecisionId ||
-        proof.targetResultRevisionId !== result.source.targetResultRevisionId) {
-      context.addIssue({ code: "custom", path: ["personResult", "manualApprovalProof"], message: "Godkännandebeviset måste matcha fryst proveniens" });
-    }
-  } else if (result.personResult.manualApprovalProof !== null) {
-    context.addIssue({ code: "custom", path: ["personResult", "manualApprovalProof"], message: "Endast aktivt manuellt godkännande får bära bevis" });
-  }
-});
-
-export const frozenFinalizationResultV5Schema = z.object({
-  source: frozenFinalizationResultSourceV5Schema,
-  personResult: frozenIofPersonProjectionV5Schema
-}).strict().superRefine((result, context) => {
-  const expectedStatuses = result.source.kind === "MANUAL_DID_NOT_START"
-    ? ["DNS"]
-    : result.source.kind === "MANUAL_DID_NOT_FINISH"
-      ? ["DNF"]
-      : result.source.kind === "MANUAL_DID_NOT_FINISH_WITHDRAWAL"
-        ? ["OK", "MP"]
-        : result.source.kind === "MANUAL_DISQUALIFICATION"
-          ? ["DSQ"]
-          : result.source.kind === "MANUAL_DISQUALIFICATION_WITHDRAWAL"
-            ? ["OK", "MP"]
-            : result.source.kind === "MANUAL_RESULT_APPROVAL"
-              ? ["OK"]
-              : ["OK", "MP"];
-  if (!expectedStatuses.includes(result.personResult.status)) {
-    context.addIssue({ code: "custom", path: ["personResult", "status"], message: "Resultatstatus motsäger fryst proveniens" });
-  }
-  if (result.source.kind === "MANUAL_RESULT_APPROVAL") {
-    const proof = result.personResult.manualApprovalProof;
-    if (proof === null || proof.decisionId !== result.source.resultApprovalDecisionId ||
-        proof.targetResultRevisionId !== result.source.targetResultRevisionId) {
-      context.addIssue({ code: "custom", path: ["personResult", "manualApprovalProof"], message: "Godkännandebeviset måste matcha fryst proveniens" });
-    }
-  } else if (result.personResult.manualApprovalProof !== null) {
-    context.addIssue({ code: "custom", path: ["personResult", "manualApprovalProof"], message: "Endast aktivt manuellt godkännande får bära bevis" });
-  }
-});
-
-export const frozenFinalizationResultV6Schema = z.object({
-  source: frozenFinalizationResultSourceV6Schema,
-  personResult: frozenIofPersonProjectionV6Schema
-}).strict().superRefine((result, context) => {
-  const expectedStatuses = result.source.kind === "MANUAL_DID_NOT_START"
-    ? ["DNS"]
-    : result.source.kind === "MANUAL_DID_NOT_FINISH"
-      ? ["DNF"]
-      : result.source.kind === "MANUAL_DID_NOT_FINISH_WITHDRAWAL"
-        ? ["OK", "MP"]
-        : result.source.kind === "MANUAL_OUT_OF_COMPETITION"
-          ? ["OOC"]
-          : result.source.kind === "MANUAL_DISQUALIFICATION"
-            ? ["DSQ"]
-            : result.source.kind === "MANUAL_DISQUALIFICATION_WITHDRAWAL"
-              ? ["OK", "MP"]
-              : result.source.kind === "MANUAL_RESULT_APPROVAL"
-                ? ["OK"]
-                : ["OK", "MP"];
-  if (!expectedStatuses.includes(result.personResult.status)) {
-    context.addIssue({ code: "custom", path: ["personResult", "status"], message: "Resultatstatus motsäger fryst proveniens" });
-  }
-  if (result.source.kind === "MANUAL_RESULT_APPROVAL") {
-    const proof = result.personResult.manualApprovalProof;
-    if (proof === null || proof.decisionId !== result.source.resultApprovalDecisionId ||
-        proof.targetResultRevisionId !== result.source.targetResultRevisionId) {
-      context.addIssue({ code: "custom", path: ["personResult", "manualApprovalProof"], message: "Godkännandebeviset måste matcha fryst proveniens" });
-    }
-  } else if (result.personResult.manualApprovalProof !== null) {
-    context.addIssue({ code: "custom", path: ["personResult", "manualApprovalProof"], message: "Endast aktivt manuellt godkännande får bära bevis" });
-  }
-});
-
-export const frozenIofPersonProjectionV7Schema = frozenIofPersonProjectionV6Schema;
-
-export const frozenFinalizationResultV7Schema = z.object({
-  source: frozenFinalizationResultSourceV7Schema,
-  personResult: frozenIofPersonProjectionV7Schema
-}).strict().superRefine((result, context) => {
-  const expectedStatuses = result.source.kind === "MANUAL_DID_NOT_START"
-    ? ["DNS"]
-    : result.source.kind === "MANUAL_DID_NOT_FINISH"
-      ? ["DNF"]
-      : result.source.kind === "MANUAL_DID_NOT_FINISH_WITHDRAWAL" ||
-          result.source.kind === "MANUAL_OUT_OF_COMPETITION_WITHDRAWAL" ||
-          result.source.kind === "MANUAL_DISQUALIFICATION_WITHDRAWAL"
-        ? ["OK", "MP"]
-        : result.source.kind === "MANUAL_OUT_OF_COMPETITION"
-          ? ["OOC"]
-          : result.source.kind === "MANUAL_DISQUALIFICATION"
-            ? ["DSQ"]
-            : result.source.kind === "MANUAL_RESULT_APPROVAL"
-              ? ["OK"]
-              : ["OK", "MP"];
-  if (!expectedStatuses.includes(result.personResult.status)) {
-    context.addIssue({ code: "custom", path: ["personResult", "status"], message: "Resultatstatus motsäger fryst proveniens" });
-  }
-  if (result.source.kind === "MANUAL_RESULT_APPROVAL") {
-    const proof = result.personResult.manualApprovalProof;
-    if (proof === null || proof.decisionId !== result.source.resultApprovalDecisionId ||
-        proof.targetResultRevisionId !== result.source.targetResultRevisionId) {
-      context.addIssue({ code: "custom", path: ["personResult", "manualApprovalProof"], message: "Godkännandebeviset måste matcha fryst proveniens" });
-    }
-  } else if (result.personResult.manualApprovalProof !== null) {
-    context.addIssue({ code: "custom", path: ["personResult", "manualApprovalProof"], message: "Endast aktivt manuellt godkännande får bära bevis" });
-  }
-});
-
-export const frozenIofPersonProjectionV8Schema = frozenIofPersonProjectionV7Schema;
-
-export const frozenIofPersonProjectionV9Schema = frozenIofPersonProjectionV8Schema;
-
-export const frozenFinalizationResultV8Schema = z.object({
-  source: frozenFinalizationResultSourceV8Schema,
-  personResult: frozenIofPersonProjectionV8Schema
-}).strict().superRefine((result, context) => {
-  const expectedStatuses = result.source.kind === "MANUAL_DID_NOT_START"
-    ? ["DNS"]
-    : result.source.kind === "MANUAL_DID_NOT_FINISH"
-      ? ["DNF"]
-      : result.source.kind === "MANUAL_DID_NOT_FINISH_WITHDRAWAL" ||
-          result.source.kind === "MANUAL_OUT_OF_COMPETITION_WITHDRAWAL" ||
-          result.source.kind === "MANUAL_WITHOUT_TIMING_WITHDRAWAL" ||
-          result.source.kind === "MANUAL_DISQUALIFICATION_WITHDRAWAL"
-        ? ["OK", "MP"]
-        : result.source.kind === "MANUAL_OUT_OF_COMPETITION"
-          ? ["OOC"]
-          : result.source.kind === "MANUAL_DISQUALIFICATION"
-            ? ["DSQ"]
-            : result.source.kind === "MANUAL_RESULT_APPROVAL"
-              ? ["OK"]
-              : ["OK", "MP"];
-  if (!expectedStatuses.includes(result.personResult.status)) {
-    context.addIssue({ code: "custom", path: ["personResult", "status"], message: "Resultatstatus motsäger fryst proveniens" });
-  }
-  if (result.source.kind === "MANUAL_RESULT_APPROVAL") {
-    const proof = result.personResult.manualApprovalProof;
-    if (proof === null || proof.decisionId !== result.source.resultApprovalDecisionId ||
-        proof.targetResultRevisionId !== result.source.targetResultRevisionId) {
-      context.addIssue({ code: "custom", path: ["personResult", "manualApprovalProof"], message: "Godkännandebeviset måste matcha fryst proveniens" });
-    }
-  } else if (result.personResult.manualApprovalProof !== null) {
-    context.addIssue({ code: "custom", path: ["personResult", "manualApprovalProof"], message: "Endast aktivt manuellt godkännande får bära bevis" });
-  }
-});
+const EXPECTED_STATUSES: Record<z.infer<typeof frozenManualDecisionCauseSchema>, readonly string[]> = {
+  MANUAL_DID_NOT_START: ["DNS"], MANUAL_DISQUALIFICATION: ["DSQ"], MANUAL_RESULT_APPROVAL: ["OK"],
+  MANUAL_DID_NOT_FINISH: ["DNF"], MANUAL_OUT_OF_COMPETITION: ["OOC"],
+  MANUAL_DISQUALIFICATION_WITHDRAWAL: ["OK", "MP"], MANUAL_RESULT_APPROVAL_WITHDRAWAL: ["OK", "MP"],
+  MANUAL_DID_NOT_FINISH_WITHDRAWAL: ["OK", "MP"], MANUAL_OUT_OF_COMPETITION_WITHDRAWAL: ["OK", "MP"],
+  MANUAL_WITHOUT_TIMING_WITHDRAWAL: ["OK", "MP"]
+};
 
 export const frozenFinalizationResultV9Schema = z.object({
   source: frozenFinalizationResultSourceV9Schema,
   personResult: frozenIofPersonProjectionV9Schema
 }).strict().superRefine((result, context) => {
-  const expectedStatuses = result.source.kind === "MANUAL_DID_NOT_START" ||
-      result.source.kind === "START_CHECKIN_DID_NOT_START"
-    ? ["DNS"]
-    : result.source.kind === "MANUAL_DID_NOT_FINISH"
-      ? ["DNF"]
-      : result.source.kind === "MANUAL_DID_NOT_FINISH_WITHDRAWAL" ||
-          result.source.kind === "MANUAL_OUT_OF_COMPETITION_WITHDRAWAL" ||
-          result.source.kind === "MANUAL_WITHOUT_TIMING_WITHDRAWAL" ||
-          result.source.kind === "MANUAL_DISQUALIFICATION_WITHDRAWAL"
-        ? ["OK", "MP"]
-        : result.source.kind === "MANUAL_OUT_OF_COMPETITION"
-          ? ["OOC"]
-          : result.source.kind === "MANUAL_DISQUALIFICATION"
-            ? ["DSQ"]
-            : result.source.kind === "MANUAL_RESULT_APPROVAL"
-              ? ["OK"]
-              : ["OK", "MP"];
+  const source = result.source;
+  const expectedStatuses = source.kind === "START_CHECKIN_DID_NOT_START" ? ["DNS"]
+    : source.kind === "MANUAL_DECISION" ? EXPECTED_STATUSES[source.cause] : ["OK", "MP"];
   if (!expectedStatuses.includes(result.personResult.status)) {
     context.addIssue({ code: "custom", path: ["personResult", "status"], message: "Resultatstatus motsäger fryst proveniens" });
   }
-  if (result.source.kind === "MANUAL_RESULT_APPROVAL") {
+  if (source.kind === "MANUAL_DECISION" && source.cause === "MANUAL_RESULT_APPROVAL") {
     const proof = result.personResult.manualApprovalProof;
-    if (proof === null || proof.decisionId !== result.source.resultApprovalDecisionId ||
-        proof.targetResultRevisionId !== result.source.targetResultRevisionId) {
+    if (proof === null || proof.decisionId !== source.resultRevisionId ||
+        proof.targetResultRevisionId !== source.underlyingResultRevisionId) {
       context.addIssue({ code: "custom", path: ["personResult", "manualApprovalProof"], message: "Godkännandebeviset måste matcha fryst proveniens" });
     }
   } else if (result.personResult.manualApprovalProof !== null) {
@@ -926,54 +433,6 @@ function validateFrozenClassData(
   }
 }
 
-export const frozenClassDataV1Schema = z.object({
-  name: z.string().trim().min(1).max(160),
-  externalId: z.string().trim().min(1).max(160).nullable(),
-  results: z.array(frozenFinalizationResultV1Schema).min(1).max(10_000)
-}).strict().superRefine(validateFrozenClassData);
-
-export const frozenClassDataV2Schema = z.object({
-  name: z.string().trim().min(1).max(160),
-  externalId: z.string().trim().min(1).max(160).nullable(),
-  results: z.array(frozenFinalizationResultV2Schema).min(1).max(10_000)
-}).strict().superRefine(validateFrozenClassData);
-
-export const frozenClassDataV3Schema = z.object({
-  name: z.string().trim().min(1).max(160),
-  externalId: z.string().trim().min(1).max(160).nullable(),
-  results: z.array(frozenFinalizationResultV3Schema).min(1).max(10_000)
-}).strict().superRefine(validateFrozenClassData);
-
-export const frozenClassDataV4Schema = z.object({
-  name: z.string().trim().min(1).max(160),
-  externalId: z.string().trim().min(1).max(160).nullable(),
-  results: z.array(frozenFinalizationResultV4Schema).min(1).max(10_000)
-}).strict().superRefine(validateFrozenClassData);
-
-export const frozenClassDataV5Schema = z.object({
-  name: z.string().trim().min(1).max(160),
-  externalId: z.string().trim().min(1).max(160).nullable(),
-  results: z.array(frozenFinalizationResultV5Schema).min(1).max(10_000)
-}).strict().superRefine(validateFrozenClassData);
-
-export const frozenClassDataV6Schema = z.object({
-  name: z.string().trim().min(1).max(160),
-  externalId: z.string().trim().min(1).max(160).nullable(),
-  results: z.array(frozenFinalizationResultV6Schema).min(1).max(10_000)
-}).strict().superRefine(validateFrozenClassData);
-
-export const frozenClassDataV7Schema = z.object({
-  name: z.string().trim().min(1).max(160),
-  externalId: z.string().trim().min(1).max(160).nullable(),
-  results: z.array(frozenFinalizationResultV7Schema).min(1).max(10_000)
-}).strict().superRefine(validateFrozenClassData);
-
-export const frozenClassDataV8Schema = z.object({
-  name: z.string().trim().min(1).max(160),
-  externalId: z.string().trim().min(1).max(160).nullable(),
-  results: z.array(frozenFinalizationResultV8Schema).min(1).max(10_000)
-}).strict().superRefine(validateFrozenClassData);
-
 export const frozenClassDataV9Schema = z.object({
   name: z.string().trim().min(1).max(160),
   externalId: z.string().trim().min(1).max(160).nullable(),
@@ -984,86 +443,6 @@ export const frozenClassDataV9Schema = z.object({
  * Private persisted CLASS projection. It intentionally contains the PII and
  * source IDs needed to reproduce a result document; it is never an HTTP DTO.
  */
-export const frozenClassFinalizationProjectionV1Schema = z.object({
-  formatVersion: z.literal(1),
-  scope: z.literal("CLASS"),
-  raceId: canonicalUuidSchema,
-  classId: canonicalUuidSchema,
-  snapshotVersion: positiveVersionSchema,
-  basisSha256: sha256Schema,
-  class: frozenClassDataV1Schema
-}).strict();
-
-export const frozenClassFinalizationProjectionV2Schema = z.object({
-  formatVersion: z.literal(2),
-  scope: z.literal("CLASS"),
-  raceId: canonicalUuidSchema,
-  classId: canonicalUuidSchema,
-  snapshotVersion: positiveVersionSchema,
-  basisSha256: sha256Schema,
-  class: frozenClassDataV2Schema
-}).strict();
-
-export const frozenClassFinalizationProjectionV3Schema = z.object({
-  formatVersion: z.literal(3),
-  scope: z.literal("CLASS"),
-  raceId: canonicalUuidSchema,
-  classId: canonicalUuidSchema,
-  snapshotVersion: positiveVersionSchema,
-  basisSha256: sha256Schema,
-  class: frozenClassDataV3Schema
-}).strict();
-
-export const frozenClassFinalizationProjectionV4Schema = z.object({
-  formatVersion: z.literal(4),
-  scope: z.literal("CLASS"),
-  raceId: canonicalUuidSchema,
-  classId: canonicalUuidSchema,
-  snapshotVersion: positiveVersionSchema,
-  basisSha256: sha256Schema,
-  class: frozenClassDataV4Schema
-}).strict();
-
-export const frozenClassFinalizationProjectionV5Schema = z.object({
-  formatVersion: z.literal(5),
-  scope: z.literal("CLASS"),
-  raceId: canonicalUuidSchema,
-  classId: canonicalUuidSchema,
-  snapshotVersion: positiveVersionSchema,
-  basisSha256: sha256Schema,
-  class: frozenClassDataV5Schema
-}).strict();
-
-export const frozenClassFinalizationProjectionV6Schema = z.object({
-  formatVersion: z.literal(6),
-  scope: z.literal("CLASS"),
-  raceId: canonicalUuidSchema,
-  classId: canonicalUuidSchema,
-  snapshotVersion: positiveVersionSchema,
-  basisSha256: sha256Schema,
-  class: frozenClassDataV6Schema
-}).strict();
-
-export const frozenClassFinalizationProjectionV7Schema = z.object({
-  formatVersion: z.literal(7),
-  scope: z.literal("CLASS"),
-  raceId: canonicalUuidSchema,
-  classId: canonicalUuidSchema,
-  snapshotVersion: positiveVersionSchema,
-  basisSha256: sha256Schema,
-  class: frozenClassDataV7Schema
-}).strict();
-
-export const frozenClassFinalizationProjectionV8Schema = z.object({
-  formatVersion: z.literal(8),
-  scope: z.literal("CLASS"),
-  raceId: canonicalUuidSchema,
-  classId: canonicalUuidSchema,
-  snapshotVersion: positiveVersionSchema,
-  basisSha256: sha256Schema,
-  class: frozenClassDataV8Schema
-}).strict();
-
 export const frozenClassFinalizationProjectionV9Schema = z.object({
   formatVersion: z.literal(9),
   scope: z.literal("CLASS"),
@@ -1073,82 +452,7 @@ export const frozenClassFinalizationProjectionV9Schema = z.object({
   basisSha256: sha256Schema,
   class: frozenClassDataV9Schema
 }).strict();
-
-export const frozenClassFinalizationProjectionSchema = z.discriminatedUnion("formatVersion", [
-  frozenClassFinalizationProjectionV1Schema,
-  frozenClassFinalizationProjectionV2Schema,
-  frozenClassFinalizationProjectionV3Schema,
-  frozenClassFinalizationProjectionV4Schema,
-  frozenClassFinalizationProjectionV5Schema,
-  frozenClassFinalizationProjectionV6Schema,
-  frozenClassFinalizationProjectionV7Schema,
-  frozenClassFinalizationProjectionV8Schema,
-  frozenClassFinalizationProjectionV9Schema
-]);
-
-const selectedFrozenClassV1Schema = z.object({
-  classFinalizationId: canonicalUuidSchema,
-  classFinalizationRevision: positiveVersionSchema,
-  classBasisSha256: sha256Schema,
-  classId: canonicalUuidSchema,
-  class: frozenClassDataV1Schema
-}).strict();
-
-const selectedFrozenClassV2Schema = z.object({
-  classFinalizationId: canonicalUuidSchema,
-  classFinalizationRevision: positiveVersionSchema,
-  classBasisSha256: sha256Schema,
-  classId: canonicalUuidSchema,
-  class: frozenClassDataV2Schema
-}).strict();
-
-const selectedFrozenClassV3Schema = z.object({
-  classFinalizationId: canonicalUuidSchema,
-  classFinalizationRevision: positiveVersionSchema,
-  classBasisSha256: sha256Schema,
-  classId: canonicalUuidSchema,
-  class: frozenClassDataV3Schema
-}).strict();
-
-const selectedFrozenClassV4Schema = z.object({
-  classFinalizationId: canonicalUuidSchema,
-  classFinalizationRevision: positiveVersionSchema,
-  classBasisSha256: sha256Schema,
-  classId: canonicalUuidSchema,
-  class: frozenClassDataV4Schema
-}).strict();
-
-const selectedFrozenClassV5Schema = z.object({
-  classFinalizationId: canonicalUuidSchema,
-  classFinalizationRevision: positiveVersionSchema,
-  classBasisSha256: sha256Schema,
-  classId: canonicalUuidSchema,
-  class: frozenClassDataV5Schema
-}).strict();
-
-const selectedFrozenClassV6Schema = z.object({
-  classFinalizationId: canonicalUuidSchema,
-  classFinalizationRevision: positiveVersionSchema,
-  classBasisSha256: sha256Schema,
-  classId: canonicalUuidSchema,
-  class: frozenClassDataV6Schema
-}).strict();
-
-const selectedFrozenClassV7Schema = z.object({
-  classFinalizationId: canonicalUuidSchema,
-  classFinalizationRevision: positiveVersionSchema,
-  classBasisSha256: sha256Schema,
-  classId: canonicalUuidSchema,
-  class: frozenClassDataV7Schema
-}).strict();
-
-const selectedFrozenClassV8Schema = z.object({
-  classFinalizationId: canonicalUuidSchema,
-  classFinalizationRevision: positiveVersionSchema,
-  classBasisSha256: sha256Schema,
-  classId: canonicalUuidSchema,
-  class: frozenClassDataV8Schema
-}).strict();
+export const frozenClassFinalizationProjectionSchema = frozenClassFinalizationProjectionV9Schema;
 
 const selectedFrozenClassV9Schema = z.object({
   classFinalizationId: canonicalUuidSchema,
@@ -1193,86 +497,6 @@ function validateFrozenRaceProjection(
  * than joined at export time, so later display/control changes cannot rewrite
  * the saved Complete document.
  */
-export const frozenRaceFinalizationProjectionV1Schema = z.object({
-  formatVersion: z.literal(1),
-  scope: z.literal("RACE"),
-  raceId: canonicalUuidSchema,
-  snapshotVersion: positiveVersionSchema,
-  basisSha256: sha256Schema,
-  eventName: z.string().trim().min(1).max(160),
-  classes: z.array(selectedFrozenClassV1Schema).min(1).max(1_000)
-}).strict().superRefine(validateFrozenRaceProjection);
-
-export const frozenRaceFinalizationProjectionV2Schema = z.object({
-  formatVersion: z.literal(2),
-  scope: z.literal("RACE"),
-  raceId: canonicalUuidSchema,
-  snapshotVersion: positiveVersionSchema,
-  basisSha256: sha256Schema,
-  eventName: z.string().trim().min(1).max(160),
-  classes: z.array(selectedFrozenClassV2Schema).min(1).max(1_000)
-}).strict().superRefine(validateFrozenRaceProjection);
-
-export const frozenRaceFinalizationProjectionV3Schema = z.object({
-  formatVersion: z.literal(3),
-  scope: z.literal("RACE"),
-  raceId: canonicalUuidSchema,
-  snapshotVersion: positiveVersionSchema,
-  basisSha256: sha256Schema,
-  eventName: z.string().trim().min(1).max(160),
-  classes: z.array(selectedFrozenClassV3Schema).min(1).max(1_000)
-}).strict().superRefine(validateFrozenRaceProjection);
-
-export const frozenRaceFinalizationProjectionV4Schema = z.object({
-  formatVersion: z.literal(4),
-  scope: z.literal("RACE"),
-  raceId: canonicalUuidSchema,
-  snapshotVersion: positiveVersionSchema,
-  basisSha256: sha256Schema,
-  eventName: z.string().trim().min(1).max(160),
-  classes: z.array(selectedFrozenClassV4Schema).min(1).max(1_000)
-}).strict().superRefine(validateFrozenRaceProjection);
-
-export const frozenRaceFinalizationProjectionV5Schema = z.object({
-  formatVersion: z.literal(5),
-  scope: z.literal("RACE"),
-  raceId: canonicalUuidSchema,
-  snapshotVersion: positiveVersionSchema,
-  basisSha256: sha256Schema,
-  eventName: z.string().trim().min(1).max(160),
-  classes: z.array(selectedFrozenClassV5Schema).min(1).max(1_000)
-}).strict().superRefine(validateFrozenRaceProjection);
-
-export const frozenRaceFinalizationProjectionV6Schema = z.object({
-  formatVersion: z.literal(6),
-  scope: z.literal("RACE"),
-  raceId: canonicalUuidSchema,
-  snapshotVersion: positiveVersionSchema,
-  basisSha256: sha256Schema,
-  eventName: z.string().trim().min(1).max(160),
-  classes: z.array(selectedFrozenClassV6Schema).min(1).max(1_000)
-}).strict().superRefine(validateFrozenRaceProjection);
-
-export const frozenRaceFinalizationProjectionV7Schema = z.object({
-  formatVersion: z.literal(7),
-  scope: z.literal("RACE"),
-  raceId: canonicalUuidSchema,
-  snapshotVersion: positiveVersionSchema,
-  basisSha256: sha256Schema,
-  eventName: z.string().trim().min(1).max(160),
-  classes: z.array(selectedFrozenClassV7Schema).min(1).max(1_000)
-}).strict().superRefine(validateFrozenRaceProjection);
-
-export const frozenRaceFinalizationProjectionV8Schema = z.object({
-  formatVersion: z.literal(8),
-  scope: z.literal("RACE"),
-  raceId: canonicalUuidSchema,
-  snapshotVersion: positiveVersionSchema,
-  basisSha256: sha256Schema,
-  eventName: z.string().trim().min(1).max(160),
-  classes: z.array(selectedFrozenClassV8Schema).min(1).max(1_000)
-}).strict().superRefine(validateFrozenRaceProjection);
-
 export const frozenRaceFinalizationProjectionV9Schema = z.object({
   formatVersion: z.literal(9),
   scope: z.literal("RACE"),
@@ -1282,36 +506,9 @@ export const frozenRaceFinalizationProjectionV9Schema = z.object({
   eventName: z.string().trim().min(1).max(160),
   classes: z.array(selectedFrozenClassV9Schema).min(1).max(1_000)
 }).strict().superRefine(validateFrozenRaceProjection);
-
-export const frozenRaceFinalizationProjectionSchema = z.discriminatedUnion("formatVersion", [
-  frozenRaceFinalizationProjectionV1Schema,
-  frozenRaceFinalizationProjectionV2Schema,
-  frozenRaceFinalizationProjectionV3Schema,
-  frozenRaceFinalizationProjectionV4Schema,
-  frozenRaceFinalizationProjectionV5Schema,
-  frozenRaceFinalizationProjectionV6Schema,
-  frozenRaceFinalizationProjectionV7Schema,
-  frozenRaceFinalizationProjectionV8Schema,
-  frozenRaceFinalizationProjectionV9Schema
-]);
+export const frozenRaceFinalizationProjectionSchema = frozenRaceFinalizationProjectionV9Schema;
 
 export const frozenResultFinalizationProjectionSchema = z.union([
-  frozenClassFinalizationProjectionV1Schema,
-  frozenRaceFinalizationProjectionV1Schema,
-  frozenClassFinalizationProjectionV2Schema,
-  frozenRaceFinalizationProjectionV2Schema,
-  frozenClassFinalizationProjectionV3Schema,
-  frozenRaceFinalizationProjectionV3Schema,
-  frozenClassFinalizationProjectionV4Schema,
-  frozenRaceFinalizationProjectionV4Schema,
-  frozenClassFinalizationProjectionV5Schema,
-  frozenRaceFinalizationProjectionV5Schema,
-  frozenClassFinalizationProjectionV6Schema,
-  frozenRaceFinalizationProjectionV6Schema,
-  frozenClassFinalizationProjectionV7Schema,
-  frozenRaceFinalizationProjectionV7Schema,
-  frozenClassFinalizationProjectionV8Schema,
-  frozenRaceFinalizationProjectionV8Schema,
   frozenClassFinalizationProjectionV9Schema,
   frozenRaceFinalizationProjectionV9Schema
 ]);
@@ -1332,8 +529,6 @@ export const resultFinalizationAdminErrorResponseSchema = z.object({
 }).strict();
 
 export type ResultFinalizationScope = z.infer<typeof resultFinalizationScopeSchema>;
-export type ResultFinalizationAdminLoginRequest = z.infer<typeof resultFinalizationAdminLoginRequestSchema>;
-export type ResultFinalizationAdminLoginResponse = z.infer<typeof resultFinalizationAdminLoginResponseSchema>;
 export type ResultFinalizationBlockerCode = z.infer<typeof resultFinalizationBlockerCodeSchema>;
 export type ClassResultFinalizationMetadata = z.infer<typeof classResultFinalizationMetadataSchema>;
 export type RaceResultFinalizationMetadata = z.infer<typeof raceResultFinalizationMetadataSchema>;
@@ -1344,43 +539,12 @@ export type ResultFinalizationCandidateResponse = z.infer<typeof resultFinalizat
 export type ResultFinalizationRequest = z.infer<typeof resultFinalizationRequestSchema>;
 export type ResultFinalizationResponse = z.infer<typeof resultFinalizationResponseSchema>;
 export type FrozenRaceFinalizationListResponse = z.infer<typeof frozenRaceFinalizationListResponseSchema>;
-export type FrozenIofPersonProjectionV1 = z.infer<typeof frozenIofPersonProjectionV1Schema>;
-export type FrozenIofPersonProjectionV2 = z.infer<typeof frozenIofPersonProjectionV2Schema>;
-export type FrozenIofPersonProjectionV3 = z.infer<typeof frozenIofPersonProjectionV3Schema>;
-export type FrozenIofPersonProjectionV4 = z.infer<typeof frozenIofPersonProjectionV4Schema>;
-export type FrozenIofPersonProjectionV5 = z.infer<typeof frozenIofPersonProjectionV5Schema>;
-export type FrozenIofPersonProjectionV6 = z.infer<typeof frozenIofPersonProjectionV6Schema>;
-export type FrozenIofPersonProjectionV7 = z.infer<typeof frozenIofPersonProjectionV7Schema>;
-export type FrozenIofPersonProjectionV8 = z.infer<typeof frozenIofPersonProjectionV8Schema>;
 export type FrozenIofPersonProjectionV9 = z.infer<typeof frozenIofPersonProjectionV9Schema>;
 export type FrozenIofPersonProjection = z.infer<typeof frozenIofPersonProjectionSchema>;
-export type FrozenFinalizationResultSourceV1 = z.infer<typeof frozenFinalizationResultSourceV1Schema>;
-export type FrozenFinalizationResultSourceV2 = z.infer<typeof frozenFinalizationResultSourceV2Schema>;
-export type FrozenFinalizationResultSourceV3 = z.infer<typeof frozenFinalizationResultSourceV3Schema>;
-export type FrozenFinalizationResultSourceV4 = z.infer<typeof frozenFinalizationResultSourceV4Schema>;
-export type FrozenFinalizationResultSourceV5 = z.infer<typeof frozenFinalizationResultSourceV5Schema>;
-export type FrozenFinalizationResultSourceV6 = z.infer<typeof frozenFinalizationResultSourceV6Schema>;
-export type FrozenFinalizationResultSourceV7 = z.infer<typeof frozenFinalizationResultSourceV7Schema>;
-export type FrozenFinalizationResultSourceV8 = z.infer<typeof frozenFinalizationResultSourceV8Schema>;
+export type FrozenManualDecisionCause = z.infer<typeof frozenManualDecisionCauseSchema>;
 export type FrozenFinalizationResultSourceV9 = z.infer<typeof frozenFinalizationResultSourceV9Schema>;
-export type FrozenClassFinalizationProjectionV1 = z.infer<typeof frozenClassFinalizationProjectionV1Schema>;
-export type FrozenClassFinalizationProjectionV2 = z.infer<typeof frozenClassFinalizationProjectionV2Schema>;
-export type FrozenClassFinalizationProjectionV3 = z.infer<typeof frozenClassFinalizationProjectionV3Schema>;
-export type FrozenClassFinalizationProjectionV4 = z.infer<typeof frozenClassFinalizationProjectionV4Schema>;
-export type FrozenClassFinalizationProjectionV5 = z.infer<typeof frozenClassFinalizationProjectionV5Schema>;
-export type FrozenClassFinalizationProjectionV6 = z.infer<typeof frozenClassFinalizationProjectionV6Schema>;
-export type FrozenClassFinalizationProjectionV7 = z.infer<typeof frozenClassFinalizationProjectionV7Schema>;
-export type FrozenClassFinalizationProjectionV8 = z.infer<typeof frozenClassFinalizationProjectionV8Schema>;
 export type FrozenClassFinalizationProjectionV9 = z.infer<typeof frozenClassFinalizationProjectionV9Schema>;
 export type FrozenClassFinalizationProjection = z.infer<typeof frozenClassFinalizationProjectionSchema>;
-export type FrozenRaceFinalizationProjectionV1 = z.infer<typeof frozenRaceFinalizationProjectionV1Schema>;
-export type FrozenRaceFinalizationProjectionV2 = z.infer<typeof frozenRaceFinalizationProjectionV2Schema>;
-export type FrozenRaceFinalizationProjectionV3 = z.infer<typeof frozenRaceFinalizationProjectionV3Schema>;
-export type FrozenRaceFinalizationProjectionV4 = z.infer<typeof frozenRaceFinalizationProjectionV4Schema>;
-export type FrozenRaceFinalizationProjectionV5 = z.infer<typeof frozenRaceFinalizationProjectionV5Schema>;
-export type FrozenRaceFinalizationProjectionV6 = z.infer<typeof frozenRaceFinalizationProjectionV6Schema>;
-export type FrozenRaceFinalizationProjectionV7 = z.infer<typeof frozenRaceFinalizationProjectionV7Schema>;
-export type FrozenRaceFinalizationProjectionV8 = z.infer<typeof frozenRaceFinalizationProjectionV8Schema>;
 export type FrozenRaceFinalizationProjectionV9 = z.infer<typeof frozenRaceFinalizationProjectionV9Schema>;
 export type FrozenRaceFinalizationProjection = z.infer<typeof frozenRaceFinalizationProjectionSchema>;
 export type FrozenResultFinalizationProjection = z.infer<typeof frozenResultFinalizationProjectionSchema>;

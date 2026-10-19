@@ -1,10 +1,9 @@
-import { and, asc, desc, eq, getTableColumns, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, sql } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
 import { entryTransferCandidatesSchema, entryTransferIdempotencyKeySchema,
   entryTransferRequestSchema, entryTransferResponseSchema,
   speakerBoardEffectiveResultSchema, type SpeakerBoardEffectiveResult } from "@o-tid/contracts";
-import { authenticatePairingAdminSession, authenticatePairingAdminSessionForMutation,
-  authenticatePairingAdminSessionForProtectedRead, type PairingAdminRequestAuthentication } from "./pairing-admin";
+import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
 import { canAddClassEntry } from "./class-capacity-guard";
 import { loadRelayClassConfigs, loadRelayTeams } from "./relay-model";
@@ -13,35 +12,21 @@ import { resolveStoredResultHeadStates } from "./result-revision-state";
 import { isEffectiveResultCurrent, loadResultBasisHashes } from "./result-basis";
 import { parseAdministratorStoredResultHead } from "./administrator-effective-result";
 import { loadStartListFacts } from "./start-draw-basis";
+import { bumpReadoutPackageVersion } from "./snapshot";
+import { UUID_PATTERN as uuid } from "./serialization";
 
-type Authentication = Omit<PairingAdminRequestAuthentication, "capability">;
-const capability = "MANAGE_RACE" as const;
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+type Authentication = RaceSessionProof;
 const maxVersion = 2_147_483_647;
 
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
-async function guardResultFreshnessHistory(tx: Transaction, raceId: string, entryIds: string[]) {
-  if (entryIds.length === 0) return;
-  let count = 0;
-  for (const table of [schema.resultDisqualificationDecisions, schema.resultApprovalDecisions,
-    schema.didNotFinishDecisions, schema.notCompetingDecisions, schema.withoutTimingDecisions,
-    schema.startCheckinDnsDecisions]) {
-    const decisions = await tx.select({ id: table.id }).from(table).where(and(
-      eq(table.raceId, raceId), inArray(table.entryId, entryIds)
-    )).limit(1_001);
-    count += decisions.length;
-    if (count > 1_000) throw new Error("Deltagarlistans beslutshistorik är för stor");
-  }
-}
 
 /**
  * Arbetsytans ögonblicksbild (klasser och deltagare). Funktionären läser den också: startlistan, direktanmälan
  * och kvar i skogen bygger på den (ADR-0172 beslut 3). Klassbytet nedan kräver administratör.
  */
-export async function listEntryTransfersAsAdministrator(db: Database, input: Authentication, now = new Date()) {
+export async function listEntryTransfersAsAdmin(db: Database, input: Authentication, now = new Date()) {
   if (!uuid.test(input.raceId)) return { status: "invalid-request" as const };
   return db.transaction(async (tx) => {
-    const auth = await authenticatePairingAdminSessionForProtectedRead(tx, { ...input, capability: "RACE_FUNCTIONARY" }, now);
+    const auth = await requireRaceRole(tx, { ...input, role: "FUNCTIONARY" }, now, "share");
     if (auth.status !== "authenticated") return auth;
     const race = await lockRaceForSnapshot(tx, input.raceId);
     const [metadata] = await tx.select({ eventName: schema.events.name, raceName: schema.races.name,
@@ -87,7 +72,6 @@ export async function listEntryTransfersAsAdministrator(db: Database, input: Aut
     if (publishedHeads.length > 10_000 || publishedHeads.some(head => !entryIds.has(head.entryId))) {
       throw new Error("Deltagarlistans publicerade resultathuvuden är ogiltiga");
     }
-    await guardResultFreshnessHistory(tx, input.raceId, publishedHeads.map(head => head.entryId));
     // ADR-0169: CURRENT_SNAPSHOT/OLDER_SNAPSHOT avgörs av löparens eget bedömningsunderlag.
     const basisHashes = await loadResultBasisHashes(tx, input.raceId);
     const freshnessByEntry = new Map<string, "NO_ACTIVE_RESULT" | "CURRENT_SNAPSHOT" | "OLDER_SNAPSHOT">();
@@ -100,12 +84,9 @@ export async function listEntryTransfersAsAdministrator(db: Database, input: Aut
     const revisionMarkerByEntry = new Map<string, "MANUAL_FINISH_TIME_CORRECTION" | "MANUAL_FINISH_TIME_CORRECTION_WITHDRAWAL" | null>();
     for (const state of await resolveStoredResultHeadStates(tx, input.raceId, publishedHeads)) {
       if (freshnessByEntry.has(state.selectedHead.entryId)) throw new Error("Deltagarlistan har dubbla resultathuvuden");
-      if (state.finishTimeCorrection !== null && state.finishTimeCorrectionWithdrawal !== null) {
-        throw new Error("Deltagarlistans måltidsrättningskedja är motsägande");
-      }
-      revisionMarkerByEntry.set(state.selectedHead.entryId, state.finishTimeCorrection !== null
-        ? "MANUAL_FINISH_TIME_CORRECTION"
-        : state.finishTimeCorrectionWithdrawal !== null ? "MANUAL_FINISH_TIME_CORRECTION_WITHDRAWAL" : null);
+      const cause = state.selectedHead.cause;
+      revisionMarkerByEntry.set(state.selectedHead.entryId,
+        cause === "MANUAL_FINISH_TIME_CORRECTION" || cause === "MANUAL_FINISH_TIME_CORRECTION_WITHDRAWAL" ? cause : null);
       const selectedRevision = { id: state.selectedHead.id, revision: state.selectedHead.revision };
       const outcome = parseAdministratorStoredResultHead(state);
       const result = speakerBoardEffectiveResultSchema.parse({ revision: state.head.revision,
@@ -172,25 +153,26 @@ export async function listEntryTransfersAsAdministrator(db: Database, input: Aut
 
 function receipt(row: typeof schema.entryTransferRequests.$inferSelect, replayed: boolean) {
   const request = entryTransferRequestSchema.parse(row.request);
-  if (row.capability !== capability || row.previousClassId !== request.expectedClassId ||
-    row.targetClassId !== request.targetClassId || row.entryVersionBefore !== request.expectedEntryVersion ||
-    row.snapshotVersionBefore !== request.expectedSnapshotVersion) throw new Error("Ogiltig bytesjournal");
+  if (row.previousClassId !== request.expectedClassId ||
+    row.targetClassId !== request.targetClassId || row.entryVersionBefore !== request.expectedEntryVersion) {
+    throw new Error("Ogiltig bytesjournal");
+  }
   return entryTransferResponseSchema.parse({ formatVersion: 1, replayed, requestId: row.requestId,
     raceId: row.raceId, entryId: row.entryId, request, entryVersionAfter: row.entryVersionAfter,
     snapshotVersionAfter: row.snapshotVersionAfter, changedAt: row.changedAt.toISOString() });
 }
 
-export async function transferEntryAsAdministrator(db: Database,
+export async function transferEntryAsAdmin(db: Database,
   input: Authentication & { entryId: string; idempotencyKey: string | null; request: unknown }, now = new Date()) {
   const key = entryTransferIdempotencyKeySchema.safeParse(input.idempotencyKey);
   const parsed = entryTransferRequestSchema.safeParse(input.request);
   if (!key.success || !parsed.success || !uuid.test(input.raceId) || !uuid.test(input.entryId)) return { status: "invalid-request" as const };
   const intent = parsed.data, requestId = key.data.slice("entry-transfer:".length);
-  const authentication = { ...input, capability, requireCsrf: true };
-  const preflight = await authenticatePairingAdminSession(db, authentication, now);
+  const authentication = { ...input, role: "ADMIN" as const, requireCsrf: true };
+  const preflight = await requireRaceRole(db, authentication, now);
   if (preflight.status !== "authenticated") return preflight;
   return db.transaction(async (tx) => {
-    const auth = await authenticatePairingAdminSessionForMutation(tx, authentication, now);
+    const auth = await requireRaceRole(tx, authentication, now, "update");
     if (auth.status !== "authenticated") return auth;
     const race = await lockRaceForMutation(tx, input.raceId);
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${requestId}, 0))`);
@@ -198,11 +180,11 @@ export async function transferEntryAsAdministrator(db: Database,
     if (existing) {
       const original = receipt(existing, true);
       if (existing.raceId !== input.raceId || existing.entryId !== input.entryId ||
-        existing.actorCredentialId !== auth.principal.accessCredentialId ||
+        existing.actorAccountId !== auth.principal.accountId ||
         JSON.stringify(original.request) !== JSON.stringify(intent)) return { status: "conflict" as const };
       return { status: "transferred" as const, response: original };
     }
-    if (race.snapshotVersion !== intent.expectedSnapshotVersion || race.snapshotVersion >= maxVersion) return { status: "conflict" as const };
+    if (race.snapshotVersion >= maxVersion) return { status: "conflict" as const };
     const [entry] = await tx.select({ row: schema.entries,
       exactTime: sql<boolean>`${schema.entries.fixedStartTime} IS NULL OR date_trunc('milliseconds', ${schema.entries.fixedStartTime}) = ${schema.entries.fixedStartTime}`
     }).from(schema.entries).where(and(eq(schema.entries.id, input.entryId), eq(schema.entries.raceId, input.raceId))).for("update");
@@ -225,16 +207,16 @@ export async function transferEntryAsAdministrator(db: Database,
     await tx.update(schema.entries).set({ classId: intent.targetClassId, courseVariantCode,
       fixedStartTime: intent.fixedStartTime === null ? null : new Date(intent.fixedStartTime), version: entryVersionAfter
     }).where(and(eq(schema.entries.id, input.entryId), eq(schema.entries.raceId, input.raceId)));
-    await tx.update(schema.races).set({ snapshotVersion: snapshotVersionAfter }).where(eq(schema.races.id, input.raceId));
+    await bumpReadoutPackageVersion(tx, input.raceId);
     const [saved] = await tx.insert(schema.entryTransferRequests).values({ requestId, raceId: input.raceId,
-      entryId: input.entryId, actorCredentialId: auth.principal.accessCredentialId, capability,
+      entryId: input.entryId, actorAccountId: auth.principal.accountId,
       previousClassId: intent.expectedClassId, targetClassId: intent.targetClassId, request: intent,
       entryVersionBefore: entry.row.version, entryVersionAfter, snapshotVersionBefore: race.snapshotVersion,
       snapshotVersionAfter, changedAt: now }).returning();
     if (!saved) throw new Error("Bytesjournalen kunde inte sparas");
     await tx.insert(schema.auditEvents).values({ raceId: input.raceId, entityType: "entry", entityId: input.entryId,
-      action: "ENTRY_CLASS_AND_START_TRANSFERRED_BY_ADMIN", actorKind: "RACE_ADMIN_ACCESS_CREDENTIAL",
-      actorId: auth.principal.accessCredentialId, requestId,
+      action: "ENTRY_CLASS_AND_START_TRANSFERRED_BY_ADMIN", actorKind: "USER_ACCOUNT",
+      actorId: auth.principal.accountId, requestId,
       before: { classId: intent.expectedClassId, fixedStartTime: intent.expectedFixedStartTime,
         entryVersion: entry.row.version, snapshotVersion: race.snapshotVersion },
       after: { classId: intent.targetClassId, fixedStartTime: intent.fixedStartTime, entryVersion: entryVersionAfter, snapshotVersion: snapshotVersionAfter }

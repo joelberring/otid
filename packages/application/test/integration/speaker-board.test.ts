@@ -3,10 +3,16 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { count, eq, sql } from "drizzle-orm";
 import { migrate } from "@o-tid/database";
 import { createDatabase, schema } from "@o-tid/database";
-import { contentHash, createEvent, importIofXml, ingestDeviceBatch,
-  issuePairingAdminAccessCredential, loginPairingAdmin, listSpeakerBoardAsAdmin,
-  revokePairingAdminAccessCredential } from "../../src";
-import { authenticatePairingAdminSessionForProtectedRead } from "../../src/pairing-admin";
+import {
+  contentHash,
+  createEvent,
+  importIofXml,
+  ingestDeviceBatch,
+  listSpeakerBoardAsAdmin,
+  loginUserAccount,
+  requireRaceRole
+} from "../../src";
+import { raceAuth, TEST_PASSWORD } from "./accounts";
 
 const url = process.env.TEST_DATABASE_URL;
 if (!url) throw new Error("TEST_DATABASE_URL krävs");
@@ -26,14 +32,18 @@ async function fixture() {
   return race.id;
 }
 
-async function access(raceId: string, capability: "VIEW_SPEAKER_BOARD" | "VIEW_RACE_OVERVIEW" = "VIEW_SPEAKER_BOARD") {
-  const installation = await issuePairingAdminAccessCredential(db, { raceId, capability,
-    label: "Syntetisk speaker", expiresAt: new Date(now.getTime() + 8 * 3600_000) }, { now });
-  const login = await loginPairingAdmin(db, { formatVersion: 1, accessCredential: installation.accessCredential },
-    { now, expectedRaceId: raceId, expectedCapability: capability });
-  if (login.status !== "authenticated") throw new Error("Testinloggning misslyckades");
-  return { installation, input: { raceId, sessionToken: login.sessionToken } };
+/** Speakern läses av funktionären (och administratören). */
+async function access(raceId: string) {
+  const auth = await raceAuth(db, raceId, "FUNCTIONARY", now);
+  const sessionId = auth.sessionToken.split(".")[1]!;
+  const [grant] = await db.select({ id: schema.eventAdministrationGrants.id }).from(schema.eventAdministrationGrants)
+    .where(eq(schema.eventAdministrationGrants.accountId, auth.actorId));
+  if (!grant) throw new Error("Behörigheten saknas");
+  return { auth, sessionId, grantId: grant.id, input: { raceId, sessionToken: auth.sessionToken } };
 }
+
+const revokeGrant = (grantId: string, reason = "Syntetisk borttagning") =>
+  db.insert(schema.eventAdministrationGrantRevocations).values({ grantId, revokedAt: now, reason });
 
 function batch() {
   const payload = { cardNumber: "12345", startPunchedAt: "2026-08-30T10:00:00Z",
@@ -69,17 +79,14 @@ describe("TASK 008 skyddad speakerläsning PostgreSQL", () => {
     expect(await audits()).toEqual(before);
   });
 
-  it("avvisar fel scope/capability, expiry och spärrad credential", async () => {
+  it("avvisar annan tävling, utgången session och borttagen behörighet", async () => {
     const raceId = await fixture(), otherId = await fixture();
-    const auth = await access(raceId), otherRole = await access(raceId, "VIEW_RACE_OVERVIEW");
-    await expect(listSpeakerBoardAsAdmin(db, otherRole.input, now)).resolves.toEqual({ status: "forbidden" });
-    await expect(listSpeakerBoardAsAdmin(db, { ...auth.input, raceId: otherId }, now)).resolves.toEqual({ status: "forbidden" });
-    await expect(listSpeakerBoardAsAdmin(db, auth.input, new Date(now.getTime() + 3600_000)))
+    const auth = await access(raceId);
+    await expect(listSpeakerBoardAsAdmin(db, { ...auth.input, raceId: otherId }, now)).resolves.toEqual({ status: "unauthorized" });
+    await expect(listSpeakerBoardAsAdmin(db, auth.input, new Date(now.getTime() + 30 * 24 * 3600_000)))
       .resolves.toEqual({ status: "unauthorized" });
-    await revokePairingAdminAccessCredential(db, { credentialId: auth.installation.credentialId, capability: "VIEW_SPEAKER_BOARD" }, now);
+    await revokeGrant(auth.grantId);
     await expect(listSpeakerBoardAsAdmin(db, auth.input, now)).resolves.toEqual({ status: "unauthorized" });
-    await expect(issuePairingAdminAccessCredential(db, { raceId, capability: "VIEW_SPEAKER_BOARD", label: "För lång",
-      expiresAt: new Date(now.getTime() + 8 * 3600_000 + 1) }, { now })).rejects.toThrow();
   });
 
   it("visar historisk resultatklass med aktuellt klassnamn, personnamn och klubb efter import", async () => {
@@ -164,7 +171,7 @@ describe("TASK 008 skyddad speakerläsning PostgreSQL", () => {
     expect(result.response.rows.map((item) => item.slot)).toEqual(Array.from({ length: 25 }, (_, index) => index + 1));
   });
 
-  it.each(["credential", "session"] as const)("ser %s-spärr som committar medan läsningen väntar på låset", async (kind) => {
+  it.each(["grant", "session"] as const)("ser borttagen %s som committar medan läsningen väntar på låset", async (kind) => {
     const raceId = await fixture();
     const auth = await access(raceId);
     const blocker = await pool.connect();
@@ -172,11 +179,10 @@ describe("TASK 008 skyddad speakerläsning PostgreSQL", () => {
     try {
       await blocker.query("BEGIN");
       const pid = (await blocker.query<{ pid: number }>("SELECT pg_backend_pid() AS pid")).rows[0]!.pid;
-      const sessionId = auth.input.sessionToken.split(".")[1]!;
-      if (kind === "credential") {
-        await blocker.query("SELECT id FROM pairing_admin_access_credential WHERE id = $1 FOR UPDATE", [auth.installation.credentialId]);
+      if (kind === "grant") {
+        await blocker.query("SELECT grant_id FROM event_administration_grant_guard WHERE grant_id = $1 FOR UPDATE", [auth.grantId]);
       } else {
-        await blocker.query("SELECT id FROM pairing_admin_session WHERE id = $1 FOR UPDATE", [sessionId]);
+        await blocker.query("SELECT id FROM user_account_session WHERE id = $1 FOR UPDATE", [auth.sessionId]);
       }
       pending = listSpeakerBoardAsAdmin(db, auth.input, now);
       let waiting = false;
@@ -187,12 +193,12 @@ describe("TASK 008 skyddad speakerläsning PostgreSQL", () => {
         await new Promise((resolve) => setTimeout(resolve, 10));
       }
       expect(waiting).toBe(true);
-      if (kind === "credential") {
-        await blocker.query("INSERT INTO pairing_admin_access_credential_revocation (credential_id, revoked_at, reason) VALUES ($1, $2, $3)",
-          [auth.installation.credentialId, now, "SYNTHETIC_CONCURRENT_REVOKE"]);
+      if (kind === "grant") {
+        await blocker.query("INSERT INTO event_administration_grant_revocation (grant_id, revoked_at, reason) VALUES ($1, $2, $3)",
+          [auth.grantId, now, "SYNTHETIC_CONCURRENT_REVOKE"]);
       } else {
-        await blocker.query("INSERT INTO pairing_admin_session_revocation (session_id, revoked_at, reason) VALUES ($1, $2, $3)",
-          [sessionId, now, "SYNTHETIC_CONCURRENT_LOGOUT"]);
+        await blocker.query("INSERT INTO user_account_session_revocation (session_id, revoked_at, reason) VALUES ($1, $2, $3)",
+          [auth.sessionId, now, "SYNTHETIC_CONCURRENT_LOGOUT"]);
       }
       await blocker.query("COMMIT");
       await expect(pending).resolves.toEqual({ status: "unauthorized" });
@@ -203,36 +209,30 @@ describe("TASK 008 skyddad speakerläsning PostgreSQL", () => {
     }
   });
 
-  it("avvisar gammalt snapshot efter annan sessions logout men tillåter färsk läsning", async () => {
+  it("avvisar gammalt snapshot efter kontots andra sessions logout men tillåter färsk läsning", async () => {
     const raceId = await fixture(), auth = await access(raceId);
-    const other = await loginPairingAdmin(db, { formatVersion: 1, accessCredential: auth.installation.accessCredential },
-      { now, expectedRaceId: raceId, expectedCapability: "VIEW_SPEAKER_BOARD" });
+    const other = await loginUserAccount(db, { formatVersion: 1, email: auth.auth.email, password: TEST_PASSWORD }, { now });
     if (other.status !== "authenticated") throw new Error("Andra testsessionen saknas");
     await db.transaction(async (tx) => {
-      await tx.execute(sql`select 1`); // Establish snapshot before an independently committed logout.
-      await db.insert(schema.pairingAdminSessionRevocations).values({
+      await tx.execute(sql`select 1`); // Snapshoten tas före en oberoende committad utloggning.
+      await db.insert(schema.userAccountSessionRevocations).values({
         sessionId: other.sessionToken.split(".")[1]!, revokedAt: now, reason: "SYNTHETIC_OTHER_LOGOUT"
       });
-      expect(await authenticatePairingAdminSessionForProtectedRead(tx, { ...auth.input, capability: "VIEW_SPEAKER_BOARD" }, now))
-        .toEqual({ status: "unauthorized" });
+      expect(await requireRaceRole(tx, { ...auth.input, role: "FUNCTIONARY" }, now, "share")).toEqual({ status: "unauthorized" });
     }, { isolationLevel: "repeatable read" });
     expect((await listSpeakerBoardAsAdmin(db, auth.input, now)).status).toBe("ok");
     expect(await listSpeakerBoardAsAdmin(db, { raceId, sessionToken: other.sessionToken }, now)).toEqual({ status: "unauthorized" });
-    const [guard] = await db.select().from(schema.pairingAdminRevocationGuards)
-      .where(eq(schema.pairingAdminRevocationGuards.credentialId, auth.installation.credentialId));
-    expect(guard?.generation).toBe(1n);
   });
 
   it("behåller auktoriserad läsnings lås efter savepoint tills yttre commit", async () => {
     const raceId = await fixture(), auth = await access(raceId);
-    let pending: ReturnType<typeof revokePairingAdminAccessCredential> | undefined;
+    let pending: Promise<unknown> | undefined;
     try {
       await db.transaction(async (tx) => {
-        const authorization = await authenticatePairingAdminSessionForProtectedRead(tx,
-          { ...auth.input, capability: "VIEW_SPEAKER_BOARD" }, now);
+        const authorization = await requireRaceRole(tx, { ...auth.input, role: "FUNCTIONARY" }, now, "share");
         expect(authorization.status).toBe("authenticated");
         const pid = Number((await tx.execute(sql`select pg_backend_pid() as pid`)).rows[0]!.pid);
-        pending = revokePairingAdminAccessCredential(db, { credentialId: auth.installation.credentialId, capability: "VIEW_SPEAKER_BOARD" }, now);
+        pending = revokeGrant(auth.grantId).execute();
         let waiting = false;
         for (let attempt = 0; attempt < 100; attempt++) {
           const result = await pool.query<{ waiting: boolean }>(
@@ -241,55 +241,49 @@ describe("TASK 008 skyddad speakerläsning PostgreSQL", () => {
           await new Promise((resolve) => setTimeout(resolve, 10));
         }
         expect(waiting).toBe(true);
-        const revocations = await tx.select().from(schema.pairingAdminAccessCredentialRevocations)
-          .where(eq(schema.pairingAdminAccessCredentialRevocations.credentialId, auth.installation.credentialId));
+        const revocations = await tx.select().from(schema.eventAdministrationGrantRevocations)
+          .where(eq(schema.eventAdministrationGrantRevocations.grantId, auth.grantId));
         expect(revocations).toEqual([]);
       }, { isolationLevel: "repeatable read" });
-      await expect(pending).resolves.toMatchObject({ status: "revoked" });
+      await pending;
       await expect(listSpeakerBoardAsAdmin(db, auth.input, now)).resolves.toEqual({ status: "unauthorized" });
     } finally {
-      if (pending) await pending;
+      if (pending) await pending.catch(() => undefined);
     }
   });
 
-  it("har guard för gamla/nya credentials och skyddar identitet/generation", async () => {
+  it("skyddar kontots och behörighetens grindar mot ändring", async () => {
     const raceId = await fixture(), auth = await access(raceId);
     const missing = await db.execute(sql`select count(*)::integer as missing
-      from pairing_admin_access_credential c left join pairing_admin_revocation_guard g
-      on g.credential_id = c.id where g.credential_id is null`);
+      from event_administration_grant c left join event_administration_grant_guard g
+      on g.grant_id = c.id where g.grant_id is null`);
     expect(missing.rows[0]!.missing).toBe(0);
-    const before = await db.select().from(schema.pairingAdminAccessCredentials)
-      .where(eq(schema.pairingAdminAccessCredentials.id, auth.installation.credentialId));
-    await expect(db.delete(schema.pairingAdminRevocationGuards)
-      .where(eq(schema.pairingAdminRevocationGuards.credentialId, auth.installation.credentialId))).rejects.toThrow();
-    await expect(db.update(schema.pairingAdminRevocationGuards).set({ generation: 0n })
-      .where(eq(schema.pairingAdminRevocationGuards.credentialId, auth.installation.credentialId))).rejects.toThrow();
-    await revokePairingAdminAccessCredential(db, { credentialId: auth.installation.credentialId, capability: "VIEW_SPEAKER_BOARD" }, now);
-    expect(await db.select().from(schema.pairingAdminAccessCredentials)
-      .where(eq(schema.pairingAdminAccessCredentials.id, auth.installation.credentialId))).toEqual(before);
-    const [guard] = await db.select().from(schema.pairingAdminRevocationGuards)
-      .where(eq(schema.pairingAdminRevocationGuards.credentialId, auth.installation.credentialId));
+    await expect(db.delete(schema.eventAdministrationGrantGuards)
+      .where(eq(schema.eventAdministrationGrantGuards.grantId, auth.grantId))).rejects.toThrow();
+    await expect(db.update(schema.eventAdministrationGrantGuards).set({ generation: 0n })
+      .where(eq(schema.eventAdministrationGrantGuards.grantId, auth.grantId))).rejects.toThrow();
+    await revokeGrant(auth.grantId);
+    const [guard] = await db.select().from(schema.eventAdministrationGrantGuards)
+      .where(eq(schema.eventAdministrationGrantGuards.grantId, auth.grantId));
     expect(guard?.generation).toBe(1n);
   });
 
-  it("avvisar auth och spärrwrite om lagringsgrinden saknas", async () => {
+  it("avvisar auth och borttagning om behörighetens grind saknas", async () => {
     const raceId = await fixture(), auth = await access(raceId);
-    // A transaction-local empty shadow simulates missing guard state without
-    // disabling protection triggers or deleting any persistent security row.
+    // En transaktionslokal tom skuggtabell simulerar saknad grind utan att stänga av skydd eller radera något.
     await db.transaction(async (tx) => {
-      await tx.execute(sql`create temporary table pairing_admin_revocation_guard
-        (like public.pairing_admin_revocation_guard) on commit drop`);
-      expect(await authenticatePairingAdminSessionForProtectedRead(tx,
-        { ...auth.input, capability: "VIEW_SPEAKER_BOARD" }, now)).toEqual({ status: "unauthorized" });
+      await tx.execute(sql`create temporary table event_administration_grant_guard
+        (like public.event_administration_grant_guard) on commit drop`);
+      expect(await requireRaceRole(tx, { ...auth.input, role: "FUNCTIONARY" }, now, "share")).toEqual({ status: "unauthorized" });
       await expect(tx.transaction(async (savepoint) => {
-        await savepoint.insert(schema.pairingAdminAccessCredentialRevocations).values({
-          credentialId: auth.installation.credentialId, revokedAt: now, reason: "SYNTHETIC_MISSING_GUARD"
+        await savepoint.insert(schema.eventAdministrationGrantRevocations).values({
+          grantId: auth.grantId, revokedAt: now, reason: "SYNTHETIC_MISSING_GUARD"
         });
       })).rejects.toThrow();
     });
     expect((await listSpeakerBoardAsAdmin(db, auth.input, now)).status).toBe("ok");
-    expect(await db.select().from(schema.pairingAdminAccessCredentialRevocations)
-      .where(eq(schema.pairingAdminAccessCredentialRevocations.credentialId, auth.installation.credentialId))).toEqual([]);
+    expect(await db.select().from(schema.eventAdministrationGrantRevocations)
+      .where(eq(schema.eventAdministrationGrantRevocations.grantId, auth.grantId))).toEqual([]);
   });
 
   it("avvisar hela underlaget vid motsägande lagrad revision utan PII i felet", async () => {

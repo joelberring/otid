@@ -11,25 +11,20 @@ import { schema, type Database } from "@o-tid/database";
 import {
   courseVariantForReadout, evaluateCardReadout, RESULT_ENGINE_VERSION, withProposedEntryVariants, type NormalizedCardReadout
 } from "@o-tid/domain";
-import {
-  authenticatePairingAdminSession,
-  authenticatePairingAdminSessionForMutation,
-  authenticatePairingAdminSessionForProtectedRead,
-  type PairingAdminRequestAuthentication
-} from "./pairing-admin";
+import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
-import { loadRaceSnapshot } from "./snapshot";
+import { bumpReadoutPackageVersion, loadRaceSnapshot } from "./snapshot";
 import { appliedControlNeutralization } from "./class-control-neutralization";
 import { canAddClassEntry } from "./class-capacity-guard";
 import { relayTeamOfEntry } from "./relay-model";
 import { synchronizeRelayTeams } from "./relay-sync";
+import { appendResultRevision } from "./result-revisions";
 
-type Authentication = Omit<PairingAdminRequestAuthentication, "capability">;
+type Authentication = RaceSessionProof;
 /**
  * ADR-0172 beslut 3: funktionären får läsa okända brickor och direktanmäla en ny deltagare för en okänd bricka.
  * Att koppla brickan till en befintlig deltagare ändrar en anmälan och kräver administratör.
  */
-const capability = "RACE_FUNCTIONARY" as const;
 
 function isUnknownOutcome(value: unknown): boolean {
   if (!value || typeof value !== "object") return false;
@@ -41,13 +36,13 @@ export type UnknownReadoutResolutionCandidateResult =
   | { status: "unauthorized" | "forbidden" }
   | { status: "ok"; response: UnknownReadoutResolutionCandidateResponse };
 
-export async function listUnknownReadoutResolutionCandidatesAsAdministrator(
+export async function listUnknownReadoutResolutionCandidatesAsAdmin(
   db: Database,
   input: Authentication,
   now = new Date()
 ): Promise<UnknownReadoutResolutionCandidateResult> {
   return db.transaction(async (tx) => {
-    const auth = await authenticatePairingAdminSessionForProtectedRead(tx, { ...input, capability }, now);
+    const auth = await requireRaceRole(tx, { ...input, role: "FUNCTIONARY" }, now, "share");
     if (auth.status !== "authenticated") return auth;
     const race = await lockRaceForSnapshot(tx, input.raceId);
     const resolved = await tx.select({ readoutId: schema.unknownReadoutResolutions.readoutId })
@@ -116,7 +111,7 @@ export type UnknownReadoutResolutionResult =
   | { status: "unauthorized" | "forbidden" | "invalid-request" | "not-found" | "conflict" }
   | { status: "resolved"; response: UnknownReadoutResolutionResponse };
 
-export async function resolveUnknownReadoutAsAdministrator(
+export async function resolveUnknownReadoutAsAdmin(
   db: Database,
   input: Authentication & { idempotencyKey: string | null; request: unknown },
   now = new Date()
@@ -129,15 +124,15 @@ export async function resolveUnknownReadoutAsAdministrator(
   if (intent.requestId !== requestId) return { status: "invalid-request" };
   const resolvedAt = new Date(now);
   if (!Number.isFinite(resolvedAt.getTime())) throw new Error("Resolutionstiden är ogiltig");
-  const authentication = { ...input, capability, requireCsrf: true };
-  const preflight = await authenticatePairingAdminSession(db, authentication, resolvedAt);
+  const authentication = { ...input, role: "FUNCTIONARY" as const, requireCsrf: true };
+  const preflight = await requireRaceRole(db, authentication, resolvedAt);
   if (preflight.status !== "authenticated") return preflight;
-  if (intent.target !== "NEW_ENTRY" && preflight.principal.capability !== "MANAGE_RACE") return { status: "forbidden" };
+  if (intent.target !== "NEW_ENTRY" && preflight.principal.role !== "ADMIN") return { status: "forbidden" };
 
   return db.transaction(async (tx) => {
-    const auth = await authenticatePairingAdminSessionForMutation(tx, authentication, resolvedAt);
+    const auth = await requireRaceRole(tx, authentication, resolvedAt, "update");
     if (auth.status !== "authenticated") return auth;
-    if (intent.target !== "NEW_ENTRY" && auth.principal.capability !== "MANAGE_RACE") return { status: "forbidden" };
+    if (intent.target !== "NEW_ENTRY" && auth.principal.role !== "ADMIN") return { status: "forbidden" };
     const race = await lockRaceForMutation(tx, input.raceId);
     const [journalBeforeRequestLock] = await tx.select({ entryId: schema.unknownReadoutResolutions.entryId })
       .from(schema.unknownReadoutResolutions).where(eq(schema.unknownReadoutResolutions.requestId, requestId));
@@ -153,13 +148,13 @@ export async function resolveUnknownReadoutAsAdministrator(
     const [existing] = await tx.select().from(schema.unknownReadoutResolutions)
       .where(eq(schema.unknownReadoutResolutions.requestId, requestId));
     if (existing) {
-      if (existing.raceId !== input.raceId || existing.actorCredentialId !== auth.principal.accessCredentialId ||
+      if (existing.raceId !== input.raceId || existing.actorAccountId !== auth.principal.accountId ||
         JSON.stringify(unknownReadoutResolutionRequestSchema.parse(existing.request)) !== JSON.stringify(intent)) {
         return { status: "conflict" };
       }
       return { status: "resolved", response: unknownReadoutResolutionResponseSchema.parse({ ...existing.response, replayed: true }) };
     }
-    if (race.snapshotVersion !== intent.expectedSnapshotVersion || race.snapshotVersion >= 2_147_483_647 ||
+    if (race.snapshotVersion >= 2_147_483_647 ||
       intent.expectedEngineVersion !== RESULT_ENGINE_VERSION) return { status: "conflict" };
     const [readout] = await tx.select({ readout: schema.cardReadouts, outcome: schema.deviceIngestOutcomes.serverResult })
       .from(schema.cardReadouts)
@@ -223,7 +218,7 @@ export async function resolveUnknownReadoutAsAdministrator(
     if (intent.target === "EXISTING_ENTRY") await tx.update(schema.entries).set({ version: entryVersionAfter })
       .where(and(eq(schema.entries.id, entry.id), eq(schema.entries.version, entry.version)));
     const snapshotVersionAfter = race.snapshotVersion + 1;
-    await tx.update(schema.races).set({ snapshotVersion: snapshotVersionAfter }).where(eq(schema.races.id, input.raceId));
+    await bumpReadoutPackageVersion(tx, input.raceId);
     let snapshot = await loadRaceSnapshot(tx, input.raceId);
     const normalized: NormalizedCardReadout = { id: readout.readout.id, raceId: input.raceId,
       cardNumber: readout.readout.cardNumber,
@@ -242,16 +237,10 @@ export async function resolveUnknownReadoutAsAdministrator(
     if (evaluation.entryId !== entry.id || !evaluation.courseVersionId || evaluation.status === "UNKNOWN_CARD") {
       throw new Error("Den valda avläsningen kunde inte bedömas mot deltagaren");
     }
-    const [latest] = await tx.select({ revision: schema.resultRevisions.revision }).from(schema.resultRevisions)
-      .where(and(eq(schema.resultRevisions.raceId, input.raceId), eq(schema.resultRevisions.entryId, entry.id)))
-      .orderBy(desc(schema.resultRevisions.revision)).limit(1);
-    const revision = (latest?.revision ?? 0) + 1;
-    const [result] = await tx.insert(schema.resultRevisions).values({ raceId: input.raceId, entryId: entry.id,
-      readoutId: readout.readout.id, revision, cause: "UNKNOWN_READOUT_RESOLUTION", status: evaluation.status,
-      reason: evaluation.reason, evaluation, engineVersion: RESULT_ENGINE_VERSION, controlNeutralizationId,
-      snapshotVersion: snapshotVersionAfter, courseVersionId: evaluation.courseVersionId, published: true,
-      createdAt: resolvedAt }).returning();
-    if (!result) throw new Error("Resultatrevisionen kunde inte sparas");
+    const result = await appendResultRevision(tx, { raceId: input.raceId, entryId: entry.id, readoutId: readout.readout.id,
+      cause: "UNKNOWN_READOUT_RESOLUTION", outcome: evaluation, engineVersion: RESULT_ENGINE_VERSION, controlNeutralizationId,
+      snapshotVersion: snapshotVersionAfter, courseVersionId: evaluation.courseVersionId, createdAt: resolvedAt });
+    const revision = result.revision;
     const teamId = await relayTeamOfEntry(tx, entry.id);
     if (teamId) await synchronizeRelayTeams(tx, input.raceId, [teamId], snapshotVersionAfter);
     const response = unknownReadoutResolutionResponseSchema.parse({ formatVersion: 1, replayed: false,
@@ -263,13 +252,13 @@ export async function resolveUnknownReadoutAsAdministrator(
       courseVersionId: evaluation.courseVersionId, resolvedAt: resolvedAt.toISOString() });
     await tx.insert(schema.unknownReadoutResolutions).values({ requestId, raceId: input.raceId,
       readoutId: readout.readout.id, rawMessageId: readout.readout.rawMessageId, cardNumber: intent.cardNumber,
-      actorCredentialId: auth.principal.accessCredentialId, capability: auth.principal.capability, target: intent.target,
+      actorAccountId: auth.principal.accountId, role: auth.principal.role, target: intent.target,
       entryId: entry.id, classId: targetClassId, assignmentId, createdResultRevisionId: result.id,
-      createdResultRevision: revision, expectedSnapshotVersion: race.snapshotVersion, snapshotVersionAfter,
+      createdResultRevision: revision, snapshotVersionAfter,
       request: intent, response, resolvedAt });
     await tx.insert(schema.auditEvents).values({ raceId: input.raceId, entityType: "card_readout",
       entityId: readout.readout.id, action: "UNKNOWN_READOUT_RESOLVED_BY_ADMIN",
-      actorKind: "RACE_ADMIN_ACCESS_CREDENTIAL", actorId: auth.principal.accessCredentialId, requestId,
+      actorKind: "USER_ACCOUNT", actorId: auth.principal.accountId, requestId,
       before: { serverResult: "UNKNOWN_CARD", snapshotVersion: race.snapshotVersion },
       after: { entryId: entry.id, classId: targetClassId, assignmentId, resultRevisionId: result.id,
         revision, cause: result.cause, snapshotVersion: snapshotVersionAfter } });

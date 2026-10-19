@@ -3,10 +3,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrate } from "@o-tid/database";
 import { createDatabase } from "@o-tid/database";
 import type { EntryTransferRequest } from "@o-tid/contracts";
-import { listEntryTransfersAsAdministrator, transferEntryAsAdministrator } from "../../src/entry-transfer";
-import { issuePairingAdminAccessCredential, loginPairingAdmin } from "../../src/pairing-admin";
+import { listEntryTransfersAsAdmin, transferEntryAsAdmin } from "../../src/entry-transfer";
 import { ingestDeviceBatch } from "../../src/ingest";
-import { contentHash } from "../../src/hash";
+import { contentHash } from "../../src/serialization";
+import { raceLogin } from "./accounts";
 
 const url = process.env.TEST_DATABASE_URL;
 if (!url) throw new Error("TEST_DATABASE_URL krävs för en uttryckligen isolerad testdatabas");
@@ -15,12 +15,8 @@ const now = new Date("2026-09-12T10:00:00Z");
 beforeAll(async () => migrate(db, { migrationsFolder: new URL("../../../database/migrations", import.meta.url).pathname }));
 afterAll(async () => pool.end());
 
-async function auth(raceId: string, capability: "MANAGE_RACE" | "CHANGE_ENTRY_CLASS" = "MANAGE_RACE") {
-  const installation = await issuePairingAdminAccessCredential(db, { raceId, capability, label: "Synthetic transfer",
-    expiresAt: new Date(now.getTime() + 3600_000) }, { now });
-  const login = await loginPairingAdmin(db, { formatVersion: 1, accessCredential: installation.accessCredential },
-    { expectedRaceId: raceId, expectedCapability: capability, now });
-  if (login.status !== "authenticated") throw new Error("Synthetic login failed");
+async function auth(raceId: string, role: "ADMIN" | "FUNCTIONARY" = "ADMIN") {
+  const login = await raceLogin(db, raceId, role, now);
   return { raceId, sessionToken: login.sessionToken, csrfCookie: login.csrfToken, csrfHeader: login.csrfToken };
 }
 async function fixture() {
@@ -39,7 +35,7 @@ async function fixture() {
   await pool.query("INSERT INTO card_assignment(race_id,entry_id,card_number) VALUES($1,$2,'12345')", [raceId, entryId]);
   const actor = await auth(raceId);
   const request: EntryTransferRequest = { formatVersion: 1, expectedEntryVersion: 1, expectedClassId: punchId,
-    expectedSnapshotVersion: 1, expectedFixedStartTime: null, targetClassId: fixedId,
+    expectedFixedStartTime: null, targetClassId: fixedId,
     expectedTargetCourseVersionId: courseVersionId, expectedTargetStartRule: "FIXED", fixedStartTime: "2026-09-12T12:03:04.125+02:00" };
   return { raceId, entryId, otherEntryId, punchId, fixedId, courseVersionId, actor, request };
 }
@@ -69,28 +65,27 @@ describe("TASK029 atomic class and fixed-start transfer, real PostgreSQL", () =>
         transport: "simulator", payload, contentHash: contentHash(payload) }] });
     expect(ingested.acknowledgements[0]?.status).toBe("stored");
     const original = await preserved(f.raceId);
-    const list = await listEntryTransfersAsAdministrator(db, f.actor, now);
+    const list = await listEntryTransfersAsAdmin(db, f.actor, now);
     if (list.status !== "ok") throw new Error("No candidate list");
     expect(list.response).toMatchObject({ raceDate: "2026-09-12", timeZone: "Europe/Stockholm", snapshotVersion: 1 });
     expect(list.response.entries).toHaveLength(2);
-    const changed = await transferEntryAsAdministrator(db, { ...f.actor, entryId: f.entryId, idempotencyKey: key, request: f.request }, now);
+    const changed = await transferEntryAsAdmin(db, { ...f.actor, entryId: f.entryId, idempotencyKey: key, request: f.request }, now);
     if (changed.status !== "transferred") throw new Error("Transfer failed");
     expect(changed.response.request.fixedStartTime).toBe("2026-09-12T10:03:04.125Z");
     expect(changed.response).toMatchObject({ entryVersionAfter: 2, snapshotVersionAfter: 2, replayed: false });
-    const back: EntryTransferRequest = { ...f.request, expectedEntryVersion: 2, expectedClassId: f.fixedId, expectedSnapshotVersion: 2,
-      expectedFixedStartTime: changed.response.request.fixedStartTime, targetClassId: f.punchId, expectedTargetStartRule: "PUNCH", fixedStartTime: null };
-    expect((await transferEntryAsAdministrator(db, { ...f.actor, entryId: f.entryId,
+    const back: EntryTransferRequest = { ...f.request, expectedEntryVersion: 2, expectedClassId: f.fixedId, expectedFixedStartTime: changed.response.request.fixedStartTime, targetClassId: f.punchId, expectedTargetStartRule: "PUNCH", fixedStartTime: null };
+    expect((await transferEntryAsAdmin(db, { ...f.actor, entryId: f.entryId,
       idempotencyKey: `entry-transfer:${randomUUID()}`, request: back }, now)).status).toBe("transferred");
     const finalEntry = (await pool.query<{ class_id: string; fixed_start_time: Date | null; version: number }>(
       "SELECT class_id,fixed_start_time,version FROM entry WHERE id=$1", [f.entryId])).rows[0];
     expect(finalEntry).toEqual({ class_id: f.punchId, fixed_start_time: null, version: 3 });
     const beforeRetry = await state(f.raceId);
-    const replay = await transferEntryAsAdministrator(db, { ...f.actor, entryId: f.entryId, idempotencyKey: key,
+    const replay = await transferEntryAsAdmin(db, { ...f.actor, entryId: f.entryId, idempotencyKey: key,
       request: { ...f.request, fixedStartTime: "2026-09-12T10:03:04.125Z" } }, now);
     expect(replay).toEqual({ status: "transferred", response: { ...changed.response, replayed: true } });
     expect(await state(f.raceId)).toBe(beforeRetry); expect(await preserved(f.raceId)).toBe(original);
     expect((await pool.query<{ actor_kind: string }>("SELECT actor_kind FROM audit_event WHERE race_id=$1 AND action='ENTRY_CLASS_AND_START_TRANSFERRED_BY_ADMIN'", [f.raceId])).rows)
-      .toEqual([{ actor_kind: "RACE_ADMIN_ACCESS_CREDENTIAL" }, { actor_kind: "RACE_ADMIN_ACCESS_CREDENTIAL" }]);
+      .toEqual([{ actor_kind: "USER_ACCOUNT" }, { actor_kind: "USER_ACCOUNT" }]);
     await expect(pool.query("UPDATE entry_transfer_request SET changed_at=changed_at WHERE race_id=$1", [f.raceId])).rejects.toThrow();
     await expect(pool.query("DELETE FROM entry_transfer_request WHERE race_id=$1", [f.raceId])).rejects.toThrow();
   });
@@ -101,7 +96,7 @@ describe("TASK029 atomic class and fixed-start transfer, real PostgreSQL", () =>
       [emptyVersionId, f.courseVersionId]);
     await pool.query("INSERT INTO class(id,race_id,name,course_version_id,start_rule) VALUES($1,$2,'Utan kontroller',$3,'PUNCH')",
       [emptyClassId, f.raceId, emptyVersionId]);
-    const list = await listEntryTransfersAsAdministrator(db, f.actor, now);
+    const list = await listEntryTransfersAsAdmin(db, f.actor, now);
     if (list.status !== "ok") throw new Error("No candidate list");
     expect(list.response.classes.find(row => row.id === emptyClassId)).toMatchObject({
       courseVersionId: emptyVersionId, courseName: "Synthetic course", courseVersion: 101, entryCount: 0,
@@ -109,12 +104,12 @@ describe("TASK029 atomic class and fixed-start transfer, real PostgreSQL", () =>
   });
 
   it("rejects stale, unsupported, cross-scope, limited-role and altered-retry requests without writes", async () => {
-    const f = await fixture(), secondActor = await auth(f.raceId), limited = await auth(f.raceId, "CHANGE_ENTRY_CLASS");
+    const f = await fixture(), secondActor = await auth(f.raceId), limited = await auth(f.raceId, "FUNCTIONARY");
     const foreign = await fixture();
-    const call = (request: unknown, overrides = {}) => transferEntryAsAdministrator(db, { ...f.actor, entryId: f.entryId,
+    const call = (request: unknown, overrides = {}) => transferEntryAsAdmin(db, { ...f.actor, entryId: f.entryId,
       idempotencyKey: `entry-transfer:${randomUUID()}`, request, ...overrides }, now);
     const initial = await state(f.raceId);
-    for (const patch of [{ expectedEntryVersion: 2 }, { expectedSnapshotVersion: 2 }, { expectedClassId: randomUUID() },
+    for (const patch of [{ expectedEntryVersion: 2 }, { expectedClassId: randomUUID() },
       { expectedFixedStartTime: "2026-09-12T10:00:00Z" }, { expectedTargetCourseVersionId: randomUUID() },
       { targetClassId: foreign.fixedId, expectedTargetCourseVersionId: foreign.courseVersionId },
       { expectedTargetStartRule: "PUNCH", fixedStartTime: null }]) {
@@ -124,8 +119,9 @@ describe("TASK029 atomic class and fixed-start transfer, real PostgreSQL", () =>
     expect((await call({ ...f.request, fixedStartTime: null })).status).toBe("invalid-request");
     expect((await call(f.request, { csrfHeader: null })).status).toBe("forbidden");
     expect((await call(f.request, limited)).status).toBe("forbidden");
-    expect((await call(f.request, { raceId: foreign.raceId })).status).toBe("forbidden");
-    expect((await listEntryTransfersAsAdministrator(db, limited, now)).status).toBe("forbidden");
+    expect((await call(f.request, { raceId: foreign.raceId })).status).toBe("unauthorized");
+    // Funktionären läser deltagarna men flyttar ingen.
+    expect((await listEntryTransfersAsAdmin(db, limited, now)).status).toBe("ok");
     expect(await state(f.raceId)).toBe(initial);
     const key = `entry-transfer:${randomUUID()}`;
     expect((await call(f.request, { idempotencyKey: key })).status).toBe("transferred");
@@ -138,34 +134,34 @@ describe("TASK029 atomic class and fixed-start transfer, real PostgreSQL", () =>
 
   it("serializes competing transfers and rejects both PostgreSQL version-overflow boundaries", async () => {
     const f = await fixture(), secondActor = await auth(f.raceId);
-    const outcomes = await Promise.all([f.actor, secondActor].map(actor => transferEntryAsAdministrator(db, {
+    const outcomes = await Promise.all([f.actor, secondActor].map(actor => transferEntryAsAdmin(db, {
       ...actor, entryId: f.entryId, idempotencyKey: `entry-transfer:${randomUUID()}`, request: f.request }, now)));
     expect(outcomes.map(row => row.status).sort()).toEqual(["conflict", "transferred"]);
     expect((await pool.query("SELECT id FROM entry_transfer_request WHERE race_id=$1", [f.raceId])).rows).toHaveLength(1);
     const max = await fixture();
     await pool.query("UPDATE entry SET version=2147483647 WHERE id=$1", [max.entryId]);
     const beforeEntry = await state(max.raceId);
-    expect((await transferEntryAsAdministrator(db, { ...max.actor, entryId: max.entryId, idempotencyKey: `entry-transfer:${randomUUID()}`,
+    expect((await transferEntryAsAdmin(db, { ...max.actor, entryId: max.entryId, idempotencyKey: `entry-transfer:${randomUUID()}`,
       request: { ...max.request, expectedEntryVersion: 2147483647 } }, now)).status).toBe("conflict");
     expect(await state(max.raceId)).toBe(beforeEntry);
     await pool.query("UPDATE race SET snapshot_version=2147483647 WHERE id=$1", [max.raceId]);
     const beforeRace = await state(max.raceId);
-    expect((await transferEntryAsAdministrator(db, { ...max.actor, entryId: max.entryId, idempotencyKey: `entry-transfer:${randomUUID()}`,
-      request: { ...max.request, expectedEntryVersion: 2147483647, expectedSnapshotVersion: 2147483647 } }, now)).status).toBe("conflict");
+    expect((await transferEntryAsAdmin(db, { ...max.actor, entryId: max.entryId, idempotencyKey: `entry-transfer:${randomUUID()}`,
+      request: { ...max.request, expectedEntryVersion: 2147483647 } }, now)).status).toBe("conflict");
     expect(await state(max.raceId)).toBe(beforeRace);
   });
 
   it("does not silently omit a class with a foreign course or round an unrepresentable stored start time", async () => {
     const f = await fixture(), other = await fixture();
     await pool.query("UPDATE class SET course_version_id=$1 WHERE id=$2", [other.courseVersionId, f.fixedId]);
-    await expect(listEntryTransfersAsAdministrator(db, f.actor, now)).rejects.toThrow("klass");
-    expect((await transferEntryAsAdministrator(db, { ...f.actor, entryId: f.entryId, idempotencyKey: `entry-transfer:${randomUUID()}`,
+    await expect(listEntryTransfersAsAdmin(db, f.actor, now)).rejects.toThrow("klass");
+    expect((await transferEntryAsAdmin(db, { ...f.actor, entryId: f.entryId, idempotencyKey: `entry-transfer:${randomUUID()}`,
       request: { ...f.request, expectedTargetCourseVersionId: other.courseVersionId } }, now)).status).toBe("conflict");
     await pool.query("UPDATE class SET course_version_id=$1 WHERE id=$2", [f.courseVersionId, f.fixedId]);
     await pool.query("UPDATE entry SET fixed_start_time='2026-09-12T10:00:00.000001Z' WHERE id=$1", [f.entryId]);
-    await expect(listEntryTransfersAsAdministrator(db, f.actor, now)).rejects.toThrow("precision");
+    await expect(listEntryTransfersAsAdmin(db, f.actor, now)).rejects.toThrow("precision");
     const before = await state(f.raceId);
-    expect((await transferEntryAsAdministrator(db, { ...f.actor, entryId: f.entryId, idempotencyKey: `entry-transfer:${randomUUID()}`,
+    expect((await transferEntryAsAdmin(db, { ...f.actor, entryId: f.entryId, idempotencyKey: `entry-transfer:${randomUUID()}`,
       request: { ...f.request, expectedFixedStartTime: "2026-09-12T10:00:00.000Z" } }, now)).status).toBe("conflict");
     expect(await state(f.raceId)).toBe(before);
   });

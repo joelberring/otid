@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { racePublicationResponseSchema, type RacePublicationResponse } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { authenticatePairingAdminSessionForMutation, type PairingAdminRequestAuthentication } from "./pairing-admin";
+import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation } from "./concurrency";
 
 /**
@@ -10,15 +10,15 @@ import { lockRaceForMutation } from "./concurrency";
  * en egen publicering, resultaten syns när löparna läses av). Bara administratörer; varje ändring loggas.
  * Att publicera en redan publicerad tävling ändrar inget (samma tidpunkt står kvar).
  */
-type Authentication = Omit<PairingAdminRequestAuthentication, "capability" | "requireCsrf">;
+type Authentication = RaceSessionProof;
 export type RacePublicationResult =
   | { status: "unauthorized" | "forbidden" | "invalid-request" | "not-found" }
   | { status: "saved"; response: RacePublicationResponse };
 
-export async function setRacePublicationAsAdministrator(db: Database, input: Authentication & { published: boolean },
+export async function setRacePublicationAsAdmin(db: Database, input: Authentication & { published: boolean },
   now = new Date()): Promise<RacePublicationResult> {
   return db.transaction(async tx => {
-    const auth = await authenticatePairingAdminSessionForMutation(tx, { ...input, capability: "MANAGE_RACE", requireCsrf: true }, now);
+    const auth = await requireRaceRole(tx, { ...input, role: "ADMIN", requireCsrf: true }, now, "update");
     if (auth.status !== "authenticated") return auth;
     const raceId = auth.principal.raceId;
     await lockRaceForMutation(tx, raceId);
@@ -30,8 +30,8 @@ export async function setRacePublicationAsAdministrator(db: Database, input: Aut
       await tx.update(schema.races).set({ publishedAt }).where(eq(schema.races.id, raceId));
       await tx.insert(schema.auditEvents).values({ raceId, entityType: "race", entityId: raceId,
         action: input.published ? "RACE_PUBLISHED_BY_ADMIN" : "RACE_UNPUBLISHED_BY_ADMIN",
-        actorKind: auth.principal.account ? "USER_ACCOUNT" : "RACE_ADMIN_ACCESS_CREDENTIAL",
-        actorId: auth.principal.account?.accountId ?? auth.principal.accessCredentialId,
+        actorKind: "USER_ACCOUNT",
+        actorId: auth.principal.accountId,
         before: { publishedAt: race.publishedAt?.toISOString() ?? null },
         after: { publishedAt: publishedAt?.toISOString() ?? null }, createdAt: now });
     }

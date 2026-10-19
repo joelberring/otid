@@ -21,7 +21,6 @@ export const organizerSv = {
   loggedOut: "Du är utloggad.",
   checkSessionBeforeContinue: (error: string) => `${error} Kontrollera sessionen innan du fortsätter.`,
   openingRace: "Öppnar tävlingsadministrationen …",
-  enterRaceError: (status: number) => `Kunde inte öppna tävlingen (${status}). Kontrollera sessionen och försök igen.`,
   checkSession: "Kontrollerar session …",
   login: "Logga in",
   loginHint: "Logga in med e-postadress och lösenord för att hitta och skapa tävlingar.",

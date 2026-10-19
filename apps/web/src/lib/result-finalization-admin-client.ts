@@ -7,8 +7,8 @@ import {
   type ResultFinalizationResponse
 } from "@o-tid/contracts";
 import { sv } from "../i18n/sv";
+import { UUID_PATTERN } from "@o-tid/contracts";
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 export type ResultFinalizationCandidates = ResultFinalizationCandidateResponse;
 
@@ -46,7 +46,6 @@ export function createClassFinalizationAttempt(
       formatVersion: 1,
       scope: "CLASS",
       classId: candidate.classId,
-      expectedSnapshotVersion: candidates.snapshotVersion,
       expectedBasisHash: candidate.basisHash,
       expectedLatestScopeRevision: candidate.latestFinalization?.scopeRevision ?? null
     })
@@ -68,7 +67,6 @@ export function createRaceFinalizationAttempt(
       formatVersion: 1,
       scope: "RACE",
       classId: null,
-      expectedSnapshotVersion: candidates.snapshotVersion,
       expectedBasisHash: candidates.race.basisHash,
       expectedLatestScopeRevision: candidates.race.latestFinalization?.scopeRevision ?? null
     })
@@ -85,7 +83,6 @@ export function parseResultFinalizationResponse(
   if (!parsed.success || parsed.data.requestId !== attempt.requestId ||
       finalization?.raceId !== expectedRaceId || finalization.scope !== attempt.request.scope ||
       finalization.classId !== attempt.request.classId ||
-      finalization.sourceSnapshotVersion !== attempt.request.expectedSnapshotVersion ||
       finalization.basisHash !== attempt.request.expectedBasisHash ||
       finalization.scopeRevision !== (attempt.request.expectedLatestScopeRevision ?? 0) + 1) {
     throw new Error(sv.resultFinalizationInvalidResponse);

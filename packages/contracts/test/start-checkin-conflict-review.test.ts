@@ -7,7 +7,7 @@ const id = (n: number) => `00000000-0000-4000-8000-${n.toString(16).padStart(12,
 const hash = "a".repeat(64), at = "2026-09-05T10:00:00.000Z";
 const request = { formatVersion: 1, requestId: id(1), entryId: id(2), sourceHash: hash,
   conflictRequestIds: [id(3)], decision: "KEEP_CURRENT_STATE", reason: "Uppgiften kontrollerad vid mål" };
-const operation = { formatVersion: 1, requestId: id(3), raceId: id(4), entryId: id(2), deviceId: id(5), actorCredentialId: id(6),
+const operation = { formatVersion: 1, requestId: id(3), raceId: id(4), entryId: id(2), deviceId: id(5), actorAccountId: id(6),
   localSequence: 1, packageVersion: 1, expectedEntryVersion: 1, expectedRevision: 0, dependsOnRequestId: null,
   observedAt: at, action: { kind: "MARK_START", state: "REPORTED_NOT_STARTED" } };
 const receipt = { formatVersion: 1, storage: "STORED", requestId: id(3), raceId: id(4), entryId: id(2), deviceId: id(5),

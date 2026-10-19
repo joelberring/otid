@@ -1,9 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import type {
   authenticateUserAccountSession,
-  createEventAsUserAccount,
-  enterRaceAsUserAccount,
-  listMyEventsAsUserAccount,
+  createOrganizerEvent,
+  listMyEvents,
   loginUserAccount,
   logoutUserAccountSession,
   registerUserAccount
@@ -14,7 +13,6 @@ import {
   organizerEventsListRoute,
   organizerLoginRoute,
   organizerLogoutRoute,
-  organizerRaceEnterRoute,
   organizerRegisterRoute,
   organizerSessionStatusRoute
 } from "./organizer-account-route-handlers";
@@ -98,7 +96,7 @@ describe("TASK150 organizer account routes", () => {
 
   it("checks origin, CSRF, and idempotency key before consuming create bodies", async () => {
     const authenticate = vi.fn(async () => ({ status: "authenticated" as const, principal })) as unknown as typeof authenticateUserAccountSession;
-    const create = vi.fn() as unknown as typeof createEventAsUserAccount;
+    const create = vi.fn() as unknown as typeof createOrganizerEvent;
     const wrongOrigin = bodyTrackedRequest({ origin: "https://evil.example" });
     expect((await organizerEventCreateRoute(db, wrongOrigin.request, authenticate, create, prod)).status).toBe(403);
     expect(wrongOrigin.accessed()).toBe(false);
@@ -115,10 +113,10 @@ describe("TASK150 organizer account routes", () => {
   it("validates create responses and uses 201 for new records and 200 for replay", async () => {
     const authenticate = vi.fn(async () => ({ status: "authenticated" as const, principal })) as unknown as typeof authenticateUserAccountSession;
     for (const replayed of [false, true]) {
-      const create = vi.fn(async (_database: Database, input: Parameters<typeof createEventAsUserAccount>[1]) => {
+      const create = vi.fn(async (_database: Database, input: Parameters<typeof createOrganizerEvent>[1]) => {
         expect(await input.readBody()).toEqual({ ...intent, raceType: "STANDARD" });
         return { status: "created" as const, response: { formatVersion: 1 as const, replayed, requestId, eventId, raceId, createdAt: "2026-09-23T08:00:00.000Z" } };
-      }) as unknown as typeof createEventAsUserAccount;
+      }) as unknown as typeof createOrganizerEvent;
       const response = await organizerEventCreateRoute(db, mutation(), authenticate, create, prod);
       expect(response.status).toBe(replayed ? 200 : 201);
       expect(create).toHaveBeenCalledWith(db, expect.objectContaining({
@@ -131,7 +129,7 @@ describe("TASK150 organizer account routes", () => {
   });
 
   it("lists only validated account events and clears session cookies on logout", async () => {
-    const list = vi.fn(async () => ({ status: "ok" as const, response: { formatVersion: 1 as const, events: [] } })) as unknown as typeof listMyEventsAsUserAccount;
+    const list = vi.fn(async () => ({ status: "ok" as const, response: { formatVersion: 1 as const, events: [] } })) as unknown as typeof listMyEvents;
     const listed = await organizerEventsListRoute(db, req("GET", undefined, { cookie: accountCookies }), list, prod);
     expect(listed.status).toBe(200);
     expect(await listed.json()).toEqual({ formatVersion: 1, events: [] });
@@ -143,20 +141,6 @@ describe("TASK150 organizer account routes", () => {
     expect(loggedOut.headers.getSetCookie().join("\n")).toContain("Max-Age=0");
   });
 
-  it("enters only the requested race and puts delegated credentials only in admin cookies", async () => {
-    const enter = vi.fn(async () => ({ status: "entered" as const,
-      response: { formatVersion: 1 as const, raceId, role: "FUNCTIONARY" as const, expiresAt: principal.expiresAt },
-      sessionToken: `otid_org_session_v1.${sessionId}.${"r".repeat(43)}`, csrfToken: csrf })) as unknown as typeof enterRaceAsUserAccount;
-    const response = await organizerRaceEnterRoute(db, req("POST", undefined, {
-      origin: prod.O_TID_PUBLIC_ORIGIN, cookie: accountCookies, "x-otid-csrf": csrf
-    }, `https://otid.example/api/organizer/races/${raceId}/enter`), raceId, enter, prod);
-    expect(response.status).toBe(200);
-    const responseBody = await response.clone().text();
-    expect(await response.json()).toEqual({ formatVersion: 1, raceId, role: "FUNCTIONARY", expiresAt: principal.expiresAt });
-    expect(response.headers.getSetCookie().join("\n")).toContain("__Host-otid-race-administrator-session");
-    expect(responseBody).not.toContain("otid_org_session_v1");
-    expect(enter).toHaveBeenCalledWith(db, expect.objectContaining({ raceId, requireCsrf: true, sessionToken }));
-  });
 });
 
 describe("ADR-0172 inloggning med spärr", () => {

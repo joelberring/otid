@@ -1,11 +1,11 @@
 import { z } from "zod";
+import { uuidSchema as canonicalUuidSchema } from "./ids";
 
 /**
  * "Ny tävling som …" (PLAN.md steg 21): kopierar en tävling till ett nytt event med ett lopp. Banor, klasser,
  * inställningar, karta och radiokontroller följer med; deltagare, lag, starttider, avläsningar och resultat gör det inte.
  * Funktionärer och administratörer följer med när `includePeople` är sant. Begäran är idempotent på `requestId`.
  */
-const canonicalUuidSchema = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 
 export const raceCopyRequestSchema = z.object({
   formatVersion: z.literal(1),

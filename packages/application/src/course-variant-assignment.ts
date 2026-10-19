@@ -7,14 +7,12 @@ import {
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { withProposedEntryVariants, type RaceSnapshot } from "@o-tid/domain";
-import {
-  authenticatePairingAdminSession, authenticatePairingAdminSessionForMutation,
-  authenticatePairingAdminSessionForProtectedRead, type PairingAdminRequestAuthentication
-} from "./pairing-admin";
+import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
-import { loadRaceSnapshot } from "./snapshot";
+import { bumpReadoutPackageVersion, loadRaceSnapshot } from "./snapshot";
 import { assessReadOutEntries, recalculateAssessedEntries, summarizeAssessment, type AssessedEntry } from "./result-reassessment";
 import { classVariantCodes, planVariantDistribution, writeEntryVariants } from "./course-variants";
+import { UUID_PATTERN as uuid } from "./serialization";
 
 /**
  * Gafflingar (ADR-0169 beslut 2): byt variant på en löpare och fördela varianter i en
@@ -23,9 +21,7 @@ import { classVariantCodes, planVariantDistribution, writeEntryVariants } from "
  * löpares status ändras.
  */
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
-type Authentication = Omit<PairingAdminRequestAuthentication, "capability">;
-const capability = "MANAGE_RACE" as const;
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+type Authentication = RaceSessionProof;
 const MAX_VERSION = 2_147_483_647;
 
 async function loadEntry(tx: Transaction, raceId: string, entryId: string, lock: boolean) {
@@ -58,16 +54,15 @@ export type EntryVariantPreviewResult =
   | { status: "ok"; response: EntryVariantPreviewResponse };
 
 /** Läser bara: ändras löparens resultat om löparen får varianten? */
-export async function previewEntryVariantAsAdministrator(db: Database, input: Authentication & { entryId: string; request: unknown },
+export async function previewEntryVariantAsAdmin(db: Database, input: Authentication & { entryId: string; request: unknown },
   now = new Date()): Promise<EntryVariantPreviewResult> {
   const parsed = entryVariantPreviewRequestSchema.safeParse(input.request);
   if (!parsed.success || !uuid.test(input.raceId) || !uuid.test(input.entryId)) return { status: "invalid-request" };
   return db.transaction(async tx => {
-    const auth = await authenticatePairingAdminSessionForProtectedRead(tx, { ...input, capability }, now);
+    const auth = await requireRaceRole(tx, { ...input, role: "ADMIN" }, now, "share");
     if (auth.status !== "authenticated") return auth;
     const raceId = auth.principal.raceId;
     const race = await lockRaceForSnapshot(tx, raceId);
-    if (race.snapshotVersion !== parsed.data.expectedSnapshotVersion) return { status: "conflict" };
     const entry = await loadEntry(tx, raceId, input.entryId, false);
     if (!entry) return { status: "not-found" };
     if (entry.version !== parsed.data.expectedEntryVersion) return { status: "conflict" };
@@ -92,7 +87,7 @@ async function priorRequest(tx: Transaction, requestId: string) {
 }
 
 /** Byter löparens variant. Kräver `confirmResultChanges` när löparens status ändras; annars sparas direkt. */
-export async function changeEntryVariantAsAdministrator(db: Database, input: Authentication & { idempotencyKey: string | null; request: unknown },
+export async function changeEntryVariantAsAdmin(db: Database, input: Authentication & { idempotencyKey: string | null; request: unknown },
   now = new Date()): Promise<EntryVariantResult> {
   const parsed = entryVariantRequestSchema.safeParse(input.request);
   const key = entryVariantIdempotencyKeySchema.safeParse(input.idempotencyKey);
@@ -100,11 +95,11 @@ export async function changeEntryVariantAsAdministrator(db: Database, input: Aut
     return { status: "invalid-request" };
   }
   const intent = parsed.data;
-  const authentication = { ...input, capability, requireCsrf: true };
-  const initial = await authenticatePairingAdminSession(db, authentication, now);
+  const authentication = { ...input, role: "ADMIN" as const, requireCsrf: true };
+  const initial = await requireRaceRole(db, authentication, now);
   if (initial.status !== "authenticated") return initial;
   return db.transaction(async tx => {
-    const auth = await authenticatePairingAdminSessionForMutation(tx, authentication, now);
+    const auth = await requireRaceRole(tx, authentication, now, "update");
     if (auth.status !== "authenticated") return auth;
     const raceId = auth.principal.raceId;
     const race = await lockRaceForMutation(tx, raceId);
@@ -112,11 +107,11 @@ export async function changeEntryVariantAsAdministrator(db: Database, input: Aut
     if (prior) {
       if (prior.kind !== "ENTRY") return { status: "conflict" };
       const response = entryVariantResponseSchema.parse(prior.response);
-      if (prior.raceId !== raceId || prior.actorCredentialId !== auth.principal.accessCredentialId ||
+      if (prior.raceId !== raceId || prior.actorAccountId !== auth.principal.accountId ||
           JSON.stringify(response.request) !== JSON.stringify(intent)) return { status: "conflict" };
       return { status: "changed", response: { ...response, replayed: true } };
     }
-    if (race.snapshotVersion !== intent.expectedSnapshotVersion || race.snapshotVersion >= MAX_VERSION) return { status: "conflict" };
+    if (race.snapshotVersion >= MAX_VERSION) return { status: "conflict" };
     const entry = await loadEntry(tx, raceId, intent.entryId, true);
     if (!entry) return { status: "not-found" };
     if (entry.version !== intent.expectedEntryVersion || entry.version >= MAX_VERSION) return { status: "conflict" };
@@ -129,7 +124,7 @@ export async function changeEntryVariantAsAdministrator(db: Database, input: Aut
 
     await writeEntryVariants(tx, raceId, new Map([[entry.id, intent.variantCode]]));
     const snapshotVersionAfter = race.snapshotVersion + 1;
-    await tx.update(schema.races).set({ snapshotVersion: snapshotVersionAfter }).where(eq(schema.races.id, raceId));
+    await bumpReadoutPackageVersion(tx, raceId);
     const [courseVersion] = await tx.select({ id: schema.classes.courseVersionId }).from(schema.classes)
       .where(eq(schema.classes.id, entry.classId));
     const recalculated = await recalculateAssessedEntries(tx, { raceId, assessed, snapshot: await loadRaceSnapshot(tx, raceId),
@@ -138,10 +133,10 @@ export async function changeEntryVariantAsAdministrator(db: Database, input: Aut
       entryId: entry.id, request: intent, previousVariantCode: entry.code, entryVersionAfter: entry.version + 1,
       snapshotVersionBefore: race.snapshotVersion, snapshotVersionAfter, recalculated, changedAt: now.toISOString() });
     await tx.insert(schema.courseVariantAssignmentRequests).values({ requestId: intent.requestId, raceId, kind: "ENTRY",
-      classId: entry.classId, entryId: entry.id, seed: null, actorCredentialId: auth.principal.accessCredentialId, capability,
+      classId: entry.classId, entryId: entry.id, seed: null, actorAccountId: auth.principal.accountId,
       request: intent, response, assignedAt: now });
     await tx.insert(schema.auditEvents).values({ raceId, entityType: "entry", entityId: entry.id, requestId: intent.requestId,
-      actorKind: "RACE_ADMIN_ACCESS_CREDENTIAL", actorId: auth.principal.accessCredentialId, action: "ENTRY_COURSE_VARIANT_CHANGED_BY_ADMIN",
+      actorKind: "USER_ACCOUNT", actorId: auth.principal.accountId, action: "ENTRY_COURSE_VARIANT_CHANGED_BY_ADMIN",
       before: { courseVariantCode: entry.code, entryVersion: entry.version, snapshotVersion: race.snapshotVersion },
       after: { courseVariantCode: intent.variantCode, entryVersion: entry.version + 1, snapshotVersion: snapshotVersionAfter,
         recalculatedCount: recalculated.length }, createdAt: now });
@@ -164,7 +159,7 @@ export type ClassVariantDistributionResult =
  * varianten som stämplingarna passar (resultatet ändras inte, men räknas om med varianten);
  * övriga fördelas jämnt med ett lottat frö som sparas men aldrig visas.
  */
-export async function distributeClassVariantsAsAdministrator(db: Database,
+export async function distributeClassVariantsAsAdmin(db: Database,
   input: Authentication & { idempotencyKey: string | null; request: unknown }, now = new Date()): Promise<ClassVariantDistributionResult> {
   const parsed = classVariantDistributionRequestSchema.safeParse(input.request);
   const key = classVariantDistributionIdempotencyKeySchema.safeParse(input.idempotencyKey);
@@ -172,11 +167,11 @@ export async function distributeClassVariantsAsAdministrator(db: Database,
     return { status: "invalid-request" };
   }
   const intent = parsed.data;
-  const authentication = { ...input, capability, requireCsrf: true };
-  const initial = await authenticatePairingAdminSession(db, authentication, now);
+  const authentication = { ...input, role: "ADMIN" as const, requireCsrf: true };
+  const initial = await requireRaceRole(db, authentication, now);
   if (initial.status !== "authenticated") return initial;
   return db.transaction(async tx => {
-    const auth = await authenticatePairingAdminSessionForMutation(tx, authentication, now);
+    const auth = await requireRaceRole(tx, authentication, now, "update");
     if (auth.status !== "authenticated") return auth;
     const raceId = auth.principal.raceId;
     const race = await lockRaceForMutation(tx, raceId);
@@ -184,11 +179,11 @@ export async function distributeClassVariantsAsAdministrator(db: Database,
     if (prior) {
       if (prior.kind !== "CLASS") return { status: "conflict" };
       const response = classVariantDistributionResponseSchema.parse(prior.response);
-      if (prior.raceId !== raceId || prior.actorCredentialId !== auth.principal.accessCredentialId ||
+      if (prior.raceId !== raceId || prior.actorAccountId !== auth.principal.accountId ||
           JSON.stringify(response.request) !== JSON.stringify(intent)) return { status: "conflict" };
       return { status: "distributed", response: { ...response, replayed: true } };
     }
-    if (race.snapshotVersion !== intent.expectedSnapshotVersion || race.snapshotVersion >= MAX_VERSION) return { status: "conflict" };
+    if (race.snapshotVersion >= MAX_VERSION) return { status: "conflict" };
     const [raceClass] = await tx.select({ id: schema.classes.id, name: schema.classes.name, courseVersionId: schema.classes.courseVersionId })
       .from(schema.classes).where(and(eq(schema.classes.id, intent.classId), eq(schema.classes.raceId, raceId)));
     if (!raceClass) return { status: "not-found" };
@@ -205,17 +200,17 @@ export async function distributeClassVariantsAsAdministrator(db: Database,
     // Avlästa löpare får sin stämplade variant: bedömningen blir densamma, så ingen bekräftelse behövs.
     await writeEntryVariants(tx, raceId, planned);
     const snapshotVersionAfter = race.snapshotVersion + 1;
-    await tx.update(schema.races).set({ snapshotVersion: snapshotVersionAfter }).where(eq(schema.races.id, raceId));
+    await bumpReadoutPackageVersion(tx, raceId);
     const recalculated = await recalculateAssessedEntries(tx, { raceId, assessed, snapshot: await loadRaceSnapshot(tx, raceId),
       snapshotVersion: snapshotVersionAfter, courseVersionId: raceClass.courseVersionId });
     const response = classVariantDistributionResponseSchema.parse({ formatVersion: 1, replayed: false, requestId: intent.requestId,
       raceId, classId: raceClass.id, request: intent, assignedCount: planned.size, recalculatedCount: recalculated.length,
       snapshotVersionBefore: race.snapshotVersion, snapshotVersionAfter, distributedAt: now.toISOString() });
     await tx.insert(schema.courseVariantAssignmentRequests).values({ requestId: intent.requestId, raceId, kind: "CLASS",
-      classId: raceClass.id, entryId: null, seed, actorCredentialId: auth.principal.accessCredentialId, capability,
+      classId: raceClass.id, entryId: null, seed, actorAccountId: auth.principal.accountId,
       request: intent, response, assignedAt: now });
     await tx.insert(schema.auditEvents).values({ raceId, entityType: "class", entityId: raceClass.id, requestId: intent.requestId,
-      actorKind: "RACE_ADMIN_ACCESS_CREDENTIAL", actorId: auth.principal.accessCredentialId, action: "CLASS_COURSE_VARIANTS_DISTRIBUTED_BY_ADMIN",
+      actorKind: "USER_ACCOUNT", actorId: auth.principal.accountId, action: "CLASS_COURSE_VARIANTS_DISTRIBUTED_BY_ADMIN",
       before: { snapshotVersion: race.snapshotVersion },
       after: { snapshotVersion: snapshotVersionAfter, assignedCount: planned.size, recalculatedCount: recalculated.length }, createdAt: now });
     return { status: "distributed", response };

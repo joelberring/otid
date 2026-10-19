@@ -2,7 +2,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
 import { entryRegistrationCandidatesRequestSchema, entryRegistrationCandidatesResponseSchema,
   type EntryRegistrationCandidatesResponse } from "@o-tid/contracts";
-import { authenticatePairingAdminSessionForProtectedRead, type PairingAdminRequestAuthentication } from "./pairing-admin";
+import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { matchEntryRegistrationCandidates } from "./entry-registration-matching";
 
 export type EntryRegistrationCandidatesResult =
@@ -10,20 +10,19 @@ export type EntryRegistrationCandidatesResult =
   | { status: "ok"; response: EntryRegistrationCandidatesResponse };
 
 export async function listEntryRegistrationCandidatesAsAdmin(db: Database,
-  input: Omit<PairingAdminRequestAuthentication, "capability" | "requireCsrf"> & { request: unknown },
+  input: RaceSessionProof & { request: unknown },
   now = new Date()
 ): Promise<EntryRegistrationCandidatesResult> {
   const request = entryRegistrationCandidatesRequestSchema.safeParse(input.request);
   if (!request.success) return { status: "invalid-request" };
   return db.transaction(async tx => {
-    const auth = await authenticatePairingAdminSessionForProtectedRead(tx, {
-      ...input, capability: "REGISTER_ENTRY", requireCsrf: true
-    }, now);
+    const auth = await requireRaceRole(tx, {
+      ...input, role: "ADMIN", requireCsrf: true
+    }, now, "share");
     if (auth.status !== "authenticated") return auth;
     const [race] = await tx.select({ id: schema.races.id, snapshotVersion: schema.races.snapshotVersion })
       .from(schema.races).where(eq(schema.races.id, auth.principal.raceId)).for("share");
     if (!race) return { status: "not-found" };
-    if (race.snapshotVersion !== request.data.expectedSnapshotVersion) return { status: "conflict" };
     // Left join preserves malformed entries so the read fails closed, never partially.
     const rows = await tx.select({ entryId: schema.entries.id, classId: schema.entries.classId,
       className: schema.classes.name, givenName: schema.entries.givenName,

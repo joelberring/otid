@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { and, eq, isNotNull, max, sql } from "drizzle-orm";
 import {
   IOF_IMPORT_MAX_BYTES,
@@ -18,7 +17,7 @@ import {
   type EntryListImport,
   type IofImport
 } from "@o-tid/iof-xml";
-import { contentHash } from "./hash";
+import { contentHash, sha256Hex } from "./serialization";
 import type { DbExecutor } from "./snapshot";
 import { lockRaceForMutation } from "./concurrency";
 import { applyStartListImport, StartListImportConflictError } from "./import-start-list";
@@ -27,11 +26,8 @@ import { insertCourseVersionControls, loadCourseVersionVariants } from "./course
 import { DuplicateNameError } from "./duplicate-names";
 export class EntryCardImportConflictError extends Error {}
 export class EntryIdentityImportConflictError extends Error {}
-import {
-  authenticatePairingAdminSession,
-  authenticatePairingAdminSessionForMutation,
-  type PairingAdminRequestAuthentication
-} from "./pairing-admin";
+import { requireRaceRole, type RaceSessionProof } from "./race-session";
+import { bumpReadoutPackageVersion } from "./snapshot";
 
 async function importCourses(tx: DbExecutor, raceId: string, parsed: CourseDataImport) {
   const versionByCourse = new Map<string, string>();
@@ -313,8 +309,7 @@ export async function importIofXml(db: DbExecutor, raceId: string, xml: string) 
     }).returning();
     if (!saved) throw new Error("Importfilen kunde inte sparas");
     if (applied.snapshotChanged) {
-      await tx.update(schema.races).set({ snapshotVersion: sql`${schema.races.snapshotVersion} + 1` })
-        .where(eq(schema.races.id, raceId));
+      await bumpReadoutPackageVersion(tx, raceId);
     }
     return { duplicate: false, importFileId: saved.id, report };
   });
@@ -325,7 +320,7 @@ export type AuthenticatedIofImportResult =
   | { status: "invalid-iof-xml"; issues: readonly string[] }
   | { status: "stored" | "duplicate"; response: IofImportResponse };
 
-export type AuthenticatedIofImportInput = Omit<PairingAdminRequestAuthentication, "capability"> & {
+export type AuthenticatedIofImportInput = RaceSessionProof & {
   idempotencyKey: string | null;
   xmlBytes: Uint8Array;
 };
@@ -348,14 +343,14 @@ export async function importIofXmlAsAdmin(
   if (byteCount < IOF_IMPORT_MIN_BYTES || byteCount > IOF_IMPORT_MAX_BYTES) {
     return { status: "invalid-request" };
   }
-  const hash = createHash("sha256").update(bytes).digest("hex");
+  const hash = sha256Hex(bytes);
   const importedAt = new Date(now);
   if (!Number.isFinite(importedAt.getTime())) throw new Error("Importtiden är ogiltig");
 
-  const preflightAuthorization = await authenticatePairingAdminSession(db, {
+  const preflightAuthorization = await requireRaceRole(db, {
     sessionToken: input.sessionToken,
     raceId: input.raceId,
-    capability: "IMPORT_IOF",
+    role: "ADMIN",
     csrfCookie: input.csrfCookie ?? null,
     csrfHeader: input.csrfHeader ?? null,
     requireCsrf: true
@@ -369,7 +364,7 @@ export async function importIofXmlAsAdmin(
     .where(eq(schema.iofImportRequests.requestId, requestId));
   if (preexistingRequest && (
     preexistingRequest.raceId !== input.raceId ||
-    preexistingRequest.actorCredentialId !== preflightAuthorization.principal.accessCredentialId ||
+    preexistingRequest.actorAccountId !== preflightAuthorization.principal.accountId ||
     preexistingRequest.contentHash !== hash
   )) {
     return { status: "conflict" };
@@ -393,14 +388,14 @@ export async function importIofXmlAsAdmin(
   }
   try {
     return await db.transaction(async (tx) => {
-    const authorization = await authenticatePairingAdminSessionForMutation(tx, {
+    const authorization = await requireRaceRole(tx, {
       sessionToken: input.sessionToken,
       raceId: input.raceId,
-      capability: "IMPORT_IOF",
+      role: "ADMIN",
       csrfCookie: input.csrfCookie ?? null,
       csrfHeader: input.csrfHeader ?? null,
       requireCsrf: true
-    }, importedAt);
+    }, importedAt, "update");
     if (authorization.status !== "authenticated") return authorization;
 
     const race = await lockRaceForMutation(tx, input.raceId);
@@ -413,7 +408,7 @@ export async function importIofXmlAsAdmin(
       .where(eq(schema.iofImportRequests.requestId, requestId));
     if (existingRequest) {
       if (existingRequest.raceId !== input.raceId ||
-        existingRequest.actorCredentialId !== authorization.principal.accessCredentialId ||
+        existingRequest.actorAccountId !== authorization.principal.accountId ||
         existingRequest.contentHash !== hash) {
         return { status: "conflict" };
       }
@@ -444,7 +439,7 @@ export async function importIofXmlAsAdmin(
       await tx.insert(schema.iofImportRequests).values({
         requestId,
         raceId: input.raceId,
-        actorCredentialId: authorization.principal.accessCredentialId,
+        actorAccountId: authorization.principal.accountId,
         contentHash: hash,
         importFileId: existingContent.id,
         outcome: "duplicate",
@@ -476,13 +471,12 @@ export async function importIofXmlAsAdmin(
     if (!saved) throw new Error("Importfilen kunde inte sparas");
     const snapshotVersionAfter = race.snapshotVersion + (applied.snapshotChanged ? 1 : 0);
     if (applied.snapshotChanged) {
-      await tx.update(schema.races).set({ snapshotVersion: snapshotVersionAfter })
-        .where(eq(schema.races.id, input.raceId));
+      await bumpReadoutPackageVersion(tx, input.raceId);
     }
     await tx.insert(schema.iofImportRequests).values({
       requestId,
       raceId: input.raceId,
-      actorCredentialId: authorization.principal.accessCredentialId,
+      actorAccountId: authorization.principal.accountId,
       contentHash: hash,
       importFileId: saved.id,
       outcome: "stored",
@@ -493,8 +487,8 @@ export async function importIofXmlAsAdmin(
       entityType: "import_file",
       entityId: saved.id,
       action: "IOF_IMPORT_STORED_BY_ADMIN",
-      actorKind: authorization.principal.capability === "MANAGE_RACE" ? "RACE_ADMIN_ACCESS_CREDENTIAL" : "IOF_IMPORT_ACCESS_CREDENTIAL",
-      actorId: authorization.principal.accessCredentialId,
+      actorKind: "USER_ACCOUNT",
+      actorId: authorization.principal.accountId,
       requestId,
       after: {
         kind: report.kind,

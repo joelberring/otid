@@ -3,8 +3,7 @@ import { entryCardRentalReturnChangeIdempotencyKeySchema, entryCardRentalReturnC
   entryCardRentalReturnChangeResponseSchema } from "../src";
 
 const id = "10000000-0000-4000-8000-000000000001";
-const request = { formatVersion: 1, expectedEntryVersion: 2, expectedClassId: id, expectedSnapshotVersion: 4,
-  expectedAssignment: { id, cardNumber: "12345", isRental: true, rentalReturned: false }, rentalReturned: true };
+const request = { formatVersion: 1, expectedEntryVersion: 2, expectedClassId: id, expectedAssignment: { id, cardNumber: "12345", isRental: true, rentalReturned: false }, rentalReturned: true };
 
 describe("TASK076 hyrbrickans återlämningskontrakt", () => {
   it("binder aktiv hyrassignment och kräver en verklig statusändring", () => {

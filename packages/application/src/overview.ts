@@ -2,10 +2,7 @@ import { and, asc, count, eq, max } from "drizzle-orm";
 import { raceOverviewResponseSchema, type RaceOverviewResponse } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
 import { schema } from "@o-tid/database";
-import {
-  authenticatePairingAdminSessionForProtectedRead,
-  type PairingAdminRequestAuthentication
-} from "./pairing-admin";
+import { requireRaceRole, type RaceSessionProof } from "./race-session";
 
 export interface PublicRaceSummary {
   id: string;
@@ -36,15 +33,15 @@ export type RaceOverviewAdminResult =
 
 export async function getRaceOverviewAsAdmin(
   db: Database,
-  input: Omit<PairingAdminRequestAuthentication, "capability" | "requireCsrf">,
+  input: RaceSessionProof,
   now = new Date()
 ): Promise<RaceOverviewAdminResult> {
   return db.transaction(async (tx) => {
-    const authorization = await authenticatePairingAdminSessionForProtectedRead(tx, {
+    const authorization = await requireRaceRole(tx, {
       sessionToken: input.sessionToken,
       raceId: input.raceId,
-      capability: "VIEW_RACE_OVERVIEW"
-    }, now);
+      role: "ADMIN"
+    }, now, "share");
     if (authorization.status !== "authenticated") return authorization;
 
     const [lockedRace] = await tx.select({

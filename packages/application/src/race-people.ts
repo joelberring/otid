@@ -7,21 +7,18 @@ import {
   type RacePersonRevokeResponse
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import {
-  authenticatePairingAdminSessionForMutation, authenticatePairingAdminSessionForProtectedRead,
-  type PairingAdminPrincipal, type PairingAdminRequestAuthentication
-} from "./pairing-admin";
+import { requireRaceRole, type RacePrincipal, type RaceSessionProof } from "./race-session";
 
 /**
  * Personer med behörighet (ADR-0172 beslut 3): ägaren, administratörer och funktionärer på tävlingens event.
  * Alla administratörer ser listan och lägger till eller tar bort funktionärer; bara ägaren lägger till och tar
  * bort administratörer. Personen måste redan ha ett konto (inga inbjudningar). En borttagning gäller direkt:
- * tävlingssessioner som bygger på behörigheten slutar fungera vid nästa anrop (`authorizeSession`).
+ * kontots adminförfrågningar på tävlingen nekas från nästa anrop (`requireRaceRole`).
  */
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
-type Authentication = Omit<PairingAdminRequestAuthentication, "capability" | "requireCsrf">;
+type Authentication = RaceSessionProof;
 type Failure = { status: "unauthorized" | "forbidden" | "invalid-request" | "not-found" | "conflict" };
-type Actor = NonNullable<PairingAdminPrincipal["account"]> & { raceId: string };
+type Actor = { accountId: string; grantId: string; role: RacePrincipal["grantRole"]; raceId: string };
 
 const REVOKE_REASON = "Borttagen under Inställningar";
 
@@ -29,10 +26,9 @@ export type RacePeopleResult = Failure | { status: "ok"; response: RacePeopleRes
 export type RacePersonGrantResult = Failure | { status: "granted"; response: RacePersonGrantResponse };
 export type RacePersonRevokeResult = Failure | { status: "revoked"; response: RacePersonRevokeResponse };
 
-function actorOf(principal: PairingAdminPrincipal): Actor | undefined {
-  // Bara en session som ett konto öppnat har en person bakom sig; äldre credentials får inte ändra behörigheter.
-  if (!principal.account || principal.account.role === "FUNCTIONARY") return undefined;
-  return { ...principal.account, raceId: principal.raceId };
+function actorOf(principal: RacePrincipal): Actor | undefined {
+  if (principal.role !== "ADMIN") return undefined;
+  return { accountId: principal.accountId, grantId: principal.grantId, role: principal.grantRole, raceId: principal.raceId };
 }
 
 async function eventOf(tx: Transaction, raceId: string, lock: "share" | "update") {
@@ -61,9 +57,9 @@ async function activePeople(tx: Transaction, eventId: string): Promise<RacePerso
     .sort((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role]);
 }
 
-export async function listRacePeopleAsAdministrator(db: Database, input: Authentication, now = new Date()): Promise<RacePeopleResult> {
+export async function listRacePeopleAsAdmin(db: Database, input: Authentication, now = new Date()): Promise<RacePeopleResult> {
   return db.transaction(async tx => {
-    const auth = await authenticatePairingAdminSessionForProtectedRead(tx, { ...input, capability: "MANAGE_RACE" }, now);
+    const auth = await requireRaceRole(tx, { ...input, role: "ADMIN" }, now, "share");
     if (auth.status !== "authenticated") return auth;
     const actor = actorOf(auth.principal);
     if (!actor) return { status: "forbidden" } as const;
@@ -78,7 +74,7 @@ async function readBody(read: () => Promise<unknown>): Promise<unknown> {
   try { return await read(); } catch { return undefined; }
 }
 
-export async function grantRacePersonAsAdministrator(db: Database,
+export async function grantRacePersonAsAdmin(db: Database,
   input: Authentication & { idempotencyKey: string | null; readBody: () => Promise<unknown> }, now = new Date()): Promise<RacePersonGrantResult> {
   const key = racePersonGrantIdempotencyKeySchema.safeParse(input.idempotencyKey);
   const request = racePersonGrantRequestSchema.safeParse(await readBody(input.readBody));
@@ -86,7 +82,7 @@ export async function grantRacePersonAsAdministrator(db: Database,
   const intent = request.data;
   const action = intent.role === "ADMIN" ? "GRANT_ADMIN" : "GRANT_FUNCTIONARY";
   return db.transaction(async tx => {
-    const auth = await authenticatePairingAdminSessionForMutation(tx, { ...input, capability: "MANAGE_RACE", requireCsrf: true }, now);
+    const auth = await requireRaceRole(tx, { ...input, role: "ADMIN", requireCsrf: true }, now, "update");
     if (auth.status !== "authenticated") return auth;
     const actor = actorOf(auth.principal);
     if (!actor) return { status: "forbidden" } as const;
@@ -123,14 +119,14 @@ export async function grantRacePersonAsAdministrator(db: Database,
   });
 }
 
-export async function revokeRacePersonAsAdministrator(db: Database,
+export async function revokeRacePersonAsAdmin(db: Database,
   input: Authentication & { idempotencyKey: string | null; readBody: () => Promise<unknown> }, now = new Date()): Promise<RacePersonRevokeResult> {
   const key = racePersonRevokeIdempotencyKeySchema.safeParse(input.idempotencyKey);
   const request = racePersonRevokeRequestSchema.safeParse(await readBody(input.readBody));
   if (!key.success || !request.success || key.data !== `race-person-revoke:${request.data.requestId}`) return { status: "invalid-request" };
   const intent = request.data;
   return db.transaction(async tx => {
-    const auth = await authenticatePairingAdminSessionForMutation(tx, { ...input, capability: "MANAGE_RACE", requireCsrf: true }, now);
+    const auth = await requireRaceRole(tx, { ...input, role: "ADMIN", requireCsrf: true }, now, "update");
     if (auth.status !== "authenticated") return auth;
     const actor = actorOf(auth.principal);
     if (!actor) return { status: "forbidden" } as const;

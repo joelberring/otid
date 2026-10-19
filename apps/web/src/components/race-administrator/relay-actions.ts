@@ -114,8 +114,7 @@ export function createRelayActions(ws: Base & RaceDataActions) {
       if (!relayClassName.trim() || !relayClassCourseId || legs.some(leg => leg.startMethod !== "CHANGEOVER" && leg.startTime === null)) {
         setRelayMessage(text.classInvalid); return;
       }
-      attempt = { formatVersion: 1, requestId: crypto.randomUUID(), expectedSnapshotVersion: data.snapshotVersion,
-        name: relayClassName.trim(), courseId: relayClassCourseId, legs };
+      attempt = { formatVersion: 1, requestId: crypto.randomUUID(), name: relayClassName.trim(), courseId: relayClassCourseId, legs };
       setRelayClassAttempt(attempt);
     }
     const name = attempt.name;
@@ -149,7 +148,7 @@ export function createRelayActions(ws: Base & RaceDataActions) {
           new Set(cards).size !== cards.length) {
         setRelayMessage(text.teamInvalid); return;
       }
-      attempt = { formatVersion: 1, requestId: crypto.randomUUID(), expectedSnapshotVersion: relay.snapshotVersion, classId: raceClass.id,
+      attempt = { formatVersion: 1, requestId: crypto.randomUUID(), classId: raceClass.id,
         number, name: teamName.trim(), organisationName: teamClub.trim() || null, runners };
       setTeamAttempt(attempt);
     }
@@ -177,7 +176,7 @@ export function createRelayActions(ws: Base & RaceDataActions) {
       if (!leg || !runnerChange.givenName.trim() || !runnerChange.familyName.trim() || (card !== "" && !/^[1-9][0-9]*$/.test(card))) {
         setRelayMessage(text.teamInvalid); return;
       }
-      attempt = { formatVersion: 1, requestId: crypto.randomUUID(), expectedSnapshotVersion: relay.snapshotVersion, teamId: runnerChange.teamId,
+      attempt = { formatVersion: 1, requestId: crypto.randomUUID(), teamId: runnerChange.teamId,
         leg: runnerChange.leg, expectedEntryVersion: leg.entryVersion, runner: { givenName: runnerChange.givenName.trim(),
           familyName: runnerChange.familyName.trim(), organisationName: runnerChange.club.trim() || null, cardNumber: card || null } };
       setRunnerAttempt(attempt);
@@ -218,7 +217,7 @@ export function createRelayActions(ws: Base & RaceDataActions) {
       const legs = raceClass.legs.filter(leg => leg.startMethod !== "CHANGEOVER").map(leg => ({ leg: leg.leg,
         startTime: parseRaceClock(data.raceDate, relayTimeValue(classId, leg.leg), data.timeZone) }));
       if (legs.length === 0 || legs.some(leg => leg.startTime === null)) { setRelayMessage(text.timesInvalid); return; }
-      attempt = { formatVersion: 1, requestId: crypto.randomUUID(), expectedSnapshotVersion: relay.snapshotVersion, classId,
+      attempt = { formatVersion: 1, requestId: crypto.randomUUID(), classId,
         legs: legs.map(leg => ({ leg: leg.leg, startTime: leg.startTime! })) };
       setTimesAttempt(attempt);
     }

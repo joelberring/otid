@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { canonicalJsonBytes } from "./canonical-json";
 import { StartCheckinOperationSchema, StartCheckinReceiptSchema } from "./start-checkin";
+import { uuidSchema as uuid } from "./ids";
 
-const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
 const counter = z.number().int().min(0).max(2_147_483_647);
 const timestamp = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/).refine(value => {

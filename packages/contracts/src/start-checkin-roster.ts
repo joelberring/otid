@@ -1,7 +1,8 @@
 import { z } from "zod";
+import { UUID_PATTERN } from "./ids";
 
 const canonicalUuidSchema = z.string().regex(
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+  UUID_PATTERN,
   "Id måste vara ett kanoniskt gemener-UUID"
 );
 const positivePostgresIntegerSchema = z.number().int().positive().max(2_147_483_647);

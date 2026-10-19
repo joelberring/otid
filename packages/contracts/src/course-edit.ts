@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { rogainingSetupSchema } from "./rogaining";
+import { prefixedUuidPattern, uuidSchema as uuid } from "./ids";
 
 /** Redigera bana (ADR-0169): ett ställe för att ändra en banas kontrollföljd, även när löpare läst ut. */
-const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 const version = z.number().int().positive().max(2_147_483_647);
 const count = z.number().int().nonnegative().max(10_000);
 const name = z.string().trim().min(1).max(160);
@@ -37,7 +37,7 @@ export const courseEditListResponseSchema = z.object({
 }).strict();
 
 export const courseEditPreviewRequestSchema = z.object({
-  formatVersion: z.literal(1), expectedSnapshotVersion: version, controlCodes, variantCode: courseVariantCodeSchema.optional()
+  formatVersion: z.literal(1), controlCodes, variantCode: courseVariantCodeSchema.optional()
 }).strict();
 
 export const courseEditChangeSchema = z.object({
@@ -58,12 +58,12 @@ export const courseEditPreviewResponseSchema = z.object({
 });
 
 export const courseEditRequestSchema = z.object({
-  formatVersion: z.literal(1), requestId: uuid, expectedSnapshotVersion: version, courseId: uuid, controlCodes,
+  formatVersion: z.literal(1), requestId: uuid, courseId: uuid, controlCodes,
   variantCode: courseVariantCodeSchema.optional(), confirmResultChanges: z.boolean()
 }).strict();
 
 export const courseEditIdempotencyKeySchema = z.string().regex(
-  /^course-edit:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  prefixedUuidPattern("course-edit"));
 
 export const courseEditResponseSchema = z.object({
   formatVersion: z.literal(1), replayed: z.boolean(), requestId: uuid, raceId: uuid, courseId: uuid,
@@ -73,7 +73,7 @@ export const courseEditResponseSchema = z.object({
   editedAt: instant
 }).strict().superRefine((value, context) => {
   if (value.snapshotVersionAfter !== value.snapshotVersionBefore + 1 || value.requestId !== value.request.requestId ||
-      value.courseId !== value.request.courseId || value.snapshotVersionBefore !== value.request.expectedSnapshotVersion ||
+      value.courseId !== value.request.courseId ||
       value.previousCourseVersionId === value.courseVersionId) {
     context.addIssue({ code: "custom", message: "Kvittensen måste binda begäran och versionsföljd" });
   }

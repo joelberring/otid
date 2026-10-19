@@ -3,17 +3,18 @@ import { readFile } from "node:fs/promises";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase, migrate } from "@o-tid/database";
 import type { DeviceBatch, SportidentReadoutPayload } from "@o-tid/contracts";
-import { contentHash } from "../../src/hash";
-import { createEventAsUserAccount, enterRaceAsUserAccount } from "../../src/organizer-events";
+import { contentHash } from "../../src/serialization";
+import { createOrganizerEvent } from "../../src/organizer-events";
 import { registerUserAccount } from "../../src/user-account";
-import { createManualCourseClassAsAdministrator } from "../../src/manual-course-class";
+import { createManualCourseClassAsAdmin } from "../../src/manual-course-class";
 import { registerEntryAsAdmin } from "../../src/entry-registration";
-import { ingestReadoutsAsAdministrator } from "../../src/readout-station";
+import { ingestReadoutsAsAdmin } from "../../src/readout-station";
 import { publicResults } from "../../src/results";
 import {
-  georeferenceRaceMapAsAdministrator, readPublicLegRoutes, readPublicRaceMapImage, readPublicRouteIndex, readRaceMapStateAsAdministrator,
-  removeParticipantRouteAsAdministrator, saveParticipantRouteAsAdministrator, saveRaceMapAsAdministrator
+  georeferenceRaceMapAsAdmin, readPublicLegRoutes, readPublicRaceMapImage, readPublicRouteIndex, readRaceMapStateAsAdmin,
+  removeParticipantRouteAsAdmin, saveParticipantRouteAsAdmin, saveRaceMapAsAdmin
 } from "../../src/race-map";
+import { accountOnRace } from "./accounts";
 
 /**
  * ADR-0171 / PLAN.md steg 16: karta och vägval i PostgreSQL. Admin laddar upp kartan, georefererar den och laddar
@@ -53,17 +54,17 @@ async function race(): Promise<Race> {
   const account = await registerUserAccount(db, { formatVersion: 1, email: `vagval.${suffix}@test.o-tid.se`, displayName: "Arrangör", password: "hemligt-lösen" });
   if (account.status !== "authenticated") throw new Error("Kontot kunde inte skapas");
   const accountProof = { sessionToken: account.sessionToken, csrfCookie: account.csrfToken, csrfHeader: account.csrfToken };
-  const created = await createEventAsUserAccount(db, { ...accountProof, idempotencyKey: `organizer-event-create:${randomUUID()}`,
+  const created = await createOrganizerEvent(db, { ...accountProof, idempotencyKey: `organizer-event-create:${randomUUID()}`,
     readBody: async () => ({ formatVersion: 1, eventName: "Vägval", raceName: "Torsdag", raceDate: "2026-10-08",
       timeZone: "Europe/Stockholm", raceType: "STANDARD" }) });
   if (created.status !== "created") throw new Error("Tävlingen kunde inte skapas");
   const { raceId } = created.response;
-  const entered = await enterRaceAsUserAccount(db, { ...accountProof, raceId });
-  if (entered.status !== "entered") throw new Error("Kom inte in i tävlingen");
+  const entered = await accountOnRace(db, { ...accountProof, raceId });
+  if (entered.status !== "authenticated") throw new Error("Kom inte in i tävlingen");
   const proof: Proof = { raceId, sessionToken: entered.sessionToken, csrfCookie: entered.csrfToken, csrfHeader: entered.csrfToken };
   const requestId = randomUUID();
-  const course = await createManualCourseClassAsAdministrator(db, { ...proof, idempotencyKey: `manual-course-class-create:${requestId}`,
-    request: { formatVersion: 1, requestId, expectedSnapshotVersion: await snapshot(raceId), courseName: "Lång",
+  const course = await createManualCourseClassAsAdmin(db, { ...proof, idempotencyKey: `manual-course-class-create:${requestId}`,
+    request: { formatVersion: 1, requestId, courseName: "Lång",
       className: "H21", startRule: "PUNCH", controlCodes: [31, 32, 33] } });
   if (course.status !== "created") throw new Error(`Banan kunde inte skapas: ${course.status}`);
   return { proof, raceId, classId: course.response.classId };
@@ -72,7 +73,7 @@ async function race(): Promise<Race> {
 async function register(f: Race, givenName: string, cardNumber: string): Promise<string> {
   const registered = await registerEntryAsAdmin(db, { ...f.proof, idempotencyKey: `entry-registration:${randomUUID()}`, request: {
     formatVersion: 1, classId: f.classId, expectedCourseVersionId: await courseVersionOf(f.classId), expectedStartRule: "PUNCH",
-    expectedSnapshotVersion: await snapshot(f.raceId), givenName, familyName: "Löpare", organisationName: "OK Vägval",
+    givenName, familyName: "Löpare", organisationName: "OK Vägval",
     cardNumber, fixedStartTime: null } });
   if (registered.status !== "registered") throw new Error(`Anmälan misslyckades: ${registered.status}`);
   return registered.response.entryId;
@@ -91,7 +92,7 @@ async function readout(f: Race, cardNumber: string, punches: [number, number][],
   const batch: DeviceBatch = { deviceId: randomUUID(), sessionId: randomUUID(), packageVersion: await snapshot(f.raceId),
     firstSequence: 1, lastSequence: 1,
     events: [{ localSequence: 1, stationReceivedAt: at(finish + 60), transport: "sportident", payload, contentHash: contentHash(payload) }] };
-  const ingested = await ingestReadoutsAsAdministrator(db, { ...f.proof, batch });
+  const ingested = await ingestReadoutsAsAdmin(db, { ...f.proof, batch });
   if (ingested.status !== "ok") throw new Error(`Avläsningen togs inte emot: ${ingested.status}`);
 }
 
@@ -130,12 +131,12 @@ describe("ADR-0171 karta och vägval", () => {
     expect(await readPublicRouteIndex(db, f.raceId)).toEqual({ legs: {} });
 
     // Bara admin skriver; fel fil ger begripligt fel.
-    expect(await saveRaceMapAsAdministrator(db, { ...f.proof, sessionToken: "fel", bytes: png, fileName: "karta.png" }))
+    expect(await saveRaceMapAsAdmin(db, { ...f.proof, sessionToken: "fel", bytes: png, fileName: "karta.png" }))
       .toEqual({ status: "unauthorized" });
-    expect(await saveRaceMapAsAdministrator(db, { ...f.proof, bytes: new TextEncoder().encode("<svg/>"), fileName: "karta.svg" }))
+    expect(await saveRaceMapAsAdmin(db, { ...f.proof, bytes: new TextEncoder().encode("<svg/>"), fileName: "karta.svg" }))
       .toEqual({ status: "problem", problem: "INVALID_IMAGE" });
-    expect(await saveRaceMapAsAdministrator(db, { ...f.proof, bytes: png, fileName: "karta.png" })).toEqual({ status: "ok" });
-    let state = await readRaceMapStateAsAdministrator(db, f.proof);
+    expect(await saveRaceMapAsAdmin(db, { ...f.proof, bytes: png, fileName: "karta.png" })).toEqual({ status: "ok" });
+    let state = await readRaceMapStateAsAdmin(db, f.proof);
     if (state.status !== "ok") throw new Error("Kartan saknas");
     expect(state.response.map).toMatchObject({ fileName: "karta.png", mediaType: "image/png", width: 800, height: 600, georeferencedAt: null });
     // Inte georefererad: fortfarande inget publikt.
@@ -143,9 +144,9 @@ describe("ADR-0171 karta och vägval", () => {
 
     // Tre punkter på en linje går inte; tre riktiga punkter ger georeferensen.
     const collinear = [tiePoints[0]!, tiePoints[1]!, { ...tiePoints[1]!, pixelX: 400, longitude: 18.104 }];
-    expect(await georeferenceRaceMapAsAdministrator(db, { ...f.proof, request: { formatVersion: 1, tiePoints: collinear } }))
+    expect(await georeferenceRaceMapAsAdmin(db, { ...f.proof, request: { formatVersion: 1, tiePoints: collinear } }))
       .toEqual({ status: "problem", problem: "INVALID_GEOREFERENCE" });
-    expect(await georeferenceRaceMapAsAdministrator(db, { ...f.proof, request: { formatVersion: 1, tiePoints } })).toEqual({ status: "ok" });
+    expect(await georeferenceRaceMapAsAdmin(db, { ...f.proof, request: { formatVersion: 1, tiePoints } })).toEqual({ status: "ok" });
     const image = await readPublicRaceMapImage(db, f.raceId);
     expect(image?.mediaType).toBe("image/png");
     expect(Buffer.compare(image!.image, Buffer.from(png))).toBe(0);
@@ -153,14 +154,14 @@ describe("ADR-0171 karta och vägval", () => {
     // GPX: utan tider eller trasig fil avvisas; Annas och Cias rutter sparas och täcker sina sträckor.
     const untimed = new TextEncoder().encode('<?xml version="1.0"?><gpx xmlns="http://www.topografix.com/GPX/1/1" version="1.1">' +
       '<trk><trkseg><trkpt lat="59.30" lon="18.10"/><trkpt lat="59.31" lon="18.11"/></trkseg></trk></gpx>');
-    expect(await saveParticipantRouteAsAdministrator(db, { ...f.proof, entryId: anna, bytes: untimed, fileName: "rutt.gpx" }))
+    expect(await saveParticipantRouteAsAdmin(db, { ...f.proof, entryId: anna, bytes: untimed, fileName: "rutt.gpx" }))
       .toEqual({ status: "problem", problem: "ROUTE_WITHOUT_TIMES" });
-    expect(await saveParticipantRouteAsAdministrator(db, { ...f.proof, entryId: anna, bytes: new TextEncoder().encode("<gpx"), fileName: "x.gpx" }))
+    expect(await saveParticipantRouteAsAdmin(db, { ...f.proof, entryId: anna, bytes: new TextEncoder().encode("<gpx"), fileName: "x.gpx" }))
       .toEqual({ status: "problem", problem: "INVALID_GPX" });
-    const saved = await saveParticipantRouteAsAdministrator(db, { ...f.proof, entryId: anna, bytes: await gpx("anna"), fileName: "anna.gpx" });
+    const saved = await saveParticipantRouteAsAdmin(db, { ...f.proof, entryId: anna, bytes: await gpx("anna"), fileName: "anna.gpx" });
     expect(saved).toMatchObject({ status: "ok", response: { entryId: anna, pointCount: 241, coveredLegs: 4, legs: 4 } });
-    await saveParticipantRouteAsAdministrator(db, { ...f.proof, entryId: cia, bytes: await gpx("bo"), fileName: "cia.gpx" });
-    state = await readRaceMapStateAsAdministrator(db, f.proof);
+    await saveParticipantRouteAsAdmin(db, { ...f.proof, entryId: cia, bytes: await gpx("bo"), fileName: "cia.gpx" });
+    state = await readRaceMapStateAsAdmin(db, f.proof);
     if (state.status !== "ok") throw new Error("Tillståndet saknas");
     expect(state.response.routes.find(route => route.entryId === anna)).toMatchObject({ fileName: "anna.gpx", coveredLegs: 4, legs: 4 });
     // Cia: start–31, 33–mål och sin egen sträcka 31–33 (inte 32–33, som hon inte sprang).
@@ -199,9 +200,9 @@ describe("ADR-0171 karta och vägval", () => {
     expect((await publicResults(db, f.raceId)).results).toHaveLength(3);
 
     // Borttagen rutt syns inte längre; en ny kartbild måste georefereras igen.
-    expect(await removeParticipantRouteAsAdministrator(db, { ...f.proof, entryId: cia })).toEqual({ status: "ok" });
+    expect(await removeParticipantRouteAsAdmin(db, { ...f.proof, entryId: cia })).toEqual({ status: "ok" });
     expect((await readPublicRouteIndex(db, f.raceId)).legs[ciaId]).toBeUndefined();
-    expect(await saveRaceMapAsAdministrator(db, { ...f.proof, bytes: png, fileName: "ny.png" })).toEqual({ status: "ok" });
+    expect(await saveRaceMapAsAdmin(db, { ...f.proof, bytes: png, fileName: "ny.png" })).toEqual({ status: "ok" });
     expect(await readPublicRouteIndex(db, f.raceId)).toEqual({ legs: {} });
     const audit = await pool.query<{ action: string }>("select action from audit_event where race_id = $1 and entity_type = 'race_map' order by created_at",
       [f.raceId]);

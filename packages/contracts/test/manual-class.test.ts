@@ -2,13 +2,12 @@ import { expect, it } from "vitest";
 import { manualClassCreateIdempotencyKeySchema, manualClassCreateRequestSchema, manualClassCreateResponseSchema } from "../src";
 
 const id = "10000000-0000-4000-8000-000000000001";
-const request = { formatVersion: 1, requestId: id, expectedSnapshotVersion: 2,
-  courseVersionId: id, className: " Ny klass ", startRule: "FIXED" };
+const request = { formatVersion: 1, requestId: id, courseVersionId: id, className: " Ny klass ", startRule: "FIXED" };
 
 it("TASK300 validates one exact existing course target and explicit start rule", () => {
   expect(manualClassCreateRequestSchema.parse(request)).toMatchObject({ className: "Ny klass", courseVersionId: id, startRule: "FIXED" });
   for (const invalid of [{ ...request, courseVersionId: "latest" }, { ...request, startRule: "AUTO" },
-    { ...request, className: " " }, { ...request, expectedSnapshotVersion: 0 }, { ...request, ignored: true }]) {
+    { ...request, className: " " }, { ...request, ignored: true }]) {
     expect(manualClassCreateRequestSchema.safeParse(invalid).success).toBe(false);
   }
   expect(manualClassCreateIdempotencyKeySchema.safeParse(`manual-class-create:${id}`).success).toBe(true);

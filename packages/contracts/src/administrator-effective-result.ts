@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { speakerBoardEffectiveResultSchema } from "./speaker-board";
+import { uuidSchema as uuid } from "./ids";
 
-const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 const version = z.number().int().positive().max(2_147_483_647);
 const selected = z.object({ id: uuid, revision: version }).strict();
 export const administratorControlDetailsSchema = z.object({
@@ -32,7 +32,8 @@ export const administratorResultHistoryCauses = ["CARD_READOUT", "CLASS_CHANGE_R
   "MANUAL_RESULT_APPROVAL", "MANUAL_RESULT_APPROVAL_WITHDRAWAL", "MANUAL_DID_NOT_FINISH", "MANUAL_DID_NOT_FINISH_WITHDRAWAL",
   "MANUAL_OUT_OF_COMPETITION", "MANUAL_OUT_OF_COMPETITION_WITHDRAWAL", "MANUAL_WITHOUT_TIMING", "MANUAL_WITHOUT_TIMING_WITHDRAWAL",
   "START_CHECKIN_DID_NOT_START", "MANUAL_FINISH_TIME_CORRECTION", "MANUAL_FINISH_TIME_CORRECTION_WITHDRAWAL",
-  "MANUAL_PUNCH_START_TIME_CORRECTION", "MANUAL_PUNCH_START_TIME_CORRECTION_WITHDRAWAL", "SHORTENED_COURSE_CLASS_TRANSFER"] as const;
+  "MANUAL_PUNCH_START_TIME_CORRECTION", "MANUAL_PUNCH_START_TIME_CORRECTION_WITHDRAWAL", "SHORTENED_COURSE_CLASS_TRANSFER",
+  "MANUAL_DID_NOT_START_WITHDRAWAL"] as const;
 export const administratorResultHistorySchema = z.array(z.object({
   revision: version, cause: z.enum(administratorResultHistoryCauses),
   status: z.enum(["OK", "MP", "DSQ", "DNF", "OOC", "DNS", "NT"]), at: z.iso.datetime({ precision: 3 })

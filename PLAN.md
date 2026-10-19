@@ -442,7 +442,7 @@ Granskningen (ägaren 2026-10-18) hittade fel som ska bort före hårdvarutestet
 **Acceptans:** domäntester för fallen ovan; Playwright: övningsstation på
 kommande tävling ger godkänd; dubbelt klassnamn ger fel.
 
-## [ ] Steg 23 – Storstädning av koden
+## [x] Steg 23 – Storstädning av koden
 
 Se ADR-0173.
 

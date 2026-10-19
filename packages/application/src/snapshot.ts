@@ -1,13 +1,22 @@
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import type { Database } from "@o-tid/database";
 import { schema } from "@o-tid/database";
 import type { RaceSnapshot } from "@o-tid/domain";
+import { compareText } from "./serialization";
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 export type DbExecutor = Database | Transaction;
 
-function compareText(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
+/**
+ * Avläsningspaketets version (race.snapshot_version, ADR-0173 beslut 3). Höjs av den som ändrar paketets innehåll:
+ * banor, klasser, deltagare, brickor, starttider och kontroller. Adminåtgärder kontrolleras inte mot versionen;
+ * underlaget per löpare (ADR-0169) och revisionerna avgör. Ger den nya versionen.
+ */
+export async function bumpReadoutPackageVersion(tx: DbExecutor, raceId: string): Promise<number> {
+  const [row] = await tx.update(schema.races).set({ snapshotVersion: sql`${schema.races.snapshotVersion} + 1` })
+    .where(eq(schema.races.id, raceId)).returning({ snapshotVersion: schema.races.snapshotVersion });
+  if (!row) throw new Error("Tävlingen saknas");
+  return row.snapshotVersion;
 }
 
 export function sortRaceSnapshotForPackage(snapshot: RaceSnapshot) {

@@ -2,10 +2,11 @@ import { and, asc, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
 import {
   courseEditOutcome, evaluateCardReadout, RESULT_ENGINE_VERSION, summarizeCourseEdit,
-  type CourseEditOutcome, type EvaluationStatus, type NormalizedCardReadout, type RaceSnapshot
+  type CourseEditOutcome, type EvaluationStatus, type RaceSnapshot
 } from "@o-tid/domain";
 import { resolveStoredResultHeadStates } from "./result-revision-state";
 import { appliedControlNeutralization } from "./class-control-neutralization";
+import { appendResultRevision, normalizedReadout } from "./result-revisions";
 
 /**
  * Gemensam omprövning för "Redigera bana" och "Redigera klass" (ADR-0169 beslut 4).
@@ -18,12 +19,7 @@ type Readout = typeof schema.cardReadouts.$inferSelect;
 type Revision = typeof schema.resultRevisions.$inferSelect;
 const MAX_ENTRIES = 10_000;
 
-export function normalizedReadout(readout: Readout): NormalizedCardReadout {
-  return { id: readout.id, raceId: readout.raceId, cardNumber: readout.cardNumber,
-    ...(readout.startPunchedAt ? { startPunchedAt: readout.startPunchedAt.toISOString() } : {}),
-    ...(readout.finishPunchedAt ? { finishPunchedAt: readout.finishPunchedAt.toISOString() } : {}),
-    punches: readout.punches, rawMessageId: readout.rawMessageId, readAt: readout.readAt.toISOString() };
-}
+export { normalizedReadout };
 
 export type AssessedEntry = {
   entryId: string; classId: string; displayName: string; className: string; readout: Readout; latest: Revision | null;
@@ -75,17 +71,16 @@ export async function assessReadOutEntries(tx: Transaction, raceId: string, clas
     const base = { entryId: entry.id, classId: entry.classId, displayName: `${entry.givenName} ${entry.familyName}`,
       className: classNames.get(entry.classId)!, readout, latest: head, before, after: next.status };
     // Manuellt rättad tid finns bara i den rättade revisionen; en omräkning från avläsningen skulle tappa den.
-    if (head && (head.manualFinishTimeCorrectionId !== null || head.manualPunchStartTimeCorrectionId !== null)) {
+    if (head && (head.cause === "MANUAL_FINISH_TIME_CORRECTION" || head.cause === "MANUAL_PUNCH_START_TIME_CORRECTION")) {
       assessed.push({ ...base, outcome: "NOT_RECALCULATED", recalculate: false }); continue;
     }
     // Ej start gäller löparen oavsett avläsningen och får inte ersättas av en teknisk revision.
-    const didNotStart = !state || state.state === "NO_ACTIVE_RESULT" || state.head.didNotStartDecisionId !== null ||
+    const didNotStart = !state || state.state === "NO_ACTIVE_RESULT" || state.head.cause === "MANUAL_DID_NOT_START" ||
       state.startCheckinDns?.correction === null;
     if (!head || !technical.has(entry.id) || didNotStart || next.entryId !== entry.id || current.entryId !== entry.id) {
       assessed.push({ ...base, outcome: "UNCHANGED", recalculate: false }); continue;
     }
-    const manual = state.disqualification?.withdrawal === null || state.approval?.withdrawal === null ||
-      state.didNotFinish?.withdrawal === null || state.notCompeting?.withdrawal === null || state.withoutTiming?.withdrawal === null;
+    const manual = ["DSQ", "APPROVAL", "DNF", "OOC", "NT"].includes(state.governing);
     assessed.push({ ...base, outcome: courseEditOutcome(before, next.status, manual), recalculate: true });
   }
   return assessed;
@@ -114,12 +109,10 @@ export async function recalculateAssessedEntries(tx: Transaction, input: { raceI
     if (!expectedCourseVersionId || evaluation.entryId !== row.entryId || evaluation.courseVersionId !== expectedCourseVersionId) {
       throw new Error("Omräkningen gav en annan deltagare eller bana än förhandsbeskedet");
     }
-    const [created] = await tx.insert(schema.resultRevisions).values({ raceId: input.raceId, entryId: row.entryId,
-      readoutId: row.readout.id, revision: row.latest!.revision + 1, cause: "EXPLICIT_RECALCULATION", status: evaluation.status,
-      reason: evaluation.reason, evaluation, engineVersion: RESULT_ENGINE_VERSION, snapshotVersion: input.snapshotVersion,
-      courseVersionId: expectedCourseVersionId, controlNeutralizationId: appliedControlNeutralization(input.snapshot, evaluation),
-      published: true }).returning();
-    if (!created) throw new Error("Resultatrevisionen kunde inte sparas");
+    const created = await appendResultRevision(tx, { raceId: input.raceId, entryId: row.entryId, readoutId: row.readout.id,
+      cause: "EXPLICIT_RECALCULATION", outcome: evaluation, engineVersion: RESULT_ENGINE_VERSION,
+      snapshotVersion: input.snapshotVersion, courseVersionId: expectedCourseVersionId,
+      controlNeutralizationId: appliedControlNeutralization(input.snapshot, evaluation) });
     recalculated.push({ entryId: row.entryId, resultRevisionId: created.id, revision: created.revision });
   }
   return recalculated;

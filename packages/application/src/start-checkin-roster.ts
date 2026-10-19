@@ -2,25 +2,25 @@ import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
 import { StartCheckinOperationSchema, StartCheckinRosterResponseSchema, administratorForestWatchResponseSchema } from "@o-tid/contracts";
 import { buildForestWatchList, reportedStartAt, type AppliedStartObservation } from "@o-tid/domain";
-import { authenticatePairingAdminSessionForProtectedRead, type PairingAdminRequestAuthentication } from "./pairing-admin";
+import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { resolveStoredResultHeadStates } from "./result-revision-state";
 import { parseStrictStoredResultRevision } from "./stored-result-revision";
 import { validateStoredStartCheckinReceipt } from "./start-checkin-sync";
 import { reviewedCheckinRequests } from "./checkin-conflict-review-journal";
-import { allowsStartCheckinSourceAction, isOnlineStartCheckinSource } from "./start-checkin-source-action";
+import { allowsStartCheckinSourceAction } from "./start-checkin-source-action";
 
 const compare = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0;
 const validDate = (value: Date) => { if (!Number.isFinite(value.getTime())) throw new Error("Lästiden är ogiltig"); return value; };
 
 /** Kvar i skogen (ADR-0172 beslut 3): administratören och funktionären läser samma lista. */
 export async function listAdministratorForestWatch(
-  db: Database, input: Omit<PairingAdminRequestAuthentication, "capability">, now = new Date()
+  db: Database, input: RaceSessionProof, now = new Date()
 ) {
   now = validDate(now);
   return db.transaction(async (tx) => {
-    const authorization = await authenticatePairingAdminSessionForProtectedRead(tx, {
-      ...input, capability: "RACE_FUNCTIONARY"
-    }, now);
+    const authorization = await requireRaceRole(tx, {
+      ...input, role: "FUNCTIONARY"
+    }, now, "share");
     if (authorization.status !== "authenticated") return authorization;
     const result = await readAuthorizedStartCheckinRoster(tx, authorization.principal.raceId, now, false, true);
     if (result.status !== "ok") return result;
@@ -55,13 +55,12 @@ export async function readAuthorizedStartCheckinRoster(tx: Parameters<Parameters
     const revisionByEntry = new Map(revisions.map(r => [r.entryId, r]));
     const conflicts = new Set<string>();
     const reviewedByEntry = new Map<string, string[]>();
-    const lastByDevice = new Map<string, typeof operations[number]>();
     const startObservations = new Map<string, AppliedStartObservation[]>();
     for (const operation of operations) {
       const receipt = validateStoredStartCheckinReceipt(operation), device = deviceById.get(operation.deviceId);
-      if (!entryIds.has(operation.entryId) || !device || device.actorCredentialId !== operation.actorCredentialId) throw new Error("Operativ källa utanför roster eller enhet");
+      if (!entryIds.has(operation.entryId) || !device || device.actorAccountId !== operation.actorAccountId) throw new Error("Operativ källa utanför roster eller enhet");
       const intent = StartCheckinOperationSchema.parse(operation.intent);
-      if (!allowsStartCheckinSourceAction(device.capability, intent.action)) throw new Error("Operationens funktion motsäger enheten");
+      if (!allowsStartCheckinSourceAction(device.role, intent.action)) throw new Error("Operationens funktion motsäger enheten");
       if (includeReportedStarts && receipt.effect.kind === "APPLIED") {
         const history = startObservations.get(operation.entryId) ?? [];
         history.push({ revision: receipt.effect.revision, state: intent.action.state, observedAt: intent.observedAt });
@@ -72,7 +71,6 @@ export async function readAuthorizedStartCheckinRoster(tx: Parameters<Parameters
         const ids = reviewedByEntry.get(operation.entryId) ?? [];
         ids.push(operation.requestId); reviewedByEntry.set(operation.entryId, ids);
       }
-      if ((lastByDevice.get(device.id)?.localSequence ?? 0) < operation.localSequence) lastByDevice.set(device.id, operation);
     }
     for (const revision of revisions) {
       const operation = operationById.get(revision.requestId);
@@ -94,10 +92,7 @@ export async function readAuthorizedStartCheckinRoster(tx: Parameters<Parameters
     const activeDns = new Set<string>();
     for (const state of await resolveStoredResultHeadStates(tx, race.id, heads)) {
       if (!entryIds.has(state.head.entryId)) throw new Error("Resultatkälla utanför rostern");
-      if (state.state === "ACTIVE_RESULT" && parseStrictStoredResultRevision(state.head,
-        state.startCheckinDns?.source, state.finishTimeCorrection ?? undefined, state.finishTimeCorrectionWithdrawal ?? undefined,
-        state.punchStartTimeCorrection ?? undefined, state.punchStartTimeCorrectionWithdrawal ?? undefined,
-        state.shortenedCourseClassTransfer ?? undefined).status === "DNS") activeDns.add(state.head.entryId);
+      if (state.state === "ACTIVE_RESULT" && parseStrictStoredResultRevision(state.head, state.startCheckinDns?.source).status === "DNS") activeDns.add(state.head.entryId);
     }
     const cards = new Map<string, string[]>();
     for (const assignment of assignments) {
@@ -125,9 +120,8 @@ export async function readAuthorizedStartCheckinRoster(tx: Parameters<Parameters
       compare(a.fixedStartTime ?? "~", b.fixedStartTime ?? "~") || compare(a.displayName, b.displayName) || compare(a.entryId, b.entryId));
     const response = StartCheckinRosterResponseSchema.parse({ formatVersion: 1, raceId: race.id,
       snapshotVersion: race.snapshotVersion, timeZone: event.timeZone, generatedAt: now.toISOString(), knowledge: "LAST_SYNCED_ONLY",
-      entries: rows, devices: devices.filter(device => !isOnlineStartCheckinSource(device.capability)).map(device => ({ deviceId: device.id, label: device.label, capability: device.capability,
-        lastSequence: lastByDevice.get(device.id)?.localSequence ?? 0, lastReceivedAt: lastByDevice.get(device.id)?.receivedAt.toISOString() ?? null
-      })).sort((a, b) => compare(a.label, b.label) || compare(a.deviceId, b.deviceId)) });
+      // Avprickningar görs bara online (ADR-0172 beslut 3); fristående enheter finns inte längre.
+      entries: rows, devices: [] });
     return { status: "ok" as const, response, raceDate: race.raceDate, ...(includeReportedStarts ? {
       reportedStarts: rows.map(row => ({ entryId: row.entryId,
         observedAt: reportedStartAt({ revision: row.revision, state: row.startState }, startObservations.get(row.entryId) ?? []) }))

@@ -13,7 +13,7 @@ export function parseIdentityReceipt(value: unknown, raceId: string, attempt: Id
     a.givenName === b.givenName && a.familyName === b.familyName && a.organisationName === b.organisationName;
   if (result.raceId !== raceId || result.entryId !== attempt.entryId || result.requestId !== attempt.id ||
     result.classId !== request.expectedClassId || result.entryVersionBefore !== request.expectedEntryVersion ||
-    result.snapshotVersionBefore !== request.expectedSnapshotVersion || !same(result.previousIdentity, request.expectedIdentity) ||
+    !same(result.previousIdentity, request.expectedIdentity) ||
     !same(result.identity, request.identity)) throw new Error("Identity receipt mismatch");
   return result;
 }

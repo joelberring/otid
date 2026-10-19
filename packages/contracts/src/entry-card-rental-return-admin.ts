@@ -1,6 +1,6 @@
 import { z } from "zod";
+import { prefixedUuidPattern, uuidSchema as uuid } from "./ids";
 
-const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 const version = z.number().int().positive().max(2_147_483_647);
 const assignment = z.object({
   id: uuid,
@@ -13,13 +13,12 @@ export const entryCardRentalReturnChangeRequestSchema = z.object({
   formatVersion: z.literal(1),
   expectedEntryVersion: version,
   expectedClassId: uuid,
-  expectedSnapshotVersion: version,
-  expectedAssignment: assignment,
+    expectedAssignment: assignment,
   rentalReturned: z.boolean()
 }).strict().refine(value => value.expectedAssignment.rentalReturned !== value.rentalReturned);
 
 export const entryCardRentalReturnChangeIdempotencyKeySchema = z.string().regex(
-  /^entry-card-rental-return-change:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  prefixedUuidPattern("entry-card-rental-return-change"));
 
 export const entryCardRentalReturnChangeResponseSchema = z.object({
   formatVersion: z.literal(1), replayed: z.boolean(), requestId: uuid, raceId: uuid, entryId: uuid, classId: uuid,

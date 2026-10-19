@@ -4,22 +4,18 @@ import {
   entryStartTimeAdminListResponseSchema, entryStartTimeChangeRequestSchema,
   entryStartTimeChangeIdempotencyKeySchema, entryStartTimeChangeResponseSchema
 } from "@o-tid/contracts";
-import {
-  authenticatePairingAdminSession, authenticatePairingAdminSessionForMutation,
-  authenticatePairingAdminSessionForProtectedRead,
-  type PairingAdminRequestAuthentication
-} from "./pairing-admin";
+import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
 import { assessReadOutEntries, recalculateAssessedEntries } from "./result-reassessment";
-import { loadRaceSnapshot } from "./snapshot";
+import { bumpReadoutPackageVersion, loadRaceSnapshot } from "./snapshot";
+import { UUID_PATTERN } from "./serialization";
 
-type Authentication = Omit<PairingAdminRequestAuthentication, "capability">;
-const capability = "CHANGE_ENTRY_START_TIME" as const;
+type Authentication = RaceSessionProof;
 const iso = (value: Date | null) => value?.toISOString() ?? null;
 
 export async function listEntryStartTimesAsAdmin(db: Database, input: Authentication, now = new Date()) {
   return db.transaction(async (tx) => {
-    const authorized = await authenticatePairingAdminSessionForProtectedRead(tx, { ...input, capability }, now);
+    const authorized = await requireRaceRole(tx, { ...input, role: "ADMIN" }, now, "share");
     if (authorized.status !== "authenticated") return authorized;
     const race = await lockRaceForSnapshot(tx, input.raceId);
     const [event] = await tx.select({ timeZone: schema.events.timeZone })
@@ -63,16 +59,16 @@ export async function changeEntryStartTimeAsAdmin(db: Database,
   const key = entryStartTimeChangeIdempotencyKeySchema.safeParse(input.idempotencyKey);
   const parsed = entryStartTimeChangeRequestSchema.safeParse(input.request);
   if (!key.success || !parsed.success ||
-    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(input.entryId)) {
+    !UUID_PATTERN.test(input.entryId)) {
     return { status: "invalid-request" as const };
   }
   const intent = parsed.data;
   const requestId = key.data.slice("entry-start-time-change:".length);
-  const authentication = { ...input, capability, requireCsrf: true };
-  const authorized = await authenticatePairingAdminSession(db, authentication, now);
+  const authentication = { ...input, role: "ADMIN" as const, requireCsrf: true };
+  const authorized = await requireRaceRole(db, authentication, now);
   if (authorized.status !== "authenticated") return authorized;
   return db.transaction(async (tx) => {
-    const authorization = await authenticatePairingAdminSessionForMutation(tx, authentication, now);
+    const authorization = await requireRaceRole(tx, authentication, now, "update");
     if (authorization.status !== "authenticated") return authorization;
     const race = await lockRaceForMutation(tx, input.raceId);
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${requestId}, 0))`);
@@ -83,11 +79,10 @@ export async function changeEntryStartTimeAsAdmin(db: Database,
     }).from(schema.entryStartTimeChangeRequests)
       .where(eq(schema.entryStartTimeChangeRequests.requestId, requestId));
     if (existing) {
-      if (!existing.exactTimes || existing.actorCredentialId !== authorization.principal.accessCredentialId ||
+      if (!existing.exactTimes || existing.actorAccountId !== authorization.principal.accountId ||
         existing.raceId !== input.raceId || existing.entryId !== input.entryId ||
         existing.expectedEntryVersion !== intent.expectedEntryVersion ||
-        existing.classId !== intent.expectedClassId || existing.snapshotVersionBefore !== intent.expectedSnapshotVersion ||
-        iso(existing.previousFixedStartTime) !== intent.expectedFixedStartTime ||
+        existing.classId !== intent.expectedClassId || iso(existing.previousFixedStartTime) !== intent.expectedFixedStartTime ||
         iso(existing.fixedStartTime) !== intent.fixedStartTime) return { status: "conflict" as const };
       return { status: "changed" as const, response: response(existing, true) };
     }
@@ -101,7 +96,7 @@ export async function changeEntryStartTimeAsAdmin(db: Database,
       eq(schema.classes.id, entry.classId), eq(schema.classes.raceId, input.raceId)
     ));
     if (!entry.exactTime || !raceClass || raceClass.startRule !== "FIXED" || entry.classId !== intent.expectedClassId ||
-      entry.version !== intent.expectedEntryVersion || race.snapshotVersion !== intent.expectedSnapshotVersion ||
+      entry.version !== intent.expectedEntryVersion ||
       iso(entry.fixedStartTime) !== intent.expectedFixedStartTime || intent.fixedStartTime === intent.expectedFixedStartTime ||
       entry.version >= 2_147_483_647 || race.snapshotVersion >= 2_147_483_647) return { status: "conflict" as const };
 
@@ -110,7 +105,7 @@ export async function changeEntryStartTimeAsAdmin(db: Database,
     const snapshotBefore = await loadRaceSnapshot(tx, input.raceId);
     await tx.update(schema.entries).set({ fixedStartTime: new Date(intent.fixedStartTime), version: entryVersionAfter })
       .where(and(eq(schema.entries.id, entry.id), eq(schema.entries.version, entry.version)));
-    await tx.update(schema.races).set({ snapshotVersion: snapshotVersionAfter }).where(eq(schema.races.id, input.raceId));
+    await bumpReadoutPackageVersion(tx, input.raceId);
     // Den fasta starttiden ingår i bedömningsunderlaget (ADR-0169 beslut 1): ett avläst resultat räknas om direkt.
     const snapshotAfter = await loadRaceSnapshot(tx, input.raceId);
     const assessed = await assessReadOutEntries(tx, input.raceId, [{ id: raceClass.id, name: raceClass.name }],
@@ -120,7 +115,7 @@ export async function changeEntryStartTimeAsAdmin(db: Database,
       raceId: input.raceId, assessed: assessed.filter(row => row.entryId === entry.id), snapshot: snapshotAfter,
       snapshotVersion: snapshotVersionAfter, courseVersionId: raceClass.courseVersionId });
     const [saved] = await tx.insert(schema.entryStartTimeChangeRequests).values({
-      requestId, raceId: input.raceId, actorCredentialId: authorization.principal.accessCredentialId,
+      requestId, raceId: input.raceId, actorAccountId: authorization.principal.accountId,
       entryId: entry.id, expectedEntryVersion: entry.version, classId: entry.classId,
       previousFixedStartTime: entry.fixedStartTime, fixedStartTime: new Date(intent.fixedStartTime),
       entryVersionBefore: entry.version, entryVersionAfter,
@@ -129,18 +124,16 @@ export async function changeEntryStartTimeAsAdmin(db: Database,
     if (!saved) throw new Error("Starttidsjournalen kunde inte sparas");
     await tx.insert(schema.auditEvents).values({
       raceId: input.raceId, entityType: "entry", entityId: entry.id,
-      action: "ENTRY_START_TIME_CHANGED_BY_ADMIN", actorKind: authorization.principal.capability === "MANAGE_RACE"
-        ? "RACE_ADMIN_ACCESS_CREDENTIAL" : "ENTRY_START_TIME_ACCESS_CREDENTIAL",
-      actorId: authorization.principal.accessCredentialId, requestId,
+      action: "ENTRY_START_TIME_CHANGED_BY_ADMIN", actorKind: "USER_ACCOUNT",
+      actorId: authorization.principal.accountId, requestId,
       before: { fixedStartTime: iso(entry.fixedStartTime), entryVersion: entry.version, snapshotVersion: race.snapshotVersion },
       after: { fixedStartTime: intent.fixedStartTime, entryVersion: entryVersionAfter, snapshotVersion: snapshotVersionAfter }
     });
     if (recalculated.length > 0) {
       await tx.insert(schema.auditEvents).values(recalculated.map(item => ({ raceId: input.raceId, entityType: "result_revision",
         entityId: item.resultRevisionId, action: "RESULT_RECALCULATED_AFTER_START_TIME_CHANGE",
-        actorKind: authorization.principal.capability === "MANAGE_RACE"
-          ? "RACE_ADMIN_ACCESS_CREDENTIAL" as const : "ENTRY_START_TIME_ACCESS_CREDENTIAL" as const,
-        actorId: authorization.principal.accessCredentialId, requestId,
+        actorKind: "USER_ACCOUNT" as const,
+        actorId: authorization.principal.accountId, requestId,
         after: { entryId: item.entryId, revision: item.revision, cause: "EXPLICIT_RECALCULATION" } })));
     }
     return { status: "changed" as const, response: response(saved, false) };

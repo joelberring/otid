@@ -2,11 +2,12 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrate } from "@o-tid/database";
 import { createDatabase } from "@o-tid/database";
-import { listResultRecalculationCandidatesAsAdmin, recalculateEntryAsAdmin, publicResults } from "../../src/results";
-import { disqualifyResultAsAdmin } from "../../src/result-disqualification";
-import { issuePairingAdminAccessCredential, loginPairingAdmin } from "../../src/pairing-admin";
+import { publicResults } from "../../src/results";
+import { listResultRecalculationCandidatesAsAdmin, recalculateEntryAsAdmin } from "../../src/result-recalculation";
+import { statusFlow } from "./entry-status-helpers";
 import { ingestDeviceBatch } from "../../src/ingest";
-import { contentHash } from "../../src/hash";
+import { contentHash } from "../../src/serialization";
+import { raceLogin } from "./accounts";
 
 const url = process.env.TEST_DATABASE_URL;
 if (!url) throw new Error("TEST_DATABASE_URL krävs för vald isolerad testdatabas");
@@ -14,13 +15,9 @@ const { db, pool } = createDatabase(url);
 const now = new Date("2026-09-12T14:00:00Z");
 beforeAll(async () => migrate(db, { migrationsFolder: new URL("../../../database/migrations", import.meta.url).pathname }));
 afterAll(async () => pool.end());
-async function auth(raceId: string, capability: "MANAGE_RACE" | "RECALCULATE_RESULT" | "DISQUALIFY_RESULT" | "VIEW_SPEAKER_BOARD" = "MANAGE_RACE") {
-  const installation = await issuePairingAdminAccessCredential(db, { raceId, capability, label: "Synthetic recalculation",
-    expiresAt: new Date(now.getTime() + 3600_000) }, { now });
-  const login = await loginPairingAdmin(db, { formatVersion: 1, accessCredential: installation.accessCredential },
-    { expectedRaceId: raceId, expectedCapability: capability, now });
-  if (login.status !== "authenticated") throw new Error("Synthetic login failed");
-  return { raceId, sessionToken: login.sessionToken, csrfCookie: login.csrfToken, csrfHeader: login.csrfToken, actorId: installation.credentialId };
+async function auth(raceId: string, role: "ADMIN" | "FUNCTIONARY" = "ADMIN") {
+  const login = await raceLogin(db, raceId, role, now);
+  return { raceId, sessionToken: login.sessionToken, csrfCookie: login.csrfToken, csrfHeader: login.csrfToken, actorId: login.accountId };
 }
 async function fixture() {
   const eventId = randomUUID(), raceId = randomUUID(), courseId = randomUUID(), courseVersionId = randomUUID();
@@ -50,7 +47,7 @@ async function inputFor(actor: Awaited<ReturnType<typeof auth>>, entryId: string
   if (!entry?.cardAssignmentId || !entry.latestReadout || !entry.latestResultRevision) throw new Error("Candidate missing");
   return { ...actor, entryId, idempotencyKey: `result-recalculation:${randomUUID()}`, request: {
     formatVersion: 1, expectedEntryVersion: entry.entryVersion, expectedClassId: entry.classId,
-    expectedSnapshotVersion: listed.response.snapshotVersion, expectedCardAssignmentId: entry.cardAssignmentId,
+    expectedCardAssignmentId: entry.cardAssignmentId,
     expectedReadoutId: entry.latestReadout.id, expectedLatestResultRevision: {
       id: entry.latestResultRevision.id, revision: entry.latestResultRevision.revision
     }, expectedEngineVersion: listed.response.engineVersion
@@ -62,20 +59,15 @@ async function preserved(raceId: string) {
   const raw = (await pool.query("SELECT * FROM raw_device_message WHERE race_id=$1 ORDER BY id", [raceId])).rows;
   const readouts = (await pool.query("SELECT * FROM card_readout WHERE race_id=$1 ORDER BY id", [raceId])).rows;
   const cards = (await pool.query("SELECT * FROM card_assignment WHERE race_id=$1 ORDER BY id", [raceId])).rows;
-  const decisions = (await pool.query("SELECT * FROM result_disqualification_decision WHERE race_id=$1 ORDER BY id", [raceId])).rows;
+  const decisions = (await pool.query("SELECT * FROM result_revision WHERE race_id=$1 AND cause='MANUAL_DISQUALIFICATION' ORDER BY id", [raceId])).rows;
   return JSON.stringify({ entry, race, raw, readouts, cards, decisions });
 }
 
 describe("TASK032 administrator explicit recalculation", () => {
   it("retains real actors, historical exact retry and manual disqualification over new published technical revisions", async () => {
-    const f = await fixture(), limited = await auth(f.raceId, "RECALCULATE_RESULT"), official = await auth(f.raceId, "DISQUALIFY_RESULT");
-    const initial = await inputFor(f.administrator, f.entryId);
-    const decision = await disqualifyResultAsAdmin(db, { ...official, entryId: f.entryId,
-      idempotencyKey: `manual-disqualification:${randomUUID()}`, request: { formatVersion: 1,
-        expectedEntryVersion: 1, expectedClassId: f.classId, expectedCourseVersionId: f.courseVersionId,
-        expectedSnapshotVersion: 1, expectedResultRevision: { ...initial.request.expectedLatestResultRevision, status: "OK" },
-        policyVersion: "manual-disqualification-v1" } }, now);
-    expect(decision.status).toBe("disqualified");
+    const f = await fixture(), limited = await auth(f.raceId, "ADMIN");
+    const decision = await statusFlow(db).decide(f.administrator, f.entryId, { kind: "DISQUALIFIED" }, { now });
+    expect(decision.status).toBe("decided");
     const original = await preserved(f.raceId);
     const oldRevisions = (await pool.query("SELECT * FROM result_revision WHERE race_id=$1 ORDER BY revision", [f.raceId])).rows;
     const input = await inputFor(f.administrator, f.entryId);
@@ -91,20 +83,21 @@ describe("TASK032 administrator explicit recalculation", () => {
     expect(revisions).toHaveLength(4); expect(revisions.slice(0, 2)).toEqual(oldRevisions);
     expect(revisions.slice(2)).toEqual(expect.arrayContaining([expect.objectContaining({ published: true, cause: "EXPLICIT_RECALCULATION" })]));
     expect((await publicResults(db, f.raceId)).results).toMatchObject([{ status: "DSQ", revision: 2 }]);
-    const audits = (await pool.query("SELECT actor_kind,actor_id FROM audit_event WHERE race_id=$1 AND action='RESULT_RECALCULATED_BY_ADMIN' ORDER BY actor_kind::text", [f.raceId])).rows;
-    expect(audits).toEqual([{ actor_kind: "RACE_ADMIN_ACCESS_CREDENTIAL", actor_id: f.administrator.actorId },
-      { actor_kind: "RESULT_RECALCULATION_ACCESS_CREDENTIAL", actor_id: limited.actorId }]);
+    const audits = (await pool.query("SELECT actor_kind,actor_id FROM audit_event WHERE race_id=$1 AND action='RESULT_RECALCULATED_BY_ADMIN' ", [f.raceId])).rows;
+    expect(audits).toHaveLength(2);
+    expect(audits).toEqual(expect.arrayContaining([{ actor_kind: "USER_ACCOUNT", actor_id: f.administrator.actorId },
+      { actor_kind: "USER_ACCOUNT", actor_id: limited.actorId }]));
     expect((await pool.query("SELECT * FROM result_recalculation_request WHERE race_id=$1", [f.raceId])).rowCount).toBe(2);
     await expect(pool.query("UPDATE result_recalculation_request SET recalculated_at=recalculated_at WHERE race_id=$1", [f.raceId])).rejects.toThrow();
   });
 
   it("rejects missing CSRF, limited readers and stale or changed intents without new revisions", async () => {
-    const f = await fixture(), reader = await auth(f.raceId, "VIEW_SPEAKER_BOARD");
+    const f = await fixture(), reader = await auth(f.raceId, "FUNCTIONARY");
     const input = await inputFor(f.administrator, f.entryId), before = await preserved(f.raceId);
     expect((await recalculateEntryAsAdmin(db, { ...input, csrfHeader: null }, now)).status).toBe("forbidden");
     expect((await recalculateEntryAsAdmin(db, { ...input, ...reader }, now)).status).toBe("forbidden");
     expect((await listResultRecalculationCandidatesAsAdmin(db, reader, now)).status).toBe("forbidden");
-    for (const patch of [{ expectedEntryVersion: 2 }, { expectedSnapshotVersion: 2 }, { expectedReadoutId: randomUUID() },
+    for (const patch of [{ expectedEntryVersion: 2 }, { expectedReadoutId: randomUUID() },
       { expectedCardAssignmentId: randomUUID() }, { expectedLatestResultRevision: null }]) {
       expect((await recalculateEntryAsAdmin(db, { ...input, request: { ...input.request, ...patch } }, now)).status).toBe("conflict");
     }

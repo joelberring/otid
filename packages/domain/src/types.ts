@@ -1,4 +1,6 @@
 export type UUID = string;
+/** Ett UUID av version 1–8 i gemener (domänens enda definition; kontrakten har samma mönster). */
+export const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 export interface ExternalIdentity {
   readonly source: "iof" | "eventor";
@@ -334,7 +336,9 @@ export type RevisionCause =
   | "MANUAL_FINISH_TIME_CORRECTION"
   | "MANUAL_FINISH_TIME_CORRECTION_WITHDRAWAL"
   | "MANUAL_PUNCH_START_TIME_CORRECTION"
-  | "MANUAL_PUNCH_START_TIME_CORRECTION_WITHDRAWAL";
+  | "MANUAL_PUNCH_START_TIME_CORRECTION_WITHDRAWAL"
+  | "MANUAL_DID_NOT_START_WITHDRAWAL"
+  | "SHORTENED_COURSE_CLASS_TRANSFER";
 
 export interface ResultRevision {
   readonly id: UUID;

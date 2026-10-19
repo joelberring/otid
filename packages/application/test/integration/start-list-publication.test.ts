@@ -3,7 +3,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrate } from "@o-tid/database";
 import { eq } from "drizzle-orm";
 import { createDatabase, schema } from "@o-tid/database";
-import { decideStartListPublicationAsAdmin, getPublicStartList, getPublishedStartListXml, getStartListPublicationPreviewAsAdmin, issuePairingAdminAccessCredential, loginPairingAdmin } from "../../src";
+import { decideStartListPublicationAsAdmin, getPublicStartList, getPublishedStartListXml, getStartListPublicationPreviewAsAdmin } from "../../src";
+import { raceLogin } from "./accounts";
 const url = process.env.TEST_DATABASE_URL;
 if (!url)
     throw new Error("TEST_DATABASE_URL krävs");
@@ -46,20 +47,11 @@ async function setup(n: number) {
     }).returning();
     if (!x)
         throw Error();
-    const cred = await issuePairingAdminAccessCredential(db, {
-        raceId: r.id, capability: "PUBLISH_START_LIST", label: "P", expiresAt: new Date("2026-09-04T14:00:00Z")
-    }, {
-        now, secretBytes: Buffer.alloc(32, n)
-    });
-    const login = await loginPairingAdmin(db, {
-        formatVersion: 1, accessCredential: cred.accessCredential
-    }, {
-        expectedRaceId: r.id, expectedCapability: "PUBLISH_START_LIST", now, sessionSecretBytes: Buffer.alloc(32, n + 1), csrfSecretBytes: Buffer.alloc(32, n + 2)
-    });
+    const login = await raceLogin(db, r.id, "ADMIN", now);
     if (login.status !== "authenticated")
         throw Error();
     return {
-        r, e, x, cred, login
+        r, e, x, login
     };
 }
 describe("TASK 006S / TASK 006T PostgreSQL", () => {
@@ -70,12 +62,12 @@ describe("TASK 006S / TASK 006T PostgreSQL", () => {
         const preview = await getStartListPublicationPreviewAsAdmin(db, auth, now);
         if (preview.status !== "ok" || !preview.response.content || !preview.response.sourceHash) throw Error();
         await db.insert(schema.startListPublications).values({ requestId: randomUUID(), raceId: f.r.id,
-            actorCredentialId: f.cred.credentialId, revision: 1, action: "PUBLISH", intent: {},
+            actorAccountId: f.login.accountId, revision: 1, action: "PUBLISH", intent: {},
             sourceSnapshotVersion: 1, sourceHash: "a".repeat(64), content: preview.response.content, decidedAt: now });
         expect(await getPublishedStartListXml(db, f.r.id)).toEqual({ status: "unavailable" });
         expect(await getPublicStartList(db, f.r.id)).toMatchObject({ status: "published", response: { iofExportAvailable: false } });
         const publish = { formatVersion: 1, action: "PUBLISH", expectedRevision: 1,
-            expectedSnapshotVersion: 1, expectedSourceHash: preview.response.sourceHash };
+            expectedSourceHash: preview.response.sourceHash };
         expect(await decideStartListPublicationAsAdmin(db, { ...auth, idempotencyKey: `start-list-publication:${randomUUID()}`, request: publish }, now)).toMatchObject({ status: "decided" });
         expect(await getPublishedStartListXml(db, f.r.id)).toMatchObject({ status: "exported", revision: 2 });
         await db.update(schema.entries).set({ givenName: "Ada B", familyName: "C" }).where(eq(schema.entries.id, f.x.id));
@@ -95,7 +87,7 @@ describe("TASK 006S / TASK 006T PostgreSQL", () => {
         if (p.status !== "ok" || !p.response.content || !p.response.sourceHash)
             throw Error();
         const req = {
-            formatVersion: 1 as const, action: "PUBLISH" as const, expectedSnapshotVersion: p.response.snapshotVersion, expectedSourceHash: p.response.sourceHash, expectedRevision: 0
+            formatVersion: 1 as const, action: "PUBLISH" as const, expectedSourceHash: p.response.sourceHash, expectedRevision: 0
         };
         const key = `start-list-publication:${randomUUID()}`;
         const first = await decideStartListPublicationAsAdmin(db, {
@@ -115,8 +107,7 @@ describe("TASK 006S / TASK 006T PostgreSQL", () => {
         expect(frozenXml).toMatchObject({ status: "exported", revision: 1 });
         expect(old.status).toBe("published");
         expect(await decideStartListPublicationAsAdmin(db, { ...a, idempotencyKey: `start-list-publication:${randomUUID()}`, request: { ...req, expectedRevision: 1 } }, now)).toEqual({ status: "conflict" });
-        const otherCredential = await issuePairingAdminAccessCredential(db, { raceId: f.r.id, capability: "PUBLISH_START_LIST", label: "Other actor", expiresAt: new Date("2026-09-04T14:00:00Z") }, { now });
-        const otherLogin = await loginPairingAdmin(db, { formatVersion: 1, accessCredential: otherCredential.accessCredential }, { expectedRaceId: f.r.id, expectedCapability: "PUBLISH_START_LIST", now });
+        const otherLogin = await raceLogin(db, f.r.id, "ADMIN", now);
         if (otherLogin.status !== "authenticated") throw Error();
         expect(await decideStartListPublicationAsAdmin(db, { raceId: f.r.id, sessionToken: otherLogin.sessionToken, csrfCookie: otherLogin.csrfToken, csrfHeader: otherLogin.csrfToken, idempotencyKey: key, request: req }, now)).toEqual({ status: "conflict" });
         await db.update(schema.entries).set({ givenName: "Ändrat", fixedStartTime: new Date("2026-09-04T09:00:00Z") }).where(eq(schema.entries.id, f.x.id));
@@ -173,12 +164,12 @@ describe("TASK 006S / TASK 006T PostgreSQL", () => {
         if (p.status !== "ok" || !p.response.sourceHash)
             throw Error();
         const req = {
-            formatVersion: 1 as const, action: "PUBLISH" as const, expectedSnapshotVersion: 1, expectedSourceHash: p.response.sourceHash, expectedRevision: 0
+            formatVersion: 1 as const, action: "PUBLISH" as const, expectedSourceHash: p.response.sourceHash, expectedRevision: 0
         };
         expect(await getStartListPublicationPreviewAsAdmin(db, {
             ...a, raceId: g.r.id
         }, now)).toEqual({
-            status: "forbidden"
+            status: "unauthorized"
         });
         const [one, two] = await Promise.all([decideStartListPublicationAsAdmin(db, {
                 ...a, idempotencyKey: `start-list-publication:${randomUUID()}`, request: req

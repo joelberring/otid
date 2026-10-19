@@ -9,10 +9,8 @@ import { checkinConflictReviewSv as reviewText } from "../../i18n/checkin-confli
 import { ForestWatchReport } from "../forest-watch-report";
 import { CheckinHistoryTable } from "../checkin-history-table";
 import { AdministratorConflictEvidence } from "../administrator-conflict-evidence";
-import { ManualFinishTimeCorrection } from "../manual-finish-time-correction";
-import { ManualFinishTimeCorrectionWithdrawal } from "../manual-finish-time-correction-withdrawal";
-import { ManualPunchStartTimeCorrection } from "../manual-punch-start-time-correction";
-import { ManualPunchStartTimeCorrectionWithdrawal } from "../manual-punch-start-time-correction-withdrawal";
+import { ManualFinishTimeCorrection, ManualFinishTimeCorrectionWithdrawal, ManualPunchStartTimeCorrection,
+  ManualPunchStartTimeCorrectionWithdrawal } from "../manual-time-correction";
 import { administratorStartCorrectionRequestSchema } from "@o-tid/contracts";
 import { ReadoutControlView } from "./readout-control-view";
 import { Button, Field, Section } from "../ui";

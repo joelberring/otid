@@ -11,7 +11,6 @@ import {
   clearOrganizerAttempt,
   createOrganizerAttempt,
   parseOrganizerCreateResponse,
-  parseOrganizerEnterResponse,
   parseOrganizerEvents,
   parseOrganizerLoginRequest,
   parseOrganizerSession,
@@ -304,22 +303,11 @@ export function OrganizerWorkspace() {
     }
   }
 
-  async function enterRace(raceId: string) {
+  /** Kontots session gäller tävlingen direkt (ADR-0173 beslut 4): arbetsytan öppnas utan eget steg. */
+  function enterRace(raceId: string) {
     setEnteringRaceId(raceId);
     setMessage(copy.openingRace);
-    try {
-      const response = await fetch(`/api/organizer/races/${encodeURIComponent(raceId)}/enter`, {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "x-otid-csrf": readOrganizerCsrf(document.cookie, new URL(window.location.href)) }
-      });
-      if (!response.ok) throw new Error(copy.enterRaceError(response.status));
-      parseOrganizerEnterResponse(await responseJson(response), raceId);
-      window.location.assign(`/admin/${encodeURIComponent(raceId)}/manage`);
-    } catch (error) {
-      setMessage(errorMessage(error));
-      setEnteringRaceId(undefined);
-    }
+    window.location.assign(`/admin/${encodeURIComponent(raceId)}/manage`);
   }
 
   const attemptMatchesSession = !!session && !!attempt && attempt.accountId === session.accountId;
@@ -421,7 +409,7 @@ export function OrganizerWorkspace() {
                   aria-label={raceCopySv.actionLabel(race.raceName)} onClick={() => setCopySource({ raceId: race.raceId, eventName: event.eventName,
                     raceName: race.raceName, raceDate: race.raceDate })}>{raceCopySv.action}</button>}
                 <button type="button" className={styles.secondary} disabled={busy || enteringRaceId !== undefined} aria-busy={enteringRaceId === race.raceId}
-                  onClick={() => void enterRace(race.raceId)}>{enteringRaceId === race.raceId ? copy.opening : copy.openRace}</button>
+                  onClick={() => enterRace(race.raceId)}>{enteringRaceId === race.raceId ? copy.opening : copy.openRace}</button>
               </div>
             </li>)}</ul>
           </li>)}
@@ -461,7 +449,7 @@ export function OrganizerWorkspace() {
           <dl className={styles.createReceipt}><dt>{copy.createdAt}</dt><dd><time dateTime={created.createdAt}>{new Date(created.createdAt).toLocaleString("sv-SE")}</time></dd></dl>
           <div className={styles.actions}>
             <button type="button" disabled={busy || enteringRaceId !== undefined} aria-busy={enteringRaceId === created.raceId}
-              onClick={() => void enterRace(created.raceId)}>{enteringRaceId === created.raceId ? copy.opening : copy.openRace}</button>
+              onClick={() => enterRace(created.raceId)}>{enteringRaceId === created.raceId ? copy.opening : copy.openRace}</button>
             <button type="button" className={styles.secondary} disabled={busy} onClick={() => { setShowAnotherForm(true); setMessage(""); }}>{copy.createAnotherEvent}</button>
           </div>
         </div>}

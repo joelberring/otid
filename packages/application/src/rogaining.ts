@@ -8,13 +8,11 @@ import { schema, type Database } from "@o-tid/database";
 import {
   defaultRogainingPoints, evaluateCardReadout, withRogainingSettings, type RaceSnapshot, type RogainingRules
 } from "@o-tid/domain";
-import {
-  authenticatePairingAdminSession, authenticatePairingAdminSessionForMutation,
-  authenticatePairingAdminSessionForProtectedRead, type PairingAdminRequestAuthentication
-} from "./pairing-admin";
+import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
-import { loadRaceSnapshot } from "./snapshot";
+import { bumpReadoutPackageVersion, loadRaceSnapshot } from "./snapshot";
 import { assessReadOutEntries, normalizedReadout, recalculateAssessedEntries, type AssessedEntry } from "./result-reassessment";
+import { UUID_PATTERN as uuid } from "./serialization";
 
 /**
  * Rogaining (ADR-0170 beslut 5, PLAN.md steg 15): kontrollernas poäng och klassernas tidsgräns och straff.
@@ -24,9 +22,7 @@ import { assessReadOutEntries, normalizedReadout, recalculateAssessedEntries, ty
  */
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 type Executor = Database | Transaction;
-type Authentication = Omit<PairingAdminRequestAuthentication, "capability">;
-const capability = "MANAGE_RACE" as const;
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+type Authentication = RaceSessionProof;
 const MAX_VERSION = 2_147_483_647;
 
 /** Underlaget för "Kontroller & poäng": kontrollerna (koderna som banorna använder) och klassernas regler. */
@@ -116,16 +112,15 @@ export type RogainingChangePreviewResult =
   | { status: "ok"; response: RogainingChangePreviewResponse };
 
 /** Läser bara: vad händer med de avlästa löparnas resultat med dessa poäng och regler? */
-export async function previewRogainingChangeAsAdministrator(db: Database, input: Authentication & { request: unknown },
+export async function previewRogainingChangeAsAdmin(db: Database, input: Authentication & { request: unknown },
   now = new Date()): Promise<RogainingChangePreviewResult> {
   const parsed = rogainingChangePreviewRequestSchema.safeParse(input.request);
   if (!parsed.success || !uuid.test(input.raceId)) return { status: "invalid-request" };
   return db.transaction(async tx => {
-    const auth = await authenticatePairingAdminSessionForProtectedRead(tx, { ...input, capability }, now);
+    const auth = await requireRaceRole(tx, { ...input, role: "ADMIN" }, now, "share");
     if (auth.status !== "authenticated") return auth;
     const raceId = auth.principal.raceId;
     const race = await lockRaceForSnapshot(tx, raceId);
-    if (race.snapshotVersion !== parsed.data.expectedSnapshotVersion) return { status: "conflict" };
     const snapshot = await loadRaceSnapshot(tx, raceId);
     const change = await planChange(tx, raceId, parsed.data, snapshot);
     if (!change) return { status: "invalid-request" };
@@ -145,7 +140,7 @@ export type RogainingChangeResult =
  * Sparar poäng och regler. Ändras någon löpares status eller summa krävs `confirmResultChanges`; annars sparas
  * direkt. Tävlingens version ökar ett steg (avläsningens paket hämtas om) och berörda resultat räknas om.
  */
-export async function changeRogainingAsAdministrator(db: Database, input: Authentication & { idempotencyKey: string | null; request: unknown },
+export async function changeRogainingAsAdmin(db: Database, input: Authentication & { idempotencyKey: string | null; request: unknown },
   now = new Date()): Promise<RogainingChangeResult> {
   const parsed = rogainingChangeRequestSchema.safeParse(input.request);
   const key = rogainingChangeIdempotencyKeySchema.safeParse(input.idempotencyKey);
@@ -153,11 +148,11 @@ export async function changeRogainingAsAdministrator(db: Database, input: Authen
     return { status: "invalid-request" };
   }
   const intent = parsed.data;
-  const authentication = { ...input, capability, requireCsrf: true };
-  const initial = await authenticatePairingAdminSession(db, authentication, now);
+  const authentication = { ...input, role: "ADMIN" as const, requireCsrf: true };
+  const initial = await requireRaceRole(db, authentication, now);
   if (initial.status !== "authenticated") return initial;
   return db.transaction(async tx => {
-    const auth = await authenticatePairingAdminSessionForMutation(tx, authentication, now);
+    const auth = await requireRaceRole(tx, authentication, now, "update");
     if (auth.status !== "authenticated") return auth;
     const raceId = auth.principal.raceId;
     const race = await lockRaceForMutation(tx, raceId);
@@ -165,11 +160,11 @@ export async function changeRogainingAsAdministrator(db: Database, input: Authen
     const [prior] = await tx.select().from(schema.rogainingChangeRequests).where(eq(schema.rogainingChangeRequests.requestId, intent.requestId));
     if (prior) {
       const response = rogainingChangeResponseSchema.parse(prior.response);
-      if (prior.raceId !== raceId || prior.actorCredentialId !== auth.principal.accessCredentialId || response.replayed ||
+      if (prior.raceId !== raceId || prior.actorAccountId !== auth.principal.accountId || response.replayed ||
           JSON.stringify(rogainingChangeRequestSchema.parse(prior.request)) !== JSON.stringify(intent)) return { status: "conflict" };
       return { status: "changed", response: { ...response, replayed: true } };
     }
-    if (race.snapshotVersion !== intent.expectedSnapshotVersion || race.snapshotVersion >= MAX_VERSION) return { status: "conflict" };
+    if (race.snapshotVersion >= MAX_VERSION) return { status: "conflict" };
     const before = await loadRaceSnapshot(tx, raceId);
     const change = await planChange(tx, raceId, intent, before);
     if (!change) return { status: "invalid-request" };
@@ -192,7 +187,7 @@ export async function changeRogainingAsAdministrator(db: Database, input: Authen
         .where(and(eq(schema.classes.raceId, raceId), eq(schema.classes.id, classId)));
     }
     const snapshotVersionAfter = race.snapshotVersion + 1;
-    await tx.update(schema.races).set({ snapshotVersion: snapshotVersionAfter }).where(eq(schema.races.id, raceId));
+    await bumpReadoutPackageVersion(tx, raceId);
 
     // Omräkning med de sparade poängen och reglerna. Databasen sätter varje ny revisions underlagshash.
     const snapshot = await loadRaceSnapshot(tx, raceId);
@@ -201,16 +196,16 @@ export async function changeRogainingAsAdministrator(db: Database, input: Authen
     const response = rogainingChangeResponseSchema.parse({ formatVersion: 1, replayed: false, requestId: intent.requestId, raceId,
       request: intent, snapshotVersionBefore: race.snapshotVersion, snapshotVersionAfter, recalculated, changedAt: now.toISOString() });
     await tx.insert(schema.rogainingChangeRequests).values({ requestId: intent.requestId, raceId,
-      actorCredentialId: auth.principal.accessCredentialId, capability, request: intent, response, changedAt: now });
+      actorAccountId: auth.principal.accountId, request: intent, response, changedAt: now });
     await tx.insert(schema.auditEvents).values({ raceId, entityType: "race", entityId: raceId, requestId: intent.requestId,
-      actorKind: "RACE_ADMIN_ACCESS_CREDENTIAL", actorId: auth.principal.accessCredentialId, action: "ROGAINING_CHANGED_BY_ADMIN",
+      actorKind: "USER_ACCOUNT", actorId: auth.principal.accountId, action: "ROGAINING_CHANGED_BY_ADMIN",
       before: { snapshotVersion: race.snapshotVersion },
       after: { points: Object.fromEntries(change.points), rules: Object.fromEntries(change.rules), snapshotVersion: snapshotVersionAfter,
         recalculatedCount: recalculated.length }, createdAt: now });
     if (recalculated.length > 0) {
       await tx.insert(schema.auditEvents).values(recalculated.map(item => ({ raceId, entityType: "result_revision",
-        entityId: item.resultRevisionId, action: "RESULT_RECALCULATED_AFTER_ROGAINING_CHANGE", actorKind: "RACE_ADMIN_ACCESS_CREDENTIAL" as const,
-        actorId: auth.principal.accessCredentialId, requestId: intent.requestId,
+        entityId: item.resultRevisionId, action: "RESULT_RECALCULATED_AFTER_ROGAINING_CHANGE", actorKind: "USER_ACCOUNT" as const,
+        actorId: auth.principal.accountId, requestId: intent.requestId,
         after: { entryId: item.entryId, revision: item.revision, cause: "EXPLICIT_RECALCULATION" }, createdAt: now })));
     }
     return { status: "changed", response };

@@ -12,7 +12,7 @@ beforeAll(async () => migrate(db, { migrationsFolder: new URL("../../../database
 afterAll(async () => pool.end());
 async function fixture(effect: "CONFLICT" | "UNCHANGED" | "APPLIED" = "CONFLICT") {
   const eventId = randomUUID(), raceId = randomUUID(), entryId = randomUUID(), courseId = randomUUID(), courseVersionId = randomUUID(),
-    classId = randomUUID(), actorCredentialId = randomUUID(), deviceId = randomUUID(), conflictRequestId = randomUUID();
+    classId = randomUUID(), actorAccountId = randomUUID(), deviceId = randomUUID(), conflictRequestId = randomUUID();
   const createdRevisionId = effect === "APPLIED" ? randomUUID() : null;
   await db.transaction(async tx => {
     await tx.insert(schema.events).values({ id: eventId, name: "Synthetic review schema", startsOn: "2026-09-05", timeZone: "Europe/Stockholm" });
@@ -21,17 +21,15 @@ async function fixture(effect: "CONFLICT" | "UNCHANGED" | "APPLIED" = "CONFLICT"
     await tx.insert(schema.courseVersions).values({ id: courseVersionId, courseId, version: 1 });
     await tx.insert(schema.classes).values({ id: classId, raceId, courseVersionId, name: "Synthetic" });
     await tx.insert(schema.entries).values({ id: entryId, raceId, classId, givenName: "Synthetic", familyName: "Runner" });
-    await tx.insert(schema.pairingAdminAccessCredentials).values({ id: actorCredentialId, raceId, capability: "FINISH_FOREST_WATCH",
-      label: "Synthetic", secretHash: hash, issuedAt: now, expiresAt: new Date("2026-09-05T18:00:00.000Z") });
-    await tx.insert(schema.startCheckinDevices).values({ id: deviceId, raceId, actorCredentialId, capability: "FINISH_FOREST_WATCH", label: "Synthetic", registeredAt: now });
-    await tx.insert(schema.startCheckinOperations).values({ requestId: conflictRequestId, deviceId, actorCredentialId, raceId, entryId,
+    await tx.insert(schema.startCheckinDevices).values({ id: deviceId, raceId, actorAccountId, role: "ADMIN", label: "Synthetic", registeredAt: now });
+    await tx.insert(schema.startCheckinOperations).values({ requestId: conflictRequestId, deviceId, actorAccountId, raceId, entryId,
       localSequence: 1, packageVersion: 1, expectedEntryVersion: 1, expectedRevision: 0, contentHash: hash,
       intent: {}, receipt: {}, observedAt: now, receivedAt: now, effect, resultingRevision: effect === "APPLIED" ? 1 : 0, createdRevisionId,
       conflictReason: effect === "CONFLICT" ? "STALE_REVISION" : null });
     if (createdRevisionId) await tx.insert(schema.startCheckinRevisions).values({ id: createdRevisionId, requestId: conflictRequestId,
       raceId, entryId, revision: 1, startState: "UNMARKED", manualReturnRegistered: false });
   });
-  const review = { id: randomUUID(), requestId: randomUUID(), raceId, entryId, actorCredentialId, capability: "FINISH_FOREST_WATCH" as const,
+  const review = { id: randomUUID(), requestId: randomUUID(), raceId, entryId, actorAccountId,
     decision: "KEEP_CURRENT_STATE" as const, reason: "Synthetic review", sourceHash: hash, intentCanonicalJson: "{}", intentHash: hash, reviewedAt: now };
   const item = { reviewId: review.id, conflictRequestId, raceId, entryId, contentHash: hash, operationEffect: "CONFLICT" as const };
   return { review, item };
@@ -63,12 +61,10 @@ describe("immutable conflict review schema", () => {
     await expect(db.insert(schema.startCheckinConflictReviews).values({ ...f.review, id: randomUUID() }))
       .rejects.toMatchObject({ cause: { code: "23505" } });
   });
-  it("requires finish authority in the same race and structured canonical intent", async () => {
+  it("requires an entry in the same race and structured canonical intent", async () => {
     const f = await fixture(), other = await fixture();
-    await expect(db.insert(schema.startCheckinConflictReviews).values({ ...f.review, actorCredentialId: other.review.actorCredentialId }))
-      .rejects.toMatchObject({ cause: { code: "23503", constraint: "start_checkin_conflict_review_actor_scope_fk" } });
-    await expect(db.insert(schema.startCheckinConflictReviews).values({ ...f.review, capability: "START_CHECKIN" }))
-      .rejects.toMatchObject({ cause: { code: "23514", constraint: "start_checkin_conflict_review_capability_check" } });
+    await expect(db.insert(schema.startCheckinConflictReviews).values({ ...f.review, entryId: other.review.entryId }))
+      .rejects.toMatchObject({ cause: { code: "23503", constraint: "start_checkin_conflict_review_entry_scope_fk" } });
     await expect(db.insert(schema.startCheckinConflictReviews).values({ ...f.review, intentCanonicalJson: "[]" }))
       .rejects.toMatchObject({ cause: { code: "23514", constraint: "start_checkin_conflict_review_intent_check" } });
   });

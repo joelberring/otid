@@ -4,9 +4,9 @@ import { migrate } from "@o-tid/database";
 import { createDatabase } from "@o-tid/database";
 import { changeEntryCardAsAdmin } from "../../src/entry-card";
 import { listAdministratorEntryChanges } from "../../src/administrator-entry-changes";
-import { reuseReturnedRentalCardAsAdministrator } from "../../src/entry-card-rental-reuse";
-import { listEntryTransfersAsAdministrator } from "../../src/entry-transfer";
-import { issuePairingAdminAccessCredential, loginPairingAdmin } from "../../src/pairing-admin";
+import { reuseReturnedRentalCardAsAdmin } from "../../src/entry-card-rental-reuse";
+import { listEntryTransfersAsAdmin } from "../../src/entry-transfer";
+import { raceLogin } from "./accounts";
 
 const url = process.env.TEST_DATABASE_URL;
 if (!url) throw new Error("TEST_DATABASE_URL krävs för vald isolerad testdatabas");
@@ -16,11 +16,7 @@ beforeAll(async () => migrate(db, { migrationsFolder: new URL("../../../database
 afterAll(async () => pool.end());
 
 async function auth(raceId: string) {
-  const installation = await issuePairingAdminAccessCredential(db, { raceId, capability: "MANAGE_RACE",
-    label: "Synthetic rental reuse", expiresAt: new Date(now.getTime() + 3600_000) }, { now });
-  const login = await loginPairingAdmin(db, { formatVersion: 1, accessCredential: installation.accessCredential },
-    { expectedRaceId: raceId, expectedCapability: "MANAGE_RACE", now });
-  if (login.status !== "authenticated") throw new Error("Synthetic login failed");
+  const login = await raceLogin(db, raceId, "ADMIN", now);
   return { raceId, sessionToken: login.sessionToken, csrfCookie: login.csrfToken, csrfHeader: login.csrfToken };
 }
 
@@ -38,14 +34,13 @@ async function fixture() {
 }
 
 async function input(f: Awaited<ReturnType<typeof fixture>>, key = randomUUID()) {
-  const listed = await listEntryTransfersAsAdministrator(db, f.administrator, now);
+  const listed = await listEntryTransfersAsAdmin(db, f.administrator, now);
   if (listed.status !== "ok") throw new Error("Roster unavailable");
   const source = listed.response.entries.find(row => row.id === f.sourceEntryId);
   const target = listed.response.entries.find(row => row.id === f.targetEntryId);
   if (!source?.activeAssignment || !target || target.activeAssignment) throw new Error("Synthetic source or target unavailable");
   return { ...f.administrator, entryId: target.id, idempotencyKey: `entry-card-rental-reuse:${key}`,
-    request: { formatVersion: 1, expectedSnapshotVersion: listed.response.snapshotVersion,
-      source: { entryId: source.id, classId: source.classId, entryVersion: source.version, assignment: source.activeAssignment },
+    request: { formatVersion: 1, source: { entryId: source.id, classId: source.classId, entryVersion: source.version, assignment: source.activeAssignment },
       expectedTargetClassId: target.classId, expectedTargetEntryVersion: target.version } };
 }
 
@@ -59,7 +54,7 @@ async function protectedFootprint(raceId: string) {
 describe("TASK143 återanvändning av återlämnad hyrbricka", () => {
   it("skapar en ny målkoppling och bevarar den återlämnade källan som historik", async () => {
     const f = await fixture(), before = await protectedFootprint(f.raceId), value = await input(f);
-    const changed = await reuseReturnedRentalCardAsAdministrator(db, value, now);
+    const changed = await reuseReturnedRentalCardAsAdmin(db, value, now);
     if (changed.status !== "changed") throw new Error("Rental reuse failed");
     expect(changed.response).toMatchObject({ replayed: false,
       source: { entryId: f.sourceEntryId, assignment: { id: f.sourceAssignmentId, cardNumber: "12345" } },
@@ -67,7 +62,7 @@ describe("TASK143 återanvändning av återlämnad hyrbricka", () => {
       sourceEntryVersionBefore: 1, sourceEntryVersionAfter: 2,
       targetEntryVersionBefore: 1, targetEntryVersionAfter: 2, snapshotVersionBefore: 1, snapshotVersionAfter: 2 });
     expect(changed.response.target.assignment.id).not.toBe(f.sourceAssignmentId);
-    expect(await reuseReturnedRentalCardAsAdministrator(db, value, now)).toEqual({ status: "changed",
+    expect(await reuseReturnedRentalCardAsAdmin(db, value, now)).toEqual({ status: "changed",
       response: { ...changed.response, replayed: true } });
     expect((await pool.query("SELECT entry_id,card_number,active,is_rental,rental_returned FROM card_assignment WHERE race_id=$1 ORDER BY created_at,id", [f.raceId])).rows)
       .toEqual([{ entry_id: f.sourceEntryId, card_number: "12345", active: false, is_rental: true, rental_returned: true },
@@ -77,7 +72,7 @@ describe("TASK143 återanvändning av återlämnad hyrbricka", () => {
         source_entry_version_after: 2, target_entry_version_after: 2, snapshot_version_after: 2 }]);
     expect((await pool.query("SELECT action FROM audit_event WHERE race_id=$1 AND action='ENTRY_CARD_RENTAL_REUSED_BY_ADMIN'", [f.raceId])).rows)
       .toEqual([{ action: "ENTRY_CARD_RENTAL_REUSED_BY_ADMIN" }]);
-    const listed = await listEntryTransfersAsAdministrator(db, f.administrator, now);
+    const listed = await listEntryTransfersAsAdmin(db, f.administrator, now);
     expect(listed.status === "ok" && listed.response.entries.find(row => row.id === f.sourceEntryId)?.activeAssignment).toBeNull();
     expect(listed.status === "ok" && listed.response.entries.find(row => row.id === f.targetEntryId)?.activeAssignment)
       .toMatchObject({ cardNumber: "12345", isRental: true, rentalReturned: false });
@@ -86,28 +81,28 @@ describe("TASK143 återanvändning av återlämnad hyrbricka", () => {
   });
 
   it("avvisar stale eller felaktig grund och låter inte vanligt brickbyte ta en annan deltagares historik", async () => {
-    const f = await fixture(), first = await input(f), changed = await reuseReturnedRentalCardAsAdministrator(db, first, now);
+    const f = await fixture(), first = await input(f), changed = await reuseReturnedRentalCardAsAdmin(db, first, now);
     if (changed.status !== "changed") throw new Error("Rental reuse failed");
-    expect((await reuseReturnedRentalCardAsAdministrator(db, { ...first, idempotencyKey: `entry-card-rental-reuse:${randomUUID()}` }, now)).status).toBe("conflict");
+    expect((await reuseReturnedRentalCardAsAdmin(db, { ...first, idempotencyKey: `entry-card-rental-reuse:${randomUUID()}` }, now)).status).toBe("conflict");
     const other = await auth(f.raceId);
-    expect((await reuseReturnedRentalCardAsAdministrator(db, { ...first, ...other }, now)).status).toBe("conflict");
-    const listed = await listEntryTransfersAsAdministrator(db, f.administrator, now);
+    expect((await reuseReturnedRentalCardAsAdmin(db, { ...first, ...other }, now)).status).toBe("conflict");
+    const listed = await listEntryTransfersAsAdmin(db, f.administrator, now);
     if (listed.status !== "ok") throw new Error("Roster unavailable");
     const source = listed.response.entries.find(row => row.id === f.sourceEntryId);
     if (!source) throw new Error("Source missing");
     expect((await changeEntryCardAsAdmin(db, { ...f.administrator, entryId: source.id,
       idempotencyKey: `entry-card-change:${randomUUID()}`,
       request: { formatVersion: 1, expectedEntryVersion: source.version, expectedClassId: source.classId,
-        expectedSnapshotVersion: listed.response.snapshotVersion, expectedAssignment: null, cardNumber: "12345" } }, now)).status).toBe("conflict");
+        expectedAssignment: null, cardNumber: "12345" } }, now)).status).toBe("conflict");
     expect((await pool.query("SELECT count(*)::int AS count FROM entry_card_rental_reuse_request WHERE race_id=$1", [f.raceId])).rows)
       .toEqual([{ count: 1 }]);
   });
 
   it("TASK144 projicerar samma immutable återanvändning privat för källa och mål utan dubblett", async () => {
     const f = await fixture(), value = await input(f);
-    const changed = await reuseReturnedRentalCardAsAdministrator(db, value, now);
+    const changed = await reuseReturnedRentalCardAsAdmin(db, value, now);
     if (changed.status !== "changed") throw new Error("Rental reuse failed");
-    expect(await reuseReturnedRentalCardAsAdministrator(db, value, now)).toEqual({ status: "changed",
+    expect(await reuseReturnedRentalCardAsAdmin(db, value, now)).toEqual({ status: "changed",
       response: { ...changed.response, replayed: true } });
     const journalBefore = JSON.stringify((await pool.query(
       "SELECT * FROM entry_card_rental_reuse_request WHERE race_id=$1", [f.raceId])).rows);

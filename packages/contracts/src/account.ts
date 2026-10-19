@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { UUID_SOURCE as canonicalUuidPattern } from "./ids";
 
 /**
  * Konton (ADR-0172 beslut 1): kontot identifieras med e-postadressen. Adressen jämförs utan hänsyn till
@@ -27,7 +28,6 @@ export const accountEmailSchema = z.string().max(320).transform((value, context)
 /** En redan normaliserad adress i svar från servern. */
 export const storedAccountEmailSchema = z.string().refine((value) => normalizeAccountEmail(value) === value);
 
-const canonicalUuidPattern = "[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
 const uuid = z.string().regex(new RegExp(`^${canonicalUuidPattern}$`));
 const instant = z.iso.datetime({ offset: true });
 const displayName = z.string().trim().min(1).max(120);

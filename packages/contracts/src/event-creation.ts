@@ -1,7 +1,7 @@
 import { z } from "zod";
+import { UUID_SOURCE as canonicalUuidPattern } from "./ids";
 
 /** Skapa tävling med kontot (ADR-0168): begäran, kvitto och felsvar. */
-const canonicalUuidPattern = "[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
 const canonicalUuidSchema = z.string().regex(
   new RegExp(`^${canonicalUuidPattern}$`),
   "Id måste vara ett kanoniskt gemener-UUID"

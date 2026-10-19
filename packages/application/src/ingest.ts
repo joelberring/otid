@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, max } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import {
   deviceBatchAcknowledgementSchema,
   deviceBatchSchema,
@@ -11,11 +11,11 @@ import {
 } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
 import { schema } from "@o-tid/database";
-import { evaluateCardReadout, RESULT_ENGINE_VERSION, type NormalizedCardReadout } from "@o-tid/domain";
-import { lockEntryForRevision, lockRaceForSnapshot } from "./concurrency";
-import { contentHash, evaluationHash as hashEvaluation } from "./hash";
+import { RESULT_ENGINE_VERSION } from "@o-tid/domain";
+import { lockRaceForSnapshot } from "./concurrency";
+import { contentHash, evaluationHash as hashEvaluation } from "./serialization";
 import { loadRaceSnapshot, type DbExecutor } from "./snapshot";
-import { appliedControlNeutralization } from "./class-control-neutralization";
+import { evaluateAndStore, normalizedReadout } from "./result-revisions";
 import { relayTeamOfEntry } from "./relay-model";
 import { synchronizeRelayTeams } from "./relay-sync";
 
@@ -163,55 +163,27 @@ export async function ingestDeviceBatch(
       }).returning();
       if (!readoutRow) throw new Error("Normaliserad avläsning kunde inte sparas");
 
-      const normalized: NormalizedCardReadout = {
-        id: readoutRow.id,
-        raceId,
-        cardNumber: readoutRow.cardNumber,
-        ...(readoutRow.startPunchedAt ? { startPunchedAt: readoutRow.startPunchedAt.toISOString() } : {}),
-        ...(readoutRow.finishPunchedAt ? { finishPunchedAt: readoutRow.finishPunchedAt.toISOString() } : {}),
-        punches: readoutRow.punches,
-        rawMessageId: inserted.id,
-        readAt: readoutRow.readAt.toISOString()
-      };
       const snapshot = await loadRaceSnapshot(tx, raceId);
-        const evaluation = evaluateCardReadout(normalized, snapshot);
-        const controlNeutralizationId = appliedControlNeutralization(snapshot, evaluation);
+      const stored = await evaluateAndStore(tx, snapshot, normalizedReadout(readoutRow), "CARD_READOUT");
+      const evaluation = stored.evaluation;
       const resultEvaluationHash = hashEvaluation(evaluation);
       let serverResult: ServerResultSummary;
 
-      if (evaluation.entryId && evaluation.courseVersionId) {
-        await lockEntryForRevision(tx, raceId, evaluation.entryId);
-        const [latest] = await tx.select({ revision: max(schema.resultRevisions.revision) })
-          .from(schema.resultRevisions).where(eq(schema.resultRevisions.entryId, evaluation.entryId));
-        const revision = (latest?.revision ?? 0) + 1;
-        const [created] = await tx.insert(schema.resultRevisions).values({
-          raceId,
-          entryId: evaluation.entryId,
-          readoutId: readoutRow.id,
-          revision,
-          cause: "CARD_READOUT",
-          status: evaluation.status,
-          reason: evaluation.reason,
-          evaluation,
-          engineVersion: RESULT_ENGINE_VERSION,
-          snapshotVersion: snapshot.race.snapshotVersion,
-          courseVersionId: evaluation.courseVersionId,
-          controlNeutralizationId,
-          published: true
-        }).returning({ id: schema.resultRevisions.id });
-        if (!created) throw new Error("Resultatrevisionen kunde inte sparas");
+      if (stored.stored) {
+        const revision = stored.revision.revision;
+        const entryId = stored.revision.entryId;
         // Stafett: sträckans måltid ger nästa sträckas start; senare sträckor räknas om vid behov.
-        const teamId = await relayTeamOfEntry(tx, evaluation.entryId);
+        const teamId = await relayTeamOfEntry(tx, entryId);
         if (teamId) await synchronizeRelayTeams(tx, raceId, [teamId], snapshot.race.snapshotVersion);
         serverResult = serverResultSummarySchema.parse({
-          resultRevisionId: created.id,
+          resultRevisionId: stored.revision.id,
           revision,
           status: evaluation.status,
           reason: evaluation.reason,
           engineVersion: RESULT_ENGINE_VERSION,
           snapshotVersion: snapshot.race.snapshotVersion,
           evaluationHash: resultEvaluationHash,
-          courseVersionId: evaluation.courseVersionId
+          courseVersionId: stored.revision.courseVersionId
         });
       } else {
         serverResult = serverResultSummarySchema.parse({

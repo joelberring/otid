@@ -3,8 +3,9 @@ import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { raceCopyRequestSchema, raceCopyResponseSchema, type RaceCopyResponse } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { lockRaceForSnapshot } from "./concurrency";
-import { activeEventAdministrationGrant } from "./organizer-events";
+import { activeEventAdministrationGrant } from "./race-session";
 import { authenticateUserAccountSessionForMutation, type UserAccountSessionProof } from "./user-account";
+import { UUID_PATTERN as UUID } from "./serialization";
 
 /**
  * "Ny tävling som …" (PLAN.md steg 21). Kopierar tävlingen till ett nytt event med ett lopp i en transaktion:
@@ -23,7 +24,6 @@ type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 type Failure = { status: "unauthorized" | "forbidden" | "invalid-request" | "not-found" | "conflict" };
 export type RaceCopyResult = Failure | { status: "copied"; response: RaceCopyResponse };
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** Rader per INSERT, långt under PostgreSQL:s gräns för parametrar. */
 const CHUNK = 500;
@@ -38,7 +38,7 @@ function mapped(map: ReadonlyMap<string, string>, id: string): string {
   return value;
 }
 
-export async function copyRaceAsUserAccount(db: Database, input: UserAccountSessionProof & { raceId: string; request: unknown },
+export async function copyRaceAsAdmin(db: Database, input: UserAccountSessionProof & { raceId: string; request: unknown },
   now = new Date()): Promise<RaceCopyResult> {
   const parsed = raceCopyRequestSchema.safeParse(input.request);
   if (!parsed.success || !UUID.test(input.raceId)) return { status: "invalid-request" };

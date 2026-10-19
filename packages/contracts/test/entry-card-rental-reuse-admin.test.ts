@@ -6,8 +6,7 @@ const sourceEntryId = "10000000-0000-4000-8000-000000000001";
 const targetEntryId = "10000000-0000-4000-8000-000000000002";
 const assignmentId = "10000000-0000-4000-8000-000000000003";
 const targetAssignmentId = "10000000-0000-4000-8000-000000000004";
-const request = { formatVersion: 1, expectedSnapshotVersion: 4,
-  source: { entryId: sourceEntryId, classId: sourceEntryId, entryVersion: 2,
+const request = { formatVersion: 1, source: { entryId: sourceEntryId, classId: sourceEntryId, entryVersion: 2,
     assignment: { id: assignmentId, cardNumber: "12345", isRental: true, rentalReturned: true } },
   expectedTargetClassId: targetEntryId, expectedTargetEntryVersion: 3 };
 

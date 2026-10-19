@@ -1,17 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  classResultFinalizationMetadataSchema,
-  frozenResultFinalizationProjectionSchema,
-  frozenRaceFinalizationListResponseSchema,
-  raceResultFinalizationMetadataSchema,
-  resultFinalizationAdminErrorResponseSchema,
-  resultFinalizationAdminLoginRequestSchema,
-  resultFinalizationAdminLoginResponseSchema,
-  resultFinalizationCandidateResponseSchema,
-  resultFinalizationIdempotencyKeySchema,
-  resultFinalizationRequestSchema,
-  resultFinalizationResponseSchema
-} from "../src";
+import { classResultFinalizationMetadataSchema, frozenResultFinalizationProjectionSchema, frozenRaceFinalizationListResponseSchema, raceResultFinalizationMetadataSchema, resultFinalizationAdminErrorResponseSchema, resultFinalizationCandidateResponseSchema, resultFinalizationIdempotencyKeySchema, resultFinalizationRequestSchema, resultFinalizationResponseSchema } from "../src";
 
 const requestId = "a0000000-0000-4000-8000-000000000001";
 const raceId = "b0000000-0000-4000-8000-000000000002";
@@ -54,21 +42,6 @@ const raceFinalization = {
 } as const;
 
 describe("TASK 006D resultatfinaliseringskontrakt", () => {
-  it("separerar FINALIZE_RESULTS med canonical credential och svar", () => {
-    const accessCredential = `otid_org_result_finalize_v1.${requestId}.${"A".repeat(43)}`;
-    expect(resultFinalizationAdminLoginRequestSchema.parse({ formatVersion: 1, accessCredential }))
-      .toEqual({ formatVersion: 1, accessCredential });
-    expect(resultFinalizationAdminLoginRequestSchema.safeParse({
-      formatVersion: 1,
-      accessCredential: accessCredential.replace("result_finalize", "result_recalc")
-    }).success).toBe(false);
-    expect(resultFinalizationAdminLoginResponseSchema.parse({
-      formatVersion: 1,
-      raceId,
-      capability: "FINALIZE_RESULTS",
-      expiresAt: finalizedAt
-    }).capability).toBe("FINALIZE_RESULTS");
-  });
 
   it("lämnar bara klassnamn, räknare, blockerare, hash och immutable metadata i kandidaten", () => {
     const response = {
@@ -128,7 +101,7 @@ describe("TASK 006D resultatfinaliseringskontrakt", () => {
 
   it("tillåter en fryst DNS endast som status-only-resultat", () => {
     const projection = {
-      formatVersion: 1,
+      formatVersion: 9,
       scope: "CLASS",
       raceId,
       classId,
@@ -138,7 +111,9 @@ describe("TASK 006D resultatfinaliseringskontrakt", () => {
         name: "D21",
         externalId: null,
         results: [{
-          source: { entryId: requestId, resultRevisionId: raceFinalizationId, revision: 1, courseVersionId: classId },
+          source: { kind: "MANUAL_DECISION", cause: "MANUAL_DID_NOT_START", entryId: requestId, resultRevisionId: raceFinalizationId,
+            revision: 1, courseVersionId: classId, absoluteResultRevisionId: raceFinalizationId, absoluteResultRevision: 1,
+            underlyingResultRevisionId: null },
           personResult: {
             entryExternalId: null,
             givenName: "Ada",
@@ -151,7 +126,8 @@ describe("TASK 006D resultatfinaliseringskontrakt", () => {
             position: null,
             timeBehindMs: null,
             expectedControls: [],
-            splits: []
+            splits: [],
+            manualApprovalProof: null
           }
         }]
       }
@@ -171,7 +147,6 @@ describe("TASK 006D resultatfinaliseringskontrakt", () => {
       formatVersion: 1,
       scope: "CLASS",
       classId,
-      expectedSnapshotVersion: 7,
       expectedBasisHash: hash,
       expectedLatestScopeRevision: 1
     } as const;
@@ -179,7 +154,6 @@ describe("TASK 006D resultatfinaliseringskontrakt", () => {
       formatVersion: 1,
       scope: "RACE",
       classId: null,
-      expectedSnapshotVersion: 7,
       expectedBasisHash: hash,
       expectedLatestScopeRevision: null
     } as const;
@@ -238,10 +212,11 @@ describe("TASK 006D resultatfinaliseringskontrakt", () => {
       position: 1,
       timeBehindMs: 0,
       expectedControls: [{ controlCode: 31, occurrence: 1 }],
-      splits: [{ controlCode: 31, occurrence: 1, elapsedMs: 600_000 }]
+      splits: [{ controlCode: 31, occurrence: 1, elapsedMs: 600_000 }],
+      manualApprovalProof: null
     } as const;
     const frozenClass = {
-      formatVersion: 1,
+      formatVersion: 9,
       scope: "CLASS",
       raceId,
       classId,
@@ -252,6 +227,8 @@ describe("TASK 006D resultatfinaliseringskontrakt", () => {
         externalId: null,
         results: [{
           source: {
+            kind: "READOUT_RESULT",
+            readoutId: "a0000000-0000-4000-8000-000000000009",
             entryId: "f0000000-0000-4000-8000-000000000006",
             resultRevisionId: "a0000000-0000-4000-8000-000000000007",
             revision: 2,
@@ -263,7 +240,7 @@ describe("TASK 006D resultatfinaliseringskontrakt", () => {
     } as const;
     expect(frozenResultFinalizationProjectionSchema.parse(frozenClass)).toEqual(frozenClass);
     expect(frozenResultFinalizationProjectionSchema.parse({
-      formatVersion: 1,
+      formatVersion: 9,
       scope: "RACE",
       raceId,
       snapshotVersion: 7,
@@ -295,481 +272,25 @@ describe("TASK 006D resultatfinaliseringskontrakt", () => {
     }).success).toBe(false);
   });
 
-  it("läser ny format 2-projektion med DSQ och fryst livscykelproveniens", () => {
-    const targetResultRevisionId = "f0000000-0000-4000-8000-000000000006";
-    const resultRevisionId = "a0000000-0000-4000-8000-000000000007";
-    const decisionId = "b0000000-0000-4000-8000-000000000008";
-    const projection = {
-      formatVersion: 2,
-      scope: "CLASS",
-      raceId,
-      classId,
-      snapshotVersion: 7,
-      basisSha256: hash,
-      class: {
-        name: "D21",
-        externalId: null,
-        results: [{
-          source: {
-            kind: "MANUAL_DISQUALIFICATION",
-            entryId: requestId,
-            resultRevisionId,
-            revision: 4,
-            courseVersionId: classId,
-            resultDisqualificationDecisionId: decisionId,
-            targetResultRevisionId,
-            absoluteResultRevisionId: resultRevisionId,
-            absoluteResultRevision: 4
-          },
-          personResult: {
-            entryExternalId: null,
-            givenName: "Ada",
-            familyName: "Löpare",
-            organisationName: null,
-            status: "DSQ",
-            startTime: "2026-08-31T10:00:00.000Z",
-            finishTime: "2026-08-31T10:20:00.000Z",
-            elapsedMs: 1_200_000,
-            position: null,
-            timeBehindMs: null,
-            expectedControls: [{ controlCode: 31, occurrence: 1 }],
-            splits: [{ controlCode: 31, occurrence: 1, elapsedMs: 600_000 }]
-          }
-        }]
-      }
+  it("läser ett fryst manuellt godkännande med bevis mot revisionen under beslutet (ADR-0173)", () => {
+    const decision = "a0000000-0000-4000-8000-000000000011", underlying = "a0000000-0000-4000-8000-000000000012";
+    const result = {
+      source: { kind: "MANUAL_DECISION", cause: "MANUAL_RESULT_APPROVAL", entryId: requestId, resultRevisionId: decision, revision: 3,
+        courseVersionId: classId, absoluteResultRevisionId: decision, absoluteResultRevision: 3, underlyingResultRevisionId: underlying },
+      personResult: { entryExternalId: null, givenName: "Ada", familyName: "Löpare", organisationName: null, status: "OK",
+        startTime: "2026-08-31T10:00:00.000Z", finishTime: "2026-08-31T10:20:00.000Z", elapsedMs: 1_200_000, position: 1, timeBehindMs: 0,
+        expectedControls: [{ controlCode: 31, occurrence: 1 }], splits: [],
+        manualApprovalProof: { decisionId: decision, targetResultRevisionId: underlying } }
     } as const;
+    const projection = { formatVersion: 9, scope: "CLASS", raceId, classId, snapshotVersion: 7, basisSha256: hash,
+      class: { name: "D21", externalId: null, results: [result] } } as const;
     expect(frozenResultFinalizationProjectionSchema.parse(projection)).toEqual(projection);
-    expect(frozenResultFinalizationProjectionSchema.safeParse({ ...projection, formatVersion: 1 }).success)
-      .toBe(false);
-    expect(frozenResultFinalizationProjectionSchema.safeParse({
-      ...projection,
-      class: {
-        ...projection.class,
-        results: [{
-          ...projection.class.results[0],
-          source: { ...projection.class.results[0].source, kind: "READOUT_RESULT", readoutId: requestId }
-        }]
-      }
-    }).success).toBe(false);
-    expect(frozenResultFinalizationProjectionSchema.safeParse({
-      ...projection,
-      class: {
-        ...projection.class,
-        results: [{
-          ...projection.class.results[0],
-          personResult: { ...projection.class.results[0].personResult, position: 1, timeBehindMs: 0 }
-        }]
-      }
-    }).success).toBe(false);
-  });
-
-  it("läser format 3 med matchande approval-proof och tillåter fryst saknad split", () => {
-    const targetResultRevisionId = "f0000000-0000-4000-8000-000000000006";
-    const resultRevisionId = "a0000000-0000-4000-8000-000000000007";
-    const decisionId = "b0000000-0000-4000-8000-000000000008";
-    const projection = {
-      formatVersion: 3,
-      scope: "CLASS",
-      raceId,
-      classId,
-      snapshotVersion: 7,
-      basisSha256: hash,
-      class: {
-        name: "D21",
-        externalId: null,
-        results: [{
-          source: {
-            kind: "MANUAL_RESULT_APPROVAL",
-            entryId: requestId,
-            resultRevisionId,
-            revision: 4,
-            courseVersionId: classId,
-            resultApprovalDecisionId: decisionId,
-            targetResultRevisionId,
-            approvedResultRevisionId: resultRevisionId,
-            absoluteResultRevisionId: resultRevisionId,
-            absoluteResultRevision: 4
-          },
-          personResult: {
-            entryExternalId: null,
-            givenName: "Ada",
-            familyName: "Löpare",
-            organisationName: null,
-            status: "OK",
-            startTime: "2026-08-31T10:00:00.000Z",
-            finishTime: "2026-08-31T10:20:00.000Z",
-            elapsedMs: 1_200_000,
-            position: 1,
-            timeBehindMs: 0,
-            expectedControls: [
-              { controlCode: 31, occurrence: 1 },
-              { controlCode: 45, occurrence: 1 }
-            ],
-            splits: [{ controlCode: 31, occurrence: 1, elapsedMs: 600_000 }],
-            manualApprovalProof: { decisionId, targetResultRevisionId }
-          }
-        }]
-      }
-    } as const;
-    expect(frozenResultFinalizationProjectionSchema.parse(projection)).toEqual(projection);
-    expect(frozenResultFinalizationProjectionSchema.safeParse({ ...projection, formatVersion: 2 }).success)
-      .toBe(false);
-    expect(frozenResultFinalizationProjectionSchema.safeParse({
-      ...projection,
-      class: { ...projection.class, results: [{
-        ...projection.class.results[0],
-        personResult: { ...projection.class.results[0].personResult, manualApprovalProof: null }
-      }] }
-    }).success).toBe(false);
-    expect(frozenResultFinalizationProjectionSchema.safeParse({
-      ...projection,
-      class: { ...projection.class, results: [{
-        ...projection.class.results[0],
-        personResult: {
-          ...projection.class.results[0].personResult,
-          manualApprovalProof: { decisionId: requestId, targetResultRevisionId }
-        }
-      }] }
-    }).success).toBe(false);
-  });
-
-  it("läser format 4 med DNF, exakt decision/target och absolut underliggande head", () => {
-    const targetResultRevisionId = "f0000000-0000-4000-8000-000000000006";
-    const resultRevisionId = "a0000000-0000-4000-8000-000000000007";
-    const decisionId = "b0000000-0000-4000-8000-000000000008";
-    const absoluteResultRevisionId = "c0000000-0000-4000-8000-000000000009";
-    const projection = {
-      formatVersion: 4,
-      scope: "CLASS",
-      raceId,
-      classId,
-      snapshotVersion: 7,
-      basisSha256: hash,
-      class: {
-        name: "D21",
-        externalId: null,
-        results: [{
-          source: {
-            kind: "MANUAL_DID_NOT_FINISH",
-            entryId: requestId,
-            resultRevisionId,
-            revision: 4,
-            courseVersionId: classId,
-            didNotFinishDecisionId: decisionId,
-            targetResultRevisionId,
-            absoluteResultRevisionId,
-            absoluteResultRevision: 5
-          },
-          personResult: {
-            entryExternalId: null,
-            givenName: "Ada",
-            familyName: "Löpare",
-            organisationName: null,
-            status: "DNF",
-            startTime: null,
-            finishTime: null,
-            elapsedMs: null,
-            position: null,
-            timeBehindMs: null,
-            expectedControls: [],
-            splits: [],
-            manualApprovalProof: null
-          }
-        }]
-      }
-    } as const;
-    expect(frozenResultFinalizationProjectionSchema.parse(projection)).toEqual(projection);
-    expect(frozenResultFinalizationProjectionSchema.safeParse({ ...projection, formatVersion: 3 }).success).toBe(false);
-    expect(frozenResultFinalizationProjectionSchema.safeParse({
-      ...projection,
-      class: { ...projection.class, results: [{
-        ...projection.class.results[0],
-        personResult: { ...projection.class.results[0].personResult, elapsedMs: 1 }
-      }] }
-    }).success).toBe(false);
-  });
-
-  it("läser CLASS och RACE format 5 med DNF-withdrawal och restaurerat utfall", () => {
-    const targetResultRevisionId = "f0000000-0000-4000-8000-000000000006";
-    const didNotFinishResultRevisionId = "a0000000-0000-4000-8000-000000000007";
-    const restorationSourceResultRevisionId = "b0000000-0000-4000-8000-000000000008";
-    const resultRevisionId = "c0000000-0000-4000-8000-000000000009";
-    const didNotFinishDecisionId = "d0000000-0000-4000-8000-00000000000a";
-    const didNotFinishWithdrawalId = "e0000000-0000-4000-8000-00000000000b";
-    const frozenClass = {
-      name: "D21",
-      externalId: null,
-      results: [{
-        source: {
-          kind: "MANUAL_DID_NOT_FINISH_WITHDRAWAL",
-          entryId: requestId,
-          resultRevisionId,
-          revision: 6,
-          courseVersionId: classId,
-          didNotFinishWithdrawalId,
-          didNotFinishDecisionId,
-          targetResultRevisionId,
-          didNotFinishResultRevisionId,
-          restorationSourceResultRevisionId
-        },
-        personResult: {
-          entryExternalId: null,
-          givenName: "Ada",
-          familyName: "Löpare",
-          organisationName: null,
-          status: "OK",
-          startTime: "2026-08-31T10:00:00.000Z",
-          finishTime: "2026-08-31T10:20:00.000Z",
-          elapsedMs: 1_200_000,
-          position: 1,
-          timeBehindMs: 0,
-          expectedControls: [{ controlCode: 31, occurrence: 1 }],
-          splits: [{ controlCode: 31, occurrence: 1, elapsedMs: 600_000 }],
-          manualApprovalProof: null
-        }
-      }]
-    } as const;
-    const classProjection = {
-      formatVersion: 5,
-      scope: "CLASS",
-      raceId,
-      classId,
-      snapshotVersion: 7,
-      basisSha256: hash,
-      class: frozenClass
-    } as const;
-    const raceProjection = {
-      formatVersion: 5,
-      scope: "RACE",
-      raceId,
-      snapshotVersion: 7,
-      basisSha256: hash,
-      eventName: "O-Tid",
-      classes: [{
-        classFinalizationId,
-        classFinalizationRevision: 2,
-        classBasisSha256: hash,
-        classId,
-        class: frozenClass
-      }]
-    } as const;
-    expect(frozenResultFinalizationProjectionSchema.parse(classProjection)).toEqual(classProjection);
-    expect(frozenResultFinalizationProjectionSchema.parse(raceProjection)).toEqual(raceProjection);
-    expect(frozenResultFinalizationProjectionSchema.safeParse({ ...classProjection, formatVersion: 4 }).success)
-      .toBe(false);
-    expect(frozenResultFinalizationProjectionSchema.safeParse({
-      ...classProjection,
-      class: { ...frozenClass, results: [{
-        ...frozenClass.results[0],
-        personResult: { ...frozenClass.results[0].personResult, status: "DNF" }
-      }] }
-    }).success).toBe(false);
-  });
-
-  it("läser CLASS och RACE format 6 med fryst permanent OOC-overlay", () => {
-    const targetResultRevisionId = "f0000000-0000-4000-8000-000000000006";
-    const resultRevisionId = "a0000000-0000-4000-8000-000000000007";
-    const notCompetingDecisionId = "b0000000-0000-4000-8000-000000000008";
-    const absoluteResultRevisionId = "c0000000-0000-4000-8000-000000000009";
-    const frozenClass = {
-      name: "D21",
-      externalId: null,
-      results: [{
-        source: {
-          kind: "MANUAL_OUT_OF_COMPETITION",
-          entryId: requestId,
-          resultRevisionId,
-          revision: 4,
-          courseVersionId: classId,
-          notCompetingDecisionId,
-          targetResultRevisionId,
-          absoluteResultRevisionId,
-          absoluteResultRevision: 5
-        },
-        personResult: {
-          entryExternalId: null,
-          givenName: "Ada",
-          familyName: "Löpare",
-          organisationName: null,
-          status: "OOC",
-          startTime: "2026-08-31T10:00:00.000Z",
-          finishTime: "2026-08-31T10:20:00.000Z",
-          elapsedMs: 1_200_000,
-          position: null,
-          timeBehindMs: null,
-          expectedControls: [
-            { controlCode: 31, occurrence: 1 },
-            { controlCode: 45, occurrence: 1 }
-          ],
-          splits: [{ controlCode: 31, occurrence: 1, elapsedMs: 600_000 }],
-          manualApprovalProof: null
-        }
-      }]
-    } as const;
-    const classProjection = {
-      formatVersion: 6,
-      scope: "CLASS",
-      raceId,
-      classId,
-      snapshotVersion: 7,
-      basisSha256: hash,
-      class: frozenClass
-    } as const;
-    const raceProjection = {
-      formatVersion: 6,
-      scope: "RACE",
-      raceId,
-      snapshotVersion: 7,
-      basisSha256: hash,
-      eventName: "O-Tid",
-      classes: [{
-        classFinalizationId,
-        classFinalizationRevision: 2,
-        classBasisSha256: hash,
-        classId,
-        class: frozenClass
-      }]
-    } as const;
-    expect(frozenResultFinalizationProjectionSchema.parse(classProjection)).toEqual(classProjection);
-    expect(frozenResultFinalizationProjectionSchema.parse(raceProjection)).toEqual(raceProjection);
-    expect(frozenResultFinalizationProjectionSchema.safeParse({ ...classProjection, formatVersion: 5 }).success)
-      .toBe(false);
-    expect(frozenResultFinalizationProjectionSchema.safeParse({
-      ...classProjection,
-      class: { ...frozenClass, results: [{
-        ...frozenClass.results[0],
-        personResult: { ...frozenClass.results[0].personResult, position: 1, timeBehindMs: 0 }
-      }] }
-    }).success).toBe(false);
-    expect(frozenResultFinalizationProjectionSchema.safeParse({
-      ...classProjection,
-      class: { ...frozenClass, results: [{
-        ...frozenClass.results[0],
-        personResult: {
-          ...frozenClass.results[0].personResult,
-          manualApprovalProof: { decisionId: notCompetingDecisionId, targetResultRevisionId }
-        }
-      }] }
-    }).success).toBe(false);
-    expect(frozenResultFinalizationProjectionSchema.safeParse({
-      ...classProjection,
-      class: { ...frozenClass, results: [{
-        ...frozenClass.results[0],
-        source: { ...frozenClass.results[0].source, kind: "READOUT_RESULT", readoutId: requestId }
-      }] }
-    }).success).toBe(false);
-    expect(frozenResultFinalizationProjectionSchema.safeParse({
-      ...classProjection,
-      class: { ...frozenClass, results: [{
-        ...frozenClass.results[0],
-        personResult: { ...frozenClass.results[0].personResult, startTime: null }
-      }] }
-    }).success).toBe(false);
-    expect(frozenResultFinalizationProjectionSchema.safeParse({
-      ...classProjection,
-      class: { ...frozenClass, results: [{
-        ...frozenClass.results[0],
-        personResult: { ...frozenClass.results[0].personResult, elapsedMs: null }
-      }] }
-    }).success).toBe(false);
-  });
-
-  it("läser format 7 med fryst OOC-withdrawal och återställt OK", () => {
-    const source = {
-      kind: "MANUAL_OUT_OF_COMPETITION_WITHDRAWAL",
-      entryId: requestId,
-      resultRevisionId: "a0000000-0000-4000-8000-000000000007",
-      revision: 5,
-      courseVersionId: classId,
-      notCompetingWithdrawalId: "b0000000-0000-4000-8000-000000000008",
-      notCompetingDecisionId: "c0000000-0000-4000-8000-000000000009",
-      targetResultRevisionId: "d0000000-0000-4000-8000-000000000010",
-      outOfCompetitionResultRevisionId: "e0000000-0000-4000-8000-000000000011",
-      absoluteResultRevisionId: "e0000000-0000-4000-8000-000000000011",
-      absoluteResultRevision: 4,
-      restorationSourceResultRevisionId: "d0000000-0000-4000-8000-000000000010"
-    } as const;
-    const projection = {
-      formatVersion: 7,
-      scope: "CLASS",
-      raceId,
-      classId,
-      snapshotVersion: 7,
-      basisSha256: hash,
-      class: {
-        name: "D21",
-        externalId: null,
-        results: [{
-          source,
-          personResult: {
-            entryExternalId: null,
-            givenName: "Ada",
-            familyName: "Löpare",
-            organisationName: null,
-            status: "OK",
-            startTime: "2026-08-31T10:00:00.000Z",
-            finishTime: "2026-08-31T10:20:00.000Z",
-            elapsedMs: 1_200_000,
-            position: 1,
-            timeBehindMs: 0,
-            expectedControls: [{ controlCode: 31, occurrence: 1 }],
-            splits: [{ controlCode: 31, occurrence: 1, elapsedMs: 600_000 }],
-            manualApprovalProof: null
-          }
-        }]
-      }
-    } as const;
-    expect(frozenResultFinalizationProjectionSchema.parse(projection)).toEqual(projection);
-    expect(frozenResultFinalizationProjectionSchema.safeParse({
-      ...projection,
-      class: { ...projection.class, results: [{
-        ...projection.class.results[0],
-        personResult: { ...projection.class.results[0].personResult, status: "OOC", position: null, timeBehindMs: null }
-      }] }
-    }).success).toBe(false);
-  });
-
-  it("läser format 8 med fryst NT-withdrawal och återställt MP", () => {
-    const source = {
-      kind: "MANUAL_WITHOUT_TIMING_WITHDRAWAL",
-      entryId: requestId,
-      resultRevisionId: "a0000000-0000-4000-8000-000000000007",
-      revision: 5,
-      courseVersionId: classId,
-      withoutTimingWithdrawalId: "b0000000-0000-4000-8000-000000000008",
-      withoutTimingDecisionId: "c0000000-0000-4000-8000-000000000009",
-      targetResultRevisionId: "d0000000-0000-4000-8000-000000000010",
-      withoutTimingResultRevisionId: "e0000000-0000-4000-8000-000000000011",
-      absoluteResultRevisionId: "e0000000-0000-4000-8000-000000000011",
-      absoluteResultRevision: 4,
-      restorationSourceResultRevisionId: "d0000000-0000-4000-8000-000000000010"
-    } as const;
-    const projection = {
-      formatVersion: 8,
-      scope: "CLASS",
-      raceId,
-      classId,
-      snapshotVersion: 7,
-      basisSha256: hash,
-      class: {
-        name: "D21", externalId: null, results: [{
-          source,
-          personResult: {
-            entryExternalId: null, givenName: "Ada", familyName: "Löpare", organisationName: null,
-            status: "MP", startTime: "2026-08-31T10:00:00.000Z", finishTime: "2026-08-31T10:20:00.000Z",
-            elapsedMs: 1_200_000, position: null, timeBehindMs: null,
-            expectedControls: [{ controlCode: 31, occurrence: 1 }],
-            splits: [{ controlCode: 31, occurrence: 1, elapsedMs: 600_000 }], manualApprovalProof: null
-          }
-        }]
-      }
-    } as const;
-    expect(frozenResultFinalizationProjectionSchema.parse(projection)).toEqual(projection);
-    expect(frozenResultFinalizationProjectionSchema.safeParse({
-      ...projection, class: { ...projection.class, results: [{
-        ...projection.class.results[0], personResult: { ...projection.class.results[0].personResult, status: "NT" }
-      }] }
-    }).success).toBe(false);
+    expect(frozenResultFinalizationProjectionSchema.safeParse({ ...projection, class: { ...projection.class, results: [{
+      ...result, personResult: { ...result.personResult, manualApprovalProof: { decisionId: underlying, targetResultRevisionId: decision } }
+    }] } }).success).toBe(false);
+    expect(frozenResultFinalizationProjectionSchema.safeParse({ ...projection, class: { ...projection.class, results: [{
+      ...result, source: { ...result.source, cause: "MANUAL_DISQUALIFICATION" }
+    }] } }).success).toBe(false);
   });
 
   it("läser format 9 med strikt aktiv startavpricknings-DNS-proveniens", () => {

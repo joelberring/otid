@@ -2,13 +2,13 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { createDatabase, migrate, schema } from "@o-tid/database";
-import { createEventAsUserAccount, enterRaceAsUserAccount } from "../../src/organizer-events";
+import { createOrganizerEvent } from "../../src/organizer-events";
 import { performSuperadminAction, setSuperadmin } from "../../src/superadmin";
 import { isRacePubliclyVisible, publicRaceAccess } from "../../src/public-race-visibility";
 import { listPublicRaces, raceIdForShortCode, readPublicRaceHub } from "../../src/public-races";
-import { setRacePublicationAsAdministrator } from "../../src/race-publication";
-import { listEntryTransfersAsAdministrator } from "../../src/entry-transfer";
-import { grantRacePerson, registerTestAccount, setRacePublished } from "./accounts";
+import { setRacePublicationAsAdmin } from "../../src/race-publication";
+import { listEntryTransfersAsAdmin } from "../../src/entry-transfer";
+import { grantRacePerson, registerTestAccount, setRacePublished, accountOnRace } from "./accounts";
 
 /**
  * ADR-0172 beslut 4 / PLAN.md steg 19: en ny tävling är dold tills admin publicerar den. Synlig = publicerad och
@@ -38,7 +38,7 @@ const suffix = () => randomUUID().slice(0, 8);
 type Proof = { sessionToken: string; csrfCookie: string; csrfHeader: string };
 
 async function createRace(proof: Proof, eventName: string, raceDate = "2026-10-08", timeZone = "Europe/Stockholm") {
-  const created = await createEventAsUserAccount(db, { ...proof, idempotencyKey: `organizer-event-create:${randomUUID()}`,
+  const created = await createOrganizerEvent(db, { ...proof, idempotencyKey: `organizer-event-create:${randomUUID()}`,
     readBody: async () => ({ formatVersion: 1, eventName, raceName: "Torsdag", raceDate, timeZone }) });
   if (created.status !== "created") throw new Error(`Tävlingen kunde inte skapas: ${created.status}`);
   return created.response.raceId;
@@ -63,9 +63,9 @@ describe("ADR-0172 publicerad tävling", () => {
     expect(await publicRaceAccess(db, "inte-ett-id", null)).toBe("NONE");
 
     // Funktionären får inte publicera.
-    const enteredAsFunctionary = await enterRaceAsUserAccount(db, { ...functionary.proof, raceId });
-    if (enteredAsFunctionary.status !== "entered") throw new Error("Funktionären kom inte in");
-    expect(await setRacePublicationAsAdministrator(db, { sessionToken: enteredAsFunctionary.sessionToken,
+    const enteredAsFunctionary = await accountOnRace(db, { ...functionary.proof, raceId });
+    if (enteredAsFunctionary.status !== "authenticated") throw new Error("Funktionären kom inte in");
+    expect(await setRacePublicationAsAdmin(db, { sessionToken: enteredAsFunctionary.sessionToken,
       csrfCookie: enteredAsFunctionary.csrfToken, csrfHeader: enteredAsFunctionary.csrfToken, raceId, published: true }))
       .toEqual({ status: "forbidden" });
 
@@ -80,9 +80,9 @@ describe("ADR-0172 publicerad tävling", () => {
     expect(await isRacePubliclyVisible(db, raceId)).toBe(true);
 
     // Arbetsytan ser publiceringen och den korta adressen.
-    const entered = await enterRaceAsUserAccount(db, { ...owner.proof, raceId });
-    if (entered.status !== "entered") throw new Error("Ägaren kom inte in");
-    const workspace = await listEntryTransfersAsAdministrator(db, { sessionToken: entered.sessionToken, raceId });
+    const entered = await accountOnRace(db, { ...owner.proof, raceId });
+    if (entered.status !== "authenticated") throw new Error("Ägaren kom inte in");
+    const workspace = await listEntryTransfersAsAdmin(db, { sessionToken: entered.sessionToken, raceId });
     expect(workspace.status === "ok" && workspace.response.publication).toMatchObject({ publishedAt: publishedAt.toISOString() });
 
     // Dold av superadmin: syns inte, inte ens som förhandsvisning.

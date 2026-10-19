@@ -65,7 +65,7 @@ export function createClassEditActions(ws: Base & RaceDataActions & CourseEditAc
     if (!courseList) throw new Error("Class list missing");
     const response = await request(`/classes/${editingClassId}/edit-preview`, op, { method: "POST",
       headers: { "content-type": "application/json", "x-otid-csrf": csrf() },
-      body: JSON.stringify({ formatVersion: 1, expectedSnapshotVersion: courseList.snapshotVersion, courseId, startRule }) });
+      body: JSON.stringify({ formatVersion: 1, courseId, startRule }) });
     if (response.status === 409) return "conflict" as const;
     if (!response.ok) throw new Error("Class edit preview unavailable");
     const value = classEditPreviewResponseSchema.parse(await json(response, op));
@@ -138,7 +138,7 @@ export function createClassEditActions(ws: Base & RaceDataActions & CourseEditAc
           preview = read;
         }
         const request: ClassEditRequest = { formatVersion: 1, requestId: crypto.randomUUID(),
-          expectedSnapshotVersion: preview.snapshotVersion, classId: editingClassId, className: change.name,
+          classId: editingClassId, className: change.name,
           courseId: change.courseId, startRule: change.startRule, confirmResultChanges: preview.requiresConfirmation };
         attempt = { kind: "CLASS_EDIT", request };
         pending.current = attempt; sent.current = false; setClassEditAttempt(attempt);

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Database } from "@o-tid/database";
-import { changeEntryClassAsAdmin, recalculateEntryAsAdmin } from "../src/results";
+import { changeEntryClassAsAdmin } from "../src/results";
+import { recalculateEntryAsAdmin } from "../src/result-recalculation";
 
 describe("changeEntryClassAsAdmin requestgräns", () => {
   it("avvisar icke-strikt body och ogiltiga id före databas/auth", async () => {

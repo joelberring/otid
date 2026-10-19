@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { uuidSchema as uuid } from "./ids";
 
 /**
  * ADR-0170 beslut 1: tävlingstypen väljs när tävlingen skapas och kan ändras under Inställningar.
@@ -8,15 +9,13 @@ export const raceTypes = ["TRAINING", "SMALL", "STANDARD", "FORKED", "RELAY", "R
 export const raceTypeSchema = z.enum(raceTypes);
 export type RaceType = z.infer<typeof raceTypeSchema>;
 
-const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 const name = z.string().trim().min(2).max(160);
 
 /** Inställningar: tävlingens namn, loppets namn, datum och typ. Sparas direkt (inget resultat ändras). */
 export const raceSettingsRequestSchema = z.object({
   formatVersion: z.literal(1),
   requestId: uuid,
-  expectedSnapshotVersion: z.number().int().min(1).max(2_147_483_647),
-  eventName: name,
+    eventName: name,
   raceName: name,
   raceDate: z.iso.date(),
   raceType: raceTypeSchema

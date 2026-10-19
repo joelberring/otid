@@ -47,7 +47,7 @@ export function createCoursePreparationActions(ws: Base & RaceDataActions) {
       setCourseClassError(rogainingSv.invalid); return;
     }
     const request: CourseClassRequest = { formatVersion: 1, requestId: crypto.randomUUID(),
-      expectedSnapshotVersion: data.snapshotVersion, courseName: course, className: raceClass,
+      courseName: course, className: raceClass,
       // ADR-0170: typer utan val av startsätt (Träning, Rogaining) har alltid fri start.
       startRule: ws.profile.features.startRuleChoice ? courseStartRule : "PUNCH", controlCodes: codes,
       ...(rogaining ? { rogaining: { timeLimitMinutes: limit, penaltyPoints: penalty } } : {}) };
@@ -72,7 +72,6 @@ export function createCoursePreparationActions(ws: Base & RaceDataActions) {
       if (!response.ok) throw new Error("Course class unavailable");
       const receipt = manualCourseClassCreateResponseSchema.parse(await json(response, op));
       if (receipt.raceId !== raceId || receipt.requestId !== value.request.requestId ||
-        receipt.snapshotVersionBefore !== value.request.expectedSnapshotVersion ||
         JSON.stringify(receipt.request) !== JSON.stringify(value.request)) throw new Error("Course class receipt mismatch");
       committed = true;
       pending.current = undefined; sent.current = false; setCourseClassAttempt(undefined); setCourseClassError("");

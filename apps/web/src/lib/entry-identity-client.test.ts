@@ -4,7 +4,7 @@ const id = "10000000-0000-4000-8000-000000000001", other = "10000000-0000-4000-8
 const before = { givenName: "Åsa", familyName: "Löpare", organisationName: "Östra OK" };
 const after = { ...before, givenName: "Åse", organisationName: null };
 const attempt: IdentityAttempt = { id, entryId: id, request: { formatVersion: 1, expectedEntryVersion: 1,
-  expectedClassId: id, expectedSnapshotVersion: 3, expectedIdentity: before, identity: after } };
+  expectedClassId: id, expectedIdentity: before, identity: after } };
 const item = { requestId: id, classId: id, previousIdentity: before, identity: after,
   entryVersionBefore: 1, entryVersionAfter: 2, snapshotVersionBefore: 3, snapshotVersionAfter: 4, changedAt: "2026-09-09T10:00:00Z" };
 it("filters NFC names, club and class without changing entries or server order", () => {
@@ -21,7 +21,7 @@ it("requires exact receipt scope, previous values, normalized intent and version
   expect(parseIdentityReceipt(receipt, id, attempt)).toEqual(receipt);
   for (const patch of [{ raceId: other }, { entryId: other }, { requestId: other }, { classId: other },
     { previousIdentity: { ...before, givenName: "Fel" } }, { identity: { ...after, organisationName: "Fel" } },
-    { entryVersionBefore: 2, entryVersionAfter: 3 }, { snapshotVersionBefore: 4, snapshotVersionAfter: 5 }]) {
+    { entryVersionBefore: 2, entryVersionAfter: 3 }]) {
     expect(() => parseIdentityReceipt({ ...receipt, ...patch }, id, attempt)).toThrow();
   }
 });

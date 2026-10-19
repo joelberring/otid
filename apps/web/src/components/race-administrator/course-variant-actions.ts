@@ -56,7 +56,7 @@ export function createCourseVariantActions(ws: Base & RaceDataActions & CourseEd
     try {
       const response = await request(`/entries/${selected.id}/variant-preview`, op, { method: "POST",
         headers: { "content-type": "application/json", "x-otid-csrf": csrf() },
-        body: JSON.stringify({ formatVersion: 1, expectedSnapshotVersion: data.snapshotVersion, expectedEntryVersion: selected.version,
+        body: JSON.stringify({ formatVersion: 1, expectedEntryVersion: selected.version,
           variantCode }) });
       if (response.status === 409) { setEntryVariantError(text.variantConflict); await load(op, selected.id); return; }
       if (!response.ok) throw new Error("Entry variant preview unavailable");
@@ -65,7 +65,7 @@ export function createCourseVariantActions(ws: Base & RaceDataActions & CourseEd
         throw new Error("Entry variant preview mismatch");
       }
       const attempt: EntryVariantRequest = { formatVersion: 1, requestId: crypto.randomUUID(),
-        expectedSnapshotVersion: preview.snapshotVersion, expectedEntryVersion: selected.version, entryId: selected.id, variantCode,
+        expectedEntryVersion: selected.version, entryId: selected.id, variantCode,
         confirmResultChanges: preview.requiresConfirmation };
       setEntryVariantAttempt(attempt);
       // Resultatet ändras: visa beskedet och vänta på bekräftelse.
@@ -92,7 +92,7 @@ export function createCourseVariantActions(ws: Base & RaceDataActions & CourseEd
     setDistributionMessage("");
     const retry = distributionAttempt?.classId === classId ? distributionAttempt : undefined;
     const attempt: ClassVariantDistributionRequest = retry ?? { formatVersion: 1, requestId: crypto.randomUUID(),
-      expectedSnapshotVersion: courseList.snapshotVersion, classId };
+      classId };
     setDistributionAttempt(attempt);
     const op = begin();
     try {

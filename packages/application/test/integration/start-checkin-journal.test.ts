@@ -13,9 +13,9 @@ beforeAll(async () => migrate(db, { migrationsFolder: new URL("../../../database
 afterAll(async () => pool.end());
 
 // Storage tests, not authentication/usecase acceptance. All fixtures are synthetic.
-async function setup(capability: "START_CHECKIN" | "FINISH_FOREST_WATCH" = "START_CHECKIN") {
+async function setup(role: "ADMIN" | "FUNCTIONARY" = "FUNCTIONARY") {
   const f = { eventId: randomUUID(), raceId: randomUUID(), courseId: randomUUID(), courseVersionId: randomUUID(),
-    classId: randomUUID(), entryId: randomUUID(), actorCredentialId: randomUUID(), deviceId: randomUUID(), capability };
+    classId: randomUUID(), entryId: randomUUID(), actorAccountId: randomUUID(), deviceId: randomUUID(), role };
   await db.transaction(async (tx) => {
     await tx.insert(schema.events).values({ id: f.eventId, name: "Syntetisk skogskontroll", startsOn: "2026-09-05", timeZone: "Europe/Stockholm" });
     await tx.insert(schema.races).values({ id: f.raceId, eventId: f.eventId, name: "Testlopp", raceDate: "2026-09-05" });
@@ -23,16 +23,14 @@ async function setup(capability: "START_CHECKIN" | "FINISH_FOREST_WATCH" = "STAR
     await tx.insert(schema.courseVersions).values({ id: f.courseVersionId, courseId: f.courseId, version: 1 });
     await tx.insert(schema.classes).values({ id: f.classId, raceId: f.raceId, courseVersionId: f.courseVersionId, name: "Testklass" });
     await tx.insert(schema.entries).values({ id: f.entryId, raceId: f.raceId, classId: f.classId, givenName: "Test", familyName: "Löpare" });
-    await tx.insert(schema.pairingAdminAccessCredentials).values({ id: f.actorCredentialId, raceId: f.raceId, capability,
-      label: "Synthetic operator", secretHash: "a".repeat(64), issuedAt: at, expiresAt: new Date("2026-09-05T16:00:00.000Z") });
-    await tx.insert(schema.startCheckinDevices).values({ id: f.deviceId, raceId: f.raceId, actorCredentialId: f.actorCredentialId,
-      capability, label: "Testmobil", registeredAt: at });
+    await tx.insert(schema.startCheckinDevices).values({ id: f.deviceId, raceId: f.raceId, actorAccountId: f.actorAccountId,
+      role, label: "Testmobil", registeredAt: at });
   });
   return f;
 }
 
 function journal(f: Awaited<ReturnType<typeof setup>>, overrides: Partial<typeof schema.startCheckinOperations.$inferInsert> = {}) {
-  const operation = { formatVersion: 1, requestId: randomUUID(), deviceId: f.deviceId, actorCredentialId: f.actorCredentialId,
+  const operation = { formatVersion: 1, requestId: randomUUID(), deviceId: f.deviceId, actorAccountId: f.actorAccountId,
     raceId: f.raceId, entryId: f.entryId, localSequence: 1, packageVersion: 1, expectedEntryVersion: 1, expectedRevision: 0,
     dependsOnRequestId: null, observedAt: at.toISOString(), action: { kind: "MARK_START", state: "UNMARKED" } };
   const contentHash = createHash("sha256").update(canonicalStartCheckinOperation(operation)).digest("hex");
@@ -40,7 +38,7 @@ function journal(f: Awaited<ReturnType<typeof setup>>, overrides: Partial<typeof
     deviceId: f.deviceId, raceId: f.raceId, entryId: f.entryId, localSequence: 1, contentHash,
     receivedAt: at.toISOString(), effect: { kind: "UNCHANGED", revision: 0 } });
   const result: typeof schema.startCheckinOperations.$inferInsert = {
-    requestId: operation.requestId, deviceId: f.deviceId, actorCredentialId: f.actorCredentialId,
+    requestId: operation.requestId, deviceId: f.deviceId, actorAccountId: f.actorAccountId,
     raceId: f.raceId, entryId: f.entryId, localSequence: 1, packageVersion: 1, expectedEntryVersion: 1, expectedRevision: 0,
     contentHash, intent: operation, observedAt: at, receivedAt: at, effect: "UNCHANGED", resultingRevision: 0,
     createdRevisionId: null, conflictReason: null, receipt, ...overrides
@@ -101,13 +99,14 @@ describe("TASK 006W PostgreSQL journal substrate", () => {
     expect(await db.select().from(schema.startCheckinRevisions).where(eq(schema.startCheckinRevisions.id, rows.revision.id))).toHaveLength(0);
   });
 
-  it("binds device to exact race/credential/capability and operations to race/entry/device owner", async () => {
-    const f = await setup(), other = await setup("FINISH_FOREST_WATCH");
-    for (const overrides of [{ raceId: other.raceId }, { actorCredentialId: other.actorCredentialId }, { capability: "FINISH_FOREST_WATCH" as const }]) {
-      await expect(db.insert(schema.startCheckinDevices).values({ id: randomUUID(), raceId: f.raceId,
-        actorCredentialId: f.actorCredentialId, capability: f.capability, label: "Test", registeredAt: at, ...overrides })).rejects.toThrow();
-    }
-    for (const overrides of [{ entryId: other.entryId }, { actorCredentialId: other.actorCredentialId }, { deviceId: other.deviceId }, { raceId: other.raceId }]) {
+  it("binds a device to one race, account and role and operations to race/entry/device owner", async () => {
+    const f = await setup(), other = await setup("ADMIN");
+    // En källa per konto, tävling och roll; bara administratörens och funktionärens roller.
+    await expect(db.insert(schema.startCheckinDevices).values({ id: randomUUID(), raceId: f.raceId,
+      actorAccountId: f.actorAccountId, role: f.role, label: "Test", registeredAt: at })).rejects.toThrow();
+    await expect(db.insert(schema.startCheckinDevices).values({ id: randomUUID(), raceId: f.raceId,
+      actorAccountId: randomUUID(), role: "SPEAKER" as "ADMIN", label: "Test", registeredAt: at })).rejects.toThrow();
+    for (const overrides of [{ entryId: other.entryId }, { actorAccountId: other.actorAccountId }, { deviceId: other.deviceId }, { raceId: other.raceId }]) {
       await expect(db.insert(schema.startCheckinOperations).values(journal(f, overrides))).rejects.toThrow();
     }
   });
@@ -166,16 +165,4 @@ describe("TASK 006W PostgreSQL journal substrate", () => {
     await expect(db.insert(schema.startCheckinOperations).values({ ...journal(f), receipt: sql`'null'::jsonb` })).rejects.toThrow();
   });
 
-  it("does not admit read-only credentials or extend start/finish credential lifetime", async () => {
-    const f = await setup();
-    const credential = { id: randomUUID(), raceId: f.raceId, capability: "VIEW_START_LIST" as const,
-      label: "Read only", secretHash: "b".repeat(64), issuedAt: at, expiresAt: new Date("2026-09-05T16:00:00.000Z") };
-    await db.insert(schema.pairingAdminAccessCredentials).values(credential);
-    await expect(db.insert(schema.startCheckinDevices).values({ id: randomUUID(), raceId: f.raceId,
-      actorCredentialId: credential.id, capability: "VIEW_START_LIST", label: "No write authority", registeredAt: at })).rejects.toThrow();
-    for (const capability of ["START_CHECKIN", "FINISH_FOREST_WATCH"] as const) {
-      await expect(db.insert(schema.pairingAdminAccessCredentials).values({ ...credential, id: randomUUID(), capability,
-        expiresAt: new Date("2026-09-05T16:00:00.001Z") })).rejects.toThrow();
-    }
-  });
 });

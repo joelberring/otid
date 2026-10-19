@@ -6,6 +6,7 @@ import {
   validateStoredStartCheckinDnsWithdrawal
 } from "./start-checkin-dns-source";
 import { StoredResultRevisionConflict } from "./stored-result-revision";
+import { UUID_PATTERN } from "./serialization";
 
 type DatabaseTransaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 type Operation = typeof schema.startCheckinOperations.$inferSelect;
@@ -14,7 +15,6 @@ type Device = typeof schema.startCheckinDevices.$inferSelect;
 
 const MAX_ENTRIES = 10_000;
 const MAX_SOURCES = 100_000;
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 export type StoredStartCheckinDnsState = {
   readonly source: Parameters<typeof validateStoredStartCheckinDns>[0];

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import type {
-  authenticatePairingAdminSession,
+  requireRaceRole,
   importIofXmlAsAdmin
 } from "@o-tid/application";
 import type { Database } from "@o-tid/database";
@@ -14,7 +14,7 @@ const environment = { NODE_ENV: "production", O_TID_PUBLIC_ORIGIN: "https://otid
 const raceId = "10000000-0000-4000-8000-000000000001";
 const requestId = "10000000-0000-4000-8000-000000000002";
 const importFileId = "10000000-0000-4000-8000-000000000003";
-const sessionToken = `otid_org_session_v1.10000000-0000-4000-8000-000000000005.${"s".repeat(43)}`;
+const sessionToken = `otid_user_session_v1.10000000-0000-4000-8000-000000000005.${"s".repeat(43)}`;
 const csrfToken = "c".repeat(43);
 const sessionCookie = `__Host-otid-import-admin-session=${sessionToken}`;
 const csrfCookie = `__Host-otid-import-admin-csrf=${csrfToken}`;
@@ -38,9 +38,8 @@ function authenticated() {
   return {
     status: "authenticated" as const,
     principal: {
-      accessCredentialId: "10000000-0000-4000-8000-000000000006",
-      raceId,
-      capability: "IMPORT_IOF" as const,
+      accountId: "10000000-0000-4000-8000-000000000006",
+      raceId, eventId: raceId, grantId: raceId, grantRole: "OWNER" as const, role: "ADMIN" as const,
       sessionId: "10000000-0000-4000-8000-000000000005",
       expiresAt: "2026-08-31T13:00:00.000Z"
     }
@@ -60,7 +59,7 @@ describe("TASK 005G importadmin-routes", () => {
       })),
       body: { getReader() { pulled += 1; throw new Error("body lästes"); } }
     } as unknown as Request;
-    const authenticate = vi.fn(async () => ({ status: "unauthorized" as const })) as unknown as typeof authenticatePairingAdminSession;
+    const authenticate = vi.fn(async () => ({ status: "unauthorized" as const })) as unknown as typeof requireRaceRole;
     const runImport = vi.fn() as unknown as typeof importIofXmlAsAdmin;
     const response = await authenticatedIofImportRoute(db, unreadRequest, raceId, authenticate, runImport, environment);
     expect(response.status).toBe(401);
@@ -71,7 +70,7 @@ describe("TASK 005G importadmin-routes", () => {
   it("skickar exakt BOM-innehållande råbytesföljd till det återautentiserande usecaset", async () => {
     const xmlBytes = new Uint8Array([0xef, 0xbb, 0xbf, ...new TextEncoder().encode("<CourseData/>")]);
     const hash = createHash("sha256").update(xmlBytes).digest("hex");
-    const authenticate = vi.fn(async () => authenticated()) as unknown as typeof authenticatePairingAdminSession;
+    const authenticate = vi.fn(async () => authenticated()) as unknown as typeof requireRaceRole;
     const runImportImplementation = async (
       _db: Parameters<typeof importIofXmlAsAdmin>[0],
       input: Parameters<typeof importIofXmlAsAdmin>[1]
@@ -100,7 +99,7 @@ describe("TASK 005G importadmin-routes", () => {
     ["application/xml", "iof-import:NOT-A-UUID", new TextEncoder().encode("<CourseData/>"), 400],
     ["application/xml", `iof-import:${requestId}`, new Uint8Array([0xff]), 400]
   ] as const)("avvisar content-type/idempotens/UTF-8 stabilt", async (contentType, key, body, expected) => {
-    const authenticate = vi.fn(async () => authenticated()) as unknown as typeof authenticatePairingAdminSession;
+    const authenticate = vi.fn(async () => authenticated()) as unknown as typeof requireRaceRole;
     const runImport = vi.fn() as unknown as typeof importIofXmlAsAdmin;
     const response = await authenticatedIofImportRoute(db, request("POST", body, unsafeHeaders({
       "content-type": contentType, "idempotency-key": key
@@ -111,7 +110,7 @@ describe("TASK 005G importadmin-routes", () => {
   });
 
   it("stoppar faktisk chunked body över 5 000 000 bytes oberoende av deklarerad längd", async () => {
-    const authenticate = vi.fn(async () => authenticated()) as unknown as typeof authenticatePairingAdminSession;
+    const authenticate = vi.fn(async () => authenticated()) as unknown as typeof requireRaceRole;
     const runImport = vi.fn() as unknown as typeof importIofXmlAsAdmin;
     const response = await authenticatedIofImportRoute(db, request("POST", new Uint8Array(5_000_001), unsafeHeaders({
       "content-type": "application/xml", "idempotency-key": `iof-import:${requestId}`
@@ -127,7 +126,7 @@ describe("TASK 005G importadmin-routes", () => {
     ["invalid-iof-xml", 422, "INVALID_IOF_XML"],
     ["conflict", 409, "CONFLICT"]
   ] as const)("mappar usecase-%s utan intern detalj", async (status, expectedStatus, code) => {
-    const authenticate = vi.fn(async () => authenticated()) as unknown as typeof authenticatePairingAdminSession;
+    const authenticate = vi.fn(async () => authenticated()) as unknown as typeof requireRaceRole;
     const runImport = vi.fn(async () => ({ status })) as unknown as typeof importIofXmlAsAdmin;
     const response = await authenticatedIofImportRoute(db, request("POST", "<CourseData/>", unsafeHeaders({
       "content-type": "application/xml", "idempotency-key": `iof-import:${requestId}`
@@ -140,7 +139,7 @@ describe("TASK 005G importadmin-routes", () => {
 
 
   it("maskerar oväntade fel och rå Error.message", async () => {
-    const authenticate = vi.fn(async () => { throw new Error("hemlig databasdetalj"); }) as unknown as typeof authenticatePairingAdminSession;
+    const authenticate = vi.fn(async () => { throw new Error("hemlig databasdetalj"); }) as unknown as typeof requireRaceRole;
     const response = await authenticatedIofImportRoute(db, request("POST", "<CourseData/>", unsafeHeaders({
       "content-type": "application/xml", "idempotency-key": `iof-import:${requestId}`
     })), raceId, authenticate, vi.fn() as unknown as typeof importIofXmlAsAdmin, environment);

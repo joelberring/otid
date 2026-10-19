@@ -2,13 +2,12 @@ import { and, eq, sql } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
 import { entryCardRentalChangeIdempotencyKeySchema, entryCardRentalChangeRequestSchema,
   entryCardRentalChangeResponseSchema } from "@o-tid/contracts";
-import { authenticatePairingAdminSession, authenticatePairingAdminSessionForMutation,
-  type PairingAdminRequestAuthentication } from "./pairing-admin";
+import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation } from "./concurrency";
+import { bumpReadoutPackageVersion } from "./snapshot";
+import { UUID_PATTERN as uuid } from "./serialization";
 
-type Authentication = Omit<PairingAdminRequestAuthentication, "capability">;
-const capability = "MANAGE_RACE" as const;
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+type Authentication = RaceSessionProof;
 const maxVersion = 2_147_483_647;
 
 function receipt(row: typeof schema.entryCardRentalChanges.$inferSelect, replayed: boolean) {
@@ -22,7 +21,7 @@ function receipt(row: typeof schema.entryCardRentalChanges.$inferSelect, replaye
   });
 }
 
-export async function changeEntryCardRentalAsAdministrator(db: Database,
+export async function changeEntryCardRentalAsAdmin(db: Database,
   input: Authentication & { entryId: string; idempotencyKey: string | null; request: unknown }, now = new Date()) {
   const key = entryCardRentalChangeIdempotencyKeySchema.safeParse(input.idempotencyKey);
   const parsed = entryCardRentalChangeRequestSchema.safeParse(input.request);
@@ -31,11 +30,11 @@ export async function changeEntryCardRentalAsAdministrator(db: Database,
   }
   const intent = parsed.data;
   const requestId = key.data.slice("entry-card-rental-change:".length);
-  const authentication = { ...input, capability, requireCsrf: true };
-  const preflight = await authenticatePairingAdminSession(db, authentication, now);
+  const authentication = { ...input, role: "ADMIN" as const, requireCsrf: true };
+  const preflight = await requireRaceRole(db, authentication, now);
   if (preflight.status !== "authenticated") return preflight;
   return db.transaction(async (tx) => {
-    const auth = await authenticatePairingAdminSessionForMutation(tx, authentication, now);
+    const auth = await requireRaceRole(tx, authentication, now, "update");
     if (auth.status !== "authenticated") return auth;
     const race = await lockRaceForMutation(tx, input.raceId);
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${requestId}, 0))`);
@@ -43,9 +42,8 @@ export async function changeEntryCardRentalAsAdministrator(db: Database,
       .where(eq(schema.entryCardRentalChanges.requestId, requestId));
     if (existing) {
       if (existing.raceId !== input.raceId || existing.entryId !== input.entryId ||
-        existing.actorCredentialId !== auth.principal.accessCredentialId ||
+        existing.actorAccountId !== auth.principal.accountId ||
         existing.classId !== intent.expectedClassId || existing.entryVersionBefore !== intent.expectedEntryVersion ||
-        existing.snapshotVersionBefore !== intent.expectedSnapshotVersion ||
         existing.assignmentId !== intent.expectedAssignment.id || existing.cardNumber !== intent.expectedAssignment.cardNumber ||
         existing.previousIsRental !== intent.expectedAssignment.isRental || existing.isRental !== intent.isRental) {
         return { status: "conflict" as const };
@@ -60,7 +58,7 @@ export async function changeEntryCardRentalAsAdministrator(db: Database,
       eq(schema.cardAssignments.active, true))).limit(2).for("update");
     const assignment = active[0];
     if (active.length !== 1 || !assignment || entry.version !== intent.expectedEntryVersion ||
-      entry.classId !== intent.expectedClassId || race.snapshotVersion !== intent.expectedSnapshotVersion ||
+      entry.classId !== intent.expectedClassId ||
       entry.version >= maxVersion || race.snapshotVersion >= maxVersion ||
       assignment.id !== intent.expectedAssignment.id || assignment.cardNumber !== intent.expectedAssignment.cardNumber ||
       assignment.isRental !== intent.expectedAssignment.isRental || assignment.isRental === intent.isRental) {
@@ -71,11 +69,11 @@ export async function changeEntryCardRentalAsAdministrator(db: Database,
     await tx.update(schema.cardAssignments).set({ isRental: intent.isRental })
       .where(eq(schema.cardAssignments.id, assignment.id));
     await tx.update(schema.entries).set({ version: entryVersionAfter }).where(eq(schema.entries.id, entry.id));
-    await tx.update(schema.races).set({ snapshotVersion: snapshotVersionAfter }).where(eq(schema.races.id, input.raceId));
+    await bumpReadoutPackageVersion(tx, input.raceId);
     const [saved] = await tx.insert(schema.entryCardRentalChanges).values({
       requestId, raceId: input.raceId, entryId: entry.id, classId: entry.classId,
       assignmentId: assignment.id, cardNumber: assignment.cardNumber,
-      actorCredentialId: auth.principal.accessCredentialId, capability,
+      actorAccountId: auth.principal.accountId,
       previousIsRental: assignment.isRental, isRental: intent.isRental,
       entryVersionBefore: entry.version, entryVersionAfter,
       snapshotVersionBefore: race.snapshotVersion, snapshotVersionAfter, changedAt: now
@@ -83,8 +81,8 @@ export async function changeEntryCardRentalAsAdministrator(db: Database,
     if (!saved) throw new Error("Hyrbricksjournalen kunde inte sparas");
     await tx.insert(schema.auditEvents).values({
       raceId: input.raceId, entityType: "entry", entityId: entry.id,
-      action: "ENTRY_CARD_RENTAL_CHANGED_BY_ADMIN", actorKind: "RACE_ADMIN_ACCESS_CREDENTIAL",
-      actorId: auth.principal.accessCredentialId, requestId,
+      action: "ENTRY_CARD_RENTAL_CHANGED_BY_ADMIN", actorKind: "USER_ACCOUNT",
+      actorId: auth.principal.accountId, requestId,
       before: { assignmentId: assignment.id, cardNumber: assignment.cardNumber, isRental: assignment.isRental,
         entryVersion: entry.version, snapshotVersion: race.snapshotVersion },
       after: { assignmentId: assignment.id, cardNumber: assignment.cardNumber, isRental: intent.isRental,

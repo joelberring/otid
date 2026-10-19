@@ -1,22 +1,24 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { and, desc, eq, ne, or, sql } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
 import { canonicalStartCheckinOperation, StartCheckinOperationSchema, StartCheckinReceiptSchema,
   type StartCheckinReceipt, type StartCheckinSyncRequest } from "@o-tid/contracts";
 import { createDidNotStartResult, planStartCheckinSync } from "@o-tid/domain";
 import { resolveStoredResultHeadStates } from "./result-revision-state";
-import { allowsStartCheckinSourceAction, type OnlineStartCheckinCapability } from "./start-checkin-source-action";
+import { appendResultRevision } from "./result-revisions";
+import { allowsStartCheckinSourceAction, type StartCheckinSourceRole } from "./start-checkin-source-action";
+import { sha256Hex } from "./serialization";
 
 type StoredOperation = typeof schema.startCheckinOperations.$inferSelect;
 
 function hash(value: unknown) {
-  return createHash("sha256").update(canonicalStartCheckinOperation(value)).digest("hex");
+  return sha256Hex(canonicalStartCheckinOperation(value));
 }
 
 function storedReceipt(row: StoredOperation): StartCheckinReceipt {
   const intent = StartCheckinOperationSchema.parse(row.intent);
   const receipt = StartCheckinReceiptSchema.parse(row.receipt);
-  if (intent.requestId !== row.requestId || intent.deviceId !== row.deviceId || intent.actorCredentialId !== row.actorCredentialId ||
+  if (intent.requestId !== row.requestId || intent.deviceId !== row.deviceId || intent.actorAccountId !== row.actorAccountId ||
       intent.raceId !== row.raceId || intent.entryId !== row.entryId || intent.localSequence !== row.localSequence ||
       intent.packageVersion !== row.packageVersion || intent.expectedEntryVersion !== row.expectedEntryVersion ||
       intent.expectedRevision !== row.expectedRevision || intent.observedAt !== row.observedAt.toISOString() ||
@@ -40,19 +42,19 @@ export { storedReceipt as validateStoredStartCheckinReceipt };
 export async function storeAuthorizedStartCheckinOperation(
   tx: Parameters<Parameters<Database["transaction"]>[0]>[0],
   request: StartCheckinSyncRequest,
-  capability: OnlineStartCheckinCapability,
+  role: StartCheckinSourceRole,
   now: Date
 ) {
     const { operation: op, contentHash } = request;
     if (hash(op) !== contentHash) return { status: "invalid-request" as const };
-    if (!allowsStartCheckinSourceAction(capability, op.action)) {
+    if (!allowsStartCheckinSourceAction(role, op.action)) {
       return { status: "forbidden" as const };
     }
     const [race] = await tx.select().from(schema.races).where(eq(schema.races.id, op.raceId)).for("share");
     if (!race) return { status: "not-found" as const };
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${'start-checkin-request:' + op.requestId}, 0))`);
     const [device] = await tx.select().from(schema.startCheckinDevices).where(eq(schema.startCheckinDevices.id, op.deviceId)).for("update");
-    if (!device || device.raceId !== race.id || device.actorCredentialId !== op.actorCredentialId || device.capability !== capability) {
+    if (!device || device.raceId !== race.id || device.actorAccountId !== op.actorAccountId || device.role !== role) {
       return { status: "forbidden" as const };
     }
     const previous = await tx.select().from(schema.startCheckinOperations).where(or(
@@ -62,7 +64,7 @@ export async function storeAuthorizedStartCheckinOperation(
     if (previous.length > 0) {
       const saved = previous[0];
       if (previous.length !== 1 || !saved || saved.requestId !== op.requestId || saved.deviceId !== op.deviceId ||
-          saved.actorCredentialId !== op.actorCredentialId || saved.contentHash !== contentHash || hash(saved.intent) !== contentHash) {
+          saved.actorAccountId !== op.actorAccountId || saved.contentHash !== contentHash || hash(saved.intent) !== contentHash) {
         return { status: "conflict" as const };
       }
       return { status: "stored" as const, response: storedReceipt(saved) };
@@ -92,7 +94,7 @@ export async function storeAuthorizedStartCheckinOperation(
     let conflict: Extract<StartCheckinReceipt["effect"], { kind: "CONFLICT" }>["reason"] | undefined;
     if (op.dependsOnRequestId !== null) {
       const [dependency] = await tx.select().from(schema.startCheckinOperations).where(eq(schema.startCheckinOperations.requestId, op.dependsOnRequestId));
-      if (!dependency || dependency.deviceId !== op.deviceId || dependency.actorCredentialId !== op.actorCredentialId ||
+      if (!dependency || dependency.deviceId !== op.deviceId || dependency.actorAccountId !== op.actorAccountId ||
           dependency.raceId !== race.id || dependency.entryId !== entry.id || dependency.localSequence >= op.localSequence ||
           storedReceipt(dependency).effect.kind === "CONFLICT" || dependency.resultingRevision !== op.expectedRevision) conflict = "DEPENDENCY_CONFLICT";
     }
@@ -131,7 +133,7 @@ export async function storeAuthorizedStartCheckinOperation(
       deviceId: op.deviceId, raceId: race.id, entryId: entry.id, localSequence: op.localSequence,
       contentHash, receivedAt: now.toISOString(), effect });
     await tx.insert(schema.startCheckinOperations).values({ requestId: op.requestId, deviceId: op.deviceId,
-      actorCredentialId: op.actorCredentialId, raceId: op.raceId, entryId: op.entryId, localSequence: op.localSequence,
+      actorAccountId: op.actorAccountId, raceId: op.raceId, entryId: op.entryId, localSequence: op.localSequence,
       packageVersion: op.packageVersion, expectedEntryVersion: op.expectedEntryVersion, expectedRevision: op.expectedRevision,
       intent: op, observedAt: new Date(op.observedAt), receivedAt: now,
       contentHash, effect: effect.kind, resultingRevision: effect.revision, createdRevisionId: revisionId,
@@ -141,28 +143,28 @@ export async function storeAuthorizedStartCheckinOperation(
         revision: plan.revision, startState: plan.state, manualReturnRegistered: plan.manualReturnRegistered });
       if (plan.dnsEffect === "CREATE") {
         const decisionId = randomUUID(), resultId = randomUUID(), resultRevision = (latest?.revision ?? 0) + 1;
-        await tx.insert(schema.resultRevisions).values({ id: resultId, raceId: race.id, entryId: entry.id, revision: resultRevision,
-          cause: "START_CHECKIN_DID_NOT_START", startCheckinDnsDecisionId: decisionId, status: "DNS", reason: "DID_NOT_START",
-          evaluation: createDidNotStartResult({ entryId: entry.id, classId: raceClass.id, courseVersionId: raceClass.courseVersionId }),
+        await appendResultRevision(tx, { id: resultId, raceId: race.id, entryId: entry.id, expectedRevision: resultRevision,
+          cause: "START_CHECKIN_DID_NOT_START", startCheckinDnsDecisionId: decisionId,
+          outcome: createDidNotStartResult({ entryId: entry.id, classId: raceClass.id, courseVersionId: raceClass.courseVersionId }),
           engineVersion: "start-checkin-dns-v1", snapshotVersion: race.snapshotVersion, courseVersionId: raceClass.courseVersionId,
-          published: true, createdAt: now });
+          createdAt: now });
         await tx.insert(schema.startCheckinDnsDecisions).values({ id: decisionId, raceId: race.id, entryId: entry.id,
-          actorCredentialId: op.actorCredentialId, operationRequestId: op.requestId, startCheckinRevisionId: revisionId,
+          actorAccountId: op.actorAccountId, operationRequestId: op.requestId, startCheckinRevisionId: revisionId,
           operationalRevision: plan.revision, classId: raceClass.id, courseVersionId: raceClass.courseVersionId,
           snapshotVersion: race.snapshotVersion, expectedLatestResultRevision: latest?.revision ?? 0,
           createdResultRevisionId: resultId, createdResultRevision: resultRevision, policyVersion: "start-checkin-dns-v1", decidedAt: now });
       } else if (plan.dnsEffect === "WITHDRAW") {
         if (!state?.startCheckinDns || !latest) throw new Error("DNS-rättningen saknar exakt källa");
         await tx.insert(schema.startCheckinDnsWithdrawals).values({ raceId: race.id, entryId: entry.id,
-          actorCredentialId: op.actorCredentialId, operationRequestId: op.requestId, startCheckinRevisionId: revisionId,
+          actorAccountId: op.actorAccountId, operationRequestId: op.requestId, startCheckinRevisionId: revisionId,
           operationalRevision: plan.revision, startCheckinDnsDecisionId: state.startCheckinDns.source.decision.id,
           withdrawnResultRevisionId: latest.id, withdrawnResultRevision: latest.revision,
           policyVersion: "start-checkin-dns-withdrawal-v1", withdrawnAt: now });
       }
     }
     await tx.insert(schema.auditEvents).values({ raceId: race.id, entityType: "start_checkin_operation", entityId: op.requestId,
-      requestId: op.requestId, action: "START_CHECKIN_OPERATION_STORED", actorId: op.actorCredentialId,
-      actorKind: "RACE_ADMIN_ACCESS_CREDENTIAL",
+      requestId: op.requestId, action: "START_CHECKIN_OPERATION_STORED", actorId: op.actorAccountId,
+      actorKind: "USER_ACCOUNT",
       after: { deviceId: op.deviceId, entryId: entry.id, effect: receipt.effect }, createdAt: now });
     return { status: "stored" as const, response: receipt };
 }

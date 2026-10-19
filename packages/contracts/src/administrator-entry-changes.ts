@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { fixedStartTimeSchema } from "./entry-start-time-admin";
+import { uuidSchema as uuid } from "./ids";
 
-const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 const version = z.number().int().positive().max(2_147_483_647);
 const fields = {
   CLASS: ["CLASS"], TRANSFER: ["CLASS", "START_TIME"], CARD: ["CARD"], START_TIME: ["START_TIME"],

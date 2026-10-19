@@ -35,16 +35,12 @@ function person() {
 
 async function fixture() {
   const eventId = randomUUID(), raceId = randomUUID(), courseId = randomUUID(), courseVersionId = randomUUID();
-  const classId = randomUUID(), actorCredentialId = randomUUID(), finalizationId = randomUUID(), classFinalizationId = randomUUID();
+  const classId = randomUUID(), actorAccountId = randomUUID(), finalizationId = randomUUID(), classFinalizationId = randomUUID();
   await db.insert(schema.events).values({ id: eventId, name: "Live-namn som får ändras", startsOn: "2026-09-21", timeZone: "Europe/Stockholm" });
   await db.insert(schema.races).values({ id: raceId, eventId, name: "Långdistans", raceDate: "2026-09-21" });
   await db.insert(schema.courses).values({ id: courseId, raceId, name: "Bana 1" });
   await db.insert(schema.courseVersions).values({ id: courseVersionId, courseId, version: 1 });
   await db.insert(schema.classes).values({ id: classId, raceId, courseVersionId, name: "H21", startRule: "PUNCH" });
-  await db.insert(schema.pairingAdminAccessCredentials).values({
-    id: actorCredentialId, raceId, capability: "FINALIZE_RESULTS", label: "TASK127 syntetisk", secretHash: hash,
-    issuedAt: new Date("2026-09-21T14:00:00.000Z"), expiresAt: new Date("2026-09-21T15:00:00.000Z")
-  });
   const result = { source: { entryId: randomUUID(), resultRevisionId: randomUUID(), revision: 1, courseVersionId,
     kind: "READOUT_RESULT" as const, readoutId: randomUUID() }, personResult: person() };
   const classData = { name: "H21", externalId: null, results: [result] };
@@ -54,14 +50,14 @@ async function fixture() {
   await db.insert(schema.resultFinalizations).values({
     id: finalizationId, requestId: randomUUID(), raceId, scope: "RACE", classId: null, scopeRevision: 1,
     sourceSnapshotVersion: 1, sourceHash: hash, frozenProjection: raceProjection, completeXml,
-    completeXmlHash: createHash("sha256").update(completeXml).digest("hex"), actorCredentialId, finalizedAt
+    completeXmlHash: createHash("sha256").update(completeXml).digest("hex"), actorAccountId, finalizedAt
   });
   const classProjection = { formatVersion: 9 as const, scope: "CLASS" as const, raceId, classId,
     snapshotVersion: 1, basisSha256: hash, class: classData };
   await db.insert(schema.resultFinalizations).values({
     id: classFinalizationId, requestId: randomUUID(), raceId, scope: "CLASS", classId, scopeRevision: 1,
     sourceSnapshotVersion: 1, sourceHash: hash, frozenProjection: classProjection, completeXml: null,
-    completeXmlHash: null, actorCredentialId, finalizedAt
+    completeXmlHash: null, actorAccountId, finalizedAt
   });
   return { eventId, raceId, finalizationId, classFinalizationId };
 }

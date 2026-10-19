@@ -47,7 +47,6 @@ describe("TASK 006D finaliseringsklient", () => {
         formatVersion: 1,
         scope: "CLASS",
         classId,
-        expectedSnapshotVersion: 4,
         expectedBasisHash: hashA,
         expectedLatestScopeRevision: null
       }
@@ -61,7 +60,6 @@ describe("TASK 006D finaliseringsklient", () => {
       formatVersion: 1,
       scope: "RACE",
       classId: null,
-      expectedSnapshotVersion: 4,
       expectedBasisHash: hashB,
       expectedLatestScopeRevision: null
     });

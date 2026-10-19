@@ -3,21 +3,22 @@ import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase, migrate } from "@o-tid/database";
 import { raceSnapshotSchema, type DeviceBatch, type SportidentReadoutPayload } from "@o-tid/contracts";
-import { contentHash } from "../../src/hash";
-import { createEventAsUserAccount, enterRaceAsUserAccount } from "../../src/organizer-events";
+import { contentHash } from "../../src/serialization";
+import { createOrganizerEvent } from "../../src/organizer-events";
 import { registerUserAccount } from "../../src/user-account";
 import { importIofXmlAsAdmin } from "../../src/import-iof";
 import { registerEntryAsAdmin } from "../../src/entry-registration";
-import { ingestReadoutsAsAdministrator, readReadoutPackageAsAdministrator } from "../../src/readout-station";
+import { ingestReadoutsAsAdmin, readReadoutPackageAsAdmin } from "../../src/readout-station";
 import { getAdministratorEffectiveResult } from "../../src/administrator-effective-result";
-import { listCoursesForEditAsAdministrator, previewCourseEditAsAdministrator, editCourseAsAdministrator } from "../../src/course-edit";
+import { listCoursesForEditAsAdmin, previewCourseEditAsAdmin, editCourseAsAdmin } from "../../src/course-edit";
 import {
-  changeEntryVariantAsAdministrator, distributeClassVariantsAsAdministrator, previewEntryVariantAsAdministrator
+  changeEntryVariantAsAdmin, distributeClassVariantsAsAdmin, previewEntryVariantAsAdmin
 } from "../../src/course-variant-assignment";
-import { commitStartDrawAsAdministrator } from "../../src/start-draw";
+import { commitStartDrawAsAdmin } from "../../src/start-draw";
 import { publicResults } from "../../src/results";
 import { exportIofResultListAsAdmin } from "../../src/result-list-export";
 import { listResultFinalizationCandidatesAsAdmin } from "../../src/result-finalization";
+import { accountOnRace } from "./accounts";
 
 const base = process.env.TEST_DATABASE_URL;
 if (!base) throw new Error("ADR-0169-testet kräver TEST_DATABASE_URL till en PostgreSQL-roll med CREATEDB");
@@ -57,12 +58,12 @@ async function race(): Promise<Proof> {
   const account = await registerUserAccount(db, { formatVersion: 1, email: `gaffel.${suffix}@test.o-tid.se`, displayName: "Arrangör", password: "hemligt-lösen" });
   if (account.status !== "authenticated") throw new Error("Kontot kunde inte skapas");
   const accountProof = { sessionToken: account.sessionToken, csrfCookie: account.csrfToken, csrfHeader: account.csrfToken };
-  const created = await createEventAsUserAccount(db, { ...accountProof, idempotencyKey: `organizer-event-create:${randomUUID()}`,
+  const created = await createOrganizerEvent(db, { ...accountProof, idempotencyKey: `organizer-event-create:${randomUUID()}`,
     readBody: async () => ({ formatVersion: 1, eventName: "Klubbträning", raceName: "Torsdag", raceDate: "2026-10-08", timeZone: "Europe/Stockholm" }) });
   if (created.status !== "created") throw new Error("Tävlingen kunde inte skapas");
   const { raceId } = created.response;
-  const entered = await enterRaceAsUserAccount(db, { ...accountProof, raceId });
-  if (entered.status !== "entered") throw new Error("Kom inte in i tävlingen");
+  const entered = await accountOnRace(db, { ...accountProof, raceId });
+  if (entered.status !== "authenticated") throw new Error("Kom inte in i tävlingen");
   return { raceId, sessionToken: entered.sessionToken, csrfCookie: entered.csrfToken, csrfHeader: entered.csrfToken };
 }
 
@@ -92,7 +93,7 @@ async function readout(proof: Proof, cardNumber: string, codes: readonly number[
   const batch: DeviceBatch = { deviceId: randomUUID(), sessionId: randomUUID(), packageVersion: await snapshot(proof.raceId),
     firstSequence: 1, lastSequence: 1,
     events: [{ localSequence: 1, stationReceivedAt: "2026-10-08T17:01:00.000Z", transport: "sportident", payload, contentHash: contentHash(payload) }] };
-  const ingested = await ingestReadoutsAsAdministrator(db, { ...proof, batch });
+  const ingested = await ingestReadoutsAsAdmin(db, { ...proof, batch });
   if (ingested.status !== "ok") throw new Error(`Avläsningen togs inte emot: ${ingested.status}`);
 }
 
@@ -115,7 +116,7 @@ describe("ADR-0169 gafflingar", () => {
     const ids = await entryIds(proof.raceId);
 
     // Avläsningspaketet bär varianterna och löparnas koder och följer kontraktet.
-    const pkg = await readReadoutPackageAsAdministrator(db, proof);
+    const pkg = await readReadoutPackageAsAdmin(db, proof);
     if (pkg.status !== "ok") throw new Error("Paketet saknas");
     raceSnapshotSchema.parse(pkg.response.raceSnapshot);
     const forked = pkg.response.raceSnapshot.courses.find(course => course.name === "Lång")!.versions.at(-1)!;
@@ -124,7 +125,7 @@ describe("ADR-0169 gafflingar", () => {
     expect(pkg.response.raceSnapshot.entries.find(entry => entry.id === ids.Cia)?.courseVariantCode).toBe("AD");
 
     // Banor: varianter per bana, gafflingskontroll utan varning och klassens saknade varianter.
-    const listed = await listCoursesForEditAsAdministrator(db, proof);
+    const listed = await listCoursesForEditAsAdmin(db, proof);
     if (listed.status !== "ok") throw new Error("Banlistan saknas");
     const lang = listed.response.courses.find(course => course.name === "Lång")!;
     expect(lang.variants.map(variant => [variant.code, variant.entryCount])).toEqual([["AC", 1], ["AD", 1], ["BC", 1], ["BD", 1]]);
@@ -147,14 +148,14 @@ describe("ADR-0169 gafflingar", () => {
     expect(await effective(proof, ids.Fia!)).toEqual({ status: "OK", current: true });
 
     // Byt Evas variant till AD: besked, bekräftelse och omräkning i samma transaktion.
-    const preview = await previewEntryVariantAsAdministrator(db, { ...proof, entryId: ids.Eva!, request: { formatVersion: 1,
-      expectedSnapshotVersion: await snapshot(proof.raceId), expectedEntryVersion: 2, variantCode: "AD" } });
+    const preview = await previewEntryVariantAsAdmin(db, { ...proof, entryId: ids.Eva!, request: { formatVersion: 1,
+      expectedEntryVersion: 2, variantCode: "AD" } });
     expect(preview).toMatchObject({ status: "ok", response: { currentVariantCode: "AC", variantCode: "AD", readOutCount: 1, becomesOkCount: 1,
       requiresConfirmation: true, changes: [{ displayName: "Eva Sjö", before: "MP", after: "OK" }] } });
     const change = async (confirmResultChanges: boolean) => {
       const requestId = randomUUID();
-      return changeEntryVariantAsAdministrator(db, { ...proof, idempotencyKey: `entry-variant:${requestId}`, request: { formatVersion: 1,
-        requestId, expectedSnapshotVersion: await snapshot(proof.raceId), expectedEntryVersion: 2, entryId: ids.Eva, variantCode: "AD",
+      return changeEntryVariantAsAdmin(db, { ...proof, idempotencyKey: `entry-variant:${requestId}`, request: { formatVersion: 1,
+        requestId, expectedEntryVersion: 2, entryId: ids.Eva, variantCode: "AD",
         confirmResultChanges } });
     };
     expect((await change(false)).status).toBe("confirmation-required");
@@ -170,8 +171,8 @@ describe("ADR-0169 gafflingar", () => {
 
     // "Fördela gafflingar": Bo får sin stämplade variant, Ada den minst använda; resultatet ändras inte.
     const requestId = randomUUID();
-    const distributed = await distributeClassVariantsAsAdministrator(db, { ...proof, idempotencyKey: `variant-distribution:${requestId}`,
-      request: { formatVersion: 1, requestId, expectedSnapshotVersion: await snapshot(proof.raceId), classId: (await pool.query<{ id: string }>(
+    const distributed = await distributeClassVariantsAsAdmin(db, { ...proof, idempotencyKey: `variant-distribution:${requestId}`,
+      request: { formatVersion: 1, requestId, classId: (await pool.query<{ id: string }>(
         "select id from class where race_id = $1 and name = 'H21'", [proof.raceId])).rows[0]!.id } });
     if (distributed.status !== "distributed") throw new Error(`Fördelningen sparades inte: ${distributed.status}`);
     expect(distributed.response).toMatchObject({ assignedCount: 2, recalculatedCount: 1 });
@@ -186,7 +187,7 @@ describe("ADR-0169 gafflingar", () => {
       "select id, course_version_id from class where race_id = $1 and name = 'H21'", [proof.raceId])).rows[0]!;
     const late = await registerEntryAsAdmin(db, { ...proof, idempotencyKey: `entry-registration:${randomUUID()}`, request: {
       formatVersion: 1, classId: classRow.id, expectedCourseVersionId: classRow.course_version_id, expectedStartRule: "PUNCH",
-      expectedSnapshotVersion: await snapshot(proof.raceId), givenName: "Hugo", familyName: "Sen", organisationName: null,
+      givenName: "Hugo", familyName: "Sen", organisationName: null,
       cardNumber: "8101009", fixedStartTime: null } });
     expect(late.status).toBe("registered");
     expect((await variants(proof.raceId)).Hugo).toBe("AC");
@@ -194,18 +195,18 @@ describe("ADR-0169 gafflingar", () => {
     // Redigera en variant: beskedet gäller löparna på varianten; banan behåller alla varianter.
     const courseId = lang.courseId;
     const withoutControl = variantCodes("BD").filter(code => code !== 63);
-    expect((await previewCourseEditAsAdministrator(db, { ...proof, courseId, request: { formatVersion: 1,
-      expectedSnapshotVersion: await snapshot(proof.raceId), controlCodes: withoutControl } })).status).toBe("invalid-request");
-    const coursePreview = await previewCourseEditAsAdministrator(db, { ...proof, courseId, request: { formatVersion: 1,
-      expectedSnapshotVersion: await snapshot(proof.raceId), controlCodes: withoutControl, variantCode: "BD" } });
+    expect((await previewCourseEditAsAdmin(db, { ...proof, courseId, request: { formatVersion: 1,
+      controlCodes: withoutControl } })).status).toBe("invalid-request");
+    const coursePreview = await previewCourseEditAsAdmin(db, { ...proof, courseId, request: { formatVersion: 1,
+      controlCodes: withoutControl, variantCode: "BD" } });
     expect(coursePreview).toMatchObject({ status: "ok", response: { variantCode: "BD", currentControlCodes: variantCodes("BD"),
       readOutCount: 1, unchangedCount: 1, requiresConfirmation: false } });
     const editId = randomUUID();
-    const edited = await editCourseAsAdministrator(db, { ...proof, idempotencyKey: `course-edit:${editId}`, request: { formatVersion: 1,
-      requestId: editId, expectedSnapshotVersion: await snapshot(proof.raceId), courseId, controlCodes: withoutControl, variantCode: "BD",
+    const edited = await editCourseAsAdmin(db, { ...proof, idempotencyKey: `course-edit:${editId}`, request: { formatVersion: 1,
+      requestId: editId, courseId, controlCodes: withoutControl, variantCode: "BD",
       confirmResultChanges: false } });
     if (edited.status !== "edited") throw new Error(`Banan sparades inte: ${edited.status}`);
-    const relisted = await listCoursesForEditAsAdministrator(db, proof);
+    const relisted = await listCoursesForEditAsAdmin(db, proof);
     if (relisted.status !== "ok") throw new Error("Banlistan saknas");
     const edLang = relisted.response.courses.find(course => course.name === "Lång")!;
     expect(edLang.variants.map(variant => variant.code)).toEqual(["AC", "AD", "BC", "BD"]);
@@ -242,9 +243,8 @@ describe("ADR-0169 gafflingar", () => {
     const classes = (await pool.query<{ id: string; name: string }>("select id, name from class where race_id = $1", [proof.raceId])).rows;
     const h21 = classes.find(row => row.name === "H21")!.id;
     const requestId = randomUUID();
-    const drawn = await commitStartDrawAsAdministrator(db, { ...proof, idempotencyKey: `start-draw:${requestId}`, request: {
-      formatVersion: 1, requestId, seed: 12345, expectedSnapshotVersion: await snapshot(proof.raceId),
-      firstStartTime: "2026-10-08T16:00:00.000Z", clubSeparation: false, confirmChanges: false,
+    const drawn = await commitStartDrawAsAdmin(db, { ...proof, idempotencyKey: `start-draw:${requestId}`, request: {
+      formatVersion: 1, requestId, seed: 12345, firstStartTime: "2026-10-08T16:00:00.000Z", clubSeparation: false, confirmChanges: false,
       classes: [{ classId: h21, method: "MINUTE", intervalMinutes: 2, vacancies: { kind: "COUNT", value: 0 } }] } });
     if (drawn.status !== "drawn") throw new Error(`Lottningen sparades inte: ${drawn.status}`);
     const assigned = await variants(proof.raceId);

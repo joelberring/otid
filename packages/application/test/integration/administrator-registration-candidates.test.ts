@@ -3,9 +3,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrate } from "@o-tid/database";
 import { createDatabase } from "@o-tid/database";
 import { listEntryRegistrationCandidatesAsAdmin } from "../../src/entry-registration-candidates";
-import { issuePairingAdminAccessCredential, loginPairingAdmin } from "../../src/pairing-admin";
 import { ingestDeviceBatch } from "../../src/ingest";
-import { contentHash } from "../../src/hash";
+import { contentHash } from "../../src/serialization";
+import { raceLogin } from "./accounts";
 
 const url = process.env.TEST_DATABASE_URL;
 if (!url) throw new Error("TEST_DATABASE_URL krävs för vald isolerad testdatabas");
@@ -13,13 +13,9 @@ const { db, pool } = createDatabase(url);
 const now = new Date("2026-09-12T14:00:00Z");
 beforeAll(async () => migrate(db, { migrationsFolder: new URL("../../../database/migrations", import.meta.url).pathname }));
 afterAll(async () => pool.end());
-async function auth(raceId: string, capability: "MANAGE_RACE" | "REGISTER_ENTRY" | "VIEW_SPEAKER_BOARD" = "MANAGE_RACE") {
-  const installation = await issuePairingAdminAccessCredential(db, { raceId, capability, label: "Synthetic recalculation",
-    expiresAt: new Date(now.getTime() + 3600_000) }, { now });
-  const login = await loginPairingAdmin(db, { formatVersion: 1, accessCredential: installation.accessCredential },
-    { expectedRaceId: raceId, expectedCapability: capability, now });
-  if (login.status !== "authenticated") throw new Error("Synthetic login failed");
-  return { raceId, sessionToken: login.sessionToken, csrfCookie: login.csrfToken, csrfHeader: login.csrfToken, actorId: installation.credentialId };
+async function auth(raceId: string, role: "ADMIN" | "FUNCTIONARY" = "ADMIN") {
+  const login = await raceLogin(db, raceId, role, now);
+  return { raceId, sessionToken: login.sessionToken, csrfCookie: login.csrfToken, csrfHeader: login.csrfToken, actorId: login.accountId };
 }
 async function fixture() {
   const eventId = randomUUID(), raceId = randomUUID(), courseId = randomUUID(), courseVersionId = randomUUID();
@@ -44,8 +40,7 @@ async function fixture() {
 }
 
 function search(f: Awaited<ReturnType<typeof fixture>>, cardNumber: string | null = null) {
-  return { ...f.administrator, request: { formatVersion: 1, expectedSnapshotVersion: 1,
-    givenName: " ADA ", familyName: "Synthetic", cardNumber } };
+  return { ...f.administrator, request: { formatVersion: 1, givenName: " ADA ", familyName: "Synthetic", cardNumber } };
 }
 async function footprint(raceId: string) {
   const entry = (await pool.query("SELECT * FROM entry WHERE race_id=$1 ORDER BY id", [raceId])).rows;
@@ -85,12 +80,11 @@ describe("TASK036 administrator registration candidates", () => {
   });
 
   it("requires CSRF and registration authority, rejects stale scope, and returns honest zero matches without writes", async () => {
-    const f = await fixture(), limited = await auth(f.raceId, "REGISTER_ENTRY"), reader = await auth(f.raceId, "VIEW_SPEAKER_BOARD");
+    const f = await fixture(), limited = await auth(f.raceId, "ADMIN"), reader = await auth(f.raceId, "FUNCTIONARY");
     const input = search(f), before = await footprint(f.raceId);
     expect((await listEntryRegistrationCandidatesAsAdmin(db, { ...input, ...limited }, now)).status).toBe("ok");
     expect((await listEntryRegistrationCandidatesAsAdmin(db, { ...input, ...reader }, now)).status).toBe("forbidden");
     expect((await listEntryRegistrationCandidatesAsAdmin(db, { ...input, csrfHeader: null }, now)).status).toBe("forbidden");
-    expect((await listEntryRegistrationCandidatesAsAdmin(db, { ...input, request: { ...input.request, expectedSnapshotVersion: 2 } }, now)).status).toBe("conflict");
     expect(await listEntryRegistrationCandidatesAsAdmin(db, { ...input, request: { ...input.request, givenName: "Absent" } }, now))
       .toMatchObject({ status: "ok", response: { totalMatches: 0, candidates: [] } });
     expect(await footprint(f.raceId)).toBe(before);

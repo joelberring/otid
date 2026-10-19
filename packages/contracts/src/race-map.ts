@@ -1,11 +1,11 @@
 import { z } from "zod";
+import { uuidSchema as uuid } from "./ids";
 
 /**
  * Karta och vägval (ADR-0171, PLAN.md steg 16). Admin laddar upp kartbilden, georefererar den med tre punkter
  * och laddar upp löparnas GPS-rutter (GPX). Den publika sträcktidsanalysen länkar till vägvalen; vägvalsvyn
  * visar bara rutternas delar för en sträcka, aldrig hela rutten.
  */
-const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 const instant = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
 const name = z.string().trim().min(1).max(400);
 const count = z.number().int().nonnegative().max(1_000_000);

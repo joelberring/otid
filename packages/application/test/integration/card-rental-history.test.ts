@@ -3,10 +3,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrate } from "@o-tid/database";
 import { createDatabase } from "@o-tid/database";
 import { listAdministratorEntryChanges } from "../../src/administrator-entry-changes";
-import { listEntryTransfersAsAdministrator } from "../../src/entry-transfer";
-import { changeEntryCardRentalAsAdministrator } from "../../src/entry-card-rental";
-import { changeEntryCardRentalReturnAsAdministrator } from "../../src/entry-card-rental-return";
-import { issuePairingAdminAccessCredential, loginPairingAdmin } from "../../src/pairing-admin";
+import { listEntryTransfersAsAdmin } from "../../src/entry-transfer";
+import { changeEntryCardRentalAsAdmin } from "../../src/entry-card-rental";
+import { changeEntryCardRentalReturnAsAdmin } from "../../src/entry-card-rental-return";
+import { raceLogin } from "./accounts";
 
 const url = process.env.TEST_DATABASE_URL;
 if (!url) throw new Error("TEST_DATABASE_URL krävs för vald isolerad testdatabas");
@@ -17,13 +17,7 @@ beforeAll(async () => migrate(db, { migrationsFolder: new URL("../../../database
 afterAll(async () => pool.end());
 
 async function auth(raceId: string) {
-  const installation = await issuePairingAdminAccessCredential(db, {
-    raceId, capability: "MANAGE_RACE", label: "Synthetic rental history", expiresAt: new Date(now.getTime() + 3600_000)
-  }, { now });
-  const login = await loginPairingAdmin(db, { formatVersion: 1, accessCredential: installation.accessCredential }, {
-    expectedRaceId: raceId, expectedCapability: "MANAGE_RACE", now
-  });
-  if (login.status !== "authenticated") throw new Error("Synthetic login failed");
+  const login = await raceLogin(db, raceId, "ADMIN", now);
   return { raceId, sessionToken: login.sessionToken, csrfCookie: login.csrfToken, csrfHeader: login.csrfToken };
 }
 
@@ -41,7 +35,7 @@ async function fixture() {
 }
 
 async function active(f: Awaited<ReturnType<typeof fixture>>) {
-  const listed = await listEntryTransfersAsAdministrator(db, f.administrator, now);
+  const listed = await listEntryTransfersAsAdmin(db, f.administrator, now);
   if (listed.status !== "ok") throw new Error("Roster unavailable");
   const entry = listed.response.entries.find(row => row.id === f.entryId);
   if (!entry?.activeAssignment) throw new Error("Assignment unavailable");
@@ -50,10 +44,10 @@ async function active(f: Awaited<ReturnType<typeof fixture>>) {
 
 async function changeRental(f: Awaited<ReturnType<typeof fixture>>, isRental: boolean, changedAt: Date) {
   const current = await active(f);
-  return changeEntryCardRentalAsAdministrator(db, {
+  return changeEntryCardRentalAsAdmin(db, {
     ...f.administrator, entryId: f.entryId, idempotencyKey: `entry-card-rental-change:${randomUUID()}`,
     request: { formatVersion: 1, expectedEntryVersion: current.entry.version, expectedClassId: current.entry.classId,
-      expectedSnapshotVersion: current.snapshotVersion, expectedAssignment: {
+      expectedAssignment: {
         id: current.entry.activeAssignment!.id, cardNumber: current.entry.activeAssignment!.cardNumber,
         isRental: current.entry.activeAssignment!.isRental
       }, isRental }
@@ -62,10 +56,10 @@ async function changeRental(f: Awaited<ReturnType<typeof fixture>>, isRental: bo
 
 async function changeReturn(f: Awaited<ReturnType<typeof fixture>>, rentalReturned: boolean, changedAt: Date) {
   const current = await active(f);
-  return changeEntryCardRentalReturnAsAdministrator(db, {
+  return changeEntryCardRentalReturnAsAdmin(db, {
     ...f.administrator, entryId: f.entryId, idempotencyKey: `entry-card-rental-return-change:${randomUUID()}`,
     request: { formatVersion: 1, expectedEntryVersion: current.entry.version, expectedClassId: current.entry.classId,
-      expectedSnapshotVersion: current.snapshotVersion, expectedAssignment: current.entry.activeAssignment, rentalReturned }
+      expectedAssignment: current.entry.activeAssignment, rentalReturned }
   }, changedAt);
 }
 
@@ -107,10 +101,10 @@ describe("TASK077 hyrbricksbeslut i deltagarhistoriken", () => {
       status: "changed", response: { entryVersionAfter: 2, snapshotVersionAfter: 2 }
     });
     await pool.query(`INSERT INTO entry_card_rental_return_change(
-      request_id,race_id,entry_id,class_id,assignment_id,card_number,actor_credential_id,capability,
+      request_id,race_id,entry_id,class_id,assignment_id,card_number,actor_account_id,
       previous_rental_returned,rental_returned,entry_version_before,entry_version_after,
       snapshot_version_before,snapshot_version_after,changed_at)
-      SELECT $1,race_id,entry_id,class_id,assignment_id,card_number,actor_credential_id,capability,
+      SELECT $1,race_id,entry_id,class_id,assignment_id,card_number,actor_account_id,
         false,true,entry_version_before,entry_version_after,snapshot_version_before,snapshot_version_after,$2
       FROM entry_card_rental_change WHERE race_id=$3`, [randomUUID(), new Date("2026-09-19T10:01:01Z"), f.raceId]);
     await expect(listAdministratorEntryChanges(db, { ...f.administrator, entryId: f.entryId }, now))

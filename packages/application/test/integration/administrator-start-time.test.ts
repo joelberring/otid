@@ -3,9 +3,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrate } from "@o-tid/database";
 import { createDatabase } from "@o-tid/database";
 import { listEntryStartTimesAsAdmin, changeEntryStartTimeAsAdmin } from "../../src/entry-start-time";
-import { issuePairingAdminAccessCredential, loginPairingAdmin } from "../../src/pairing-admin";
 import { ingestDeviceBatch } from "../../src/ingest";
-import { contentHash } from "../../src/hash";
+import { contentHash } from "../../src/serialization";
+import { raceLogin } from "./accounts";
 
 const url = process.env.TEST_DATABASE_URL;
 if (!url) throw new Error("TEST_DATABASE_URL krävs för vald isolerad testdatabas");
@@ -13,13 +13,9 @@ const { db, pool } = createDatabase(url);
 const now = new Date("2026-09-12T14:00:00Z");
 beforeAll(async () => migrate(db, { migrationsFolder: new URL("../../../database/migrations", import.meta.url).pathname }));
 afterAll(async () => pool.end());
-async function auth(raceId: string, capability: "MANAGE_RACE" | "CHANGE_ENTRY_START_TIME" | "VIEW_SPEAKER_BOARD" = "MANAGE_RACE") {
-  const installation = await issuePairingAdminAccessCredential(db, { raceId, capability, label: "Synthetic admin start",
-    expiresAt: new Date(now.getTime() + 3600_000) }, { now });
-  const login = await loginPairingAdmin(db, { formatVersion: 1, accessCredential: installation.accessCredential },
-    { expectedRaceId: raceId, expectedCapability: capability, now });
-  if (login.status !== "authenticated") throw new Error("Synthetic login failed");
-  return { raceId, sessionToken: login.sessionToken, csrfCookie: login.csrfToken, csrfHeader: login.csrfToken, actorId: installation.credentialId };
+async function auth(raceId: string, role: "ADMIN" | "FUNCTIONARY" = "ADMIN") {
+  const login = await raceLogin(db, raceId, role, now);
+  return { raceId, sessionToken: login.sessionToken, csrfCookie: login.csrfToken, csrfHeader: login.csrfToken, actorId: login.accountId };
 }
 async function fixture() {
   const eventId = randomUUID(), raceId = randomUUID(), courseId = randomUUID(), courseVersionId = randomUUID();
@@ -35,8 +31,7 @@ async function fixture() {
   await pool.query("INSERT INTO card_assignment(race_id,entry_id,card_number) VALUES($1,$2,'12345')", [raceId, entryId]);
   const administrator = await auth(raceId);
   const input = { ...administrator, entryId, idempotencyKey: `entry-start-time-change:${randomUUID()}`, request: {
-    formatVersion: 1, expectedEntryVersion: 1, expectedClassId: classId, expectedSnapshotVersion: 1,
-    expectedFixedStartTime: "2026-09-12T10:00:00Z", fixedStartTime: "2026-09-12T12:05:00.125+02:00"
+    formatVersion: 1, expectedEntryVersion: 1, expectedClassId: classId, expectedFixedStartTime: "2026-09-12T10:00:00Z", fixedStartTime: "2026-09-12T12:05:00.125+02:00"
   } };
   return { raceId, classId, entryId, administrator, input };
 }
@@ -61,7 +56,7 @@ async function preserved(raceId: string) {
 
 describe("TASK031 administrator start-time correction", () => {
   it("retains genuine admin/limited actors, exact historical retry, untouched class/raw and appends recalculated results", async () => {
-    const f = await fixture(), limited = await auth(f.raceId, "CHANGE_ENTRY_START_TIME"), other = await auth(f.raceId);
+    const f = await fixture(), limited = await auth(f.raceId, "ADMIN"), other = await auth(f.raceId);
     const payload = { cardNumber: "12345", startPunchedAt: "2026-09-12T10:00:00Z", finishPunchedAt: "2026-09-12T10:20:00Z",
       punches: [{ code: 31, punchedAt: "2026-09-12T10:10:00Z" }] };
     const deviceId = randomUUID();
@@ -76,8 +71,7 @@ describe("TASK031 administrator start-time correction", () => {
     expect(changed.response).toMatchObject({ previousFixedStartTime: "2026-09-12T10:00:00.000Z",
       fixedStartTime: "2026-09-12T10:05:00.125Z", classId: f.classId, entryVersionAfter: 2, snapshotVersionAfter: 2 });
     expect((await changeEntryStartTimeAsAdmin(db, { ...f.input, ...limited, idempotencyKey: `entry-start-time-change:${randomUUID()}`,
-      request: { ...f.input.request, expectedEntryVersion: 2, expectedSnapshotVersion: 2,
-        expectedFixedStartTime: changed.response.fixedStartTime, fixedStartTime: "2026-09-12T10:06:00Z" } }, now)).status).toBe("changed");
+      request: { ...f.input.request, expectedEntryVersion: 2, expectedFixedStartTime: changed.response.fixedStartTime, fixedStartTime: "2026-09-12T10:06:00Z" } }, now)).status).toBe("changed");
     const beforeReplay = await state(f.raceId);
     expect(await changeEntryStartTimeAsAdmin(db, { ...f.input, request: { ...f.input.request, fixedStartTime: "2026-09-12T10:05:00.125Z" } }, now))
       .toEqual({ status: "changed", response: { ...changed.response, replayed: true } });
@@ -89,7 +83,7 @@ describe("TASK031 administrator start-time correction", () => {
     expect(recalculated.slice(originalResults.length).map((row) => [row.revision, row.cause, row.evaluation.elapsedMs]))
       .toEqual([[2, "EXPLICIT_RECALCULATION", 14 * 60_000 + 59_875], [3, "EXPLICIT_RECALCULATION", 14 * 60_000]]);
     expect((await pool.query<{ actor_kind: string }>("SELECT actor_kind FROM audit_event WHERE race_id=$1 AND action='ENTRY_START_TIME_CHANGED_BY_ADMIN' ORDER BY actor_kind::text", [f.raceId])).rows)
-      .toEqual([{ actor_kind: "ENTRY_START_TIME_ACCESS_CREDENTIAL" }, { actor_kind: "RACE_ADMIN_ACCESS_CREDENTIAL" }]);
+      .toEqual([{ actor_kind: "USER_ACCOUNT" }, { actor_kind: "USER_ACCOUNT" }]);
     await pool.query("UPDATE entry SET fixed_start_time='2026-09-12T10:06:00.000001Z' WHERE id=$1", [f.entryId]);
     const withMicro = await state(f.raceId);
     expect(await changeEntryStartTimeAsAdmin(db, f.input, now)).toEqual({ status: "changed", response: { ...changed.response, replayed: true } });
@@ -97,11 +91,11 @@ describe("TASK031 administrator start-time correction", () => {
   });
 
   it("rejects PUNCH, unauthorized/stale requests and submillisecond current state without writes", async () => {
-    const f = await fixture(), reader = await auth(f.raceId, "VIEW_SPEAKER_BOARD");
+    const f = await fixture(), reader = await auth(f.raceId, "FUNCTIONARY");
     const before = await state(f.raceId);
     expect((await changeEntryStartTimeAsAdmin(db, { ...f.input, csrfHeader: null }, now)).status).toBe("forbidden");
     expect((await changeEntryStartTimeAsAdmin(db, { ...f.input, ...reader }, now)).status).toBe("forbidden");
-    for (const patch of [{ expectedEntryVersion: 2 }, { expectedSnapshotVersion: 2 }, { expectedFixedStartTime: null }, { fixedStartTime: f.input.request.expectedFixedStartTime }]) {
+    for (const patch of [{ expectedEntryVersion: 2 }, { expectedFixedStartTime: null }, { fixedStartTime: f.input.request.expectedFixedStartTime }]) {
       expect((await changeEntryStartTimeAsAdmin(db, { ...f.input, request: { ...f.input.request, ...patch } }, now)).status).toBe("conflict");
     }
     expect(await state(f.raceId)).toBe(before);
@@ -121,7 +115,7 @@ describe("TASK031 administrator start-time correction", () => {
       const f = await fixture(), requestId = randomUUID();
       const previous = previousMicro ? "2026-09-12T10:00:00.000001Z" : "2026-09-12T10:00:00Z";
       const next = previousMicro ? "2026-09-12T10:05:00.125Z" : "2026-09-12T10:05:00.125001Z";
-      await pool.query(`INSERT INTO entry_start_time_change_request(request_id,race_id,actor_credential_id,entry_id,
+      await pool.query(`INSERT INTO entry_start_time_change_request(request_id,race_id,actor_account_id,entry_id,
         expected_entry_version,previous_fixed_start_time,fixed_start_time,class_id,entry_version_before,entry_version_after,
         snapshot_version_before,snapshot_version_after,changed_at) VALUES($1,$2,$3,$4,1,$5,$6,$7,1,2,1,2,$8)`,
       [requestId, f.raceId, f.administrator.actorId, f.entryId, previous, next, f.classId, now]);

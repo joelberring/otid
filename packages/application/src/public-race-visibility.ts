@@ -1,10 +1,10 @@
 import { and, eq, isNotNull } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
 import type { DbExecutor } from "./snapshot";
-import { activeEventAdministrationGrant } from "./organizer-events";
+import { activeEventAdministrationGrant } from "./race-session";
 import { authenticateUserAccountSessionForProtectedRead } from "./user-account";
+import { UUID_PATTERN } from "./serialization";
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 /**
  * Vilka tävlingar som syns på de publika sidorna (ADR-0172 beslut 4): admin har publicerat tävlingen OCH

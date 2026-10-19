@@ -5,7 +5,7 @@ att hela produktionssäkerheten är färdig eller granskad.
 
 ## Grundgränser
 
-Privata operativa vyer använder host-only sessionscookies (httpOnly, SameSite=Lax),
+Privata operativa vyer använder kontots host-only sessionscookie (httpOnly, SameSite=Strict),
 CSRF/Origin och no-store. Publika projektioner väljer uttryckliga fält.
 Kartor, GPS, dokument och API-nycklar är privata som standard. Servergenererade
 interna IDs och immutable beslut används för spårbarhet, inte externa PK:n.

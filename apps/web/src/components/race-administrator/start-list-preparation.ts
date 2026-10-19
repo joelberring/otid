@@ -41,7 +41,7 @@ export function createStartListActions(ws: Base & RaceDataActions) {
     try {
       const request = startListPublicationRequestSchema.parse(action === "PUBLISH" ? {
         formatVersion: 1, action, expectedRevision: publicationPreview.latestDecision?.revision ?? 0,
-        expectedSnapshotVersion: publicationPreview.snapshotVersion, expectedSourceHash: publicationPreview.sourceHash
+        expectedSourceHash: publicationPreview.sourceHash
       } : { formatVersion: 1, action, expectedRevision: publicationPreview.latestDecision?.revision });
       const value: AdministratorPublicationAttempt = { kind: "PUBLICATION", id: crypto.randomUUID(), request,
         content: action === "PUBLISH" ? publicationPreview.content : null };

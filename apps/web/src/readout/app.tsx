@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { sportidentReadoutPayloadSchema, type ReadoutPackage } from "@o-tid/contracts";
 import { WebSerialTransport, type WebSerialPortLike } from "@o-tid/device-transport";
 import { SiTimeError, type SiCardData } from "@o-tid/sportident";
-import { enterRace, fetchReadoutPackage, raceAdminCsrf } from "./api";
+import { accountCsrf, fetchReadoutPackage } from "./api";
 import { evaluateLocally, formatRunningTime, type LocalVerdict } from "./evaluate";
 import { exerciseAnchor, exerciseCard, exerciseRunners, exerciseWindow, type ExerciseVariant } from "./exercise";
 import { FakeStationTransport } from "./fake-transport";
@@ -80,8 +80,7 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
 
   const refreshPackage = useCallback(async () => {
     if (!raceId) return;
-    let outcome = await fetchReadoutPackage(raceId);
-    if (outcome.kind === "unauthorized" && await enterRace(raceId)) outcome = await fetchReadoutPackage(raceId);
+    const outcome = await fetchReadoutPackage(raceId);
     if (outcome.kind === "ok") {
       await storeRef.current.savePackage(outcome.value);
       pkgRef.current = outcome.value; setPkg(outcome.value); setOnline(true); setLoginNeeded(false);
@@ -93,9 +92,8 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
     if (!raceId || syncing.current) return;
     syncing.current = true;
     try {
-      const deps = { fetch: window.fetch.bind(window), csrf: raceAdminCsrf };
-      let outcome = await syncPending(storeRef.current, raceId, deps);
-      if (outcome.kind === "unauthorized" && await enterRace(raceId)) outcome = await syncPending(storeRef.current, raceId, deps);
+      const deps = { fetch: window.fetch.bind(window), csrf: accountCsrf };
+      const outcome = await syncPending(storeRef.current, raceId, deps);
       setLoginNeeded(outcome.kind === "unauthorized");
       if (outcome.kind === "offline") setOnline(false);
       if (outcome.kind === "synced" || outcome.kind === "idle") { setOnline(true); setSyncProblem(undefined); }

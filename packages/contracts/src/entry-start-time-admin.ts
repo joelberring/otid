@@ -1,6 +1,6 @@
 import { z } from "zod";
+import { prefixedUuidPattern, uuidSchema as uuid } from "./ids";
 
-const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 const version = z.number().int().positive().max(2_147_483_647);
 export const eventTimeZoneSchema = z.string().trim().min(1).max(100).refine((value) => {
   try { new Intl.DateTimeFormat("sv-SE", { timeZone: value }); return true; }
@@ -14,14 +14,6 @@ export const fixedStartTimeSchema = z.iso.datetime({ offset: true }).refine((val
     (Number(match[2]) < 14 || Number(match[3]) === 0));
 }).transform((value) => new Date(value).toISOString());
 
-export const entryStartTimeAdminLoginRequestSchema = z.object({
-  formatVersion: z.literal(1),
-  accessCredential: z.string().regex(/^otid_org_entry_start_time_v1\.[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.[A-Za-z0-9_-]{43}$/)
-}).strict();
-export const entryStartTimeAdminLoginResponseSchema = z.object({
-  formatVersion: z.literal(1), raceId: uuid, capability: z.literal("CHANGE_ENTRY_START_TIME"),
-  expiresAt: z.iso.datetime({ offset: true })
-}).strict();
 export const entryStartTimeAdminListResponseSchema = z.object({
   formatVersion: z.literal(1), raceId: uuid, snapshotVersion: version, timeZone: eventTimeZoneSchema,
   entries: z.array(z.object({
@@ -33,11 +25,11 @@ export const entryStartTimeAdminListResponseSchema = z.object({
 
 export const entryStartTimeChangeRequestSchema = z.object({
   formatVersion: z.literal(1), expectedEntryVersion: version, expectedClassId: uuid,
-  expectedSnapshotVersion: version, expectedFixedStartTime: fixedStartTimeSchema.nullable(),
+  expectedFixedStartTime: fixedStartTimeSchema.nullable(),
   fixedStartTime: fixedStartTimeSchema
 }).strict();
 export const entryStartTimeChangeIdempotencyKeySchema = z.string().regex(
-  /^entry-start-time-change:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+  prefixedUuidPattern("entry-start-time-change")
 );
 export const entryStartTimeChangeResponseSchema = z.object({
   formatVersion: z.literal(1), replayed: z.boolean(), requestId: uuid, raceId: uuid,
@@ -51,7 +43,6 @@ export const entryStartTimeChangeResponseSchema = z.object({
 
 export { entryClassAdminErrorResponseSchema as entryStartTimeAdminErrorResponseSchema } from "./entry-class-admin";
 export type { EntryClassAdminErrorCode as EntryStartTimeAdminErrorCode } from "./entry-class-admin";
-export type EntryStartTimeAdminLoginRequest = z.infer<typeof entryStartTimeAdminLoginRequestSchema>;
 export type EntryStartTimeAdminListResponse = z.infer<typeof entryStartTimeAdminListResponseSchema>;
 export type EntryStartTimeChangeRequest = z.infer<typeof entryStartTimeChangeRequestSchema>;
 export type EntryStartTimeChangeResponse = z.infer<typeof entryStartTimeChangeResponseSchema>;

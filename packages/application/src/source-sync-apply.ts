@@ -3,16 +3,16 @@ import { and, count, eq, inArray, max, sql } from "drizzle-orm";
 import { syncConsequenceSchema, type SyncConsequence } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import {
-  DID_NOT_START_POLICY_VERSION, parseRaceClock, relayTeamVariants, withProposedClass, withProposedClassSetup, withProposedCourse,
+  parseRaceClock, relayTeamVariants, withProposedClass, withProposedClassSetup, withProposedCourse,
   withProposedCourseVersion, withProposedEntryClasses, type RaceSnapshot
 } from "@o-tid/domain";
 import { insertCourseVersionControls, leastUsedVariantForClass, loadCourseVersionVariants, variantAfterClassChange } from "./course-variants";
-import { insertDidNotStartDecision } from "./did-not-start";
+import { applyEntryDecision } from "./entry-status";
 import { importPersonCourseAssignments, importTeamCourseAssignments } from "./import-iof";
 import { loadRelayClassConfigs } from "./relay-model";
 import { synchronizeRelayTeams } from "./relay-sync";
 import { assessReadOutEntries, recalculateAssessedEntries, summarizeAssessment, type AssessedEntry } from "./result-reassessment";
-import { loadRaceSnapshot } from "./snapshot";
+import { bumpReadoutPackageVersion, loadRaceSnapshot } from "./snapshot";
 import {
   fullName, PLACEHOLDER_COURSE, type ClassRef, type CourseFileAction, type CourseFileProjection, type CourseRef, type CurrentState,
   type EventorAction, type EventorProjection, type PlannedRow
@@ -129,20 +129,21 @@ async function activateCard(tx: Transaction, raceId: string, entryId: string, ca
   else await tx.insert(schema.cardAssignments).values({ raceId, entryId, cardNumber });
 }
 
-async function withdraw(tx: Transaction, raceId: string, entryIds: readonly string[], actorCredentialId: string, snapshotVersion: number, now: Date) {
+async function withdraw(tx: Transaction, raceId: string, entryIds: readonly string[], actorAccountId: string, snapshotVersion: number, now: Date) {
   for (const entryId of entryIds) {
     const [entry] = await tx.select({ id: schema.entries.id, classId: schema.entries.classId, version: schema.entries.version,
       courseVersionId: schema.classes.courseVersionId }).from(schema.entries)
       .innerJoin(schema.classes, eq(schema.classes.id, schema.entries.classId)).where(eq(schema.entries.id, entryId));
     const [revision] = await tx.select({ value: count() }).from(schema.resultRevisions).where(eq(schema.resultRevisions.entryId, entryId));
     if (!entry || (revision?.value ?? 0) > 0) throw new SourceSyncConflictError("withdraw");
-    await insertDidNotStartDecision(tx, { requestId: randomUUID(), raceId, actorCredentialId, entryId, entryVersion: entry.version,
-      classId: entry.classId, courseVersionId: entry.courseVersionId, snapshotVersion, policyVersion: DID_NOT_START_POLICY_VERSION, decidedAt: now });
+    const applied = await applyEntryDecision(tx, { raceId, entryId, decision: { kind: "DID_NOT_START" }, expectedRevision: 0,
+      requestId: randomUUID(), actorAccountId: null, decidedAt: now, snapshotVersion });
+    if (!applied?.ok) throw new SourceSyncConflictError("withdraw");
   }
 }
 
 export interface ApplyInput {
-  readonly raceId: string; readonly actorCredentialId: string; readonly snapshotVersionAfter: number; readonly now: Date;
+  readonly raceId: string; readonly actorAccountId: string; readonly snapshotVersionAfter: number; readonly now: Date;
   readonly state: CurrentState;
 }
 
@@ -200,14 +201,14 @@ export async function applyEventor(tx: Transaction, input: ApplyInput, projectio
       if (action.cardNumber) await activateCard(tx, raceId, local.id, action.cardNumber);
       if (local.teamId) relayTeams.add(local.teamId);
     }
-    if (action.type === "WITHDRAW") await withdraw(tx, raceId, action.entryIds, input.actorCredentialId, input.snapshotVersionAfter, now);
+    if (action.type === "WITHDRAW") await withdraw(tx, raceId, action.entryIds, input.actorAccountId, input.snapshotVersionAfter, now);
     if (action.type === "UPDATE_TEAM") {
       await tx.update(schema.teams).set({ ...(action.name ? { name: action.name } : {}),
         ...(action.club !== undefined ? { organisationName: action.club } : {}) }).where(eq(schema.teams.id, action.teamId));
     }
     if (action.type === "CREATE_TEAM") relayTeams.add(await createTeam(tx, raceId, action, classIdOf(action.classRef, ids), legCount));
   }
-  await tx.update(schema.races).set({ snapshotVersion: input.snapshotVersionAfter }).where(eq(schema.races.id, raceId));
+  await bumpReadoutPackageVersion(tx, raceId);
   if (relayTeams.size > 0) await synchronizeRelayTeams(tx, raceId, [...relayTeams], input.snapshotVersionAfter);
   return recalculate(tx, raceId, assessment, input.snapshotVersionAfter);
 }
@@ -333,6 +334,6 @@ export async function applyCourseFile(tx: Transaction, input: ApplyInput, projec
   const keep = new Set(state.entries.filter(entry => entry.readOut || entry.hasResult).map(entry => entry.id));
   await importPersonCourseAssignments(tx, raceId, projection.data, keep);
   await importTeamCourseAssignments(tx, raceId, projection.data, keep);
-  await tx.update(schema.races).set({ snapshotVersion: input.snapshotVersionAfter }).where(eq(schema.races.id, raceId));
+  await bumpReadoutPackageVersion(tx, raceId);
   return recalculate(tx, raceId, assessment, input.snapshotVersionAfter);
 }

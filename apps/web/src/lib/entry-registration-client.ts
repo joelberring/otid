@@ -7,7 +7,7 @@ export function parseRegistrationReceipt(value: unknown, raceId: string, attempt
   if (result.requestId !== attempt.id || result.raceId !== raceId || result.classId !== intent.classId ||
     result.givenName !== intent.givenName || result.familyName !== intent.familyName ||
     result.organisationName !== intent.organisationName || result.cardNumber !== intent.cardNumber ||
-    result.snapshotVersionBefore !== intent.expectedSnapshotVersion || result.startTimeAssigned !== assigned ||
+    result.startTimeAssigned !== assigned ||
     (!assigned && result.fixedStartTime !== intent.fixedStartTime)) {
     throw new Error("Registration receipt mismatch");
   }

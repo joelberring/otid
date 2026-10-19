@@ -1,7 +1,8 @@
 import { z } from "zod";
+import { UUID_PATTERN } from "./ids";
 
 const canonicalUuidSchema = z.string().regex(
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+  UUID_PATTERN,
   "Id måste vara ett kanoniskt gemener-UUID"
 );
 const positiveVersionSchema = z.number().int().positive();
@@ -9,19 +10,7 @@ const aggregateCountSchema = z.number().int().nonnegative();
 const nameSchema = z.string().trim().min(1).max(160);
 const instantSchema = z.iso.datetime({ offset: true });
 
-export const raceOverviewAdminLoginRequestSchema = z.object({
-  formatVersion: z.literal(1),
-  accessCredential: z.string().regex(
-    /^otid_org_race_overview_v1\.[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.[A-Za-z0-9_-]{43}$/
-  )
-}).strict();
 
-export const raceOverviewAdminLoginResponseSchema = z.object({
-  formatVersion: z.literal(1),
-  raceId: canonicalUuidSchema,
-  capability: z.literal("VIEW_RACE_OVERVIEW"),
-  expiresAt: instantSchema
-}).strict();
 
 const raceOverviewRaceSchema = z.object({
   id: canonicalUuidSchema,
@@ -101,8 +90,6 @@ export const raceOverviewAdminErrorResponseSchema = z.object({
   error: raceOverviewAdminErrorCodeSchema
 }).strict();
 
-export type RaceOverviewAdminLoginRequest = z.infer<typeof raceOverviewAdminLoginRequestSchema>;
-export type RaceOverviewAdminLoginResponse = z.infer<typeof raceOverviewAdminLoginResponseSchema>;
 export type RaceOverviewResponse = z.infer<typeof raceOverviewResponseSchema>;
 export type RaceOverviewAdminErrorCode = z.infer<typeof raceOverviewAdminErrorCodeSchema>;
 export type RaceOverviewAdminErrorResponse = z.infer<typeof raceOverviewAdminErrorResponseSchema>;

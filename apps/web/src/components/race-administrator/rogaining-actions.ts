@@ -88,7 +88,7 @@ export function createRogainingActions(ws: Base & RaceDataActions & CourseEditAc
     if (!courseList) throw new Error("Course list missing");
     const response = await request("/rogaining/preview", op, { method: "POST",
       headers: { "content-type": "application/json", "x-otid-csrf": csrf() },
-      body: JSON.stringify({ formatVersion: 1, expectedSnapshotVersion: courseList.snapshotVersion, ...change }) });
+      body: JSON.stringify({ formatVersion: 1, ...change }) });
     if (response.status === 409) return "conflict" as const;
     if (!response.ok) throw new Error("Rogaining preview unavailable");
     const value = rogainingChangePreviewResponseSchema.parse(await json(response, op));
@@ -157,7 +157,7 @@ export function createRogainingActions(ws: Base & RaceDataActions & CourseEditAc
           preview = read;
         }
         const request: RogainingChangeRequest = { formatVersion: 1, requestId: crypto.randomUUID(),
-          expectedSnapshotVersion: preview!.snapshotVersion, controlPoints: change.controlPoints, classRules: change.classRules,
+          controlPoints: change.controlPoints, classRules: change.classRules,
           confirmResultChanges: preview!.requiresConfirmation };
         attempt = { kind: "ROGAINING", request };
         pending.current = attempt; sent.current = false; setRogainingAttempt(attempt);

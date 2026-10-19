@@ -1,18 +1,14 @@
-import { DID_NOT_START_DECISION_POLICY_VERSION } from "@o-tid/contracts";
-import { decideDidNotStartAsAdmin } from "../../src/did-not-start";
-import { withdrawDidNotStartAsAdmin } from "../../src/did-not-start-withdrawal";
-import { decideWithoutTimingAsAdmin } from "../../src/without-timing";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrate } from "@o-tid/database";
 import { createDatabase } from "@o-tid/database";
-import { listResultRecalculationCandidatesAsAdmin, recalculateEntryAsAdmin } from "../../src/results";
+import { listResultRecalculationCandidatesAsAdmin, recalculateEntryAsAdmin } from "../../src/result-recalculation";
 import { getAdministratorEffectiveResult } from "../../src/administrator-effective-result";
-import { disqualifyResultAsAdmin } from "../../src/result-disqualification";
-import { issuePairingAdminAccessCredential, loginPairingAdmin } from "../../src/pairing-admin";
+import { raceAuth } from "./accounts";
+import { statusFlow } from "./entry-status-helpers";
 import { ingestDeviceBatch } from "../../src/ingest";
-import { contentHash } from "../../src/hash";
-import { listEntryTransfersAsAdministrator } from "../../src/entry-transfer";
+import { contentHash } from "../../src/serialization";
+import { listEntryTransfersAsAdmin } from "../../src/entry-transfer";
 
 const url = process.env.TEST_DATABASE_URL;
 if (!url) throw new Error("TEST_DATABASE_URL krävs för vald isolerad testdatabas");
@@ -20,14 +16,8 @@ const { db, pool } = createDatabase(url);
 const now = new Date("2026-09-12T14:00:00Z");
 beforeAll(async () => migrate(db, { migrationsFolder: new URL("../../../database/migrations", import.meta.url).pathname }));
 afterAll(async () => pool.end());
-async function auth(raceId: string, capability: "MANAGE_RACE" | "RECALCULATE_RESULT" | "DISQUALIFY_RESULT" | "VIEW_SPEAKER_BOARD" | "DECIDE_DID_NOT_START" | "WITHDRAW_DID_NOT_START" | "DECIDE_WITHOUT_TIMING" = "MANAGE_RACE") {
-  const installation = await issuePairingAdminAccessCredential(db, { raceId, capability, label: "Synthetic recalculation",
-    expiresAt: new Date(now.getTime() + 3600_000) }, { now });
-  const login = await loginPairingAdmin(db, { formatVersion: 1, accessCredential: installation.accessCredential },
-    { expectedRaceId: raceId, expectedCapability: capability, now });
-  if (login.status !== "authenticated") throw new Error("Synthetic login failed");
-  return { raceId, sessionToken: login.sessionToken, csrfCookie: login.csrfToken, csrfHeader: login.csrfToken, actorId: installation.credentialId };
-}
+const auth = (raceId: string, role: "ADMIN" | "FUNCTIONARY" = "ADMIN") => raceAuth(db, raceId, role, now);
+const { decide } = statusFlow(db);
 async function fixture(withReadout = true) {
   const eventId = randomUUID(), raceId = randomUUID(), courseId = randomUUID(), courseVersionId = randomUUID();
   const classId = randomUUID(), entryId = randomUUID(), controlId = randomUUID();
@@ -58,7 +48,7 @@ async function inputFor(actor: Awaited<ReturnType<typeof auth>>, entryId: string
   if (!entry?.cardAssignmentId || !entry.latestReadout || !entry.latestResultRevision) throw new Error("Candidate missing");
   return { ...actor, entryId, idempotencyKey: `result-recalculation:${randomUUID()}`, request: {
     formatVersion: 1, expectedEntryVersion: entry.entryVersion, expectedClassId: entry.classId,
-    expectedSnapshotVersion: listed.response.snapshotVersion, expectedCardAssignmentId: entry.cardAssignmentId,
+    expectedCardAssignmentId: entry.cardAssignmentId,
     expectedReadoutId: entry.latestReadout.id, expectedLatestResultRevision: {
       id: entry.latestResultRevision.id, revision: entry.latestResultRevision.revision
     }, expectedEngineVersion: listed.response.engineVersion
@@ -69,7 +59,7 @@ async function read(f: Awaited<ReturnType<typeof fixture>>) {
   return getAdministratorEffectiveResult(db, { ...f.administrator, entryId: f.entryId }, now);
 }
 async function freshness(f: Awaited<ReturnType<typeof fixture>>) {
-  const listed = await listEntryTransfersAsAdministrator(db, f.administrator, now);
+  const listed = await listEntryTransfersAsAdmin(db, f.administrator, now);
   if (listed.status !== "ok") throw new Error("Roster freshness failed");
   const entry = listed.response.entries.find(row => row.id === f.entryId);
   if (!entry) throw new Error("Roster entry missing");
@@ -84,16 +74,11 @@ async function footprint(raceId: string) {
 }
 describe("TASK033/TASK070 administrator effective result", () => {
   it("resolves DSQ above later technical results, preserves historical class and performs no writes", async () => {
-    const f = await fixture(), official = await auth(f.raceId, "DISQUALIFY_RESULT");
-    const initial = await inputFor(f.administrator, f.entryId);
+    const f = await fixture();
     expect(await read(f)).toMatchObject({ status: "ok", response: { state: "ACTIVE_RESULT", governingDecision: "NONE", result: { status: "OK", revision: 1 } } });
     expect(await freshness(f)).toMatchObject({ freshness: "CURRENT_SNAPSHOT", effectiveResult: {
       state: "ACTIVE_RESULT", resultSnapshotVersion: 1, result: { status: "OK", revision: 1, elapsedMs: 1_200_000 } } });
-    expect((await disqualifyResultAsAdmin(db, { ...official, entryId: f.entryId,
-      idempotencyKey: `manual-disqualification:${randomUUID()}`, request: { formatVersion: 1,
-        expectedEntryVersion: 1, expectedClassId: f.classId, expectedCourseVersionId: f.courseVersionId,
-        expectedSnapshotVersion: 1, expectedResultRevision: { ...initial.request.expectedLatestResultRevision, status: "OK" },
-        policyVersion: "manual-disqualification-v1" } }, now)).status).toBe("disqualified");
+    expect((await decide(f.administrator, f.entryId, { kind: "DISQUALIFIED" }, { now })).status).toBe("decided");
     expect((await recalculateEntryAsAdmin(db, await inputFor(f.administrator, f.entryId), now)).status).toBe("recalculated");
     const newClass = randomUUID();
     await pool.query("INSERT INTO class(id,race_id,name,course_version_id,start_rule) VALUES($1,$2,'Synthetic new class',$3,'PUNCH')", [newClass, f.raceId, f.courseVersionId]);
@@ -111,44 +96,30 @@ describe("TASK033/TASK070 administrator effective result", () => {
   });
 
   it("distinguishes no published result, active DNS and withdrawn DNS while denying foreign entries and limited roles", async () => {
-    const f = await fixture(false), other = await fixture(false), reader = await auth(f.raceId, "VIEW_SPEAKER_BOARD");
+    const f = await fixture(false), other = await fixture(false), reader = await auth(f.raceId, "FUNCTIONARY");
     expect(await read(f)).toMatchObject({ status: "ok", response: { state: "NO_PUBLISHED_RESULT", selectedRevision: null } });
     expect(await freshness(f)).toEqual({ freshness: "NO_PUBLISHED_RESULT", effectiveResult: {
       state: "NO_PUBLISHED_RESULT", selectedRevision: null } });
     expect((await getAdministratorEffectiveResult(db, { ...reader, entryId: f.entryId }, now)).status).toBe("forbidden");
     expect((await getAdministratorEffectiveResult(db, { ...f.administrator, entryId: other.entryId }, now)).status).toBe("not-found");
-    const official = await auth(f.raceId, "DECIDE_DID_NOT_START");
-    const base = { formatVersion: 1, expectedEntryVersion: 1, expectedClassId: f.classId,
-      expectedCourseVersionId: f.courseVersionId, expectedSnapshotVersion: 1 };
-    const dns = await decideDidNotStartAsAdmin(db, { ...official, entryId: f.entryId,
-      idempotencyKey: `did-not-start:${randomUUID()}`, request: { ...base, expectedLatestResultRevision: null,
-        policyVersion: DID_NOT_START_DECISION_POLICY_VERSION } }, now);
+    const dns = await decide(f.administrator, f.entryId, { kind: "DID_NOT_START" }, { now });
     if (dns.status !== "decided") throw new Error("Synthetic DNS failed");
     expect(await read(f)).toMatchObject({ status: "ok", response: { state: "ACTIVE_RESULT", governingDecision: "DNS", result: { status: "DNS" } } });
     expect(await freshness(f)).toMatchObject({ freshness: "CURRENT_SNAPSHOT", effectiveResult: {
       state: "ACTIVE_RESULT", result: { status: "DNS" } } });
-    const withdrawing = await auth(f.raceId, "WITHDRAW_DID_NOT_START");
-    expect((await withdrawDidNotStartAsAdmin(db, { ...withdrawing, entryId: f.entryId,
-      idempotencyKey: `did-not-start-withdrawal:${randomUUID()}`, request: { ...base,
-        expectedDidNotStartDecisionId: dns.response.didNotStartDecisionId,
-        expectedResultRevision: { id: dns.response.resultRevisionId, revision: dns.response.revision },
-        policyVersion: "did-not-start-withdrawal-v1" } }, now)).status).toBe("withdrawn");
+    const withdrawn = await decide(f.administrator, f.entryId, { kind: "WITHDRAW" }, { now });
+    if (withdrawn.status !== "decided") throw new Error("Synthetic DNS withdrawal failed");
     const before = await footprint(f.raceId);
     expect(await read(f)).toMatchObject({ status: "ok", response: { state: "NO_ACTIVE_RESULT",
-      selectedRevision: { id: dns.response.resultRevisionId, revision: 1 } } });
+      selectedRevision: { id: withdrawn.response.resultRevisionId, revision: 2 } } });
     expect(await freshness(f)).toEqual({ freshness: "NO_ACTIVE_RESULT", effectiveResult: {
-      state: "NO_ACTIVE_RESULT", selectedRevision: { id: dns.response.resultRevisionId, revision: 1 } } });
+      state: "NO_ACTIVE_RESULT", selectedRevision: { id: withdrawn.response.resultRevisionId, revision: 2 } } });
     expect(await footprint(f.raceId)).toBe(before);
   });
 
   it("projects without timing without an elapsed time", async () => {
-    const f = await fixture(), official = await auth(f.raceId, "DECIDE_WITHOUT_TIMING");
-    const initial = await inputFor(f.administrator, f.entryId);
-    expect((await decideWithoutTimingAsAdmin(db, { ...official, entryId: f.entryId,
-      idempotencyKey: `without-timing:${randomUUID()}`, request: { formatVersion: 1,
-        expectedEntryVersion: 1, expectedClassId: f.classId, expectedCourseVersionId: f.courseVersionId,
-        expectedSnapshotVersion: 1, expectedResultRevision: { ...initial.request.expectedLatestResultRevision, status: "OK", reason: "COMPLETE" },
-        policyVersion: "without-timing-v1" } }, now)).status).toBe("without-timing");
+    const f = await fixture();
+    expect((await decide(f.administrator, f.entryId, { kind: "WITHOUT_TIMING" }, { now })).status).toBe("decided");
     const before = await footprint(f.raceId), result = await read(f);
     expect(result).toMatchObject({ status: "ok", response: { state: "ACTIVE_RESULT",
       governingDecision: "NT", result: { status: "NT", revision: 2 } } });

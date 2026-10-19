@@ -6,7 +6,7 @@ export * from "./start-checkin-sync";
 export * from "./forest-watch";
 export * from "./did-not-start";
 export * from "./did-not-finish";
-export * from "./did-not-start-withdrawal";
+export * from "./manual-decision";
 export * from "./evaluate-card-readout";
 export * from "./out-of-competition";
 export * from "./without-timing";

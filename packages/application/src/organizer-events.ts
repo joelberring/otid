@@ -1,4 +1,3 @@
-import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import {
@@ -6,10 +5,8 @@ import {
   organizerEventCreateRequestSchema,
   organizerEventCreateResponseSchema,
   organizerMyEventsResponseSchema,
-  organizerRaceEnterResponseSchema,
   type OrganizerEventCreateResponse,
-  type OrganizerMyEventsResponse,
-  type OrganizerRaceEnterResponse
+  type OrganizerMyEventsResponse
 } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
 import { schema } from "@o-tid/database";
@@ -18,11 +15,8 @@ import {
   authenticateUserAccountSessionForProtectedRead,
   type UserAccountSessionProof
 } from "./user-account";
+import { activeEventAdministrationGrant, type EventGrantRole } from "./race-session";
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
-const RACE_SESSION_PREFIX = "otid_org_session_v1";
-const ONE_HOUR_MS = 60 * 60 * 1000;
-type DatabaseTransaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 export type OrganizerEventCreateResult =
   | { status: "unauthorized" | "forbidden" | "invalid-request" | "conflict" }
@@ -30,9 +24,6 @@ export type OrganizerEventCreateResult =
 export type OrganizerMyEventsResult =
   | { status: "unauthorized" | "forbidden" }
   | { status: "ok"; response: OrganizerMyEventsResponse };
-export type OrganizerRaceEnterResult =
-  | { status: "unauthorized" | "forbidden" | "not-found" }
-  | { status: "entered"; response: OrganizerRaceEnterResponse; sessionToken: string; csrfToken: string };
 
 export interface OrganizerEventCreateInput extends UserAccountSessionProof {
   idempotencyKey: string | null;
@@ -44,9 +35,7 @@ function validDate(value: Date): Date {
   return value;
 }
 
-function sha256(value: Uint8Array): string {
-  return createHash("sha256").update(value).digest("hex");
-}
+const ROLE_ORDER: Record<EventGrantRole, number> = { OWNER: 0, ADMIN: 1, FUNCTIONARY: 2 };
 
 function responseFor(row: {
   requestId: string; eventId: string; raceId: string; createdAt: Date;
@@ -58,7 +47,7 @@ function responseFor(row: {
 }
 
 /** All owner facts and the request receipt commit together or not at all. */
-export async function createEventAsUserAccount(
+export async function createOrganizerEvent(
   db: Database,
   input: OrganizerEventCreateInput,
   now = new Date()
@@ -121,45 +110,8 @@ export async function createEventAsUserAccount(
   });
 }
 
-export type EventGrantRole = "OWNER" | "ADMIN" | "FUNCTIONARY";
-const ROLE_ORDER: Record<EventGrantRole, number> = { OWNER: 0, ADMIN: 1, FUNCTIONARY: 2 };
-
-/**
- * Kontots gällande behörighet på eventet. `roles` begränsar vilka roller som räknas (förval: OWNER och ADMIN).
- * Har kontot flera gäller den starkaste (ägare före administratör före funktionär).
- */
-export async function activeEventAdministrationGrant(
-  tx: DatabaseTransaction,
-  input: { accountId: string; eventId: string; grantId?: string; ownerOnly?: boolean; roles?: readonly EventGrantRole[] },
-  lock: "share" | "update"
-): Promise<{ id: string; role: EventGrantRole } | undefined> {
-  const grantQuery = tx.select({ id: schema.eventAdministrationGrants.id,
-    role: schema.eventAdministrationGrants.role })
-    .from(schema.eventAdministrationGrants)
-    .where(and(eq(schema.eventAdministrationGrants.accountId, input.accountId),
-      eq(schema.eventAdministrationGrants.eventId, input.eventId),
-      input.grantId ? eq(schema.eventAdministrationGrants.id, input.grantId) : undefined,
-      input.ownerOnly ? eq(schema.eventAdministrationGrants.role, "OWNER") :
-        inArray(schema.eventAdministrationGrants.role, [...(input.roles ?? ["OWNER", "ADMIN"])])))
-    .orderBy(asc(schema.eventAdministrationGrants.grantedAt), asc(schema.eventAdministrationGrants.id));
-  const grants = (lock === "share" ? await grantQuery.for("share") : await grantQuery.for("update"))
-    .sort((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role]);
-  for (const grant of grants) {
-    const guardQuery = tx.select({ grantId: schema.eventAdministrationGrantGuards.grantId })
-      .from(schema.eventAdministrationGrantGuards)
-      .where(eq(schema.eventAdministrationGrantGuards.grantId, grant.id));
-    const [guard] = lock === "share" ? await guardQuery.for("share") : await guardQuery.for("update");
-    if (!guard) continue;
-    const [revocation] = await tx.select({ id: schema.eventAdministrationGrantRevocations.id })
-      .from(schema.eventAdministrationGrantRevocations)
-      .where(eq(schema.eventAdministrationGrantRevocations.grantId, grant.id));
-    if (!revocation) return grant;
-  }
-  return undefined;
-}
-
 /** Mina tävlingar: där kontot är ägare, administratör eller funktionär (ADR-0172 beslut 3). */
-export async function listMyEventsAsUserAccount(
+export async function listMyEvents(
   db: Database,
   proof: UserAccountSessionProof,
   now = new Date()
@@ -203,68 +155,5 @@ export async function listMyEventsAsUserAccount(
           raceType: race.raceType })) });
     }
     return { status: "ok", response: organizerMyEventsResponseSchema.parse({ formatVersion: 1, events }) } as const;
-  });
-}
-
-/**
- * Kontot öppnar tävlingen: en dold, kortlivad delegering till MANAGE_RACE (ägare/administratör) eller
- * RACE_FUNCTIONARY (funktionär). Ingen credentialhemlighet når webbläsaren. Varje enhet får sin egen session,
- * så samma konto kan vara inloggat på flera enheter samtidigt (ADR-0172 beslut 3).
- */
-export async function enterRaceAsUserAccount(
-  db: Database,
-  input: UserAccountSessionProof & { raceId: string },
-  now = new Date()
-): Promise<OrganizerRaceEnterResult> {
-  if (!UUID_PATTERN.test(input.raceId)) return { status: "not-found" };
-  const enteredAt = validDate(now);
-  return db.transaction(async (tx) => {
-    const auth = await authenticateUserAccountSessionForMutation(tx, { ...input, requireCsrf: true }, enteredAt);
-    if (auth.status !== "authenticated") return auth;
-    const [race] = await tx.select({ id: schema.races.id, eventId: schema.races.eventId })
-      .from(schema.races).where(eq(schema.races.id, input.raceId)).for("share");
-    if (!race) return { status: "not-found" } as const;
-    const grant = await activeEventAdministrationGrant(tx, {
-      accountId: auth.principal.accountId, eventId: race.eventId, roles: ["OWNER", "ADMIN", "FUNCTIONARY"]
-    }, "update");
-    if (!grant) return { status: "not-found" } as const;
-    const capability = grant.role === "FUNCTIONARY" ? "RACE_FUNCTIONARY" as const : "MANAGE_RACE" as const;
-    const expiresAt = new Date(Math.min(enteredAt.getTime() + ONE_HOUR_MS,
-      new Date(auth.principal.expiresAt).getTime()));
-    if (expiresAt.getTime() <= enteredAt.getTime()) return { status: "unauthorized" } as const;
-    const credentialId = randomUUID(), sessionId = randomUUID();
-    const hiddenCredentialSecret = randomBytes(32), sessionSecret = randomBytes(32), csrfSecret = randomBytes(32);
-    await tx.insert(schema.pairingAdminAccessCredentials).values({
-      id: credentialId, raceId: race.id, capability,
-      label: "Kontobunden delegation", secretHash: sha256(hiddenCredentialSecret),
-      issuedAt: enteredAt, expiresAt
-    });
-    await tx.insert(schema.userAccountRaceDelegations).values({
-      credentialId, accountId: auth.principal.accountId,
-      accountSessionId: auth.principal.sessionId, grantId: grant.id,
-      eventId: race.eventId, raceId: race.id, capability,
-      issuedAt: enteredAt, expiresAt
-    });
-    await tx.insert(schema.pairingAdminSessions).values({
-      id: sessionId, accessCredentialId: credentialId,
-      sessionSecretHash: sha256(sessionSecret), csrfSecretHash: sha256(csrfSecret),
-      issuedAt: enteredAt, expiresAt
-    });
-    await tx.insert(schema.auditEvents).values({
-      raceId: race.id, entityType: "user_account_race_delegation", entityId: credentialId,
-      action: "RACE_ADMIN_DELEGATED_BY_ACCOUNT", actorKind: "USER_ACCOUNT",
-      actorId: auth.principal.accountId,
-      after: { accountId: auth.principal.accountId, eventId: race.eventId,
-        raceId: race.id, capability, role: grant.role, expiresAt: expiresAt.toISOString() }
-    });
-    return {
-      status: "entered",
-      response: organizerRaceEnterResponseSchema.parse({
-        formatVersion: 1, raceId: race.id, role: capability === "MANAGE_RACE" ? "ADMIN" : "FUNCTIONARY",
-        expiresAt: expiresAt.toISOString()
-      }),
-      sessionToken: `${RACE_SESSION_PREFIX}.${sessionId}.${sessionSecret.toString("base64url")}`,
-      csrfToken: csrfSecret.toString("base64url")
-    } as const;
   });
 }

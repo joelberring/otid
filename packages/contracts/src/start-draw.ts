@@ -1,12 +1,12 @@
 import { z } from "zod";
 import { courseEditChangeSchema, courseVariantCodeSchema } from "./course-edit";
+import { prefixedUuidPattern, uuidSchema as uuid } from "./ids";
 
 /**
  * Lottning (PLAN.md steg 9): startsätt per klass, flera klasser på en gång,
  * startfållor, klubbseparering och vakanser. Förhandsvisningen läser bara;
  * sparandet binder samma underlag, samma frö och samma tävlingsläge.
  */
-const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 const version = z.number().int().positive().max(2_147_483_647);
 const count = z.number().int().nonnegative().max(10_000);
 const name = z.string().trim().min(1).max(160);
@@ -39,7 +39,7 @@ export const startDrawClassSettingSchema = z.object({
 }).strict();
 
 const drawSettings = {
-  expectedSnapshotVersion: version, firstStartTime: minuteInstant, clubSeparation: z.boolean(),
+  firstStartTime: minuteInstant, clubSeparation: z.boolean(),
   classes: z.array(startDrawClassSettingSchema).min(1).max(1_000)
 };
 const uniqueClasses = (value: { classes: readonly { classId: string }[] }) =>
@@ -86,7 +86,7 @@ export const startDrawRequestSchema = z.object({
 }).strict().refine(uniqueClasses);
 
 export const startDrawIdempotencyKeySchema = z.string().regex(
-  /^start-draw:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  prefixedUuidPattern("start-draw"));
 
 export const startDrawResponseSchema = z.object({
   formatVersion: z.literal(1), replayed: z.boolean(), requestId: uuid, raceId: uuid, request: startDrawRequestSchema,
@@ -94,15 +94,11 @@ export const startDrawResponseSchema = z.object({
   snapshotVersionBefore: version, snapshotVersionAfter: version, drawnAt: instant
 }).strict().superRefine((value, context) => {
   if (value.snapshotVersionAfter !== value.snapshotVersionBefore + 1 || value.requestId !== value.request.requestId ||
-      value.snapshotVersionBefore !== value.request.expectedSnapshotVersion || value.classCount !== value.request.classes.length) {
+      value.classCount !== value.request.classes.length) {
     context.addIssue({ code: "custom", message: "Kvittensen måste binda begäran och ett steg i versionsföljden" });
   }
 });
 
-/** Äldre funktionsbehörighet för lottning (inloggning med åtkomstkod). Lottningen själv kräver admin. */
-export const classStartDrawAdminLoginRequestSchema = z.object({
-  formatVersion: z.literal(1), accessCredential: z.string().regex(/^otid_org_class_start_draw_v1\.[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.[A-Za-z0-9_-]{43}$/)
-}).strict();
 
 export type StartDrawMethod = z.infer<typeof startDrawMethodSchema>;
 export type StartDrawVacancies = z.infer<typeof startDrawVacanciesSchema>;

@@ -2,8 +2,7 @@ import { describe, expect, it } from "vitest";
 import { entryRegistrationCandidatesRequestSchema, entryRegistrationCandidatesResponseSchema } from "../src";
 
 const id = "10000000-0000-4000-8000-000000000001";
-const query = { formatVersion: 1, expectedSnapshotVersion: 2,
-  givenName: " Anna ", familyName: " Andersson ", cardNumber: null };
+const query = { formatVersion: 1, givenName: " Anna ", familyName: " Andersson ", cardNumber: null };
 const candidate = { entryId: id, classId: id, className: "Öppen",
   givenName: "Anna", familyName: "Andersson", organisationName: null, reasons: ["SAME_NAME"] };
 const response = { formatVersion: 1, raceId: id, snapshotVersion: 2, totalMatches: 1, candidates: [candidate] };
@@ -12,7 +11,7 @@ describe("TASK028 kandidatkontrakt", () => {
   it("normaliserar indata men avvisar okänt scope, ogiltig bricka och tomma namn", () => {
     expect(entryRegistrationCandidatesRequestSchema.parse(query)).toMatchObject({ givenName: "Anna", familyName: "Andersson" });
     for (const change of [{ givenName: " " }, { familyName: "a".repeat(161) },
-      { cardNumber: "0123" }, { expectedSnapshotVersion: 0 }, { raceId: id }]) {
+      { cardNumber: "0123" }, { raceId: id }]) {
       expect(entryRegistrationCandidatesRequestSchema.safeParse({ ...query, ...change }).success).toBe(false);
     }
   });

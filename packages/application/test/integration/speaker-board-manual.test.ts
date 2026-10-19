@@ -3,31 +3,18 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrate } from "@o-tid/database";
 import { createDatabase } from "@o-tid/database";
 import {
-  approveResultAsAdmin,
   contentHash,
   createEvent,
-  decideDidNotStartAsAdmin,
-  decideDidNotFinishAsAdmin,
-  decideOutOfCompetitionAsAdmin,
-  decideWithoutTimingAsAdmin,
-  disqualifyResultAsAdmin,
   importIofXml,
   ingestDeviceBatch,
-  issuePairingAdminAccessCredential,
-  listDidNotFinishCandidatesAsAdmin,
-  listDidNotStartCandidatesAsAdmin,
-  listDidNotStartWithdrawalsAsAdmin,
-  listOutOfCompetitionCandidatesAsAdmin,
-  listResultApprovalCandidatesAsAdmin,
-  listResultDisqualificationCandidatesAsAdmin,
   listSpeakerBoardAsAdmin,
-  listWithoutTimingCandidatesAsAdmin,
-  loginPairingAdmin,
   listAdministratorForestWatch,
   correctAdministratorStart,
-  registerAdministratorReturn,
-  withdrawDidNotStartAsAdmin
+  registerAdministratorReturn
 } from "../../src";
+import type { EntryStatusDecision } from "@o-tid/contracts";
+import { statusFlow } from "./entry-status-helpers";
+import { raceLogin } from "./accounts";
 
 const url = process.env.TEST_DATABASE_URL;
 if (!url) throw new Error("TEST_DATABASE_URL krävs");
@@ -39,9 +26,14 @@ beforeAll(async () => {
 });
 afterAll(async () => { await pool.end(); });
 
-type Capability = "VIEW_SPEAKER_BOARD" | "DISQUALIFY_RESULT" | "APPROVE_RESULT" |
-  "DECIDE_DID_NOT_START" | "WITHDRAW_DID_NOT_START" | "DECIDE_DID_NOT_FINISH" |
-  "DECIDE_OUT_OF_COMPETITION" | "DECIDE_WITHOUT_TIMING" | "RACE_FUNCTIONARY";
+const flow = statusFlow(db);
+
+/** Ett beslut för Ada i statusflödet. */
+async function decideForAda(raceId: string, decision: EntryStatusDecision) {
+  const auth = await admin(raceId, "ADMIN");
+  const result = await flow.decide(auth, await flow.entryId(raceId, "Ada"), decision, { now });
+  expect(result.status).toBe("decided");
+}
 
 async function fixture() {
   const { race } = await createEvent(db, { name: "Manuell speakertest", raceName: "Lång",
@@ -52,17 +44,9 @@ async function fixture() {
   return race.id;
 }
 
-async function admin(raceId: string, capability: Capability, marker: number) {
-  const installation = await issuePairingAdminAccessCredential(db, { raceId, capability,
-    label: `Manuell speaker ${capability}`, expiresAt: new Date(now.getTime() + 8 * 3600_000) },
-  { now, secretBytes: Buffer.alloc(32, marker) });
-  const login = await loginPairingAdmin(db, { formatVersion: 1, accessCredential: installation.accessCredential }, {
-    now, expectedRaceId: raceId, expectedCapability: capability,
-    sessionSecretBytes: Buffer.alloc(32, marker + 1), csrfSecretBytes: Buffer.alloc(32, marker + 2)
-  });
-  if (login.status !== "authenticated") throw new Error("Arrangörssession saknas");
-  return { sessionToken: login.sessionToken, raceId, csrfCookie: login.csrfToken, csrfHeader: login.csrfToken,
-    credentialId: installation.credentialId };
+async function admin(raceId: string, role: "ADMIN" | "FUNCTIONARY") {
+  const login = await raceLogin(db, raceId, role, now);
+  return { sessionToken: login.sessionToken, raceId, csrfCookie: login.csrfToken, csrfHeader: login.csrfToken };
 }
 
 function payload(kind: "ok" | "missing") {
@@ -82,7 +66,7 @@ async function ingest(raceId: string, kind: "ok" | "missing") {
 }
 
 async function board(raceId: string) {
-  const auth = await admin(raceId, "VIEW_SPEAKER_BOARD", 11);
+  const auth = await admin(raceId, "FUNCTIONARY");
   const response = await listSpeakerBoardAsAdmin(db, { raceId, sessionToken: auth.sessionToken }, now);
   if (response.status !== "ok") throw new Error(`Speakerunderlag saknas: ${response.status}`);
   const [row] = response.response.rows;
@@ -94,18 +78,7 @@ describe("TASK 008 speaker: manuella resultatlivscykler PostgreSQL", () => {
   it("behåller aktiv DSQ över senare teknisk OK", async () => {
     const raceId = await fixture();
     await ingest(raceId, "ok");
-    const auth = await admin(raceId, "DISQUALIFY_RESULT", 21);
-    const listed = await listResultDisqualificationCandidatesAsAdmin(db, auth, now);
-    if (listed.status !== "ok") throw new Error("DSQ-kandidater saknas");
-    const candidate = listed.response.entries.find((entry) => entry.displayName.includes("Ada"));
-    if (!candidate?.targetResultRevision) throw new Error("DSQ-target saknas");
-    const result = await disqualifyResultAsAdmin(db, { ...auth, entryId: candidate.id,
-      idempotencyKey: `manual-disqualification:${crypto.randomUUID()}`, request: { formatVersion: 1,
-        expectedEntryVersion: candidate.entryVersion, expectedClassId: candidate.classId,
-        expectedCourseVersionId: candidate.courseVersionId, expectedSnapshotVersion: listed.response.snapshotVersion,
-        expectedResultRevision: { id: candidate.targetResultRevision.id, revision: candidate.targetResultRevision.revision,
-          status: candidate.targetResultRevision.status }, policyVersion: "manual-disqualification-v1" } }, now);
-    expect(result.status).toBe("disqualified");
+    await decideForAda(raceId, { kind: "DISQUALIFIED" });
     await ingest(raceId, "ok");
     expect((await board(raceId)).result).toMatchObject({ status: "DSQ", reason: "MANUAL_DISQUALIFICATION" });
   });
@@ -113,19 +86,7 @@ describe("TASK 008 speaker: manuella resultatlivscykler PostgreSQL", () => {
   it("behåller aktiv approval över senare teknisk MP", async () => {
     const raceId = await fixture();
     await ingest(raceId, "missing");
-    const auth = await admin(raceId, "APPROVE_RESULT", 31);
-    const listed = await listResultApprovalCandidatesAsAdmin(db, auth, now);
-    if (listed.status !== "ok") throw new Error("Approval-kandidater saknas");
-    const candidate = listed.response.entries.find((entry) => entry.displayName.includes("Ada"));
-    if (!candidate?.targetResultRevision) throw new Error("Approval-target saknas");
-    const result = await approveResultAsAdmin(db, { ...auth, entryId: candidate.id,
-      idempotencyKey: `manual-result-approval:${crypto.randomUUID()}`, request: { formatVersion: 1,
-        expectedEntryVersion: candidate.entryVersion, expectedClassId: candidate.classId,
-        expectedCourseVersionId: candidate.courseVersionId, expectedSnapshotVersion: listed.response.snapshotVersion,
-        expectedResultRevision: { id: candidate.targetResultRevision.id, revision: candidate.targetResultRevision.revision,
-          status: candidate.targetResultRevision.status, reason: candidate.targetResultRevision.reason },
-        policyVersion: "manual-result-approval-v1" } }, now);
-    expect(result.status).toBe("approved");
+    await decideForAda(raceId, { kind: "APPROVE_MANUALLY" });
     await ingest(raceId, "missing");
     expect((await board(raceId)).result).toMatchObject({ status: "OK", reason: "MANUAL_APPROVAL" });
   });
@@ -133,18 +94,7 @@ describe("TASK 008 speaker: manuella resultatlivscykler PostgreSQL", () => {
   it("behåller aktiv DNF över senare teknisk MP utan tid", async () => {
     const raceId = await fixture();
     await ingest(raceId, "missing");
-    const auth = await admin(raceId, "DECIDE_DID_NOT_FINISH", 41);
-    const listed = await listDidNotFinishCandidatesAsAdmin(db, auth, now);
-    if (listed.status !== "ok") throw new Error("DNF-kandidater saknas");
-    const candidate = listed.response.entries.find((entry) => entry.displayName.includes("Ada"));
-    if (!candidate?.targetResultRevision) throw new Error("DNF-target saknas");
-    const result = await decideDidNotFinishAsAdmin(db, { ...auth, entryId: candidate.id,
-      idempotencyKey: `did-not-finish:${crypto.randomUUID()}`, request: { formatVersion: 1,
-        expectedEntryVersion: candidate.entryVersion, expectedClassId: candidate.classId,
-        expectedCourseVersionId: candidate.courseVersionId, expectedSnapshotVersion: listed.response.snapshotVersion,
-        expectedResultRevision: { id: candidate.targetResultRevision.id, revision: candidate.targetResultRevision.revision,
-          status: candidate.targetResultRevision.status }, policyVersion: "did-not-finish-v1" } }, now);
-    expect(result.status).toBe("did-not-finish");
+    await decideForAda(raceId, { kind: "DID_NOT_FINISH" });
     await ingest(raceId, "missing");
     expect((await board(raceId)).result).toEqual(expect.objectContaining({ status: "DNF", reason: "DID_NOT_FINISH" }));
     expect((await board(raceId)).result).not.toHaveProperty("elapsedMs");
@@ -153,18 +103,7 @@ describe("TASK 008 speaker: manuella resultatlivscykler PostgreSQL", () => {
   it("behåller aktiv OOC över senare teknisk OK", async () => {
     const raceId = await fixture();
     await ingest(raceId, "ok");
-    const auth = await admin(raceId, "DECIDE_OUT_OF_COMPETITION", 51);
-    const listed = await listOutOfCompetitionCandidatesAsAdmin(db, auth, now);
-    if (listed.status !== "ok") throw new Error("OOC-kandidater saknas");
-    const candidate = listed.response.entries.find((entry) => entry.displayName.includes("Ada"));
-    if (!candidate?.targetResultRevision) throw new Error("OOC-target saknas");
-    const result = await decideOutOfCompetitionAsAdmin(db, { ...auth, entryId: candidate.id,
-      idempotencyKey: `out-of-competition:${crypto.randomUUID()}`, request: { formatVersion: 1,
-        expectedEntryVersion: candidate.entryVersion, expectedClassId: candidate.classId,
-        expectedCourseVersionId: candidate.courseVersionId, expectedSnapshotVersion: listed.response.snapshotVersion,
-        expectedResultRevision: { id: candidate.targetResultRevision.id, revision: candidate.targetResultRevision.revision,
-          status: candidate.targetResultRevision.status }, policyVersion: "out-of-competition-v1" } }, now);
-    expect(result.status).toBe("out-of-competition");
+    await decideForAda(raceId, { kind: "OUT_OF_COMPETITION" });
     await ingest(raceId, "ok");
     expect((await board(raceId)).result).toMatchObject({ status: "OOC", reason: "OUT_OF_COMPETITION" });
   });
@@ -172,18 +111,7 @@ describe("TASK 008 speaker: manuella resultatlivscykler PostgreSQL", () => {
   it("behåller aktiv NT över senare teknisk OK och exponerar aldrig tid", async () => {
     const raceId = await fixture();
     await ingest(raceId, "ok");
-    const auth = await admin(raceId, "DECIDE_WITHOUT_TIMING", 61);
-    const listed = await listWithoutTimingCandidatesAsAdmin(db, auth, now);
-    if (listed.status !== "ok") throw new Error("NT-kandidater saknas");
-    const candidate = listed.response.entries.find((entry) => entry.displayName.includes("Ada"));
-    if (!candidate?.targetResultRevision) throw new Error("NT-target saknas");
-    const result = await decideWithoutTimingAsAdmin(db, { ...auth, entryId: candidate.id,
-      idempotencyKey: `without-timing:${crypto.randomUUID()}`, request: { formatVersion: 1,
-        expectedEntryVersion: candidate.entryVersion, expectedClassId: candidate.classId,
-        expectedCourseVersionId: candidate.courseVersionId, expectedSnapshotVersion: listed.response.snapshotVersion,
-        expectedResultRevision: { id: candidate.targetResultRevision.id, revision: candidate.targetResultRevision.revision,
-          status: "OK", reason: "COMPLETE" }, policyVersion: "without-timing-v1" } }, now);
-    expect(result.status).toBe("without-timing");
+    await decideForAda(raceId, { kind: "WITHOUT_TIMING" });
     await ingest(raceId, "ok");
     const row = await board(raceId);
     expect(row.result).toEqual(expect.objectContaining({ status: "NT", reason: "WITHOUT_TIMING" }));
@@ -192,42 +120,21 @@ describe("TASK 008 speaker: manuella resultatlivscykler PostgreSQL", () => {
 
   it("visar återtaget manuellt DNS som NO_ACTIVE_RESULT utan fallback eller tid", async () => {
     const raceId = await fixture();
-    const dnsAuth = await admin(raceId, "DECIDE_DID_NOT_START", 71);
-    const candidates = await listDidNotStartCandidatesAsAdmin(db, dnsAuth, now);
-    if (candidates.status !== "ok") throw new Error("DNS-kandidater saknas");
-    const candidate = candidates.response.entries.find((entry) => entry.displayName.includes("Ada"));
-    if (!candidate) throw new Error("Ada saknas som DNS-kandidat");
-    const decided = await decideDidNotStartAsAdmin(db, { ...dnsAuth, entryId: candidate.id,
-      idempotencyKey: `did-not-start:${crypto.randomUUID()}`, request: { formatVersion: 1,
-        expectedEntryVersion: candidate.entryVersion, expectedClassId: candidate.classId,
-        expectedCourseVersionId: candidate.courseVersionId, expectedSnapshotVersion: candidates.response.snapshotVersion,
-        expectedLatestResultRevision: null, policyVersion: "did-not-start-v1" } }, now);
-    expect(decided.status).toBe("decided");
-    const speaker = await admin(raceId, "VIEW_SPEAKER_BOARD", 81);
+    await decideForAda(raceId, { kind: "DID_NOT_START" });
+    const speaker = await admin(raceId, "FUNCTIONARY");
     const before = await listSpeakerBoardAsAdmin(db, { raceId, sessionToken: speaker.sessionToken }, now);
     if (before.status !== "ok") throw new Error("DNS-speakerunderlag saknas");
     const beforeRow = before.response.rows.find((row) => row.givenName === "Ada");
     expect(beforeRow).toMatchObject({ state: "ACTIVE_RESULT", result: { status: "DNS", reason: "DID_NOT_START" } });
 
-    const withdrawalAuth = await admin(raceId, "WITHDRAW_DID_NOT_START", 91);
-    const withdrawals = await listDidNotStartWithdrawalsAsAdmin(db, withdrawalAuth, now);
-    if (withdrawals.status !== "ok") throw new Error("DNS-återtagandekandidater saknas");
-    const withdrawal = withdrawals.response.entries.find((entry) => entry.id === candidate.id);
-    if (!withdrawal || withdrawal.state !== "WITHDRAWABLE") throw new Error("DNS kan inte återtas");
-    const withdrawn = await withdrawDidNotStartAsAdmin(db, { ...withdrawalAuth, entryId: candidate.id,
-      idempotencyKey: `did-not-start-withdrawal:${crypto.randomUUID()}`, request: { formatVersion: 1,
-        expectedEntryVersion: withdrawal.entryVersion, expectedClassId: withdrawal.classId,
-        expectedCourseVersionId: withdrawal.courseVersionId, expectedSnapshotVersion: withdrawals.response.snapshotVersion,
-        expectedDidNotStartDecisionId: withdrawal.didNotStartDecisionId,
-        expectedResultRevision: { id: withdrawal.targetResultRevision.id, revision: withdrawal.targetResultRevision.revision },
-        policyVersion: "did-not-start-withdrawal-v1" } }, now);
-    expect(withdrawn.status).toBe("withdrawn");
+    await decideForAda(raceId, { kind: "WITHDRAW" });
 
     const after = await listSpeakerBoardAsAdmin(db, { raceId, sessionToken: speaker.sessionToken }, now);
     if (after.status !== "ok") throw new Error("Återtaget DNS-speakerunderlag saknas");
     const row = after.response.rows.find((item) => item.givenName === "Ada");
-    expect(row).toMatchObject({ state: "NO_ACTIVE_RESULT", selectedRevision: beforeRow?.selectedRevision,
-      registeredAt: beforeRow?.registeredAt });
+    // Borttaget ej start är en ny revision utan aktivt resultat.
+    expect(row).toMatchObject({ state: "NO_ACTIVE_RESULT", registeredAt: beforeRow?.registeredAt });
+    expect(row?.selectedRevision).not.toEqual(beforeRow?.selectedRevision);
     expect(row).not.toHaveProperty("result");
     expect(after.response.raceSnapshotVersion).toBe(before.response.raceSnapshotVersion);
   });
@@ -235,7 +142,7 @@ describe("TASK 008 speaker: manuella resultatlivscykler PostgreSQL", () => {
   it("tolkar avpricknings-DNS med exakt källa och döljer den efter målkorrektion", async () => {
     const raceId = await fixture();
     // Funktionären vid starten rapporterar Ada som ej startad (ADR-0172 beslut 3).
-    const start = await admin(raceId, "RACE_FUNCTIONARY", 101);
+    const start = await admin(raceId, "FUNCTIONARY");
     const roster = await listAdministratorForestWatch(db, start, now);
     if (roster.status !== "ok") throw new Error("Avprickningsroster saknas");
     const ada = roster.response.entries.find((entry) => entry.displayName.includes("Ada"));
@@ -246,7 +153,7 @@ describe("TASK 008 speaker: manuella resultatlivscykler PostgreSQL", () => {
       expectedRevision: ada.revision, targetStartState: "REPORTED_NOT_STARTED" } }, now);
     expect(dns).toMatchObject({ status: "stored", response: { receipt: { effect: { kind: "APPLIED" } } } });
 
-    const speaker = await admin(raceId, "VIEW_SPEAKER_BOARD", 111);
+    const speaker = await admin(raceId, "FUNCTIONARY");
     const before = await listSpeakerBoardAsAdmin(db, { raceId, sessionToken: speaker.sessionToken }, now);
     if (before.status !== "ok") throw new Error("Avpricknings-DNS speakerunderlag saknas");
     const beforeRow = before.response.rows.find((row) => row.givenName === "Ada");

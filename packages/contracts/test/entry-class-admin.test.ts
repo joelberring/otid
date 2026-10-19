@@ -1,13 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  entryClassAdminErrorResponseSchema,
-  entryClassAdminListResponseSchema,
-  entryClassAdminLoginRequestSchema,
-  entryClassAdminLoginResponseSchema,
-  entryClassChangeIdempotencyKeySchema,
-  entryClassChangeRequestSchema,
-  entryClassChangeResponseSchema
-} from "../src";
+import { entryClassAdminErrorResponseSchema, entryClassAdminListResponseSchema, entryClassChangeIdempotencyKeySchema, entryClassChangeRequestSchema, entryClassChangeResponseSchema } from "../src";
 
 const requestId = "a0000000-0000-4000-8000-000000000001";
 const raceId = "b0000000-0000-4000-8000-000000000002";
@@ -16,25 +8,6 @@ const previousClassId = "d0000000-0000-4000-8000-000000000004";
 const classId = "e0000000-0000-4000-8000-000000000005";
 
 describe("TASK 005H klassadministrationskontrakt", () => {
-  it("separerar klasscredential och session från pairing och import", () => {
-    const accessCredential = `otid_org_entry_class_v1.${requestId}.${"A".repeat(43)}`;
-    expect(entryClassAdminLoginRequestSchema.parse({ formatVersion: 1, accessCredential }))
-      .toEqual({ formatVersion: 1, accessCredential });
-    for (const prefix of ["otid_org_pair_v1", "otid_org_import_v1"]) {
-      expect(entryClassAdminLoginRequestSchema.safeParse({
-        formatVersion: 1,
-        accessCredential: accessCredential.replace("otid_org_entry_class_v1", prefix)
-      }).success).toBe(false);
-    }
-    expect(entryClassAdminLoginRequestSchema.safeParse({ formatVersion: 1, accessCredential, raceId }).success)
-      .toBe(false);
-    expect(entryClassAdminLoginResponseSchema.parse({
-      formatVersion: 1,
-      raceId,
-      capability: "CHANGE_ENTRY_CLASS",
-      expiresAt: "2026-08-31T18:00:00.000Z"
-    }).capability).toBe("CHANGE_ENTRY_CLASS");
-  });
 
   it("kräver exakt idempotensnyckel och strikt optimistic-intent", () => {
     expect(entryClassChangeIdempotencyKeySchema.parse(`entry-class-change:${requestId}`))

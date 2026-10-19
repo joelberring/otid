@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  raceOverviewAdminErrorResponseSchema,
-  raceOverviewAdminLoginRequestSchema,
-  raceOverviewAdminLoginResponseSchema,
-  raceOverviewResponseSchema
-} from "../src";
+import { raceOverviewAdminErrorResponseSchema, raceOverviewResponseSchema } from "../src";
 
 const raceId = "10000000-0000-4000-8000-000000000001";
 const classId = "20000000-0000-4000-8000-000000000002";
@@ -39,33 +34,6 @@ const overview = {
 };
 
 describe("TASK 005J raceöversiktskontrakt", () => {
-  it("separerar credentialprefix och capability", () => {
-    const accessCredential = `otid_org_race_overview_v1.${raceId}.${"A".repeat(43)}`;
-    expect(raceOverviewAdminLoginRequestSchema.parse({ formatVersion: 1, accessCredential }))
-      .toEqual({ formatVersion: 1, accessCredential });
-    for (const prefix of [
-      "otid_org_pair_v1",
-      "otid_org_import_v1",
-      "otid_org_entry_class_v1",
-      "otid_org_result_recalc_v1"
-    ]) {
-      expect(raceOverviewAdminLoginRequestSchema.safeParse({
-        formatVersion: 1,
-        accessCredential: accessCredential.replace("otid_org_race_overview_v1", prefix)
-      }).success).toBe(false);
-    }
-    expect(raceOverviewAdminLoginRequestSchema.safeParse({
-      formatVersion: 1,
-      accessCredential,
-      token: "får inte finnas"
-    }).success).toBe(false);
-    expect(raceOverviewAdminLoginResponseSchema.parse({
-      formatVersion: 1,
-      raceId,
-      capability: "VIEW_RACE_OVERVIEW",
-      expiresAt: "2026-08-31T20:00:00.000Z"
-    }).capability).toBe("VIEW_RACE_OVERVIEW");
-  });
 
   it("validerar den aggregerade PII-fria översikten", () => {
     expect(raceOverviewResponseSchema.parse(overview)).toEqual(overview);

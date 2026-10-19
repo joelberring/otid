@@ -5,17 +5,13 @@ export const checkinHistoryRowSchema = z.object({
   requestId: StartCheckinOperationSchema.shape.requestId,
   observedAt: StartCheckinOperationSchema.shape.observedAt,
   receivedAt: StartCheckinReceiptSchema.shape.receivedAt,
-  source: z.enum(["MANAGE_RACE", "RACE_FUNCTIONARY", "START_CHECKIN", "FINISH_FOREST_WATCH"]),
+  source: z.enum(["ADMIN", "FUNCTIONARY"]),
   sourceLabel: z.string().min(1).max(256),
   action: StartCheckinOperationSchema.shape.action,
   effect: StartCheckinReceiptSchema.shape.effect,
   reviewed: z.object({ decision: z.literal("KEEP_CURRENT_STATE"), reason: z.string().trim().min(1).max(500), reviewedAt: StartCheckinReceiptSchema.shape.receivedAt }).strict().nullable().optional()
 }).strict().superRefine((row, ctx) => {
   if (row.reviewed && row.effect.kind !== "CONFLICT") ctx.addIssue({ code: "custom", message: "Endast konfliktrapporter kan granskas" });
-  if ((row.source === "START_CHECKIN" && row.action.kind !== "MARK_START") ||
-      (row.source === "FINISH_FOREST_WATCH" && row.action.kind !== "FINISH_CORRECTION")) {
-    ctx.addIssue({ code: "custom", message: "Källrollen motsäger journalåtgärden" });
-  }
 });
 
 export const checkinHistoryResponseSchema = z.object({

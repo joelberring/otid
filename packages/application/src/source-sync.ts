@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { and, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import {
   sourceSyncStatusSchema, syncApplyIdempotencyKeySchema, syncApplyRequestSchema, syncApplyResponseSchema, syncConsequenceRequestSchema,
@@ -10,14 +9,12 @@ import { IofValidationError, parseIofXml } from "@o-tid/iof-xml";
 import { diffCourseFile } from "./course-file-diff";
 import { diffEventor } from "./eventor-sync-diff";
 import { clientForLink, upstreamOutcome, type EventorRuntime } from "./eventor-link";
-import {
-  authenticatePairingAdminSession, authenticatePairingAdminSessionForMutation, authenticatePairingAdminSessionForProtectedRead,
-  type PairingAdminRequestAuthentication
-} from "./pairing-admin";
+import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
 import { applyCourseFile, applyEventor, assessCourseFile, assessEventor, SourceSyncConflictError } from "./source-sync-apply";
 import type { CourseFileAction, CurrentState, EventorAction, EventorProjection, PlannedRow, SourceDiff, SourceProjection } from "./source-sync-model";
 import { loadCurrentState, readOutByClass } from "./source-sync-state";
+import { sha256Hex } from "./serialization";
 
 /**
  * Läsa in igen med skillnader (ADR-0170 beslut 4, PLAN.md steg 14): "Uppdatera från Eventor"
@@ -26,9 +23,8 @@ import { loadCurrentState, readOutByClass } from "./source-sync-state";
  * ger samma besked och omräkning som "Redigera bana". Samma request-id ger samma kvitto.
  */
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
-type Authentication = Omit<PairingAdminRequestAuthentication, "capability">;
+type Authentication = RaceSessionProof;
 type Failure = { status: "unauthorized" | "forbidden" | "invalid-request" | "not-found" | "conflict" | "too-large" };
-const capability = "MANAGE_RACE" as const;
 const MAX_VERSION = 2_147_483_647;
 
 export type EventorSyncPreviewResult = Failure
@@ -65,10 +61,10 @@ function summary(diff: AnyDiff): SyncPreviewResponse["summary"] {
 /** Sparar källan som ny ögonblicksbild (äldre ej godkända läsningar av samma källa tas bort) och visar skillnaderna. */
 async function preview(db: Database, input: Authentication, source: SourceKind, projection: SourceProjection, extra: { originalXml: string | null;
   fileName: string | null; sourceName: string }, now: Date): Promise<Failure | { status: "ok"; response: SyncPreviewResponse }> {
-  const contentHash = createHash("sha256").update(JSON.stringify(projection)).digest("hex");
+  const contentHash = sha256Hex(JSON.stringify(projection));
   try {
     return await db.transaction(async tx => {
-      const auth = await authenticatePairingAdminSessionForMutation(tx, { ...input, capability, requireCsrf: true }, now);
+      const auth = await requireRaceRole(tx, { ...input, role: "ADMIN", requireCsrf: true }, now, "update");
       if (auth.status !== "authenticated") return auth;
       const race = await lockRaceForSnapshot(tx, input.raceId);
       await tx.delete(schema.sourceSnapshots).where(and(eq(schema.sourceSnapshots.raceId, input.raceId), eq(schema.sourceSnapshots.source, source),
@@ -90,9 +86,9 @@ async function preview(db: Database, input: Authentication, source: SourceKind, 
 }
 
 /** "Hämta från Eventor" / "Uppdatera från Eventor": klasser och anmälningar för den valda tävlingen. */
-export async function previewEventorSyncAsAdministrator(db: Database, input: Authentication, runtime: EventorRuntime, now = new Date())
+export async function previewEventorSyncAsAdmin(db: Database, input: Authentication, runtime: EventorRuntime, now = new Date())
   : Promise<EventorSyncPreviewResult> {
-  const auth = await authenticatePairingAdminSession(db, { ...input, capability, requireCsrf: true }, now);
+  const auth = await requireRaceRole(db, { ...input, role: "ADMIN", requireCsrf: true }, now);
   if (auth.status !== "authenticated") return auth;
   const [link] = await db.select().from(schema.raceEventorLinks).where(eq(schema.raceEventorLinks.raceId, input.raceId));
   const client = clientForLink(link, input.raceId, runtime);
@@ -116,9 +112,9 @@ export async function previewEventorSyncAsAdministrator(db: Database, input: Aut
 }
 
 /** "Läs in banfil" / "Läs in ny banfil": IOF XML CourseData (OCAD, Purple Pen, Condes). */
-export async function previewCourseFileAsAdministrator(db: Database, input: Authentication & { xml: string; fileName: string },
+export async function previewCourseFileAsAdmin(db: Database, input: Authentication & { xml: string; fileName: string },
   now = new Date()): Promise<Failure | { status: "invalid-iof-xml"; issues: readonly string[] } | { status: "ok"; response: SyncPreviewResponse }> {
-  const auth = await authenticatePairingAdminSession(db, { ...input, capability, requireCsrf: true }, now);
+  const auth = await requireRaceRole(db, { ...input, role: "ADMIN", requireCsrf: true }, now);
   if (auth.status !== "authenticated") return auth;
   let parsed;
   try { parsed = parseIofXml(input.xml); }
@@ -137,18 +133,18 @@ async function loadSnapshot(tx: Transaction, raceId: string, snapshotId: string)
 }
 
 /** Beskedet för ett annat urval (när rader bockats ur). Läser bara. */
-export async function syncConsequenceAsAdministrator(db: Database, input: Authentication & { request: unknown }, now = new Date())
+export async function syncConsequenceAsAdmin(db: Database, input: Authentication & { request: unknown }, now = new Date())
   : Promise<Failure | { status: "ok"; response: SyncConsequenceResponse }> {
   const parsed = syncConsequenceRequestSchema.safeParse(input.request);
   if (!parsed.success) return { status: "invalid-request" };
   try {
     return await db.transaction(async tx => {
-      const auth = await authenticatePairingAdminSessionForProtectedRead(tx, { ...input, capability }, now);
+      const auth = await requireRaceRole(tx, { ...input, role: "ADMIN" }, now, "share");
       if (auth.status !== "authenticated") return auth;
       const race = await lockRaceForSnapshot(tx, input.raceId);
       const snapshot = await loadSnapshot(tx, input.raceId, parsed.data.snapshotId);
       if (!snapshot) return { status: "not-found" as const };
-      if (snapshot.appliedAt || race.snapshotVersion !== parsed.data.expectedSnapshotVersion) return { status: "conflict" as const };
+      if (snapshot.appliedAt) return { status: "conflict" as const };
       const projection = snapshot.projection as unknown as SourceProjection;
       const state = await loadCurrentState(tx, input.raceId);
       const rows = selection(diffFor(projection, state) as SourceDiff<EventorAction>, parsed.data.excludedRowIds);
@@ -168,31 +164,31 @@ export type SyncApplyResult = Failure
   | { status: "saved"; response: SyncApplyResponse };
 
 /** Godkänner skillnaderna: sparar de valda raderna och räknar om berörda resultat i samma transaktion. */
-export async function applySyncAsAdministrator(db: Database, input: Authentication & { idempotencyKey: string | null; request: unknown },
+export async function applySyncAsAdmin(db: Database, input: Authentication & { idempotencyKey: string | null; request: unknown },
   now = new Date()): Promise<SyncApplyResult> {
   const parsed = syncApplyRequestSchema.safeParse(input.request);
   const key = syncApplyIdempotencyKeySchema.safeParse(input.idempotencyKey);
   if (!parsed.success || !key.success || key.data !== `source-sync:${parsed.data.requestId}`) return { status: "invalid-request" };
   const intent = parsed.data;
-  const authentication = { ...input, capability, requireCsrf: true };
-  const initial = await authenticatePairingAdminSession(db, authentication, now);
+  const authentication = { ...input, role: "ADMIN" as const, requireCsrf: true };
+  const initial = await requireRaceRole(db, authentication, now);
   if (initial.status !== "authenticated") return initial;
   try {
     return await db.transaction(async (tx): Promise<SyncApplyResult> => {
-      const auth = await authenticatePairingAdminSessionForMutation(tx, authentication, now);
+      const auth = await requireRaceRole(tx, authentication, now, "update");
       if (auth.status !== "authenticated") return auth;
       const race = await lockRaceForMutation(tx, input.raceId);
       await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${"source-sync:" + intent.requestId}, 0))`);
       const [prior] = await tx.select().from(schema.sourceSnapshots).where(eq(schema.sourceSnapshots.appliedRequestId, intent.requestId));
       if (prior) {
         const response = syncApplyResponseSchema.parse(prior.applyResponse);
-        if (prior.raceId !== input.raceId || prior.actorCredentialId !== auth.principal.accessCredentialId ||
+        if (prior.raceId !== input.raceId || prior.actorAccountId !== auth.principal.accountId ||
             JSON.stringify(response.request) !== JSON.stringify(intent)) return { status: "conflict" };
         return { status: "saved", response: { ...response, replayed: true } };
       }
       const snapshot = await loadSnapshot(tx, input.raceId, intent.snapshotId);
       if (!snapshot) return { status: "not-found" };
-      if (snapshot.appliedAt || race.snapshotVersion !== intent.expectedSnapshotVersion || race.snapshotVersion >= MAX_VERSION) {
+      if (snapshot.appliedAt || race.snapshotVersion >= MAX_VERSION) {
         return { status: "conflict" };
       }
       const projection = snapshot.projection as unknown as SourceProjection;
@@ -204,7 +200,7 @@ export async function applySyncAsAdministrator(db: Database, input: Authenticati
       if (assessment.consequence.requiresConfirmation && !intent.confirmResultChanges) {
         return { status: "confirmation-required", consequence: assessment.consequence };
       }
-      const applyInput = { raceId: input.raceId, actorCredentialId: auth.principal.accessCredentialId,
+      const applyInput = { raceId: input.raceId, actorAccountId: auth.principal.accountId,
         snapshotVersionAfter: race.snapshotVersion + 1, now, state };
       const recalculatedCount = projection.kind === "EVENTOR"
         ? await applyEventor(tx, applyInput, projection, rows, diff.links, assessment)
@@ -213,11 +209,11 @@ export async function applySyncAsAdministrator(db: Database, input: Authenticati
         source: snapshot.source, snapshotId: snapshot.id, request: intent, appliedRows: rows.length, recalculatedCount,
         snapshotVersionAfter: applyInput.snapshotVersionAfter, appliedAt: now.toISOString() });
       await tx.update(schema.sourceSnapshots).set({ appliedRequestId: intent.requestId, appliedAt: now,
-        actorCredentialId: auth.principal.accessCredentialId, applyRequest: intent as unknown as Record<string, unknown>,
+        actorAccountId: auth.principal.accountId, applyRequest: intent as unknown as Record<string, unknown>,
         applyResponse: response as unknown as Record<string, unknown> }).where(eq(schema.sourceSnapshots.id, snapshot.id));
       await tx.insert(schema.auditEvents).values({ raceId: input.raceId, entityType: "source_snapshot", entityId: snapshot.id,
         action: snapshot.source === "EVENTOR" ? "EVENTOR_SYNC_APPLIED_BY_ADMIN" : "COURSE_FILE_APPLIED_BY_ADMIN",
-        actorKind: "RACE_ADMIN_ACCESS_CREDENTIAL", actorId: auth.principal.accessCredentialId, requestId: intent.requestId,
+        actorKind: "USER_ACCOUNT", actorId: auth.principal.accountId, requestId: intent.requestId,
         before: { snapshotVersion: race.snapshotVersion },
         after: { snapshotVersion: applyInput.snapshotVersionAfter, appliedRows: rows.length, excludedRows: intent.excludedRowIds.length,
           recalculatedCount }, createdAt: now });
@@ -230,10 +226,10 @@ export async function applySyncAsAdministrator(db: Database, input: Authenticati
 }
 
 /** När banfilen senast lästes in (visas i Banor). */
-export async function getSourceSyncStatusAsAdministrator(db: Database, input: Authentication, now = new Date())
+export async function getSourceSyncStatusAsAdmin(db: Database, input: Authentication, now = new Date())
   : Promise<Failure | { status: "ok"; response: SourceSyncStatus }> {
   return db.transaction(async tx => {
-    const auth = await authenticatePairingAdminSessionForProtectedRead(tx, { ...input, capability }, now);
+    const auth = await requireRaceRole(tx, { ...input, role: "ADMIN" }, now, "share");
     if (auth.status !== "authenticated") return auth;
     const [latest] = await tx.select({ fileName: schema.sourceSnapshots.fileName, appliedAt: schema.sourceSnapshots.appliedAt })
       .from(schema.sourceSnapshots).where(and(eq(schema.sourceSnapshots.raceId, input.raceId), eq(schema.sourceSnapshots.source, "COURSE_FILE"),

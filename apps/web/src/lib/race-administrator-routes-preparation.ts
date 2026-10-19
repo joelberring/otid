@@ -12,8 +12,13 @@ import { classCapacityKeySchema, classCapacityRequestSchema, classCapacityRespon
   startListPublicationRequestSchema, startListPublicationIdempotencyKeySchema, rogainingChangePreviewRequestSchema,
   rogainingChangePreviewResponseSchema, rogainingChangeIdempotencyKeySchema, rogainingChangeRequestSchema,
   rogainingChangeResponseSchema } from "@o-tid/contracts";
-import { entryClassAdminFailure as failure, entryClassAdminJson as json, hasNoEntryClassAdminRequestBody, privateEntryClassAdminHeaders,
-  readEntryClassAdminJson } from "./entry-class-admin-security";
+import {
+  adminFailure as failure,
+  hasNoRequestBody,
+  privateJson as json,
+  privateHeaders,
+  readJsonBody
+} from "./security-policy";
 import { parseAdministratorPublicationReceipt } from "./administrator-publication-client";
 import { resultFailure, type RaceAdministratorRouteContext } from "./race-administrator-route-context";
 
@@ -21,7 +26,7 @@ import { resultFailure, type RaceAdministratorRouteContext } from "./race-admini
 export async function handlePreparationRoute(context: RaceAdministratorRouteContext): Promise<Response | undefined> {
   const { db, request, raceId, action, dependencies, proof } = context;
   if (action.kind === "courses") {
-    if (!await hasNoEntryClassAdminRequestBody(request)) return failure(400, "INVALID_REQUEST");
+    if (!await hasNoRequestBody(request)) return failure(400, "INVALID_REQUEST");
     const result = await dependencies.courses(db, { ...proof, raceId });
     if (result.status !== "ok") return resultFailure(result.status);
     const response = courseEditListResponseSchema.parse(result.response);
@@ -30,14 +35,13 @@ export async function handlePreparationRoute(context: RaceAdministratorRouteCont
   }
   if (action.kind === "course-edit-preview") {
     let body: unknown;
-    try { body = await readEntryClassAdminJson(request); } catch { return failure(400, "INVALID_REQUEST"); }
+    try { body = await readJsonBody(request); } catch { return failure(400, "INVALID_REQUEST"); }
     const parsed = courseEditPreviewRequestSchema.safeParse(body);
     if (!parsed.success) return failure(400, "INVALID_REQUEST");
     const result = await dependencies.courseEditPreview(db, { ...proof, raceId, courseId: action.courseId, request: parsed.data });
     if (result.status !== "ok") return resultFailure(result.status);
     const response = courseEditPreviewResponseSchema.parse(result.response);
     if (response.raceId !== raceId || response.courseId !== action.courseId ||
-        response.snapshotVersion !== parsed.data.expectedSnapshotVersion ||
         JSON.stringify(response.controlCodes) !== JSON.stringify(parsed.data.controlCodes)) return failure(500, "INTERNAL_ERROR");
     return json(response);
   }
@@ -45,7 +49,7 @@ export async function handlePreparationRoute(context: RaceAdministratorRouteCont
     const key = courseEditIdempotencyKeySchema.safeParse(request.headers.get("idempotency-key"));
     if (!key.success) return failure(400, "INVALID_REQUEST");
     let body: unknown;
-    try { body = await readEntryClassAdminJson(request); } catch { return failure(400, "INVALID_REQUEST"); }
+    try { body = await readJsonBody(request); } catch { return failure(400, "INVALID_REQUEST"); }
     const parsed = courseEditRequestSchema.safeParse(body);
     if (!parsed.success || parsed.data.courseId !== action.courseId || key.data !== `course-edit:${parsed.data.requestId}`) {
       return failure(400, "INVALID_REQUEST");
@@ -61,14 +65,14 @@ export async function handlePreparationRoute(context: RaceAdministratorRouteCont
   }
   if (action.kind === "class-edit-preview") {
     let body: unknown;
-    try { body = await readEntryClassAdminJson(request); } catch { return failure(400, "INVALID_REQUEST"); }
+    try { body = await readJsonBody(request); } catch { return failure(400, "INVALID_REQUEST"); }
     const parsed = classEditPreviewRequestSchema.safeParse(body);
     if (!parsed.success) return failure(400, "INVALID_REQUEST");
     const result = await dependencies.classEditPreview(db, { ...proof, raceId, classId: action.classId, request: parsed.data });
     if (result.status !== "ok") return resultFailure(result.status);
     const response = classEditPreviewResponseSchema.parse(result.response);
     if (response.raceId !== raceId || response.classId !== action.classId || response.courseId !== parsed.data.courseId ||
-        response.startRule !== parsed.data.startRule || response.snapshotVersion !== parsed.data.expectedSnapshotVersion) {
+        response.startRule !== parsed.data.startRule) {
       return failure(500, "INTERNAL_ERROR");
     }
     return json(response);
@@ -77,7 +81,7 @@ export async function handlePreparationRoute(context: RaceAdministratorRouteCont
     const key = classEditIdempotencyKeySchema.safeParse(request.headers.get("idempotency-key"));
     if (!key.success) return failure(400, "INVALID_REQUEST");
     let body: unknown;
-    try { body = await readEntryClassAdminJson(request); } catch { return failure(400, "INVALID_REQUEST"); }
+    try { body = await readJsonBody(request); } catch { return failure(400, "INVALID_REQUEST"); }
     const parsed = classEditRequestSchema.safeParse(body);
     if (!parsed.success || parsed.data.classId !== action.classId || key.data !== `class-edit:${parsed.data.requestId}`) {
       return failure(400, "INVALID_REQUEST");
@@ -93,20 +97,20 @@ export async function handlePreparationRoute(context: RaceAdministratorRouteCont
   }
   if (action.kind === "rogaining-preview") {
     let body: unknown;
-    try { body = await readEntryClassAdminJson(request); } catch { return failure(400, "INVALID_REQUEST"); }
+    try { body = await readJsonBody(request); } catch { return failure(400, "INVALID_REQUEST"); }
     const parsed = rogainingChangePreviewRequestSchema.safeParse(body);
     if (!parsed.success) return failure(400, "INVALID_REQUEST");
     const result = await dependencies.rogainingPreview(db, { ...proof, raceId, request: parsed.data });
     if (result.status !== "ok") return resultFailure(result.status);
     const response = rogainingChangePreviewResponseSchema.parse(result.response);
-    if (response.raceId !== raceId || response.snapshotVersion !== parsed.data.expectedSnapshotVersion) return failure(500, "INTERNAL_ERROR");
+    if (response.raceId !== raceId) return failure(500, "INTERNAL_ERROR");
     return json(response);
   }
   if (action.kind === "rogaining") {
     const key = rogainingChangeIdempotencyKeySchema.safeParse(request.headers.get("idempotency-key"));
     if (!key.success) return failure(400, "INVALID_REQUEST");
     let body: unknown;
-    try { body = await readEntryClassAdminJson(request); } catch { return failure(400, "INVALID_REQUEST"); }
+    try { body = await readJsonBody(request); } catch { return failure(400, "INVALID_REQUEST"); }
     const parsed = rogainingChangeRequestSchema.safeParse(body);
     if (!parsed.success || key.data !== `rogaining-change:${parsed.data.requestId}`) return failure(400, "INVALID_REQUEST");
     const result = await dependencies.rogaining(db, { ...proof, raceId, idempotencyKey: key.data, request: parsed.data });
@@ -119,7 +123,7 @@ export async function handlePreparationRoute(context: RaceAdministratorRouteCont
     return json(response);
   }
   if (action.kind === "shortened-course-class-transfer" && request.method === "GET") {
-    if (!await hasNoEntryClassAdminRequestBody(request)) return failure(400, "INVALID_REQUEST");
+    if (!await hasNoRequestBody(request)) return failure(400, "INVALID_REQUEST");
     const result = await dependencies.shortenedCourseClassTransferPreview(db, { ...proof, raceId,
       request: { formatVersion: 1, sourceClassId: action.classId } });
     if (result.status !== "ok") return resultFailure(result.status);
@@ -131,7 +135,7 @@ export async function handlePreparationRoute(context: RaceAdministratorRouteCont
     const key = shortenedCourseClassTransferIdempotencyKeySchema.safeParse(request.headers.get("idempotency-key"));
     if (!key.success) return failure(400, "INVALID_REQUEST");
     let body: unknown;
-    try { body = await readEntryClassAdminJson(request); } catch { return failure(400, "INVALID_REQUEST"); }
+    try { body = await readJsonBody(request); } catch { return failure(400, "INVALID_REQUEST"); }
     const parsed = shortenedCourseClassTransferRequestSchema.safeParse(body);
     if (!parsed.success || parsed.data.sourceClassId !== action.classId ||
         key.data !== `shortened-course-class-transfer:${parsed.data.requestId}`) return failure(400, "INVALID_REQUEST");
@@ -140,7 +144,7 @@ export async function handlePreparationRoute(context: RaceAdministratorRouteCont
     const response = shortenedCourseClassTransferReceiptSchema.parse(result.response);
     if (response.raceId !== raceId || response.requestId !== parsed.data.requestId ||
         response.sourceClassId !== action.classId || response.sourceCourseVersionId !== parsed.data.expectedSourceCourseVersionId ||
-        response.sourceSnapshotVersion !== parsed.data.expectedSnapshotVersion || response.sourceBasisHash !== parsed.data.expectedBasisHash ||
+        response.sourceBasisHash !== parsed.data.expectedBasisHash ||
         JSON.stringify(response.request) !== JSON.stringify(parsed.data)) return failure(500, "INTERNAL_ERROR");
     return json(response);
   }
@@ -149,7 +153,7 @@ export async function handlePreparationRoute(context: RaceAdministratorRouteCont
     const result = await dependencies.startListExport(db, { ...proof, raceId });
     if (result.status === "empty") return failure(404, "NOT_FOUND");
     if (result.status !== "exported") return resultFailure(result.status);
-    return new Response(result.xml, { headers: { ...privateEntryClassAdminHeaders, "content-type": "application/xml; charset=utf-8",
+    return new Response(result.xml, { headers: { ...privateHeaders, "content-type": "application/xml; charset=utf-8",
       "content-disposition": `attachment; filename="startlista.xml"` } });
   }
   if (action.kind === "publication-preview") {
@@ -163,7 +167,7 @@ export async function handlePreparationRoute(context: RaceAdministratorRouteCont
     const key = startListPublicationIdempotencyKeySchema.safeParse(request.headers.get("idempotency-key"));
     if (!key.success) return failure(400, "INVALID_REQUEST");
     let body: unknown;
-    try { body = await readEntryClassAdminJson(request); } catch { return failure(400, "INVALID_REQUEST"); }
+    try { body = await readJsonBody(request); } catch { return failure(400, "INVALID_REQUEST"); }
     const parsed = startListPublicationRequestSchema.safeParse(body);
     if (!parsed.success) return failure(400, "INVALID_REQUEST");
     const result = await dependencies.publication(db, { ...proof, raceId, request: parsed.data, idempotencyKey: key.data });
@@ -173,7 +177,7 @@ export async function handlePreparationRoute(context: RaceAdministratorRouteCont
     }));
   }
   if (action.kind === "draw" && request.method === "GET") {
-    if (!await hasNoEntryClassAdminRequestBody(request)) return failure(400, "INVALID_REQUEST");
+    if (!await hasNoRequestBody(request)) return failure(400, "INVALID_REQUEST");
     const result = await dependencies.drawSetup(db, { ...proof, raceId });
     if (result.status !== "ok") return resultFailure(result.status);
     const response = startDrawSetupResponseSchema.parse(result.response);
@@ -182,21 +186,20 @@ export async function handlePreparationRoute(context: RaceAdministratorRouteCont
   }
   if (action.kind === "draw-preview") {
     let body: unknown;
-    try { body = await readEntryClassAdminJson(request); } catch { return failure(400, "INVALID_REQUEST"); }
+    try { body = await readJsonBody(request); } catch { return failure(400, "INVALID_REQUEST"); }
     const parsed = startDrawPreviewRequestSchema.safeParse(body);
     if (!parsed.success) return failure(400, "INVALID_REQUEST");
     const result = await dependencies.drawPreview(db, { ...proof, raceId, request: parsed.data });
     if (result.status !== "ok") return resultFailure(result.status);
     const response = startDrawPreviewResponseSchema.parse(result.response);
-    if (response.raceId !== raceId || response.snapshotVersion !== parsed.data.expectedSnapshotVersion ||
-        response.classes.length !== parsed.data.classes.length) return failure(500, "INTERNAL_ERROR");
+    if (response.raceId !== raceId || response.classes.length !== parsed.data.classes.length) return failure(500, "INTERNAL_ERROR");
     return json(response);
   }
   if (action.kind === "draw") {
     const key = startDrawIdempotencyKeySchema.safeParse(request.headers.get("idempotency-key"));
     if (!key.success) return failure(400, "INVALID_REQUEST");
     let body: unknown;
-    try { body = await readEntryClassAdminJson(request); } catch { return failure(400, "INVALID_REQUEST"); }
+    try { body = await readJsonBody(request); } catch { return failure(400, "INVALID_REQUEST"); }
     const parsed = startDrawRequestSchema.safeParse(body);
     if (!parsed.success || key.data !== `start-draw:${parsed.data.requestId}`) return failure(400, "INVALID_REQUEST");
     const result = await dependencies.draw(db, { ...proof, raceId, idempotencyKey: key.data, request: parsed.data });
@@ -212,7 +215,7 @@ export async function handlePreparationRoute(context: RaceAdministratorRouteCont
     const key = manualClassCreateIdempotencyKeySchema.safeParse(request.headers.get("idempotency-key"));
     if (!key.success) return failure(400, "INVALID_REQUEST");
     let body: unknown;
-    try { body = await readEntryClassAdminJson(request); } catch { return failure(400, "INVALID_REQUEST"); }
+    try { body = await readJsonBody(request); } catch { return failure(400, "INVALID_REQUEST"); }
     const parsed = manualClassCreateRequestSchema.safeParse(body);
     if (!parsed.success || key.data !== `manual-class-create:${parsed.data.requestId}`) return failure(400, "INVALID_REQUEST");
     const result = await dependencies.manualClass(db, { ...proof, raceId, idempotencyKey: key.data, request: parsed.data });
@@ -226,14 +229,14 @@ export async function handlePreparationRoute(context: RaceAdministratorRouteCont
     const key = manualCourseClassCreateIdempotencyKeySchema.safeParse(request.headers.get("idempotency-key"));
     if (!key.success) return failure(400, "INVALID_REQUEST");
     let body: unknown;
-    try { body = await readEntryClassAdminJson(request); } catch { return failure(400, "INVALID_REQUEST"); }
+    try { body = await readJsonBody(request); } catch { return failure(400, "INVALID_REQUEST"); }
     const parsed = manualCourseClassCreateRequestSchema.safeParse(body);
     if (!parsed.success || key.data.slice("manual-course-class-create:".length) !== parsed.data.requestId) return failure(400, "INVALID_REQUEST");
     const result = await dependencies.manualCourseClass(db, { ...proof, raceId, idempotencyKey: key.data, request: parsed.data });
     if (result.status !== "created") return resultFailure(result.status);
     const response = manualCourseClassCreateResponseSchema.parse(result.response);
     if (response.raceId !== raceId || response.requestId !== parsed.data.requestId ||
-      JSON.stringify(response.request) !== JSON.stringify(parsed.data) || response.snapshotVersionBefore !== parsed.data.expectedSnapshotVersion) {
+      JSON.stringify(response.request) !== JSON.stringify(parsed.data)) {
       return failure(500, "INTERNAL_ERROR");
     }
     return json(response);
@@ -242,7 +245,7 @@ export async function handlePreparationRoute(context: RaceAdministratorRouteCont
     const key = classCapacityKeySchema.safeParse(request.headers.get("idempotency-key"));
     if (!key.success) return failure(400, "INVALID_REQUEST");
     let body: unknown;
-    try { body = await readEntryClassAdminJson(request); } catch { return failure(400, "INVALID_REQUEST"); }
+    try { body = await readJsonBody(request); } catch { return failure(400, "INVALID_REQUEST"); }
     const parsed = classCapacityRequestSchema.safeParse(body);
     if (!parsed.success) return failure(400, "INVALID_REQUEST");
     const result = await dependencies.capacity(db, { ...proof, raceId, classId: action.classId, idempotencyKey: key.data, request: parsed.data });

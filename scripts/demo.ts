@@ -10,14 +10,13 @@ import { createHash, randomUUID } from "node:crypto";
 import type { DeviceBatch, SportidentReadoutPayload } from "../packages/contracts/src/index.ts";
 import { createDatabase, migrate } from "../packages/database/src/index.ts";
 import {
-  createEventAsUserAccount,
-  createManualCourseClassAsAdministrator,
-  enterRaceAsUserAccount,
-  ingestReadoutsAsAdministrator,
+  createOrganizerEvent,
+  createManualCourseClassAsAdmin,
+  ingestReadoutsAsAdmin,
   loginUserAccount,
   registerEntryAsAdmin,
   registerUserAccount,
-  setRacePublicationAsAdministrator
+  setRacePublicationAsAdmin
 } from "../packages/application/src/index.ts";
 import { normalizeCard, readSimulatedCard, simulatedRun } from "../packages/sportident/src/index.ts";
 
@@ -74,15 +73,14 @@ async function main(): Promise<void> {
     const owner = { sessionToken: account.sessionToken, csrfCookie: account.csrfToken, csrfHeader: account.csrfToken };
 
     const today = new Intl.DateTimeFormat("sv-SE", { timeZone: TIME_ZONE }).format(new Date());
-    const created = await createEventAsUserAccount(db, { ...owner, idempotencyKey: `organizer-event-create:${randomUUID()}`,
+    const created = await createOrganizerEvent(db, { ...owner, idempotencyKey: `organizer-event-create:${randomUUID()}`,
       readBody: async () => ({ formatVersion: 1, eventName: `Demoträning ${today}`, raceName: "Kvällsträning", raceDate: today, timeZone: TIME_ZONE }) });
     if (created.status !== "created") fail(`Tävlingen kunde inte skapas (${created.status}).`);
     const raceId = created.response.raceId;
-    const entered = await enterRaceAsUserAccount(db, { ...owner, raceId });
-    if (entered.status !== "entered") fail(`Kom inte in i tävlingen (${entered.status}).`);
-    const admin = { sessionToken: entered.sessionToken, csrfCookie: entered.csrfToken, csrfHeader: entered.csrfToken, raceId };
+    // Kontots session gäller tävlingen direkt (ADR-0173 beslut 4).
+    const admin = { ...owner, raceId };
     // ADR-0172 beslut 4: publicerad, så att startsidan och tävlingssidan visar demoträningen.
-    const published = await setRacePublicationAsAdministrator(db, { ...admin, published: true });
+    const published = await setRacePublicationAsAdmin(db, { ...admin, published: true });
     if (published.status !== "saved") fail(`Tävlingen kunde inte publiceras (${published.status}).`);
     const snapshotVersion = async () =>
       (await pool.query<{ snapshot_version: number }>("select snapshot_version from race where id = $1", [raceId])).rows[0]!.snapshot_version;
@@ -90,8 +88,8 @@ async function main(): Promise<void> {
     const classes = [];
     for (const course of COURSES) {
       const requestId = randomUUID();
-      const result = await createManualCourseClassAsAdministrator(db, { ...admin, idempotencyKey: `manual-course-class-create:${requestId}`,
-        request: { formatVersion: 1, requestId, expectedSnapshotVersion: await snapshotVersion(), courseName: course.name,
+      const result = await createManualCourseClassAsAdmin(db, { ...admin, idempotencyKey: `manual-course-class-create:${requestId}`,
+        request: { formatVersion: 1, requestId, courseName: course.name,
           className: course.className, startRule: "PUNCH", controlCodes: [...course.controls] } });
       if (result.status !== "created") fail(`Banan ${course.name} kunde inte skapas (${result.status}).`);
       classes.push({ ...course, classId: result.response.classId, courseVersionId: result.response.courseVersionId });
@@ -103,7 +101,7 @@ async function main(): Promise<void> {
       const cardNumber = 8_100_001 + index;
       const result = await registerEntryAsAdmin(db, { ...admin, idempotencyKey: `entry-registration:${randomUUID()}`,
         request: { formatVersion: 1, classId: raceClass.classId, expectedCourseVersionId: raceClass.courseVersionId,
-          expectedStartRule: "PUNCH", expectedSnapshotVersion: await snapshotVersion(), givenName, familyName,
+          expectedStartRule: "PUNCH", givenName, familyName,
           organisationName: "Demo OK", cardNumber: String(cardNumber), fixedStartTime: null } });
       if (result.status !== "registered") fail(`${givenName} ${familyName} kunde inte anmälas (${result.status}).`);
       runners.push({ cardNumber, controls: raceClass.controls });
@@ -133,7 +131,7 @@ async function main(): Promise<void> {
     });
     const batch: DeviceBatch = { deviceId, sessionId: randomUUID(), packageVersion: await snapshotVersion(),
       firstSequence: 1, lastSequence: events.length, events };
-    const ingested = await ingestReadoutsAsAdministrator(db, { ...admin, batch });
+    const ingested = await ingestReadoutsAsAdmin(db, { ...admin, batch });
     if (ingested.status !== "ok") fail(`Avläsningarna kunde inte sparas (${ingested.status}).`);
 
     const origin = process.env.O_TID_PUBLIC_ORIGIN ?? "http://localhost:3000";

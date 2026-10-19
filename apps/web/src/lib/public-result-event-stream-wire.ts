@@ -1,6 +1,5 @@
-import { publicResultEventStreamPayloadSchema } from "@o-tid/contracts";
+import { publicResultEventStreamPayloadSchema, UUID_PATTERN as uuidPattern } from "@o-tid/contracts";
 
-const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const eventSequencePattern = /^[1-9][0-9]{0,18}$/;
 
 function payload(): string {

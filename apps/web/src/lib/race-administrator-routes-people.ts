@@ -1,6 +1,10 @@
 import { racePeopleResponseSchema, racePersonGrantResponseSchema, racePersonRevokeResponseSchema } from "@o-tid/contracts";
-import { entryClassAdminFailure as failure, entryClassAdminJson as json, hasNoEntryClassAdminRequestBody,
-  readEntryClassAdminJson } from "./entry-class-admin-security";
+import {
+  adminFailure as failure,
+  hasNoRequestBody,
+  privateJson as json,
+  readJsonBody
+} from "./security-policy";
 import { resultFailure, type RaceAdministratorRouteContext } from "./race-administrator-route-context";
 
 /**
@@ -12,14 +16,14 @@ export async function handlePeopleRoute(context: RaceAdministratorRouteContext):
   const { db, request, raceId, action, dependencies, proof } = context;
   if (action.kind !== "people") return undefined;
   if (request.method === "GET") {
-    if (!await hasNoEntryClassAdminRequestBody(request)) return failure(400, "INVALID_REQUEST");
+    if (!await hasNoRequestBody(request)) return failure(400, "INVALID_REQUEST");
     const result = await dependencies.people(db, { ...proof, raceId });
     if (result.status !== "ok") return resultFailure(result.status);
     const response = racePeopleResponseSchema.parse(result.response);
     return response.raceId === raceId ? json(response) : failure(500, "INTERNAL_ERROR");
   }
   let body: unknown;
-  try { body = await readEntryClassAdminJson(request); } catch { return failure(400, "INVALID_REQUEST"); }
+  try { body = await readJsonBody(request); } catch { return failure(400, "INVALID_REQUEST"); }
   const input = { ...proof, raceId, idempotencyKey: request.headers.get("idempotency-key"), readBody: async () => body };
   if (request.method === "POST") {
     const result = await dependencies.grantPerson(db, input);

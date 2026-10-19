@@ -2,16 +2,16 @@ import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
 import { entryCardAdminListResponseSchema, entryCardChangeRequestSchema,
   entryCardChangeIdempotencyKeySchema, entryCardChangeResponseSchema } from "@o-tid/contracts";
-import { authenticatePairingAdminSession, authenticatePairingAdminSessionForMutation,
-  authenticatePairingAdminSessionForProtectedRead, type PairingAdminRequestAuthentication } from "./pairing-admin";
+import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
+import { bumpReadoutPackageVersion } from "./snapshot";
+import { UUID_PATTERN } from "./serialization";
 
-type Authentication = Omit<PairingAdminRequestAuthentication, "capability">;
-const capability = "CHANGE_ENTRY_CARD" as const;
+type Authentication = RaceSessionProof;
 
 export async function listEntryCardsAsAdmin(db: Database, input: Authentication, now = new Date()) {
   return db.transaction(async (tx) => {
-    const auth = await authenticatePairingAdminSessionForProtectedRead(tx, { ...input, capability }, now);
+    const auth = await requireRaceRole(tx, { ...input, role: "ADMIN" }, now, "share");
     if (auth.status !== "authenticated") return auth;
     const race = await lockRaceForSnapshot(tx, input.raceId);
     const entries = await tx.select({ id: schema.entries.id, givenName: schema.entries.givenName,
@@ -56,25 +56,24 @@ export async function changeEntryCardAsAdmin(db: Database,
   input: Authentication & { entryId: string; idempotencyKey: string | null; request: unknown }, now = new Date()) {
   const key = entryCardChangeIdempotencyKeySchema.safeParse(input.idempotencyKey);
   const parsed = entryCardChangeRequestSchema.safeParse(input.request);
-  if (!key.success || !parsed.success || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(input.entryId)) {
+  if (!key.success || !parsed.success || !UUID_PATTERN.test(input.entryId)) {
     return { status: "invalid-request" as const };
   }
   const intent = parsed.data;
   const requestId = key.data.slice("entry-card-change:".length);
-  const authentication = { ...input, capability, requireCsrf: true };
-  const preflight = await authenticatePairingAdminSession(db, authentication, now);
+  const authentication = { ...input, role: "ADMIN" as const, requireCsrf: true };
+  const preflight = await requireRaceRole(db, authentication, now);
   if (preflight.status !== "authenticated") return preflight;
   return db.transaction(async (tx) => {
-    const auth = await authenticatePairingAdminSessionForMutation(tx, authentication, now);
+    const auth = await requireRaceRole(tx, authentication, now, "update");
     if (auth.status !== "authenticated") return auth;
     const race = await lockRaceForMutation(tx, input.raceId);
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${requestId}, 0))`);
     const [existing] = await tx.select().from(schema.entryCardChangeRequests).where(eq(schema.entryCardChangeRequests.requestId, requestId));
     if (existing) {
       if (existing.raceId !== input.raceId || existing.entryId !== input.entryId ||
-        existing.actorCredentialId !== auth.principal.accessCredentialId || existing.classId !== intent.expectedClassId ||
-        existing.entryVersionBefore !== intent.expectedEntryVersion || existing.snapshotVersionBefore !== intent.expectedSnapshotVersion ||
-        existing.previousAssignmentId !== (intent.expectedAssignment?.id ?? null) ||
+        existing.actorAccountId !== auth.principal.accountId || existing.classId !== intent.expectedClassId ||
+        existing.entryVersionBefore !== intent.expectedEntryVersion || existing.previousAssignmentId !== (intent.expectedAssignment?.id ?? null) ||
         existing.previousCardNumber !== (intent.expectedAssignment?.cardNumber ?? null) || existing.cardNumber !== intent.cardNumber) {
         return { status: "conflict" as const };
       }
@@ -87,7 +86,7 @@ export async function changeEntryCardAsAdmin(db: Database,
       eq(schema.cardAssignments.entryId, entry.id), eq(schema.cardAssignments.active, true))).limit(2);
     const previous = active[0];
     if (active.length > 1 || entry.version !== intent.expectedEntryVersion || entry.classId !== intent.expectedClassId ||
-      race.snapshotVersion !== intent.expectedSnapshotVersion || entry.version >= 2_147_483_647 || race.snapshotVersion >= 2_147_483_647 ||
+      entry.version >= 2_147_483_647 || race.snapshotVersion >= 2_147_483_647 ||
       (previous?.id ?? null) !== (intent.expectedAssignment?.id ?? null) ||
       (previous?.cardNumber ?? null) !== (intent.expectedAssignment?.cardNumber ?? null) || previous?.cardNumber === intent.cardNumber) {
       return { status: "conflict" as const };
@@ -110,17 +109,16 @@ export async function changeEntryCardAsAdmin(db: Database,
       assignmentId = created.id;
     }
     await tx.update(schema.entries).set({ version: entry.version + 1 }).where(eq(schema.entries.id, entry.id));
-    await tx.update(schema.races).set({ snapshotVersion: race.snapshotVersion + 1 }).where(eq(schema.races.id, input.raceId));
+    await bumpReadoutPackageVersion(tx, input.raceId);
     const [saved] = await tx.insert(schema.entryCardChangeRequests).values({ requestId, raceId: input.raceId,
-      entryId: entry.id, classId: entry.classId, actorCredentialId: auth.principal.accessCredentialId,
+      entryId: entry.id, classId: entry.classId, actorAccountId: auth.principal.accountId,
       previousAssignmentId: previous?.id ?? null, previousCardNumber: previous?.cardNumber ?? null,
       activeAssignmentId: assignmentId, cardNumber: intent.cardNumber, entryVersionBefore: entry.version,
       entryVersionAfter: entry.version + 1, snapshotVersionBefore: race.snapshotVersion,
       snapshotVersionAfter: race.snapshotVersion + 1, changedAt: now }).returning();
     if (!saved) throw new Error("Brickbytesjournalen kunde inte sparas");
     await tx.insert(schema.auditEvents).values({ raceId: input.raceId, entityType: "entry", entityId: entry.id,
-      action: "ENTRY_CARD_CHANGED_BY_ADMIN", actorKind: auth.principal.capability === "MANAGE_RACE"
-        ? "RACE_ADMIN_ACCESS_CREDENTIAL" : "ENTRY_CARD_ACCESS_CREDENTIAL", actorId: auth.principal.accessCredentialId,
+      action: "ENTRY_CARD_CHANGED_BY_ADMIN", actorKind: "USER_ACCOUNT", actorId: auth.principal.accountId,
       requestId, before: { assignmentId: previous?.id ?? null, entryVersion: entry.version, snapshotVersion: race.snapshotVersion },
       after: { assignmentId, entryVersion: entry.version + 1, snapshotVersion: race.snapshotVersion + 1 } });
     return { status: "changed" as const, response: response(saved, false) };

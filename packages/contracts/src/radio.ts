@@ -1,11 +1,11 @@
 import { z } from "zod";
+import { uuidSchema as uuid } from "./ids";
 
 /**
  * Radiokontroller via ROC eller OResults (ADR-0172 beslut 5, PLAN.md steg 20). Admin kopplar tävlingen till
  * en enhet och väljer radiokontroller; servern hämtar stämplingarna. Publikt syns mellantider och placeringar
  * vid radiokontrollerna, aldrig bricknummer.
  */
-const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 const instant = z.iso.datetime({ offset: true });
 const count = z.number().int().min(0).max(2_147_483_647);
 

@@ -1,8 +1,8 @@
 import { and, asc, eq } from "drizzle-orm";
 import type { Database } from "@o-tid/database";
 import { schema } from "@o-tid/database";
+import { UUID_PATTERN } from "./serialization";
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const EVENT_SEQUENCE_PATTERN = /^[1-9][0-9]*$/;
 const MAX_EVENT_SEQUENCE = 9_223_372_036_854_775_807n;
 

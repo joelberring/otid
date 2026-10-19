@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { migrate } from "@o-tid/database";
 import { createDatabase, schema } from "@o-tid/database";
-import { contentHash } from "../../src/hash";
+import { contentHash } from "../../src/serialization";
 import { ingestDeviceBatch } from "../../src/ingest";
 import { publicResultDetail, publicResults } from "../../src/results";
 

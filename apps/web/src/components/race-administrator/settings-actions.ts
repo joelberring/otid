@@ -34,7 +34,7 @@ export function createSettingsActions(ws: Base & RaceDataActions) {
     if (busyRef.current || pending.current || !requireSession() || !data) return;
     const form = settingsForm ?? { eventName: data.eventName, raceName: data.raceName, raceDate: data.raceDate, raceType: data.raceType };
     const attempt: RaceSettingsRequest = settingsAttempt ?? { formatVersion: 1, requestId: crypto.randomUUID(),
-      expectedSnapshotVersion: data.snapshotVersion, eventName: form.eventName.trim(), raceName: form.raceName.trim(),
+      eventName: form.eventName.trim(), raceName: form.raceName.trim(),
       raceDate: form.raceDate, raceType: form.raceType };
     setSettingsAttempt(attempt); setSettingsMessage(undefined);
     const op = begin();

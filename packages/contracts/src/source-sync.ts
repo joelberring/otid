@@ -1,12 +1,12 @@
 import { z } from "zod";
 import { courseEditChangeSchema } from "./course-edit";
+import { uuidSchema as uuid } from "./ids";
 
 /**
  * ADR-0170 beslut 4: Eventor och banfiler, även uppdateringar. Källan läses, skillnaderna
  * visas (nya, ändrade, strukna) och administratören godkänner dem. Ändringar som påverkar
  * resultat får samma besked och omräkning som "Redigera bana".
  */
-const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 const version = z.number().int().positive().max(2_147_483_647);
 const count = z.number().int().nonnegative().max(100_000);
 const instant = z.iso.datetime();
@@ -100,14 +100,14 @@ export const eventorSyncProblemSchema = z.object({
 /** Urvalet anges som de rader som bockats ur (oftast få), så att begäran hålls liten. */
 const excluded = z.array(z.string().regex(/^r[a-f0-9]{12}$/)).max(200);
 export const syncConsequenceRequestSchema = z.object({
-  formatVersion: z.literal(1), snapshotId: uuid, expectedSnapshotVersion: version, excludedRowIds: excluded
+  formatVersion: z.literal(1), snapshotId: uuid, excludedRowIds: excluded
 }).strict();
 export const syncConsequenceResponseSchema = z.object({
   formatVersion: z.literal(1), raceId: uuid, snapshotId: uuid, snapshotVersion: version, consequence: syncConsequenceSchema
 }).strict();
 
 export const syncApplyRequestSchema = z.object({
-  formatVersion: z.literal(1), requestId: uuid, snapshotId: uuid, expectedSnapshotVersion: version, excludedRowIds: excluded,
+  formatVersion: z.literal(1), requestId: uuid, snapshotId: uuid, excludedRowIds: excluded,
   confirmResultChanges: z.boolean()
 }).strict();
 export const syncApplyIdempotencyKeySchema = z.string().regex(/^source-sync:[0-9a-f-]{36}$/);

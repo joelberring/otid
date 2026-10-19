@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { newEntryCardNumberSchema } from "./entry-card-admin";
+import { prefixedUuidPattern, uuidSchema as uuid } from "./ids";
 
-const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 const version = z.number().int().positive().max(2_147_483_647);
 const engineVersion = z.string().trim().min(1).max(64);
 const latestResultRevision = z.object({ id: uuid, revision: version }).strict();
@@ -54,8 +54,7 @@ const common = {
   requestId: uuid,
   readoutId: uuid,
   cardNumber: newEntryCardNumberSchema,
-  expectedSnapshotVersion: version,
-  expectedEngineVersion: engineVersion
+    expectedEngineVersion: engineVersion
 };
 
 export const unknownReadoutResolutionRequestSchema = z.discriminatedUnion("target", [
@@ -80,7 +79,7 @@ export const unknownReadoutResolutionRequestSchema = z.discriminatedUnion("targe
 ]);
 
 export const unknownReadoutResolutionIdempotencyKeySchema = z.string().regex(
-  /^unknown-readout-resolution:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+  prefixedUuidPattern("unknown-readout-resolution")
 );
 
 export const unknownReadoutResolutionResponseSchema = z.object({

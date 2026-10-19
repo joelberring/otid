@@ -3,14 +3,14 @@ import {
   iofImportResponseSchema,
   type IofImportResponse
 } from "@o-tid/contracts";
-import { readImportAdminCsrfCookie } from "./import-admin-cookies";
+import { readAccountCsrfCookie } from "./organizer-account-cookies";
 import { sv } from "../i18n/sv";
+import { UUID_PATTERN } from "@o-tid/contracts";
 
 export type { IofImportResponse } from "@o-tid/contracts";
 
 export const MAX_IOF_IMPORT_BYTES = IOF_IMPORT_MAX_BYTES;
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const HASH_PATTERN = /^[a-f0-9]{64}$/;
 
 export interface IofImportAttempt {
@@ -49,7 +49,7 @@ export function parseIofImportResponse(
 }
 
 export function readImportAdminCsrf(cookieText: string, currentUrl: URL): string {
-  const value = readImportAdminCsrfCookie(cookieText, currentUrl);
+  const value = readAccountCsrfCookie(cookieText, currentUrl);
   if (value !== undefined && /^[A-Za-z0-9_-]{43}$/.test(value)) return value;
   throw new Error(sv.importLoginAgain);
 }

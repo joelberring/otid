@@ -5,14 +5,12 @@ import {
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { planClassStartRuleChange, withProposedClassSetup, type RaceSnapshot, type StartRule } from "@o-tid/domain";
-import {
-  authenticatePairingAdminSession, authenticatePairingAdminSessionForMutation,
-  authenticatePairingAdminSessionForProtectedRead, type PairingAdminRequestAuthentication
-} from "./pairing-admin";
+import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
-import { loadRaceSnapshot } from "./snapshot";
+import { bumpReadoutPackageVersion, loadRaceSnapshot } from "./snapshot";
 import { assessReadOutEntries, recalculateAssessedEntries, summarizeAssessment, type AssessedEntry } from "./result-reassessment";
 import { classNameTaken } from "./duplicate-names";
+import { UUID_PATTERN as uuid } from "./serialization";
 
 /**
  * Redigera klass (ADR-0169 beslut 4): klassnamn, bana och startsätt ändras i
@@ -23,9 +21,7 @@ import { classNameTaken } from "./duplicate-names";
  * nya revisioner i samma transaktion. Råa avläsningar ändras aldrig.
  */
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
-type Authentication = Omit<PairingAdminRequestAuthentication, "capability">;
-const capability = "MANAGE_RACE" as const;
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+type Authentication = RaceSessionProof;
 const MAX_VERSION = 2_147_483_647;
 
 async function loadClass(tx: Transaction, raceId: string, classId: string) {
@@ -77,16 +73,15 @@ export type ClassEditPreviewResult =
   | { status: "ok"; response: ClassEditPreviewResponse };
 
 /** Läser bara: vad händer med klassens avlästa löpare med denna bana och detta startsätt? */
-export async function previewClassEditAsAdministrator(db: Database, input: Authentication & { classId: string; request: unknown },
+export async function previewClassEditAsAdmin(db: Database, input: Authentication & { classId: string; request: unknown },
   now = new Date()): Promise<ClassEditPreviewResult> {
   const parsed = classEditPreviewRequestSchema.safeParse(input.request);
   if (!parsed.success || !uuid.test(input.raceId) || !uuid.test(input.classId)) return { status: "invalid-request" };
   return db.transaction(async tx => {
-    const auth = await authenticatePairingAdminSessionForProtectedRead(tx, { ...input, capability }, now);
+    const auth = await requireRaceRole(tx, { ...input, role: "ADMIN" }, now, "share");
     if (auth.status !== "authenticated") return auth;
     const raceId = auth.principal.raceId;
     const race = await lockRaceForSnapshot(tx, raceId);
-    if (race.snapshotVersion !== parsed.data.expectedSnapshotVersion) return { status: "conflict" };
     const raceClass = await loadClass(tx, raceId, input.classId);
     const target = await loadTargetCourse(tx, raceId, parsed.data.courseId);
     if (!raceClass || !target) return { status: "not-found" };
@@ -109,7 +104,7 @@ export type ClassEditResult =
  * Sparar ändringen. Om någon löpares status ändras krävs `confirmResultChanges`;
  * annars sparas direkt. Ett importerat klassnamn kan inte ändras här.
  */
-export async function editClassAsAdministrator(db: Database, input: Authentication & { idempotencyKey: string | null; request: unknown },
+export async function editClassAsAdmin(db: Database, input: Authentication & { idempotencyKey: string | null; request: unknown },
   now = new Date()): Promise<ClassEditResult> {
   const parsed = classEditRequestSchema.safeParse(input.request);
   const key = classEditIdempotencyKeySchema.safeParse(input.idempotencyKey);
@@ -117,11 +112,11 @@ export async function editClassAsAdministrator(db: Database, input: Authenticati
     return { status: "invalid-request" };
   }
   const intent = parsed.data;
-  const authentication = { ...input, capability, requireCsrf: true };
-  const initial = await authenticatePairingAdminSession(db, authentication, now);
+  const authentication = { ...input, role: "ADMIN" as const, requireCsrf: true };
+  const initial = await requireRaceRole(db, authentication, now);
   if (initial.status !== "authenticated") return initial;
   return db.transaction(async tx => {
-    const auth = await authenticatePairingAdminSessionForMutation(tx, authentication, now);
+    const auth = await requireRaceRole(tx, authentication, now, "update");
     if (auth.status !== "authenticated") return auth;
     const raceId = auth.principal.raceId;
     const race = await lockRaceForMutation(tx, raceId);
@@ -129,11 +124,11 @@ export async function editClassAsAdministrator(db: Database, input: Authenticati
     const [prior] = await tx.select().from(schema.classEditRequests).where(eq(schema.classEditRequests.requestId, intent.requestId));
     if (prior) {
       const response = classEditResponseSchema.parse(prior.response);
-      if (prior.raceId !== raceId || prior.actorCredentialId !== auth.principal.accessCredentialId || response.replayed ||
+      if (prior.raceId !== raceId || prior.actorAccountId !== auth.principal.accountId || response.replayed ||
           JSON.stringify(classEditRequestSchema.parse(prior.request)) !== JSON.stringify(intent)) return { status: "conflict" };
       return { status: "edited", response: { ...response, replayed: true } };
     }
-    if (race.snapshotVersion !== intent.expectedSnapshotVersion || race.snapshotVersion >= MAX_VERSION) return { status: "conflict" };
+    if (race.snapshotVersion >= MAX_VERSION) return { status: "conflict" };
     const raceClass = await loadClass(tx, raceId, intent.classId);
     const target = await loadTargetCourse(tx, raceId, intent.courseId);
     if (!raceClass || !target) return { status: "not-found" };
@@ -166,7 +161,7 @@ export async function editClassAsAdministrator(db: Database, input: Authenticati
         .where(and(eq(schema.entries.raceId, raceId), eq(schema.entries.classId, raceClass.id)));
     }
     const snapshotVersionAfter = race.snapshotVersion + 1;
-    await tx.update(schema.races).set({ snapshotVersion: snapshotVersionAfter }).where(eq(schema.races.id, raceId));
+    await bumpReadoutPackageVersion(tx, raceId);
 
     // Omräkning med den sparade klassen. Databasen sätter varje ny revisions underlagshash.
     const recalculated = await recalculateAssessedEntries(tx, { raceId, assessed, snapshot: await loadRaceSnapshot(tx, raceId),
@@ -177,9 +172,9 @@ export async function editClassAsAdministrator(db: Database, input: Authenticati
       snapshotVersionBefore: race.snapshotVersion, snapshotVersionAfter, recalculated, editedAt: now.toISOString() });
     await tx.insert(schema.classEditRequests).values({ requestId: intent.requestId, raceId, classId: raceClass.id,
       previousCourseVersionId: raceClass.courseVersionId, courseVersionId: target.courseVersionId,
-      actorCredentialId: auth.principal.accessCredentialId, capability, request: intent, response, editedAt: now });
+      actorAccountId: auth.principal.accountId, request: intent, response, editedAt: now });
     await tx.insert(schema.auditEvents).values({ raceId, entityType: "class", entityId: raceClass.id, requestId: intent.requestId,
-      actorKind: "RACE_ADMIN_ACCESS_CREDENTIAL", actorId: auth.principal.accessCredentialId, action: "CLASS_EDITED_BY_ADMIN",
+      actorKind: "USER_ACCOUNT", actorId: auth.principal.accountId, action: "CLASS_EDITED_BY_ADMIN",
       before: { className: raceClass.name, courseVersionId: raceClass.courseVersionId, startRule: raceClass.startRule,
         snapshotVersion: race.snapshotVersion },
       after: { className: intent.className, courseVersionId: target.courseVersionId, startRule: intent.startRule,
@@ -187,8 +182,8 @@ export async function editClassAsAdministrator(db: Database, input: Authenticati
       createdAt: now });
     if (recalculated.length > 0) {
       await tx.insert(schema.auditEvents).values(recalculated.map(item => ({ raceId, entityType: "result_revision",
-        entityId: item.resultRevisionId, action: "RESULT_RECALCULATED_AFTER_CLASS_EDIT", actorKind: "RACE_ADMIN_ACCESS_CREDENTIAL" as const,
-        actorId: auth.principal.accessCredentialId, requestId: intent.requestId,
+        entityId: item.resultRevisionId, action: "RESULT_RECALCULATED_AFTER_CLASS_EDIT", actorKind: "USER_ACCOUNT" as const,
+        actorId: auth.principal.accountId, requestId: intent.requestId,
         after: { classId: raceClass.id, entryId: item.entryId, revision: item.revision, cause: "EXPLICIT_RECALCULATION" }, createdAt: now })));
     }
     return { status: "edited", response };

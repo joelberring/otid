@@ -269,8 +269,7 @@ export function createDuringRaceActions(ws: Base & RaceDataActions & Pick<RelayA
     const readout = unknownReadoutCandidate.readouts.find(row => row.id === unknownReadoutId);
     if (!readout) { setUnknownReadoutError(text.unknownReadoutInvalid); return; }
     const common = { formatVersion: 1 as const, requestId: crypto.randomUUID(), readoutId: readout.id,
-      cardNumber: readout.cardNumber, expectedSnapshotVersion: unknownReadoutCandidate.snapshotVersion,
-      expectedEngineVersion: unknownReadoutCandidate.engineVersion };
+      cardNumber: readout.cardNumber, expectedEngineVersion: unknownReadoutCandidate.engineVersion };
     // Funktionären direktanmäler bara (ADR-0172 beslut 3); kopplingen till en befintlig deltagare är administratörens.
     const parsed = unknownReadoutTarget === "EXISTING_ENTRY" && !functionary ? (() => {
       const entry = unknownReadoutCandidate.entries.find(row => row.id === unknownReadoutEntryId);
@@ -305,7 +304,7 @@ export function createDuringRaceActions(ws: Base & RaceDataActions & Pick<RelayA
       const receipt = unknownReadoutResolutionResponseSchema.parse(await json(response, op));
       if (receipt.raceId !== raceId || receipt.requestId !== value.request.requestId || receipt.readoutId !== value.request.readoutId ||
         receipt.cardNumber !== value.request.cardNumber || receipt.target !== value.request.target ||
-        receipt.snapshotVersionBefore !== value.request.expectedSnapshotVersion || receipt.engineVersion !== value.request.expectedEngineVersion) {
+        receipt.engineVersion !== value.request.expectedEngineVersion) {
         throw new Error("Unknown readout resolution receipt mismatch");
       }
       committed = true; pending.current = undefined; sent.current = false; setUnknownReadoutAttempt(undefined);

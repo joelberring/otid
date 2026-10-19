@@ -19,7 +19,7 @@ export const participantCardSv = {
     START_CHECKIN_DID_NOT_START: "Ej start vid startkontrollen",
     MANUAL_FINISH_TIME_CORRECTION: "Måltid rättad", MANUAL_FINISH_TIME_CORRECTION_WITHDRAWAL: "Måltidsrättning borttagen",
     MANUAL_PUNCH_START_TIME_CORRECTION: "Starttid rättad", MANUAL_PUNCH_START_TIME_CORRECTION_WITHDRAWAL: "Starttidsrättning borttagen",
-    SHORTENED_COURSE_CLASS_TRANSFER: "Flyttad till kortare bana"
+    SHORTENED_COURSE_CLASS_TRANSFER: "Flyttad till kortare bana", MANUAL_DID_NOT_START_WITHDRAWAL: "Ej start borttaget"
   },
   changeStatus: "Ändra status", chooseStatus: "Välj …",
   choices: {

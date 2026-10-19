@@ -18,7 +18,6 @@ import { ParticipantsPanel, RentalPrint } from "./race-administrator/participant
 import { SettingsPanel } from "./race-administrator/settings-panel";
 import { RogainingPanel } from "./race-administrator/rogaining-panel";
 import { PublishPanel } from "./race-administrator/race-publication-section";
-import { Button } from "./ui";
 
 /**
  * Adminarbetsytan för en tävling. Den här komponenten håller sessionen, laddar data och visar skalet:
@@ -27,12 +26,11 @@ import { Button } from "./ui";
  */
 export function RaceAdministratorWorkspace({ raceId }: { raceId: string }) {
   const ws = useWorkspace(raceId);
-  const { authenticated, busy, message, expiresAt, navigationLocked, printTarget, deadline, begin, session,
-    enterWithAccount, current, lock, finish, invalidate, loadRaceDayAttention, login, setPrintTarget } = ws;
+  const { authenticated, message, expiresAt, navigationLocked, printTarget, deadline, begin, session,
+    current, lock, finish, invalidate, loadRaceDayAttention, setPrintTarget } = ws;
   useEffect(() => {
     const op = begin();
     void session(op)
-      .catch(() => enterWithAccount(op))
       .then(() => true, () => { if (current(op)) lock(); return false; })
       .then(entered => {
         finish(op);
@@ -47,7 +45,10 @@ export function RaceAdministratorWorkspace({ raceId }: { raceId: string }) {
   }, [raceId]);
   useEffect(() => {
     if (!expiresAt) return;
-    const timer = setTimeout(() => lock(), Math.max(0, Date.parse(expiresAt) - Date.now()));
+    // Kontosessionen gäller 30 dagar, längre än setTimeouts största fördröjning (2^31−1 ms); en större
+    // fördröjning skulle lösa ut direkt. Efter taket kontrollerar sidan utgången igen när den blir synlig.
+    const timer = setTimeout(() => { if (Date.parse(expiresAt) <= Date.now()) lock(); },
+      Math.min(2_147_483_647, Math.max(0, Date.parse(expiresAt) - Date.now())));
     return () => clearTimeout(timer);
   }, [expiresAt, lock]);
   useEffect(() => {
@@ -60,10 +61,7 @@ export function RaceAdministratorWorkspace({ raceId }: { raceId: string }) {
   if (!authenticated) return <div className={`${styles.workspace} ${styles.login}`} data-authenticated="false">
     <p>{text.introduction}</p>
     {status}
-    <form onSubmit={event => void login(event)}>
-      <p>{text.accountLoginHelp} <Link href="/organizer" prefetch={false}>{text.accountLoginLink}</Link></p>
-      <div><Button type="submit" disabled={busy}>{text.login}</Button></div>
-    </form>
+    <p>{text.accountLoginHelp} <Link href="/organizer" prefetch={false}>{text.accountLoginLink}</Link></p>
   </div>;
   return <div className={`${styles.root} ${shell.shell}`} data-print-target={printTarget} data-authenticated="true">
     <TopBar ws={ws} />

@@ -1,32 +1,9 @@
 import { describe, expect, it } from "vitest";
-import {
-  iofResultListExportAdminErrorResponseSchema,
-  iofResultListExportAdminLoginRequestSchema,
-  iofResultListExportAdminLoginResponseSchema,
-  iofResultListExportMetadataSchema
-} from "../src/iof-result-list-export";
+import { iofResultListExportAdminErrorResponseSchema, iofResultListExportMetadataSchema } from "../src/iof-result-list-export";
 
 const raceId = "11111111-1111-4111-8111-111111111111";
-const credentialId = "22222222-2222-4222-8222-222222222222";
-const credential = `otid_org_result_list_export_v1.${credentialId}.${"a".repeat(43)}`;
 
 describe("IOF ResultList-exportkontrakt", () => {
-  it("accepterar endast den separata capabilityns canonical credential och svar", () => {
-    expect(iofResultListExportAdminLoginRequestSchema.parse({
-      formatVersion: 1,
-      accessCredential: credential
-    }).accessCredential).toBe(credential);
-    expect(iofResultListExportAdminLoginRequestSchema.safeParse({
-      formatVersion: 1,
-      accessCredential: credential.replace("result_list_export", "race_overview")
-    }).success).toBe(false);
-    expect(iofResultListExportAdminLoginResponseSchema.parse({
-      formatVersion: 1,
-      raceId,
-      capability: "EXPORT_IOF_RESULT_LIST",
-      expiresAt: "2026-08-31T12:00:00.000Z"
-    }).raceId).toBe(raceId);
-  });
 
   it("binder bounded metadata och hash utan privata projektioner", () => {
     expect(iofResultListExportMetadataSchema.parse({

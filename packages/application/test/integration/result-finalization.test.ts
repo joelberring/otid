@@ -6,55 +6,22 @@ import {
   contentHash, ingestDeviceBatch, exportIofResultListAsAdmin, exportFrozenIofResultListAsAdmin,
   finalizeResultsAsAdmin, listFrozenRaceFinalizationsAsAdmin, listResultFinalizationCandidatesAsAdmin
 } from "../../src";
-import { issuePairingAdminAccessCredential, loginPairingAdmin } from "../../src/pairing-admin";
 import { db, importedRace, batch, okPayload, useRaceDatabase } from "./race-fixtures";
+import { raceLogin } from "./accounts";
 
 useRaceDatabase();
 
 describe("TASK 006D immutable individuell resultatfinalisering PostgreSQL", () => {
-  const issuedAt = new Date("2026-08-31T23:00:00.000Z");
   const usedAt = new Date("2026-08-31T23:02:00.000Z");
 
-  async function finalizationAdmin(raceId: string, marker: number) {
-    const installation = await issuePairingAdminAccessCredential(db, {
-      raceId,
-      capability: "FINALIZE_RESULTS",
-      label: `Finalisering ${marker}`,
-      expiresAt: new Date("2026-09-01T07:00:00.000Z")
-    }, { now: issuedAt, secretBytes: Buffer.alloc(32, marker) });
-    const login = await loginPairingAdmin(db, {
-      formatVersion: 1,
-      accessCredential: installation.accessCredential
-    }, {
-      expectedRaceId: raceId,
-      expectedCapability: "FINALIZE_RESULTS",
-      now: new Date("2026-08-31T23:01:00.000Z"),
-      sessionSecretBytes: Buffer.alloc(32, marker + 1),
-      csrfSecretBytes: Buffer.alloc(32, marker + 2)
-    });
-    if (login.status !== "authenticated") throw new Error("Finaliseringssession kunde inte skapas");
-    return { installation, login };
+  async function finalizationAdmin(raceId: string) {
+    const login = await raceLogin(db, raceId, "ADMIN", new Date("2026-08-31T23:01:00.000Z"));
+    return { login };
   }
 
-  async function finalExportAdmin(raceId: string, marker: number) {
-    const installation = await issuePairingAdminAccessCredential(db, {
-      raceId,
-      capability: "EXPORT_IOF_RESULT_LIST",
-      label: `Slutexport ${marker}`,
-      expiresAt: new Date("2026-09-01T07:00:00.000Z")
-    }, { now: issuedAt, secretBytes: Buffer.alloc(32, marker) });
-    const login = await loginPairingAdmin(db, {
-      formatVersion: 1,
-      accessCredential: installation.accessCredential
-    }, {
-      expectedRaceId: raceId,
-      expectedCapability: "EXPORT_IOF_RESULT_LIST",
-      now: new Date("2026-08-31T23:01:00.000Z"),
-      sessionSecretBytes: Buffer.alloc(32, marker + 1),
-      csrfSecretBytes: Buffer.alloc(32, marker + 2)
-    });
-    if (login.status !== "authenticated") throw new Error("Slutexportsession kunde inte skapas");
-    return { installation, login };
+  async function finalExportAdmin(raceId: string) {
+    const login = await raceLogin(db, raceId, "ADMIN", new Date("2026-08-31T23:01:00.000Z"));
+    return { login };
   }
 
   async function fullyReadRace() {
@@ -89,7 +56,7 @@ describe("TASK 006D immutable individuell resultatfinalisering PostgreSQL", () =
 
   it("fryser klass och lopp exakt idempotent och behåller gamla Complete-bytes efter senare ändring", async () => {
     const fixture = await fullyReadRace();
-    const admin = await finalizationAdmin(fixture.raceId, 31);
+    const admin = await finalizationAdmin(fixture.raceId);
     const auth = {
       sessionToken: admin.login.sessionToken,
       raceId: fixture.raceId,
@@ -111,7 +78,6 @@ describe("TASK 006D immutable individuell resultatfinalisering PostgreSQL", () =
       formatVersion: 1 as const,
       scope: "CLASS" as const,
       classId: readyClass.classId,
-      expectedSnapshotVersion: initial.response.snapshotVersion,
       expectedBasisHash: readyClass.basisHash,
       expectedLatestScopeRevision: null
     };
@@ -129,7 +95,7 @@ describe("TASK 006D immutable individuell resultatfinalisering PostgreSQL", () =
       idempotencyKey: `result-finalization:${classRequestId}`,
       request: { ...classRequest, expectedBasisHash: "f".repeat(64) }
     }, { now: usedAt })).toEqual({ status: "conflict" });
-    const otherActor = await finalizationAdmin(fixture.raceId, 61);
+    const otherActor = await finalizationAdmin(fixture.raceId);
     expect(await finalizeResultsAsAdmin(db, {
       sessionToken: otherActor.login.sessionToken,
       raceId: fixture.raceId,
@@ -167,7 +133,6 @@ describe("TASK 006D immutable individuell resultatfinalisering PostgreSQL", () =
         formatVersion: 1,
         scope: "RACE",
         classId: null,
-        expectedSnapshotVersion: afterClass.response.snapshotVersion,
         expectedBasisHash: afterClass.response.race.basisHash,
         expectedLatestScopeRevision: null
       }
@@ -182,7 +147,7 @@ describe("TASK 006D immutable individuell resultatfinalisering PostgreSQL", () =
       scopeRevision: 1
     });
 
-    const exporter = await finalExportAdmin(fixture.raceId, 41);
+    const exporter = await finalExportAdmin(fixture.raceId);
     const exportAuth = { sessionToken: exporter.login.sessionToken, raceId: fixture.raceId };
     const listed = await listFrozenRaceFinalizationsAsAdmin(db, exportAuth, usedAt);
     expect(listed.status === "ok" && listed.response.finalizations).toHaveLength(1);
@@ -251,7 +216,7 @@ describe("TASK 006D immutable individuell resultatfinalisering PostgreSQL", () =
 
   it("blockerar ofullständig, opublicerad och olöst okänd grund utan finaliseringswrite", async () => {
     const fixture = await importedRace();
-    const admin = await finalizationAdmin(fixture.raceId, 51);
+    const admin = await finalizationAdmin(fixture.raceId);
     const auth = {
       sessionToken: admin.login.sessionToken,
       raceId: fixture.raceId,
@@ -302,7 +267,6 @@ describe("TASK 006D immutable individuell resultatfinalisering PostgreSQL", () =
         formatVersion: 1,
         scope: "CLASS",
         classId: nonEmpty.classId,
-        expectedSnapshotVersion: candidate.response.snapshotVersion,
         expectedBasisHash: nonEmpty.basisHash,
         expectedLatestScopeRevision: null
       }
@@ -315,7 +279,7 @@ describe("TASK 006D immutable individuell resultatfinalisering PostgreSQL", () =
 
   it("serialiserar samtidig loppsfinalisering och sen okänd ingest till ett helt före- eller efterläge", async () => {
     const fixture = await fullyReadRace();
-    const admin = await finalizationAdmin(fixture.raceId, 71);
+    const admin = await finalizationAdmin(fixture.raceId);
     const auth = {
       sessionToken: admin.login.sessionToken,
       raceId: fixture.raceId,
@@ -333,7 +297,6 @@ describe("TASK 006D immutable individuell resultatfinalisering PostgreSQL", () =
         formatVersion: 1,
         scope: "CLASS",
         classId: classCandidate.classId,
-        expectedSnapshotVersion: initial.response.snapshotVersion,
         expectedBasisHash: classCandidate.basisHash,
         expectedLatestScopeRevision: null
       }
@@ -357,7 +320,6 @@ describe("TASK 006D immutable individuell resultatfinalisering PostgreSQL", () =
           formatVersion: 1,
           scope: "RACE",
           classId: null,
-          expectedSnapshotVersion: raceCandidate.response.snapshotVersion,
           expectedBasisHash: raceCandidate.response.race.basisHash,
           expectedLatestScopeRevision: null
         }

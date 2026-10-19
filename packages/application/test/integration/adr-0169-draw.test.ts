@@ -2,18 +2,19 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase, migrate } from "@o-tid/database";
 import { type DeviceBatch, type SportidentReadoutPayload, type StartDrawPreviewResponse } from "@o-tid/contracts";
-import { contentHash } from "../../src/hash";
-import { createEventAsUserAccount, enterRaceAsUserAccount } from "../../src/organizer-events";
+import { contentHash } from "../../src/serialization";
+import { createOrganizerEvent } from "../../src/organizer-events";
 import { registerUserAccount } from "../../src/user-account";
-import { createManualCourseClassAsAdministrator } from "../../src/manual-course-class";
+import { createManualCourseClassAsAdmin } from "../../src/manual-course-class";
 import { registerEntryAsAdmin } from "../../src/entry-registration";
-import { ingestReadoutsAsAdministrator } from "../../src/readout-station";
-import { commitStartDrawAsAdministrator, loadStartDrawSetupAsAdministrator, previewStartDrawAsAdministrator } from "../../src/start-draw";
-import { listEntryTransfersAsAdministrator } from "../../src/entry-transfer";
+import { ingestReadoutsAsAdmin } from "../../src/readout-station";
+import { commitStartDrawAsAdmin, loadStartDrawSetupAsAdmin, previewStartDrawAsAdmin } from "../../src/start-draw";
+import { listEntryTransfersAsAdmin } from "../../src/entry-transfer";
 import { exportCurrentStartListXmlAsAdmin, getStartListPublicationPreviewAsAdmin } from "../../src/start-list-publication";
 import { publicResults } from "../../src/results";
 import { exportPublicIofResultList } from "../../src/result-list-export";
 import { getAdministratorEffectiveResult } from "../../src/administrator-effective-result";
+import { accountOnRace } from "./accounts";
 
 const base = process.env.TEST_DATABASE_URL;
 if (!base) throw new Error("Lottningstestet kräver TEST_DATABASE_URL till en PostgreSQL-roll med CREATEDB");
@@ -50,19 +51,19 @@ async function race(): Promise<Race> {
   const account = await registerUserAccount(db, { formatVersion: 1, email: `lotta.${suffix}@test.o-tid.se`, displayName: "Arrangör", password: "hemligt-lösen" });
   if (account.status !== "authenticated") throw new Error("Kontot kunde inte skapas");
   const accountProof = { sessionToken: account.sessionToken, csrfCookie: account.csrfToken, csrfHeader: account.csrfToken };
-  const created = await createEventAsUserAccount(db, { ...accountProof, idempotencyKey: `organizer-event-create:${randomUUID()}`,
+  const created = await createOrganizerEvent(db, { ...accountProof, idempotencyKey: `organizer-event-create:${randomUUID()}`,
     readBody: async () => ({ formatVersion: 1, eventName: "Klubbtävling", raceName: "Torsdag", raceDate: "2027-10-07", timeZone: "Europe/Stockholm" }) });
   if (created.status !== "created") throw new Error("Tävlingen kunde inte skapas");
   const { raceId } = created.response;
-  const entered = await enterRaceAsUserAccount(db, { ...accountProof, raceId });
-  if (entered.status !== "entered") throw new Error("Kom inte in i tävlingen");
+  const entered = await accountOnRace(db, { ...accountProof, raceId });
+  if (entered.status !== "authenticated") throw new Error("Kom inte in i tävlingen");
   const proof: Proof = { raceId, sessionToken: entered.sessionToken, csrfCookie: entered.csrfToken, csrfHeader: entered.csrfToken };
   const classes = {} as Race["classes"];
   for (const [courseName, className, controlCodes] of [["Lång", "H21", [31, 32, 33]], ["Mellan", "D21", [31, 34, 33]],
     ["Kort", "H16", [45, 33]]] as const) {
     const requestId = randomUUID();
-    const result = await createManualCourseClassAsAdministrator(db, { ...proof, idempotencyKey: `manual-course-class-create:${requestId}`,
-      request: { formatVersion: 1, requestId, expectedSnapshotVersion: await snapshot(raceId), courseName, className,
+    const result = await createManualCourseClassAsAdmin(db, { ...proof, idempotencyKey: `manual-course-class-create:${requestId}`,
+      request: { formatVersion: 1, requestId, courseName, className,
         startRule: "PUNCH", controlCodes: [...controlCodes] } });
     if (result.status !== "created") throw new Error(`Banan kunde inte skapas: ${result.status}`);
     classes[className] = result.response.classId;
@@ -79,7 +80,7 @@ async function register(f: Race, classId: string, givenName: string, club: strin
   const row = await classRow(classId);
   return registerEntryAsAdmin(db, { ...f.proof, idempotencyKey: `entry-registration:${randomUUID()}`, request: {
     formatVersion: 1, classId, expectedCourseVersionId: row.course_version_id, expectedStartRule: row.start_rule,
-    expectedSnapshotVersion: await snapshot(f.raceId), givenName, familyName: "Löpare", organisationName: club,
+    givenName, familyName: "Löpare", organisationName: club,
     cardNumber, fixedStartTime: null } }, now);
 }
 
@@ -94,24 +95,24 @@ async function readout(f: Race, cardNumber: string, codes: number[],
   const batch: DeviceBatch = { deviceId: randomUUID(), sessionId: randomUUID(), packageVersion: await snapshot(f.raceId),
     firstSequence: 1, lastSequence: 1,
     events: [{ localSequence: 1, stationReceivedAt: "2027-10-07T09:01:00.000Z", transport: "sportident", payload, contentHash: contentHash(payload) }] };
-  const ingested = await ingestReadoutsAsAdministrator(db, { ...f.proof, batch });
+  const ingested = await ingestReadoutsAsAdmin(db, { ...f.proof, batch });
   if (ingested.status !== "ok") throw new Error(`Avläsningen togs inte emot: ${ingested.status}`);
 }
 
-function settings(f: Race, expectedSnapshotVersion: number, method: "MINUTE" | "MASS" | "FREE" = "MINUTE") {
-  return { expectedSnapshotVersion, firstStartTime: firstStart, clubSeparation: true,
+function settings(f: Race, method: "MINUTE" | "MASS" | "FREE" = "MINUTE") {
+  return { firstStartTime: firstStart, clubSeparation: true,
     classes: (["H21", "D21", "H16"] as const).map(name => ({ classId: f.classes[name], method, intervalMinutes: 2,
       vacancies: { kind: "COUNT" as const, value: 1 } })) };
 }
 
 async function preview(f: Race, request: ReturnType<typeof settings>): Promise<StartDrawPreviewResponse> {
-  const result = await previewStartDrawAsAdministrator(db, { ...f.proof, request: { formatVersion: 1, ...request } }, before());
+  const result = await previewStartDrawAsAdmin(db, { ...f.proof, request: { formatVersion: 1, ...request } }, before());
   if (result.status !== "ok") throw new Error(`Förhandsvisningen saknas: ${result.status}`);
   return result.response;
 }
 
 function commit(f: Race, request: ReturnType<typeof settings>, seed: number, confirmChanges: boolean, requestId: string = randomUUID()) {
-  return commitStartDrawAsAdministrator(db, { ...f.proof, idempotencyKey: `start-draw:${requestId}`,
+  return commitStartDrawAsAdmin(db, { ...f.proof, idempotencyKey: `start-draw:${requestId}`,
     request: { formatVersion: 1, requestId, seed, ...request, confirmChanges } }, before());
 }
 
@@ -130,13 +131,13 @@ describe("PLAN.md steg 9: lottning på riktigt", () => {
     }
     // En löpare i H16 har redan läst ut med fri start; lottningen ger fast tid och resultatet räknas om.
     await readout(f, "700001", [45, 33]);
-    const setup = await loadStartDrawSetupAsAdministrator(db, f.proof, before());
+    const setup = await loadStartDrawSetupAsAdmin(db, f.proof, before());
     if (setup.status !== "ok") throw new Error("Klasserna saknas");
     expect(setup.response.classes.map(row => [row.name, row.method, row.firstControlCode, row.entryCount])).toEqual([
       ["D21", "FREE", 31, 4], ["H16", "FREE", 45, 4], ["H21", "FREE", 31, 4]]);
 
     const version = await snapshot(f.raceId);
-    const shown = await preview(f, settings(f, version));
+    const shown = await preview(f, settings(f));
     expect(await snapshot(f.raceId)).toBe(version);
     expect(shown.startGroups.map(group => ({ ...group, classNames: [...group.classNames].sort() })))
       .toEqual([{ firstControlCode: 31, classNames: ["D21", "H21"], alternating: true }]);
@@ -155,7 +156,7 @@ describe("PLAN.md steg 9: lottning på riktigt", () => {
     expect(shown.readOutCount).toBe(1);
     expect(shown.requiresConfirmation).toBe(false);
 
-    const saved = await commit(f, settings(f, version), shown.seed, false);
+    const saved = await commit(f, settings(f), shown.seed, false);
     if (saved.status !== "drawn") throw new Error(`Lottningen sparades inte: ${saved.status}`);
     expect(saved.response).toMatchObject({ classCount: 3, entryCount: 12, vacancyCount: 3, recalculatedCount: 1,
       snapshotVersionAfter: version + 1 });
@@ -170,7 +171,7 @@ describe("PLAN.md steg 9: lottning på riktigt", () => {
     const revisions = await pool.query<{ cause: string }>(`select r.cause from result_revision r join card_assignment a on a.entry_id = r.entry_id
       where a.card_number = '700001' order by r.revision`);
     expect(revisions.rows.map(row => row.cause)).toEqual(["CARD_READOUT", "EXPLICIT_RECALCULATION"]);
-    const replay = await commit(f, settings(f, version), shown.seed, false, saved.response.requestId);
+    const replay = await commit(f, settings(f), shown.seed, false, saved.response.requestId);
     expect(replay).toMatchObject({ status: "drawn", response: { replayed: true } });
 
     // PLAN.md steg 13: startlistornas fakta (startfålla, startsätt, vakanta tider) i arbetsytan och i publiceringen,
@@ -178,7 +179,7 @@ describe("PLAN.md steg 9: lottning på riktigt", () => {
     const vacancies = (name: "H21" | "D21" | "H16") => shown.classes.find(row => row.classId === f.classes[name])!.slots
       .flatMap(slot => slot.entry ? [] : [slot.startTime]);
     const facts = async () => {
-      const listed = await listEntryTransfersAsAdministrator(db, f.proof, before());
+      const listed = await listEntryTransfersAsAdmin(db, f.proof, before());
       if (listed.status !== "ok") throw new Error("Deltagarlistan saknas");
       return Object.fromEntries(listed.response.classes.map(row => [row.name, [row.firstControlCode, row.drawMethod, row.vacancies]]));
     };
@@ -204,15 +205,14 @@ describe("PLAN.md steg 9: lottning på riktigt", () => {
     const next = (Date.parse(later.response.fixedStartTime!) - Date.parse(firstStart)) / MINUTE;
     expect(next).toBe(Math.max(...h21) + 2);
     expect(d21).not.toContain(next);
-    // Ny lottning med gammalt läge avvisas; med aktuellt läge krävs bekräftelse eftersom tider ersätts.
-    expect((await commit(f, settings(f, version), shown.seed, true)).status).toBe("conflict");
+    // En ny lottning kräver bekräftelse eftersom tider ersätts.
     const current = await snapshot(f.raceId);
-    const again = await preview(f, settings(f, current, "MASS"));
+    const again = await preview(f, settings(f, "MASS"));
     expect(again.replacesStartTimes).toBe(true);
     expect(again.classes.every(row => new Set(row.slots.map(slot => slot.startTime)).size === 1)).toBe(true);
-    expect((await commit(f, settings(f, current, "MASS"), again.seed, false)).status).toBe("confirmation-required");
+    expect((await commit(f, settings(f, "MASS"), again.seed, false)).status).toBe("confirmation-required");
     expect(await snapshot(f.raceId)).toBe(current);
-    const mass = await commit(f, settings(f, current, "MASS"), again.seed, true);
+    const mass = await commit(f, settings(f, "MASS"), again.seed, true);
     expect(mass.status).toBe("drawn");
     expect((await facts()).H16).toEqual([45, "MASS", []]);
     const massLate = await register(f, f.classes.H16, "Mass", null, null);
@@ -220,8 +220,8 @@ describe("PLAN.md steg 9: lottning på riktigt", () => {
     expect(massLate.response.fixedStartTime).toBe(again.classes.find(row => row.classId === f.classes.H16)!.firstStartTime);
 
     // Fri start: klassen får startstämpling och inga tider; efteranmälan utan tid går igen.
-    const free = await preview(f, { ...settings(f, await snapshot(f.raceId), "FREE"), classes: settings(f, 1, "FREE").classes.slice(0, 1) });
-    const freed = await commit(f, { ...settings(f, await snapshot(f.raceId), "FREE"), classes: settings(f, 1, "FREE").classes.slice(0, 1) },
+    const free = await preview(f, { ...settings(f, "FREE"), classes: settings(f, "FREE").classes.slice(0, 1) });
+    const freed = await commit(f, { ...settings(f, "FREE"), classes: settings(f, "FREE").classes.slice(0, 1) },
       free.seed, true);
     expect(freed.status).toBe("drawn");
     expect(await classRow(f.classes.H21)).toMatchObject({ start_rule: "PUNCH", start_draw_id: null });
@@ -233,8 +233,7 @@ describe("PLAN.md steg 9: lottning på riktigt", () => {
     for (const [index, card] of ["700101", "700102"].entries()) {
       expect((await register(f, f.classes.H21, `Tidig-${index}`, "OK Ek", card)).status).toBe("registered");
     }
-    const version = await snapshot(f.raceId);
-    const one = { ...settings(f, version), classes: settings(f, version).classes.slice(0, 1) };
+    const one = { ...settings(f), classes: settings(f).classes.slice(0, 1) };
     const shown = await preview(f, { ...one, classes: one.classes.map(row => ({ ...row, vacancies: { kind: "COUNT" as const, value: 0 } })) });
     const drawn = await commit(f, { ...one, classes: one.classes.map(row => ({ ...row, vacancies: { kind: "COUNT" as const, value: 0 } })) },
       shown.seed, false);

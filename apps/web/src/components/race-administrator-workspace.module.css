@@ -7,7 +7,6 @@
 .content { align-content: start; }
 .content > .status:empty { position: absolute; }
 .login { max-width: 34rem; margin: 48px auto; padding: 0 16px; gap: 14px; }
-.login form { display: grid; gap: 12px; }
 
 /* Delar och avsnitt */
 .workflowGroup { display: grid; gap: 0; min-width: 0; }

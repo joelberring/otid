@@ -2,13 +2,12 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
 import { entryCardRentalReuseIdempotencyKeySchema, entryCardRentalReuseRequestSchema,
   entryCardRentalReuseResponseSchema } from "@o-tid/contracts";
-import { authenticatePairingAdminSession, authenticatePairingAdminSessionForMutation,
-  type PairingAdminRequestAuthentication } from "./pairing-admin";
+import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation } from "./concurrency";
+import { bumpReadoutPackageVersion } from "./snapshot";
+import { UUID_PATTERN as uuid } from "./serialization";
 
-type Authentication = Omit<PairingAdminRequestAuthentication, "capability">;
-const capability = "MANAGE_RACE" as const;
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+type Authentication = RaceSessionProof;
 const maxVersion = 2_147_483_647;
 
 function receipt(row: typeof schema.entryCardRentalReuseRequests.$inferSelect, replayed: boolean) {
@@ -25,7 +24,7 @@ function receipt(row: typeof schema.entryCardRentalReuseRequests.$inferSelect, r
   });
 }
 
-export async function reuseReturnedRentalCardAsAdministrator(db: Database,
+export async function reuseReturnedRentalCardAsAdmin(db: Database,
   input: Authentication & { entryId: string; idempotencyKey: string | null; request: unknown }, now = new Date()) {
   const key = entryCardRentalReuseIdempotencyKeySchema.safeParse(input.idempotencyKey);
   const parsed = entryCardRentalReuseRequestSchema.safeParse(input.request);
@@ -34,11 +33,11 @@ export async function reuseReturnedRentalCardAsAdministrator(db: Database,
   }
   const intent = parsed.data;
   const requestId = key.data.slice("entry-card-rental-reuse:".length);
-  const authentication = { ...input, capability, requireCsrf: true };
-  const preflight = await authenticatePairingAdminSession(db, authentication, now);
+  const authentication = { ...input, role: "ADMIN" as const, requireCsrf: true };
+  const preflight = await requireRaceRole(db, authentication, now);
   if (preflight.status !== "authenticated") return preflight;
   return db.transaction(async (tx) => {
-    const auth = await authenticatePairingAdminSessionForMutation(tx, authentication, now);
+    const auth = await requireRaceRole(tx, authentication, now, "update");
     if (auth.status !== "authenticated") return auth;
     const race = await lockRaceForMutation(tx, input.raceId);
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${requestId}, 0))`);
@@ -46,16 +45,15 @@ export async function reuseReturnedRentalCardAsAdministrator(db: Database,
       .where(eq(schema.entryCardRentalReuseRequests.requestId, requestId));
     if (existing) {
       if (existing.raceId !== input.raceId || existing.targetEntryId !== input.entryId ||
-        existing.actorCredentialId !== auth.principal.accessCredentialId ||
+        existing.actorAccountId !== auth.principal.accountId ||
         existing.sourceEntryId !== intent.source.entryId || existing.sourceClassId !== intent.source.classId ||
         existing.sourceAssignmentId !== intent.source.assignment.id || existing.cardNumber !== intent.source.assignment.cardNumber ||
         existing.sourceEntryVersionBefore !== intent.source.entryVersion ||
         existing.targetClassId !== intent.expectedTargetClassId ||
-        existing.targetEntryVersionBefore !== intent.expectedTargetEntryVersion ||
-        existing.snapshotVersionBefore !== intent.expectedSnapshotVersion) return { status: "conflict" as const };
+        existing.targetEntryVersionBefore !== intent.expectedTargetEntryVersion) return { status: "conflict" as const };
       return { status: "changed" as const, response: receipt(existing, true) };
     }
-    if (intent.source.entryId === input.entryId || race.snapshotVersion !== intent.expectedSnapshotVersion ||
+    if (intent.source.entryId === input.entryId ||
       race.snapshotVersion >= maxVersion) return { status: "conflict" as const };
     const entries = await tx.select().from(schema.entries).where(and(eq(schema.entries.raceId, input.raceId),
       inArray(schema.entries.id, [intent.source.entryId, input.entryId]))).orderBy(asc(schema.entries.id)).for("update");
@@ -86,12 +84,12 @@ export async function reuseReturnedRentalCardAsAdministrator(db: Database,
     const snapshotVersionAfter = race.snapshotVersion + 1;
     await tx.update(schema.entries).set({ version: sourceEntryVersionAfter }).where(eq(schema.entries.id, source.id));
     await tx.update(schema.entries).set({ version: targetEntryVersionAfter }).where(eq(schema.entries.id, target.id));
-    await tx.update(schema.races).set({ snapshotVersion: snapshotVersionAfter }).where(eq(schema.races.id, input.raceId));
+    await bumpReadoutPackageVersion(tx, input.raceId);
     const [saved] = await tx.insert(schema.entryCardRentalReuseRequests).values({
       requestId, raceId: input.raceId, sourceEntryId: source.id, sourceClassId: source.classId,
       sourceAssignmentId: sourceAssignment.id, cardNumber: sourceAssignment.cardNumber,
       targetEntryId: target.id, targetClassId: target.classId, targetAssignmentId: targetAssignment.id,
-      actorCredentialId: auth.principal.accessCredentialId, capability,
+      actorAccountId: auth.principal.accountId,
       sourceEntryVersionBefore: source.version, sourceEntryVersionAfter,
       targetEntryVersionBefore: target.version, targetEntryVersionAfter,
       snapshotVersionBefore: race.snapshotVersion, snapshotVersionAfter, changedAt: now
@@ -99,8 +97,8 @@ export async function reuseReturnedRentalCardAsAdministrator(db: Database,
     if (!saved) throw new Error("Hyrbricksåteranvändningen kunde inte journalföras");
     await tx.insert(schema.auditEvents).values({
       raceId: input.raceId, entityType: "entry", entityId: target.id,
-      action: "ENTRY_CARD_RENTAL_REUSED_BY_ADMIN", actorKind: "RACE_ADMIN_ACCESS_CREDENTIAL",
-      actorId: auth.principal.accessCredentialId, requestId,
+      action: "ENTRY_CARD_RENTAL_REUSED_BY_ADMIN", actorKind: "USER_ACCOUNT",
+      actorId: auth.principal.accountId, requestId,
       before: { sourceEntryId: source.id, sourceAssignmentId: sourceAssignment.id, cardNumber: sourceAssignment.cardNumber,
         sourceEntryVersion: source.version, targetEntryId: target.id, targetEntryVersion: target.version,
         snapshotVersion: race.snapshotVersion },

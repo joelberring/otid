@@ -2,9 +2,9 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrate } from "@o-tid/database";
 import { createDatabase } from "@o-tid/database";
-import { listEntryTransfersAsAdministrator } from "../../src/entry-transfer";
-import { changeEntryCardRentalAsAdministrator } from "../../src/entry-card-rental";
-import { issuePairingAdminAccessCredential, loginPairingAdmin } from "../../src/pairing-admin";
+import { listEntryTransfersAsAdmin } from "../../src/entry-transfer";
+import { changeEntryCardRentalAsAdmin } from "../../src/entry-card-rental";
+import { raceLogin } from "./accounts";
 
 const url = process.env.TEST_DATABASE_URL;
 if (!url) throw new Error("TEST_DATABASE_URL krävs för vald isolerad testdatabas");
@@ -13,12 +13,8 @@ const now = new Date("2026-09-18T08:00:00Z");
 beforeAll(async () => migrate(db, { migrationsFolder: new URL("../../../database/migrations", import.meta.url).pathname }));
 afterAll(async () => pool.end());
 
-async function auth(raceId: string, capability: "MANAGE_RACE" | "CHANGE_ENTRY_CARD" = "MANAGE_RACE") {
-  const installation = await issuePairingAdminAccessCredential(db, { raceId, capability, label: "Synthetic rental",
-    expiresAt: new Date(now.getTime() + 3600_000) }, { now });
-  const login = await loginPairingAdmin(db, { formatVersion: 1, accessCredential: installation.accessCredential },
-    { expectedRaceId: raceId, expectedCapability: capability, now });
-  if (login.status !== "authenticated") throw new Error("Synthetic login failed");
+async function auth(raceId: string, role: "ADMIN" | "FUNCTIONARY" = "ADMIN") {
+  const login = await raceLogin(db, raceId, role, now);
   return { raceId, sessionToken: login.sessionToken, csrfCookie: login.csrfToken, csrfHeader: login.csrfToken };
 }
 
@@ -36,13 +32,13 @@ async function fixture() {
 }
 
 async function input(f: Awaited<ReturnType<typeof fixture>>, isRental: boolean) {
-  const listed = await listEntryTransfersAsAdministrator(db, f.administrator, now);
+  const listed = await listEntryTransfersAsAdmin(db, f.administrator, now);
   if (listed.status !== "ok") throw new Error("Roster unavailable");
   const entry = listed.response.entries.find(row => row.id === f.entryId);
   if (!entry?.activeAssignment) throw new Error("Assignment unavailable");
   return { ...f.administrator, entryId: f.entryId, idempotencyKey: `entry-card-rental-change:${randomUUID()}`,
     request: { formatVersion: 1, expectedEntryVersion: entry.version, expectedClassId: entry.classId,
-      expectedSnapshotVersion: listed.response.snapshotVersion, expectedAssignment: {
+      expectedAssignment: {
         id: entry.activeAssignment.id, cardNumber: entry.activeAssignment.cardNumber,
         isRental: entry.activeAssignment.isRental
       }, isRental } };
@@ -59,14 +55,14 @@ describe("TASK073 journalförd hyrbricksstatus", () => {
   it("markerar och avmarkerar samma aktiva koppling med exakt retry utan att röra tävlingsdata", async () => {
     const f = await fixture(), before = await protectedFootprint(f.raceId);
     const mark = await input(f, true);
-    const changed = await changeEntryCardRentalAsAdministrator(db, mark, now);
+    const changed = await changeEntryCardRentalAsAdmin(db, mark, now);
     if (changed.status !== "changed") throw new Error("Rental marking failed");
     expect(changed.response).toMatchObject({ replayed: false, assignment: { id: f.assignmentId, cardNumber: "12345" },
       previousIsRental: false, isRental: true, entryVersionAfter: 2, snapshotVersionAfter: 2 });
-    expect(await changeEntryCardRentalAsAdministrator(db, mark, now)).toEqual({ status: "changed",
+    expect(await changeEntryCardRentalAsAdmin(db, mark, now)).toEqual({ status: "changed",
       response: { ...changed.response, replayed: true } });
     const unmark = await input(f, false);
-    expect(await changeEntryCardRentalAsAdministrator(db, unmark, new Date(now.getTime() + 1000))).toMatchObject({
+    expect(await changeEntryCardRentalAsAdmin(db, unmark, new Date(now.getTime() + 1000))).toMatchObject({
       status: "changed", response: { previousIsRental: true, isRental: false, entryVersionAfter: 3, snapshotVersionAfter: 3 }
     });
     expect((await pool.query("SELECT is_rental FROM card_assignment WHERE id=$1", [f.assignmentId])).rows).toEqual([{ is_rental: false }]);
@@ -79,19 +75,19 @@ describe("TASK073 journalförd hyrbricksstatus", () => {
   });
 
   it("avvisar annan aktör, ändrat intent, begränsad roll, stale och oklar aktiv koppling atomiskt", async () => {
-    const f = await fixture(), other = await auth(f.raceId), limited = await auth(f.raceId, "CHANGE_ENTRY_CARD");
+    const f = await fixture(), other = await auth(f.raceId), limited = await auth(f.raceId, "FUNCTIONARY");
     const mark = await input(f, true);
-    expect((await changeEntryCardRentalAsAdministrator(db, mark, now)).status).toBe("changed");
-    expect((await changeEntryCardRentalAsAdministrator(db, { ...mark, ...other }, now)).status).toBe("conflict");
-    expect((await changeEntryCardRentalAsAdministrator(db, { ...mark, request: { ...mark.request,
+    expect((await changeEntryCardRentalAsAdmin(db, mark, now)).status).toBe("changed");
+    expect((await changeEntryCardRentalAsAdmin(db, { ...mark, ...other }, now)).status).toBe("conflict");
+    expect((await changeEntryCardRentalAsAdmin(db, { ...mark, request: { ...mark.request,
       expectedAssignment: { ...mark.request.expectedAssignment, isRental: true }, isRental: false } }, now)).status).toBe("conflict");
-    expect((await changeEntryCardRentalAsAdministrator(db, { ...mark, ...limited }, now)).status).toBe("forbidden");
+    expect((await changeEntryCardRentalAsAdmin(db, { ...mark, ...limited }, now)).status).toBe("forbidden");
     const stale = await input(f, false);
     await pool.query("UPDATE entry SET version=version+1 WHERE id=$1", [f.entryId]);
-    expect((await changeEntryCardRentalAsAdministrator(db, stale, now)).status).toBe("conflict");
+    expect((await changeEntryCardRentalAsAdmin(db, stale, now)).status).toBe("conflict");
     await pool.query("UPDATE entry SET version=version-1 WHERE id=$1", [f.entryId]);
     await pool.query("INSERT INTO card_assignment(race_id,entry_id,card_number) VALUES($1,$2,'54321')", [f.raceId, f.entryId]);
-    expect((await changeEntryCardRentalAsAdministrator(db, stale, now)).status).toBe("conflict");
+    expect((await changeEntryCardRentalAsAdmin(db, stale, now)).status).toBe("conflict");
     expect((await pool.query("SELECT count(*)::int AS count FROM entry_card_rental_change WHERE race_id=$1", [f.raceId])).rows)
       .toEqual([{ count: 1 }]);
   });

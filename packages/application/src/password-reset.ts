@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import { passwordResetCompleteRequestSchema, passwordResetRequestSchema } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
@@ -15,6 +15,7 @@ import {
   currentUserAccountVerifier,
   revokeAllUserAccountSessions
 } from "./user-account";
+import { sha256Hex as sha256 } from "./serialization";
 
 /**
  * Glömt lösenord (ADR-0172 beslut 1). En återställningslänk bär en slumpad engångsnyckel; bara dess hash
@@ -30,7 +31,6 @@ export interface PasswordResetDelivery {
   expiresAt: Date;
 }
 
-const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
 
 /** Ny engångsnyckel för kontot. Anroparen visar eller skickar den; den sparas aldrig i klartext. */
 export async function createPasswordResetToken(

@@ -1,24 +1,20 @@
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
 import { administratorEffectiveResultResponseSchema, type AdministratorEffectiveResultResponse } from "@o-tid/contracts";
-import { authenticatePairingAdminSessionForProtectedRead, type PairingAdminRequestAuthentication } from "./pairing-admin";
+import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { resolveStoredResultHeadStates, type StoredResultHeadState } from "./result-revision-state";
 import { parseStrictStoredResultRevision, StoredResultRevisionConflict, type StoredResultRevisionInput } from "./stored-result-revision";
 import { isEffectiveResultCurrent, loadResultBasisHash } from "./result-basis";
 import { storedResultVariantControls } from "./course-variants";
+import { UUID_PATTERN as uuid } from "./serialization";
 
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 export type AdministratorEffectiveResult =
   | { status: "unauthorized" | "forbidden" | "not-found" | "invalid-request" }
   | { status: "ok"; response: AdministratorEffectiveResultResponse };
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 /** Shared strict outcome projection for the detail read and the bounded roster read. */
 export function parseAdministratorStoredResultHead(state: StoredResultHeadState<StoredResultRevisionInput>) {
-  return parseStrictStoredResultRevision(state.head, state.startCheckinDns?.source,
-    state.finishTimeCorrection ?? undefined, state.finishTimeCorrectionWithdrawal ?? undefined,
-    state.punchStartTimeCorrection ?? undefined, state.punchStartTimeCorrectionWithdrawal ?? undefined,
-    state.shortenedCourseClassTransfer ?? undefined);
+  return parseStrictStoredResultRevision(state.head, state.startCheckinDns?.source);
 }
 
 type HistoricalControl = { id: string; sequence: number; controlCode: number };
@@ -61,29 +57,17 @@ export function untimedAdministratorControls(projected: readonly { sequence: num
   });
 }
 
-async function guardHistory(tx: Transaction, raceId: string, entryId: string) {
-  let count = 0;
-  for (const table of [schema.resultDisqualificationDecisions, schema.resultApprovalDecisions,
-    schema.didNotFinishDecisions, schema.notCompetingDecisions, schema.withoutTimingDecisions,
-    schema.startCheckinDnsDecisions]) {
-    const rows = await tx.select({ id: table.id }).from(table).where(and(
-      eq(table.raceId, raceId), eq(table.entryId, entryId)
-    )).limit(1_001);
-    count += rows.length;
-    if (count > 1_000) throw new StoredResultRevisionConflict("Deltagarens beslutshistorik är för stor");
-  }
-}
 
 export async function getAdministratorEffectiveResult(db: Database,
-  input: Omit<PairingAdminRequestAuthentication, "capability" | "requireCsrf"> & { entryId: string },
+  input: RaceSessionProof & { entryId: string },
   now = new Date()
 ): Promise<AdministratorEffectiveResult> {
   if (!uuid.test(input.raceId) || !uuid.test(input.entryId)) return { status: "invalid-request" };
   if (!Number.isFinite(now.getTime())) throw new Error("Lästiden är ogiltig");
   return db.transaction(async tx => {
-    const authorization = await authenticatePairingAdminSessionForProtectedRead(tx, {
-      sessionToken: input.sessionToken, raceId: input.raceId, capability: "MANAGE_RACE"
-    }, now);
+    const authorization = await requireRaceRole(tx, {
+      sessionToken: input.sessionToken, raceId: input.raceId, role: "ADMIN"
+    }, now, "share");
     if (authorization.status !== "authenticated") return authorization;
     const [race] = await tx.select().from(schema.races)
       .where(eq(schema.races.id, authorization.principal.raceId)).for("share");
@@ -114,7 +98,6 @@ export async function getAdministratorEffectiveResult(db: Database,
     if (!selected) return { status: "ok", response: administratorEffectiveResultResponseSchema.parse({
       ...common, state: "NO_PUBLISHED_RESULT", selectedRevision: null
     }) };
-    await guardHistory(tx, race.id, entry.id);
     const [resolved] = await resolveStoredResultHeadStates(tx, race.id, [selected]);
     if (!resolved) throw new StoredResultRevisionConflict("Gällande resultat saknas");
     const outcome = parseAdministratorStoredResultHead(resolved);

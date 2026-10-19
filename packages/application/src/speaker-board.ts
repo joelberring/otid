@@ -1,57 +1,24 @@
 import { and, asc, desc, eq, getTableColumns, inArray } from "drizzle-orm";
 import { speakerBoardResponseSchema, speakerBoardRowSchema, type SpeakerBoardResponse, type SpeakerBoardRow } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { authenticatePairingAdminSessionForProtectedRead, type PairingAdminRequestAuthentication } from "./pairing-admin";
+import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { resolveStoredResultHeadStates } from "./result-revision-state";
 import { parseStrictStoredResultRevision } from "./stored-result-revision";
 
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 export type SpeakerBoardResult =
   | { status: "unauthorized" | "forbidden" | "not-found" }
   | { status: "ok"; response: SpeakerBoardResponse };
 
-async function guardHistory(tx: Transaction, raceId: string, entryIds: string[]): Promise<void> {
-  if (entryIds.length === 0) return;
-  let count = 0;
-  for (const table of [schema.resultDisqualificationDecisions, schema.resultApprovalDecisions,
-    schema.didNotFinishDecisions, schema.notCompetingDecisions, schema.withoutTimingDecisions,
-    schema.startCheckinDnsDecisions]) {
-    const ids = await tx.select({ id: table.id }).from(table).where(and(
-      eq(table.raceId, raceId), inArray(table.entryId, entryIds)
-    )).limit(1_001);
-    count += ids.length;
-    if (count > 1_000) throw new Error("Speakerunderlagets beslutshistorik är för stor");
-  }
-}
-
-export async function listSpeakerBoardAsAdmin(
-  db: Database,
-  input: Omit<PairingAdminRequestAuthentication, "capability">,
-  now = new Date()
-): Promise<SpeakerBoardResult> {
-  return listSpeakerBoardForCapability(db, input, "VIEW_SPEAKER_BOARD", now);
-}
 
 /** Speaker och kontrollvyns senaste avläsningar: administratören och funktionären (ADR-0172 beslut 3). */
-export async function listSpeakerBoardAsAdministrator(
+export async function listSpeakerBoardAsAdmin(
   db: Database,
-  input: Omit<PairingAdminRequestAuthentication, "capability">,
+  input: RaceSessionProof,
   now = new Date()
-): Promise<SpeakerBoardResult> {
-  return listSpeakerBoardForCapability(db, input, "RACE_FUNCTIONARY", now);
-}
-
-async function listSpeakerBoardForCapability(
-  db: Database,
-  input: Omit<PairingAdminRequestAuthentication, "capability">,
-  capability: "VIEW_SPEAKER_BOARD" | "RACE_FUNCTIONARY",
-  now: Date
 ): Promise<SpeakerBoardResult> {
   if (!Number.isFinite(now.getTime())) throw new Error("Lästiden är ogiltig");
   return db.transaction(async (tx) => {
-    const authorization = await authenticatePairingAdminSessionForProtectedRead(tx, {
-      ...input, capability
-    }, now);
+    const authorization = await requireRaceRole(tx, { ...input, role: "FUNCTIONARY" }, now, "share");
     if (authorization.status !== "authenticated") return authorization;
     const [race] = await tx.select({ id: schema.races.id, name: schema.races.name,
       eventId: schema.races.eventId, snapshotVersion: schema.races.snapshotVersion })
@@ -72,13 +39,9 @@ async function listSpeakerBoardForCapability(
     const heads = await tx.select().from(latest).orderBy(desc(latest.createdAt), desc(latest.id)).limit(25);
     const entryIds = heads.map((head) => head.entryId);
     if (new Set(entryIds).size !== heads.length) throw new Error("Speakerunderlaget har dubbla deltagare");
-    await guardHistory(tx, race.id, entryIds);
     const states = await resolveStoredResultHeadStates(tx, race.id, heads);
     const parsed = states.map((state) => ({ state,
-      outcome: parseStrictStoredResultRevision(state.head, state.startCheckinDns?.source,
-        state.finishTimeCorrection ?? undefined, state.finishTimeCorrectionWithdrawal ?? undefined,
-        state.punchStartTimeCorrection ?? undefined, state.punchStartTimeCorrectionWithdrawal ?? undefined,
-        state.shortenedCourseClassTransfer ?? undefined) }));
+      outcome: parseStrictStoredResultRevision(state.head, state.startCheckinDns?.source) }));
     const classIds = [...new Set(parsed.map(({ outcome }) => outcome.classId))];
     const courseVersionIds = [...new Set(heads.map((head) => head.courseVersionId)
       .concat(states.map((state) => state.head.courseVersionId)))];

@@ -9,18 +9,16 @@ import { schema, type Database } from "@o-tid/database";
 import {
   courseVariantForReadout, sameControlCodes, unevenCourseVariantLegs, withProposedCourseVersion, type RaceSnapshot
 } from "@o-tid/domain";
-import {
-  authenticatePairingAdminSession, authenticatePairingAdminSessionForMutation,
-  authenticatePairingAdminSessionForProtectedRead, type PairingAdminRequestAuthentication
-} from "./pairing-admin";
+import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
-import { loadRaceSnapshot } from "./snapshot";
+import { bumpReadoutPackageVersion, loadRaceSnapshot } from "./snapshot";
 import {
   assessReadOutEntries, normalizedReadout, recalculateAssessedEntries, summarizeAssessment, type AssessedEntry
 } from "./result-reassessment";
 import { insertCourseVersionControls, loadCourseVersionVariants, type StoredCourseVariant } from "./course-variants";
 import { PLACEHOLDER_COURSE } from "./source-sync-model";
 import { loadRogainingSetup } from "./rogaining";
+import { UUID_PATTERN as uuid } from "./serialization";
 
 /**
  * Redigera bana (ADR-0169 beslut 4): ändra en banas kontrollföljd, även när
@@ -31,9 +29,7 @@ import { loadRogainingSetup } from "./rogaining";
  * transaktion. Råa avläsningar och äldre revisioner ändras aldrig.
  */
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
-type Authentication = Omit<PairingAdminRequestAuthentication, "capability">;
-const capability = "MANAGE_RACE" as const;
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+type Authentication = RaceSessionProof;
 
 async function loadCourse(tx: Transaction, raceId: string, courseId: string) {
   const [course] = await tx.select({ id: schema.courses.id, name: schema.courses.name }).from(schema.courses)
@@ -98,9 +94,9 @@ function previewResponse(raceId: string, course: LoadedCourse, snapshotVersion: 
 export type CourseEditListResult = { status: "unauthorized" | "forbidden" } | { status: "ok"; response: CourseEditListResponse };
 
 /** Banor med kontroller, klasser, anmälda och avlästa – underlaget för tabellen i Banor. */
-export async function listCoursesForEditAsAdministrator(db: Database, input: Authentication, now = new Date()): Promise<CourseEditListResult> {
+export async function listCoursesForEditAsAdmin(db: Database, input: Authentication, now = new Date()): Promise<CourseEditListResult> {
   return db.transaction(async tx => {
-    const auth = await authenticatePairingAdminSessionForProtectedRead(tx, { ...input, capability }, now);
+    const auth = await requireRaceRole(tx, { ...input, role: "ADMIN" }, now, "share");
     if (auth.status !== "authenticated") return auth;
     const raceId = auth.principal.raceId;
     const race = await lockRaceForSnapshot(tx, raceId);
@@ -172,16 +168,15 @@ export type CourseEditPreviewResult =
   | { status: "ok"; response: CourseEditPreviewResponse };
 
 /** Läser bara: vad händer med de avlästa löparnas resultat om banan får dessa kontroller? */
-export async function previewCourseEditAsAdministrator(db: Database, input: Authentication & { courseId: string; request: unknown },
+export async function previewCourseEditAsAdmin(db: Database, input: Authentication & { courseId: string; request: unknown },
   now = new Date()): Promise<CourseEditPreviewResult> {
   const parsed = courseEditPreviewRequestSchema.safeParse(input.request);
   if (!parsed.success || !uuid.test(input.raceId) || !uuid.test(input.courseId)) return { status: "invalid-request" };
   return db.transaction(async tx => {
-    const auth = await authenticatePairingAdminSessionForProtectedRead(tx, { ...input, capability }, now);
+    const auth = await requireRaceRole(tx, { ...input, role: "ADMIN" }, now, "share");
     if (auth.status !== "authenticated") return auth;
     const raceId = auth.principal.raceId;
     const race = await lockRaceForSnapshot(tx, raceId);
-    if (race.snapshotVersion !== parsed.data.expectedSnapshotVersion) return { status: "conflict" };
     const course = await loadCourse(tx, raceId, input.courseId);
     if (!course) return { status: "not-found" };
     const plan = proposedVariants(course, parsed.data.variantCode, parsed.data.controlCodes);
@@ -203,7 +198,7 @@ export type CourseEditResult =
  * Sparar ändringen. Om någon löpares status ändras krävs `confirmResultChanges`;
  * annars sparas direkt. Berörda resultat räknas om i samma transaktion.
  */
-export async function editCourseAsAdministrator(db: Database, input: Authentication & { idempotencyKey: string | null; request: unknown },
+export async function editCourseAsAdmin(db: Database, input: Authentication & { idempotencyKey: string | null; request: unknown },
   now = new Date()): Promise<CourseEditResult> {
   const parsed = courseEditRequestSchema.safeParse(input.request);
   const key = courseEditIdempotencyKeySchema.safeParse(input.idempotencyKey);
@@ -211,11 +206,11 @@ export async function editCourseAsAdministrator(db: Database, input: Authenticat
     return { status: "invalid-request" };
   }
   const intent = parsed.data;
-  const authentication = { ...input, capability, requireCsrf: true };
-  const initial = await authenticatePairingAdminSession(db, authentication, now);
+  const authentication = { ...input, role: "ADMIN" as const, requireCsrf: true };
+  const initial = await requireRaceRole(db, authentication, now);
   if (initial.status !== "authenticated") return initial;
   return db.transaction(async tx => {
-    const auth = await authenticatePairingAdminSessionForMutation(tx, authentication, now);
+    const auth = await requireRaceRole(tx, authentication, now, "update");
     if (auth.status !== "authenticated") return auth;
     const raceId = auth.principal.raceId;
     const race = await lockRaceForMutation(tx, raceId);
@@ -223,11 +218,11 @@ export async function editCourseAsAdministrator(db: Database, input: Authenticat
     const [prior] = await tx.select().from(schema.courseEditRequests).where(eq(schema.courseEditRequests.requestId, intent.requestId));
     if (prior) {
       const response = courseEditResponseSchema.parse(prior.response);
-      if (prior.raceId !== raceId || prior.actorCredentialId !== auth.principal.accessCredentialId || response.replayed ||
+      if (prior.raceId !== raceId || prior.actorAccountId !== auth.principal.accountId || response.replayed ||
           JSON.stringify(courseEditRequestSchema.parse(prior.request)) !== JSON.stringify(intent)) return { status: "conflict" };
       return { status: "edited", response: { ...response, replayed: true } };
     }
-    if (race.snapshotVersion !== intent.expectedSnapshotVersion || race.snapshotVersion >= 2_147_483_647) return { status: "conflict" };
+    if (race.snapshotVersion >= 2_147_483_647) return { status: "conflict" };
     const course = await loadCourse(tx, raceId, intent.courseId);
     if (!course) return { status: "not-found" };
     const plan = proposedVariants(course, intent.variantCode, intent.controlCodes);
@@ -257,7 +252,7 @@ export async function editCourseAsAdministrator(db: Database, input: Authenticat
         .where(and(eq(schema.classes.raceId, raceId), inArray(schema.classes.id, classIds)));
     }
     const snapshotVersionAfter = race.snapshotVersion + 1;
-    await tx.update(schema.races).set({ snapshotVersion: snapshotVersionAfter }).where(eq(schema.races.id, raceId));
+    await bumpReadoutPackageVersion(tx, raceId);
 
     // Omräkning med den sparade banan. Databasen sätter varje ny revisions underlagshash.
     const snapshot = await loadRaceSnapshot(tx, raceId);
@@ -268,17 +263,17 @@ export async function editCourseAsAdministrator(db: Database, input: Authenticat
       classIds, snapshotVersionBefore: race.snapshotVersion, snapshotVersionAfter, recalculated, editedAt: now.toISOString() });
     await tx.insert(schema.courseEditRequests).values({ requestId: intent.requestId, raceId, courseId: course.id,
       previousCourseVersionId: course.version.id, courseVersionId: courseVersion.id,
-      actorCredentialId: auth.principal.accessCredentialId, capability, request: intent, response, editedAt: now });
+      actorAccountId: auth.principal.accountId, request: intent, response, editedAt: now });
     await tx.insert(schema.auditEvents).values({ raceId, entityType: "course", entityId: course.id, requestId: intent.requestId,
-      actorKind: "RACE_ADMIN_ACCESS_CREDENTIAL", actorId: auth.principal.accessCredentialId, action: "COURSE_EDITED_BY_ADMIN",
+      actorKind: "USER_ACCOUNT", actorId: auth.principal.accountId, action: "COURSE_EDITED_BY_ADMIN",
       before: { courseVersionId: course.version.id, controlCodes: plan.currentControlCodes, variantCode: intent.variantCode ?? null,
         snapshotVersion: race.snapshotVersion },
       after: { courseVersionId: courseVersion.id, controlCodes: intent.controlCodes, variantCode: intent.variantCode ?? null, classIds, snapshotVersion: snapshotVersionAfter,
         recalculatedCount: recalculated.length }, createdAt: now });
     if (recalculated.length > 0) {
       await tx.insert(schema.auditEvents).values(recalculated.map(item => ({ raceId, entityType: "result_revision",
-        entityId: item.resultRevisionId, action: "RESULT_RECALCULATED_AFTER_COURSE_EDIT", actorKind: "RACE_ADMIN_ACCESS_CREDENTIAL" as const,
-        actorId: auth.principal.accessCredentialId, requestId: intent.requestId,
+        entityId: item.resultRevisionId, action: "RESULT_RECALCULATED_AFTER_COURSE_EDIT", actorKind: "USER_ACCOUNT" as const,
+        actorId: auth.principal.accountId, requestId: intent.requestId,
         after: { courseId: course.id, entryId: item.entryId, revision: item.revision, cause: "EXPLICIT_RECALCULATION" }, createdAt: now })));
     }
     return { status: "edited", response };

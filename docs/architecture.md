@@ -26,19 +26,32 @@ Beroenderiktning: `apps/web` → `application` → `domain`, `database`, `contra
 
 1. `apps/web/src/app/api/admin/races/[raceId]/administrator/<åtgärd>/route.ts` skickar vidare till
    `lib/race-administrator-route-handlers.ts`, som delar upp på `lib/race-administrator-routes-*.ts`.
-2. Route-lagret kontrollerar Origin, cookie och roll (`lib/race-roles.ts`, `requireRaceRole`) och validerar
+2. Route-lagret läser policyn i `lib/security-policy.ts` (exakt Origin, kontots sessionskaka, CSRF-par,
+   begränsad body, privata svar), kontrollerar rollen (`lib/race-roles.ts`, `requireRaceRole`) och validerar
    kroppen med kontraktet.
 3. Tjänsten i `packages/application` (`…AsAdmin`) kontrollerar sessionen och rollen igen, låser raderna den
    behöver, räknar med `packages/domain` och skriver i en transaktion: ny rad, ny `result_revision` vid
    resultatpåverkan och en auditpost.
 4. Databasen bär sista skyddet: immutabilitetstriggers, check-villkor och unika index.
 
+Gemensamma hjälpare: UUID-mönstret och idempotensnycklarnas form (`UUID_PATTERN`, `uuidSchema`,
+`prefixedUuidPattern`) finns i `contracts/src/ids.ts` (domänen, som saknar beroenden, har sitt `UUID_PATTERN` i
+`domain/src/types.ts`); SHA-256 och kanonisk hash i `application/src/serialization.ts` (`sha256Hex`,
+`canonicalHash`). Kontonivåns tjänster saknar suffix (`createOrganizerEvent`, `listMyEvents`).
+
 ## Behörighet
 
-- Kontot loggar in med e-post och lösenord (hashat). Sessionen är en httpOnly, SameSite=Lax-cookie.
-- När ett konto öppnar en tävling skapas en tävlingssession med rollen från eventet: `OWNER`/`ADMIN` ger
-  `MANAGE_RACE` (allt), `FUNCTIONARY` ger `RACE_FUNCTIONARY` (avläsning, direktanmälan, kvar i skogen, start,
-  speaker). Tabellen över funktionärens åtgärder finns bara i `lib/race-roles.ts`.
+- En sessionsnivå (steg 23): kontot loggar in med e-post och lösenord (hashat) och får en sessionskaka
+  (httpOnly, `Path=/`, SameSite=Strict, 30 dagar) och en CSRF-kaka bunden till sessionen. Det finns inga
+  tävlingssessioner, delegationer eller egna kakor per funktion; arbetsytan öppnar en tävling direkt.
+- `requireRaceRole(tx, { raceId, sessionToken, csrf…, role, requireCsrf }, now, lock)` i
+  `application/src/race-session.ts` är den enda rollkontrollen: rollen på tävlingen kommer från kontots
+  behörighet på eventet (`event_administration_grant`). `OWNER`/`ADMIN` ger `ADMIN` (allt), `FUNCTIONARY` ger
+  `FUNCTIONARY` (avläsning, direktanmälan, kvar i skogen, start, speaker). Utan behörighet blir svaret
+  `unauthorized`, med för låg roll `forbidden`. Skrivningar kräver CSRF-paret och låser behörigheten
+  (`update`); läsningar låser delat (`share`) så att en samtidig återkallelse ger `unauthorized`.
+- Tabellen över funktionärens rutter finns bara i `lib/race-roles.ts`. Journaler och audit sparar kontot som
+  aktör (`actor_account_id`, `actorKind` `USER_ACCOUNT`).
 - Superadmin sätts med kommando på servern (`pnpm account:superadmin`).
 - Publika sidor och `/api/public/*` läser bara publicerat innehåll och kräver ingen inloggning.
 - Se `docs/security-privacy.md`.
@@ -49,14 +62,22 @@ Beroenderiktning: `apps/web` → `application` → `domain`, `database`, `contra
   Samma funktion körs i avläsningsskalet (preliminärt besked) och på servern (auktoritativt).
 - Rankning och listor: `class-ranking.ts`, `split-table.ts`, `relay.ts`, `rogaining.ts` i `packages/domain`.
 - Lagring: `result_revision` är append-only. Varje ändring av ett resultat (avläsning, beslut, omräkning,
-  ändrad tid) lägger till en revision med orsak, motorversion och underlag. Inget i React, route handlers
-  eller SQL räknar resultat.
+  ändrad tid) lägger till en revision med orsak, motorversion och underlag. Alla skrivställen går genom
+  `appendResultRevision` (nästa revisionsnummer, underlagshash, publicering) och, när en avläsning bedöms,
+  `evaluateAndStore` i `application/src/result-revisions.ts`. Inget i React, route handlers eller SQL räknar
+  resultat.
+- Statusbeslut: `setEntryStatus` (`application/src/entry-status.ts`) är det enda flödet för ej start, ej
+  fullföljt, disk, utom tävlan, utan tidtagning, godkänt manuellt, ändrad start- och måltid och återtagande.
+  Förfrågan bär löparens `expectedRevision`; en annan senaste revision ger konflikt. Historiken är revisionerna.
+- Adminåtgärder kontrollerar inte tävlingens version. En inaktuell bedömning syns i stället i löparens
+  underlagshash (ADR-0169), som fastställandet kräver är aktuell.
 
 ## Avläsning och offline
 
 - Avläsningsskalet byggs separat (`apps/web/scripts/build-shells.mjs`) till `/readout/` med en service worker,
   så att sidan öppnas utan nät.
-- Skalet hämtar ett avläsningspaket (tävlingens snapshot med version), läser stationen via Web Serial,
+- Skalet hämtar ett avläsningspaket (tävlingens snapshot med paketversionen `race.snapshot_version`, som bara
+  höjs av `bumpReadoutPackageVersion` när paketets innehåll ändras), läser stationen via Web Serial,
   bedömer lokalt och lägger avläsningen i en kö i IndexedDB (`src/readout/store.ts`).
 - Kön skickas till `POST …/administrator/readouts` (`application/src/ingest.ts`). Mottagningen är idempotent
   på enhet, löpnummer och hash; samma avläsning två gånger ger samma kvitto. Råa bytes sparas oförändrade.
@@ -71,7 +92,8 @@ Beroenderiktning: `apps/web` → `application` → `domain`, `database`, `contra
 
 ## Databas
 
-- Schemat finns i `packages/database/src/schema.ts`; migrationerna börjar med `0000_baseline.sql` (steg 23).
+- Schemat finns i `packages/database/src/schema/*.ts` (samlat i `schema.ts`); migrationerna börjar med
+  `0000_baseline.sql` följd av `0001_ett_statusflode`, `0002_en_session` och `0003_paketversion` (steg 23).
   Varje schemaändring kräver en ny migration.
 - `pnpm db:migrate` committar nya enum-värden först och kör sedan varje migration i en egen transaktion.
 - Externa id:n (Eventor, IOF) lagras med källa men är aldrig primärnycklar.

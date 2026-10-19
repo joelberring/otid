@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { radioFetchResponseSchema, radioSettingsResponseSchema, type RadioSettingsResponse, type RadioSource } from "@o-tid/contracts";
 import { radioControlName, radioSv } from "../../i18n/radio-sv";
-import { readRaceAdministratorCsrfCookie } from "../../lib/race-administrator-cookies";
+import { readAccountCsrfCookie } from "../../lib/organizer-account-cookies";
 import { formatClockTime } from "../../lib/clock-time";
 import { Button, Field, Notice, Section } from "../ui";
 import { sourceTime } from "./eventor-section";
@@ -48,7 +48,7 @@ export function RadioSection({ raceId, disabled }: { raceId: string; disabled: b
   useEffect(() => { void load(); }, [load]);
 
   async function send(path: string, method: "PUT" | "POST", body?: unknown): Promise<{ status: number; value?: unknown }> {
-    const csrf = readRaceAdministratorCsrfCookie(document.cookie, new URL(window.location.href));
+    const csrf = readAccountCsrfCookie(document.cookie, new URL(window.location.href));
     if (!csrf) return { status: 401 };
     const response = await fetch(path, { method, credentials: "same-origin", cache: "no-store",
       headers: { "x-otid-csrf": csrf, ...(body === undefined ? {} : { "content-type": "application/json" }) },

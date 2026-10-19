@@ -1,8 +1,7 @@
-import { useState, type FormEvent } from "react";
-import { administratorEffectiveResultResponseSchema, entryTransferCandidatesSchema, raceAdministratorSessionStatusSchema,
+import { useState } from "react";
+import { administratorEffectiveResultResponseSchema, entryTransferCandidatesSchema, raceSessionStatusSchema,
   type AdministratorEffectiveResultResponse, type EntryTransferCandidates } from "@o-tid/contracts";
-import { readOrganizerCsrf } from "../../lib/organizer-client";
-import { readRaceAdministratorCsrfCookie } from "../../lib/race-administrator-cookies";
+import { readAccountCsrfCookie } from "../../lib/organizer-account-cookies";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
 import type { WorkspaceRole } from "../../lib/race-sections";
 import type { Operation } from "./types";
@@ -14,7 +13,7 @@ export function useRaceDataState() {
   const [data, setData] = useState<EntryTransferCandidates>();
   const [effectiveResult, setEffectiveResult] = useState<AdministratorEffectiveResultResponse>();
   const [effectiveResultError, setEffectiveResultError] = useState(false);
-  /** Administratör eller funktionär (ADR-0172 beslut 3), från tävlingssessionen. */
+  /** Administratör eller funktionär (ADR-0172 beslut 3), kontots roll på tävlingen. */
   const [role, setRole] = useState<WorkspaceRole>("ADMIN");
   return { data, setData, effectiveResult, setEffectiveResult, effectiveResultError, setEffectiveResultError, role, setRole };
 }
@@ -52,37 +51,20 @@ export function createRaceDataActions(ws: Base & MobileNavigation) {
     if (selectedId) await loadEffectiveResult(selectedId, value, op);
     assertCurrent(op); return value;
   }
-  /** ADR-0168/0172: öppna tävlingen med det inloggade kontot (ägare, administratör eller funktionär på eventet). */
-  async function enterWithAccount(op: Operation) {
-    let csrfToken: string;
-    try { csrfToken = readOrganizerCsrf(document.cookie, new URL(window.location.href)); }
-    catch { throw new Error("No account session"); }
-    const response = await fetch(`/api/organizer/races/${encodeURIComponent(raceId)}/enter`, {
-      method: "POST", credentials: "same-origin", cache: "no-store", signal: op.controller.signal,
-      headers: { "x-otid-csrf": csrfToken } });
-    if (!response.ok) throw new Error("Account enter failed");
-    await session(op);
-  }
   async function session(op: Operation) {
     const response = await request("/session", op);
     if (!response.ok) throw new Error("Session unavailable");
-    const value = raceAdministratorSessionStatusSchema.parse(await json(response, op));
+    // Kontots session och roll på tävlingen (ADR-0173 beslut 4).
+    const value = raceSessionStatusSchema.parse(await json(response, op));
     if ("authenticated" in value) throw new Error("No race session");
     if (value.raceId !== raceId || Date.parse(value.expiresAt) <= Date.now()) throw new Error("Invalid session");
     deadline.current = Date.parse(value.expiresAt); setExpiresAt(value.expiresAt);
-    setRole(value.capability === "RACE_FUNCTIONARY" ? "FUNCTIONARY" : "ADMIN");
+    setRole(value.role);
     await load(op); assertCurrent(op); setAuthenticated(true); if (pending.current) setMobilePanel("WORK"); setMessage("");
-  }
-  async function login(event: FormEvent) {
-    event.preventDefault(); if (busyRef.current) return;
-    const op = begin();
-    try {
-      await enterWithAccount(op);
-    } catch { if (current(op)) lock(); } finally { finish(op); }
   }
   async function logout() {
     const hadPending = sent.current;
-    const token = readRaceAdministratorCsrfCookie(document.cookie, new URL(window.location.href));
+    const token = readAccountCsrfCookie(document.cookie, new URL(window.location.href));
     lock(true); if (hadPending) setMessage(text.discarded);
     if (!token) { setMessage(`${text.logoutError}${hadPending ? ` ${text.discarded}` : ""}`); return; }
     const op = begin();
@@ -102,6 +84,6 @@ export function createRaceDataActions(ws: Base & MobileNavigation) {
     try { await load(op); setMessage(""); }
     catch { if (current(op)) setMessage(text.error); } finally { finish(op); }
   }
-  return { loadEffectiveResult, load, enterWithAccount, session, login, logout, refresh };
+  return { loadEffectiveResult, load, session, logout, refresh };
 }
 export type RaceDataActions = ReturnType<typeof createRaceDataActions>;

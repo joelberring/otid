@@ -3,7 +3,7 @@ import { startDrawIdempotencyKeySchema, startDrawPreviewRequestSchema, startDraw
 
 const id = "10000000-0000-4000-8000-000000000001";
 const other = "10000000-0000-4000-8000-000000000002";
-const settings = { formatVersion: 1, expectedSnapshotVersion: 3, firstStartTime: "2026-10-08T08:00:00.000Z", clubSeparation: true,
+const settings = { formatVersion: 1, firstStartTime: "2026-10-08T08:00:00.000Z", clubSeparation: true,
   classes: [{ classId: id, method: "MINUTE", intervalMinutes: 2, vacancies: { kind: "COUNT", value: 1 } }] };
 
 describe("lottningens kontrakt (PLAN.md steg 9)", () => {

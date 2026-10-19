@@ -1,16 +1,16 @@
-import { createHash } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { schema } from "@o-tid/database";
 import { canonicalStartCheckinConflictReviewRequest, StartCheckinConflictReviewRequestSchema, StartCheckinConflictReviewResponseSchema } from "@o-tid/contracts";
 import type { DbExecutor } from "./snapshot";
+import { sha256Hex } from "./serialization";
 
-export const reviewHash = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
+export const reviewHash = (bytes: Uint8Array) => sha256Hex(bytes);
 export function validateStoredCheckinConflictReview(row: typeof schema.startCheckinConflictReviews.$inferSelect) {
   const intent = StartCheckinConflictReviewRequestSchema.parse(JSON.parse(row.intentCanonicalJson) as unknown);
   const canonical = canonicalStartCheckinConflictReviewRequest(intent);
   if (new TextDecoder().decode(canonical) !== row.intentCanonicalJson || reviewHash(canonical) !== row.intentHash ||
     intent.requestId !== row.requestId || intent.entryId !== row.entryId || intent.sourceHash !== row.sourceHash ||
-    intent.reason !== row.reason || (row.capability !== "FINISH_FOREST_WATCH" && row.capability !== "MANAGE_RACE") || intent.decision !== row.decision) {
+    intent.reason !== row.reason || intent.decision !== row.decision) {
     throw new Error("Invalid stored conflict review");
   }
   return { intent, response: StartCheckinConflictReviewResponseSchema.parse({ formatVersion: 1, reviewId: row.id,

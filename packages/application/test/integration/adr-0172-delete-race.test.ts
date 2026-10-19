@@ -3,21 +3,21 @@ import { readFile } from "node:fs/promises";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase, migrate } from "@o-tid/database";
 import type { DeviceBatch, SportidentReadoutPayload } from "@o-tid/contracts";
-import { contentHash } from "../../src/hash";
-import { createEventAsUserAccount, enterRaceAsUserAccount } from "../../src/organizer-events";
-import { createManualCourseClassAsAdministrator } from "../../src/manual-course-class";
+import { contentHash } from "../../src/serialization";
+import { createOrganizerEvent } from "../../src/organizer-events";
+import { createManualCourseClassAsAdmin } from "../../src/manual-course-class";
 import { registerEntryAsAdmin } from "../../src/entry-registration";
-import { ingestReadoutsAsAdministrator } from "../../src/readout-station";
-import { decideDidNotStartAsAdmin, listDidNotStartCandidatesAsAdmin } from "../../src/did-not-start";
+import { ingestReadoutsAsAdmin } from "../../src/readout-station";
+import { statusFlow } from "./entry-status-helpers";
 import { decideStartListPublicationAsAdmin, getStartListPublicationPreviewAsAdmin } from "../../src/start-list-publication";
 import { eventorConfigurationFromEnvironment } from "../../src/eventor-secret";
-import { chooseEventorEventAsAdministrator, saveEventorKeyAsAdministrator, type EventorRuntime } from "../../src/eventor-link";
-import { previewCourseFileAsAdministrator, previewEventorSyncAsAdministrator } from "../../src/source-sync";
-import { georeferenceRaceMapAsAdministrator, saveParticipantRouteAsAdministrator, saveRaceMapAsAdministrator } from "../../src/race-map";
+import { chooseEventorEventAsAdmin, saveEventorKeyAsAdmin, type EventorRuntime } from "../../src/eventor-link";
+import { previewCourseFileAsAdmin, previewEventorSyncAsAdmin } from "../../src/source-sync";
+import { georeferenceRaceMapAsAdmin, saveParticipantRouteAsAdmin, saveRaceMapAsAdmin } from "../../src/race-map";
 import { publicResults } from "../../src/results";
 import { deleteEventAsOwner } from "../../src/account-self-service";
 import { loginUserAccount } from "../../src/user-account";
-import { grantRacePerson, registerTestAccount } from "./accounts";
+import { grantRacePerson, registerTestAccount, accountOnRace } from "./accounts";
 
 /**
  * ADR-0172 beslut 2: en borttagen tävling tar med sig allt – anmälda, råa avläsningar, resultatrevisioner,
@@ -70,15 +70,15 @@ async function tableCounts(): Promise<Map<string, number>> {
 }
 
 async function race(owner: AccountProof, eventName: string): Promise<{ proof: Proof; eventId: string; classId: string }> {
-  const created = await createEventAsUserAccount(db, { ...owner, idempotencyKey: `organizer-event-create:${randomUUID()}`,
+  const created = await createOrganizerEvent(db, { ...owner, idempotencyKey: `organizer-event-create:${randomUUID()}`,
     readBody: async () => ({ formatVersion: 1, eventName, raceName: "Torsdag", raceDate: "2026-10-08", timeZone: "Europe/Stockholm" }) });
   if (created.status !== "created") throw new Error("Tävlingen kunde inte skapas");
-  const entered = await enterRaceAsUserAccount(db, { ...owner, raceId: created.response.raceId });
-  if (entered.status !== "entered") throw new Error("Kom inte in i tävlingen");
+  const entered = await accountOnRace(db, { ...owner, raceId: created.response.raceId });
+  if (entered.status !== "authenticated") throw new Error("Kom inte in i tävlingen");
   const proof = { raceId: created.response.raceId, sessionToken: entered.sessionToken, csrfCookie: entered.csrfToken, csrfHeader: entered.csrfToken };
   const requestId = randomUUID();
-  const course = await createManualCourseClassAsAdministrator(db, { ...proof, idempotencyKey: `manual-course-class-create:${requestId}`,
-    request: { formatVersion: 1, requestId, expectedSnapshotVersion: await snapshot(proof.raceId), courseName: "Lång",
+  const course = await createManualCourseClassAsAdmin(db, { ...proof, idempotencyKey: `manual-course-class-create:${requestId}`,
+    request: { formatVersion: 1, requestId, courseName: "Lång",
       className: "H21", startRule: "PUNCH", controlCodes: [31, 32, 33] } });
   if (course.status !== "created") throw new Error("Banan kunde inte skapas");
   return { proof, eventId: created.response.eventId, classId: course.response.classId };
@@ -89,7 +89,7 @@ async function entry(proof: Proof, classId: string, givenName: string, cardNumbe
     .rows[0]!.course_version_id;
   const registered = await registerEntryAsAdmin(db, { ...proof, idempotencyKey: `entry-registration:${randomUUID()}`, request: {
     formatVersion: 1, classId, expectedCourseVersionId: courseVersionId, expectedStartRule: "PUNCH",
-    expectedSnapshotVersion: await snapshot(proof.raceId), givenName, familyName: "Löpare", organisationName: "OK Borta",
+    givenName, familyName: "Löpare", organisationName: "OK Borta",
     cardNumber, fixedStartTime: null } });
   if (registered.status !== "registered") throw new Error(`Anmälan misslyckades: ${registered.status}`);
   return registered.response.entryId;
@@ -102,7 +102,7 @@ async function readout(proof: Proof, cardNumber: string, punches: [number, numbe
   const batch: DeviceBatch = { deviceId: randomUUID(), sessionId: randomUUID(), packageVersion: await snapshot(proof.raceId),
     firstSequence: 1, lastSequence: 1,
     events: [{ localSequence: 1, stationReceivedAt: at(finish + 60), transport: "sportident", payload, contentHash: contentHash(payload) }] };
-  const ingested = await ingestReadoutsAsAdministrator(db, { ...proof, batch });
+  const ingested = await ingestReadoutsAsAdmin(db, { ...proof, batch });
   if (ingested.status !== "ok") throw new Error(`Avläsningen togs inte emot: ${ingested.status}`);
 }
 
@@ -128,49 +128,42 @@ async function fillRace(f: { proof: Proof; eventId: string; classId: string }, o
   await readout(proof, "7202", [[31, 440], [33, 1360]], 1790);
   await readout(proof, "9999", [[31, 400]], 900); // okänd bricka
 
-  // DNS-beslut (resultatrevision och beslut pekar på varandra med uppskjutna nycklar).
-  const candidates = await listDidNotStartCandidatesAsAdmin(db, proof);
-  if (candidates.status !== "ok") throw new Error("DNS-kandidater saknas");
-  const cia = candidates.response.entries.find((candidate) => candidate.readiness === "READY");
-  if (!cia) throw new Error("Ingen DNS-kandidat");
-  const dns = await decideDidNotStartAsAdmin(db, { ...proof, entryId: cia.id, idempotencyKey: `did-not-start:${randomUUID()}`,
-    request: { formatVersion: 1, expectedEntryVersion: cia.entryVersion, expectedClassId: cia.classId,
-      expectedCourseVersionId: cia.courseVersionId, expectedSnapshotVersion: candidates.response.snapshotVersion,
-      expectedLatestResultRevision: null, policyVersion: "did-not-start-v1" } });
+  // DNS-beslut (en resultatrevision utan avläsning).
+  const flow = statusFlow(db);
+  const dns = await flow.decide(proof, await flow.entryId(proof.raceId, "Cia"), { kind: "DID_NOT_START" });
   expect(dns.status).toBe("decided");
 
   // Publicerad startlista.
   const preview = await getStartListPublicationPreviewAsAdmin(db, proof);
   if (preview.status !== "ok" || !preview.response.sourceHash) throw new Error("Startlistan saknas");
   expect((await decideStartListPublicationAsAdmin(db, { ...proof, idempotencyKey: `start-list-publication:${randomUUID()}`,
-    request: { formatVersion: 1, action: "PUBLISH", expectedSnapshotVersion: preview.response.snapshotVersion,
-      expectedSourceHash: preview.response.sourceHash, expectedRevision: 0 } })).status).toBe("decided");
+    request: { formatVersion: 1, action: "PUBLISH", expectedSourceHash: preview.response.sourceHash, expectedRevision: 0 } })).status).toBe("decided");
 
   // Eventor-nyckel, vald tävling och källor som ögonblicksbilder.
   const runtime = eventorRuntime();
-  expect(await saveEventorKeyAsAdministrator(db, { ...proof, request: { formatVersion: 1, apiKey: API_KEY } }, runtime))
+  expect(await saveEventorKeyAsAdmin(db, { ...proof, request: { formatVersion: 1, apiKey: API_KEY } }, runtime))
     .toMatchObject({ status: "ok", response: { outcome: "CONNECTED" } });
-  expect(await chooseEventorEventAsAdministrator(db, { ...proof, request: { formatVersion: 1, eventId: "47110" } }, runtime))
+  expect(await chooseEventorEventAsAdmin(db, { ...proof, request: { formatVersion: 1, eventId: "47110" } }, runtime))
     .toMatchObject({ status: "ok", response: { outcome: "CONNECTED" } });
-  expect((await previewEventorSyncAsAdministrator(db, proof, runtime)).status).toBe("ok");
-  expect((await previewCourseFileAsAdministrator(db, { ...proof, xml: await fixture("iof/course-file-1.xml"), fileName: "banor.xml" })).status)
+  expect((await previewEventorSyncAsAdmin(db, proof, runtime)).status).toBe("ok");
+  expect((await previewCourseFileAsAdmin(db, { ...proof, xml: await fixture("iof/course-file-1.xml"), fileName: "banor.xml" })).status)
     .toBe("ok");
 
   // Karta med georeferens och en rutt.
   const png = new Uint8Array(await readFile(new URL("maps/strackanalys.png", fixtures)));
-  expect(await saveRaceMapAsAdministrator(db, { ...proof, bytes: png, fileName: "karta.png" })).toEqual({ status: "ok" });
-  expect(await georeferenceRaceMapAsAdministrator(db, { ...proof, request: { formatVersion: 1, tiePoints: [
+  expect(await saveRaceMapAsAdmin(db, { ...proof, bytes: png, fileName: "karta.png" })).toEqual({ status: "ok" });
+  expect(await georeferenceRaceMapAsAdmin(db, { ...proof, request: { formatVersion: 1, tiePoints: [
     { pixelX: 100, pixelY: 100, latitude: 59.308, longitude: 18.0935 }, { pixelX: 700, pixelY: 100, latitude: 59.308, longitude: 18.1145 },
     { pixelX: 100, pixelY: 500, latitude: 59.3017, longitude: 18.0935 }] } })).toEqual({ status: "ok" });
   const annaId = (await pool.query<{ id: string }>("select id from entry where race_id = $1 and given_name = 'Anna'", [proof.raceId])).rows[0]!.id;
   const gpx = (await fixture("routes/anna.gpx")).replace(/<time>([^<]+)<\/time>/g, (_match, time: string) =>
     `<time>${new Date(Date.parse(time) + START - 300_000 - Date.UTC(2026, 0, 1)).toISOString()}</time>`);
-  expect((await saveParticipantRouteAsAdministrator(db, { ...proof, entryId: annaId, bytes: new TextEncoder().encode(gpx),
+  expect((await saveParticipantRouteAsAdmin(db, { ...proof, entryId: annaId, bytes: new TextEncoder().encode(gpx),
     fileName: "anna.gpx" })).status).toBe("ok");
 
   // Medadministratör som har öppnat arbetsytan.
   expect((await grantRacePerson(db, owner, proof.raceId, helperEmail, "ADMIN")).status).toBe("granted");
-  expect((await enterRaceAsUserAccount(db, { ...helper, raceId: proof.raceId })).status).toBe("entered");
+  expect((await accountOnRace(db, { ...helper, raceId: proof.raceId })).status).toBe("authenticated");
 }
 
 describe("ADR-0172 ta bort tävling", () => {
@@ -187,8 +180,8 @@ describe("ADR-0172 ta bort tävling", () => {
     await fillRace(doomed, owner.proof, helper.email, helper.proof);
     const filled = await tableCounts();
     const touched = [...filled].filter(([table, count]) => count > (before.get(table) ?? 0) && !ACCOUNT_TABLES.has(table)).map(([table]) => table);
-    for (const table of ["raw_device_message", "card_readout", "result_revision", "did_not_start_decision", "start_list_publication",
-      "race_eventor_link", "source_snapshot", "race_map", "participant_route", "event_administration_grant", "user_account_race_delegation",
+    for (const table of ["raw_device_message", "card_readout", "result_revision", "start_list_publication",
+      "race_eventor_link", "source_snapshot", "race_map", "participant_route", "event_administration_grant",
       "audit_event", "entry", "course_version"]) expect(touched, table).toContain(table);
 
     // Bara ägaren, och bara med tävlingens namn.
@@ -215,7 +208,7 @@ describe("ADR-0172 ta bort tävling", () => {
     // Den andra tävlingen och kontona finns kvar.
     expect(await publicResults(db, kept.proof.raceId)).toEqual(keptResults);
     expect((await loginUserAccount(db, { formatVersion: 1, email: helper.email, password: helper.password })).status).toBe("authenticated");
-    expect((await enterRaceAsUserAccount(db, { ...owner.proof, raceId: kept.proof.raceId })).status).toBe("entered");
-    expect((await enterRaceAsUserAccount(db, { ...owner.proof, raceId: doomed.proof.raceId })).status).toBe("not-found");
+    expect((await accountOnRace(db, { ...owner.proof, raceId: kept.proof.raceId })).status).toBe("authenticated");
+    expect((await accountOnRace(db, { ...owner.proof, raceId: doomed.proof.raceId })).status).toBe("unauthorized");
   });
 });

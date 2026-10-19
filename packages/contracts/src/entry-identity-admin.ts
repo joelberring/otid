@@ -1,6 +1,6 @@
 import { z } from "zod";
+import { prefixedUuidPattern, uuidSchema as uuid } from "./ids";
 
-const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 const version = z.number().int().positive().max(2_147_483_647);
 
 // Exact stored values are preserved for concurrency and historical responses.
@@ -15,14 +15,6 @@ const newValues = z.object({
   organisationName: z.string().trim().min(1).max(200).nullable()
 }).strict();
 
-export const entryIdentityAdminLoginRequestSchema = z.object({
-  formatVersion: z.literal(1),
-  accessCredential: z.string().regex(/^otid_org_entry_identity_v1\.[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.[A-Za-z0-9_-]{43}$/)
-}).strict();
-export const entryIdentityAdminLoginResponseSchema = z.object({
-  formatVersion: z.literal(1), raceId: uuid, capability: z.literal("CHANGE_ENTRY_IDENTITY"),
-  expiresAt: z.iso.datetime({ offset: true })
-}).strict();
 export const entryIdentityAdminListResponseSchema = z.object({
   formatVersion: z.literal(1), raceId: uuid, snapshotVersion: version,
   entries: z.array(z.object({
@@ -33,11 +25,11 @@ export const entryIdentityAdminListResponseSchema = z.object({
 
 export const entryIdentityChangeRequestSchema = z.object({
   formatVersion: z.literal(1), expectedEntryVersion: version, expectedClassId: uuid,
-  expectedSnapshotVersion: version, expectedIdentity: entryIdentityValuesSchema,
+  expectedIdentity: entryIdentityValuesSchema,
   identity: newValues
 }).strict();
 export const entryIdentityChangeIdempotencyKeySchema = z.string().regex(
-  /^entry-identity-change:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+  prefixedUuidPattern("entry-identity-change")
 );
 const identityChangeRecord = z.object({
   requestId: uuid, classId: uuid, previousIdentity: entryIdentityValuesSchema,
@@ -59,7 +51,6 @@ export const entryIdentityChangeResponseSchema = identityChangeRecord.extend({
 export { entryClassAdminErrorResponseSchema as entryIdentityAdminErrorResponseSchema } from "./entry-class-admin";
 export type { EntryClassAdminErrorCode as EntryIdentityAdminErrorCode } from "./entry-class-admin";
 export type EntryIdentityValues = z.infer<typeof entryIdentityValuesSchema>;
-export type EntryIdentityAdminLoginRequest = z.infer<typeof entryIdentityAdminLoginRequestSchema>;
 export type EntryIdentityAdminListResponse = z.infer<typeof entryIdentityAdminListResponseSchema>;
 export type EntryIdentityChangeRequest = z.infer<typeof entryIdentityChangeRequestSchema>;
 export type EntryIdentityChangeResponse = z.infer<typeof entryIdentityChangeResponseSchema>;

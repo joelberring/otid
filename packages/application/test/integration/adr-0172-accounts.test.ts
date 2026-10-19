@@ -5,11 +5,11 @@ import { createDatabase, migrate, schema } from "@o-tid/database";
 import { authenticateUserAccountSession, loginUserAccount, registerUserAccount } from "../../src/user-account";
 import { completePasswordReset, requestPasswordReset } from "../../src/password-reset";
 import { deleteOwnAccount, readAccountProfile } from "../../src/account-self-service";
-import { createEventAsUserAccount, enterRaceAsUserAccount, listMyEventsAsUserAccount } from "../../src/organizer-events";
+import { createOrganizerEvent, listMyEvents } from "../../src/organizer-events";
 import { performSuperadminAction, readSuperadminOverview, setSuperadmin } from "../../src/superadmin";
 import { isRacePubliclyVisible } from "../../src/public-race-visibility";
 import { listPublicRaces } from "../../src/public-races";
-import { grantRacePerson, registerTestAccount, setRacePublished, TEST_PASSWORD } from "./accounts";
+import { grantRacePerson, registerTestAccount, setRacePublished, TEST_PASSWORD, accountOnRace } from "./accounts";
 
 /**
  * ADR-0172 beslut 1–2 / PLAN.md steg 17: konton med e-post, spärr mot upprepade försök, glömt lösenord,
@@ -38,7 +38,7 @@ const suffix = () => randomUUID().slice(0, 8);
 const HOUR = 60 * 60 * 1000;
 
 async function createEvent(proof: { sessionToken: string; csrfCookie: string; csrfHeader: string }, eventName: string) {
-  const created = await createEventAsUserAccount(db, { ...proof, idempotencyKey: `organizer-event-create:${randomUUID()}`,
+  const created = await createOrganizerEvent(db, { ...proof, idempotencyKey: `organizer-event-create:${randomUUID()}`,
     readBody: async () => ({ formatVersion: 1, eventName, raceName: "Torsdag", raceDate: "2026-10-08", timeZone: "Europe/Stockholm" }) });
   if (created.status !== "created") throw new Error(`Tävlingen kunde inte skapas: ${created.status}`);
   return created.response;
@@ -149,15 +149,15 @@ describe("ADR-0172 konton", () => {
     const boss = await superadmin();
     const spam = await registerTestAccount(db, `spam.${suffix()}`);
     const event = await createEvent(spam.proof, "Skräptävling");
-    const entered = await enterRaceAsUserAccount(db, { ...spam.proof, raceId: event.raceId });
-    expect(entered.status).toBe("entered");
+    const entered = await accountOnRace(db, { ...spam.proof, raceId: event.raceId });
+    expect(entered.status).toBe("authenticated");
 
     expect(await performSuperadminAction(db, boss.proof, { formatVersion: 1, action: "BLOCK_ACCOUNT", accountId: boss.accountId,
       reason: "Fel konto" })).toEqual({ status: "invalid-request" });
     expect(await performSuperadminAction(db, boss.proof, { formatVersion: 1, action: "BLOCK_ACCOUNT", accountId: spam.accountId,
       reason: "Skräpkonto" })).toEqual({ status: "done", action: "BLOCK_ACCOUNT" });
     expect((await authenticateUserAccountSession(db, spam.proof)).status).toBe("unauthorized");
-    expect((await listMyEventsAsUserAccount(db, spam.proof)).status).toBe("unauthorized");
+    expect((await listMyEvents(db, spam.proof)).status).toBe("unauthorized");
     expect((await loginUserAccount(db, { formatVersion: 1, email: spam.email, password: spam.password })).status).toBe("blocked");
     expect((await loginUserAccount(db, { formatVersion: 1, email: spam.email, password: "fel-lösen" })).status).toBe("unauthorized");
     expect(await requestPasswordReset(db, { formatVersion: 1, email: spam.email })).toEqual({ status: "accepted" });
@@ -180,7 +180,7 @@ describe("ADR-0172 konton", () => {
     const listing = await listPublicRaces(db, { recentLimit: 200 });
     expect([...listing.ongoing, ...listing.upcoming, ...listing.recent].map((row) => row.raceId)).not.toContain(event.raceId);
     // Ägaren ser fortfarande sin tävling.
-    const mine = await listMyEventsAsUserAccount(db, owner.proof);
+    const mine = await listMyEvents(db, owner.proof);
     expect(mine.status === "ok" && mine.response.events.map((row) => row.eventId)).toContain(event.eventId);
     expect(await performSuperadminAction(db, boss.proof, { formatVersion: 1, action: "UNHIDE_RACE", raceId: event.raceId,
       reason: "Namnet är bytt" })).toEqual({ status: "done", action: "UNHIDE_RACE" });
@@ -194,7 +194,7 @@ describe("ADR-0172 konton", () => {
     const own = await createEvent(leaving.proof, "Egen träning");
     const shared = await createEvent(owner.proof, "Klubbens tävling");
     expect((await grantRacePerson(db, owner.proof, shared.raceId, leaving.email, "ADMIN")).status).toBe("granted");
-    expect((await enterRaceAsUserAccount(db, { ...leaving.proof, raceId: shared.raceId })).status).toBe("entered");
+    expect((await accountOnRace(db, { ...leaving.proof, raceId: shared.raceId })).status).toBe("authenticated");
 
     const profile = await readAccountProfile(db, leaving.proof);
     expect(profile.status === "ok" && profile.response.ownedEvents.map((event) => event.eventName)).toEqual(["Egen träning"]);
@@ -206,7 +206,7 @@ describe("ADR-0172 konton", () => {
     expect(await db.select().from(schema.races).where(eq(schema.races.id, shared.raceId))).toHaveLength(1);
     const grants = await db.select().from(schema.eventAdministrationGrants).where(eq(schema.eventAdministrationGrants.eventId, shared.eventId));
     expect(grants.map((grant) => grant.accountId)).toEqual([owner.accountId]);
-    expect((await enterRaceAsUserAccount(db, { ...owner.proof, raceId: shared.raceId })).status).toBe("entered");
+    expect((await accountOnRace(db, { ...owner.proof, raceId: shared.raceId })).status).toBe("authenticated");
     // Adressen är ledig igen.
     expect((await registerUserAccount(db, { formatVersion: 1, email: leaving.email, displayName: "Ny", password: "hemligt-lösen" })).status)
       .toBe("authenticated");

@@ -1,6 +1,6 @@
-import { createHash } from "node:crypto";
 import type { SyncRow } from "@o-tid/contracts";
 import type { CourseDataImport } from "@o-tid/iof-xml";
+import { sha256Hex } from "./serialization";
 
 /**
  * Gemensam modell för uppdateringar från Eventor och banfiler (ADR-0170 beslut 4).
@@ -106,7 +106,7 @@ export interface SourceDiff<A> {
 
 /** Kort, stabilt rad-id av radens identitet. */
 export function rowId(key: string): string {
-  return `r${createHash("sha256").update(key).digest("hex").slice(0, 12)}`;
+  return `r${sha256Hex(key).slice(0, 12)}`;
 }
 
 /** Jämförelse av namn, klubbar och klasser: blanksteg och skiftläge spelar ingen roll. */

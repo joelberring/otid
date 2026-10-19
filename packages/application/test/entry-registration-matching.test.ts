@@ -4,8 +4,7 @@ import { matchEntryRegistrationCandidates } from "../src/entry-registration-matc
 const entry = { entryId: "10000000-0000-4000-8000-000000000001",
   classId: "20000000-0000-4000-8000-000000000001", className: "Öppen",
   givenName: "Åsa   Maria", familyName: "Öberg", organisationName: "Annan klubb" };
-const query = { formatVersion: 1 as const, expectedSnapshotVersion: 2,
-  givenName: " A\u030asa\tMaria ", familyName: "ÖBERG", cardNumber: null };
+const query = { formatVersion: 1 as const, givenName: " A\u030asa\tMaria ", familyName: "ÖBERG", cardNumber: null };
 
 describe("TASK028 rådgivande namn-/brickmatchning", () => {
   it("jämför hela namn med NFC, whitespace och svensk gemen utan att ändra visning", () => {

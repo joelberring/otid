@@ -4,8 +4,7 @@ import { entryRegistrationClassesResponseSchema, entryRegistrationRequestSchema,
 
 const id = "10000000-0000-4000-8000-000000000001";
 const request = { formatVersion: 1, classId: id, expectedCourseVersionId: id,
-  expectedStartRule: "PUNCH", expectedSnapshotVersion: 3,
-  givenName: " Anna ", familyName: " Andersson ", organisationName: null,
+  expectedStartRule: "PUNCH", givenName: " Anna ", familyName: " Andersson ", organisationName: null,
   cardNumber: null, fixedStartTime: null };
 
 describe("TASK 006Q registreringskontrakt", () => {
@@ -23,8 +22,7 @@ describe("TASK 006Q registreringskontrakt", () => {
       fixedStartTime: "2026-09-04T12:00:00+02:00", cardNumber: " 54321 " })).toMatchObject({
       fixedStartTime: "2026-09-04T10:00:00.000Z", cardNumber: "54321" });
     for (const change of [{ givenName: " " }, { familyName: "a".repeat(161) },
-      { organisationName: "" }, { cardNumber: "0123" }, { expectedSnapshotVersion: 0 },
-      { fixedStartTime: "2026-09-04T10:00:00Z" },
+      { organisationName: "" }, { cardNumber: "0123" }, { fixedStartTime: "2026-09-04T10:00:00Z" },
       { expectedStartRule: "FIXED", fixedStartTime: "2026-09-04T10:00:00" }, { published: true }]) {
       expect(entryRegistrationRequestSchema.safeParse({ ...request, ...change }).success).toBe(false);
     }

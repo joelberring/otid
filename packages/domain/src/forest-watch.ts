@@ -1,4 +1,5 @@
 import type { StartCheckinState } from "./start-checkin";
+import { UUID_PATTERN as UUID } from "./types";
 
 export interface ForestWatchEntryFacts {
   readonly raceId: string;
@@ -26,7 +27,6 @@ export class ForestWatchInputError extends Error {
   }
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 /** Classifies every supplied roster entry; does not claim the supplied roster is complete. */
 export function buildForestWatchList(raceId: string, entries: readonly ForestWatchEntryFacts[]): readonly ForestWatchEntry[] {

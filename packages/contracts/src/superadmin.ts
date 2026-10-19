@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { storedAccountEmailSchema } from "./account";
 import { raceTypeSchema } from "./race-settings";
+import { UUID_SOURCE as canonicalUuidPattern } from "./ids";
 
 /** Superadmin (ADR-0172 beslut 2): översikt över konton och tävlingar, åtgärder och logg. */
-const canonicalUuidPattern = "[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
 const uuid = z.string().regex(new RegExp(`^${canonicalUuidPattern}$`));
 const instant = z.iso.datetime({ offset: true });
 const reason = z.string().trim().min(1).max(500);

@@ -2,37 +2,19 @@ import { describe, expect, it } from "vitest";
 import { and, count, eq } from "drizzle-orm";
 import { schema } from "@o-tid/database";
 import { changeEntryClassAsAdmin, listEntryClassesAsAdmin } from "../../src";
-import {
-  authenticatePairingAdminSession, issuePairingAdminAccessCredential, loginPairingAdmin,
-  logoutPairingAdminSession, revokePairingAdminAccessCredential
-} from "../../src/pairing-admin";
+import { requireRaceRole } from "../../src/race-session";
+import { logoutUserAccountSession } from "../../src/user-account";
 import { db, importedRace, useRaceDatabase } from "./race-fixtures";
+import { raceLogin, revokeRaceGrants } from "./accounts";
 
 useRaceDatabase();
 
 describe("TASK 005H autentiserad deltagarklassändring PostgreSQL", () => {
-  const issuedAt = new Date("2026-08-31T18:00:00.000Z");
   const usedAt = new Date("2026-08-31T18:02:00.000Z");
 
-  async function classAdmin(raceId: string, marker: number) {
-    const installation = await issuePairingAdminAccessCredential(db, {
-      raceId,
-      capability: "CHANGE_ENTRY_CLASS",
-      label: `Klassadministratör ${marker}`,
-      expiresAt: new Date(issuedAt.getTime() + 8 * 60 * 60 * 1000)
-    }, { now: issuedAt, secretBytes: Buffer.alloc(32, marker) });
-    const login = await loginPairingAdmin(db, {
-      formatVersion: 1,
-      accessCredential: installation.accessCredential
-    }, {
-      expectedRaceId: raceId,
-      expectedCapability: "CHANGE_ENTRY_CLASS",
-      now: new Date("2026-08-31T18:01:00.000Z"),
-      sessionSecretBytes: Buffer.alloc(32, marker + 1),
-      csrfSecretBytes: Buffer.alloc(32, marker + 2)
-    });
-    if (login.status !== "authenticated") throw new Error("Klassadministratörssession kunde inte skapas");
-    return { installation, login };
+  async function classAdmin(raceId: string) {
+    const login = await raceLogin(db, raceId, "ADMIN", new Date("2026-08-31T18:01:00.000Z"));
+    return { login };
   }
 
   function changeInput(
@@ -67,43 +49,15 @@ describe("TASK 005H autentiserad deltagarklassändring PostgreSQL", () => {
     return { raceId, ada, h21, d21, entry, race };
   }
 
-  it("separerar prefix, capability, race och livslängd samt listar endast minsta DTO", async () => {
+  it("gäller bara tävlingens event och listar endast minsta DTO", async () => {
     const fixture = await classFixture();
     const other = await classFixture();
-    const admin = await classAdmin(fixture.raceId, 211);
-    expect(admin.installation.accessCredential).toMatch(/^otid_org_entry_class_v1\./);
-    expect(admin.login.response).toEqual({
-      formatVersion: 1,
-      raceId: fixture.raceId,
-      capability: "CHANGE_ENTRY_CLASS",
-      expiresAt: "2026-08-31T19:01:00.000Z"
-    });
-
-    const issueAudits = await db.select().from(schema.auditEvents).where(and(
-      eq(schema.auditEvents.entityId, admin.installation.credentialId),
-      eq(schema.auditEvents.action, "ENTRY_CLASS_ACCESS_CREDENTIAL_ISSUED")
-    ));
-    expect(issueAudits).toHaveLength(1);
-    expect(issueAudits[0]?.entityType).toBe("entry_class_access_credential");
-    await expect(authenticatePairingAdminSession(db, {
-      sessionToken: admin.login.sessionToken,
-      raceId: fixture.raceId,
-      capability: "IMPORT_IOF"
-    }, usedAt)).resolves.toEqual({ status: "forbidden" });
-    await expect(loginPairingAdmin(db, {
-      formatVersion: 1,
-      accessCredential: admin.installation.accessCredential
-    }, {
-      expectedRaceId: other.raceId,
-      expectedCapability: "CHANGE_ENTRY_CLASS",
-      now: usedAt
-    })).resolves.toEqual({ status: "unauthorized" });
-    await expect(issuePairingAdminAccessCredential(db, {
-      raceId: fixture.raceId,
-      capability: "CHANGE_ENTRY_CLASS",
-      label: "För lång",
-      expiresAt: new Date(issuedAt.getTime() + 8 * 60 * 60 * 1000 + 1)
-    }, { now: issuedAt })).rejects.toThrow(/högst 8 timmar/);
+    const admin = await classAdmin(fixture.raceId);
+    // Kontot är administratör på tävlingens event men inte på den andra tävlingens.
+    await expect(requireRaceRole(db, { sessionToken: admin.login.sessionToken, raceId: fixture.raceId, role: "ADMIN" }, usedAt))
+      .resolves.toMatchObject({ status: "authenticated" });
+    await expect(requireRaceRole(db, { sessionToken: admin.login.sessionToken, raceId: other.raceId, role: "FUNCTIONARY" }, usedAt))
+      .resolves.toEqual({ status: "unauthorized" });
 
     const listed = await listEntryClassesAsAdmin(db, {
       sessionToken: admin.login.sessionToken,
@@ -132,7 +86,7 @@ describe("TASK 005H autentiserad deltagarklassändring PostgreSQL", () => {
 
   it("committar 100 samtidiga exakta requests exakt en gång utan resultatrevision", async () => {
     const fixture = await classFixture();
-    const admin = await classAdmin(fixture.raceId, 221);
+    const admin = await classAdmin(fixture.raceId);
     const requestId = crypto.randomUUID();
     const input = changeInput(
       fixture.raceId, admin.login, fixture.ada.id, requestId, fixture.d21.id, fixture.entry.version
@@ -175,8 +129,8 @@ describe("TASK 005H autentiserad deltagarklassändring PostgreSQL", () => {
     expect(audits[0]).toMatchObject({
       entityType: "entry",
       entityId: fixture.ada.id,
-      actorKind: "ENTRY_CLASS_ACCESS_CREDENTIAL",
-      actorId: admin.installation.credentialId,
+      actorKind: "USER_ACCOUNT",
+      actorId: admin.login.accountId,
       requestId,
       before: {
         classId: fixture.h21.id,
@@ -193,7 +147,6 @@ describe("TASK 005H autentiserad deltagarklassändring PostgreSQL", () => {
     expect(auditJson).not.toContain("Ada");
     expect(auditJson).not.toContain("Löpare");
     expect(auditJson).not.toContain("Centrum OK");
-    expect(auditJson).not.toContain(admin.installation.accessCredential);
     expect(auditJson).not.toContain(admin.login.sessionToken);
     expect(auditJson).not.toContain(admin.login.csrfToken);
     await expect(db.update(schema.entryClassChangeRequests).set({ classId: fixture.h21.id })
@@ -205,7 +158,7 @@ describe("TASK 005H autentiserad deltagarklassändring PostgreSQL", () => {
   it("avvisar no-op, stale version och objekt från annat lopp atomärt", async () => {
     const fixture = await classFixture();
     const other = await classFixture();
-    const admin = await classAdmin(fixture.raceId, 231);
+    const admin = await classAdmin(fixture.raceId);
     const beforeRequests = await db.select({ value: count() }).from(schema.entryClassChangeRequests)
       .where(eq(schema.entryClassChangeRequests.raceId, fixture.raceId));
     const beforeAudits = await db.select({ value: count() }).from(schema.auditEvents).where(and(
@@ -251,7 +204,7 @@ describe("TASK 005H autentiserad deltagarklassändring PostgreSQL", () => {
 
   it("låter två olika request-id med samma expected version ge exakt en vinnare", async () => {
     const fixture = await classFixture();
-    const admin = await classAdmin(fixture.raceId, 241);
+    const admin = await classAdmin(fixture.raceId);
     const results = await Promise.all([
       changeEntryClassAsAdmin(db, changeInput(
         fixture.raceId, admin.login, fixture.ada.id, crypto.randomUUID(), fixture.d21.id, fixture.entry.version
@@ -270,9 +223,9 @@ describe("TASK 005H autentiserad deltagarklassändring PostgreSQL", () => {
   it("replayar originalsvaret efter senare ändring men binder request till exakt actor och kontext", async () => {
     const fixture = await classFixture();
     const otherRace = await classFixture();
-    const firstAdmin = await classAdmin(fixture.raceId, 251);
-    const otherAdmin = await classAdmin(fixture.raceId, 261);
-    const otherRaceAdmin = await classAdmin(otherRace.raceId, 262);
+    const firstAdmin = await classAdmin(fixture.raceId);
+    const otherAdmin = await classAdmin(fixture.raceId);
+    const otherRaceAdmin = await classAdmin(otherRace.raceId);
     const firstRequestId = crypto.randomUUID();
     const firstInput = changeInput(
       fixture.raceId, firstAdmin.login, fixture.ada.id, firstRequestId, fixture.d21.id, fixture.entry.version
@@ -334,23 +287,13 @@ describe("TASK 005H autentiserad deltagarklassändring PostgreSQL", () => {
     ), new Date(usedAt.getTime() + 7))).resolves.toEqual({ status: "conflict" });
   });
 
-  it("stoppar mutation efter capability-säker logout och revocation", async () => {
+  it("stoppar mutation efter utloggning och borttagen behörighet", async () => {
     const fixture = await classFixture();
-    const loggedOut = await classAdmin(fixture.raceId, 271);
-    await expect(logoutPairingAdminSession(db, {
-      sessionToken: loggedOut.login.sessionToken,
-      raceId: fixture.raceId,
-      capability: "IMPORT_IOF",
-      csrfCookie: loggedOut.login.csrfToken,
-      csrfHeader: loggedOut.login.csrfToken
-    }, usedAt)).resolves.toEqual({ status: "forbidden" });
-    await expect(logoutPairingAdminSession(db, {
-      sessionToken: loggedOut.login.sessionToken,
-      raceId: fixture.raceId,
-      capability: "CHANGE_ENTRY_CLASS",
-      csrfCookie: loggedOut.login.csrfToken,
-      csrfHeader: loggedOut.login.csrfToken
-    }, usedAt)).resolves.toEqual({ status: "logged-out" });
+    const loggedOut = await classAdmin(fixture.raceId);
+    await expect(logoutUserAccountSession(db, { sessionToken: loggedOut.login.sessionToken,
+      csrfCookie: loggedOut.login.csrfToken, csrfHeader: "A".repeat(43) }, usedAt)).resolves.toEqual({ status: "forbidden" });
+    await expect(logoutUserAccountSession(db, { sessionToken: loggedOut.login.sessionToken,
+      csrfCookie: loggedOut.login.csrfToken, csrfHeader: loggedOut.login.csrfToken }, usedAt)).resolves.toEqual({ status: "logged-out" });
     await expect(changeEntryClassAsAdmin(db, changeInput(
       fixture.raceId,
       loggedOut.login,
@@ -360,15 +303,8 @@ describe("TASK 005H autentiserad deltagarklassändring PostgreSQL", () => {
       fixture.entry.version
     ), usedAt)).resolves.toEqual({ status: "unauthorized" });
 
-    const revoked = await classAdmin(fixture.raceId, 281);
-    await expect(revokePairingAdminAccessCredential(db, {
-      credentialId: revoked.installation.credentialId,
-      capability: "IMPORT_IOF"
-    }, usedAt)).rejects.toThrow(/finns inte/);
-    await expect(revokePairingAdminAccessCredential(db, {
-      credentialId: revoked.installation.credentialId,
-      capability: "CHANGE_ENTRY_CLASS"
-    }, usedAt)).resolves.toMatchObject({ status: "revoked" });
+    const revoked = await classAdmin(fixture.raceId);
+    await revokeRaceGrants(db, revoked.login.accountId, usedAt);
     await expect(changeEntryClassAsAdmin(db, changeInput(
       fixture.raceId,
       revoked.login,
@@ -377,11 +313,5 @@ describe("TASK 005H autentiserad deltagarklassändring PostgreSQL", () => {
       fixture.d21.id,
       fixture.entry.version
     ), usedAt)).resolves.toEqual({ status: "unauthorized" });
-    const revokeAudits = await db.select().from(schema.auditEvents).where(and(
-      eq(schema.auditEvents.entityId, revoked.installation.credentialId),
-      eq(schema.auditEvents.action, "ENTRY_CLASS_ACCESS_CREDENTIAL_REVOKED")
-    ));
-    expect(revokeAudits).toHaveLength(1);
-    expect(revokeAudits[0]?.entityType).toBe("entry_class_access_credential");
   });
 });

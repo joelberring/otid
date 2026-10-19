@@ -7,7 +7,7 @@ import {
 } from "../src/unknown-readout-resolution";
 
 const base = { formatVersion: 1 as const, requestId: randomUUID(), readoutId: randomUUID(), cardNumber: "12345",
-  expectedSnapshotVersion: 4, expectedEngineVersion: "o-tid-result-v1" };
+  expectedEngineVersion: "o-tid-result-v1" };
 
 describe("TASK085 unknown readout resolution contracts", () => {
   it("strictly discriminates existing and new entry intents", () => {

@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 import { manualCourseClassCreateIdempotencyKeySchema, manualCourseClassCreateRequestSchema, manualCourseClassCreateResponseSchema } from "../src";
 
 const id = "10000000-0000-4000-8000-000000000001";
-const request = { formatVersion: 1, requestId: id, expectedSnapshotVersion: 1, courseName: " Bana ",
+const request = { formatVersion: 1, requestId: id, courseName: " Bana ",
   className: " Klass ", startRule: "PUNCH", controlCodes: [31, 42, 31] };
 
 it("TASK081 preserves ordered duplicate controls and validates the bounded manual intent", () => {
@@ -22,5 +22,4 @@ it("TASK081 receipt freezes the intent and exactly one snapshot step", () => {
   expect(manualCourseClassCreateResponseSchema.safeParse(response).success).toBe(true);
   expect(manualCourseClassCreateResponseSchema.safeParse({ ...response, snapshotVersionAfter: 3 }).success).toBe(false);
   expect(manualCourseClassCreateResponseSchema.safeParse({ ...response, requestId: "10000000-0000-4000-8000-000000000002" }).success).toBe(false);
-  expect(manualCourseClassCreateResponseSchema.safeParse({ ...response, snapshotVersionBefore: 2, snapshotVersionAfter: 3 }).success).toBe(false);
 });

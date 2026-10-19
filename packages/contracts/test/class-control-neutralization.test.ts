@@ -9,7 +9,7 @@ import {
 
 const raceId = randomUUID(), classId = randomUUID(), versionId = randomUUID(), controlId = randomUUID(), requestId = randomUUID();
 const hash = "a".repeat(64);
-const request = { formatVersion: 1 as const, requestId, expectedSnapshotVersion: 2, expectedBasisHash: hash,
+const request = { formatVersion: 1 as const, requestId, expectedBasisHash: hash,
   classId, expectedCourseVersionId: versionId, courseControlId: controlId, sequence: 1, controlCode: 31,
   acknowledgedNoAutomaticRecalculation: true as const };
 

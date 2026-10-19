@@ -3,7 +3,7 @@ import { schema, type Database } from "@o-tid/database";
 import { listSpeakerBoardAsAdmin } from "../src/speaker-board";
 
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), resolve: vi.fn() }));
-vi.mock("../src/pairing-admin", () => ({ authenticatePairingAdminSessionForProtectedRead: mocks.auth }));
+vi.mock("../src/race-session", () => ({ requireRaceRole: mocks.auth }));
 vi.mock("../src/result-revision-state", () => ({ resolveStoredResultHeadStates: mocks.resolve }));
 const raceId = "10000000-0000-4000-8000-000000000002";
 const entryId = "20000000-0000-4000-8000-000000000002";
@@ -44,21 +44,12 @@ beforeEach(() => {
   mocks.resolve.mockRejectedValue(reachedResolver);
 });
 
-describe("speaker use-case history and selection barriers", () => {
-  it.each([0, 1, 2, 3, 4, 5])("permits exactly 1000 decisions in collection %i before central validation", async (collection) => {
-    const counts = Array.from({ length: 6 }, (_, index) => index === collection ? 1000 : 0);
-    const test = fixture(counts);
+describe("speaker use-case selection barriers", () => {
+  it("hands the selected heads to the central resolver without loading decision tables itself", async () => {
+    const test = fixture([]);
     await expect(listSpeakerBoardAsAdmin(test.db, { raceId, sessionToken: null })).rejects.toBe(reachedResolver);
     expect(mocks.resolve).toHaveBeenCalledOnce();
-    expect(test.limits).toEqual(Array.from({ length: 6 }, () => 1001));
-    expect(test.tables).toEqual([schema.resultDisqualificationDecisions, schema.resultApprovalDecisions,
-      schema.didNotFinishDecisions, schema.notCompetingDecisions, schema.withoutTimingDecisions, schema.startCheckinDnsDecisions]);
-  });
-  it.each([[1001, 0, 0, 0, 0, 0], [200, 200, 200, 200, 200, 1]])("rejects 1001 total without truncating or resolving (%j)", async (...counts) => {
-    const test = fixture(counts);
-    await expect(listSpeakerBoardAsAdmin(test.db, { raceId, sessionToken: null })).rejects.toThrow("beslutshistorik är för stor");
-    expect(mocks.resolve).not.toHaveBeenCalled();
-    expect(test.limits.every((limit) => limit === 1001)).toBe(true);
+    expect(test.tables).toEqual([]);
   });
   it("rejects duplicate selected entries before history loading/minimization", async () => {
     const test = fixture([], true);

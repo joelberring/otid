@@ -10,9 +10,14 @@ import { entryClassAdminListResponseSchema, entryClassChangeIdempotencyKeySchema
   entryIdentityAdminListResponseSchema, entryIdentityChangeIdempotencyKeySchema, entryIdentityChangeRequestSchema,
   entryRegistrationIdempotencyKeySchema, entryRegistrationRequestSchema, entryRegistrationCandidatesRequestSchema,
   entryRegistrationCandidatesResponseSchema } from "@o-tid/contracts";
-import { entryClassAdminFailure as failure, entryClassAdminJson as json, readEntryClassAdminJson } from "./entry-class-admin-security";
-import { readEntryIdentityAdminJson } from "./entry-identity-admin-security";
+import {
+  adminFailure as failure,
+  privateJson as json,
+  readJsonBody
+} from "./security-policy";
 import { parseIdentityReceipt } from "./entry-identity-client";
+
+const ENTRY_IDENTITY_MAX_BODY_BYTES = 8 * 1024;
 import { parseRegistrationReceipt } from "./entry-registration-client";
 import { resultFailure, type RaceAdministratorRouteContext } from "./race-administrator-route-context";
 
@@ -35,20 +40,20 @@ export async function handleEntryRoute(context: RaceAdministratorRouteContext): 
   }
   if (action.kind === "registration-candidates") {
     let body: unknown;
-    try { body = await readEntryClassAdminJson(request); } catch { return failure(400, "INVALID_REQUEST"); }
+    try { body = await readJsonBody(request); } catch { return failure(400, "INVALID_REQUEST"); }
     const parsed = entryRegistrationCandidatesRequestSchema.safeParse(body);
     if (!parsed.success) return failure(400, "INVALID_REQUEST");
     const result = await dependencies.registrationCandidates(db, { ...proof, raceId, request: parsed.data });
     if (result.status !== "ok") return resultFailure(result.status);
     const response = entryRegistrationCandidatesResponseSchema.parse(result.response);
-    if (response.raceId !== raceId || response.snapshotVersion !== parsed.data.expectedSnapshotVersion) return failure(500, "INTERNAL_ERROR");
+    if (response.raceId !== raceId) return failure(500, "INTERNAL_ERROR");
     return json(response);
   }
   if (action.kind === "registration") {
     const key = entryRegistrationIdempotencyKeySchema.safeParse(request.headers.get("idempotency-key"));
     if (!key.success) return failure(400, "INVALID_REQUEST");
     let body: unknown;
-    try { body = await readEntryClassAdminJson(request); } catch { return failure(400, "INVALID_REQUEST"); }
+    try { body = await readJsonBody(request); } catch { return failure(400, "INVALID_REQUEST"); }
     const parsed = entryRegistrationRequestSchema.safeParse(body);
     if (!parsed.success) return failure(400, "INVALID_REQUEST");
     const result = await dependencies.registration(db, { ...proof, raceId, idempotencyKey: key.data, request: parsed.data });
@@ -68,7 +73,7 @@ export async function handleEntryRoute(context: RaceAdministratorRouteContext): 
     const key = entryIdentityChangeIdempotencyKeySchema.safeParse(request.headers.get("idempotency-key"));
     if (!key.success) return failure(400, "INVALID_REQUEST");
     let body: unknown;
-    try { body = await readEntryIdentityAdminJson(request); } catch { return failure(400, "INVALID_REQUEST"); }
+    try { body = await readJsonBody(request, ENTRY_IDENTITY_MAX_BODY_BYTES); } catch { return failure(400, "INVALID_REQUEST"); }
     const parsed = entryIdentityChangeRequestSchema.safeParse(body);
     if (!parsed.success) return failure(400, "INVALID_REQUEST");
     const result = await dependencies.identity(db, { ...proof, raceId, entryId: action.entryId, idempotencyKey: key.data, request: parsed.data });
@@ -81,7 +86,7 @@ export async function handleEntryRoute(context: RaceAdministratorRouteContext): 
     const key = entryStartTimeChangeIdempotencyKeySchema.safeParse(request.headers.get("idempotency-key"));
     if (!key.success) return failure(400, "INVALID_REQUEST");
     let body: unknown;
-    try { body = await readEntryClassAdminJson(request); } catch { return failure(400, "INVALID_REQUEST"); }
+    try { body = await readJsonBody(request); } catch { return failure(400, "INVALID_REQUEST"); }
     const parsed = entryStartTimeChangeRequestSchema.safeParse(body);
     if (!parsed.success) return failure(400, "INVALID_REQUEST");
     const result = await dependencies.startTime(db, { ...proof, raceId, entryId: action.entryId, idempotencyKey: key.data, request: parsed.data });
@@ -89,7 +94,7 @@ export async function handleEntryRoute(context: RaceAdministratorRouteContext): 
     const response = entryStartTimeChangeResponseSchema.parse(result.response);
     if (response.raceId !== raceId || response.entryId !== action.entryId || response.classId !== parsed.data.expectedClassId ||
       response.requestId !== key.data.slice("entry-start-time-change:".length) || response.entryVersionBefore !== parsed.data.expectedEntryVersion ||
-      response.snapshotVersionBefore !== parsed.data.expectedSnapshotVersion || response.previousFixedStartTime !== parsed.data.expectedFixedStartTime ||
+      response.previousFixedStartTime !== parsed.data.expectedFixedStartTime ||
       response.fixedStartTime !== parsed.data.fixedStartTime) return failure(500, "INTERNAL_ERROR");
     return json(response);
   }
@@ -97,7 +102,7 @@ export async function handleEntryRoute(context: RaceAdministratorRouteContext): 
     const key = entryCardChangeIdempotencyKeySchema.safeParse(request.headers.get("idempotency-key"));
     if (!key.success) return failure(400, "INVALID_REQUEST");
     let body: unknown;
-    try { body = await readEntryClassAdminJson(request); } catch { return failure(400, "INVALID_REQUEST"); }
+    try { body = await readJsonBody(request); } catch { return failure(400, "INVALID_REQUEST"); }
     const parsed = entryCardChangeRequestSchema.safeParse(body);
     if (!parsed.success) return failure(400, "INVALID_REQUEST");
     const result = await dependencies.card(db, { ...proof, raceId, entryId: action.entryId, idempotencyKey: key.data, request: parsed.data });
@@ -105,7 +110,7 @@ export async function handleEntryRoute(context: RaceAdministratorRouteContext): 
     const response = entryCardChangeResponseSchema.parse(result.response);
     if (response.raceId !== raceId || response.entryId !== action.entryId || response.classId !== parsed.data.expectedClassId ||
       response.requestId !== key.data.slice("entry-card-change:".length) || response.entryVersionBefore !== parsed.data.expectedEntryVersion ||
-      response.snapshotVersionBefore !== parsed.data.expectedSnapshotVersion || response.activeAssignment.cardNumber !== parsed.data.cardNumber ||
+      response.activeAssignment.cardNumber !== parsed.data.cardNumber ||
       (response.previousAssignment?.id ?? null) !== (parsed.data.expectedAssignment?.id ?? null) ||
       (response.previousAssignment?.cardNumber ?? null) !== (parsed.data.expectedAssignment?.cardNumber ?? null)) {
       return failure(500, "INTERNAL_ERROR");
@@ -116,7 +121,7 @@ export async function handleEntryRoute(context: RaceAdministratorRouteContext): 
     const key = entryCardRentalChangeIdempotencyKeySchema.safeParse(request.headers.get("idempotency-key"));
     if (!key.success) return failure(400, "INVALID_REQUEST");
     let body: unknown;
-    try { body = await readEntryClassAdminJson(request); } catch { return failure(400, "INVALID_REQUEST"); }
+    try { body = await readJsonBody(request); } catch { return failure(400, "INVALID_REQUEST"); }
     const parsed = entryCardRentalChangeRequestSchema.safeParse(body);
     if (!parsed.success) return failure(400, "INVALID_REQUEST");
     const result = await dependencies.cardRental(db, { ...proof, raceId, entryId: action.entryId,
@@ -129,15 +134,14 @@ export async function handleEntryRoute(context: RaceAdministratorRouteContext): 
       response.assignment.id !== parsed.data.expectedAssignment.id ||
       response.assignment.cardNumber !== parsed.data.expectedAssignment.cardNumber ||
       response.previousIsRental !== parsed.data.expectedAssignment.isRental || response.isRental !== parsed.data.isRental ||
-      response.entryVersionBefore !== parsed.data.expectedEntryVersion ||
-      response.snapshotVersionBefore !== parsed.data.expectedSnapshotVersion) return failure(500, "INTERNAL_ERROR");
+      response.entryVersionBefore !== parsed.data.expectedEntryVersion) return failure(500, "INTERNAL_ERROR");
     return json(response);
   }
   if (action.kind === "card-rental-return") {
     const key = entryCardRentalReturnChangeIdempotencyKeySchema.safeParse(request.headers.get("idempotency-key"));
     if (!key.success) return failure(400, "INVALID_REQUEST");
     let body: unknown;
-    try { body = await readEntryClassAdminJson(request); } catch { return failure(400, "INVALID_REQUEST"); }
+    try { body = await readJsonBody(request); } catch { return failure(400, "INVALID_REQUEST"); }
     const parsed = entryCardRentalReturnChangeRequestSchema.safeParse(body);
     if (!parsed.success) return failure(400, "INVALID_REQUEST");
     const result = await dependencies.cardRentalReturn(db, { ...proof, raceId, entryId: action.entryId,
@@ -151,15 +155,14 @@ export async function handleEntryRoute(context: RaceAdministratorRouteContext): 
       response.assignment.cardNumber !== parsed.data.expectedAssignment.cardNumber ||
       response.previousRentalReturned !== parsed.data.expectedAssignment.rentalReturned ||
       response.rentalReturned !== parsed.data.rentalReturned ||
-      response.entryVersionBefore !== parsed.data.expectedEntryVersion ||
-      response.snapshotVersionBefore !== parsed.data.expectedSnapshotVersion) return failure(500, "INTERNAL_ERROR");
+      response.entryVersionBefore !== parsed.data.expectedEntryVersion) return failure(500, "INTERNAL_ERROR");
     return json(response);
   }
   if (action.kind === "card-rental-reuse") {
     const key = entryCardRentalReuseIdempotencyKeySchema.safeParse(request.headers.get("idempotency-key"));
     if (!key.success) return failure(400, "INVALID_REQUEST");
     let body: unknown;
-    try { body = await readEntryClassAdminJson(request); } catch { return failure(400, "INVALID_REQUEST"); }
+    try { body = await readJsonBody(request); } catch { return failure(400, "INVALID_REQUEST"); }
     const parsed = entryCardRentalReuseRequestSchema.safeParse(body);
     if (!parsed.success) return failure(400, "INVALID_REQUEST");
     const result = await dependencies.cardRentalReuse(db, { ...proof, raceId, entryId: action.entryId,
@@ -173,15 +176,14 @@ export async function handleEntryRoute(context: RaceAdministratorRouteContext): 
       response.source.assignment.id !== parsed.data.source.assignment.id ||
       response.source.assignment.cardNumber !== parsed.data.source.assignment.cardNumber ||
       response.sourceEntryVersionBefore !== parsed.data.source.entryVersion ||
-      response.targetEntryVersionBefore !== parsed.data.expectedTargetEntryVersion ||
-      response.snapshotVersionBefore !== parsed.data.expectedSnapshotVersion) return failure(500, "INTERNAL_ERROR");
+      response.targetEntryVersionBefore !== parsed.data.expectedTargetEntryVersion) return failure(500, "INTERNAL_ERROR");
     return json(response);
   }
   if (action.kind === "transfer") {
     const key = entryTransferIdempotencyKeySchema.safeParse(request.headers.get("idempotency-key"));
     if (!key.success) return failure(400, "INVALID_REQUEST");
     let body: unknown;
-    try { body = await readEntryClassAdminJson(request); } catch { return failure(400, "INVALID_REQUEST"); }
+    try { body = await readJsonBody(request); } catch { return failure(400, "INVALID_REQUEST"); }
     const parsed = entryTransferRequestSchema.safeParse(body);
     if (!parsed.success) return failure(400, "INVALID_REQUEST");
     const result = await dependencies.transfer(db, { ...proof, raceId, entryId: action.entryId,
@@ -198,7 +200,7 @@ export async function handleEntryRoute(context: RaceAdministratorRouteContext): 
     const key = entryClassChangeIdempotencyKeySchema.safeParse(request.headers.get("idempotency-key"));
     if (!key.success) return failure(400, "INVALID_REQUEST");
     let body: unknown;
-    try { body = await readEntryClassAdminJson(request); } catch { return failure(400, "INVALID_REQUEST"); }
+    try { body = await readJsonBody(request); } catch { return failure(400, "INVALID_REQUEST"); }
     const parsed = entryClassChangeRequestSchema.safeParse(body);
     if (!parsed.success) return failure(400, "INVALID_REQUEST");
     const result = await dependencies.changeClass(db, { ...proof, raceId, entryId: action.entryId,

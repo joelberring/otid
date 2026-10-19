@@ -77,7 +77,7 @@ export function createCourseEditActions(ws: Base & RaceDataActions) {
     if (!courseList) throw new Error("Course list missing");
     const response = await request(`/courses/${editingCourseId}/edit-preview`, op, { method: "POST",
       headers: { "content-type": "application/json", "x-otid-csrf": csrf() },
-      body: JSON.stringify({ formatVersion: 1, expectedSnapshotVersion: courseList.snapshotVersion, controlCodes: codes,
+      body: JSON.stringify({ formatVersion: 1, controlCodes: codes,
         ...(editingVariantCode ? { variantCode: editingVariantCode } : {}) }) });
     if (response.status === 409) return "conflict" as const;
     if (!response.ok) throw new Error("Course edit preview unavailable");
@@ -150,7 +150,7 @@ export function createCourseEditActions(ws: Base & RaceDataActions) {
           preview = read;
         }
         const request: CourseEditRequest = { formatVersion: 1, requestId: crypto.randomUUID(),
-          expectedSnapshotVersion: preview.snapshotVersion, courseId: editingCourseId, controlCodes: codes,
+          courseId: editingCourseId, controlCodes: codes,
           ...(editingVariantCode ? { variantCode: editingVariantCode } : {}), confirmResultChanges: preview.requiresConfirmation };
         attempt = { kind: "COURSE_EDIT", request };
         pending.current = attempt; sent.current = false; setCourseEditAttempt(attempt);

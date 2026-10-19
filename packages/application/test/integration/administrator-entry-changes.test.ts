@@ -3,9 +3,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrate } from "@o-tid/database";
 import { createDatabase } from "@o-tid/database";
 import { listAdministratorEntryChanges } from "../../src/administrator-entry-changes";
-import { issuePairingAdminAccessCredential, loginPairingAdmin } from "../../src/pairing-admin";
 import { ingestDeviceBatch } from "../../src/ingest";
-import { contentHash } from "../../src/hash";
+import { contentHash } from "../../src/serialization";
+import { raceLogin } from "./accounts";
 
 const url = process.env.TEST_DATABASE_URL;
 if (!url) throw new Error("TEST_DATABASE_URL krävs för vald isolerad testdatabas");
@@ -13,13 +13,9 @@ const { db, pool } = createDatabase(url);
 const now = new Date("2026-09-12T14:00:00Z");
 beforeAll(async () => migrate(db, { migrationsFolder: new URL("../../../database/migrations", import.meta.url).pathname }));
 afterAll(async () => pool.end());
-async function auth(raceId: string, capability: "MANAGE_RACE" | "RECALCULATE_RESULT" | "DISQUALIFY_RESULT" | "VIEW_SPEAKER_BOARD" = "MANAGE_RACE") {
-  const installation = await issuePairingAdminAccessCredential(db, { raceId, capability, label: "Synthetic recalculation",
-    expiresAt: new Date(now.getTime() + 3600_000) }, { now });
-  const login = await loginPairingAdmin(db, { formatVersion: 1, accessCredential: installation.accessCredential },
-    { expectedRaceId: raceId, expectedCapability: capability, now });
-  if (login.status !== "authenticated") throw new Error("Synthetic login failed");
-  return { raceId, sessionToken: login.sessionToken, csrfCookie: login.csrfToken, csrfHeader: login.csrfToken, actorId: installation.credentialId };
+async function auth(raceId: string, role: "ADMIN" | "FUNCTIONARY" = "ADMIN") {
+  const login = await raceLogin(db, raceId, role, now);
+  return { raceId, sessionToken: login.sessionToken, csrfCookie: login.csrfToken, csrfHeader: login.csrfToken, actorId: login.accountId };
 }
 async function fixture() {
   const eventId = randomUUID(), raceId = randomUUID(), courseId = randomUUID(), courseVersionId = randomUUID();
@@ -46,9 +42,9 @@ async function fixture() {
 async function identity(f: Awaited<ReturnType<typeof fixture>>, version: number) {
   const before = { givenName: "Before", familyName: "Synthetic", organisationName: null };
   const after = { ...before, givenName: "After" };
-  await pool.query(`INSERT INTO entry_identity_change_request(request_id,race_id,entry_id,class_id,actor_credential_id,capability,
+  await pool.query(`INSERT INTO entry_identity_change_request(request_id,race_id,entry_id,class_id,actor_account_id,
     previous_identity,identity,entry_version_before,entry_version_after,snapshot_version_before,snapshot_version_after,changed_at)
-    VALUES($1,$2,$3,$4,$5,'MANAGE_RACE',$6,$7,$8,$9,$8,$9,$10)`,
+    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$8,$9,$10)`,
     [randomUUID(), f.raceId, f.entryId, f.classId, f.administrator.actorId, JSON.stringify(before), JSON.stringify(after), version - 1, version, now]);
 }
 async function read(f: Awaited<ReturnType<typeof fixture>>, beforeVersion?: number) {
@@ -61,24 +57,23 @@ describe("TASK039 administrator entry changes", () => {
     const oldCard = (await pool.query<{ id: string }>("SELECT id FROM card_assignment WHERE race_id=$1", [f.raceId])).rows[0]!.id;
     await pool.query("INSERT INTO card_assignment(id,race_id,entry_id,card_number) VALUES($1,$2,$3,'54321')", [secondCard, f.raceId, f.entryId]);
     const registration = { formatVersion: 1, classId: f.classId, expectedCourseVersionId: f.courseVersionId, expectedStartRule: "PUNCH",
-      expectedSnapshotVersion: 1, givenName: "Original", familyName: "Synthetic", organisationName: null, cardNumber: "12345", fixedStartTime: null };
-    await pool.query("INSERT INTO entry_registration_request(request_id,race_id,actor_credential_id,entry_id,assignment_id,request,snapshot_version_after,created_at) VALUES($1,$2,$3,$4,$5,$6,2,$7)",
+      givenName: "Original", familyName: "Synthetic", organisationName: null, cardNumber: "12345", fixedStartTime: null };
+    await pool.query("INSERT INTO entry_registration_request(request_id,race_id,actor_account_id,entry_id,assignment_id,request,snapshot_version_after,created_at) VALUES($1,$2,$3,$4,$5,$6,2,$7)",
       [randomUUID(), f.raceId, f.administrator.actorId, f.entryId, oldCard, JSON.stringify(registration), now]);
-    await pool.query(`INSERT INTO entry_class_change_request(request_id,race_id,actor_credential_id,entry_id,expected_entry_version,
+    await pool.query(`INSERT INTO entry_class_change_request(request_id,race_id,actor_account_id,entry_id,expected_entry_version,
       previous_class_id,class_id,entry_version_before,entry_version_after,snapshot_version_before,snapshot_version_after,changed_at)
       VALUES($1,$2,$3,$4,1,$5,$6,1,2,2,3,$7)`, [randomUUID(), f.raceId, f.administrator.actorId, f.entryId, target, f.classId, now]);
-    const transfer = { formatVersion: 1, expectedEntryVersion: 2, expectedClassId: f.classId, expectedSnapshotVersion: 3,
-      expectedFixedStartTime: null, targetClassId: target, expectedTargetCourseVersionId: f.courseVersionId,
+    const transfer = { formatVersion: 1, expectedEntryVersion: 2, expectedClassId: f.classId, expectedFixedStartTime: null, targetClassId: target, expectedTargetCourseVersionId: f.courseVersionId,
       expectedTargetStartRule: "FIXED", fixedStartTime: "2026-09-12T10:00:00.125Z" };
-    await pool.query(`INSERT INTO entry_transfer_request(request_id,race_id,entry_id,actor_credential_id,capability,previous_class_id,target_class_id,
+    await pool.query(`INSERT INTO entry_transfer_request(request_id,race_id,entry_id,actor_account_id,previous_class_id,target_class_id,
       request,entry_version_before,entry_version_after,snapshot_version_before,snapshot_version_after,changed_at)
-      VALUES($1,$2,$3,$4,'MANAGE_RACE',$5,$6,$7,2,3,3,4,$8)`,
+      VALUES($1,$2,$3,$4,$5,$6,$7,2,3,3,4,$8)`,
       [randomUUID(), f.raceId, f.entryId, f.administrator.actorId, f.classId, target, JSON.stringify(transfer), now]);
-    await pool.query(`INSERT INTO entry_card_change_request(request_id,race_id,entry_id,class_id,actor_credential_id,
+    await pool.query(`INSERT INTO entry_card_change_request(request_id,race_id,entry_id,class_id,actor_account_id,
       previous_assignment_id,previous_card_number,active_assignment_id,card_number,entry_version_before,entry_version_after,
       snapshot_version_before,snapshot_version_after,changed_at) VALUES($1,$2,$3,$4,$5,$6,'12345',$7,'54321',3,4,4,5,$8)`,
       [randomUUID(), f.raceId, f.entryId, target, f.administrator.actorId, oldCard, secondCard, now]);
-    await pool.query(`INSERT INTO entry_start_time_change_request(request_id,race_id,actor_credential_id,entry_id,expected_entry_version,
+    await pool.query(`INSERT INTO entry_start_time_change_request(request_id,race_id,actor_account_id,entry_id,expected_entry_version,
       previous_fixed_start_time,fixed_start_time,class_id,entry_version_before,entry_version_after,snapshot_version_before,snapshot_version_after,changed_at)
       VALUES($1,$2,$3,$4,4,'2026-09-12T10:00:00.125Z','2026-09-12T10:02:00Z',$5,4,5,5,6,$6)`,
       [randomUUID(), f.raceId, f.administrator.actorId, f.entryId, target, now]);
@@ -97,7 +92,7 @@ describe("TASK039 administrator entry changes", () => {
     expect(await footprint()).toBe(before);
   });
   it("pages by exclusive version and denies limited authority and foreign entries", async () => {
-    const f = await fixture(), other = await fixture(), reader = await auth(f.raceId, "VIEW_SPEAKER_BOARD");
+    const f = await fixture(), other = await fixture(), reader = await auth(f.raceId, "FUNCTIONARY");
     for (let version = 2; version <= 23; version++) await identity(f, version);
     await pool.query("UPDATE entry SET version=23 WHERE id=$1", [f.entryId]);
     await pool.query("UPDATE race SET snapshot_version=23 WHERE id=$1", [f.raceId]);
@@ -107,6 +102,8 @@ describe("TASK039 administrator entry changes", () => {
     const next = await read(f, 4);
     expect(next).toMatchObject({ status: "ok", response: { items: [{ entryVersionAfter: 3 }, { entryVersionAfter: 2 }], nextBeforeVersion: null } });
     expect((await listAdministratorEntryChanges(db, { ...reader, entryId: f.entryId }, now)).status).toBe("forbidden");
+    expect((await listAdministratorEntryChanges(db, { ...f.administrator, raceId: other.raceId, entryId: f.entryId }, now)).status)
+      .toBe("unauthorized");
     expect((await listAdministratorEntryChanges(db, { ...f.administrator, entryId: other.entryId }, now)).status).toBe("not-found");
     expect((await read(f, 0)).status).toBe("invalid-request");
   });
@@ -115,7 +112,7 @@ describe("TASK039 administrator entry changes", () => {
     await expect(read(f)).rejects.toThrow("journal");
     await pool.query("UPDATE entry SET version=2 WHERE id=$1", [f.entryId]);
     await pool.query("UPDATE race SET snapshot_version=2 WHERE id=$1", [f.raceId]);
-    await pool.query(`INSERT INTO entry_start_time_change_request(request_id,race_id,actor_credential_id,entry_id,expected_entry_version,
+    await pool.query(`INSERT INTO entry_start_time_change_request(request_id,race_id,actor_account_id,entry_id,expected_entry_version,
       previous_fixed_start_time,fixed_start_time,class_id,entry_version_before,entry_version_after,snapshot_version_before,snapshot_version_after,changed_at)
       VALUES($1,$2,$3,$4,1,null,'2026-09-12T10:02:00.000001Z',$5,1,2,1,2,$6)`,
       [randomUUID(), f.raceId, f.administrator.actorId, f.entryId, f.classId, now]);
@@ -123,7 +120,7 @@ describe("TASK039 administrator entry changes", () => {
     const g = await fixture(); await identity(g, 2);
     await pool.query("UPDATE entry SET version=2 WHERE id=$1", [g.entryId]);
     await pool.query("UPDATE race SET snapshot_version=2 WHERE id=$1", [g.raceId]);
-    await pool.query(`INSERT INTO entry_start_time_change_request(request_id,race_id,actor_credential_id,entry_id,expected_entry_version,
+    await pool.query(`INSERT INTO entry_start_time_change_request(request_id,race_id,actor_account_id,entry_id,expected_entry_version,
       previous_fixed_start_time,fixed_start_time,class_id,entry_version_before,entry_version_after,snapshot_version_before,snapshot_version_after,changed_at)
       VALUES($1,$2,$3,$4,1,null,'2026-09-12T10:02:00Z',$5,1,2,1,2,$6)`,
       [randomUUID(), g.raceId, g.administrator.actorId, g.entryId, g.classId, now]);
@@ -133,7 +130,7 @@ describe("TASK039 administrator entry changes", () => {
     const f = await fixture(), other = await fixture();
     await pool.query("UPDATE entry SET version=2 WHERE id=$1", [f.entryId]);
     await pool.query("UPDATE race SET snapshot_version=2 WHERE id=$1", [f.raceId]);
-    await pool.query(`INSERT INTO entry_class_change_request(request_id,race_id,actor_credential_id,entry_id,expected_entry_version,
+    await pool.query(`INSERT INTO entry_class_change_request(request_id,race_id,actor_account_id,entry_id,expected_entry_version,
       previous_class_id,class_id,entry_version_before,entry_version_after,snapshot_version_before,snapshot_version_after,changed_at)
       VALUES($1,$2,$3,$4,1,$5,$6,1,2,1,2,$7)`,
       [randomUUID(), f.raceId, f.administrator.actorId, f.entryId, other.classId, f.classId, now]);

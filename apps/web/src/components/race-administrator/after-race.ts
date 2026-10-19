@@ -224,7 +224,7 @@ export function createAfterRaceActions(ws: Base & RaceDataActions) {
       sourceClassId: shortenedCourseCandidate.sourceClassId,
       expectedSourceCourseVersionId: shortenedCourseCandidate.sourceCourseVersionId,
       expectedSourceStartRule: shortenedCourseCandidate.sourceStartRule,
-      expectedSnapshotVersion: shortenedCourseCandidate.snapshotVersion, expectedBasisHash: shortenedCourseCandidate.basisHash,
+      expectedBasisHash: shortenedCourseCandidate.basisHash,
       shortCourseName, shortClassName, expectedSourceControlCount: shortenedCourseCandidate.sourceControls.length,
       controlPrefix: shortenedCourseCandidate.sourceControls.slice(0, prefixLength), entryIds });
     if (!request.success) { setShortenedCourseError(text.shortenedCourseInvalid); return; }
@@ -248,7 +248,7 @@ export function createAfterRaceActions(ws: Base & RaceDataActions) {
       const receipt = shortenedCourseClassTransferReceiptSchema.parse(await json(response, op));
       if (receipt.raceId !== raceId || receipt.requestId !== value.request.requestId ||
         receipt.sourceClassId !== value.candidate.sourceClassId || receipt.sourceCourseVersionId !== value.request.expectedSourceCourseVersionId ||
-        receipt.sourceSnapshotVersion !== value.request.expectedSnapshotVersion || receipt.sourceBasisHash !== value.request.expectedBasisHash ||
+        receipt.sourceBasisHash !== value.request.expectedBasisHash ||
         JSON.stringify(receipt.request) !== JSON.stringify(value.request)) throw new Error("Shortened course transfer receipt mismatch");
       committed = true; pending.current = undefined; sent.current = false; setShortenedCourseAttempt(undefined);
       setShortenedCourseCandidate(undefined); setShortenedEntryIds([]); setShortenedCourseName(""); setShortenedClassName(""); setUnknown(false);

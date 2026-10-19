@@ -87,15 +87,12 @@ export async function publishRace(owner: Page): Promise<void> {
   await expect(sectionButton(owner, "Publicera")).toHaveAccessibleDescription("Publicerad");
 }
 
-/** Publicerar en tävling utan arbetsytan: öppnar tävlingen med kontot och anropar samma API som steget Publicera. */
+/** Publicerar en tävling utan arbetsytan: anropar med kontots session samma API som steget Publicera. */
 export async function publishRaceViaApi(page: Page, raceId: string): Promise<void> {
   const origin = new URL(page.url()).origin;
   const cookie = async (pattern: RegExp) => (await page.context().cookies()).find(row => pattern.test(row.name))?.value ?? "";
-  const entered = await page.request.post(`/api/organizer/races/${raceId}/enter`, {
-    headers: { origin, "x-otid-csrf": await cookie(/otid[-_]organizer[-_]csrf$/) } });
-  expect(entered.ok()).toBe(true);
   const published = await page.request.put(`/api/admin/races/${raceId}/administrator/race-publication`, {
-    headers: { origin, "x-otid-csrf": await cookie(/otid[-_]race[-_]administrator[-_]csrf$/) } });
+    headers: { origin, "x-otid-csrf": await cookie(/otid[-_]organizer[-_]csrf$/) } });
   expect(published.status()).toBe(200);
 }
 

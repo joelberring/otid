@@ -4,7 +4,7 @@ import { courseEditIdempotencyKeySchema, courseEditPreviewResponseSchema, course
 
 const id = "10000000-0000-4000-8000-000000000001";
 const other = "10000000-0000-4000-8000-000000000002";
-const request = { formatVersion: 1, requestId: id, expectedSnapshotVersion: 3, courseId: id, controlCodes: [31, 33],
+const request = { formatVersion: 1, requestId: id, courseId: id, controlCodes: [31, 33],
   confirmResultChanges: true };
 
 it("Redigera bana: begäran är strikt och nyckeln binder begärans id", () => {

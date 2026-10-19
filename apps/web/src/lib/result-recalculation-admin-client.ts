@@ -7,8 +7,8 @@ import {
   type ResultRecalculationResponse
 } from "@o-tid/contracts";
 import { sv } from "../i18n/sv";
+import { UUID_PATTERN } from "@o-tid/contracts";
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 export type ResultRecalculationCandidates = ResultRecalculationCandidateResponse;
 export type ResultRecalculationCandidate = ResultRecalculationCandidateResponse["entries"][number];
@@ -51,7 +51,6 @@ export function createResultRecalculationAttempt(
     formatVersion: 1,
     expectedEntryVersion: candidate.entryVersion,
     expectedClassId: candidate.classId,
-    expectedSnapshotVersion: context.snapshotVersion,
     expectedCardAssignmentId: candidate.cardAssignmentId,
     expectedReadoutId: candidate.latestReadout.id,
     expectedLatestResultRevision: candidate.latestResultRevision === null
@@ -66,7 +65,6 @@ export function resultRecalculationBody(attempt: ResultRecalculationAttempt): Re
     formatVersion: attempt.formatVersion,
     expectedEntryVersion: attempt.expectedEntryVersion,
     expectedClassId: attempt.expectedClassId,
-    expectedSnapshotVersion: attempt.expectedSnapshotVersion,
     expectedCardAssignmentId: attempt.expectedCardAssignmentId,
     expectedReadoutId: attempt.expectedReadoutId,
     expectedLatestResultRevision: attempt.expectedLatestResultRevision,
@@ -85,8 +83,7 @@ export function parseResultRecalculationResponse(
       parsed.data.raceId !== expectedRaceId || parsed.data.entryId !== attempt.entryId ||
       parsed.data.readoutId !== attempt.expectedReadoutId ||
       parsed.data.revision !== expectedRevision ||
-      parsed.data.engineVersion !== attempt.expectedEngineVersion ||
-      parsed.data.snapshotVersion !== attempt.expectedSnapshotVersion) {
+      parsed.data.engineVersion !== attempt.expectedEngineVersion) {
     throw new Error(sv.resultRecalculationInvalidResponse);
   }
   return parsed.data;

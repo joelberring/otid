@@ -5,7 +5,7 @@ import { racePeopleResponseSchema, racePersonGrantResponseSchema, racePersonRevo
   type RacePeopleResponse, type RacePerson } from "@o-tid/contracts";
 import { raceTypeSv } from "../../i18n/race-type-sv";
 import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
-import { readRaceAdministratorCsrfCookie } from "../../lib/race-administrator-cookies";
+import { readAccountCsrfCookie } from "../../lib/organizer-account-cookies";
 import { Button, Field, Notice, Section } from "../ui";
 import styles from "./people-section.module.css";
 
@@ -40,7 +40,7 @@ export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: s
   useEffect(() => { void load(); }, [load]);
 
   async function send(method: "POST" | "DELETE", body: Record<string, unknown>, key: string) {
-    const csrf = readRaceAdministratorCsrfCookie(document.cookie, new URL(window.location.href));
+    const csrf = readAccountCsrfCookie(document.cookie, new URL(window.location.href));
     if (!csrf) return { status: 401, value: undefined as unknown };
     const response = await fetch(base, { method, credentials: "same-origin", cache: "no-store", body: JSON.stringify(body),
       headers: { "content-type": "application/json", "x-otid-csrf": csrf, "idempotency-key": key } });

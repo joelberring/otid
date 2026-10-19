@@ -3,21 +3,21 @@ import { readFile } from "node:fs/promises";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase, migrate } from "@o-tid/database";
 import type { DeviceBatch, SportidentReadoutPayload } from "@o-tid/contracts";
-import { contentHash } from "../../src/hash";
-import { createEventAsUserAccount, enterRaceAsUserAccount } from "../../src/organizer-events";
+import { contentHash } from "../../src/serialization";
+import { createOrganizerEvent } from "../../src/organizer-events";
 import { importIofXmlAsAdmin } from "../../src/import-iof";
-import { createManualCourseClassAsAdministrator } from "../../src/manual-course-class";
-import { createRelayClassAsAdministrator, registerRelayTeamAsAdministrator } from "../../src/relay-admin";
-import { changeRogainingAsAdministrator } from "../../src/rogaining";
+import { createManualCourseClassAsAdmin } from "../../src/manual-course-class";
+import { createRelayClassAsAdmin, registerRelayTeamAsAdmin } from "../../src/relay-admin";
+import { changeRogainingAsAdmin } from "../../src/rogaining";
 import { registerEntryAsAdmin } from "../../src/entry-registration";
-import { ingestReadoutsAsAdministrator, readReadoutPackageAsAdministrator } from "../../src/readout-station";
-import { georeferenceRaceMapAsAdministrator, saveRaceMapAsAdministrator } from "../../src/race-map";
-import { saveRadioSettingsAsAdministrator } from "../../src/radio-settings";
+import { ingestReadoutsAsAdmin, readReadoutPackageAsAdmin } from "../../src/readout-station";
+import { georeferenceRaceMapAsAdmin, saveRaceMapAsAdmin } from "../../src/race-map";
+import { saveRadioSettingsAsAdmin } from "../../src/radio-settings";
 import { eventorConfigurationFromEnvironment } from "../../src/eventor-secret";
-import { chooseEventorEventAsAdministrator, saveEventorKeyAsAdministrator, type EventorRuntime } from "../../src/eventor-link";
-import { copyRaceAsUserAccount } from "../../src/race-copy";
+import { chooseEventorEventAsAdmin, saveEventorKeyAsAdmin, type EventorRuntime } from "../../src/eventor-link";
+import { copyRaceAsAdmin } from "../../src/race-copy";
 import { publicResults } from "../../src/results";
-import { grantRacePerson, registerTestAccount, setRacePublished } from "./accounts";
+import { grantRacePerson, registerTestAccount, setRacePublished, accountOnRace } from "./accounts";
 
 /**
  * PLAN.md steg 21: "Ny tävling som …". Kopian har samma banor (alla versioner, varianter), kontroller, klasser,
@@ -52,8 +52,8 @@ const snapshot = async (raceId: string) =>
   (await pool.query<{ snapshot_version: number }>("select snapshot_version from race where id = $1", [raceId])).rows[0]!.snapshot_version;
 
 async function enter(account: AccountProof, raceId: string): Promise<Proof> {
-  const entered = await enterRaceAsUserAccount(db, { ...account, raceId });
-  if (entered.status !== "entered") throw new Error(`Kom inte in i tävlingen: ${entered.status}`);
+  const entered = await accountOnRace(db, { ...account, raceId });
+  if (entered.status !== "authenticated") throw new Error(`Kom inte in i tävlingen: ${entered.status}`);
   return { raceId, sessionToken: entered.sessionToken, csrfCookie: entered.csrfToken, csrfHeader: entered.csrfToken };
 }
 
@@ -71,8 +71,8 @@ function eventorRuntime(): EventorRuntime {
 async function manualCourse(proof: Proof, courseName: string, className: string, controlCodes: number[],
   rogaining?: { timeLimitMinutes: number; penaltyPoints: number }) {
   const requestId = randomUUID();
-  const created = await createManualCourseClassAsAdministrator(db, { ...proof, idempotencyKey: `manual-course-class-create:${requestId}`,
-    request: { formatVersion: 1, requestId, expectedSnapshotVersion: await snapshot(proof.raceId), courseName, className,
+  const created = await createManualCourseClassAsAdmin(db, { ...proof, idempotencyKey: `manual-course-class-create:${requestId}`,
+    request: { formatVersion: 1, requestId, courseName, className,
       startRule: "PUNCH", controlCodes, ...(rogaining ? { rogaining } : {}) } });
   if (created.status !== "created") throw new Error(`Banan kunde inte skapas: ${created.status}`);
   return created.response;
@@ -83,7 +83,7 @@ async function register(proof: Proof, classId: string, givenName: string, cardNu
     .rows[0]!.course_version_id;
   const registered = await registerEntryAsAdmin(db, { ...proof, idempotencyKey: `entry-registration:${randomUUID()}`, request: {
     formatVersion: 1, classId, expectedCourseVersionId: courseVersionId, expectedStartRule: "PUNCH",
-    expectedSnapshotVersion: await snapshot(proof.raceId), givenName, familyName: "Löpare", organisationName: "OK Test",
+    givenName, familyName: "Löpare", organisationName: "OK Test",
     cardNumber, fixedStartTime: null } });
   if (registered.status !== "registered") throw new Error(`Anmälan misslyckades: ${registered.status}`);
   return registered.response.entryId;
@@ -97,13 +97,13 @@ async function readout(proof: Proof, cardNumber: string, codes: number[], day: s
   const batch: DeviceBatch = { deviceId: randomUUID(), sessionId: randomUUID(), packageVersion: await snapshot(proof.raceId),
     firstSequence: 1, lastSequence: 1,
     events: [{ localSequence: 1, stationReceivedAt: at(31), transport: "sportident", payload, contentHash: contentHash(payload) }] };
-  const ingested = await ingestReadoutsAsAdministrator(db, { ...proof, batch });
+  const ingested = await ingestReadoutsAsAdmin(db, { ...proof, batch });
   if (ingested.status !== "ok") throw new Error(`Avläsningen togs inte emot: ${ingested.status}`);
 }
 
 /** Källan: gafflade banor från fil, rogaining, stafett, karta, radio, Eventor, deltagare, lag, avläsning och publicering. */
 async function sourceRace(owner: AccountProof) {
-  const created = await createEventAsUserAccount(db, { ...owner, idempotencyKey: `organizer-event-create:${randomUUID()}`,
+  const created = await createOrganizerEvent(db, { ...owner, idempotencyKey: `organizer-event-create:${randomUUID()}`,
     readBody: async () => ({ formatVersion: 1, eventName: "Klubbträning v41", raceName: "Torsdag", raceDate: "2026-10-08",
       timeZone: "Europe/Stockholm", raceType: "STANDARD" }) });
   if (created.status !== "created") throw new Error("Tävlingen kunde inte skapas");
@@ -114,19 +114,19 @@ async function sourceRace(owner: AccountProof) {
   }
   const rogaining = await manualCourse(proof, "Poängjakt", "Rogaining 60", [71, 72, 73], { timeLimitMinutes: 60, penaltyPoints: 2 });
   const points = randomUUID();
-  expect((await changeRogainingAsAdministrator(db, { ...proof, idempotencyKey: `rogaining-change:${points}`, request: { formatVersion: 1,
-    requestId: points, expectedSnapshotVersion: await snapshot(proof.raceId), controlPoints: [{ code: 72, points: 40 }], classRules: [],
+  expect((await changeRogainingAsAdmin(db, { ...proof, idempotencyKey: `rogaining-change:${points}`, request: { formatVersion: 1,
+    requestId: points, controlPoints: [{ code: 72, points: 40 }], classRules: [],
     confirmResultChanges: true } })).status).toBe("changed");
   const relayCourse = await manualCourse(proof, "Stafettbana", "Inskolning", [31, 32, 33]);
   const relayId = randomUUID();
-  const relay = await createRelayClassAsAdministrator(db, { ...proof, idempotencyKey: `relay-class:${relayId}`, request: { formatVersion: 1,
-    requestId: relayId, expectedSnapshotVersion: await snapshot(proof.raceId), name: "Stafett", courseId: relayCourse.courseId,
+  const relay = await createRelayClassAsAdmin(db, { ...proof, idempotencyKey: `relay-class:${relayId}`, request: { formatVersion: 1,
+    requestId: relayId, name: "Stafett", courseId: relayCourse.courseId,
     legs: [{ leg: 1, startMethod: "MASS_START", startTime: "2026-10-08T15:00:00.000Z", variantCode: null },
       { leg: 2, startMethod: "CHANGEOVER", startTime: null, variantCode: null }] } });
   if (relay.status !== "saved") throw new Error(`Stafetten kunde inte skapas: ${relay.status}`);
   const teamId = randomUUID();
-  expect((await registerRelayTeamAsAdministrator(db, { ...proof, idempotencyKey: `relay-team:${teamId}`, request: { formatVersion: 1,
-    requestId: teamId, expectedSnapshotVersion: await snapshot(proof.raceId), classId: relay.response.classId, number: null, name: "OK Lag",
+  expect((await registerRelayTeamAsAdmin(db, { ...proof, idempotencyKey: `relay-team:${teamId}`, request: { formatVersion: 1,
+    requestId: teamId, classId: relay.response.classId, number: null, name: "OK Lag",
     organisationName: "OK Test", runners: [{ givenName: "Sträcka", familyName: "Ett", organisationName: null, cardNumber: "7501" },
       { givenName: "Sträcka", familyName: "Två", organisationName: null, cardNumber: "7502" }] } })).status).toBe("saved");
   // Inställningar som bara går att nå med andra flöden: maxantal och en klass kopplad till Eventor.
@@ -136,16 +136,16 @@ async function sourceRace(owner: AccountProof) {
   const entryId = await register(proof, relayCourse.classId, "Anna", "7401");
   await readout(proof, "7401", [31, 32, 33], "2026-10-08");
   const png = new Uint8Array(await fixture("maps/strackanalys.png"));
-  expect(await saveRaceMapAsAdministrator(db, { ...proof, bytes: png, fileName: "karta.png" })).toEqual({ status: "ok" });
-  expect(await georeferenceRaceMapAsAdministrator(db, { ...proof, request: { formatVersion: 1, tiePoints: [
+  expect(await saveRaceMapAsAdmin(db, { ...proof, bytes: png, fileName: "karta.png" })).toEqual({ status: "ok" });
+  expect(await georeferenceRaceMapAsAdmin(db, { ...proof, request: { formatVersion: 1, tiePoints: [
     { pixelX: 100, pixelY: 100, latitude: 59.308, longitude: 18.0935 }, { pixelX: 700, pixelY: 100, latitude: 59.308, longitude: 18.1145 },
     { pixelX: 100, pixelY: 500, latitude: 59.3017, longitude: 18.0935 }] } })).toEqual({ status: "ok" });
-  expect((await saveRadioSettingsAsAdministrator(db, { ...proof, request: { formatVersion: 1, source: "ROC", unitId: "4711", enabled: true,
+  expect((await saveRadioSettingsAsAdmin(db, { ...proof, request: { formatVersion: 1, source: "ROC", unitId: "4711", enabled: true,
     controls: [{ code: 31, label: "Radio 1" }, { code: 50, label: null }] } })).status).toBe("ok");
   const runtime = eventorRuntime();
-  expect(await saveEventorKeyAsAdministrator(db, { ...proof, request: { formatVersion: 1, apiKey: "0f1e2d3c4b5a69788796a5b4c3d2e1f0" } }, runtime))
+  expect(await saveEventorKeyAsAdmin(db, { ...proof, request: { formatVersion: 1, apiKey: "0f1e2d3c4b5a69788796a5b4c3d2e1f0" } }, runtime))
     .toMatchObject({ status: "ok" });
-  expect(await chooseEventorEventAsAdministrator(db, { ...proof, request: { formatVersion: 1, eventId: "47110" } }, runtime))
+  expect(await chooseEventorEventAsAdmin(db, { ...proof, request: { formatVersion: 1, eventId: "47110" } }, runtime))
     .toMatchObject({ status: "ok" });
   expect((await setRacePublished(db, owner, proof.raceId)).status).toBe("saved");
   return { proof, eventId: created.response.eventId, entryId, rogainingClassId: rogaining.classId };
@@ -218,23 +218,23 @@ describe("PLAN.md steg 21 kopiera tävling", () => {
     const request = { formatVersion: 1, requestId: randomUUID(), eventName: "Klubbträning v44", raceName: "Torsdag kväll",
       raceDate: "2026-10-29", includePeople: true };
     // Behörighet: funktionären och en utomstående får inte kopiera; fel begäran avvisas.
-    expect(await copyRaceAsUserAccount(db, { ...functionary.proof, raceId: source.proof.raceId, request })).toEqual({ status: "forbidden" });
-    expect(await copyRaceAsUserAccount(db, { ...outsider.proof, raceId: source.proof.raceId, request })).toEqual({ status: "not-found" });
-    expect(await copyRaceAsUserAccount(db, { ...owner.proof, csrfHeader: "fel", raceId: source.proof.raceId, request }))
+    expect(await copyRaceAsAdmin(db, { ...functionary.proof, raceId: source.proof.raceId, request })).toEqual({ status: "forbidden" });
+    expect(await copyRaceAsAdmin(db, { ...outsider.proof, raceId: source.proof.raceId, request })).toEqual({ status: "not-found" });
+    expect(await copyRaceAsAdmin(db, { ...owner.proof, csrfHeader: "fel", raceId: source.proof.raceId, request }))
       .toEqual({ status: "forbidden" });
-    expect(await copyRaceAsUserAccount(db, { ...owner.proof, raceId: source.proof.raceId, request: { ...request, raceDate: "29/10" } }))
+    expect(await copyRaceAsAdmin(db, { ...owner.proof, raceId: source.proof.raceId, request: { ...request, raceDate: "29/10" } }))
       .toEqual({ status: "invalid-request" });
 
-    const copied = await copyRaceAsUserAccount(db, { ...owner.proof, raceId: source.proof.raceId, request });
+    const copied = await copyRaceAsAdmin(db, { ...owner.proof, raceId: source.proof.raceId, request });
     if (copied.status !== "copied") throw new Error(`Kopian skapades inte: ${copied.status}`);
     const copy = copied.response;
     expect(copy).toMatchObject({ replayed: false, sourceRaceId: source.proof.raceId,
       copied: { courses: 4, classes: 5, relayLegs: 2, radioControls: 2, map: true, people: 2, eventorNotCopied: true } });
     expect(copy.copied.controls).toBe(sourceBefore.controls.length);
     // Samma request-id ger samma kopia; ett annat innehåll med samma id är en konflikt.
-    expect(await copyRaceAsUserAccount(db, { ...owner.proof, raceId: source.proof.raceId, request }))
+    expect(await copyRaceAsAdmin(db, { ...owner.proof, raceId: source.proof.raceId, request }))
       .toEqual({ status: "copied", response: { ...copy, replayed: true } });
-    expect(await copyRaceAsUserAccount(db, { ...owner.proof, raceId: source.proof.raceId, request: { ...request, raceName: "Annat" } }))
+    expect(await copyRaceAsAdmin(db, { ...owner.proof, raceId: source.proof.raceId, request: { ...request, raceName: "Annat" } }))
       .toEqual({ status: "conflict" });
 
     // Innehållet är detsamma, utom det som avsiktligt skiljer sig.
@@ -269,7 +269,7 @@ describe("PLAN.md steg 21 kopiera tävling", () => {
 
     // Kopian fungerar: avläsningspaketet har en ny kort adress och en anmäld läses av mot kopians bana.
     const copyProof = await enter(owner.proof, copy.raceId);
-    const pkg = await readReadoutPackageAsAdministrator(db, copyProof);
+    const pkg = await readReadoutPackageAsAdmin(db, copyProof);
     if (pkg.status !== "ok") throw new Error("Paketet saknas");
     expect(pkg.response.publicLinks).toEqual({ shortCode: race!.short_code, published: false, participants: [] });
     const inskolning = (await pool.query<{ id: string }>("select id from class where race_id = $1 and name = 'Inskolning'", [copy.raceId])).rows[0]!.id;
@@ -280,12 +280,12 @@ describe("PLAN.md steg 21 kopiera tävling", () => {
 
     // Fristående: ändrade poäng och en ny bana i kopian ändrar inte källan, ändrad radio i källan ändrar inte kopian.
     const pointsId = randomUUID();
-    expect((await changeRogainingAsAdministrator(db, { ...copyProof, idempotencyKey: `rogaining-change:${pointsId}`, request: {
-      formatVersion: 1, requestId: pointsId, expectedSnapshotVersion: await snapshot(copy.raceId), controlPoints: [{ code: 72, points: 90 }],
+    expect((await changeRogainingAsAdmin(db, { ...copyProof, idempotencyKey: `rogaining-change:${pointsId}`, request: {
+      formatVersion: 1, requestId: pointsId, controlPoints: [{ code: 72, points: 90 }],
       classRules: [], confirmResultChanges: true } })).status).toBe("changed");
     await manualCourse(copyProof, "Ny bana", "Ny klass", [31, 99]);
     const sourceProof = await enter(owner.proof, source.proof.raceId);
-    expect((await saveRadioSettingsAsAdministrator(db, { ...sourceProof, request: { formatVersion: 1, source: "ROC", unitId: "4711",
+    expect((await saveRadioSettingsAsAdmin(db, { ...sourceProof, request: { formatVersion: 1, source: "ROC", unitId: "4711",
       enabled: true, controls: [{ code: 31, label: "Ändrad" }] } })).status).toBe("ok");
     expect(await structure(source.proof.raceId)).toEqual({ ...sourceBefore,
       radioControls: [{ control_code: 31, label: "Ändrad" }] });
@@ -299,13 +299,13 @@ describe("PLAN.md steg 21 kopiera tävling", () => {
   it("en administratör kopierar utan personer och blir ensam ägare", async () => {
     const owner = await registerTestAccount(db, `agare.${randomUUID().slice(0, 8)}`);
     const helper = await registerTestAccount(db, `admin.${randomUUID().slice(0, 8)}`);
-    const created = await createEventAsUserAccount(db, { ...owner.proof, idempotencyKey: `organizer-event-create:${randomUUID()}`,
+    const created = await createOrganizerEvent(db, { ...owner.proof, idempotencyKey: `organizer-event-create:${randomUUID()}`,
       readBody: async () => ({ formatVersion: 1, eventName: "Liten träning", raceName: "Lopp", raceDate: "2026-10-08",
         timeZone: "Europe/Stockholm", raceType: "TRAINING" }) });
     if (created.status !== "created") throw new Error("Tävlingen kunde inte skapas");
     await manualCourse(await enter(owner.proof, created.response.raceId), "Kort", "D21", [31, 32]);
     expect((await grantRacePerson(db, owner.proof, created.response.raceId, helper.email, "ADMIN")).status).toBe("granted");
-    const copied = await copyRaceAsUserAccount(db, { ...helper.proof, raceId: created.response.raceId, request: { formatVersion: 1,
+    const copied = await copyRaceAsAdmin(db, { ...helper.proof, raceId: created.response.raceId, request: { formatVersion: 1,
       requestId: randomUUID(), eventName: "Liten träning", raceName: "Lopp", raceDate: "2026-10-15", includePeople: false } });
     if (copied.status !== "copied") throw new Error(`Kopian skapades inte: ${copied.status}`);
     expect(copied.response.copied).toEqual({ courses: 1, classes: 1, controls: 2, relayLegs: 0, radioControls: 0, map: false, people: 0,
@@ -314,6 +314,6 @@ describe("PLAN.md steg 21 kopiera tävling", () => {
     const [race] = (await pool.query<{ race_type: string }>("select race_type from race where id = $1", [copied.response.raceId])).rows;
     expect(race).toEqual({ race_type: "TRAINING" });
     // Källans ägare når inte kopian.
-    expect((await enterRaceAsUserAccount(db, { ...owner.proof, raceId: copied.response.raceId })).status).toBe("not-found");
+    expect((await accountOnRace(db, { ...owner.proof, raceId: copied.response.raceId })).status).toBe("unauthorized");
   });
 });

@@ -43,7 +43,6 @@ export const raceCopySv = {
     invalid: "Kontrollera namnen (minst två tecken) och datumet.",
     session: "Inloggningen har gått ut. Logga in igen och försök på nytt.",
     conflict: "Begäran krockade med en tidigare kopiering. Stäng och försök igen.",
-    open: "Kopian kunde inte öppnas. Hitta den under Mina tävlingar.",
     network: "Ingen kontakt med servern. Försök igen – samma försök skapar inte två kopior.",
     generic: (status: number) => `Kopieringen misslyckades (${status}). Försök igen – samma försök skapar inte två kopior.`
   }

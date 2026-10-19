@@ -7,15 +7,13 @@ import {
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { drawStartTimes, StartDrawError, withProposedEntryVariants, withProposedStartTimes, type StartDrawResult } from "@o-tid/domain";
-import {
-  authenticatePairingAdminSession, authenticatePairingAdminSessionForMutation,
-  authenticatePairingAdminSessionForProtectedRead, type PairingAdminRequestAuthentication
-} from "./pairing-admin";
+import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
-import { loadRaceSnapshot } from "./snapshot";
+import { bumpReadoutPackageVersion, loadRaceSnapshot } from "./snapshot";
 import { assessReadOutEntries, recalculateAssessedEntries, summarizeAssessment, type AssessedEntry } from "./result-reassessment";
 import { loadDrawClasses, loadDrawEntries, loadDrawPlans, type DrawBasisClass, type DrawBasisEntry, type DrawPlan } from "./start-draw-basis";
 import { planVariantDistribution, writeEntryVariants } from "./course-variants";
+import { UUID_PATTERN as uuid } from "./serialization";
 
 /**
  * Lottning (PLAN.md steg 9): välj startsätt per klass och lotta en eller flera
@@ -24,14 +22,12 @@ import { planVariantDistribution, writeEntryVariants } from "./course-variants";
  * pekar klasserna på lottningen och räknar om avlästa löpare vars underlag ändras.
  */
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
-type Authentication = Omit<PairingAdminRequestAuthentication, "capability">;
-const capability = "MANAGE_RACE" as const;
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+type Authentication = RaceSessionProof;
 const MAX_VERSION = 2_147_483_647;
 const DEFAULT_INTERVAL_MINUTES = 2;
 
 type Settings = {
-  expectedSnapshotVersion: number; firstStartTime: string; clubSeparation: boolean;
+  firstStartTime: string; clubSeparation: boolean;
   classes: { classId: string; method: "FREE" | "MINUTE" | "MASS"; intervalMinutes: number;
     vacancies: { kind: "COUNT" | "PERCENT"; value: number } }[];
 };
@@ -152,10 +148,10 @@ export type StartDrawSetupResult =
   | { status: "ok"; response: StartDrawSetupResponse };
 
 /** Klasserna med nuvarande startsätt och lottningens inställningar. */
-export async function loadStartDrawSetupAsAdministrator(db: Database, input: Authentication, now = new Date()): Promise<StartDrawSetupResult> {
+export async function loadStartDrawSetupAsAdmin(db: Database, input: Authentication, now = new Date()): Promise<StartDrawSetupResult> {
   if (!uuid.test(input.raceId)) return { status: "invalid-request" };
   return db.transaction(async tx => {
-    const auth = await authenticatePairingAdminSessionForProtectedRead(tx, { ...input, capability }, now);
+    const auth = await requireRaceRole(tx, { ...input, role: "ADMIN" }, now, "share");
     if (auth.status !== "authenticated") return auth;
     const raceId = auth.principal.raceId;
     const race = await lockRaceForSnapshot(tx, raceId);
@@ -184,16 +180,15 @@ export type StartDrawPreviewResult =
   | { status: "ok"; response: StartDrawPreviewResponse };
 
 /** Läser bara: hur blir startlistan, vilka klasser får nya tider och vad händer med avlästa löpare? */
-export async function previewStartDrawAsAdministrator(db: Database, input: Authentication & { request: unknown },
+export async function previewStartDrawAsAdmin(db: Database, input: Authentication & { request: unknown },
   now = new Date()): Promise<StartDrawPreviewResult> {
   const parsed = startDrawPreviewRequestSchema.safeParse(input.request);
   if (!parsed.success || !uuid.test(input.raceId)) return { status: "invalid-request" };
   return db.transaction(async tx => {
-    const auth = await authenticatePairingAdminSessionForProtectedRead(tx, { ...input, capability }, now);
+    const auth = await requireRaceRole(tx, { ...input, role: "ADMIN" }, now, "share");
     if (auth.status !== "authenticated") return auth;
     const raceId = auth.principal.raceId;
     const race = await lockRaceForSnapshot(tx, raceId);
-    if (race.snapshotVersion !== parsed.data.expectedSnapshotVersion) return { status: "conflict" };
     const computed = await compute(tx, raceId, race.snapshotVersion, parsed.data, randomSeed(), false);
     if (typeof computed === "string") return { status: computed };
     return { status: "ok", response: computed.preview };
@@ -206,10 +201,10 @@ export type StartDrawCommitResult =
   | { status: "drawn"; response: StartDrawResponse };
 
 async function writeDraw(tx: Transaction, input: { raceId: string; requestId: string; computed: Computed;
-  settings: Settings; actorCredentialId: string; snapshotVersionBefore: number; response: StartDrawResponse; now: Date; seed: number }) {
+  settings: Settings; actorAccountId: string; snapshotVersionBefore: number; response: StartDrawResponse; now: Date; seed: number }) {
   const { computed, raceId } = input;
   const [saved] = await tx.insert(schema.startDrawRequests).values({ requestId: input.requestId, raceId,
-    actorCredentialId: input.actorCredentialId, capability, seed: input.seed, request: input.response.request, response: input.response,
+    actorAccountId: input.actorAccountId, seed: input.seed, request: input.response.request, response: input.response,
     snapshotVersionBefore: input.snapshotVersionBefore, snapshotVersionAfter: input.snapshotVersionBefore + 1, drawnAt: input.now }).returning();
   if (!saved) throw new Error("Lottningen kunde inte sparas");
   for (const result of computed.draw.classes) {
@@ -239,7 +234,7 @@ async function writeDraw(tx: Transaction, input: { raceId: string; requestId: st
  * Sparar lottningen. Kräver `confirmChanges` när befintliga starttider ersätts eller
  * någon avläst löpares status ändras; annars sparas direkt.
  */
-export async function commitStartDrawAsAdministrator(db: Database, input: Authentication & { idempotencyKey: string | null; request: unknown },
+export async function commitStartDrawAsAdmin(db: Database, input: Authentication & { idempotencyKey: string | null; request: unknown },
   now = new Date()): Promise<StartDrawCommitResult> {
   const parsed = startDrawRequestSchema.safeParse(input.request);
   const key = startDrawIdempotencyKeySchema.safeParse(input.idempotencyKey);
@@ -247,11 +242,11 @@ export async function commitStartDrawAsAdministrator(db: Database, input: Authen
     return { status: "invalid-request" };
   }
   const intent = parsed.data;
-  const authentication = { ...input, capability, requireCsrf: true };
-  const initial = await authenticatePairingAdminSession(db, authentication, now);
+  const authentication = { ...input, role: "ADMIN" as const, requireCsrf: true };
+  const initial = await requireRaceRole(db, authentication, now);
   if (initial.status !== "authenticated") return initial;
   return db.transaction(async tx => {
-    const auth = await authenticatePairingAdminSessionForMutation(tx, authentication, now);
+    const auth = await requireRaceRole(tx, authentication, now, "update");
     if (auth.status !== "authenticated") return auth;
     const raceId = auth.principal.raceId;
     const race = await lockRaceForMutation(tx, raceId);
@@ -259,11 +254,11 @@ export async function commitStartDrawAsAdministrator(db: Database, input: Authen
     const [prior] = await tx.select().from(schema.startDrawRequests).where(eq(schema.startDrawRequests.requestId, intent.requestId));
     if (prior) {
       const response = startDrawResponseSchema.parse(prior.response);
-      if (prior.raceId !== raceId || prior.actorCredentialId !== auth.principal.accessCredentialId ||
+      if (prior.raceId !== raceId || prior.actorAccountId !== auth.principal.accountId ||
           JSON.stringify(response.request) !== JSON.stringify(intent)) return { status: "conflict" };
       return { status: "drawn", response: { ...response, replayed: true } };
     }
-    if (race.snapshotVersion !== intent.expectedSnapshotVersion || race.snapshotVersion >= MAX_VERSION) return { status: "conflict" };
+    if (race.snapshotVersion >= MAX_VERSION) return { status: "conflict" };
     const computed = await compute(tx, raceId, race.snapshotVersion, intent, intent.seed, true);
     if (typeof computed === "string") return { status: computed };
     if (computed.preview.requiresConfirmation && !intent.confirmChanges) return { status: "confirmation-required", preview: computed.preview };
@@ -274,21 +269,21 @@ export async function commitStartDrawAsAdministrator(db: Database, input: Authen
       recalculatedCount: computed.assessed.filter(row => row.recalculate).length,
       snapshotVersionBefore: race.snapshotVersion, snapshotVersionAfter, drawnAt: now.toISOString() });
     const saved = await writeDraw(tx, { raceId, requestId: intent.requestId, computed, settings: intent, seed: intent.seed,
-      actorCredentialId: auth.principal.accessCredentialId, snapshotVersionBefore: race.snapshotVersion, response, now });
-    await tx.update(schema.races).set({ snapshotVersion: snapshotVersionAfter }).where(eq(schema.races.id, raceId));
+      actorAccountId: auth.principal.accountId, snapshotVersionBefore: race.snapshotVersion, response, now });
+    await bumpReadoutPackageVersion(tx, raceId);
     // Omräkning mot det sparade läget; databasen sätter varje ny revisions underlagshash.
     const courseVersions = new Map(computed.classes.map(row => [row.id, row.courseVersionId]));
     const recalculated = await recalculateAssessedEntries(tx, { raceId, assessed: computed.assessed,
       snapshot: await loadRaceSnapshot(tx, raceId), snapshotVersion: snapshotVersionAfter, courseVersionId: courseVersions });
     await tx.insert(schema.auditEvents).values({ raceId, entityType: "start_draw", entityId: saved.id, requestId: intent.requestId,
-      actorKind: "RACE_ADMIN_ACCESS_CREDENTIAL", actorId: auth.principal.accessCredentialId, action: "START_DRAW_COMMITTED",
+      actorKind: "USER_ACCOUNT", actorId: auth.principal.accountId, action: "START_DRAW_COMMITTED",
       before: { snapshotVersion: race.snapshotVersion },
       after: { snapshotVersion: snapshotVersionAfter, classIds: intent.classes.map(row => row.classId),
         changedEntryCount: computed.changedEntryIds.size, recalculatedCount: recalculated.length }, createdAt: now });
     if (recalculated.length > 0) {
       await tx.insert(schema.auditEvents).values(recalculated.map(item => ({ raceId, entityType: "result_revision",
-        entityId: item.resultRevisionId, action: "RESULT_RECALCULATED_AFTER_START_DRAW", actorKind: "RACE_ADMIN_ACCESS_CREDENTIAL" as const,
-        actorId: auth.principal.accessCredentialId, requestId: intent.requestId,
+        entityId: item.resultRevisionId, action: "RESULT_RECALCULATED_AFTER_START_DRAW", actorKind: "USER_ACCOUNT" as const,
+        actorId: auth.principal.accountId, requestId: intent.requestId,
         after: { entryId: item.entryId, revision: item.revision, cause: "EXPLICIT_RECALCULATION" }, createdAt: now })));
     }
     return { status: "drawn", response };

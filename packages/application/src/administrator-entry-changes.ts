@@ -4,24 +4,24 @@ import { administratorEntryChangesResponseSchema, type AdministratorEntryChanges
   entryTransferRequestSchema, entryRegistrationRequestSchema, entryIdentityValuesSchema,
   entryIdentityChangeResponseSchema, entryCardChangeResponseSchema, entryCardRentalChangeResponseSchema,
   entryCardRentalReturnChangeResponseSchema, entryCardRentalReuseResponseSchema } from "@o-tid/contracts";
-import { authenticatePairingAdminSessionForProtectedRead, type PairingAdminRequestAuthentication } from "./pairing-admin";
+import { requireRaceRole, type RaceSessionProof } from "./race-session";
+import { UUID_PATTERN as uuid } from "./serialization";
 
 type Item = AdministratorEntryChangesResponse["items"][number];
 type Change = Item["changes"][number];
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const exact = (column: AnyColumn) => sql<boolean>`${column} IS NULL OR date_trunc('milliseconds', ${column}) = ${column}`;
 const timestamp = (column: AnyColumn) => sql<string>`to_char(${column} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`;
 function check(value: unknown): asserts value { if (!value) throw new Error("Deltagarhistorikens journal eller relation är ogiltig"); }
 function instant(value: Date | null) { return value?.toISOString() ?? null; }
 
 export async function listAdministratorEntryChanges(db: Database,
-  input: Omit<PairingAdminRequestAuthentication, "capability" | "requireCsrf"> & { entryId: string; beforeVersion?: number },
+  input: RaceSessionProof & { entryId: string; beforeVersion?: number },
   now = new Date()
 ) {
   if (!uuid.test(input.raceId) || !uuid.test(input.entryId) || (input.beforeVersion !== undefined &&
     (!Number.isInteger(input.beforeVersion) || input.beforeVersion < 1 || input.beforeVersion > 2_147_483_647))) return { status: "invalid-request" as const };
   return db.transaction(async tx => {
-    const auth = await authenticatePairingAdminSessionForProtectedRead(tx, { ...input, capability: "MANAGE_RACE" }, now);
+    const auth = await requireRaceRole(tx, { ...input, role: "ADMIN" }, now, "share");
     if (auth.status !== "authenticated") return auth;
     const [race] = await tx.select().from(schema.races).where(eq(schema.races.id, auth.principal.raceId)).for("share");
     if (!race) return { status: "not-found" as const };
@@ -30,16 +30,8 @@ export async function listAdministratorEntryChanges(db: Database,
     const [event] = await tx.select().from(schema.events).where(eq(schema.events.id, race.eventId)); check(event);
     const items: Item[] = [];
     const names = new Map<string, string>();
-    const actors = new Map<string, string>();
-    async function actor(id: string, capability?: string) {
-      let actual = actors.get(id);
-      if (!actual) {
-        const [row] = await tx.select().from(schema.pairingAdminAccessCredentials).where(and(
-          eq(schema.pairingAdminAccessCredentials.id, id), eq(schema.pairingAdminAccessCredentials.raceId, race!.id)));
-        check(row); actual = row.capability; actors.set(id, actual);
-      }
-      check(capability === undefined || capability === actual);
-    }
+    // Journalens aktör är kontot som gjorde ändringen (ADR-0173 beslut 4).
+    function actor(id: string) { check(uuid.test(id)); }
     async function className(id: string) {
       const known = names.get(id); if (known) return known;
       const [row] = await tx.select().from(schema.classes).where(and(eq(schema.classes.id, id), eq(schema.classes.raceId, race!.id)));
@@ -72,14 +64,14 @@ export async function listAdministratorEntryChanges(db: Database,
         .where(and(eq(table.raceId, race.id), eq(table.entryId, entry.id), boundary(table.entryVersionAfter)))
         .orderBy(desc(table.entryVersionAfter)).limit(21);
       for (const row of rows) {
-        await actor(row.actorCredentialId, "capability" in row ? row.capability : undefined);
+        actor(row.actorAccountId);
         if ("previousClassId" in row && "classId" in row) {
           check(row.expectedEntryVersion === row.entryVersionBefore && row.previousClassId !== row.classId);
           add("CLASS", row, [{ field: "CLASS", before: await className(row.previousClassId), after: await className(row.classId) }]);
         } else if ("targetClassId" in row) {
           const intent = entryTransferRequestSchema.parse(row.request);
           check(intent.expectedClassId === row.previousClassId && intent.targetClassId === row.targetClassId &&
-            intent.expectedEntryVersion === row.entryVersionBefore && intent.expectedSnapshotVersion === row.snapshotVersionBefore);
+            intent.expectedEntryVersion === row.entryVersionBefore);
           await course(intent.expectedTargetCourseVersionId);
           add("TRANSFER", row, [{ field: "CLASS", before: await className(row.previousClassId), after: await className(row.targetClassId) },
             { field: "START_TIME", before: intent.expectedFixedStartTime, after: intent.fixedStartTime }]);
@@ -144,7 +136,7 @@ export async function listAdministratorEntryChanges(db: Database,
     for (const row of reuseRows) {
       const isSource = row.sourceEntryId === entry.id, isTarget = row.targetEntryId === entry.id;
       check(isSource !== isTarget);
-      await actor(row.actorCredentialId, row.capability);
+      actor(row.actorAccountId);
       await className(row.sourceClassId); await className(row.targetClassId);
       await assignmentFor(row.sourceEntryId, row.sourceAssignmentId, row.cardNumber);
       await assignmentFor(row.targetEntryId, row.targetAssignmentId, row.cardNumber);
@@ -167,9 +159,8 @@ export async function listAdministratorEntryChanges(db: Database,
       .from(schema.entryRegistrationRequests).where(and(eq(schema.entryRegistrationRequests.raceId, race.id),
         eq(schema.entryRegistrationRequests.entryId, entry.id), input.beforeVersion === undefined ? undefined : sql`1 < ${input.beforeVersion}`)).limit(21);
     for (const row of registrations) {
-      await actor(row.actorCredentialId);
+      actor(row.actorAccountId);
       const intent = entryRegistrationRequestSchema.parse(row.request);
-      check(row.snapshotVersionAfter === intent.expectedSnapshotVersion + 1);
       await course(intent.expectedCourseVersionId); await assignment(row.assignmentId, intent.cardNumber);
       items.push({ kind: "REGISTRATION", requestId: row.requestId, changedAt: row.createdAt,
         entryVersionAfter: 1, snapshotVersionAfter: row.snapshotVersionAfter, changes: [

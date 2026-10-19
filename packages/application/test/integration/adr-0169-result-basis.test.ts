@@ -1,23 +1,23 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase, migrate } from "@o-tid/database";
-import { RESULT_APPROVAL_POLICY_VERSION, RESULT_APPROVAL_WITHDRAWAL_POLICY_VERSION, type DeviceBatch, type SportidentReadoutPayload } from "@o-tid/contracts";
-import { contentHash } from "../../src/hash";
-import { createEventAsUserAccount, enterRaceAsUserAccount } from "../../src/organizer-events";
+import { type DeviceBatch, type SportidentReadoutPayload } from "@o-tid/contracts";
+import { contentHash } from "../../src/serialization";
+import { createOrganizerEvent } from "../../src/organizer-events";
 import { registerUserAccount } from "../../src/user-account";
-import { createManualCourseClassAsAdministrator } from "../../src/manual-course-class";
+import { createManualCourseClassAsAdmin } from "../../src/manual-course-class";
 import { registerEntryAsAdmin } from "../../src/entry-registration";
 import { changeEntryCardAsAdmin } from "../../src/entry-card";
 import { changeEntryIdentityAsAdmin } from "../../src/entry-identity";
-import { ingestReadoutsAsAdministrator } from "../../src/readout-station";
-import { approveResultAsAdmin, listResultApprovalCandidatesAsAdmin } from "../../src/result-approval";
-import { listResultApprovalWithdrawalsAsAdmin, withdrawResultApprovalAsAdmin } from "../../src/result-approval-withdrawal";
-import { listClassResultRecalculationCandidatesAsAdministrator, recalculateClassResultsAsAdministrator } from "../../src/class-result-recalculation";
+import { ingestReadoutsAsAdmin } from "../../src/readout-station";
+import { statusFlow } from "./entry-status-helpers";
+import { listClassResultRecalculationCandidatesAsAdmin, recalculateClassResultsAsAdmin } from "../../src/class-result-recalculation";
 import { listResultFinalizationCandidatesAsAdmin } from "../../src/result-finalization";
 import { exportIofResultListAsAdmin } from "../../src/result-list-export";
-import { listEntryTransfersAsAdministrator } from "../../src/entry-transfer";
+import { listEntryTransfersAsAdmin } from "../../src/entry-transfer";
 import { getAdministratorEffectiveResult } from "../../src/administrator-effective-result";
-import { neutralizeClassControlAsAdministrator, previewClassControlNeutralizationAsAdministrator } from "../../src/class-control-neutralization";
+import { neutralizeClassControlAsAdmin, previewClassControlNeutralizationAsAdmin } from "../../src/class-control-neutralization";
+import { accountOnRace } from "./accounts";
 
 const base = process.env.TEST_DATABASE_URL;
 if (!base) throw new Error("ADR-0169-testet kräver TEST_DATABASE_URL till en PostgreSQL-roll med CREATEDB");
@@ -26,6 +26,7 @@ const databaseName = `otid_adr0169_spec_${randomUUID().replaceAll("-", "")}`;
 const url = new URL(base);
 url.pathname = `/${databaseName}`;
 const { db, pool } = createDatabase(url.href);
+const { decide, entryStatus } = statusFlow(db);
 
 beforeAll(async () => {
   await admin.pool.query(`CREATE DATABASE "${databaseName}"`);
@@ -45,16 +46,16 @@ async function race(controlCodes: number[]) {
   const account = await registerUserAccount(db, { formatVersion: 1, email: `underlag.${suffix}@test.o-tid.se`, displayName: "Arrangör", password: "hemligt-lösen" });
   if (account.status !== "authenticated") throw new Error("Kontot kunde inte skapas");
   const accountProof = { sessionToken: account.sessionToken, csrfCookie: account.csrfToken, csrfHeader: account.csrfToken };
-  const created = await createEventAsUserAccount(db, { ...accountProof, idempotencyKey: `organizer-event-create:${randomUUID()}`,
+  const created = await createOrganizerEvent(db, { ...accountProof, idempotencyKey: `organizer-event-create:${randomUUID()}`,
     readBody: async () => ({ formatVersion: 1, eventName: "Klubbträning", raceName: "Torsdag", raceDate: "2026-10-08", timeZone: "Europe/Stockholm" }) });
   if (created.status !== "created") throw new Error("Tävlingen kunde inte skapas");
   const { raceId } = created.response;
-  const entered = await enterRaceAsUserAccount(db, { ...accountProof, raceId });
-  if (entered.status !== "entered") throw new Error("Kom inte in i tävlingen");
+  const entered = await accountOnRace(db, { ...accountProof, raceId });
+  if (entered.status !== "authenticated") throw new Error("Kom inte in i tävlingen");
   const proof: Proof = { raceId, sessionToken: entered.sessionToken, csrfCookie: entered.csrfToken, csrfHeader: entered.csrfToken };
   const requestId = randomUUID();
-  const course = await createManualCourseClassAsAdministrator(db, { ...proof, idempotencyKey: `manual-course-class-create:${requestId}`,
-    request: { formatVersion: 1, requestId, expectedSnapshotVersion: await snapshot(raceId), courseName: "Bana 1",
+  const course = await createManualCourseClassAsAdmin(db, { ...proof, idempotencyKey: `manual-course-class-create:${requestId}`,
+    request: { formatVersion: 1, requestId, courseName: "Bana 1",
       className: "Öppen", startRule: "PUNCH", controlCodes } });
   if (course.status !== "created") throw new Error(`Banan kunde inte skapas: ${course.status}`);
   return { proof, raceId, classId: course.response.classId, courseId: course.response.courseId };
@@ -73,7 +74,7 @@ async function courseVersionOf(classId: string): Promise<string> {
 async function register(f: Awaited<ReturnType<typeof race>>, givenName: string, cardNumber: string): Promise<string> {
   const registered = await registerEntryAsAdmin(db, { ...f.proof, idempotencyKey: `entry-registration:${randomUUID()}`, request: {
     formatVersion: 1, classId: f.classId, expectedCourseVersionId: await courseVersionOf(f.classId), expectedStartRule: "PUNCH",
-    expectedSnapshotVersion: await snapshot(f.raceId), givenName, familyName: "Underlag", organisationName: null,
+    givenName, familyName: "Underlag", organisationName: null,
     cardNumber, fixedStartTime: null } });
   if (registered.status !== "registered") throw new Error(`Anmälan misslyckades: ${registered.status}`);
   return registered.response.entryId;
@@ -88,28 +89,27 @@ async function readout(f: Awaited<ReturnType<typeof race>>, cardNumber: string, 
   const batch: DeviceBatch = { deviceId: randomUUID(), sessionId: randomUUID(), packageVersion: await snapshot(f.raceId),
     firstSequence: 1, lastSequence: 1,
     events: [{ localSequence: 1, stationReceivedAt: "2026-10-08T16:31:00.000Z", transport: "sportident", payload, contentHash: contentHash(payload) }] };
-  const ingested = await ingestReadoutsAsAdministrator(db, { ...f.proof, batch });
+  const ingested = await ingestReadoutsAsAdmin(db, { ...f.proof, batch });
   if (ingested.status !== "ok") throw new Error(`Avläsningen togs inte emot: ${ingested.status}`);
 }
 
 /** Läser alla vyer som avgör om löparens resultat är aktuellt. */
 async function view(f: Awaited<ReturnType<typeof race>>, entryId: string) {
-  const approval = await listResultApprovalCandidatesAsAdmin(db, f.proof);
-  const recalculation = await listClassResultRecalculationCandidatesAsAdministrator(db, { ...f.proof, classId: f.classId });
-  const roster = await listEntryTransfersAsAdministrator(db, f.proof);
+  const status = await entryStatus(f.proof, entryId);
+  const recalculation = await listClassResultRecalculationCandidatesAsAdmin(db, { ...f.proof, classId: f.classId });
+  const roster = await listEntryTransfersAsAdmin(db, f.proof);
   const effective = await getAdministratorEffectiveResult(db, { ...f.proof, entryId });
   const finalization = await listResultFinalizationCandidatesAsAdmin(db, f.proof);
   const exported = await exportIofResultListAsAdmin(db, f.proof);
-  if (approval.status !== "ok" || recalculation.status !== "ok" || roster.status !== "ok" || effective.status !== "ok" ||
+  if (recalculation.status !== "ok" || roster.status !== "ok" || effective.status !== "ok" ||
       finalization.status !== "ok" || exported.status !== "ok") {
-    throw new Error(`Vyerna kunde inte läsas: ${[approval.status, recalculation.status, roster.status, effective.status, finalization.status, exported.status].join(", ")}`);
+    throw new Error(`Vyerna kunde inte läsas: ${[recalculation.status, roster.status, effective.status, finalization.status, exported.status].join(", ")}`);
   }
-  const approvalEntry = approval.response.entries.find((row) => row.id === entryId)!;
   const recalculationEntry = recalculation.response.entries.find((row) => row.id === entryId)!;
   const rosterEntry = roster.response.entries.find((row) => row.id === entryId)!;
   const classBlockers = finalization.response.classes.find((row) => row.classId === f.classId)!.blockerCodes;
   return {
-    approval: approvalEntry.readiness, approvalTarget: approvalEntry.targetResultRevision,
+    approval: status.readiness.APPROVE_MANUALLY,
     recalculation: recalculationEntry.readiness, freshness: rosterEntry.resultFreshness,
     effectiveCurrent: effective.response.state === "ACTIVE_RESULT" ? effective.response.resultCurrent : null,
     staleBlocker: classBlockers.includes("STALE_RESULT_SNAPSHOT"),
@@ -146,11 +146,11 @@ async function newCourseVersion(f: Awaited<ReturnType<typeof race>>, controlCode
 }
 
 async function recalculateClass(f: Awaited<ReturnType<typeof race>>, entryIds: string[]) {
-  const candidates = await listClassResultRecalculationCandidatesAsAdministrator(db, { ...f.proof, classId: f.classId });
+  const candidates = await listClassResultRecalculationCandidatesAsAdmin(db, { ...f.proof, classId: f.classId });
   if (candidates.status !== "ok") throw new Error("Omräkningsunderlaget saknas");
   const requestId = randomUUID();
-  const recalculated = await recalculateClassResultsAsAdministrator(db, { ...f.proof, idempotencyKey: `class-result-recalculation:${requestId}`,
-    request: { formatVersion: 1, classId: f.classId, snapshotVersion: candidates.response.snapshotVersion,
+  const recalculated = await recalculateClassResultsAsAdmin(db, { ...f.proof, idempotencyKey: `class-result-recalculation:${requestId}`,
+    request: { formatVersion: 1, classId: f.classId,
       engineVersion: candidates.response.engineVersion, manifestHash: candidates.response.manifestHash, entryIds: [...entryIds].sort() } });
   expect(recalculated.status).toBe("recalculated");
 }
@@ -169,12 +169,10 @@ describe("ADR-0169 resultatets underlag gäller löparen", () => {
     expect(await view(f, ada)).toMatchObject(current);
     const cards = await pool.query<{ id: string }>("select id from card_assignment where entry_id = $1 and active", [bertil]);
     const card = await changeEntryCardAsAdmin(db, { ...f.proof, entryId: bertil, idempotencyKey: `entry-card-change:${randomUUID()}`, request: {
-      formatVersion: 1, expectedEntryVersion: 1, expectedClassId: f.classId, expectedSnapshotVersion: await snapshot(f.raceId),
-      expectedAssignment: { id: cards.rows[0]!.id, cardNumber: "7010" }, cardNumber: "7011" } });
+      formatVersion: 1, expectedEntryVersion: 1, expectedClassId: f.classId, expectedAssignment: { id: cards.rows[0]!.id, cardNumber: "7010" }, cardNumber: "7011" } });
     expect(card.status).toBe("changed");
     const identity = await changeEntryIdentityAsAdmin(db, { ...f.proof, entryId: ada, idempotencyKey: `entry-identity-change:${randomUUID()}`, request: {
-      formatVersion: 1, expectedEntryVersion: 1, expectedClassId: f.classId, expectedSnapshotVersion: await snapshot(f.raceId),
-      expectedIdentity: { givenName: "Ada", familyName: "Underlag", organisationName: null },
+      formatVersion: 1, expectedEntryVersion: 1, expectedClassId: f.classId, expectedIdentity: { givenName: "Ada", familyName: "Underlag", organisationName: null },
       identity: { givenName: "Ada", familyName: "Lovelace", organisationName: "OK Test" } } });
     expect(identity.status).toBe("changed");
     expect(await view(f, ada)).toMatchObject(current);
@@ -193,32 +191,16 @@ describe("ADR-0169 resultatets underlag gäller löparen", () => {
     await register(f, "Cecilia", "7020");
     const again = await view(f, ada);
     expect(again).toMatchObject(current);
-    const target = again.approvalTarget!;
-    const approved = await approveResultAsAdmin(db, { ...f.proof, entryId: ada, idempotencyKey: `manual-result-approval:${randomUUID()}`, request: {
-      formatVersion: 1, expectedEntryVersion: 2, expectedClassId: f.classId, expectedCourseVersionId: await courseVersionOf(f.classId),
-      expectedSnapshotVersion: await snapshot(f.raceId),
-      expectedResultRevision: { id: target.id, revision: target.revision, status: "MP", reason: target.reason },
-      policyVersion: RESULT_APPROVAL_POLICY_VERSION } });
-    expect(approved.status).toBe("approved");
+    const approved = await decide(f.proof, ada, { kind: "APPROVE_MANUALLY" });
+    expect(approved.status).toBe("decided");
     const approvedView = await view(f, ada);
     expect(approvedView).toMatchObject({ approval: "ACTIVE_APPROVAL", freshness: "CURRENT_SNAPSHOT", effectiveCurrent: true,
       staleBlocker: false, staleResultCount: 0 });
 
     // Godkännandet kan återtas efter ännu en direktanmälan, utan omräkning.
     await register(f, "David", "7030");
-    const withdrawals = await listResultApprovalWithdrawalsAsAdmin(db, f.proof);
-    if (withdrawals.status !== "ok") throw new Error("Återtagandeunderlaget saknas");
-    const row = withdrawals.response.entries.find((entry) => entry.id === ada)!;
-    const withdrawn = await withdrawResultApprovalAsAdmin(db, { ...f.proof, entryId: ada,
-      idempotencyKey: `manual-result-approval-withdrawal:${randomUUID()}`, request: { formatVersion: 1,
-        expectedEntryVersion: row.entryVersion, expectedClassId: row.classId, expectedCourseVersionId: row.courseVersionId,
-        expectedSnapshotVersion: withdrawals.response.snapshotVersion, expectedResultApprovalDecisionId: row.resultApprovalDecisionId,
-        expectedTargetResultRevision: row.targetResultRevision, expectedApprovedResultRevision: row.approvedResultRevision,
-        expectedAbsoluteResultRevision: row.absoluteResultRevision,
-        expectedRestorationSourceResultRevision: row.restorationSourceResultRevision,
-        policyVersion: RESULT_APPROVAL_WITHDRAWAL_POLICY_VERSION } });
-    expect(withdrawn.status).toBe("withdrawn");
-    if (withdrawn.status === "withdrawn") expect(withdrawn.response.snapshotVersion).toBe(await snapshot(f.raceId));
+    const withdrawn = await decide(f.proof, ada, { kind: "WITHDRAW" });
+    expect(withdrawn).toMatchObject({ status: "decided", response: { cause: "MANUAL_RESULT_APPROVAL_WITHDRAWAL" } });
     // Den återställda revisionen är inte en teknisk källa för ett nytt godkännande, men den är aktuell.
     expect(await view(f, ada)).toMatchObject({ ...current, approval: "UNSUPPORTED_RESULT" });
   });
@@ -229,12 +211,12 @@ describe("ADR-0169 resultatets underlag gäller löparen", () => {
     await readout(f, "8001", [31, 33]);
     expect(await view(f, ada)).toMatchObject(current);
 
-    const preview = await previewClassControlNeutralizationAsAdministrator(db, { ...f.proof, classId: f.classId });
+    const preview = await previewClassControlNeutralizationAsAdmin(db, { ...f.proof, classId: f.classId });
     if (preview.status !== "ok") throw new Error("Förhandsgranskningen saknas");
     const control = preview.response.controls.find((row) => row.controlCode === 32)!;
     const requestId = randomUUID();
-    const neutralized = await neutralizeClassControlAsAdministrator(db, { ...f.proof, idempotencyKey: `class-control-neutralization:${requestId}`,
-      request: { formatVersion: 1, requestId, expectedSnapshotVersion: preview.response.snapshotVersion, expectedBasisHash: preview.response.basisHash,
+    const neutralized = await neutralizeClassControlAsAdmin(db, { ...f.proof, idempotencyKey: `class-control-neutralization:${requestId}`,
+      request: { formatVersion: 1, requestId, expectedBasisHash: preview.response.basisHash,
         classId: f.classId, expectedCourseVersionId: preview.response.courseVersionId, courseControlId: control.id,
         sequence: control.sequence, controlCode: control.controlCode, acknowledgedNoAutomaticRecalculation: true } });
     expect(neutralized.status).toBe("changed");

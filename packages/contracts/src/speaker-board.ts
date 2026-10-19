@@ -1,6 +1,6 @@
 import { z } from "zod";
+import { uuidSchema as uuid } from "./ids";
 
-const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 const revision = z.number().int().min(1).max(2_147_483_647);
 const instant = z.iso.datetime({ precision: 3 });
 const milliseconds = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
@@ -13,17 +13,7 @@ const timeZone = z.string().trim().min(1).max(100).refine((value) => {
   }
 }, "Tidszonen stöds inte av Intl");
 
-export const speakerBoardLoginRequestSchema = z.object({
-  formatVersion: z.literal(1),
-  accessCredential: z.string().regex(/^otid_org_speaker_board_v1\.[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.[A-Za-z0-9_-]{43}$/)
-}).strict();
 
-export const speakerBoardLoginResponseSchema = z.object({
-  formatVersion: z.literal(1),
-  raceId: uuid,
-  capability: z.literal("VIEW_SPEAKER_BOARD"),
-  expiresAt: instant
-}).strict();
 
 /** Projection validation only: the application must resolve stored provenance first. */
 export const speakerBoardEffectiveResultSchema = z.discriminatedUnion("status", [
@@ -95,8 +85,6 @@ export const speakerBoardResponseSchema = z.object({
 });
 
 export { entryClassAdminErrorResponseSchema as speakerBoardErrorResponseSchema } from "./entry-class-admin";
-export type SpeakerBoardLoginRequest = z.infer<typeof speakerBoardLoginRequestSchema>;
-export type SpeakerBoardLoginResponse = z.infer<typeof speakerBoardLoginResponseSchema>;
 export type SpeakerBoardEffectiveResult = z.infer<typeof speakerBoardEffectiveResultSchema>;
 export type SpeakerBoardRow = z.infer<typeof speakerBoardRowSchema>;
 export type SpeakerBoardResponse = z.infer<typeof speakerBoardResponseSchema>;

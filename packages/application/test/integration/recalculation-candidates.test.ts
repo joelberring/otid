@@ -6,10 +6,9 @@ import { createDatabase, schema } from "@o-tid/database";
 import {
   createEvent,
   importIofXml,
-  issuePairingAdminAccessCredential,
-  listResultRecalculationCandidatesAsAdmin,
-  loginPairingAdmin
+  listResultRecalculationCandidatesAsAdmin
 } from "../../src";
+import { raceAuth } from "./accounts";
 
 const url = process.env.TEST_DATABASE_URL;
 if (!url) throw new Error("TEST_DATABASE_URL krävs");
@@ -20,8 +19,7 @@ beforeAll(async () => {
 });
 afterAll(async () => { await pool.end(); });
 
-type Capability = "RECALCULATE_RESULT" | "VIEW_RACE_OVERVIEW";
-type RevocationKind = "credential" | "session";
+type RevocationKind = "grant" | "session";
 
 async function fixture() {
   const { race } = await createEvent(db, {
@@ -36,15 +34,13 @@ async function fixture() {
   return race.id;
 }
 
-async function access(raceId: string, capability: Capability, now: Date, expiresAt = new Date(now.getTime() + 3_600_000)) {
-  const installation = await issuePairingAdminAccessCredential(db, {
-    raceId, capability, label: `TASK011 ${capability}`, expiresAt
-  }, { now });
-  const login = await loginPairingAdmin(db, { formatVersion: 1, accessCredential: installation.accessCredential }, {
-    now, expectedRaceId: raceId, expectedCapability: capability
-  });
-  if (login.status !== "authenticated") throw new Error("Testsession saknas");
-  return { installation, input: { raceId, sessionToken: login.sessionToken } };
+/** Kontot med rollen på tävlingens event; `grantId` och `sessionId` för samtidiga borttagningar. */
+async function access(raceId: string, role: "ADMIN" | "FUNCTIONARY", now: Date) {
+  const auth = await raceAuth(db, raceId, role, now);
+  const [grant] = await db.select({ id: schema.eventAdministrationGrants.id }).from(schema.eventAdministrationGrants)
+    .where(eq(schema.eventAdministrationGrants.accountId, auth.actorId));
+  if (!grant) throw new Error("Behörigheten saknas");
+  return { input: { raceId, sessionToken: auth.sessionToken }, grantId: grant.id, sessionId: auth.sessionToken.split(".")[1]! };
 }
 
 async function waitForBlock(
@@ -83,11 +79,11 @@ async function insertRevocation(
   id: string,
   now: Date
 ) {
-  if (kind === "credential") {
-    await client.query("INSERT INTO pairing_admin_access_credential_revocation (credential_id, revoked_at, reason) VALUES ($1, $2, $3)",
+  if (kind === "grant") {
+    await client.query("INSERT INTO event_administration_grant_revocation (grant_id, revoked_at, reason) VALUES ($1, $2, $3)",
       [id, now, "TASK011_CONCURRENT_REVOKE"]);
   } else {
-    await client.query("INSERT INTO pairing_admin_session_revocation (session_id, revoked_at, reason) VALUES ($1, $2, $3)",
+    await client.query("INSERT INTO user_account_session_revocation (session_id, revoked_at, reason) VALUES ($1, $2, $3)",
       [id, now, "TASK011_CONCURRENT_LOGOUT"]);
   }
 }
@@ -97,9 +93,9 @@ describe("TASK011 protected result-recalculation candidate list PostgreSQL", () 
     const now = new Date();
     const raceId = await fixture();
     const otherRaceId = await fixture();
-    const allowed = await access(raceId, "RECALCULATE_RESULT", now);
-    const wrongCapability = await access(raceId, "VIEW_RACE_OVERVIEW", now);
-    const expired = await access(raceId, "RECALCULATE_RESULT", now, new Date(now.getTime() + 1));
+    const allowed = await access(raceId, "ADMIN", now);
+    const wrongCapability = await access(raceId, "FUNCTIONARY", now);
+    const expired = await access(raceId, "ADMIN", now);
     const before = await Promise.all([
       db.select({ total: count() }).from(schema.auditEvents).where(eq(schema.auditEvents.raceId, raceId)),
       db.select({ total: count() }).from(schema.resultRevisions).where(eq(schema.resultRevisions.raceId, raceId)),
@@ -119,8 +115,8 @@ describe("TASK011 protected result-recalculation candidate list PostgreSQL", () 
     }
     expect(JSON.stringify(listed.response)).not.toMatch(/cardNumber|punches|rawPayload|accessCredential|audit/i);
     await expect(listResultRecalculationCandidatesAsAdmin(db, wrongCapability.input, now)).resolves.toEqual({ status: "forbidden" });
-    await expect(listResultRecalculationCandidatesAsAdmin(db, { ...allowed.input, raceId: otherRaceId }, now)).resolves.toEqual({ status: "forbidden" });
-    await expect(listResultRecalculationCandidatesAsAdmin(db, expired.input, new Date(now.getTime() + 1))).resolves.toEqual({ status: "unauthorized" });
+    await expect(listResultRecalculationCandidatesAsAdmin(db, { ...allowed.input, raceId: otherRaceId }, now)).resolves.toEqual({ status: "unauthorized" });
+    await expect(listResultRecalculationCandidatesAsAdmin(db, expired.input, new Date(now.getTime() + 30 * 24 * 3_600_000))).resolves.toEqual({ status: "unauthorized" });
     const after = await Promise.all([
       db.select({ total: count() }).from(schema.auditEvents).where(eq(schema.auditEvents.raceId, raceId)),
       db.select({ total: count() }).from(schema.resultRevisions).where(eq(schema.resultRevisions.raceId, raceId)),
@@ -129,18 +125,17 @@ describe("TASK011 protected result-recalculation candidate list PostgreSQL", () 
     expect(after).toEqual(before);
   });
 
-  it.each(["credential", "session"] as const)("rejects when %s revocation wins before the auth gate", async (kind) => {
-    const now = new Date(), raceId = await fixture(), auth = await access(raceId, "RECALCULATE_RESULT", now);
+  it.each(["grant", "session"] as const)("rejects when %s revocation wins before the auth gate", async (kind) => {
+    const now = new Date(), raceId = await fixture(), auth = await access(raceId, "ADMIN", now);
     const blocker = await pool.connect();
     let pending: ReturnType<typeof listResultRecalculationCandidatesAsAdmin> | undefined;
     let blockerTransactionOpen = false;
     try {
       await blocker.query("BEGIN");
       blockerTransactionOpen = true;
-      const sessionId = auth.input.sessionToken.split(".")[1]!;
-      const id = kind === "credential" ? auth.installation.credentialId : sessionId;
-      const table = kind === "credential" ? "pairing_admin_access_credential" : "pairing_admin_session";
-      await blocker.query(`SELECT id FROM ${table} WHERE id = $1 FOR UPDATE`, [id]);
+      const id = kind === "grant" ? auth.grantId : auth.sessionId;
+      await blocker.query(kind === "grant" ? "SELECT grant_id FROM event_administration_grant_guard WHERE grant_id = $1 FOR UPDATE"
+        : "SELECT id FROM user_account_session WHERE id = $1 FOR UPDATE", [id]);
       const pid = (await blocker.query<{ pid: number }>("SELECT pg_backend_pid() AS pid")).rows[0]!.pid;
       pending = listResultRecalculationCandidatesAsAdmin(db, auth.input, now);
       await waitForBlock(pid);
@@ -155,8 +150,8 @@ describe("TASK011 protected result-recalculation candidate list PostgreSQL", () 
     }
   });
 
-  it.each(["credential", "session"] as const)("lets an already authorized reader win before concurrent %s revocation", async (kind) => {
-    const now = new Date(), raceId = await fixture(), auth = await access(raceId, "RECALCULATE_RESULT", now);
+  it.each(["grant", "session"] as const)("lets an already authorized reader win before concurrent %s revocation", async (kind) => {
+    const now = new Date(), raceId = await fixture(), auth = await access(raceId, "ADMIN", now);
     const raceLocker = await pool.connect();
     const revoker = await pool.connect();
     let pending: ReturnType<typeof listResultRecalculationCandidatesAsAdmin> | undefined;
@@ -175,8 +170,7 @@ describe("TASK011 protected result-recalculation candidate list PostgreSQL", () 
       await revoker.query("BEGIN");
       revokerTransactionOpen = true;
       const revokerPid = (await revoker.query<{ pid: number }>("SELECT pg_backend_pid() AS pid")).rows[0]!.pid;
-      const sessionId = auth.input.sessionToken.split(".")[1]!;
-      revocation = insertRevocation(revoker, kind, kind === "credential" ? auth.installation.credentialId : sessionId, now)
+      revocation = insertRevocation(revoker, kind, kind === "grant" ? auth.grantId : auth.sessionId, now)
         .finally(() => { revocationSettled = true; });
       const revocationOrder = await waitForBlock(readerPid, revokerPid, () => revocationSettled);
       if (revocationOrder === "settled") {

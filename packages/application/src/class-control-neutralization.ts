@@ -1,7 +1,5 @@
-import { createHash } from "node:crypto";
 import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
 import {
-  canonicalJsonBytes,
   classControlNeutralizationCandidateSchema,
   classControlNeutralizationIdempotencyKeySchema,
   classControlNeutralizationRequestSchema,
@@ -11,22 +9,15 @@ import {
 } from "@o-tid/contracts";
 import type { EvaluationResult, RaceSnapshot } from "@o-tid/domain";
 import { schema, type Database } from "@o-tid/database";
-import {
-  authenticatePairingAdminSession,
-  authenticatePairingAdminSessionForMutation,
-  authenticatePairingAdminSessionForProtectedRead,
-  type PairingAdminRequestAuthentication
-} from "./pairing-admin";
+import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation } from "./concurrency";
+import { bumpReadoutPackageVersion } from "./snapshot";
+import { UUID_PATTERN as UUID, canonicalHash as hash } from "./serialization";
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
-type CandidateInput = Omit<PairingAdminRequestAuthentication, "capability"> & { classId: string };
-type CommitInput = Omit<PairingAdminRequestAuthentication, "capability"> & { idempotencyKey: string | null; request: unknown };
+type CandidateInput = RaceSessionProof & { classId: string };
+type CommitInput = RaceSessionProof & { idempotencyKey: string | null; request: unknown };
 
-function hash(value: unknown): string {
-  return createHash("sha256").update(canonicalJsonBytes(value)).digest("hex");
-}
 
 async function basis(tx: Transaction, raceId: string, classId: string, now: Date): Promise<
   | { status: "not-found" | "conflict" }
@@ -82,12 +73,12 @@ export type ClassControlNeutralizationCandidateResult =
   | { status: "invalid-request" | "unauthorized" | "forbidden" | "not-found" | "conflict" }
   | { status: "ok"; response: ClassControlNeutralizationCandidate };
 
-export async function previewClassControlNeutralizationAsAdministrator(
+export async function previewClassControlNeutralizationAsAdmin(
   db: Database, input: CandidateInput, now = new Date()
 ): Promise<ClassControlNeutralizationCandidateResult> {
   if (!UUID.test(input.raceId) || !UUID.test(input.classId)) return { status: "invalid-request" };
   return db.transaction(async tx => {
-    const auth = await authenticatePairingAdminSessionForProtectedRead(tx, { ...input, capability: "MANAGE_RACE" }, now);
+    const auth = await requireRaceRole(tx, { ...input, role: "ADMIN" }, now, "share");
     if (auth.status !== "authenticated") return auth;
     const value = await basis(tx, auth.principal.raceId, input.classId, now);
     return value.status === "ok" ? { status: "ok", response: value.candidate } : value;
@@ -98,18 +89,18 @@ export type ClassControlNeutralizationCommitResult =
   | { status: "invalid-request" | "unauthorized" | "forbidden" | "not-found" | "conflict" }
   | { status: "changed"; response: ClassControlNeutralizationResponse };
 
-export async function neutralizeClassControlAsAdministrator(
+export async function neutralizeClassControlAsAdmin(
   db: Database, input: CommitInput, now = new Date()
 ): Promise<ClassControlNeutralizationCommitResult> {
   const request = classControlNeutralizationRequestSchema.safeParse(input.request);
   const idempotencyKey = classControlNeutralizationIdempotencyKeySchema.safeParse(input.idempotencyKey);
   if (!request.success || !idempotencyKey.success || idempotencyKey.data !== `class-control-neutralization:${request.data.requestId}` ||
       !UUID.test(input.raceId)) return { status: "invalid-request" };
-  const authentication = { ...input, capability: "MANAGE_RACE" as const, requireCsrf: true };
-  const initial = await authenticatePairingAdminSession(db, authentication, now);
+  const authentication = { ...input, role: "ADMIN" as const, requireCsrf: true };
+  const initial = await requireRaceRole(db, authentication, now);
   if (initial.status !== "authenticated") return initial;
   return db.transaction(async tx => {
-    const auth = await authenticatePairingAdminSessionForMutation(tx, authentication, now);
+    const auth = await requireRaceRole(tx, authentication, now, "update");
     if (auth.status !== "authenticated") return auth;
     const race = await lockRaceForMutation(tx, auth.principal.raceId);
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${"class-control-neutralization:" + request.data.requestId}, 0))`);
@@ -118,14 +109,14 @@ export async function neutralizeClassControlAsAdministrator(
     if (prior) {
       const original = classControlNeutralizationRequestSchema.safeParse(prior.request);
       const response = classControlNeutralizationResponseSchema.safeParse(prior.response);
-      if (!original.success || !response.success || prior.raceId !== race.id || prior.actorCredentialId !== auth.principal.accessCredentialId ||
+      if (!original.success || !response.success || prior.raceId !== race.id || prior.actorAccountId !== auth.principal.accountId ||
           JSON.stringify(original.data) !== JSON.stringify(request.data) || response.data.requestId !== prior.id ||
           response.data.neutralizationId !== prior.id || response.data.replayed) return { status: "conflict" };
       return { status: "changed", response: { ...response.data, replayed: true } };
     }
-    if (race.snapshotVersion !== request.data.expectedSnapshotVersion || race.snapshotVersion >= 2_147_483_647) return { status: "conflict" };
+    if (race.snapshotVersion >= 2_147_483_647) return { status: "conflict" };
     const current = await basis(tx, race.id, request.data.classId, now);
-    if (current.status !== "ok" || current.candidate.snapshotVersion !== request.data.expectedSnapshotVersion ||
+    if (current.status !== "ok" ||
         current.candidate.basisHash !== request.data.expectedBasisHash ||
         current.candidate.courseVersionId !== request.data.expectedCourseVersionId) return { status: "conflict" };
     const control = current.candidate.controls.find((value) => value.id === request.data.courseControlId &&
@@ -140,12 +131,11 @@ export async function neutralizeClassControlAsAdministrator(
       historicalResultRevisionCount: current.candidate.historicalResultRevisionCount, neutralizedAt: now.toISOString() });
     await tx.insert(schema.classControlNeutralizations).values({ id: response.neutralizationId, raceId: race.id,
       classId: response.classId, courseVersionId: response.courseVersionId, courseControlId: response.courseControlId,
-      sequence: response.sequence, controlCode: response.controlCode, actorCredentialId: auth.principal.accessCredentialId,
-      capability: "MANAGE_RACE", expectedSnapshotVersion: response.sourceSnapshotVersion,
+      sequence: response.sequence, controlCode: response.controlCode, actorAccountId: auth.principal.accountId,
       basisHash: response.sourceBasisHash, request: request.data, response, createdAt: now });
-    await tx.update(schema.races).set({ snapshotVersion: response.snapshotVersionAfter }).where(eq(schema.races.id, race.id));
+    await bumpReadoutPackageVersion(tx, race.id);
     await tx.insert(schema.auditEvents).values({ raceId: race.id, entityType: "class", entityId: response.classId,
-      requestId: response.requestId, actorKind: "RACE_ADMIN_ACCESS_CREDENTIAL", actorId: auth.principal.accessCredentialId,
+      requestId: response.requestId, actorKind: "USER_ACCOUNT", actorId: auth.principal.accountId,
       action: "CLASS_CONTROL_NEUTRALIZED_BY_ADMIN", before: { snapshotVersion: race.snapshotVersion, basisHash: response.sourceBasisHash },
       after: { courseVersionId: response.courseVersionId, courseControlId: response.courseControlId,
         sequence: response.sequence, controlCode: response.controlCode, snapshotVersion: response.snapshotVersionAfter }, createdAt: now });

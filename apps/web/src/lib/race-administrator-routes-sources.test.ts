@@ -10,12 +10,12 @@ const KEY = "0123456789abcdef0123456789abcdef";
 function bare(method: string, body?: BodyInit, headers: Record<string, string> = {}) {
   return new Request("https://otid.example/api/admin", { method, ...(body === undefined ? {} : { body }), headers: {
     origin: environment.O_TID_PUBLIC_ORIGIN, "x-otid-csrf": csrf,
-    cookie: `__Host-otid-race-administrator-session=${token}; __Host-otid-race-administrator-csrf=${csrf}`, ...headers } });
+    cookie: `__Host-otid-organizer-session=${token}; __Host-otid-organizer-csrf=${csrf}`, ...headers } });
 }
 
 describe("administratörsroutes: Eventor och banfil", () => {
   it("sparar nyckeln med PUT men skickar den aldrig tillbaka; utan masternyckel blir det 409", async () => {
-    const eventorKey = vi.fn<typeof Application.saveEventorKeyAsAdministrator>()
+    const eventorKey = vi.fn<typeof Application.saveEventorKeyAsAdmin>()
       .mockResolvedValue({ status: "ok", response: { formatVersion: 1, raceId: id, outcome: "CONNECTED", settings } });
     const services = { ...dependencies(), eventorKey };
     const saved = await raceAdministratorRoute(db, request("PUT", JSON.stringify({ formatVersion: 1, apiKey: KEY })), id,
@@ -33,7 +33,7 @@ describe("administratörsroutes: Eventor och banfil", () => {
   });
 
   it("visar Eventors läge i stället för skillnader när källan inte kan läsas", async () => {
-    const eventorSyncPreview = vi.fn<typeof Application.previewEventorSyncAsAdministrator>()
+    const eventorSyncPreview = vi.fn<typeof Application.previewEventorSyncAsAdmin>()
       .mockResolvedValue({ status: "eventor", outcome: "NO_EVENT" });
     const response = await raceAdministratorRoute(db, bare("POST"), id, { kind: "eventor-sync-preview" },
       { ...dependencies(), eventorSyncPreview }, environment);
@@ -42,7 +42,7 @@ describe("administratörsroutes: Eventor och banfil", () => {
   });
 
   it("läser banfilen som XML med filnamn och svarar 422 för fel filtyp", async () => {
-    const courseFilePreview = vi.fn<typeof Application.previewCourseFileAsAdministrator>().mockResolvedValue({ status: "invalid-iof-xml", issues: ["Fel"] });
+    const courseFilePreview = vi.fn<typeof Application.previewCourseFileAsAdmin>().mockResolvedValue({ status: "invalid-iof-xml", issues: ["Fel"] });
     const services = { ...dependencies(), courseFilePreview };
     const response = await raceAdministratorRoute(db, bare("POST", "<CourseData/>", { "content-type": "application/xml",
       "x-otid-file-name": encodeURIComponent("Höstsprinten bana.xml") }), id, { kind: "course-file-preview" }, services, environment);
@@ -53,11 +53,11 @@ describe("administratörsroutes: Eventor och banfil", () => {
   });
 
   it("godkännande kräver idempotensnyckel som binder begäran; ändrat besked ger 409", async () => {
-    const body = { formatVersion: 1 as const, requestId: id, snapshotId: other, expectedSnapshotVersion: 3, excludedRowIds: ["r0123456789ab"],
+    const body = { formatVersion: 1 as const, requestId: id, snapshotId: other, excludedRowIds: ["r0123456789ab"],
       confirmResultChanges: true };
     const receipt = { formatVersion: 1 as const, replayed: false, requestId: id, raceId: id, source: "EVENTOR" as const, snapshotId: other,
       request: body, appliedRows: 4, recalculatedCount: 1, snapshotVersionAfter: 4, appliedAt: "2026-10-18T09:41:00.000Z" };
-    const syncApply = vi.fn<typeof Application.applySyncAsAdministrator>().mockResolvedValue({ status: "saved", response: receipt });
+    const syncApply = vi.fn<typeof Application.applySyncAsAdmin>().mockResolvedValue({ status: "saved", response: receipt });
     const services = { ...dependencies(), syncApply };
     const action = { kind: "source-sync" as const };
     const saved = await raceAdministratorRoute(db, request("POST", JSON.stringify(body), { "idempotency-key": `source-sync:${id}` }),

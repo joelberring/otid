@@ -27,7 +27,7 @@ describe("stored checkin DNS provenance", () => {
 
   it("rejects mismatched decisions, scope, result identities and policy", () => {
     const changes: Partial<typeof schema.startCheckinDnsDecisions.$inferSelect>[] = [
-      { id: randomUUID() }, { raceId: randomUUID() }, { entryId: randomUUID() }, { actorCredentialId: randomUUID() },
+      { id: randomUUID() }, { raceId: randomUUID() }, { entryId: randomUUID() }, { actorAccountId: randomUUID() },
       { operationRequestId: randomUUID() }, { startCheckinRevisionId: randomUUID() }, { operationalRevision: 2 },
       { classId: randomUUID() }, { courseVersionId: randomUUID() }, { snapshotVersion: 2 },
       { expectedLatestResultRevision: 1 }, { createdResultRevisionId: randomUUID() }, { createdResultRevision: 2 },
@@ -40,7 +40,7 @@ describe("stored checkin DNS provenance", () => {
   });
 
   it("rejects injected older provenance and an unpublished or mismatched result", () => {
-    for (const change of [{ readoutId: randomUUID() }, { didNotStartDecisionId: randomUUID() },
+    for (const change of [{ readoutId: randomUUID() }, { shortenedCourseClassTransferId: randomUUID() },
       { published: false }, { engineVersion: "wrong" }, { snapshotVersion: 2 }, { id: randomUUID() }, { revision: 2 }]) {
       const source = fixture();
       expect(() => validateStoredStartCheckinDns({ ...source, result: { ...source.result, ...change } })).toThrow(StoredResultRevisionConflict);
@@ -60,8 +60,8 @@ describe("stored checkin DNS provenance", () => {
       { ...source.operationalRevision, startState: "UNMARKED" as const },
       { ...source.operationalRevision, manualReturnRegistered: true }
     ]) expect(() => validateStoredStartCheckinDns({ ...source, operationalRevision })).toThrow(StoredResultRevisionConflict);
-    for (const device of [{ ...source.device, capability: "VIEW_START_LIST" as const },
-      { ...source.device, actorCredentialId: randomUUID() }, { ...source.device, capability: "FINISH_FOREST_WATCH" as const }
+    for (const device of [{ ...source.device, role: "SPEAKER" as "ADMIN" },
+      { ...source.device, actorAccountId: randomUUID() }, { ...source.device, raceId: randomUUID() }
     ]) expect(() => validateStoredStartCheckinDns({ ...source, device })).toThrow(StoredResultRevisionConflict);
   });
 
@@ -69,7 +69,7 @@ describe("stored checkin DNS provenance", () => {
     const source = fixture(), c = correction(source);
     expect(validateStoredStartCheckinDnsWithdrawal(source, c)).toEqual(c.withdrawal);
     for (const change of [{ startCheckinDnsDecisionId: randomUUID() }, { withdrawnResultRevisionId: randomUUID() },
-      { raceId: randomUUID() }, { entryId: randomUUID() }, { actorCredentialId: randomUUID() }, { operationalRevision: 1 }]) {
+      { raceId: randomUUID() }, { entryId: randomUUID() }, { actorAccountId: randomUUID() }, { operationalRevision: 1 }]) {
       expect(() => validateStoredStartCheckinDnsWithdrawal(source, { ...c, withdrawal: { ...c.withdrawal, ...change } })).toThrow(StoredResultRevisionConflict);
     }
     c.operationalRevision.startState = "REPORTED_NOT_STARTED";

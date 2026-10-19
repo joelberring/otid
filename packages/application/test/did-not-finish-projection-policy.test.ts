@@ -9,7 +9,6 @@ describe("TASK 006I/006J/006K/006M DNF projection policy", () => {
   it("publishes current format 7 from the centrally resolved DNF head", () => {
     const results = source("results.ts");
     expect(results).toContain("resolveStoredResultHeadStates(tx, raceId, rows)");
-    expect(results).toContain("didNotFinishDecisionId: schema.resultRevisions.didNotFinishDecisionId");
     expect(results).toMatch(/publicResultListResponseSchema\.parse\(\{\s*formatVersion: 7,/);
   });
 
@@ -21,12 +20,11 @@ describe("TASK 006I/006J/006K/006M DNF projection policy", () => {
   });
 
   it("freezes current format 9 provenance including withdrawals and the absolute selected head", () => {
-    const finalization = source("result-finalization.ts");
-    expect(finalization).toContain('kind: "MANUAL_DID_NOT_FINISH"');
-    expect(finalization).toContain('kind: "MANUAL_DID_NOT_FINISH_WITHDRAWAL"');
-    expect(finalization).toContain("absoluteResultRevisionId: revisionState.selectedHead.id");
-    expect(finalization).toContain("absoluteResultRevision: revisionState.selectedHead.revision");
-    expect(finalization).toContain("didNotFinishWithdrawalId: revisionState.didNotFinish.withdrawal.id");
+    const finalization = source("result-finalization.ts") + source("result-finalization-basis.ts");
+    expect(finalization).toContain('kind: "MANUAL_DECISION"');
+    expect(finalization).toContain("absoluteResultRevisionId: absoluteRevision.id");
+    expect(finalization).toContain("absoluteResultRevision: absoluteRevision.revision");
+    expect(finalization).toContain("underlyingResultRevisionId: revisionState.underlyingId");
     expect(finalization).toContain('if (result.status === "DNF") return { ...identity, status: "DNF" }');
     expect(finalization.match(/formatVersion: 9/g)?.length).toBe(4);
   });

@@ -1,4 +1,5 @@
 import { buildForestWatchList, type ForestWatchEntryFacts } from "./forest-watch";
+import { UUID_PATTERN as uuid } from "./types";
 
 export interface StartCheckinConflictReviewFacts {
   readonly raceId: string;
@@ -10,7 +11,6 @@ export interface StartCheckinConflictReviewFacts {
   readonly current: Omit<ForestWatchEntryFacts, "conflictingReports">;
 }
 
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const hash = /^[a-f0-9]{64}$/;
 function validIds(value: readonly string[], allowEmpty: boolean): boolean {
   return Array.isArray(value) && (allowEmpty || value.length > 0) && value.length <= 1000 &&

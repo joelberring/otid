@@ -21,7 +21,7 @@ function operation() {
     requestId: ids.request,
     dependsOnRequestId: null,
     deviceId: ids.device,
-    actorCredentialId: ids.credential,
+    actorAccountId: ids.credential,
     raceId: ids.race,
     entryId: ids.entry,
     localSequence: 1,
@@ -117,7 +117,7 @@ describe("TASK 006W mobil avprickningskontrakt", () => {
       localSequence: first.localSequence,
       entryId: first.entryId,
       raceId: first.raceId,
-      actorCredentialId: first.actorCredentialId,
+      actorAccountId: first.actorAccountId,
       deviceId: first.deviceId,
       dependsOnRequestId: first.dependsOnRequestId,
       requestId: first.requestId,
@@ -125,7 +125,7 @@ describe("TASK 006W mobil avprickningskontrakt", () => {
     };
     const canonical = new TextDecoder().decode(canonicalStartCheckinOperation(first));
     expect(canonicalStartCheckinOperation(second)).toEqual(canonicalStartCheckinOperation(first));
-    expect(canonical).toBe('{"action":{"kind":"MARK_START","state":"STARTED"},"actorCredentialId":"10000000-0000-4000-8000-000000000003","dependsOnRequestId":null,"deviceId":"10000000-0000-4000-8000-000000000002","entryId":"10000000-0000-4000-8000-000000000005","expectedEntryVersion":1,"expectedRevision":0,"formatVersion":1,"localSequence":1,"observedAt":"2026-09-05T10:11:12.123Z","packageVersion":1,"raceId":"10000000-0000-4000-8000-000000000004","requestId":"10000000-0000-4000-8000-000000000001"}');
+    expect(canonical).toBe('{"action":{"kind":"MARK_START","state":"STARTED"},"actorAccountId":"10000000-0000-4000-8000-000000000003","dependsOnRequestId":null,"deviceId":"10000000-0000-4000-8000-000000000002","entryId":"10000000-0000-4000-8000-000000000005","expectedEntryVersion":1,"expectedRevision":0,"formatVersion":1,"localSequence":1,"observedAt":"2026-09-05T10:11:12.123Z","packageVersion":1,"raceId":"10000000-0000-4000-8000-000000000004","requestId":"10000000-0000-4000-8000-000000000001"}');
     expect(() => canonicalStartCheckinOperation({ ...first, localSequence: 0 })).toThrow();
   });
 

@@ -7,7 +7,7 @@ describe("administratörsroutes: förberedelse", () => {
     const setup = { formatVersion: 1 as const, raceId: id, snapshotVersion: 2, raceDate: "2026-10-08", timeZone: "Europe/Stockholm",
       firstStartTime: null, classes: [{ id: other, name: "H21", courseName: "Lång", firstControlCode: 31, entryCount: 1,
         method: "FREE" as const, intervalMinutes: 2, vacancies: { kind: "COUNT" as const, value: 0 }, hasStartTimes: false }] };
-    const settings = { expectedSnapshotVersion: 2, firstStartTime: "2026-10-08T08:00:00.000Z", clubSeparation: true,
+    const settings = { firstStartTime: "2026-10-08T08:00:00.000Z", clubSeparation: true,
       classes: [{ classId: other, method: "MINUTE" as const, intervalMinutes: 2, vacancies: { kind: "COUNT" as const, value: 1 } }] };
     const preview = { formatVersion: 1 as const, raceId: id, snapshotVersion: 2, timeZone: "Europe/Stockholm", seed: 7,
       classes: [{ classId: other, className: "H21", method: "MINUTE" as const, firstStartTime: "2026-10-08T08:00:00.000Z",
@@ -23,7 +23,7 @@ describe("administratörsroutes: förberedelse", () => {
       ({ status: "drawn", response: receipt }));
     const services = { ...dependencies(), drawSetup, drawPreview, draw };
     const read = new Request("https://otid.example/api/admin", { headers: {
-      cookie: `__Host-otid-race-administrator-session=${token}; __Host-otid-race-administrator-csrf=${csrf}` } });
+      cookie: `__Host-otid-organizer-session=${token}; __Host-otid-organizer-csrf=${csrf}` } });
     const loaded = await raceAdministratorRoute(db, read, id, { kind: "draw" }, services, environment);
     expect(loaded.status).toBe(200); expect(await loaded.json()).toEqual(setup);
     const shown = await raceAdministratorRoute(db, request("POST", JSON.stringify({ formatVersion: 1, ...settings })), id,
@@ -59,7 +59,7 @@ describe("administratörsroutes: förberedelse", () => {
         sourceResult: { kind: "CARD_READOUT_MP" as const, resultRevisionId: sourceResultId, resultRevision: 1,
           readoutId, snapshotVersion: 2, courseVersionId, status: "MP" as const, cause: "CARD_READOUT" as const, published: true as const } }] };
     const body = { formatVersion: 1 as const, requestId: id, sourceClassId: other, expectedSourceCourseVersionId: courseVersionId,
-      expectedSourceStartRule: "PUNCH" as const, expectedSnapshotVersion: 2, expectedBasisHash: candidate.basisHash,
+      expectedSourceStartRule: "PUNCH" as const, expectedBasisHash: candidate.basisHash,
       shortCourseName: "Långa kort", shortClassName: "D21 kort", expectedSourceControlCount: 2,
       controlPrefix: [candidate.sourceControls[0]!], entryIds: [entryId] };
     const receipt = { formatVersion: 1 as const, replayed: false, requestId: id, transferId: id, raceId: id,
@@ -68,14 +68,14 @@ describe("administratörsroutes: förberedelse", () => {
       transferredAt: "2026-09-22T12:01:00.000Z", items: [{ entryId, entryVersionBefore: 1, entryVersionAfter: 2,
         effect: "MOVED_AND_REEVALUATED" as const, sourceResultRevisionId: sourceResultId, sourceReadoutId: readoutId,
         createdResultRevisionId: createdResultId, createdResultRevision: 2, resultingStatus: "OK" as const }] };
-    const shortenedCourseClassTransferPreview = vi.fn<typeof import("@o-tid/application").previewShortenedCourseClassTransferAsAdministrator>()
+    const shortenedCourseClassTransferPreview = vi.fn<typeof import("@o-tid/application").previewShortenedCourseClassTransferAsAdmin>()
       .mockResolvedValue({ status: "ok", response: candidate });
-    const shortenedCourseClassTransfer = vi.fn<typeof import("@o-tid/application").transferShortenedCourseClassAsAdministrator>()
+    const shortenedCourseClassTransfer = vi.fn<typeof import("@o-tid/application").transferShortenedCourseClassAsAdmin>()
       .mockResolvedValue({ status: "transferred", response: receipt });
     const services = { ...dependencies(), shortenedCourseClassTransferPreview, shortenedCourseClassTransfer };
     const action = { kind: "shortened-course-class-transfer" as const, classId: other };
     const read = await raceAdministratorRoute(db, new Request("https://otid.example/api/admin", { headers: {
-      cookie: `__Host-otid-race-administrator-session=${token}; __Host-otid-race-administrator-csrf=${csrf}` } }), id, action, services, environment);
+      cookie: `__Host-otid-organizer-session=${token}; __Host-otid-organizer-csrf=${csrf}` } }), id, action, services, environment);
     expect(read.status).toBe(200); expect(await read.json()).toEqual(candidate);
     expect(shortenedCourseClassTransferPreview).toHaveBeenCalledWith(db, expect.objectContaining({ raceId: id,
       request: { formatVersion: 1, sourceClassId: other } }));
@@ -97,24 +97,23 @@ describe("administratörsroutes: förberedelse", () => {
       currentControlCodes: [31, 32, 33], controlCodes: [31, 33], readOutCount: 2, becomesOkCount: 1, becomesMispunchedCount: 0,
       unchangedCount: 1, notRecalculatedCount: 0, requiresConfirmation: true,
       changes: [{ entryId: id, displayName: "Ada Löpare", className: "H21", before: "MP" as const, after: "OK" as const }] };
-    const body = { formatVersion: 1 as const, requestId: id, expectedSnapshotVersion: 2, courseId: other, controlCodes: [31, 33],
+    const body = { formatVersion: 1 as const, requestId: id, courseId: other, controlCodes: [31, 33],
       confirmResultChanges: true };
     const receipt = { formatVersion: 1 as const, replayed: false, requestId: id, raceId: id, courseId: other, request: body,
       previousCourseVersionId: id, courseVersionId: "10000000-0000-4000-8000-000000000003", classIds: [id],
       snapshotVersionBefore: 2, snapshotVersionAfter: 3, recalculated: [{ entryId: id, resultRevisionId: other, revision: 2 }],
       editedAt: "2026-10-03T12:00:00.000Z" };
-    const courses = vi.fn<typeof import("@o-tid/application").listCoursesForEditAsAdministrator>().mockResolvedValue({ status: "ok", response: list });
-    const courseEditPreview = vi.fn<typeof import("@o-tid/application").previewCourseEditAsAdministrator>()
+    const courses = vi.fn<typeof import("@o-tid/application").listCoursesForEditAsAdmin>().mockResolvedValue({ status: "ok", response: list });
+    const courseEditPreview = vi.fn<typeof import("@o-tid/application").previewCourseEditAsAdmin>()
       .mockResolvedValue({ status: "ok", response: preview });
-    const courseEdit = vi.fn<typeof import("@o-tid/application").editCourseAsAdministrator>()
+    const courseEdit = vi.fn<typeof import("@o-tid/application").editCourseAsAdmin>()
       .mockResolvedValue({ status: "edited", response: receipt });
     const services = { ...dependencies(), courses, courseEditPreview, courseEdit };
     const read = await raceAdministratorRoute(db, new Request("https://otid.example/api/admin", { headers: {
-      cookie: `__Host-otid-race-administrator-session=${token}; __Host-otid-race-administrator-csrf=${csrf}` } }),
+      cookie: `__Host-otid-organizer-session=${token}; __Host-otid-organizer-csrf=${csrf}` } }),
     id, { kind: "courses" }, services, environment);
     expect(read.status).toBe(200); expect(await read.json()).toEqual(list);
-    const previewed = await raceAdministratorRoute(db, request("POST", JSON.stringify({ formatVersion: 1, expectedSnapshotVersion: 2,
-      controlCodes: [31, 33] })), id, { kind: "course-edit-preview", courseId: other }, services, environment);
+    const previewed = await raceAdministratorRoute(db, request("POST", JSON.stringify({ formatVersion: 1, controlCodes: [31, 33] })), id, { kind: "course-edit-preview", courseId: other }, services, environment);
     expect(previewed.status).toBe(200); expect(await previewed.json()).toEqual(preview);
     expect(courseEditPreview).toHaveBeenCalledWith(db, expect.objectContaining({ raceId: id, courseId: other, csrfHeader: csrf }));
     const action = { kind: "course-edit" as const, courseId: other };
@@ -135,8 +134,7 @@ describe("administratörsroutes: förberedelse", () => {
     expect((await raceAdministratorRoute(db, request("GET"), id, action, services, environment)).status).toBe(405);
   });
   it("TASK081 binds manual course/class creation to administrator CSRF, race and frozen request", async () => {
-    const body = { formatVersion: 1 as const, requestId: other, expectedSnapshotVersion: 1,
-      courseName: "Manuell bana", className: "Öppen", startRule: "PUNCH" as const, controlCodes: [31, 42, 31] };
+    const body = { formatVersion: 1 as const, requestId: other, courseName: "Manuell bana", className: "Öppen", startRule: "PUNCH" as const, controlCodes: [31, 42, 31] };
     const receipt = { formatVersion: 1 as const, replayed: false, requestId: other, raceId: id,
       courseId: other, courseVersionId: other, classId: other, request: body,
       snapshotVersionBefore: 1, snapshotVersionAfter: 2, createdAt: "2026-09-19T12:00:00.000Z" };
@@ -154,8 +152,7 @@ describe("administratörsroutes: förberedelse", () => {
     expect((await raceAdministratorRoute(db, request("POST", JSON.stringify(body), headers), id, action, services, environment)).status).toBe(500);
   });
   it("TASK300 binds new class creation to the exact existing course and frozen request", async () => {
-    const body = { formatVersion: 1 as const, requestId: other, expectedSnapshotVersion: 1,
-      courseVersionId: other, className: "Öppen", startRule: "PUNCH" as const };
+    const body = { formatVersion: 1 as const, requestId: other, courseVersionId: other, className: "Öppen", startRule: "PUNCH" as const };
     const receipt = { formatVersion: 1 as const, replayed: false, requestId: other, raceId: id,
       courseId: other, courseVersionId: other, courseName: "Bana", courseVersion: 1,
       classId: other, request: body, snapshotVersionBefore: 1, snapshotVersionAfter: 2,
@@ -183,19 +180,18 @@ describe("administratörsroutes: förberedelse", () => {
       courseId: shortCourse, courseName: "Kort", startRule: "PUNCH" as const, readOutCount: 1, becomesOkCount: 1,
       becomesMispunchedCount: 0, unchangedCount: 0, notRecalculatedCount: 0, clearedStartTimeCount: 0, requiresConfirmation: true,
       changes: [{ entryId: id, displayName: "Ada Löpare", className: "H21", before: "MP" as const, after: "OK" as const }] };
-    const body = { formatVersion: 1 as const, requestId: id, expectedSnapshotVersion: 2, classId: other, className: "H21",
+    const body = { formatVersion: 1 as const, requestId: id, classId: other, className: "H21",
       courseId: shortCourse, startRule: "PUNCH" as const, confirmResultChanges: true };
     const receipt = { formatVersion: 1 as const, replayed: false, requestId: id, raceId: id, classId: other, request: body,
       previousClassName: "H21", previousCourseVersionId: id, courseVersionId: shortCourse, previousStartRule: "PUNCH" as const,
       clearedStartTimeCount: 0, snapshotVersionBefore: 2, snapshotVersionAfter: 3,
       recalculated: [{ entryId: id, resultRevisionId: other, revision: 2 }], editedAt: "2026-10-04T12:00:00.000Z" };
-    const classEditPreview = vi.fn<typeof import("@o-tid/application").previewClassEditAsAdministrator>()
+    const classEditPreview = vi.fn<typeof import("@o-tid/application").previewClassEditAsAdmin>()
       .mockResolvedValue({ status: "ok", response: preview });
-    const classEdit = vi.fn<typeof import("@o-tid/application").editClassAsAdministrator>()
+    const classEdit = vi.fn<typeof import("@o-tid/application").editClassAsAdmin>()
       .mockResolvedValue({ status: "edited", response: receipt });
     const services = { ...dependencies(), classEditPreview, classEdit };
-    const previewed = await raceAdministratorRoute(db, request("POST", JSON.stringify({ formatVersion: 1, expectedSnapshotVersion: 2,
-      courseId: shortCourse, startRule: "PUNCH" })), id, { kind: "class-edit-preview", classId: other }, services, environment);
+    const previewed = await raceAdministratorRoute(db, request("POST", JSON.stringify({ formatVersion: 1, courseId: shortCourse, startRule: "PUNCH" })), id, { kind: "class-edit-preview", classId: other }, services, environment);
     expect(previewed.status).toBe(200); expect(await previewed.json()).toEqual(preview);
     expect(classEditPreview).toHaveBeenCalledWith(db, expect.objectContaining({ raceId: id, classId: other, csrfHeader: csrf }));
     const action = { kind: "class-edit" as const, classId: other };

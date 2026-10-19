@@ -1,7 +1,11 @@
 import { relayClassCreateRequestSchema, relayClassCreateResponseSchema, relayLegRunnerRequestSchema, relayLegRunnerResponseSchema,
   relayOverviewSchema, relayStartTimesRequestSchema, relayStartTimesResponseSchema, relayTeamCreateRequestSchema,
   relayTeamCreateResponseSchema } from "@o-tid/contracts";
-import { entryClassAdminFailure as failure, entryClassAdminJson as json, readEntryClassAdminJson } from "./entry-class-admin-security";
+import {
+  adminFailure as failure,
+  privateJson as json,
+  readJsonBody
+} from "./security-policy";
 import { resultFailure, type RaceAdministratorRouteContext } from "./race-administrator-route-context";
 
 type Parser = { safeParse(value: unknown): { success: true; data: { requestId: string } } | { success: false } };
@@ -14,7 +18,7 @@ export async function write(context: RaceAdministratorRouteContext, prefix: stri
   const { db, raceId, proof } = context;
   const key = context.request.headers.get("idempotency-key");
   let body: unknown;
-  try { body = await readEntryClassAdminJson(context.request); } catch { return failure(400, "INVALID_REQUEST"); }
+  try { body = await readJsonBody(context.request); } catch { return failure(400, "INVALID_REQUEST"); }
   const parsed = request.safeParse(body);
   if (!parsed.success || key !== `${prefix}:${parsed.data.requestId}`) return failure(400, "INVALID_REQUEST");
   const result = await service(db, { ...proof, raceId, idempotencyKey: key, request: parsed.data });

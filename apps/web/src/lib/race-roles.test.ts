@@ -2,7 +2,7 @@ import { readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join, relative, sep } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import type { PairingAdminRequestAuthentication } from "@o-tid/application";
+import type { RaceRoleRequest } from "@o-tid/application";
 
 /**
  * ADR-0172 beslut 3: varje adminroute (alla filer under app/api/admin och tävlingens import) anropas som funktionär.
@@ -28,19 +28,20 @@ const PUBLIC = ["races/[raceId]/start-list", "races/[raceId]/start-list/iof"];
 const origin = "http://127.0.0.1:3100";
 const uuid = "10000000-0000-4000-8000-000000000001";
 const state = vi.hoisted(() => ({ role: "FUNCTIONARY" as "FUNCTIONARY" | "ADMIN", calls: 0 }));
-const authenticate = vi.hoisted(() => async (_db: unknown, input: PairingAdminRequestAuthentication) => {
+const authenticate = vi.hoisted(() => async (_db: unknown, input: RaceRoleRequest) => {
   state.calls += 1;
-  const capability = state.role === "ADMIN" ? "MANAGE_RACE" as const : "RACE_FUNCTIONARY" as const;
-  // Samma regel som tjänsterna: administratören får allt, funktionären bara det som kräver RACE_FUNCTIONARY.
-  if (capability !== "MANAGE_RACE" && input.capability !== capability) return { status: "forbidden" as const };
-  return { status: "authenticated" as const, principal: { accessCredentialId: "10000000-0000-4000-8000-000000000001",
-    raceId: input.raceId, capability, sessionId: "10000000-0000-4000-8000-000000000001", expiresAt: "2026-10-05T20:00:00.000Z" } };
+  // Samma regel som tjänsterna: administratören får allt, funktionären bara funktionärens åtgärder.
+  if (state.role === "FUNCTIONARY" && input.role === "ADMIN") return { status: "forbidden" as const };
+  const id = "10000000-0000-4000-8000-000000000001";
+  return { status: "authenticated" as const, principal: { accountId: id, sessionId: id, raceId: input.raceId, eventId: id,
+    grantId: id, grantRole: state.role === "ADMIN" ? "OWNER" as const : "FUNCTIONARY" as const, role: state.role,
+    expiresAt: "2026-10-05T20:00:00.000Z" } };
 });
 
 vi.mock("server-only", () => ({}));
 vi.mock("./db", () => ({ db: {}, pool: {}, database: {} }));
 vi.mock("@o-tid/application", async (importOriginal) => ({
-  ...await importOriginal<typeof import("@o-tid/application")>(), authenticatePairingAdminSession: authenticate
+  ...await importOriginal<typeof import("@o-tid/application")>(), requireRaceRole: authenticate
 }));
 
 const api = fileURLToPath(new URL("../app/api/", import.meta.url));
@@ -59,7 +60,7 @@ async function call(route: { file: string; path: string }, method: string): Prom
   const write = method !== "GET";
   const response = await handlers[method]!(new Request(`${origin}/api/${route.path.replaceAll(/\[[a-zA-Z]+\]/g, uuid)}`, {
     method, ...(write ? { body: "{}" } : {}), headers: {
-      origin, cookie: `otid_race_administrator_session=otid_org_session_v1.${uuid}.${"s".repeat(43)}; otid_race_administrator_csrf=${"c".repeat(43)}`,
+      origin, cookie: `otid_organizer_session=otid_user_session_v1.${uuid}.${"s".repeat(43)}; otid_organizer_csrf=${"c".repeat(43)}`,
       "x-otid-csrf": "c".repeat(43), ...(write ? { "content-type": "application/json" } : {})
     } }), { params });
   return response.status;
@@ -76,7 +77,7 @@ describe("behörighet per adminroute (ADR-0172 beslut 3)", () => {
   beforeEach(() => { state.calls = 0; });
 
   it("hittar adminroutes och alla tillåtna routes finns", () => {
-    expect(routes.length).toBeGreaterThan(90);
+    expect(routes.length).toBeGreaterThan(70);
     for (const path of Object.keys(FUNCTIONARY_ALLOWED)) expect(routes.map(route => route.path), path).toContain(path);
   });
 
@@ -94,7 +95,7 @@ describe("behörighet per adminroute (ADR-0172 beslut 3)", () => {
         checked.push(label);
       }
     }
-    expect(checked.length).toBeGreaterThan(100);
+    expect(checked.length).toBeGreaterThan(85);
   });
 
   it("ger administratören (som också har funktionärens rättigheter) tillträde till varje route", { timeout: 60_000 }, async () => {
@@ -106,6 +107,6 @@ describe("behörighet per adminroute (ADR-0172 beslut 3)", () => {
         expect([401, 403, 405], `${method} /api/${route.path} → ${status}`).not.toContain(status);
       }
     }
-    expect(state.calls).toBeGreaterThan(100);
+    expect(state.calls).toBeGreaterThan(85);
   });
 });

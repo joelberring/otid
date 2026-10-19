@@ -1,3 +1,4 @@
+import { UUID_PATTERN as UUID } from "./types";
 /** Operational reports, deliberately separate from result statuses and timing. */
 export type StartCheckinState = "UNMARKED" | "STARTED" | "REPORTED_NOT_STARTED";
 
@@ -26,7 +27,6 @@ export class StartCheckinError extends Error {
   }
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const MAX_REVISION = 2_147_483_647;
 
 function validate(value: unknown, revisionKey: "revision" | "expectedRevision"): void {

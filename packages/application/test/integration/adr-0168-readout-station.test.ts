@@ -3,11 +3,12 @@ import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase, migrate } from "@o-tid/database";
 import type { DeviceBatch, SportidentReadoutPayload } from "@o-tid/contracts";
-import { contentHash } from "../../src/hash";
+import { contentHash } from "../../src/serialization";
 import { importIofXmlAsAdmin } from "../../src/import-iof";
-import { createEventAsUserAccount, enterRaceAsUserAccount } from "../../src/organizer-events";
-import { ingestReadoutsAsAdministrator, readReadoutPackageAsAdministrator } from "../../src/readout-station";
+import { createOrganizerEvent } from "../../src/organizer-events";
+import { ingestReadoutsAsAdmin, readReadoutPackageAsAdmin } from "../../src/readout-station";
 import { registerUserAccount } from "../../src/user-account";
+import { accountOnRace } from "./accounts";
 
 const base = process.env.TEST_DATABASE_URL;
 if (!base) throw new Error("Avläsningstestet kräver TEST_DATABASE_URL till en PostgreSQL-roll med CREATEDB");
@@ -35,20 +36,20 @@ describe("ADR-0168 avläsning i webbläsaren", () => {
     const account = await registerUserAccount(db, { formatVersion: 1, email: `las.${suffix}@test.o-tid.se`, displayName: "Avläsare", password: "hemligt-lösen" });
     if (account.status !== "authenticated") throw new Error("Kontot kunde inte skapas");
     const accountProof = { sessionToken: account.sessionToken, csrfCookie: account.csrfToken, csrfHeader: account.csrfToken };
-    const created = await createEventAsUserAccount(db, { ...accountProof, idempotencyKey: `organizer-event-create:${randomUUID()}`,
+    const created = await createOrganizerEvent(db, { ...accountProof, idempotencyKey: `organizer-event-create:${randomUUID()}`,
       readBody: async () => ({ formatVersion: 1, eventName: "Klubbträning", raceName: "Torsdag", raceDate: "2026-10-08", timeZone: "Europe/Stockholm" }) });
     if (created.status !== "created") throw new Error("Tävlingen kunde inte skapas");
     const { raceId } = created.response;
-    const entered = await enterRaceAsUserAccount(db, { ...accountProof, raceId });
-    if (entered.status !== "entered") throw new Error("Kom inte in i tävlingen");
+    const entered = await accountOnRace(db, { ...accountProof, raceId });
+    if (entered.status !== "authenticated") throw new Error("Kom inte in i tävlingen");
     const proof = { sessionToken: entered.sessionToken, csrfCookie: entered.csrfToken, csrfHeader: entered.csrfToken };
     expect((await importIofXmlAsAdmin(db, { ...proof, raceId, idempotencyKey: `iof-import:${randomUUID()}`, xmlBytes: courseData })).status).toBe("stored");
 
-    const pkg = await readReadoutPackageAsAdministrator(db, { ...proof, raceId });
+    const pkg = await readReadoutPackageAsAdmin(db, { ...proof, raceId });
     if (pkg.status !== "ok") throw new Error(`Paketet kunde inte hämtas: ${pkg.status}`);
     expect(pkg.response).toMatchObject({ formatVersion: 1, raceId, event: { timeZone: "Europe/Stockholm" } });
     expect(pkg.response.raceSnapshot.courses.length).toBeGreaterThan(0);
-    expect(await readReadoutPackageAsAdministrator(db, { sessionToken: "fel", raceId })).toEqual({ status: "unauthorized" });
+    expect(await readReadoutPackageAsAdmin(db, { sessionToken: "fel", raceId })).toEqual({ status: "unauthorized" });
 
     const payload: SportidentReadoutPayload = {
       cardNumber: "7123456", cardType: "SI10", startPunchedAt: "2026-10-08T16:00:00.000Z",
@@ -60,11 +61,11 @@ describe("ADR-0168 avläsning i webbläsaren", () => {
       firstSequence: 1, lastSequence: 1,
       events: [{ localSequence: 1, stationReceivedAt: "2026-10-08T16:40:00.000Z", transport: "sportident", payload, contentHash: contentHash(payload) }]
     };
-    const first = await ingestReadoutsAsAdministrator(db, { ...proof, raceId, batch });
+    const first = await ingestReadoutsAsAdmin(db, { ...proof, raceId, batch });
     if (first.status !== "ok") throw new Error(`Avläsningen togs inte emot: ${first.status}`);
     expect(first.response.acknowledgements[0]).toMatchObject({ status: "stored", serverResult: { status: "UNKNOWN_CARD" } });
 
-    const again = await ingestReadoutsAsAdministrator(db, { ...proof, raceId, batch });
+    const again = await ingestReadoutsAsAdmin(db, { ...proof, raceId, batch });
     if (again.status !== "ok") throw new Error("Omsändningen avvisades");
     expect(again.response.acknowledgements[0]).toMatchObject({ status: "duplicate" });
 
@@ -73,6 +74,6 @@ describe("ADR-0168 avläsning i webbläsaren", () => {
     expect(raw.rows).toEqual([{ transport: "sportident", finish: null }]);
 
     // Skrivning kräver CSRF.
-    expect((await ingestReadoutsAsAdministrator(db, { sessionToken: proof.sessionToken, raceId, batch })).status).not.toBe("ok");
+    expect((await ingestReadoutsAsAdmin(db, { sessionToken: proof.sessionToken, raceId, batch })).status).not.toBe("ok");
   });
 });

@@ -1,11 +1,11 @@
 import { z } from "zod";
+import { prefixedUuidPattern, uuidSchema as uuid } from "./ids";
 
 /**
  * Rogaining (ADR-0170 beslut 5, PLAN.md steg 15): klassens tidsgräns och straff, kontrollernas poäng och
  * resultatets poäng. Ändringar av poäng och regler sparas direkt när inget resultat påverkas; annars visas
  * beskedet först och berörda resultat räknas om med nya revisioner (samma mekanism som Redigera bana).
  */
-const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 const version = z.number().int().positive().max(2_147_483_647);
 const count = z.number().int().nonnegative().max(10_000);
 const name = z.string().trim().min(1).max(160);
@@ -59,8 +59,7 @@ export const rogainingSetupSchema = z.object({
 const unique = <T>(values: readonly T[]) => new Set(values).size === values.length;
 
 const changeFields = {
-  expectedSnapshotVersion: version,
-  /** Kontrollkodens poäng i hela tävlingen. Samma värde som förvalet sparas som förval. */
+    /** Kontrollkodens poäng i hela tävlingen. Samma värde som förvalet sparas som förval. */
   controlPoints: z.array(z.object({ code: controlCode, points: rogainingPointsSchema }).strict()).max(1_000),
   /** Klassens tidsgräns och straff; en klass utan regler blir rogaining. */
   classRules: z.array(z.object({ classId: uuid, ...rogainingClassRulesInputSchema.shape }).strict()).max(1_000)
@@ -100,7 +99,7 @@ export const rogainingChangeRequestSchema = z.object({
 }).strict().superRefine(validChange);
 
 export const rogainingChangeIdempotencyKeySchema = z.string().regex(
-  /^rogaining-change:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  prefixedUuidPattern("rogaining-change"));
 
 export const rogainingChangeResponseSchema = z.object({
   formatVersion: z.literal(1), replayed: z.boolean(), requestId: uuid, raceId: uuid, request: rogainingChangeRequestSchema,
@@ -108,8 +107,7 @@ export const rogainingChangeResponseSchema = z.object({
   recalculated: z.array(z.object({ entryId: uuid, resultRevisionId: uuid, revision: version }).strict()).max(10_000),
   changedAt: instant
 }).strict().superRefine((value, context) => {
-  if (value.snapshotVersionAfter !== value.snapshotVersionBefore + 1 || value.requestId !== value.request.requestId ||
-      value.snapshotVersionBefore !== value.request.expectedSnapshotVersion) {
+  if (value.snapshotVersionAfter !== value.snapshotVersionBefore + 1 || value.requestId !== value.request.requestId) {
     context.addIssue({ code: "custom", message: "Kvittensen måste binda begäran och versionsföljd" });
   }
 });

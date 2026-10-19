@@ -4,7 +4,7 @@ import { schema, type Database } from "@o-tid/database";
 import { RESULT_ENGINE_VERSION } from "@o-tid/domain";
 import { lockRaceForSnapshot } from "./concurrency";
 import { ingestDeviceBatch } from "./ingest";
-import { authenticatePairingAdminSession, type PairingAdminRequestAuthentication } from "./pairing-admin";
+import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { loadRaceSnapshot, sortRaceSnapshotForPackage } from "./snapshot";
 import { loadRelayReadout } from "./relay-results";
 
@@ -12,14 +12,14 @@ import { loadRelayReadout } from "./relay-results";
  * Webbläsarens avläsningsstation (steg 4, ADR-0168). Administratörens eller
  * funktionärens session räcker (ADR-0172 beslut 3); inga stationsnycklar.
  */
-type Proof = Omit<PairingAdminRequestAuthentication, "capability" | "requireCsrf">;
+type Proof = RaceSessionProof;
 type Failure = { status: "unauthorized" | "forbidden" };
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
-export async function readReadoutPackageAsAdministrator(
+export async function readReadoutPackageAsAdmin(
   db: Database, input: Proof, now = new Date()
 ): Promise<Failure | { status: "ok"; response: ReadoutPackage }> {
-  const auth = await authenticatePairingAdminSession(db, { ...input, capability: "RACE_FUNCTIONARY" }, now);
+  const auth = await requireRaceRole(db, { ...input, role: "FUNCTIONARY" }, now);
   if (auth.status !== "authenticated") return auth;
   const response = await db.transaction(async (tx) => {
     await lockRaceForSnapshot(tx, input.raceId);
@@ -52,11 +52,10 @@ async function loadPublicLinks(tx: Transaction, raceId: string) {
   return { shortCode: race.shortCode, published: race.publishedAt !== null && !race.hidden, participants };
 }
 
-export async function ingestReadoutsAsAdministrator(
+export async function ingestReadoutsAsAdmin(
   db: Database, input: Proof & { batch: DeviceBatch }, now = new Date()
 ): Promise<Failure | { status: "ok"; response: DeviceBatchAcknowledgement }> {
-  const auth = await authenticatePairingAdminSession(db,
-    { ...input, capability: "RACE_FUNCTIONARY", requireCsrf: true }, now);
+  const auth = await requireRaceRole(db, { ...input, role: "FUNCTIONARY", requireCsrf: true }, now);
   if (auth.status !== "authenticated") return auth;
   return { status: "ok", response: await ingestDeviceBatch(db, input.raceId, input.batch) };
 }

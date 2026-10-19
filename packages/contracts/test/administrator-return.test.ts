@@ -11,7 +11,7 @@ it("TASK056 accepts only versioned start intent and binds its receipt", () => {
   const { expectedStartState, ...base } = request;
   const intent = { ...base, targetStartState: expectedStartState };
   expect(administratorStartCorrectionRequestSchema.safeParse(intent).success).toBe(true);
-  for (const extra of [{ manualReturnRegistered: false }, { expectedStartState }, { targetStartState: "DNS" }, { actorCredentialId: id }]) {
+  for (const extra of [{ manualReturnRegistered: false }, { expectedStartState }, { targetStartState: "DNS" }, { actorAccountId: id }]) {
     expect(administratorStartCorrectionRequestSchema.safeParse({ ...intent, ...extra }).success).toBe(false);
   }
   const receipt = { formatVersion: 1, storage: "STORED", requestId: id, entryId: id, raceId: other,
@@ -24,7 +24,7 @@ it("TASK056 accepts only versioned start intent and binds its receipt", () => {
 
 it("TASK054 rejects client-owned actor/action/source and invalid frozen versions", () => {
   expect(administratorReturnRequestSchema.safeParse(request).success).toBe(true);
-  for (const changed of [{ actorCredentialId: id }, { deviceId: id }, { localSequence: 1 }, { action: { kind: "MARK_START", state: "STARTED" } },
+  for (const changed of [{ actorAccountId: id }, { deviceId: id }, { localSequence: 1 }, { action: { kind: "MARK_START", state: "STARTED" } },
     { manualReturnRegistered: false }, { expectedRevision: -1 }, { packageVersion: 0 }, { expectedEntryVersion: 0 },
     { observedAt: "2026-02-30T10:00:00.000Z" }, { observedAt: "2026-09-12T12:00:00+02:00" }, { expectedStartState: "RETURNED" }]) {
     expect(administratorReturnRequestSchema.safeParse({ ...request, ...changed }).success).toBe(false);

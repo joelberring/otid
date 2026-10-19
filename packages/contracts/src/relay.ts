@@ -1,12 +1,12 @@
 import { z } from "zod";
 import { courseVariantCodeSchema } from "./course-edit";
 import { newEntryCardNumberSchema } from "./entry-card-admin";
+import { uuidSchema as uuid } from "./ids";
 
 /**
  * Stafett (ADR-0169 beslut 3): stafettklass med sträckor, lag med sträcklöpare,
  * byte av sträcklöpare, start- och omstartstider, lagvy och publika lagresultat.
  */
-const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 const version = z.number().int().positive().max(2_147_483_647);
 const count = z.number().int().nonnegative().max(10_000);
 const instant = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
@@ -30,7 +30,7 @@ const legs = z.array(relayLegSettingSchema).min(2).max(20).refine(value => value
   value[0]?.startMethod === "MASS_START", "Sträckorna numreras 1..n och sträcka 1 är masstart");
 
 export const relayClassCreateRequestSchema = z.object({
-  formatVersion: z.literal(1), requestId: uuid, expectedSnapshotVersion: version, name, courseId: uuid, legs
+  formatVersion: z.literal(1), requestId: uuid, name, courseId: uuid, legs
 }).strict();
 export const relayClassCreateIdempotencyKeySchema = z.string().regex(/^relay-class:[0-9a-f-]{36}$/);
 export const relayClassCreateResponseSchema = z.object({
@@ -41,7 +41,7 @@ export const relayClassCreateResponseSchema = z.object({
 export const relayRunnerSchema = z.object({ givenName: person, familyName: person, organisationName: club, cardNumber: card }).strict();
 
 export const relayTeamCreateRequestSchema = z.object({
-  formatVersion: z.literal(1), requestId: uuid, expectedSnapshotVersion: version, classId: uuid,
+  formatVersion: z.literal(1), requestId: uuid, classId: uuid,
   /** null = nästa lediga lagnummer. */
   number: teamNumber.nullable(), name, organisationName: club, runners: z.array(relayRunnerSchema).min(2).max(20)
 }).strict().refine(value => {
@@ -55,7 +55,7 @@ export const relayTeamCreateResponseSchema = z.object({
 }).strict();
 
 export const relayLegRunnerRequestSchema = z.object({
-  formatVersion: z.literal(1), requestId: uuid, expectedSnapshotVersion: version, teamId: uuid, leg: legNumber,
+  formatVersion: z.literal(1), requestId: uuid, teamId: uuid, leg: legNumber,
   expectedEntryVersion: version, runner: relayRunnerSchema
 }).strict();
 export const relayLegRunnerIdempotencyKeySchema = z.string().regex(/^relay-leg-runner:[0-9a-f-]{36}$/);
@@ -65,7 +65,7 @@ export const relayLegRunnerResponseSchema = z.object({
 }).strict();
 
 export const relayStartTimesRequestSchema = z.object({
-  formatVersion: z.literal(1), requestId: uuid, expectedSnapshotVersion: version, classId: uuid,
+  formatVersion: z.literal(1), requestId: uuid, classId: uuid,
   legs: z.array(z.object({ leg: legNumber, startTime: instant }).strict()).min(1).max(20)
 }).strict();
 export const relayStartTimesIdempotencyKeySchema = z.string().regex(/^relay-start-times:[0-9a-f-]{36}$/);

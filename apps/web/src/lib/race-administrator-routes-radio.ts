@@ -1,6 +1,10 @@
 import { radioFetchResponseSchema, radioSettingsResponseSchema } from "@o-tid/contracts";
-import { entryClassAdminFailure as failure, entryClassAdminJson as json, hasNoEntryClassAdminRequestBody,
-  readEntryClassAdminJson } from "./entry-class-admin-security";
+import {
+  adminFailure as failure,
+  hasNoRequestBody,
+  privateJson as json,
+  readJsonBody
+} from "./security-policy";
 import { radioRuntime } from "./radio-runtime";
 import { resultFailure, type RaceAdministratorRouteContext } from "./race-administrator-route-context";
 
@@ -18,13 +22,13 @@ export async function handleRadioRoute(context: RaceAdministratorRouteContext): 
       return json(radioSettingsResponseSchema.parse(result.response));
     }
     let body: unknown;
-    try { body = await readEntryClassAdminJson(request); } catch { return failure(400, "INVALID_REQUEST"); }
+    try { body = await readJsonBody(request); } catch { return failure(400, "INVALID_REQUEST"); }
     const result = await dependencies.radioSave(db, { ...input, request: body });
     if (result.status !== "ok") return resultFailure(result.status);
     return json(radioSettingsResponseSchema.parse(result.response));
   }
   if (action.kind === "radio-fetch") {
-    if (!await hasNoEntryClassAdminRequestBody(request)) return failure(400, "INVALID_REQUEST");
+    if (!await hasNoRequestBody(request)) return failure(400, "INVALID_REQUEST");
     const result = await dependencies.radioFetch(db, input, radioRuntime());
     if (result.status !== "ok") return resultFailure(result.status);
     return json(radioFetchResponseSchema.parse(result.response));

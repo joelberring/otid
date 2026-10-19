@@ -1,24 +1,13 @@
 import { z } from "zod";
+import { UUID_PATTERN, prefixedUuidPattern } from "./ids";
 
 const canonicalUuidSchema = z.string().regex(
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+  UUID_PATTERN,
   "Id måste vara ett kanoniskt gemener-UUID"
 );
 const positiveVersionSchema = z.number().int().positive();
 
-export const entryClassAdminLoginRequestSchema = z.object({
-  formatVersion: z.literal(1),
-  accessCredential: z.string().regex(
-    /^otid_org_entry_class_v1\.[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.[A-Za-z0-9_-]{43}$/
-  )
-}).strict();
 
-export const entryClassAdminLoginResponseSchema = z.object({
-  formatVersion: z.literal(1),
-  raceId: canonicalUuidSchema,
-  capability: z.literal("CHANGE_ENTRY_CLASS"),
-  expiresAt: z.iso.datetime({ offset: true })
-}).strict();
 
 const entryClassAdminClassSchema = z.object({
   id: canonicalUuidSchema,
@@ -66,7 +55,7 @@ export const entryClassChangeRequestSchema = z.object({
 }).strict();
 
 export const entryClassChangeIdempotencyKeySchema = z.string().regex(
-  /^entry-class-change:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+  prefixedUuidPattern("entry-class-change"),
   "Idempotency-Key måste vara entry-class-change:<kanoniskt request-uuid>"
 );
 
@@ -116,8 +105,6 @@ export const entryClassAdminErrorResponseSchema = z.object({
 // `{classId}` mutera något.
 export const changeEntryClassSchema = entryClassChangeRequestSchema;
 
-export type EntryClassAdminLoginRequest = z.infer<typeof entryClassAdminLoginRequestSchema>;
-export type EntryClassAdminLoginResponse = z.infer<typeof entryClassAdminLoginResponseSchema>;
 export type EntryClassAdminListResponse = z.infer<typeof entryClassAdminListResponseSchema>;
 export type EntryClassChangeRequest = z.infer<typeof entryClassChangeRequestSchema>;
 export type EntryClassChangeResponse = z.infer<typeof entryClassChangeResponseSchema>;

@@ -3,8 +3,7 @@ import { entryCardRentalChangeIdempotencyKeySchema, entryCardRentalChangeRequest
   entryCardRentalChangeResponseSchema } from "../src";
 
 const id = "10000000-0000-4000-8000-000000000001";
-const request = { formatVersion: 1, expectedEntryVersion: 2, expectedClassId: id, expectedSnapshotVersion: 4,
-  expectedAssignment: { id, cardNumber: "12345", isRental: false }, isRental: true };
+const request = { formatVersion: 1, expectedEntryVersion: 2, expectedClassId: id, expectedAssignment: { id, cardNumber: "12345", isRental: false }, isRental: true };
 
 describe("TASK073 hyrbricksstatuskontrakt", () => {
   it("binder exakt aktiv brickkoppling och kräver en verklig statusändring", () => {

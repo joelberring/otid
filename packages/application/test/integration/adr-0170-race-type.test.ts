@@ -2,12 +2,13 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase, migrate } from "@o-tid/database";
 import type { RaceType } from "@o-tid/contracts";
-import { createEventAsUserAccount, enterRaceAsUserAccount, listMyEventsAsUserAccount } from "../../src/organizer-events";
+import { createOrganizerEvent, listMyEvents } from "../../src/organizer-events";
 import { registerUserAccount } from "../../src/user-account";
-import { createManualCourseClassAsAdministrator } from "../../src/manual-course-class";
-import { listEntryTransfersAsAdministrator } from "../../src/entry-transfer";
-import { saveRaceSettingsAsAdministrator } from "../../src/race-settings";
+import { createManualCourseClassAsAdmin } from "../../src/manual-course-class";
+import { listEntryTransfersAsAdmin } from "../../src/entry-transfer";
+import { saveRaceSettingsAsAdmin } from "../../src/race-settings";
 import { registerEntryAsAdmin } from "../../src/entry-registration";
+import { accountOnRace } from "./accounts";
 
 const base = process.env.TEST_DATABASE_URL;
 if (!base) throw new Error("ADR-0170-testet kräver TEST_DATABASE_URL till en PostgreSQL-roll med CREATEDB");
@@ -39,14 +40,14 @@ async function account(): Promise<AccountProof> {
 }
 
 async function create(proof: AccountProof, body: Record<string, unknown>, requestId = randomUUID()) {
-  return createEventAsUserAccount(db, { ...proof, idempotencyKey: `organizer-event-create:${requestId}`,
+  return createOrganizerEvent(db, { ...proof, idempotencyKey: `organizer-event-create:${requestId}`,
     readBody: async () => ({ formatVersion: 1, eventName: "Klubbtävling", raceName: "Lördag", raceDate: "2026-10-10",
       timeZone: "Europe/Stockholm", ...body }) });
 }
 
 async function enter(proof: AccountProof, raceId: string): Promise<Proof> {
-  const entered = await enterRaceAsUserAccount(db, { ...proof, raceId });
-  if (entered.status !== "entered") throw new Error("Kom inte in i tävlingen");
+  const entered = await accountOnRace(db, { ...proof, raceId });
+  if (entered.status !== "authenticated") throw new Error("Kom inte in i tävlingen");
   return { raceId, sessionToken: entered.sessionToken, csrfCookie: entered.csrfToken, csrfHeader: entered.csrfToken };
 }
 
@@ -56,9 +57,9 @@ async function snapshot(raceId: string): Promise<number> {
 
 async function settings(proof: Proof, values: { eventName?: string; raceName?: string; raceDate?: string; raceType: RaceType },
   requestId = randomUUID()) {
-  const request = { formatVersion: 1, requestId, expectedSnapshotVersion: await snapshot(proof.raceId), eventName: values.eventName ?? "Klubbtävling",
+  const request = { formatVersion: 1, requestId, eventName: values.eventName ?? "Klubbtävling",
     raceName: values.raceName ?? "Lördag", raceDate: values.raceDate ?? "2026-10-10", raceType: values.raceType };
-  return { request, result: await saveRaceSettingsAsAdministrator(db, { ...proof, idempotencyKey: `race-settings:${requestId}`, request }) };
+  return { request, result: await saveRaceSettingsAsAdmin(db, { ...proof, idempotencyKey: `race-settings:${requestId}`, request }) };
 }
 
 describe("ADR-0170: tävlingstyp", () => {
@@ -71,12 +72,12 @@ describe("ADR-0170: tävlingstyp", () => {
     expect(await create(proof, { raceType: "TRAINING" }, requestId)).toEqual({ status: "conflict" });
     expect(await create(proof, { raceType: "SPRINT" })).toEqual({ status: "invalid-request" });
 
-    const mine = await listMyEventsAsUserAccount(db, proof);
+    const mine = await listMyEvents(db, proof);
     if (mine.status !== "ok") throw new Error(mine.status);
     expect(mine.response.events[0]!.races[0]).toMatchObject({ raceId: created.response.raceId, raceType: "RELAY" });
 
     const race = await enter(proof, created.response.raceId);
-    const roster = await listEntryTransfersAsAdministrator(db, race);
+    const roster = await listEntryTransfersAsAdmin(db, race);
     expect(roster).toMatchObject({ status: "ok", response: { raceType: "RELAY" } });
   });
 
@@ -92,18 +93,18 @@ describe("ADR-0170: tävlingstyp", () => {
     if (created.status !== "created") throw new Error(created.status);
     const race = await enter(owner, created.response.raceId);
     const courseRequestId = randomUUID();
-    const course = await createManualCourseClassAsAdministrator(db, { ...race, idempotencyKey: `manual-course-class-create:${courseRequestId}`,
-      request: { formatVersion: 1, requestId: courseRequestId, expectedSnapshotVersion: await snapshot(race.raceId), courseName: "Lång",
+    const course = await createManualCourseClassAsAdmin(db, { ...race, idempotencyKey: `manual-course-class-create:${courseRequestId}`,
+      request: { formatVersion: 1, requestId: courseRequestId, courseName: "Lång",
         className: "H21", startRule: "FIXED", controlCodes: [31, 32, 33] } });
     if (course.status !== "created") throw new Error(course.status);
 
     const before = await snapshot(race.raceId);
     const renamed = await settings(race, { eventName: "Höstträning", raceName: "Torsdag", raceDate: "2026-10-12", raceType: "SMALL" });
     expect(renamed.result).toMatchObject({ status: "saved", response: { replayed: false, snapshotVersionAfter: before + 1 } });
-    const replay = await saveRaceSettingsAsAdministrator(db, { ...race, idempotencyKey: `race-settings:${renamed.request.requestId}`,
+    const replay = await saveRaceSettingsAsAdmin(db, { ...race, idempotencyKey: `race-settings:${renamed.request.requestId}`,
       request: renamed.request });
     expect(replay).toMatchObject({ status: "saved", response: { replayed: true } });
-    const roster = await listEntryTransfersAsAdministrator(db, race);
+    const roster = await listEntryTransfersAsAdmin(db, race);
     if (roster.status !== "ok") throw new Error(roster.status);
     expect(roster.response).toMatchObject({ eventName: "Höstträning", raceName: "Torsdag", raceDate: "2026-10-12", raceType: "SMALL" });
     expect(roster.response.classes.map(row => row.name)).toEqual(["H21"]);
@@ -113,20 +114,20 @@ describe("ADR-0170: tävlingstyp", () => {
     // Typbyte tar inte bort något: klassen finns kvar även som Stafett och tillbaka.
     expect((await settings(race, { eventName: "Höstträning", raceName: "Torsdag", raceDate: "2026-10-12", raceType: "RELAY" })).result)
       .toMatchObject({ status: "saved" });
-    const relayRoster = await listEntryTransfersAsAdministrator(db, race);
+    const relayRoster = await listEntryTransfersAsAdmin(db, race);
     expect(relayRoster).toMatchObject({ status: "ok", response: { raceType: "RELAY" } });
     if (relayRoster.status !== "ok") throw new Error(relayRoster.status);
     expect(relayRoster.response.classes).toHaveLength(1);
 
-    // Fel tävlingsversion ger konflikt och ändrar ingenting.
-    const stale = await saveRaceSettingsAsAdministrator(db, { ...race, idempotencyKey: `race-settings:${courseRequestId}`,
-      request: { ...renamed.request, requestId: courseRequestId, raceType: "ROGAINING" } });
+    // En omsändning med samma nyckel men annat innehåll ger konflikt och ändrar ingenting.
+    const stale = await saveRaceSettingsAsAdmin(db, { ...race, idempotencyKey: `race-settings:${renamed.request.requestId}`,
+      request: { ...renamed.request, raceType: "ROGAINING" } });
     expect(stale).toEqual({ status: "conflict" });
 
     // En deltagare med fast starttid låser datumet, men namn och typ kan fortfarande ändras.
     const registered = await registerEntryAsAdmin(db, { ...race, idempotencyKey: `entry-registration:${randomUUID()}`, request: {
       formatVersion: 1, classId: roster.response.classes[0]!.id, expectedCourseVersionId: roster.response.classes[0]!.courseVersionId,
-      expectedStartRule: "FIXED", expectedSnapshotVersion: await snapshot(race.raceId), givenName: "Eva", familyName: "Ek",
+      expectedStartRule: "FIXED", givenName: "Eva", familyName: "Ek",
       organisationName: null, cardNumber: null, fixedStartTime: "2026-10-12T16:00:00.000Z" } });
     expect(registered.status).toBe("registered");
     const moved = await settings(race, { eventName: "Höstträning", raceName: "Torsdag", raceDate: "2026-10-13", raceType: "RELAY" });

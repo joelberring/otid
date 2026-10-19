@@ -7,10 +7,7 @@ import {
 import { schema, type Database } from "@o-tid/database";
 import { EventorAdapterError, eventorClient, type EventorClient } from "@o-tid/eventor";
 import { EventorSecretError, openEventorApiKey, sealEventorApiKey, type EventorServerConfiguration } from "./eventor-secret";
-import {
-  authenticatePairingAdminSession, authenticatePairingAdminSessionForMutation, authenticatePairingAdminSessionForProtectedRead,
-  type PairingAdminRequestAuthentication
-} from "./pairing-admin";
+import { requireRaceRole, type RaceSessionProof } from "./race-session";
 
 /**
  * Tävlingens Eventor-koppling (ADR-0170 beslut 4): administratören klistrar in klubbens
@@ -18,9 +15,8 @@ import {
  * krypterad och lämnar aldrig servern. Eventor anropas utanför databastransaktioner.
  */
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
-type Authentication = Omit<PairingAdminRequestAuthentication, "capability">;
+type Authentication = RaceSessionProof;
 type Failure = { status: "unauthorized" | "forbidden" | "invalid-request" };
-const capability = "MANAGE_RACE" as const;
 
 /** Driftens inställningar och (i tester) en egen fetch. */
 export interface EventorRuntime {
@@ -78,18 +74,18 @@ export function upstreamOutcome(error: unknown): "REJECTED" | "UNAVAILABLE" | "N
 }
 
 async function authorized(db: Database, input: Authentication, write: boolean, now: Date) {
-  return authenticatePairingAdminSession(db, { ...input, capability, requireCsrf: write }, now);
+  return requireRaceRole(db, { ...input, role: "ADMIN", requireCsrf: write }, now);
 }
 
 /** Skriver i en transaktion efter ny kontroll av administratören. */
 async function mutate<T>(db: Database, input: Authentication, now: Date, action: string, write: (tx: Transaction, actorId: string) => Promise<T>)
   : Promise<Failure | { status: "ok"; value: T }> {
   return db.transaction(async tx => {
-    const auth = await authenticatePairingAdminSessionForMutation(tx, { ...input, capability, requireCsrf: true }, now);
+    const auth = await requireRaceRole(tx, { ...input, role: "ADMIN", requireCsrf: true }, now, "update");
     if (auth.status !== "authenticated") return auth;
-    const value = await write(tx, auth.principal.accessCredentialId);
+    const value = await write(tx, auth.principal.accountId);
     await tx.insert(schema.auditEvents).values({ raceId: input.raceId, entityType: "race", entityId: input.raceId, action,
-      actorKind: "RACE_ADMIN_ACCESS_CREDENTIAL", actorId: auth.principal.accessCredentialId, createdAt: now });
+      actorKind: "USER_ACCOUNT", actorId: auth.principal.accountId, createdAt: now });
     return { status: "ok" as const, value };
   });
 }
@@ -99,10 +95,10 @@ async function upsertLink(tx: Transaction, raceId: string, values: Partial<Omit<
     .onConflictDoUpdate({ target: schema.raceEventorLinks.raceId, set: { ...values, updatedAt: now } });
 }
 
-export async function getEventorSettingsAsAdministrator(db: Database, input: Authentication, runtime: EventorRuntime, now = new Date())
+export async function getEventorSettingsAsAdmin(db: Database, input: Authentication, runtime: EventorRuntime, now = new Date())
   : Promise<Failure | { status: "ok"; response: EventorSettingsResponse }> {
   return db.transaction(async tx => {
-    const auth = await authenticatePairingAdminSessionForProtectedRead(tx, { ...input, capability }, now);
+    const auth = await requireRaceRole(tx, { ...input, role: "ADMIN" }, now, "share");
     if (auth.status !== "authenticated") return auth;
     return { status: "ok" as const, response: await settings(tx, input.raceId, runtime) };
   });
@@ -125,14 +121,14 @@ async function test(db: Database, input: Authentication, runtime: EventorRuntime
   return { status: "ok", response: eventorTestResponseSchema.parse({ formatVersion: 1, raceId: input.raceId, outcome, settings: saved.value }) };
 }
 
-export async function testEventorConnectionAsAdministrator(db: Database, input: Authentication, runtime: EventorRuntime, now = new Date()) {
+export async function testEventorConnectionAsAdmin(db: Database, input: Authentication, runtime: EventorRuntime, now = new Date()) {
   const auth = await authorized(db, input, true, now);
   if (auth.status !== "authenticated") return auth;
   return test(db, input, runtime, now);
 }
 
 /** Sparar (eller ersätter) klubbens nyckel krypterad och testar den direkt. */
-export async function saveEventorKeyAsAdministrator(db: Database, input: Authentication & { request: unknown }, runtime: EventorRuntime,
+export async function saveEventorKeyAsAdmin(db: Database, input: Authentication & { request: unknown }, runtime: EventorRuntime,
   now = new Date()): Promise<Failure | { status: "not-configured" } | { status: "ok"; response: EventorTestResponse }> {
   const parsed = eventorKeyRequestSchema.safeParse(input.request);
   if (!parsed.success) return { status: "invalid-request" };
@@ -147,7 +143,7 @@ export async function saveEventorKeyAsAdministrator(db: Database, input: Authent
   return test(db, input, runtime, now);
 }
 
-export async function removeEventorKeyAsAdministrator(db: Database, input: Authentication, runtime: EventorRuntime, now = new Date())
+export async function removeEventorKeyAsAdmin(db: Database, input: Authentication, runtime: EventorRuntime, now = new Date())
   : Promise<Failure | { status: "ok"; response: EventorSettingsResponse }> {
   const saved = await mutate(db, input, now, "EVENTOR_KEY_REMOVED", async tx => {
     await upsertLink(tx, input.raceId, { keyId: null, iv: null, tag: null, ciphertext: null, organisationId: null, organisationName: null }, now);
@@ -159,7 +155,7 @@ export async function removeEventorKeyAsAdministrator(db: Database, input: Authe
 const day = 86_400_000;
 
 /** Klubbens tävlingar från en månad bakåt till ett år framåt, närmast först. */
-export async function listEventorEventsAsAdministrator(db: Database, input: Authentication, runtime: EventorRuntime, now = new Date())
+export async function listEventorEventsAsAdmin(db: Database, input: Authentication, runtime: EventorRuntime, now = new Date())
   : Promise<Failure | { status: "ok"; response: EventorEventsResponse }> {
   const auth = await authorized(db, input, false, now);
   if (auth.status !== "authenticated") return auth;
@@ -181,7 +177,7 @@ export async function listEventorEventsAsAdministrator(db: Database, input: Auth
 }
 
 /** Väljer tävlingen i Eventor (ur listan eller med inklistrat id). Tävlingen hämtas för att visa namn och datum. */
-export async function chooseEventorEventAsAdministrator(db: Database, input: Authentication & { request: unknown }, runtime: EventorRuntime,
+export async function chooseEventorEventAsAdmin(db: Database, input: Authentication & { request: unknown }, runtime: EventorRuntime,
   now = new Date()): Promise<Failure | { status: "ok"; response: EventorEventChoiceResponse }> {
   const parsed = eventorEventChoiceRequestSchema.safeParse(input.request);
   if (!parsed.success) return { status: "invalid-request" };

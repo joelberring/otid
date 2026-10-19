@@ -2,19 +2,18 @@ import { and, asc, count, eq, sql } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
 import { entryRegistrationClassesResponseSchema, entryRegistrationRequestSchema,
   entryRegistrationIdempotencyKeySchema, entryRegistrationResponseSchema } from "@o-tid/contracts";
-import { authenticatePairingAdminSession, authenticatePairingAdminSessionForMutation,
-  authenticatePairingAdminSessionForProtectedRead, type PairingAdminRequestAuthentication } from "./pairing-admin";
+import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
 import { canAddClassEntry } from "./class-capacity-guard";
 import { assignLateStartTime } from "./start-draw-basis";
 import { leastUsedVariantForClass } from "./course-variants";
+import { bumpReadoutPackageVersion } from "./snapshot";
 
-type Authentication = Omit<PairingAdminRequestAuthentication, "capability">;
-const capability = "REGISTER_ENTRY" as const;
+type Authentication = RaceSessionProof;
 
 export async function listEntryRegistrationClassesAsAdmin(db: Database, input: Authentication, now = new Date()) {
   return db.transaction(async (tx) => {
-    const auth = await authenticatePairingAdminSessionForProtectedRead(tx, { ...input, capability }, now);
+    const auth = await requireRaceRole(tx, { ...input, role: "ADMIN" }, now, "share");
     if (auth.status !== "authenticated") return auth;
     const race = await lockRaceForSnapshot(tx, input.raceId);
     const [event] = await tx.select({ timeZone: schema.events.timeZone })
@@ -40,7 +39,7 @@ function response(row: typeof schema.entryRegistrationRequests.$inferSelect, rep
     givenName: intent.givenName, familyName: intent.familyName, organisationName: intent.organisationName,
     cardNumber: intent.cardNumber, assignmentId: row.assignmentId,
     fixedStartTime: row.assignedStartTime?.toISOString() ?? intent.fixedStartTime, startTimeAssigned: row.assignedStartTime !== null,
-    snapshotVersionBefore: intent.expectedSnapshotVersion, snapshotVersionAfter: row.snapshotVersionAfter,
+    snapshotVersionBefore: row.snapshotVersionAfter - 1, snapshotVersionAfter: row.snapshotVersionAfter,
     createdAt: row.createdAt.toISOString() });
 }
 
@@ -56,21 +55,21 @@ export async function registerEntryAsAdmin(db: Database,
   if (!key.success || !parsed.success) return { status: "invalid-request" as const };
   const intent = parsed.data;
   const requestId = key.data.slice("entry-registration:".length);
-  const authentication = { ...input, capability, requireCsrf: true };
-  const preflight = await authenticatePairingAdminSession(db, authentication, now);
+  const authentication = { ...input, role: "ADMIN" as const, requireCsrf: true };
+  const preflight = await requireRaceRole(db, authentication, now);
   if (preflight.status !== "authenticated") return preflight;
   return db.transaction(async (tx) => {
-    const auth = await authenticatePairingAdminSessionForMutation(tx, authentication, now);
+    const auth = await requireRaceRole(tx, authentication, now, "update");
     if (auth.status !== "authenticated") return auth;
     const race = await lockRaceForMutation(tx, input.raceId);
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${requestId}, 0))`);
     const [existing] = await tx.select().from(schema.entryRegistrationRequests).where(eq(schema.entryRegistrationRequests.requestId, requestId));
     if (existing) {
-      if (existing.raceId !== input.raceId || existing.actorCredentialId !== auth.principal.accessCredentialId ||
+      if (existing.raceId !== input.raceId || existing.actorAccountId !== auth.principal.accountId ||
         JSON.stringify(entryRegistrationRequestSchema.parse(existing.request)) !== JSON.stringify(intent)) return { status: "conflict" as const };
       return { status: "registered" as const, response: response(existing, true) };
     }
-    if (race.snapshotVersion !== intent.expectedSnapshotVersion || race.snapshotVersion >= 2_147_483_647) return { status: "conflict" as const };
+    if (race.snapshotVersion >= 2_147_483_647) return { status: "conflict" as const };
     const [raceClass] = await tx.select({ id: schema.classes.id, startRule: schema.classes.startRule,
       courseVersionId: schema.classes.courseVersionId, startDrawId: schema.classes.startDrawId }).from(schema.classes)
       .innerJoin(schema.courseVersions, eq(schema.courseVersions.id, schema.classes.courseVersionId))
@@ -107,15 +106,14 @@ export async function registerEntryAsAdmin(db: Database,
       assignmentId = assignment.id;
     }
     const snapshotVersionAfter = race.snapshotVersion + 1;
-    await tx.update(schema.races).set({ snapshotVersion: snapshotVersionAfter }).where(eq(schema.races.id, input.raceId));
+    await bumpReadoutPackageVersion(tx, input.raceId);
     const [saved] = await tx.insert(schema.entryRegistrationRequests).values({ requestId, raceId: input.raceId,
-      actorCredentialId: auth.principal.accessCredentialId, entryId: entry.id, assignmentId, request: intent,
+      actorAccountId: auth.principal.accountId, entryId: entry.id, assignmentId, request: intent,
       snapshotVersionAfter, assignedStartTime, createdAt: now }).returning();
     if (!saved) throw new Error("Registreringsjournalen kunde inte sparas");
     await tx.insert(schema.auditEvents).values({ raceId: input.raceId, entityType: "entry", entityId: entry.id,
-      action: "ENTRY_REGISTERED_BY_ADMIN", actorKind: auth.principal.capability === "MANAGE_RACE"
-        ? "RACE_ADMIN_ACCESS_CREDENTIAL" : "ENTRY_REGISTRATION_ACCESS_CREDENTIAL",
-      actorId: auth.principal.accessCredentialId, requestId, before: { snapshotVersion: race.snapshotVersion },
+      action: "ENTRY_REGISTERED_BY_ADMIN", actorKind: "USER_ACCOUNT",
+      actorId: auth.principal.accountId, requestId, before: { snapshotVersion: race.snapshotVersion },
       after: { classId: intent.classId, assignmentId, entryVersion: 1, snapshotVersion: snapshotVersionAfter,
         fixedStartTime: fixedStartTime?.toISOString() ?? null, startTimeAssigned: assignedStartTime !== null, courseVariantCode } });
     return { status: "registered" as const, response: response(saved, false) };

@@ -7,7 +7,7 @@ const entryId = "33333333-3333-4333-8333-333333333333";
 
 describe("TASK091 class result recalculation contracts", () => {
   it("requires a canonical selected manifest and 1–100 unique UUID ordered entries", () => {
-    const request = { formatVersion: 1, classId, snapshotVersion: 2, engineVersion: "v1", manifestHash: "a".repeat(64), entryIds: [entryId] };
+    const request = { formatVersion: 1, classId, engineVersion: "v1", manifestHash: "a".repeat(64), entryIds: [entryId] };
     expect(classResultRecalculationRequestSchema.parse(request)).toEqual(request);
     expect(classResultRecalculationRequestSchema.safeParse({ ...request, entryIds: [] }).success).toBe(false);
     expect(classResultRecalculationRequestSchema.safeParse({ ...request, entryIds: [entryId, entryId] }).success).toBe(false);

@@ -1,23 +1,24 @@
 import { and, eq, sql } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
 import { manualCourseClassCreateIdempotencyKeySchema, manualCourseClassCreateRequestSchema, manualCourseClassCreateResponseSchema } from "@o-tid/contracts";
-import { authenticatePairingAdminSession, authenticatePairingAdminSessionForMutation, type PairingAdminRequestAuthentication } from "./pairing-admin";
+import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation } from "./concurrency";
 import { classNameTaken, courseNameTaken } from "./duplicate-names";
+import { bumpReadoutPackageVersion } from "./snapshot";
+import { UUID_PATTERN as uuid } from "./serialization";
 
-type Input = Omit<PairingAdminRequestAuthentication, "capability"> & { idempotencyKey: string | null; request: unknown };
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+type Input = RaceSessionProof & { idempotencyKey: string | null; request: unknown };
 
-export async function createManualCourseClassAsAdministrator(db: Database, input: Input, now = new Date()) {
+export async function createManualCourseClassAsAdmin(db: Database, input: Input, now = new Date()) {
   const parsed = manualCourseClassCreateRequestSchema.safeParse(input.request);
   const key = manualCourseClassCreateIdempotencyKeySchema.safeParse(input.idempotencyKey);
   if (!parsed.success || !key.success || key.data.slice("manual-course-class-create:".length) !== parsed.data.requestId || !uuid.test(input.raceId)) return { status: "invalid-request" as const };
-  const authentication = { ...input, capability: "MANAGE_RACE" as const, requireCsrf: true };
-  const initial = await authenticatePairingAdminSession(db, authentication, now);
+  const authentication = { ...input, role: "ADMIN" as const, requireCsrf: true };
+  const initial = await requireRaceRole(db, authentication, now);
   if (initial.status !== "authenticated") return initial;
   const intent = parsed.data;
   return db.transaction(async tx => {
-    const auth = await authenticatePairingAdminSessionForMutation(tx, authentication, now);
+    const auth = await requireRaceRole(tx, authentication, now, "update");
     if (auth.status !== "authenticated") return auth;
     const race = await lockRaceForMutation(tx, input.raceId);
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${'manual-course-class:' + intent.requestId}, 0))`);
@@ -26,14 +27,14 @@ export async function createManualCourseClassAsAdministrator(db: Database, input
     if (prior) {
       const original = manualCourseClassCreateRequestSchema.parse(prior.request);
       const response = manualCourseClassCreateResponseSchema.parse(prior.response);
-      if (prior.raceId !== input.raceId || prior.actorCredentialId !== auth.principal.accessCredentialId ||
+      if (prior.raceId !== input.raceId || prior.actorAccountId !== auth.principal.accountId ||
         JSON.stringify(original) !== JSON.stringify(intent) || prior.courseId !== response.courseId ||
         prior.courseVersionId !== response.courseVersionId || prior.classId !== response.classId ||
         response.raceId !== prior.raceId || response.requestId !== prior.requestId || response.replayed ||
         JSON.stringify(response.request) !== JSON.stringify(original)) return { status: "conflict" as const };
       return { status: "created" as const, response: { ...response, replayed: true } };
     }
-    if (race.snapshotVersion !== intent.expectedSnapshotVersion || race.snapshotVersion >= 2_147_483_647) return { status: "conflict" as const };
+    if (race.snapshotVersion >= 2_147_483_647) return { status: "conflict" as const };
     if (await courseNameTaken(tx, input.raceId, intent.courseName) || await classNameTaken(tx, input.raceId, intent.className)) {
       return { status: "duplicate-name" as const };
     }
@@ -59,12 +60,12 @@ export async function createManualCourseClassAsAdministrator(db: Database, input
       requestId: intent.requestId, raceId: input.raceId, courseId: course.id, courseVersionId: courseVersion.id,
       classId: raceClass.id, request: intent, snapshotVersionBefore: race.snapshotVersion,
       snapshotVersionAfter: race.snapshotVersion + 1, createdAt: now.toISOString() });
-    await tx.update(schema.races).set({ snapshotVersion: response.snapshotVersionAfter }).where(eq(schema.races.id, input.raceId));
+    await bumpReadoutPackageVersion(tx, input.raceId);
     await tx.insert(schema.manualCourseClassCreateRequests).values({ requestId: intent.requestId, raceId: input.raceId,
       courseId: course.id, courseVersionId: courseVersion.id, classId: raceClass.id,
-      actorCredentialId: auth.principal.accessCredentialId, capability: "MANAGE_RACE", request: intent, response });
+      actorAccountId: auth.principal.accountId, request: intent, response });
     await tx.insert(schema.auditEvents).values({ raceId: input.raceId, entityType: "class", entityId: raceClass.id,
-      requestId: intent.requestId, actorKind: "RACE_ADMIN_ACCESS_CREDENTIAL", actorId: auth.principal.accessCredentialId,
+      requestId: intent.requestId, actorKind: "USER_ACCOUNT", actorId: auth.principal.accountId,
       action: "MANUAL_COURSE_CLASS_CREATED_BY_ADMIN", before: { snapshotVersion: race.snapshotVersion },
       after: { courseId: course.id, courseVersionId: courseVersion.id, classId: raceClass.id,
         startRule: intent.startRule, controlCodes: intent.controlCodes, rogaining: intent.rogaining ?? null, snapshotVersion: response.snapshotVersionAfter }, createdAt: now });

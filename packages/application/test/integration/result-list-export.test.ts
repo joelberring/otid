@@ -5,36 +5,17 @@ import { schema } from "@o-tid/database";
 import {
   changeEntryClass, contentHash, ingestDeviceBatch, exportIofResultListAsAdmin, publicResults, recalculateEntry
 } from "../../src";
-import {
-  issuePairingAdminAccessCredential, loginPairingAdmin, revokePairingAdminAccessCredential
-} from "../../src/pairing-admin";
 import { db, importedRace, batch, okPayload, useRaceDatabase } from "./race-fixtures";
+import { raceLogin, revokeRaceGrants } from "./accounts";
 
 useRaceDatabase();
 
 describe("TASK 006B capability-skyddad IOF ResultList-export PostgreSQL", () => {
-  const issuedAt = new Date("2026-08-31T22:00:00.000Z");
   const usedAt = new Date("2026-08-31T22:02:00.000Z");
 
-  async function exportAdmin(raceId: string, marker: number) {
-    const installation = await issuePairingAdminAccessCredential(db, {
-      raceId,
-      capability: "EXPORT_IOF_RESULT_LIST",
-      label: `Resultatexport ${marker}`,
-      expiresAt: new Date("2026-09-01T06:00:00.000Z")
-    }, { now: issuedAt, secretBytes: Buffer.alloc(32, marker) });
-    const login = await loginPairingAdmin(db, {
-      formatVersion: 1,
-      accessCredential: installation.accessCredential
-    }, {
-      expectedRaceId: raceId,
-      expectedCapability: "EXPORT_IOF_RESULT_LIST",
-      now: new Date("2026-08-31T22:01:00.000Z"),
-      sessionSecretBytes: Buffer.alloc(32, marker + 1),
-      csrfSecretBytes: Buffer.alloc(32, marker + 2)
-    });
-    if (login.status !== "authenticated") throw new Error("Resultatexportsession kunde inte skapas");
-    return { installation, login };
+  async function exportAdmin(raceId: string) {
+    const login = await raceLogin(db, raceId, "ADMIN", new Date("2026-08-31T22:01:00.000Z"));
+    return { login };
   }
 
   async function exportFootprint(raceId: string) {
@@ -81,7 +62,7 @@ describe("TASK 006B capability-skyddad IOF ResultList-export PostgreSQL", () => 
     const [currentRace] = await db.select({ snapshotVersion: schema.races.snapshotVersion })
       .from(schema.races).where(eq(schema.races.id, fixture.raceId));
     if (!currentRace) throw new Error("Loppet saknas");
-    const admin = await exportAdmin(fixture.raceId, 221);
+    const admin = await exportAdmin(fixture.raceId);
 
     const before = await exportFootprint(fixture.raceId);
     const exports = await Promise.all(Array.from({ length: 100 }, () => exportIofResultListAsAdmin(db, {
@@ -111,14 +92,14 @@ describe("TASK 006B capability-skyddad IOF ResultList-export PostgreSQL", () => 
     expect(xml).toContain("Ada");
     expect(xml).not.toContain("class-h21");
     for (const secret of [fixture.raceId, ada.id, d21.id, historical.id,
-      admin.installation.accessCredential, admin.login.sessionToken, okPayload.cardNumber]) {
+      admin.login.sessionToken, okPayload.cardNumber]) {
       expect(xml).not.toContain(secret);
     }
   }, 30_000);
 
   it("visar endast helt före- eller efterläge när en tvåresultatsingest pågår samtidigt", async () => {
     const fixture = await importedRace();
-    const admin = await exportAdmin(fixture.raceId, 226);
+    const admin = await exportAdmin(fixture.raceId);
     const exportOnce = () => exportIofResultListAsAdmin(db, {
       sessionToken: admin.login.sessionToken,
       raceId: fixture.raceId
@@ -267,7 +248,7 @@ describe("TASK 006B capability-skyddad IOF ResultList-export PostgreSQL", () => 
     ]);
     expect(publicResponse.results.every((result) =>
       !("position" in result) && !("timeBehindMs" in result))).toBe(true);
-    const admin = await exportAdmin(fixture.raceId, 229);
+    const admin = await exportAdmin(fixture.raceId);
     const exported = await exportIofResultListAsAdmin(db, {
       sessionToken: admin.login.sessionToken,
       raceId: fixture.raceId
@@ -282,38 +263,19 @@ describe("TASK 006B capability-skyddad IOF ResultList-export PostgreSQL", () => 
   it("isolerar capability och race, stoppar revocation och avvisar flerloppsevent", async () => {
     const fixture = await importedRace();
     const other = await importedRace();
-    const admin = await exportAdmin(fixture.raceId, 231);
+    const admin = await exportAdmin(fixture.raceId);
     await expect(exportIofResultListAsAdmin(db, {
       sessionToken: admin.login.sessionToken,
       raceId: other.raceId
-    }, usedAt)).resolves.toEqual({ status: "forbidden" });
+    }, usedAt)).resolves.toEqual({ status: "unauthorized" });
 
-    const overviewCredential = await issuePairingAdminAccessCredential(db, {
-      raceId: fixture.raceId,
-      capability: "VIEW_RACE_OVERVIEW",
-      label: "Fel exportcapability",
-      expiresAt: new Date("2026-09-01T06:00:00.000Z")
-    }, { now: issuedAt, secretBytes: Buffer.alloc(32, 234) });
-    const overviewLogin = await loginPairingAdmin(db, {
-      formatVersion: 1,
-      accessCredential: overviewCredential.accessCredential
-    }, {
-      expectedRaceId: fixture.raceId,
-      expectedCapability: "VIEW_RACE_OVERVIEW",
-      now: new Date("2026-08-31T22:01:00.000Z"),
-      sessionSecretBytes: Buffer.alloc(32, 235),
-      csrfSecretBytes: Buffer.alloc(32, 236)
-    });
-    if (overviewLogin.status !== "authenticated") throw new Error("Felcapabilitysession saknas");
+    const overviewLogin = await raceLogin(db, fixture.raceId, "FUNCTIONARY", new Date("2026-08-31T22:01:00.000Z"));
     await expect(exportIofResultListAsAdmin(db, {
       sessionToken: overviewLogin.sessionToken,
       raceId: fixture.raceId
     }, usedAt)).resolves.toEqual({ status: "forbidden" });
 
-    await expect(revokePairingAdminAccessCredential(db, {
-      credentialId: admin.installation.credentialId,
-      capability: "EXPORT_IOF_RESULT_LIST"
-    }, usedAt)).resolves.toMatchObject({ status: "revoked" });
+    await revokeRaceGrants(db, admin.login.accountId, usedAt);
     await expect(exportIofResultListAsAdmin(db, {
       sessionToken: admin.login.sessionToken,
       raceId: fixture.raceId
@@ -327,7 +289,7 @@ describe("TASK 006B capability-skyddad IOF ResultList-export PostgreSQL", () => 
       name: "Etapp 2",
       raceDate: multiRace.raceDate
     });
-    const multiAdmin = await exportAdmin(multi.raceId, 241);
+    const multiAdmin = await exportAdmin(multi.raceId);
     await expect(exportIofResultListAsAdmin(db, {
       sessionToken: multiAdmin.login.sessionToken,
       raceId: multi.raceId

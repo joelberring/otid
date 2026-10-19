@@ -1,21 +1,10 @@
 import { useState } from "react";
-import { createResultApprovalAttempt } from "../../lib/result-approval-admin-client";
-import { createResultApprovalWithdrawalAttempt } from "../../lib/result-approval-withdrawal-admin-client";
-import { createResultDisqualificationAttempt } from "../../lib/result-disqualification-admin-client";
-import { createResultDisqualificationWithdrawalAttempt } from "../../lib/result-disqualification-withdrawal-admin-client";
-import { createWithoutTimingAttempt } from "../../lib/without-timing-admin-client";
-import { createWithoutTimingWithdrawalAttempt } from "../../lib/without-timing-withdrawal-admin-client";
-import { createOutOfCompetitionAttempt } from "../../lib/out-of-competition-admin-client";
-import { createOutOfCompetitionWithdrawalAttempt } from "../../lib/out-of-competition-withdrawal-admin-client";
-import { createDidNotFinishAttempt } from "../../lib/did-not-finish-admin-client";
-import { createDidNotFinishWithdrawalAttempt } from "../../lib/did-not-finish-withdrawal-admin-client";
-import { createDidNotStartAttempt } from "../../lib/did-not-start-admin-client";
-import { createDidNotStartWithdrawalAttempt } from "../../lib/did-not-start-withdrawal-admin-client";
+import type { EntryStatusDecision, EntryStatusReadiness, EntryStatusResponse } from "@o-tid/contracts";
 import { createResultRecalculationAttempt } from "../../lib/result-recalculation-admin-client";
 import type { StatusChoice } from "../../lib/participant-status-choices";
 import { raceAdministratorSv as adminText } from "../../i18n/race-administrator-sv";
 import { participantCardSv as text } from "../../i18n/participant-card-sv";
-import type { Operation } from "./types";
+import type { DecisionAttempt, Operation } from "./types";
 import type { Base } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
 import type { ResultDecisionActions, StatusAttempt } from "./result-decisions";
@@ -28,100 +17,53 @@ export function useStatusChangeState() {
 }
 
 type Prepared = { attempt: StatusAttempt; show: () => void } | string;
-const withdrawable = <T extends { state: string }>(rows: readonly T[]) => {
-  const active = rows.filter(row => row.state === "WITHDRAWABLE");
-  return active.length === 1 ? active[0] : undefined;
+type DecisionChoice = DecisionAttempt["choice"];
+
+/** Menyvalet som beslut i statusflödet (ADR-0173 beslut 1). */
+const DECISIONS: Record<DecisionChoice, { decision: EntryStatusDecision; withdraws?: EntryStatusResponse["governingDecision"] }> = {
+  DNS: { decision: { kind: "DID_NOT_START" } }, DNF: { decision: { kind: "DID_NOT_FINISH" } },
+  DSQ: { decision: { kind: "DISQUALIFIED" } }, OOC: { decision: { kind: "OUT_OF_COMPETITION" } },
+  NT: { decision: { kind: "WITHOUT_TIMING" } }, APPROVAL: { decision: { kind: "APPROVE_MANUALLY" } },
+  DNS_WITHDRAWAL: { decision: { kind: "WITHDRAW" }, withdraws: "DNS" },
+  DNF_WITHDRAWAL: { decision: { kind: "WITHDRAW" }, withdraws: "DNF" },
+  DSQ_WITHDRAWAL: { decision: { kind: "WITHDRAW" }, withdraws: "DSQ" },
+  OOC_WITHDRAWAL: { decision: { kind: "WITHDRAW" }, withdraws: "OOC" },
+  NT_WITHDRAWAL: { decision: { kind: "WITHDRAW" }, withdraws: "NT" },
+  APPROVAL_WITHDRAWAL: { decision: { kind: "WITHDRAW" }, withdraws: "APPROVAL" }
 };
+
+/** Beskedet när ett beslut inte går att fatta (samma texter som tidigare per beslut). */
+function blocked(choice: DecisionChoice, readiness: EntryStatusReadiness): string {
+  const texts: Partial<Record<DecisionChoice, Partial<Record<EntryStatusReadiness, string>>>> = {
+    APPROVAL: adminText.approvalReadiness, DSQ: adminText.dsqReadiness, NT: adminText.ntReadiness,
+    OOC: adminText.oocReadiness, DNF: adminText.dnfReadiness };
+  if (choice === "DNS") return adminText.dnsHasResult;
+  const own = texts[choice];
+  return own?.[readiness] ?? own?.UNSUPPORTED_RESULT ?? text.notAvailable;
+}
 
 export function createStatusChangeActions(ws: Base & RaceDataActions & ResultDecisionActions) {
   const { entryId, data, busyRef, pending, sent, requireSession, begin, finish, current, setMessage, setUnknown,
-    setStatusChoice, setStatusBlocked, setApprovalAttempt, setDsqAttempt, setNtAttempt, setOocAttempt, setDnfAttempt,
-    setDnsAttempt, setRecalculationAttempt, readApprovalBasis, readDsqBasis, readNtBasis, readOocBasis, readDnfBasis,
-    readDnsBasis, readRecalculationBasis, submitStatusAttempt, cancelStatusAttempt } = ws;
+    setStatusChoice, setStatusBlocked, setDecisionAttempt, setRecalculationAttempt, readEntryStatus,
+    readRecalculationBasis, submitStatusAttempt, cancelStatusAttempt } = ws;
 
-  /** Läser underlaget för valet och skapar försöket, eller ger ett besked om varför det inte går. */
+  /** Läser löparens läge och skapar försöket, eller ger ett besked om varför det inte går. */
   async function prepare(op: Operation, choice: StatusChoice, id: string): Promise<Prepared> {
-    switch (choice) {
-      case "APPROVAL": case "APPROVAL_WITHDRAWAL": {
-        const basis = await readApprovalBasis(op, id);
-        if (choice === "APPROVAL") {
-          if (basis.candidate.readiness !== "READY") return adminText.approvalReadiness[basis.candidate.readiness];
-          const attempt = { kind: "APPROVAL" as const, value: createResultApprovalAttempt(basis.candidate, basis.candidates) };
-          return { attempt, show: () => setApprovalAttempt(attempt) };
-        }
-        const row = withdrawable(basis.withdrawalRows);
-        if (!row) return text.notAvailable;
-        const attempt = { kind: "APPROVAL_WITHDRAWAL" as const, value: createResultApprovalWithdrawalAttempt(row, basis.withdrawals) };
-        return { attempt, show: () => setApprovalAttempt(attempt) };
-      }
-      case "DSQ": case "DSQ_WITHDRAWAL": {
-        const basis = await readDsqBasis(op, id);
-        if (choice === "DSQ") {
-          if (basis.candidate.readiness !== "READY") return adminText.dsqReadiness[basis.candidate.readiness];
-          const attempt = { kind: "DSQ" as const, value: createResultDisqualificationAttempt(basis.candidate, basis.candidates) };
-          return { attempt, show: () => setDsqAttempt(attempt) };
-        }
-        const row = withdrawable(basis.withdrawalRows);
-        if (!row) return text.notAvailable;
-        const attempt = { kind: "DSQ_WITHDRAWAL" as const, value: createResultDisqualificationWithdrawalAttempt(row, basis.withdrawals) };
-        return { attempt, show: () => setDsqAttempt(attempt) };
-      }
-      case "NT": case "NT_WITHDRAWAL": {
-        const basis = await readNtBasis(op, id);
-        if (choice === "NT") {
-          if (basis.candidate.readiness !== "READY") return adminText.ntReadiness[basis.candidate.readiness];
-          const attempt = { kind: "NT" as const, value: createWithoutTimingAttempt(basis.candidate, basis.candidates) };
-          return { attempt, show: () => setNtAttempt(attempt) };
-        }
-        const row = withdrawable(basis.withdrawalRows);
-        if (!row) return text.notAvailable;
-        const attempt = { kind: "NT_WITHDRAWAL" as const, value: createWithoutTimingWithdrawalAttempt(row, basis.withdrawals) };
-        return { attempt, show: () => setNtAttempt(attempt) };
-      }
-      case "OOC": case "OOC_WITHDRAWAL": {
-        const basis = await readOocBasis(op, id);
-        if (choice === "OOC") {
-          if (basis.candidate.readiness !== "READY") return adminText.oocReadiness[basis.candidate.readiness];
-          const attempt = { kind: "OOC" as const, value: createOutOfCompetitionAttempt(basis.candidate, basis.candidates) };
-          return { attempt, show: () => setOocAttempt(attempt) };
-        }
-        const row = withdrawable(basis.withdrawalRows);
-        if (!row) return text.notAvailable;
-        const attempt = { kind: "OOC_WITHDRAWAL" as const, value: createOutOfCompetitionWithdrawalAttempt(row, basis.withdrawals) };
-        return { attempt, show: () => setOocAttempt(attempt) };
-      }
-      case "DNF": case "DNF_WITHDRAWAL": {
-        const basis = await readDnfBasis(op, id);
-        if (choice === "DNF") {
-          if (basis.candidate.readiness !== "READY") return adminText.dnfReadiness[basis.candidate.readiness];
-          const attempt = { kind: "DNF" as const, value: createDidNotFinishAttempt(basis.candidate, basis.candidates) };
-          return { attempt, show: () => setDnfAttempt(attempt) };
-        }
-        const row = withdrawable(basis.withdrawalRows);
-        if (!row) return text.notAvailable;
-        const attempt = { kind: "DNF_WITHDRAWAL" as const, value: createDidNotFinishWithdrawalAttempt(row, basis.withdrawals) };
-        return { attempt, show: () => setDnfAttempt(attempt) };
-      }
-      case "DNS": case "DNS_WITHDRAWAL": {
-        const basis = await readDnsBasis(op, id);
-        if (choice === "DNS") {
-          if (basis.candidate.readiness !== "READY") return adminText.dnsHasResult;
-          const attempt = { kind: "DNS" as const, value: createDidNotStartAttempt(basis.candidate, basis.candidates) };
-          return { attempt, show: () => setDnsAttempt(attempt) };
-        }
-        const row = withdrawable(basis.withdrawalRows);
-        if (!row) return text.notAvailable;
-        const attempt = { kind: "DNS_WITHDRAWAL" as const, value: createDidNotStartWithdrawalAttempt(row, basis.withdrawals) };
-        return { attempt, show: () => setDnsAttempt(attempt) };
-      }
-      case "RECALCULATION": {
-        const basis = await readRecalculationBasis(op, id);
-        if (basis.candidate.readiness !== "READY") return adminText.recalculationReadiness[basis.candidate.readiness];
-        const attempt = { kind: "RECALCULATION" as const, timeZone: basis.roster.timeZone,
-          value: createResultRecalculationAttempt(basis.candidate, basis.candidates) };
-        return { attempt, show: () => setRecalculationAttempt(attempt) };
-      }
+    if (choice === "RECALCULATION") {
+      const basis = await readRecalculationBasis(op, id);
+      if (basis.candidate.readiness !== "READY") return adminText.recalculationReadiness[basis.candidate.readiness];
+      const attempt = { kind: "RECALCULATION" as const, timeZone: basis.roster.timeZone,
+        value: createResultRecalculationAttempt(basis.candidate, basis.candidates) };
+      return { attempt, show: () => setRecalculationAttempt(attempt) };
     }
+    const status = await readEntryStatus(op, id);
+    const { decision, withdraws } = DECISIONS[choice];
+    const readiness = status.readiness[decision.kind];
+    if (withdraws !== undefined && (status.governingDecision !== withdraws || readiness !== "READY")) return text.notAvailable;
+    if (readiness !== "READY") return blocked(choice, readiness);
+    const attempt: DecisionAttempt = { kind: "DECISION", choice, entryId: id, restores: status.withdrawRestores,
+      request: { formatVersion: 1, requestId: crypto.randomUUID(), expectedRevision: status.headRevision, decision } };
+    return { attempt, show: () => setDecisionAttempt(attempt) };
   }
   /** Ett val i menyn: läs underlaget och visa beskedet med en bekräftelseknapp. */
   async function chooseStatusChange(choice: StatusChoice | "", selectedId = entryId) {

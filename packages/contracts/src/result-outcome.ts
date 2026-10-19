@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { evaluationResultSchema } from "./local-station-evaluation";
 import { rogainingScoreSchema } from "./rogaining";
+import { UUID_PATTERN } from "./ids";
 
 const canonicalUuidSchema = z.string().regex(
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+  UUID_PATTERN,
   "Id måste vara ett kanoniskt gemener-UUID"
 );
 
@@ -258,52 +259,14 @@ export const storedResultReasonSchema = z.enum([
   "WITHOUT_TIMING"
 ]);
 
-export const storedResultRevisionCauseV5Schema = z.enum([
-  "CARD_READOUT",
-  "CLASS_CHANGE_RECALCULATION",
-  "EXPLICIT_RECALCULATION",
-  "MANUAL_DID_NOT_START",
-  "MANUAL_DID_NOT_FINISH",
-  "MANUAL_DID_NOT_FINISH_WITHDRAWAL",
-  "MANUAL_DISQUALIFICATION",
-  "MANUAL_DISQUALIFICATION_WITHDRAWAL",
-  "MANUAL_RESULT_APPROVAL",
-  "MANUAL_RESULT_APPROVAL_WITHDRAWAL"
-]);
-export const storedResultRevisionCauseV6Schema = z.enum([
-  ...storedResultRevisionCauseV5Schema.options,
-  "MANUAL_OUT_OF_COMPETITION"
-]);
-/** TASK 006L source union, retained for historical format 7 readers. */
-export const storedResultRevisionCauseV7Schema = z.enum([
-  ...storedResultRevisionCauseV6Schema.options,
-  "MANUAL_OUT_OF_COMPETITION_WITHDRAWAL"
-]);
+/** Alla orsaker till en resultatrevision (ADR-0173: beslut och återtaganden är orsaker på revisionen). */
 export const storedResultRevisionCauseSchema = z.enum([
-  ...storedResultRevisionCauseV7Schema.options,
-  "MANUAL_WITHOUT_TIMING"
-]);
-/** TASK 006N source union. Earlier readers deliberately retain their frozen causes. */
-export const storedResultRevisionCauseV8Schema = z.enum([
-  ...storedResultRevisionCauseSchema.options,
-  "MANUAL_WITHOUT_TIMING_WITHDRAWAL",
-  "UNKNOWN_READOUT_RESOLUTION"
-]);
-/** TASK093 source union. Earlier readers deliberately retain their frozen causes. */
-export const storedResultRevisionCauseV9Schema = z.enum([
-  ...storedResultRevisionCauseV8Schema.options,
-  "MANUAL_FINISH_TIME_CORRECTION"
-]);
-/** TASK094 source union. Frozen historical readers retain their earlier causes. */
-export const storedResultRevisionCauseV10Schema = z.enum([
-  ...storedResultRevisionCauseV9Schema.options,
-  "MANUAL_FINISH_TIME_CORRECTION_WITHDRAWAL"
-]);
-/** TASK135 source union. Older projections retain their frozen cause sets. */
-export const storedResultRevisionCauseV11Schema = z.enum([
-  ...storedResultRevisionCauseV10Schema.options,
-  "MANUAL_PUNCH_START_TIME_CORRECTION",
-  "MANUAL_PUNCH_START_TIME_CORRECTION_WITHDRAWAL",
+  "CARD_READOUT", "CLASS_CHANGE_RECALCULATION", "EXPLICIT_RECALCULATION", "UNKNOWN_READOUT_RESOLUTION",
+  "MANUAL_DID_NOT_START", "MANUAL_DID_NOT_START_WITHDRAWAL", "START_CHECKIN_DID_NOT_START",
+  "MANUAL_DID_NOT_FINISH", "MANUAL_DID_NOT_FINISH_WITHDRAWAL", "MANUAL_DISQUALIFICATION", "MANUAL_DISQUALIFICATION_WITHDRAWAL",
+  "MANUAL_RESULT_APPROVAL", "MANUAL_RESULT_APPROVAL_WITHDRAWAL", "MANUAL_OUT_OF_COMPETITION", "MANUAL_OUT_OF_COMPETITION_WITHDRAWAL",
+  "MANUAL_WITHOUT_TIMING", "MANUAL_WITHOUT_TIMING_WITHDRAWAL", "MANUAL_FINISH_TIME_CORRECTION",
+  "MANUAL_FINISH_TIME_CORRECTION_WITHDRAWAL", "MANUAL_PUNCH_START_TIME_CORRECTION", "MANUAL_PUNCH_START_TIME_CORRECTION_WITHDRAWAL",
   "SHORTENED_COURSE_CLASS_TRANSFER"
 ]);
 

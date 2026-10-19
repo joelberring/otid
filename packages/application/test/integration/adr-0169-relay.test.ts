@@ -3,22 +3,23 @@ import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase, migrate } from "@o-tid/database";
 import { type DeviceBatch, type SportidentReadoutPayload } from "@o-tid/contracts";
-import { contentHash } from "../../src/hash";
-import { createEventAsUserAccount, enterRaceAsUserAccount } from "../../src/organizer-events";
+import { contentHash } from "../../src/serialization";
+import { createOrganizerEvent } from "../../src/organizer-events";
 import { registerUserAccount } from "../../src/user-account";
-import { createManualCourseClassAsAdministrator } from "../../src/manual-course-class";
-import { listCoursesForEditAsAdministrator } from "../../src/course-edit";
+import { createManualCourseClassAsAdmin } from "../../src/manual-course-class";
+import { listCoursesForEditAsAdmin } from "../../src/course-edit";
 import { importIofXmlAsAdmin } from "../../src/import-iof";
-import { ingestReadoutsAsAdministrator, readReadoutPackageAsAdministrator } from "../../src/readout-station";
+import { ingestReadoutsAsAdmin, readReadoutPackageAsAdmin } from "../../src/readout-station";
 import {
-  changeRelayLegRunnerAsAdministrator, createRelayClassAsAdministrator, registerRelayTeamAsAdministrator, setRelayStartTimesAsAdministrator
+  changeRelayLegRunnerAsAdmin, createRelayClassAsAdmin, registerRelayTeamAsAdmin, setRelayStartTimesAsAdmin
 } from "../../src/relay-admin";
-import { getRelayOverviewAsAdministrator, publicRelayResults } from "../../src/relay-results";
+import { getRelayOverviewAsAdmin, publicRelayResults } from "../../src/relay-results";
 import { publicResults } from "../../src/results";
 import { exportIofResultListAsAdmin, exportPublicIofResultList } from "../../src/result-list-export";
 import { exportCurrentStartListXmlAsAdmin } from "../../src/start-list-publication";
 import { registerEntryAsAdmin } from "../../src/entry-registration";
-import { listEntryTransfersAsAdministrator } from "../../src/entry-transfer";
+import { listEntryTransfersAsAdmin } from "../../src/entry-transfer";
+import { accountOnRace } from "./accounts";
 
 const base = process.env.TEST_DATABASE_URL;
 if (!base) throw new Error("ADR-0169-testet kräver TEST_DATABASE_URL till en PostgreSQL-roll med CREATEDB");
@@ -54,18 +55,18 @@ async function race(): Promise<Proof> {
   const account = await registerUserAccount(db, { formatVersion: 1, email: `stafett.${suffix}@test.o-tid.se`, displayName: "Arrangör", password: "hemligt-lösen" });
   if (account.status !== "authenticated") throw new Error("Kontot kunde inte skapas");
   const accountProof = { sessionToken: account.sessionToken, csrfCookie: account.csrfToken, csrfHeader: account.csrfToken };
-  const created = await createEventAsUserAccount(db, { ...accountProof, idempotencyKey: `organizer-event-create:${randomUUID()}`,
+  const created = await createOrganizerEvent(db, { ...accountProof, idempotencyKey: `organizer-event-create:${randomUUID()}`,
     readBody: async () => ({ formatVersion: 1, eventName: "Klubbstafett", raceName: "Torsdag", raceDate: "2026-10-08", timeZone: "Europe/Stockholm" }) });
   if (created.status !== "created") throw new Error("Tävlingen kunde inte skapas");
-  const entered = await enterRaceAsUserAccount(db, { ...accountProof, raceId: created.response.raceId });
-  if (entered.status !== "entered") throw new Error("Kom inte in i tävlingen");
+  const entered = await accountOnRace(db, { ...accountProof, raceId: created.response.raceId });
+  if (entered.status !== "authenticated") throw new Error("Kom inte in i tävlingen");
   return { raceId: created.response.raceId, sessionToken: entered.sessionToken, csrfCookie: entered.csrfToken, csrfHeader: entered.csrfToken };
 }
 
 async function course(proof: Proof): Promise<string> {
   const requestId = randomUUID();
-  const created = await createManualCourseClassAsAdministrator(db, { ...proof, idempotencyKey: `manual-course-class-create:${requestId}`,
-    request: { formatVersion: 1, requestId, expectedSnapshotVersion: await snapshot(proof.raceId), courseName: "Stafettbana",
+  const created = await createManualCourseClassAsAdmin(db, { ...proof, idempotencyKey: `manual-course-class-create:${requestId}`,
+    request: { formatVersion: 1, requestId, courseName: "Stafettbana",
       className: "Inskolning", startRule: "PUNCH", controlCodes: CONTROLS } });
   if (created.status !== "created") throw new Error(`Banan kunde inte skapas: ${created.status}`);
   return created.response.courseId;
@@ -74,19 +75,19 @@ async function course(proof: Proof): Promise<string> {
 async function relayClass(proof: Proof, courseId: string, legs: { startMethod: "MASS_START" | "CHANGEOVER" | "RESTART"; startTime: string | null;
   variantCode?: string }[]) {
   const requestId = randomUUID();
-  const request = { formatVersion: 1, requestId, expectedSnapshotVersion: await snapshot(proof.raceId), name: "Stafett", courseId,
+  const request = { formatVersion: 1, requestId, name: "Stafett", courseId,
     legs: legs.map((leg, index) => ({ leg: index + 1, variantCode: null, ...leg })) };
-  const created = await createRelayClassAsAdministrator(db, { ...proof, idempotencyKey: `relay-class:${requestId}`, request });
+  const created = await createRelayClassAsAdmin(db, { ...proof, idempotencyKey: `relay-class:${requestId}`, request });
   if (created.status !== "saved") throw new Error(`Stafettklassen kunde inte skapas: ${created.status}`);
-  const replay = await createRelayClassAsAdministrator(db, { ...proof, idempotencyKey: `relay-class:${requestId}`, request });
+  const replay = await createRelayClassAsAdmin(db, { ...proof, idempotencyKey: `relay-class:${requestId}`, request });
   expect(replay).toMatchObject({ status: "saved", response: { replayed: true, classId: created.response.classId } });
   return created.response.classId;
 }
 
 async function team(proof: Proof, classId: string, name: string, cards: string[], number: number | null = null) {
   const requestId = randomUUID();
-  const registered = await registerRelayTeamAsAdministrator(db, { ...proof, idempotencyKey: `relay-team:${requestId}`, request: {
-    formatVersion: 1, requestId, expectedSnapshotVersion: await snapshot(proof.raceId), classId, number, name, organisationName: "OK Test",
+  const registered = await registerRelayTeamAsAdmin(db, { ...proof, idempotencyKey: `relay-team:${requestId}`, request: {
+    formatVersion: 1, requestId, classId, number, name, organisationName: "OK Test",
     runners: cards.map((cardNumber, index) => ({ givenName: `${name.split(" ").at(-1)}${index + 1}`, familyName: "Löpare",
       organisationName: null, cardNumber })) } });
   if (registered.status !== "saved") throw new Error(`Laget kunde inte anmälas: ${registered.status}`);
@@ -103,7 +104,7 @@ async function readout(proof: Proof, cardNumber: string, finish: string, codes =
     firstSequence: 1, lastSequence: 1,
     events: [{ localSequence: 1, stationReceivedAt: new Date(finishMs + 60_000).toISOString(), transport: "sportident", payload,
       contentHash: contentHash(payload) }] };
-  const ingested = await ingestReadoutsAsAdministrator(db, { ...proof, batch });
+  const ingested = await ingestReadoutsAsAdmin(db, { ...proof, batch });
   if (ingested.status !== "ok") throw new Error(`Avläsningen togs inte emot: ${ingested.status}`);
   const acknowledgement = ingested.response.acknowledgements[0];
   if (!acknowledgement || acknowledgement.status === "rejected" || !acknowledgement.serverResult) throw new Error("Avläsningen saknar bedömning");
@@ -137,7 +138,7 @@ describe("ADR-0169 stafett", () => {
     const individual = await registerEntryAsAdmin(db, { ...proof, idempotencyKey: `entry-registration:${randomUUID()}`, request: {
       formatVersion: 1, classId, expectedCourseVersionId: (await pool.query<{ course_version_id: string }>(
         "select course_version_id from class where id = $1", [classId])).rows[0]!.course_version_id, expectedStartRule: "FIXED",
-      expectedSnapshotVersion: await snapshot(proof.raceId), givenName: "Ensam", familyName: "Löpare", organisationName: null,
+      givenName: "Ensam", familyName: "Löpare", organisationName: null,
       cardNumber: null, fixedStartTime: at("17:00") } });
     expect(individual.status).toBe("conflict");
 
@@ -152,8 +153,8 @@ describe("ADR-0169 stafett", () => {
     starts = await legs(proof.raceId);
     expect(starts["1.3"]!.start).toBe(at("18:05"));
     const changeId = randomUUID();
-    const changed = await changeRelayLegRunnerAsAdministrator(db, { ...proof, idempotencyKey: `relay-leg-runner:${changeId}`, request: {
-      formatVersion: 1, requestId: changeId, expectedSnapshotVersion: await snapshot(proof.raceId), teamId: one.teamId, leg: 3,
+    const changed = await changeRelayLegRunnerAsAdmin(db, { ...proof, idempotencyKey: `relay-leg-runner:${changeId}`, request: {
+      formatVersion: 1, requestId: changeId, teamId: one.teamId, leg: 3,
       expectedEntryVersion: starts["1.3"]!.version, runner: { givenName: "Bytt", familyName: "Löpare", organisationName: "OK Test", cardNumber: "8109" } } });
     expect(changed).toMatchObject({ status: "saved", response: { leg: 3, entryId: starts["1.3"]!.id } });
     expect(await readout(proof, "8103", at("18:40"))).toMatchObject({ status: "UNKNOWN_CARD" });
@@ -188,8 +189,8 @@ describe("ADR-0169 stafett", () => {
 
     // Ändrad omstartstid: lag 12 växlade 18:45 före den nya omstarten 18:50, så sträcka 3 räknas om.
     const timesId = randomUUID();
-    const times = await setRelayStartTimesAsAdministrator(db, { ...proof, idempotencyKey: `relay-start-times:${timesId}`, request: {
-      formatVersion: 1, requestId: timesId, expectedSnapshotVersion: await snapshot(proof.raceId), classId,
+    const times = await setRelayStartTimesAsAdmin(db, { ...proof, idempotencyKey: `relay-start-times:${timesId}`, request: {
+      formatVersion: 1, requestId: timesId, classId,
       legs: [{ leg: 3, startTime: at("18:50") }] } });
     expect(times).toMatchObject({ status: "saved", response: { recalculatedCount: 1 } });
     published = await publicRelayResults(db, proof.raceId);
@@ -199,7 +200,7 @@ describe("ADR-0169 stafett", () => {
 
     // Lagvyn: ett nytt lag är ute på sträcka 1; sträcklöparna syns med bricka.
     await team(proof, classId, "OK Test 4", ["8401", "8402", "8403"]);
-    const overview = await getRelayOverviewAsAdministrator(db, proof);
+    const overview = await getRelayOverviewAsAdmin(db, proof);
     if (overview.status !== "ok") throw new Error("Lagvyn saknas");
     expect(overview.response.classes[0]).toMatchObject({ name: "Stafett", teamCount: 4, legs: [{ startMethod: "MASS_START" },
       { startMethod: "CHANGEOVER" }, { startMethod: "RESTART", startTime: at("18:50") }] });
@@ -208,12 +209,12 @@ describe("ADR-0169 stafett", () => {
     expect(overview.response.teams[0]!.legs[2]).toMatchObject({ givenName: "Bytt", cardNumber: "8109" });
 
     // Avläsningspaketet bär stafetten; deltagarlistan visar lag och sträcka; individuella resultat visar inte sträcklöpare.
-    const pkg = await readReadoutPackageAsAdministrator(db, proof);
+    const pkg = await readReadoutPackageAsAdmin(db, proof);
     if (pkg.status !== "ok") throw new Error("Paketet saknas");
     expect(pkg.response.relay?.teams).toHaveLength(4);
     expect(pkg.response.relay?.legResults.find(row => row.entryId === starts["2.2"]!.id)).toMatchObject({ status: "OK",
       finishTime: at("18:10"), elapsedMs: minutes(35) });
-    const roster = await listEntryTransfersAsAdministrator(db, proof);
+    const roster = await listEntryTransfersAsAdmin(db, proof);
     if (roster.status !== "ok") throw new Error("Deltagarlistan saknas");
     expect(roster.response.classes.find(row => row.id === classId)?.relayLegCount).toBe(3);
     expect(roster.response.entries.find(row => row.id === starts["1.3"]!.id)?.relay).toMatchObject({ teamNumber: 1, leg: 3 });
@@ -252,7 +253,7 @@ describe("ADR-0169 stafett", () => {
     const proof = await race();
     const imported = await importIofXmlAsAdmin(db, { ...proof, idempotencyKey: `iof-import:${randomUUID()}`, xmlBytes: fixture("course-data-forked.xml") });
     if (imported.status !== "stored") throw new Error("Banimporten misslyckades");
-    const listed = await listCoursesForEditAsAdministrator(db, proof);
+    const listed = await listCoursesForEditAsAdmin(db, proof);
     if (listed.status !== "ok") throw new Error("Banorna saknas");
     const long = listed.response.courses.find(row => row.name === "Lång")!;
     const classId = await relayClass(proof, long.courseId, [{ startMethod: "MASS_START", startTime: at("17:00") },

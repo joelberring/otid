@@ -1,24 +1,12 @@
 import { z } from "zod";
+import { UUID_PATTERN } from "./ids";
 
 const canonicalUuidSchema = z.string().regex(
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+  UUID_PATTERN,
   "Id måste vara ett kanoniskt gemener-UUID"
 );
-const instantSchema = z.iso.datetime({ offset: true });
 
-export const iofResultListExportAdminLoginRequestSchema = z.object({
-  formatVersion: z.literal(1),
-  accessCredential: z.string().regex(
-    /^otid_org_result_list_export_v1\.[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.[A-Za-z0-9_-]{43}$/
-  )
-}).strict();
 
-export const iofResultListExportAdminLoginResponseSchema = z.object({
-  formatVersion: z.literal(1),
-  raceId: canonicalUuidSchema,
-  capability: z.literal("EXPORT_IOF_RESULT_LIST"),
-  expiresAt: instantSchema
-}).strict();
 
 export const iofResultListExportMetadataSchema = z.object({
   formatVersion: z.literal(1),
@@ -54,12 +42,6 @@ export const iofResultListExportAdminErrorResponseSchema = z.object({
   error: iofResultListExportAdminErrorCodeSchema
 }).strict();
 
-export type IofResultListExportAdminLoginRequest = z.infer<
-  typeof iofResultListExportAdminLoginRequestSchema
->;
-export type IofResultListExportAdminLoginResponse = z.infer<
-  typeof iofResultListExportAdminLoginResponseSchema
->;
 export type IofResultListExportMetadata = z.infer<typeof iofResultListExportMetadataSchema>;
 export type IofResultListExportAdminErrorCode = z.infer<
   typeof iofResultListExportAdminErrorCodeSchema

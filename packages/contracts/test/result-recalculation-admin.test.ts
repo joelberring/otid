@@ -1,13 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  resultRecalculationAdminErrorResponseSchema,
-  resultRecalculationAdminLoginRequestSchema,
-  resultRecalculationAdminLoginResponseSchema,
-  resultRecalculationCandidateResponseSchema,
-  resultRecalculationIdempotencyKeySchema,
-  resultRecalculationRequestSchema,
-  resultRecalculationResponseSchema
-} from "../src";
+import { resultRecalculationAdminErrorResponseSchema, resultRecalculationCandidateResponseSchema, resultRecalculationIdempotencyKeySchema, resultRecalculationRequestSchema, resultRecalculationResponseSchema } from "../src";
 
 const requestId = "a0000000-0000-4000-8000-000000000001";
 const raceId = "b0000000-0000-4000-8000-000000000002";
@@ -20,23 +12,6 @@ const resultRevisionId = "b0000000-0000-4000-8000-000000000008";
 const courseVersionId = "c0000000-0000-4000-8000-000000000009";
 
 describe("TASK 005I resultatomräkningskontrakt", () => {
-  it("separerar credentialprefix och capability", () => {
-    const accessCredential = `otid_org_result_recalc_v1.${requestId}.${"A".repeat(43)}`;
-    expect(resultRecalculationAdminLoginRequestSchema.parse({ formatVersion: 1, accessCredential }))
-      .toEqual({ formatVersion: 1, accessCredential });
-    for (const prefix of ["otid_org_pair_v1", "otid_org_import_v1", "otid_org_entry_class_v1"]) {
-      expect(resultRecalculationAdminLoginRequestSchema.safeParse({
-        formatVersion: 1,
-        accessCredential: accessCredential.replace("otid_org_result_recalc_v1", prefix)
-      }).success).toBe(false);
-    }
-    expect(resultRecalculationAdminLoginResponseSchema.parse({
-      formatVersion: 1,
-      raceId,
-      capability: "RECALCULATE_RESULT",
-      expiresAt: "2026-08-31T19:00:00.000Z"
-    }).capability).toBe("RECALCULATE_RESULT");
-  });
 
   it("validerar kandidatens readiness och minsta privata DTO", () => {
     const response = {
@@ -114,7 +89,6 @@ describe("TASK 005I resultatomräkningskontrakt", () => {
       formatVersion: 1,
       expectedEntryVersion: 3,
       expectedClassId: classId,
-      expectedSnapshotVersion: 7,
       expectedCardAssignmentId: assignmentId,
       expectedReadoutId: readoutId,
       expectedLatestResultRevision: { id: previousRevisionId, revision: 2 },

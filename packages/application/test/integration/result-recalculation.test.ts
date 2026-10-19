@@ -5,43 +5,25 @@ import {
   changeEntryClass, importIofXml, ingestDeviceBatch, listResultRecalculationCandidatesAsAdmin,
   recalculateEntryAsAdmin
 } from "../../src";
-import {
-  authenticatePairingAdminSession, issuePairingAdminAccessCredential, loginPairingAdmin,
-  logoutPairingAdminSession, revokePairingAdminAccessCredential
-} from "../../src/pairing-admin";
+import { requireRaceRole } from "../../src/race-session";
+import { logoutUserAccountSession } from "../../src/user-account";
 import { db, courseXml, importedRace, batch, okPayload, useRaceDatabase } from "./race-fixtures";
+import { raceLogin, revokeRaceGrants } from "./accounts";
 
 useRaceDatabase();
 
 describe("TASK 005I autentiserad explicit resultatomräkning PostgreSQL", () => {
-  const issuedAt = new Date("2026-08-31T20:00:00.000Z");
   const usedAt = new Date("2026-08-31T20:02:00.000Z");
 
-  async function recalculationAdmin(raceId: string, marker: number) {
-    const installation = await issuePairingAdminAccessCredential(db, {
-      raceId,
-      capability: "RECALCULATE_RESULT",
-      label: `Resultatomräknare ${marker}`,
-      expiresAt: new Date(issuedAt.getTime() + 8 * 60 * 60 * 1000)
-    }, { now: issuedAt, secretBytes: Buffer.alloc(32, marker) });
-    const login = await loginPairingAdmin(db, {
-      formatVersion: 1,
-      accessCredential: installation.accessCredential
-    }, {
-      expectedRaceId: raceId,
-      expectedCapability: "RECALCULATE_RESULT",
-      now: new Date("2026-08-31T20:01:00.000Z"),
-      sessionSecretBytes: Buffer.alloc(32, marker + 1),
-      csrfSecretBytes: Buffer.alloc(32, marker + 2)
-    });
-    if (login.status !== "authenticated") throw new Error("Omräkningssession kunde inte skapas");
-    return { installation, login };
+  async function recalculationAdmin(raceId: string) {
+    const login = await raceLogin(db, raceId, "ADMIN", new Date("2026-08-31T20:01:00.000Z"));
+    return { login };
   }
 
-  async function readyFixture(marker: number) {
+  async function readyFixture() {
     const { raceId, overview } = await importedRace();
     await ingestDeviceBatch(db, raceId, batch(crypto.randomUUID(), okPayload));
-    const admin = await recalculationAdmin(raceId, marker);
+    const admin = await recalculationAdmin(raceId);
     const listed = await listResultRecalculationCandidatesAsAdmin(db, {
       sessionToken: admin.login.sessionToken,
       raceId
@@ -78,7 +60,6 @@ describe("TASK 005I autentiserad explicit resultatomräkning PostgreSQL", () => 
         formatVersion: 1,
         expectedEntryVersion: fixture.candidate.entryVersion,
         expectedClassId: fixture.candidate.classId,
-        expectedSnapshotVersion: fixture.response.snapshotVersion,
         expectedCardAssignmentId: fixture.candidate.cardAssignmentId,
         expectedReadoutId: fixture.candidate.latestReadout.id,
         expectedLatestResultRevision: {
@@ -90,32 +71,10 @@ describe("TASK 005I autentiserad explicit resultatomräkning PostgreSQL", () => 
     };
   }
 
-  it("separerar capability/prefix/livslängd och lämnar endast säkra readiness-kandidater", async () => {
-    const fixture = await readyFixture(291);
-    expect(fixture.admin.installation.accessCredential).toMatch(/^otid_org_result_recalc_v1\./);
-    expect(fixture.admin.login.response).toEqual({
-      formatVersion: 1,
-      raceId: fixture.raceId,
-      capability: "RECALCULATE_RESULT",
-      expiresAt: "2026-08-31T21:01:00.000Z"
-    });
-    const issueAudits = await db.select().from(schema.auditEvents).where(and(
-      eq(schema.auditEvents.entityId, fixture.admin.installation.credentialId),
-      eq(schema.auditEvents.action, "RESULT_RECALCULATION_ACCESS_CREDENTIAL_ISSUED")
-    ));
-    expect(issueAudits).toHaveLength(1);
-    expect(issueAudits[0]?.entityType).toBe("result_recalculation_access_credential");
-    await expect(authenticatePairingAdminSession(db, {
-      sessionToken: fixture.admin.login.sessionToken,
-      raceId: fixture.raceId,
-      capability: "CHANGE_ENTRY_CLASS"
-    }, usedAt)).resolves.toEqual({ status: "forbidden" });
-    await expect(issuePairingAdminAccessCredential(db, {
-      raceId: fixture.raceId,
-      capability: "RECALCULATE_RESULT",
-      label: "För lång",
-      expiresAt: new Date(issuedAt.getTime() + 8 * 60 * 60 * 1000 + 1)
-    }, { now: issuedAt })).rejects.toThrow(/högst 8 timmar/);
+  it("lämnar endast säkra readiness-kandidater till administratören", async () => {
+    const fixture = await readyFixture();
+    await expect(requireRaceRole(db, { sessionToken: fixture.admin.login.sessionToken, raceId: fixture.raceId, role: "ADMIN" },
+      usedAt)).resolves.toMatchObject({ status: "authenticated" });
 
     expect(fixture.candidate.readiness).toBe("READY");
     expect(typeof fixture.candidate.latestReadout.id).toBe("string");
@@ -167,7 +126,7 @@ describe("TASK 005I autentiserad explicit resultatomräkning PostgreSQL", () => 
   });
 
   it("committar 100 samtidiga exact retries en gång utan att mutera inputstate", async () => {
-    const fixture = await readyFixture(301);
+    const fixture = await readyFixture();
     const requestId = crypto.randomUUID();
     const input = recalculationInput(fixture, requestId);
     const [entryBefore] = await db.select().from(schema.entries).where(eq(schema.entries.id, fixture.candidate.id));
@@ -205,8 +164,8 @@ describe("TASK 005I autentiserad explicit resultatomräkning PostgreSQL", () => 
     expect(audits[0]).toMatchObject({
       entityType: "result_revision",
       entityId: revisions[0]?.id,
-      actorKind: "RESULT_RECALCULATION_ACCESS_CREDENTIAL",
-      actorId: fixture.admin.installation.credentialId,
+      actorKind: "USER_ACCOUNT",
+      actorId: fixture.admin.login.accountId,
       requestId
     });
     const [entryAfter] = await db.select().from(schema.entries).where(eq(schema.entries.id, fixture.candidate.id));
@@ -224,7 +183,7 @@ describe("TASK 005I autentiserad explicit resultatomräkning PostgreSQL", () => 
     const auditJson = JSON.stringify(audits);
     for (const forbidden of [
       "Ada", "Löpare", "Centrum OK", "12345", "punches", "evaluation",
-      fixture.admin.installation.accessCredential, fixture.admin.login.sessionToken, fixture.admin.login.csrfToken
+      fixture.admin.login.sessionToken, fixture.admin.login.csrfToken
     ]) expect(auditJson).not.toContain(forbidden);
     await expect(db.update(schema.resultRecalculationRequests).set({ expectedEntryVersion: 999 })
       .where(eq(schema.resultRecalculationRequests.requestId, requestId))).rejects.toThrow();
@@ -235,13 +194,12 @@ describe("TASK 005I autentiserad explicit resultatomräkning PostgreSQL", () => 
   });
 
   it("avvisar stale värde för vart och ett av de frysta intentfälten utan write", async () => {
-    const fixture = await readyFixture(311);
+    const fixture = await readyFixture();
     const base = recalculationInput(fixture);
     const current = base.request;
     const staleRequests = [
       { ...current, expectedEntryVersion: current.expectedEntryVersion + 1 },
       { ...current, expectedClassId: fixture.d21.id },
-      { ...current, expectedSnapshotVersion: current.expectedSnapshotVersion + 1 },
       { ...current, expectedCardAssignmentId: crypto.randomUUID() },
       { ...current, expectedReadoutId: crypto.randomUUID() },
       { ...current, expectedLatestResultRevision: null },
@@ -277,7 +235,7 @@ describe("TASK 005I autentiserad explicit resultatomräkning PostgreSQL", () => 
   });
 
   it("ger en vinnare för två request-id och replayar originalet efter senare domänhändelser", async () => {
-    const fixture = await readyFixture(321);
+    const fixture = await readyFixture();
     const firstInput = recalculationInput(fixture, crypto.randomUUID());
     const secondInput = recalculationInput(fixture, crypto.randomUUID());
     const initialResults = await Promise.all([
@@ -305,7 +263,6 @@ describe("TASK 005I autentiserad explicit resultatomräkning PostgreSQL", () => 
     const changedReplayRequests = [
       { ...winningRequest, expectedEntryVersion: winningRequest.expectedEntryVersion + 1 },
       { ...winningRequest, expectedClassId: crypto.randomUUID() },
-      { ...winningRequest, expectedSnapshotVersion: winningRequest.expectedSnapshotVersion + 1 },
       { ...winningRequest, expectedCardAssignmentId: crypto.randomUUID() },
       { ...winningRequest, expectedReadoutId: crypto.randomUUID() },
       { ...winningRequest, expectedLatestResultRevision: null },
@@ -329,7 +286,7 @@ describe("TASK 005I autentiserad explicit resultatomräkning PostgreSQL", () => 
       entryId: crypto.randomUUID()
     }, new Date(usedAt.getTime() + 2))).resolves.toEqual({ status: "conflict" });
 
-    const otherActor = await recalculationAdmin(fixture.raceId, 331);
+    const otherActor = await recalculationAdmin(fixture.raceId);
     await expect(recalculateEntryAsAdmin(db, {
       ...winningInput,
       sessionToken: otherActor.login.sessionToken,
@@ -346,7 +303,7 @@ describe("TASK 005I autentiserad explicit resultatomräkning PostgreSQL", () => 
     ["flera aktiva assignments", 333, "multiple"],
     ["saknad readout", 334, "missing-readout"]
   ] as const)("avvisar %s utan resultatskrivning", async (_label, marker, condition) => {
-    const fixture = await readyFixture(marker);
+    const fixture = await readyFixture();
     const input = recalculationInput(fixture);
     if (condition === "none") {
       await db.update(schema.cardAssignments).set({ active: false })
@@ -385,46 +342,22 @@ describe("TASK 005I autentiserad explicit resultatomräkning PostgreSQL", () => 
     expect(requests).toHaveLength(0);
   });
 
-  it("stoppar omräkning efter capability-säker logout och revocation", async () => {
-    const fixture = await readyFixture(341);
+  it("stoppar omräkning efter utloggning och borttagen behörighet", async () => {
+    const fixture = await readyFixture();
     const input = recalculationInput(fixture);
-    await expect(logoutPairingAdminSession(db, {
-      sessionToken: fixture.admin.login.sessionToken,
-      raceId: fixture.raceId,
-      capability: "CHANGE_ENTRY_CLASS",
-      csrfCookie: fixture.admin.login.csrfToken,
-      csrfHeader: fixture.admin.login.csrfToken
-    }, usedAt)).resolves.toEqual({ status: "forbidden" });
-    await expect(logoutPairingAdminSession(db, {
-      sessionToken: fixture.admin.login.sessionToken,
-      raceId: fixture.raceId,
-      capability: "RECALCULATE_RESULT",
-      csrfCookie: fixture.admin.login.csrfToken,
-      csrfHeader: fixture.admin.login.csrfToken
-    }, usedAt)).resolves.toEqual({ status: "logged-out" });
+    await expect(logoutUserAccountSession(db, { sessionToken: fixture.admin.login.sessionToken,
+      csrfCookie: fixture.admin.login.csrfToken, csrfHeader: fixture.admin.login.csrfToken }, usedAt))
+      .resolves.toEqual({ status: "logged-out" });
     await expect(recalculateEntryAsAdmin(db, input, usedAt)).resolves.toEqual({ status: "unauthorized" });
 
-    const revokedFixture = await readyFixture(351);
+    const revokedFixture = await readyFixture();
     const revokedInput = recalculationInput(revokedFixture);
-    await expect(revokePairingAdminAccessCredential(db, {
-      credentialId: revokedFixture.admin.installation.credentialId,
-      capability: "CHANGE_ENTRY_CLASS"
-    }, usedAt)).rejects.toThrow(/finns inte/);
-    await expect(revokePairingAdminAccessCredential(db, {
-      credentialId: revokedFixture.admin.installation.credentialId,
-      capability: "RECALCULATE_RESULT"
-    }, usedAt)).resolves.toMatchObject({ status: "revoked" });
+    await revokeRaceGrants(db, revokedFixture.admin.login.accountId, usedAt);
     await expect(recalculateEntryAsAdmin(db, revokedInput, usedAt)).resolves.toEqual({ status: "unauthorized" });
-    const revokeAudits = await db.select().from(schema.auditEvents).where(and(
-      eq(schema.auditEvents.entityId, revokedFixture.admin.installation.credentialId),
-      eq(schema.auditEvents.action, "RESULT_RECALCULATION_ACCESS_CREDENTIAL_REVOKED")
-    ));
-    expect(revokeAudits).toHaveLength(1);
-    expect(revokeAudits[0]?.entityType).toBe("result_recalculation_access_credential");
   });
 
   it("serialiserar samtidig ingest till obrutna revisioner eller stale konflikt", async () => {
-    const fixture = await readyFixture(361);
+    const fixture = await readyFixture();
     const input = recalculationInput(fixture);
     const [recalculation, ingest] = await Promise.all([
       recalculateEntryAsAdmin(db, input, usedAt),
@@ -446,9 +379,9 @@ describe("TASK 005I autentiserad explicit resultatomräkning PostgreSQL", () => 
   });
 
   it.each(["class", "import"] as const)(
-    "serialiserar samtidig %s-mutation till hel snapshot eller stale konflikt",
+    "serialiserar samtidig %s-mutation till hel snapshot eller konflikt",
     async (mutation) => {
-      const fixture = await readyFixture(mutation === "class" ? 371 : 381);
+      const fixture = await readyFixture();
       const input = recalculationInput(fixture);
       const mutate = mutation === "class"
         ? () => changeEntryClass(db, fixture.raceId, fixture.candidate.id, fixture.d21.id)
@@ -465,7 +398,9 @@ describe("TASK 005I autentiserad explicit resultatomräkning PostgreSQL", () => 
         .where(eq(schema.resultRecalculationRequests.raceId, fixture.raceId));
       expect(requests).toHaveLength(recalculation.status === "recalculated" ? 1 : 0);
       if (recalculation.status === "recalculated") {
-        expect(recalculation.response.snapshotVersion).toBe(fixture.response.snapshotVersion);
+        // Omräkningen räknar mot hela paketet före eller efter mutationen, aldrig mot ett halvt.
+        expect([fixture.response.snapshotVersion, fixture.response.snapshotVersion + 1])
+          .toContain(recalculation.response.snapshotVersion);
       }
     }
   );

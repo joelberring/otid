@@ -4,7 +4,7 @@ import { classEditIdempotencyKeySchema, classEditPreviewResponseSchema, classEdi
 
 const id = "10000000-0000-4000-8000-000000000001";
 const other = "10000000-0000-4000-8000-000000000002";
-const request = { formatVersion: 1, requestId: id, expectedSnapshotVersion: 3, classId: id, className: "H21",
+const request = { formatVersion: 1, requestId: id, classId: id, className: "H21",
   courseId: other, startRule: "PUNCH", confirmResultChanges: false };
 
 it("Redigera klass: begäran är strikt och nyckeln binder begärans id", () => {

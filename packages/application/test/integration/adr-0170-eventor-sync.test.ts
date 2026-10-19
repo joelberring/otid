@@ -3,21 +3,22 @@ import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase, migrate } from "@o-tid/database";
 import type { DeviceBatch, SportidentReadoutPayload, SyncPreviewResponse } from "@o-tid/contracts";
-import { contentHash } from "../../src/hash";
-import { createEventAsUserAccount, enterRaceAsUserAccount } from "../../src/organizer-events";
+import { contentHash } from "../../src/serialization";
+import { createOrganizerEvent } from "../../src/organizer-events";
 import { registerUserAccount } from "../../src/user-account";
 import { registerEntryAsAdmin } from "../../src/entry-registration";
-import { ingestReadoutsAsAdministrator } from "../../src/readout-station";
+import { ingestReadoutsAsAdmin } from "../../src/readout-station";
 import { getAdministratorEffectiveResult } from "../../src/administrator-effective-result";
 import { eventorConfigurationFromEnvironment } from "../../src/eventor-secret";
 import {
-  chooseEventorEventAsAdministrator, getEventorSettingsAsAdministrator, listEventorEventsAsAdministrator, removeEventorKeyAsAdministrator,
-  saveEventorKeyAsAdministrator, type EventorRuntime
+  chooseEventorEventAsAdmin, getEventorSettingsAsAdmin, listEventorEventsAsAdmin, removeEventorKeyAsAdmin,
+  saveEventorKeyAsAdmin, type EventorRuntime
 } from "../../src/eventor-link";
 import {
-  applySyncAsAdministrator, getSourceSyncStatusAsAdministrator, previewCourseFileAsAdministrator, previewEventorSyncAsAdministrator,
-  syncConsequenceAsAdministrator
+  applySyncAsAdmin, getSourceSyncStatusAsAdmin, previewCourseFileAsAdmin, previewEventorSyncAsAdmin,
+  syncConsequenceAsAdmin
 } from "../../src/source-sync";
+import { accountOnRace } from "./accounts";
 
 const base = process.env.TEST_DATABASE_URL;
 if (!base) throw new Error("ADR-0170-testet kräver TEST_DATABASE_URL till en PostgreSQL-roll med CREATEDB");
@@ -72,30 +73,29 @@ async function race(raceType = "STANDARD"): Promise<Proof> {
   const account = await registerUserAccount(db, { formatVersion: 1, email: `eventor.${suffix}@test.o-tid.se`, displayName: "Arrangör", password: "hemligt-lösen" });
   if (account.status !== "authenticated") throw new Error("Kontot kunde inte skapas");
   const accountProof = { sessionToken: account.sessionToken, csrfCookie: account.csrfToken, csrfHeader: account.csrfToken };
-  const created = await createEventAsUserAccount(db, { ...accountProof, idempotencyKey: `organizer-event-create:${randomUUID()}`,
+  const created = await createOrganizerEvent(db, { ...accountProof, idempotencyKey: `organizer-event-create:${randomUUID()}`,
     readBody: async () => ({ formatVersion: 1, eventName: "Höstsprinten", raceName: "Sprint", raceDate: "2026-10-18",
       timeZone: "Europe/Stockholm", raceType }) });
   if (created.status !== "created") throw new Error("Tävlingen kunde inte skapas");
-  const entered = await enterRaceAsUserAccount(db, { ...accountProof, raceId: created.response.raceId });
-  if (entered.status !== "entered") throw new Error("Kom inte in i tävlingen");
+  const entered = await accountOnRace(db, { ...accountProof, raceId: created.response.raceId });
+  if (entered.status !== "authenticated") throw new Error("Kom inte in i tävlingen");
   return { raceId: created.response.raceId, sessionToken: entered.sessionToken, csrfCookie: entered.csrfToken, csrfHeader: entered.csrfToken };
 }
 
 async function apply(proof: Proof, preview: SyncPreviewResponse, options: { excluded?: string[]; confirm?: boolean } = {}) {
   const requestId = randomUUID();
-  const request = { formatVersion: 1, requestId, snapshotId: preview.snapshotId, expectedSnapshotVersion: await snapshot(proof.raceId),
-    excludedRowIds: options.excluded ?? [], confirmResultChanges: options.confirm ?? false };
-  return { request, result: await applySyncAsAdministrator(db, { ...proof, idempotencyKey: `source-sync:${requestId}`, request }) };
+  const request = { formatVersion: 1, requestId, snapshotId: preview.snapshotId, excludedRowIds: options.excluded ?? [], confirmResultChanges: options.confirm ?? false };
+  return { request, result: await applySyncAsAdmin(db, { ...proof, idempotencyKey: `source-sync:${requestId}`, request }) };
 }
 
 async function eventorPreview(proof: Proof, runtime: EventorRuntime): Promise<SyncPreviewResponse> {
-  const preview = await previewEventorSyncAsAdministrator(db, proof, runtime);
+  const preview = await previewEventorSyncAsAdmin(db, proof, runtime);
   if (preview.status !== "ok") throw new Error(`Eventor kunde inte läsas: ${JSON.stringify(preview)}`);
   return preview.response;
 }
 
 async function coursePreview(proof: Proof, name: string): Promise<SyncPreviewResponse> {
-  const preview = await previewCourseFileAsAdministrator(db, { ...proof, xml: fixture(`iof/${name}`), fileName: name });
+  const preview = await previewCourseFileAsAdmin(db, { ...proof, xml: fixture(`iof/${name}`), fileName: name });
   if (preview.status !== "ok") throw new Error(`Banfilen kunde inte läsas: ${preview.status}`);
   return preview.response;
 }
@@ -119,7 +119,7 @@ async function readout(proof: Proof, cardNumber: string, codes: number[]) {
   const batch: DeviceBatch = { deviceId: randomUUID(), sessionId: randomUUID(), packageVersion: await snapshot(proof.raceId),
     firstSequence: 1, lastSequence: 1,
     events: [{ localSequence: 1, stationReceivedAt: "2026-10-18T08:21:00.000Z", transport: "sportident", payload, contentHash: contentHash(payload) }] };
-  const ingested = await ingestReadoutsAsAdministrator(db, { ...proof, batch });
+  const ingested = await ingestReadoutsAsAdmin(db, { ...proof, batch });
   if (ingested.status !== "ok") throw new Error(`Avläsningen togs inte emot: ${ingested.status}`);
 }
 
@@ -138,27 +138,27 @@ describe("ADR-0170 Eventor och banfiler, med uppdateringar", () => {
     const proof = await race();
 
     // Nyckeln sparas krypterad, testas och visas bara som sparad.
-    const empty = await getEventorSettingsAsAdministrator(db, proof, runtime);
+    const empty = await getEventorSettingsAsAdmin(db, proof, runtime);
     expect(empty).toMatchObject({ status: "ok", response: { server: "OK", key: "NONE", event: null } });
-    const saved = await saveEventorKeyAsAdministrator(db, { ...proof, request: { formatVersion: 1, apiKey: ` ${API_KEY} ` } }, runtime);
+    const saved = await saveEventorKeyAsAdmin(db, { ...proof, request: { formatVersion: 1, apiKey: ` ${API_KEY} ` } }, runtime);
     expect(saved).toMatchObject({ status: "ok", response: { outcome: "CONNECTED", settings: { key: "SAVED",
       organisation: { id: "9321", name: "OK Skogsfalken" } } } });
     const stored: unknown = (await pool.query("select * from race_eventor_link where race_id = $1", [proof.raceId])).rows[0];
     expect(JSON.stringify(stored)).not.toContain(API_KEY);
     const audit = (await pool.query("select * from audit_event where race_id = $1", [proof.raceId])).rows;
     expect(JSON.stringify(audit)).not.toContain(API_KEY);
-    const wrongKey = await saveEventorKeyAsAdministrator(db, { ...proof, request: { formatVersion: 1, apiKey: "a".repeat(32) } }, runtime);
+    const wrongKey = await saveEventorKeyAsAdmin(db, { ...proof, request: { formatVersion: 1, apiKey: "a".repeat(32) } }, runtime);
     expect(wrongKey).toMatchObject({ status: "ok", response: { outcome: "REJECTED", settings: { key: "SAVED", organisation: null } } });
-    await saveEventorKeyAsAdministrator(db, { ...proof, request: { formatVersion: 1, apiKey: API_KEY } }, runtime);
+    await saveEventorKeyAsAdmin(db, { ...proof, request: { formatVersion: 1, apiKey: API_KEY } }, runtime);
 
-    const events = await listEventorEventsAsAdministrator(db, proof, runtime);
+    const events = await listEventorEventsAsAdmin(db, proof, runtime);
     expect(events).toMatchObject({ status: "ok", response: { outcome: "CONNECTED" } });
     if (events.status !== "ok") throw new Error("Tävlingslistan saknas");
     expect(events.response.events.map(event => [event.id, event.name, event.form])).toEqual([
       ["47110", "Höstsprinten i Skogsby", "INDIVIDUAL"], ["47120", "Skogsfalkens klubbstafett", "RELAY"]]);
-    expect(await chooseEventorEventAsAdministrator(db, { ...proof, request: { formatVersion: 1, eventId: "99999" } }, runtime))
+    expect(await chooseEventorEventAsAdmin(db, { ...proof, request: { formatVersion: 1, eventId: "99999" } }, runtime))
       .toMatchObject({ status: "ok", response: { outcome: "NOT_FOUND", settings: { event: null } } });
-    expect(await chooseEventorEventAsAdministrator(db, { ...proof, request: { formatVersion: 1, eventId: "47110" } }, runtime))
+    expect(await chooseEventorEventAsAdmin(db, { ...proof, request: { formatVersion: 1, eventId: "47110" } }, runtime))
       .toMatchObject({ status: "ok", response: { outcome: "CONNECTED", settings: { event: { id: "47110", date: "2026-10-18" } } } });
 
     // Första importen: klasser och anmälningar skapas.
@@ -172,7 +172,7 @@ describe("ADR-0170 Eventor och banfiler, med uppdateringar", () => {
     expect(await activeCard(david.id)).toEqual([]);
     expect((await entry(proof.raceId, "Nyström")).class_name).toBe("H35");
     // Samma kvitto för samma request-id.
-    expect(await applySyncAsAdministrator(db, { ...proof, idempotencyKey: `source-sync:${firstApplied.request.requestId}`,
+    expect(await applySyncAsAdmin(db, { ...proof, idempotencyKey: `source-sync:${firstApplied.request.requestId}`,
       request: firstApplied.request })).toMatchObject({ status: "saved", response: { replayed: true } });
 
     // Banfilen: tre nya banor och klasserna flyttas från "Bana saknas".
@@ -182,7 +182,7 @@ describe("ADR-0170 Eventor och banfiler, med uppdateringar", () => {
       ["CHANGED", "CLASS", "H21", "Bana saknas→Bana 1"], ["CHANGED", "CLASS", "D21", "Bana saknas→Bana 2"],
       ["CHANGED", "CLASS", "H35", "Bana saknas→Bana 2"], ["CHANGED", "CLASS", "D35", "Bana saknas→Bana 3"]]);
     expect((await apply(proof, courses)).result).toMatchObject({ status: "saved" });
-    expect(await getSourceSyncStatusAsAdministrator(db, proof)).toMatchObject({ status: "ok", response: { courseFile: { fileName: "course-file-1.xml" } } });
+    expect(await getSourceSyncStatusAsAdmin(db, proof)).toMatchObject({ status: "ok", response: { courseFile: { fileName: "course-file-1.xml" } } });
 
     // En lokal direktanmälan och tre avläsningar.
     const classes = (await pool.query<{ id: string; name: string; course_version_id: string }>(
@@ -190,7 +190,7 @@ describe("ADR-0170 Eventor och banfiler, med uppdateringar", () => {
     const h21 = classes.find(row => row.name === "H21")!;
     const local = await registerEntryAsAdmin(db, { ...proof, idempotencyKey: `entry-registration:${randomUUID()}`, request: {
       formatVersion: 1, classId: h21.id, expectedCourseVersionId: h21.course_version_id, expectedStartRule: "PUNCH",
-      expectedSnapshotVersion: await snapshot(proof.raceId), givenName: "Hanna", familyName: "Lokal", organisationName: "OK Skogsfalken",
+      givenName: "Hanna", familyName: "Lokal", organisationName: "OK Skogsfalken",
       cardNumber: "2101099", fixedStartTime: null } });
     if (local.status !== "registered") throw new Error("Direktanmälan misslyckades");
     await readout(proof, "2101003", [31, 36, 37]); // Cecilia sprang D35:s bana men står i D21.
@@ -215,8 +215,8 @@ describe("ADR-0170 Eventor och banfiler, med uppdateringar", () => {
       changes: [{ displayName: "Cecilia Ärlig", className: "D21", before: "MP", after: "OK" }] });
     // Utan klassbytet krävs ingen bekräftelse.
     const classRow = update.rows.find(row => row.label === "Cecilia Ärlig")!;
-    const without = await syncConsequenceAsAdministrator(db, { ...proof, request: { formatVersion: 1, snapshotId: update.snapshotId,
-      expectedSnapshotVersion: update.snapshotVersion, excludedRowIds: [classRow.id] } });
+    const without = await syncConsequenceAsAdmin(db, { ...proof, request: { formatVersion: 1, snapshotId: update.snapshotId,
+      excludedRowIds: [classRow.id] } });
     expect(without).toMatchObject({ status: "ok", response: { consequence: { readOutCount: 0, requiresConfirmation: false } } });
     expect((await apply(proof, update)).result).toMatchObject({ status: "confirmation-required", consequence: { becomesOkCount: 1 } });
     const hannaBefore = await entry(proof.raceId, "Lokal");
@@ -239,7 +239,7 @@ describe("ADR-0170 Eventor och banfiler, med uppdateringar", () => {
     // Samma källa igen: inget att göra, den strukna visas inte igen.
     const again = await eventorPreview(proof, runtime);
     expect(again.rows).toEqual([]);
-    const afterUpdate = await getEventorSettingsAsAdministrator(db, proof, runtime);
+    const afterUpdate = await getEventorSettingsAsAdmin(db, proof, runtime);
     expect(afterUpdate.status === "ok" && afterUpdate.response.lastAppliedAt).toMatch(/^2026-/);
 
     // En avläst löpare som stryks i Eventor blir en konflikt i stället för att strykas tyst.
@@ -263,15 +263,15 @@ describe("ADR-0170 Eventor och banfiler, med uppdateringar", () => {
     expect((await apply(proof, changedCourse, { confirm: true })).result).toMatchObject({ status: "conflict" });
 
     // Nyckeln kan tas bort; Eventor går då inte att läsa.
-    expect(await removeEventorKeyAsAdministrator(db, proof, runtime)).toMatchObject({ status: "ok", response: { key: "NONE" } });
-    expect(await previewEventorSyncAsAdministrator(db, proof, runtime)).toEqual({ status: "eventor", outcome: "NO_KEY" });
+    expect(await removeEventorKeyAsAdmin(db, proof, runtime)).toMatchObject({ status: "ok", response: { key: "NONE" } });
+    expect(await previewEventorSyncAsAdmin(db, proof, runtime)).toEqual({ status: "eventor", outcome: "NO_KEY" });
   });
 
   it("stafett: lag med sträcklöpare och vakant sträcka, som fylls i vid nästa uppdatering", async () => {
     const { state, runtime } = fakeEventor(true);
     const proof = await race("RELAY");
-    await saveEventorKeyAsAdministrator(db, { ...proof, request: { formatVersion: 1, apiKey: API_KEY } }, runtime);
-    await chooseEventorEventAsAdministrator(db, { ...proof, request: { formatVersion: 1, eventId: "47120" } }, runtime);
+    await saveEventorKeyAsAdmin(db, { ...proof, request: { formatVersion: 1, apiKey: API_KEY } }, runtime);
+    await chooseEventorEventAsAdmin(db, { ...proof, request: { formatVersion: 1, eventId: "47120" } }, runtime);
     const first = await eventorPreview(proof, runtime);
     expect(first.rows.map(row => [row.kind, row.subject, row.label])).toEqual([
       ["NEW", "CLASS", "Öppen stafett"], ["NEW", "TEAM", "OK Skogsfalken 1"], ["NEW", "TEAM", "Järfälla OK 1"]]);
@@ -298,9 +298,9 @@ describe("ADR-0170 Eventor och banfiler, med uppdateringar", () => {
   it("utan masternyckel startar appen och visar att Eventor inte är konfigurerat", async () => {
     const proof = await race();
     const runtime: EventorRuntime = { configuration: eventorConfigurationFromEnvironment({}) };
-    expect(await getEventorSettingsAsAdministrator(db, proof, runtime)).toMatchObject({ status: "ok", response: { server: "MISSING", key: "NONE" } });
-    expect(await saveEventorKeyAsAdministrator(db, { ...proof, request: { formatVersion: 1, apiKey: API_KEY } }, runtime))
+    expect(await getEventorSettingsAsAdmin(db, proof, runtime)).toMatchObject({ status: "ok", response: { server: "MISSING", key: "NONE" } });
+    expect(await saveEventorKeyAsAdmin(db, { ...proof, request: { formatVersion: 1, apiKey: API_KEY } }, runtime))
       .toEqual({ status: "not-configured" });
-    expect(await previewEventorSyncAsAdministrator(db, proof, runtime)).toEqual({ status: "eventor", outcome: "NOT_CONFIGURED" });
+    expect(await previewEventorSyncAsAdmin(db, proof, runtime)).toEqual({ status: "eventor", outcome: "NOT_CONFIGURED" });
   });
 });

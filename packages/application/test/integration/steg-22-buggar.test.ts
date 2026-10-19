@@ -4,17 +4,17 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase, migrate } from "@o-tid/database";
 import type { DeviceBatch, SportidentReadoutPayload } from "@o-tid/contracts";
 import { RESULT_ENGINE_VERSION } from "@o-tid/domain";
-import { contentHash } from "../../src/hash";
-import { createEventAsUserAccount, enterRaceAsUserAccount } from "../../src/organizer-events";
+import { contentHash } from "../../src/serialization";
+import { createOrganizerEvent } from "../../src/organizer-events";
 import { importIofXmlAsAdmin } from "../../src/import-iof";
-import { createManualCourseClassAsAdministrator } from "../../src/manual-course-class";
-import { createManualClassAsAdministrator } from "../../src/manual-class";
-import { editClassAsAdministrator } from "../../src/class-edit";
-import { createRelayClassAsAdministrator } from "../../src/relay-admin";
+import { createManualCourseClassAsAdmin } from "../../src/manual-course-class";
+import { createManualClassAsAdmin } from "../../src/manual-class";
+import { editClassAsAdmin } from "../../src/class-edit";
+import { createRelayClassAsAdmin } from "../../src/relay-admin";
 import { registerEntryAsAdmin } from "../../src/entry-registration";
-import { ingestReadoutsAsAdministrator } from "../../src/readout-station";
+import { ingestReadoutsAsAdmin } from "../../src/readout-station";
 import { listAdministratorForestWatch } from "../../src/start-checkin-roster";
-import { registerTestAccount } from "./accounts";
+import { registerTestAccount, accountOnRace } from "./accounts";
 
 /**
  * PLAN.md steg 22: dubbla klass- och bannamn avvisas i varje skrivväg (och av databasen), avläsningen bär klockan
@@ -49,26 +49,26 @@ const snapshot = async (raceId: string) =>
 
 async function newRace(raceDate = "2026-10-08"): Promise<Proof> {
   const owner = (await registerTestAccount(db)).proof;
-  const created = await createEventAsUserAccount(db, { ...owner, idempotencyKey: `organizer-event-create:${randomUUID()}`,
+  const created = await createOrganizerEvent(db, { ...owner, idempotencyKey: `organizer-event-create:${randomUUID()}`,
     readBody: async () => ({ formatVersion: 1, eventName: `Träning ${randomUUID().slice(0, 6)}`, raceName: "Torsdag", raceDate,
       timeZone: "Europe/Stockholm", raceType: "STANDARD" }) });
   if (created.status !== "created") throw new Error("Tävlingen kunde inte skapas");
-  const entered = await enterRaceAsUserAccount(db, { ...owner, raceId: created.response.raceId });
-  if (entered.status !== "entered") throw new Error(`Kom inte in i tävlingen: ${entered.status}`);
+  const entered = await accountOnRace(db, { ...owner, raceId: created.response.raceId });
+  if (entered.status !== "authenticated") throw new Error(`Kom inte in i tävlingen: ${entered.status}`);
   return { raceId: created.response.raceId, sessionToken: entered.sessionToken, csrfCookie: entered.csrfToken, csrfHeader: entered.csrfToken };
 }
 
 async function courseClass(proof: Proof, courseName: string, className: string, controlCodes = [31, 32, 33]) {
   const requestId = randomUUID();
-  return createManualCourseClassAsAdministrator(db, { ...proof, idempotencyKey: `manual-course-class-create:${requestId}`,
-    request: { formatVersion: 1, requestId, expectedSnapshotVersion: await snapshot(proof.raceId), courseName, className,
+  return createManualCourseClassAsAdmin(db, { ...proof, idempotencyKey: `manual-course-class-create:${requestId}`,
+    request: { formatVersion: 1, requestId, courseName, className,
       startRule: "PUNCH", controlCodes } });
 }
 
 async function classOnCourse(proof: Proof, courseVersionId: string, className: string) {
   const requestId = randomUUID();
-  return createManualClassAsAdministrator(db, { ...proof, idempotencyKey: `manual-class-create:${requestId}`,
-    request: { formatVersion: 1, requestId, expectedSnapshotVersion: await snapshot(proof.raceId), courseVersionId, className, startRule: "PUNCH" } });
+  return createManualClassAsAdmin(db, { ...proof, idempotencyKey: `manual-class-create:${requestId}`,
+    request: { formatVersion: 1, requestId, courseVersionId, className, startRule: "PUNCH" } });
 }
 
 describe("steg 22: dubbla namn", () => {
@@ -85,14 +85,14 @@ describe("steg 22: dubbla namn", () => {
     if (second.status !== "created") return;
     // Byte av namn till ett som finns.
     const requestId = randomUUID();
-    const edited = await editClassAsAdministrator(db, { ...proof, idempotencyKey: `class-edit:${requestId}`, request: {
-      formatVersion: 1, requestId, expectedSnapshotVersion: await snapshot(proof.raceId), classId: second.response.classId,
+    const edited = await editClassAsAdmin(db, { ...proof, idempotencyKey: `class-edit:${requestId}`, request: {
+      formatVersion: 1, requestId, classId: second.response.classId,
       className: "H21", courseId: first.response.courseId, startRule: "PUNCH", confirmResultChanges: false } });
     expect(edited.status).toBe("duplicate-name");
     // Stafettklass med samma namn.
     const relayId = randomUUID();
-    const relay = await createRelayClassAsAdministrator(db, { ...proof, idempotencyKey: `relay-class:${relayId}`, request: {
-      formatVersion: 1, requestId: relayId, expectedSnapshotVersion: await snapshot(proof.raceId), courseId: first.response.courseId,
+    const relay = await createRelayClassAsAdmin(db, { ...proof, idempotencyKey: `relay-class:${relayId}`, request: {
+      formatVersion: 1, requestId: relayId, courseId: first.response.courseId,
       name: "d21", legs: [{ leg: 1, startMethod: "MASS_START", startTime: "2026-10-08T16:00:00.000Z", variantCode: null },
         { leg: 2, startMethod: "CHANGEOVER", startTime: null, variantCode: null }] } });
     expect(relay.status).toBe("duplicate-name");
@@ -120,7 +120,7 @@ describe("steg 22: avläsningens klocka och motorversion", () => {
     if (created.status !== "created") throw new Error(created.status);
     const registered = await registerEntryAsAdmin(db, { ...proof, idempotencyKey: `entry-registration:${randomUUID()}`, request: {
       formatVersion: 1, classId: created.response.classId, expectedCourseVersionId: created.response.courseVersionId, expectedStartRule: "PUNCH",
-      expectedSnapshotVersion: await snapshot(proof.raceId), givenName: "Anna", familyName: "Löpare", organisationName: "OK Test",
+      givenName: "Anna", familyName: "Löpare", organisationName: "OK Test",
       cardNumber: "8123456", fixedStartTime: null } });
     if (registered.status !== "registered") throw new Error(registered.status);
     const at = (minute: number) => new Date(Date.parse("2026-10-08T16:00:00.000Z") + minute * 60_000).toISOString();
@@ -134,7 +134,7 @@ describe("steg 22: avläsningens klocka och motorversion", () => {
     const batch: DeviceBatch = { deviceId: randomUUID(), sessionId: randomUUID(), packageVersion: await snapshot(proof.raceId),
       firstSequence: 1, lastSequence: 1,
       events: [{ localSequence: 1, stationReceivedAt: at(31), transport: "sportident", payload, contentHash: contentHash(payload) }] };
-    const ingested = await ingestReadoutsAsAdministrator(db, { ...proof, batch });
+    const ingested = await ingestReadoutsAsAdmin(db, { ...proof, batch });
     expect(ingested.status).toBe("ok");
     const [readout] = (await pool.query<{ clock_source: string | null; clock_offset_ms: number | null }>(
       "select clock_source, clock_offset_ms::float8 as clock_offset_ms from card_readout where race_id = $1", [proof.raceId])).rows;

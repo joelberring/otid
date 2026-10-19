@@ -14,7 +14,7 @@ const hash = "a".repeat(64);
 const controls = [{ courseControlId: ids.control, sequence: 1, controlCode: 31 }, { courseControlId: ids.control2, sequence: 2, controlCode: 32 }];
 const request = { formatVersion: 1 as const, requestId: ids.request, sourceClassId: ids.sourceClass,
   expectedSourceCourseVersionId: ids.sourceVersion, expectedSourceStartRule: "FIXED" as const,
-  expectedSnapshotVersion: 4, expectedBasisHash: hash, expectedSourceControlCount: 2, shortCourseName: "Kort H21", shortClassName: "H21 kort",
+  expectedBasisHash: hash, expectedSourceControlCount: 2, shortCourseName: "Kort H21", shortClassName: "H21 kort",
   controlPrefix: [controls[0]!], entryIds: [ids.entry] };
 
 describe("TASK135 shortened course class transfer contracts", () => {

@@ -3,14 +3,14 @@ import { afterAll, beforeAll, expect, it } from "vitest";
 import { migrate } from "@o-tid/database";
 import { asc, eq } from "drizzle-orm";
 import { createDatabase, schema } from "@o-tid/database";
-import { createManualCourseClassAsAdministrator } from "../../src/manual-course-class";
-import { previewShortenedCourseClassTransferAsAdministrator, transferShortenedCourseClassAsAdministrator } from "../../src/shortened-course-class-transfer";
-import { issuePairingAdminAccessCredential, loginPairingAdmin } from "../../src/pairing-admin";
+import { createManualCourseClassAsAdmin } from "../../src/manual-course-class";
+import { previewShortenedCourseClassTransferAsAdmin, transferShortenedCourseClassAsAdmin } from "../../src/shortened-course-class-transfer";
 import { ingestDeviceBatch } from "../../src/ingest";
-import { contentHash } from "../../src/hash";
+import { contentHash } from "../../src/serialization";
 import { listAdministratorForestWatch } from "../../src/start-checkin-roster";
 import { exportIofResultListAsAdmin } from "../../src/result-list-export";
 import { listResultFinalizationCandidatesAsAdmin } from "../../src/result-finalization";
+import { raceLogin } from "./accounts";
 
 const url = process.env.TEST_DATABASE_URL;
 if (!url) throw new Error("TEST_DATABASE_URL krävs för en uttryckligen isolerad testdatabas");
@@ -23,20 +23,13 @@ async function fixture(startRule: "FIXED" | "PUNCH" = "PUNCH") {
   const eventId = randomUUID(), raceId = randomUUID();
   await pool.query("INSERT INTO event(id,name,starts_on,time_zone) VALUES($1,'TASK135','2026-09-22','Europe/Stockholm')", [eventId]);
   await pool.query("INSERT INTO race(id,event_id,name,race_date) VALUES($1,$2,'TASK135','2026-09-22')", [raceId, eventId]);
-  const issued = await issuePairingAdminAccessCredential(db, { raceId, capability: "MANAGE_RACE", label: "TASK135", expiresAt: new Date(now.getTime() + 3_600_000) }, { now });
-  const login = await loginPairingAdmin(db, { formatVersion: 1, accessCredential: issued.accessCredential }, { expectedRaceId: raceId, expectedCapability: "MANAGE_RACE", now });
-  if (login.status !== "authenticated") throw new Error("Synthetic login failed");
+  const login = await raceLogin(db, raceId, "ADMIN", now);
   const auth = { raceId, sessionToken: login.sessionToken, csrfCookie: login.csrfToken, csrfHeader: login.csrfToken };
-  const exportIssued = await issuePairingAdminAccessCredential(db, { raceId, capability: "EXPORT_IOF_RESULT_LIST", label: "TASK135 export", expiresAt: new Date(now.getTime() + 3_600_000) }, { now });
-  const exportLogin = await loginPairingAdmin(db, { formatVersion: 1, accessCredential: exportIssued.accessCredential }, { expectedRaceId: raceId, expectedCapability: "EXPORT_IOF_RESULT_LIST", now });
-  if (exportLogin.status !== "authenticated") throw new Error("Synthetic export login failed");
-  const finalizationIssued = await issuePairingAdminAccessCredential(db, { raceId, capability: "FINALIZE_RESULTS", label: "TASK135 finalization", expiresAt: new Date(now.getTime() + 3_600_000) }, { now });
-  const finalizationLogin = await loginPairingAdmin(db, { formatVersion: 1, accessCredential: finalizationIssued.accessCredential }, { expectedRaceId: raceId, expectedCapability: "FINALIZE_RESULTS", now });
-  if (finalizationLogin.status !== "authenticated") throw new Error("Synthetic finalization login failed");
+  const exportLogin = await raceLogin(db, raceId, "ADMIN", now);
+  const finalizationLogin = await raceLogin(db, raceId, "ADMIN", now);
   const createRequestId = randomUUID();
-  const created = await createManualCourseClassAsAdministrator(db, { ...auth, idempotencyKey: `manual-course-class-create:${createRequestId}`,
-    request: { formatVersion: 1, requestId: createRequestId, expectedSnapshotVersion: 1,
-      courseName: "Långa", className: "Öppen", startRule, controlCodes: [31, 42, 43] } }, now);
+  const created = await createManualCourseClassAsAdmin(db, { ...auth, idempotencyKey: `manual-course-class-create:${createRequestId}`,
+    request: { formatVersion: 1, requestId: createRequestId, courseName: "Långa", className: "Öppen", startRule, controlCodes: [31, 42, 43] } }, now);
   if (created.status !== "created") throw new Error("Manual fixture failed");
   const mpEntryId = randomUUID(), noResultEntryId = randomUUID();
   const fixedStartTime = startRule === "FIXED" ? "2026-09-22T12:00:00.000Z" : null;
@@ -55,7 +48,7 @@ async function fixture(startRule: "FIXED" | "PUNCH" = "PUNCH") {
 
 it("TASK135 creates a separately ranked local short class, preserves the MP source and replays exactly", async () => {
   const f = await fixture();
-  const candidate = await previewShortenedCourseClassTransferAsAdministrator(db, { ...f.auth,
+  const candidate = await previewShortenedCourseClassTransferAsAdmin(db, { ...f.auth,
     request: { formatVersion: 1, sourceClassId: f.created.classId } }, now);
   expect(candidate.status).toBe("ok");
   if (candidate.status !== "ok") return;
@@ -67,10 +60,10 @@ it("TASK135 creates a separately ranked local short class, preserves the MP sour
   const rawBefore = await db.select().from(schema.cardReadouts).where(eq(schema.cardReadouts.raceId, f.raceId));
   const request = { formatVersion: 1 as const, requestId: randomUUID(), sourceClassId: f.created.classId,
     expectedSourceCourseVersionId: candidate.response.sourceCourseVersionId, expectedSourceStartRule: "PUNCH" as const,
-    expectedSnapshotVersion: candidate.response.snapshotVersion, expectedBasisHash: candidate.response.basisHash,
+    expectedBasisHash: candidate.response.basisHash,
     shortCourseName: "Långa kort", shortClassName: "Öppen kort", expectedSourceControlCount: 3,
     controlPrefix: candidate.response.sourceControls.slice(0, 2), entryIds: [f.mpEntryId, f.noResultEntryId].sort() };
-  const changed = await transferShortenedCourseClassAsAdministrator(db, { ...f.auth,
+  const changed = await transferShortenedCourseClassAsAdmin(db, { ...f.auth,
     idempotencyKey: `shortened-course-class-transfer:${request.requestId}`, request }, now);
   expect(changed.status).toBe("transferred");
   if (changed.status !== "transferred") return;
@@ -109,7 +102,7 @@ it("TASK135 creates a separately ranked local short class, preserves the MP sour
   expect(sourceRows).toHaveLength(1);
   expect((await db.select().from(schema.shortenedCourseClassTransfers).where(eq(schema.shortenedCourseClassTransfers.requestId, request.requestId))).length).toBe(1);
   expect((await db.select().from(schema.shortenedCourseClassTransferItems).where(eq(schema.shortenedCourseClassTransferItems.requestId, request.requestId))).length).toBe(2);
-  expect(await transferShortenedCourseClassAsAdministrator(db, { ...f.auth,
+  expect(await transferShortenedCourseClassAsAdmin(db, { ...f.auth,
     idempotencyKey: `shortened-course-class-transfer:${request.requestId}`, request }, now)).toEqual({ status: "transferred", response: { ...changed.response, replayed: true } });
   const forest = await listAdministratorForestWatch(db, f.auth, now);
   expect(forest.status).toBe("ok");
@@ -119,16 +112,16 @@ it("TASK135 creates a separately ranked local short class, preserves the MP sour
 
 it("TASK135 rejects a stale candidate before creating a short class or transfer journal", async () => {
   const f = await fixture();
-  const candidate = await previewShortenedCourseClassTransferAsAdministrator(db, { ...f.auth,
+  const candidate = await previewShortenedCourseClassTransferAsAdmin(db, { ...f.auth,
     request: { formatVersion: 1, sourceClassId: f.created.classId } }, now);
   if (candidate.status !== "ok") throw new Error("Candidate missing");
   await pool.query("UPDATE entry SET version=2 WHERE id=$1", [f.noResultEntryId]);
   const request = { formatVersion: 1 as const, requestId: randomUUID(), sourceClassId: f.created.classId,
     expectedSourceCourseVersionId: candidate.response.sourceCourseVersionId, expectedSourceStartRule: "PUNCH" as const,
-    expectedSnapshotVersion: candidate.response.snapshotVersion, expectedBasisHash: candidate.response.basisHash,
+    expectedBasisHash: candidate.response.basisHash,
     shortCourseName: "Långa kort", shortClassName: "Öppen kort", expectedSourceControlCount: 3,
     controlPrefix: candidate.response.sourceControls.slice(0, 2), entryIds: [f.noResultEntryId] };
-  expect((await transferShortenedCourseClassAsAdministrator(db, { ...f.auth,
+  expect((await transferShortenedCourseClassAsAdmin(db, { ...f.auth,
     idempotencyKey: `shortened-course-class-transfer:${request.requestId}`, request }, now)).status).toBe("conflict");
   expect((await db.select().from(schema.shortenedCourseClassTransfers).where(eq(schema.shortenedCourseClassTransfers.raceId, f.raceId))).length).toBe(0);
   expect((await db.select().from(schema.classes).where(eq(schema.classes.raceId, f.raceId))).length).toBe(1);
@@ -136,17 +129,17 @@ it("TASK135 rejects a stale candidate before creating a short class or transfer 
 
 it("TASK135 preserves an exact FIXED start when a resultless entry moves to the short class", async () => {
   const f = await fixture("FIXED");
-  const candidate = await previewShortenedCourseClassTransferAsAdministrator(db, { ...f.auth,
+  const candidate = await previewShortenedCourseClassTransferAsAdmin(db, { ...f.auth,
     request: { formatVersion: 1, sourceClassId: f.created.classId } }, now);
   if (candidate.status !== "ok" || f.fixedStartTime === null) throw new Error("FIXED candidate missing");
   const noResult = candidate.response.entries.find((entry) => entry.entryId === f.noResultEntryId);
   expect(noResult).toMatchObject({ startRule: "FIXED", fixedStartTime: f.fixedStartTime, sourceResult: { kind: "NO_RESULT" } });
   const request = { formatVersion: 1 as const, requestId: randomUUID(), sourceClassId: f.created.classId,
     expectedSourceCourseVersionId: candidate.response.sourceCourseVersionId, expectedSourceStartRule: "FIXED" as const,
-    expectedSnapshotVersion: candidate.response.snapshotVersion, expectedBasisHash: candidate.response.basisHash,
+    expectedBasisHash: candidate.response.basisHash,
     shortCourseName: "Långa FIXED kort", shortClassName: "Öppen FIXED kort", expectedSourceControlCount: 3,
     controlPrefix: candidate.response.sourceControls.slice(0, 2), entryIds: [f.noResultEntryId] };
-  const changed = await transferShortenedCourseClassAsAdministrator(db, { ...f.auth,
+  const changed = await transferShortenedCourseClassAsAdmin(db, { ...f.auth,
     idempotencyKey: `shortened-course-class-transfer:${request.requestId}`, request }, now);
   expect(changed.status).toBe("transferred");
   if (changed.status !== "transferred") return;

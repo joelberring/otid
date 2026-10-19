@@ -2,8 +2,7 @@ import { describe, expect, it } from "vitest";
 import { entryTransferRequestSchema, entryTransferResponseSchema, entryTransferCandidatesSchema } from "../src";
 
 const id = "10000000-0000-4000-8000-000000000001", target = "10000000-0000-4000-8000-000000000002";
-const request = { formatVersion: 1, expectedEntryVersion: 1, expectedClassId: id, expectedSnapshotVersion: 3,
-  expectedFixedStartTime: null, targetClassId: target, expectedTargetCourseVersionId: id,
+const request = { formatVersion: 1, expectedEntryVersion: 1, expectedClassId: id, expectedFixedStartTime: null, targetClassId: target, expectedTargetCourseVersionId: id,
   expectedTargetStartRule: "FIXED", fixedStartTime: "2026-09-12T12:30:00+02:00" };
 
 describe("TASK029 atomiskt klass-/startbyteskontrakt", () => {
@@ -18,7 +17,6 @@ describe("TASK029 atomiskt klass-/startbyteskontrakt", () => {
     const response = { formatVersion: 1, replayed: false, requestId: id, raceId: id, entryId: id, request,
       entryVersionAfter: 2, snapshotVersionAfter: 4, changedAt: "2026-09-12T12:00:00Z" };
     expect(entryTransferResponseSchema.safeParse(response).success).toBe(true);
-    expect(entryTransferResponseSchema.safeParse({ ...response, snapshotVersionAfter: 5 }).success).toBe(false);
     expect(entryTransferResponseSchema.safeParse({ ...response, entryVersionAfter: 1 }).success).toBe(false);
   });
   it("kräver kompletta unika klassrelationer i tidszonsbundet underlag", () => {

@@ -3,14 +3,13 @@ import {
   raceSettingsIdempotencyKeySchema, raceSettingsRequestSchema, raceSettingsResponseSchema, type RaceSettingsResponse
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { authenticatePairingAdminSession, authenticatePairingAdminSessionForMutation, type PairingAdminRequestAuthentication } from "./pairing-admin";
+import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation } from "./concurrency";
+import { UUID_PATTERN as uuid } from "./serialization";
 
-type Authentication = Omit<PairingAdminRequestAuthentication, "capability">;
+type Authentication = RaceSessionProof;
 type Failure = { status: "unauthorized" | "forbidden" | "invalid-request" | "not-found" | "conflict" };
 export type RaceSettingsResult = Failure | { status: "saved"; response: RaceSettingsResponse };
-const capability = "MANAGE_RACE" as const;
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const MAX_VERSION = 2_147_483_647;
 
 /**
@@ -20,7 +19,7 @@ const MAX_VERSION = 2_147_483_647;
  * att byta typ tar aldrig bort data. Datumet kan bara ändras så länge loppet saknar fasta
  * starttider och avläsningar, eftersom tiderna tolkas mot loppets datum.
  */
-export async function saveRaceSettingsAsAdministrator(db: Database, input: Authentication & { idempotencyKey: string | null; request: unknown },
+export async function saveRaceSettingsAsAdmin(db: Database, input: Authentication & { idempotencyKey: string | null; request: unknown },
   now = new Date()): Promise<RaceSettingsResult> {
   const parsed = raceSettingsRequestSchema.safeParse(input.request);
   const key = raceSettingsIdempotencyKeySchema.safeParse(input.idempotencyKey);
@@ -28,11 +27,11 @@ export async function saveRaceSettingsAsAdministrator(db: Database, input: Authe
     return { status: "invalid-request" };
   }
   const intent = parsed.data;
-  const authentication = { ...input, capability, requireCsrf: true };
-  const initial = await authenticatePairingAdminSession(db, authentication, now);
+  const authentication = { ...input, role: "ADMIN" as const, requireCsrf: true };
+  const initial = await requireRaceRole(db, authentication, now);
   if (initial.status !== "authenticated") return initial;
   return db.transaction(async tx => {
-    const auth = await authenticatePairingAdminSessionForMutation(tx, authentication, now);
+    const auth = await requireRaceRole(tx, authentication, now, "update");
     if (auth.status !== "authenticated") return auth;
     const raceId = auth.principal.raceId;
     const locked = await lockRaceForMutation(tx, raceId);
@@ -40,11 +39,11 @@ export async function saveRaceSettingsAsAdministrator(db: Database, input: Authe
     const [prior] = await tx.select().from(schema.raceSettingsRequests).where(eq(schema.raceSettingsRequests.requestId, intent.requestId));
     if (prior) {
       const response = raceSettingsResponseSchema.parse(prior.response);
-      if (prior.raceId !== raceId || prior.actorCredentialId !== auth.principal.accessCredentialId ||
+      if (prior.raceId !== raceId || prior.actorAccountId !== auth.principal.accountId ||
           JSON.stringify(response.request) !== JSON.stringify(intent)) return { status: "conflict" };
       return { status: "saved", response: { ...response, replayed: true } };
     }
-    if (locked.snapshotVersion !== intent.expectedSnapshotVersion || locked.snapshotVersion >= MAX_VERSION) return { status: "conflict" };
+    if (locked.snapshotVersion >= MAX_VERSION) return { status: "conflict" };
     const [race] = await tx.select({ eventId: schema.races.eventId, name: schema.races.name, raceDate: schema.races.raceDate,
       raceType: schema.races.raceType, eventName: schema.events.name })
       .from(schema.races).innerJoin(schema.events, eq(schema.events.id, schema.races.eventId))
@@ -68,10 +67,10 @@ export async function saveRaceSettingsAsAdministrator(db: Database, input: Authe
     const response = raceSettingsResponseSchema.parse({ formatVersion: 1, replayed: false, requestId: intent.requestId, raceId,
       request: intent, snapshotVersionAfter, savedAt: now.toISOString() });
     await tx.insert(schema.raceSettingsRequests).values({ requestId: intent.requestId, raceId,
-      actorCredentialId: auth.principal.accessCredentialId, capability,
+      actorAccountId: auth.principal.accountId,
       request: intent as unknown as Record<string, unknown>, response: response as unknown as Record<string, unknown>, createdAt: now });
     await tx.insert(schema.auditEvents).values({ raceId, entityType: "race", entityId: raceId, requestId: intent.requestId,
-      actorKind: "RACE_ADMIN_ACCESS_CREDENTIAL", actorId: auth.principal.accessCredentialId, action: "RACE_SETTINGS_SAVED_BY_ADMIN",
+      actorKind: "USER_ACCOUNT", actorId: auth.principal.accountId, action: "RACE_SETTINGS_SAVED_BY_ADMIN",
       before: { eventName: race.eventName, raceName: race.name, raceDate: race.raceDate, raceType: race.raceType,
         snapshotVersion: locked.snapshotVersion },
       after: { eventName: intent.eventName, raceName: intent.raceName, raceDate: intent.raceDate, raceType: intent.raceType,

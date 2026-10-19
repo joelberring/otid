@@ -2,30 +2,19 @@ import { z } from "zod";
 import {
   isValidStoredResultPair,
   storedResultReasonSchema,
-  storedResultRevisionCauseV8Schema,
+  storedResultRevisionCauseSchema,
   storedResultStatusSchema
 } from "./result-outcome";
+import { UUID_PATTERN, prefixedUuidPattern } from "./ids";
 
 const canonicalUuidSchema = z.string().regex(
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+  UUID_PATTERN,
   "Id måste vara ett kanoniskt gemener-UUID"
 );
 const positiveVersionSchema = z.number().int().positive();
 const engineVersionSchema = z.string().trim().min(1).max(64);
 
-export const resultRecalculationAdminLoginRequestSchema = z.object({
-  formatVersion: z.literal(1),
-  accessCredential: z.string().regex(
-    /^otid_org_result_recalc_v1\.[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.[A-Za-z0-9_-]{43}$/
-  )
-}).strict();
 
-export const resultRecalculationAdminLoginResponseSchema = z.object({
-  formatVersion: z.literal(1),
-  raceId: canonicalUuidSchema,
-  capability: z.literal("RECALCULATE_RESULT"),
-  expiresAt: z.iso.datetime({ offset: true })
-}).strict();
 
 export const resultRecalculationReadinessSchema = z.enum([
   "READY",
@@ -34,7 +23,7 @@ export const resultRecalculationReadinessSchema = z.enum([
   "NO_READOUT"
 ]);
 
-export const resultRevisionCauseSchema = storedResultRevisionCauseV8Schema;
+export const resultRevisionCauseSchema = storedResultRevisionCauseSchema;
 
 const cardResultStatusSchema = z.enum(["OK", "MP"]);
 const cardResultReasonSchema = z.enum([
@@ -115,15 +104,14 @@ export const resultRecalculationRequestSchema = z.object({
   formatVersion: z.literal(1),
   expectedEntryVersion: positiveVersionSchema,
   expectedClassId: canonicalUuidSchema,
-  expectedSnapshotVersion: positiveVersionSchema,
-  expectedCardAssignmentId: canonicalUuidSchema,
+    expectedCardAssignmentId: canonicalUuidSchema,
   expectedReadoutId: canonicalUuidSchema,
   expectedLatestResultRevision: expectedLatestResultRevisionSchema.nullable(),
   expectedEngineVersion: engineVersionSchema
 }).strict();
 
 export const resultRecalculationIdempotencyKeySchema = z.string().regex(
-  /^result-recalculation:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+  prefixedUuidPattern("result-recalculation"),
   "Idempotency-Key måste vara result-recalculation:<kanoniskt request-uuid>"
 );
 
@@ -163,8 +151,6 @@ export const resultRecalculationAdminErrorResponseSchema = z.object({
   error: resultRecalculationAdminErrorCodeSchema
 }).strict();
 
-export type ResultRecalculationAdminLoginRequest = z.infer<typeof resultRecalculationAdminLoginRequestSchema>;
-export type ResultRecalculationAdminLoginResponse = z.infer<typeof resultRecalculationAdminLoginResponseSchema>;
 export type ResultRecalculationReadiness = z.infer<typeof resultRecalculationReadinessSchema>;
 export type ResultRecalculationCandidateResponse = z.infer<typeof resultRecalculationCandidateResponseSchema>;
 export type ResultRecalculationRequest = z.infer<typeof resultRecalculationRequestSchema>;

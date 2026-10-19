@@ -19,7 +19,7 @@ describe("TASK 006O starttid", () => {
   });
   it("binder tidigare nullable tid men tillåter inte radering eller extra skrivfält", () => {
     const request = { formatVersion: 1, expectedEntryVersion: 1, expectedClassId: id,
-      expectedSnapshotVersion: 3, expectedFixedStartTime: null, fixedStartTime: "2026-09-04T10:00:00Z" };
+      expectedFixedStartTime: null, fixedStartTime: "2026-09-04T10:00:00Z" };
     expect(entryStartTimeChangeRequestSchema.safeParse(request).success).toBe(true);
     for (const changed of [{ ...request, fixedStartTime: null }, { ...request, startRule: "PUNCH" },
       { ...request, expectedEntryVersion: 2_147_483_648 }]) {

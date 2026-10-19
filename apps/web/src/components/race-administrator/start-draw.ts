@@ -40,7 +40,7 @@ function settingsFrom(setup: StartDrawSetupResponse, rows: Record<string, DrawRo
     classes.push({ classId: raceClass.id, method: row.method, intervalMinutes: interval,
       vacancies: { kind: row.vacancyKind, value: vacancies } });
   }
-  return { expectedSnapshotVersion: setup.snapshotVersion, firstStartTime, clubSeparation, classes };
+  return { firstStartTime, clubSeparation, classes };
 }
 
 export function createStartDrawActions(ws: Base & RaceDataActions) {
@@ -90,7 +90,7 @@ export function createStartDrawActions(ws: Base & RaceDataActions) {
     if (response.status === 409) return "conflict" as const;
     if (!response.ok) throw new Error("Draw preview unavailable");
     const value = startDrawPreviewResponseSchema.parse(await json(response, op));
-    if (value.raceId !== raceId || value.snapshotVersion !== settings.expectedSnapshotVersion) throw new Error("Draw preview mismatch");
+    if (value.raceId !== raceId) throw new Error("Draw preview mismatch");
     return value;
   }
   /** Visar lottningen som den blir. Läser om klasserna först om tävlingen ändrats. */
@@ -151,7 +151,7 @@ export function createStartDrawActions(ws: Base & RaceDataActions) {
         const settings = settingsFrom(drawSetup!, drawRows, drawFirst, drawClubSeparation);
         if (!settings || settings === "none") { setDrawError(text.invalid); return; }
         const request: StartDrawRequest = { formatVersion: 1, requestId: crypto.randomUUID(), seed: drawPreview!.seed, ...settings,
-          expectedSnapshotVersion: drawPreview!.snapshotVersion, confirmChanges: drawPreview!.requiresConfirmation };
+          confirmChanges: drawPreview!.requiresConfirmation };
         attempt = { kind: "START_DRAW", request };
         pending.current = attempt; sent.current = false; setDrawAttempt(attempt);
       }

@@ -99,7 +99,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
       previousClassId: entry.classId, previousClassName: previous.name, className: target.name,
       request: entryTransferRequestSchema.parse({ formatVersion: 1, targetClassId: target.id,
         expectedEntryVersion: entry.version, expectedClassId: entry.classId,
-        expectedSnapshotVersion: data.snapshotVersion, expectedFixedStartTime: entry.fixedStartTime,
+        expectedFixedStartTime: entry.fixedStartTime,
         expectedTargetCourseVersionId: target.courseVersionId, expectedTargetStartRule: target.startRule,
         fixedStartTime }) };
     pending.current = value; sent.current = false; setTransferAttempt(value); setUnknown(false); setMessage("");
@@ -136,7 +136,6 @@ export function createEntryActions(ws: Base & RaceDataActions) {
     if (!data || !entry || entry.multipleActiveAssignments) { setMessage(text.cardInvalid); return; }
     const parsed = entryCardChangeRequestSchema.safeParse({ formatVersion: 1,
       expectedEntryVersion: entry.version, expectedClassId: entry.classId,
-      expectedSnapshotVersion: data.snapshotVersion,
       expectedAssignment: entry.activeAssignment ? { id: entry.activeAssignment.id, cardNumber: entry.activeAssignment.cardNumber } : null,
       cardNumber: newCard });
     if (!parsed.success || parsed.data.cardNumber === entry.activeAssignment?.cardNumber) { setMessage(text.cardInvalid); return; }
@@ -165,8 +164,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
         receipt.classId !== value.request.expectedClassId || receipt.activeAssignment.cardNumber !== value.request.cardNumber ||
         receipt.previousAssignment?.id !== value.request.expectedAssignment?.id ||
         receipt.previousAssignment?.cardNumber !== value.request.expectedAssignment?.cardNumber ||
-        receipt.entryVersionBefore !== value.request.expectedEntryVersion ||
-        receipt.snapshotVersionBefore !== value.request.expectedSnapshotVersion) throw new Error("Card receipt mismatch");
+        receipt.entryVersionBefore !== value.request.expectedEntryVersion) throw new Error("Card receipt mismatch");
       committed = true; pending.current = undefined; sent.current = false; setCardAttempt(undefined); setUnknown(false);
       setData(undefined); setClassId(""); setNewCard(""); setMessage(text.cardSaved);
       setStartClock("");
@@ -183,7 +181,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
     }
     const parsed = entryCardRentalChangeRequestSchema.safeParse({ formatVersion: 1,
       expectedEntryVersion: entry.version, expectedClassId: entry.classId,
-      expectedSnapshotVersion: data.snapshotVersion, expectedAssignment: {
+      expectedAssignment: {
         id: entry.activeAssignment.id, cardNumber: entry.activeAssignment.cardNumber,
         isRental: entry.activeAssignment.isRental
       },
@@ -213,8 +211,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
         receipt.classId !== value.request.expectedClassId || receipt.assignment.id !== value.request.expectedAssignment.id ||
         receipt.assignment.cardNumber !== value.request.expectedAssignment.cardNumber ||
         receipt.previousIsRental !== value.request.expectedAssignment.isRental || receipt.isRental !== value.request.isRental ||
-        receipt.entryVersionBefore !== value.request.expectedEntryVersion ||
-        receipt.snapshotVersionBefore !== value.request.expectedSnapshotVersion) throw new Error("Rental receipt mismatch");
+        receipt.entryVersionBefore !== value.request.expectedEntryVersion) throw new Error("Rental receipt mismatch");
       committed = true; pending.current = undefined; sent.current = false; setRentalAttempt(undefined); setUnknown(false);
       setData(undefined); setMessage(text.rentalSaved); await load(op, value.entryId); setEntryId(value.entryId);
     } catch {
@@ -229,7 +226,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
     }
     const parsed = entryCardRentalReturnChangeRequestSchema.safeParse({ formatVersion: 1,
       expectedEntryVersion: entry.version, expectedClassId: entry.classId,
-      expectedSnapshotVersion: data.snapshotVersion, expectedAssignment: entry.activeAssignment,
+      expectedAssignment: entry.activeAssignment,
       rentalReturned: !entry.activeAssignment.rentalReturned });
     if (!parsed.success) { setMessage(text.rentalReturnInvalid); return; }
     const value: RentalReturnAttempt = { kind: "CARD_RENTAL_RETURN", id: crypto.randomUUID(), entryId: entry.id,
@@ -257,8 +254,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
         receipt.assignment.cardNumber !== value.request.expectedAssignment.cardNumber ||
         receipt.previousRentalReturned !== value.request.expectedAssignment.rentalReturned ||
         receipt.rentalReturned !== value.request.rentalReturned ||
-        receipt.entryVersionBefore !== value.request.expectedEntryVersion ||
-        receipt.snapshotVersionBefore !== value.request.expectedSnapshotVersion) throw new Error("Rental return receipt mismatch");
+        receipt.entryVersionBefore !== value.request.expectedEntryVersion) throw new Error("Rental return receipt mismatch");
       committed = true; pending.current = undefined; sent.current = false; setRentalReturnAttempt(undefined); setUnknown(false);
       setData(undefined); setMessage(text.rentalReturnSaved); await load(op, value.entryId); setEntryId(value.entryId);
     } catch {
@@ -274,7 +270,6 @@ export function createEntryActions(ws: Base & RaceDataActions) {
       setMessage(text.rentalReuseInvalid); return;
     }
     const parsed = entryCardRentalReuseRequestSchema.safeParse({ formatVersion: 1,
-      expectedSnapshotVersion: data.snapshotVersion,
       source: { entryId: source.id, classId: source.classId, entryVersion: source.version,
         assignment: source.activeAssignment },
       expectedTargetClassId: target.classId, expectedTargetEntryVersion: target.version });
@@ -305,8 +300,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
         receipt.source.entryId !== value.request.source.entryId || receipt.source.classId !== value.request.source.classId ||
         receipt.source.assignment.id !== value.request.source.assignment.id ||
         receipt.source.assignment.cardNumber !== value.request.source.assignment.cardNumber ||
-        receipt.sourceEntryVersionBefore !== value.request.source.entryVersion ||
-        receipt.snapshotVersionBefore !== value.request.expectedSnapshotVersion) throw new Error("Rental reuse receipt mismatch");
+        receipt.sourceEntryVersionBefore !== value.request.source.entryVersion) throw new Error("Rental reuse receipt mismatch");
       committed = true; pending.current = undefined; sent.current = false; setRentalReuseAttempt(undefined); setUnknown(false);
       setData(undefined); setRentalReuseSourceId(""); setMessage(text.rentalReuseSaved); await load(op, value.entryId); setEntryId(value.entryId);
     } catch {
@@ -324,8 +318,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
     const value: TimeAttempt = { kind: "TIME", id: crypto.randomUUID(), entryId: entry.id,
       displayName: entry.displayName, timeZone: data.timeZone,
       request: entryStartTimeChangeRequestSchema.parse({ formatVersion: 1, expectedEntryVersion: entry.version,
-        expectedClassId: entry.classId, expectedSnapshotVersion: data.snapshotVersion,
-        expectedFixedStartTime: entry.fixedStartTime, fixedStartTime }) };
+        expectedClassId: entry.classId, expectedFixedStartTime: entry.fixedStartTime, fixedStartTime }) };
     pending.current = value; sent.current = false; setTimeAttempt(value); setUnknown(false); setMessage("");
   }
   async function submitTime(value: TimeAttempt) {
@@ -346,8 +339,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
       const receipt = entryStartTimeChangeResponseSchema.parse(await json(response, op));
       if (receipt.requestId !== value.id || receipt.raceId !== raceId || receipt.entryId !== value.entryId ||
         receipt.classId !== value.request.expectedClassId || receipt.previousFixedStartTime !== value.request.expectedFixedStartTime ||
-        receipt.fixedStartTime !== value.request.fixedStartTime || receipt.entryVersionBefore !== value.request.expectedEntryVersion ||
-        receipt.snapshotVersionBefore !== value.request.expectedSnapshotVersion) throw new Error("Start time receipt mismatch");
+        receipt.fixedStartTime !== value.request.fixedStartTime || receipt.entryVersionBefore !== value.request.expectedEntryVersion) throw new Error("Start time receipt mismatch");
       committed = true; pending.current = undefined; sent.current = false; setTimeAttempt(undefined); setUnknown(false);
       setData(undefined); setStartClock(""); setMessage(text.timeSaved);
       await load(op, value.entryId); setEntryId(value.entryId);
@@ -359,7 +351,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
     event.preventDefault(); if (busyRef.current || pending.current || !requireSession()) return;
     if (!data || !identityMatches || !identityCandidate) { setMessage(text.identityLoadError); return; }
     const parsed = entryIdentityChangeRequestSchema.safeParse({ formatVersion: 1, expectedEntryVersion: identityCandidate.version,
-      expectedClassId: identityCandidate.classId, expectedSnapshotVersion: data.snapshotVersion, expectedIdentity: identityCandidate.identity,
+      expectedClassId: identityCandidate.classId, expectedIdentity: identityCandidate.identity,
       identity: { givenName, familyName, organisationName: organisationName.trim() || null } });
     if (!parsed.success || (parsed.data.identity.givenName === parsed.data.expectedIdentity.givenName &&
       parsed.data.identity.familyName === parsed.data.expectedIdentity.familyName && parsed.data.identity.organisationName === parsed.data.expectedIdentity.organisationName)) {
@@ -396,8 +388,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
     event.preventDefault(); if (busyRef.current || pending.current || !requireSession()) return;
     if (!data || !target || targetFull) { setMessage(text.registrationInvalid); return; }
     const parsed = entryRegistrationRequestSchema.safeParse({ formatVersion: 1, classId: target.id,
-      expectedCourseVersionId: target.courseVersionId, expectedStartRule: target.startRule, expectedSnapshotVersion: data.snapshotVersion,
-      givenName, familyName, organisationName: organisationName.trim() || null, cardNumber: newCard.trim() || null,
+      expectedCourseVersionId: target.courseVersionId, expectedStartRule: target.startRule, givenName, familyName, organisationName: organisationName.trim() || null, cardNumber: newCard.trim() || null,
       // Lottad klass: appen ger första lediga vakanta tid när anmälan sparas (PLAN.md steg 9).
       fixedStartTime: target.startRule === "FIXED" && !target.startDrawn ? parseRaceClock(data.raceDate, startClock, data.timeZone) : null });
     if (!parsed.success || (target.startRule === "FIXED" && !target.startDrawn && parsed.data.fixedStartTime === null)) {
@@ -408,11 +399,10 @@ export function createEntryActions(ws: Base & RaceDataActions) {
     try {
       const response = await request("/registration-candidates", op, { method: "POST",
         headers: { "content-type": "application/json", "x-otid-csrf": csrf() },
-        body: JSON.stringify({ formatVersion: 1, expectedSnapshotVersion: frozen.request.expectedSnapshotVersion,
-          givenName: frozen.request.givenName, familyName: frozen.request.familyName, cardNumber: frozen.request.cardNumber }) });
+        body: JSON.stringify({ formatVersion: 1, givenName: frozen.request.givenName, familyName: frozen.request.familyName, cardNumber: frozen.request.cardNumber }) });
       if (!response.ok) throw new Error("Registration candidate search failed");
       const candidates = entryRegistrationCandidatesResponseSchema.parse(await json(response, op));
-      if (candidates.raceId !== raceId || candidates.snapshotVersion !== frozen.request.expectedSnapshotVersion) throw new Error("Registration candidate scope mismatch");
+      if (candidates.raceId !== raceId) throw new Error("Registration candidate scope mismatch");
       const value: RegistrationAttempt = { ...frozen, candidates };
       pending.current = value; sent.current = false; setRegistrationAttempt(value); setUnknown(false); setMessage("");
     } catch { if (current(op)) setMessage(text.registrationSearchError); }

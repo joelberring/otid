@@ -3,16 +3,16 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase, migrate } from "@o-tid/database";
 import type { DeviceBatch, SportidentReadoutPayload } from "@o-tid/contracts";
 import { parseRaceClock } from "@o-tid/domain";
-import { contentHash } from "../../src/hash";
-import { createEventAsUserAccount, enterRaceAsUserAccount } from "../../src/organizer-events";
-import { createManualCourseClassAsAdministrator } from "../../src/manual-course-class";
+import { contentHash } from "../../src/serialization";
+import { createOrganizerEvent } from "../../src/organizer-events";
+import { createManualCourseClassAsAdmin } from "../../src/manual-course-class";
 import { registerEntryAsAdmin } from "../../src/entry-registration";
-import { ingestReadoutsAsAdministrator } from "../../src/readout-station";
+import { ingestReadoutsAsAdmin } from "../../src/readout-station";
 import { changeEntryCardAsAdmin, listEntryCardsAsAdmin } from "../../src/entry-card";
 import { listRadioRacesDue, pollRadioRace, radioPollDue, radioRetryDelayMs } from "../../src/radio-ingest";
-import { fetchRadioNowAsAdministrator, getRadioSettingsAsAdministrator, saveRadioSettingsAsAdministrator } from "../../src/radio-settings";
+import { fetchRadioNowAsAdmin, getRadioSettingsAsAdmin, saveRadioSettingsAsAdmin } from "../../src/radio-settings";
 import { isRadioLive, readPublicRadio } from "../../src/radio-standings";
-import { grantRacePerson, registerTestAccount } from "./accounts";
+import { grantRacePerson, registerTestAccount, accountOnRace } from "./accounts";
 
 /**
  * ADR-0172 beslut 5 / PLAN.md steg 20: radiokontroller via ROC/OResults. Hämtning med lastId över flera
@@ -66,17 +66,17 @@ const lastPunchId = async (raceId: string) =>
 
 async function race(): Promise<Race> {
   const owner = await registerTestAccount(db, `radio.${randomUUID().slice(0, 8)}`);
-  const created = await createEventAsUserAccount(db, { ...owner.proof, idempotencyKey: `organizer-event-create:${randomUUID()}`,
+  const created = await createOrganizerEvent(db, { ...owner.proof, idempotencyKey: `organizer-event-create:${randomUUID()}`,
     readBody: async () => ({ formatVersion: 1, eventName: "Radio", raceName: "Torsdag", raceDate: TODAY,
       timeZone: ZONE, raceType: "STANDARD" }) });
   if (created.status !== "created") throw new Error("Tävlingen kunde inte skapas");
   const { raceId } = created.response;
-  const entered = await enterRaceAsUserAccount(db, { ...owner.proof, raceId });
-  if (entered.status !== "entered") throw new Error("Kom inte in i tävlingen");
+  const entered = await accountOnRace(db, { ...owner.proof, raceId });
+  if (entered.status !== "authenticated") throw new Error("Kom inte in i tävlingen");
   const proof: Proof = { raceId, sessionToken: entered.sessionToken, csrfCookie: entered.csrfToken, csrfHeader: entered.csrfToken };
   const requestId = randomUUID();
-  const course = await createManualCourseClassAsAdministrator(db, { ...proof, idempotencyKey: `manual-course-class-create:${requestId}`,
-    request: { formatVersion: 1, requestId, expectedSnapshotVersion: await snapshot(raceId), courseName: "Lång",
+  const course = await createManualCourseClassAsAdmin(db, { ...proof, idempotencyKey: `manual-course-class-create:${requestId}`,
+    request: { formatVersion: 1, requestId, courseName: "Lång",
       className: "H21", startRule: "FIXED", controlCodes: [31, 32, 50, 33] } });
   if (course.status !== "created") throw new Error(`Banan kunde inte skapas: ${course.status}`);
   return { proof, raceId, classId: course.response.classId, ownerProof: owner.proof };
@@ -85,7 +85,7 @@ async function race(): Promise<Race> {
 async function register(f: Race, givenName: string, cardNumber: string, startSeconds: number): Promise<string> {
   const registered = await registerEntryAsAdmin(db, { ...f.proof, idempotencyKey: `entry-registration:${randomUUID()}`, request: {
     formatVersion: 1, classId: f.classId, expectedCourseVersionId: await courseVersionOf(f.classId), expectedStartRule: "FIXED",
-    expectedSnapshotVersion: await snapshot(f.raceId), givenName, familyName: "Radiosson", organisationName: "OK Radio",
+    givenName, familyName: "Radiosson", organisationName: "OK Radio",
     cardNumber, fixedStartTime: at(startSeconds) } });
   if (registered.status !== "registered") throw new Error(`Anmälan misslyckades: ${registered.status}`);
   return registered.response.entryId;
@@ -100,7 +100,7 @@ async function readout(f: Race, cardNumber: string, punches: [number, number][],
   const batch: DeviceBatch = { deviceId: randomUUID(), sessionId: randomUUID(), packageVersion: await snapshot(f.raceId),
     firstSequence: 1, lastSequence: 1,
     events: [{ localSequence: 1, stationReceivedAt: at(finish + 60), transport: "sportident", payload, contentHash: contentHash(payload) }] };
-  const ingested = await ingestReadoutsAsAdministrator(db, { ...f.proof, batch });
+  const ingested = await ingestReadoutsAsAdmin(db, { ...f.proof, batch });
   if (ingested.status !== "ok") throw new Error(`Avläsningen togs inte emot: ${ingested.status}`);
 }
 
@@ -127,29 +127,29 @@ const settingsRequest = { formatVersion: 1, source: "ORESULTS", unitId: "4711", 
 describe("ADR-0172 radiokontroller", () => {
   it("bara admin ställer in radion; funktionären når inte inställningarna", async () => {
     const f = await race();
-    const before = await getRadioSettingsAsAdministrator(db, f.proof, NOW());
+    const before = await getRadioSettingsAsAdmin(db, f.proof, NOW());
     if (before.status !== "ok") throw new Error("Inställningarna kunde inte läsas");
     expect(before.response).toMatchObject({ link: null, status: null, relay: false, latest: [] });
     expect(before.response.candidates).toEqual([{ code: 31, courses: ["Lång"] }, { code: 32, courses: ["Lång"] },
       { code: 33, courses: ["Lång"] }, { code: 50, courses: ["Lång"] }]);
-    expect(await saveRadioSettingsAsAdministrator(db, { ...f.proof, request: { ...settingsRequest, unitId: "../x" } }, NOW()))
+    expect(await saveRadioSettingsAsAdmin(db, { ...f.proof, request: { ...settingsRequest, unitId: "../x" } }, NOW()))
       .toEqual({ status: "invalid-request" });
-    expect(await saveRadioSettingsAsAdministrator(db, { ...f.proof, request: { ...settingsRequest,
+    expect(await saveRadioSettingsAsAdmin(db, { ...f.proof, request: { ...settingsRequest,
       controls: [{ code: 31, label: null }, { code: 31, label: null }] } }, NOW())).toEqual({ status: "invalid-request" });
-    const saved = await saveRadioSettingsAsAdministrator(db, { ...f.proof, request: settingsRequest }, NOW());
+    const saved = await saveRadioSettingsAsAdmin(db, { ...f.proof, request: settingsRequest }, NOW());
     expect(saved).toMatchObject({ status: "ok", response: { link: { source: "ORESULTS", unitId: "4711", enabled: true,
       controls: [{ code: 31, label: "Radio 1" }, { code: 50, label: null }] }, status: { polling: "TODAY", punches: 0, lastAttemptAt: null } } });
 
     const functionary = await registerTestAccount(db, `radiofunk.${randomUUID().slice(0, 8)}`);
     expect((await grantRacePerson(db, f.ownerProof, f.raceId, functionary.email, "FUNCTIONARY")).status).toBe("granted");
-    const entered = await enterRaceAsUserAccount(db, { ...functionary.proof, raceId: f.raceId });
-    if (entered.status !== "entered") throw new Error("Funktionären kom inte in");
+    const entered = await accountOnRace(db, { ...functionary.proof, raceId: f.raceId });
+    if (entered.status !== "authenticated") throw new Error("Funktionären kom inte in");
     const asFunctionary = { raceId: f.raceId, sessionToken: entered.sessionToken, csrfCookie: entered.csrfToken, csrfHeader: entered.csrfToken };
-    expect(await getRadioSettingsAsAdministrator(db, asFunctionary, NOW())).toEqual({ status: "forbidden" });
-    expect(await saveRadioSettingsAsAdministrator(db, { ...asFunctionary, request: settingsRequest }, NOW())).toEqual({ status: "forbidden" });
-    expect(await fetchRadioNowAsAdministrator(db, asFunctionary, {}, NOW())).toEqual({ status: "forbidden" });
+    expect(await getRadioSettingsAsAdmin(db, asFunctionary, NOW())).toEqual({ status: "forbidden" });
+    expect(await saveRadioSettingsAsAdmin(db, { ...asFunctionary, request: settingsRequest }, NOW())).toEqual({ status: "forbidden" });
+    expect(await fetchRadioNowAsAdmin(db, asFunctionary, {}, NOW())).toEqual({ status: "forbidden" });
     // Utan CSRF sparas inget.
-    const withoutCsrf = await saveRadioSettingsAsAdministrator(db, { ...f.proof, csrfHeader: "fel", request: settingsRequest }, NOW());
+    const withoutCsrf = await saveRadioSettingsAsAdmin(db, { ...f.proof, csrfHeader: "fel", request: settingsRequest }, NOW());
     expect(["unauthorized", "forbidden"]).toContain(withoutCsrf.status);
   });
 
@@ -159,7 +159,7 @@ describe("ADR-0172 radiokontroller", () => {
     const roc = fakeRoc();
     const runtime = { fetch: roc.fetch };
     expect(await pollRadioRace(db, f.raceId, runtime, NOW())).toEqual({ status: "not-configured" });
-    await saveRadioSettingsAsAdministrator(db, { ...f.proof, request: settingsRequest }, NOW());
+    await saveRadioSettingsAsAdmin(db, { ...f.proof, request: settingsRequest }, NOW());
 
     // Första hämtningen: tre stämplingar (id:n som inte ökar), en okänd bricka och en trasig rad.
     roc.state.lines = [`3;31;7201;${local(450)}`, `1;31;9999;${local(300)}`, `2;99;7201;${local(200)}`];
@@ -201,7 +201,7 @@ describe("ADR-0172 radiokontroller", () => {
     await expect(pool.query("update radio_punch set card_number = '1' where race_id = $1", [f.raceId])).rejects.toThrow(/append-only/);
     await expect(pool.query("delete from radio_punch where race_id = $1", [f.raceId])).rejects.toThrow(/append-only/);
 
-    const settings = await getRadioSettingsAsAdministrator(db, f.proof, NOW());
+    const settings = await getRadioSettingsAsAdmin(db, f.proof, NOW());
     if (settings.status !== "ok") throw new Error("Inställningarna kunde inte läsas");
     expect(settings.response.status).toMatchObject({ punches: 5, matchedPunches: 3, unknownCards: 2, otherControls: 1,
       malformedLines: 4, lastError: null, lastPunchId: 6 });
@@ -209,20 +209,20 @@ describe("ADR-0172 radiokontroller", () => {
     expect(settings.response.latest.find(row => row.cardNumber === "7201")).toMatchObject({ runner: "Anna Radiosson", className: "H21" });
 
     // Byte av enhet börjar om från lastId 0.
-    await saveRadioSettingsAsAdministrator(db, { ...f.proof, request: { ...settingsRequest, unitId: "4712" } }, NOW());
+    await saveRadioSettingsAsAdmin(db, { ...f.proof, request: { ...settingsRequest, unitId: "4712" } }, NOW());
     expect(await lastPunchId(f.raceId)).toBe(0);
   });
 
   it("visar fel i klartext och väntar längre efter fel", async () => {
     const f = await race();
     const roc = fakeRoc();
-    await saveRadioSettingsAsAdministrator(db, { ...f.proof, request: settingsRequest }, NOW());
+    await saveRadioSettingsAsAdmin(db, { ...f.proof, request: settingsRequest }, NOW());
     expect(await listRadioRacesDue(db, NOW())).toContain(f.raceId);
     // Bara på tävlingsdagen i tävlingens tidszon.
     expect(await listRadioRacesDue(db, new Date(START + DAY))).not.toContain(f.raceId);
     expect(await listRadioRacesDue(db, new Date(START - DAY))).not.toContain(f.raceId);
     roc.state.status = 502;
-    const failed = await fetchRadioNowAsAdministrator(db, f.proof, { fetch: roc.fetch });
+    const failed = await fetchRadioNowAsAdmin(db, f.proof, { fetch: roc.fetch });
     expect(failed).toMatchObject({ status: "ok", response: { outcome: "UPSTREAM_UNAVAILABLE", newPunches: 0,
       settings: { status: { lastError: "UPSTREAM_UNAVAILABLE", consecutiveFailures: 1 } } } });
     const t0 = new Date();
@@ -237,10 +237,10 @@ describe("ADR-0172 radiokontroller", () => {
     expect(await listRadioRacesDue(db, new Date(t0.getTime() + 41_000))).toContain(f.raceId);
     // Lyckad hämtning nollställer felet.
     roc.state.status = 200;
-    const fixed = await fetchRadioNowAsAdministrator(db, f.proof, { fetch: roc.fetch });
+    const fixed = await fetchRadioNowAsAdmin(db, f.proof, { fetch: roc.fetch });
     expect(fixed).toMatchObject({ status: "ok", response: { outcome: "FETCHED", settings: { status: { lastError: null, consecutiveFailures: 0 } } } });
     // Avstängd: hämtas inte automatiskt och syns inte publikt.
-    await saveRadioSettingsAsAdministrator(db, { ...f.proof, request: { ...settingsRequest, enabled: false } }, NOW());
+    await saveRadioSettingsAsAdmin(db, { ...f.proof, request: { ...settingsRequest, enabled: false } }, NOW());
     expect(await listRadioRacesDue(db, new Date(Date.now() + 120_000))).not.toContain(f.raceId);
     expect((await readPublicRadio(db, f.raceId)).enabled).toBe(false);
     expect(await isRadioLive(db, f.raceId)).toBe(false);
@@ -253,7 +253,7 @@ describe("ADR-0172 radiokontroller", () => {
     const cia = await register(f, "Cia", "7203", 120);
     await register(f, "Dan", "7204", 0);
     const roc = fakeRoc();
-    await saveRadioSettingsAsAdministrator(db, { ...f.proof, request: settingsRequest }, NOW());
+    await saveRadioSettingsAsAdmin(db, { ...f.proof, request: settingsRequest }, NOW());
     expect(await isRadioLive(db, f.raceId)).toBe(true);
     // Anna 7:30, Bo 7:20, Dan 7:21, Cia 6:00 (startade 18:02). Dan felstämplar senare. 7299 är en okänd bricka än så länge.
     roc.state.lines = [`1;31;7201;${local(450)}`, `2;31;7202;${local(440)}`, `3;31;7203;${local(480)}`,
@@ -291,12 +291,12 @@ describe("ADR-0172 radiokontroller", () => {
     const row = listed.response.entries.find(entry => entry.id === cia)!;
     const changed = await changeEntryCardAsAdmin(db, { ...f.proof, entryId: cia, idempotencyKey: `entry-card-change:${randomUUID()}`,
       request: { formatVersion: 1, expectedEntryVersion: row.version, expectedClassId: row.classId,
-        expectedSnapshotVersion: listed.response.snapshotVersion, expectedAssignment: row.activeAssignment, cardNumber: "7299" } });
+        expectedAssignment: row.activeAssignment, cardNumber: "7299" } });
     expect(changed.status).toBe("changed");
     radio = await readPublicRadio(db, f.raceId);
     // Cias tid kommer nu från 7299:s stämpling (18:08:20, start 18:02).
     expect(at31()).toEqual([["Cia", 380_000, 1], ["Bo", 440_000, 2], ["Anna", 448_000, 3], ["Dan", 440_000, null]]);
-    const settings = await getRadioSettingsAsAdministrator(db, f.proof, NOW());
+    const settings = await getRadioSettingsAsAdmin(db, f.proof, NOW());
     expect(settings.status === "ok" && settings.response.status).toMatchObject({ unknownCards: 1, matchedPunches: 5 });
     expect(radio.latest.find(passage => passage.givenName === "Anna")).toMatchObject({ finished: true, place: 3 });
     expect(anna).toMatch(/^[0-9a-f-]{36}$/);

@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { raceAdministratorRoute } from "./race-administrator-route-handlers";
-import { readRaceAdministratorCsrfCookie } from "./race-administrator-cookies";
+import { readAccountCsrfCookie } from "./organizer-account-cookies";
 import { db, id, other, csrf, token, environment, session, list, dependencies, request, intent } from "./race-administrator-route-test-helpers";
 
 describe("administratörsroutes: session och deltagare", () => {
   it("TASK036 binds read-only candidate search to snapshot and authenticates before names", async () => {
-    const body = { formatVersion: 1, expectedSnapshotVersion: 6, givenName: "Test", familyName: "Person", cardNumber: null };
+    const body = { formatVersion: 1, givenName: "Test", familyName: "Person", cardNumber: null };
     const response = { formatVersion: 1 as const, raceId: id, snapshotVersion: 6, totalMatches: 0, candidates: [] };
     const registrationCandidates = vi.fn(async () => ({ status: "ok" as const, response }));
     const services = { ...dependencies(), registrationCandidates }, action = { kind: "registration-candidates" as const };
@@ -13,7 +13,7 @@ describe("administratörsroutes: session och deltagare", () => {
     const result = await raceAdministratorRoute(db, req(), id, action, services, environment);
     expect(result.status).toBe(200); expect(result.headers.get("cache-control")).toContain("no-store");
     expect(registrationCandidates).toHaveBeenCalledWith(db, expect.objectContaining({ raceId: id, request: body }));
-    for (const altered of [{ raceId: other }, { snapshotVersion: 7 }]) {
+    for (const altered of [{ raceId: other }]) {
       registrationCandidates.mockResolvedValueOnce({ status: "ok", response: { ...response, ...altered } });
       expect((await raceAdministratorRoute(db, req(), id, action, services, environment)).status).toBe(500);
     }
@@ -26,7 +26,7 @@ describe("administratörsroutes: session och deltagare", () => {
   });
   it("TASK035 binds registration receipt and retains admin/body boundaries", async () => {
     const body = { formatVersion: 1, classId: id, expectedCourseVersionId: id, expectedStartRule: "PUNCH",
-      expectedSnapshotVersion: 6, givenName: "Ny", familyName: "Testperson", organisationName: null,
+      givenName: "Ny", familyName: "Testperson", organisationName: null,
       cardNumber: null, fixedStartTime: null };
     const receipt = { formatVersion: 1 as const, replayed: false, requestId: id, raceId: id,
       entryId: other, entryVersion: 1 as const, classId: id, givenName: "Ny", familyName: "Testperson",
@@ -40,8 +40,7 @@ describe("administratörsroutes: session och deltagare", () => {
     const action = { kind: "registration" as const };
     expect((await raceAdministratorRoute(db, req(), id, action, services, environment)).status).toBe(200);
     expect(registration).toHaveBeenCalledWith(db, expect.objectContaining({ request: body }));
-    for (const altered of [{ raceId: other }, { requestId: other }, { classId: other },
-      { snapshotVersionBefore: 7, snapshotVersionAfter: 8 }, { givenName: "Fel" }, { familyName: "Fel" },
+    for (const altered of [{ raceId: other }, { requestId: other }, { classId: other }, { givenName: "Fel" }, { familyName: "Fel" },
       { organisationName: "Fel" }, { cardNumber: "123456", assignmentId: id }, { fixedStartTime: "2026-09-12T12:00:00Z" }]) {
       registration.mockResolvedValueOnce({ status: "registered", response: { ...receipt, ...altered } });
       expect((await raceAdministratorRoute(db, req(), id, action, services, environment)).status).toBe(500);
@@ -57,7 +56,7 @@ describe("administratörsroutes: session och deltagare", () => {
     const previousIdentity = { givenName: "Test", familyName: "Löpare", organisationName: null };
     const identity = { ...previousIdentity, givenName: "Rättat", organisationName: "Testklubb" };
     const body = { formatVersion: 1, expectedEntryVersion: 2, expectedClassId: id,
-      expectedSnapshotVersion: 3, expectedIdentity: previousIdentity, identity };
+      expectedIdentity: previousIdentity, identity };
     const receipt = { formatVersion: 1 as const, replayed: false, requestId: id, raceId: id, entryId: id,
       classId: id, previousIdentity, identity, entryVersionBefore: 2, entryVersionAfter: 3,
       snapshotVersionBefore: 3, snapshotVersionAfter: 4, changedAt: "2026-09-12T12:00:00Z" };
@@ -74,7 +73,7 @@ describe("administratörsroutes: session och deltagare", () => {
     expect(result.headers.get("cache-control")).toContain("no-store");
     expect(change).toHaveBeenCalledWith(db, expect.objectContaining({ request: body }));
     for (const altered of [{ raceId: other }, { entryId: other }, { classId: other }, { requestId: other },
-      { entryVersionBefore: 3, entryVersionAfter: 4 }, { snapshotVersionBefore: 4, snapshotVersionAfter: 5 },
+      { entryVersionBefore: 3, entryVersionAfter: 4 },
       { identity: { ...identity, familyName: "Fel" } }, { previousIdentity: { ...previousIdentity, givenName: "Fel" } }]) {
       change.mockResolvedValueOnce({ status: "changed", response: { ...receipt, ...altered } });
       expect((await raceAdministratorRoute(db, req(), id, action, services, environment)).status).toBe(500);
@@ -90,8 +89,7 @@ describe("administratörsroutes: session och deltagare", () => {
     expect(denied.bodyUsed).toBe(false);
   });
   it("TASK031 normaliserar och binder hela starttidskvittensen", async () => {
-    const body = { formatVersion: 1, expectedEntryVersion: 2, expectedClassId: id, expectedSnapshotVersion: 3,
-      expectedFixedStartTime: "2026-09-12T10:00:00.000Z", fixedStartTime: "2026-09-12T10:01:00.000Z" };
+    const body = { formatVersion: 1, expectedEntryVersion: 2, expectedClassId: id, expectedFixedStartTime: "2026-09-12T10:00:00.000Z", fixedStartTime: "2026-09-12T10:01:00.000Z" };
     const receipt = { formatVersion: 1 as const, replayed: false, requestId: id, raceId: id, entryId: id, classId: id,
       previousFixedStartTime: body.expectedFixedStartTime, fixedStartTime: body.fixedStartTime,
       entryVersionBefore: 2, entryVersionAfter: 3, snapshotVersionBefore: 3, snapshotVersionAfter: 4,
@@ -104,7 +102,7 @@ describe("administratörsroutes: session och deltagare", () => {
     expect(startTime).toHaveBeenCalledWith(db, expect.objectContaining({ request: body }));
     for (const change of [{ raceId: other }, { entryId: other }, { classId: other }, { requestId: other },
       { previousFixedStartTime: "2026-09-12T09:00:00.000Z" }, { fixedStartTime: "2026-09-12T11:00:00.000Z" },
-      { entryVersionBefore: 3, entryVersionAfter: 4 }, { snapshotVersionBefore: 4, snapshotVersionAfter: 5 }]) {
+      { entryVersionBefore: 3, entryVersionAfter: 4 }]) {
       startTime.mockResolvedValueOnce({ status: "changed", response: { ...receipt, ...change } });
       expect((await raceAdministratorRoute(db, req(), id, { kind: "start-time", entryId: id }, services, environment)).status).toBe(500);
     }
@@ -115,7 +113,7 @@ describe("administratörsroutes: session och deltagare", () => {
   });
   it("TASK030 binder brickkvittensen till hela intentet och kräver verklig admin", async () => {
     const body = { formatVersion: 1, expectedEntryVersion: 3, expectedClassId: id,
-      expectedSnapshotVersion: 4, expectedAssignment: { id, cardNumber: "123" }, cardNumber: "456" };
+      expectedAssignment: { id, cardNumber: "123" }, cardNumber: "456" };
     const receipt = { formatVersion: 1 as const, replayed: false, requestId: id, raceId: id, entryId: id, classId: id,
       previousAssignment: body.expectedAssignment, activeAssignment: { id: other, cardNumber: "456" },
       entryVersionBefore: 3, entryVersionAfter: 4, snapshotVersionBefore: 4, snapshotVersionAfter: 5,
@@ -127,20 +125,17 @@ describe("administratörsroutes: session och deltagare", () => {
     expect(card).toHaveBeenCalledWith(db, expect.objectContaining({ request: body, idempotencyKey: `entry-card-change:${id}` }));
     for (const change of [{ entryId: other }, { classId: other }, { requestId: other },
       { previousAssignment: { id: other, cardNumber: "123" } }, { previousAssignment: { id, cardNumber: "789" } },
-      { activeAssignment: { id: other, cardNumber: "789" } }, { entryVersionBefore: 4, entryVersionAfter: 5 },
-      { snapshotVersionBefore: 5, snapshotVersionAfter: 6 }]) {
+      { activeAssignment: { id: other, cardNumber: "789" } }, { entryVersionBefore: 4, entryVersionAfter: 5 }]) {
       card.mockResolvedValueOnce({ status: "changed", response: { ...receipt, ...change } });
       expect((await raceAdministratorRoute(db, req(), id, { kind: "card", entryId: id }, services, environment)).status).toBe(500);
     }
-    services.authenticate.mockResolvedValueOnce({ status: "authenticated", principal: { accessCredentialId: id,
-      raceId: id, capability: "CHANGE_ENTRY_CARD", sessionId: id, expiresAt: session.expiresAt } });
+    services.authenticate.mockResolvedValueOnce({ status: "authenticated", principal: { accountId: id, raceId: id, eventId: id, grantId: id, grantRole: "FUNCTIONARY", role: "FUNCTIONARY", sessionId: id, expiresAt: session.expiresAt } });
     const denied = req();
     expect((await raceAdministratorRoute(db, denied, id, { kind: "card", entryId: id }, services, environment)).status).toBe(403);
     expect(denied.bodyUsed).toBe(false);
   });
   it("TASK073 binder hyrstatus till exakt aktiv brickkoppling och kvittens", async () => {
-    const body = { formatVersion: 1, expectedEntryVersion: 3, expectedClassId: id, expectedSnapshotVersion: 4,
-      expectedAssignment: { id, cardNumber: "123", isRental: false }, isRental: true };
+    const body = { formatVersion: 1, expectedEntryVersion: 3, expectedClassId: id, expectedAssignment: { id, cardNumber: "123", isRental: false }, isRental: true };
     const receipt = { formatVersion: 1 as const, replayed: false, requestId: id, raceId: id, entryId: id,
       classId: id, assignment: { id, cardNumber: "123" }, previousIsRental: false, isRental: true,
       entryVersionBefore: 3, entryVersionAfter: 4, snapshotVersionBefore: 4, snapshotVersionAfter: 5,
@@ -154,8 +149,7 @@ describe("administratörsroutes: session och deltagare", () => {
       idempotencyKey: `entry-card-rental-change:${id}` }));
     for (const change of [{ raceId: other }, { entryId: other }, { classId: other }, { requestId: other },
       { assignment: { id: other, cardNumber: "123" } }, { assignment: { id, cardNumber: "456" } },
-      { previousIsRental: true, isRental: false }, { entryVersionBefore: 4, entryVersionAfter: 5 },
-      { snapshotVersionBefore: 5, snapshotVersionAfter: 6 }]) {
+      { previousIsRental: true, isRental: false }, { entryVersionBefore: 4, entryVersionAfter: 5 }]) {
       cardRental.mockResolvedValueOnce({ status: "changed", response: { ...receipt, ...change } });
       expect((await raceAdministratorRoute(db, req(), id, { kind: "card-rental", entryId: id }, services, environment)).status).toBe(500);
     }
@@ -163,8 +157,7 @@ describe("administratörsroutes: session och deltagare", () => {
   it("TASK143 binder återanvändning till återlämnad källassignment och ny målassignment", async () => {
     const assignmentId = "10000000-0000-4000-8000-000000000003";
     const targetAssignmentId = "10000000-0000-4000-8000-000000000004";
-    const body = { formatVersion: 1, expectedSnapshotVersion: 4,
-      source: { entryId: other, classId: other, entryVersion: 2,
+    const body = { formatVersion: 1, source: { entryId: other, classId: other, entryVersion: 2,
         assignment: { id: assignmentId, cardNumber: "123", isRental: true, rentalReturned: true } },
       expectedTargetClassId: id, expectedTargetEntryVersion: 3 };
     const receipt = { formatVersion: 1 as const, replayed: false, requestId: id, raceId: id,
@@ -175,7 +168,7 @@ describe("administratörsroutes: session och deltagare", () => {
       targetEntryVersionBefore: 3, targetEntryVersionAfter: 4,
       snapshotVersionBefore: 4, snapshotVersionAfter: 5,
       changedAt: "2026-09-22T10:00:00Z" };
-    const cardRentalReuse = vi.fn<typeof import("@o-tid/application").reuseReturnedRentalCardAsAdministrator>()
+    const cardRentalReuse = vi.fn<typeof import("@o-tid/application").reuseReturnedRentalCardAsAdmin>()
       .mockResolvedValue({ status: "changed", response: receipt });
     const services = { ...dependencies(), cardRentalReuse };
     const req = () => request("PATCH", JSON.stringify(body), { "idempotency-key": `entry-card-rental-reuse:${id}` });
@@ -186,8 +179,7 @@ describe("administratörsroutes: session och deltagare", () => {
       { source: { ...receipt.source, entryId: id } },
       { target: { ...receipt.target, classId: other } },
       { sourceEntryVersionBefore: 3, sourceEntryVersionAfter: 4 },
-      { targetEntryVersionBefore: 4, targetEntryVersionAfter: 5 },
-      { snapshotVersionBefore: 5, snapshotVersionAfter: 6 }]) {
+      { targetEntryVersionBefore: 4, targetEntryVersionAfter: 5 }]) {
       cardRentalReuse.mockResolvedValueOnce({ status: "changed", response: { ...receipt, ...change } } as never);
       expect((await raceAdministratorRoute(db, req(), id, { kind: "card-rental-reuse", entryId: id }, services, environment)).status).toBe(500);
     }
@@ -222,11 +214,10 @@ describe("administratörsroutes: session och deltagare", () => {
     const services = dependencies();
     const req = request("GET", undefined, { cookie: `__Host-otid-entry-class-admin-session=${token}` });
     await raceAdministratorRoute(db, req, id, { kind: "participants" }, services, environment);
-    expect(services.authenticate).toHaveBeenCalledWith(db, expect.objectContaining({ capability: "MANAGE_RACE", sessionToken: null }));
+    expect(services.authenticate).toHaveBeenCalledWith(db, expect.objectContaining({ role: "ADMIN", sessionToken: null }));
     services.participants.mockResolvedValueOnce({ status: "ok", response: { ...list, raceId: other } });
     expect((await raceAdministratorRoute(db, request("GET"), id, { kind: "participants" }, services, environment)).status).toBe(500);
-    services.authenticate.mockResolvedValueOnce({ status: "authenticated", principal: { accessCredentialId: id,
-      raceId: id, capability: "CHANGE_ENTRY_CLASS", sessionId: id, expiresAt: session.expiresAt } });
+    services.authenticate.mockResolvedValueOnce({ status: "authenticated", principal: { accountId: id, raceId: id, eventId: id, grantId: id, grantRole: "FUNCTIONARY", role: "FUNCTIONARY", sessionId: id, expiresAt: session.expiresAt } });
     expect((await raceAdministratorRoute(db, request("GET"), id, { kind: "participants" }, services, environment)).status).toBe(403);
   });
   it("bevarar exakt klassintent och kontrollerar kvittensens mål", async () => {
@@ -245,19 +236,21 @@ describe("administratörsroutes: session och deltagare", () => {
   });
   it("logout gäller både administratör och funktionär och rensar just dess cookies", async () => {
     const services = dependencies();
-    const response = await raceAdministratorRoute(db, request("DELETE"), id, { kind: "session" }, services, environment);
+    const logout = request("DELETE");
+    logout.headers.delete("content-type");
+    const response = await raceAdministratorRoute(db, logout, id, { kind: "session" }, services, environment);
     expect(response.status).toBe(204);
-    expect(services.logout).toHaveBeenCalledWith(db, expect.objectContaining({ capability: "RACE_FUNCTIONARY", sessionToken: token }));
+    expect(services.logout).toHaveBeenCalledWith(db, expect.objectContaining({ sessionToken: token, csrfCookie: csrf, csrfHeader: csrf }));
     expect(response.headers.getSetCookie()).toHaveLength(2);
     expect(response.headers.getSetCookie().every((cookie) => cookie.includes("Max-Age=0"))).toBe(true);
-    expect(readRaceAdministratorCsrfCookie(`__Host-otid-race-administrator-csrf=${csrf}`, new URL(environment.O_TID_PUBLIC_ORIGIN))).toBe(csrf);
-    expect(readRaceAdministratorCsrfCookie(`__Host-otid-race-administrator-csrf=${csrf}; __Host-otid-race-administrator-csrf=${csrf}`,
+    expect(readAccountCsrfCookie(`__Host-otid-organizer-csrf=${csrf}`, new URL(environment.O_TID_PUBLIC_ORIGIN))).toBe(csrf);
+    expect(readAccountCsrfCookie(`__Host-otid-organizer-csrf=${csrf}; __Host-otid-organizer-csrf=${csrf}`,
       new URL(environment.O_TID_PUBLIC_ORIGIN))).toBeUndefined();
   });
   it("binder atomiskt transferintent inklusive tid och bevarar korrekt kvittens", async () => {
     const services = dependencies();
     const body = { formatVersion: 1 as const, expectedEntryVersion: 1, expectedClassId: id,
-      expectedSnapshotVersion: 3, expectedFixedStartTime: null, targetClassId: other,
+      expectedFixedStartTime: null, targetClassId: other,
       expectedTargetCourseVersionId: id, expectedTargetStartRule: "FIXED" as const,
       fixedStartTime: "2026-09-12T10:30:00.000Z" };
     const receipt = { formatVersion: 1 as const, replayed: false, requestId: id, raceId: id, entryId: id,

@@ -2,14 +2,14 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrate } from "@o-tid/database";
 import { createDatabase } from "@o-tid/database";
-import { contentHash } from "../../src/hash";
+import { contentHash } from "../../src/serialization";
 import { ingestDeviceBatch } from "../../src/ingest";
-import { issuePairingAdminAccessCredential, loginPairingAdmin } from "../../src/pairing-admin";
 import { listResultFinalizationCandidatesAsAdmin } from "../../src/result-finalization";
 import {
-  listUnknownReadoutResolutionCandidatesAsAdministrator,
-  resolveUnknownReadoutAsAdministrator
+  listUnknownReadoutResolutionCandidatesAsAdmin,
+  resolveUnknownReadoutAsAdmin
 } from "../../src/unknown-readout-resolution";
+import { raceLogin, withoutRaceAccess } from "./accounts";
 
 const url = process.env.TEST_DATABASE_URL;
 if (!url) throw new Error("TEST_DATABASE_URL krävs för vald isolerad testdatabas");
@@ -18,14 +18,10 @@ const now = new Date("2026-09-19T14:00:00Z");
 beforeAll(async () => migrate(db, { migrationsFolder: new URL("../../../database/migrations", import.meta.url).pathname }));
 afterAll(async () => pool.end());
 
-async function auth(raceId: string, capability: "MANAGE_RACE" | "RECALCULATE_RESULT" = "MANAGE_RACE") {
-  const installation = await issuePairingAdminAccessCredential(db, { raceId, capability, label: "Synthetic TASK085",
-    expiresAt: new Date(now.getTime() + 3_600_000) }, { now });
-  const login = await loginPairingAdmin(db, { formatVersion: 1, accessCredential: installation.accessCredential },
-    { expectedRaceId: raceId, expectedCapability: capability, now });
-  if (login.status !== "authenticated") throw new Error("Synthetic login failed");
+async function auth(raceId: string, role: "ADMIN" | "FUNCTIONARY" = "ADMIN") {
+  const login = await raceLogin(db, raceId, role, now);
   return { raceId, sessionToken: login.sessionToken, csrfCookie: login.csrfToken,
-    csrfHeader: login.csrfToken, actorId: installation.credentialId };
+    csrfHeader: login.csrfToken, actorId: login.accountId };
 }
 
 async function fixture(cardNumber = "85001") {
@@ -64,7 +60,7 @@ async function immutableObservation(raceId: string) {
 describe("TASK085 atomic unknown readout resolution", () => {
   it("resolves the exact selected readout, replays exactly and preserves the original UNKNOWN_CARD observation", async () => {
     const f = await fixture();
-    const listed = await listUnknownReadoutResolutionCandidatesAsAdministrator(db, f.administrator, now);
+    const listed = await listUnknownReadoutResolutionCandidatesAsAdmin(db, f.administrator, now);
     if (listed.status !== "ok") throw new Error("Candidate read failed");
     expect(listed.response.readouts).toHaveLength(2);
     const selected = listed.response.readouts.find((row) => row.finishPunchedAt === "2026-09-19T10:20:00.000Z");
@@ -76,10 +72,9 @@ describe("TASK085 atomic unknown readout resolution", () => {
     const idempotencyKey = `unknown-readout-resolution:${randomUUID()}`;
     const request = { formatVersion: 1 as const, requestId: idempotencyKey.slice("unknown-readout-resolution:".length),
       target: "EXISTING_ENTRY" as const, readoutId: selected.id,
-      cardNumber: f.cardNumber, expectedSnapshotVersion: listed.response.snapshotVersion,
-      expectedEngineVersion: listed.response.engineVersion, entryId: f.entryId, expectedEntryVersion: 1,
+      cardNumber: f.cardNumber, expectedEngineVersion: listed.response.engineVersion, entryId: f.entryId, expectedEntryVersion: 1,
       expectedClassId: f.classId, expectedAssignment: null, expectedLatestResultRevision: null };
-    const first = await resolveUnknownReadoutAsAdministrator(db, { ...f.administrator, idempotencyKey, request }, now);
+    const first = await resolveUnknownReadoutAsAdmin(db, { ...f.administrator, idempotencyKey, request }, now);
     if (first.status !== "resolved") throw new Error(`Resolution failed: ${first.status}`);
     expect(first.response).toMatchObject({ readoutId: selected.id, entryId: f.entryId, revision: 1,
       cause: "UNKNOWN_READOUT_RESOLUTION", snapshotVersionBefore: 1, snapshotVersionAfter: 2 });
@@ -91,12 +86,12 @@ describe("TASK085 atomic unknown readout resolution", () => {
     const afterFinalization = await listResultFinalizationCandidatesAsAdmin(db, f.administrator, now);
     if (afterFinalization.status !== "ok") throw new Error("Finalization read failed");
     expect(afterFinalization.response.race.unresolvedUnknownCardReadoutCount).toBe(1);
-    expect(await resolveUnknownReadoutAsAdministrator(db, { ...f.administrator, idempotencyKey, request }, now))
+    expect(await resolveUnknownReadoutAsAdmin(db, { ...f.administrator, idempotencyKey, request }, now))
       .toEqual({ status: "resolved", response: { ...first.response, replayed: true } });
-    expect((await resolveUnknownReadoutAsAdministrator(db, { ...f.administrator, idempotencyKey,
+    expect((await resolveUnknownReadoutAsAdmin(db, { ...f.administrator, idempotencyKey,
       request: { ...request, readoutId: listed.response.readouts[0]!.id } }, now)).status).toBe("conflict");
     const staleRequestId = randomUUID();
-    expect((await resolveUnknownReadoutAsAdministrator(db, { ...f.administrator,
+    expect((await resolveUnknownReadoutAsAdmin(db, { ...f.administrator,
       idempotencyKey: `unknown-readout-resolution:${staleRequestId}`,
       request: { ...request, requestId: staleRequestId } }, now)).status).toBe("conflict");
     expect((await pool.query("SELECT * FROM unknown_readout_resolution WHERE race_id=$1", [f.raceId])).rowCount).toBe(1);
@@ -105,21 +100,21 @@ describe("TASK085 atomic unknown readout resolution", () => {
   });
 
   it("direct-registers atomically with class capacity and rejects limited capability", async () => {
-    const f = await fixture("85002"), limited = await auth(f.raceId, "RECALCULATE_RESULT");
-    const listed = await listUnknownReadoutResolutionCandidatesAsAdministrator(db, f.administrator, now);
+    const f = await fixture("85002"), limited = await withoutRaceAccess(db, f.raceId, now);
+    const listed = await listUnknownReadoutResolutionCandidatesAsAdmin(db, f.administrator, now);
     if (listed.status !== "ok") throw new Error("Candidate read failed");
-    expect((await listUnknownReadoutResolutionCandidatesAsAdministrator(db, limited, now)).status).toBe("forbidden");
+    expect((await listUnknownReadoutResolutionCandidatesAsAdmin(db, limited, now)).status).toBe("unauthorized");
     const selected = listed.response.readouts[0]!;
     const requestId = randomUUID();
     const request = { formatVersion: 1 as const, requestId, target: "NEW_ENTRY" as const, readoutId: selected.id,
-      cardNumber: f.cardNumber, expectedSnapshotVersion: 1, expectedEngineVersion: listed.response.engineVersion,
+      cardNumber: f.cardNumber, expectedEngineVersion: listed.response.engineVersion,
       classId: f.classId, expectedCourseVersionId: f.courseVersionId, givenName: "Nya", familyName: "Löparen",
       organisationName: "Testklubben" };
     await pool.query("UPDATE class SET max_entries=1 WHERE id=$1", [f.classId]);
-    expect((await resolveUnknownReadoutAsAdministrator(db, { ...f.administrator,
+    expect((await resolveUnknownReadoutAsAdmin(db, { ...f.administrator,
       idempotencyKey: `unknown-readout-resolution:${requestId}`, request }, now)).status).toBe("conflict");
     await pool.query("UPDATE class SET max_entries=2 WHERE id=$1", [f.classId]);
-    const changed = await resolveUnknownReadoutAsAdministrator(db, { ...f.administrator,
+    const changed = await resolveUnknownReadoutAsAdmin(db, { ...f.administrator,
       idempotencyKey: `unknown-readout-resolution:${requestId}`, request }, now);
     if (changed.status !== "resolved") throw new Error("Direct resolution failed");
     expect(changed.response).toMatchObject({ target: "NEW_ENTRY", entryVersion: 1, classId: f.classId,

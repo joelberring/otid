@@ -1,8 +1,7 @@
 import {
   authenticateUserAccountSession,
-  createEventAsUserAccount,
-  enterRaceAsUserAccount,
-  listMyEventsAsUserAccount,
+  createOrganizerEvent,
+  listMyEvents,
   loginUserAccount,
   logoutUserAccountSession,
   registerUserAccount
@@ -14,41 +13,37 @@ import {
   organizerEventCreateResponseSchema,
   organizerEventCreateRequestSchema,
   organizerMyEventsResponseSchema,
-  organizerRaceEnterResponseSchema,
   organizerAccountSessionStatusSchema
 } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
 import {
-  OrganizerConfigurationError,
+  SecurityConfigurationError,
   accountFailure,
-  clearOrganizerAccountCookies,
+  clearSessionCookies,
   clientAddress,
-  hasExpectedOrganizerOrigin,
-  hasNoOrganizerRequestBody,
+  hasExpectedOrigin,
+  hasNoRequestBody,
   organizerFailure,
-  organizerJson,
-  organizerSecurityPolicy,
-  organizerSessionProof,
-  privateOrganizerHeaders,
-  readOrganizerJson,
-  setOrganizerAccountCookies,
-  setOrganizerRaceCookies
-} from "./organizer-account-security";
+  privateHeaders,
+  privateJson,
+  readJsonBody,
+  securityPolicy,
+  sessionProof,
+  setSessionCookies
+} from "./security-policy";
 
 type Environment = Partial<Pick<NodeJS.ProcessEnv, "NODE_ENV" | "O_TID_PUBLIC_ORIGIN" | "OTID_REGISTRATION_LIMIT_PER_HOUR">>;
 type Login = typeof loginUserAccount;
 type Register = typeof registerUserAccount;
 type Authenticate = typeof authenticateUserAccountSession;
 type Logout = typeof logoutUserAccountSession;
-type Create = typeof createEventAsUserAccount;
-type List = typeof listMyEventsAsUserAccount;
-type Enter = typeof enterRaceAsUserAccount;
-const raceIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+type Create = typeof createOrganizerEvent;
+type List = typeof listMyEvents;
 
 function policy(environment: Environment) {
-  try { return { value: organizerSecurityPolicy(environment) } as const; }
+  try { return { value: securityPolicy(environment) } as const; }
   catch (error) {
-    if (error instanceof OrganizerConfigurationError) return { response: organizerFailure(500, "INTERNAL_ERROR") } as const;
+    if (error instanceof SecurityConfigurationError) return { response: organizerFailure(500, "INTERNAL_ERROR") } as const;
     throw error;
   }
 }
@@ -73,9 +68,9 @@ export async function organizerLoginRoute(
 ): Promise<Response> {
   const configured = policy(environment);
   if ("response" in configured) return configured.response;
-  if (!hasExpectedOrganizerOrigin(request, configured.value)) return organizerFailure(403, "FORBIDDEN");
+  if (!hasExpectedOrigin(request, configured.value)) return organizerFailure(403, "FORBIDDEN");
   let body: unknown;
-  try { body = await readOrganizerJson(request); } catch { return organizerFailure(400, "INVALID_REQUEST"); }
+  try { body = await readJsonBody(request); } catch { return organizerFailure(400, "INVALID_REQUEST"); }
   const parsed = organizerAccountLoginRequestSchema.safeParse(body);
   if (!parsed.success) return organizerFailure(400, "INVALID_REQUEST");
   try {
@@ -85,7 +80,7 @@ export async function organizerLoginRoute(
         : result.status === "blocked" ? accountFailure(403, "ACCOUNT_BLOCKED") : organizerFailure(401, "UNAUTHORIZED");
     }
     const response = organizerAccountLoginResponseSchema.parse(result.response);
-    return setOrganizerAccountCookies(organizerJson(response), configured.value, {
+    return setSessionCookies(privateJson(response), configured.value, {
       sessionToken: result.sessionToken, csrfToken: result.csrfToken, expiresAt: response.expiresAt
     });
   } catch { return organizerFailure(500, "INTERNAL_ERROR"); }
@@ -103,16 +98,16 @@ export async function organizerRegisterRoute(
 ): Promise<Response> {
   const configured = policy(environment);
   if ("response" in configured) return configured.response;
-  if (!hasExpectedOrganizerOrigin(request, configured.value)) return organizerFailure(403, "FORBIDDEN");
+  if (!hasExpectedOrigin(request, configured.value)) return organizerFailure(403, "FORBIDDEN");
   let body: unknown;
-  try { body = await readOrganizerJson(request); } catch { return organizerFailure(400, "INVALID_REQUEST"); }
+  try { body = await readJsonBody(request); } catch { return organizerFailure(400, "INVALID_REQUEST"); }
   try {
     const limit = registrationsPerHour(environment);
     const result = await register(db, body, { clientKey: clientAddress(request), ...(limit ? { registrationsPerHour: limit } : {}) });
     if (result.status === "rate-limited") return accountFailure(429, "RATE_LIMITED");
     if (result.status !== "authenticated") return requestFailure(result.status);
     const response = organizerAccountLoginResponseSchema.parse(result.response);
-    return setOrganizerAccountCookies(organizerJson(response, 201), configured.value, {
+    return setSessionCookies(privateJson(response, 201), configured.value, {
       sessionToken: result.sessionToken, csrfToken: result.csrfToken, expiresAt: response.expiresAt
     });
   } catch { return organizerFailure(500, "INTERNAL_ERROR"); }
@@ -124,13 +119,13 @@ export async function organizerSessionStatusRoute(
 ): Promise<Response> {
   const configured = policy(environment);
   if ("response" in configured) return configured.response;
-  if (!await hasNoOrganizerRequestBody(request)) return organizerFailure(400, "INVALID_REQUEST");
+  if (!await hasNoRequestBody(request)) return organizerFailure(400, "INVALID_REQUEST");
   try {
-    const result = await authenticate(db, organizerSessionProof(request, configured.value, false));
+    const result = await authenticate(db, sessionProof(request, configured.value, false));
     // Frågan "är jag inloggad?" är ett normalt svar, inte ett fel: inget 401 i webbläsarens konsol (PLAN.md steg 22).
-    if (result.status === "unauthorized") return organizerJson(organizerAccountSessionStatusSchema.parse({ formatVersion: 1, authenticated: false }));
+    if (result.status === "unauthorized") return privateJson(organizerAccountSessionStatusSchema.parse({ formatVersion: 1, authenticated: false }));
     if (result.status !== "authenticated") return authenticationFailure(result.status);
-    return organizerJson(organizerAccountSessionStatusSchema.parse({
+    return privateJson(organizerAccountSessionStatusSchema.parse({
       formatVersion: 1, accountId: result.principal.accountId, email: result.principal.email,
       displayName: result.principal.displayName, superadmin: result.principal.superadmin, expiresAt: result.principal.expiresAt
     }));
@@ -143,39 +138,39 @@ export async function organizerLogoutRoute(
 ): Promise<Response> {
   const configured = policy(environment);
   if ("response" in configured) return configured.response;
-  if (!hasExpectedOrganizerOrigin(request, configured.value)) return organizerFailure(403, "FORBIDDEN");
-  if (!await hasNoOrganizerRequestBody(request)) return organizerFailure(400, "INVALID_REQUEST");
-  const proof = organizerSessionProof(request, configured.value, true);
+  if (!hasExpectedOrigin(request, configured.value)) return organizerFailure(403, "FORBIDDEN");
+  if (!await hasNoRequestBody(request)) return organizerFailure(400, "INVALID_REQUEST");
+  const proof = sessionProof(request, configured.value, true);
   try {
     const result = await logout(db, { ...proof, requireCsrf: true }, undefined);
-    if (result.status === "unauthorized") return clearOrganizerAccountCookies(organizerFailure(401, "UNAUTHORIZED"), configured.value);
+    if (result.status === "unauthorized") return clearSessionCookies(organizerFailure(401, "UNAUTHORIZED"), configured.value);
     if (result.status === "forbidden") return organizerFailure(403, "FORBIDDEN");
-    return clearOrganizerAccountCookies(new Response(null, { status: 204, headers: privateOrganizerHeaders }), configured.value);
+    return clearSessionCookies(new Response(null, { status: 204, headers: privateHeaders }), configured.value);
   } catch { return organizerFailure(500, "INTERNAL_ERROR"); }
 }
 
 export async function organizerEventsListRoute(
-  db: Database, request: Request, list: List = listMyEventsAsUserAccount,
+  db: Database, request: Request, list: List = listMyEvents,
   environment: Environment = process.env
 ): Promise<Response> {
   const configured = policy(environment);
   if ("response" in configured) return configured.response;
-  if (request.method !== "GET" || !await hasNoOrganizerRequestBody(request)) return organizerFailure(400, "INVALID_REQUEST");
+  if (request.method !== "GET" || !await hasNoRequestBody(request)) return organizerFailure(400, "INVALID_REQUEST");
   try {
-    const result = await list(db, organizerSessionProof(request, configured.value, false));
+    const result = await list(db, sessionProof(request, configured.value, false));
     if (result.status !== "ok") return authenticationFailure(result.status);
-    return organizerJson(organizerMyEventsResponseSchema.parse(result.response));
+    return privateJson(organizerMyEventsResponseSchema.parse(result.response));
   } catch { return organizerFailure(500, "INTERNAL_ERROR"); }
 }
 
 export async function organizerEventCreateRoute(
   db: Database, request: Request, authenticate: Authenticate = authenticateUserAccountSession,
-  create: Create = createEventAsUserAccount, environment: Environment = process.env
+  create: Create = createOrganizerEvent, environment: Environment = process.env
 ): Promise<Response> {
   const configured = policy(environment);
   if ("response" in configured) return configured.response;
-  if (!hasExpectedOrganizerOrigin(request, configured.value)) return organizerFailure(403, "FORBIDDEN");
-  const proof = organizerSessionProof(request, configured.value, true);
+  if (!hasExpectedOrigin(request, configured.value)) return organizerFailure(403, "FORBIDDEN");
+  const proof = sessionProof(request, configured.value, true);
   try {
     const auth = await authenticate(db, { ...proof, requireCsrf: true });
     if (auth.status !== "authenticated") return authenticationFailure(auth.status);
@@ -183,7 +178,7 @@ export async function organizerEventCreateRoute(
   const idempotencyKey = request.headers.get("idempotency-key");
   if (!organizerEventCreateIdempotencyKeySchema.safeParse(idempotencyKey).success) return organizerFailure(400, "INVALID_REQUEST");
   let body: unknown;
-  try { body = await readOrganizerJson(request); } catch { return organizerFailure(400, "INVALID_REQUEST"); }
+  try { body = await readJsonBody(request); } catch { return organizerFailure(400, "INVALID_REQUEST"); }
   const parsed = organizerEventCreateRequestSchema.safeParse(body);
   if (!parsed.success) return organizerFailure(400, "INVALID_REQUEST");
   try {
@@ -191,25 +186,7 @@ export async function organizerEventCreateRoute(
       readBody: async () => parsed.data });
     if (result.status !== "created") return requestFailure(result.status);
     const response = organizerEventCreateResponseSchema.parse(result.response);
-    return organizerJson(response, response.replayed ? 200 : 201);
+    return privateJson(response, response.replayed ? 200 : 201);
   } catch { return organizerFailure(500, "INTERNAL_ERROR"); }
 }
 
-export async function organizerRaceEnterRoute(
-  db: Database, request: Request, raceId: string, enter: Enter = enterRaceAsUserAccount,
-  environment: Environment = process.env
-): Promise<Response> {
-  const configured = policy(environment);
-  if ("response" in configured) return configured.response;
-  if (!hasExpectedOrganizerOrigin(request, configured.value)) return organizerFailure(403, "FORBIDDEN");
-  if (!raceIdPattern.test(raceId) || !await hasNoOrganizerRequestBody(request)) return organizerFailure(400, "INVALID_REQUEST");
-  try {
-    const result = await enter(db, { ...organizerSessionProof(request, configured.value, true), requireCsrf: true, raceId });
-    if (result.status !== "entered") return requestFailure(result.status);
-    const response = organizerRaceEnterResponseSchema.parse(result.response);
-    if (response.raceId !== raceId) return organizerFailure(500, "INTERNAL_ERROR");
-    return setOrganizerRaceCookies(organizerJson(response), configured.value, {
-      sessionToken: result.sessionToken, csrfToken: result.csrfToken, expiresAt: response.expiresAt
-    });
-  } catch { return organizerFailure(500, "INTERNAL_ERROR"); }
-}

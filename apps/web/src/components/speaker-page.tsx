@@ -10,7 +10,6 @@ import { speakerSv as text } from "../i18n/speaker-sv";
 import { radioControlName, radioSv } from "../i18n/radio-sv";
 import { passageTime } from "./radio/radio-live";
 import { formatClockTime, formatDuration } from "../lib/clock-time";
-import { readOrganizerCsrf } from "../lib/organizer-client";
 import { startPublicResultEventStream } from "../lib/public-result-event-stream-client";
 import { classLeaders, forestByClass, isOnTheWay, latestFinishers, onTheWayKeys, radioLeaders, relayLegs, type Finisher } from "../lib/speaker";
 import styles from "./speaker-page.module.css";
@@ -33,7 +32,7 @@ export function SpeakerPage({ raceId }: { raceId: string }) {
   const [problem, setProblem] = useState<"login" | "error" | "stale">();
   const [classFilter, setClassFilter] = useState("");
   const [online, setOnline] = useState(true);
-  const loading = useRef(false), again = useRef(false), entered = useRef(false);
+  const loading = useRef(false), again = useRef(false);
   const base = `/api/admin/races/${encodeURIComponent(raceId)}/administrator`;
 
   const load = useCallback(async () => {
@@ -46,20 +45,8 @@ export function SpeakerPage({ raceId }: { raceId: string }) {
         if (!response.ok) throw new Error(`Speakerunderlaget svarade ${response.status}`);
         return response.json() as Promise<unknown>;
       };
-      let board: SpeakerBoardResponse;
-      try { board = speakerBoardResponseSchema.parse(await get(`${base}/speaker-board`)); }
-      catch (error) {
-        // Inloggat konto utan tävlingssession: öppna tävlingen en gång med kontot, som arbetsytan gör.
-        if (!(error instanceof Unauthorized) || entered.current) throw error;
-        entered.current = true;
-        let csrf: string;
-        try { csrf = readOrganizerCsrf(document.cookie, new URL(window.location.href)); }
-        catch { throw new Unauthorized(); }
-        const response = await fetch(`/api/organizer/races/${encodeURIComponent(raceId)}/enter`, { method: "POST", credentials: "same-origin",
-          cache: "no-store", headers: { "x-otid-csrf": csrf } });
-        if (!response.ok) throw new Unauthorized();
-        board = speakerBoardResponseSchema.parse(await get(`${base}/speaker-board`));
-      }
+      // Kontots session gäller speakern direkt (ADR-0173 beslut 4).
+      const board: SpeakerBoardResponse = speakerBoardResponseSchema.parse(await get(`${base}/speaker-board`));
       if (board.raceId !== raceId) throw new Error("Speakerunderlaget gäller en annan tävling");
       const [results, forest, relay, radio] = await Promise.all([
         get(`/api/public/races/${encodeURIComponent(raceId)}/results`).then(value => publicResultListResponseV7Schema.parse(value)),

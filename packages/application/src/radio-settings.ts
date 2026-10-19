@@ -3,10 +3,7 @@ import {
   radioFetchResponseSchema, radioSettingsRequestSchema, radioSettingsResponseSchema, type RadioFetchResponse, type RadioSettingsResponse
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import {
-  authenticatePairingAdminSession, authenticatePairingAdminSessionForMutation, authenticatePairingAdminSessionForProtectedRead,
-  type PairingAdminRequestAuthentication
-} from "./pairing-admin";
+import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { pollRadioRace, type RadioRuntime } from "./radio-ingest";
 
 /**
@@ -16,9 +13,8 @@ import { pollRadioRace, type RadioRuntime } from "./radio-ingest";
  */
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 type Executor = Database | Transaction;
-type Authentication = Omit<PairingAdminRequestAuthentication, "capability" | "requireCsrf">;
+type Authentication = RaceSessionProof;
 type Failure = { status: "unauthorized" | "forbidden" | "invalid-request" | "not-found" };
-const capability = "MANAGE_RACE" as const;
 
 /** Kontrollkoderna i tävlingens banor (även gafflingarnas varianter) med banornas namn. */
 async function candidates(tx: Executor, raceId: string) {
@@ -89,10 +85,10 @@ export async function readRadioSettings(tx: Executor, raceId: string, now: Date)
     status, candidates: choices, relay: relay !== undefined, latest });
 }
 
-export async function getRadioSettingsAsAdministrator(db: Database, input: Authentication, now = new Date())
+export async function getRadioSettingsAsAdmin(db: Database, input: Authentication, now = new Date())
   : Promise<Failure | { status: "ok"; response: RadioSettingsResponse }> {
   return db.transaction(async tx => {
-    const auth = await authenticatePairingAdminSessionForProtectedRead(tx, { ...input, capability }, now);
+    const auth = await requireRaceRole(tx, { ...input, role: "ADMIN" }, now, "share");
     if (auth.status !== "authenticated") return auth;
     const response = await readRadioSettings(tx, auth.principal.raceId, now);
     return response ? { status: "ok" as const, response } : { status: "not-found" as const };
@@ -103,13 +99,13 @@ export async function getRadioSettingsAsAdministrator(db: Database, input: Authe
  * Sparar kopplingen och radiokontrollerna. Byte av källa eller enhet nollställer `lastId` och läget, så att
  * den nya enheten hämtas från början; sparade stämplingar finns kvar (de är oföränderliga).
  */
-export async function saveRadioSettingsAsAdministrator(db: Database, input: Authentication & { request: unknown }, now = new Date())
+export async function saveRadioSettingsAsAdmin(db: Database, input: Authentication & { request: unknown }, now = new Date())
   : Promise<Failure | { status: "ok"; response: RadioSettingsResponse }> {
   const parsed = radioSettingsRequestSchema.safeParse(input.request);
   if (!parsed.success) return { status: "invalid-request" };
   const request = parsed.data;
   return db.transaction(async tx => {
-    const auth = await authenticatePairingAdminSessionForMutation(tx, { ...input, capability, requireCsrf: true }, now);
+    const auth = await requireRaceRole(tx, { ...input, role: "ADMIN", requireCsrf: true }, now, "update");
     if (auth.status !== "authenticated") return auth;
     const raceId = auth.principal.raceId;
     const [existing] = await tx.select().from(schema.raceRadioLinks).where(eq(schema.raceRadioLinks.raceId, raceId)).for("update");
@@ -127,8 +123,8 @@ export async function saveRadioSettingsAsAdministrator(db: Database, input: Auth
         ({ raceId, controlCode: control.code, label: control.label })));
     }
     await tx.insert(schema.auditEvents).values({ raceId, entityType: "race", entityId: raceId, action: "RADIO_SETTINGS_SAVED",
-      actorKind: auth.principal.account ? "USER_ACCOUNT" : "RACE_ADMIN_ACCESS_CREDENTIAL",
-      actorId: auth.principal.account?.accountId ?? auth.principal.accessCredentialId,
+      actorKind: "USER_ACCOUNT",
+      actorId: auth.principal.accountId,
       before: existing ? { source: existing.source, unitId: existing.unitId, enabled: existing.enabled } : null,
       after: { source: request.source, unitId: request.unitId, enabled: request.enabled,
         controls: request.controls.map(control => control.code) }, createdAt: now });
@@ -138,9 +134,9 @@ export async function saveRadioSettingsAsAdministrator(db: Database, input: Auth
 }
 
 /** "Hämta nu": en hämtning direkt, oavsett dag och väntan efter fel. */
-export async function fetchRadioNowAsAdministrator(db: Database, input: Authentication, runtime: RadioRuntime, now = new Date())
+export async function fetchRadioNowAsAdmin(db: Database, input: Authentication, runtime: RadioRuntime, now = new Date())
   : Promise<Failure | { status: "ok"; response: RadioFetchResponse }> {
-  const auth = await authenticatePairingAdminSession(db, { ...input, capability, requireCsrf: true }, now);
+  const auth = await requireRaceRole(db, { ...input, role: "ADMIN", requireCsrf: true }, now);
   if (auth.status !== "authenticated") return auth;
   const raceId = auth.principal.raceId;
   const outcome = await pollRadioRace(db, raceId, runtime, now);

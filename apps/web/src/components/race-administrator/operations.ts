@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { readRaceAdministratorCsrfCookie } from "../../lib/race-administrator-cookies";
+import { readAccountCsrfCookie } from "../../lib/organizer-account-cookies";
 import { fetchWithRetry } from "../../lib/retrying-fetch";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
 import type { Operation, PendingAttempt } from "./types";
@@ -70,7 +70,7 @@ export function useOperations(s: WorkspaceState) {
     const value: unknown = await response.json(); assertCurrent(op); return value;
   }
   function csrf() {
-    const token = readRaceAdministratorCsrfCookie(document.cookie, new URL(window.location.href));
+    const token = readAccountCsrfCookie(document.cookie, new URL(window.location.href));
     if (!token) { lock(); throw new Error("Missing CSRF"); }
     return token;
   }

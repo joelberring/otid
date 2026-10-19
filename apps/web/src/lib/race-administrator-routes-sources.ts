@@ -3,9 +3,14 @@ import {
   eventorTestResponseSchema, sourceSyncStatusSchema, syncApplyIdempotencyKeySchema, syncApplyRequestSchema, syncApplyResponseSchema,
   syncConsequenceRequestSchema, syncConsequenceResponseSchema, syncPreviewResponseSchema
 } from "@o-tid/contracts";
-import { entryClassAdminFailure as failure, entryClassAdminJson as json, hasNoEntryClassAdminRequestBody,
-  readEntryClassAdminJson } from "./entry-class-admin-security";
-import { importAdminFailure, readIofImportBody } from "./import-admin-security";
+import {
+  adminFailure as failure,
+  hasNoRequestBody,
+  importFailure,
+  privateJson as json,
+  readIofImportBody,
+  readJsonBody
+} from "./security-policy";
 import { eventorRuntime } from "./eventor-runtime";
 import { resultFailure, type RaceAdministratorRouteContext } from "./race-administrator-route-context";
 
@@ -18,12 +23,12 @@ export async function handleSourceRoute(context: RaceAdministratorRouteContext):
   const { db, request, raceId, action, dependencies, proof } = context;
   const input = { ...proof, raceId };
   const body = async () => {
-    try { return { ok: true as const, value: await readEntryClassAdminJson(request) }; } catch { return { ok: false as const }; }
+    try { return { ok: true as const, value: await readJsonBody(request) }; } catch { return { ok: false as const }; }
   };
   switch (action.kind) {
     case "eventor": {
       if (request.method === "GET" || request.method === "DELETE") {
-        if (request.method === "DELETE" && !await hasNoEntryClassAdminRequestBody(request)) return failure(400, "INVALID_REQUEST");
+        if (request.method === "DELETE" && !await hasNoRequestBody(request)) return failure(400, "INVALID_REQUEST");
         const result = request.method === "GET" ? await dependencies.eventorSettings(db, input, eventorRuntime())
           : await dependencies.eventorKeyRemove(db, input, eventorRuntime());
         if (result.status !== "ok") return resultFailure(result.status);
@@ -37,7 +42,7 @@ export async function handleSourceRoute(context: RaceAdministratorRouteContext):
       return json(eventorTestResponseSchema.parse(result.response));
     }
     case "eventor-test": {
-      if (!await hasNoEntryClassAdminRequestBody(request)) return failure(400, "INVALID_REQUEST");
+      if (!await hasNoRequestBody(request)) return failure(400, "INVALID_REQUEST");
       const result = await dependencies.eventorTest(db, input, eventorRuntime());
       if (result.status !== "ok") return resultFailure(result.status);
       return json(eventorTestResponseSchema.parse(result.response));
@@ -55,7 +60,7 @@ export async function handleSourceRoute(context: RaceAdministratorRouteContext):
       return json(eventorEventChoiceResponseSchema.parse(result.response));
     }
     case "eventor-sync-preview": {
-      if (!await hasNoEntryClassAdminRequestBody(request)) return failure(400, "INVALID_REQUEST");
+      if (!await hasNoRequestBody(request)) return failure(400, "INVALID_REQUEST");
       const result = await dependencies.eventorSyncPreview(db, input, eventorRuntime());
       if (result.status === "eventor") return json(eventorSyncProblemSchema.parse({ formatVersion: 1, raceId, problem: result.outcome }));
       if (result.status !== "ok") return resultFailure(result.status);
@@ -67,7 +72,7 @@ export async function handleSourceRoute(context: RaceAdministratorRouteContext):
       let fileName = "banfil.xml";
       try { fileName = decodeURIComponent(request.headers.get("x-otid-file-name") ?? fileName); } catch { return failure(400, "INVALID_REQUEST"); }
       const result = await dependencies.courseFilePreview(db, { ...input, xml, fileName });
-      if (result.status === "invalid-iof-xml") return importAdminFailure(422, "INVALID_IOF_XML", result.issues);
+      if (result.status === "invalid-iof-xml") return importFailure(422, "INVALID_IOF_XML", result.issues);
       if (result.status !== "ok") return resultFailure(result.status);
       return json(syncPreviewResponseSchema.parse(result.response));
     }

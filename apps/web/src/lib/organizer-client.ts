@@ -5,14 +5,13 @@ import {
   organizerEventCreateRequestSchema,
   organizerEventCreateResponseSchema,
   organizerMyEventsResponseSchema,
-  organizerRaceEnterResponseSchema,
   type OrganizerAccountLoginRequest,
   type OrganizerEventCreateRequest,
   type OrganizerEventCreateResponse,
   type OrganizerMyEventsResponse
 } from "@o-tid/contracts";
+import { UUID_PATTERN } from "@o-tid/contracts";
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const PENDING_ATTEMPT_KEY = "otid.organizer.pending-event-create.v1";
 
 export interface OrganizerCreateAttempt {
@@ -62,13 +61,6 @@ export function parseOrganizerLoginRequest(email: string, password: string): Org
   const parsed = organizerAccountLoginRequestSchema.safeParse({ formatVersion: 1, email, password });
   if (!parsed.success) throw new Error("Skriv en giltig e-postadress och ditt lösenord.");
   return parsed.data;
-}
-
-export function parseOrganizerEnterResponse(value: unknown, expectedRaceId: string): void {
-  const parsed = organizerRaceEnterResponseSchema.safeParse(value);
-  if (!parsed.success || parsed.data.raceId !== expectedRaceId) {
-    throw new Error("Servern kunde inte bekräfta tävlingsåtkomsten.");
-  }
 }
 
 export function readOrganizerCsrf(cookieText: string, currentUrl: URL): string {

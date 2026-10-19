@@ -84,14 +84,10 @@ function CopyRaceDialogContent({ source, onClose, onCopied }: {
     finally { setBusy(false); }
   }
 
-  async function openCopy(raceId: string) {
+  /** Kontots session gäller kopian direkt (ADR-0173 beslut 4). */
+  function openCopy(raceId: string) {
     setOpening(true);
-    try {
-      const response = await accountRequest(`/api/organizer/races/${encodeURIComponent(raceId)}/enter`, { method: "POST", csrf: true });
-      if (response.status === 200) { window.location.assign(`/admin/${encodeURIComponent(raceId)}/manage`); return; }
-      setProblem(response.status === 401 ? text.errors.session : text.errors.open);
-    } catch { setProblem(text.errors.network); }
-    setOpening(false);
+    window.location.assign(`/admin/${encodeURIComponent(raceId)}/manage`);
   }
 
   const titleId = `copy-race-${source.raceId}-title`;
@@ -128,7 +124,7 @@ function CopyRaceDialogContent({ source, onClose, onCopied }: {
       {result.copied.radioControls > 0 && <Notice tone="info">{text.radioNote}</Notice>}
       {problem && <Notice tone="error" role="alert">{problem}</Notice>}
       <div className={styles.actions}>
-        <Button disabled={opening} aria-busy={opening} onClick={() => void openCopy(result.raceId)}>{opening ? text.opening : text.open}</Button>
+        <Button disabled={opening} aria-busy={opening} onClick={() => openCopy(result.raceId)}>{opening ? text.opening : text.open}</Button>
         <Button variant="secondary" disabled={opening} onClick={() => dialogRef.current?.close()}>{text.close}</Button>
       </div>
     </div>}

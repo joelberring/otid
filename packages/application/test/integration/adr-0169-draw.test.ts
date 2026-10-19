@@ -140,7 +140,7 @@ describe("PLAN.md steg 9: lottning på riktigt", () => {
     const shown = await preview(f, settings(f));
     expect(await snapshot(f.raceId)).toBe(version);
     expect(shown.startGroups.map(group => ({ ...group, classNames: [...group.classNames].sort() })))
-      .toEqual([{ firstControlCode: 31, classNames: ["D21", "H21"], alternating: true }]);
+      .toEqual([{ controlCodes: [31], classNames: ["D21", "H21"], alternating: true }]);
     const h21 = minutes(shown, f.classes.H21), d21 = minutes(shown, f.classes.D21), h16 = minutes(shown, f.classes.H16);
     expect(new Set([...h21, ...d21]).size).toBe(h21.length + d21.length);
     expect([h21[0], d21[0]].sort()).toEqual([0, 1]);

@@ -5,10 +5,19 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 26 – Avancerad lottning. Steg 7 (hårdvara) väntar på ägaren.
+Steg 7 – Riktig hårdvara och pilot (ägaren). Alla andra steg i `PLAN.md` är klara.
 Måste provas mot riktiga tjänster: Eventor med klubbens API-nyckel, ROC:s sökväg för stämplingar (bara provad mot falsk ROC) och e-post via SMTP.
 
 ## Logg
+
+### 2026-10-19 – Steg 26: avancerad lottning (steg 26 klart)
+- Lottning: enkla läget som förut; under "Avancerat" (öppnas själv när något avviker, sparas med lottningen i `race.start_draw_settings`) kryssa i alla/olottade klasser, startgrupp av de första 1–3 kontrollerna, max starter per minut totalt och per startfålla, sista start, startordning (upp/ned) och senare start per klass (klockslag eller minuter efter första start), seedning per löpare och ranking från CSV (bricka, annars namn och klubb).
+- Domänen (`start-draw.ts`, `start-draw-order.ts`): befintliga tider rörs inte och nya läggs runt dem; gafflad klass hör till startgruppen om **någon** variant delar början (grupper slås ihop i kedja); fålla = samma första kontroll; vakanser räknas i taket, masstart som en start; senare start placeras först; seedade sist eller jämnt utspridda, bäst sist. Regelbrott blir varningar, aldrig fel.
+- Förhandsvisningen: regelbrott med sista start som behövs, klasser som behåller sina tider, "Minut för minut" med nya tider märkta Ny, seedade märkta. Sparandet skriver tider, seedning och inställningar i en transaktion (befintlig väg med omräkning).
+- Migration 0005 (`entry.seed_rank`, `race.start_draw_settings`). Lottningens anrop får större body (768 KiB; 4 KiB räckte bara till ~30 klasser).
+- Tester: domän `start-draw-advanced` (16), integration `steg-26-lottning` (2), CSV-läsaren (3), kontrakt, Playwright `lottning-avancerad`.
+- Verifierat: install (frozen), lint, typecheck, test, test:integration (66/274), build, Playwright alla 19 specar gröna i fem grupper (ny `lottning-avancerad`); efter omförsök under last: `gafflingar`, `funktionarer`, `strackanalys` och `tavlingsfunktioner`. Skärmbilder 1280/390 granskade.
+- Kvar: efteranmäld i lottad klass följer fortfarande första kontrollen (inte N kontroller eller taken). IOF-ranking (`Score`) inte gjord, bara CSV.
 
 ### 2026-10-19 – Steg 25: saknade tävlingsfunktioner (steg 25 klart)
 - Minutstart: lottad tid gäller; startstämpling mer än 60 s (`START_PUNCH_TOLERANCE_MS`) från den ger varning i avläsningen, deltagarkortet och arbetsytans lista ("! Sen start"), aldrig publikt. Utan lottad tid används startstämplingen (notis). Motor 0.4.0.

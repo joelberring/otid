@@ -99,6 +99,8 @@ export const races = pgTable("race", {
   publishedAt: timestamp("published_at", { withTimezone: true }),
   /** Kort adress till tävlingssidan (/t/{kod}), sätts av databasen (migration 0101). */
   shortCode: text("short_code").notNull().default(sql`generate_race_short_code()`),
+  /** Lottningens inställningar under "Avancerat" (migration 0005), sparade med senaste lottningen. NULL = standard. */
+  startDrawSettings: jsonb("start_draw_settings"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (table) => [
   check("race_type_check", sql`${table.raceType} in ('TRAINING', 'SMALL', 'STANDARD', 'FORKED', 'RELAY', 'ROGAINING')`),
@@ -216,6 +218,8 @@ export const entries = pgTable("entry", {
   /** Eventors id för personen och klubben (migration 0004), för IOF-resultatets Person/Organisation Id. */
   eventorPersonId: text("eventor_person_id"),
   eventorOrganisationId: text("eventor_organisation_id"),
+  /** Seedning i lottningen (migration 0005): 1 = bäst. NULL = inte seedad. */
+  seedRank: integer("seed_rank"),
   version: integer("version").notNull().default(1),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (table) => [

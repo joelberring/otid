@@ -9,7 +9,7 @@ const first = Date.parse("2026-10-08T08:00:00Z");
 const runners = (prefix: string, clubs: readonly (string | null)[]): StartDrawRunner[] =>
   clubs.map((club, index) => ({ entryId: `${prefix}-${String(index).padStart(3, "0")}`, club }));
 const raceClass = (classId: string, overrides: Partial<StartDrawClass> = {}): StartDrawClass => ({
-  classId, name: classId, firstControlCode: null, method: "MINUTE", intervalMinutes: 2,
+  classId, name: classId, startControls: [], method: "MINUTE", intervalMinutes: 2,
   vacancies: { kind: "COUNT", value: 0 }, runners: runners(classId, ["OK Ek", "IFK", "OK Ek", "Tullinge"]), ...overrides
 });
 const input = (classes: StartDrawClass[], overrides: Partial<StartDrawInput> = {}): StartDrawInput =>
@@ -88,9 +88,9 @@ describe("lottning av starttider", () => {
   });
 
   it("låter aldrig två klasser i samma startfålla starta samma minut och packar dem tätt", () => {
-    const h21 = raceClass("H21", { firstControlCode: 31, vacancies: { kind: "COUNT", value: 1 } });
-    const d21 = raceClass("D21", { firstControlCode: 31, vacancies: { kind: "COUNT", value: 1 } });
-    const h16 = raceClass("H16", { firstControlCode: 45 });
+    const h21 = raceClass("H21", { startControls: [[31]], vacancies: { kind: "COUNT", value: 1 } });
+    const d21 = raceClass("D21", { startControls: [[31]], vacancies: { kind: "COUNT", value: 1 } });
+    const h16 = raceClass("H16", { startControls: [[45]] });
     const result = drawStartTimes(input([h21, d21, h16]));
     const minutes = (classId: string) => result.classes.find(row => row.classId === classId)!.slots.map(slot => (slot.startMs - first) / MINUTE);
     expect(new Set([...minutes("H21"), ...minutes("D21")]).size).toBe(minutes("H21").length + minutes("D21").length);
@@ -99,12 +99,12 @@ describe("lottning av starttider", () => {
     expect(Math.max(...minutes("H21"), ...minutes("D21"))).toBe(9);
     // Annan första kontroll: startar parallellt från första start.
     expect(minutes("H16")).toEqual([0, 2, 4, 6]);
-    expect(result.groups).toEqual([{ firstControlCode: 31, classIds: ["H21", "D21"] }]);
+    expect(result.groups).toEqual([{ controlCodes: [31], classIds: ["H21", "D21"] }]);
   });
 
   it("lägger största klassen först och fyller luckor med mindre klasser", () => {
-    const big = raceClass("H21", { firstControlCode: 31, intervalMinutes: 1, runners: runners("H21", Array.from({ length: 6 }, (_, i) => `K${i}`)) });
-    const small = raceClass("D21", { firstControlCode: 31, intervalMinutes: 2, runners: runners("D21", ["A", "B"]) });
+    const big = raceClass("H21", { startControls: [[31]], intervalMinutes: 1, runners: runners("H21", Array.from({ length: 6 }, (_, i) => `K${i}`)) });
+    const small = raceClass("D21", { startControls: [[31]], intervalMinutes: 2, runners: runners("D21", ["A", "B"]) });
     const result = drawStartTimes(input([small, big]));
     const minutes = (classId: string) => result.classes.find(row => row.classId === classId)!.slots.map(slot => (slot.startMs - first) / MINUTE);
     expect(minutes("H21")).toEqual([0, 1, 2, 3, 4, 5]);
@@ -112,11 +112,11 @@ describe("lottning av starttider", () => {
   });
 
   it("undviker minuter som andra klasser i samma startfålla redan använder", () => {
-    const result = drawStartTimes(input([raceClass("H21", { firstControlCode: 31 })], {
-      occupied: [0, 2, 4].map(minute => ({ classId: "D21", firstControlCode: 31, startMs: first + minute * MINUTE }))
+    const result = drawStartTimes(input([raceClass("H21", { startControls: [[31]] })], {
+      existing: [{ classId: "D21", startControls: [[31]], startTimesMs: [0, 2, 4].map(minute => first + minute * MINUTE) }]
     }));
     expect(result.classes[0]!.slots.map(slot => (slot.startMs - first) / MINUTE)).toEqual([1, 3, 5, 7]);
-    expect(result.groups).toEqual([{ firstControlCode: 31, classIds: ["H21", "D21"] }]);
+    expect(result.groups).toEqual([{ controlCodes: [31], classIds: ["H21", "D21"] }]);
   });
 
   it("ger alla i en masstartsklass samma tid och inga vakanser", () => {
@@ -128,8 +128,8 @@ describe("lottning av starttider", () => {
   });
 
   it("lägger masstarten först i fållan och minutstartsklassen efter", () => {
-    const result = drawStartTimes(input([raceClass("H21", { firstControlCode: 31 }),
-      raceClass("Öppen", { firstControlCode: 31, method: "MASS" })]));
+    const result = drawStartTimes(input([raceClass("H21", { startControls: [[31]] }),
+      raceClass("Öppen", { startControls: [[31]], method: "MASS" })]));
     const byId = new Map(result.classes.map(row => [row.classId, row]));
     expect(byId.get("Öppen")!.firstStartMs).toBe(first);
     expect(byId.get("H21")!.slots.map(slot => (slot.startMs - first) / MINUTE)).toEqual([1, 3, 5, 7]);
@@ -138,8 +138,8 @@ describe("lottning av starttider", () => {
   it("hanterar en löpare och tomma klasser", () => {
     const one = drawStartTimes(input([raceClass("H21", { runners: runners("H21", ["OK Ek"]) })]));
     expect(one.classes[0]!.slots).toEqual([{ entryId: "H21-000", startMs: first }]);
-    const empty = drawStartTimes(input([raceClass("H21", { runners: [], firstControlCode: 31 }),
-      raceClass("D21", { firstControlCode: 31 })]));
+    const empty = drawStartTimes(input([raceClass("H21", { runners: [], startControls: [[31]] }),
+      raceClass("D21", { startControls: [[31]] })]));
     const byId = new Map(empty.classes.map(row => [row.classId, row]));
     expect(byId.get("H21")!.slots).toEqual([]);
     expect(byId.get("D21")!.firstStartMs).toBe(first);

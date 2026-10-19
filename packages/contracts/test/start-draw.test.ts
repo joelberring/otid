@@ -31,10 +31,26 @@ describe("lottningens kontrakt (PLAN.md steg 9)", () => {
     const preview = { formatVersion: 1, raceId: id, snapshotVersion: 3, timeZone: "Europe/Stockholm", seed: 42,
       classes: [{ classId: id, className: "H21", method: "MINUTE", firstStartTime: "2026-10-08T08:00:00.000Z", intervalMinutes: 2,
         vacancyCount: 1, replacesStartTimes: true, slots: [{ startTime: "2026-10-08T08:00:00.000Z", entry: null }] }],
-      startGroups: [], replacesStartTimes: true, readOutCount: 0, becomesOkCount: 0, becomesMispunchedCount: 0, unchangedCount: 0,
+      startGroups: [], warnings: [], existingClasses: [], timeline: [], replacesStartTimes: true, readOutCount: 0, becomesOkCount: 0, becomesMispunchedCount: 0, unchangedCount: 0,
       notRecalculatedCount: 0, changes: [], requiresConfirmation: true };
     expect(startDrawPreviewResponseSchema.safeParse(preview).success).toBe(true);
     expect(startDrawPreviewResponseSchema.safeParse({ ...preview, requiresConfirmation: false }).success).toBe(false);
     expect(startDrawPreviewResponseSchema.safeParse({ ...preview, replacesStartTimes: false }).success).toBe(false);
+  });
+
+  it("tar emot avancerade regler, senare start och seedning (PLAN.md steg 26)", () => {
+    const rules = { groupControls: 2, maxPerMinute: 4, maxPerMinutePerPen: 2, lastStartTime: "2026-10-08T09:00:00.000Z",
+      seeding: "SPREAD", classOrder: [id] };
+    const advanced = { ...settings, rules, seeds: [{ entryId: other, rank: 1 }],
+      classes: [{ ...settings.classes[0], laterStart: { kind: "OFFSET", minutes: 30 } }] };
+    expect(startDrawPreviewRequestSchema.safeParse(advanced).success).toBe(true);
+    expect(startDrawPreviewRequestSchema.safeParse({ ...advanced, classes: [{ ...settings.classes[0],
+      laterStart: { kind: "CLOCK", startTime: "2026-10-08T08:30:00.000Z" } }] }).success).toBe(true);
+    for (const change of [{ rules: { ...rules, groupControls: 4 } }, { rules: { ...rules, maxPerMinute: 0 } },
+      { rules: { ...rules, lastStartTime: "2026-10-08T09:00:30.000Z" } }, { rules: { ...rules, seeding: "FIRST" } },
+      { seeds: [{ entryId: other, rank: 0 }] }, { seeds: [{ entryId: other, rank: 1 }, { entryId: other, rank: 2 }] },
+      { classes: [{ ...settings.classes[0], laterStart: { kind: "OFFSET", minutes: 0 } }] }]) {
+      expect(startDrawPreviewRequestSchema.safeParse({ ...advanced, ...change }).success).toBe(false);
+    }
   });
 });

@@ -6,13 +6,14 @@ describe("administratörsroutes: förberedelse", () => {
   it("lottningen: klasser läses med GET, visas med POST och sparas bara med idempotensnyckel och samma begäran", async () => {
     const setup = { formatVersion: 1 as const, raceId: id, snapshotVersion: 2, raceDate: "2026-10-08", timeZone: "Europe/Stockholm",
       firstStartTime: null, classes: [{ id: other, name: "H21", courseName: "Lång", firstControlCode: 31, entryCount: 1,
-        method: "FREE" as const, intervalMinutes: 2, vacancies: { kind: "COUNT" as const, value: 0 }, hasStartTimes: false }] };
+        method: "FREE" as const, intervalMinutes: 2, vacancies: { kind: "COUNT" as const, value: 0 }, hasStartTimes: false }],
+      settings: null, entries: [] };
     const settings = { firstStartTime: "2026-10-08T08:00:00.000Z", clubSeparation: true,
       classes: [{ classId: other, method: "MINUTE" as const, intervalMinutes: 2, vacancies: { kind: "COUNT" as const, value: 1 } }] };
     const preview = { formatVersion: 1 as const, raceId: id, snapshotVersion: 2, timeZone: "Europe/Stockholm", seed: 7,
       classes: [{ classId: other, className: "H21", method: "MINUTE" as const, firstStartTime: "2026-10-08T08:00:00.000Z",
         intervalMinutes: 2, vacancyCount: 1, replacesStartTimes: false, slots: [{ startTime: "2026-10-08T08:00:00.000Z", entry: null }] }],
-      startGroups: [], replacesStartTimes: false, readOutCount: 0, becomesOkCount: 0, becomesMispunchedCount: 0, unchangedCount: 0,
+      startGroups: [], warnings: [], existingClasses: [], timeline: [], replacesStartTimes: false, readOutCount: 0, becomesOkCount: 0, becomesMispunchedCount: 0, unchangedCount: 0,
       notRecalculatedCount: 0, changes: [], requiresConfirmation: false };
     const commit = { formatVersion: 1 as const, requestId: id, seed: 7, ...settings, confirmChanges: false };
     const receipt = { formatVersion: 1 as const, replayed: false, requestId: id, raceId: id, request: commit, classCount: 1, entryCount: 0,

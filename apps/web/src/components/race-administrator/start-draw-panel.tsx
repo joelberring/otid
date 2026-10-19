@@ -8,15 +8,19 @@ import { formatClockTime } from "../../lib/clock-time";
 import { Button, Field, Notice, Section, Table } from "../ui";
 import type { Workspace } from "./workspace-state";
 import { courseVariantsSv as variantText } from "../../i18n/course-variants-sv";
+import { startDrawAdvancedSv as advancedText } from "../../i18n/start-draw-advanced-sv";
+import { StartDrawAdvanced } from "./start-draw-advanced-panel";
+import own from "./start-draw-advanced.module.css";
 
 /** Gafflad klass (ADR-0169 beslut 2): lottningen visar löparnas varianter. */
 const forked = (raceClass: { slots: readonly { entry: { variantCode: string | null } | null }[] }) =>
   raceClass.slots.some(slot => slot.entry?.variantCode);
 
 /**
- * Lottning under Start (PLAN.md steg 9): startsätt, intervall, vakanser och "Lotta" per klass,
- * första start och klubbseparering gemensamt. "Visa lottning" visar startlistan som den blir;
- * "Spara lottningen" sparar exakt den. Befintliga starttider ersätts bara efter en tydlig fråga.
+ * Lottning under Start (PLAN.md steg 9 och 26): startsätt, intervall, vakanser och "Lotta" per klass,
+ * första start och klubbseparering gemensamt; resten under "Avancerat". "Visa lottning" visar startlistan
+ * som den blir, med regelbrott och var de nya tiderna hamnar; "Spara lottningen" sparar exakt den.
+ * Befintliga starttider ersätts bara efter en tydlig fråga.
  */
 export function StartDrawPanel({ ws, visible, number }: { ws: Workspace; visible: boolean; number: number }) {
   const { authenticated, busy, data, disabled, drawAttempt, drawClubSeparation, drawError, drawFirst, drawFirstError, drawPreview, drawRows,
@@ -69,6 +73,7 @@ export function StartDrawPanel({ ws, visible, number }: { ws: Workspace; visible
           </tr>;
         })}</tbody>
       </Table>
+      <StartDrawAdvanced ws={ws} locked={locked} />
       {!drawPreview && <div className={styles.actions}><Button type="submit" disabled={disabled}>{text.preview}</Button></div>}
     </form>}
     {drawPreview && <DrawPreview ws={ws} preview={drawPreview} />}
@@ -79,13 +84,21 @@ export function StartDrawPanel({ ws, visible, number }: { ws: Workspace; visible
 function DrawPreview({ ws, preview }: { ws: Workspace; preview: StartDrawPreviewResponse }) {
   const { busy, cancelDrawPreview, drawAttempt, saveDraw, unknown } = ws;
   const time = (instant: string) => formatClockTime(instant, preview.timeZone);
+  const short = (instant: string) => time(instant).slice(0, 5);
   const replaced = preview.classes.filter(row => row.replacesStartTimes).map(row => row.className);
   const statusChanges = preview.becomesOkCount + preview.becomesMispunchedCount;
   const recalculated = preview.readOutCount - preview.notRecalculatedCount;
   return <section className={styles.drawPreview} aria-label={text.previewTitle}>
     <h3>{text.previewTitle}</h3>
-    {preview.startGroups.map(group => <p key={group.firstControlCode} className={styles.drawNote}>
-      {group.alternating ? text.alternating(group.classNames) : text.sameFirstControl(group.classNames, group.firstControlCode)}</p>)}
+    {preview.startGroups.map(group => <p key={group.controlCodes.join(",")} className={styles.drawNote}>
+      {group.controlCodes.length > 1 ? advancedText.sameControls(group.classNames, group.controlCodes)
+        : group.alternating ? text.alternating(group.classNames) : text.sameFirstControl(group.classNames, group.controlCodes[0]!)}</p>)}
+    {preview.warnings.length > 0 && <Notice tone="attention" role="alert"><div className={own.warnings}>
+      <strong>{advancedText.warningsTitle}</strong>
+      <ul>{preview.warnings.map((warning, index) => <li key={index}>{warningText(warning, time)}</li>)}</ul>
+    </div></Notice>}
+    {preview.existingClasses.length > 0 && <p className={styles.drawNote}>{advancedText.existingTitle}: {preview.existingClasses.map(row =>
+      advancedText.existingClass(row.className, row.startCount, short(row.firstStartTime), short(row.lastStartTime))).join("; ")}.</p>}
     {(replaced.length > 0 || statusChanges > 0) && <Notice tone="attention" role="alert">
       {replaced.length > 0 && <p>{text.replaces(replaced)}</p>}
       {recalculated > 0 && <p>{text.readOut(recalculated)}</p>}
@@ -104,16 +117,48 @@ function DrawPreview({ ws, preview }: { ws: Workspace; preview: StartDrawPreview
             {forked(raceClass) && <th scope="col">{variantText.variantColumn}</th>}</tr></thead>
           <tbody>{raceClass.slots.map((slot, index) => <tr key={`${slot.startTime}-${index}`} data-vacant={slot.entry ? undefined : "true"}>
             <td><time dateTime={slot.startTime}>{time(slot.startTime)}</time></td>
-            {slot.entry ? <><td>{slot.entry.name}</td><td>{slot.entry.club ?? text.none}</td><td>{slot.entry.card ?? text.none}</td>
+            {slot.entry ? <><td>{slot.entry.name}{slot.entry.seedRank !== null &&
+              <span className={own.seedMark}> · {advancedText.seededSlot(slot.entry.seedRank)}</span>}</td><td>{slot.entry.club ?? text.none}</td><td>{slot.entry.card ?? text.none}</td>
               {forked(raceClass) && <td>{slot.entry.variantCode ?? text.none}</td>}</>
               : <td colSpan={forked(raceClass) ? 4 : 3}><strong>{text.vacant}</strong></td>}
           </tr>)}</tbody>
         </Table>)}
     </section>)}
+    {preview.existingClasses.length > 0 && <Timeline preview={preview} time={short} />}
     <div className={styles.actions}>
       <Button disabled={busy} onClick={() => void saveDraw()}>
         {unknown && drawAttempt ? text.save : preview.requiresConfirmation ? text.replaceAndSave : text.save}</Button>
       {!drawAttempt && <Button variant="secondary" disabled={busy} onClick={cancelDrawPreview}>{text.cancel}</Button>}
     </div>
   </section>;
+}
+
+function warningText(warning: StartDrawPreviewResponse["warnings"][number], time: (instant: string) => string) {
+  const short = (instant: string) => time(instant).slice(0, 5);
+  switch (warning.code) {
+    case "AFTER_LAST_START":
+      return advancedText.afterLastStart(warning.classNames, short(warning.lastStartTime), short(warning.firstAfterTime), short(warning.neededLastStartTime));
+    case "LATER_START_MOVED": return advancedText.laterMoved(warning.className, short(warning.wantedTime), short(warning.actualTime));
+    case "EXISTING_OVER_LIMIT": return advancedText.existingOverLimit(warning.scope, warning.limit, short(warning.firstTime), warning.minuteCount);
+    case "EXISTING_GROUP_CLASH": return advancedText.existingClash(warning.classNames, short(warning.firstTime), warning.minuteCount);
+  }
+}
+
+/** Minut för minut (PLAN.md steg 26): var de nya tiderna hamnar bland klasserna som behåller sina tider. */
+function Timeline({ preview, time }: { preview: StartDrawPreviewResponse; time: (instant: string) => string }) {
+  return <details className={styles.disclosure} open={preview.timeline.length <= 60 || undefined}>
+    <summary>{advancedText.timelineTitle}</summary>
+    <div className={styles.disclosureBody}>
+      <p className={styles.workflowHelp}>{advancedText.timelineHelp}</p>
+      <Table className={own.timelineTable} aria-label={advancedText.timelineTitle}>
+        <thead><tr><th scope="col">{advancedText.timelineTime}</th><th scope="col">{advancedText.timelineStarts}</th></tr></thead>
+        <tbody>{preview.timeline.map(row => <tr key={row.startTime}>
+          <td><time dateTime={row.startTime}>{time(row.startTime)}</time></td>
+          <td><span className={own.starts}>{row.starts.map(start => <span key={start.className} className={own.start}
+            data-new={start.existing ? "false" : "true"}>{start.className}{advancedText.startCount(start.count)}
+            {!start.existing && <span className={own.tag}>{advancedText.newTag}</span>}</span>)}</span></td>
+        </tr>)}</tbody>
+      </Table>
+    </div>
+  </details>;
 }

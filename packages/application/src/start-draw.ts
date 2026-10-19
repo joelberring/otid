@@ -2,11 +2,12 @@ import { randomBytes } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import {
   startDrawIdempotencyKeySchema, startDrawPreviewRequestSchema, startDrawPreviewResponseSchema, startDrawRequestSchema,
-  startDrawResponseSchema, startDrawSetupResponseSchema, type StartDrawPreviewResponse, type StartDrawResponse,
-  type StartDrawSetupResponse
+  startDrawResponseSchema, startDrawSetupResponseSchema, type StartDrawPreviewRequest, type StartDrawPreviewResponse, type StartDrawResponse,
+  type StartDrawRules, type StartDrawSavedSettings, type StartDrawSetupResponse
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { drawStartTimes, StartDrawError, withProposedEntryVariants, withProposedStartTimes, type StartDrawResult } from "@o-tid/domain";
+import { drawStartTimes, StartDrawError, withProposedEntryVariants, withProposedStartTimes, type StartDrawExistingClass,
+  type StartDrawResult } from "@o-tid/domain";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
 import { bumpReadoutPackageVersion, loadRaceSnapshot } from "./snapshot";
@@ -14,23 +15,22 @@ import { assessReadOutEntries, recalculateAssessedEntries, summarizeAssessment, 
 import { loadDrawClasses, loadDrawEntries, loadDrawPlans, type DrawBasisClass, type DrawBasisEntry, type DrawPlan } from "./start-draw-basis";
 import { planVariantDistribution, writeEntryVariants } from "./course-variants";
 import { UUID_PATTERN as uuid } from "./serialization";
+import { DEFAULT_START_DRAW_RULES, existingClassSummary, previewTimeline, previewWarnings, readSavedSettings } from "./start-draw-preview";
 
 /**
- * Lottning (PLAN.md steg 9): välj startsätt per klass och lotta en eller flera
- * klasser på en gång. Förhandsvisningen läser bara. Sparandet ger samma lottning
- * (samma frö och samma tävlingsläge), skriver starttider och vakanta tider,
- * pekar klasserna på lottningen och räknar om avlästa löpare vars underlag ändras.
+ * Lottning (PLAN.md steg 9 och 26): välj startsätt per klass och lotta en eller flera
+ * klasser på en gång. Klasser som inte lottas behåller sina tider och de nya läggs runt dem.
+ * Förhandsvisningen läser bara. Sparandet ger samma lottning (samma frö och samma
+ * tävlingsläge) och skriver i en transaktion starttider, vakanta tider, seedning och
+ * inställningarna under "Avancerat", pekar klasserna på lottningen och räknar om avlästa
+ * löpare vars underlag ändras.
  */
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 type Authentication = RaceSessionProof;
 const MAX_VERSION = 2_147_483_647;
 const DEFAULT_INTERVAL_MINUTES = 2;
 
-type Settings = {
-  firstStartTime: string; clubSeparation: boolean;
-  classes: { classId: string; method: "FREE" | "MINUTE" | "MASS"; intervalMinutes: number;
-    vacancies: { kind: "COUNT" | "PERCENT"; value: number } }[];
-};
+type Settings = Omit<StartDrawPreviewRequest, "formatVersion">;
 
 function randomSeed(): number {
   let seed = 0;
@@ -60,7 +60,7 @@ const hasStartTimes = (raceClass: DrawBasisClass, entries: readonly DrawBasisEnt
   raceClass.startDrawId !== null || entries.some(entry => entry.classId === raceClass.id && entry.fixedStartTime !== null);
 
 type Computed = {
-  draw: StartDrawResult; classes: DrawBasisClass[]; entries: DrawBasisEntry[]; plans: Map<string, DrawPlan>;
+  draw: StartDrawResult; classes: DrawBasisClass[]; entries: DrawBasisEntry[]; plans: Map<string, DrawPlan>; seeds: Map<string, number>;
   entryTimes: Map<string, string | null>; changedEntryIds: Set<string>; variants: Map<string, string>; assessed: AssessedEntry[];
   preview: StartDrawPreviewResponse;
 };
@@ -76,23 +76,35 @@ async function compute(tx: Transaction, raceId: string, snapshotVersion: number,
   if (settings.classes.some(row => !byId.has(row.classId))) return "not-found";
   const selected = new Map(settings.classes.map(row => [row.classId, row]));
   const plans = await loadDrawPlans(tx, classes);
-  const occupied = classes.filter(row => !selected.has(row.id) && row.startRule === "FIXED" && row.firstControlCode !== null)
-    .flatMap(row => [
+  const rules = settings.rules ?? DEFAULT_START_DRAW_RULES;
+  // Klasser som inte lottas nu behåller sina tider (löpare och vakanta tider); de nya tiderna läggs runt dem.
+  const existing: StartDrawExistingClass[] = classes.filter(row => !selected.has(row.id) && row.startRule === "FIXED").map(row => ({
+    classId: row.id, startControls: row.startControls, startTimesMs: [...new Set([
       ...entries.filter(entry => entry.classId === row.id && entry.fixedStartTime !== null).map(entry => entry.fixedStartTime!.getTime()),
-      ...(plans.get(row.id)?.slots.map(slot => slot.startTime.getTime()) ?? [])
-    ].map(startMs => ({ classId: row.id, firstControlCode: row.firstControlCode!, startMs })));
+      ...(plans.get(row.id)?.slots.map(slot => slot.startTime.getTime()) ?? [])])] })).filter(row => row.startTimesMs.length > 0);
+  // Seedningen i begäran gäller för de lottade klasserna; utan den gäller den sparade.
+  const requested = settings.seeds ? new Map(settings.seeds.map(row => [row.entryId, row.rank])) : null;
+  const seeds = new Map(entries.filter(entry => selected.has(entry.classId)).flatMap(entry => {
+    const rank = requested ? requested.get(entry.id) : entry.seedRank;
+    return rank == null ? [] : [[entry.id, rank] as const];
+  }));
   let draw: StartDrawResult;
   try {
-    draw = drawStartTimes({ seed, firstStartMs: Date.parse(settings.firstStartTime), clubSeparation: settings.clubSeparation, occupied,
+    draw = drawStartTimes({ seed, firstStartMs: Date.parse(settings.firstStartTime), clubSeparation: settings.clubSeparation, existing,
+      rules: { groupControls: rules.groupControls, maxPerMinute: rules.maxPerMinute, maxPerMinutePerPen: rules.maxPerMinutePerPen,
+        lastStartMs: rules.lastStartTime === null ? null : Date.parse(rules.lastStartTime), seeding: rules.seeding, classOrder: rules.classOrder },
       classes: settings.classes.flatMap(row => row.method === "FREE" ? [] : [{ classId: row.classId, name: byId.get(row.classId)!.name,
-        firstControlCode: byId.get(row.classId)!.firstControlCode, method: row.method, intervalMinutes: row.intervalMinutes,
-        vacancies: row.vacancies, runners: entries.filter(entry => entry.classId === row.classId)
-          .map(entry => ({ entryId: entry.id, club: entry.organisationName })) }]) });
+        startControls: byId.get(row.classId)!.startControls, method: row.method, intervalMinutes: row.intervalMinutes,
+        vacancies: row.vacancies, laterStart: !row.laterStart ? null : row.laterStart.kind === "CLOCK"
+          ? { kind: "CLOCK" as const, startMs: Date.parse(row.laterStart.startTime) } : row.laterStart,
+        runners: entries.filter(entry => entry.classId === row.classId)
+          .map(entry => ({ entryId: entry.id, club: entry.organisationName, seedRank: seeds.get(entry.id) ?? null })) }]) });
   } catch (error) {
     if (error instanceof StartDrawError) return error.code === "TOO_LARGE" ? "too-large" : "invalid-request";
     throw error;
   }
   const drawnByClass = new Map(draw.classes.map(row => [row.classId, row]));
+  const nameOf = (classId: string) => byId.get(classId)!.name;
   const entryTimes = new Map<string, string | null>();
   for (const result of draw.classes) for (const slot of result.slots) if (slot.entryId !== null) entryTimes.set(slot.entryId, iso(slot.startMs));
   for (const row of settings.classes.filter(item => item.method === "FREE")) {
@@ -116,7 +128,7 @@ async function compute(tx: Transaction, raceId: string, snapshotVersion: number,
   const slotEntry = (entryId: string | null) => {
     const entry = entryId === null ? undefined : entryById.get(entryId);
     return entry ? { id: entry.id, name: `${entry.givenName} ${entry.familyName}`, club: entry.organisationName,
-      card: cards.get(entry.id) ?? null, variantCode: variants.get(entry.id) ?? entry.courseVariantCode } : null;
+      card: cards.get(entry.id) ?? null, variantCode: variants.get(entry.id) ?? entry.courseVariantCode, seedRank: seeds.get(entry.id) ?? null } : null;
   };
   const sortedSettings = [...settings.classes].sort((a, b) => byId.get(a.classId)!.name.localeCompare(byId.get(b.classId)!.name, "sv-SE"));
   const previewClasses = sortedSettings.map(row => {
@@ -136,11 +148,32 @@ async function compute(tx: Transaction, raceId: string, snapshotVersion: number,
     timeZone: (await raceMetadata(tx, raceId)).timeZone, seed, classes: previewClasses,
     startGroups: draw.groups.map(group => {
       const minuteClasses = group.classIds.map(id => drawnByClass.get(id));
-      return { firstControlCode: group.firstControlCode, classNames: group.classIds.map(id => byId.get(id)!.name),
+      return { controlCodes: [...group.controlCodes], classNames: group.classIds.map(id => byId.get(id)!.name),
         alternating: group.classIds.length === 2 && minuteClasses.every(row => row?.method === "MINUTE" && row.intervalMinutes === 2) };
     }),
+    warnings: previewWarnings(draw.warnings, nameOf, rules),
+    existingClasses: existingClassSummary(existing, nameOf),
+    timeline: previewTimeline(draw.classes, existing, nameOf),
     replacesStartTimes, ...summary, requiresConfirmation: summary.requiresConfirmation || replacesStartTimes });
-  return { draw, classes, entries, plans, entryTimes, changedEntryIds, variants, assessed, preview };
+  return { draw, classes, entries, plans, seeds, entryTimes, changedEntryIds, variants, assessed, preview };
+}
+
+async function savedSettings(tx: Transaction, raceId: string): Promise<StartDrawSavedSettings | null> {
+  const [row] = await tx.select({ value: schema.races.startDrawSettings }).from(schema.races).where(eq(schema.races.id, raceId));
+  return readSavedSettings(row?.value ?? null);
+}
+
+/**
+ * Sparar inställningarna under "Avancerat" med lottningen (PLAN.md steg 26). Senare start gäller per klass: de lottade
+ * klassernas ersätts, övriga klassers står kvar till nästa gång de lottas.
+ */
+async function writeSettings(tx: Transaction, raceId: string, settings: Settings, rules: StartDrawRules) {
+  const previous = await savedSettings(tx, raceId);
+  const drawn = new Set(settings.classes.map(row => row.classId));
+  const value: StartDrawSavedSettings = { rules, laterStarts: [
+    ...(previous?.laterStarts.filter(row => !drawn.has(row.classId)) ?? []),
+    ...settings.classes.flatMap(row => row.laterStart ? [{ classId: row.classId, laterStart: row.laterStart }] : [])] };
+  await tx.update(schema.races).set({ startDrawSettings: value }).where(eq(schema.races.id, raceId));
 }
 
 export type StartDrawSetupResult =
@@ -161,6 +194,9 @@ export async function loadStartDrawSetupAsAdmin(db: Database, input: Authenticat
     if (entries === "too-large") return { status: "too-large" };
     const plans = await loadDrawPlans(tx, classes);
     const firstStarts = [...plans.values()].map(plan => plan.firstStartTime.getTime());
+    const cards = await activeCards(tx, raceId);
+    const classIds = new Set(classes.map(row => row.id));
+    const saved = await savedSettings(tx, raceId);
     return { status: "ok", response: startDrawSetupResponseSchema.parse({ formatVersion: 1, raceId, snapshotVersion: race.snapshotVersion,
       raceDate: metadata.raceDate, timeZone: metadata.timeZone,
       firstStartTime: firstStarts.length === 0 ? null : iso(Math.min(...firstStarts)),
@@ -171,7 +207,12 @@ export async function loadStartDrawSetupAsAdmin(db: Database, input: Authenticat
           method: row.startRule === "PUNCH" ? "FREE" : plan?.method ?? "MINUTE",
           intervalMinutes: plan ? plan.intervalSeconds / 60 : DEFAULT_INTERVAL_MINUTES,
           vacancies: { kind: "COUNT", value: plan?.vacancyCount ?? 0 }, hasStartTimes: hasStartTimes(row, entries) };
-      }) }) };
+      }),
+      settings: saved && { rules: { ...saved.rules, classOrder: saved.rules.classOrder?.filter(id => classIds.has(id)) ?? null },
+        laterStarts: saved.laterStarts.filter(row => classIds.has(row.classId)) },
+      entries: entries.filter(entry => classIds.has(entry.classId)).map(entry => ({ id: entry.id, classId: entry.classId,
+        name: `${entry.givenName} ${entry.familyName}`, club: entry.organisationName, card: cards.get(entry.id) ?? null, seedRank: entry.seedRank }))
+    }) };
   }, { isolationLevel: "repeatable read" });
 }
 
@@ -227,6 +268,15 @@ async function writeDraw(tx: Transaction, input: { raceId: string; requestId: st
       .where(and(eq(schema.entries.id, entry.id), eq(schema.entries.raceId, raceId), eq(schema.entries.version, entry.version)));
   }
   await writeEntryVariants(tx, raceId, computed.variants);
+  // Seedningen för de lottade klassernas löpare, när begäran har den (PLAN.md steg 26). Den påverkar inga resultat.
+  if (input.settings.seeds) {
+    const drawn = new Set(input.settings.classes.map(row => row.classId));
+    for (const entry of computed.entries.filter(row => drawn.has(row.classId) && (computed.seeds.get(row.id) ?? null) !== row.seedRank)) {
+      await tx.update(schema.entries).set({ seedRank: computed.seeds.get(entry.id) ?? null })
+        .where(and(eq(schema.entries.id, entry.id), eq(schema.entries.raceId, raceId)));
+    }
+  }
+  if (input.settings.rules) await writeSettings(tx, raceId, input.settings, input.settings.rules);
   return saved;
 }
 

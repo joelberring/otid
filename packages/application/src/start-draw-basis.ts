@@ -10,14 +10,20 @@ import type { DbExecutor } from "./snapshot";
  */
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 const MAX_ENTRIES = 10_000;
+/** Högst så många av banans första kontroller kan avgöra startgruppen. */
+const START_CONTROLS = 3;
 
 export type DrawBasisClass = {
   id: string; name: string; startRule: "FIXED" | "PUNCH"; startDrawId: string | null;
-  courseVersionId: string; courseName: string; firstControlCode: number | null;
+  courseVersionId: string; courseName: string;
+  /** Banans första kontroll (första variantens för en gafflad bana): startfållan i listorna. */
+  firstControlCode: number | null;
+  /** Banans första kontroller, en följd per variant (PLAN.md steg 26). */
+  startControls: number[][];
 };
 export type DrawBasisEntry = {
   id: string; classId: string; givenName: string; familyName: string; organisationName: string | null;
-  fixedStartTime: Date | null; version: number; courseVariantCode: string | null;
+  fixedStartTime: Date | null; version: number; courseVariantCode: string | null; seedRank: number | null;
 };
 export type DrawPlan = {
   classId: string; drawId: string; method: "MINUTE" | "MASS"; firstStartTime: Date; intervalSeconds: number; vacancyCount: number;
@@ -25,27 +31,38 @@ export type DrawPlan = {
 };
 
 /**
- * Kod för första kontrollen per banversion (null för en bana utan kontroller). En gafflad
- * bana har sina kontroller i varianterna; första variantens första kontroll gäller.
+ * Banornas första kontroller per banversion (PLAN.md steg 26): en följd med högst tre koder för en vanlig bana,
+ * en följd per variant för en gafflad bana (dess kontroller finns i varianterna). Tom lista = inga kontroller.
  */
-async function firstControlCodes(tx: DbExecutor, courseVersionIds: readonly string[]): Promise<Map<string, number | null>> {
-  const codes = new Map<string, number | null>(courseVersionIds.map(id => [id, null]));
-  if (courseVersionIds.length === 0) return codes;
-  const rows = await tx.selectDistinctOn([schema.courseControls.courseVersionId], {
-    courseVersionId: schema.courseControls.courseVersionId, code: schema.controls.code
-  }).from(schema.courseControls).innerJoin(schema.controls, eq(schema.controls.id, schema.courseControls.controlId))
+async function startControlSequences(tx: DbExecutor, courseVersionIds: readonly string[]): Promise<Map<string, number[][]>> {
+  const sequences = new Map<string, number[][]>(courseVersionIds.map(id => [id, []]));
+  if (courseVersionIds.length === 0) return sequences;
+  const rows = await tx.select({ courseVersionId: schema.courseControls.courseVersionId, code: schema.controls.code })
+    .from(schema.courseControls).innerJoin(schema.controls, eq(schema.controls.id, schema.courseControls.controlId))
     .where(inArray(schema.courseControls.courseVersionId, [...courseVersionIds]))
     .orderBy(asc(schema.courseControls.courseVersionId), asc(schema.courseControls.sequence));
-  for (const row of rows) codes.set(row.courseVersionId, row.code);
-  const forked = await tx.select({ courseVersionId: schema.courseVariants.courseVersionId, code: schema.controls.code })
-    .from(schema.courseVariants)
-    .innerJoin(schema.courseVariantControls, and(eq(schema.courseVariantControls.courseVariantId, schema.courseVariants.id),
-      eq(schema.courseVariantControls.sequence, 1)))
+  const plain = new Map<string, number[]>();
+  for (const row of rows) {
+    const codes = plain.get(row.courseVersionId) ?? [];
+    if (codes.length < START_CONTROLS) codes.push(row.code);
+    plain.set(row.courseVersionId, codes);
+  }
+  for (const [courseVersionId, codes] of plain) sequences.set(courseVersionId, [codes]);
+  const forked = await tx.select({ courseVersionId: schema.courseVariants.courseVersionId, variantId: schema.courseVariants.id,
+    code: schema.controls.code }).from(schema.courseVariants)
+    .innerJoin(schema.courseVariantControls, eq(schema.courseVariantControls.courseVariantId, schema.courseVariants.id))
     .innerJoin(schema.controls, eq(schema.controls.id, schema.courseVariantControls.controlId))
     .where(inArray(schema.courseVariants.courseVersionId, [...courseVersionIds]))
-    .orderBy(asc(schema.courseVariants.courseVersionId), asc(schema.courseVariants.sequence));
-  for (const row of forked) if (codes.get(row.courseVersionId) === null) codes.set(row.courseVersionId, row.code);
-  return codes;
+    .orderBy(asc(schema.courseVariants.courseVersionId), asc(schema.courseVariants.sequence), asc(schema.courseVariantControls.sequence));
+  const variants = new Map<string, { courseVersionId: string; codes: number[] }>();
+  for (const row of forked) {
+    if (plain.has(row.courseVersionId)) continue;
+    const variant = variants.get(row.variantId) ?? { courseVersionId: row.courseVersionId, codes: [] };
+    if (variant.codes.length < START_CONTROLS) variant.codes.push(row.code);
+    variants.set(row.variantId, variant);
+  }
+  for (const variant of variants.values()) sequences.get(variant.courseVersionId)!.push(variant.codes);
+  return sequences;
 }
 
 const notRelayClass = sql`not exists (select 1 from relay_leg rl where rl.class_id = ${schema.classes.id})`;
@@ -59,16 +76,19 @@ export async function loadDrawClasses(tx: DbExecutor, raceId: string): Promise<D
     // Stafettklasser lottas inte: sträckorna har masstart, växling eller omstart (ADR-0169 beslut 3).
     .where(and(eq(schema.classes.raceId, raceId), notRelayClass)).orderBy(asc(schema.classes.name), asc(schema.classes.id)).limit(1_001);
   if (rows.length > 1_000 || rows.some(row => row.courseRaceId !== raceId)) throw new Error("Ogiltigt klassunderlag för lottningen");
-  const codes = await firstControlCodes(tx, [...new Set(rows.map(row => row.courseVersionId))]);
-  return rows.map(row => ({ id: row.id, name: row.name, startRule: row.startRule, startDrawId: row.startDrawId,
-    courseVersionId: row.courseVersionId, courseName: row.courseName, firstControlCode: codes.get(row.courseVersionId) ?? null }));
+  const sequences = await startControlSequences(tx, [...new Set(rows.map(row => row.courseVersionId))]);
+  return rows.map(row => {
+    const startControls = sequences.get(row.courseVersionId) ?? [];
+    return { id: row.id, name: row.name, startRule: row.startRule, startDrawId: row.startDrawId,
+      courseVersionId: row.courseVersionId, courseName: row.courseName, firstControlCode: startControls[0]?.[0] ?? null, startControls };
+  });
 }
 
 export async function loadDrawEntries(tx: Transaction, raceId: string, lock: boolean): Promise<DrawBasisEntry[] | "too-large"> {
   const query = tx.select({ id: schema.entries.id, classId: schema.entries.classId, givenName: schema.entries.givenName,
     familyName: schema.entries.familyName, organisationName: schema.entries.organisationName,
     fixedStartTime: schema.entries.fixedStartTime, version: schema.entries.version,
-    courseVariantCode: schema.entries.courseVariantCode }).from(schema.entries)
+    courseVariantCode: schema.entries.courseVariantCode, seedRank: schema.entries.seedRank }).from(schema.entries)
     .where(and(eq(schema.entries.raceId, raceId), isNull(schema.entries.teamId))).orderBy(asc(schema.entries.id)).limit(MAX_ENTRIES + 1);
   const rows = lock ? await query.for("update") : await query;
   return rows.length > MAX_ENTRIES ? "too-large" : rows;

@@ -9,10 +9,13 @@ import { validateFirstStart } from "../../lib/form-validation";
 import type { Operation, StartDrawAttempt } from "./types";
 import type { Base } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
+import { advancedChanged, advancedFromSetup, advancedRequest, createStartDrawAdvancedActions, useStartDrawAdvancedState,
+  type DrawAdvanced } from "./start-draw-advanced";
+import { startDrawAdvancedSv as advancedText } from "../../i18n/start-draw-advanced-sv";
 
 export type DrawRow = { method: StartDrawMethod; interval: string; vacancies: string; vacancyKind: "COUNT" | "PERCENT"; selected: boolean };
 
-/** Lottning under Start (PLAN.md steg 9): klasstabell, inställningar, förhandsvisning och sparande. */
+/** Lottning under Start (PLAN.md steg 9 och 26): klasstabell, inställningar, Avancerat, förhandsvisning och sparande. */
 export function useStartDrawState() {
   const [drawSetup, setDrawSetup] = useState<StartDrawSetupResponse>();
   const [drawRows, setDrawRows] = useState<Record<string, DrawRow>>({});
@@ -24,32 +27,44 @@ export function useStartDrawState() {
   const [drawAttempt, setDrawAttempt] = useState<StartDrawAttempt>();
   /** Fältfelet för första start (PLAN.md steg 24). */
   const [drawFirstError, setDrawFirstError] = useState("");
-  return { drawFirstError, setDrawFirstError, drawSetup, setDrawSetup, drawRows, setDrawRows, drawFirst, setDrawFirst, drawClubSeparation, setDrawClubSeparation,
+  return { ...useStartDrawAdvancedState(), drawFirstError, setDrawFirstError, drawSetup, setDrawSetup, drawRows, setDrawRows, drawFirst, setDrawFirst, drawClubSeparation, setDrawClubSeparation,
     drawPreview, setDrawPreview, drawError, setDrawError, drawSaved, setDrawSaved, drawAttempt, setDrawAttempt };
 }
 
-/** Inställningarna i formuläret som en begäran, eller undefined om något är ogiltigt. */
-function settingsFrom(setup: StartDrawSetupResponse, rows: Record<string, DrawRow>, first: string, clubSeparation: boolean) {
+/**
+ * Inställningarna i formuläret som en begäran, "none" om ingen klass är ikryssad, undefined om något i tabellen är
+ * ogiltigt, eller fältfelen under Avancerat.
+ */
+function settingsFrom(setup: StartDrawSetupResponse, rows: Record<string, DrawRow>, first: string, clubSeparation: boolean,
+  advanced: DrawAdvanced) {
   const firstStartTime = parseRaceClock(setup.raceDate, first, setup.timeZone);
   const selected = setup.classes.filter(row => rows[row.id]?.selected);
   if (selected.length === 0) return "none" as const;
   if (!firstStartTime || Date.parse(firstStartTime) % 60_000 !== 0) return undefined;
+  const extra = advancedRequest(setup, rows, advanced, firstStartTime, new Set(selected.map(row => row.id)));
+  if ("errors" in extra) return { errors: extra.errors };
   const classes = [];
   for (const raceClass of selected) {
     const row = rows[raceClass.id]!;
     const interval = Number(row.interval), vacancies = Number(row.vacancies || "0");
     if (!/^\d+$/.test(row.interval) || interval < 1 || interval > 60 || !/^\d*$/.test(row.vacancies) ||
       vacancies > (row.vacancyKind === "PERCENT" ? 100 : 1_000)) return undefined;
+    const laterStart = extra.request.laterStarts.get(raceClass.id);
     classes.push({ classId: raceClass.id, method: row.method, intervalMinutes: interval,
-      vacancies: { kind: row.vacancyKind, value: vacancies } });
+      vacancies: { kind: row.vacancyKind, value: vacancies }, ...(laterStart ? { laterStart } : {}) });
   }
-  return { firstStartTime, clubSeparation, classes };
+  return { firstStartTime, clubSeparation, classes, rules: extra.request.rules, seeds: extra.request.seeds };
 }
+type DrawSettings = Exclude<ReturnType<typeof settingsFrom>, "none" | undefined | { errors: Record<string, string> }>;
+const isSettings = (value: ReturnType<typeof settingsFrom>): value is DrawSettings =>
+  value !== undefined && value !== "none" && !("errors" in value);
 
 export function createStartDrawActions(ws: Base & RaceDataActions) {
   const { raceId, drawSetup, drawRows, drawFirst, drawClubSeparation, drawPreview, setDrawClubSeparation, writingRef, pending, sent, requireSession,
     beginRequest, finish, current, request, json, csrf, load, setDrawSetup, setDrawRows, setDrawFirst, setDrawPreview, setDrawError,
-    setDrawSaved, setDrawAttempt, setPublicationPreview, setDrawFirstError } = ws;
+    setDrawSaved, setDrawAttempt, setPublicationPreview, setDrawFirstError, drawAdvanced, drawAdvancedLoaded, setDrawAdvanced,
+    setDrawAdvancedLoaded, setDrawAdvancedOpen, setDrawAdvancedErrors } = ws;
+  const settingsNow = (setup: StartDrawSetupResponse) => settingsFrom(setup, drawRows, drawFirst, drawClubSeparation, drawAdvanced);
 
   async function readSetup(op: Operation) {
     const response = await request("/draw", op);
@@ -62,6 +77,11 @@ export function createStartDrawActions(ws: Base & RaceDataActions) {
       method: row.method, interval: String(row.intervalMinutes), vacancies: String(row.vacancies.value),
       vacancyKind: row.vacancies.kind, selected: false }])));
     setDrawFirst(previous => previous || (value.firstStartTime ? formatClockTime(value.firstStartTime, value.timeZone).slice(0, 5) : ""));
+    // Avancerat läses in en gång: det som sparades med senaste lottningen (PLAN.md steg 26).
+    if (!drawAdvancedLoaded) {
+      const advanced = advancedFromSetup(value);
+      setDrawAdvanced(advanced); setDrawAdvancedOpen(advancedChanged(advanced)); setDrawAdvancedLoaded(true);
+    }
     return value;
   }
   async function loadDrawSetup() {
@@ -86,7 +106,7 @@ export function createStartDrawActions(ws: Base & RaceDataActions) {
     if (change.first !== undefined) { setDrawFirst(change.first); setDrawFirstError(""); }
     if (change.clubSeparation !== undefined) setDrawClubSeparation(change.clubSeparation);
   }
-  async function readPreview(op: Operation, settings: Exclude<ReturnType<typeof settingsFrom>, "none" | undefined>) {
+  async function readPreview(op: Operation, settings: DrawSettings) {
     const response = await request("/draw-preview", op, { method: "POST",
       headers: { "content-type": "application/json", "x-otid-csrf": csrf() },
       body: JSON.stringify({ formatVersion: 1, ...settings }) });
@@ -106,14 +126,20 @@ export function createStartDrawActions(ws: Base & RaceDataActions) {
     const op = beginRequest();
     try {
       let setup = drawSetup;
-      let settings = settingsFrom(setup, drawRows, drawFirst, drawClubSeparation);
+      let settings = settingsNow(setup);
       if (settings === "none") { setDrawError(text.noneSelected); return; }
       if (!settings) { setDrawError(text.invalid); return; }
+      setDrawAdvancedErrors("errors" in settings ? settings.errors : {});
+      if ("errors" in settings) {
+        setDrawAdvancedOpen(true); setDrawError(advancedText.errors.summary);
+        requestAnimationFrame(() => document.getElementById(`draw-advanced-${raceId}`)?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus());
+        return;
+      }
       let preview = await readPreview(op, settings);
       if (preview === "conflict") {
         setup = await readSetup(op);
-        settings = settingsFrom(setup, drawRows, drawFirst, drawClubSeparation);
-        if (!settings || settings === "none") { setDrawError(text.conflict); return; }
+        settings = settingsNow(setup);
+        if (!isSettings(settings)) { setDrawError(text.conflict); return; }
         preview = await readPreview(op, settings);
         if (preview === "conflict") { setDrawError(text.conflict); return; }
       }
@@ -154,8 +180,8 @@ export function createStartDrawActions(ws: Base & RaceDataActions) {
     try {
       let attempt = retry;
       if (!attempt) {
-        const settings = settingsFrom(drawSetup!, drawRows, drawFirst, drawClubSeparation);
-        if (!settings || settings === "none") { setDrawError(text.invalid); return; }
+        const settings = settingsNow(drawSetup!);
+        if (!isSettings(settings)) { setDrawError(text.invalid); return; }
         const request: StartDrawRequest = { formatVersion: 1, requestId: crypto.randomUUID(), seed: drawPreview!.seed, ...settings,
           confirmChanges: drawPreview!.requiresConfirmation };
         attempt = { kind: "START_DRAW", request };
@@ -169,6 +195,6 @@ export function createStartDrawActions(ws: Base & RaceDataActions) {
     if (pending.current) return;
     setDrawPreview(undefined); setDrawError("");
   }
-  return { loadDrawSetup, changeDrawRow, changeDrawSettings, previewDraw, saveDraw, cancelDrawPreview };
+  return { ...createStartDrawAdvancedActions(ws), loadDrawSetup, changeDrawRow, changeDrawSettings, previewDraw, saveDraw, cancelDrawPreview };
 }
 export type StartDrawActions = ReturnType<typeof createStartDrawActions>;

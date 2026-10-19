@@ -21,6 +21,9 @@ import {
 import { parseAdministratorPublicationReceipt } from "./administrator-publication-client";
 import { resultFailure, type RaceAdministratorRouteContext } from "./race-administrator-route-context";
 
+/** Lottningen bär inställningar per klass, startordning och seedning (PLAN.md steg 26): större än andra anrop. */
+const START_DRAW_MAX_BODY_BYTES = 768 * 1024;
+
 /** Förberedelse: banor (Redigera bana), klasser (Redigera klass), maxantal, lottning och publicering av startlista. Ger undefined för åtgärder som inte hör till gruppen. */
 export async function handlePreparationRoute(context: RaceAdministratorRouteContext): Promise<Response | undefined> {
   const { db, request, raceId, action, dependencies, proof } = context;
@@ -159,7 +162,7 @@ export async function handlePreparationRoute(context: RaceAdministratorRouteCont
   }
   if (action.kind === "draw-preview") {
     let body: unknown;
-    try { body = await readJsonBody(request); } catch { return failure(400, "INVALID_REQUEST"); }
+    try { body = await readJsonBody(request, START_DRAW_MAX_BODY_BYTES); } catch { return failure(400, "INVALID_REQUEST"); }
     const parsed = startDrawPreviewRequestSchema.safeParse(body);
     if (!parsed.success) return failure(400, "INVALID_REQUEST");
     const result = await dependencies.drawPreview(db, { ...proof, raceId, request: parsed.data });
@@ -172,7 +175,7 @@ export async function handlePreparationRoute(context: RaceAdministratorRouteCont
     const key = startDrawIdempotencyKeySchema.safeParse(request.headers.get("idempotency-key"));
     if (!key.success) return failure(400, "INVALID_REQUEST");
     let body: unknown;
-    try { body = await readJsonBody(request); } catch { return failure(400, "INVALID_REQUEST"); }
+    try { body = await readJsonBody(request, START_DRAW_MAX_BODY_BYTES); } catch { return failure(400, "INVALID_REQUEST"); }
     const parsed = startDrawRequestSchema.safeParse(body);
     if (!parsed.success || key.data !== `start-draw:${parsed.data.requestId}`) return failure(400, "INVALID_REQUEST");
     const result = await dependencies.draw(db, { ...proof, raceId, idempotencyKey: key.data, request: parsed.data });

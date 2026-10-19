@@ -492,7 +492,7 @@ granskade på 1280 och 390 px.
 
 **Acceptans:** domän- och integrationstester per punkt; Playwright för 1–2.
 
-## [ ] Steg 26 – Avancerad lottning
+## [x] Steg 26 – Avancerad lottning
 
 Ägarens önskemål 2026-10-19. Enkla läget i Lottning blir kvar som i dag; resten
 ligger under knappen "Avancerat".

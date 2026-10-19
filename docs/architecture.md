@@ -104,7 +104,8 @@ Gemensamma hjälpare: UUID-mönstret och idempotensnycklarnas form (`UUID_PATTER
 
 - Schemat finns i `packages/database/src/schema/*.ts` (samlat i `schema.ts`); migrationerna börjar med
   `0000_baseline.sql` följd av `0001_ett_statusflode`, `0002_en_session` och `0003_paketversion` (steg 23) och
-  `0004_tavlingsfunktioner` (steg 25: maxtid, banlängd, Eventor-id, diskorsak, `readout_registration`).
+  `0004_tavlingsfunktioner` (steg 25: maxtid, banlängd, Eventor-id, diskorsak, `readout_registration`) och
+  `0005_avancerad_lottning` (steg 26: `entry.seed_rank`, `race.start_draw_settings`).
   Varje schemaändring kräver en ny migration.
 - `pnpm db:migrate` committar nya enum-värden först och kör sedan varje migration i en egen transaktion.
 - Externa id:n (Eventor, IOF) lagras med källa men är aldrig primärnycklar.

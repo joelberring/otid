@@ -65,6 +65,29 @@ funktion lokalt; dess besked är preliminärt och serverns revision är auktorit
   kontroll i stället. Samma begäran igen ändrar inget.
 - Fastställda resultat fryses per klass eller tävling. Senare revisioner ändrar inte en fastställd export.
 
+## Lottning
+
+Koden finns i `packages/domain/src/start-draw.ts` (ordningen inom en klass i `start-draw-order.ts`). Samma underlag och
+samma frö ger alltid samma tider.
+
+- Minutstart: löparna blandas med fröet (en egen ström per klass), klubbsepareras och får tider med klassens intervall.
+  Vakanser sprids jämnt. Masstart: alla i klassen får samma tid.
+- Startgrupp: klasser vars banor börjar med samma 1–3 kontroller ("Startgrupp avgörs av de första N kontrollerna",
+  standard 1) startar aldrig samma minut. En gafflad bana har en följd per variant; klasser hör till samma grupp om
+  **någon** variant delar början (den säkra regeln), och grupperna slås ihop i kedja.
+- Startfålla: klasser vars banor (någon variant) har samma första kontroll. Tak per minut gäller totalt och per fålla;
+  varje minutstart och vakant tid räknas, en masstart som en start. Med en kontroll som avgör är fållan och gruppen samma.
+- Klasser som inte lottas behåller sina tider (löpare och vakanta tider) och de nya tiderna läggs runt dem. Klasser med
+  senare start (klockslag eller minuter efter första start) placeras först, på sin tid eller första tillåtna minut efter
+  (varning); övriga fyller runt dem i egen ordning eller automatiskt (masstart först, sedan största klassen).
+- Seedade löpare (`entry.seed_rank`, 1 = bäst) lottas sist i klassen med bäst sist, eller jämnt utspridda med bäst sist;
+  övriga lottas fritt före. Ranking kan läsas från en CSV-fil (bricka, annars namn och klubb).
+- Regelbrott som inte går att undvika (sista start räcker inte, senare start flyttad, befintliga tider över taket eller i
+  samma grupp samma minut) är varningar i förhandsvisningen, aldrig fel. Inställningarna sparas med lottningen
+  (`race.start_draw_settings`).
+- Efteranmäld i lottad klass: första lediga vakanta tid, annars första minut efter klassens sista start som ingen annan
+  klass med samma första kontroll använder.
+
 ## Revisionsregler
 
 - En ny avläsning skapar en ny revision när brickan är känd.

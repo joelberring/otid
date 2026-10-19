@@ -1,0 +1,41 @@
+/* Lottningens "Avancerat" och förhandsvisningens minut för minut (PLAN.md steg 26). */
+.summaryNote { color: var(--muted); font-size: var(--text-xs); font-weight: 400; }
+.block { display: grid; gap: 10px; min-width: 0; padding-top: 12px; border-top: 1px solid var(--line); }
+.block h3 { font-size: var(--text-sm); }
+.rules { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: start; gap: 12px 16px; max-width: 920px; }
+.orderTable td, .orderTable th { vertical-align: middle; }
+.orderTable select, .orderTable input, .seedTable input { min-height: 34px; }
+.orderCell { width: 7.5rem; white-space: nowrap; }
+.orderCell button { min-width: 34px; min-height: 34px; padding: 0 8px; }
+.orderNumber { display: inline-block; min-width: 1.6rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.notDrawn { display: block; color: var(--muted); font-size: var(--text-xs); font-weight: 400; }
+.later { display: grid; grid-template-columns: minmax(9rem, 14rem) minmax(4.5rem, 7rem); gap: 6px; align-items: start; }
+.laterError { grid-column: 1 / -1; }
+.seedTable td:last-child { width: 9rem; }
+.seedTable input { width: 6rem; }
+.seedTools { display: grid; grid-template-columns: minmax(12rem, 18rem) minmax(0, 1fr); gap: 12px 16px; align-items: start; max-width: 920px; }
+.importResult { display: grid; gap: 2px; }
+.importResult ul { margin: 0; padding-left: 18px; }
+/* Förhandsvisningen */
+.warnings ul { margin: 4px 0 0; padding-left: 18px; }
+.timelineTable th:first-child { width: 6rem; }
+.starts { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.start[data-new="true"] { font-weight: 600; }
+.tag { margin-left: 4px; padding: 0 5px; border: 1px solid var(--line-strong); border-radius: 3px; color: var(--ink);
+  font-size: 12px; font-weight: 600; }
+.start[data-new="false"] { color: var(--muted); }
+.seedMark { color: var(--muted); font-size: var(--text-xs); }
+
+@media (max-width: 1100px) {
+  .rules { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .rules { grid-template-columns: minmax(0, 1fr); }
+  .seedTools { grid-template-columns: minmax(0, 1fr); }
+  .later { grid-template-columns: minmax(0, 1fr) 5rem; }
+  .orderTable, .orderTable tbody { display: block; width: 100%; }
+  .orderTable thead { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .orderTable tbody tr { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .orderTable tbody :is(th, td) { display: block; width: auto; padding: 0 !important; border: 0 !important; }
+  .orderTable tbody td:last-child { grid-column: 1 / -1; }
+}

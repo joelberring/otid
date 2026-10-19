@@ -5,7 +5,7 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 7 – Riktig hårdvara och pilot (ägaren). Alla andra steg i `PLAN.md` är klara.
+Steg 26 – Avancerad lottning. Steg 7 (hårdvara) väntar på ägaren.
 Måste provas mot riktiga tjänster: Eventor med klubbens API-nyckel, ROC:s sökväg för stämplingar (bara provad mot falsk ROC) och e-post via SMTP.
 
 ## Logg

@@ -492,6 +492,31 @@ granskade på 1280 och 390 px.
 
 **Acceptans:** domän- och integrationstester per punkt; Playwright för 1–2.
 
+## [ ] Steg 26 – Avancerad lottning
+
+Ägarens önskemål 2026-10-19. Enkla läget i Lottning blir kvar som i dag; resten
+ligger under knappen "Avancerat".
+
+1. Lotta alla klasser eller bara de ikryssade. Redan lottade klasser rörs inte;
+   nya tider läggs bland de befintliga utan krock (efteranmälda klasser kan
+   lottas senare).
+2. Gemensamma kontroller i början: välj hur många av banans första kontroller
+   (1–3) som avgör startgrupp. Samma startgrupp startar aldrig samma minut.
+3. Max antal startande per minut, totalt och per startfålla. Varning om det
+   inte går inom startfönstret.
+4. Senare start per klass: eget första klockslag eller förskjutning från
+   tävlingens första start (t.ex. för speakerns bevakning). Startordning
+   mellan klasser kan styras.
+5. Seedning: seedade löpare (manuellt eller från ranking i importerad fil)
+   lottas sist i klassen eller med jämna mellanrum; övriga lottas fritt före.
+6. Förhandsvisningen visar regelbrott och var de nya tiderna hamnar innan
+   något sparas.
+
+**Acceptans:** domäntester per regel (krock i startgrupp, tak per minut,
+senare klass, seedning, delvis lottning bevarar befintliga tider);
+Playwright: lotta en klass, efteranmäl en klass och lotta bara den, en klass
+med senare start och seedad löpare sist.
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

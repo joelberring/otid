@@ -140,9 +140,11 @@ test("sen start, hyrbricka, direktanmälan utan nät, maxtid och kvar i skogen",
   const form = owner.getByTestId("register-form");
   await expect(form).toBeVisible();
   await form.getByRole("button", { name: "Lägg till" }).click();
-  for (const error of ["Välj klass.", "Skriv förnamnet.", "Skriv efternamnet."]) await expect(form.getByText(error)).toBeVisible();
-  await expect(form.getByLabel("Klass")).toBeFocused();
-  await form.getByLabel("Klass").selectOption({ label: "H21" });
+  // Klassen vars bana passar stämplingarna är förvald (PLAN.md steg 29); namnen saknas.
+  for (const error of ["Skriv förnamnet.", "Skriv efternamnet."]) await expect(form.getByText(error)).toBeVisible();
+  await expect(form.getByText("Välj klass.")).toHaveCount(0);
+  await expect(form.getByLabel("Förnamn")).toBeFocused();
+  await expect(form.getByLabel("Klass").locator("option:checked")).toHaveText("H21 – passar");
   await form.getByLabel("Förnamn").fill("Nils");
   await form.getByLabel("Efternamn").fill("Ny");
   await screenshots(owner, "direktanmalan-offline");

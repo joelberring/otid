@@ -15,6 +15,11 @@ const base = process.env.TEST_DATABASE_URL;
 if (!base) throw new Error("Steg 28-testet kräver TEST_DATABASE_URL till en PostgreSQL-roll med CREATEDB");
 const admin = createDatabase(base);
 const migrations = new URL("../../../database/migrations", import.meta.url).pathname;
+/** Journalens tidpunkter i ordning: alla migrationer, även de efter steg 28, ska vara körda en gång. */
+async function journalTimes(): Promise<string[]> {
+  const journal = JSON.parse(await readFile(join(migrations, "meta/_journal.json"), "utf8")) as { entries: { when: number }[] };
+  return journal.entries.map((entry) => String(entry.when));
+}
 const created: { name: string; pool: Pool }[] = [];
 
 async function freshDatabase() {
@@ -63,7 +68,7 @@ describe("steg 28: PostgreSQL utan PostGIS", () => {
     await migrate(db, { migrationsFolder: migrations });
     expect(await scalar(pool, "SELECT string_agg(extname, ',' ORDER BY extname) AS value FROM pg_extension")).toBe("plpgsql");
     expect(await extensionTypedColumns(pool)).toBe("0");
-    expect(await scalar(pool, `SELECT count(*)::text AS value FROM drizzle.__drizzle_migrations`)).toBe("8");
+    expect(await scalar(pool, `SELECT count(*)::text AS value FROM drizzle.__drizzle_migrations`)).toBe(String((await journalTimes()).length));
   });
 
   it("uppgraderar en databas från före steg 28 med PostGIS och anmälda utan att något försvinner", async () => {
@@ -94,14 +99,14 @@ describe("steg 28: PostgreSQL utan PostGIS", () => {
     expect(await scalar(pool, "SELECT count(*)::text AS value FROM pg_extension WHERE extname = 'postgis'")).toBe("0");
     expect(await scalar(pool, "SELECT to_regclass('public.spatial_ref_sys')::text AS value")).toBeNull();
     expect(await scalar(pool, `SELECT string_agg(created_at::text, ',' ORDER BY id) AS value FROM drizzle.__drizzle_migrations`))
-      .toBe("1797523200000,1797609600000,1797696000000,1797782400000,1797868800000,1797955200000,1798041600000,1798128000000");
+      .toBe((await journalTimes()).join(","));
     if (simulateOldGlibc) {
       expect(await scalar(pool, "SELECT datcollversion AS value FROM pg_database WHERE datname = current_database()")).toBe(actual);
     }
 
     // En andra körning gör ingenting.
     await migrate(db, { migrationsFolder: migrations });
-    expect(await scalar(pool, `SELECT count(*)::text AS value FROM drizzle.__drizzle_migrations`)).toBe("8");
+    expect(await scalar(pool, `SELECT count(*)::text AS value FROM drizzle.__drizzle_migrations`)).toBe(String((await journalTimes()).length));
     expect(await fingerprint(pool)).toBe(data);
   });
 });

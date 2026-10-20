@@ -22,7 +22,8 @@ export interface QueuedReadout {
 export type NewReadout = Omit<QueuedReadout, "raceId" | "deviceId" | "sessionId" | "localSequence" | "status">;
 
 /**
- * Direktanmälan av en okänd bricka (PLAN.md steg 25), köad som avläsningarna. Raderas aldrig; status ändras när servern
+ * Direktanmälan av en okänd bricka (PLAN.md steg 25) eller koppling av brickan till en anmäld deltagare (steg 29), köad
+ * som avläsningarna. Raderas aldrig; status ändras när servern
  * kvitterat (stored) eller avvisat (rejected). Skickas före avläsningarna.
  */
 export interface QueuedRegistration {
@@ -35,6 +36,8 @@ export interface QueuedRegistration {
   readonly status: "pending" | "stored" | "rejected";
   readonly response?: ReadoutRegistrationResponse;
   readonly rejectedReason?: string;
+  /** Koppling till en anmäld deltagare (PLAN.md steg 29): namnet och klassen som visas tills servern svarat. */
+  readonly display?: { readonly entryName: string; readonly className: string };
 }
 
 export interface ReadoutStore {

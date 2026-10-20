@@ -98,6 +98,7 @@ function allowedMethods(action: Action): string[] {
     action.kind === "radio-fetch" ? ["POST"] : action.kind === "race-publication" ? ["PUT", "DELETE"] : action.kind === "race-map" ? ["GET", "PUT", "DELETE"] :
     action.kind === "race-map-image" ? ["GET"] : action.kind === "race-map-georeference" ? ["POST"] :
     action.kind === "participant-route" ? ["POST", "DELETE"] : action.kind === "eventor" ? ["GET", "PUT", "DELETE"] :
+    action.kind === "runner-database" ? ["GET", "POST", "DELETE"] : action.kind === "runner-search" ? ["POST"] :
     action.kind === "source-sync" ? ["GET", "POST"] : action.kind === "eventor-events" ? ["GET"] :
     action.kind === "eventor-test" || action.kind === "eventor-event" || action.kind === "eventor-sync-preview" ||
     action.kind === "course-file-preview" || action.kind === "source-sync-consequence" ? ["POST"] : action.kind === "entry-status" || action.kind === "unknown-readout-resolution" || action.kind === "remaining-runners" || action.kind === "class-result-recalculation" || action.kind === "draw" || action.kind === "results-official" ? ["GET", "POST"] : action.kind === "review-conflicts" ? ["POST"] : action.kind === "conflict-candidate" ? ["GET"] : action.kind === "session" ? ["GET", "DELETE"] : action.kind === "checkin-history" || action.kind === "effective-result" || action.kind === "changes" ? ["GET"] :

@@ -94,6 +94,13 @@ Gemensamma hjälpare: UUID-mönstret och idempotensnycklarnas form (`UUID_PATTER
   idempotensnyckel och bedöms om lokalt. Anmälningar skickas före avläsningarna
   (`POST …/administrator/readout-registrations`, `application/src/readout-registration.ts`); servern kopplar
   en redan mottagen okänd avläsning via bricknumret, och är brickan anmäld någon annanstans gäller den anmälan.
+- Löpardatabasen (PLAN.md steg 29, `application/src/runner-database.ts`): en per Eventor-organisation, hämtad med tävlingens
+  nyckel (`eventor`: `competitors`, `organisations`, strömmande läsning av stora svar i `eventor/src/stream.ts`) och
+  ersatt i en transaktion. Avläsningspaketet har `runnerLookup` (egna och tillagda klubbars löpare, högst 10 000, och
+  klubbarna; ingår inte i paketversionen) och `readOutEntryIds`. Vid okänd bricka (`readout/runner-lookup.ts`) fylls
+  namn och klubb i ur paketet, klasserna rangordnas med domänens `rankClassesByCourseFit` och anmälda utan bricka eller
+  avläsning föreslås; en vald koppling köas som direktanmälan med `target: "EXISTING_ENTRY"` (utfallet `LINKED`).
+  Hela landet söks på servern när nätet finns. Mätt: 10 000 löpare ≈ 1,5 MB JSON i paketet.
 
 ## Import och källor
 
@@ -109,7 +116,8 @@ Gemensamma hjälpare: UUID-mönstret och idempotensnycklarnas form (`UUID_PATTER
   `0000_baseline.sql` följd av `0001_ett_statusflode`, `0002_en_session` och `0003_paketversion` (steg 23) och
   `0004_tavlingsfunktioner` (steg 25: maxtid, banlängd, Eventor-id, diskorsak, `readout_registration`) och
   `0005_avancerad_lottning` (steg 26: `entry.seed_rank`, `race.start_draw_settings`) och `0006_rattelser_efter_piloten`
-  (steg 27: `entry.struck_at`, `race.official_result_finalization_id`).
+  (steg 27: `entry.struck_at`, `race.official_result_finalization_id`), `0007_utan_postgis` (steg 28) och `0008_lopardatabas`
+  (steg 29: `runner_database`, `runner_database_competitor`, `runner_database_club`, utfallet `LINKED`).
   Varje schemaändring kräver en ny migration.
 - `pnpm db:migrate` committar nya enum-värden först och kör sedan varje migration i en egen transaktion.
 - Externa id:n (Eventor, IOF) lagras med källa men är aldrig primärnycklar.

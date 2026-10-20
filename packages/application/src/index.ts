@@ -30,6 +30,8 @@ export * from "./entry-card";
 export * from "./entry-registration";
 export * from "./start-list-publication";
 export * from "./eventor-secret";
+export { deleteRunnerDatabaseAsAdmin, getRunnerDatabaseSettingsAsAdmin, refreshRunnerDatabaseAsAdmin, searchRunnerDatabaseAsAdmin }
+  from "./runner-database";
 export { listAdministratorForestWatch } from "./start-checkin-roster";
 export { readStartCheckinConflictReviewAsAdmin, reviewStartCheckinConflictsAsAdmin } from "./checkin-conflict-review";
 export { listSpeakerBoardAsAdmin } from "./speaker-board";

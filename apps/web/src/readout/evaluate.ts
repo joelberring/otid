@@ -32,24 +32,36 @@ export interface LocalVerdict {
 }
 
 /**
- * Paketet med de direktanmälningar som gjorts i den här webbläsaren men som paketet inte känner än (PLAN.md steg 25),
- * så att avläsningen bedöms lokalt mot den nya deltagaren även utan nät. En avvisad anmälan räknas inte, och när paketet
- * redan har brickan gäller paketet (servern kan ha kopplat brickan till någon som anmälts någon annanstans).
+ * Paketet med de direktanmälningar och kopplingar som gjorts i den här webbläsaren men som paketet inte känner än (PLAN.md
+ * steg 25 och 29), så att avläsningen bedöms lokalt mot den nya eller valda deltagaren även utan nät. En avvisad anmälan
+ * räknas inte, och när paketet redan har brickan gäller paketet (servern kan ha kopplat brickan till någon som anmälts
+ * någon annanstans). En koppling släpper deltagarens tidigare bricka, som på servern.
  */
 export function withLocalRegistrations(pkg: ReadoutPackage, registrations: readonly QueuedRegistration[]): ReadoutPackage {
   const snapshot = pkg.raceSnapshot;
   const known = new Set(snapshot.cardAssignments.filter((assignment) => assignment.active).map((assignment) => assignment.cardNumber));
   const classes = new Set(snapshot.classes.map((raceClass) => raceClass.id));
-  const added = registrations.filter((row) => row.status !== "rejected" && !known.has(row.request.cardNumber) &&
-    classes.has(row.request.classId));
-  if (added.length === 0) return pkg;
-  const unique = [...new Map(added.map((row) => [row.request.cardNumber, row])).values()];
+  const entries = new Map(snapshot.entries.map((entry) => [entry.id, entry]));
+  const added = new Map<string, QueuedRegistration>();
+  for (const row of registrations) {
+    if (row.status === "rejected" || known.has(row.request.cardNumber) || added.has(row.request.cardNumber)) continue;
+    const request = row.request;
+    if ("target" in request ? entries.get(request.entryId)?.classId === request.expectedClassId : classes.has(request.classId)) {
+      added.set(request.cardNumber, row);
+    }
+  }
+  if (added.size === 0) return pkg;
+  const rows = [...added.values()];
+  const linkedEntries = new Set(rows.flatMap((row) => "target" in row.request ? [row.request.entryId] : []));
+  const newEntries = rows.flatMap((row) => "target" in row.request ? [] : [{ id: row.requestId, raceId: snapshot.race.id,
+    classId: row.request.classId, givenName: row.request.givenName, familyName: row.request.familyName,
+    ...(row.request.organisationName ? { organisationName: row.request.organisationName } : {}) }]);
   return { ...pkg, raceSnapshot: { ...snapshot,
-    entries: [...snapshot.entries, ...unique.map((row) => ({ id: row.requestId, raceId: snapshot.race.id, classId: row.request.classId,
-      givenName: row.request.givenName, familyName: row.request.familyName,
-      ...(row.request.organisationName ? { organisationName: row.request.organisationName } : {}) }))],
-    cardAssignments: [...snapshot.cardAssignments, ...unique.map((row) => ({ id: row.requestId, raceId: snapshot.race.id,
-      entryId: row.requestId, cardNumber: row.request.cardNumber, active: true }))] } };
+    entries: [...snapshot.entries, ...newEntries],
+    cardAssignments: [...snapshot.cardAssignments.map((assignment) => linkedEntries.has(assignment.entryId) && assignment.active
+      ? { ...assignment, active: false } : assignment),
+    ...rows.map((row) => ({ id: row.requestId, raceId: snapshot.race.id, cardNumber: row.request.cardNumber, active: true,
+      entryId: "target" in row.request ? row.request.entryId : row.requestId }))] } };
 }
 
 /**

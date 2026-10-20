@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { sportidentReadoutPayloadSchema, type ReadoutPackage } from "@o-tid/contracts";
 import { WebSerialTransport, type WebSerialPortLike } from "@o-tid/device-transport";
 import { SiTimeError, type SiCardData } from "@o-tid/sportident";
-import { accountCsrf, fetchReadoutPackage } from "./api";
+import { accountCsrf, fetchReadoutPackage, searchRunnerDatabase } from "./api";
 import { evaluateLocally, formatRunningTime, withLocalRegistrations, type LocalVerdict } from "./evaluate";
 import { exerciseAnchor, exerciseCard, exerciseRunners, exerciseWindow, type ExerciseVariant } from "./exercise";
 import { FakeStationTransport } from "./fake-transport";
@@ -10,7 +10,8 @@ import { buildReadoutPayload, payloadHash } from "./payload";
 import { StationController, type StationFacts, type StationStatus } from "./station";
 import { TrafficLog } from "./rawlog";
 import { IdbReadoutStore, type QueuedReadout, type QueuedRegistration, type ReadoutStore } from "./store";
-import { RegistrationForm, RegistrationStatus } from "./registration-form";
+import { RegistrationForm, RegistrationStatus, type RegistrationFields } from "./registration-form";
+import type { EntrySuggestion } from "./runner-lookup";
 import { startPunchText } from "../lib/start-punch-text";
 import { syncPending } from "./sync";
 import { readoutText as t } from "./text-sv";
@@ -224,15 +225,17 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
     controllerRef.current = undefined; exerciseRef.current = undefined; setExercise(false);
   }
 
-  function readExercise(variant: ExerciseVariant | "unknown") {
+  function readExercise(variant: ExerciseVariant | "unknown" | "runner-database") {
     const transport = exerciseRef.current;
     if (!transport || !pkg) return;
     const runner = runners.find((candidate) => candidate.entryId === runnerId) ?? runners[0];
     const now = new Date();
-    if (variant === "unknown") {
+    if (variant === "unknown" || variant === "runner-database") {
       // En löpare med en bricka som inte är anmäld, på vald deltagares bana, i mål strax före "nu" på tävlingsdagen.
+      // Ur löpardatabasen (PLAN.md steg 29): första brickan där som inte är anmäld, så att förifyllningen kan övas.
       const used = new Set(pkg.raceSnapshot.cardAssignments.map((assignment) => assignment.cardNumber));
-      let number = 7_100_000 + Math.floor(Math.random() * 800_000);
+      const fromDatabase = variant === "runner-database" ? unusedDatabaseCard(pkg, registrations) : undefined;
+      let number = fromDatabase ?? 7_100_000 + Math.floor(Math.random() * 800_000);
       while (used.has(String(number))) number += 1;
       const anchor = exerciseAnchor(pkg.raceSnapshot.race.raceDate, pkg.event.timeZone, now);
       transport.insert(exerciseCard(number, runner?.controlCodes ?? [], "ok", anchor, pkg.event.timeZone), new Date(anchor.getTime() + 5_000));
@@ -258,15 +261,33 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
   const currentRegistration = current?.phase === "done"
     ? registrations.filter((row) => row.request.cardNumber === current.cardNumber).at(-1) : undefined;
 
-  async function register(fields: { classId: string; givenName: string; familyName: string; club: string }) {
+  async function register(fields: RegistrationFields) {
     if (!raceId || current?.phase !== "done") return;
     const requestId = crypto.randomUUID();
     await storeRef.current.addRegistration({ raceId, requestId, localSequence: current.localSequence, createdAt: new Date().toISOString(),
       status: "pending", request: { formatVersion: 1, requestId, cardNumber: current.cardNumber, classId: fields.classId,
-        givenName: fields.givenName.trim(), familyName: fields.familyName.trim(), organisationName: fields.club.trim() || null } });
+        givenName: fields.givenName.trim(), familyName: fields.familyName.trim(), organisationName: fields.club.trim() || null,
+        ...(fields.eventorPersonId ? { eventorPersonId: fields.eventorPersonId } : {}),
+        ...(fields.eventorOrganisationId ? { eventorOrganisationId: fields.eventorOrganisationId } : {}) } });
     await reload();
     void sync();
   }
+
+  /** PLAN.md steg 29: koppla den okända brickan till en anmäld deltagare, köat som en anmälan (även offline). */
+  async function linkEntry(entry: EntrySuggestion) {
+    if (!raceId || current?.phase !== "done") return;
+    const requestId = crypto.randomUUID();
+    await storeRef.current.addRegistration({ raceId, requestId, localSequence: current.localSequence, createdAt: new Date().toISOString(),
+      status: "pending", display: { entryName: entry.name, className: entry.className },
+      request: { formatVersion: 1, requestId, cardNumber: current.cardNumber, target: "EXISTING_ENTRY", entryId: entry.entryId,
+        expectedClassId: entry.classId } });
+    await reload();
+    void sync();
+  }
+  // Hela landets löpare söks på servern när nätet finns; annars räcker paketets klubbar.
+  const searchServer = useMemo(() => raceId && online && pkg?.runnerLookup?.wholeCountryOnServer
+    ? (request: Parameters<typeof searchRunnerDatabase>[1]) => searchRunnerDatabase(raceId, request) : undefined,
+  [raceId, online, pkg?.runnerLookup?.wholeCountryOnServer]);
 
   if (!raceId) return <main className="readout"><h1>{t.title}</h1><p className="notice">{t.noRace}</p></main>;
 
@@ -317,7 +338,9 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
     {/* Okänd bricka (PLAN.md steg 25): anmäl löparen här, även utan nät. */}
     {current?.phase === "done" && effectivePkg && (verdict?.status === "UNKNOWN_CARD" || currentRegistration?.status === "rejected") &&
       (!currentRegistration || currentRegistration.status === "rejected")
-      ? <RegistrationForm key={current.localSequence} pkg={effectivePkg} cardNumber={current.cardNumber} onSubmit={register} /> : null}
+      ? <RegistrationForm key={current.localSequence} pkg={effectivePkg} cardNumber={current.cardNumber}
+        payload={currentItem?.payload ?? { punches: [] }} items={items} registrations={registrations} search={searchServer}
+        onSubmit={register} onLink={linkEntry} /> : null}
 
     <ReceiptPanel printable={printable} pkg={pkg} settings={receiptSettings}
       onSettings={(settings) => { setReceiptSettings(settings); saveReceiptSettings(settings); }} />
@@ -347,6 +370,8 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
         {selectedRunner?.fixedStartTime !== undefined && selectedRunner.timeLimitMs === undefined
           ? <button type="button" onClick={() => readExercise("late-start")}>{t.exerciseLateStart}</button> : null}
         <button type="button" disabled={!pkg} onClick={() => readExercise("unknown")}>{t.exerciseUnknown}</button>
+        {pkg && unusedDatabaseCard(pkg, registrations) !== undefined
+          ? <button type="button" onClick={() => readExercise("runner-database")}>{t.exerciseRunnerDatabase}</button> : null}
       </div>
     </section> : null}
 
@@ -369,6 +394,14 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
       <a href={`/results/${raceId}`}>{t.results}</a>
     </nav>
   </main>;
+}
+
+/** Första brickan i löpardatabasen som varken är anmäld eller direktanmäld här, eller undefined. */
+function unusedDatabaseCard(pkg: ReadoutPackage, registrations: readonly QueuedRegistration[]): number | undefined {
+  const used = new Set([...pkg.raceSnapshot.cardAssignments.map((assignment) => assignment.cardNumber),
+    ...registrations.map((row) => row.request.cardNumber)]);
+  const card = pkg.runnerLookup?.runners.flatMap((runner) => runner.cards).find((number) => !used.has(number));
+  return card === undefined ? undefined : Number(card);
 }
 
 /** Serverns status för avläsningen; en okänd bricka som sedan direktanmälts har anmälans bedömning (PLAN.md steg 25). */

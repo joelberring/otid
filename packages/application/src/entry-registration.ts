@@ -96,7 +96,10 @@ export async function registerEntryAsAdmin(db: Database,
     const courseVariantCode = await leastUsedVariantForClass(tx, input.raceId, intent.classId);
     const [entry] = await tx.insert(schema.entries).values({ raceId: input.raceId, classId: intent.classId,
       givenName: intent.givenName, familyName: intent.familyName, organisationName: intent.organisationName,
-      fixedStartTime, courseVariantCode, version: 1 }).returning({ id: schema.entries.id });
+      fixedStartTime, courseVariantCode, version: 1,
+      // Vald ur löpardatabasen (PLAN.md steg 29): Eventors id följer med till IOF-exporten.
+      eventorPersonId: intent.eventorPersonId ?? null, eventorOrganisationId: intent.eventorOrganisationId ?? null })
+      .returning({ id: schema.entries.id });
     if (!entry) throw new Error("Deltagaren kunde inte sparas");
     let assignmentId: string | null = null;
     if (intent.cardNumber) {

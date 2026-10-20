@@ -67,7 +67,26 @@ export const readoutText = {
     stored: (name: string, className: string) => `${name} är anmäld i ${className}.`,
     existing: (name: string, className: string) => `Brickan fanns redan anmäld som ${name} (${className}). Den anmälan gäller.`,
     rejected: (name: string) => `Anmälan av ${name} togs inte emot av servern (klassen kan vara full). Registrera löparen under Hantera tävling.`,
-    noClasses: "Tävlingen har inga klasser att anmäla till här."
+    noClasses: "Tävlingen har inga klasser att anmäla till här.",
+    // PLAN.md steg 29: förslag ur löpardatabasen, klass efter banan och anmälda utan bricka.
+    found: (card: string, name: string, club: string | undefined) =>
+      `Bricka ${card} finns i löpardatabasen: ${name}${club ? `, ${club}` : ""}`,
+    fits: (classes: readonly string[]) => classes.length === 1 ? `Passar ${classes[0]}, alla kontroller stämplade`
+      : `Passar ${classes.slice(0, -1).join(", ")} och ${classes.at(-1)} – alla kontroller stämplade`,
+    closest: (className: string, missing: readonly number[]) =>
+      `Ingen bana passar helt. Närmast: ${className}, saknar ${missing.length === 1 ? "kontroll" : "kontrollerna"} ${missing.join(", ")}`,
+    classFits: (name: string) => `${name} – passar`,
+    classWithCourse: (className: string, courseName: string) => courseName ? `${className} (${courseName})` : className,
+    entriesTitle: "Är det någon som redan är anmäld?",
+    link: (name: string) => `Koppla brickan till ${name}`,
+    linkDetail: (className: string, card: string | undefined) => card
+      ? `(${className}, bricka ${card} angiven men inte avläst)` : `(${className}, ingen bricka angiven)`,
+    newRunner: "Eller anmäl en ny löpare",
+    suggestions: "Förslag ur löpardatabasen",
+    choose: (label: string) => `Välj ${label}`,
+    linkPending: (name: string, className: string) => `Brickan kopplas till ${name} (${className}) här. Skickas när nätet finns.`,
+    linkStored: (name: string, className: string) => `Brickan är kopplad till ${name} (${className}).`,
+    linkRejected: (name: string) => `Brickan kunde inte kopplas till ${name} (har hen redan läst ut, eller bytt klass?). Rätta under Hantera tävling.`
   },
   // Gafflad bana (ADR-0169 beslut 2).
   variant: (code: string) => `Variant ${code}`,
@@ -112,6 +131,8 @@ export const readoutText = {
   exerciseMissing: "Läs av: missad kontroll",
   exerciseNoFinish: "Läs av: utan mål",
   exerciseUnknown: "Läs av: okänd bricka",
+  /** PLAN.md steg 29: en bricka som finns i löpardatabasen men inte är anmäld, för att öva förifyllningen. */
+  exerciseRunnerDatabase: "Läs av: bricka ur löpardatabasen",
   loginNeeded: "Inloggningen har gått ut. Logga in igen för att skicka kön. Avläsningar sparas under tiden.",
   login: "Logga in",
   manage: "Hantera tävling",

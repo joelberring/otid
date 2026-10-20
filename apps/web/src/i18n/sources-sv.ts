@@ -1,4 +1,4 @@
-import type { EventorConnectionOutcome, SyncField, SyncNote, SyncRow } from "@o-tid/contracts";
+import type { EventorConnectionOutcome, RunnerDatabaseRefreshOutcome, SyncField, SyncNote, SyncRow } from "@o-tid/contracts";
 
 /** ADR-0170 beslut 4: Eventor och banfiler, med skillnader som godkänns. */
 export const sourcesSv = {
@@ -53,6 +53,44 @@ export const sourcesSv = {
     },
     failed: "Det gick inte att nå servern. Försök igen.",
     retry: "Försök igen"
+  },
+  /** PLAN.md steg 29: löpardatabasen från Eventor. */
+  runnerDatabase: {
+    title: "Löpardatabasen",
+    help: "Klubbens löpare med bricka och Eventors klubbar. Ger förslag vid okänd bricka i avläsningen (även utan nät) och i Ny deltagare. " +
+      "Bara administratörer och funktionärer ser den, aldrig publikt.",
+    needsClub: "Testa anslutningen till Eventor först, så att klubben är känd.",
+    empty: "Ingen löpardatabas hämtad ännu.",
+    summary: (when: string, runners: number, cards: number, clubs: number, wholeCountry: boolean) =>
+      `Uppdaterad ${when} · ${runners} löpare · ${cards} brickor · ${clubs} klubbar${wholeCountry ? " · hela Sverige" : ""}`,
+    offline: (count: number, club: string, extra: number, truncated: boolean) => `Utan nät i avläsningen: ${count} löpare från ${club}` +
+      `${extra > 0 ? ` och ${extra} ${extra === 1 ? "klubb till" : "klubbar till"}` : ""}${truncated ? " (fler finns, de söks när nätet finns)" : ""}.`,
+    wholeCountryOnline: "Övriga löpare i hela Sverige söks på servern när nätet finns.",
+    extraTitle: "Fler klubbar i avläsningen",
+    extraHelp: "Klubbar vars löpare också ska finnas med utan nät, t.ex. grannklubbar. Gäller från nästa uppdatering.",
+    extraLabel: "Lägg till klubb",
+    addClub: "Lägg till",
+    removeClub: (name: string) => `Ta bort ${name}`,
+    unknownClub: "Välj en klubb ur listan.",
+    wholeCountry: "Ta med hela Sverige (stor hämtning)",
+    wholeCountryHelp: "Kan ta flera minuter. Hela landet söks på servern; utan nät finns bara klubbarna ovan.",
+    refresh: "Uppdatera löpardatabasen från Eventor",
+    refreshing: "Hämtar löpare från Eventor …",
+    remove: "Radera löpardatabasen",
+    removeConfirm: "Radera löpardatabasen? Löparna och klubbarna tas bort från servern. Anmälda och avläsningar påverkas inte.",
+    removeYes: "Ja, radera",
+    removed: "Löpardatabasen är raderad.",
+    outcome: {
+      REFRESHED: "Löpardatabasen är uppdaterad.",
+      NO_ORGANISATION: "Testa anslutningen till Eventor först, så att klubben är känd.",
+      NOT_CONFIGURED: "Eventor är inte påslaget på servern (se drift-instruktionen).",
+      NO_KEY: "Spara klubbens API-nyckel först.",
+      KEY_UNREADABLE: "Den sparade nyckeln kan inte läsas. Spara klubbens nyckel igen.",
+      REJECTED: "Eventor godkände inte nyckeln.",
+      UNAVAILABLE: "Eventor svarar inte just nu, eller svarade med något som inte gick att läsa. Försök igen om en stund.",
+      TOO_LARGE: "Svaret från Eventor var för stort. Hämta bara klubbarna, utan hela Sverige."
+    } satisfies Record<RunnerDatabaseRefreshOutcome, string>,
+    failed: "Det gick inte att nå servern. Försök igen."
   },
   courseFile: {
     title: "Banfil",

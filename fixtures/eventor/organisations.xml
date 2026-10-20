@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<OrganisationList>
+  <Organisation>
+    <OrganisationId>1</OrganisationId>
+    <Name>Svenska Orienteringsförbundet</Name>
+    <ShortName>SOFT</ShortName>
+    <MediaName>SOFT</MediaName>
+    <OrganisationTypeId>1</OrganisationTypeId>
+    <CountryId>752</CountryId>
+    <ModifyDate><Date>2024-01-15</Date><Clock>10:00:00</Clock></ModifyDate>
+  </Organisation>
+  <Organisation>
+    <OrganisationId>17</OrganisationId>
+    <Name>Skogsby Orienteringsförbund</Name>
+    <ShortName>Skogsby OF</ShortName>
+    <OrganisationTypeId>2</OrganisationTypeId>
+    <ParentOrganisation><OrganisationId>1</OrganisationId></ParentOrganisation>
+    <ModifyDate><Date>2024-01-15</Date><Clock>10:00:00</Clock></ModifyDate>
+  </Organisation>
+  <Organisation>
+    <OrganisationId>9321</OrganisationId>
+    <Name>OK Skogsfalken</Name>
+    <ShortName>Skogsfalken</ShortName>
+    <MediaName>OK Skogsfalken</MediaName>
+    <OrganisationTypeId>3</OrganisationTypeId>
+    <ParentOrganisation><OrganisationId>17</OrganisationId></ParentOrganisation>
+    <Address careOf="" street="Skogsvägen 1" city="Skogsby" zipCode="12345" type="postal" />
+    <ModifyDate><Date>2025-03-01</Date><Clock>12:00:00</Clock></ModifyDate>
+  </Organisation>
+  <Organisation>
+    <OrganisationId>9400</OrganisationId>
+    <Name>Järfälla OK</Name>
+    <ShortName>Järfälla</ShortName>
+    <OrganisationTypeId>3</OrganisationTypeId>
+    <ParentOrganisation><OrganisationId>17</OrganisationId></ParentOrganisation>
+    <ModifyDate><Date>2025-03-01</Date><Clock>12:00:00</Clock></ModifyDate>
+  </Organisation>
+  <Organisation>
+    <OrganisationId>9500</OrganisationId>
+    <Name>Ängsbacka SOK</Name>
+    <ShortName>Ängsbacka</ShortName>
+    <OrganisationTypeId>3</OrganisationTypeId>
+    <ParentOrganisation><OrganisationId>17</OrganisationId></ParentOrganisation>
+  </Organisation>
+  <Organisation>
+    <OrganisationId>9600</OrganisationId>
+    <Name></Name>
+    <OrganisationTypeId>3</OrganisationTypeId>
+  </Organisation>
+  <Organisation>
+    <OrganisationId>9700</OrganisationId>
+    <Name>Skogsby Friluftsgymnasium</Name>
+    <OrganisationTypeId>9</OrganisationTypeId>
+  </Organisation>
+</OrganisationList>

@@ -1,7 +1,7 @@
 import { and, asc, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import {
   readoutRegistrationIdempotencyKeySchema, readoutRegistrationRequestSchema, readoutRegistrationResponseSchema,
-  type ReadoutRegistrationResponse
+  type ReadoutExistingEntryRequest, type ReadoutRegistrationResponse
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { courseVariantForReadout, withProposedEntryVariants } from "@o-tid/domain";
@@ -70,29 +70,41 @@ export async function registerReadoutCard(db: Database, input: Authentication & 
       return { status: "registered", response: readoutRegistrationResponseSchema.parse({ ...prior.response, replayed: true }) };
     }
     await lockRaceForMutation(tx, raceId);
-    const [raceClass] = await tx.select({ id: schema.classes.id, name: schema.classes.name }).from(schema.classes)
-      .where(and(eq(schema.classes.id, intent.classId), eq(schema.classes.raceId, raceId)));
-    if (!raceClass) return { status: "not-found" };
+    const linking = "target" in intent;
+    let raceClass: { id: string; name: string } | undefined;
+    if (!linking) {
+      [raceClass] = await tx.select({ id: schema.classes.id, name: schema.classes.name }).from(schema.classes)
+        .where(and(eq(schema.classes.id, intent.classId), eq(schema.classes.raceId, raceId)));
+      if (!raceClass) return { status: "not-found" };
+    }
 
     const [owner] = await tx.select({ entryId: schema.cardAssignments.entryId }).from(schema.cardAssignments)
       .where(and(eq(schema.cardAssignments.raceId, raceId), eq(schema.cardAssignments.cardNumber, intent.cardNumber),
         eq(schema.cardAssignments.active, true))).limit(1);
-    let entry: { id: string; givenName: string; familyName: string; classId: string };
-    let outcome: "CREATED" | "EXISTING";
+    let entry: { id: string; givenName: string; familyName: string; classId: string; organisationName: string | null };
+    let outcome: "CREATED" | "EXISTING" | "LINKED";
+    const entryColumns = { id: schema.entries.id, givenName: schema.entries.givenName, familyName: schema.entries.familyName,
+      classId: schema.entries.classId, organisationName: schema.entries.organisationName };
     if (owner) {
       // Anmäld någon annanstans under tiden: den deltagaren gäller, ingen ny deltagare skapas.
-      const [existing] = await tx.select({ id: schema.entries.id, givenName: schema.entries.givenName, familyName: schema.entries.familyName,
-        classId: schema.entries.classId }).from(schema.entries).where(and(eq(schema.entries.id, owner.entryId), eq(schema.entries.raceId, raceId)))
-        .for("update");
+      const [existing] = await tx.select(entryColumns).from(schema.entries)
+        .where(and(eq(schema.entries.id, owner.entryId), eq(schema.entries.raceId, raceId))).for("update");
       if (!existing) throw new Error("Brickans deltagare saknas");
-      entry = existing; outcome = "EXISTING";
+      entry = existing; outcome = linking && owner.entryId === intent.entryId ? "LINKED" : "EXISTING";
+    } else if (linking) {
+      // PLAN.md steg 29: koppla brickan till en anmäld deltagare utan bricka eller utan avläsning (funktionären väljer).
+      const linked = await linkExistingEntry(tx, raceId, intent);
+      if (linked.status !== "linked") return linked;
+      entry = linked.entry; outcome = "LINKED";
     } else {
       if (!await canAddClassEntry(tx, raceId, intent.classId)) return { status: "conflict" };
       const [total] = await tx.select({ value: count() }).from(schema.entries).where(eq(schema.entries.raceId, raceId));
       if (!total || total.value >= 10_000) return { status: "conflict" };
+      // Ur löpardatabasen: Eventors id för personen och klubben följer med till IOF-exporten.
       const [created] = await tx.insert(schema.entries).values({ raceId, classId: intent.classId, givenName: intent.givenName,
-        familyName: intent.familyName, organisationName: intent.organisationName, version: 1 })
-        .returning({ id: schema.entries.id, givenName: schema.entries.givenName, familyName: schema.entries.familyName, classId: schema.entries.classId });
+        familyName: intent.familyName, organisationName: intent.organisationName, version: 1,
+        eventorPersonId: intent.eventorPersonId ?? null, eventorOrganisationId: intent.eventorOrganisationId ?? null })
+        .returning(entryColumns);
       if (!created) throw new Error("Deltagaren kunde inte sparas");
       await tx.insert(schema.cardAssignments).values({ raceId, entryId: created.id, cardNumber: intent.cardNumber });
       entry = created; outcome = "CREATED";
@@ -107,7 +119,7 @@ export async function registerReadoutCard(db: Database, input: Authentication & 
       let snapshot = await loadRaceSnapshot(tx, raceId);
       const normalized = normalizedReadout(readout);
       // Direktanmäld i en gafflad klass har redan sprungit: den får varianten som stämplingarna passar.
-      const detected = outcome === "CREATED" ? courseVariantForReadout(normalized, snapshot) : undefined;
+      const detected = outcome !== "EXISTING" ? courseVariantForReadout(normalized, snapshot) : undefined;
       if (detected && !detected.assigned) {
         await tx.update(schema.entries).set({ courseVariantCode: detected.code }).where(eq(schema.entries.id, entry.id));
         snapshot = withProposedEntryVariants(snapshot, new Map([[entry.id, detected.code]]));
@@ -118,21 +130,44 @@ export async function registerReadoutCard(db: Database, input: Authentication & 
         linkedResult = { status: stored.evaluation.status, revision: stored.revision.revision };
       }
     }
-    const [className] = outcome === "EXISTING" ? await tx.select({ name: schema.classes.name }).from(schema.classes)
+    const [className] = outcome !== "CREATED" || !raceClass ? await tx.select({ name: schema.classes.name }).from(schema.classes)
       .where(eq(schema.classes.id, entry.classId)) : [raceClass];
+    if (!className) throw new Error("Deltagarens klass saknas");
     const response = readoutRegistrationResponseSchema.parse({ formatVersion: 1, replayed: false, requestId: intent.requestId, raceId,
       cardNumber: intent.cardNumber, outcome, entryId: entry.id, entryName: `${entry.givenName} ${entry.familyName}`,
-      className: className?.name ?? raceClass.name, linkedResult, registeredAt: registeredAt.toISOString() });
+      className: className.name, linkedResult, registeredAt: registeredAt.toISOString() });
     await tx.insert(schema.readoutRegistrations).values({ requestId: intent.requestId, raceId, cardNumber: intent.cardNumber,
-      classId: intent.classId, givenName: intent.givenName, familyName: intent.familyName, organisationName: intent.organisationName,
+      classId: entry.classId, givenName: entry.givenName, familyName: entry.familyName, organisationName: entry.organisationName,
       outcome, entryId: entry.id, actorAccountId: auth.principal.accountId, request: intent, response, createdAt: registeredAt });
     await tx.insert(schema.auditEvents).values({ raceId, entityType: "entry", entityId: entry.id, requestId: intent.requestId,
-      action: outcome === "CREATED" ? "READOUT_CARD_REGISTERED" : "READOUT_CARD_ALREADY_REGISTERED", actorKind: "USER_ACCOUNT",
+      action: outcome === "CREATED" ? "READOUT_CARD_REGISTERED" : outcome === "LINKED" ? "READOUT_CARD_LINKED"
+        : "READOUT_CARD_ALREADY_REGISTERED", actorKind: "USER_ACCOUNT",
       actorId: auth.principal.accountId, before: null,
       after: { cardNumber: intent.cardNumber, classId: entry.classId, outcome, linkedRevision: linkedResult?.revision ?? null },
       createdAt: registeredAt });
     return { status: "registered", response };
   });
+}
+
+/**
+ * Kopplar brickan till en anmäld deltagare (PLAN.md steg 29): deltagaren måste finnas i loppet, inte vara struken, inte
+ * vara sträcklöpare, ha samma klass som i paketet och sakna resultat från en avläsning. Deltagarens tidigare bricka
+ * släpps (kopplingen ligger kvar som inaktiv) och deltagarens version höjs.
+ */
+async function linkExistingEntry(tx: Transaction, raceId: string, intent: ReadoutExistingEntryRequest) {
+  const [target] = await tx.select({ id: schema.entries.id, givenName: schema.entries.givenName, familyName: schema.entries.familyName,
+    classId: schema.entries.classId, organisationName: schema.entries.organisationName, teamId: schema.entries.teamId,
+    version: schema.entries.version }).from(schema.entries)
+    .where(and(eq(schema.entries.id, intent.entryId), eq(schema.entries.raceId, raceId), isNull(schema.entries.struckAt))).for("update");
+  if (!target) return { status: "not-found" as const };
+  if (target.classId !== intent.expectedClassId || target.teamId !== null || target.version >= 2_147_483_647) return { status: "conflict" as const };
+  if (await latestResultReadAt(tx, target.id) !== null) return { status: "conflict" as const };
+  await tx.update(schema.cardAssignments).set({ active: false }).where(and(eq(schema.cardAssignments.raceId, raceId),
+    eq(schema.cardAssignments.entryId, target.id), eq(schema.cardAssignments.active, true)));
+  await tx.insert(schema.cardAssignments).values({ raceId, entryId: target.id, cardNumber: intent.cardNumber });
+  await tx.update(schema.entries).set({ version: target.version + 1 }).where(eq(schema.entries.id, target.id));
+  return { status: "linked" as const, entry: { id: target.id, givenName: target.givenName, familyName: target.familyName,
+    classId: target.classId, organisationName: target.organisationName } };
 }
 
 /** Avläsningar som redan har ett resultat räknas inte som okända (direktanmälan kopplar utan resolutionsjournal). */

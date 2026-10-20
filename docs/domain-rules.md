@@ -45,6 +45,11 @@ bricknummer, valfri start- och målstämpling och stämplingar.
    efter godkända och exporteras som IOF `OverTime`. Exakt maxtid är godkänt; felstämpling går före. En rättad
    start- eller måltid avgör maxtiden på nytt.
 
+10. Okänd bricka (PLAN.md steg 29): `rankClassesByCourseFit` jämför stämplingarna mot varje klass bana med samma
+   bästa-passning som gafflingar (godkänd först, sedan färst saknade kontroller; struken kontroll krävs inte; gafflad
+   bana: bästa varianten) och vid lika den bana som förklarar flest stämplingar, sedan klassnamnet. Rogainingklasser och
+   banor utan kontroller ingår inte. Det är bara ett förslag; ingen koppling eller anmälan görs utan arrangörens val.
+
 Motorn returnerar stabila koder. Svenska texter hör till `apps/web/src/i18n`. Avläsningsskalet kör samma
 funktion lokalt; dess besked är preliminärt och serverns revision är auktoritativ.
 

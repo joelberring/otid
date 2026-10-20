@@ -2,6 +2,7 @@ import { z } from "zod";
 import { raceShortCodeSchema } from "./race-publication";
 import { relayReadoutSchema } from "./relay";
 import { rogainingPointsSchema, rogainingRulesSchema } from "./rogaining";
+import { runnerLookupSchema } from "./runner-database";
 
 export const STATION_PACKAGE_LIMITS = {
   classes: 2_000,
@@ -264,6 +265,13 @@ export const readoutPackageSchema = z.object({
     published: z.boolean(),
     participants: z.array(z.object({ entryId: uuidSchema, publicResultId: uuidSchema }).strict()).max(STATION_PACKAGE_LIMITS.entries)
   }).strict().optional(),
+  /**
+   * Löpardatabasen (PLAN.md steg 29): klubbens löpare och Eventors klubbar för förslag vid okänd bricka, även offline.
+   * Saknas när tävlingen inte är kopplad till en klubb med löpardatabas. Ingår inte i paketversionen.
+   */
+  runnerLookup: runnerLookupSchema.optional(),
+  /** Deltagare som redan har ett resultat från en avläsning (förslagen "Koppla brickan till …" hoppar över dem). */
+  readOutEntryIds: z.array(uuidSchema).max(STATION_PACKAGE_LIMITS.entries).optional(),
   fetchedAt: z.iso.datetime({ offset: true })
 }).strict().superRefine((value, context) => {
   if (value.raceId !== value.raceSnapshot.race.id) {

@@ -49,3 +49,11 @@
   .review { padding: 12px; margin-inline: -4px; }
   .field { min-width: 0; margin-right: 4px; }
 }
+
+/* Löpardatabasen (PLAN.md steg 29) */
+.minorHead { font-size: var(--text-sm); font-weight: 600; }
+.clubList { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.clubList li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+.check { display: flex; align-items: flex-start; gap: 8px; max-width: 60ch; }
+.check input { width: 18px; height: 18px; margin: 3px 0 0; accent-color: var(--accent); }
+.check span { display: grid; gap: 2px; }

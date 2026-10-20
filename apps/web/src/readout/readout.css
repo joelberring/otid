@@ -177,3 +177,13 @@ a { color: var(--ink); font-weight: 500; }
 .verdict .punches span:last-child { color: var(--muted); }
 .verdict .punches li[data-placement="EXTRA"] span:first-child, .verdict .punches li[data-placement="OTHER_DAY"] span:first-child { color: var(--attention); }
 .verdict .punch-legend { color: var(--muted); font-size: var(--text-sm); }
+/* PLAN.md steg 29: förslag vid okänd bricka. Anmälda först (stora knappar), sedan löpardatabasen och klassen efter banan. */
+.register-entries { display: grid; gap: 8px; padding: 12px 14px; border: 1px solid var(--line-strong); border-radius: var(--radius); }
+.register-entries h3 { margin: 0; font-size: var(--text-md); }
+.register-entries ul, .register-suggestions { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.register-entries li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+.register-entries li span { color: var(--muted); font-size: var(--text-sm); }
+.register-note { justify-self: start; padding: 2px 10px; border-left: 4px solid var(--line-strong); font-size: 1.15rem; font-weight: 600; }
+.register-note[data-fits="no"] { border-left-color: var(--attention); background: var(--attention-tint); }
+@media (max-width: 700px) { .register-entries li button { width: 100%; } }
+.register-suggestions button { width: 100%; white-space: normal; min-height: 48px; padding: 6px 14px; text-align: left; font-size: var(--text-md); font-weight: 500; }

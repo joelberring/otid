@@ -255,6 +255,7 @@ export * from "./race-map";
 export * from "./radio";
 export * from "./race-copy";
 export * from "./readout-registration";
+export * from "./runner-database";
 export * from "./remaining-runners";
 export * from "./race-removal";
 export * from "./results-official";

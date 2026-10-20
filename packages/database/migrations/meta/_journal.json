@@ -9,6 +9,7 @@
     { "idx": 4, "version": "7", "when": 1797868800000, "tag": "0004_tavlingsfunktioner", "breakpoints": true },
     { "idx": 5, "version": "7", "when": 1797955200000, "tag": "0005_avancerad_lottning", "breakpoints": true },
     { "idx": 6, "version": "7", "when": 1798041600000, "tag": "0006_rattelser_efter_piloten", "breakpoints": true },
-    { "idx": 7, "version": "7", "when": 1798128000000, "tag": "0007_utan_postgis", "breakpoints": true }
+    { "idx": 7, "version": "7", "when": 1798128000000, "tag": "0007_utan_postgis", "breakpoints": true },
+    { "idx": 8, "version": "7", "when": 1798214400000, "tag": "0008_lopardatabas", "breakpoints": true }
   ]
 }

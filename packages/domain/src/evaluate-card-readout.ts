@@ -334,3 +334,56 @@ export function evaluateCardReadout(
   // Maxtid (PLAN.md steg 25): ett fullständigt resultat över klassens maxtid blir OVERTIME.
   return withMaxTime({ status: "OK", reason: "COMPLETE", ...timed }, raceClass.maxTimeMinutes);
 }
+
+/** Hur väl en okänd brickas stämplingar passar en klass bana (PLAN.md steg 29 punkt 4). */
+export interface ClassCourseFit {
+  readonly classId: string;
+  readonly courseVersionId: string;
+  /** Gafflad bana: varianten som passar bäst. */
+  readonly variantCode?: string;
+  /** Alla obligatoriska kontroller stämplade i banans ordning. */
+  readonly ok: boolean;
+  readonly missingControls: readonly number[];
+  /** Stämplingar som inte hör till banan. */
+  readonly extraPunches: number;
+}
+
+/**
+ * Jämför stämplingarna mot varje klass bana med samma bästa-passning som gafflingar (godkänd först, sedan färst saknade
+ * kontroller) och ger klasserna i den ordningen; vid lika passar den bana bäst som förklarar flest stämplingar, sedan
+ * klassnamnet. Rogainingklasser (ingen kontrollföljd) och banor utan kontroller ingår inte. Bara ett förslag: arrangören
+ * väljer alltid själv.
+ */
+export function rankClassesByCourseFit(punches: readonly Punch[], snapshot: RaceSnapshot,
+  classIds?: ReadonlySet<string>): ClassCourseFit[] {
+  const fits: { readonly fit: ClassCourseFit; readonly name: string }[] = [];
+  for (const raceClass of snapshot.classes) {
+    if (raceClass.rogaining || (classIds && !classIds.has(raceClass.id))) continue;
+    const courseVersion = activeVersion(snapshot, raceClass.courseVersionId);
+    if (!courseVersion) continue;
+    const variants = courseVariantsOf(courseVersion);
+    let best: { match: ControlMatch; code?: string } | undefined;
+    if (variants.length > 0) {
+      for (const variant of variants) {
+        const codes = [...variant.controls].sort((left, right) => left.sequence - right.sequence).map((control) => control.controlCode);
+        if (codes.length === 0) continue;
+        const match = matchControls(required(codes), punches, ANY_TIME);
+        if (!best || betterMatch(match, best.match)) best = { match, code: variant.code };
+      }
+    } else {
+      const neutralization = snapshot.classControlNeutralizations.find((candidate) =>
+        candidate.classId === raceClass.id && candidate.courseVersionId === courseVersion.id);
+      const expected = [...courseVersion.controls].sort((left, right) => left.sequence - right.sequence)
+        .map((control) => ({ controlCode: control.controlCode, neutralized: control.id === neutralization?.courseControlId }));
+      if (expected.some((control) => !control.neutralized)) best = { match: matchControls(expected, punches, ANY_TIME) };
+    }
+    if (!best) continue;
+    fits.push({ name: raceClass.name, fit: { classId: raceClass.id, courseVersionId: courseVersion.id,
+      ...(best.code ? { variantCode: best.code } : {}), ok: !best.match.wrongOrder && best.match.missingControls.length === 0,
+      missingControls: best.match.missingControls, extraPunches: best.match.extraPunches.length } });
+  }
+  return fits.sort(({ fit: left, name: leftName }, { fit: right, name: rightName }) => Number(right.ok) - Number(left.ok) ||
+    left.missingControls.length - right.missingControls.length || left.extraPunches - right.extraPunches ||
+    leftName.localeCompare(rightName, "sv") || (left.classId < right.classId ? -1 : left.classId > right.classId ? 1 : 0))
+    .map((row) => row.fit);
+}

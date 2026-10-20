@@ -1,11 +1,14 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import type { RunnerSuggestion } from "@o-tid/contracts";
 import styles from "../race-administrator-workspace.module.css";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
 import { formatClockTime, parseRaceClock } from "../../lib/clock-time";
 import { TargetClassStartTimes } from "../target-class-start-times";
 import { Button, Field, Notice } from "../ui";
 import type { Workspace } from "./workspace-state";
+import { runnerSuggestionLabel, useRunnerSuggestions } from "./runner-suggestions";
 
 /** Deltagaråtgärder: byt klass, bricka och hyrbricka, starttid och identitet. */
 export function EntryActionForms({ ws }: { ws: Workspace }) {
@@ -165,7 +168,11 @@ export function RegistrationForm({ ws }: { ws: Workspace }) {
     prepareRegistration, raceId, registrationAttempt, registrationErrors, registrationForm, registrationSaved, selectRegistrationCandidate,
     sent, setClassId, setConfirmDistinctPerson, setFamilyName, setGivenName, setNewCard, setOrganisationName, setRegistrationAttempt,
     setRegistrationErrors, setRegistrationSaved, setStartClock, startClock, startTimeOptional, submitRegistration, target, targetFull,
-    pending, unknown } = ws;
+    pending, unknown, setRegistrationRunner, setRegistrationClubs } = ws;
+  // PLAN.md steg 29: namnfälten föreslår löpare ur löpardatabasen, klubbfältet klubbar ur Eventor.
+  const [typing, setTyping] = useState(false);
+  const suggestions = useRunnerSuggestions(raceId, `${givenName} ${familyName}`, organisationName, action === "REGISTRATION" && !!data);
+  useEffect(() => { setRegistrationClubs(suggestions.clubs); }, [suggestions.clubs]);
   if (action !== "REGISTRATION") return null;
   const id = `registration-${raceId}`;
   const locked = busy || !!registrationAttempt;
@@ -174,7 +181,14 @@ export function RegistrationForm({ ws }: { ws: Workspace }) {
     if (registrationErrors[field]) setRegistrationErrors({ ...registrationErrors, [field]: undefined });
     if (registrationSaved) setRegistrationSaved("");
   };
-  const clubs = [...new Set(data?.entries.map(row => row.organisationName).filter((name): name is string => name !== null))].sort();
+  const clubs = [...new Set([...data?.entries.map(row => row.organisationName).filter((name): name is string => name !== null) ?? [],
+    ...suggestions.clubs.map(club => club.name)])].sort((left, right) => left.localeCompare(right, "sv"));
+  const runners = typing ? suggestions.runners : [];
+  const choose = (runner: RunnerSuggestion) => {
+    setGivenName(runner.givenName); setFamilyName(runner.familyName); setOrganisationName(runner.club ?? "");
+    if (!newCard.trim() && runner.cards[0]) setNewCard(runner.cards[0]);
+    setRegistrationRunner(runner); setTyping(false); clear("givenName"); clear("familyName");
+  };
   return <section className={styles.workspace} aria-labelledby={`${id}-title`}>
     <div className={styles.inlineFormHead}>
       <h2 id={`${id}-title`}>{text.registrationTitle}</h2>
@@ -190,15 +204,21 @@ export function RegistrationForm({ ws }: { ws: Workspace }) {
         </select></Field>
       <div className={styles.identityFields}>
         <Field label={text.givenName} error={registrationErrors.givenName}><input name="givenName" value={givenName} maxLength={160}
-          autoComplete="off" disabled={locked} onChange={event => { setGivenName(event.target.value); clear("givenName"); }} /></Field>
+          autoComplete="off" disabled={locked} onChange={event => { setGivenName(event.target.value); setTyping(true); clear("givenName"); }} /></Field>
         <Field label={text.familyName} error={registrationErrors.familyName}><input name="familyName" value={familyName} maxLength={160}
-          autoComplete="off" disabled={locked} onChange={event => { setFamilyName(event.target.value); clear("familyName"); }} /></Field>
+          autoComplete="off" disabled={locked} onChange={event => { setFamilyName(event.target.value); setTyping(true); clear("familyName"); }} /></Field>
         <Field label={text.organisation}><input value={organisationName} maxLength={200} autoComplete="off" list={`${id}-clubs`}
           disabled={locked} onChange={event => setOrganisationName(event.target.value)} /></Field>
         <Field label={text.registrationCard} error={registrationErrors.card}><input value={newCard} inputMode="numeric" maxLength={32}
           autoComplete="off" disabled={locked} onChange={event => { setNewCard(event.target.value); clear("card"); }} /></Field>
       </div>
       <datalist id={`${id}-clubs`}>{clubs.map(name => <option key={name} value={name} />)}</datalist>
+      {runners.length > 0 && <p className={styles.suggestionsTitle} aria-hidden="true">{text.registrationSuggestions}</p>}
+      {runners.length > 0 && <ul className={styles.runnerSuggestions} aria-label={text.registrationSuggestions}>
+        {runners.map(runner => <li key={runner.personId ?? runnerSuggestionLabel(runner)}>
+          <Button variant="secondary" disabled={locked} aria-label={text.registrationChoose(runnerSuggestionLabel(runner))}
+            onClick={() => choose(runner)}>{runnerSuggestionLabel(runner)}</Button></li>)}
+      </ul>}
       {target?.startRule === "FIXED" && (target.startDrawn
         ? <Notice tone="info">{text.registrationDrawnTimeHelp}</Notice>
         : <Field label={text.startClock} error={registrationErrors.startClock}

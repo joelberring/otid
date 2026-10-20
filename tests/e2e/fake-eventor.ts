@@ -21,7 +21,9 @@ export const fakeEventorEventDate = () => today();
 const fixture = (name: string) => readFileSync(new URL(`../../fixtures/eventor/${name}.xml`, import.meta.url), "utf8")
   .replaceAll(FIXTURE_EVENT_DATE, fakeEventorEventDate()).replaceAll(FIXTURE_RELAY_DATE, daysFromToday(21));
 const routes: Record<string, string> = {
-  "/api/organisation/apiKey": "organisation", "/api/events": "events", "/api/event/47110": "event", "/api/eventclasses": "classes"
+  "/api/organisation/apiKey": "organisation", "/api/events": "events", "/api/event/47110": "event", "/api/eventclasses": "classes",
+  // Löpardatabasen (PLAN.md steg 29): påhittade löpare i Eventors struktur. Hela landet (utan organisationIds) svarar likadant.
+  "/api/export/cachedcompetitors": "competitors", "/api/organisations": "organisations"
 };
 
 export function startFakeEventor(port = FAKE_EVENTOR_PORT): Promise<Server> {

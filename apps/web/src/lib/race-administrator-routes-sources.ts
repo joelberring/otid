@@ -1,6 +1,7 @@
 import {
   eventorEventChoiceResponseSchema, eventorEventsResponseSchema, eventorSettingsResponseSchema, eventorSyncProblemSchema,
-  eventorTestResponseSchema, sourceSyncStatusSchema, syncApplyIdempotencyKeySchema, syncApplyRequestSchema, syncApplyResponseSchema,
+  eventorTestResponseSchema, runnerDatabaseRefreshResponseSchema, runnerDatabaseSettingsResponseSchema, runnerSearchResponseSchema,
+  sourceSyncStatusSchema, syncApplyIdempotencyKeySchema, syncApplyRequestSchema, syncApplyResponseSchema,
   syncConsequenceRequestSchema, syncConsequenceResponseSchema, syncPreviewResponseSchema
 } from "@o-tid/contracts";
 import {
@@ -65,6 +66,27 @@ export async function handleSourceRoute(context: RaceAdministratorRouteContext):
       if (result.status === "eventor") return json(eventorSyncProblemSchema.parse({ formatVersion: 1, raceId, problem: result.outcome }));
       if (result.status !== "ok") return resultFailure(result.status);
       return json(syncPreviewResponseSchema.parse(result.response));
+    }
+    case "runner-database": {
+      // PLAN.md steg 29: löpardatabasen (läget, uppdatera från Eventor, radera). Bara administratören.
+      if (request.method === "GET" || request.method === "DELETE") {
+        if (request.method === "DELETE" && !await hasNoRequestBody(request)) return failure(400, "INVALID_REQUEST");
+        const result = request.method === "GET" ? await dependencies.runnerDatabase(db, input) : await dependencies.runnerDatabaseDelete(db, input);
+        if (result.status !== "ok") return resultFailure(result.status);
+        return json(runnerDatabaseSettingsResponseSchema.parse(result.response));
+      }
+      const parsed = await body();
+      if (!parsed.ok) return failure(400, "INVALID_REQUEST");
+      const result = await dependencies.runnerDatabaseRefresh(db, { ...input, request: parsed.value }, eventorRuntime());
+      if (result.status !== "ok") return resultFailure(result.status);
+      return json(runnerDatabaseRefreshResponseSchema.parse(result.response));
+    }
+    case "runner-search": {
+      const parsed = await body();
+      if (!parsed.ok) return failure(400, "INVALID_REQUEST");
+      const result = await dependencies.runnerSearch(db, { ...input, request: parsed.value });
+      if (result.status !== "ok") return resultFailure(result.status);
+      return json(runnerSearchResponseSchema.parse(result.response));
     }
     case "course-file-preview": {
       let xml: string;

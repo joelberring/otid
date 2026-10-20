@@ -8,3 +8,4 @@ export * from "./schema/requests";
 export * from "./schema/results";
 export * from "./schema/race-day";
 export * from "./schema/planning";
+export * from "./schema/runners";

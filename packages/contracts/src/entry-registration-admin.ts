@@ -2,6 +2,7 @@ import { z } from "zod";
 import { eventTimeZoneSchema, fixedStartTimeSchema } from "./entry-start-time-admin";
 import { newEntryCardNumberSchema } from "./entry-card-admin";
 import { prefixedUuidPattern, uuidSchema as uuid } from "./ids";
+import { eventorIdSchema } from "./runner-database";
 const version = z.number().int().positive().max(2_147_483_647);
 export const entryRegistrationClassesResponseSchema = z.object({ formatVersion: z.literal(1), raceId: uuid,
   snapshotVersion: version, timeZone: eventTimeZoneSchema, classes: z.array(z.object({ id: uuid, name: z.string().min(1).max(160),
@@ -11,7 +12,10 @@ export const entryRegistrationRequestSchema = z.object({ formatVersion: z.litera
   classId: uuid, expectedCourseVersionId: uuid, expectedStartRule: z.enum(["FIXED", "PUNCH"]),   givenName: z.string().trim().min(1).max(160), familyName: z.string().trim().min(1).max(160),
   organisationName: z.string().trim().min(1).max(200).nullable(), cardNumber: newEntryCardNumberSchema.nullable(),
   // Minutstart utan tid: en lottad klass ger första lediga tid (PLAN.md steg 9), annars ges tiden vid lottningen (steg 24).
-  fixedStartTime: fixedStartTimeSchema.nullable()
+  fixedStartTime: fixedStartTimeSchema.nullable(),
+  // Vald ur löpardatabasen (PLAN.md steg 29): Eventors id för personen och klubben, till IOF-exporten.
+  eventorPersonId: eventorIdSchema.optional(),
+  eventorOrganisationId: eventorIdSchema.optional()
 }).strict().refine((row) => row.expectedStartRule === "FIXED" || row.fixedStartTime === null);
 export const entryRegistrationIdempotencyKeySchema = z.string().regex(
   prefixedUuidPattern("entry-registration"));

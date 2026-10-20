@@ -554,7 +554,7 @@ mindre minne.
 **Acceptans:** alla tester och CI-jobbet `production` gröna med `postgres:17`;
 `docs/drift.md` nämner billiga och gratis serveralternativ.
 
-## [ ] Steg 29 – Löpardatabas från Eventor
+## [x] Steg 29 – Löpardatabas från Eventor
 
 1. Hämta klubbens (och vid behov hela landets) löpare med bricka och Sveriges
    klubbar från Eventor (`/api/export/cachedcompetitors`, `/api/organisations`,

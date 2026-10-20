@@ -10,6 +10,7 @@ import { sourcesSv } from "../../i18n/sources-sv";
 import { Button, Field, Notice, Section } from "../ui";
 import styles from "./sources.module.css";
 import { SourceReviewPanel } from "./source-review";
+import { RunnerDatabaseSection } from "./runner-database-section";
 import { useSourceReview, type Message } from "./source-sync-actions";
 import type { Workspace } from "./workspace-state";
 
@@ -160,6 +161,8 @@ export function EventorSection({ ws }: { ws: Workspace }) {
             <span className={styles.muted}>{settings.lastAppliedAt ? text.lastUpdated(sourceTime(settings.lastAppliedAt, timeZone)) : text.neverUpdated}</span>
           </div>}
         </div>}
+        {/* PLAN.md steg 29: löpardatabasen för klubben som nyckeln tillhör. */}
+        {settings.key === "SAVED" && <RunnerDatabaseSection key={settings.organisation?.id ?? "ingen"} ws={ws} timeZone={timeZone} />}
       </>}
       {review.message && <Notice tone={review.message.tone} role={review.message.tone === "ok" ? "status" : "alert"}>{review.message.text}</Notice>}
       <SourceReviewPanel review={review} busy={busy} sourceName={text.title} />

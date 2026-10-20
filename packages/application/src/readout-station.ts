@@ -7,6 +7,7 @@ import { ingestDeviceBatch } from "./ingest";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { loadRaceSnapshot, sortRaceSnapshotForPackage } from "./snapshot";
 import { loadRelayReadout } from "./relay-results";
+import { loadReadOutEntryIds, loadRunnerLookup } from "./runner-database";
 
 /**
  * Webbläsarens avläsningsstation (steg 4, ADR-0168). Administratörens eller
@@ -30,10 +31,13 @@ export async function readReadoutPackageAsAdmin(
     if (!event) throw new Error("Evenemanget finns inte");
     const relay = await loadRelayReadout(tx, input.raceId);
     const publicLinks = await loadPublicLinks(tx, input.raceId);
+    // Löpardatabasen (PLAN.md steg 29): klubbens löpare för förslag vid okänd bricka, även offline.
+    const runnerLookup = await loadRunnerLookup(tx, input.raceId);
+    const readOutEntryIds = await loadReadOutEntryIds(tx, input.raceId);
     return readoutPackageSchema.parse({
       formatVersion: 1, raceId: raceSnapshot.race.id, packageVersion: raceSnapshot.race.snapshotVersion,
       resultEngineVersion: RESULT_ENGINE_VERSION, event, raceSnapshot, ...(relay ? { relay } : {}), publicLinks,
-      fetchedAt: now.toISOString()
+      ...(runnerLookup ? { runnerLookup } : {}), readOutEntryIds, fetchedAt: now.toISOString()
     });
   });
   return { status: "ok", response };

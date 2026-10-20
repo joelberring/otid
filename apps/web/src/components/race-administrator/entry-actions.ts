@@ -6,8 +6,9 @@ import {
   entryIdentityChangeRequestSchema,
   entryRegistrationCandidatesResponseSchema, entryRegistrationRequestSchema,
   entryStartTimeChangeRequestSchema, entryStartTimeChangeResponseSchema, entryTransferRequestSchema,
-  entryTransferResponseSchema, type EntryIdentityAdminListResponse
+  entryTransferResponseSchema, type EntryIdentityAdminListResponse, type RunnerClub, type RunnerSuggestion
 } from "@o-tid/contracts";
+import { registrationEventorIds } from "./runner-suggestions";
 import { formatClockTime, parseRaceClock } from "../../lib/clock-time";
 import { hasErrors, validateRegistration, type FieldErrors } from "../../lib/form-validation";
 import { focusFirstError, focusWhenEnabled } from "../ui";
@@ -46,7 +47,10 @@ export function useEntryActionState() {
   const [registrationErrors, setRegistrationErrors] = useState<FieldErrors<RegistrationField>>({});
   const [registrationSaved, setRegistrationSaved] = useState("");
   const registrationForm = useRef<HTMLFormElement | null>(null);
-  return { registrationErrors, setRegistrationErrors, registrationSaved, setRegistrationSaved, registrationForm, classId, setClassId, startClock, setStartClock, transferAttempt,
+  /** PLAN.md steg 29: löparen och klubbarna som valts ur löpardatabasen (Eventors id följer med anmälan). */
+  const [registrationRunner, setRegistrationRunner] = useState<RunnerSuggestion>();
+  const [registrationClubs, setRegistrationClubs] = useState<readonly RunnerClub[]>([]);
+  return { registrationRunner, setRegistrationRunner, registrationClubs, setRegistrationClubs, registrationErrors, setRegistrationErrors, registrationSaved, setRegistrationSaved, registrationForm, classId, setClassId, startClock, setStartClock, transferAttempt,
     setTransferAttempt, newCard, setNewCard, cardAttempt, setCardAttempt, rentalAttempt, setRentalAttempt, rentalReturnAttempt,
     setRentalReturnAttempt, rentalReuseAttempt, setRentalReuseAttempt, rentalReuseSourceId, setRentalReuseSourceId,
     timeAttempt, setTimeAttempt,
@@ -75,6 +79,7 @@ export function deriveEntryActions(s: WorkspaceState, { selected }: Pick<Roster,
 export function createEntryActions(ws: Base & RaceDataActions) {
   const { raceId, data, entryId, classId, startClock, newCard, rentalReuseSourceId, givenName, familyName,
     organisationName, confirmDistinctPerson, target, targetFull, startTimeOptional, registrationForm, identityCandidate, identityMatches, writingRef, pending, sent,
+    registrationRunner, registrationClubs, setRegistrationRunner,
     requireSession, begin, finish, current, request, json, csrf, load, setGivenName, setFamilyName,
     setOrganisationName, setIdentityCandidates, setMessage, setUnknown, setTransferAttempt, setData, setEntryId, setClassId,
     setNewCard, setStartClock, setCardAttempt, setRentalAttempt, setRentalReturnAttempt,
@@ -413,7 +418,8 @@ export function createEntryActions(ws: Base & RaceDataActions) {
       expectedCourseVersionId: target.courseVersionId, expectedStartRule: target.startRule, givenName, familyName,
       organisationName: organisationName.trim() || null, cardNumber: newCard.trim() || null,
       // Lottad klass: appen ger första lediga vakanta tid. Inte lottad än och tomt fält: tiden ges vid lottningen.
-      fixedStartTime: target.startRule === "FIXED" && !target.startDrawn && clock ? parseRaceClock(data.raceDate, clock, data.timeZone) : null });
+      fixedStartTime: target.startRule === "FIXED" && !target.startDrawn && clock ? parseRaceClock(data.raceDate, clock, data.timeZone) : null,
+      ...registrationEventorIds({ givenName, familyName, organisationName }, registrationRunner, registrationClubs) });
     if (!parsed.success) { setMessage(text.registrationConflict); return; }
     const frozen = { kind: "REGISTRATION" as const, id: crypto.randomUUID(), className: target.name, timeZone: data.timeZone, request: parsed.data };
     // Dubblettsökningen hör till anmälan och räknas som en skrivning, så att inget annat avbryter den.
@@ -457,7 +463,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
       const receipt = parseRegistrationReceipt(await json(response, op), raceId, value);
       committed = true; pending.current = undefined; sent.current = false; setRegistrationAttempt(undefined); setUnknown(false);
       // Klass och klubb står kvar för nästa deltagare; namn, bricka och tid töms.
-      setGivenName(""); setFamilyName(""); setNewCard(""); setStartClock(""); setRegistrationErrors({});
+      setGivenName(""); setFamilyName(""); setNewCard(""); setStartClock(""); setRegistrationErrors({}); setRegistrationRunner(undefined);
       const runner = `${receipt.givenName} ${receipt.familyName}`;
       setRegistrationSaved(receipt.fixedStartTime ? text.registrationAddedTime(runner, value.className,
         formatClockTime(receipt.fixedStartTime, value.timeZone)) : text.registrationAdded(runner, value.className));

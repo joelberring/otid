@@ -1,4 +1,5 @@
-import { readoutPackageSchema, type ReadoutPackage } from "@o-tid/contracts";
+import { readoutPackageSchema, runnerSearchResponseSchema, type ReadoutPackage, type RunnerSearchRequest,
+  type RunnerSearchResponse } from "@o-tid/contracts";
 
 const ORGANIZER_CSRF = { loopback: "otid_organizer_csrf", secure: "__Host-otid-organizer-csrf" } as const;
 
@@ -34,4 +35,26 @@ export async function fetchReadoutPackage(raceId: string): Promise<PackageOutcom
   const value = readoutPackageSchema.parse(await response.json());
   if (value.raceId !== raceId) throw new Error("Avläsningspaketet gäller ett annat lopp");
   return { kind: "ok", value };
+}
+
+/**
+ * Sökning i löpardatabasen på servern (PLAN.md steg 29), när hela landet ligger där och nätet finns. Förslagen är en
+ * hjälp: utan nät, utan inloggning eller vid serverfel blir det inga förslag från servern (paketets förslag finns kvar).
+ */
+export async function searchRunnerDatabase(raceId: string, request: RunnerSearchRequest): Promise<RunnerSearchResponse | undefined> {
+  const csrf = accountCsrf();
+  if (!csrf) return undefined;
+  let response: Response;
+  try {
+    response = await fetch(`/api/admin/races/${encodeURIComponent(raceId)}/administrator/runner-database/search`, {
+      method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: { "content-type": "application/json", "x-otid-csrf": csrf }, body: JSON.stringify(request)
+    });
+  } catch {
+    return undefined;
+  }
+  if (!response.ok) return undefined;
+  const value = runnerSearchResponseSchema.parse(await response.json());
+  if (value.raceId !== raceId) throw new Error("Sökningen gäller ett annat lopp");
+  return value;
 }

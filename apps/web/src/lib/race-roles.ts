@@ -27,6 +27,8 @@ export const FUNCTIONARY_ROUTES: Readonly<Record<string, readonly string[]>> = {
   "unknown-readout-resolution": ["GET", "POST"],
   /** Direktanmälan på avläsningssidan, även köad offline (PLAN.md steg 25). */
   "readout-registrations": ["POST"],
+  /** Förslag ur löpardatabasen på avläsningssidan när nätet finns (PLAN.md steg 29); uppdatera och radera kräver admin. */
+  "runner-search": ["POST"],
   /** Kvar i skogen: läsa, registrera och ta tillbaka återkomst. */
   "forest-watch": ["GET"],
   "manual-return": ["POST"],

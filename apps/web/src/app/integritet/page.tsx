@@ -17,7 +17,7 @@ export default function PrivacyPage() {
     <div className={styles.prose}>
       <p>{text.intro}</p>
       <h2>{text.whatTitle}</h2>
-      <ul className={styles.list}><li>{text.accounts}</li><li>{text.races}</li><li>{text.logs}</li></ul>
+      <ul className={styles.list}><li>{text.accounts}</li><li>{text.races}</li><li>{text.runners}</li><li>{text.logs}</li></ul>
       <h2>{text.whyTitle}</h2>
       <p>{text.why}</p>
       <h2>{text.howLongTitle}</h2>

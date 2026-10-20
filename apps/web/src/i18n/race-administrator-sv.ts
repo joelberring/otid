@@ -341,6 +341,9 @@ export const raceAdministratorSv = {
   registrationSavedLoadError: "Deltagaren är anmäld, men listan kunde inte uppdateras. Ladda om sidan.",
   registrationConflict: "Anmälan gick inte: klassen kan vara full eller brickan redan tagen. Kontrollera och försök igen.",
   registrationHelp: "Tryck Enter för att lägga till. Formuläret står kvar för nästa deltagare.",
+  // PLAN.md steg 29: förslag ur löpardatabasen (Inställningar → Eventor).
+  registrationSuggestions: "Förslag ur löpardatabasen",
+  registrationChoose: (label: string) => `Välj ${label}`,
   registrationDrawnTime: "Första lediga vakanta tid",
   registrationDrawnTimeHelp: "Klassen är lottad. Deltagaren får första lediga vakanta tid.",
   registrationLaterTimeHelp: "Lämna tomt – lottas senare.",

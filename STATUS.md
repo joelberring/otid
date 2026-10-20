@@ -5,11 +5,19 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 29 – Löpardatabas från Eventor.
+Steg 30 – Live för publiken.
 Steg 7 – Riktig hårdvara och pilot (ägaren) pågår: SI9 via BSM på Mac/Chrome provad 2026-10-19 (`docs/sportident.md`).
-Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan och klubben) provad mot riktiga Eventor 2026-10-19; ROC:s sökväg för stämplingar (bara provad mot falsk ROC) och e-post via SMTP är inte provade.
+Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbens löpare via `cachedcompetitors`, strukturen) provad mot riktiga Eventor 2026-10-19; hela landets `cachedcompetitors` och `/api/organisations` måste provas av ägaren; ROC:s sökväg för stämplingar (bara provad mot falsk ROC) och e-post via SMTP är inte provade.
 
 ## Logg
+
+### 2026-10-20 – Steg 29: löpardatabas från Eventor (steg 29 klart)
+- Löpardatabas per Eventor-klubb (migration 0008, `runner_database*`), hämtad med tävlingens sparade nyckel (`cachedcompetitors` med klubbens och tillagda klubbars id, eller hela Sverige; `/api/organisations`) och ersatt i en transaktion; Inställningar → Eventor → Löpardatabasen: uppdatera, fler klubbar, "Ta med hela Sverige (stor hämtning)", radera. Bara admin uppdaterar/raderar; admin och funktionär får förslag; inget publikt (`/integritet`, `docs/security-privacy.md`). Dataminimering: födelseår, kön, klubb, bara SI-brickor; auditposten bara antal.
+- Adapter: strömmande, härdad läsning element för element (`eventor/src/stream.ts`; gränser 32 MB klubbar, 256 MB hela landet, 5 min), IOF 3.0 CompetitorList och Eventors äldre OrganisationList (typ 1/2/3 = förbund/distrikt/klubb är vår tolkning; alla typer behålls).
+- Avläsningspaketet: `runnerLookup` (egna och tillagda klubbars löpare, högst 10 000, egen klubb först, och klubbarna) och `readOutEntryIds`; hela landet söks på servern när nätet finns. Mätt: 10 000 löpare = 1,53 MB JSON; 40 000 löpare hämtas och sparas på 9 s.
+- Okänd bricka (även offline): namn och klubb fylls i ur databasen, domänens `rankClassesByCourseFit` (gafflingarnas bästa-passning) förväljer klassen ("Passar H21 (Lång) …"), anmälda utan bricka eller utan avläsning i de klasserna föreslås överst ("Koppla brickan till Anna Ek"); kopplingen köas som direktanmälan (`target: "EXISTING_ENTRY"`, utfall `LINKED`, idempotent). Namnfält föreslår löpare och klubbfält klubbar, även i Ny deltagare; Eventors person- och klubb-id sparas på deltagaren för IOF-exporten. Övningsstationen kan läsa en bricka ur löpardatabasen.
+- Tester: adapter `competitors` (10), domän `class-course-fit` (5), avläsning `runner-lookup` (4), integration `steg-29-lopardatabas` (6), route-behörighet, Playwright `lopardatabas`; falska Eventor svarar på de nya adresserna.
+- Verifierat: install (frozen), lint, typecheck, test, test:integration (69/288; `steg-28` läser nu migrationerna ur journalen), build, Playwright alla 20 specar gröna i sex grupper (ny `lopardatabas`; `tavlingsfunktioner` förväljer nu klassen); efter omförsök under last: `funktionarer`/`tavlingstyper` (speakern som tidigare), `traningskvall`, `gafflingar`; `radio`+`redigera-bana` omkörda efter att utvecklingsservern dödats (minnesbrist). Skärmbilder 1280/390 granskade (för bred förslagsknapp på 390 px rättad). Måste provas av ägaren mot riktiga Eventor: hela landets `cachedcompetitors` (storlek, tid) och `/api/organisations` (format och `OrganisationTypeId`).
 
 ### 2026-10-20 – Steg 28: vanlig PostgreSQL i stället för PostGIS (steg 28 klart)
 - `postgres:17` (alla arkitekturer) i stället för `postgis/postgis:17-3.5` + `platform: linux/amd64` i dev-compose, drift-compose (db och backup) och CI. Samma PG 17 och PGDATA `/var/lib/postgresql/data`: befintlig volym används som den är. Efter `git pull`: säkerhetskopia, `docker compose up -d postgres` byter bild, datan finns kvar, `pnpm db:migrate` (README).

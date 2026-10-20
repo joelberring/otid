@@ -246,7 +246,8 @@ export const readoutRegistrations = pgTable("readout_registration", {
   givenName: text("given_name").notNull(),
   familyName: text("family_name").notNull(),
   organisationName: text("organisation_name"),
-  outcome: text("outcome").$type<"CREATED" | "EXISTING">().notNull(),
+  /** LINKED (migration 0008, PLAN.md steg 29): brickan kopplades till en anmäld deltagare utan bricka eller avläsning. */
+  outcome: text("outcome").$type<"CREATED" | "EXISTING" | "LINKED">().notNull(),
   entryId: uuid("entry_id").notNull().references(() => entries.id),
   actorAccountId: uuid("actor_account_id").notNull(),
   request: jsonb("request").$type<Record<string, unknown>>().notNull(),
@@ -254,5 +255,5 @@ export const readoutRegistrations = pgTable("readout_registration", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (table) => [
   index("readout_registration_race_idx").on(table.raceId, table.createdAt),
-  check("readout_registration_outcome_check", sql`${table.outcome} IN ('CREATED', 'EXISTING')`)
+  check("readout_registration_outcome_check", sql`${table.outcome} IN ('CREATED', 'EXISTING', 'LINKED')`)
 ]);

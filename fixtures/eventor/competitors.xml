@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CompetitorList xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" iofVersion="3.0" createTime="2026-10-19T20:41:07" creator="Eventor" xmlns="http://www.orienteering.org/datastandard/3.0">
+  <Competitor modifyTime="2026-09-02T10:11:12">
+    <Person sex="F" modifyTime="2026-09-02T10:11:12">
+      <Id type="Eventor">610101</Id>
+      <Name>
+        <Family>Testsson</Family>
+        <Given>Testa</Given>
+      </Name>
+      <BirthDate>1975-05-17</BirthDate>
+      <Nationality code="SWE" />
+    </Person>
+    <Organisation type="Club" modifyTime="2025-01-01T00:00:00">
+      <Id type="Eventor">9321</Id>
+      <Name>OK Skogsfalken</Name>
+      <ShortName>Skogsfalken</ShortName>
+    </Organisation>
+    <ControlCard punchingSystem="SI">8100101</ControlCard>
+  </Competitor>
+  <Competitor modifyTime="2026-08-14T08:00:00">
+    <Person sex="M" modifyTime="2026-08-14T08:00:00">
+      <Id type="Eventor">610102</Id>
+      <Name>
+        <Family>Provsson</Family>
+        <Given>Prova</Given>
+      </Name>
+      <BirthDate>1990-01-31</BirthDate>
+      <Nationality code="SWE" />
+    </Person>
+    <Organisation type="Club" modifyTime="2025-01-01T00:00:00">
+      <Id type="Eventor">9321</Id>
+      <Name>OK Skogsfalken</Name>
+      <ShortName>Skogsfalken</ShortName>
+    </Organisation>
+    <ControlCard punchingSystem="SI">8100102</ControlCard>
+    <ControlCard punchingSystem="Emit">123456</ControlCard>
+    <ControlCard punchingSystem="SI">8100103</ControlCard>
+  </Competitor>
+  <Competitor modifyTime="2026-07-01T12:00:00">
+    <Person sex="M" modifyTime="2026-07-01T12:00:00">
+      <Id type="Eventor">610103</Id>
+      <Name>
+        <Family>Klubblös</Family>
+        <Given>Udda</Given>
+      </Name>
+      <BirthDate>2001-11-05</BirthDate>
+      <Nationality code="NOR" />
+    </Person>
+    <ControlCard punchingSystem="SI">8100104</ControlCard>
+  </Competitor>
+  <Competitor modifyTime="2026-07-01T12:00:00">
+    <Person sex="F" modifyTime="2026-07-01T12:00:00">
+      <Id type="Eventor">610104</Id>
+      <Name></Name>
+      <Nationality code="SWE" />
+    </Person>
+    <ControlCard punchingSystem="SI">8100105</ControlCard>
+  </Competitor>
+  <Competitor modifyTime="2026-06-11T09:30:00">
+    <Person sex="F" modifyTime="2026-06-11T09:30:00">
+      <Id type="Eventor">610105</Id>
+      <Name>
+        <Family>Bricklös</Family>
+        <Given>Berit</Given>
+      </Name>
+      <BirthDate>1984-03-03</BirthDate>
+      <Nationality code="SWE" />
+    </Person>
+    <Organisation type="Club" modifyTime="2025-01-01T00:00:00">
+      <Id type="Eventor">9321</Id>
+      <Name>OK Skogsfalken</Name>
+      <ShortName>Skogsfalken</ShortName>
+    </Organisation>
+  </Competitor>
+  <Competitor modifyTime="2026-10-01T18:00:00">
+    <Person sex="F" modifyTime="2026-10-01T18:00:00">
+      <Id type="Eventor">610106</Id>
+      <Name>
+        <Family>Öberg-Ärling</Family>
+        <Given>Åsa</Given>
+      </Name>
+      <BirthDate>1969-12-24</BirthDate>
+      <Nationality code="SWE" />
+    </Person>
+    <Organisation type="Club" modifyTime="2025-01-01T00:00:00">
+      <Id type="Eventor">9400</Id>
+      <Name>Järfälla OK</Name>
+      <ShortName>Järfälla</ShortName>
+    </Organisation>
+    <ControlCard punchingSystem="SI">8100106</ControlCard>
+  </Competitor>
+</CompetitorList>

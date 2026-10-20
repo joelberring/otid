@@ -5,12 +5,19 @@ import {
   type EventorClass, type EventorEntryList, type EventorEvent, type EventorOrganisation
 } from "./parse";
 import { fail, MAX_XML_BYTES } from "./xml";
+import {
+  parseEventorCompetitorStream, parseEventorOrganisationStream, type EventorCompetitorList, type EventorOrganisationSummary
+} from "./competitors";
 
 /** Eventor Sverige. Andra adresser används bara när driften uttryckligen anger en (t.ex. en testserver). */
 export const EVENTOR_BASE_URL = "https://eventor.orientering.se";
 const API_KEY = /^[\x21-\x7e]{16,128}$/;
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
+/** Löpardatabasen: klubbarnas svar (168 löpare ≈ 110 kB) och hela landets (osäkert, tiotals MB) har egna gränser. */
+const MAX_CLUB_BYTES = 32 * 1024 * 1024;
+const MAX_COUNTRY_BYTES = 256 * 1024 * 1024;
+const MAX_ORGANISATION_IDS = 50;
 
 export interface EventorClientOptions {
   /** Klubbens API-nyckel. Skickas bara i headern `ApiKey`, aldrig i adressen eller loggar. */
@@ -18,6 +25,8 @@ export interface EventorClientOptions {
   readonly baseUrl?: string;
   readonly fetch?: typeof fetch;
   readonly timeoutMs?: number;
+  /** Tidsgräns för hela landets löpare (standard 5 minuter). */
+  readonly countryTimeoutMs?: number;
 }
 
 export interface EventorClassesAndEntries {
@@ -84,29 +93,80 @@ export function eventorClient(options: EventorClientOptions) {
   const origin = normalizeEventorBaseUrl(options.baseUrl ?? EVENTOR_BASE_URL);
   const fetchImplementation = options.fetch ?? globalThis.fetch;
   const timeoutMs = options.timeoutMs ?? 15_000;
+  const countryTimeoutMs = options.countryTimeoutMs ?? 300_000;
+
+  /** Gör anropet och kontrollerar status och innehållstyp. Kroppen läses av den som anropar. */
+  async function open(path: string, signal: AbortSignal, timedOut: () => boolean): Promise<Response> {
+    let response: Response;
+    try {
+      response = await fetchImplementation(`${origin}${path}`, { method: "GET", redirect: "error", cache: "no-store",
+        credentials: "omit", signal, headers: { ApiKey: options.apiKey, Accept: "application/xml, text/xml;q=0.9" } });
+    } catch {
+      fail(timedOut() ? "TIMEOUT" : "UPSTREAM_UNAVAILABLE");
+    }
+    if (response.status === 401 || response.status === 403) { void response.body?.cancel().catch(() => undefined); fail("REJECTED"); }
+    if (response.status === 404) { void response.body?.cancel().catch(() => undefined); fail("NOT_FOUND"); }
+    if (!response.ok || !isXmlContentType(response.headers.get("content-type"))) {
+      void response.body?.cancel().catch(() => undefined);
+      fail("UPSTREAM_UNAVAILABLE");
+    }
+    return response;
+  }
 
   async function get(path: string): Promise<{ xml: string; sourceHash: string }> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      let response: Response;
-      try {
-        response = await fetchImplementation(`${origin}${path}`, { method: "GET", redirect: "error", cache: "no-store",
-          credentials: "omit", signal: controller.signal,
-          headers: { ApiKey: options.apiKey, Accept: "application/xml, text/xml;q=0.9" } });
-      } catch {
-        fail(controller.signal.aborted ? "TIMEOUT" : "UPSTREAM_UNAVAILABLE");
-      }
-      if (response.status === 401 || response.status === 403) { void response.body?.cancel().catch(() => undefined); fail("REJECTED"); }
-      if (response.status === 404) { void response.body?.cancel().catch(() => undefined); fail("NOT_FOUND"); }
-      if (!response.ok || !isXmlContentType(response.headers.get("content-type"))) {
-        void response.body?.cancel().catch(() => undefined);
-        fail("UPSTREAM_UNAVAILABLE");
-      }
+      const response = await open(path, controller.signal, () => controller.signal.aborted);
       const bytes = await readBody(response, controller.signal);
       let xml: string;
       try { xml = new TextDecoder("utf-8", { fatal: true }).decode(bytes); } catch { fail("INVALID_XML"); }
       return { xml, sourceHash: createHash("sha256").update(bytes).digest("hex") };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /**
+   * Stora svar (löpardatabasen, PLAN.md steg 29): kroppen läses som ström med egen storleks- och tidsgräns och lämnas
+   * som text i bitar till `consume`, som tolkar den medan den kommer.
+   */
+  async function stream<T>(path: string, limits: { maxBytes: number; timeoutMs: number },
+    consume: (chunks: AsyncIterable<string>) => Promise<T>): Promise<T> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), limits.timeoutMs);
+    try {
+      const response = await open(path, controller.signal, () => controller.signal.aborted);
+      const declared = response.headers.get("content-length");
+      if (declared && (!/^\d+$/.test(declared) || Number(declared) > limits.maxBytes)) {
+        void response.body?.cancel().catch(() => undefined);
+        fail("RESPONSE_TOO_LARGE");
+      }
+      if (!response.body) fail("UPSTREAM_UNAVAILABLE");
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8", { fatal: true });
+      async function* chunks(): AsyncIterable<string> {
+        let length = 0;
+        while (true) {
+          let next: ReadableStreamReadResult<Uint8Array>;
+          try { next = await reader.read(); } catch { fail(controller.signal.aborted ? "TIMEOUT" : "UPSTREAM_UNAVAILABLE"); }
+          if (next.done) break;
+          length += next.value.byteLength;
+          if (length > limits.maxBytes) fail("RESPONSE_TOO_LARGE");
+          let text: string;
+          try { text = decoder.decode(next.value, { stream: true }); } catch { fail("INVALID_XML"); }
+          yield text;
+        }
+        let rest: string;
+        try { rest = decoder.decode(); } catch { fail("INVALID_XML"); }
+        if (rest) yield rest;
+      }
+      try {
+        return await consume(chunks());
+      } catch (error) {
+        void reader.cancel().catch(() => undefined);
+        throw error;
+      }
     } finally {
       clearTimeout(timer);
     }
@@ -143,6 +203,22 @@ export function eventorClient(options: EventorClientOptions) {
       if ([...parsedEntries.entries, ...parsedEntries.teams].some((entry) => !classIds.has(entry.classId))) fail("INVALID_XML");
       return { classes: parsedClasses, entries: parsedEntries,
         sourceHash: createHash("sha256").update(`${classes.sourceHash}:${entries.sourceHash}`).digest("hex") };
+    },
+    /**
+     * Löpare med bricka (PLAN.md steg 29): klubbarnas (`organisationIds`) eller hela landets (`wholeCountry`). Hela
+     * landet kan vara tiotals MB och ta minuter; det läses som ström med större gränser.
+     */
+    async competitors(input: { organisationIds: readonly string[] } | { wholeCountry: true }): Promise<EventorCompetitorList> {
+      const whole = "wholeCountry" in input;
+      if (!whole && (input.organisationIds.length === 0 || input.organisationIds.length > MAX_ORGANISATION_IDS)) fail("INVALID_INPUT");
+      const query = whole ? "" : `organisationIds=${input.organisationIds.map(id).join(",")}&`;
+      return stream(`/api/export/cachedcompetitors?${query}includePreselectedClasses=false`,
+        whole ? { maxBytes: MAX_COUNTRY_BYTES, timeoutMs: countryTimeoutMs } : { maxBytes: MAX_CLUB_BYTES, timeoutMs: timeoutMs * 4 },
+        parseEventorCompetitorStream);
+    },
+    /** Alla organisationer i Eventor (förbund, distrikt och klubbar). */
+    async organisations(): Promise<readonly EventorOrganisationSummary[]> {
+      return stream("/api/organisations", { maxBytes: MAX_CLUB_BYTES, timeoutMs: timeoutMs * 4 }, parseEventorOrganisationStream);
     }
   };
 }

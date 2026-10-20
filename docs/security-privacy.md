@@ -16,7 +16,9 @@ Det finns tre roller på en tävling och inga koder eller credentials som delas 
 
 - **Ägare och administratör** (konto med `OWNER`/`ADMIN` på eventet): allt i tävlingen.
 - **Funktionär** (konto med rollen `FUNCTIONARY`): avläsning (avläsningspaket och inskickade
-  avläsningar), direktanmälan av okänd bricka (inte koppling till en anmäld löpare), kvar i skogen
+  avläsningar), direktanmälan av okänd bricka och, på avläsningssidan, koppling av en okänd bricka till en anmäld
+  deltagare utan bricka eller utan avläsning (PLAN.md steg 29; arbetsytans koppling till valfri deltagare kräver
+  administratör), förslag ur löpardatabasen, kvar i skogen
   (läsa, registrera och ta tillbaka återkomst), startläge, startlistor i arbetsytan och speaker.
   Funktionären når inte banor, klasser, anmälda, lottning, resultatändringar, fastställande,
   publicering, inställningar, import, Eventor, kartor, exporter eller listan över behörigheter.
@@ -41,7 +43,26 @@ Eventor anropas med nyckeln i headern `ApiKey`, utan omdirigeringar, med tidsgr�
 storleksgräns och härdad XML-läsning. Basadressen är Eventor Sverige; bara driften
 kan peka om den (`OTID_EVENTOR_BASE_URL`, för test). Fel visas som läge
 ("Eventor godkände inte nyckeln") utan innehåll från Eventor. Liveprov mot Eventor
-med klubbens riktiga nyckel återstår.
+med klubbens riktiga nyckel: klubbnyckeln, tävlingslistan och klubbens löpare (`cachedcompetitors` med
+`organisationIds`) provade 2026-10-19; hela landets löpare och `/api/organisations` är inte provade.
+
+## Löpardatabasen (PLAN.md steg 29)
+
+- **Vad**: klubbens löpare (och, om administratören väljer det, tillagda klubbars eller hela landets) ur Eventors
+  `cachedcompetitors`: Eventors person-id, förnamn, efternamn, födelseår, kön, klubb (Eventors id, namn, kortnamn) och
+  SPORTident-brickor. Dataminimering: födelsedatum blir år, nationalitet, adresser, andra stämpelsystem och förvalda
+  klasser läses inte. Dessutom Eventors organisationer (id, namn, kortnamn, typ) för klubbfältet.
+- **Varför**: förslag vid okänd bricka i avläsningen (namn, klubb, klass och anmälda utan bricka), även utan nät, och i
+  Ny deltagare; Eventors id följer med till IOF-exporten.
+- **Var och hur länge**: en databas per Eventor-organisation (`runner_database*`), delad av klubbens tävlingar. Den
+  ersätts helt i en transaktion varje gång den uppdateras och finns kvar tills den uppdateras eller raderas
+  ("Radera löpardatabasen"). Auditposten har bara antal, aldrig namn eller brickor.
+- **Vem**: administratören av en tävling vars sparade nyckel tillhör klubben uppdaterar och raderar
+  (`requireRaceRole` ADMIN). Administratörer och funktionärer i klubbens tävlingar får förslag: avläsningspaketet har
+  den egna och de tillagda klubbarnas löpare (högst 10 000) och klubbarna; resten söks på servern
+  (`…/runner-database/search`, funktionär). Inget publikt svar läser tabellerna; route-testet (`race-roles.test.ts`) och
+  integrationstestet `steg-29-lopardatabas` kontrollerar det. Paketet sparas i webbläsarens IndexedDB på avläsningsdatorn
+  som resten av avläsningspaketet.
 
 ## Radiokontroller (ADR-0172 beslut 5)
 

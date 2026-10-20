@@ -17,6 +17,8 @@ const FUNCTIONARY_ALLOWED: Record<string, readonly string[]> = {
   "admin/races/[raceId]/administrator/unknown-readout-resolution": ["GET", "POST"],
   /** PLAN.md steg 25: direktanmälan på avläsningssidan. */
   "admin/races/[raceId]/administrator/readout-registrations": ["POST"],
+  /** PLAN.md steg 29: sökning i löpardatabasen (uppdatera och radera bara administratören). */
+  "admin/races/[raceId]/administrator/runner-database/search": ["POST"],
   "admin/races/[raceId]/administrator/forest-watch": ["GET"],
   "admin/races/[raceId]/administrator/manual-return": ["POST"],
   "admin/races/[raceId]/administrator/manual-return-withdrawal": ["POST"],

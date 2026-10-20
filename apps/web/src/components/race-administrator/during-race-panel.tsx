@@ -80,12 +80,6 @@ export function DuringRaceOverview({ ws }: { ws: Workspace }) {
   </>;
 }
 
-/** Efter en rättning för hela tävlingen: läs deltagarlistan igen (ny paketversion och nya resultat), utan att tömma vyn. */
-async function reloadAfterCorrection(ws: Workspace) {
-  const op = ws.begin(false);
-  try { await ws.load(op); } catch { if (ws.current(op)) ws.setMessage(text.error); } finally { ws.finish(op); }
-}
-
 /**
  * Avläsning: incheckningsjournal, konfliktgranskning, start- och målrättningar. Funktionären ser bara granskningen
  * av sin egen återkomst eller sitt startläge; journalen, konflikterna och tidsrättningarna är administratörens.
@@ -153,7 +147,7 @@ export function DuringRaceFollowUp({ ws }: { ws: Workspace }) {
     </Section>}
     {/* PLAN.md steg 31: rättningar som gäller alla löpare; bara administratören. */}
     {data && !functionary && <Section id={`race-corrections-${raceId}`} title={raceCorrectionsSv.title} help={raceCorrectionsSv.help}>
-      <RaceCorrectionsPanel raceId={raceId} onChanged={() => reloadAfterCorrection(ws)} />
+      <RaceCorrectionsPanel raceId={raceId} onChanged={ws.reloadQuietly} />
     </Section>}
     </section>
   </>;

@@ -137,3 +137,26 @@ describe("steg 31: kontroll ur funktion", () => {
     expect((await latest(ids.race, ids.bo)).evaluation.splits.map(split => split.controlCode)).toEqual([31, 32]);
   });
 });
+
+describe("steg 31: flytta starttider för en klass", () => {
+  it("flyttar alla tilldelade tider i klassen, räknar om de avlästa och går att flytta tillbaka", async () => {
+    const { ids, cards, admin } = await seedRace(db, pool);
+    // Startklockan var fel: Ada (lottad 10:02) startade i själva verket 10:07 och sprang 30 min.
+    await ingest(db, ids.race, [run(cards.ada, "10:07:00", 30)]);
+    expect((await latest(ids.race, ids.ada)).evaluation.elapsedMs).toBe(35 * 60_000);
+    const correction = { action: "SHIFT_START_TIMES" as const, classId: ids.fixed, offsetSeconds: 300, reason: "Starten kom igång sent" };
+    const { preview, applied } = await previewAndApply(admin, correction);
+    // Bo har ingen tilldelad tid och flyttas inte.
+    expect(preview.summary.startTimes).toEqual({ count: 1, firstBefore: `${RACE_DATE}T10:02:00.000Z`, firstAfter: `${RACE_DATE}T10:07:00.000Z`,
+      lastBefore: `${RACE_DATE}T10:02:00.000Z`, lastAfter: `${RACE_DATE}T10:07:00.000Z` });
+    expect(applied.recalculatedCount).toBe(1);
+    expect((await latest(ids.race, ids.ada)).evaluation.elapsedMs).toBe(30 * 60_000);
+    const entry = await pool.query<{ time: Date; version: number }>("SELECT fixed_start_time AS time, version FROM entry WHERE id = $1", [ids.ada]);
+    expect(entry.rows[0]!.time.toISOString()).toBe(`${RACE_DATE}T10:07:00.000Z`);
+    // Fri start kan inte flyttas.
+    expect((await previewRaceCorrectionAsAdmin(db, { ...admin, request: { formatVersion: 1, correction: { ...correction, classId: ids.free } } }, NOW))
+      .status).toBe("conflict");
+    await previewAndApply(admin, { ...correction, offsetSeconds: -300 });
+    expect((await latest(ids.race, ids.ada)).evaluation.elapsedMs).toBe(35 * 60_000);
+  });
+});

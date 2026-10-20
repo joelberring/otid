@@ -55,5 +55,16 @@ export const raceCorrectionsSv = {
   unreachable: "Servern svarar inte. Inget är bekräftat sparat; försök igen.",
   loadError: "Rättningarna kunde inte läsas.",
   status: { OK: "Godkänd", OVERTIME: "Maxtid", MP: "Felstämplad", UNKNOWN_CARD: "Okänd bricka" } as const,
+  shiftTitle: "Flytta starttider",
+  shiftHelp: "Alla tilldelade starttider i klassen flyttas lika mycket, även gemensam start. De som redan läst ut räknas om. Ångra genom att flytta tillbaka lika mycket.",
+  shiftNoClasses: "Ingen klass har lottade eller tilldelade starttider.",
+  shiftClass: "Klass",
+  shiftChooseClass: "Välj klass",
+  shiftReasonPlaceholder: "T.ex. starten kom igång fem minuter sent",
+  shiftReview: (className: string, offset: string) => `Flytta starttider: ${className} ${offset}`,
+  shiftCount: (count: number) => `${count} ${count === 1 ? "starttid flyttas" : "starttider flyttas"}.`,
+  shiftFirst: "Första start",
+  shiftLast: "Sista start",
+  shiftSaved: (count: number) => `Sparat. ${count} resultat räknades om. Publicera startlistan igen så att den visar de nya tiderna.`,
   adjustedNotice: (labels: readonly string[]) => `Tiden är justerad: ${labels.join(", ")}.`
 };

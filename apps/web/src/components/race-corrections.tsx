@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from
 import type { RaceCorrection, RaceCorrectionAction, RaceCorrectionPreviewResponse } from "@o-tid/contracts";
 import { raceCorrectionsSv as text } from "../i18n/race-corrections-sv";
 import { applyRaceCorrection, fetchRaceCorrections, previewRaceCorrection, type RaceCorrectionFailure } from "../lib/race-corrections-client";
+import { formatClockTime } from "../lib/clock-time";
 import styles from "./race-administrator-workspace.module.css";
 
 /**
@@ -189,4 +190,55 @@ export function RaceCorrectionsPanel({ raceId, onChanged }: { raceId: string; on
     {error && <p className={styles.warning} role="alert">{error}</p>}
     {corrections && <CorrectionList raceId={raceId} corrections={corrections} onSaved={onSaved} />}
   </div>;
+}
+
+/**
+ * "Flytta starttider" (PLAN.md steg 31) i Start: alla tilldelade starttider i en klass med minutstart flyttas lika mycket,
+ * även gemensam start. De som läst ut räknas om. Ångra = flytta tillbaka lika mycket.
+ */
+export function ShiftStartTimes({ raceId, classes, timeZone, onChanged }: { raceId: string; timeZone: string;
+  classes: readonly { id: string; name: string; startRule: "FIXED" | "PUNCH"; relayLegCount?: number | undefined }[];
+  onChanged?: () => Promise<void> }) {
+  const flow = useRaceCorrection(raceId, onChanged);
+  const fixed = classes.filter(row => row.startRule === "FIXED" && row.relayLegCount === undefined);
+  const [classId, setClassId] = useState(""), [sign, setSign] = useState<"-" | "+">("+");
+  const [minutes, setMinutes] = useState(""), [reason, setReason] = useState(""), [open, setOpen] = useState(false);
+  const offsetSeconds = (sign === "-" ? -1 : 1) * (Number(minutes) || 0) * 60;
+  const valid = !!classId && offsetSeconds !== 0 && Math.abs(offsetSeconds) <= 86_400 && reason.trim().length > 0;
+  const locked = flow.busy || !!flow.attempt;
+  const className = fixed.find(row => row.id === classId)?.name ?? "";
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    if (valid) void flow.show({ action: "SHIFT_START_TIMES", classId, offsetSeconds, reason: reason.trim() });
+  }
+  const times = flow.attempt?.preview.summary.startTimes;
+  const clock = (value: string | null) => value ? formatClockTime(value, timeZone) : "–";
+  return <details className={styles.disclosure} open={open || !!flow.attempt} onToggle={event => setOpen(event.currentTarget.open)}>
+    <summary>{text.shiftTitle}</summary>
+    <form className={styles.disclosureBody} onSubmit={submit}>
+      <p>{text.shiftHelp}</p>
+      {fixed.length === 0 ? <p>{text.shiftNoClasses}</p> : <>
+        <label>{text.shiftClass}<select value={classId} disabled={locked} onChange={event => setClassId(event.target.value)}>
+          <option value="">{text.shiftChooseClass}</option>{fixed.map(row => <option key={row.id} value={row.id}>{row.name}</option>)}
+        </select></label>
+        <div className={styles.toolbarRow}>
+          <label>{text.direction}<select value={sign} disabled={locked} onChange={event => setSign(event.target.value as "-" | "+")}>
+            <option value="+">{text.later}</option><option value="-">{text.earlier}</option>
+          </select></label>
+          <label>{text.minutes}<input type="text" inputMode="numeric" value={minutes} disabled={locked}
+            onChange={event => setMinutes(event.target.value.replace(/\D/g, "").slice(0, 4))} /></label>
+        </div>
+        <label>{text.reason}<input type="text" maxLength={500} value={reason} placeholder={text.shiftReasonPlaceholder} disabled={locked}
+          onChange={event => setReason(event.target.value)} required /></label>
+        {!flow.attempt && <button type="submit" disabled={!valid || flow.busy}>{text.show}</button>}
+      </>}
+      <RaceCorrectionReview flow={flow} title={text.shiftReview(className, text.signedMinutes(offsetSeconds * 1000))}
+        savedText={text.shiftSaved} extra={times && <div className={styles.summaryBox}>
+          <p>{text.shiftCount(times.count)}</p>
+          <p>{text.shiftFirst}: {clock(times.firstBefore)} → {clock(times.firstAfter)}</p>
+          <p>{text.shiftLast}: {clock(times.lastBefore)} → {clock(times.lastAfter)}</p>
+        </div>} />
+      <RaceCorrectionMessages flow={flow} />
+    </form>
+  </details>;
 }

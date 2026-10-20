@@ -12,6 +12,7 @@ import { StartLists } from "../lists/start-lists";
 import { Button, Notice, Section } from "../ui";
 import { StartDrawPanel } from "./start-draw-panel";
 import { RelayStartTimes } from "./relay-panels";
+import { ShiftStartTimes } from "../race-corrections";
 import type { Workspace } from "./workspace-state";
 
 /**
@@ -76,7 +77,11 @@ export function PreparationStartList({ ws }: { ws: Workspace }) {
     {profile.features.draw && <StartDrawPanel ws={ws} visible={visible} number={1} />}
     {profile.features.relay && <RelayStartTimes ws={ws} visible={visible} number={1} />}
     <Section id={`start-lists-${raceId}`} title={publicationText.listHeading} number={first ? 2 : 1}
-      help={publicationText.listHelp}>{lists}</Section>
+      help={publicationText.listHelp}>{lists}
+      {/* PLAN.md steg 31: flytta en klass starttider; bara administratören. */}
+      {data && <div className={styles.disclosureList}><ShiftStartTimes raceId={raceId} classes={data.classes} timeZone={data.timeZone}
+        onChanged={ws.reloadQuietly} /></div>}
+    </Section>
     <StartPublication ws={ws} visible={visible} number={first ? 3 : 2} />
   </section>;
 }

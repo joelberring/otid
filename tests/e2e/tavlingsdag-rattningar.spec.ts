@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { addCourseAndClass, addEntry, createRace, ongoingRaceTimeZone, openStep, registerAccount, reviewScreenshots, sendReadout, today,
+import { addCourseAndClass, addEntry, createRace, ongoingRaceTimeZone, openCourseForm, openStep, registerAccount, reviewScreenshots, sendReadout, today,
   unique, warmRoute } from "./helpers";
 
 /**
@@ -95,4 +95,49 @@ test("justera tid för en station räknar om alla och kan tas bort", async ({ br
   await openStep(owner, "Anmälda");
   const cia = await openCard(owner, "Cia Testsson", "Godkänd");
   await expect(cia.getByRole("row", { name: /^2 32/ })).toContainText("Ur funktion");
+});
+
+test("flytta starttider för en klass räknar om de avlästa", async ({ browser }) => {
+  test.setTimeout(300_000);
+  const suffix = unique();
+  const owner = await registerAccount(browser, `steg31a3.${suffix}@exempel.se`, "Kim Klubb");
+  const raceId = await createRace(owner, `Startklocka ${suffix}`, today(new Date(), TIME_ZONE), "Tävling", TIME_ZONE);
+  await warmRoute(owner, `/api/admin/races/${raceId}/administrator/course-classes`, "POST");
+  await openStep(owner, "Banor");
+  const courseForm = await openCourseForm(owner);
+  await courseForm.getByLabel("Bannamn").fill("Lång");
+  await courseForm.getByLabel("Klassnamn").fill("H21");
+  await courseForm.getByLabel("Startsätt").selectOption({ label: "Minutstart" });
+  await courseForm.getByLabel("Kontrollföljd").fill("31 32");
+  await courseForm.getByRole("button", { name: "Spara bana och klass" }).click();
+  await expect(owner.getByText("Banan och klassen är sparade.")).toBeVisible({ timeout: 30_000 });
+  // Lottad för 45 minuter sedan, men starten kom igång fem minuter sent.
+  const minute = Math.floor(base / 60_000) * 60_000;
+  const clock = (ms: number) => new Intl.DateTimeFormat("sv-SE", { timeZone: TIME_ZONE, hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+    .format(new Date(ms));
+  const drawn = minute - 45 * 60_000;
+  await addEntry(owner, { className: "H21", givenName: "Dan", familyName: "Testsson", club: "OK Test", card: "8131004", startTime: clock(drawn) });
+  const at = (ms: number) => new Date(ms).toISOString();
+  await sendReadout(owner, raceId, { cardNumber: "8131004", startPunchedAt: at(drawn + 5 * 60_000), finishPunchedAt: at(drawn + 35 * 60_000),
+    punches: [{ code: 31, punchedAt: at(drawn + 15 * 60_000) }, { code: 32, punchedAt: at(drawn + 25 * 60_000) }] });
+
+  await warmRoute(owner, `/api/admin/races/${raceId}/administrator/race-corrections/preview`, "POST");
+  await owner.reload();
+  await openStep(owner, "Start");
+  await owner.getByText("Flytta starttider", { exact: true }).click();
+  const shift = owner.locator("form").filter({ has: owner.getByText(/Alla tilldelade starttider/) });
+  await shift.getByLabel("Klass").selectOption({ label: "H21" });
+  await shift.getByLabel("Minuter").fill("5");
+  await shift.getByLabel("Varför").fill("Starten kom igång sent");
+  await shift.getByRole("button", { name: "Visa vad som händer" }).click();
+  const review = shift.getByRole("alert", { name: "Flytta starttider: H21 +5 min" });
+  await expect(review).toContainText("1 starttid flyttas.");
+  await expect(review).toContainText(`Första start: ${clock(drawn)}:00 → ${clock(drawn + 5 * 60_000)}:00`);
+  await expect(review).toContainText("1 löpare får ny tid eller ny status.");
+  await reviewScreenshots(owner, "steg31-flytta-starttider");
+  await review.getByRole("button", { name: "Spara och räkna om" }).click();
+  await expect(shift.getByRole("status")).toContainText("Publicera startlistan igen", { timeout: 30_000 });
+  await openStep(owner, "Anmälda");
+  const card = await openCard(owner, "Dan Testsson", "Godkänd");
+  await expect(card.getByRole("region", { name: "Resultat", exact: true })).toContainText("30:00");
 });

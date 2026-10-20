@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import {
   raceCorrectionCommitRequestSchema, raceCorrectionCommitResponseSchema, raceCorrectionListResponseSchema,
   raceCorrectionPreviewRequestSchema, raceCorrectionPreviewResponseSchema,
@@ -13,7 +13,8 @@ import { bumpReadoutPackageVersion, loadRaceSnapshot } from "./snapshot";
 import { canonicalHash } from "./serialization";
 
 /**
- * Rättningar för hela tävlingen (PLAN.md steg 31): tidsjustering för en station, kontroll ur funktion och att ta bort dem. Varje åtgärd
+ * Rättningar för hela tävlingen (PLAN.md steg 31): tidsjustering för en station, kontroll ur funktion och att ta bort dem,
+ * samt att flytta en klass starttider (ångra = flytta tillbaka). Varje åtgärd
  * görs i en transaktion som också räknar om alla avlästa löpare i tävlingen med samma omprövning som banändringar
  * (`result-reassessment.ts`): en löpare med manuellt rättad tid räknas inte om, och beskedet säger hur många.
  * "Visa vad som händer" kör exakt samma åtgärd och rullar tillbaka; sparandet kräver att beskedet är oförändrat.
@@ -39,9 +40,11 @@ interface Applied {
 const AUDIT_ACTION = "RACE_CORRECTION_APPLIED_BY_ADMIN";
 
 /** Genomför ändringen i databasen. Ger det som revisionen ska bära i auditposten, eller ett fel. */
+type StartTimes = NonNullable<Summary["startTimes"]>;
+
 async function mutate(tx: Transaction, raceId: string, accountId: string, correctionId: string, correction: RaceCorrectionAction,
   now: Date): Promise<Failure | { entity: { type: string; id: string }; before: Record<string, unknown> | null; after: Record<string, unknown>;
-    bump: boolean }> {
+    bump: boolean; startTimes?: StartTimes }> {
   switch (correction.action) {
     case "ADD_TIME_ADJUSTMENT": {
       const station = correction.station, controlCode = correction.controlCode ?? null;
@@ -83,6 +86,33 @@ async function mutate(tx: Transaction, raceId: string, accountId: string, correc
         before: { kind: row.kind, station: row.station, controlCode: row.controlCode, offsetMs: row.offsetMs, reason: row.reason },
         after: { removed: true } };
     }
+    case "SHIFT_START_TIMES": {
+      // Lottade eller tilldelade starttider i klassen, även gemensam start (alla har samma tid). Strukna flyttas inte.
+      const [raceClass] = await tx.select({ id: schema.classes.id, startRule: schema.classes.startRule }).from(schema.classes)
+        .where(and(eq(schema.classes.id, correction.classId), eq(schema.classes.raceId, raceId)));
+      if (!raceClass) return { status: "not-found" };
+      // Stafettens starttider har ett eget flöde (masstart och omstart per sträcka).
+      const [relay] = await tx.select({ leg: schema.relayLegs.leg }).from(schema.relayLegs)
+        .where(and(eq(schema.relayLegs.classId, raceClass.id), eq(schema.relayLegs.raceId, raceId))).limit(1);
+      if (raceClass.startRule !== "FIXED" || relay) return { status: "conflict" };
+      const entries = await tx.select({ id: schema.entries.id, version: schema.entries.version, fixedStartTime: schema.entries.fixedStartTime })
+        .from(schema.entries).where(and(eq(schema.entries.raceId, raceId), eq(schema.entries.classId, raceClass.id),
+          isNull(schema.entries.struckAt), isNotNull(schema.entries.fixedStartTime)))
+        .orderBy(asc(schema.entries.fixedStartTime), asc(schema.entries.id)).for("update");
+      if (entries.length === 0 || entries.some(entry => entry.version >= 2_147_483_647)) return { status: "conflict" };
+      const offsetMs = correction.offsetSeconds * 1000;
+      for (const entry of entries) {
+        await tx.update(schema.entries).set({ fixedStartTime: new Date(entry.fixedStartTime!.getTime() + offsetMs), version: entry.version + 1 })
+          .where(and(eq(schema.entries.id, entry.id), eq(schema.entries.version, entry.version)));
+      }
+      const first = entries[0]!.fixedStartTime!, last = entries[entries.length - 1]!.fixedStartTime!;
+      const shift = (date: Date) => new Date(date.getTime() + offsetMs).toISOString();
+      const startTimes: StartTimes = { count: entries.length, firstBefore: first.toISOString(), firstAfter: shift(first),
+        lastBefore: last.toISOString(), lastAfter: shift(last) };
+      return { entity: { type: "class", id: raceClass.id }, bump: true, startTimes,
+        before: { firstStartTime: startTimes.firstBefore, lastStartTime: startTimes.lastBefore, entryIds: entries.map(entry => entry.id) },
+        after: { offsetMs, reason: correction.reason, firstStartTime: startTimes.firstAfter, lastStartTime: startTimes.lastAfter } };
+    }
     default:
       return { status: "invalid-request" };
   }
@@ -104,7 +134,8 @@ async function apply(tx: Transaction, raceId: string, accountId: string, correct
   if (assessed === "too-large") return { status: "conflict" };
   const totals = summarizeAssessment(assessed);
   const summary: Summary = { readOutCount: totals.readOutCount, notRecalculatedCount: totals.notRecalculatedCount,
-    affectedCount: assessed.filter(row => row.changed).length, changes: totals.changes };
+    affectedCount: assessed.filter(row => row.changed).length, changes: totals.changes,
+    ...(changed.startTimes ? { startTimes: changed.startTimes } : {}) };
   const previewHash = canonicalHash({ raceId, snapshotVersion: race.snapshotVersion, correction, summary,
     entries: assessed.map(row => [row.entryId, row.latest?.id ?? null, row.readout.id, row.recalculate, row.changed]) });
   const courseVersions = new Map(classes.flatMap(row => row.courseVersionId ? [[row.id, row.courseVersionId] as const] : []));

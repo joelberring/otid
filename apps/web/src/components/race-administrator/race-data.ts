@@ -84,6 +84,11 @@ export function createRaceDataActions(ws: Base & MobileNavigation) {
     try { await load(op); setMessage(""); }
     catch { if (current(op)) setMessage(text.error); } finally { finish(op); }
   }
-  return { loadEffectiveResult, load, session, logout, refresh };
+  /** Läser deltagarlistan igen utan att tömma vyn, t.ex. efter en rättning för hela tävlingen (PLAN.md steg 31). */
+  async function reloadQuietly() {
+    const op = begin(false);
+    try { await load(op); } catch { if (current(op)) setMessage(text.error); } finally { finish(op); }
+  }
+  return { loadEffectiveResult, load, session, logout, refresh, reloadQuietly };
 }
 export type RaceDataActions = ReturnType<typeof createRaceDataActions>;

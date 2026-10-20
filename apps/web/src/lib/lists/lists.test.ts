@@ -68,6 +68,19 @@ describe("startlistan per klubb och sökning", () => {
     expect(model.classes[0]!.mode).toEqual({ kind: "MASS", time: at("10:00") });
     expect(model.classes[0]!.entries[0]!.card).toBeUndefined();
   });
+
+  it("steg 33: den publicerade listan visar bricka bara när tävlingen visar bricknummer", () => {
+    const content = { eventName: "E", raceName: "R", raceDate: "2026-10-08", timeZone: "Europe/Stockholm",
+      classes: [{ name: "Öppen", startRule: "PUNCH" as const, entries: [
+        { displayName: "A B", organisationName: null, fixedStartTime: null, cardNumber: "8123456" },
+        { displayName: "C D", organisationName: null, fixedStartTime: null }] }] };
+    const shown = startListFromPublication(content, true);
+    expect(shown.cards).toBe(true);
+    expect(shown.classes[0]!.entries.map(entry => entry.card)).toEqual(["8123456", null]);
+    const hidden = startListFromPublication(content);
+    expect(hidden.cards).toBe(false);
+    expect(hidden.classes[0]!.entries[0]!.card).toBeUndefined();
+  });
 });
 
 const results: PublicResultListResponse = { formatVersion: 7, results: [

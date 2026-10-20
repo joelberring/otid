@@ -13,7 +13,8 @@ export type RaceSettingsResult = Failure | { status: "saved"; response: RaceSett
 const MAX_VERSION = 2_147_483_647;
 
 /**
- * Inställningar (ADR-0170 beslut 1): tävlingens namn, loppets namn, datum och tävlingstyp.
+ * Inställningar (ADR-0170 beslut 1): tävlingens namn, loppets namn, datum och tävlingstyp, och (steg 33) bricka i den
+ * publika startlistan, kort info om tävlingen och första start (bara information, påverkar inga tider).
  * Sparas direkt med request-id (samma id ger samma kvitto) och ökar tävlingsversionen så att
  * avläsningspaketet hämtas på nytt med de nya namnen. Typen styr bara vad arbetsytan visar:
  * att byta typ tar aldrig bort data. Datumet kan bara ändras så länge loppet saknar fasta
@@ -45,7 +46,8 @@ export async function saveRaceSettingsAsAdmin(db: Database, input: Authenticatio
     }
     if (locked.snapshotVersion >= MAX_VERSION) return { status: "conflict" };
     const [race] = await tx.select({ eventId: schema.races.eventId, name: schema.races.name, raceDate: schema.races.raceDate,
-      raceType: schema.races.raceType, eventName: schema.events.name })
+      raceType: schema.races.raceType, eventName: schema.events.name, publicStartListCardNumbers: schema.races.publicStartListCardNumbers,
+      info: schema.races.info, firstStartTime: schema.races.firstStartTime })
       .from(schema.races).innerJoin(schema.events, eq(schema.events.id, schema.races.eventId))
       .where(eq(schema.races.id, raceId));
     if (!race) return { status: "not-found" };
@@ -57,7 +59,11 @@ export async function saveRaceSettingsAsAdmin(db: Database, input: Authenticatio
       if (fixedStart || readout) return { status: "conflict" };
     }
     const snapshotVersionAfter = locked.snapshotVersion + 1;
-    await tx.update(schema.races).set({ name: intent.raceName, raceDate: intent.raceDate, raceType: intent.raceType,
+    // Steg 33: fält som saknas i förfrågan (äldre klient) behåller sitt värde.
+    const info = { publicStartListCardNumbers: intent.publicStartListCardNumbers ?? race.publicStartListCardNumbers,
+      info: intent.info === undefined ? race.info : intent.info,
+      firstStartTime: intent.firstStartTime === undefined ? race.firstStartTime : intent.firstStartTime };
+    await tx.update(schema.races).set({ name: intent.raceName, raceDate: intent.raceDate, raceType: intent.raceType, ...info,
       snapshotVersion: snapshotVersionAfter }).where(eq(schema.races.id, raceId));
     // Ett event med ett enda lopp (så skapar kontot tävlingar) får samma namn och startdatum som loppet.
     const [otherRace] = await tx.select({ id: schema.races.id }).from(schema.races)
@@ -72,9 +78,10 @@ export async function saveRaceSettingsAsAdmin(db: Database, input: Authenticatio
     await tx.insert(schema.auditEvents).values({ raceId, entityType: "race", entityId: raceId, requestId: intent.requestId,
       actorKind: "USER_ACCOUNT", actorId: auth.principal.accountId, action: "RACE_SETTINGS_SAVED_BY_ADMIN",
       before: { eventName: race.eventName, raceName: race.name, raceDate: race.raceDate, raceType: race.raceType,
+        publicStartListCardNumbers: race.publicStartListCardNumbers, info: race.info, firstStartTime: race.firstStartTime,
         snapshotVersion: locked.snapshotVersion },
       after: { eventName: intent.eventName, raceName: intent.raceName, raceDate: intent.raceDate, raceType: intent.raceType,
-        snapshotVersion: snapshotVersionAfter }, createdAt: now });
+        ...info, snapshotVersion: snapshotVersionAfter }, createdAt: now });
     return { status: "saved", response };
   });
 }

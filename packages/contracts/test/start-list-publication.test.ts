@@ -5,7 +5,7 @@ const raceClass = { name: "D21", startRule: "FIXED" as const, entries: [entry] }
 const content = { eventName: "E", raceName: "R", raceDate: "2026-09-04", timeZone: "Europe/Stockholm", classes: [raceClass] };
 const published = { formatVersion: 1, revision: 1, publishedAt: "2026-09-04T07:00:00.000Z", content };
 describe("TASK 006S publiceringskontrakt", () => {
-  it("är strikt och lämnar aldrig id eller bricka offentligt", () => {
+  it("är strikt och lämnar aldrig id offentligt, och bricka bara när den visas", () => {
     expect(publicStartListResponseSchema.safeParse(published).success).toBe(true);
     for (const invalid of [
       { ...content, classes: [{ ...raceClass, id: "x" }] },
@@ -14,6 +14,14 @@ describe("TASK 006S publiceringskontrakt", () => {
       { ...content, classes: [] },
       { ...content, timeZone: "Bad/Zone" },
     ]) expect(publicStartListResponseSchema.safeParse({ ...published, content: invalid }).success).toBe(false);
+  });
+  it("steg 33: bricka bara när tävlingen visar bricknummer", () => {
+    const withCard = { ...content, classes: [{ ...raceClass, entries: [{ ...entry, cardNumber: "8123456" }] }] };
+    expect(publicStartListResponseSchema.safeParse({ ...published, showCardNumbers: true, content: withCard }).success).toBe(true);
+    expect(publicStartListResponseSchema.safeParse({ ...published, showCardNumbers: false, content: withCard }).success).toBe(false);
+    expect(publicStartListResponseSchema.parse(published).showCardNumbers).toBe(false);
+    expect(publicStartListResponseSchema.safeParse({ ...published, showCardNumbers: true,
+      content: { ...content, classes: [{ ...raceClass, entries: [{ ...entry, cardNumber: "1", entryId: "x" }] }] } }).success).toBe(false);
   });
   it("binder nullable preview och mutationsintent", () => {
     const base = { formatVersion: 1, raceId: "10000000-0000-4000-8000-000000000001", snapshotVersion: 1, latestDecision: null };

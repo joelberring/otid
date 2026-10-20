@@ -11,14 +11,28 @@ export type RaceType = z.infer<typeof raceTypeSchema>;
 
 const name = z.string().trim().min(2).max(160);
 
-/** Inställningar: tävlingens namn, loppets namn, datum och typ. Sparas direkt (inget resultat ändras). */
+/**
+ * Steg 33: kort info om tävlingen. Ren text (ingen HTML eller markdown), radbrytningar bevaras, högst 1000 tecken.
+ * Inga styrtecken utom radbrytning och tab; inga inledande eller avslutande blanksteg.
+ */
+export const raceInfoSchema = z.string().min(1).max(1000)
+  // eslint-disable-next-line no-control-regex
+  .refine(value => value === value.trim() && !/[\u0000-\u0008\u000B-\u001F\u007F]/.test(value));
+/** Steg 33: första start som klockslag på tävlingsdagen (HH:MM). Bara information. */
+export const raceFirstStartTimeSchema = z.string().regex(/^([01][0-9]|2[0-3]):[0-5][0-9]$/);
+
+/** Inställningar: tävlingens namn, loppets namn, datum, typ, bricka i publik startlista, kort info och första start. Sparas direkt (inget resultat ändras). */
 export const raceSettingsRequestSchema = z.object({
   formatVersion: z.literal(1),
   requestId: uuid,
-    eventName: name,
+  eventName: name,
   raceName: name,
   raceDate: z.iso.date(),
-  raceType: raceTypeSchema
+  raceType: raceTypeSchema,
+  /** Steg 33. Saknas i förfrågningar sparade före steg 33; då ändras inte värdet. */
+  publicStartListCardNumbers: z.boolean().optional(),
+  info: raceInfoSchema.nullable().optional(),
+  firstStartTime: raceFirstStartTimeSchema.nullable().optional()
 }).strict();
 export const raceSettingsIdempotencyKeySchema = z.string().regex(/^race-settings:[0-9a-f-]{36}$/);
 

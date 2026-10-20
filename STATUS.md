@@ -10,6 +10,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-10-20 – Steg 33: tävlingsinfo och bricka i startlistan
+- Inställningar → "Information till löparna": "Kort info om tävlingen" (ren text, högst 1000 tecken, radbrytningar behålls), "Första start" (TT:MM, bara information: påverkar inte tävlingsklocka, lottning eller starttider) och "Visa bricknummer i den publika startlistan" (på som standard). Migration 0011 (kolumner på `race`, på även för befintliga tävlingar), auditpost i `RACE_SETTINGS_SAVED_BY_ADMIN`.
+- Infon visas överst på tävlingssidan (/t/{kod}) och i arbetsytans Start-steg (Avläsning för typer utan Start), för admin och funktionärer. Tomma fält visas inte.
+- Den publicerade startlistan har aktiv bricka i ögonblicksbilden; `getPublicStartList` tar bort den när inställningen är av (gäller direkt, även redan publicerad lista). En ändrad bricka syns efter ny publicering. Live, resultat, speaker och IOF-exporten är oförändrade.
+- Tester: kontrakt `start-list-publication`, web `lists`/`public-start-list-route`, integration `steg-33-tavlingsinfo` (+ `steg-28` lägger till kolumnerna för den gamla databasen), Playwright `tavlingsinfo`, `listor` (publika listan visar nu bricka).
+
 ### 2026-10-20 – Steg 32: avläsning på läsplatta (Android) via WebUSB
 - Chrome på Android ser inte stationens CP210x-chip som serieport ("Inga kompatibla enheter hittades"). `device-transport/src/webusb-cp210x-port.ts`: CP210x över WebUSB med samma styrkommandon som Linux `cp210x.c` (IFC_ENABLE, SET_BAUDRATE, SET_LINE_CTL 8N1, SET_MHS DTR/RTS, PURGE), samma gränssnitt som en Web Serial-port, så att `WebSerialTransport` och avläsningen är oförändrade.
 - Avläsningssidan: "Anslut via USB (läsplatta)" på Android (eller utan Web Serial); en annan app som håller stationen ger ett tydligt besked. `usb=(self)` i avläsningens Permissions-Policy.

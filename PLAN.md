@@ -622,6 +622,15 @@ Del B – enskilda löpare, brickor och avläsningens robusthet:
 
 - [x] CP210x-drivrutin över WebUSB och "Anslut via USB (läsplatta)" på avläsningssidan. Provas på riktig platta.
 
+## [x] Steg 33 – Tävlingsinfo och bricka i startlistan
+
+Ägarens önskemål 2026-10-20: bricknummer i startlistan även för de som inte är inloggade, kort info om tävlingen och när
+första start är (infopunkt, inte tävlingsklocka), synligt för alla.
+
+- [x] Inställningar: "Visa bricknummer i den publika startlistan" (på som standard), "Kort info om tävlingen" och "Första start".
+- [x] Publicerad startlista med kolumnen Bricka när inställningen är på; avstängd döljer den direkt. Inga brickor i Live, resultat eller speaker.
+- [x] Infon överst på tävlingssidan och i arbetsytans Start-steg.
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

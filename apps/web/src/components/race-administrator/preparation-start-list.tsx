@@ -14,6 +14,7 @@ import { StartDrawPanel } from "./start-draw-panel";
 import { RelayStartTimes } from "./relay-panels";
 import { ShiftStartTimes } from "../race-corrections";
 import type { Workspace } from "./workspace-state";
+import { RaceInfo } from "../race-info";
 
 /**
  * Publiceringen av startlistan (PLAN.md steg 13): läget i en mening och en tydlig åtgärd. Läses in när Start visas
@@ -39,7 +40,7 @@ function StartPublication({ ws, visible, number }: { ws: Workspace; visible: boo
   const changed = published && latest.sourceHash !== publicationPreview?.sourceHash;
   const publishable = !!publicationPreview?.content?.classes.some(row => row.entries.length > 0);
   return <Section id={`start-publication-${raceId}`} title={publicationText.heading} number={number}
-    help={publicationText.shortHelp}
+    help={publicationText.shortHelp(data?.publicStartListCardNumbers ?? true)}
     actions={<Link href={`/starts/${raceId}`}>{publicationText.publicLink}</Link>}>
     {!publicationPreview ? <div className={styles.actions}><p className={styles.muted}>{publicationText.loading}</p>
       {!busy && <Button variant="quiet" disabled={disabled} onClick={() => { attempted.current = undefined; void loadPublication(); }}>{text.retry}</Button>}</div>
@@ -71,9 +72,12 @@ export function PreparationStartList({ ws }: { ws: Workspace }) {
   const lists = model && (functionary ? <StartLists model={model} disabled={disabled} exportable={false} />
     : <StartLists model={model} onSelectEntry={id => select(id)} disabled={disabled}
       iof={{ onSelect: () => void downloadStartList(), disabled }} />);
-  if (functionary) return <section className={styles.workflowGroup} aria-label={navigationText.steps.START} hidden={!visible}>{lists}</section>;
+  // Steg 33: kort info och första start överst i Start-steget, för administratören och funktionärerna.
+  const info = data && <RaceInfo info={data.info} firstStartTime={data.firstStartTime} heading="h3" />;
+  if (functionary) return <section className={styles.workflowGroup} aria-label={navigationText.steps.START} hidden={!visible}>{info}{lists}</section>;
   const first = profile.features.draw || profile.features.relay;
   return <section className={styles.workflowGroup} aria-label={navigationText.steps.START} hidden={!visible}>
+    {info}
     {profile.features.draw && <StartDrawPanel ws={ws} visible={visible} number={1} />}
     {profile.features.relay && <RelayStartTimes ws={ws} visible={visible} number={1} />}
     <Section id={`start-lists-${raceId}`} title={publicationText.listHeading} number={first ? 2 : 1}

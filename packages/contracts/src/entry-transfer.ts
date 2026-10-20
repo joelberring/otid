@@ -4,7 +4,7 @@ import { fixedStartTimeSchema } from "./entry-start-time-admin";
 import { classMaxEntriesSchema } from "./class-capacity";
 import { speakerBoardEffectiveResultSchema } from "./speaker-board";
 import { courseVariantCodeSchema } from "./course-edit";
-import { raceTypeSchema } from "./race-settings";
+import { raceFirstStartTimeSchema, raceInfoSchema, raceTypeSchema } from "./race-settings";
 import { racePublicationStateSchema } from "./race-publication";
 import { prefixedUuidPattern, uuidSchema as uuid } from "./ids";
 
@@ -47,6 +47,10 @@ export const entryTransferCandidatesSchema = z.object({
   raceType: raceTypeSchema,
   /** ADR-0172 beslut 4: publicerad tävling och kort adress till tävlingssidan. */
   publication: racePublicationStateSchema,
+  /** Steg 33: Inställningar → bricka i den publika startlistan, kort info och första start (bara information). */
+  publicStartListCardNumbers: z.boolean().optional(),
+  info: raceInfoSchema.nullable().optional(),
+  firstStartTime: raceFirstStartTimeSchema.nullable().optional(),
   generatedAt: z.iso.datetime({ offset: true }),
   timeZone: z.string().min(1).max(100).refine(value => {
     try { new Intl.DateTimeFormat("sv-SE", { timeZone: value }); return true; } catch { return false; }

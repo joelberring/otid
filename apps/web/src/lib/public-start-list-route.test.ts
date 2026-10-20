@@ -5,7 +5,7 @@ import { publicStartListRoute } from "./public-start-list-route";
 
 it("lämnar bara validerad fryst publik data utan cookies/cache och inget innehåll vid withdrawal/fel", async () => {
   const db = {} as Database;
-  const response = { formatVersion: 1 as const, revision: 1, iofExportAvailable: true, publishedAt: "2026-09-04T10:00:00Z",
+  const response = { formatVersion: 1 as const, revision: 1, iofExportAvailable: true, showCardNumbers: false, publishedAt: "2026-09-04T10:00:00Z",
     content: { eventName: "Träning", raceName: "Medel", raceDate: "2026-09-04", timeZone: "Europe/Stockholm",
       classes: [{ name: "Öppen", startRule: "PUNCH" as const, entries: [{ displayName: "Ada", organisationName: null, fixedStartTime: null }] }] } };
   const published = await publicStartListRoute(db, "race", async () => ({ status: "published", response }));
@@ -18,4 +18,11 @@ it("lämnar bara validerad fryst publik data utan cookies/cache och inget inneh�
   const unsafe = async () => ({ status: "published", response: { ...response, actorCredentialId: "private" } });
   const failure = await publicStartListRoute(db, "race", unsafe as unknown as typeof getPublicStartList);
   expect(failure.status).toBe(503); expect(await failure.text()).toBe("");
+  // Steg 33: bricka bara när tävlingen visar bricknummer.
+  const withCard = { ...response, content: { ...response.content, classes: [{ ...response.content.classes[0]!,
+    entries: [{ ...response.content.classes[0]!.entries[0]!, cardNumber: "8123456" }] }] } };
+  const hidden = await publicStartListRoute(db, "race", async () => ({ status: "published", response: withCard }));
+  expect(hidden.status).toBe(503);
+  const shown = await publicStartListRoute(db, "race", async () => ({ status: "published", response: { ...withCard, showCardNumbers: true } }));
+  expect(shown.status).toBe(200); expect(JSON.stringify(await shown.json())).toContain("8123456");
 });

@@ -69,6 +69,8 @@ export async function raceIdForShortCode(db: Database, code: string): Promise<st
 export type PublicRaceHub = {
   raceId: string; shortCode: string; eventName: string; raceName: string; raceDate: string; raceType: RaceType;
   timeZone: string; startListPublished: boolean; hasResults: boolean;
+  /** Steg 33: kort info om tävlingen (ren text) och första start (HH:MM, bara information). null = inte ifyllt. */
+  info: string | null; firstStartTime: string | null;
   /** Senaste ändringen som syns publikt: publiceringen, startlistan eller ett resultat. */
   lastUpdate: string | null;
 };
@@ -78,6 +80,7 @@ export async function readPublicRaceHub(db: Database, raceId: string): Promise<P
   const [race] = await db.select({
     raceId: schema.races.id, shortCode: schema.races.shortCode, eventName: schema.events.name, raceName: schema.races.name,
     raceDate: schema.races.raceDate, raceType: schema.races.raceType, timeZone: schema.events.timeZone, startListPublished,
+    info: schema.races.info, firstStartTime: schema.races.firstStartTime,
     publishedAt: schema.races.publishedAt,
     lastResult: sql<string | null>`(select extract(epoch from max(${schema.resultRevisions.createdAt})) * 1000
       from ${schema.resultRevisions} where ${schema.resultRevisions.raceId} = ${schema.races.id} and ${schema.resultRevisions.published})`,

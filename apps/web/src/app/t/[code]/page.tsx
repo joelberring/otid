@@ -12,6 +12,7 @@ import { raceTypeProfile } from "../../../lib/race-sections";
 import { PreviewBanner } from "../../../components/public-race/preview-banner";
 import { hasSplitAnalysis } from "../../../components/public-race/race-list";
 import { PublicLinkShare } from "../../../components/public-link-share";
+import { RaceInfo } from "../../../components/race-info";
 import styles from "../../../components/public-race/public-race.module.css";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +31,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 }
 
 /**
- * Tävlingssidan (ADR-0172 beslut 4) med kort adress: navet för besökare. Startlista, resultat, Live (PLAN.md steg 30),
+ * Tävlingssidan (ADR-0172 beslut 4) med kort adress: navet för besökare. Kort info och första start (steg 33), startlista, resultat, Live (PLAN.md steg 30),
  * sträcktidsanalys och vägval när de finns, radiokontroller live, senaste uppdatering och adressen att dela.
  */
 export default async function RaceHubPage({ params }: Params) {
@@ -48,6 +49,7 @@ export default async function RaceHubPage({ params }: Params) {
       <h1>{hub.eventName}</h1>
       <p>{details.join(" · ")}</p>
     </div>
+    <RaceInfo info={hub.info} firstStartTime={hub.firstStartTime} />
     <ul className={styles.hubLinks} aria-label={text.navigation}>
       {hub.startListPublished ? link(`/starts/${hub.raceId}`, text.startList, text.startListHelp)
         : hasStartSection && <li><div className={styles.hubPending}><strong>{text.startList}</strong><span>{text.startListPending}</span></div></li>}

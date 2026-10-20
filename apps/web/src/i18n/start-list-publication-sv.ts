@@ -14,8 +14,10 @@ export const startListPublicationSv = {
   heading: "Publicera startlistan",
   listHeading: "Startlistan",
   listHelp: "Startlistan som den ser ut nu, per klass, starttid eller klubb. Skriv ut eller exportera den här.",
-  shortHelp: "Den publika startlistan visar namn, klubb, klass och starttid, inte bricka. Ändringar syns först när du publicerar igen. " +
-    "Besökare ser den först när tävlingen också är publicerad.",
+  /** Steg 33: bricka visas när Inställningar → "Visa bricknummer i den publika startlistan" är på. */
+  shortHelp: (cards: boolean) => (cards ? "Den publika startlistan visar namn, klubb, klass, starttid och bricka. "
+    : "Den publika startlistan visar namn, klubb, klass och starttid, inte bricka. ") +
+    "Ändringar, även en ändrad bricka, syns först när du publicerar igen. Besökare ser den först när tävlingen också är publicerad.",
   loading: "Läser publiceringen…",
   statusNone: "Startlistan är inte publicerad.",
   statusPublished: (time: string) => `Publicerad kl. ${time}. Den publika listan är aktuell.`,

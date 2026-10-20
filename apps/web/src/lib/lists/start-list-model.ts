@@ -3,7 +3,8 @@ import { compareText, matches, searchable } from "./search";
 
 /**
  * PLAN.md steg 13: en gemensam modell för startlistorna i arbetsytan och på den publika sidan.
- * Arbetsytan bygger den ur deltagarlistan (med bricka), den publika sidan ur den publicerade startlistan (utan bricka).
+ * Arbetsytan bygger den ur deltagarlistan (med bricka), den publika sidan ur den publicerade startlistan (bricka bara när
+ * tävlingen visar bricknummer, steg 33).
  * Vyerna (per klass, per starttid, per klubb), utskriften och CSV-exporten läser bara den här modellen.
  */
 
@@ -25,8 +26,10 @@ export type StartClass = {
 };
 export type StartListModel = {
   eventName: string; raceName: string; raceDate: string; timeZone: string; classes: StartClass[];
-  /** Arbetsytan visar bricka; den publika listan gör det aldrig. */
+  /** Arbetsytan visar bricka; den publika listan bara när tävlingen visar bricknummer (steg 33). */
   cards: boolean;
+  /** false = den publika listan (inga råd om att ge tider). */
+  workspace?: boolean;
 };
 
 function mode(raceClass: { startRule: "FIXED" | "PUNCH"; drawMethod?: "MINUTE" | "MASS" | null | undefined; relayLegCount?: number | undefined },
@@ -66,13 +69,14 @@ export function startListFromWorkspace(data: EntryTransferCandidates): StartList
   };
 }
 
-/** Den publika sidan: den publicerade startlistan, i serverns ordning. */
-export function startListFromPublication(content: StartListPublicationContent): StartListModel {
+/** Den publika sidan: den publicerade startlistan, i serverns ordning. Bricka bara när `cards` (steg 33). */
+export function startListFromPublication(content: StartListPublicationContent, cards = false): StartListModel {
   return {
-    eventName: content.eventName, raceName: content.raceName, raceDate: content.raceDate, timeZone: content.timeZone, cards: false,
+    eventName: content.eventName, raceName: content.raceName, raceDate: content.raceDate, timeZone: content.timeZone, cards, workspace: false,
     classes: content.classes.map(raceClass => {
       const entries: StartEntry[] = raceClass.entries.map(entry => ({
         name: entry.displayName, club: entry.organisationName, startTime: entry.fixedStartTime, variant: entry.courseVariantCode ?? null,
+        ...(cards ? { card: entry.cardNumber ?? null } : {}),
         ...(entry.relay ? { relay: { teamNumber: entry.relay.teamNumber, teamName: entry.relay.teamName,
           teamClub: entry.relay.teamOrganisationName, leg: entry.relay.leg } } : {})
       }));

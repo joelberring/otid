@@ -36,6 +36,14 @@
 .fieldRow, .settingsFields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: 12px;
   align-items: end; max-width: 70ch; }
 .settingsFields { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 11rem); align-items: start; }
+/* Steg 33: information till löparna under Inställningar. */
+.settingsInfo { display: grid; gap: 12px; min-width: 0; margin: 0; padding: 12px 14px 14px; border: 1px solid var(--line);
+  border-radius: var(--radius); }
+.settingsInfo > legend { padding: 0 6px; font-weight: 600; }
+.settingsInfo textarea { min-height: 7rem; resize: vertical; white-space: pre-wrap; }
+.settingsTime { max-width: 8rem; }
+.fieldWithHelpBlock { display: grid; gap: 2px; }
+.fieldWithHelpBlock > p { margin: 0; }
 .fieldAction { display: flex; align-items: end; }
 .narrowField { max-width: 24rem; }
 /* Banornas längd och stigning (PLAN.md steg 25). */

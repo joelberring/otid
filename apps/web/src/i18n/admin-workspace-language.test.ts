@@ -25,7 +25,9 @@ const adminFiles = [
   // PLAN.md steg 27.
   "card-punches-sv.ts", "removal-sv.ts", "results-official-sv.ts", "race-export-sv.ts", "race-corrections-sv.ts",
   // Steg 31.
-  "manual-result-sv.ts"
+  "manual-result-sv.ts",
+  // Steg 33.
+  "race-info-sv.ts"
 ];
 /** Delade textfiler (även publika sidor): bara nycklarna som arbetsytan läser granskas. */
 const sharedFiles = ["sv.ts", "account-sv.ts"];

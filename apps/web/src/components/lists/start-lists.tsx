@@ -143,7 +143,7 @@ function ByTime({ classes, context, now }: { classes: StartClass[]; context: Con
     {groups.missing.length > 0 && <div className={styles.notice} role="note">
       <strong>{t.missingTitle}</strong>
       {groups.missing.map(row => `${row.entry.name} (${row.className})`).join(", ")}
-      {model.cards && <p>{t.missingHelp}</p>}
+      {model.cards && model.workspace !== false && <p>{t.missingHelp}</p>}
     </div>}
   </>;
 }

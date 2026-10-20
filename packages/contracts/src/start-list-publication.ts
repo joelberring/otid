@@ -19,6 +19,11 @@ const timezone = z.string().trim().min(1).max(100).refine((value) => {
 });
 const entry = z.object({
     displayName: z.string().trim().min(1).max(321), organisationName: z.string().trim().min(1).max(240).nullable(), fixedStartTime: instant.nullable(),
+    /**
+     * Steg 33: löparens aktiva bricka när startlistan publicerades. Visas publikt bara när tävlingens inställning
+     * "Visa bricknummer i den publika startlistan" är på; annars tas den bort innan listan lämnar servern.
+     */
+    cardNumber: z.string().trim().min(1).max(32).optional(),
     /** Gafflad klass: löparens variant (ADR-0169 beslut 2). Saknas för klasser utan varianter. */
     courseVariantCode: courseVariantCodeSchema.optional(),
     /** Stafett (ADR-0169 beslut 3): laget och sträckan. Sträcka 2 och senare har ingen starttid före växlingen. */
@@ -70,8 +75,10 @@ export const startListPublicationResponseSchema = z.object({
 }).strict().refine((v) => (v.action === "PUBLISH") === (v.sourceHash !== null));
 export const publicStartListResponseSchema = z.object({
     iofExportAvailable: z.boolean().default(false),
+    /** Steg 33: tävlingens inställning. Av = inga bricknummer i listan, även i en redan publicerad lista. */
+    showCardNumbers: z.boolean().default(false),
     formatVersion: z.literal(1), revision: positive, publishedAt: instant, content: startListPublicationContentSchema.refine((v) => v.classes.some((x) => x.entries.length > 0))
-}).strict();
+}).strict().refine((v) => v.showCardNumbers || v.content.classes.every((x) => x.entries.every((e) => e.cardNumber === undefined)));
 export { entryClassAdminErrorResponseSchema as startListPublicationAdminErrorResponseSchema } from "./entry-class-admin";
 export type StartListPublicationContent = z.infer<typeof startListPublicationContentSchema>;
 export type StartListClassFacts = z.infer<typeof startListClassFactsSchema>;

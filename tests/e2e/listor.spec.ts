@@ -146,7 +146,7 @@ test("start- och resultatlistor: vyer, sök, utskrift och export i arbetsytan oc
   expect(startXml).toContain("<StartTime>");
   expect(startXml).not.toContain("8301003");
 
-  // Publicering: en åtgärd. Den publika listan har samma vyer, men aldrig bricka.
+  // Publicering: en åtgärd. Den publika listan har samma vyer, och bricka (steg 33: påslaget som standard).
   await view(toolbar, "Per klass");
   await owner.getByRole("button", { name: "Publicera startlistan" }).click();
   await expect(owner.getByText("Startlistan är publicerad.")).toBeVisible();
@@ -157,8 +157,8 @@ test("start- och resultatlistor: vyer, sök, utskrift och export i arbetsytan oc
   await visitor.goto(`/starts/${raceId}`);
   const publicToolbar = visitor.getByRole("toolbar", { name: "Listans verktyg" });
   await expect(visitor.getByRole("region", { name: "H21", exact: true }).getByRole("row", { name: /Anna Ek/ })).toBeVisible();
-  await expect(visitor.getByRole("columnheader", { name: "Bricka" })).toHaveCount(0);
-  await expect(visitor.getByText("8301001")).toHaveCount(0);
+  await expect(visitor.getByRole("columnheader", { name: "Bricka" }).first()).toBeVisible();
+  await expect(visitor.getByRole("region", { name: "H21", exact: true }).getByRole("row", { name: /Anna Ek/ })).toContainText("8301001");
   await view(publicToolbar, "Per starttid");
   // Båda startfållorna har en start den minuten.
   const now = visitor.locator("tbody[data-current]");
@@ -169,8 +169,8 @@ test("start- och resultatlistor: vyer, sök, utskrift och export i arbetsytan oc
   }
   await screenshots(visitor, "publik-start-per-starttid");
   const publicCsv = await download(visitor, publicToolbar, "CSV (Excel)");
-  expect(publicCsv).toContain("Starttid;Startfålla;Klass;Namn;Klubb\r\n");
-  expect(publicCsv).not.toContain("8301001");
+  expect(publicCsv).toContain("Starttid;Startfålla;Klass;Namn;Klubb;Bricka\r\n");
+  expect(publicCsv).toContain("8301001");
   const publicStartXml = await download(visitor, publicToolbar, "IOF XML");
   expect(publicStartXml).toContain("<Family>Ek</Family>");
 

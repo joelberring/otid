@@ -9,7 +9,8 @@ import { startListPublicationSv as text } from "../i18n/start-list-publication-s
 import styles from "./lists/lists.module.css";
 
 /**
- * Den publicerade startlistan (PLAN.md steg 13): samma tre vyer som i arbetsytan, utan bricka. Hämtas på nytt
+ * Den publicerade startlistan (PLAN.md steg 13): samma tre vyer som i arbetsytan; bricka bara när tävlingen visar
+ * bricknummer (steg 33, inställningen gäller direkt även för en redan publicerad lista). Hämtas på nytt
  * var femte sekund så att en ny publicering syns utan omladdning.
  */
 export function PublicStartList({ raceId, initial }: { raceId: string; initial: PublicStartListResponse | null }) {
@@ -30,7 +31,8 @@ export function PublicStartList({ raceId, initial }: { raceId: string; initial: 
         const result = publicStartListResponseSchema.parse(await response.json());
         if (!stopped) {
           setFailed(false);
-          setData(previous => previous?.revision === result.revision && previous.iofExportAvailable === result.iofExportAvailable ? previous : result);
+          setData(previous => previous?.revision === result.revision && previous.iofExportAvailable === result.iofExportAvailable &&
+            previous.showCardNumbers === result.showCardNumbers ? previous : result);
         }
       } catch {
         // Visas som besked; senast hämtade lista ligger kvar och nästa försök sker om fem sekunder.
@@ -42,7 +44,7 @@ export function PublicStartList({ raceId, initial }: { raceId: string; initial: 
     document.addEventListener("visibilitychange", onVisible);
     return () => { stopped = true; window.clearInterval(timer); document.removeEventListener("visibilitychange", onVisible); };
   }, [raceId]);
-  const model = useMemo(() => data ? startListFromPublication(data.content) : undefined, [data]);
+  const model = useMemo(() => data ? startListFromPublication(data.content, data.showCardNumbers) : undefined, [data]);
   if (!data || !model) return <section className="public-list-heading"><h1>{text.publicTitle}</h1>
     <p role="status">{text.publicUnavailable}</p></section>;
   const zone = data.content.timeZone;

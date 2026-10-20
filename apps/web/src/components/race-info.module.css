@@ -1,0 +1,8 @@
+/* Steg 33: kort info om tävlingen och första start. */
+.info { display: grid; gap: 6px; min-width: 0; padding: 12px 14px; border: 1px solid var(--line); border-left: 4px solid var(--accent);
+  border-radius: var(--radius); background: var(--surface); }
+.info > :is(h2, h3) { margin: 0; font-size: var(--text-md); }
+.info > p { margin: 0; }
+.firstStart { font-size: var(--text-md); }
+.firstStart time { font-variant-numeric: tabular-nums; font-weight: 600; }
+.text { white-space: pre-line; overflow-wrap: anywhere; }

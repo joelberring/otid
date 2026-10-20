@@ -4,6 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import styles from "../race-administrator-workspace.module.css";
 import { raceTypeSv } from "../../i18n/race-type-sv";
+import { raceInfoSv } from "../../i18n/race-info-sv";
+import { RACE_INFO_MAX, settingsFormFrom } from "./settings-actions";
 import { sectionForPanel } from "../../lib/race-sections";
 import { raceCopySv } from "../../i18n/race-copy-sv";
 import { RaceTypeChoice } from "../race-type-choice";
@@ -29,7 +31,8 @@ export function SettingsPanel({ ws }: { ws: Workspace }) {
     settingsMessage, shows, workflowLocked } = ws;
   const [copySource, setCopySource] = useState<CopySource>();
   if (!shows("SETTINGS") || !data) return null;
-  const form = settingsForm ?? { eventName: data.eventName, raceName: data.raceName, raceDate: data.raceDate, raceType: data.raceType };
+  const form = settingsForm ?? settingsFormFrom(data);
+  const infoText = raceInfoSv.settings;
   // Tiderna tolkas mot loppets datum: med starttider eller resultat går datumet inte att ändra (servern kontrollerar också).
   const dateLocked = data.entries.some(entry => entry.fixedStartTime !== null || entry.effectiveResult.state !== "NO_PUBLISHED_RESULT");
   const locked = saving || workflowLocked;
@@ -48,6 +51,23 @@ export function SettingsPanel({ ws }: { ws: Workspace }) {
         </div>
         <RaceTypeChoice name={`${id}-type`} value={form.raceType} disabled={locked || !!settingsAttempt}
           onChange={raceType => changeSettings({ raceType })} />
+        {/* Steg 33: information till löparna och bricka i den publika startlistan. */}
+        <fieldset className={styles.settingsInfo}>
+          <legend>{infoText.title}</legend>
+          <Field label={infoText.info} error={settingsErrors.info} help={infoText.infoHelp(form.info.length, RACE_INFO_MAX)}>
+            <textarea value={form.info} rows={4} maxLength={RACE_INFO_MAX} disabled={locked || !!settingsAttempt}
+              onChange={event => changeSettings({ info: event.target.value })} /></Field>
+          <Field label={infoText.firstStart} error={settingsErrors.firstStartTime} help={infoText.firstStartHelp}>
+            <input className={styles.settingsTime} value={form.firstStartTime} type="text" inputMode="numeric" autoComplete="off"
+              spellCheck={false} placeholder="TT:MM" maxLength={5} disabled={locked || !!settingsAttempt}
+              onChange={event => changeSettings({ firstStartTime: event.target.value })} /></Field>
+          <div className={styles.fieldWithHelpBlock}>
+            <label className={styles.check}><input type="checkbox" checked={form.publicStartListCardNumbers}
+              disabled={locked || !!settingsAttempt} aria-describedby={`${id}-cards-help`}
+              onChange={event => changeSettings({ publicStartListCardNumbers: event.target.checked })} />{infoText.cardNumbers}</label>
+            <p className={styles.workflowHelp} id={`${id}-cards-help`}>{infoText.cardNumbersHelp}</p>
+          </div>
+        </fieldset>
         {settingsMessage && <Notice tone={settingsMessage.tone} role={settingsMessage.tone === "ok" ? "status" : "alert"}>
           {settingsMessage.text}</Notice>}
         <div><Button type="submit" disabled={locked}>{text.save}</Button></div>

@@ -17,16 +17,20 @@ import { RaceCorrectionsPanel } from "../race-corrections";
 import { raceCorrectionsSv } from "../../i18n/race-corrections-sv";
 import { Button, Field, Section } from "../ui";
 import type { Workspace } from "./workspace-state";
+import { RaceInfo } from "../race-info";
+import { sectionById } from "../../lib/race-sections";
 
 /** Avläsning: kontrollvyn och hela skogslistan med manuell återkomst. Speakern har en egen sida (ADR-0170). */
 export function DuringRaceOverview({ ws }: { ws: Workspace }) {
   const { data, disabled, entryId, forestAutoRefresh, forestClass, forestData, forestOpen, forestQuery, forestSortByAge,
     forestStale, functionary, loadForest, prepareReturn, prepareStartCorrection, printPrivate, raceId, select, setEntryId, setForestAutoRefresh,
-    setForestClass, setForestOpen, setForestQuery, setForestSortByAge, setTargetStartState, shows, targetStartState } = ws;
+    setForestClass, setForestOpen, setForestQuery, setForestSortByAge, setTargetStartState, shows, targetStartState, profile } = ws;
   const selectedForest = forestData?.entries.find(row => row.entryId === entryId);
   return <>
     <section className={styles.workflowGroup} id={`workflow-${raceId}-readout`} aria-label={navigationText.steps.READOUT}
       hidden={!shows("READOUT")}>
+    {/* Steg 33: typer utan Start-steg (Träning, Rogaining) visar kort info och första start här. */}
+    {data && !sectionById(profile, "START") && <RaceInfo info={data.info} firstStartTime={data.firstStartTime} heading="h3" />}
     {data && <ReadoutControlView ws={ws} />}
     <details id={`forest-watch-${raceId}`} className={styles.disclosure} open={forestOpen} onToggle={event => setForestOpen(event.currentTarget.open)}>
       <summary>{text.forestFullList}</summary>

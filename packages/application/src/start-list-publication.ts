@@ -47,6 +47,12 @@ async function projection(tx: DbExecutor, race: {
     if (cs.length > MAX_CLASSES || es.length > MAX_ENTRIES)
         throw new SourceProjectionError();
     const ids = new Set(cs.map(c => c.id));
+    // Steg 33: aktiv bricka följer med i ögonblicksbilden; den publika sidan visar den bara när inställningen är på.
+    const cards = new Map<string, string | null>();
+    for (const a of await tx.select({ entryId: schema.cardAssignments.entryId, cardNumber: schema.cardAssignments.cardNumber })
+        .from(schema.cardAssignments).where(and(eq(schema.cardAssignments.raceId, race.id), eq(schema.cardAssignments.active, true)))) {
+        cards.set(a.entryId, cards.has(a.entryId) ? null : a.cardNumber);
+    }
     const variants = await loadCourseVersionVariants(tx, cs.map(c => c.courseVersionId));
     if (es.some(e => !ids.has(e.classId)))
         throw new SourceProjectionError();
@@ -68,7 +74,7 @@ async function projection(tx: DbExecutor, race: {
                 displayName: `${e.givenName} ${e.familyName}`, organisationName: e.organisationName,
                 personEventorId: e.eventorPersonId, organisationEventorId: e.eventorOrganisationId, fixedStartTime: c.startRule === "FIXED" ? e.fixedStartTime?.toISOString() ?? null : null, id: e.id, f: e.familyName, g: e.givenName,
                 variant: (variants.get(c.courseVersionId) ?? []).some(v => v.code === e.courseVariantCode) ? e.courseVariantCode : null,
-                relay: relayOf(e)
+                relay: relayOf(e), cardNumber: cards.get(e.id) ?? null
             })).sort((a, b) => {
                 if (a.relay && b.relay) return a.relay.teamNumber - b.relay.teamNumber || a.relay.leg - b.relay.leg;
                 const at = a.fixedStartTime ? Date.parse(a.fixedStartTime) : Infinity, bt = b.fixedStartTime ? Date.parse(b.fixedStartTime) : Infinity;
@@ -82,7 +88,8 @@ async function projection(tx: DbExecutor, race: {
             ...(c.relayLegCount === undefined ? {} : { relayLegCount: c.relayLegCount }), entries: c.entries.map(e => ({
                 displayName: e.displayName, organisationName: e.organisationName, fixedStartTime: e.fixedStartTime,
                 ...(e.variant ? { courseVariantCode: e.variant } : {}),
-                ...(e.relay ? { relay: e.relay } : {})
+                ...(e.relay ? { relay: e.relay } : {}),
+                ...(e.cardNumber ? { cardNumber: e.cardNumber } : {})
             })) }))
     });
     if (!parsed.success) throw new SourceProjectionError();
@@ -269,16 +276,28 @@ export async function getPublicStartList(db: Database, raceId: string): Promise<
         };
     const [r] = await db.select({
         iofExportAvailable: sql<boolean>`${schema.startListPublications.iofStartListXml} IS NOT NULL`,
+        showCardNumbers: sql<boolean>`(select ${schema.races.publicStartListCardNumbers} from ${schema.races} where ${schema.races.id} = ${schema.startListPublications.raceId})`,
         action: schema.startListPublications.action, revision: schema.startListPublications.revision, content: schema.startListPublications.content, decidedAt: schema.startListPublications.decidedAt
     }).from(schema.startListPublications).where(eq(schema.startListPublications.raceId, raceId)).orderBy(desc(schema.startListPublications.revision)).limit(1);
     return !r || r.action !== "PUBLISH" || !r.content ? {
         status: "not-found"
     } : {
         status: "published", response: publicStartListResponseSchema.parse({
-            iofExportAvailable: r.iofExportAvailable,
-            formatVersion: 1, revision: r.revision, publishedAt: r.decidedAt.toISOString(), content: r.content
+            iofExportAvailable: r.iofExportAvailable, showCardNumbers: r.showCardNumbers === true,
+            formatVersion: 1, revision: r.revision, publishedAt: r.decidedAt.toISOString(),
+            content: r.showCardNumbers === true ? r.content : withoutCardNumbers(r.content)
         })
     };
+}
+
+/** Steg 33: inställningen avstängd = inga bricknummer, även i en lista som publicerades med dem. */
+function withoutCardNumbers(content: unknown): unknown {
+    const parsed = startListPublicationContentSchema.parse(content);
+    return { ...parsed, classes: parsed.classes.map(c => ({ ...c, entries: c.entries.map(e => {
+        const copy = { ...e };
+        delete copy.cardNumber;
+        return copy;
+    }) })) };
 }
 
 /** Read only the active immutable decision, never today's participants. */

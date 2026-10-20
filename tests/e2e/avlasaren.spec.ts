@@ -2,8 +2,9 @@ import { expect, test, type Page } from "@playwright/test";
 import { addCourseAndClass, addEntry, createRace, registerAccount, reviewScreenshots, today, unique } from "./helpers";
 
 /**
- * Steg 35: avläsaren kommer ihåg stationen. Riktig USB går inte att prova här; sidan får en webbläsare utan godkända
- * stationer (tomma listor) eller helt utan Web Serial och WebUSB och ska klara båda.
+ * Steg 35: avläsaren kommer ihåg stationen och låter vid avläsning. Riktig USB går inte att prova här; sidan får en
+ * webbläsare utan godkända stationer (tomma listor) eller helt utan Web Serial och WebUSB och ska klara båda. Ljudet
+ * räknas genom att Web Audio-tonerna fångas; övningsstationen ska låta som en riktig station.
  */
 const STATION_KEY = "otid.readout.station.v1";
 
@@ -13,17 +14,28 @@ async function openReadout(page: Page, raceId: string) {
   await expect(page.getByTestId("package-status")).toContainText("v");
 }
 
-test("avläsaren ansluter själv och klarar webbläsare utan USB", async ({ browser }) => {
+test("avläsaren ansluter själv, klarar webbläsare utan USB och låter vid avläsning", async ({ browser }) => {
   test.setTimeout(240_000);
   const suffix = unique();
   const owner = await registerAccount(browser, `steg35a.${suffix}@exempel.se`, "Kim Klubb");
   const raceId = await createRace(owner, `Avläsning ${suffix}`, today(), "Träning");
   await addCourseAndClass(owner, "Lång", "Öppen", "31 32");
   await addEntry(owner, { className: "Öppen", givenName: "Ada", familyName: "Ljud", club: "OK Test", card: "7360001" });
+  await addEntry(owner, { className: "Öppen", givenName: "Bo", familyName: "Moll", club: "OK Test", card: "7360002" });
+  await addEntry(owner, { className: "Öppen", givenName: "Cia", familyName: "Tyst", club: "OK Test", card: "7360003" });
 
   // 1. En station anslöts här förut, men webbläsaren har inga godkända enheter just nu (tomma listor).
   const context = owner.context();
   await context.addInitScript(({ key }) => {
+    const tones: number[] = [];
+    (window as unknown as { __tones: number[] }).__tones = tones;
+    const original = Object.getOwnPropertyDescriptor(BaseAudioContext.prototype, "createOscillator")!.value as
+      (this: BaseAudioContext) => OscillatorNode;
+    BaseAudioContext.prototype.createOscillator = function (this: BaseAudioContext) {
+      const oscillator = original.call(this);
+      queueMicrotask(() => tones.push(Math.round(oscillator.frequency.value)));
+      return oscillator;
+    };
     const events = { addEventListener() {}, removeEventListener() {} };
     if (sessionStorage.getItem("no-usb") === "1") {
       Object.defineProperty(Navigator.prototype, "serial", { get: () => undefined, configurable: true });
@@ -58,4 +70,31 @@ test("avläsaren ansluter själv och klarar webbläsare utan USB", async ({ brow
   await expect(owner.getByTestId("auto-connect")).toHaveCount(0);
   await owner.getByRole("button", { name: "Anslut SPORTident-station" }).click();
   await expect(owner.getByTestId("station-status")).toContainText("Den här webbläsaren kan inte ansluta USB-stationer");
+  await owner.evaluate(() => sessionStorage.removeItem("no-usb"));
+  await owner.reload();
+
+  // 3. Ljud: övningsstationen låter glatt vid godkänt och moll vid fel; valet sparas.
+  await expect(owner.getByTestId("package-status")).toContainText("v");
+  const sound = owner.getByLabel("Ljud vid avläsning");
+  await expect(sound).toBeChecked();
+  await owner.getByRole("button", { name: "Starta övningsstation" }).click();
+  await expect(owner.getByTestId("station-status")).toContainText("Övningsstation");
+  const tones = () => owner.evaluate(() => (window as unknown as { __tones: number[] }).__tones.slice());
+  await owner.getByRole("button", { name: "Läs av: rätt stämplat" }).click();
+  await expect(owner.getByTestId("verdict")).toContainText("GODKÄND");
+  await expect.poll(tones).toEqual([523, 659, 784]);
+  const runner = owner.getByLabel("Deltagare");
+  await runner.selectOption({ label: await runner.locator("option", { hasText: "Bo Moll" }).innerText() });
+  await owner.getByRole("button", { name: "Läs av: missad kontroll" }).click();
+  await expect(owner.getByTestId("verdict")).toContainText("FELSTÄMPLAD");
+  await expect.poll(tones).toEqual([523, 659, 784, 659, 523, 440]);
+  await sound.uncheck();
+  await runner.selectOption({ label: await runner.locator("option", { hasText: "Cia Tyst" }).innerText() });
+  await owner.getByRole("button", { name: "Läs av: rätt stämplat" }).click();
+  await expect(owner.getByTestId("verdict")).toContainText("Cia Tyst");
+  await expect(owner.getByTestId("recent-readouts").locator("li")).toHaveCount(3);
+  expect(await tones()).toHaveLength(6);
+  await reviewScreenshots(owner, "step35-readout-sound");
+  await owner.reload();
+  await expect(owner.getByLabel("Ljud vid avläsning")).not.toBeChecked();
 });

@@ -25,10 +25,11 @@ import { receiptLink } from "./receipt";
 import { loadReceiptSettings, saveReceiptSettings, type ReceiptSettings } from "./receipt-settings";
 import { serialIdentity, usbIdentity, useStationAutoConnect, type SerialApi, type SerialStation, type UsbApi,
   type UsbStation } from "./station-auto";
+import { loadSoundEnabled, ReadoutSound, saveSoundEnabled, soundForVerdict } from "./sound";
 
 type Current =
   | { readonly phase: "reading"; readonly cardNumber: number }
-  | { readonly phase: "failed"; readonly message: string }
+  | { readonly phase: "failed"; readonly message: string; readonly at: number }
   | { readonly phase: "done"; readonly cardNumber: string; readonly localSequence: number; readonly verdict?: LocalVerdict; readonly invalid?: boolean };
 
 type SerialNavigator = Navigator & { serial?: SerialApi };
@@ -88,6 +89,10 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
   const exerciseRef = useRef<FakeStationTransport | undefined>(undefined);
   const syncing = useRef(false);
   const trafficRef = useRef(new TrafficLog());
+  // Steg 35: ljud vid avläsning (på som standard, sparas per webbläsare).
+  const sound = useRef(new ReadoutSound());
+  const [soundOn, setSoundOn] = useState(() => loadSoundEnabled());
+  const [soundUnlocked, setSoundUnlocked] = useState(false);
 
   const itemsRef = useRef<QueuedReadout[]>([]);
   const registrationsRef = useRef<QueuedRegistration[]>([]);
@@ -207,11 +212,11 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
     onCardInserted: (cardNumber: number) => setCurrent({ phase: "reading", cardNumber }),
     onCardRead: (card: SiCardData, frames: readonly Uint8Array[], station: StationFacts) => {
       onCardRead(card, frames, station).catch((error: unknown) =>
-        setCurrent({ phase: "failed", message: error instanceof SiTimeError ? t.timeUnresolvable(error.message)
+        setCurrent({ phase: "failed", at: Date.now(), message: error instanceof SiTimeError ? t.timeUnresolvable(error.message)
           : error instanceof Error ? error.message : String(error) }));
     },
-    onReadFailed: (cardNumber: number) => setCurrent({ phase: "failed", message: t.readFailed(cardNumber) }),
-    onUnsupportedCard: (cardNumber: number) => setCurrent({ phase: "failed", message: t.unsupported(cardNumber) }),
+    onReadFailed: (cardNumber: number) => setCurrent({ phase: "failed", at: Date.now(), message: t.readFailed(cardNumber) }),
+    onUnsupportedCard: (cardNumber: number) => setCurrent({ phase: "failed", at: Date.now(), message: t.unsupported(cardNumber) }),
     onTraffic: (direction: "in" | "out", bytes: Uint8Array) => trafficRef.current.add(direction, bytes)
   };
 
@@ -227,6 +232,7 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
   }
 
   async function connectSerial() {
+    void sound.current.unlock();
     const serial = (navigator as SerialNavigator).serial;
     if (!serial) { setStation({ kind: "error", message: t.serialUnsupported }); return; }
     let port: SerialStation;
@@ -250,6 +256,7 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
 
   /** Stationen direkt över WebUSB (läsplatta). Samma avläsning som Web Serial när porten väl är öppen. */
   async function connectUsb() {
+    void sound.current.unlock();
     const usb = (navigator as UsbNavigator).usb;
     if (!usb) { setStation({ kind: "error", message: t.usbUnsupported }); return; }
     let device: UsbStation;
@@ -273,6 +280,7 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
   }
 
   async function connectExercise() {
+    void sound.current.unlock();
     const timeZone = pkgRef.current?.event.timeZone;
     const transport = new FakeStationTransport(timeZone ? { timeZone } : {});
     exerciseRef.current = transport; setExercise(true);
@@ -368,6 +376,25 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
     connected, ready: pkg !== undefined, connectSerialPort: connectPort, connectUsbDevice,
     label: (link, index, identity, name) => link === "usb" ? t.autoStationUsb(index, identity.serialNumber, name) : t.autoStationSerial(index) });
 
+  // Webbläsaren spelar ljud först efter ett klick på sidan; vilket klick som helst låser upp det.
+  useEffect(() => {
+    if (soundUnlocked) return;
+    const unlock = () => { void sound.current.unlock().then(setSoundUnlocked); };
+    document.addEventListener("pointerdown", unlock);
+    document.addEventListener("keydown", unlock);
+    return () => { document.removeEventListener("pointerdown", unlock); document.removeEventListener("keydown", unlock); };
+  }, [soundUnlocked]);
+  // Ett ljud per besked: dur när det är godkänt, moll vid felstämplat, maxtid, okänd bricka och fel i avläsningen.
+  const played = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (!current || current.phase === "reading") return;
+    const key = current.phase === "done" ? `done:${current.localSequence}` : `failed:${current.at}`;
+    if (played.current === key) return;
+    played.current = key;
+    const kind = soundForVerdict(current.phase === "failed" || (current.phase === "done" && current.invalid) ? "FAILED" : verdict?.status);
+    if (soundOn && kind) sound.current.play(kind);
+  }, [current, verdict, soundOn]);
+
   if (!raceId) return <main className="readout"><h1>{t.title}</h1><p className="notice">{t.noRace}</p></main>;
 
   const runners = pkg ? exerciseRunners(pkg) : [];
@@ -453,14 +480,19 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
           <button type="button" onClick={() => { void connectExercise(); }}>{t.connectExercise}</button>
           {raceDay ? <small className="exercise-warning">{t.exerciseRaceDayShort}</small> : null}
         </>}
+      <label className="sound-choice"><input type="checkbox" checked={soundOn} onChange={(event) => {
+        setSoundOn(event.target.checked); saveSoundEnabled(event.target.checked);
+        if (event.target.checked) void sound.current.unlock().then(setSoundUnlocked);
+      }} />{t.sound}</label>
     </section>
+    {soundOn && !soundUnlocked && connected ? <p className="hint" data-testid="sound-locked">{t.soundLocked}</p> : null}
 
     {/* Steg 35: automatisk anslutning till den sparade stationen. */}
     {!exercise && (auto.remembered || auto.choices) ? <section className="auto-connect" data-testid="auto-connect" aria-label={t.autoTitle}>
       {auto.choices ? <>
         <p><strong>{t.autoChoose}</strong></p>
         <div className="row">{auto.choices.map((option, index) => <button key={index} type="button" className="primary"
-          onClick={() => { void auto.choose(option); }}>{option.label}</button>)}</div>
+          onClick={() => { void sound.current.unlock(); void auto.choose(option); }}>{option.label}</button>)}</div>
       </> : <p role="status">{connected ? t.autoConnected : auto.paused ? t.autoPaused : t.autoConnecting}</p>}
       {auto.problem ? <p role="alert">{t.autoProblem(auto.problem)}</p> : null}
       <button type="button" onClick={auto.stop}>{t.autoStop}</button>

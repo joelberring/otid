@@ -636,7 +636,7 @@ första start är (infopunkt, inte tävlingsklocka), synligt för alla.
 
 - [x] Blocken placeras efter blocknumret; "alla block" läses till block 7; ofullständig bild vägras. Rättat efter natt-KM 2026-10-20.
 
-## [ ] Steg 35 – Fler statusval, avläsaren ansluter själv och ljud
+## [x] Steg 35 – Fler statusval, avläsaren ansluter själv och ljud
 
 Ägarens önskemål efter en skarp klubbtävling 2026-10-20: fler val än brutit och ej start (några sprang utan tid eller
 bricka, disk ska finnas), avläsaren ska komma ihåg stationen när man byter sida, och ett kort glatt ljud vid godkänt och
@@ -647,7 +647,7 @@ ett kort moll-ljud vid fel.
   exporteras som IOF NotCompeting utan tid; ett beslut räknas som i mål i kvar i skogen.
 - [x] Avläsaren ansluter själv till en redan godkänd station (WebUSB och Web Serial) när sidan öppnas och när
   stationen sätts i; "Sluta ansluta automatiskt"; länkarna öppnas i en ny flik.
-- [ ] Ljud vid avläsning (dur vid godkänt, moll vid fel), på som standard och sparat per webbläsare.
+- [x] Ljud vid avläsning (dur vid godkänt, moll vid fel), på som standard och sparat per webbläsare.
 
 ## Efter målet (inte nu)
 

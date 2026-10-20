@@ -10,6 +10,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-10-20 – Steg 35 (del 3, steg 35 klart): ljud vid avläsning
+- Avläsningssidan: tre korta toner i C-dur uppåt (0,3 s) vid Godkänd och tre i a-moll nedåt vid felstämplat, maxtid, okänd bricka och fel i avläsningen (Web Audio, OscillatorNode, ingen ljudfil). Ett ljud per besked; övningsstationen låter också.
+- AudioContext skapas/återupptas vid första klicket (anslutknapparna eller var som helst på sidan); efter en automatisk anslutning utan klick visas "Ljudet hörs när du har klickat någonstans på sidan."
+- Kryssrutan "Ljud vid avläsning" (på som standard, sparas i localStorage med try/catch).
+- Tester: `sound` (dur/moll, längd, val, lagring), Playwright `avlasaren` (tonerna fångas vid övningsstationens avläsningar, avslaget ljud ger inga toner, valet står kvar efter omladdning). Verifierat för hela steget: lint, typecheck, test, test:integration, build, Playwright `statusval`, `avlasaren`, `traningskvall`, `manuellt`, `listor`, `live`, `lanad-bricka`, `lopardatabas`. Ljudet på riktig läsplatta provas av ägaren.
+
 ### 2026-10-20 – Steg 35 (del 2): avläsaren ansluter själv
 - Avläsningssidan sparar en lyckad anslutning (Web Serial eller WebUSB, tillverkare/produkt/serienummer, localStorage) och ansluter själv när sidan öppnas (när tävlingsdatan är inläst) och vid `connect` (stationen sätts i), till en redan godkänd enhet (`getPorts`/`getDevices`, CP210x). Flera godkända: den senast använda, annars får funktionären välja. "Ansluter automatiskt till stationen …" och "Sluta ansluta automatiskt"; manuell frånkoppling pausar till nästa gång sidan öppnas. Befintliga `connectPort`/`BAUD_RATES` återanvänds.
 - Tips om en egen flik; länkarna Hantera tävling och Resultat öppnas i en ny flik.

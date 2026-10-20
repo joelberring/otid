@@ -98,6 +98,23 @@ export function cardReadPlan(type: SiCardType): readonly CardReadStep[] {
   }
 }
 
+/**
+ * Vilka block i brickans minne som bildar minnesbilden, i ordning (layouten räknar offset i den här bilden).
+ * SI6 och SI10/11/SIAC läses med "alla block": beroende på stationens inställning skickar den antingen just de här
+ * blocken (0, 6, 7 respektive 0, 4–7) eller alla åtta (0–7). Blocknumret i svaret avgör vad som är vad.
+ */
+export function cardImageBlocks(type: SiCardType): readonly number[] {
+  switch (type) {
+    case "SI5": return [0];
+    case "SI6": return [0, 6, 7];
+    case "SI8": case "SI9": case "pCard": return [0, 1];
+    case "SI10": case "SI11": case "SIAC": return [0, 4, 5, 6, 7];
+  }
+}
+
+/** Sista blocket som stationen skickar vid "alla block", i båda lägena. */
+export const LAST_BLOCK = 7;
+
 /** Förväntad minnesstorlek efter utläsning, för kontroll. */
 export function expectedImageSize(type: SiCardType): number {
   return cardReadPlan(type).reduce((sum, step) => sum + step.responses, 0) * BLOCK_SIZE;

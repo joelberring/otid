@@ -1,5 +1,5 @@
-import { ACK, Command, MASTER_DIRECT, StationMode, SystemOffset } from "./constants";
-import { cardReadPlan, cardTypeFromSi8PlusNumber, decodeCardNumber, type SiCardType } from "./card-types";
+import { ACK, Command, MASTER_DIRECT, READ_ALL_BLOCKS, StationMode, SystemOffset } from "./constants";
+import { cardReadPlan, cardTypeFromSi8PlusNumber, decodeCardNumber, LAST_BLOCK, type SiCardType } from "./card-types";
 import { cardImageFromResponses, CardDecodeError, decodeCard, type SiCardData } from "./decode";
 import { encodeCommand, FrameDecoder, type SiFrame } from "./frame";
 import { decodeStationClock, type StationClock } from "./time";
@@ -225,19 +225,27 @@ export class ReadoutSession {
   }
 
   #onReadingFrame(station: StationInfo, reading: Reading, frame: SiFrame, send: Uint8Array[], events: ReadoutEvent[]): void {
+    const step = reading.steps[reading.step]!;
+    const allBlocks = step.params[0] === READ_ALL_BLOCKS;
     if (frame.command === Command.CARD_REMOVED) {
       reading.frames.push(frame.raw);
       this.#state = { name: "waiting", station };
-      events.push({ type: "read-failed", cardNumber: reading.cardNumber, reason: "removed", frames: reading.frames });
+      // "Alla block": brickan kan tas ur efter att stämplingarna kommit men före sista blocket. Räcker det som kom
+      // (block 0 och blocken med brickans stämplingar) är avläsningen ändå fullständig.
+      const card = allBlocks && reading.step === reading.steps.length - 1 ? this.#tryDecode(reading) : undefined;
+      if (card) events.push({ type: "card-read", card, frames: reading.frames });
+      else events.push({ type: "read-failed", cardNumber: reading.cardNumber, reason: "removed", frames: reading.frames });
       events.push({ type: "card-removed" });
       return;
     }
-    const step = reading.steps[reading.step]!;
     if (frame.command !== step.command) return;
     reading.frames.push(frame.raw);
     reading.responses.push(frame.data);
     reading.received += 1;
-    if (reading.received < step.responses) return;
+    // "Alla block" (SI6, SI10/11/SIAC): stationen skickar antingen bara blocken med data (0, 6, 7 / 0, 4–7) eller alla
+    // åtta (0–7), beroende på hur den är inställd. Båda slutar med block 7; åtta svar är taket.
+    const done = allBlocks ? frame.data[0] === LAST_BLOCK || reading.received >= 8 : reading.received >= step.responses;
+    if (!done) return;
     reading.step += 1;
     reading.received = 0;
     if (reading.step < reading.steps.length) {
@@ -258,6 +266,17 @@ export class ReadoutSession {
     } catch (error) {
       if (!(error instanceof CardDecodeError)) throw error;
       events.push({ type: "read-failed", cardNumber: reading.cardNumber, reason: "decode", frames: reading.frames });
+    }
+  }
+
+  /** Avkodar det som kommit hittills; undefined om det inte räcker eller inte stämmer. */
+  #tryDecode(reading: Reading): SiCardData | undefined {
+    try {
+      const card = decodeCard(reading.cardType, cardImageFromResponses(reading.cardType, reading.responses));
+      return card.cardNumber === reading.cardNumber ? card : undefined;
+    } catch (error) {
+      if (error instanceof CardDecodeError) return undefined;
+      throw error;
     }
   }
 }

@@ -76,7 +76,12 @@ describe("decodeCard", () => {
   });
 
   it("vägrar för kort minnesbild", () => {
-    expect(() => decodeCard("SI10", new Uint8Array(128))).toThrow(CardDecodeError);
+    expect(() => decodeCard("SI8", new Uint8Array(128))).toThrow(CardDecodeError);
+    expect(() => decodeCard("SI10", new Uint8Array(100))).toThrow(CardDecodeError);
+    // SI10/11/SIAC utan stämplingsblocken: bara godtagbart om brickan inte har några stämplingar.
+    const onlyBlockZero = new Uint8Array(128);
+    onlyBlockZero[22] = 5;
+    expect(() => decodeCard("SIAC", onlyBlockZero)).toThrow(/Ofullständig/);
   });
 
   it("SI5 stämpling 31–36 har bara kod", () => {

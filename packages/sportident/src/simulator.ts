@@ -97,6 +97,8 @@ export interface FakeStationOptions {
    * betyder att stationen svarar NAK (äldre station utan klockfråga).
    */
   readonly clock?: (() => { clock: StationClock; dayOfWeek: number }) | null;
+  /** Stationen är inställd på att skicka alla åtta block för SI6 och SI10/11/SIAC (som BSM8 på natt-KM 2026-10-20). */
+  readonly eightBlocks?: boolean;
 }
 
 /**
@@ -115,6 +117,7 @@ export class FakeSiStation {
       mode: options.mode ?? StationMode.READOUT,
       extendedProtocol: options.extendedProtocol ?? true,
       handshake: options.handshake ?? true,
+      eightBlocks: options.eightBlocks ?? false,
       clock: options.clock === undefined ? () => stationClockFromDate(new Date(), "UTC") : options.clock
     };
   }
@@ -172,6 +175,21 @@ export class FakeSiStation {
     return encodeStationFrame(command, this.#options.stationCode, data);
   }
 
+  /**
+   * "Alla block": bara blocken med data, eller (stationen inställd på åtta block) block 0–7 där de övriga innehåller
+   * annat än stämplingar, som på en riktig SIAC (inställningar, batteridata).
+   */
+  #allBlocks(dataBlocks: readonly number[], command: number, image: Uint8Array): Uint8Array[] {
+    if (!this.#options.eightBlocks) {
+      return dataBlocks.map((block, index) => this.#frame(command, [block, ...this.#block(image, index)]));
+    }
+    const other = new Uint8Array(BLOCK_SIZE).map((_value, index) => index % 2 === 0 ? 0x02 : 0x00);
+    return [0, 1, 2, 3, 4, 5, 6, 7].map((block) => {
+      const index = dataBlocks.indexOf(block);
+      return this.#frame(command, [block, ...(index >= 0 ? this.#block(image, index) : other)]);
+    });
+  }
+
   #block(image: Uint8Array, index: number): Uint8Array {
     return image.subarray(index * BLOCK_SIZE, (index + 1) * BLOCK_SIZE);
   }
@@ -207,11 +225,11 @@ export class FakeSiStation {
         return card.spec.cardType === "SI5" ? [this.#frame(Command.READ_SI5, this.#block(image, 0))] : [];
       case Command.READ_SI6:
         if (card.spec.cardType !== "SI6") return [];
-        return [0, 6, 7].map((block, index) => this.#frame(Command.READ_SI6, [block, ...this.#block(image, index)]));
+        return this.#allBlocks([0, 6, 7], Command.READ_SI6, image);
       case Command.READ_SI8_PLUS: {
         const param = params[0] ?? 0;
         if (param === READ_ALL_BLOCKS) {
-          return [0, 4, 5, 6, 7].map((block, index) => this.#frame(Command.READ_SI8_PLUS, [block, ...this.#block(image, index)]));
+          return this.#allBlocks([0, 4, 5, 6, 7], Command.READ_SI8_PLUS, image);
         }
         return [this.#frame(Command.READ_SI8_PLUS, [param, ...this.#block(image, param)])];
       }

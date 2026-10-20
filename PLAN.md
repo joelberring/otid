@@ -632,6 +632,10 @@ första start är (infopunkt, inte tävlingsklocka), synligt för alla.
 - [x] Infon överst på tävlingssidan och i arbetsytans Start-steg.
 - [x] "Uppdatera startlistan löpande" (Start → Publicera startlistan, av som standard): ändringar syns publikt utan ny publicering.
 
+## [x] Steg 34 – SIAC från station som skickar alla åtta block
+
+- [x] Blocken placeras efter blocknumret; "alla block" läses till block 7; ofullständig bild vägras. Rättat efter natt-KM 2026-10-20.
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

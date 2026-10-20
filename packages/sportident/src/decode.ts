@@ -1,5 +1,5 @@
 import { BLOCK_SIZE } from "./constants";
-import { CARD_LAYOUTS, decodeCardNumber, expectedImageSize, type FieldLayout, type SiCardType } from "./card-types";
+import { CARD_LAYOUTS, cardImageBlocks, decodeCardNumber, expectedImageSize, type FieldLayout, type SiCardType } from "./card-types";
 import { decodeControlCode, decodeSiTime, type SiTime } from "./time";
 
 export interface SiStationRecord {
@@ -36,7 +36,10 @@ export class CardDecodeError extends Error {
  * Avkodar en sammanfogad minnesbild (block i läsordning, utan blocknummer).
  */
 export function decodeCard(cardType: SiCardType, image: Uint8Array): SiCardData {
-  const expected = expectedImageSize(cardType);
+  // SI5–SI9 läses alltid hela. SI6 och SI10/11/SIAC kan sakna sista blocken (brickan togs ur), vilket går bra så
+  // länge stämplingarna som brickan säger att den har finns med (kontrolleras nedan).
+  const expected = cardType === "SI6" || cardType === "SI10" || cardType === "SI11" || cardType === "SIAC"
+    ? BLOCK_SIZE : expectedImageSize(cardType);
   if (image.length < expected) {
     throw new CardDecodeError(`För lite data för ${cardType}: ${image.length} av ${expected} byte`);
   }
@@ -70,8 +73,11 @@ export function decodeCard(cardType: SiCardType, image: Uint8Array): SiCardData 
       punches.push({ code: at(32 + (index - layout.maxPunches) * 16) });
     }
   } else {
-    const available = Math.floor((image.length - layout.firstPunch) / layout.punchSize);
-    const count = Math.min(at(layout.punchCount), layout.maxPunches, available);
+    const available = Math.max(0, Math.floor((image.length - layout.firstPunch) / layout.punchSize));
+    const count = Math.min(at(layout.punchCount), layout.maxPunches);
+    if (count > available) {
+      throw new CardDecodeError(`Ofullständig avläsning av ${cardType}: ${count} stämplingar men bara plats för ${available}`);
+    }
     for (let index = 0; index < count; index += 1) {
       const offset = layout.firstPunch + index * layout.punchSize;
       const dayByte = at(offset);
@@ -98,12 +104,31 @@ export function decodeCard(cardType: SiCardType, image: Uint8Array): SiCardData 
 
 /** Sätter ihop svarsramarnas data till en minnesbild. */
 export function cardImageFromResponses(cardType: SiCardType, responses: readonly Uint8Array[]): Uint8Array {
-  // SI5-svaret är 128 byte rå data; övriga svar börjar med en blocknummerbyte.
-  const blocks = responses.map((data) => (cardType === "SI5" ? data : data.subarray(1)));
-  for (const block of blocks) {
-    if (block.length < BLOCK_SIZE) throw new CardDecodeError(`Kort block: ${block.length} byte`);
+  if (cardType === "SI5") {
+    // SI5-svaret är 128 byte rå data utan blocknummer.
+    const data = responses[0];
+    if (!data || data.length < BLOCK_SIZE) throw new CardDecodeError(`Kort block: ${data?.length ?? 0} byte`);
+    return data.slice(0, BLOCK_SIZE);
   }
-  const image = new Uint8Array(blocks.length * BLOCK_SIZE);
-  blocks.forEach((block, index) => image.set(block.subarray(0, BLOCK_SIZE), index * BLOCK_SIZE));
+  // Övriga svar börjar med blocknumret. Placera blocken efter numret, inte efter ordningen: en station som är inställd
+  // på att skicka alla åtta block (0–7) skickar även block 1–3 (SIAC: inställningar och batteridata), som inte är
+  // stämplingar (natt-KM 2026-10-20).
+  const byNumber = new Map<number, Uint8Array>();
+  for (const data of responses) {
+    const block = data.subarray(1);
+    if (block.length < BLOCK_SIZE) throw new CardDecodeError(`Kort block: ${block.length} byte`);
+    if (!byNumber.has(data[0]!)) byNumber.set(data[0]!, block.subarray(0, BLOCK_SIZE));
+  }
+  const wanted = cardImageBlocks(cardType);
+  // Bilden går fram till första saknade blocket; decodeCard kontrollerar att stämplingarna ryms.
+  const present: Uint8Array[] = [];
+  for (const number of wanted) {
+    const block = byNumber.get(number);
+    if (!block) break;
+    present.push(block);
+  }
+  if (present.length === 0) throw new CardDecodeError("Block 0 saknas");
+  const image = new Uint8Array(present.length * BLOCK_SIZE);
+  present.forEach((block, index) => image.set(block, index * BLOCK_SIZE));
   return image;
 }

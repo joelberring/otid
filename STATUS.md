@@ -10,6 +10,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-10-20 – Steg 34: SIAC från station som skickar alla åtta block (fel på natt-KM)
+- Natt-KM: två SIAC blev felstämplade med "gamla stämplingar" fast brickan var tömd. Råloggen från en av brickorna (avläst i efterhand) visade att BSM8:an skickade block 0–7 för "alla block"; O-Tid tog de fem första som 0, 4, 5, 6, 7 och läste block 1 (brickans inställningar) som stämplingar.
+- `sportident`: blocken placeras efter blocknumret i svaret (`cardImageBlocks`), läsningen av "alla block" (SI6, SI10/11/SIAC) slutar vid block 7 eller åtta svar, och tas brickan ur efter stämplingsblocken räcker det som kom. `decodeCard` vägrar en ofullständig bild i stället för att tyst ta färre stämplingar. Falska stationen kan skicka alla åtta block (`eightBlocks`).
+- Tester: `siac-eight-blocks` (7, med kvällens riktiga block, bricknumret utbytt), `decode`. Verifierat: lint, typecheck, test, build, Playwright `traningskvall`, `lanad-bricka`.
+- Kvällens två avläsningar: läs om brickan (otömd) efter uppdateringen, eller ange tiden manuellt.
+
 ### 2026-10-20 – Steg 33 (tillägg): uppdatera startlistan löpande
 - Start → Publicera startlistan: "Uppdatera startlistan löpande" (av som standard, migration 0012, sparas via Inställningarnas anrop med auditpost). På: `getPublicStartList` ger samma projektion som en publicering men läst nu (`live: true`, samma strikta kontrakt och grind, bricka bara när den visas, ingen IOF-länk); sidan hämtar om var femte sekund. Statusraden säger "Uppdateras löpande", Publicera/Avpublicera döljs.
 - Av igen: besökare ser den senast publicerade listan (ingen ny ögonblicksbild skapas); statusraden visar då "har ändrats sedan dess" och Publicera.

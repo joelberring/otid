@@ -3,7 +3,9 @@ export { crc16 } from "./crc";
 export { encodeCommand, encodeStationFrame, FrameDecoder, type FrameEvent, type SiFrame } from "./frame";
 export {
   CARD_LAYOUTS,
+  cardImageBlocks,
   cardReadPlan,
+  LAST_BLOCK,
   cardTypeFromSi8PlusNumber,
   decodeCardNumber,
   expectedImageSize,

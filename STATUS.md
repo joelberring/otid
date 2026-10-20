@@ -5,11 +5,17 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 30 – Live för publiken.
-Steg 7 – Riktig hårdvara och pilot (ägaren) pågår: SI9 via BSM på Mac/Chrome provad 2026-10-19 (`docs/sportident.md`).
+Steg 7 – Riktig hårdvara och pilot (ägaren). Alla andra steg i `PLAN.md` är klara.
 Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbens löpare via `cachedcompetitors`, strukturen) provad mot riktiga Eventor 2026-10-19; hela landets `cachedcompetitors` och `/api/organisations` måste provas av ägaren; ROC:s sökväg för stämplingar (bara provad mot falsk ROC) och e-post via SMTP är inte provade.
 
 ## Logg
+
+### 2026-10-20 – Steg 30: Live för publiken (steg 30 klart)
+- `/t/{kod}/live` (länk från tävlingssidan och resultatlistans rubrik), `GET /api/public/races/{id}/live` bakom samma grind (`publicRaceAccess`, opublicerad/dold ger 404). `application/src/public-live.ts`: ren `projectPublicLive` över den publika resultatlistan, radiotiderna och när resultatet kom in (första avläsningen); kontraktet `public-live.ts` är strikt utan bricka, interna id:n, orsaker och strukna.
+- Sidan: Senast i mål (namn, klubb, klass, tid, "1:a"; felstämplad som "✗ Felstämplad" utan placering), Ledare per klass med "▲ Ny ledare" i 5 min, radiopassager ("passerade Radio 1 6:12, 2:a"), "Uppdaterad 21:03:12" och lugnt besked utan nät, tomläge "Inga målgångar än – sidan uppdateras av sig själv". Uppdateras med resultatströmmen + hämtning var 5:e s (gemensam `usePublicRaceData`).
+- Följ: ☆/★ vid löpare i Live och resultatlistan, klubb i "Per klubb" och "Följ en klubb" i Live; "Följer" överst. Bara `localStorage` (`lib/follow-store.ts`); fungerar inte lagringen gäller valet i minnet och en varning loggas.
+- Tester: enhet `public-live-projection` (7), `follow-store` (3), `public-live-view` (3), `public-live` (2), listorna (stjärnor); integration `steg-30-live` (2); Playwright `live` (ny), `publikt` (Live bakom grinden).
+- Verifierat: install (frozen), lint, typecheck, test, test:integration (70/290), build, Playwright `live`+`publikt`, `radio`+`traningskvall`, `listor` gröna (`live` föll en gång när radiodelen lästes in på nytt efter ifyllnad; testet fyller nu i tills formuläret håller värdena). Skärmbilder 1280/390 granskade (Följer smalare på bred skärm, klassetiketten i linje med ledaren).
 
 ### 2026-10-20 – Steg 29: löpardatabas från Eventor (steg 29 klart)
 - Löpardatabas per Eventor-klubb (migration 0008, `runner_database*`), hämtad med tävlingens sparade nyckel (`cachedcompetitors` med klubbens och tillagda klubbars id, eller hela Sverige; `/api/organisations`) och ersatt i en transaktion; Inställningar → Eventor → Löpardatabasen: uppdatera, fler klubbar, "Ta med hela Sverige (stor hämtning)", radera. Bara admin uppdaterar/raderar; admin och funktionär får förslag; inget publikt (`/integritet`, `docs/security-privacy.md`). Dataminimering: födelseår, kön, klubb, bara SI-brickor; auditposten bara antal.

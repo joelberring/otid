@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { publicRadioResponseSchema, publicRelayResultsSchema, publicResultListResponseSchema, type PublicRadioResponse,
   type PublicRelayResults, type PublicResultListResponse } from "@o-tid/contracts";
-import { startPublicResultEventStream } from "../../lib/public-result-event-stream-client";
+import { usePublicRaceData } from "../../lib/use-public-race-data";
 
 /** Resultaten och (ADR-0172 beslut 5) mellantiderna vid radiokontrollerna. */
 export type ResultListData = { results: PublicResultListResponse; relay: PublicRelayResults; radio?: PublicRadioResponse | undefined };
@@ -18,34 +17,10 @@ async function read(raceId: string): Promise<ResultListData> {
 }
 
 /**
- * De publicerade resultaten (individuella och stafett) och radiokontrollernas mellantider för listorna. Hämtas var femte sekund och direkt när
- * servern säger att något ändrats. Ett misslyckat försök visas (`failed`); senast hämtade data ligger kvar.
- * `active` false pausar hämtningen (arbetsytan när Resultat inte visas). Arbetsytan hämtar mer sällan
- * (`intervalMs`), eftersom servern ändå meddelar ändringar direkt.
+ * De publicerade resultaten (individuella och stafett) och radiokontrollernas mellantider för listorna, uppdaterade av sig
+ * själva (`usePublicRaceData`). Arbetsytan hämtar mer sällan (`intervalMs`), eftersom servern ändå meddelar ändringar direkt.
  */
 export function useResultListData(raceId: string, initial?: ResultListData, active = true, intervalMs = 5_000) {
-  const [data, setData] = useState<ResultListData | undefined>(initial);
-  const [failed, setFailed] = useState(false);
-  const running = useRef(false);
-  useEffect(() => {
-    if (!active) return;
-    let stopped = false;
-    const refresh = async () => {
-      if (running.current || stopped) return;
-      running.current = true;
-      try {
-        const value = await read(raceId);
-        if (!stopped) { setData(value); setFailed(false); }
-      } catch {
-        // Visas som besked ovanför listan; nästa försök sker om fem sekunder.
-        if (!stopped) setFailed(true);
-      } finally { running.current = false; }
-    };
-    if (!initial) void refresh();
-    const timer = window.setInterval(() => { if (document.visibilityState !== "hidden") void refresh(); }, intervalMs);
-    const stopStream = typeof window.EventSource === "function"
-      ? startPublicResultEventStream(raceId, window.EventSource, () => { void refresh(); }) : undefined;
-    return () => { stopped = true; window.clearInterval(timer); stopStream?.(); };
-  }, [raceId, active, intervalMs]);
+  const { data, failed } = usePublicRaceData(raceId, read, initial, active, intervalMs);
   return { data, failed };
 }

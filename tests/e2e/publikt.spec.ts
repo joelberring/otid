@@ -48,7 +48,7 @@ test("opublicerad tävling syns inte, publicerad syns under rätt rubrik, kort a
   test.setTimeout(300_000);
   const suffix = unique();
   const owner = await registerAccount(browser, `publik.${suffix}@exempel.se`, "Petra Publik");
-  for (const path of ["/", "/t/aaaaaa", "/t/aaaaaa/qr"]) await warmRoute(owner, path);
+  for (const path of ["/", "/t/aaaaaa", "/t/aaaaaa/qr", "/t/aaaaaa/live"]) await warmRoute(owner, path);
 
   // Fler tävlingar: kommande och tidigare, så att varje rubrik har innehåll. De skapas före arbetsytan, eftersom
   // varje publicering via API:t öppnar en tävlingssession (en per webbläsare).
@@ -74,13 +74,13 @@ test("opublicerad tävling syns inte, publicerad syns under rätt rubrik, kort a
   await visitor.goto("/");
   await expect(visitor.getByRole("heading", { name: "Tävlingar", level: 1 })).toBeVisible();
   await expect(visitor.getByText(todayName)).toHaveCount(0);
-  for (const path of [`/results/${raceId}`, hubPath!, `${hubPath!}/qr`]) {
+  for (const path of [`/results/${raceId}`, hubPath!, `${hubPath!}/qr`, `${hubPath!}/live`]) {
     const response = await visitor.goto(path);
     expect(response?.status(), path).toBe(404);
     await expect(visitor.getByRole("heading", { name: "Tävlingen är inte publicerad" })).toBeVisible();
     expect(await visitor.content()).not.toContain(todayName);
   }
-  for (const path of [`/api/public/races/${raceId}/results`, `/api/public/races/${raceId}/result-events`]) {
+  for (const path of [`/api/public/races/${raceId}/results`, `/api/public/races/${raceId}/result-events`, `/api/public/races/${raceId}/live`]) {
     expect((await visitor.request.get(path)).status(), path).toBe(404);
   }
 

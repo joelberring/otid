@@ -76,6 +76,10 @@ a.hubLink:hover strong { text-decoration: underline; }
 .hubAddress { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; color: var(--ink); }
 .hubAddress code { font-family: var(--font-dense); font-size: var(--text-md); overflow-wrap: anywhere; }
 
+/* Live (PLAN.md steg 30): samma rubrik och navigering som tävlingssidan, bredare innehåll. */
+.livePage { display: grid; gap: 14px; padding-bottom: 32px; }
+.livePage > .hubNav, .livePage > .hubHeading { max-width: 760px; }
+
 /* QR-sidan: verktygsraden syns bara på skärmen; arket skrivs ut utan navigering. */
 .qrPage { display: grid; gap: 20px; justify-items: center; max-width: 880px; }
 .qrTools { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 10px 16px; width: 100%; }

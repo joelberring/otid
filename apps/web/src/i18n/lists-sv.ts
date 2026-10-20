@@ -103,6 +103,11 @@ export const listsSv = {
     scoredControls: "Räknade kontroller",
     scoredControl: (code: number, points: number) => `${code} (${points} p)`
   },
+  /** PLAN.md steg 30: följ löpare eller klubb på den publika listan och i Live (sparas bara i webbläsaren). */
+  follow: {
+    follow: (name: string) => `Följ ${name}`,
+    unfollow: (name: string) => `Sluta följa ${name}`
+  },
   csv: {
     start: {
       CLASS: ["Klass", "Bana", "Startsätt", "Starttid", "Namn", "Klubb", "Bricka", "Variant", "Lag", "Sträcka"],

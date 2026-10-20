@@ -60,6 +60,11 @@ Gemensamma hjälpare: UUID-mönstret och idempotensnycklarnas form (`UUID_PATTER
   aktör (`actor_account_id`, `actorKind` `USER_ACCOUNT`).
 - Superadmin sätts med kommando på servern (`pnpm account:superadmin`).
 - Publika sidor och `/api/public/*` läser bara publicerat innehåll och kräver ingen inloggning.
+- Live (PLAN.md steg 30, `/t/{kod}/live`, `GET /api/public/races/{id}/live`): `readPublicLive`/`projectPublicLive` i
+  `application/src/public-live.ts` projicerar den publika resultatlistan, radiotiderna och när varje resultat kom in (första
+  avläsningen) till senast i mål, ledare per klass ("Ny ledare" i 5 min) och radiopassager; inga bricknummer, interna id:n eller
+  strukna. Uppdateras som resultatlistan (`lib/use-public-race-data.ts`: resultatströmmen + hämtning var femte sekund). Följda
+  löpare och klubbar finns bara i webbläsarens localStorage (`lib/follow-store.ts`).
 - Se `docs/security-privacy.md`.
 
 ## Var resultatlogiken finns

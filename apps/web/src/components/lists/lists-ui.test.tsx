@@ -53,4 +53,13 @@ describe("resultatlistorna", () => {
     expect(html).not.toContain("Följ");
     expect(html).not.toContain("rutt");
   });
+
+  it("den publika listan har stjärnor för att följa löpare och klubb (PLAN.md steg 30)", () => {
+    const follow = { runner: (row: { name: string }) => <button type="button">Följ {row.name}</button>,
+      club: (club: string) => <button type="button">Följ {club}</button> };
+    const html = renderToStaticMarkup(<ResultLists model={resultModel} raceId="r1" race="Klubbkväll" raceDate="2026-10-08" links follow={follow} />);
+    expect(html).toContain("Följ Ada Ek");
+    // Bo saknar publikt id (äldre format) och kan inte följas.
+    expect(html).not.toContain("Följ Bo Al");
+  });
 });

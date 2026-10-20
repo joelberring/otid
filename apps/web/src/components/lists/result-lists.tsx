@@ -21,7 +21,10 @@ const slug = (value: string) => value.replace(/\W+/g, "-");
 /** `warning`: sen eller tidig start ("! Sen start"); annars en notis utan utropstecken (start från stämpling). */
 export type ResultRowNote = { mark?: string | undefined; detail?: string | undefined; warning?: boolean | undefined;
   disqualificationReason?: string | undefined };
-type Context = { raceId: string; links: boolean; radioTimeZone: string; notes?: ReadonlyMap<string, ResultRowNote> | undefined };
+/** PLAN.md steg 30: stjärnan för att följa en löpare eller klubb, bara på den publika listan. */
+export type ResultListFollow = { runner: (row: ResultRow) => ReactNode; club: (club: string) => ReactNode };
+type Context = { raceId: string; links: boolean; radioTimeZone: string; notes?: ReadonlyMap<string, ResultRowNote> | undefined;
+  follow?: ResultListFollow | undefined };
 
 const noteOf = (row: ResultRow, context: Context) => row.publicResultId ? context.notes?.get(row.publicResultId) : undefined;
 
@@ -48,8 +51,10 @@ function Status({ row, context }: { row: ResultRow; context: Context }) {
 
 /** Löparens namn, länkat till resultatsidan på den publika sidan. Klubb och variant under namnet. */
 function Runner({ row, context, club = true }: { row: ResultRow; context: Context; club?: boolean }) {
+  const name = context.links && row.publicResultId
+    ? <Link href={`/results/${context.raceId}/participants/${row.publicResultId}`}>{row.name}</Link> : row.name;
   return <th scope="row">
-    {context.links && row.publicResultId ? <Link href={`/results/${context.raceId}/participants/${row.publicResultId}`}>{row.name}</Link> : row.name}
+    {context.follow && row.publicResultId ? <span className={styles.nameLine}>{name}{context.follow.runner(row)}</span> : name}
     {club && <span className={styles.subMobile}>{row.club ?? ""}</span>}
     {row.variant && <span className={styles.sub}>{t.variant(row.variant)}</span>}
     <RowMark row={row} context={context} />
@@ -259,7 +264,8 @@ function ByClub({ model, context }: { model: ResultListModel; context: Context }
     const facts = [group.summary.runners > 0 && t.clubSummary(group.summary.runners, group.summary.approved, group.summary.podium),
       group.teams.length > 0 && t.clubTeams(group.teams.length)].filter(Boolean).join(" · ");
     return <section key={group.club ?? ""} className={styles.block} aria-labelledby={id}>
-      <div className={styles.blockHead}><h3 id={id}>{group.club ?? t.noClub}</h3><p>{facts}</p></div>
+      <div className={styles.blockHead}><h3 id={id}>{group.club ?? t.noClub}</h3><p>{facts}</p>
+        {group.club && context.follow?.club(group.club)}</div>
       <table className={styles.table} aria-labelledby={id}>
         <thead><tr><th scope="col">{t.name}</th><th scope="col" className={styles.classCol}>{t.className}</th>
           <th scope="col" className={styles.place}>{t.place}</th><th scope="col" className={`${styles.num} ${styles.narrow}`}>{t.time}</th>
@@ -291,10 +297,12 @@ function ByClub({ model, context }: { model: ResultListModel; context: Context }
  * sträcklöpare och sträckresultat. Samma komponent i arbetsytan och på den publika sidan (där namnen länkar
  * till löparens resultatsida).
  */
-export function ResultLists({ model, raceId, race, raceDate, links, iof, status, notes }: {
+export function ResultLists({ model, raceId, race, raceDate, links, iof, status, notes, follow }: {
   model: ResultListModel; raceId: string; race: string; raceDate: string; links: boolean; iof?: IofExport | undefined; status?: ReactNode;
   /** Arbetsytans märkning per publikt resultat-id (PLAN.md steg 25). */
   notes?: ReadonlyMap<string, ResultRowNote> | undefined;
+  /** Den publika listan: följ löpare och klubb (PLAN.md steg 30). */
+  follow?: ResultListFollow | undefined;
 }) {
   const [view, setView] = useState<ResultView>("CLASS");
   const [query, setQuery] = useState("");
@@ -304,7 +312,7 @@ export function ResultLists({ model, raceId, race, raceDate, links, iof, status,
   const shown = useMemo(() => filterResults(model, query, selected), [model, query, selected]);
   const count = shown.classes.reduce((sum, row) => sum + row.rows.length, 0);
   const teams = shown.relayClasses.reduce((sum, row) => sum + row.teams.length, 0);
-  const context: Context = { raceId, links, radioTimeZone: model.radioTimeZone ?? "Europe/Stockholm", notes };
+  const context: Context = { raceId, links, radioTimeZone: model.radioTimeZone ?? "Europe/Stockholm", notes, follow };
   const views = (["CLASS", "SPLITS", "CLUB"] as const).map(id => ({ id, label: t.views[id] }));
   const empty = model.classes.length === 0 && model.relayClasses.every(row => row.teams.length === 0);
   return <ListFrame title={t.titles[view]} race={race} toolbar={{

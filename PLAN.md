@@ -574,7 +574,7 @@ mindre minne.
 **Acceptans:** adaptertester mot inspelad struktur; Playwright: okänd bricka
 fylls i från databasen offline.
 
-## [ ] Steg 30 – Live för publiken
+## [x] Steg 30 – Live för publiken
 
 Ägarens önskemål 2026-10-19: följa tävlingen i mobilen utan inloggning.
 

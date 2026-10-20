@@ -253,6 +253,7 @@ export * from "./race-settings";
 export * from "./rogaining";
 export * from "./race-map";
 export * from "./radio";
+export * from "./public-live";
 export * from "./race-copy";
 export * from "./readout-registration";
 export * from "./runner-database";

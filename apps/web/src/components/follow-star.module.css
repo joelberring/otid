@@ -1,0 +1,12 @@
+/*
+ * Stjärnan för att följa en löpare eller klubb (PLAN.md steg 30): en stor träffyta, tom (☆) eller fylld (★) stjärna så att
+ * valet syns även utan färg. Ingen animation.
+ */
+.star { display: inline-grid; place-items: center; flex: 0 0 auto; width: 40px; min-height: 40px; padding: 0; border: 0; border-radius: var(--radius);
+  background: transparent; color: var(--muted); font-size: 22px; font-weight: 400; line-height: 1; }
+.star:hover:not(:disabled) { background: var(--subtle); color: var(--ink); }
+.star[data-followed="true"] { color: var(--accent); }
+.star[data-followed="true"]:hover:not(:disabled) { color: var(--accent); }
+@media print { .star { display: none; } }
+/* I en tät tabell: mindre men fortfarande lätt att träffa. */
+.compact { width: 36px; min-height: 36px; font-size: 19px; }

@@ -19,6 +19,7 @@ import { isResultCurrent, loadResultBasisHashes } from "./result-basis";
 import { loadCourseVersionVariants } from "./course-variants";
 import { relayTeamResultsForExport } from "./relay-export";
 import { UUID_PATTERN, compareText, sha256Hex } from "./serialization";
+import { loadControlCodesOutOfOrder } from "./snapshot";
 
 const MAX_CLASSES = 1_000;
 const MAX_RESULTS = 10_000;
@@ -51,34 +52,13 @@ function expectedControls(rows: readonly { sequence: number; controlCode: number
   });
 }
 
-function expectedControlsForRevision(
-  rows: readonly { id: string; sequence: number; controlCode: number }[],
-  neutralization: { classId: string; courseVersionId: string; courseControlId: string; sequence: number; controlCode: number } | undefined,
-  evaluationClassId: string | undefined,
-  courseVersionId: string
-) {
-  const original = expectedControls(rows);
-  if (!neutralization) return { expected: original, splitKeyMap: new Map(original.map((control) => [`${control.controlCode}:${control.occurrence}`, control])) };
-  if (neutralization.classId !== evaluationClassId || neutralization.courseVersionId !== courseVersionId) {
-    throw new StoredResultListConflict("Neutraliseringens klass eller banversion motsäger resultatrevisionen");
-  }
-  const neutralizedIndex = rows.findIndex((row) => row.id === neutralization.courseControlId &&
-    row.sequence === neutralization.sequence && row.controlCode === neutralization.controlCode);
-  if (neutralizedIndex < 0) throw new StoredResultListConflict("Neutraliseringen saknar historisk kontrollförekomst");
-  // The physical sequence keeps its original numbers; the IOF projection's
-  // expected list is contiguous after the omitted occurrence.
-  const filteredRows = rows.filter((_row, index) => index !== neutralizedIndex)
-    .map((row, index) => ({ sequence: index + 1, controlCode: row.controlCode }));
-  const expected = expectedControls(filteredRows);
-  const splitKeyMap = new Map<string, { controlCode: number; occurrence: number }>();
-  let filteredIndex = 0;
-  for (const [index, control] of original.entries()) {
-    if (index === neutralizedIndex) continue;
-    const projected = expected[filteredIndex++];
-    if (!projected) throw new StoredResultListConflict("Neutraliserad kontrollprojektion saknar förekomst");
-    splitKeyMap.set(`${control.controlCode}:${control.occurrence}`, projected);
-  }
-  return { expected, splitKeyMap };
+/**
+ * Förväntade kontroller för exportens sträcktider. En kontroll ur funktion (PLAN.md steg 31) har ingen sträcktid och
+ * utelämnas; förekomsterna av övriga koder är desamma som i bedömningen.
+ */
+function expectedControlsForRevision(rows: readonly { id: string; sequence: number; controlCode: number }[], outOfOrder: ReadonlySet<number>) {
+  const expected = expectedControls(rows).filter((control) => !outOfOrder.has(control.controlCode));
+  return { expected, splitKeyMap: new Map(expected.map((control) => [`${control.controlCode}:${control.occurrence}`, control])) };
 }
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
@@ -192,7 +172,6 @@ async function projectIofResultList(tx: Transaction, raceId: string, options: { 
     cause: schema.resultRevisions.cause,
     readoutId: schema.resultRevisions.readoutId,
   startCheckinDnsDecisionId: schema.resultRevisions.startCheckinDnsDecisionId,
-  controlNeutralizationId: schema.resultRevisions.controlNeutralizationId,
     shortenedCourseClassTransferId: schema.resultRevisions.shortenedCourseClassTransferId,
     evaluation: schema.resultRevisions.evaluation,
     engineVersion: schema.resultRevisions.engineVersion,
@@ -336,17 +315,7 @@ async function projectIofResultList(tx: Transaction, raceId: string, options: { 
   const cardRows = !options.externalIds ? [] : await tx.select({ entryId: schema.cardAssignments.entryId, cardNumber: schema.cardAssignments.cardNumber })
     .from(schema.cardAssignments).where(and(eq(schema.cardAssignments.raceId, race.id), eq(schema.cardAssignments.active, true)));
   const cardByEntry = new Map(cardRows.map((row) => [row.entryId, row.cardNumber]));
-  const neutralizationIds = [...new Set(parsedRows.flatMap((row) => row.controlNeutralizationId === null ? [] : [row.controlNeutralizationId]))];
-  const neutralizationRows = neutralizationIds.length === 0 ? [] : await tx.select({
-    id: schema.classControlNeutralizations.id, raceId: schema.classControlNeutralizations.raceId,
-    classId: schema.classControlNeutralizations.classId, courseVersionId: schema.classControlNeutralizations.courseVersionId,
-    courseControlId: schema.classControlNeutralizations.courseControlId, sequence: schema.classControlNeutralizations.sequence,
-    controlCode: schema.classControlNeutralizations.controlCode
-  }).from(schema.classControlNeutralizations).where(inArray(schema.classControlNeutralizations.id, neutralizationIds));
-  if (neutralizationRows.length !== neutralizationIds.length || neutralizationRows.some((row) => row.raceId !== race.id)) {
-    throw new StoredResultListConflict("Neutraliseringsprovenansen saknas eller ligger utanför loppet");
-  }
-  const neutralizationById = new Map(neutralizationRows.map((row) => [row.id, row]));
+  const outOfOrder = await loadControlCodesOutOfOrder(tx, race.id);
   const resultsByClass = new Map<string, Array<IofResultListPersonResult & {
     internalEntryId: string;
     internalCourseVersionId: string;
@@ -364,17 +333,17 @@ async function projectIofResultList(tx: Transaction, raceId: string, options: { 
     const projection = row.evaluation.status === "DNS" || row.evaluation.status === "DNF"
       ? { expected: [], splitKeyMap: new Map<string, { controlCode: number; occurrence: number }>() }
       : rogaining ? rogainingProjection(rogaining.controls)
-      : expectedControlsForRevision(revisionControls(row),
-        row.controlNeutralizationId === null ? undefined : neutralizationById.get(row.controlNeutralizationId),
-        row.evaluation.classId, row.courseVersionId);
+      : expectedControlsForRevision(revisionControls(row), outOfOrder);
     const expected = projection.expected;
     const expectedKeys = new Set(expected.map((control) => `${control.controlCode}:${control.occurrence}`));
     const splitKeys = new Set<string>();
-    const rawEvaluationSplits = "splits" in row.evaluation ? row.evaluation.splits : [];
+    // En äldre revision (t.ex. manuellt rättad tid) kan ha tid vid en kontroll som nu är ur funktion; den exporteras inte.
+    const rawEvaluationSplits = ("splits" in row.evaluation ? row.evaluation.splits : [])
+      .filter((split) => rogaining || !outOfOrder.has(split.controlCode));
     const evaluationSplits = rawEvaluationSplits.map((split) => {
       if (row.evaluation.status === "DNS" || row.evaluation.status === "DNF") return split;
       const projected = projection.splitKeyMap.get(`${split.controlCode}:${split.occurrence}`);
-      if (!projected) throw new StoredResultListConflict("Evaluationens split saknar neutraliserad projektion");
+      if (!projected) throw new StoredResultListConflict("Evaluationens split saknar kontroll i banan");
       return { ...split, controlCode: projected.controlCode, occurrence: projected.occurrence };
     });
     for (const split of evaluationSplits) {

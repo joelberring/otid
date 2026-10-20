@@ -11,8 +11,7 @@ function snapshot(codes: number[] = [31, 32, 33]): RaceSnapshot {
       createdAt: "2026-10-01T08:00:00Z", controls: codes.map((code, index) => ({ id: `cc-${index}`, courseVersionId: ids.version,
         controlId: `control-${code}`, sequence: index + 1, controlCode: code })) }] }],
     entries: [{ id: ids.entry, raceId: ids.race, classId: ids.class, givenName: "Ada", familyName: "Löpare" }],
-    cardAssignments: [{ id: "card", raceId: ids.race, entryId: ids.entry, cardNumber: "1234567", active: true }],
-    classControlNeutralizations: []
+    cardAssignments: [{ id: "card", raceId: ids.race, entryId: ids.entry, cardNumber: "1234567", active: true }]
   };
 }
 

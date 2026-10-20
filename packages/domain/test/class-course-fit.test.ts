@@ -26,7 +26,7 @@ const snapshot: RaceSnapshot = {
   classes: [raceClass("h21", "H21", "long"), raceClass("d21", "D21", "long"), raceClass("h10", "H10", "short"),
     raceClass("open", "Öppen gafflad", "forked"), raceClass("poang", "Poäng", "rogaining",
       { rogaining: { timeLimitSeconds: 3600, penaltyPointsPerMinute: 1 } }), raceClass("inskolning", "Inskolning", "empty")],
-  entries: [], cardAssignments: [], classControlNeutralizations: []
+  entries: [], cardAssignments: []
 };
 
 const punches = (codes: readonly number[]): Punch[] =>
@@ -57,8 +57,7 @@ describe("klass efter banans passning (PLAN.md steg 29)", () => {
   });
 
   it("struken kontroll krävs inte; rogaining och banor utan kontroller ingår aldrig", () => {
-    const neutralized: RaceSnapshot = { ...snapshot, classControlNeutralizations: [{ id: "n", classId: "h21", courseVersionId: "version-long",
-      courseControlId: "long-2", sequence: 3, controlCode: 33 }] };
+    const neutralized: RaceSnapshot = { ...snapshot, controlsOutOfOrder: [{ id: "n", controlCode: 33 }] };
     const ranked = rankClassesByCourseFit(punches([31, 32, 34]), neutralized);
     expect(ranked.find((fit) => fit.classId === "h21")).toMatchObject({ ok: true, missingControls: [] });
     expect(ranked.map((fit) => fit.classId)).not.toContain("poang");

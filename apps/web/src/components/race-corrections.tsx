@@ -18,7 +18,7 @@ function failureText(failure: RaceCorrectionFailure, duplicate = false): string 
 }
 
 /** Gemensamt flöde: visa, spara (med samma requestId vid omförsök) och kvitto. */
-export function useRaceCorrection(raceId: string, onSaved?: () => void) {
+export function useRaceCorrection(raceId: string, onSaved?: () => Promise<void> | void) {
   const [attempt, setAttempt] = useState<Attempt>();
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [saved, setSaved] = useState("");
   async function show(correction: RaceCorrectionAction) {
@@ -39,9 +39,10 @@ export function useRaceCorrection(raceId: string, onSaved?: () => void) {
       setAttempt(undefined);
       if (!result.ok) { setError(failureText(result.failure)); return; }
       const notRecalculated = result.receipt.summary.notRecalculatedCount;
+      // Listan och arbetsytan läses in på nytt innan beskedet visas, så att deltagarkortet visar de nya resultaten.
+      await onSaved?.();
       setSaved([savedText(result.receipt.recalculatedCount), notRecalculated > 0 ? text.notRecalculated(notRecalculated) : ""]
         .filter(Boolean).join(" "));
-      onSaved?.();
     } catch { setError(text.unreachable); } finally { setBusy(false); }
   }
   function cancel() { setAttempt(undefined); setError(""); }
@@ -81,7 +82,7 @@ function correctionLabel(row: RaceCorrection): string {
 }
 
 /** "Justera tid för en station". */
-function TimeAdjustmentForm({ raceId, onSaved }: { raceId: string; onSaved: () => void }) {
+function TimeAdjustmentForm({ raceId, onSaved }: { raceId: string; onSaved: () => Promise<void> }) {
   const flow = useRaceCorrection(raceId, onSaved);
   const [station, setStation] = useState<"START" | "FINISH" | "CONTROL">("FINISH");
   const [code, setCode] = useState(""), [sign, setSign] = useState<"-" | "+">("-");
@@ -128,8 +129,34 @@ function TimeAdjustmentForm({ raceId, onSaved }: { raceId: string; onSaved: () =
   </details>;
 }
 
+/** "Kontroll ur funktion": koden krävs inte på någon bana. */
+function OutOfOrderForm({ raceId, onSaved }: { raceId: string; onSaved: () => Promise<void> }) {
+  const flow = useRaceCorrection(raceId, onSaved);
+  const [code, setCode] = useState(""), [reason, setReason] = useState(""), [open, setOpen] = useState(false);
+  const controlCode = Number(code);
+  const valid = Number.isInteger(controlCode) && controlCode >= 1 && controlCode <= 9999 && reason.trim().length > 0;
+  const locked = flow.busy || !!flow.attempt;
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    if (valid) void flow.show({ action: "ADD_CONTROL_OUT_OF_ORDER", controlCode, reason: reason.trim() });
+  }
+  return <details className={styles.disclosure} open={open || !!flow.attempt} onToggle={event => setOpen(event.currentTarget.open)}>
+    <summary>{text.outTitle}</summary>
+    <form className={styles.disclosureBody} onSubmit={submit}>
+      <p>{text.outHelp}</p>
+      <label>{text.controlCode}<input type="text" inputMode="numeric" value={code} disabled={locked}
+        onChange={event => setCode(event.target.value.replace(/\D/g, "").slice(0, 4))} required /></label>
+      <label>{text.reason}<input type="text" maxLength={500} value={reason} placeholder={text.outReasonPlaceholder} disabled={locked}
+        onChange={event => setReason(event.target.value)} required /></label>
+      {!flow.attempt && <button type="submit" disabled={!valid || flow.busy}>{text.show}</button>}
+      <RaceCorrectionReview flow={flow} title={`${text.outTitle}: ${text.outLabel(controlCode)}`} />
+      <RaceCorrectionMessages flow={flow} />
+    </form>
+  </details>;
+}
+
 /** Aktiva rättningar med "Ta bort" (räknar om tillbaka) och de borttagna som historik. */
-function CorrectionList({ raceId, corrections, onSaved }: { raceId: string; corrections: readonly RaceCorrection[]; onSaved: () => void }) {
+function CorrectionList({ raceId, corrections, onSaved }: { raceId: string; corrections: readonly RaceCorrection[]; onSaved: () => Promise<void> }) {
   const flow = useRaceCorrection(raceId, onSaved);
   const [removing, setRemoving] = useState<RaceCorrection>();
   const active = corrections.filter(row => row.removedAt === null), removed = corrections.filter(row => row.removedAt !== null);
@@ -148,16 +175,17 @@ function CorrectionList({ raceId, corrections, onSaved }: { raceId: string; corr
   </div>;
 }
 
-export function RaceCorrectionsPanel({ raceId, onChanged }: { raceId: string; onChanged?: () => void }) {
+export function RaceCorrectionsPanel({ raceId, onChanged }: { raceId: string; onChanged?: () => Promise<void> }) {
   const [corrections, setCorrections] = useState<readonly RaceCorrection[]>();
   const [error, setError] = useState("");
   const load = useCallback(async () => {
     try { setCorrections((await fetchRaceCorrections(raceId)).corrections); setError(""); } catch { setError(text.loadError); }
   }, [raceId]);
   useEffect(() => { void load(); }, [load]);
-  const onSaved = () => { void load(); onChanged?.(); };
+  const onSaved = async () => { await Promise.all([load(), onChanged?.()]); };
   return <div className={styles.disclosureList}>
     <TimeAdjustmentForm raceId={raceId} onSaved={onSaved} />
+    <OutOfOrderForm raceId={raceId} onSaved={onSaved} />
     {error && <p className={styles.warning} role="alert">{error}</p>}
     {corrections && <CorrectionList raceId={raceId} corrections={corrections} onSaved={onSaved} />}
   </div>;

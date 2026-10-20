@@ -51,7 +51,6 @@ async function selectPublishedPublicResultHeads(tx: DatabaseTransaction, raceId:
     cause: schema.resultRevisions.cause,
     readoutId: schema.resultRevisions.readoutId,
     startCheckinDnsDecisionId: schema.resultRevisions.startCheckinDnsDecisionId,
-    controlNeutralizationId: schema.resultRevisions.controlNeutralizationId,
     shortenedCourseClassTransferId: schema.resultRevisions.shortenedCourseClassTransferId,
     evaluation: schema.resultRevisions.evaluation,
     engineVersion: schema.resultRevisions.engineVersion,

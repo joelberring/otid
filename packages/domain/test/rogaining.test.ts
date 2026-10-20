@@ -25,8 +25,7 @@ function snapshot(rules: RogainingRules | null = hour, startRule: "FIXED" | "PUN
         controlId: `control-${code}`, sequence: index + 1, controlCode: code, ...(code === 52 ? { points: 7 } : {}) })) }] }],
     entries: [{ id: ids.entry, raceId: ids.race, classId: ids.class, givenName: "Ada", familyName: "Löpare",
       fixedStartTime: "2026-10-08T10:00:00Z" }],
-    cardAssignments: [{ id: "card", raceId: ids.race, entryId: ids.entry, cardNumber: "12345", active: true }],
-    classControlNeutralizations: []
+    cardAssignments: [{ id: "card", raceId: ids.race, entryId: ids.entry, cardNumber: "12345", active: true }]
   };
 }
 

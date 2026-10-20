@@ -13,7 +13,7 @@ import { bumpReadoutPackageVersion, loadRaceSnapshot } from "./snapshot";
 import { canonicalHash } from "./serialization";
 
 /**
- * Rättningar för hela tävlingen (PLAN.md steg 31): tidsjustering för en station och att ta bort den. Varje åtgärd
+ * Rättningar för hela tävlingen (PLAN.md steg 31): tidsjustering för en station, kontroll ur funktion och att ta bort dem. Varje åtgärd
  * görs i en transaktion som också räknar om alla avlästa löpare i tävlingen med samma omprövning som banändringar
  * (`result-reassessment.ts`): en löpare med manuellt rättad tid räknas inte om, och beskedet säger hur många.
  * "Visa vad som händer" kör exakt samma åtgärd och rullar tillbaka; sparandet kräver att beskedet är oförändrat.
@@ -56,6 +56,21 @@ async function mutate(tx: Transaction, raceId: string, accountId: string, correc
         offsetMs, reason: correction.reason, actorAccountId: accountId, createdAt: now });
       return { entity: { type: "race_station_correction", id: correctionId }, before: null, bump: true,
         after: { kind: "TIME_ADJUSTMENT", station, controlCode, offsetMs, reason: correction.reason } };
+    }
+    case "ADD_CONTROL_OUT_OF_ORDER": {
+      const controlCode = correction.controlCode;
+      const [existing] = await tx.select({ id: schema.raceStationCorrections.id }).from(schema.raceStationCorrections)
+        .where(and(eq(schema.raceStationCorrections.raceId, raceId), eq(schema.raceStationCorrections.kind, "CONTROL_OUT_OF_ORDER"),
+          eq(schema.raceStationCorrections.controlCode, controlCode), isNull(schema.raceStationCorrections.removedAt)));
+      if (existing) return { status: "conflict" };
+      // Bara en kod som finns i tävlingen: en felskriven kod ska inte se ut att ha gjort något.
+      const [control] = await tx.select({ id: schema.controls.id }).from(schema.controls)
+        .where(and(eq(schema.controls.raceId, raceId), eq(schema.controls.code, controlCode))).limit(1);
+      if (!control) return { status: "not-found" };
+      await tx.insert(schema.raceStationCorrections).values({ id: correctionId, raceId, kind: "CONTROL_OUT_OF_ORDER", station: "CONTROL",
+        controlCode, reason: correction.reason, actorAccountId: accountId, createdAt: now });
+      return { entity: { type: "race_station_correction", id: correctionId }, before: null, bump: true,
+        after: { kind: "CONTROL_OUT_OF_ORDER", controlCode, reason: correction.reason } };
     }
     case "REMOVE": {
       const [row] = await tx.select().from(schema.raceStationCorrections).where(and(

@@ -4,7 +4,6 @@ import {
   evaluateCardReadout, RESULT_ENGINE_VERSION,
   type EvaluationResult, type NormalizedCardReadout, type RaceSnapshot, type ResultOutcome
 } from "@o-tid/domain";
-import { appliedControlNeutralization } from "./class-control-neutralization";
 import type { DbExecutor } from "./snapshot";
 
 /**
@@ -25,7 +24,6 @@ export interface AppendResultRevisionInput {
   readonly snapshotVersion: number;
   readonly courseVersionId: string;
   readonly readoutId?: string | null;
-  readonly controlNeutralizationId?: string | null;
   readonly shortenedCourseClassTransferId?: string | null;
   readonly startCheckinDnsDecisionId?: string | null;
   readonly actorAccountId?: string | null;
@@ -66,7 +64,6 @@ export async function appendResultRevision(tx: DbExecutor, input: AppendResultRe
     engineVersion: input.engineVersion,
     snapshotVersion: input.snapshotVersion,
     courseVersionId: input.courseVersionId,
-    controlNeutralizationId: input.controlNeutralizationId ?? null,
     shortenedCourseClassTransferId: input.shortenedCourseClassTransferId ?? null,
     startCheckinDnsDecisionId: input.startCheckinDnsDecisionId ?? null,
     requestId: input.requestId ?? null,
@@ -115,7 +112,7 @@ export async function evaluateAndStore(tx: DbExecutor, snapshot: RaceSnapshot, r
   const revision = await appendResultRevision(tx, { raceId: snapshot.race.id, entryId: evaluation.entryId, cause,
     outcome: evaluation, engineVersion: RESULT_ENGINE_VERSION,
     snapshotVersion: options.snapshotVersion ?? snapshot.race.snapshotVersion, courseVersionId: evaluation.courseVersionId,
-    readoutId: readout.id, controlNeutralizationId: appliedControlNeutralization(snapshot, evaluation),
+    readoutId: readout.id,
     shortenedCourseClassTransferId: options.shortenedCourseClassTransferId ?? null,
     actorAccountId: options.actorAccountId ?? null, requestId: options.requestId ?? null });
   return { stored: true, evaluation, revision };

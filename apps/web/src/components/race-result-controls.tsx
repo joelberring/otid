@@ -50,8 +50,9 @@ export function RaceResultControls({ result, resultError, timeZone }: {
           <tbody>{details.controls.map((control) => <tr key={`${control.sequence}-${control.controlCode}-${control.occurrence}`}>
             <td className={styles.numeric}>{control.sequence}</td>
             <th scope="row">{control.controlCode}{control.occurrence > 1 ? <span className={styles.occurrence}> · {text.occurrence} {control.occurrence}</span> : null}</th>
-            <td className={styles.numeric}>{control.legMs === null ? text.noSplit : elapsed(control.legMs)}</td>
-            <td className={styles.numeric}>{control.elapsedMs === null ? text.noSplit : elapsed(control.elapsedMs)}</td>
+            {control.outOfOrder ? <td colSpan={2}>{text.outOfOrder}</td> : <>
+              <td className={styles.numeric}>{control.legMs === null ? text.noSplit : elapsed(control.legMs)}</td>
+              <td className={styles.numeric}>{control.elapsedMs === null ? text.noSplit : elapsed(control.elapsedMs)}</td></>}
           </tr>)}</tbody>
         </table>
       </div>}

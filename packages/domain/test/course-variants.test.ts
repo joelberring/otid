@@ -33,8 +33,7 @@ function snapshot(variantCode?: string): RaceSnapshot {
     }] }],
     entries: [{ id: ids.entry, raceId: ids.race, classId: ids.class, givenName: "Ada", familyName: "Ek",
       ...(variantCode ? { courseVariantCode: variantCode } : {}) }],
-    cardAssignments: [{ id: "assignment", raceId: ids.race, entryId: ids.entry, cardNumber: "8001", active: true }],
-    classControlNeutralizations: []
+    cardAssignments: [{ id: "assignment", raceId: ids.race, entryId: ids.entry, cardNumber: "8001", active: true }]
   };
 }
 
@@ -53,6 +52,17 @@ describe("bedömning per variant", () => {
     expect(onAc.status).toBe("MP");
     expect(onAc.missingControls.length).toBeGreaterThan(0);
     expect(courseVariantForReadout(punchedAd, snapshot("AC"))).toEqual({ code: "AC", assigned: true });
+  });
+
+  it("kontroll ur funktion gäller alla varianter (steg 31): 63 krävs varken på AD eller BD", () => {
+    const outOfOrder = (variant: string): RaceSnapshot => ({ ...snapshot(variant), controlsOutOfOrder: [{ id: "out", controlCode: 63 }] });
+    for (const variant of ["AD", "BD"] as const) {
+      const punched = readout(variantCodes(variant).filter((code) => code !== 63));
+      expect(evaluateCardReadout(punched, snapshot(variant))).toMatchObject({ status: "MP", missingControls: [63] });
+      const evaluated = evaluateCardReadout(punched, outOfOrder(variant));
+      expect(evaluated).toMatchObject({ status: "OK", missingControls: [] });
+      expect(evaluated.splits.map((split) => split.controlCode)).not.toContain(63);
+    }
   });
 
   it("saknar löparen variant väljs den variant som stämplingarna passar", () => {

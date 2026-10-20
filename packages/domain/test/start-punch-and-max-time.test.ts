@@ -26,8 +26,7 @@ function snapshot(options: { startRule?: "FIXED" | "PUNCH"; fixedStartTime?: str
         controlId: `control-${code}`, sequence: index + 1, controlCode: code })) }] }],
     entries: [{ id: ids.entry, raceId: ids.race, classId: ids.class, givenName: "Ada", familyName: "Löpare",
       ...(fixed ? { fixedStartTime: fixed } : {}) }],
-    cardAssignments: [{ id: "card", raceId: ids.race, entryId: ids.entry, cardNumber: "12345", active: true }],
-    classControlNeutralizations: []
+    cardAssignments: [{ id: "card", raceId: ids.race, entryId: ids.entry, cardNumber: "12345", active: true }]
   };
 }
 

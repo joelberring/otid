@@ -35,8 +35,6 @@ export { deleteRunnerDatabaseAsAdmin, getRunnerDatabaseSettingsAsAdmin, refreshR
 export { listAdministratorForestWatch } from "./start-checkin-roster";
 export { readStartCheckinConflictReviewAsAdmin, reviewStartCheckinConflictsAsAdmin } from "./checkin-conflict-review";
 export { listSpeakerBoardAsAdmin } from "./speaker-board";
-export { appliedControlNeutralization } from "./class-control-neutralization";
-export { previewClassControlNeutralizationAsAdmin, neutralizeClassControlAsAdmin } from "./class-control-neutralization";
 export { getAdministratorEffectiveResult } from "./administrator-effective-result";
 export { listEntryRegistrationCandidatesAsAdmin } from "./entry-registration-candidates";
 export { listAdministratorEntryChanges } from "./administrator-entry-changes";

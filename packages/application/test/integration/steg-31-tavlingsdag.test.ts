@@ -109,3 +109,31 @@ describe("steg 31: tidsjustering för en station", () => {
       station: "CONTROL", controlCode: 31, offsetSeconds: 60, reason: "Igen" } } }, NOW)).status).toBe("conflict");
   });
 });
+
+describe("steg 31: kontroll ur funktion", () => {
+  it("krävs inte för någon, visas som ur funktion i sträcktiderna och kan tas bort", async () => {
+    const { ids, cards, admin } = await seedRace(db, pool);
+    const ada = run(cards.ada, "10:02:00", 30);
+    await ingest(db, ids.race, [{ ...ada, punches: [ada.punches[1]!] }, run(cards.bo, "10:05:00", 41)]);
+    expect(await latest(ids.race, ids.ada)).toMatchObject({ status: "MP", reason: "MISSING_CONTROL" });
+    // En kod som inte finns i tävlingen avvisas.
+    expect((await previewRaceCorrectionAsAdmin(db, { ...admin, request: { formatVersion: 1, correction: { action: "ADD_CONTROL_OUT_OF_ORDER",
+      controlCode: 99, reason: "Fel" } } }, NOW)).status).toBe("not-found");
+    const { preview, applied } = await previewAndApply(admin, { action: "ADD_CONTROL_OUT_OF_ORDER", controlCode: 31, reason: "Enheten saknades" });
+    expect(preview.summary.changes).toMatchObject([{ entryId: ids.ada, before: "MP", after: "OK" }]);
+    expect(applied.recalculatedCount).toBe(2);
+    expect(await latest(ids.race, ids.ada)).toMatchObject({ status: "OK" });
+    // Bo stämplade 31: ingen sträcktid där, sträckan till 32 räknas från starten.
+    expect((await latest(ids.race, ids.bo)).evaluation.splits.map(split => split.controlCode)).toEqual([32]);
+    const card = await getAdministratorEffectiveResult(db, { ...admin, entryId: ids.bo }, NOW);
+    expect(card.status === "ok" && card.response.state === "ACTIVE_RESULT" && card.response.controlDetails?.controls)
+      .toMatchObject([{ controlCode: 31, elapsedMs: null, outOfOrder: true }, { controlCode: 32 }]);
+    expect((await loadRaceSnapshot(db, ids.race)).controlsOutOfOrder).toMatchObject([{ controlCode: 31 }]);
+
+    const listed = await listRaceCorrectionsAsAdmin(db, admin, NOW);
+    const row = listed.status === "ok" ? listed.response.corrections.find(value => value.kind === "CONTROL_OUT_OF_ORDER") : undefined;
+    await previewAndApply(admin, { action: "REMOVE", correctionId: row!.id });
+    expect(await latest(ids.race, ids.ada)).toMatchObject({ status: "MP", reason: "MISSING_CONTROL" });
+    expect((await latest(ids.race, ids.bo)).evaluation.splits.map(split => split.controlCode)).toEqual([31, 32]);
+  });
+});

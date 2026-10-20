@@ -51,7 +51,8 @@ const fingerprint = (pool: Pool) => scalar(pool, `SELECT concat_ws('|',
   (SELECT count(*) FROM entry), (SELECT count(*) FROM card_readout), (SELECT count(*) FROM result_revision),
   (SELECT md5(string_agg(e::text, ',' ORDER BY e.id)) FROM entry e),
   (SELECT md5(string_agg(r::text, ',' ORDER BY r.id)) FROM card_readout r),
-  (SELECT md5(string_agg(r::text, ',' ORDER BY r.id)) FROM result_revision r)) AS value`);
+  -- Steg 31 (0009) tar bort den oanvända kolumnen control_neutralization_id; övriga värden ska vara oförändrade.
+  (SELECT md5(string_agg((to_jsonb(r) - 'control_neutralization_id')::text, ',' ORDER BY r.id)) FROM result_revision r)) AS value`);
 
 afterAll(async () => {
   for (const { name, pool } of created) {

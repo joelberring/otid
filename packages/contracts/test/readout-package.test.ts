@@ -29,8 +29,7 @@ function payload() {
       classes: [],
       courses: [],
       entries: [],
-      cardAssignments: [],
-      classControlNeutralizations: []
+      cardAssignments: []
     },
     fetchedAt: "2026-08-30T10:00:00.000Z"
   };

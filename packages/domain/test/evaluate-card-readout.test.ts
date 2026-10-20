@@ -39,8 +39,7 @@ function snapshot(codes: number[] = [31, 32, 33], startRule: "FIXED" | "PUNCH" =
       familyName: "Löpare",
       fixedStartTime: "2026-08-30T10:00:00Z"
     }],
-    cardAssignments: [{ id: "card", raceId: ids.race, entryId: ids.entry, cardNumber: "12345", active: true }],
-    classControlNeutralizations: []
+    cardAssignments: [{ id: "card", raceId: ids.race, entryId: ids.entry, cardNumber: "12345", active: true }]
   };
 }
 
@@ -107,16 +106,20 @@ describe("evaluateCardReadout", () => {
     });
   });
 
-  it("neutraliserar exakt en förekomst utan att göra en senare lika kod frivillig", () => {
-    const value = { ...snapshot([31, 31, 32]), classControlNeutralizations: [{
-      id: "neutralization", classId: ids.class, courseVersionId: ids.version,
-      courseControlId: "cc-0", sequence: 1, controlCode: 31
-    }] };
-    expect(evaluateCardReadout(readout([31, 32]), value)).toMatchObject({
-      status: "OK", reason: "COMPLETE", extraPunches: [],
-      splits: [{ controlCode: 31, occurrence: 2 }, { controlCode: 32, occurrence: 1 }]
-    });
-    expect(evaluateCardReadout(readout([32]), value)).toMatchObject({ status: "MP", missingControls: [31] });
+  it("kontroll ur funktion (steg 31): krävs inte, ger ingen sträcktid och sträckan räknas från kontrollen före", () => {
+    const value = { ...snapshot([31, 32, 33]), controlsOutOfOrder: [{ id: "out", controlCode: 32 }] };
+    const without = evaluateCardReadout(readout([31, 33]), value);
+    expect(without).toMatchObject({ status: "OK", reason: "COMPLETE", missingControls: [], extraPunches: [] });
+    expect(without.splits.map((split) => [split.controlCode, split.legMs])).toEqual([[31, 10 * 60_000], [33, 5 * 60_000]]);
+    // Stämplad ändå: ingen sträcktid för 32, och sträckan till 33 räknas från 31.
+    const punched = evaluateCardReadout(readout([31, 32, 33]), value);
+    expect(punched).toMatchObject({ status: "OK", extraPunches: [] });
+    expect(punched.splits.map((split) => [split.controlCode, split.legMs])).toEqual([[31, 10 * 60_000], [33, 10 * 60_000]]);
+    // Övriga kontroller krävs som vanligt, och utan rättningen är allt som förut.
+    expect(evaluateCardReadout(readout([32, 33]), value)).toMatchObject({ status: "MP", missingControls: [31] });
+    expect(evaluateCardReadout(readout([31, 33]), snapshot([31, 32, 33]))).toMatchObject({ status: "MP", missingControls: [32] });
+    expect(evaluateCardReadout(readout([31, 32, 33]), { ...snapshot([31, 32, 33]), controlsOutOfOrder: [] }))
+      .toEqual(evaluateCardReadout(readout([31, 32, 33]), snapshot([31, 32, 33])));
   });
 
   it("ger MP för fel ordning", () => {

@@ -25,8 +25,7 @@ function snapshot(): RaceSnapshot {
       fixedStartTime: "2026-08-30T10:00:00Z" },
     { id: "other-entry", raceId: ids.race, classId: ids.other, givenName: "Bo", familyName: "Löpare",
       fixedStartTime: "2026-08-30T10:01:00Z" }],
-    cardAssignments: [{ id: "card", raceId: ids.race, entryId: ids.entry, cardNumber: "12345", active: true }],
-    classControlNeutralizations: []
+    cardAssignments: [{ id: "card", raceId: ids.race, entryId: ids.entry, cardNumber: "12345", active: true }]
   };
 }
 

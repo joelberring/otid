@@ -17,7 +17,6 @@ import { appendResultRevision, evaluateAndStore, normalizedReadout } from "./res
 import { loadRaceSnapshot } from "./snapshot";
 import { lockEntryForRevision, lockRaceForSnapshot } from "./concurrency";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
-import { appliedControlNeutralization } from "./class-control-neutralization";
 import { isResultCurrent, loadResultBasisHashes } from "./result-basis";
 import { UUID_PATTERN } from "./serialization";
 
@@ -271,8 +270,7 @@ export async function recalculateEntryAsAdmin(
     if (evaluation.entryId !== entry.id || !evaluation.courseVersionId) return { status: "conflict" };
     const createdResult = await appendResultRevision(tx, { raceId: authorization.principal.raceId, entryId: entry.id,
       readoutId: readout.id, cause: "EXPLICIT_RECALCULATION", outcome: evaluation, engineVersion: RESULT_ENGINE_VERSION,
-      snapshotVersion: snapshot.race.snapshotVersion, courseVersionId: evaluation.courseVersionId,
-      controlNeutralizationId: appliedControlNeutralization(snapshot, evaluation) });
+      snapshotVersion: snapshot.race.snapshotVersion, courseVersionId: evaluation.courseVersionId });
     const [savedRequest] = await tx.insert(schema.resultRecalculationRequests).values({
       requestId,
       raceId: authorization.principal.raceId,

@@ -47,13 +47,12 @@ export function sortRaceSnapshotForPackage(snapshot: RaceSnapshot) {
       })),
     entries: [...snapshot.entries].sort((left, right) => compareText(left.id, right.id)),
     cardAssignments: [...snapshot.cardAssignments].sort((left, right) => compareText(left.id, right.id)),
-    classControlNeutralizations: [...snapshot.classControlNeutralizations]
-      .sort((left, right) => compareText(left.classId, right.classId) ||
-        compareText(left.courseVersionId, right.courseVersionId) || left.sequence - right.sequence ||
-        compareText(left.id, right.id)),
     // Rättningar för hela tävlingen (PLAN.md steg 31); fältet saknas när det inte finns några.
     ...(snapshot.stationTimeAdjustments && snapshot.stationTimeAdjustments.length > 0 ? {
       stationTimeAdjustments: [...snapshot.stationTimeAdjustments].sort((left, right) => compareText(left.id, right.id))
+    } : {}),
+    ...(snapshot.controlsOutOfOrder && snapshot.controlsOutOfOrder.length > 0 ? {
+      controlsOutOfOrder: [...snapshot.controlsOutOfOrder].sort((left, right) => compareText(left.id, right.id))
     } : {})
   };
 }
@@ -130,16 +129,14 @@ export async function loadRaceSnapshot(db: DbExecutor, raceId: string): Promise<
   const assignmentRows = await db.select().from(schema.cardAssignments)
     .where(eq(schema.cardAssignments.raceId, raceId))
     .orderBy(asc(schema.cardAssignments.id));
-  const neutralizationRows = await db.select().from(schema.classControlNeutralizations)
-    .where(eq(schema.classControlNeutralizations.raceId, raceId))
-    .orderBy(asc(schema.classControlNeutralizations.classId), asc(schema.classControlNeutralizations.courseVersionId),
-      asc(schema.classControlNeutralizations.sequence), asc(schema.classControlNeutralizations.id));
   const correctionRows = await db.select().from(schema.raceStationCorrections)
     .where(and(eq(schema.raceStationCorrections.raceId, raceId), isNull(schema.raceStationCorrections.removedAt)))
     .orderBy(asc(schema.raceStationCorrections.id));
   const stationTimeAdjustments = correctionRows.flatMap((row) => row.kind === "TIME_ADJUSTMENT" && row.offsetMs !== null
     ? [{ id: row.id, station: row.station, ...(row.controlCode !== null ? { controlCode: row.controlCode } : {}), offsetMs: row.offsetMs }]
     : []);
+  const controlsOutOfOrder = correctionRows.flatMap((row) => row.kind === "CONTROL_OUT_OF_ORDER" && row.controlCode !== null
+    ? [{ id: row.id, controlCode: row.controlCode }] : []);
 
   return sortRaceSnapshotForPackage({
     race: {
@@ -204,14 +201,15 @@ export async function loadRaceSnapshot(db: DbExecutor, raceId: string): Promise<
       // Hyrbricka (PLAN.md steg 25): avläsningen ber funktionären samla in den.
       ...(row.isRental && !row.rentalReturned ? { rental: true } : {})
     })),
-    classControlNeutralizations: neutralizationRows.map((row) => ({
-      id: row.id,
-      classId: row.classId,
-      courseVersionId: row.courseVersionId,
-      courseControlId: row.courseControlId,
-      sequence: row.sequence,
-      controlCode: row.controlCode
-    })),
-    stationTimeAdjustments
+    stationTimeAdjustments,
+    controlsOutOfOrder
   });
+}
+
+/** Kontrollkoderna som är ur funktion i tävlingen just nu (PLAN.md steg 31), för sträcktidernas visning och export. */
+export async function loadControlCodesOutOfOrder(db: DbExecutor, raceId: string): Promise<ReadonlySet<number>> {
+  const rows = await db.select({ controlCode: schema.raceStationCorrections.controlCode }).from(schema.raceStationCorrections)
+    .where(and(eq(schema.raceStationCorrections.raceId, raceId), eq(schema.raceStationCorrections.kind, "CONTROL_OUT_OF_ORDER"),
+      isNull(schema.raceStationCorrections.removedAt)));
+  return new Set(rows.flatMap((row) => row.controlCode === null ? [] : [row.controlCode]));
 }

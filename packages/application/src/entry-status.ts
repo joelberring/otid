@@ -161,7 +161,7 @@ export async function applyEntryDecision(tx: Transaction, input: { raceId: strin
   const revision = await appendResultRevision(tx, { raceId: input.raceId, entryId: input.entryId, cause: outcome.cause,
     outcome: outcome.outcome, engineVersion: outcome.engineVersion,
     snapshotVersion: input.snapshotVersion ?? value.race.snapshotVersion, courseVersionId,
-    controlNeutralizationId: outcome.source?.controlNeutralizationId ?? null, requestId: input.requestId,
+    requestId: input.requestId,
     actorAccountId: input.actorAccountId, expectedRevision: headRevision + 1, createdAt: input.decidedAt,
     note: input.decision.kind === "DISQUALIFIED" ? input.decision.reason?.trim() || null : null });
   // Stafett: en ändrad måltid är nästa sträckas växling.

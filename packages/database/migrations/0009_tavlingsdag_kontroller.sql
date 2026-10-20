@@ -64,11 +64,8 @@ CREATE OR REPLACE FUNCTION public.otid_result_basis_hash(p_entry_id uuid) RETURN
       JOIN control ctl ON ctl.id = cc.control_id
       WHERE cc.course_version_id = c.course_version_id
     ), '')
-    || '|neutralized=' || coalesce((
-      SELECT string_agg(n.course_control_id::text, ',' ORDER BY n.course_control_id::text)
-      FROM class_control_neutralization n
-      WHERE n.class_id = e.class_id AND n.course_version_id = c.course_version_id
-    ), '')
+    -- Den gamla strykningen per klass är borttagen (steg 31); segmentet står kvar tomt så att hashen är oförändrad.
+    || '|neutralized='
     || '|fixedStart=' || coalesce(floor(extract(epoch FROM e.fixed_start_time) * 1000)::bigint::text, '')
     || CASE WHEN forked.has_variants THEN
       '|variant=' || coalesce(e.course_variant_code, '')
@@ -108,3 +105,9 @@ CREATE OR REPLACE FUNCTION public.otid_result_basis_hash(p_entry_id uuid) RETURN
   ) forked
   WHERE e.id = p_entry_id
 $$;
+--> statement-breakpoint
+-- Kontroll ur funktion för hela tävlingen ersätter strykningen per klass och banversion, som aldrig fick något
+-- gränssnitt: ett sätt att göra en kontroll frivillig. Funktionen ovan läser inte längre tabellen.
+ALTER TABLE result_revision DROP COLUMN control_neutralization_id;
+--> statement-breakpoint
+DROP TABLE class_control_neutralization;

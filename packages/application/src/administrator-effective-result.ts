@@ -9,6 +9,7 @@ import { storedResultVariantControls } from "./course-variants";
 import { UUID_PATTERN as uuid } from "./serialization";
 import { applicableResultNotes, loadResultNotes } from "./result-notes";
 import { loadEntryCardPunches } from "./card-punches";
+import { loadControlCodesOutOfOrder } from "./snapshot";
 
 export type AdministratorEffectiveResult =
   | { status: "unauthorized" | "forbidden" | "not-found" | "invalid-request" }
@@ -22,8 +23,11 @@ export function parseAdministratorStoredResultHead(state: StoredResultHeadState<
 type HistoricalControl = { id: string; sequence: number; controlCode: number };
 type StoredSplit = { controlCode: number; occurrence: number; elapsedMs: number; legMs: number };
 
-/** Stored split occurrences count the complete historical sequence, including a neutralized control. */
-export function projectAdministratorControlTimes(controls: readonly HistoricalControl[], neutralizedControlId: string | null,
+/**
+ * Sträcktiderna mot banans hela kontrollföljd (förekomsterna räknas över hela följden). En kontroll ur funktion
+ * (PLAN.md steg 31) får ingen tid och märks `outOfOrder`; sträckan efter den räknas från kontrollen före.
+ */
+export function projectAdministratorControlTimes(controls: readonly HistoricalControl[], outOfOrder: ReadonlySet<number>,
   splits: readonly StoredSplit[]) {
   const splitByKey = new Map<string, StoredSplit>(splits.map(split => [`${split.controlCode}:${split.occurrence}`, split]));
   if (splitByKey.size !== splits.length) throw new StoredResultRevisionConflict("Dubbla lagrade sträcktider");
@@ -33,13 +37,16 @@ export function projectAdministratorControlTimes(controls: readonly HistoricalCo
     const occurrence = (occurrences.get(control.controlCode) ?? 0) + 1;
     occurrences.set(control.controlCode, occurrence);
     const key = `${control.controlCode}:${occurrence}`;
-    const split = neutralizedControlId === control.id ? undefined : splitByKey.get(key);
+    const out = outOfOrder.has(control.controlCode);
+    const split = out ? undefined : splitByKey.get(key);
     if (split) matched.add(key);
     const validSplit = split && split.elapsedMs >= 0 && split.legMs >= 0;
     return { sequence: control.sequence, controlCode: control.controlCode, occurrence,
-      elapsedMs: validSplit ? split.elapsedMs : null, legMs: validSplit ? split.legMs : null };
+      elapsedMs: validSplit ? split.elapsedMs : null, legMs: validSplit ? split.legMs : null, ...(out ? { outOfOrder: true as const } : {}) };
   });
-  if (matched.size !== splitByKey.size) throw new StoredResultRevisionConflict("Lagrad sträcktid saknar historisk kontroll");
+  // En äldre revision kan ha tid vid en kontroll som senare blivit ur funktion; den tiden visas inte.
+  const unmatched = [...splitByKey.keys()].filter(key => !matched.has(key) && !outOfOrder.has(Number(key.split(":")[0])));
+  if (unmatched.length > 0) throw new StoredResultRevisionConflict("Lagrad sträcktid saknar historisk kontroll");
   return projected;
 }
 
@@ -47,12 +54,12 @@ export function projectAdministratorControlTimes(controls: readonly HistoricalCo
  * PLAN.md steg 13: kontroller som stämplades men saknar sträcktid, eftersom stämplingen låg före starten eller efter
  * målet (domänens sträcktider). Neutraliserade och saknade kontroller räknas inte. Bara för resultat med löptid.
  */
-export function untimedAdministratorControls(projected: readonly { sequence: number; controlCode: number; elapsedMs: number | null }[],
-  neutralizedSequence: number | null, missingControls: readonly number[]): number[] {
+export function untimedAdministratorControls(projected: readonly { sequence: number; controlCode: number; elapsedMs: number | null;
+  outOfOrder?: true }[], missingControls: readonly number[]): number[] {
   const missing = new Map<number, number>();
   for (const code of missingControls) missing.set(code, (missing.get(code) ?? 0) + 1);
   return projected.flatMap(control => {
-    if (control.elapsedMs !== null || control.sequence === neutralizedSequence) return [];
+    if (control.elapsedMs !== null || control.outOfOrder) return [];
     const left = missing.get(control.controlCode) ?? 0;
     if (left > 0) { missing.set(control.controlCode, left - 1); return []; }
     return [control.controlCode];
@@ -141,17 +148,9 @@ export async function getAdministratorEffectiveResult(db: Database,
         row.controlRaceId !== race.id || row.sequence !== index + 1 || row.controlCode < 1)) {
         throw new StoredResultRevisionConflict("Resultatets historiska kontrollföljd saknas");
       }
-      const neutralizationId = resolved.head.controlNeutralizationId;
-      const neutralized = neutralizationId === null ? null : (await tx.select().from(schema.classControlNeutralizations)
-        .where(and(eq(schema.classControlNeutralizations.id, neutralizationId),
-          eq(schema.classControlNeutralizations.raceId, race.id))).limit(1))[0];
-      if (neutralizationId !== null && (!neutralized || neutralized.classId !== outcome.classId ||
-        neutralized.courseVersionId !== resolved.head.courseVersionId || !controls.some(row =>
-          row.id === neutralized.courseControlId && row.sequence === neutralized.sequence && row.controlCode === neutralized.controlCode))) {
-        throw new StoredResultRevisionConflict("Resultatets neutralisering saknas");
-      }
+      const outOfOrder = await loadControlCodesOutOfOrder(tx, race.id);
       const splits = "splits" in outcome ? outcome.splits : [];
-      const projectedControls = projectAdministratorControlTimes(controls, neutralized?.courseControlId ?? null, splits);
+      const projectedControls = projectAdministratorControlTimes(controls, outOfOrder, splits);
       const validInstant = (value: unknown) => typeof value === "string" && Number.isFinite(Date.parse(value)) &&
         /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value) ? value : null;
       controlDetails = { courseName: course.name, courseVersionId: resolved.head.courseVersionId,
@@ -161,7 +160,7 @@ export async function getAdministratorEffectiveResult(db: Database,
         controls: projectedControls, missingControls: "missingControls" in outcome ? outcome.missingControls : [],
         extraPunches: "extraPunches" in outcome ? outcome.extraPunches : [] };
       const untimed = "elapsedMs" in outcome && outcome.elapsedMs !== undefined
-        ? untimedAdministratorControls(projectedControls, neutralized?.sequence ?? null, controlDetails.missingControls) : [];
+        ? untimedAdministratorControls(projectedControls, controlDetails.missingControls) : [];
       if (untimed.length > 0) controlDetails = { ...controlDetails, untimedControls: untimed };
     }
     const notes = applicableResultNotes((await loadResultNotes(tx, race.id, [entry.id])).get(entry.id), outcome.status);

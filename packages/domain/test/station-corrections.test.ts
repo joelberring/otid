@@ -22,7 +22,6 @@ function snapshot(adjustments: StationTimeAdjustment[] = [], maxTimeMinutes?: nu
     entries: [{ id: ids.entry, raceId: ids.race, classId: ids.class, givenName: "Ada", familyName: "Testsson",
       fixedStartTime: "2026-08-30T10:00:00Z" }],
     cardAssignments: [{ id: "card", raceId: ids.race, entryId: ids.entry, cardNumber: "12345", active: true }],
-    classControlNeutralizations: [],
     ...(adjustments.length > 0 ? { stationTimeAdjustments: adjustments } : {})
   };
 }

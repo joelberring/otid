@@ -18,7 +18,6 @@ import {
   auditActorKindEnum,
   cardAssignments,
   classes,
-  courseControls,
   courseVersions,
   entries,
   races,
@@ -58,7 +57,6 @@ export const resultRevisions = pgTable("result_revision", {
   readoutId: uuid("readout_id").references(() => cardReadouts.id),
   // Avpricknings-DNS och kortbaneöverflyttning har egna journaler; nycklarna dit är uppskjutna (baslinjen).
   startCheckinDnsDecisionId: uuid("start_checkin_dns_decision_id"),
-  controlNeutralizationId: uuid("control_neutralization_id"),
   shortenedCourseClassTransferId: uuid("shortened_course_class_transfer_id"),
   revision: integer("revision").notNull(),
   cause: revisionCauseEnum("cause").notNull(),
@@ -102,26 +100,6 @@ export const publicResultUpdateEvents = pgTable("public_result_update_event", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (table) => [
   index("public_result_update_event_race_sequence_idx").on(table.raceId, table.eventSequence)
-]);
-
-/** Immutable, class-scoped rule for one exact control occurrence. */
-export const classControlNeutralizations = pgTable("class_control_neutralization", {
-  id: uuid("id").primaryKey(),
-  raceId: uuid("race_id").notNull().references(() => races.id),
-  classId: uuid("class_id").notNull(),
-  courseVersionId: uuid("course_version_id").notNull().references(() => courseVersions.id),
-  courseControlId: uuid("course_control_id").notNull().references(() => courseControls.id),
-  sequence: integer("sequence").notNull(),
-  controlCode: integer("control_code").notNull(),
-  actorAccountId: uuid("actor_account_id").notNull(),
-    basisHash: text("basis_hash").notNull(),
-  request: jsonb("request").notNull(),
-  response: jsonb("response").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
-}, (table) => [
-  uniqueIndex("class_control_neutralization_class_course_version_uidx")
-    .on(table.classId, table.courseVersionId),
-  index("class_control_neutralization_race_idx").on(table.raceId)
 ]);
 
 /**

@@ -144,8 +144,7 @@ describe("sträckan bedöms som en individuell avläsning", () => {
       createdAt: at("08:00:00"), controls: [31, 32, 33].map((code, index) => ({ id: `control-${code}`, courseVersionId: "version",
         controlId: `c${code}`, sequence: index + 1, controlCode: code })) }] }],
     entries: [{ id: "leg-2", raceId: "race", classId: "class", givenName: "Bo", familyName: "Sträcka", ...(fixedStartTime ? { fixedStartTime } : {}) }],
-    cardAssignments: [{ id: "card", raceId: "race", entryId: "leg-2", cardNumber: "8002", active: true }],
-    classControlNeutralizations: []
+    cardAssignments: [{ id: "card", raceId: "race", entryId: "leg-2", cardNumber: "8002", active: true }]
   });
   const readout = { cardNumber: "8002", finishPunchedAt: at("18:05:00"),
     punches: [{ code: 31, punchedAt: at("17:40:00") }, { code: 32, punchedAt: at("17:50:00") }, { code: 33, punchedAt: at("18:00:00") }] };

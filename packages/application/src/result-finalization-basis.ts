@@ -84,7 +84,6 @@ function resultRevisionBasis(revision: Omit<typeof schema.resultRevisions.$infer
     entryId: revision.entryId,
     readoutId: revision.readoutId,
     startCheckinDnsDecisionId: revision.startCheckinDnsDecisionId,
-    controlNeutralizationId: revision.controlNeutralizationId,
     revision: revision.revision,
     cause: revision.cause,
     status: revision.status,
@@ -285,7 +284,6 @@ export async function buildFinalizationBasis(tx: DatabaseTransaction, race: Lock
       cause: schema.resultRevisions.cause,
       readoutId: schema.resultRevisions.readoutId,
       startCheckinDnsDecisionId: schema.resultRevisions.startCheckinDnsDecisionId,
-      controlNeutralizationId: schema.resultRevisions.controlNeutralizationId,
       shortenedCourseClassTransferId: schema.resultRevisions.shortenedCourseClassTransferId,
       evaluation: schema.resultRevisions.evaluation,
       engineVersion: schema.resultRevisions.engineVersion,
@@ -397,7 +395,6 @@ export async function buildFinalizationBasis(tx: DatabaseTransaction, race: Lock
       const absoluteRevision = latestByEntry.get(entry.id);
       const revisionState = latestStateByEntry.get(entry.id);
       // En saknad revision är MISSING_RESULT_REVISION nedan, inte ett ogiltigt resultat (PLAN.md steg 27).
-      if (absoluteRevision && absoluteRevision.controlNeutralizationId !== null) blockers.add("INVALID_RESULT_REVISION");
       const variant = classVariants.length === 0 ? undefined : classVariants.find(row => row.code === entry.courseVariantCode);
       if (classVariants.length > 0 && !variant) blockers.add("INVALID_RESULT_REVISION");
       const entryControls = variant

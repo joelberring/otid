@@ -33,8 +33,7 @@ export function testPackage(): ReadoutPackage {
         controls: [control(1), control(2), control(3)]
       }] }],
       entries: [{ id: ids.entry, raceId: ids.race, classId: ids.class, givenName: "Anna", familyName: "Berg" }],
-      cardAssignments: [{ id: ids.assignment, raceId: ids.race, entryId: ids.entry, cardNumber: String(TEST_CARD), active: true }],
-      classControlNeutralizations: []
+      cardAssignments: [{ id: ids.assignment, raceId: ids.race, entryId: ids.entry, cardNumber: String(TEST_CARD), active: true }]
     }
   });
 }

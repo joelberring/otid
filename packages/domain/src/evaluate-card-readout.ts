@@ -12,7 +12,7 @@ import { assignedCourseVariant, courseVariantsOf } from "./course-variants";
 import { rogainingControlSet, scoreRogaining } from "./rogaining";
 import { officialStartTime } from "./start-punch";
 import { withMaxTime } from "./max-time";
-import { prepareReadoutForEvaluation } from "./station-corrections";
+import { controlCodesOutOfOrder, prepareReadoutForEvaluation } from "./station-corrections";
 
 /**
  * Versionen sparas på varje resultatrevision. 0.3.0 (PLAN.md steg 22): kontrollföljden matchas som ordnad
@@ -48,7 +48,7 @@ function occurrenceAt(codes: readonly number[], index: number): number {
 
 interface ExpectedControl {
   readonly controlCode: number;
-  /** En struken (neutraliserad) förekomst står kvar i följden men är frivillig. */
+  /** En kontroll ur funktion (PLAN.md steg 31) står kvar i följden men är frivillig och får ingen sträcktid. */
   readonly neutralized: boolean;
 }
 
@@ -134,6 +134,8 @@ function matchControls(expectedControls: readonly ExpectedControl[], punches: re
   for (const [index, control] of expectedControls.entries()) {
     const punchIndex = matchedByExpected.get(index);
     if (punchIndex === undefined) { if (!control.neutralized) missingControls.push(control.controlCode); continue; }
+    // Kontroll ur funktion: stämplingen behövs inte och ger ingen sträcktid; sträckan räknas från kontrollen före.
+    if (control.neutralized) continue;
     matched.push(punches[punchIndex]!);
     matchedExpectedIndexes.push(index);
   }
@@ -142,9 +144,14 @@ function matchControls(expectedControls: readonly ExpectedControl[], punches: re
   return { missingControls, extraPunches, wrongOrder, splits: splitTimes(matched, matchedExpectedIndexes, expected, window) };
 }
 
-/** Kontrollkoder i banans ordning som kontrollföljd utan strukna kontroller. */
-function required(codes: readonly number[]): ExpectedControl[] {
-  return codes.map((controlCode) => ({ controlCode, neutralized: false }));
+/** Kontrollkoder i banans ordning som kontrollföljd; en kontroll ur funktion är frivillig. */
+function expectedOf(codes: readonly number[], outOfOrder: ReadonlySet<number>): ExpectedControl[] {
+  return codes.map((controlCode) => ({ controlCode, neutralized: outOfOrder.has(controlCode) }));
+}
+
+/** Banversionens (ogafflade) kontrollkoder i ordning. */
+function courseCodes(courseVersion: CourseVersion): number[] {
+  return [...courseVersion.controls].sort((left, right) => left.sequence - right.sequence).map((control) => control.controlCode);
 }
 
 /**
@@ -204,17 +211,18 @@ function resolveEntry(readout: EvaluationReadout, snapshot: RaceSnapshot): Resol
  * avläsningen mot varje variant och den som passar bäst gäller (godkänd före
  * felstämplad, sedan färst saknade kontroller, sedan variantordningen).
  */
-function chooseVariant(resolved: ResolvedEntry, punches: readonly Punch[]): { code: string; assigned: boolean; match: ControlMatch } | undefined {
+function chooseVariant(resolved: ResolvedEntry, punches: readonly Punch[], outOfOrder: ReadonlySet<number>):
+  { code: string; assigned: boolean; match: ControlMatch } | undefined {
   const variants = courseVariantsOf(resolved.courseVersion);
   if (variants.length === 0) return undefined;
   const codesOf = (variant: (typeof variants)[number]) => [...variant.controls]
     .sort((left, right) => left.sequence - right.sequence).map((control) => control.controlCode);
   const assigned = assignedCourseVariant(resolved.courseVersion, resolved.entry.courseVariantCode);
   // Tiderna påverkar inte vilken variant som passar; sträcktiderna räknas om när utfallet byggs.
-  if (assigned) return { code: assigned.code, assigned: true, match: matchControls(required(codesOf(assigned)), punches, ANY_TIME) };
+  if (assigned) return { code: assigned.code, assigned: true, match: matchControls(expectedOf(codesOf(assigned), outOfOrder), punches, ANY_TIME) };
   let best: { code: string; assigned: boolean; match: ControlMatch } | undefined;
   for (const variant of variants) {
-    const match = matchControls(required(codesOf(variant)), punches, ANY_TIME);
+    const match = matchControls(expectedOf(codesOf(variant), outOfOrder), punches, ANY_TIME);
     if (!best || betterMatch(match, best.match)) best = { code: variant.code, assigned: false, match };
   }
   return best;
@@ -228,7 +236,7 @@ export function courseVariantForReadout(readout: EvaluationReadout, snapshot: Ra
   { readonly code: string; readonly assigned: boolean } | undefined {
   const resolved = resolveEntry(readout, snapshot);
   if (!resolved) return undefined;
-  const chosen = chooseVariant(resolved, readout.punches);
+  const chosen = chooseVariant(resolved, readout.punches, controlCodesOutOfOrder(snapshot));
   return chosen && { code: chosen.code, assigned: chosen.assigned };
 }
 
@@ -249,16 +257,14 @@ export function alignReadoutToCourse(punches: readonly Punch[], snapshot: RaceSn
     const set = rogainingControlSet(courseVersion);
     return { onCourse: new Set(punches.flatMap((punch, index) => set.has(punch.code) ? [index] : [])), missingControls: [] };
   }
-  const variant = chooseVariant({ entry, raceClass, courseVersion }, punches);
+  const outOfOrder = controlCodesOutOfOrder(snapshot);
+  const variant = chooseVariant({ entry, raceClass, courseVersion }, punches, outOfOrder);
   let expected: ExpectedControl[];
   if (variant) {
     const chosen = courseVariantsOf(courseVersion).find((candidate) => candidate.code === variant.code)!;
-    expected = required([...chosen.controls].sort((left, right) => left.sequence - right.sequence).map((control) => control.controlCode));
+    expected = expectedOf([...chosen.controls].sort((left, right) => left.sequence - right.sequence).map((control) => control.controlCode), outOfOrder);
   } else {
-    const neutralization = snapshot.classControlNeutralizations.find((candidate) =>
-      candidate.classId === raceClass.id && candidate.courseVersionId === courseVersion.id);
-    expected = [...courseVersion.controls].sort((left, right) => left.sequence - right.sequence)
-      .map((control) => ({ controlCode: control.controlCode, neutralized: control.id === neutralization?.courseControlId }));
+    expected = expectedOf(courseCodes(courseVersion), outOfOrder);
   }
   const aligned = alignControls(expected, punches);
   const matchedExpected = new Set(aligned.map((match) => match.expectedIndex));
@@ -306,23 +312,14 @@ export function evaluateCardReadout(
       splits: [...scored.splits], rogaining: scored.score };
   }
   let match: ControlMatch;
-  const variant = chooseVariant(resolved, readout.punches);
+  const outOfOrder = controlCodesOutOfOrder(snapshot);
+  const variant = chooseVariant(resolved, readout.punches, outOfOrder);
   if (variant) {
     const chosen = courseVariantsOf(courseVersion).find((candidate) => candidate.code === variant.code)!;
     const codes = [...chosen.controls].sort((left, right) => left.sequence - right.sequence).map((control) => control.controlCode);
-    match = matchControls(required(codes), readout.punches, window);
+    match = matchControls(expectedOf(codes, outOfOrder), readout.punches, window);
   } else {
-    const orderedControls = [...courseVersion.controls].sort((left, right) => left.sequence - right.sequence);
-    const neutralizations = snapshot.classControlNeutralizations.filter((candidate) =>
-      candidate.classId === raceClass.id && candidate.courseVersionId === courseVersion.id);
-    if (neutralizations.length > 1) throw new Error("Flera neutraliseringar för samma klass och banversion");
-    const neutralization = neutralizations[0];
-    if (neutralization && !orderedControls.some((control) => control.id === neutralization.courseControlId &&
-        control.sequence === neutralization.sequence && control.controlCode === neutralization.controlCode)) {
-      throw new Error("Neutraliseringen matchar inte bankontrollen");
-    }
-    match = matchControls(orderedControls.map((control) => ({ controlCode: control.controlCode,
-      neutralized: control.id === neutralization?.courseControlId })), readout.punches, window);
+    match = matchControls(expectedOf(courseCodes(courseVersion), outOfOrder), readout.punches, window);
   }
 
   const timed = {
@@ -360,6 +357,7 @@ export interface ClassCourseFit {
 export function rankClassesByCourseFit(punches: readonly Punch[], snapshot: RaceSnapshot,
   classIds?: ReadonlySet<string>): ClassCourseFit[] {
   const fits: { readonly fit: ClassCourseFit; readonly name: string }[] = [];
+  const outOfOrder = controlCodesOutOfOrder(snapshot);
   for (const raceClass of snapshot.classes) {
     if (raceClass.rogaining || (classIds && !classIds.has(raceClass.id))) continue;
     const courseVersion = activeVersion(snapshot, raceClass.courseVersionId);
@@ -370,14 +368,11 @@ export function rankClassesByCourseFit(punches: readonly Punch[], snapshot: Race
       for (const variant of variants) {
         const codes = [...variant.controls].sort((left, right) => left.sequence - right.sequence).map((control) => control.controlCode);
         if (codes.length === 0) continue;
-        const match = matchControls(required(codes), punches, ANY_TIME);
+        const match = matchControls(expectedOf(codes, outOfOrder), punches, ANY_TIME);
         if (!best || betterMatch(match, best.match)) best = { match, code: variant.code };
       }
     } else {
-      const neutralization = snapshot.classControlNeutralizations.find((candidate) =>
-        candidate.classId === raceClass.id && candidate.courseVersionId === courseVersion.id);
-      const expected = [...courseVersion.controls].sort((left, right) => left.sequence - right.sequence)
-        .map((control) => ({ controlCode: control.controlCode, neutralized: control.id === neutralization?.courseControlId }));
+      const expected = expectedOf(courseCodes(courseVersion), outOfOrder);
       if (expected.some((control) => !control.neutralized)) best = { match: matchControls(expected, punches, ANY_TIME) };
     }
     if (!best) continue;

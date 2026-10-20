@@ -187,7 +187,7 @@ describe("föreslagna starttider för omprövning", () => {
       race: { id: "r", eventId: "e", name: "Lopp", raceDate: "2026-10-08", snapshotVersion: 1 },
       classes: [{ id: "c1", raceId: "r", name: "H21", courseVersionId: "v", startRule: "PUNCH" },
         { id: "c2", raceId: "r", name: "D21", courseVersionId: "v", startRule: "FIXED" }],
-      courses: [], cardAssignments: [], classControlNeutralizations: [],
+      courses: [], cardAssignments: [],
       entries: [{ id: "a", raceId: "r", classId: "c1", givenName: "A", familyName: "A" },
         { id: "b", raceId: "r", classId: "c2", givenName: "B", familyName: "B", fixedStartTime: "2026-10-08T08:00:00.000Z" }]
     } as unknown as RaceSnapshot;

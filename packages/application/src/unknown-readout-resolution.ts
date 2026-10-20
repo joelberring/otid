@@ -14,7 +14,6 @@ import {
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
 import { bumpReadoutPackageVersion, loadRaceSnapshot } from "./snapshot";
-import { appliedControlNeutralization } from "./class-control-neutralization";
 import { canAddClassEntry } from "./class-capacity-guard";
 import { relayTeamOfEntry } from "./relay-model";
 import { synchronizeRelayTeams } from "./relay-sync";
@@ -236,12 +235,11 @@ export async function resolveUnknownReadoutAsAdmin(
       snapshot = withProposedEntryVariants(snapshot, new Map([[entry.id, detected.code]]));
     }
     const evaluation = evaluateCardReadout(normalized, snapshot);
-    const controlNeutralizationId = appliedControlNeutralization(snapshot, evaluation);
     if (evaluation.entryId !== entry.id || !evaluation.courseVersionId || evaluation.status === "UNKNOWN_CARD") {
       throw new Error("Den valda avläsningen kunde inte bedömas mot deltagaren");
     }
     const result = await appendResultRevision(tx, { raceId: input.raceId, entryId: entry.id, readoutId: readout.readout.id,
-      cause: "UNKNOWN_READOUT_RESOLUTION", outcome: evaluation, engineVersion: RESULT_ENGINE_VERSION, controlNeutralizationId,
+      cause: "UNKNOWN_READOUT_RESOLUTION", outcome: evaluation, engineVersion: RESULT_ENGINE_VERSION,
       snapshotVersion: snapshotVersionAfter, courseVersionId: evaluation.courseVersionId, createdAt: resolvedAt });
     const revision = result.revision;
     const teamId = await relayTeamOfEntry(tx, entry.id);

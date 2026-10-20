@@ -20,6 +20,20 @@ export interface StationTimeAdjustment {
   readonly offsetMs: number;
 }
 
+/**
+ * En kontroll ur funktion för hela tävlingen: koden krävs inte på någon bana (även gafflade), en stämpling där ger ingen
+ * sträcktid, och sträckan räknas från kontrollen före till kontrollen efter.
+ */
+export interface ControlOutOfOrder {
+  readonly id: UUID;
+  readonly controlCode: number;
+}
+
+/** Koderna som är ur funktion i tävlingen. */
+export function controlCodesOutOfOrder(snapshot: RaceSnapshot): ReadonlySet<number> {
+  return new Set((snapshot.controlsOutOfOrder ?? []).map((control) => control.controlCode));
+}
+
 /** En justering som faktiskt ändrade någon av brickans tider. */
 export interface AppliedStationAdjustment {
   readonly station: CorrectionStation;

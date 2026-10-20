@@ -598,7 +598,7 @@ Del A – kontroller och tider för hela tävlingen (Avläsning → Rättningar 
 
 - [x] A1. Justera tid för en station (start, mål eller kontrollkod, ± min och s, orsak), före bedömningen; "Ta bort"
   räknar om tillbaka; deltagarkortet visar att tiden är justerad.
-- [ ] A2. Kontroll ur funktion för hela tävlingen (alla banor, även gafflade).
+- [x] A2. Kontroll ur funktion för hela tävlingen (alla banor, även gafflade); ersätter strykningen per klass.
 - [ ] A3. Flytta starttider för en klass.
 - [ ] A4. Bortse från gamla stämplingar på oröjd bricka.
 - [ ] A5. Räkna om hela tävlingen (Resultat → Efterarbete).

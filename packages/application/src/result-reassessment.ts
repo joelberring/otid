@@ -5,7 +5,6 @@ import {
   type CourseEditOutcome, type EvaluationStatus, type RaceSnapshot
 } from "@o-tid/domain";
 import { resolveStoredResultHeadStates } from "./result-revision-state";
-import { appliedControlNeutralization } from "./class-control-neutralization";
 import { appendResultRevision, normalizedReadout } from "./result-revisions";
 
 /**
@@ -124,8 +123,7 @@ export async function recalculateAssessedEntries(tx: Transaction, input: { raceI
     }
     const created = await appendResultRevision(tx, { raceId: input.raceId, entryId: row.entryId, readoutId: row.readout.id,
       cause: "EXPLICIT_RECALCULATION", outcome: evaluation, engineVersion: RESULT_ENGINE_VERSION,
-      snapshotVersion: input.snapshotVersion, courseVersionId: expectedCourseVersionId,
-      controlNeutralizationId: appliedControlNeutralization(input.snapshot, evaluation) });
+      snapshotVersion: input.snapshotVersion, courseVersionId: expectedCourseVersionId });
     recalculated.push({ entryId: row.entryId, resultRevisionId: created.id, revision: created.revision });
   }
   return recalculated;

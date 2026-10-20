@@ -31,8 +31,7 @@ function snapshot(): RaceSnapshot {
     }],
     entries: [{ id: ids.entry, raceId: ids.race, classId: ids.class, givenName: "Ada", familyName: "Löpare" }],
     cardAssignments: [{ id: "card", raceId: ids.race, entryId: ids.entry, cardNumber: "12345", active: true }],
-    classControlNeutralizations: [{ id: "n", classId: ids.class, courseVersionId: ids.version, courseControlId: "cc-1",
-      sequence: 2, controlCode: 32 }]
+    controlsOutOfOrder: [{ id: "n", controlCode: 32 }]
   };
 }
 
@@ -45,7 +44,7 @@ const readout: NormalizedCardReadout = {
 describe("Redigera bana", () => {
   it("prövar avläsningen mot den föreslagna kontrollföljden för klasser på banan", () => {
     const current = snapshot();
-    expect(evaluateCardReadout(readout, { ...current, classControlNeutralizations: [] }).status).toBe("MP");
+    expect(evaluateCardReadout(readout, { ...current, controlsOutOfOrder: [] }).status).toBe("MP");
     const removed = withProposedCourseVersion(current, ids.course, ids.version,
       { id: ids.proposed, version: 2, createdAt: "2026-08-30T11:00:00Z", controlCodes: [31, 33] });
     const evaluation = evaluateCardReadout(readout, removed);
@@ -56,12 +55,12 @@ describe("Redigera bana", () => {
     expect(current.classes[0]?.courseVersionId).toBe(ids.version);
   });
 
-  it("strukna kontroller på den gamla versionen följer inte med", () => {
+  it("en kontroll ur funktion gäller hela tävlingen, även en ny banversion (steg 31)", () => {
     const current = snapshot();
     expect(evaluateCardReadout(readout, current).status).toBe("OK");
     const same = withProposedCourseVersion(current, ids.course, ids.version,
       { id: ids.proposed, version: 2, createdAt: "2026-08-30T11:00:00Z", controlCodes: [31, 32, 33, 34] });
-    expect(evaluateCardReadout(readout, same)).toMatchObject({ status: "MP", missingControls: [32, 34] });
+    expect(evaluateCardReadout(readout, same)).toMatchObject({ status: "MP", missingControls: [34] });
   });
 
   it("klassar utfall och räknar dem", () => {

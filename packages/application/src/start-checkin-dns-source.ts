@@ -53,7 +53,7 @@ export function validateStoredStartCheckinDns(source: {
   const { decision: d, result, operation: op, operationalRevision: rev, device } = source;
   appliedOperation(op, rev, device);
   const parsed = resultOutcomeSchema.safeParse(result.evaluation);
-  const olderSources = [result.readoutId, result.controlNeutralizationId, result.shortenedCourseClassTransferId];
+  const olderSources = [result.readoutId, result.shortenedCourseClassTransferId];
   if (!parsed.success || parsed.data.status !== "DNS" || !uuid.test(d.id) || !uuid.test(rev.id) ||
     !uuid.test(result.id) || !uuid.test(d.classId) || !uuid.test(d.courseVersionId) ||
     !Number.isInteger(d.expectedLatestResultRevision) || d.expectedLatestResultRevision < 0 ||

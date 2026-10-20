@@ -29,7 +29,6 @@ function sections(raceId: string): readonly (readonly [string, SQL])[] {
       join course_version v on v.id = cv.course_version_id join course c on c.id = v.course_id where c.race_id = ${raceId}`,
       sql`t.course_variant_id, t.sequence`)],
     ["classes", rows(sql`class t where ${race}`, sql`t.name, t.id`)],
-    ["classControlNeutralizations", rows(sql`class_control_neutralization t where ${race}`, sql`t.created_at, t.id`)],
     ["stationCorrections", rows(sql`race_station_correction t where ${race}`, sql`t.created_at, t.id`)],
     ["relayLegs", rows(sql`relay_leg t where ${race}`, sql`t.class_id, t.leg`)],
     ["teams", rows(sql`team t where ${race}`, sql`t.class_id, t.number, t.id`)],

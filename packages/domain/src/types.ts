@@ -1,4 +1,4 @@
-import type { StationTimeAdjustment } from "./station-corrections";
+import type { ControlOutOfOrder, StationTimeAdjustment } from "./station-corrections";
 
 export type UUID = string;
 /** Ett UUID av version 1–8 i gemener (domänens enda definition; kontrakten har samma mönster). */
@@ -132,21 +132,6 @@ export interface CardAssignment {
   readonly rental?: boolean | undefined;
 }
 
-/**
- * An immutable, class-scoped decision that makes one exact course-control
- * occurrence optional when evaluating future readouts.  It deliberately
- * identifies the occurrence instead of only its code: a course may contain
- * the same control code more than once.
- */
-export interface ClassControlNeutralization {
-  readonly id: UUID;
-  readonly classId: UUID;
-  readonly courseVersionId: UUID;
-  readonly courseControlId: UUID;
-  readonly sequence: number;
-  readonly controlCode: number;
-}
-
 export interface Punch {
   readonly code: number;
   readonly punchedAt: string;
@@ -172,9 +157,10 @@ export interface RaceSnapshot {
   readonly courses: readonly Course[];
   readonly entries: readonly Entry[];
   readonly cardAssignments: readonly CardAssignment[];
-  readonly classControlNeutralizations: readonly ClassControlNeutralization[];
   /** Tidsjusteringar per station för hela tävlingen (PLAN.md steg 31). Saknas = inga. */
   readonly stationTimeAdjustments?: readonly StationTimeAdjustment[] | undefined;
+  /** Kontroller ur funktion för hela tävlingen (PLAN.md steg 31): krävs inte på någon bana. Saknas = inga. */
+  readonly controlsOutOfOrder?: readonly ControlOutOfOrder[] | undefined;
 }
 
 export type EvaluationStatus = "OK" | "OVERTIME" | "MP" | "UNKNOWN_CARD";

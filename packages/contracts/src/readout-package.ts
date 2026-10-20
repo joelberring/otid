@@ -12,7 +12,6 @@ export const STATION_PACKAGE_LIMITS = {
   variantsPerCourseVersion: 100,
   entries: 50_000,
   cardAssignments: 100_000,
-  classControlNeutralizations: 2_000,
   stationCorrections: 500
 } as const;
 
@@ -112,15 +111,6 @@ const cardAssignmentSchema = z.object({
   rental: z.boolean().optional()
 }).strict();
 
-const classControlNeutralizationSchema = z.object({
-  id: uuidSchema,
-  classId: uuidSchema,
-  courseVersionId: uuidSchema,
-  courseControlId: uuidSchema,
-  sequence: positiveIntegerSchema,
-  controlCode: positiveIntegerSchema
-}).strict();
-
 /** Tidsjustering för en station (PLAN.md steg 31). */
 const stationTimeAdjustmentSchema = z.object({
   id: uuidSchema,
@@ -139,9 +129,10 @@ export const raceSnapshotSchema = z.object({
   courses: z.array(courseSchema).max(STATION_PACKAGE_LIMITS.courses),
   entries: z.array(entrySchema).max(STATION_PACKAGE_LIMITS.entries),
   cardAssignments: z.array(cardAssignmentSchema).max(STATION_PACKAGE_LIMITS.cardAssignments),
-  classControlNeutralizations: z.array(classControlNeutralizationSchema)
-    .max(STATION_PACKAGE_LIMITS.classControlNeutralizations),
-  stationTimeAdjustments: z.array(stationTimeAdjustmentSchema).max(STATION_PACKAGE_LIMITS.stationCorrections).optional()
+  stationTimeAdjustments: z.array(stationTimeAdjustmentSchema).max(STATION_PACKAGE_LIMITS.stationCorrections).optional(),
+  /** Kontroller ur funktion för hela tävlingen (PLAN.md steg 31). */
+  controlsOutOfOrder: z.array(z.object({ id: uuidSchema, controlCode: z.number().int().min(1).max(9999) }).strict())
+    .max(STATION_PACKAGE_LIMITS.stationCorrections).optional()
 }).strict().superRefine((snapshot, context) => {
   const byId = (left: { id: string }, right: { id: string }) =>
     left.id < right.id ? -1 : left.id > right.id ? 1 : 0;
@@ -157,13 +148,6 @@ export const raceSnapshotSchema = z.object({
   if (!isStrictlySorted(snapshot.cardAssignments, byId)) {
     context.addIssue({ code: "custom", path: ["cardAssignments"], message: "Brickkopplingar måste vara unikt id-sorterade" });
   }
-  if (!isStrictlySorted(snapshot.classControlNeutralizations, (left, right) =>
-    left.classId < right.classId ? -1 : left.classId > right.classId ? 1 :
-      left.courseVersionId < right.courseVersionId ? -1 : left.courseVersionId > right.courseVersionId ? 1 :
-        left.sequence - right.sequence || byId(left, right))) {
-    context.addIssue({ code: "custom", path: ["classControlNeutralizations"], message: "Neutraliseringar måste vara unikt id-sorterade" });
-  }
-
   const versionIds = new Set<string>();
   for (const [courseIndex, course] of snapshot.courses.entries()) {
     if (course.raceId !== snapshot.race.id) {
@@ -214,26 +198,6 @@ export const raceSnapshotSchema = z.object({
       context.addIssue({ code: "custom", path: ["classes", classIndex, "courseVersionId"], message: "Klassens banversion saknas" });
     }
   }
-  const controlsById = new Map<string, { courseVersionId: string; sequence: number; controlCode: number }>();
-  for (const course of snapshot.courses) for (const version of course.versions) for (const control of version.controls) {
-    controlsById.set(control.id, control);
-  }
-  const neutralizedClassVersions = new Set<string>();
-  for (const [index, neutralization] of snapshot.classControlNeutralizations.entries()) {
-    const raceClass = snapshot.classes.find((value) => value.id === neutralization.classId);
-    const control = controlsById.get(neutralization.courseControlId);
-    if (!raceClass || raceClass.courseVersionId !== neutralization.courseVersionId || !control ||
-        control.courseVersionId !== neutralization.courseVersionId || control.sequence !== neutralization.sequence ||
-        control.controlCode !== neutralization.controlCode) {
-      context.addIssue({ code: "custom", path: ["classControlNeutralizations", index], message: "Neutraliseringen matchar inte klassens aktuella kontrollförekomst" });
-    }
-    const key = `${neutralization.classId}:${neutralization.courseVersionId}`;
-    if (neutralizedClassVersions.has(key)) {
-      context.addIssue({ code: "custom", path: ["classControlNeutralizations", index], message: "Endast en neutralisering per klass och banversion är tillåten" });
-    }
-    neutralizedClassVersions.add(key);
-  }
-
   const entryIds = new Set(snapshot.entries.map((entry) => entry.id));
   for (const [entryIndex, entry] of snapshot.entries.entries()) {
     if (entry.raceId !== snapshot.race.id || !classIds.has(entry.classId)) {

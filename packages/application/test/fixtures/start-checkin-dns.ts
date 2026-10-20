@@ -31,7 +31,7 @@ export function fixture() {
     createdResultRevision: 1, policyVersion: "start-checkin-dns-v1", decidedAt: at };
   const result: typeof schema.resultRevisions.$inferSelect = {
     id: resultId, raceId, entryId, readoutId: null, revision: 1, cause: "START_CHECKIN_DID_NOT_START",
-    startCheckinDnsDecisionId: decisionId, controlNeutralizationId: null, shortenedCourseClassTransferId: null,
+    startCheckinDnsDecisionId: decisionId, shortenedCourseClassTransferId: null,
     requestId: null, actorAccountId: null, note: null,
     status: "DNS", reason: "DID_NOT_START", engineVersion: "start-checkin-dns-v1", snapshotVersion: 1, basisHash: null, courseVersionId,
     published: true, createdAt: at, evaluation: { status: "DNS", reason: "DID_NOT_START", entryId, classId, courseVersionId }

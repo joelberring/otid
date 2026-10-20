@@ -40,6 +40,8 @@ export const raceWorkflowDetailSv = {
   cumulative: "Kumulativ tid",
   occurrence: "förekomst",
   noSplit: "Ingen mellantid",
+  /** Steg 31: kontrollen är ur funktion för hela tävlingen; sträckan räknas från kontrollen före. */
+  outOfOrder: "Ur funktion",
   notRecorded: "Ej angiven",
   unknownTime: "Okänd tid",
   missingControls: "Saknade kontroller",

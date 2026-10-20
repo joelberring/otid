@@ -153,7 +153,7 @@ export function DuringRaceFollowUp({ ws }: { ws: Workspace }) {
     </Section>}
     {/* PLAN.md steg 31: rättningar som gäller alla löpare; bara administratören. */}
     {data && !functionary && <Section id={`race-corrections-${raceId}`} title={raceCorrectionsSv.title} help={raceCorrectionsSv.help}>
-      <RaceCorrectionsPanel raceId={raceId} onChanged={() => void reloadAfterCorrection(ws)} />
+      <RaceCorrectionsPanel raceId={raceId} onChanged={() => reloadAfterCorrection(ws)} />
     </Section>}
     </section>
   </>;

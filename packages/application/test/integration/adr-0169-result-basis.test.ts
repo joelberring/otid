@@ -16,7 +16,7 @@ import { listResultFinalizationCandidatesAsAdmin } from "../../src/result-finali
 import { exportIofResultListAsAdmin } from "../../src/result-list-export";
 import { listEntryTransfersAsAdmin } from "../../src/entry-transfer";
 import { getAdministratorEffectiveResult } from "../../src/administrator-effective-result";
-import { neutralizeClassControlAsAdmin, previewClassControlNeutralizationAsAdmin } from "../../src/class-control-neutralization";
+import { applyRaceCorrectionAsAdmin, previewRaceCorrectionAsAdmin } from "../../src/race-corrections";
 import { accountOnRace } from "./accounts";
 
 const base = process.env.TEST_DATABASE_URL;
@@ -205,24 +205,19 @@ describe("ADR-0169 resultatets underlag gäller löparen", () => {
     expect(await view(f, ada)).toMatchObject({ ...current, approval: "UNSUPPORTED_RESULT" });
   });
 
-  it("en struken kontroll gör klassens resultat inaktuella tills de räknats om", async () => {
+  it("en kontroll ur funktion (steg 31) räknar om alla avlästa direkt; aktuella efteråt", async () => {
     const f = await race([31, 32, 33]);
     const ada = await register(f, "Ada", "8001");
     await readout(f, "8001", [31, 33]);
     expect(await view(f, ada)).toMatchObject(current);
 
-    const preview = await previewClassControlNeutralizationAsAdmin(db, { ...f.proof, classId: f.classId });
+    const correction = { action: "ADD_CONTROL_OUT_OF_ORDER" as const, controlCode: 32, reason: "Skärmen borta" };
+    const preview = await previewRaceCorrectionAsAdmin(db, { ...f.proof, request: { formatVersion: 1, correction } });
     if (preview.status !== "ok") throw new Error("Förhandsgranskningen saknas");
-    const control = preview.response.controls.find((row) => row.controlCode === 32)!;
-    const requestId = randomUUID();
-    const neutralized = await neutralizeClassControlAsAdmin(db, { ...f.proof, idempotencyKey: `class-control-neutralization:${requestId}`,
-      request: { formatVersion: 1, requestId, expectedBasisHash: preview.response.basisHash,
-        classId: f.classId, expectedCourseVersionId: preview.response.courseVersionId, courseControlId: control.id,
-        sequence: control.sequence, controlCode: control.controlCode, acknowledgedNoAutomaticRecalculation: true } });
-    expect(neutralized.status).toBe("changed");
-    expect(await view(f, ada)).toMatchObject(stale);
-
-    await recalculateClass(f, [ada]);
+    expect(preview.response.summary.changes).toMatchObject([{ entryId: ada, before: "MP", after: "OK" }]);
+    const applied = await applyRaceCorrectionAsAdmin(db, { ...f.proof, request: { formatVersion: 1, requestId: randomUUID(),
+      expectedPreviewHash: preview.response.previewHash, correction } });
+    expect(applied.status).toBe("applied");
     const after = await view(f, ada);
     expect(after).toMatchObject({ ...current, approval: "UNSUPPORTED_RESULT" });
     const [latest] = (await pool.query<{ status: string }>("select status from result_revision where entry_id = $1 order by revision desc limit 1", [ada])).rows;

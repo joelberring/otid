@@ -4,9 +4,8 @@ name: otid
 
 services:
   postgres:
-    image: postgis/postgis:17-3.5
-    # Avbildningen finns bara för amd64; på Mac med Apple-chip körs den via emulering.
-    platform: linux/amd64
+    # Vanlig PostgreSQL för alla arkitekturer (steg 28); samma datakatalog som den tidigare PostGIS-bilden.
+    image: postgres:17
     restart: unless-stopped
     environment:
       POSTGRES_USER: otid
@@ -70,9 +69,7 @@ services:
       - caddy-config:/config
 
   backup:
-    image: postgis/postgis:17-3.5
-    # Avbildningen finns bara för amd64; på Mac med Apple-chip körs den via emulering.
-    platform: linux/amd64
+    image: postgres:17
     restart: unless-stopped
     depends_on:
       postgres:

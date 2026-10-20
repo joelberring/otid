@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { addCourseAndClass, addEntry, createRace, openCourseForm, openStep, publishRace, registerAccount, unique, warmRoute } from "./helpers";
+import { addCourseAndClass, addEntry, createRace, ongoingRaceTimeZone, openCourseForm, openStep, publishRace, registerAccount, today, unique, warmRoute } from "./helpers";
 
 /**
  * PLAN.md steg 25: saknade tävlingsfunktioner. En tävling med minutstart (H21, banan Lång med längd och stigning) och
@@ -8,7 +8,8 @@ import { addCourseAndClass, addEntry, createRace, openCourseForm, openStep, publ
  * direktanmäls på avläsningssidan; beskedet blir GODKÄND direkt och syns i arbetsytan när nätet är tillbaka.
  * Bo springer över maxtiden. Dan läser aldrig ut och markeras som ej start med en bekräftelse.
  */
-const TIME_ZONE = "Europe/Stockholm";
+/** Stockholm, eller en tidszon där klockan inte är nära midnatt (starterna ligger upp till 45 minuter bakåt). */
+const TIME_ZONE = ongoingRaceTimeZone();
 const zoned = (date: Date, options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("sv-SE", { timeZone: TIME_ZONE, ...options }).format(date);
 const clockSeconds = (date: Date) => zoned(date, { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
 
@@ -43,7 +44,7 @@ test("sen start, hyrbricka, direktanmälan utan nät, maxtid och kvar i skogen",
   test.setTimeout(420_000);
   const suffix = unique();
   const owner = await registerAccount(browser, `steg25.${suffix}@exempel.se`, "Kim Klubb");
-  const raceId = await createRace(owner, `Klubbtävling ${suffix}`);
+  const raceId = await createRace(owner, `Klubbtävling ${suffix}`, today(new Date(), TIME_ZONE), "Tävling", TIME_ZONE);
   await publishRace(owner);
 
   // Banor och klasser: H21 med minutstart på Lång, Öppen med fri start på Kort.
@@ -71,7 +72,9 @@ test("sen start, hyrbricka, direktanmälan utan nät, maxtid och kvar i skogen",
   await expect(owner.getByText("Längd och stigning är sparade.")).toBeVisible({ timeout: 30_000 });
   await expect(owner.getByRole("row", { name: /^Lång/ })).toContainText("4,2 km · 120 m");
 
-  // Maxtid 20 minuter för Öppen i Klasser.
+  // Maxtid 20 minuter för Öppen i Klasser. Utvecklingsservern kompilerar ändringens rutt i förväg (gav ibland inget svar
+  // inom 30 s vid första anropet).
+  await warmRoute(owner, `/api/admin/races/${raceId}/administrator/classes/00000000-0000-4000-8000-000000000000/edit`, "POST");
   await openStep(owner, "Klasser");
   await owner.getByRole("row", { name: /Öppen/ }).getByRole("button", { name: "Redigera Öppen" }).click();
   const classEditor = owner.getByRole("form", { name: "Redigera Öppen" });

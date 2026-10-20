@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgis/postgis:17-3.5
+        image: postgres:17
         env:
           POSTGRES_USER: otid
           POSTGRES_PASSWORD: otid

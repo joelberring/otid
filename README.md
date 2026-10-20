@@ -21,6 +21,21 @@ pnpm dev
 ```
 
 Öppna http://127.0.0.1:3000/organizer (använd 127.0.0.1, inte localhost).
+
+**Efter `git pull` till steg 28:** databasen kör vanlig `postgres:17` i stället för PostGIS (också på Mac med
+Apple-chip, utan emulering). `docker compose up -d postgres` byter bild; datan finns kvar (samma volym och
+huvudversion). Ta en säkerhetskopia först:
+
+```bash
+docker compose exec -T postgres pg_dump -U otid -Fc otid > otid-fore-steg-28.dump   # med den gamla bilden
+git pull
+docker compose up -d postgres   # byter till postgres:17, samma volym
+pnpm db:migrate                 # 0007: tar bort PostGIS-tillägget och uppdaterar sorteringsversionen
+```
+
+Om databasen mot förmodan inte startar (`docker compose logs postgres`): `docker compose down -v`,
+`docker compose up -d postgres`, `docker compose exec -T postgres pg_restore -U otid -d otid --no-owner < otid-fore-steg-28.dump`
+(fel om `postgis` kan ignoreras) och `pnpm db:migrate`.
 `pnpm dev` och `pnpm build` bygger först det offlinekapabla
 appskalet för avläsningen (`/readout/`) med `pnpm --filter @o-tid/web build:shells`.
 
@@ -94,7 +109,7 @@ Se [docs/architecture.md](docs/architecture.md) och [docs/domain-rules.md](docs/
 
 ```bash
 pnpm lint && pnpm typecheck && pnpm test && pnpm build
-pnpm test:integration   # kräver TEST_DATABASE_URL (PostgreSQL/PostGIS, roll med CREATEDB)
+pnpm test:integration   # kräver TEST_DATABASE_URL (PostgreSQL, roll med CREATEDB)
 pnpm test:e2e           # kräver E2E_DATABASE_URL eller TEST_DATABASE_URL; startar webben på port 3100
 E2E_BASE_URL=https://localhost pnpm test:e2e   # mot en körande driftmiljö
 ```

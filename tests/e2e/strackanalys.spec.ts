@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
-import { addCourseAndClass, addEntry, createRace, openStep, publishRace, registerAccount, unique, warmRoute } from "./helpers";
+import { addCourseAndClass, addEntry, createRace, ongoingRaceTimeZone, openStep, publishRace, registerAccount, unique, warmRoute } from "./helpers";
 
 /**
  * PLAN.md steg 16 (ADR-0171): sträcktidsanalys och vägval. Tre löpare lottas med fem minuter mellan starterna och
@@ -8,7 +8,8 @@ import { addCourseAndClass, addEntry, createRace, openStep, publishRace, registe
  * Admin laddar upp kartan, georefererar den och laddar upp två GPX-rutter. Publikt: från resultatlistan till
  * analysen, sortering på en sträcka och vägval på kartan med en annan löpare att jämföra med.
  */
-const TIME_ZONE = "Europe/Stockholm";
+/** Stockholm, eller en tidszon där klockan inte är nära midnatt (starterna ligger upp till 45 minuter bakåt). */
+const TIME_ZONE = ongoingRaceTimeZone();
 const RUNNERS = [
   { className: "H21", givenName: "Anna", familyName: "Ek", club: "OK Ek", card: "8401001" },
   { className: "H21", givenName: "Bo", familyName: "Lind", club: "IFK Lidingö", card: "8401002" },
@@ -59,7 +60,7 @@ test("sträcktidsanalys: från resultatlistan, sortering på en sträcka och vä
   const firstStart = new Date(Math.floor(Date.now() / 60_000) * 60_000 - 40 * 60_000);
   const raceDate = zoned(firstStart, { year: "numeric", month: "2-digit", day: "2-digit" });
   const owner = await registerAccount(browser, `stracka.${suffix}@exempel.se`, "Sara Sträcka");
-  const raceId = await createRace(owner, `Sträckor ${suffix}`, raceDate, "Tävling");
+  const raceId = await createRace(owner, `Sträckor ${suffix}`, raceDate, "Tävling", TIME_ZONE);
   // Besökarna ska se tävlingen (ADR-0172 beslut 4).
   await publishRace(owner);
   await addCourseAndClass(owner, "Lång", "H21", "31 32 33");

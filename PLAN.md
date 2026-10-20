@@ -542,7 +542,7 @@ med senare start och seedad löpare sist.
 
 **Acceptans:** Playwright för 1–5; integrationstest för export.
 
-## [ ] Steg 28 – Vanlig PostgreSQL i stället för PostGIS
+## [x] Steg 28 – Vanlig PostgreSQL i stället för PostGIS
 
 PostGIS-tillägget skapas i baslinjen men används inte längre (kartor och rutter
 ligger som bytea, ADR-0171). Byt till den officiella `postgres:17`-bilden i

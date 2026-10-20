@@ -2,6 +2,8 @@
 -- borttagningen av tolv döda tabeller, ihopslaget eftersom det inte finns någon produktionsdata (ADR-0168 beslut 6).
 -- Genererad med pg_dump --schema-only.
 -- En databas som skapats med de gamla migrationerna går inte att uppgradera: skapa den på nytt (docs/drift.md).
+-- Steg 28: CREATE EXTENSION postgis är borttaget här (vanlig postgres:17 räcker). Migratorn kör aldrig om en fil som
+-- redan körts (den jämför created_at, inte innehållet), så befintliga databaser påverkas inte; 0007 tar bort tillägget där.
 DO $guard$ BEGIN
   IF to_regclass('public.race') IS NOT NULL THEN
     RAISE EXCEPTION 'Databasen skapades med migrationerna före steg 23. Skapa den på nytt (docker compose down -v), se docs/drift.md.';
@@ -10,10 +12,6 @@ END $guard$;
 
 -- SQL-funktioner skapas före tabellerna de läser; kroppen kontrolleras när de anropas.
 SET LOCAL check_function_bodies = false;
-
-CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA public;
-
-COMMENT ON EXTENSION postgis IS 'PostGIS geometry and geography spatial types and functions';
 
 CREATE TYPE public.audit_actor_kind AS ENUM (
     'PAIRING_ADMIN_ACCESS_CREDENTIAL',

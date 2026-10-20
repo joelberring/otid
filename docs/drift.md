@@ -2,7 +2,7 @@
 
 O-Tid körs med `docker-compose.prod.yml` på en vanlig VPS:
 
-- PostgreSQL/PostGIS,
+- PostgreSQL 17 (den officiella bilden `postgres:17`, finns för både x86 och ARM),
 - webben (Next standalone, migrerar databasen vid start),
 - Caddy (HTTPS med Let's Encrypt),
 - en backuptjänst.
@@ -12,9 +12,9 @@ med i den nattliga backupen. MinIO behövs inte.
 
 ## Starta
 
-Krav: en Linux-server med Docker och Compose (1 vCPU och 1–2 GB minne räcker
-till en klubbträning). Du behöver också ett domännamn vars A/AAAA-post pekar
-på servern. Portarna 80 och 443 ska vara öppna.
+Krav: en Linux-server (x86 eller ARM) med Docker och Compose (1 vCPU och 1–2 GB minne räcker
+till en klubbträning; att bygga webben på servern kräver omkring 2 GB). Du behöver också ett domännamn vars A/AAAA-post pekar
+på servern (se [Server och domän](#server-och-domän)). Portarna 80 och 443 ska vara öppna.
 
 ```bash
 git clone https://github.com/joelberring/otid.git && cd otid
@@ -40,6 +40,40 @@ migrationerna kan inte uppgraderas. Skapa den på nytt: `docker compose -f docke
 (driftmiljön; raderar databasen och Caddys
 certifikat men inte `./backups`, vars dumpar hör till det gamla schemat) eller `docker compose down -v` (lokalt), och starta igen.
 Testdatabaser (`otid_test`, `otid_e2e`) tas bort med `DROP DATABASE` och skapas tomma igen.
+
+**Vanlig PostgreSQL i steg 28 (2026-10-20):** `postgis/postgis:17-3.5` (bara amd64) är utbytt mot `postgres:17`.
+Samma huvudversion och samma datakatalog (`/var/lib/postgresql/data`), så den befintliga volymen används som den är
+och datan finns kvar. `git pull && docker compose -f docker-compose.prod.yml up -d --build` byter bild, och webben kör
+migrering 0007 som tar bort det oanvända PostGIS-tillägget. Den nya bilden har nyare glibc (Debian trixie i stället
+för bullseye); 0007 bygger då om textindexen och uppdaterar databasens sorteringsversion (annars varnar PostgreSQL för
+"collation version mismatch"). Lokalt: se README (säkerhetskopia, `git pull`, `docker compose up -d postgres`,
+`pnpm db:migrate`). Dumpar från före steg 28 innehåller `CREATE EXTENSION postgis`; vid återställning på den nya
+bilden skriver `pg_restore` fel för just tillägget, och de kan ignoreras.
+
+## Server och domän
+
+O-Tid behöver en liten Linux-server med Docker. Alla bilder (webben, `postgres:17`, Caddy) finns för både x86 och
+ARM sedan steg 28, så ARM-servrar fungerar också (bygget är inte provat på en ARM-server ännu). Priserna är ungefärliga
+(oktober 2026):
+
+| Alternativ | Vad | Att tänka på |
+| --- | --- | --- |
+| Hetzner CX23 | 2 vCPU (x86), 4 GB, ≈6 €/mån | Betalas per timme: skapa servern före tävlingen och radera den efteråt (spara `backups/` först). |
+| Hetzner CAX11 | 2 vCPU (ARM), 4 GB, ungefär samma pris | Som CX23, men ARM. |
+| Oracle Cloud Always Free | ARM (Ampere), upp till 4 vCPU och 24 GB, gratis | Region Stockholm finns. Registreringen kan nekas, och ledig ARM-kapacitet saknas ibland. |
+| Google Cloud e2-micro | 2 delade vCPU, 1 GB, gratis | Bara amerikanska regioner. 1 GB räcker inte för att bygga på servern: bygg bilden på en annan dator eller lägg till swap. |
+| Lokalt med Cloudflare Tunnel | Din egen dator, gratis | `cloudflared` ger en HTTPS-adress utan öppna portar (domänen måste ligga hos Cloudflare). Datorn måste vara på och ha nät hela tävlingen. Inte provat med O-Tid; Caddy behövs inte då. |
+
+**DNS:** lägg en A-post (och gärna AAAA för IPv6) för ett namn under klubbens domän som pekar på serverns adress,
+till exempel hos domänleverantören:
+
+```text
+tid.exempelklubb.se.   3600   IN   A      203.0.113.10
+tid.exempelklubb.se.   3600   IN   AAAA   2001:db8::10
+```
+
+Sätt sedan `OTID_DOMAIN=tid.exempelklubb.se` i `.env`. Kontrollera med `dig +short tid.exempelklubb.se` att namnet
+pekar rätt innan du startar; Caddy hämtar certifikatet från Let's Encrypt första gången någon öppnar adressen.
 
 ## Eventor
 

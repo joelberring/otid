@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { FAKE_ROC_PORT } from "./fake-roc";
-import { addCourseAndClass, addEntry, createRace, openStep, publishRace, registerAccount, unique, warmRoute } from "./helpers";
+import { addCourseAndClass, addEntry, createRace, ongoingRaceTimeZone, openStep, publishRace, registerAccount, unique, warmRoute } from "./helpers";
 
 /**
  * PLAN.md steg 20 (ADR-0172 beslut 5): radiokontroller via ROC/OResults. Admin kopplar tävlingen till en enhet och
@@ -8,7 +8,8 @@ import { addCourseAndClass, addEntry, createRace, openStep, publishRace, registe
  * någon läst av syns mellantiderna live i den publika resultatlistan ("Ute i skogen") och hos speakern; när Anna
  * läser av avgör avläsningen hennes resultat och Bo är kvar ute.
  */
-const TIME_ZONE = "Europe/Stockholm";
+/** Stockholm, eller en tidszon där klockan inte är nära midnatt (starterna ligger upp till 45 minuter bakåt). */
+const TIME_ZONE = ongoingRaceTimeZone();
 const RUNNERS = [
   { className: "H21", givenName: "Anna", familyName: "Ek", club: "OK Ek", card: "8501001" },
   { className: "H21", givenName: "Bo", familyName: "Lind", club: "IFK Lidingö", card: "8501002" }
@@ -17,7 +18,7 @@ const fullName = (runner: (typeof RUNNERS)[number]) => `${runner.givenName} ${ru
 const zoned = (date: Date, options: Intl.DateTimeFormatOptions) =>
   new Intl.DateTimeFormat("sv-SE", { timeZone: TIME_ZONE, hourCycle: "h23", ...options }).format(date);
 const clock = (date: Date) => zoned(date, { hour: "2-digit", minute: "2-digit" });
-/** Ett klockslag i dag (svensk tid) som ögonblick: tidszonens förskjutning tas från en känd tidpunkt samma dag. */
+/** Ett klockslag i dag (tävlingens tid) som ögonblick: tidszonens förskjutning tas från en känd tidpunkt samma dag. */
 function todayAt(reference: Date, time: string): number {
   const wall = zoned(reference, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
   const offset = Date.parse(`${wall.replace(" ", "T")}Z`) - reference.getTime();
@@ -55,7 +56,7 @@ test("radiokontroller: mellantid och speaker före avläsning, avläsningen avg�
   const firstStart = new Date(Math.floor(Date.now() / 60_000) * 60_000 - 30 * 60_000);
   const raceDate = zoned(firstStart, { year: "numeric", month: "2-digit", day: "2-digit" });
   const owner = await registerAccount(browser, `radio.${suffix}@exempel.se`, "Rut Radio");
-  const raceId = await createRace(owner, `Radio ${suffix}`, raceDate, "Tävling");
+  const raceId = await createRace(owner, `Radio ${suffix}`, raceDate, "Tävling", TIME_ZONE);
   await publishRace(owner);
   await addCourseAndClass(owner, "Lång", "H21", "31 50 33");
   for (const runner of RUNNERS) await addEntry(owner, runner);

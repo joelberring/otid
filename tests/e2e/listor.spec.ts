@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { addCourseAndClass, addEntry, createRace, openStep, publishRace, registerAccount, reviewScreenshots, unique, warmRoute } from "./helpers";
+import { addCourseAndClass, addEntry, createRace, ongoingRaceTimeZone, openStep, publishRace, registerAccount, reviewScreenshots, unique, warmRoute } from "./helpers";
 
 /**
  * PLAN.md steg 13 (ADR-0170 beslut 3): start- och resultatlistor med samma verktygsrad i arbetsytan och på de
@@ -9,7 +9,8 @@ import { addCourseAndClass, addEntry, createRace, openStep, publishRace, registe
  * listan och CSV och IOF XML laddas ner. Fem löpare läses av med övningsstationen för resultatlistorna. Steg 27:
  * "Resultaten är klara" gör listorna officiella och ger IOF-filen för Eventor; det går att ångra.
  */
-const TIME_ZONE = "Europe/Stockholm";
+/** Stockholm, eller en tidszon där klockan inte är nära midnatt (starterna ligger upp till 45 minuter bakåt). */
+const TIME_ZONE = ongoingRaceTimeZone();
 const RUNNERS = [
   { className: "H21", givenName: "Anna", familyName: "Ek", club: "OK Ek", card: "8301001" },
   { className: "H21", givenName: "Bo", familyName: "Lind", club: "IFK Lidingö", card: "8301002" },
@@ -63,7 +64,7 @@ test("start- och resultatlistor: vyer, sök, utskrift och export i arbetsytan oc
   const firstStart = new Date(Math.floor(Date.now() / 60_000) * 60_000 - 25 * 60_000);
   const raceDate = zoned(firstStart, { year: "numeric", month: "2-digit", day: "2-digit" });
   const owner = await registerAccount(browser, `listor.${suffix}@exempel.se`, "Lisa Lista");
-  const raceId = await createRace(owner, `Listor ${suffix}`, raceDate, "Tävling");
+  const raceId = await createRace(owner, `Listor ${suffix}`, raceDate, "Tävling", TIME_ZONE);
   // Besökarna ska se tävlingen (ADR-0172 beslut 4).
   await publishRace(owner);
   await addCourseAndClass(owner, "Lång", "H21", "31 32 33");

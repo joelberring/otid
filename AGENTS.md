@@ -84,7 +84,7 @@ historik. Läs den inte om du inte letar efter något specifikt.
 
 ## Databas
 
-- PostgreSQL/PostGIS med Drizzle-migrationer. Tester använder PostgreSQL,
+- PostgreSQL med Drizzle-migrationer. Tester använder PostgreSQL,
   inte SQLite.
 - Det finns ingen produktionsdata ännu, så borttagande migrationer är tillåtna
   (ADR-0168 beslut 6). Varje schemaändring kräver ändå en migration.

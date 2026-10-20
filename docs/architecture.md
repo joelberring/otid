@@ -4,7 +4,7 @@ Gäller från steg 23 (ADR-0173). Äldre version: `docs/archive/architecture-202
 
 ## Delar
 
-Modulär monolit: en Next.js-app och paket i `packages/*`. PostgreSQL/PostGIS är enda lagringen.
+Modulär monolit: en Next.js-app och paket i `packages/*`. PostgreSQL (vanlig `postgres:17`, ingen PostGIS) är enda lagringen.
 
 | Del | Ansvar |
 | --- | --- |

@@ -5,11 +5,18 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 28 – Löpardatabas från Eventor.
+Steg 29 – Löpardatabas från Eventor.
 Steg 7 – Riktig hårdvara och pilot (ägaren) pågår: SI9 via BSM på Mac/Chrome provad 2026-10-19 (`docs/sportident.md`).
 Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan och klubben) provad mot riktiga Eventor 2026-10-19; ROC:s sökväg för stämplingar (bara provad mot falsk ROC) och e-post via SMTP är inte provade.
 
 ## Logg
+
+### 2026-10-20 – Steg 28: vanlig PostgreSQL i stället för PostGIS (steg 28 klart)
+- `postgres:17` (alla arkitekturer) i stället för `postgis/postgis:17-3.5` + `platform: linux/amd64` i dev-compose, drift-compose (db och backup) och CI. Samma PG 17 och PGDATA `/var/lib/postgresql/data`: befintlig volym används som den är. Efter `git pull`: säkerhetskopia, `docker compose up -d postgres` byter bild, datan finns kvar, `pnpm db:migrate` (README).
+- `CREATE EXTENSION postgis` borttagen ur baslinjen (migratorn jämför `created_at`, inte innehåll, så körda databaser påverkas inte). 0007: `DROP EXTENSION IF EXISTS postgis` (utan CASCADE; inget använder PostGIS) och, bara vid glibc-byte (bullseye → trixie), REINDEX av tabellerna + `REFRESH COLLATION VERSION`.
+- Provat på en kopia av en databas från main (PostGIS, 6 lopp/21 anmälda, sorteringsversion 2.31) med PostGIS-filerna borttagna från servern som i `postgres:17`: 0007 körs, data identisk (md5), inga varningar. Integration `steg-28-utan-postgis` (ny databas utan tillägg; uppgradering utan förlust).
+- Playwright: `radio`, `listor`, `strackanalys`, `tavlingsfunktioner` kör tävlingen i `ongoingRaceTimeZone()` (Stockholm, men New York 23–02 i Stockholm) i stället för att falla efter midnatt; ingen klocka fryses, fungerar mot driften i CI. `docs/drift.md`: serveralternativ (Hetzner CX23/CAX11, Oracle Always Free, e2-micro, Cloudflare Tunnel) och DNS-exempel.
+- Verifierat: install (frozen), lint, typecheck, test, test:integration (68/282, utan PostGIS på servern), build, `docker compose config` (dev, prod), Playwright `radio`, `listor`, `strackanalys`, `tavlingsfunktioner` gröna både med tvingad New York-tid och i Stockholm, `traningskvall` grön (`tavlingsfunktioner` fick inget svar från klassändringens rutt vid kall utvecklingsserver: rutten värms nu i förväg, grön kall). Inte provat: riktig Docker-bild och ARM-server (ingen Docker här); CI-jobbet `production` är grinden.
 
 ### 2026-10-19 – Steg 27: rättelser efter första piloten (steg 27 klart)
 - Brickans stämplingar: domänens `cardPunchList` (ordning, kod, tid, på banan/extra/utanför tävlingsdagen, check/start/mål, "från ons 14 okt", "ingen startstämpling") i deltagarkortet och kompakt i avläsningens besked för felstämplad/okänd bricka; aldrig publikt. "Inte avläst ännu" i stället för "publicerat resultat". "Ny klass" listar alla banor och läser in dem själv.

@@ -12,8 +12,19 @@ const root = fileURLToPath(new URL("../../", import.meta.url));
 export const TIME_ZONE = "Europe/Stockholm";
 
 /** Dagens datum (ÅÅÅÅ-MM-DD) i Stockholm. Testerna räknar alla tävlingsdatum härifrån, aldrig från ett fast datum. */
-export function today(now = new Date()): string {
-  return new Intl.DateTimeFormat("sv-SE", { timeZone: TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+export function today(now = new Date(), timeZone = TIME_ZONE): string {
+  return new Intl.DateTimeFormat("sv-SE", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+}
+
+/**
+ * Tidszonen för en tävling som pågår i dag med starter upp till en timme bakåt (radio, listor, sträckanalys,
+ * tävlingsfunktioner). Normalt Stockholm. Mellan 23 och 02 i Stockholm skulle starterna eller testets egen körtid
+ * hamna på en annan dag än tävlingsdagen; då körs tävlingen i New Yorks tid, där klockan är 17–21. Servern och
+ * webbläsaren räknar allt i tävlingens tidszon, så ingen klocka behöver frysas (fungerar också mot driftmiljön i CI).
+ */
+export function ongoingRaceTimeZone(now = new Date()): string {
+  const hour = Number(new Intl.DateTimeFormat("sv-SE", { timeZone: TIME_ZONE, hour: "2-digit", hourCycle: "h23" }).format(now));
+  return hour >= 2 && hour < 23 ? TIME_ZONE : "America/New_York";
 }
 
 /** Datumet `days` dagar från i dag (negativt bakåt), ÅÅÅÅ-MM-DD i Stockholm. */
@@ -63,14 +74,20 @@ export function grantSuperadmin(email: string): void {
 export type RaceTypeName = "Träning" | "Liten tävling" | "Tävling" | "Tävling med gafflade banor" | "Stafett" | "Rogaining";
 
 /**
- * Skapar tävling av vald typ (som standard i dag, tävlingsdagen). "Skapa tävling" leder direkt in i den nya
+ * Skapar tävling av vald typ (som standard i dag, tävlingsdagen, i Stockholms tid). "Skapa tävling" leder direkt in i den nya
  * tävlingens arbetsyta (PLAN.md steg 24). Returnerar loppets id.
  */
-export async function createRace(owner: Page, eventName: string, date = today(), type: RaceTypeName = "Tävling"): Promise<string> {
+export async function createRace(owner: Page, eventName: string, date = today(), type: RaceTypeName = "Tävling",
+  timeZone = TIME_ZONE): Promise<string> {
   await owner.getByLabel("Tävlingens namn").fill(eventName);
   await owner.getByLabel("Etapp/lopp (valfritt)").fill("Torsdag");
   await owner.getByLabel("Datum").fill(date);
   await owner.getByRole("radio", { name: type, exact: true }).check();
+  if (timeZone !== TIME_ZONE) {
+    const form = owner.locator("form").filter({ has: owner.getByRole("button", { name: "Skapa tävling" }) });
+    await form.locator("summary", { hasText: /^Mer$/ }).click();
+    await form.getByLabel("Tidszon").fill(timeZone);
+  }
   await owner.getByRole("button", { name: "Skapa tävling" }).last().click();
   await owner.waitForURL(/\/admin\/[0-9a-f-]+\/manage$/);
   await expect(owner.getByRole("heading", { name: eventName })).toBeVisible();

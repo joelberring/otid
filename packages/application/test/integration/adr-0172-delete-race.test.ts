@@ -56,7 +56,7 @@ const snapshot = async (raceId: string) =>
 
 /** Konton, sessioner och spärrar hör till personerna, inte till tävlingen, och får bli fler. */
 const ACCOUNT_TABLES = new Set(["user_account_session", "user_account_session_revocation", "user_account_login_throttle",
-  "account_request_throttle", "spatial_ref_sys"]);
+  "account_request_throttle"]);
 
 async function tableCounts(): Promise<Map<string, number>> {
   const tables = await pool.query<{ table_name: string }>(

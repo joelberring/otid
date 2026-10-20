@@ -10,6 +10,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-10-20 – Steg 31 B4: samma bricka hos två löpare
+- `application/src/card-reuse.ts`: har brickans deltagare redan ett resultat från en annan avläsning av brickan och brickan använts i ett nytt lopp efter den avläsningens mål (start- eller kontrollstämpling senare), sparas ingen revision; avläsningen blir okänd. Exakt dubblett och samma lopp med ändrad tid fungerar som förut.
+- Kontrollvyn → Okända brickor: "Brickan har redan lästs ut för X … lånad bricka?"; koppla till annan anmäld eller direktanmäl (brickan flyttas, X:s resultat står kvar) eller välj X ("samma löpare", den nya avläsningen gäller). Avläsningssidan: samma varning (säker vid en tidigare annorlunda avläsning här eller när servern svarat okänd, annars "Servern kontrollerar"), anmälan/koppling med `borrowedCard`, och "Det är samma löpare – använd den nya avläsningen". Utan valet skrivs den förstes resultat aldrig över.
+- Omräkning (deltagare, klass, banändring, klassbyte) utgår från deltagarens egen avläsning och bedömer den för just deltagaren (`evaluateReadoutForEntry`), utom när deltagaren fått en annan bricka sedan dess.
+- Tester: integration `steg-31-lanad-bricka` (4) och banändring i `adr-0169-course-edit`, avläsning `already-read-out` (2), Playwright `lanad-bricka`.
+
 ### 2026-10-20 – Steg 31 B5: avläsningens robusthet
 - Avläsningssidan: tid som inte går att placera med stationens klocka prövas med datorns; går det inte heller sparas bricka, tid och råramar i webbläsaren och visas under "Brickor som inte kunde tolkas". En avläsning som ger serverfel (5xx) skickas om en och en och hålls sedan åt sidan ("N avläsningar kunde inte skickas" + "Försök igen") så att resten av kön går fram. Övningsstationen varnar på tävlingsdagen. Deltagarkortet: "Räkna om från avläsningen" även utan resultat.
 - Tester: `readout.test` (kön vid serverfel), `participant-status-choices`, Playwright `manuellt` (varningen) och `traningskvall`.

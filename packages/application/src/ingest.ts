@@ -11,7 +11,8 @@ import {
 } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
 import { schema } from "@o-tid/database";
-import { RESULT_ENGINE_VERSION } from "@o-tid/domain";
+import { RESULT_ENGINE_VERSION, type EvaluationResult } from "@o-tid/domain";
+import { cardAlreadyReadOutBy } from "./card-reuse";
 import { lockRaceForSnapshot } from "./concurrency";
 import { contentHash, evaluationHash as hashEvaluation } from "./serialization";
 import { loadRaceSnapshot, type DbExecutor } from "./snapshot";
@@ -164,7 +165,14 @@ export async function ingestDeviceBatch(
       if (!readoutRow) throw new Error("Normaliserad avläsning kunde inte sparas");
 
       const snapshot = await loadRaceSnapshot(tx, raceId);
-      const stored = await evaluateAndStore(tx, snapshot, normalizedReadout(readoutRow), "CARD_READOUT");
+      const normalized = normalizedReadout(readoutRow);
+      // Steg 31 (B4): har brickans deltagare redan ett resultat från en annan avläsning av samma bricka (lånad bricka,
+      // två löpare efter varandra) skrivs det inte över. Avläsningen blir okänd tills någon väljer vem den hör till.
+      const owner = snapshot.cardAssignments.find((assignment) => assignment.active && assignment.cardNumber === normalized.cardNumber);
+      const alreadyReadOutBy = await cardAlreadyReadOutBy(tx, owner?.entryId, normalized);
+      const unknown: EvaluationResult = { status: "UNKNOWN_CARD", reason: "UNKNOWN_CARD", missingControls: [], extraPunches: [], splits: [] };
+      const stored = alreadyReadOutBy ? { stored: false as const, evaluation: unknown }
+        : await evaluateAndStore(tx, snapshot, normalized, "CARD_READOUT");
       const evaluation = stored.evaluation;
       const resultEvaluationHash = hashEvaluation(evaluation);
       let serverResult: ServerResultSummary;

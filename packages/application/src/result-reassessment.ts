@@ -1,12 +1,13 @@
 import { and, asc, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
 import {
-  courseEditOutcome, evaluateCardReadout, RESULT_ENGINE_VERSION, summarizeCourseEdit,
+  courseEditOutcome, evaluateReadoutForEntry, RESULT_ENGINE_VERSION, summarizeCourseEdit,
   type CourseEditOutcome, type EvaluationStatus, type RaceSnapshot
 } from "@o-tid/domain";
 import { resolveStoredResultHeadStates } from "./result-revision-state";
 import { appliedControlNeutralization } from "./class-control-neutralization";
 import { appendResultRevision, normalizedReadout } from "./result-revisions";
+import { latestResultReadouts, recalculationReadout } from "./card-reuse";
 
 /**
  * Gemensam omprövning för "Redigera bana" och "Redigera klass" (ADR-0169 beslut 4).
@@ -49,6 +50,9 @@ export async function assessReadOutEntries(tx: Transaction, raceId: string, clas
     .where(and(eq(schema.cardReadouts.raceId, raceId), inArray(schema.cardReadouts.cardNumber, cards)))
     .orderBy(asc(schema.cardReadouts.cardNumber), desc(schema.cardReadouts.readAt), desc(schema.cardReadouts.id));
   const readoutByCard = new Map(readouts.map(row => [row.cardNumber, row]));
+  // Steg 31 (B4): resultatet följer avläsningen och deltagaren. Den som har ett resultat räknas om från sin egen
+  // avläsning, även om brickan sedan lästs ut för någon annan (lånad bricka) eller flyttats.
+  const resultReadouts = await latestResultReadouts(tx, raceId, entryIds);
   const latest = await tx.selectDistinctOn([schema.resultRevisions.entryId]).from(schema.resultRevisions)
     .where(and(eq(schema.resultRevisions.raceId, raceId), inArray(schema.resultRevisions.entryId, entryIds)))
     .orderBy(asc(schema.resultRevisions.entryId), desc(schema.resultRevisions.revision), desc(schema.resultRevisions.id));
@@ -61,12 +65,13 @@ export async function assessReadOutEntries(tx: Transaction, raceId: string, clas
   const assessed: AssessedEntry[] = [];
   for (const entry of entries) {
     const entryCards = cardsByEntry.get(entry.id) ?? [];
-    const readout = entryCards.length === 1 ? readoutByCard.get(entryCards[0]!) : undefined;
+    const card = entryCards.length === 1 ? entryCards[0]! : undefined;
+    const readout = recalculationReadout(resultReadouts.get(entry.id), card, card ? readoutByCard.get(card) : undefined);
     if (!readout) continue;
     const head = latestByEntry.get(entry.id) ?? null;
     const state = stateByEntry.get(entry.id);
-    const current = evaluateCardReadout(normalizedReadout(readout), snapshot);
-    const next = evaluateCardReadout(normalizedReadout(readout), proposed);
+    const current = evaluateReadoutForEntry(normalizedReadout(readout), snapshot, entry.id);
+    const next = evaluateReadoutForEntry(normalizedReadout(readout), proposed, entry.id);
     const before = head?.status === "OK" || head?.status === "MP" ? head.status : current.status;
     const base = { entryId: entry.id, classId: entry.classId, displayName: `${entry.givenName} ${entry.familyName}`,
       className: classNames.get(entry.classId)!, readout, latest: head, before, after: next.status };
@@ -105,7 +110,7 @@ export async function recalculateAssessedEntries(tx: Transaction, input: { raceI
   snapshot: RaceSnapshot; snapshotVersion: number; courseVersionId: string | ReadonlyMap<string, string> }) {
   const recalculated: { entryId: string; resultRevisionId: string; revision: number }[] = [];
   for (const row of input.assessed.filter(value => value.recalculate)) {
-    const evaluation = evaluateCardReadout(normalizedReadout(row.readout), input.snapshot);
+    const evaluation = evaluateReadoutForEntry(normalizedReadout(row.readout), input.snapshot, row.entryId);
     const expectedCourseVersionId = typeof input.courseVersionId === "string" ? input.courseVersionId : input.courseVersionId.get(row.classId);
     if (!expectedCourseVersionId || evaluation.entryId !== row.entryId || evaluation.courseVersionId !== expectedCourseVersionId) {
       throw new Error("Omräkningen gav en annan deltagare eller bana än förhandsbeskedet");

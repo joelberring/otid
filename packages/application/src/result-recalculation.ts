@@ -10,9 +10,11 @@ import {
 import type { Database } from "@o-tid/database";
 import { schema } from "@o-tid/database";
 import {
-  evaluateCardReadout,
-  RESULT_ENGINE_VERSION
+  evaluateReadoutForEntry,
+  RESULT_ENGINE_VERSION,
+  snapshotForEntryCard
 } from "@o-tid/domain";
+import { latestResultReadout, latestResultReadouts, recalculationReadout } from "./card-reuse";
 import { appendResultRevision, evaluateAndStore, normalizedReadout } from "./result-revisions";
 import { loadRaceSnapshot } from "./snapshot";
 import { lockEntryForRevision, lockRaceForSnapshot } from "./concurrency";
@@ -99,6 +101,8 @@ export async function listResultRecalculationCandidatesAsAdmin(
       assignmentsByEntry.set(assignment.entryId, assignments);
     }
     const readoutByCard = new Map(latestReadouts.map((readout) => [readout.cardNumber, readout]));
+    // Steg 31 (B4): den som har ett resultat räknas om från sin egen avläsning (resultatet följer avläsningen).
+    const resultReadouts = await latestResultReadouts(tx, authorization.principal.raceId, entries.map((entry) => entry.id));
     const revisionByEntry = new Map(latestRevisions.map((revision) => [revision.entryId, revision]));
     const basisHashes = await loadResultBasisHashes(tx, authorization.principal.raceId);
 
@@ -110,7 +114,9 @@ export async function listResultRecalculationCandidatesAsAdmin(
       entries: entries.map(({ givenName, familyName, ...entry }) => {
         const assignments = assignmentsByEntry.get(entry.id) ?? [];
         const assignment = assignments.length === 1 ? assignments[0] : undefined;
-        const readout = assignment ? readoutByCard.get(assignment.cardNumber) : undefined;
+        const own = resultReadouts.get(entry.id);
+        const chosen = assignment ? recalculationReadout(own, assignment.cardNumber, readoutByCard.get(assignment.cardNumber)) : undefined;
+        const readout = chosen ? { id: chosen.id, readAt: chosen.readAt } : undefined;
         const readiness = assignments.length === 0 ? "NO_ACTIVE_ASSIGNMENT" :
           assignments.length > 1 ? "MULTIPLE_ACTIVE_ASSIGNMENTS" :
             readout ? "READY" : "NO_READOUT";
@@ -250,10 +256,12 @@ export async function recalculateEntryAsAdmin(
     const assignment = assignments.length === 1 ? assignments[0] : undefined;
     if (!assignment || assignment.id !== request.data.expectedCardAssignmentId) return { status: "conflict" };
 
-    const [readout] = await tx.select().from(schema.cardReadouts).where(and(
+    const own = await latestResultReadout(tx, entry.id);
+    const [byCard] = await tx.select().from(schema.cardReadouts).where(and(
       eq(schema.cardReadouts.raceId, authorization.principal.raceId),
       eq(schema.cardReadouts.cardNumber, assignment.cardNumber)
     )).orderBy(desc(schema.cardReadouts.readAt), desc(schema.cardReadouts.id)).limit(1);
+    const readout = recalculationReadout(own, assignment.cardNumber, byCard);
     if (!readout || readout.id !== request.data.expectedReadoutId) return { status: "conflict" };
 
     const [latestResult] = await tx.select().from(schema.resultRevisions).where(and(
@@ -267,7 +275,7 @@ export async function recalculateEntryAsAdmin(
     if (!latestMatches) return { status: "conflict" };
 
     const snapshot = await loadRaceSnapshot(tx, authorization.principal.raceId);
-    const evaluation = evaluateCardReadout(normalizedReadout(readout), snapshot);
+    const evaluation = evaluateReadoutForEntry(normalizedReadout(readout), snapshot, entry.id);
     if (evaluation.entryId !== entry.id || !evaluation.courseVersionId) return { status: "conflict" };
     const createdResult = await appendResultRevision(tx, { raceId: authorization.principal.raceId, entryId: entry.id,
       readoutId: readout.id, cause: "EXPLICIT_RECALCULATION", outcome: evaluation, engineVersion: RESULT_ENGINE_VERSION,
@@ -322,13 +330,16 @@ export async function recalculateEntry(db: Database, raceId: string, entryId: st
     const [assignment] = await tx.select().from(schema.cardAssignments).where(and(
       eq(schema.cardAssignments.entryId, entryId), eq(schema.cardAssignments.active, true)
     ));
-    if (!assignment) throw new Error("Deltagaren saknar aktiv bricka");
-    const [readout] = await tx.select().from(schema.cardReadouts).where(and(
+    const own = await latestResultReadout(tx, entryId);
+    if (!assignment && !own) throw new Error("Deltagaren saknar aktiv bricka");
+    const [byCard] = assignment ? await tx.select().from(schema.cardReadouts).where(and(
       eq(schema.cardReadouts.raceId, raceId), eq(schema.cardReadouts.cardNumber, assignment.cardNumber)
-    )).orderBy(desc(schema.cardReadouts.readAt)).limit(1);
+    )).orderBy(desc(schema.cardReadouts.readAt)).limit(1) : [];
+    const readout = recalculationReadout(own, assignment?.cardNumber, byCard);
     if (!readout) throw new Error("Deltagaren saknar avläsning");
     const snapshot = await loadRaceSnapshot(tx, raceId);
-    const stored = await evaluateAndStore(tx, snapshot, normalizedReadout(readout), "CLASS_CHANGE_RECALCULATION");
+    const stored = await evaluateAndStore(tx, snapshotForEntryCard(snapshot, entryId, readout.cardNumber), normalizedReadout(readout),
+      "CLASS_CHANGE_RECALCULATION", { entryId });
     if (!stored.stored) throw new Error("Avläsningen kan inte kopplas till deltagaren");
     const { evaluation, revision: created } = stored;
     const revision = created.revision;

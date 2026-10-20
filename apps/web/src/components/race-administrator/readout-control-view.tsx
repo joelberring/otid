@@ -134,8 +134,14 @@ function UnknownCards({ ws }: { ws: Workspace }) {
           onChange={event => setUnknownReadoutId(event.target.value)}>
           {unknownReadoutCandidate.readouts.map(readout => <option key={readout.id} value={readout.id}>
             {text.rosterCard} {readout.cardNumber} · {readoutTime(readout.finishPunchedAt)}
+            {readout.alreadyReadOutBy ? ` · ${text.unknownReadoutAlreadyShort(readout.alreadyReadOutBy.name)}` : ""}
           </option>)}
         </select></label>
+        {(() => {
+          const already = unknownReadoutCandidate.readouts.find(readout => readout.id === unknownReadoutId)?.alreadyReadOutBy;
+          return already ? <p className={workspaceStyles.warning} role="note" data-testid="unknown-already-read">
+            {text.unknownReadoutAlready(already.name)}</p> : null;
+        })()}
         {!functionary && <label>{text.unknownReadoutTarget}<select value={unknownReadoutTarget} disabled={busy}
           onChange={event => setUnknownReadoutTarget(event.target.value === "NEW_ENTRY" ? "NEW_ENTRY" : "EXISTING_ENTRY")}>
           <option value="EXISTING_ENTRY">{text.unknownReadoutExisting}</option><option value="NEW_ENTRY">{text.unknownReadoutNew}</option>

@@ -188,6 +188,10 @@ export const raceAdministratorSv = {
   unknownReadoutHelp: "Koppla en okänd avläsning till en anmäld löpare eller till en ny direktanmälan. Avläsningen sparas som den är.",
   unknownReadoutHelpFunctionary: "Direktanmäl löparen som läste av med den okända brickan. Avläsningen sparas som den är.",
   unknownReadoutNone: "Det finns inga olösta okända avläsningar i detta lopp.",
+  unknownReadoutAlreadyShort: (name: string) => `redan avläst för ${name}`,
+  unknownReadoutAlready: (name: string) => `Brickan har redan lästs ut för ${name} med andra stämplingar – lånad bricka? ` +
+    `${name}s resultat ändras inte. Koppla avläsningen till den som sprang eller direktanmäl. Är det samma löpare: välj ${name}, ` +
+    "då gäller den nya avläsningen.",
   unknownReadoutSelect: "Välj avläsning",
   unknownReadoutTarget: "Koppla till",
   unknownReadoutExisting: "Befintlig deltagare",

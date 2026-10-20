@@ -23,7 +23,9 @@ const newEntryRequestSchema = z.object({
   familyName: name,
   organisationName: z.string().trim().min(1).max(200).nullable(),
   eventorPersonId: eventorIdSchema.optional(),
-  eventorOrganisationId: eventorIdSchema.optional()
+  eventorOrganisationId: eventorIdSchema.optional(),
+  /** Steg 31 (B4): brickan har redan lästs ut för en annan anmäld (lånad bricka); den flyttas till den nya deltagaren. */
+  borrowedCard: z.literal(true).optional()
 }).strict();
 
 const existingEntryRequestSchema = z.object({
@@ -33,7 +35,9 @@ const existingEntryRequestSchema = z.object({
   target: z.literal("EXISTING_ENTRY"),
   entryId: uuid,
   /** Klassen som deltagaren hade i paketet; har den bytts sedan dess avvisas kopplingen. */
-  expectedClassId: uuid
+  expectedClassId: uuid,
+  /** Steg 31 (B4): lånad bricka, se ovan. Är deltagaren den som redan läst ut gäller den nya avläsningen. */
+  borrowedCard: z.literal(true).optional()
 }).strict();
 
 export const readoutRegistrationRequestSchema = z.union([newEntryRequestSchema, existingEntryRequestSchema]);

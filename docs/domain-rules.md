@@ -59,6 +59,12 @@ funktion lokalt; dess besked är preliminärt och serverns revision är auktorit
   ändra start- eller sluttid. Alla beslut går genom ett flöde (`setEntryStatus`) och lägger till en ny
   revision med orsak och aktör (kontot).
 - Ett återtagande är också en ny revision; den återställer det tidigare utfallet men räknar inte om.
+- Steg 31: beslut ligger som en stapel ovanpå avläsningarna och följer med över ny avläsning och omräkning (disk,
+  godkännande, brutit, utom tävlan, utan tidtagning, rättad mål- och starttid, manuell tid och godkända kontroller); ett
+  återtagande tar bort det översta. Bara ej start ersätts av en senare avläsning. Nya beslut bygger på senaste tekniska
+  bedömningen under besluten. Manuell tid (`MANUAL_TIME`) bedömer avläsningen med arrangörens start- och måltid (eller
+  bara tiden utan avläsning) och arrangörens status; tas ett beslut utan avläsning bort blir det inget resultat
+  (`MANUAL_RESULT_REMOVED`). Brutit går utan avläsning. Orsaken sparas i `result_revision.note`.
   Historiken för en löpare är dess revisioner; det finns inga separata besluts- eller återtagandetabeller.
 - Ett beslut bär löparens senaste revisionsnummer (`expectedRevision`). Har en annan revision tillkommit sedan
   formuläret öppnades avvisas beslutet (konflikt), och arrangören får se det nya läget. Tävlingens version
@@ -105,7 +111,11 @@ samma frö ger alltid samma tider.
 
 ## Revisionsregler
 
-- En ny avläsning skapar en ny revision när brickan är känd.
+- En ny avläsning skapar en ny revision när brickan är känd. Steg 31: har brickans deltagare redan ett resultat från en
+  annan avläsning av brickan och brickan använts i ett nytt lopp efter den avläsningens mål, blir den nya avläsningen
+  okänd ("redan avläst för X – lånad bricka?") och den förstes resultat står kvar. Kopplas den till någon annan flyttas
+  brickan; omräkning utgår från deltagarens egen avläsning (resultatet följer avläsningen, inte brickan), utom när
+  deltagaren fått en annan bricka sedan dess.
 - Ändrad bana, redigerad klass, ny lottning och ändrad starttid räknar om berörda löpares avlästa resultat
   med en ny revision (`EXPLICIT_RECALCULATION`) och en auditpost; tidigare revisioner skrivs aldrig om.
 - Revisionen lagrar motorversion, avläsningspaketets version (`snapshot_version`), banversion, orsak och

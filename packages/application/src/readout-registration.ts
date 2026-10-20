@@ -10,6 +10,7 @@ import { lockRaceForMutation } from "./concurrency";
 import { canAddClassEntry } from "./class-capacity-guard";
 import { bumpReadoutPackageVersion, loadRaceSnapshot, type DbExecutor } from "./snapshot";
 import { evaluateAndStore, normalizedReadout } from "./result-revisions";
+import { cardAlreadyReadOutBy } from "./card-reuse";
 
 /**
  * PLAN.md steg 25: direktanmälan av en okänd bricka från avläsningssidan, även offline (köad i webbläsaren).
@@ -78,9 +79,19 @@ export async function registerReadoutCard(db: Database, input: Authentication & 
       if (!raceClass) return { status: "not-found" };
     }
 
-    const [owner] = await tx.select({ entryId: schema.cardAssignments.entryId }).from(schema.cardAssignments)
+    let [owner] = await tx.select({ id: schema.cardAssignments.id, entryId: schema.cardAssignments.entryId }).from(schema.cardAssignments)
       .where(and(eq(schema.cardAssignments.raceId, raceId), eq(schema.cardAssignments.cardNumber, intent.cardNumber),
         eq(schema.cardAssignments.active, true))).limit(1);
+    // Steg 31 (B4): brickans deltagare har redan ett resultat från en annan avläsning av brickan (lånad bricka). Den
+    // förstes resultat skrivs aldrig över. Med `borrowedCard` flyttas brickan till den nya eller valda deltagaren; är det
+    // samma deltagare gäller den nya avläsningen. Utan valet lämnas avläsningen okänd.
+    const unresolved = owner ? await latestUnresolvedReadout(tx, raceId, intent.cardNumber) : undefined;
+    const borrowedFrom = owner && unresolved ? await cardAlreadyReadOutBy(tx, owner.entryId, normalizedReadout(unresolved)) : undefined;
+    const sameRunner = borrowedFrom !== undefined && linking && intent.entryId === borrowedFrom;
+    if (borrowedFrom && intent.borrowedCard && !sameRunner && owner) {
+      await tx.update(schema.cardAssignments).set({ active: false }).where(eq(schema.cardAssignments.id, owner.id));
+      owner = undefined;
+    }
     let entry: { id: string; givenName: string; familyName: string; classId: string; organisationName: string | null };
     let outcome: "CREATED" | "EXISTING" | "LINKED";
     const entryColumns = { id: schema.entries.id, givenName: schema.entries.givenName, familyName: schema.entries.familyName,
@@ -115,7 +126,8 @@ export async function registerReadoutCard(db: Database, input: Authentication & 
     let linkedResult: { status: "OK" | "OVERTIME" | "MP"; revision: number } | null = null;
     const readout = await latestUnresolvedReadout(tx, raceId, intent.cardNumber);
     const latestReadAt = readout ? await latestResultReadAt(tx, entry.id) : null;
-    if (readout && (latestReadAt === null || latestReadAt < readout.readAt)) {
+    const keepsFirst = borrowedFrom !== undefined && entry.id === borrowedFrom && !(sameRunner && intent.borrowedCard);
+    if (readout && !keepsFirst && (latestReadAt === null || latestReadAt < readout.readAt || sameRunner)) {
       let snapshot = await loadRaceSnapshot(tx, raceId);
       const normalized = normalizedReadout(readout);
       // Direktanmäld i en gafflad klass har redan sprungit: den får varianten som stämplingarna passar.
@@ -143,7 +155,8 @@ export async function registerReadoutCard(db: Database, input: Authentication & 
       action: outcome === "CREATED" ? "READOUT_CARD_REGISTERED" : outcome === "LINKED" ? "READOUT_CARD_LINKED"
         : "READOUT_CARD_ALREADY_REGISTERED", actorKind: "USER_ACCOUNT",
       actorId: auth.principal.accountId, before: null,
-      after: { cardNumber: intent.cardNumber, classId: entry.classId, outcome, linkedRevision: linkedResult?.revision ?? null },
+      after: { cardNumber: intent.cardNumber, classId: entry.classId, outcome, linkedRevision: linkedResult?.revision ?? null,
+        ...(borrowedFrom ? { alreadyReadOutBy: borrowedFrom, borrowedCard: intent.borrowedCard ?? false } : {}) },
       createdAt: registeredAt });
     return { status: "registered", response };
   });

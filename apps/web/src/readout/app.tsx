@@ -273,35 +273,47 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
   const effectivePkg = useMemo(() => pkg ? withLocalRegistrations(pkg, registrations) : undefined, [pkg, registrations]);
   const currentItem = current?.phase === "done" ? items.find((item) => item.localSequence === current.localSequence) : undefined;
   // Beskedet bedöms om när paketet eller anmälningarna ändras, så att "Lägg till" ger beskedet för den nya löparen direkt.
-  const verdict = useMemo(() => {
+  const localVerdict = useMemo(() => {
     if (current?.phase !== "done") return undefined;
     if (!currentItem || !effectivePkg) return current.verdict;
     const earlier = items.filter((item) => item.localSequence < currentItem.localSequence).map((item) => item.payload);
     return evaluateLocally(currentItem.payload, effectivePkg, earlier);
   }, [current, currentItem, effectivePkg, items]);
+  // Steg 31 (B4): brickan har redan lästs ut för någon annan. Serverns svar avgör: okänd = lånad bricka (den förstes
+  // resultat skrivs inte över), ett resultat = samma avläsning igen. Utan svar räcker en tidigare annorlunda avläsning här.
+  const registeredHere = current?.phase === "done" && registrations.some((row) => row.request.cardNumber === current.cardNumber &&
+    row.localSequence === current.localSequence && row.status !== "rejected");
+  const alreadyReadOut = !registeredHere && localVerdict?.alreadyReadOutBy && (currentItem?.serverResult
+    ? currentItem.serverResult.status === "UNKNOWN_CARD" : true) ? localVerdict.alreadyReadOutBy : undefined;
+  const borrowed = alreadyReadOut && (alreadyReadOut.certain || currentItem?.serverResult?.status === "UNKNOWN_CARD")
+    ? alreadyReadOut : undefined;
+  const verdict = useMemo(() => localVerdict && borrowed
+    ? { ...localVerdict, status: "UNKNOWN_CARD" as const, reason: "UNKNOWN_CARD" as const, missingControls: [], splits: [] }
+    : localVerdict, [localVerdict, borrowed]);
   const currentRegistration = current?.phase === "done"
     ? registrations.filter((row) => row.request.cardNumber === current.cardNumber).at(-1) : undefined;
 
-  async function register(fields: RegistrationFields) {
+  async function register(fields: RegistrationFields, borrowedCard = false) {
     if (!raceId || current?.phase !== "done") return;
     const requestId = crypto.randomUUID();
     await storeRef.current.addRegistration({ raceId, requestId, localSequence: current.localSequence, createdAt: new Date().toISOString(),
       status: "pending", request: { formatVersion: 1, requestId, cardNumber: current.cardNumber, classId: fields.classId,
         givenName: fields.givenName.trim(), familyName: fields.familyName.trim(), organisationName: fields.club.trim() || null,
         ...(fields.eventorPersonId ? { eventorPersonId: fields.eventorPersonId } : {}),
-        ...(fields.eventorOrganisationId ? { eventorOrganisationId: fields.eventorOrganisationId } : {}) } });
+        ...(fields.eventorOrganisationId ? { eventorOrganisationId: fields.eventorOrganisationId } : {}),
+        ...(borrowedCard ? { borrowedCard: true as const } : {}) } });
     await reload();
     void sync();
   }
 
   /** PLAN.md steg 29: koppla den okända brickan till en anmäld deltagare, köat som en anmälan (även offline). */
-  async function linkEntry(entry: EntrySuggestion) {
+  async function linkEntry(entry: Pick<EntrySuggestion, "entryId" | "classId" | "name" | "className">, borrowedCard = false) {
     if (!raceId || current?.phase !== "done") return;
     const requestId = crypto.randomUUID();
     await storeRef.current.addRegistration({ raceId, requestId, localSequence: current.localSequence, createdAt: new Date().toISOString(),
       status: "pending", display: { entryName: entry.name, className: entry.className },
       request: { formatVersion: 1, requestId, cardNumber: current.cardNumber, target: "EXISTING_ENTRY", entryId: entry.entryId,
-        expectedClassId: entry.classId } });
+        expectedClassId: entry.classId, ...(borrowedCard ? { borrowedCard: true as const } : {}) } });
     await reload();
     void sync();
   }
@@ -369,12 +381,20 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
         timeZone={pkg?.event.timeZone ?? "Europe/Stockholm"} />
     </section>
 
+    {/* Steg 31 (B4): brickan har redan lästs ut för någon annan – lånad bricka? */}
+    {current?.phase === "done" && alreadyReadOut && (!currentRegistration || currentRegistration.status === "rejected")
+      ? <section className="notice" role="alert" data-testid="already-read-out" aria-label={t.alreadyReadOutTitle}>
+        <p><strong>{borrowed ? t.alreadyReadOut(alreadyReadOut.name) : t.alreadyReadOutPossible(alreadyReadOut.name)}</strong></p>
+        {borrowed ? <><p>{t.alreadyReadOutHelp(alreadyReadOut.name)}</p>
+          <button type="button" onClick={() => { void linkEntry(alreadyReadOut, true); }}>{t.sameRunner}</button></> : null}
+      </section> : null}
+
     {/* Okänd bricka (PLAN.md steg 25): anmäl löparen här, även utan nät. */}
     {current?.phase === "done" && effectivePkg && (verdict?.status === "UNKNOWN_CARD" || currentRegistration?.status === "rejected") &&
       (!currentRegistration || currentRegistration.status === "rejected")
       ? <RegistrationForm key={current.localSequence} pkg={effectivePkg} cardNumber={current.cardNumber}
         payload={currentItem?.payload ?? { punches: [] }} items={items} registrations={registrations} search={searchServer}
-        onSubmit={register} onLink={linkEntry} /> : null}
+        onSubmit={(fields) => register(fields, !!borrowed)} onLink={(entry) => linkEntry(entry, !!borrowed)} /> : null}
 
     <ReceiptPanel printable={printable} pkg={pkg} settings={receiptSettings}
       onSettings={(settings) => { setReceiptSettings(settings); saveReceiptSettings(settings); }} />

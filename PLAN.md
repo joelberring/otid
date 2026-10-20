@@ -600,6 +600,10 @@ B – enskilda löpare, brickor och avläsningens robusthet:
   Markeras "Manuell tid"; "Ta bort manuell tid" ger bedömningen från avläsningen. Brutit även utan avläsning.
 - [x] B2. Manuella beslut (även rättad mål- och starttid) ligger kvar över ny avläsning av samma bricka och omräkning.
 - [x] B3. "Godkänn saknade kontroller" (kryssrutor och orsak); "Godkänn manuellt" kräver orsak och visas bara när tiden finns.
+- [x] B4. Samma bricka hos två löpare: en avläsning av ett nytt lopp med en bricka vars deltagare redan har resultat
+  skriver inte över det utan blir okänd ("redan avläst för X – lånad bricka?") i kontrollvyn och på avläsningssidan, med
+  koppla/direktanmäl/"Det är samma löpare – använd den nya avläsningen". Kopplingen flyttar brickan; omräkning utgår
+  från deltagarens egen avläsning.
 - [x] B5. Robusthet: "Räkna om från avläsningen" även utan resultat; bricktid som inte går att tolka prövas med datorns
   klocka och försvinner aldrig (listas tills den tagits bort); en avläsning som ger serverfel hålls åt sidan och resten av
   kön skickas ("Försök igen"); Övningsstation varnar på tävlingsdagen.

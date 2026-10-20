@@ -15,7 +15,9 @@ export const unknownReadoutResolutionCandidateResponseSchema = z.object({
     id: uuid,
     cardNumber: newEntryCardNumberSchema,
     readAt: z.iso.datetime({ offset: true }),
-    finishPunchedAt: z.iso.datetime({ offset: true }).nullable()
+    finishPunchedAt: z.iso.datetime({ offset: true }).nullable(),
+    /** Steg 31 (B4): brickan har redan lästs ut för en annan deltagare med andra stämplingar (lånad bricka?). */
+    alreadyReadOutBy: z.object({ entryId: uuid, name: z.string().trim().min(1).max(321) }).strict().nullable().optional()
   }).strict()).max(10_000),
   classes: z.array(z.object({
     id: uuid,

@@ -10,6 +10,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-10-20 – Steg 36: läs om avläsningar från rådata
+- Avläsning → "Läs om avläsningar från rådata" (bara admin): varje deltagares avläsning (den resultatet bygger på) avkodas på nytt från originalets råramar (`sportident` `decodeRecordedFrames`) med stationens klocka/offset ur nyttolasten och tävlingens tidszon. Övningsstationen och simulatorn läses inte om; ej start hoppas över. Listan visar bara ändrade (bricka, deltagare, stämplingar/status/tid före → efter) och "går inte att läsa om" (fel CRC, saknade block); "Spara och räkna om" för valda, konflikt om något ändrats.
+- Lagring: nytt råmeddelande (`transport` `sportident-reread`, enheten = originalets råmeddelande, nyttolasten pekar på originalet och avläsningen den ersätter), ny `card_readout` (lästid + 1 ms så att den blir brickans senaste) och revision med orsaken READOUT_REREAD (migration 0014) för samma deltagare (`evaluateReadoutForEntry`); auditpost per omläsning. Original och råmeddelanden ändras aldrig.
+- Manuella beslut ligger kvar ovanpå och visas i förhandsbeskedet med hur de tas bort. Deltagarkortet: "Avläsningen kan läsas om från rådata" + "Läs om".
+- Tester: `sportident` `recorded` (5), integration `steg-36-omlasning` (natt-KM 14 stämplingar, OK 53:23; rätt avläst och övning listas inte; trasiga ramar; manuellt beslut; behörighet; idempotens), Playwright `omlasning`.
+- Risk: migratorn hoppar över en migration med lägre `when` än den senast körda; slås steg 35:s 0013 ihop efter att 0014 körts måste 0013 få ett högre `when` (testdatabaserna här saknade 0009 av just det skälet och skapades om).
+
 ### 2026-10-20 – Steg 36 (brådskande): nio ramar från station som skickar alla åtta block
 - Efter steg 34 gav en BSM8 som skickar alla åtta block detektering + 8 block = 9 råramar, men avläsningens schema tillät högst 8: avläsningen markerades "rejected" (`LOCAL_INVALID`) i webbläsaren och skickades aldrig. Schemat tillåter nu 12 (detektering, åtta block, uttagsram, marginal); samma schema används vid mottagningen.
 - Avläsningssidan prövar vid laddning om lokalt avvisade avläsningar mot det nuvarande schemat; giltiga läggs tillbaka i kön som väntande med samma löpnummer (servern har aldrig sett det) och skickas som vanligt.

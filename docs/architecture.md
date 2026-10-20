@@ -94,7 +94,11 @@ Gemensamma hjälpare: UUID-mönstret och idempotensnycklarnas form (`UUID_PATTER
   bedömer lokalt och lägger avläsningen i en kö i IndexedDB (`src/readout/store.ts`).
 - Kön skickas till `POST …/administrator/readouts` (`application/src/ingest.ts`). Mottagningen är idempotent
   på enhet, löpnummer och hash; samma avläsning två gånger ger samma kvitto. Råa bytes sparas oförändrade.
-- En post tas bort ur kön först när servern har kvitterat den.
+- En post tas bort ur kön först när servern har kvitterat den. En avläsning som avvisats lokalt (`LOCAL_INVALID`) prövas igen
+  när sidan laddas och skickas om den är giltig nu (steg 36).
+- Läs om från rådata (PLAN.md steg 36, `application/src/readout-reread.ts`): deltagarens avläsning avkodas på nytt från
+  originalets råramar; en ändrad sparas som nytt råmeddelande (`sportident-reread`, pekar på originalet), ny avläsning och
+  revision (READOUT_REREAD) för samma deltagare. Originalet ändras aldrig.
 - Direktanmälan av okänd bricka på avläsningssidan (PLAN.md steg 25) köas i samma IndexedDB med egen
   idempotensnyckel och bedöms om lokalt. Anmälningar skickas före avläsningarna
   (`POST …/administrator/readout-registrations`, `application/src/readout-registration.ts`); servern kopplar

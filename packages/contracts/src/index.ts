@@ -33,6 +33,7 @@ export * from "./race-overview-admin";
 export * from "./result-recalculation-admin";
 export * from "./class-result-recalculation";
 export * from "./race-corrections";
+export * from "./readout-reread";
 export * from "./result-finalization-admin";
 export * from "./result-outcome";
 export * from "./entry-status";

@@ -232,20 +232,23 @@ export async function reviewScreenshots(page: Page, name: string, widths: readon
  * check, mål och stämplingar vid valfria tider, till exempel från ett tidigare lopp. Ramarna är påhittade.
  */
 export async function sendReadout(page: Page, raceId: string, readout: { cardNumber: string; checkPunchedAt?: string;
-  startPunchedAt?: string; finishPunchedAt?: string; punches: { code: number; punchedAt: string }[] }): Promise<void> {
+  startPunchedAt?: string; finishPunchedAt?: string; punches: { code: number; punchedAt: string }[];
+  /** Steg 36: en riktig avläsning med råramar (annars övningsstationens SI9 med en låtsasram). */
+  cardType?: string; frames?: string[]; stationReceivedAt?: string }): Promise<void> {
   const origin = new URL(page.url()).origin;
   const csrf = (await page.context().cookies()).find(row => /otid[-_]organizer[-_]csrf$/.test(row.name))?.value ?? "";
   // Fälten i kontraktets ordning: servern räknar hashen över den tolkade nyttolasten.
-  const payload = { cardNumber: readout.cardNumber, cardType: "SI9",
+  const payload = { cardNumber: readout.cardNumber, cardType: readout.cardType ?? "SI9",
     ...(readout.startPunchedAt ? { startPunchedAt: readout.startPunchedAt } : {}),
     ...(readout.finishPunchedAt ? { finishPunchedAt: readout.finishPunchedAt } : {}),
     ...(readout.checkPunchedAt ? { checkPunchedAt: readout.checkPunchedAt } : {}),
-    punches: readout.punches, untimedPunchCodes: [], frames: ["02ef0100"], simulated: true };
+    punches: readout.punches, untimedPunchCodes: [], frames: readout.frames ?? ["02ef0100"],
+    ...(readout.frames ? { clockSource: "device" } : {}), simulated: !readout.frames };
   const deviceId = randomUUID();
   const response = await page.request.post(`/api/admin/races/${raceId}/administrator/readouts`, {
     headers: { origin, "x-otid-csrf": csrf, "content-type": "application/json" },
     data: { deviceId, sessionId: deviceId, packageVersion: 1, firstSequence: 1, lastSequence: 1, events: [{ localSequence: 1,
-      stationReceivedAt: new Date().toISOString(), transport: "sportident", payload,
+      stationReceivedAt: readout.stationReceivedAt ?? new Date().toISOString(), transport: "sportident", payload,
       contentHash: createHash("sha256").update(JSON.stringify(payload)).digest("hex") }] } });
   expect(response.status()).toBe(200);
   expect(((await response.json()) as { acknowledgements: { status: string }[] }).acknowledgements[0]?.status).toBe("stored");

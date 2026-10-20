@@ -83,3 +83,4 @@ export { loadEntryCardPunches } from "./card-punches";
 export { officialResultState, readResultsOfficialAsAdmin, setResultsOfficialAsAdmin } from "./result-official";
 export { exportRaceAsAdmin, RACE_EXPORT_FORMAT, RACE_EXPORT_FORMAT_VERSION } from "./race-export";
 export * from "./race-corrections";
+export * from "./readout-reread";

@@ -44,7 +44,9 @@ export const revisionCauseEnum = pgEnum("revision_cause", [
   "MANUAL_TIME_WITHDRAWAL",
   "MANUAL_CONTROL_APPROVAL",
   "MANUAL_CONTROL_APPROVAL_WITHDRAWAL",
-  "MANUAL_RESULT_REMOVED"
+  "MANUAL_RESULT_REMOVED",
+  /** Steg 36: avläsningen avkodad på nytt från råramarna (migration 0014). */
+  "READOUT_REREAD"
 ]);
 export const eventAdministrationRoleEnum = pgEnum("event_administration_role", ["OWNER", "ADMIN", "FUNCTIONARY"]);
 export const auditActorKindEnum = pgEnum("audit_actor_kind", [

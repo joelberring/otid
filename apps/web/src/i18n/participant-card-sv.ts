@@ -22,7 +22,7 @@ export const participantCardSv = {
     SHORTENED_COURSE_CLASS_TRANSFER: "Flyttad till kortare bana", MANUAL_DID_NOT_START_WITHDRAWAL: "Ej start borttaget",
     MANUAL_TIME: "Manuell tid", MANUAL_TIME_WITHDRAWAL: "Manuell tid borttagen",
     MANUAL_CONTROL_APPROVAL: "Kontroller godkända", MANUAL_CONTROL_APPROVAL_WITHDRAWAL: "Godkända kontroller borttagna",
-    MANUAL_RESULT_REMOVED: "Manuellt resultat borttaget"
+    MANUAL_RESULT_REMOVED: "Manuellt resultat borttaget", READOUT_REREAD: "Omläst från rådata"
   },
   changeStatus: "Ändra status", chooseStatus: "Välj …",
   choices: {

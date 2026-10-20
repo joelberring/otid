@@ -344,7 +344,9 @@ export type RevisionCause =
   | "MANUAL_TIME_WITHDRAWAL"
   | "MANUAL_CONTROL_APPROVAL"
   | "MANUAL_CONTROL_APPROVAL_WITHDRAWAL"
-  | "MANUAL_RESULT_REMOVED";
+  | "MANUAL_RESULT_REMOVED"
+  /** Steg 36: avläsningen avkodad på nytt från råramarna; bedöms som en avläsning. */
+  | "READOUT_REREAD";
 
 export interface ResultRevision {
   readonly id: UUID;

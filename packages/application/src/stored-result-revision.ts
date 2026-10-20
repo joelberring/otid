@@ -47,7 +47,9 @@ const STATUS_BY_CAUSE: Record<Cause, { readonly statuses: readonly string[]; rea
   MANUAL_TIME_WITHDRAWAL: { statuses: TIMED, readout: false },
   MANUAL_CONTROL_APPROVAL: { statuses: ["OK", "MP"], readout: false },
   MANUAL_CONTROL_APPROVAL_WITHDRAWAL: { statuses: TIMED, readout: false },
-  MANUAL_RESULT_REMOVED: { statuses: ["MP"], readout: false, reason: "MISSING_START" }
+  MANUAL_RESULT_REMOVED: { statuses: ["MP"], readout: false, reason: "MISSING_START" },
+  // Steg 36: avläsningen avkodad på nytt från råramarna.
+  READOUT_REREAD: { statuses: TIMED, readout: true }
 };
 
 function canonicalEquals(left: unknown, right: unknown): boolean {

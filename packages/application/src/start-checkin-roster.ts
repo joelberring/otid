@@ -86,7 +86,7 @@ export async function readAuthorizedStartCheckinRoster(tx: Parameters<Parameters
     const technicalReturns = await tx.selectDistinct({ entryId: schema.resultRevisions.entryId }).from(schema.resultRevisions)
       .where(and(eq(schema.resultRevisions.raceId, race.id), inArray(schema.resultRevisions.cause,
         ["CARD_READOUT", "CLASS_CHANGE_RECALCULATION", "EXPLICIT_RECALCULATION", "UNKNOWN_READOUT_RESOLUTION",
-          "SHORTENED_COURSE_CLASS_TRANSFER"]))).limit(10_001);
+          "SHORTENED_COURSE_CLASS_TRANSFER", "READOUT_REREAD"]))).limit(10_001);
     const returned = new Set([...linkedReturns, ...technicalReturns].map(r => r.entryId));
     if ([...returned].some(id => !entryIds.has(id))) throw new Error("Återkomstkälla utanför rostern");
     const activeDns = new Set<string>();

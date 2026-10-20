@@ -127,6 +127,9 @@ importers:
       '@o-tid/roc':
         specifier: workspace:*
         version: link:../roc
+      '@o-tid/sportident':
+        specifier: workspace:*
+        version: link:../sportident
       drizzle-orm:
         specifier: 0.44.5
         version: 0.44.5(@types/pg@8.15.5)(pg@8.16.3)

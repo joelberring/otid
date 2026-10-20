@@ -81,7 +81,7 @@ const WITHDRAWAL_CAUSE: Partial<Record<GoverningDecision, RevisionCause>> = {
 const NO_RESULT_BASES: ReadonlySet<RevisionCause> = new Set<RevisionCause>(["MANUAL_DID_NOT_START_WITHDRAWAL", "MANUAL_RESULT_REMOVED"]);
 /** Orsaker som bedömer en avläsning direkt och därför kan vara underlag för ett nytt beslut. */
 export const TECHNICAL_CAUSES: ReadonlySet<RevisionCause> = new Set<RevisionCause>(["CARD_READOUT",
-  "CLASS_CHANGE_RECALCULATION", "EXPLICIT_RECALCULATION", "UNKNOWN_READOUT_RESOLUTION"]);
+  "CLASS_CHANGE_RECALCULATION", "EXPLICIT_RECALCULATION", "UNKNOWN_READOUT_RESOLUTION", "READOUT_REREAD"]);
 /** Orsaker som är ett beslut eller ett återtagande (de enda som påverkar vilket resultat som gäller). */
 export const DECISION_CAUSES: readonly RevisionCause[] = [...Object.keys(OVERLAY_DECISIONS), ...OVERLAY_WITHDRAWALS,
   ...Object.keys(HEAD_DECISIONS), "MANUAL_DID_NOT_START_WITHDRAWAL"] as RevisionCause[];

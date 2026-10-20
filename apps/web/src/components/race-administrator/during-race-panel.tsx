@@ -15,6 +15,8 @@ import { administratorStartCorrectionRequestSchema } from "@o-tid/contracts";
 import { ReadoutControlView } from "./readout-control-view";
 import { RaceCorrectionsPanel } from "../race-corrections";
 import { raceCorrectionsSv } from "../../i18n/race-corrections-sv";
+import { ReadoutRereadPanel } from "../readout-reread";
+import { readoutRereadSv } from "../../i18n/readout-reread-sv";
 import { Button, Field, Section } from "../ui";
 import type { Workspace } from "./workspace-state";
 import { RaceInfo } from "../race-info";
@@ -152,6 +154,10 @@ export function DuringRaceFollowUp({ ws }: { ws: Workspace }) {
     {/* PLAN.md steg 31: rättningar som gäller alla löpare; bara administratören. */}
     {data && !functionary && <Section id={`race-corrections-${raceId}`} title={raceCorrectionsSv.title} help={raceCorrectionsSv.help}>
       <RaceCorrectionsPanel raceId={raceId} onChanged={ws.reloadQuietly} />
+    </Section>}
+    {/* PLAN.md steg 36: läs om avläsningar från de sparade råramarna; bara administratören. */}
+    {data && !functionary && <Section id={`readout-reread-${raceId}`} title={readoutRereadSv.title}>
+      <ReadoutRereadPanel raceId={raceId} onChanged={ws.reloadQuietly} />
     </Section>}
     </section>
   </>;

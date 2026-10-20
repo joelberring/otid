@@ -112,6 +112,7 @@ function allowedMethods(action: Action): string[] {
     action.kind === "relay-class" || action.kind === "relay-team" || action.kind === "relay-leg-runner" ||
     action.kind === "relay-start-times" || action.kind === "race-settings" || action.kind === "readout-registrations" ||
     action.kind === "course-details" || action.kind === "entry-removal" || action.kind === "class-removal" ||
-    action.kind === "course-removal" || action.kind === "race-corrections-preview" ? ["POST"] :
+    action.kind === "course-removal" || action.kind === "race-corrections-preview" ||
+    action.kind === "readout-reread" || action.kind === "readout-reread-preview" ? ["POST"] :
     "entryId" in action || action.kind === "capacity" ? ["PATCH"] : ["GET"];
 }

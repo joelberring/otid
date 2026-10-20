@@ -299,7 +299,8 @@ export function parseSystemValues(frame: SiFrame): StationInfo {
   };
 }
 
-function detectCard(frame: SiFrame): { cardNumber: number; cardType: SiCardType | undefined } | undefined {
+/** Bricknummer och bricktyp ur en detekteringsram; undefined för andra ramar. */
+export function detectCard(frame: SiFrame): { cardNumber: number; cardType: SiCardType | undefined } | undefined {
   const d = frame.data;
   if (d.length < 4) return undefined;
   const cardNumber = decodeCardNumber(d[1]!, d[2]!, d[3]!);

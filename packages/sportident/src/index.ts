@@ -20,6 +20,7 @@ export {
 } from "./time";
 export { cardImageFromResponses, CardDecodeError, decodeCard, type SiCardData, type SiPunchRecord, type SiStationRecord } from "./decode";
 export { normalizeCard, type NormalizedSiReadout } from "./normalize";
-export { parseSystemValues, ReadoutSession, type ReadoutEvent, type SessionOutput, type StationInfo } from "./readout-session";
+export { decodeRecordedFrames, framesFromHex } from "./recorded";
+export { detectCard, parseSystemValues, ReadoutSession, type ReadoutEvent, type SessionOutput, type StationInfo } from "./readout-session";
 export { encodeCardImage, FakeSiStation, type FakeStationOptions, type SimulatedCard, type SimulatedTime } from "./simulator";
 export { cardTypeForNumber, readSimulatedCard, simulatedRun, stationClock, type SimulatedRunOptions } from "./simulated-run";

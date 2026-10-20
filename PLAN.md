@@ -636,6 +636,15 @@ första start är (infopunkt, inte tävlingsklocka), synligt för alla.
 
 - [x] Blocken placeras efter blocknumret; "alla block" läses till block 7; ofullständig bild vägras. Rättat efter natt-KM 2026-10-20.
 
+## [x] Steg 36 – Läs om avläsningar från rådata
+
+Efter natt-KM 2026-10-20 (steg 34): avläsningar som sparats med fel stämplingar ska kunna rättas från de sparade råramarna.
+
+- [x] Avläsning → "Läs om avläsningar från rådata" (admin): förhandsvisning av avläsningar som blir annorlunda (bricka, deltagare, före → efter)
+  och de som inte går att läsa om; "Spara och räkna om" för valda. Ny avläsning och revision (READOUT_REREAD), originalet ändras aldrig.
+- [x] Manuella beslut ligger kvar och visas i förhandsbeskedet; deltagarkortet erbjuder "Läs om" när avläsningen blir annorlunda.
+- [x] Brådskande: nio till tolv råramar tas emot; lokalt avvisade avläsningar (LOCAL_INVALID) prövas igen och skickas.
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

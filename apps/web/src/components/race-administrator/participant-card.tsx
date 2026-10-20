@@ -19,6 +19,7 @@ import { EntryActionForms, RegistrationForm } from "./entry-action-forms";
 import { CardPunches } from "./card-punches";
 import { RemovalReview } from "./removal-review";
 import { ManualResult } from "./manual-result";
+import { ParticipantReadoutReread } from "../readout-reread";
 import { removalSv as removalText } from "../../i18n/removal-sv";
 import { Button } from "../ui";
 import type { StatusAttempt } from "./result-decisions";
@@ -64,6 +65,11 @@ export function ParticipantCard({ ws }: { ws: Workspace }) {
       <CardResult ws={ws} result={result} error={effectiveResultError} />
       {/* PLAN.md steg 27: brickans alla stämplingar, även från en annan dag eller bana. */}
       {result?.cardPunches && data && <CardPunches punches={result.cardPunches} timeZone={data.timeZone} />}
+      {/* PLAN.md steg 36: avläsningen blir annorlunda om den läses om från rådata (bara administratören). */}
+      {/* Står kvar medan kortet läses in på nytt, så att beskedet efter sparandet syns. */}
+      {!ws.functionary && <ParticipantReadoutReread key={`reread-${selected.id}`} raceId={raceId} entryId={selected.id} disabled={disabled}
+        active={!!result?.cardPunches} refreshKey={result ? `${result.history[0]?.revision ?? 0}:${result.snapshotVersion}` : ""}
+        onChanged={ws.reloadQuietly} />}
       <ManualResult key={selected.id} ws={ws} result={result} />
       <StatusChange ws={ws} result={result} />
       {data && <RaceResultControls result={result} resultError={effectiveResultError} timeZone={data.timeZone} />}

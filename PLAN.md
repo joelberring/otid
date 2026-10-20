@@ -589,6 +589,20 @@ fylls i från databasen offline.
 **Acceptans:** Playwright: avläsning syns i Live inom några sekunder hos en
 anonym besökare; följd klubb hamnar överst efter omladdning.
 
+## [ ] Steg 31 – Tävlingsdagens nödlägen
+
+Ägarens önskemål 2026-10-20 inför natt-KM: justera och stänga av kontroller för alla eller för en deltagare och
+godkänna löpare ändå. Allt med förhandsvisning, ångra och auditpost; råa avläsningar ändras aldrig.
+
+Del A – kontroller och tider för hela tävlingen (Avläsning → Rättningar för hela tävlingen):
+
+- [x] A1. Justera tid för en station (start, mål eller kontrollkod, ± min och s, orsak), före bedömningen; "Ta bort"
+  räknar om tillbaka; deltagarkortet visar att tiden är justerad.
+- [ ] A2. Kontroll ur funktion för hela tävlingen (alla banor, även gafflade).
+- [ ] A3. Flytta starttider för en klass.
+- [ ] A4. Bortse från gamla stämplingar på oröjd bricka.
+- [ ] A5. Räkna om hela tävlingen (Resultat → Efterarbete).
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

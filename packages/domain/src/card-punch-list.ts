@@ -1,6 +1,7 @@
 import { alignReadoutToCourse } from "./evaluate-card-readout";
 import { localRaceDate } from "./race-clock";
 import type { Punch, RaceSnapshot } from "./types";
+import { prepareReadoutForEvaluation, type AppliedStationAdjustment } from "./station-corrections";
 
 /**
  * Brickans stämplingar som de lästes (ägarens önskan efter första riktiga avläsningen, 2026-10-19): alla stämplingar
@@ -50,6 +51,8 @@ export interface CardPunchList {
   readonly noStartPunch: boolean;
   /** Brickan saknar målstämpling. */
   readonly noFinishPunch: boolean;
+  /** Tävlingens tidsjusteringar som ändrade brickans tider i bedömningen (PLAN.md steg 31). Saknas = inga. */
+  readonly adjustments?: readonly AppliedStationAdjustment[] | undefined;
 }
 
 export interface CardPunchReadout {
@@ -85,7 +88,11 @@ export function cardPunchList(readout: CardPunchReadout, snapshot: RaceSnapshot,
   const startNeeded = !raceClass || raceClass.startRule === "PUNCH" || !entry?.fixedStartTime;
   const dates = [check, start, finish, ...punches].flatMap((row) => row ? [row.localDate] : []);
   const otherDates = [...new Set(dates.filter((date) => date !== raceDate))].sort();
+  // Listan visar brickans egna tider; justeringarna som bedömningen använde står som en notis.
+  const { adjustments } = prepareReadoutForEvaluation({ cardNumber: "", ...readout.startPunchedAt ? { startPunchedAt: readout.startPunchedAt } : {},
+    ...readout.finishPunchedAt ? { finishPunchedAt: readout.finishPunchedAt } : {}, punches: readout.punches }, snapshot);
   return {
+    ...(adjustments.length > 0 ? { adjustments } : {}),
     raceDate,
     ...(check ? { check } : {}), ...(start ? { start } : {}), ...(finish ? { finish } : {}),
     punches,

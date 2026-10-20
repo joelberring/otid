@@ -12,6 +12,7 @@ import { assignedCourseVariant, courseVariantsOf } from "./course-variants";
 import { rogainingControlSet, scoreRogaining } from "./rogaining";
 import { officialStartTime } from "./start-punch";
 import { withMaxTime } from "./max-time";
+import { prepareReadoutForEvaluation } from "./station-corrections";
 
 /**
  * Versionen sparas på varje resultatrevision. 0.3.0 (PLAN.md steg 22): kontrollföljden matchas som ordnad
@@ -266,9 +267,11 @@ export function alignReadoutToCourse(punches: readonly Punch[], snapshot: RaceSn
 }
 
 export function evaluateCardReadout(
-  readout: EvaluationReadout,
+  input: EvaluationReadout,
   snapshot: RaceSnapshot
 ): EvaluationResult {
+  // Tävlingens rättningar (tidsjustering per station, PLAN.md steg 31) läggs på brickans tider här och bara här.
+  const readout = prepareReadoutForEvaluation(input, snapshot).readout;
   const resolved = resolveEntry(readout, snapshot);
   if (!resolved) return invalid("UNKNOWN_CARD");
   const { entry, raceClass, courseVersion } = resolved;

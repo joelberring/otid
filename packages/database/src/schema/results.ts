@@ -124,6 +124,26 @@ export const classControlNeutralizations = pgTable("class_control_neutralization
   index("class_control_neutralization_race_idx").on(table.raceId)
 ]);
 
+/**
+ * Rättning för hela tävlingen (PLAN.md steg 31): tidsjustering för en station eller kontroll ur funktion. Raden kan
+ * bara markeras borttagen (ångra); den står kvar som historik.
+ */
+export const raceStationCorrections = pgTable("race_station_correction", {
+  id: uuid("id").primaryKey(),
+  raceId: uuid("race_id").notNull().references(() => races.id),
+  kind: text("kind").$type<"TIME_ADJUSTMENT" | "CONTROL_OUT_OF_ORDER">().notNull(),
+  station: text("station").$type<"START" | "FINISH" | "CONTROL">().notNull(),
+  controlCode: integer("control_code"),
+  offsetMs: integer("offset_ms"),
+  reason: text("reason").notNull(),
+  actorAccountId: uuid("actor_account_id").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  removedAt: timestamp("removed_at", { withTimezone: true }),
+  removedByAccountId: uuid("removed_by_account_id")
+}, (table) => [
+  index("race_station_correction_race_idx").on(table.raceId, table.createdAt)
+]);
+
 /** Immutable journal joining an original UNKNOWN_CARD observation to its later business resolution. */
 export const unknownReadoutResolutions = pgTable("unknown_readout_resolution", {
   requestId: uuid("request_id").primaryKey(),

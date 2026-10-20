@@ -24,7 +24,18 @@ export { normalizedReadout };
 export type AssessedEntry = {
   entryId: string; classId: string; displayName: string; className: string; readout: Readout; latest: Revision | null;
   outcome: CourseEditOutcome | "NOT_RECALCULATED"; before: EvaluationStatus; after: EvaluationStatus; recalculate: boolean;
+  /** Tiden, sträcktiderna eller statusen blir en annan än nu (PLAN.md steg 31: "hur många påverkas"). */
+  changed: boolean;
 };
+
+/** Det i en bedömning som en rättning kan ändra: status, tider, sträcktider och saknade kontroller. */
+function timingKey(value: unknown): string {
+  const row = (value ?? {}) as { status?: unknown; reason?: unknown; startTime?: unknown; finishTime?: unknown; elapsedMs?: unknown;
+    missingControls?: unknown; splits?: readonly { controlCode?: unknown; elapsedMs?: unknown }[] };
+  const instant = (time: unknown) => typeof time === "string" && Number.isFinite(Date.parse(time)) ? Date.parse(time) : null;
+  return JSON.stringify([row.status ?? null, row.reason ?? null, instant(row.startTime), instant(row.finishTime), row.elapsedMs ?? null,
+    row.missingControls ?? [], (row.splits ?? []).map(split => [split.controlCode ?? null, split.elapsedMs ?? null])]);
+}
 
 /** Prövar varje avläst löpare i klasserna mot den föreslagna ögonblicksbilden. */
 export async function assessReadOutEntries(tx: Transaction, raceId: string, classes: readonly { id: string; name: string }[],
@@ -68,8 +79,10 @@ export async function assessReadOutEntries(tx: Transaction, raceId: string, clas
     const current = evaluateCardReadout(normalizedReadout(readout), snapshot);
     const next = evaluateCardReadout(normalizedReadout(readout), proposed);
     const before = head?.status === "OK" || head?.status === "MP" ? head.status : current.status;
+    const changed = timingKey(current) !== timingKey(next) ||
+      (head?.readoutId !== null && head?.readoutId !== undefined && timingKey(head.evaluation) !== timingKey(next));
     const base = { entryId: entry.id, classId: entry.classId, displayName: `${entry.givenName} ${entry.familyName}`,
-      className: classNames.get(entry.classId)!, readout, latest: head, before, after: next.status };
+      className: classNames.get(entry.classId)!, readout, latest: head, before, after: next.status, changed };
     // Manuellt rättad tid finns bara i den rättade revisionen; en omräkning från avläsningen skulle tappa den.
     if (head && (head.cause === "MANUAL_FINISH_TIME_CORRECTION" || head.cause === "MANUAL_PUNCH_START_TIME_CORRECTION")) {
       assessed.push({ ...base, outcome: "NOT_RECALCULATED", recalculate: false }); continue;

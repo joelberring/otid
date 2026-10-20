@@ -8,6 +8,7 @@ export * from "./did-not-start";
 export * from "./did-not-finish";
 export * from "./manual-decision";
 export * from "./evaluate-card-readout";
+export * from "./station-corrections";
 export * from "./card-punch-list";
 export * from "./out-of-competition";
 export * from "./without-timing";

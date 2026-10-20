@@ -1,3 +1,5 @@
+import type { StationTimeAdjustment } from "./station-corrections";
+
 export type UUID = string;
 /** Ett UUID av version 1–8 i gemener (domänens enda definition; kontrakten har samma mönster). */
 export const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -171,6 +173,8 @@ export interface RaceSnapshot {
   readonly entries: readonly Entry[];
   readonly cardAssignments: readonly CardAssignment[];
   readonly classControlNeutralizations: readonly ClassControlNeutralization[];
+  /** Tidsjusteringar per station för hela tävlingen (PLAN.md steg 31). Saknas = inga. */
+  readonly stationTimeAdjustments?: readonly StationTimeAdjustment[] | undefined;
 }
 
 export type EvaluationStatus = "OK" | "OVERTIME" | "MP" | "UNKNOWN_CARD";

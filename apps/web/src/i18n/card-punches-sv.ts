@@ -1,5 +1,6 @@
 import type { CardPunchList, CardPunchPlacement as Placement } from "@o-tid/domain";
 import { formatClockTime } from "../lib/clock-time";
+import { raceCorrectionsSv } from "./race-corrections-sv";
 
 /** "ons 14 okt" för ett datum (ÅÅÅÅ-MM-DD), utan tidszon eftersom datumet redan är tävlingens. */
 export function formatPunchDate(date: string): string {
@@ -32,7 +33,8 @@ export const cardPunchesSv = {
   noFinish: "Brickan har ingen målstämpling.",
   missingControls: (codes: readonly number[]) => `Saknade kontroller: ${codes.join(", ")}.`,
   oldCardHint: "Brickan har troligen inte tömts före loppet.",
-  table: "Brickans stämplingar i ordning"
+  table: "Brickans stämplingar i ordning",
+  adjusted: (labels: readonly string[]) => `Tiden är justerad för hela tävlingen: ${labels.join(", ")}.`
 } as const;
 
 /**
@@ -40,7 +42,9 @@ export const cardPunchesSv = {
  * om saknade kontroller (`missing: false`).
  */
 export function cardPunchSummary(punches: CardPunchList, options: { missing?: boolean } = {}): string[] {
+  const adjusted = (punches.adjustments ?? []).map((row) => raceCorrectionsSv.adjustmentLabel(row.station, row.controlCode ?? null, row.offsetMs));
   return [
+    adjusted.length > 0 ? cardPunchesSv.adjusted(adjusted) : "",
     punches.otherDates.length > 0 ? cardPunchesSv.otherDay(punches.otherDates, punches.raceDate, punches.allOtherDay) : "",
     punches.allOtherDay ? cardPunchesSv.oldCardHint : "",
     punches.noStartPunch ? cardPunchesSv.noStart : "",

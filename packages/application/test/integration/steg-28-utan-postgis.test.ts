@@ -83,8 +83,12 @@ describe("steg 28: PostgreSQL utan PostGIS", () => {
     } finally {
       await rm(before28, { recursive: true, force: true });
     }
+    // Dagens avläsningskod läser tävlingens rättningar (steg 31, 0009); en tom tabell räcker för den gamla databasen.
+    await pool.query(`CREATE TABLE race_station_correction (id uuid, race_id uuid, kind text, station text, control_code integer,
+      offset_ms integer, reason text, actor_account_id uuid, created_at timestamptz, removed_at timestamptz, removed_by_account_id uuid)`);
     const { ids, cards } = await seedRace(db, pool);
     await ingest(db, ids.race, [run(cards.ada, "10:02:00", 30), run(cards.bo, "10:05:00", 41)]);
+    await pool.query("DROP TABLE race_station_correction");
     const data = await fingerprint(pool);
     expect(data).toMatch(/^5\|2\|[1-9]\d*\|/);
 

@@ -59,7 +59,10 @@ export const cardPunchListSchema = z.object({
   otherDates: z.array(localDate).max(260),
   allOtherDay: z.boolean(),
   noStartPunch: z.boolean(),
-  noFinishPunch: z.boolean()
+  noFinishPunch: z.boolean(),
+  /** Tävlingens tidsjusteringar som ändrade brickans tider (PLAN.md steg 31). */
+  adjustments: z.array(z.object({ station: z.enum(["START", "FINISH", "CONTROL"]), controlCode: version.optional(),
+    offsetMs: z.number().int(), punches: version }).strict()).max(256).optional()
 }).strict();
 export type CardPunchListDto = z.infer<typeof cardPunchListSchema>;
 /** ADR-0169 beslut 4: deltagarkortets korta historik över resultatändringar, nyaste först. */

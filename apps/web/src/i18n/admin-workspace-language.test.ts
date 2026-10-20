@@ -23,7 +23,7 @@ const adminFiles = [
   "speaker-sv.ts", "course-variants-sv.ts", "relay-sv.ts", "race-type-sv.ts", "sources-sv.ts", "rogaining-sv.ts", "race-map-sv.ts",
   "public-race-sv.ts", "public-link-share-sv.ts", "radio-sv.ts", "race-copy-sv.ts", "form-errors-sv.ts", "start-rule-sv.ts", "start-draw-advanced-sv.ts",
   // PLAN.md steg 27.
-  "card-punches-sv.ts", "removal-sv.ts", "results-official-sv.ts", "race-export-sv.ts"
+  "card-punches-sv.ts", "removal-sv.ts", "results-official-sv.ts", "race-export-sv.ts", "race-corrections-sv.ts"
 ];
 /** Delade textfiler (även publika sidor): bara nycklarna som arbetsytan läser granskas. */
 const sharedFiles = ["sv.ts", "account-sv.ts"];

@@ -12,7 +12,8 @@ export const STATION_PACKAGE_LIMITS = {
   variantsPerCourseVersion: 100,
   entries: 50_000,
   cardAssignments: 100_000,
-  classControlNeutralizations: 2_000
+  classControlNeutralizations: 2_000,
+  stationCorrections: 500
 } as const;
 
 const uuidSchema = z.uuid();
@@ -120,6 +121,14 @@ const classControlNeutralizationSchema = z.object({
   controlCode: positiveIntegerSchema
 }).strict();
 
+/** Tidsjustering för en station (PLAN.md steg 31). */
+const stationTimeAdjustmentSchema = z.object({
+  id: uuidSchema,
+  station: z.enum(["START", "FINISH", "CONTROL"]),
+  controlCode: z.number().int().min(1).max(9999).optional(),
+  offsetMs: z.number().int().min(-86_400_000).max(86_400_000).refine((value) => value !== 0)
+}).strict().refine((value) => (value.station === "CONTROL") === (value.controlCode !== undefined));
+
 function isStrictlySorted<T>(items: readonly T[], compare: (left: T, right: T) => number): boolean {
   return items.every((item, index) => index === 0 || compare(items[index - 1]!, item) < 0);
 }
@@ -131,7 +140,8 @@ export const raceSnapshotSchema = z.object({
   entries: z.array(entrySchema).max(STATION_PACKAGE_LIMITS.entries),
   cardAssignments: z.array(cardAssignmentSchema).max(STATION_PACKAGE_LIMITS.cardAssignments),
   classControlNeutralizations: z.array(classControlNeutralizationSchema)
-    .max(STATION_PACKAGE_LIMITS.classControlNeutralizations)
+    .max(STATION_PACKAGE_LIMITS.classControlNeutralizations),
+  stationTimeAdjustments: z.array(stationTimeAdjustmentSchema).max(STATION_PACKAGE_LIMITS.stationCorrections).optional()
 }).strict().superRefine((snapshot, context) => {
   const byId = (left: { id: string }, right: { id: string }) =>
     left.id < right.id ? -1 : left.id > right.id ? 1 : 0;

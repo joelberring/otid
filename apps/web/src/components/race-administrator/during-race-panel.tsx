@@ -13,6 +13,8 @@ import { ManualFinishTimeCorrection, ManualFinishTimeCorrectionWithdrawal, Manua
   ManualPunchStartTimeCorrectionWithdrawal } from "../manual-time-correction";
 import { administratorStartCorrectionRequestSchema } from "@o-tid/contracts";
 import { ReadoutControlView } from "./readout-control-view";
+import { RaceCorrectionsPanel } from "../race-corrections";
+import { raceCorrectionsSv } from "../../i18n/race-corrections-sv";
 import { Button, Field, Section } from "../ui";
 import type { Workspace } from "./workspace-state";
 
@@ -76,6 +78,12 @@ export function DuringRaceOverview({ ws }: { ws: Workspace }) {
       <ForestWatchReport data={forestData} reportedStarts={forestData.reportedStarts} sortByAge={forestSortByAge} classId={forestClass} query={forestQuery} stale={forestStale} />
     </div>}
   </>;
+}
+
+/** Efter en rättning för hela tävlingen: läs deltagarlistan igen (ny paketversion och nya resultat), utan att tömma vyn. */
+async function reloadAfterCorrection(ws: Workspace) {
+  const op = ws.begin(false);
+  try { await ws.load(op); } catch { if (ws.current(op)) ws.setMessage(text.error); } finally { ws.finish(op); }
 }
 
 /**
@@ -142,6 +150,10 @@ export function DuringRaceFollowUp({ ws }: { ws: Workspace }) {
       <ManualPunchStartTimeCorrectionWithdrawal raceId={raceId} entries={data.entries} timeZone={data.timeZone} onPendingChange={setStartWithdrawalPending} />
       <ManualFinishTimeCorrectionWithdrawal raceId={raceId} entries={data.entries} timeZone={data.timeZone} onPendingChange={setFinishWithdrawalPending} />
       </div>
+    </Section>}
+    {/* PLAN.md steg 31: rättningar som gäller alla löpare; bara administratören. */}
+    {data && !functionary && <Section id={`race-corrections-${raceId}`} title={raceCorrectionsSv.title} help={raceCorrectionsSv.help}>
+      <RaceCorrectionsPanel raceId={raceId} onChanged={() => void reloadAfterCorrection(ws)} />
     </Section>}
     </section>
   </>;

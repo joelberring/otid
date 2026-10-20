@@ -50,7 +50,11 @@ export function sortRaceSnapshotForPackage(snapshot: RaceSnapshot) {
     classControlNeutralizations: [...snapshot.classControlNeutralizations]
       .sort((left, right) => compareText(left.classId, right.classId) ||
         compareText(left.courseVersionId, right.courseVersionId) || left.sequence - right.sequence ||
-        compareText(left.id, right.id))
+        compareText(left.id, right.id)),
+    // Rättningar för hela tävlingen (PLAN.md steg 31); fältet saknas när det inte finns några.
+    ...(snapshot.stationTimeAdjustments && snapshot.stationTimeAdjustments.length > 0 ? {
+      stationTimeAdjustments: [...snapshot.stationTimeAdjustments].sort((left, right) => compareText(left.id, right.id))
+    } : {})
   };
 }
 
@@ -130,6 +134,12 @@ export async function loadRaceSnapshot(db: DbExecutor, raceId: string): Promise<
     .where(eq(schema.classControlNeutralizations.raceId, raceId))
     .orderBy(asc(schema.classControlNeutralizations.classId), asc(schema.classControlNeutralizations.courseVersionId),
       asc(schema.classControlNeutralizations.sequence), asc(schema.classControlNeutralizations.id));
+  const correctionRows = await db.select().from(schema.raceStationCorrections)
+    .where(and(eq(schema.raceStationCorrections.raceId, raceId), isNull(schema.raceStationCorrections.removedAt)))
+    .orderBy(asc(schema.raceStationCorrections.id));
+  const stationTimeAdjustments = correctionRows.flatMap((row) => row.kind === "TIME_ADJUSTMENT" && row.offsetMs !== null
+    ? [{ id: row.id, station: row.station, ...(row.controlCode !== null ? { controlCode: row.controlCode } : {}), offsetMs: row.offsetMs }]
+    : []);
 
   return sortRaceSnapshotForPackage({
     race: {
@@ -201,6 +211,7 @@ export async function loadRaceSnapshot(db: DbExecutor, raceId: string): Promise<
       courseControlId: row.courseControlId,
       sequence: row.sequence,
       controlCode: row.controlCode
-    }))
+    })),
+    stationTimeAdjustments
   });
 }

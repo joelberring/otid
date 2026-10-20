@@ -10,6 +10,10 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-10-20 – Steg 31 del A: rättningar för hela tävlingen (pågår)
+- A1: Avläsning → Rättningar för hela tävlingen → "Justera tid för en station" (Start, Mål eller Kontroll med kod, Tidigare/Senare, minuter och sekunder, Varför) → "Visa vad som händer" → "Spara och räkna om". Migration 0009 (`race_station_correction`, bara borttagning får skrivas), domänens `prepareReadoutForEvaluation` är enda stället där justeringen läggs på brickans tider, paketet till avläsningen har justeringarna, underlagshashen tar med aktiva rättningar (oförändrad utan). Manuellt rättad tid räknas inte om (antal i beskedet). "Ta bort" räknar om tillbaka; borttagna står kvar som historik.
+- Tester: domän `station-corrections` (6), integration `steg-31-tavlingsdag`, Playwright `tavlingsdag-rattningar`.
+
 ### 2026-10-20 – Steg 30: Live för publiken (steg 30 klart)
 - `/t/{kod}/live` (länk från tävlingssidan och resultatlistans rubrik), `GET /api/public/races/{id}/live` bakom samma grind (`publicRaceAccess`, opublicerad/dold ger 404). `application/src/public-live.ts`: ren `projectPublicLive` över den publika resultatlistan, radiotiderna och när resultatet kom in (första avläsningen); kontraktet `public-live.ts` är strikt utan bricka, interna id:n, orsaker och strukna.
 - Sidan: Senast i mål (namn, klubb, klass, tid, "1:a"; felstämplad som "✗ Felstämplad" utan placering), Ledare per klass med "▲ Ny ledare" i 5 min, radiopassager ("passerade Radio 1 6:12, 2:a"), "Uppdaterad 21:03:12" och lugnt besked utan nät, tomläge "Inga målgångar än – sidan uppdateras av sig själv". Uppdateras med resultatströmmen + hämtning var 5:e s (gemensam `usePublicRaceData`).

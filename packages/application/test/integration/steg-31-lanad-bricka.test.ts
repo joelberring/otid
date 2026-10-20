@@ -99,7 +99,8 @@ describe("steg 31: samma bricka hos två löpare", () => {
     const { raceId, ada } = await race();
     await ingestDeviceBatch(db, raceId, batch(randomUUID(), second));
     const functionary = await raceAuth(db, raceId, "FUNCTIONARY");
-    const [klass] = await db.select({ id: schema.classes.id }).from(schema.classes).where(eq(schema.classes.raceId, raceId));
+    // Samma klass som Ada (banan 31-32-33); utan urval kommer klasserna i godtycklig ordning.
+    const [klass] = await db.select({ id: schema.entries.classId }).from(schema.entries).where(eq(schema.entries.id, ada));
     const register = async (borrowedCard: boolean) => {
       const requestId = randomUUID();
       return registerReadoutCard(db, { ...functionary, idempotencyKey: `readout-registration:${requestId}`, request: {

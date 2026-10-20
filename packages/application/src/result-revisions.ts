@@ -80,6 +80,8 @@ export function normalizedReadout(readout: Readout): NormalizedCardReadout {
   return { id: readout.id, raceId: readout.raceId, cardNumber: readout.cardNumber,
     ...(readout.startPunchedAt ? { startPunchedAt: readout.startPunchedAt.toISOString() } : {}),
     ...(readout.finishPunchedAt ? { finishPunchedAt: readout.finishPunchedAt.toISOString() } : {}),
+    ...(readout.checkPunchedAt ? { checkPunchedAt: readout.checkPunchedAt.toISOString() } : {}),
+    ...(readout.clearPunchedAt ? { clearPunchedAt: readout.clearPunchedAt.toISOString() } : {}),
     punches: readout.punches, rawMessageId: readout.rawMessageId, readAt: readout.readAt.toISOString() };
 }
 

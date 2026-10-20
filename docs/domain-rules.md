@@ -50,6 +50,17 @@ bricknummer, valfri start- och målstämpling och stämplingar.
    bana: bästa varianten) och vid lika den bana som förklarar flest stämplingar, sedan klassnamnet. Rogainingklasser och
    banor utan kontroller ingår inte. Det är bara ett förslag; ingen koppling eller anmälan görs utan arrangörens val.
 
+11. Rättningar för hela tävlingen (PLAN.md steg 31, motor 0.5.0) läggs på brickans tider på ett ställe,
+   `prepareReadoutForEvaluation`, innan bedömningen: en tidsjustering per station (start, mål eller kontrollkod) ändrar
+   stämplingstiderna från stationen; en kontroll ur funktion är frivillig på alla banor (även gafflade), ger ingen
+   sträcktid, och sträckan räknas från kontrollen före. Den lagrade avläsningen ändras aldrig. Ändringen räknar om alla
+   avlästa; en manuellt rättad tid räknas inte om.
+12. Oröjd bricka (steg 31): kontroll-, start- och målstämplingar mer än 12 timmar före avläsningen räknas inte, och
+   kontrollstämplingar mer än 10 minuter före brickans clear- eller checkstämpling (från i kväll och inte efter
+   startstämplingen) räknas inte. Bara den inledande följden av gamla kontrollstämplingar i brickans minnesordning tas
+   bort, så en enstaka kontroll med fel klocka bland kvällens stämplingar räknas som förut. Antalet visas i avläsningens
+   besked och deltagarkortet.
+
 Motorn returnerar stabila koder. Svenska texter hör till `apps/web/src/i18n`. Avläsningsskalet kör samma
 funktion lokalt; dess besked är preliminärt och serverns revision är auktoritativ.
 

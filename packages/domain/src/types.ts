@@ -142,6 +142,11 @@ export interface EvaluationReadout {
   readonly startPunchedAt?: string;
   readonly finishPunchedAt?: string;
   readonly punches: readonly Punch[];
+  /** När brickan lästes av; stämplingar mer än 12 timmar före räknas inte (oröjd bricka, PLAN.md steg 31). */
+  readonly readAt?: string;
+  /** Brickans check- och clearstämpling; kontrollstämplingar mer än 10 minuter före räknas inte (steg 31). */
+  readonly checkPunchedAt?: string;
+  readonly clearPunchedAt?: string;
 }
 
 export interface NormalizedCardReadout extends EvaluationReadout {

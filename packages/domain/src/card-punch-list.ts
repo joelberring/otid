@@ -15,6 +15,8 @@ export type CardPunchPlacement =
   | "EXTRA"
   /** Stämplingen är från en annan dag än tävlingsdagen (i tävlingens tidszon). */
   | "OTHER_DAY"
+  /** Stämplingen är från tävlingsdagen men från ett tidigare varv på brickan (före clear/check) och räknades inte. */
+  | "OLD"
   /** Ingen bana att jämföra med (okänd bricka). */
   | "NO_COURSE";
 
@@ -53,9 +55,13 @@ export interface CardPunchList {
   readonly noFinishPunch: boolean;
   /** Tävlingens tidsjusteringar som ändrade brickans tider i bedömningen (PLAN.md steg 31). Saknas = inga. */
   readonly adjustments?: readonly AppliedStationAdjustment[] | undefined;
+  /** Gamla stämplingar på en oröjd bricka som inte räknades i bedömningen (PLAN.md steg 31). Saknas = inga. */
+  readonly ignoredPunches?: number | undefined;
 }
 
 export interface CardPunchReadout {
+  readonly readAt?: string | undefined;
+  readonly clearPunchedAt?: string | undefined;
   readonly checkPunchedAt?: string | undefined;
   readonly startPunchedAt?: string | undefined;
   readonly finishPunchedAt?: string | undefined;
@@ -75,10 +81,18 @@ export function cardPunchList(readout: CardPunchReadout, snapshot: RaceSnapshot,
   };
   const station = (instant: string | undefined): CardStationPunch | undefined =>
     instant ? { punchedAt: instant, localDate: dateOf(instant) } : undefined;
-  const alignment = entryId === undefined ? undefined : alignReadoutToCourse(readout.punches, snapshot, entryId);
+  // Samma förberedelse som bedömningen: tidsjusteringar och gamla stämplingar som inte räknas (PLAN.md steg 31).
+  const prepared = prepareReadoutForEvaluation({ cardNumber: "",
+    ...readout.startPunchedAt ? { startPunchedAt: readout.startPunchedAt } : {},
+    ...readout.finishPunchedAt ? { finishPunchedAt: readout.finishPunchedAt } : {},
+    ...readout.readAt ? { readAt: readout.readAt } : {}, ...readout.checkPunchedAt ? { checkPunchedAt: readout.checkPunchedAt } : {},
+    ...readout.clearPunchedAt ? { clearPunchedAt: readout.clearPunchedAt } : {}, punches: readout.punches }, snapshot);
+  const kept = new Set(prepared.keptPunchIndexes);
+  const aligned = entryId === undefined ? undefined : alignReadoutToCourse(prepared.readout.punches, snapshot, entryId);
+  const alignment = aligned && { ...aligned, onCourse: new Set([...aligned.onCourse].map((index) => prepared.keptPunchIndexes[index]!)) };
   const punches = readout.punches.map((punch, index): CardPunchRow => {
     const localDate = dateOf(punch.punchedAt);
-    const placement: CardPunchPlacement = localDate !== raceDate ? "OTHER_DAY" : !alignment ? "NO_COURSE"
+    const placement: CardPunchPlacement = localDate !== raceDate ? "OTHER_DAY" : !kept.has(index) ? "OLD" : !alignment ? "NO_COURSE"
       : alignment.onCourse.has(index) ? "ON_COURSE" : "EXTRA";
     return { order: index + 1, code: punch.code, punchedAt: punch.punchedAt, localDate, placement };
   });
@@ -88,11 +102,11 @@ export function cardPunchList(readout: CardPunchReadout, snapshot: RaceSnapshot,
   const startNeeded = !raceClass || raceClass.startRule === "PUNCH" || !entry?.fixedStartTime;
   const dates = [check, start, finish, ...punches].flatMap((row) => row ? [row.localDate] : []);
   const otherDates = [...new Set(dates.filter((date) => date !== raceDate))].sort();
-  // Listan visar brickans egna tider; justeringarna som bedömningen använde står som en notis.
-  const { adjustments } = prepareReadoutForEvaluation({ cardNumber: "", ...readout.startPunchedAt ? { startPunchedAt: readout.startPunchedAt } : {},
-    ...readout.finishPunchedAt ? { finishPunchedAt: readout.finishPunchedAt } : {}, punches: readout.punches }, snapshot);
+  // Listan visar brickans egna tider; justeringarna och de gamla stämplingarna som bedömningen inte räknade står som notiser.
+  const { adjustments, ignoredPunches } = prepared;
   return {
     ...(adjustments.length > 0 ? { adjustments } : {}),
+    ...(ignoredPunches > 0 ? { ignoredPunches } : {}),
     raceDate,
     ...(check ? { check } : {}), ...(start ? { start } : {}), ...(finish ? { finish } : {}),
     punches,

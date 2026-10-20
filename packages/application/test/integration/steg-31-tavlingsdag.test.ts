@@ -160,3 +160,19 @@ describe("steg 31: flytta starttider för en klass", () => {
     expect((await latest(ids.race, ids.ada)).evaluation.elapsedMs).toBe(35 * 60_000);
   });
 });
+
+describe("steg 31: gamla stämplingar på en oröjd bricka", () => {
+  it("ett varv från förra veckan räknas inte; deltagarkortet säger hur många", async () => {
+    const { ids, cards, admin } = await seedRace(db, pool);
+    const today = run(cards.ada, "10:02:00", 30);
+    const lastWeek = (instant: string) => new Date(Date.parse(instant) - 7 * 86_400_000).toISOString();
+    // Dagens varv saknar 32; brickan har kvar förra veckans 31 och 32.
+    await ingest(db, ids.race, [{ ...today, punches: [...today.punches.map(punch => ({ ...punch, punchedAt: lastWeek(punch.punchedAt) })),
+      today.punches[0]!] }]);
+    expect(await latest(ids.race, ids.ada)).toMatchObject({ status: "MP", reason: "MISSING_CONTROL" });
+    const card = await getAdministratorEffectiveResult(db, { ...admin, entryId: ids.ada }, NOW);
+    expect(card).toMatchObject({ status: "ok", response: { cardPunches: { ignoredPunches: 2 } } });
+    if (card.status !== "ok") throw new Error("Kortet saknas");
+    expect(card.response.cardPunches?.punches.map(row => row.placement)).toEqual(["OTHER_DAY", "OTHER_DAY", "ON_COURSE"]);
+  });
+});

@@ -47,7 +47,16 @@ export interface PreparedReadout {
   /** Avläsningen som bedömningen använder. Samma objekt som indata när inget ändrats. */
   readonly readout: EvaluationReadout;
   readonly adjustments: readonly AppliedStationAdjustment[];
+  /** Gamla stämplingar på en oröjd bricka som inte räknades (kontroller, start och mål). */
+  readonly ignoredPunches: number;
+  /** Index i brickans stämplingslista för de kontrollstämplingar som räknades, i ordning. */
+  readonly keptPunchIndexes: readonly number[];
 }
+
+/** Stämplingar mer än så långt före avläsningen är från en annan dag eller ett annat lopp (PLAN.md steg 31). */
+export const OLD_PUNCH_MAX_AGE_MS = 12 * 3_600_000;
+/** Marginal före clear- eller checkstämplingen: stämplingar dessförinnan är från ett tidigare varv på brickan. */
+export const CLEAR_CHECK_MARGIN_MS = 10 * 60_000;
 
 function shifted(instant: string, offsetMs: number): string {
   const ms = Date.parse(instant);
@@ -62,10 +71,68 @@ function offsetFor(adjustments: readonly StationTimeAdjustment[], station: Corre
 }
 
 /**
- * Det enda stället i kedjan där tävlingens rättningar läggs på brickans tider innan resultatmotorn bedömer dem. Utan
- * rättningar returneras avläsningen oförändrad (samma objekt), så vanliga avläsningar bedöms exakt som förut.
+ * Det enda stället i kedjan där brickans tider förbereds innan resultatmotorn bedömer dem (PLAN.md steg 31): först
+ * tävlingens tidsjusteringar per station, sedan bortfaller gamla stämplingar på en oröjd bricka (`withoutOldPunches`).
+ * Utan rättningar och gamla stämplingar returneras avläsningen oförändrad (samma objekt), så vanliga avläsningar bedöms
+ * exakt som förut.
  */
 export function prepareReadoutForEvaluation(readout: EvaluationReadout, snapshot: RaceSnapshot): PreparedReadout {
+  const adjusted = adjustStationTimes(readout, snapshot);
+  const old = withoutOldPunches(adjusted.readout);
+  return { readout: old.readout, adjustments: adjusted.adjustments, ignoredPunches: old.ignoredPunches,
+    keptPunchIndexes: old.keptPunchIndexes };
+}
+
+function finite(instant: string | undefined): number | undefined {
+  if (!instant) return undefined;
+  const ms = Date.parse(instant);
+  return Number.isFinite(ms) ? ms : undefined;
+}
+
+/**
+ * Oröjd bricka (PLAN.md steg 31): en bricka som inte tömts har kvar stämplingar från ett tidigare lopp, och ett gammalt
+ * varv på samma kontroller kunde ge godkänt fast dagens varv saknade en kontroll. Två regler, valda så att en löpare
+ * som gjort rätt i kväll aldrig blir felstämplad av dem:
+ *
+ * 1. En stämpling mer än 12 timmar före avläsningen räknas inte (annan dag). Gäller kontroller, start och mål.
+ * 2. Har brickan en clear- eller checkstämpling från i kväll (högst 12 timmar före avläsningen, och inte efter
+ *    startstämplingen) räknas inte kontrollstämplingar mer än 10 minuter före den.
+ *
+ * Kontrollstämplingarna ligger i brickans minne i den ordning de gjordes; bara den inledande följden av gamla
+ * stämplingar tas bort. En enstaka kontroll med fel klocka mitt bland kvällens stämplingar räknas alltså som förut.
+ */
+function withoutOldPunches(readout: EvaluationReadout): { readout: EvaluationReadout; ignoredPunches: number;
+  keptPunchIndexes: readonly number[] } {
+  const all = readout.punches.map((_punch, index) => index);
+  const readAt = finite(readout.readAt);
+  if (readAt === undefined) return { readout, ignoredPunches: 0, keptPunchIndexes: all };
+  const oldest = readAt - OLD_PUNCH_MAX_AGE_MS;
+  const start = finite(readout.startPunchedAt);
+  const references = [finite(readout.clearPunchedAt), finite(readout.checkPunchedAt)]
+    .filter((value): value is number => value !== undefined && value >= oldest && value <= readAt && (start === undefined || value <= start));
+  const threshold = references.length > 0 ? Math.max(...references) - CLEAR_CHECK_MARGIN_MS : undefined;
+  const isOld = (instant: string, useThreshold: boolean) => {
+    const ms = finite(instant);
+    return ms !== undefined && (ms < oldest || (useThreshold && threshold !== undefined && ms < threshold));
+  };
+  let leading = 0;
+  while (leading < readout.punches.length && isOld(readout.punches[leading]!.punchedAt, true)) leading += 1;
+  const dropStart = readout.startPunchedAt !== undefined && isOld(readout.startPunchedAt, false);
+  const dropFinish = readout.finishPunchedAt !== undefined && isOld(readout.finishPunchedAt, false);
+  const ignoredPunches = leading + (dropStart ? 1 : 0) + (dropFinish ? 1 : 0);
+  if (ignoredPunches === 0) return { readout, ignoredPunches: 0, keptPunchIndexes: all };
+  const { startPunchedAt, finishPunchedAt, ...rest } = readout;
+  return {
+    readout: { ...rest, ...(startPunchedAt && !dropStart ? { startPunchedAt } : {}), ...(finishPunchedAt && !dropFinish ? { finishPunchedAt } : {}),
+      punches: readout.punches.slice(leading) },
+    ignoredPunches,
+    keptPunchIndexes: all.slice(leading)
+  };
+}
+
+/** Tävlingens tidsjusteringar per station på brickans tider (steg 31 A1). */
+function adjustStationTimes(readout: EvaluationReadout, snapshot: RaceSnapshot):
+  { readout: EvaluationReadout; adjustments: readonly AppliedStationAdjustment[] } {
   const adjustments = snapshot.stationTimeAdjustments ?? [];
   if (adjustments.length === 0) return { readout, adjustments: [] };
   const applied: AppliedStationAdjustment[] = [];

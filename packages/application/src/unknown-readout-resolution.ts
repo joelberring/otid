@@ -226,6 +226,8 @@ export async function resolveUnknownReadoutAsAdmin(
       cardNumber: readout.readout.cardNumber,
       ...(readout.readout.startPunchedAt ? { startPunchedAt: readout.readout.startPunchedAt.toISOString() } : {}),
       ...(readout.readout.finishPunchedAt ? { finishPunchedAt: readout.readout.finishPunchedAt.toISOString() } : {}), punches: readout.readout.punches,
+      ...(readout.readout.checkPunchedAt ? { checkPunchedAt: readout.readout.checkPunchedAt.toISOString() } : {}),
+      ...(readout.readout.clearPunchedAt ? { clearPunchedAt: readout.readout.clearPunchedAt.toISOString() } : {}),
       rawMessageId: readout.readout.rawMessageId, readAt: readout.readout.readAt.toISOString() };
     // Direktanmäld i en gafflad klass har redan sprungit: den får varianten som stämplingarna passar.
     const detected = intent.target === "EXISTING_ENTRY" ? undefined : courseVariantForReadout(normalized, snapshot);

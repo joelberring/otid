@@ -87,6 +87,8 @@ describe("steg 28: PostgreSQL utan PostGIS", () => {
     // Dagens avläsningskod läser tävlingens rättningar (steg 31, 0009); en tom tabell räcker för den gamla databasen.
     await pool.query(`CREATE TABLE race_station_correction (id uuid, race_id uuid, kind text, station text, control_code integer,
       offset_ms integer, reason text, actor_account_id uuid, created_at timestamptz, removed_at timestamptz, removed_by_account_id uuid)`);
+    // …och avläsningens check och clear (0009 lägger till kolumnerna om de saknas).
+    await pool.query("ALTER TABLE card_readout ADD COLUMN check_punched_at timestamptz, ADD COLUMN clear_punched_at timestamptz");
     const { ids, cards } = await seedRace(db, pool);
     await ingest(db, ids.race, [run(cards.ada, "10:02:00", 30), run(cards.bo, "10:05:00", 41)]);
     await pool.query("DROP TABLE race_station_correction");

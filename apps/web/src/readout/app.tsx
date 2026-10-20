@@ -162,7 +162,7 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
     if (!valid) await storeRef.current.update({ ...stored, status: "rejected", rejectedReason: "LOCAL_INVALID" });
     setCurrent({ phase: "done", cardNumber: payload.cardNumber, localSequence: stored.localSequence,
       ...(known ? { verdict: evaluateLocally(payload, withLocalRegistrations(known, registrationsRef.current),
-        itemsRef.current.map((item) => item.payload)) } : {}),
+        itemsRef.current.map((item) => item.payload), now.toISOString()) } : {}),
       ...(valid ? {} : { invalid: true }) });
     await reload();
     void sync();
@@ -256,7 +256,7 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
     if (current?.phase !== "done") return undefined;
     if (!currentItem || !effectivePkg) return current.verdict;
     const earlier = items.filter((item) => item.localSequence < currentItem.localSequence).map((item) => item.payload);
-    return evaluateLocally(currentItem.payload, effectivePkg, earlier);
+    return evaluateLocally(currentItem.payload, effectivePkg, earlier, currentItem.stationReceivedAt);
   }, [current, currentItem, effectivePkg, items]);
   const currentRegistration = current?.phase === "done"
     ? registrations.filter((row) => row.request.cardNumber === current.cardNumber).at(-1) : undefined;
@@ -435,6 +435,7 @@ function Verdict({ current, verdict, item, qr, registration, timeZone }: { curre
     {/* Minutstart (PLAN.md steg 25): sen eller tidig startstämpling är en varning, inte en ny status. */}
     {verdict?.startNote ? <p className="start-note" role="note" data-testid="verdict-start-punch" data-kind={verdict.startNote.kind}>
       {verdict.startNote.kind === "FROM_PUNCH" ? "" : "! "}{startPunchText(verdict.startNote, timeZone)}</p> : null}
+    {verdict?.ignoredPunches && !verdict.punchList ? <p className="start-note" role="note" data-testid="verdict-old-punches">! {t.ignoredPunches(verdict.ignoredPunches)}</p> : null}
     {verdict && verdict.status !== "OK" ? <p>{t.reason[verdict.reason]}</p> : null}
     {verdict && verdict.missingControls.length > 0 ? <p>{t.missing(verdict.missingControls)}</p> : null}
     {verdict?.punchList ? <PunchListView list={verdict.punchList} timeZone={timeZone} /> : null}
@@ -460,7 +461,8 @@ function Verdict({ current, verdict, item, qr, registration, timeZone }: { curre
 function RecentRow({ item, pkg, local, registration }: { item: QueuedReadout; pkg: ReadoutPackage | undefined;
   local: readonly QueuedReadout["payload"][]; registration: QueuedRegistration | undefined }) {
   // Bedöms om bara när avläsningen, paketet eller de tidigare avläsningarna ändras (inte vid varje stationshändelse).
-  const verdict = useMemo(() => pkg ? evaluateLocally(item.payload, pkg, local) : undefined, [item.payload, pkg, local.length]);
+  const verdict = useMemo(() => pkg ? evaluateLocally(item.payload, pkg, local, item.stationReceivedAt) : undefined,
+    [item.payload, pkg, local.length, item.stationReceivedAt]);
   const status = serverStatus(item, registration) ?? verdict?.status;
   const queue = item.status === "pending" ? t.statusPending : item.status === "stored" ? t.statusStored
     : item.status === "duplicate" ? t.statusDuplicate : t.statusRejected;

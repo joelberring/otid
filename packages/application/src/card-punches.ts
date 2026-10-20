@@ -23,7 +23,8 @@ export async function loadEntryCardPunches(tx: DbExecutor, raceId: string, entry
   const check = typeof payload.checkPunchedAt === "string" && Number.isFinite(Date.parse(payload.checkPunchedAt))
     ? payload.checkPunchedAt : undefined;
   const snapshot = await loadRaceSnapshot(tx, raceId);
-  const list = cardPunchList({ checkPunchedAt: check, startPunchedAt: readout.startPunchedAt?.toISOString(),
+  const list = cardPunchList({ checkPunchedAt: check, clearPunchedAt: readout.clearPunchedAt?.toISOString(),
+    readAt: readout.readAt.toISOString(), startPunchedAt: readout.startPunchedAt?.toISOString(),
     finishPunchedAt: readout.finishPunchedAt?.toISOString(), punches: readout.punches }, snapshot, entryId, timeZone);
   return cardPunchListSchema.parse({ readAt: readout.readAt.toISOString(), ...list });
 }

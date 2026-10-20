@@ -4,7 +4,7 @@ Inställningar → "Exportera tävlingen" (bara administratör) ger en fil `otid
 (PLAN.md steg 27). Den är en säkerhetskopia och underlag för en senare import; import finns inte än.
 
 ```json
-{ "format": "otid-race-export", "formatVersion": 1, "exportedAt": "…", "engineVersion": "0.4.0",
+{ "format": "otid-race-export", "formatVersion": 1, "exportedAt": "…", "engineVersion": "0.5.0",
   "event": { … }, "race": { … }, "controls": [ … ], "courses": [ … ], … }
 ```
 

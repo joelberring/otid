@@ -1,5 +1,5 @@
 import type { ReadoutPackage, SportidentReadoutPayload } from "@o-tid/contracts";
-import { cardPunchList, courseVariantForReadout, evaluateCardReadout, startPunchNote, type CardPunchList, type EvaluationResult,
+import { cardPunchList, courseVariantForReadout, evaluateCardReadout, prepareReadoutForEvaluation, startPunchNote, type CardPunchList, type EvaluationResult,
   type RaceSnapshot, type RogainingScore, type StartPunchNote } from "@o-tid/domain";
 import { localRelay, relaySnapshot, type LocalRelay } from "./relay";
 import type { QueuedRegistration } from "./store";
@@ -29,6 +29,8 @@ export interface LocalVerdict {
   readonly rental?: boolean;
   /** Felstämplad eller okänd bricka (PLAN.md steg 27): alla stämplingar på brickan mot banan och tävlingsdagen. */
   readonly punchList?: CardPunchList;
+  /** Oröjd bricka (PLAN.md steg 31): gamla stämplingar som inte räknades, även när resultatet är godkänt. */
+  readonly ignoredPunches?: number;
 }
 
 /**
@@ -70,11 +72,16 @@ export function withLocalRegistrations(pkg: ReadoutPackage, registrations: reado
  * avläsningar i den här webbläsaren: en stafettsträckas start är föregående sträckas mål.
  */
 export function evaluateLocally(payload: SportidentReadoutPayload, pkg: ReadoutPackage,
-  local: readonly SportidentReadoutPayload[] = []): LocalVerdict {
+  local: readonly SportidentReadoutPayload[] = [], readAt?: string): LocalVerdict {
+  // Lästid (när avläsningen togs emot), check och clear: gamla stämplingar på en oröjd bricka räknas inte (PLAN.md steg 31),
+  // som på servern.
   const readout = {
     cardNumber: payload.cardNumber,
     ...(payload.startPunchedAt ? { startPunchedAt: payload.startPunchedAt } : {}),
     ...(payload.finishPunchedAt ? { finishPunchedAt: payload.finishPunchedAt } : {}),
+    ...(payload.checkPunchedAt ? { checkPunchedAt: payload.checkPunchedAt } : {}),
+    ...(payload.clearPunchedAt ? { clearPunchedAt: payload.clearPunchedAt } : {}),
+    ...(readAt ? { readAt } : {}),
     punches: payload.punches
   };
   const owner = pkg.raceSnapshot.cardAssignments.find((assignment) => assignment.active && assignment.cardNumber === payload.cardNumber);
@@ -88,7 +95,8 @@ export function evaluateLocally(payload: SportidentReadoutPayload, pkg: ReadoutP
   const relay = result.entryId && result.status !== "UNKNOWN_CARD" ? localRelay(pkg, result.entryId, { status: result.status,
     ...(result.elapsedMs !== undefined ? { elapsedMs: result.elapsedMs } : {}) }, earlier) : undefined;
   const punchList = result.status === "MP" || result.status === "UNKNOWN_CARD"
-    ? cardPunchList({ ...readout, checkPunchedAt: payload.checkPunchedAt }, snapshot, result.entryId, pkg.event.timeZone) : undefined;
+    ? cardPunchList(readout, snapshot, result.entryId, pkg.event.timeZone) : undefined;
+  const ignoredPunches = prepareReadoutForEvaluation(readout, snapshot).ignoredPunches;
   const startNote = entry && raceClass && !relay ? startPunchNote({ startRule: raceClass.startRule, fixedStartTime: entry.fixedStartTime,
     startPunchedAt: payload.startPunchedAt }) : undefined;
   return {
@@ -104,6 +112,7 @@ export function evaluateLocally(payload: SportidentReadoutPayload, pkg: ReadoutP
     ...(startNote ? { startNote } : {}),
     ...(owner?.rental ? { rental: true } : {}),
     ...(punchList ? { punchList } : {}),
+    ...(ignoredPunches > 0 ? { ignoredPunches } : {}),
     missingControls: result.missingControls,
     splits: result.splits.map((split) => ({ controlCode: split.controlCode, elapsedMs: split.elapsedMs, legMs: split.legMs }))
   };

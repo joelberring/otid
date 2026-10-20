@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { addCourseAndClass, addEntry, createRace, ongoingRaceTimeZone, openCourseForm, openStep, registerAccount, reviewScreenshots, sendReadout, today,
+import { addCourseAndClass, addEntry, createRace, daysFromToday, ongoingRaceTimeZone, openCourseForm, openStep, registerAccount, reviewScreenshots, sendReadout, today,
   unique, warmRoute } from "./helpers";
 
 /**
@@ -140,4 +140,15 @@ test("flytta starttider för en klass räknar om de avlästa", async ({ browser 
   await openStep(owner, "Anmälda");
   const card = await openCard(owner, "Dan Testsson", "Godkänd");
   await expect(card.getByRole("region", { name: "Resultat", exact: true })).toContainText("30:00");
+
+  // Oröjd bricka (A4): Eva har kvar förra veckans varv. Det räknas inte; kvällens varv är komplett och godkänt.
+  await addEntry(owner, { className: "H21", givenName: "Eva", familyName: "Testsson", club: "OK Test", card: "8131005", startTime: clock(drawn) });
+  const old = daysFromToday(-6);
+  await sendReadout(owner, raceId, { cardNumber: "8131005", checkPunchedAt: at(drawn - 5 * 60_000), startPunchedAt: at(drawn + 5 * 60_000),
+    finishPunchedAt: at(drawn + 40 * 60_000), punches: [{ code: 31, punchedAt: `${old}T16:10:00.000Z` }, { code: 32, punchedAt: `${old}T16:20:00.000Z` },
+      { code: 31, punchedAt: at(drawn + 15 * 60_000) }, { code: 32, punchedAt: at(drawn + 30 * 60_000) }] });
+  await owner.reload();
+  await openStep(owner, "Anmälda");
+  const eva = await openCard(owner, "Eva Testsson", "Godkänd");
+  await expect(eva.getByTestId("card-punches").getByRole("note")).toContainText("2 gamla stämplingar räknades inte (brickan var inte tömd).");
 });

@@ -111,3 +111,13 @@ $$;
 ALTER TABLE result_revision DROP COLUMN control_neutralization_id;
 --> statement-breakpoint
 DROP TABLE class_control_neutralization;
+--> statement-breakpoint
+-- Oröjd bricka (steg 31): brickans check- och clearstämpling behövs i bedömningen. De fanns bara i den råa nyttolasten;
+-- kolumnerna fylls i från den för redan lagrade avläsningar. Den råa nyttolasten ändras inte.
+ALTER TABLE card_readout ADD COLUMN IF NOT EXISTS check_punched_at timestamp with time zone,
+  ADD COLUMN IF NOT EXISTS clear_punched_at timestamp with time zone;
+--> statement-breakpoint
+UPDATE card_readout r SET
+  check_punched_at = CASE WHEN m.raw_payload->>'checkPunchedAt' ~ '^\d{4}-\d{2}-\d{2}T' THEN (m.raw_payload->>'checkPunchedAt')::timestamptz END,
+  clear_punched_at = CASE WHEN m.raw_payload->>'clearPunchedAt' ~ '^\d{4}-\d{2}-\d{2}T' THEN (m.raw_payload->>'clearPunchedAt')::timestamptz END
+FROM raw_device_message m WHERE m.id = r.raw_message_id;

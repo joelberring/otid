@@ -56,7 +56,7 @@ export const cardPunchListSchema = z.object({
   raceDate: localDate,
   check: stationPunch.optional(), start: stationPunch.optional(), finish: stationPunch.optional(),
   punches: z.array(z.object({ order: version, code: version, punchedAt: z.iso.datetime({ offset: true }), localDate,
-    placement: z.enum(["ON_COURSE", "EXTRA", "OTHER_DAY", "NO_COURSE"]) }).strict()).max(256),
+    placement: z.enum(["ON_COURSE", "EXTRA", "OTHER_DAY", "OLD", "NO_COURSE"]) }).strict()).max(256),
   missingControls: z.array(version).max(1_000),
   otherDates: z.array(localDate).max(260),
   allOtherDay: z.boolean(),
@@ -64,7 +64,9 @@ export const cardPunchListSchema = z.object({
   noFinishPunch: z.boolean(),
   /** Tävlingens tidsjusteringar som ändrade brickans tider (PLAN.md steg 31). */
   adjustments: z.array(z.object({ station: z.enum(["START", "FINISH", "CONTROL"]), controlCode: version.optional(),
-    offsetMs: z.number().int(), punches: version }).strict()).max(256).optional()
+    offsetMs: z.number().int(), punches: version }).strict()).max(256).optional(),
+  /** Gamla stämplingar på en oröjd bricka som inte räknades (PLAN.md steg 31). */
+  ignoredPunches: version.optional()
 }).strict();
 export type CardPunchListDto = z.infer<typeof cardPunchListSchema>;
 /** ADR-0169 beslut 4: deltagarkortets korta historik över resultatändringar, nyaste först. */

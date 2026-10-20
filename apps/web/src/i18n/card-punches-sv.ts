@@ -21,10 +21,10 @@ export const cardPunchesSv = {
   title: "Brickans stämplingar",
   readAt: (time: string) => `Senast avläst ${time}`,
   order: "Nr", code: "Kod", time: "Tid", status: "Hör till",
-  placement: { ON_COURSE: "på banan", EXTRA: "extra", OTHER_DAY: "utanför tävlingsdagen", NO_COURSE: "–" } satisfies Record<Placement, string>,
+  placement: { ON_COURSE: "på banan", EXTRA: "extra", OTHER_DAY: "utanför tävlingsdagen", OLD: "före check, räknas inte", NO_COURSE: "–" } satisfies Record<Placement, string>,
   /** Symbol före stämplingen i den kompakta listan; orden står i förklaringen, inte bara färgen. */
-  mark: { ON_COURSE: "", EXTRA: "+", OTHER_DAY: "!", NO_COURSE: "" } satisfies Record<Placement, string>,
-  legend: "+ extra · ! utanför tävlingsdagen",
+  mark: { ON_COURSE: "", EXTRA: "+", OTHER_DAY: "!", OLD: "!", NO_COURSE: "" } satisfies Record<Placement, string>,
+  legend: "+ extra · ! utanför tävlingsdagen eller före check",
   check: "Check", start: "Start", finish: "Mål", missing: "saknas",
   noPunches: "Brickan har inga kontrollstämplingar.",
   otherDay: (dates: readonly string[], raceDate: string, all: boolean) =>
@@ -34,7 +34,8 @@ export const cardPunchesSv = {
   missingControls: (codes: readonly number[]) => `Saknade kontroller: ${codes.join(", ")}.`,
   oldCardHint: "Brickan har troligen inte tömts före loppet.",
   table: "Brickans stämplingar i ordning",
-  adjusted: (labels: readonly string[]) => `Tiden är justerad för hela tävlingen: ${labels.join(", ")}.`
+  adjusted: (labels: readonly string[]) => `Tiden är justerad för hela tävlingen: ${labels.join(", ")}.`,
+  ignored: (count: number) => `${count} ${count === 1 ? "gammal stämpling" : "gamla stämplingar"} räknades inte (brickan var inte tömd).`
 } as const;
 
 /**
@@ -44,9 +45,11 @@ export const cardPunchesSv = {
 export function cardPunchSummary(punches: CardPunchList, options: { missing?: boolean } = {}): string[] {
   const adjusted = (punches.adjustments ?? []).map((row) => raceCorrectionsSv.adjustmentLabel(row.station, row.controlCode ?? null, row.offsetMs));
   return [
-    adjusted.length > 0 ? cardPunchesSv.adjusted(adjusted) : "",
     punches.otherDates.length > 0 ? cardPunchesSv.otherDay(punches.otherDates, punches.raceDate, punches.allOtherDay) : "",
     punches.allOtherDay ? cardPunchesSv.oldCardHint : "",
+    // Steg 31: när alla tider är från en annan dag säger raderna ovan redan det.
+    punches.ignoredPunches && !punches.allOtherDay ? cardPunchesSv.ignored(punches.ignoredPunches) : "",
+    adjusted.length > 0 ? cardPunchesSv.adjusted(adjusted) : "",
     punches.noStartPunch ? cardPunchesSv.noStart : "",
     punches.noFinishPunch ? cardPunchesSv.noFinish : "",
     options.missing !== false && punches.missingControls.length > 0 && !punches.allOtherDay ? cardPunchesSv.missingControls(punches.missingControls) : ""

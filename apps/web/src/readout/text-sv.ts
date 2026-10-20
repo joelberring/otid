@@ -57,6 +57,8 @@ export const readoutText = {
   missing: (codes: readonly number[]) => `Saknar: ${codes.join(", ")}`,
   // Hyrbricka och startstämpling (PLAN.md steg 25). Status med ord och symbol, inte bara färg.
   rental: "HYRBRICKA – samla in",
+  /** Oröjd bricka (PLAN.md steg 31): stämplingar från ett tidigare lopp räknades inte, även när resultatet är godkänt. */
+  ignoredPunches: (count: number) => `${count} ${count === 1 ? "gammal stämpling" : "gamla stämplingar"} räknades inte (brickan var inte tömd).`,
   // Direktanmälan av okänd bricka (PLAN.md steg 25), även utan nät.
   register: {
     title: (card: string) => `Anmäl löparen med bricka ${card}`,

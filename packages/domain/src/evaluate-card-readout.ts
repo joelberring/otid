@@ -17,9 +17,10 @@ import { controlCodesOutOfOrder, prepareReadoutForEvaluation } from "./station-c
 /**
  * Versionen sparas på varje resultatrevision. 0.3.0 (PLAN.md steg 22): kontrollföljden matchas som ordnad
  * delföljd, så att extra- och dubbelstämplingar ger godkänt. 0.4.0 (PLAN.md steg 25): fast start utan lottad tid
- * räknas från startstämplingen, och klassens maxtid ger `OVERTIME`.
+ * räknas från startstämplingen, och klassens maxtid ger `OVERTIME`. 0.5.0 (PLAN.md steg 31): tävlingens tidsjusteringar
+ * per station och kontroller ur funktion, och gamla stämplingar på en oröjd bricka räknas inte (`prepareReadoutForEvaluation`).
  */
-export const RESULT_ENGINE_VERSION = "0.4.0";
+export const RESULT_ENGINE_VERSION = "0.5.0";
 
 function invalid(reason: EvaluationResult["reason"], base: Partial<EvaluationResult> = {}): EvaluationResult {
   return {
@@ -236,7 +237,7 @@ export function courseVariantForReadout(readout: EvaluationReadout, snapshot: Ra
   { readonly code: string; readonly assigned: boolean } | undefined {
   const resolved = resolveEntry(readout, snapshot);
   if (!resolved) return undefined;
-  const chosen = chooseVariant(resolved, readout.punches, controlCodesOutOfOrder(snapshot));
+  const chosen = chooseVariant(resolved, prepareReadoutForEvaluation(readout, snapshot).readout.punches, controlCodesOutOfOrder(snapshot));
   return chosen && { code: chosen.code, assigned: chosen.assigned };
 }
 

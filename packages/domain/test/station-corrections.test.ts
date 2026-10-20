@@ -83,3 +83,57 @@ describe("tidsjustering per station (steg 31)", () => {
     expect(evaluateCardReadout(wrong, snapshot([finish(-HOUR)], 60)).status).toBe("OK");
   });
 });
+
+describe("gamla stämplingar på en oröjd bricka (steg 31)", () => {
+  const today = (time: string) => `2026-08-30T${time}Z`;
+  const lastWeek = (time: string) => `2026-08-23T${time}Z`;
+
+  it("vanlig avläsning bedöms exakt som förut", () => {
+    const input = readout();
+    const prepared = prepareReadoutForEvaluation(input, snapshot());
+    expect(prepared.readout).toBe(input);
+    expect(prepared.ignoredPunches).toBe(0);
+    const withCheck = readout({ checkPunchedAt: today("09:55:00"), clearPunchedAt: today("09:54:00") });
+    expect(prepareReadoutForEvaluation(withCheck, snapshot()).readout).toBe(withCheck);
+    expect(evaluateCardReadout(withCheck, snapshot())).toMatchObject({ status: "OK", elapsedMs: 40 * 60_000 });
+  });
+
+  it("ett gammalt varv på samma koder ger inte längre godkänt när dagens varv saknar en kontroll", () => {
+    const uncleared = readout({ punches: [{ code: 31, punchedAt: lastWeek("18:10:00") }, { code: 32, punchedAt: lastWeek("18:20:00") },
+      { code: 33, punchedAt: lastWeek("18:30:00") }, { code: 31, punchedAt: today("10:10:00") }, { code: 33, punchedAt: today("10:30:00") }] });
+    // Utan regeln (avläsningen utan lästid) räcker det gamla varvet till godkänt.
+    const withoutReadAt = { cardNumber: uncleared.cardNumber, startPunchedAt: uncleared.startPunchedAt!,
+      finishPunchedAt: uncleared.finishPunchedAt!, punches: uncleared.punches };
+    expect(evaluateCardReadout(withoutReadAt, snapshot()).status).toBe("OK");
+    expect(prepareReadoutForEvaluation(uncleared, snapshot())).toMatchObject({ ignoredPunches: 3, keptPunchIndexes: [3, 4] });
+    expect(evaluateCardReadout(uncleared, snapshot())).toMatchObject({ status: "MP", reason: "MISSING_CONTROL", missingControls: [32] });
+  });
+
+  it("ett varv tidigare samma dag räknas inte när brickan har check i kväll", () => {
+    const earlier = readout({ checkPunchedAt: today("09:55:00"), punches: [{ code: 31, punchedAt: today("07:10:00") },
+      { code: 32, punchedAt: today("07:20:00") }, { code: 33, punchedAt: today("07:30:00") }, { code: 31, punchedAt: today("10:10:00") },
+      { code: 33, punchedAt: today("10:30:00") }] });
+    expect(evaluateCardReadout(earlier, snapshot())).toMatchObject({ status: "MP", missingControls: [32] });
+    // Samma bricka utan check: varvet är inom 12 timmar och räknas (ingen grund att bortse från det).
+    const noCheck = readout({ punches: earlier.punches });
+    expect(evaluateCardReadout(noCheck, snapshot()).status).toBe("OK");
+  });
+
+  it("en kontroll med fel klocka (−1 h) samma kväll räknas inte som gammal", () => {
+    const wrongClock = readout({ punches: [{ code: 31, punchedAt: today("10:10:00") }, { code: 32, punchedAt: today("09:20:00") },
+      { code: 33, punchedAt: today("10:30:00") }] });
+    expect(prepareReadoutForEvaluation(wrongClock, snapshot()).ignoredPunches).toBe(0);
+    expect(evaluateCardReadout(wrongClock, snapshot()).status).toBe("OK");
+    // Även med check: kontrollen ligger mitt bland kvällens stämplingar och räknas.
+    expect(evaluateCardReadout({ ...wrongClock, checkPunchedAt: today("09:55:00") }, snapshot()).status).toBe("OK");
+    // En check efter startstämplingen (fel klocka i checkenheten) används inte.
+    const lateCheck = readout({ checkPunchedAt: today("10:20:00") });
+    expect(prepareReadoutForEvaluation(lateCheck, snapshot()).ignoredPunches).toBe(0);
+  });
+
+  it("gammal start och gammalt mål räknas inte; med tidsjustering bedöms den justerade tiden", () => {
+    const oldFinish = readout({ finishPunchedAt: lastWeek("18:40:00") });
+    expect(evaluateCardReadout(oldFinish, snapshot())).toMatchObject({ status: "MP", reason: "MISSING_FINISH" });
+    expect(prepareReadoutForEvaluation(oldFinish, snapshot()).ignoredPunches).toBe(1);
+  });
+});

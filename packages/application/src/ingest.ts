@@ -157,6 +157,9 @@ export async function ingestDeviceBatch(
         finishPunchedAt: payload.finishPunchedAt ? new Date(payload.finishPunchedAt) : null,
         punches: payload.punches,
         readAt: new Date(event.stationReceivedAt),
+        // Check och clear (steg 31): gamla stämplingar före dem räknas inte i bedömningen.
+        checkPunchedAt: "checkPunchedAt" in payload && payload.checkPunchedAt ? new Date(payload.checkPunchedAt) : null,
+        clearPunchedAt: "clearPunchedAt" in payload && payload.clearPunchedAt ? new Date(payload.clearPunchedAt) : null,
         // Klockan bakom tiderna (PLAN.md steg 22) finns bara i SPORTident-nyttolasten.
         clockSource: event.transport === "sportident" ? event.payload.clockSource ?? null : null,
         clockOffsetMs: event.transport === "sportident" ? event.payload.clockOffsetMs ?? null : null

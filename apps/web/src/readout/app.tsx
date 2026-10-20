@@ -13,7 +13,7 @@ import { IdbReadoutStore, type QueuedReadout, type QueuedRegistration, type Read
 import { RegistrationForm, RegistrationStatus, type RegistrationFields } from "./registration-form";
 import type { EntrySuggestion } from "./runner-lookup";
 import { startPunchText } from "../lib/start-punch-text";
-import { heldReadouts, releaseHeldReadouts, syncPending } from "./sync";
+import { heldReadouts, releaseHeldReadouts, requeueLocallyInvalid, syncPending } from "./sync";
 import { loadFailedReadouts, saveFailedReadouts, type FailedReadout } from "./failed-readouts";
 import { localRaceDate } from "@o-tid/domain";
 import { toHex } from "./payload";
@@ -131,6 +131,8 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
     void (async () => {
       const saved = await storeRef.current.loadPackage(raceId);
       if (saved && !pkgRef.current) { pkgRef.current = saved; setPkg(saved); }
+      // Lokalt avvisade avläsningar som nu är giltiga (steg 36: nio ramar från en station som skickar alla åtta block).
+      await requeueLocallyInvalid(storeRef.current, raceId);
       await reload();
       if (navigator.storage?.persist) setPersistent(await navigator.storage.persist());
       await refreshPackage();

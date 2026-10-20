@@ -72,7 +72,8 @@ export const sportidentReadoutPayloadSchema = z.object({
   clearPunchedAt: z.iso.datetime({ offset: true }).optional(),
   punches: readoutPunchesSchema,
   untimedPunchCodes: z.array(z.number().int().positive()).max(6),
-  frames: z.array(z.string().regex(/^(?:[0-9a-f]{2}){1,300}$/)).min(1).max(8),
+  // Detektering + högst åtta block (station som skickar alla åtta, steg 34) + uttagsramen; tolv ger marginal.
+  frames: z.array(z.string().regex(/^(?:[0-9a-f]{2}){1,300}$/)).min(1).max(12),
   stationSerial: z.number().int().nonnegative().optional(),
   /**
    * Klockan som stämplingstiderna löstes mot (PLAN.md steg 22): avläsningsstationens

@@ -1,4 +1,4 @@
-import { deviceBatchAcknowledgementSchema, readoutRegistrationResponseSchema, type DeviceBatch } from "@o-tid/contracts";
+import { deviceBatchAcknowledgementSchema, readoutRegistrationResponseSchema, sportidentReadoutPayloadSchema, type DeviceBatch } from "@o-tid/contracts";
 import type { QueuedReadout, ReadoutStore } from "./store";
 
 export type SyncOutcome =
@@ -34,6 +34,25 @@ export function pendingBatches(items: readonly QueuedReadout[]): QueuedReadout[]
     else batches.push([item]);
   }
   return batches;
+}
+
+/**
+ * Avläsningar som avvisades här i webbläsaren (`LOCAL_INVALID`, aldrig skickade) prövas igen mot det nuvarande schemat
+ * när sidan laddas. Är de giltiga nu läggs de tillbaka i kön som väntande, med samma löpnummer: servern har aldrig sett
+ * löpnumret, så det tas emot som en ny avläsning och fyller luckan i följden. Steg 36: med steg 34 gav en station som
+ * skickar alla åtta block nio ramar, fler än schemat tillät. Ger antalet som lades tillbaka.
+ */
+export async function requeueLocallyInvalid(store: ReadoutStore, raceId: string): Promise<number> {
+  let count = 0;
+  for (const item of await store.list(raceId)) {
+    if (item.status !== "rejected" || item.rejectedReason !== "LOCAL_INVALID") continue;
+    if (!sportidentReadoutPayloadSchema.safeParse(item.payload).success) continue;
+    const copy: { -readonly [K in keyof QueuedReadout]: QueuedReadout[K] } = { ...item, status: "pending" };
+    delete copy.rejectedReason;
+    await store.update(copy);
+    count += 1;
+  }
+  return count;
 }
 
 type RegistrationOutcome = { readonly kind: "done"; readonly count: number } | Exclude<SyncOutcome, { kind: "idle" | "synced" }>;

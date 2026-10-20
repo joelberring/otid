@@ -10,6 +10,11 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-10-20 – Steg 36 (brådskande): nio ramar från station som skickar alla åtta block
+- Efter steg 34 gav en BSM8 som skickar alla åtta block detektering + 8 block = 9 råramar, men avläsningens schema tillät högst 8: avläsningen markerades "rejected" (`LOCAL_INVALID`) i webbläsaren och skickades aldrig. Schemat tillåter nu 12 (detektering, åtta block, uttagsram, marginal); samma schema används vid mottagningen.
+- Avläsningssidan prövar vid laddning om lokalt avvisade avläsningar mot det nuvarande schemat; giltiga läggs tillbaka i kön som väntande med samma löpnummer (servern har aldrig sett det) och skickas som vanligt.
+- Tester: `readout/requeue` (omprövning, samma löpnummer, skickas), integration `steg-36-nio-ramar` (9 och 12 ramar tas emot oförändrade, 13 avvisas).
+
 ### 2026-10-20 – Steg 34: SIAC från station som skickar alla åtta block (fel på natt-KM)
 - Natt-KM: två SIAC blev felstämplade med "gamla stämplingar" fast brickan var tömd. Råloggen från en av brickorna (avläst i efterhand) visade att BSM8:an skickade block 0–7 för "alla block"; O-Tid tog de fem första som 0, 4, 5, 6, 7 och läste block 1 (brickans inställningar) som stämplingar.
 - `sportident`: blocken placeras efter blocknumret i svaret (`cardImageBlocks`), läsningen av "alla block" (SI6, SI10/11/SIAC) slutar vid block 7 eller åtta svar, och tas brickan ur efter stämplingsblocken räcker det som kom. `decodeCard` vägrar en ofullständig bild i stället för att tyst ta färre stämplingar. Falska stationen kan skicka alla åtta block (`eightBlocks`).

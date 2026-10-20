@@ -1,34 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { Command, encodeStationFrame, FakeSiStation, ReadoutSession, type ReadoutEvent, type SimulatedCard } from "../src";
+import { NATT_KM_CARD, NATT_KM_CODES, NATT_KM_STATION, nattKmBlockFrame, nattKmDetection } from "./fixtures/siac-natt-km";
 
 /**
  * Natt-KM 2026-10-20: en BSM8 inställd på att skicka alla åtta block skickade block 0–7 för SIAC. O-Tid tog de fem
  * första som om de vore 0, 4, 5, 6, 7 och läste block 1 (brickans inställningar) som stämplingar: felstämplat och
- * "gamla stämplingar". Blocken nedan är den riktiga brickans (bricknumret utbytt), avlästa i efterhand.
+ * "gamla stämplingar". Blocken (`fixtures/siac-natt-km.ts`) är den riktiga brickans (bricknumret utbytt), avlästa i efterhand.
  */
-const STATION = 0x1a;
-const CARD = 8_001_234;
-const hex = (value: string) => Uint8Array.from(value.match(/../g)!.map((pair) => parseInt(pair, 16)));
-const block = (runs: readonly [offset: number, data: string][]) => {
-  const bytes = new Uint8Array(128).fill(0xee);
-  for (const [offset, data] of runs) bytes.set(hex(data), offset);
-  return bytes;
-};
-const cardBytes = [(CARD >> 16) & 0xff, (CARD >> 8) & 0xff, CARD & 0xff];
-const realBlocks: Record<number, Uint8Array> = {
-  0: (() => {
-    const value = block([[0, "e8797a9feaeaeaea35025b7f15035f9c05046c1f0d450e620f000000071921223b3b3b3b3b3b3b3b3b3b3b"]]);
-    value.set(cardBytes, 25);
-    return value;
-  })(),
-  1: block([[32, "07001a070303030304040404ebebebeb02000200020002000200020002000200020002000200020002000200"]]),
-  2: block([]),
-  3: block([[112, "73696163ffffffff0384007e06310000"]]),
-  4: block([[0, "051f6024052060db05216139052262900523632505246498052565160526660f0527672a052868c3052969ae052a69e105346ae4052b6bbb"]]),
-  5: block([]), 6: block([]), 7: block([])
-};
-const detection = encodeStationFrame(Command.SI8_PLUS_DETECTED, STATION, [0x0f, ...cardBytes]);
-const blockFrame = (number: number) => encodeStationFrame(Command.READ_SI8_PLUS, STATION, [number, ...realBlocks[number]!]);
+const STATION = NATT_KM_STATION;
+const CARD = NATT_KM_CARD;
+const detection = nattKmDetection();
+const blockFrame = (number: number) => nattKmBlockFrame(number);
 
 function readySession() {
   const station = new FakeSiStation({ stationCode: STATION });
@@ -40,7 +22,7 @@ function readySession() {
   return session;
 }
 
-const EXPECTED_CODES = [31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 52, 43];
+const EXPECTED_CODES = NATT_KM_CODES;
 
 describe("SIAC från en station som skickar alla åtta block (natt-KM 2026-10-20)", () => {
   it("läser kvällens 14 stämplingar, start, mål och check – inte brickans inställningar", () => {

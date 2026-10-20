@@ -40,6 +40,7 @@ describe("TASK 005G importadmin-UI", () => {
     }
     const readout = forSource("/readout/:path*");
     expect(readout.get("Permissions-Policy")).toContain("serial=(self)");
+    expect(readout.get("Permissions-Policy")).toContain("usb=(self)");
     expect(readout.get("Content-Security-Policy")).toContain("connect-src 'self'");
   });
 });

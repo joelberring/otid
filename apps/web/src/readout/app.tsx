@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { sportidentReadoutPayloadSchema, type ReadoutPackage } from "@o-tid/contracts";
-import { WebSerialTransport, type WebSerialPortLike } from "@o-tid/device-transport";
+import { CP210X_USB_FILTERS, WebSerialTransport, WebUsbCp210xPort, type UsbDeviceLike, type UsbLike, type WebSerialPortLike } from "@o-tid/device-transport";
 import { SiTimeError, type SiCardData } from "@o-tid/sportident";
 import { accountCsrf, fetchReadoutPackage, searchRunnerDatabase } from "./api";
 import { evaluateLocally, formatRunningTime, withLocalRegistrations, type LocalVerdict } from "./evaluate";
@@ -30,6 +30,11 @@ type Current =
   | { readonly phase: "done"; readonly cardNumber: string; readonly localSequence: number; readonly verdict?: LocalVerdict; readonly invalid?: boolean };
 
 type SerialNavigator = Navigator & { serial?: { requestPort(): Promise<WebSerialPortLike> } };
+/** WebUSB: läsplattor (Chrome på Android ser inte stationens CP210x-chip som serieport). */
+type UsbNavigator = Navigator & { usb?: UsbLike & { requestDevice(options: { filters: readonly { vendorId: number }[] }): Promise<UsbDeviceLike> } };
+/** Visa USB-knappen där Web Serial inte når stationen: Android, eller utan Web Serial. */
+const showUsbButton = typeof navigator !== "undefined" && !!(navigator as UsbNavigator).usb &&
+  (/Android/i.test(navigator.userAgent) || !(navigator as SerialNavigator).serial);
 
 const SYNC_INTERVAL_MS = 5_000;
 const PACKAGE_INTERVAL_MS = 60_000;
@@ -225,6 +230,10 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
     let port: WebSerialPortLike;
     try { port = await serial.requestPort(); }
     catch { setStation({ kind: "disconnected" }); return; }
+    await connectPort(port);
+  }
+
+  async function connectPort(port: WebSerialPortLike) {
     exerciseRef.current = undefined; setExercise(false);
     const timeZone = pkgRef.current?.event.timeZone;
     for (const baudRate of BAUD_RATES) {
@@ -232,6 +241,23 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
     }
     await controllerRef.current?.stop();
     setStation({ kind: "error", message: t.serialFailed });
+  }
+
+  /** Stationen direkt över WebUSB (läsplatta). Samma avläsning som Web Serial när porten väl är öppen. */
+  async function connectUsb() {
+    const usb = (navigator as UsbNavigator).usb;
+    if (!usb) { setStation({ kind: "error", message: t.usbUnsupported }); return; }
+    let device: UsbDeviceLike;
+    try { device = await usb.requestDevice({ filters: CP210X_USB_FILTERS }); }
+    catch { setStation({ kind: "disconnected" }); return; }
+    const port = new WebUsbCp210xPort(device, usb);
+    // Prova att ta enheten först: en annan app på plattan kan hålla den.
+    try { await port.open({ baudRate: BAUD_RATES[0]! }); await port.close(); }
+    catch (error) {
+      setStation({ kind: "error", message: t.usbBusy(error instanceof Error ? error.message : String(error)) });
+      return;
+    }
+    await connectPort(port);
   }
 
   async function connectExercise() {
@@ -404,6 +430,7 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
         ? <button type="button" onClick={() => { void disconnect(); }}>{t.disconnect}</button>
         : <>
           <button type="button" className="primary" onClick={() => { void connectSerial(); }}>{t.connectSerial}</button>
+          {showUsbButton ? <button type="button" className="primary" onClick={() => { void connectUsb(); }}>{t.connectUsb}</button> : null}
           <button type="button" onClick={() => { void connectExercise(); }}>{t.connectExercise}</button>
           {raceDay ? <small className="exercise-warning">{t.exerciseRaceDayShort}</small> : null}
         </>}

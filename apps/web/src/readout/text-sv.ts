@@ -24,6 +24,10 @@ export const readoutText = {
     error: "Fel"
   },
   connectSerial: "Anslut SPORTident-station",
+  // Läsplatta (Chrome på Android): stationen direkt över USB.
+  connectUsb: "Anslut via USB (läsplatta)",
+  usbUnsupported: "Den här webbläsaren kan inte ansluta USB-enheter. Använd Chrome.",
+  usbBusy: (detail: string) => `Stationen gick inte att ta (${detail}). Är en annan app (t.ex. SI-Droid) igång? Stäng den med Tvinga stopp under Inställningar → Appar, dra ur och sätt i stationen och försök igen.`,
   connectExercise: "Starta övningsstation",
   disconnect: "Koppla från station",
   serialUnsupported: "Den här webbläsaren kan inte ansluta USB-stationer. Använd Chrome eller Edge på dator.",

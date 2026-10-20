@@ -22,7 +22,7 @@ const nextConfig: NextConfig = {
     return [
       // Avläsningen behöver Web Serial för USB-stationen.
       { source: "/readout/:path*", headers: [...shellHeaders,
-        { key: "Permissions-Policy", value: "camera=(), geolocation=(), microphone=(), serial=(self)" }] },
+        { key: "Permissions-Policy", value: "camera=(), geolocation=(), microphone=(), serial=(self), usb=(self)" }] },
       ...["", "/manage", "/readout", "/speaker", "/imports"].map((surface) => ({
         source: `/admin/:raceId${surface}`, headers: [...privateAdminHeaders]
       })),

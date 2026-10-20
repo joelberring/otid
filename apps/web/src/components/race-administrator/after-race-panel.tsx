@@ -4,6 +4,7 @@ import styles from "../race-administrator-workspace.module.css";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
 import Link from "next/link";
 import { ClassResultRecalculation } from "../class-result-recalculation";
+import { RecalculateRace } from "../race-corrections";
 import { sv } from "../../i18n/sv";
 import { formatClockTime } from "../../lib/clock-time";
 import { raceWorkspaceNavigationSv as navigationText } from "../../i18n/race-workspace-navigation-sv";
@@ -125,6 +126,8 @@ export function AfterRacePanel({ ws }: { ws: Workspace }) {
         onSubmit={(value) => void submitClassRecalculation(value)} onRetry={() => classRecalculationAttempt && void submitClassRecalculation(classRecalculationAttempt)}
         onCancel={() => { pending.current = undefined; sent.current = false; setClassRecalculationAttempt(undefined); setClassRecalculationUnknown(false); }} />}
     </details>
+    {/* PLAN.md steg 31: alla med avläsning på en gång, med förhandsvisning av statusbyten. */}
+    <RecalculateRace raceId={raceId} onChanged={ws.reloadQuietly} />
     </div>
     </Section>
     {/* Karta och vägval (PLAN.md steg 16): inte för rogaining (inga sträckor) eller stafett (stöds inte än). */}

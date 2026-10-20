@@ -10,11 +10,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
-### 2026-10-20 – Steg 31 del A: rättningar för hela tävlingen (pågår)
+### 2026-10-20 – Steg 31 del A: rättningar för hela tävlingen (del A klar)
 - A1: Avläsning → Rättningar för hela tävlingen → "Justera tid för en station" (Start, Mål eller Kontroll med kod, Tidigare/Senare, minuter och sekunder, Varför) → "Visa vad som händer" → "Spara och räkna om". Migration 0009 (`race_station_correction`, bara borttagning får skrivas), domänens `prepareReadoutForEvaluation` är enda stället där justeringen läggs på brickans tider, paketet till avläsningen har justeringarna, underlagshashen tar med aktiva rättningar (oförändrad utan). Manuellt rättad tid räknas inte om (antal i beskedet). "Ta bort" räknar om tillbaka; borttagna står kvar som historik.
 - A2: "Kontroll ur funktion" (kod, Varför): koden krävs inte på någon bana, även gafflade; stämplingen ger ingen sträcktid och sträckan räknas från kontrollen före; deltagarkortets sträcktider visar "Ur funktion", IOF-exporten utelämnar kontrollen. Ersätter den gamla strykningen per klass (`class-control-neutralization.ts`, utan gränssnitt): kod, tabell och `result_revision.control_neutralization_id` borttagna i 0009 (underlagshashen oförändrad). Banredigeringen fungerar som förut.
 - A3: Start → Startlistan → "Flytta starttider" (Klass, Senare/Tidigare, Minuter, Varför): alla tilldelade tider i en klass med minutstart (även gemensam start; inte stafett) flyttas och de avlästa räknas om; beskedet påminner om att publicera startlistan igen. Ångra = flytta tillbaka. Lottningens vakanta tider (oföränderliga) flyttas inte.
 - A4 (motor 0.5.0): oröjd bricka – stämplingar > 12 h före avläsningen och kontrollstämplingar > 10 min före clear/check räknas inte (bara den inledande följden i brickans minne; check efter startstämplingen används inte; start/mål bara 12 h-regeln). `card_readout` får `check_punched_at`/`clear_punched_at` (ifyllda från rådatan). Avläsningens besked och deltagarkortet: "N gamla stämplingar räknades inte (brickan var inte tömd)", även vid godkänt; stämplingslistan märker dem "före check, räknas inte".
+- A5: Resultat → Efterarbete → "Räkna om hela tävlingen" → "Visa vad som händer" (antal, statusbyten) → "Spara och räkna om".
 - Tester: domän `station-corrections` (11), `evaluate-card-readout`/`course-variants`/`course-edit` (ur funktion), integration `steg-31-tavlingsdag`, `adr-0169-result-basis`, Playwright `tavlingsdag-rattningar`, `redigera-bana`, `traningskvall`.
 
 ### 2026-10-20 – Steg 30: Live för publiken (steg 30 klart)

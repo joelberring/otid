@@ -95,6 +95,17 @@ test("justera tid för en station räknar om alla och kan tas bort", async ({ br
   await openStep(owner, "Anmälda");
   const cia = await openCard(owner, "Cia Testsson", "Godkänd");
   await expect(cia.getByRole("row", { name: /^2 32/ })).toContainText("Ur funktion");
+
+  // Räkna om hela tävlingen (A5) under Resultat → Efterarbete.
+  await openStep(owner, "Resultat");
+  const followUp = owner.getByRole("region", { name: "Efterarbete" });
+  await followUp.getByText("Räkna om hela tävlingen", { exact: true }).click();
+  await followUp.getByRole("button", { name: "Visa vad som händer" }).click();
+  const recalc = followUp.getByRole("alert", { name: "Räkna om hela tävlingen" });
+  await expect(recalc).toContainText("3 löpare har läst ut.");
+  await expect(recalc).toContainText("Ingen byter status.");
+  await recalc.getByRole("button", { name: "Spara och räkna om" }).click();
+  await expect(followUp.getByRole("status").filter({ hasText: "Sparat." })).toContainText("Sparat. 3 resultat räknades om.", { timeout: 30_000 });
 });
 
 test("flytta starttider för en klass räknar om de avlästa", async ({ browser }) => {

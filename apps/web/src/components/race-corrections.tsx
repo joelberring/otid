@@ -242,3 +242,19 @@ export function ShiftStartTimes({ raceId, classes, timeZone, onChanged }: { race
     </form>
   </details>;
 }
+
+/** "Räkna om hela tävlingen" (PLAN.md steg 31) under Resultat → Efterarbete: alla med avläsning, efter en förhandsvisning. */
+export function RecalculateRace({ raceId, onChanged }: { raceId: string; onChanged?: () => Promise<void> }) {
+  const flow = useRaceCorrection(raceId, onChanged);
+  const [open, setOpen] = useState(false);
+  return <details className={styles.disclosure} open={open || !!flow.attempt} onToggle={event => setOpen(event.currentTarget.open)}>
+    <summary>{text.recalculateTitle}</summary>
+    <div className={styles.disclosureBody}>
+      <p>{text.recalculateHelp}</p>
+      {!flow.attempt && <button type="button" className="secondary" disabled={flow.busy}
+        onClick={() => void flow.show({ action: "RECALCULATE_ALL" })}>{text.show}</button>}
+      <RaceCorrectionReview flow={flow} title={text.recalculateTitle} />
+      <RaceCorrectionMessages flow={flow} />
+    </div>
+  </details>;
+}

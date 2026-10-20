@@ -66,5 +66,7 @@ export const raceCorrectionsSv = {
   shiftFirst: "Första start",
   shiftLast: "Sista start",
   shiftSaved: (count: number) => `Sparat. ${count} resultat räknades om. Publicera startlistan igen så att den visar de nya tiderna.`,
+  recalculateTitle: "Räkna om hela tävlingen",
+  recalculateHelp: "Bedömer alla som läst ut på nytt mot banorna, klasserna och rättningarna som de är nu. Manuella beslut (disk, godkänd manuellt och liknande) ligger kvar.",
   adjustedNotice: (labels: readonly string[]) => `Tiden är justerad: ${labels.join(", ")}.`
 };

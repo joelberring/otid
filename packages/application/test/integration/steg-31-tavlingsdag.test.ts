@@ -176,3 +176,16 @@ describe("steg 31: gamla stämplingar på en oröjd bricka", () => {
     expect(card.response.cardPunches?.punches.map(row => row.placement)).toEqual(["OTHER_DAY", "OTHER_DAY", "ON_COURSE"]);
   });
 });
+
+describe("steg 31: räkna om hela tävlingen", () => {
+  it("bedömer alla med avläsning på nytt efter en förhandsvisning", async () => {
+    const { ids, cards, admin } = await seedRace(db, pool);
+    await ingest(db, ids.race, [run(cards.ada, "10:02:00", 30), run(cards.cia, "10:10:00", 40)]);
+    const { preview, applied } = await previewAndApply(admin, { action: "RECALCULATE_ALL" });
+    expect(preview.summary).toMatchObject({ readOutCount: 2, affectedCount: 0, changes: [] });
+    expect(applied.recalculatedCount).toBe(2);
+    expect(await latest(ids.race, ids.ada)).toMatchObject({ cause: "EXPLICIT_RECALCULATION", status: "OK" });
+    // Paketversionen höjs inte: inget i underlaget ändrades.
+    expect((await loadRaceSnapshot(db, ids.race)).race.snapshotVersion).toBe(1);
+  });
+});

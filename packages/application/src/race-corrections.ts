@@ -14,7 +14,7 @@ import { canonicalHash } from "./serialization";
 
 /**
  * Rättningar för hela tävlingen (PLAN.md steg 31): tidsjustering för en station, kontroll ur funktion och att ta bort dem,
- * samt att flytta en klass starttider (ångra = flytta tillbaka). Varje åtgärd
+ * samt att flytta en klass starttider (ångra = flytta tillbaka) och att räkna om hela tävlingen. Varje åtgärd
  * görs i en transaktion som också räknar om alla avlästa löpare i tävlingen med samma omprövning som banändringar
  * (`result-reassessment.ts`): en löpare med manuellt rättad tid räknas inte om, och beskedet säger hur många.
  * "Visa vad som händer" kör exakt samma åtgärd och rullar tillbaka; sparandet kräver att beskedet är oförändrat.
@@ -113,6 +113,9 @@ async function mutate(tx: Transaction, raceId: string, accountId: string, correc
         before: { firstStartTime: startTimes.firstBefore, lastStartTime: startTimes.lastBefore, entryIds: entries.map(entry => entry.id) },
         after: { offsetMs, reason: correction.reason, firstStartTime: startTimes.firstAfter, lastStartTime: startTimes.lastAfter } };
     }
+    case "RECALCULATE_ALL":
+      // Ingen ändring av underlaget: alla med avläsning bedöms på nytt mot tävlingen som den är nu.
+      return { entity: { type: "race", id: raceId }, bump: false, before: null, after: { recalculateAll: true } };
     default:
       return { status: "invalid-request" };
   }

@@ -17,7 +17,8 @@ export function isStatusChoice(value: string): value is StatusChoice {
 export function availableStatusChoices(result: AdministratorEffectiveResultResponse | undefined): StatusChoice[] {
   if (!result) return [];
   // Steg 31: brutit går även utan avläsning (borttappad bricka); manuell tid finns under "Ange tid manuellt".
-  if (result.state === "NO_PUBLISHED_RESULT") return ["DNS", "DNF"];
+  // Steg 31: även utan resultat kan avläsningen räknas om (t.ex. efter att brickan bytts till den som lästes ut).
+  if (result.state === "NO_PUBLISHED_RESULT") return ["DNS", "DNF", "RECALCULATION"];
   if (result.state === "NO_ACTIVE_RESULT") return ["DNS", "DNF", "RECALCULATION"];
   switch (result.governingDecision) {
     case "DNS": case "CHECKIN_DNS": return ["DNS_WITHDRAWAL"];

@@ -10,6 +10,10 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-10-20 – Steg 31 B5: avläsningens robusthet
+- Avläsningssidan: tid som inte går att placera med stationens klocka prövas med datorns; går det inte heller sparas bricka, tid och råramar i webbläsaren och visas under "Brickor som inte kunde tolkas". En avläsning som ger serverfel (5xx) skickas om en och en och hålls sedan åt sidan ("N avläsningar kunde inte skickas" + "Försök igen") så att resten av kön går fram. Övningsstationen varnar på tävlingsdagen. Deltagarkortet: "Räkna om från avläsningen" även utan resultat.
+- Tester: `readout.test` (kön vid serverfel), `participant-status-choices`, Playwright `manuellt` (varningen) och `traningskvall`.
+
 ### 2026-10-20 – Steg 31 B: nödlägen för en löpare (B1–B3)
 - Domänen (`manual-decision.ts`, ny `manual-time.ts`, `entry-readout.ts`): beslut ligger på varandra som en stapel och följer med över senare avläsningar och omräkningar, även rättad mål- och starttid (förut ersattes de). Nya orsaker `MANUAL_TIME`, `MANUAL_CONTROL_APPROVAL`, deras återtaganden och `MANUAL_RESULT_REMOVED` (manuellt resultat utan avläsning borttaget), migration 0010. Nya beslut bygger på senaste tekniska bedömningen under besluten (inga återvändsgränder efter ett återtagande). Resultatmotorn är oförändrad.
 - Deltagarkortet: "Ange tid manuellt" (måltid/starttid/löptid som klockslag, status, orsak, förhandsbesked "Löptid 45:00, godkänd."), "Godkänn saknade kontroller", "Ta bort manuell tid"/"Ta bort godkända kontroller", orsaken visas i kortet, "Manuell tid" i deltagarlistan. Brutit och ej start går utan avläsning; "Godkänn manuellt" kräver orsak.

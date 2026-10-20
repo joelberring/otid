@@ -9,7 +9,7 @@ import { FakeStationTransport } from "./fake-transport";
 import { buildReadoutPayload, payloadHash } from "./payload";
 import { StationController, type StationStatus } from "./station";
 import { TrafficLog } from "./rawlog";
-import { pendingBatches, syncPending } from "./sync";
+import { heldReadouts, pendingBatches, releaseHeldReadouts, syncPending } from "./sync";
 import { forkedTestPackage, ids, MemoryReadoutStore, TEST_CARD, testPackage } from "./test-support";
 import type { QueuedReadout } from "./store";
 
@@ -242,5 +242,28 @@ describe("synk av avläsningskön", () => {
     const broken = (async () => new Response(null, { status: 500 })) as typeof globalThis.fetch;
     expect(await syncPending(store, ids.race, { fetch: broken, csrf: () => "token" })).toEqual({ kind: "failed", status: 500 });
     expect(store.items.every((item) => item.status === "pending")).toBe(true);
+    // Steg 31: avläsningar som ger serverfel hålls åt sidan (skickas en och en) tills "Försök igen".
+    expect(heldReadouts(store.items)).toHaveLength(2);
+    expect(await syncPending(store, ids.race, { fetch: broken, csrf: () => "token" })).toEqual({ kind: "idle" });
+    expect(await releaseHeldReadouts(store, ids.race)).toBe(2);
+    expect(heldReadouts(store.items)).toHaveLength(0);
+  });
+
+  it("en avläsning som ger serverfel stoppar inte resten av kön (steg 31)", async () => {
+    const store = await storeWithTwoReadouts();
+    const bodies: DeviceBatch[] = [];
+    const picky = (async (_url: string, init?: RequestInit) => {
+      const body = JSON.parse(init?.body as string) as DeviceBatch;
+      bodies.push(body);
+      if (body.events.some((event) => event.localSequence === 1)) return new Response(null, { status: 500 });
+      return Response.json({ deviceId: body.deviceId, highestContiguousSequence: 0, currentPackageVersion: body.packageVersion,
+        packageVersionStatus: "current", packageUpdateRequired: false,
+        acknowledgements: body.events.map((event) => ({ localSequence: event.localSequence, contentHash: event.contentHash,
+          status: "stored", rawMessageId: "10000000-0000-4000-8000-000000000099" })) });
+    }) as typeof globalThis.fetch;
+    expect(await syncPending(store, ids.race, { fetch: picky, csrf: () => "token" })).toMatchObject({ kind: "synced", count: 1 });
+    expect(bodies.map((body) => body.events.map((event) => event.localSequence))).toEqual([[1, 2], [1], [2]]);
+    expect(store.items.map((item) => [item.localSequence, item.status, !!item.serverFailedAt])).toEqual([[1, "pending", true],
+      [2, "stored", false]]);
   });
 });

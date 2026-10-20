@@ -22,7 +22,8 @@ const MAX_BATCH = 100;
  * samma enhet, session och paketversion.
  */
 export function pendingBatches(items: readonly QueuedReadout[]): QueuedReadout[][] {
-  const pending = items.filter((item) => item.status === "pending").sort((a, b) => a.localSequence - b.localSequence);
+  const pending = items.filter((item) => item.status === "pending" && !item.serverFailedAt)
+    .sort((a, b) => a.localSequence - b.localSequence);
   const batches: QueuedReadout[][] = [];
   for (const item of pending) {
     const current = batches.at(-1);
@@ -82,7 +83,12 @@ export async function syncPending(store: ReadoutStore, raceId: string, deps: Syn
   const batches = pendingBatches(await store.list(raceId));
   if (batches.length === 0) return registered > 0 ? { kind: "synced", count: 0, registered } : { kind: "idle" };
   let count = 0;
-  for (const items of batches) {
+  // Steg 31: en sats som ger serverfel skickas om en och en; den som fortfarande ger serverfel hålls åt sidan och resten
+  // av kön fortsätter.
+  const queue = [...batches];
+  let serverError: number | undefined;
+  while (queue.length > 0) {
+    const items = queue.shift()!;
     const first = items[0]!;
     const batch: DeviceBatch = {
       deviceId: first.deviceId, sessionId: first.sessionId, packageVersion: first.packageVersion,
@@ -102,13 +108,19 @@ export async function syncPending(store: ReadoutStore, raceId: string, deps: Syn
       return { kind: "offline" };
     }
     if (response.status === 401 || response.status === 403) return { kind: "unauthorized" };
+    if (response.status >= 500 && items.length > 1) { queue.unshift(...items.map((item) => [item])); continue; }
+    if (response.status >= 500) {
+      serverError = response.status;
+      await store.update({ ...first, serverFailedAt: new Date().toISOString() });
+      continue;
+    }
     if (!response.ok) return { kind: "failed", status: response.status };
     const acknowledgement = deviceBatchAcknowledgementSchema.parse(await response.json());
     for (const ack of acknowledgement.acknowledgements) {
       const item = items.find((candidate) => candidate.localSequence === ack.localSequence);
       if (!item || item.contentHash !== ack.contentHash) continue;
       await store.update({
-        ...item,
+        ...released(item),
         status: ack.status,
         ...("serverResult" in ack && ack.serverResult ? { serverResult: ack.serverResult } : {}),
         ...(ack.status === "rejected" ? { rejectedReason: ack.reason } : {})
@@ -116,5 +128,26 @@ export async function syncPending(store: ReadoutStore, raceId: string, deps: Syn
       count += 1;
     }
   }
+  if (count === 0 && serverError !== undefined) return { kind: "failed", status: serverError };
   return { kind: "synced", count, ...(registered > 0 ? { registered } : {}) };
+}
+
+function released(item: QueuedReadout): QueuedReadout {
+  const copy: { -readonly [K in keyof QueuedReadout]: QueuedReadout[K] } = { ...item };
+  delete copy.serverFailedAt;
+  return copy;
+}
+
+/** Avläsningar som servern inte kunde ta emot (serverfel) och som hålls åt sidan. */
+export function heldReadouts(items: readonly QueuedReadout[]): QueuedReadout[] {
+  return items.filter((item) => item.status === "pending" && !!item.serverFailedAt);
+}
+
+/** "Försök igen": avläsningarna som hölls åt sidan skickas med nästa synk. */
+export async function releaseHeldReadouts(store: ReadoutStore, raceId: string): Promise<number> {
+  const held = heldReadouts(await store.list(raceId));
+  for (const item of held) {
+    await store.update(released(item));
+  }
+  return held.length;
 }

@@ -29,7 +29,7 @@ describe("Ändra status", () => {
     expect(availableStatusChoices(active("OK", "APPROVAL"))).toEqual(["APPROVAL_WITHDRAWAL", "RECALCULATION"]);
   });
   it("utan resultat kan löparen markeras som ej start eller brutit (steg 31: utan avläsning)", () => {
-    expect(availableStatusChoices({ ...common, state: "NO_PUBLISHED_RESULT", selectedRevision: null })).toEqual(["DNS", "DNF"]);
+    expect(availableStatusChoices({ ...common, state: "NO_PUBLISHED_RESULT", selectedRevision: null })).toEqual(["DNS", "DNF", "RECALCULATION"]);
     expect(availableStatusChoices(undefined)).toEqual([]);
     expect(isStatusChoice("APPROVAL")).toBe(true);
     expect(isStatusChoice("")).toBe(false);

@@ -17,6 +17,11 @@ export interface QueuedReadout {
   readonly status: QueueStatus;
   readonly serverResult?: ServerResultSummary;
   readonly rejectedReason?: string;
+  /**
+   * Steg 31: servern svarade med ett serverfel (5xx) för just den här avläsningen. Den ligger kvar som väntande men
+   * hålls åt sidan så att resten av kön kan skickas; "Försök igen" tar bort markeringen.
+   */
+  readonly serverFailedAt?: string;
 }
 
 export type NewReadout = Omit<QueuedReadout, "raceId" | "deviceId" | "sessionId" | "localSequence" | "status">;

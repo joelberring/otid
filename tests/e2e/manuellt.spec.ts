@@ -94,4 +94,13 @@ test("manuell tid med och utan avläsning, godkänd kontroll och borttagning", a
   await expect(card.getByRole("region", { name: "Resultat", exact: true })).toContainText("Godkänd");
   await expect(card.getByRole("region", { name: "Resultat", exact: true })).toContainText("40:00");
   await expect(card.getByTestId("decision-note")).toHaveText("Orsak: Stämplade med nålen");
+
+  // Steg 31 B5: på tävlingsdagen varnar avläsningen att övningsstationen skriver riktiga avläsningar.
+  await owner.goto(`/admin/${raceId}/readout`);
+  await owner.waitForURL(`**/readout/index.html#${raceId}`);
+  await expect(owner.getByTestId("package-status")).toContainText("v");
+  await expect(owner.getByText("Skriver riktiga avläsningar – inte under pågående tävling")).toBeVisible();
+  await owner.getByRole("button", { name: "Starta övningsstation" }).click();
+  await expect(owner.getByTestId("exercise-race-day")).toContainText("Övningsstationen skriver riktiga avläsningar");
+  await reviewScreenshots(owner, "step31-readout-exercise-warning");
 });

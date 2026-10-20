@@ -3,7 +3,7 @@ import { addCourseAndClass, addEntry, createRace, openStep, publishRace, registe
 
 /**
  * Steg 33: Inställningar → kort info om tävlingen, första start (bara information) och "Visa bricknummer i den publika
- * startlistan". Infon syns överst på tävlingssidan för alla och i Start-steget för inloggade; bricknumret syns i den
+ * startlistan" och "Uppdatera startlistan löpande". Infon syns överst på tävlingssidan för alla och i Start-steget för inloggade; bricknumret syns i den
  * publicerade startlistan när inställningen är på och döljs direkt när den stängs av. Påhittade namn och brickor.
  */
 test("tävlingsinfo på tävlingssidan och i arbetsytan, bricka i den publika startlistan", async ({ browser }) => {
@@ -68,4 +68,18 @@ test("tävlingsinfo på tävlingssidan och i arbetsytan, bricka i den publika st
   await expect(visitor.getByRole("columnheader", { name: "Bricka" })).toHaveCount(0);
   await visitor.goto(`${hubPath!}/live`);
   await expect(visitor.getByText("8123456")).toHaveCount(0);
+
+  // "Uppdatera startlistan löpande": en ny anmäld syns publikt utan ny publicering.
+  await openStep(owner, "Start");
+  // Sparas direkt; rutan visar det sparade läget när tävlingen lästs in igen.
+  await owner.getByLabel("Uppdatera startlistan löpande").click();
+  await expect(owner.getByText("Startlistan uppdateras löpande.")).toBeVisible();
+  await expect(owner.getByLabel("Uppdatera startlistan löpande")).toBeChecked();
+  await expect(owner.getByText("Uppdateras löpande. Besökare ser ändringar direkt.")).toBeVisible();
+  await expect(owner.getByRole("button", { name: "Publicera startlistan" })).toHaveCount(0);
+  await addEntry(owner, { className: "Öppen", givenName: "Sen", familyName: "Efteranmäld", club: "OK Exempel", card: "8222333" });
+  await visitor.goto(`/starts/${raceId}`);
+  await expect(visitor.getByRole("row", { name: /Sen Efteranmäld/ }).first()).toBeVisible({ timeout: 15_000 });
+  await expect(visitor.getByText("Uppdateras löpande")).toBeVisible();
+  await expect(visitor.getByText("8222333")).toHaveCount(0);
 });

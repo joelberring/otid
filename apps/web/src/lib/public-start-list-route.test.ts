@@ -5,7 +5,7 @@ import { publicStartListRoute } from "./public-start-list-route";
 
 it("lämnar bara validerad fryst publik data utan cookies/cache och inget innehåll vid withdrawal/fel", async () => {
   const db = {} as Database;
-  const response = { formatVersion: 1 as const, revision: 1, iofExportAvailable: true, showCardNumbers: false, publishedAt: "2026-09-04T10:00:00Z",
+  const response = { formatVersion: 1 as const, revision: 1, iofExportAvailable: true, showCardNumbers: false, live: false, publishedAt: "2026-09-04T10:00:00Z",
     content: { eventName: "Träning", raceName: "Medel", raceDate: "2026-09-04", timeZone: "Europe/Stockholm",
       classes: [{ name: "Öppen", startRule: "PUNCH" as const, entries: [{ displayName: "Ada", organisationName: null, fixedStartTime: null }] }] } };
   const published = await publicStartListRoute(db, "race", async () => ({ status: "published", response }));

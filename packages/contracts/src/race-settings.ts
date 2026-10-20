@@ -32,7 +32,9 @@ export const raceSettingsRequestSchema = z.object({
   /** Steg 33. Saknas i förfrågningar sparade före steg 33; då ändras inte värdet. */
   publicStartListCardNumbers: z.boolean().optional(),
   info: raceInfoSchema.nullable().optional(),
-  firstStartTime: raceFirstStartTimeSchema.nullable().optional()
+  firstStartTime: raceFirstStartTimeSchema.nullable().optional(),
+  /** "Uppdatera startlistan löpande" (Start → Publicera startlistan). Saknas = oförändrad. */
+  startListLive: z.boolean().optional()
 }).strict();
 export const raceSettingsIdempotencyKeySchema = z.string().regex(/^race-settings:[0-9a-f-]{36}$/);
 

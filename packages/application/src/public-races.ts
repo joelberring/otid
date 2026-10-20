@@ -26,7 +26,7 @@ const SHORT_CODE = /^[2-9a-hjkmnp-z]{6}$/;
 /** Senaste beslutet om startlistan är "publicera" (samma regel som den publika startlistan). */
 const startListPublished = sql<boolean>`coalesce((select ${schema.startListPublications.action} = 'PUBLISH'
   from ${schema.startListPublications} where ${schema.startListPublications.raceId} = ${schema.races.id}
-  order by ${schema.startListPublications.revision} desc limit 1), false)`;
+  order by ${schema.startListPublications.revision} desc limit 1), false) or ${schema.races.startListLive}`;
 
 /** Tävlingens datum jämfört med dagens datum i tävlingens tidszon. */
 const localToday = (now: Date) => sql`(${now.toISOString()}::timestamptz at time zone ${schema.events.timeZone})::date`;

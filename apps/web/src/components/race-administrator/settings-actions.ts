@@ -2,6 +2,7 @@ import { useState } from "react";
 import { raceSettingsResponseSchema, type RaceSettingsRequest, type RaceType } from "@o-tid/contracts";
 import { raceTypeSv } from "../../i18n/race-type-sv";
 import { raceInfoSv } from "../../i18n/race-info-sv";
+import { startListPublicationSv } from "../../i18n/start-list-publication-sv";
 import { formErrorsSv } from "../../i18n/form-errors-sv";
 import { isIsoDate, type FieldErrors } from "../../lib/form-validation";
 import type { Base } from "./workspace-state";
@@ -40,12 +41,13 @@ export function useSettingsState() {
   const [settingsAttempt, setSettingsAttempt] = useState<RaceSettingsRequest>();
   const [settingsMessage, setSettingsMessage] = useState<{ tone: "ok" | "error"; text: string }>();
   const [settingsErrors, setSettingsErrors] = useState<FieldErrors<"eventName" | "raceName" | "raceDate" | "info" | "firstStartTime">>({});
-  return { settingsErrors, setSettingsErrors, settingsForm, setSettingsForm, settingsAttempt, setSettingsAttempt, settingsMessage, setSettingsMessage };
+  const [startListLiveMessage, setStartListLiveMessage] = useState<{ tone: "ok" | "error"; text: string }>();
+  return { startListLiveMessage, setStartListLiveMessage, settingsErrors, setSettingsErrors, settingsForm, setSettingsForm, settingsAttempt, setSettingsAttempt, settingsMessage, setSettingsMessage };
 }
 
 export function createSettingsActions(ws: Base & RaceDataActions) {
   const { raceId, data, writingRef, pending, settingsForm, settingsAttempt, requireSession, begin, finish, current, request, json, csrf, load,
-    setSettingsForm, setSettingsAttempt, setSettingsMessage, setSettingsErrors } = ws;
+    setSettingsForm, setSettingsAttempt, setSettingsMessage, setSettingsErrors, setStartListLiveMessage } = ws;
   const text = raceTypeSv.settings;
 
   function changeSettings(change: Partial<SettingsForm>) {
@@ -93,6 +95,27 @@ export function createSettingsActions(ws: Base & RaceDataActions) {
     } catch { if (current(op)) setSettingsMessage({ tone: "error", text: text.failed }); }
     finally { finish(op); }
   }
-  return { changeSettings, saveSettings };
+  /**
+   * "Uppdatera startlistan löpande" (Start → Publicera startlistan): sparas direkt med tävlingens sparade inställningar.
+   * Av = besökare ser den senast publicerade listan igen.
+   */
+  async function saveStartListLive(live: boolean) {
+    if (writingRef.current || pending.current || !requireSession() || !data) return;
+    const attempt: RaceSettingsRequest = { formatVersion: 1, requestId: crypto.randomUUID(), eventName: data.eventName, raceName: data.raceName,
+      raceDate: data.raceDate, raceType: data.raceType, startListLive: live };
+    setStartListLiveMessage(undefined);
+    const op = begin(true);
+    try {
+      const response = await request("/settings", op, { method: "POST", headers: { "content-type": "application/json",
+        "x-otid-csrf": csrf(), "idempotency-key": `race-settings:${attempt.requestId}` }, body: JSON.stringify(attempt) });
+      if (!response.ok) throw new Error("Live start list not saved");
+      const receipt = raceSettingsResponseSchema.parse(await json(response, op));
+      if (receipt.raceId !== raceId || receipt.requestId !== attempt.requestId) throw new Error("Settings receipt mismatch");
+      setStartListLiveMessage({ tone: "ok", text: live ? startListPublicationSv.liveOn : startListPublicationSv.liveOff });
+      await load(op);
+    } catch { if (current(op)) setStartListLiveMessage({ tone: "error", text: startListPublicationSv.liveFailed }); }
+    finally { finish(op); }
+  }
+  return { changeSettings, saveSettings, saveStartListLive };
 }
 export type SettingsActions = ReturnType<typeof createSettingsActions>;

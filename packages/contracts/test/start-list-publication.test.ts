@@ -20,6 +20,7 @@ describe("TASK 006S publiceringskontrakt", () => {
     expect(publicStartListResponseSchema.safeParse({ ...published, showCardNumbers: true, content: withCard }).success).toBe(true);
     expect(publicStartListResponseSchema.safeParse({ ...published, showCardNumbers: false, content: withCard }).success).toBe(false);
     expect(publicStartListResponseSchema.parse(published).showCardNumbers).toBe(false);
+    expect(publicStartListResponseSchema.parse(published).live).toBe(false);
     expect(publicStartListResponseSchema.safeParse({ ...published, showCardNumbers: true,
       content: { ...content, classes: [{ ...raceClass, entries: [{ ...entry, cardNumber: "1", entryId: "x" }] }] } }).success).toBe(false);
   });

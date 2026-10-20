@@ -51,6 +51,8 @@ export const entryTransferCandidatesSchema = z.object({
   publicStartListCardNumbers: z.boolean().optional(),
   info: raceInfoSchema.nullable().optional(),
   firstStartTime: raceFirstStartTimeSchema.nullable().optional(),
+  /** "Uppdatera startlistan löpande": den publika startlistan visar läget just nu. */
+  startListLive: z.boolean().optional(),
   generatedAt: z.iso.datetime({ offset: true }),
   timeZone: z.string().min(1).max(100).refine(value => {
     try { new Intl.DateTimeFormat("sv-SE", { timeZone: value }); return true; } catch { return false; }

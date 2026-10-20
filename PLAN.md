@@ -630,6 +630,7 @@ första start är (infopunkt, inte tävlingsklocka), synligt för alla.
 - [x] Inställningar: "Visa bricknummer i den publika startlistan" (på som standard), "Kort info om tävlingen" och "Första start".
 - [x] Publicerad startlista med kolumnen Bricka när inställningen är på; avstängd döljer den direkt. Inga brickor i Live, resultat eller speaker.
 - [x] Infon överst på tävlingssidan och i arbetsytans Start-steg.
+- [x] "Uppdatera startlistan löpande" (Start → Publicera startlistan, av som standard): ändringar syns publikt utan ny publicering.
 
 ## Efter målet (inte nu)
 

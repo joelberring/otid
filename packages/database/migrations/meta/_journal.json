@@ -13,6 +13,7 @@
     { "idx": 8, "version": "7", "when": 1798214400000, "tag": "0008_lopardatabas", "breakpoints": true },
     { "idx": 9, "version": "7", "when": 1798300800000, "tag": "0009_tavlingsdag_kontroller", "breakpoints": true },
     { "idx": 10, "version": "7", "when": 1798387200000, "tag": "0010_tavlingsdag_lopare", "breakpoints": true },
-    { "idx": 11, "version": "7", "when": 1798473600000, "tag": "0011_tavlingsinfo", "breakpoints": true }
+    { "idx": 11, "version": "7", "when": 1798473600000, "tag": "0011_tavlingsinfo", "breakpoints": true },
+    { "idx": 12, "version": "7", "when": 1798560000000, "tag": "0012_startlista_lopande", "breakpoints": true }
   ]
 }

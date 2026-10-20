@@ -31,7 +31,7 @@ export function PublicStartList({ raceId, initial }: { raceId: string; initial: 
         const result = publicStartListResponseSchema.parse(await response.json());
         if (!stopped) {
           setFailed(false);
-          setData(previous => previous?.revision === result.revision && previous.iofExportAvailable === result.iofExportAvailable &&
+          setData(previous => !result.live && !previous?.live && previous?.revision === result.revision && previous.iofExportAvailable === result.iofExportAvailable &&
             previous.showCardNumbers === result.showCardNumbers ? previous : result);
         }
       } catch {
@@ -50,7 +50,8 @@ export function PublicStartList({ raceId, initial }: { raceId: string; initial: 
   const zone = data.content.timeZone;
   return <>
     <section className="public-list-heading"><h1>{data.content.eventName}</h1>
-      <p>{data.content.raceName} · {data.content.raceDate} · {text.publishedAt} {zonedDate(data.publishedAt, zone)} {formatClockTime(data.publishedAt, zone).slice(0, 5)}</p>
+      <p>{data.content.raceName} · {data.content.raceDate} · {data.live ? text.publicLive
+        : <>{text.publishedAt} {zonedDate(data.publishedAt, zone)} {formatClockTime(data.publishedAt, zone).slice(0, 5)}</>}</p>
       <p className="public-list-help">{text.publicHelp}</p></section>
     {failed && <p className={styles.notice} role="alert">{text.publicRefreshFailed}</p>}
     <StartLists model={model}

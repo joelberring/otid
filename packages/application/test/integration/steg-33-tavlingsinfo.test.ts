@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { createDatabase, migrate, schema } from "@o-tid/database";
 import { decideStartListPublicationAsAdmin, getPublicStartList, getPublishedStartListXml, getStartListPublicationPreviewAsAdmin,
   listEntryTransfersAsAdmin } from "../../src";
@@ -106,5 +106,56 @@ describe("Steg 33: tävlingsinfo och bricka i startlistan", () => {
     const republished = JSON.stringify(await getPublicStartList(db, f.race.id));
     expect(republished).toContain("8654321");
     expect(republished).not.toContain("8123456");
+  });
+
+  it("uppdatera startlistan löpande: en ny anmäld syns publikt utan ny publicering bara när valet är på", async () => {
+    const f = await setup();
+    const [first] = await db.select({ classId: schema.entries.classId }).from(schema.entries).where(eq(schema.entries.id, f.entries[0]!.id));
+    const addRunner = async (givenName: string) => {
+      await db.insert(schema.entries).values({ raceId: f.race.id, classId: first!.classId, givenName, familyName: "Efteranmäld",
+        organisationName: null });
+      await db.update(schema.races).set({ snapshotVersion: sql`${schema.races.snapshotVersion} + 1` }).where(eq(schema.races.id, f.race.id));
+    };
+    const names = async () => {
+      const list = await getPublicStartList(db, f.race.id, now);
+      return list.status === "published" ? { live: list.response.live, names: list.response.content.classes.flatMap(c => c.entries.map(e => e.displayName)) }
+        : undefined;
+    };
+    expect(await publish(f.auth, 0)).toMatchObject({ status: "decided" });
+
+    // Av (standard): ögonblicksbilden.
+    await addRunner("Ny");
+    expect(await names()).toEqual({ live: false, names: ["Prova Bricklös", "Testa Påhittad"] });
+
+    // På: läget just nu, utan ny publicering, med samma strikta kontrakt (bricka bara när den visas).
+    expect(await settings(f.auth, { startListLive: true })).toMatchObject({ status: "saved" });
+    expect(await names()).toEqual({ live: true, names: ["Ny Efteranmäld", "Prova Bricklös", "Testa Påhittad"] });
+    await addRunner("Sen");
+    expect((await names())?.names).toContain("Sen Efteranmäld");
+    const live = await getPublicStartList(db, f.race.id, now);
+    expect(live.status === "published" && live.response.iofExportAvailable).toBe(false);
+    expect(JSON.stringify(live)).toContain("8123456");
+    expect(await settings(f.auth, { publicStartListCardNumbers: false })).toMatchObject({ status: "saved" });
+    expect(JSON.stringify(await getPublicStartList(db, f.race.id, now))).not.toContain("8123456");
+    expect(await readPublicRaceHub(db, f.race.id)).toMatchObject({ startListPublished: true });
+
+    // Av igen: den senast publicerade listan.
+    expect(await settings(f.auth, { startListLive: false })).toMatchObject({ status: "saved" });
+    expect(await names()).toEqual({ live: false, names: ["Prova Bricklös", "Testa Påhittad"] });
+    const audits = await db.select().from(schema.auditEvents).where(and(eq(schema.auditEvents.raceId, f.race.id),
+      eq(schema.auditEvents.action, "RACE_SETTINGS_SAVED_BY_ADMIN")));
+    expect(audits.some(row => (row.before as { startListLive?: boolean }).startListLive === false &&
+      (row.after as { startListLive?: boolean }).startListLive === true)).toBe(true);
+    expect(audits.some(row => (row.before as { startListLive?: boolean }).startListLive === true &&
+      (row.after as { startListLive?: boolean }).startListLive === false)).toBe(true);
+  });
+
+  it("löpande startlista utan publicering och utan anmälda", async () => {
+    const f = await setup();
+    expect(await getPublicStartList(db, f.race.id, now)).toEqual({ status: "not-found" });
+    expect(await settings(f.auth, { startListLive: true })).toMatchObject({ status: "saved" });
+    expect(await getPublicStartList(db, f.race.id, now)).toMatchObject({ status: "published", response: { live: true } });
+    await db.update(schema.entries).set({ struckAt: now }).where(eq(schema.entries.raceId, f.race.id));
+    expect(await getPublicStartList(db, f.race.id, now)).toEqual({ status: "not-found" });
   });
 });

@@ -113,6 +113,8 @@ export const races = pgTable("race", {
   /** Steg 33: kort info om tävlingen (fritext, högst 1000 tecken) och första start (HH:MM, bara information). */
   info: text("info"),
   firstStartTime: text("first_start_time"),
+  /** Steg 33 (migration 0012): "Uppdatera startlistan löpande". Av = den senast publicerade ögonblicksbilden. */
+  startListLive: boolean("start_list_live").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (table) => [
   check("race_info_check", sql`${table.info} IS NULL OR char_length(${table.info}) BETWEEN 1 AND 1000`),

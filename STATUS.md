@@ -10,6 +10,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-10-20 – Steg 33 (tillägg): uppdatera startlistan löpande
+- Start → Publicera startlistan: "Uppdatera startlistan löpande" (av som standard, migration 0012, sparas via Inställningarnas anrop med auditpost). På: `getPublicStartList` ger samma projektion som en publicering men läst nu (`live: true`, samma strikta kontrakt och grind, bricka bara när den visas, ingen IOF-länk); sidan hämtar om var femte sekund. Statusraden säger "Uppdateras löpande", Publicera/Avpublicera döljs.
+- Av igen: besökare ser den senast publicerade listan (ingen ny ögonblicksbild skapas); statusraden visar då "har ändrats sedan dess" och Publicera.
+- Typer utan Start-steg (Träning, Rogaining) har ingen publicerad startlista och därmed inget val.
+- Tester: integration `steg-33-tavlingsinfo` (ny anmäld syns bara när valet är på), Playwright `tavlingsinfo`.
+
 ### 2026-10-20 – Steg 33: tävlingsinfo och bricka i startlistan
 - Inställningar → "Information till löparna": "Kort info om tävlingen" (ren text, högst 1000 tecken, radbrytningar behålls), "Första start" (TT:MM, bara information: påverkar inte tävlingsklocka, lottning eller starttider) och "Visa bricknummer i den publika startlistan" (på som standard). Migration 0011 (kolumner på `race`, på även för befintliga tävlingar), auditpost i `RACE_SETTINGS_SAVED_BY_ADMIN`.
 - Infon visas överst på tävlingssidan (/t/{kod}) och i arbetsytans Start-steg (Avläsning för typer utan Start), för admin och funktionärer. Tomma fält visas inte.

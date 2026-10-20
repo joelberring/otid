@@ -22,7 +22,7 @@ import { RaceInfo } from "../race-info";
  */
 function StartPublication({ ws, visible, number }: { ws: Workspace; visible: boolean; number: number }) {
   const { busy, data, disabled, loadPublication, preparePublication, publicationAttempt, publicationPreview, raceId, submitPublication,
-    unknown, operation, pending } = ws;
+    unknown, operation, pending, saveStartListLive, startListLiveMessage } = ws;
   const attempted = useRef<number | undefined>(undefined);
   const snapshot = data?.snapshotVersion;
   // Andra åtgärder rensar publiceringens underlag; då läses det in igen. Ett misslyckat försök görs inte om av sig
@@ -37,7 +37,8 @@ function StartPublication({ ws, visible, number }: { ws: Workspace; visible: boo
   const latest = publicationPreview?.latestDecision;
   const time = latest ? formatClockTime(latest.decidedAt, data?.timeZone ?? "UTC").slice(0, 5) : "";
   const published = latest?.action === "PUBLISH";
-  const changed = published && latest.sourceHash !== publicationPreview?.sourceHash;
+  const live = data?.startListLive === true;
+  const changed = !live && published && latest.sourceHash !== publicationPreview?.sourceHash;
   const publishable = !!publicationPreview?.content?.classes.some(row => row.entries.length > 0);
   return <Section id={`start-publication-${raceId}`} title={publicationText.heading} number={number}
     help={publicationText.shortHelp(data?.publicStartListCardNumbers ?? true)}
@@ -45,15 +46,24 @@ function StartPublication({ ws, visible, number }: { ws: Workspace; visible: boo
     {!publicationPreview ? <div className={styles.actions}><p className={styles.muted}>{publicationText.loading}</p>
       {!busy && <Button variant="quiet" disabled={disabled} onClick={() => { attempted.current = undefined; void loadPublication(); }}>{text.retry}</Button>}</div>
       : <>
-        {changed ? <Notice tone="attention">{publicationText.statusChanged(time)}</Notice>
+        {live ? <p>{publicationText.statusLive}</p> : changed ? <Notice tone="attention">{publicationText.statusChanged(time)}</Notice>
           : <p>{!latest ? publicationText.statusNone : published ? publicationText.statusPublished(time) : publicationText.statusWithdrawn(time)}</p>}
         <div className={styles.actions}>
-          {(!published || changed) && (publishable
+          {!live && (!published || changed) && (publishable
             ? <Button disabled={disabled} onClick={() => preparePublication("PUBLISH")}>{publicationText.publish}</Button>
             : <p className={styles.muted}>{publicationPreview.content ? publicationText.empty : publicationText.invalidContent}</p>)}
-          {published && <Button variant="quiet" disabled={disabled} onClick={() => preparePublication("WITHDRAW")}>{publicationText.withdraw}</Button>}
+          {!live && published && <Button variant="quiet" disabled={disabled} onClick={() => preparePublication("WITHDRAW")}>{publicationText.withdraw}</Button>}
         </div>
       </>}
+    {/* "Uppdatera startlistan löpande": ett val bredvid Publicera, av som standard. */}
+    {data && <div className={styles.fieldWithHelpBlock}>
+      <label className={styles.check}><input type="checkbox" checked={live} disabled={disabled}
+        aria-describedby={`start-list-live-${raceId}-help`} onChange={event => void saveStartListLive(event.target.checked)} />
+        {publicationText.live}</label>
+      <p className={styles.workflowHelp} id={`start-list-live-${raceId}-help`}>{publicationText.liveHelp}</p>
+    </div>}
+    {startListLiveMessage && <Notice tone={startListLiveMessage.tone} role={startListLiveMessage.tone === "ok" ? "status" : "alert"}>
+      {startListLiveMessage.text}</Notice>}
     {publicationAttempt && unknown && <Notice tone="attention" role="alert">
       <p>{text.unreachable}</p>
       <div><Button disabled={busy} onClick={() => void submitPublication(publicationAttempt)}>{text.retry}</Button></div>

@@ -77,6 +77,11 @@ export const publicStartListResponseSchema = z.object({
     iofExportAvailable: z.boolean().default(false),
     /** Steg 33: tävlingens inställning. Av = inga bricknummer i listan, även i en redan publicerad lista. */
     showCardNumbers: z.boolean().default(false),
+    /**
+     * "Uppdatera startlistan löpande": listan är läget just nu (samma innehåll som en publicering skulle ge), inte en
+     * ögonblicksbild. `revision` är då tävlingens version och `publishedAt` när listan lästes.
+     */
+    live: z.boolean().default(false),
     formatVersion: z.literal(1), revision: positive, publishedAt: instant, content: startListPublicationContentSchema.refine((v) => v.classes.some((x) => x.entries.length > 0))
 }).strict().refine((v) => v.showCardNumbers || v.content.classes.every((x) => x.entries.every((e) => e.cardNumber === undefined)));
 export { entryClassAdminErrorResponseSchema as startListPublicationAdminErrorResponseSchema } from "./entry-class-admin";

@@ -47,7 +47,7 @@ export async function saveRaceSettingsAsAdmin(db: Database, input: Authenticatio
     if (locked.snapshotVersion >= MAX_VERSION) return { status: "conflict" };
     const [race] = await tx.select({ eventId: schema.races.eventId, name: schema.races.name, raceDate: schema.races.raceDate,
       raceType: schema.races.raceType, eventName: schema.events.name, publicStartListCardNumbers: schema.races.publicStartListCardNumbers,
-      info: schema.races.info, firstStartTime: schema.races.firstStartTime })
+      info: schema.races.info, firstStartTime: schema.races.firstStartTime, startListLive: schema.races.startListLive })
       .from(schema.races).innerJoin(schema.events, eq(schema.events.id, schema.races.eventId))
       .where(eq(schema.races.id, raceId));
     if (!race) return { status: "not-found" };
@@ -62,7 +62,8 @@ export async function saveRaceSettingsAsAdmin(db: Database, input: Authenticatio
     // Steg 33: fält som saknas i förfrågan (äldre klient) behåller sitt värde.
     const info = { publicStartListCardNumbers: intent.publicStartListCardNumbers ?? race.publicStartListCardNumbers,
       info: intent.info === undefined ? race.info : intent.info,
-      firstStartTime: intent.firstStartTime === undefined ? race.firstStartTime : intent.firstStartTime };
+      firstStartTime: intent.firstStartTime === undefined ? race.firstStartTime : intent.firstStartTime,
+      startListLive: intent.startListLive ?? race.startListLive };
     await tx.update(schema.races).set({ name: intent.raceName, raceDate: intent.raceDate, raceType: intent.raceType, ...info,
       snapshotVersion: snapshotVersionAfter }).where(eq(schema.races.id, raceId));
     // Ett event med ett enda lopp (så skapar kontot tävlingar) får samma namn och startdatum som loppet.
@@ -79,7 +80,7 @@ export async function saveRaceSettingsAsAdmin(db: Database, input: Authenticatio
       actorKind: "USER_ACCOUNT", actorId: auth.principal.accountId, action: "RACE_SETTINGS_SAVED_BY_ADMIN",
       before: { eventName: race.eventName, raceName: race.name, raceDate: race.raceDate, raceType: race.raceType,
         publicStartListCardNumbers: race.publicStartListCardNumbers, info: race.info, firstStartTime: race.firstStartTime,
-        snapshotVersion: locked.snapshotVersion },
+        startListLive: race.startListLive, snapshotVersion: locked.snapshotVersion },
       after: { eventName: intent.eventName, raceName: intent.raceName, raceDate: intent.raceDate, raceType: intent.raceType,
         ...info, snapshotVersion: snapshotVersionAfter }, createdAt: now });
     return { status: "saved", response };

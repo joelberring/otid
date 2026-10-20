@@ -264,7 +264,27 @@ export async function decideStartListPublicationAsAdmin(db: Database, input: Aut
         };
     });
 }
-export async function getPublicStartList(db: Database, raceId: string): Promise<{
+/**
+ * "Uppdatera startlistan löpande": samma projektion som en publicering, läst nu. Undefined = listan kan inte visas
+ * (tom eller trasigt underlag); då gäller den senast publicerade.
+ */
+async function liveStartList(db: Database, raceId: string, showCardNumbers: boolean, now: Date): Promise<PublicStartListResponse | undefined> {
+    return db.transaction(async (tx) => {
+        const race = await locked(tx, raceId, "share");
+        if (!race) return undefined;
+        let s: Awaited<ReturnType<typeof projection>>;
+        try {
+            s = await projection(tx, race);
+        } catch (error) {
+            if (error instanceof SourceProjectionError) return undefined;
+            throw error;
+        }
+        if (s.content.classes.every(c => c.entries.length === 0)) return undefined;
+        return publicStartListResponseSchema.parse({ iofExportAvailable: false, showCardNumbers, live: true, formatVersion: 1,
+            revision: race.snapshotVersion, publishedAt: now.toISOString(), content: showCardNumbers ? s.content : withoutCardNumbers(s.content) });
+    }, { isolationLevel: "repeatable read" });
+}
+export async function getPublicStartList(db: Database, raceId: string, now = new Date()): Promise<{
     status: "published";
     response: PublicStartListResponse;
 } | {
@@ -274,6 +294,12 @@ export async function getPublicStartList(db: Database, raceId: string): Promise<
         return {
             status: "not-found"
         };
+    const [settings] = await db.select({ live: schema.races.startListLive, cards: schema.races.publicStartListCardNumbers })
+        .from(schema.races).where(eq(schema.races.id, raceId));
+    if (settings?.live) {
+        const live = await liveStartList(db, raceId, settings.cards, now);
+        if (live) return { status: "published", response: live };
+    }
     const [r] = await db.select({
         iofExportAvailable: sql<boolean>`${schema.startListPublications.iofStartListXml} IS NOT NULL`,
         showCardNumbers: sql<boolean>`(select ${schema.races.publicStartListCardNumbers} from ${schema.races} where ${schema.races.id} = ${schema.startListPublications.raceId})`,

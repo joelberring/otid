@@ -13,6 +13,7 @@ import { statusFlow } from "./entry-status-helpers";
 import { editCourseAsAdmin, listCoursesForEditAsAdmin, previewCourseEditAsAdmin } from "../../src/course-edit";
 import { listEntryTransfersAsAdmin } from "../../src/entry-transfer";
 import { accountOnRace } from "./accounts";
+import { registerReadoutCard } from "../../src/readout-registration";
 
 const base = process.env.TEST_DATABASE_URL;
 if (!base) throw new Error("ADR-0169-testet kräver TEST_DATABASE_URL till en PostgreSQL-roll med CREATEDB");
@@ -193,5 +194,42 @@ describe("ADR-0169 Redigera bana", () => {
     const [basis] = (await pool.query<{ current: boolean }>(`select basis_hash = otid_result_basis_hash(entry_id) as current
       from result_revision where entry_id = $1 order by revision desc limit 1`, [ada])).rows;
     expect(basis?.current).toBe(true);
+  });
+});
+
+describe("steg 31 (B4): samma bricka hos två löpare och banändring", () => {
+  it("räknar om var och en från sin egen avläsning; inget resultat flyttas mellan löparna", async () => {
+    const f = await race([31, 32, 33]);
+    const ada = await register(f, "Ada", "8101");
+    await readout(f, "8101", [31, 32, 33]);
+    // Lina lånar Adas bricka och springer efteråt (17:00–17:40) men missar 32.
+    const payload: SportidentReadoutPayload = { cardNumber: "8101", cardType: "SI10", startPunchedAt: "2026-10-08T17:00:00.000Z",
+      finishPunchedAt: "2026-10-08T17:40:00.000Z", punches: [31, 33].map((code, index) => ({ code,
+        punchedAt: `2026-10-08T17:${String(10 + index * 10)}:00.000Z` })), untimedPunchCodes: [], frames: ["02ef8300"], simulated: true };
+    const batch: DeviceBatch = { deviceId: randomUUID(), sessionId: randomUUID(), packageVersion: await snapshot(f.raceId),
+      firstSequence: 1, lastSequence: 1, events: [{ localSequence: 1, stationReceivedAt: "2026-10-08T17:41:00.000Z", transport: "sportident",
+        payload, contentHash: contentHash(payload) }] };
+    const ingested = await ingestReadoutsAsAdmin(db, { ...f.proof, batch });
+    expect(ingested).toMatchObject({ status: "ok", response: { acknowledgements: [{ serverResult: { status: "UNKNOWN_CARD" } }] } });
+    const requestId = randomUUID();
+    const registered = await registerReadoutCard(db, { ...f.proof, idempotencyKey: `readout-registration:${requestId}`, request: {
+      formatVersion: 1, requestId, cardNumber: "8101", classId: f.classId, givenName: "Lina", familyName: "Lånad",
+      organisationName: null, borrowedCard: true } });
+    if (registered.status !== "registered") throw new Error(registered.status);
+    const lina = registered.response.entryId;
+    expect(await effective(f, ada)).toMatchObject({ status: "OK" });
+    expect(await effective(f, lina)).toMatchObject({ status: "MP" });
+
+    // Kontroll 32 tas bort ur banan: Lina blir godkänd, Ada förblir godkänd, var och en med sin avläsning.
+    const { result } = await edit(f, [31, 33], true);
+    expect(result.status).toBe("edited");
+    expect(await effective(f, ada)).toMatchObject({ status: "OK", current: true });
+    expect(await effective(f, lina)).toMatchObject({ status: "OK", current: true });
+    const latest = async (entryId: string) => (await pool.query<{ readout_id: string; elapsed: number }>(
+      "select readout_id, (evaluation->>'elapsedMs')::int as elapsed from result_revision where entry_id = $1 order by revision desc limit 1",
+      [entryId])).rows[0]!;
+    const [adaLatest, linaLatest] = [await latest(ada), await latest(lina)];
+    expect(adaLatest.readout_id).not.toBe(linaLatest.readout_id);
+    expect([adaLatest.elapsed, linaLatest.elapsed]).toEqual([30 * 60_000, 40 * 60_000]);
   });
 });

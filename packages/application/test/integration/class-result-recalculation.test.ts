@@ -108,7 +108,8 @@ describe("TASK091 atomic class result recalculation", () => {
     const cardRow = (await pool.query<{ card_number: string }>("SELECT card_number FROM card_assignment WHERE entry_id=$1", [entryId])).rows[0];
     if (!cardRow) throw new Error("Synthetic card missing");
     const card = cardRow.card_number;
-    const payload = { cardNumber: card, startPunchedAt: "2026-09-19T11:00:00Z", finishPunchedAt: "2026-09-19T11:20:00Z", punches: [{ code: 31, punchedAt: "2026-09-19T11:10:00Z" }] };
+    // Samma lopp läst igen med ändrad måltid (steg 31: ett nytt lopp med brickan skulle bli okänt, "lånad bricka").
+    const payload = { cardNumber: card, startPunchedAt: "2026-09-19T10:00:00Z", finishPunchedAt: "2026-09-19T10:29:00Z", punches: [{ code: 31, punchedAt: "2026-09-19T10:10:00Z" }] };
     const deviceId = randomUUID();
     await ingestDeviceBatch(db, f.raceId, { deviceId, sessionId: deviceId, packageVersion: 2, firstSequence: 1, lastSequence: 1,
       events: [{ localSequence: 1, stationReceivedAt: "2026-09-19T11:21:00Z", transport: "simulator", payload, contentHash: contentHash(payload) }] });

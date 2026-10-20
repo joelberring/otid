@@ -13,7 +13,10 @@ import { IdbReadoutStore, type QueuedReadout, type QueuedRegistration, type Read
 import { RegistrationForm, RegistrationStatus, type RegistrationFields } from "./registration-form";
 import type { EntrySuggestion } from "./runner-lookup";
 import { startPunchText } from "../lib/start-punch-text";
-import { syncPending } from "./sync";
+import { heldReadouts, releaseHeldReadouts, syncPending } from "./sync";
+import { loadFailedReadouts, saveFailedReadouts, type FailedReadout } from "./failed-readouts";
+import { localRaceDate } from "@o-tid/domain";
+import { toHex } from "./payload";
 import { readoutText as t } from "./text-sv";
 import { ReceiptPanel, type Printable } from "./receipt-panel";
 import { QrCode } from "./receipt-view";
@@ -66,6 +69,8 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
   const [online, setOnline] = useState(navigator.onLine);
   const [loginNeeded, setLoginNeeded] = useState(false);
   const [syncProblem, setSyncProblem] = useState<string>();
+  // Steg 31: avläsningar vars tider inte gick att tolka (sparas i webbläsaren tills funktionären tar bort dem).
+  const [failedReadouts, setFailedReadouts] = useState<FailedReadout[]>(() => raceId ? loadFailedReadouts(raceId) : []);
   const [current, setCurrent] = useState<Current>();
   const [runnerId, setRunnerId] = useState("");
   const [persistent, setPersistent] = useState(true);
@@ -148,12 +153,28 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
     const exercise = exerciseRef.current;
     const reference = exercise ? exercise.now() : station.clock ? new Date(now.getTime() + station.clock.clockOffsetMs) : now;
     const clockOffsetMs = exercise ? exercise.now().getTime() - now.getTime() : station.clock?.clockOffsetMs;
-    const payload = buildReadoutPayload(card, frames, {
-      reference, timeZone, simulated: exercise !== undefined,
+    const build = (useStation: boolean) => buildReadoutPayload(card, frames, {
+      reference: useStation ? reference : now, timeZone, simulated: exercise !== undefined,
       ...(station.serialNumber !== undefined ? { stationSerial: station.serialNumber } : {}),
-      clockSource: clockOffsetMs === undefined ? "device" : "station",
-      ...(clockOffsetMs === undefined ? {} : { clockOffsetMs: Math.round(clockOffsetMs) })
+      clockSource: !useStation || clockOffsetMs === undefined ? "device" : "station",
+      ...(!useStation || clockOffsetMs === undefined ? {} : { clockOffsetMs: Math.round(clockOffsetMs) })
     });
+    let payload: ReturnType<typeof buildReadoutPayload>;
+    try { payload = build(true); }
+    catch (error) {
+      // Steg 31: går tiderna inte att placera med stationens klocka prövas datorns. Går det inte heller sparas brickans
+      // råramar i webbläsaren och funktionären ser ett tydligt besked, i stället för att avläsningen försvinner.
+      if (!(error instanceof SiTimeError)) throw error;
+      try { payload = build(false); }
+      catch (fallback) {
+        if (!(fallback instanceof SiTimeError)) throw fallback;
+        const failed: FailedReadout = { cardNumber: String(card.cardNumber), at: now.toISOString(), message: fallback.message,
+          frames: frames.map(toHex) };
+        const rows = [...loadFailedReadouts(raceId), failed];
+        saveFailedReadouts(raceId, rows); setFailedReadouts(rows);
+        throw fallback;
+      }
+    }
     const valid = sportidentReadoutPayloadSchema.safeParse(payload).success;
     const stored = await storeRef.current.append(raceId, {
       packageVersion: known?.packageVersion ?? 1, stationReceivedAt: now.toISOString(),
@@ -252,35 +273,47 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
   const effectivePkg = useMemo(() => pkg ? withLocalRegistrations(pkg, registrations) : undefined, [pkg, registrations]);
   const currentItem = current?.phase === "done" ? items.find((item) => item.localSequence === current.localSequence) : undefined;
   // Beskedet bedöms om när paketet eller anmälningarna ändras, så att "Lägg till" ger beskedet för den nya löparen direkt.
-  const verdict = useMemo(() => {
+  const localVerdict = useMemo(() => {
     if (current?.phase !== "done") return undefined;
     if (!currentItem || !effectivePkg) return current.verdict;
     const earlier = items.filter((item) => item.localSequence < currentItem.localSequence).map((item) => item.payload);
     return evaluateLocally(currentItem.payload, effectivePkg, earlier, currentItem.stationReceivedAt);
   }, [current, currentItem, effectivePkg, items]);
+  // Steg 31 (B4): brickan har redan lästs ut för någon annan. Serverns svar avgör: okänd = lånad bricka (den förstes
+  // resultat skrivs inte över), ett resultat = samma avläsning igen. Utan svar räcker en tidigare annorlunda avläsning här.
+  const registeredHere = current?.phase === "done" && registrations.some((row) => row.request.cardNumber === current.cardNumber &&
+    row.localSequence === current.localSequence && row.status !== "rejected");
+  const alreadyReadOut = !registeredHere && localVerdict?.alreadyReadOutBy && (currentItem?.serverResult
+    ? currentItem.serverResult.status === "UNKNOWN_CARD" : true) ? localVerdict.alreadyReadOutBy : undefined;
+  const borrowed = alreadyReadOut && (alreadyReadOut.certain || currentItem?.serverResult?.status === "UNKNOWN_CARD")
+    ? alreadyReadOut : undefined;
+  const verdict = useMemo(() => localVerdict && borrowed
+    ? { ...localVerdict, status: "UNKNOWN_CARD" as const, reason: "UNKNOWN_CARD" as const, missingControls: [], splits: [] }
+    : localVerdict, [localVerdict, borrowed]);
   const currentRegistration = current?.phase === "done"
     ? registrations.filter((row) => row.request.cardNumber === current.cardNumber).at(-1) : undefined;
 
-  async function register(fields: RegistrationFields) {
+  async function register(fields: RegistrationFields, borrowedCard = false) {
     if (!raceId || current?.phase !== "done") return;
     const requestId = crypto.randomUUID();
     await storeRef.current.addRegistration({ raceId, requestId, localSequence: current.localSequence, createdAt: new Date().toISOString(),
       status: "pending", request: { formatVersion: 1, requestId, cardNumber: current.cardNumber, classId: fields.classId,
         givenName: fields.givenName.trim(), familyName: fields.familyName.trim(), organisationName: fields.club.trim() || null,
         ...(fields.eventorPersonId ? { eventorPersonId: fields.eventorPersonId } : {}),
-        ...(fields.eventorOrganisationId ? { eventorOrganisationId: fields.eventorOrganisationId } : {}) } });
+        ...(fields.eventorOrganisationId ? { eventorOrganisationId: fields.eventorOrganisationId } : {}),
+        ...(borrowedCard ? { borrowedCard: true as const } : {}) } });
     await reload();
     void sync();
   }
 
   /** PLAN.md steg 29: koppla den okända brickan till en anmäld deltagare, köat som en anmälan (även offline). */
-  async function linkEntry(entry: EntrySuggestion) {
+  async function linkEntry(entry: Pick<EntrySuggestion, "entryId" | "classId" | "name" | "className">, borrowedCard = false) {
     if (!raceId || current?.phase !== "done") return;
     const requestId = crypto.randomUUID();
     await storeRef.current.addRegistration({ raceId, requestId, localSequence: current.localSequence, createdAt: new Date().toISOString(),
       status: "pending", display: { entryName: entry.name, className: entry.className },
       request: { formatVersion: 1, requestId, cardNumber: current.cardNumber, target: "EXISTING_ENTRY", entryId: entry.entryId,
-        expectedClassId: entry.classId } });
+        expectedClassId: entry.classId, ...(borrowedCard ? { borrowedCard: true as const } : {}) } });
     await reload();
     void sync();
   }
@@ -294,6 +327,9 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
   const runners = pkg ? exerciseRunners(pkg) : [];
   const selectedRunner = runners.find((candidate) => candidate.entryId === runnerId) ?? runners[0];
   const waiting = items.filter((item) => item.status === "pending").length;
+  const held = heldReadouts(items);
+  // Steg 31: övningsstationen skriver riktiga avläsningar; på tävlingsdagen varnas tydligt.
+  const raceDay = pkg ? localRaceDate(new Date(), pkg.event.timeZone) === pkg.raceSnapshot.race.raceDate : false;
   const recent = [...items].sort((a, b) => b.localSequence - a.localSequence).slice(0, 10);
   const connected = station.kind === "ready" || station.kind === "misconfigured" || station.kind === "connecting";
   // Klockskillnad i hela minuter, bara för en riktig station (övningsstationens klocka står med flit på tävlingsdagen).
@@ -324,6 +360,16 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
 
     {loginNeeded ? <p className="notice" role="alert">{t.loginNeeded} <a href="/organizer">{t.login}</a></p> : null}
     {syncProblem ? <p className="notice" role="alert">{syncProblem}</p> : null}
+    {held.length > 0 ? <p className="notice" role="alert" data-testid="held-readouts">{t.heldReadouts(held.length)}{" "}
+      <button type="button" onClick={() => { if (raceId) void releaseHeldReadouts(storeRef.current, raceId).then(sync); }}>
+        {t.heldRetry}</button></p> : null}
+    {failedReadouts.length > 0 ? <section className="notice" role="alert" data-testid="failed-readouts" aria-label={t.failedTitle}>
+      <strong>{t.failedTitle}</strong> {t.failedHelp}
+      <ul>{failedReadouts.map((row) => <li key={`${row.cardNumber}-${row.at}`}>{t.failedRow(row.cardNumber,
+        new Date(row.at).toLocaleTimeString("sv-SE"), row.message)}</li>)}</ul>
+      <button type="button" onClick={() => { if (raceId) { saveFailedReadouts(raceId, []); setFailedReadouts([]); } }}>
+        {t.failedClear}</button>
+    </section> : null}
     {!persistent ? <p className="notice">{t.storageNotPersistent}</p> : null}
     {station.kind === "misconfigured" ? <p className="notice" role="alert">{t.misconfiguredHelp} ({station.problems.join(", ")})</p> : null}
     {clockSkew !== undefined ? <p className="notice" role="alert" data-testid="clock-skew">{t.clockSkew(clockSkew)}</p> : null}
@@ -335,12 +381,20 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
         timeZone={pkg?.event.timeZone ?? "Europe/Stockholm"} />
     </section>
 
+    {/* Steg 31 (B4): brickan har redan lästs ut för någon annan – lånad bricka? */}
+    {current?.phase === "done" && alreadyReadOut && (!currentRegistration || currentRegistration.status === "rejected")
+      ? <section className="notice" role="alert" data-testid="already-read-out" aria-label={t.alreadyReadOutTitle}>
+        <p><strong>{borrowed ? t.alreadyReadOut(alreadyReadOut.name) : t.alreadyReadOutPossible(alreadyReadOut.name)}</strong></p>
+        {borrowed ? <><p>{t.alreadyReadOutHelp(alreadyReadOut.name)}</p>
+          <button type="button" onClick={() => { void linkEntry(alreadyReadOut, true); }}>{t.sameRunner}</button></> : null}
+      </section> : null}
+
     {/* Okänd bricka (PLAN.md steg 25): anmäl löparen här, även utan nät. */}
     {current?.phase === "done" && effectivePkg && (verdict?.status === "UNKNOWN_CARD" || currentRegistration?.status === "rejected") &&
       (!currentRegistration || currentRegistration.status === "rejected")
       ? <RegistrationForm key={current.localSequence} pkg={effectivePkg} cardNumber={current.cardNumber}
         payload={currentItem?.payload ?? { punches: [] }} items={items} registrations={registrations} search={searchServer}
-        onSubmit={register} onLink={linkEntry} /> : null}
+        onSubmit={(fields) => register(fields, !!borrowed)} onLink={(entry) => linkEntry(entry, !!borrowed)} /> : null}
 
     <ReceiptPanel printable={printable} pkg={pkg} settings={receiptSettings}
       onSettings={(settings) => { setReceiptSettings(settings); saveReceiptSettings(settings); }} />
@@ -351,11 +405,13 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
         : <>
           <button type="button" className="primary" onClick={() => { void connectSerial(); }}>{t.connectSerial}</button>
           <button type="button" onClick={() => { void connectExercise(); }}>{t.connectExercise}</button>
+          {raceDay ? <small className="exercise-warning">{t.exerciseRaceDayShort}</small> : null}
         </>}
     </section>
 
     {exercise && station.kind === "ready" ? <section className="exercise" aria-label={t.exercise}>
       <h2>{t.exercise}</h2>
+      {raceDay ? <p className="notice" role="alert" data-testid="exercise-race-day">{t.exerciseRaceDay}</p> : null}
       <p>{t.exerciseHelp}</p>
       {runners.length === 0 ? <p>{t.exerciseNoRunners}</p> : <label>{t.exerciseRunner}
         <select value={runnerId} onChange={(event) => setRunnerId(event.target.value)}>

@@ -18,12 +18,18 @@ describe("Ändra status", () => {
     expect(availableStatusChoices(active("MP", "NONE"))).toEqual(["APPROVAL", "DNF", "DSQ", "OOC", "NT", "RECALCULATION"]);
     expect(availableStatusChoices(active("OK", "NONE"))).toEqual(["DNF", "DSQ", "OOC", "NT", "RECALCULATION"]);
   });
+  it("godkänn manuellt döljs när start eller mål saknas, och manuell tid tas bort (steg 31)", () => {
+    const missingFinish = { ...active("MP", "NONE"), result: { revision: 2, status: "MP", reason: "MISSING_FINISH" } } as AdministratorEffectiveResultResponse;
+    expect(availableStatusChoices(missingFinish)).toEqual(["DNF", "DSQ", "OOC", "NT", "RECALCULATION"]);
+    const manual = { ...active("OK", "NONE"), governingDecision: "MANUAL_TIME" } as AdministratorEffectiveResultResponse;
+    expect(availableStatusChoices(manual)).toEqual(["MANUAL_TIME_WITHDRAWAL", "RECALCULATION"]);
+  });
   it("ett gällande beslut kan bara tas bort", () => {
     expect(availableStatusChoices(active("DSQ", "DSQ"))).toEqual(["DSQ_WITHDRAWAL", "RECALCULATION"]);
     expect(availableStatusChoices(active("OK", "APPROVAL"))).toEqual(["APPROVAL_WITHDRAWAL", "RECALCULATION"]);
   });
-  it("utan resultat kan löparen markeras som ej start", () => {
-    expect(availableStatusChoices({ ...common, state: "NO_PUBLISHED_RESULT", selectedRevision: null })).toEqual(["DNS"]);
+  it("utan resultat kan löparen markeras som ej start eller brutit (steg 31: utan avläsning)", () => {
+    expect(availableStatusChoices({ ...common, state: "NO_PUBLISHED_RESULT", selectedRevision: null })).toEqual(["DNS", "DNF", "RECALCULATION"]);
     expect(availableStatusChoices(undefined)).toEqual([]);
     expect(isStatusChoice("APPROVAL")).toBe(true);
     expect(isStatusChoice("")).toBe(false);

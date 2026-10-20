@@ -181,6 +181,8 @@ test("träningskväll från tävling till IOF-export", async ({ browser, request
   await expect(davidPunches.getByRole("note")).toContainText("Saknade kontroller: 33.");
   await expect(davidPunches.getByRole("row", { name: /^1 31 / })).toContainText("på banan");
   await card.getByLabel("Ändra status").selectOption({ label: "Godkänn manuellt" });
+  // Steg 31: godkännandet kräver orsak.
+  await card.getByLabel("Orsak (krävs)").fill("Stationen registrerade inte");
   await card.getByRole("button", { name: "Bekräfta ändringen" }).click();
   await expect(owner.getByText("Godkännandet är sparat.")).toBeVisible();
   await expect(card.getByRole("region", { name: "Resultat", exact: true })).toContainText("Godkänd");

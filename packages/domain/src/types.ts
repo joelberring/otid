@@ -338,7 +338,13 @@ export type RevisionCause =
   | "MANUAL_PUNCH_START_TIME_CORRECTION"
   | "MANUAL_PUNCH_START_TIME_CORRECTION_WITHDRAWAL"
   | "MANUAL_DID_NOT_START_WITHDRAWAL"
-  | "SHORTENED_COURSE_CLASS_TRANSFER";
+  | "SHORTENED_COURSE_CLASS_TRANSFER"
+  /** Steg 31: manuell tid, godkända kontroller och ett manuellt resultat utan avläsning som tagits bort. */
+  | "MANUAL_TIME"
+  | "MANUAL_TIME_WITHDRAWAL"
+  | "MANUAL_CONTROL_APPROVAL"
+  | "MANUAL_CONTROL_APPROVAL_WITHDRAWAL"
+  | "MANUAL_RESULT_REMOVED";
 
 export interface ResultRevision {
   readonly id: UUID;

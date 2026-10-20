@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { evaluateCardReadout, prepareReadoutForEvaluation, type NormalizedCardReadout, type RaceSnapshot,
+import { evaluateCardReadout, evaluateReadoutWithTimes, prepareReadoutForEvaluation, type NormalizedCardReadout, type RaceSnapshot,
   type StationTimeAdjustment } from "../src";
 
 const ids = {
@@ -135,5 +135,22 @@ describe("gamla stämplingar på en oröjd bricka (steg 31)", () => {
     const oldFinish = readout({ finishPunchedAt: lastWeek("18:40:00") });
     expect(evaluateCardReadout(oldFinish, snapshot())).toMatchObject({ status: "MP", reason: "MISSING_FINISH" });
     expect(prepareReadoutForEvaluation(oldFinish, snapshot()).ignoredPunches).toBe(1);
+  });
+});
+
+describe("manuell tid tillsammans med tävlingens rättningar (steg 31, A + B)", () => {
+  it("arrangörens måltid justeras inte av målstationens justering; kontrollernas justering gäller", () => {
+    const result = evaluateReadoutWithTimes(readout({ finishPunchedAt: undefined }), snapshot([finish(-HOUR), control(32, -HOUR)]),
+      ids.entry, "2026-08-30T10:00:00Z", "2026-08-30T10:45:00Z");
+    expect(result).toMatchObject({ status: "OK", elapsedMs: 45 * 60_000, finishTime: "2026-08-30T10:45:00Z" });
+  });
+
+  it("gamla stämplingar på oröjd bricka räknas inte heller med manuell tid", () => {
+    const old = readout({ finishPunchedAt: undefined, punches: [
+      { code: 31, punchedAt: "2026-08-20T10:10:00Z" }, { code: 32, punchedAt: "2026-08-20T10:20:00Z" },
+      { code: 33, punchedAt: "2026-08-20T10:30:00Z" }, { code: 31, punchedAt: "2026-08-30T10:10:00Z" },
+      { code: 33, punchedAt: "2026-08-30T10:30:00Z" }] });
+    const result = evaluateReadoutWithTimes(old, snapshot(), ids.entry, "2026-08-30T10:00:00Z", "2026-08-30T10:45:00Z");
+    expect(result).toMatchObject({ status: "MP", missingControls: [32] });
   });
 });

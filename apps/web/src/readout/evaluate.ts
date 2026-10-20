@@ -31,6 +31,34 @@ export interface LocalVerdict {
   readonly punchList?: CardPunchList;
   /** Oröjd bricka (PLAN.md steg 31): gamla stämplingar som inte räknades, även när resultatet är godkänt. */
   readonly ignoredPunches?: number;
+  /**
+   * Steg 31 (B4): brickan har redan lästs ut för deltagaren. `certain`: en tidigare avläsning i den här webbläsaren har
+   * andra stämplingar; annars har deltagaren ett resultat enligt paketet (kan vara samma bricka läst på en annan dator,
+   * serverns svar avgör).
+   */
+  readonly alreadyReadOutBy?: { readonly entryId: string; readonly classId: string; readonly name: string; readonly className: string;
+    readonly certain: boolean };
+}
+
+/** Har brickan använts i ett nytt lopp (start- eller kontrollstämpling) efter den förra avläsningens mål? */
+export function laterRunThan(previous: Pick<SportidentReadoutPayload, "startPunchedAt" | "finishPunchedAt" | "punches">,
+  next: Pick<SportidentReadoutPayload, "startPunchedAt" | "punches">): boolean {
+  const times = [previous.finishPunchedAt, previous.startPunchedAt, ...previous.punches.map((punch) => punch.punchedAt)]
+    .flatMap((value) => value === undefined ? [] : [Date.parse(value)]).filter(Number.isFinite);
+  const end = previous.finishPunchedAt !== undefined ? Date.parse(previous.finishPunchedAt) : Math.max(...times);
+  if (!Number.isFinite(end)) return false;
+  return (next.startPunchedAt !== undefined && Date.parse(next.startPunchedAt) > end) ||
+    next.punches.some((punch) => Date.parse(punch.punchedAt) > end);
+}
+
+/** Samma bricka, start, mål och stämplingar. */
+export function samePayloadContent(left: Pick<SportidentReadoutPayload, "cardNumber" | "startPunchedAt" | "finishPunchedAt" | "punches">,
+  right: Pick<SportidentReadoutPayload, "cardNumber" | "startPunchedAt" | "finishPunchedAt" | "punches">): boolean {
+  const ms = (value: string | undefined) => value === undefined ? null : Date.parse(value);
+  return left.cardNumber === right.cardNumber && ms(left.startPunchedAt) === ms(right.startPunchedAt) &&
+    ms(left.finishPunchedAt) === ms(right.finishPunchedAt) && left.punches.length === right.punches.length &&
+    left.punches.every((punch, index) => punch.code === right.punches[index]!.code &&
+      Date.parse(punch.punchedAt) === Date.parse(right.punches[index]!.punchedAt));
 }
 
 /**
@@ -46,7 +74,9 @@ export function withLocalRegistrations(pkg: ReadoutPackage, registrations: reado
   const entries = new Map(snapshot.entries.map((entry) => [entry.id, entry]));
   const added = new Map<string, QueuedRegistration>();
   for (const row of registrations) {
-    if (row.status === "rejected" || known.has(row.request.cardNumber) || added.has(row.request.cardNumber)) continue;
+    // Steg 31 (B4): en lånad bricka flyttas till den nya eller valda deltagaren även om paketet redan känner brickan.
+    if (row.status === "rejected" || (known.has(row.request.cardNumber) && !row.request.borrowedCard) ||
+      added.has(row.request.cardNumber)) continue;
     const request = row.request;
     if ("target" in request ? entries.get(request.entryId)?.classId === request.expectedClassId : classes.has(request.classId)) {
       added.set(request.cardNumber, row);
@@ -60,8 +90,8 @@ export function withLocalRegistrations(pkg: ReadoutPackage, registrations: reado
     ...(row.request.organisationName ? { organisationName: row.request.organisationName } : {}) }]);
   return { ...pkg, raceSnapshot: { ...snapshot,
     entries: [...snapshot.entries, ...newEntries],
-    cardAssignments: [...snapshot.cardAssignments.map((assignment) => linkedEntries.has(assignment.entryId) && assignment.active
-      ? { ...assignment, active: false } : assignment),
+    cardAssignments: [...snapshot.cardAssignments.map((assignment) => assignment.active && (linkedEntries.has(assignment.entryId) ||
+      added.has(assignment.cardNumber)) ? { ...assignment, active: false } : assignment),
     ...rows.map((row) => ({ id: row.requestId, raceId: snapshot.race.id, cardNumber: row.request.cardNumber, active: true,
       entryId: "target" in row.request ? row.request.entryId : row.requestId }))] } };
 }
@@ -86,6 +116,15 @@ export function evaluateLocally(payload: SportidentReadoutPayload, pkg: ReadoutP
   };
   const owner = pkg.raceSnapshot.cardAssignments.find((assignment) => assignment.active && assignment.cardNumber === payload.cardNumber);
   const earlier = local.filter((candidate) => candidate !== payload);
+  const sameCard = earlier.filter((candidate) => candidate.cardNumber === payload.cardNumber);
+  const ownerEntry = owner ? pkg.raceSnapshot.entries.find((candidate) => candidate.id === owner.entryId) : undefined;
+  // Samma regel som servern: brickan har använts i ett nytt lopp efter förra avläsningens mål.
+  const differsLocally = sameCard.some((candidate) => !samePayloadContent(candidate, payload) && laterRunThan(candidate, payload));
+  const readOutByOwner = owner !== undefined && (pkg.readOutEntryIds ?? []).includes(owner.entryId) && sameCard.length === 0;
+  const alreadyReadOutBy = ownerEntry && (differsLocally || readOutByOwner) ? { entryId: ownerEntry.id, classId: ownerEntry.classId,
+    name: `${ownerEntry.givenName} ${ownerEntry.familyName}`.trim(),
+    className: pkg.raceSnapshot.classes.find((candidate) => candidate.id === ownerEntry.classId)?.name ?? "", certain: differsLocally }
+    : undefined;
   // Kontraktets valfria fält tillåter uttryckligt undefined; resultatmotorn läser dem inte.
   const snapshot = owner ? relaySnapshot(pkg, owner.entryId, earlier) : pkg.raceSnapshot as RaceSnapshot;
   const result = evaluateCardReadout(readout, snapshot);
@@ -113,6 +152,7 @@ export function evaluateLocally(payload: SportidentReadoutPayload, pkg: ReadoutP
     ...(owner?.rental ? { rental: true } : {}),
     ...(punchList ? { punchList } : {}),
     ...(ignoredPunches > 0 ? { ignoredPunches } : {}),
+    ...(alreadyReadOutBy ? { alreadyReadOutBy } : {}),
     missingControls: result.missingControls,
     splits: result.splits.map((split) => ({ controlCode: split.controlCode, elapsedMs: split.elapsedMs, legMs: split.legMs }))
   };

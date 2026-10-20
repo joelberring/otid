@@ -41,7 +41,13 @@ const STATUS_BY_CAUSE: Record<Cause, { readonly statuses: readonly string[]; rea
   MANUAL_FINISH_TIME_CORRECTION: { statuses: TIMED, readout: false },
   MANUAL_FINISH_TIME_CORRECTION_WITHDRAWAL: { statuses: TIMED, readout: false },
   MANUAL_PUNCH_START_TIME_CORRECTION: { statuses: TIMED, readout: false },
-  MANUAL_PUNCH_START_TIME_CORRECTION_WITHDRAWAL: { statuses: TIMED, readout: false }
+  MANUAL_PUNCH_START_TIME_CORRECTION_WITHDRAWAL: { statuses: TIMED, readout: false },
+  // Steg 31: manuell tid, godkända kontroller (helt eller delvis) och ett borttaget resultat utan avläsning.
+  MANUAL_TIME: { statuses: TIMED, readout: false },
+  MANUAL_TIME_WITHDRAWAL: { statuses: TIMED, readout: false },
+  MANUAL_CONTROL_APPROVAL: { statuses: ["OK", "MP"], readout: false },
+  MANUAL_CONTROL_APPROVAL_WITHDRAWAL: { statuses: TIMED, readout: false },
+  MANUAL_RESULT_REMOVED: { statuses: ["MP"], readout: false, reason: "MISSING_START" }
 };
 
 function canonicalEquals(left: unknown, right: unknown): boolean {

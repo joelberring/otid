@@ -73,7 +73,9 @@ export async function resolveStoredResultHeadStates<T extends StoredResultHead>(
     if (!effective) throw new StoredResultRevisionConflict("Gällande resultat saknas");
     // Läsarens projektion kan bära fler kolumner (namn, klass); de följer med till det gällande beslutet.
     const head = effective === selectedHead ? selectedHead : { ...selectedHead, ...effective } as T;
-    const overlay = effective !== history.restore && ["DSQ", "APPROVAL", "DNF", "OOC", "NT"].includes(history.governing);
+    // Beslutet avser revisionen närmast under; ett beslut utan avläsning (steg 31) har ingen.
+    const overlay = effective !== history.restore && effective.revision > 1 &&
+      ["DSQ", "APPROVAL", "DNF", "OOC", "NT", "CONTROL_APPROVAL"].includes(history.governing);
     return { state: "ACTIVE_RESULT", head, selectedHead, governing: history.governing,
       underlyingId: overlay ? `${effective.entryId}:${effective.revision - 1}` : null, startCheckinDns: null } as const;
   });

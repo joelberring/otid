@@ -19,6 +19,8 @@ import { relayTeamOfEntry } from "./relay-model";
 import { synchronizeRelayTeams } from "./relay-sync";
 import { appendResultRevision } from "./result-revisions";
 import { readoutsWithResults } from "./readout-registration";
+import { cardAlreadyReadOutBy } from "./card-reuse";
+import { normalizedReadout } from "./result-revisions";
 
 type Authentication = RaceSessionProof;
 /**
@@ -90,13 +92,26 @@ export async function listUnknownReadoutResolutionCandidatesAsAdmin(
     const revisionByEntry = new Map(revisions.map((row) => [row.entryId, row]));
     // Direktanmälan på avläsningssidan (PLAN.md steg 25) bedömer avläsningen utan resolutionsjournal.
     const withResults = await readoutsWithResults(tx, readoutRows.filter((row) => isUnknownOutcome(row.serverResult)).map((row) => row.id));
+    const unknownRows = readoutRows.filter((row) => isUnknownOutcome(row.serverResult) && !resolvedIds.has(row.id) && !withResults.has(row.id));
+    // Steg 31 (B4): en okänd avläsning av en bricka som redan lästs ut för en annan deltagare (lånad bricka?).
+    const ownerByCard = new Map(assignments.map((row) => [row.cardNumber, row.entryId]));
+    const entryById = new Map(entries.map((row) => [row.id, row]));
+    const alreadyReadOutBy = new Map<string, { entryId: string; name: string }>();
+    const fullRows = unknownRows.length === 0 ? [] : await tx.select().from(schema.cardReadouts)
+      .where(inArray(schema.cardReadouts.id, unknownRows.filter((row) => ownerByCard.has(row.cardNumber)).map((row) => row.id)));
+    for (const row of fullRows) {
+      const ownerId = await cardAlreadyReadOutBy(tx, ownerByCard.get(row.cardNumber), normalizedReadout(row));
+      const owner = ownerId ? entryById.get(ownerId) : undefined;
+      if (owner) alreadyReadOutBy.set(row.id, { entryId: owner.id, name: `${owner.givenName} ${owner.familyName}` });
+    }
     return { status: "ok", response: unknownReadoutResolutionCandidateResponseSchema.parse({
       formatVersion: 1, raceId: input.raceId, snapshotVersion: race.snapshotVersion,
       engineVersion: RESULT_ENGINE_VERSION,
-      readouts: readoutRows.filter((row) => isUnknownOutcome(row.serverResult) && !resolvedIds.has(row.id) && !withResults.has(row.id))
+      readouts: unknownRows
         .map((row) => ({
           id: row.id, cardNumber: row.cardNumber,
-          readAt: row.readAt.toISOString(), finishPunchedAt: row.finishPunchedAt?.toISOString() ?? null
+          readAt: row.readAt.toISOString(), finishPunchedAt: row.finishPunchedAt?.toISOString() ?? null,
+          alreadyReadOutBy: alreadyReadOutBy.get(row.id) ?? null
         })),
       classes,
       entries: entries.map((entry) => {
@@ -168,9 +183,19 @@ export async function resolveUnknownReadoutAsAdmin(
     const [alreadyResolved] = await tx.select({ requestId: schema.unknownReadoutResolutions.requestId })
       .from(schema.unknownReadoutResolutions).where(eq(schema.unknownReadoutResolutions.readoutId, intent.readoutId));
     if (alreadyResolved || (await readoutsWithResults(tx, [intent.readoutId])).size > 0) return { status: "conflict" };
-    const [cardOwner] = await tx.select().from(schema.cardAssignments).where(and(
-      eq(schema.cardAssignments.raceId, input.raceId), eq(schema.cardAssignments.cardNumber, intent.cardNumber)));
-    if (cardOwner?.active) return { status: "conflict" };
+    const [activeOwner] = await tx.select().from(schema.cardAssignments).where(and(
+      eq(schema.cardAssignments.raceId, input.raceId), eq(schema.cardAssignments.cardNumber, intent.cardNumber),
+      eq(schema.cardAssignments.active, true)));
+    // Steg 31 (B4): brickan är kopplad till någon som redan har ett resultat från en annan avläsning (lånad bricka). Den
+    // nya avläsningen får kopplas till en annan deltagare (brickan flyttas, den förstes resultat står kvar) eller till
+    // samma deltagare ("det är samma löpare – använd den nya avläsningen").
+    const borrowedFrom = activeOwner
+      ? await cardAlreadyReadOutBy(tx, activeOwner.entryId, normalizedReadout(readout.readout)) : undefined;
+    if (activeOwner && !borrowedFrom) return { status: "conflict" };
+    const sameRunner = borrowedFrom !== undefined && intent.target === "EXISTING_ENTRY" && intent.entryId === borrowedFrom;
+    const [cardOwner] = sameRunner ? [activeOwner] : await tx.select().from(schema.cardAssignments).where(and(
+      eq(schema.cardAssignments.raceId, input.raceId), eq(schema.cardAssignments.cardNumber, intent.cardNumber),
+      eq(schema.cardAssignments.active, false))).limit(1);
 
     let entry: typeof schema.entries.$inferSelect;
     let targetClassId: string;
@@ -204,7 +229,9 @@ export async function resolveUnknownReadoutAsAdmin(
       entry = created; targetClassId = intent.classId;
     }
 
-    if (previousAssignment) await tx.update(schema.cardAssignments).set({ active: false })
+    if (activeOwner && !sameRunner) await tx.update(schema.cardAssignments).set({ active: false })
+      .where(eq(schema.cardAssignments.id, activeOwner.id));
+    if (previousAssignment && previousAssignment.id !== cardOwner?.id) await tx.update(schema.cardAssignments).set({ active: false })
       .where(eq(schema.cardAssignments.id, previousAssignment.id));
     let assignmentId: string;
     if (cardOwner) {
@@ -262,7 +289,7 @@ export async function resolveUnknownReadoutAsAdmin(
     await tx.insert(schema.auditEvents).values({ raceId: input.raceId, entityType: "card_readout",
       entityId: readout.readout.id, action: "UNKNOWN_READOUT_RESOLVED_BY_ADMIN",
       actorKind: "USER_ACCOUNT", actorId: auth.principal.accountId, requestId,
-      before: { serverResult: "UNKNOWN_CARD", snapshotVersion: race.snapshotVersion },
+      before: { serverResult: "UNKNOWN_CARD", snapshotVersion: race.snapshotVersion, alreadyReadOutBy: borrowedFrom ?? null },
       after: { entryId: entry.id, classId: targetClassId, assignmentId, resultRevisionId: result.id,
         revision, cause: result.cause, snapshotVersion: snapshotVersionAfter } });
     return { status: "resolved", response };

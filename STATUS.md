@@ -18,6 +18,21 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - A5: Resultat → Efterarbete → "Räkna om hela tävlingen" → "Visa vad som händer" (antal, statusbyten) → "Spara och räkna om".
 - Tester: domän `station-corrections` (11), `evaluate-card-readout`/`course-variants`/`course-edit` (ur funktion), integration `steg-31-tavlingsdag`, `adr-0169-result-basis`, Playwright `tavlingsdag-rattningar`, `redigera-bana`, `traningskvall`.
 
+### 2026-10-20 – Steg 31 B4: samma bricka hos två löpare
+- `application/src/card-reuse.ts`: har brickans deltagare redan ett resultat från en annan avläsning av brickan och brickan använts i ett nytt lopp efter den avläsningens mål (start- eller kontrollstämpling senare), sparas ingen revision; avläsningen blir okänd. Exakt dubblett och samma lopp med ändrad tid fungerar som förut.
+- Kontrollvyn → Okända brickor: "Brickan har redan lästs ut för X … lånad bricka?"; koppla till annan anmäld eller direktanmäl (brickan flyttas, X:s resultat står kvar) eller välj X ("samma löpare", den nya avläsningen gäller). Avläsningssidan: samma varning (säker vid en tidigare annorlunda avläsning här eller när servern svarat okänd, annars "Servern kontrollerar"), anmälan/koppling med `borrowedCard`, och "Det är samma löpare – använd den nya avläsningen". Utan valet skrivs den förstes resultat aldrig över.
+- Omräkning (deltagare, klass, banändring, klassbyte) utgår från deltagarens egen avläsning och bedömer den för just deltagaren (`evaluateReadoutForEntry`), utom när deltagaren fått en annan bricka sedan dess.
+- Tester: integration `steg-31-lanad-bricka` (4) och banändring i `adr-0169-course-edit`, avläsning `already-read-out` (2), Playwright `lanad-bricka`.
+
+### 2026-10-20 – Steg 31 B5: avläsningens robusthet
+- Avläsningssidan: tid som inte går att placera med stationens klocka prövas med datorns; går det inte heller sparas bricka, tid och råramar i webbläsaren och visas under "Brickor som inte kunde tolkas". En avläsning som ger serverfel (5xx) skickas om en och en och hålls sedan åt sidan ("N avläsningar kunde inte skickas" + "Försök igen") så att resten av kön går fram. Övningsstationen varnar på tävlingsdagen. Deltagarkortet: "Räkna om från avläsningen" även utan resultat.
+- Tester: `readout.test` (kön vid serverfel), `participant-status-choices`, Playwright `manuellt` (varningen) och `traningskvall`.
+
+### 2026-10-20 – Steg 31 B: nödlägen för en löpare (B1–B3)
+- Domänen (`manual-decision.ts`, ny `manual-time.ts`, `entry-readout.ts`): beslut ligger på varandra som en stapel och följer med över senare avläsningar och omräkningar, även rättad mål- och starttid (förut ersattes de). Nya orsaker `MANUAL_TIME`, `MANUAL_CONTROL_APPROVAL`, deras återtaganden och `MANUAL_RESULT_REMOVED` (manuellt resultat utan avläsning borttaget), migration 0010. Nya beslut bygger på senaste tekniska bedömningen under besluten (inga återvändsgränder efter ett återtagande). Resultatmotorn är oförändrad.
+- Deltagarkortet: "Ange tid manuellt" (måltid/starttid/löptid som klockslag, status, orsak, förhandsbesked "Löptid 45:00, godkänd."), "Godkänn saknade kontroller", "Ta bort manuell tid"/"Ta bort godkända kontroller", orsaken visas i kortet, "Manuell tid" i deltagarlistan. Brutit och ej start går utan avläsning; "Godkänn manuellt" kräver orsak.
+- Tester: domän `manual-time` (10), integration `steg-31-manuellt` (3) och uppdaterade förväntningar (återvändsgränder borta), Playwright `manuellt`.
+
 ### 2026-10-20 – Steg 30: Live för publiken (steg 30 klart)
 - `/t/{kod}/live` (länk från tävlingssidan och resultatlistans rubrik), `GET /api/public/races/{id}/live` bakom samma grind (`publicRaceAccess`, opublicerad/dold ger 404). `application/src/public-live.ts`: ren `projectPublicLive` över den publika resultatlistan, radiotiderna och när resultatet kom in (första avläsningen); kontraktet `public-live.ts` är strikt utan bricka, interna id:n, orsaker och strukna.
 - Sidan: Senast i mål (namn, klubb, klass, tid, "1:a"; felstämplad som "✗ Felstämplad" utan placering), Ledare per klass med "▲ Ny ledare" i 5 min, radiopassager ("passerade Radio 1 6:12, 2:a"), "Uppdaterad 21:03:12" och lugnt besked utan nät, tomläge "Inga målgångar än – sidan uppdateras av sig själv". Uppdateras med resultatströmmen + hämtning var 5:e s (gemensam `usePublicRaceData`).

@@ -589,7 +589,7 @@ fylls i från databasen offline.
 **Acceptans:** Playwright: avläsning syns i Live inom några sekunder hos en
 anonym besökare; följd klubb hamnar överst efter omladdning.
 
-## [ ] Steg 31 – Tävlingsdagens nödlägen
+## [x] Steg 31 – Tävlingsdagens nödlägen
 
 Ägarens önskemål 2026-10-20 inför natt-KM: justera och stänga av kontroller för alla eller för en deltagare och
 godkänna löpare ändå. Allt med förhandsvisning, ångra och auditpost; råa avläsningar ändras aldrig.
@@ -602,6 +602,21 @@ Del A – kontroller och tider för hela tävlingen (Avläsning → Rättningar 
 - [x] A3. Flytta starttider för en klass (Start → Startlistan → Flytta starttider).
 - [x] A4. Bortse från gamla stämplingar på oröjd bricka (> 12 h före avläsningen eller > 10 min före clear/check).
 - [x] A5. Räkna om hela tävlingen (Resultat → Efterarbete).
+
+Del B – enskilda löpare, brickor och avläsningens robusthet:
+
+- [x] B1. "Ange tid manuellt" i deltagarkortet: måltid, starttid eller löptid, status (Godkänd/Felstämplad) och orsak,
+  med avläsning (saknad målstämpling, mål före start, start saknas, fel klocka) och utan (tappad eller trasig bricka).
+  Markeras "Manuell tid"; "Ta bort manuell tid" ger bedömningen från avläsningen. Brutit även utan avläsning.
+- [x] B2. Manuella beslut (även rättad mål- och starttid) ligger kvar över ny avläsning av samma bricka och omräkning.
+- [x] B3. "Godkänn saknade kontroller" (kryssrutor och orsak); "Godkänn manuellt" kräver orsak och visas bara när tiden finns.
+- [x] B4. Samma bricka hos två löpare: en avläsning av ett nytt lopp med en bricka vars deltagare redan har resultat
+  skriver inte över det utan blir okänd ("redan avläst för X – lånad bricka?") i kontrollvyn och på avläsningssidan, med
+  koppla/direktanmäl/"Det är samma löpare – använd den nya avläsningen". Kopplingen flyttar brickan; omräkning utgår
+  från deltagarens egen avläsning.
+- [x] B5. Robusthet: "Räkna om från avläsningen" även utan resultat; bricktid som inte går att tolka prövas med datorns
+  klocka och försvinner aldrig (listas tills den tagits bort); en avläsning som ger serverfel hålls åt sidan och resten av
+  kön skickas ("Försök igen"); Övningsstation varnar på tävlingsdagen.
 
 ## Efter målet (inte nu)
 

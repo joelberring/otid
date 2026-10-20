@@ -9,20 +9,29 @@ const uuid = z.string().regex(UUID_PATTERN,
   "Id måste vara ett kanoniskt gemener-UUID");
 const revisionNumber = z.number().int().min(0).max(2_147_483_647);
 const instant = z.iso.datetime({ offset: true });
+/** Arrangörens orsak till ett manuellt beslut (steg 31), t.ex. "glömde stämpla mål". */
+const note = z.string().trim().min(1).max(500);
 
 export const entryStatusDecisionSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("DID_NOT_START") }).strict(),
-  z.object({ kind: z.literal("DID_NOT_FINISH") }).strict(),
+  z.object({ kind: z.literal("DID_NOT_FINISH"), note: note.optional() }).strict(),
   z.object({ kind: z.literal("DISQUALIFIED"), reason: z.string().trim().min(1).max(240).optional() }).strict(),
   z.object({ kind: z.literal("OUT_OF_COMPETITION") }).strict(),
   z.object({ kind: z.literal("WITHOUT_TIMING") }).strict(),
-  z.object({ kind: z.literal("APPROVE_MANUALLY") }).strict(),
+  z.object({ kind: z.literal("APPROVE_MANUALLY"), note: note.optional() }).strict(),
   z.object({ kind: z.literal("FINISH_TIME"), finishTime: instant }).strict(),
   z.object({ kind: z.literal("START_TIME"), startTime: instant }).strict(),
+  /** Steg 31: manuell tid (måltid, starttid eller löptid) med status och orsak, med eller utan avläsning. */
+  z.object({ kind: z.literal("MANUAL_TIME"), startTime: instant.optional(), finishTime: instant.optional(),
+    elapsedMs: z.number().int().positive().max(86_400_000).optional(), status: z.enum(["OK", "MP"]), note }).strict()
+    .refine((value) => value.finishTime !== undefined || value.elapsedMs !== undefined, "Måltid eller löptid krävs"),
+  /** Steg 31: godkänn valda saknade kontroller med orsak. */
+  z.object({ kind: z.literal("APPROVE_CONTROLS"), controls: z.array(z.number().int().positive().max(9_999)).min(1).max(100),
+    note }).strict(),
   z.object({ kind: z.literal("WITHDRAW") }).strict()
 ]);
 export const entryStatusDecisionKinds = ["DID_NOT_START", "DID_NOT_FINISH", "DISQUALIFIED", "OUT_OF_COMPETITION",
-  "WITHOUT_TIMING", "APPROVE_MANUALLY", "FINISH_TIME", "START_TIME", "WITHDRAW"] as const;
+  "WITHOUT_TIMING", "APPROVE_MANUALLY", "FINISH_TIME", "START_TIME", "MANUAL_TIME", "APPROVE_CONTROLS", "WITHDRAW"] as const;
 
 export const entryStatusRequestSchema = z.object({
   formatVersion: z.literal(1),
@@ -38,10 +47,11 @@ export const entryStatusIdempotencyKeySchema = z.string().regex(
 
 const statusSchema = z.enum(["OK", "OVERTIME", "MP", "DSQ", "DNF", "OOC", "DNS", "NT"]);
 export const entryStatusGoverningDecisionSchema = z.enum(["NONE", "DNS", "CHECKIN_DNS", "DSQ", "APPROVAL", "DNF", "OOC",
-  "NT", "FINISH_TIME", "START_TIME"]);
+  "NT", "FINISH_TIME", "START_TIME", "MANUAL_TIME", "CONTROL_APPROVAL"]);
 export const entryStatusReadinessSchema = z.enum(["READY", "HAS_RESULT", "NO_ACTIVE_RESULT", "UNSUPPORTED_RESULT",
-  "STALE_RESULT", "NOT_PUNCH_START", "NO_ACTIVE_DECISION", "INVALID_TIME", "ACTIVE_DID_NOT_START", "ACTIVE_DISQUALIFICATION",
-  "ACTIVE_APPROVAL", "ACTIVE_DID_NOT_FINISH", "ACTIVE_OUT_OF_COMPETITION", "ACTIVE_WITHOUT_TIMING"]);
+  "STALE_RESULT", "NOT_PUNCH_START", "NO_ACTIVE_DECISION", "INVALID_TIME", "INVALID_CONTROL", "ACTIVE_DID_NOT_START",
+  "ACTIVE_DISQUALIFICATION", "ACTIVE_APPROVAL", "ACTIVE_DID_NOT_FINISH", "ACTIVE_OUT_OF_COMPETITION", "ACTIVE_WITHOUT_TIMING",
+  "ACTIVE_MANUAL_TIME"]);
 
 const splitSchema = z.object({ controlCode: z.number().int().positive(), occurrence: z.number().int().positive(),
   elapsedMs: z.number().int().min(0), legMs: z.number().int().min(0) }).strict();
@@ -64,7 +74,11 @@ export const entryStatusResponseSchema = z.object({
   /** Status efter ett återtagande; null när inget resultat finns kvar (ej start tas bort). */
   withdrawRestores: z.object({ status: statusSchema }).strict().nullable(),
   timing: timingSchema.nullable(),
-  withdrawTiming: timingSchema.nullable()
+  withdrawTiming: timingSchema.nullable(),
+  /** Steg 31: underlaget för "Ange tid manuellt": känd start, avläsningens målstämpling och om avläsning finns. */
+  manualTime: z.object({ knownStartTime: instant.nullable(), readoutFinishTime: instant.nullable(), hasReadout: z.boolean() }).strict(),
+  /** Steg 31: saknade kontroller som kan godkännas en och en (tom när det inte går). */
+  approvableControls: z.array(z.number().int().positive()).max(1_000)
 }).strict();
 
 export const entryStatusReceiptSchema = z.object({

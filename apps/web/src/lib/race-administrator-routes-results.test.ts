@@ -90,8 +90,10 @@ describe("administratörsroutes: resultat och export", () => {
         DID_NOT_FINISH: "NO_ACTIVE_RESULT" as const, DISQUALIFIED: "NO_ACTIVE_RESULT" as const,
         OUT_OF_COMPETITION: "NO_ACTIVE_RESULT" as const, WITHOUT_TIMING: "NO_ACTIVE_RESULT" as const,
         APPROVE_MANUALLY: "NO_ACTIVE_RESULT" as const, FINISH_TIME: "NO_ACTIVE_RESULT" as const,
-        START_TIME: "NO_ACTIVE_RESULT" as const, WITHDRAW: "NO_ACTIVE_DECISION" as const },
-      withdrawRestores: null, timing: null, withdrawTiming: null };
+        START_TIME: "NO_ACTIVE_RESULT" as const, MANUAL_TIME: "READY" as const, APPROVE_CONTROLS: "NO_ACTIVE_RESULT" as const,
+        WITHDRAW: "NO_ACTIVE_DECISION" as const },
+      withdrawRestores: null, timing: null, withdrawTiming: null,
+      manualTime: { knownStartTime: null, readoutFinishTime: null, hasReadout: false }, approvableControls: [] };
     const entryStatus = vi.fn(async () => ({ status: "ok" as const, response: status }));
     const read = await raceAdministratorRoute(db, request("GET"), id, action, { ...services, entryStatus }, environment);
     expect(read.status).toBe(200); expect(await read.json()).toEqual(status);

@@ -91,7 +91,8 @@ describe("steg 23: beslut som ligger kvar över senare avläsningar (ADR-0173 be
     expect(await db.select().from(schema.auditEvents).where(eq(schema.auditEvents.requestId, requestId)))
       .toEqual([expect.objectContaining({ action: "DID_NOT_FINISH_WITHDRAWN" })]);
 
-    expect(await entryStatus(auth, ada)).toMatchObject({ governingDecision: "NONE", readiness: { DID_NOT_FINISH: "UNSUPPORTED_RESULT" } });
+    // Steg 31: nästa beslut kan fattas direkt på den återställda avläsningen (ingen återvändsgränd).
+    expect(await entryStatus(auth, ada)).toMatchObject({ governingDecision: "NONE", readiness: { DID_NOT_FINISH: "READY" } });
     await readOut(raceId, missingControl, "2026-08-30T10:42:00Z");
     expect((await entryStatus(auth, ada)).readiness.DID_NOT_FINISH).toBe("READY");
     expect(await decide(auth, ada, { kind: "DID_NOT_FINISH" })).toMatchObject({ status: "decided", response: { revision: 6 } });
@@ -105,10 +106,8 @@ describe("steg 23: beslut som ligger kvar över senare avläsningar (ADR-0173 be
     expect(results.map((result) => result.status).sort()).toEqual(["conflict", "decided"]);
 
     await decide(auth, ada, { kind: "DID_NOT_FINISH" }, { expectedRevision: 3 }).then((result) =>
-      expect(result).toMatchObject({ status: "conflict", readiness: "UNSUPPORTED_RESULT" }));
-    await readOut(raceId, missingControl, "2026-08-30T10:41:00Z");
-    expect((await decide(auth, ada, { kind: "DID_NOT_FINISH" })).status).toBe("decided");
-    const [withdrawn] = await Promise.all([decide(auth, ada, { kind: "WITHDRAW" }, { expectedRevision: 5 }),
+      expect(result).toMatchObject({ status: "decided", response: { revision: 4 } }));
+    const [withdrawn] = await Promise.all([decide(auth, ada, { kind: "WITHDRAW" }, { expectedRevision: 4 }),
       readOut(raceId, missingControl, "2026-08-30T10:44:00Z")]);
     const history = await revisions(ada);
     expect(history.map((row) => row.revision)).toEqual(history.map((_, index) => index + 1));

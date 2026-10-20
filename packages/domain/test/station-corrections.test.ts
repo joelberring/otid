@@ -140,8 +140,7 @@ describe("gamla stämplingar på en oröjd bricka (steg 31)", () => {
 
 /** Avläsningen utan målstämpling (glömde stämpla mål). */
 function withoutFinish(overrides: Partial<NormalizedCardReadout> = {}): NormalizedCardReadout {
-  const { finishPunchedAt: _finish, ...rest } = readout(overrides);
-  return rest;
+  return Object.fromEntries(Object.entries(readout(overrides)).filter(([key]) => key !== "finishPunchedAt")) as unknown as NormalizedCardReadout;
 }
 
 describe("manuell tid tillsammans med tävlingens rättningar (steg 31, A + B)", () => {

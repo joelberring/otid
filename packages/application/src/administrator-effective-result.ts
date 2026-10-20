@@ -119,7 +119,10 @@ export async function getAdministratorEffectiveResult(db: Database,
     const decisions = {
       MANUAL_DID_NOT_START: "DNS", START_CHECKIN_DID_NOT_START: "CHECKIN_DNS",
       MANUAL_DISQUALIFICATION: "DSQ", MANUAL_RESULT_APPROVAL: "APPROVAL",
-      MANUAL_DID_NOT_FINISH: "DNF", MANUAL_OUT_OF_COMPETITION: "OOC", MANUAL_WITHOUT_TIMING: "NT"
+      MANUAL_DID_NOT_FINISH: "DNF", MANUAL_OUT_OF_COMPETITION: "OOC", MANUAL_WITHOUT_TIMING: "NT",
+      // Steg 31: rättad och manuell tid visas som manuell tid; godkända kontroller som eget beslut.
+      MANUAL_TIME: "MANUAL_TIME", MANUAL_FINISH_TIME_CORRECTION: "MANUAL_TIME", MANUAL_PUNCH_START_TIME_CORRECTION: "MANUAL_TIME",
+      MANUAL_CONTROL_APPROVAL: "CONTROL_APPROVAL"
     } as const;
     const cause = resolved.head.cause;
     const governingDecision = Object.hasOwn(decisions, cause) ? decisions[cause as keyof typeof decisions] : "NONE";
@@ -167,6 +170,7 @@ export async function getAdministratorEffectiveResult(db: Database,
     const notes = applicableResultNotes((await loadResultNotes(tx, race.id, [entry.id])).get(entry.id), outcome.status);
     return { status: "ok", response: administratorEffectiveResultResponseSchema.parse({
       ...common, state: "ACTIVE_RESULT", selectedRevision, resultClass, ...(notes ? { notes } : {}),
+      ...(governingDecision !== "NONE" && resolved.head.note ? { decisionNote: resolved.head.note } : {}),
       resultSnapshotVersion: resolved.head.snapshotVersion, governingDecision, controlDetails,
       resultCurrent: isEffectiveResultCurrent(resolved, await loadResultBasisHash(tx, entry.id), race.snapshotVersion),
       result: { revision: resolved.head.revision, status: outcome.status, reason: outcome.reason,

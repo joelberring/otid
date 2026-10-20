@@ -589,6 +589,18 @@ fylls i från databasen offline.
 **Acceptans:** Playwright: avläsning syns i Live inom några sekunder hos en
 anonym besökare; följd klubb hamnar överst efter omladdning.
 
+## [ ] Steg 31 – Tävlingsdagens nödlägen
+
+Ägarens önskemål 2026-10-20 inför natt-KM: robust app, justera och stänga av kontroller och godkänna löpare på olika sätt.
+
+B – enskilda löpare, brickor och avläsningens robusthet:
+
+- [x] B1. "Ange tid manuellt" i deltagarkortet: måltid, starttid eller löptid, status (Godkänd/Felstämplad) och orsak,
+  med avläsning (saknad målstämpling, mål före start, start saknas, fel klocka) och utan (tappad eller trasig bricka).
+  Markeras "Manuell tid"; "Ta bort manuell tid" ger bedömningen från avläsningen. Brutit även utan avläsning.
+- [x] B2. Manuella beslut (även rättad mål- och starttid) ligger kvar över ny avläsning av samma bricka och omräkning.
+- [x] B3. "Godkänn saknade kontroller" (kryssrutor och orsak); "Godkänn manuellt" kräver orsak och visas bara när tiden finns.
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

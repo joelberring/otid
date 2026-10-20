@@ -100,7 +100,7 @@ describe("steg 23: ej start i statusflödet (ADR-0173 beslut 1)", () => {
     expect(await getAdministratorEffectiveResult(db, { ...auth, entryId: ada })).toMatchObject({ status: "ok",
       response: { state: "NO_ACTIVE_RESULT", selectedRevision: { revision: 2 } } });
     expect(await entryStatus(auth, ada)).toMatchObject({ governingDecision: "NONE", noActiveResult: true,
-      readiness: { DID_NOT_START: "HAS_RESULT", WITHDRAW: "NO_ACTIVE_DECISION" } });
+      readiness: { DID_NOT_START: "READY", WITHDRAW: "NO_ACTIVE_DECISION" } });
     expect(await decide(auth, ada, { kind: "WITHDRAW" })).toMatchObject({ status: "conflict", readiness: "NO_ACTIVE_DECISION" });
 
     await ingestDeviceBatch(db, raceId, batch(randomUUID(), okPayload));

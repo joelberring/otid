@@ -80,6 +80,8 @@ test("redigera bana efter avläsning räknar om resultatet", async ({ browser, r
   await expect(card.getByRole("region", { name: "Sträcktider", exact: true }).first()).toContainText("31");
   await card.getByLabel("Ändra status").selectOption({ label: "Godkänn manuellt" });
   await expect(card.getByRole("alert")).toContainText("Löparen visas som godkänd trots felstämplingen.");
+  // Steg 31: godkännandet kräver orsak.
+  await card.getByLabel("Orsak (krävs)").fill("Stationen registrerade inte");
   await card.getByRole("button", { name: "Bekräfta ändringen" }).click();
   await expect(owner.getByText("Godkännandet är sparat.")).toBeVisible();
   await expect(card.getByRole("region", { name: "Historik", exact: true })).toContainText("Godkänd manuellt: Godkänd");

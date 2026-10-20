@@ -143,6 +143,7 @@ export function ParticipantList({ ws }: { ws: Workspace }) {
               <span className={styles.organisation} aria-hidden="true">{entry.organisationName ?? text.none}</span>
               <span className={styles.rosterMobileClass} aria-hidden="true">{raceClass.name}</span>
               {entry.resultRevisionMarker === "MANUAL_FINISH_TIME_CORRECTION" && <span className={styles.resultBadge}>{text.rosterFinishCorrection}</span>}
+              {entry.resultRevisionMarker === "MANUAL_TIME" && <span className={styles.resultBadge}>{text.rosterManualTime}</span>}
               {entry.resultRevisionMarker === "MANUAL_FINISH_TIME_CORRECTION_WITHDRAWAL" && <span className={styles.resultBadge}>{text.rosterFinishCorrectionWithdrawal}</span>}
               {entry.activeAssignment?.isRental && <span className={`${styles.resultBadge} ${entry.activeAssignment.rentalReturned ? "" : styles.resultBadgeAttention}`}>{text.rentalBadge} · {entry.activeAssignment.cardNumber} · {entry.activeAssignment.rentalReturned ? text.rentalReturned : text.rentalOutstanding}</span>}
             </div>

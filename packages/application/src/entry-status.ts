@@ -5,9 +5,13 @@ import {
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import {
-  applyManualDecision, latestMatchedSplitElapsedMs, manualDecisionReadiness, resolveResultHistory,
-  type EvaluationResult, type ManualDecision, type ManualDecisionContext, type ResultHistory
+  applyManualDecision, controlApprovalSource, evaluateReadoutWithTimes, latestMatchedSplitElapsedMs, manualDecisionReadiness,
+  officialStartTime, resolveResultHistory, type EvaluationResult, type ManualDecision, type ManualDecisionContext,
+  type RaceSnapshot, type ResultHistory
 } from "@o-tid/domain";
+import { loadRaceSnapshot } from "./snapshot";
+import { normalizedReadout } from "./result-revisions";
+import { appliedControlNeutralization } from "./class-control-neutralization";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { appendResultRevision, lockResultHead, type ResultRevisionRow } from "./result-revisions";
 import { isResultCurrent, loadResultBasisHash } from "./result-basis";
@@ -35,8 +39,15 @@ const AUDIT_ACTION: Partial<Record<ResultRevisionRow["cause"], string>> = {
   MANUAL_FINISH_TIME_CORRECTION: "MANUAL_FINISH_TIME_CORRECTED",
   MANUAL_FINISH_TIME_CORRECTION_WITHDRAWAL: "MANUAL_FINISH_TIME_CORRECTION_WITHDRAWN",
   MANUAL_PUNCH_START_TIME_CORRECTION: "MANUAL_PUNCH_START_TIME_CORRECTED",
-  MANUAL_PUNCH_START_TIME_CORRECTION_WITHDRAWAL: "MANUAL_PUNCH_START_TIME_CORRECTION_WITHDRAWN"
+  MANUAL_PUNCH_START_TIME_CORRECTION_WITHDRAWAL: "MANUAL_PUNCH_START_TIME_CORRECTION_WITHDRAWN",
+  MANUAL_TIME: "MANUAL_TIME_DECIDED", MANUAL_TIME_WITHDRAWAL: "MANUAL_TIME_WITHDRAWN",
+  MANUAL_CONTROL_APPROVAL: "CONTROLS_APPROVED", MANUAL_CONTROL_APPROVAL_WITHDRAWAL: "CONTROL_APPROVAL_WITHDRAWN",
+  MANUAL_RESULT_REMOVED: "MANUAL_RESULT_REMOVED"
 };
+/** Orsaker som ändrar löparens måltid (stafett: nästa sträckas växling). */
+const FINISH_CHANGING: ReadonlySet<ResultRevisionRow["cause"]> = new Set<ResultRevisionRow["cause"]>([
+  "MANUAL_FINISH_TIME_CORRECTION", "MANUAL_FINISH_TIME_CORRECTION_WITHDRAWAL", "MANUAL_TIME", "MANUAL_TIME_WITHDRAWAL",
+  "MANUAL_RESULT_REMOVED", "MANUAL_DID_NOT_FINISH", "MANUAL_DID_NOT_FINISH_WITHDRAWAL"]);
 
 interface EntryContext {
   readonly race: { id: string; snapshotVersion: number };
@@ -44,6 +55,9 @@ interface EntryContext {
     classId: string; courseVersionId: string; startRule: "FIXED" | "PUNCH"; maxTimeMinutes: number | null };
   readonly history: ResultHistory<ResultRevisionRow>;
   readonly context: ManualDecisionContext;
+  readonly snapshot: RaceSnapshot;
+  /** Den tekniska revisionens avläsning: målstämplingen och om löparen har lästs ut alls. */
+  readonly readoutFinishTime: string | null;
 }
 
 /** Läser löparens revisioner och det som avgör besluten. Kastar `StoredResultRevisionConflict` vid motsägelse. */
@@ -53,7 +67,7 @@ async function loadEntryContext(tx: Transaction, raceId: string, entryId: string
   const [entry] = await tx.select({ id: schema.entries.id, givenName: schema.entries.givenName,
     familyName: schema.entries.familyName, teamId: schema.entries.teamId, className: schema.classes.name,
     classId: schema.entries.classId, courseVersionId: schema.classes.courseVersionId, startRule: schema.classes.startRule,
-    maxTimeMinutes: schema.classes.maxTimeMinutes })
+    maxTimeMinutes: schema.classes.maxTimeMinutes, fixedStartTime: schema.entries.fixedStartTime })
     .from(schema.entries).innerJoin(schema.classes, and(eq(schema.classes.id, schema.entries.classId), eq(schema.classes.raceId, raceId)))
     .where(and(eq(schema.entries.id, entryId), eq(schema.entries.raceId, raceId)));
   if (!race || !entry) return undefined;
@@ -69,11 +83,21 @@ async function loadEntryContext(tx: Transaction, raceId: string, entryId: string
     if (checkin?.correction) history = { ...history, effective: null, governing: "NONE", noActiveResult: true, restore: null };
   }
   const basisHash = await loadResultBasisHash(tx, entryId);
-  const [readout] = head?.readoutId ? await tx.select({ startPunchedAt: schema.cardReadouts.startPunchedAt })
-    .from(schema.cardReadouts).where(eq(schema.cardReadouts.id, head.readoutId)) : [];
-  return { race, entry, history, context: { entryId: entry.id, classId: entry.classId, courseVersionId: entry.courseVersionId,
-    startRule: entry.startRule, headStartPunchedAt: readout?.startPunchedAt?.toISOString() ?? null, maxTimeMinutes: entry.maxTimeMinutes,
-    isCurrent: (revision) => isResultCurrent(revision as ResultRevisionRow, basisHash, race.snapshotVersion) } };
+  // Steg 31: besluten bygger på den tekniska bedömningen under eventuella beslut (inte bara på huvudet).
+  const technicalReadoutId = history.technical?.readoutId ?? null;
+  const [readout] = technicalReadoutId ? await tx.select().from(schema.cardReadouts)
+    .where(eq(schema.cardReadouts.id, technicalReadoutId)) : [];
+  const snapshot = await loadRaceSnapshot(tx, raceId);
+  const normalized = readout ? normalizedReadout(readout) : undefined;
+  const knownStartTime = officialStartTime({ startRule: entry.startRule, fixedStartTime: entry.fixedStartTime?.toISOString() ?? null,
+    startPunchedAt: normalized?.startPunchedAt ?? null }) ?? null;
+  return { race, entry, history, snapshot, readoutFinishTime: normalized?.finishPunchedAt ?? null,
+    context: { entryId: entry.id, classId: entry.classId, courseVersionId: entry.courseVersionId,
+      startRule: entry.startRule, headStartPunchedAt: readout?.startPunchedAt?.toISOString() ?? null, maxTimeMinutes: entry.maxTimeMinutes,
+      knownStartTime,
+      evaluateWithTimes: normalized ? (startTime, finishTime) => evaluateReadoutWithTimes(normalized, snapshot, entry.id, startTime, finishTime)
+        : undefined,
+      isCurrent: (revision) => isResultCurrent(revision as ResultRevisionRow, basisHash, race.snapshotVersion) } };
 }
 
 function timing(revision: ResultRevisionRow | null | undefined) {
@@ -88,14 +112,18 @@ function timing(revision: ResultRevisionRow | null | undefined) {
 function statusResponse(value: EntryContext): EntryStatusResponse {
   const { history } = value;
   const restores = history.governing === "NONE" ? null : history.restore;
-  const correction = history.governing === "FINISH_TIME" || history.governing === "START_TIME";
+  const correction = history.governing === "FINISH_TIME" || history.governing === "START_TIME" || history.governing === "MANUAL_TIME";
+  const approvable = controlApprovalSource(history, value.context);
   return entryStatusResponseSchema.parse({ formatVersion: 1, raceId: value.race.id, entryId: value.entry.id,
     entryName: `${value.entry.givenName} ${value.entry.familyName}`, className: value.entry.className,
     headRevision: history.head?.revision ?? 0, governingDecision: history.governing, noActiveResult: history.noActiveResult,
     readiness: manualDecisionReadiness(history, value.context),
     withdrawRestores: restores ? { status: restores.status } : null,
     timing: history.governing === "NONE" || correction ? timing(history.effective) : null,
-    withdrawTiming: correction ? timing(restores) : null });
+    withdrawTiming: correction ? timing(restores) : null,
+    manualTime: { knownStartTime: value.context.knownStartTime ?? null, readoutFinishTime: value.readoutFinishTime,
+      hasReadout: value.history.technical !== null },
+    approvableControls: typeof approvable === "string" ? [] : [...approvable.outcome.missingControls] });
 }
 
 export type EntryStatusReadResult =
@@ -132,13 +160,21 @@ function receipt(row: ResultRevisionRow, requestId: string, replayed: boolean): 
 
 /** Rätt orsak för beslutet (för att känna igen en upprepad begäran). */
 function causeMatches(decision: ManualDecision, cause: ResultRevisionRow["cause"]): boolean {
-  if (decision.kind === "WITHDRAW") return cause.endsWith("_WITHDRAWAL");
+  if (decision.kind === "WITHDRAW") return cause.endsWith("_WITHDRAWAL") || cause === "MANUAL_RESULT_REMOVED";
   const causes: Record<Exclude<ManualDecision["kind"], "WITHDRAW">, ResultRevisionRow["cause"]> = {
     DID_NOT_START: "MANUAL_DID_NOT_START", DID_NOT_FINISH: "MANUAL_DID_NOT_FINISH", DISQUALIFIED: "MANUAL_DISQUALIFICATION",
     OUT_OF_COMPETITION: "MANUAL_OUT_OF_COMPETITION", WITHOUT_TIMING: "MANUAL_WITHOUT_TIMING",
     APPROVE_MANUALLY: "MANUAL_RESULT_APPROVAL", FINISH_TIME: "MANUAL_FINISH_TIME_CORRECTION",
-    START_TIME: "MANUAL_PUNCH_START_TIME_CORRECTION" };
+    START_TIME: "MANUAL_PUNCH_START_TIME_CORRECTION", MANUAL_TIME: "MANUAL_TIME", APPROVE_CONTROLS: "MANUAL_CONTROL_APPROVAL" };
   return causes[decision.kind] === cause;
+}
+
+/** Arrangörens text på revisionen: diskens orsak eller (steg 31) orsaken till manuell tid och godkännande. */
+function decisionNote(decision: ManualDecision): string | null {
+  const text = decision.kind === "DISQUALIFIED" ? decision.reason
+    : decision.kind === "MANUAL_TIME" || decision.kind === "APPROVE_CONTROLS" || decision.kind === "APPROVE_MANUALLY" ||
+      decision.kind === "DID_NOT_FINISH" ? decision.note : undefined;
+  return text?.trim().slice(0, 500) || null;
 }
 
 /**
@@ -158,14 +194,18 @@ export async function applyEntryDecision(tx: Transaction, input: { raceId: strin
   if (!outcome.ok) return { ok: false, headRevision, readiness: outcome.readiness };
   const courseVersionId = "courseVersionId" in outcome.outcome && outcome.outcome.courseVersionId
     ? outcome.outcome.courseVersionId : value.entry.courseVersionId;
+  // Manuell tid bedöms mot nuvarande bana och dess strukna kontroll; övriga beslut ärver källans.
+  const controlNeutralizationId = outcome.cause === "MANUAL_TIME"
+    ? appliedControlNeutralization(value.snapshot, outcome.outcome as EvaluationResult)
+    : outcome.cause === "MANUAL_RESULT_REMOVED" ? null : outcome.source?.controlNeutralizationId ?? null;
   const revision = await appendResultRevision(tx, { raceId: input.raceId, entryId: input.entryId, cause: outcome.cause,
     outcome: outcome.outcome, engineVersion: outcome.engineVersion,
     snapshotVersion: input.snapshotVersion ?? value.race.snapshotVersion, courseVersionId,
-    controlNeutralizationId: outcome.source?.controlNeutralizationId ?? null, requestId: input.requestId,
+    controlNeutralizationId, requestId: input.requestId,
     actorAccountId: input.actorAccountId, expectedRevision: headRevision + 1, createdAt: input.decidedAt,
-    note: input.decision.kind === "DISQUALIFIED" ? input.decision.reason?.trim() || null : null });
+    note: decisionNote(input.decision) });
   // Stafett: en ändrad måltid är nästa sträckas växling.
-  if (value.entry.teamId && (outcome.cause === "MANUAL_FINISH_TIME_CORRECTION" || outcome.cause === "MANUAL_FINISH_TIME_CORRECTION_WITHDRAWAL")) {
+  if (value.entry.teamId && FINISH_CHANGING.has(outcome.cause)) {
     await synchronizeRelayTeams(tx, input.raceId, [value.entry.teamId], value.race.snapshotVersion);
   }
   return { ok: true, revision, before: value.history.head };

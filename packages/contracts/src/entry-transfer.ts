@@ -29,7 +29,8 @@ export const entryTransferEffectiveResultSchema = z.discriminatedUnion("state", 
 });
 export const entryTransferResultRevisionMarkerSchema = z.enum([
   "MANUAL_FINISH_TIME_CORRECTION",
-  "MANUAL_FINISH_TIME_CORRECTION_WITHDRAWAL"
+  "MANUAL_FINISH_TIME_CORRECTION_WITHDRAWAL",
+  "MANUAL_TIME"
 ]);
 export const entryTransferRequestSchema = z.object({
   formatVersion: z.literal(1), expectedEntryVersion: version, expectedClassId: uuid,

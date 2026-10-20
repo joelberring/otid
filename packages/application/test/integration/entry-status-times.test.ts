@@ -37,7 +37,7 @@ describe("steg 23: ändrad mål- och starttid i statusflödet (ADR-0173 beslut 1
     expect(await publicAda(raceId)).toMatchObject({ revision: 2, status: "OK", elapsedMs: 2_460_000 });
 
     expect(await entryStatus(auth, ada)).toMatchObject({ governingDecision: "FINISH_TIME", readiness: { WITHDRAW: "READY",
-      DISQUALIFIED: "UNSUPPORTED_RESULT" }, timing: { finishTime: "2026-08-30T10:41:00.000Z" },
+      DISQUALIFIED: "ACTIVE_MANUAL_TIME" }, timing: { finishTime: "2026-08-30T10:41:00.000Z" },
       withdrawTiming: { finishTime: "2026-08-30T10:40:00.000Z" } });
     expect(await decide(auth, ada, { kind: "WITHDRAW" })).toMatchObject({ status: "decided",
       response: { revision: 3, cause: "MANUAL_FINISH_TIME_CORRECTION_WITHDRAWAL" } });
@@ -45,7 +45,7 @@ describe("steg 23: ändrad mål- och starttid i statusflödet (ADR-0173 beslut 1
     expect(await entryStatus(auth, ada)).toMatchObject({ governingDecision: "NONE", readiness: { WITHDRAW: "NO_ACTIVE_DECISION" } });
   });
 
-  it("rättar en stämplad start, prövar mot sträcktiderna och en ny avläsning ersätter rättningen", async () => {
+  it("rättar en stämplad start, prövar mot sträcktiderna och rättningen ligger kvar över en ny avläsning (steg 31)", async () => {
     const { raceId, auth, ada } = await readOutAda();
     expect(await decide(auth, ada, { kind: "START_TIME", startTime: "2026-08-30T10:11:00Z" }))
       .toMatchObject({ status: "conflict", readiness: "INVALID_TIME" });
@@ -59,11 +59,13 @@ describe("steg 23: ändrad mål- och starttid i statusflödet (ADR-0173 beslut 1
       response: { revision: 3, cause: "MANUAL_PUNCH_START_TIME_CORRECTION_WITHDRAWAL" } });
     expect(await publicAda(raceId)).toMatchObject({ revision: 3, elapsedMs: 2_400_000 });
 
-    expect((await decide(auth, ada, { kind: "START_TIME", startTime: "2026-08-30T09:58:00Z" })).status).toBe("conflict");
-    await ingestDeviceBatch(db, raceId, batch(randomUUID(), { ...okPayload, finishPunchedAt: "2026-08-30T10:41:00Z" }));
-    expect((await decide(auth, ada, { kind: "START_TIME", startTime: "2026-08-30T09:58:00Z" })).status).toBe("decided");
+    // Steg 31: efter borttagningen kan starten rättas igen direkt, och rättningen ligger kvar över nya avläsningar.
+    expect(await decide(auth, ada, { kind: "START_TIME", startTime: "2026-08-30T09:58:00Z" })).toMatchObject({ status: "decided",
+      response: { revision: 4 } });
     await ingestDeviceBatch(db, raceId, batch(randomUUID(), { ...okPayload, finishPunchedAt: "2026-08-30T10:42:00Z" }));
-    expect(await entryStatus(auth, ada)).toMatchObject({ governingDecision: "NONE" });
+    expect(await entryStatus(auth, ada)).toMatchObject({ governingDecision: "START_TIME" });
+    expect(await publicAda(raceId)).toMatchObject({ revision: 4, elapsedMs: 2_520_000 });
+    expect(await decide(auth, ada, { kind: "WITHDRAW" })).toMatchObject({ status: "decided", response: { revision: 6 } });
     expect(await publicAda(raceId)).toMatchObject({ revision: 6, elapsedMs: 2_520_000 });
   });
 });

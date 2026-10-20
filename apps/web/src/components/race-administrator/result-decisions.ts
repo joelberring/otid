@@ -34,7 +34,9 @@ const DECISION_TEXT: Record<DecisionAttempt["choice"], { saved: string; conflict
   DNF: { saved: text.dnfSaved, conflict: text.dnfConflict },
   DNF_WITHDRAWAL: { saved: text.dnfWithdrawalSaved, conflict: text.dnfConflict },
   DNS: { saved: text.dnsSaved, conflict: text.dnsConflict },
-  DNS_WITHDRAWAL: { saved: text.dnsWithdrawalSaved, conflict: text.dnsConflict }
+  DNS_WITHDRAWAL: { saved: text.dnsWithdrawalSaved, conflict: text.dnsConflict },
+  MANUAL_TIME_WITHDRAWAL: { saved: text.manualTimeWithdrawalSaved, conflict: text.approvalConflict },
+  CONTROL_APPROVAL_WITHDRAWAL: { saved: text.controlApprovalWithdrawalSaved, conflict: text.approvalConflict }
 };
 
 /** Hur ett försök skickas: adress, nyckel, kropp, kvittokontroll och besked. */

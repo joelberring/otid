@@ -10,6 +10,11 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-10-20 – Steg 31 B: nödlägen för en löpare (B1–B3)
+- Domänen (`manual-decision.ts`, ny `manual-time.ts`, `entry-readout.ts`): beslut ligger på varandra som en stapel och följer med över senare avläsningar och omräkningar, även rättad mål- och starttid (förut ersattes de). Nya orsaker `MANUAL_TIME`, `MANUAL_CONTROL_APPROVAL`, deras återtaganden och `MANUAL_RESULT_REMOVED` (manuellt resultat utan avläsning borttaget), migration 0010. Nya beslut bygger på senaste tekniska bedömningen under besluten (inga återvändsgränder efter ett återtagande). Resultatmotorn är oförändrad.
+- Deltagarkortet: "Ange tid manuellt" (måltid/starttid/löptid som klockslag, status, orsak, förhandsbesked "Löptid 45:00, godkänd."), "Godkänn saknade kontroller", "Ta bort manuell tid"/"Ta bort godkända kontroller", orsaken visas i kortet, "Manuell tid" i deltagarlistan. Brutit och ej start går utan avläsning; "Godkänn manuellt" kräver orsak.
+- Tester: domän `manual-time` (10), integration `steg-31-manuellt` (3) och uppdaterade förväntningar (återvändsgränder borta), Playwright `manuellt`.
+
 ### 2026-10-20 – Steg 30: Live för publiken (steg 30 klart)
 - `/t/{kod}/live` (länk från tävlingssidan och resultatlistans rubrik), `GET /api/public/races/{id}/live` bakom samma grind (`publicRaceAccess`, opublicerad/dold ger 404). `application/src/public-live.ts`: ren `projectPublicLive` över den publika resultatlistan, radiotiderna och när resultatet kom in (första avläsningen); kontraktet `public-live.ts` är strikt utan bricka, interna id:n, orsaker och strukna.
 - Sidan: Senast i mål (namn, klubb, klass, tid, "1:a"; felstämplad som "✗ Felstämplad" utan placering), Ledare per klass med "▲ Ny ledare" i 5 min, radiopassager ("passerade Radio 1 6:12, 2:a"), "Uppdaterad 21:03:12" och lugnt besked utan nät, tomläge "Inga målgångar än – sidan uppdateras av sig själv". Uppdateras med resultatströmmen + hämtning var 5:e s (gemensam `usePublicRaceData`).

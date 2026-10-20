@@ -32,3 +32,5 @@ export * from "./radio-controls";
 export * from "./start-punch";
 export * from "./max-time";
 export * from "./remaining-runners";
+export * from "./manual-time";
+export * from "./entry-readout";

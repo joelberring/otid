@@ -39,7 +39,12 @@ export const revisionCauseEnum = pgEnum("revision_cause", [
   "MANUAL_PUNCH_START_TIME_CORRECTION",
   "MANUAL_PUNCH_START_TIME_CORRECTION_WITHDRAWAL",
   "SHORTENED_COURSE_CLASS_TRANSFER",
-  "MANUAL_DID_NOT_START_WITHDRAWAL"
+  "MANUAL_DID_NOT_START_WITHDRAWAL",
+  "MANUAL_TIME",
+  "MANUAL_TIME_WITHDRAWAL",
+  "MANUAL_CONTROL_APPROVAL",
+  "MANUAL_CONTROL_APPROVAL_WITHDRAWAL",
+  "MANUAL_RESULT_REMOVED"
 ]);
 export const eventAdministrationRoleEnum = pgEnum("event_administration_role", ["OWNER", "ADMIN", "FUNCTIONARY"]);
 export const auditActorKindEnum = pgEnum("audit_actor_kind", [

@@ -29,7 +29,9 @@ const DECISIONS: Record<DecisionChoice, { decision: EntryStatusDecision; withdra
   DSQ_WITHDRAWAL: { decision: { kind: "WITHDRAW" }, withdraws: "DSQ" },
   OOC_WITHDRAWAL: { decision: { kind: "WITHDRAW" }, withdraws: "OOC" },
   NT_WITHDRAWAL: { decision: { kind: "WITHDRAW" }, withdraws: "NT" },
-  APPROVAL_WITHDRAWAL: { decision: { kind: "WITHDRAW" }, withdraws: "APPROVAL" }
+  APPROVAL_WITHDRAWAL: { decision: { kind: "WITHDRAW" }, withdraws: "APPROVAL" },
+  MANUAL_TIME_WITHDRAWAL: { decision: { kind: "WITHDRAW" } },
+  CONTROL_APPROVAL_WITHDRAWAL: { decision: { kind: "WITHDRAW" }, withdraws: "CONTROL_APPROVAL" }
 };
 
 /** Beskedet när ett beslut inte går att fatta (samma texter som tidigare per beslut). */
@@ -60,6 +62,9 @@ export function createStatusChangeActions(ws: Base & RaceDataActions & ResultDec
     const { decision, withdraws } = DECISIONS[choice];
     const readiness = status.readiness[decision.kind];
     if (withdraws !== undefined && (status.governingDecision !== withdraws || readiness !== "READY")) return text.notAvailable;
+    // Rättad mål- eller starttid och manuell tid tas bort med samma val (steg 31).
+    if (choice === "MANUAL_TIME_WITHDRAWAL" && (!["FINISH_TIME", "START_TIME", "MANUAL_TIME"].includes(status.governingDecision) ||
+      readiness !== "READY")) return text.notAvailable;
     if (readiness !== "READY") return blocked(choice, readiness);
     const attempt: DecisionAttempt = { kind: "DECISION", choice, entryId: id, restores: status.withdrawRestores,
       request: { formatVersion: 1, requestId: crypto.randomUUID(), expectedRevision: status.headRevision, decision } };
@@ -89,6 +94,13 @@ export function createStatusChangeActions(ws: Base & RaceDataActions & ResultDec
       const trimmed = reason.trim();
       value = { ...attempt, request: { ...attempt.request, decision: trimmed ? { kind: "DISQUALIFIED", reason: trimmed }
         : { kind: "DISQUALIFIED" } } };
+      pending.current = value; setDecisionAttempt(value);
+    }
+    // Steg 31: "Godkänn manuellt" kräver orsak.
+    if (attempt.kind === "DECISION" && attempt.choice === "APPROVAL" && pending.current === attempt && !sent.current) {
+      const trimmed = reason.trim();
+      if (!trimmed) { setStatusBlocked(text.reasonRequired); return; }
+      value = { ...attempt, request: { ...attempt.request, decision: { kind: "APPROVE_MANUALLY", note: trimmed } } };
       pending.current = value; setDecisionAttempt(value);
     }
     await submitStatusAttempt(value);

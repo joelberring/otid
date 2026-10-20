@@ -71,7 +71,8 @@ export async function assessReadOutEntries(tx: Transaction, raceId: string, clas
     const base = { entryId: entry.id, classId: entry.classId, displayName: `${entry.givenName} ${entry.familyName}`,
       className: classNames.get(entry.classId)!, readout, latest: head, before, after: next.status };
     // Manuellt rättad tid finns bara i den rättade revisionen; en omräkning från avläsningen skulle tappa den.
-    if (head && (head.cause === "MANUAL_FINISH_TIME_CORRECTION" || head.cause === "MANUAL_PUNCH_START_TIME_CORRECTION")) {
+    // Steg 31: rättningen ligger kvar över senare avläsningar, så det gällande beslutet avgör (inte huvudet).
+    if (state && (state.governing === "FINISH_TIME" || state.governing === "START_TIME" || state.governing === "MANUAL_TIME")) {
       assessed.push({ ...base, outcome: "NOT_RECALCULATED", recalculate: false }); continue;
     }
     // Ej start gäller löparen oavsett avläsningen och får inte ersättas av en teknisk revision.
@@ -80,7 +81,7 @@ export async function assessReadOutEntries(tx: Transaction, raceId: string, clas
     if (!head || !technical.has(entry.id) || didNotStart || next.entryId !== entry.id || current.entryId !== entry.id) {
       assessed.push({ ...base, outcome: "UNCHANGED", recalculate: false }); continue;
     }
-    const manual = ["DSQ", "APPROVAL", "DNF", "OOC", "NT"].includes(state.governing);
+    const manual = ["DSQ", "APPROVAL", "DNF", "OOC", "NT", "CONTROL_APPROVAL"].includes(state.governing);
     assessed.push({ ...base, outcome: courseEditOutcome(before, next.status, manual), recalculate: true });
   }
   return assessed;

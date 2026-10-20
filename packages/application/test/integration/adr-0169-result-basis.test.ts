@@ -201,8 +201,8 @@ describe("ADR-0169 resultatets underlag gäller löparen", () => {
     await register(f, "David", "7030");
     const withdrawn = await decide(f.proof, ada, { kind: "WITHDRAW" });
     expect(withdrawn).toMatchObject({ status: "decided", response: { cause: "MANUAL_RESULT_APPROVAL_WITHDRAWAL" } });
-    // Den återställda revisionen är inte en teknisk källa för ett nytt godkännande, men den är aktuell.
-    expect(await view(f, ada)).toMatchObject({ ...current, approval: "UNSUPPORTED_RESULT" });
+    // Steg 31: den återställda avläsningen kan godkännas igen direkt (ingen återvändsgränd), och den är aktuell.
+    expect(await view(f, ada)).toMatchObject({ ...current, approval: "READY" });
   });
 
   it("en struken kontroll gör klassens resultat inaktuella tills de räknats om", async () => {

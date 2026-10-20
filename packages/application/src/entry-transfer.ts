@@ -85,12 +85,15 @@ export async function listEntryTransfersAsAdmin(db: Database, input: Authenticat
       state: "ACTIVE_RESULT"; selectedRevision: { id: string; revision: number };
       resultSnapshotVersion: number; result: SpeakerBoardEffectiveResult
     }>();
-    const revisionMarkerByEntry = new Map<string, "MANUAL_FINISH_TIME_CORRECTION" | "MANUAL_FINISH_TIME_CORRECTION_WITHDRAWAL" | null>();
+    const revisionMarkerByEntry = new Map<string, "MANUAL_FINISH_TIME_CORRECTION" | "MANUAL_FINISH_TIME_CORRECTION_WITHDRAWAL" |
+      "MANUAL_TIME" | null>();
     for (const state of await resolveStoredResultHeadStates(tx, input.raceId, publishedHeads)) {
       if (freshnessByEntry.has(state.selectedHead.entryId)) throw new Error("Deltagarlistan har dubbla resultathuvuden");
       const cause = state.selectedHead.cause;
-      revisionMarkerByEntry.set(state.selectedHead.entryId,
-        cause === "MANUAL_FINISH_TIME_CORRECTION" || cause === "MANUAL_FINISH_TIME_CORRECTION_WITHDRAWAL" ? cause : null);
+      // Steg 31: en manuell eller rättad tid som gäller markeras diskret, även när en senare avläsning ligger under.
+      revisionMarkerByEntry.set(state.selectedHead.entryId, state.governing === "MANUAL_TIME" ? "MANUAL_TIME"
+        : state.governing === "FINISH_TIME" ? "MANUAL_FINISH_TIME_CORRECTION"
+          : cause === "MANUAL_FINISH_TIME_CORRECTION_WITHDRAWAL" ? cause : null);
       const selectedRevision = { id: state.selectedHead.id, revision: state.selectedHead.revision };
       const outcome = parseAdministratorStoredResultHead(state);
       const result = speakerBoardEffectiveResultSchema.parse({ revision: state.head.revision,

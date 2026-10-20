@@ -18,6 +18,7 @@ import { startPunchText } from "../../lib/start-punch-text";
 import { EntryActionForms, RegistrationForm } from "./entry-action-forms";
 import { CardPunches } from "./card-punches";
 import { RemovalReview } from "./removal-review";
+import { ManualResult } from "./manual-result";
 import { removalSv as removalText } from "../../i18n/removal-sv";
 import { Button } from "../ui";
 import type { StatusAttempt } from "./result-decisions";
@@ -63,6 +64,7 @@ export function ParticipantCard({ ws }: { ws: Workspace }) {
       <CardResult ws={ws} result={result} error={effectiveResultError} />
       {/* PLAN.md steg 27: brickans alla stämplingar, även från en annan dag eller bana. */}
       {result?.cardPunches && data && <CardPunches punches={result.cardPunches} timeZone={data.timeZone} />}
+      <ManualResult key={selected.id} ws={ws} result={result} />
       <StatusChange ws={ws} result={result} />
       {data && <RaceResultControls result={result} resultError={effectiveResultError} timeZone={data.timeZone} />}
       {result && data && <ResultHistory result={result} timeZone={data.timeZone} />}
@@ -125,6 +127,7 @@ function CardResult({ ws, result, error }: { ws: Workspace; result: Administrato
             {result.governingDecision !== "NONE" && <> · {text.decision}: <strong>{adminText.governingDecisions[result.governingDecision]}</strong></>}</p>
           {/* PLAN.md steg 25: diskens orsak och startstämplingen vid minutstart, bara i arbetsytan. */}
           {result.notes?.disqualificationReason && <p data-testid="dsq-reason">{text.dsqReasonShown(result.notes.disqualificationReason)}</p>}
+          {result.decisionNote && !result.notes?.disqualificationReason && <p data-testid="decision-note">{text.decisionNoteShown(result.decisionNote)}</p>}
           {result.notes?.startPunch && <p className={result.notes.startPunch.kind === "FROM_PUNCH" ? styles.muted : styles.warning} role="note"
             data-testid="start-punch-note">
             {result.notes.startPunch.kind === "FROM_PUNCH" ? "" : "! "}{startPunchText(result.notes.startPunch, result.timeZone)}</p>}
@@ -141,7 +144,9 @@ function consequence(attempt: StatusAttempt): string {
   if (attempt.kind === "RECALCULATION") return text.consequences.RECALCULATION;
   switch (attempt.choice) {
     case "APPROVAL_WITHDRAWAL": case "DSQ_WITHDRAWAL": case "NT_WITHDRAWAL": case "OOC_WITHDRAWAL": case "DNF_WITHDRAWAL":
-      return attempt.restores ? text.withdrawalConsequence(sv.publicResultsStatusLabels[attempt.restores.status]) : text.notAvailable;
+    case "MANUAL_TIME_WITHDRAWAL": case "CONTROL_APPROVAL_WITHDRAWAL":
+      return attempt.restores ? text.withdrawalConsequence(sv.publicResultsStatusLabels[attempt.restores.status])
+        : text.noDecisionWithdrawalConsequence;
     case "DNS_WITHDRAWAL": return text.dnsWithdrawalConsequence;
     default: return text.consequences[attempt.choice];
   }
@@ -155,7 +160,8 @@ function StatusChange({ ws, result }: { ws: Workspace; result: AdministratorEffe
   const choices = availableStatusChoices(result);
   const id = `status-change-${raceId}`;
   const [reason, setReason] = useState("");
-  const asksReason = attempt?.kind === "DECISION" && attempt.choice === "DSQ";
+  const asksReason = attempt?.kind === "DECISION" && (attempt.choice === "DSQ" || attempt.choice === "APPROVAL");
+  const reasonLabel = attempt?.kind === "DECISION" && attempt.choice === "APPROVAL" ? text.approvalReason : text.dsqReason;
   return <section className={styles.workspace}>
     <label htmlFor={id}>{text.changeStatus}</label>
     <select id={id} value={statusChoice} disabled={disabled || choices.length === 0}
@@ -167,12 +173,13 @@ function StatusChange({ ws, result }: { ws: Workspace; result: AdministratorEffe
     {attempt && <div className={styles.review} role="alert">
       <p><strong>{consequence(attempt)}</strong></p>
       {/* Disk med orsak (PLAN.md steg 25): orsaken visas bara i arbetsytan, aldrig publikt. */}
-      {asksReason && <label className={styles.narrowField} htmlFor={`${id}-reason`}>{text.dsqReason}
+      {asksReason && <label className={styles.narrowField} htmlFor={`${id}-reason`}>{reasonLabel}
         <input id={`${id}-reason`} value={reason} maxLength={240} disabled={busy || unknown} autoComplete="off"
           onChange={event => setReason(event.target.value)} /></label>}
       {unknown && <p>{text.unknown}</p>}
       <div className={styles.actions}>
-        <button type="button" disabled={busy} onClick={() => { void confirmStatusChange(attempt, reason); setReason(""); }}>
+        <button type="button" disabled={busy} onClick={() => {
+          void confirmStatusChange(attempt, reason).then(() => { if (!ws.pending.current) setReason(""); }); }}>
           {unknown ? text.retry : text.confirm}</button>
         {!unknown && <button type="button" className="secondary" disabled={busy} onClick={() => cancelStatusChange(attempt)}>{text.cancel}</button>}
       </div>

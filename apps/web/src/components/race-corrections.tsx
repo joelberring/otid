@@ -102,7 +102,7 @@ function TimeAdjustmentForm({ raceId, onSaved }: { raceId: string; onSaved: () =
   const [open, setOpen] = useState(false);
   return <details className={styles.disclosure} open={open || !!flow.attempt} onToggle={event => setOpen(event.currentTarget.open)}>
     <summary>{text.timeTitle}</summary>
-    <form className={styles.disclosureBody} onSubmit={submit}>
+    <form className={styles.disclosureBody} onSubmit={submit} noValidate>
       <p>{text.timeHelp}</p>
       <div className={styles.toolbarRow}>
         <label>{text.station}<select value={station} disabled={locked} onChange={event => setStation(event.target.value as typeof station)}>
@@ -143,7 +143,7 @@ function OutOfOrderForm({ raceId, onSaved }: { raceId: string; onSaved: () => Pr
   }
   return <details className={styles.disclosure} open={open || !!flow.attempt} onToggle={event => setOpen(event.currentTarget.open)}>
     <summary>{text.outTitle}</summary>
-    <form className={styles.disclosureBody} onSubmit={submit}>
+    <form className={styles.disclosureBody} onSubmit={submit} noValidate>
       <p>{text.outHelp}</p>
       <label>{text.controlCode}<input type="text" inputMode="numeric" value={code} disabled={locked}
         onChange={event => setCode(event.target.value.replace(/\D/g, "").slice(0, 4))} required /></label>
@@ -215,7 +215,7 @@ export function ShiftStartTimes({ raceId, classes, timeZone, onChanged }: { race
   const clock = (value: string | null) => value ? formatClockTime(value, timeZone) : "–";
   return <details className={styles.disclosure} open={open || !!flow.attempt} onToggle={event => setOpen(event.currentTarget.open)}>
     <summary>{text.shiftTitle}</summary>
-    <form className={styles.disclosureBody} onSubmit={submit}>
+    <form className={styles.disclosureBody} onSubmit={submit} noValidate>
       <p>{text.shiftHelp}</p>
       {fixed.length === 0 ? <p>{text.shiftNoClasses}</p> : <>
         <label>{text.shiftClass}<select value={classId} disabled={locked} onChange={event => setClassId(event.target.value)}>

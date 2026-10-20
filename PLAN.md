@@ -645,7 +645,7 @@ ett kort moll-ljud vid fel.
 - [x] Statusval: Ej start, Brutit, Diskvalificera (valfri orsak), Utom tävlan och Deltog utan tid överallt där brutit
   finns, med och utan avläsning; "Öppna" i kontrollvyns Kvar i skogen. Deltog utan tid visas sist i klassen och
   exporteras som IOF NotCompeting utan tid; ett beslut räknas som i mål i kvar i skogen.
-- [ ] Avläsaren ansluter själv till en redan godkänd station (WebUSB och Web Serial) när sidan öppnas och när
+- [x] Avläsaren ansluter själv till en redan godkänd station (WebUSB och Web Serial) när sidan öppnas och när
   stationen sätts i; "Sluta ansluta automatiskt"; länkarna öppnas i en ny flik.
 - [ ] Ljud vid avläsning (dur vid godkänt, moll vid fel), på som standard och sparat per webbläsare.
 

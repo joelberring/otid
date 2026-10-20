@@ -29,6 +29,19 @@ export const readoutText = {
   usbUnsupported: "Den här webbläsaren kan inte ansluta USB-enheter. Använd Chrome.",
   usbBusy: (detail: string) => `Stationen gick inte att ta (${detail}). Är en annan app (t.ex. SI-Droid) igång? Stäng den med Tvinga stopp under Inställningar → Appar, dra ur och sätt i stationen och försök igen.`,
   connectExercise: "Starta övningsstation",
+  // Steg 35: stationen ansluts själv och avläsningen i en egen flik.
+  autoTitle: "Automatisk anslutning",
+  autoConnecting: "Ansluter automatiskt till stationen … Sätt i stationen om den inte sitter i.",
+  autoConnected: "Stationen ansluts automatiskt nästa gång sidan öppnas eller stationen sätts i.",
+  autoPaused: "Frånkopplad. Stationen ansluts automatiskt igen nästa gång sidan öppnas.",
+  autoStop: "Sluta ansluta automatiskt",
+  autoChoose: "Flera stationer är godkända i den här webbläsaren. Välj vilken som ska anslutas:",
+  autoStationUsb: (index: number, serial: string | undefined, name: string | undefined) =>
+    `Anslut ${name ?? "station"} ${index + 1}${serial ? ` (serienr ${serial})` : ""}`,
+  autoStationSerial: (index: number) => `Anslut station ${index + 1}`,
+  autoProblem: (detail: string) => `Den automatiska anslutningen gick inte (${detail}). Anslut med knappen.`,
+  tabHint: "Tips: ha avläsningen öppen i en egen flik. Byt sida i en annan flik, så kopplas stationen inte från.",
+
   disconnect: "Koppla från station",
   serialUnsupported: "Den här webbläsaren kan inte ansluta USB-stationer. Använd Chrome eller Edge på dator.",
   serialFailed: "Stationen svarade inte. Kontrollera kabeln och att stationen är i avläsningsläge.",

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { sportidentReadoutPayloadSchema, type ReadoutPackage } from "@o-tid/contracts";
-import { CP210X_USB_FILTERS, WebSerialTransport, WebUsbCp210xPort, type UsbDeviceLike, type UsbLike, type WebSerialPortLike } from "@o-tid/device-transport";
+import { CP210X_USB_FILTERS, WebSerialTransport, WebUsbCp210xPort, type WebSerialPortLike } from "@o-tid/device-transport";
 import { SiTimeError, type SiCardData } from "@o-tid/sportident";
 import { accountCsrf, fetchReadoutPackage, searchRunnerDatabase } from "./api";
 import { evaluateLocally, formatRunningTime, withLocalRegistrations, type LocalVerdict } from "./evaluate";
@@ -23,15 +23,17 @@ import { QrCode } from "./receipt-view";
 import { PunchListView } from "./punch-list-view";
 import { receiptLink } from "./receipt";
 import { loadReceiptSettings, saveReceiptSettings, type ReceiptSettings } from "./receipt-settings";
+import { serialIdentity, usbIdentity, useStationAutoConnect, type SerialApi, type SerialStation, type UsbApi,
+  type UsbStation } from "./station-auto";
 
 type Current =
   | { readonly phase: "reading"; readonly cardNumber: number }
   | { readonly phase: "failed"; readonly message: string }
   | { readonly phase: "done"; readonly cardNumber: string; readonly localSequence: number; readonly verdict?: LocalVerdict; readonly invalid?: boolean };
 
-type SerialNavigator = Navigator & { serial?: { requestPort(): Promise<WebSerialPortLike> } };
+type SerialNavigator = Navigator & { serial?: SerialApi };
 /** WebUSB: läsplattor (Chrome på Android ser inte stationens CP210x-chip som serieport). */
-type UsbNavigator = Navigator & { usb?: UsbLike & { requestDevice(options: { filters: readonly { vendorId: number }[] }): Promise<UsbDeviceLike> } };
+type UsbNavigator = Navigator & { usb?: UsbApi };
 /** Visa USB-knappen där Web Serial inte når stationen: Android, eller utan Web Serial. */
 const showUsbButton = typeof navigator !== "undefined" && !!(navigator as UsbNavigator).usb &&
   (/Android/i.test(navigator.userAgent) || !(navigator as SerialNavigator).serial);
@@ -227,37 +229,47 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
   async function connectSerial() {
     const serial = (navigator as SerialNavigator).serial;
     if (!serial) { setStation({ kind: "error", message: t.serialUnsupported }); return; }
-    let port: WebSerialPortLike;
+    let port: SerialStation;
     try { port = await serial.requestPort(); }
     catch { setStation({ kind: "disconnected" }); return; }
-    await connectPort(port);
+    // Steg 35: en lyckad anslutning sparas, så att stationen ansluts själv nästa gång.
+    if (await connectPort(port)) auto.remember("serial", serialIdentity(port));
   }
 
-  async function connectPort(port: WebSerialPortLike) {
+  /** Ger sant när stationen svarade (på någon av hastigheterna). */
+  async function connectPort(port: WebSerialPortLike): Promise<boolean> {
     exerciseRef.current = undefined; setExercise(false);
     const timeZone = pkgRef.current?.event.timeZone;
     for (const baudRate of BAUD_RATES) {
-      if (await attach(new StationController(new WebSerialTransport(port, { baudRate }), callbacks, timeZone ? { timeZone } : {}))) return;
+      if (await attach(new StationController(new WebSerialTransport(port, { baudRate }), callbacks, timeZone ? { timeZone } : {}))) return true;
     }
     await controllerRef.current?.stop();
     setStation({ kind: "error", message: t.serialFailed });
+    return false;
   }
 
   /** Stationen direkt över WebUSB (läsplatta). Samma avläsning som Web Serial när porten väl är öppen. */
   async function connectUsb() {
     const usb = (navigator as UsbNavigator).usb;
     if (!usb) { setStation({ kind: "error", message: t.usbUnsupported }); return; }
-    let device: UsbDeviceLike;
+    let device: UsbStation;
     try { device = await usb.requestDevice({ filters: CP210X_USB_FILTERS }); }
     catch { setStation({ kind: "disconnected" }); return; }
+    if (await connectUsbDevice(device)) auto.remember("usb", usbIdentity(device));
+  }
+
+  /** En godkänd USB-enhet (vald nu eller sparad sedan förut). */
+  async function connectUsbDevice(device: UsbStation): Promise<boolean> {
+    const usb = (navigator as UsbNavigator).usb;
+    if (!usb) return false;
     const port = new WebUsbCp210xPort(device, usb);
     // Prova att ta enheten först: en annan app på plattan kan hålla den.
     try { await port.open({ baudRate: BAUD_RATES[0]! }); await port.close(); }
     catch (error) {
       setStation({ kind: "error", message: t.usbBusy(error instanceof Error ? error.message : String(error)) });
-      return;
+      return false;
     }
-    await connectPort(port);
+    return connectPort(port);
   }
 
   async function connectExercise() {
@@ -268,6 +280,8 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
   }
 
   async function disconnect() {
+    // Steg 35: en manuell frånkoppling ansluter inte igen av sig själv förrän nästa gång sidan öppnas.
+    auto.pause();
     await controllerRef.current?.stop();
     controllerRef.current = undefined; exerciseRef.current = undefined; setExercise(false);
   }
@@ -348,6 +362,12 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
     ? (request: Parameters<typeof searchRunnerDatabase>[1]) => searchRunnerDatabase(raceId, request) : undefined,
   [raceId, online, pkg?.runnerLookup?.wholeCountryOnServer]);
 
+  // Steg 35: stationen ansluts själv när sidan öppnas och när den sätts i, om den har anslutits här förut.
+  const connected = station.kind === "ready" || station.kind === "misconfigured" || station.kind === "connecting";
+  const auto = useStationAutoConnect({ serial: (navigator as SerialNavigator).serial, usb: (navigator as UsbNavigator).usb,
+    connected, ready: pkg !== undefined, connectSerialPort: connectPort, connectUsbDevice,
+    label: (link, index, identity, name) => link === "usb" ? t.autoStationUsb(index, identity.serialNumber, name) : t.autoStationSerial(index) });
+
   if (!raceId) return <main className="readout"><h1>{t.title}</h1><p className="notice">{t.noRace}</p></main>;
 
   const runners = pkg ? exerciseRunners(pkg) : [];
@@ -357,7 +377,6 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
   // Steg 31: övningsstationen skriver riktiga avläsningar; på tävlingsdagen varnas tydligt.
   const raceDay = pkg ? localRaceDate(new Date(), pkg.event.timeZone) === pkg.raceSnapshot.race.raceDate : false;
   const recent = [...items].sort((a, b) => b.localSequence - a.localSequence).slice(0, 10);
-  const connected = station.kind === "ready" || station.kind === "misconfigured" || station.kind === "connecting";
   // Klockskillnad i hela minuter, bara för en riktig station (övningsstationens klocka står med flit på tävlingsdagen).
   const clockSkew = !exercise && station.kind === "ready" && station.clock && Math.abs(station.clock.clockOffsetMs) >= CLOCK_SKEW_WARNING_MS
     ? Math.round(station.clock.clockOffsetMs / 60_000) : undefined;
@@ -436,6 +455,18 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
         </>}
     </section>
 
+    {/* Steg 35: automatisk anslutning till den sparade stationen. */}
+    {!exercise && (auto.remembered || auto.choices) ? <section className="auto-connect" data-testid="auto-connect" aria-label={t.autoTitle}>
+      {auto.choices ? <>
+        <p><strong>{t.autoChoose}</strong></p>
+        <div className="row">{auto.choices.map((option, index) => <button key={index} type="button" className="primary"
+          onClick={() => { void auto.choose(option); }}>{option.label}</button>)}</div>
+      </> : <p role="status">{connected ? t.autoConnected : auto.paused ? t.autoPaused : t.autoConnecting}</p>}
+      {auto.problem ? <p role="alert">{t.autoProblem(auto.problem)}</p> : null}
+      <button type="button" onClick={auto.stop}>{t.autoStop}</button>
+    </section> : null}
+    <p className="hint">{t.tabHint}</p>
+
     {exercise && station.kind === "ready" ? <section className="exercise" aria-label={t.exercise}>
       <h2>{t.exercise}</h2>
       {raceDay ? <p className="notice" role="alert" data-testid="exercise-race-day">{t.exerciseRaceDay}</p> : null}
@@ -472,9 +503,10 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
       <p>{t.rawLogHelp}</p>
     </section>
 
+    {/* Steg 35: länkarna öppnas i en ny flik, så att stationen inte kopplas från när man byter sida. */}
     <nav className="links">
-      <a href={`/admin/${raceId}/manage`}>{t.manage}</a>
-      <a href={`/results/${raceId}`}>{t.results}</a>
+      <a href={`/admin/${raceId}/manage`} target="_blank" rel="noopener">{t.manage}</a>
+      <a href={`/results/${raceId}`} target="_blank" rel="noopener">{t.results}</a>
     </nav>
   </main>;
 }

@@ -10,6 +10,11 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-10-20 – Steg 35 (del 2): avläsaren ansluter själv
+- Avläsningssidan sparar en lyckad anslutning (Web Serial eller WebUSB, tillverkare/produkt/serienummer, localStorage) och ansluter själv när sidan öppnas (när tävlingsdatan är inläst) och vid `connect` (stationen sätts i), till en redan godkänd enhet (`getPorts`/`getDevices`, CP210x). Flera godkända: den senast använda, annars får funktionären välja. "Ansluter automatiskt till stationen …" och "Sluta ansluta automatiskt"; manuell frånkoppling pausar till nästa gång sidan öppnas. Befintliga `connectPort`/`BAUD_RATES` återanvänds.
+- Tips om en egen flik; länkarna Hantera tävling och Resultat öppnas i en ny flik.
+- Tester: `station-memory` (val av enhet, lagring, blockerad lagring), Playwright `avlasaren` (tomma listor, utan Web Serial/WebUSB). Måste provas av ägaren med riktig station på dator och läsplatta.
+
 ### 2026-10-20 – Steg 35 (del 1): fler statusval
 - Deltagarkortets "Ändra status" (det enda stället där en löpares status sätts; kontrollvyn, deltagarlistan och kvar i skogen öppnar kortet, avläsningssidan och starten sätter ingen status utom ej start) har nu Ej start, Brutit, Diskvalificera, Utom tävlan och Deltog utan tid även utan avläsning. "Öppna" i kontrollvyns Kvar i skogen.
 - Domänen: disk och utom tävlan utan avläsning ger ett utfall utan tid; "Deltog utan tid" (NT, tidigare "utan tidtagning") går med och utan avläsning och har aldrig tid. Ingen migration behövdes (orsakerna och databasens villkor fanns).

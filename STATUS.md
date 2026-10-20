@@ -10,6 +10,11 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-10-20 – Steg 32: avläsning på läsplatta (Android) via WebUSB
+- Chrome på Android ser inte stationens CP210x-chip som serieport ("Inga kompatibla enheter hittades"). `device-transport/src/webusb-cp210x-port.ts`: CP210x över WebUSB med samma styrkommandon som Linux `cp210x.c` (IFC_ENABLE, SET_BAUDRATE, SET_LINE_CTL 8N1, SET_MHS DTR/RTS, PURGE), samma gränssnitt som en Web Serial-port, så att `WebSerialTransport` och avläsningen är oförändrade.
+- Avläsningssidan: "Anslut via USB (läsplatta)" på Android (eller utan Web Serial); en annan app som håller stationen ger ett tydligt besked. `usb=(self)` i avläsningens Permissions-Policy.
+- Tester: `webusb-cp210x-port` (4). Verifierat: lint, typecheck, test, build, Playwright `traningskvall`. Måste provas av ägaren på riktig platta med riktig station (iPhone/iPad går inte: ingen WebUSB i iOS).
+
 ### 2026-10-20 – Steg 31 del A: rättningar för hela tävlingen (del A klar)
 - A1: Avläsning → Rättningar för hela tävlingen → "Justera tid för en station" (Start, Mål eller Kontroll med kod, Tidigare/Senare, minuter och sekunder, Varför) → "Visa vad som händer" → "Spara och räkna om". Migration 0009 (`race_station_correction`, bara borttagning får skrivas), domänens `prepareReadoutForEvaluation` är enda stället där justeringen läggs på brickans tider, paketet till avläsningen har justeringarna, underlagshashen tar med aktiva rättningar (oförändrad utan). Manuellt rättad tid räknas inte om (antal i beskedet). "Ta bort" räknar om tillbaka; borttagna står kvar som historik.
 - A2: "Kontroll ur funktion" (kod, Varför): koden krävs inte på någon bana, även gafflade; stämplingen ger ingen sträcktid och sträckan räknas från kontrollen före; deltagarkortets sträcktider visar "Ur funktion", IOF-exporten utelämnar kontrollen. Ersätter den gamla strykningen per klass (`class-control-neutralization.ts`, utan gränssnitt): kod, tabell och `result_revision.control_neutralization_id` borttagna i 0009 (underlagshashen oförändrad). Banredigeringen fungerar som förut.

@@ -618,6 +618,10 @@ Del B – enskilda löpare, brickor och avläsningens robusthet:
   klocka och försvinner aldrig (listas tills den tagits bort); en avläsning som ger serverfel hålls åt sidan och resten av
   kön skickas ("Försök igen"); Övningsstation varnar på tävlingsdagen.
 
+## [x] Steg 32 – Avläsning på läsplatta (Android)
+
+- [x] CP210x-drivrutin över WebUSB och "Anslut via USB (läsplatta)" på avläsningssidan. Provas på riktig platta.
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

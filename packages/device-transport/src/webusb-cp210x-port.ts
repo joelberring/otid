@@ -85,7 +85,7 @@ export class WebUsbCp210xPort implements WebSerialPortLike {
     const device = this.#device;
     if (!device.opened) await device.open();
     if (device.configuration === null) await device.selectConfiguration(1);
-    const configuration = device.configuration as UsbConfigurationLike | null;
+    const configuration = device.configuration;
     const found = configuration?.interfaces.map((usbInterface) => ({ usbInterface,
       inEndpoint: usbInterface.alternate.endpoints.find((endpoint) => endpoint.direction === "in" && endpoint.type === "bulk"),
       outEndpoint: usbInterface.alternate.endpoints.find((endpoint) => endpoint.direction === "out" && endpoint.type === "bulk") }))

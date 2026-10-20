@@ -29,5 +29,5 @@ export const speakerSv = {
   noTime: "–",
   noResult: "Inget resultat",
   statuses: { OK: "Godkänd", OVERTIME: "Maxtid överskriden", MP: "Felstämplad", DSQ: "Diskvalificerad", OOC: "Utom tävlan", DNS: "Ej start", DNF: "Ej fullföljt",
-    NT: "Utan tidtagning" }
+    NT: "Deltog" }
 } as const;

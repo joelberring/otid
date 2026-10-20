@@ -18,7 +18,8 @@ import { Button, Notice } from "../ui";
  * felstämplade att titta på och senaste avläsningar på en skärm.
  */
 export function ReadoutControlView({ ws }: { ws: Workspace }) {
-  const { authenticated, busy, data, forestData, forestStale, loadRaceDayAttention, operation, pending, profile, raceId, shows, workflowLocked } = ws;
+  const { authenticated, busy, data, disabled, forestData, forestStale, functionary, loadRaceDayAttention, operation, pending, profile, raceId,
+    select, shows, workflowLocked } = ws;
   // PLAN.md steg 24: läget läses in av sig självt när steget visas (en gång; sedan finns Uppdatera).
   const attempted = useRef(false);
   const visible = shows("READOUT");
@@ -53,10 +54,13 @@ export function ReadoutControlView({ ws }: { ws: Workspace }) {
           {conflicts > 0 && <Notice tone="attention">{text.controlConflicts(conflicts)}</Notice>}
           {notStarted ? <p data-testid="in-forest-not-started">{text.controlForestNotStarted}</p>
             : remaining.length === 0 ? <p>{text.controlForestEmpty}</p> : <ul className={styles.controlList}>
-            {remaining.map(row => <li key={row.entryId}>
-              <strong>{row.displayName}</strong>
-              <span>{[row.organisationName ?? text.none, row.className,
-                row.cardNumber ? `${text.rosterCard} ${row.cardNumber}` : text.rosterNoActiveCard].join(" · ")}</span>
+            {remaining.map(row => <li key={row.entryId} className={functionary ? undefined : styles.controlRowAction}>
+              <span><strong>{row.displayName}</strong>
+                <span>{[row.organisationName ?? text.none, row.className,
+                  row.cardNumber ? `${text.rosterCard} ${row.cardNumber}` : text.rosterNoActiveCard].join(" · ")}</span></span>
+              {/* Steg 35: deltagarkortet direkt ur kvar i skogen (t.ex. "Deltog utan tid" för den som sprang utan bricka). */}
+              {!functionary && <Button variant="secondary" disabled={disabled} aria-label={text.controlOpenFor(row.displayName)}
+                onClick={() => select(row.entryId)}>{text.controlOpen}</Button>}
             </li>)}
           </ul>}
         </>}

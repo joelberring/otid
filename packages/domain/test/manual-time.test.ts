@@ -90,9 +90,9 @@ describe("manuell tid (steg 31)", () => {
     if (!removed.ok) throw new Error("borttagen");
     const after = resolveResultHistory([stored, revision(2, removed.cause, removed.outcome)]);
     expect(after).toMatchObject({ governing: "NONE", noActiveResult: true, effective: null });
-    // Därefter går ej start, brutit och en ny manuell tid.
+    // Därefter går ej start, brutit, disk (steg 35) och en ny manuell tid; godkännande kräver en avläsning.
     expect(manualDecisionReadiness(after, noReadout)).toMatchObject({ DID_NOT_START: "READY", DID_NOT_FINISH: "READY",
-      MANUAL_TIME: "READY", DISQUALIFIED: "NO_ACTIVE_RESULT" });
+      MANUAL_TIME: "READY", DISQUALIFIED: "READY", APPROVE_MANUALLY: "NO_ACTIVE_RESULT" });
   });
 
   it("brutit utan avläsning", () => {

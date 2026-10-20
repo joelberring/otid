@@ -10,6 +10,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-10-20 – Steg 35 (del 1): fler statusval
+- Deltagarkortets "Ändra status" (det enda stället där en löpares status sätts; kontrollvyn, deltagarlistan och kvar i skogen öppnar kortet, avläsningssidan och starten sätter ingen status utom ej start) har nu Ej start, Brutit, Diskvalificera, Utom tävlan och Deltog utan tid även utan avläsning. "Öppna" i kontrollvyns Kvar i skogen.
+- Domänen: disk och utom tävlan utan avläsning ger ett utfall utan tid; "Deltog utan tid" (NT, tidigare "utan tidtagning") går med och utan avläsning och har aldrig tid. Ingen migration behövdes (orsakerna och databasens villkor fanns).
+- NT visas "Deltog" sist i klassen (efter ej start), exporteras och fastställs som IOF NotCompeting utan tid (Finished betyder "inte kontrollerad"). Ett gällande beslut utan avläsning räknas som i mål i kvar i skogen.
+- Tester: domän `manual-decision`, integration `steg-35-fler-status` (+ ändrade `entry-status-overlays`, `entry-status-did-not-start`), Playwright `statusval`. Verifierat: lint, typecheck, test, test:integration, build, Playwright `statusval`, `traningskvall`, `manuellt`, `listor`, `live`.
+
 ### 2026-10-20 – Steg 34: SIAC från station som skickar alla åtta block (fel på natt-KM)
 - Natt-KM: två SIAC blev felstämplade med "gamla stämplingar" fast brickan var tömd. Råloggen från en av brickorna (avläst i efterhand) visade att BSM8:an skickade block 0–7 för "alla block"; O-Tid tog de fem första som 0, 4, 5, 6, 7 och läste block 1 (brickans inställningar) som stämplingar.
 - `sportident`: blocken placeras efter blocknumret i svaret (`cardImageBlocks`), läsningen av "alla block" (SI6, SI10/11/SIAC) slutar vid block 7 eller åtta svar, och tas brickan ur efter stämplingsblocken räcker det som kom. `decodeCard` vägrar en ofullständig bild i stället för att tyst ta färre stämplingar. Falska stationen kan skicka alla åtta block (`eightBlocks`).

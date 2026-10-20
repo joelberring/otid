@@ -30,7 +30,7 @@ export const sv = {
     DNF: "Ej fullföljt",
     OOC: "Utom tävlan",
     DNS: "Ej start",
-    NT: "Utan tidtagning"
+    NT: "Deltog"
   },
   publicResultsReasonLabels: {
     COMPLETE: "Godkänt resultat",
@@ -45,7 +45,7 @@ export const sv = {
     OUT_OF_COMPETITION: "Markerad som utom tävlan av arrangör",
     MANUAL_DISQUALIFICATION: "Diskvalificerad manuellt av arrangör",
     MANUAL_APPROVAL: "Godkänd manuellt av arrangör",
-    WITHOUT_TIMING: "Markerad utan tidtagning av arrangör"
+    WITHOUT_TIMING: "Deltog utan tid"
   },
   resultRecalculationLoginAgain: "Logga in igen och återuppta sedan samma försök uttryckligen.",
   resultRecalculationInvalidResponse: "Servern gav ett ogiltigt omräkningssvar.",

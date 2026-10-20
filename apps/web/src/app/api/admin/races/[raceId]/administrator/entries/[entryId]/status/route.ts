@@ -9,7 +9,7 @@ export async function GET(request: Request, context: Params) {
   return raceAdministratorRoute(db, request, raceId, { kind: "entry-status", entryId });
 }
 
-/** Ett beslut om löparen: ej start, brutit, disk, utom tävlan, utan tidtagning, godkänn, ändrad tid eller ta bort. */
+/** Ett beslut om löparen: ej start, brutit, disk, utom tävlan, deltog utan tid, godkänn, ändrad tid eller ta bort. */
 export async function POST(request: Request, context: Params) {
   const { raceId, entryId } = await context.params;
   return raceAdministratorRoute(db, request, raceId, { kind: "entry-status", entryId });

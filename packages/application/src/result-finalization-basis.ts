@@ -38,11 +38,11 @@ export class FinalizationTooLarge extends Error {}
 const MAX_CLASSES = 1_000;
 const MAX_RESULTS = 10_000;
 const MAX_EXPECTED_CONTROLS = 256;
-/** Beslut som fryses som eget underlag (utan tidtagning och tidsrättningar blockerar fastställandet). */
+/** Beslut som fryses som eget underlag (tidsrättningar blockerar fastställandet). Steg 35: även "Deltog utan tid". */
 const MANUAL_SOURCE_CAUSES: ReadonlySet<string> = new Set<FrozenManualDecisionCause>(["MANUAL_DID_NOT_START",
   "MANUAL_DISQUALIFICATION", "MANUAL_DISQUALIFICATION_WITHDRAWAL", "MANUAL_RESULT_APPROVAL", "MANUAL_RESULT_APPROVAL_WITHDRAWAL",
   "MANUAL_DID_NOT_FINISH", "MANUAL_DID_NOT_FINISH_WITHDRAWAL", "MANUAL_OUT_OF_COMPETITION", "MANUAL_OUT_OF_COMPETITION_WITHDRAWAL",
-  "MANUAL_WITHOUT_TIMING_WITHDRAWAL"]);
+  "MANUAL_WITHOUT_TIMING", "MANUAL_WITHOUT_TIMING_WITHDRAWAL"]);
 
 type DatabaseTransaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 export type ResultFinalizationRow = typeof schema.resultFinalizations.$inferSelect;
@@ -137,6 +137,8 @@ function asIofPerson(result: FrozenIofPersonProjection): IofResultListPersonResu
     ...(result.course === undefined ? {} : { course: result.course })
   };
   if (result.status === "DNF") return { ...identity, status: "DNF" };
+  // Steg 35: "Deltog utan tid" har ingen egen IOF 3.0-status och skrivs som NotCompeting utan tid och sträcktider.
+  if (result.status === "NT") return { ...identity, status: "OOC", expectedControls: [], splits: [] };
   if (result.status === "OOC") {
     return {
       ...identity,
@@ -437,10 +439,6 @@ export async function buildFinalizationBasis(tx: DatabaseTransaction, race: Lock
         blockers.add("WITHDRAWN_DID_NOT_START");
         continue;
       }
-      if (revisionState.governing === "NT") {
-        blockers.add("INVALID_RESULT_REVISION");
-        continue;
-      }
       const revision = revisionState.head;
       if (!revision.published) blockers.add("LATEST_RESULT_UNPUBLISHED");
       let evaluation;
@@ -451,10 +449,6 @@ export async function buildFinalizationBasis(tx: DatabaseTransaction, race: Lock
         blockers.add("INVALID_RESULT_REVISION");
         continue;
       }
-      if (evaluation.status === "NT") {
-        blockers.add("INVALID_RESULT_REVISION");
-        continue;
-      }
       if (evaluation.classId !== raceClass.id) blockers.add("RESULT_CLASS_MISMATCH");
       if (evaluation.courseVersionId !== raceClass.courseVersionId) blockers.add("RESULT_COURSE_MISMATCH");
       if (!isEffectiveResultCurrent(revisionState, basisHashes.get(entry.id), race.snapshotVersion)) blockers.add("STALE_RESULT_SNAPSHOT");
@@ -462,7 +456,7 @@ export async function buildFinalizationBasis(tx: DatabaseTransaction, race: Lock
       const expectedKeys = new Set(entryControls.map((control) => `${control.controlCode}:${control.occurrence}`));
       const splitKeys = new Set<string>();
       const evaluationSplits = "splits" in evaluation ? evaluation.splits : [];
-      const resultControls = evaluation.status === "DNS" || evaluation.status === "DNF" ? [] : entryControls;
+      const resultControls = evaluation.status === "DNS" || evaluation.status === "DNF" || evaluation.status === "NT" ? [] : entryControls;
       for (const split of evaluationSplits) {
         const splitKey = `${split.controlCode}:${split.occurrence}`;
         if (!expectedKeys.has(splitKey) || splitKeys.has(splitKey)) blockers.add("INVALID_RESULT_REVISION");

@@ -12,14 +12,13 @@ describe("TASK 006M projection policy", () => {
     expect(results).toMatch(/publicResultListResponseSchema\.parse\(\{\s*formatVersion: 7,/);
   });
 
-  it("fails Snapshot and finalization closed instead of inventing IOF status", () => {
+  it("exports NT (deltog utan tid) as NotCompeting without time at the IOF boundary (steg 35)", () => {
     const resultList = source("result-list-export.ts");
-    expect(resultList).toContain('state.governing === "NT"');
-    expect(resultList).toContain("saknar sanningsenlig IOF 3.0-mappning");
-    const finalization = source("result-finalization.ts") + source("result-finalization-basis.ts");
-    expect(finalization).toContain('revisionState.governing === "NT"');
-    expect(finalization).toContain('blockers.add("INVALID_RESULT_REVISION")');
-    expect(finalization).not.toContain('status: "NT"');
+    expect(resultList).not.toContain("saknar sanningsenlig IOF 3.0-mappning");
+    expect(resultList).toContain('row.evaluation.status === "NT" ? { ...shared, status: "OOC", expectedControls: [], splits: [] }');
+    const finalization = source("result-finalization-basis.ts");
+    expect(finalization).not.toContain('revisionState.governing === "NT"');
+    expect(finalization).toContain('if (result.status === "NT") return { ...identity, status: "OOC", expectedControls: [], splits: [] };');
   });
 
 });

@@ -28,9 +28,9 @@ function candidate(
 describe("rankClassResults", () => {
   it("exponerar en gemensam fryst statusordning", () => {
     const statuses: StoredResultStatus[] = ["DNS", "NT", "OOC", "OK", "DNF", "DSQ", "MP", "OVERTIME"];
-    expect(RESULT_STATUS_ORDER).toEqual({ OK: 0, OVERTIME: 1, MP: 2, DSQ: 3, DNF: 4, OOC: 5, NT: 6, DNS: 7 });
+    expect(RESULT_STATUS_ORDER).toEqual({ OK: 0, OVERTIME: 1, MP: 2, DSQ: 3, DNF: 4, OOC: 5, DNS: 6, NT: 7 });
     expect(statuses.sort(compareResultStatuses))
-      .toEqual(["OK", "OVERTIME", "MP", "DSQ", "DNF", "OOC", "NT", "DNS"]);
+      .toEqual(["OK", "OVERTIME", "MP", "DSQ", "DNF", "OOC", "DNS", "NT"]);
   });
   it("ger competition ranking och exakt tid efter för lika millisekunder", () => {
     expect(rankClassResults([

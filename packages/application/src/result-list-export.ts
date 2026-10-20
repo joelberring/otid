@@ -5,7 +5,7 @@ import {
 } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
 import { schema } from "@o-tid/database";
-import { ClassRankingError, compareResultStatuses, rankClassResults, storedResultCourseVariant } from "@o-tid/domain";
+import { ClassRankingError, compareResultStatuses, rankClassResults, storedResultCourseVariant, type StoredResultStatus } from "@o-tid/domain";
 import {
   serializeIofResultList,
   type IofResultListCourse,
@@ -208,10 +208,6 @@ async function projectIofResultList(tx: Transaction, raceId: string, options: { 
 
   const headStates = await resolveStoredResultHeadStates(tx, race.id, latestRows);
   const basisHashes = await loadResultBasisHashes(tx, race.id);
-  if (headStates.some((state) =>
-    state.state === "ACTIVE_RESULT" && state.governing === "NT")) {
-    throw new StoredResultListConflict("Utan tidtagning saknar sanningsenlig IOF 3.0-mappning");
-  }
   const stateByHeadId = new Map(headStates.map((state) => [state.head.id, state]));
   const activeRows = headStates.flatMap((state) => {
     if (state.state !== "ACTIVE_RESULT") return [];
@@ -232,9 +228,6 @@ async function projectIofResultList(tx: Transaction, raceId: string, options: { 
     const state = stateByHeadId.get(row.id);
     if (!state) throw new StoredResultListConflict("Resultatets livscykel saknas");
     const evaluation = parseStrictStoredResultRevision(row, state.startCheckinDns?.source);
-    if (evaluation.status === "NT") {
-      throw new StoredResultListConflict("Utan tidtagning saknar sanningsenlig IOF 3.0-mappning");
-    }
     if (row.snapshotVersion > race.snapshotVersion) {
       throw new StoredResultListConflict("Resultatrevisionen motsäger sin evaluation");
     }
@@ -319,6 +312,8 @@ async function projectIofResultList(tx: Transaction, raceId: string, options: { 
   const resultsByClass = new Map<string, Array<IofResultListPersonResult & {
     internalEntryId: string;
     internalCourseVersionId: string;
+    /** Steg 35: "Deltog utan tid" exporteras som NotCompeting men står sist i klassen, som i resultatlistan. */
+    internalSortStatus: StoredResultStatus;
   }>>();
   const revisionControls = (row: (typeof parsedRows)[number]) => {
     const variants = variantsByVersion.get(row.courseVersionId);
@@ -330,7 +325,8 @@ async function projectIofResultList(tx: Transaction, raceId: string, options: { 
   for (const row of parsedRows) {
     // Rogaining (ADR-0170 beslut 5): de räknade kontrollerna i stämplingsordning är löparens "bana" i exporten.
     const rogaining = "rogaining" in row.evaluation ? row.evaluation.rogaining : undefined;
-    const projection = row.evaluation.status === "DNS" || row.evaluation.status === "DNF"
+    const statusOnly = row.evaluation.status === "DNS" || row.evaluation.status === "DNF" || row.evaluation.status === "NT";
+    const projection = statusOnly
       ? { expected: [], splitKeyMap: new Map<string, { controlCode: number; occurrence: number }>() }
       : rogaining ? rogainingProjection(rogaining.controls)
       : expectedControlsForRevision(revisionControls(row), outOfOrder);
@@ -341,7 +337,7 @@ async function projectIofResultList(tx: Transaction, raceId: string, options: { 
     const rawEvaluationSplits = ("splits" in row.evaluation ? row.evaluation.splits : [])
       .filter((split) => rogaining || !outOfOrder.has(split.controlCode));
     const evaluationSplits = rawEvaluationSplits.map((split) => {
-      if (row.evaluation.status === "DNS" || row.evaluation.status === "DNF") return split;
+      if (statusOnly) return split;
       const projected = projection.splitKeyMap.get(`${split.controlCode}:${split.occurrence}`);
       if (!projected) throw new StoredResultListConflict("Evaluationens split saknar kontroll i banan");
       return { ...split, controlCode: projected.controlCode, occurrence: projected.occurrence };
@@ -353,7 +349,7 @@ async function projectIofResultList(tx: Transaction, raceId: string, options: { 
       }
       splitKeys.add(key);
     }
-    const untimed = row.evaluation.status === "DNS" || row.evaluation.status === "DNF" ? []
+    const untimed = statusOnly ? []
       : untimedControls(expected, evaluationSplits, "missingControls" in row.evaluation ? row.evaluation.missingControls : []);
     const entryExternalId = optionalIofId(row.entryExternalSource, row.entryExternalId);
     const card = cardByEntry.get(row.entryId);
@@ -364,6 +360,7 @@ async function projectIofResultList(tx: Transaction, raceId: string, options: { 
     const shared = {
       internalEntryId: row.entryId,
       internalCourseVersionId: row.courseVersionId,
+      internalSortStatus: row.evaluation.status,
       givenName: row.givenName,
       familyName: row.familyName,
       ...(entryExternalId === undefined ? {} : { entryExternalId }),
@@ -374,8 +371,12 @@ async function projectIofResultList(tx: Transaction, raceId: string, options: { 
       // Gafflad klass: löparens variant som egen bana ("Lång-AC") med banans längd och stigning.
       ...(course ? { course } : {})
     };
+    // Steg 35: "Deltog utan tid" (NT) har ingen egen IOF 3.0-status. Den exporteras som NotCompeting utan tid och
+    // sträcktider: löparen deltog men placeras inte. (Finished betyder "inte kontrollerad ännu" och passar inte i en
+    // slutlig lista.)
     const result: IofResultListPersonResult & typeof shared = row.evaluation.status === "DNF"
       ? { ...shared, status: "DNF" }
+      : row.evaluation.status === "NT" ? { ...shared, status: "OOC", expectedControls: [], splits: [] }
       : row.evaluation.status === "OOC"
         ? {
           ...shared,
@@ -414,8 +415,9 @@ async function projectIofResultList(tx: Transaction, raceId: string, options: { 
   }
 
   // Stafett: sträcklöparnas personresultat samlas i lagresultat (TeamResult) per stafettklass.
-  const personByEntry = new Map([...resultsByClass.values()].flat().map(({ internalEntryId, internalCourseVersionId, ...result }) => {
-    void internalCourseVersionId;
+  const personByEntry = new Map([...resultsByClass.values()].flat().map(({ internalEntryId, internalCourseVersionId,
+    internalSortStatus, ...result }) => {
+    void internalCourseVersionId; void internalSortStatus;
     return [internalEntryId, result as IofResultListPersonResult] as const;
   }));
   const teamResultsByClass = await relayTeamResultsForExport(tx, race.id, personByEntry);
@@ -438,7 +440,7 @@ async function projectIofResultList(tx: Transaction, raceId: string, options: { 
       courseVersionId: result.internalCourseVersionId
     }))).map((ranking) => [ranking.key, ranking]));
     results.sort((left, right) =>
-      compareResultStatuses(left.status, right.status) ||
+      compareResultStatuses(left.internalSortStatus, right.internalSortStatus) ||
       ((right.scores?.[0]?.value ?? -1) - (left.scores?.[0]?.value ?? -1)) ||
       ((left.elapsedMs ?? Number.MAX_SAFE_INTEGER) - (right.elapsedMs ?? Number.MAX_SAFE_INTEGER)) ||
       compareText(left.familyName, right.familyName) ||
@@ -451,8 +453,8 @@ async function projectIofResultList(tx: Transaction, raceId: string, options: { 
       className: raceClass.name,
       ...(classExternalId === undefined ? {} : { classExternalId }),
       ...(classCourse ? { course: classCourse } : {}),
-      results: results.map(({ internalEntryId, internalCourseVersionId, ...result }) => {
-        void internalCourseVersionId;
+      results: results.map(({ internalEntryId, internalCourseVersionId, internalSortStatus, ...result }) => {
+        void internalCourseVersionId; void internalSortStatus;
         const ranking = rankingByKey.get(internalEntryId);
         if (!ranking) throw new StoredResultListConflict("Resultatet saknar härledd rankingstate");
         if (result.status === "DNF" || result.status === "OOC") {

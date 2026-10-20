@@ -128,7 +128,7 @@ export type SplitGroup = { className: string; variant: string | null; rows: Resu
 
 /**
  * Sträcktider per klass (domänens sträcktidsanalys). En gafflad klass delas per variant, eftersom sträckorna bara
- * kan jämföras inom samma variant. Löpare utan sträcktider (ej start, ej fullföljt, utan tidtagning) visas inte.
+ * kan jämföras inom samma variant. Löpare utan sträcktider (ej start, ej fullföljt, deltog utan tid) visas inte.
  */
 export function splitGroups(raceClass: ResultClass): SplitGroup[] {
   const rows = raceClass.rows.filter(result => result.splits.length > 0 || result.timeMs !== null);

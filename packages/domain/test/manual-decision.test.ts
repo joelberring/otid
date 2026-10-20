@@ -67,7 +67,31 @@ describe("applyManualDecision", () => {
     expect(applyManualDecision(history, { kind: "DID_NOT_START" }, context)).toEqual({ ok: false, readiness: "HAS_RESULT" });
     expect(applyManualDecision(history, { kind: "APPROVE_MANUALLY" }, context)).toMatchObject({ ok: true,
       outcome: { status: "OK", reason: "MANUAL_APPROVAL" } });
-    expect(applyManualDecision(history, { kind: "WITHOUT_TIMING" }, context)).toEqual({ ok: false, readiness: "UNSUPPORTED_RESULT" });
+    // Steg 35: "Deltog utan tid" går även på en felstämplad avläsning och har aldrig tid.
+    expect(applyManualDecision(history, { kind: "WITHOUT_TIMING" }, context)).toEqual({ ok: true, cause: "MANUAL_WITHOUT_TIMING",
+      outcome: { status: "NT", reason: "WITHOUT_TIMING", entryId, classId, courseVersionId }, engineVersion: "without-timing-v1",
+      source: read });
+  });
+
+  it("ger disk, utom tävlan och deltog utan tid även utan avläsning (steg 35)", () => {
+    const none = resolveResultHistory([]);
+    const empty = { entryId, classId, courseVersionId, missingControls: [], extraPunches: [], splits: [] };
+    expect(applyManualDecision(none, { kind: "DISQUALIFIED", reason: "Genade" }, context)).toMatchObject({ ok: true,
+      cause: "MANUAL_DISQUALIFICATION", outcome: { status: "DSQ", reason: "MANUAL_DISQUALIFICATION", ...empty }, source: null });
+    expect(applyManualDecision(none, { kind: "OUT_OF_COMPETITION" }, context)).toMatchObject({ ok: true,
+      cause: "MANUAL_OUT_OF_COMPETITION", outcome: { status: "OOC", reason: "OUT_OF_COMPETITION", ...empty }, source: null });
+    const nt = applyManualDecision(none, { kind: "WITHOUT_TIMING" }, context);
+    expect(nt).toMatchObject({ ok: true, cause: "MANUAL_WITHOUT_TIMING", outcome: { status: "NT" }, source: null });
+    expect(manualDecisionReadiness(none, context)).toMatchObject({ DID_NOT_START: "READY", DID_NOT_FINISH: "READY",
+      DISQUALIFIED: "READY", OUT_OF_COMPETITION: "READY", WITHOUT_TIMING: "READY", APPROVE_MANUALLY: "NO_ACTIVE_RESULT" });
+    if (!nt.ok) throw new Error("deltog utan tid");
+    // Tas beslutet bort blir det inget resultat (som manuell tid utan avläsning).
+    const decided = resolveResultHistory([revision(1, nt.cause, nt.outcome)]);
+    expect(decided).toMatchObject({ governing: "NT", restore: null });
+    expect(applyManualDecision(decided, { kind: "WITHDRAW" }, context)).toMatchObject({ ok: true, cause: "MANUAL_RESULT_REMOVED" });
+    // Utom tävlan på en avläsning behåller tiden.
+    const ooc = applyManualDecision(resolveResultHistory([revision(1, "CARD_READOUT", timed("OK"))]), { kind: "OUT_OF_COMPETITION" }, context);
+    expect(ooc).toMatchObject({ ok: true, outcome: { status: "OOC", elapsedMs: 1_200_000 } });
   });
 
   it("avvisar ett nytt beslut ovanpå ett gällande och ett inaktuellt underlag", () => {

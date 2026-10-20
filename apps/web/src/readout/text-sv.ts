@@ -115,7 +115,7 @@ export const readoutText = {
   relayTeamTime: (time: string) => `Lagets tid ${time}`,
   relayTeamWaiting: "Lagets tid när alla sträckor är avlästa",
   relayTeamStatus: { OK: "Laget godkänt", MP: "Laget felstämplat", DSQ: "Laget diskat", DNF: "Laget har brutit", OOC: "Laget utom tävlan",
-    NT: "Laget utan tidtagning", DNS: "Laget har en sträcka som inte startat", RUNNING: "" } as Record<string, string>,
+    NT: "Laget har en sträcka som deltog utan tid", DNS: "Laget har en sträcka som inte startat", RUNNING: "" } as Record<string, string>,
   relayPlace: (teamNumber: number, leg: number) => `Lag ${teamNumber} · Sträcka ${leg}`,
   noPackage: "Tävlingens data är inte hämtad ännu. Avläsningen är sparad och bedöms när nätet finns.",
   savedLocally: "Sparad i den här webbläsaren. Skickas när nätet finns.",

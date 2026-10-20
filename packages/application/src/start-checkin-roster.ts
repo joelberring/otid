@@ -89,10 +89,14 @@ export async function readAuthorizedStartCheckinRoster(tx: Parameters<Parameters
           "SHORTENED_COURSE_CLASS_TRANSFER"]))).limit(10_001);
     const returned = new Set([...linkedReturns, ...technicalReturns].map(r => r.entryId));
     if ([...returned].some(id => !entryIds.has(id))) throw new Error("Återkomstkälla utanför rostern");
-    const activeDns = new Set<string>();
+    const activeDns = new Set<string>(), decided = new Set<string>();
     for (const state of await resolveStoredResultHeadStates(tx, race.id, heads)) {
       if (!entryIds.has(state.head.entryId)) throw new Error("Resultatkälla utanför rostern");
-      if (state.state === "ACTIVE_RESULT" && parseStrictStoredResultRevision(state.head, state.startCheckinDns?.source).status === "DNS") activeDns.add(state.head.entryId);
+      if (state.state !== "ACTIVE_RESULT") continue;
+      // Steg 35: ett gällande beslut utan avläsning (deltog utan tid, utom tävlan, brutit, disk, manuell tid) betyder att
+      // arrangören vet var löparen är: löparen räknas som i mål, inte kvar i skogen.
+      if (parseStrictStoredResultRevision(state.head, state.startCheckinDns?.source).status === "DNS") activeDns.add(state.head.entryId);
+      else decided.add(state.head.entryId);
     }
     const cards = new Map<string, string[]>();
     for (const assignment of assignments) {
@@ -101,7 +105,7 @@ export async function readAuthorizedStartCheckinRoster(tx: Parameters<Parameters
     }
     const watch = new Map(buildForestWatchList(race.id, entries.map(entry => ({ raceId: race.id, entryId: entry.id,
       startState: revisionByEntry.get(entry.id)?.startState ?? "UNMARKED",
-      returnRegistered: returned.has(entry.id) || (revisionByEntry.get(entry.id)?.manualReturnRegistered ?? false),
+      returnRegistered: returned.has(entry.id) || decided.has(entry.id) || (revisionByEntry.get(entry.id)?.manualReturnRegistered ?? false),
       activeDns: activeDns.has(entry.id), conflictingReports: conflicts.has(entry.id)
     }))).map(row => [row.entryId, row]));
     const rows = entries.map(entry => {

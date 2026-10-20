@@ -11,7 +11,6 @@ export * from "./evaluate-card-readout";
 export * from "./station-corrections";
 export * from "./card-punch-list";
 export * from "./out-of-competition";
-export * from "./without-timing";
 export * from "./result-approval";
 export * from "./result-disqualification";
 export * from "./result-status-order";

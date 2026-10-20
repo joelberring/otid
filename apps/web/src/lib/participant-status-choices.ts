@@ -18,8 +18,10 @@ export function availableStatusChoices(result: AdministratorEffectiveResultRespo
   if (!result) return [];
   // Steg 31: brutit går även utan avläsning (borttappad bricka); manuell tid finns under "Ange tid manuellt".
   // Steg 31: även utan resultat kan avläsningen räknas om (t.ex. efter att brickan bytts till den som lästes ut).
-  if (result.state === "NO_PUBLISHED_RESULT") return ["DNS", "DNF", "RECALCULATION"];
-  if (result.state === "NO_ACTIVE_RESULT") return ["DNS", "DNF", "RECALCULATION"];
+  // Steg 35: disk, utom tävlan och deltog utan tid går också utan avläsning (sprang utan bricka eller tid).
+  if (result.state === "NO_PUBLISHED_RESULT" || result.state === "NO_ACTIVE_RESULT") {
+    return ["DNS", "DNF", "DSQ", "OOC", "NT", "RECALCULATION"];
+  }
   switch (result.governingDecision) {
     case "DNS": case "CHECKIN_DNS": return ["DNS_WITHDRAWAL"];
     case "DNF": return ["DNF_WITHDRAWAL", "RECALCULATION"];

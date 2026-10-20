@@ -22,6 +22,23 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Avläsningssidan prövar vid laddning om lokalt avvisade avläsningar mot det nuvarande schemat; giltiga läggs tillbaka i kön som väntande med samma löpnummer (servern har aldrig sett det) och skickas som vanligt.
 - Tester: `readout/requeue` (omprövning, samma löpnummer, skickas), integration `steg-36-nio-ramar` (9 och 12 ramar tas emot oförändrade, 13 avvisas).
 
+### 2026-10-20 – Steg 35 (del 3, steg 35 klart): ljud vid avläsning
+- Avläsningssidan: tre korta toner i C-dur uppåt (0,3 s) vid Godkänd och tre i a-moll nedåt vid felstämplat, maxtid, okänd bricka och fel i avläsningen (Web Audio, OscillatorNode, ingen ljudfil). Ett ljud per besked; övningsstationen låter också.
+- AudioContext skapas/återupptas vid första klicket (anslutknapparna eller var som helst på sidan); efter en automatisk anslutning utan klick visas "Ljudet hörs när du har klickat någonstans på sidan."
+- Kryssrutan "Ljud vid avläsning" (på som standard, sparas i localStorage med try/catch).
+- Tester: `sound` (dur/moll, längd, val, lagring), Playwright `avlasaren` (tonerna fångas vid övningsstationens avläsningar, avslaget ljud ger inga toner, valet står kvar efter omladdning). Verifierat för hela steget: lint, typecheck, test, test:integration, build, Playwright `statusval`, `avlasaren`, `traningskvall`, `manuellt`, `listor`, `live`, `lanad-bricka`, `lopardatabas`. Ljudet på riktig läsplatta provas av ägaren.
+
+### 2026-10-20 – Steg 35 (del 2): avläsaren ansluter själv
+- Avläsningssidan sparar en lyckad anslutning (Web Serial eller WebUSB, tillverkare/produkt/serienummer, localStorage) och ansluter själv när sidan öppnas (när tävlingsdatan är inläst) och vid `connect` (stationen sätts i), till en redan godkänd enhet (`getPorts`/`getDevices`, CP210x). Flera godkända: den senast använda, annars får funktionären välja. "Ansluter automatiskt till stationen …" och "Sluta ansluta automatiskt"; manuell frånkoppling pausar till nästa gång sidan öppnas. Befintliga `connectPort`/`BAUD_RATES` återanvänds.
+- Tips om en egen flik; länkarna Hantera tävling och Resultat öppnas i en ny flik.
+- Tester: `station-memory` (val av enhet, lagring, blockerad lagring), Playwright `avlasaren` (tomma listor, utan Web Serial/WebUSB). Måste provas av ägaren med riktig station på dator och läsplatta.
+
+### 2026-10-20 – Steg 35 (del 1): fler statusval
+- Deltagarkortets "Ändra status" (det enda stället där en löpares status sätts; kontrollvyn, deltagarlistan och kvar i skogen öppnar kortet, avläsningssidan och starten sätter ingen status utom ej start) har nu Ej start, Brutit, Diskvalificera, Utom tävlan och Deltog utan tid även utan avläsning. "Öppna" i kontrollvyns Kvar i skogen.
+- Domänen: disk och utom tävlan utan avläsning ger ett utfall utan tid; "Deltog utan tid" (NT, tidigare "utan tidtagning") går med och utan avläsning och har aldrig tid. Ingen migration behövdes (orsakerna och databasens villkor fanns).
+- NT visas "Deltog" sist i klassen (efter ej start), exporteras och fastställs som IOF NotCompeting utan tid (Finished betyder "inte kontrollerad"). Ett gällande beslut utan avläsning räknas som i mål i kvar i skogen.
+- Tester: domän `manual-decision`, integration `steg-35-fler-status` (+ ändrade `entry-status-overlays`, `entry-status-did-not-start`), Playwright `statusval`. Verifierat: lint, typecheck, test, test:integration, build, Playwright `statusval`, `traningskvall`, `manuellt`, `listor`, `live`.
+
 ### 2026-10-20 – Steg 34: SIAC från station som skickar alla åtta block (fel på natt-KM)
 - Natt-KM: två SIAC blev felstämplade med "gamla stämplingar" fast brickan var tömd. Råloggen från en av brickorna (avläst i efterhand) visade att BSM8:an skickade block 0–7 för "alla block"; O-Tid tog de fem första som 0, 4, 5, 6, 7 och läste block 1 (brickans inställningar) som stämplingar.
 - `sportident`: blocken placeras efter blocknumret i svaret (`cardImageBlocks`), läsningen av "alla block" (SI6, SI10/11/SIAC) slutar vid block 7 eller åtta svar, och tas brickan ur efter stämplingsblocken räcker det som kom. `decodeCard` vägrar en ofullständig bild i stället för att tyst ta färre stämplingar. Falska stationen kan skicka alla åtta block (`eightBlocks`).

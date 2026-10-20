@@ -33,7 +33,7 @@ export const liveSv = {
   clubRegion: (club: string) => `Klubb ${club}`,
   noClub: "Utan klubb",
   arrived: (time: string) => `i mål ${time}`,
-  statuses: { OK: "Godkänd", OVERTIME: "Maxtid", MP: "Felstämplad", DSQ: "Disk.", OOC: "Utom tävlan", NT: "Utan tid" },
+  statuses: { OK: "Godkänd", OVERTIME: "Maxtid", MP: "Felstämplad", DSQ: "Disk.", OOC: "Utom tävlan", NT: "Deltog" },
   hubTitle: "Live",
   hubHelp: "Senast i mål, ledare per klass och löpare du följer. Uppdateras av sig själv."
 } as const;

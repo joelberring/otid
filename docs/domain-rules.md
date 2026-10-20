@@ -66,12 +66,12 @@ funktion lokalt; dess besked är preliminärt och serverns revision är auktorit
 
 ## Statusbeslut
 
-- Arrangören kan sätta ej start, ej fullföljt, disk, utom tävlan, utan tidtagning, godkänt manuellt samt
+- Arrangören kan sätta ej start, ej fullföljt, disk, utom tävlan, deltog utan tid, godkänt manuellt samt
   ändra start- eller sluttid. Alla beslut går genom ett flöde (`setEntryStatus`) och lägger till en ny
   revision med orsak och aktör (kontot).
 - Ett återtagande är också en ny revision; den återställer det tidigare utfallet men räknar inte om.
 - Steg 31: beslut ligger som en stapel ovanpå avläsningarna och följer med över ny avläsning och omräkning (disk,
-  godkännande, brutit, utom tävlan, utan tidtagning, rättad mål- och starttid, manuell tid och godkända kontroller); ett
+  godkännande, brutit, utom tävlan, deltog utan tid, rättad mål- och starttid, manuell tid och godkända kontroller); ett
   återtagande tar bort det översta. Bara ej start ersätts av en senare avläsning. Nya beslut bygger på senaste tekniska
   bedömningen under besluten. Manuell tid (`MANUAL_TIME`) bedömer avläsningen med arrangörens start- och måltid (eller
   bara tiden utan avläsning) och arrangörens status; tas ett beslut utan avläsning bort blir det inget resultat
@@ -80,6 +80,12 @@ funktion lokalt; dess besked är preliminärt och serverns revision är auktorit
 - Ett beslut bär löparens senaste revisionsnummer (`expectedRevision`). Har en annan revision tillkommit sedan
   formuläret öppnades avvisas beslutet (konflikt), och arrangören får se det nya läget. Tävlingens version
   jämförs inte (steg 23).
+- Steg 35: disk, utom tävlan (`OOC`) och "Deltog utan tid" (`NT`, tidigare "utan tidtagning") går med och utan avläsning,
+  precis som brutit. Utom tävlan behåller avläsningens tid och sträcktider men placeras aldrig; utan avläsning har den
+  ingen tid. Deltog utan tid har aldrig tid eller kontroller (även med avläsning), visas som "Deltog" sist i klassen (efter
+  ej start) och exporteras i IOF XML som `NotCompeting` utan `Time` och sträcktider (IOF 3.0 har ingen egen status;
+  `Finished` betyder "inte kontrollerad ännu"). Ett gällande beslut utan avläsning räknas som i mål i kvar i skogen.
+  Tas ett beslut utan avläsning bort blir det inget resultat (`MANUAL_RESULT_REMOVED`).
 - Disk kan ha en valfri orsak (`result_revision.note`, bara på `MANUAL_DISQUALIFICATION`); den syns bara för
   arrangören. Publikt står "Disk." och orsaken exporteras inte.
 - "Markera alla kvar i skogen som ej start" (Resultat) sätter ej start på alla utan avläsning och beslut, efter

@@ -18,7 +18,7 @@ describe("steg 23: ej start i statusflödet (ADR-0173 beslut 1)", () => {
     const auth = await raceAuth(db, raceId);
     const ada = await entryId(raceId, "Ada");
     expect(await entryStatus(auth, ada)).toMatchObject({ headRevision: 0, governingDecision: "NONE",
-      readiness: { DID_NOT_START: "READY", DISQUALIFIED: "NO_ACTIVE_RESULT", WITHDRAW: "NO_ACTIVE_DECISION" } });
+      readiness: { DID_NOT_START: "READY", DISQUALIFIED: "READY", APPROVE_MANUALLY: "NO_ACTIVE_RESULT", WITHDRAW: "NO_ACTIVE_DECISION" } });
     const requestId = randomUUID();
     const attempts = await Promise.all(Array.from({ length: 50 }, () =>
       decide(auth, ada, { kind: "DID_NOT_START" }, { requestId, expectedRevision: 0 })));

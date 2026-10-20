@@ -92,8 +92,8 @@ export const listsSv = {
     refreshFailed: "Resultaten kunde inte uppdateras. Senast hämtade resultat visas.",
     loading: "Hämtar resultaten…",
     status: { OK: "Godkänd", OVERTIME: "Maxtid överskriden", MP: "Felstämplad", DSQ: "Disk.", DNF: "Ej fullföljt", OOC: "Utom tävlan", DNS: "Ej start",
-      NT: "Utan tidtagning" },
-    teamStatus: { OK: "Godkänt", OVERTIME: "Maxtid överskriden", MP: "Felstämplat", DSQ: "Diskvalificerat", DNF: "Brutit", OOC: "Utom tävlan", NT: "Utan tidtagning",
+      NT: "Deltog" },
+    teamStatus: { OK: "Godkänt", OVERTIME: "Maxtid överskriden", MP: "Felstämplat", DSQ: "Diskvalificerat", DNF: "Brutit", OOC: "Utom tävlan", NT: "Deltog utan tid",
       DNS: "Ej start", RUNNING: "Ute" },
     manualApproval: "Godkänd manuellt av arrangör",
     // Rogaining (ADR-0170 beslut 5).

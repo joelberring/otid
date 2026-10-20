@@ -80,7 +80,7 @@ Gemensamma hjälpare: UUID-mönstret och idempotensnycklarnas form (`UUID_PATTER
   `evaluateAndStore` i `application/src/result-revisions.ts`. Inget i React, route handlers eller SQL räknar
   resultat.
 - Statusbeslut: `setEntryStatus` (`application/src/entry-status.ts`) är det enda flödet för ej start, ej
-  fullföljt, disk, utom tävlan, utan tidtagning, godkänt manuellt, ändrad start- och måltid och återtagande.
+  fullföljt, disk, utom tävlan, deltog utan tid (`NT`), godkänt manuellt, ändrad start- och måltid och återtagande.
   Förfrågan bär löparens `expectedRevision`; en annan senaste revision ger konflikt. Historiken är revisionerna.
 - Adminåtgärder kontrollerar inte tävlingens version. En inaktuell bedömning syns i stället i löparens
   underlagshash (ADR-0169), som fastställandet kräver är aktuell.

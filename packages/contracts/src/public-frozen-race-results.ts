@@ -2,7 +2,8 @@ import { z } from "zod";
 
 const safeMillisecondsSchema = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 
-export const publicFrozenRaceResultStatusSchema = z.enum(["OK", "OVERTIME", "MP", "DSQ", "DNF", "OOC", "DNS"]);
+/** Steg 35: NT = "Deltog utan tid". */
+export const publicFrozenRaceResultStatusSchema = z.enum(["OK", "OVERTIME", "MP", "DSQ", "DNF", "OOC", "DNS", "NT"]);
 
 export const publicFrozenRaceResultSchema = z.object({
   className: z.string().trim().min(1).max(160),
@@ -25,8 +26,8 @@ export const publicFrozenRaceResultSchema = z.object({
   if (result.status !== "OK" && (hasPosition || hasTimeBehind)) {
     context.addIssue({ code: "custom", path: ["position"], message: "Orankat fastställt resultat får inte ha ranking" });
   }
-  if ((result.status === "DNS" || result.status === "DNF") && result.elapsedMs !== null) {
-    context.addIssue({ code: "custom", path: ["elapsedMs"], message: "Fastställt DNS/DNF måste sakna tid" });
+  if ((result.status === "DNS" || result.status === "DNF" || result.status === "NT") && result.elapsedMs !== null) {
+    context.addIssue({ code: "custom", path: ["elapsedMs"], message: "Fastställt DNS/DNF/NT måste sakna tid" });
   }
   if (result.elapsedMs !== null && result.timeBehindMs !== null && result.timeBehindMs > result.elapsedMs) {
     context.addIssue({ code: "custom", path: ["timeBehindMs"], message: "Tid efter får inte överstiga totaltiden" });

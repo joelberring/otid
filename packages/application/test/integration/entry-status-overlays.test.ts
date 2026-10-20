@@ -142,10 +142,10 @@ describe("steg 23: beslut som ligger kvar över senare avläsningar (ADR-0173 be
     expect(await classBlockers(auth)).toEqual([]);
   }, 30_000);
 
-  it("utan tidtagning bara för ett komplett OK, blockerar IOF och fastställande tills det tas bort", async () => {
+  it("deltog utan tid (steg 35) även på felstämplat, ligger kvar över en ny avläsning och exporteras som NotCompeting utan tid", async () => {
     const mp = await race();
-    expect(await decide(mp.auth, mp.ada, { kind: "WITHOUT_TIMING" })).toMatchObject({ status: "conflict", readiness: "UNSUPPORTED_RESULT" });
-    expect(await revisions(mp.ada)).toHaveLength(1);
+    expect(await decide(mp.auth, mp.ada, { kind: "WITHOUT_TIMING" })).toMatchObject({ status: "decided",
+      response: { cause: "MANUAL_WITHOUT_TIMING", status: "NT" } });
 
     const { raceId, auth, ada } = await race(okPayload);
     expect((await decide(auth, ada, { kind: "WITHOUT_TIMING" })).status).toBe("decided");
@@ -155,8 +155,10 @@ describe("steg 23: beslut som ligger kvar över senare avläsningar (ADR-0173 be
     expect(publicAda).toMatchObject({ revision: 2, status: "NT", reason: "WITHOUT_TIMING", rankingState: "NOT_RANKABLE_STATUS" });
     expect(publicAda).not.toHaveProperty("elapsedMs");
     expect(await entryStatus(auth, ada)).toMatchObject({ readiness: { OUT_OF_COMPETITION: "ACTIVE_WITHOUT_TIMING" } });
-    expect(await exportIofResultListAsAdmin(db, { sessionToken: auth.sessionToken, raceId })).toEqual({ status: "conflict" });
-    expect(await classBlockers(auth)).toContain("INVALID_RESULT_REVISION");
+    const body = personResultBody(await iofXml(auth), "Ada");
+    expect(body).toContain("<Status>NotCompeting</Status>");
+    expect(body).not.toMatch(/<Time>|<SplitTime|<Position>/);
+    expect(await classBlockers(auth)).not.toContain("INVALID_RESULT_REVISION");
 
     expect(await decide(auth, ada, { kind: "WITHDRAW" })).toMatchObject({ status: "decided",
       response: { revision: 4, cause: "MANUAL_WITHOUT_TIMING_WITHDRAWAL", status: "OK" } });

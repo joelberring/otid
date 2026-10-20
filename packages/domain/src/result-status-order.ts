@@ -1,6 +1,9 @@
 export type StoredResultStatus = "OK" | "OVERTIME" | "MP" | "DSQ" | "DNF" | "OOC" | "NT" | "DNS";
 
-/** Shared deterministic presentation order; it never decides ranking. Maxtid överskriden kommer direkt efter godkända. */
+/**
+ * Shared deterministic presentation order; it never decides ranking. Maxtid överskriden kommer direkt efter godkända.
+ * Steg 35: "Deltog utan tid" (NT) står sist i klassen, efter ej start.
+ */
 export const RESULT_STATUS_ORDER: Readonly<Record<StoredResultStatus, number>> = Object.freeze({
   OK: 0,
   OVERTIME: 1,
@@ -8,8 +11,8 @@ export const RESULT_STATUS_ORDER: Readonly<Record<StoredResultStatus, number>> =
   DSQ: 3,
   DNF: 4,
   OOC: 5,
-  NT: 6,
-  DNS: 7
+  DNS: 6,
+  NT: 7
 });
 
 export function compareResultStatuses(left: StoredResultStatus, right: StoredResultStatus): number {

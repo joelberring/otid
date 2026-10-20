@@ -73,7 +73,7 @@ export const relaySv = {
   runnerError: "Löparen kunde inte bytas. Försök igen.",
   runnerConflict: "Brickan används redan, eller så har laget ändrats under tiden. Laget är inläst igen.",
   // Status
-  status: { OK: "Godkänt", OVERTIME: "Maxtid överskriden", MP: "Felstämplat", DSQ: "Diskat", DNF: "Brutit", OOC: "Utom tävlan", NT: "Utan tidtagning",
+  status: { OK: "Godkänt", OVERTIME: "Maxtid överskriden", MP: "Felstämplat", DSQ: "Diskat", DNF: "Brutit", OOC: "Utom tävlan", NT: "Deltog utan tid",
     DNS: "Ej start", RUNNING: "Ute" } satisfies Record<TeamStatus, string>,
   outOnLeg: (leg: number) => `Ute på sträcka ${leg}`,
   placed: (position: number) => `${position}:a`,

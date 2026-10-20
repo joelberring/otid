@@ -15,7 +15,7 @@ export const participantCardSv = {
     MANUAL_RESULT_APPROVAL: "Godkänd manuellt", MANUAL_RESULT_APPROVAL_WITHDRAWAL: "Manuellt godkännande borttaget",
     MANUAL_DID_NOT_FINISH: "Brutit", MANUAL_DID_NOT_FINISH_WITHDRAWAL: "Brutit borttaget",
     MANUAL_OUT_OF_COMPETITION: "Utom tävlan", MANUAL_OUT_OF_COMPETITION_WITHDRAWAL: "Utom tävlan borttaget",
-    MANUAL_WITHOUT_TIMING: "Utan tidtagning", MANUAL_WITHOUT_TIMING_WITHDRAWAL: "Utan tidtagning borttaget",
+    MANUAL_WITHOUT_TIMING: "Deltog utan tid", MANUAL_WITHOUT_TIMING_WITHDRAWAL: "Deltog utan tid borttaget",
     START_CHECKIN_DID_NOT_START: "Ej start vid startkontrollen",
     MANUAL_FINISH_TIME_CORRECTION: "Måltid rättad", MANUAL_FINISH_TIME_CORRECTION_WITHDRAWAL: "Måltidsrättning borttagen",
     MANUAL_PUNCH_START_TIME_CORRECTION: "Starttid rättad", MANUAL_PUNCH_START_TIME_CORRECTION_WITHDRAWAL: "Starttidsrättning borttagen",
@@ -26,9 +26,9 @@ export const participantCardSv = {
   },
   changeStatus: "Ändra status", chooseStatus: "Välj …",
   choices: {
-    DNS: "Ej start", DNF: "Brutit", DSQ: "Diskvalificera", OOC: "Utom tävlan", NT: "Utan tidtagning",
+    DNS: "Ej start", DNF: "Brutit", DSQ: "Diskvalificera", OOC: "Utom tävlan", NT: "Deltog utan tid",
     APPROVAL: "Godkänn manuellt", DNS_WITHDRAWAL: "Ta bort ej start", DNF_WITHDRAWAL: "Ta bort brutit",
-    DSQ_WITHDRAWAL: "Ta bort diskvalificering", OOC_WITHDRAWAL: "Ta bort utom tävlan", NT_WITHDRAWAL: "Ta bort utan tidtagning",
+    DSQ_WITHDRAWAL: "Ta bort diskvalificering", OOC_WITHDRAWAL: "Ta bort utom tävlan", NT_WITHDRAWAL: "Ta bort deltog utan tid",
     APPROVAL_WITHDRAWAL: "Ta bort manuellt godkännande", MANUAL_TIME_WITHDRAWAL: "Ta bort manuell tid",
     CONTROL_APPROVAL_WITHDRAWAL: "Ta bort godkända kontroller", RECALCULATION: "Räkna om från avläsningen"
   } satisfies Record<StatusChoice, string>,
@@ -36,8 +36,8 @@ export const participantCardSv = {
     DNS: "Löparen visas som ej startande och räknas inte längre som kvar i skogen.",
     DNF: "Löparen visas som brutit, utan tid och placering.",
     DSQ: "Löparen visas som diskvalificerad och tas bort ur placeringarna.",
-    OOC: "Löparen behåller sin tid men visas utom tävlan, utan placering.",
-    NT: "Löparen visas utan tid och placering. Export och fastställande väntar tills beslutet tas bort.",
+    OOC: "Löparen springer utom tävlan: tiden visas om den finns, men löparen placeras inte.",
+    NT: "Löparen visas som Deltog, sist i klassen, utan tid och placering. Passar den som sprang utan bricka.",
     APPROVAL: "Löparen visas som godkänd trots felstämplingen. Tiden behålls. Skriv varför.",
     RECALCULATION: "Resultatet räknas om från senaste avläsningen med klassens nuvarande bana."
   } satisfies Partial<Record<StatusChoice, string>>,

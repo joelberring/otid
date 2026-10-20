@@ -107,6 +107,12 @@ button.primary { border-color: var(--ink); background: var(--ink); color: var(--
 button:disabled { opacity: .5; cursor: default; }
 select { width: 100%; font-weight: 500; }
 label { display: grid; gap: 4px; margin-bottom: 12px; font-size: var(--text-sm); font-weight: 500; }
+/* Steg 35: ljudvalet, den automatiska anslutningen och tipset om en egen flik. */
+.sound-choice { display: inline-flex; align-items: center; gap: 10px; min-height: 56px; margin: 0; font-size: var(--text-md); font-weight: 600; }
+.sound-choice input { width: 24px; height: 24px; margin: 0; accent-color: var(--accent); }
+.hint { color: var(--muted); font-size: var(--text-sm); }
+.auto-connect { display: grid; gap: 10px; justify-items: start; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--surface); }
 .exercise { padding: 16px; border: 1px dashed var(--line-strong); border-radius: var(--radius); background: var(--surface); }
 .exercise p { margin-bottom: 10px; color: var(--muted); font-size: var(--text-sm); }
 

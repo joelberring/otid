@@ -2,7 +2,6 @@ import { createDidNotStartResult } from "./did-not-start";
 import { createDisqualifiedResult, type DisqualifiableResult } from "./result-disqualification";
 import { createManuallyApprovedResult } from "./result-approval";
 import { createOutOfCompetitionResult } from "./out-of-competition";
-import { createWithoutTimingResult } from "./without-timing";
 import { correctPunchedStartTime, type PunchedStartTimeCorrectableResult } from "./manual-punch-start-time-correction";
 import { rescoreRogaining } from "./rogaining";
 import { withMaxTime } from "./max-time";
@@ -283,16 +282,26 @@ export function applyManualDecision<T extends DecisionRevision>(history: ResultH
       const approved = guarded(() => approveMissingControls(source.outcome, decision.controls));
       return approved ? done("MANUAL_CONTROL_APPROVAL", approved, source.revision) : fail("INVALID_CONTROL");
     }
-    case "DID_NOT_FINISH": {
+    case "DID_NOT_FINISH": case "WITHOUT_TIMING": {
       // Steg 31: brutit går även utan avläsning (borttappad bricka) och oavsett om avläsningen är inaktuell.
+      // Steg 35: "Deltog utan tid" likaså (sprang utan bricka eller tid); utfallet har aldrig tid eller kontroller.
       if (history.governing !== "NONE") return fail(ACTIVE_READINESS[history.governing] ?? "UNSUPPORTED_RESULT");
       const head = technicalHead(history, context);
-      return done("MANUAL_DID_NOT_FINISH", { status: "DNF", reason: "DID_NOT_FINISH", ...identity },
-        typeof head === "string" ? null : head.revision);
+      const source = typeof head === "string" ? null : head.revision;
+      return decision.kind === "DID_NOT_FINISH"
+        ? done("MANUAL_DID_NOT_FINISH", { status: "DNF", reason: "DID_NOT_FINISH", ...identity }, source)
+        : done("MANUAL_WITHOUT_TIMING", { status: "NT", reason: "WITHOUT_TIMING", ...identity }, source);
     }
     default: break;
   }
   const head = technicalHead(history, context);
+  // Steg 35: disk och utom tävlan går även utan avläsning; utfallet har då ingen tid och inga kontroller.
+  if (head === "NO_ACTIVE_RESULT" && (decision.kind === "DISQUALIFIED" || decision.kind === "OUT_OF_COMPETITION")) {
+    const empty = { ...identity, missingControls: [], extraPunches: [], splits: [] };
+    return decision.kind === "DISQUALIFIED"
+      ? done("MANUAL_DISQUALIFICATION", { status: "DSQ", reason: "MANUAL_DISQUALIFICATION", ...empty }, null)
+      : done("MANUAL_OUT_OF_COMPETITION", { status: "OOC", reason: "OUT_OF_COMPETITION", ...empty }, null);
+  }
   if (typeof head === "string") return fail(head);
   const { revision, outcome } = head;
   switch (decision.kind) {
@@ -303,9 +312,6 @@ export function applyManualDecision<T extends DecisionRevision>(history: ResultH
       return done("MANUAL_RESULT_APPROVAL", guarded(() => createManuallyApprovedResult(outcome)), revision);
     case "OUT_OF_COMPETITION":
       return done("MANUAL_OUT_OF_COMPETITION", guarded(() => createOutOfCompetitionResult(outcome)), revision);
-    case "WITHOUT_TIMING":
-      if (outcome.status !== "OK" || outcome.reason !== "COMPLETE") return fail("UNSUPPORTED_RESULT");
-      return done("MANUAL_WITHOUT_TIMING", guarded(() => createWithoutTimingResult(outcome)), revision);
     case "FINISH_TIME": {
       if (!timed(outcome)) return fail("UNSUPPORTED_RESULT");
       const finishMs = Date.parse(decision.finishTime);

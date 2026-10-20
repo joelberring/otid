@@ -55,7 +55,8 @@ export function createClassPreparationActions(ws: Base & RaceDataActions) {
     const errors = validateManualClass({ className: manualClassName, courseVersionId: manualClassCourseVersionId });
     setManualClassErrors(errors);
     if (hasErrors(errors)) { focusFirstError(manualClassForm.current); return; }
-    const target = data.classes.find(row => row.courseVersionId === manualClassCourseVersionId);
+    // Samma urval som listan: alla banor i loppet, även de som ännu saknar klass.
+    const target = deriveClassPreparation(ws).manualClassTargets.find(row => row.courseVersionId === manualClassCourseVersionId);
     if (!target) { setManualClassError(text.manualClassMissingTarget); return; }
     const parsed = manualClassCreateRequestSchema.safeParse({
       formatVersion: 1, requestId: crypto.randomUUID(), courseVersionId: target.courseVersionId, className: manualClassName.trim(), startRule: ws.profile.features.startRuleChoice ? manualClassStartRule : "PUNCH",

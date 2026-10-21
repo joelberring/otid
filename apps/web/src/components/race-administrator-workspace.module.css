@@ -7,6 +7,8 @@
 .content { align-content: start; }
 .content > .status:empty { position: absolute; }
 .login { max-width: 34rem; margin: 48px auto; padding: 0 16px; gap: 14px; }
+/* Sidfoten (PLAN.md steg 37) längst ned i innehållet. */
+.footer { margin-top: 40px; padding-top: 12px; border-top: 1px solid var(--line); }
 
 /* Delar och avsnitt */
 .workflowGroup { display: grid; gap: 0; min-width: 0; }

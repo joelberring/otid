@@ -28,6 +28,7 @@
 .quiet:hover:not(:disabled) { background: transparent; color: var(--ink); }
 .hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .menu { display: none; position: relative; flex: 0 0 auto; }
+.help { flex: 0 0 auto; }
 .menu > summary { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 10px; border: 1px solid var(--line-strong);
   border-radius: var(--radius); font-size: var(--text-sm); font-weight: 600; list-style: none; }
 .menu > summary::-webkit-details-marker { display: none; }
@@ -78,9 +79,10 @@
   .shell { --sticky-top: 58px; }
   .frame { display: block; }
   .content { padding: 16px 16px 48px; }
-  .topBar { position: static; display: grid; grid-template-columns: minmax(0, 1fr) auto; height: auto; padding: 8px 16px 10px; gap: 2px 12px; }
+  .topBar { position: static; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; height: auto; padding: 8px 16px 10px; gap: 2px 8px; }
   .back { grid-column: 1; grid-row: 1; }
-  .menu { grid-column: 2; grid-row: 1 / span 2; align-self: start; }
+  .help { grid-column: 2; grid-row: 1 / span 2; align-self: start; }
+  .menu { grid-column: 3; grid-row: 1 / span 2; align-self: start; }
   .race { grid-column: 1 / -1; grid-row: 2; padding-left: 0; border-left: 0; }
   .race h2 { white-space: normal; }
   .live { grid-column: 1 / -1; grid-row: 3; gap: 12px; font-size: var(--text-xs); }

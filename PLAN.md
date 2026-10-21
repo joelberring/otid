@@ -671,6 +671,17 @@ kontrolleras" fast alla hade resultat, tre bekräftade felstämplingar låg kvar
 - [x] Brutit, disk, utom tävlan och deltog utan tid med avläsning behåller sträcktiderna fram till sista stämplade kontrollen
   (resultatlista, sträcktidsanalys, deltagarkort, publikt och IOF), utan tid och placering.
 
+## [x] Steg 37 – Om O-Tid, kontakt och hjälp
+
+Ägarens önskemål 2026-10-21: en adress för frågor (otid@berring.se), info om programmet i öppet och inloggat läge (hur det är
+gjort, tekniska funktioner, öppet att använda i beta) och en hjälpknapp i programmet där man kan läsa och söka hur funktionerna fungerar.
+
+- [x] Publik sida "Om O-Tid" (`/om`): vad O-Tid är, beta och gratis, hur det är gjort, tekniska funktioner, kontakt och "skapa konto".
+- [x] Diskret sidfot "O-Tid · beta · Frågor: otid@berring.se · Om O-Tid" på publika sidor och i arbetsytan, dold vid utskrift;
+  adressen på ett ställe (`apps/web/src/lib/contact.ts`, även förval för `OTID_CONTACT_EMAIL`).
+- [x] "Hjälp" i arbetsytans toppbalk, på Mina tävlingar och på avläsningssidan: panel med stegets artiklar först, lokal sökning
+  (versaler och å/ä/ö spelar ingen roll), Esc stänger. Artiklarna i `i18n/help-sv.ts`; ett test slår upp varje citerad knapp i UI-texterna.
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

@@ -4,7 +4,7 @@ import { operatorContactEmail } from "../../lib/operator-contact";
 import styles from "../../components/account-pages.module.css";
 
 export const metadata: Metadata = { title: "Personuppgifter – O-Tid" };
-// Kontaktadressen läses ur serverns miljö (OTID_CONTACT_EMAIL) vid varje visning.
+// Kontaktadressen läses ur serverns miljö (OTID_CONTACT_EMAIL, standard otid@berring.se) vid varje visning.
 export const dynamic = "force-dynamic";
 
 const text = accountSv.privacy;
@@ -25,7 +25,7 @@ export default function PrivacyPage() {
       <h2>{text.publicTitle}</h2>
       <p>{text.public}</p>
       <h2>{text.contactTitle}</h2>
-      {contact ? <p>{text.contact} <a href={`mailto:${contact}`}>{contact}</a></p> : <p>{text.noContact}</p>}
+      <p>{text.contact} <a href={`mailto:${contact}`}>{contact}</a></p>
     </div>
   </main>;
 }

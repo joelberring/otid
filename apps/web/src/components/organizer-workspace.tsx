@@ -19,6 +19,7 @@ import {
 import { organizerSv as copy } from "../i18n/organizer-sv";
 import { raceTypeSv } from "../i18n/race-type-sv";
 import { RaceTypeChoice } from "./race-type-choice";
+import { HelpButton } from "./help/help-panel";
 import { CopyRaceDialog, type CopySource } from "./copy-race-dialog";
 import { raceCopySv } from "../i18n/race-copy-sv";
 import { hasErrors, validateCreateRace, type CreateRaceInput, type FieldErrors } from "../lib/form-validation";
@@ -302,7 +303,9 @@ export function OrganizerWorkspace() {
         {session.superadmin && <Link href="/superadmin">{copy.superadmin}</Link>}
         <Link href="/konto">{copy.myAccount}</Link>
         <button className={styles.secondary} type="button" disabled={busy} onClick={() => void logout()}>{copy.logout}</button>
+        <HelpButton view="EVENTS" />
       </div>}
+      {!session && <HelpButton view="EVENTS" />}
     </header>
 
     {!sessionChecked && <section className={styles.panel} aria-live="polite"><p>{copy.checkSession}</p></section>}

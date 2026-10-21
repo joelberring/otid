@@ -26,6 +26,7 @@ import { loadReceiptSettings, saveReceiptSettings, type ReceiptSettings } from "
 import { serialIdentity, usbIdentity, useStationAutoConnect, type SerialApi, type SerialStation, type UsbApi,
   type UsbStation } from "./station-auto";
 import { loadSoundEnabled, ReadoutSound, saveSoundEnabled, soundForVerdict } from "./sound";
+import { HelpButton } from "../components/help/help-panel";
 
 type Current =
   | { readonly phase: "reading"; readonly cardNumber: number }
@@ -397,7 +398,8 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
     if (soundOn && kind) sound.current.play(kind);
   }, [current, verdict, soundOn]);
 
-  if (!raceId) return <main className="readout"><h1>{t.title}</h1><p className="notice">{t.noRace}</p></main>;
+  if (!raceId) return <main className="readout"><div className="readout-head"><h1>{t.title}</h1><HelpButton view="READOUT_PAGE" large /></div>
+    <p className="notice">{t.noRace}</p></main>;
 
   const runners = pkg ? exerciseRunners(pkg) : [];
   const selectedRunner = runners.find((candidate) => candidate.entryId === runnerId) ?? runners[0];
@@ -417,7 +419,8 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
 
   return <main className="readout">
     <header>
-      <h1>{t.title}</h1>
+      {/* PLAN.md steg 37: Hjälp öppnar en panel ovanpå; avläsningen fortsätter under tiden. */}
+      <div className="readout-head"><h1>{t.title}</h1><HelpButton view="READOUT_PAGE" large /></div>
       {pkg ? <p className="race">{pkg.event.name} · {pkg.raceSnapshot.race.name}</p> : null}
       <dl className="status" aria-label="Status">
         <div data-state={station.kind === "ready" ? "good" : station.kind === "disconnected" ? "idle" : "bad"}>

@@ -59,7 +59,10 @@ Gemensamma hjälpare: UUID-mönstret och idempotensnycklarnas form (`UUID_PATTER
 - Tabellen över funktionärens rutter finns bara i `lib/race-roles.ts`. Journaler och audit sparar kontot som
   aktör (`actor_account_id`, `actorKind` `USER_ACCOUNT`).
 - Superadmin sätts med kommando på servern (`pnpm account:superadmin`).
-- Publika sidor och `/api/public/*` läser bara publicerat innehåll och kräver ingen inloggning.
+- Publika sidor och `/api/public/*` läser bara publicerat innehåll och kräver ingen inloggning. Om O-Tid (`/om`) och sidfoten
+  (`components/about/site-footer.tsx`) har adressen för frågor från `lib/contact.ts` (PLAN.md steg 37).
+- Hjälpen (PLAN.md steg 37): `components/help/help-panel.tsx` (modal `<dialog>`, även i avläsningsskalet) med artiklarna i
+  `i18n/help-sv.ts` och sökningen i `lib/help-search.ts`; `help-sv.test.ts` slår upp varje citerad knapp i UI-texterna.
 - Live (PLAN.md steg 30, `/t/{kod}/live`, `GET /api/public/races/{id}/live`): `readPublicLive`/`projectPublicLive` i
   `application/src/public-live.ts` projicerar den publika resultatlistan, radiotiderna och när varje resultat kom in (första
   avläsningen) till senast i mål, ledare per klass ("Ny ledare" i 5 min) och radiopassager; inga bricknummer, interna id:n eller

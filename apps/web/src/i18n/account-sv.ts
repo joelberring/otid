@@ -83,8 +83,6 @@ export const accountSv = {
     publicTitle: "Vad som är publikt",
     public: "Publicerade startlistor och resultat, med namn, klubb och tider, kan läsas av alla utan inloggning. Löpardatabasen är aldrig publik: bara tävlingens administratörer och funktionärer ser den (som förslag), och den följer med avläsningssidans paket för att fungera utan nät.",
     contactTitle: "Kontakt",
-    contact: "Frågor om dina uppgifter, eller om du vill att något tas bort, skickar du till den som driver den här O-Tid-installationen:",
-    noContact: "Kontakta arrangören av tävlingen, eller den som driver den här O-Tid-installationen."
-  },
-  footerPrivacy: "Personuppgifter"
+    contact: "Frågor om dina uppgifter, eller om du vill att något tas bort, skickar du till den som driver den här O-Tid-installationen:"
+  }
 } as const;

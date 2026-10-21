@@ -1,4 +1,6 @@
 import { deviceBatchAcknowledgementSchema, readoutRegistrationResponseSchema, sportidentReadoutPayloadSchema, type DeviceBatch } from "@o-tid/contracts";
+import { CardDecodeError, decodeRecordedFrames, framesFromHex, SiTimeError } from "@o-tid/sportident";
+import { buildReadoutPayload, payloadHash } from "./payload";
 import type { QueuedReadout, ReadoutStore } from "./store";
 
 export type SyncOutcome =
@@ -42,17 +44,46 @@ export function pendingBatches(items: readonly QueuedReadout[]): QueuedReadout[]
  * löpnumret, så det tas emot som en ny avläsning och fyller luckan i följden. Steg 36: med steg 34 gav en station som
  * skickar alla åtta block nio ramar, fler än schemat tillät. Ger antalet som lades tillbaka.
  */
-export async function requeueLocallyInvalid(store: ReadoutStore, raceId: string): Promise<number> {
+export async function requeueLocallyInvalid(store: ReadoutStore, raceId: string, timeZone?: string): Promise<number> {
   let count = 0;
   for (const item of await store.list(raceId)) {
     if (item.status !== "rejected" || item.rejectedReason !== "LOCAL_INVALID") continue;
-    if (!sportidentReadoutPayloadSchema.safeParse(item.payload).success) continue;
-    const copy: { -readonly [K in keyof QueuedReadout]: QueuedReadout[K] } = { ...item, status: "pending" };
+    let payload = item.payload;
+    let contentHash = item.contentHash;
+    if (!sportidentReadoutPayloadSchema.safeParse(payload).success) {
+      // Steg 39: före steg 34 lästes block 1 (SIAC:s inställningar) som stämplingar, med kontrollkod 0, och avläsningen
+      // stoppades här. Avkoda råramarna på nytt med samma tidsreferens som vid avläsningen; går det inte ligger den kvar.
+      const redone = timeZone ? redecoded(item, timeZone) : undefined;
+      if (!redone || !sportidentReadoutPayloadSchema.safeParse(redone).success) continue;
+      payload = redone;
+      contentHash = await payloadHash(redone);
+    }
+    const copy: { -readonly [K in keyof QueuedReadout]: QueuedReadout[K] } = { ...item, payload, contentHash, status: "pending" };
     delete copy.rejectedReason;
     await store.update(copy);
     count += 1;
   }
   return count;
+}
+
+/** Avläsningen avkodad på nytt från sina råramar, eller undefined om ramarna inte räcker (aldrig påhittade stämplingar). */
+function redecoded(item: QueuedReadout, timeZone: string): QueuedReadout["payload"] | undefined {
+  const old = item.payload;
+  if (old.simulated || old.frames.length === 0) return undefined;
+  try {
+    const frames = framesFromHex(old.frames);
+    const card = decodeRecordedFrames(frames);
+    const received = Date.parse(item.stationReceivedAt);
+    const station = old.clockSource === "station" && old.clockOffsetMs !== undefined;
+    return buildReadoutPayload(card, frames, { reference: new Date(station ? received + old.clockOffsetMs! : received), timeZone,
+      ...(old.stationSerial !== undefined ? { stationSerial: old.stationSerial } : {}),
+      ...(old.clockSource !== undefined ? { clockSource: old.clockSource } : {}),
+      ...(old.clockOffsetMs !== undefined ? { clockOffsetMs: old.clockOffsetMs } : {}),
+      simulated: false });
+  } catch (error) {
+    if (error instanceof CardDecodeError || error instanceof SiTimeError) return undefined;
+    throw error;
+  }
 }
 
 type RegistrationOutcome = { readonly kind: "done"; readonly count: number } | Exclude<SyncOutcome, { kind: "idle" | "synced" }>;

@@ -682,6 +682,10 @@ gjort, tekniska funktioner, öppet att använda i beta) och en hjälpknapp i pro
 - [x] "Hjälp" i arbetsytans toppbalk, på Mina tävlingar och på avläsningssidan: panel med stegets artiklar först, lokal sökning
   (versaler och å/ä/ö spelar ingen roll), Esc stänger. Artiklarna i `i18n/help-sv.ts`; ett test slår upp varje citerad knapp i UI-texterna.
 
+## [x] Steg 39 – Lokalt stoppade avläsningar avkodas på nytt
+
+- [x] Avläsningar som stoppades i webbläsaren för att de avkodats fel avkodas från råramarna när sidan laddas och skickas.
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

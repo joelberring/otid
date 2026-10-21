@@ -140,7 +140,7 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
       const saved = await storeRef.current.loadPackage(raceId);
       if (saved && !pkgRef.current) { pkgRef.current = saved; setPkg(saved); }
       // Lokalt avvisade avläsningar som nu är giltiga (steg 36: nio ramar från en station som skickar alla åtta block).
-      await requeueLocallyInvalid(storeRef.current, raceId);
+      await requeueLocallyInvalid(storeRef.current, raceId, (saved ?? pkgRef.current)?.event.timeZone);
       await reload();
       if (navigator.storage?.persist) setPersistent(await navigator.storage.persist());
       await refreshPackage();

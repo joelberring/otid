@@ -31,14 +31,16 @@ const DECISIONS: Record<DecisionChoice, { decision: EntryStatusDecision; withdra
   NT_WITHDRAWAL: { decision: { kind: "WITHDRAW" }, withdraws: "NT" },
   APPROVAL_WITHDRAWAL: { decision: { kind: "WITHDRAW" }, withdraws: "APPROVAL" },
   MANUAL_TIME_WITHDRAWAL: { decision: { kind: "WITHDRAW" } },
-  CONTROL_APPROVAL_WITHDRAWAL: { decision: { kind: "WITHDRAW" }, withdraws: "CONTROL_APPROVAL" }
+  CONTROL_APPROVAL_WITHDRAWAL: { decision: { kind: "WITHDRAW" }, withdraws: "CONTROL_APPROVAL" },
+  CONFIRM_MP: { decision: { kind: "CONFIRM_MISPUNCH" } },
+  CONFIRM_MP_WITHDRAWAL: { decision: { kind: "WITHDRAW" }, withdraws: "MP_CONFIRMED" }
 };
 
 /** Beskedet när ett beslut inte går att fatta (samma texter som tidigare per beslut). */
 function blocked(choice: DecisionChoice, readiness: EntryStatusReadiness): string {
   const texts: Partial<Record<DecisionChoice, Partial<Record<EntryStatusReadiness, string>>>> = {
     APPROVAL: adminText.approvalReadiness, DSQ: adminText.dsqReadiness, NT: adminText.ntReadiness,
-    OOC: adminText.oocReadiness, DNF: adminText.dnfReadiness };
+    OOC: adminText.oocReadiness, DNF: adminText.dnfReadiness, CONFIRM_MP: adminText.confirmMpReadiness };
   if (choice === "DNS") return adminText.dnsHasResult;
   const own = texts[choice];
   return own?.[readiness] ?? own?.UNSUPPORTED_RESULT ?? text.notAvailable;
@@ -94,6 +96,13 @@ export function createStatusChangeActions(ws: Base & RaceDataActions & ResultDec
       const trimmed = reason.trim();
       value = { ...attempt, request: { ...attempt.request, decision: trimmed ? { kind: "DISQUALIFIED", reason: trimmed }
         : { kind: "DISQUALIFIED" } } };
+      pending.current = value; setDecisionAttempt(value);
+    }
+    // Steg 38: "Bekräfta felstämplad" med valfri orsak.
+    if (attempt.kind === "DECISION" && attempt.choice === "CONFIRM_MP" && pending.current === attempt && !sent.current) {
+      const trimmed = reason.trim();
+      value = { ...attempt, request: { ...attempt.request, decision: trimmed ? { kind: "CONFIRM_MISPUNCH", note: trimmed }
+        : { kind: "CONFIRM_MISPUNCH" } } };
       pending.current = value; setDecisionAttempt(value);
     }
     // Steg 31: "Godkänn manuellt" kräver orsak.

@@ -24,31 +24,6 @@ export const didNotStartResultSchema = z.object({
   courseVersionId: canonicalUuidSchema
 }).strict();
 
-/**
- * A status-only manual DNF. The technical target is held by its immutable
- * decision, never copied into this outcome: a finish, elapsed time or split
- * would contradict the explicit did-not-finish fact.
- */
-export const didNotFinishResultSchema = z.object({
-  status: z.literal("DNF"),
-  reason: z.literal("DID_NOT_FINISH"),
-  entryId: canonicalUuidSchema,
-  classId: canonicalUuidSchema,
-  courseVersionId: canonicalUuidSchema
-}).strict();
-
-/**
- * A status-only manual NT. Its validated technical OK/COMPLETE target remains
- * immutable decision provenance and never leaks timing or control facts here.
- */
-export const withoutTimingResultSchema = z.object({
-  status: z.literal("NT"),
-  reason: z.literal("WITHOUT_TIMING"),
-  entryId: canonicalUuidSchema,
-  classId: canonicalUuidSchema,
-  courseVersionId: canonicalUuidSchema
-}).strict();
-
 const storedCodesSchema = z.array(z.number().int().positive()).max(1_000);
 const storedSplitSchema = z.object({
   controlCode: z.number().int().positive(),
@@ -56,6 +31,45 @@ const storedSplitSchema = z.object({
   elapsedMs: z.number().int(),
   legMs: z.number().int()
 }).strict();
+
+/**
+ * Steg 38: brutit och "Deltog utan tid" med avläsning behåller starten och sträcktiderna fram till sista stämplade
+ * kontrollen. Mål och löptid finns aldrig; utan avläsning (eller före steg 38) är beslutet bara status.
+ */
+const partialTimingFields = {
+  startTime: z.iso.datetime({ offset: true }).optional(),
+  splits: z.array(storedSplitSchema).max(1_000).optional()
+};
+function validatePartialTiming(result: { startTime?: string | undefined; splits?: readonly { elapsedMs: number; legMs: number }[] | undefined },
+  context: z.RefinementCtx): void {
+  const splits = result.splits ?? [];
+  if (splits.length > 0 && result.startTime === undefined) {
+    context.addIssue({ code: "custom", path: ["splits"], message: "Sträcktider kräver starttid" });
+  }
+  if (splits.some((split) => split.elapsedMs < 0 || split.legMs < 0)) {
+    context.addIssue({ code: "custom", path: ["splits"], message: "Sträcktider får inte vara negativa" });
+  }
+}
+
+/** Brutit (manuellt beslut). */
+export const didNotFinishResultSchema = z.object({
+  status: z.literal("DNF"),
+  reason: z.literal("DID_NOT_FINISH"),
+  entryId: canonicalUuidSchema,
+  classId: canonicalUuidSchema,
+  courseVersionId: canonicalUuidSchema,
+  ...partialTimingFields
+}).strict().superRefine(validatePartialTiming);
+
+/** "Deltog utan tid" (manuellt beslut). */
+export const withoutTimingResultSchema = z.object({
+  status: z.literal("NT"),
+  reason: z.literal("WITHOUT_TIMING"),
+  entryId: canonicalUuidSchema,
+  classId: canonicalUuidSchema,
+  courseVersionId: canonicalUuidSchema,
+  ...partialTimingFields
+}).strict().superRefine(validatePartialTiming);
 const disqualifiedIdentityFields = {
   entryId: canonicalUuidSchema,
   classId: canonicalUuidSchema,
@@ -160,7 +174,8 @@ export const outOfCompetitionResultSchema = z.union([
   }).strict()
 ]).superRefine((result, context) => {
   if (!("elapsedMs" in result)) {
-    if (result.missingControls.length > 0 || result.extraPunches.length > 0 || result.splits.length > 0) {
+    // Steg 38: utan mål står sträcktiderna fram till sista stämplade kontrollen kvar, men bara med start.
+    if (result.missingControls.length > 0 || result.extraPunches.length > 0 || (result.splits.length > 0 && !("startTime" in result))) {
       context.addIssue({
         code: "custom",
         path: ["splits"],
@@ -269,7 +284,8 @@ export const storedResultRevisionCauseSchema = z.enum([
   "MANUAL_WITHOUT_TIMING", "MANUAL_WITHOUT_TIMING_WITHDRAWAL", "MANUAL_FINISH_TIME_CORRECTION",
   "MANUAL_FINISH_TIME_CORRECTION_WITHDRAWAL", "MANUAL_PUNCH_START_TIME_CORRECTION", "MANUAL_PUNCH_START_TIME_CORRECTION_WITHDRAWAL",
   "SHORTENED_COURSE_CLASS_TRANSFER", "MANUAL_TIME", "MANUAL_TIME_WITHDRAWAL", "MANUAL_CONTROL_APPROVAL",
-  "MANUAL_CONTROL_APPROVAL_WITHDRAWAL", "MANUAL_RESULT_REMOVED", "READOUT_REREAD"
+  "MANUAL_CONTROL_APPROVAL_WITHDRAWAL", "MANUAL_RESULT_REMOVED", "READOUT_REREAD", "MANUAL_MISPUNCH_CONFIRMATION",
+  "MANUAL_MISPUNCH_CONFIRMATION_WITHDRAWAL"
 ]);
 
 export function isValidStoredResultPair(

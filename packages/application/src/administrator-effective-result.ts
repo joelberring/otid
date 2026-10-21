@@ -129,19 +129,22 @@ export async function getAdministratorEffectiveResult(db: Database,
       MANUAL_DID_NOT_FINISH: "DNF", MANUAL_OUT_OF_COMPETITION: "OOC", MANUAL_WITHOUT_TIMING: "NT",
       // Steg 31: rättad och manuell tid visas som manuell tid; godkända kontroller som eget beslut.
       MANUAL_TIME: "MANUAL_TIME", MANUAL_FINISH_TIME_CORRECTION: "MANUAL_TIME", MANUAL_PUNCH_START_TIME_CORRECTION: "MANUAL_TIME",
-      MANUAL_CONTROL_APPROVAL: "CONTROL_APPROVAL"
+      MANUAL_CONTROL_APPROVAL: "CONTROL_APPROVAL", MANUAL_MISPUNCH_CONFIRMATION: "MP_CONFIRMED"
     } as const;
     const cause = resolved.head.cause;
     const governingDecision = Object.hasOwn(decisions, cause) ? decisions[cause as keyof typeof decisions] : "NONE";
     let controlDetails = null;
-    const technical = "splits" in outcome && (outcome.splits.length > 0 || outcome.missingControls.length > 0 ||
-      outcome.extraPunches.length > 0 || "startTime" in outcome || "finishTime" in outcome);
+    // Steg 38: brutit och deltog utan tid med avläsning har start och sträcktider men inga saknade eller extra kontroller.
+    const outcomeSplits = "splits" in outcome ? outcome.splits ?? [] : [];
+    const technical = "splits" in outcome && (outcomeSplits.length > 0 ||
+      ("missingControls" in outcome && outcome.missingControls.length > 0) ||
+      ("extraPunches" in outcome && outcome.extraPunches.length > 0) || "startTime" in outcome || "finishTime" in outcome);
     if (technical) {
       const course = courses.find(row => row.id === resolved.head.courseVersionId);
       if (!course) throw new StoredResultRevisionConflict("Resultatets banversion saknas");
       // Gafflad bana: resultatet visas mot löparens variant (ADR-0169 beslut 2).
       const variant = await storedResultVariantControls(tx, resolved.head.courseVersionId, entry.courseVariantCode,
-        ("splits" in outcome ? outcome.splits : []).map(split => split.controlCode));
+        outcomeSplits.map(split => split.controlCode));
       const controls = variant?.controls ?? await tx.select({ id: schema.courseControls.id, sequence: schema.courseControls.sequence,
         controlCode: schema.controls.code, controlRaceId: schema.controls.raceId })
         .from(schema.courseControls).innerJoin(schema.controls, eq(schema.controls.id, schema.courseControls.controlId))
@@ -152,8 +155,7 @@ export async function getAdministratorEffectiveResult(db: Database,
         throw new StoredResultRevisionConflict("Resultatets historiska kontrollföljd saknas");
       }
       const outOfOrder = await loadControlCodesOutOfOrder(tx, race.id);
-      const splits = "splits" in outcome ? outcome.splits : [];
-      const projectedControls = projectAdministratorControlTimes(controls, outOfOrder, splits);
+      const projectedControls = projectAdministratorControlTimes(controls, outOfOrder, outcomeSplits);
       const validInstant = (value: unknown) => typeof value === "string" && Number.isFinite(Date.parse(value)) &&
         /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value) ? value : null;
       controlDetails = { courseName: course.name, courseVersionId: resolved.head.courseVersionId,

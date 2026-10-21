@@ -41,7 +41,8 @@ const AUDIT_ACTION: Partial<Record<ResultRevisionRow["cause"], string>> = {
   MANUAL_PUNCH_START_TIME_CORRECTION_WITHDRAWAL: "MANUAL_PUNCH_START_TIME_CORRECTION_WITHDRAWN",
   MANUAL_TIME: "MANUAL_TIME_DECIDED", MANUAL_TIME_WITHDRAWAL: "MANUAL_TIME_WITHDRAWN",
   MANUAL_CONTROL_APPROVAL: "CONTROLS_APPROVED", MANUAL_CONTROL_APPROVAL_WITHDRAWAL: "CONTROL_APPROVAL_WITHDRAWN",
-  MANUAL_RESULT_REMOVED: "MANUAL_RESULT_REMOVED"
+  MANUAL_RESULT_REMOVED: "MANUAL_RESULT_REMOVED",
+  MANUAL_MISPUNCH_CONFIRMATION: "MISPUNCH_CONFIRMED", MANUAL_MISPUNCH_CONFIRMATION_WITHDRAWAL: "MISPUNCH_CONFIRMATION_WITHDRAWN"
 };
 /** Orsaker som ändrar löparens måltid (stafett: nästa sträckas växling). */
 const FINISH_CHANGING: ReadonlySet<ResultRevisionRow["cause"]> = new Set<ResultRevisionRow["cause"]>([
@@ -164,15 +165,16 @@ function causeMatches(decision: ManualDecision, cause: ResultRevisionRow["cause"
     DID_NOT_START: "MANUAL_DID_NOT_START", DID_NOT_FINISH: "MANUAL_DID_NOT_FINISH", DISQUALIFIED: "MANUAL_DISQUALIFICATION",
     OUT_OF_COMPETITION: "MANUAL_OUT_OF_COMPETITION", WITHOUT_TIMING: "MANUAL_WITHOUT_TIMING",
     APPROVE_MANUALLY: "MANUAL_RESULT_APPROVAL", FINISH_TIME: "MANUAL_FINISH_TIME_CORRECTION",
-    START_TIME: "MANUAL_PUNCH_START_TIME_CORRECTION", MANUAL_TIME: "MANUAL_TIME", APPROVE_CONTROLS: "MANUAL_CONTROL_APPROVAL" };
+    START_TIME: "MANUAL_PUNCH_START_TIME_CORRECTION", MANUAL_TIME: "MANUAL_TIME", APPROVE_CONTROLS: "MANUAL_CONTROL_APPROVAL",
+    CONFIRM_MISPUNCH: "MANUAL_MISPUNCH_CONFIRMATION" };
   return causes[decision.kind] === cause;
 }
 
-/** Arrangörens text på revisionen: diskens orsak eller (steg 31) orsaken till manuell tid och godkännande. */
+/** Arrangörens text på revisionen: diskens orsak, (steg 31) orsaken till manuell tid och godkännande och (steg 38) bekräftelsen. */
 function decisionNote(decision: ManualDecision): string | null {
   const text = decision.kind === "DISQUALIFIED" ? decision.reason
     : decision.kind === "MANUAL_TIME" || decision.kind === "APPROVE_CONTROLS" || decision.kind === "APPROVE_MANUALLY" ||
-      decision.kind === "DID_NOT_FINISH" ? decision.note : undefined;
+      decision.kind === "DID_NOT_FINISH" || decision.kind === "CONFIRM_MISPUNCH" ? decision.note : undefined;
   return text?.trim().slice(0, 500) || null;
 }
 

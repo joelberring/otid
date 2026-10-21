@@ -18,7 +18,10 @@ export const resultsOfficialOutcomeSchema = z.discriminatedUnion("outcome", [
   z.object({ outcome: z.literal("OFFICIAL"), finalization: raceResultFinalizationMetadataSchema }).strict(),
   z.object({ outcome: z.literal("PRELIMINARY") }).strict(),
   z.object({ outcome: z.literal("BLOCKED"), raceBlockers: blockers,
-    classes: z.array(z.object({ classId: uuid, className: z.string().min(1).max(160), blockerCodes: blockers.min(1) }).strict()).max(1_000)
+    classes: z.array(z.object({ classId: uuid, className: z.string().min(1).max(160), blockerCodes: blockers.min(1),
+      /** Steg 38: löparna som hindret gäller, så att deltagarkortet kan öppnas direkt. */
+      entries: z.array(z.object({ entryId: uuid, displayName: z.string().min(1).max(321), code: resultFinalizationBlockerCodeSchema })
+        .strict()).max(1_000).optional() }).strict()).max(1_000)
   }).strict()
 ]);
 

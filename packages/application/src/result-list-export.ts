@@ -319,13 +319,16 @@ async function projectIofResultList(tx: Transaction, raceId: string, options: { 
     const variants = variantsByVersion.get(row.courseVersionId);
     if (!variants) return controlsByVersion.get(row.courseVersionId) ?? [];
     const variant = storedResultCourseVariant(variants, row.courseVariantCode,
-      ("splits" in row.evaluation ? row.evaluation.splits : []).map((split) => split.controlCode));
+      ("splits" in row.evaluation ? row.evaluation.splits ?? [] : []).map((split) => split.controlCode));
     return (variant?.controlCodes ?? []).map((controlCode, index) => ({ id: `${row.courseVersionId}:${index + 1}`, sequence: index + 1, controlCode }));
   };
   for (const row of parsedRows) {
     // Rogaining (ADR-0170 beslut 5): de räknade kontrollerna i stämplingsordning är löparens "bana" i exporten.
     const rogaining = "rogaining" in row.evaluation ? row.evaluation.rogaining : undefined;
-    const statusOnly = row.evaluation.status === "DNS" || row.evaluation.status === "DNF" || row.evaluation.status === "NT";
+    // Steg 38: brutit och deltog utan tid med sträcktider exporteras med banans kontroller; annars bara status.
+    const storedSplits = "splits" in row.evaluation ? row.evaluation.splits ?? [] : [];
+    const statusOnly = row.evaluation.status === "DNS" ||
+      ((row.evaluation.status === "DNF" || row.evaluation.status === "NT") && storedSplits.length === 0);
     const projection = statusOnly
       ? { expected: [], splitKeyMap: new Map<string, { controlCode: number; occurrence: number }>() }
       : rogaining ? rogainingProjection(rogaining.controls)
@@ -334,7 +337,7 @@ async function projectIofResultList(tx: Transaction, raceId: string, options: { 
     const expectedKeys = new Set(expected.map((control) => `${control.controlCode}:${control.occurrence}`));
     const splitKeys = new Set<string>();
     // En äldre revision (t.ex. manuellt rättad tid) kan ha tid vid en kontroll som nu är ur funktion; den exporteras inte.
-    const rawEvaluationSplits = ("splits" in row.evaluation ? row.evaluation.splits : [])
+    const rawEvaluationSplits = storedSplits
       .filter((split) => rogaining || !outOfOrder.has(split.controlCode));
     const evaluationSplits = rawEvaluationSplits.map((split) => {
       if (statusOnly) return split;
@@ -355,7 +358,7 @@ async function projectIofResultList(tx: Transaction, raceId: string, options: { 
     const card = cardByEntry.get(row.entryId);
     const variantCode = variantsByVersion.has(row.courseVersionId)
       ? storedResultCourseVariant(variantsByVersion.get(row.courseVersionId)!, row.courseVariantCode,
-        ("splits" in row.evaluation ? row.evaluation.splits : []).map((split) => split.controlCode))?.code : undefined;
+        storedSplits.map((split) => split.controlCode))?.code : undefined;
     const course = variantCode ? iofCourse(courseByVersion.get(row.courseVersionId), variantCode) : undefined;
     const shared = {
       internalEntryId: row.entryId,
@@ -374,9 +377,16 @@ async function projectIofResultList(tx: Transaction, raceId: string, options: { 
     // Steg 35: "Deltog utan tid" (NT) har ingen egen IOF 3.0-status. Den exporteras som NotCompeting utan tid och
     // sträcktider: löparen deltog men placeras inte. (Finished betyder "inte kontrollerad ännu" och passar inte i en
     // slutlig lista.)
+    // Steg 38: med avläsning har brutit och deltog utan tid starten och sträcktiderna fram till sista stämplade kontrollen.
+    const partial = {
+      expectedControls: expected,
+      splits: evaluationSplits.map((split) => ({ controlCode: split.controlCode, occurrence: split.occurrence, elapsedMs: split.elapsedMs })),
+      ...("startTime" in row.evaluation && row.evaluation.startTime !== undefined ? { startTime: row.evaluation.startTime } : {})
+    };
     const result: IofResultListPersonResult & typeof shared = row.evaluation.status === "DNF"
-      ? { ...shared, status: "DNF" }
-      : row.evaluation.status === "NT" ? { ...shared, status: "OOC", expectedControls: [], splits: [] }
+      ? statusOnly ? { ...shared, status: "DNF" } : { ...shared, status: "DNF", ...partial }
+      : row.evaluation.status === "NT" ? statusOnly ? { ...shared, status: "OOC", expectedControls: [], splits: [] }
+        : { ...shared, status: "OOC", ...partial }
       : row.evaluation.status === "OOC"
         ? {
           ...shared,

@@ -67,10 +67,10 @@ describe("applyManualDecision", () => {
     expect(applyManualDecision(history, { kind: "DID_NOT_START" }, context)).toEqual({ ok: false, readiness: "HAS_RESULT" });
     expect(applyManualDecision(history, { kind: "APPROVE_MANUALLY" }, context)).toMatchObject({ ok: true,
       outcome: { status: "OK", reason: "MANUAL_APPROVAL" } });
-    // Steg 35: "Deltog utan tid" går även på en felstämplad avläsning och har aldrig tid.
+    // Steg 35: "Deltog utan tid" går även på en felstämplad avläsning och har aldrig tid; steg 38: sträcktiderna står kvar.
     expect(applyManualDecision(history, { kind: "WITHOUT_TIMING" }, context)).toEqual({ ok: true, cause: "MANUAL_WITHOUT_TIMING",
-      outcome: { status: "NT", reason: "WITHOUT_TIMING", entryId, classId, courseVersionId }, engineVersion: "without-timing-v1",
-      source: read });
+      outcome: { status: "NT", reason: "WITHOUT_TIMING", entryId, classId, courseVersionId, startTime: "2026-09-12T10:00:00.000Z",
+        splits: timed("MP").splits }, engineVersion: "without-timing-v1", source: read });
   });
 
   it("ger disk, utom tävlan och deltog utan tid även utan avläsning (steg 35)", () => {
@@ -114,5 +114,52 @@ describe("applyManualDecision", () => {
       .toEqual({ ok: false, readiness: "NOT_PUNCH_START" });
     expect(manualDecisionReadiness(history, context)).toMatchObject({ FINISH_TIME: "READY", START_TIME: "READY",
       DID_NOT_START: "HAS_RESULT", WITHDRAW: "NO_ACTIVE_DECISION" });
+  });
+});
+
+describe("steg 38: bekräfta felstämplad och sträcktider vid brutit", () => {
+  const missingFinish: EvaluationResult = { status: "MP", reason: "MISSING_FINISH", entryId, classId, courseVersionId,
+    startTime: "2026-09-12T10:00:00.000Z", missingControls: [], extraPunches: [], splits: [] };
+  const partial = [{ controlCode: 31, occurrence: 1, elapsedMs: 600_000, legMs: 600_000 },
+    { controlCode: 32, occurrence: 1, elapsedMs: 900_000, legMs: 300_000 }];
+  /** Avläsningen bedömd med ett mål långt efter starten: stämplingarna efter starten får sina tider. */
+  const withReadout: ManualDecisionContext = { ...context, evaluateWithTimes: (startTime, finishTime) => ({ ...missingFinish,
+    reason: "MISSING_CONTROL", startTime, finishTime, elapsedMs: Date.parse(finishTime) - Date.parse(startTime), missingControls: [33],
+    splits: partial }) };
+
+  it("bekräftar en felstämpling med samma utfall, ligger kvar över en ny avläsning och tas bort med ett återtagande", () => {
+    const read = revision(1, "CARD_READOUT", timed("MP"));
+    const confirmed = applyManualDecision(resolveResultHistory([read]), { kind: "CONFIRM_MISPUNCH", note: "Kontrollerat" }, context);
+    expect(confirmed).toEqual({ ok: true, cause: "MANUAL_MISPUNCH_CONFIRMATION", outcome: read.evaluation,
+      engineVersion: "mispunch-confirmation-v1", source: read });
+    if (!confirmed.ok) throw new Error("bekräftelse");
+    const later = revision(3, "CARD_READOUT", timed("MP", "2026-09-12T10:21:00.000Z"));
+    const history = resolveResultHistory([read, revision(2, confirmed.cause, confirmed.outcome), later]);
+    expect(history).toMatchObject({ governing: "MP_CONFIRMED", effective: { revision: 2 }, restore: later });
+    expect(manualDecisionReadiness(history, context)).toMatchObject({ CONFIRM_MISPUNCH: "ACTIVE_MISPUNCH_CONFIRMATION",
+      DID_NOT_FINISH: "ACTIVE_MISPUNCH_CONFIRMATION", WITHDRAW: "READY" });
+    expect(applyManualDecision(history, { kind: "WITHDRAW" }, context)).toMatchObject({ ok: true,
+      cause: "MANUAL_MISPUNCH_CONFIRMATION_WITHDRAWAL", outcome: later.evaluation });
+    // Bara en felstämplad löpare kan bekräftas.
+    expect(applyManualDecision(resolveResultHistory([revision(1, "CARD_READOUT", timed("OK"))]), { kind: "CONFIRM_MISPUNCH" }, context))
+      .toEqual({ ok: false, readiness: "UNSUPPORTED_RESULT" });
+  });
+
+  it("brutit, disk och utom tävlan utan målstämpling får sträcktiderna fram till sista stämplade kontrollen", () => {
+    const history = resolveResultHistory([revision(1, "CARD_READOUT", missingFinish)]);
+    expect(applyManualDecision(history, { kind: "DID_NOT_FINISH" }, withReadout)).toMatchObject({ ok: true,
+      outcome: { status: "DNF", startTime: "2026-09-12T10:00:00.000Z", splits: partial } });
+    const dnf = applyManualDecision(history, { kind: "DID_NOT_FINISH" }, withReadout);
+    expect(dnf.ok && "finishTime" in dnf.outcome).toBe(false);
+    expect(applyManualDecision(history, { kind: "DISQUALIFIED" }, withReadout)).toMatchObject({ ok: true,
+      outcome: { status: "DSQ", splits: partial } });
+    expect(applyManualDecision(history, { kind: "OUT_OF_COMPETITION" }, withReadout)).toMatchObject({ ok: true,
+      outcome: { status: "OOC", splits: partial } });
+    // Med mål är det bedömningens sträcktider; utan avläsning bara status.
+    expect(applyManualDecision(resolveResultHistory([revision(1, "CARD_READOUT", timed("MP"))]), { kind: "DID_NOT_FINISH" }, context))
+      .toMatchObject({ ok: true, outcome: { status: "DNF", splits: timed("MP").splits } });
+    expect(applyManualDecision(resolveResultHistory([]), { kind: "DID_NOT_FINISH" }, context)).toEqual({ ok: true,
+      cause: "MANUAL_DID_NOT_FINISH", outcome: { status: "DNF", reason: "DID_NOT_FINISH", entryId, classId, courseVersionId },
+      engineVersion: "did-not-finish-v1", source: null });
   });
 });

@@ -2,6 +2,7 @@ import { and, asc, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import {
   classResultFinalizationMetadataSchema,
   frozenClassFinalizationProjectionSchema,
+  frozenManualDecisionCauseSchema,
   frozenRaceFinalizationProjectionSchema,
   raceResultFinalizationMetadataSchema,
   resultFinalizationCandidateResponseSchema,
@@ -38,11 +39,11 @@ export class FinalizationTooLarge extends Error {}
 const MAX_CLASSES = 1_000;
 const MAX_RESULTS = 10_000;
 const MAX_EXPECTED_CONTROLS = 256;
-/** Beslut som fryses som eget underlag (tidsrättningar blockerar fastställandet). Steg 35: även "Deltog utan tid". */
-const MANUAL_SOURCE_CAUSES: ReadonlySet<string> = new Set<FrozenManualDecisionCause>(["MANUAL_DID_NOT_START",
-  "MANUAL_DISQUALIFICATION", "MANUAL_DISQUALIFICATION_WITHDRAWAL", "MANUAL_RESULT_APPROVAL", "MANUAL_RESULT_APPROVAL_WITHDRAWAL",
-  "MANUAL_DID_NOT_FINISH", "MANUAL_DID_NOT_FINISH_WITHDRAWAL", "MANUAL_OUT_OF_COMPETITION", "MANUAL_OUT_OF_COMPETITION_WITHDRAWAL",
-  "MANUAL_WITHOUT_TIMING", "MANUAL_WITHOUT_TIMING_WITHDRAWAL"]);
+/**
+ * Beslut som fryses som eget underlag. Steg 38: alla avgjorda beslut, även manuell tid, godkända kontroller och rättad
+ * tid (de saknar avläsning på revisionen och blockerade förut fastställandet som "kan inte kontrolleras").
+ */
+const MANUAL_SOURCE_CAUSES: ReadonlySet<string> = new Set<FrozenManualDecisionCause>(frozenManualDecisionCauseSchema.options);
 
 type DatabaseTransaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 export type ResultFinalizationRow = typeof schema.resultFinalizations.$inferSelect;
@@ -136,9 +137,12 @@ function asIofPerson(result: FrozenIofPersonProjection): IofResultListPersonResu
     ...(result.cardNumber === undefined ? {} : { cardNumber: result.cardNumber }),
     ...(result.course === undefined ? {} : { course: result.course })
   };
-  if (result.status === "DNF") return { ...identity, status: "DNF" };
-  // Steg 35: "Deltog utan tid" har ingen egen IOF 3.0-status och skrivs som NotCompeting utan tid och sträcktider.
-  if (result.status === "NT") return { ...identity, status: "OOC", expectedControls: [], splits: [] };
+  // Steg 38: brutit med avläsning har starten och sträcktiderna fram till sista stämplade kontrollen, aldrig tid.
+  const partial = { expectedControls: result.expectedControls, splits: result.splits,
+    ...(result.startTime === null ? {} : { startTime: result.startTime }) };
+  if (result.status === "DNF") return result.splits.length === 0 ? { ...identity, status: "DNF" } : { ...identity, status: "DNF", ...partial };
+  // Steg 35: "Deltog utan tid" har ingen egen IOF 3.0-status och skrivs som NotCompeting utan tid (steg 38: med sträcktider).
+  if (result.status === "NT") return { ...identity, status: "OOC", ...(result.splits.length === 0 ? { expectedControls: [], splits: [] } : partial) };
   if (result.status === "OOC") {
     return {
       ...identity,
@@ -236,8 +240,17 @@ interface LockedRace {
   readonly snapshotVersion: number;
 }
 
+/** Steg 38: löparen som ett hinder gäller, så att arrangören kan öppna deltagarkortet. */
+export interface FinalizationEntryIssue {
+  readonly entryId: string;
+  readonly displayName: string;
+  readonly code: ResultFinalizationBlockerCode;
+}
+
 interface BuiltBasis {
   readonly response: ResultFinalizationCandidateResponse;
+  /** Hinder per löpare och klass (klassens id). */
+  readonly entryIssuesByClass: ReadonlyMap<string, readonly FinalizationEntryIssue[]>;
   readonly classProjectionById: ReadonlyMap<string, FrozenClassFinalizationProjection>;
   readonly raceProjection?: FrozenRaceFinalizationProjection;
 }
@@ -372,10 +385,20 @@ export async function buildFinalizationBasis(tx: DatabaseTransaction, race: Lock
   }
 
   const classProjectionById = new Map<string, FrozenClassFinalizationProjection>();
+  const entryIssuesByClass = new Map<string, FinalizationEntryIssue[]>();
   const classCandidates: ResultFinalizationCandidateResponse["classes"] = [];
   for (const raceClass of classRows) {
     const entries = entriesByClass.get(raceClass.id) ?? [];
     const blockers = new Set<ResultFinalizationBlockerCode>();
+    const issues: FinalizationEntryIssue[] = [];
+    entryIssuesByClass.set(raceClass.id, issues);
+    /** Ett hinder som gäller en löpare: klassen blockeras och löparen anges. */
+    const flag = (entry: (typeof entries)[number], code: ResultFinalizationBlockerCode) => {
+      blockers.add(code);
+      if (!issues.some((issue) => issue.entryId === entry.id && issue.code === code)) {
+        issues.push({ entryId: entry.id, displayName: `${entry.givenName} ${entry.familyName}`, code });
+      }
+    };
     if (entries.length === 0) blockers.add("EMPTY_CLASS");
     const basisEntries: unknown[] = [];
     const validResults: Array<{
@@ -398,7 +421,7 @@ export async function buildFinalizationBasis(tx: DatabaseTransaction, race: Lock
       const revisionState = latestStateByEntry.get(entry.id);
       // En saknad revision är MISSING_RESULT_REVISION nedan, inte ett ogiltigt resultat (PLAN.md steg 27).
       const variant = classVariants.length === 0 ? undefined : classVariants.find(row => row.code === entry.courseVariantCode);
-      if (classVariants.length > 0 && !variant) blockers.add("INVALID_RESULT_REVISION");
+      if (classVariants.length > 0 && !variant) flag(entry, "INVALID_RESULT_REVISION");
       const entryControls = variant
         ? expectedControls(variant.controlCodes.map((controlCode, index) => ({ sequence: index + 1, controlCode }))) : controls;
       const identity = iofIdentity(entry, cardByEntry.get(entry.id),
@@ -431,35 +454,38 @@ export async function buildFinalizationBasis(tx: DatabaseTransaction, race: Lock
         noActiveResult: revisionState?.state === "NO_ACTIVE_RESULT"
       });
       if (!absoluteRevision) {
-        blockers.add("MISSING_RESULT_REVISION");
+        flag(entry, "MISSING_RESULT_REVISION");
         continue;
       }
       if (!revisionState) throw new StoredFinalizationConflict("Resultathuvudets livscykel saknas");
       if (revisionState.state === "NO_ACTIVE_RESULT") {
-        blockers.add("WITHDRAWN_DID_NOT_START");
+        flag(entry, "WITHDRAWN_DID_NOT_START");
         continue;
       }
       const revision = revisionState.head;
-      if (!revision.published) blockers.add("LATEST_RESULT_UNPUBLISHED");
+      if (!revision.published) flag(entry, "LATEST_RESULT_UNPUBLISHED");
       let evaluation;
       try {
         evaluation = parseStrictStoredResultRevision(revision, revisionState.startCheckinDns?.source);
       } catch (error) {
         if (!(error instanceof StoredResultRevisionConflict)) throw error;
-        blockers.add("INVALID_RESULT_REVISION");
+        flag(entry, "INVALID_RESULT_REVISION");
         continue;
       }
-      if (evaluation.classId !== raceClass.id) blockers.add("RESULT_CLASS_MISMATCH");
-      if (evaluation.courseVersionId !== raceClass.courseVersionId) blockers.add("RESULT_COURSE_MISMATCH");
-      if (!isEffectiveResultCurrent(revisionState, basisHashes.get(entry.id), race.snapshotVersion)) blockers.add("STALE_RESULT_SNAPSHOT");
+      if (evaluation.classId !== raceClass.id) flag(entry, "RESULT_CLASS_MISMATCH");
+      if (evaluation.courseVersionId !== raceClass.courseVersionId) flag(entry, "RESULT_COURSE_MISMATCH");
+      if (!isEffectiveResultCurrent(revisionState, basisHashes.get(entry.id), race.snapshotVersion)) flag(entry, "STALE_RESULT_SNAPSHOT");
 
       const expectedKeys = new Set(entryControls.map((control) => `${control.controlCode}:${control.occurrence}`));
       const splitKeys = new Set<string>();
-      const evaluationSplits = "splits" in evaluation ? evaluation.splits : [];
-      const resultControls = evaluation.status === "DNS" || evaluation.status === "DNF" || evaluation.status === "NT" ? [] : entryControls;
+      const evaluationSplits = "splits" in evaluation ? evaluation.splits ?? [] : [];
+      // Steg 38: brutit och deltog utan tid med sträcktider har banans kontroller; utan sträcktider är de bara status.
+      const statusOnly = evaluation.status === "DNS" ||
+        ((evaluation.status === "DNF" || evaluation.status === "NT") && evaluationSplits.length === 0);
+      const resultControls = statusOnly ? [] : entryControls;
       for (const split of evaluationSplits) {
         const splitKey = `${split.controlCode}:${split.occurrence}`;
-        if (!expectedKeys.has(splitKey) || splitKeys.has(splitKey)) blockers.add("INVALID_RESULT_REVISION");
+        if (!expectedKeys.has(splitKey) || splitKeys.has(splitKey)) flag(entry, "INVALID_RESULT_REVISION");
         splitKeys.add(splitKey);
       }
       let source: FrozenFinalizationResultSourceV9;
@@ -495,7 +521,7 @@ export async function buildFinalizationBasis(tx: DatabaseTransaction, race: Lock
           courseVersionId: revision.courseVersionId
         };
       } else {
-        blockers.add("INVALID_RESULT_REVISION");
+        flag(entry, "INVALID_RESULT_REVISION");
         continue;
       }
       validResults.push({
@@ -507,7 +533,7 @@ export async function buildFinalizationBasis(tx: DatabaseTransaction, race: Lock
           familyName: entry.familyName,
           organisationName: entry.organisationName,
           status: evaluation.status,
-          startTime: "startTime" in evaluation ? evaluation.startTime : null,
+          startTime: "startTime" in evaluation ? evaluation.startTime ?? null : null,
           finishTime: "finishTime" in evaluation ? evaluation.finishTime : null,
           elapsedMs: "elapsedMs" in evaluation ? evaluation.elapsedMs : null,
           expectedControls: resultControls,
@@ -696,6 +722,7 @@ export async function buildFinalizationBasis(tx: DatabaseTransaction, race: Lock
       classes: classCandidates
     }),
     classProjectionById,
+    entryIssuesByClass,
     ...(raceProjection === undefined ? {} : { raceProjection })
   };
 }

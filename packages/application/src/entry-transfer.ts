@@ -89,6 +89,8 @@ export async function listEntryTransfersAsAdmin(db: Database, input: Authenticat
     }>();
     const revisionMarkerByEntry = new Map<string, "MANUAL_FINISH_TIME_CORRECTION" | "MANUAL_FINISH_TIME_CORRECTION_WITHDRAWAL" |
       "MANUAL_TIME" | null>();
+    /** Steg 38: felstämplade som arrangören har kontrollerat (bekräftad felstämpling eller manuell tid som felstämplad). */
+    const mispunchConfirmed = new Set<string>();
     for (const state of await resolveStoredResultHeadStates(tx, input.raceId, publishedHeads)) {
       if (freshnessByEntry.has(state.selectedHead.entryId)) throw new Error("Deltagarlistan har dubbla resultathuvuden");
       const cause = state.selectedHead.cause;
@@ -101,6 +103,8 @@ export async function listEntryTransfersAsAdmin(db: Database, input: Authenticat
       const result = speakerBoardEffectiveResultSchema.parse({ revision: state.head.revision,
         status: outcome.status, reason: outcome.reason,
         ...("elapsedMs" in outcome ? { elapsedMs: outcome.elapsedMs } : {}) });
+      if (state.state === "ACTIVE_RESULT" && outcome.status === "MP" &&
+        (state.governing === "MP_CONFIRMED" || state.governing === "MANUAL_TIME")) mispunchConfirmed.add(state.selectedHead.entryId);
       if (state.state === "NO_ACTIVE_RESULT") {
         freshnessByEntry.set(state.selectedHead.entryId, "NO_ACTIVE_RESULT");
         effectiveResultByEntry.set(state.selectedHead.entryId, { state: "NO_ACTIVE_RESULT", selectedRevision });
@@ -156,6 +160,7 @@ export async function listEntryTransfersAsAdmin(db: Database, input: Authenticat
         resultFreshness: freshnessByEntry.get(row.id) ?? "NO_PUBLISHED_RESULT",
         effectiveResult: effectiveResultByEntry.get(row.id) ?? { state: "NO_PUBLISHED_RESULT", selectedRevision: null },
         resultRevisionMarker: revisionMarkerByEntry.get(row.id) ?? null,
+        ...(mispunchConfirmed.has(row.id) ? { mispunchConfirmed: true } : {}),
         activeAssignment: assignment ? { id: assignment.id, cardNumber: assignment.cardNumber,
           isRental: assignment.isRental, rentalReturned: assignment.rentalReturned } : null,
         multipleActiveAssignments: active.length > 1,

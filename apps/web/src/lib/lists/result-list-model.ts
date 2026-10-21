@@ -51,7 +51,7 @@ function row(result: PublicRow): ResultRow {
     behindMs: "timeBehindMs" in result ? result.timeBehindMs ?? null : null,
     status: result.status, reason: result.reason,
     variant: "courseVariantCode" in result ? result.courseVariantCode ?? null : null,
-    splits: "splits" in result ? result.splits.map(split => ({ ...split })) : [],
+    splits: "splits" in result ? (result.splits ?? []).map(split => ({ ...split })) : [],
     missingControls: "missingControls" in result ? [...result.missingControls] : [],
     score: "rogaining" in result && result.rogaining ? { controlPoints: result.rogaining.controlPoints, penalty: result.rogaining.penalty,
       total: result.rogaining.total, controls: result.rogaining.controls.map(control => ({ ...control })) } : null
@@ -128,7 +128,8 @@ export type SplitGroup = { className: string; variant: string | null; rows: Resu
 
 /**
  * Sträcktider per klass (domänens sträcktidsanalys). En gafflad klass delas per variant, eftersom sträckorna bara
- * kan jämföras inom samma variant. Löpare utan sträcktider (ej start, ej fullföljt, deltog utan tid) visas inte.
+ * kan jämföras inom samma variant. Löpare utan sträcktider visas inte; brutit, disk, utom tävlan och deltog utan tid med
+ * avläsning (steg 38) visas med sträcktiderna fram till sista stämplade kontrollen, utan placering.
  */
 export function splitGroups(raceClass: ResultClass): SplitGroup[] {
   const rows = raceClass.rows.filter(result => result.splits.length > 0 || result.timeMs !== null);

@@ -6,7 +6,7 @@ import { correctPunchedStartTime, type PunchedStartTimeCorrectableResult } from 
 import { rescoreRogaining } from "./rogaining";
 import { withMaxTime } from "./max-time";
 import { approveMissingControls, manualTimeOutcome, type ManualTimeContext, type ManualTimeInput } from "./manual-time";
-import type { EvaluationResult, ResultOutcome, RevisionCause } from "./types";
+import type { EvaluationResult, ResultOutcome, RevisionCause, SplitTime } from "./types";
 
 /**
  * Ett statusflöde (ADR-0173 beslut 1). Arrangörens beslut om en löpare och regeln för vilket resultat som gäller
@@ -26,21 +26,24 @@ export type ManualDecision =
   | ({ readonly kind: "MANUAL_TIME"; readonly note: string } & ManualTimeInput)
   /** Steg 31: godkänn valda saknade kontroller, med arrangörens orsak. */
   | { readonly kind: "APPROVE_CONTROLS"; readonly controls: readonly number[]; readonly note: string }
+  /** Steg 38: felstämplingen är kontrollerad; löparen står kvar som felstämplad men är inte längre att titta på. */
+  | { readonly kind: "CONFIRM_MISPUNCH"; readonly note?: string | undefined }
   | { readonly kind: "WITHDRAW" };
 export type ManualDecisionKind = ManualDecision["kind"];
 export const MANUAL_DECISION_KINDS = ["DID_NOT_START", "DID_NOT_FINISH", "DISQUALIFIED", "OUT_OF_COMPETITION",
-  "WITHOUT_TIMING", "APPROVE_MANUALLY", "FINISH_TIME", "START_TIME", "MANUAL_TIME", "APPROVE_CONTROLS",
+  "WITHOUT_TIMING", "APPROVE_MANUALLY", "FINISH_TIME", "START_TIME", "MANUAL_TIME", "APPROVE_CONTROLS", "CONFIRM_MISPUNCH",
   "WITHDRAW"] as const satisfies readonly ManualDecisionKind[];
 
 /** Beslutet som styr löparens gällande resultat. */
 export type GoverningDecision = "NONE" | "DNS" | "CHECKIN_DNS" | "DSQ" | "APPROVAL" | "DNF" | "OOC" | "NT" | "FINISH_TIME" |
-  "START_TIME" | "MANUAL_TIME" | "CONTROL_APPROVAL";
+  "START_TIME" | "MANUAL_TIME" | "CONTROL_APPROVAL" | "MP_CONFIRMED";
 
 /** Varför ett beslut inte kan fattas just nu (samma koder som arbetsytans besked). */
 export type ManualDecisionReadiness =
   | "READY" | "HAS_RESULT" | "NO_ACTIVE_RESULT" | "UNSUPPORTED_RESULT" | "STALE_RESULT" | "NOT_PUNCH_START"
   | "NO_ACTIVE_DECISION" | "INVALID_TIME" | "INVALID_CONTROL" | "ACTIVE_DID_NOT_START" | "ACTIVE_DISQUALIFICATION"
-  | "ACTIVE_APPROVAL" | "ACTIVE_DID_NOT_FINISH" | "ACTIVE_OUT_OF_COMPETITION" | "ACTIVE_WITHOUT_TIMING" | "ACTIVE_MANUAL_TIME";
+  | "ACTIVE_APPROVAL" | "ACTIVE_DID_NOT_FINISH" | "ACTIVE_OUT_OF_COMPETITION" | "ACTIVE_WITHOUT_TIMING" | "ACTIVE_MANUAL_TIME"
+  | "ACTIVE_MISPUNCH_CONFIRMATION";
 
 /** Det en revision behöver visa för regeln: ordning, orsak, utfall och om den bygger på en avläsning. */
 export interface DecisionRevision {
@@ -58,12 +61,13 @@ export interface DecisionRevision {
 const OVERLAY_DECISIONS: Partial<Record<RevisionCause, GoverningDecision>> = {
   MANUAL_DISQUALIFICATION: "DSQ", MANUAL_RESULT_APPROVAL: "APPROVAL", MANUAL_DID_NOT_FINISH: "DNF",
   MANUAL_OUT_OF_COMPETITION: "OOC", MANUAL_WITHOUT_TIMING: "NT", MANUAL_FINISH_TIME_CORRECTION: "FINISH_TIME",
-  MANUAL_PUNCH_START_TIME_CORRECTION: "START_TIME", MANUAL_TIME: "MANUAL_TIME", MANUAL_CONTROL_APPROVAL: "CONTROL_APPROVAL"
+  MANUAL_PUNCH_START_TIME_CORRECTION: "START_TIME", MANUAL_TIME: "MANUAL_TIME", MANUAL_CONTROL_APPROVAL: "CONTROL_APPROVAL",
+  MANUAL_MISPUNCH_CONFIRMATION: "MP_CONFIRMED"
 };
 const OVERLAY_WITHDRAWALS: ReadonlySet<RevisionCause> = new Set<RevisionCause>(["MANUAL_DISQUALIFICATION_WITHDRAWAL",
   "MANUAL_RESULT_APPROVAL_WITHDRAWAL", "MANUAL_DID_NOT_FINISH_WITHDRAWAL", "MANUAL_OUT_OF_COMPETITION_WITHDRAWAL",
   "MANUAL_WITHOUT_TIMING_WITHDRAWAL", "MANUAL_FINISH_TIME_CORRECTION_WITHDRAWAL", "MANUAL_PUNCH_START_TIME_CORRECTION_WITHDRAWAL",
-  "MANUAL_TIME_WITHDRAWAL", "MANUAL_CONTROL_APPROVAL_WITHDRAWAL", "MANUAL_RESULT_REMOVED"]);
+  "MANUAL_TIME_WITHDRAWAL", "MANUAL_CONTROL_APPROVAL_WITHDRAWAL", "MANUAL_RESULT_REMOVED", "MANUAL_MISPUNCH_CONFIRMATION_WITHDRAWAL"]);
 /** Beslut som är själva resultathuvudet: en senare avläsning ersätter dem. */
 const HEAD_DECISIONS: Partial<Record<RevisionCause, GoverningDecision>> = {
   MANUAL_DID_NOT_START: "DNS", START_CHECKIN_DID_NOT_START: "CHECKIN_DNS"
@@ -74,7 +78,8 @@ const WITHDRAWAL_CAUSE: Partial<Record<GoverningDecision, RevisionCause>> = {
   APPROVAL: "MANUAL_RESULT_APPROVAL_WITHDRAWAL", DNF: "MANUAL_DID_NOT_FINISH_WITHDRAWAL",
   OOC: "MANUAL_OUT_OF_COMPETITION_WITHDRAWAL", NT: "MANUAL_WITHOUT_TIMING_WITHDRAWAL",
   FINISH_TIME: "MANUAL_FINISH_TIME_CORRECTION_WITHDRAWAL", START_TIME: "MANUAL_PUNCH_START_TIME_CORRECTION_WITHDRAWAL",
-  MANUAL_TIME: "MANUAL_TIME_WITHDRAWAL", CONTROL_APPROVAL: "MANUAL_CONTROL_APPROVAL_WITHDRAWAL"
+  MANUAL_TIME: "MANUAL_TIME_WITHDRAWAL", CONTROL_APPROVAL: "MANUAL_CONTROL_APPROVAL_WITHDRAWAL",
+  MP_CONFIRMED: "MANUAL_MISPUNCH_CONFIRMATION_WITHDRAWAL"
 };
 /** Ingen avläsning eller ej start: resultatet är borttaget (ej start borttaget, manuellt beslut utan avläsning borttaget). */
 const NO_RESULT_BASES: ReadonlySet<RevisionCause> = new Set<RevisionCause>(["MANUAL_DID_NOT_START_WITHDRAWAL", "MANUAL_RESULT_REMOVED"]);
@@ -91,7 +96,8 @@ export const MANUAL_DECISION_ENGINE_VERSIONS: Record<Exclude<ManualDecisionKind,
   DID_NOT_START: "did-not-start-v1", DID_NOT_FINISH: "did-not-finish-v1", DISQUALIFIED: "manual-disqualification-v1",
   OUT_OF_COMPETITION: "out-of-competition-v1", WITHOUT_TIMING: "without-timing-v1",
   APPROVE_MANUALLY: "manual-result-approval-v1", FINISH_TIME: "manual-finish-time-correction-v1",
-  START_TIME: "manual-punch-start-time-correction-v1", MANUAL_TIME: "manual-time-v1", APPROVE_CONTROLS: "manual-control-approval-v1"
+  START_TIME: "manual-punch-start-time-correction-v1", MANUAL_TIME: "manual-time-v1", APPROVE_CONTROLS: "manual-control-approval-v1",
+  CONFIRM_MISPUNCH: "mispunch-confirmation-v1"
 };
 export const MANUAL_WITHDRAWAL_ENGINE_VERSION = "manual-decision-withdrawal-v1";
 
@@ -178,7 +184,7 @@ const ACTIVE_READINESS: Partial<Record<GoverningDecision, Exclude<ManualDecision
   DNS: "ACTIVE_DID_NOT_START", CHECKIN_DNS: "ACTIVE_DID_NOT_START", DSQ: "ACTIVE_DISQUALIFICATION",
   APPROVAL: "ACTIVE_APPROVAL", DNF: "ACTIVE_DID_NOT_FINISH", OOC: "ACTIVE_OUT_OF_COMPETITION", NT: "ACTIVE_WITHOUT_TIMING",
   FINISH_TIME: "ACTIVE_MANUAL_TIME", START_TIME: "ACTIVE_MANUAL_TIME", MANUAL_TIME: "ACTIVE_MANUAL_TIME",
-  CONTROL_APPROVAL: "ACTIVE_APPROVAL"
+  CONTROL_APPROVAL: "ACTIVE_APPROVAL", MP_CONFIRMED: "ACTIVE_MISPUNCH_CONFIRMATION"
 };
 
 function fail(readiness: Exclude<ManualDecisionReadiness, "READY">): { ok: false; readiness: Exclude<ManualDecisionReadiness, "READY"> } {
@@ -216,8 +222,32 @@ export function latestMatchedSplitElapsedMs(outcome: EvaluationResult): number |
   return Number.isSafeInteger(elapsed) ? elapsed : null;
 }
 
+/** Längsta tid efter starten som en stämpling räknas för sträcktiderna utan mål (steg 38). */
+const PARTIAL_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Steg 38: starten och sträcktiderna fram till sista stämplade kontrollen, för brutit, disk, utom tävlan och deltog utan
+ * tid med avläsning. Med målstämpling är det bedömningens sträcktider; utan mål bedöms avläsningen på nytt med ett mål
+ * långt efter starten, så att varje stämplad kontroll efter starten får sin tid. Utan start finns inga sträcktider.
+ */
+export function partialTiming(outcome: EvaluationResult, context: Pick<ManualDecisionContext, "evaluateWithTimes">):
+  { readonly startTime?: string; readonly splits: readonly SplitTime[] } {
+  const startMs = typeof outcome.startTime === "string" ? Date.parse(outcome.startTime) : Number.NaN;
+  if (!Number.isFinite(startMs) || outcome.reason === "INVALID_TIME_ORDER" || outcome.reason === "MISSING_START") return { splits: [] };
+  const startTime = outcome.startTime!;
+  if (outcome.reason !== "MISSING_FINISH") return { startTime, splits: outcome.splits.map((split) => ({ ...split })) };
+  const probe = guarded(() => context.evaluateWithTimes?.(startTime, new Date(startMs + PARTIAL_WINDOW_MS).toISOString()));
+  return { startTime, splits: (probe?.splits ?? []).map((split) => ({ ...split })) };
+}
+
 function guarded<T>(build: () => T): T | undefined {
   try { return build(); } catch { return undefined; }
+}
+
+/** Steg 38: disk och utom tävlan utan målstämpling får sträcktiderna fram till sista stämplade kontrollen. */
+function withPartialSplits<T extends { readonly splits: readonly SplitTime[] }>(result: T, source: EvaluationResult,
+  context: ManualDecisionContext): T {
+  return source.reason === "MISSING_FINISH" ? { ...result, splits: partialTiming(source, context).splits } : result;
 }
 
 /** Utfallet när ett manuellt resultat utan avläsning tas bort: ingen tid och inga kontroller (som "start saknas"). */
@@ -276,6 +306,13 @@ export function applyManualDecision<T extends DecisionRevision>(history: ResultH
         evaluateWithTimes: context.evaluateWithTimes });
       return outcome ? done("MANUAL_TIME", outcome, null) : fail("INVALID_TIME");
     }
+    case "CONFIRM_MISPUNCH": {
+      // Steg 38: samma felstämplade utfall (med sträcktider) som beslut ovanpå; bara en felstämplad löpare kan bekräftas.
+      const head = technicalHead(history, context);
+      if (typeof head === "string") return fail(head);
+      return head.outcome.status === "MP" ? done("MANUAL_MISPUNCH_CONFIRMATION", { ...head.outcome }, head.revision)
+        : fail("UNSUPPORTED_RESULT");
+    }
     case "APPROVE_CONTROLS": {
       const source = controlApprovalSource(history, context);
       if (typeof source === "string") return fail(source);
@@ -288,9 +325,12 @@ export function applyManualDecision<T extends DecisionRevision>(history: ResultH
       if (history.governing !== "NONE") return fail(ACTIVE_READINESS[history.governing] ?? "UNSUPPORTED_RESULT");
       const head = technicalHead(history, context);
       const source = typeof head === "string" ? null : head.revision;
+      // Steg 38: med avläsning står starten och sträcktiderna fram till sista stämplade kontrollen kvar (aldrig mål eller tid).
+      const timing = typeof head === "string" ? { splits: [] } : partialTiming(head.outcome, context);
+      const kept = timing.splits.length > 0 ? { ...(timing.startTime ? { startTime: timing.startTime } : {}), splits: timing.splits } : {};
       return decision.kind === "DID_NOT_FINISH"
-        ? done("MANUAL_DID_NOT_FINISH", { status: "DNF", reason: "DID_NOT_FINISH", ...identity }, source)
-        : done("MANUAL_WITHOUT_TIMING", { status: "NT", reason: "WITHOUT_TIMING", ...identity }, source);
+        ? done("MANUAL_DID_NOT_FINISH", { status: "DNF", reason: "DID_NOT_FINISH", ...identity, ...kept }, source)
+        : done("MANUAL_WITHOUT_TIMING", { status: "NT", reason: "WITHOUT_TIMING", ...identity, ...kept }, source);
     }
     default: break;
   }
@@ -306,12 +346,14 @@ export function applyManualDecision<T extends DecisionRevision>(history: ResultH
   const { revision, outcome } = head;
   switch (decision.kind) {
     case "DISQUALIFIED":
-      return done("MANUAL_DISQUALIFICATION", guarded(() => createDisqualifiedResult(outcome as DisqualifiableResult)), revision);
+      return done("MANUAL_DISQUALIFICATION", guarded(() => withPartialSplits(createDisqualifiedResult(outcome as DisqualifiableResult),
+        outcome, context)), revision);
     case "APPROVE_MANUALLY":
       if (outcome.status !== "MP") return fail("UNSUPPORTED_RESULT");
       return done("MANUAL_RESULT_APPROVAL", guarded(() => createManuallyApprovedResult(outcome)), revision);
     case "OUT_OF_COMPETITION":
-      return done("MANUAL_OUT_OF_COMPETITION", guarded(() => createOutOfCompetitionResult(outcome)), revision);
+      return done("MANUAL_OUT_OF_COMPETITION", guarded(() => withPartialSplits(createOutOfCompetitionResult(outcome), outcome, context)),
+        revision);
     case "FINISH_TIME": {
       if (!timed(outcome)) return fail("UNSUPPORTED_RESULT");
       const finishMs = Date.parse(decision.finishTime);
@@ -354,5 +396,6 @@ export function manualDecisionReadiness<T extends DecisionRevision>(history: Res
     FINISH_TIME: readiness({ kind: "FINISH_TIME", finishTime: probe }), START_TIME: readiness({ kind: "START_TIME", startTime: probe }),
     MANUAL_TIME: readiness({ kind: "MANUAL_TIME", status: "OK", note: "-", finishTime: probe, elapsedMs: -1 }),
     APPROVE_CONTROLS: readiness({ kind: "APPROVE_CONTROLS", controls: [], note: "-" }),
+    CONFIRM_MISPUNCH: readiness({ kind: "CONFIRM_MISPUNCH" }),
     WITHDRAW: readiness({ kind: "WITHDRAW" }) };
 }

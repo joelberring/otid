@@ -75,7 +75,7 @@ export function PublicResultDetail({ raceId, publicResultId, initial }: {
       .map(control => listsSv.results.scoredControl(control.controlCode, control.points)).join(", ")}</p>}
     {"missingControls" in result && result.missingControls.length > 0 && <p><strong>{sv.publicResultsMissingControls}:</strong> {result.missingControls.join(", ")}</p>}
     {"extraPunches" in result && result.extraPunches.length > 0 && <p><strong>{sv.publicResultsExtraPunches}:</strong> {result.extraPunches.join(", ")}</p>}
-    {"splits" in result && result.splits.length > 0 && <details><summary>{sv.publicResultsShowSplits}</summary><ol>
+    {"splits" in result && result.splits && result.splits.length > 0 && <details><summary>{sv.publicResultsShowSplits}</summary><ol>
       {result.splits.map((split) => <li key={`${split.controlCode}:${split.occurrence}`}>
         <span><strong>{sv.publicResultsControl}</strong> {split.controlCode}{split.occurrence > 1 ? ` (${split.occurrence})` : ""}</span>
         <span><strong>{sv.publicResultsLeg}</strong> {duration(split.legMs)}</span>

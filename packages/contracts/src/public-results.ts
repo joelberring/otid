@@ -100,10 +100,10 @@ function validatePublicResult(result: PublicResultValidationValue, context: z.Re
        hasPosition || hasTimeBehind)) {
     context.addIssue({ code: "custom", message: "DNS måste vara status-only utan tid, splits eller ranking" });
   }
+  // Steg 38: brutit med avläsning visar sträcktiderna fram till sista stämplade kontrollen, aldrig tid eller placering.
   if (result.status === "DNF" &&
-      (result.reason !== "DID_NOT_FINISH" || result.elapsedMs !== undefined || result.splits.length > 0 ||
-       hasPosition || hasTimeBehind)) {
-    context.addIssue({ code: "custom", message: "DNF måste vara status-only utan tid, splits eller ranking" });
+      (result.reason !== "DID_NOT_FINISH" || result.elapsedMs !== undefined || hasPosition || hasTimeBehind)) {
+    context.addIssue({ code: "custom", message: "DNF får inte ha tid eller ranking" });
   }
   if (result.status === "OOC" &&
       (result.reason !== "OUT_OF_COMPETITION" || hasPosition || hasTimeBehind)) {
@@ -126,7 +126,9 @@ function validatePublicResult(result: PublicResultValidationValue, context: z.Re
       (result.status !== "OK" || hasPosition || hasTimeBehind)) {
     context.addIssue({ code: "custom", message: "MIXED_COURSE_VERSIONS kräver orankad OK" });
   }
-  if (result.elapsedMs === undefined && result.splits.length > 0) {
+  // Brutit, disk och utom tävlan utan mål (steg 38) har sträcktider utan totaltid.
+  if (result.elapsedMs === undefined && result.splits.length > 0 &&
+      result.status !== "DNF" && result.status !== "DSQ" && result.status !== "OOC") {
     context.addIssue({ code: "custom", message: "Sträcktider kräver totaltid" });
   }
   if (result.elapsedMs !== undefined) {
@@ -222,7 +224,9 @@ const publicWithoutTimingResultV7Schema = z.object({
   revision: z.number().int().positive(),
   status: z.literal("NT"),
   reason: z.literal("WITHOUT_TIMING"),
-  rankingState: z.literal("NOT_RANKABLE_STATUS")
+  rankingState: z.literal("NOT_RANKABLE_STATUS"),
+  /** Steg 38: med avläsning sträcktiderna fram till sista stämplade kontrollen (aldrig tid). */
+  splits: z.array(publicResultSplitSchema).max(256).optional()
 }).strict();
 
 export const publicResultV7Schema = z.union([

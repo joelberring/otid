@@ -166,8 +166,10 @@ function StatusChange({ ws, result }: { ws: Workspace; result: AdministratorEffe
   const choices = availableStatusChoices(result);
   const id = `status-change-${raceId}`;
   const [reason, setReason] = useState("");
-  const asksReason = attempt?.kind === "DECISION" && (attempt.choice === "DSQ" || attempt.choice === "APPROVAL");
-  const reasonLabel = attempt?.kind === "DECISION" && attempt.choice === "APPROVAL" ? text.approvalReason : text.dsqReason;
+  const asksReason = attempt?.kind === "DECISION" && (attempt.choice === "DSQ" || attempt.choice === "APPROVAL" ||
+    attempt.choice === "CONFIRM_MP");
+  const reasonLabel = attempt?.kind === "DECISION" && attempt.choice === "APPROVAL" ? text.approvalReason
+    : attempt?.kind === "DECISION" && attempt.choice === "CONFIRM_MP" ? text.confirmMpReason : text.dsqReason;
   return <section className={styles.workspace}>
     <label htmlFor={id}>{text.changeStatus}</label>
     <select id={id} value={statusChoice} disabled={disabled || choices.length === 0}

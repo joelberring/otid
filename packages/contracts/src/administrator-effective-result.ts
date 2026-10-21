@@ -77,7 +77,8 @@ export const administratorResultHistoryCauses = ["CARD_READOUT", "CLASS_CHANGE_R
   "START_CHECKIN_DID_NOT_START", "MANUAL_FINISH_TIME_CORRECTION", "MANUAL_FINISH_TIME_CORRECTION_WITHDRAWAL",
   "MANUAL_PUNCH_START_TIME_CORRECTION", "MANUAL_PUNCH_START_TIME_CORRECTION_WITHDRAWAL", "SHORTENED_COURSE_CLASS_TRANSFER",
   "MANUAL_DID_NOT_START_WITHDRAWAL", "MANUAL_TIME", "MANUAL_TIME_WITHDRAWAL", "MANUAL_CONTROL_APPROVAL",
-  "MANUAL_CONTROL_APPROVAL_WITHDRAWAL", "MANUAL_RESULT_REMOVED", "READOUT_REREAD"] as const;
+  "MANUAL_CONTROL_APPROVAL_WITHDRAWAL", "MANUAL_RESULT_REMOVED", "READOUT_REREAD", "MANUAL_MISPUNCH_CONFIRMATION",
+  "MANUAL_MISPUNCH_CONFIRMATION_WITHDRAWAL"] as const;
 export const administratorResultHistorySchema = z.array(z.object({
   revision: version, cause: z.enum(administratorResultHistoryCauses),
   status: z.enum(["OK", "OVERTIME", "MP", "DSQ", "DNF", "OOC", "DNS", "NT"]), at: z.iso.datetime({ precision: 3 })
@@ -99,8 +100,12 @@ export const administratorEffectiveResultResponseSchema = z.discriminatedUnion("
     resultCurrent: z.boolean(),
     controlDetails: administratorControlDetailsSchema.nullable().optional(),
     notes: resultNotesSchema.optional(),
-    /** Steg 31: MANUAL_TIME = manuell eller rättad tid, CONTROL_APPROVAL = godkända kontroller (kan vara delvis). */
-    governingDecision: z.enum(["NONE", "DNS", "CHECKIN_DNS", "DSQ", "APPROVAL", "DNF", "OOC", "NT", "MANUAL_TIME", "CONTROL_APPROVAL"]),
+    /**
+     * Steg 31: MANUAL_TIME = manuell eller rättad tid, CONTROL_APPROVAL = godkända kontroller (kan vara delvis).
+     * Steg 38: MP_CONFIRMED = felstämplingen är bekräftad.
+     */
+    governingDecision: z.enum(["NONE", "DNS", "CHECKIN_DNS", "DSQ", "APPROVAL", "DNF", "OOC", "NT", "MANUAL_TIME", "CONTROL_APPROVAL",
+      "MP_CONFIRMED"]),
     /** Arrangörens orsak till det gällande manuella beslutet (steg 31), bara i arbetsytan. */
     decisionNote: z.string().trim().min(1).max(500).optional()
   }).strict()
@@ -108,10 +113,11 @@ export const administratorEffectiveResultResponseSchema = z.discriminatedUnion("
   if (value.state !== "ACTIVE_RESULT") return;
   const expected = value.result.status === "OK"
     ? (value.result.reason === "MANUAL_APPROVAL" ? ["APPROVAL", "CONTROL_APPROVAL"] : ["NONE", "MANUAL_TIME"]) :
-    value.result.status === "MP" ? ["NONE", "MANUAL_TIME", "CONTROL_APPROVAL"] : value.result.status === "OVERTIME" ? ["NONE", "MANUAL_TIME"] : value.result.status === "DNS" ? ["DNS", "CHECKIN_DNS"] : [value.result.status];
+    value.result.status === "MP" ? ["NONE", "MANUAL_TIME", "CONTROL_APPROVAL", "MP_CONFIRMED"] : value.result.status === "OVERTIME" ? ["NONE", "MANUAL_TIME"] : value.result.status === "DNS" ? ["DNS", "CHECKIN_DNS"] : [value.result.status];
   if (!expected.includes(value.governingDecision) || value.result.revision > value.selectedRevision.revision ||
     value.resultSnapshotVersion > value.snapshotVersion) ctx.addIssue({ code: "custom", message: "Resultatets beslut eller versionsunderlag stämmer inte" });
-  if (["DNS", "DNF", "NT"].includes(value.result.status) && value.controlDetails != null) {
+  // Steg 38: brutit och deltog utan tid med avläsning visar sträcktiderna fram till sista stämplade kontrollen.
+  if (value.result.status === "DNS" && value.controlDetails != null) {
     ctx.addIssue({ code: "custom", path: ["controlDetails"], message: "Status utan teknik får inte bära kontrolluppgifter" });
   }
 });

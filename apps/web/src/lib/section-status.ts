@@ -38,9 +38,12 @@ export function inForest<T extends { forestState: string }>(entries: readonly T[
   return entries.filter(row => row.forestState !== "RETURNED" && row.forestState !== "NOT_STARTED");
 }
 
-/** Löpare vars gällande resultat är felstämplat (MP). */
+/**
+ * Felstämplade att titta på: gällande resultat felstämplat (MP) och inte kontrollerat. Steg 38: en bekräftad felstämpling
+ * (eller manuell tid som felstämplad) står kvar som felstämplad men räknas inte här.
+ */
 export function mispunchedEntries(data: Pick<EntryTransferCandidates, "entries">): Entry[] {
-  return data.entries.filter(entry => activeStatus(entry) === "MP");
+  return data.entries.filter(entry => activeStatus(entry) === "MP" && !entry.mispunchConfirmed);
 }
 
 /**
@@ -67,7 +70,7 @@ export function checklistFacts(data: Pick<EntryTransferCandidates, "classes" | "
     inForest: extra.inForest ?? (started ? statuses.filter(status => status === undefined).length : 0),
     unknownCards: extra.unknownCards,
     results: statuses.filter(status => status !== undefined).length,
-    mispunched: statuses.filter(status => status === "MP").length,
+    mispunched: mispunchedEntries(data).length,
     publication: data.publication?.hiddenBySuperadmin ? "HIDDEN" : data.publication?.publishedAt ? "PUBLISHED" : "UNPUBLISHED"
   };
 }

@@ -14,8 +14,9 @@ describe("TASK 006I/006J/006K/006M DNF projection policy", () => {
 
   it("keeps Snapshot DNF status-only at the IOF boundary", () => {
     const resultList = source("result-list-export.ts");
-    expect(resultList).toContain('row.evaluation.status === "DNS" || row.evaluation.status === "DNF"');
-    expect(resultList).toContain('? { ...shared, status: "DNF" }');
+    // Steg 38: DNF utan sträcktider är bara status; med avläsning sträcktider fram till sista stämplade kontrollen.
+    expect(resultList).toContain('(row.evaluation.status === "DNF" || row.evaluation.status === "NT") && storedSplits.length === 0');
+    expect(resultList).toContain('? statusOnly ? { ...shared, status: "DNF" } : { ...shared, status: "DNF", ...partial }');
     expect(resultList).toContain('if (result.status === "DNF" || result.status === "OOC")');
   });
 
@@ -25,7 +26,7 @@ describe("TASK 006I/006J/006K/006M DNF projection policy", () => {
     expect(finalization).toContain("absoluteResultRevisionId: absoluteRevision.id");
     expect(finalization).toContain("absoluteResultRevision: absoluteRevision.revision");
     expect(finalization).toContain("underlyingResultRevisionId: revisionState.underlyingId");
-    expect(finalization).toContain('if (result.status === "DNF") return { ...identity, status: "DNF" }');
+    expect(finalization).toContain('if (result.status === "DNF") return result.splits.length === 0 ? { ...identity, status: "DNF" }');
     expect(finalization.match(/formatVersion: 9/g)?.length).toBe(4);
   });
 });

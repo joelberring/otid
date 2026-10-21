@@ -75,7 +75,7 @@ export async function resolveStoredResultHeadStates<T extends StoredResultHead>(
     const head = effective === selectedHead ? selectedHead : { ...selectedHead, ...effective } as T;
     // Beslutet avser revisionen närmast under; ett beslut utan avläsning (steg 31) har ingen.
     const overlay = effective !== history.restore && effective.revision > 1 &&
-      ["DSQ", "APPROVAL", "DNF", "OOC", "NT", "CONTROL_APPROVAL"].includes(history.governing);
+      ["DSQ", "APPROVAL", "DNF", "OOC", "NT", "CONTROL_APPROVAL", "MP_CONFIRMED"].includes(history.governing);
     return { state: "ACTIVE_RESULT", head, selectedHead, governing: history.governing,
       underlyingId: overlay ? `${effective.entryId}:${effective.revision - 1}` : null, startCheckinDns: null } as const;
   });

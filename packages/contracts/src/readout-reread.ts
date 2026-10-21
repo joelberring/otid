@@ -12,7 +12,7 @@ const resultStatus = z.enum(["OK", "OVERTIME", "MP", "UNKNOWN_CARD"]);
 
 /** Ett manuellt beslut som ligger kvar över den nya avläsningen (steg 31 B2). */
 export const readoutRereadManualDecisionSchema = z.enum(["DSQ", "APPROVAL", "DNF", "OOC", "NT", "FINISH_TIME", "START_TIME",
-  "MANUAL_TIME", "CONTROL_APPROVAL"]);
+  "MANUAL_TIME", "CONTROL_APPROVAL", "MP_CONFIRMED"]);
 
 const sideSchema = z.object({
   punchCount: z.number().int().min(0).max(1_000),

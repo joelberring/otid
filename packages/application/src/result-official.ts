@@ -115,7 +115,8 @@ export async function setResultsOfficialAsAdmin(db: Database, input: Input, now 
       const basis = await buildFinalizationBasis(tx, race);
       const classes = basis.response.classes.filter((row) => row.entryCount > 0);
       const blockedClasses = classes.filter((row) => row.blockerCodes.length > 0)
-        .map((row) => ({ classId: row.classId, className: row.className, blockerCodes: row.blockerCodes }));
+        .map((row) => ({ classId: row.classId, className: row.className, blockerCodes: row.blockerCodes,
+          entries: (basis.entryIssuesByClass.get(row.classId) ?? []).slice(0, 1_000) }));
       const raceBlockers = basis.response.race.blockerCodes.filter((code) => !SOLVED_HERE.has(code));
       if (blockedClasses.length > 0 || raceBlockers.length > 0) {
         return reply(raceId, { outcome: "BLOCKED", raceBlockers, classes: blockedClasses }, false);

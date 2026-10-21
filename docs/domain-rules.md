@@ -82,10 +82,18 @@ funktion lokalt; dess besked är preliminärt och serverns revision är auktorit
   jämförs inte (steg 23).
 - Steg 35: disk, utom tävlan (`OOC`) och "Deltog utan tid" (`NT`, tidigare "utan tidtagning") går med och utan avläsning,
   precis som brutit. Utom tävlan behåller avläsningens tid och sträcktider men placeras aldrig; utan avläsning har den
-  ingen tid. Deltog utan tid har aldrig tid eller kontroller (även med avläsning), visas som "Deltog" sist i klassen (efter
-  ej start) och exporteras i IOF XML som `NotCompeting` utan `Time` och sträcktider (IOF 3.0 har ingen egen status;
+  ingen tid. Deltog utan tid har aldrig tid (steg 38: med avläsning sträcktiderna), visas som "Deltog" sist i klassen (efter
+  ej start) och exporteras i IOF XML som `NotCompeting` utan `Time` (steg 38: med avläsningens sträcktider) (IOF 3.0 har ingen egen status;
   `Finished` betyder "inte kontrollerad ännu"). Ett gällande beslut utan avläsning räknas som i mål i kvar i skogen.
   Tas ett beslut utan avläsning bort blir det inget resultat (`MANUAL_RESULT_REMOVED`).
+- Steg 38: brutit, disk, utom tävlan och deltog utan tid med avläsning behåller avläsningens start och sträcktider fram
+  till sista stämplade kontrollen (utan målstämpling bedöms avläsningen med ett mål långt efter starten), men aldrig mål,
+  löptid eller placering. IOF: DidNotFinish respektive NotCompeting med SplitTime (banans övriga kontroller "Missing"),
+  utan Time. Utan avläsning är besluten bara status.
+- Steg 38: "Bekräfta felstämplad" (`MANUAL_MISPUNCH_CONFIRMATION`, valfri orsak i `note`) är ett beslut ovanpå en
+  felstämplad bedömning med samma utfall (MP med sträcktider); "Ta bort bekräftelsen" är återtagandet. Det ligger kvar
+  över ny avläsning och omräkning som andra beslut. En bekräftad felstämpling (och manuell tid som felstämplad) räknas inte
+  som "att titta på"; felstämplade stoppar aldrig "Resultaten är klara".
 - Disk kan ha en valfri orsak (`result_revision.note`, bara på `MANUAL_DISQUALIFICATION`); den syns bara för
   arrangören. Publikt står "Disk." och orsaken exporteras inte.
 - "Markera alla kvar i skogen som ej start" (Resultat) sätter ej start på alla utan avläsning och beslut, efter
@@ -94,7 +102,9 @@ funktion lokalt; dess besked är preliminärt och serverns revision är auktorit
 - "Resultaten är klara" (PLAN.md steg 27) fastställer i en transaktion varje klass med anmälda vars senaste fastställande
   inte stämmer och sedan hela loppet, och loppet pekar på det (`race.official_result_finalization_id`). Listorna är
   "Officiella resultat" så länge varje icke struken löpares senaste revision är den fastställda; annars preliminära tills
-  arrangören trycker igen. "Gör resultaten preliminära igen" nollställer bara pekaren. Klassvis fastställande finns under
+  arrangören trycker igen. "Gör resultaten preliminära igen" nollställer bara pekaren. Steg 38: varje avgjort resultat kan
+  fastställas, även manuell tid, rättad tid och godkända kontroller; bara oklart stoppar (saknat resultat, inaktuellt
+  underlag, okänd bricka, ogiltig revision), och hindret anges per löpare. Klassvis fastställande finns under
   Avancerat. Fastställda resultat fryses och senare revisioner ändrar inte en fastställd export.
 - Ta bort och stryk (steg 27): en deltagare utan resultatrevision tas bort helt med det som bara hör till den (journaler,
   brickkoppling), och en lottad tid blir vakant igen. Med en revision (avläst, beslut) stryks deltagaren i stället:

@@ -36,6 +36,12 @@ describe("status per del i sidopanelen", () => {
     expect(mispunchedEntries(data).map(row => row.id)).toEqual(["b"]);
   });
 
+  it("steg 38: en bekräftad felstämpling är inte att titta på", () => {
+    const confirmed: Data = { ...data, entries: data.entries.map(row => row.id === "b" ? { ...row, mispunchConfirmed: true as const } : row) };
+    expect(mispunchedEntries(confirmed)).toEqual([]);
+    expect(checklistStatus("RESULTS", checklistFacts(confirmed, {}))).toEqual({ tone: "DONE", text: "3 resultat" });
+  });
+
   it("använder bantabellen och skogsrapporten när de är inlästa", () => {
     const facts = checklistFacts(data, { courseCount: 3, inForest: 1 });
     expect(checklistStatus("COURSES", facts).text).toBe("3 banor");

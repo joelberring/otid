@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import styles from "../race-administrator-workspace.module.css";
 import { resultsOfficialSv as text } from "../../i18n/results-official-sv";
 import { sv } from "../../i18n/sv";
+import { mispunchedEntries } from "../../lib/section-status";
 import { Button, Notice, Section } from "../ui";
 import type { Workspace } from "./workspace-state";
 
@@ -19,8 +20,8 @@ function when(instant: string, timeZone: string) {
  * tills arrangören trycker igen. Finns inte för Träning och Liten tävling.
  */
 export function ResultsOfficialSection({ ws }: { ws: Workspace }) {
-  const { authenticated, busy, data, disabled, downloadOfficialResults, loadResultsOfficial, markResults, operation, pending, raceId,
-    resultsOfficial, resultsOfficialBlocked, resultsOfficialMessage, resultsOfficialRequest, shows } = ws;
+  const { authenticated, busy, data, disabled, downloadOfficialResults, functionary, loadResultsOfficial, markResults, operation, pending,
+    raceId, resultsOfficial, resultsOfficialBlocked, resultsOfficialMessage, resultsOfficialRequest, select, shows } = ws;
   const visible = shows("RESULTS");
   // Läses när Resultat visas och på nytt när arbetsytans lista läses om (ett beslut kan göra resultaten inaktuella),
   // men först när inget annat anrop pågår.
@@ -33,18 +34,34 @@ export function ResultsOfficialSection({ ws }: { ws: Workspace }) {
   const timeZone = data?.timeZone ?? "Europe/Stockholm";
   const official = resultsOfficial?.official;
   const retry = !!resultsOfficialRequest && resultsOfficialMessage?.tone === "error";
+  const unconfirmed = data ? mispunchedEntries(data).length : 0;
   return <Section id={`results-official-${raceId}`} title={text.title} help={official?.current ? undefined : text.help}>
     <div className={styles.disclosureBody} data-testid="results-official">
       {!resultsOfficial ? <p className={styles.muted} role="status">{text.loading}</p>
         : official?.current ? <Notice tone="ok">{text.official(when(official.finalizedAt, timeZone))}</Notice>
           : official ? <Notice tone="attention">{text.changed(when(official.finalizedAt, timeZone))}</Notice>
             : <p className={styles.muted}>{text.preliminary}</p>}
+      {unconfirmed > 0 && !official?.current && <p className={styles.muted} role="note" data-testid="unconfirmed-mispunched">
+        {text.unconfirmedMispunched(unconfirmed)}</p>}
       {resultsOfficialBlocked && <Notice tone="attention" role="alert"><p><strong>{text.blockedTitle}</strong></p>
         <ul className={styles.changeList}>
-          {resultsOfficialBlocked.raceBlockers.map(code => <li key={code}>{sv.resultFinalizationBlockers[code]}</li>)}
-          {resultsOfficialBlocked.classes.map(row => <li key={row.classId}>{text.blockedClass(row.className,
-            row.blockerCodes.map(code => code === "MISSING_RESULT_REVISION" ? text.missingResults
-              : sv.resultFinalizationBlockers[code]).join(" "))}</li>)}
+          {resultsOfficialBlocked.raceBlockers.map(code => <li key={code}>{code === "UNKNOWN_CARD_UNRESOLVED" ? text.unknownCards
+            : sv.resultFinalizationBlockers[code]}</li>)}
+          {resultsOfficialBlocked.classes.map(row => {
+            // Steg 38: hinder som gäller en löpare visas med namn, vad man gör och "Öppna" till deltagarkortet.
+            const entries = (row.entries ?? []).filter(issue => text.entryIssues[issue.code]);
+            const covered = new Set(entries.map(issue => issue.code));
+            const rest = row.blockerCodes.filter(code => !covered.has(code));
+            return [
+              ...(rest.length > 0 ? [<li key={row.classId}>{text.blockedClass(row.className,
+                rest.map(code => code === "MISSING_RESULT_REVISION" ? text.missingResults : sv.resultFinalizationBlockers[code]).join(" "))}</li>] : []),
+              ...entries.map(issue => <li key={`${issue.entryId}-${issue.code}`} className={styles.issueRow}>
+                <span>{text.entryIssue(row.className, issue.displayName, text.entryIssues[issue.code]!)}</span>
+                {!functionary && <Button variant="secondary" disabled={disabled} aria-label={text.openEntryFor(issue.displayName)}
+                  onClick={() => select(issue.entryId)}>{text.openEntry}</Button>}
+              </li>)
+            ];
+          })}
         </ul></Notice>}
       {resultsOfficialMessage && <Notice tone={resultsOfficialMessage.tone} role={resultsOfficialMessage.tone === "ok" ? "status" : "alert"}>
         {resultsOfficialMessage.text}</Notice>}

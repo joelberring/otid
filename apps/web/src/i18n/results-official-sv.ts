@@ -15,6 +15,22 @@ export const resultsOfficialSv = {
   blockedTitle: "Det här måste ordnas först:",
   blockedClass: (className: string, reasons: string) => `${className}: ${reasons}`,
   missingResults: "Några har inget resultat. Läs av dem, eller markera dem som ej start under Efterarbete.",
+  /** Steg 38: hindret för en löpare och vad man gör åt det; "Öppna" visar deltagarkortet. */
+  entryIssue: (className: string, name: string, what: string) => `${className}: ${name} ${what}`,
+  entryIssues: {
+    MISSING_RESULT_REVISION: "har inget resultat och kan vara kvar i skogen. Läs av brickan, eller sätt Ej start eller Brutit i deltagarkortet.",
+    WITHDRAWN_DID_NOT_START: "har inget resultat sedan beslutet togs bort. Läs av brickan eller fatta ett nytt beslut i deltagarkortet.",
+    LATEST_RESULT_UNPUBLISHED: "har ett resultat som inte är publicerat. Räkna om från avläsningen i deltagarkortet.",
+    INVALID_RESULT_REVISION: "har ett resultat som inte går att kontrollera mot banan. Välj variant eller räkna om från avläsningen i deltagarkortet.",
+    RESULT_CLASS_MISMATCH: "har ett resultat som bygger på en annan klass. Räkna om från avläsningen i deltagarkortet.",
+    RESULT_COURSE_MISMATCH: "har ett resultat som bygger på en äldre bana. Räkna om från avläsningen i deltagarkortet.",
+    STALE_RESULT_SNAPSHOT: "har ett resultat som bygger på en äldre bana eller klass. Räkna om från avläsningen i deltagarkortet."
+  } as Partial<Record<string, string>>,
+  /** Steg 38: felstämplade som inte är bekräftade stoppar inte, men visas som information. */
+  unconfirmedMispunched: (count: number) => `${count} ${count === 1 ? "felstämplad är inte bekräftad" : "felstämplade är inte bekräftade"}. Det stoppar inte att resultaten blir klara.`,
+  openEntry: "Öppna",
+  openEntryFor: (name: string) => `Öppna deltagarkortet för ${name}`,
+  unknownCards: "Det finns okända brickor som inte är hanterade. Koppla dem till en deltagare eller direktanmäl under Avläsning → Okända brickor.",
   loading: "Läser in …",
   loadError: "Läget kunde inte läsas in.",
   conflict: "Resultaten ändrades medan du tryckte. Försök igen.",

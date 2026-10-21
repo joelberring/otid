@@ -13,7 +13,8 @@ import { ingest, NOW, run, seedRace } from "./steg-25-fixtures";
 
 /**
  * PLAN.md steg 35: disk, utom tävlan och "Deltog utan tid" med och utan avläsning. Besluten ger revision och auditpost,
- * syns utan placering, räknas som i mål i kvar i skogen och exporteras i IOF XML (NT som NotCompeting utan tid).
+ * syns utan placering, räknas som i mål i kvar i skogen och exporteras i IOF XML (NT som NotCompeting utan tid; steg 38:
+ * med avläsningens sträcktider).
  */
 const url = process.env.TEST_DATABASE_URL;
 if (!url) throw new Error("TEST_DATABASE_URL krävs");
@@ -89,7 +90,9 @@ describe("steg 35: fler statusval", () => {
     const xml = new TextDecoder().decode(exported.bytes);
     const person = (given: string) => xml.slice(xml.indexOf(`<Given>${given}</Given>`), xml.indexOf("</PersonResult>", xml.indexOf(`<Given>${given}</Given>`)));
     expect(person("Dan")).toContain("<Status>NotCompeting</Status>");
-    expect(person("Dan")).not.toMatch(/<Time>|<SplitTime|<Position>/);
+    // Steg 38: med avläsning står sträcktiderna kvar, men ingen tid eller placering.
+    expect(person("Dan").split("<SplitTime")[0]).not.toMatch(/<Time>|<Position>/);
+    expect(person("Dan")).not.toContain("<Position>");
     expect(person("Bo")).toContain("<Status>NotCompeting</Status>");
     expect(person("Cia")).toMatch(/<Time>1800<\/Time>[\s\S]*<Status>NotCompeting<\/Status>/);
     expect(xml.indexOf("<Given>Eva</Given>")).toBeLessThan(xml.indexOf("<Given>Dan</Given>"));

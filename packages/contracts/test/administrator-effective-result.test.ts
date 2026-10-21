@@ -41,7 +41,15 @@ describe("TASK033 effective result projection", () => {
     expect(schema.safeParse({ ...active, controlDetails: { ...detail, controls: [detail.controls[0],
       { ...detail.controls[1], legMs: 0 }] } }).success).toBe(false);
     expect(schema.safeParse({ ...active, controlDetails: { ...detail, raw: "private" } }).success).toBe(false);
+    // Steg 38: brutit med avläsning visar sträcktiderna fram till sista stämplade kontrollen; ej start har inga.
     expect(schema.safeParse({ ...active, result: { revision: 2, status: "DNF", reason: "DID_NOT_FINISH" },
-      governingDecision: "DNF", controlDetails: detail }).success).toBe(false);
+      governingDecision: "DNF", controlDetails: detail }).success).toBe(true);
+    expect(schema.safeParse({ ...active, result: { revision: 2, status: "DNS", reason: "DID_NOT_START" },
+      governingDecision: "DNS", controlDetails: detail }).success).toBe(false);
+  });
+  it("steg 38: en bekräftad felstämpling är felstämplad med beslutet MP_CONFIRMED", () => {
+    const mp = { ...active, result: { revision: 2, status: "MP", reason: "MISSING_CONTROL", elapsedMs: 1000 } };
+    expect(schema.safeParse({ ...mp, governingDecision: "MP_CONFIRMED" }).success).toBe(true);
+    expect(schema.safeParse({ ...active, governingDecision: "MP_CONFIRMED" }).success).toBe(false);
   });
 });

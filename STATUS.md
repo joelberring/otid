@@ -10,6 +10,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-10-21 – Steg 38: avsluta tävlingen
+- Rotorsak H12: fastställandet frös bara beslut i en fast lista; manuell tid, godkända kontroller och rättad tid (revision utan avläsning) föll igenom till "kan inte kontrolleras" (`INVALID_RESULT_REVISION`). Med omläsning (steg 36) ligger ett sådant beslut kvar ovanpå. Nu fryses alla beslut (`frozenManualDecisionCauseSchema`).
+- Hinder per löpare: "Resultaten är klara" listar vem (t.ex. "H21: Dan Borta har inget resultat …") med "Öppna" till deltagarkortet.
+- "Bekräfta felstämplad" (valfri orsak) och "Ta bort bekräftelsen": beslut som revision (MANUAL_MISPUNCH_CONFIRMATION, migration 0015) med auditpost, ligger kvar över ny avläsning och omräkning. Bekräftade (och manuell tid som felstämplad) räknas inte som att titta på; obekräftade stoppar inte, "N felstämplade är inte bekräftade" visas som information.
+- Brutit, disk, utom tävlan och deltog utan tid behåller avläsningens start och sträcktider fram till sista stämplade kontrollen (utan mål räknas de om ur avläsningen), utan tid och placering: publikt, sträcktidsanalys, deltagarkort och IOF (DidNotFinish/NotCompeting med SplitTime).
+- Tester: domän `manual-decision`, kontrakt, `iof-xml`, integration `steg-38-avslut` (H12, hinder, bekräftelse, sträcktider, hel klubbtävling med IOF mot XSD via xmllint när IOF_XSD är satt), Playwright `avslut`. Verifierat: lint, typecheck, test, test:integration, build, Playwright `avslut`, `listor`, `statusval`, `manuellt`, `omlasning`.
+- Risk: 0015 har `when` 1798819200000; steg 37:s 0013 måste få högre `when` om den slås ihop efter att 0015 körts (se steg 36).
+
 ### 2026-10-20 – Steg 36: läs om avläsningar från rådata
 - Avläsning → "Läs om avläsningar från rådata" (bara admin): varje deltagares avläsning (den resultatet bygger på) avkodas på nytt från originalets råramar (`sportident` `decodeRecordedFrames`) med stationens klocka/offset ur nyttolasten och tävlingens tidszon. Övningsstationen och simulatorn läses inte om; ej start hoppas över. Listan visar bara ändrade (bricka, deltagare, stämplingar/status/tid före → efter) och "går inte att läsa om" (fel CRC, saknade block); "Spara och räkna om" för valda, konflikt om något ändrats.
 - Lagring: nytt råmeddelande (`transport` `sportident-reread`, enheten = originalets råmeddelande, nyttolasten pekar på originalet och avläsningen den ersätter), ny `card_readout` (lästid + 1 ms så att den blir brickans senaste) och revision med orsaken READOUT_REREAD (migration 0014) för samma deltagare (`evaluateReadoutForEntry`); auditpost per omläsning. Original och råmeddelanden ändras aldrig.

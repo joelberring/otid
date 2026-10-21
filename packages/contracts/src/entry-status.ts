@@ -28,10 +28,13 @@ export const entryStatusDecisionSchema = z.discriminatedUnion("kind", [
   /** Steg 31: godkänn valda saknade kontroller med orsak. */
   z.object({ kind: z.literal("APPROVE_CONTROLS"), controls: z.array(z.number().int().positive().max(9_999)).min(1).max(100),
     note }).strict(),
+  /** Steg 38: felstämplingen är kontrollerad, med valfri orsak. */
+  z.object({ kind: z.literal("CONFIRM_MISPUNCH"), note: note.optional() }).strict(),
   z.object({ kind: z.literal("WITHDRAW") }).strict()
 ]);
 export const entryStatusDecisionKinds = ["DID_NOT_START", "DID_NOT_FINISH", "DISQUALIFIED", "OUT_OF_COMPETITION",
-  "WITHOUT_TIMING", "APPROVE_MANUALLY", "FINISH_TIME", "START_TIME", "MANUAL_TIME", "APPROVE_CONTROLS", "WITHDRAW"] as const;
+  "WITHOUT_TIMING", "APPROVE_MANUALLY", "FINISH_TIME", "START_TIME", "MANUAL_TIME", "APPROVE_CONTROLS", "CONFIRM_MISPUNCH",
+  "WITHDRAW"] as const;
 
 export const entryStatusRequestSchema = z.object({
   formatVersion: z.literal(1),
@@ -47,11 +50,11 @@ export const entryStatusIdempotencyKeySchema = z.string().regex(
 
 const statusSchema = z.enum(["OK", "OVERTIME", "MP", "DSQ", "DNF", "OOC", "DNS", "NT"]);
 export const entryStatusGoverningDecisionSchema = z.enum(["NONE", "DNS", "CHECKIN_DNS", "DSQ", "APPROVAL", "DNF", "OOC",
-  "NT", "FINISH_TIME", "START_TIME", "MANUAL_TIME", "CONTROL_APPROVAL"]);
+  "NT", "FINISH_TIME", "START_TIME", "MANUAL_TIME", "CONTROL_APPROVAL", "MP_CONFIRMED"]);
 export const entryStatusReadinessSchema = z.enum(["READY", "HAS_RESULT", "NO_ACTIVE_RESULT", "UNSUPPORTED_RESULT",
   "STALE_RESULT", "NOT_PUNCH_START", "NO_ACTIVE_DECISION", "INVALID_TIME", "INVALID_CONTROL", "ACTIVE_DID_NOT_START",
   "ACTIVE_DISQUALIFICATION", "ACTIVE_APPROVAL", "ACTIVE_DID_NOT_FINISH", "ACTIVE_OUT_OF_COMPETITION", "ACTIVE_WITHOUT_TIMING",
-  "ACTIVE_MANUAL_TIME"]);
+  "ACTIVE_MANUAL_TIME", "ACTIVE_MISPUNCH_CONFIRMATION"]);
 
 const splitSchema = z.object({ controlCode: z.number().int().positive(), occurrence: z.number().int().positive(),
   elapsedMs: z.number().int().min(0), legMs: z.number().int().min(0) }).strict();

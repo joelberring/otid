@@ -34,7 +34,7 @@ async function race(payload = missingControl) {
 }
 
 describe("steg 23: beslut som ligger kvar över senare avläsningar (ADR-0173 beslut 1)", () => {
-  it("brutit sparas en gång, ligger kvar över en ny avläsning och fryses som status-only", async () => {
+  it("brutit sparas en gång, ligger kvar över en ny avläsning och fryses med sträcktiderna men utan tid (steg 38)", async () => {
     const { raceId, auth, ada } = await race();
     const requestId = randomUUID();
     const attempts = await Promise.all(Array.from({ length: 30 }, () =>
@@ -43,14 +43,18 @@ describe("steg 23: beslut som ligger kvar över senare avläsningar (ADR-0173 be
     const history = await revisions(ada);
     expect(history.map((row) => [row.revision, row.cause, row.status])).toEqual([[1, "CARD_READOUT", "MP"],
       [2, "MANUAL_DID_NOT_FINISH", "DNF"]]);
+    // Steg 38: avläsningens start och sträcktider står kvar, aldrig mål eller tid.
     expect(history[1]?.evaluation).toEqual({ status: "DNF", reason: "DID_NOT_FINISH", entryId: ada,
-      classId: (history[0]!.evaluation as { classId: string }).classId, courseVersionId: history[0]!.courseVersionId });
+      classId: (history[0]!.evaluation as { classId: string }).classId, courseVersionId: history[0]!.courseVersionId,
+      startTime: (history[0]!.evaluation as unknown as { startTime: string }).startTime,
+      splits: (history[0]!.evaluation as unknown as { splits: unknown[] }).splits });
     expect(await db.select().from(schema.auditEvents).where(eq(schema.auditEvents.requestId, requestId)))
       .toEqual([expect.objectContaining({ action: "DID_NOT_FINISH_DECIDED" })]);
 
     await readOut(raceId, missingControl, "2026-08-30T10:41:00Z");
     const publicAda = (await publicResults(db, raceId)).results.find((row) => row.givenName === "Ada");
-    expect(publicAda).toMatchObject({ revision: 2, status: "DNF", splits: [], rankingState: "NOT_RANKABLE_STATUS" });
+    expect(publicAda).toMatchObject({ revision: 2, status: "DNF", splits: [{ controlCode: 31 }, { controlCode: 33 }],
+      rankingState: "NOT_RANKABLE_STATUS" });
     expect(publicAda).not.toHaveProperty("elapsedMs");
     expect(await entryStatus(auth, ada)).toMatchObject({ headRevision: 3, governingDecision: "DNF",
       readiness: { APPROVE_MANUALLY: "ACTIVE_DID_NOT_FINISH", DISQUALIFIED: "ACTIVE_DID_NOT_FINISH", WITHDRAW: "READY" } });
@@ -60,7 +64,8 @@ describe("steg 23: beslut som ligger kvar över senare avläsningar (ADR-0173 be
 
     const snapshot = personResultBody(await iofXml(auth), "Ada");
     expect(snapshot).toContain("<Status>DidNotFinish</Status>");
-    expect(snapshot).not.toMatch(/<(StartTime|FinishTime|Time|TimeBehind|Position|SplitTime)(?:\s|>)/);
+    expect(snapshot.split("<SplitTime")[0]).not.toMatch(/<(FinishTime|Time|TimeBehind|Position)(?:\s|>)/);
+    expect(snapshot).toContain("<SplitTime");
 
     await readOut(raceId, bo);
     const finalizationId = await finalizeAll(auth);
@@ -157,7 +162,9 @@ describe("steg 23: beslut som ligger kvar över senare avläsningar (ADR-0173 be
     expect(await entryStatus(auth, ada)).toMatchObject({ readiness: { OUT_OF_COMPETITION: "ACTIVE_WITHOUT_TIMING" } });
     const body = personResultBody(await iofXml(auth), "Ada");
     expect(body).toContain("<Status>NotCompeting</Status>");
-    expect(body).not.toMatch(/<Time>|<SplitTime|<Position>/);
+    // Steg 38: sträcktiderna står kvar, men ingen tid eller placering.
+    expect(body.split("<SplitTime")[0]).not.toMatch(/<Time>|<Position>/);
+    expect(body).not.toContain("<Position>");
     expect(await classBlockers(auth)).not.toContain("INVALID_RESULT_REVISION");
 
     expect(await decide(auth, ada, { kind: "WITHDRAW" })).toMatchObject({ status: "decided",

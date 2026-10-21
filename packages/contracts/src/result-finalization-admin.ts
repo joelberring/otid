@@ -296,16 +296,24 @@ function validateFrozenIofPerson(result: FrozenPersonValidationValue, context: z
       (hasPosition || hasTimeBehind)) {
     context.addIssue({ code: "custom", path: ["position"], message: "MP, DSQ och OOC får inte ha ranking" });
   }
-  if ((result.status === "DNS" || result.status === "DNF" || result.status === "NT") &&
+  if (result.status === "DNS" &&
       (result.startTime !== null || result.finishTime !== null || result.elapsedMs !== null ||
        hasPosition || hasTimeBehind || result.expectedControls.length !== 0 || result.splits.length !== 0)) {
-    context.addIssue({ code: "custom", path: ["status"], message: "Finaliserad DNS/DNF/NT måste vara status-only" });
+    context.addIssue({ code: "custom", path: ["status"], message: "Finaliserad DNS måste vara status-only" });
+  }
+  // Steg 38: brutit och deltog utan tid med avläsning har start och sträcktider fram till sista stämplade kontrollen,
+  // aldrig mål, tid eller placering; utan sträcktider är de bara status.
+  if ((result.status === "DNF" || result.status === "NT") &&
+      (result.finishTime !== null || result.elapsedMs !== null || hasPosition || hasTimeBehind ||
+       (result.splits.length === 0 && (result.startTime !== null || result.expectedControls.length !== 0)) ||
+       (result.splits.length !== 0 && result.startTime === null))) {
+    context.addIssue({ code: "custom", path: ["status"], message: "Finaliserad DNF/NT har varken tid eller placering" });
   }
   if (result.status === "OOC" && result.finishTime !== null && result.startTime === null) {
     context.addIssue({ code: "custom", path: ["finishTime"], message: "Finaliserad OOC får inte ha mål utan start" });
   }
-  if (result.status === "OOC" && result.elapsedMs === null && result.splits.length !== 0) {
-    context.addIssue({ code: "custom", path: ["splits"], message: "Finaliserad OOC får inte ha splits utan totaltid" });
+  if (result.status === "OOC" && result.elapsedMs === null && result.splits.length !== 0 && result.startTime === null) {
+    context.addIssue({ code: "custom", path: ["splits"], message: "Finaliserad OOC får inte ha splits utan start" });
   }
   if (result.elapsedMs !== null && (result.startTime === null || result.finishTime === null)) {
     context.addIssue({ code: "custom", path: ["elapsedMs"], message: "Totaltid kräver start- och måltid" });
@@ -368,7 +376,11 @@ const frozenSourceBase = {
 export const frozenManualDecisionCauseSchema = z.enum(["MANUAL_DID_NOT_START", "MANUAL_DISQUALIFICATION",
   "MANUAL_DISQUALIFICATION_WITHDRAWAL", "MANUAL_RESULT_APPROVAL", "MANUAL_RESULT_APPROVAL_WITHDRAWAL",
   "MANUAL_DID_NOT_FINISH", "MANUAL_DID_NOT_FINISH_WITHDRAWAL", "MANUAL_OUT_OF_COMPETITION",
-  "MANUAL_OUT_OF_COMPETITION_WITHDRAWAL", "MANUAL_WITHOUT_TIMING", "MANUAL_WITHOUT_TIMING_WITHDRAWAL"]);
+  "MANUAL_OUT_OF_COMPETITION_WITHDRAWAL", "MANUAL_WITHOUT_TIMING", "MANUAL_WITHOUT_TIMING_WITHDRAWAL",
+  // Steg 38: varje avgjort beslut kan fastställas – manuell tid, godkända kontroller, rättad tid och deras återtaganden.
+  "MANUAL_TIME", "MANUAL_TIME_WITHDRAWAL", "MANUAL_CONTROL_APPROVAL", "MANUAL_CONTROL_APPROVAL_WITHDRAWAL",
+  "MANUAL_FINISH_TIME_CORRECTION", "MANUAL_FINISH_TIME_CORRECTION_WITHDRAWAL", "MANUAL_PUNCH_START_TIME_CORRECTION",
+  "MANUAL_PUNCH_START_TIME_CORRECTION_WITHDRAWAL", "MANUAL_MISPUNCH_CONFIRMATION", "MANUAL_MISPUNCH_CONFIRMATION_WITHDRAWAL"]);
 
 /** Var det frysta resultatet kommer ifrån: en avläsning, avprickningens ej start eller ett beslut. */
 export const frozenFinalizationResultSourceV9Schema = z.discriminatedUnion("kind", [
@@ -397,12 +409,17 @@ export const frozenFinalizationResultSourceV9Schema = z.discriminatedUnion("kind
   }).strict()
 ]);
 
+const TIMED_STATUSES = ["OK", "OVERTIME", "MP"] as const;
 const EXPECTED_STATUSES: Record<z.infer<typeof frozenManualDecisionCauseSchema>, readonly string[]> = {
   MANUAL_DID_NOT_START: ["DNS"], MANUAL_DISQUALIFICATION: ["DSQ"], MANUAL_RESULT_APPROVAL: ["OK"],
   MANUAL_DID_NOT_FINISH: ["DNF"], MANUAL_OUT_OF_COMPETITION: ["OOC"], MANUAL_WITHOUT_TIMING: ["NT"],
-  MANUAL_DISQUALIFICATION_WITHDRAWAL: ["OK", "OVERTIME", "MP"], MANUAL_RESULT_APPROVAL_WITHDRAWAL: ["OK", "OVERTIME", "MP"],
-  MANUAL_DID_NOT_FINISH_WITHDRAWAL: ["OK", "OVERTIME", "MP"], MANUAL_OUT_OF_COMPETITION_WITHDRAWAL: ["OK", "OVERTIME", "MP"],
-  MANUAL_WITHOUT_TIMING_WITHDRAWAL: ["OK", "OVERTIME", "MP"]
+  MANUAL_DISQUALIFICATION_WITHDRAWAL: TIMED_STATUSES, MANUAL_RESULT_APPROVAL_WITHDRAWAL: TIMED_STATUSES,
+  MANUAL_DID_NOT_FINISH_WITHDRAWAL: TIMED_STATUSES, MANUAL_OUT_OF_COMPETITION_WITHDRAWAL: TIMED_STATUSES,
+  MANUAL_WITHOUT_TIMING_WITHDRAWAL: TIMED_STATUSES, MANUAL_TIME: TIMED_STATUSES, MANUAL_TIME_WITHDRAWAL: TIMED_STATUSES,
+  MANUAL_CONTROL_APPROVAL: ["OK", "MP"], MANUAL_CONTROL_APPROVAL_WITHDRAWAL: TIMED_STATUSES,
+  MANUAL_FINISH_TIME_CORRECTION: TIMED_STATUSES, MANUAL_FINISH_TIME_CORRECTION_WITHDRAWAL: TIMED_STATUSES,
+  MANUAL_PUNCH_START_TIME_CORRECTION: TIMED_STATUSES, MANUAL_PUNCH_START_TIME_CORRECTION_WITHDRAWAL: TIMED_STATUSES,
+  MANUAL_MISPUNCH_CONFIRMATION: ["MP"], MANUAL_MISPUNCH_CONFIRMATION_WITHDRAWAL: TIMED_STATUSES
 };
 
 export const frozenFinalizationResultV9Schema = z.object({

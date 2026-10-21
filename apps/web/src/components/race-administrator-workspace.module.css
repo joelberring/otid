@@ -78,6 +78,9 @@
 .review h2, .review h3, .review h4 { font-size: var(--text-md); }
 .summaryBox { display: grid; gap: 4px; min-width: 0; padding: 10px 12px; border-left: 3px solid var(--line-strong); background: var(--canvas); overflow-wrap: anywhere; }
 .changeList { display: grid; gap: 3px; margin: 0; padding-left: 18px; }
+/* Steg 38: ett hinder för en löpare med "Öppna" till deltagarkortet. */
+.issueRow > span { margin-right: 8px; }
+.issueRow > button { margin-top: 4px; }
 /* Ny deltagare: förslag ur löpardatabasen (PLAN.md steg 29), en rad per löpare. */
 .runnerSuggestions { display: grid; gap: 6px; min-width: 0; margin: 0; padding: 0; list-style: none; }
 .runnerSuggestions li { min-width: 0; }

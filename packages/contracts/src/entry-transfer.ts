@@ -80,6 +80,8 @@ export const entryTransferCandidatesSchema = z.object({
     resultFreshness: entryTransferResultFreshnessSchema,
     effectiveResult: entryTransferEffectiveResultSchema,
     resultRevisionMarker: entryTransferResultRevisionMarkerSchema.nullable(),
+    /** Steg 38: felstämplad som arrangören har kontrollerat; räknas inte som att titta på. */
+    mispunchConfirmed: z.literal(true).optional(),
     fixedStartTime: fixedStartTimeSchema.nullable(),
     /** Löparens variant; null = ingen tilldelad variant. */
     courseVariantCode: courseVariantCodeSchema.nullable(),

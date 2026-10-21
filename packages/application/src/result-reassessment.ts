@@ -98,7 +98,7 @@ export async function assessReadOutEntries(tx: Transaction, raceId: string, clas
     if (!head || !technical.has(entry.id) || didNotStart || next.entryId !== entry.id || current.entryId !== entry.id) {
       assessed.push({ ...base, outcome: "UNCHANGED", recalculate: false }); continue;
     }
-    const manual = ["DSQ", "APPROVAL", "DNF", "OOC", "NT", "CONTROL_APPROVAL"].includes(state.governing);
+    const manual = ["DSQ", "APPROVAL", "DNF", "OOC", "NT", "CONTROL_APPROVAL", "MP_CONFIRMED"].includes(state.governing);
     assessed.push({ ...base, outcome: courseEditOutcome(before, next.status, manual), recalculate: true });
   }
   return assessed;

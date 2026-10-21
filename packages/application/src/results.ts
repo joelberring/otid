@@ -403,7 +403,10 @@ export async function publicResults(db: Database, raceId: string): Promise<Publi
             revision: row.revision,
             status: "NT",
             reason: "WITHOUT_TIMING",
-            rankingState: "NOT_RANKABLE_STATUS"
+            rankingState: "NOT_RANKABLE_STATUS",
+            ...("splits" in row.evaluation && row.evaluation.splits && row.evaluation.splits.length > 0
+              ? { splits: row.evaluation.splits.map((split) => ({ controlCode: split.controlCode, occurrence: split.occurrence,
+                elapsedMs: split.elapsedMs, legMs: split.legMs })) } : {})
           });
           continue;
         }
@@ -420,7 +423,7 @@ export async function publicResults(db: Database, raceId: string): Promise<Publi
           ...(row.elapsedMs === undefined ? {} : { elapsedMs: row.elapsedMs }),
           missingControls: "missingControls" in row.evaluation ? row.evaluation.missingControls : [],
           extraPunches: "extraPunches" in row.evaluation ? row.evaluation.extraPunches : [],
-          splits: ("splits" in row.evaluation ? row.evaluation.splits : []).map((split) => ({
+          splits: ("splits" in row.evaluation ? row.evaluation.splits ?? [] : []).map((split) => ({
             controlCode: split.controlCode,
             occurrence: split.occurrence,
             elapsedMs: split.elapsedMs,
@@ -508,7 +511,7 @@ export async function publicResultTimings(tx: DatabaseTransaction, raceId: strin
       entryId: state.head.entryId, publicResultId: state.head.publicResultId, givenName: state.head.givenName,
       familyName: state.head.familyName, classId: evaluation.classId, status: evaluation.status,
       startMs: Number.isFinite(startMs) ? startMs : null,
-      splits: ("splits" in evaluation ? evaluation.splits : []).map((split) => ({ controlCode: split.controlCode,
+      splits: ("splits" in evaluation ? evaluation.splits ?? [] : []).map((split) => ({ controlCode: split.controlCode,
         occurrence: split.occurrence, elapsedMs: split.elapsedMs })),
       elapsedMs: "elapsedMs" in evaluation && typeof evaluation.elapsedMs === "number" ? evaluation.elapsedMs : null
     }];

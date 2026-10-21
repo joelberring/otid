@@ -55,15 +55,21 @@ describe("lagrat manuellt DNF", () => {
   });
 
   it.each([
-    { startTime: "2026-09-01T10:00:00.000Z" },
     { finishTime: "2026-09-01T10:01:00.000Z" },
     { elapsedMs: 1 },
     { missingControls: [] },
     { extraPunches: [] },
-    { splits: [] },
+    { splits: [{ controlCode: 31, occurrence: 1, elapsedMs: 60_000, legMs: 60_000 }] },
     { status: "MP" }
-  ])("avvisar DNF med tider eller kontrollfakta", (mutation) => {
+  ])("avvisar DNF med mål, tid, kontrollfakta eller sträcktider utan start", (mutation) => {
     expect(didNotFinishResultSchema.safeParse({ ...dnf, ...mutation }).success).toBe(false);
+  });
+
+  it("steg 38: behåller start och sträcktider fram till sista stämplade kontrollen", () => {
+    const partial = { ...dnf, startTime: "2026-09-01T10:00:00.000Z",
+      splits: [{ controlCode: 31, occurrence: 1, elapsedMs: 60_000, legMs: 60_000 }] };
+    expect(didNotFinishResultSchema.parse(partial)).toEqual(partial);
+    expect(resultOutcomeSchema.parse(partial)).toEqual(partial);
   });
 });
 
@@ -84,8 +90,9 @@ describe("lagrat manuellt utan tidtagning", () => {
     expect(evaluationResultSchema.safeParse(withoutTiming).success).toBe(false);
   });
 
-  it.each([{ elapsedMs: 1 }, { splits: [] }, { missingControls: [] }, { extraPunches: [] }, { startTime: "2026-09-01T10:00:00.000Z" }])(
-    "avvisar NT med tekniska fakta", (mutation) => {
+  it.each([{ elapsedMs: 1 }, { missingControls: [] }, { extraPunches: [] }, { finishTime: "2026-09-01T10:01:00.000Z" },
+    { splits: [{ controlCode: 31, occurrence: 1, elapsedMs: 60_000, legMs: 60_000 }] }])(
+    "avvisar NT med tid, kontrollfakta eller sträcktider utan start", (mutation) => {
       expect(withoutTimingResultSchema.safeParse({ ...withoutTiming, ...mutation }).success).toBe(false);
     });
 });

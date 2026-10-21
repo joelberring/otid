@@ -22,7 +22,8 @@ export const participantCardSv = {
     SHORTENED_COURSE_CLASS_TRANSFER: "Flyttad till kortare bana", MANUAL_DID_NOT_START_WITHDRAWAL: "Ej start borttaget",
     MANUAL_TIME: "Manuell tid", MANUAL_TIME_WITHDRAWAL: "Manuell tid borttagen",
     MANUAL_CONTROL_APPROVAL: "Kontroller godkända", MANUAL_CONTROL_APPROVAL_WITHDRAWAL: "Godkända kontroller borttagna",
-    MANUAL_RESULT_REMOVED: "Manuellt resultat borttaget", READOUT_REREAD: "Omläst från rådata"
+    MANUAL_RESULT_REMOVED: "Manuellt resultat borttaget", READOUT_REREAD: "Omläst från rådata",
+    MANUAL_MISPUNCH_CONFIRMATION: "Felstämpling bekräftad", MANUAL_MISPUNCH_CONFIRMATION_WITHDRAWAL: "Bekräftelsen borttagen"
   },
   changeStatus: "Ändra status", chooseStatus: "Välj …",
   choices: {
@@ -30,16 +31,19 @@ export const participantCardSv = {
     APPROVAL: "Godkänn manuellt", DNS_WITHDRAWAL: "Ta bort ej start", DNF_WITHDRAWAL: "Ta bort brutit",
     DSQ_WITHDRAWAL: "Ta bort diskvalificering", OOC_WITHDRAWAL: "Ta bort utom tävlan", NT_WITHDRAWAL: "Ta bort deltog utan tid",
     APPROVAL_WITHDRAWAL: "Ta bort manuellt godkännande", MANUAL_TIME_WITHDRAWAL: "Ta bort manuell tid",
-    CONTROL_APPROVAL_WITHDRAWAL: "Ta bort godkända kontroller", RECALCULATION: "Räkna om från avläsningen"
+    CONTROL_APPROVAL_WITHDRAWAL: "Ta bort godkända kontroller", RECALCULATION: "Räkna om från avläsningen",
+    CONFIRM_MP: "Bekräfta felstämplad", CONFIRM_MP_WITHDRAWAL: "Ta bort bekräftelsen"
   } satisfies Record<StatusChoice, string>,
   consequences: {
     DNS: "Löparen visas som ej startande och räknas inte längre som kvar i skogen.",
-    DNF: "Löparen visas som brutit, utan tid och placering.",
+    DNF: "Löparen visas som brutit, utan tid och placering. Sträcktiderna fram till sista stämplade kontrollen står kvar.",
     DSQ: "Löparen visas som diskvalificerad och tas bort ur placeringarna.",
     OOC: "Löparen springer utom tävlan: tiden visas om den finns, men löparen placeras inte.",
     NT: "Löparen visas som Deltog, sist i klassen, utan tid och placering. Passar den som sprang utan bricka.",
     APPROVAL: "Löparen visas som godkänd trots felstämplingen. Tiden behålls. Skriv varför.",
-    RECALCULATION: "Resultatet räknas om från senaste avläsningen med klassens nuvarande bana."
+    RECALCULATION: "Resultatet räknas om från senaste avläsningen med klassens nuvarande bana.",
+    CONFIRM_MP: "Löparen står kvar som felstämplad med sina sträcktider, men räknas inte längre som att titta på. Det går att ångra.",
+    CONFIRM_MP_WITHDRAWAL: "Bekräftelsen tas bort. Löparen är felstämplad att titta på igen."
   } satisfies Partial<Record<StatusChoice, string>>,
   withdrawalConsequence: (status: string) => `Beslutet tas bort och löparen visas som ${status.toLocaleLowerCase("sv-SE")} igen.`,
   dnsWithdrawalConsequence: "Ej start tas bort. Löparen räknas som anmäld igen.",
@@ -53,6 +57,8 @@ export const participantCardSv = {
   dsqReasonShown: (reason: string) => `Orsak: ${reason}`,
   /** Steg 31: orsaken krävs för "Godkänn manuellt". */
   approvalReason: "Orsak (krävs)",
+  /** Steg 38: "Bekräfta felstämplad" med valfri orsak. */
+  confirmMpReason: "Orsak (valfritt)",
   reasonRequired: "Skriv en orsak.",
   noDecisionWithdrawalConsequence: "Beslutet tas bort. Löparen har ingen avläsning och får inget resultat.",
   decisionNoteShown: (note: string) => `Orsak: ${note}`

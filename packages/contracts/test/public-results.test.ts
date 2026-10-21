@@ -162,7 +162,10 @@ describe("publikt DNF format 4", () => {
   it("håller format 1-3 frysta och avvisar DNF-fakta", () => {
     expect(publicResultListResponseSchema.safeParse({ formatVersion: 3, results: [dnf] }).success).toBe(false);
     expect(publicResultListResponseSchema.safeParse({ formatVersion: 4, results: [{ ...dnf, elapsedMs: 1 }] }).success).toBe(false);
-    expect(publicResultListResponseSchema.safeParse({ formatVersion: 4, results: [{ ...dnf, splits: ranked.splits }] }).success).toBe(false);
+    // Steg 38: brutit med avläsning har sträcktider fram till sista stämplade kontrollen, men aldrig tid eller placering.
+    expect(publicResultListResponseSchema.safeParse({ formatVersion: 4, results: [{ ...dnf, splits: ranked.splits }] }).success).toBe(true);
+    expect(publicResultListResponseSchema.safeParse({ formatVersion: 4, results: [{ ...dnf, splits: ranked.splits, position: 1,
+      timeBehindMs: 0 }] }).success).toBe(false);
   });
 });
 

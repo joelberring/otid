@@ -49,7 +49,10 @@ const STATUS_BY_CAUSE: Record<Cause, { readonly statuses: readonly string[]; rea
   MANUAL_CONTROL_APPROVAL_WITHDRAWAL: { statuses: TIMED, readout: false },
   MANUAL_RESULT_REMOVED: { statuses: ["MP"], readout: false, reason: "MISSING_START" },
   // Steg 36: avläsningen avkodad på nytt från råramarna.
-  READOUT_REREAD: { statuses: TIMED, readout: true }
+  READOUT_REREAD: { statuses: TIMED, readout: true },
+  // Steg 38: bekräftad felstämpling (samma felstämplade utfall) och borttagen bekräftelse.
+  MANUAL_MISPUNCH_CONFIRMATION: { statuses: ["MP"], readout: false },
+  MANUAL_MISPUNCH_CONFIRMATION_WITHDRAWAL: { statuses: TIMED, readout: false }
 };
 
 function canonicalEquals(left: unknown, right: unknown): boolean {

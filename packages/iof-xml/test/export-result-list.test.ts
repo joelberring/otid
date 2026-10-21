@@ -412,19 +412,34 @@ describe("serializeIofResultList", () => {
   );
 
   it.each([
-    ["starttid", { startTime: "2026-08-31T08:00:00Z" }],
+    ["starttid utan sträcktider", { startTime: "2026-08-31T08:00:00Z" }],
     ["måltid", { finishTime: "2026-08-31T08:00:01Z" }],
     ["elapsed", { elapsedMs: 1_000 }],
     ["ranking", { position: 1, timeBehindMs: 0 }],
     ["tom kontrollista", { expectedControls: [] }],
     ["tom splitlista", { splits: [] }],
-    ["approvalbevis", { manualApprovalProof }]
+    ["approvalbevis", { manualApprovalProof }],
+    ["sträcktider utan start", { expectedControls: [{ controlCode: 31, occurrence: 1 }],
+      splits: [{ controlCode: 31, occurrence: 1, elapsedMs: 60_000 }] }]
   ])("avvisar DNF som bär %s fail closed", (_name, mutation) => {
     expect(() => serializeIofResultList({
       status: "Snapshot",
       eventName: "Test",
       classes: [{ className: "H21", results: [{ ...didNotFinish, ...mutation }] }]
-    } as unknown as IofResultListProjection)).toThrowError(/status DNF måste vara status-only/);
+    } as unknown as IofResultListProjection)).toThrowError(/status DNF (får inte ha|utan sträcktider måste vara status-only|och sträcktider måste ha startTime)/);
+  });
+
+  it("steg 38: skriver DNF med start och sträcktider fram till sista stämplade kontrollen, utan tid och placering", () => {
+    const xml = text(serializeIofResultList({ status: "Snapshot", eventName: "Test", classes: [{ className: "H21", results: [{
+      ...didNotFinish, startTime: "2026-08-31T08:00:00Z",
+      expectedControls: [{ controlCode: 31, occurrence: 1 }, { controlCode: 32, occurrence: 1 }],
+      splits: [{ controlCode: 31, occurrence: 1, elapsedMs: 60_000 }] }] }] }));
+    const result = xml.slice(xml.indexOf("<Result>"), xml.indexOf("</Result>") + "</Result>".length);
+    expect(result).toMatch(/<StartTime>2026-08-31T08:00:00(\.000)?Z<\/StartTime>/);
+    expect(result).toContain("<Status>DidNotFinish</Status>");
+    expect(result).toContain('<SplitTime status="OK">\n          <ControlCode>31</ControlCode>\n          <Time>60</Time>');
+    expect(result).toContain('<SplitTime status="Missing">\n          <ControlCode>32</ControlCode>');
+    expect(result.split("<SplitTime")[0]).not.toMatch(/FinishTime|<Time>|TimeBehind|Position/);
   });
 
   it("mappar DSQ till Disqualified med bevarade tider och splits men utan ranking", () => {
@@ -509,7 +524,7 @@ describe("serializeIofResultList", () => {
     ["delvis ranking", { position: 1 }],
     ["approvalbevis", { manualApprovalProof }],
     ["mål utan start", { startTime: undefined }],
-    ["splits utan totaltid", { elapsedMs: undefined }]
+    ["splits utan start", { elapsedMs: undefined, startTime: undefined, finishTime: undefined }]
   ])("avvisar OOC med %s fail closed", (_name, mutation) => {
     expect(() => serializeIofResultList({
       status: "Snapshot",

@@ -658,6 +658,19 @@ Efter natt-KM 2026-10-20 (steg 34): avläsningar som sparats med fel stämplinga
 - [x] Manuella beslut ligger kvar och visas i förhandsbeskedet; deltagarkortet erbjuder "Läs om" när avläsningen blir annorlunda.
 - [x] Brådskande: nio till tolv råramar tas emot; lokalt avvisade avläsningar (LOCAL_INVALID) prövas igen och skickas.
 
+## [x] Steg 38 – Avsluta tävlingen: avgjorda resultat, bekräfta felstämplad, sträcktider vid brutit
+
+Ägarens rapport efter en skarp tävling: "Resultaten är klara" stoppades med "H12: Minst ett resultat eller en bana kan inte
+kontrolleras" fast alla hade resultat, tre bekräftade felstämplingar låg kvar som varningar, och brutit tömde mellantiderna.
+
+- [x] Varje avgjort resultat kan fastställas: avläsning, omläsning, manuell tid, rättad tid och godkända kontroller samt MP,
+  DNF, DSQ, DNS, utom tävlan, deltog utan tid och maxtid. Bara oklart stoppar (inaktuellt underlag, okända brickor, kvar i
+  skogen); beskedet säger vem det gäller och vad man gör, med "Öppna" till deltagarkortet.
+- [x] "Bekräfta felstämplad" (valfri orsak) i deltagarkortet, ångras med "Ta bort bekräftelsen". Bekräftade räknas inte
+  som att titta på; obekräftade stoppar inte "Resultaten är klara" utan visas som information.
+- [x] Brutit, disk, utom tävlan och deltog utan tid med avläsning behåller sträcktiderna fram till sista stämplade kontrollen
+  (resultatlista, sträcktidsanalys, deltagarkort, publikt och IOF), utan tid och placering.
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

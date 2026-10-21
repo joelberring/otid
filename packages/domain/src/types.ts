@@ -241,9 +241,8 @@ export interface DidNotStartResult {
 }
 
 /**
- * An explicit did-not-finish decision is a persisted-only status. The exact
- * technical target remains immutable provenance outside this outcome; no time
- * or control fact is copied into the DNF result itself.
+ * Brutit är ett beslut utan tid och placering. Steg 38: med avläsning behålls starten och sträcktiderna fram till sista
+ * stämplade kontrollen (aldrig måltid eller löptid).
  */
 export interface DidNotFinishResult {
   readonly status: "DNF";
@@ -251,19 +250,19 @@ export interface DidNotFinishResult {
   readonly entryId: UUID;
   readonly classId: UUID;
   readonly courseVersionId: UUID;
+  readonly startTime?: string;
+  readonly splits?: readonly SplitTime[];
 }
 
-/**
- * An explicit without-timing decision preserves only the historical identity
- * of one completed technical result. Timing and control facts remain solely
- * in the immutable target revision and must not cross into this outcome.
- */
+/** "Deltog utan tid": ingen tid och ingen placering; steg 38: med avläsning start och sträcktider som vid brutit. */
 export interface WithoutTimingResult {
   readonly status: "NT";
   readonly reason: "WITHOUT_TIMING";
   readonly entryId: UUID;
   readonly classId: UUID;
   readonly courseVersionId: UUID;
+  readonly startTime?: string;
+  readonly splits?: readonly SplitTime[];
 }
 
 /**
@@ -346,7 +345,10 @@ export type RevisionCause =
   | "MANUAL_CONTROL_APPROVAL_WITHDRAWAL"
   | "MANUAL_RESULT_REMOVED"
   /** Steg 36: avläsningen avkodad på nytt från råramarna; bedöms som en avläsning. */
-  | "READOUT_REREAD";
+  | "READOUT_REREAD"
+  /** Steg 38: arrangören har kontrollerat felstämplingen; löparen står kvar som felstämplad. */
+  | "MANUAL_MISPUNCH_CONFIRMATION"
+  | "MANUAL_MISPUNCH_CONFIRMATION_WITHDRAWAL";
 
 export interface ResultRevision {
   readonly id: UUID;

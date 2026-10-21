@@ -86,16 +86,19 @@ export interface IofResultListOutOfCompetitionPersonResult extends IofResultList
   readonly manualApprovalProof?: never;
 }
 
-/** A strict status-only projection: no course, timing, ranking or proof data may cross the adapter. */
+/**
+ * Brutit: aldrig mål, tid, placering eller bevis. Steg 38: med avläsning starten och sträcktiderna fram till sista
+ * stämplade kontrollen (banans övriga kontroller skrivs som saknade); annars bara status.
+ */
 export interface IofResultListDidNotFinishPersonResult extends IofResultListPersonResultBase {
   readonly status: "DNF";
-  readonly startTime?: never;
+  readonly startTime?: string;
   readonly finishTime?: never;
   readonly elapsedMs?: never;
   readonly position?: never;
   readonly timeBehindMs?: never;
-  readonly expectedControls?: never;
-  readonly splits?: never;
+  readonly expectedControls?: readonly IofResultListExpectedControl[];
+  readonly splits?: readonly IofResultListSplit[];
   readonly untimedControls?: never;
   readonly scores?: never;
   readonly manualApprovalProof?: never;
@@ -393,24 +396,20 @@ function validateResult(
   }
 
   if (result.status === "DNF") {
-    const forbidden = [
-      "startTime",
-      "finishTime",
-      "elapsedMs",
-      "position",
-      "timeBehindMs",
-      "expectedControls",
-      "splits",
-      "untimedControls",
-      "scores",
-      "manualApprovalProof"
-    ];
+    const forbidden = ["finishTime", "elapsedMs", "position", "timeBehindMs", "untimedControls", "scores", "manualApprovalProof"];
     for (const property of forbidden) {
       if (Object.prototype.hasOwnProperty.call(result, property)) {
-        issues.push(`${path} med status DNF måste vara status-only utan ${property}`);
+        issues.push(`${path} med status DNF får inte ha ${property}`);
       }
     }
-    return { splitByKey: new Map() };
+    // Steg 38: sträcktider kräver start och banans kontroller; utan dem är brutit bara status.
+    if (result.splits === undefined || result.splits.length === 0) {
+      if (result.startTime !== undefined || result.expectedControls !== undefined || result.splits !== undefined) {
+        issues.push(`${path} med status DNF utan sträcktider måste vara status-only`);
+      }
+      return { splitByKey: new Map() };
+    }
+    if (result.startTime === undefined) issues.push(`${path} med status DNF och sträcktider måste ha startTime`);
   }
 
   let manualApprovalProofValid = false;
@@ -499,8 +498,9 @@ function validateResult(
   if (result.status === "OOC" && result.finishTime !== undefined && result.startTime === undefined) {
     issues.push(`${path} med status OOC får inte ha finishTime utan startTime`);
   }
-  if (result.status === "OOC" && result.elapsedMs === undefined && splits.length !== 0) {
-    issues.push(`${path} med status OOC får inte ha splits utan elapsedMs`);
+  // Steg 38: utom tävlan och "Deltog utan tid" utan mål har sträcktider men ingen tid; de kräver då start.
+  if (result.status === "OOC" && result.elapsedMs === undefined && splits.length !== 0 && result.startTime === undefined) {
+    issues.push(`${path} med status OOC får inte ha splits utan startTime`);
   }
   if (expectedControls.length > MAX_EXPECTED_CONTROLS) {
     issues.push(`${path}.expectedControls får innehålla högst ${MAX_EXPECTED_CONTROLS} kontroller`);
@@ -645,7 +645,7 @@ function serializeResult(
   }
   // IOF 3.0: Course efter OverallResult och före SplitTime.
   if (result.status !== "DNF") serializeCourse(lines, base + 2, result.course);
-  if (result.status !== "DNF") for (const control of result.expectedControls) {
+  for (const control of result.expectedControls ?? []) {
     const split = validated.splitByKey.get(key(control.controlCode, control.occurrence));
     if (!split && validated.untimedKeys?.has(key(control.controlCode, control.occurrence))) {
       // Stämplad men utan giltig tid: SplitTime utan Time (IOF 3.0 tillåter det).

@@ -10,6 +10,10 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-10-21 – Steg 39: lokalt stoppade avläsningar avkodas på nytt
+- Natt-KM: SIAC-avläsningarna med skräpstämplingar (kod 0 ur block 1) stoppades i webbläsaren (LOCAL_INVALID) och kom aldrig till servern, så "Läs om från rådata" hade inget att läsa om. `requeueLocallyInvalid` avkodar nu sådana avläsningar på nytt från råramarna (`decodeRecordedFrames`, samma tidsreferens som vid avläsningen och tävlingens tidszon) och lägger dem i kön med samma löpnummer. Går ramarna inte ihop ligger avläsningen kvar; inga stämplingar hittas på.
+- Tester: `readout/requeue` (3, med kvällens riktiga block, bricknumret utbytt). Verifierat: lint, typecheck, webbtester.
+
 ### 2026-10-20 – Steg 36: läs om avläsningar från rådata
 - Avläsning → "Läs om avläsningar från rådata" (bara admin): varje deltagares avläsning (den resultatet bygger på) avkodas på nytt från originalets råramar (`sportident` `decodeRecordedFrames`) med stationens klocka/offset ur nyttolasten och tävlingens tidszon. Övningsstationen och simulatorn läses inte om; ej start hoppas över. Listan visar bara ändrade (bricka, deltagare, stämplingar/status/tid före → efter) och "går inte att läsa om" (fel CRC, saknade block); "Spara och räkna om" för valda, konflikt om något ändrats.
 - Lagring: nytt råmeddelande (`transport` `sportident-reread`, enheten = originalets råmeddelande, nyttolasten pekar på originalet och avläsningen den ersätter), ny `card_readout` (lästid + 1 ms så att den blir brickans senaste) och revision med orsaken READOUT_REREAD (migration 0014) för samma deltagare (`evaluateReadoutForEntry`); auditpost per omläsning. Original och råmeddelanden ändras aldrig.

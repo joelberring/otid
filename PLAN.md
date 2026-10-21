@@ -658,6 +658,10 @@ Efter natt-KM 2026-10-20 (steg 34): avläsningar som sparats med fel stämplinga
 - [x] Manuella beslut ligger kvar och visas i förhandsbeskedet; deltagarkortet erbjuder "Läs om" när avläsningen blir annorlunda.
 - [x] Brådskande: nio till tolv råramar tas emot; lokalt avvisade avläsningar (LOCAL_INVALID) prövas igen och skickas.
 
+## [x] Steg 39 – Lokalt stoppade avläsningar avkodas på nytt
+
+- [x] Avläsningar som stoppades i webbläsaren för att de avkodats fel avkodas från råramarna när sidan laddas och skickas.
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

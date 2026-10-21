@@ -10,6 +10,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-10-21 – Steg 37: Om O-Tid, kontakt och hjälp
+- `/om` (utan inloggning): vad O-Tid är, beta och gratis, hur det är gjort (Joel Berring med AI-stöd, Next.js/TypeScript, PostgreSQL, egen server), elva tekniska funktioner kontrollerade mot koden (bricktyperna med förbehåll: inte alla provade i skarpt läge), kontakt och skapa konto.
+- Sidfoten "O-Tid · beta · Frågor: otid@berring.se · Om O-Tid · Personuppgifter" på publika sidor (layouten) och längst ned i arbetsytan (länkar i ny flik), dold vid utskrift; avläsningssidan har ingen. Adressen bara i `lib/contact.ts`; `OTID_CONTACT_EMAIL` har den som förval (/integritet visar alltid en adress).
+- "Hjälp" i arbetsytans toppbalk (även på 390 px), på Mina tävlingar och på avläsningssidan: modal `<dialog>` vid högra kanten med sökfält, stegets artiklar först, sedan resten; Esc (även med text i fältet) och Stäng stänger, fokus tillbaka till knappen. 15 artiklar i `i18n/help-sv.ts` med vyer.
+- Tester: `help-sv` (varje citerad knapp/väg finns som UI-text, 3–8 meningar, varje vy har artiklar), `help-search` (å/ä/ö, versaler, alla ord, vyn först), Playwright `hjalp`. Verifierat: lint, typecheck, test, build, Playwright `hjalp`, `arbetsyta`, `publikt`, `avlasaren`, `traningskvall`, `funktionarer`. Skärmbilder granskade på 390 och 1280 px.
+- Risk: hjälptexterna måste hållas i takt med UI; testet fångar ändrade knappnamn men inte ändrat beteende.
+
 ### 2026-10-20 – Steg 36: läs om avläsningar från rådata
 - Avläsning → "Läs om avläsningar från rådata" (bara admin): varje deltagares avläsning (den resultatet bygger på) avkodas på nytt från originalets råramar (`sportident` `decodeRecordedFrames`) med stationens klocka/offset ur nyttolasten och tävlingens tidszon. Övningsstationen och simulatorn läses inte om; ej start hoppas över. Listan visar bara ändrade (bricka, deltagare, stämplingar/status/tid före → efter) och "går inte att läsa om" (fel CRC, saknade block); "Spara och räkna om" för valda, konflikt om något ändrats.
 - Lagring: nytt råmeddelande (`transport` `sportident-reread`, enheten = originalets råmeddelande, nyttolasten pekar på originalet och avläsningen den ersätter), ny `card_readout` (lästid + 1 ms så att den blir brickans senaste) och revision med orsaken READOUT_REREAD (migration 0014) för samma deltagare (`evaluateReadoutForEntry`); auditpost per omläsning. Original och råmeddelanden ändras aldrig.

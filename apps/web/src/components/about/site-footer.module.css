@@ -1,0 +1,5 @@
+/* Sidfoten (PLAN.md steg 37): liten grå text på en rad, bryts på smal skärm. Syns inte på papper. */
+.footer { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; color: var(--muted); font-size: var(--text-xs); }
+.footer a { color: var(--muted); font-weight: 500; overflow-wrap: anywhere; }
+.footer a:hover { color: var(--ink); }
+@media print { .footer { display: none !important; } }

@@ -16,7 +16,7 @@ describe("ADR-0172 glömt lösenord", () => {
       { NODE_ENV: "production", O_TID_PUBLIC_ORIGIN: "https://tid.klubb.se", OTID_CONTACT_EMAIL: "drift@klubb.se" });
     expect(await off.json()).toEqual({ formatVersion: 1, emailEnabled: false, contactEmail: "drift@klubb.se" });
     const on = await passwordResetAvailabilityRoute(new Request("https://tid.klubb.se/api/account/password-reset"), env);
-    expect(await on.json()).toEqual({ formatVersion: 1, emailEnabled: true, contactEmail: null });
+    expect(await on.json()).toEqual({ formatVersion: 1, emailEnabled: true, contactEmail: "otid@berring.se" });
     expect(on.headers.get("cache-control")).toBe("private, no-store");
   });
 

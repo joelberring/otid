@@ -9,6 +9,8 @@ h1 { margin: 0; font-size: var(--text-lg); font-weight: 600; }
 h2 { margin: 0 0 8px; font-size: var(--text-md); font-weight: 600; }
 p { margin: 0; }
 .race { margin-top: 2px; color: var(--muted); font-size: var(--text-sm); }
+/* Rubriken och Hjälp (PLAN.md steg 37). */
+.readout-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* Statusraden: station, internet, kö och paket. Ord och symbol, kant i färg bara när något är fel. */

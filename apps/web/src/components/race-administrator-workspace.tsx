@@ -19,6 +19,7 @@ import { SettingsPanel } from "./race-administrator/settings-panel";
 import { RogainingPanel } from "./race-administrator/rogaining-panel";
 import { PublishPanel } from "./race-administrator/race-publication-section";
 import { Notice } from "./ui";
+import { SiteFooter } from "./about/site-footer";
 
 /**
  * Adminarbetsytan för en tävling. Den här komponenten håller sessionen, laddar data och visar skalet:
@@ -63,6 +64,7 @@ export function RaceAdministratorWorkspace({ raceId }: { raceId: string }) {
     <p>{text.introduction}</p>
     {status}
     <p>{text.accountLoginHelp} <Link href="/organizer" prefetch={false}>{text.accountLoginLink}</Link></p>
+    <SiteFooter newTab className={styles.footer} />
   </div>;
   return <div className={`${styles.root} ${shell.shell}`} data-print-target={printTarget} data-authenticated="true">
     <TopBar ws={ws} />
@@ -88,6 +90,8 @@ export function RaceAdministratorWorkspace({ raceId }: { raceId: string }) {
           <AfterRacePanel ws={ws} />
           <SettingsPanel ws={ws} />
         </>}
+        {/* PLAN.md steg 37: sidfoten, länkarna i en ny flik så att inget osparat lämnas. */}
+        <SiteFooter newTab className={styles.footer} />
       </div>
     </div>
   </div>;

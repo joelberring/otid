@@ -29,7 +29,9 @@ const adminFiles = [
   // Steg 33.
   "race-info-sv.ts",
   // Steg 36.
-  "readout-reread-sv.ts"
+  "readout-reread-sv.ts",
+  // Steg 37: hjälpen och sidfoten.
+  "help-sv.ts", "about-sv.ts"
 ];
 /** Delade textfiler (även publika sidor): bara nycklarna som arbetsytan läser granskas. */
 const sharedFiles = ["sv.ts", "account-sv.ts"];

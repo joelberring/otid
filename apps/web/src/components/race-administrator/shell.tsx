@@ -9,6 +9,7 @@ import { raceWorkspaceNavigationSv as navigationText } from "../../i18n/race-wor
 import { checklistFacts, inForest, sectionStatus, type SectionFacts } from "../../lib/section-status";
 import type { Section } from "../../lib/race-sections";
 import type { Workspace } from "./workspace-state";
+import { HelpButton } from "../help/help-panel";
 
 function facts(ws: Workspace): SectionFacts | undefined {
   const { courseList, data, forestData, unknownReadoutCandidate } = ws;
@@ -26,7 +27,7 @@ function facts(ws: Workspace): SectionFacts | undefined {
  * genvägarna och Logga ut i en meny, så att tillbakalänken och räknarna alltid syns.
  */
 export function TopBar({ ws }: { ws: Workspace }) {
-  const { data, functionary, mayLeave, profile, raceId, refresh, logout, saving } = ws;
+  const { data, functionary, mayLeave, profile, raceId, refresh, logout, saving, section } = ws;
   const current = facts(ws);
   const shortcuts = (menu: boolean) => <>
     <a href={`/admin/${raceId}/readout`} target="_blank" rel="noopener">{typeText.openReadout}
@@ -56,6 +57,8 @@ export function TopBar({ ws }: { ws: Workspace }) {
       <summary>{typeText.menu}</summary>
       <nav className={styles.menuItems} aria-label={typeText.shortcuts}>{shortcuts(true)}</nav>
     </details>
+    {/* PLAN.md steg 37: hjälpen för steget man står i, alltid synlig (även på mobil). */}
+    <div className={styles.help}><HelpButton view={section.id} /></div>
   </header>;
 }
 

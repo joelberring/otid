@@ -123,7 +123,8 @@ Utan `OTID_SMTP_URL` säger sidan "Glömt lösenordet" att man ska kontakta den 
 skapar då en länk på `/superadmin` (Konton → Återställningslänk) och ger den till personen. Länken visas
 en gång. En felaktig inställning stänger av e-posten och skrivs i `logs web` (utan lösenord eller adresser).
 
-`OTID_CONTACT_EMAIL` (valfri) visas på sidan om personuppgifter (`/integritet`) och på "Glömt lösenordet".
+`OTID_CONTACT_EMAIL` (valfri, förval otid@berring.se) visas på sidan om personuppgifter (`/integritet`) och på "Glömt lösenordet".
+Adressen för frågor om programmet (sidfoten, Om O-Tid och Hjälp) är fast i `apps/web/src/lib/contact.ts`.
 `OTID_REGISTRATION_LIMIT_PER_HOUR` (valfri, förval 10) är hur många konton som får skapas per IP-adress och timme.
 
 Endast test: CI pekar `OTID_SMTP_URL` mot en falsk SMTP-server på värden (`tests/e2e/fake-smtp.ts`), på samma

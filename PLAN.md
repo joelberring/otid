@@ -658,6 +658,17 @@ Efter natt-KM 2026-10-20 (steg 34): avläsningar som sparats med fel stämplinga
 - [x] Manuella beslut ligger kvar och visas i förhandsbeskedet; deltagarkortet erbjuder "Läs om" när avläsningen blir annorlunda.
 - [x] Brådskande: nio till tolv råramar tas emot; lokalt avvisade avläsningar (LOCAL_INVALID) prövas igen och skickas.
 
+## [x] Steg 37 – Om O-Tid, kontakt och hjälp
+
+Ägarens önskemål 2026-10-21: en adress för frågor (otid@berring.se), info om programmet i öppet och inloggat läge (hur det är
+gjort, tekniska funktioner, öppet att använda i beta) och en hjälpknapp i programmet där man kan läsa och söka hur funktionerna fungerar.
+
+- [x] Publik sida "Om O-Tid" (`/om`): vad O-Tid är, beta och gratis, hur det är gjort, tekniska funktioner, kontakt och "skapa konto".
+- [x] Diskret sidfot "O-Tid · beta · Frågor: otid@berring.se · Om O-Tid" på publika sidor och i arbetsytan, dold vid utskrift;
+  adressen på ett ställe (`apps/web/src/lib/contact.ts`, även förval för `OTID_CONTACT_EMAIL`).
+- [x] "Hjälp" i arbetsytans toppbalk, på Mina tävlingar och på avläsningssidan: panel med stegets artiklar först, lokal sökning
+  (versaler och å/ä/ö spelar ingen roll), Esc stänger. Artiklarna i `i18n/help-sv.ts`; ett test slår upp varje citerad knapp i UI-texterna.
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

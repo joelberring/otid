@@ -28,6 +28,6 @@ export default async function PartyPage({ params }: Params) {
   if (hub.raceType !== "PARTY") redirect(`/t/${hub.shortCode}`);
   return <>
     <PreviewBanner access={hub.access} />
-    <PartyPublic code={hub.shortCode} eventName={hub.eventName} />
+    <PartyPublic raceId={hub.raceId} eventName={hub.eventName} />
   </>;
 }

@@ -55,6 +55,8 @@ export function PartyDesk(props: PartyDeskProps) {
   const [naming, setNaming] = useState<{ card: string; localSequence: number }>();
   const mountedAt = useRef(Date.now());
   const seen = useRef(new Set<number>());
+  // Brickor där gästen tryckt "Hoppa över": namnrutan visas inte igen i kväll (köpen sparas ändå).
+  const skipped = useRef(new Set<string>());
   // Servern har den senaste varulistan och starten; paketet räcker utan nät.
   const effectiveParty = useMemo(() => server ? { startsAt: server.startsAt, items: server.items, doublePunchSeconds: server.doublePunchSeconds }
     : party, [server, party]);
@@ -90,7 +92,7 @@ export function PartyDesk(props: PartyDeskProps) {
     const outcome = outcomesRef.current.get(localSequence);
     if (!outcome) return;
     const known = guestName(outcome.cardNumber, knowledgeRef.current) ?? runnerForCard(pkg, outcome.cardNumber);
-    if (!known) setNaming({ card: outcome.cardNumber, localSequence });
+    if (!known && !skipped.current.has(outcome.cardNumber)) setNaming({ card: outcome.cardNumber, localSequence });
     play(outcome.kind === "NO_NEW" || outcome.kind === "ALREADY_IN" ? "neutral" : "ok");
   }, [play, pkg]);
   const outcomesRef = useRef(outcomes);
@@ -180,7 +182,7 @@ export function PartyDesk(props: PartyDeskProps) {
 
     {naming ? <PartyNameBox key={naming.localSequence} card={naming.card} pkg={pkg} server={server}
       current={guestName(naming.card, knowledge)} closesInMs={NAME_TIMEOUT_MS}
-      onSave={(name, club) => saveName(naming.card, name, club)} onSkip={() => setNaming(undefined)} /> : null}
+      onSave={(name, club) => saveName(naming.card, name, club)} onSkip={() => { skipped.current.add(naming.card); setNaming(undefined); }} /> : null}
     {waiting.length > 0 ? <p className="hint" data-testid="party-waiting">{t.waitingToShow(waiting.length)}</p> : null}
 
     {props.exercise ? <PartyExercise transport={props.exercise} pkg={pkg} items={effectiveParty.items} timeZone={timeZone} /> : null}

@@ -21,14 +21,14 @@ function duration(seconds: number): string {
   return minutes < 90 ? `${minutes} minuter` : `${Math.round(minutes / 60)} timmar`;
 }
 
-export function PartyPublic({ code, eventName }: { code: string; eventName: string }) {
+export function PartyPublic({ raceId, eventName }: { raceId: string; eventName: string }) {
   const [party, setParty] = useState<PublicPartyResponse>();
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     let stopped = false;
     const load = async () => {
       try {
-        const response = await fetch(`/api/public/parties/${code}`, { cache: "no-store" });
+        const response = await fetch(`/api/public/parties/${raceId}`, { cache: "no-store" });
         if (!response.ok) throw new Error(String(response.status));
         const value = publicPartyResponseSchema.parse(await response.json());
         if (!stopped) { setParty(value); setFailed(false); }
@@ -37,7 +37,7 @@ export function PartyPublic({ code, eventName }: { code: string; eventName: stri
     void load();
     const timer = setInterval(() => { void load(); }, POLL_MS);
     return () => { stopped = true; clearInterval(timer); };
-  }, [code]);
+  }, [raceId]);
 
   const zone = party?.timeZone ?? "Europe/Stockholm";
   const at = (value: string | undefined) => value ? clock(value, zone) : "–";

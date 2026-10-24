@@ -13,7 +13,7 @@ test("fest: bardisken checkar in, verifierar köp och checkar ut med mål", asyn
   const suffix = unique();
   const owner = await registerAccount(browser, `fest.${suffix}@exempel.se`, "Fia Fest");
   const raceId = await createRace(owner, `Klubbfest ${suffix}`, today(), "Fest");
-  for (const path of ["/fest/aaaaaa", "/api/public/parties/aaaaaa", "/api/public/parties/aaaaaa/logo", "/robots.txt"]) await warmRoute(owner, path);
+  for (const path of ["/fest/aaaaaa", `/api/public/parties/${raceId}`, `/api/public/parties/${raceId}/logo`, "/robots.txt"]) await warmRoute(owner, path);
   for (const path of ["party-guests", "party-desk-events", "party-logo"]) await warmRoute(owner, `/api/admin/races/${raceId}/administrator/${path}`, "POST");
 
   // Festens start i dag 00:00, så att övningens stämplingar räknas. Två varor med kod och pris.
@@ -143,13 +143,13 @@ test("fest: bardisken checkar in, verifierar köp och checkar ut med mål", asyn
   expect(body).toContain('<meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex"/>');
   expect(body).not.toContain("Festa");
   expect(body).not.toContain("Tvåsson");
-  const api = await visitor.request.get(`/api/public/parties/${code}`);
+  const api = await visitor.request.get(`/api/public/parties/${raceId}`);
   expect(api.headers()["x-robots-tag"]).toBe("noindex, nofollow, noarchive, nosnippet, noai, noimageai");
   expect(api.headers()["cache-control"]).toBe("private, no-store");
   const json = await api.text();
   expect(json).toContain("Festa Påhittsson");
-  expect(json).not.toMatch(/cardNumber|priceOre|totalOre|raceId/);
-  const logo = await visitor.request.get(`/api/public/parties/${code}/logo?v=1`);
+  expect(json.replace(/\/api\/public\/parties\/[^"]+/, "")).not.toMatch(/cardNumber|priceOre|totalOre|raceId|[0-9a-f]{8}-[0-9a-f]{4}/);
+  const logo = await visitor.request.get(`/api/public/parties/${raceId}/logo?v=1`);
   expect(logo.headers()["content-type"]).toBe("image/png");
   expect(logo.headers()["x-content-type-options"]).toBe("nosniff");
   const robots = await (await visitor.request.get("/robots.txt")).text();

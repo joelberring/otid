@@ -54,7 +54,8 @@ describe("publika routes bakom grinden (ADR-0172 beslut 4)", () => {
     expect(response.status).toBe(404);
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(state.calls).toEqual([[raceId, null]]);
-  });
+    // Den första routen laddar tjänsterna kallt (alla moduler); det kan ta mer än fem sekunder.
+  }, 30_000);
 
   it.each(routes)("$path släpps igenom för en publicerad tävling", async route => {
     state.access = "PUBLIC";

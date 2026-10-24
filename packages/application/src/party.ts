@@ -37,10 +37,9 @@ async function loadItems(tx: DbExecutor, raceId: string): Promise<PartyPackage["
 
 /** Utseendet: rubrik, färger och loggans adress (versionen är uppladdningens tid, så att en ny logga hämtas). */
 async function loadTheme(tx: DbExecutor, raceId: string, setting: typeof schema.partySettings.$inferSelect | undefined): Promise<PartyTheme> {
-  const [race] = await tx.select({ shortCode: schema.races.shortCode }).from(schema.races).where(eq(schema.races.id, raceId));
   const [logo] = await tx.select({ uploadedAt: schema.partyLogos.uploadedAt }).from(schema.partyLogos).where(eq(schema.partyLogos.raceId, raceId));
   return { title: setting?.themeTitle ?? null, primary: setting?.themePrimary ?? null, accent: setting?.themeAccent ?? null,
-    logo: logo && race ? `/api/public/parties/${race.shortCode}/logo?v=${logo.uploadedAt.getTime()}` : null };
+    logo: logo ? `/api/public/parties/${raceId}/logo?v=${logo.uploadedAt.getTime()}` : null };
 }
 
 /** Festens start, varorna och utseendet för avläsningspaketet (bardisken utan nät). Undefined när tävlingen inte är en fest. */

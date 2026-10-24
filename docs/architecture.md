@@ -114,6 +114,12 @@ Gemensamma hjälpare: UUID-mönstret och idempotensnycklarnas form (`UUID_PATTER
   avläsning föreslås; en vald koppling köas som direktanmälan med `target: "EXISTING_ENTRY"` (utfallet `LINKED`).
   Hela landet söks på servern när nätet finns. Mätt: 10 000 löpare ≈ 1,5 MB JSON i paketet.
 
+- Fest med bardisk (PLAN.md steg 40, `application/src/party.ts`, `domain/src/party.ts`): köpen räknas fram ur tävlingens
+  `card_readout` (varukod efter festens start, dubbelstämpling inom inställt antal sekunder ett köp); tabellerna `party_*`
+  har bara start, varor med prishistorik, gästnamn, bardiskens in-/utcheckningar, ångringar och utseende. Bardisken är
+  avläsningsskalet med `readout/party-desk.tsx`; in-/utcheckning och namn köas i IndexedDB (`readout/party-store.ts`).
+  Publika sidan `/fest/{kod}` hämtar `/api/public/parties/{kod}` i webbläsaren; bara de sökvägarna har X-Robots-Tag.
+
 ## Import och källor
 
 - Källor (Inställningar → Källor, `application/src/source-sync*.ts`): Eventor och banfiler (CourseData) med

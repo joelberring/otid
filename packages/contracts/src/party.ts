@@ -32,7 +32,7 @@ export const partyThemeSchema = z.object({
   primary: hex.nullable(),
   accent: hex.nullable(),
   /** Adressen till loggan, när den finns. */
-  logo: z.string().regex(/^\/api\/public\/parties\/[2-9a-hjkmnp-z]{6}\/logo\?v=\d+$/).nullable()
+  logo: z.string().regex(/^\/api\/public\/parties\/[0-9a-f-]{36}\/logo\?v=\d+$/).nullable()
 }).strict();
 
 /** Det bardisken behöver utan nät; följer med avläsningspaketet för en fest. Ingår inte i paketversionen. */

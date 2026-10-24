@@ -686,6 +686,16 @@ kontrolleras" fast alla hade resultat, tre bekräftade felstämplingar låg kvar
 
 - [x] Avläsningar som stoppades i webbläsaren för att de avkodats fel avkodas från råramarna när sidan laddas och skickas.
 
+## [x] Steg 40 – Fest-läge med bardisk
+
+Ägarens önskemål 2026-10-24 (Centrum OK:s 20-årsfest): gästerna betalar drinkar med sina SI-brickor utan radio, två
+avläsningsstationer och en Android-platta.
+
+- [x] Tävlingstypen Fest: varor som kontrollenheter (kod, namn, pris), festens start, köpen räknade ur brickornas stämplingar
+  (dubbelstämpling inom 5 s ett köp), in- och utcheckning (startenhet, målenhet eller bardisken), ångra med orsak, CSV-export.
+- [x] Bardisken i ett fönster i automatiskt läge med lokal kö, namnruta vid okänd bricka och personalens lägen.
+- [x] Publik fest-sida med statistik, namn bara via JavaScript och skydd mot indexering; utseende och logga per fest.
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

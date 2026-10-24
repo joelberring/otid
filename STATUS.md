@@ -10,6 +10,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-10-24 – Steg 40: fest-läge med bardisk (Centrum OK 20 år)
+- Tävlingstypen "Fest" (PARTY, migration 0016): delarna Fest, Publicera och Inställningar. Varor = kontrollenheter med kod, namn och pris (öre, prishistorik så att gamla köp behåller priset). Köpen räknas fram ur avläsningarnas stämplingar (`domain/party.ts`): varukod efter festens start, samma stämpling som läses ut igen ger ett köp, samma kod igen är ett nytt köp men inom "Dubbelstämpling inom (sekunder)" (förval 5) ett. Startstämpling checkar in, målstämpling checkar ut; bardiskens in-/utcheckning är egna rader (idempotenta på enhet + löpnummer). Ångra köp är en ny rad med orsak och auditpost. Gäst = egen tabell bricka → namn per fest (ingen entry: festen har inga klasser eller banor och ingen bedömning).
+- Bardisken = avläsningssidan för en fest (samma station, Web Serial/WebUSB, automatisk anslutning, ljud, avläsningskö): ett fönster i automatiskt läge (första utläsningen "Välkommen", sedan nya köp och kvällens summa, "Inga nya köp" med neutral ton, mål = "Utcheckad"). Okänd bricka: namnruta med förslag ur löpardatabasen och kvällens gäster; exakt brickträff sparas direkt ("Inte du? Ändra"). In-/utcheckning och namn köas i IndexedDB (`otid-party`). "Personal" (bekräftelse, 30 s) har Checka in, Köp/verifiera och Checka ut, stationsknappar och länkar. Hela skärmen.
+- Arbetsytan: start, dubbelstämpling, namn publikt, utseende (förinställning Centrum OK 20 år, logga PNG/JPEG ≤ 1 MB), varor, köp med summa per person, in-/utcheckade, varning för nästan full SI5/SI8/SI9, ångra (admin), CSV (UTF-8 med BOM, semikolon). Funktionären köper, sätter namn och checkar ut men ändrar inte varor och ångrar inte.
+- Publik sida `/fest/{kod}` (från `/t/{kod}`): siffror, vad som säljer bäst, köp per kvart, senaste köpen, rolig statistik; namn bara via JavaScript, belopp och bricka aldrig. X-Robots-Tag (next.config), robots-meta och robots.txt bara för `/fest/` och `/api/public/parties/`.
+- Tester: domän `party` (14), webb `party` och `help-sv`, integration `steg-40-fest` (5), Playwright `fest`. Hjälpartikeln "Fest och bardisk".
+- Risk: provat bara med övningsstationen, inte med riktig station och SIAC på plattan. Gamla stämplingar på oröjda brickor kan fylla SI5/SI8 (30) – ha en töm-enhet vid ingången.
+
 ### 2026-10-21 – Steg 38: avsluta tävlingen
 - Rotorsak H12: fastställandet frös bara beslut i en fast lista; manuell tid, godkända kontroller och rättad tid (revision utan avläsning) föll igenom till "kan inte kontrolleras" (`INVALID_RESULT_REVISION`). Med omläsning (steg 36) ligger ett sådant beslut kvar ovanpå. Nu fryses alla beslut (`frozenManualDecisionCauseSchema`).
 - Hinder per löpare: "Resultaten är klara" listar vem (t.ex. "H21: Dan Borta har inget resultat …") med "Öppna" till deltagarkortet.

@@ -65,7 +65,7 @@ describe("bardisken: lokal kö (offline-säker)", () => {
   it("ligger kvar utan nät och skickas när nätet finns; namnet gäller direkt lokalt", async () => {
     const store = new MemoryPartyActionStore();
     await store.add(guest);
-    expect(guestName("8123456", { server: undefined, actions: await store.list(raceId) })).toBe("Testa Festsson");
+    expect(guestName("8123456", { server: undefined, actions: await store.list(raceId) })).toBe("Testa F");
     const offline = await syncPartyActions(store, raceId, { fetch: async () => { throw new TypeError("offline"); }, csrf: () => "c".repeat(43) });
     expect(offline.kind).toBe("offline");
     expect((await store.list(raceId))[0]!.status).toBe("pending");

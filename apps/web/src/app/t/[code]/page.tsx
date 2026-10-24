@@ -14,6 +14,7 @@ import { PreviewBanner } from "../../../components/public-race/preview-banner";
 import { hasSplitAnalysis } from "../../../components/public-race/race-list";
 import { PublicLinkShare } from "../../../components/public-link-share";
 import { RaceInfo } from "../../../components/race-info";
+import { SelfRegistrationForm } from "../../../components/self-registration/self-registration-form";
 import styles from "../../../components/public-race/public-race.module.css";
 
 export const dynamic = "force-dynamic";
@@ -53,6 +54,7 @@ export default async function RaceHubPage({ params }: Params) {
       <p>{details.join(" · ")}</p>
     </div>
     <RaceInfo info={hub.info} firstStartTime={hub.firstStartTime} />
+    <SelfRegistrationForm raceId={hub.raceId} />
     <ul className={styles.hubLinks} aria-label={text.navigation}>
       {hub.startListPublished ? link(`/starts/${hub.raceId}`, text.startList, text.startListHelp)
         : hasStartSection && <li><div className={styles.hubPending}><strong>{text.startList}</strong><span>{text.startListPending}</span></div></li>}

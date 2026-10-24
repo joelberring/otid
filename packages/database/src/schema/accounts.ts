@@ -72,13 +72,13 @@ export const userAccountLoginThrottles = pgTable("user_account_login_throttle", 
 
 /** Spärr mot upprepade registreringar och återställningsförfrågningar; nyckeln (IP eller e-post) lagras hashad. */
 export const accountRequestThrottles = pgTable("account_request_throttle", {
-  scope: text("scope").$type<"REGISTER_IP" | "RESET_IP" | "RESET_EMAIL">().notNull(),
+  scope: text("scope").$type<"REGISTER_IP" | "RESET_IP" | "RESET_EMAIL" | "SELF_REGISTRATION_IP" | "SELF_REGISTRATION_RACE">().notNull(),
   keyHash: text("key_hash").notNull(),
   windowStartedAt: timestamp("window_started_at", { withTimezone: true }).notNull(),
   attempts: integer("attempts").notNull()
 }, (table) => [
   primaryKey({ columns: [table.scope, table.keyHash] }),
-  check("account_request_throttle_scope_check", sql`${table.scope} IN ('REGISTER_IP', 'RESET_IP', 'RESET_EMAIL')`),
+  check("account_request_throttle_scope_check", sql`${table.scope} IN ('REGISTER_IP', 'RESET_IP', 'RESET_EMAIL', 'SELF_REGISTRATION_IP', 'SELF_REGISTRATION_RACE')`),
   check("account_request_throttle_key_check", sql`${table.keyHash} ~ '^[a-f0-9]{64}$'`),
   check("account_request_throttle_attempts_check", sql`${table.attempts} >= 0`)
 ]);

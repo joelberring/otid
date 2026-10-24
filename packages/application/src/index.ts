@@ -85,3 +85,4 @@ export { exportRaceAsAdmin, RACE_EXPORT_FORMAT, RACE_EXPORT_FORMAT_VERSION } fro
 export * from "./race-corrections";
 export * from "./readout-reread";
 export * from "./party";
+export { readSelfRegistrationInfo, selfRegisterCard, type SelfRegistrationResult } from "./self-registration";

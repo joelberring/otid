@@ -16,6 +16,8 @@ import { RaceDeleteSection } from "./race-delete-section";
 import { RaceExportSection } from "./race-export-section";
 import { PeopleSection } from "./people-section";
 import { RadioSection } from "./radio-section";
+import { SelfRegistrationSetting } from "./self-registration-setting";
+import { selfRegistrationSv } from "../../i18n/self-registration-sv";
 import type { Workspace } from "./workspace-state";
 
 const text = raceTypeSv.settings;
@@ -73,6 +75,10 @@ export function SettingsPanel({ ws }: { ws: Workspace }) {
         <div><Button type="submit" disabled={locked}>{text.save}</Button></div>
       </form>
     </Section>
+    {/* Steg 41: för en fest finns valet i fest-arbetsytan; stafett har inget. */}
+    {data.raceType !== "PARTY" && data.raceType !== "RELAY" && <Section id={`${id}-self-registration`} title={selfRegistrationSv.settingTitle}>
+      <SelfRegistrationSetting ws={ws} />
+    </Section>}
     {/* Publiceringen finns på ett ställe, steget Publicera (PLAN.md steg 24). */}
     {publish && <Section id={`${id}-publish`} title={raceTypeSv.sections.PUBLISH} help={text.publishLink}>
       <div><Button variant="secondary" onClick={() => navigateStep(publish.id)}>{text.publishOpen}</Button></div>

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { publicPartyResponseSchema, type PublicPartyResponse } from "@o-tid/contracts";
 import { partyThemeStyle } from "../../lib/party-theme-style";
 import { partyPublicSv as text } from "../../i18n/party-public-sv";
+import { SelfRegistrationForm } from "../self-registration/self-registration-form";
 import styles from "./party-public.module.css";
 
 /**
@@ -48,6 +49,7 @@ export function PartyPublic({ raceId, eventName }: { raceId: string; eventName: 
       {party?.theme.logo ? <img className={styles.logo} src={party.theme.logo} alt="" /> : null}
       <div><h1>{title}</h1>{title !== eventName ? <p>{eventName}</p> : null}</div>
     </header>
+    <SelfRegistrationForm raceId={raceId} />
     {!party ? <p role="status" className={styles.status}>{failed ? text.loadError : text.loading}</p> : <>
       {failed ? <p role="status" className={styles.status}>{text.loadError}</p> : null}
       <dl className={styles.numbers} data-testid="party-numbers">

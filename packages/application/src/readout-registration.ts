@@ -31,7 +31,7 @@ export type ReadoutRegistrationResult =
   | { status: "registered"; response: ReadoutRegistrationResponse };
 
 /** Den senaste avläsningen av brickan som togs emot som okänd och ännu inte gett något resultat. */
-async function latestUnresolvedReadout(tx: Transaction, raceId: string, cardNumber: string) {
+export async function latestUnresolvedReadout(tx: DbExecutor, raceId: string, cardNumber: string) {
   const [row] = await tx.select({ readout: schema.cardReadouts }).from(schema.cardReadouts)
     .innerJoin(schema.deviceIngestOutcomes, eq(schema.deviceIngestOutcomes.rawMessageId, schema.cardReadouts.rawMessageId))
     .leftJoin(schema.resultRevisions, eq(schema.resultRevisions.readoutId, schema.cardReadouts.id))
@@ -44,7 +44,7 @@ async function latestUnresolvedReadout(tx: Transaction, raceId: string, cardNumb
 }
 
 /** Läsningstiden för deltagarens senaste avläsning med resultat, eller null. */
-async function latestResultReadAt(tx: DbExecutor, entryId: string): Promise<Date | null> {
+export async function latestResultReadAt(tx: DbExecutor, entryId: string): Promise<Date | null> {
   const [row] = await tx.select({ readAt: schema.cardReadouts.readAt }).from(schema.resultRevisions)
     .innerJoin(schema.cardReadouts, eq(schema.cardReadouts.id, schema.resultRevisions.readoutId))
     .where(eq(schema.resultRevisions.entryId, entryId)).orderBy(desc(schema.cardReadouts.readAt)).limit(1);

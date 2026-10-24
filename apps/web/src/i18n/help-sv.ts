@@ -263,5 +263,21 @@ export const helpArticles: readonly HelpArticle[] = [
       "Köpen sparas på brickan och i plattan även utan nät, och glömda köp kommer med nästa gång.",
       "I arbetsytan ser du summa per person, ångrar ett köp med orsak och laddar ner CSV för Excel."
     ]
+  },
+  {
+    id: "sjalvregistrering",
+    title: "Självregistrering på tävlingsdagen",
+    views: ["PARTY", "SETTINGS", "PUBLISH"],
+    body: [
+      "Med ”Tillåt självregistrering på tävlingsdagen” kan vem som helst koppla sitt namn till sin bricka på den publika sidan, utan att logga in.",
+      "För en fest finns valet i delen Fest, för andra typer under Inställningar. Det är av som standard.",
+      "Formuläret ”Registrera din pinne” syns bara när valet är på, tävlingen är publicerad och det är tävlingsdagen (en fest även natten efter, till kl 06).",
+      [
+        "Fest: gästen får sitt namn på brickan, och bardisken känner igen den inom några sekunder.",
+        "Andra typer: löparen väljer klass och blir anmäld med brickan; en okänd avläsning av brickan bedöms direkt.",
+        "En bricka som redan hör till någon avvisas, och inget skrivs över."
+      ],
+      "Självregistrerade märks ”Självregistrerad” i deltagarlistan och gästlistan. Där kan du ändra namnet eller, på en fest, välja ”Koppla bort pinnen”."
+    ]
   }
 ];

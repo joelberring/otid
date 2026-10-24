@@ -33,7 +33,9 @@ const adminFiles = [
   // Steg 37: hjälpen och sidfoten.
   "help-sv.ts", "about-sv.ts",
   // Steg 40: festen.
-  "party-sv.ts"
+  "party-sv.ts",
+  // Steg 41: självregistrering.
+  "self-registration-sv.ts"
 ];
 /** Delade textfiler (även publika sidor): bara nycklarna som arbetsytan läser granskas. */
 const sharedFiles = ["sv.ts", "account-sv.ts"];

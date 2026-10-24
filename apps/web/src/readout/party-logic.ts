@@ -1,6 +1,6 @@
 import type { PartyPackage, PartyStateResponse } from "@o-tid/contracts";
 import {
-  partyCardCapacity, partyFinishCheckout, partyPurchaseKey, partyPurchasesOnCard, partyStartCheckIn, type PartyPurchase, type PartyReadout
+  partyCardCapacity, partyDisplayName, partyFinishCheckout, partyPurchaseKey, partyPurchasesOnCard, partyStartCheckIn, type PartyPurchase, type PartyReadout
 } from "@o-tid/domain";
 import type { QueuedReadout } from "./store";
 import type { QueuedPartyAction } from "./party-store";
@@ -121,8 +121,10 @@ export function cardEvening(card: string, knowledge: DeskKnowledge): CardEvening
 /** Gästens namn: senast sparade här (även köat), annars serverns. */
 export function guestName(card: string, knowledge: Pick<DeskKnowledge, "server" | "actions">): string | undefined {
   const local = knowledge.actions.filter(row => live(row) && row.action.kind === "guest" && row.action.request.cardNumber === card).at(-1);
-  if (local?.action.kind === "guest") return local.action.request.name;
-  return knowledge.server?.guests.find(guest => guest.cardNumber === card)?.name;
+  // Steg 41: kioskskärmen visar bara visningsnamnet (smeknamnet eller förnamn + efternamnets första bokstav).
+  if (local?.action.kind === "guest") return partyDisplayName({ name: local.action.request.name, displayName: local.action.request.displayName ?? undefined });
+  const guest = knowledge.server?.guests.find(row => row.cardNumber === card);
+  return guest ? partyDisplayName(guest) : undefined;
 }
 
 /** Brickan har högst fem platser kvar för stämplingar (SI5 och SI8: 30, SI9: 50). */

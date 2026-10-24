@@ -37,3 +37,4 @@ export * from "./entry-readout";
 export * from "./party";
 export * from "./party-public";
 export * from "./party-theme";
+export * from "./self-registration";

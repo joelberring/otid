@@ -156,8 +156,8 @@ export function PartyDesk(props: PartyDeskProps) {
   const notStarted = startsAt && Date.parse(startsAt) > Date.now() ? time(startsAt, timeZone) : undefined;
   const kiosk = mode === "AUTO" && !staff;
 
-  async function saveName(card: string, name: string, club: string | null) {
-    await addAction({ kind: "guest", request: { formatVersion: 1, cardNumber: card, name, club } });
+  async function saveName(card: string, name: string, club: string | null, displayName: string | null) {
+    await addAction({ kind: "guest", request: { formatVersion: 1, cardNumber: card, name, club, displayName } });
     setNaming(undefined);
   }
 
@@ -182,7 +182,7 @@ export function PartyDesk(props: PartyDeskProps) {
 
     {naming ? <PartyNameBox key={naming.localSequence} card={naming.card} pkg={pkg} server={server}
       current={guestName(naming.card, knowledge)} closesInMs={NAME_TIMEOUT_MS}
-      onSave={(name, club) => saveName(naming.card, name, club)} onSkip={() => { skipped.current.add(naming.card); setNaming(undefined); }} /> : null}
+      onSave={(name, club, displayName) => saveName(naming.card, name, club, displayName)} onSkip={() => { skipped.current.add(naming.card); setNaming(undefined); }} /> : null}
     {waiting.length > 0 ? <p className="hint" data-testid="party-waiting">{t.waitingToShow(waiting.length)}</p> : null}
 
     {props.exercise ? <PartyExercise transport={props.exercise} pkg={pkg} items={effectiveParty.items} timeZone={timeZone} /> : null}

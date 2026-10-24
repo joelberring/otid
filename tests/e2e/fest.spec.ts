@@ -89,7 +89,9 @@ test("fest: bardisken checkar in, verifierar köp och checkar ut med mål", asyn
   await expect(desk.getByTestId("party-new")).toContainText("Nytt: Öl");
   await expect(desk.getByTestId("party-new")).toContainText("Nytt: Drink");
   await expect(desk.getByTestId("party-total")).toHaveText("Kvällens summa: 100,00 kr");
-  await expect(verdict).toContainText("Festa Påhittsson");
+  // Steg 41: kioskskärmen visar bara visningsnamnet (förnamn + efternamnets första bokstav).
+  await expect(verdict).toContainText("Festa P");
+  await expect(verdict).not.toContainText("Påhittsson");
   await reviewScreenshots(desk, "fest-bardisk-kop");
 
   // Samma bricka igen utan nya stämplingar: inga nya köp, samma summa.
@@ -112,7 +114,7 @@ test("fest: bardisken checkar in, verifierar köp och checkar ut med mål", asyn
   await expect.poll(async () => {
     await nameBox.getByLabel("Sök namn").fill("");
     await nameBox.getByLabel("Sök namn").fill("påhitt");
-    return nameBox.getByText("Festa Påhittsson").count();
+    return nameBox.getByText("Festa P", { exact: true }).count();
   }, { timeout: 20_000 }).toBeGreaterThan(0);
   await reviewScreenshots(desk, "fest-bardisk-namn");
   await nameBox.getByLabel("Förnamn").fill("Gäst");
@@ -133,8 +135,8 @@ test("fest: bardisken checkar in, verifierar köp och checkar ut med mål", asyn
   await owner.getByRole("button", { name: "Ladda ner summering (CSV)" }).click();
   const file = await (await download).path();
   const csv = await readFile(file, "utf8");
-  expect(csv.startsWith("\uFEFFNamn;Klubb;Bricka;Antal köp;Summa kr;Incheckad;Utcheckad;Utcheckad via")).toBe(true);
-  expect(csv).toMatch(/Festa Påhittsson;Påhittade OK;\d+;2;100,00;[^;]+;[^;]+;Mål/);
+  expect(csv.startsWith("\uFEFFNamn;Visningsnamn;Klubb;Bricka;Antal köp;Summa kr;Incheckad;Utcheckad;Utcheckad via")).toBe(true);
+  expect(csv).toMatch(/Festa Påhittsson;Festa P;Påhittade OK;\d+;2;100,00;[^;]+;[^;]+;Mål/);
 
   // Ångra ett köp med orsak: summan räknas om.
   owner.once("dialog", dialog => void dialog.accept("Fel enhet"));
@@ -161,7 +163,8 @@ test("fest: bardisken checkar in, verifierar köp och checkar ut med mål", asyn
   expect(api.headers()["x-robots-tag"]).toBe("noindex, nofollow, noarchive, nosnippet, noai, noimageai");
   expect(api.headers()["cache-control"]).toBe("private, no-store");
   const json = await api.text();
-  expect(json).toContain("Festa Påhittsson");
+  expect(json).toContain("Festa P");
+  expect(json).not.toContain("Påhittsson");
   expect(json.replace(/\/api\/public\/parties\/[^"]+/, "")).not.toMatch(/cardNumber|priceOre|totalOre|raceId|[0-9a-f]{8}-[0-9a-f]{4}/);
   const logo = await visitor.request.get(`/api/public/parties/${raceId}/logo?v=1`);
   expect(logo.headers()["content-type"]).toBe("image/png");
@@ -172,7 +175,8 @@ test("fest: bardisken checkar in, verifierar köp och checkar ut med mål", asyn
   await visitor.goto(publicPath!);
   await expect(visitor.getByTestId("party-numbers")).toContainText("sålda");
   await expect(visitor.getByRole("heading", { name: "Vad säljer bäst" })).toBeVisible();
-  await expect(visitor.getByTestId("party-public")).toContainText("Festa Påhittsson");
+  await expect(visitor.getByTestId("party-public")).toContainText("Festa P");
+  await expect(visitor.getByTestId("party-public")).not.toContainText("Påhittsson");
   await expect(visitor.getByTestId("party-public")).not.toContainText("kr");
   await reviewScreenshots(visitor, "fest-publik");
 

@@ -92,6 +92,9 @@ describe("steg 28: PostgreSQL utan PostGIS", () => {
     // …och tävlingsinfon, bricka i den publika startlistan och löpande startlista (steg 33, 0011/0012 lägger till kolumnerna om de saknas).
     await pool.query(`ALTER TABLE race ADD COLUMN public_start_list_card_numbers boolean NOT NULL DEFAULT true,
       ADD COLUMN info text, ADD COLUMN first_start_time text, ADD COLUMN start_list_live boolean NOT NULL DEFAULT false`);
+    // …och självregistreringen (steg 41, 0018 lägger till kolumnerna om de saknas).
+    await pool.query("ALTER TABLE race ADD COLUMN self_registration boolean NOT NULL DEFAULT false");
+    await pool.query("ALTER TABLE entry ADD COLUMN self_registered_at timestamptz");
     const { ids, cards } = await seedRace(db, pool);
     await ingest(db, ids.race, [run(cards.ada, "10:02:00", 30), run(cards.bo, "10:05:00", 41)]);
     await pool.query("DROP TABLE race_station_correction");

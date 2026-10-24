@@ -1,4 +1,4 @@
-import type { PartyItem, PartyLedger } from "./party";
+import { partyDisplayName, type PartyItem, type PartyLedger } from "./party";
 
 /**
  * Den publika fest-sidan (PLAN.md steg 40): statistik över kvällen utan belopp och utan bricknummer. Namn finns bara
@@ -42,7 +42,8 @@ const floorTo = (value: number, step: number) => Math.floor(value / step) * step
 export function partyPublicStats(ledger: PartyLedger, options: { readonly showNames: boolean;
   readonly items?: readonly Pick<PartyItem, "id" | "group">[] }): PartyPublicStats {
   const groupOf = new Map((options.items ?? []).flatMap(item => item.group ? [[item.id, item.group] as const] : []));
-  const names = new Map(ledger.guests.map(guest => [guest.cardNumber, guest.name]));
+  // Steg 41: bara visningsnamnet (smeknamnet eller förnamn + efternamnets första bokstav), aldrig fullt namn.
+  const names = new Map(ledger.guests.map(guest => [guest.cardNumber, partyDisplayName(guest)]));
   const nameOf = (card: string) => options.showNames ? names.get(card) : undefined;
   const sold = ledger.purchases.filter(row => !row.voided);
   const times = sold.map(row => Date.parse(row.punchedAt)).sort((left, right) => left - right);
@@ -103,7 +104,10 @@ export function partyPublicStats(ledger: PartyLedger, options: { readonly showNa
     ...(arrivals.length ? { firstArrival: person(earliest(arrivals)) } : {}),
     ...(finishes.length ? { firstFinish: person(earliest(finishes)) } : {}),
     ...(lastOut ? { lastOut: person(lastOut) } : {}),
-    ...(options.showNames ? { guests: ledger.guests.flatMap(guest => guest.name ? [{ name: guest.name, purchaseCount: guest.purchaseCount }] : [])
+    ...(options.showNames ? { guests: ledger.guests.flatMap(guest => {
+      const name = partyDisplayName(guest);
+      return name ? [{ name, purchaseCount: guest.purchaseCount }] : [];
+    })
       .sort((left, right) => right.purchaseCount - left.purchaseCount || left.name.localeCompare(right.name, "sv")) } : {})
   };
 }

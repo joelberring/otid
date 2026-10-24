@@ -17,6 +17,8 @@ const guestName = z.string().trim().min(1).max(160);
 const club = z.string().trim().min(1).max(160);
 
 const itemGroup = z.string().trim().min(1).max(40);
+/** Steg 41: visningsnamn (smeknamn), det enda som visas publikt för en gäst. */
+export const partyDisplayNameSchema = z.string().trim().min(1).max(40);
 
 export const partyItemSchema = z.object({
   id: uuid, code: partyControlCodeSchema, name: itemName, group: itemGroup.nullable().optional(), hidden: z.boolean(),
@@ -58,7 +60,11 @@ export const partyGuestSummarySchema = z.object({
   checkIn: presence.optional(),
   checkout: presence.optional(),
   memory: z.object({ punches: z.number().int().min(0).max(1_000), capacity: z.number().int().min(1).max(1_000) }).strict().optional(),
-  lastReadAt: instant.optional()
+  lastReadAt: instant.optional(),
+  /** Steg 41: gästen registrerade pinnen själv på fest-sidan. */
+  selfRegistered: z.boolean().optional(),
+  /** Steg 41: visningsnamnet som valts (saknas = förnamn + efternamnets första bokstav). */
+  displayName: partyDisplayNameSchema.optional()
 }).strict();
 
 export const partyStateResponseSchema = z.object({
@@ -85,13 +91,17 @@ export const partyChangeRequestSchema = z.object({
     z.object({ kind: z.literal("item-change"), itemId: uuid, name: itemName, priceOre: ore, hidden: z.boolean(),
       group: itemGroup.nullable().optional() }).strict(),
     z.object({ kind: z.literal("void"), cardNumber, code: partyControlCodeSchema, punchedAt: instant,
-      reason: z.string().trim().min(1).max(300) }).strict()
+      reason: z.string().trim().min(1).max(300) }).strict(),
+    /** Steg 41: koppla bort pinnen från gästens namn (t.ex. en felaktig självregistrering). Köpen ligger kvar på brickan. */
+    z.object({ kind: z.literal("guest-remove"), cardNumber }).strict()
   ])
 }).strict();
 
 /** Gästens namn på en bricka (bardisken vid okänd bricka eller arbetsytan). Samma bricka igen ersätter namnet. */
 export const partyGuestRequestSchema = z.object({
-  formatVersion: z.literal(1), cardNumber, name: guestName, club: club.nullable()
+  formatVersion: z.literal(1), cardNumber, name: guestName, club: club.nullable(),
+  /** Steg 41: visningsnamn. Saknas = oförändrat; null = förvalet (förnamn + efternamnets första bokstav). */
+  displayName: partyDisplayNameSchema.nullable().optional()
 }).strict();
 
 /** Bardiskens in- eller utcheckning, köad i webbläsaren. Idempotent på enhet + löpnummer (avläsningen den gjordes vid) + slag. */
@@ -117,7 +127,8 @@ export type PartyDeskEventResponse = z.infer<typeof partyDeskEventResponseSchema
  * Den publika fest-sidan (PLAN.md steg 40): strikt kontrakt utan bricknummer, belopp och interna id:n. Namn bara när
  * festen visar namn publikt; belopp per person finns aldrig här.
  */
-const publicName = z.string().min(1).max(160);
+/** Steg 41: bara visningsnamnet (högst 40 tecken), aldrig fullt namn. */
+const publicName = z.string().min(1).max(40);
 const moment = z.object({ at: instant, name: publicName.optional() }).strict();
 
 

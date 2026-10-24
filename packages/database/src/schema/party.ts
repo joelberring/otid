@@ -53,7 +53,11 @@ export const partyGuests = pgTable("party_guest", {
   cardNumber: text("card_number").notNull(),
   name: text("name").notNull(),
   club: text("club"),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull()
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  /** Steg 41 (migration 0018): gästen registrerade sin pinne själv på fest-sidan. NULL = personalen. */
+  selfRegisteredAt: timestamp("self_registered_at", { withTimezone: true }),
+  /** Steg 41: visningsnamn (smeknamn), det enda som visas publikt. NULL = förnamn + efternamnets första bokstav. */
+  displayName: text("display_name")
 }, (table) => [primaryKey({ columns: [table.raceId, table.cardNumber] })]);
 
 /** In- och utcheckning i bardisken; idempotent på enhet + löpnummer. Start- och målstämpling räknas fram ur avläsningen. */

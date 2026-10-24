@@ -93,7 +93,7 @@ describe("steg 40: fest med bardisk", () => {
     // Export: en rad per gäst och en rad per köp, UTF-8 med BOM.
     const ledger = { purchases: value.purchases, guests: value.guests, totalOre: value.totalOre, purchaseCount: value.purchaseCount };
     const summary = partySummaryCsv(ledger, value.timeZone).slice(1).split("\r\n");
-    expect(summary[1]).toBe("Festa Påhittsson;Påhittade OK;8765432;2;100,00;2026-10-24 18:05:00;2026-10-24 23:47:00;Mål");
+    expect(summary[1]).toBe("Festa Påhittsson;Festa P;Påhittade OK;8765432;2;100,00;2026-10-24 18:05:00;2026-10-24 23:47:00;Mål");
     expect(partyPurchasesCsv(ledger, value.timeZone).split("\r\n")).toHaveLength(4);
   });
 
@@ -137,9 +137,15 @@ describe("steg 40: fest med bardisk", () => {
     await ingestDeviceBatch(db, raceId, readout(device, 1, "8123456", [[31, "2026-10-24T19:14:00.000Z"]], { startPunchedAt: "2026-10-24T16:00:00.000Z" }));
     await setPartyGuestAsAdmin(db, { ...admin, request: { formatVersion: 1, cardNumber: "8123456", name: "Festa Påhittsson", club: null } });
     const named = await readPublicParty(db, raceId);
-    expect(named).toMatchObject({ showNames: true, soldCount: 1, checkedInCount: 1, guests: [{ name: "Festa Påhittsson", purchaseCount: 1 }],
-      firstArrival: { name: "Festa Påhittsson" } });
-    expect(JSON.stringify(named)).not.toMatch(/8123456|Ore|raceId|itemId/);
+    // Steg 41: bara visningsnamnet (förvalt förnamn + efternamnets första bokstav), aldrig fullt namn.
+    expect(named).toMatchObject({ showNames: true, soldCount: 1, checkedInCount: 1, guests: [{ name: "Festa P", purchaseCount: 1 }],
+      firstArrival: { name: "Festa P" } });
+    expect(JSON.stringify(named)).not.toMatch(/8123456|Ore|raceId|itemId|Påhittsson/);
+    await setPartyGuestAsAdmin(db, { ...admin, request: { formatVersion: 1, cardNumber: "8123456", name: "Festa Påhittsson", club: null,
+      displayName: "  Festis  " } });
+    const nick = await readPublicParty(db, raceId);
+    expect(nick?.guests).toEqual([{ name: "Festis", purchaseCount: 1 }]);
+    expect(JSON.stringify(nick)).not.toContain("Påhittsson");
     await change({ kind: "settings", startsAt, showPublicNames: false, doublePunchSeconds: 5 });
     const anonymous = await readPublicParty(db, raceId);
     expect(anonymous?.guests).toBeUndefined();

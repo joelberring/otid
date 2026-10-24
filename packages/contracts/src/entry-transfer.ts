@@ -53,6 +53,8 @@ export const entryTransferCandidatesSchema = z.object({
   firstStartTime: raceFirstStartTimeSchema.nullable().optional(),
   /** "Uppdatera startlistan löpande": den publika startlistan visar läget just nu. */
   startListLive: z.boolean().optional(),
+  /** Steg 41: "Tillåt självregistrering på tävlingsdagen". */
+  selfRegistration: z.boolean().optional(),
   generatedAt: z.iso.datetime({ offset: true }),
   timeZone: z.string().min(1).max(100).refine(value => {
     try { new Intl.DateTimeFormat("sv-SE", { timeZone: value }); return true; } catch { return false; }
@@ -82,6 +84,8 @@ export const entryTransferCandidatesSchema = z.object({
     resultRevisionMarker: entryTransferResultRevisionMarkerSchema.nullable(),
     /** Steg 38: felstämplad som arrangören har kontrollerat; räknas inte som att titta på. */
     mispunchConfirmed: z.literal(true).optional(),
+    /** Steg 41: löparen registrerade sig själv på tävlingssidan. */
+    selfRegistered: z.literal(true).optional(),
     fixedStartTime: fixedStartTimeSchema.nullable(),
     /** Löparens variant; null = ingen tilldelad variant. */
     courseVariantCode: courseVariantCodeSchema.nullable(),

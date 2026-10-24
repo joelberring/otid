@@ -34,7 +34,7 @@ export async function listEntryTransfersAsAdmin(db: Database, input: Authenticat
       raceDate: schema.races.raceDate, raceType: schema.races.raceType, timeZone: schema.events.timeZone,
       shortCode: schema.races.shortCode, publishedAt: schema.races.publishedAt, hiddenBySuperadmin: schema.races.hiddenBySuperadmin,
       publicStartListCardNumbers: schema.races.publicStartListCardNumbers, info: schema.races.info, firstStartTime: schema.races.firstStartTime,
-      startListLive: schema.races.startListLive })
+      startListLive: schema.races.startListLive, selfRegistration: schema.races.selfRegistration })
       .from(schema.races).innerJoin(schema.events, eq(schema.events.id, schema.races.eventId))
       .where(eq(schema.races.id, input.raceId));
     if (!metadata) throw new Error("Loppets metadata saknas");
@@ -51,7 +51,7 @@ export async function listEntryTransfersAsAdmin(db: Database, input: Authenticat
       throw new Error("Ogiltig klass–ban-koppling");
     }
     const rows = await tx.select({ id: schema.entries.id, publicResultId: schema.entries.publicResultId, givenName: schema.entries.givenName,
-      familyName: schema.entries.familyName, organisationName: schema.entries.organisationName,
+      familyName: schema.entries.familyName, organisationName: schema.entries.organisationName, selfRegisteredAt: schema.entries.selfRegisteredAt,
       classId: schema.entries.classId, version: schema.entries.version,
       fixedStartTime: schema.entries.fixedStartTime,
       courseVariantCode: schema.entries.courseVariantCode, teamId: schema.entries.teamId, relayLeg: schema.entries.relayLeg,
@@ -161,6 +161,7 @@ export async function listEntryTransfersAsAdmin(db: Database, input: Authenticat
         effectiveResult: effectiveResultByEntry.get(row.id) ?? { state: "NO_PUBLISHED_RESULT", selectedRevision: null },
         resultRevisionMarker: revisionMarkerByEntry.get(row.id) ?? null,
         ...(mispunchConfirmed.has(row.id) ? { mispunchConfirmed: true } : {}),
+        ...(row.selfRegisteredAt ? { selfRegistered: true as const } : {}),
         activeAssignment: assignment ? { id: assignment.id, cardNumber: assignment.cardNumber,
           isRental: assignment.isRental, rentalReturned: assignment.rentalReturned } : null,
         multipleActiveAssignments: active.length > 1,

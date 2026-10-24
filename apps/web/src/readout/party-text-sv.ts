@@ -31,6 +31,8 @@ export const partyText = {
   givenName: "Förnamn",
   familyName: "Efternamn",
   club: "Klubb (valfritt)",
+  displayName: "Visningsnamn (valfritt)",
+  displayNamePlaceholder: "Till exempel Oskar K",
   save: "Spara",
   skip: "Hoppa över",
   nameMissing: "Skriv förnamn och efternamn, eller välj ett förslag.",

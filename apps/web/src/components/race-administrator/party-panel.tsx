@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { partyStateResponseSchema, type PartyChangeRequest, type PartyStateResponse } from "@o-tid/contracts";
-import { formatPartyKronor, formatPartyTime, parseRaceClock, partyMemoryWarning, partyPurchasesCsv, partySummaryCsv,
+import { formatPartyKronor, formatPartyTime, parseRaceClock, PARTY_DISPLAY_NAME_MAX, partyDefaultDisplayName, partyDisplayName, partyMemoryWarning, partyPurchasesCsv, partySummaryCsv,
   type PartyLedger } from "@o-tid/domain";
 import styles from "../race-administrator-workspace.module.css";
 import local from "./party.module.css";
@@ -12,6 +12,7 @@ import { Button, Notice, Section, Table, numeric } from "../ui";
 import type { Workspace } from "./workspace-state";
 import { PartyThemeForm } from "./party-theme-form";
 import { CENTRUM_PRESET } from "../../lib/party-theme-style";
+import { SelfRegistrationSetting } from "./self-registration-setting";
 
 /**
  * Fest (PLAN.md steg 40): festens start, varorna (kod, namn, pris), köpen i kväll med summa per person, in- och
@@ -37,10 +38,10 @@ function download(name: string, content: string) {
 
 export function PartyPanel({ ws }: { ws: Workspace }) {
   if (!ws.shows("PARTY")) return null;
-  return <PartyWorkspace raceId={ws.raceId} admin={!ws.functionary} />;
+  return <PartyWorkspace raceId={ws.raceId} admin={!ws.functionary} ws={ws} />;
 }
 
-function PartyWorkspace({ raceId, admin }: { raceId: string; admin: boolean }) {
+function PartyWorkspace({ raceId, admin, ws }: { raceId: string; admin: boolean; ws: Workspace }) {
   const [state, setState] = useState<PartyStateResponse>();
   const [problem, setProblem] = useState<string>();
   const [saved, setSaved] = useState<string>();
@@ -101,10 +102,11 @@ function PartyWorkspace({ raceId, admin }: { raceId: string; admin: boolean }) {
     } catch { setProblem(text.saveError); return false; }
     finally { setBusy(false); }
   }
-  async function saveGuest(cardNumber: string, name: string, club: string): Promise<boolean> {
+  async function saveGuest(cardNumber: string, name: string, club: string, displayName: string): Promise<boolean> {
     setBusy(true);
     try {
-      const response = await post("party-guests", { formatVersion: 1, cardNumber, name: name.trim(), club: club.trim() || null });
+      const response = await post("party-guests", { formatVersion: 1, cardNumber, name: name.trim(), club: club.trim() || null,
+        displayName: displayName.trim() || null });
       if (!response.ok) { setProblem(text.saveError); return false; }
       await load(); return true;
     } catch { setProblem(text.saveError); return false; }
@@ -129,6 +131,7 @@ function PartyWorkspace({ raceId, admin }: { raceId: string; admin: boolean }) {
       {admin && <StartForm key={`${state.startsAt}-${state.showPublicNames}`} state={state} busy={busy}
         onSave={(startsAt, showPublicNames, doublePunchSeconds) => change({ kind: "settings", startsAt, showPublicNames, doublePunchSeconds },
           text.settingsSaved)} />}
+      {admin && <SelfRegistrationSetting ws={ws} />}
       {admin && <PartyThemeForm key={JSON.stringify(state.theme)} state={state} busy={busy}
         onChange={value => change(value, text.themeSaved)} onLogo={uploadLogo} />}
     </Section>
@@ -157,12 +160,20 @@ function PartyWorkspace({ raceId, admin }: { raceId: string; admin: boolean }) {
         {" · "}{text.checkedOut(state.guests.filter(guest => guest.checkout).length)}</p>
       <h4 className={local.subhead}>{text.guestsTitle}</h4>
       {state.guests.length === 0 ? <p>{text.noPurchases}</p> : <Table className={local.guests}>
-        <thead><tr><th scope="col">{text.guest}</th><th scope="col">{text.card}</th><th scope="col" className={numeric}>{text.purchases}</th>
+        <thead><tr><th scope="col">{text.guest}</th><th scope="col">{text.displayName}</th><th scope="col">{text.card}</th><th scope="col" className={numeric}>{text.purchases}</th>
           <th scope="col" className={numeric}>{text.sum}</th><th scope="col">{text.checkInColumn}</th><th scope="col">{text.checkOutColumn}</th></tr></thead>
         <tbody>{state.guests.map(guest => <tr key={guest.cardNumber} data-card={guest.cardNumber}>
-          <td><GuestName guest={guest} busy={busy} onSave={(name, club) => saveGuest(guest.cardNumber, name, club)} />
+          <td><GuestName guest={guest} busy={busy} onSave={(name, club, displayName) => saveGuest(guest.cardNumber, name, club, displayName)} />
+            {guest.selfRegistered ? <span className={local.tag}>{text.selfRegistered}</span> : null}
+            {admin && guest.name ? <button type="button" className={local.linkButton} disabled={busy}
+              aria-label={text.removeGuestLabel(guest.cardNumber)} onClick={() => {
+                if (window.confirm(text.removeGuestConfirm(guest.cardNumber, guest.name ?? ""))) {
+                  void change({ kind: "guest-remove", cardNumber: guest.cardNumber }, text.guestRemoved);
+                }
+              }}>{text.removeGuest}</button> : null}
             {partyMemoryWarning(guest.memory) && guest.memory ? <span className={local.warning} title={text.memoryHelp}>
               ! {text.nearlyFull(guest.memory.punches, guest.memory.capacity)}</span> : null}</td>
+          <td>{partyDisplayName(guest) ?? ""}</td>
           <td>{guest.cardNumber}</td>
           <td className={numeric}>{guest.purchaseCount}</td>
           <td className={numeric}>{formatPartyKronor(guest.totalOre)}</td>
@@ -281,18 +292,21 @@ function ItemRow({ item, busy, onSave }: { item: PartyStateResponse["items"][num
 }
 
 function GuestName({ guest, busy, onSave }: { guest: PartyStateResponse["guests"][number]; busy: boolean;
-  onSave: (name: string, club: string) => Promise<boolean> }) {
+  onSave: (name: string, club: string, displayName: string) => Promise<boolean> }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(guest.name ?? "");
   const [club, setClub] = useState(guest.club ?? "");
+  const [displayName, setDisplayName] = useState(guest.displayName ?? "");
   if (!open) return <span className={local.guestName}><strong>{guest.name ?? text.unknownName}</strong>{guest.club ? ` · ${guest.club}` : ""}
     <button type="button" className={local.linkButton} onClick={() => setOpen(true)}>{guest.name ? text.rename : text.setName}</button></span>;
   return <form noValidate className={local.inline} onSubmit={event => {
     event.preventDefault();
-    if (name.trim()) void onSave(name, club).then(ok => { if (ok) setOpen(false); });
+    if (name.trim()) void onSave(name, club, displayName).then(ok => { if (ok) setOpen(false); });
   }}>
     <input className={local.input} aria-label={text.nameLabel(guest.cardNumber)} value={name} onChange={event => setName(event.target.value)} />
     <input className={local.input} aria-label={text.clubLabel(guest.cardNumber)} placeholder={text.club} value={club} onChange={event => setClub(event.target.value)} />
+    <input className={local.input} aria-label={text.displayNameLabel(guest.cardNumber)} maxLength={PARTY_DISPLAY_NAME_MAX}
+      placeholder={name.trim() ? partyDefaultDisplayName(name) : text.displayName} value={displayName} onChange={event => setDisplayName(event.target.value)} />
     <Button type="submit" disabled={busy || !name.trim()}>{text.saveName}</Button>
     <Button variant="secondary" onClick={() => setOpen(false)}>{text.cancel}</Button>
   </form>;

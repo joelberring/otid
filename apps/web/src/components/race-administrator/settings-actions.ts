@@ -4,6 +4,7 @@ import { raceTypeSv } from "../../i18n/race-type-sv";
 import { raceInfoSv } from "../../i18n/race-info-sv";
 import { startListPublicationSv } from "../../i18n/start-list-publication-sv";
 import { formErrorsSv } from "../../i18n/form-errors-sv";
+import { selfRegistrationSv } from "../../i18n/self-registration-sv";
 import { isIsoDate, type FieldErrors } from "../../lib/form-validation";
 import type { Base } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
@@ -42,12 +43,13 @@ export function useSettingsState() {
   const [settingsMessage, setSettingsMessage] = useState<{ tone: "ok" | "error"; text: string }>();
   const [settingsErrors, setSettingsErrors] = useState<FieldErrors<"eventName" | "raceName" | "raceDate" | "info" | "firstStartTime">>({});
   const [startListLiveMessage, setStartListLiveMessage] = useState<{ tone: "ok" | "error"; text: string }>();
-  return { startListLiveMessage, setStartListLiveMessage, settingsErrors, setSettingsErrors, settingsForm, setSettingsForm, settingsAttempt, setSettingsAttempt, settingsMessage, setSettingsMessage };
+  const [selfRegistrationMessage, setSelfRegistrationMessage] = useState<{ tone: "ok" | "error"; text: string }>();
+  return { selfRegistrationMessage, setSelfRegistrationMessage, startListLiveMessage, setStartListLiveMessage, settingsErrors, setSettingsErrors, settingsForm, setSettingsForm, settingsAttempt, setSettingsAttempt, settingsMessage, setSettingsMessage };
 }
 
 export function createSettingsActions(ws: Base & RaceDataActions) {
   const { raceId, data, writingRef, pending, settingsForm, settingsAttempt, requireSession, begin, finish, current, request, json, csrf, load,
-    setSettingsForm, setSettingsAttempt, setSettingsMessage, setSettingsErrors, setStartListLiveMessage } = ws;
+    setSettingsForm, setSettingsAttempt, setSettingsMessage, setSettingsErrors, setStartListLiveMessage, setSelfRegistrationMessage } = ws;
   const text = raceTypeSv.settings;
 
   function changeSettings(change: Partial<SettingsForm>) {
@@ -116,6 +118,27 @@ export function createSettingsActions(ws: Base & RaceDataActions) {
     } catch { if (current(op)) setStartListLiveMessage({ tone: "error", text: startListPublicationSv.liveFailed }); }
     finally { finish(op); }
   }
-  return { changeSettings, saveSettings, saveStartListLive };
+  /**
+   * Steg 41: "Tillåt självregistrering på tävlingsdagen" (fest-arbetsytan och Inställningar). Sparas direkt med tävlingens
+   * sparade inställningar och auditpost, som "Uppdatera startlistan löpande".
+   */
+  async function saveSelfRegistration(enabled: boolean) {
+    if (writingRef.current || pending.current || !requireSession() || !data) return;
+    const attempt: RaceSettingsRequest = { formatVersion: 1, requestId: crypto.randomUUID(), eventName: data.eventName, raceName: data.raceName,
+      raceDate: data.raceDate, raceType: data.raceType, selfRegistration: enabled };
+    setSelfRegistrationMessage(undefined);
+    const op = begin(true);
+    try {
+      const response = await request("/settings", op, { method: "POST", headers: { "content-type": "application/json",
+        "x-otid-csrf": csrf(), "idempotency-key": `race-settings:${attempt.requestId}` }, body: JSON.stringify(attempt) });
+      if (!response.ok) throw new Error("Self registration not saved");
+      const receipt = raceSettingsResponseSchema.parse(await json(response, op));
+      if (receipt.raceId !== raceId || receipt.requestId !== attempt.requestId) throw new Error("Settings receipt mismatch");
+      setSelfRegistrationMessage({ tone: "ok", text: enabled ? selfRegistrationSv.setting.on : selfRegistrationSv.setting.off });
+      await load(op);
+    } catch { if (current(op)) setSelfRegistrationMessage({ tone: "error", text: selfRegistrationSv.setting.failed }); }
+    finally { finish(op); }
+  }
+  return { changeSettings, saveSettings, saveStartListLive, saveSelfRegistration };
 }
 export type SettingsActions = ReturnType<typeof createSettingsActions>;

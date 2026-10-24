@@ -120,6 +120,8 @@ export const races = pgTable("race", {
   firstStartTime: text("first_start_time"),
   /** Steg 33 (migration 0012): "Uppdatera startlistan löpande". Av = den senast publicerade ögonblicksbilden. */
   startListLive: boolean("start_list_live").notNull().default(false),
+  /** Steg 41 (migration 0018): "Tillåt självregistrering på tävlingsdagen". Av som standard. */
+  selfRegistration: boolean("self_registration").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (table) => [
   check("race_info_check", sql`${table.info} IS NULL OR char_length(${table.info}) BETWEEN 1 AND 1000`),
@@ -243,6 +245,8 @@ export const entries = pgTable("entry", {
   seedRank: integer("seed_rank"),
   /** "Stryk" (migration 0006): dold i alla listor, historik och råa avläsningar finns kvar. NULL = inte struken. */
   struckAt: timestamp("struck_at", { withTimezone: true }),
+  /** Steg 41 (migration 0018): löparen registrerade sig själv på tävlingssidan. NULL = admin, import eller avläsningen. */
+  selfRegisteredAt: timestamp("self_registered_at", { withTimezone: true }),
   version: integer("version").notNull().default(1),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (table) => [

@@ -50,6 +50,10 @@ export interface PartyGuest {
   readonly cardNumber: string;
   readonly name: string;
   readonly club?: string | undefined;
+  /** Steg 41: gästen registrerade pinnen själv på fest-sidan. */
+  readonly selfRegistered?: boolean | undefined;
+  /** Steg 41: visningsnamn (smeknamn) som gästen valt; annars förnamn + efternamnets första bokstav. */
+  readonly displayName?: string | undefined;
 }
 
 /** In- eller utcheckning i bardisken. */
@@ -101,6 +105,27 @@ export interface PartyGuestSummary {
   /** Senaste utläsningens antal stämplingar och brickans plats, om brickan kan bli full. */
   readonly memory?: { readonly punches: number; readonly capacity: number } | undefined;
   readonly lastReadAt?: string | undefined;
+  /** Steg 41: gästen registrerade pinnen själv på fest-sidan. */
+  readonly selfRegistered?: boolean | undefined;
+  /** Steg 41: visningsnamnet som gästen eller personalen valt (inte förvalet). */
+  readonly displayName?: string | undefined;
+}
+
+export const PARTY_DISPLAY_NAME_MAX = 40;
+
+/** Förvalt visningsnamn: förnamnet och efternamnets första bokstav ("Oskar Karlsson" → "Oskar K"). */
+export function partyDefaultDisplayName(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "";
+  const first = words[0]!.slice(0, PARTY_DISPLAY_NAME_MAX - 2);
+  const last = words.length > 1 ? Array.from(words.at(-1)!)[0] : undefined;
+  return last ? `${first} ${last.toLocaleUpperCase("sv")}` : first;
+}
+
+/** Namnet som visas publikt och i bardiskens kioskskärm: visningsnamnet, annars förvalet. Fullt namn visas aldrig där. */
+export function partyDisplayName(guest: { readonly name?: string | undefined; readonly displayName?: string | undefined }): string | undefined {
+  if (guest.displayName) return guest.displayName;
+  return guest.name ? partyDefaultDisplayName(guest.name) || undefined : undefined;
 }
 
 export interface PartyLedger {
@@ -243,7 +268,8 @@ export function partyLedger(input: PartyLedgerInput): PartyLedger {
       ...(checkIns.has(cardNumber) ? { checkIn: checkIns.get(cardNumber) } : {}),
       ...(checkouts.has(cardNumber) ? { checkout: checkouts.get(cardNumber) } : {}),
       ...(last && capacity !== undefined ? { memory: { punches: last.punches.length, capacity } } : {}),
-      ...(last ? { lastReadAt: last.readAt } : {}) };
+      ...(last ? { lastReadAt: last.readAt } : {}), ...(guest?.selfRegistered ? { selfRegistered: true } : {}),
+      ...(guest?.displayName ? { displayName: guest.displayName } : {}) };
   }).sort((left, right) => (left.name ?? "￿").localeCompare(right.name ?? "￿", "sv") ||
     Number(left.cardNumber) - Number(right.cardNumber));
   const counted = rows.filter(row => !row.voided);
@@ -286,8 +312,8 @@ export const PARTY_SOURCE_SV: Record<PartyPresenceSource, string> = { START: "St
  */
 export function partySummaryCsv(ledger: PartyLedger, timeZone: string): string {
   const time = (value: PartyPresence | undefined) => value ? formatPartyTime(value.at, timeZone) : "";
-  return csv([["Namn", "Klubb", "Bricka", "Antal köp", "Summa kr", "Incheckad", "Utcheckad", "Utcheckad via"],
-    ...ledger.guests.map(guest => [guest.name ?? "", guest.club ?? "", guest.cardNumber, guest.purchaseCount,
+  return csv([["Namn", "Visningsnamn", "Klubb", "Bricka", "Antal köp", "Summa kr", "Incheckad", "Utcheckad", "Utcheckad via"],
+    ...ledger.guests.map(guest => [guest.name ?? "", partyDisplayName(guest) ?? "", guest.club ?? "", guest.cardNumber, guest.purchaseCount,
       formatPartyKronor(guest.totalOre), time(guest.checkIn), time(guest.checkout),
       guest.checkout ? PARTY_SOURCE_SV[guest.checkout.source] : ""])]);
 }
@@ -295,8 +321,8 @@ export function partySummaryCsv(ledger: PartyLedger, timeZone: string): string {
 /** Alla köp, äldst först, med ångrade och köp efter utcheckning markerade. */
 export function partyPurchasesCsv(ledger: PartyLedger, timeZone: string): string {
   const names = new Map(ledger.guests.map(guest => [guest.cardNumber, guest]));
-  return csv([["Tid", "Bricka", "Namn", "Klubb", "Vara", "Kod", "Pris kr", "Efter utcheckning", "Ångrad", "Orsak"],
+  return csv([["Tid", "Bricka", "Namn", "Visningsnamn", "Klubb", "Vara", "Kod", "Pris kr", "Efter utcheckning", "Ångrad", "Orsak"],
     ...ledger.purchases.map(row => [formatPartyTime(row.punchedAt, timeZone), row.cardNumber, names.get(row.cardNumber)?.name ?? "",
-      names.get(row.cardNumber)?.club ?? "", row.itemName, row.code, formatPartyKronor(row.priceOre), row.afterCheckout ? "ja" : "",
+      partyDisplayName(names.get(row.cardNumber) ?? {}) ?? "", names.get(row.cardNumber)?.club ?? "", row.itemName, row.code, formatPartyKronor(row.priceOre), row.afterCheckout ? "ja" : "",
       row.voided ? "ja" : "", row.voided?.reason ?? ""])]);
 }

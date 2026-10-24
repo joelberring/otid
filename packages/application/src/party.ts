@@ -5,7 +5,7 @@ import {
   type PublicPartyResponse
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { PARTY_DOUBLE_PUNCH_SECONDS, partyLedger, partyPublicStats } from "@o-tid/domain";
+import { normalizeSelfRegistrationName, PARTY_DISPLAY_NAME_MAX, PARTY_DOUBLE_PUNCH_SECONDS, partyLedger, partyPublicStats } from "@o-tid/domain";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation } from "./concurrency";
 import type { DbExecutor } from "./snapshot";
@@ -74,7 +74,8 @@ export async function loadPartyState(tx: DbExecutor, raceId: string, now: Date):
     deskEvents: deskEvents.map(row => ({ cardNumber: row.cardNumber, kind: row.kind, at: iso(row.happenedAt) })),
     voids: voids.map(row => ({ cardNumber: row.cardNumber, code: row.controlCode, punchedAt: iso(row.punchedAt), reason: row.reason,
       voidedAt: iso(row.createdAt) })),
-    guests: guests.map(row => ({ cardNumber: row.cardNumber, name: row.name, ...(row.club ? { club: row.club } : {}) })) });
+    guests: guests.map(row => ({ cardNumber: row.cardNumber, name: row.name, ...(row.club ? { club: row.club } : {}),
+      ...(row.selfRegisteredAt ? { selfRegistered: true } : {}), ...(row.displayName ? { displayName: row.displayName } : {}) })) });
   return partyStateResponseSchema.parse({ formatVersion: 1, raceId, timeZone: race.timeZone, startsAt: startsAt ?? null, items,
     theme: await loadTheme(tx, raceId, setting), doublePunchSeconds,
     showPublicNames: setting?.showPublicNames ?? true, publicPath: `/fest/${race.shortCode}`, purchases: ledger.purchases, guests: ledger.guests,
@@ -151,6 +152,13 @@ export async function changePartyAsAdmin(db: Database, input: RaceSessionProof &
       }
       await audit(item.id, "PARTY_ITEM_CHANGED", { name: item.name, group: item.group, hidden: item.hidden, priceOre: priceBefore ?? null },
         { name: change.name, group, hidden: change.hidden, priceOre: change.priceOre });
+    } else if (change.kind === "guest-remove") {
+      const [removed] = await tx.delete(schema.partyGuests).where(and(eq(schema.partyGuests.raceId, raceId),
+        eq(schema.partyGuests.cardNumber, change.cardNumber))).returning();
+      if (removed) {
+        await audit(raceId, "PARTY_GUEST_REMOVED", { cardNumber: removed.cardNumber, name: removed.name, club: removed.club,
+          selfRegistered: removed.selfRegisteredAt !== null }, { cardNumber: removed.cardNumber });
+      }
     } else {
       const inserted = await tx.insert(schema.partyPurchaseVoids).values({ raceId, cardNumber: change.cardNumber, controlCode: change.code,
         punchedAt: new Date(change.punchedAt), reason: change.reason, actorAccountId: auth.principal.accountId, createdAt: now })
@@ -179,14 +187,18 @@ export async function setPartyGuestAsAdmin(db: Database, input: RaceSessionProof
     if (!await isParty(tx, raceId)) return { status: "not-found" };
     const [before] = await tx.select().from(schema.partyGuests)
       .where(and(eq(schema.partyGuests.raceId, raceId), eq(schema.partyGuests.cardNumber, guest.cardNumber)));
-    if (before && before.name === guest.name && before.club === guest.club) return { status: "ok" };
-    await tx.insert(schema.partyGuests).values({ raceId, cardNumber: guest.cardNumber, name: guest.name, club: guest.club, updatedAt: now })
+    // Steg 41: visningsnamnet normaliseras; saknas det i förfrågan behålls det, null = förvalet.
+    const displayName = guest.displayName === undefined ? before?.displayName ?? null
+      : guest.displayName === null ? null : normalizeSelfRegistrationName(guest.displayName, PARTY_DISPLAY_NAME_MAX);
+    if (displayName === undefined) return { status: "invalid-request" };
+    if (before && before.name === guest.name && before.club === guest.club && before.displayName === displayName) return { status: "ok" };
+    await tx.insert(schema.partyGuests).values({ raceId, cardNumber: guest.cardNumber, name: guest.name, club: guest.club, displayName, updatedAt: now })
       .onConflictDoUpdate({ target: [schema.partyGuests.raceId, schema.partyGuests.cardNumber],
-        set: { name: guest.name, club: guest.club, updatedAt: now } });
+        set: { name: guest.name, club: guest.club, displayName, updatedAt: now } });
     await tx.insert(schema.auditEvents).values({ raceId, entityType: "party", entityId: raceId, actorKind: "USER_ACCOUNT",
       actorId: auth.principal.accountId, action: "PARTY_GUEST_NAMED",
-      before: before ? { cardNumber: before.cardNumber, name: before.name, club: before.club } : null,
-      after: { cardNumber: guest.cardNumber, name: guest.name, club: guest.club }, createdAt: now });
+      before: before ? { cardNumber: before.cardNumber, name: before.name, club: before.club, displayName: before.displayName } : null,
+      after: { cardNumber: guest.cardNumber, name: guest.name, club: guest.club, displayName }, createdAt: now });
     return { status: "ok" };
   });
 }

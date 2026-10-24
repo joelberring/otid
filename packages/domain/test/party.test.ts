@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  formatPartyKronor, partyCardCapacity, partyLedger, partyMemoryWarning, partyPriceAt, partyPurchasesCsv, partyPurchasesOnCard,
+  formatPartyKronor, partyCardCapacity, partyDefaultDisplayName, partyDisplayName, partyLedger, partyMemoryWarning, partyPriceAt, partyPurchasesCsv, partyPurchasesOnCard,
   partySummaryCsv, type PartyItem, type PartyReadout
 } from "../src";
 
@@ -110,16 +110,24 @@ describe("fest: CSV", () => {
     const text = partySummaryCsv(ledger, "Europe/Stockholm");
     expect(text.startsWith("﻿")).toBe(true);
     expect(text.slice(1).split("\r\n")).toEqual([
-      "Namn;Klubb;Bricka;Antal köp;Summa kr;Incheckad;Utcheckad;Utcheckad via",
-      "\"Åsa \"\"Ölet\"\" Öberg\";\"Påhittade OK; Väst\";8123456;1;40,00;;2026-10-24 23:47:00;Mål",
+      "Namn;Visningsnamn;Klubb;Bricka;Antal köp;Summa kr;Incheckad;Utcheckad;Utcheckad via",
+      "\"Åsa \"\"Ölet\"\" Öberg\";Åsa Ö;\"Påhittade OK; Väst\";8123456;1;40,00;;2026-10-24 23:47:00;Mål",
       ""
     ]);
   });
 
   it("alla köp: en rad per köp", () => {
     const lines = partyPurchasesCsv(ledger, "Europe/Stockholm").slice(1).split("\r\n");
-    expect(lines[0]).toBe("Tid;Bricka;Namn;Klubb;Vara;Kod;Pris kr;Efter utcheckning;Ångrad;Orsak");
-    expect(lines[1]).toBe("2026-10-24 21:14:00;8123456;\"Åsa \"\"Ölet\"\" Öberg\";\"Påhittade OK; Väst\";Öl 40 kr;31;40,00;;;");
+    expect(lines[0]).toBe("Tid;Bricka;Namn;Visningsnamn;Klubb;Vara;Kod;Pris kr;Efter utcheckning;Ångrad;Orsak");
+    expect(lines[1]).toBe("2026-10-24 21:14:00;8123456;\"Åsa \"\"Ölet\"\" Öberg\";Åsa Ö;\"Påhittade OK; Väst\";Öl 40 kr;31;40,00;;;");
+  });
+
+  it("visningsnamn: förvalt förnamn + efternamnets första bokstav, valt smeknamn går före", () => {
+    expect(partyDefaultDisplayName("Oskar Karlsson")).toBe("Oskar K");
+    expect(partyDefaultDisplayName("  anna  maria  öberg ")).toBe("anna Ö");
+    expect(partyDefaultDisplayName("Cher")).toBe("Cher");
+    expect(partyDisplayName({ name: "Oskar Karlsson", displayName: "Kalle" })).toBe("Kalle");
+    expect(partyDisplayName({})).toBeUndefined();
   });
 
   it("formler i fält oskadliggörs och kronor formateras", () => {
@@ -159,8 +167,9 @@ describe("fest: publik statistik", () => {
     expect(JSON.stringify(anonymous)).not.toMatch(/Testa|8123456|Ore|ore/);
     expect(anonymous.firstFinish).toEqual({ at: "2026-10-24T21:47:00.000Z" });
     const named = partyPublicStats(ledger, { showNames: true });
-    expect(named.guests).toEqual([{ name: "Testa Festsson", purchaseCount: 3 }]);
-    expect(named.recent[0]).toEqual({ at: "2026-10-24T19:50:00.000Z", itemName: "Drink 60 kr", name: "Testa Festsson" });
+    expect(named.guests).toEqual([{ name: "Testa F", purchaseCount: 3 }]);
+    expect(named.recent[0]).toEqual({ at: "2026-10-24T19:50:00.000Z", itemName: "Drink 60 kr", name: "Testa F" });
+    expect(JSON.stringify(named)).not.toContain("Festsson");
     expect(JSON.stringify(named)).not.toMatch(/8123456|totalOre|priceOre/);
     const grouped = partyPublicStats(ledger, { showNames: false, items: [{ id: "drink", group: "Drink" }, { id: "beer", group: null }] });
     expect(grouped.groups).toEqual([{ name: "Drink", count: 1 }]);

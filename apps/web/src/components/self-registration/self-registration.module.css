@@ -1,0 +1,12 @@
+/* "Registrera din pinne" (PLAN.md steg 41): ett tydligt kort på fest-sidan och tävlingssidan, ett fält per rad på mobil. */
+.box { display: grid; gap: 12px; padding: 16px 18px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.box h2 { margin: 0; font-size: var(--text-lg); }
+.form { display: grid; gap: 12px; }
+.form input, .form select { width: 100%; min-height: 44px; box-sizing: border-box; }
+.intro, .privacy { margin: 0; }
+.privacy { color: var(--muted); font-size: var(--text-sm); }
+.names { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.receipt { display: grid; gap: 12px; justify-items: start; }
+.trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+@media (max-width: 560px) { .names { grid-template-columns: 1fr; } }
+.form { max-width: 640px; }

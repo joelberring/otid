@@ -35,7 +35,13 @@ export function validateSelfRegistration(form: Form, needsClass: boolean): Field
   };
 }
 
-export function SelfRegistrationForm({ raceId }: { raceId: string }) {
+/**
+ * `collapsible` (steg 42, fest-sidan): en knapp "Registrera din pinne" med aria-expanded, stängd från början, som fäller
+ * ut formuläret. Knappen och formuläret är egna rader i förälderns flexrad (`display: contents`).
+ */
+export function SelfRegistrationForm({ raceId, collapsible = false }: { raceId: string; collapsible?: boolean }) {
+  const [expanded, setExpanded] = useState(false);
+  const panelId = useId();
   const [info, setInfo] = useState<SelfRegistrationInfoResponse>();
   const [form, setForm] = useState<Form>(empty);
   const [errors, setErrors] = useState<FieldErrors<FieldName>>({});
@@ -97,50 +103,61 @@ export function SelfRegistrationForm({ raceId }: { raceId: string }) {
     finally { setSaving(false); }
   }
 
-  return <section className={styles.box} aria-labelledby="self-registration-title" data-testid="self-registration">
-    <h2 id="self-registration-title">{text.title}</h2>
-    {receipt ? <div className={styles.receipt}>
-      <Notice tone="ok" role="status">
-        <strong>{text.receipt(receipt.cardNumber, receipt.name)}</strong>
-        {receipt.className ? <> {text.receiptClass(receipt.className)}</> : null}
-        {receipt.displayName ? <> {text.receiptDisplayName(receipt.displayName)}</> : null}
-      </Notice>
-      <Button variant="secondary" onClick={() => setReceipt(undefined)}>{text.again}</Button>
-    </div> : <form ref={formRef} noValidate onSubmit={submit} className={styles.form}>
-      <p className={styles.intro}>{needsClass ? text.intro.race : text.intro.party}</p>
-      <Field label={text.cardNumber} help={text.cardHelp} error={errors.cardNumber}>
-        <input name="cardNumber" inputMode="numeric" autoComplete="off" maxLength={9} value={form.cardNumber} onChange={change("cardNumber")} />
-      </Field>
-      <div className={styles.names}>
-        <Field label={text.givenName} error={errors.givenName}>
-          <input name="givenName" autoComplete="given-name" maxLength={60} value={form.givenName} onChange={change("givenName")} />
+  if (collapsible) return <div className={styles.dropdown}>
+    <button type="button" className={styles.toggle} aria-expanded={expanded} aria-controls={panelId}
+      onClick={() => setExpanded(value => !value)}>{text.title}<span aria-hidden="true" className={styles.chevron}>▾</span></button>
+    <div id={panelId} className={styles.panel} hidden={!expanded}>{renderBox(false)}</div>
+  </div>;
+  return renderBox(true);
+
+  function renderBox(heading: boolean) {
+    if (!info) return null;
+    return <section className={styles.box} aria-labelledby={heading ? "self-registration-title" : undefined}
+      aria-label={heading ? undefined : text.title} data-testid="self-registration">
+      {heading ? <h2 id="self-registration-title">{text.title}</h2> : null}
+      {receipt ? <div className={styles.receipt}>
+        <Notice tone="ok" role="status">
+          <strong>{text.receipt(receipt.cardNumber, receipt.name)}</strong>
+          {receipt.className ? <> {text.receiptClass(receipt.className)}</> : null}
+          {receipt.displayName ? <> {text.receiptDisplayName(receipt.displayName)}</> : null}
+        </Notice>
+        <Button variant="secondary" onClick={() => setReceipt(undefined)}>{text.again}</Button>
+      </div> : <form ref={formRef} noValidate onSubmit={submit} className={styles.form}>
+        <p className={styles.intro}>{needsClass ? text.intro.race : text.intro.party}</p>
+        <Field label={text.cardNumber} help={text.cardHelp} error={errors.cardNumber}>
+          <input name="cardNumber" inputMode="numeric" autoComplete="off" maxLength={9} value={form.cardNumber} onChange={change("cardNumber")} />
         </Field>
-        <Field label={text.familyName} error={errors.familyName}>
-          <input name="familyName" autoComplete="family-name" maxLength={60} value={form.familyName} onChange={change("familyName")} />
+        <div className={styles.names}>
+          <Field label={text.givenName} error={errors.givenName}>
+            <input name="givenName" autoComplete="given-name" maxLength={60} value={form.givenName} onChange={change("givenName")} />
+          </Field>
+          <Field label={text.familyName} error={errors.familyName}>
+            <input name="familyName" autoComplete="family-name" maxLength={60} value={form.familyName} onChange={change("familyName")} />
+          </Field>
+        </div>
+        <Field label={text.club} error={errors.club}>
+          <input name="club" autoComplete="organization" maxLength={80} list={info.clubs.length ? clubsId : undefined} value={form.club}
+            onChange={change("club")} />
         </Field>
-      </div>
-      <Field label={text.club} error={errors.club}>
-        <input name="club" autoComplete="organization" maxLength={80} list={info.clubs.length ? clubsId : undefined} value={form.club}
-          onChange={change("club")} />
-      </Field>
-      {!needsClass ? <Field label={text.displayName} error={errors.displayName}
-        help={text.displayNameHelp(form.givenName.trim() ? partyDefaultDisplayName(`${form.givenName} ${form.familyName}`) : "Oskar K")}>
-        <input name="displayName" autoComplete="nickname" maxLength={PARTY_DISPLAY_NAME_MAX} value={form.displayName} onChange={change("displayName")} />
-      </Field> : null}
-      {info.clubs.length ? <datalist id={clubsId}>{info.clubs.map(club => <option key={club} value={club} />)}</datalist> : null}
-      {needsClass ? <Field label={text.className} error={errors.classId}>
-        <select name="classId" value={form.classId} onChange={change("classId")}>
-          <option value="">{text.chooseClass}</option>
-          {info.classes.map(row => <option key={row.id} value={row.id}>{row.name}</option>)}
-        </select>
-      </Field> : null}
-      {/* Fälla för robotar: dold för människor och skärmläsare. */}
-      <div className={styles.trap} aria-hidden="true">
-        <label>{text.trap}<input name="website" tabIndex={-1} autoComplete="off" value={form.website} onChange={change("website")} /></label>
-      </div>
-      <p className={styles.privacy}>{text.privacy} <Link href="/integritet">{text.privacyLink}</Link></p>
-      {message ? <Notice tone="error" role="alert">{message}</Notice> : null}
-      <div><Button type="submit" disabled={saving}>{saving ? text.saving : text.submit}</Button></div>
-    </form>}
-  </section>;
+        {!needsClass ? <Field label={text.displayName} error={errors.displayName}
+          help={text.displayNameHelp(form.givenName.trim() ? partyDefaultDisplayName(`${form.givenName} ${form.familyName}`) : "Oskar K")}>
+          <input name="displayName" autoComplete="nickname" maxLength={PARTY_DISPLAY_NAME_MAX} value={form.displayName} onChange={change("displayName")} />
+        </Field> : null}
+        {info.clubs.length ? <datalist id={clubsId}>{info.clubs.map(club => <option key={club} value={club} />)}</datalist> : null}
+        {needsClass ? <Field label={text.className} error={errors.classId}>
+          <select name="classId" value={form.classId} onChange={change("classId")}>
+            <option value="">{text.chooseClass}</option>
+            {info.classes.map(row => <option key={row.id} value={row.id}>{row.name}</option>)}
+          </select>
+        </Field> : null}
+        {/* Fälla för robotar: dold för människor och skärmläsare. */}
+        <div className={styles.trap} aria-hidden="true">
+          <label>{text.trap}<input name="website" tabIndex={-1} autoComplete="off" value={form.website} onChange={change("website")} /></label>
+        </div>
+        <p className={styles.privacy}>{text.privacy} <Link href="/integritet">{text.privacyLink}</Link></p>
+        {message ? <Notice tone="error" role="alert">{message}</Notice> : null}
+        <div><Button type="submit" disabled={saving}>{saving ? text.saving : text.submit}</Button></div>
+      </form>}
+    </section>;
+  }
 }

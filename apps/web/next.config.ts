@@ -23,6 +23,8 @@ const nextConfig: NextConfig = {
     const noIndex = { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive, nosnippet, noai, noimageai" };
     return [
       { source: "/fest/:code", headers: [noIndex] },
+      // Steg 42: QR-skylten har samma skydd.
+      { source: "/fest/:code/qr", headers: [noIndex] },
       { source: "/api/public/parties/:path*", headers: [noIndex, { key: "Cache-Control", value: "private, no-store" }] },
       // Avläsningen behöver Web Serial för USB-stationen.
       { source: "/readout/:path*", headers: [...shellHeaders,

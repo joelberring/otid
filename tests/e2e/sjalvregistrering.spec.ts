@@ -47,7 +47,12 @@ test("självregistrering: gästen kopplar sitt namn till pinnen och bardisken k�
   const visitor = await (await browser.newContext()).newPage();
   await visitor.goto(publicPath!);
   const form = visitor.getByTestId("self-registration");
-  await expect(form.getByRole("heading", { name: "Registrera din pinne" })).toBeVisible();
+  // Steg 42: på fest-sidan är formuläret utfällbart under rubriken, stängt från början.
+  const toggle = visitor.getByRole("button", { name: "Registrera din pinne" });
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(form).toBeHidden();
+  await toggle.click();
+  await expect(form).toBeVisible();
   // En fest utan utseendet "Centrum OK 20 år" behåller sitt typsnitt.
   expect(await visitor.locator("h1").evaluate(element => getComputedStyle(element).fontFamily)).not.toContain("Poppins");
   await expect(form.getByRole("link", { name: "Om personuppgifter" })).toHaveAttribute("href", "/integritet");

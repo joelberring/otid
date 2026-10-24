@@ -11,3 +11,13 @@
 @media (max-width: 560px) { .names { grid-template-columns: 1fr; } }
 .form { max-width: 640px; }
 .box h2 { font-family: var(--party-heading-font, inherit); }
+/* Steg 42: på fest-sidan en utfällbar knapp i raden under rubriken; formuläret fälls ut på en egen rad under raden. */
+.dropdown { display: contents; }
+.toggle { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; border: 2px solid var(--party-primary, var(--ink));
+  border-radius: var(--radius); background: var(--surface); color: var(--party-primary-text, var(--ink)); font-family: var(--party-heading-font, inherit);
+  font-size: var(--text-md); font-weight: 700; cursor: pointer; }
+.dropdown .toggle:hover:not(:disabled) { background: var(--subtle); color: var(--party-primary-text, var(--ink)); }
+.dropdown .toggle[aria-expanded="true"], .dropdown .toggle[aria-expanded="true"]:hover:not(:disabled) { background: var(--party-primary, var(--ink)); color: var(--party-on-primary, var(--surface)); }
+.toggle[aria-expanded="true"] .chevron { transform: rotate(180deg); }
+.chevron { display: inline-block; font-size: .9em; }
+.panel { order: 10; flex: 1 0 100%; min-width: 0; }

@@ -13,7 +13,7 @@ test("fest: bardisken checkar in, verifierar köp och checkar ut med mål", asyn
   const suffix = unique();
   const owner = await registerAccount(browser, `fest.${suffix}@exempel.se`, "Fia Fest");
   const raceId = await createRace(owner, `Klubbfest ${suffix}`, today(), "Fest");
-  for (const path of ["/fest/aaaaaa", `/api/public/parties/${raceId}`, `/api/public/parties/${raceId}/logo`, "/robots.txt"]) await warmRoute(owner, path);
+  for (const path of ["/fest/aaaaaa", "/fest/aaaaaa/qr", `/api/public/races/${raceId}/self-registration`, `/api/public/parties/${raceId}`, `/api/public/parties/${raceId}/logo`, "/robots.txt"]) await warmRoute(owner, path);
   for (const path of ["party-guests", "party-desk-events", "party-logo"]) await warmRoute(owner, `/api/admin/races/${raceId}/administrator/${path}`, "POST");
 
   // Festens start i dag 00:00, så att övningens stämplingar räknas. Två varor med kod och pris.
@@ -146,6 +146,11 @@ test("fest: bardisken checkar in, verifierar köp och checkar ut med mål", asyn
   await expect(owner.getByTestId("party-totals")).toContainText("1 köp · 60,00 kr");
   await expect(owner.getByTestId("party-purchases")).toContainText("ångrat: Fel enhet");
 
+  // Steg 42: självregistreringen på, så att "Registrera din pinne" finns i raden under rubriken.
+  await owner.getByLabel("Tillåt självregistrering på tävlingsdagen").click();
+  await expect(owner.getByText("Självregistreringen är på.")).toBeVisible();
+  await expect(owner.getByRole("link", { name: "Skriv ut QR-skylt" })).toHaveAttribute("href", /^\/fest\/[2-9a-hjkmnp-z]{6}\/qr$/);
+
   // Den publika fest-sidan: publicerad, statistik i webbläsaren, namn bara via JavaScript och stängd för robotar.
   await publishRaceViaApi(owner, raceId);
   const publicPath = await owner.getByRole("link", { name: "Visa den publika sidan" }).getAttribute("href");
@@ -179,12 +184,56 @@ test("fest: bardisken checkar in, verifierar köp och checkar ut med mål", asyn
   await expect(visitor.getByRole("heading", { name: "Vad säljer bäst" })).toBeVisible();
   await expect(visitor.getByTestId("party-public")).toContainText("Festa P");
   await expect(visitor.getByTestId("party-public")).not.toContainText("Påhittsson");
-  await expect(visitor.getByTestId("party-public")).not.toContainText("kr");
+  await expect(visitor.getByTestId("party-public")).not.toContainText(/\d\s?kr\b/);
   // Steg 41: "Centrum OK 20 år" har rubriker i Poppins Bold (självhostad) och centrumröd som bärande färg.
   await expect(visitor.getByTestId("party-public")).toHaveAttribute("data-look", "centrum");
   expect(await visitor.locator("h1").evaluate(element => getComputedStyle(element).fontFamily)).toContain("Poppins");
   expect(await visitor.evaluate(async () => { await document.fonts.ready; return document.fonts.check('700 16px "Poppins"'); })).toBe(true);
   await reviewScreenshots(visitor, "fest-publik");
+
+  // Steg 42: kvällens sträcktider med visningsnamnet efter köpet (Ölen är ångrad, Drinken kvar), aldrig fullt namn eller belopp.
+  const splits = visitor.getByTestId("party-splits");
+  await expect(splits.getByRole("heading", { name: "Kvällens sträcktider" })).toBeVisible();
+  const row = splits.locator("tbody tr").filter({ hasText: "Festa P" });
+  await expect(row).toContainText("1 köp");
+  await expect(row).toContainText(/\d\d:\d\d Drink/);
+  await expect(row).toContainText(/Mål \d\d:\d\d/);
+  await expect(row).toContainText(/\+\d+:\d\d/);
+  await expect(row).not.toContainText("Öl");
+  await expect(splits).not.toContainText("Påhittsson");
+  await expect(splits).not.toContainText("Tvåsson");
+  await expect(splits).not.toContainText(/\d\s?kr\b/);
+  // Raden under rubriken: "Registrera din pinne" fälls ut, länken leder till sträcktiderna, så betalar du.
+  const toggle = visitor.getByRole("button", { name: "Registrera din pinne" });
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(visitor.getByTestId("self-registration")).toBeHidden();
+  await expect(visitor.getByRole("list", { name: "Så betalar du" })).toContainText("Checka in");
+  await reviewScreenshots(visitor, "fest-publik-rad");
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect(visitor.getByTestId("self-registration").getByLabel("Bricknummer")).toBeVisible();
+  await reviewScreenshots(visitor, "fest-publik-registrera");
+  await toggle.click();
+  await visitor.getByRole("link", { name: "Kvällens sträcktider" }).click();
+  await expect(visitor).toHaveURL(/#stracktider$/);
+  await expect(splits).toBeInViewport();
+  await reviewScreenshots(visitor, "fest-stracktider");
+
+  // QR-skylten: samma grind och skydd, QR-adressen till fest-sidan, inga namn.
+  const sign = await visitor.request.get(`${publicPath!}/qr`);
+  expect(sign.headers()["x-robots-tag"]).toBe("noindex, nofollow, noarchive, nosnippet, noai, noimageai");
+  const signHtml = await sign.text();
+  expect(signHtml).toContain('<meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex"/>');
+  expect(signHtml).not.toMatch(/Festa|Tvåsson/);
+  await visitor.goto(`${publicPath!}/qr`);
+  const qr = visitor.getByTestId("party-qr");
+  await expect(qr).toHaveAttribute("data-url", new RegExp(`^https?://[^/]+${publicPath!}$`));
+  await expect(qr.getByRole("heading", { name: "Jubileumsbaren" })).toBeVisible();
+  await expect(qr.getByRole("img", { name: /QR-kod till fest-sidan/ })).toBeVisible();
+  await expect(qr).toContainText(publicPath!);
+  await expect(qr).toContainText("Checka in");
+  expect(await qr.locator("h1").evaluate(element => getComputedStyle(element).fontFamily)).toContain("Poppins");
+  await reviewScreenshots(visitor, "fest-qr");
 
   // En vanlig tävlings publika sida har inga av fest-sidans huvuden.
   await owner.goto("/organizer");

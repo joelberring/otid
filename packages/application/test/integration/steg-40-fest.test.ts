@@ -154,3 +154,35 @@ describe("steg 40: fest med bardisk", () => {
   });
 });
 
+
+describe("steg 42: kvällens sträcktider på den publika sidan", () => {
+  it("rätt händelser i tidsordning, bara köp som räknas, och inget läcker i något namnläge", async () => {
+    const { raceId, admin, change } = await party();
+    const device = randomUUID();
+    // Före festens start (räknas inte), dubbelstämpling inom 5 s (ett köp), ett köp som ångras, mål.
+    await ingestDeviceBatch(db, raceId, readout(device, 1, "8123456", [[31, "2026-10-24T14:00:00.000Z"], [31, "2026-10-24T19:14:00.000Z"],
+      [31, "2026-10-24T19:14:03.000Z"], [32, "2026-10-24T19:32:30.000Z"], [31, "2026-10-24T20:00:00.000Z"]],
+    { startPunchedAt: "2026-10-24T16:00:00.000Z", finishPunchedAt: "2026-10-24T21:47:00.000Z" }));
+    await ingestDeviceBatch(db, raceId, readout(device, 2, "2100200", [[32, "2026-10-24T19:20:00.000Z"]]));
+    await change({ kind: "void", cardNumber: "8123456", code: 31, punchedAt: "2026-10-24T20:00:00.000Z", reason: "Fel enhet" });
+    await setPartyGuestAsAdmin(db, { ...admin, request: { formatVersion: 1, cardNumber: "8123456", name: "Festa Påhittsson", club: "Påhittade OK",
+      displayName: "Festis" } });
+    await setPartyGuestAsAdmin(db, { ...admin, request: { formatVersion: 1, cardNumber: "2100200", name: "Gästa Tvåsson", club: null } });
+
+    const named = await readPublicParty(db, raceId);
+    expect(named?.splits).toEqual([
+      { guestNumber: 1, name: "Festis", purchaseCount: 2, totalSeconds: 5 * 3_600 + 47 * 60, checkIn: { at: "2026-10-24T16:00:00.000Z" },
+        purchases: [{ at: "2026-10-24T19:14:00.000Z", sinceSeconds: 3 * 3_600 + 14 * 60, itemName: "Öl" },
+          { at: "2026-10-24T19:32:30.000Z", sinceSeconds: 18 * 60 + 30, itemName: "Drink" }],
+        checkout: { at: "2026-10-24T21:47:00.000Z", sinceSeconds: 2 * 3_600 + 14 * 60 + 30 } },
+      { guestNumber: 2, name: "Gästa T", purchaseCount: 1, totalSeconds: 0, purchases: [{ at: "2026-10-24T19:20:00.000Z", itemName: "Drink" }] }]);
+    const leaks = /8123456|2100200|Påhittsson|Tvåsson|Påhittade|Ore|cardNumber|raceId|itemId|"40|"60|[0-9a-f]{8}-[0-9a-f]{4}/;
+    expect(JSON.stringify(named).replace(/\/api\/public\/parties\/[^"]+/, "")).not.toMatch(leaks);
+
+    await change({ kind: "settings", startsAt, showPublicNames: false, doublePunchSeconds: 5 });
+    const anonymous = await readPublicParty(db, raceId);
+    expect(anonymous?.splits.map(row => [row.guestNumber, row.name, row.purchaseCount])).toEqual([[1, undefined, 2], [2, undefined, 1]]);
+    expect(JSON.stringify(anonymous).replace(/\/api\/public\/parties\/[^"]+/, "")).not.toMatch(leaks);
+    expect(JSON.stringify(anonymous)).not.toMatch(/Festis|Gästa|Festa/);
+  });
+});

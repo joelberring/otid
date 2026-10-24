@@ -176,3 +176,48 @@ describe("fest: publik statistik", () => {
     expect(grouped.items.find(item => item.name === "Drink 60 kr")?.group).toBe("Drink");
   });
 });
+
+describe("fest: kvällens sträcktider (steg 42)", () => {
+  // Påhittade gäster. A: in 17:01 (start), två öl och en drink, mål 23:47. B: en drink, ingen incheckning. C: en öl (ångrad
+  // dubbelstämpling räknas inte) och en drink, samma antal som D men tidigare första köp. D: två köp, det ena ångrat bort.
+  const ledger = partyLedger({ startsAt, items, readouts: [
+    { ...read("8123456", "2026-10-24T21:50:00.000Z", [[31, "2026-10-24T19:14:00.000Z"], [31, "2026-10-24T19:32:30.000Z"],
+      [32, "2026-10-24T20:00:00.000Z"]], "2026-10-24T21:47:00.000Z"), startPunchedAt: "2026-10-24T15:01:00.000Z" },
+    read("2100200", "2026-10-24T19:40:00.000Z", [[32, "2026-10-24T19:35:00.000Z"]]),
+    read("500300", "2026-10-24T19:20:00.000Z", [[31, "2026-10-24T19:10:00.000Z"], [31, "2026-10-24T19:10:03.000Z"], [32, "2026-10-24T19:30:00.000Z"]]),
+    read("700400", "2026-10-24T19:15:00.000Z", [[31, "2026-10-24T19:11:00.000Z"], [32, "2026-10-24T19:12:00.000Z"], [31, "2026-10-24T19:13:00.000Z"]])],
+  voids: [{ cardNumber: "700400", code: 31, punchedAt: "2026-10-24T19:13:00.000Z", reason: "Fel", voidedAt: "2026-10-24T19:20:00.000Z" }],
+  guests: [{ cardNumber: "8123456", name: "Testa Festsson", displayName: "Festis" }, { cardNumber: "2100200", name: "Påhitt Gästsson" }] });
+
+  it("rader, sträcktider, sortering och visningsnamn", async () => {
+    const { partySplits } = await import("../src");
+    const rows = partySplits(ledger, { showNames: true, items: [{ id: "drink", group: "Drink" }] });
+    // Flest köp först; vid lika det tidigaste första köpet (C 19:10 före D 19:11).
+    expect(rows.map(row => [row.name, row.purchaseCount])).toEqual([["Festis", 3], [undefined, 2], [undefined, 2], ["Påhitt G", 1]]);
+    expect(rows[1]!.purchases[0]!.at).toBe("2026-10-24T19:10:00.000Z");
+    const festis = rows[0]!;
+    expect(festis.checkIn).toEqual({ at: "2026-10-24T15:01:00.000Z" });
+    expect(festis.purchases).toEqual([
+      { at: "2026-10-24T19:14:00.000Z", sinceSeconds: 4 * 3_600 + 13 * 60, itemName: "Öl 40 kr" },
+      { at: "2026-10-24T19:32:30.000Z", sinceSeconds: 18 * 60 + 30, itemName: "Öl 40 kr" },
+      { at: "2026-10-24T20:00:00.000Z", sinceSeconds: 27 * 60 + 30, itemName: "Drink 60 kr", group: "Drink" }]);
+    expect(festis.checkout).toEqual({ at: "2026-10-24T21:47:00.000Z", sinceSeconds: 107 * 60 });
+    expect(festis.totalSeconds).toBe(6 * 3_600 + 46 * 60);
+    // Utan incheckning: första köpet har ingen sträcktid och kvällen räknas från första till senaste köpet.
+    expect(rows[3]).toMatchObject({ totalSeconds: 0, purchases: [{ at: "2026-10-24T19:35:00.000Z" }] });
+    expect(rows[3]!.purchases[0]!.sinceSeconds).toBeUndefined();
+    // Ångrade köp syns inte.
+    expect(rows[2]!.purchases.map(row => row.at)).toEqual(["2026-10-24T19:11:00.000Z", "2026-10-24T19:12:00.000Z"]);
+    expect(JSON.stringify(rows)).not.toMatch(/Festsson|Gästsson|8123456|2100200|500300|700400|Ore/);
+  });
+
+  it("utan namnvisning: bara Gäst N i en stabil ordning efter när gästen först syntes", async () => {
+    const { partySplits, partyPublicStats } = await import("../src");
+    const rows = partySplits(ledger, { showNames: false });
+    expect(rows.every(row => row.name === undefined)).toBe(true);
+    // A syntes först (incheckning 17:01), sedan D (utläst 21:15), C (21:20) och B (21:40).
+    expect(rows.map(row => row.guestNumber)).toEqual([1, 3, 2, 4]);
+    expect(partySplits(ledger, { showNames: true }).map(row => row.guestNumber)).toEqual([1, 3, 2, 4]);
+    expect(JSON.stringify(partyPublicStats(ledger, { showNames: false }).splits)).not.toMatch(/Festis|Testa|Påhitt|8123456/);
+  });
+});

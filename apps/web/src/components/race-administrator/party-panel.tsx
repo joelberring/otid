@@ -125,6 +125,9 @@ function PartyWorkspace({ raceId, admin, ws }: { raceId: string; admin: boolean;
       actions={<a className={local.open} href={`/admin/${raceId}/readout`} target="_blank" rel="noopener">{text.openDesk}</a>}>
       <p className={styles.workflowHelp}>{text.openDeskHelp}</p>
       <p className={styles.workflowHelp}>{text.publicHelp} <a href={state.publicPath} target="_blank" rel="noopener">{text.publicLink}</a></p>
+      <div className={styles.actions}>
+        <a className={local.secondaryLink} href={`${state.publicPath}/qr`} target="_blank" rel="noopener">{text.qrSign}</a>
+      </div>
       {problem && <Notice tone="error" role="alert">{problem}</Notice>}
       {saved && <Notice tone="ok" role="status">{saved}</Notice>}
       {!state.startsAt && <Notice tone="attention">{text.noStart}</Notice>}

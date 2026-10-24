@@ -5,6 +5,7 @@ import { publicPartyResponseSchema, type PublicPartyResponse } from "@o-tid/cont
 import { partyLook, partyThemeStyle } from "../../lib/party-theme-style";
 import { partyPublicSv as text } from "../../i18n/party-public-sv";
 import { SelfRegistrationForm } from "../self-registration/self-registration-form";
+import { PartySplits } from "./party-splits";
 import styles from "./party-public.module.css";
 
 /**
@@ -49,7 +50,12 @@ export function PartyPublic({ raceId, eventName }: { raceId: string; eventName: 
       {party?.theme.logo ? <img className={styles.logo} src={party.theme.logo} alt="" /> : null}
       <div><h1>{title}</h1>{title !== eventName ? <p>{eventName}</p> : null}</div>
     </header>
-    <SelfRegistrationForm raceId={raceId} />
+    {/* Steg 42: raden under rubriken – registrera pinnen (utfällbar), länk till sträcktiderna och hur man betalar. */}
+    <nav className={styles.bar} aria-label={text.barLabel}>
+      <SelfRegistrationForm raceId={raceId} collapsible />
+      <a className={styles.barLink} href="#stracktider">{text.splitsTitle}</a>
+      <ol className={styles.howTo} aria-label={text.howToLabel}>{text.howTo.map(row => <li key={row}>{row}</li>)}</ol>
+    </nav>
     {!party ? <p role="status" className={styles.status}>{failed ? text.loadError : text.loading}</p> : <>
       {failed ? <p role="status" className={styles.status}>{text.loadError}</p> : null}
       <dl className={styles.numbers} data-testid="party-numbers">
@@ -71,6 +77,8 @@ export function PartyPublic({ raceId, eventName }: { raceId: string; eventName: 
           </li>)}
         </ol>}
       </section>
+
+      <PartySplits rows={party.splits} showNames={party.showNames} clock={value => clock(value, zone)} />
 
       <section className={styles.panel} aria-labelledby="party-quarters">
         <h2 id="party-quarters">{text.quartersTitle}</h2>

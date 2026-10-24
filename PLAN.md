@@ -709,6 +709,16 @@ men att fullt namn spara för fakturering".
   avläsning bedöms. Spärr per IP (hashad) och tävling, fälla mot robotar, normaliserade namn, "Självregistrerad" i listorna.
 - [x] Fest: visningsnamn (smeknamn, förval "Oskar K") är det enda som visas publikt och i kiosken; fullt namn i arbetsytan och CSV.
 
+## [x] Steg 42 – Fest: Eventor-nyckel och kvällens sträcktider
+
+Ägarens önskemål 2026-10-24: "sträcktiderna ska visa deltagarnas köp och typ av köp under kvällen. med smeknamnen".
+
+- [x] Fest-typen kan spara Eventor-nyckeln och hämta löpardatabasen.
+- [x] "Kvällens sträcktider" på den publika fest-sidan: en rad per gäst med köp, in, varje köp med vara och sträcktid, mål och
+  totalt; bara visningsnamnet, "Gäst N" när namn inte visas; aldrig bricka, fullt namn eller belopp.
+- [x] Raden under rubriken: "Registrera din pinne" utfällbar, länk till sträcktiderna och hur man betalar.
+- [x] QR-skylt `/fest/{kod}/qr` (A4) i festens utseende, nåbar från arbetsytan, samma skydd som fest-sidan.
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

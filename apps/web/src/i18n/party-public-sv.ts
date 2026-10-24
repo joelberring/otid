@@ -26,5 +26,30 @@ export const partyPublicSv = {
   firstFinish: "Först till målenheten",
   lastOut: "Sista kvar",
   guestsTitle: "Kvällens gäster",
-  purchases: (count: number) => count === 1 ? "1 köp" : `${count} köp`
+  purchases: (count: number) => count === 1 ? "1 köp" : `${count} köp`,
+  barLabel: "Kvällen",
+  howToLabel: "Så betalar du",
+  howTo: ["1. Checka in: sätt pinnen i läsaren vid baren.", "2. Köp: stämpla på enheten för din dryck och sätt sedan pinnen i läsaren.",
+    "3. Gå hem: stämpla Mål och sätt pinnen i läsaren. Summan dras från ditt klubbkonto."],
+  qr: {
+    title: "QR-skylt",
+    back: "Till fest-sidan",
+    printHelp: "Skriv ut i 100 % skala (inte \"anpassa till sidan\") på A4 stående, med bakgrundsgrafik på.",
+    print: "Skriv ut",
+    line: "Följ kvällen här",
+    scan: "Skanna koden eller gå till",
+    image: (name: string) => `QR-kod till fest-sidan för ${name}`
+  },
+  splitsTitle: "Kvällens sträcktider",
+  splitsHelp: "En rad per gäst: när man kom, varje köp med tiden sedan förra händelsen och när man gick hem. Flest köp först.",
+  splitsAnonymous: "Namnen visas inte på den här festen.",
+  splitsPlace: "Plac.",
+  splitsName: "Namn",
+  splitsTotal: "Totalt",
+  splitsCheckIn: "In",
+  splitsPurchase: (index: number) => `Köp ${index}`,
+  splitsCheckout: "Mål",
+  guestNumber: (number: number) => `Gäst ${number}`,
+  finishAt: (time: string) => `Mål ${time}`,
+  since: (time: string) => `+${time}`
 } as const;

@@ -6,6 +6,8 @@ export const partySv = {
   openDeskHelp: "Bardisken öppnas i en ny flik. Anslut avläsningsstationen där. Allt sker i samma fönster.",
   publicHelp: "Den publika sidan visar statistik över kvällen när festen är publicerad (under Publicera). Belopp visas aldrig.",
   publicLink: "Visa den publika sidan",
+  /** Steg 42: QR-skylten för festen, A4 att skriva ut. */
+  qrSign: "Skriv ut QR-skylt",
   loading: "Hämtar festen …",
   loadError: "Festen kunde inte hämtas. Försök igen.",
   saveError: "Ändringen kunde inte sparas. Försök igen.",

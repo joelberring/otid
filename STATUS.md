@@ -10,6 +10,15 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-10-24 – Steg 42: fest – Eventor-nyckel, kvällens sträcktider och QR-skylt
+- Fest-typen visar Eventor-nyckeln och löpardatabasen under Inställningar (utan tävlingsval och import).
+- "Kvällens sträcktider" (`#stracktider`) på `/fest/{kod}`: en rad per gäst med köp (flest först, vid lika tidigaste första köpet), In, varje köp ("21:14 Margarita" med färgprick per grupp/vara), Mål och "+18:30" sedan förra händelsen; Totalt = antal köp och tid från incheckning (eller första köpet) till utcheckning (eller senaste köpet). Bara köp som räknas (`partyLedger`: start, dubbelstämpling, ångrade bort). Rullar i sidled med namnet fast; var 10:e sekund.
+- Namn bara visningsnamnet via JavaScript; namn av ger "Gäst N" (numrerade efter när gästen först syntes). Kontraktet `splits` är strikt (bara `guestNumber`, valfritt `name`, tider, varunamn, grupp); `superRefine` avvisar namn när namnvisning är av.
+- Raden under rubriken: "Registrera din pinne" utfällbar (knapp med aria-expanded, stängd, bara när självregistreringen är öppen), länk "Kvällens sträcktider" och tre rader om hur man betalar (i18n).
+- QR-skylt `/fest/{kod}/qr` (A4 stående, @page, 100 %): rubrik och logga i festens utseende, QR till `/fest/{kod}`, adressen och hur man betalar, inga namn; samma grind, X-Robots-Tag och robots-meta. "Skriv ut QR-skylt" i fest-arbetsytan.
+- Tester: domän `party` (sträcktider, sortering, Gäst N), webb `party-splits`, integration `steg-40-fest` (steg 42, båda namnlägena utan bricka/fullt namn/belopp), Playwright `fest` och `sjalvregistrering`. Verifierat: lint, typecheck, test, test:integration (330), build. Skärmbilder granskade på 390 och 1280 px.
+- Risk: "Summan dras från ditt klubbkonto" är ett antagande i texten (`party-public-sv.ts`); ändra om betalningen sker på annat sätt. Ett köp efter utcheckningen står före Mål-kolumnen.
+
 ### 2026-10-24 – Steg 41: självregistrering på tävlingsdagen
 - "Tillåt självregistrering på tävlingsdagen" (`race.self_registration`, migration 0018, av som standard): sparas via Inställningarnas anrop med auditpost; i fest-arbetsytan och under Inställningar (inte stafett).
 - "Registrera din pinne" på `/fest/{kod}` och `/t/{kod}` utan inloggning (`/api/public/races/{id}/self-registration`, publika grinden + tjänstens egen kontroll: på, publicerad, tävlingsdagen i tävlingens tidszon; en fest även natten efter till kl 06). Exakt Origin, 4 KiB-body, spärr 20 per 10 min per IP (hashad) och 300 per dygn per tävling, dolt fält som fälla, normaliserade namn (60/80 tecken), auditpost med källa PUBLIC_SELF_REGISTRATION utan IP.

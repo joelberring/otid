@@ -130,6 +130,19 @@ export type PartyDeskEventResponse = z.infer<typeof partyDeskEventResponseSchema
 /** Steg 41: bara visningsnamnet (högst 40 tecken), aldrig fullt namn. */
 const publicName = z.string().min(1).max(40);
 const moment = z.object({ at: instant, name: publicName.optional() }).strict();
+/** Steg 42: en händelse i kvällens sträcktider med tiden sedan förra händelsen. */
+const seconds = z.number().int().min(0).max(10_000_000);
+const splitEvent = z.object({ at: instant, sinceSeconds: seconds.optional() }).strict();
+/** Steg 42: en gästs kväll. Bara visningsnamnet (och bara när festen visar namn), annars "Gäst N"; aldrig bricka eller belopp. */
+export const publicPartySplitRowSchema = z.object({
+  guestNumber: z.number().int().min(1).max(10_000),
+  name: publicName.optional(),
+  purchaseCount: count,
+  totalSeconds: seconds,
+  checkIn: splitEvent.optional(),
+  purchases: z.array(splitEvent.extend({ itemName, group: itemGroup.optional() }).strict()).min(1).max(1_000),
+  checkout: splitEvent.optional()
+}).strict();
 
 
 export const publicPartyResponseSchema = z.object({
@@ -150,11 +163,15 @@ export const publicPartyResponseSchema = z.object({
   topPerHour: z.array(z.object({ hourStartsAt: instant, itemName, count }).strict()).max(200),
   firstArrival: moment.optional(), firstFinish: moment.optional(), lastOut: moment.optional(),
   guests: z.array(z.object({ name: publicName, purchaseCount: count }).strict()).max(10_000).optional(),
+  /** Steg 42: kvällens sträcktider, en rad per gäst med köp. */
+  splits: z.array(publicPartySplitRowSchema).max(10_000),
   fetchedAt: instant
 }).strict().superRefine((value, context) => {
-  const named = value.recent.some(row => row.name) || [value.firstArrival, value.firstFinish, value.lastOut].some(row => row?.name) || value.guests;
+  const named = value.recent.some(row => row.name) || [value.firstArrival, value.firstFinish, value.lastOut].some(row => row?.name) || value.guests ||
+    value.splits.some(row => row.name);
   if (!value.showNames && named) context.addIssue({ code: "custom", message: "Namn får bara visas när festen visar namn" });
 });
 
 export type PartyTheme = z.infer<typeof partyThemeSchema>;
 export type PublicPartyResponse = z.infer<typeof publicPartyResponseSchema>;
+export type PublicPartySplitRow = z.infer<typeof publicPartySplitRowSchema>;

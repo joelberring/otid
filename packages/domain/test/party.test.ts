@@ -90,6 +90,18 @@ describe("fest: köp ur brickans stämplingar", () => {
     expect(desk.guests[0]!.checkout).toBeUndefined();
   });
 
+  it("självregistrering på fest-sidan checkar in (steg 43), men inte en registrering långt före festen", () => {
+    const here = partyLedger({ startsAt, items, readouts: [], guests: [{ cardNumber: "8123456", name: "Ada Testsson", selfRegistered: true,
+      selfRegisteredAt: "2026-10-24T15:40:00.000Z" }] });
+    expect(here.guests[0]!.checkIn).toEqual({ at: "2026-10-24T15:40:00.000Z", source: "SELF" });
+    const morning = partyLedger({ startsAt, items, readouts: [], guests: [{ cardNumber: "8123456", name: "Ada Testsson", selfRegistered: true,
+      selfRegisteredAt: "2026-10-24T08:00:00.000Z" }] });
+    expect(morning.guests[0]!.checkIn).toBeUndefined();
+    const desk = partyLedger({ startsAt, items, readouts: [], guests: [{ cardNumber: "8123456", name: "Ada Testsson", selfRegistered: true,
+      selfRegisteredAt: "2026-10-24T16:40:00.000Z" }], deskEvents: [{ cardNumber: "8123456", kind: "CHECK_IN", at: "2026-10-24T16:10:00.000Z" }] });
+    expect(desk.guests[0]!.checkIn).toEqual({ at: "2026-10-24T16:10:00.000Z", source: "DESK" });
+  });
+
   it("varnar när SI5/SI8 eller SI9 snart är full", () => {
     expect(partyCardCapacity("123456")).toBe(30);
     expect(partyCardCapacity("2100200")).toBe(30);

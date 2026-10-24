@@ -92,7 +92,18 @@ export function decideReadout(item: QueuedReadout, mode: DeskMode, knowledge: De
   if (!earlier) {
     return { ...base, kind: "WELCOME", checkedInAt: startHere ?? item.stationReceivedAt, ...(startHere ? {} : { enqueue: "CHECK_IN" as const }) };
   }
+  // Steg 43: incheckad på fest-sidan ("checka in här") och första gången vid baren: välkomna utan ny incheckning.
+  if (newPurchases.length === 0 && firstTimeAtBar(card, knowledge, item.localSequence)) {
+    return { ...base, kind: "WELCOME", checkedInAt: earlier };
+  }
   return { ...base, kind: newPurchases.length > 0 ? "PURCHASES" : "NO_NEW", checkedInAt: earlier };
+}
+
+/** Gästen checkade in på fest-sidan och brickan har inte lästs ut vid någon bardisk tidigare. */
+function firstTimeAtBar(card: string, knowledge: DeskKnowledge, before: number): boolean {
+  const guest = knowledge.server?.guests.find(row => row.cardNumber === card);
+  if (guest?.checkIn?.source !== "SELF" || guest.lastReadAt !== undefined) return false;
+  return !knowledge.readouts.some(item => item.payload.cardNumber === card && item.localSequence < before);
 }
 
 export interface CardEvening {

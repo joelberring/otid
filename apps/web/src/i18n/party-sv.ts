@@ -97,7 +97,7 @@ export const partySv = {
   clubLabel: (card: string) => `Klubb för bricka ${card}`,
   saveName: "Spara namn",
   cancel: "Avbryt",
-  source: { START: "start", FINISH: "mål", DESK: "bardisken" },
+  source: { START: "start", FINISH: "mål", DESK: "bardisken", SELF: "fest-sidan" },
   nearlyFull: (punches: number, capacity: number) => `Brickan nästan full: ${punches} av ${capacity}`,
   memoryHelp: "SI5 och SI8 har plats för 30 stämplingar och SI9 för 50. Säg till gästen att rensa brickan i tid.",
   purchasesTitle: "Alla köp",

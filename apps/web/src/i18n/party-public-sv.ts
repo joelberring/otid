@@ -29,8 +29,9 @@ export const partyPublicSv = {
   purchases: (count: number) => count === 1 ? "1 köp" : `${count} köp`,
   barLabel: "Kvällen",
   howToLabel: "Så betalar du",
-  howTo: ["1. Checka in: sätt pinnen i läsaren vid baren.", "2. Köp: stämpla på enheten för din dryck och sätt sedan pinnen i läsaren.",
-    "3. Gå hem: stämpla Mål och sätt pinnen i läsaren. Summan dras från ditt klubbkonto."],
+  howTo: ["1. Töm pinnen först på töm-enheten (clear).", "2. Checka in: registrera din pinne här, eller sätt den i läsaren vid baren.",
+    "3. Köp: stämpla på enheten för din dryck och sätt sedan pinnen i läsaren.",
+    "4. Gå hem: stämpla Mål och sätt pinnen i läsaren. Summan dras från ditt klubbkonto."],
   qr: {
     title: "QR-skylt",
     back: "Till fest-sidan",

@@ -48,7 +48,7 @@ export const partyPackageSchema = z.object({
   theme: partyThemeSchema.optional()
 }).strict();
 
-const presence = z.object({ at: instant, source: z.enum(["START", "FINISH", "DESK"]) }).strict();
+const presence = z.object({ at: instant, source: z.enum(["START", "FINISH", "DESK", "SELF"]) }).strict();
 
 export const partyPurchaseSchema = z.object({
   cardNumber, code: partyControlCodeSchema, itemId: uuid, itemName, priceOre: ore, punchedAt: instant, firstReadAt: instant,

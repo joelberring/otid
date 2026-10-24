@@ -75,7 +75,7 @@ export async function loadPartyState(tx: DbExecutor, raceId: string, now: Date):
     voids: voids.map(row => ({ cardNumber: row.cardNumber, code: row.controlCode, punchedAt: iso(row.punchedAt), reason: row.reason,
       voidedAt: iso(row.createdAt) })),
     guests: guests.map(row => ({ cardNumber: row.cardNumber, name: row.name, ...(row.club ? { club: row.club } : {}),
-      ...(row.selfRegisteredAt ? { selfRegistered: true } : {}), ...(row.displayName ? { displayName: row.displayName } : {}) })) });
+      ...(row.selfRegisteredAt ? { selfRegistered: true, selfRegisteredAt: row.selfRegisteredAt.toISOString() } : {}), ...(row.displayName ? { displayName: row.displayName } : {}) })) });
   return partyStateResponseSchema.parse({ formatVersion: 1, raceId, timeZone: race.timeZone, startsAt: startsAt ?? null, items,
     theme: await loadTheme(tx, raceId, setting), doublePunchSeconds,
     showPublicNames: setting?.showPublicNames ?? true, publicPath: `/fest/${race.shortCode}`, purchases: ledger.purchases, guests: ledger.guests,

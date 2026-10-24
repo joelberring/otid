@@ -52,6 +52,8 @@ export interface PartyGuest {
   readonly club?: string | undefined;
   /** Steg 41: gästen registrerade pinnen själv på fest-sidan. */
   readonly selfRegistered?: boolean | undefined;
+  /** Steg 43: när gästen registrerade pinnen själv; räknas som incheckning ("checka in här"). */
+  readonly selfRegisteredAt?: string | undefined;
   /** Steg 41: visningsnamn (smeknamn) som gästen valt; annars förnamn + efternamnets första bokstav. */
   readonly displayName?: string | undefined;
 }
@@ -72,7 +74,11 @@ export interface PartyVoid {
 }
 
 /** Var in- eller utcheckningen gjordes: startenhet, målenhet eller bardisken. */
-export type PartyPresenceSource = "START" | "FINISH" | "DESK";
+/** Steg 43: SELF = gästen registrerade pinnen själv på fest-sidan (checkade in där i stället för vid baren). */
+export type PartyPresenceSource = "START" | "FINISH" | "DESK" | "SELF";
+
+/** Självregistrering räknas som incheckning från en timme före festens start (inte en registrering hemifrån på förmiddagen). */
+export const PARTY_SELF_CHECK_IN_LEAD_MS = 60 * 60_000;
 
 export interface PartyPresence {
   readonly at: string;
@@ -257,6 +263,11 @@ export function partyLedger(input: PartyLedgerInput): PartyLedger {
     left.code - right.code);
 
   const names = new Map((input.guests ?? []).map(guest => [guest.cardNumber, guest]));
+  for (const guest of input.guests ?? []) {
+    const at = guest.selfRegisteredAt;
+    if (at === undefined || (input.startsAt !== undefined && ms(at) < ms(input.startsAt) - PARTY_SELF_CHECK_IN_LEAD_MS)) continue;
+    checkIns.set(guest.cardNumber, earliest(checkIns.get(guest.cardNumber), { at, source: "SELF" }));
+  }
   const cards = new Set([...rows.map(row => row.cardNumber), ...checkIns.keys(), ...checkouts.keys(), ...names.keys()]);
   const guests = [...cards].map((cardNumber): PartyGuestSummary => {
     const counted = rows.filter(row => row.cardNumber === cardNumber && !row.voided);
@@ -304,7 +315,7 @@ function csv(rows: readonly (readonly (string | number)[])[]): string {
   return BOM + rows.map(row => row.map(field).join(";")).join("\r\n") + "\r\n";
 }
 
-export const PARTY_SOURCE_SV: Record<PartyPresenceSource, string> = { START: "Start", FINISH: "Mål", DESK: "Bardisken" };
+export const PARTY_SOURCE_SV: Record<PartyPresenceSource, string> = { START: "Start", FINISH: "Mål", DESK: "Bardisken", SELF: "Fest-sidan" };
 
 /**
  * En rad per gäst: namn, klubb, bricka, antal köp, summa kr, incheckad och utcheckad (tid) och hur. UTF-8 med BOM och

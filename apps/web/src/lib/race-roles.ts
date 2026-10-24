@@ -37,7 +37,11 @@ export const FUNCTIONARY_ROUTES: Readonly<Record<string, readonly string[]>> = {
   "start-correction": ["POST"],
   /** Speaker och kontrollvyn: senaste avläsningar och stafettens lag. */
   "speaker-board": ["GET"],
-  relay: ["GET"]
+  relay: ["GET"],
+  /** Fest (PLAN.md steg 40): läsa läget, sätta gästens namn och bardiskens in- och utcheckning. Varor och ångra kräver admin. */
+  party: ["GET"],
+  "party-guests": ["POST"],
+  "party-desk-events": ["POST"]
 };
 
 /** Rollen som en åtgärd kräver. */

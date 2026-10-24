@@ -216,7 +216,7 @@ export const userAccountEventCreationRequests = pgTable("user_account_event_crea
   raceId: uuid("race_id").notNull().references(() => races.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (table) => [
-  check("user_account_event_creation_race_type_check", sql`${table.raceType} in ('TRAINING', 'SMALL', 'STANDARD', 'FORKED', 'RELAY', 'ROGAINING')`),
+  check("user_account_event_creation_race_type_check", sql`${table.raceType} in ('TRAINING', 'SMALL', 'STANDARD', 'FORKED', 'RELAY', 'ROGAINING', 'PARTY')`),
   uniqueIndex("user_account_event_creation_request_uidx").on(table.requestId),
   uniqueIndex("user_account_event_creation_event_uidx").on(table.eventId),
   uniqueIndex("user_account_event_creation_race_uidx").on(table.raceId),

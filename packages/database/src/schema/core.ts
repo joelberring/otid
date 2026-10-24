@@ -85,7 +85,7 @@ export const auditActorKindEnum = pgEnum("audit_actor_kind", [
 export const resultFinalizationScopeEnum = pgEnum("result_finalization_scope", ["CLASS", "RACE"]);
 
 /** ADR-0170 beslut 1: Träning, Liten tävling, Tävling, Gafflade banor, Stafett, Rogaining. */
-export type RaceTypeValue = "TRAINING" | "SMALL" | "STANDARD" | "FORKED" | "RELAY" | "ROGAINING";
+export type RaceTypeValue = "TRAINING" | "SMALL" | "STANDARD" | "FORKED" | "RELAY" | "ROGAINING" | "PARTY";
 
 export const events = pgTable("event", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -124,7 +124,7 @@ export const races = pgTable("race", {
 }, (table) => [
   check("race_info_check", sql`${table.info} IS NULL OR char_length(${table.info}) BETWEEN 1 AND 1000`),
   check("race_first_start_time_check", sql`${table.firstStartTime} IS NULL OR ${table.firstStartTime} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'`),
-  check("race_type_check", sql`${table.raceType} in ('TRAINING', 'SMALL', 'STANDARD', 'FORKED', 'RELAY', 'ROGAINING')`),
+  check("race_type_check", sql`${table.raceType} in ('TRAINING', 'SMALL', 'STANDARD', 'FORKED', 'RELAY', 'ROGAINING', 'PARTY')`),
   check("race_short_code_check", sql`${table.shortCode} ~ '^[2-9a-hjkmnp-z]{6}$'`),
   uniqueIndex("race_short_code_uidx").on(table.shortCode),
   index("race_event_idx").on(table.eventId),

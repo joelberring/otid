@@ -116,6 +116,7 @@ export function sectionStatus(section: Pick<Section, "id" | "label">, facts: Sec
         text: `${plural(facts.mispunched, "felstämplad", "felstämplade")} att titta på` };
       return facts.results === 0 ? { tone: "OPEN", text: "Inga resultat ännu" }
         : { tone: "DONE", text: plural(facts.results, "resultat", "resultat") };
+    case "PARTY": return { tone: "OPEN", text: "Varor, köp och export" };
     case "SETTINGS": return { tone: "DONE", text: raceTypeSv.types[raceType].name };
   }
 }

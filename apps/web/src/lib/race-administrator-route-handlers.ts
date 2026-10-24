@@ -26,6 +26,7 @@ import { handleRadioRoute } from "./race-administrator-routes-radio";
 import { handleCompetitionRoute } from "./race-administrator-routes-competition";
 import { handleRemovalRoute } from "./race-administrator-routes-removal";
 import { handleCorrectionRoute } from "./race-administrator-routes-corrections";
+import { handlePartyRoute } from "./race-administrator-routes-party";
 import { principalAllows, raceRoleFor } from "./race-roles";
 import { UUID_PATTERN as uuid } from "@o-tid/contracts";
 
@@ -88,6 +89,7 @@ export async function raceAdministratorRoute(db: Database, request: Request, rac
       await handleEntryRoute(context) ?? await handleVariantRoute(context) ?? await handleRelayRoute(context) ?? await handleSourceRoute(context) ??
       await handleMapRoute(context) ?? await handlePeopleRoute(context) ?? await handlePublicationRoute(context) ?? await handleRadioRoute(context) ??
       await handleCompetitionRoute(context) ?? await handleRemovalRoute(context) ?? await handleCorrectionRoute(context) ??
+      await handlePartyRoute(context) ??
       (action.kind === "race-settings"
         ? await idempotentWrite(context, "race-settings", raceSettingsRequestSchema, raceSettingsResponseSchema, dependencies.raceSettings) : undefined) ??
       failure(500, "INTERNAL_ERROR");
@@ -95,7 +97,8 @@ export async function raceAdministratorRoute(db: Database, request: Request, rac
 }
 
 function allowedMethods(action: Action): string[] {
-  return action.kind === "people" ? ["GET", "POST", "DELETE"] : action.kind === "radio" ? ["GET", "PUT"] :
+  return action.kind === "people" ? ["GET", "POST", "DELETE"] : action.kind === "party" ? ["GET", "POST"] :
+    action.kind === "party-guests" || action.kind === "party-desk-events" ? ["POST"] : action.kind === "radio" ? ["GET", "PUT"] :
     action.kind === "radio-fetch" ? ["POST"] : action.kind === "race-publication" ? ["PUT", "DELETE"] : action.kind === "race-map" ? ["GET", "PUT", "DELETE"] :
     action.kind === "race-map-image" ? ["GET"] : action.kind === "race-map-georeference" ? ["POST"] :
     action.kind === "participant-route" ? ["POST", "DELETE"] : action.kind === "eventor" ? ["GET", "PUT", "DELETE"] :

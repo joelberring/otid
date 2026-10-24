@@ -5,7 +5,7 @@ import { uuidSchema as uuid } from "./ids";
  * ADR-0170 beslut 1: tävlingstypen väljs när tävlingen skapas och kan ändras under Inställningar.
  * Typen styr bara vad arbetsytan visar och vilka förval som gäller; inga data tas bort.
  */
-export const raceTypes = ["TRAINING", "SMALL", "STANDARD", "FORKED", "RELAY", "ROGAINING"] as const;
+export const raceTypes = ["TRAINING", "SMALL", "STANDARD", "FORKED", "RELAY", "ROGAINING", "PARTY"] as const;
 export const raceTypeSchema = z.enum(raceTypes);
 export type RaceType = z.infer<typeof raceTypeSchema>;
 

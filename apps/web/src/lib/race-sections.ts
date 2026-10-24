@@ -7,14 +7,14 @@ import type { RaceType } from "@o-tid/contracts";
  */
 
 /** Delarna i sidopanelen, i banans ordning. Inställningar ligger alltid sist, utanför banan. */
-export type SectionId = "COURSES" | "CLASSES" | "ENTRIES" | "START" | "PUBLISH" | "READOUT" | "RESULTS" | "SETTINGS";
+export type SectionId = "COURSES" | "CLASSES" | "ENTRIES" | "START" | "PUBLISH" | "READOUT" | "RESULTS" | "PARTY" | "SETTINGS";
 
 /** Det innehåll som en del visar. En del kan visa flera (Träning: banor och klasser på samma ställe). */
-export type Panel = "COURSES" | "CLASSES" | "ROGAINING" | "ENTRIES" | "START" | "PUBLISH" | "READOUT" | "RESULTS" | "SETTINGS";
+export type Panel = "COURSES" | "CLASSES" | "ROGAINING" | "ENTRIES" | "START" | "PUBLISH" | "READOUT" | "RESULTS" | "PARTY" | "SETTINGS";
 
 /** Delens namn; texterna finns i i18n (`raceTypeSv.sections`). */
 export type SectionLabel = "COURSES" | "COURSES_CLASSES" | "CONTROLS_POINTS" | "CLASSES" | "CLASSES_LEGS" | "ENTRIES" |
-  "PARTICIPANTS" | "TEAMS" | "START" | "PUBLISH" | "READOUT" | "RESULTS" | "SETTINGS";
+  "PARTICIPANTS" | "TEAMS" | "START" | "PUBLISH" | "READOUT" | "RESULTS" | "PARTY" | "SETTINGS";
 
 export type Section = { id: SectionId; label: SectionLabel; panels: readonly Panel[] };
 
@@ -89,6 +89,11 @@ const profiles: Record<RaceType, Omit<RaceTypeProfile, "type" | "settings">> = {
     course: [section("COURSES", "CONTROLS_POINTS", ["ROGAINING", "COURSES", "CLASSES"]), section("ENTRIES", "PARTICIPANTS"),
       publish, readout, results],
     features: { ...none, rogaining: true }
+  },
+  /** Fest med bardisk (PLAN.md steg 40): varor, gäster, köp, utcheckning och export på ett ställe, sedan Publicera. */
+  PARTY: {
+    course: [section("PARTY", "PARTY"), publish],
+    features: none
   }
 };
 
@@ -101,7 +106,7 @@ export function raceTypeProfile(type: RaceType): RaceTypeProfile {
  * (kontrollvyn, okända brickor med direktanmälan och kvar i skogen). Inga Inställningar. Samma delar som
  * administratören ser, bara färre; servern nekar allt annat oavsett vad vyn visar.
  */
-const FUNCTIONARY_SECTIONS: readonly SectionId[] = ["START", "READOUT"];
+const FUNCTIONARY_SECTIONS: readonly SectionId[] = ["START", "READOUT", "PARTY"];
 
 export function profileForRole(profile: RaceTypeProfile, role: WorkspaceRole): RaceTypeProfile {
   if (role === "ADMIN") return profile;

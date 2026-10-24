@@ -9,13 +9,14 @@ export const raceTypeSv = {
     STANDARD: { name: "Tävling", help: "Lottning, import, speaker och fastställda resultat." },
     FORKED: { name: "Tävling med gafflade banor", help: "Som Tävling, med banvarianter och gafflingskontroll." },
     RELAY: { name: "Stafett", help: "Lag och sträckor, masstart och omstart, lagresultat och speaker." },
-    ROGAINING: { name: "Rogaining", help: "Valfria kontroller med poäng, tidsgräns och straff. Resultat på poäng, sedan tid." }
+    ROGAINING: { name: "Rogaining", help: "Valfria kontroller med poäng, tidsgräns och straff. Resultat på poäng, sedan tid." },
+    PARTY: { name: "Fest", help: "Bardisk: gästerna stämplar själva på varornas enheter och läser ut brickan. Köp, summa per person och export." }
   } satisfies Record<RaceType, { name: string; help: string }>,
   typeLegend: "Typ av tävling",
   sections: {
     COURSES: "Banor", COURSES_CLASSES: "Banor & klasser", CONTROLS_POINTS: "Kontroller & poäng", CLASSES: "Klasser",
     CLASSES_LEGS: "Klasser & sträckor", ENTRIES: "Anmälda", PARTICIPANTS: "Deltagare", TEAMS: "Lag", START: "Start", PUBLISH: "Publicera",
-    READOUT: "Avläsning", RESULTS: "Resultat", SETTINGS: "Inställningar"
+    READOUT: "Avläsning", RESULTS: "Resultat", PARTY: "Fest", SETTINGS: "Inställningar"
   } satisfies Record<SectionLabel, string>,
   navigation: "Tävlingens delar",
   start: "Start",

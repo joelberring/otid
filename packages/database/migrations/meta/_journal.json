@@ -16,6 +16,7 @@
     { "idx": 11, "version": "7", "when": 1798473600000, "tag": "0011_tavlingsinfo", "breakpoints": true },
     { "idx": 12, "version": "7", "when": 1798560000000, "tag": "0012_startlista_lopande", "breakpoints": true },
     { "idx": 14, "version": "7", "when": 1798732800000, "tag": "0014_omlasning", "breakpoints": true },
-    { "idx": 15, "version": "7", "when": 1798819200000, "tag": "0015_bekrafta_felstampling", "breakpoints": true }
+    { "idx": 15, "version": "7", "when": 1798819200000, "tag": "0015_bekrafta_felstampling", "breakpoints": true },
+    { "idx": 16, "version": "7", "when": 1798905600000, "tag": "0016_fest", "breakpoints": true }
   ]
 }

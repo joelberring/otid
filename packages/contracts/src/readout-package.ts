@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { partyPackageSchema } from "./party";
 import { raceShortCodeSchema } from "./race-publication";
 import { relayReadoutSchema } from "./relay";
 import { rogainingPointsSchema, rogainingRulesSchema } from "./rogaining";
@@ -246,6 +247,8 @@ export const readoutPackageSchema = z.object({
   runnerLookup: runnerLookupSchema.optional(),
   /** Deltagare som redan har ett resultat från en avläsning (förslagen "Koppla brickan till …" hoppar över dem). */
   readOutEntryIds: z.array(uuidSchema).max(STATION_PACKAGE_LIMITS.entries).optional(),
+  /** Fest (PLAN.md steg 40): festens start och varorna, så att bardisken räknar köpen utan nät. Bara för en fest. */
+  party: partyPackageSchema.optional(),
   fetchedAt: z.iso.datetime({ offset: true })
 }).strict().superRefine((value, context) => {
   if (value.raceId !== value.raceSnapshot.race.id) {

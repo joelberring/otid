@@ -23,6 +23,7 @@ export const raceTypeSv = {
   speaker: "Speaker",
   openSpeaker: "Öppna speaker",
   openReadout: "Öppna avläsningen",
+  openPartyDesk: "Öppna bardisken",
   newTab: "öppnas i ny flik",
   attention: "Behöver åtgärd",
   liveState: "Läget just nu",

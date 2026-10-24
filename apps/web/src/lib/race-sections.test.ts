@@ -13,6 +13,7 @@ describe("tävlingstypen styr arbetsytans delar (ADR-0170 beslut 1)", () => {
     expect(names("FORKED")).toEqual(["Banor", "Klasser", "Anmälda", "Start", "Publicera", "Avläsning", "Resultat", "Inställningar"]);
     expect(names("RELAY")).toEqual(["Banor", "Klasser & sträckor", "Lag", "Start", "Publicera", "Avläsning", "Resultat", "Inställningar"]);
     expect(names("ROGAINING")).toEqual(["Kontroller & poäng", "Deltagare", "Publicera", "Avläsning", "Resultat", "Inställningar"]);
+    expect(names("PARTY")).toEqual(["Fest", "Publicera", "Inställningar"]);
   });
 
   it("styr funktioner och förval", () => {
@@ -30,7 +31,7 @@ describe("tävlingstypen styr arbetsytans delar (ADR-0170 beslut 1)", () => {
       // ADR-0170 beslut 4: Eventor för tävlingarna och stafetten; banfil kan alla läsa under Banor.
       expect(features(type).eventor).toBe(type === "STANDARD" || type === "FORKED" || type === "RELAY");
       // ADR-0172 beslut 5: radiokontroller för alla typer med tävlingsmoment, inte Träning och Rogaining.
-      expect(features(type).radio).toBe(type !== "TRAINING" && type !== "ROGAINING");
+      expect(features(type).radio).toBe(type !== "TRAINING" && type !== "ROGAINING" && type !== "PARTY");
     }
   });
 

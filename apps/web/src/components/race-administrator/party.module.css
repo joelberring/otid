@@ -1,0 +1,29 @@
+/* Fest-arbetsytan (PLAN.md steg 40). */
+.open { display: inline-flex; align-items: center; min-height: 44px; padding: 8px 18px; border: 1px solid var(--ink); border-radius: var(--radius);
+  background: var(--ink); color: var(--surface); font-weight: 600; text-decoration: none; }
+.form { display: grid; gap: 10px; margin-top: 12px; }
+.form h3 { margin: 0; font-size: var(--text-md); }
+.fields { display: grid; grid-template-columns: repeat(3, minmax(0, 12rem)); gap: 8px 12px; }
+.fields label { display: grid; gap: 4px; font-size: var(--text-sm); font-weight: 500; }
+.fields input, .input, .number { min-height: 44px; padding: 6px 10px; border: 1px solid var(--line-strong); border-radius: var(--radius);
+  background: var(--surface); color: var(--ink); font: inherit; }
+.number { width: 7rem; text-align: right; }
+.input { width: 100%; min-width: 8rem; }
+.check { display: flex; align-items: center; gap: 10px; font-weight: 500; }
+.check input { width: 22px; height: 22px; }
+.error { color: var(--mp); font-weight: 600; }
+.totals { font-size: var(--text-lg); font-weight: 700; font-variant-numeric: tabular-nums; }
+.subhead { margin: 16px 0 6px; font-size: var(--text-md); }
+.items, .guests, .purchases { width: 100%; }
+.purchases tr[data-voided="true"] td { color: var(--muted); }
+.flag { margin-left: 6px; padding: 0 6px; border-left: 3px solid var(--attention); font-weight: 600; }
+.warning { display: block; color: var(--attention); font-size: var(--text-sm); font-weight: 700; }
+.guestName { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.linkButton { min-height: 32px; padding: 0 4px; border: 0; background: none; color: var(--ink); font: inherit; font-size: var(--text-sm);
+  text-decoration: underline; cursor: pointer; }
+.inline { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.hiddenText { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (max-width: 720px) {
+  .fields { grid-template-columns: minmax(0, 1fr); }
+  .guests, .purchases { display: block; overflow-x: auto; }
+}

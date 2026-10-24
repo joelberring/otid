@@ -30,7 +30,7 @@ export function TopBar({ ws }: { ws: Workspace }) {
   const { data, functionary, mayLeave, profile, raceId, refresh, logout, saving, section } = ws;
   const current = facts(ws);
   const shortcuts = (menu: boolean) => <>
-    <a href={`/admin/${raceId}/readout`} target="_blank" rel="noopener">{typeText.openReadout}
+    <a href={`/admin/${raceId}/readout`} target="_blank" rel="noopener">{data?.raceType === "PARTY" ? typeText.openPartyDesk : typeText.openReadout}
       <span className={styles.hidden}> ({typeText.newTab})</span></a>
     {profile.features.speaker && <a href={`/admin/${raceId}/speaker`} target="_blank" rel="noopener">{typeText.openSpeaker}
       <span className={styles.hidden}> ({typeText.newTab})</span></a>}

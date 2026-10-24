@@ -71,7 +71,7 @@ export function grantSuperadmin(email: string): void {
 }
 
 /** Tävlingstyperna i "Skapa tävling" (ADR-0170 beslut 1). */
-export type RaceTypeName = "Träning" | "Liten tävling" | "Tävling" | "Tävling med gafflade banor" | "Stafett" | "Rogaining";
+export type RaceTypeName = "Träning" | "Liten tävling" | "Tävling" | "Tävling med gafflade banor" | "Stafett" | "Rogaining" | "Fest";
 
 /**
  * Skapar tävling av vald typ (som standard i dag, tävlingsdagen, i Stockholms tid). "Skapa tävling" leder direkt in i den nya
@@ -124,7 +124,7 @@ export async function warmRoute(page: Page, path: string, method: "GET" | "POST"
 
 /** Delarna i sidopanelen; vilka som finns avgörs av tävlingstypen (ADR-0170). */
 export type SectionName = "Banor" | "Banor & klasser" | "Kontroller & poäng" | "Klasser" | "Klasser & sträckor" | "Anmälda" | "Deltagare" |
-  "Lag" | "Start" | "Publicera" | "Avläsning" | "Resultat" | "Inställningar";
+  "Lag" | "Start" | "Publicera" | "Avläsning" | "Resultat" | "Fest" | "Inställningar";
 
 /** En del i sidopanelen "Tävlingens delar". Delens status är knappens beskrivning. */
 export function sectionButton(page: Page, name: SectionName) {

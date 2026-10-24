@@ -5,7 +5,7 @@ import type { SectionId } from "../lib/race-sections";
  * exakt som i UI-texterna; `help-sv.test.ts` slår upp varje citat i i18n-filerna. Skriv inget annat inom ”…”.
  */
 
-/** Vyn man står i: arbetsytans steg, Mina tävlingar eller avläsningssidan. */
+/** Vyn man står i: arbetsytans steg (även Fest), Mina tävlingar eller avläsningssidan. */
 export type HelpView = SectionId | "EVENTS" | "READOUT_PAGE";
 
 /** En hjälpartikel. `body`: ett stycke per sträng, en punktlista per lista. */
@@ -245,6 +245,23 @@ export const helpArticles: readonly HelpArticle[] = [
         "Spring en testbricka genom start, alla kontroller och mål. Läs av den och se att tiderna stämmer."
       ],
       "Går stationens klocka fel visar avläsningen en varning. Märker du det under tävlingen: använd ”Justera tid för en station”."
+    ]
+  },
+  {
+    id: "fest-bardisk",
+    title: "Fest och bardisk",
+    views: ["PARTY", "READOUT_PAGE", "EVENTS"],
+    body: [
+      "Välj typen ”Fest”. Sätt festens start och lägg in varorna: en kontrollenhet per pris, med kod, namn och pris i kronor.",
+      "Gästerna stämplar själva på enheten med rätt pris och sätter sedan brickan i bardisken.",
+      [
+        "Första utläsningen checkar in gästen. Okänd bricka: gästen väljer sitt namn eller skriver det.",
+        "Senare utläsningar visar de nya köpen sedan förra gången och kvällens summa.",
+        "Målenheten checkar ut gästen när det är dags att gå hem.",
+        "”Personal” har lägena ”Checka in”, ”Köp/verifiera” och ”Checka ut” för rättningar."
+      ],
+      "Köpen sparas på brickan och i plattan även utan nät, och glömda köp kommer med nästa gång.",
+      "I arbetsytan ser du summa per person, ångrar ett köp med orsak och laddar ner CSV för Excel."
     ]
   }
 ];

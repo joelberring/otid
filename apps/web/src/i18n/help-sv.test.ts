@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { helpArticles, helpSv, type HelpView } from "./help-sv";
 import { readoutText } from "../readout/text-sv";
+import { partyText } from "../readout/party-text-sv";
 
 /**
  * PLAN.md steg 37: hjälpartiklarna citerar knappar och vägar inom ”…”. Varje citat ska finnas som en hel text i
@@ -25,12 +26,13 @@ const uiTexts = new Set([
   ...Object.entries(modules).flatMap(([path, module]) => Object.entries(module)
       .filter(([name]) => !(path === "./help-sv.ts" && name === "helpArticles"))
       .flatMap(([, value]) => strings(value))),
-  ...strings(readoutText)
+  ...strings(readoutText),
+  ...strings(partyText)
 ].map(text => text.trim()));
 
 const quoted = (text: string) => [...text.matchAll(/”([^”]+)”/g)].map(match => match[1]!);
 const views: readonly HelpView[] = ["EVENTS", "COURSES", "CLASSES", "ENTRIES", "START", "PUBLISH", "READOUT", "RESULTS", "SETTINGS",
-  "READOUT_PAGE"];
+  "READOUT_PAGE", "PARTY"];
 
 describe("hjälpartiklarna", () => {
   const citations = helpArticles.flatMap(article => [article.title, ...article.body.flat()].flatMap(text =>

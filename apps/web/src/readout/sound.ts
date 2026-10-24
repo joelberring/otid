@@ -4,7 +4,8 @@
  * (OscillatorNode), utan ljudfil. Webbläsaren spelar inget förrän användaren har klickat på sidan, så ljudet låses upp
  * vid första klicket (anslutknappen räcker). Valet "Ljud vid avläsning" sparas per webbläsare.
  */
-export type ReadoutSoundKind = "ok" | "fail";
+/** "neutral" (steg 40, bardisken): två lika toner när inget nytt hänt, t.ex. "Inga nya köp". */
+export type ReadoutSoundKind = "ok" | "fail" | "neutral";
 
 export interface Tone { readonly frequency: number; readonly start: number; readonly duration: number }
 
@@ -12,7 +13,8 @@ const NOTE = 0.1;
 /** C-dur uppåt (C5, E5, G5) och a-moll nedåt (E5, C5, A4): 3 × 0,1 s. */
 const TONES: Record<ReadoutSoundKind, readonly number[]> = {
   ok: [523.25, 659.25, 783.99],
-  fail: [659.25, 523.25, 440]
+  fail: [659.25, 523.25, 440],
+  neutral: [587.33, 587.33]
 };
 
 export function soundTones(kind: ReadoutSoundKind): Tone[] {

@@ -31,7 +31,9 @@ const adminFiles = [
   // Steg 36.
   "readout-reread-sv.ts",
   // Steg 37: hjälpen och sidfoten.
-  "help-sv.ts", "about-sv.ts"
+  "help-sv.ts", "about-sv.ts",
+  // Steg 40: festen.
+  "party-sv.ts"
 ];
 /** Delade textfiler (även publika sidor): bara nycklarna som arbetsytan läser granskas. */
 const sharedFiles = ["sv.ts", "account-sv.ts"];

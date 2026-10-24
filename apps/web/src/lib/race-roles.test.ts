@@ -24,7 +24,11 @@ const FUNCTIONARY_ALLOWED: Record<string, readonly string[]> = {
   "admin/races/[raceId]/administrator/manual-return-withdrawal": ["POST"],
   "admin/races/[raceId]/administrator/start-correction": ["POST"],
   "admin/races/[raceId]/administrator/speaker-board": ["GET"],
-  "admin/races/[raceId]/administrator/relay": ["GET"]
+  "admin/races/[raceId]/administrator/relay": ["GET"],
+  /** PLAN.md steg 40: festens läge, gästnamn och bardiskens in- och utcheckning (varor och ångra bara administratören). */
+  "admin/races/[raceId]/administrator/party": ["GET"],
+  "admin/races/[raceId]/administrator/party-guests": ["POST"],
+  "admin/races/[raceId]/administrator/party-desk-events": ["POST"]
 };
 /** Publika routes under api/races (startlistor) har ingen inloggning och ingår inte. */
 const PUBLIC = ["races/[raceId]/start-list", "races/[raceId]/start-list/iof"];

@@ -195,3 +195,47 @@ a { color: var(--ink); font-weight: 500; }
 .register-note[data-fits="no"] { border-left-color: var(--attention); background: var(--attention-tint); }
 @media (max-width: 700px) { .register-entries li button { width: 100%; } }
 .register-suggestions button { width: 100%; white-space: normal; min-height: 48px; padding: 6px 14px; text-align: left; font-size: var(--text-md); font-weight: 500; }
+/*
+ * Bardisken (PLAN.md steg 40): ett fönster som gästerna läser på avstånd. Beskedet är stort; grönt med ✓ när något
+ * hänt (välkommen, nya köp, utcheckad), neutralt när inget nytt finns. Personalens knappar ligger längst ned.
+ */
+.party { display: grid; gap: 18px; }
+.party-verdict { min-height: 300px; }
+.party-verdict[data-kind="WELCOME"], .party-verdict[data-kind="PURCHASES"], .party-verdict[data-kind="CHECKED_OUT"] { border-color: var(--ok); }
+.party-verdict[data-kind="WELCOME"] .big, .party-verdict[data-kind="PURCHASES"] .big, .party-verdict[data-kind="CHECKED_OUT"] .big { color: var(--ok); }
+.party-verdict[data-kind="failed"] { border-color: var(--mp); }
+.party-verdict[data-kind="failed"] .big { color: var(--mp); }
+.party-verdict[data-kind="idle"] .big { font-size: clamp(1.8rem, 5.5vw, 3rem); }
+.party-help { color: var(--muted); font-size: 1.3rem; }
+.party-outcome { display: grid; gap: 10px; }
+.party-outcome .card { overflow-wrap: anywhere; }
+.party-new { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; font-family: var(--font-dense); font-size: clamp(1.6rem, 5vw, 2.4rem);
+  font-weight: 700; font-variant-numeric: tabular-nums; }
+.party-total { font-family: var(--font-dense); font-size: clamp(1.6rem, 5vw, 2.4rem); font-weight: 700; font-variant-numeric: tabular-nums; }
+.party-outcome h2 { margin: 6px 0 0; color: var(--muted); font-size: var(--text-md); }
+.party-earlier { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; font-family: var(--font-dense); font-size: 1.2rem;
+  font-variant-numeric: tabular-nums; }
+.party-earlier li { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.party-earlier li span:first-child { min-width: 9rem; font-weight: 600; }
+.party-earlier li[data-voided="true"] span { text-decoration: line-through; color: var(--muted); }
+button.link { min-height: 44px; padding: 0 4px; border: 0; background: none; color: var(--ink); font-size: inherit; text-decoration: underline; }
+.party-name { display: grid; gap: 10px; padding: 18px 20px; border: 2px solid var(--ink); border-radius: var(--radius); background: var(--surface); }
+.party-name h2 { font-size: var(--text-lg); }
+.party-name input:not([type="radio"]) { width: 100%; min-height: 56px; padding: 8px 14px; border: 1px solid var(--line-strong);
+  border-radius: var(--radius); background: var(--surface); color: var(--ink); font: inherit; }
+.party-name fieldset { display: grid; gap: 6px; margin: 0 0 12px; padding: 0; border: 0; }
+.party-name legend { margin-bottom: 6px; font-size: var(--text-sm); font-weight: 600; }
+.party-suggestion { display: flex; align-items: center; gap: 12px; min-height: 56px; margin: 0; padding: 6px 14px; border: 1px solid var(--line-strong);
+  border-radius: var(--radius); font-size: var(--text-md); cursor: pointer; }
+.party-suggestion input { width: 24px; height: 24px; margin: 0; accent-color: var(--accent); }
+.party-name-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 12px; }
+.party-staff { display: grid; gap: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.party-staff-button { min-height: 44px; padding: 6px 16px; font-size: var(--text-sm); }
+.party-modes { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; border: 0; }
+.party-modes legend { margin-bottom: 6px; font-size: var(--text-sm); font-weight: 600; }
+.party-mode { font-weight: 700; }
+@media (max-width: 700px) {
+  .party-name { padding: 14px; }
+  .party-name-fields { grid-template-columns: minmax(0, 1fr); }
+  .party-verdict { min-height: 240px; }
+}

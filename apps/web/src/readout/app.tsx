@@ -27,6 +27,10 @@ import { serialIdentity, usbIdentity, useStationAutoConnect, type SerialApi, typ
   type UsbStation } from "./station-auto";
 import { loadSoundEnabled, ReadoutSound, saveSoundEnabled, soundForVerdict } from "./sound";
 import { HelpButton } from "../components/help/help-panel";
+import { IdbPartyActionStore, type PartyAction, type PartyActionStore, type QueuedPartyAction } from "./party-store";
+import { syncPartyActions } from "./party-sync";
+import { PartyDesk } from "./party-desk";
+import { partyText } from "./party-text-sv";
 
 type Current =
   | { readonly phase: "reading"; readonly cardNumber: number }
@@ -67,7 +71,8 @@ function stationText(status: StationStatus, exercise: boolean): string {
   }
 }
 
-export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutStore }) {
+export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new IdbPartyActionStore() }: { store?: ReadoutStore;
+  partyStore?: PartyActionStore }) {
   const [raceId] = useState(raceIdFromHash);
   const [pkg, setPkg] = useState<ReadoutPackage>();
   const [items, setItems] = useState<QueuedReadout[]>([]);
@@ -85,6 +90,9 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
   const [persistent, setPersistent] = useState(true);
   const [receiptSettings, setReceiptSettings] = useState<ReceiptSettings>(() => loadReceiptSettings());
   const storeRef = useRef(store);
+  // Fest (PLAN.md steg 40): bardiskens in-/utcheckningar och gästnamn, köade som avläsningarna.
+  const partyStoreRef = useRef(partyStore);
+  const [partyActions, setPartyActions] = useState<QueuedPartyAction[]>([]);
   const pkgRef = useRef<ReadoutPackage | undefined>(undefined);
   const controllerRef = useRef<StationController | undefined>(undefined);
   const exerciseRef = useRef<FakeStationTransport | undefined>(undefined);
@@ -99,8 +107,9 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
   const registrationsRef = useRef<QueuedRegistration[]>([]);
   const reload = useCallback(async () => {
     if (!raceId) return;
-    const [listed, registered] = await Promise.all([storeRef.current.list(raceId), storeRef.current.listRegistrations(raceId)]);
-    itemsRef.current = listed; setItems(listed);
+    const [listed, registered, party] = await Promise.all([storeRef.current.list(raceId), storeRef.current.listRegistrations(raceId),
+      partyStoreRef.current.list(raceId)]);
+    itemsRef.current = listed; setItems(listed); setPartyActions(party);
     registrationsRef.current = registered; setRegistrations(registered);
   }, [raceId]);
 
@@ -126,6 +135,13 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
       if (outcome.kind === "failed") setSyncProblem(t.syncFailed(outcome.status));
       // Kvitterade direktanmälningar finns nu i serverns paket; hämta det så att brickan är känd även utan den lokala kön.
       if (outcome.kind === "synced" && outcome.registered) await refreshPackage();
+      // Bardisken: in-/utcheckningar och gästnamn efter avläsningarna, så att servern har brickans avläsning först.
+      if (pkgRef.current?.party && outcome.kind !== "unauthorized" && outcome.kind !== "offline") {
+        const party = await syncPartyActions(partyStoreRef.current, raceId, deps);
+        if (party.kind === "offline") setOnline(false);
+        if (party.kind === "unauthorized") setLoginNeeded(true);
+        if (party.kind === "failed") setSyncProblem(t.syncFailed(party.status));
+      }
     } catch (error) {
       setSyncProblem(error instanceof Error ? error.message : String(error));
     } finally {
@@ -395,15 +411,26 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
     if (played.current === key) return;
     played.current = key;
     const kind = soundForVerdict(current.phase === "failed" || (current.phase === "done" && current.invalid) ? "FAILED" : verdict?.status);
+    // Bardisken (steg 40) spelar sina egna ljud; bara fel i avläsningen låter här.
+    if (pkgRef.current?.party && current.phase !== "failed") return;
     if (soundOn && kind) sound.current.play(kind);
   }, [current, verdict, soundOn]);
+
+  const addPartyAction = useCallback(async (action: PartyAction) => {
+    if (!raceId) return;
+    await partyStoreRef.current.add({ raceId, requestId: crypto.randomUUID(), createdAt: new Date().toISOString(), status: "pending", action });
+    await reload();
+    void sync();
+  }, [raceId, reload, sync]);
+  const playParty = useCallback((kind: "ok" | "fail" | "neutral") => { if (soundOn) sound.current.play(kind); }, [soundOn]);
 
   if (!raceId) return <main className="readout"><div className="readout-head"><h1>{t.title}</h1><HelpButton view="READOUT_PAGE" large /></div>
     <p className="notice">{t.noRace}</p></main>;
 
   const runners = pkg ? exerciseRunners(pkg) : [];
   const selectedRunner = runners.find((candidate) => candidate.entryId === runnerId) ?? runners[0];
-  const waiting = items.filter((item) => item.status === "pending").length;
+  const waiting = items.filter((item) => item.status === "pending").length +
+    partyActions.filter((row) => row.status === "pending").length;
   const held = heldReadouts(items);
   // Steg 31: övningsstationen skriver riktiga avläsningar; på tävlingsdagen varnas tydligt.
   const raceDay = pkg ? localRaceDate(new Date(), pkg.event.timeZone) === pkg.raceSnapshot.race.raceDate : false;
@@ -417,10 +444,10 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
   const screenQr = printable && receiptSettings.showQr && pkg && printable.verdict.entryId
     ? receiptLink(pkg, printable.verdict.entryId, window.location.origin) : undefined;
 
-  return <main className="readout">
+  const head = <>
     <header>
       {/* PLAN.md steg 37: Hjälp öppnar en panel ovanpå; avläsningen fortsätter under tiden. */}
-      <div className="readout-head"><h1>{t.title}</h1><HelpButton view="READOUT_PAGE" large /></div>
+      <div className="readout-head"><h1>{pkg?.party ? partyText.title : t.title}</h1><HelpButton view="READOUT_PAGE" large /></div>
       {pkg ? <p className="race">{pkg.event.name} · {pkg.raceSnapshot.race.name}</p> : null}
       <dl className="status" aria-label="Status">
         <div data-state={station.kind === "ready" ? "good" : station.kind === "disconnected" ? "idle" : "bad"}>
@@ -434,7 +461,9 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
             title={t.packageVersionTitle(pkg.packageVersion)}>{t.packageVersion(pkg.packageVersion)}</small></> : t.packageMissing}</dd></div>
       </dl>
     </header>
+  </>;
 
+  const alerts = <>
     {loginNeeded ? <p className="notice" role="alert">{t.loginNeeded} <a href="/organizer">{t.login}</a></p> : null}
     {syncProblem ? <p className="notice" role="alert">{syncProblem}</p> : null}
     {held.length > 0 ? <p className="notice" role="alert" data-testid="held-readouts">{t.heldReadouts(held.length)}{" "}
@@ -451,6 +480,66 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
     {station.kind === "misconfigured" ? <p className="notice" role="alert">{t.misconfiguredHelp} ({station.problems.join(", ")})</p> : null}
     {clockSkew !== undefined ? <p className="notice" role="alert" data-testid="clock-skew">{t.clockSkew(clockSkew)}</p> : null}
     {!exercise && station.kind === "ready" && !station.clock ? <p className="notice" data-testid="clock-missing">{t.clockMissing}</p> : null}
+  </>;
+  const controls = <>
+    <section className="controls">
+      {connected
+        ? <button type="button" onClick={() => { void disconnect(); }}>{t.disconnect}</button>
+        : <>
+          <button type="button" className="primary" onClick={() => { void connectSerial(); }}>{t.connectSerial}</button>
+          {showUsbButton ? <button type="button" className="primary" onClick={() => { void connectUsb(); }}>{t.connectUsb}</button> : null}
+          <button type="button" onClick={() => { void connectExercise(); }}>{t.connectExercise}</button>
+          {raceDay ? <small className="exercise-warning">{t.exerciseRaceDayShort}</small> : null}
+        </>}
+      <label className="sound-choice"><input type="checkbox" checked={soundOn} onChange={(event) => {
+        setSoundOn(event.target.checked); saveSoundEnabled(event.target.checked);
+        if (event.target.checked) void sound.current.unlock().then(setSoundUnlocked);
+      }} />{t.sound}</label>
+    </section>
+    {soundOn && !soundUnlocked && connected ? <p className="hint" data-testid="sound-locked">{t.soundLocked}</p> : null}
+  </>;
+  const autoConnect = <>
+    {/* Steg 35: automatisk anslutning till den sparade stationen. */}
+    {!exercise && (auto.remembered || auto.choices) ? <section className="auto-connect" data-testid="auto-connect" aria-label={t.autoTitle}>
+      {auto.choices ? <>
+        <p><strong>{t.autoChoose}</strong></p>
+        <div className="row">{auto.choices.map((option, index) => <button key={index} type="button" className="primary"
+          onClick={() => { void sound.current.unlock(); void auto.choose(option); }}>{option.label}</button>)}</div>
+      </> : <p role="status">{connected ? t.autoConnected : auto.paused ? t.autoPaused : t.autoConnecting}</p>}
+      {auto.problem ? <p role="alert">{t.autoProblem(auto.problem)}</p> : null}
+      <button type="button" onClick={auto.stop}>{t.autoStop}</button>
+    </section> : null}
+    <p className="hint">{t.tabHint}</p>
+  </>;
+  const rawAndLinks = <>
+    <section className="rawlog">
+      <button type="button" onClick={downloadRawLog}>{t.rawLog}</button>
+      <p>{t.rawLogHelp}</p>
+    </section>
+
+    {/* Steg 35: länkarna öppnas i en ny flik, så att stationen inte kopplas från när man byter sida. */}
+    <nav className="links">
+      <a href={`/admin/${raceId}/manage`} target="_blank" rel="noopener">{t.manage}</a>
+      <a href={`/results/${raceId}`} target="_blank" rel="noopener">{t.results}</a>
+    </nav>
+  </>;
+
+  // Fest (PLAN.md steg 40): bardisken i ett fönster. Stationens knappar syns när den inte är ansluten; resten under Personal.
+  if (pkg?.party) return <main className="readout party-page">
+    {head}
+    {alerts}
+    <PartyDesk raceId={raceId} pkg={pkg} items={items} actions={partyActions} online={online} addAction={addPartyAction} play={playParty}
+      reading={current?.phase === "reading" ? current.cardNumber : undefined}
+      failure={current?.phase === "failed" ? current.message : undefined}
+      exercise={exercise && station.kind === "ready" ? exerciseRef.current : undefined}
+      statusArea={null}
+      staffArea={<>{connected ? controls : null}{autoConnect}{rawAndLinks}</>} />
+    {!connected ? controls : null}
+  </main>;
+
+  return <main className="readout">
+    {head}
+    {alerts}
 
     <section className="verdict" aria-live="assertive" data-testid="verdict"
       data-status={current?.phase === "done" ? verdict?.status ?? "NO_PACKAGE" : current?.phase ?? "idle"}>
@@ -476,33 +565,9 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
     <ReceiptPanel printable={printable} pkg={pkg} settings={receiptSettings}
       onSettings={(settings) => { setReceiptSettings(settings); saveReceiptSettings(settings); }} />
 
-    <section className="controls">
-      {connected
-        ? <button type="button" onClick={() => { void disconnect(); }}>{t.disconnect}</button>
-        : <>
-          <button type="button" className="primary" onClick={() => { void connectSerial(); }}>{t.connectSerial}</button>
-          {showUsbButton ? <button type="button" className="primary" onClick={() => { void connectUsb(); }}>{t.connectUsb}</button> : null}
-          <button type="button" onClick={() => { void connectExercise(); }}>{t.connectExercise}</button>
-          {raceDay ? <small className="exercise-warning">{t.exerciseRaceDayShort}</small> : null}
-        </>}
-      <label className="sound-choice"><input type="checkbox" checked={soundOn} onChange={(event) => {
-        setSoundOn(event.target.checked); saveSoundEnabled(event.target.checked);
-        if (event.target.checked) void sound.current.unlock().then(setSoundUnlocked);
-      }} />{t.sound}</label>
-    </section>
-    {soundOn && !soundUnlocked && connected ? <p className="hint" data-testid="sound-locked">{t.soundLocked}</p> : null}
+    {controls}
 
-    {/* Steg 35: automatisk anslutning till den sparade stationen. */}
-    {!exercise && (auto.remembered || auto.choices) ? <section className="auto-connect" data-testid="auto-connect" aria-label={t.autoTitle}>
-      {auto.choices ? <>
-        <p><strong>{t.autoChoose}</strong></p>
-        <div className="row">{auto.choices.map((option, index) => <button key={index} type="button" className="primary"
-          onClick={() => { void sound.current.unlock(); void auto.choose(option); }}>{option.label}</button>)}</div>
-      </> : <p role="status">{connected ? t.autoConnected : auto.paused ? t.autoPaused : t.autoConnecting}</p>}
-      {auto.problem ? <p role="alert">{t.autoProblem(auto.problem)}</p> : null}
-      <button type="button" onClick={auto.stop}>{t.autoStop}</button>
-    </section> : null}
-    <p className="hint">{t.tabHint}</p>
+    {autoConnect}
 
     {exercise && station.kind === "ready" ? <section className="exercise" aria-label={t.exercise}>
       <h2>{t.exercise}</h2>
@@ -535,16 +600,7 @@ export function ReadoutApp({ store = new IdbReadoutStore() }: { store?: ReadoutS
       </ol>}
     </section>
 
-    <section className="rawlog">
-      <button type="button" onClick={downloadRawLog}>{t.rawLog}</button>
-      <p>{t.rawLogHelp}</p>
-    </section>
-
-    {/* Steg 35: länkarna öppnas i en ny flik, så att stationen inte kopplas från när man byter sida. */}
-    <nav className="links">
-      <a href={`/admin/${raceId}/manage`} target="_blank" rel="noopener">{t.manage}</a>
-      <a href={`/results/${raceId}`} target="_blank" rel="noopener">{t.results}</a>
-    </nav>
+    {rawAndLinks}
   </main>;
 }
 

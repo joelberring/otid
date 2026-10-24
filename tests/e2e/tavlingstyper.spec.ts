@@ -7,17 +7,18 @@ import { addCourseAndClass, addEntry, createRace, openStep, registerAccount, sec
  * speakern har en egen sida som uppdateras av sig själv.
  */
 const ALL: SectionName[] = ["Banor", "Banor & klasser", "Kontroller & poäng", "Klasser", "Klasser & sträckor", "Anmälda", "Deltagare",
-  "Lag", "Start", "Publicera", "Avläsning", "Resultat", "Inställningar"];
+  "Lag", "Start", "Publicera", "Avläsning", "Resultat", "Fest", "Inställningar"];
 const EXPECTED: Record<RaceTypeName, SectionName[]> = {
   "Träning": ["Banor & klasser", "Deltagare", "Publicera", "Avläsning", "Resultat", "Inställningar"],
   "Liten tävling": ["Banor", "Klasser", "Anmälda", "Start", "Publicera", "Avläsning", "Resultat", "Inställningar"],
   "Tävling": ["Banor", "Klasser", "Anmälda", "Start", "Publicera", "Avläsning", "Resultat", "Inställningar"],
   "Tävling med gafflade banor": ["Banor", "Klasser", "Anmälda", "Start", "Publicera", "Avläsning", "Resultat", "Inställningar"],
   "Stafett": ["Banor", "Klasser & sträckor", "Lag", "Start", "Publicera", "Avläsning", "Resultat", "Inställningar"],
-  "Rogaining": ["Kontroller & poäng", "Deltagare", "Publicera", "Avläsning", "Resultat", "Inställningar"]
+  "Rogaining": ["Kontroller & poäng", "Deltagare", "Publicera", "Avläsning", "Resultat", "Inställningar"],
+  "Fest": ["Fest", "Publicera", "Inställningar"]
 };
 const SPEAKER: Record<RaceTypeName, boolean> = { "Träning": false, "Liten tävling": false, "Tävling": true,
-  "Tävling med gafflade banor": true, "Stafett": true, "Rogaining": false };
+  "Tävling med gafflade banor": true, "Stafett": true, "Rogaining": false, "Fest": false };
 
 test("varje tävlingstyp visar sina delar och inga andra", async ({ browser }) => {
   test.setTimeout(240_000);

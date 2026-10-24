@@ -18,6 +18,7 @@ import { ParticipantsPanel, RentalPrint } from "./race-administrator/participant
 import { SettingsPanel } from "./race-administrator/settings-panel";
 import { RogainingPanel } from "./race-administrator/rogaining-panel";
 import { PublishPanel } from "./race-administrator/race-publication-section";
+import { PartyPanel } from "./race-administrator/party-panel";
 import { Notice } from "./ui";
 import { SiteFooter } from "./about/site-footer";
 
@@ -82,6 +83,8 @@ export function RaceAdministratorWorkspace({ raceId }: { raceId: string }) {
           <ParticipantsPanel ws={ws} />
           <RentalPrint ws={ws} />
         </>}
+        {/* PLAN.md steg 40: festen (varor, köp, export); funktionären ser köpen men ändrar inte varor. */}
+        <PartyPanel ws={ws} />
         <PreparationStartList ws={ws} />
         {!ws.functionary && <PublishPanel ws={ws} />}
         <DuringRaceOverview ws={ws} />

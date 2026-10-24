@@ -46,7 +46,7 @@ export function TopBar({ ws }: { ws: Workspace }) {
       <p>{data.raceName} · <time dateTime={data.raceDate}>{data.raceDate}</time> · {typeText.types[data.raceType].name}
         {functionary && <> · <strong className={styles.role}>{typeText.functionary}</strong></>}</p>
     </div>}
-    {current && <p className={styles.live} aria-label={typeText.liveState}>
+    {current && data?.raceType !== "PARTY" && <p className={styles.live} aria-label={typeText.liveState}>
       <span><strong>{current.readOut}</strong> {typeText.live.readOut}</span>
       <span><strong>{current.inForest}</strong> {typeText.live.inForest}</span>
       {!!current.unknownCards && <span className={styles.liveAttention}><span aria-hidden="true">!</span>

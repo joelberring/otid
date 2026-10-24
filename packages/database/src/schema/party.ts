@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, index, integer, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, customType, index, integer, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { races } from "./core";
 
 /**
@@ -11,6 +11,10 @@ export const partySettings = pgTable("party_setting", {
   raceId: uuid("race_id").primaryKey().references(() => races.id),
   startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
   showPublicNames: boolean("show_public_names").notNull().default(true),
+  /** Utseendet: rubrik och färger (hex, gemener). NULL = neutralt förval. */
+  themeTitle: text("theme_title"),
+  themePrimary: text("theme_primary"),
+  themeAccent: text("theme_accent"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull()
 });
 
@@ -75,3 +79,14 @@ export const partyPurchaseVoids = pgTable("party_purchase_void", {
   actorAccountId: uuid("actor_account_id").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull()
 }, (table) => [uniqueIndex("party_purchase_void_uidx").on(table.raceId, table.cardNumber, table.controlCode, table.punchedAt)]);
+
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => "bytea" });
+
+/** Festens logga (PNG eller JPEG, högst 1 MB), som kartbilderna. */
+export const partyLogos = pgTable("party_logo", {
+  raceId: uuid("race_id").primaryKey().references(() => races.id),
+  mediaType: text("media_type").$type<"image/png" | "image/jpeg">().notNull(),
+  byteLength: integer("byte_length").notNull(),
+  image: bytea("image").notNull(),
+  uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull()
+});

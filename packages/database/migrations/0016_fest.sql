@@ -17,7 +17,25 @@ CREATE TABLE party_setting (
   starts_at timestamp with time zone NOT NULL,
   -- "Visa namn på den publika sidan": på som standard (ägarens val). Belopp och bricka visas aldrig publikt.
   show_public_names boolean NOT NULL DEFAULT true,
-  updated_at timestamp with time zone NOT NULL
+  -- Utseendet på den publika fest-sidan och bardisken: rubrik och två färger (hex). NULL = neutralt förval.
+  theme_title text,
+  theme_primary text,
+  theme_accent text,
+  updated_at timestamp with time zone NOT NULL,
+  CONSTRAINT party_setting_title_check CHECK (theme_title IS NULL OR char_length(theme_title) BETWEEN 1 AND 60),
+  CONSTRAINT party_setting_primary_check CHECK (theme_primary IS NULL OR theme_primary ~ '^#[0-9a-f]{6}$'),
+  CONSTRAINT party_setting_accent_check CHECK (theme_accent IS NULL OR theme_accent ~ '^#[0-9a-f]{6}$')
+);
+--> statement-breakpoint
+-- Festens logga (PNG eller JPEG, högst 1 MB), lagrad som kartbilderna. SVG tas inte emot (kan bära skript).
+CREATE TABLE party_logo (
+  race_id uuid PRIMARY KEY REFERENCES race(id),
+  media_type text NOT NULL,
+  byte_length integer NOT NULL,
+  image bytea NOT NULL,
+  uploaded_at timestamp with time zone NOT NULL,
+  CONSTRAINT party_logo_media_type_check CHECK (media_type IN ('image/png', 'image/jpeg')),
+  CONSTRAINT party_logo_size_check CHECK (byte_length BETWEEN 1 AND 1048576 AND byte_length = octet_length(image))
 );
 --> statement-breakpoint
 CREATE TABLE party_item (

@@ -1,0 +1,53 @@
+/*
+ * Den publika fest-sidan (PLAN.md steg 40): festlig men lugn. Färgerna kommer från festens inställningar som
+ * CSS-variabler (texten på färgad yta är mörk eller ljus efter kontrasten). Diskret konfetti i bakgrunden, ingen
+ * animation. Läsbar på mobil och på storbild.
+ */
+.page {
+  display: grid; gap: 20px; max-width: 1200px; margin: 0 auto; padding: 16px 16px 40px;
+  background-color: var(--canvas);
+  background-image:
+    radial-gradient(circle at 12% 18%, color-mix(in srgb, var(--party-accent) 22%, transparent) 0 3px, transparent 4px),
+    radial-gradient(circle at 78% 8%, color-mix(in srgb, var(--party-primary) 18%, transparent) 0 3px, transparent 4px),
+    radial-gradient(circle at 42% 64%, color-mix(in srgb, var(--party-accent) 16%, transparent) 0 2px, transparent 3px),
+    radial-gradient(circle at 90% 72%, color-mix(in srgb, var(--party-primary) 14%, transparent) 0 2px, transparent 3px);
+  background-size: 180px 180px;
+}
+.banner { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; padding: 18px 22px; border-radius: var(--radius);
+  background: var(--party-primary); color: var(--party-on-primary); }
+.banner h1 { margin: 0; font-size: clamp(1.8rem, 5vw, 3.2rem); font-weight: 800; letter-spacing: .04em; text-transform: uppercase; line-height: 1.05; }
+.banner p { margin: 4px 0 0; font-size: var(--text-md); letter-spacing: .02em; }
+.logo { width: clamp(56px, 10vw, 96px); height: clamp(56px, 10vw, 96px); object-fit: contain; border-radius: 50%; background: #fff; }
+.status { color: var(--muted); font-size: var(--text-sm); }
+.numbers { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin: 0; }
+.numbers div { display: grid; gap: 2px; padding: 14px 16px; border: 1px solid var(--line); border-top: 6px solid var(--party-accent);
+  border-radius: var(--radius); background: var(--surface); }
+.numbers dt { color: var(--muted); font-size: var(--text-sm); letter-spacing: .03em; text-transform: uppercase; }
+.numbers dd { margin: 0; font-family: var(--font-dense); font-size: clamp(2rem, 6vw, 3.6rem); font-weight: 800; font-variant-numeric: tabular-nums;
+  line-height: 1.05; color: var(--party-primary-text); }
+.panel { display: grid; align-content: start; gap: 10px; padding: 16px 18px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.panel h2 { margin: 0; font-size: var(--text-lg); letter-spacing: .04em; text-transform: uppercase; color: var(--party-primary-text); }
+.panel h3 { margin: 8px 0 0; font-size: var(--text-md); }
+.bars { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.bars li { display: grid; grid-template-columns: minmax(6rem, 12rem) minmax(0, 1fr) auto; align-items: center; gap: 12px; }
+.barName { font-weight: 700; overflow-wrap: anywhere; }
+.barTrack { height: 22px; border-radius: 11px; background: var(--line); overflow: hidden; }
+.barFill { display: block; height: 100%; border-radius: 11px; background: var(--party-accent); }
+.barValue { font-family: var(--font-dense); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.peak { font-weight: 700; color: var(--party-accent-text); }
+.chart { display: flex; align-items: stretch; gap: 3px; height: 180px; margin: 0; padding: 0 0 22px; list-style: none; overflow-x: auto; }
+.chart li { position: relative; display: flex; flex: 0 1 40px; min-width: 14px; flex-direction: column; justify-content: flex-end; }
+.column { display: block; width: 100%; border-radius: 3px 3px 0 0; background: color-mix(in srgb, var(--party-primary) 55%, white); }
+.chart li[data-peak="true"] .column { background: var(--party-accent); outline: 2px solid var(--party-accent-text); }
+.tick { position: absolute; bottom: -20px; left: 0; color: var(--muted); font-size: var(--text-xs); white-space: nowrap; }
+.columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.recent, .fun, .guests { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: var(--text-md); }
+.recent time { font-family: var(--font-dense); font-variant-numeric: tabular-nums; color: var(--muted); }
+.guests { grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 4px 20px; }
+.guests li { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px solid var(--line); padding: 4px 0; }
+@media (max-width: 760px) {
+  .numbers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .columns { grid-template-columns: minmax(0, 1fr); }
+  .bars li { grid-template-columns: minmax(0, 1fr) auto; }
+  .barTrack { grid-column: 1 / -1; grid-row: 2; }
+}

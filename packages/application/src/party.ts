@@ -1,10 +1,11 @@
 import { and, asc, eq } from "drizzle-orm";
 import {
   partyChangeRequestSchema, partyDeskEventRequestSchema, partyDeskEventResponseSchema, partyGuestRequestSchema, partyStateResponseSchema,
-  type PartyDeskEventResponse, type PartyPackage, type PartyStateResponse
+  publicPartyResponseSchema, type PartyDeskEventResponse, type PartyPackage, type PartyStateResponse, type PartyTheme,
+  type PublicPartyResponse
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { partyLedger } from "@o-tid/domain";
+import { partyLedger, partyPublicStats } from "@o-tid/domain";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation } from "./concurrency";
 import type { DbExecutor } from "./snapshot";
@@ -34,16 +35,24 @@ async function loadItems(tx: DbExecutor, raceId: string): Promise<PartyPackage["
   });
 }
 
-/** Festens start och varorna för avläsningspaketet (bardisken utan nät). Undefined när tävlingen inte är en fest. */
+/** Utseendet: rubrik, färger och loggans adress (versionen är uppladdningens tid, så att en ny logga hämtas). */
+async function loadTheme(tx: DbExecutor, raceId: string, setting: typeof schema.partySettings.$inferSelect | undefined): Promise<PartyTheme> {
+  const [race] = await tx.select({ shortCode: schema.races.shortCode }).from(schema.races).where(eq(schema.races.id, raceId));
+  const [logo] = await tx.select({ uploadedAt: schema.partyLogos.uploadedAt }).from(schema.partyLogos).where(eq(schema.partyLogos.raceId, raceId));
+  return { title: setting?.themeTitle ?? null, primary: setting?.themePrimary ?? null, accent: setting?.themeAccent ?? null,
+    logo: logo && race ? `/api/public/parties/${race.shortCode}/logo?v=${logo.uploadedAt.getTime()}` : null };
+}
+
+/** Festens start, varorna och utseendet för avläsningspaketet (bardisken utan nät). Undefined när tävlingen inte är en fest. */
 export async function loadPartyPackage(tx: DbExecutor, raceId: string): Promise<PartyPackage | undefined> {
   if (!await isParty(tx, raceId)) return undefined;
   const [setting] = await tx.select().from(schema.partySettings).where(eq(schema.partySettings.raceId, raceId));
-  return { startsAt: setting ? iso(setting.startsAt) : null, items: await loadItems(tx, raceId) };
+  return { startsAt: setting ? iso(setting.startsAt) : null, items: await loadItems(tx, raceId), theme: await loadTheme(tx, raceId, setting) };
 }
 
 /** Hela läget: varor, köp ur avläsningarna, gäster med summa och utcheckning. */
 export async function loadPartyState(tx: DbExecutor, raceId: string, now: Date): Promise<PartyStateResponse> {
-  const [race] = await tx.select({ timeZone: schema.events.timeZone }).from(schema.races)
+  const [race] = await tx.select({ timeZone: schema.events.timeZone, shortCode: schema.races.shortCode }).from(schema.races)
     .innerJoin(schema.events, eq(schema.events.id, schema.races.eventId)).where(eq(schema.races.id, raceId));
   if (!race) throw new Error("Loppet finns inte");
   const [setting] = await tx.select().from(schema.partySettings).where(eq(schema.partySettings.raceId, raceId));
@@ -65,7 +74,8 @@ export async function loadPartyState(tx: DbExecutor, raceId: string, now: Date):
       voidedAt: iso(row.createdAt) })),
     guests: guests.map(row => ({ cardNumber: row.cardNumber, name: row.name, ...(row.club ? { club: row.club } : {}) })) });
   return partyStateResponseSchema.parse({ formatVersion: 1, raceId, timeZone: race.timeZone, startsAt: startsAt ?? null, items,
-    showPublicNames: setting?.showPublicNames ?? true, purchases: ledger.purchases, guests: ledger.guests,
+    theme: await loadTheme(tx, raceId, setting),
+    showPublicNames: setting?.showPublicNames ?? true, publicPath: `/fest/${race.shortCode}`, purchases: ledger.purchases, guests: ledger.guests,
     totalOre: ledger.totalOre, purchaseCount: ledger.purchaseCount, fetchedAt: iso(now) });
 }
 
@@ -108,6 +118,13 @@ export async function changePartyAsAdmin(db: Database, input: RaceSessionProof &
         set: { startsAt: new Date(change.startsAt), showPublicNames: change.showPublicNames, updatedAt: now } });
       await audit(raceId, "PARTY_SETTINGS_CHANGED", before ? { startsAt: iso(before.startsAt), showPublicNames: before.showPublicNames } : null,
         { startsAt: new Date(change.startsAt).toISOString(), showPublicNames: change.showPublicNames });
+    } else if (change.kind === "theme") {
+      const [before] = await tx.select().from(schema.partySettings).where(eq(schema.partySettings.raceId, raceId));
+      if (!before) return { status: "conflict" };
+      await tx.update(schema.partySettings).set({ themeTitle: change.title, themePrimary: change.primary, themeAccent: change.accent, updatedAt: now })
+        .where(eq(schema.partySettings.raceId, raceId));
+      await audit(raceId, "PARTY_THEME_CHANGED", { title: before.themeTitle, primary: before.themePrimary, accent: before.themeAccent },
+        { title: change.title, primary: change.primary, accent: change.accent });
     } else if (change.kind === "item-add") {
       const [taken] = await tx.select({ id: schema.partyItems.id }).from(schema.partyItems)
         .where(and(eq(schema.partyItems.raceId, raceId), eq(schema.partyItems.controlCode, change.code)));
@@ -198,5 +215,64 @@ export async function registerPartyDeskEventAsAdmin(db: Database, input: RaceSes
     }
     return { status: "ok", response: partyDeskEventResponseSchema.parse({ formatVersion: 1, raceId, deviceId: request.deviceId,
       localSequence: request.localSequence, kind: request.kind, status: inserted[0] ? "stored" : "duplicate" }) };
+  });
+}
+
+/**
+ * Den publika fest-sidan (PLAN.md steg 40): statistik utan belopp och bricknummer, namn bara när festen visar namn.
+ * Grinden (publicerad tävling) ligger i webbens `publicRaceResponse`. Undefined när tävlingen inte är en fest.
+ */
+export async function readPublicParty(db: Database, raceId: string, now = new Date()): Promise<PublicPartyResponse | undefined> {
+  return db.transaction(async tx => {
+    if (!await isParty(tx, raceId)) return undefined;
+    const state = await loadPartyState(tx, raceId, now);
+    const [event] = await tx.select({ name: schema.events.name }).from(schema.races)
+      .innerJoin(schema.events, eq(schema.events.id, schema.races.eventId)).where(eq(schema.races.id, raceId));
+    const stats = partyPublicStats({ purchases: state.purchases, guests: state.guests, totalOre: state.totalOre, purchaseCount: state.purchaseCount },
+      { showNames: state.showPublicNames });
+    return publicPartyResponseSchema.parse({ formatVersion: 1, eventName: event!.name, timeZone: state.timeZone, showNames: state.showPublicNames,
+      theme: state.theme, ...stats, fetchedAt: iso(now) });
+  }, { isolationLevel: "repeatable read" });
+}
+
+/** Festens logga för den publika sidan och bardisken. */
+export async function readPartyLogo(db: Database, raceId: string): Promise<{ mediaType: string; image: Buffer } | undefined> {
+  const [logo] = await db.select({ mediaType: schema.partyLogos.mediaType, image: schema.partyLogos.image }).from(schema.partyLogos)
+    .where(eq(schema.partyLogos.raceId, raceId));
+  return logo;
+}
+
+const PNG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+const LOGO_MAX_BYTES = 1_048_576;
+
+/** Bildtypen ur filens första byte (PNG eller JPEG), aldrig ur filnamnet eller webbläsarens uppgift. */
+export function partyLogoMediaType(bytes: Uint8Array): "image/png" | "image/jpeg" | undefined {
+  if (PNG.every((byte, index) => bytes[index] === byte)) return "image/png";
+  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg";
+  return undefined;
+}
+
+/** Sparar eller tar bort festens logga (admin). PNG eller JPEG, högst 1 MB; typen avgörs av innehållet. */
+export async function savePartyLogoAsAdmin(db: Database, input: RaceSessionProof & { image: Uint8Array | null }, now = new Date()):
+  Promise<Failure | { status: "ok" }> {
+  if (!uuid.test(input.raceId)) return { status: "invalid-request" };
+  const mediaType = input.image ? partyLogoMediaType(input.image) : undefined;
+  if (input.image && (!mediaType || input.image.byteLength === 0 || input.image.byteLength > LOGO_MAX_BYTES)) return { status: "invalid-request" };
+  return db.transaction(async tx => {
+    const auth = await requireRaceRole(tx, { ...input, role: "ADMIN", requireCsrf: true }, now, "update");
+    if (auth.status !== "authenticated") return auth;
+    const raceId = auth.principal.raceId;
+    if (!await isParty(tx, raceId)) return { status: "not-found" };
+    if (input.image && mediaType) {
+      const image = Buffer.from(input.image);
+      await tx.insert(schema.partyLogos).values({ raceId, mediaType, byteLength: image.byteLength, image, uploadedAt: now })
+        .onConflictDoUpdate({ target: schema.partyLogos.raceId, set: { mediaType, byteLength: image.byteLength, image, uploadedAt: now } });
+    } else {
+      await tx.delete(schema.partyLogos).where(eq(schema.partyLogos.raceId, raceId));
+    }
+    await tx.insert(schema.auditEvents).values({ raceId, entityType: "party", entityId: raceId, actorKind: "USER_ACCOUNT",
+      actorId: auth.principal.accountId, action: input.image ? "PARTY_LOGO_SAVED" : "PARTY_LOGO_REMOVED", before: null,
+      after: input.image ? { mediaType, byteLength: input.image.byteLength } : {}, createdAt: now });
+    return { status: "ok" };
   });
 }

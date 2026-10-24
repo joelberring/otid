@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { sv } from "../../../i18n/sv";
 import { publicRaceSv } from "../../../i18n/public-race-sv";
 import { raceTypeSv } from "../../../i18n/race-type-sv";
@@ -36,6 +37,8 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
  */
 export default async function RaceHubPage({ params }: Params) {
   const hub = await requireRaceHub((await params).code);
+  // PLAN.md steg 40: en fest har en egen sida under /fest/, så att den kan stängas för robotar utan att röra tävlingarna.
+  if (hub.raceType === "PARTY") redirect(`/fest/${hub.shortCode}`);
   const path = raceHubPath(hub.shortCode);
   const address = displayAddress(await publicOrigin(), path);
   const hasStartSection = raceTypeProfile(hub.raceType).course.some(section => section.id === "START");

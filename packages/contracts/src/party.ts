@@ -24,10 +24,22 @@ export const partyItemSchema = z.object({
   prices: z.array(z.object({ priceOre: ore, validFrom: instant }).strict()).min(1).max(200)
 }).strict();
 
+const hex = z.string().regex(/^#[0-9a-f]{6}$/);
+
+/** Utseendet på den publika fest-sidan och bardisken. Null = neutralt förval. */
+export const partyThemeSchema = z.object({
+  title: z.string().trim().min(1).max(60).nullable(),
+  primary: hex.nullable(),
+  accent: hex.nullable(),
+  /** Adressen till loggan, när den finns. */
+  logo: z.string().regex(/^\/api\/public\/parties\/[2-9a-hjkmnp-z]{6}\/logo\?v=\d+$/).nullable()
+}).strict();
+
 /** Det bardisken behöver utan nät; följer med avläsningspaketet för en fest. Ingår inte i paketversionen. */
 export const partyPackageSchema = z.object({
   startsAt: instant.nullable(),
-  items: z.array(partyItemSchema).max(100)
+  items: z.array(partyItemSchema).max(100),
+  theme: partyThemeSchema.optional()
 }).strict();
 
 const presence = z.object({ at: instant, source: z.enum(["START", "FINISH", "DESK"]) }).strict();
@@ -49,6 +61,8 @@ export const partyStateResponseSchema = z.object({
   formatVersion: z.literal(1), raceId: uuid, timeZone: z.string().min(1).max(128),
   ...partyPackageSchema.shape,
   showPublicNames: z.boolean(),
+  /** Den publika fest-sidan (syns när tävlingen är publicerad). */
+  publicPath: z.string().regex(/^\/fest\/[2-9a-hjkmnp-z]{6}$/),
   purchases: z.array(partyPurchaseSchema).max(100_000),
   guests: z.array(partyGuestSummarySchema).max(10_000),
   totalOre: total, purchaseCount: count,
@@ -61,6 +75,7 @@ export const partyChangeRequestSchema = z.object({
   requestId: uuid,
   change: z.discriminatedUnion("kind", [
     z.object({ kind: z.literal("settings"), startsAt: instant, showPublicNames: z.boolean() }).strict(),
+    z.object({ kind: z.literal("theme"), title: z.string().trim().min(1).max(60).nullable(), primary: hex.nullable(), accent: hex.nullable() }).strict(),
     z.object({ kind: z.literal("item-add"), code: partyControlCodeSchema, name: itemName, priceOre: ore }).strict(),
     z.object({ kind: z.literal("item-change"), itemId: uuid, name: itemName, priceOre: ore, hidden: z.boolean() }).strict(),
     z.object({ kind: z.literal("void"), cardNumber, code: partyControlCodeSchema, punchedAt: instant,
@@ -91,3 +106,36 @@ export type PartyChangeRequest = z.infer<typeof partyChangeRequestSchema>;
 export type PartyGuestRequest = z.infer<typeof partyGuestRequestSchema>;
 export type PartyDeskEventRequest = z.infer<typeof partyDeskEventRequestSchema>;
 export type PartyDeskEventResponse = z.infer<typeof partyDeskEventResponseSchema>;
+
+/**
+ * Den publika fest-sidan (PLAN.md steg 40): strikt kontrakt utan bricknummer, belopp och interna id:n. Namn bara när
+ * festen visar namn publikt; belopp per person finns aldrig här.
+ */
+const publicName = z.string().min(1).max(160);
+const moment = z.object({ at: instant, name: publicName.optional() }).strict();
+
+
+export const publicPartyResponseSchema = z.object({
+  formatVersion: z.literal(1),
+  eventName: z.string().min(1).max(160),
+  timeZone: z.string().min(1).max(128),
+  showNames: z.boolean(),
+  theme: partyThemeSchema,
+  soldCount: count, guestCount: count, checkedInCount: count, checkedOutCount: count,
+  firstPurchaseAt: instant.optional(), lastPurchaseAt: instant.optional(),
+  items: z.array(z.object({ name: itemName, count, share: z.number().min(0).max(1) }).strict()).max(100),
+  quarters: z.array(z.object({ startsAt: instant, count }).strict()).max(500),
+  peak: z.number().int().min(0).max(499).optional(),
+  recent: z.array(z.object({ at: instant, itemName, name: publicName.optional() }).strict()).max(20),
+  averageSecondsBetween: z.number().int().min(0).max(10_000_000).optional(),
+  topPerHour: z.array(z.object({ hourStartsAt: instant, itemName, count }).strict()).max(200),
+  firstArrival: moment.optional(), firstFinish: moment.optional(), lastOut: moment.optional(),
+  guests: z.array(z.object({ name: publicName, purchaseCount: count }).strict()).max(10_000).optional(),
+  fetchedAt: instant
+}).strict().superRefine((value, context) => {
+  const named = value.recent.some(row => row.name) || [value.firstArrival, value.firstFinish, value.lastOut].some(row => row?.name) || value.guests;
+  if (!value.showNames && named) context.addIssue({ code: "custom", message: "Namn får bara visas när festen visar namn" });
+});
+
+export type PartyTheme = z.infer<typeof partyThemeSchema>;
+export type PublicPartyResponse = z.infer<typeof publicPartyResponseSchema>;

@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
-import { createRace, registerAccount, reviewScreenshots, today, unique, warmRoute } from "./helpers";
+import { createRace, publishRace, publishRaceViaApi, registerAccount, reviewScreenshots, today, unique, warmRoute } from "./helpers";
 
 /**
  * Steg 40: fest med bardisk, hela kvällen i automatiskt läge i ett fönster. Festen och två varor läggs in, bardisken
@@ -106,7 +106,7 @@ test("fest: bardisken checkar in, verifierar köp och checkar ut med mål", asyn
   const download = owner.waitForEvent("download");
   await owner.getByRole("button", { name: "Ladda ner summering (CSV)" }).click();
   const file = await (await download).path();
-  const csv = await readFile(file!, "utf8");
+  const csv = await readFile(file, "utf8");
   expect(csv.startsWith("\uFEFFNamn;Klubb;Bricka;Antal köp;Summa kr;Incheckad;Utcheckad;Utcheckad via")).toBe(true);
   expect(csv).toMatch(/Festa Påhittsson;Påhittade OK;\d+;2;100,00;[^;]+;[^;]+;Mål/);
 
@@ -115,4 +115,47 @@ test("fest: bardisken checkar in, verifierar köp och checkar ut med mål", asyn
   await owner.getByRole("button", { name: /^Ångra Öl på bricka/ }).click();
   await expect(owner.getByTestId("party-totals")).toContainText("1 köp · 60,00 kr");
   await expect(owner.getByTestId("party-purchases")).toContainText("ångrat: Fel enhet");
+
+  // Den publika fest-sidan: publicerad, statistik i webbläsaren, namn bara via JavaScript och stängd för robotar.
+  await publishRaceViaApi(owner, raceId);
+  const publicPath = await owner.getByRole("link", { name: "Visa den publika sidan" }).getAttribute("href");
+  expect(publicPath).toMatch(/^\/fest\/[2-9a-hjkmnp-z]{6}$/);
+  const code = publicPath!.split("/").at(-1)!;
+  const visitor = await (await browser.newContext()).newPage();
+  const hub = await visitor.request.get(`/t/${code}`, { maxRedirects: 0 });
+  expect(hub.status()).toBe(307);
+  expect(hub.headers().location).toBe(publicPath);
+  const html = await visitor.request.get(publicPath!);
+  expect(html.headers()["x-robots-tag"]).toBe("noindex, nofollow, noarchive, nosnippet, noai, noimageai");
+  const body = await html.text();
+  expect(body).toContain('<meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex"/>');
+  expect(body).not.toContain("Festa");
+  expect(body).not.toContain("Tvåsson");
+  const api = await visitor.request.get(`/api/public/parties/${code}`);
+  expect(api.headers()["x-robots-tag"]).toBe("noindex, nofollow, noarchive, nosnippet, noai, noimageai");
+  expect(api.headers()["cache-control"]).toBe("private, no-store");
+  const json = await api.text();
+  expect(json).toContain("Festa Påhittsson");
+  expect(json).not.toMatch(/8[0-9]{6}|Ore|ore"/);
+  const robots = await (await visitor.request.get("/robots.txt")).text();
+  expect(robots).toContain("Disallow: /api/public/parties/");
+  expect(robots).toContain("User-Agent: GPTBot");
+  await visitor.goto(publicPath!);
+  await expect(visitor.getByTestId("party-numbers")).toContainText("sålda");
+  await expect(visitor.getByRole("heading", { name: "Vad säljer bäst" })).toBeVisible();
+  await expect(visitor.getByTestId("party-public")).toContainText("Festa Påhittsson");
+  await expect(visitor.getByTestId("party-public")).not.toContainText("kr");
+  await reviewScreenshots(visitor, "fest-publik");
+
+  // En vanlig tävlings publika sida har inga av fest-sidans huvuden.
+  await owner.goto("/organizer");
+  await createRace(owner, `Vanlig ${suffix}`, today(), "Träning");
+  await publishRace(owner);
+  const hubText = await owner.getByText(/\/t\/[2-9a-hjkmnp-z]{6}/).first().textContent();
+  const racePath = /\/t\/[2-9a-hjkmnp-z]{6}/.exec(hubText ?? "")![0];
+  const race = await visitor.request.get(racePath);
+  expect(race.status()).toBe(200);
+  expect(race.headers()["x-robots-tag"]).toBeUndefined();
+  expect(await race.text()).not.toContain("noai");
 });
+

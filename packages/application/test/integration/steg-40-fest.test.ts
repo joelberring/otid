@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { schema } from "@o-tid/database";
 import { partyPurchasesCsv, partySummaryCsv } from "@o-tid/domain";
 import {
-  changePartyAsAdmin, contentHash, createEvent, ingestDeviceBatch, readPartyAsAdmin, readReadoutPackageAsAdmin,
+  changePartyAsAdmin, contentHash, createEvent, ingestDeviceBatch, readPartyAsAdmin, readPublicParty, readReadoutPackageAsAdmin,
   registerPartyDeskEventAsAdmin, setPartyGuestAsAdmin
 } from "../../src";
 import { db, useRaceDatabase } from "./race-fixtures";
@@ -130,4 +130,21 @@ describe("steg 40: fest med bardisk", () => {
     expect((await changePartyAsAdmin(db, { ...admin, request: { formatVersion: 1, requestId: randomUUID(),
       change: { kind: "item-add", code: 31, name: "Öl igen", priceOre: 1 } } })).status).toBe("conflict");
   });
+
+  it("publika sidan: namn när festen visar namn (förval), annars anonymt; aldrig belopp eller bricka", async () => {
+    const { raceId, admin, change } = await party();
+    const device = randomUUID();
+    await ingestDeviceBatch(db, raceId, readout(device, 1, "8123456", [[31, "2026-10-24T19:14:00.000Z"]], { startPunchedAt: "2026-10-24T16:00:00.000Z" }));
+    await setPartyGuestAsAdmin(db, { ...admin, request: { formatVersion: 1, cardNumber: "8123456", name: "Festa Påhittsson", club: null } });
+    const named = await readPublicParty(db, raceId);
+    expect(named).toMatchObject({ showNames: true, soldCount: 1, checkedInCount: 1, guests: [{ name: "Festa Påhittsson", purchaseCount: 1 }],
+      firstArrival: { name: "Festa Påhittsson" } });
+    expect(JSON.stringify(named)).not.toMatch(/8123456|Ore|raceId|itemId/);
+    await change({ kind: "settings", startsAt, showPublicNames: false });
+    const anonymous = await readPublicParty(db, raceId);
+    expect(anonymous?.guests).toBeUndefined();
+    expect(JSON.stringify(anonymous)).not.toContain("Festa");
+    expect(anonymous?.recent).toEqual([{ at: "2026-10-24T19:14:00.000Z", itemName: "Öl" }]);
+  });
 });
+

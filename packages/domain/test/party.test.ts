@@ -120,3 +120,38 @@ describe("fest: CSV", () => {
     expect(formatPartyKronor(5)).toBe("0,05");
   });
 });
+
+describe("fest: färger med kontrast", () => {
+  it("text blir mörk eller ljus efter bakgrunden och grön mörkas till AA", async () => {
+    const { contrastRatio, readableTextOn, textColorOn } = await import("../src");
+    expect(readableTextOn("#ae1917")).toBe("#ffffff");
+    expect(readableTextOn("#62c83a")).toBe("#1a1a1a");
+    expect(readableTextOn("#faf4bd")).toBe("#1a1a1a");
+    expect(contrastRatio("#62c83a", "#ffffff")).toBeLessThan(4.5);
+    const green = textColorOn("#62c83a", "#ffffff");
+    expect(contrastRatio(green, "#ffffff")).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(textColorOn("#62c83a", "#faf4bd"), "#faf4bd")).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio("#2e7d18", "#ffffff")).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+describe("fest: publik statistik", () => {
+  it("utan namn: anonymt; med namn: namn men aldrig belopp eller bricka", async () => {
+    const { partyPublicStats } = await import("../src");
+    const ledger = partyLedger({ startsAt, items, readouts: [
+      { ...read("8123456", "2026-10-24T19:20:00.000Z", [[31, "2026-10-24T19:14:00.000Z"], [31, "2026-10-24T19:20:00.000Z"], [32, "2026-10-24T19:50:00.000Z"]],
+        "2026-10-24T21:47:00.000Z"), startPunchedAt: "2026-10-24T16:01:00.000Z" }],
+      guests: [{ cardNumber: "8123456", name: "Testa Festsson" }] });
+    const anonymous = partyPublicStats(ledger, { showNames: false });
+    expect(anonymous).toMatchObject({ soldCount: 3, guestCount: 1, checkedInCount: 1, checkedOutCount: 1,
+      items: [{ name: "Öl 40 kr", count: 2 }, { name: "Drink 60 kr", count: 1 }], averageSecondsBetween: 1_080 });
+    expect(anonymous.quarters.map(row => row.count)).toEqual([1, 1, 0, 1]);
+    expect(anonymous.peak).toBe(0);
+    expect(JSON.stringify(anonymous)).not.toMatch(/Testa|8123456|Ore|ore/);
+    expect(anonymous.firstFinish).toEqual({ at: "2026-10-24T21:47:00.000Z" });
+    const named = partyPublicStats(ledger, { showNames: true });
+    expect(named.guests).toEqual([{ name: "Testa Festsson", purchaseCount: 3 }]);
+    expect(named.recent[0]).toEqual({ at: "2026-10-24T19:50:00.000Z", itemName: "Drink 60 kr", name: "Testa Festsson" });
+    expect(JSON.stringify(named)).not.toMatch(/8123456|totalOre|priceOre/);
+  });
+});

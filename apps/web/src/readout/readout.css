@@ -235,7 +235,7 @@ button.link { min-height: 44px; padding: 0 4px; border: 0; background: none; col
 .party-suggestion { display: flex; align-items: center; gap: 12px; min-height: 56px; margin: 0; padding: 6px 14px; border: 1px solid var(--line-strong);
   border-radius: var(--radius); font-size: var(--text-md); cursor: pointer; }
 .party-suggestion input { width: 24px; height: 24px; margin: 0; accent-color: var(--accent); }
-.party-name-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 12px; }
+.party-name-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px; }
 .party-staff { display: grid; gap: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
 .party-staff-button { min-height: 44px; padding: 6px 16px; font-size: var(--text-sm); }
 .party-modes { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; border: 0; }
@@ -246,3 +246,10 @@ button.link { min-height: 44px; padding: 0 4px; border: 0; background: none; col
   .party-name-fields { grid-template-columns: minmax(0, 1fr); }
   .party-verdict { min-height: 240px; }
 }
+/* Steg 41: rubrikerna i festens rubriktypsnitt (Poppins Bold för "Centrum OK 20 år"); bekräftelsen i centrumrött. */
+.party-band, .party-verdict .big, .party-name h2, .party-outcome h2 { font-family: var(--party-heading-font, inherit); }
+.party[data-look="centrum"] .party-band { font-weight: 700; letter-spacing: .03em; }
+.party[data-look="centrum"] .party-verdict[data-kind="WELCOME"], .party[data-look="centrum"] .party-verdict[data-kind="PURCHASES"],
+.party[data-look="centrum"] .party-verdict[data-kind="CHECKED_OUT"] { border-color: var(--party-confirm); border-top-width: 12px; }
+.party[data-look="centrum"] .party-verdict[data-kind="WELCOME"] .big, .party[data-look="centrum"] .party-verdict[data-kind="PURCHASES"] .big,
+.party[data-look="centrum"] .party-verdict[data-kind="CHECKED_OUT"] .big { color: var(--party-confirm); font-weight: 700; }

@@ -23,9 +23,27 @@ export const CENTRUM_PRESET = { title: "Jubileumsbaren", primary: "#ae1917", acc
     { code: 38, name: "Alkoholfri cider", priceOre: 2_000, group: null }
   ] } as const;
 
+/**
+ * Steg 41: utseendet "Centrum OK 20 år" (förinställningens röda som huvudfärg) får jubileets grafiska profil på fest-sidan och
+ * i bardisken: rubriker i Poppins Bold, centrumröd som bärande färg, grönt bara som accent och mörkgrön för grön text, ljusgrå
+ * bakgrund med vita kort. Övriga fester och tävlingssidorna ändras inte.
+ */
+export const CENTRUM_LOOK = { red: "#ae1917", green: "#62c83a", darkGreen: "#2e7d18", canvas: "#f2f2f2" } as const;
+
+export function partyLook(theme: Pick<PartyTheme, "primary"> | undefined): "centrum" | undefined {
+  return theme?.primary === CENTRUM_PRESET.primary ? "centrum" : undefined;
+}
+
 export function partyThemeStyle(theme: Pick<PartyTheme, "primary" | "accent"> | undefined): CSSProperties {
   const primary = theme?.primary ?? NEUTRAL_PARTY_COLORS.primary;
   const accent = theme?.accent ?? NEUTRAL_PARTY_COLORS.accent;
+  if (partyLook(theme) === "centrum") {
+    // Kontrast (WCAG AA): vit på #ae1917 7,1:1, #ae1917 på vitt 7,1:1, #2e7d18 på vitt 5,2:1 och på #f2f2f2 4,6:1.
+    return { "--party-primary": CENTRUM_LOOK.red, "--party-on-primary": "#ffffff", "--party-accent": CENTRUM_LOOK.green,
+      "--party-on-accent": "#1d1d1b", "--party-accent-text": CENTRUM_LOOK.darkGreen, "--party-primary-text": CENTRUM_LOOK.red,
+      "--party-heading-font": "\"Poppins\", var(--font-ui)", "--party-heading-weight": "700", "--canvas": CENTRUM_LOOK.canvas,
+      "--party-confirm": CENTRUM_LOOK.red } as CSSProperties;
+  }
   return {
     "--party-primary": primary, "--party-on-primary": readableTextOn(primary),
     "--party-accent": accent, "--party-on-accent": readableTextOn(accent),

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { publicPartyResponseSchema, type PublicPartyResponse } from "@o-tid/contracts";
-import { partyThemeStyle } from "../../lib/party-theme-style";
+import { partyLook, partyThemeStyle } from "../../lib/party-theme-style";
 import { partyPublicSv as text } from "../../i18n/party-public-sv";
 import { SelfRegistrationForm } from "../self-registration/self-registration-form";
 import styles from "./party-public.module.css";
@@ -44,7 +44,7 @@ export function PartyPublic({ raceId, eventName }: { raceId: string; eventName: 
   const at = (value: string | undefined) => value ? clock(value, zone) : "–";
   const title = party?.theme.title ?? eventName;
   const max = Math.max(1, ...(party?.quarters.map(row => row.count) ?? [1]));
-  return <main className={styles.page} style={partyThemeStyle(party?.theme)} data-testid="party-public">
+  return <main className={styles.page} style={partyThemeStyle(party?.theme)} data-look={partyLook(party?.theme)} data-testid="party-public">
     <header className={styles.banner}>
       {party?.theme.logo ? <img className={styles.logo} src={party.theme.logo} alt="" /> : null}
       <div><h1>{title}</h1>{title !== eventName ? <p>{eventName}</p> : null}</div>

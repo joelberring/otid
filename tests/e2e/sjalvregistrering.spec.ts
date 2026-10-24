@@ -48,6 +48,8 @@ test("självregistrering: gästen kopplar sitt namn till pinnen och bardisken k�
   await visitor.goto(publicPath!);
   const form = visitor.getByTestId("self-registration");
   await expect(form.getByRole("heading", { name: "Registrera din pinne" })).toBeVisible();
+  // En fest utan utseendet "Centrum OK 20 år" behåller sitt typsnitt.
+  expect(await visitor.locator("h1").evaluate(element => getComputedStyle(element).fontFamily)).not.toContain("Poppins");
   await expect(form.getByRole("link", { name: "Om personuppgifter" })).toHaveAttribute("href", "/integritet");
   await form.getByRole("button", { name: "Registrera" }).click();
   await expect(form.getByText("Skriv bricknumret med siffror (1–9 999 999).")).toBeVisible();

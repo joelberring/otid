@@ -52,3 +52,13 @@
   .barTrack { grid-column: 1 / -1; grid-row: 2; }
 }
 .group { font-size: var(--text-lg); font-weight: 800; color: var(--party-accent-text); }
+/* Steg 41: rubrikerna i festens rubriktypsnitt (Poppins Bold för "Centrum OK 20 år", annars som förut). */
+.banner h1, .panel h2, .panel h3, .numbers dd { font-family: var(--party-heading-font, inherit); }
+/* Utseendet "Centrum OK 20 år": centrumröd som bärande färg, röda rubrikrader i korten, grönt bara som accent. */
+.page[data-look="centrum"] .banner h1 { font-weight: 700; letter-spacing: .02em; }
+.page[data-look="centrum"] .numbers div { padding-top: 0; border-top: 1px solid var(--line); overflow: hidden; }
+.page[data-look="centrum"] .numbers dt { margin: 0 -16px 6px; padding: 6px 16px; background: var(--party-primary); color: var(--party-on-primary);
+  font-family: var(--party-heading-font); font-weight: 700; }
+.page[data-look="centrum"] .numbers dd { font-weight: 700; }
+.page[data-look="centrum"] .panel { padding-top: 0; overflow: hidden; }
+.page[data-look="centrum"] .panel h2 { margin: 0 -18px 6px; padding: 10px 18px; background: var(--party-primary); color: var(--party-on-primary); font-weight: 700; }

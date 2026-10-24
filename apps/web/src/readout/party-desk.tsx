@@ -11,7 +11,7 @@ import { runnerForCard } from "./runner-lookup";
 import type { QueuedReadout } from "./store";
 import type { ReadoutSoundKind } from "./sound";
 import { PartyNameBox } from "./party-name-box";
-import { partyThemeStyle } from "../lib/party-theme-style";
+import { partyLook, partyThemeStyle } from "../lib/party-theme-style";
 
 /**
  * Bardisken (PLAN.md steg 40): avläsningssidan för en fest, i ett fönster som gästerna sköter själva. Stationen, kön och
@@ -162,7 +162,7 @@ export function PartyDesk(props: PartyDeskProps) {
   }
 
   const theme = server?.theme ?? party.theme;
-  return <div className="party" data-mode={mode} style={partyThemeStyle(theme)}>
+  return <div className="party" data-mode={mode} style={partyThemeStyle(theme)} data-look={partyLook(theme)}>
     <div className="party-band">
       {theme?.logo ? <img src={theme.logo} alt="" /> : null}
       <span>{theme?.title ?? pkg.event.name}</span>

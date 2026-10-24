@@ -91,6 +91,8 @@ test("fest: bardisken checkar in, verifierar köp och checkar ut med mål", asyn
   await expect(desk.getByTestId("party-total")).toHaveText("Kvällens summa: 100,00 kr");
   // Steg 41: kioskskärmen visar bara visningsnamnet (förnamn + efternamnets första bokstav).
   await expect(verdict).toContainText("Festa P");
+  await expect(desk.locator(".party")).toHaveAttribute("data-look", "centrum");
+  expect(await desk.getByTestId("party-headline").evaluate(element => getComputedStyle(element).fontFamily)).toContain("Poppins");
   await expect(verdict).not.toContainText("Påhittsson");
   await reviewScreenshots(desk, "fest-bardisk-kop");
 
@@ -178,6 +180,10 @@ test("fest: bardisken checkar in, verifierar köp och checkar ut med mål", asyn
   await expect(visitor.getByTestId("party-public")).toContainText("Festa P");
   await expect(visitor.getByTestId("party-public")).not.toContainText("Påhittsson");
   await expect(visitor.getByTestId("party-public")).not.toContainText("kr");
+  // Steg 41: "Centrum OK 20 år" har rubriker i Poppins Bold (självhostad) och centrumröd som bärande färg.
+  await expect(visitor.getByTestId("party-public")).toHaveAttribute("data-look", "centrum");
+  expect(await visitor.locator("h1").evaluate(element => getComputedStyle(element).fontFamily)).toContain("Poppins");
+  expect(await visitor.evaluate(async () => { await document.fonts.ready; return document.fonts.check('700 16px "Poppins"'); })).toBe(true);
   await reviewScreenshots(visitor, "fest-publik");
 
   // En vanlig tävlings publika sida har inga av fest-sidans huvuden.

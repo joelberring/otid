@@ -10,3 +10,4 @@
 .trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
 @media (max-width: 560px) { .names { grid-template-columns: 1fr; } }
 .form { max-width: 640px; }
+.box h2 { font-family: var(--party-heading-font, inherit); }

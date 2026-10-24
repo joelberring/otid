@@ -119,6 +119,10 @@ Gemensamma hjälpare: UUID-mönstret och idempotensnycklarnas form (`UUID_PATTER
   har bara start, varor med prishistorik, gästnamn, bardiskens in-/utcheckningar, ångringar och utseende. Bardisken är
   avläsningsskalet med `readout/party-desk.tsx`; in-/utcheckning och namn köas i IndexedDB (`readout/party-store.ts`).
   Publika sidan `/fest/{kod}` hämtar `/api/public/parties/{kod}` i webbläsaren; bara de sökvägarna har X-Robots-Tag.
+- Självregistrering på tävlingsdagen (PLAN.md steg 41, `application/src/self-registration.ts`, `domain/src/self-registration.ts`):
+  `/api/public/races/{id}/self-registration` utan inloggning, bakom den publika grinden; tjänsten kräver dessutom
+  `race.self_registration`, publicerad tävling och tävlingsdagen. Spärren återanvänder `account_request_throttle` (hashad nyckel).
+  Festgästens visningsnamn (`party_guest.display_name`, förval `partyDisplayName`) är det enda namnet i det publika fest-API:et.
 
 ## Import och källor
 

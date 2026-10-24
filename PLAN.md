@@ -696,6 +696,19 @@ avläsningsstationer och en Android-platta.
 - [x] Bardisken i ett fönster i automatiskt läge med lokal kö, namnruta vid okänd bricka och personalens lägen.
 - [x] Publik fest-sida med statistik, namn bara via JavaScript och skydd mot indexering; utseende och logga per fest.
 
+## [x] Steg 41 – Självregistrering på tävlingsdagen
+
+Ägarens önskemål 2026-10-24: "Kan man göra så att alla kan registrera ny deltagare i ej inloggat läge (men bara under
+tävlingsdagen). Genom att skriva in pinn-nummer och koppla namn?" och "välja smeknamn som står i resultatlistan, typ Oskar K
+men att fullt namn spara för fakturering".
+
+- [x] "Tillåt självregistrering på tävlingsdagen" (av som standard, auditpost): i fest-arbetsytan och under Inställningar (inte stafett).
+- [x] "Registrera din pinne" på `/fest/{kod}` och `/t/{kod}` utan inloggning, bara när valet är på, tävlingen är publicerad och det är
+  tävlingsdagen i tävlingens tidszon (fest: till kl 06 dagen efter); servern kontrollerar samma sak.
+- [x] Upptagen bricka avvisas; fest: gästen namnges (bardisken känner igen brickan), andra typer: ny deltagare i vald klass, okänd
+  avläsning bedöms. Spärr per IP (hashad) och tävling, fälla mot robotar, normaliserade namn, "Självregistrerad" i listorna.
+- [x] Fest: visningsnamn (smeknamn, förval "Oskar K") är det enda som visas publikt och i kiosken; fullt namn i arbetsytan och CSV.
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

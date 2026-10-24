@@ -77,8 +77,10 @@ export interface PartyVoid {
 /** Steg 43: SELF = gästen registrerade pinnen själv på fest-sidan (checkade in där i stället för vid baren). */
 export type PartyPresenceSource = "START" | "FINISH" | "DESK" | "SELF";
 
-/** Självregistrering räknas som incheckning från en timme före festens start (inte en registrering hemifrån på förmiddagen). */
-export const PARTY_SELF_CHECK_IN_LEAD_MS = 60 * 60_000;
+/**
+ * Självregistrering räknas som incheckning (steg 43). Sker den före festens start räknas incheckningen från starten, så att
+ * "Först på plats" och kvällens tid inte börjar på förmiddagen. Självregistrering är bara öppen på festdagen.
+ */
 
 export interface PartyPresence {
   readonly at: string;
@@ -264,8 +266,9 @@ export function partyLedger(input: PartyLedgerInput): PartyLedger {
 
   const names = new Map((input.guests ?? []).map(guest => [guest.cardNumber, guest]));
   for (const guest of input.guests ?? []) {
-    const at = guest.selfRegisteredAt;
-    if (at === undefined || (input.startsAt !== undefined && ms(at) < ms(input.startsAt) - PARTY_SELF_CHECK_IN_LEAD_MS)) continue;
+    const registered = guest.selfRegisteredAt;
+    if (registered === undefined) continue;
+    const at = input.startsAt !== undefined && ms(registered) < ms(input.startsAt) ? input.startsAt : registered;
     checkIns.set(guest.cardNumber, earliest(checkIns.get(guest.cardNumber), { at, source: "SELF" }));
   }
   const cards = new Set([...rows.map(row => row.cardNumber), ...checkIns.keys(), ...checkouts.keys(), ...names.keys()]);

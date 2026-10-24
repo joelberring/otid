@@ -221,7 +221,8 @@ test("rogaining och stafett: ett tomläge och en väg vidare", async ({ browser 
 
   // Rogaining: kontrollerna med poäng först och ett enda tomläge, inga motstridiga texter om banor och klasser.
   await create(`Poäng ${suffix}`, "Rogaining");
-  await expect(owner.getByText("Inga kontroller ännu")).toBeVisible();
+  // Tomläget i delen (sidopanelens status kan visa samma text).
+  await expect(owner.getByRole("region", { name: "Kontroller & poäng" }).getByText("Inga kontroller ännu")).toBeVisible();
   await expect(owner.getByText("Det finns inga banor ännu.")).toHaveCount(0);
   await expect(owner.getByText("Det finns inga klasser ännu.")).toHaveCount(0);
   await screenshots(owner, "rogaining-tom");

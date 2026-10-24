@@ -60,6 +60,7 @@ export function PartyPublic({ raceId, eventName }: { raceId: string; eventName: 
 
       <section className={styles.panel} aria-labelledby="party-best">
         <h2 id="party-best">{text.bestTitle}</h2>
+        {party.groups?.map(group => <p key={group.name} className={styles.group}>{text.groupTotal(group.name, group.count)}</p>)}
         {party.items.length === 0 ? <p>{text.noneYet}</p> : <ol className={styles.bars}>
           {party.items.map(item => <li key={item.name}>
             <span className={styles.barName}>{item.name}</span>

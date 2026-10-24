@@ -11,6 +11,7 @@ import { readAccountCsrfCookie } from "../../lib/organizer-account-cookies";
 import { Button, Notice, Section, Table, numeric } from "../ui";
 import type { Workspace } from "./workspace-state";
 import { PartyThemeForm } from "./party-theme-form";
+import { CENTRUM_PRESET } from "../../lib/party-theme-style";
 
 /**
  * Fest (PLAN.md steg 40): festens start, varorna (kod, namn, pris), köpen i kväll med summa per person, in- och
@@ -75,6 +76,19 @@ function PartyWorkspace({ raceId, admin }: { raceId: string; admin: boolean }) {
     } catch { setProblem(text.saveError); return false; }
     finally { setBusy(false); }
   }
+  /** Förinställningens varor: bara de koder som saknas läggs till, efter bekräftelse. Befintliga varor ändras aldrig. */
+  async function addPresetItems() {
+    if (!state) return;
+    const taken = new Set(state.items.map(item => item.code));
+    const missing = CENTRUM_PRESET.items.filter(item => !taken.has(item.code));
+    if (missing.length === 0) { setSaved(text.presetNone); return; }
+    if (!window.confirm(text.presetConfirm(missing.map(item => `${item.code} ${item.name} ${formatPartyKronor(item.priceOre)} kr`).join("\n")))) return;
+    let added = 0;
+    for (const item of missing) {
+      if (await change({ kind: "item-add", code: item.code, name: item.name, priceOre: item.priceOre, group: item.group })) added += 1;
+    }
+    setSaved(text.presetAdded(added));
+  }
   async function uploadLogo(file: File | null): Promise<boolean> {
     setBusy(true); setSaved(undefined);
     try {
@@ -122,14 +136,19 @@ function PartyWorkspace({ raceId, admin }: { raceId: string; admin: boolean }) {
     <Section id={`party-items-${raceId}`} title={text.itemsTitle} help={text.itemsHelp} headingLevel={3}>
       {state.items.length === 0 ? <p>{text.noItems}</p> : <Table className={local.items}>
         <thead><tr><th scope="col" className={numeric}>{text.code}</th><th scope="col">{text.name}</th>
-          <th scope="col" className={numeric}>{text.price}</th><th scope="col">{text.hidden}</th>{admin && <th scope="col"><span className={local.hiddenText}>{text.saveItem}</span></th>}</tr></thead>
+          <th scope="col" className={numeric}>{text.price}</th><th scope="col">{text.groupShort}</th><th scope="col">{text.hidden}</th>{admin && <th scope="col"><span className={local.hiddenText}>{text.saveItem}</span></th>}</tr></thead>
         <tbody>{state.items.map(item => admin
-          ? <ItemRow key={`${item.id}-${item.priceOre}-${item.name}-${item.hidden}`} item={item} busy={busy}
-            onSave={(name, priceOre, hidden) => change({ kind: "item-change", itemId: item.id, name, priceOre, hidden })} />
+          ? <ItemRow key={`${item.id}-${item.priceOre}-${item.name}-${item.hidden}-${item.group ?? ""}`} item={item} busy={busy}
+            onSave={(name, priceOre, hidden, group) => change({ kind: "item-change", itemId: item.id, name, priceOre, hidden, group })} />
           : <tr key={item.id}><td className={numeric}>{item.code}</td><td>{item.name}</td><td className={numeric}>{formatPartyKronor(item.priceOre)}</td>
-            <td>{item.hidden ? "✓" : ""}</td></tr>)}</tbody>
+            <td>{item.group ?? ""}</td><td>{item.hidden ? "✓" : ""}</td></tr>)}</tbody>
       </Table>}
-      {admin && <AddItemForm busy={busy} onAdd={(code, name, priceOre) => change({ kind: "item-add", code, name, priceOre })} />}
+      {admin && <AddItemForm busy={busy} onAdd={(code, name, priceOre, group) => change({ kind: "item-add", code, name, priceOre, group })} />}
+      <div className={styles.actions}>
+        {admin && <Button variant="secondary" disabled={busy} onClick={() => void addPresetItems()}>{text.presetItems}</Button>}
+        <a className={local.secondaryLink} href={`/admin/${raceId}/party-labels`} target="_blank" rel="noopener">{text.labels}</a>
+      </div>
+      <p className={styles.workflowHelp}>{text.labelsHelp}</p>
     </Section>
 
     <Section id={`party-live-${raceId}`} title={text.liveTitle} help={text.liveHelp} headingLevel={3}>
@@ -215,9 +234,10 @@ function StartForm({ state, busy, onSave }: { state: PartyStateResponse; busy: b
   </form>;
 }
 
-function AddItemForm({ busy, onAdd }: { busy: boolean; onAdd: (code: number, name: string, priceOre: number) => Promise<boolean> }) {
+function AddItemForm({ busy, onAdd }: { busy: boolean; onAdd: (code: number, name: string, priceOre: number, group: string | null) => Promise<boolean> }) {
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
+  const [group, setGroup] = useState("");
   const [price, setPrice] = useState("");
   const [error, setError] = useState<string>();
   return <form noValidate className={local.form} aria-label={text.addItem} onSubmit={event => {
@@ -226,12 +246,13 @@ function AddItemForm({ busy, onAdd }: { busy: boolean; onAdd: (code: number, nam
     const ore = parseKronor(price);
     if (!(number >= 1 && number <= 999) || !name.trim() || ore === undefined) { setError(text.invalidItem); return; }
     setError(undefined);
-    void onAdd(number, name.trim(), ore).then(ok => { if (ok) { setCode(""); setName(""); setPrice(""); } });
+    void onAdd(number, name.trim(), ore, group.trim() || null).then(ok => { if (ok) { setCode(""); setName(""); setPrice(""); } });
   }}>
     <div className={local.fields}>
       <label>{text.code}<input type="text" inputMode="numeric" value={code} onChange={event => setCode(event.target.value)} /></label>
       <label>{text.name}<input type="text" value={name} onChange={event => setName(event.target.value)} /></label>
       <label>{text.price}<input type="text" inputMode="decimal" value={price} onChange={event => setPrice(event.target.value)} /></label>
+      <label>{text.group}<input type="text" maxLength={40} value={group} placeholder="Drink" onChange={event => setGroup(event.target.value)} /></label>
     </div>
     {error && <p role="alert" className={local.error}>{error}</p>}
     <div><Button type="submit" disabled={busy}>{text.addItem}</Button></div>
@@ -239,20 +260,23 @@ function AddItemForm({ busy, onAdd }: { busy: boolean; onAdd: (code: number, nam
 }
 
 function ItemRow({ item, busy, onSave }: { item: PartyStateResponse["items"][number]; busy: boolean;
-  onSave: (name: string, priceOre: number, hidden: boolean) => Promise<boolean> }) {
+  onSave: (name: string, priceOre: number, hidden: boolean, group: string | null) => Promise<boolean> }) {
   const [name, setName] = useState(item.name);
+  const [group, setGroup] = useState(item.group ?? "");
   const [price, setPrice] = useState(formatPartyKronor(item.priceOre));
   const [hidden, setHidden] = useState(item.hidden);
   const ore = parseKronor(price);
-  const changed = name.trim() !== item.name || ore !== item.priceOre || hidden !== item.hidden;
+  const changed = name.trim() !== item.name || ore !== item.priceOre || hidden !== item.hidden || (group.trim() || null) !== (item.group ?? null);
   return <tr>
     <td className={numeric}>{item.code}</td>
     <td><input className={local.input} aria-label={`${text.itemLabel(item.code)}: ${text.name}`} value={name} onChange={event => setName(event.target.value)} /></td>
     <td className={numeric}><input className={local.number} aria-label={`${text.itemLabel(item.code)}: ${text.price}`} inputMode="decimal" value={price}
       aria-invalid={ore === undefined ? true : undefined} onChange={event => setPrice(event.target.value)} /></td>
+    <td><input className={local.input} aria-label={`${text.itemLabel(item.code)}: ${text.groupShort}`} value={group} maxLength={40}
+      onChange={event => setGroup(event.target.value)} /></td>
     <td><input type="checkbox" aria-label={`${text.itemLabel(item.code)}: ${text.hidden}`} checked={hidden} onChange={event => setHidden(event.target.checked)} /></td>
     <td><Button variant="secondary" disabled={busy || !changed || ore === undefined || !name.trim()}
-      onClick={() => { if (ore !== undefined) void onSave(name.trim(), ore, hidden); }}>{text.saveItem}</Button></td>
+      onClick={() => { if (ore !== undefined) void onSave(name.trim(), ore, hidden, group.trim() || null); }}>{text.saveItem}</Button></td>
   </tr>;
 }
 

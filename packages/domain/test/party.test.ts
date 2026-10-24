@@ -162,5 +162,8 @@ describe("fest: publik statistik", () => {
     expect(named.guests).toEqual([{ name: "Testa Festsson", purchaseCount: 3 }]);
     expect(named.recent[0]).toEqual({ at: "2026-10-24T19:50:00.000Z", itemName: "Drink 60 kr", name: "Testa Festsson" });
     expect(JSON.stringify(named)).not.toMatch(/8123456|totalOre|priceOre/);
+    const grouped = partyPublicStats(ledger, { showNames: false, items: [{ id: "drink", group: "Drink" }, { id: "beer", group: null }] });
+    expect(grouped.groups).toEqual([{ name: "Drink", count: 1 }]);
+    expect(grouped.items.find(item => item.name === "Drink 60 kr")?.group).toBe("Drink");
   });
 });

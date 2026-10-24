@@ -25,6 +25,8 @@ export const partyItems = pgTable("party_item", {
   raceId: uuid("race_id").notNull().references(() => races.id),
   controlCode: integer("control_code").notNull(),
   name: text("name").notNull(),
+  /** Valfri grupp, t.ex. "Drink" (migration 0017). */
+  group: text("item_group"),
   hidden: boolean("hidden").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull()

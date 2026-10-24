@@ -39,6 +39,8 @@ export interface PartyItem {
   readonly id: string;
   readonly code: number;
   readonly name: string;
+  /** Valfri grupp, t.ex. "Drink". */
+  readonly group?: string | null | undefined;
   readonly hidden: boolean;
   /** Prishistoriken; minst ett pris. */
   readonly prices: readonly PartyItemPrice[];

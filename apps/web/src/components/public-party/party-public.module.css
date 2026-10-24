@@ -51,3 +51,4 @@
   .bars li { grid-template-columns: minmax(0, 1fr) auto; }
   .barTrack { grid-column: 1 / -1; grid-row: 2; }
 }
+.group { font-size: var(--text-lg); font-weight: 800; color: var(--party-accent-text); }

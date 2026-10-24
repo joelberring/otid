@@ -31,7 +31,8 @@ async function loadItems(tx: DbExecutor, raceId: string): Promise<PartyPackage["
     .orderBy(asc(schema.partyItemPrices.validFrom), asc(schema.partyItemPrices.id));
   return items.map(item => {
     const own = prices.filter(row => row.itemId === item.id).map(row => ({ priceOre: row.priceOre, validFrom: iso(row.validFrom) }));
-    return { id: item.id, code: item.controlCode, name: item.name, hidden: item.hidden, prices: own, priceOre: own.at(-1)?.priceOre ?? 0 };
+    return { id: item.id, code: item.controlCode, name: item.name, group: item.group, hidden: item.hidden, prices: own,
+      priceOre: own.at(-1)?.priceOre ?? 0 };
   });
 }
 
@@ -131,11 +132,11 @@ export async function changePartyAsAdmin(db: Database, input: RaceSessionProof &
       const [taken] = await tx.select({ id: schema.partyItems.id }).from(schema.partyItems)
         .where(and(eq(schema.partyItems.raceId, raceId), eq(schema.partyItems.controlCode, change.code)));
       if (taken) return { status: "conflict" };
-      const [item] = await tx.insert(schema.partyItems).values({ raceId, controlCode: change.code, name: change.name, hidden: false,
+      const [item] = await tx.insert(schema.partyItems).values({ raceId, controlCode: change.code, name: change.name, group: change.group ?? null, hidden: false,
         createdAt: now, updatedAt: now }).returning({ id: schema.partyItems.id });
       // Det första priset gäller från början, så att stämplingar innan varan lades in också får ett pris.
       await tx.insert(schema.partyItemPrices).values({ raceId, itemId: item!.id, priceOre: change.priceOre, validFrom: new Date(0) });
-      await audit(item!.id, "PARTY_ITEM_ADDED", null, { code: change.code, name: change.name, priceOre: change.priceOre });
+      await audit(item!.id, "PARTY_ITEM_ADDED", null, { code: change.code, name: change.name, priceOre: change.priceOre, group: change.group ?? null });
     } else if (change.kind === "item-change") {
       const [item] = await tx.select().from(schema.partyItems)
         .where(and(eq(schema.partyItems.raceId, raceId), eq(schema.partyItems.id, change.itemId)));
@@ -143,12 +144,13 @@ export async function changePartyAsAdmin(db: Database, input: RaceSessionProof &
       const prices = await tx.select().from(schema.partyItemPrices).where(eq(schema.partyItemPrices.itemId, item.id))
         .orderBy(asc(schema.partyItemPrices.validFrom), asc(schema.partyItemPrices.id));
       const priceBefore = prices.at(-1)?.priceOre;
-      await tx.update(schema.partyItems).set({ name: change.name, hidden: change.hidden, updatedAt: now }).where(eq(schema.partyItems.id, item.id));
+      const group = change.group === undefined ? item.group : change.group;
+      await tx.update(schema.partyItems).set({ name: change.name, group, hidden: change.hidden, updatedAt: now }).where(eq(schema.partyItems.id, item.id));
       if (priceBefore !== change.priceOre) {
         await tx.insert(schema.partyItemPrices).values({ raceId, itemId: item.id, priceOre: change.priceOre, validFrom: now });
       }
-      await audit(item.id, "PARTY_ITEM_CHANGED", { name: item.name, hidden: item.hidden, priceOre: priceBefore ?? null },
-        { name: change.name, hidden: change.hidden, priceOre: change.priceOre });
+      await audit(item.id, "PARTY_ITEM_CHANGED", { name: item.name, group: item.group, hidden: item.hidden, priceOre: priceBefore ?? null },
+        { name: change.name, group, hidden: change.hidden, priceOre: change.priceOre });
     } else {
       const inserted = await tx.insert(schema.partyPurchaseVoids).values({ raceId, cardNumber: change.cardNumber, controlCode: change.code,
         punchedAt: new Date(change.punchedAt), reason: change.reason, actorAccountId: auth.principal.accountId, createdAt: now })
@@ -231,7 +233,7 @@ export async function readPublicParty(db: Database, raceId: string, now = new Da
     const [event] = await tx.select({ name: schema.events.name }).from(schema.races)
       .innerJoin(schema.events, eq(schema.events.id, schema.races.eventId)).where(eq(schema.races.id, raceId));
     const stats = partyPublicStats({ purchases: state.purchases, guests: state.guests, totalOre: state.totalOre, purchaseCount: state.purchaseCount },
-      { showNames: state.showPublicNames });
+      { showNames: state.showPublicNames, items: state.items });
     return publicPartyResponseSchema.parse({ formatVersion: 1, eventName: event!.name, timeZone: state.timeZone, showNames: state.showPublicNames,
       theme: state.theme, ...stats, fetchedAt: iso(now) });
   }, { isolationLevel: "repeatable read" });

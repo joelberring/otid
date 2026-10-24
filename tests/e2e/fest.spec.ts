@@ -42,6 +42,20 @@ test("fest: bardisken checkar in, verifierar köp och checkar ut med mål", asyn
     buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64") });
   await expect(owner.getByText("Loggan är sparad.")).toBeVisible();
 
+  // Jubileumsbarens prislista: bara koderna som saknas läggs till (31 och 32 finns redan), efter bekräftelse.
+  owner.once("dialog", dialog => { expect(dialog.message()).toContain("33 Cuba libre 35,00 kr"); expect(dialog.message()).not.toContain("31 "); void dialog.accept(); });
+  await owner.getByRole("button", { name: "Lägg in Jubileumsbarens varor" }).click();
+  await expect(owner.getByText("6 varor är tillagda.")).toBeVisible();
+  await expect(owner.getByLabel("Vara 31: Namn")).toHaveValue("Öl");
+  await expect(owner.getByLabel("Vara 34: Grupp")).toHaveValue("Drink");
+  const labels = await owner.context().newPage();
+  await labels.goto(`/admin/${raceId}/party-labels`);
+  await expect(labels.getByTestId("party-labels").locator("strong")).toHaveCount(18);
+  await expect(labels.getByTestId("party-labels")).toContainText("kod 34");
+  await expect(labels.getByTestId("party-labels")).toContainText("Gå hem – stämpla här");
+  await reviewScreenshots(labels, "fest-etiketter");
+  await labels.close();
+
   // Bardisken: ett fönster, stationens knappar syns tills den är ansluten.
   const desk = await owner.context().newPage();
   await desk.goto(`/admin/${raceId}/readout`);
@@ -52,7 +66,7 @@ test("fest: bardisken checkar in, verifierar köp och checkar ut med mål", asyn
   await expect(desk.getByTestId("station-status")).toContainText("Övningsstation");
   const verdict = desk.getByTestId("party-verdict");
   await expect(verdict).toContainText("Stämpla på varans enhet");
-  await expect(desk.locator(".party-band")).toHaveText("Centrum OK 20 år");
+  await expect(desk.locator(".party-band")).toHaveText("Jubileumsbaren");
   // Kiosk: inga länkar ut ur sidan i automatiskt läge.
   await expect(desk.getByRole("link", { name: "Hantera tävlingen" })).toHaveCount(0);
 

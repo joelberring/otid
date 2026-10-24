@@ -1,0 +1,25 @@
+/* Etiketter till kontrollenheterna (PLAN.md steg 40): mm-mått och A4, skrivs ut i 100 % skala. */
+@page { size: A4; margin: 10mm; }
+.page { display: grid; gap: 16px; padding: 16px; }
+.controls { display: grid; gap: 8px; justify-items: start; max-width: 48rem; }
+.controls h1 { margin: 0; }
+.controls label { display: grid; gap: 4px; font-weight: 600; }
+.controls select, .controls button { min-height: 44px; padding: 6px 14px; font: inherit; }
+.sheet { display: grid; gap: 0; width: 190mm; background: #fff; color: #1a1a1a; }
+.label { position: relative; display: grid; align-content: center; justify-items: center; gap: 1mm; box-sizing: border-box; padding: 2mm;
+  padding-top: 3.5mm; border: .2mm solid #9a9a9a; text-align: center; overflow: hidden; break-inside: avoid; }
+.code { position: absolute; top: 1.5mm; right: 2mm; font-size: 2.6mm; color: #444; }
+.name { font-size: 6mm; font-weight: 800; line-height: 1.05; overflow-wrap: anywhere; }
+.price { font-size: 5mm; font-weight: 700; }
+.sheet[data-size="MEDIUM"] .name { font-size: 7.5mm; }
+.sheet[data-size="MEDIUM"] .price { font-size: 6mm; }
+.sheet[data-size="LARGE"] .name { font-size: 10mm; }
+.sheet[data-size="LARGE"] .price { font-size: 8mm; }
+.finish .name { font-size: 4.6mm; }
+.sheet[data-size="MEDIUM"] .finish .name { font-size: 5.6mm; }
+.sheet[data-size="LARGE"] .finish .name { font-size: 7.5mm; }
+@media print {
+  .controls, :global(body > header), :global(body > footer) { display: none !important; }
+  .page { padding: 0; }
+  :global(body) { background: #fff; }
+}

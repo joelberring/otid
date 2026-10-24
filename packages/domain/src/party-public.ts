@@ -1,4 +1,4 @@
-import type { PartyLedger } from "./party";
+import type { PartyItem, PartyLedger } from "./party";
 
 /**
  * Den publika fest-sidan (PLAN.md steg 40): statistik över kvällen utan belopp och utan bricknummer. Namn finns bara
@@ -13,7 +13,9 @@ export interface PartyPublicStats {
   readonly firstPurchaseAt?: string | undefined;
   readonly lastPurchaseAt?: string | undefined;
   /** Varorna med antal och andel (0–1), mest sålda först. */
-  readonly items: readonly { readonly name: string; readonly count: number; readonly share: number }[];
+  readonly items: readonly { readonly name: string; readonly count: number; readonly share: number; readonly group?: string }[];
+  /** Grupperna (t.ex. "Drink") med antal, flest först. */
+  readonly groups?: readonly { readonly name: string; readonly count: number }[];
   /** Köp per kvart från kvällens första till senaste kvart; `peak` är index för den mest intensiva. */
   readonly quarters: readonly { readonly startsAt: string; readonly count: number }[];
   readonly peak?: number | undefined;
@@ -37,15 +39,25 @@ const RECENT = 12;
 
 const floorTo = (value: number, step: number) => Math.floor(value / step) * step;
 
-export function partyPublicStats(ledger: PartyLedger, options: { readonly showNames: boolean }): PartyPublicStats {
+export function partyPublicStats(ledger: PartyLedger, options: { readonly showNames: boolean;
+  readonly items?: readonly Pick<PartyItem, "id" | "group">[] }): PartyPublicStats {
+  const groupOf = new Map((options.items ?? []).flatMap(item => item.group ? [[item.id, item.group] as const] : []));
   const names = new Map(ledger.guests.map(guest => [guest.cardNumber, guest.name]));
   const nameOf = (card: string) => options.showNames ? names.get(card) : undefined;
   const sold = ledger.purchases.filter(row => !row.voided);
   const times = sold.map(row => Date.parse(row.punchedAt)).sort((left, right) => left - right);
 
   const byItem = new Map<string, number>();
-  for (const row of sold) byItem.set(row.itemName, (byItem.get(row.itemName) ?? 0) + 1);
-  const items = [...byItem.entries()].map(([name, count]) => ({ name, count, share: sold.length ? count / sold.length : 0 }))
+  const itemGroup = new Map<string, string>();
+  const byGroup = new Map<string, number>();
+  for (const row of sold) {
+    byItem.set(row.itemName, (byItem.get(row.itemName) ?? 0) + 1);
+    const group = groupOf.get(row.itemId);
+    if (group) { itemGroup.set(row.itemName, group); byGroup.set(group, (byGroup.get(group) ?? 0) + 1); }
+  }
+  const groups = [...byGroup.entries()].map(([name, count]) => ({ name, count })).sort((left, right) => right.count - left.count);
+  const items = [...byItem.entries()].map(([name, count]) => ({ name, count, share: sold.length ? count / sold.length : 0,
+    ...(itemGroup.has(name) ? { group: itemGroup.get(name)! } : {}) }))
     .sort((left, right) => right.count - left.count || left.name.localeCompare(right.name, "sv"));
 
   const quarters: { startsAt: string; count: number }[] = [];
@@ -83,7 +95,7 @@ export function partyPublicStats(ledger: PartyLedger, options: { readonly showNa
     checkedInCount: ledger.guests.filter(guest => guest.checkIn).length,
     checkedOutCount: ledger.guests.filter(guest => guest.checkout).length,
     ...(times.length > 0 ? { firstPurchaseAt: new Date(times[0]!).toISOString(), lastPurchaseAt: new Date(times.at(-1)!).toISOString() } : {}),
-    items, quarters, ...(peak !== undefined ? { peak } : {}),
+    items, ...(groups.length > 0 ? { groups } : {}), quarters, ...(peak !== undefined ? { peak } : {}),
     recent: [...sold].reverse().slice(0, RECENT).map(row => ({ at: row.punchedAt, itemName: row.itemName,
       ...(nameOf(row.cardNumber) ? { name: nameOf(row.cardNumber) } : {}) })),
     ...(times.length > 1 ? { averageSecondsBetween: Math.round((times.at(-1)! - times[0]!) / (times.length - 1) / 1_000) } : {}),

@@ -16,8 +16,10 @@ const itemName = z.string().trim().min(1).max(80);
 const guestName = z.string().trim().min(1).max(160);
 const club = z.string().trim().min(1).max(160);
 
+const itemGroup = z.string().trim().min(1).max(40);
+
 export const partyItemSchema = z.object({
-  id: uuid, code: partyControlCodeSchema, name: itemName, hidden: z.boolean(),
+  id: uuid, code: partyControlCodeSchema, name: itemName, group: itemGroup.nullable().optional(), hidden: z.boolean(),
   /** Nuvarande pris. */
   priceOre: ore,
   /** Prishistoriken, äldst först; ett köp kostar priset som gällde när gästen stämplade. */
@@ -79,8 +81,9 @@ export const partyChangeRequestSchema = z.object({
     z.object({ kind: z.literal("settings"), startsAt: instant, showPublicNames: z.boolean(),
       doublePunchSeconds: z.number().int().min(0).max(600) }).strict(),
     z.object({ kind: z.literal("theme"), title: z.string().trim().min(1).max(60).nullable(), primary: hex.nullable(), accent: hex.nullable() }).strict(),
-    z.object({ kind: z.literal("item-add"), code: partyControlCodeSchema, name: itemName, priceOre: ore }).strict(),
-    z.object({ kind: z.literal("item-change"), itemId: uuid, name: itemName, priceOre: ore, hidden: z.boolean() }).strict(),
+    z.object({ kind: z.literal("item-add"), code: partyControlCodeSchema, name: itemName, priceOre: ore, group: itemGroup.nullable().optional() }).strict(),
+    z.object({ kind: z.literal("item-change"), itemId: uuid, name: itemName, priceOre: ore, hidden: z.boolean(),
+      group: itemGroup.nullable().optional() }).strict(),
     z.object({ kind: z.literal("void"), cardNumber, code: partyControlCodeSchema, punchedAt: instant,
       reason: z.string().trim().min(1).max(300) }).strict()
   ])
@@ -126,7 +129,9 @@ export const publicPartyResponseSchema = z.object({
   theme: partyThemeSchema,
   soldCount: count, guestCount: count, checkedInCount: count, checkedOutCount: count,
   firstPurchaseAt: instant.optional(), lastPurchaseAt: instant.optional(),
-  items: z.array(z.object({ name: itemName, count, share: z.number().min(0).max(1) }).strict()).max(100),
+  items: z.array(z.object({ name: itemName, count, share: z.number().min(0).max(1), group: itemGroup.optional() }).strict()).max(100),
+  /** Grupper med antal, t.ex. "Drink": drinkar totalt. */
+  groups: z.array(z.object({ name: itemGroup, count }).strict()).max(100).optional(),
   quarters: z.array(z.object({ startsAt: instant, count }).strict()).max(500),
   peak: z.number().int().min(0).max(499).optional(),
   recent: z.array(z.object({ at: instant, itemName, name: publicName.optional() }).strict()).max(20),

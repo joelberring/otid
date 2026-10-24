@@ -13,6 +13,7 @@ export const partyPublicSv = {
   bestTitle: "Vad säljer bäst",
   noneYet: "Inga köp ännu.",
   share: (percent: number) => `${percent} %`,
+  groupTotal: (group: string, count: number) => `${group === "Drink" ? "Drinkar" : group} totalt: ${count}`,
   quartersTitle: "Köp per kvart",
   peak: (time: string, count: number) => `Kvällens mest intensiva kvart: ${time} med ${count} köp`,
   quarterLabel: (time: string, count: number) => `${time}: ${count} köp`,

@@ -11,6 +11,8 @@ export const partySettings = pgTable("party_setting", {
   raceId: uuid("race_id").primaryKey().references(() => races.id),
   startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
   showPublicNames: boolean("show_public_names").notNull().default(true),
+  /** Stämplingar på samma kod inom så många sekunder räknas som ett köp. */
+  doublePunchSeconds: integer("double_punch_seconds").notNull().default(5),
   /** Utseendet: rubrik och färger (hex, gemener). NULL = neutralt förval. */
   themeTitle: text("theme_title"),
   themePrimary: text("theme_primary"),

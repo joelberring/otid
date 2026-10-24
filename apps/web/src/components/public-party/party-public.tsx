@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties } from "react";
-import { publicPartyResponseSchema, type PartyTheme, type PublicPartyResponse } from "@o-tid/contracts";
-import { readableTextOn, textColorOn } from "@o-tid/domain";
+import { useEffect, useState } from "react";
+import { publicPartyResponseSchema, type PublicPartyResponse } from "@o-tid/contracts";
+import { partyThemeStyle } from "../../lib/party-theme-style";
 import { partyPublicSv as text } from "../../i18n/party-public-sv";
 import styles from "./party-public.module.css";
 
@@ -11,19 +11,6 @@ import styles from "./party-public.module.css";
  * rolig statistik. Hämtas om var tionde sekund. Inga belopp eller bricknummer; namn bara när festen visar namn.
  */
 const POLL_MS = 10_000;
-const NEUTRAL = { primary: "#2f3a4a", accent: "#3d7a5c" };
-
-export function partyThemeStyle(theme: PartyTheme | undefined): CSSProperties {
-  const primary = theme?.primary ?? NEUTRAL.primary;
-  const accent = theme?.accent ?? NEUTRAL.accent;
-  return {
-    "--party-primary": primary, "--party-on-primary": readableTextOn(primary),
-    "--party-accent": accent, "--party-on-accent": readableTextOn(accent),
-    // Accentfärgen som text på ljus yta mörkas tills den klarar WCAG AA.
-    "--party-accent-text": textColorOn(accent, "#ffffff"), "--party-primary-text": textColorOn(primary, "#ffffff")
-  } as CSSProperties;
-}
-
 function clock(value: string, timeZone: string) {
   return new Intl.DateTimeFormat("sv-SE", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(value));
 }

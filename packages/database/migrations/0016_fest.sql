@@ -17,11 +17,14 @@ CREATE TABLE party_setting (
   starts_at timestamp with time zone NOT NULL,
   -- "Visa namn på den publika sidan": på som standard (ägarens val). Belopp och bricka visas aldrig publikt.
   show_public_names boolean NOT NULL DEFAULT true,
+  -- "Dubbelstämpling inom (sekunder)": stämplingar på samma kod så tätt räknas som ett köp.
+  double_punch_seconds integer NOT NULL DEFAULT 5,
   -- Utseendet på den publika fest-sidan och bardisken: rubrik och två färger (hex). NULL = neutralt förval.
   theme_title text,
   theme_primary text,
   theme_accent text,
   updated_at timestamp with time zone NOT NULL,
+  CONSTRAINT party_setting_double_punch_check CHECK (double_punch_seconds BETWEEN 0 AND 600),
   CONSTRAINT party_setting_title_check CHECK (theme_title IS NULL OR char_length(theme_title) BETWEEN 1 AND 60),
   CONSTRAINT party_setting_primary_check CHECK (theme_primary IS NULL OR theme_primary ~ '^#[0-9a-f]{6}$'),
   CONSTRAINT party_setting_accent_check CHECK (theme_accent IS NULL OR theme_accent ~ '^#[0-9a-f]{6}$')

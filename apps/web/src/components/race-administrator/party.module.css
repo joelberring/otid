@@ -27,3 +27,9 @@
   .fields { grid-template-columns: minmax(0, 1fr); }
   .guests, .purchases { display: block; overflow-x: auto; }
 }
+.themePreview { display: grid; gap: 6px; justify-items: start; padding: 10px; border: 1px dashed var(--line-strong); border-radius: var(--radius); background: #fff; }
+.themeBand { padding: 6px 12px; border-radius: var(--radius); background: var(--party-primary); color: var(--party-on-primary); font-weight: 800;
+  letter-spacing: .05em; text-transform: uppercase; }
+.themeAccentText { color: var(--party-accent-text); font-weight: 700; border-left: 6px solid var(--party-accent); padding-left: 8px; }
+.logo { display: grid; gap: 4px; font-size: var(--text-sm); font-weight: 500; }
+.logoPreview { width: 64px; height: 64px; object-fit: contain; border: 1px solid var(--line); border-radius: 50%; background: #fff; }

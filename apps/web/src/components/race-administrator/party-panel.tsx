@@ -10,6 +10,7 @@ import { partySv as text } from "../../i18n/party-sv";
 import { readAccountCsrfCookie } from "../../lib/organizer-account-cookies";
 import { Button, Notice, Section, Table, numeric } from "../ui";
 import type { Workspace } from "./workspace-state";
+import { PartyThemeForm } from "./party-theme-form";
 
 /**
  * Fest (PLAN.md steg 40): festens start, varorna (kod, namn, pris), köpen i kväll med summa per person, in- och
@@ -74,6 +75,18 @@ function PartyWorkspace({ raceId, admin }: { raceId: string; admin: boolean }) {
     } catch { setProblem(text.saveError); return false; }
     finally { setBusy(false); }
   }
+  async function uploadLogo(file: File | null): Promise<boolean> {
+    setBusy(true); setSaved(undefined);
+    try {
+      const csrf = readAccountCsrfCookie(document.cookie, new URL(window.location.href)) ?? "";
+      const response = await fetch(`${base}/party-logo`, { method: file ? "PUT" : "DELETE", credentials: "same-origin", cache: "no-store",
+        headers: { "x-otid-csrf": csrf, ...(file ? { "content-type": file.type } : {}) }, ...(file ? { body: file } : {}) });
+      if (!response.ok) { setProblem(file ? text.logoInvalid : text.saveError); return false; }
+      await load(); setProblem(undefined); setSaved(file ? text.logoSaved : text.logoRemoved);
+      return true;
+    } catch { setProblem(text.saveError); return false; }
+    finally { setBusy(false); }
+  }
   async function saveGuest(cardNumber: string, name: string, club: string): Promise<boolean> {
     setBusy(true);
     try {
@@ -100,7 +113,10 @@ function PartyWorkspace({ raceId, admin }: { raceId: string; admin: boolean }) {
       {saved && <Notice tone="ok" role="status">{saved}</Notice>}
       {!state.startsAt && <Notice tone="attention">{text.noStart}</Notice>}
       {admin && <StartForm key={`${state.startsAt}-${state.showPublicNames}`} state={state} busy={busy}
-        onSave={(startsAt, showPublicNames) => change({ kind: "settings", startsAt, showPublicNames }, text.settingsSaved)} />}
+        onSave={(startsAt, showPublicNames, doublePunchSeconds) => change({ kind: "settings", startsAt, showPublicNames, doublePunchSeconds },
+          text.settingsSaved)} />}
+      {admin && <PartyThemeForm key={JSON.stringify(state.theme)} state={state} busy={busy}
+        onChange={value => change(value, text.themeSaved)} onLogo={uploadLogo} />}
     </Section>
 
     <Section id={`party-items-${raceId}`} title={text.itemsTitle} help={text.itemsHelp} headingLevel={3}>
@@ -165,18 +181,22 @@ function PartyWorkspace({ raceId, admin }: { raceId: string; admin: boolean }) {
   </div>;
 }
 
-function StartForm({ state, busy, onSave }: { state: PartyStateResponse; busy: boolean; onSave: (startsAt: string, names: boolean) => Promise<boolean> }) {
+function StartForm({ state, busy, onSave }: { state: PartyStateResponse; busy: boolean;
+  onSave: (startsAt: string, names: boolean, doublePunchSeconds: number) => Promise<boolean> }) {
   const current = state.startsAt ? formatPartyTime(state.startsAt, state.timeZone) : undefined;
   const today = formatPartyTime(new Date().toISOString(), state.timeZone).slice(0, 10);
   const [date, setDate] = useState(current?.slice(0, 10) ?? today);
   const [clock, setClock] = useState(current?.slice(11, 16) ?? "17:00");
   const [names, setNames] = useState(state.showPublicNames);
+  const [double, setDouble] = useState(String(state.doublePunchSeconds ?? 5));
   const [error, setError] = useState<string>();
   return <form noValidate className={local.form} aria-label={text.settingsTitle} onSubmit={event => {
     event.preventDefault();
     const startsAt = parseRaceClock(date, clock, state.timeZone);
     if (!startsAt) { setError(text.invalidStart); return; }
-    setError(undefined); void onSave(new Date(startsAt).toISOString(), names);
+    const seconds = /^\d{1,3}$/.test(double.trim()) ? Number(double.trim()) : NaN;
+    if (!(seconds >= 0 && seconds <= 600)) { setError(text.invalidDouble); return; }
+    setError(undefined); void onSave(new Date(startsAt).toISOString(), names, seconds);
   }}>
     <h3>{text.settingsTitle}</h3>
     <p className={styles.workflowHelp}>{text.settingsHelp}</p>
@@ -184,7 +204,9 @@ function StartForm({ state, busy, onSave }: { state: PartyStateResponse; busy: b
       <label>{text.date}<input type="date" value={date} onChange={event => setDate(event.target.value)} /></label>
       <label>{text.time}<input type="text" inputMode="numeric" value={clock} aria-invalid={error ? true : undefined}
         onChange={event => setClock(event.target.value)} /></label>
+      <label>{text.doublePunch}<input type="text" inputMode="numeric" value={double} onChange={event => setDouble(event.target.value)} /></label>
     </div>
+    <p className={styles.workflowHelp}>{text.doublePunchHelp}</p>
     <label className={local.check}><input type="checkbox" checked={names} onChange={event => setNames(event.target.checked)} />
       {text.publicNames}</label>
     <p className={styles.workflowHelp}>{text.publicNamesHelp}</p>

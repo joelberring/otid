@@ -39,6 +39,8 @@ export const partyThemeSchema = z.object({
 export const partyPackageSchema = z.object({
   startsAt: instant.nullable(),
   items: z.array(partyItemSchema).max(100),
+  /** Dubbelstämpling inom (sekunder): stämplingar på samma kod så tätt räknas som ett köp. */
+  doublePunchSeconds: z.number().int().min(0).max(600).optional(),
   theme: partyThemeSchema.optional()
 }).strict();
 
@@ -74,7 +76,8 @@ export const partyChangeRequestSchema = z.object({
   formatVersion: z.literal(1),
   requestId: uuid,
   change: z.discriminatedUnion("kind", [
-    z.object({ kind: z.literal("settings"), startsAt: instant, showPublicNames: z.boolean() }).strict(),
+    z.object({ kind: z.literal("settings"), startsAt: instant, showPublicNames: z.boolean(),
+      doublePunchSeconds: z.number().int().min(0).max(600) }).strict(),
     z.object({ kind: z.literal("theme"), title: z.string().trim().min(1).max(60).nullable(), primary: hex.nullable(), accent: hex.nullable() }).strict(),
     z.object({ kind: z.literal("item-add"), code: partyControlCodeSchema, name: itemName, priceOre: ore }).strict(),
     z.object({ kind: z.literal("item-change"), itemId: uuid, name: itemName, priceOre: ore, hidden: z.boolean() }).strict(),

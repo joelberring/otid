@@ -63,7 +63,8 @@ function knownBefore(card: string, knowledge: DeskKnowledge, before: number): Se
     .map(row => partyPurchaseKey(row.cardNumber, row.code, row.punchedAt)));
   for (const item of knowledge.readouts) {
     if (item.payload.cardNumber !== card || item.localSequence >= before) continue;
-    for (const row of partyPurchasesOnCard(partyReadout(item), knowledge.party.items, knowledge.party.startsAt ?? undefined)) {
+    for (const row of partyPurchasesOnCard(partyReadout(item), knowledge.party.items, knowledge.party.startsAt ?? undefined,
+      knowledge.party.doublePunchSeconds)) {
       keys.add(partyPurchaseKey(row.cardNumber, row.code, row.punchedAt));
     }
   }
@@ -75,7 +76,7 @@ export function decideReadout(item: QueuedReadout, mode: DeskMode, knowledge: De
   const readout = partyReadout(item);
   const startsAt = knowledge.party.startsAt ?? undefined;
   const known = knownBefore(card, knowledge, item.localSequence);
-  const newPurchases = partyPurchasesOnCard(readout, knowledge.party.items, startsAt)
+  const newPurchases = partyPurchasesOnCard(readout, knowledge.party.items, startsAt, knowledge.party.doublePunchSeconds)
     .filter(row => !known.has(partyPurchaseKey(row.cardNumber, row.code, row.punchedAt)));
   const base = { localSequence: item.localSequence, cardNumber: card, newPurchases };
   const earlier = checkInBefore(card, knowledge, item.localSequence);
@@ -108,7 +109,7 @@ export function cardEvening(card: string, knowledge: DeskKnowledge): CardEvening
   for (const row of knowledge.server?.purchases ?? []) if (row.cardNumber === card) rows.set(partyPurchaseKey(row.cardNumber, row.code, row.punchedAt), row);
   for (const item of knowledge.readouts) {
     if (item.payload.cardNumber !== card) continue;
-    for (const row of partyPurchasesOnCard(partyReadout(item), knowledge.party.items, startsAt)) {
+    for (const row of partyPurchasesOnCard(partyReadout(item), knowledge.party.items, startsAt, knowledge.party.doublePunchSeconds)) {
       const key = partyPurchaseKey(row.cardNumber, row.code, row.punchedAt);
       if (!rows.has(key)) rows.set(key, row);
     }

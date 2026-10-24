@@ -13,7 +13,8 @@ test("fest: bardisken checkar in, verifierar köp och checkar ut med mål", asyn
   const suffix = unique();
   const owner = await registerAccount(browser, `fest.${suffix}@exempel.se`, "Fia Fest");
   const raceId = await createRace(owner, `Klubbfest ${suffix}`, today(), "Fest");
-  for (const path of ["party-guests", "party-desk-events"]) await warmRoute(owner, `/api/admin/races/${raceId}/administrator/${path}`, "POST");
+  for (const path of ["/fest/aaaaaa", "/api/public/parties/aaaaaa", "/api/public/parties/aaaaaa/logo", "/robots.txt"]) await warmRoute(owner, path);
+  for (const path of ["party-guests", "party-desk-events", "party-logo"]) await warmRoute(owner, `/api/admin/races/${raceId}/administrator/${path}`, "POST");
 
   // Festens start i dag 00:00, så att övningens stämplingar räknas. Två varor med kod och pris.
   const start = owner.getByRole("form", { name: "Festens start" });
@@ -31,6 +32,16 @@ test("fest: bardisken checkar in, verifierar köp och checkar ut med mål", asyn
   }
   await expect(owner.getByRole("link", { name: "Öppna bardisken" }).first()).toHaveAttribute("href", `/admin/${raceId}/readout`);
 
+  // Utseendet: förinställningen för jubileet och en logga (PNG).
+  const look = owner.getByRole("form", { name: "Utseende" });
+  await look.getByRole("button", { name: "Förinställning: Centrum OK 20 år" }).click();
+  await expect(look.getByLabel("Huvudfärg")).toHaveValue("#ae1917");
+  await look.getByRole("button", { name: "Spara utseende" }).click();
+  await expect(owner.getByText("Utseendet är sparat.")).toBeVisible();
+  await look.getByLabel("Logga (PNG eller JPEG, högst 1 MB)").setInputFiles({ name: "logga.png", mimeType: "image/png",
+    buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64") });
+  await expect(owner.getByText("Loggan är sparad.")).toBeVisible();
+
   // Bardisken: ett fönster, stationens knappar syns tills den är ansluten.
   const desk = await owner.context().newPage();
   await desk.goto(`/admin/${raceId}/readout`);
@@ -41,6 +52,7 @@ test("fest: bardisken checkar in, verifierar köp och checkar ut med mål", asyn
   await expect(desk.getByTestId("station-status")).toContainText("Övningsstation");
   const verdict = desk.getByTestId("party-verdict");
   await expect(verdict).toContainText("Stämpla på varans enhet");
+  await expect(desk.locator(".party-band")).toHaveText("Centrum OK 20 år");
   // Kiosk: inga länkar ut ur sidan i automatiskt läge.
   await expect(desk.getByRole("link", { name: "Hantera tävlingen" })).toHaveCount(0);
 
@@ -136,7 +148,10 @@ test("fest: bardisken checkar in, verifierar köp och checkar ut med mål", asyn
   expect(api.headers()["cache-control"]).toBe("private, no-store");
   const json = await api.text();
   expect(json).toContain("Festa Påhittsson");
-  expect(json).not.toMatch(/8[0-9]{6}|Ore|ore"/);
+  expect(json).not.toMatch(/cardNumber|priceOre|totalOre|raceId/);
+  const logo = await visitor.request.get(`/api/public/parties/${code}/logo?v=1`);
+  expect(logo.headers()["content-type"]).toBe("image/png");
+  expect(logo.headers()["x-content-type-options"]).toBe("nosniff");
   const robots = await (await visitor.request.get("/robots.txt")).text();
   expect(robots).toContain("Disallow: /api/public/parties/");
   expect(robots).toContain("User-Agent: GPTBot");

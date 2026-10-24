@@ -5,6 +5,8 @@
  * Regler:
  * - Ett köp är en stämpling med en kod som är en vara och en tid efter festens start.
  * - Unikt per bricka + kod + stämplingstid: samma stämpling som läses ut flera gånger är ett köp.
+ * - Samma kod flera gånger är flera köp, men en stämpling inom `doublePunchSeconds` (förval 5) från föregående
+ *   stämpling på samma kod är en dubbelstämpling och räknas inte.
  * - Priset är varans pris när gästen stämplade (prishistoriken), så att en prisändring inte ändrar gamla köp.
  * - Incheckning: startstämpling efter festens start (källa "Start") eller bardiskens läge "Checka in" (källa "Bardisken").
  *   Clear- och checkstämpling räknas inte. Den tidigaste gäller.
@@ -115,7 +117,11 @@ export interface PartyLedgerInput {
   readonly deskEvents?: readonly PartyDeskEvent[];
   readonly voids?: readonly PartyVoid[];
   readonly guests?: readonly PartyGuest[];
+  /** Dubbelstämpling inom (sekunder); förval 5. */
+  readonly doublePunchSeconds?: number;
 }
+
+export const PARTY_DOUBLE_PUNCH_SECONDS = 5;
 
 const ms = (value: string) => Date.parse(value);
 
@@ -154,18 +160,22 @@ export function partyMemoryWarning(memory: PartyGuestSummary["memory"]): boolean
 }
 
 /** Köpen på en enda utläsning (bardiskens besked), utan dubbletter, äldst först. */
-export function partyPurchasesOnCard(readout: PartyReadout, items: readonly PartyItem[], startsAt: string | undefined): PartyPurchase[] {
+export function partyPurchasesOnCard(readout: PartyReadout, items: readonly PartyItem[], startsAt: string | undefined,
+  doublePunchSeconds = PARTY_DOUBLE_PUNCH_SECONDS): PartyPurchase[] {
   if (startsAt === undefined) return [];
   const byCode = new Map(items.map(item => [item.code, item]));
   const start = ms(startsAt);
-  const seen = new Set<string>();
+  const previous = new Map<number, number>();
   const rows: PartyPurchase[] = [];
-  for (const punch of readout.punches) {
+  const punches = [...readout.punches].sort((left, right) => ms(left.punchedAt) - ms(right.punchedAt));
+  for (const punch of punches) {
     const item = byCode.get(punch.code);
-    if (!item || !(ms(punch.punchedAt) >= start)) continue;
-    const key = partyPurchaseKey(readout.cardNumber, punch.code, punch.punchedAt);
-    if (seen.has(key)) continue;
-    seen.add(key);
+    const at = ms(punch.punchedAt);
+    if (!item || !(at >= start)) continue;
+    // Samma stämpling igen eller en dubbelstämpling: inom gränsen från föregående stämpling på samma kod.
+    const before = previous.get(punch.code);
+    previous.set(punch.code, at);
+    if (before !== undefined && at - before <= doublePunchSeconds * 1_000) continue;
     rows.push({ cardNumber: readout.cardNumber, code: punch.code, itemId: item.id, itemName: item.name,
       priceOre: partyPriceAt(item, punch.punchedAt), punchedAt: punch.punchedAt, firstReadAt: readout.readAt, afterCheckout: false });
   }
@@ -205,7 +215,7 @@ export function partyLedger(input: PartyLedgerInput): PartyLedger {
     if (finish) checkouts.set(readout.cardNumber, earliest(checkouts.get(readout.cardNumber), { at: finish, source: "FINISH" }));
     const arrived = partyStartCheckIn(readout, input.startsAt);
     if (arrived) checkIns.set(readout.cardNumber, earliest(checkIns.get(readout.cardNumber), { at: arrived, source: "START" }));
-    for (const purchase of partyPurchasesOnCard(readout, input.items, input.startsAt)) {
+    for (const purchase of partyPurchasesOnCard(readout, input.items, input.startsAt, input.doublePunchSeconds)) {
       const key = partyPurchaseKey(purchase.cardNumber, purchase.code, purchase.punchedAt);
       if (!purchases.has(key)) purchases.set(key, purchase);
     }

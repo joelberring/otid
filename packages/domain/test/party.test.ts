@@ -37,6 +37,15 @@ describe("fest: köp ur brickans stämplingar", () => {
     expect(ledger.purchases[0]!.firstReadAt).toBe("2026-10-24T19:20:00.000Z");
   });
 
+  it("samma kod flera gånger är flera köp; dubbelstämpling inom 5 s är ett; före start räknas inte", () => {
+    const card = read("8123456", "2026-10-24T19:20:00.000Z", [
+      [31, "2026-10-24T14:59:59.000Z"], [31, "2026-10-24T19:00:00.000Z"], [31, "2026-10-24T19:00:02.000Z"], [31, "2026-10-24T19:10:00.000Z"]]);
+    const rows = partyPurchasesOnCard(card, items, startsAt);
+    expect(rows.map(row => row.punchedAt)).toEqual(["2026-10-24T19:00:00.000Z", "2026-10-24T19:10:00.000Z"]);
+    expect(partyLedger({ startsAt, items, readouts: [card, { ...card, readAt: "2026-10-24T19:30:00.000Z" }] }).purchaseCount).toBe(2);
+    expect(partyPurchasesOnCard(card, items, startsAt, 1).length).toBe(3);
+  });
+
   it("priset är det som gällde när gästen stämplade", () => {
     expect(partyPriceAt(items[1]!, "2026-10-24T19:59:59.000Z")).toBe(6_000);
     expect(partyPriceAt(items[1]!, "2026-10-24T20:00:00.000Z")).toBe(7_000);

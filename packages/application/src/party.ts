@@ -5,7 +5,7 @@ import {
   type PublicPartyResponse
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { partyLedger, partyPublicStats } from "@o-tid/domain";
+import { PARTY_DOUBLE_PUNCH_SECONDS, partyLedger, partyPublicStats } from "@o-tid/domain";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation } from "./concurrency";
 import type { DbExecutor } from "./snapshot";
@@ -47,7 +47,8 @@ async function loadTheme(tx: DbExecutor, raceId: string, setting: typeof schema.
 export async function loadPartyPackage(tx: DbExecutor, raceId: string): Promise<PartyPackage | undefined> {
   if (!await isParty(tx, raceId)) return undefined;
   const [setting] = await tx.select().from(schema.partySettings).where(eq(schema.partySettings.raceId, raceId));
-  return { startsAt: setting ? iso(setting.startsAt) : null, items: await loadItems(tx, raceId), theme: await loadTheme(tx, raceId, setting) };
+  return { startsAt: setting ? iso(setting.startsAt) : null, items: await loadItems(tx, raceId),
+    doublePunchSeconds: setting?.doublePunchSeconds ?? PARTY_DOUBLE_PUNCH_SECONDS, theme: await loadTheme(tx, raceId, setting) };
 }
 
 /** Hela läget: varor, köp ur avläsningarna, gäster med summa och utcheckning. */
@@ -64,7 +65,8 @@ export async function loadPartyState(tx: DbExecutor, raceId: string, now: Date):
   const deskEvents = await tx.select().from(schema.partyDeskEvents).where(eq(schema.partyDeskEvents.raceId, raceId));
   const voids = await tx.select().from(schema.partyPurchaseVoids).where(eq(schema.partyPurchaseVoids.raceId, raceId));
   const guests = await tx.select().from(schema.partyGuests).where(eq(schema.partyGuests.raceId, raceId));
-  const ledger = partyLedger({ startsAt, items,
+  const doublePunchSeconds = setting?.doublePunchSeconds ?? PARTY_DOUBLE_PUNCH_SECONDS;
+  const ledger = partyLedger({ startsAt, items, doublePunchSeconds,
     readouts: readouts.map(row => ({ cardNumber: row.cardNumber, readAt: iso(row.readAt),
       ...(row.startPunchedAt ? { startPunchedAt: iso(row.startPunchedAt) } : {}),
       ...(row.finishPunchedAt ? { finishPunchedAt: iso(row.finishPunchedAt) } : {}),
@@ -74,7 +76,7 @@ export async function loadPartyState(tx: DbExecutor, raceId: string, now: Date):
       voidedAt: iso(row.createdAt) })),
     guests: guests.map(row => ({ cardNumber: row.cardNumber, name: row.name, ...(row.club ? { club: row.club } : {}) })) });
   return partyStateResponseSchema.parse({ formatVersion: 1, raceId, timeZone: race.timeZone, startsAt: startsAt ?? null, items,
-    theme: await loadTheme(tx, raceId, setting),
+    theme: await loadTheme(tx, raceId, setting), doublePunchSeconds,
     showPublicNames: setting?.showPublicNames ?? true, publicPath: `/fest/${race.shortCode}`, purchases: ledger.purchases, guests: ledger.guests,
     totalOre: ledger.totalOre, purchaseCount: ledger.purchaseCount, fetchedAt: iso(now) });
 }
@@ -113,11 +115,12 @@ export async function changePartyAsAdmin(db: Database, input: RaceSessionProof &
         actorId: auth.principal.accountId, action, before, after, createdAt: now });
     if (change.kind === "settings") {
       const [before] = await tx.select().from(schema.partySettings).where(eq(schema.partySettings.raceId, raceId));
-      await tx.insert(schema.partySettings).values({ raceId, startsAt: new Date(change.startsAt), showPublicNames: change.showPublicNames,
-        updatedAt: now }).onConflictDoUpdate({ target: schema.partySettings.raceId,
-        set: { startsAt: new Date(change.startsAt), showPublicNames: change.showPublicNames, updatedAt: now } });
-      await audit(raceId, "PARTY_SETTINGS_CHANGED", before ? { startsAt: iso(before.startsAt), showPublicNames: before.showPublicNames } : null,
-        { startsAt: new Date(change.startsAt).toISOString(), showPublicNames: change.showPublicNames });
+      const values = { startsAt: new Date(change.startsAt), showPublicNames: change.showPublicNames, doublePunchSeconds: change.doublePunchSeconds };
+      await tx.insert(schema.partySettings).values({ raceId, ...values, updatedAt: now }).onConflictDoUpdate({ target: schema.partySettings.raceId,
+        set: { ...values, updatedAt: now } });
+      await audit(raceId, "PARTY_SETTINGS_CHANGED", before ? { startsAt: iso(before.startsAt), showPublicNames: before.showPublicNames,
+        doublePunchSeconds: before.doublePunchSeconds } : null,
+        { startsAt: values.startsAt.toISOString(), showPublicNames: values.showPublicNames, doublePunchSeconds: values.doublePunchSeconds });
     } else if (change.kind === "theme") {
       const [before] = await tx.select().from(schema.partySettings).where(eq(schema.partySettings.raceId, raceId));
       if (!before) return { status: "conflict" };

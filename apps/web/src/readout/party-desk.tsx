@@ -11,6 +11,7 @@ import { runnerForCard } from "./runner-lookup";
 import type { QueuedReadout } from "./store";
 import type { ReadoutSoundKind } from "./sound";
 import { PartyNameBox } from "./party-name-box";
+import { partyThemeStyle } from "../lib/party-theme-style";
 
 /**
  * Bardisken (PLAN.md steg 40): avläsningssidan för en fest, i ett fönster som gästerna sköter själva. Stationen, kön och
@@ -55,7 +56,8 @@ export function PartyDesk(props: PartyDeskProps) {
   const mountedAt = useRef(Date.now());
   const seen = useRef(new Set<number>());
   // Servern har den senaste varulistan och starten; paketet räcker utan nät.
-  const effectiveParty = useMemo(() => server ? { startsAt: server.startsAt, items: server.items } : party, [server, party]);
+  const effectiveParty = useMemo(() => server ? { startsAt: server.startsAt, items: server.items, doublePunchSeconds: server.doublePunchSeconds }
+    : party, [server, party]);
   const knowledge: DeskKnowledge = useMemo(() => ({ party: effectiveParty, server, readouts: items, actions }),
     [effectiveParty, server, items, actions]);
   const knowledgeRef = useRef(knowledge);
@@ -157,7 +159,12 @@ export function PartyDesk(props: PartyDeskProps) {
     setNaming(undefined);
   }
 
-  return <div className="party" data-mode={mode}>
+  const theme = server?.theme ?? party.theme;
+  return <div className="party" data-mode={mode} style={partyThemeStyle(theme)}>
+    <div className="party-band">
+      {theme?.logo ? <img src={theme.logo} alt="" /> : null}
+      <span>{theme?.title ?? pkg.event.name}</span>
+    </div>
     {!kiosk ? props.statusArea : null}
     {!startsAt ? <p className="notice" role="alert">{t.noStart}</p> : notStarted ? <p className="notice">{t.notStarted(notStarted)}</p> : null}
     {mode !== "AUTO" ? <p className="notice party-mode" role="status" data-testid="party-mode">{t.modeActive(t.modes[mode])}</p> : null}

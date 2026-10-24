@@ -24,7 +24,7 @@ async function party() {
   await db.update(schema.races).set({ raceType: "PARTY" }).where(eq(schema.races.id, race.id));
   const admin = await raceAuth(db, race.id, "ADMIN");
   const change = (change: Record<string, unknown>) => changePartyAsAdmin(db, { ...admin, request: { formatVersion: 1, requestId: randomUUID(), change } });
-  expect((await change({ kind: "settings", startsAt, showPublicNames: true })).status).toBe("ok");
+  expect((await change({ kind: "settings", startsAt, showPublicNames: true, doublePunchSeconds: 5 })).status).toBe("ok");
   expect((await change({ kind: "item-add", code: 31, name: "Öl", priceOre: 4_000 })).status).toBe("ok");
   const added = await change({ kind: "item-add", code: 32, name: "Drink", priceOre: 6_000 });
   if (added.status !== "ok") throw new Error("Varan sparades inte");
@@ -50,7 +50,7 @@ describe("steg 40: fest med bardisk", () => {
   it("köp ur stämplingarna: samma stämpling igen ger ett köp, summa per person och totalt, priset vid köpet", async () => {
     const { raceId, admin, change, items } = await party();
     // Köpen före prisändringen ligger i det förflutna (prisändringen gäller från nu), köpet efter i framtiden.
-    expect((await change({ kind: "settings", startsAt: "2020-01-01T00:00:00.000Z", showPublicNames: true })).status).toBe("ok");
+    expect((await change({ kind: "settings", startsAt: "2020-01-01T00:00:00.000Z", showPublicNames: true, doublePunchSeconds: 5 })).status).toBe("ok");
     const now = Math.floor(Date.now() / 1_000) * 1_000;
     const ago = (hours: number) => new Date(now - hours * 3_600_000).toISOString();
     const device = randomUUID();
@@ -140,7 +140,7 @@ describe("steg 40: fest med bardisk", () => {
     expect(named).toMatchObject({ showNames: true, soldCount: 1, checkedInCount: 1, guests: [{ name: "Festa Påhittsson", purchaseCount: 1 }],
       firstArrival: { name: "Festa Påhittsson" } });
     expect(JSON.stringify(named)).not.toMatch(/8123456|Ore|raceId|itemId/);
-    await change({ kind: "settings", startsAt, showPublicNames: false });
+    await change({ kind: "settings", startsAt, showPublicNames: false, doublePunchSeconds: 5 });
     const anonymous = await readPublicParty(db, raceId);
     expect(anonymous?.guests).toBeUndefined();
     expect(JSON.stringify(anonymous)).not.toContain("Festa");

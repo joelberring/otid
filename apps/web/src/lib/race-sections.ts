@@ -24,6 +24,8 @@ export type RaceTypeFeatures = {
   /** Import av anmälda och startlistor (IOF XML) under Inställningar. */ import: boolean;
   /** Eventor under Inställningar (ADR-0170 beslut 4): Tävling, gafflade banor och Stafett. Banfil kan alla typer läsa under Banor. */
   eventor: boolean;
+  /** Bara nyckeln och löpardatabasen från Eventor (fest, steg 42): namnförslag för okända brickor, ingen tävlingsimport. */
+  eventorRunners: boolean;
   /** Fastställande i Resultat. */ finalization: boolean;
   /** Stafettklasser, lag och sträckor. */ relay: boolean;
   /** Banvarianter (gafflingar). */ variants: boolean;
@@ -59,7 +61,7 @@ const readout = section("READOUT", "READOUT");
 const results = section("RESULTS", "RESULTS");
 const settings = section("SETTINGS", "SETTINGS");
 
-const none: RaceTypeFeatures = { draw: false, speaker: false, import: false, eventor: false, finalization: false, relay: false, variants: false,
+const none: RaceTypeFeatures = { draw: false, speaker: false, import: false, eventor: false, eventorRunners: false, finalization: false, relay: false, variants: false,
   variantsProminent: false, startRuleChoice: false, rogaining: false, radio: false };
 const competition: RaceTypeFeatures = { ...none, draw: true, speaker: true, import: true, eventor: true, finalization: true, startRuleChoice: true,
   radio: true };
@@ -93,7 +95,7 @@ const profiles: Record<RaceType, Omit<RaceTypeProfile, "type" | "settings">> = {
   /** Fest med bardisk (PLAN.md steg 40): varor, gäster, köp, utcheckning och export på ett ställe, sedan Publicera. */
   PARTY: {
     course: [section("PARTY", "PARTY"), publish],
-    features: none
+    features: { ...none, eventorRunners: true }
   }
 };
 

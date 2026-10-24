@@ -27,7 +27,8 @@ export function sourceTime(instant: string, timeZone: string): string {
  * visas bara som "Nyckel sparad"), testa anslutningen, välj tävlingen i Eventor och hämta eller
  * uppdatera klasser och anmälningar med granskning av skillnaderna.
  */
-export function EventorSection({ ws }: { ws: Workspace }) {
+/** `runnersOnly`: fest (steg 42) – bara nyckeln och löpardatabasen, ingen tävling att välja eller hämta. */
+export function EventorSection({ ws, runnersOnly = false }: { ws: Workspace; runnersOnly?: boolean }) {
   const { authenticated, busy, operation, writingRef, beginRequest, request, json, finish, current, csrf, requireSession, data, raceId } = ws;
   const [settings, setSettings] = useState<EventorSettingsResponse>();
   const [keyInput, setKeyInput] = useState("");
@@ -134,7 +135,7 @@ export function EventorSection({ ws }: { ws: Workspace }) {
           <Button variant="quiet" disabled={locked} onClick={() => void removeKey()}>{text.removeKey}</Button>
         </div></div> : keyForm}
         {message && <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>{message.text}</Notice>}
-        {settings.key === "SAVED" && <div className={styles.block}>
+        {settings.key === "SAVED" && !runnersOnly && <div className={styles.block}>
           <h3 className={styles.subhead}>{text.eventTitle}</h3>
           {event && !choosing ? <div className={styles.line}>
             <span>{text.eventLine(event.name, event.date, text.eventForm[event.form], event.id)}</span>

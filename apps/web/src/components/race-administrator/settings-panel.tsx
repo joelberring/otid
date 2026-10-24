@@ -84,7 +84,7 @@ export function SettingsPanel({ ws }: { ws: Workspace }) {
       <div><Button variant="secondary" onClick={() => navigateStep(publish.id)}>{text.publishOpen}</Button></div>
     </Section>}
     <PeopleSection raceId={raceId} disabled={locked} onPendingChange={setPeoplePending} />
-    {profile.features.eventor && <EventorSection ws={ws} />}
+    {(profile.features.eventor || profile.features.eventorRunners) && <EventorSection ws={ws} runnersOnly={!profile.features.eventor} />}
     {profile.features.radio && <RadioSection raceId={raceId} disabled={locked} />}
     {profile.features.import && <Section id={`${id}-import`} title={text.import} help={text.importHelp}>
       <p><Link href={`/admin/${raceId}/imports`}>{text.importLink}</Link></p>

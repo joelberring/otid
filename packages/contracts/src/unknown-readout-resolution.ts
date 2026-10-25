@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { decisionReviewSchema } from "./decision-review";
 import { newEntryCardNumberSchema } from "./entry-card-admin";
 import { prefixedUuidPattern, uuidSchema as uuid } from "./ids";
 
@@ -106,7 +107,9 @@ export const unknownReadoutResolutionResponseSchema = z.object({
   snapshotVersionBefore: version,
   snapshotVersionAfter: version,
   courseVersionId: uuid,
-  resolvedAt: z.iso.datetime({ offset: true })
+  resolvedAt: z.iso.datetime({ offset: true }),
+  /** Steg 45: ett beslut som ligger kvar (t.ex. brutit) gäller i stället för den kopplade avläsningen. */
+  decisionReview: decisionReviewSchema.optional()
 }).strict().refine((row) => row.snapshotVersionAfter === row.snapshotVersionBefore + 1);
 
 export type UnknownReadoutResolutionCandidateResponse = z.infer<typeof unknownReadoutResolutionCandidateResponseSchema>;

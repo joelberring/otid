@@ -6,6 +6,7 @@ import { speakerBoardEffectiveResultSchema } from "./speaker-board";
 import { courseVariantCodeSchema } from "./course-edit";
 import { raceFirstStartTimeSchema, raceInfoSchema, raceTypeSchema } from "./race-settings";
 import { racePublicationStateSchema } from "./race-publication";
+import { decisionReviewSchema } from "./decision-review";
 import { prefixedUuidPattern, uuidSchema as uuid } from "./ids";
 
 const version = z.number().int().positive().max(2_147_483_647);
@@ -84,6 +85,8 @@ export const entryTransferCandidatesSchema = z.object({
     resultRevisionMarker: entryTransferResultRevisionMarkerSchema.nullable(),
     /** Steg 38: felstämplad som arrangören har kontrollerat; räknas inte som att titta på. */
     mispunchConfirmed: z.literal(true).optional(),
+    /** Steg 45: ett beslut gäller men en senare avläsning ger något annat ("Beslut att se över"). */
+    decisionReview: decisionReviewSchema.optional(),
     /** Steg 41: löparen registrerade sig själv på tävlingssidan. */
     selfRegistered: z.literal(true).optional(),
     fixedStartTime: fixedStartTimeSchema.nullable(),

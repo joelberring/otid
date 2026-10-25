@@ -12,6 +12,7 @@ import { inForest } from "../../lib/section-status";
 import { checkinHistorySv } from "../../i18n/checkin-history-sv";
 import { checkinConflictReviewSv as reviewText } from "../../i18n/checkin-conflict-review-sv";
 import { forestWatchSv as forestText } from "../../i18n/forest-watch-sv";
+import { decisionReviewText } from "../../lib/decision-review";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
 import { relaySv as relayText } from "../../i18n/relay-sv";
 import type { ConflictReviewAttempt, Operation, ReturnAttempt, StartCorrectionAttempt, UnknownReadoutResolutionAttempt } from "./types";
@@ -311,7 +312,9 @@ export function createDuringRaceActions(ws: Base & RaceDataActions & Pick<RelayA
       }
       committed = true; pending.current = undefined; sent.current = false; setUnknownReadoutAttempt(undefined);
       setUnknownReadoutCandidate(undefined); setUnknownReadoutFetchedAt(undefined); setUnknownReadoutAttentionStale(true);
-      setUnknownReadoutError(""); setUnknown(false); setData(undefined); setMessage(text.unknownReadoutSaved);
+      setUnknownReadoutError(""); setUnknown(false); setData(undefined);
+      // Steg 45: ett beslut som ligger kvar (t.ex. brutit utan bricka) gäller fortfarande.
+      setMessage(receipt.decisionReview ? `${text.unknownReadoutSaved} ${decisionReviewText(receipt.decisionReview)}` : text.unknownReadoutSaved);
       await load(op);
       // Nästa okända bricka visas direkt utan ett extra klick.
       try { await readUnknownReadoutCandidates(op); }

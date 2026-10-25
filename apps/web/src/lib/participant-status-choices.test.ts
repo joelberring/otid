@@ -22,7 +22,7 @@ describe("Ändra status", () => {
     const missingFinish = { ...active("MP", "NONE"), result: { revision: 2, status: "MP", reason: "MISSING_FINISH" } } as AdministratorEffectiveResultResponse;
     expect(availableStatusChoices(missingFinish)).toEqual(["CONFIRM_MP", "DNF", "DSQ", "OOC", "NT", "RECALCULATION"]);
     const manual = { ...active("OK", "NONE"), governingDecision: "MANUAL_TIME" } as AdministratorEffectiveResultResponse;
-    expect(availableStatusChoices(manual)).toEqual(["MANUAL_TIME_WITHDRAWAL", "RECALCULATION"]);
+    expect(availableStatusChoices(manual)).toEqual(["MANUAL_TIME_WITHDRAWAL", "DSQ", "OOC", "RECALCULATION"]);
   });
   it("steg 38: en bekräftad felstämpling kan bara tas bort", () => {
     const confirmed = { ...active("MP", "NONE"), governingDecision: "MP_CONFIRMED" } as AdministratorEffectiveResultResponse;

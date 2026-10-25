@@ -16,6 +16,7 @@ import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
 import { bumpReadoutPackageVersion, loadRaceSnapshot } from "./snapshot";
 import { canAddClassEntry } from "./class-capacity-guard";
 import { relayTeamOfEntry } from "./relay-model";
+import { loadDecisionReviews } from "./decision-review";
 import { synchronizeRelayTeams } from "./relay-sync";
 import { appendResultRevision } from "./result-revisions";
 import { readoutsWithResults } from "./readout-registration";
@@ -273,13 +274,15 @@ export async function resolveUnknownReadoutAsAdmin(
     const revision = result.revision;
     const teamId = await relayTeamOfEntry(tx, entry.id);
     if (teamId) await synchronizeRelayTeams(tx, input.raceId, [teamId], snapshotVersionAfter);
+    // Steg 45: ett beslut som ligger kvar (t.ex. brutit utan bricka) gäller fortfarande; kvittot säger det.
+    const decisionReview = (await loadDecisionReviews(tx, input.raceId, [entry.id])).get(entry.id);
     const response = unknownReadoutResolutionResponseSchema.parse({ formatVersion: 1, replayed: false,
       requestId, raceId: input.raceId, readoutId: readout.readout.id, cardNumber: intent.cardNumber,
       target: intent.target, entryId: entry.id, entryVersion: entryVersionAfter, classId: targetClassId,
       assignmentId, resultRevisionId: result.id, revision, cause: "UNKNOWN_READOUT_RESOLUTION",
       status: evaluation.status, reason: evaluation.reason, engineVersion: RESULT_ENGINE_VERSION,
       snapshotVersionBefore: race.snapshotVersion, snapshotVersionAfter,
-      courseVersionId: evaluation.courseVersionId, resolvedAt: resolvedAt.toISOString() });
+      courseVersionId: evaluation.courseVersionId, resolvedAt: resolvedAt.toISOString(), ...(decisionReview ? { decisionReview } : {}) });
     await tx.insert(schema.unknownReadoutResolutions).values({ requestId, raceId: input.raceId,
       readoutId: readout.readout.id, rawMessageId: readout.readout.rawMessageId, cardNumber: intent.cardNumber,
       actorAccountId: auth.principal.accountId, role: auth.principal.role, target: intent.target,

@@ -35,7 +35,9 @@ const adminFiles = [
   // Steg 40: festen.
   "party-sv.ts",
   // Steg 41: självregistrering.
-  "self-registration-sv.ts"
+  "self-registration-sv.ts",
+  // Steg 45: beslut att se över.
+  "decision-review-sv.ts"
 ];
 /** Delade textfiler (även publika sidor): bara nycklarna som arbetsytan läser granskas. */
 const sharedFiles = ["sv.ts", "account-sv.ts"];

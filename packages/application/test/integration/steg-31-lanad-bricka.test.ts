@@ -117,22 +117,37 @@ describe("steg 31: samma bricka hos två löpare", () => {
   });
 });
 
-describe("steg 45: omräkning bara från deltagarens egen avläsning", () => {
-  it("den som får den lånade brickan efteråt räknas inte om från någon annans avläsning", async () => {
-    const { raceId, admin, ada, bo } = await race();
-    const [borrowed] = (await ingestDeviceBatch(db, raceId, batch(randomUUID(), second))).acknowledgements;
-    expect(borrowed).toMatchObject({ serverResult: { status: "UNKNOWN_CARD" } });
-    // Brickan flyttas till Bo utan att avläsningen kopplas (som "Byt bricka" i deltagarkortet).
+describe("steg 45: omräkning tar aldrig någon annans avläsning", () => {
+  async function moveCardToBo(ada: string, bo: string, raceId: string) {
+    // Brickan flyttas till Bo utan att någon avläsning kopplas (som "Byt bricka" i deltagarkortet).
     for (const entry of [ada, bo]) await db.update(schema.cardAssignments).set({ active: false }).where(eq(schema.cardAssignments.entryId, entry));
     await db.insert(schema.cardAssignments).values({ raceId, entryId: bo, cardNumber: "12345", active: true });
+  }
+
+  it("den som får Adas bricka efteråt räknas inte om från Adas avläsning", async () => {
+    const { raceId, admin, ada, bo } = await race();
+    await moveCardToBo(ada, bo, raceId);
     const listed = await listResultRecalculationCandidatesAsAdmin(db, admin);
     if (listed.status !== "ok") throw new Error(listed.status);
     expect(listed.response.entries.find((entry) => entry.id === bo)).toMatchObject({ readiness: "NO_READOUT", latestReadout: null });
-    expect(listed.response.entries.find((entry) => entry.id === ada)).toMatchObject({ readiness: "NO_ACTIVE_ASSIGNMENT" });
     await expect(recalculateEntry(db, raceId, bo)).rejects.toThrow("Deltagaren saknar avläsning");
     expect(await revisions(bo)).toEqual([]);
     // Ada räknas fortfarande om från sin egen avläsning.
     await recalculateEntry(db, raceId, ada);
+    expect(await row(raceId, "Ada")).toMatchObject({ status: "OK", elapsedMs: 2_400_000 });
+  });
+
+  it("en lånad bricka som ingen har kopplats till går fortfarande att räkna om för den som får brickan", async () => {
+    const { raceId, admin, ada, bo } = await race();
+    const [borrowed] = (await ingestDeviceBatch(db, raceId, batch(randomUUID(), second, { stationReceivedAt: "2026-08-30T11:51:00Z" })))
+      .acknowledgements;
+    expect(borrowed).toMatchObject({ serverResult: { status: "UNKNOWN_CARD" } });
+    await moveCardToBo(ada, bo, raceId);
+    const listed = await listResultRecalculationCandidatesAsAdmin(db, admin);
+    if (listed.status !== "ok") throw new Error(listed.status);
+    expect(listed.response.entries.find((entry) => entry.id === bo)).toMatchObject({ readiness: "READY" });
+    await recalculateEntry(db, raceId, bo);
+    expect(await row(raceId, "Bo")).toMatchObject({ status: "OK", elapsedMs: 3_000_000 });
     expect(await row(raceId, "Ada")).toMatchObject({ status: "OK", elapsedMs: 2_400_000 });
   });
 });

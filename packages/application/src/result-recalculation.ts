@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   resultRecalculationCandidateResponseSchema,
   resultRecalculationIdempotencyKeySchema,
@@ -14,7 +14,7 @@ import {
   RESULT_ENGINE_VERSION,
   snapshotForEntryCard
 } from "@o-tid/domain";
-import { latestResultReadout, latestResultReadouts, recalculationReadout } from "./card-reuse";
+import { latestResultReadout, latestResultReadouts, readoutClaims, recalculationReadout } from "./card-reuse";
 import { appendResultRevision, evaluateAndStore, normalizedReadout } from "./result-revisions";
 import { loadRaceSnapshot } from "./snapshot";
 import { lockEntryForRevision, lockRaceForSnapshot } from "./concurrency";
@@ -60,6 +60,22 @@ export async function listResultRecalculationCandidatesAsAdmin(
       eq(schema.cardAssignments.raceId, authorization.principal.raceId),
       eq(schema.cardAssignments.active, true)
     )).orderBy(asc(schema.cardAssignments.entryId), asc(schema.cardAssignments.id));
+    const cardNumbers = [...new Set(activeAssignments.map((assignment) => assignment.cardNumber))];
+    const latestReadouts = cardNumbers.length === 0 ? [] : await tx.selectDistinctOn(
+      [schema.cardReadouts.cardNumber],
+      {
+        id: schema.cardReadouts.id,
+        cardNumber: schema.cardReadouts.cardNumber,
+        readAt: schema.cardReadouts.readAt
+      }
+    ).from(schema.cardReadouts).where(and(
+      eq(schema.cardReadouts.raceId, authorization.principal.raceId),
+      inArray(schema.cardReadouts.cardNumber, cardNumbers)
+    )).orderBy(
+      asc(schema.cardReadouts.cardNumber),
+      desc(schema.cardReadouts.readAt),
+      desc(schema.cardReadouts.id)
+    );
     const latestRevisions = await tx.selectDistinctOn(
       [schema.resultRevisions.entryId],
       {
@@ -83,7 +99,10 @@ export async function listResultRecalculationCandidatesAsAdmin(
       assignments.push(assignment);
       assignmentsByEntry.set(assignment.entryId, assignments);
     }
-    // Steg 31 (B4), steg 45: bara deltagarens egen avläsning räknas om (resultatet följer avläsningen, inte brickan).
+    const readoutByCard = new Map(latestReadouts.map((readout) => [readout.cardNumber, readout]));
+    // Steg 45: en avläsning som någon annans resultat bygger på tas aldrig för en annan deltagare.
+    const claims = await readoutClaims(tx, authorization.principal.raceId, latestReadouts.map((readout) => readout.id));
+    // Steg 31 (B4): den som har ett resultat räknas om från sin egen avläsning (resultatet följer avläsningen).
     const resultReadouts = await latestResultReadouts(tx, authorization.principal.raceId, entries.map((entry) => entry.id));
     const revisionByEntry = new Map(latestRevisions.map((revision) => [revision.entryId, revision]));
     const basisHashes = await loadResultBasisHashes(tx, authorization.principal.raceId);
@@ -97,7 +116,7 @@ export async function listResultRecalculationCandidatesAsAdmin(
         const assignments = assignmentsByEntry.get(entry.id) ?? [];
         const assignment = assignments.length === 1 ? assignments[0] : undefined;
         const own = resultReadouts.get(entry.id);
-        const chosen = assignment ? recalculationReadout(own) : undefined;
+        const chosen = assignment ? recalculationReadout(entry.id, own, assignment.cardNumber, readoutByCard.get(assignment.cardNumber), claims) : undefined;
         const readout = chosen ? { id: chosen.id, readAt: chosen.readAt } : undefined;
         const readiness = assignments.length === 0 ? "NO_ACTIVE_ASSIGNMENT" :
           assignments.length > 1 ? "MULTIPLE_ACTIVE_ASSIGNMENTS" :
@@ -238,7 +257,13 @@ export async function recalculateEntryAsAdmin(
     const assignment = assignments.length === 1 ? assignments[0] : undefined;
     if (!assignment || assignment.id !== request.data.expectedCardAssignmentId) return { status: "conflict" };
 
-    const readout = recalculationReadout(await latestResultReadout(tx, entry.id));
+    const own = await latestResultReadout(tx, entry.id);
+    const [byCard] = await tx.select().from(schema.cardReadouts).where(and(
+      eq(schema.cardReadouts.raceId, authorization.principal.raceId),
+      eq(schema.cardReadouts.cardNumber, assignment.cardNumber)
+    )).orderBy(desc(schema.cardReadouts.readAt), desc(schema.cardReadouts.id)).limit(1);
+    const readout = recalculationReadout(entry.id, own, assignment.cardNumber, byCard,
+      await readoutClaims(tx, authorization.principal.raceId, byCard ? [byCard.id] : []));
     if (!readout || readout.id !== request.data.expectedReadoutId) return { status: "conflict" };
 
     const [latestResult] = await tx.select().from(schema.resultRevisions).where(and(
@@ -308,7 +333,10 @@ export async function recalculateEntry(db: Database, raceId: string, entryId: st
     ));
     const own = await latestResultReadout(tx, entryId);
     if (!assignment && !own) throw new Error("Deltagaren saknar aktiv bricka");
-    const readout = recalculationReadout(own);
+    const [byCard] = assignment ? await tx.select().from(schema.cardReadouts).where(and(
+      eq(schema.cardReadouts.raceId, raceId), eq(schema.cardReadouts.cardNumber, assignment.cardNumber)
+    )).orderBy(desc(schema.cardReadouts.readAt)).limit(1) : [];
+    const readout = recalculationReadout(entryId, own, assignment?.cardNumber, byCard, await readoutClaims(tx, raceId, byCard ? [byCard.id] : []));
     if (!readout) throw new Error("Deltagaren saknar avläsning");
     const snapshot = await loadRaceSnapshot(tx, raceId);
     const stored = await evaluateAndStore(tx, snapshotForEntryCard(snapshot, entryId, readout.cardNumber), normalizedReadout(readout),

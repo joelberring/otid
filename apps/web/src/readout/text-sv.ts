@@ -51,7 +51,10 @@ export const readoutText = {
   clockSkew: (minutes: number) => `Stationens klocka avviker ${Math.abs(minutes)} min från datorn (${minutes > 0 ? "går före" : "går efter"}). Stämplingstiderna räknas mot stationens klocka. Kontrollera att kontrollenheterna och stationen är tidsynkade.`,
   clockMissing: "Stationen svarade inte på klockfrågan. Stämplingstiderna räknas mot datorns klocka.",
   timeUnresolvable: (detail: string) => `Brickans tider går inte att tolka (${detail}). Läs om brickan. Går det inte: ange tiden manuellt i deltagarkortet. Brickan står i listan nedan.`,
-  heldReadouts: (count: number) => `${count} ${count === 1 ? "avläsning" : "avläsningar"} kunde inte skickas (fel på servern). De ligger kvar på den här datorn.`,
+  // Steg 45: även 400/404/409 hålls åt sidan, så att resten av kön går.
+  heldReadouts: (count: number, serverError: boolean) => `${count} ${count === 1 ? "avläsning" : "avläsningar"} kunde inte skickas (${serverError
+    ? "fel på servern" : "servern tog inte emot dem"}). De ligger kvar på den här datorn. Resten av kön skickas som vanligt.`,
+  syncThrottled: "Servern ber oss vänta en stund. Kön ligger kvar och skickas igen strax.",
   heldRetry: "Försök igen",
   alreadyReadOutTitle: "Brickan är redan avläst",
   alreadyReadOut: (name: string) => `Brickan har redan lästs ut för ${name} – lånad bricka?`,

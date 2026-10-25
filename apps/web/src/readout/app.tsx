@@ -133,10 +133,11 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
       if (outcome.kind === "offline") setOnline(false);
       if (outcome.kind === "synced" || outcome.kind === "idle") { setOnline(true); setSyncProblem(undefined); }
       if (outcome.kind === "failed") setSyncProblem(t.syncFailed(outcome.status));
+      if (outcome.kind === "throttled") setSyncProblem(t.syncThrottled);
       // Kvitterade direktanmälningar finns nu i serverns paket; hämta det så att brickan är känd även utan den lokala kön.
       if (outcome.kind === "synced" && outcome.registered) await refreshPackage();
       // Bardisken: in-/utcheckningar och gästnamn efter avläsningarna, så att servern har brickans avläsning först.
-      if (pkgRef.current?.party && outcome.kind !== "unauthorized" && outcome.kind !== "offline") {
+      if (pkgRef.current?.party && outcome.kind !== "unauthorized" && outcome.kind !== "offline" && outcome.kind !== "throttled") {
         const party = await syncPartyActions(partyStoreRef.current, raceId, deps);
         if (party.kind === "offline") setOnline(false);
         if (party.kind === "unauthorized") setLoginNeeded(true);
@@ -466,7 +467,7 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
   const alerts = <>
     {loginNeeded ? <p className="notice" role="alert">{t.loginNeeded} <a href="/organizer">{t.login}</a></p> : null}
     {syncProblem ? <p className="notice" role="alert">{syncProblem}</p> : null}
-    {held.length > 0 ? <p className="notice" role="alert" data-testid="held-readouts">{t.heldReadouts(held.length)}{" "}
+    {held.length > 0 ? <p className="notice" role="alert" data-testid="held-readouts">{t.heldReadouts(held.length, held.some((item) => (item.serverFailedStatus ?? 500) >= 500))}{" "}
       <button type="button" onClick={() => { if (raceId) void releaseHeldReadouts(storeRef.current, raceId).then(sync); }}>
         {t.heldRetry}</button></p> : null}
     {failedReadouts.length > 0 ? <section className="notice" role="alert" data-testid="failed-readouts" aria-label={t.failedTitle}>

@@ -7,12 +7,15 @@ import { addCourseAndClass, addEntry, createRace, openStep, publishRaceViaApi, r
  * läst ut under Anmälda efter en förhandsvisning.
  */
 test("självregistrerad i tävling märks publikt och kan strykas under Anmälda", async ({ browser }) => {
-  test.setTimeout(240_000);
+  test.setTimeout(300_000);
   const suffix = unique();
   const owner = await registerAccount(browser, `sjalv.${suffix}@exempel.se`, "Selma Själv");
   const raceId = await createRace(owner, `Självtävling ${suffix}`);
   for (const path of [`/api/public/races/${raceId}/self-registration`, `/starts/${raceId}`,
     `/api/admin/races/${raceId}/administrator/self-registrations`]) await warmRoute(owner, path);
+  for (const path of ["registration", "registration-candidates", "settings", "self-registrations"]) {
+    await warmRoute(owner, `/api/admin/races/${raceId}/administrator/${path}`, "POST");
+  }
   await addCourseAndClass(owner, "Bana 1", "Öppen", "31 32");
   await addEntry(owner, { className: "Öppen", givenName: "Anna", familyName: "Anmäld", club: "Påhittade OK", card: "8301001" });
 

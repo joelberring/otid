@@ -14,9 +14,10 @@ function fixture(counts: number[], duplicate = false) {
   const tables: unknown[] = [];
   let selects = 0;
   const tx = {
-    selectDistinctOn: () => ({ from: () => ({ where: () => ({ orderBy: () => ({ as: () => ({
+    // Steg 44: urvalet går via deltagaren (strukna räknas inte).
+    selectDistinctOn: () => ({ from: () => ({ innerJoin: () => ({ where: () => ({ orderBy: () => ({ as: () => ({
       id: schema.resultRevisions.id, createdAt: schema.resultRevisions.createdAt
-    }) }) }) }) }),
+    }) }) }) }) }) }),
     select: () => {
       const index = selects++;
       if (index === 0) return { from: () => ({ where: () => ({ for: async () => [{ id: raceId, eventId: raceId }] }) }) };

@@ -13,7 +13,7 @@ import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
 import { bumpReadoutPackageVersion, loadRaceSnapshot } from "./snapshot";
 import {
-  assessReadOutEntries, normalizedReadout, recalculateAssessedEntries, summarizeAssessment, type AssessedEntry
+  assessReadOutEntries, countManualDecisions, normalizedReadout, recalculateAssessedEntries, summarizeAssessment, type AssessedEntry
 } from "./result-reassessment";
 import { insertCourseVersionControls, loadCourseVersionVariants, type StoredCourseVariant } from "./course-variants";
 import { PLACEHOLDER_COURSE } from "./source-sync-model";
@@ -89,7 +89,7 @@ function previewResponse(raceId: string, course: LoadedCourse, snapshotVersion: 
   variantCode: string | undefined, currentControlCodes: readonly number[], assessed: AssessedEntry[]): CourseEditPreviewResponse {
   return courseEditPreviewResponseSchema.parse({ formatVersion: 1, raceId, courseId: course.id, courseName: course.name,
     snapshotVersion, ...(variantCode === undefined ? {} : { variantCode }), currentControlCodes, controlCodes,
-    ...summarizeAssessment(assessed) });
+    ...summarizeAssessment(assessed), manualDecisionCount: countManualDecisions(assessed) });
 }
 
 export type CourseEditListResult = { status: "unauthorized" | "forbidden" } | { status: "ok"; response: CourseEditListResponse };

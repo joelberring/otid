@@ -49,7 +49,7 @@ describe("administratörsroutes: förberedelse", () => {
       rogaining: { controls: [{ code: 31, points: 3, defaultPoints: 3 }], classes: [{ classId: id, rules: null }] } };
     const preview = { formatVersion: 1 as const, raceId: id, courseId: other, courseName: "Lång", snapshotVersion: 2,
       currentControlCodes: [31, 32, 33], controlCodes: [31, 33], readOutCount: 2, becomesOkCount: 1, becomesMispunchedCount: 0,
-      unchangedCount: 1, notRecalculatedCount: 0, requiresConfirmation: true,
+      unchangedCount: 1, notRecalculatedCount: 0, manualDecisionCount: 0, requiresConfirmation: true,
       changes: [{ entryId: id, displayName: "Ada Löpare", className: "H21", before: "MP" as const, after: "OK" as const }] };
     const body = { formatVersion: 1 as const, requestId: id, courseId: other, controlCodes: [31, 33],
       confirmResultChanges: true };

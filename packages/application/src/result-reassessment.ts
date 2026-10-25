@@ -7,6 +7,7 @@ import {
 import { resolveStoredResultHeadStates } from "./result-revision-state";
 import { appendResultRevision, normalizedReadout } from "./result-revisions";
 import { latestResultReadouts, recalculationReadout } from "./card-reuse";
+import { carryEntryDecisions } from "./entry-status";
 
 /**
  * Gemensam omprövning för "Redigera bana" och "Redigera klass" (ADR-0169 beslut 4).
@@ -26,7 +27,18 @@ export type AssessedEntry = {
   outcome: CourseEditOutcome | "NOT_RECALCULATED"; before: EvaluationStatus; after: EvaluationStatus; recalculate: boolean;
   /** Tiden, sträcktiderna eller statusen blir en annan än nu (PLAN.md steg 31: "hur många påverkas"). */
   changed: boolean;
+  /** Steg 44: löparen har ett kvarliggande manuellt beslut som följer med till omräkningen. */
+  manualDecision?: boolean;
 };
+
+/** Beslut som ligger kvar ovanpå resultatet och följer med när det räknas om (steg 44). */
+const CARRIED_DECISIONS: ReadonlySet<string> = new Set(["DSQ", "APPROVAL", "DNF", "OOC", "NT", "CONTROL_APPROVAL", "MP_CONFIRMED",
+  "FINISH_TIME", "START_TIME", "MANUAL_TIME"]);
+
+/** Steg 44: hur många av de avlästa som har ett manuellt beslut som följer med (förhandsvisningen). */
+export function countManualDecisions(assessed: readonly AssessedEntry[]): number {
+  return assessed.filter(row => row.manualDecision === true).length;
+}
 
 /** Det i en bedömning som en rättning kan ändra: status, tider, sträcktider och saknade kontroller. */
 function timingKey(value: unknown): string {
@@ -87,19 +99,15 @@ export async function assessReadOutEntries(tx: Transaction, raceId: string, clas
       (head?.readoutId !== null && head?.readoutId !== undefined && timingKey(head.evaluation) !== timingKey(next));
     const base = { entryId: entry.id, classId: entry.classId, displayName: `${entry.givenName} ${entry.familyName}`,
       className: classNames.get(entry.classId)!, readout, latest: head, before, after: next.status, changed };
-    // Manuellt rättad tid finns bara i den rättade revisionen; en omräkning från avläsningen skulle tappa den.
-    // Steg 31: rättningen ligger kvar över senare avläsningar, så det gällande beslutet avgör (inte huvudet).
-    if (state && (state.governing === "FINISH_TIME" || state.governing === "START_TIME" || state.governing === "MANUAL_TIME")) {
-      assessed.push({ ...base, outcome: "NOT_RECALCULATED", recalculate: false }); continue;
-    }
     // Ej start gäller löparen oavsett avläsningen och får inte ersättas av en teknisk revision.
     const didNotStart = !state || state.state === "NO_ACTIVE_RESULT" || state.head.cause === "MANUAL_DID_NOT_START" ||
       state.startCheckinDns?.correction === null;
     if (!head || !technical.has(entry.id) || didNotStart || next.entryId !== entry.id || current.entryId !== entry.id) {
       assessed.push({ ...base, outcome: "UNCHANGED", recalculate: false }); continue;
     }
-    const manual = ["DSQ", "APPROVAL", "DNF", "OOC", "NT", "CONTROL_APPROVAL", "MP_CONFIRMED"].includes(state.governing);
-    assessed.push({ ...base, outcome: courseEditOutcome(before, next.status, manual), recalculate: true });
+    // Steg 44: ett kvarliggande beslut (även rättad och manuell tid) gäller fortsatt och följer med till omräkningen.
+    const manual = CARRIED_DECISIONS.has(state.governing);
+    assessed.push({ ...base, outcome: courseEditOutcome(before, next.status, manual), recalculate: true, manualDecision: manual });
   }
   return assessed;
 }
@@ -131,6 +139,9 @@ export async function recalculateAssessedEntries(tx: Transaction, input: { raceI
       cause: "EXPLICIT_RECALCULATION", outcome: evaluation, engineVersion: RESULT_ENGINE_VERSION,
       snapshotVersion: input.snapshotVersion, courseVersionId: expectedCourseVersionId });
     recalculated.push({ entryId: row.entryId, resultRevisionId: created.id, revision: created.revision });
+    if (row.manualDecision) {
+      await carryEntryDecisions(tx, { raceId: input.raceId, entryId: row.entryId, snapshotVersion: input.snapshotVersion });
+    }
   }
   return recalculated;
 }

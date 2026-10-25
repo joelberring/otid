@@ -364,13 +364,21 @@ describe("TASK 006O individuell fast starttid PostgreSQL", () => {
     ]);
     expect(changed.status).toBe("changed");
     expect(ingested.acknowledgements[0]?.status).toBe("stored");
-    expect(await publicResults(db, f.raceId)).toEqual(before);
+    // Steg 44: NT följer med till omräkningen (tas bort och läggs på nytt) och står kvar; sträcktiderna räknas från den
+    // nya starttiden (fem minuter senare).
+    const after = await publicResults(db, f.raceId);
+    expect(after.results).toHaveLength(1);
+    expect(after.results[0]).toMatchObject({ status: "NT", rankingState: "NOT_RANKABLE_STATUS" });
+    expect((after.results[0] as { splits?: { elapsedMs: number }[] }).splits?.map((split) => split.elapsedMs))
+      .toEqual([5 * 60_000, 15 * 60_000, 25 * 60_000]);
     const revisions = await db.select().from(schema.resultRevisions).where(eq(schema.resultRevisions.entryId, f.entry.id)).orderBy(asc(schema.resultRevisions.revision));
-    // Oavsett ordning: ingest och omräkningen efter starttidsändringen ger var sin revision, och den sista bygger på den nya starttiden.
-    expect(revisions.map((row) => row.revision)).toEqual([1, 2, 3, 4]);
-    const last = revisions[3]!;
+    // Oavsett ordning: ingest och omräkningen efter starttidsändringen ger var sin revision, och den sista tekniska bygger på
+    // den nya starttiden. Beslutet ligger kvar på det nya underlaget.
+    expect(revisions.map((row) => row.revision)).toEqual([1, 2, 3, 4, 5, 6]);
+    const last = revisions.filter((row) => row.readoutId !== null).at(-1)!;
     expect(last.snapshotVersion).toBe(f.input.packageVersion + 1);
     expect(last.evaluation).toMatchObject({ elapsedMs: 35 * 60_000 });
+    expect(revisions.filter((row) => row.cause === "MANUAL_WITHOUT_TIMING").at(-1)?.snapshotVersion).toBe(f.input.packageVersion + 1);
   });
 });
 

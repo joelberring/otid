@@ -18,7 +18,7 @@ it("Redigera bana: begäran är strikt och nyckeln binder begärans id", () => {
 it("Redigera bana: beskedet går ihop och kräver bekräftelse bara när en status ändras", () => {
   const preview = { formatVersion: 1, raceId: id, courseId: id, courseName: "Lång", snapshotVersion: 3,
     currentControlCodes: [31, 32, 33], controlCodes: [31, 33], readOutCount: 2, becomesOkCount: 1,
-    becomesMispunchedCount: 0, unchangedCount: 1, notRecalculatedCount: 0, requiresConfirmation: true,
+    becomesMispunchedCount: 0, unchangedCount: 1, notRecalculatedCount: 0, manualDecisionCount: 0, requiresConfirmation: true,
     changes: [{ entryId: id, displayName: "Ada Löpare", className: "H21", before: "MP", after: "OK" }] };
   expect(courseEditPreviewResponseSchema.safeParse(preview).success).toBe(true);
   expect(courseEditPreviewResponseSchema.safeParse({ ...preview, requiresConfirmation: false }).success).toBe(false);

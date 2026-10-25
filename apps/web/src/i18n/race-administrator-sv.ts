@@ -176,6 +176,9 @@ export const raceAdministratorSv = {
   courseEditNotRecalculated: (count: number) => count === 1
     ? "1 löpare har manuellt rättad tid och räknas inte om. Kontrollera den löparen efteråt."
     : `${count} löpare har manuellt rättad tid och räknas inte om. Kontrollera dem efteråt.`,
+  courseEditManualDecisions: (count: number) => count === 1
+    ? "1 löpare har ett manuellt beslut (till exempel manuell tid, godkänd eller brutit). Beslutet följer med till den nya banan. Kontrollera löparen efteråt."
+    : `${count} löpare har manuella beslut (till exempel manuell tid, godkänd eller brutit). Besluten följer med till den nya banan. Kontrollera dem efteråt.`,
   courseEditChangesTitle: "De här får ny status",
   courseEditStatus: { OK: "Godkänd", OVERTIME: "Maxtid överskriden", MP: "Felstämplad" } as const,
   courseEditConfirmHelp: "Tryck på Spara ändringen för att ändra banan och räkna om resultaten.",

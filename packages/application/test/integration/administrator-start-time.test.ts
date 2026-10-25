@@ -6,6 +6,8 @@ import { listEntryStartTimesAsAdmin, changeEntryStartTimeAsAdmin } from "../../s
 import { ingestDeviceBatch } from "../../src/ingest";
 import { contentHash } from "../../src/serialization";
 import { raceLogin } from "./accounts";
+import { statusFlow } from "./entry-status-helpers";
+import { getAdministratorEffectiveResult } from "../../src/administrator-effective-result";
 
 const url = process.env.TEST_DATABASE_URL;
 if (!url) throw new Error("TEST_DATABASE_URL krävs för vald isolerad testdatabas");
@@ -88,6 +90,25 @@ describe("TASK031 administrator start-time correction", () => {
     const withMicro = await state(f.raceId);
     expect(await changeEntryStartTimeAsAdmin(db, f.input, now)).toEqual({ status: "changed", response: { ...changed.response, replayed: true } });
     expect(await state(f.raceId)).toBe(withMicro);
+  });
+
+  it("steg 44: en manuell tid följer med när starttiden flyttas och resultatet är aktuellt", async () => {
+    const f = await fixture();
+    const payload = { cardNumber: "12345", startPunchedAt: "2026-09-12T10:00:00Z", finishPunchedAt: "2026-09-12T10:20:00Z",
+      punches: [{ code: 31, punchedAt: "2026-09-12T10:10:00Z" }] };
+    const deviceId = randomUUID();
+    await ingestDeviceBatch(db, f.raceId, { deviceId, sessionId: deviceId, packageVersion: 1, firstSequence: 1, lastSequence: 1,
+      events: [{ localSequence: 1, stationReceivedAt: "2026-09-12T10:21:00Z", transport: "simulator", payload, contentHash: contentHash(payload) }] });
+    const decided = await statusFlow(db).decide(f.administrator, f.entryId, { kind: "MANUAL_TIME", status: "OK",
+      finishTime: "2026-09-12T10:25:00Z", note: "Målet stämplades inte" }, { now });
+    expect(decided.status).toBe("decided");
+    expect((await changeEntryStartTimeAsAdmin(db, f.input, now)).status).toBe("changed");
+    const effective = await getAdministratorEffectiveResult(db, { ...f.administrator, entryId: f.entryId }, now);
+    if (effective.status !== "ok" || effective.response.state !== "ACTIVE_RESULT") throw new Error("Resultat saknas");
+    // Arrangörens måltid står kvar, starten följer den flyttade starttiden och resultatet bygger på det nya underlaget.
+    expect(effective.response).toMatchObject({ resultCurrent: true, result: { status: "OK", elapsedMs: 19 * 60_000 + 59_875 } });
+    expect((await results(f.raceId)).map((row) => row.cause)).toEqual(["CARD_READOUT", "MANUAL_TIME", "EXPLICIT_RECALCULATION",
+      "MANUAL_TIME_WITHDRAWAL", "MANUAL_TIME"]);
   });
 
   it("rejects PUNCH, unauthorized/stale requests and submillisecond current state without writes", async () => {

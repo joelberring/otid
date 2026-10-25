@@ -53,8 +53,11 @@ export const courseEditPreviewResponseSchema = z.object({
   formatVersion: z.literal(1), raceId: uuid, courseId: uuid, courseName: name, snapshotVersion: version,
   variantCode: courseVariantCodeSchema.optional(), currentControlCodes: z.array(controlCode).max(1000), controlCodes,
   readOutCount: count, becomesOkCount: count, becomesMispunchedCount: count, unchangedCount: count,
-  notRecalculatedCount: count, changes: z.array(courseEditChangeSchema).max(10_000), requiresConfirmation: z.boolean()
+  notRecalculatedCount: count, changes: z.array(courseEditChangeSchema).max(10_000), requiresConfirmation: z.boolean(),
+  /** Steg 44: avlästa löpare med ett manuellt beslut (manuell tid, godkänt, brutit …) som följer med till den nya banan. */
+  manualDecisionCount: count
 }).strict().superRefine((value, context) => {
+  if (value.manualDecisionCount > value.readOutCount) context.addIssue({ code: "custom", message: "Beskedet måste gå ihop" });
   if (value.becomesOkCount + value.becomesMispunchedCount + value.unchangedCount + value.notRecalculatedCount !== value.readOutCount ||
       value.changes.length !== value.becomesOkCount + value.becomesMispunchedCount ||
       value.requiresConfirmation !== value.changes.length > 0) {

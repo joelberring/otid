@@ -14,6 +14,7 @@ import { editCourseAsAdmin, listCoursesForEditAsAdmin, previewCourseEditAsAdmin 
 import { listEntryTransfersAsAdmin } from "../../src/entry-transfer";
 import { accountOnRace } from "./accounts";
 import { registerReadoutCard } from "../../src/readout-registration";
+import { publicResults } from "../../src/results";
 
 const base = process.env.TEST_DATABASE_URL;
 if (!base) throw new Error("ADR-0169-testet kräver TEST_DATABASE_URL till en PostgreSQL-roll med CREATEDB");
@@ -189,8 +190,10 @@ describe("ADR-0169 Redigera bana", () => {
     const roster = await listEntryTransfersAsAdmin(db, f.proof);
     if (roster.status !== "ok") throw new Error("Deltagarlistan saknas");
     expect(roster.response.entries.find(row => row.id === ada)?.resultFreshness).toBe("CURRENT_SNAPSHOT");
-    // Den tekniska revisionen under disken är omräknad mot den nya banan.
-    expect((await revisions(ada)).at(-1)).toMatchObject({ status: "MP", cause: "EXPLICIT_RECALCULATION" });
+    // Den tekniska revisionen är omräknad mot den nya banan och disken följer med (steg 44).
+    expect((await revisions(ada)).slice(-3)).toEqual([{ revision: 3, status: "MP", cause: "EXPLICIT_RECALCULATION" },
+      { revision: 4, status: "MP", cause: "MANUAL_DISQUALIFICATION_WITHDRAWAL" },
+      { revision: 5, status: "DSQ", cause: "MANUAL_DISQUALIFICATION" }]);
     const [basis] = (await pool.query<{ current: boolean }>(`select basis_hash = otid_result_basis_hash(entry_id) as current
       from result_revision where entry_id = $1 order by revision desc limit 1`, [ada])).rows;
     expect(basis?.current).toBe(true);
@@ -231,5 +234,53 @@ describe("steg 31 (B4): samma bricka hos två löpare och banändring", () => {
     const [adaLatest, linaLatest] = [await latest(ada), await latest(lina)];
     expect(adaLatest.readout_id).not.toBe(linaLatest.readout_id);
     expect([adaLatest.elapsed, linaLatest.elapsed]).toEqual([30 * 60_000, 40 * 60_000]);
+  });
+});
+
+describe("steg 44: manuella beslut följer med när banan redigeras", () => {
+  it("behåller placeringarna och låter klassen fastställas med manuell tid och godkänd i klassen", async () => {
+    const f = await race([31, 32, 33]);
+    await register(f, "Ada", "9101");
+    const bo = await register(f, "Bo", "9102");
+    const cia = await register(f, "Cia", "9103");
+    const dan = await register(f, "Dan", "9104");
+    await readout(f, "9101", [31, 32, 33]);
+    await readout(f, "9102", [31, 32, 33]);
+    await readout(f, "9103", [31, 33]);
+    await readout(f, "9104", [31, 32, 33]);
+    const flow = statusFlow(db);
+    const auth = { ...f.proof, raceId: f.raceId };
+    // Bo: målstämplingen var fel, arrangören satte manuell tid 35 min. Cia: missade 32, godkänd av arrangören.
+    expect((await flow.decide(auth, bo, { kind: "MANUAL_TIME", status: "OK", finishTime: "2026-10-08T16:35:00.000Z",
+      note: "Målenheten gick fel" })).status).toBe("decided");
+    expect((await flow.decide(auth, cia, { kind: "APPROVE_MANUALLY", note: "Kontrollen var borta" })).status).toBe("decided");
+    // Dan: brutit med sträcktider.
+    expect((await flow.decide(auth, dan, { kind: "DID_NOT_FINISH", note: "Bröt" })).status).toBe("decided");
+
+    const preview = await previewCourseEditAsAdmin(db, { ...f.proof, courseId: f.courseId,
+      request: { formatVersion: 1, controlCodes: [31, 33, 32] } });
+    if (preview.status !== "ok") throw new Error("Beskedet saknas");
+    expect(preview.response).toMatchObject({ readOutCount: 4, manualDecisionCount: 3, notRecalculatedCount: 0 });
+    // Ada stämplade 32 före 33: med den nya ordningen blir hon felstämplad, och Bo likaså under sitt beslut.
+    const saved = await edit(f, [31, 33, 32], true);
+    if (saved.result.status !== "edited") throw new Error(`Ändringen sparades inte: ${saved.result.status}`);
+    expect(await effective(f, bo)).toEqual({ status: "OK", current: true });
+    expect(await effective(f, cia)).toEqual({ status: "OK", current: true });
+    expect(await effective(f, dan)).toEqual({ status: "DNF", current: true });
+    const courseVersionId = await courseVersionOf(f.classId);
+    const heads = (await pool.query<{ entry_id: string; cause: string; course_version_id: string; elapsed: number | null }>(
+      `select distinct on (entry_id) entry_id, cause, course_version_id, (evaluation->>'elapsedMs')::int as elapsed
+       from result_revision where race_id = $1 order by entry_id, revision desc`, [f.raceId])).rows;
+    expect(heads.every(row => row.course_version_id === courseVersionId)).toBe(true);
+    expect(heads.find(row => row.entry_id === bo)).toMatchObject({ cause: "MANUAL_TIME", elapsed: 35 * 60_000 });
+
+    const list = await publicResults(db, f.raceId);
+    if (list.formatVersion !== 7) throw new Error("Fel format");
+    const ranked = list.results.flatMap(row => row.rankingState === "RANKED" && "position" in row ? [[row.givenName, row.position]] : []);
+    expect(ranked).toEqual([["Cia", 1], ["Bo", 2]]);
+    expect(list.results.some(row => row.rankingState === "MIXED_COURSE_VERSIONS")).toBe(false);
+
+    // "Resultaten är klara": klassen och loppet kan fastställas.
+    expect(await flow.finalizeAll(auth)).toMatch(/^[0-9a-f-]{36}$/);
   });
 });

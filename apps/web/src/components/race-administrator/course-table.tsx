@@ -128,6 +128,7 @@ function CourseEditor({ ws, courseName }: { ws: Workspace; courseName: string })
         courseEditPreview.changes.filter(change => change.after === "OVERTIME").length)}</strong></p>}
       {editingVariantCode && <p>{variantText.variantSummaryNote}</p>}
       {courseEditPreview.notRecalculatedCount > 0 && <Notice tone="attention">{text.courseEditNotRecalculated(courseEditPreview.notRecalculatedCount)}</Notice>}
+      {courseEditPreview.manualDecisionCount > 0 && <Notice tone="attention">{text.courseEditManualDecisions(courseEditPreview.manualDecisionCount)}</Notice>}
       {courseEditPreview.changes.length > 0 ? <>
         <h3>{text.courseEditChangesTitle}</h3>
         <ul className={styles.changeList}>{courseEditPreview.changes.map(change => <li key={change.entryId}>

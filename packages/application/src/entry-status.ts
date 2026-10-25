@@ -5,7 +5,7 @@ import {
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import {
-  applyManualDecision, controlApprovalSource, evaluateReadoutWithTimes, latestMatchedSplitElapsedMs, manualDecisionReadiness,
+  applyManualDecision, carryManualDecisions, controlApprovalSource, evaluateReadoutWithTimes, latestMatchedSplitElapsedMs, manualDecisionReadiness,
   officialStartTime, resolveResultHistory, type EvaluationResult, type ManualDecision, type ManualDecisionContext,
   type RaceSnapshot, type ResultHistory
 } from "@o-tid/domain";
@@ -54,6 +54,8 @@ interface EntryContext {
   readonly entry: { id: string; givenName: string; familyName: string; teamId: string | null; className: string;
     classId: string; courseVersionId: string; startRule: "FIXED" | "PUNCH"; maxTimeMinutes: number | null };
   readonly history: ResultHistory<ResultRevisionRow>;
+  /** Alla löparens revisioner i stigande ordning. */
+  readonly revisions: readonly ResultRevisionRow[];
   readonly context: ManualDecisionContext;
   readonly snapshot: RaceSnapshot;
   /** Den tekniska revisionens avläsning: målstämplingen och om löparen har lästs ut alls. */
@@ -91,7 +93,7 @@ async function loadEntryContext(tx: Transaction, raceId: string, entryId: string
   const normalized = readout ? normalizedReadout(readout) : undefined;
   const knownStartTime = officialStartTime({ startRule: entry.startRule, fixedStartTime: entry.fixedStartTime?.toISOString() ?? null,
     startPunchedAt: normalized?.startPunchedAt ?? null }) ?? null;
-  return { race, entry, history, snapshot, readoutFinishTime: normalized?.finishPunchedAt ?? null,
+  return { race, entry, history, revisions, snapshot, readoutFinishTime: normalized?.finishPunchedAt ?? null,
     context: { entryId: entry.id, classId: entry.classId, courseVersionId: entry.courseVersionId,
       startRule: entry.startRule, headStartPunchedAt: readout?.startPunchedAt?.toISOString() ?? null, maxTimeMinutes: entry.maxTimeMinutes,
       knownStartTime,
@@ -252,4 +254,35 @@ export async function setEntryStatus(db: Database, input: Auth & { entryId: stri
     if (error instanceof StoredResultRevisionConflict) return { status: "conflict", headRevision: 0, readiness: "UNSUPPORTED_RESULT" };
     throw error;
   }
+}
+
+/**
+ * Steg 44: löparens kvarliggande beslut följer med till den nya tekniska revisionen efter en omräkning (redigerad bana,
+ * ny starttid, ny lottning). Beslutet tas bort och läggs på nytt med samma innehåll mot det nya underlaget, så att
+ * resultatet har klassens banversion och aktuellt underlag. Går det inte ligger beslutet kvar som förut. Anroparen har
+ * låst löparen och lagt till den tekniska revisionen i samma transaktion.
+ */
+export async function carryEntryDecisions(tx: Transaction, input: { raceId: string; entryId: string; snapshotVersion: number;
+  createdAt?: Date }): Promise<{ status: "none" | "carried" | "not-carried"; decisions: number }> {
+  const value = await loadEntryContext(tx, input.raceId, input.entryId);
+  if (!value) return { status: "none", decisions: 0 };
+  const carry = carryManualDecisions(value.revisions, value.context);
+  if (carry.kind === "NONE") return { status: "none", decisions: 0 };
+  if (carry.kind === "NOT_CARRIED") return { status: "not-carried", decisions: 1 };
+  let head = value.history.head!;
+  const before = head;
+  for (const step of carry.steps) {
+    const courseVersionId = "courseVersionId" in step.outcome && step.outcome.courseVersionId
+      ? step.outcome.courseVersionId : value.entry.courseVersionId;
+    head = await appendResultRevision(tx, { raceId: input.raceId, entryId: input.entryId, cause: step.cause, outcome: step.outcome,
+      engineVersion: step.engineVersion, snapshotVersion: input.snapshotVersion, courseVersionId, expectedRevision: head.revision + 1,
+      note: step.note, ...(input.createdAt ? { createdAt: input.createdAt } : {}) });
+  }
+  await tx.insert(schema.auditEvents).values({ raceId: input.raceId, entityType: "result_revision", entityId: head.id,
+    action: "MANUAL_DECISION_CARRIED",
+    before: { resultRevisionId: before.id, revision: before.revision, status: before.status, reason: before.reason },
+    after: { entryId: input.entryId, resultRevisionId: head.id, revision: head.revision, cause: head.cause, status: head.status,
+      reason: head.reason, courseVersionId: head.courseVersionId, decisions: carry.decisions,
+      causes: carry.steps.map((step) => step.cause) } });
+  return { status: "carried", decisions: carry.decisions };
 }

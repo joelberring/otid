@@ -25,7 +25,7 @@ test("Om O-Tid och sidfoten utan inloggning", async ({ browser }) => {
   await expect(visitor.getByRole("heading", { name: "Beta – fritt att använda" })).toBeVisible();
   await expect(visitor.getByText("utvecklat av Joel Berring med AI-stöd", { exact: false })).toBeVisible();
   const features = visitor.getByRole("heading", { name: "Tekniska funktioner" }).locator("xpath=following-sibling::ul[1]");
-  await expect(features.getByRole("listitem")).toHaveCount(11);
+  await expect(features.getByRole("listitem")).toHaveCount(13);
   await expect(features).toContainText("WebUSB i Chrome på Android-platta");
   await expect(features).toContainText("ROC");
   await expect(visitor.getByRole("main").getByRole("link", { name: contact })).toHaveAttribute("href", `mailto:${contact}`);

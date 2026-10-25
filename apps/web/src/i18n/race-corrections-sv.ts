@@ -1,5 +1,5 @@
 /** Rättningar för hela tävlingen (PLAN.md steg 31). */
-type Station = "START" | "FINISH" | "CONTROL";
+type Station = "START" | "FINISH" | "CONTROL" | "ALL";
 
 function signedMinutes(offsetMs: number): string {
   const sign = offsetMs < 0 ? "−" : "+";
@@ -14,7 +14,9 @@ export const raceCorrectionsSv = {
   timeTitle: "Justera tid för en station",
   timeHelp: "När en enhet haft fel klocka: ange stationen och hur mycket tiden ska ändras. Tiden ändras för alla som stämplat där, innan resultatet räknas.",
   station: "Station",
-  stations: { START: "Start", FINISH: "Mål", CONTROL: "Kontroll" } satisfies Record<Station, string>,
+  stations: { START: "Start", FINISH: "Mål", CONTROL: "Kontroll", ALL: "Alla enheter (start, mål och kontroller)" } satisfies Record<Station, string>,
+  // Steg 45: en justering för alla enheter, t.ex. när enheterna fortfarande går på sommartid.
+  allHelp: "Alla enheter: start, mål och alla kontroller ändras lika mycket, till exempel när enheterna fortfarande går på sommartid. Med stämplingsstart blir löptiderna desamma; med lottad start blir de rätt. Läggs ihop med en justering för en enskild enhet.",
   controlCode: "Kontrollens kod",
   direction: "Ändring",
   later: "Senare (+)",
@@ -36,7 +38,7 @@ export const raceCorrectionsSv = {
   remove: "Ta bort",
   removeReview: (label: string) => `Ta bort: ${label}`,
   stationLabel: (station: Station, controlCode: number | null) =>
-    station === "CONTROL" ? `Kontroll ${controlCode ?? ""}`.trim() : station === "START" ? "Start" : "Mål",
+    station === "CONTROL" ? `Kontroll ${controlCode ?? ""}`.trim() : station === "START" ? "Start" : station === "ALL" ? "Alla enheter" : "Mål",
   adjustmentLabel: (station: Station, controlCode: number | null, offsetMs: number) =>
     `${raceCorrectionsSv.stationLabel(station, controlCode)}: ${signedMinutes(offsetMs)}`,
   outLabel: (controlCode: number | null) => `Kontroll ${controlCode ?? ""} ur funktion`,

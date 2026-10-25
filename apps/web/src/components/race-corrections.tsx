@@ -85,7 +85,7 @@ function correctionLabel(row: RaceCorrection): string {
 /** "Justera tid för en station". */
 function TimeAdjustmentForm({ raceId, onSaved }: { raceId: string; onSaved: () => Promise<void> }) {
   const flow = useRaceCorrection(raceId, onSaved);
-  const [station, setStation] = useState<"START" | "FINISH" | "CONTROL">("FINISH");
+  const [station, setStation] = useState<"START" | "FINISH" | "CONTROL" | "ALL">("FINISH");
   const [code, setCode] = useState(""), [sign, setSign] = useState<"-" | "+">("-");
   const [minutes, setMinutes] = useState(""), [seconds, setSeconds] = useState(""), [reason, setReason] = useState("");
   const offsetSeconds = (sign === "-" ? -1 : 1) * ((Number(minutes) || 0) * 60 + (Number(seconds) || 0));
@@ -106,11 +106,12 @@ function TimeAdjustmentForm({ raceId, onSaved }: { raceId: string; onSaved: () =
       <p>{text.timeHelp}</p>
       <div className={styles.toolbarRow}>
         <label>{text.station}<select value={station} disabled={locked} onChange={event => setStation(event.target.value as typeof station)}>
-          {(["START", "FINISH", "CONTROL"] as const).map(value => <option key={value} value={value}>{text.stations[value]}</option>)}
+          {(["START", "FINISH", "CONTROL", "ALL"] as const).map(value => <option key={value} value={value}>{text.stations[value]}</option>)}
         </select></label>
         {station === "CONTROL" && <label>{text.controlCode}<input type="text" inputMode="numeric" value={code} disabled={locked}
           onChange={event => setCode(event.target.value.replace(/\D/g, "").slice(0, 4))} required /></label>}
       </div>
+      {station === "ALL" && <p data-testid="all-stations-help">{text.allHelp}</p>}
       <div className={styles.toolbarRow}>
         <label>{text.direction}<select value={sign} disabled={locked} onChange={event => setSign(event.target.value as "-" | "+")}>
           <option value="-">{text.earlier}</option><option value="+">{text.later}</option>

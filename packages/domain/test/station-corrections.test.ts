@@ -184,3 +184,38 @@ describe("rättad starttid med tidsjustering på start (steg 45)", () => {
     expect(corrected.ok && corrected.outcome).toMatchObject({ startTime: "2026-08-30T10:01:00.000Z", elapsedMs: 39 * 60_000 });
   });
 });
+
+describe("tidsjustering för alla enheter (steg 45)", () => {
+  it("−60 min på alla enheter ger samma sträcktider och samma status vid stämplingsstart", () => {
+    const summer = readout({ startPunchedAt: "2026-08-30T11:00:05Z", finishPunchedAt: "2026-08-30T11:40:00Z", punches: [
+      { code: 31, punchedAt: "2026-08-30T11:10:00Z" }, { code: 32, punchedAt: "2026-08-30T11:20:00Z" },
+      { code: 33, punchedAt: "2026-08-30T11:30:00Z" }], readAt: "2026-08-30T11:41:00Z" });
+    const punchStart = (adjustments: StationTimeAdjustment[]): RaceSnapshot => {
+      const base = snapshot(adjustments);
+      return { ...base, classes: base.classes.map((raceClass) => ({ ...raceClass, startRule: "PUNCH" as const })) };
+    };
+    const before = evaluateCardReadout(summer, punchStart([]));
+    const all: StationTimeAdjustment = { id: "adj-all", station: "ALL", offsetMs: -HOUR };
+    const after = evaluateCardReadout(summer, punchStart([all]));
+    expect(after.status).toBe(before.status);
+    expect(after).toMatchObject({ status: "OK", elapsedMs: before.elapsedMs, startTime: "2026-08-30T10:00:05.000Z",
+      finishTime: "2026-08-30T10:40:00.000Z" });
+    expect(after.splits.map((split) => [split.controlCode, split.legMs])).toEqual(before.splits.map((split) => [split.controlCode, split.legMs]));
+    expect(prepareReadoutForEvaluation(summer, punchStart([all])).adjustments).toEqual([
+      { station: "START", offsetMs: -HOUR, punches: 1 }, { station: "FINISH", offsetMs: -HOUR, punches: 1 },
+      { station: "CONTROL", controlCode: 31, offsetMs: -HOUR, punches: 1 }, { station: "CONTROL", controlCode: 32, offsetMs: -HOUR, punches: 1 },
+      { station: "CONTROL", controlCode: 33, offsetMs: -HOUR, punches: 1 }]);
+  });
+
+  it("med lottad start rättar −60 min på alla enheter löptiden, och läggs ihop med en enskild enhet", () => {
+    // Enheterna går en timme före (sommartid): Ada (lottad 10:00) springer 40 min men målet står 11:40.
+    const summer = readout({ startPunchedAt: "2026-08-30T11:00:05Z", finishPunchedAt: "2026-08-30T11:40:00Z", punches: [
+      { code: 31, punchedAt: "2026-08-30T11:10:00Z" }, { code: 32, punchedAt: "2026-08-30T11:20:00Z" },
+      { code: 33, punchedAt: "2026-08-30T11:30:00Z" }], readAt: "2026-08-30T10:41:00Z" });
+    const all: StationTimeAdjustment = { id: "adj-all", station: "ALL", offsetMs: -HOUR };
+    const fixed = evaluateCardReadout(summer, snapshot([all]));
+    expect(fixed).toMatchObject({ status: "OK", elapsedMs: 40 * 60_000 });
+    expect(fixed.splits.map((split) => split.elapsedMs)).toEqual([10, 20, 30].map((minutes) => minutes * 60_000));
+    expect(evaluateCardReadout(summer, snapshot([all, finish(60_000)])).elapsedMs).toBe(41 * 60_000);
+  });
+});

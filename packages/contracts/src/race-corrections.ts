@@ -12,7 +12,8 @@ const hash = z.string().regex(/^[a-f0-9]{64}$/);
 const offsetSeconds = z.number().int().min(-86_400).max(86_400).refine((value) => value !== 0, "Ange en ändring");
 const resultStatus = z.enum(["OK", "OVERTIME", "MP", "UNKNOWN_CARD"]);
 
-export const raceCorrectionStationSchema = z.enum(["START", "FINISH", "CONTROL"]);
+/** Steg 45: ALL = alla enheter (start, mål och alla kontroller). */
+export const raceCorrectionStationSchema = z.enum(["START", "FINISH", "CONTROL", "ALL"]);
 
 export const raceCorrectionActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("ADD_TIME_ADJUSTMENT"), station: raceCorrectionStationSchema,

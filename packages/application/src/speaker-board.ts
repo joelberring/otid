@@ -32,9 +32,13 @@ export async function listSpeakerBoardAsAdmin(
     // Full stored result provenance stays inside the central resolver boundary.
     const latest = tx.selectDistinctOn([schema.resultRevisions.entryId], {
       ...getTableColumns(schema.resultRevisions)
-    }).from(schema.resultRevisions).where(and(
-      eq(schema.resultRevisions.raceId, race.id), eq(schema.resultRevisions.published, true)
-    )).orderBy(asc(schema.resultRevisions.entryId), desc(schema.resultRevisions.revision),
+    }).from(schema.resultRevisions)
+      // Struck entries are not shown, so they must not take a slot in the limit either.
+      .innerJoin(schema.entries, eq(schema.entries.id, schema.resultRevisions.entryId))
+      .where(and(
+        eq(schema.resultRevisions.raceId, race.id), eq(schema.resultRevisions.published, true),
+        isNull(schema.entries.struckAt)
+      )).orderBy(asc(schema.resultRevisions.entryId), desc(schema.resultRevisions.revision),
       desc(schema.resultRevisions.id)).as("speaker_latest_published");
     const heads = await tx.select().from(latest).orderBy(desc(latest.createdAt), desc(latest.id)).limit(25);
     const entryIds = heads.map((head) => head.entryId);

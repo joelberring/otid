@@ -79,6 +79,23 @@ describe("TASK 008 skyddad speakerläsning PostgreSQL", () => {
     expect(await audits()).toEqual(before);
   });
 
+  it("hoppar över en struken löpare med resultat bland de senaste (steg 44)", async () => {
+    const raceId = await fixture();
+    const auth = await access(raceId);
+    await ingestDeviceBatch(db, raceId, batch());
+    const other = batch();
+    other.events[0]!.payload = { ...other.events[0]!.payload, cardNumber: "67890" };
+    other.events[0]!.contentHash = contentHash(other.events[0]!.payload);
+    await ingestDeviceBatch(db, raceId, other);
+    const [ada] = await db.select().from(schema.entries)
+      .where(sql`${schema.entries.raceId} = ${raceId} and ${schema.entries.givenName} = 'Ada'`);
+    await db.update(schema.entries).set({ struckAt: now }).where(eq(schema.entries.id, ada!.id));
+    const result = await listSpeakerBoardAsAdmin(db, auth.input, now);
+    if (result.status !== "ok") throw new Error("Speakerunderlag saknas");
+    expect(result.response.rows.map((row) => row.givenName)).toEqual(["Bo"]);
+    expect(result.response.rows[0]).toMatchObject({ slot: 1 });
+  });
+
   it("avvisar annan tävling, utgången session och borttagen behörighet", async () => {
     const raceId = await fixture(), otherId = await fixture();
     const auth = await access(raceId);

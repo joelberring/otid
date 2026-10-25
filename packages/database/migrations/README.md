@@ -10,6 +10,11 @@ Nya schemaändringar läggs som nya filer `0001_…sql` och en rad i `meta/_jour
 committar nya enum-värden (`ALTER TYPE … ADD VALUE IF NOT EXISTS`) först och kör sedan varje fil i en egen
 transaktion (`src/migrator.ts`).
 
-Migratorn avgör vad som redan körts med `created_at` (journalens `when`), inte med filens innehåll. Därför kunde
-`CREATE EXTENSION postgis` tas bort ur baslinjen i steg 28 utan att befintliga databaser påverkas; `0007_utan_postgis.sql`
-tar bort tillägget där.
+Migratorn bokför per migration (steg 44): varje journalrad som saknas i `drizzle.__drizzle_migrations` körs, i
+journalordning, även om dess `when` är lägre än en redan körd (som när `drizzle-kit generate` sätter `when` till
+dagens datum). En rad räknas som körd om tabellen har dess tagg (kolumnen `tag`, ny i steg 44), eller, för rader
+från före steg 44, dess `when` i `created_at` eller dess hash; sådana rader får taggen ifylld vid nästa körning.
+Filens innehåll avgör alltså inte ensamt. Därför kunde `CREATE EXTENSION postgis` tas bort ur baslinjen i steg 28
+utan att befintliga databaser påverkas; `0007_utan_postgis.sql` tar bort tillägget där.
+
+Journalen ska ha unika taggar och unika `when`, och `idx` ska vara 0..n i ordning (`test/migration-journal.test.ts`).

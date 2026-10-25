@@ -38,7 +38,7 @@ describe("steg 23: ändrad mål- och starttid i statusflödet (ADR-0173 beslut 1
     expect(await publicAda(raceId)).toMatchObject({ revision: 2, status: "OK", elapsedMs: 2_460_000 });
 
     expect(await entryStatus(auth, ada)).toMatchObject({ governingDecision: "FINISH_TIME", readiness: { WITHDRAW: "READY",
-      DISQUALIFIED: "ACTIVE_MANUAL_TIME" }, timing: { finishTime: "2026-08-30T10:41:00.000Z" },
+      DISQUALIFIED: "READY", DID_NOT_FINISH: "ACTIVE_MANUAL_TIME" }, timing: { finishTime: "2026-08-30T10:41:00.000Z" },
       withdrawTiming: { finishTime: "2026-08-30T10:40:00.000Z" } });
     expect(await decide(auth, ada, { kind: "WITHDRAW" })).toMatchObject({ status: "decided",
       response: { revision: 3, cause: "MANUAL_FINISH_TIME_CORRECTION_WITHDRAWAL" } });

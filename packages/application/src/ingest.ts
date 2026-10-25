@@ -67,6 +67,88 @@ async function findPersistedServerResult(
   });
 }
 
+/** Avläsningens tolkade uppgifter, så som de sparas i `card_readout`. */
+export interface IngestedReadout {
+  readonly cardNumber: string;
+  readonly startPunchedAt?: string | undefined;
+  readonly finishPunchedAt?: string | undefined;
+  readonly checkPunchedAt?: string | undefined;
+  readonly clearPunchedAt?: string | undefined;
+  readonly punches: readonly { code: number; punchedAt: string }[];
+  readonly clockSource?: "station" | "device" | undefined;
+  readonly clockOffsetMs?: number | undefined;
+}
+
+/**
+ * Sparar den tolkade avläsningen till ett redan sparat råmeddelande, bedömer den och sparar mottagningens utfall.
+ * Delas av mottagningen och (steg 45) av en otolkad avläsning som läses om från sina råramar.
+ */
+type IngestTransaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+
+export async function storeIngestedReadout(tx: IngestTransaction, raceId: string, rawMessageId: string, input: IngestedReadout,
+  readAt: Date): Promise<ServerResultSummary> {
+  const [readoutRow] = await tx.insert(schema.cardReadouts).values({
+    raceId,
+    rawMessageId,
+    cardNumber: input.cardNumber,
+    startPunchedAt: input.startPunchedAt ? new Date(input.startPunchedAt) : null,
+    finishPunchedAt: input.finishPunchedAt ? new Date(input.finishPunchedAt) : null,
+    punches: input.punches.map((punch) => ({ code: punch.code, punchedAt: punch.punchedAt })),
+    readAt,
+    // Check och clear (steg 31): gamla stämplingar före dem räknas inte i bedömningen.
+    checkPunchedAt: input.checkPunchedAt ? new Date(input.checkPunchedAt) : null,
+    clearPunchedAt: input.clearPunchedAt ? new Date(input.clearPunchedAt) : null,
+    clockSource: input.clockSource ?? null,
+    clockOffsetMs: input.clockOffsetMs ?? null
+  }).returning();
+  if (!readoutRow) throw new Error("Normaliserad avläsning kunde inte sparas");
+  const snapshot = await loadRaceSnapshot(tx, raceId);
+  const normalized = normalizedReadout(readoutRow);
+  // Steg 31 (B4): har brickans deltagare redan ett resultat från en annan avläsning av samma bricka (lånad bricka,
+  // två löpare efter varandra) skrivs det inte över. Avläsningen blir okänd tills någon väljer vem den hör till.
+  const owner = snapshot.cardAssignments.find((assignment) => assignment.active && assignment.cardNumber === normalized.cardNumber);
+  const alreadyReadOutBy = await cardAlreadyReadOutBy(tx, owner?.entryId, normalized);
+  const unknown: EvaluationResult = { status: "UNKNOWN_CARD", reason: "UNKNOWN_CARD", missingControls: [], extraPunches: [], splits: [] };
+  const stored = alreadyReadOutBy ? { stored: false as const, evaluation: unknown }
+    : await evaluateAndStore(tx, snapshot, normalized, "CARD_READOUT");
+  const evaluation = stored.evaluation;
+  const resultEvaluationHash = hashEvaluation(evaluation);
+  let serverResult: ServerResultSummary;
+
+  if (stored.stored) {
+    const revision = stored.revision.revision;
+    const entryId = stored.revision.entryId;
+    // Stafett: sträckans måltid ger nästa sträckas start; senare sträckor räknas om vid behov.
+    const teamId = await relayTeamOfEntry(tx, entryId);
+    if (teamId) await synchronizeRelayTeams(tx, raceId, [teamId], snapshot.race.snapshotVersion);
+    serverResult = serverResultSummarySchema.parse({
+      resultRevisionId: stored.revision.id,
+      revision,
+      status: evaluation.status,
+      reason: evaluation.reason,
+      engineVersion: RESULT_ENGINE_VERSION,
+      snapshotVersion: snapshot.race.snapshotVersion,
+      evaluationHash: resultEvaluationHash,
+      courseVersionId: stored.revision.courseVersionId
+    });
+  } else {
+    serverResult = serverResultSummarySchema.parse({
+      status: evaluation.status,
+      reason: evaluation.reason,
+      engineVersion: RESULT_ENGINE_VERSION,
+      snapshotVersion: snapshot.race.snapshotVersion,
+      evaluationHash: resultEvaluationHash
+    });
+  }
+
+  await tx.insert(schema.deviceIngestOutcomes).values({
+    rawMessageId,
+    serverResult,
+    evaluationHash: resultEvaluationHash
+  });
+  return serverResult;
+}
+
 function hasSameImmutableContext(
   existing: typeof schema.rawDeviceMessages.$inferSelect,
   raceId: string,
@@ -150,67 +232,14 @@ export async function ingestDeviceBatch(
       }
 
       const payload = event.payload;
-      const [readoutRow] = await tx.insert(schema.cardReadouts).values({
-        raceId,
-        rawMessageId: inserted.id,
-        cardNumber: payload.cardNumber,
-        startPunchedAt: payload.startPunchedAt ? new Date(payload.startPunchedAt) : null,
-        finishPunchedAt: payload.finishPunchedAt ? new Date(payload.finishPunchedAt) : null,
-        punches: payload.punches,
-        readAt: new Date(event.stationReceivedAt),
-        // Check och clear (steg 31): gamla stämplingar före dem räknas inte i bedömningen.
-        checkPunchedAt: "checkPunchedAt" in payload && payload.checkPunchedAt ? new Date(payload.checkPunchedAt) : null,
-        clearPunchedAt: "clearPunchedAt" in payload && payload.clearPunchedAt ? new Date(payload.clearPunchedAt) : null,
+      const serverResult = await storeIngestedReadout(tx, raceId, inserted.id, {
+        cardNumber: payload.cardNumber, startPunchedAt: payload.startPunchedAt, finishPunchedAt: payload.finishPunchedAt,
+        checkPunchedAt: "checkPunchedAt" in payload ? payload.checkPunchedAt : undefined,
+        clearPunchedAt: "clearPunchedAt" in payload ? payload.clearPunchedAt : undefined, punches: payload.punches,
         // Klockan bakom tiderna (PLAN.md steg 22) finns bara i SPORTident-nyttolasten.
-        clockSource: event.transport === "sportident" ? event.payload.clockSource ?? null : null,
-        clockOffsetMs: event.transport === "sportident" ? event.payload.clockOffsetMs ?? null : null
-      }).returning();
-      if (!readoutRow) throw new Error("Normaliserad avläsning kunde inte sparas");
-
-      const snapshot = await loadRaceSnapshot(tx, raceId);
-      const normalized = normalizedReadout(readoutRow);
-      // Steg 31 (B4): har brickans deltagare redan ett resultat från en annan avläsning av samma bricka (lånad bricka,
-      // två löpare efter varandra) skrivs det inte över. Avläsningen blir okänd tills någon väljer vem den hör till.
-      const owner = snapshot.cardAssignments.find((assignment) => assignment.active && assignment.cardNumber === normalized.cardNumber);
-      const alreadyReadOutBy = await cardAlreadyReadOutBy(tx, owner?.entryId, normalized);
-      const unknown: EvaluationResult = { status: "UNKNOWN_CARD", reason: "UNKNOWN_CARD", missingControls: [], extraPunches: [], splits: [] };
-      const stored = alreadyReadOutBy ? { stored: false as const, evaluation: unknown }
-        : await evaluateAndStore(tx, snapshot, normalized, "CARD_READOUT");
-      const evaluation = stored.evaluation;
-      const resultEvaluationHash = hashEvaluation(evaluation);
-      let serverResult: ServerResultSummary;
-
-      if (stored.stored) {
-        const revision = stored.revision.revision;
-        const entryId = stored.revision.entryId;
-        // Stafett: sträckans måltid ger nästa sträckas start; senare sträckor räknas om vid behov.
-        const teamId = await relayTeamOfEntry(tx, entryId);
-        if (teamId) await synchronizeRelayTeams(tx, raceId, [teamId], snapshot.race.snapshotVersion);
-        serverResult = serverResultSummarySchema.parse({
-          resultRevisionId: stored.revision.id,
-          revision,
-          status: evaluation.status,
-          reason: evaluation.reason,
-          engineVersion: RESULT_ENGINE_VERSION,
-          snapshotVersion: snapshot.race.snapshotVersion,
-          evaluationHash: resultEvaluationHash,
-          courseVersionId: stored.revision.courseVersionId
-        });
-      } else {
-        serverResult = serverResultSummarySchema.parse({
-          status: evaluation.status,
-          reason: evaluation.reason,
-          engineVersion: RESULT_ENGINE_VERSION,
-          snapshotVersion: snapshot.race.snapshotVersion,
-          evaluationHash: resultEvaluationHash
-        });
-      }
-
-      await tx.insert(schema.deviceIngestOutcomes).values({
-        rawMessageId: inserted.id,
-        serverResult,
-        evaluationHash: resultEvaluationHash
-      });
+        clockSource: event.transport === "sportident" ? event.payload.clockSource : undefined,
+        clockOffsetMs: event.transport === "sportident" ? event.payload.clockOffsetMs : undefined
+      }, new Date(event.stationReceivedAt));
 
       return {
         localSequence: event.localSequence,

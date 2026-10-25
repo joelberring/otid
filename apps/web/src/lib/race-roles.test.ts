@@ -14,6 +14,8 @@ const FUNCTIONARY_ALLOWED: Record<string, readonly string[]> = {
   "admin/races/[raceId]/administrator/transfer-candidates": ["GET"],
   "admin/races/[raceId]/administrator/readout-package": ["GET"],
   "admin/races/[raceId]/administrator/readouts": ["POST"],
+  /** Steg 45: avläsningssidan skickar råramarna för en avläsning vars tider inte gick att tolka. */
+  "admin/races/[raceId]/administrator/uninterpreted-readouts": ["POST"],
   "admin/races/[raceId]/administrator/unknown-readout-resolution": ["GET", "POST"],
   /** PLAN.md steg 25: direktanmälan på avläsningssidan. */
   "admin/races/[raceId]/administrator/readout-registrations": ["POST"],

@@ -34,6 +34,7 @@ import { loadStartDrawSetupAsAdmin, previewStartDrawAsAdmin, commitStartDrawAsAd
   setResultsOfficialAsAdmin, exportRaceAsAdmin, getRunnerDatabaseSettingsAsAdmin, refreshRunnerDatabaseAsAdmin,
   deleteRunnerDatabaseAsAdmin, searchRunnerDatabaseAsAdmin, listRaceCorrectionsAsAdmin, previewRaceCorrectionAsAdmin,
   applyRaceCorrectionAsAdmin, previewReadoutRereadAsAdmin, applyReadoutRereadAsAdmin,
+  receiveUninterpretedReadout, listUninterpretedReadoutsAsAdmin, rereadUninterpretedReadoutAsAdmin,
   readPartyAsAdmin, changePartyAsAdmin, setPartyGuestAsAdmin, registerPartyDeskEventAsAdmin, savePartyLogoAsAdmin } from "@o-tid/application";
 import {
   adminFailure as failure,
@@ -101,6 +102,9 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   raceCorrectionApply: applyRaceCorrectionAsAdmin,
   // PLAN.md steg 36: läs om avläsningar från rådata.
   readoutRereadPreview: previewReadoutRereadAsAdmin, readoutReread: applyReadoutRereadAsAdmin,
+  // Steg 45: avläsningar vars tider inte gick att tolka.
+  uninterpretedReceive: receiveUninterpretedReadout, uninterpretedList: listUninterpretedReadoutsAsAdmin,
+  uninterpretedReread: rereadUninterpretedReadoutAsAdmin,
   // PLAN.md steg 40: fest med bardisk.
   party: readPartyAsAdmin, partyChange: changePartyAsAdmin, partyGuest: setPartyGuestAsAdmin, partyDeskEvent: registerPartyDeskEventAsAdmin, partyLogo: savePartyLogoAsAdmin };
 export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: string } | { kind: "review-conflicts" } | { kind: "checkin-history"; entryId: string } | { kind: "start-correction" } | { kind: "manual-return-withdrawal" } | { kind: "manual-return" } | { kind: "forest-watch" } | { kind: "publication-preview" } | { kind: "publication" } | { kind: "start-list-export" } | { kind: "draw-preview" } | { kind: "draw" } |
@@ -132,6 +136,7 @@ export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: str
   { kind: "entry-removal"; entryId: string } | { kind: "class-removal"; classId: string } | { kind: "course-removal"; courseId: string } |
   { kind: "results-official" } | { kind: "race-export" } | { kind: "runner-database" } | { kind: "runner-search" } |
   { kind: "race-corrections" } | { kind: "race-corrections-preview" } | { kind: "readout-reread" } | { kind: "readout-reread-preview" } |
+  { kind: "uninterpreted-readouts" } | { kind: "uninterpreted-readouts-reread" } |
   { kind: "party" } | { kind: "party-guests" } | { kind: "party-desk-events" } | { kind: "party-logo" };
 
 export function resultFailure(status: string): Response {

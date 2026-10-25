@@ -10,6 +10,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-10-25 – Steg 45: rättelser efter genomlysningen (avläsning, regler, drift)
+- Avläsningskön: 400/404/409 skickas om en och en och hålls åt sidan ("Försök igen"), 429 väntar; resten av kön går. Stationsklocka > 6 h fel: datorns klocka (clockSource device) och besked.
+- Otolkade avläsningar (SiTimeError): råramarna skickas till `uninterpreted-readouts` (råmeddelande, parser_status uninterpreted), "Ladda ner listan"; Avläsning → "Otolkade avläsningar" läser om med datorns klocka eller angiven tid (ny avläsning, okänd bricka under Okända brickor).
+- Regler: rättad starttid/manuell tid efter tidsjustering (`preparedReadoutTimes`); omräkning tar aldrig en avläsning som någon annans resultat bygger på (NO_READOUT); "Beslut att se över" (deltagarkort, kopplingskvitto, Efterarbete) när ett beslut döljer en senare avläsning; station ALL = alla enheter; disk/utom tävlan ovanpå manuell tid; utom tävlan på rogaining.
+- Migration 0020 (station ALL, index card_readout(race_id, read_at)). Drift: backup varje timme 08–23 (48 + dagsbackup, atomärt), `sh /backup.sh dump`, scp, återställning, misslyckad migrering, build före up -d, swap, loggstorlek.
+- Tester: webb `readout`, `clock`, `failed-readouts`, `decision-review`; domän `station-corrections`, `decision-review`, `manual-decision`, `rogaining`; integration `steg-45-rattelser`, `steg-31-lanad-bricka`, `entry-status-times`.
+- Återstår: motor #5 (stämplingar inom start–mål, varning när OK saknar sträcktider). Otolkade avläsningar stoppar inte "Resultaten är klara".
+
 ### 2026-10-24 – Steg 42: fest – Eventor-nyckel, kvällens sträcktider och QR-skylt
 - Fest-typen visar Eventor-nyckeln och löpardatabasen under Inställningar (utan tävlingsval och import).
 - "Kvällens sträcktider" (`#stracktider`) på `/fest/{kod}`: en rad per gäst med köp (flest först, vid lika tidigaste första köpet), In, varje köp ("21:14 Margarita" med färgprick per grupp/vara), Mål och "+18:30" sedan förra händelsen; Totalt = antal köp och tid från incheckning (eller första köpet) till utcheckning (eller senaste köpet). Bara köp som räknas (`partyLedger`: start, dubbelstämpling, ångrade bort). Rullar i sidled med namnet fast; var 10:e sekund.

@@ -99,6 +99,11 @@ Gemensamma hjälpare: UUID-mönstret och idempotensnycklarnas form (`UUID_PATTER
   på enhet, löpnummer och hash; samma avläsning två gånger ger samma kvitto. Råa bytes sparas oförändrade.
 - En post tas bort ur kön först när servern har kvitterat den. En avläsning som avvisats lokalt (`LOCAL_INVALID`) prövas igen
   när sidan laddas och skickas om den är giltig nu (steg 36).
+- Steg 45: kön håller 5xx, 400, 404 och 409 åt sidan per avläsning ("Försök igen") och väntar vid 429. Avläsningar vars tider
+  inte går att tolka (SiTimeError) skickas som råramar till `POST …/administrator/uninterpreted-readouts`
+  (`application/src/uninterpreted-readout.ts`: råmeddelande `sportident-uninterpreted`, `parser_status` `uninterpreted`, ingen
+  avläsning); administratören läser om dem under Avläsning med datorns klocka eller en angiven tid (nytt råmeddelande
+  `sportident-reread` och en vanlig avläsning). En stationsklocka mer än 6 h fel ersätts av datorns (`readout/clock.ts`).
 - Läs om från rådata (PLAN.md steg 36, `application/src/readout-reread.ts`): deltagarens avläsning avkodas på nytt från
   originalets råramar; en ändrad sparas som nytt råmeddelande (`sportident-reread`, pekar på originalet), ny avläsning och
   revision (READOUT_REREAD) för samma deltagare. Originalet ändras aldrig.

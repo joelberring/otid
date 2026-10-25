@@ -16,6 +16,8 @@ import { ReadoutControlView } from "./readout-control-view";
 import { RaceCorrectionsPanel } from "../race-corrections";
 import { raceCorrectionsSv } from "../../i18n/race-corrections-sv";
 import { ReadoutRereadPanel } from "../readout-reread";
+import { UninterpretedReadoutsPanel } from "../uninterpreted-readouts";
+import { uninterpretedReadoutsSv } from "../../i18n/uninterpreted-readouts-sv";
 import { readoutRereadSv } from "../../i18n/readout-reread-sv";
 import { Button, Field, Section } from "../ui";
 import type { Workspace } from "./workspace-state";
@@ -158,6 +160,10 @@ export function DuringRaceFollowUp({ ws }: { ws: Workspace }) {
     {/* PLAN.md steg 36: läs om avläsningar från de sparade råramarna; bara administratören. */}
     {data && !functionary && <Section id={`readout-reread-${raceId}`} title={readoutRereadSv.title}>
       <ReadoutRereadPanel raceId={raceId} onChanged={ws.reloadQuietly} />
+    </Section>}
+    {/* Steg 45: avläsningar vars tider inte gick att tolka; bara administratören. */}
+    {data && !functionary && <Section id={`uninterpreted-readouts-${raceId}`} title={uninterpretedReadoutsSv.title}>
+      <UninterpretedReadoutsPanel raceId={raceId} timeZone={data.timeZone} onChanged={ws.reloadQuietly} />
     </Section>}
     </section>
   </>;

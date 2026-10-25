@@ -719,6 +719,22 @@ men att fullt namn spara för fakturering".
 - [x] Raden under rubriken: "Registrera din pinne" utfällbar, länk till sträcktiderna och hur man betalar.
 - [x] QR-skylt `/fest/{kod}/qr` (A4) i festens utseende, nåbar från arbetsytan, samma skydd som fest-sidan.
 
+## [x] Steg 45 – Rättelser efter genomlysningen: avläsning, regler och drift
+
+Genomlysningen 2026-10-25 (motor, avläsning och drift). Ägarens beslut: stämpling efter mål eller före start har ingen betydelse.
+
+- [x] Avläsningskön: 400, 404 och 409 håller bara den avläsningen åt sidan ("N avläsningar kunde inte skickas", "Försök igen"); 429 väntar.
+- [x] Avläsningar vars tider inte gick att tolka skickas till servern (råmeddelande `sportident-uninterpreted`, ingen avläsning),
+  "Ladda ner listan" på avläsningssidan, Avläsning → "Otolkade avläsningar" läser om med datorns klocka eller angiven tid.
+- [x] Stationens klocka mer än 6 h fel: datorns klocka gäller (clockSource device) med tydligt besked.
+- [x] Rättad starttid och manuell tid utgår från tiderna efter tidsjusteringen.
+- [x] Omräkning tar aldrig någon annans avläsning (bara egen, eller brickans senaste som ingen annan har); annars NO_READOUT.
+- [x] Beslut som döljer en senare avläsning: varning med "Ta bort beslutet" i deltagarkortet, i kopplingskvittot och
+  "Beslut att se över" under Resultat → Efterarbete.
+- [x] Tidsjustering för "Alla enheter (start, mål och kontroller)" (migration 0020).
+- [x] Backup varje timme kl. 08–23, 48 timdumpar och dagsbackup, "dump nu", scp, återställning, misslyckad migrering, swap, loggstorlek.
+- [x] Disk och utom tävlan ovanpå manuell tid, utom tävlan på rogaining; index på card_readout(race_id, read_at).
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

@@ -23,6 +23,8 @@ export const FUNCTIONARY_ROUTES: Readonly<Record<string, readonly string[]>> = {
   /** Avläsningen i webbläsaren: paketet och inskickade avläsningar. */
   "readout-package": ["GET"],
   readouts: ["POST"],
+  /** Steg 45: avläsningar vars tider inte gick att tolka (råramarna); listan och omläsningen kräver administratör. */
+  "uninterpreted-readouts": ["POST"],
   /** Okända brickor: läsa och direktanmäla (koppling till befintlig deltagare kräver administratör i tjänsten). */
   "unknown-readout-resolution": ["GET", "POST"],
   /** Direktanmälan på avläsningssidan, även köad offline (PLAN.md steg 25). */

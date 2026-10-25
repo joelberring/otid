@@ -15,7 +15,7 @@ import { RegistrationForm, RegistrationStatus, type RegistrationFields } from ".
 import type { EntrySuggestion } from "./runner-lookup";
 import { startPunchText } from "../lib/start-punch-text";
 import { heldReadouts, releaseHeldReadouts, requeueLocallyInvalid, syncPending } from "./sync";
-import { loadFailedReadouts, saveFailedReadouts, type FailedReadout } from "./failed-readouts";
+import { failedReadoutsFile, loadFailedReadouts, saveFailedReadouts, syncFailedReadouts, type FailedReadout } from "./failed-readouts";
 import { localRaceDate } from "@o-tid/domain";
 import { toHex } from "./payload";
 import { readoutText as t } from "./text-sv";
@@ -137,6 +137,15 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
       if (outcome.kind === "throttled") setSyncProblem(t.syncThrottled);
       // Kvitterade direktanmälningar finns nu i serverns paket; hämta det så att brickan är känd även utan den lokala kön.
       if (outcome.kind === "synced" && outcome.registered) await refreshPackage();
+      // Steg 45: råramarna för avläsningar vars tider inte gick att tolka, så att de finns kvar på servern.
+      if (outcome.kind !== "unauthorized" && outcome.kind !== "offline" && outcome.kind !== "throttled" &&
+        loadFailedReadouts(raceId).some((row) => !row.storedAt)) {
+        const failed = await syncFailedReadouts(raceId, await storeRef.current.identity(raceId), pkgRef.current?.packageVersion ?? 1, deps);
+        if (failed.kind === "offline") setOnline(false);
+        if (failed.kind === "unauthorized") setLoginNeeded(true);
+        if (failed.kind === "failed") setSyncProblem(t.syncFailed(failed.status));
+        setFailedReadouts(loadFailedReadouts(raceId));
+      }
       // Bardisken: in-/utcheckningar och gästnamn efter avläsningarna, så att servern har brickans avläsning först.
       if (pkgRef.current?.party && outcome.kind !== "unauthorized" && outcome.kind !== "offline" && outcome.kind !== "throttled") {
         const party = await syncPartyActions(partyStoreRef.current, raceId, deps);
@@ -202,8 +211,13 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
       try { payload = build(false); }
       catch (fallback) {
         if (!(fallback instanceof SiTimeError)) throw fallback;
+        // Steg 45: råramarna skickas också till servern (syncFailedReadouts), med ett stabilt id per avläsning.
+        const identity = await storeRef.current.identity(raceId);
         const failed: FailedReadout = { cardNumber: String(card.cardNumber), at: now.toISOString(), message: fallback.message,
-          frames: frames.map(toHex) };
+          frames: frames.map(toHex), requestId: crypto.randomUUID(), deviceId: identity.deviceId, sessionId: identity.sessionId,
+          packageVersion: known?.packageVersion ?? 1, ...(station.serialNumber !== undefined ? { stationSerial: station.serialNumber } : {}),
+          ...(clock.clockOffsetMs !== undefined ? { clockSource: clock.clockSource, clockOffsetMs: clock.clockOffsetMs } : {}),
+          simulated: exercise !== undefined };
         const rows = [...loadFailedReadouts(raceId), failed];
         saveFailedReadouts(raceId, rows); setFailedReadouts(rows);
         throw fallback;
@@ -249,6 +263,16 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
     try {
       const anchor = document.createElement("a");
       anchor.href = url; anchor.download = `otid-ralogg-${new Date().toISOString().replaceAll(":", "")}.json`;
+      document.body.append(anchor); anchor.click(); anchor.remove();
+    } finally { URL.revokeObjectURL(url); }
+  }
+
+  function downloadFailedReadouts() {
+    if (!raceId) return;
+    const url = URL.createObjectURL(new Blob([failedReadoutsFile(raceId, loadFailedReadouts(raceId))], { type: "application/json" }));
+    try {
+      const anchor = document.createElement("a");
+      anchor.href = url; anchor.download = `otid-otolkade-${new Date().toISOString().replaceAll(":", "")}.json`;
       document.body.append(anchor); anchor.click(); anchor.remove();
     } finally { URL.revokeObjectURL(url); }
   }
@@ -477,9 +501,13 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
     {failedReadouts.length > 0 ? <section className="notice" role="alert" data-testid="failed-readouts" aria-label={t.failedTitle}>
       <strong>{t.failedTitle}</strong> {t.failedHelp}
       <ul>{failedReadouts.map((row) => <li key={`${row.cardNumber}-${row.at}`}>{t.failedRow(row.cardNumber,
-        new Date(row.at).toLocaleTimeString("sv-SE"), row.message)}</li>)}</ul>
-      <button type="button" onClick={() => { if (raceId) { saveFailedReadouts(raceId, []); setFailedReadouts([]); } }}>
-        {t.failedClear}</button>
+        new Date(row.at).toLocaleTimeString("sv-SE"), row.message)} – {row.storedAt ? t.failedStored : t.failedWaiting}</li>)}</ul>
+      {/* Steg 45: ladda ner listan med råramar innan den rensas. */}
+      <div className="row">
+        <button type="button" onClick={downloadFailedReadouts}>{t.failedDownload}</button>
+        <button type="button" onClick={() => { if (raceId) { saveFailedReadouts(raceId, []); setFailedReadouts([]); } }}>
+          {t.failedClear}</button>
+      </div>
     </section> : null}
     {!persistent ? <p className="notice">{t.storageNotPersistent}</p> : null}
     {station.kind === "misconfigured" ? <p className="notice" role="alert">{t.misconfiguredHelp} ({station.problems.join(", ")})</p> : null}

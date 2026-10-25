@@ -258,7 +258,8 @@ export const helpArticles: readonly HelpArticle[] = [
         "Första utläsningen checkar in gästen. Okänd bricka: gästen väljer sitt namn eller skriver det.",
         "Senare utläsningar visar de nya köpen sedan förra gången och kvällens summa.",
         "Målenheten checkar ut gästen när det är dags att gå hem. Samma målstämpling checkar inte ut igen.",
-        "”Personal” har lägena ”Checka in”, ”Köp/verifiera” och ”Checka ut” för rättningar. Läget gäller nästa utläsning, sedan är bardisken automatisk igen."
+        "”Personal” har lägena ”Checka in”, ”Köp/verifiera” och ”Checka ut” för rättningar. Läget gäller nästa utläsning, sedan är bardisken automatisk igen.",
+        "Samma vara igen är ett nytt köp om stämplingen kommer minst så många sekunder efter förra köpet som ”Dubbelstämpling inom (sekunder)” anger."
       ],
       "Köpen sparas på brickan och i plattan även utan nät, och glömda köp kommer med nästa gång.",
       "Övningsstationens köp räknas inte i summeringen.",

@@ -234,7 +234,18 @@ describe("fest: kvällens sträcktider (steg 42)", () => {
   });
 });
 
-describe("steg 44: borttagen in- och utcheckning", () => {
+describe("steg 44: dubbelstämpling och borttagen in- och utcheckning", () => {
+  it("jämför dubbelstämpling mot senast räknade köpet: 0/4/8/12 s med gränsen 5 s ger köp vid 0 och 8 s", () => {
+    const card = read("8123456", "2026-10-24T19:20:00.000Z", [[31, "2026-10-24T19:00:00.000Z"], [31, "2026-10-24T19:00:04.000Z"],
+      [31, "2026-10-24T19:00:08.000Z"], [31, "2026-10-24T19:00:12.000Z"]]);
+    expect(partyPurchasesOnCard(card, items, startsAt, 5).map(row => row.punchedAt))
+      .toEqual(["2026-10-24T19:00:00.000Z", "2026-10-24T19:00:08.000Z"]);
+    // Exakt gränsen efter räknas som ett nytt köp; med gränsen 0 räknas varje stämpling.
+    const edge = read("8123456", "2026-10-24T19:20:00.000Z", [[31, "2026-10-24T19:00:00.000Z"], [31, "2026-10-24T19:00:05.000Z"]]);
+    expect(partyPurchasesOnCard(edge, items, startsAt, 5)).toHaveLength(2);
+    expect(partyPurchasesOnCard(card, items, startsAt, 0)).toHaveLength(4);
+  });
+
   it("tar bort en utcheckning via mål; samma målstämpling räknas inte igen men en senare gör det", () => {
     const finished = read("8123456", "2026-10-24T20:00:00.000Z", [[31, "2026-10-24T19:14:00.000Z"]], "2026-10-24T19:59:00.000Z");
     const deskOut = { cardNumber: "8123456", kind: "CHECK_OUT" as const, at: "2026-10-24T19:30:00.000Z" };

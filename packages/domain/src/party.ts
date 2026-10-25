@@ -5,8 +5,9 @@
  * Regler:
  * - Ett köp är en stämpling med en kod som är en vara och en tid efter festens start.
  * - Unikt per bricka + kod + stämplingstid: samma stämpling som läses ut flera gånger är ett köp.
- * - Samma kod flera gånger är flera köp, men en stämpling inom `doublePunchSeconds` (förval 5) från föregående
- *   stämpling på samma kod är en dubbelstämpling och räknas inte.
+ * - Samma kod flera gånger är flera köp, men en stämpling inom `doublePunchSeconds` (förval 5) från senast räknade
+ *   köpet på samma kod är en dubbelstämpling och räknas inte (steg 44: jämförs med senast räknade köpet, inte med
+ *   föregående stämpling, så att täta stämplingar 0/4/8/12 s med gränsen 5 s ger två köp: 0 och 8 s).
  * - Priset är varans pris när gästen stämplade (prishistoriken), så att en prisändring inte ändrar gamla köp.
  * - Incheckning: startstämpling efter festens start (källa "Start") eller bardiskens läge "Checka in" (källa "Bardisken").
  *   Clear- och checkstämpling räknas inte. Den tidigaste gäller.
@@ -220,10 +221,10 @@ export function partyPurchasesOnCard(readout: PartyReadout, items: readonly Part
     const item = byCode.get(punch.code);
     const at = ms(punch.punchedAt);
     if (!item || !(at >= start)) continue;
-    // Samma stämpling igen eller en dubbelstämpling: inom gränsen från föregående stämpling på samma kod.
+    // Samma stämpling igen eller en dubbelstämpling: inom gränsen från senast räknade köpet på samma kod (steg 44).
     const before = previous.get(punch.code);
+    if (before !== undefined && (at === before || at - before < doublePunchSeconds * 1_000)) continue;
     previous.set(punch.code, at);
-    if (before !== undefined && at - before <= doublePunchSeconds * 1_000) continue;
     rows.push({ cardNumber: readout.cardNumber, code: punch.code, itemId: item.id, itemName: item.name,
       priceOre: partyPriceAt(item, punch.punchedAt), punchedAt: punch.punchedAt, firstReadAt: readout.readAt, afterCheckout: false });
   }

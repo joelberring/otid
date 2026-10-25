@@ -6,7 +6,8 @@ import { sortByTotalLoss, sortSplitRows, type SplitTableCell, type SplitTableCol
 import { splitAnalysisSv as text } from "../../i18n/split-analysis-sv";
 import { listsSv } from "../../i18n/lists-sv";
 import { formatDuration } from "../../lib/clock-time";
-import { resultListFromPublic, splitGroups, type ResultRow, type SplitGroup } from "../../lib/lists/result-list-model";
+import { legSplitGroup, resultListFromPublic, splitGroups, type ResultRow, type SplitGroup } from "../../lib/lists/result-list-model";
+import { forkingSv } from "../../i18n/forking-sv";
 import { analysisClassNames, legLabel, routeHref } from "../../lib/split-analysis";
 import { useResultListData, type ResultListData } from "../lists/use-result-list-data";
 import { RadioLive } from "../radio/radio-live";
@@ -19,6 +20,11 @@ const duration = (ms: number | null | undefined) => ms === null || ms === undefi
 const slug = (value: string) => value.replace(/\W+/g, "-");
 
 function columnLabel(column: SplitTableColumn, index: number) {
+  // Steg 49: tabell per sträcka: kolumnen är kontrollparet.
+  if (column.fromCode !== undefined) {
+    const from = column.fromCode === "START" ? forkingSv.start : String(column.fromCode);
+    return { number: text.legNumber(index), control: forkingSv.legHeading(from, column.kind === "FINISH" ? text.finish : String(column.controlCode)) };
+  }
   return { number: text.legNumber(index), control: column.kind === "FINISH" ? text.finish : text.control(column.controlCode, column.occurrence) };
 }
 
@@ -132,13 +138,17 @@ export function SplitAnalysis({ raceId, initial, routeLegs, initialClass }: Prop
   const [view, setView] = useState<View>("SPLITS");
   const className = classNames.includes(chosen) ? chosen : classNames[0] ?? "";
   const raceClass = model.classes.find(row => row.name === className);
-  const groups = useMemo(() => raceClass ? splitGroups(raceClass) : [], [raceClass]);
+  // Steg 49: en gafflad klass jämförs per sträcka (förval) eller per variant.
+  const [byVariant, setByVariant] = useState(false);
+  const legGroup = useMemo(() => raceClass ? legSplitGroup(raceClass) : undefined, [raceClass]);
+  const variantGroups = useMemo(() => raceClass ? splitGroups(raceClass) : [], [raceClass]);
+  const groups = legGroup && !byVariant ? [legGroup] : variantGroups;
   const relayClasses = model.relayClasses.map(row => row.name);
   const choose = (name: string) => {
     setChosen(name);
     window.history.replaceState(null, "", `?class=${encodeURIComponent(name)}`);
   };
-  const forked = groups.some(group => group.variant !== null);
+  const forked = variantGroups.some(group => group.variant !== null);
   const mispunched = groups.some(group => group.rows.some(row => row.status !== "OK"));
   const routes = groups.some(group => group.rows.some(row => row.publicResultId && routeLegs[row.publicResultId]));
   return <div className={styles.analysis}>
@@ -151,6 +161,10 @@ export function SplitAnalysis({ raceId, initial, routeLegs, initialClass }: Prop
         {(["SPLITS", "LOSS"] as const).map(id => <button key={id} type="button" aria-pressed={view === id} onClick={() => setView(id)}>
           {text.views[id]}</button>)}
       </div>
+      {legGroup && <div className={styles.segmented} role="group" aria-label={forkingSv.splitModeLabel}>
+        <button type="button" aria-pressed={!byVariant} onClick={() => setByVariant(false)}>{forkingSv.byLeg}</button>
+        <button type="button" aria-pressed={byVariant} onClick={() => setByVariant(true)}>{forkingSv.byVariant}</button>
+      </div>}
     </div>
     {failed && <p className={styles.notice} role="alert">{listsSv.results.refreshFailed}</p>}
     {initialClass && chosen === initialClass && !classNames.includes(initialClass) && classNames.length > 0 &&
@@ -158,7 +172,7 @@ export function SplitAnalysis({ raceId, initial, routeLegs, initialClass }: Prop
     {classNames.length === 0 ? <p className={styles.nothing}>{text.none}</p> : <>
       <div className={styles.help}>
         <p>{view === "SPLITS" ? text.help : text.lossHelp}</p>
-        {forked && <p>{text.helpForked}</p>}
+        {forked && <p>{byVariant || !legGroup ? text.helpForked : text.helpForkedLegs}</p>}
         {mispunched && <p>{text.helpMispunched}</p>}
         {routes && view === "SPLITS" && <p>{text.helpRoutes}</p>}
       </div>

@@ -8,6 +8,9 @@ import { resultListCsv, type ResultView } from "../../lib/lists/csv";
 import { courseLine, filterResults, resultClassNames, resultsByClub, splitGroups, type RelayClass, type RelayTeam, type ResultClass,
   type ResultListModel, type ResultRow } from "../../lib/lists/result-list-model";
 import { RadioLive } from "../radio/radio-live";
+import { RunnerForking } from "../forking/runner-forking";
+import { forkingSv } from "../../i18n/forking-sv";
+import type { CourseForkingView } from "@o-tid/contracts";
 import { radioSv } from "../../i18n/radio-sv";
 import { download, ListFrame, type IofExport } from "./list-frame";
 import styles from "./lists.module.css";
@@ -50,13 +53,16 @@ function Status({ row, context }: { row: ResultRow; context: Context }) {
 }
 
 /** Löparens namn, länkat till resultatsidan på den publika sidan. Klubb och variant under namnet. */
-function Runner({ row, context, club = true }: { row: ResultRow; context: Context; club?: boolean }) {
+function Runner({ row, context, club = true, forking }: { row: ResultRow; context: Context; club?: boolean;
+  /** Steg 49: "Visa gafflingar" påslaget i en gafflad klass. */
+  forking?: CourseForkingView | undefined }) {
   const name = context.links && row.publicResultId
     ? <Link href={`/results/${context.raceId}/participants/${row.publicResultId}`}>{row.name}</Link> : row.name;
   return <th scope="row">
     {context.follow && row.publicResultId ? <span className={styles.nameLine}>{name}{context.follow.runner(row)}</span> : name}
     {club && <span className={styles.subMobile}>{row.club ?? ""}</span>}
     {row.variant && <span className={styles.sub}>{t.variant(row.variant)}</span>}
+    {forking && row.variant && <span className={styles.forking}><RunnerForking view={forking} code={row.variant} name={row.name} /></span>}
     <RowMark row={row} context={context} />
   </th>;
 }
@@ -130,13 +136,18 @@ function ScoredControlsBlock({ raceClass, context }: { raceClass: ResultClass; c
 }
 
 function ClassBlock({ raceClass, context }: { raceClass: ResultClass; context: Context }) {
+  const [showForking, setShowForking] = useState(false);
   if (raceClass.scored) return <ScoredClassBlock raceClass={raceClass} context={context} />;
   const id = `result-class-${slug(raceClass.name)}`;
+  // Steg 49: en gafflad klass kan visa en liten banbild per löpare med varianten markerad.
+  const forking = raceClass.course?.forking;
   return <section className={styles.block} aria-labelledby={id}>
     <div className={styles.blockHead}><h3 id={id}>{raceClass.name}</h3>
       {raceClass.course && <p className={styles.course}>{courseLine(raceClass.course)}</p>}
       <p>{raceClass.rows.length === 0 && raceClass.radio ? radioSv.live.noneFinished : t.runners(raceClass.rows.length)}</p>
-      {raceClass.rows.some(row => row.splits.length > 0) && <AnalysisLink className={raceClass.name} context={context} />}</div>
+      {raceClass.rows.some(row => row.splits.length > 0) && <AnalysisLink className={raceClass.name} context={context} />}
+      {forking && raceClass.rows.some(row => row.variant) && <button type="button" className={styles.toggle} aria-pressed={showForking}
+        aria-label={`${forkingSv.showForking}: ${raceClass.name}`} onClick={() => setShowForking(!showForking)}>{forkingSv.showForking}</button>}</div>
     {raceClass.mixedCourses && <p className={styles.notice}>{t.mixedCourses}</p>}
     {raceClass.rows.length > 0 && <table className={styles.table} aria-labelledby={id}>
       <thead><tr><th scope="col" className={styles.place}>{t.place}</th><th scope="col">{t.name}</th>
@@ -145,7 +156,7 @@ function ClassBlock({ raceClass, context }: { raceClass: ResultClass; context: C
         <th scope="col" className={styles.statusCol}>{t.statusColumn}</th></tr></thead>
       <tbody>{raceClass.rows.map((row, index) => <tr key={row.publicResultId ?? `${row.name}-${index}`} data-status={row.status}>
         <td className={styles.place}>{row.place ?? ""}</td>
-        <Runner row={row} context={context} />
+        <Runner row={row} context={context} forking={showForking ? forking : undefined} />
         <td className={styles.wideOnly}>{row.club ?? ""}</td>
         <td className={styles.num}>{duration(row.timeMs)}{row.behindMs ? <span className={`${styles.subMobile}`}>{behind(row.behindMs)}</span> : null}</td>
         <td className={`${styles.num} ${styles.wideOnly} ${styles.muted}`}>{behind(row.behindMs)}</td>

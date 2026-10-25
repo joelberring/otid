@@ -19,6 +19,7 @@
     { "idx": 14, "version": "7", "when": 1798819200000, "tag": "0015_bekrafta_felstampling", "breakpoints": true },
     { "idx": 15, "version": "7", "when": 1798905600000, "tag": "0016_fest", "breakpoints": true },
     { "idx": 16, "version": "7", "when": 1798992000000, "tag": "0017_fest_grupp", "breakpoints": true },
-    { "idx": 17, "version": "7", "when": 1799078400000, "tag": "0018_sjalvregistrering", "breakpoints": true }
+    { "idx": 17, "version": "7", "when": 1799078400000, "tag": "0018_sjalvregistrering", "breakpoints": true },
+    { "idx": 18, "version": "7", "when": 1799164800000, "tag": "0019_stopp_och_fest", "breakpoints": true }
   ]
 }

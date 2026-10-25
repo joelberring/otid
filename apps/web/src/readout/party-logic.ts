@@ -42,16 +42,47 @@ export function partyReadout(item: QueuedReadout): PartyReadout {
 
 const live = (row: QueuedPartyAction) => row.status !== "rejected";
 
+/** Steg 44: borttagen in- eller utcheckning (arbetsytan): stämplingar till och med den räknas inte. */
+function removedBy(at: string, removedAt: string | undefined): boolean {
+  return removedAt !== undefined && Date.parse(at) <= Date.parse(removedAt);
+}
+
+function serverGuest(card: string, knowledge: DeskKnowledge) {
+  return knowledge.server?.guests.find(guest => guest.cardNumber === card);
+}
+
+/** Startstämplingen som incheckning, om den inte är borttagen. */
+function startCheckIn(card: string, readout: PartyReadout, knowledge: DeskKnowledge): string | undefined {
+  const start = partyStartCheckIn(readout, knowledge.party.startsAt ?? undefined);
+  return start && !removedBy(start, serverGuest(card, knowledge)?.checkInRemovedAt) ? start : undefined;
+}
+
+/**
+ * Målstämplingen som en ny utcheckning: inte borttagen och inte redan känd (samma målstämpling läst ut tidigare), så att
+ * en gäst som kommer tillbaka efter målet inte checkas ut igen vid varje utläsning (steg 44).
+ */
+function newFinishCheckout(card: string, readout: PartyReadout, knowledge: DeskKnowledge, before: number): string | undefined {
+  const finish = partyFinishCheckout(readout, knowledge.party.startsAt ?? undefined);
+  if (!finish) return undefined;
+  const guest = serverGuest(card, knowledge);
+  if (removedBy(finish, guest?.checkoutRemovedAt)) return undefined;
+  const same = (value: string | undefined) => value !== undefined && Date.parse(value) === Date.parse(finish);
+  if (guest?.checkout?.source === "FINISH" && same(guest.checkout.at)) return undefined;
+  const earlier = knowledge.readouts.some(item => item.payload.cardNumber === card && item.localSequence < before &&
+    same(item.payload.finishPunchedAt));
+  return earlier ? undefined : finish;
+}
+
 /** Incheckningen som var känd före utläsningen `before` (löpnummer), eller undefined. */
 function checkInBefore(card: string, knowledge: DeskKnowledge, before: number): string | undefined {
   const server = knowledge.server?.guests.find(guest => guest.cardNumber === card)?.checkIn?.at;
   if (server) return server;
   const desk = knowledge.actions.find(row => live(row) && row.action.kind === "desk" && row.action.request.cardNumber === card &&
-    row.action.request.kind === "CHECK_IN");
+    row.action.request.kind === "CHECK_IN" && !removedBy(row.action.request.at, serverGuest(card, knowledge)?.checkInRemovedAt));
   if (desk?.action.kind === "desk") return desk.action.request.at;
   for (const item of knowledge.readouts) {
     if (item.payload.cardNumber !== card || item.localSequence >= before) continue;
-    const start = partyStartCheckIn(partyReadout(item), knowledge.party.startsAt ?? undefined);
+    const start = startCheckIn(card, partyReadout(item), knowledge);
     if (start) return start;
   }
   return undefined;
@@ -80,9 +111,13 @@ export function decideReadout(item: QueuedReadout, mode: DeskMode, knowledge: De
     .filter(row => !known.has(partyPurchaseKey(row.cardNumber, row.code, row.punchedAt)));
   const base = { localSequence: item.localSequence, cardNumber: card, newPurchases };
   const earlier = checkInBefore(card, knowledge, item.localSequence);
-  const startHere = partyStartCheckIn(readout, startsAt);
-  const finish = partyFinishCheckout(readout, startsAt);
-  if (mode === "CHECK_OUT") return { ...base, kind: "CHECKED_OUT", checkedOutAt: finish ?? item.stationReceivedAt, enqueue: "CHECK_OUT" };
+  const startHere = startCheckIn(card, readout, knowledge);
+  if (mode === "CHECK_OUT") {
+    const finish = partyFinishCheckout(readout, startsAt);
+    return { ...base, kind: "CHECKED_OUT", checkedOutAt: finish && !removedBy(finish, serverGuest(card, knowledge)?.checkoutRemovedAt)
+      ? finish : item.stationReceivedAt, enqueue: "CHECK_OUT" };
+  }
+  const finish = newFinishCheckout(card, readout, knowledge, item.localSequence);
   if (mode === "BUY") return { ...base, kind: newPurchases.length > 0 ? "PURCHASES" : "NO_NEW" };
   if (mode === "CHECK_IN") {
     if (earlier) return { ...base, kind: "ALREADY_IN", checkedInAt: earlier };
@@ -143,4 +178,19 @@ export function cardNearlyFull(item: QueuedReadout): { punches: number; capacity
   const capacity = partyCardCapacity(item.payload.cardNumber, item.payload.cardType);
   if (capacity === undefined || capacity - item.payload.punches.length > 5) return undefined;
   return { punches: item.payload.punches.length, capacity };
+}
+
+/**
+ * Steg 44: personalens läge (Checka in, Köp, Checka ut) gäller EN utläsning; nästa går i automatiskt läge. Beslutar nya
+ * utläsningar i ordning och ger läget efteråt.
+ */
+export function decideReadouts(fresh: readonly QueuedReadout[], mode: DeskMode, knowledge: DeskKnowledge):
+  { readonly outcomes: readonly DeskOutcome[]; readonly mode: DeskMode } {
+  let current = mode;
+  const outcomes = fresh.map(item => {
+    const outcome = decideReadout(item, current, knowledge);
+    current = "AUTO";
+    return outcome;
+  });
+  return { outcomes, mode: current };
 }

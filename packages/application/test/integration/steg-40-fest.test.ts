@@ -32,9 +32,9 @@ async function party() {
 }
 
 function readout(deviceId: string, localSequence: number, cardNumber: string, punches: [number, string][],
-  extra: { startPunchedAt?: string; finishPunchedAt?: string } = {}) {
+  extra: { startPunchedAt?: string; finishPunchedAt?: string } = {}, simulated = false) {
   const payload = { cardNumber, cardType: "SIAC" as const, ...extra, punches: punches.map(([code, punchedAt]) => ({ code, punchedAt })),
-    untimedPunchCodes: [], frames: ["02ef0001"], clockSource: "station" as const, clockOffsetMs: 0, simulated: false };
+    untimedPunchCodes: [], frames: ["02ef0001"], clockSource: "station" as const, clockOffsetMs: 0, simulated };
   const stationReceivedAt = new Date(Date.parse(punches.at(-1)?.[1] ?? extra.finishPunchedAt ?? startsAt) + 60_000).toISOString();
   return { deviceId, sessionId: deviceId, packageVersion: 1, firstSequence: localSequence, lastSequence: localSequence,
     events: [{ localSequence, stationReceivedAt, transport: "sportident" as const, payload, contentHash: contentHash(payload) }] };
@@ -184,5 +184,56 @@ describe("steg 42: kvällens sträcktider på den publika sidan", () => {
     expect(anonymous?.splits.map(row => [row.guestNumber, row.name, row.purchaseCount])).toEqual([[1, undefined, 2], [2, undefined, 1]]);
     expect(JSON.stringify(anonymous).replace(/\/api\/public\/parties\/[^"]+/, "")).not.toMatch(leaks);
     expect(JSON.stringify(anonymous)).not.toMatch(/Festis|Gästa|Festa/);
+  });
+
+  it("steg 44: övningsstationens köp räknas inte i summeringen, på fest-sidan eller som in- och utcheckning", async () => {
+    const { raceId, admin } = await party();
+    const device = randomUUID();
+    await ingestDeviceBatch(db, raceId, readout(device, 1, "8123456", [[31, "2026-10-24T19:14:00.000Z"]],
+      { finishPunchedAt: "2026-10-24T21:00:00.000Z" }, true));
+    await ingestDeviceBatch(db, raceId, readout(device, 2, "8765432", [[32, "2026-10-24T19:20:00.000Z"]]));
+    const value = await state(admin);
+    expect(value.guests.map(guest => [guest.cardNumber, guest.purchaseCount])).toEqual([["8765432", 1]]);
+    expect([value.purchaseCount, value.totalOre]).toEqual([1, 6_000]);
+    const stored = await db.select({ card: schema.cardReadouts.cardNumber, simulated: schema.cardReadouts.simulated })
+      .from(schema.cardReadouts).where(eq(schema.cardReadouts.raceId, raceId));
+    expect(stored.sort((left, right) => left.card.localeCompare(right.card))).toEqual([{ card: "8123456", simulated: true },
+      { card: "8765432", simulated: false }]);
+  });
+
+  it("steg 44: ta bort utcheckning (bardisken och mål) och incheckning, med auditpost; en senare målstämpling räknas", async () => {
+    const { raceId, admin, change } = await party();
+    const device = randomUUID();
+    await ingestDeviceBatch(db, raceId, readout(device, 1, "8123456", [[31, "2026-10-24T19:14:00.000Z"]],
+      { startPunchedAt: "2026-10-24T16:00:00.000Z", finishPunchedAt: "2026-10-24T21:00:00.000Z" }));
+    expect((await registerPartyDeskEventAsAdmin(db, { ...admin, request: { formatVersion: 1, deviceId: device, localSequence: 1,
+      cardNumber: "8123456", kind: "CHECK_OUT", at: "2026-10-24T20:00:00.000Z" } })).status).toBe("ok");
+    expect((await state(admin)).guests[0]?.checkout).toEqual({ at: "2026-10-24T20:00:00.000Z", source: "DESK" });
+    const requestId = randomUUID();
+    const remove = { formatVersion: 1, requestId, change: { kind: "presence-remove", cardNumber: "8123456", presence: "CHECK_OUT" } };
+    const removed = await changePartyAsAdmin(db, { ...admin, request: remove });
+    if (removed.status !== "ok") throw new Error(removed.status);
+    expect(removed.response.guests[0]?.checkout).toBeUndefined();
+    expect(removed.response.guests[0]?.checkoutRemovedAt).toBeDefined();
+    // Samma begäran igen: samma läge och ingen ny rad.
+    expect((await changePartyAsAdmin(db, { ...admin, request: remove })).status).toBe("ok");
+    expect(await db.select().from(schema.partyPresenceVoids).where(eq(schema.partyPresenceVoids.raceId, raceId))).toHaveLength(1);
+    // Samma bricka läses ut igen med samma målstämpling: fortfarande inte utcheckad.
+    await ingestDeviceBatch(db, raceId, readout(device, 2, "8123456", [[31, "2026-10-24T19:14:00.000Z"]],
+      { startPunchedAt: "2026-10-24T16:00:00.000Z", finishPunchedAt: "2026-10-24T21:00:00.000Z" }));
+    expect((await state(admin)).guests[0]).toMatchObject({ purchaseCount: 1, checkIn: { source: "START" } });
+    expect((await state(admin)).guests[0]?.checkout).toBeUndefined();
+    // Incheckningen (startstämplingen) tas bort.
+    expect((await change({ kind: "presence-remove", cardNumber: "8123456", presence: "CHECK_IN" })).status).toBe("ok");
+    expect((await state(admin)).guests[0]?.checkIn).toBeUndefined();
+    // En senare målstämpling (efter borttagningen) räknas igen.
+    await ingestDeviceBatch(db, raceId, readout(device, 3, "8123456", [[31, "2026-10-24T19:14:00.000Z"]],
+      { finishPunchedAt: "2099-10-24T23:00:00.000Z" }));
+    expect((await state(admin)).guests[0]?.checkout).toEqual({ at: "2099-10-24T23:00:00.000Z", source: "FINISH" });
+    const audits = await db.select({ action: schema.auditEvents.action }).from(schema.auditEvents).where(eq(schema.auditEvents.raceId, raceId));
+    expect(audits.map(row => row.action)).toEqual(expect.arrayContaining(["PARTY_CHECKOUT_REMOVED", "PARTY_CHECK_IN_REMOVED"]));
+    // Funktionären tar inte bort in- eller utcheckningar (som ångra köp).
+    const functionary = await raceAuth(db, raceId, "FUNCTIONARY");
+    expect((await changePartyAsAdmin(db, { ...functionary, request: { ...remove, requestId: randomUUID() } })).status).toBe("forbidden");
   });
 });

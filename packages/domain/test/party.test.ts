@@ -233,3 +233,29 @@ describe("fest: kvällens sträcktider (steg 42)", () => {
     expect(JSON.stringify(partyPublicStats(ledger, { showNames: false }).splits)).not.toMatch(/Festis|Testa|Påhitt|8123456/);
   });
 });
+
+describe("steg 44: borttagen in- och utcheckning", () => {
+  it("tar bort en utcheckning via mål; samma målstämpling räknas inte igen men en senare gör det", () => {
+    const finished = read("8123456", "2026-10-24T20:00:00.000Z", [[31, "2026-10-24T19:14:00.000Z"]], "2026-10-24T19:59:00.000Z");
+    const deskOut = { cardNumber: "8123456", kind: "CHECK_OUT" as const, at: "2026-10-24T19:30:00.000Z" };
+    const removed = { cardNumber: "8123456", kind: "CHECK_OUT" as const, at: "2026-10-24T20:01:00.000Z" };
+    const before = partyLedger({ startsAt, items, readouts: [finished], deskEvents: [deskOut] });
+    expect(before.guests[0]?.checkout).toEqual({ at: "2026-10-24T19:30:00.000Z", source: "DESK" });
+    const reread = { ...finished, readAt: "2026-10-24T20:10:00.000Z" };
+    const after = partyLedger({ startsAt, items, readouts: [finished, reread], deskEvents: [deskOut], presenceVoids: [removed] });
+    expect(after.guests[0]?.checkout).toBeUndefined();
+    expect(after.guests[0]).toMatchObject({ purchaseCount: 1, checkoutRemovedAt: removed.at });
+    const later = read("8123456", "2026-10-24T23:10:00.000Z", [[31, "2026-10-24T19:14:00.000Z"]], "2026-10-24T23:05:00.000Z");
+    expect(partyLedger({ startsAt, items, readouts: [finished, later], presenceVoids: [removed] }).guests[0]?.checkout)
+      .toEqual({ at: "2026-10-24T23:05:00.000Z", source: "FINISH" });
+  });
+
+  it("tar bort en incheckning (bardisken och självregistrering)", () => {
+    const ledger = partyLedger({ startsAt, items, readouts: [],
+      deskEvents: [{ cardNumber: "8123456", kind: "CHECK_IN", at: "2026-10-24T19:00:00.000Z" }],
+      guests: [{ cardNumber: "8123456", name: "Testa Festsson", selfRegistered: true, selfRegisteredAt: "2026-10-24T18:00:00.000Z" }],
+      presenceVoids: [{ cardNumber: "8123456", kind: "CHECK_IN", at: "2026-10-24T19:05:00.000Z" }] });
+    expect(ledger.guests[0]?.checkIn).toBeUndefined();
+    expect(ledger.guests[0]?.checkInRemovedAt).toBe("2026-10-24T19:05:00.000Z");
+  });
+});

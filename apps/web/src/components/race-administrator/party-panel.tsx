@@ -180,8 +180,16 @@ function PartyWorkspace({ raceId, admin, ws }: { raceId: string; admin: boolean;
           <td>{guest.cardNumber}</td>
           <td className={numeric}>{guest.purchaseCount}</td>
           <td className={numeric}>{formatPartyKronor(guest.totalOre)}</td>
-          <td>{guest.checkIn ? `${at(guest.checkIn.at)} (${text.source[guest.checkIn.source]})` : ""}</td>
-          <td>{guest.checkout ? `${at(guest.checkout.at)} (${text.source[guest.checkout.source]})` : ""}</td>
+          <td>{guest.checkIn ? <>{`${at(guest.checkIn.at)} (${text.source[guest.checkIn.source]})`}
+            {admin ? <PresenceRemove label={text.removeCheckInLabel(guest.cardNumber)} busy={busy}
+              confirm={text.removeCheckInConfirm(guest.cardNumber)} text={text.removeCheckIn}
+              onRemove={() => change({ kind: "presence-remove", cardNumber: guest.cardNumber, presence: "CHECK_IN" }, text.checkInRemoved)} />
+              : null}</> : ""}</td>
+          <td>{guest.checkout ? <>{`${at(guest.checkout.at)} (${text.source[guest.checkout.source]})`}
+            {admin ? <PresenceRemove label={text.removeCheckOutLabel(guest.cardNumber)} busy={busy}
+              confirm={text.removeCheckOutConfirm(guest.cardNumber)} text={text.removeCheckOut}
+              onRemove={() => change({ kind: "presence-remove", cardNumber: guest.cardNumber, presence: "CHECK_OUT" }, text.checkOutRemoved)} />
+              : null}</> : ""}</td>
         </tr>)}</tbody>
       </Table>}
 
@@ -315,3 +323,10 @@ function GuestName({ guest, busy, onSave }: { guest: PartyStateResponse["guests"
   </form>;
 }
 
+
+/** Steg 44: "Ta bort incheckning" / "Ta bort utcheckning" för en gäst, efter bekräftelse. */
+function PresenceRemove({ label, text: buttonText, confirm, busy, onRemove }: { label: string; text: string; confirm: string;
+  busy: boolean; onRemove: () => Promise<boolean> }) {
+  return <button type="button" className={local.linkButton} disabled={busy} aria-label={label}
+    onClick={() => { if (window.confirm(confirm)) void onRemove(); }}>{buttonText}</button>;
+}

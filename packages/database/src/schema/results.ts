@@ -47,7 +47,9 @@ export const cardReadouts = pgTable("card_readout", {
   clearPunchedAt: timestamp("clear_punched_at", { withTimezone: true }),
   /** Migration 0104: vilken klocka tiderna löstes mot och stationens avvikelse från datorn (PLAN.md steg 22); bigint från 0105. */
   clockSource: text("clock_source").$type<"station" | "device">(),
-  clockOffsetMs: bigint("clock_offset_ms", { mode: "number" })
+  clockOffsetMs: bigint("clock_offset_ms", { mode: "number" }),
+  /** Steg 44 (migration 0019): avläsningen kom från övningsstationen; festens köp räknar den inte. */
+  simulated: boolean("simulated").notNull().default(false)
 }, (table) => [
   uniqueIndex("card_readout_raw_uidx").on(table.rawMessageId),
   uniqueIndex("card_readout_resolution_scope_uidx").on(table.id, table.raceId, table.rawMessageId, table.cardNumber)

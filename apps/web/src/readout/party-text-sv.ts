@@ -49,6 +49,9 @@ export const partyText = {
   // Övning.
   exerciseTitle: "Övning: bardisken",
   exerciseHelp: "Stämpla på varorna med en påhittad bricka och läs ut den, som en gäst gör.",
+  // Steg 44: övningens köp sparas som övning och räknas inte.
+  exerciseNotCounted: "Obs! Övningens köp räknas inte i kvällens summering och syns inte på fest-sidan.",
+  exerciseNotCountedShort: "Övning – köpen räknas inte",
   exerciseCard: (card: number) => `Övningsbricka ${card}`,
   exercisePunch: (code: number, name: string) => `Stämpla ${code} (${name})`,
   exerciseFinish: "Stämpla mål",

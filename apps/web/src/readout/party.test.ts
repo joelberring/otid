@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { PartyPackage, SportidentReadoutPayload } from "@o-tid/contracts";
-import { cardEvening, decideReadout, guestName, type DeskKnowledge } from "./party-logic";
+import type { PartyStateResponse } from "@o-tid/contracts";
+import { cardEvening, decideReadout, decideReadouts, guestName, type DeskKnowledge } from "./party-logic";
 import { MemoryPartyActionStore, type QueuedPartyAction } from "./party-store";
 import { syncPartyActions } from "./party-sync";
 import type { QueuedReadout } from "./store";
@@ -55,6 +56,36 @@ describe("bardisken: automatiskt läge", () => {
   it("personalens lägen: redan incheckad och utcheckning i bardisken", () => {
     expect(decideReadout(third, "CHECK_IN", knowledge([first, third], [checkIn]))).toMatchObject({ kind: "ALREADY_IN" });
     expect(decideReadout(third, "CHECK_OUT", knowledge([first, third], [checkIn]))).toMatchObject({ kind: "CHECKED_OUT", enqueue: "CHECK_OUT" });
+  });
+});
+
+describe("steg 44: personalens läge gäller en pinne, och borttagen utcheckning", () => {
+  const first = readout(1, []);
+  const checkIn: QueuedPartyAction = { raceId, requestId: "a", createdAt: "2026-10-24T17:00:00.000Z", status: "pending",
+    action: { kind: "desk", request: { formatVersion: 1, deviceId: device, localSequence: 1, cardNumber: "8123456", kind: "CHECK_IN", at: first.stationReceivedAt } } };
+
+  it("läget Checka ut gäller bara nästa utläsning; nästa pinne går i automatiskt läge", () => {
+    const mine = readout(2, [[31, "2026-10-24T17:30:00.000Z"]]);
+    const next = readout(3, [[31, "2026-10-24T17:30:00.000Z"]], { cardNumber: "8123457" });
+    const decided = decideReadouts([mine, next], "CHECK_OUT", knowledge([first, mine, next], [checkIn]));
+    expect(decided.mode).toBe("AUTO");
+    expect(decided.outcomes.map(row => [row.cardNumber, row.kind, row.enqueue])).toEqual([
+      ["8123456", "CHECKED_OUT", "CHECK_OUT"], ["8123457", "WELCOME", "CHECK_IN"]]);
+    expect(decideReadouts([], "BUY", knowledge([])).mode).toBe("BUY");
+  });
+
+  it("samma målstämpling checkar inte ut igen, och inte alls efter Ta bort utcheckning", () => {
+    const finish = "2026-10-24T21:47:00.000Z";
+    const out = readout(2, [[31, "2026-10-24T17:30:00.000Z"]], { finishPunchedAt: finish });
+    const back = readout(3, [[31, "2026-10-24T17:30:00.000Z"], [32, "2026-10-24T22:10:00.000Z"]], { finishPunchedAt: finish });
+    expect(decideReadout(back, "AUTO", knowledge([first, out, back], [checkIn]))).toMatchObject({ kind: "PURCHASES" });
+    const server = { guests: [{ cardNumber: "8123456", purchaseCount: 1, totalOre: 4_000, checkoutRemovedAt: "2026-10-24T21:50:00.000Z",
+      checkIn: { at: first.stationReceivedAt, source: "DESK" } }], purchases: [] } as unknown as PartyStateResponse;
+    const removed: DeskKnowledge = { party, server, readouts: [first, back], actions: [checkIn] };
+    expect(decideReadout(back, "AUTO", removed)).toMatchObject({ kind: "PURCHASES" });
+    const again = readout(4, [[31, "2026-10-24T17:30:00.000Z"]], { finishPunchedAt: "2026-10-24T23:30:00.000Z" });
+    expect(decideReadout(again, "AUTO", { ...removed, readouts: [first, back, again] }))
+      .toMatchObject({ kind: "CHECKED_OUT", checkedOutAt: "2026-10-24T23:30:00.000Z" });
   });
 });
 

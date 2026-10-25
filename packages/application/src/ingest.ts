@@ -163,7 +163,9 @@ export async function ingestDeviceBatch(
         clearPunchedAt: "clearPunchedAt" in payload && payload.clearPunchedAt ? new Date(payload.clearPunchedAt) : null,
         // Klockan bakom tiderna (PLAN.md steg 22) finns bara i SPORTident-nyttolasten.
         clockSource: event.transport === "sportident" ? event.payload.clockSource ?? null : null,
-        clockOffsetMs: event.transport === "sportident" ? event.payload.clockOffsetMs ?? null : null
+        clockOffsetMs: event.transport === "sportident" ? event.payload.clockOffsetMs ?? null : null,
+        // Steg 44: övningsstationens avläsningar räknas inte som festens köp.
+        simulated: event.transport === "sportident" && event.payload.simulated
       }).returning();
       if (!readoutRow) throw new Error("Normaliserad avläsning kunde inte sparas");
 

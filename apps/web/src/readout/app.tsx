@@ -489,7 +489,8 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
           <button type="button" className="primary" onClick={() => { void connectSerial(); }}>{t.connectSerial}</button>
           {showUsbButton ? <button type="button" className="primary" onClick={() => { void connectUsb(); }}>{t.connectUsb}</button> : null}
           <button type="button" onClick={() => { void connectExercise(); }}>{t.connectExercise}</button>
-          {raceDay ? <small className="exercise-warning">{t.exerciseRaceDayShort}</small> : null}
+          {raceDay ? <small className="exercise-warning" data-testid="exercise-warning-short">
+            {pkg?.party ? partyText.exerciseNotCountedShort : t.exerciseRaceDayShort}</small> : null}
         </>}
       <label className="sound-choice"><input type="checkbox" checked={soundOn} onChange={(event) => {
         setSoundOn(event.target.checked); saveSoundEnabled(event.target.checked);

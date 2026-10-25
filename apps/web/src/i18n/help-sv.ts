@@ -257,11 +257,12 @@ export const helpArticles: readonly HelpArticle[] = [
       [
         "Första utläsningen checkar in gästen. Okänd bricka: gästen väljer sitt namn eller skriver det.",
         "Senare utläsningar visar de nya köpen sedan förra gången och kvällens summa.",
-        "Målenheten checkar ut gästen när det är dags att gå hem.",
-        "”Personal” har lägena ”Checka in”, ”Köp/verifiera” och ”Checka ut” för rättningar."
+        "Målenheten checkar ut gästen när det är dags att gå hem. Samma målstämpling checkar inte ut igen.",
+        "”Personal” har lägena ”Checka in”, ”Köp/verifiera” och ”Checka ut” för rättningar. Läget gäller nästa utläsning, sedan är bardisken automatisk igen."
       ],
       "Köpen sparas på brickan och i plattan även utan nät, och glömda köp kommer med nästa gång.",
-      "I arbetsytan ser du summa per person, ångrar ett köp med orsak och laddar ner CSV för Excel."
+      "Övningsstationens köp räknas inte i summeringen.",
+      "I arbetsytan ser du summa per person, ångrar ett köp med orsak, väljer ”Ta bort incheckning” eller ”Ta bort utcheckning” och laddar ner CSV för Excel."
     ]
   },
   {

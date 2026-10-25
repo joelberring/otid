@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
-import { createRace, publishRace, publishRaceViaApi, registerAccount, reviewScreenshots, today, unique, warmRoute } from "./helpers";
+import { createRace, publishRace, publishRaceViaApi, registerAccount, reviewScreenshots, sendReadout, today, unique, warmRoute } from "./helpers";
 
 /**
  * Steg 40: fest med bardisk, hela kvällen i automatiskt läge i ett fönster. Festen och två varor läggs in, bardisken
@@ -62,8 +62,12 @@ test("fest: bardisken checkar in, verifierar köp och checkar ut med mål", asyn
   await desk.waitForURL(`**/readout/index.html#${raceId}`);
   await expect(desk.getByRole("heading", { name: "Bardisken" })).toBeVisible();
   await expect(desk.getByTestId("package-status")).toContainText("v");
+  await expect(desk.getByTestId("exercise-warning-short")).toHaveText("Övning – köpen räknas inte");
   await desk.getByRole("button", { name: "Starta övningsstation" }).click();
   await expect(desk.getByTestId("station-status")).toContainText("Övningsstation");
+  // Steg 44: övningens köp räknas inte i kvällens summering.
+  await expect(desk.getByTestId("party-exercise-warning")).toContainText("räknas inte i kvällens summering");
+  const festaCard = /(\d{7})/.exec(await desk.getByTestId("party-exercise-card").textContent() ?? "")![1]!;
   const verdict = desk.getByTestId("party-verdict");
   await expect(verdict).toContainText("Stämpla på varans enhet");
   await expect(desk.locator(".party-band")).toHaveText("Jubileumsbaren");
@@ -125,8 +129,15 @@ test("fest: bardisken checkar in, verifierar köp och checkar ut med mål", asyn
   await expect(nameBox).toHaveCount(0);
   await expect(desk.getByTestId("queue-status")).toHaveText("0 väntar", { timeout: 30_000 });
 
-  // Arbetsytan: köpen, summa per person, in- och utcheckade och export.
+  // Arbetsytan: övningens köp räknas inte (steg 44), men namnen och bardiskens incheckningar finns.
   await owner.bringToFront();
+  await expect(owner.getByTestId("party-totals")).toContainText("0 köp · 0,00 kr · 2 incheckade · 0 utcheckade", { timeout: 20_000 });
+  // Samma pinne läst ut på riktigt (med råramar): två köp och målstämpling.
+  const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
+  const festaPunches = [{ code: 31, punchedAt: minutesAgo(3) }, { code: 32, punchedAt: minutesAgo(2) }];
+  await sendReadout(owner, raceId, { cardNumber: festaCard, cardType: "SIAC", frames: ["02ef0100"], finishPunchedAt: minutesAgo(1),
+    punches: festaPunches });
+  // Arbetsytan: köpen, summa per person, in- och utcheckade och export.
   await expect(owner.getByTestId("party-totals")).toContainText("2 köp · 100,00 kr", { timeout: 20_000 });
   await expect(owner.getByTestId("party-totals")).toContainText("2 incheckade · 1 utcheckade");
   const festa = owner.locator("tr[data-card]").filter({ hasText: "Festa Påhittsson" });
@@ -145,6 +156,18 @@ test("fest: bardisken checkar in, verifierar köp och checkar ut med mål", asyn
   await owner.getByRole("button", { name: /^Ångra Öl på bricka/ }).click();
   await expect(owner.getByTestId("party-totals")).toContainText("1 köp · 60,00 kr");
   await expect(owner.getByTestId("party-purchases")).toContainText("ångrat: Fel enhet");
+
+  // Steg 44: "Ta bort utcheckning" (här via mål): samma målstämpling räknas inte igen, en senare gör det.
+  owner.once("dialog", dialog => void dialog.accept());
+  await owner.getByRole("button", { name: `Ta bort utcheckning för pinne ${festaCard}` }).click();
+  await expect(owner.getByText("Utcheckningen är borttagen.")).toBeVisible();
+  await expect(owner.getByTestId("party-totals")).toContainText("2 incheckade · 0 utcheckade");
+  const festaRow = owner.locator("tr[data-card]").filter({ hasText: "Festa Påhittsson" });
+  await expect(festaRow).not.toContainText("(mål)");
+  await sendReadout(owner, raceId, { cardNumber: festaCard, cardType: "SIAC", frames: ["02ef0100"],
+    finishPunchedAt: new Date(Date.now() + 2_000).toISOString(), punches: festaPunches });
+  await expect(owner.getByTestId("party-totals")).toContainText("2 incheckade · 1 utcheckade", { timeout: 20_000 });
+  await expect(festaRow).toContainText("(mål)");
 
   // Steg 42: självregistreringen på, så att "Registrera din pinne" finns i raden under rubriken.
   await owner.getByLabel("Tillåt självregistrering på tävlingsdagen").click();

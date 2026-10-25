@@ -64,7 +64,10 @@ export const partyGuestSummarySchema = z.object({
   /** Steg 41: gästen registrerade pinnen själv på fest-sidan. */
   selfRegistered: z.boolean().optional(),
   /** Steg 41: visningsnamnet som valts (saknas = förnamn + efternamnets första bokstav). */
-  displayName: partyDisplayNameSchema.optional()
+  displayName: partyDisplayNameSchema.optional(),
+  /** Steg 44: senast borttagna incheckning och utcheckning; stämplingar till och med dem räknas inte. */
+  checkInRemovedAt: instant.optional(),
+  checkoutRemovedAt: instant.optional()
 }).strict();
 
 export const partyStateResponseSchema = z.object({
@@ -93,7 +96,9 @@ export const partyChangeRequestSchema = z.object({
     z.object({ kind: z.literal("void"), cardNumber, code: partyControlCodeSchema, punchedAt: instant,
       reason: z.string().trim().min(1).max(300) }).strict(),
     /** Steg 41: koppla bort pinnen från gästens namn (t.ex. en felaktig självregistrering). Köpen ligger kvar på brickan. */
-    z.object({ kind: z.literal("guest-remove"), cardNumber }).strict()
+    z.object({ kind: z.literal("guest-remove"), cardNumber }).strict(),
+    /** Steg 44: "Ta bort incheckning" / "Ta bort utcheckning" (även via start- eller målstämpling). En ny rad. */
+    z.object({ kind: z.literal("presence-remove"), cardNumber, presence: z.enum(["CHECK_IN", "CHECK_OUT"]) }).strict()
   ])
 }).strict();
 

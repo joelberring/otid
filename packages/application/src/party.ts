@@ -61,10 +61,13 @@ export async function loadPartyState(tx: DbExecutor, raceId: string, now: Date):
   const startsAt = setting ? iso(setting.startsAt) : undefined;
   const readouts = await tx.select({ cardNumber: schema.cardReadouts.cardNumber, readAt: schema.cardReadouts.readAt,
     startPunchedAt: schema.cardReadouts.startPunchedAt, finishPunchedAt: schema.cardReadouts.finishPunchedAt, punches: schema.cardReadouts.punches })
-    .from(schema.cardReadouts).where(eq(schema.cardReadouts.raceId, raceId)).orderBy(asc(schema.cardReadouts.readAt));
+    // Steg 44: övningsstationens avläsningar är inga köp.
+    .from(schema.cardReadouts).where(and(eq(schema.cardReadouts.raceId, raceId), eq(schema.cardReadouts.simulated, false)))
+    .orderBy(asc(schema.cardReadouts.readAt));
   const deskEvents = await tx.select().from(schema.partyDeskEvents).where(eq(schema.partyDeskEvents.raceId, raceId));
   const voids = await tx.select().from(schema.partyPurchaseVoids).where(eq(schema.partyPurchaseVoids.raceId, raceId));
   const guests = await tx.select().from(schema.partyGuests).where(eq(schema.partyGuests.raceId, raceId));
+  const presenceVoids = await tx.select().from(schema.partyPresenceVoids).where(eq(schema.partyPresenceVoids.raceId, raceId));
   const doublePunchSeconds = setting?.doublePunchSeconds ?? PARTY_DOUBLE_PUNCH_SECONDS;
   const ledger = partyLedger({ startsAt, items, doublePunchSeconds,
     readouts: readouts.map(row => ({ cardNumber: row.cardNumber, readAt: iso(row.readAt),
@@ -74,6 +77,7 @@ export async function loadPartyState(tx: DbExecutor, raceId: string, now: Date):
     deskEvents: deskEvents.map(row => ({ cardNumber: row.cardNumber, kind: row.kind, at: iso(row.happenedAt) })),
     voids: voids.map(row => ({ cardNumber: row.cardNumber, code: row.controlCode, punchedAt: iso(row.punchedAt), reason: row.reason,
       voidedAt: iso(row.createdAt) })),
+    presenceVoids: presenceVoids.map(row => ({ cardNumber: row.cardNumber, kind: row.kind, at: iso(row.voidedAt) })),
     guests: guests.map(row => ({ cardNumber: row.cardNumber, name: row.name, ...(row.club ? { club: row.club } : {}),
       ...(row.selfRegisteredAt ? { selfRegistered: true, selfRegisteredAt: row.selfRegisteredAt.toISOString() } : {}), ...(row.displayName ? { displayName: row.displayName } : {}) })) });
   return partyStateResponseSchema.parse({ formatVersion: 1, raceId, timeZone: race.timeZone, startsAt: startsAt ?? null, items,
@@ -158,6 +162,20 @@ export async function changePartyAsAdmin(db: Database, input: RaceSessionProof &
       if (removed) {
         await audit(raceId, "PARTY_GUEST_REMOVED", { cardNumber: removed.cardNumber, name: removed.name, club: removed.club,
           selfRegistered: removed.selfRegisteredAt !== null }, { cardNumber: removed.cardNumber });
+      }
+    } else if (change.kind === "presence-remove") {
+      // Steg 44: en ny rad; in- eller utcheckningar för brickan till och med nu räknas inte. Samma begäran igen: samma läge.
+      const inserted = await tx.insert(schema.partyPresenceVoids).values({ raceId, requestId, cardNumber: change.cardNumber,
+        kind: change.presence, voidedAt: now, actorAccountId: auth.principal.accountId }).onConflictDoNothing()
+        .returning({ id: schema.partyPresenceVoids.id });
+      if (inserted[0]) {
+        await audit(inserted[0].id, change.presence === "CHECK_IN" ? "PARTY_CHECK_IN_REMOVED" : "PARTY_CHECKOUT_REMOVED", null,
+          { cardNumber: change.cardNumber, voidedAt: iso(now) });
+      } else {
+        const [prior] = await tx.select().from(schema.partyPresenceVoids).where(eq(schema.partyPresenceVoids.requestId, requestId));
+        if (!prior || prior.raceId !== raceId || prior.cardNumber !== change.cardNumber || prior.kind !== change.presence) {
+          return { status: "conflict" };
+        }
       }
     } else {
       const inserted = await tx.insert(schema.partyPurchaseVoids).values({ raceId, cardNumber: change.cardNumber, controlCode: change.code,

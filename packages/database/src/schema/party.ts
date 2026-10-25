@@ -88,6 +88,24 @@ export const partyPurchaseVoids = pgTable("party_purchase_void", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull()
 }, (table) => [uniqueIndex("party_purchase_void_uidx").on(table.raceId, table.cardNumber, table.controlCode, table.punchedAt)]);
 
+/**
+ * Steg 44: "Ta bort incheckning" / "Ta bort utcheckning" för en gäst. In- eller utcheckningar för brickan till och med
+ * `voidedAt` räknas inte (även startstämpling, målstämpling och självregistrering); senare räknas igen.
+ */
+export const partyPresenceVoids = pgTable("party_presence_void", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  raceId: uuid("race_id").notNull().references(() => races.id),
+  requestId: uuid("request_id").notNull(),
+  cardNumber: text("card_number").notNull(),
+  kind: text("kind").$type<"CHECK_IN" | "CHECK_OUT">().notNull(),
+  voidedAt: timestamp("voided_at", { withTimezone: true }).notNull(),
+  actorAccountId: uuid("actor_account_id").notNull()
+}, (table) => [
+  uniqueIndex("party_presence_void_request_uidx").on(table.requestId),
+  index("party_presence_void_race_idx").on(table.raceId, table.cardNumber),
+  check("party_presence_void_kind_check", sql`${table.kind} IN ('CHECK_IN', 'CHECK_OUT')`)
+]);
+
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => "bytea" });
 
 /** Festens logga (PNG eller JPEG, högst 1 MB), som kartbilderna. */

@@ -12,6 +12,8 @@
  *   Clear- och checkstämpling räknas inte. Den tidigaste gäller.
  * - Utcheckning: målstämpling efter festens start (källa "Mål", tiden är målstämplingens) eller bardiskens läge
  *   "Checka ut" (källa "Bardisken", utläsningens tid). Den tidigaste gäller.
+ * - Steg 44: "Ta bort incheckning" och "Ta bort utcheckning" gör att brickans in- respektive utcheckningar till och
+ *   med den tiden inte räknas (även start- och målstämpling på brickan); senare räknas igen.
  * - Ett köp med stämplingstid efter utcheckningen räknas men märks "efter utcheckning".
  * - Ett ångrat köp står kvar i listan med orsak men räknas inte i summan.
  * - Belopp i öre som heltal.
@@ -60,6 +62,13 @@ export interface PartyGuest {
 
 /** In- eller utcheckning i bardisken. */
 export interface PartyDeskEvent {
+  readonly cardNumber: string;
+  readonly kind: "CHECK_IN" | "CHECK_OUT";
+  readonly at: string;
+}
+
+/** Steg 44: borttagen in- eller utcheckning. Brickans in- respektive utcheckningar till och med `at` räknas inte. */
+export interface PartyPresenceVoid {
   readonly cardNumber: string;
   readonly kind: "CHECK_IN" | "CHECK_OUT";
   readonly at: string;
@@ -117,6 +126,9 @@ export interface PartyGuestSummary {
   readonly selfRegistered?: boolean | undefined;
   /** Steg 41: visningsnamnet som gästen eller personalen valt (inte förvalet). */
   readonly displayName?: string | undefined;
+  /** Steg 44: senast borttagna incheckning och utcheckning (bardisken bortser från stämplingar till och med dem). */
+  readonly checkInRemovedAt?: string | undefined;
+  readonly checkoutRemovedAt?: string | undefined;
 }
 
 export const PARTY_DISPLAY_NAME_MAX = 40;
@@ -151,6 +163,7 @@ export interface PartyLedgerInput {
   readonly readouts: readonly PartyReadout[];
   readonly deskEvents?: readonly PartyDeskEvent[];
   readonly voids?: readonly PartyVoid[];
+  readonly presenceVoids?: readonly PartyPresenceVoid[];
   readonly guests?: readonly PartyGuest[];
   /** Dubbelstämpling inom (sekunder); förval 5. */
   readonly doublePunchSeconds?: number;
@@ -234,10 +247,28 @@ function earliest(left: PartyPresence | undefined, right: PartyPresence): PartyP
 }
 
 /** Hela kvällen: köpen ur alla utläsningar, utcheckningar, ångrade köp och summor per gäst. */
+/** Senaste borttagningen per bricka och slag (steg 44). */
+function presenceVoidTimes(rows: readonly PartyPresenceVoid[]): Map<string, string> {
+  const latest = new Map<string, string>();
+  for (const row of rows) {
+    const key = `${row.kind}:${row.cardNumber}`;
+    const current = latest.get(key);
+    if (current === undefined || ms(row.at) > ms(current)) latest.set(key, row.at);
+  }
+  return latest;
+}
+
 export function partyLedger(input: PartyLedgerInput): PartyLedger {
   const checkouts = new Map<string, PartyPresence>();
   const checkIns = new Map<string, PartyPresence>();
+  const removed = presenceVoidTimes(input.presenceVoids ?? []);
+  // En in- eller utcheckning till och med borttagningen räknas inte (steg 44).
+  const counts = (kind: "CHECK_IN" | "CHECK_OUT", cardNumber: string, at: string) => {
+    const voidedAt = removed.get(`${kind}:${cardNumber}`);
+    return voidedAt === undefined || ms(at) > ms(voidedAt);
+  };
   for (const row of input.deskEvents ?? []) {
+    if (!counts(row.kind, row.cardNumber, row.at)) continue;
     const target = row.kind === "CHECK_IN" ? checkIns : checkouts;
     target.set(row.cardNumber, earliest(target.get(row.cardNumber), { at: row.at, source: "DESK" }));
   }
@@ -247,9 +278,11 @@ export function partyLedger(input: PartyLedgerInput): PartyLedger {
   for (const readout of readouts) {
     lastRead.set(readout.cardNumber, readout);
     const finish = partyFinishCheckout(readout, input.startsAt);
-    if (finish) checkouts.set(readout.cardNumber, earliest(checkouts.get(readout.cardNumber), { at: finish, source: "FINISH" }));
+    if (finish && counts("CHECK_OUT", readout.cardNumber, finish)) {
+      checkouts.set(readout.cardNumber, earliest(checkouts.get(readout.cardNumber), { at: finish, source: "FINISH" }));
+    }
     const arrived = partyStartCheckIn(readout, input.startsAt);
-    if (arrived) checkIns.set(readout.cardNumber, earliest(checkIns.get(readout.cardNumber), { at: arrived, source: "START" }));
+    if (arrived && counts("CHECK_IN", readout.cardNumber, arrived)) checkIns.set(readout.cardNumber, earliest(checkIns.get(readout.cardNumber), { at: arrived, source: "START" }));
     for (const purchase of partyPurchasesOnCard(readout, input.items, input.startsAt, input.doublePunchSeconds)) {
       const key = partyPurchaseKey(purchase.cardNumber, purchase.code, purchase.punchedAt);
       if (!purchases.has(key)) purchases.set(key, purchase);
@@ -269,9 +302,11 @@ export function partyLedger(input: PartyLedgerInput): PartyLedger {
     const registered = guest.selfRegisteredAt;
     if (registered === undefined) continue;
     const at = input.startsAt !== undefined && ms(registered) < ms(input.startsAt) ? input.startsAt : registered;
+    if (!counts("CHECK_IN", guest.cardNumber, at)) continue;
     checkIns.set(guest.cardNumber, earliest(checkIns.get(guest.cardNumber), { at, source: "SELF" }));
   }
-  const cards = new Set([...rows.map(row => row.cardNumber), ...checkIns.keys(), ...checkouts.keys(), ...names.keys()]);
+  const cards = new Set([...rows.map(row => row.cardNumber), ...checkIns.keys(), ...checkouts.keys(), ...names.keys(),
+    ...(input.presenceVoids ?? []).map(row => row.cardNumber)]);
   const guests = [...cards].map((cardNumber): PartyGuestSummary => {
     const counted = rows.filter(row => row.cardNumber === cardNumber && !row.voided);
     const guest = names.get(cardNumber);
@@ -283,7 +318,9 @@ export function partyLedger(input: PartyLedgerInput): PartyLedger {
       ...(checkouts.has(cardNumber) ? { checkout: checkouts.get(cardNumber) } : {}),
       ...(last && capacity !== undefined ? { memory: { punches: last.punches.length, capacity } } : {}),
       ...(last ? { lastReadAt: last.readAt } : {}), ...(guest?.selfRegistered ? { selfRegistered: true } : {}),
-      ...(guest?.displayName ? { displayName: guest.displayName } : {}) };
+      ...(guest?.displayName ? { displayName: guest.displayName } : {}),
+      ...(removed.has(`CHECK_IN:${cardNumber}`) ? { checkInRemovedAt: removed.get(`CHECK_IN:${cardNumber}`) } : {}),
+      ...(removed.has(`CHECK_OUT:${cardNumber}`) ? { checkoutRemovedAt: removed.get(`CHECK_OUT:${cardNumber}`) } : {}) };
   }).sort((left, right) => (left.name ?? "￿").localeCompare(right.name ?? "￿", "sv") ||
     Number(left.cardNumber) - Number(right.cardNumber));
   const counted = rows.filter(row => !row.voided);

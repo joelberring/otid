@@ -3,7 +3,7 @@ import type { PartyPackage, PartyStateResponse, ReadoutPackage } from "@o-tid/co
 import { formatPartyKronor, type PartyPurchase } from "@o-tid/domain";
 import { stationClock, type SimulatedCard } from "@o-tid/sportident";
 import type { FakeStationTransport } from "./fake-transport";
-import { cardEvening, cardNearlyFull, decideReadout, guestName, type DeskKnowledge, type DeskMode, type DeskOutcome } from "./party-logic";
+import { cardEvening, cardNearlyFull, decideReadouts, guestName, type DeskKnowledge, type DeskMode, type DeskOutcome } from "./party-logic";
 import type { PartyAction, QueuedPartyAction } from "./party-store";
 import { fetchPartyState } from "./party-sync";
 import { partyText as t } from "./party-text-sv";
@@ -20,6 +20,8 @@ import { partyLook, partyThemeStyle } from "../lib/party-theme-style";
 const POLL_MS = 5_000;
 const STAFF_TIMEOUT_MS = 30_000;
 const NAME_TIMEOUT_MS = 60_000;
+/** Steg 44: namnrutan stänger tidigare när andra utläsningar väntar på att visas. */
+const NAME_TIMEOUT_QUEUED_MS = 20_000;
 const ADVANCE_MS = 3_000;
 
 export interface PartyDeskProps {
@@ -105,8 +107,11 @@ export function PartyDesk(props: PartyDeskProps) {
     for (const item of items) seen.current.add(item.localSequence);
     if (fresh.length === 0) return;
     const next = new Map(outcomesRef.current);
-    for (const item of fresh) {
-      const outcome = decideReadout(item, modeRef.current, knowledgeRef.current);
+    // Steg 44: personalens läge gäller en utläsning; sedan automatiskt igen.
+    const decided = decideReadouts(fresh, modeRef.current, knowledgeRef.current);
+    if (decided.mode !== modeRef.current) { modeRef.current = decided.mode; setMode(decided.mode); }
+    for (const [index, item] of fresh.entries()) {
+      const outcome = decided.outcomes[index]!;
       next.set(item.localSequence, outcome);
       if (outcome.enqueue) {
         const kind = outcome.enqueue;
@@ -143,12 +148,14 @@ export function PartyDesk(props: PartyDeskProps) {
     return () => clearTimeout(timer);
   }, [naming, waiting, display, shown]);
 
-  // Namnrutan stängs själv efter 60 sekunder; köpen finns kvar på brickan.
+  // Namnrutan stängs själv efter 60 sekunder (20 när andra utläsningar väntar); köpen finns kvar på brickan.
+  const queued = waiting.length > 0;
+  const nameTimeoutMs = queued ? NAME_TIMEOUT_QUEUED_MS : NAME_TIMEOUT_MS;
   useEffect(() => {
     if (!naming) return;
-    const timer = setTimeout(() => setNaming(undefined), NAME_TIMEOUT_MS);
+    const timer = setTimeout(() => setNaming(undefined), nameTimeoutMs);
     return () => clearTimeout(timer);
-  }, [naming]);
+  }, [naming, nameTimeoutMs]);
 
   const outcome = shown === undefined ? undefined : outcomes.get(shown);
   const shownItem = shown === undefined ? undefined : items.find(item => item.localSequence === shown);
@@ -181,7 +188,7 @@ export function PartyDesk(props: PartyDeskProps) {
     </section>
 
     {naming ? <PartyNameBox key={naming.localSequence} card={naming.card} pkg={pkg} server={server}
-      current={guestName(naming.card, knowledge)} closesInMs={NAME_TIMEOUT_MS}
+      current={guestName(naming.card, knowledge)} closesInMs={nameTimeoutMs}
       onSave={(name, club, displayName) => saveName(naming.card, name, club, displayName)} onSkip={() => { skipped.current.add(naming.card); setNaming(undefined); }} /> : null}
     {waiting.length > 0 ? <p className="hint" data-testid="party-waiting">{t.waitingToShow(waiting.length)}</p> : null}
 
@@ -265,6 +272,7 @@ function PartyExercise({ transport, pkg, items, timeZone }: { transport: FakeSta
   function guest(number: number) { setCard(number); setPunches([]); setFinish(undefined); }
   return <section className="exercise" aria-label={t.exerciseTitle}>
     <h2>{t.exerciseTitle}</h2>
+    <p className="notice" role="alert" data-testid="party-exercise-warning">{t.exerciseNotCounted}</p>
     <p>{t.exerciseHelp}</p>
     <p data-testid="party-exercise-card">{t.exerciseCard(card)}</p>
     <div className="row">

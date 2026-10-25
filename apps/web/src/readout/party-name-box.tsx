@@ -27,6 +27,8 @@ export function PartyNameBox({ card, pkg, server, current, closesInMs, onSave, o
     const timer = setInterval(() => setLeft(value => Math.max(0, value - 1)), 1_000);
     return () => clearInterval(timer);
   }, []);
+  // Steg 44: kortare tid när andra utläsningar väntar (räknas från då kön uppstod).
+  useEffect(() => setLeft(value => Math.min(value, Math.round(closesInMs / 1_000))), [closesInMs]);
   const suggestions = useMemo(() => {
     const rows: Suggestion[] = [];
     if (exact) rows.push({ key: "exact", name: `${exact.givenName} ${exact.familyName}`, club: exact.club ?? null, exact: true });

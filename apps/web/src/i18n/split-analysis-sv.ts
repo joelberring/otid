@@ -44,6 +44,8 @@ export const splitAnalysisSv = {
 export const routeChoiceSv = {
   title: (leg: string) => `Vägval ${leg}`,
   back: "Till sträcktidsanalysen",
+  courseStart: "Start",
+  courseFinish: "Mål",
   intro: "Löparens väg på sträckan enligt GPS-klockan, kopplad till stämplingstiderna. Andra löpares vägval på samma sträcka visas tunnare.",
   map: "Karta med vägval",
   zoomIn: "Zooma in", zoomOut: "Zooma ut", fitLeg: "Hela sträckan", fitMap: "Hela kartan",

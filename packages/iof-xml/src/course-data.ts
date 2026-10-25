@@ -21,7 +21,16 @@ export interface CourseVariantImport {
   readonly lengthMeters?: number;
 }
 
+/** Steg 49: ett läge i WGS 84 (IOF `Position lat/lng`). */
+export interface GeoPosition {
+  readonly latitude: number;
+  readonly longitude: number;
+}
+
 export interface CourseImport {
+  /** Steg 49: startens och målets lägen när banfilen har dem. */
+  readonly startPosition?: GeoPosition;
+  readonly finishPosition?: GeoPosition;
   readonly externalId: string;
   readonly name: string;
   /** Tom för en gafflad bana; kontrollerna finns då i varianterna. */
@@ -61,6 +70,8 @@ export interface CourseDataImport {
   readonly assignments: readonly ClassCourseImport[];
   readonly personAssignments: readonly PersonCourseAssignmentImport[];
   readonly teamAssignments: readonly TeamCourseAssignmentImport[];
+  /** Steg 49: kontrollernas lägen (IOF `Control/Position`) när banfilen har dem. */
+  readonly controlPositions: readonly ({ readonly code: number } & GeoPosition)[];
   readonly warnings: readonly string[];
 }
 
@@ -77,6 +88,9 @@ export function courseVariantCode(familyName: string, courseName: string): strin
 }
 
 interface ParsedCourse {
+  readonly computedMeters?: number;
+  readonly startPosition?: GeoPosition;
+  readonly finishPosition?: GeoPosition;
   readonly externalId: string;
   readonly name: string;
   readonly family: string;
@@ -97,6 +111,58 @@ function meters(value: unknown, path: string, warnings: string[], minimum: numbe
   return Math.round(parsed);
 }
 
+/** IOF `Position` (lat/lng i WGS 84); ett ogiltigt läge räknas som saknat. */
+function geoPosition(value: unknown): GeoPosition | undefined {
+  const position = record(value);
+  const latitude = Number(text(position["@_lat"])), longitude = Number(text(position["@_lng"]));
+  if (!text(position["@_lat"]) || !text(position["@_lng"]) || !Number.isFinite(latitude) || !Number.isFinite(longitude) ||
+      Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return undefined;
+  return { latitude, longitude };
+}
+
+/** IOF `MapPosition` i millimeter på kartan (`unit` mm, standard). */
+function mapPosition(value: unknown): { x: number; y: number } | undefined {
+  const position = record(value);
+  const x = Number(text(position["@_x"])), y = Number(text(position["@_y"]));
+  const unit = text(position["@_unit"]) || "mm";
+  if (!text(position["@_x"]) || !Number.isFinite(x) || !Number.isFinite(y) || unit !== "mm") return undefined;
+  return { x, y };
+}
+
+/** Avstånd i meter mellan två lägen (storcirkel). */
+function geoDistance(from: GeoPosition, to: GeoPosition): number {
+  const rad = Math.PI / 180, earth = 6_371_008.8;
+  const dLat = (to.latitude - from.latitude) * rad, dLng = (to.longitude - from.longitude) * rad;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(from.latitude * rad) * Math.cos(to.latitude * rad) * Math.sin(dLng / 2) ** 2;
+  return 2 * earth * Math.asin(Math.min(1, Math.sqrt(a)));
+}
+
+/**
+ * Steg 49: banans längd ur lägena när filen saknar Length: start, kontroller och mål i WGS 84, annars kartlägena med
+ * kartans skala. Undefined när något läge saknas.
+ */
+function lengthFromPositions(points: readonly (GeoPosition | undefined)[], mapPoints: readonly ({ x: number; y: number } | undefined)[],
+  scale: number | undefined): number | undefined {
+  const sum = <T>(list: readonly (T | undefined)[], distance: (a: T, b: T) => number) => {
+    if (list.length < 2 || list.some((point) => point === undefined)) return undefined;
+    let total = 0;
+    for (let index = 1; index < list.length; index += 1) total += distance(list[index - 1]!, list[index]!);
+    return total;
+  };
+  const geo = sum(points, geoDistance);
+  const map = scale === undefined ? undefined : sum(mapPoints, (a, b) => Math.hypot(b.x - a.x, b.y - a.y) * scale / 1000);
+  const meters = geo ?? map;
+  return meters === undefined || meters < 1 ? undefined : Math.round(meters);
+}
+
+/** Variantens längd: filens Length, annars räknad ur lägena (steg 49). */
+const variantLength = (course: ParsedCourse) => {
+  const value = course.lengthMeters !== undefined && course.lengthMeters > 0 ? course.lengthMeters : course.computedMeters;
+  return value === undefined ? {} : { lengthMeters: value };
+};
+const placed = (course: ParsedCourse) => ({ ...(course.startPosition ? { startPosition: course.startPosition } : {}),
+  ...(course.finishPosition ? { finishPosition: course.finishPosition } : {}) });
+
 function measured(lengthMeters: number | undefined, climbMeters: number | undefined) {
   return { ...(lengthMeters !== undefined && lengthMeters > 0 ? { lengthMeters } : {}), ...(climbMeters !== undefined ? { climbMeters } : {}) };
 }
@@ -108,6 +174,7 @@ export function readCourseData(root: XmlRecord): CourseDataImport {
   const assignments: ClassCourseImport[] = [];
   const personAssignments: PersonCourseAssignmentImport[] = [];
   const teamAssignments: TeamCourseAssignmentImport[] = [];
+  const controlPositions: ({ code: number } & GeoPosition)[] = [];
 
   for (const [raceIndex, rawRaceData] of array(root.RaceCourseData).entries()) {
     const raceData = record(rawRaceData);
@@ -118,11 +185,20 @@ export function readCourseData(root: XmlRecord): CourseDataImport {
       issues
     );
     const controls = new Map<string, number>();
+    // Steg 49: lägen per kontroll-id (även start och mål) och kartans skala.
+    const positions = new Map<string, GeoPosition>();
+    const mapPositions = new Map<string, { x: number; y: number }>();
+    const scaleText = text(record(array(raceData.Map)[0]).Scale);
+    const scale = scaleText && Number.isFinite(Number(scaleText)) && Number(scaleText) > 0 ? Number(scaleText) : undefined;
     for (const [index, rawControl] of array(raceData.Control).entries()) {
       const control = record(rawControl);
       const externalId = requireText(control.Id, `RaceCourseData[${raceIndex}].Control[${index}].Id`, issues);
       const controlType = text(control["@_type"] || "Control");
       const code = Number(externalId);
+      const position = geoPosition(control.Position);
+      if (position) positions.set(externalId, position);
+      const onMap = mapPosition(control.MapPosition);
+      if (onMap) mapPositions.set(externalId, onMap);
       if (controlType === "Control" && (!Number.isInteger(code) || code <= 0)) {
         issues.push(`RaceCourseData[${raceIndex}].Control[${index}].Id måste vara en positiv kontrollkod`);
       } else if (controlType === "Control") {
@@ -158,7 +234,15 @@ export function readCourseData(root: XmlRecord): CourseDataImport {
         });
       if (controlCodes.length === 0) issues.push(`${path} saknar vanliga kontroller`);
       if (array(course.CourseControl).length < 2) issues.push(`${path} måste ha minst två CourseControl enligt IOF XML 3.0`);
-      return { externalId, name, family, controlCodes,
+      const ids = array(course.CourseControl).map(record).map((courseControl) => ({ type: text(courseControl["@_type"] || "Control"),
+        id: text(courseControl.Control) }));
+      const startId = ids.find((entry) => entry.type === "Start")?.id, finishId = [...ids].reverse().find((entry) => entry.type === "Finish")?.id;
+      const startPosition = startId ? positions.get(startId) : undefined, finishPosition = finishId ? positions.get(finishId) : undefined;
+      const routeIds = ids.filter((entry) => entry.type === "Start" || entry.type === "Control" || entry.type === "Finish").map((entry) => entry.id);
+      // Längden ur lägena används bara för att jämföra varianter; banans längd är filens Length.
+      const computedMeters = lengthFromPositions(routeIds.map((id) => positions.get(id)), routeIds.map((id) => mapPositions.get(id)), scale);
+      return { externalId, name, family, controlCodes, ...(startPosition ? { startPosition } : {}), ...(finishPosition ? { finishPosition } : {}),
+        ...(computedMeters === undefined ? {} : { computedMeters }),
         ...measured(meters(course.Length, `${path}.Length`, warnings, 0), meters(course.Climb, `${path}.Climb`, warnings, 0)) };
     });
 
@@ -168,7 +252,7 @@ export function readCourseData(root: XmlRecord): CourseDataImport {
     for (const course of parsed) {
       if (!course.family) {
         raceCourses.push({ externalId: course.externalId, name: course.name, controlCodes: course.controlCodes,
-          ...measured(course.lengthMeters, course.climbMeters) });
+          ...placed(course), ...measured(course.lengthMeters, course.climbMeters) });
         courseByName.set(course.name, { externalId: course.externalId });
       } else {
         families.set(course.family, [...families.get(course.family) ?? [], course]);
@@ -177,18 +261,23 @@ export function readCourseData(root: XmlRecord): CourseDataImport {
     for (const [family, members] of families) {
       const externalId = `${FAMILY_PREFIX}${family}`;
       const variants = members.map((member) => ({ code: courseVariantCode(family, member.name), controlCodes: member.controlCodes,
-        ...(member.lengthMeters !== undefined && member.lengthMeters > 0 ? { lengthMeters: member.lengthMeters } : {}) }));
+        ...variantLength(member) }));
       const codes = new Set(variants.map((variant) => variant.code));
       if (codes.size !== variants.length) issues.push(`CourseFamily ${family} har varianter med samma kod`);
       if (variants.length > MAX_VARIANTS) issues.push(`CourseFamily ${family} får ha högst ${MAX_VARIANTS} varianter`);
       for (const variant of variants) if (variant.code.length > 32) issues.push(`Variantkoden ${variant.code} är för lång`);
       if (family.length > 160) issues.push(`CourseFamily ${family} är för långt`);
       const longest = [...members].sort((left, right) => (right.lengthMeters ?? 0) - (left.lengthMeters ?? 0))[0];
-      raceCourses.push({ externalId, name: family, controlCodes: [], variants, ...measured(longest?.lengthMeters, longest?.climbMeters) });
+      raceCourses.push({ externalId, name: family, controlCodes: [], variants, ...(members[0] ? placed(members[0]) : {}),
+        ...measured(longest?.lengthMeters, longest?.climbMeters) });
       courseByName.set(family, { externalId });
       for (const [index, member] of members.entries()) courseByName.set(member.name, { externalId, variantCode: variants[index]!.code });
     }
     courses.push(...raceCourses);
+    for (const [externalId, code] of controls) {
+      const position = positions.get(externalId);
+      if (position && !controlPositions.some((known) => known.code === code)) controlPositions.push({ code, ...position });
+    }
 
     for (const [index, rawAssignment] of array(raceData.ClassCourseAssignment).entries()) {
       const assignment = record(rawAssignment);
@@ -278,5 +367,5 @@ export function readCourseData(root: XmlRecord): CourseDataImport {
   if (courses.length === 0 && personAssignments.length === 0 && teamAssignments.length === 0) issues.push("RaceCourseData.Course saknas");
   if (courses.length > 0 && assignments.length === 0) warnings.push("Inga ClassCourseAssignment hittades");
   if (issues.length > 0) throw new IofValidationError(issues);
-  return { kind: "CourseData", courses, assignments, personAssignments, teamAssignments, warnings };
+  return { kind: "CourseData", courses, assignments, personAssignments, teamAssignments, controlPositions, warnings };
 }

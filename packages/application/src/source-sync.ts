@@ -122,7 +122,7 @@ export async function previewCourseFileAsAdmin(db: Database, input: Authenticati
   catch (error) { if (error instanceof IofValidationError) return { status: "invalid-iof-xml", issues: error.issues }; throw error; }
   if (parsed.kind !== "CourseData") return { status: "invalid-iof-xml", issues: ["Filen är inte en banfil (CourseData)"] };
   const data = { courses: parsed.courses, assignments: parsed.assignments, personAssignments: parsed.personAssignments,
-    teamAssignments: parsed.teamAssignments, warnings: parsed.warnings };
+    teamAssignments: parsed.teamAssignments, controlPositions: parsed.controlPositions, warnings: parsed.warnings };
   const fileName = input.fileName.trim().slice(0, 260) || "banfil.xml";
   return preview(db, input, "COURSE_FILE", { kind: "COURSE_FILE", data }, { originalXml: input.xml, fileName, sourceName: fileName }, now);
 }

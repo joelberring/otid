@@ -105,12 +105,14 @@ async function copyRaceContent(tx: Transaction, input: ContentInput) {
   const controls = await tx.select().from(schema.controls).where(eq(schema.controls.raceId, sourceRaceId)).orderBy(asc(schema.controls.code));
   const controlIds = new Map(controls.map(control => [control.id, randomUUID()]));
   await insertChunked(controls, chunk => tx.insert(schema.controls).values(chunk.map(control => ({ id: mapped(controlIds, control.id), raceId,
-    code: control.code, kind: control.kind, points: control.points, createdAt: now }))));
+    code: control.code, kind: control.kind, points: control.points, latitude: control.latitude, longitude: control.longitude,
+    createdAt: now }))));
 
   const courses = await tx.select().from(schema.courses).where(eq(schema.courses.raceId, sourceRaceId)).orderBy(asc(schema.courses.createdAt));
   const courseIds = new Map(courses.map(course => [course.id, randomUUID()]));
   await insertChunked(courses, chunk => tx.insert(schema.courses).values(chunk.map(course => ({ id: mapped(courseIds, course.id), raceId,
     name: course.name, lengthMeters: course.lengthMeters, climbMeters: course.climbMeters, forkingMode: course.forkingMode,
+    startPosition: course.startPosition, finishPosition: course.finishPosition,
     externalSource: course.externalSource, externalId: course.externalId, createdAt: now }))));
 
   const versions = courses.length === 0 ? [] : await tx.select().from(schema.courseVersions)

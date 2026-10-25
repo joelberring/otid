@@ -23,6 +23,7 @@ import { lockRaceForMutation } from "./concurrency";
 import { applyStartListImport, StartListImportConflictError } from "./import-start-list";
 import { assertRaceClassCapacities, ClassCapacityConflictError } from "./class-capacity-guard";
 import { insertCourseVersionControls, loadCourseVersionVariants } from "./course-variants";
+import { storeControlPositions, storeCourseEnds } from "./course-positions";
 import { DuplicateNameError } from "./duplicate-names";
 export class EntryCardImportConflictError extends Error {}
 export class EntryIdentityImportConflictError extends Error {}
@@ -31,6 +32,8 @@ import { bumpReadoutPackageVersion } from "./snapshot";
 
 async function importCourses(tx: DbExecutor, raceId: string, parsed: CourseDataImport) {
   const versionByCourse = new Map<string, string>();
+  // Steg 49: kontrollernas lägen före banorna, så att kontrollerna finns med läge när banorna sparas.
+  await storeControlPositions(tx, raceId, parsed.controlPositions);
   for (const imported of parsed.courses) {
     // En bana med samma namn men annan identitet (manuellt skapad eller annan fil) får inte dubbleras (PLAN.md steg 22).
     const [sameName] = await tx.select({ externalSource: schema.courses.externalSource, externalId: schema.courses.externalId })
@@ -58,6 +61,7 @@ async function importCourses(tx: DbExecutor, raceId: string, parsed: CourseDataI
     }).returning();
     if (!version) throw new Error("Banversion kunde inte skapas");
     versionByCourse.set(imported.externalId, version.id);
+    await storeCourseEnds(tx, raceId, course.id, imported);
     // Gafflad bana (CourseFamily): tom egen kontrollföljd och en variant per Course.
     await insertCourseVersionControls(tx, raceId, version.id, imported.controlCodes, imported.variants ?? []);
   }

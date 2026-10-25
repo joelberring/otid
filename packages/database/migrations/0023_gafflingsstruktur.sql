@@ -22,3 +22,18 @@ ALTER TABLE course_variant DROP CONSTRAINT IF EXISTS course_variant_length_check
 --> statement-breakpoint
 ALTER TABLE course_variant ADD CONSTRAINT course_variant_length_check
   CHECK (length_meters IS NULL OR length_meters BETWEEN 1 AND 1000000);
+--> statement-breakpoint
+-- Kontrollernas lägen ur banfilen (IOF Control/Position, WGS 84), och startens och målets lägen per bana.
+-- Används för variantens längd när banfilen saknar Length och för banan på kartan (ADR-0171).
+ALTER TABLE control ADD COLUMN IF NOT EXISTS latitude double precision;
+--> statement-breakpoint
+ALTER TABLE control ADD COLUMN IF NOT EXISTS longitude double precision;
+--> statement-breakpoint
+ALTER TABLE control DROP CONSTRAINT IF EXISTS control_position_check;
+--> statement-breakpoint
+ALTER TABLE control ADD CONSTRAINT control_position_check CHECK ((latitude IS NULL) = (longitude IS NULL) AND
+  (latitude IS NULL OR (latitude BETWEEN -90 AND 90 AND longitude BETWEEN -180 AND 180)));
+--> statement-breakpoint
+ALTER TABLE course ADD COLUMN IF NOT EXISTS start_position jsonb;
+--> statement-breakpoint
+ALTER TABLE course ADD COLUMN IF NOT EXISTS finish_position jsonb;

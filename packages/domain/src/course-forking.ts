@@ -395,3 +395,23 @@ export function courseLengthMeters(points: readonly ({ readonly x: number; reado
   }
   return Math.round(sum);
 }
+
+/** Ett läge i WGS 84. */
+export interface ForkingGeoPoint { readonly latitude: number; readonly longitude: number }
+
+/**
+ * Steg 49: längden i meter (storcirkel) genom start, kontroller och mål när alla lägen är kända; annars null. Används
+ * för varianter utan längd i banfilen, t.ex. de som genereras ur en struktur.
+ */
+export function geoLengthMeters(points: readonly (ForkingGeoPoint | undefined)[]): number | null {
+  if (points.length < 2 || points.some(point => point === undefined)) return null;
+  const rad = Math.PI / 180, earth = 6_371_008.8;
+  let sum = 0;
+  for (let index = 1; index < points.length; index += 1) {
+    const from = points[index - 1]!, to = points[index]!;
+    const dLat = (to.latitude - from.latitude) * rad, dLng = (to.longitude - from.longitude) * rad;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(from.latitude * rad) * Math.cos(to.latitude * rad) * Math.sin(dLng / 2) ** 2;
+    sum += 2 * earth * Math.asin(Math.min(1, Math.sqrt(a)));
+  }
+  return sum < 1 ? null : Math.round(sum);
+}

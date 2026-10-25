@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  courseForkingFairness, courseLengthMeters, courseVariantGraph, deriveCourseForking, forkingChoicesFor, forkingLetters,
+  courseForkingFairness, courseLengthMeters, geoLengthMeters, courseVariantGraph, deriveCourseForking, forkingChoicesFor, forkingLetters,
   generateForkingVariants, validateCourseForking, type CourseForking
 } from "../src";
 
@@ -118,5 +118,8 @@ describe("rättvisekontroll per gafflingssätt", () => {
   it("längd ur lägen: raka avstånd, null när ett läge saknas", () => {
     expect(courseLengthMeters([{ x: 0, y: 0 }, { x: 300, y: 400 }, { x: 300, y: 0 }])).toBe(900);
     expect(courseLengthMeters([{ x: 0, y: 0 }, undefined])).toBeNull();
+    // En hundradels grad latitud är ungefär 1 112 m.
+    expect(geoLengthMeters([{ latitude: 59.40, longitude: 17.94 }, { latitude: 59.41, longitude: 17.94 }])).toBe(1112);
+    expect(geoLengthMeters([{ latitude: 59.40, longitude: 17.94 }, undefined])).toBeNull();
   });
 });

@@ -153,6 +153,30 @@ describe("parseIofXml", () => {
     expect(parsed.warnings.some(warning => warning.includes("Length"))).toBe(true);
   });
 
+  it("steg 49: kontrollernas lägen, start och mål, och variantens längd ur lägena när Length saknas", () => {
+    const course = fixture("course-file-1.xml");
+    const parsed = parseIofXml(course);
+    if (parsed.kind !== "CourseData") throw new Error("Fel typ");
+    expect(parsed.controlPositions.find(control => control.code === 31)).toEqual({ code: 31, latitude: 59.4031, longitude: 17.9431 });
+    expect(parsed.courses[0]!.startPosition).toEqual({ latitude: 59.4, longitude: 17.94 });
+    const xml = `<?xml version="1.0" encoding="UTF-8"?><CourseData xmlns="http://www.orienteering.org/datastandard/3.0" iofVersion="3.0">
+      <Event><Name>Gafflat</Name></Event><RaceCourseData><Map><Scale>10000</Scale></Map>
+      <Control type="Start"><Id>S1</Id><MapPosition x="0" y="0" unit="mm"/></Control>
+      <Control><Id>31</Id><MapPosition x="30" y="40" unit="mm"/></Control>
+      <Control><Id>32</Id><MapPosition x="0" y="40" unit="mm"/></Control>
+      <Control type="Finish"><Id>F1</Id><MapPosition x="0" y="0" unit="mm"/></Control>
+      <Course><Name>A-1</Name><CourseFamily>A</CourseFamily><CourseControl type="Start"><Control>S1</Control></CourseControl>
+        <CourseControl><Control>31</Control></CourseControl><CourseControl type="Finish"><Control>F1</Control></CourseControl></Course>
+      <Course><Name>A-2</Name><CourseFamily>A</CourseFamily><CourseControl type="Start"><Control>S1</Control></CourseControl>
+        <CourseControl><Control>32</Control></CourseControl><CourseControl type="Finish"><Control>F1</Control></CourseControl></Course>
+      </RaceCourseData></CourseData>`;
+    const forked = parseIofXml(xml);
+    if (forked.kind !== "CourseData") throw new Error("Fel typ");
+    // 1:10 000: 50 mm = 500 m dit och tillbaka; 40 mm = 400 m dit och tillbaka.
+    expect(forked.courses[0]!.variants!.map(variant => [variant.code, variant.lengthMeters])).toEqual([["1", 1000], ["2", 800]]);
+    expect(forked.courses[0]!.lengthMeters).toBeUndefined();
+  });
+
   it("tolkar gafflingar: Course med samma CourseFamily blir en bana med varianter", () => {
     const parsed = parseIofXml(fixture("course-data-forked.xml"));
     if (parsed.kind !== "CourseData") throw new Error("Fel dokumenttyp");

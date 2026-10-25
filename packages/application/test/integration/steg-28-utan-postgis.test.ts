@@ -101,6 +101,8 @@ describe("steg 28: PostgreSQL utan PostGIS", () => {
     await pool.query("ALTER TABLE course ADD COLUMN forking_mode text NOT NULL DEFAULT 'BALANCED'");
     await pool.query("ALTER TABLE course_version ADD COLUMN forking jsonb");
     await pool.query("ALTER TABLE course_variant ADD COLUMN length_meters integer");
+    await pool.query("ALTER TABLE control ADD COLUMN latitude double precision, ADD COLUMN longitude double precision");
+    await pool.query("ALTER TABLE course ADD COLUMN start_position jsonb, ADD COLUMN finish_position jsonb");
     const { ids, cards } = await seedRace(db, pool);
     await ingest(db, ids.race, [run(cards.ada, "10:02:00", 30), run(cards.bo, "10:05:00", 41)]);
     await pool.query("DROP TABLE race_station_correction");

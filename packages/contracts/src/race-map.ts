@@ -68,7 +68,13 @@ export const publicLegRoutesSchema = z.object({
   runners: z.array(z.object({
     publicResultId: uuid, name, className: name, legMs: z.number().int().nonnegative(), selected: z.boolean(),
     points: z.array(pixel).min(2).max(100_000)
-  }).strict()).min(1).max(500)
+  }).strict()).min(1).max(500),
+  /**
+   * Steg 49: den valda löparens bana (variant) på kartan, när kontrollernas lägen finns i banfilen: start, kontroller och
+   * mål som pixlar. `leg` markerar sträckans två ändpunkter.
+   */
+  course: z.object({ points: z.array(z.object({ label: z.string().min(1).max(12), x: z.number().finite(), y: z.number().finite(),
+    leg: z.boolean() }).strict()).min(2).max(1002) }).strict().optional()
 }).strict();
 
 export type RaceMapTiePoint = z.infer<typeof raceMapTiePointSchema>;

@@ -2,6 +2,7 @@ import {
   boolean,
   check,
   date,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -142,6 +143,9 @@ export const courses = pgTable("course", {
   climbMeters: integer("climb_meters"),
   /** Steg 49 (migration 0023): gafflingssätt, utjämnad eller fulgaffling. Påverkar bara rättvisekontrollen. */
   forkingMode: text("forking_mode").$type<"BALANCED" | "UNEQUAL">().notNull().default("BALANCED"),
+  /** Steg 49 (migration 0023): startens och målets lägen ur banfilen ({ latitude, longitude }). NULL = okänt. */
+  startPosition: jsonb("start_position").$type<{ latitude: number; longitude: number }>(),
+  finishPosition: jsonb("finish_position").$type<{ latitude: number; longitude: number }>(),
   externalSource: text("external_source"),
   externalId: text("external_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
@@ -163,6 +167,9 @@ export const controls = pgTable("control", {
   kind: text("kind").notNull().default("CONTROL"),
   /** Rogaining (migration 0097): poäng när arrangören ändrat förvalet (kontrollkoden delat med tio). NULL = förvalet. */
   points: integer("points"),
+  /** Steg 49 (migration 0023): kontrollens läge ur banfilen (IOF Control/Position, WGS 84). NULL = okänt. */
+  latitude: doublePrecision("latitude"),
+  longitude: doublePrecision("longitude"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (table) => [uniqueIndex("control_race_code_uidx").on(table.raceId, table.code),
   check("control_points_check", sql`${table.points} IS NULL OR ${table.points} BETWEEN 0 AND 1000`)]);

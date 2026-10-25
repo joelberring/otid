@@ -25,7 +25,7 @@ export interface EventorProjection {
 
 export interface CourseFileProjection {
   readonly kind: "COURSE_FILE";
-  readonly data: Omit<CourseDataImport, "kind">;
+  readonly data: Omit<CourseDataImport, "kind" | "controlPositions"> & Partial<Pick<CourseDataImport, "controlPositions">>;
 }
 
 export type SourceProjection = EventorProjection | CourseFileProjection;

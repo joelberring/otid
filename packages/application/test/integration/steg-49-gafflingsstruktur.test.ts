@@ -194,4 +194,36 @@ describe("steg 49: gafflingsstruktur", () => {
     const detail = await publicResultDetail(db, proof.raceId, cia.publicResultId);
     expect(detail).toMatchObject({ status: "ok", response: { classCourse: { className: "H21", forking: { items: forked.items } } } });
   });
+
+  it("läser kontrollernas lägen ur banfilen och ger varianterna längd ur lägena när Length saknas", async () => {
+    const proof = await race();
+    await importFile(proof, "course-file-1.xml");
+    const control = (await pool.query<{ latitude: number; longitude: number }>(
+      "select latitude, longitude from control where race_id = $1 and code = 31", [proof.raceId])).rows[0];
+    expect(control).toEqual({ latitude: 59.4031, longitude: 17.9431 });
+    const start = (await pool.query<{ start_position: unknown }>("select start_position from course where race_id = $1 and start_position is not null limit 1",
+      [proof.raceId])).rows[0];
+    expect(start?.start_position).toEqual({ latitude: 59.4, longitude: 17.94 });
+
+    const xml = Buffer.from(`<?xml version="1.0" encoding="UTF-8"?><CourseData xmlns="http://www.orienteering.org/datastandard/3.0" iofVersion="3.0">
+      <Event><Name>Gafflat</Name></Event><RaceCourseData>
+      <Control type="Start"><Id>S9</Id><Position lat="59.40" lng="18.00"/></Control>
+      <Control><Id>71</Id><Position lat="59.41" lng="18.00"/></Control>
+      <Control><Id>72</Id><Position lat="59.42" lng="18.00"/></Control>
+      <Control type="Finish"><Id>F9</Id><Position lat="59.40" lng="18.00"/></Control>
+      <Course><Name>Ny-A</Name><CourseFamily>Ny</CourseFamily><CourseControl type="Start"><Control>S9</Control></CourseControl>
+        <CourseControl><Control>71</Control></CourseControl><CourseControl type="Finish"><Control>F9</Control></CourseControl></Course>
+      <Course><Name>Ny-B</Name><CourseFamily>Ny</CourseFamily><CourseControl type="Start"><Control>S9</Control></CourseControl>
+        <CourseControl><Control>72</Control></CourseControl><CourseControl type="Finish"><Control>F9</Control></CourseControl></Course>
+      <ClassCourseAssignment><ClassName>Ny klass</ClassName><CourseFamily>Ny</CourseFamily></ClassCourseAssignment>
+      </RaceCourseData></CourseData>`);
+    const imported = await importIofXmlAsAdmin(db, { ...proof, idempotencyKey: `iof-import:${randomUUID()}`, xmlBytes: xml });
+    expect(imported.status).toBe("stored");
+    const listed = await listCoursesForEditAsAdmin(db, proof);
+    if (listed.status !== "ok") throw new Error("Banlistan saknas");
+    const forked = listed.response.courses.find(course => course.name === "Ny")!;
+    expect(forked.variants.map(variant => [variant.code, variant.lengthMeters])).toEqual([["A", 2224], ["B", 4448]]);
+    expect(forked.forkingMode).toBe("BALANCED");
+    expect(forked.fairness).toMatchObject({ level: "WARNING", shortestMeters: 2224, longestMeters: 4448 });
+  });
 });

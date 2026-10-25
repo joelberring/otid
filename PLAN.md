@@ -770,6 +770,13 @@ Genomlysningen 2026-10-25 (säkerhet #1, #3–#10).
   rensas; inloggningen spärras också per IP (30 fel på 15 minuter), och spärrarna är tidsbegränsade.
 - [x] Bardiskens namn och klubb normaliseras; hjälpen säger att funktionären ser fullt namn och kan ladda ner CSV.
 
+## [x] Steg 49 – Gafflingar: se, bygga och redigera visuellt
+
+ADR-0175. Gafflingsstruktur (enkel gaffling, fjäril, i följd) med varianter i OCAD/Purple Pen-stil, härledning ur banfilens
+varianter och rättvisekontroll per gafflingssätt (Utjämnad/Fulgaffling). Bilden i banlistan, redigering i bilden (även ny
+gafflad bana), "Visa gafflingar" i resultatlistan och på deltagarsidan, sträcktidsanalys per sträcka, kontrollernas lägen
+ur IOF XML, längd per variant och banan på vägvalskartan.
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

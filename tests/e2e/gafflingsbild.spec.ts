@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
-import { addCourseAndClass, addEntry, createRace, openStep, publishRace, registerAccount, sendReadout, today, unique, warmRoute } from "./helpers";
+import { addCourseAndClass, addEntry, createRace, openStep, publishRace, registerAccount, reviewScreenshots, sendReadout, today, unique,
+  warmRoute } from "./helpers";
 
 /**
  * Steg 49: en gafflad bana byggs i appen. Banan "Fjäril" (31 50 32 33) får en fjäril på 50 (slingorna 41 42 och 43) och
@@ -67,6 +68,7 @@ test("bygg en gafflad bana i bilden, fördela, läs av och se gafflingarna i res
   await editor.getByRole("button", { name: "Spara ändringen" }).click();
   await expect(owner.getByText("Gafflingarna är sparade.")).toBeVisible();
   await expect(owner.getByRole("row", { name: /^Fjäril .*Gafflad/ }).getByRole("row", { name: /^AD 31 50 41 42 50 43 50 32 63 33/ })).toBeVisible();
+  await reviewScreenshots(owner, "gafflingar-banor");
 
   // Klasser: fördela gafflingarna.
   await warmRoute(owner, `${admin}/classes/00000000-0000-4000-8000-000000000000/variant-distribution`, "POST");
@@ -92,6 +94,7 @@ test("bygg en gafflad bana i bilden, fördela, läs av och se gafflingarna i res
   await expect(visitor.getByRole("img", { name: /Banbild: Ada Ek/ })).toHaveCount(0);
   await visitor.getByRole("button", { name: "Visa gafflingar: D21" }).click();
   await expect(ada.getByRole("img", { name: `Banbild: Ada Ek sprang variant ${variant}` })).toBeVisible();
+  await reviewScreenshots(visitor, "gafflingar-resultat");
 
   // Deltagarsidan: samma bild, större, med variantens text.
   await ada.getByRole("link", { name: "Ada Ek" }).click();

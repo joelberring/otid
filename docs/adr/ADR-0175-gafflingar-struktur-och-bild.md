@@ -1,6 +1,7 @@
 # ADR-0175: Gafflingar som struktur och bild
 
-Status: beslutad 2026-10-25 (PLAN.md steg 49, ägarens önskemål samma dag). Kompletterar ADR-0169 beslut 2 och ADR-0171.
+Status: beslutad 2026-10-25 (PLAN.md steg 49, ägarens önskemål samma dag). Kompletterar ADR-0169 beslut 2 (gafflingar kan nu
+byggas i appen, inte bara komma från IOF XML) och ADR-0171.
 
 ## Bakgrund
 
@@ -37,12 +38,16 @@ fulgaffling ("alla sträckor var inte likvärdiga men nästan").
    löparens väg markerad och slingornas ordning. Inga interna id i bilden eller svaren.
 7. **Sträcktidsanalys per sträcka** (ändrar ADR-0171 beslut 6): en gafflad klass jämförs som standard per kontrollpar
    mellan alla som sprungit det, oavsett variant; per variant är ett val. Vägvalslänkarna finns i vyn per variant.
-8. **Generellt för stafetten.** Struktur, generering, härledning, graf, rättvisa och bild tar varianter och val, inte
+8. **Kontrollernas lägen** ur IOF XML (`Control/Position`, WGS 84) sparas på kontrollen och startens och målets lägen
+   på banan (migration 0023). En variant utan Length i filen får längden ur lägena (storcirkel genom start, kontroller
+   och mål; annars `MapPosition` med kartans skala). På vägvalskartan (ADR-0171) ritas den valda löparens bana
+   (variant) med sträckans ändpunkter markerade när kartan är georefererad och lägena finns.
+9. **Generellt för stafetten.** Struktur, generering, härledning, graf, rättvisa och bild tar varianter och val, inte
    klasser eller löpare, så att stafetten (ADR-0174) kan använda dem.
 
 ## Konsekvenser
 
-- Kontrollernas lägen ur IOF XML (`Control/Position`, `MapPosition`) och banan på kartan är inte gjorda (steg 49 punkt 6).
-  `courseLengthMeters` i domänen räknar en längd ur lägen när de finns.
+- Kartlägen (`MapPosition`) sparas inte; de används bara för längden vid inläsningen. Banan ritas bara på vägvalskartan,
+  inte på en egen karta i arbetsytan.
 - En gaffling inuti en fjäril (eller tvärtom) kan inte byggas i appen; en sådan banfil visas med härledd struktur och
   redigeras per variant.

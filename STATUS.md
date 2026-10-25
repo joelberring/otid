@@ -10,6 +10,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-10-25 – Steg 49: gafflingar som struktur och bild (ADR-0175)
+- Domän `course-forking.ts`: enkel gaffling och fjäril (Purple Pen fork/loop) i följd, varianter med OCAD/Purple Pen-koder, härledning ur banfilens varianter, graf, rättvisa per gafflingssätt (Utjämnad/Fulgaffling, stoppar aldrig), längd ur lägen; `buildLegSplitTable` (sträcktider per kontrollpar).
+- Migration 0023: `course_version.forking`, `course.forking_mode`, start/mål-lägen, `course_variant.length_meters`, `control.latitude/longitude`. Redigera bana tar en struktur: löparna behåller kontrollföljden under ny kod, försvunna får ny variant genom fördelningen; omräkning i samma transaktion.
+- Banor: bilden (SVG) med anmälda/avlästa per gren, Gafflingssätt, längd och skillnad per variant, "Gaffla banan", "Redigera gafflingar" (klick på kontroll/sträcka i bilden, fält per alternativ, varianterna direkt), "Gör om till struktur".
+- Publikt: "Visa gafflingar" i resultatlistan och på deltagarsidan; sträcktidsanalysen per sträcka (förval) eller per variant; banan på vägvalskartan.
+- Tester: domän `course-forking`, `split-table`; iof-xml `parser`; webb `forking-diagram`; integration `steg-49-gafflingsstruktur`, `adr-0171-map-routes`; Playwright `gafflingsbild` (ny), `gafflingar`, `stafett`, `listor`, `strackanalys`.
+- Kvar: gaffling inuti fjäril går inte att bygga; banan ritas inte på en egen karta i arbetsytan.
+
 ### 2026-10-25 – Steg 44: rättelser efter genomlysningen (stopp och fest)
 - Speakern: strukna löpare filtreras i urvalet av de 25 senaste (gav 500). Migratorn bokför per tagg (ny kolumn `tag`; äldre rader matchas på `when` eller hash och får taggen), kör varje saknad migration i journalordning oavsett `when`; journalens `idx` är nu 0..n (0014–0018 numrerades om).
 - Manuella beslut följer med vid omräkning (banredigering, starttid, lottning): beslutet tas bort och läggs på nytt ovanpå den nya tekniska revisionen (`carryManualDecisions`), med samma innehåll (manuell tid: måltiden står kvar, starten följer den kända starten). Godkännande som inte behövs längre tas bara bort. "N löpare har manuella beslut" i banändringens besked. Placeringar och "Resultaten är klara" fungerar efter banredigering (motor #2 och #8).

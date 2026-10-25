@@ -60,7 +60,7 @@ export function CourseTable({ ws, visible }: { ws: Workspace; visible: boolean }
         const forked = course.variants.length > 0;
         const measured = course.lengthMeters != null || course.climbMeters != null;
         return [<tr key={course.courseId}>
-          <th scope="row">{course.name}</th>
+          <th scope="row" className={forked ? styles.courseName : undefined}>{course.name}</th>
           <td className={styles.courseLength}>{measured ? courseMeasures(course.lengthMeters ?? null, course.climbMeters ?? null)
             : <span className={styles.muted}>–</span>}</td>
           <td className={styles.controlCodes}>{forked && variants ? <CourseVariants ws={ws} course={course} /> : course.controlCodes.join(" ")}</td>

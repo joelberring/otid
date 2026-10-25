@@ -104,7 +104,7 @@ export function layoutForkingDiagram(items: readonly ForkingItem[], options: For
       const longest = Math.max(1, ...item.branches.map(branch => branch.length));
       const ends: Pending[] = [];
       item.branches.forEach((branch, branchIndex) => {
-        const y = (branchIndex - (count - 1) / 2) * lane * (count > 2 ? 1 : 1.1);
+        const y = (branchIndex - (count - 1) / 2) * lane * (count > 2 ? 1.1 : 1.5);
         const chosen = on(choice === branchIndex);
         let previous = pending;
         const branchTarget: DiagramTarget = { kind: "BRANCH", item: index, branch: branchIndex };
@@ -124,12 +124,16 @@ export function layoutForkingDiagram(items: readonly ForkingItem[], options: For
         else ends.push(...previous);
         const letter = options.letters?.[index]?.[branchIndex];
         const first = { x: cursor + step, y };
-        if (letter) labels.push({ key: `l${index}.${branchIndex}`, kind: "LETTER", text: letter, x: first.x - radius * 1.6, y: y - radius * 1.1, active: chosen, target: branchTarget });
+        if (letter) labels.push({ key: `l${index}.${branchIndex}`, kind: "LETTER", text: letter, x: first.x - radius * 2.2,
+          y: y + (y < 0 ? -radius * 0.6 : radius * 1.3), active: chosen, target: branchTarget });
+        // Upplysningen ovanför den övre grenen och under de andra, så att den inte hamnar på linjerna.
         const note = compact ? undefined : options.note?.(index, branchIndex);
-        if (note) labels.push({ key: `n${index}.${branchIndex}`, kind: "NOTE", text: note, x: first.x - radius, y: y + radius + 12, active: chosen });
+        if (note) labels.push({ key: `n${index}.${branchIndex}`, kind: "NOTE", text: note, x: first.x - radius,
+          y: y < 0 ? y - radius - 6 : y + radius + 13, active: chosen });
       });
       pending = ends;
-      cursor += longest * dx;
+      // Lite längre till nästa kontroll så att grenarna syns gå ihop.
+      cursor += longest * dx + dx * 0.6;
       return;
     }
     // Fjäril: den centrala kontrollen och ett kronblad per slinga.

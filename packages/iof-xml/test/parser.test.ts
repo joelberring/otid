@@ -162,6 +162,8 @@ describe("parseIofXml", () => {
       { externalId: "family:Lång", name: "Lång", controlCodes: [], variants: ["AC", "AD", "BC", "BD"] }
     ]);
     expect(parsed.courses[1]!.variants![1]!.controlCodes).toEqual([31, 50, 41, 42, 50, 43, 44, 50, 32, 60, 63, 64, 60, 61, 62, 60, 33]);
+    // Steg 49: varje variants längd ur banfilen.
+    expect(parsed.courses[1]!.variants!.map((variant) => variant.lengthMeters)).toEqual([6200, 6200, 6200, 6200]);
     expect(parsed.assignments).toEqual([
       { classExternalId: "gaffel-h21", className: "H21", courseExternalId: "family:Lång", startRule: "PUNCH" },
       { classExternalId: "gaffel-d21", className: "D21", courseExternalId: "5", startRule: "PUNCH" }

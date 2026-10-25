@@ -3,6 +3,7 @@ export * from "./administrator-effective-result";
 export * from "./manual-course-class";
 export * from "./manual-class";
 export * from "./course-edit";
+export * from "./course-forking";
 export * from "./source-sync";
 export * from "./course-variant-assignment";
 export * from "./class-edit";

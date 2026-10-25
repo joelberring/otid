@@ -17,6 +17,8 @@ import { array, IofValidationError, record, rejectUnexpectedKeys, requireText, t
 export interface CourseVariantImport {
   readonly code: string;
   readonly controlCodes: readonly number[];
+  /** Variantens längd i hela meter (IOF Length på variantens Course), steg 49. */
+  readonly lengthMeters?: number;
 }
 
 export interface CourseImport {
@@ -174,7 +176,8 @@ export function readCourseData(root: XmlRecord): CourseDataImport {
     }
     for (const [family, members] of families) {
       const externalId = `${FAMILY_PREFIX}${family}`;
-      const variants = members.map((member) => ({ code: courseVariantCode(family, member.name), controlCodes: member.controlCodes }));
+      const variants = members.map((member) => ({ code: courseVariantCode(family, member.name), controlCodes: member.controlCodes,
+        ...(member.lengthMeters !== undefined && member.lengthMeters > 0 ? { lengthMeters: member.lengthMeters } : {}) }));
       const codes = new Set(variants.map((variant) => variant.code));
       if (codes.size !== variants.length) issues.push(`CourseFamily ${family} har varianter med samma kod`);
       if (variants.length > MAX_VARIANTS) issues.push(`CourseFamily ${family} får ha högst ${MAX_VARIANTS} varianter`);

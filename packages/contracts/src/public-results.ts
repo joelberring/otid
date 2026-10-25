@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { rogainingScoreSchema } from "./rogaining";
+import { courseForkingViewSchema } from "./course-forking";
 
 const safeMillisecondsSchema = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 
@@ -290,7 +291,9 @@ export const publicClassCourseSchema = z.object({
   className: z.string().trim().min(1).max(160),
   courseName: z.string().trim().min(1).max(160),
   lengthMeters: z.number().int().min(1).max(1_000_000).nullable(),
-  climbMeters: z.number().int().min(0).max(100_000).nullable()
+  climbMeters: z.number().int().min(0).max(100_000).nullable(),
+  /** Steg 49: gafflad bana: strukturen och varje variants val för bilden "Visa gafflingar". */
+  forking: courseForkingViewSchema.optional()
 }).strict();
 
 export const publicResultListResponseV7Schema = z.object({
@@ -303,7 +306,9 @@ export const publicResultListResponseV7Schema = z.object({
 /** Detail deliberately contains exactly one list-format public row. */
 export const publicResultDetailResponseSchema = z.object({
   formatVersion: z.literal(1),
-  result: publicResultV7Schema
+  result: publicResultV7Schema,
+  /** Steg 49: klassens bana (med gafflingarna) för "Visa gafflingar". */
+  classCourse: publicClassCourseSchema.optional()
 }).strict();
 
 export const publicResultListResponseSchema = z.discriminatedUnion("formatVersion", [

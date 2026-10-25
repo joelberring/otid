@@ -22,15 +22,18 @@ export async function saveCourseDetailsAsAdmin(db: Database, input: RaceSessionP
     const auth = await requireRaceRole(tx, { ...input, role: "ADMIN", requireCsrf: true }, now, "update");
     if (auth.status !== "authenticated") return auth;
     const raceId = auth.principal.raceId;
-    const [before] = await tx.select({ lengthMeters: schema.courses.lengthMeters, climbMeters: schema.courses.climbMeters })
+    const [before] = await tx.select({ lengthMeters: schema.courses.lengthMeters, climbMeters: schema.courses.climbMeters,
+      forkingMode: schema.courses.forkingMode })
       .from(schema.courses).where(and(eq(schema.courses.id, intent.courseId), eq(schema.courses.raceId, raceId))).for("update");
     if (!before) return { status: "not-found" };
-    await tx.update(schema.courses).set({ lengthMeters: intent.lengthMeters, climbMeters: intent.climbMeters })
+    // Steg 49: gafflingssättet följer med när det anges; annars står det kvar.
+    const forkingMode = intent.forkingMode ?? before.forkingMode;
+    await tx.update(schema.courses).set({ lengthMeters: intent.lengthMeters, climbMeters: intent.climbMeters, forkingMode })
       .where(and(eq(schema.courses.id, intent.courseId), eq(schema.courses.raceId, raceId)));
-    if (before.lengthMeters !== intent.lengthMeters || before.climbMeters !== intent.climbMeters) {
+    if (before.lengthMeters !== intent.lengthMeters || before.climbMeters !== intent.climbMeters || before.forkingMode !== forkingMode) {
       await tx.insert(schema.auditEvents).values({ raceId, entityType: "course", entityId: intent.courseId, requestId: intent.requestId,
         action: "COURSE_DETAILS_CHANGED_BY_ADMIN", actorKind: "USER_ACCOUNT", actorId: auth.principal.accountId,
-        before, after: { lengthMeters: intent.lengthMeters, climbMeters: intent.climbMeters }, createdAt: now });
+        before, after: { lengthMeters: intent.lengthMeters, climbMeters: intent.climbMeters, forkingMode }, createdAt: now });
     }
     return { status: "saved", response: courseDetailsResponseSchema.parse({ formatVersion: 1, replayed: false, requestId: intent.requestId,
       raceId, request: intent, savedAt: now.toISOString() }) };

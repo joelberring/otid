@@ -110,14 +110,14 @@ async function copyRaceContent(tx: Transaction, input: ContentInput) {
   const courses = await tx.select().from(schema.courses).where(eq(schema.courses.raceId, sourceRaceId)).orderBy(asc(schema.courses.createdAt));
   const courseIds = new Map(courses.map(course => [course.id, randomUUID()]));
   await insertChunked(courses, chunk => tx.insert(schema.courses).values(chunk.map(course => ({ id: mapped(courseIds, course.id), raceId,
-    name: course.name, lengthMeters: course.lengthMeters, climbMeters: course.climbMeters,
+    name: course.name, lengthMeters: course.lengthMeters, climbMeters: course.climbMeters, forkingMode: course.forkingMode,
     externalSource: course.externalSource, externalId: course.externalId, createdAt: now }))));
 
   const versions = courses.length === 0 ? [] : await tx.select().from(schema.courseVersions)
     .where(inArray(schema.courseVersions.courseId, [...courseIds.keys()])).orderBy(asc(schema.courseVersions.version));
   const versionIds = new Map(versions.map(version => [version.id, randomUUID()]));
   await insertChunked(versions, chunk => tx.insert(schema.courseVersions).values(chunk.map(version => ({ id: mapped(versionIds, version.id),
-    courseId: mapped(courseIds, version.courseId), version: version.version, createdAt: now }))));
+    courseId: mapped(courseIds, version.courseId), version: version.version, forking: version.forking, createdAt: now }))));
 
   const courseControls = versions.length === 0 ? [] : await tx.select().from(schema.courseControls)
     .where(inArray(schema.courseControls.courseVersionId, [...versionIds.keys()]));
@@ -128,7 +128,8 @@ async function copyRaceContent(tx: Transaction, input: ContentInput) {
     .where(inArray(schema.courseVariants.courseVersionId, [...versionIds.keys()]));
   const variantIds = new Map(variants.map(variant => [variant.id, randomUUID()]));
   await insertChunked(variants, chunk => tx.insert(schema.courseVariants).values(chunk.map(variant => ({ id: mapped(variantIds, variant.id),
-    courseVersionId: mapped(versionIds, variant.courseVersionId), code: variant.code, sequence: variant.sequence }))));
+    courseVersionId: mapped(versionIds, variant.courseVersionId), code: variant.code, sequence: variant.sequence,
+    lengthMeters: variant.lengthMeters }))));
   const variantControls = variants.length === 0 ? [] : await tx.select().from(schema.courseVariantControls)
     .where(inArray(schema.courseVariantControls.courseVariantId, [...variantIds.keys()]));
   await insertChunked(variantControls, chunk => tx.insert(schema.courseVariantControls).values(chunk.map(row => ({ id: randomUUID(),

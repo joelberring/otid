@@ -50,6 +50,8 @@ export { createManualCourseClassAsAdmin } from "./manual-course-class";
 export { createManualClassAsAdmin } from "./manual-class";
 export { editCourseAsAdmin, listCoursesForEditAsAdmin, previewCourseEditAsAdmin } from "./course-edit";
 export type { CourseEditListResult, CourseEditPreviewResult, CourseEditResult } from "./course-edit";
+export { courseForkingView, loadCourseVersionForking, planForkingSave } from "./course-forking";
+export type { CourseForkingListView, ForkingSavePlan } from "./course-forking";
 export { editClassAsAdmin, previewClassEditAsAdmin } from "./class-edit";
 export type { ClassEditPreviewResult, ClassEditResult } from "./class-edit";
 export { changeRogainingAsAdmin, previewRogainingChangeAsAdmin } from "./rogaining";

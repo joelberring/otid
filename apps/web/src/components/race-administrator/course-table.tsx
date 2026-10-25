@@ -98,18 +98,19 @@ export function CourseTable({ ws, visible }: { ws: Workspace; visible: boolean }
   </Section>;
 }
 
-/** Antal anmälda och avlästa per alternativ (enkel gaffling) eller för hela fjärilen. */
-function branchNote(course: CourseRow) {
+/**
+ * Antal anmälda och avlästa per alternativ (enkel gaffling) eller för hela fjärilen (vid första slingan), efter grenens
+ * bokstav. Inga antal när banan saknar anmälda, så att bilden är lugn medan banan byggs.
+ */
+function branchCount(course: CourseRow) {
   return (item: number, branch: number) => {
     const view = course.forking;
-    if (!view) return undefined;
+    if (!view || course.entryCount === 0) return undefined;
     const kind = view.items[item]?.kind;
-    const on = course.variants.filter(variant => {
-      const choice = view.variants.find(row => row.code === variant.code)?.choices[item];
-      return kind === "LOOP" || choice === branch;
-    });
     if (kind === "LOOP" && branch > 0) return undefined;
-    return forking.branchNote(on.reduce((sum, row) => sum + row.entryCount, 0), on.reduce((sum, row) => sum + row.readOutCount, 0));
+    const on = course.variants.filter(variant => kind === "LOOP" || view.variants.find(row => row.code === variant.code)?.choices[item] === branch);
+    const entries = on.reduce((sum, row) => sum + row.entryCount, 0), readOut = on.reduce((sum, row) => sum + row.readOutCount, 0);
+    return { text: forking.branchCountShort(entries, readOut), description: forking.branchCountLong(entries, readOut) };
   };
 }
 
@@ -128,7 +129,7 @@ function CourseVariants({ ws, course }: { ws: Workspace; course: CourseRow }) {
   const id = `forking-mode-${course.courseId}`;
   return <div className={styles.courseVariants}>
     <strong>{variantText.forked(course.variants.length)}</strong>
-    {view && <ForkingDiagram items={view.items} letters={forkingLetters({ items: view.items })} note={branchNote(course)}
+    {view && <ForkingDiagram items={view.items} letters={forkingLetters({ items: view.items })} count={branchCount(course)}
       label={forking.courseDiagram(course.name)} caption={lengths ? <span>{forking.lengths(lengths.shortest, lengths.longest)}</span> : undefined} />}
     <div className={styles.forkingTools}>
       <label htmlFor={id}>{forking.mode}

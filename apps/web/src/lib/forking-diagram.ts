@@ -13,11 +13,13 @@ export type DiagramTarget =
 export type DiagramPoint = { readonly x: number; readonly y: number };
 export interface DiagramNode extends DiagramPoint {
   readonly key: string;
-  readonly kind: "START" | "FINISH" | "CONTROL" | "CENTER";
+  readonly kind: "START" | "FINISH" | "CONTROL" | "CENTER" | "SPLIT";
   readonly label: string;
   /** null = ingen löpare markerad; annars om löparens variant passerar noden. */
   readonly active: boolean | null;
   readonly target?: DiagramTarget;
+  /** Grenens första kontroll (etiketten med bokstaven sitter intill den). */
+  readonly first?: boolean;
 }
 export interface DiagramEdge {
   readonly key: string;
@@ -31,7 +33,10 @@ export interface DiagramEdge {
 export interface DiagramLabel extends DiagramPoint {
   readonly key: string;
   readonly text: string;
-  readonly kind: "LETTER" | "NOTE" | "ORDER";
+  readonly kind: "LETTER" | "ORDER";
+  /** Bokstavens etikett: anmälda/avlästa ("3/1") efter bokstaven, och texten för skärmläsare och verktygstips. */
+  readonly detail?: string;
+  readonly description?: string;
   readonly active: boolean | null;
   readonly target?: DiagramTarget;
   readonly width: number;
@@ -52,11 +57,13 @@ export interface ForkingDiagramOptions {
   readonly choices?: readonly ForkingChoice[] | undefined;
   /** Bokstäver per gafflingspunkt (domänens `forkingLetters`). */
   readonly letters?: readonly (readonly string[] | null)[];
-  /** Kort text per alternativ/slinga, t.ex. antal löpare och avlästa. */
-  readonly note?: (item: number, branch: number) => string | undefined;
+  /** Antal per alternativ/slinga ("3/1" och "3 anmälda, 1 avläst"); visas efter bokstaven. */
+  readonly count?: (item: number, branch: number) => { readonly text: string; readonly description: string } | undefined;
 }
 
-type Pending = { readonly point: DiagramPoint; readonly active: boolean | null; readonly key: string; readonly base: boolean };
+type Pending = { readonly point: DiagramPoint; readonly active: boolean | null; readonly key: string; readonly base: boolean;
+  /** Raka linjer ut ur en gaffling, så att grenarna går ihop i en punkt utan att korsa varandra. */
+  readonly straight?: boolean };
 
 const round = (value: number) => Math.round(value * 10) / 10;
 
@@ -68,17 +75,16 @@ type LabelRequest = Omit<DiagramLabel, "x" | "y" | "width" | "height"> & {
 type Box = { x: number; y: number; w: number; h: number };
 
 /** Etikettens ungefärliga storlek: teckenbredd efter typsnittets storlek, lite tilltaget. */
-function labelSize(kind: DiagramLabel["kind"], text: string, compact: boolean): { w: number; h: number } {
+function labelSize(text: string, detail: string | undefined, compact: boolean): { w: number; h: number } {
   if (compact) return { w: text.length * 4.2 + 1, h: 7 };
-  const char = kind === "NOTE" ? 6.1 : 8.2;
-  return { w: text.length * char + (kind === "NOTE" ? 8 : 4), h: kind === "NOTE" ? 16 : 16 };
+  return { w: text.length * 9 + (detail ? (detail.length + 3) * 5.9 : 0) + 6, h: 17 };
 }
 
 const overlaps = (a: Box, b: Box, gap: number) =>
   a.x < b.x + b.w + gap && b.x < a.x + a.w + gap && a.y < b.y + b.h + gap && b.y < a.y + a.h + gap;
 
 /** Punkter längs en sträcka (rak, kurva eller kronblad) med högst ett par pixlars mellanrum. */
-function samples(edge: { from: DiagramPoint; to: DiagramPoint; path?: DiagramPoint[] }): DiagramPoint[] {
+function samples(edge: { from: DiagramPoint; to: DiagramPoint; path?: DiagramPoint[]; straight?: boolean }): DiagramPoint[] {
   const result: DiagramPoint[] = [];
   const line = (a: DiagramPoint, b: DiagramPoint) => {
     const steps = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 2));
@@ -86,7 +92,7 @@ function samples(edge: { from: DiagramPoint; to: DiagramPoint; path?: DiagramPoi
   };
   if (edge.path) { for (let index = 1; index < edge.path.length; index += 1) line(edge.path[index - 1]!, edge.path[index]!); return result; }
   const { from, to } = edge;
-  if (Math.abs(from.y - to.y) < 0.5) { line(from, to); return result; }
+  if (edge.straight || Math.abs(from.y - to.y) < 0.5) { line(from, to); return result; }
   const middle = (from.x + to.x) / 2;
   const steps = Math.max(8, Math.ceil(Math.hypot(to.x - from.x, to.y - from.y) / 2));
   for (let step = 0; step <= steps; step += 1) {
@@ -112,7 +118,7 @@ function placeLabels(requests: readonly LabelRequest[], nodes: readonly DiagramP
   const free = (box: Box) => !nodeBoxes.some(other => overlaps(box, other, 0)) && !placed.some(other => overlaps(box, other, gap)) &&
     !lines.some(point => point.x > box.x - gap && point.x < box.x + box.w + gap && point.y > box.y - gap && point.y < box.y + box.h + gap);
   return requests.map(request => {
-    const { w, h } = labelSize(request.kind, request.text, compact);
+    const { w, h } = labelSize(request.text, request.detail, compact);
     const base = radius + (compact ? 1 : 3);
     const directions = [...request.prefer, ...DIRECTIONS.filter(direction => !request.prefer.some(known => known[0] === direction[0] && known[1] === direction[1]))];
     let chosen: Box | undefined;
@@ -128,6 +134,7 @@ function placeLabels(requests: readonly LabelRequest[], nodes: readonly DiagramP
     const box = chosen ?? { x: request.anchor.x - w / 2, y: request.anchor.y - base - h * 2, w, h };
     placed.push(box);
     return { key: request.key, text: request.text, kind: request.kind, active: request.active,
+      ...(request.detail ? { detail: request.detail } : {}), ...(request.description ? { description: request.description } : {}),
       ...(request.target ? { target: request.target } : {}), x: box.x + w / 2, y: box.y + h / 2, width: w, height: h };
   });
 }
@@ -151,7 +158,8 @@ export function layoutForkingDiagram(items: readonly ForkingItem[], options: For
   const dx = compact ? 12 : 48, lane = compact ? 9 : 40, radius = compact ? 2.6 : 14, margin = compact ? 6 : 30;
   const marked = options.choices !== undefined;
   const nodes: (Omit<DiagramNode, "x" | "y"> & DiagramPoint)[] = [];
-  const edges: { key: string; from: DiagramPoint; to: DiagramPoint; active: boolean | null; target?: DiagramTarget; path?: DiagramPoint[] }[] = [];
+  const edges: { key: string; from: DiagramPoint; to: DiagramPoint; active: boolean | null; target?: DiagramTarget; path?: DiagramPoint[];
+    straight?: boolean }[] = [];
   const labels: LabelRequest[] = [];
   const on = (value: boolean) => marked ? value : null;
   let cursor = 0;
@@ -160,7 +168,8 @@ export function layoutForkingDiagram(items: readonly ForkingItem[], options: For
   const connect = (to: DiagramPoint, toKey: string, active: (from: Pending) => boolean | null, target?: (from: Pending) => DiagramTarget | undefined) => {
     for (const from of pending) {
       const edgeTarget = target?.(from);
-      edges.push({ key: `${from.key}>${toKey}`, from: from.point, to, active: active(from), ...(edgeTarget ? { target: edgeTarget } : {}) });
+      edges.push({ key: `${from.key}>${toKey}`, from: from.point, to, active: active(from), ...(edgeTarget ? { target: edgeTarget } : {}),
+        ...(from.straight ? { straight: true } : {}) });
     }
   };
   items.forEach((item, index) => {
@@ -178,43 +187,39 @@ export function layoutForkingDiagram(items: readonly ForkingItem[], options: For
       const count = item.branches.length;
       const longest = Math.max(1, ...item.branches.map(branch => branch.length));
       const ends: Pending[] = [];
+      // Bokstaven (och antalen) sitter intill grenens första kontroll; med många alternativ behövs mer plats på höjden.
+      const spacing = compact ? (count > 2 ? 1.1 : 1.5) : count > 2 ? 2.2 : 1.7;
+      // Med etiketter: grenarna börjar längre från delningspunkten och kontrollerna står glesare, så att etiketten får plats.
+      const gap = compact ? dx : dx * 1.4, lead = compact ? dx : dx * 1.8;
+      const split = pending.length === 1 ? pending[0]! : undefined;
       item.branches.forEach((branch, branchIndex) => {
-        // Med upplysningar per gren behövs plats mellan grenarna.
-        const spacing = !compact && options.note ? 1.6 : count > 2 ? 1.1 : 1.5;
         const y = (branchIndex - (count - 1) / 2) * lane * spacing;
         const chosen = on(choice === branchIndex);
         let previous = pending;
         const branchTarget: DiagramTarget = { kind: "BRANCH", item: index, branch: branchIndex };
-        // Grenens kontroller fördelas över gaffelns bredd så att grenarna går ihop på samma ställe.
-        const step = (longest * dx) / (branch.length + (branch.length === longest ? 0 : 1));
+        // Alla grenar börjar på samma avstånd, så att raka linjer från delningspunkten aldrig korsar varandra.
         branch.forEach((code, position) => {
-          const point = { x: cursor + step * (position + 1), y };
+          const point = { x: cursor + lead + gap * position, y };
           const key = `f${index}.${branchIndex}.${position}`;
           for (const from of previous) {
-            edges.push({ key: `${from.key}>${key}`, from: from.point, to: point,
-              active: marked ? (from.active ?? false) && chosen === true : null, target: branchTarget });
+            edges.push({ key: `${from.key}>${key}`, from: from.point, to: point, active: marked ? (from.active ?? false) && chosen === true : null,
+              target: branchTarget, ...(position === 0 && split ? { straight: true } : {}) });
           }
-          nodes.push({ key, kind: "CONTROL", label: String(code), ...point, active: chosen, target: branchTarget });
-          previous = [{ point, active: chosen, key, base: false }];
+          nodes.push({ key, kind: "CONTROL", label: String(code), ...point, active: chosen, target: branchTarget, ...(position === 0 ? { first: true } : {}) });
+          previous = [{ point, active: chosen, key, base: false, straight: true }];
         });
         if (branch.length === 0) ends.push(...pending.map(from => ({ ...from, key: `${from.key}~${branchIndex}`, active: marked ? (from.active ?? false) && chosen === true : null, base: false })));
         else ends.push(...previous);
         const letter = options.letters?.[index]?.[branchIndex];
-        const first = { x: cursor + step, y };
-        const outward: readonly [number, number] = y < 0 ? [0, -1] : [0, 1];
-        if (letter) labels.push({ key: `l${index}.${branchIndex}`, kind: "LETTER", text: letter, anchor: first,
-          prefer: [[-0.7, y < 0 ? -0.7 : 0.7], [-1, 0], [0.7, y < 0 ? -0.7 : 0.7]], active: chosen, target: branchTarget });
-        // Upplysningen vid grenens mitt, utåt från gaffeln.
-        const note = compact ? undefined : options.note?.(index, branchIndex);
-        // De yttre grenarna får upplysningen utåt, de mellersta efter grenens sista kontroll.
-        const outer = branchIndex === 0 || branchIndex === count - 1;
-        const last = { x: cursor + step * Math.max(1, branch.length), y };
-        if (note) labels.push({ key: `n${index}.${branchIndex}`, kind: "NOTE", text: note, anchor: outer ? first : last,
-          prefer: outer ? [outward, [0.38, outward[1] * 0.92]] : [[1, 0], [0.92, -0.38], [0.92, 0.38]], active: chosen });
+        const count_ = compact ? undefined : options.count?.(index, branchIndex);
+        const vertical = y < 0 ? -1 : y > 0 ? 1 : -1;
+        if (letter && branch.length > 0) labels.push({ key: `l${index}.${branchIndex}`, kind: "LETTER", text: letter, anchor: { x: cursor + lead, y },
+          ...(count_ ? { detail: count_.text, description: `${letter}: ${count_.description}` } : {}),
+          prefer: [[0, vertical], [0.7, vertical * 0.7], [-0.7, vertical * 0.7], [0, -vertical], [1, 0]], active: chosen, target: branchTarget });
       });
       pending = ends;
       // Lite längre till nästa kontroll så att grenarna syns gå ihop.
-      cursor += longest * dx + dx * 0.6;
+      cursor += lead + gap * (longest - 1) + dx * 0.7;
       return;
     }
     // Fjäril: den centrala kontrollen och ett kronblad per slinga.
@@ -244,24 +249,29 @@ export function layoutForkingDiagram(items: readonly ForkingItem[], options: For
         edges.push({ key: `p${index}.${loopIndex}.${position}`, from: chain[position - 1]!, to: chain[position]!, active: on(true), target: branchTarget, path: segment });
       }
       loop.forEach((code, position) => nodes.push({ key: `p${index}.${loopIndex}.${position}`, kind: "CONTROL", label: String(code),
-        ...points[position]!, active: on(true), target: branchTarget }));
+        ...points[position]!, active: on(true), target: branchTarget, ...(position === 0 ? { first: true } : {}) }));
       const tip = place(0);
       reach = Math.max(reach, tip.x, ...points.map(point => point.x));
       const letter = options.letters?.[index]?.[loopIndex];
       // Utåt från kronbladets spets, längs bladets riktning.
       const out: readonly [number, number] = [Math.cos(angle), Math.sin(angle)];
       const side: readonly [number, number] = [0, angle < 0 ? -1 : 1];
-      if (letter) labels.push({ key: `l${index}.${loopIndex}`, kind: "LETTER", text: letter, anchor: tip, prefer: [out, side], active: on(true),
-        target: branchTarget });
+      // Bokstaven intill slingans första kontroll, utåt från linjen.
+      const firstPoint = points[0];
+      const count_ = compact ? undefined : options.count?.(index, loopIndex);
+      const away: readonly [number, number] = firstPoint ? [Math.sign(firstPoint.x - center.x) * 0.7, side[1] * 0.7] : out;
+      if (letter && firstPoint) labels.push({ key: `l${index}.${loopIndex}`, kind: "LETTER", text: letter, anchor: firstPoint,
+        ...(count_ ? { detail: count_.text, description: `${letter}: ${count_.description}` } : {}),
+        prefer: [side, away, [-0.7, side[1] * 0.7], [1, 0], [-1, 0]], active: on(true), target: branchTarget });
       const position = order?.indexOf(loopIndex) ?? -1;
       if (position >= 0) labels.push({ key: `o${index}.${loopIndex}`, kind: "ORDER", text: String(position + 1), anchor: tip,
         prefer: [out, side, [1, 0]], active: true });
-      const note = compact ? undefined : options.note?.(index, loopIndex);
-      if (note) labels.push({ key: `n${index}.${loopIndex}`, kind: "NOTE", text: note, anchor: tip, prefer: [side, out], active: on(true) });
     });
     // Banan går vidare rakt ut förbi kronbladen innan den grenar sig, så att en gaffling efter fjärilen inte korsar bladen.
     const junction = { x: Math.max(center.x + dx * 0.5, reach + dx * (compact ? 0.1 : 0.3)), y: 0 };
     edges.push({ key: `${key}>j${index}`, from: center, to: junction, active: on(true) });
+    // En gaffling direkt efter fjärilen delar sig från en synlig punkt.
+    if (items[index + 1]?.kind === "FORK") nodes.push({ key: `j${index}`, kind: "SPLIT", label: "", ...junction, active: on(true) });
     pending = [{ point: junction, active: on(true), key: `j${index}`, base: true }];
     cursor = junction.x - dx * (compact ? 0.5 : 0.15);
   });
@@ -278,7 +288,8 @@ export function layoutForkingDiagram(items: readonly ForkingItem[], options: For
   const shift = (point: DiagramPoint) => ({ x: point.x - minX, y: point.y - minY });
   const pathOf = (edge: (typeof edges)[number]) => edge.path
     ? edge.path.map(shift).map((point, index) => `${index === 0 ? "M" : "L"}${round(point.x)} ${round(point.y)}`).join("")
-    : curve(shift(edge.from), shift(edge.to));
+    : edge.straight ? `M${round(shift(edge.from).x)} ${round(shift(edge.from).y)}L${round(shift(edge.to).x)} ${round(shift(edge.to).y)}`
+      : curve(shift(edge.from), shift(edge.to));
   return {
     width: round(maxX - minX), height: round(maxY - minY), radius,
     nodes: nodes.map(node => ({ ...node, ...shift(node) })),

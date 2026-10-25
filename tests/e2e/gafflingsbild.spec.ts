@@ -27,7 +27,8 @@ async function expectLabelsClear(diagram: Locator) {
     const found: string[] = [];
     type Box = { x: number; y: number; width: number; height: number };
     const hit = (a: Box, b: Box) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
-    const labels = [...svg.querySelectorAll<SVGGElement>("[data-label]")].map(label => ({ text: label.textContent ?? "", box: label.getBBox() }));
+    const labels = [...svg.querySelectorAll<SVGGElement>("[data-label]")].map(label => ({ text: (label.querySelector("text")?.textContent ?? ""),
+      box: label.getBBox(), branch: label.dataset.branch, kind: label.dataset.label }));
     const nodes = [...svg.querySelectorAll<SVGGElement>("[data-node]")].map(node => ({ text: node.textContent ?? "", box: node.getBBox() }));
     const paths = [...svg.querySelectorAll<SVGPathElement>("path")];
     labels.forEach((label, index) => {
@@ -39,10 +40,20 @@ async function expectLabelsClear(diagram: Locator) {
         if (paths.some(path => path.isPointInStroke(point))) { found.push(`${label.text} / sträcka`); return; }
       }
     });
-    return { found, count: labels.length };
+    // Bokstaven sitter intill sin grens första kontroll: högst 40 px från kontrollens kant till etikettens ruta.
+    for (const label of labels.filter(row => row.kind === "LETTER" && row.branch)) {
+      const node = svg.querySelector<SVGGElement>(`[data-first-of="${label.branch}"] circle`);
+      if (!node) { found.push(`${label.text} saknar kontroll`); continue; }
+      const circle = node.getBBox(), cx = circle.x + circle.width / 2, cy = circle.y + circle.height / 2;
+      const dx = Math.max(0, Math.abs(cx - (label.box.x + label.box.width / 2)) - label.box.width / 2);
+      const dy = Math.max(0, Math.abs(cy - (label.box.y + label.box.height / 2)) - label.box.height / 2);
+      if (Math.hypot(dx, dy) - circle.width / 2 > 40) found.push(`${label.text} långt från sin gren`);
+    }
+    return { found, count: labels.length, texts: labels.map(label => label.text) };
   });
   expect(problems.count).toBeGreaterThan(0);
   expect(problems.found).toEqual([]);
+  return problems.texts;
 }
 
 /** Sidan rullar aldrig i sidled (bilden får rulla inom sin ruta). */
@@ -100,7 +111,10 @@ test("bygg en gafflad bana i bilden, fördela, läs av och se gafflingarna i res
   await editor.getByRole("button", { name: "Spara ändringen" }).click();
   await expect(owner.getByText("Gafflingarna är sparade.")).toBeVisible();
   await expect(owner.getByRole("row", { name: /^Fjäril .*Gafflad/ }).getByRole("row", { name: /^AD 31 50 41 42 50 43 50 32 63 33/ })).toBeVisible();
-  await expectLabelsClear(owner.getByRole("row", { name: /^Fjäril .*Gafflad/ }).getByRole("img", { name: /Banbild för Fjäril/ }));
+  const texts = await expectLabelsClear(owner.getByRole("row", { name: /^Fjäril .*Gafflad/ }).getByRole("img", { name: /Banbild för Fjäril/ }));
+  // Banan har anmälda: bokstaven och anmälda/avlästa i samma etikett, med förklaringen som verktygstips.
+  expect(texts).toEqual(expect.arrayContaining(["C · 0/0", "D · 0/0"]));
+  await expect(owner.getByRole("row", { name: /^Fjäril .*Gafflad/ }).locator("title", { hasText: "Gren C: 0 anmälda, 0 avlästa" })).toHaveCount(1);
   // Banraden ser ut som för en vanlig bana: rubriker och klassnamn bryts inte.
   // En text på en rad har en radruta (Range.getClientRects); en bruten text har flera.
   const lines = (locator: Locator) => locator.evaluate(element => { const range = document.createRange(); range.selectNodeContents(element);
@@ -193,11 +207,12 @@ test("två fjärilar i följd och en gaffling med fyra alternativ: etiketterna t
     await editor.getByRole("textbox", { name: `Alternativ ${letter}` }).fill(codes);
   }
   await expect(editor.getByRole("region", { name: "Varianterna som banan ger" })).toContainText("16 varianter");
-  await expectLabelsClear(editor.getByRole("img", { name: /Banbild för Bon/ }));
+  // Utan anmälda står bara bokstäverna.
+  expect(await expectLabelsClear(editor.getByRole("img", { name: /Banbild för Bon/ }))).toEqual(["A", "B", "C", "D", "E", "F", "G", "H"]);
   await editor.getByRole("button", { name: "Spara ändringen" }).click();
   await expect(owner.getByText("Gafflingarna är sparade.")).toBeVisible();
   const diagram = owner.getByRole("row", { name: /^Bon .*Gafflad/ }).getByRole("img", { name: /Banbild för Bon/ });
-  await expectLabelsClear(diagram);
+  expect(await expectLabelsClear(diagram)).toEqual(["A", "B", "C", "D", "E", "F", "G", "H"]);
   await owner.setViewportSize({ width: 390, height: 900 });
   await expectNoPageScroll(owner);
   await expectLabelsClear(diagram);

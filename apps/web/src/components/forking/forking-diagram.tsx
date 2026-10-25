@@ -12,7 +12,7 @@ type Props = {
   /** Markerad väg (löparens variant). */
   choices?: readonly ForkingChoice[] | undefined;
   compact?: boolean;
-  note?: (item: number, branch: number) => string | undefined;
+  count?: (item: number, branch: number) => { text: string; description: string } | undefined;
   /** Redigering: klick på en kontroll, en sträcka eller ett alternativ. */
   onSelect?: (target: DiagramTarget) => void;
   selected?: DiagramTarget | undefined;
@@ -26,9 +26,9 @@ const sameTarget = (left: DiagramTarget | undefined, right: DiagramTarget | unde
  * Banbilden (steg 49): start till mål med gafflingarna som grenar och fjärilarna som kronblad. Med `onSelect` är
  * kontroller, sträckor och alternativ knappar (tangentbord och pekskärm). Bilden rullar i sidled inom sin ruta.
  */
-export function ForkingDiagram({ items, letters, choices, compact = false, note, onSelect, selected, label, caption }: Props) {
-  const layout = useMemo(() => layoutForkingDiagram(items, { compact, choices, ...(letters ? { letters } : {}), ...(note ? { note } : {}) }),
-    [items, compact, choices, letters, note]);
+export function ForkingDiagram({ items, letters, choices, compact = false, count, onSelect, selected, label, caption }: Props) {
+  const layout = useMemo(() => layoutForkingDiagram(items, { compact, choices, ...(letters ? { letters } : {}), ...(count ? { count } : {}) }),
+    [items, compact, choices, letters, count]);
   const press = (target: DiagramTarget) => (event: KeyboardEvent) => {
     if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onSelect?.(target); }
   };
@@ -50,18 +50,23 @@ export function ForkingDiagram({ items, letters, choices, compact = false, note,
     role="img" aria-label={label}>
     <title>{label}</title>
     {layout.edges.map(edge => <path key={edge.key} className={styles.edge} d={edge.d} data-active={edge.active ?? undefined} />)}
-    {layout.nodes.map(node => <g key={node.key} className={styles.node} data-node="" data-kind={node.kind} data-active={node.active ?? undefined}>
+    {layout.nodes.map(node => <g key={node.key} className={styles.node} data-node="" data-kind={node.kind} data-active={node.active ?? undefined}
+      data-first-of={node.first && node.target?.kind === "BRANCH" ? `${node.target.item}.${node.target.branch}` : undefined}>
       {node.kind === "START" ? <polygon points={`${node.x - layout.radius},${node.y + layout.radius * 0.8} ${node.x + layout.radius},${node.y + layout.radius * 0.8} ${node.x},${node.y - layout.radius}`} />
-        : <circle cx={node.x} cy={node.y} r={layout.radius} />}
+        : <circle cx={node.x} cy={node.y} r={node.kind === "SPLIT" ? layout.radius * 0.3 : layout.radius} />}
       {node.kind === "FINISH" && <circle cx={node.x} cy={node.y} r={layout.radius * 0.66} />}
-      {!compact && node.kind !== "START" && node.kind !== "FINISH" && <text x={node.x} y={node.y}>{node.label}</text>}
+      {!compact && node.kind !== "START" && node.kind !== "FINISH" && node.kind !== "SPLIT" && <text x={node.x} y={node.y}>{node.label}</text>}
     </g>)}
-    {/* Etiketterna har en egen ruta (med bakgrund) som aldrig täcker kontroller, sträckor eller andra etiketter. */}
-    {layout.labels.map(item => <g key={item.key} data-label={item.kind} data-active={item.active ?? undefined}>
-      {item.kind === "NOTE" && <rect className={styles.labelBox} x={item.x - item.width / 2} y={item.y - item.height / 2}
+    {/* Etiketterna har en egen ruta (med bakgrund) som aldrig täcker kontroller, sträckor eller andra etiketter. Bokstaven och
+        antalen ("E · 3/1") sitter intill grenens första kontroll. */}
+    {layout.labels.map(item => <g key={item.key} data-label={item.kind} data-active={item.active ?? undefined}
+      data-branch={item.target?.kind === "BRANCH" ? `${item.target.item}.${item.target.branch}` : undefined}>
+      {item.description && <title>{text.branchCount(item.description)}</title>}
+      {item.detail && <rect className={styles.labelBox} x={item.x - item.width / 2} y={item.y - item.height / 2}
         width={item.width} height={item.height} rx={3} />}
-      <text x={item.x} y={item.y} data-active={item.active ?? undefined}
-        className={item.kind === "LETTER" ? styles.letter : item.kind === "ORDER" ? styles.order : styles.note}>{item.text}</text>
+      <text x={item.x} y={item.y} data-active={item.active ?? undefined} aria-label={item.description ? text.branchCount(item.description) : undefined}
+        className={item.kind === "LETTER" ? styles.letter : styles.order}>{item.text}
+        {item.detail && <tspan className={styles.count}>{` · ${item.detail}`}</tspan>}</text>
     </g>)}
     {interactive && <>
       {layout.edges.filter(edge => edge.target?.kind === "LEG").map(edge => <circle key={`hit-${edge.key}`} cx={edge.mid.x} cy={edge.mid.y} r={11}

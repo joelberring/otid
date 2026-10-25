@@ -13,7 +13,10 @@ export const forkingSv = {
   legButton: (from: string, to: string) => `Sträckan ${from}–${to}`,
   controlButton: (code: number, center: boolean) => center ? `Fjärilens mittkontroll ${code}` : `Kontroll ${code}`,
   branchButton: (letter: string, loop: boolean) => loop ? `Slinga ${letter}` : `Alternativ ${letter}`,
-  branchNote: (entries: number, readOut: number) => `${entries} anm. · ${readOut} avl.`,
+  branchCountShort: (entries: number, readOut: number) => `${entries}/${readOut}`,
+  branchCountLong: (entries: number, readOut: number) =>
+    `${entries} ${entries === 1 ? "anmäld" : "anmälda"}, ${readOut} ${readOut === 1 ? "avläst" : "avlästa"}`,
+  branchCount: (description: string) => `Gren ${description}`,
   // Banlistan
   variantsBelow: (count: number) => count === 1 ? "1 variant (se nedan)" : `${count} varianter (se nedan)`,
   title: "Gafflingar",

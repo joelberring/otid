@@ -7,7 +7,9 @@ describe("banbilden för gafflingar (steg 49)", () => {
 
   it("ritar start, kontroller, fjärilens kronblad, gaffelns grenar och mål med bokstäverna", () => {
     const layout = layoutForkingDiagram(items, { letters: [null, ["A", "B"], ["C", "D"], null] });
-    expect(layout.nodes.map(node => node.label)).toEqual(["Start", "31", "50", "41", "42", "43", "61", "62", "63", "33", "Mål"]);
+    expect(layout.nodes.filter(node => node.kind !== "SPLIT").map(node => node.label)).toEqual(["Start", "31", "50", "41", "42", "43", "61", "62", "63", "33", "Mål"]);
+    // En gaffling direkt efter fjärilen delar sig från en synlig punkt.
+    expect(layout.nodes.filter(node => node.kind === "SPLIT")).toHaveLength(1);
     expect(layout.labels.filter(label => label.kind === "LETTER").map(label => label.text)).toEqual(["A", "B", "C", "D"]);
     // Kronbladen ligger ovanför och under linjen; grenarna på var sin sida.
     const y = (label: string) => layout.nodes.find(node => node.label === label)!.y;
@@ -76,7 +78,17 @@ describe("banbilden för gafflingar (steg 49)", () => {
       expect(label.x >= 0 && label.y >= 0 && label.x + label.w <= layout.width && label.y + label.h <= layout.height).toBe(true);
     }
   }
-  const note = () => "12 anm. · 10 avl.";
+  /** Varje bokstav sitter intill sin grens första kontroll (högst 40 px från kontrollens mitt till etikettens ruta). */
+  function expectNearFirst(layout: ReturnType<typeof layoutForkingDiagram>) {
+    for (const label of layout.labels.filter(row => row.kind === "LETTER")) {
+      const target = label.target;
+      const node = layout.nodes.find(row => row.first && row.target?.kind === "BRANCH" && target?.kind === "BRANCH" &&
+        row.target.item === target.item && row.target.branch === target.branch)!;
+      const dx = Math.max(0, Math.abs(node.x - label.x) - label.width / 2), dy = Math.max(0, Math.abs(node.y - label.y) - label.height / 2);
+      expect(Math.hypot(dx, dy), `${label.text} långt från ${node.label}`).toBeLessThanOrEqual(40);
+    }
+  }
+  const count = () => ({ text: "12/10", description: "12 anmälda, 10 avlästa" });
 
   it("etiketterna täcker inget: två fjärilar i följd och gafflingar med tre och fyra alternativ", () => {
     const structures = [
@@ -91,7 +103,10 @@ describe("banbilden för gafflingar (steg 49)", () => {
     for (const items of structures) {
       const letters = (() => { let next = 0; return items.map(item => item.kind === "CONTROL" ? null
         : (item.kind === "FORK" ? item.branches : item.loops).map(() => "ABCDEFGHIJKLMNOP"[next++]!)); })();
-      expectClear(layoutForkingDiagram(items, { letters, note }));
+      const full = layoutForkingDiagram(items, { letters, count });
+      expectClear(full);
+      expectNearFirst(full);
+      expect(full.labels.filter(label => label.kind === "LETTER").every(label => label.detail === "12/10")).toBe(true);
       expectClear(layoutForkingDiagram(items, { letters, compact: true, choices: items.map(item => item.kind === "LOOP"
         ? item.loops.map((_loop, index) => item.loops.length - 1 - index) : item.kind === "FORK" ? 1 : null) }));
     }

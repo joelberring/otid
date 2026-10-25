@@ -719,6 +719,24 @@ men att fullt namn spara för fakturering".
 - [x] Raden under rubriken: "Registrera din pinne" utfällbar, länk till sträcktiderna och hur man betalar.
 - [x] QR-skylt `/fest/{kod}/qr` (A4) i festens utseende, nåbar från arbetsytan, samma skydd som fest-sidan.
 
+## [x] Steg 44 – Rättelser efter genomlysningen: stopp och fest
+
+Genomlysningen 2026-10-25 (motor, drift, säkerhet) efter två tävlingar och en klubbfest.
+
+- [x] Speakern svarar även när en struken löpare har resultat bland de senaste (strukna filtreras före urvalet).
+- [x] Migratorn bokför per migration (tagg, för äldre rader `when` eller hash): varje journalrad som saknas körs, i journalordning,
+  även med lägre `when`. Journalen har unika taggar och `when`, och `idx` 0..n.
+- [x] Manuella beslut (manuell och rättad tid, godkänd, godkända kontroller, bekräftad felstämpling, brutit, disk, utom tävlan, utan
+  tid) följer med när resultatet räknas om efter banredigering, flyttad starttid eller ny lottning; förhandsvisningen av banändringen
+  säger hur många som berörs.
+- [x] Övningsstationens avläsningar märks (`card_readout.simulated`, migration 0019) och räknas inte som festens köp; bardisken
+  varnar.
+- [x] Personalens lägen gäller en utläsning; "Ta bort incheckning" och "Ta bort utcheckning" per gäst (även via start och mål);
+  samma målstämpling checkar inte ut igen.
+- [x] Dubbelstämpling jämförs med senast räknade köpet.
+- [x] En festpinne som redan har köp namnges i bardisken, inte via det publika formuläret.
+- [x] Namnrutan stänger efter 20 s när andra utläsningar väntar.
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

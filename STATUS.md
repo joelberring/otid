@@ -10,6 +10,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-10-25 – Steg 44: rättelser efter genomlysningen (stopp och fest)
+- Speakern: strukna löpare filtreras i urvalet av de 25 senaste (gav 500). Migratorn bokför per tagg (ny kolumn `tag`; äldre rader matchas på `when` eller hash och får taggen), kör varje saknad migration i journalordning oavsett `when`; journalens `idx` är nu 0..n (0014–0018 numrerades om).
+- Manuella beslut följer med vid omräkning (banredigering, starttid, lottning): beslutet tas bort och läggs på nytt ovanpå den nya tekniska revisionen (`carryManualDecisions`), med samma innehåll (manuell tid: måltiden står kvar, starten följer den kända starten). Godkännande som inte behövs längre tas bara bort. "N löpare har manuella beslut" i banändringens besked. Placeringar och "Resultaten är klara" fungerar efter banredigering (motor #2 och #8).
+- Fest: `card_readout.simulated` (0019, ifylld ur råmeddelandet); övningsstationens köp räknas inte i summeringen, CSV eller fest-sidan, bardisken varnar. "Ta bort incheckning/utcheckning" (admin, `party_presence_void`, auditpost); samma målstämpling checkar inte ut igen. Personalens läge gäller en utläsning. Dubbelstämpling mot senast räknade köpet (0/4/8/12 s → 2 köp). Självregistrering på en pinne med köp avvisas ("gå till bardisken"). Namnrutan 20 s med kö.
+- Tester: domän `decision-carry`, `party`; webb `party`; integration `steg-44-migrator`, `speaker-board`, `adr-0169-course-edit`, `administrator-start-time`, `entry-changes`, `steg-40-fest`, `steg-41-sjalvregistrering`; `migration-journal`. Verifierat: lint, typecheck, test, test:integration (340, med `--testTimeout=60000`), build, Playwright `fest`, `sjalvregistrering`, `redigera-bana`, `manuellt`, `lottning`, `avslut`.
+- Beslut utan avläsning (manuell tid för tappad bricka, brutit, disk) läggs på nytt när de bygger på ett äldre underlag; i en klass med lottad start följer den manuella tidens start den nya starttiden.
+- Risk: "Ta bort in-/utcheckning" är bara för admin (som ångra köp). `notRecalculatedCount` blir alltid 0 och kan tas bort ur kontrakten. Integrationstester med 5 s-gräns faller under last (tre agenter samtidigt).
+
 ### 2026-10-24 – Steg 42: fest – Eventor-nyckel, kvällens sträcktider och QR-skylt
 - Fest-typen visar Eventor-nyckeln och löpardatabasen under Inställningar (utan tävlingsval och import).
 - "Kvällens sträcktider" (`#stracktider`) på `/fest/{kod}`: en rad per gäst med köp (flest först, vid lika tidigaste första köpet), In, varje köp ("21:14 Margarita" med färgprick per grupp/vara), Mål och "+18:30" sedan förra händelsen; Totalt = antal köp och tid från incheckning (eller första köpet) till utcheckning (eller senaste köpet). Bara köp som räknas (`partyLedger`: start, dubbelstämpling, ångrade bort). Rullar i sidled med namnet fast; var 10:e sekund.

@@ -19,8 +19,9 @@ import { controlCodesOutOfOrder, prepareReadoutForEvaluation } from "./station-c
  * delföljd, så att extra- och dubbelstämplingar ger godkänt. 0.4.0 (PLAN.md steg 25): fast start utan lottad tid
  * räknas från startstämplingen, och klassens maxtid ger `OVERTIME`. 0.5.0 (PLAN.md steg 31): tävlingens tidsjusteringar
  * per station och kontroller ur funktion, och gamla stämplingar på en oröjd bricka räknas inte (`prepareReadoutForEvaluation`).
+ * 0.6.0 (steg 45): vid lika många matchade kontroller väljs stämplingar mellan start och mål.
  */
-export const RESULT_ENGINE_VERSION = "0.5.0";
+export const RESULT_ENGINE_VERSION = "0.6.0";
 
 function invalid(reason: EvaluationResult["reason"], base: Partial<EvaluationResult> = {}): EvaluationResult {
   return {
@@ -53,13 +54,24 @@ interface ExpectedControl {
   readonly neutralized: boolean;
 }
 
+/** Starten och målet som sträcktiderna måste ligga mellan. */
+interface TimeWindow { readonly startMs: number; readonly finishMs: number }
+/** Variantvalet bryr sig inte om tiderna; sträcktiderna räknas när utfallet byggs. */
+const ANY_TIME: TimeWindow = { startMs: -Infinity, finishMs: Infinity };
+
 interface AlignmentScore {
   readonly required: number;
   readonly neutralized: number;
+  /** Steg 45: matchade stämplingar mellan start och mål. Avgör bara mellan lika många matchade kontroller. */
+  readonly inWindow: number;
 }
 
 function compareAlignment(left: AlignmentScore, right: AlignmentScore): number {
-  return left.required - right.required || left.neutralized - right.neutralized;
+  return left.required - right.required || left.neutralized - right.neutralized || left.inWindow - right.inWindow;
+}
+
+function sameAlignment(left: AlignmentScore, right: AlignmentScore): boolean {
+  return compareAlignment(left, right) === 0;
 }
 
 /**
@@ -70,9 +82,15 @@ function compareAlignment(left: AlignmentScore, right: AlignmentScore): number {
  * blir desamma vid dubbelstämpling. Det gör att en kontroll som återkommer (fjärilsslinga) och en extra stämpling
  * före rätt följd ger godkänt, medan en obligatorisk kontroll som bara finns på fel plats blir saknad.
  */
-function alignControls(expected: readonly ExpectedControl[], punches: readonly Punch[]) {
+function alignControls(expected: readonly ExpectedControl[], punches: readonly Punch[], window: TimeWindow = ANY_TIME) {
+  // Steg 45: vid lika många matchade kontroller väljs stämplingar mellan start och mål (oröjd bricka med ett fullt varv
+  // från tidigare samma dag). Antalet matchade kontroller avgör först, så ingen blir felstämplad av regeln.
+  const inside = punches.map((punch) => {
+    const ms = Date.parse(punch.punchedAt);
+    return Number.isFinite(ms) && ms >= window.startMs && ms <= window.finishMs ? 1 : 0;
+  });
   const scores: AlignmentScore[][] = Array.from({ length: expected.length + 1 }, () =>
-    Array.from({ length: punches.length + 1 }, () => ({ required: 0, neutralized: 0 })));
+    Array.from({ length: punches.length + 1 }, () => ({ required: 0, neutralized: 0, inWindow: 0 })));
   for (let expectedIndex = expected.length - 1; expectedIndex >= 0; expectedIndex -= 1) {
     for (let punchIndex = punches.length - 1; punchIndex >= 0; punchIndex -= 1) {
       const control = expected[expectedIndex]!;
@@ -83,7 +101,8 @@ function alignControls(expected: readonly ExpectedControl[], punches: readonly P
         const next = scores[expectedIndex + 1]![punchIndex + 1]!;
         const matched = {
           required: next.required + (control.neutralized ? 0 : 1),
-          neutralized: next.neutralized + (control.neutralized ? 1 : 0)
+          neutralized: next.neutralized + (control.neutralized ? 1 : 0),
+          inWindow: next.inWindow + inside[punchIndex]!
         };
         if (compareAlignment(matched, best) >= 0) best = matched;
       }
@@ -96,21 +115,17 @@ function alignControls(expected: readonly ExpectedControl[], punches: readonly P
     const current = scores[expectedIndex]![punchIndex]!;
     const control = expected[expectedIndex]!;
     const next = scores[expectedIndex + 1]![punchIndex + 1]!;
-    const matched = control.controlCode === punches[punchIndex]!.code &&
-      current.required === next.required + (control.neutralized ? 0 : 1) &&
-      current.neutralized === next.neutralized + (control.neutralized ? 1 : 0);
+    const matched = control.controlCode === punches[punchIndex]!.code && sameAlignment(current, {
+      required: next.required + (control.neutralized ? 0 : 1), neutralized: next.neutralized + (control.neutralized ? 1 : 0),
+      inWindow: next.inWindow + inside[punchIndex]! });
     if (matched) { matches.push({ expectedIndex, punchIndex }); expectedIndex += 1; punchIndex += 1; continue; }
     const skipPunch = scores[expectedIndex]![punchIndex + 1]!;
-    if (compareAlignment(skipPunch, current) === 0) { punchIndex += 1; continue; }
+    if (sameAlignment(skipPunch, current)) { punchIndex += 1; continue; }
     expectedIndex += 1;
   }
   return matches;
 }
 
-/** Starten och målet som sträcktiderna måste ligga mellan. */
-interface TimeWindow { readonly startMs: number; readonly finishMs: number }
-/** Variantvalet bryr sig inte om tiderna; sträcktiderna räknas när utfallet byggs. */
-const ANY_TIME: TimeWindow = { startMs: -Infinity, finishMs: Infinity };
 
 interface ControlMatch {
   readonly missingControls: readonly number[];
@@ -126,7 +141,7 @@ interface ControlMatch {
  */
 function matchControls(expectedControls: readonly ExpectedControl[], punches: readonly Punch[], window: TimeWindow): ControlMatch {
   const expected = expectedControls.map((control) => control.controlCode);
-  const aligned = alignControls(expectedControls, punches);
+  const aligned = alignControls(expectedControls, punches, window);
   const matchedByExpected = new Map(aligned.map((match) => [match.expectedIndex, match.punchIndex]));
   const matchedPunchIndexes = new Set(aligned.map((match) => match.punchIndex));
   const matched: Punch[] = [];

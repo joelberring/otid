@@ -6,7 +6,7 @@ import {
 } from "@o-tid/domain";
 import { resolveStoredResultHeadStates } from "./result-revision-state";
 import { appendResultRevision, normalizedReadout } from "./result-revisions";
-import { latestResultReadouts, recalculationReadout } from "./card-reuse";
+import { latestResultReadouts, readoutClaims, recalculationReadout } from "./card-reuse";
 
 /**
  * Gemensam omprövning för "Redigera bana" och "Redigera klass" (ADR-0169 beslut 4).
@@ -80,6 +80,7 @@ export async function assessReadOutEntries(tx: Transaction, raceId: string, clas
     .where(and(eq(schema.cardReadouts.raceId, raceId), inArray(schema.cardReadouts.cardNumber, cards)))
     .orderBy(asc(schema.cardReadouts.cardNumber), desc(schema.cardReadouts.readAt), desc(schema.cardReadouts.id));
   const readoutByCard = new Map(readouts.map(row => [row.cardNumber, row]));
+  const claims = await readoutClaims(tx, raceId, readouts.map(row => row.id));
   // Steg 31 (B4): resultatet följer avläsningen och deltagaren. Den som har ett resultat räknas om från sin egen
   // avläsning, även om brickan sedan lästs ut för någon annan (lånad bricka) eller flyttats.
   const resultReadouts = await latestResultReadouts(tx, raceId, entryIds);
@@ -96,7 +97,7 @@ export async function assessReadOutEntries(tx: Transaction, raceId: string, clas
   for (const entry of entries) {
     const entryCards = cardsByEntry.get(entry.id) ?? [];
     const card = entryCards.length === 1 ? entryCards[0]! : undefined;
-    const readout = recalculationReadout(resultReadouts.get(entry.id), card, card ? readoutByCard.get(card) : undefined);
+    const readout = recalculationReadout(entry.id, resultReadouts.get(entry.id), card, card ? readoutByCard.get(card) : undefined, claims);
     if (!readout) continue;
     const head = latestByEntry.get(entry.id) ?? null;
     const state = stateByEntry.get(entry.id);

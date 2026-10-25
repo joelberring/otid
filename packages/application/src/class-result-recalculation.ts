@@ -2,7 +2,7 @@ import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { classResultRecalculationCandidateResponseSchema, classResultRecalculationIdempotencyKeySchema, classResultRecalculationRequestSchema, classResultRecalculationResponseSchema, type ClassResultRecalculationCandidateResponse, type ClassResultRecalculationResponse } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { evaluateReadoutForEntry, RESULT_ENGINE_VERSION } from "@o-tid/domain";
-import { latestResultReadouts, recalculationReadout } from "./card-reuse";
+import { latestResultReadouts, readoutClaims, recalculationReadout } from "./card-reuse";
 import { appendResultRevision, normalizedReadout } from "./result-revisions";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForSnapshot } from "./concurrency";
@@ -26,10 +26,10 @@ async function basis(tx: DbExecutor, raceId: string, classId: string) {
   // ADR-0169: ett resultat behöver räknas om bara när löparens eget underlag har ändrats.
   const basisHashes = ids.length ? await loadResultBasisHashes(tx, raceId) : new Map<string, string>();
   const grouped = new Map<string, typeof assignments>(); for (const row of assignments) { const old = grouped.get(row.entryId) ?? []; old.push(row); grouped.set(row.entryId, old); }
-  const byCard = new Map(readouts.map((x) => [x.cardNumber, x])); const byEntry = new Map(revisions.map((x) => [x.entryId, x]));
-  // Steg 31 (B4): den som har ett resultat räknas om från sin egen avläsning (resultatet följer avläsningen).
+  const byCard = new Map(readouts.map((x) => [x.cardNumber, x])); const claims = await readoutClaims(tx, raceId, readouts.map((x) => x.id)); const byEntry = new Map(revisions.map((x) => [x.entryId, x]));
+  // Steg 31 (B4), steg 45: egen avläsning, annars brickans senaste som ingen annans resultat bygger på.
   const own = await latestResultReadouts(tx, raceId, ids);
-  const rows: Candidate[] = entries.map((entry) => { const active = grouped.get(entry.id) ?? [], assignment = active.length === 1 ? active[0] : undefined, readout = assignment ? recalculationReadout(own.get(entry.id), assignment.cardNumber, byCard.get(assignment.cardNumber)) : undefined, revision = byEntry.get(entry.id); const readiness = active.length === 0 ? "NO_ACTIVE_ASSIGNMENT" : active.length > 1 ? "MULTIPLE_ACTIVE_ASSIGNMENTS" : !readout ? "NO_READOUT" : !revision ? "NO_RESULT" : isResultCurrent(revision, basisHashes.get(entry.id), race.snapshotVersion) ? "CURRENT" : "READY"; return { id: entry.id, entryVersion: entry.version, displayName: `${entry.givenName} ${entry.familyName}`, readiness, cardAssignmentId: assignment?.id ?? null, readoutId: readout?.id ?? null, latestResultRevision: revision ? { id: revision.id, revision: revision.revision, snapshotVersion: revision.snapshotVersion } : null }; });
+  const rows: Candidate[] = entries.map((entry) => { const active = grouped.get(entry.id) ?? [], assignment = active.length === 1 ? active[0] : undefined, readout = assignment ? recalculationReadout(entry.id, own.get(entry.id), assignment.cardNumber, byCard.get(assignment.cardNumber), claims) : undefined, revision = byEntry.get(entry.id); const readiness = active.length === 0 ? "NO_ACTIVE_ASSIGNMENT" : active.length > 1 ? "MULTIPLE_ACTIVE_ASSIGNMENTS" : !readout ? "NO_READOUT" : !revision ? "NO_RESULT" : isResultCurrent(revision, basisHashes.get(entry.id), race.snapshotVersion) ? "CURRENT" : "READY"; return { id: entry.id, entryVersion: entry.version, displayName: `${entry.givenName} ${entry.familyName}`, readiness, cardAssignmentId: assignment?.id ?? null, readoutId: readout?.id ?? null, latestResultRevision: revision ? { id: revision.id, revision: revision.revision, snapshotVersion: revision.snapshotVersion } : null }; });
   return { race, className: raceClass.name, rows, manifestHash: hash({ raceId, classId, snapshotVersion: race.snapshotVersion, engineVersion: RESULT_ENGINE_VERSION, entries: rows }) };
 }
 

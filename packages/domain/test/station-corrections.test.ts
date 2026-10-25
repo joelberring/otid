@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { evaluateCardReadout, evaluateReadoutWithTimes, prepareReadoutForEvaluation, type NormalizedCardReadout, type RaceSnapshot,
-  type StationTimeAdjustment } from "../src";
+import { applyManualDecision, evaluateCardReadout, evaluateReadoutWithTimes, okWithoutSplits, preparedReadoutTimes, prepareReadoutForEvaluation,
+  resolveResultHistory, type ManualDecisionContext, type NormalizedCardReadout, type RaceSnapshot, type StationTimeAdjustment } from "../src";
 
 const ids = {
   race: "00000000-0000-4000-8000-000000000001",
@@ -157,5 +157,96 @@ describe("manuell tid tillsammans med tävlingens rättningar (steg 31, A + B)",
       { code: 33, punchedAt: "2026-08-30T10:30:00Z" }] });
     const result = evaluateReadoutWithTimes(old, snapshot(), ids.entry, "2026-08-30T10:00:00Z", "2026-08-30T10:45:00Z");
     expect(result).toMatchObject({ status: "MP", missingControls: [32] });
+  });
+});
+
+describe("rättad starttid med tidsjustering på start (steg 45)", () => {
+  it("beslutet jämförs med den justerade startstämplingen, inte den råa", () => {
+    const punchStart = (adjustments: StationTimeAdjustment[]): RaceSnapshot => {
+      const base = snapshot(adjustments);
+      return { ...base, classes: base.classes.map((raceClass) => ({ ...raceClass, startRule: "PUNCH" as const })) };
+    };
+    const startAdjusted = punchStart([{ id: "adj-start", station: "START", offsetMs: 2 * 60_000 }]);
+    const input = readout();
+    const outcome = evaluateCardReadout(input, startAdjusted);
+    expect(outcome).toMatchObject({ status: "OK", startTime: "2026-08-30T10:02:05.000Z" });
+    const times = preparedReadoutTimes(input, startAdjusted);
+    expect(times).toEqual({ startPunchedAt: "2026-08-30T10:02:05.000Z", finishPunchedAt: "2026-08-30T10:40:00Z" });
+    const history = resolveResultHistory([{ revision: 1, cause: "CARD_READOUT", evaluation: outcome, readoutId: "readout" }]);
+    const base: ManualDecisionContext = { entryId: ids.entry, classId: ids.class, courseVersionId: ids.version, startRule: "PUNCH",
+      isCurrent: () => true };
+    const decision = { kind: "START_TIME", startTime: "2026-08-30T10:01:00.000Z" } as const;
+    // Den råa stämplingen stämmer inte med bedömningens start, så rättningen gick aldrig att göra.
+    expect(applyManualDecision(history, decision, { ...base, headStartPunchedAt: input.startPunchedAt! }))
+      .toMatchObject({ ok: false, readiness: "UNSUPPORTED_RESULT" });
+    const corrected = applyManualDecision(history, decision, { ...base, headStartPunchedAt: times.startPunchedAt });
+    expect(corrected).toMatchObject({ ok: true });
+    expect(corrected.ok && corrected.outcome).toMatchObject({ startTime: "2026-08-30T10:01:00.000Z", elapsedMs: 39 * 60_000 });
+  });
+});
+
+describe("tidsjustering för alla enheter (steg 45)", () => {
+  it("−60 min på alla enheter ger samma sträcktider och samma status vid stämplingsstart", () => {
+    const summer = readout({ startPunchedAt: "2026-08-30T11:00:05Z", finishPunchedAt: "2026-08-30T11:40:00Z", punches: [
+      { code: 31, punchedAt: "2026-08-30T11:10:00Z" }, { code: 32, punchedAt: "2026-08-30T11:20:00Z" },
+      { code: 33, punchedAt: "2026-08-30T11:30:00Z" }], readAt: "2026-08-30T11:41:00Z" });
+    const punchStart = (adjustments: StationTimeAdjustment[]): RaceSnapshot => {
+      const base = snapshot(adjustments);
+      return { ...base, classes: base.classes.map((raceClass) => ({ ...raceClass, startRule: "PUNCH" as const })) };
+    };
+    const before = evaluateCardReadout(summer, punchStart([]));
+    const all: StationTimeAdjustment = { id: "adj-all", station: "ALL", offsetMs: -HOUR };
+    const after = evaluateCardReadout(summer, punchStart([all]));
+    expect(after.status).toBe(before.status);
+    expect(after).toMatchObject({ status: "OK", elapsedMs: before.elapsedMs, startTime: "2026-08-30T10:00:05.000Z",
+      finishTime: "2026-08-30T10:40:00.000Z" });
+    expect(after.splits.map((split) => [split.controlCode, split.legMs])).toEqual(before.splits.map((split) => [split.controlCode, split.legMs]));
+    expect(prepareReadoutForEvaluation(summer, punchStart([all])).adjustments).toEqual([
+      { station: "START", offsetMs: -HOUR, punches: 1 }, { station: "FINISH", offsetMs: -HOUR, punches: 1 },
+      { station: "CONTROL", controlCode: 31, offsetMs: -HOUR, punches: 1 }, { station: "CONTROL", controlCode: 32, offsetMs: -HOUR, punches: 1 },
+      { station: "CONTROL", controlCode: 33, offsetMs: -HOUR, punches: 1 }]);
+  });
+
+  it("med lottad start rättar −60 min på alla enheter löptiden, och läggs ihop med en enskild enhet", () => {
+    // Enheterna går en timme före (sommartid): Ada (lottad 10:00) springer 40 min men målet står 11:40.
+    const summer = readout({ startPunchedAt: "2026-08-30T11:00:05Z", finishPunchedAt: "2026-08-30T11:40:00Z", punches: [
+      { code: 31, punchedAt: "2026-08-30T11:10:00Z" }, { code: 32, punchedAt: "2026-08-30T11:20:00Z" },
+      { code: 33, punchedAt: "2026-08-30T11:30:00Z" }], readAt: "2026-08-30T10:41:00Z" });
+    const all: StationTimeAdjustment = { id: "adj-all", station: "ALL", offsetMs: -HOUR };
+    const fixed = evaluateCardReadout(summer, snapshot([all]));
+    expect(fixed).toMatchObject({ status: "OK", elapsedMs: 40 * 60_000 });
+    expect(fixed.splits.map((split) => split.elapsedMs)).toEqual([10, 20, 30].map((minutes) => minutes * 60_000));
+    expect(evaluateCardReadout(summer, snapshot([all, finish(60_000)])).elapsedMs).toBe(41 * 60_000);
+  });
+});
+
+describe("oröjd bricka med ett fullt varv tidigare samma dag (steg 45)", () => {
+  const punchStart = (): RaceSnapshot => {
+    const base = snapshot();
+    return { ...base, classes: base.classes.map((raceClass) => ({ ...raceClass, startRule: "PUNCH" as const })) };
+  };
+  const morning = [{ code: 31, punchedAt: "2026-08-30T08:10:00Z" }, { code: 32, punchedAt: "2026-08-30T08:20:00Z" },
+    { code: 33, punchedAt: "2026-08-30T08:30:00Z" }];
+
+  it("väljer kvällens stämplingar mellan start och mål, så att sträcktiderna finns", () => {
+    const evening = readout({ startPunchedAt: "2026-08-30T18:00:00Z", finishPunchedAt: "2026-08-30T18:40:00Z", readAt: "2026-08-30T18:41:00Z",
+      punches: [...morning, { code: 31, punchedAt: "2026-08-30T18:10:00Z" }, { code: 32, punchedAt: "2026-08-30T18:20:00Z" },
+        { code: 33, punchedAt: "2026-08-30T18:30:00Z" }] });
+    const result = evaluateCardReadout(evening, punchStart());
+    expect(result).toMatchObject({ status: "OK", elapsedMs: 40 * 60_000, extraPunches: [31, 32, 33] });
+    expect(result.splits.map((split) => split.elapsedMs)).toEqual([10, 20, 30].map((minutes) => minutes * 60_000));
+    expect(okWithoutSplits(result, punchStart())).toBe(false);
+  });
+
+  it("blir inte felstämplad av regeln, och ett godkänt utan sträcktider märks", () => {
+    // Kvällens varv saknar 32: morgonens stämplingar räknas som förut (stämpling utanför start–mål har ingen betydelse).
+    const partly = readout({ startPunchedAt: "2026-08-30T18:00:00Z", finishPunchedAt: "2026-08-30T18:40:00Z", readAt: "2026-08-30T18:41:00Z",
+      punches: [...morning, { code: 31, punchedAt: "2026-08-30T18:10:00Z" }, { code: 33, punchedAt: "2026-08-30T18:30:00Z" }] });
+    expect(evaluateCardReadout(partly, punchStart())).toMatchObject({ status: "OK" });
+    const onlyMorning = readout({ startPunchedAt: "2026-08-30T18:00:00Z", finishPunchedAt: "2026-08-30T18:40:00Z",
+      readAt: "2026-08-30T18:41:00Z", punches: morning });
+    const result = evaluateCardReadout(onlyMorning, punchStart());
+    expect(result).toMatchObject({ status: "OK", splits: [] });
+    expect(okWithoutSplits(result, punchStart())).toBe(true);
   });
 });

@@ -31,7 +31,10 @@ bricknummer, valfri start- och målstämpling och stämplingar.
    tiden är en varning i avläsningen, deltagarkortet och arbetsytans resultatlista, aldrig publikt; den lottade
    tiden gäller (motor 0.4.0, PLAN.md steg 25).
 3. Målstämpling krävs för en sluttid. Saknad start eller mål ger `MP` med stabil förklaringskod.
-4. Kontroller matchas som en ordnad delsekvens. Extra stämplingar ignoreras för godkännandet men redovisas.
+4. Kontroller matchas som en ordnad delsekvens. Extra stämplingar ignoreras för godkännandet men redovisas. Motor 0.6.0
+   (steg 45): vid lika många matchade kontroller väljs stämplingar mellan start och mål (oröjd bricka med ett varv tidigare
+   samma dag), så att sträcktiderna finns; antalet matchade avgör först, så ingen blir felstämplad av regeln. Ett godkänt
+   utan sträcktider varnas i avläsningens besked.
 5. Saknad obligatorisk kontroll ger `MP/MISSING_CONTROL`.
 6. En obligatorisk kontroll som är stämplad men bara utanför sin plats i följden (före föregående matchade
    kontroll eller efter en senare obligatorisk kontroll) ger `MP/WRONG_ORDER`. En extra stämpling av en
@@ -54,7 +57,9 @@ bricknummer, valfri start- och målstämpling och stämplingar.
    `prepareReadoutForEvaluation`, innan bedömningen: en tidsjustering per station (start, mål eller kontrollkod) ändrar
    stämplingstiderna från stationen; en kontroll ur funktion är frivillig på alla banor (även gafflade), ger ingen
    sträcktid, och sträckan räknas från kontrollen före. Den lagrade avläsningen ändras aldrig. Ändringen räknar om alla
-   avlästa; en manuellt rättad tid räknas inte om.
+   avlästa; en manuellt rättad tid räknas inte om. Steg 45: stationen ALL (alla enheter) gäller start, mål och alla
+   kontroller och läggs ihop med en justering för en enskild enhet. Besluten (rättad starttid, manuell tid) utgår från
+   tiderna efter justeringen (`preparedReadoutTimes`).
 12. Oröjd bricka (steg 31): kontroll-, start- och målstämplingar mer än 12 timmar före avläsningen räknas inte, och
    kontrollstämplingar mer än 10 minuter före brickans clear- eller checkstämpling (från i kväll och inte efter
    startstämplingen) räknas inte. Bara den inledande följden av gamla kontrollstämplingar i brickans minnesordning tas
@@ -94,6 +99,9 @@ funktion lokalt; dess besked är preliminärt och serverns revision är auktorit
   felstämplad bedömning med samma utfall (MP med sträcktider); "Ta bort bekräftelsen" är återtagandet. Det ligger kvar
   över ny avläsning och omräkning som andra beslut. En bekräftad felstämpling (och manuell tid som felstämplad) räknas inte
   som "att titta på"; felstämplade stoppar aldrig "Resultaten är klara".
+- Steg 45: disk och utom tävlan går även ovanpå en manuell eller rättad tid (att ta bort dem återställer den manuella tiden).
+  Ett kvarliggande beslut som döljer en senare avläsning med annat utfall (`decisionHidingReadout`) visas som "Beslut att se
+  över" i deltagarkortet, kopplingskvittot och Efterarbete; samma avläsning igen ger inget besked.
 - Disk kan ha en valfri orsak (`result_revision.note`, bara på `MANUAL_DISQUALIFICATION`); den syns bara för
   arrangören. Publikt står "Disk." och orsaken exporteras inte.
 - "Markera alla kvar i skogen som ej start" (Resultat) sätter ej start på alla utan avläsning och beslut, efter
@@ -142,7 +150,8 @@ samma frö ger alltid samma tider.
   annan avläsning av brickan och brickan använts i ett nytt lopp efter den avläsningens mål, blir den nya avläsningen
   okänd ("redan avläst för X – lånad bricka?") och den förstes resultat står kvar. Kopplas den till någon annan flyttas
   brickan; omräkning utgår från deltagarens egen avläsning (resultatet följer avläsningen, inte brickan), utom när
-  deltagaren fått en annan bricka sedan dess.
+  deltagaren fått en annan bricka sedan dess. Steg 45: brickans senaste avläsning används bara om ingen annan deltagares
+  resultat bygger på den; annars NO_READOUT.
 - Ändrad bana, redigerad klass, ny lottning och ändrad starttid räknar om berörda löpares avlästa resultat
   med en ny revision (`EXPLICIT_RECALCULATION`) och en auditpost; tidigare revisioner skrivs aldrig om.
 - Revisionen lagrar motorversion, avläsningspaketets version (`snapshot_version`), banversion, orsak och

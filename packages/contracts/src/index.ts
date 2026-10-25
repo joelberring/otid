@@ -34,6 +34,8 @@ export * from "./result-recalculation-admin";
 export * from "./class-result-recalculation";
 export * from "./race-corrections";
 export * from "./readout-reread";
+export * from "./decision-review";
+export * from "./uninterpreted-readout";
 export * from "./result-finalization-admin";
 export * from "./result-outcome";
 export * from "./entry-status";

@@ -9,6 +9,8 @@ export type SyncOutcome =
   | { readonly kind: "synced"; readonly count: number; readonly registered?: number }
   | { readonly kind: "offline" }
   | { readonly kind: "unauthorized" }
+  /** Steg 45: servern bad oss vänta (429). Inget markeras; kön skickas igen vid nästa försök. */
+  | { readonly kind: "throttled" }
   | { readonly kind: "failed"; readonly status: number };
 
 export interface SyncDependencies {
@@ -18,6 +20,11 @@ export interface SyncDependencies {
 }
 
 const MAX_BATCH = 100;
+/**
+ * Steg 45: svar som gäller själva avläsningen (felaktig, okänd tävling eller krock) och inte går över av att vänta. Som
+ * vid serverfel skickas satsen om en och en, och den som fortfarande avvisas hålls åt sidan så att resten av kön går.
+ */
+const HELD_STATUSES = new Set([400, 404, 409]);
 
 /**
  * Sammanhängande följder av väntande avläsningar med stigande löpnummer och
@@ -158,10 +165,13 @@ export async function syncPending(store: ReadoutStore, raceId: string, deps: Syn
       return { kind: "offline" };
     }
     if (response.status === 401 || response.status === 403) return { kind: "unauthorized" };
-    if (response.status >= 500 && items.length > 1) { queue.unshift(...items.map((item) => [item])); continue; }
-    if (response.status >= 500) {
+    // Steg 45: 429 = vänta och försök igen med nästa synk, utan att hålla något åt sidan.
+    if (response.status === 429) return count > 0 ? { kind: "synced", count, ...(registered > 0 ? { registered } : {}) } : { kind: "throttled" };
+    const held = response.status >= 500 || HELD_STATUSES.has(response.status);
+    if (held && items.length > 1) { queue.unshift(...items.map((item) => [item])); continue; }
+    if (held) {
       serverError = response.status;
-      await store.update({ ...first, serverFailedAt: new Date().toISOString() });
+      await store.update({ ...first, serverFailedAt: new Date().toISOString(), serverFailedStatus: response.status });
       continue;
     }
     if (!response.ok) return { kind: "failed", status: response.status };
@@ -185,10 +195,11 @@ export async function syncPending(store: ReadoutStore, raceId: string, deps: Syn
 function released(item: QueuedReadout): QueuedReadout {
   const copy: { -readonly [K in keyof QueuedReadout]: QueuedReadout[K] } = { ...item };
   delete copy.serverFailedAt;
+  delete copy.serverFailedStatus;
   return copy;
 }
 
-/** Avläsningar som servern inte kunde ta emot (serverfel) och som hålls åt sidan. */
+/** Avläsningar som servern inte kunde ta emot (serverfel, eller 400/404/409 från steg 45) och som hålls åt sidan. */
 export function heldReadouts(items: readonly QueuedReadout[]): QueuedReadout[] {
   return items.filter((item) => item.status === "pending" && !!item.serverFailedAt);
 }

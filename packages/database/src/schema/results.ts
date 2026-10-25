@@ -52,7 +52,9 @@ export const cardReadouts = pgTable("card_readout", {
   simulated: boolean("simulated").notNull().default(false)
 }, (table) => [
   uniqueIndex("card_readout_raw_uidx").on(table.rawMessageId),
-  uniqueIndex("card_readout_resolution_scope_uidx").on(table.id, table.raceId, table.rawMessageId, table.cardNumber)
+  uniqueIndex("card_readout_resolution_scope_uidx").on(table.id, table.raceId, table.rawMessageId, table.cardNumber),
+  /** Steg 45 (migration 0020): avläsningarna per tävling och lästid. */
+  index("card_readout_race_read_at_idx").on(table.raceId, table.readAt)
 ]);
 
 export const resultRevisions = pgTable("result_revision", {
@@ -115,7 +117,7 @@ export const raceStationCorrections = pgTable("race_station_correction", {
   id: uuid("id").primaryKey(),
   raceId: uuid("race_id").notNull().references(() => races.id),
   kind: text("kind").$type<"TIME_ADJUSTMENT" | "CONTROL_OUT_OF_ORDER">().notNull(),
-  station: text("station").$type<"START" | "FINISH" | "CONTROL">().notNull(),
+  station: text("station").$type<"START" | "FINISH" | "CONTROL" | "ALL">().notNull(),
   controlCode: integer("control_code"),
   offsetMs: integer("offset_ms"),
   reason: text("reason").notNull(),

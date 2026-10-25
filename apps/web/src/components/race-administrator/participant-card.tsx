@@ -19,6 +19,7 @@ import { EntryActionForms, RegistrationForm } from "./entry-action-forms";
 import { CardPunches } from "./card-punches";
 import { RemovalReview } from "./removal-review";
 import { ManualResult } from "./manual-result";
+import { DecisionReviewNotice } from "./decision-review";
 import { ParticipantReadoutReread } from "../readout-reread";
 import { removalSv as removalText } from "../../i18n/removal-sv";
 import { Button } from "../ui";
@@ -63,6 +64,8 @@ export function ParticipantCard({ ws }: { ws: Workspace }) {
     {selected && action !== "REGISTRATION" && !entryEditing && <>
       {selectedClass && selectedClass.courseVariants.length > 0 && <ParticipantVariant ws={ws} />}
       <CardResult ws={ws} result={result} error={effectiveResultError} />
+      {/* Steg 45: ett beslut gäller men en senare avläsning ger något annat. */}
+      {selected.decisionReview && !ws.functionary && <DecisionReviewNotice ws={ws} review={selected.decisionReview} />}
       {/* PLAN.md steg 27: brickans alla stämplingar, även från en annan dag eller bana. */}
       {result?.cardPunches && data && <CardPunches punches={result.cardPunches} timeZone={data.timeZone} />}
       {/* PLAN.md steg 36: avläsningen blir annorlunda om den läses om från rådata (bara administratören). */}

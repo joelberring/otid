@@ -2,9 +2,10 @@ import type { EvaluationReadout, Punch, RaceSnapshot, UUID } from "./types";
 
 /**
  * Rättningar för hela tävlingen (PLAN.md steg 31). Stationen som en tidsjustering gäller: start- eller målenheten,
- * eller en kontroll med en viss kod.
+ * en kontroll med en viss kod, eller (steg 45) alla enheter: start, mål och alla kontroller, till exempel när enheterna
+ * ställdes på sommartid och tävlingen går på vintertid. En justering för alla läggs ihop med en för en enskild enhet.
  */
-export type CorrectionStation = "START" | "FINISH" | "CONTROL";
+export type CorrectionStation = "START" | "FINISH" | "CONTROL" | "ALL";
 
 /**
  * En tidsjustering för en station, till exempel en kontroll vars klocka gick en timme fel. Justeringen läggs på
@@ -36,7 +37,7 @@ export function controlCodesOutOfOrder(snapshot: RaceSnapshot): ReadonlySet<numb
 
 /** En justering som faktiskt ändrade någon av brickans tider. */
 export interface AppliedStationAdjustment {
-  readonly station: CorrectionStation;
+  readonly station: Exclude<CorrectionStation, "ALL">;
   readonly controlCode?: number | undefined;
   readonly offsetMs: number;
   /** Hur många tider på brickan som justerades (start och mål räknas som en). */
@@ -63,10 +64,13 @@ function shifted(instant: string, offsetMs: number): string {
   return Number.isFinite(ms) ? new Date(ms + offsetMs).toISOString() : instant;
 }
 
-/** Den aktiva justeringen för en station (högst en per station; flera läggs ihop för säkerhets skull). */
-function offsetFor(adjustments: readonly StationTimeAdjustment[], station: CorrectionStation, controlCode?: number): number {
-  return adjustments.filter((adjustment) => adjustment.station === station &&
-    (station !== "CONTROL" || adjustment.controlCode === controlCode))
+/**
+ * Den aktiva justeringen för en enhet (högst en per station; flera läggs ihop för säkerhets skull). Steg 45: en justering
+ * för alla enheter (ALL) gäller också.
+ */
+function offsetFor(adjustments: readonly StationTimeAdjustment[], station: Exclude<CorrectionStation, "ALL">, controlCode?: number): number {
+  return adjustments.filter((adjustment) => adjustment.station === "ALL" || (adjustment.station === station &&
+    (station !== "CONTROL" || adjustment.controlCode === controlCode)))
     .reduce((sum, adjustment) => sum + adjustment.offsetMs, 0);
 }
 

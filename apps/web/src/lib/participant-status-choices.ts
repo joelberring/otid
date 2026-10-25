@@ -29,7 +29,8 @@ export function availableStatusChoices(result: AdministratorEffectiveResultRespo
     case "OOC": return ["OOC_WITHDRAWAL", "RECALCULATION"];
     case "NT": return ["NT_WITHDRAWAL", "RECALCULATION"];
     case "APPROVAL": return ["APPROVAL_WITHDRAWAL", "RECALCULATION"];
-    case "MANUAL_TIME": return ["MANUAL_TIME_WITHDRAWAL", "RECALCULATION"];
+    // Steg 45: disk och utom tävlan går även ovanpå en manuell eller rättad tid.
+    case "MANUAL_TIME": return ["MANUAL_TIME_WITHDRAWAL", "DSQ", "OOC", "RECALCULATION"];
     case "CONTROL_APPROVAL": return ["CONTROL_APPROVAL_WITHDRAWAL", "RECALCULATION"];
     case "MP_CONFIRMED": return ["CONFIRM_MP_WITHDRAWAL", "RECALCULATION"];
     case "NONE": {

@@ -737,6 +737,23 @@ Genomlysningen 2026-10-25 (motor, drift, säkerhet) efter två tävlingar och en
 - [x] En festpinne som redan har köp namnges i bardisken, inte via det publika formuläret.
 - [x] Namnrutan stänger efter 20 s när andra utläsningar väntar.
 
+## [x] Steg 45 – Rättelser efter genomlysningen: avläsning, regler och drift
+
+Genomlysningen 2026-10-25 (motor, avläsning och drift). Ägarens beslut: stämpling efter mål eller före start har ingen betydelse.
+
+- [x] Avläsningskön: 400, 404 och 409 håller bara den avläsningen åt sidan ("N avläsningar kunde inte skickas", "Försök igen"); 429 väntar.
+- [x] Avläsningar vars tider inte gick att tolka skickas till servern (råmeddelande `sportident-uninterpreted`, ingen avläsning),
+  "Ladda ner listan" på avläsningssidan, Avläsning → "Otolkade avläsningar" läser om med datorns klocka eller angiven tid.
+- [x] Stationens klocka mer än 6 h fel: datorns klocka gäller (clockSource device) med tydligt besked.
+- [x] Rättad starttid och manuell tid utgår från tiderna efter tidsjusteringen.
+- [x] Omräkning tar aldrig någon annans avläsning (bara egen, eller brickans senaste som ingen annan har); annars NO_READOUT.
+- [x] Beslut som döljer en senare avläsning: varning med "Ta bort beslutet" i deltagarkortet, i kopplingskvittot och
+  "Beslut att se över" under Resultat → Efterarbete.
+- [x] Tidsjustering för "Alla enheter (start, mål och kontroller)" (migration 0020).
+- [x] Backup varje timme kl. 08–23, 48 timdumpar och dagsbackup, "dump nu", scp, återställning, misslyckad migrering, swap, loggstorlek.
+- [x] Disk och utom tävlan ovanpå manuell tid, utom tävlan på rogaining; index på card_readout(race_id, read_at).
+- [x] Motor 0.6.0: stämplingar mellan start och mål väljs vid lika matchning (oröjd bricka); varning när ett godkänt saknar sträcktider.
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

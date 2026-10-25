@@ -395,7 +395,7 @@ export const raceAdministratorSv = {
     APPROVAL: "Manuellt godkännande", DNF: "Ej fullföljt", OOC: "Utom tävlan", NT: "Deltog utan tid",
     MANUAL_TIME: "Manuell tid", CONTROL_APPROVAL: "Godkända kontroller", MP_CONFIRMED: "Felstämpling bekräftad" },
   recalculationReadiness: { NO_ACTIVE_ASSIGNMENT: "Ingen aktiv brickkoppling. Koppla en bricka först.",
-    MULTIPLE_ACTIVE_ASSIGNMENTS: "Flera aktiva brickkopplingar behöver granskas.", NO_READOUT: "Ingen avläsning finns för den aktiva brickan." },
+    MULTIPLE_ACTIVE_ASSIGNMENTS: "Flera aktiva brickkopplingar behöver granskas.", NO_READOUT: "Löparen har ingen egen avläsning att räkna om från. Finns brickans avläsning under Avläsning → Okända brickor, koppla den till löparen där." },
   classRecalculationTitle: "Räkna om flera resultat",
   classRecalculationHelp: "Välj en klass och markera 1–100 löpare vars resultat bygger på äldre uppgifter. Alla valda räknas om samtidigt.",
   classRecalculationClass: "Klass", classRecalculationLoad: "Visa klassens löpare",
@@ -410,7 +410,7 @@ export const raceAdministratorSv = {
     CURRENT: "Resultatet är redan aktuellt.",
     NO_ACTIVE_ASSIGNMENT: "Ingen aktiv brickkoppling. Koppla en bricka först.",
     MULTIPLE_ACTIVE_ASSIGNMENTS: "Flera aktiva brickkopplingar behöver granskas.",
-    NO_READOUT: "Ingen avläsning finns för den aktiva brickan.",
+    NO_READOUT: "Löparen har ingen egen avläsning att räkna om från. Koppla brickans avläsning under Avläsning → Okända brickor.",
     NO_RESULT: "Avläsningen saknar ett tidigare resultat."
   },
   finishTimeCorrectionTitle: "Rätta observerad måltid",

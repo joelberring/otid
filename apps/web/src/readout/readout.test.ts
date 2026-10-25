@@ -249,6 +249,35 @@ describe("synk av avläsningskön", () => {
     expect(heldReadouts(store.items)).toHaveLength(0);
   });
 
+  it("400, 404 och 409 håller bara den avläsningen åt sidan, 429 väntar utan att markera (steg 45)", async () => {
+    for (const status of [400, 404, 409]) {
+      const store = await storeWithTwoReadouts();
+      const bodies: DeviceBatch[] = [];
+      const picky = (async (_url: string, init?: RequestInit) => {
+        const body = JSON.parse(init?.body as string) as DeviceBatch;
+        bodies.push(body);
+        if (body.events.some((event) => event.localSequence === 1)) return Response.json({ error: "X" }, { status });
+        return Response.json({ deviceId: body.deviceId, highestContiguousSequence: 0, currentPackageVersion: body.packageVersion,
+          packageVersionStatus: "current", packageUpdateRequired: false,
+          acknowledgements: body.events.map((event) => ({ localSequence: event.localSequence, contentHash: event.contentHash,
+            status: "stored", rawMessageId: "10000000-0000-4000-8000-000000000099" })) });
+      }) as typeof globalThis.fetch;
+      expect(await syncPending(store, ids.race, { fetch: picky, csrf: () => "token" })).toMatchObject({ kind: "synced", count: 1 });
+      expect(bodies.map((body) => body.events.map((event) => event.localSequence))).toEqual([[1, 2], [1], [2]]);
+      expect(store.items.map((item) => [item.localSequence, item.status, item.serverFailedStatus])).toEqual([[1, "pending", status],
+        [2, "stored", undefined]]);
+      expect(heldReadouts(store.items)).toHaveLength(1);
+      // "Försök igen" skickar den igen.
+      expect(await releaseHeldReadouts(store, ids.race)).toBe(1);
+      expect(store.items[0]!.serverFailedStatus).toBeUndefined();
+    }
+    const store = await storeWithTwoReadouts();
+    const busy = (async () => new Response(null, { status: 429 })) as typeof globalThis.fetch;
+    expect(await syncPending(store, ids.race, { fetch: busy, csrf: () => "token" })).toEqual({ kind: "throttled" });
+    expect(heldReadouts(store.items)).toHaveLength(0);
+    expect(store.items.every((item) => item.status === "pending" && !item.serverFailedAt)).toBe(true);
+  });
+
   it("en avläsning som ger serverfel stoppar inte resten av kön (steg 31)", async () => {
     const store = await storeWithTwoReadouts();
     const bodies: DeviceBatch[] = [];
@@ -265,5 +294,17 @@ describe("synk av avläsningskön", () => {
     expect(bodies.map((body) => body.events.map((event) => event.localSequence))).toEqual([[1, 2], [1], [2]]);
     expect(store.items.map((item) => [item.localSequence, item.status, !!item.serverFailedAt])).toEqual([[1, "pending", true],
       [2, "stored", false]]);
+  });
+});
+
+describe("godkänt utan sträcktider (steg 45)", () => {
+  it("märks när alla stämplingar ligger före starten", () => {
+    const at = (minute: number) => new Date(Date.UTC(2026, 9, 1, 15, minute)).toISOString();
+    const payload = { cardNumber: String(TEST_CARD), cardType: "SI10" as const, startPunchedAt: at(30), finishPunchedAt: at(55),
+      punches: [31, 32, 33].map((code, index) => ({ code, punchedAt: at(index * 5) })), untimedPunchCodes: [], frames: ["02"],
+      simulated: true };
+    expect(evaluateLocally(payload, testPackage())).toMatchObject({ status: "OK", splits: [], splitsMissing: true });
+    const normal = { ...payload, punches: [31, 32, 33].map((code, index) => ({ code, punchedAt: at(35 + index * 5) })) };
+    expect(evaluateLocally(normal, testPackage()).splitsMissing).toBeUndefined();
   });
 });

@@ -56,12 +56,28 @@ export async function latestResultReadouts(tx: DbExecutor, raceId: string, entry
 
 /**
  * Avläsningen som en omräkning utgår från: deltagarens egen (den som resultatet bygger på) så länge brickan inte bytts
- * sedan dess; har deltagaren fått en annan bricka gäller den brickans senaste avläsning.
+ * sedan dess. Annars brickans senaste avläsning, men bara om ingen annan deltagares resultat bygger på den (en okänd
+ * avläsning som ingen har kopplats till, till exempel när brickan anmäls eller byts efter avläsningen). Steg 45: tidigare
+ * togs brickans senaste avläsning även när den var någon annans (lånad bricka), och deltagaren fick den andres resultat.
+ * Utan egen och utan ledig avläsning blir det ingen (NO_READOUT).
  */
-export function recalculationReadout<T extends { readonly cardNumber: string }>(own: T | undefined, activeCard: string | undefined,
-  latestByCard: T | undefined): T | undefined {
+export function recalculationReadout<T extends { readonly id: string; readonly cardNumber: string }>(entryId: string, own: T | undefined,
+  activeCard: string | undefined, latestByCard: T | undefined, claims: ReadonlyMap<string, ReadonlySet<string>>): T | undefined {
   if (own && (activeCard === undefined || own.cardNumber === activeCard)) return own;
-  return latestByCard ?? own;
+  const claimedByOther = latestByCard !== undefined && [...claims.get(latestByCard.id) ?? []].some((owner) => owner !== entryId);
+  if (latestByCard && !claimedByOther) return latestByCard;
+  return own;
+}
+
+/** Vilka deltagares resultatrevisioner som bygger på var och en av avläsningarna. */
+export async function readoutClaims(tx: DbExecutor, raceId: string, readoutIds: readonly string[]): Promise<Map<string, Set<string>>> {
+  const ids = [...new Set(readoutIds)];
+  if (ids.length === 0) return new Map();
+  const rows = await tx.selectDistinct({ readoutId: schema.resultRevisions.readoutId, entryId: schema.resultRevisions.entryId })
+    .from(schema.resultRevisions).where(and(eq(schema.resultRevisions.raceId, raceId), inArray(schema.resultRevisions.readoutId, ids)));
+  const claims = new Map<string, Set<string>>();
+  for (const row of rows) if (row.readoutId) claims.set(row.readoutId, new Set([...claims.get(row.readoutId) ?? [], row.entryId]));
+  return claims;
 }
 
 /**

@@ -8,7 +8,7 @@ O-Tid körs med `docker-compose.prod.yml` på en vanlig VPS:
 - en backuptjänst.
 
 All data, även kartbilder och GPS-rutter för vägval (PLAN.md steg 16), ligger i PostgreSQL och kommer
-med i den nattliga backupen. MinIO behövs inte.
+med i backupen. MinIO behövs inte.
 
 ## Starta
 
@@ -19,7 +19,18 @@ på servern (se [Server och domän](#server-och-domän)). Portarna 80 och 443 sk
 ```bash
 git clone https://github.com/joelberring/otid.git && cd otid
 cp deploy/prod.env.example .env      # fyll i OTID_DOMAIN och POSTGRES_PASSWORD
-docker compose -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.prod.yml build
+docker compose -f docker-compose.prod.yml up -d
+```
+
+Bygg först och starta sedan (steg 45): då körs den gamla webben vidare medan den nya byggs, och ett misslyckat bygge
+stoppar ingenting. Bygget behöver omkring 2 GB minne. På en server med 4 GB (Hetzner CX23/CAX11) räcker det oftast, men
+lägg till 2 GB swap så att bygget inte dödas när databasen och webben redan använder minnet:
+
+```bash
+sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+free -h                               # Swap ska visa 2,0Gi
 ```
 
 Öppna `https://<OTID_DOMAIN>/organizer` och skapa det första kontot (e-post, namn och lösenord).
@@ -28,11 +39,16 @@ Gör sedan dig själv till superadmin (se nedan).
 **Uppdatera:**
 
 ```bash
-git pull && docker compose -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.prod.yml exec backup sh /backup.sh dump   # dump före uppdateringen
+git pull
+docker compose -f docker-compose.prod.yml build
+docker compose -f docker-compose.prod.yml up -d
 ```
 
-Webben kör nya migreringar innan den startar. Om en migrering misslyckas
-startar webben inte. Läs då `docker compose -f docker-compose.prod.yml logs web`.
+Webben kör nya migreringar innan den startar. Om en migrering misslyckas startar webben inte, och sidan svarar
+502 (se [Om en migrering misslyckas](#om-en-migrering-misslyckas)).
+
+Loggarna begränsas till fem filer på 10 MB per tjänst (`logging` i `docker-compose.prod.yml`), så de fyller inte disken.
 
 **Baslinjen i steg 23 (2026-10-18):** de 106 gamla migrationerna (och borttagningen av tolv döda
 tabeller) är ihopslagna till `0000_baseline.sql` (ADR-0173; det fanns ingen produktionsdata). En databas som skapats med de gamla
@@ -153,14 +169,41 @@ sättas i drift.
 
 ## Backup
 
-Tjänsten `backup` tar en `pg_dump` direkt vid start och sedan varje natt kl.
-02 UTC. Filerna hamnar i `./backups/otid-<tid>.dump`, och filer äldre än 14
-dagar tas bort. Ett misslyckat försök loggas som `BACKUP MISSLYCKADES` i
-`docker compose -f docker-compose.prod.yml logs backup`.
+Tjänsten `backup` (`deploy/backup.sh`) tar en `pg_dump` direkt vid start och sedan varje hel timme kl. 08–23 svensk
+tid (steg 45; tidigare bara en gång per natt). Den kör hela tiden, så på tävlingsdagen finns det högst en timme gammal
+dump.
 
-Kopiera katalogen `backups/` till en annan maskin regelbundet, till exempel
-med `rsync` från din dator. En backup på samma server skyddar inte mot att
-servern försvinner.
+- `./backups/hourly/otid-<tid>.dump`: de 48 senaste timdumparna.
+- `./backups/daily/otid-<datum>.dump`: dagens senaste dump, sparad i 14 dagar.
+- En dump skrivs först till en dold fil (`.….partial`) och byter namn när `pg_dump` är klar, så en avbruten dump ser
+  aldrig ut som en hel.
+- Ett misslyckat försök loggas som `BACKUP MISSLYCKADES` i `docker compose -f docker-compose.prod.yml logs backup` och
+  görs om nästa timme.
+
+Tiderna och antalen ställs in i `docker-compose.prod.yml` (`TZ`, `BACKUP_FIRST_HOUR`, `BACKUP_LAST_HOUR`,
+`BACKUP_KEEP_HOURLY`, `BACKUP_KEEP_DAYS`). Dumpar från före steg 45 ligger kvar direkt i `./backups/` och tas inte bort
+av tjänsten.
+
+**Dump nu** (före och efter ett arrangemang, och före en uppdatering):
+
+```bash
+docker compose -f docker-compose.prod.yml exec backup sh /backup.sh dump
+```
+
+Kommandot skriver `Backup klar: hourly/otid-<tid>.dump` och avslutas med fel om dumpen misslyckades.
+
+**Kopiera till din Mac.** En backup på samma server skyddar inte mot att servern försvinner (eller raderas efter
+tävlingen). Kör på din Mac, med serverns adress och användare:
+
+```bash
+mkdir -p ~/otid-backup
+scp 'otid@tid.exempelklubb.se:otid/backups/daily/*.dump' ~/otid-backup/       # dagsbackuperna
+scp 'otid@tid.exempelklubb.se:otid/backups/hourly/*.dump' ~/otid-backup/      # alla timdumpar
+# eller allt på en gång, och bara det som är nytt:
+rsync -av otid@tid.exempelklubb.se:otid/backups/ ~/otid-backup/
+```
+
+Gör det efter varje arrangemang, och alltid innan en server som betalas per timme raderas.
 
 ## Återställa
 
@@ -170,12 +213,32 @@ resultatrevisioner och råavläsningar. Så här gör du:
 ```bash
 docker compose -f docker-compose.prod.yml stop web
 docker compose -f docker-compose.prod.yml exec -T backup \
-  pg_restore --clean --if-exists --no-owner -d otid /backups/otid-<tid>.dump
+  pg_restore --clean --if-exists --no-owner -d otid /backups/daily/otid-<datum>.dump
 docker compose -f docker-compose.prod.yml start web
 ```
 
-För att återställa på en ny server: starta enligt ovan, kopiera filen till
-`./backups/` och kör kommandona.
+Välj en fil i `/backups/hourly/` för en senare tidpunkt samma dag. `pg_restore -l <fil> | head` visar när dumpen
+togs. För att återställa på en ny server: starta enligt ovan, kopiera filen från din Mac till serverns `./backups/`
+(`scp ~/otid-backup/otid-<datum>.dump otid@<server>:otid/backups/`) och kör kommandona med `/backups/otid-<datum>.dump`.
+
+## Om en migrering misslyckas
+
+Webben migrerar databasen innan den startar (`node migrate.mjs` i `Dockerfile`). Varje migrering körs i en egen
+transaktion, så en som misslyckas lämnar inga halva ändringar, men webben startar inte och sidan svarar 502.
+
+1. Läs felet: `docker compose -f docker-compose.prod.yml logs --tail=100 web`.
+2. Gå tillbaka till förra versionen, som fungerade med databasen:
+
+   ```bash
+   git log --oneline -5                  # hitta förra versionen
+   git checkout <förra-commit>
+   docker compose -f docker-compose.prod.yml build
+   docker compose -f docker-compose.prod.yml up -d
+   ```
+
+3. Startar den inte heller (en tidigare migrering i samma uppdatering hann köras): återställ dumpen som togs före
+   uppdateringen enligt [Återställa](#återställa), med förra versionen igång.
+4. Skicka felet till den som driver O-Tid. När det är rättat: `git checkout main`, `git pull`, bygg och starta igen.
 
 ## Prova driftuppsättningen lokalt
 

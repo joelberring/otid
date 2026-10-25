@@ -115,7 +115,8 @@ const cardAssignmentSchema = z.object({
 /** Tidsjustering för en station (PLAN.md steg 31). */
 const stationTimeAdjustmentSchema = z.object({
   id: uuidSchema,
-  station: z.enum(["START", "FINISH", "CONTROL"]),
+  /** Steg 45: ALL = alla enheter (start, mål och alla kontroller). */
+  station: z.enum(["START", "FINISH", "CONTROL", "ALL"]),
   controlCode: z.number().int().min(1).max(9999).optional(),
   offsetMs: z.number().int().min(-86_400_000).max(86_400_000).refine((value) => value !== 0)
 }).strict().refine((value) => (value.station === "CONTROL") === (value.controlCode !== undefined));

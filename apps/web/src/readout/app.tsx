@@ -8,13 +8,14 @@ import { exerciseAnchor, exerciseCard, exerciseRunners, exerciseWindow, type Exe
 import { FakeStationTransport } from "./fake-transport";
 import { buildReadoutPayload, payloadHash } from "./payload";
 import { StationController, type StationFacts, type StationStatus } from "./station";
+import { chooseReadoutClock, stationClockUnusable } from "./clock";
 import { TrafficLog } from "./rawlog";
 import { IdbReadoutStore, type QueuedReadout, type QueuedRegistration, type ReadoutStore } from "./store";
 import { RegistrationForm, RegistrationStatus, type RegistrationFields } from "./registration-form";
 import type { EntrySuggestion } from "./runner-lookup";
 import { startPunchText } from "../lib/start-punch-text";
 import { heldReadouts, releaseHeldReadouts, requeueLocallyInvalid, syncPending } from "./sync";
-import { loadFailedReadouts, saveFailedReadouts, type FailedReadout } from "./failed-readouts";
+import { failedReadoutsFile, loadFailedReadouts, saveFailedReadouts, syncFailedReadouts, type FailedReadout } from "./failed-readouts";
 import { localRaceDate } from "@o-tid/domain";
 import { toHex } from "./payload";
 import { readoutText as t } from "./text-sv";
@@ -133,10 +134,20 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
       if (outcome.kind === "offline") setOnline(false);
       if (outcome.kind === "synced" || outcome.kind === "idle") { setOnline(true); setSyncProblem(undefined); }
       if (outcome.kind === "failed") setSyncProblem(t.syncFailed(outcome.status));
+      if (outcome.kind === "throttled") setSyncProblem(t.syncThrottled);
       // Kvitterade direktanmälningar finns nu i serverns paket; hämta det så att brickan är känd även utan den lokala kön.
       if (outcome.kind === "synced" && outcome.registered) await refreshPackage();
+      // Steg 45: råramarna för avläsningar vars tider inte gick att tolka, så att de finns kvar på servern.
+      if (outcome.kind !== "unauthorized" && outcome.kind !== "offline" && outcome.kind !== "throttled" &&
+        loadFailedReadouts(raceId).some((row) => !row.storedAt)) {
+        const failed = await syncFailedReadouts(raceId, await storeRef.current.identity(raceId), pkgRef.current?.packageVersion ?? 1, deps);
+        if (failed.kind === "offline") setOnline(false);
+        if (failed.kind === "unauthorized") setLoginNeeded(true);
+        if (failed.kind === "failed") setSyncProblem(t.syncFailed(failed.status));
+        setFailedReadouts(loadFailedReadouts(raceId));
+      }
       // Bardisken: in-/utcheckningar och gästnamn efter avläsningarna, så att servern har brickans avläsning först.
-      if (pkgRef.current?.party && outcome.kind !== "unauthorized" && outcome.kind !== "offline") {
+      if (pkgRef.current?.party && outcome.kind !== "unauthorized" && outcome.kind !== "offline" && outcome.kind !== "throttled") {
         const party = await syncPartyActions(partyStoreRef.current, raceId, deps);
         if (party.kind === "offline") setOnline(false);
         if (party.kind === "unauthorized") setLoginNeeded(true);
@@ -181,14 +192,15 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
     const timeZone = known?.event.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
     // Stämplingstiderna löses mot stationens klocka när den finns (PLAN.md steg 22); övningsstationens klocka
     // står på tävlingsdagen. Datorns klocka är reservalternativet och avläsningen bär vilken som användes.
+    // Steg 45: en stationsklocka som går mer än sex timmar fel används inte (`chooseReadoutClock`).
     const exercise = exerciseRef.current;
-    const reference = exercise ? exercise.now() : station.clock ? new Date(now.getTime() + station.clock.clockOffsetMs) : now;
-    const clockOffsetMs = exercise ? exercise.now().getTime() - now.getTime() : station.clock?.clockOffsetMs;
+    const clock = chooseReadoutClock({ stationOffsetMs: station.clock?.clockOffsetMs,
+      exerciseOffsetMs: exercise ? exercise.now().getTime() - now.getTime() : undefined });
     const build = (useStation: boolean) => buildReadoutPayload(card, frames, {
-      reference: useStation ? reference : now, timeZone, simulated: exercise !== undefined,
+      reference: useStation ? new Date(now.getTime() + clock.referenceOffsetMs) : now, timeZone, simulated: exercise !== undefined,
       ...(station.serialNumber !== undefined ? { stationSerial: station.serialNumber } : {}),
-      clockSource: !useStation || clockOffsetMs === undefined ? "device" : "station",
-      ...(!useStation || clockOffsetMs === undefined ? {} : { clockOffsetMs: Math.round(clockOffsetMs) })
+      clockSource: useStation ? clock.clockSource : "device",
+      ...(useStation && clock.clockOffsetMs !== undefined ? { clockOffsetMs: clock.clockOffsetMs } : {})
     });
     let payload: ReturnType<typeof buildReadoutPayload>;
     try { payload = build(true); }
@@ -199,8 +211,13 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
       try { payload = build(false); }
       catch (fallback) {
         if (!(fallback instanceof SiTimeError)) throw fallback;
+        // Steg 45: råramarna skickas också till servern (syncFailedReadouts), med ett stabilt id per avläsning.
+        const identity = await storeRef.current.identity(raceId);
         const failed: FailedReadout = { cardNumber: String(card.cardNumber), at: now.toISOString(), message: fallback.message,
-          frames: frames.map(toHex) };
+          frames: frames.map(toHex), requestId: crypto.randomUUID(), deviceId: identity.deviceId, sessionId: identity.sessionId,
+          packageVersion: known?.packageVersion ?? 1, ...(station.serialNumber !== undefined ? { stationSerial: station.serialNumber } : {}),
+          ...(clock.clockOffsetMs !== undefined ? { clockSource: clock.clockSource, clockOffsetMs: clock.clockOffsetMs } : {}),
+          simulated: exercise !== undefined };
         const rows = [...loadFailedReadouts(raceId), failed];
         saveFailedReadouts(raceId, rows); setFailedReadouts(rows);
         throw fallback;
@@ -246,6 +263,16 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
     try {
       const anchor = document.createElement("a");
       anchor.href = url; anchor.download = `otid-ralogg-${new Date().toISOString().replaceAll(":", "")}.json`;
+      document.body.append(anchor); anchor.click(); anchor.remove();
+    } finally { URL.revokeObjectURL(url); }
+  }
+
+  function downloadFailedReadouts() {
+    if (!raceId) return;
+    const url = URL.createObjectURL(new Blob([failedReadoutsFile(raceId, loadFailedReadouts(raceId))], { type: "application/json" }));
+    try {
+      const anchor = document.createElement("a");
+      anchor.href = url; anchor.download = `otid-otolkade-${new Date().toISOString().replaceAll(":", "")}.json`;
       document.body.append(anchor); anchor.click(); anchor.remove();
     } finally { URL.revokeObjectURL(url); }
   }
@@ -438,6 +465,8 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
   // Klockskillnad i hela minuter, bara för en riktig station (övningsstationens klocka står med flit på tävlingsdagen).
   const clockSkew = !exercise && station.kind === "ready" && station.clock && Math.abs(station.clock.clockOffsetMs) >= CLOCK_SKEW_WARNING_MS
     ? Math.round(station.clock.clockOffsetMs / 60_000) : undefined;
+  // Steg 45: mer än sex timmar fel – datorns klocka gäller i stället.
+  const clockIgnored = !exercise && station.kind === "ready" && station.clock !== undefined && stationClockUnusable(station.clock.clockOffsetMs);
   const printable: Printable | undefined = current?.phase === "done" && verdict && pkg
     ? { localSequence: current.localSequence, cardNumber: current.cardNumber, verdict } : undefined;
   // QR-koden på skärmen: för en känd löpare, så att hen kan skanna i stället för att ta ett papperskvitto.
@@ -466,19 +495,24 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
   const alerts = <>
     {loginNeeded ? <p className="notice" role="alert">{t.loginNeeded} <a href="/organizer">{t.login}</a></p> : null}
     {syncProblem ? <p className="notice" role="alert">{syncProblem}</p> : null}
-    {held.length > 0 ? <p className="notice" role="alert" data-testid="held-readouts">{t.heldReadouts(held.length)}{" "}
+    {held.length > 0 ? <p className="notice" role="alert" data-testid="held-readouts">{t.heldReadouts(held.length, held.some((item) => (item.serverFailedStatus ?? 500) >= 500))}{" "}
       <button type="button" onClick={() => { if (raceId) void releaseHeldReadouts(storeRef.current, raceId).then(sync); }}>
         {t.heldRetry}</button></p> : null}
     {failedReadouts.length > 0 ? <section className="notice" role="alert" data-testid="failed-readouts" aria-label={t.failedTitle}>
       <strong>{t.failedTitle}</strong> {t.failedHelp}
       <ul>{failedReadouts.map((row) => <li key={`${row.cardNumber}-${row.at}`}>{t.failedRow(row.cardNumber,
-        new Date(row.at).toLocaleTimeString("sv-SE"), row.message)}</li>)}</ul>
-      <button type="button" onClick={() => { if (raceId) { saveFailedReadouts(raceId, []); setFailedReadouts([]); } }}>
-        {t.failedClear}</button>
+        new Date(row.at).toLocaleTimeString("sv-SE"), row.message)} – {row.storedAt ? t.failedStored : t.failedWaiting}</li>)}</ul>
+      {/* Steg 45: ladda ner listan med råramar innan den rensas. */}
+      <div className="row">
+        <button type="button" onClick={downloadFailedReadouts}>{t.failedDownload}</button>
+        <button type="button" onClick={() => { if (raceId) { saveFailedReadouts(raceId, []); setFailedReadouts([]); } }}>
+          {t.failedClear}</button>
+      </div>
     </section> : null}
     {!persistent ? <p className="notice">{t.storageNotPersistent}</p> : null}
     {station.kind === "misconfigured" ? <p className="notice" role="alert">{t.misconfiguredHelp} ({station.problems.join(", ")})</p> : null}
-    {clockSkew !== undefined ? <p className="notice" role="alert" data-testid="clock-skew">{t.clockSkew(clockSkew)}</p> : null}
+    {clockIgnored ? <p className="notice" role="alert" data-testid="clock-ignored">{t.clockIgnored(clockSkew ?? 0)}</p>
+      : clockSkew !== undefined ? <p className="notice" role="alert" data-testid="clock-skew">{t.clockSkew(clockSkew)}</p> : null}
     {!exercise && station.kind === "ready" && !station.clock ? <p className="notice" data-testid="clock-missing">{t.clockMissing}</p> : null}
   </>;
   const controls = <>
@@ -645,6 +679,7 @@ function Verdict({ current, verdict, item, qr, registration, timeZone }: { curre
     {verdict?.startNote ? <p className="start-note" role="note" data-testid="verdict-start-punch" data-kind={verdict.startNote.kind}>
       {verdict.startNote.kind === "FROM_PUNCH" ? "" : "! "}{startPunchText(verdict.startNote, timeZone)}</p> : null}
     {verdict?.ignoredPunches && !verdict.punchList ? <p className="start-note" role="note" data-testid="verdict-old-punches">! {t.ignoredPunches(verdict.ignoredPunches)}</p> : null}
+    {verdict?.splitsMissing ? <p className="start-note" role="note" data-testid="verdict-no-splits">! {t.noSplits}</p> : null}
     {verdict && verdict.status !== "OK" ? <p>{t.reason[verdict.reason]}</p> : null}
     {verdict && verdict.missingControls.length > 0 ? <p>{t.missing(verdict.missingControls)}</p> : null}
     {verdict?.punchList ? <PunchListView list={verdict.punchList} timeZone={timeZone} /> : null}

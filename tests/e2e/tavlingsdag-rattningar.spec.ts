@@ -40,16 +40,24 @@ test("justera tid för en station räknar om alla och kan tas bort", async ({ br
   await sendReadout(owner, raceId, { cardNumber: "8131003", startPunchedAt: ago(45), finishPunchedAt: ago(8),
     punches: [{ code: 31, punchedAt: ago(35) }] });
 
-  for (const path of ["race-corrections", "race-corrections/preview"]) {
+  for (const path of ["race-corrections", "race-corrections/preview", "uninterpreted-readouts"]) {
     await warmRoute(owner, `/api/admin/races/${raceId}/administrator/${path}`, path.endsWith("preview") ? "POST" : "GET");
   }
   await owner.reload();
   await openStep(owner, "Avläsning");
   const panel = owner.getByRole("region", { name: "Rättningar för hela tävlingen" });
   await expect(panel.getByText("Inga rättningar.")).toBeVisible();
+  // Steg 45: avläsningar vars tider inte gick att tolka listas under Avläsning.
+  const uninterpreted = owner.getByRole("region", { name: "Otolkade avläsningar" });
+  await uninterpreted.getByRole("button", { name: "Visa otolkade avläsningar" }).click();
+  await expect(uninterpreted.getByText("Inga otolkade avläsningar.")).toBeVisible();
   await panel.getByText("Justera tid för en station").click();
   const timeForm = panel.locator("form").filter({ has: owner.getByText(/haft fel klocka/) });
+  // Steg 45: "Alla enheter" förklaras i formuläret.
+  await timeForm.getByLabel("Station").selectOption({ label: "Alla enheter (start, mål och kontroller)" });
+  await expect(timeForm.getByTestId("all-stations-help")).toContainText("start, mål och alla kontroller ändras lika mycket");
   await timeForm.getByLabel("Station").selectOption({ label: "Mål" });
+  await expect(timeForm.getByTestId("all-stations-help")).toHaveCount(0);
   await timeForm.getByLabel("Ändring").selectOption({ label: "Senare (+)" });
   await timeForm.getByLabel("Minuter").fill("60");
   await timeForm.getByLabel("Varför").fill("Målklockan gick en timme efter");

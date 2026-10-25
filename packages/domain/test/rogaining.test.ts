@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  defaultRogainingPoints, evaluateCardReadout, rankClassResults, rescoreRogaining, rogainingPenalty, withProposedCourseVersion, withRogainingSettings,
+  createOutOfCompetitionResult, defaultRogainingPoints, evaluateCardReadout, rankClassResults, rescoreRogaining, rogainingPenalty, withProposedCourseVersion, withRogainingSettings,
   type NormalizedCardReadout, type RaceSnapshot, type RogainingRules
 } from "../src";
 
@@ -144,5 +144,14 @@ describe("rangordning på poäng", () => {
 
   it("ogiltiga poäng avvisas", () => {
     expect(() => rankClassResults([row("a", -1, 1_000)])).toThrow("ogiltiga poäng");
+  });
+});
+
+describe("utom tävlan på rogaining (steg 45)", () => {
+  it("behåller poängen och tiden", () => {
+    const result = evaluateCardReadout(readout([[102, 10], [31, 20], [52, 30]]), snapshot());
+    const ooc = createOutOfCompetitionResult(result);
+    expect(ooc).toMatchObject({ status: "OOC", reason: "OUT_OF_COMPETITION", elapsedMs: 50 * 60_000, rogaining: { total: 20 } });
+    expect(ooc.splits).toEqual(result.splits);
   });
 });

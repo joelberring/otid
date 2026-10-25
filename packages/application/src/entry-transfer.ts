@@ -9,6 +9,7 @@ import { canAddClassEntry } from "./class-capacity-guard";
 import { loadRelayClassConfigs, loadRelayTeams } from "./relay-model";
 import { loadCourseVersionVariants, variantAfterClassChange } from "./course-variants";
 import { resolveStoredResultHeadStates } from "./result-revision-state";
+import { loadDecisionReviews } from "./decision-review";
 import { isEffectiveResultCurrent, loadResultBasisHashes } from "./result-basis";
 import { parseAdministratorStoredResultHead } from "./administrator-effective-result";
 import { loadStartListFacts } from "./start-draw-basis";
@@ -134,6 +135,8 @@ export async function listEntryTransfersAsAdmin(db: Database, input: Authenticat
     const teams = new Map((relayClasses.size === 0 ? [] : await loadRelayTeams(tx, input.raceId)).map(team => [team.id, team]));
     const startFacts = await loadStartListFacts(tx, input.raceId);
     const resultNotes = await loadResultNotes(tx, input.raceId);
+    // Steg 45: beslut som döljer en senare avläsning ("Beslut att se över").
+    const decisionReviews = await loadDecisionReviews(tx, input.raceId, rows.map(row => row.id));
     return { status: "ok" as const, response: entryTransferCandidatesSchema.parse({
       formatVersion: 2, raceId: input.raceId, snapshotVersion: race.snapshotVersion,
       generatedAt: now.toISOString(), ...raceFacts,
@@ -161,6 +164,7 @@ export async function listEntryTransfersAsAdmin(db: Database, input: Authenticat
         effectiveResult: effectiveResultByEntry.get(row.id) ?? { state: "NO_PUBLISHED_RESULT", selectedRevision: null },
         resultRevisionMarker: revisionMarkerByEntry.get(row.id) ?? null,
         ...(mispunchConfirmed.has(row.id) ? { mispunchConfirmed: true } : {}),
+        ...(decisionReviews.has(row.id) && effective?.state === "ACTIVE_RESULT" ? { decisionReview: decisionReviews.get(row.id) } : {}),
         ...(row.selfRegisteredAt ? { selfRegistered: true as const } : {}),
         activeAssignment: assignment ? { id: assignment.id, cardNumber: assignment.cardNumber,
           isRental: assignment.isRental, rentalReturned: assignment.rentalReturned } : null,

@@ -30,7 +30,7 @@ const ISO_OFFSET_DATE_TIME =
   /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,3})?(Z|([+-])(\d{2}):(\d{2}))$/;
 const TECHNICAL_KEYS = new Set([
   "status", "reason", "entryId", "classId", "courseVersionId", "startTime", "finishTime", "elapsedMs",
-  "missingControls", "extraPunches", "splits"
+  "missingControls", "extraPunches", "splits", "rogaining"
 ]);
 
 function canonicalUuid(value: unknown): value is string {
@@ -167,6 +167,8 @@ export function createOutOfCompetitionResult(source: EvaluationResult): OutOfCom
     ...(source.elapsedMs === undefined ? {} : { elapsedMs: source.elapsedMs }),
     missingControls: [...source.missingControls],
     extraPunches: [...source.extraPunches],
-    splits: source.splits.map((split) => ({ ...split }))
+    splits: source.splits.map((split) => ({ ...split })),
+    // Steg 45: rogaining behåller poängen (utom tävlan placeras aldrig).
+    ...(source.rogaining && source.elapsedMs !== undefined ? { rogaining: source.rogaining } : {})
   };
 }

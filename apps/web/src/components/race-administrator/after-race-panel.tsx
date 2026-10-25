@@ -26,6 +26,8 @@ import { MapRoutesSection } from "./map-routes-section";
 import { RemainingRunnersSection } from "./remaining-runners";
 import { ResultsOfficialSection } from "./results-official-section";
 import { resultsOfficialSv as officialText } from "../../i18n/results-official-sv";
+import { decisionReviewSv as reviewText } from "../../i18n/decision-review-sv";
+import { DecisionReviewList } from "./decision-review";
 
 /**
  * Resultatlistorna i arbetsytan (PLAN.md steg 13): samma vyer som den publika sidan, med de publicerade
@@ -77,6 +79,11 @@ export function AfterRacePanel({ ws }: { ws: Workspace }) {
     {profile.features.finalization && <ResultsOfficialSection ws={ws} />}
     <Section id={`results-follow-up-${raceId}`} title={text.followUpHeading} help={text.followUpHelp}>
     <div className={styles.disclosureList}>
+    {/* Steg 45: beslut som döljer en senare avläsning. */}
+    {data && <details className={styles.disclosure} open={data.entries.some((entry) => entry.decisionReview) ? true : undefined}>
+      <summary>{reviewText.listTitle} ({data.entries.filter((entry) => entry.decisionReview).length})</summary>
+      <div className={styles.disclosureBody}><DecisionReviewList ws={ws} /></div>
+    </details>}
     {/* PLAN.md steg 25: efter tävlingen, alla som är kvar utan tecken på start blir ej start. */}
     <details className={styles.disclosure} open={ws.remaining || ws.remainingMessage ? true : undefined}>
       <summary>{text.remainingTitle}</summary>

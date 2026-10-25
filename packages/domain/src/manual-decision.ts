@@ -89,6 +89,10 @@ export const TECHNICAL_CAUSES: ReadonlySet<RevisionCause> = new Set<RevisionCaus
 /** Orsaker som är ett beslut eller ett återtagande (de enda som påverkar vilket resultat som gäller). */
 export const DECISION_CAUSES: readonly RevisionCause[] = [...Object.keys(OVERLAY_DECISIONS), ...OVERLAY_WITHDRAWALS,
   ...Object.keys(HEAD_DECISIONS), "MANUAL_DID_NOT_START_WITHDRAWAL"] as RevisionCause[];
+/** Beslut som ligger kvar ovanpå senare avläsningar (steg 45: "Beslut att se över"). */
+export const OVERLAY_GOVERNING: ReadonlySet<GoverningDecision> = new Set(Object.values(OVERLAY_DECISIONS));
+/** Orsakerna som är ett kvarliggande beslut. */
+export const OVERLAY_DECISION_CAUSES: readonly RevisionCause[] = Object.keys(OVERLAY_DECISIONS) as RevisionCause[];
 /** Beslut som lägger en manuell tid ovanpå avläsningen (deltagarkortet: "Manuell tid"). */
 export const MANUAL_TIME_GOVERNING: ReadonlySet<GoverningDecision> = new Set<GoverningDecision>(["FINISH_TIME", "START_TIME", "MANUAL_TIME"]);
 
@@ -333,6 +337,19 @@ export function applyManualDecision<T extends DecisionRevision>(history: ResultH
         : done("MANUAL_WITHOUT_TIMING", { status: "NT", reason: "WITHOUT_TIMING", ...identity, ...kept }, source);
     }
     default: break;
+  }
+  // Steg 45: disk och utom tävlan går även ovanpå en manuell eller rättad tid; beslutet bygger då på den tiden och läggs
+  // ovanpå (att ta bort det återställer den manuella tiden).
+  if ((decision.kind === "DISQUALIFIED" || decision.kind === "OUT_OF_COMPETITION") && MANUAL_TIME_GOVERNING.has(history.governing) &&
+    history.effective) {
+    const manual = history.effective.evaluation as EvaluationResult;
+    if (manual.status !== "OK" && manual.status !== "OVERTIME" && manual.status !== "MP") return fail("UNSUPPORTED_RESULT");
+    if (manual.entryId !== context.entryId || manual.classId !== context.classId || manual.courseVersionId !== context.courseVersionId) {
+      return fail("STALE_RESULT");
+    }
+    return decision.kind === "DISQUALIFIED"
+      ? done("MANUAL_DISQUALIFICATION", guarded(() => createDisqualifiedResult(manual as DisqualifiableResult)), history.effective)
+      : done("MANUAL_OUT_OF_COMPETITION", guarded(() => createOutOfCompetitionResult(manual)), history.effective);
   }
   const head = technicalHead(history, context);
   // Steg 35: disk och utom tävlan går även utan avläsning; utfallet har då ingen tid och inga kontroller.

@@ -1,3 +1,13 @@
+/** "3 h 20 min", "2 dygn 4 h" – en stor klockavvikelse i hela minuter. */
+function formatSkew(minutes: number): string {
+  const total = Math.abs(minutes);
+  const days = Math.floor(total / 1_440);
+  const hours = Math.floor((total % 1_440) / 60);
+  const rest = total % 60;
+  return [days > 0 ? `${days} dygn` : "", hours > 0 ? `${hours} h` : "", rest > 0 && days === 0 ? `${rest} min` : ""]
+    .filter(Boolean).join(" ") || "0 min";
+}
+
 export const readoutText = {
   title: "O-Tid – avläsning",
   noRace: "Ingen tävling vald. Öppna avläsningen från tävlingens administrationssida.",
@@ -49,17 +59,25 @@ export const readoutText = {
   misconfiguredHelp: "Ställ stationen i läget avläsning (Readout) med utökat protokoll och anslut igen.",
   // Stationens klocka (PLAN.md steg 22).
   clockSkew: (minutes: number) => `Stationens klocka avviker ${Math.abs(minutes)} min från datorn (${minutes > 0 ? "går före" : "går efter"}). Stämplingstiderna räknas mot stationens klocka. Kontrollera att kontrollenheterna och stationen är tidsynkade.`,
+  clockIgnored: (minutes: number) => `Stationens klocka går helt fel (${formatSkew(minutes)} ${minutes > 0 ? "före" : "efter"} datorn). O-Tid räknar stämplingstiderna mot datorns klocka i stället. Kontrollera att datorns klocka stämmer, och ställ stationens klocka innan nästa tävling.`,
   clockMissing: "Stationen svarade inte på klockfrågan. Stämplingstiderna räknas mot datorns klocka.",
   timeUnresolvable: (detail: string) => `Brickans tider går inte att tolka (${detail}). Läs om brickan. Går det inte: ange tiden manuellt i deltagarkortet. Brickan står i listan nedan.`,
-  heldReadouts: (count: number) => `${count} ${count === 1 ? "avläsning" : "avläsningar"} kunde inte skickas (fel på servern). De ligger kvar på den här datorn.`,
+  // Steg 45: även 400/404/409 hålls åt sidan, så att resten av kön går.
+  heldReadouts: (count: number, serverError: boolean) => `${count} ${count === 1 ? "avläsning" : "avläsningar"} kunde inte skickas (${serverError
+    ? "fel på servern" : "servern tog inte emot dem"}). De ligger kvar på den här datorn. Resten av kön skickas som vanligt.`,
+  syncThrottled: "Servern ber oss vänta en stund. Kön ligger kvar och skickas igen strax.",
   heldRetry: "Försök igen",
+  noSplits: "Godkänd, men inga sträcktider: stämplingarna ligger före start eller efter mål. Kontrollera klockorna och om brickan var tömd.",
   alreadyReadOutTitle: "Brickan är redan avläst",
   alreadyReadOut: (name: string) => `Brickan har redan lästs ut för ${name} – lånad bricka?`,
   alreadyReadOutPossible: (name: string) => `${name} har redan lästs ut med den här brickan. Är det en lånad bricka? Servern kontrollerar.`,
   alreadyReadOutHelp: (name: string) => `${name}s resultat ändras inte. Anmäl eller koppla den som sprang nedan, eller:`,
   sameRunner: "Det är samma löpare – använd den nya avläsningen",
   failedTitle: "Brickor som inte kunde tolkas",
-  failedHelp: "Läs om brickan eller ange tiden manuellt i deltagarkortet. Råramarna finns sparade i felsökningsloggen.",
+  failedHelp: "Läs om brickan eller ange tiden manuellt i deltagarkortet. Råramarna skickas till servern, där administratören kan läsa om dem under Avläsning.",
+  failedStored: "sparad på servern",
+  failedWaiting: "väntar på att skickas",
+  failedDownload: "Ladda ner listan",
   failedRow: (card: string, time: string, detail: string) => `Bricka ${card} kl. ${time} (${detail})`,
   failedClear: "Ta bort listan",
   waitingForCard: "Sätt i brickan",

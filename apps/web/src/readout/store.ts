@@ -22,6 +22,8 @@ export interface QueuedReadout {
    * hålls åt sidan så att resten av kön kan skickas; "Försök igen" tar bort markeringen.
    */
   readonly serverFailedAt?: string;
+  /** Steg 45: serverns svarskod när avläsningen hölls åt sidan (5xx, 400, 404 eller 409). */
+  readonly serverFailedStatus?: number;
 }
 
 export type NewReadout = Omit<QueuedReadout, "raceId" | "deviceId" | "sessionId" | "localSequence" | "status">;

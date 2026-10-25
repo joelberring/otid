@@ -163,3 +163,26 @@ describe("steg 38: bekräfta felstämplad och sträcktider vid brutit", () => {
       engineVersion: "did-not-finish-v1", source: null });
   });
 });
+
+describe("steg 45: disk och utom tävlan ovanpå en manuell tid", () => {
+  it("lägger disk och utom tävlan på den manuella tiden, och borttaget återställer den manuella tiden", () => {
+    const read = revision(1, "CARD_READOUT", timed("MP"));
+    const manual = revision(2, "MANUAL_TIME", { ...timed("OK", "2026-09-12T10:25:00.000Z") });
+    const history = resolveResultHistory([read, manual]);
+    expect(history.governing).toBe("MANUAL_TIME");
+    const dsq = applyManualDecision(history, { kind: "DISQUALIFIED" }, context);
+    expect(dsq).toMatchObject({ ok: true, cause: "MANUAL_DISQUALIFICATION", outcome: { status: "DSQ", elapsedMs: 1_500_000 } });
+    const ooc = applyManualDecision(history, { kind: "OUT_OF_COMPETITION" }, context);
+    expect(ooc).toMatchObject({ ok: true, cause: "MANUAL_OUT_OF_COMPETITION", outcome: { status: "OOC", elapsedMs: 1_500_000 } });
+    expect(manualDecisionReadiness(history, context)).toMatchObject({ DISQUALIFIED: "READY", OUT_OF_COMPETITION: "READY",
+      DID_NOT_FINISH: "ACTIVE_MANUAL_TIME" });
+    if (!dsq.ok) throw new Error("disk");
+    const stacked = resolveResultHistory([read, manual, revision(3, dsq.cause, dsq.outcome)]);
+    expect(stacked.governing).toBe("DSQ");
+    const withdrawn = applyManualDecision(stacked, { kind: "WITHDRAW" }, context);
+    expect(withdrawn).toMatchObject({ ok: true, cause: "MANUAL_DISQUALIFICATION_WITHDRAWAL", outcome: { status: "OK", elapsedMs: 1_500_000 } });
+    if (!withdrawn.ok) throw new Error("ta bort");
+    expect(resolveResultHistory([read, manual, revision(3, dsq.cause, dsq.outcome), revision(4, withdrawn.cause, withdrawn.outcome)]).governing)
+      .toBe("MANUAL_TIME");
+  });
+});

@@ -6,7 +6,7 @@ import {
 import { schema, type Database } from "@o-tid/database";
 import {
   applyManualDecision, carryManualDecisions, controlApprovalSource, evaluateReadoutWithTimes, latestMatchedSplitElapsedMs, manualDecisionReadiness,
-  officialStartTime, resolveResultHistory, type EvaluationResult, type ManualDecision, type ManualDecisionContext,
+  officialStartTime, preparedReadoutTimes, resolveResultHistory, type EvaluationResult, type ManualDecision, type ManualDecisionContext,
   type RaceSnapshot, type ResultHistory
 } from "@o-tid/domain";
 import { loadRaceSnapshot } from "./snapshot";
@@ -91,11 +91,13 @@ async function loadEntryContext(tx: Transaction, raceId: string, entryId: string
     .where(eq(schema.cardReadouts.id, technicalReadoutId)) : [];
   const snapshot = await loadRaceSnapshot(tx, raceId);
   const normalized = readout ? normalizedReadout(readout) : undefined;
+  // Steg 45: start och mål så som bedömningen ser dem (tidsjustering per station, gamla stämplingar bort).
+  const times = normalized ? preparedReadoutTimes(normalized, snapshot) : { startPunchedAt: null, finishPunchedAt: null };
   const knownStartTime = officialStartTime({ startRule: entry.startRule, fixedStartTime: entry.fixedStartTime?.toISOString() ?? null,
-    startPunchedAt: normalized?.startPunchedAt ?? null }) ?? null;
-  return { race, entry, history, revisions, snapshot, readoutFinishTime: normalized?.finishPunchedAt ?? null,
+    startPunchedAt: times.startPunchedAt }) ?? null;
+  return { race, entry, history, revisions, snapshot, readoutFinishTime: times.finishPunchedAt,
     context: { entryId: entry.id, classId: entry.classId, courseVersionId: entry.courseVersionId,
-      startRule: entry.startRule, headStartPunchedAt: readout?.startPunchedAt?.toISOString() ?? null, maxTimeMinutes: entry.maxTimeMinutes,
+      startRule: entry.startRule, headStartPunchedAt: times.startPunchedAt, maxTimeMinutes: entry.maxTimeMinutes,
       knownStartTime,
       evaluateWithTimes: normalized ? (startTime, finishTime) => evaluateReadoutWithTimes(normalized, snapshot, entry.id, startTime, finishTime)
         : undefined,

@@ -83,8 +83,8 @@ och `cu.debug-console` är inte stationen. Steg för steg i `docs/sportident.md`
 
 ## Drift
 
-`docker compose -f docker-compose.prod.yml up -d --build` med PostgreSQL, webb, Caddy (HTTPS)
-och nattlig backup. Se [docs/drift.md](docs/drift.md).
+`docker compose -f docker-compose.prod.yml build` och sedan `up -d`, med PostgreSQL, webb, Caddy (HTTPS)
+och backup varje timme kl. 08–23. Se [docs/drift.md](docs/drift.md).
 
 ## Struktur
 

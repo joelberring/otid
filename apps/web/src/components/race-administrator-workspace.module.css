@@ -279,7 +279,6 @@
 /* PLAN.md steg 27: bekräftelsen under en tabellrad stannar inom skärmen när tabellen rullar i sidled (mobil). */
 .rowReview { position: sticky; left: 0; max-width: min(100%, calc(100vw - 56px)); }
 /* Steg 49: gafflingar i banlistan och redigeringen. */
-.courseVariants { min-width: 0; max-width: min(600px, 78vw); }
 
 .forkingTools { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 12px; }
 .forkingTools label { min-width: 150px; }
@@ -290,4 +289,9 @@
 .forkingBranch { display: grid; gap: 4px; align-content: start; }
 .forkingBranch[data-selected] input { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .forkingVariants { display: grid; gap: 6px; }
-.courseName { min-width: 7rem; overflow-wrap: normal; }
+/* Steg 49: banlistan bryter aldrig rubriker eller klassnamn; gafflingarna har en egen rad under banan. */
+.courseTable thead th, .courseTable tbody th, .courseTable .inlineLink { white-space: nowrap; }
+.forkingRow > td { padding-top: 0; }
+.forkingRow:hover > * { background: transparent !important; }
+/* På smal skärm rullar tabellen i sidled; gafflingarna står kvar i synfältet med skärmens bredd. */
+.forkingDetail { position: sticky; left: 0; max-width: min(100%, calc(100vw - 48px)); min-width: 0; }

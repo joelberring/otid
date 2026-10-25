@@ -27,12 +27,15 @@ export interface DiagramEdge {
   /** Mitten av sträckan (för en klickbar yta och en etikett). */
   readonly mid: DiagramPoint;
 }
+/** En etikett: mitten (x, y) och rutans bredd och höjd. Etiketterna placeras så att de inte täcker något. */
 export interface DiagramLabel extends DiagramPoint {
   readonly key: string;
   readonly text: string;
   readonly kind: "LETTER" | "NOTE" | "ORDER";
   readonly active: boolean | null;
   readonly target?: DiagramTarget;
+  readonly width: number;
+  readonly height: number;
 }
 export interface ForkingDiagramLayout {
   readonly width: number;
@@ -57,6 +60,78 @@ type Pending = { readonly point: DiagramPoint; readonly active: boolean | null; 
 
 const round = (value: number) => Math.round(value * 10) / 10;
 
+type LabelRequest = Omit<DiagramLabel, "x" | "y" | "width" | "height"> & {
+  /** Punkten som etiketten hör till och riktningarna att pröva först (enhetsvektorer). */
+  readonly anchor: DiagramPoint;
+  readonly prefer: readonly (readonly [number, number])[];
+};
+type Box = { x: number; y: number; w: number; h: number };
+
+/** Etikettens ungefärliga storlek: teckenbredd efter typsnittets storlek, lite tilltaget. */
+function labelSize(kind: DiagramLabel["kind"], text: string, compact: boolean): { w: number; h: number } {
+  if (compact) return { w: text.length * 4.2 + 1, h: 7 };
+  const char = kind === "NOTE" ? 6.1 : 8.2;
+  return { w: text.length * char + (kind === "NOTE" ? 8 : 4), h: kind === "NOTE" ? 16 : 16 };
+}
+
+const overlaps = (a: Box, b: Box, gap: number) =>
+  a.x < b.x + b.w + gap && b.x < a.x + a.w + gap && a.y < b.y + b.h + gap && b.y < a.y + a.h + gap;
+
+/** Punkter längs en sträcka (rak, kurva eller kronblad) med högst ett par pixlars mellanrum. */
+function samples(edge: { from: DiagramPoint; to: DiagramPoint; path?: DiagramPoint[] }): DiagramPoint[] {
+  const result: DiagramPoint[] = [];
+  const line = (a: DiagramPoint, b: DiagramPoint) => {
+    const steps = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 2));
+    for (let step = 0; step <= steps; step += 1) result.push({ x: a.x + ((b.x - a.x) * step) / steps, y: a.y + ((b.y - a.y) * step) / steps });
+  };
+  if (edge.path) { for (let index = 1; index < edge.path.length; index += 1) line(edge.path[index - 1]!, edge.path[index]!); return result; }
+  const { from, to } = edge;
+  if (Math.abs(from.y - to.y) < 0.5) { line(from, to); return result; }
+  const middle = (from.x + to.x) / 2;
+  const steps = Math.max(8, Math.ceil(Math.hypot(to.x - from.x, to.y - from.y) / 2));
+  for (let step = 0; step <= steps; step += 1) {
+    const t = step / steps, u = 1 - t;
+    result.push({ x: u * u * u * from.x + 3 * u * u * t * middle + 3 * u * t * t * middle + t * t * t * to.x,
+      y: u * u * u * from.y + 3 * u * u * t * from.y + 3 * u * t * t * to.y + t * t * t * to.y });
+  }
+  return result;
+}
+
+const DIRECTIONS: readonly (readonly [number, number])[] = [[0, -1], [0, 1], [1, 0], [-1, 0], [0.7, -0.7], [-0.7, -0.7], [0.7, 0.7],
+  [-0.7, 0.7], [0.92, -0.38], [-0.92, -0.38], [0.92, 0.38], [-0.92, 0.38], [0.38, -0.92], [-0.38, -0.92], [0.38, 0.92], [-0.38, 0.92]];
+
+/**
+ * Placerar etiketterna en i taget: närmast sin punkt i de föredragna riktningarna, annars runt om och längre ut, där rutan
+ * inte täcker en kontroll, en sträcka eller en redan placerad etikett.
+ */
+function placeLabels(requests: readonly LabelRequest[], nodes: readonly DiagramPoint[], radius: number,
+  lines: readonly DiagramPoint[], compact: boolean): DiagramLabel[] {
+  const gap = compact ? 0.6 : 2;
+  const nodeBoxes = nodes.map(node => ({ x: node.x - radius - gap, y: node.y - radius - gap, w: 2 * (radius + gap), h: 2 * (radius + gap) }));
+  const placed: Box[] = [];
+  const free = (box: Box) => !nodeBoxes.some(other => overlaps(box, other, 0)) && !placed.some(other => overlaps(box, other, gap)) &&
+    !lines.some(point => point.x > box.x - gap && point.x < box.x + box.w + gap && point.y > box.y - gap && point.y < box.y + box.h + gap);
+  return requests.map(request => {
+    const { w, h } = labelSize(request.kind, request.text, compact);
+    const base = radius + (compact ? 1 : 3);
+    const directions = [...request.prefer, ...DIRECTIONS.filter(direction => !request.prefer.some(known => known[0] === direction[0] && known[1] === direction[1]))];
+    let chosen: Box | undefined;
+    for (let ring = 0; ring < 14 && !chosen; ring += 1) {
+      const distance = base + ring * (compact ? 2 : 6);
+      for (const [vx, vy] of directions) {
+        // Rutans mitt så långt ut att rutans kant ligger på avståndet i riktningen.
+        const reach = distance + Math.abs(vx) * w / 2 + Math.abs(vy) * h / 2;
+        const box = { x: request.anchor.x + vx * reach - w / 2, y: request.anchor.y + vy * reach - h / 2, w, h };
+        if (free(box)) { chosen = box; break; }
+      }
+    }
+    const box = chosen ?? { x: request.anchor.x - w / 2, y: request.anchor.y - base - h * 2, w, h };
+    placed.push(box);
+    return { key: request.key, text: request.text, kind: request.kind, active: request.active,
+      ...(request.target ? { target: request.target } : {}), x: box.x + w / 2, y: box.y + h / 2, width: w, height: h };
+  });
+}
+
 function curve(from: DiagramPoint, to: DiagramPoint): string {
   if (Math.abs(from.y - to.y) < 0.5) return `M${round(from.x)} ${round(from.y)}L${round(to.x)} ${round(to.y)}`;
   const middle = (from.x + to.x) / 2;
@@ -77,7 +152,7 @@ export function layoutForkingDiagram(items: readonly ForkingItem[], options: For
   const marked = options.choices !== undefined;
   const nodes: (Omit<DiagramNode, "x" | "y"> & DiagramPoint)[] = [];
   const edges: { key: string; from: DiagramPoint; to: DiagramPoint; active: boolean | null; target?: DiagramTarget; path?: DiagramPoint[] }[] = [];
-  const labels: DiagramLabel[] = [];
+  const labels: LabelRequest[] = [];
   const on = (value: boolean) => marked ? value : null;
   let cursor = 0;
   nodes.push({ key: "S", kind: "START", label: "Start", x: 0, y: 0, active: on(true) });
@@ -104,7 +179,9 @@ export function layoutForkingDiagram(items: readonly ForkingItem[], options: For
       const longest = Math.max(1, ...item.branches.map(branch => branch.length));
       const ends: Pending[] = [];
       item.branches.forEach((branch, branchIndex) => {
-        const y = (branchIndex - (count - 1) / 2) * lane * (count > 2 ? 1.1 : 1.5);
+        // Med upplysningar per gren behövs plats mellan grenarna.
+        const spacing = !compact && options.note ? 1.6 : count > 2 ? 1.1 : 1.5;
+        const y = (branchIndex - (count - 1) / 2) * lane * spacing;
         const chosen = on(choice === branchIndex);
         let previous = pending;
         const branchTarget: DiagramTarget = { kind: "BRANCH", item: index, branch: branchIndex };
@@ -124,12 +201,16 @@ export function layoutForkingDiagram(items: readonly ForkingItem[], options: For
         else ends.push(...previous);
         const letter = options.letters?.[index]?.[branchIndex];
         const first = { x: cursor + step, y };
-        if (letter) labels.push({ key: `l${index}.${branchIndex}`, kind: "LETTER", text: letter, x: first.x - radius * 2.2,
-          y: y + (y < 0 ? -radius * 0.6 : radius * 1.3), active: chosen, target: branchTarget });
-        // Upplysningen ovanför den övre grenen och under de andra, så att den inte hamnar på linjerna.
+        const outward: readonly [number, number] = y < 0 ? [0, -1] : [0, 1];
+        if (letter) labels.push({ key: `l${index}.${branchIndex}`, kind: "LETTER", text: letter, anchor: first,
+          prefer: [[-0.7, y < 0 ? -0.7 : 0.7], [-1, 0], [0.7, y < 0 ? -0.7 : 0.7]], active: chosen, target: branchTarget });
+        // Upplysningen vid grenens mitt, utåt från gaffeln.
         const note = compact ? undefined : options.note?.(index, branchIndex);
-        if (note) labels.push({ key: `n${index}.${branchIndex}`, kind: "NOTE", text: note, x: first.x - radius,
-          y: y < 0 ? y - radius - 6 : y + radius + 13, active: chosen });
+        // De yttre grenarna får upplysningen utåt, de mellersta efter grenens sista kontroll.
+        const outer = branchIndex === 0 || branchIndex === count - 1;
+        const last = { x: cursor + step * Math.max(1, branch.length), y };
+        if (note) labels.push({ key: `n${index}.${branchIndex}`, kind: "NOTE", text: note, anchor: outer ? first : last,
+          prefer: outer ? [outward, [0.38, outward[1] * 0.92]] : [[1, 0], [0.92, -0.38], [0.92, 0.38]], active: chosen });
       });
       pending = ends;
       // Lite längre till nästa kontroll så att grenarna syns gå ihop.
@@ -167,25 +248,33 @@ export function layoutForkingDiagram(items: readonly ForkingItem[], options: For
       const tip = place(0);
       reach = Math.max(reach, tip.x, ...points.map(point => point.x));
       const letter = options.letters?.[index]?.[loopIndex];
-      const outward = { x: tip.x + (compact ? 3 : radius + 6), y: tip.y + (angle < 0 ? -2 : 6) };
-      if (letter) labels.push({ key: `l${index}.${loopIndex}`, kind: "LETTER", text: letter, ...outward, active: on(true), target: branchTarget });
+      // Utåt från kronbladets spets, längs bladets riktning.
+      const out: readonly [number, number] = [Math.cos(angle), Math.sin(angle)];
+      const side: readonly [number, number] = [0, angle < 0 ? -1 : 1];
+      if (letter) labels.push({ key: `l${index}.${loopIndex}`, kind: "LETTER", text: letter, anchor: tip, prefer: [out, side], active: on(true),
+        target: branchTarget });
       const position = order?.indexOf(loopIndex) ?? -1;
-      if (position >= 0) labels.push({ key: `o${index}.${loopIndex}`, kind: "ORDER", text: String(position + 1),
-        x: outward.x + (compact ? 6 : 16), y: outward.y, active: true });
+      if (position >= 0) labels.push({ key: `o${index}.${loopIndex}`, kind: "ORDER", text: String(position + 1), anchor: tip,
+        prefer: [out, side, [1, 0]], active: true });
       const note = compact ? undefined : options.note?.(index, loopIndex);
-      if (note) labels.push({ key: `n${index}.${loopIndex}`, kind: "NOTE", text: note, x: outward.x, y: outward.y + 14, active: on(true) });
+      if (note) labels.push({ key: `n${index}.${loopIndex}`, kind: "NOTE", text: note, anchor: tip, prefer: [side, out], active: on(true) });
     });
-    pending = [{ point: center, active: on(true), key, base: true }];
-    cursor = Math.max(center.x, reach - dx * 0.4);
+    // Banan går vidare rakt ut förbi kronbladen innan den grenar sig, så att en gaffling efter fjärilen inte korsar bladen.
+    const junction = { x: Math.max(center.x + dx * 0.5, reach + dx * (compact ? 0.1 : 0.3)), y: 0 };
+    edges.push({ key: `${key}>j${index}`, from: center, to: junction, active: on(true) });
+    pending = [{ point: junction, active: on(true), key: `j${index}`, base: true }];
+    cursor = junction.x - dx * (compact ? 0.5 : 0.15);
   });
   const finish = { x: cursor + dx, y: 0 };
   connect(finish, "F", from => from.active, from => from.base ? { kind: "LEG", before: items.length } : undefined);
   nodes.push({ key: "F", kind: "FINISH", label: "Mål", ...finish, active: on(true) });
 
-  const xs = [...nodes.map(node => node.x), ...labels.map(label => label.x + (label.kind === "NOTE" ? label.text.length * 6 : 10))];
-  const ys = [...nodes.map(node => node.y), ...labels.map(label => label.y), ...edges.flatMap(edge => edge.path?.map(point => point.y) ?? [])];
-  const minX = Math.min(...xs) - radius - margin * 0.5, maxX = Math.max(...xs) + radius + margin * 0.5;
-  const minY = Math.min(...ys) - radius - margin * 0.6, maxY = Math.max(...ys) + radius + margin * 0.6;
+  const placed = placeLabels(labels, nodes, radius, edges.flatMap(samples), compact);
+  const xs = [...nodes.flatMap(node => [node.x - radius, node.x + radius]), ...placed.flatMap(label => [label.x - label.width / 2, label.x + label.width / 2])];
+  const ys = [...nodes.flatMap(node => [node.y - radius, node.y + radius]), ...placed.flatMap(label => [label.y - label.height / 2, label.y + label.height / 2]),
+    ...edges.flatMap(edge => edge.path?.map(point => point.y) ?? [])];
+  const minX = Math.min(...xs) - margin * 0.3, maxX = Math.max(...xs) + margin * 0.3;
+  const minY = Math.min(...ys) - margin * 0.3, maxY = Math.max(...ys) + margin * 0.3;
   const shift = (point: DiagramPoint) => ({ x: point.x - minX, y: point.y - minY });
   const pathOf = (edge: (typeof edges)[number]) => edge.path
     ? edge.path.map(shift).map((point, index) => `${index === 0 ? "M" : "L"}${round(point.x)} ${round(point.y)}`).join("")
@@ -197,6 +286,6 @@ export function layoutForkingDiagram(items: readonly ForkingItem[], options: For
       const mid = edge.path ? shift(edge.path[3]!) : shift({ x: (edge.from.x + edge.to.x) / 2, y: (edge.from.y + edge.to.y) / 2 });
       return { key: edge.key, d: pathOf(edge), active: edge.active, mid, ...(edge.target ? { target: edge.target } : {}) };
     }),
-    labels: labels.map(label => ({ ...label, ...shift(label) }))
+    labels: placed.map(label => ({ ...label, ...shift(label) }))
   };
 }

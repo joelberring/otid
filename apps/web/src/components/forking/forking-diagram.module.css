@@ -18,6 +18,8 @@
 .node text { fill: var(--ink); font-size: 12px; font-weight: 600; text-anchor: middle; dominant-baseline: central; }
 .node polygon { fill: none; stroke: var(--ink); stroke-width: 2; }
 .compact .node polygon { stroke-width: 1.2; }
+.letter, .order, .note { text-anchor: middle; dominant-baseline: central; }
+.labelBox { fill: var(--surface); stroke: var(--line); stroke-width: 1; opacity: .92; }
 .letter { fill: var(--accent); font-size: 13px; font-weight: 700; }
 .compact .letter { font-size: 6px; }
 .letter[data-active="false"] { fill: var(--muted); }

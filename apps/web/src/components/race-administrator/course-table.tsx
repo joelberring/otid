@@ -45,7 +45,7 @@ export function CourseTable({ ws, visible }: { ws: Workspace; visible: boolean }
       {text.courseEmptyHelp}</EmptyState>}
     {ws.removalMessage?.kind === "COURSE" && !courseList?.courses.some(row => row.courseId === ws.removalMessage?.id) &&
       <RemovalReview ws={ws} kind="COURSE" id={ws.removalMessage.id} />}
-    {courseList && courseList.courses.length > 0 && <Table>
+    {courseList && courseList.courses.length > 0 && <Table className={styles.courseTable}>
       <thead><tr>
         <th scope="col">{text.courseEditCourse}</th><th scope="col">{text.courseLengthColumn}</th>
         <th scope="col">{text.courseEditControlsColumn}</th>
@@ -60,10 +60,11 @@ export function CourseTable({ ws, visible }: { ws: Workspace; visible: boolean }
         const forked = course.variants.length > 0;
         const measured = course.lengthMeters != null || course.climbMeters != null;
         return [<tr key={course.courseId}>
-          <th scope="row" className={forked ? styles.courseName : undefined}>{course.name}</th>
+          <th scope="row">{course.name}</th>
           <td className={styles.courseLength}>{measured ? courseMeasures(course.lengthMeters ?? null, course.climbMeters ?? null)
             : <span className={styles.muted}>–</span>}</td>
-          <td className={styles.controlCodes}>{forked && variants ? <CourseVariants ws={ws} course={course} /> : course.controlCodes.join(" ")}</td>
+          <td className={styles.controlCodes}>{forked && variants ? <span className={styles.muted}>{forking.variantsBelow(course.variants.length)}</span>
+            : course.controlCodes.join(" ")}</td>
           <td>{course.classes.length === 0 ? <span className={styles.muted}>{text.courseEditNoClasses}</span> : course.classes.map(raceClass =>
             <button key={raceClass.classId} type="button" className={styles.inlineLink} disabled={workflowLocked}
               onClick={() => openAssignedClass(raceClass.classId)}>{raceClass.name}</button>)}</td>
@@ -79,7 +80,13 @@ export function CourseTable({ ws, visible }: { ws: Workspace; visible: boolean }
             {/* PLAN.md steg 27: ta bort en bana som ingen klass använder; annars ett besked om vilka klasser. */}
             {!editing && !details && <Button variant="quiet" aria-label={removalText.courseDeleteLabel(course.name)}
               disabled={ws.disabled || !!editingCourseId} onClick={() => ws.prepareCourseRemoval(course.courseId)}>{removalText.courseDelete}</Button>}</td>
-        </tr>, editing && <tr key={`${course.courseId}-editor`} className={styles.editorRow}>
+        </tr>,
+        // Steg 49: gafflingarna (bild, gafflingssätt, knappar och varianter) i en egen rad över hela tabellens bredd.
+        forked && variants && <tr key={`${course.courseId}-forking`} className={styles.forkingRow}>
+          <td colSpan={7}><div className={styles.forkingDetail}>
+            <span className={styles.visuallyHidden}>{course.name} – </span><CourseVariants ws={ws} course={course} /></div></td>
+        </tr>,
+        editing && <tr key={`${course.courseId}-editor`} className={styles.editorRow}>
           <td colSpan={7}>{ws.courseEditForking ? <ForkingEditor ws={ws} course={course} /> : <CourseEditor ws={ws} courseName={course.name} />}</td>
         </tr>, details && <tr key={`${course.courseId}-details`} className={styles.editorRow}>
           <td colSpan={7}><CourseDetailsEditor ws={ws} courseName={course.name} /></td>

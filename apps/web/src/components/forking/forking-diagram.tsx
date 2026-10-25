@@ -50,14 +50,19 @@ export function ForkingDiagram({ items, letters, choices, compact = false, note,
     role="img" aria-label={label}>
     <title>{label}</title>
     {layout.edges.map(edge => <path key={edge.key} className={styles.edge} d={edge.d} data-active={edge.active ?? undefined} />)}
-    {layout.nodes.map(node => <g key={node.key} className={styles.node} data-kind={node.kind} data-active={node.active ?? undefined}>
+    {layout.nodes.map(node => <g key={node.key} className={styles.node} data-node="" data-kind={node.kind} data-active={node.active ?? undefined}>
       {node.kind === "START" ? <polygon points={`${node.x - layout.radius},${node.y + layout.radius * 0.8} ${node.x + layout.radius},${node.y + layout.radius * 0.8} ${node.x},${node.y - layout.radius}`} />
         : <circle cx={node.x} cy={node.y} r={layout.radius} />}
       {node.kind === "FINISH" && <circle cx={node.x} cy={node.y} r={layout.radius * 0.66} />}
       {!compact && node.kind !== "START" && node.kind !== "FINISH" && <text x={node.x} y={node.y}>{node.label}</text>}
     </g>)}
-    {layout.labels.map(item => <text key={item.key} x={item.x} y={item.y} data-active={item.active ?? undefined}
-      className={item.kind === "LETTER" ? styles.letter : item.kind === "ORDER" ? styles.order : styles.note}>{item.text}</text>)}
+    {/* Etiketterna har en egen ruta (med bakgrund) som aldrig täcker kontroller, sträckor eller andra etiketter. */}
+    {layout.labels.map(item => <g key={item.key} data-label={item.kind} data-active={item.active ?? undefined}>
+      {item.kind === "NOTE" && <rect className={styles.labelBox} x={item.x - item.width / 2} y={item.y - item.height / 2}
+        width={item.width} height={item.height} rx={3} />}
+      <text x={item.x} y={item.y} data-active={item.active ?? undefined}
+        className={item.kind === "LETTER" ? styles.letter : item.kind === "ORDER" ? styles.order : styles.note}>{item.text}</text>
+    </g>)}
     {interactive && <>
       {layout.edges.filter(edge => edge.target?.kind === "LEG").map(edge => <circle key={`hit-${edge.key}`} cx={edge.mid.x} cy={edge.mid.y} r={11}
         className={`${styles.hit} ${sameTarget(selected, edge.target) ? styles.selected : ""}`} role="button" tabIndex={0}

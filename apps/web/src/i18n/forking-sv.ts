@@ -15,6 +15,7 @@ export const forkingSv = {
   branchButton: (letter: string, loop: boolean) => loop ? `Slinga ${letter}` : `Alternativ ${letter}`,
   branchNote: (entries: number, readOut: number) => `${entries} anm. · ${readOut} avl.`,
   // Banlistan
+  variantsBelow: (count: number) => count === 1 ? "1 variant (se nedan)" : `${count} varianter (se nedan)`,
   title: "Gafflingar",
   editForking: "Redigera gafflingar",
   editForkingLabel: (course: string) => `Redigera gafflingar på ${course}`,

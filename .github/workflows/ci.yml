@@ -69,6 +69,6 @@ jobs:
       - run: pnpm test:e2e
         env:
           E2E_BASE_URL: https://localhost
-      - run: ls -l backups && ls backups/otid-*.dump
+      - run: ls -lR backups && ls backups/hourly/otid-*.dump backups/daily/otid-*.dump
       - if: failure()
         run: docker compose -f docker-compose.prod.yml logs --tail 200

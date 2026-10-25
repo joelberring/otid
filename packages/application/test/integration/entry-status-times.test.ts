@@ -5,6 +5,7 @@ import { schema } from "@o-tid/database";
 import { ingestDeviceBatch, publicResults } from "../../src";
 import { raceAuth } from "./accounts";
 import { statusFlow } from "./entry-status-helpers";
+import { applyRaceCorrectionAsAdmin, previewRaceCorrectionAsAdmin } from "../../src/race-corrections";
 import { batch, db, importedRace, okPayload, useRaceDatabase } from "./race-fixtures";
 
 useRaceDatabase();
@@ -43,6 +44,22 @@ describe("steg 23: ändrad mål- och starttid i statusflödet (ADR-0173 beslut 1
       response: { revision: 3, cause: "MANUAL_FINISH_TIME_CORRECTION_WITHDRAWAL" } });
     expect(await publicAda(raceId)).toMatchObject({ revision: 3, elapsedMs: 2_400_000 });
     expect(await entryStatus(auth, ada)).toMatchObject({ governingDecision: "NONE", readiness: { WITHDRAW: "NO_ACTIVE_DECISION" } });
+  });
+
+  it("rättar en stämplad start när starten har en tidsjustering (steg 45)", async () => {
+    const { raceId, auth, ada } = await readOutAda();
+    // Startenheten gick två minuter efter: alla starttider flyttas fram två minuter.
+    const correction = { action: "ADD_TIME_ADJUSTMENT" as const, station: "START" as const, offsetSeconds: 120, reason: "Startklockan" };
+    const preview = await previewRaceCorrectionAsAdmin(db, { ...auth, request: { formatVersion: 1, correction } });
+    if (preview.status !== "ok") throw new Error(preview.status);
+    expect((await applyRaceCorrectionAsAdmin(db, { ...auth, request: { formatVersion: 1, requestId: randomUUID(),
+      expectedPreviewHash: preview.response.previewHash, correction } })).status).toBe("applied");
+    expect(await publicAda(raceId)).toMatchObject({ status: "OK", elapsedMs: 38 * 60_000 });
+    expect(await entryStatus(auth, ada)).toMatchObject({ readiness: { START_TIME: "READY" },
+      manualTime: { knownStartTime: "2026-08-30T10:02:00.000Z", readoutFinishTime: "2026-08-30T10:40:00.000Z" } });
+    expect(await decide(auth, ada, { kind: "START_TIME", startTime: "2026-08-30T10:01:00Z" })).toMatchObject({ status: "decided",
+      response: { cause: "MANUAL_PUNCH_START_TIME_CORRECTION" } });
+    expect(await publicAda(raceId)).toMatchObject({ status: "OK", elapsedMs: 39 * 60_000 });
   });
 
   it("rättar en stämplad start, prövar mot sträcktiderna och rättningen ligger kvar över en ny avläsning (steg 31)", async () => {

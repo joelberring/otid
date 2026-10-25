@@ -33,3 +33,15 @@ export function evaluateReadoutWithTimes(readout: EvaluationReadout, snapshot: R
   return evaluateCardReadout({ cardNumber: readout.cardNumber, punches: prepared.punches, startPunchedAt: startTime,
     finishPunchedAt: finishTime }, punchStart);
 }
+
+/**
+ * Steg 45: avläsningens start- och måltid så som bedömningen ser dem, alltså efter tävlingens tidsjusteringar och utan
+ * gamla stämplingar (`prepareReadoutForEvaluation`). Besluten (rättad starttid, manuell tid) jämförs mot och utgår från
+ * dessa, inte från de råa tiderna; annars stämmer en rättad starttid aldrig med bedömningen när starten har en
+ * tidsjustering.
+ */
+export function preparedReadoutTimes(readout: EvaluationReadout, snapshot: RaceSnapshot):
+  { readonly startPunchedAt: string | null; readonly finishPunchedAt: string | null } {
+  const prepared = prepareReadoutForEvaluation(readout, snapshot).readout;
+  return { startPunchedAt: prepared.startPunchedAt ?? null, finishPunchedAt: prepared.finishPunchedAt ?? null };
+}

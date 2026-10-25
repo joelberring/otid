@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { evaluateCardReadout, evaluateReadoutWithTimes, prepareReadoutForEvaluation, type NormalizedCardReadout, type RaceSnapshot,
-  type StationTimeAdjustment } from "../src";
+import { applyManualDecision, evaluateCardReadout, evaluateReadoutWithTimes, preparedReadoutTimes, prepareReadoutForEvaluation,
+  resolveResultHistory, type ManualDecisionContext, type NormalizedCardReadout, type RaceSnapshot, type StationTimeAdjustment } from "../src";
 
 const ids = {
   race: "00000000-0000-4000-8000-000000000001",
@@ -157,5 +157,30 @@ describe("manuell tid tillsammans med tävlingens rättningar (steg 31, A + B)",
       { code: 33, punchedAt: "2026-08-30T10:30:00Z" }] });
     const result = evaluateReadoutWithTimes(old, snapshot(), ids.entry, "2026-08-30T10:00:00Z", "2026-08-30T10:45:00Z");
     expect(result).toMatchObject({ status: "MP", missingControls: [32] });
+  });
+});
+
+describe("rättad starttid med tidsjustering på start (steg 45)", () => {
+  it("beslutet jämförs med den justerade startstämplingen, inte den råa", () => {
+    const punchStart = (adjustments: StationTimeAdjustment[]): RaceSnapshot => {
+      const base = snapshot(adjustments);
+      return { ...base, classes: base.classes.map((raceClass) => ({ ...raceClass, startRule: "PUNCH" as const })) };
+    };
+    const startAdjusted = punchStart([{ id: "adj-start", station: "START", offsetMs: 2 * 60_000 }]);
+    const input = readout();
+    const outcome = evaluateCardReadout(input, startAdjusted);
+    expect(outcome).toMatchObject({ status: "OK", startTime: "2026-08-30T10:02:05.000Z" });
+    const times = preparedReadoutTimes(input, startAdjusted);
+    expect(times).toEqual({ startPunchedAt: "2026-08-30T10:02:05.000Z", finishPunchedAt: "2026-08-30T10:40:00Z" });
+    const history = resolveResultHistory([{ revision: 1, cause: "CARD_READOUT", evaluation: outcome, readoutId: "readout" }]);
+    const base: ManualDecisionContext = { entryId: ids.entry, classId: ids.class, courseVersionId: ids.version, startRule: "PUNCH",
+      isCurrent: () => true };
+    const decision = { kind: "START_TIME", startTime: "2026-08-30T10:01:00.000Z" } as const;
+    // Den råa stämplingen stämmer inte med bedömningens start, så rättningen gick aldrig att göra.
+    expect(applyManualDecision(history, decision, { ...base, headStartPunchedAt: input.startPunchedAt! }))
+      .toMatchObject({ ok: false, readiness: "UNSUPPORTED_RESULT" });
+    const corrected = applyManualDecision(history, decision, { ...base, headStartPunchedAt: times.startPunchedAt });
+    expect(corrected).toMatchObject({ ok: true });
+    expect(corrected.ok && corrected.outcome).toMatchObject({ startTime: "2026-08-30T10:01:00.000Z", elapsedMs: 39 * 60_000 });
   });
 });

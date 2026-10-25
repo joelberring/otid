@@ -24,6 +24,7 @@ export * from "./raster-georeference";
 export * from "./course-edit";
 export * from "./class-edit";
 export * from "./course-variants";
+export * from "./course-forking";
 export * from "./relay";
 export * from "./split-table";
 export * from "./source-sync";

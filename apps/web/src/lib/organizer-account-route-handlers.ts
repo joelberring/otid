@@ -74,7 +74,7 @@ export async function organizerLoginRoute(
   const parsed = organizerAccountLoginRequestSchema.safeParse(body);
   if (!parsed.success) return organizerFailure(400, "INVALID_REQUEST");
   try {
-    const result = await login(db, parsed.data);
+    const result = await login(db, parsed.data, { clientKey: clientAddress(request) });
     if (result.status !== "authenticated") {
       return result.status === "rate-limited" ? accountFailure(429, "RATE_LIMITED")
         : result.status === "blocked" ? accountFailure(403, "ACCOUNT_BLOCKED") : organizerFailure(401, "UNAUTHORIZED");

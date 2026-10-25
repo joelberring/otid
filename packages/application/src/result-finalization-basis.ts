@@ -285,8 +285,12 @@ export async function buildFinalizationBasis(tx: DatabaseTransaction, race: Lock
       externalId: schema.entries.externalId,
       eventorPersonId: schema.entries.eventorPersonId,
       eventorOrganisationId: schema.entries.eventorOrganisationId,
-      courseVariantCode: schema.entries.courseVariantCode
-    }).from(schema.entries).where(and(eq(schema.entries.raceId, race.id), isNull(schema.entries.struckAt)))
+      courseVariantCode: schema.entries.courseVariantCode,
+      // Steg 47: stafettsträckans egen bana (null = klassens).
+      legCourseVersionId: schema.relayLegs.courseVersionId
+    }).from(schema.entries)
+      .leftJoin(schema.relayLegs, and(eq(schema.relayLegs.classId, schema.entries.classId), eq(schema.relayLegs.leg, schema.entries.relayLeg)))
+      .where(and(eq(schema.entries.raceId, race.id), isNull(schema.entries.struckAt)))
       .orderBy(asc(schema.entries.classId), asc(schema.entries.familyName), asc(schema.entries.givenName), asc(schema.entries.id))
       .limit(MAX_RESULTS + 1),
     tx.selectDistinctOn([schema.resultRevisions.entryId], {
@@ -341,7 +345,12 @@ export async function buildFinalizationBasis(tx: DatabaseTransaction, race: Lock
   const basisHashes = await loadResultBasisHashes(tx, race.id);
   const latestStateByEntry = new Map(latestStates.map((state) => [state.head.entryId, state]));
 
-  const courseVersionIds = [...new Set(classRows.map((raceClass) => raceClass.courseVersionId))];
+  const legCourseIds = [...new Set(entryRows.flatMap((entry) => entry.legCourseVersionId ? [entry.legCourseVersionId] : []))];
+  const courseVersionIds = [...new Set([...classRows.map((raceClass) => raceClass.courseVersionId), ...legCourseIds])];
+  const legCourses = new Map((legCourseIds.length === 0 ? [] : await tx.select({ id: schema.courseVersions.id, courseName: schema.courses.name,
+    lengthMeters: schema.courses.lengthMeters, climbMeters: schema.courses.climbMeters }).from(schema.courseVersions)
+    .innerJoin(schema.courses, eq(schema.courses.id, schema.courseVersions.courseId))
+    .where(and(inArray(schema.courseVersions.id, legCourseIds), eq(schema.courses.raceId, race.id)))).map((row) => [row.id, row]));
   const controlRows = courseVersionIds.length === 0 ? [] : await tx.select({
     courseVersionId: schema.courseControls.courseVersionId,
     sequence: schema.courseControls.sequence,
@@ -419,13 +428,23 @@ export async function buildFinalizationBasis(tx: DatabaseTransaction, race: Lock
     for (const entry of entries) {
       const absoluteRevision = latestByEntry.get(entry.id);
       const revisionState = latestStateByEntry.get(entry.id);
+      // Steg 47: en stafettsträcka med egen bana fastställs mot den banan.
+      const legCourse = entry.legCourseVersionId ? legCourses.get(entry.legCourseVersionId) : undefined;
+      if (entry.legCourseVersionId && !legCourse) throw new StoredFinalizationConflict("Sträckans bana saknas");
+      const entryCourseVersionId = entry.legCourseVersionId ?? raceClass.courseVersionId;
+      const entryVariants = legCourse ? variantsByVersion.get(entry.legCourseVersionId!) ?? [] : classVariants;
       // En saknad revision är MISSING_RESULT_REVISION nedan, inte ett ogiltigt resultat (PLAN.md steg 27).
-      const variant = classVariants.length === 0 ? undefined : classVariants.find(row => row.code === entry.courseVariantCode);
-      if (classVariants.length > 0 && !variant) flag(entry, "INVALID_RESULT_REVISION");
-      const entryControls = variant
-        ? expectedControls(variant.controlCodes.map((controlCode, index) => ({ sequence: index + 1, controlCode }))) : controls;
+      const variant = entryVariants.length === 0 ? undefined : entryVariants.find(row => row.code === entry.courseVariantCode);
+      if (entryVariants.length > 0 && !variant) flag(entry, "INVALID_RESULT_REVISION");
+      let entryControls = controls;
+      try {
+        entryControls = variant ? expectedControls(variant.controlCodes.map((controlCode, index) => ({ sequence: index + 1, controlCode })))
+          : legCourse ? expectedControls(controlsByVersion.get(entry.legCourseVersionId!) ?? []) : controls;
+      } catch {
+        flag(entry, "INVALID_RESULT_REVISION");
+      }
       const identity = iofIdentity(entry, cardByEntry.get(entry.id),
-        variant ? frozenCourse(raceClass, variant.code) : undefined);
+        legCourse ? frozenCourse(legCourse, variant?.code) : variant ? frozenCourse(raceClass, variant.code) : undefined);
       basisEntries.push({
         entry: {
           id: entry.id,
@@ -436,7 +455,8 @@ export async function buildFinalizationBasis(tx: DatabaseTransaction, race: Lock
           externalSource: entry.externalSource,
           externalId: entry.externalId,
           ...identity,
-          ...(variant ? { courseVariantCode: variant.code, controls: entryControls } : {})
+          ...(variant ? { courseVariantCode: variant.code, controls: entryControls } : {}),
+          ...(legCourse ? { courseVersionId: entryCourseVersionId, controls: entryControls } : {})
         },
         absoluteRevision: absoluteRevision ? resultRevisionBasis(absoluteRevision) : null,
         effectiveRevision: revisionState?.state === "ACTIVE_RESULT"
@@ -473,7 +493,7 @@ export async function buildFinalizationBasis(tx: DatabaseTransaction, race: Lock
         continue;
       }
       if (evaluation.classId !== raceClass.id) flag(entry, "RESULT_CLASS_MISMATCH");
-      if (evaluation.courseVersionId !== raceClass.courseVersionId) flag(entry, "RESULT_COURSE_MISMATCH");
+      if (evaluation.courseVersionId !== entryCourseVersionId) flag(entry, "RESULT_COURSE_MISMATCH");
       if (!isEffectiveResultCurrent(revisionState, basisHashes.get(entry.id), race.snapshotVersion)) flag(entry, "STALE_RESULT_SNAPSHOT");
 
       const expectedKeys = new Set(entryControls.map((control) => `${control.controlCode}:${control.occurrence}`));

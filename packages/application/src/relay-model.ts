@@ -1,6 +1,6 @@
-import { and, asc, desc, eq, getTableColumns, inArray, isNotNull } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, inArray, isNotNull, isNull } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
-import type { RelayLegRule, RelayStartMethod, StoredResultStatus } from "@o-tid/domain";
+import type { RelayForkingMode, RelayLegRule, RelayRestartRanking, RelayStartMethod, StoredResultStatus } from "@o-tid/domain";
 import { parseAdministratorStoredResultHead } from "./administrator-effective-result";
 import { resolveStoredResultHeadStates } from "./result-revision-state";
 
@@ -13,32 +13,55 @@ type Executor = Database | Transaction;
 
 export interface RelayLegConfig extends RelayLegRule {
   readonly variantCode: string | null;
+  /** Steg 47: sträckans egen banversion; null = klassens. */
+  readonly courseVersionId: string | null;
 }
 
 export interface RelayClassConfig {
   readonly classId: string;
   readonly legs: readonly RelayLegConfig[];
+  /** Steg 47: placering av lag i omstart (förval AFTER_NORMAL, SOFT TR 5.8.2) och gaffling (förval EVEN). */
+  readonly restartRanking: RelayRestartRanking;
+  readonly forking: RelayForkingMode;
+  /** Klassens banversion, som gäller sträckor utan egen bana. */
+  readonly classCourseVersionId: string;
 }
 
 /** Stafettklasserna i loppet med sträckor i ordning. En klass utan sträckor är individuell. */
 export async function loadRelayClassConfigs(tx: Executor, raceId: string): Promise<Map<string, RelayClassConfig>> {
   const rows = await tx.select().from(schema.relayLegs).where(eq(schema.relayLegs.raceId, raceId))
     .orderBy(asc(schema.relayLegs.classId), asc(schema.relayLegs.leg));
+  if (rows.length === 0) return new Map();
+  const classRows = await tx.select({ id: schema.classes.id, courseVersionId: schema.classes.courseVersionId,
+    restartRanking: schema.classes.relayRestartRanking, forking: schema.classes.relayForking }).from(schema.classes)
+    .where(and(eq(schema.classes.raceId, raceId), inArray(schema.classes.id, [...new Set(rows.map(row => row.classId))])));
+  const settings = new Map(classRows.map(row => [row.id, row]));
   const configs = new Map<string, RelayLegConfig[]>();
   for (const row of rows) {
     const legs = configs.get(row.classId) ?? [];
     legs.push({ leg: row.leg, startMethod: row.startMethod as RelayStartMethod, variantCode: row.courseVariantCode,
-      ...(row.startTime ? { startTime: row.startTime.toISOString() } : {}) });
+      courseVersionId: row.courseVersionId,
+      ...(row.startTime ? { startTime: row.startTime.toISOString() } : {}),
+      ...(row.restartAfterMinutes !== null ? { restartAfterMinutes: row.restartAfterMinutes } : {}) });
     configs.set(row.classId, legs);
   }
-  return new Map([...configs].map(([classId, legs]) => [classId, { classId, legs }]));
+  return new Map([...configs].map(([classId, legs]) => {
+    const setting = settings.get(classId)!;
+    return [classId, { classId, legs, restartRanking: setting.restartRanking ?? "AFTER_NORMAL", forking: setting.forking ?? "EVEN",
+      classCourseVersionId: setting.courseVersionId }];
+  }));
+}
+
+/** Banversionen som sträckan springer. */
+export function relayLegCourseVersionId(config: RelayClassConfig, leg: number): string {
+  return config.legs.find(row => row.leg === leg)?.courseVersionId ?? config.classCourseVersionId;
 }
 
 export async function loadRelayTeams(tx: Executor, raceId: string, teamIds?: readonly string[]) {
   if (teamIds && teamIds.length === 0) return [];
   return tx.select({ id: schema.teams.id, classId: schema.teams.classId, number: schema.teams.number, name: schema.teams.name,
     organisationName: schema.teams.organisationName }).from(schema.teams)
-    .where(teamIds ? and(eq(schema.teams.raceId, raceId), inArray(schema.teams.id, [...teamIds])) : eq(schema.teams.raceId, raceId))
+    .where(and(eq(schema.teams.raceId, raceId), isNull(schema.teams.struckAt), ...(teamIds ? [inArray(schema.teams.id, [...teamIds])] : [])))
     .orderBy(asc(schema.teams.number));
 }
 export type RelayTeamRow = Awaited<ReturnType<typeof loadRelayTeams>>[number];
@@ -50,7 +73,7 @@ export async function loadRelayLegEntries(tx: Executor, raceId: string, teamIds?
     leg: schema.entries.relayLeg, givenName: schema.entries.givenName, familyName: schema.entries.familyName,
     organisationName: schema.entries.organisationName, fixedStartTime: schema.entries.fixedStartTime, version: schema.entries.version,
     courseVariantCode: schema.entries.courseVariantCode, publicResultId: schema.entries.publicResultId }).from(schema.entries)
-    .where(and(eq(schema.entries.raceId, raceId), isNotNull(schema.entries.teamId),
+    .where(and(eq(schema.entries.raceId, raceId), isNotNull(schema.entries.teamId), isNull(schema.entries.struckAt),
       ...(teamIds ? [inArray(schema.entries.teamId, [...teamIds])] : [])))
     .orderBy(asc(schema.entries.teamId), asc(schema.entries.relayLeg));
   return rows.map(row => ({ ...row, teamId: row.teamId!, leg: row.leg! }));

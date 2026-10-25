@@ -1,8 +1,12 @@
 /* Stafett (ADR-0169 beslut 3): lagvy, lagkort, sträckor och starttider. */
 .legs { display: grid; gap: 0.5rem; }
-.leg { display: grid; grid-template-columns: 6rem repeat(3, minmax(0, 1fr)); gap: 0.5rem; align-items: end; }
+.leg { display: grid; grid-template-columns: 6rem repeat(4, minmax(0, 1fr)); gap: 0.5rem; align-items: end; }
 .leg > *, .leg input, .leg select { min-width: 0; max-width: 100%; }
 .legName { font-weight: 700; align-self: center; }
+.legField { display: grid; gap: 0.2rem; min-width: 0; }
+.legField select, .legField input { width: 100%; min-width: 0; max-width: 100%; }
+/* Klassens inställningar: långa alternativ får inte göra formuläret bredare än skärmen (390 px). */
+.settings > *, .settings select, .settings input { min-width: 0; max-width: 100%; }
 .fields { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.65rem; }
 .fields > *, .fields input, .fields select { min-width: 0; max-width: 100%; }
 .runners { display: grid; gap: 0.5rem; }
@@ -26,6 +30,8 @@
 .cardLegs th, .cardLegs td { padding: 0.4rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
 .cardLegs thead th { font-size: 0.82rem; color: var(--muted); }
 .runnerForm { display: grid; gap: 0.5rem; padding: 0.65rem; border: 1px solid var(--line); border-radius: 8px; background: var(--subtle); }
+.legActions { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: end; }
+.legActions label { font-size: 0.85rem; }
 .times { display: grid; gap: 0.65rem; }
 .timeRow { display: flex; flex-wrap: wrap; gap: 0.65rem; align-items: end; }
 .timeRow label { min-width: 10rem; }

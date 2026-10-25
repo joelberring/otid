@@ -21,6 +21,7 @@ import { loadStartDrawSetupAsAdmin, previewStartDrawAsAdmin, commitStartDrawAsAd
   previewEntryVariantAsAdmin, changeEntryVariantAsAdmin, distributeClassVariantsAsAdmin,
   getRelayOverviewAsAdmin, createRelayClassAsAdmin, registerRelayTeamAsAdmin,
   changeRelayLegRunnerAsAdmin, setRelayStartTimesAsAdmin, saveRaceSettingsAsAdmin,
+  editRelayClassAsAdmin, editRelayTeamAsAdmin, removeRelayTeamAsAdmin, setRelayTeamDidNotStartAsAdmin, changeRelayLegVariantAsAdmin,
   getEventorSettingsAsAdmin, saveEventorKeyAsAdmin, removeEventorKeyAsAdmin, testEventorConnectionAsAdmin,
   listEventorEventsAsAdmin, chooseEventorEventAsAdmin, previewEventorSyncAsAdmin, previewCourseFileAsAdmin,
   syncConsequenceAsAdmin, applySyncAsAdmin, getSourceSyncStatusAsAdmin,
@@ -63,6 +64,8 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   classVariantDistribution: distributeClassVariantsAsAdmin,
   relayOverview: getRelayOverviewAsAdmin, relayClass: createRelayClassAsAdmin, relayTeam: registerRelayTeamAsAdmin,
   relayLegRunner: changeRelayLegRunnerAsAdmin, relayStartTimes: setRelayStartTimesAsAdmin,
+  relayClassEdit: editRelayClassAsAdmin, relayTeamEdit: editRelayTeamAsAdmin, relayTeamRemoval: removeRelayTeamAsAdmin,
+  relayTeamDns: setRelayTeamDidNotStartAsAdmin, relayLegVariant: changeRelayLegVariantAsAdmin,
   raceSettings: saveRaceSettingsAsAdmin,
   eventorSettings: getEventorSettingsAsAdmin, eventorKey: saveEventorKeyAsAdmin, eventorKeyRemove: removeEventorKeyAsAdmin,
   eventorTest: testEventorConnectionAsAdmin, eventorEvents: listEventorEventsAsAdmin, eventorEvent: chooseEventorEventAsAdmin,
@@ -121,6 +124,8 @@ export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: str
   { kind: "entry-variant-preview"; entryId: string } | { kind: "entry-variant"; entryId: string } |
   { kind: "class-variant-distribution"; classId: string } |
   { kind: "relay" } | { kind: "relay-class" } | { kind: "relay-team" } | { kind: "relay-leg-runner" } | { kind: "relay-start-times" } |
+  { kind: "relay-class-edit" } | { kind: "relay-team-edit" } | { kind: "relay-team-removal" } | { kind: "relay-team-dns" } |
+  { kind: "relay-leg-variant" } |
   { kind: "race-settings" } |
   { kind: "eventor" } | { kind: "eventor-test" } | { kind: "eventor-events" } | { kind: "eventor-event" } | { kind: "eventor-sync-preview" } |
   { kind: "course-file-preview" } | { kind: "source-sync-consequence" } | { kind: "source-sync" } |

@@ -204,6 +204,10 @@ export const classes = pgTable("class", {
   rogainingPenaltyPointsPerMinute: integer("rogaining_penalty_points_per_minute"),
   /** Maxtid i minuter (migration 0004, PLAN.md steg 25). NULL = ingen gräns; aldrig för rogaining. */
   maxTimeMinutes: integer("max_time_minutes"),
+  /** Stafett (steg 47, migration 0021): hur lag i omstart placeras (NULL = AFTER_NORMAL, SOFT TR 5.8.2). */
+  relayRestartRanking: text("relay_restart_ranking").$type<"AFTER_NORMAL" | "BY_TIME">(),
+  /** Stafett: utjämnad gaffling (EVEN, NULL = förval) eller fulgaffling (UNEVEN). */
+  relayForking: text("relay_forking").$type<"EVEN" | "UNEVEN">(),
   externalSource: text("external_source"),
   externalId: text("external_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()

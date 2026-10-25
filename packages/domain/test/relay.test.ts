@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   evaluateCardReadout, rankRelayLegs, rankRelayTeams, relayLegRestarted, relayLegRuleProblem, relayLegStartTime,
-  relayLegStartTimes, relayTeamResult, relayTeamVariants, type RaceSnapshot, type RelayLegRule
+  relayLegStartTimes, relayTeamResult, type RaceSnapshot, type RelayLegRule
 } from "../src";
 
 const at = (clock: string) => `2026-10-08T${clock}Z`;
@@ -21,7 +21,7 @@ describe("stafettens sträckor", () => {
     expect(relayLegRuleProblem([rules[0]!, { leg: 3, startMethod: "CHANGEOVER" }])).toBe("LEG_NUMBERS");
     expect(relayLegRuleProblem([rules[0]!, { leg: 2, startMethod: "RESTART" }])).toBe("MISSING_START_TIME");
     expect(relayLegRuleProblem([rules[0]!, { leg: 2, startMethod: "CHANGEOVER", startTime: at("17:00:00") }])).toBe("UNEXPECTED_START_TIME");
-    expect(relayLegRuleProblem(Array.from({ length: 21 }, (_, index) => ({ leg: index + 1, startMethod: "MASS_START" as const,
+    expect(relayLegRuleProblem(Array.from({ length: 31 }, (_, index) => ({ leg: index + 1, startMethod: "MASS_START" as const,
       startTime: at("17:00:00") })))).toBe("TOO_MANY_LEGS");
   });
 
@@ -59,7 +59,7 @@ describe("lagresultat", () => {
       { leg: 2, status: "OK", elapsedMs: minutes(34) },
       { leg: 3, status: "OK", elapsedMs: minutes(29) }
     ]);
-    expect(result).toEqual({ status: "OK", elapsedMs: minutes(94), completedLegs: 3 });
+    expect(result).toEqual({ status: "OK", elapsedMs: minutes(94), completedLegs: 3, restarted: false });
   });
 
   it("omstart: lagets tid är summan av sträcktiderna, inte sista mål minus första start", () => {
@@ -81,7 +81,7 @@ describe("lagresultat", () => {
       { leg: 2, status: "MP", elapsedMs: minutes(30) },
       { leg: 3, status: "OK", elapsedMs: minutes(29) }
     ]);
-    expect(result).toEqual({ status: "MP", completedLegs: 3 });
+    expect(result).toEqual({ status: "MP", completedLegs: 3, restarted: false });
   });
 
   it("brutit på en sträcka ger brutet lag; disk går före felstämpling", () => {
@@ -92,22 +92,22 @@ describe("lagresultat", () => {
 
   it("ute på sträcka: första sträckan utan resultat", () => {
     expect(relayTeamResult(3, [{ leg: 1, status: "OK", elapsedMs: minutes(31) }]))
-      .toEqual({ status: "RUNNING", currentLeg: 2, completedLegs: 1 });
-    expect(relayTeamResult(3, [])).toEqual({ status: "RUNNING", currentLeg: 1, completedLegs: 0 });
+      .toEqual({ status: "RUNNING", currentLeg: 2, completedLegs: 1, restarted: false });
+    expect(relayTeamResult(3, [])).toEqual({ status: "RUNNING", currentLeg: 1, completedLegs: 0, restarted: false });
     // Ett underkänt lag kan fortfarande ha löpare ute.
-    expect(relayTeamResult(3, [{ leg: 1, status: "MP", elapsedMs: 1 }])).toEqual({ status: "MP", currentLeg: 2, completedLegs: 1 });
+    expect(relayTeamResult(3, [{ leg: 1, status: "MP", elapsedMs: 1 }])).toEqual({ status: "MP", currentLeg: 2, completedLegs: 1, restarted: false });
   });
 
   it("placering bland godkända lag; lika tid ger samma placering", () => {
-    const ok = (elapsedMs: number) => ({ status: "OK" as const, elapsedMs, completedLegs: 3 });
+    const ok = (elapsedMs: number) => ({ status: "OK" as const, elapsedMs, completedLegs: 3, restarted: false });
     const ranking = rankRelayTeams([
-      { key: "lag-4", result: { status: "MP", completedLegs: 3 } },
+      { key: "lag-4", result: { status: "MP", completedLegs: 3, restarted: false } },
       { key: "lag-2", result: ok(minutes(95)) },
-      { key: "lag-5", result: { status: "RUNNING", currentLeg: 3, completedLegs: 2 } },
+      { key: "lag-5", result: { status: "RUNNING", currentLeg: 3, completedLegs: 2, restarted: false } },
       { key: "lag-1", result: ok(minutes(94)) },
       { key: "lag-3", result: ok(minutes(95)) },
-      { key: "lag-6", result: { status: "RUNNING", currentLeg: 2, completedLegs: 1 } },
-      { key: "lag-7", result: { status: "DSQ", completedLegs: 3 } }
+      { key: "lag-6", result: { status: "RUNNING", currentLeg: 2, completedLegs: 1, restarted: false } },
+      { key: "lag-7", result: { status: "DSQ", completedLegs: 3, restarted: false } }
     ]);
     expect(ranking).toEqual([
       { key: "lag-1", position: 1, timeBehindMs: 0 },
@@ -157,21 +157,5 @@ describe("sträckan bedöms som en individuell avläsning", () => {
 
   it("okänd växlingstid ger saknad start tills föregående sträcka är avläst", () => {
     expect(evaluateCardReadout(readout, snapshot(undefined))).toMatchObject({ status: "MP", reason: "MISSING_START" });
-  });
-});
-
-describe("gafflad stafett", () => {
-  it("lagen roterar banans varianter så att lag i följd springer dem i olika ordning", () => {
-    const codes = ["A", "B", "C"];
-    const team = (teamIndex: number) => [...relayTeamVariants({ variantCodes: codes, legCount: 3, teamIndex }).entries()]
-      .sort((left, right) => left[0] - right[0]).map(([, code]) => code).join("");
-    expect([team(0), team(1), team(2), team(3)]).toEqual(["ABC", "BCA", "CAB", "ABC"]);
-  });
-
-  it("en sträcka med bestämd variant får den", () => {
-    const variants = relayTeamVariants({ variantCodes: ["1", "2", "3"], legCount: 3, teamIndex: 1,
-      fixedVariants: new Map([[1, "1"], [2, "2"], [3, "3"]]) });
-    expect([...variants.entries()]).toEqual([[1, "1"], [2, "2"], [3, "3"]]);
-    expect(relayTeamVariants({ variantCodes: [], legCount: 2, teamIndex: 0 }).size).toBe(0);
   });
 });

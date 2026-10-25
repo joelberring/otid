@@ -243,6 +243,7 @@ async function projectIofResultList(tx: Transaction, raceId: string, options: { 
     name: schema.classes.name,
     externalSource: schema.classes.externalSource,
     externalId: schema.classes.externalId,
+    courseVersionId: schema.classes.courseVersionId,
     courseName: schema.courses.name,
     lengthMeters: schema.courses.lengthMeters,
     climbMeters: schema.courses.climbMeters
@@ -359,7 +360,9 @@ async function projectIofResultList(tx: Transaction, raceId: string, options: { 
     const variantCode = variantsByVersion.has(row.courseVersionId)
       ? storedResultCourseVariant(variantsByVersion.get(row.courseVersionId)!, row.courseVariantCode,
         storedSplits.map((split) => split.controlCode))?.code : undefined;
-    const course = variantCode ? iofCourse(courseByVersion.get(row.courseVersionId), variantCode) : undefined;
+    // Steg 47: en stafettsträcka med egen bana har den som Course (med variant när banan är gafflad).
+    const ownCourse = row.courseVersionId !== classById.get(row.evaluation.classId)?.courseVersionId;
+    const course = variantCode || ownCourse ? iofCourse(courseByVersion.get(row.courseVersionId), variantCode) : undefined;
     const shared = {
       internalEntryId: row.entryId,
       internalCourseVersionId: row.courseVersionId,

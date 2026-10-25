@@ -32,7 +32,10 @@ export const publicLiveFinishSchema = z.object({
   /** Placering i klassen, bara för godkända som rangordnas. */
   place: z.number().int().min(1).max(10_000).optional(),
   /** Rogaining: summan poäng. */
-  points: z.number().int().min(-1_000_000).max(1_000_000).optional()
+  points: z.number().int().min(-1_000_000).max(1_000_000).optional(),
+  /** Steg 47: stafettsträcka – laget och sträckan; placeringen är sträckans. */
+  relay: z.object({ teamNumber: z.number().int().min(1).max(99_999), teamName: z.string().max(160), leg: z.number().int().min(1).max(30) })
+    .strict().optional()
 }).strict().superRefine((row, context) => {
   if (row.place !== undefined && row.status !== "OK") context.addIssue({ code: "custom", path: ["place"], message: "Bara godkända har placering" });
   if (row.elapsedMs !== undefined && row.status !== "OK" && row.status !== "OVERTIME" && row.status !== "OOC") {

@@ -1,6 +1,7 @@
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { publicLiveResponseSchema, type PublicLiveFinish, type PublicLiveLeader, type PublicLiveResponse, type PublicLiveStatus,
-  type PublicRadioPassage, type PublicRadioResponse, type PublicResultListResponse } from "@o-tid/contracts";
+  type PublicRadioPassage, type PublicRadioResponse, type PublicRelayResults, type PublicResultListResponse } from "@o-tid/contracts";
+import { publicRelayResults } from "./relay-results";
 import { schema, type Database } from "@o-tid/database";
 import { readPublicRadio } from "./radio-standings";
 import { publicResults } from "./results";
@@ -22,6 +23,8 @@ export type PublicLiveArrival = { publicResultId: string; arrivedAt: Date; struc
 export type PublicLiveInput = {
   raceId: string; now: Date; timeZone: string;
   results: PublicResultListResponse; arrivals: readonly PublicLiveArrival[]; radio: PublicRadioResponse;
+  /** Steg 47: stafettens sträckor blir målgångar ("Klass · sträcka N") med laget. */
+  relay?: PublicRelayResults;
 };
 
 type ResultRow = Extract<PublicResultListResponse, { formatVersion: 7 }>["results"][number];
@@ -39,7 +42,8 @@ const runnerOf = (row: { publicResultId: string; givenName: string; familyName: 
 
 /** Fälten plockas ett och ett: inget annat än kontraktets fält kan följa med ut. */
 const passageOf = (row: PublicRadioPassage): PublicRadioPassage => ({ ...runnerOf(row), controlCode: row.controlCode, label: row.label,
-  passedAt: row.passedAt, elapsedMs: row.elapsedMs, place: row.place, finished: row.finished });
+  passedAt: row.passedAt, elapsedMs: row.elapsedMs, place: row.place, finished: row.finished,
+  ...(row.relay ? { relay: { teamNumber: row.relay.teamNumber, teamName: row.relay.teamName, leg: row.relay.leg } } : {}) });
 
 const byName = (a: { className: string; familyName: string; givenName: string }, b: typeof a) =>
   a.className.localeCompare(b.className, "sv") || a.familyName.localeCompare(b.familyName, "sv") || a.givenName.localeCompare(b.givenName, "sv");
@@ -64,6 +68,21 @@ export function projectPublicLive(input: PublicLiveInput): PublicLiveResponse {
       ...(timed ? { elapsedMs: row.elapsedMs } : {}),
       ...(status === "OK" && row.rankingState === "RANKED" && row.position !== undefined ? { place: row.position } : {}),
       ...(points !== undefined ? { points } : {}) } });
+  }
+  for (const raceClass of input.relay?.classes ?? []) {
+    for (const team of raceClass.teams) {
+      for (const leg of team.legs) {
+        if (!leg.status || leg.status === "DNS" || leg.status === "DNF" || struck.has(leg.publicResultId)) continue;
+        const at = arrivedAt.get(leg.publicResultId);
+        if (!at) continue;
+        const timed = leg.elapsedMs !== null && (leg.status === "OK" || leg.status === "OVERTIME" || leg.status === "OOC");
+        finishes.push({ at: at.getTime(), row: { publicResultId: leg.publicResultId, givenName: leg.givenName, familyName: leg.familyName,
+          organisationName: leg.organisationName, className: `${raceClass.name} · sträcka ${leg.leg}`, finishedAt: at.toISOString(),
+          status: leg.status, ...(timed ? { elapsedMs: leg.elapsedMs! } : {}),
+          ...(leg.status === "OK" && leg.legPosition !== null ? { place: leg.legPosition } : {}),
+          relay: { teamNumber: team.number, teamName: team.name, leg: leg.leg } } });
+      }
+    }
   }
   finishes.sort((a, b) => b.at - a.at || byName(a.row, b.row));
 
@@ -101,7 +120,7 @@ async function readArrivals(db: Database, raceId: string): Promise<PublicLiveArr
   }).from(schema.entries)
     .innerJoin(schema.resultRevisions, and(eq(schema.resultRevisions.entryId, schema.entries.id),
       eq(schema.resultRevisions.raceId, raceId), eq(schema.resultRevisions.published, true)))
-    .where(and(eq(schema.entries.raceId, raceId), isNull(schema.entries.teamId)))
+    .where(eq(schema.entries.raceId, raceId))
     .groupBy(schema.entries.id).limit(10_001);
   if (rows.length > 10_000) throw new Error("Live-underlaget är för stort");
   return rows.map(row => ({ publicResultId: row.publicResultId, struckAt: row.struckAt,
@@ -110,6 +129,7 @@ async function readArrivals(db: Database, raceId: string): Promise<PublicLiveArr
 
 /** Live för en publicerad tävling. Anroparen har redan kontrollerat att tävlingen får visas (`publicRaceAccess`). */
 export async function readPublicLive(db: Database, raceId: string, now = new Date()): Promise<PublicLiveResponse> {
-  const [results, radio, arrivals] = await Promise.all([publicResults(db, raceId), readPublicRadio(db, raceId), readArrivals(db, raceId)]);
-  return projectPublicLive({ raceId, now, timeZone: radio.timeZone, results, arrivals, radio });
+  const [results, radio, arrivals, relay] = await Promise.all([publicResults(db, raceId), readPublicRadio(db, raceId), readArrivals(db, raceId),
+    publicRelayResults(db, raceId)]);
+  return projectPublicLive({ raceId, now, timeZone: radio.timeZone, results, arrivals, radio, relay });
 }

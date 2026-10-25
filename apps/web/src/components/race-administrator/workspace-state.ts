@@ -12,6 +12,7 @@ import { createRemainingRunnersActions, useRemainingRunnersState } from "./remai
 import { createRogainingActions, useRogainingState } from "./rogaining-actions";
 import { createCourseVariantActions, useCourseVariantState } from "./course-variant-actions";
 import { createRelayActions, useRelayState } from "./relay-actions";
+import { createRelayEditActions, useRelayEditState } from "./relay-edit-actions";
 import { createStatusChangeActions, useStatusChangeState } from "./status-change";
 import { createClassPreparationActions, deriveClassPreparation, useClassPreparationState } from "./class-preparation";
 import { createStartListActions, useStartListState } from "./start-list-preparation";
@@ -28,7 +29,7 @@ export function useWorkspaceState(raceId: string) {
     ...useEntryActionState(), ...useResultDecisionState(), ...useCoursePreparationState(), ...useCourseEditState(), ...useClassEditState(),
     ...useCourseDetailsState(), ...useRemainingRunnersState(),
     ...useRogainingState(),
-    ...useCourseVariantState(), ...useRelayState(),
+    ...useCourseVariantState(), ...useRelayState(), ...useRelayEditState(),
     ...useClassPreparationState(), ...useStatusChangeState(),
     ...useStartListState(), ...useStartDrawState(), ...useDuringRaceState(), ...useAfterRaceState(), ...useSettingsState(),
     ...useRemovalState(), ...useResultsOfficialState() };
@@ -59,7 +60,7 @@ export function deriveWorkspace(s: WorkspaceState) {
     s.classEditStartRule !== classRow.startRule || s.classEditMaxTime.trim() !== (classRow.maxTimeMinutes ? String(classRow.maxTimeMinutes) : ""));
   const unsavedInput = !saving && (editing || courseEdited || classEdited || !!s.pending.current || !!s.reviewCandidate || !!s.courseClassAttempt ||
     !!s.manualClassAttempt || !!s.courseEditAttempt || !!s.courseEditPreview || !!s.classEditAttempt || !!s.classEditPreview ||
-    !!s.classRecalculationAttempt || !!s.rogainingAttempt);
+    !!s.classRecalculationAttempt || !!s.rogainingAttempt || !!s.relayEditPreview || !!s.variantPreview);
   const navigationLocked = unsavedInput;
   const workflowLocked = saving || navigationLocked;
   return { ...deriveSections(s), ...roster, ...deriveEntryActions(s, roster), ...deriveClassPreparation(s),
@@ -80,7 +81,8 @@ export function useWorkspace(raceId: string) {
   const base: Base = { ...s, ...deriveWorkspace(s), ...operations };
   const withNavigation = { ...base, ...createMobileNavigation(base) };
   const withData = { ...withNavigation, ...createRaceDataActions(withNavigation) };
-  const withRelay = { ...withData, ...createRelayActions(withData) };
+  const withRelayBase = { ...withData, ...createRelayActions(withData) };
+  const withRelay = { ...withRelayBase, ...createRelayEditActions(withRelayBase) };
   const withCourses = { ...withData, ...createCourseEditActions(withData) };
   const withDecisions = { ...withCourses, ...createResultDecisionActions(withCourses) };
   const withAreas = { ...withDecisions, ...withRelay, ...createDuringRaceActions(withRelay), ...createStartListActions(withData),

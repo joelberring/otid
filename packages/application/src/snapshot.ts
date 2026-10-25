@@ -63,7 +63,12 @@ export async function loadRaceSnapshot(db: DbExecutor, raceId: string): Promise<
   const [eventRow] = await db.select().from(schema.events).where(eq(schema.events.id, raceRow.eventId));
   if (!eventRow) throw new Error("Evenemanget finns inte");
 
-  const classRows = await db.select().from(schema.classes)
+  // Uttryckliga kolumner: paketet behöver bara dessa (och en äldre databas under uppgradering saknar senare kolumner).
+  const classRows = await db.select({ id: schema.classes.id, raceId: schema.classes.raceId, name: schema.classes.name,
+    courseVersionId: schema.classes.courseVersionId, startRule: schema.classes.startRule,
+    rogainingTimeLimitSeconds: schema.classes.rogainingTimeLimitSeconds,
+    rogainingPenaltyPointsPerMinute: schema.classes.rogainingPenaltyPointsPerMinute, maxTimeMinutes: schema.classes.maxTimeMinutes,
+    externalId: schema.classes.externalId }).from(schema.classes)
     .where(eq(schema.classes.raceId, raceId))
     .orderBy(asc(schema.classes.id));
   const courseRows = await db.select().from(schema.courses)
@@ -126,6 +131,11 @@ export async function loadRaceSnapshot(db: DbExecutor, raceId: string): Promise<
   const entryRows = await db.select().from(schema.entries)
     .where(and(eq(schema.entries.raceId, raceId), isNull(schema.entries.struckAt)))
     .orderBy(asc(schema.entries.id));
+  // Steg 47: stafettsträckor med egen bana; sträcklöparen bär banan i paketet.
+  const [anyLeg] = await db.select({ leg: schema.relayLegs.leg }).from(schema.relayLegs).where(eq(schema.relayLegs.raceId, raceId)).limit(1);
+  const legCourseRows = !anyLeg ? [] : await db.select({ classId: schema.relayLegs.classId, leg: schema.relayLegs.leg,
+    courseVersionId: schema.relayLegs.courseVersionId }).from(schema.relayLegs).where(eq(schema.relayLegs.raceId, raceId));
+  const legCourse = new Map(legCourseRows.flatMap((row) => row.courseVersionId ? [[`${row.classId}:${row.leg}`, row.courseVersionId] as const] : []));
   const assignmentRows = await db.select().from(schema.cardAssignments)
     .where(eq(schema.cardAssignments.raceId, raceId))
     .orderBy(asc(schema.cardAssignments.id));
@@ -190,6 +200,8 @@ export async function loadRaceSnapshot(db: DbExecutor, raceId: string): Promise<
       ...(row.organisationName ? { organisationName: row.organisationName } : {}),
       ...(row.fixedStartTime ? { fixedStartTime: row.fixedStartTime.toISOString() } : {}),
       ...(row.courseVariantCode ? { courseVariantCode: row.courseVariantCode } : {}),
+      ...(row.relayLeg !== null && legCourse.has(`${row.classId}:${row.relayLeg}`)
+        ? { courseVersionId: legCourse.get(`${row.classId}:${row.relayLeg}`)! } : {}),
       ...(row.externalId ? { externalIdentity: { source: "iof" as const, externalId: row.externalId } } : {})
     })),
     cardAssignments: assignmentRows.map((row) => ({

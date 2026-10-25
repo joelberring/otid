@@ -13,6 +13,8 @@ import { array, IofValidationError, record, rejectUnexpectedKeys, requireText, t
  *   varianten som `CourseName` anger.
  * - `TeamCourseAssignment` ger ett stafettlag (`BibNumber`, annars `TeamName` + `ClassName`)
  *   en variant per sträcka (`TeamMemberCourseAssignment` med `Leg` och `CourseName`).
+ * - Steg 47: `ClassCourseAssignment` med `AllowedOnLeg` ger stafettsträckans bana (`legAssignments`). Klassens bana
+ *   (`assignments`, en per klass) är tilldelningen utan `AllowedOnLeg`, annars den som gäller den lägsta sträckan.
  */
 export interface CourseVariantImport {
   readonly code: string;
@@ -37,6 +39,14 @@ export interface ClassCourseImport {
   readonly startRule: "FIXED" | "PUNCH";
 }
 
+/** Steg 47: stafettsträckans bana (`ClassCourseAssignment` med `AllowedOnLeg`). */
+export interface LegCourseAssignmentImport {
+  readonly classExternalId: string;
+  readonly className: string;
+  readonly leg: number;
+  readonly courseExternalId: string;
+}
+
 export interface PersonCourseAssignmentImport {
   readonly entryExternalId?: string;
   readonly personName?: string;
@@ -57,6 +67,7 @@ export interface CourseDataImport {
   readonly kind: "CourseData";
   readonly courses: readonly CourseImport[];
   readonly assignments: readonly ClassCourseImport[];
+  readonly legAssignments: readonly LegCourseAssignmentImport[];
   readonly personAssignments: readonly PersonCourseAssignmentImport[];
   readonly teamAssignments: readonly TeamCourseAssignmentImport[];
   readonly warnings: readonly string[];
@@ -104,6 +115,9 @@ export function readCourseData(root: XmlRecord): CourseDataImport {
   const warnings: string[] = [];
   const courses: CourseImport[] = [];
   const assignments: ClassCourseImport[] = [];
+  const legAssignments: LegCourseAssignmentImport[] = [];
+  /** Lägsta sträckan för klassens tilldelning (0 = utan AllowedOnLeg). */
+  const classAssignmentLeg = new Map<string, number>();
   const personAssignments: PersonCourseAssignmentImport[] = [];
   const teamAssignments: TeamCourseAssignmentImport[] = [];
 
@@ -203,12 +217,18 @@ export function readCourseData(root: XmlRecord): CourseDataImport {
       const matched = family ? (families.has(family) ? courseByName.get(family) : undefined) : courseName ? courseByName.get(courseName) : undefined;
       if (!family && !courseName) issues.push(`${path}.CourseName eller CourseFamily saknas`);
       else if (!matched) issues.push(`${path} refererar okänd bana ${family || courseName}`);
-      assignments.push({
-        classExternalId,
-        className,
-        courseExternalId: matched?.externalId ?? (family || courseName),
-        startRule: "PUNCH"
-      });
+      const courseExternalId = matched?.externalId ?? (family || courseName);
+      const allowed = array(assignment.AllowedOnLeg).map(value => text(value)).filter(value => value !== "");
+      const legs = allowed.flatMap(value => /^[1-9][0-9]?$/.test(value) ? [Number(value)] : []);
+      if (legs.length !== allowed.length) issues.push(`${path}.AllowedOnLeg är ogiltig`);
+      for (const leg of legs) legAssignments.push({ classExternalId, className, leg, courseExternalId });
+      // En klass får en bana: utan AllowedOnLeg den, annars banan för den lägsta sträckan.
+      const order = legs.length === 0 ? 0 : Math.min(...legs);
+      const previous = classAssignmentLeg.get(classExternalId);
+      if (previous !== undefined && previous <= order) continue;
+      if (previous !== undefined) assignments.splice(assignments.findIndex(row => row.classExternalId === classExternalId), 1);
+      classAssignmentLeg.set(classExternalId, order);
+      assignments.push({ classExternalId, className, courseExternalId, startRule: "PUNCH" });
     }
 
     // Utan Course-element i filen (bara tilldelningar) ger familjen och namnet varianten.
@@ -275,5 +295,5 @@ export function readCourseData(root: XmlRecord): CourseDataImport {
   if (courses.length === 0 && personAssignments.length === 0 && teamAssignments.length === 0) issues.push("RaceCourseData.Course saknas");
   if (courses.length > 0 && assignments.length === 0) warnings.push("Inga ClassCourseAssignment hittades");
   if (issues.length > 0) throw new IofValidationError(issues);
-  return { kind: "CourseData", courses, assignments, personAssignments, teamAssignments, warnings };
+  return { kind: "CourseData", courses, assignments, legAssignments, personAssignments, teamAssignments, warnings };
 }

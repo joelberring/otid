@@ -3,13 +3,14 @@ import { and, count, eq, inArray, max, sql } from "drizzle-orm";
 import { syncConsequenceSchema, type SyncConsequence } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import {
-  parseRaceClock, relayTeamVariants, withProposedClass, withProposedClassSetup, withProposedCourse,
+  parseRaceClock, withProposedClass, withProposedClassSetup, withProposedCourse,
   withProposedCourseVersion, withProposedEntryClasses, type RaceSnapshot
 } from "@o-tid/domain";
-import { insertCourseVersionControls, leastUsedVariantForClass, loadCourseVersionVariants, variantAfterClassChange } from "./course-variants";
+import { insertCourseVersionControls, leastUsedVariantForClass, variantAfterClassChange } from "./course-variants";
 import { applyEntryDecision } from "./entry-status";
-import { importPersonCourseAssignments, importTeamCourseAssignments } from "./import-iof";
+import { importLegCourses, importPersonCourseAssignments, importTeamCourseAssignments } from "./import-iof";
 import { loadRelayClassConfigs } from "./relay-model";
+import { planNewRelayTeamVariants } from "./relay-variants";
 import { synchronizeRelayTeams } from "./relay-sync";
 import { assessReadOutEntries, recalculateAssessedEntries, summarizeAssessment, type AssessedEntry } from "./result-reassessment";
 import { bumpReadoutPackageVersion, loadRaceSnapshot } from "./snapshot";
@@ -233,12 +234,9 @@ async function createTeam(tx: Transaction, raceId: string, action: Extract<Event
   legCount: ReadonlyMap<string, number>): Promise<string> {
   const legs = legCount.get(classId) ?? 0;
   const [highest] = await tx.select({ value: max(schema.teams.number) }).from(schema.teams).where(eq(schema.teams.raceId, raceId));
-  const [teamCount] = await tx.select({ value: count() }).from(schema.teams).where(eq(schema.teams.classId, classId));
-  const [raceClass] = await tx.select({ courseVersionId: schema.classes.courseVersionId }).from(schema.classes).where(eq(schema.classes.id, classId));
   const config = (await loadRelayClassConfigs(tx, raceId)).get(classId);
-  const codes = ((await loadCourseVersionVariants(tx, [raceClass!.courseVersionId])).get(raceClass!.courseVersionId) ?? []).map(variant => variant.code);
-  const variants = relayTeamVariants({ variantCodes: codes, legCount: legs, teamIndex: teamCount?.value ?? 0,
-    fixedVariants: new Map((config?.legs ?? []).flatMap(leg => leg.variantCode === null ? [] : [[leg.leg, leg.variantCode] as const])) });
+  // Steg 47: rättvis fördelning utifrån klassens befintliga lag (sträckans bana och bestämda variant).
+  const variants = config ? await planNewRelayTeamVariants(tx, config) : new Map<number, string>();
   const [team] = await tx.insert(schema.teams).values({ raceId, classId, number: (highest?.value ?? 0) + 1, name: action.name,
     organisationName: action.club, externalSource: "eventor", externalId: action.eventorId }).returning({ id: schema.teams.id });
   for (let leg = 1; leg <= legs; leg += 1) {
@@ -366,6 +364,8 @@ export async function applyCourseFile(tx: Transaction, input: ApplyInput, projec
   await storeCourseMeasurements(tx, raceId, projection, state, links, ids);
   // Varianter per löpare och lag ur filen; den som läst ut behåller sin variant.
   const keep = new Set(state.entries.filter(entry => entry.readOut || entry.hasResult).map(entry => entry.id));
+  // Steg 47: AllowedOnLeg ger stafettsträckornas banor.
+  await importLegCourses(tx, raceId, { legAssignments: projection.data.legAssignments ?? [] });
   await importPersonCourseAssignments(tx, raceId, projection.data, keep);
   await importTeamCourseAssignments(tx, raceId, projection.data, keep);
   await bumpReadoutPackageVersion(tx, raceId);

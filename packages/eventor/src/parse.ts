@@ -76,7 +76,7 @@ export interface EventorEntryList {
 const MAX_EVENTS = 2_000;
 const MAX_CLASSES = 500;
 const MAX_ENTRIES = 10_000;
-const MAX_LEGS = 20;
+const MAX_LEGS = 30;
 
 export function parseEventorOrganisation(xml: string): EventorOrganisation {
   const root = parseDocument(xml, "Organisation");

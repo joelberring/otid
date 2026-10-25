@@ -770,6 +770,19 @@ Genomlysningen 2026-10-25 (säkerhet #1, #3–#10).
   rensas; inloggningen spärras också per IP (30 fel på 15 minuter), och spärrarna är tidsbegränsade.
 - [x] Bardiskens namn och klubb normaliseras; hjälpen säger att funktionären ser fullt namn och kan ladda ner CSV.
 
+## [x] Steg 47 – Stafett: bana per sträcka, ändra klass och lag, rättvis gaffling, omstart, synlighet
+
+ADR-0174 beslut 1–5. Migration 0021.
+
+- [x] Bana per sträcka (bedömning, omräkning, avläsning, startlista, resultat, IOF-export och -import med `AllowedOnLeg`,
+  `TeamCourseAssignment` mot sträckans bana, banredigering).
+- [x] Ändra stafettklass (namn, sträckor sist, startsätt, tider, bana och variant per sträcka) med besked och omräkning;
+  lag: ändra, ta bort, stryk, hela laget ej start; byt variant per sträcka.
+- [x] Omstart: flyttad tid, flera omstarter, flygande omstart (ledarens växling + gräns), placering efter SOFT TR 5.8.2
+  (alternativ: efter tid), funktionärsvy per omstart.
+- [x] Rättvis gaffling (utjämnad eller fulgaffling), kontroll per lag.
+- [x] Variant och omstart i resultatlistan, lagkortet och speakern; radio, Live och vägval för sträcklöpare. 30 sträckor.
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

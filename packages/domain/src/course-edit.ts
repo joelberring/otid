@@ -53,7 +53,10 @@ export function withProposedCourseVersion(snapshot: RaceSnapshot, courseId: stri
         ...(variants && variants.length > 0 ? { variants } : {}) }]
     }),
     classes: snapshot.classes.map(raceClass => raceClass.courseVersionId === currentCourseVersionId
-      ? { ...raceClass, courseVersionId: proposed.id } : raceClass)
+      ? { ...raceClass, courseVersionId: proposed.id } : raceClass),
+    // Steg 47: stafettsträckor med egen bana följer med till den nya versionen.
+    entries: snapshot.entries.map(entry => entry.courseVersionId === currentCourseVersionId
+      ? { ...entry, courseVersionId: proposed.id } : entry)
   };
 }
 

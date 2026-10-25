@@ -99,6 +99,8 @@ const entrySchema = z.object({
   organisationName: z.string().max(200).optional(),
   fixedStartTime: z.iso.datetime({ offset: true }).optional(),
   courseVariantCode: courseVariantCodeSchema.optional(),
+  /** Steg 47: stafettsträckans egen bana. Saknas = klassens. */
+  courseVersionId: uuidSchema.optional(),
   externalIdentity: externalIdentitySchema.optional()
 }).strict();
 
@@ -204,6 +206,9 @@ export const raceSnapshotSchema = z.object({
   for (const [entryIndex, entry] of snapshot.entries.entries()) {
     if (entry.raceId !== snapshot.race.id || !classIds.has(entry.classId)) {
       context.addIssue({ code: "custom", path: ["entries", entryIndex], message: "Deltagarens lopp eller klass är ogiltig" });
+    }
+    if (entry.courseVersionId !== undefined && !versionIds.has(entry.courseVersionId)) {
+      context.addIssue({ code: "custom", path: ["entries", entryIndex, "courseVersionId"], message: "Sträckans banversion saknas" });
     }
   }
   for (const [assignmentIndex, assignment] of snapshot.cardAssignments.entries()) {

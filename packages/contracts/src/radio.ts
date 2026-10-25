@@ -113,7 +113,10 @@ export const publicRadioPassageSchema = z.object({
   elapsedMs: z.number().int().min(0).max(7 * 86_400_000).nullable(),
   /** Placering vid kontrollen i klassen (preliminär för den som inte är avläst). */
   place: z.number().int().min(1).max(100_000).nullable(),
-  finished: z.boolean()
+  finished: z.boolean(),
+  /** Steg 47: stafettlöpare – laget och sträckan. Klassnamnet är då "Klass · sträcka N". */
+  relay: z.object({ teamNumber: z.number().int().min(1).max(99_999), teamName: z.string().max(160), leg: z.number().int().min(1).max(30) })
+    .strict().optional()
 }).strict();
 export type PublicRadioPassage = z.infer<typeof publicRadioPassageSchema>;
 

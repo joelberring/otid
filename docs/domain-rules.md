@@ -121,6 +121,25 @@ funktion lokalt; dess besked är preliminärt och serverns revision är auktorit
   ej start (ADR-0170 beslut 4). En klass utan anmälda och en bana som ingen klass använder och inget resultat bedömts mot
   kan tas bort.
 
+## Stafett (ADR-0169 beslut 3, ADR-0174)
+
+Koden finns i `packages/domain/src/relay.ts`, `relay-starts.ts` och `relay-forking.ts`.
+
+- En sträcka springer sin egen bana (`relay_leg.course_version_id`) eller klassens; `entryCourseVersionId` är regeln.
+  Underlagshashen använder sträckans bana.
+- Startsätt per sträcka: masstart, växling, omstart (fast tid) och flygande omstart (ledarlagets växling till sträckan plus
+  en gräns i minuter; ledaren är första laget som växlade, oavsett status). Sträcka 1 är masstart. Starterna räknas för
+  hela klassen (`relayClassLegStarts`) och sparas som sträcklöparens fasta starttid; ändrad start räknar om sträckan.
+  Saknad avläsning eller brutit utan mål på föregående sträcka ger omstartstiden.
+- Lagets tid är summan av sträcktiderna. Ett lag är godkänt när alla sträckor är godkända. Lag som deltagit i omstart
+  placeras efter lag med enbart vanliga växlingar (SOFT TR 5.8.2, förval) eller efter tid med övriga (klassinställning).
+- Gaffling per klass: utjämnad (rättvisa kombinationer, varning per lag som inte springer samma kontrollsträckor som de
+  flesta) eller fulgaffling (jämn spridning, bara upplysning). Fördelningen är deterministisk med klassens frö.
+- Ändrad stafettklass eller variant: ändringen görs och avlästa sträckor med ändrat underlag räknas om i samma
+  transaktion; byter någon status visas först ett besked. En sträcka med resultat tas inte bort. Ett lag utan resultat tas
+  bort helt; med resultat stryks det (`team.struck_at`, sträcklöparnas `entry.struck_at`).
+- Upp till 30 sträckor.
+
 ## Lottning
 
 Koden finns i `packages/domain/src/start-draw.ts` (ordningen inom en klass i `start-draw-order.ts`). Samma underlag och

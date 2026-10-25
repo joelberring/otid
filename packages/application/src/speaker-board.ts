@@ -4,6 +4,7 @@ import { schema, type Database } from "@o-tid/database";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { resolveStoredResultHeadStates } from "./result-revision-state";
 import { parseStrictStoredResultRevision } from "./stored-result-revision";
+import { loadRelayView } from "./relay-results";
 
 export type SpeakerBoardResult =
   | { status: "unauthorized" | "forbidden" | "not-found" }
@@ -52,7 +53,8 @@ export async function listSpeakerBoardAsAdmin(
     const [entries, classes, courses] = await Promise.all([
       entryIds.length === 0 ? Promise.resolve([]) : tx.select({ id: schema.entries.id,
         givenName: schema.entries.givenName, familyName: schema.entries.familyName,
-        organisationName: schema.entries.organisationName }).from(schema.entries)
+        organisationName: schema.entries.organisationName, teamId: schema.entries.teamId, relayLeg: schema.entries.relayLeg,
+        courseVariantCode: schema.entries.courseVariantCode }).from(schema.entries)
         .where(and(eq(schema.entries.raceId, race.id), inArray(schema.entries.id, entryIds), isNull(schema.entries.struckAt))),
       classIds.length === 0 ? Promise.resolve([]) : tx.select({ id: schema.classes.id, name: schema.classes.name })
         .from(schema.classes).where(and(eq(schema.classes.raceId, race.id), inArray(schema.classes.id, classIds))),
@@ -64,6 +66,12 @@ export async function listSpeakerBoardAsAdmin(
       throw new Error("Speakerunderlaget saknar giltig lopprelation");
     }
     const entryById = new Map(entries.map((entry) => [entry.id, entry]));
+    // Steg 47: stafettsträckornas lag och omstart (samma vy som lagvyn).
+    const relayEntries = entries.filter((entry) => entry.teamId !== null);
+    const relayView = relayEntries.length === 0 ? undefined : await loadRelayView(tx, race.id);
+    const relayOf = new Map((relayView?.classes ?? []).flatMap((raceClass) => raceClass.teams.flatMap((view) => view.legs.map((leg) =>
+      [leg.entry.id, { teamNumber: view.team.number, teamName: view.team.name, leg: leg.entry.leg,
+        variantCode: leg.entry.courseVariantCode, restarted: leg.restarted }] as const))));
     const classById = new Map(classes.map((raceClass) => [raceClass.id, raceClass.name]));
     const rows: SpeakerBoardRow[] = parsed.map(({ state, outcome }, index) => {
       const entry = entryById.get(state.selectedHead.entryId);
@@ -71,7 +79,7 @@ export async function listSpeakerBoardAsAdmin(
       if (!entry || !className) throw new Error("Speakerunderlagets visningsuppgifter saknas");
       const common = { slot: index + 1, givenName: entry.givenName, familyName: entry.familyName,
         organisationName: entry.organisationName, className, selectedRevision: state.selectedHead.revision,
-        registeredAt: state.selectedHead.createdAt.toISOString() };
+        registeredAt: state.selectedHead.createdAt.toISOString(), ...(relayOf.has(entry.id) ? { relay: relayOf.get(entry.id)! } : {}) };
       if (state.state === "NO_ACTIVE_RESULT") return { ...common, state: "NO_ACTIVE_RESULT" };
       return speakerBoardRowSchema.parse({ ...common, state: "ACTIVE_RESULT", result: {
         revision: state.head.revision, status: outcome.status, reason: outcome.reason,

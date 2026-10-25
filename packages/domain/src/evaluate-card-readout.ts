@@ -8,7 +8,7 @@ import type {
   RaceSnapshot,
   SplitTime
 } from "./types";
-import { assignedCourseVariant, courseVariantsOf } from "./course-variants";
+import { assignedCourseVariant, courseVariantsOf, entryCourseVersionId } from "./course-variants";
 import { rogainingControlSet, scoreRogaining } from "./rogaining";
 import { officialStartTime } from "./start-punch";
 import { withMaxTime } from "./max-time";
@@ -217,7 +217,7 @@ function resolveEntry(readout: EvaluationReadout, snapshot: RaceSnapshot): Resol
   if (!entry) return undefined;
   const raceClass = snapshot.classes.find((candidate) => candidate.id === entry.classId);
   if (!raceClass) return undefined;
-  const courseVersion = activeVersion(snapshot, raceClass.courseVersionId);
+  const courseVersion = activeVersion(snapshot, entryCourseVersionId(entry, raceClass));
   if (!courseVersion) return undefined;
   return { entry, raceClass, courseVersion };
 }
@@ -267,7 +267,7 @@ export function alignReadoutToCourse(punches: readonly Punch[], snapshot: RaceSn
   { readonly onCourse: ReadonlySet<number>; readonly missingControls: readonly number[] } | undefined {
   const entry = snapshot.entries.find((candidate) => candidate.id === entryId);
   const raceClass = entry && snapshot.classes.find((candidate) => candidate.id === entry.classId);
-  const courseVersion = raceClass && activeVersion(snapshot, raceClass.courseVersionId);
+  const courseVersion = entry && raceClass && activeVersion(snapshot, entryCourseVersionId(entry, raceClass));
   if (!entry || !raceClass || !courseVersion) return undefined;
   if (raceClass.rogaining) {
     const set = rogainingControlSet(courseVersion);

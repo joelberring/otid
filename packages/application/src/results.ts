@@ -499,8 +499,10 @@ export type PublicResultTiming = {
  * Server-only: starttid och stämplingstider för alla publicerade, aktiva individuella resultat i loppet. Samma
  * urval och tolkning som den publika resultatlistan, så att vägvalen aldrig visar något som listan inte visar.
  */
-export async function publicResultTimings(tx: DatabaseTransaction, raceId: string): Promise<PublicResultTiming[]> {
-  const rows = (await selectPublishedPublicResultHeads(tx, raceId)).filter((row) => row.teamId === null);
+export async function publicResultTimings(tx: DatabaseTransaction, raceId: string,
+  options: { readonly includeRelay?: boolean } = {}): Promise<PublicResultTiming[]> {
+  // Steg 47: radiokontrollerna, speakern och vägvalen tar med stafettens sträcklöpare.
+  const rows = (await selectPublishedPublicResultHeads(tx, raceId)).filter((row) => options.includeRelay === true || row.teamId === null);
   const states = await resolveStoredResultHeadStates(tx, raceId, rows);
   return states.flatMap((state) => {
     if (state.state !== "ACTIVE_RESULT") return [];

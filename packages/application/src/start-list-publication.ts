@@ -1,4 +1,4 @@
-import { desc, eq, sql, and, isNull } from "drizzle-orm";
+import { desc, eq, sql, and, inArray, isNull } from "drizzle-orm";
 import { publicStartListResponseSchema, startListPublicationContentSchema, startListPublicationIdempotencyKeySchema, startListPublicationPreviewResponseSchema, startListPublicationRequestSchema, startListPublicationResponseSchema, type PublicStartListResponse } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { IofStartListSerializationError, serializeIofStartList, type IofStartListProjection } from "@o-tid/iof-xml";
@@ -54,17 +54,24 @@ async function projection(tx: DbExecutor, race: {
         .from(schema.cardAssignments).where(and(eq(schema.cardAssignments.raceId, race.id), eq(schema.cardAssignments.active, true)))) {
         cards.set(a.entryId, cards.has(a.entryId) ? null : a.cardNumber);
     }
-    const variants = await loadCourseVersionVariants(tx, cs.map(c => c.courseVersionId));
     if (es.some(e => !ids.has(e.classId)))
         throw new SourceProjectionError();
     // Stafett (ADR-0169 beslut 3): sträcklöparna listas per lag i lagnummer- och sträckordning.
     const relayClasses = await loadRelayClassConfigs(tx, race.id);
     const teams = new Map((relayClasses.size === 0 ? [] : await loadRelayTeams(tx, race.id)).map(t => [t.id, t]));
+    // Steg 47: stafettsträckans egen bana (namn och varianter).
+    const legVersionIds = [...new Set([...relayClasses.values()].flatMap(config => config.legs.flatMap(leg => leg.courseVersionId ? [leg.courseVersionId] : [])))];
+    const legCourseNames = new Map((legVersionIds.length === 0 ? [] : await tx.select({ id: schema.courseVersions.id, name: schema.courses.name })
+        .from(schema.courseVersions).innerJoin(schema.courses, eq(schema.courses.id, schema.courseVersions.courseId))
+        .where(inArray(schema.courseVersions.id, legVersionIds))).map(row => [row.id, row.name]));
+    const variants = await loadCourseVersionVariants(tx, [...cs.map(c => c.courseVersionId), ...legVersionIds]);
+    const legCourseOf = (e: (typeof es)[number]) => relayClasses.get(e.classId)?.legs.find(l => l.leg === e.relayLeg)?.courseVersionId ?? null;
     const relayOf = (e: (typeof es)[number]) => {
         const team = e.teamId ? teams.get(e.teamId) : undefined, legs = relayClasses.get(e.classId)?.legs;
         const rule = legs?.find(l => l.leg === e.relayLeg);
+        const own = rule?.courseVersionId ? legCourseNames.get(rule.courseVersionId) : undefined;
         return team && rule ? { teamNumber: team.number, teamName: team.name, teamOrganisationName: team.organisationName, leg: rule.leg,
-            startMethod: rule.startMethod } : null;
+            startMethod: rule.startMethod, ...(own ? { courseName: own } : {}) } : null;
     };
     // PLAN.md steg 13: bana, startfålla (första kontroll), lottningens startsätt och vakanta tider per klass.
     const facts = await loadStartListFacts(tx, race.id);
@@ -74,7 +81,7 @@ async function projection(tx: DbExecutor, race: {
             relayLegCount: relayClasses.get(c.id)?.legs.length, entries: es.filter(e => e.classId === c.id).map(e => ({
                 displayName: `${e.givenName} ${e.familyName}`, organisationName: e.organisationName,
                 personEventorId: e.eventorPersonId, organisationEventorId: e.eventorOrganisationId, fixedStartTime: c.startRule === "FIXED" ? e.fixedStartTime?.toISOString() ?? null : null, id: e.id, f: e.familyName, g: e.givenName,
-                variant: (variants.get(c.courseVersionId) ?? []).some(v => v.code === e.courseVariantCode) ? e.courseVariantCode : null,
+                variant: (variants.get(legCourseOf(e) ?? c.courseVersionId) ?? []).some(v => v.code === e.courseVariantCode) ? e.courseVariantCode : null,
                 relay: relayOf(e), cardNumber: cards.get(e.id) ?? null, selfRegistered: e.selfRegisteredAt !== null
             })).sort((a, b) => {
                 if (a.relay && b.relay) return a.relay.teamNumber - b.relay.teamNumber || a.relay.leg - b.relay.leg;
@@ -113,7 +120,10 @@ async function projection(tx: DbExecutor, race: {
             teamStarts: [...new Map(c.entries.flatMap(e => e.relay ? [[e.relay.teamNumber, e.relay] as const] : [])).values()].map(team => ({
                 name: team.teamName, bibNumber: team.teamNumber,
                 ...(team.teamOrganisationName === null ? {} : { organisationName: team.teamOrganisationName }),
-                members: c.entries.filter(e => e.relay?.teamNumber === team.teamNumber).map(e => ({ leg: e.relay!.leg, ...person(e) })) })) }
+                members: c.entries.filter(e => e.relay?.teamNumber === team.teamNumber).map(e => ({ leg: e.relay!.leg,
+                    ...person(e, e.relay!.courseName ?? c.courseName),
+                    // Steg 47: sträckans egen bana utan gaffling som Course.
+                    ...(e.relay!.courseName && !e.variant ? { courseName: e.relay!.courseName } : {}) })) })) }
             : { className: c.name, startRule: c.startRule, course: course(c), starts: c.entries.map(e => person(e, c.courseName)) })
     };
     let xml: string | null = null;

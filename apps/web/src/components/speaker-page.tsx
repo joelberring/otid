@@ -177,7 +177,8 @@ function Latest({ rows, timeZone }: { rows: Finisher[]; timeZone: string }) {
       return <tr key={`${row.slot}-${row.selectedRevision}`} data-status={status}>
         <td className={styles.clock}>{formatClockTime(row.registeredAt, timeZone)}</td>
         <td className={styles.name}>{row.givenName} {row.familyName}<small>{row.organisationName ?? ""}</small></td>
-        <td className={styles.className}>{row.className}</td>
+        <td className={styles.className}>{row.className}{row.relay && <small>{text.relayLeg(row.relay.teamNumber, row.relay.teamName,
+          row.relay.leg, row.relay.variantCode, row.relay.restarted)}</small>}</td>
         <td className={styles.result}>{status === "OK" && elapsed !== undefined ? <span className={styles.time}>{duration(elapsed)}</span>
           : <span className={styles.status}><span aria-hidden="true">{status === "MP" || status === "DSQ" ? "✗ " : ""}</span>
             {status ? text.statuses[status] : text.noResult}</span>}</td>

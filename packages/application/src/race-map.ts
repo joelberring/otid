@@ -67,17 +67,19 @@ export async function readRaceMapStateAsAdmin(db: Database, input: Authenticatio
       height: schema.raceMaps.height, byteLength: schema.raceMaps.byteLength, uploadedAt: schema.raceMaps.uploadedAt,
       tiePoints: schema.raceMaps.tiePoints, georeferencedAt: schema.raceMaps.georeferencedAt })
       .from(schema.raceMaps).where(eq(schema.raceMaps.raceId, raceId));
-    const runners = await tx.select({ entryId: schema.entries.id, givenName: schema.entries.givenName, familyName: schema.entries.familyName,
-      club: schema.entries.organisationName, className: schema.classes.name })
+    // Steg 47: stafettens sträcklöpare kan också få rutt ("Klass · sträcka N").
+    const runners = (await tx.select({ entryId: schema.entries.id, givenName: schema.entries.givenName, familyName: schema.entries.familyName,
+      club: schema.entries.organisationName, className: schema.classes.name, relayLeg: schema.entries.relayLeg })
       .from(schema.entries).innerJoin(schema.classes, eq(schema.classes.id, schema.entries.classId))
-      .where(and(eq(schema.entries.raceId, raceId), isNull(schema.entries.teamId), isNull(schema.entries.struckAt)))
-      .orderBy(asc(schema.classes.name), asc(schema.entries.familyName), asc(schema.entries.givenName));
+      .where(and(eq(schema.entries.raceId, raceId), isNull(schema.entries.struckAt)))
+      .orderBy(asc(schema.classes.name), asc(schema.entries.relayLeg), asc(schema.entries.familyName), asc(schema.entries.givenName)))
+      .map(runner => runner.relayLeg === null ? runner : { ...runner, className: `${runner.className} · sträcka ${runner.relayLeg}` });
     const routes = await tx.select({ entryId: schema.participantRoutes.entryId, fileName: schema.participantRoutes.fileName,
       pointCount: schema.participantRoutes.pointCount, startsAt: schema.participantRoutes.startsAt, endsAt: schema.participantRoutes.endsAt,
       uploadedAt: schema.participantRoutes.uploadedAt, points: schema.participantRoutes.points })
       .from(schema.participantRoutes).where(eq(schema.participantRoutes.raceId, raceId));
     const timings = routes.length === 0 ? new Map<string, PublicResultTiming>()
-      : new Map((await publicResultTimings(tx, raceId)).map(timing => [timing.entryId, timing]));
+      : new Map((await publicResultTimings(tx, raceId, { includeRelay: true })).map(timing => [timing.entryId, timing]));
     return { status: "ok" as const, response: adminRaceMapStateSchema.parse({
       formatVersion: 1, raceId,
       map: map ? { fileName: map.fileName, mediaType: map.mediaType, width: map.width, height: map.height, byteLength: map.byteLength,
@@ -167,10 +169,9 @@ export async function saveParticipantRouteAsAdmin(db: Database,
   }
   if (points.length < 2) return { status: "problem", problem: "ROUTE_WITHOUT_TIMES" };
   return adminWrite(db, input, now, async (tx, actorId) => {
-    const [entry] = await tx.select({ teamId: schema.entries.teamId }).from(schema.entries)
+    const [entry] = await tx.select({ id: schema.entries.id }).from(schema.entries)
       .where(and(eq(schema.entries.id, input.entryId), eq(schema.entries.raceId, input.raceId)));
     if (!entry) return { status: "not-found" as const };
-    if (entry.teamId !== null) return { status: "problem" as const, problem: "NOT_INDIVIDUAL" as const };
     const values = { raceId: input.raceId, fileName: fileName(input.fileName, "rutt.gpx"), gpx: Buffer.from(input.bytes),
       sha256: sha256(input.bytes), byteLength: input.bytes.byteLength, points, pointCount: points.length,
       startsAt: new Date(points[0]![0]), endsAt: new Date(points.at(-1)![0]), uploadedAt: now };
@@ -178,7 +179,7 @@ export async function saveParticipantRouteAsAdmin(db: Database,
       .onConflictDoUpdate({ target: schema.participantRoutes.entryId, set: values });
     await audit(tx, input.raceId, input.entryId, actorId, "PARTICIPANT_ROUTE_SAVED", { fileName: values.fileName, sha256: values.sha256,
       pointCount: values.pointCount });
-    const timing = (await publicResultTimings(tx, input.raceId)).find(row => row.entryId === input.entryId);
+    const timing = (await publicResultTimings(tx, input.raceId, { includeRelay: true })).find(row => row.entryId === input.entryId);
     const { coveredLegs, legs } = coverage(points, timing);
     return { status: "ok" as const, response: participantRouteUploadResponseSchema.parse({ formatVersion: 1, raceId: input.raceId,
       entryId: input.entryId, pointCount: points.length, coveredLegs, legs }) };
@@ -233,7 +234,7 @@ export async function readPublicRouteIndex(db: Database, raceId: string): Promis
     const routes = await tx.select({ entryId: schema.participantRoutes.entryId, points: schema.participantRoutes.points })
       .from(schema.participantRoutes).where(eq(schema.participantRoutes.raceId, raceId));
     if (routes.length === 0) return { legs: {} };
-    const timings = new Map((await publicResultTimings(tx, raceId)).map(timing => [timing.entryId, timing]));
+    const timings = new Map((await publicResultTimings(tx, raceId, { includeRelay: true })).map(timing => [timing.entryId, timing]));
     const legs: Record<string, string[]> = {};
     for (const route of routes) {
       const timing = timings.get(route.entryId);
@@ -259,7 +260,7 @@ export async function readPublicLegRoutes(db: Database, raceId: string, publicRe
     if (!map) return undefined;
     const routes = await tx.select({ entryId: schema.participantRoutes.entryId, points: schema.participantRoutes.points })
       .from(schema.participantRoutes).where(eq(schema.participantRoutes.raceId, raceId));
-    const timings = new Map((await publicResultTimings(tx, raceId)).map(timing => [timing.entryId, timing]));
+    const timings = new Map((await publicResultTimings(tx, raceId, { includeRelay: true })).map(timing => [timing.entryId, timing]));
     const classes = new Map((await tx.select({ id: schema.classes.id, name: schema.classes.name }).from(schema.classes)
       .where(eq(schema.classes.raceId, raceId))).map(row => [row.id, row.name]));
     const runners = routes.flatMap(route => {

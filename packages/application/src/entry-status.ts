@@ -68,9 +68,11 @@ async function loadEntryContext(tx: Transaction, raceId: string, entryId: string
     .from(schema.races).where(eq(schema.races.id, raceId));
   const [entry] = await tx.select({ id: schema.entries.id, givenName: schema.entries.givenName,
     familyName: schema.entries.familyName, teamId: schema.entries.teamId, className: schema.classes.name,
-    classId: schema.entries.classId, courseVersionId: schema.classes.courseVersionId, startRule: schema.classes.startRule,
-    maxTimeMinutes: schema.classes.maxTimeMinutes, fixedStartTime: schema.entries.fixedStartTime })
+    classId: schema.entries.classId, courseVersionId: sql<string>`coalesce(${schema.relayLegs.courseVersionId}, ${schema.classes.courseVersionId})`,
+    startRule: schema.classes.startRule, maxTimeMinutes: schema.classes.maxTimeMinutes, fixedStartTime: schema.entries.fixedStartTime })
     .from(schema.entries).innerJoin(schema.classes, and(eq(schema.classes.id, schema.entries.classId), eq(schema.classes.raceId, raceId)))
+    // Steg 47: stafettsträckans egen bana.
+    .leftJoin(schema.relayLegs, and(eq(schema.relayLegs.classId, schema.entries.classId), eq(schema.relayLegs.leg, schema.entries.relayLeg)))
     .where(and(eq(schema.entries.id, entryId), eq(schema.entries.raceId, raceId)));
   if (!race || !entry) return undefined;
   const revisions = await tx.select().from(schema.resultRevisions).where(and(eq(schema.resultRevisions.raceId, raceId),

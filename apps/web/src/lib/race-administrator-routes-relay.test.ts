@@ -39,4 +39,29 @@ describe("administratörsroutes: stafett", () => {
     expect((await raceAdministratorRoute(db, request("GET"), id, { kind: "relay" }, services, environment)).status).toBe(500);
     expect((await raceAdministratorRoute(db, request("POST", "{}"), id, { kind: "relay" }, services, environment)).status).toBe(405);
   });
+
+  it("ändrad stafettklass (steg 47): besked att bekräfta och borttagen sträcka med resultat ger 409 med orsak", async () => {
+    const body = { formatVersion: 1 as const, requestId: id, classId: other, name: "Stafett", restartRanking: "AFTER_NORMAL" as const,
+      forking: "EVEN" as const, confirmResultChanges: false, legs: [
+        { leg: 1, startMethod: "MASS_START" as const, startTime: "2026-10-04T15:00:00.000Z", variantCode: null, courseId: null, restartAfterMinutes: null },
+        { leg: 2, startMethod: "FLYING_RESTART" as const, startTime: null, variantCode: null, courseId: other, restartAfterMinutes: 60 }] };
+    const preview = { formatVersion: 1 as const, raceId: id, classId: other, readOutCount: 1, recalculatedCount: 1, addedLegs: [], removedLegs: [],
+      changes: [{ displayName: "Ada Ek", leg: 2, teamNumber: 1, before: "OK" as const, after: "MP" as const }], requiresConfirmation: true };
+    const relayClassEdit = vi.fn<typeof import("@o-tid/application").editRelayClassAsAdmin>()
+      .mockResolvedValue({ status: "confirmation-required", preview });
+    const services = { ...dependencies(), relayClassEdit };
+    const action = { kind: "relay-class-edit" as const };
+    const refused = await raceAdministratorRoute(db, request("POST", JSON.stringify(body), { "idempotency-key": `relay-class-edit:${id}` }),
+      id, action, services, environment);
+    expect(refused.status).toBe(409);
+    expect(await refused.json()).toEqual({ formatVersion: 1, error: "CONFIRMATION_REQUIRED", preview });
+    relayClassEdit.mockResolvedValueOnce({ status: "leg-has-result" });
+    const blocked = await raceAdministratorRoute(db, request("POST", JSON.stringify(body), { "idempotency-key": `relay-class-edit:${id}` }),
+      id, action, services, environment);
+    expect(await blocked.json()).toEqual({ formatVersion: 1, error: "LEG_HAS_RESULT" });
+    // Flygande omstart utan minuter avvisas av kontraktet.
+    const invalid = { ...body, legs: [body.legs[0], { ...body.legs[1], restartAfterMinutes: null }] };
+    expect((await raceAdministratorRoute(db, request("POST", JSON.stringify(invalid), { "idempotency-key": `relay-class-edit:${id}` }),
+      id, action, services, environment)).status).toBe(400);
+  });
 });

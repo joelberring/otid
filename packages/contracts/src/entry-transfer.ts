@@ -68,7 +68,7 @@ export const entryTransferCandidatesSchema = z.object({
     /** Gafflad klass: banans varianter i visningsordning (ADR-0169 beslut 2). Tom = inte gafflad. */
     courseVariants: z.array(courseVariantCodeSchema).max(100),
     /** Stafettklass (ADR-0169 beslut 3): antal sträckor. Saknas för individuella klasser. */
-    relayLegCount: z.number().int().min(2).max(20).optional(),
+    relayLegCount: z.number().int().min(2).max(30).optional(),
     /** Startlistorna (PLAN.md steg 13): första kontroll (startfålla), lottningens startsätt och vakanta tider. */
     firstControlCode: z.number().int().positive().max(2_147_483_647).nullable().optional(),
     drawMethod: z.enum(["MINUTE", "MASS"]).nullable().optional(),
@@ -94,7 +94,7 @@ export const entryTransferCandidatesSchema = z.object({
     courseVariantCode: courseVariantCodeSchema.nullable(),
     /** Sträcklöpare i en stafettklass: laget och sträckan. */
     relay: z.object({ teamId: uuid, teamNumber: z.number().int().min(1).max(99_999), teamName: z.string().min(1).max(160),
-      leg: z.number().int().min(1).max(20) }).strict().optional(),
+      leg: z.number().int().min(1).max(30) }).strict().optional(),
     activeAssignment: z.object({ id: uuid, cardNumber: z.string().min(1).max(32), isRental: z.boolean(),
       rentalReturned: z.boolean() }).strict().nullable(),
     multipleActiveAssignments: z.boolean(),

@@ -52,7 +52,10 @@ const common = {
   organisationName: z.string().trim().min(1).max(240).nullable(),
   className: z.string().trim().min(1).max(160),
   selectedRevision: revision,
-  registeredAt: instant
+  registeredAt: instant,
+  /** Steg 47: stafettsträcka – lag, sträcka, variant och om sträckan startade i omstart. */
+  relay: z.object({ teamNumber: z.number().int().min(1).max(99_999), teamName: z.string().trim().min(1).max(160),
+    leg: z.number().int().min(1).max(30), variantCode: z.string().max(32).nullable(), restarted: z.boolean() }).strict().optional()
 };
 
 export const speakerBoardRowSchema = z.discriminatedUnion("state", [

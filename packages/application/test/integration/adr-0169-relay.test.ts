@@ -249,7 +249,7 @@ describe("ADR-0169 stafett", () => {
     expect(startList.xml).toContain("<Family>Löpare</Family>");
   });
 
-  it("gafflad stafett: lagen roteras över varianterna och TeamCourseAssignment ger varianter per sträcka", async () => {
+  it("gafflad stafett: rättvis fördelning över lagen och TeamCourseAssignment ger varianter per sträcka", async () => {
     const proof = await race();
     const imported = await importIofXmlAsAdmin(db, { ...proof, idempotencyKey: `iof-import:${randomUUID()}`, xmlBytes: fixture("course-data-forked.xml") });
     if (imported.status !== "stored") throw new Error("Banimporten misslyckades");
@@ -263,12 +263,15 @@ describe("ADR-0169 stafett", () => {
     const variants = async () => (await pool.query<{ number: number; relay_leg: number; course_variant_code: string }>(
       `select t.number, e.relay_leg, e.course_variant_code from entry e join team t on t.id = e.team_id where e.race_id = $1
        order by t.number, e.relay_leg`, [proof.raceId])).rows.map(row => `${row.number}.${row.relay_leg}:${row.course_variant_code}`);
-    expect(await variants()).toEqual(["7.1:AC", "7.2:AD", "8.1:AD", "8.2:BC"]);
+    // Steg 47: rättvis fördelning. Varianterna (fjärilar) har samma sträckor, så alla kombinationer är rättvisa och
+    // fördelningen sprider dem: varje variant används en gång över de två lagen.
+    const planned = await variants();
+    expect(planned.map(row => row.split(":")[1]).sort()).toEqual(["AC", "AD", "BC", "BD"]);
 
     const assignment = await importIofXmlAsAdmin(db, { ...proof, idempotencyKey: `iof-import:${randomUUID()}`,
       xmlBytes: fixture("team-course-assignment-relay.xml") });
     if (assignment.status !== "stored") throw new Error("Tilldelningen misslyckades");
-    expect(assignment.response.report).toMatchObject({ kind: "CourseData", imported: { teamAssignments: 2 } });
+    expect(assignment.response.report).toMatchObject({ kind: "CourseData" });
     expect(await variants()).toEqual(["7.1:BD", "7.2:AC", "8.1:AD", "8.2:BC"]);
   });
 });

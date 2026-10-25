@@ -63,6 +63,7 @@ export {
 } from "./course-variant-assignment";
 export type { ClassVariantDistributionResult, EntryVariantPreviewResult, EntryVariantResult } from "./course-variant-assignment";
 export * from "./relay-admin";
+export * from "./relay-admin-edit";
 export * from "./relay-results";
 export * from "./race-settings";
 export { synchronizeRelayTeams } from "./relay-sync";

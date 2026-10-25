@@ -10,13 +10,32 @@ import type { Base } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
 
 type Method = RelayClassCreateRequest["legs"][number]["startMethod"];
-export type RelayLegForm = { method: Method; time: string; variant: string };
+/** En sträcka i stafettklassens formulär. Steg 47: egen bana (tomt = klassens) och minuter för flygande omstart. */
+export type RelayLegForm = { method: Method; time: string; variant: string; course: string; minutes: string };
+export type RelayRestartRanking = RelayClassCreateRequest["restartRanking"];
+export type RelayForking = RelayClassCreateRequest["forking"];
 export type RelayRunnerForm = { givenName: string; familyName: string; card: string };
 export type RelayRunnerChange = { teamId: string; leg: number; givenName: string; familyName: string; club: string; card: string };
 
 const emptyRunner = (): RelayRunnerForm => ({ givenName: "", familyName: "", card: "" });
 const defaultLegs = (count: number, previous: readonly RelayLegForm[] = []): RelayLegForm[] =>
-  Array.from({ length: count }, (_, index) => previous[index] ?? { method: index === 0 ? "MASS_START" : "CHANGEOVER", time: "", variant: "" });
+  Array.from({ length: count }, (_, index) => previous[index] ??
+    { method: index === 0 ? "MASS_START" : "CHANGEOVER", time: "", variant: "", course: "", minutes: "" });
+
+/** Formulärets sträckor som begäran; undefined när en tid eller ett antal minuter saknas. */
+export function relayLegSettings(forms: readonly RelayLegForm[], raceDate: string, timeZone: string) {
+  const legs = forms.map((leg, index) => {
+    const method: Method = index === 0 ? "MASS_START" : leg.method;
+    const startTime = method === "CHANGEOVER" || method === "FLYING_RESTART" ? null : parseRaceClock(raceDate, leg.time, timeZone);
+    const minutes = leg.minutes.trim() === "" ? Number.NaN : Number(leg.minutes.trim());
+    const restartAfterMinutes = method === "FLYING_RESTART" ? (Number.isInteger(minutes) && minutes >= 1 && minutes <= 720 ? minutes : -1) : null;
+    return { leg: index + 1, startMethod: method, startTime, variantCode: leg.variant || null, courseId: leg.course || null, restartAfterMinutes };
+  });
+  if (legs.some(leg => (leg.startMethod === "MASS_START" || leg.startMethod === "RESTART") && leg.startTime === null) ||
+      legs.some(leg => leg.restartAfterMinutes === -1)) return undefined;
+  return legs;
+}
+export { defaultLegs };
 
 /**
  * Stafett i arbetsytan (ADR-0169 beslut 3): lagvyn läses från servern; ny stafettklass, nytt lag,
@@ -30,6 +49,8 @@ export function useRelayState() {
   const [relayClassName, setRelayClassName] = useState("");
   const [relayClassCourseId, setRelayClassCourseId] = useState("");
   const [relayLegForms, setRelayLegForms] = useState<RelayLegForm[]>(defaultLegs(3));
+  const [relayRestartRanking, setRelayRestartRanking] = useState<RelayRestartRanking>("AFTER_NORMAL");
+  const [relayForking, setRelayForking] = useState<RelayForking>("EVEN");
   const [relayClassAttempt, setRelayClassAttempt] = useState<RelayClassCreateRequest>();
   const [teamClassId, setTeamClassId] = useState("");
   const [teamNumber, setTeamNumber] = useState("");
@@ -44,6 +65,7 @@ export function useRelayState() {
   const [timesAttempt, setTimesAttempt] = useState<RelayStartTimesRequest>();
   return { relay, setRelay, relayError, setRelayError, relayMessage, setRelayMessage, relayClassName, setRelayClassName,
     relayClassCourseId, setRelayClassCourseId, relayLegForms, setRelayLegForms, relayClassAttempt, setRelayClassAttempt,
+    relayRestartRanking, setRelayRestartRanking, relayForking, setRelayForking,
     teamClassId, setTeamClassId, teamNumber, setTeamNumber, teamName, setTeamName, teamClub, setTeamClub, teamRunners, setTeamRunners,
     teamAttempt, setTeamAttempt, selectedTeamId, setSelectedTeamId, runnerChange, setRunnerChange, runnerAttempt, setRunnerAttempt,
     relayTimes, setRelayTimes, timesAttempt, setTimesAttempt };
@@ -96,7 +118,7 @@ export function createRelayActions(ws: Base & RaceDataActions) {
   }
 
   function changeLegCount(count: number) {
-    if (Number.isInteger(count) && count >= 2 && count <= 20) setRelayLegForms(defaultLegs(count, relayLegForms));
+    if (Number.isInteger(count) && count >= 2 && count <= 30) setRelayLegForms(defaultLegs(count, relayLegForms));
   }
   function changeLeg(index: number, change: Partial<RelayLegForm>) {
     setRelayLegForms(relayLegForms.map((leg, current) => current === index ? { ...leg, ...change } : leg));
@@ -106,15 +128,10 @@ export function createRelayActions(ws: Base & RaceDataActions) {
     setRelayMessage("");
     let attempt = relayClassAttempt;
     if (!attempt) {
-      const legs = relayLegForms.map((leg, index) => {
-        const method: Method = index === 0 ? "MASS_START" : leg.method;
-        const startTime = method === "CHANGEOVER" ? null : parseRaceClock(data.raceDate, leg.time, data.timeZone);
-        return { leg: index + 1, startMethod: method, startTime, variantCode: leg.variant || null };
-      });
-      if (!relayClassName.trim() || !relayClassCourseId || legs.some(leg => leg.startMethod !== "CHANGEOVER" && leg.startTime === null)) {
-        setRelayMessage(text.classInvalid); return;
-      }
-      attempt = { formatVersion: 1, requestId: crypto.randomUUID(), name: relayClassName.trim(), courseId: relayClassCourseId, legs };
+      const legs = relayLegSettings(relayLegForms, data.raceDate, data.timeZone);
+      if (!relayClassName.trim() || !relayClassCourseId || !legs) { setRelayMessage(text.classInvalid); return; }
+      attempt = { formatVersion: 1, requestId: crypto.randomUUID(), name: relayClassName.trim(), courseId: relayClassCourseId, legs,
+        restartRanking: ws.relayRestartRanking, forking: ws.relayForking };
       setRelayClassAttempt(attempt);
     }
     const name = attempt.name;
@@ -214,7 +231,7 @@ export function createRelayActions(ws: Base & RaceDataActions) {
     if (!raceClass) return;
     let attempt = timesAttempt?.classId === classId ? timesAttempt : undefined;
     if (!attempt) {
-      const legs = raceClass.legs.filter(leg => leg.startMethod !== "CHANGEOVER").map(leg => ({ leg: leg.leg,
+      const legs = raceClass.legs.filter(leg => leg.startMethod === "MASS_START" || leg.startMethod === "RESTART").map(leg => ({ leg: leg.leg,
         startTime: parseRaceClock(data.raceDate, relayTimeValue(classId, leg.leg), data.timeZone) }));
       if (legs.length === 0 || legs.some(leg => leg.startTime === null)) { setRelayMessage(text.timesInvalid); return; }
       attempt = { formatVersion: 1, requestId: crypto.randomUUID(), classId,
@@ -228,7 +245,7 @@ export function createRelayActions(ws: Base & RaceDataActions) {
         return count > 0 ? text.timesSavedRecalculated(raceClass.name, count) : text.timesSaved(raceClass.name);
       });
   }
-  return { readRelay, loadRelay, changeLegCount, changeLeg, createRelayClass, chooseTeamClass, changeTeamRunner, registerTeam,
+  return { readRelay, loadRelay, send, changeLegCount, changeLeg, createRelayClass, chooseTeamClass, changeTeamRunner, registerTeam,
     startRunnerChange, saveRunnerChange, cancelRunnerChange, openTeam, relayTimeValue, changeRelayTime, saveRelayTimes };
 }
 export type RelayActions = ReturnType<typeof createRelayActions>;

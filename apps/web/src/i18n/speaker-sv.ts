@@ -25,6 +25,9 @@ export const speakerSv = {
   relayFinished: (count: number) => `I mål: ${count}`,
   relayNone: "Inga lag ute.",
   team: (number: number, name: string) => `${number} ${name}`,
+  /** Steg 47: stafettsträckan på raden i "Senast i mål". */
+  relayLeg: (number: number, name: string, leg: number, variant: string | null, restarted: boolean) =>
+    [`Lag ${number} ${name}`, `sträcka ${leg}`, variant ? `variant ${variant}` : "", restarted ? "omstart" : ""].filter(Boolean).join(" · "),
   place: (position: number) => `${position}.`,
   noTime: "–",
   noResult: "Inget resultat",

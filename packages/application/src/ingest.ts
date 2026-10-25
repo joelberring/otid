@@ -18,7 +18,7 @@ import { contentHash, evaluationHash as hashEvaluation } from "./serialization";
 import { loadRaceSnapshot, type DbExecutor } from "./snapshot";
 import { evaluateAndStore, normalizedReadout } from "./result-revisions";
 import { relayTeamOfEntry } from "./relay-model";
-import { synchronizeRelayTeams } from "./relay-sync";
+import { lockRelayClassOfEntry, synchronizeRelayTeams } from "./relay-sync";
 
 export type AckStatus = DeviceEventAcknowledgement["status"];
 
@@ -105,6 +105,12 @@ export async function storeIngestedReadout(tx: IngestTransaction, raceId: string
     simulated: input.simulated ?? false
   }).returning();
   if (!readoutRow) throw new Error("Normaliserad avläsning kunde inte sparas");
+  // Steg 47: en stafettsträckas start kan bero på andra lag (flygande omstart). Klassen låses före ögonblicksbilden så att
+  // avläsning på flera datorer samtidigt bedöms med samma starter.
+  const [cardOwner] = await tx.select({ entryId: schema.cardAssignments.entryId }).from(schema.cardAssignments)
+    .where(and(eq(schema.cardAssignments.raceId, raceId), eq(schema.cardAssignments.active, true),
+      eq(schema.cardAssignments.cardNumber, readoutRow.cardNumber))).limit(1);
+  await lockRelayClassOfEntry(tx, cardOwner?.entryId);
   const snapshot = await loadRaceSnapshot(tx, raceId);
   const normalized = normalizedReadout(readoutRow);
   // Steg 31 (B4): har brickans deltagare redan ett resultat från en annan avläsning av samma bricka (lånad bricka,

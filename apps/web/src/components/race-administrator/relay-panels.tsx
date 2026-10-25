@@ -30,60 +30,11 @@ export function RelayMessages({ ws }: { ws: Workspace }) {
   </>;
 }
 
-/** Klasser: "Ny stafettklass" med bana, antal sträckor och startsätt per sträcka. */
-export function RelayClassForm({ ws, visible }: { ws: Workspace; visible: boolean }) {
-  const { changeLeg, changeLegCount, courseList, createRelayClass, raceId, relayClassAttempt, relayClassCourseId, relayClassName,
-    relayLegForms, setRelayClassCourseId, setRelayClassName, workflowLocked } = ws;
-  useRelayLoad(ws, visible);
-  const course = courseList?.courses.find(row => row.courseId === relayClassCourseId);
-  const locked = workflowLocked || !!relayClassAttempt;
-  const id = `relay-class-${raceId}`;
-  return <>{visible && <RelayMessages ws={ws} />}<details className={styles.disclosure} open={relayClassAttempt ? true : undefined}>
-    <summary>{text.newClass}</summary>
-    <form noValidate className={styles.disclosureBody} aria-label={text.newClass} onSubmit={event => { event.preventDefault(); void createRelayClass(); }}>
-      <p className={styles.workflowHelp}>{text.newClassHelp}</p>
-      <div className={styles.fieldRow}>
-        <label htmlFor={`${id}-name`}>{text.className}<input id={`${id}-name`} value={relayClassName} maxLength={160} required
-          autoComplete="off" disabled={locked} onChange={event => setRelayClassName(event.target.value)} /></label>
-        <label htmlFor={`${id}-course`}>{text.course}<select id={`${id}-course`} value={relayClassCourseId} required disabled={locked}
-          onChange={event => setRelayClassCourseId(event.target.value)}>
-          <option value="">{text.chooseCourse}</option>
-          {courseList?.courses.map(row => <option key={row.courseId} value={row.courseId}>{row.name}</option>)}
-        </select></label>
-        <label htmlFor={`${id}-legs`}>{text.legCount}<select id={`${id}-legs`} value={relayLegForms.length} disabled={locked}
-          onChange={event => changeLegCount(Number(event.target.value))}>
-          {Array.from({ length: 19 }, (_, index) => index + 2).map(count => <option key={count} value={count}>{count}</option>)}
-        </select></label>
-      </div>
-      <p className={styles.workflowHelp}>{text.methodHelp}</p>
-      <div className={relayStyles.legs}>
-        {relayLegForms.map((leg, index) => <div key={index} className={relayStyles.leg}>
-          <span className={relayStyles.legName}>{text.leg(index + 1)}</span>
-          <label>{text.legMethod(index + 1)}<select value={index === 0 ? "MASS_START" : leg.method} disabled={locked || index === 0}
-            onChange={event => changeLeg(index, { method: event.target.value as typeof leg.method })}>
-            {(["MASS_START", "CHANGEOVER", "RESTART"] as const).map(method => <option key={method} value={method}>{text.methods[method]}</option>)}
-          </select></label>
-          {(index === 0 || leg.method !== "CHANGEOVER")
-            ? <label>{text.legTime(index + 1, index === 0 ? "MASS_START" : leg.method)}<input value={leg.time} inputMode="numeric"
-              placeholder={text.timeExample} autoComplete="off" disabled={locked} onChange={event => changeLeg(index, { time: event.target.value })} /></label>
-            : <span />}
-          {course && course.variants.length > 0 ? <label>{text.legVariant(index + 1)}<select value={leg.variant} disabled={locked}
-            onChange={event => changeLeg(index, { variant: event.target.value })}>
-            <option value="">{text.forkedVariants}</option>
-            {course.variants.map(variant => <option key={variant.code} value={variant.code}>{variant.code}</option>)}
-          </select></label> : <span />}
-        </div>)}
-      </div>
-      <div className={styles.actions}><Button type="submit" disabled={workflowLocked}>{text.saveClass}</Button></div>
-    </form>
-  </details></>;
-}
-
 /** Start: masstart- och omstartstider per stafettklass, som klockslag. */
 export function RelayStartTimes({ ws, visible, number }: { ws: Workspace; visible: boolean; number: number }) {
   const { changeRelayTime, relay, relayTimeValue, saveRelayTimes, workflowLocked } = ws;
   useRelayLoad(ws, visible);
-  const classes = relay?.classes.filter(row => row.legs.some(leg => leg.startMethod !== "CHANGEOVER")) ?? [];
+  const classes = relay?.classes.filter(row => row.legs.some(leg => leg.startMethod === "MASS_START" || leg.startMethod === "RESTART")) ?? [];
   if (classes.length === 0) return null;
   return <Section id={`relay-start-${ws.raceId}`} title={text.startTitle} number={number} help={text.startHelp}>
     {visible && <RelayMessages ws={ws} />}
@@ -91,7 +42,7 @@ export function RelayStartTimes({ ws, visible, number }: { ws: Workspace; visibl
       onSubmit={event => { event.preventDefault(); void saveRelayTimes(raceClass.id); }}>
       <h3>{raceClass.name}</h3>
       <div className={relayStyles.timeRow}>
-        {raceClass.legs.filter(leg => leg.startMethod !== "CHANGEOVER").map(leg => <label key={leg.leg}>
+        {raceClass.legs.filter(leg => leg.startMethod === "MASS_START" || leg.startMethod === "RESTART").map(leg => <label key={leg.leg}>
           {text.legTime(leg.leg, leg.startMethod)}<input value={relayTimeValue(raceClass.id, leg.leg)} inputMode="numeric" autoComplete="off"
             placeholder={text.timeExample} disabled={workflowLocked} onChange={event => changeRelayTime(raceClass.id, leg.leg, event.target.value)} />
         </label>)}
@@ -108,7 +59,37 @@ export function teamsOutByLeg(relay: RelayOverview) {
     .filter(row => row.legs.some(leg => leg.teams.length > 0));
 }
 
-/** Avläsning: lag ute per sträcka med sträckans löpare och starttid. */
+/**
+ * Steg 47: omstarterna per växling – tiden (vid flygande omstart: ledarens växling plus gränsen) och lagen som ännu
+ * inte växlat till sträckan och alltså går i omstarten.
+ */
+export function relayRestartsByLeg(relay: RelayOverview) {
+  return relay.classes.flatMap(raceClass => raceClass.restarts.map(restart => ({ raceClass, restart,
+    waiting: relay.teams.filter(team => team.classId === raceClass.id &&
+      team.legs.find(leg => leg.leg === restart.leg - 1)?.finishTime === null &&
+      team.legs.find(leg => leg.leg === restart.leg - 1)?.status !== "DNS") })));
+}
+
+function RelayRestarts({ relay }: { relay: RelayOverview }) {
+  const rows = relayRestartsByLeg(relay);
+  if (rows.length === 0) return null;
+  const clock = (time: string) => formatClockTime(time, relay.timeZone).slice(0, 5);
+  return <div data-testid="relay-restarts">
+    <h4>{text.controlRestarts}</h4>
+    <p className={styles.workflowHelp}>{text.controlRestartsHelp}</p>
+    <ul className={relayStyles.controlLegs}>{rows.map(({ raceClass, restart, waiting }) => <li key={`${raceClass.id}:${restart.leg}`}>
+      <h4>{raceClass.name} · {restart.restartAfterMinutes === null
+        ? text.controlRestartFixed(restart.leg, restart.time ? clock(restart.time) : "–")
+        : restart.time && restart.leaderChangeover
+          ? text.controlRestartFlying(restart.leg, clock(restart.time), clock(restart.leaderChangeover), restart.restartAfterMinutes)
+          : text.controlRestartWaiting(restart.leg, restart.restartAfterMinutes)}</h4>
+      {waiting.length === 0 ? <p>{text.controlAllChanged}</p> : <><p>{text.controlNotChanged(waiting.length)}</p>
+        <ul>{waiting.map(team => <li key={team.id}>{text.teamHeading(team.number, team.name)}</li>)}</ul></>}
+    </li>)}</ul>
+  </div>;
+}
+
+/** Avläsning: lag ute per sträcka med sträckans löpare och starttid, och omstarterna. */
 export function RelayControl({ ws }: { ws: Workspace }) {
   const { raceId, relay } = ws;
   if (!relay || relay.classes.length === 0) return null;
@@ -131,5 +112,6 @@ export function RelayControl({ ws }: { ws: Workspace }) {
         })}</ul>
       </li>))}
     </ul>}
+    <RelayRestarts relay={relay} />
   </section>;
 }

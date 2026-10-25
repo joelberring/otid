@@ -91,6 +91,7 @@ export const listsSv = {
     legShort: (leg: number) => `Str. ${leg}`,
     outOnLeg: (leg: number) => `Ute på sträcka ${leg}`,
     restarted: "omstart",
+    restartedTeam: "deltog i omstart",
     refreshFailed: "Resultaten kunde inte uppdateras. Senast hämtade resultat visas.",
     loading: "Hämtar resultaten…",
     status: { OK: "Godkänd", OVERTIME: "Maxtid överskriden", MP: "Felstämplad", DSQ: "Disk.", DNF: "Ej fullföljt", OOC: "Utom tävlan", DNS: "Ej start",

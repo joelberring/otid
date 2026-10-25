@@ -20,12 +20,15 @@ async function readLive(raceId: string): Promise<PublicLiveResponse> {
   return live;
 }
 
-type Runner = { publicResultId: string; givenName: string; familyName: string; organisationName: string | null; className: string };
+type Runner = { publicResultId: string; givenName: string; familyName: string; organisationName: string | null; className: string;
+  relay?: { teamNumber: number; teamName: string; leg: number } | undefined };
 type Star = (runner: Runner) => ReactNode;
 
 const nameOf = (runner: Runner) => `${runner.givenName} ${runner.familyName}`;
 const minutes = (instant: string, timeZone: string) => formatClockTime(instant, timeZone).slice(0, 5);
-const clubClass = (runner: Runner) => [runner.organisationName, runner.className].filter(Boolean).join(" · ");
+// Steg 47: stafettlöpare med laget (klassnamnet har redan sträckan).
+const clubClass = (runner: Runner) => [runner.organisationName, runner.className,
+  runner.relay ? `Lag ${runner.relay.teamNumber} ${runner.relay.teamName}` : null].filter(Boolean).join(" · ");
 
 /** Tid eller status för en målgång; placeringen under. Felstämplad och disk. har ingen placering. */
 function FinishResult({ row }: { row: PublicLiveFinish }) {

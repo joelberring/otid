@@ -11,21 +11,29 @@ import { compareResultStatuses, type StoredResultStatus } from "./result-status-
  * - CHANGEOVER: växling, sträckan startar när föregående sträcka gick i mål.
  * - RESTART: växling, men lag som inte växlat före omstartstiden startar då.
  *   Okänd måltid på föregående sträcka (inte avläst, brutit utan mål) ger omstartstiden.
+ * - FLYING_RESTART (flygande omstart, steg 47): som omstart, men tiden räknas fram per sträcka:
+ *   ledarlagets växling till sträckan (första laget som växlade, oavsett status) plus en gräns i
+ *   minuter. Se `relayClassLegStarts` i relay-starts.ts.
  *
  * Lagets tid är summan av sträcktiderna. Utan masstarter efter sträcka 1 och utan omstart
  * är det samma sak som sista sträckans måltid minus första start. Ett lag är godkänt först
  * när alla sträckor är godkända; en felstämplad, diskad, bruten eller ej startad sträcka gör
  * laget orankat.
  */
-export type RelayStartMethod = "MASS_START" | "CHANGEOVER" | "RESTART";
+export type RelayStartMethod = "MASS_START" | "CHANGEOVER" | "RESTART" | "FLYING_RESTART";
 
-export const RELAY_MAX_LEGS = 20;
+/** Längsta gräns för flygande omstart (minuter efter ledarens växling). */
+export const RELAY_MAX_RESTART_AFTER_MINUTES = 720;
+
+export const RELAY_MAX_LEGS = 30;
 
 export interface RelayLegRule {
   readonly leg: number;
   readonly startMethod: RelayStartMethod;
-  /** Masstart- eller omstartstid. Saknas för växling. */
+  /** Masstart- eller omstartstid. Saknas för växling och flygande omstart. */
   readonly startTime?: string;
+  /** Flygande omstart: minuter efter ledarlagets växling till sträckan. */
+  readonly restartAfterMinutes?: number;
 }
 
 export type RelayLegRuleProblem =
@@ -35,9 +43,11 @@ export type RelayLegRuleProblem =
   | "FIRST_LEG_NOT_MASS_START"
   | "MISSING_START_TIME"
   | "UNEXPECTED_START_TIME"
-  | "INVALID_START_TIME";
+  | "INVALID_START_TIME"
+  | "MISSING_RESTART_AFTER"
+  | "UNEXPECTED_RESTART_AFTER";
 
-/** Kontrollerar sträckorna: 2–20 sträckor numrerade 1..n, sträcka 1 masstart, tider där de behövs. */
+/** Kontrollerar sträckorna: 2–30 sträckor (steg 47: 25-manna ryms) numrerade 1..n, sträcka 1 masstart, tider där de behövs. */
 export function relayLegRuleProblem(rules: readonly RelayLegRule[]): RelayLegRuleProblem | undefined {
   if (rules.length < 2) return "TOO_FEW_LEGS";
   if (rules.length > RELAY_MAX_LEGS) return "TOO_MANY_LEGS";
@@ -45,6 +55,13 @@ export function relayLegRuleProblem(rules: readonly RelayLegRule[]): RelayLegRul
   if (sorted.some((rule, index) => rule.leg !== index + 1)) return "LEG_NUMBERS";
   if (sorted[0]!.startMethod !== "MASS_START") return "FIRST_LEG_NOT_MASS_START";
   for (const rule of sorted) {
+    if (rule.startMethod === "FLYING_RESTART") {
+      if (rule.startTime !== undefined) return "UNEXPECTED_START_TIME";
+      const after = rule.restartAfterMinutes;
+      if (after === undefined || !Number.isInteger(after) || after < 1 || after > RELAY_MAX_RESTART_AFTER_MINUTES) return "MISSING_RESTART_AFTER";
+      continue;
+    }
+    if (rule.restartAfterMinutes !== undefined) return "UNEXPECTED_RESTART_AFTER";
     if (rule.startMethod === "CHANGEOVER") {
       if (rule.startTime !== undefined) return "UNEXPECTED_START_TIME";
       continue;
@@ -59,21 +76,28 @@ function ms(value: string): number {
   return Date.parse(value);
 }
 
-/** Sträckans starttid givet föregående sträckas måltid (om den är känd). */
-export function relayLegStartTime(rule: RelayLegRule, previousLegFinish: string | undefined): string | undefined {
-  switch (rule.startMethod) {
-    case "MASS_START": return rule.startTime;
-    case "CHANGEOVER": return previousLegFinish;
-    case "RESTART":
-      if (rule.startTime === undefined) return previousLegFinish;
-      return previousLegFinish !== undefined && ms(previousLegFinish) < ms(rule.startTime) ? previousLegFinish : rule.startTime;
-  }
+/** Omstartstiden för sträckan: fast tid, eller den framräknade tiden för en flygande omstart. */
+function restartTimeOf(rule: RelayLegRule, flyingRestartTime: string | undefined): string | undefined {
+  if (rule.startMethod === "RESTART") return rule.startTime;
+  if (rule.startMethod === "FLYING_RESTART") return flyingRestartTime;
+  return undefined;
 }
 
-/** Startade sträckan i en omstart (och inte vid växling)? */
-export function relayLegRestarted(rule: RelayLegRule, previousLegFinish: string | undefined): boolean {
-  return rule.startMethod === "RESTART" && rule.startTime !== undefined &&
-    (previousLegFinish === undefined || ms(previousLegFinish) >= ms(rule.startTime));
+/**
+ * Sträckans starttid givet föregående sträckas måltid (om den är känd). En flygande omstart behöver
+ * den framräknade omstartstiden (`relayClassLegStarts`); utan den gäller växlingen.
+ */
+export function relayLegStartTime(rule: RelayLegRule, previousLegFinish: string | undefined, flyingRestartTime?: string): string | undefined {
+  if (rule.startMethod === "MASS_START") return rule.startTime;
+  const restart = restartTimeOf(rule, flyingRestartTime);
+  if (rule.startMethod === "CHANGEOVER" || restart === undefined) return previousLegFinish;
+  return previousLegFinish !== undefined && ms(previousLegFinish) < ms(restart) ? previousLegFinish : restart;
+}
+
+/** Startade sträckan i en omstart (och inte vid växling)? En växling exakt på omstartstiden räknas som omstart. */
+export function relayLegRestarted(rule: RelayLegRule, previousLegFinish: string | undefined, flyingRestartTime?: string): boolean {
+  const restart = restartTimeOf(rule, flyingRestartTime);
+  return restart !== undefined && (previousLegFinish === undefined || ms(previousLegFinish) >= ms(restart));
 }
 
 /**
@@ -95,6 +119,8 @@ export interface RelayLegOutcome {
   readonly status?: StoredResultStatus;
   /** Sträcktid (mål − sträckans start). */
   readonly elapsedMs?: number;
+  /** Sträckan startade i en omstart (fast eller flygande). */
+  readonly restarted?: boolean;
 }
 
 export type RelayTeamStatus = StoredResultStatus | "RUNNING";
@@ -108,6 +134,8 @@ export interface RelayTeamResult {
   readonly currentLeg?: number;
   /** Antal sträckor med resultat. */
   readonly completedLegs: number;
+  /** Laget har deltagit i en omstart på någon sträcka (SOFT TR 5.8.2). */
+  readonly restarted: boolean;
 }
 
 /** Underkända lagstatusar i den ordning de gäller när flera sträckor är underkända. */
@@ -131,7 +159,8 @@ export function relayTeamResult(legCount: number, legs: readonly RelayLegOutcome
     total += outcome.elapsedMs;
   }
   const failure = TEAM_FAILURE_ORDER.find((status) => failures.has(status));
-  const base = { completedLegs, ...(currentLeg === undefined ? {} : { currentLeg }) };
+  const restarted = legs.some((leg) => leg.restarted === true);
+  const base = { completedLegs, restarted, ...(currentLeg === undefined ? {} : { currentLeg }) };
   if (failure) return { status: failure, ...base };
   if (currentLeg !== undefined) return { status: "RUNNING", ...base };
   return { status: "OK", elapsedMs: total, ...base };
@@ -149,27 +178,42 @@ export interface RelayTeamRanking {
 }
 
 /**
- * Placering bland godkända lag efter lagets tid; lika tid ger samma placering. Ordning:
- * placerade lag, lag som är ute (flest avklarade sträckor först), sedan underkända lag.
+ * Hur lag som deltagit i omstart placeras (steg 47, ADR-0174). `AFTER_NORMAL` (förval, SOFT TR 5.8.2):
+ * efter lagen som bara haft vanliga växlingar, sinsemellan efter summan av sträcktiderna.
+ * `BY_TIME`: alla godkända lag efter summan av sträcktiderna.
  */
-export function rankRelayTeams(candidates: readonly RelayTeamRankingCandidate[]): RelayTeamRanking[] {
+export type RelayRestartRanking = "AFTER_NORMAL" | "BY_TIME";
+
+/**
+ * Placering bland godkända lag efter lagets tid (summan av sträcktiderna); lika tid ger samma
+ * placering. Ordning: placerade lag (med förvalet först lag utan omstart, sedan lag som deltagit i
+ * omstart, med fortlöpande placering), lag som är ute (flest avklarade sträckor först), sedan
+ * underkända lag.
+ */
+export function rankRelayTeams(candidates: readonly RelayTeamRankingCandidate[],
+  options: { readonly restartRanking?: RelayRestartRanking } = {}): RelayTeamRanking[] {
   const compareKey = (left: string, right: string) => left < right ? -1 : left > right ? 1 : 0;
+  const separate = (options.restartRanking ?? "AFTER_NORMAL") === "AFTER_NORMAL";
+  const tier = (result: RelayTeamResult) => separate && result.restarted ? 1 : 0;
   const ranked = candidates.filter((candidate) => candidate.result.status === "OK")
-    .sort((left, right) => left.result.elapsedMs! - right.result.elapsedMs! || compareKey(left.key, right.key));
+    .sort((left, right) => tier(left.result) - tier(right.result) || left.result.elapsedMs! - right.result.elapsedMs! ||
+      compareKey(left.key, right.key));
   const positions = new Map<string, { position: number; timeBehindMs: number }>();
-  let previous: number | undefined;
+  let previous: string | undefined;
   let position = 0;
   for (const [index, candidate] of ranked.entries()) {
     const elapsed = candidate.result.elapsedMs!;
-    if (elapsed !== previous) position = index + 1;
+    const key = `${tier(candidate.result)}:${elapsed}`;
+    if (key !== previous) position = index + 1;
     positions.set(candidate.key, { position, timeBehindMs: elapsed - ranked[0]!.result.elapsedMs! });
-    previous = elapsed;
+    previous = key;
   }
   const group = (result: RelayTeamResult) => result.status === "OK" ? 0 : result.status === "RUNNING" ? 1 : 2;
   return [...candidates].sort((left, right) => {
     const difference = group(left.result) - group(right.result);
     if (difference !== 0) return difference;
-    if (left.result.status === "OK") return left.result.elapsedMs! - right.result.elapsedMs! || compareKey(left.key, right.key);
+    if (left.result.status === "OK") return tier(left.result) - tier(right.result) ||
+      left.result.elapsedMs! - right.result.elapsedMs! || compareKey(left.key, right.key);
     if (left.result.status === "RUNNING") return right.result.completedLegs - left.result.completedLegs || compareKey(left.key, right.key);
     return compareResultStatuses(left.result.status as StoredResultStatus, right.result.status as StoredResultStatus) ||
       compareKey(left.key, right.key);
@@ -199,32 +243,4 @@ export function rankRelayLegs(candidates: readonly RelayLegRankingCandidate[]): 
     .map(({ key, status, elapsedMs, courseVersionId }) => ({ key, status, courseVersionId,
       ...(elapsedMs === undefined ? {} : { elapsedMs }) })))
     .map((ranking) => ({ ...ranking, leg })));
-}
-
-/**
- * Lagets varianter per sträcka (gafflad stafettbana). En sträcka med bestämd variant får den;
- * övriga sträckor roteras över banans varianter med lagets ordningsnummer, så att lag i följd
- * springer varianterna i olika ordning och varje variant används lika ofta över lagen.
- */
-export function relayTeamVariants(input: {
-  readonly variantCodes: readonly string[];
-  readonly legCount: number;
-  /** Lagets ordningsnummer i klassen (0 för första laget). */
-  readonly teamIndex: number;
-  readonly fixedVariants?: ReadonlyMap<number, string>;
-}): Map<number, string> {
-  const variants = new Map<number, string>();
-  const valid = new Set(input.variantCodes);
-  const open: number[] = [];
-  for (let leg = 1; leg <= input.legCount; leg += 1) {
-    const fixed = input.fixedVariants?.get(leg);
-    if (fixed !== undefined && valid.has(fixed)) variants.set(leg, fixed);
-    else open.push(leg);
-  }
-  const count = input.variantCodes.length;
-  if (count === 0) return variants;
-  for (const [index, leg] of open.entries()) {
-    variants.set(leg, input.variantCodes[((input.teamIndex % count) + index) % count]!);
-  }
-  return variants;
 }

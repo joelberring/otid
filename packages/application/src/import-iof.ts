@@ -1,4 +1,4 @@
-import { and, eq, isNotNull, max, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, max, sql } from "drizzle-orm";
 import {
   IOF_IMPORT_MAX_BYTES,
   IOF_IMPORT_MIN_BYTES,
@@ -70,8 +70,16 @@ async function importCourses(tx: DbExecutor, raceId: string, parsed: CourseDataI
       eq(schema.classes.externalSource, "iof"),
       eq(schema.classes.externalId, assignment.classExternalId)
     ));
-    const [sameName] = await tx.select({ id: schema.classes.id }).from(schema.classes)
+    const [sameName] = await tx.select({ id: schema.classes.id, externalSource: schema.classes.externalSource }).from(schema.classes)
       .where(and(eq(schema.classes.raceId, raceId), sql`lower(${schema.classes.name}) = lower(${assignment.className})`)).limit(1);
+    // Steg 47: en stafettklass som skapats i O-Tid kopplas till banfilens klass med samma namn (banor per sträcka).
+    const [relay] = sameName && !existing && sameName.externalSource === null ? await tx.select({ leg: schema.relayLegs.leg })
+      .from(schema.relayLegs).where(eq(schema.relayLegs.classId, sameName.id)).limit(1) : [];
+    if (relay && sameName) {
+      await tx.update(schema.classes).set({ courseVersionId, externalSource: "iof", externalId: assignment.classExternalId })
+        .where(eq(schema.classes.id, sameName.id));
+      continue;
+    }
     if (sameName && sameName.id !== existing?.id) throw new DuplicateNameError("class", assignment.className);
     if (existing) {
       await tx.update(schema.classes).set({
@@ -89,6 +97,31 @@ async function importCourses(tx: DbExecutor, raceId: string, parsed: CourseDataI
       });
     }
   }
+}
+
+/**
+ * Steg 47: `AllowedOnLeg` ger stafettsträckans bana. Gäller stafettklasser; sträckor med klassens bana får ingen egen.
+ * Klasser utan sträckan ger en varning i importrapporten.
+ */
+export async function importLegCourses(tx: DbExecutor, raceId: string, parsed: Pick<CourseDataImport, "legAssignments">): Promise<string[]> {
+  const warnings: string[] = [];
+  for (const assignment of parsed.legAssignments) {
+    const [raceClass] = await tx.select({ id: schema.classes.id, courseVersionId: schema.classes.courseVersionId }).from(schema.classes)
+      .where(and(eq(schema.classes.raceId, raceId), eq(schema.classes.externalSource, "iof"), eq(schema.classes.externalId, assignment.classExternalId)));
+    const [course] = await tx.select({ versionId: schema.courseVersions.id }).from(schema.courseVersions)
+      .innerJoin(schema.courses, eq(schema.courses.id, schema.courseVersions.courseId))
+      .where(and(eq(schema.courses.raceId, raceId), eq(schema.courses.externalSource, "iof"), eq(schema.courses.externalId, assignment.courseExternalId)))
+      .orderBy(desc(schema.courseVersions.version)).limit(1);
+    const [leg] = raceClass ? await tx.select({ leg: schema.relayLegs.leg }).from(schema.relayLegs)
+      .where(and(eq(schema.relayLegs.classId, raceClass.id), eq(schema.relayLegs.leg, assignment.leg))) : [];
+    if (!raceClass || !course || !leg) {
+      warnings.push(`Sträcka ${assignment.leg} i ${assignment.className}: klassen är inte en stafettklass med sträckan`);
+      continue;
+    }
+    await tx.update(schema.relayLegs).set({ courseVersionId: course.versionId === raceClass.courseVersionId ? null : course.versionId })
+      .where(and(eq(schema.relayLegs.classId, raceClass.id), eq(schema.relayLegs.leg, assignment.leg)));
+  }
+  return warnings;
 }
 
 const normalize = (value: string) => value.replace(/\s+/g, " ").trim().toLocaleLowerCase("sv-SE");
@@ -143,15 +176,18 @@ export async function importTeamCourseAssignments(tx: DbExecutor, raceId: string
   let assigned = 0;
   if (parsed.teamAssignments.length === 0) return { assigned, warnings };
   const teams = await tx.select({ id: schema.teams.id, number: schema.teams.number, name: schema.teams.name,
-    className: schema.classes.name, courseVersionId: schema.classes.courseVersionId, courseExternalId: schema.courses.externalId })
-    .from(schema.teams).innerJoin(schema.classes, eq(schema.classes.id, schema.teams.classId))
-    .innerJoin(schema.courseVersions, eq(schema.courseVersions.id, schema.classes.courseVersionId))
-    .innerJoin(schema.courses, eq(schema.courses.id, schema.courseVersions.courseId))
+    className: schema.classes.name }).from(schema.teams).innerJoin(schema.classes, eq(schema.classes.id, schema.teams.classId))
     .where(eq(schema.teams.raceId, raceId));
+  // Steg 47: sträckans bana (egen eller klassens) med banfilens id.
+  const legVersion = sql<string>`coalesce(${schema.relayLegs.courseVersionId}, ${schema.classes.courseVersionId})`;
   const legs = await tx.select({ id: schema.entries.id, teamId: schema.entries.teamId, leg: schema.entries.relayLeg,
-    code: schema.entries.courseVariantCode }).from(schema.entries)
+    code: schema.entries.courseVariantCode, courseVersionId: legVersion, courseExternalId: schema.courses.externalId }).from(schema.entries)
+    .innerJoin(schema.classes, eq(schema.classes.id, schema.entries.classId))
+    .leftJoin(schema.relayLegs, and(eq(schema.relayLegs.classId, schema.entries.classId), eq(schema.relayLegs.leg, schema.entries.relayLeg)))
+    .innerJoin(schema.courseVersions, eq(schema.courseVersions.id, legVersion))
+    .innerJoin(schema.courses, eq(schema.courses.id, schema.courseVersions.courseId))
     .where(and(eq(schema.entries.raceId, raceId), isNotNull(schema.entries.teamId)));
-  const variants = await loadCourseVersionVariants(tx, [...new Set(teams.map(row => row.courseVersionId))]);
+  const variants = await loadCourseVersionVariants(tx, [...new Set(legs.map(row => row.courseVersionId))]);
   for (const assignment of parsed.teamAssignments) {
     const label = assignment.bibNumber !== undefined ? `lag ${assignment.bibNumber}` : assignment.teamName ?? "";
     const matches = assignment.bibNumber !== undefined ? teams.filter(row => row.number === assignment.bibNumber)
@@ -159,10 +195,10 @@ export async function importTeamCourseAssignments(tx: DbExecutor, raceId: string
           (!assignment.className || normalize(row.className) === normalize(assignment.className)));
     const team = matches.length === 1 ? matches[0]! : undefined;
     if (!team) { warnings.push(`Varianter för ${label}: laget hittades inte`); continue; }
-    const codes = (variants.get(team.courseVersionId) ?? []).map(variant => variant.code);
     for (const leg of assignment.legs) {
       const entry = legs.find(row => row.teamId === team.id && row.leg === leg.leg);
-      if (!entry || team.courseExternalId !== leg.courseExternalId || !codes.includes(leg.variantCode)) {
+      const codes = entry ? (variants.get(entry.courseVersionId) ?? []).map(variant => variant.code) : [];
+      if (!entry || entry.courseExternalId !== leg.courseExternalId || !codes.includes(leg.variantCode)) {
         warnings.push(`Variant ${leg.variantCode} för ${label} sträcka ${leg.leg}: sträckan eller varianten saknas`);
         continue;
       }
@@ -246,10 +282,11 @@ interface AppliedImport {
 async function applyParsedImport(tx: DbExecutor, raceId: string, parsed: IofImport): Promise<AppliedImport> {
   if (parsed.kind === "CourseData") {
     await importCourses(tx, raceId, parsed);
+    const legWarnings = await importLegCourses(tx, raceId, parsed);
     const persons = await importPersonCourseAssignments(tx, raceId, parsed);
     const teams = await importTeamCourseAssignments(tx, raceId, parsed);
     const variantCount = parsed.courses.reduce((sum, course) => sum + (course.variants?.length ?? 0), 0);
-    const warnings = [...parsed.warnings, ...persons.warnings, ...teams.warnings];
+    const warnings = [...parsed.warnings, ...legWarnings, ...persons.warnings, ...teams.warnings];
     return { snapshotChanged: true, report: {
       kind: parsed.kind,
       warnings: warnings.length > 100 ? [...warnings.slice(0, 99), `Ytterligare ${warnings.length - 99} varningar`] : warnings,

@@ -174,7 +174,8 @@ function RelayBlock({ raceClass, context }: { raceClass: RelayClass; context: Co
         {raceClass.teams.map(team => <tbody key={team.number} className={styles.team} data-status={team.status}>
           <tr>
             <td className={styles.place}>{team.position ?? ""}</td>
-            <th scope="rowgroup">{team.number} {team.name}<span className={styles.sub}>{team.organisationName ?? ""}</span></th>
+            <th scope="rowgroup">{team.number} {team.name}<span className={styles.sub}>{team.organisationName ?? ""}
+              {team.restarted ? ` · ${t.restartedTeam}` : ""}</span></th>
             <td className={styles.num}>{duration(team.elapsedMs)}</td>
             <td className={`${styles.num} ${styles.wideOnly} ${styles.muted}`}>{behind(team.timeBehindMs)}</td>
             <td className={`${styles.status} ${styles.statusCol}`} data-status={team.status}>{teamStatus(team)}</td>
@@ -183,7 +184,9 @@ function RelayBlock({ raceClass, context }: { raceClass: RelayClass; context: Co
             <td className={styles.place}>{t.legShort(leg.leg)}</td>
             <th scope="row">{context.links
               ? <Link href={`/results/${context.raceId}/participants/${leg.publicResultId}`}>{leg.givenName} {leg.familyName}</Link>
-              : `${leg.givenName} ${leg.familyName}`}{leg.restarted && <span className={styles.muted}> · {t.restarted}</span>}</th>
+              : `${leg.givenName} ${leg.familyName}`}{leg.restarted && <span className={styles.muted}> · {t.restarted}</span>}
+              {(leg.courseName || leg.variantCode) && <span className={styles.sub}>
+                {[leg.courseName, leg.variantCode ? t.variant(leg.variantCode) : null].filter(Boolean).join(" · ")}</span>}</th>
             <td className={styles.num}>{leg.status === "OK" ? duration(leg.elapsedMs) : ""}
               {leg.legPosition !== null && <span className={styles.sub}>({leg.legPosition})</span>}</td>
             <td className={styles.wideOnly} />
@@ -246,7 +249,8 @@ function RelayLegs({ raceClass }: { raceClass: RelayClass }) {
           <th scope="col" className={`${styles.num} ${styles.narrow} ${styles.wideOnly}`}>{t.behind}</th></tr></thead>
         <tbody>{leg.results.map(result => <tr key={result.teamNumber}>
           <td className={styles.place}>{result.position ?? ""}</td>
-          <th scope="row">{result.givenName} {result.familyName}</th>
+          <th scope="row">{result.givenName} {result.familyName}{(result.variantCode || result.restarted) && <span className={styles.sub}>
+            {[result.variantCode ? t.variant(result.variantCode) : null, result.restarted ? t.restarted : null].filter(Boolean).join(" · ")}</span>}</th>
           <td>{result.teamNumber} {result.teamName}</td>
           <td className={`${styles.num} ${result.status === "OK" ? "" : styles.status}`} data-status={result.status}>
             {result.status === "OK" ? duration(result.elapsedMs) : t.status[result.status]}</td>

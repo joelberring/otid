@@ -8,7 +8,7 @@ import { startRuleSv } from "../../i18n/start-rule-sv";
 import type { ManualClassCreateRequest } from "@o-tid/contracts";
 import { Button, Field, Notice } from "../ui";
 import { ClassTable } from "./class-table";
-import { RelayClassForm } from "./relay-panels";
+import { RelayClassForm } from "./relay-class-form";
 import type { Workspace } from "./workspace-state";
 
 /** Klasser: tabell (namn, bana, startsätt), "Ny klass" och maxantal. Det som inte ändrar resultat sparas direkt. */

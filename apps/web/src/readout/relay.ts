@@ -1,6 +1,6 @@
 import type { ReadoutPackage, SportidentReadoutPayload } from "@o-tid/contracts";
 import {
-  evaluateCardReadout, relayLegStartTime, relayTeamResult, type RaceSnapshot, type RelayLegOutcome, type RelayTeamResult
+  evaluateCardReadout, relayClassLegStarts, relayTeamResult, type RaceSnapshot, type RelayLegOutcome, type RelayTeamResult
 } from "@o-tid/domain";
 
 /**
@@ -48,10 +48,14 @@ export function relaySnapshot(pkg: ReadoutPackage, entryId: string, local: reado
   const found = relay && teamOf(relay, entryId);
   const rule = found && relay.classes.find((row) => row.classId === found.team.classId)?.legs.find((leg) => leg.leg === found.leg);
   if (!found || !rule) return snapshot;
-  const previous = found.team.legs.find((leg) => leg.leg === found.leg - 1);
-  const start = relayLegStartTime({ leg: rule.leg, startMethod: rule.startMethod, ...(rule.startTime ? { startTime: rule.startTime } : {}) },
-    previous ? legFinish(pkg, local, previous.entryId) : undefined);
-  if (!start) return snapshot;
+  // Steg 47: hela klassens växlingar, eftersom en flygande omstart räknas från ledarlagets växling.
+  const classRules = relay.classes.find((row) => row.classId === found.team.classId)!.legs.map((leg) => ({ leg: leg.leg,
+    startMethod: leg.startMethod, ...(leg.startTime ? { startTime: leg.startTime } : {}),
+    ...(leg.restartAfterMinutes !== null ? { restartAfterMinutes: leg.restartAfterMinutes } : {}) }));
+  const teams = relay.teams.filter((team) => team.classId === found.team.classId).map((team) => ({ key: team.id,
+    changeovers: new Map(team.legs.map((leg) => [leg.leg, legFinish(pkg, local, leg.entryId)])) }));
+  const start = relayClassLegStarts(classRules, teams).teams.get(found.team.id)?.get(found.leg)?.start;
+  if (!start || rule.leg !== found.leg) return snapshot;
   return { ...snapshot, entries: snapshot.entries.map((entry) => entry.id === entryId ? { ...entry, fixedStartTime: start } : entry) };
 }
 

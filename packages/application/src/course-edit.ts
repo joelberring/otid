@@ -7,7 +7,7 @@ import {
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import {
-  courseVariantForReadout, sameControlCodes, unevenCourseVariantLegs, withProposedCourseVersion, type RaceSnapshot
+  courseVariantForReadout, entryCourseVersionId, sameControlCodes, unevenCourseVariantLegs, withProposedCourseVersion, type RaceSnapshot
 } from "@o-tid/domain";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
@@ -43,11 +43,18 @@ async function loadCourse(tx: Transaction, raceId: string, courseId: string) {
   const controls = await tx.select({ code: schema.controls.code }).from(schema.courseControls)
     .innerJoin(schema.controls, eq(schema.controls.id, schema.courseControls.controlId))
     .where(eq(schema.courseControls.courseVersionId, version.id)).orderBy(asc(schema.courseControls.sequence));
-  const classes = await tx.select({ id: schema.classes.id, name: schema.classes.name }).from(schema.classes)
+  const classCourse = await tx.select({ id: schema.classes.id, name: schema.classes.name }).from(schema.classes)
     .where(and(eq(schema.classes.raceId, raceId), eq(schema.classes.courseVersionId, version.id)))
     .orderBy(asc(schema.classes.name), asc(schema.classes.id));
+  // Steg 47: stafettklasser där en sträcka springer banan (sträckans egen bana).
+  const legClasses = await tx.selectDistinct({ id: schema.classes.id, name: schema.classes.name }).from(schema.relayLegs)
+    .innerJoin(schema.classes, eq(schema.classes.id, schema.relayLegs.classId))
+    .where(and(eq(schema.relayLegs.raceId, raceId), eq(schema.relayLegs.courseVersionId, version.id)));
+  const classes = [...classCourse, ...legClasses.filter(row => !classCourse.some(other => other.id === row.id))]
+    .sort((left, right) => left.name.localeCompare(right.name, "sv-SE") || (left.id < right.id ? -1 : 1));
   const variants = (await loadCourseVersionVariants(tx, [version.id])).get(version.id) ?? [];
-  return { ...course, version, controlCodes: controls.map(row => row.code), variants, classes };
+  return { ...course, version, controlCodes: controls.map(row => row.code), variants, classes,
+    classCourseIds: classCourse.map(row => row.id) };
 }
 type LoadedCourse = NonNullable<Awaited<ReturnType<typeof loadCourse>>>;
 
@@ -72,7 +79,14 @@ async function assess(tx: Transaction, raceId: string, course: LoadedCourse, sna
   const proposed = withProposedCourseVersion(snapshot, course.id, course.version.id,
     { id: randomUUID(), version: course.version.version + 1, createdAt: new Date(0).toISOString(),
       controlCodes: forked ? [] : controlCodes, ...(forked ? { variants } : {}) });
-  return assessReadOutEntries(tx, raceId, course.classes, snapshot, proposed);
+  const assessed = await assessReadOutEntries(tx, raceId, course.classes, snapshot, proposed);
+  if (assessed === "too-large") return assessed;
+  // Bara löpare som springer banan: i en stafettklass kan en annan sträcka ha egen bana.
+  const onCourse = new Set(snapshot.entries.filter(entry => {
+    const raceClass = snapshot.classes.find(row => row.id === entry.classId);
+    return raceClass !== undefined && entryCourseVersionId(entry, raceClass) === course.version.id;
+  }).map(entry => entry.id));
+  return assessed.filter(row => onCourse.has(row.entryId));
 }
 
 /**
@@ -106,7 +120,17 @@ export async function listCoursesForEditAsAdmin(db: Database, input: Authenticat
     const placeholder = new Set(courses.filter(row => row.externalSource === PLACEHOLDER_COURSE.externalSource &&
       row.externalId === PLACEHOLDER_COURSE.externalId).map(row => row.id));
     const entries = await tx.select({ id: schema.entries.id, classId: schema.entries.classId,
-      fixedStartTime: schema.entries.fixedStartTime, teamId: schema.entries.teamId }).from(schema.entries).where(eq(schema.entries.raceId, raceId));
+      fixedStartTime: schema.entries.fixedStartTime, teamId: schema.entries.teamId, relayLeg: schema.entries.relayLeg })
+      .from(schema.entries).where(eq(schema.entries.raceId, raceId));
+    // Steg 47: banan som löparen springer (stafettsträckans egen bana eller klassens).
+    const legRows = await tx.select({ classId: schema.relayLegs.classId, leg: schema.relayLegs.leg,
+      courseVersionId: schema.relayLegs.courseVersionId }).from(schema.relayLegs).where(eq(schema.relayLegs.raceId, raceId));
+    const relayClassIds = new Set(legRows.map(row => row.classId));
+    const legCourse = new Map(legRows.flatMap(row => row.courseVersionId ? [[`${row.classId}:${row.leg}`, row.courseVersionId] as const] : []));
+    const classCourse = new Map((await tx.select({ id: schema.classes.id, courseVersionId: schema.classes.courseVersionId })
+      .from(schema.classes).where(eq(schema.classes.raceId, raceId))).map(row => [row.id, row.courseVersionId]));
+    const courseOfEntry = (entry: (typeof entries)[number]) =>
+      (entry.relayLeg === null ? undefined : legCourse.get(`${entry.classId}:${entry.relayLeg}`)) ?? classCourse.get(entry.classId);
     const assignments = await tx.select({ entryId: schema.cardAssignments.entryId, cardNumber: schema.cardAssignments.cardNumber })
       .from(schema.cardAssignments).where(and(eq(schema.cardAssignments.raceId, raceId), eq(schema.cardAssignments.active, true)));
     const readCards = new Set((await tx.selectDistinct({ cardNumber: schema.cardReadouts.cardNumber }).from(schema.cardReadouts)
@@ -120,8 +144,7 @@ export async function listCoursesForEditAsAdmin(db: Database, input: Authenticat
       if (!course) continue;
       // Platshållaren för Eventor-klasser utan banfil visas bara så länge någon klass står på den.
       if (placeholder.has(course.id) && course.classes.length === 0) continue;
-      const classIds = new Set(course.classes.map(row => row.id));
-      const courseEntries = entries.filter(row => classIds.has(row.classId));
+      const courseEntries = entries.filter(row => courseOfEntry(row) === course.version.id);
       const variants = course.variants.map(variant => {
         const onVariant = courseEntries.filter(row => entryVariants.get(row.id) === variant.code);
         return { code: variant.code, controlCodes: [...variant.controlCodes], entryCount: onVariant.length,
@@ -131,7 +154,9 @@ export async function listCoursesForEditAsAdmin(db: Database, input: Authenticat
         lengthMeters: course.lengthMeters, climbMeters: course.climbMeters,
         classes: course.classes.map(row => ({ classId: row.id, name: row.name })), entryCount: courseEntries.length,
         readOutCount: courseEntries.filter(row => readEntries.has(row.id)).length, variants,
-        unevenLegs: unevenCourseVariantLegs(course.variants) });
+        // Steg 47: en bana som bara används i stafett kontrolleras per lag (lagvyn), inte per variant.
+        unevenLegs: course.classes.length > 0 && course.classes.every(row => relayClassIds.has(row.id)) ? []
+          : unevenCourseVariantLegs(course.variants) });
     }
     rows.sort((left, right) => left.name.localeCompare(right.name, "sv-SE") || (left.courseId < right.courseId ? -1 : 1));
     // Klasserna som tabell: varje klass med sin bana, startsätt och läge.
@@ -251,10 +276,13 @@ export async function editCourseAsAdmin(db: Database, input: Authentication & { 
     // Gafflad bana: banans egen kontrollföljd är tom och alla varianter följer med till nya versionen.
     await insertCourseVersionControls(tx, raceId, courseVersion.id, plan.variants.length > 0 ? [] : intent.controlCodes, plan.variants);
     const classIds = course.classes.map(row => row.id);
-    if (classIds.length > 0) {
+    if (course.classCourseIds.length > 0) {
       await tx.update(schema.classes).set({ courseVersionId: courseVersion.id })
-        .where(and(eq(schema.classes.raceId, raceId), inArray(schema.classes.id, classIds)));
+        .where(and(eq(schema.classes.raceId, raceId), inArray(schema.classes.id, course.classCourseIds)));
     }
+    // Steg 47: sträckor med banan som egen bana följer med till den nya versionen.
+    await tx.update(schema.relayLegs).set({ courseVersionId: courseVersion.id })
+      .where(and(eq(schema.relayLegs.raceId, raceId), eq(schema.relayLegs.courseVersionId, course.version.id)));
     const snapshotVersionAfter = race.snapshotVersion + 1;
     await bumpReadoutPackageVersion(tx, raceId);
 

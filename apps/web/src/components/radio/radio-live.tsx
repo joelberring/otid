@@ -44,7 +44,8 @@ export function RadioLive({ radio, timeZone, raceId, links, className }: {
           return <tr key={passage.publicResultId} data-radio="out">
             <td className={lists.place}>{passage.place === null ? "" : <span className={styles.provisional}>{text.place(passage.place)}</span>}</td>
             <th scope="row"><Runner passage={passage} raceId={raceId} links={links} />
-              <span className={lists.sub}>{[text.passed(control), passage.organisationName].filter(Boolean).join(" · ")}</span></th>
+              <span className={lists.sub}>{[text.passed(control), passage.organisationName,
+                passage.relay ? `Lag ${passage.relay.teamNumber} ${passage.relay.teamName}` : null].filter(Boolean).join(" · ")}</span></th>
             <td className={lists.num}>{passageTime(passage, timeZone)}</td>
           </tr>;
         })}</tbody>
@@ -65,7 +66,8 @@ export function RadioLive({ radio, timeZone, raceId, links, className }: {
             <tbody>{control.passages.map(passage => <tr key={passage.publicResultId}>
               <td className={lists.place}><Place place={passage.place} /></td>
               <th scope="row"><Runner passage={passage} raceId={raceId} links={links} />
-                <span className={lists.sub}>{[passage.finished ? text.finished : null, passage.organisationName].filter(Boolean).join(" · ")}</span></th>
+                <span className={lists.sub}>{[passage.finished ? text.finished : null, passage.organisationName,
+                  passage.relay ? `Lag ${passage.relay.teamNumber} ${passage.relay.teamName}` : null].filter(Boolean).join(" · ")}</span></th>
               <td className={lists.num}>{passageTime(passage, timeZone)}</td>
             </tr>)}</tbody>
           </table>

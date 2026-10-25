@@ -1,6 +1,9 @@
-import { relayClassCreateRequestSchema, relayClassCreateResponseSchema, relayLegRunnerRequestSchema, relayLegRunnerResponseSchema,
-  relayOverviewSchema, relayStartTimesRequestSchema, relayStartTimesResponseSchema, relayTeamCreateRequestSchema,
-  relayTeamCreateResponseSchema } from "@o-tid/contracts";
+import { relayClassCreateRequestSchema, relayClassCreateResponseSchema, relayClassEditRequestSchema, relayClassEditResponseSchema,
+  relayEditRefusalSchema, relayLegRunnerRequestSchema, relayLegRunnerResponseSchema, relayLegVariantRequestSchema,
+  relayLegVariantResponseSchema, relayOverviewSchema, relayStartTimesRequestSchema, relayStartTimesResponseSchema,
+  relayTeamCreateRequestSchema, relayTeamCreateResponseSchema, relayTeamDidNotStartRequestSchema, relayTeamDidNotStartResponseSchema,
+  relayTeamEditRequestSchema, relayTeamEditResponseSchema, relayTeamRemovalRequestSchema, relayTeamRemovalResponseSchema,
+  type RelayClassEditPreview } from "@o-tid/contracts";
 import {
   adminFailure as failure,
   privateJson as json,
@@ -10,7 +13,7 @@ import { resultFailure, type RaceAdministratorRouteContext } from "./race-admini
 
 type Parser = { safeParse(value: unknown): { success: true; data: { requestId: string } } | { success: false } };
 type Writer = (db: RaceAdministratorRouteContext["db"], input: RaceAdministratorRouteContext["proof"] & { raceId: string;
-  idempotencyKey: string; request: unknown }) => Promise<{ status: string; response?: unknown }>;
+  idempotencyKey: string; request: unknown }) => Promise<{ status: string; response?: unknown; preview?: RelayClassEditPreview }>;
 
 /** Samma ram för skrivningar med request-id: idempotensnyckel, kropp, tjänst och kontroll av kvittot. */
 export async function write(context: RaceAdministratorRouteContext, prefix: string, request: Parser, response: { parse(value: unknown): unknown },
@@ -22,6 +25,11 @@ export async function write(context: RaceAdministratorRouteContext, prefix: stri
   const parsed = request.safeParse(body);
   if (!parsed.success || key !== `${prefix}:${parsed.data.requestId}`) return failure(400, "INVALID_REQUEST");
   const result = await service(db, { ...proof, raceId, idempotencyKey: key, request: parsed.data });
+  // Steg 47: ändringen kräver bekräftelse (beskedet följer med) eller tar bort en sträcka med resultat.
+  if (result.status === "confirmation-required" && result.preview) {
+    return json(relayEditRefusalSchema.parse({ formatVersion: 1, error: "CONFIRMATION_REQUIRED", preview: result.preview }), 409);
+  }
+  if (result.status === "leg-has-result") return json(relayEditRefusalSchema.parse({ formatVersion: 1, error: "LEG_HAS_RESULT" }), 409);
   if (result.status !== "saved") return resultFailure(result.status);
   const receipt = response.parse(result.response) as { raceId: string; requestId: string; request: unknown };
   if (receipt.raceId !== raceId || receipt.requestId !== parsed.data.requestId ||
@@ -47,6 +55,16 @@ export async function handleRelayRoute(context: RaceAdministratorRouteContext): 
       return write(context, "relay-leg-runner", relayLegRunnerRequestSchema, relayLegRunnerResponseSchema, dependencies.relayLegRunner);
     case "relay-start-times":
       return write(context, "relay-start-times", relayStartTimesRequestSchema, relayStartTimesResponseSchema, dependencies.relayStartTimes);
+    case "relay-class-edit":
+      return write(context, "relay-class-edit", relayClassEditRequestSchema, relayClassEditResponseSchema, dependencies.relayClassEdit);
+    case "relay-team-edit":
+      return write(context, "relay-team-edit", relayTeamEditRequestSchema, relayTeamEditResponseSchema, dependencies.relayTeamEdit);
+    case "relay-team-removal":
+      return write(context, "relay-team-removal", relayTeamRemovalRequestSchema, relayTeamRemovalResponseSchema, dependencies.relayTeamRemoval);
+    case "relay-team-dns":
+      return write(context, "relay-team-dns", relayTeamDidNotStartRequestSchema, relayTeamDidNotStartResponseSchema, dependencies.relayTeamDns);
+    case "relay-leg-variant":
+      return write(context, "relay-leg-variant", relayLegVariantRequestSchema, relayLegVariantResponseSchema, dependencies.relayLegVariant);
     default:
       return undefined;
   }

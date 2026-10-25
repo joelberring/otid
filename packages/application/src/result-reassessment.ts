@@ -59,13 +59,15 @@ function timingKey(value: unknown): string {
 
 /** Prövar varje avläst löpare i klasserna mot den föreslagna ögonblicksbilden. */
 export async function assessReadOutEntries(tx: Transaction, raceId: string, classes: readonly { id: string; name: string }[],
-  snapshot: RaceSnapshot, proposed: RaceSnapshot): Promise<AssessedEntry[] | "too-large"> {
+  snapshot: RaceSnapshot, proposed: RaceSnapshot, onlyEntryIds?: readonly string[]): Promise<AssessedEntry[] | "too-large"> {
   const classIds = classes.map(row => row.id);
-  if (classIds.length === 0) return [];
+  if (classIds.length === 0 || onlyEntryIds?.length === 0) return [];
   const classNames = new Map(classes.map(row => [row.id, row.name]));
+  // Stafetten (steg 47) prövar bara sträckorna som fått ny start, inte hela klassen.
   const entries = await tx.select({ id: schema.entries.id, classId: schema.entries.classId,
     givenName: schema.entries.givenName, familyName: schema.entries.familyName }).from(schema.entries)
-    .where(and(eq(schema.entries.raceId, raceId), inArray(schema.entries.classId, classIds)))
+    .where(and(eq(schema.entries.raceId, raceId), inArray(schema.entries.classId, classIds),
+      ...(onlyEntryIds ? [inArray(schema.entries.id, [...onlyEntryIds])] : [])))
     .orderBy(asc(schema.entries.familyName), asc(schema.entries.givenName), asc(schema.entries.id)).limit(MAX_ENTRIES + 1);
   if (entries.length > MAX_ENTRIES) return "too-large";
   if (entries.length === 0) return [];
@@ -165,9 +167,12 @@ export function summarizeAssessment(assessed: readonly AssessedEntry[]) {
 export async function recalculateAssessedEntries(tx: Transaction, input: { raceId: string; assessed: readonly AssessedEntry[];
   snapshot: RaceSnapshot; snapshotVersion: number; courseVersionId: string | ReadonlyMap<string, string> }) {
   const recalculated: { entryId: string; resultRevisionId: string; revision: number }[] = [];
+  // Steg 47: en stafettsträcka med egen bana bedöms mot den, inte mot klassens.
+  const legCourses = new Map(input.snapshot.entries.flatMap(entry => entry.courseVersionId ? [[entry.id, entry.courseVersionId] as const] : []));
   for (const row of input.assessed.filter(value => value.recalculate)) {
     const evaluation = evaluateReadoutForEntry(normalizedReadout(row.readout), input.snapshot, row.entryId);
-    const expectedCourseVersionId = typeof input.courseVersionId === "string" ? input.courseVersionId : input.courseVersionId.get(row.classId);
+    const expectedCourseVersionId = legCourses.get(row.entryId) ??
+      (typeof input.courseVersionId === "string" ? input.courseVersionId : input.courseVersionId.get(row.classId));
     if (!expectedCourseVersionId || evaluation.entryId !== row.entryId || evaluation.courseVersionId !== expectedCourseVersionId) {
       throw new Error("Omräkningen gav en annan deltagare eller bana än förhandsbeskedet");
     }

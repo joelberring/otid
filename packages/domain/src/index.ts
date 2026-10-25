@@ -25,6 +25,8 @@ export * from "./course-edit";
 export * from "./class-edit";
 export * from "./course-variants";
 export * from "./relay";
+export * from "./relay-starts";
+export * from "./relay-forking";
 export * from "./split-table";
 export * from "./source-sync";
 export * from "./race-clock";

@@ -223,7 +223,7 @@ function validateTeam(value: unknown, path: string, issues: string[]): Validated
   const members = value.members.map((member, index) => {
     const memberPath = `${path}.members[${index}]`;
     const leg = isRecord(member) ? member.leg : undefined;
-    if (!Number.isSafeInteger(leg) || (leg as number) < 1 || (leg as number) > 20) issues.push(`${memberPath}.leg måste vara 1–20`);
+    if (!Number.isSafeInteger(leg) || (leg as number) < 1 || (leg as number) > 30) issues.push(`${memberPath}.leg måste vara 1–30`);
     const { leg: _leg, ...rest } = isRecord(member) ? member : {};
     void _leg;
     return { ...validateStart(rest, memberPath, issues), leg: typeof leg === "number" ? leg : 0 };
@@ -374,6 +374,12 @@ export function serializeIofStartList(projection: IofStartListProjection): Uint8
         line(lines, 4, "<Start>");
         line(lines, 5, `<Leg>${member.leg}</Leg>`);
         if (member.startTime) line(lines, 5, `<StartTime>${member.startTime}</StartTime>`);
+        // Steg 47: sträckans bana (egen bana eller gafflad variant).
+        if (member.courseName) {
+          line(lines, 5, "<Course>");
+          line(lines, 6, `<Name>${escapeXml(member.courseName)}</Name>`);
+          line(lines, 5, "</Course>");
+        }
         line(lines, 4, "</Start>");
         line(lines, 3, "</TeamMemberStart>");
       }

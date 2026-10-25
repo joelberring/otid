@@ -8,6 +8,7 @@ import { sv } from "../../i18n/sv";
 import { formatClockTime } from "../../lib/clock-time";
 import { resultDuration } from "./types";
 import { RelayMessages, useRelayLoad } from "./relay-panels";
+import { Notice } from "../ui";
 import type { Workspace } from "./workspace-state";
 
 type Team = RelayOverview["teams"][number];
@@ -32,8 +33,14 @@ export function RelayTeams({ ws, visible }: { ws: Workspace; visible: boolean })
     {visible && <RelayMessages ws={ws} />}
     {relay.classes.map(raceClass => {
       const teams = relay.teams.filter(team => team.classId === raceClass.id);
+      const numberOf = (teamId: string) => teams.find(team => team.id === teamId)?.number ?? 0;
       return <section key={raceClass.id} aria-label={raceClass.name}>
         <h3>{raceClass.name} · {text.publicLegCount(raceClass.legs.length)}</h3>
+        {raceClass.unfairTeams.length > 0 && (raceClass.forking === "EVEN"
+          ? <Notice tone="attention" role="status"><p><strong>{text.unfairTitle(raceClass.name)}</strong></p>
+            <ul>{raceClass.unfairTeams.map(team => <li key={team.teamId}>{text.unfairTeam(numberOf(team.teamId), team.missing, team.extra)}</li>)}</ul>
+            <p>{text.unfairHelp}</p></Notice>
+          : <Notice role="status">{text.unevenInfo(raceClass.name)}</Notice>)}
         {teams.length === 0 ? <p>{text.noTeams}</p> : <div className={styles.tableScroll}><table className={relayStyles.teamTable}>
           <thead><tr><th scope="col">{text.columnNumber}</th><th scope="col">{text.columnTeam}</th>
             <th scope="col">{text.columnLegs}</th><th scope="col">{text.columnStatus}</th></tr></thead>
@@ -45,7 +52,7 @@ export function RelayTeams({ ws, visible }: { ws: Workspace; visible: boolean })
               <span className={relayStyles.muted}>{team.organisationName ?? ""}</span></td>
             <td><ol className={relayStyles.legList}>{team.legs.map(leg => <li key={leg.leg}>
               <span className={relayStyles.legNumber}>{leg.leg}.</span><span>{leg.givenName} {leg.familyName}</span>
-              <span className={relayStyles.muted}>{leg.cardNumber ?? text.noCard}</span>
+              <span className={relayStyles.muted}>{leg.cardNumber ?? text.noCard}{leg.variantCode ? ` · ${leg.variantCode}` : ""}</span>
             </li>)}</ol></td>
             <td><span className={relayStyles.status} data-status={team.status}>{teamStatusText(team)}</span></td>
           </tr>)}</tbody>
@@ -57,28 +64,56 @@ export function RelayTeams({ ws, visible }: { ws: Workspace; visible: boolean })
   </section>;
 }
 
-/** Lagkortet: sträckorna med löpare, bricka, start och resultat, och "Byt löpare på sträcka N". */
+/** Lagkortet: sträckorna med löpare, bricka, bana, variant, start och resultat; byt löpare, byt variant och ändra laget. */
 function TeamCard({ ws, team }: { ws: Workspace; team: Team }) {
-  const { busy, cancelRunnerChange, relay, runnerChange, saveRunnerChange, setRunnerChange, setSelectedTeamId, startRunnerChange,
-    workflowLocked } = ws;
+  const { busy, cancelRunnerChange, cancelVariantChange, chooseVariant, relay, removeTeam, runnerChange, saveRunnerChange,
+    saveVariantChange, setRunnerChange, setSelectedTeamId, startRunnerChange, startTeamEdit, teamDidNotStart, teamEdit, variantChange,
+    variantPreview, workflowLocked } = ws;
   const timeZone = relay?.timeZone ?? "UTC";
+  const raceClass = relay?.classes.find(row => row.id === team.classId);
+  const locked = busy || workflowLocked || !!runnerChange || !!teamEdit;
   return <section className={`${styles.panel} ${relayStyles.card}`} aria-label={text.teamCard}>
     <h3>{text.teamHeading(team.number, team.name)}</h3>
-    <p>{team.organisationName ?? ""} · <span className={relayStyles.status} data-status={team.status}>{teamStatusText(team)}</span></p>
+    <p>{team.organisationName ?? ""} · <span className={relayStyles.status} data-status={team.status}>{teamStatusText(team)}</span>
+      {team.restarted ? ` · ${text.restartedTeam}` : ""}</p>
     <div className={styles.tableScroll}><table className={relayStyles.cardLegs}>
       <thead><tr><th scope="col">{text.columnLegs}</th><th scope="col">{text.publicRunner}</th><th scope="col">{text.runnerCard}</th>
         <th scope="col">{text.legStart}</th><th scope="col">{text.legResult}</th><th scope="col"><span className={styles.visuallyHidden}>{text.actions}</span></th></tr></thead>
-      <tbody>{team.legs.map(leg => <tr key={leg.leg}>
-        <th scope="row">{text.leg(leg.leg)}{leg.variantCode ? <span className={relayStyles.muted}> · {leg.variantCode}</span> : null}</th>
-        <td>{leg.givenName} {leg.familyName}<span className={relayStyles.muted}> {leg.organisationName ?? ""}</span></td>
-        <td>{leg.cardNumber ?? text.noCard}</td>
-        <td>{leg.startTime ? formatClockTime(leg.startTime, timeZone) : text.waitingStart}{leg.restarted ? ` · ${text.restarted}` : ""}</td>
-        <td>{leg.status ? <span className={relayStyles.status} data-status={leg.status}>{sv.publicResultsStatusLabels[leg.status]}
-          {leg.elapsedMs !== null ? ` · ${resultDuration(leg.elapsedMs)}` : ""}</span> : "–"}</td>
-        <td><button type="button" className="secondary" disabled={busy || workflowLocked || !!runnerChange}
-          onClick={() => startRunnerChange(team.id, leg.leg)}>{text.changeRunner(leg.leg)}</button></td>
-      </tr>)}</tbody>
+      <tbody>{team.legs.map(leg => {
+        const course = raceClass?.legCourses.find(row => row.leg === leg.leg);
+        const choosing = variantChange?.teamId === team.id && variantChange.leg === leg.leg;
+        return <tr key={leg.leg}>
+          <th scope="row">{text.leg(leg.leg)}<span className={relayStyles.muted}>{course && raceClass && course.courseId !== raceClass.courseId
+            ? ` · ${course.courseName}` : ""}{leg.variantCode ? ` · ${leg.variantCode}` : ""}</span></th>
+          <td>{leg.givenName} {leg.familyName}<span className={relayStyles.muted}> {leg.organisationName ?? ""}</span></td>
+          <td>{leg.cardNumber ?? text.noCard}</td>
+          <td>{leg.startTime ? formatClockTime(leg.startTime, timeZone) : text.waitingStart}{leg.restarted ? ` · ${text.restarted}` : ""}</td>
+          <td>{leg.status ? <span className={relayStyles.status} data-status={leg.status}>{sv.publicResultsStatusLabels[leg.status]}
+            {leg.elapsedMs !== null ? ` · ${resultDuration(leg.elapsedMs)}` : ""}</span> : "–"}</td>
+          <td className={relayStyles.legActions}>
+            <button type="button" className="secondary" disabled={locked} onClick={() => startRunnerChange(team.id, leg.leg)}>{text.changeRunner(leg.leg)}</button>
+            {course && course.variants.length > 1 && <label>{text.legVariant(leg.leg)}<select disabled={locked || (!!variantChange && !choosing)}
+              value={choosing ? variantChange.code : leg.variantCode ?? ""} onChange={event => chooseVariant(team.id, leg.leg, event.target.value)}>
+              {leg.variantCode === null && <option value="">–</option>}
+              {course.variants.map(code => <option key={code} value={code}>{code}</option>)}
+            </select></label>}
+            {choosing && variantChange.code !== (leg.variantCode ?? "") && !variantPreview && <span>
+              <button type="button" disabled={busy} onClick={() => void saveVariantChange(false)}>{text.saveVariant}</button>
+              <button type="button" className="secondary" disabled={busy} onClick={cancelVariantChange}>{text.cancel}</button></span>}
+          </td>
+        </tr>;
+      })}</tbody>
     </table></div>
+    {variantPreview && variantChange?.teamId === team.id && <Notice tone="attention" role="alert">
+      <p><strong>{text.editConfirmTitle}</strong></p>
+      <ul>{variantPreview.changes.map(change => <li key={`${change.teamNumber}:${change.leg}`}>
+        {text.editConfirmChange(change.teamNumber, change.leg, change.displayName, text.statusWord[change.before], text.statusWord[change.after])}
+      </li>)}</ul>
+      <div className={styles.actions}>
+        <button type="button" disabled={busy} onClick={() => void saveVariantChange(true)}>{text.variantConfirm}</button>
+        <button type="button" className="secondary" disabled={busy} onClick={cancelVariantChange}>{text.cancel}</button>
+      </div>
+    </Notice>}
     {runnerChange && runnerChange.teamId === team.id && <form noValidate className={relayStyles.runnerForm} aria-label={text.changeRunner(runnerChange.leg)}
       onSubmit={event => { event.preventDefault(); void saveRunnerChange(); }}>
       <h4>{text.changeRunner(runnerChange.leg)}</h4>
@@ -97,9 +132,38 @@ function TeamCard({ ws, team }: { ws: Workspace; team: Team }) {
         <button type="button" className="secondary" disabled={busy} onClick={cancelRunnerChange}>{text.cancel}</button>
       </div>
     </form>}
-    <div className={styles.actions}><button type="button" className="secondary" disabled={busy || !!runnerChange}
-      onClick={() => setSelectedTeamId("")}>{text.close}</button></div>
+    {teamEdit && teamEdit.teamId === team.id && <TeamEditForm ws={ws} />}
+    <p className={styles.workflowHelp}>{text.removeTeamHelp}</p>
+    <div className={styles.actions}>
+      <button type="button" className="secondary" disabled={locked} onClick={() => startTeamEdit(team.id)}>{text.editTeam}</button>
+      {team.status === "RUNNING" && team.legs.some(leg => !leg.hasResult) && <button type="button" className="secondary" disabled={locked}
+        onClick={() => void teamDidNotStart(team.id)}>{text.teamDidNotStart}</button>}
+      <button type="button" className="secondary" disabled={locked} onClick={() => void removeTeam(team.id, team.hasResult ? "STRIKE" : "DELETE")}>
+        {team.hasResult ? text.strikeTeam : text.removeTeam}</button>
+      <button type="button" className="secondary" disabled={busy || !!runnerChange} onClick={() => setSelectedTeamId("")}>{text.close}</button>
+    </div>
   </section>;
+}
+
+/** "Ändra lag": lagnummer, namn och klubb. */
+function TeamEditForm({ ws }: { ws: Workspace }) {
+  const { busy, saveTeamEdit, setTeamEdit, teamEdit } = ws;
+  if (!teamEdit) return null;
+  return <form noValidate className={relayStyles.runnerForm} aria-label={text.editTeam} onSubmit={event => { event.preventDefault(); void saveTeamEdit(); }}>
+    <h4>{text.editTeam}</h4>
+    <div className={relayStyles.fields}>
+      <label>{text.teamNumberEdit}<input value={teamEdit.number} inputMode="numeric" autoComplete="off" disabled={busy}
+        onChange={event => setTeamEdit({ ...teamEdit, number: event.target.value })} /></label>
+      <label>{text.teamName}<input value={teamEdit.name} maxLength={160} required autoComplete="off" disabled={busy}
+        onChange={event => setTeamEdit({ ...teamEdit, name: event.target.value })} /></label>
+      <label>{text.teamClub}<input value={teamEdit.club} maxLength={200} autoComplete="off" disabled={busy}
+        onChange={event => setTeamEdit({ ...teamEdit, club: event.target.value })} /></label>
+    </div>
+    <div className={styles.actions}>
+      <button type="submit" disabled={busy}>{text.saveTeamEdit}</button>
+      <button type="button" className="secondary" disabled={busy} onClick={() => setTeamEdit(undefined)}>{text.cancel}</button>
+    </div>
+  </form>;
 }
 
 /** "Nytt lag": klass, nummer (tomt = nästa lediga), namn, klubb och en löpare med bricka per sträcka. */

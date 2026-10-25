@@ -10,10 +10,10 @@ import { forestWatchSv } from "./forest-watch-sv";
 
 /** PLAN.md steg 24: ett ordval för startsätt i formulär, tabeller, lottning, listor och deltagarkortet. */
 describe("startsättens ord", () => {
-  it("tre ord för klasser och tre för stafettsträckor", () => {
+  it("tre ord för klasser och fyra för stafettsträckor (steg 47: flygande omstart)", () => {
     expect(startRuleSv.methods).toEqual({ FREE: "Fri start", MINUTE: "Minutstart", MASS: "Masstart" });
     expect(startRuleSv.rules).toEqual({ PUNCH: "Fri start", FIXED: "Minutstart" });
-    expect(startRuleSv.relay).toEqual({ MASS_START: "Masstart", CHANGEOVER: "Växling", RESTART: "Omstart" });
+    expect(startRuleSv.relay).toEqual({ MASS_START: "Masstart", CHANGEOVER: "Växling", RESTART: "Omstart", FLYING_RESTART: "Flygande omstart" });
   });
 
   it("alla vyer använder samma ord", () => {

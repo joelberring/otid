@@ -127,11 +127,15 @@ export const relayLegs = pgTable("relay_leg", {
   classId: uuid("class_id").notNull(),
   raceId: uuid("race_id").notNull().references(() => races.id),
   leg: integer("leg").notNull(),
-  startMethod: text("start_method").$type<"MASS_START" | "CHANGEOVER" | "RESTART">().notNull(),
-  /** Masstart: starttiden. Omstart: tiden då lag som inte växlat startar. NULL för växling. */
+  startMethod: text("start_method").$type<"MASS_START" | "CHANGEOVER" | "RESTART" | "FLYING_RESTART">().notNull(),
+  /** Masstart: starttiden. Omstart: tiden då lag som inte växlat startar. NULL för växling och flygande omstart. */
   startTime: timestamp("start_time", { withTimezone: true }),
   /** Variant för sträckan (gafflad bana); NULL = lagen fördelas över banans varianter. */
-  courseVariantCode: text("course_variant_code")
+  courseVariantCode: text("course_variant_code"),
+  /** Steg 47 (migration 0021): sträckans egen bana; NULL = klassens bana. */
+  courseVersionId: uuid("course_version_id").references(() => courseVersions.id),
+  /** Steg 47: flygande omstart, minuter efter ledarlagets växling till sträckan. */
+  restartAfterMinutes: integer("restart_after_minutes")
 }, table => [
   primaryKey({ columns: [table.classId, table.leg] }),
   foreignKey({ name: "relay_leg_class_fk", columns: [table.classId, table.raceId], foreignColumns: [classes.id, classes.raceId] })
@@ -148,7 +152,9 @@ export const teams = pgTable("team", {
   /** Lag från Eventor (migration 0096): lagets anmälnings-id. */
   externalSource: text("external_source"),
   externalId: text("external_id"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  /** Steg 47 (migration 0021): strukit lag med resultat; syns inte i listor, historiken står kvar. */
+  struckAt: timestamp("struck_at", { withTimezone: true })
 }, table => [
   uniqueIndex("team_race_number_uidx").on(table.raceId, table.number),
   uniqueIndex("team_external_uidx").on(table.raceId, table.externalSource, table.externalId),
@@ -161,7 +167,8 @@ export const teams = pgTable("team", {
 export const relayRequests = pgTable("relay_request", {
   requestId: uuid("request_id").primaryKey(),
   raceId: uuid("race_id").notNull().references(() => races.id),
-  kind: text("kind").$type<"CLASS" | "TEAM" | "LEG_RUNNER" | "START_TIMES">().notNull(),
+  kind: text("kind").$type<"CLASS" | "TEAM" | "LEG_RUNNER" | "START_TIMES" | "CLASS_EDIT" | "TEAM_EDIT" | "TEAM_STRIKE" |
+    "TEAM_DID_NOT_START" | "LEG_VARIANT">().notNull(),
   classId: uuid("class_id").notNull(),
   teamId: uuid("team_id"),
   actorAccountId: uuid("actor_account_id").notNull(),

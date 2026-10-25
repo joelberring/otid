@@ -1,14 +1,18 @@
 import { startRuleSv as rule } from "./start-rule-sv";
 /** Stafett (ADR-0169 beslut 3): stafettklass, lag, sträcklöpare, starttider och lagresultat. */
-type Method = "MASS_START" | "CHANGEOVER" | "RESTART";
+type Method = "MASS_START" | "CHANGEOVER" | "RESTART" | "FLYING_RESTART";
+type Point = "START" | "FINISH" | number;
+const point = (value: Point) => value === "START" ? "start" : value === "FINISH" ? "mål" : String(value);
+const pairs = (legs: readonly { from: Point; to: Point }[]) => legs.slice(0, 4).map(leg => `${point(leg.from)}–${point(leg.to)}`).join(", ") +
+  (legs.length > 4 ? ` med flera` : "");
 type TeamStatus = "OK" | "OVERTIME" | "MP" | "DSQ" | "DNF" | "OOC" | "NT" | "DNS" | "RUNNING";
 
 export const relaySv = {
   methods: rule.relay satisfies Record<Method, string>,
-  methodHelp: "Sträcka 1 startar alltid med masstart. Växling: sträckan startar när föregående löpare går i mål. Omstart: lag som inte växlat före omstartstiden startar då.",
+  methodHelp: "Sträcka 1 startar alltid med masstart. Växling: sträckan startar när föregående löpare går i mål. Omstart: lag som inte växlat före omstartstiden startar då. Flygande omstart: lag som inte växlat inom en viss tid efter ledarlaget startar då.",
   // Klasser
   newClass: "Ny stafettklass",
-  newClassHelp: "En stafettklass har lag med en löpare per sträcka. Alla sträckor springer klassens bana; en gafflad bana ger varianter per sträcka.",
+  newClassHelp: "En stafettklass har lag med en löpare per sträcka. Varje sträcka kan ha egen bana; annars gäller klassens bana. En gafflad bana ger varianter per sträcka.",
   className: "Klassnamn",
   course: "Bana",
   chooseCourse: "Välj bana",
@@ -18,6 +22,35 @@ export const relaySv = {
   leg: (leg: number) => `Sträcka ${leg}`,
   legMethod: (leg: number) => `${rule.label} sträcka ${leg}`,
   legTime: (leg: number, method: Method) => method === "RESTART" ? `Omstart sträcka ${leg}` : `Masstart sträcka ${leg}`,
+  // Steg 47: bana, flygande omstart och inställningar per stafettklass.
+  legCourse: (leg: number) => `Sträcka ${leg} springer`,
+  teamNumberEdit: "Lagnummer",
+  classCourseOption: "Samma som klassen",
+  legRestartAfter: (leg: number) => `Minuter efter ledaren sträcka ${leg}`,
+  restartAfterExample: "t.ex. 60",
+  restartRanking: "Lag i omstart",
+  restartRankings: { AFTER_NORMAL: "Placeras efter lag med vanliga växlingar (SOFT)", BY_TIME: "Placeras efter tid med övriga lag" },
+  forking: "Gaffling",
+  forkings: { EVEN: "Utjämnad gaffling: alla lag springer samma sträckor", UNEVEN: "Fulgaffling: varianterna behöver inte vara likvärdiga" },
+  editClass: "Ändra stafettklass",
+  editClassHelp: "Ändra namn, sträckor, startsätt, tider, bana och variant per sträcka. Sträckor läggs till eller tas bort sist. Byter ett resultat status visas först vad som händer.",
+  editChooseClass: "Stafettklass att ändra",
+  saveEdit: "Spara ändringen",
+  editSaved: (name: string, count: number) => count > 0 ? `${name} är ändrad. ${count} sträckor räknades om.` : `${name} är ändrad.`,
+  editConfirmTitle: "Ändringen påverkar resultat",
+  editConfirmChanges: (count: number) => count === 1 ? "1 löpare byter status:" : `${count} löpare byter status:`,
+  editConfirmChange: (team: number, leg: number, name: string, before: string, after: string) => `Lag ${team} sträcka ${leg}, ${name}: ${before} → ${after}`,
+  editConfirmRemoved: (legs: readonly number[]) => `Sträcka ${legs.join(", ")} tas bort med löparna (ingen har resultat).`,
+  editConfirmRecalculated: (count: number) => `${count} avlästa sträckor räknas om.`,
+  editConfirm: "Spara och räkna om",
+  editLegHasResult: "En sträcka som tas bort har löpare med resultat. Ta inte bort den, eller stryk lagen först.",
+  statusWord: { OK: "godkänd", OVERTIME: "maxtid", MP: "felstämplad", UNKNOWN_CARD: "okänd bricka" } as const,
+  // Rättvisa (steg 47)
+  unfairTitle: (className: string) => `${className}: alla lag springer inte samma sträckor`,
+  unfairTeam: (team: number, missing: readonly { from: Point; to: Point }[], extra: readonly { from: Point; to: Point }[]) =>
+    `Lag ${team}: ${[missing.length > 0 ? `saknar ${pairs(missing)}` : "", extra.length > 0 ? `har extra ${pairs(extra)}` : ""].filter(Boolean).join(", ")}.`,
+  unfairHelp: "Byt variant på en sträcka i lagkortet så att laget springer samma sträckor som de andra.",
+  unevenInfo: (className: string) => `${className}: fulgaffling – lagen springer inte exakt samma sträckor. Det är valt för klassen.`,
   legVariant: (leg: number) => `Variant sträcka ${leg}`,
   forkedVariants: "Fördelas över lagen",
   timeExample: "t.ex. 18:30",
@@ -72,6 +105,24 @@ export const relaySv = {
   runnerSavedRecalculated: (leg: number, name: string) => `Sträcka ${leg}: ${name} springer nu. Laget räknades om.`,
   runnerError: "Löparen kunde inte bytas. Försök igen.",
   runnerConflict: "Brickan används redan, eller så har laget ändrats under tiden. Laget är inläst igen.",
+  // Lagkortet (steg 47)
+  editTeam: "Ändra lag",
+  saveTeamEdit: "Spara laget",
+  teamEditSaved: (number: number, name: string) => `Lag ${number} ${name} är sparat.`,
+  teamEditConflict: "Lagnumret används redan av ett annat lag.",
+  removeTeam: "Ta bort laget",
+  strikeTeam: "Stryk laget",
+  removeTeamHelp: "Ett lag utan resultat tas bort helt. Ett lag med resultat stryks: det syns inte i listorna men historiken finns kvar.",
+  teamRemoved: (number: number, name: string) => `Lag ${number} ${name} är borttaget.`,
+  teamStruck: (number: number, name: string) => `Lag ${number} ${name} är struket.`,
+  teamHasResult: "Laget har resultat och kan bara strykas.",
+  teamDidNotStart: "Hela laget ej start",
+  teamDidNotStartSaved: (number: number, count: number) => `Lag ${number}: ${count} sträckor är ej start.`,
+  teamActionError: "Ändringen kunde inte sparas. Försök igen.",
+  saveVariant: "Byt variant",
+  variantSaved: (leg: number, code: string) => `Sträcka ${leg} springer nu variant ${code}.`,
+  variantConfirm: "Byt variant och räkna om",
+  restartedTeam: "Deltog i omstart",
   // Status
   status: { OK: "Godkänt", OVERTIME: "Maxtid överskriden", MP: "Felstämplat", DSQ: "Diskat", DNF: "Brutit", OOC: "Utom tävlan", NT: "Deltog utan tid",
     DNS: "Ej start", RUNNING: "Ute" } satisfies Record<TeamStatus, string>,
@@ -91,6 +142,15 @@ export const relaySv = {
   controlTeamsHelp: "Lag som har en löpare ute, per sträcka.",
   controlTeamsNone: "Inga lag ute.",
   controlLeg: (leg: number, count: number) => `Sträcka ${leg}: ${count} lag`,
+  // Funktionärsvyn per växling (steg 47)
+  controlRestarts: "Omstarter",
+  controlRestartsHelp: "Lag som inte har växlat till sträckan går i omstarten.",
+  controlRestartFixed: (leg: number, time: string) => `Sträcka ${leg}: omstart kl. ${time}`,
+  controlRestartFlying: (leg: number, time: string, leader: string, minutes: number) =>
+    `Sträcka ${leg}: omstart kl. ${time} (ledaren växlade ${leader} + ${minutes} min)`,
+  controlRestartWaiting: (leg: number, minutes: number) => `Sträcka ${leg}: flygande omstart ${minutes} min efter ledaren – ingen har växlat än`,
+  controlNotChanged: (count: number) => count === 1 ? "1 lag har inte växlat:" : `${count} lag har inte växlat:`,
+  controlAllChanged: "Alla lag har växlat.",
   loading: "Läser in lagen …",
   loadError: "Lagen kunde inte läsas in. Försök igen.",
   retry: "Försök igen",
@@ -107,6 +167,8 @@ export const relaySv = {
   publicShowLegs: "Visa sträckor",
   publicLegPosition: (position: number) => `(${position})`,
   publicLegCount: (count: number) => `${count} sträckor`,
+  publicVariant: (code: string) => `variant ${code}`,
+  publicRestarted: "omstart",
   publicEmpty: "Inga lag ännu.",
   publicRefreshFailed: "Lagresultaten kunde inte uppdateras. Försöker igen.",
   startTeam: (number: number, name: string) => `${number} ${name}`,

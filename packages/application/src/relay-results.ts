@@ -1,15 +1,18 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, max } from "drizzle-orm";
 import { publicRelayResultsSchema, relayOverviewSchema, relayReadoutSchema, type PublicRelayResults, type RelayOverview,
   type RelayReadout } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { rankRelayLegs, rankRelayTeams, relayLegRestarted, relayTeamResult, type RelayTeamResult } from "@o-tid/domain";
+import { rankRelayLegs, rankRelayTeams, relayClassLegStarts, relayTeamResult, type RelayLegRestart, type RelayTeamResult,
+  type UnfairRelayTeam } from "@o-tid/domain";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForSnapshot } from "./concurrency";
 import { loadCourseVersionVariants } from "./course-variants";
 import {
-  loadRelayClassConfigs, loadRelayLegEntries, loadRelayLegFinishTimes, loadRelayLegResults, loadRelayTeams,
+  loadRelayClassConfigs, loadRelayLegEntries, loadRelayLegFinishTimes, loadRelayLegResults, loadRelayTeams, relayLegCourseVersionId,
   type RelayClassConfig, type RelayLegEntry, type RelayLegResult, type RelayTeamRow
 } from "./relay-model";
+import { relayChangeovers } from "./relay-sync";
+import { loadRelayLegCourses, relayClassFairness } from "./relay-variants";
 
 /**
  * Stafettens resultat (ADR-0169 beslut 3): lagvyn i arbetsytan, publika lagresultat med
@@ -20,7 +23,8 @@ type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 export interface RelayTeamView {
   readonly team: RelayTeamRow;
-  readonly legs: readonly { readonly entry: RelayLegEntry; readonly result?: RelayLegResult; readonly restarted: boolean }[];
+  readonly legs: readonly { readonly entry: RelayLegEntry; readonly result?: RelayLegResult; readonly restarted: boolean;
+    readonly finishTime?: string }[];
   readonly result: RelayTeamResult;
   readonly position?: number;
   readonly timeBehindMs?: number;
@@ -36,6 +40,10 @@ export interface RelayClassView {
   /** Lagen i resultatordning: placerade, ute, underkända. */
   readonly teams: readonly RelayTeamView[];
   readonly legRankings: ReadonlyMap<string, { position?: number; timeBehindMs?: number }>;
+  /** Steg 47: sträckans bana (id, namn) när den är en annan än klassens, omstarterna och lagen som inte springer samma sträckor. */
+  readonly legCourses: ReadonlyMap<number, { courseId: string; courseName: string; courseVersionId: string }>;
+  readonly restarts: ReadonlyMap<number, RelayLegRestart>;
+  readonly unfairTeams: readonly UnfairRelayTeam[];
 }
 
 /** Stafettklasserna med lag, sträckor, resultat och placeringar. Tom lista när loppet saknar stafett. */
@@ -48,32 +56,56 @@ export async function loadRelayView(tx: Transaction, raceId: string) {
     .innerJoin(schema.courses, eq(schema.courses.id, schema.courseVersions.courseId))
     .where(and(eq(schema.classes.raceId, raceId), inArray(schema.classes.id, [...configs.keys()])))
     .orderBy(asc(schema.classes.name), asc(schema.classes.id));
+  const legVersionIds = [...new Set([...configs.values()].flatMap(config => config.legs.flatMap(leg => leg.courseVersionId ? [leg.courseVersionId] : [])))];
+  const legCourseRows = legVersionIds.length === 0 ? [] : await tx.select({ versionId: schema.courseVersions.id, courseId: schema.courses.id,
+    courseName: schema.courses.name }).from(schema.courseVersions).innerJoin(schema.courses, eq(schema.courses.id, schema.courseVersions.courseId))
+    .where(inArray(schema.courseVersions.id, legVersionIds));
+  const courseOfVersion = new Map(legCourseRows.map(row => [row.versionId, row]));
+  const allVersions = [...new Set([...classRows.map(row => row.courseVersionId), ...legVersionIds])];
+  const controlRows = await tx.select({ versionId: schema.courseControls.courseVersionId, code: schema.controls.code })
+    .from(schema.courseControls).innerJoin(schema.controls, eq(schema.controls.id, schema.courseControls.controlId))
+    .where(inArray(schema.courseControls.courseVersionId, allVersions)).orderBy(asc(schema.courseControls.courseVersionId),
+      asc(schema.courseControls.sequence));
+  const courseControls = new Map<string, number[]>();
+  for (const row of controlRows) courseControls.set(row.versionId, [...courseControls.get(row.versionId) ?? [], row.code]);
   const [teams, entries] = await Promise.all([loadRelayTeams(tx, raceId), loadRelayLegEntries(tx, raceId)]);
   const entryIds = entries.map(entry => entry.id);
   const [results, finishes] = await Promise.all([loadRelayLegResults(tx, raceId, entryIds), loadRelayLegFinishTimes(tx, raceId, entryIds)]);
-  const classes = classRows.map((row): RelayClassView => {
+  const classes: RelayClassView[] = [];
+  for (const row of classRows) {
     const config = configs.get(row.id)!;
-    const views = teams.filter(team => team.classId === row.id).map(team => {
-      const legs = entries.filter(entry => entry.teamId === team.id).map(entry => {
+    const classTeams = teams.filter(team => team.classId === row.id);
+    const legsOf = new Map(classTeams.map(team => [team.id, entries.filter(entry => entry.teamId === team.id)]));
+    const starts = relayClassLegStarts(config.legs, classTeams.map(team => ({ key: team.id,
+      changeovers: relayChangeovers(legsOf.get(team.id)!, finishes) })));
+    const views = classTeams.map(team => {
+      const legs = legsOf.get(team.id)!.map(entry => {
         const result = results.get(entry.id);
-        const rule = config.legs.find(leg => leg.leg === entry.leg)!;
-        const previous = entries.find(candidate => candidate.teamId === team.id && candidate.leg === entry.leg - 1);
-        return { entry, ...(result ? { result } : {}),
-          restarted: result !== undefined && relayLegRestarted(rule, previous ? finishes.get(previous.id) : undefined) };
+        const finishTime = finishes.get(entry.id);
+        return { entry, ...(result ? { result } : {}), ...(finishTime ? { finishTime } : {}),
+          restarted: starts.teams.get(team.id)?.get(entry.leg)?.restarted ?? false };
       });
-      return { team, legs, result: relayTeamResult(config.legs.length, legs.map(leg => ({ leg: leg.entry.leg,
+      return { team, legs, result: relayTeamResult(config.legs.length, legs.map(leg => ({ leg: leg.entry.leg, restarted: leg.restarted,
         ...(leg.result ? { status: leg.result.status, ...(leg.result.elapsedMs === undefined ? {} : { elapsedMs: leg.result.elapsedMs }) } : {}) }))) };
     });
-    const ranking = rankRelayTeams(views.map(view => ({ key: view.team.id, result: view.result })));
+    const ranking = rankRelayTeams(views.map(view => ({ key: view.team.id, result: view.result })), { restartRanking: config.restartRanking });
     const byId = new Map(views.map(view => [view.team.id, view]));
     const legRankings = new Map(rankRelayLegs(views.flatMap(view => view.legs.flatMap(leg => leg.result ? [{ key: leg.entry.id,
       leg: leg.entry.leg, status: leg.result.status, courseVersionId: leg.result.courseVersionId,
       ...(leg.result.elapsedMs === undefined ? {} : { elapsedMs: leg.result.elapsedMs }) }] : []))).map(ranking =>
       [ranking.key, { ...(ranking.position === undefined ? {} : { position: ranking.position, timeBehindMs: ranking.timeBehindMs }) }]));
-    return { classId: row.id, name: row.name, courseId: row.courseId, courseName: row.courseName, courseVersionId: row.courseVersionId,
-      config, legRankings, teams: ranking.map(rank => ({ ...byId.get(rank.key)!,
-        ...(rank.position === undefined ? {} : { position: rank.position, timeBehindMs: rank.timeBehindMs }) })) };
-  });
+    const legCourses = new Map(config.legs.flatMap(leg => {
+      const course = leg.courseVersionId ? courseOfVersion.get(leg.courseVersionId) : undefined;
+      return course ? [[leg.leg, { courseId: course.courseId, courseName: course.courseName, courseVersionId: leg.courseVersionId! }] as const] : [];
+    }));
+    const legCourseVariants = await loadRelayLegCourses(tx, config);
+    const unfairTeams = relayClassFairness(legCourseVariants, views.map(view => ({ key: view.team.id,
+      variants: new Map(view.legs.map(leg => [leg.entry.leg, leg.entry.courseVariantCode])) })),
+      new Map(config.legs.map(leg => [relayLegCourseVersionId(config, leg.leg), courseControls.get(relayLegCourseVersionId(config, leg.leg)) ?? []])));
+    classes.push({ classId: row.id, name: row.name, courseId: row.courseId, courseName: row.courseName, courseVersionId: row.courseVersionId,
+      config, legRankings, legCourses, restarts: starts.restarts, unfairTeams, teams: ranking.map(rank => ({ ...byId.get(rank.key)!,
+        ...(rank.position === undefined ? {} : { position: rank.position, timeBehindMs: rank.timeBehindMs }) })) });
+  }
   return { classes, finishes };
 }
 
@@ -96,22 +128,43 @@ export async function getRelayOverviewAsAdmin(db: Database, input: Authenticatio
     const cards = classes.length === 0 ? [] : await tx.select({ entryId: schema.cardAssignments.entryId, cardNumber: schema.cardAssignments.cardNumber })
       .from(schema.cardAssignments).where(and(eq(schema.cardAssignments.raceId, raceId), eq(schema.cardAssignments.active, true)));
     const cardByEntry = new Map(cards.map(row => [row.entryId, row.cardNumber]));
-    const variants = await loadCourseVersionVariants(tx, classes.map(row => row.courseVersionId));
+    const variants = await loadCourseVersionVariants(tx, [...new Set([...classes.map(row => row.courseVersionId),
+      ...classes.flatMap(row => [...row.legCourses.values()].map(course => course.courseVersionId))])]);
+    const entryIds = classes.flatMap(row => row.teams.flatMap(view => view.legs.map(leg => leg.entry.id)));
+    const revisions = new Map((entryIds.length === 0 ? [] : await tx.select({ entryId: schema.resultRevisions.entryId,
+      revision: max(schema.resultRevisions.revision) }).from(schema.resultRevisions)
+      .where(and(eq(schema.resultRevisions.raceId, raceId), inArray(schema.resultRevisions.entryId, entryIds)))
+      .groupBy(schema.resultRevisions.entryId)).map(row => [row.entryId, row.revision ?? 0]));
+    const numberOf = new Map(classes.flatMap(row => row.teams.map(view => [view.team.id, view.team.number] as const)));
     return { status: "ok", response: relayOverviewSchema.parse({ formatVersion: 1, raceId, snapshotVersion: race.snapshotVersion,
       timeZone: event.timeZone,
       classes: classes.map(row => ({ id: row.classId, name: row.name, courseId: row.courseId, courseName: row.courseName,
         courseVariants: (variants.get(row.courseVersionId) ?? []).map(variant => variant.code),
         legs: row.config.legs.map(leg => ({ leg: leg.leg, startMethod: leg.startMethod, startTime: leg.startTime ?? null,
-          variantCode: leg.variantCode })), teamCount: row.teams.length })),
+          variantCode: leg.variantCode, courseId: row.legCourses.get(leg.leg)?.courseId ?? null,
+          restartAfterMinutes: leg.restartAfterMinutes ?? null })), teamCount: row.teams.length,
+        restartRanking: row.config.restartRanking, forking: row.config.forking,
+        legCourses: row.config.legs.map(leg => {
+          const own = row.legCourses.get(leg.leg);
+          const version = own?.courseVersionId ?? row.courseVersionId;
+          return { leg: leg.leg, courseId: own?.courseId ?? row.courseId, courseName: own?.courseName ?? row.courseName,
+            variants: (variants.get(version) ?? []).map(variant => variant.code) };
+        }),
+        restarts: [...row.restarts.values()].map(restart => ({ leg: restart.leg, time: restart.time ?? null,
+          leaderChangeover: restart.leaderChangeover ?? null, leaderTeamNumber: restart.leaderKey ? numberOf.get(restart.leaderKey) ?? null : null,
+          restartAfterMinutes: restart.restartAfterMinutes ?? null })),
+        unfairTeams: row.unfairTeams.map(team => ({ teamId: team.key, missing: team.missing, extra: team.extra })) })),
       teams: classes.flatMap(row => [...row.teams].sort((left, right) => left.team.number - right.team.number).map(view => ({
         id: view.team.id, classId: row.classId, number: view.team.number, name: view.team.name,
         organisationName: view.team.organisationName, status: view.result.status, elapsedMs: view.result.elapsedMs ?? null,
-        position: view.position ?? null, currentLeg: view.result.currentLeg ?? null,
+        position: view.position ?? null, currentLeg: view.result.currentLeg ?? null, restarted: view.result.restarted,
+        hasResult: view.legs.some(leg => (revisions.get(leg.entry.id) ?? 0) > 0),
         legs: view.legs.map(leg => ({ leg: leg.entry.leg, entryId: leg.entry.id, entryVersion: leg.entry.version,
           givenName: leg.entry.givenName, familyName: leg.entry.familyName, organisationName: leg.entry.organisationName,
           cardNumber: cardByEntry.get(leg.entry.id) ?? null, variantCode: leg.entry.courseVariantCode,
           startTime: leg.entry.fixedStartTime?.toISOString() ?? null, status: leg.result?.status ?? null,
-          elapsedMs: leg.result?.elapsedMs ?? null, restarted: leg.restarted }))
+          elapsedMs: leg.result?.elapsedMs ?? null, restarted: leg.restarted, finishTime: leg.finishTime ?? null,
+          hasResult: (revisions.get(leg.entry.id) ?? 0) > 0, resultRevision: revisions.get(leg.entry.id) ?? 0 }))
       }))) }) };
   }, { isolationLevel: "repeatable read" });
 }
@@ -129,11 +182,13 @@ export async function publicRelayResults(db: Database, raceId: string): Promise<
         legs: view.legs.map(leg => ({ leg: leg.entry.leg, givenName: leg.entry.givenName, familyName: leg.entry.familyName,
           organisationName: leg.entry.organisationName, publicResultId: leg.entry.publicResultId, status: leg.result?.status ?? null,
           elapsedMs: leg.result?.elapsedMs ?? null, legPosition: row.legRankings.get(leg.entry.id)?.position ?? null,
-          restarted: leg.restarted, variantCode: leg.entry.courseVariantCode })) })),
+          restarted: leg.restarted, variantCode: leg.entry.courseVariantCode,
+          courseName: row.legCourses.get(leg.entry.leg)?.courseName ?? null })), restarted: view.result.restarted })),
       legs: row.config.legs.map(rule => ({ leg: rule.leg, results: row.teams.flatMap(view => view.legs
         .filter(leg => leg.entry.leg === rule.leg && leg.result).map(leg => ({ ranking: row.legRankings.get(leg.entry.id) ?? {},
           givenName: leg.entry.givenName, familyName: leg.entry.familyName, teamNumber: view.team.number, teamName: view.team.name,
-          status: leg.result!.status, elapsedMs: leg.result!.elapsedMs ?? null })))
+          status: leg.result!.status, elapsedMs: leg.result!.elapsedMs ?? null, variantCode: leg.entry.courseVariantCode,
+          restarted: leg.restarted })))
         .sort((left, right) => (left.ranking.position ?? Number.MAX_SAFE_INTEGER) - (right.ranking.position ?? Number.MAX_SAFE_INTEGER) ||
           left.teamNumber - right.teamNumber)
         .map(({ ranking, ...result }) => ({ ...result, position: ranking.position ?? null, timeBehindMs: ranking.timeBehindMs ?? null })) }))
@@ -147,7 +202,7 @@ export async function loadRelayReadout(tx: Transaction, raceId: string): Promise
   if (classes.length === 0) return undefined;
   return relayReadoutSchema.parse({
     classes: classes.map(row => ({ classId: row.classId, legs: row.config.legs.map(leg => ({ leg: leg.leg, startMethod: leg.startMethod,
-      startTime: leg.startTime ?? null })) })),
+      startTime: leg.startTime ?? null, restartAfterMinutes: leg.restartAfterMinutes ?? null })) })),
     teams: classes.flatMap(row => row.teams.map(view => ({ id: view.team.id, classId: row.classId, number: view.team.number,
       name: view.team.name, legs: view.legs.map(leg => ({ leg: leg.entry.leg, entryId: leg.entry.id })) }))),
     legResults: classes.flatMap(row => row.teams.flatMap(view => view.legs.flatMap(leg => leg.result ? [{ entryId: leg.entry.id,

@@ -28,6 +28,12 @@ export function courseVariantControlCodes(variant: CourseVariant): number[] {
   return [...variant.controls].sort((left, right) => left.sequence - right.sequence).map((control) => control.controlCode);
 }
 
+/** Banversionen som löparen springer: stafettsträckans egen bana, annars klassens (steg 47). */
+export function entryCourseVersionId(entry: { readonly courseVersionId?: string | undefined },
+  raceClass: { readonly courseVersionId: string }): string {
+  return entry.courseVersionId ?? raceClass.courseVersionId;
+}
+
 function versionById(snapshot: RaceSnapshot, courseVersionId: string): CourseVersion | undefined {
   for (const course of snapshot.courses) {
     const version = course.versions.find((candidate) => candidate.id === courseVersionId);
@@ -44,7 +50,7 @@ export function entryCourseControls(snapshot: RaceSnapshot, entryId: string):
   { readonly variantCode?: string; readonly assigned: boolean; readonly controlCodes: readonly number[] } | undefined {
   const entry = snapshot.entries.find((candidate) => candidate.id === entryId);
   const raceClass = entry && snapshot.classes.find((candidate) => candidate.id === entry.classId);
-  const version = raceClass && versionById(snapshot, raceClass.courseVersionId);
+  const version = raceClass && versionById(snapshot, entryCourseVersionId(entry, raceClass));
   if (!entry || !version) return undefined;
   const assigned = assignedCourseVariant(version, entry.courseVariantCode);
   if (assigned) return { variantCode: assigned.code, assigned: true, controlCodes: courseVariantControlCodes(assigned) };

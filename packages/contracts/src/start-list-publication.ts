@@ -30,8 +30,10 @@ const entry = z.object({
     courseVariantCode: courseVariantCodeSchema.optional(),
     /** Stafett (ADR-0169 beslut 3): laget och sträckan. Sträcka 2 och senare har ingen starttid före växlingen. */
     relay: z.object({ teamNumber: z.number().int().min(1).max(99999), teamName: z.string().trim().min(1).max(160),
-        teamOrganisationName: z.string().trim().min(1).max(200).nullable(), leg: z.number().int().min(1).max(20),
-        startMethod: z.enum(["MASS_START", "CHANGEOVER", "RESTART"]) }).strict().optional()
+        teamOrganisationName: z.string().trim().min(1).max(200).nullable(), leg: z.number().int().min(1).max(30),
+        startMethod: z.enum(["MASS_START", "CHANGEOVER", "RESTART", "FLYING_RESTART"]),
+        /** Steg 47: sträckans egen bana när den inte är klassens. */
+        courseName: z.string().trim().min(1).max(160).optional() }).strict().optional()
 }).strict();
 /** Startlistans fakta om klassen (PLAN.md steg 13). Saknas i publiceringar gjorda före steg 13. */
 export const startListClassFactsSchema = z.object({
@@ -46,7 +48,7 @@ export const startListClassFactsSchema = z.object({
     /** Lediga lottade starttider (vakanser). */
     vacancies: z.array(instant).max(10000).optional(),
     /** Stafettklass: antal sträckor. */
-    relayLegCount: z.number().int().min(2).max(20).optional()
+    relayLegCount: z.number().int().min(2).max(30).optional()
 }).strict();
 const raceClass = z.object({
     name: z.string().trim().min(1).max(160), startRule: z.enum(["FIXED", "PUNCH"]), entries: z.array(entry).max(10000),

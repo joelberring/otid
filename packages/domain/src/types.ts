@@ -119,6 +119,8 @@ export interface Entry {
   readonly fixedStartTime?: string;
   /** Löparens variant av klassens bana (gafflad bana). Saknas = ingen tilldelad variant. */
   readonly courseVariantCode?: string;
+  /** Stafettsträckans egen bana (steg 47). Saknas = klassens bana. */
+  readonly courseVersionId?: UUID;
   readonly externalIdentity?: ExternalIdentity;
 }
 

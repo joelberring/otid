@@ -5,7 +5,7 @@
  * - Fri start: löparen stämplar start (startstämpling).
  * - Minutstart: fast starttid, lottad eller satt för hand.
  * - Masstart: alla i klassen startar samtidigt.
- * - Stafett: Masstart, Växling och Omstart per sträcka.
+ * - Stafett: Masstart, Växling, Omstart och Flygande omstart (steg 47) per sträcka.
  */
 export const startRuleSv = {
   /** Rubrik för fält och kolumner. */
@@ -21,7 +21,7 @@ export const startRuleSv = {
   /** Lottningens val. */
   methods: { FREE: "Fri start", MINUTE: "Minutstart", MASS: "Masstart" },
   /** Stafettens startsätt per sträcka. */
-  relay: { MASS_START: "Masstart", CHANGEOVER: "Växling", RESTART: "Omstart" },
+  relay: { MASS_START: "Masstart", CHANGEOVER: "Växling", RESTART: "Omstart", FLYING_RESTART: "Flygande omstart" },
   startTime: "Starttid",
   noStartTime: "Ingen starttid",
   noStartTimeYet: "Lottas senare",

@@ -17,7 +17,12 @@ export const selfRegistrationSv = {
   chooseClass: "Välj klass",
   submit: "Registrera",
   saving: "Registrerar …",
-  privacy: "Namnet kopplas till brickan för den här tävlingen och syns för arrangören.",
+  /** Steg 46: vad som visas publikt, per slag. */
+  privacy: {
+    race: "Namn, klubb och klass syns i den publika startlistan och resultatlistan, märkt ”självreg.”.",
+    party: "Namnet kopplas till pinnen och syns för arrangören och i baren. Fest-sidan visar inga namn.",
+    partyNames: "Dina köp visas med ditt visningsnamn på den här sidan. Fullt namn syns bara för arrangören och i baren."
+  },
   privacyLink: "Om personuppgifter",
   receipt: (card: string, name: string) => `Klart! Pinne ${card} är kopplad till ${name}.`,
   receiptClass: (className: string) => `Du är anmäld i ${className}.`,
@@ -45,5 +50,20 @@ export const selfRegistrationSv = {
     failed: "Inställningen kunde inte sparas."
   },
   settingTitle: "Självregistrering",
-  selfRegistered: "Självregistrerad"
+  selfRegistered: "Självregistrerad",
+  /** Steg 46: under Anmälda. */
+  cleanup: {
+    title: "Självregistrerade som inte läst ut",
+    load: "Stryk alla självregistrerade som inte läst ut",
+    help: "De här har registrerat sig själva och har ingen avläsning eller något beslut. Strukna försvinner från alla listor och brickan blir ledig. Inget tas bort.",
+    count: (count: number) => count === 1 ? "1 självregistrerad som inte läst ut" : `${count} självregistrerade som inte läst ut`,
+    none: "Inga självregistrerade att stryka.",
+    confirm: (count: number) => count === 1 ? "Stryk 1 självregistrerad" : `Stryk ${count} självregistrerade`,
+    cancel: "Avbryt",
+    retry: "Försök igen",
+    saved: (struck: number, skipped: number) => `${struck === 1 ? "1 självregistrerad är struken" : `${struck} självregistrerade är strukna`}.` +
+      (skipped > 0 ? ` ${skipped} lämnades kvar eftersom de har läst ut eller ändrats under tiden.` : ""),
+    loadError: "Listan kunde inte hämtas. Försök igen.",
+    saveError: "Inget ströks. Försök igen."
+  }
 } as const;

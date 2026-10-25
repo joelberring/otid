@@ -24,6 +24,8 @@ const entry = z.object({
      * "Visa bricknummer i den publika startlistan" är på; annars tas den bort innan listan lämnar servern.
      */
     cardNumber: z.string().trim().min(1).max(32).optional(),
+    /** Steg 46: deltagaren registrerade sig själv på tävlingsdagen (inte bekräftad av arrangören). Visas diskret publikt. */
+    selfRegistered: z.literal(true).optional(),
     /** Gafflad klass: löparens variant (ADR-0169 beslut 2). Saknas för klasser utan varianter. */
     courseVariantCode: courseVariantCodeSchema.optional(),
     /** Stafett (ADR-0169 beslut 3): laget och sträckan. Sträcka 2 och senare har ingen starttid före växlingen. */

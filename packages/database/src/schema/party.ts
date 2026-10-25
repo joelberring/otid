@@ -10,6 +10,7 @@ import { races } from "./core";
 export const partySettings = pgTable("party_setting", {
   raceId: uuid("race_id").primaryKey().references(() => races.id),
   startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+  /** Steg 46: utan sparad rad visas inga namn (domänens `partyShowsPublicNames`); appen skriver alltid värdet. */
   showPublicNames: boolean("show_public_names").notNull().default(true),
   /** Stämplingar på samma kod inom så många sekunder räknas som ett köp. */
   doublePunchSeconds: integer("double_punch_seconds").notNull().default(5),

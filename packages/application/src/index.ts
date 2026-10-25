@@ -86,3 +86,4 @@ export * from "./race-corrections";
 export * from "./readout-reread";
 export * from "./party";
 export { readSelfRegistrationInfo, selfRegisterCard, type SelfRegistrationResult } from "./self-registration";
+export { previewSelfRegistrationCleanupAsAdmin, strikeSelfRegisteredAsAdmin } from "./self-registration-cleanup";

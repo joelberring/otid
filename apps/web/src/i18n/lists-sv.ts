@@ -23,6 +23,8 @@ export const listsSv = {
   course: { name: (name: string) => `Bana ${name}`, km: (km: string) => `${km} km`, climb: (meters: number) => `${meters} m` },
   start: {
     title: "Startlista",
+    selfRegistered: "självreg.",
+    selfRegisteredHelp: "Registrerade sig själv på tävlingsdagen",
     views: { CLASS: "Per klass", TIME: "Per starttid", CLUB: "Per klubb" },
     titles: { CLASS: "Startlista per klass", TIME: "Startlista per starttid", CLUB: "Startlista per klubb" },
     runners: (count: number) => plural(count, "löpare", "löpare"),

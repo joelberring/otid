@@ -42,7 +42,8 @@ async function projection(tx: DbExecutor, race: {
     const es = await tx.select({
         id: schema.entries.id, classId: schema.entries.classId, givenName: schema.entries.givenName, familyName: schema.entries.familyName, organisationName: schema.entries.organisationName, fixedStartTime: schema.entries.fixedStartTime,
         eventorPersonId: schema.entries.eventorPersonId, eventorOrganisationId: schema.entries.eventorOrganisationId,
-        courseVariantCode: schema.entries.courseVariantCode, teamId: schema.entries.teamId, relayLeg: schema.entries.relayLeg
+        courseVariantCode: schema.entries.courseVariantCode, teamId: schema.entries.teamId, relayLeg: schema.entries.relayLeg,
+        selfRegisteredAt: schema.entries.selfRegisteredAt
     }).from(schema.entries).where(and(eq(schema.entries.raceId, race.id), isNull(schema.entries.struckAt))).limit(MAX_ENTRIES + 1);
     if (cs.length > MAX_CLASSES || es.length > MAX_ENTRIES)
         throw new SourceProjectionError();
@@ -74,7 +75,7 @@ async function projection(tx: DbExecutor, race: {
                 displayName: `${e.givenName} ${e.familyName}`, organisationName: e.organisationName,
                 personEventorId: e.eventorPersonId, organisationEventorId: e.eventorOrganisationId, fixedStartTime: c.startRule === "FIXED" ? e.fixedStartTime?.toISOString() ?? null : null, id: e.id, f: e.familyName, g: e.givenName,
                 variant: (variants.get(c.courseVersionId) ?? []).some(v => v.code === e.courseVariantCode) ? e.courseVariantCode : null,
-                relay: relayOf(e), cardNumber: cards.get(e.id) ?? null
+                relay: relayOf(e), cardNumber: cards.get(e.id) ?? null, selfRegistered: e.selfRegisteredAt !== null
             })).sort((a, b) => {
                 if (a.relay && b.relay) return a.relay.teamNumber - b.relay.teamNumber || a.relay.leg - b.relay.leg;
                 const at = a.fixedStartTime ? Date.parse(a.fixedStartTime) : Infinity, bt = b.fixedStartTime ? Date.parse(b.fixedStartTime) : Infinity;
@@ -89,7 +90,8 @@ async function projection(tx: DbExecutor, race: {
                 displayName: e.displayName, organisationName: e.organisationName, fixedStartTime: e.fixedStartTime,
                 ...(e.variant ? { courseVariantCode: e.variant } : {}),
                 ...(e.relay ? { relay: e.relay } : {}),
-                ...(e.cardNumber ? { cardNumber: e.cardNumber } : {})
+                ...(e.cardNumber ? { cardNumber: e.cardNumber } : {}),
+                ...(e.selfRegistered ? { selfRegistered: true as const } : {})
             })) }))
     });
     if (!parsed.success) throw new SourceProjectionError();

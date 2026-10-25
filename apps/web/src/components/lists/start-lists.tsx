@@ -35,6 +35,7 @@ function Name({ entry, context, club = true }: { entry: StartEntry; context: Con
       ? <button type="button" className={styles.person} disabled={disabled} onClick={() => onSelectEntry(entry.id!)}
         aria-label={t.openPerson(entry.name)}>{entry.name}</button>
       : entry.name}
+    {entry.selfRegistered && <> <abbr className={styles.muted} title={t.selfRegisteredHelp}>{t.selfRegistered}</abbr></>}
     {club && <span className={styles.subMobile}>{startClub(entry) ?? ""}</span>}
   </th>;
 }

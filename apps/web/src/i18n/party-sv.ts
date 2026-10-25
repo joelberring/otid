@@ -20,7 +20,7 @@ export const partySv = {
   doublePunchHelp: "Samma vara flera gånger är flera köp. Stämplingar på samma enhet tätare än så räknas som ett köp.",
   invalidDouble: "Skriv antal sekunder, 0–600.",
   publicNames: "Visa namn på den publika sidan",
-  publicNamesHelp: "Belopp och bricknummer visas aldrig publikt.",
+  publicNamesHelp: "Av från början. På: köpen och kvällens tider visas med gästens visningsnamn på fest-sidan, och gästerna får veta det när de registrerar sig. Belopp, fullt namn och bricknummer visas aldrig publikt.",
   saveSettings: "Spara start",
   settingsSaved: "Starten är sparad.",
   noStart: "Festens start är inte satt. Inga köp räknas förrän den är satt.",

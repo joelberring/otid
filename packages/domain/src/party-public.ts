@@ -2,7 +2,7 @@ import { partyDisplayName, type PartyItem, type PartyLedger } from "./party";
 
 /**
  * Den publika fest-sidan (PLAN.md steg 40): statistik över kvällen utan belopp och utan bricknummer. Namn finns bara
- * när festen visar namn publikt (förvalt på); belopp per person visas aldrig. Ren funktion; kontraktet ligger i
+ * när festen visar namn publikt (av för nya fester, steg 46); belopp per person visas aldrig. Ren funktion; kontraktet ligger i
  * `contracts` och sidan i webben.
  */
 export interface PartyPublicStats {
@@ -118,6 +118,15 @@ export function partySplits(ledger: PartyLedger, options: { readonly showNames: 
 const QUARTER_MS = 15 * 60_000;
 const HOUR_MS = 60 * 60_000;
 const RECENT = 12;
+
+/**
+ * Steg 46: "Visa namn på den publika sidan" är av tills admin slår på det. En fest som redan har sparat inställningen
+ * behåller sitt val; utan sparad inställning visas inga namn.
+ */
+export const PARTY_SHOW_PUBLIC_NAMES_DEFAULT = false;
+export function partyShowsPublicNames(setting: { readonly showPublicNames: boolean } | undefined): boolean {
+  return setting?.showPublicNames ?? PARTY_SHOW_PUBLIC_NAMES_DEFAULT;
+}
 
 const floorTo = (value: number, step: number) => Math.floor(value / step) * step;
 

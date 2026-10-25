@@ -87,6 +87,8 @@ describe("självregistrering på tävlingsdagen (PLAN.md steg 41)", () => {
   it("fest: okänd gäst (avläst utan namn) får namn, en namngiven gäst skrivs inte över, natten efter är öppen till kl 06", async () => {
     const { ids } = await openRace({ party: true });
     const admin = await auth(db, ids.race, "ADMIN");
+    // Steg 46: namn på den publika sidan är av för nya fester; den här festen har slagit på dem.
+    await pool.query("INSERT INTO party_setting(race_id,starts_at,show_public_names,updated_at) VALUES($1,$2,true,$2)", [ids.race, NOW]);
     expect(await readSelfRegistrationInfo(db, ids.race, NOW)).toMatchObject({ open: true, kind: "PARTY", classes: [] });
     const number = card();
     await ingest(db, ids.race, [run(number, "11:00:00", 30)]);

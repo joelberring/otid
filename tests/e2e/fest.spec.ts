@@ -20,6 +20,9 @@ test("fest: bardisken checkar in, verifierar köp och checkar ut med mål", asyn
   const start = owner.getByRole("form", { name: "Festens start" });
   await start.getByLabel("Datum").fill(today());
   await start.getByLabel("Klockslag").fill("00:00");
+  // Steg 46: namn på den publika sidan är av för en ny fest; den här festen slår på dem.
+  await expect(start.getByLabel("Visa namn på den publika sidan")).not.toBeChecked();
+  await start.getByLabel("Visa namn på den publika sidan").check();
   await start.getByRole("button", { name: "Spara start" }).click();
   await expect(owner.getByText("Starten är sparad.")).toBeVisible();
   const add = owner.getByRole("form", { name: "Lägg till vara" });
@@ -183,6 +186,7 @@ test("fest: bardisken checkar in, verifierar köp och checkar ut med mål", asyn
   await expect(visitor.getByTestId("party-numbers")).toContainText("sålda");
   await expect(visitor.getByRole("heading", { name: "Vad säljer bäst" })).toBeVisible();
   await expect(visitor.getByTestId("party-public")).toContainText("Festa P");
+  await expect(visitor.getByTestId("party-names-shown")).toHaveText("Dina köp visas med ditt visningsnamn på den här sidan.");
   await expect(visitor.getByTestId("party-public")).not.toContainText("Påhittsson");
   await expect(visitor.getByTestId("party-public")).not.toContainText(/\d\s?kr\b/);
   // Steg 41: "Centrum OK 20 år" har rubriker i Poppins Bold (självhostad) och centrumröd som bärande färg.

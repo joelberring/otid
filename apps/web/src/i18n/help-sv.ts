@@ -205,6 +205,7 @@ export const helpArticles: readonly HelpArticle[] = [
     views: ["SETTINGS", "EVENTS"],
     body: [
       "En funktionär läser av, direktanmäler, följer kvar i skogen, sköter starten och ser speakersidan. Inget annat.",
+      "Funktionären ser deltagarnas och gästernas fulla namn, klubb och bricka och kan ladda ner festens köp (”Ladda ner summering (CSV)”), så ge behörigheten bara till personer du litar på.",
       "Personen skapar först ett eget konto. Gå sedan till ”Inställningar” → ”Personer med behörighet”.",
       "Skriv personens e-postadress under ”Lägg till person”, välj ”Funktionär” och tryck på ”Lägg till”. Personen ser tävlingen under ”Mina tävlingar”.",
       "”Ta bort” tar bort behörigheten direkt."

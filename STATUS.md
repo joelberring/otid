@@ -10,6 +10,15 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-10-25 – Steg 46: rättelser efter genomlysningen, säkerhet och integritet
+- Huvuden: nosniff, Referrer-Policy och X-Frame-Options DENY på alla svar (`next.config.ts`); strikt CSP med nonce på Next-sidorna (`src/proxy.ts`, `lib/content-security-policy.ts`, rotlayouten renderar vid förfrågan); avläsningen/bardisken får serial/usb på `/admin/{id}/readout` och `/readout/`. Inga sidor bäddas in, så inga undantag. Playwright `sakerhetshuvuden` läser de riktiga huvudena.
+- Fest: "Visa namn på den publika sidan" av för nya fester (`partyShowsPublicNames`); formuläret och fest-sidan säger "Dina köp visas med ditt visningsnamn på den här sidan." när namnen visas.
+- /integritet och /om: fest, självregistrering och IP-hash, bricknummer i startlistan, live och sträcktider, noindex, lagring och radering.
+- Tävling: självregistrerade märks "självreg." i den publika startlistan (enklast och syns direkt; att vänta på bekräftelse kräver ett nytt flöde), 100 per tävling och dygn, "Stryk alla självregistrerade som inte läst ut" under Anmälda (förhandsvisning, auditpost per deltagare, idempotent).
+- Spärrar: HMAC med `OTID_THROTTLE_SECRET` (reserv `DATABASE_URL`, inget behöver läggas till i drift), rader äldre än två dygn rensas vid skrivning; inloggningen spärras också per IP (30 fel/15 min). Spärren per e-post var redan tidsbegränsad (15 min).
+- Bardiskens namn och klubb normaliseras; hjälpen och Personer med behörighet säger att funktionären ser fullt namn och kan ladda ner CSV.
+- Tester: domän `party-public-names`, integration `steg-46-sakerhet` (+ `steg-41` med namn på), Playwright `sakerhetshuvuden`, `sjalvregistrering-tavling`, `fest`, `sjalvregistrering`.
+
 ### 2026-10-24 – Steg 42: fest – Eventor-nyckel, kvällens sträcktider och QR-skylt
 - Fest-typen visar Eventor-nyckeln och löpardatabasen under Inställningar (utan tävlingsval och import).
 - "Kvällens sträcktider" (`#stracktider`) på `/fest/{kod}`: en rad per gäst med köp (flest först, vid lika tidigaste första köpet), In, varje köp ("21:14 Margarita" med färgprick per grupp/vara), Mål och "+18:30" sedan förra händelsen; Totalt = antal köp och tid från incheckning (eller första köpet) till utcheckning (eller senaste köpet). Bara köp som räknas (`partyLedger`: start, dubbelstämpling, ångrade bort). Rullar i sidled med namnet fast; var 10:e sekund.

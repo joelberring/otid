@@ -44,7 +44,7 @@ export const raceTypeSv = {
     failed: "Inställningarna kunde inte sparas. Försök igen.",
     people: {
       title: "Personer med behörighet",
-      help: "Funktionärer når avläsning, direktanmälan av okänd bricka, kvar i skogen, start och speaker. Administratörer når allt. Personen loggar in med sitt eget konto.",
+      help: "Funktionärer når avläsning, direktanmälan av okänd bricka, kvar i skogen, start och speaker. De ser deltagarnas fulla namn och kan ladda ner festens köp som CSV-fil. Administratörer når allt. Personen loggar in med sitt eget konto.",
       loading: "Hämtar personer …",
       loadError: "Listan kunde inte hämtas. Försök igen.",
       name: "Namn",

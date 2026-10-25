@@ -17,13 +17,16 @@ export default function PrivacyPage() {
     <div className={styles.prose}>
       <p>{text.intro}</p>
       <h2>{text.whatTitle}</h2>
-      <ul className={styles.list}><li>{text.accounts}</li><li>{text.races}</li><li>{text.runners}</li><li>{text.logs}</li></ul>
+      <ul className={styles.list}><li>{text.accounts}</li><li>{text.races}</li><li>{text.runners}</li><li>{text.party}</li>
+        <li>{text.selfRegistration}</li><li>{text.logs}</li></ul>
       <h2>{text.whyTitle}</h2>
       <p>{text.why}</p>
       <h2>{text.howLongTitle}</h2>
       <p>{text.howLong}</p>
       <h2>{text.publicTitle}</h2>
       <p>{text.public}</p>
+      <ul className={styles.list}>{text.publicItems.map(item => <li key={item}>{item}</li>)}</ul>
+      <p>{text.runnersPublic}</p>
       <h2>{text.contactTitle}</h2>
       <p>{text.contact} <a href={`mailto:${contact}`}>{contact}</a></p>
     </div>

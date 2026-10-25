@@ -68,6 +68,9 @@ Gemensamma hjälpare: UUID-mönstret och idempotensnycklarnas form (`UUID_PATTER
   avläsningen) till senast i mål, ledare per klass ("Ny ledare" i 5 min) och radiopassager; inga bricknummer, interna id:n eller
   strukna. Uppdateras som resultatlistan (`lib/use-public-race-data.ts`: resultatströmmen + hämtning var femte sekund). Följda
   löpare och klubbar finns bara i webbläsarens localStorage (`lib/follow-store.ts`).
+- Svarshuvuden och CSP (PLAN.md steg 46): strikt CSP med nonce för Next-sidorna i `src/proxy.ts` (alla sidor renderas vid
+  förfrågan, `connection()` i rotlayouten), egen CSP för avläsningsskalet och API:t och gemensamma huvuden för alla svar i
+  `next.config.ts`; innehållet i `lib/content-security-policy.ts`. Beslut och undantag i `docs/security-privacy.md`.
 - Se `docs/security-privacy.md`.
 
 ## Var resultatlogiken finns

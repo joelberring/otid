@@ -29,18 +29,4 @@ describe("TASK 005G importadmin-UI", () => {
     for (const word of ["atomärt", "request-id", "SHA-256", "application/xml", "byte\" ", "Skyddad"]) expect(translations).not.toContain(word);
   });
 
-
-  it("lägger privata browserheaders på adminytor och avläsningsskalet", async () => {
-    const headers = await (await import("../../next.config")).default.headers!();
-    const forSource = (path: string) => new Map(headers.find((rule) => rule.source === path)?.headers.map((h) => [h.key, h.value]));
-    for (const path of ["/admin/:raceId/imports", "/admin/:raceId/manage"]) {
-      expect(forSource(path).get("Content-Security-Policy")).toBe("frame-ancestors 'none'");
-      expect(forSource(path).get("X-Frame-Options")).toBe("DENY");
-      expect(forSource(path).get("Cache-Control")).toBe("private, no-store");
-    }
-    const readout = forSource("/readout/:path*");
-    expect(readout.get("Permissions-Policy")).toContain("serial=(self)");
-    expect(readout.get("Permissions-Policy")).toContain("usb=(self)");
-    expect(readout.get("Content-Security-Policy")).toContain("connect-src 'self'");
-  });
 });

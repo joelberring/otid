@@ -76,8 +76,11 @@ bricknummer eller namn. Stämplingarna tas bort med tävlingen.
 ## Konton och superadmin (ADR-0172)
 
 Kontot identifieras med normaliserad e-post. Lösenord lagras som `scrypt`-verifierare (minst 8 tecken).
-Inloggning spärras efter fem fel per adress i 15 minuter; registrering och återställningsförfrågningar
-räknas per IP-adress (och per e-post) och timme, med nycklarna hashade. Glömt lösenord svarar likadant
+Inloggning spärras efter fem fel per e-postadress i 15 minuter, och efter 30 fel från samma IP-adress (oavsett konto) i 15
+minuter; spärrarna går ut av sig själva och är aldrig permanenta (steg 46). Registrering, återställningsförfrågningar och
+självregistrering räknas per IP-adress (och per e-post eller tävling). Nycklarna sparas bara som HMAC-SHA-256 med serverns
+hemlighet (`OTID_THROTTLE_SECRET`, annars härledd ur `DATABASE_URL`), och rader äldre än två dygn tas bort vid nästa
+skrivning (`application/src/account-throttle.ts`). Glömt lösenord svarar likadant
 oavsett om adressen finns. Länken bär en slumpad engångsnyckel (bara hashen sparas), gäller en timme och
 en gång, och alla kontots sessioner spärras när lösenordet byts. Länken ligger i adressens fragment
 (`/recover#token=…`), så den hamnar inte i serverloggar, och sidan tar bort den ur adressfältet.
@@ -87,3 +90,30 @@ Superadmin sätts bara med kommando på servern. Varje superadminåtgärd kräve
 append-only-logg utan främmande nycklar, så den finns kvar när kontot eller tävlingen är borttagen.
 Borttagning av tävling eller konto tar bort alla rader som hör till, också råa avläsningar, i en
 transaktion. Vilka personuppgifter som sparas står på `/integritet` (kontakt: `OTID_CONTACT_EMAIL`).
+
+## Svarshuvuden och CSP (PLAN.md steg 46)
+
+- Alla svar (`next.config.ts`): `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin` och
+  `X-Frame-Options: DENY`. Ingen sida i O-Tid behöver bäddas in i en ram, så det finns inga undantag. Adminsidorna,
+  kontosidorna och avläsningsskalet har `Referrer-Policy: no-referrer`.
+- Next-sidorna (publika, admin och konto) får en strikt CSP med nonce från `src/proxy.ts`:
+  `script-src 'self' 'nonce-…' 'strict-dynamic'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`
+  (`lib/content-security-policy.ts`). Next sätter noncen på sina skript; därför renderas alla sidor vid förfrågan
+  (rotlayouten väntar på `connection()`). Stilar, bilder och anrop begränsas inte (React sätter style-attribut och festens
+  färger); allt laddas från samma värd. Utvecklingsläget har dessutom `'unsafe-eval'`.
+- Avläsningsskalet och bardisken (`/admin/{id}/readout` → `/readout/index.html`) har en egen CSP utan inbäddade skript
+  (`default-src 'none'`, bara egna filer, service worker) och `Permissions-Policy` med `serial=(self)` och `usb=(self)`.
+- API-svaren har `default-src 'none'; frame-ancestors 'none'`.
+- Playwright `sakerhetshuvuden` kontrollerar huvudena på en publik sida, en adminsida, avläsningen, fest-sidan och en API-rutt
+  och att sidorna fungerar utan CSP-fel.
+
+## Självregistrering och fest (PLAN.md steg 41, 46)
+
+- Självregistrerade deltagare syns direkt i den publika startlistan, märkta "självreg." (kontraktets `selfRegistered`). Att
+  vänta på arrangörens bekräftelse valdes bort: det skulle kräva ett nytt beslutsflöde och hindra löparen från att se sig
+  själv. Missbruk begränsas av spärren (20 per IP och 10 minuter, 100 per tävling och dygn) och knappen "Stryk alla
+  självregistrerade som inte läst ut" under Anmälda (förhandsvisning, bekräftelse, auditpost per deltagare).
+- Fest: "Visa namn på den publika sidan" är av för nya fester. När namnen visas säger formuläret och fest-sidan det
+  ("Dina köp visas med ditt visningsnamn på den här sidan."). Belopp, bricknummer och fullt namn visas aldrig publikt.
+- Funktionären ser fullt namn och kan ladda ner festens köp som CSV; det är avsiktligt och står i hjälpen och under
+  Personer med behörighet.

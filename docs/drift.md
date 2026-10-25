@@ -110,6 +110,19 @@ sparade Eventor-nycklarna inte läsas, och administratören klistrar in klubbens
 `OTID_EVENTOR_BASE_URL` används bara för test (pekar O-Tid mot en falsk Eventor) och
 ska inte sättas i drift.
 
+## Spärrar mot upprepade försök
+
+Inloggning, registrering, återställning av lösenord och självregistrering räknas per IP-adress (och e-post eller tävling).
+Adresserna sparas bara som HMAC med en hemlighet: `OTID_THROTTLE_SECRET` om den finns i `.env`, annars härleds den ur
+`DATABASE_URL` (databasens lösenord), så en befintlig server behöver inte ändras. Vill du ha en egen hemlighet:
+
+```bash
+echo "OTID_THROTTLE_SECRET=$(openssl rand -base64 32)" >> .env
+docker compose -f docker-compose.prod.yml up -d
+```
+
+Ett byte nollställer bara räknarna. Raderna tas bort efter två dygn.
+
 ## Superadmin
 
 Superadmin ser alla konton och tävlingar på `/superadmin` och kan dölja eller ta bort en tävling,

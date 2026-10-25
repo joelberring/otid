@@ -22,7 +22,9 @@ export const aboutSv = {
     "IOF XML 3.0: banor in från banläggningsprogram (Purple Pen, OCAD, Condes), startlista och resultat ut.",
     "Lottning med fri start, minutstart och masstart, vakanser, klubbseparering och avancerade regler.",
     "Radiokontroller via ROC (eller OResults) med mellantider i listorna och hos speakern.",
-    "Live för publiken, speakersida och Kvar i skogen.",
+    "Live för publiken med senast i mål och radiotider, sträcktider i resultaten, speakersida och Kvar i skogen.",
+    "Självregistrering på tävlingsdagen: löparen anmäler sig själv med bricka på tävlingssidan, märkt ”självreg.”.",
+    "Fest med bar: köp med SPORTident-pinnar, in- och utcheckning i baren och en publik fest-sida utan belopp och utan namn om arrangören inte väljer det.",
     "Funktionärer med egna konton som når avläsning, start, Kvar i skogen och speaker.",
     "Nödlägen under tävlingen: justera tiden för en station, kontroll ur funktion, manuell tid och omläsning från sparade rådata.",
     "Tävlingstyperna Träning, Liten tävling, Tävling, Tävling med gafflade banor, Stafett och Rogaining."

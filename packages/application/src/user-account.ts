@@ -10,7 +10,7 @@ import {
 import type { Database } from "@o-tid/database";
 import { schema } from "@o-tid/database";
 import type { DbExecutor } from "./snapshot";
-import { consumeAccountRequestAllowance, DEFAULT_REGISTRATIONS_PER_HOUR } from "./account-throttle";
+import { consumeAccountRequestAllowance, DEFAULT_REGISTRATIONS_PER_HOUR, purgeStaleThrottles, throttleHmac } from "./account-throttle";
 import { UUID_PATTERN, sha256Hex as sha256 } from "./serialization";
 
 const TOKEN_PREFIX = "otid_user_session_v1";
@@ -21,8 +21,14 @@ const DUMMY_SALT = Buffer.alloc(16);
 const DUMMY_HASH = Buffer.alloc(32);
 // ADR-0168: en inloggning ska räcka en hel tävlingshelg.
 const SESSION_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
-const LOGIN_WINDOW_MS = 15 * 60 * 1000;
-const MAX_FAILED_ATTEMPTS = 5;
+/**
+ * Inloggningsspärren: 5 fel för en e-postadress inom 15 minuter spärrar adressen i 15 minuter (tidsbegränsat, aldrig för
+ * alltid). Steg 46: dessutom spärras en klientadress (IP) i 15 minuter efter 30 fel inom 15 minuter, oavsett e-postadress,
+ * så att en angripare inte kan prova många konton. En lyckad inloggning nollställer bara e-postadressens räknare.
+ */
+export const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+export const MAX_FAILED_ATTEMPTS = 5;
+export const MAX_FAILED_ATTEMPTS_PER_CLIENT = 30;
 const SCRYPT_OPTIONS = { N: 2 ** 15, r: 8, p: 3, maxmem: 64 * 1024 * 1024 } as const;
 
 type DatabaseTransaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
@@ -59,6 +65,8 @@ export interface UserAccountRuntimeOptions {
   sessionId?: string;
   sessionSecretBytes?: Uint8Array;
   csrfSecretBytes?: Uint8Array;
+  /** Klientens adress (inloggningens spärr per IP, steg 46); sparas bara som HMAC. */
+  clientKey?: string;
 }
 
 function validDate(value: Date): Date {
@@ -248,28 +256,39 @@ export async function loginUserAccount(
   if (!parsed.success) return { status: "unauthorized" };
   const now = validDate(options.now ?? new Date());
   const loginKeyHash = loginThrottleKey(parsed.data.email);
+  const clientKeyHash = options.clientKey ? throttleHmac(`login-client\u0000${options.clientKey}`) : undefined;
   return db.transaction(async (tx) => {
-    await tx.insert(schema.userAccountLoginThrottles).values({
-      loginKeyHash, windowStartedAt: now, failedAttempts: 0
-    }).onConflictDoNothing();
-    const [throttle] = await tx.select().from(schema.userAccountLoginThrottles)
-      .where(eq(schema.userAccountLoginThrottles.loginKeyHash, loginKeyHash)).for("update");
-    if (!throttle) throw new Error("Inloggningsspärr saknas");
-    if (throttle.blockedUntil && throttle.blockedUntil.getTime() > now.getTime()) {
-      return { status: "rate-limited" } as const;
-    }
+    await purgeStaleThrottles(tx, now);
+    const lockThrottle = async (keyHash: string) => {
+      await tx.insert(schema.userAccountLoginThrottles).values({ loginKeyHash: keyHash, windowStartedAt: now, failedAttempts: 0 })
+        .onConflictDoNothing();
+      const [row] = await tx.select().from(schema.userAccountLoginThrottles)
+        .where(eq(schema.userAccountLoginThrottles.loginKeyHash, keyHash)).for("update");
+      if (!row) throw new Error("Inloggningsspärr saknas");
+      return row;
+    };
+    const blocked = (row: { blockedUntil: Date | null }) => !!row.blockedUntil && row.blockedUntil.getTime() > now.getTime();
+    // Klientens rad låses före e-postadressens, alltid i samma ordning.
+    const client = clientKeyHash ? await lockThrottle(clientKeyHash) : undefined;
+    if (client && blocked(client)) return { status: "rate-limited" } as const;
+    const throttle = await lockThrottle(loginKeyHash);
+    if (blocked(throttle)) return { status: "rate-limited" } as const;
+    const countFailure = async (row: typeof throttle, limit: number) => {
+      const inWindow = now.getTime() - row.windowStartedAt.getTime() < LOGIN_WINDOW_MS;
+      const failedAttempts = inWindow ? row.failedAttempts + 1 : 1;
+      await tx.update(schema.userAccountLoginThrottles).set({
+        windowStartedAt: inWindow ? row.windowStartedAt : now,
+        failedAttempts,
+        blockedUntil: failedAttempts >= limit ? new Date(now.getTime() + LOGIN_WINDOW_MS) : null
+      }).where(eq(schema.userAccountLoginThrottles.loginKeyHash, row.loginKeyHash));
+    };
     const [account] = await tx.select().from(schema.userAccounts)
       .where(eq(schema.userAccounts.email, parsed.data.email)).for("update");
     const verifier = account ? await currentUserAccountVerifier(tx, account.id) : undefined;
     const passwordMatches = await userAccountPasswordMatches(verifier, parsed.data.password);
     if (!account || !verifier || !passwordMatches) {
-      const inWindow = now.getTime() - throttle.windowStartedAt.getTime() < LOGIN_WINDOW_MS;
-      const failedAttempts = inWindow ? throttle.failedAttempts + 1 : 1;
-      await tx.update(schema.userAccountLoginThrottles).set({
-        windowStartedAt: inWindow ? throttle.windowStartedAt : now,
-        failedAttempts,
-        blockedUntil: failedAttempts >= MAX_FAILED_ATTEMPTS ? new Date(now.getTime() + LOGIN_WINDOW_MS) : null
-      }).where(eq(schema.userAccountLoginThrottles.loginKeyHash, loginKeyHash));
+      await countFailure(throttle, MAX_FAILED_ATTEMPTS);
+      if (client) await countFailure(client, MAX_FAILED_ATTEMPTS_PER_CLIENT);
       return { status: "unauthorized" } as const;
     }
     await clearUserAccountLoginThrottle(tx, account.email, now);
@@ -281,7 +300,7 @@ export async function loginUserAccount(
 }
 
 function loginThrottleKey(email: string): string {
-  return sha256(`login\u0000${email}`);
+  return throttleHmac(`login\u0000${email}`);
 }
 
 /** Nollställer inloggningsspärren för adressen (lyckad inloggning eller nytt lösenord). */

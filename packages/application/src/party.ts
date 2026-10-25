@@ -5,7 +5,7 @@ import {
   type PublicPartyResponse
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { normalizeSelfRegistrationName, PARTY_DISPLAY_NAME_MAX, PARTY_DOUBLE_PUNCH_SECONDS, partyLedger, partyPublicStats } from "@o-tid/domain";
+import { normalizeSelfRegistrationName, PARTY_DISPLAY_NAME_MAX, PARTY_DOUBLE_PUNCH_SECONDS, partyLedger, partyPublicStats, partyShowsPublicNames } from "@o-tid/domain";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation } from "./concurrency";
 import type { DbExecutor } from "./snapshot";
@@ -16,6 +16,8 @@ import { UUID_PATTERN as uuid } from "./serialization";
  * `partyLedger`; tabellerna här har bara festens start, varorna med prishistorik, gästnamn, bardiskens in- och utcheckningar och
  * ångrade köp. Funktionären läser läget, sätter namn och checkar ut; admin ändrar varor, start och ångrar köp.
  */
+/** Gästens namn och klubb i bardisken: samma längd som kontraktet (`partyGuestRequestSchema`). */
+const PARTY_GUEST_TEXT_MAX = 160;
 type Failure = { status: "unauthorized" | "forbidden" | "invalid-request" | "not-found" | "conflict" };
 const iso = (value: Date) => value.toISOString();
 
@@ -82,7 +84,7 @@ export async function loadPartyState(tx: DbExecutor, raceId: string, now: Date):
       ...(row.selfRegisteredAt ? { selfRegistered: true, selfRegisteredAt: row.selfRegisteredAt.toISOString() } : {}), ...(row.displayName ? { displayName: row.displayName } : {}) })) });
   return partyStateResponseSchema.parse({ formatVersion: 1, raceId, timeZone: race.timeZone, startsAt: startsAt ?? null, items,
     theme: await loadTheme(tx, raceId, setting), doublePunchSeconds,
-    showPublicNames: setting?.showPublicNames ?? true, publicPath: `/fest/${race.shortCode}`, purchases: ledger.purchases, guests: ledger.guests,
+    showPublicNames: partyShowsPublicNames(setting), publicPath: `/fest/${race.shortCode}`, purchases: ledger.purchases, guests: ledger.guests,
     totalOre: ledger.totalOre, purchaseCount: ledger.purchaseCount, fetchedAt: iso(now) });
 }
 
@@ -208,15 +210,18 @@ export async function setPartyGuestAsAdmin(db: Database, input: RaceSessionProof
     // Steg 41: visningsnamnet normaliseras; saknas det i förfrågan behålls det, null = förvalet.
     const displayName = guest.displayName === undefined ? before?.displayName ?? null
       : guest.displayName === null ? null : normalizeSelfRegistrationName(guest.displayName, PARTY_DISPLAY_NAME_MAX);
-    if (displayName === undefined) return { status: "invalid-request" };
-    if (before && before.name === guest.name && before.club === guest.club && before.displayName === displayName) return { status: "ok" };
-    await tx.insert(schema.partyGuests).values({ raceId, cardNumber: guest.cardNumber, name: guest.name, club: guest.club, displayName, updatedAt: now })
+    // Steg 46: namn och klubb normaliseras som i självregistreringen (inga styrtecken eller taggar, ett mellanslag).
+    const name = normalizeSelfRegistrationName(guest.name, PARTY_GUEST_TEXT_MAX);
+    const club = guest.club === null ? null : normalizeSelfRegistrationName(guest.club, PARTY_GUEST_TEXT_MAX);
+    if (displayName === undefined || name === undefined || club === undefined) return { status: "invalid-request" };
+    if (before && before.name === name && before.club === club && before.displayName === displayName) return { status: "ok" };
+    await tx.insert(schema.partyGuests).values({ raceId, cardNumber: guest.cardNumber, name, club, displayName, updatedAt: now })
       .onConflictDoUpdate({ target: [schema.partyGuests.raceId, schema.partyGuests.cardNumber],
-        set: { name: guest.name, club: guest.club, displayName, updatedAt: now } });
+        set: { name, club, displayName, updatedAt: now } });
     await tx.insert(schema.auditEvents).values({ raceId, entityType: "party", entityId: raceId, actorKind: "USER_ACCOUNT",
       actorId: auth.principal.accountId, action: "PARTY_GUEST_NAMED",
       before: before ? { cardNumber: before.cardNumber, name: before.name, club: before.club, displayName: before.displayName } : null,
-      after: { cardNumber: guest.cardNumber, name: guest.name, club: guest.club, displayName }, createdAt: now });
+      after: { cardNumber: guest.cardNumber, name, club, displayName }, createdAt: now });
     return { status: "ok" };
   });
 }

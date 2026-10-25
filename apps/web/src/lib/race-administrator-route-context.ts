@@ -35,7 +35,8 @@ import { loadStartDrawSetupAsAdmin, previewStartDrawAsAdmin, commitStartDrawAsAd
   deleteRunnerDatabaseAsAdmin, searchRunnerDatabaseAsAdmin, listRaceCorrectionsAsAdmin, previewRaceCorrectionAsAdmin,
   applyRaceCorrectionAsAdmin, previewReadoutRereadAsAdmin, applyReadoutRereadAsAdmin,
   receiveUninterpretedReadout, listUninterpretedReadoutsAsAdmin, rereadUninterpretedReadoutAsAdmin,
-  readPartyAsAdmin, changePartyAsAdmin, setPartyGuestAsAdmin, registerPartyDeskEventAsAdmin, savePartyLogoAsAdmin } from "@o-tid/application";
+  readPartyAsAdmin, changePartyAsAdmin, setPartyGuestAsAdmin, registerPartyDeskEventAsAdmin, savePartyLogoAsAdmin,
+  previewSelfRegistrationCleanupAsAdmin, strikeSelfRegisteredAsAdmin } from "@o-tid/application";
 import {
   adminFailure as failure,
   resultExportFailure,
@@ -106,7 +107,9 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   uninterpretedReceive: receiveUninterpretedReadout, uninterpretedList: listUninterpretedReadoutsAsAdmin,
   uninterpretedReread: rereadUninterpretedReadoutAsAdmin,
   // PLAN.md steg 40: fest med bardisk.
-  party: readPartyAsAdmin, partyChange: changePartyAsAdmin, partyGuest: setPartyGuestAsAdmin, partyDeskEvent: registerPartyDeskEventAsAdmin, partyLogo: savePartyLogoAsAdmin };
+  party: readPartyAsAdmin, partyChange: changePartyAsAdmin, partyGuest: setPartyGuestAsAdmin, partyDeskEvent: registerPartyDeskEventAsAdmin, partyLogo: savePartyLogoAsAdmin,
+  // PLAN.md steg 46: stryk självregistrerade som inte läst ut.
+  selfRegistrationCleanup: previewSelfRegistrationCleanupAsAdmin, strikeSelfRegistered: strikeSelfRegisteredAsAdmin };
 export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: string } | { kind: "review-conflicts" } | { kind: "checkin-history"; entryId: string } | { kind: "start-correction" } | { kind: "manual-return-withdrawal" } | { kind: "manual-return" } | { kind: "forest-watch" } | { kind: "publication-preview" } | { kind: "publication" } | { kind: "start-list-export" } | { kind: "draw-preview" } | { kind: "draw" } |
   { kind: "finalization-candidates" } | { kind: "finalize" } | { kind: "frozen-results" } | { kind: "frozen-result"; finalizationId: string } |
   { kind: "result-export" } | { kind: "session" } | { kind: "participants" } | { kind: "transfer-candidates" } |
@@ -137,7 +140,7 @@ export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: str
   { kind: "results-official" } | { kind: "race-export" } | { kind: "runner-database" } | { kind: "runner-search" } |
   { kind: "race-corrections" } | { kind: "race-corrections-preview" } | { kind: "readout-reread" } | { kind: "readout-reread-preview" } |
   { kind: "uninterpreted-readouts" } | { kind: "uninterpreted-readouts-reread" } |
-  { kind: "party" } | { kind: "party-guests" } | { kind: "party-desk-events" } | { kind: "party-logo" };
+  { kind: "party" } | { kind: "party-guests" } | { kind: "party-desk-events" } | { kind: "party-logo" } | { kind: "self-registration-cleanup" };
 
 export function resultFailure(status: string): Response {
   switch (status) {

@@ -1,6 +1,7 @@
 import { classRemovalRequestSchema, classRemovalResponseSchema, courseRemovalRequestSchema, courseRemovalResponseSchema,
   entryRemovalRequestSchema, entryRemovalResponseSchema, resultsOfficialRequestSchema, resultsOfficialResponseSchema,
-  resultsOfficialStateSchema } from "@o-tid/contracts";
+  resultsOfficialStateSchema, selfRegistrationCleanupPreviewSchema, selfRegistrationCleanupRequestSchema,
+  selfRegistrationCleanupResponseSchema } from "@o-tid/contracts";
 import { adminFailure as failure, hasNoRequestBody, privateHeaders, privateJson as json } from "./security-policy";
 import { resultFailure, type RaceAdministratorRouteContext } from "./race-administrator-route-context";
 import { write } from "./race-administrator-routes-relay";
@@ -44,6 +45,18 @@ export async function handleRemovalRoute(context: RaceAdministratorRouteContext)
       const result = await dependencies.resultsOfficialState(db, { sessionToken: proof.sessionToken, raceId });
       if (result.status !== "ok") return resultFailure(result.status);
       const response = resultsOfficialStateSchema.parse(result.response);
+      return response.raceId === raceId ? json(response) : failure(500, "INTERNAL_ERROR");
+    }
+    case "self-registration-cleanup": {
+      // PLAN.md steg 46: förhandsvisning (GET) och "Stryk alla självregistrerade som inte läst ut" (POST).
+      if (request.method === "POST") {
+        return write(context, "self-registration-cleanup", selfRegistrationCleanupRequestSchema, selfRegistrationCleanupResponseSchema,
+          dependencies.strikeSelfRegistered);
+      }
+      if (!await hasNoRequestBody(request)) return failure(400, "INVALID_REQUEST");
+      const result = await dependencies.selfRegistrationCleanup(db, { ...proof, raceId });
+      if (result.status !== "ok") return resultFailure(result.status);
+      const response = selfRegistrationCleanupPreviewSchema.parse(result.response);
       return response.raceId === raceId ? json(response) : failure(500, "INTERNAL_ERROR");
     }
     case "race-export": {

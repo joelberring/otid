@@ -16,6 +16,8 @@ export type StartEntry = {
   name: string; club: string | null; startTime: string | null; variant: string | null; relay?: StartRelay;
   /** Bara i arbetsytan: aktiv bricka (null = ingen) och om flera brickor är aktiva samtidigt. */
   card?: string | null; multipleCards?: boolean;
+  /** Steg 46: självregistrerad på tävlingsdagen; den publika listan märker raden "självreg.". */
+  selfRegistered?: boolean;
 };
 export type StartClass = {
   name: string; courseName: string | null; firstControlCode: number | null; mode: StartMode; entries: StartEntry[];
@@ -77,6 +79,7 @@ export function startListFromPublication(content: StartListPublicationContent, c
       const entries: StartEntry[] = raceClass.entries.map(entry => ({
         name: entry.displayName, club: entry.organisationName, startTime: entry.fixedStartTime, variant: entry.courseVariantCode ?? null,
         ...(cards ? { card: entry.cardNumber ?? null } : {}),
+        ...(entry.selfRegistered ? { selfRegistered: true } : {}),
         ...(entry.relay ? { relay: { teamNumber: entry.relay.teamNumber, teamName: entry.relay.teamName,
           teamClub: entry.relay.teamOrganisationName, leg: entry.relay.leg } } : {})
       }));

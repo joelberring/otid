@@ -18,6 +18,7 @@ import { RemovalReview } from "./removal-review";
 import { RelayTeams } from "./relay-teams";
 import { Button, EmptyState } from "../ui";
 import type { Workspace } from "./workspace-state";
+import { SelfRegistrationCleanup } from "./self-registration-cleanup";
 
 /**
  * Anmälda: listan och deltagarkortet för vald deltagare. Rubriken heter som steget (Anmälda, Deltagare eller Lag);
@@ -81,6 +82,8 @@ export function ParticipantList({ ws }: { ws: Workspace }) {
           onClick={() => printPrivate("RENTAL")}>{text.rentalPrint}</Button>}
       </div>}
     </div>
+    {/* PLAN.md steg 46: städa bort självregistrerade som inte läst ut, efter förhandsvisning. */}
+    <SelfRegistrationCleanup ws={ws} />
     {/* PLAN.md steg 27: beskedet efter "Ta bort deltagare" eller "Stryk" står över listan när kortet är stängt. */}
     {ws.removalMessage?.kind === "ENTRY" && !ws.selected && <RemovalReview ws={ws} kind="ENTRY" id={ws.removalMessage.id} />}
     {empty && <EmptyState title={navigationText.entriesEmpty} action={<>

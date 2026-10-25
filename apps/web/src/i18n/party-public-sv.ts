@@ -28,6 +28,8 @@ export const partyPublicSv = {
   guestsTitle: "Kvällens gäster",
   purchases: (count: number) => count === 1 ? "1 köp" : `${count} köp`,
   barLabel: "Kvällen",
+  /** Steg 46: syns när festen visar namn publikt. */
+  namesShown: "Dina köp visas med ditt visningsnamn på den här sidan.",
   howToLabel: "Så betalar du",
   howTo: ["1. Töm pinnen först på töm-enheten (clear).", "2. Checka in: registrera din pinne här, eller sätt den i läsaren vid baren.",
     "3. Köp: stämpla på enheten för din dryck och sätt sedan pinnen i läsaren.",

@@ -52,10 +52,11 @@ export function PartyPublic({ raceId, eventName }: { raceId: string; eventName: 
     </header>
     {/* Steg 42: raden under rubriken – registrera pinnen (utfällbar), länk till sträcktiderna och hur man betalar. */}
     <nav className={styles.bar} aria-label={text.barLabel}>
-      <SelfRegistrationForm raceId={raceId} collapsible />
+      <SelfRegistrationForm raceId={raceId} collapsible publicNames={party?.showNames ?? false} />
       <a className={styles.barLink} href="#stracktider">{text.splitsTitle}</a>
       <ol className={styles.howTo} aria-label={text.howToLabel}>{text.howTo.map(row => <li key={row}>{row}</li>)}</ol>
     </nav>
+    {party?.showNames ? <p className={styles.status} data-testid="party-names-shown">{text.namesShown}</p> : null}
     {!party ? <p role="status" className={styles.status}>{failed ? text.loadError : text.loading}</p> : <>
       {failed ? <p role="status" className={styles.status}>{text.loadError}</p> : null}
       <dl className={styles.numbers} data-testid="party-numbers">

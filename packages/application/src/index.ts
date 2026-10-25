@@ -87,3 +87,4 @@ export * from "./readout-reread";
 export * from "./uninterpreted-readout";
 export * from "./party";
 export { readSelfRegistrationInfo, selfRegisterCard, type SelfRegistrationResult } from "./self-registration";
+export { previewSelfRegistrationCleanupAsAdmin, strikeSelfRegisteredAsAdmin } from "./self-registration-cleanup";

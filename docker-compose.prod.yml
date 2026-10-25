@@ -46,6 +46,8 @@ services:
       OTID_SMTP_URL: ${OTID_SMTP_URL:-}
       OTID_MAIL_FROM: ${OTID_MAIL_FROM:-}
       OTID_CONTACT_EMAIL: ${OTID_CONTACT_EMAIL:-}
+      # Hemlighet för spärrarnas hash (docs/drift.md). Tom = härleds ur DATABASE_URL, så inget behöver läggas till.
+      OTID_THROTTLE_SECRET: ${OTID_THROTTLE_SECRET:-}
       # Registreringar per IP och timme. Tom = 10. CI höjer gränsen för webbläsartesterna.
       OTID_REGISTRATION_LIMIT_PER_HOUR: ${OTID_REGISTRATION_LIMIT_PER_HOUR:-}
       # Radiokontroller (docs/drift.md). Endast test: CI pekar på en falsk ROC på värden. Tom i drift = ROC/OResults.

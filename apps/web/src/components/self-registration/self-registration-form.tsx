@@ -39,7 +39,9 @@ export function validateSelfRegistration(form: Form, needsClass: boolean): Field
  * `collapsible` (steg 42, fest-sidan): en knapp "Registrera din pinne" med aria-expanded, stängd från början, som fäller
  * ut formuläret. Knappen och formuläret är egna rader i förälderns flexrad (`display: contents`).
  */
-export function SelfRegistrationForm({ raceId, collapsible = false }: { raceId: string; collapsible?: boolean }) {
+export function SelfRegistrationForm({ raceId, collapsible = false, publicNames = false }: { raceId: string; collapsible?: boolean;
+  /** Fest: festen visar visningsnamn publikt (steg 46), så formuläret säger det. */
+  publicNames?: boolean }) {
   const [expanded, setExpanded] = useState(false);
   const panelId = useId();
   const [info, setInfo] = useState<SelfRegistrationInfoResponse>();
@@ -154,7 +156,8 @@ export function SelfRegistrationForm({ raceId, collapsible = false }: { raceId: 
         <div className={styles.trap} aria-hidden="true">
           <label>{text.trap}<input name="website" tabIndex={-1} autoComplete="off" value={form.website} onChange={change("website")} /></label>
         </div>
-        <p className={styles.privacy}>{text.privacy} <Link href="/integritet">{text.privacyLink}</Link></p>
+        <p className={styles.privacy} data-testid="self-registration-privacy">
+          {needsClass ? text.privacy.race : publicNames ? text.privacy.partyNames : text.privacy.party} <Link href="/integritet">{text.privacyLink}</Link></p>
         {message ? <Notice tone="error" role="alert">{message}</Notice> : null}
         <div><Button type="submit" disabled={saving}>{saving ? text.saving : text.submit}</Button></div>
       </form>}

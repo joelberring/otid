@@ -17,6 +17,8 @@ test("självregistrering: gästen kopplar sitt namn till pinnen och bardisken k�
   const start = owner.getByRole("form", { name: "Festens start" });
   await start.getByLabel("Datum").fill(today());
   await start.getByLabel("Klockslag").fill("00:00");
+  // Steg 46: festen visar visningsnamnen publikt, så formuläret säger det.
+  await start.getByLabel("Visa namn på den publika sidan").check();
   await start.getByRole("button", { name: "Spara start" }).click();
   await expect(owner.getByText("Starten är sparad.")).toBeVisible();
   const add = owner.getByRole("form", { name: "Lägg till vara" });
@@ -56,6 +58,7 @@ test("självregistrering: gästen kopplar sitt namn till pinnen och bardisken k�
   // En fest utan utseendet "Centrum OK 20 år" behåller sitt typsnitt.
   expect(await visitor.locator("h1").evaluate(element => getComputedStyle(element).fontFamily)).not.toContain("Poppins");
   await expect(form.getByRole("link", { name: "Om personuppgifter" })).toHaveAttribute("href", "/integritet");
+  await expect(form.getByTestId("self-registration-privacy")).toContainText("Dina köp visas med ditt visningsnamn på den här sidan.");
   await form.getByRole("button", { name: "Registrera" }).click();
   await expect(form.getByText("Skriv bricknumret med siffror (1–9 999 999).")).toBeVisible();
   await reviewScreenshots(visitor, "sjalvregistrering-formular");

@@ -29,7 +29,8 @@ import { UUID_PATTERN as uuid } from "./serialization";
  */
 export const SELF_REGISTRATIONS_PER_IP = 20;
 export const SELF_REGISTRATION_IP_WINDOW_MS = 10 * 60 * 1000;
-export const SELF_REGISTRATIONS_PER_RACE_AND_DAY = 300;
+// Steg 46: 100 per tävling och dygn (var 300); arrangören kan stryka alla som inte läst ut under Anmälda.
+export const SELF_REGISTRATIONS_PER_RACE_AND_DAY = 100;
 const DAY_MS = 24 * 60 * 60 * 1000;
 export const SELF_REGISTRATION_SOURCE = "PUBLIC_SELF_REGISTRATION";
 

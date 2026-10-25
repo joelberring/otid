@@ -754,6 +754,22 @@ Genomlysningen 2026-10-25 (motor, avläsning och drift). Ägarens beslut: stämp
 - [x] Disk och utom tävlan ovanpå manuell tid, utom tävlan på rogaining; index på card_readout(race_id, read_at).
 - [x] Motor 0.6.0: stämplingar mellan start och mål väljs vid lika matchning (oröjd bricka); varning när ett godkänt saknar sträcktider.
 
+## [x] Steg 46 – Rättelser efter genomlysningen: säkerhet och integritet
+
+Genomlysningen 2026-10-25 (säkerhet #1, #3–#10).
+
+- [x] Säkerhetshuvuden: nosniff, Referrer-Policy och X-Frame-Options DENY på alla svar; strikt CSP med nonce
+  (`script-src 'nonce-…' 'strict-dynamic'`, `object-src 'none'`, `base-uri 'self'`, `frame-ancestors 'none'`) på Next-sidorna;
+  avläsningen och bardisken får Web Serial och WebUSB på rätt adress. Playwright kontrollerar de riktiga svarshuvudena.
+- [x] Fest: "Visa namn på den publika sidan" av för nya fester; formuläret och fest-sidan säger när köpen visas med visningsnamnet.
+- [x] /integritet och /om stämmer med appen: fest, självregistrering och IP-hash, bricknummer i startlistan, live och
+  sträcktider, fest-sidan stängd för sökmotorer, lagringstider och radering.
+- [x] Självregistrerade märks "självreg." i den publika startlistan; 100 per tävling och dygn; "Stryk alla självregistrerade
+  som inte läst ut" med förhandsvisning under Anmälda.
+- [x] Spärrarnas nycklar är HMAC med serverns hemlighet (`OTID_THROTTLE_SECRET`, reserv `DATABASE_URL`) och gamla rader
+  rensas; inloggningen spärras också per IP (30 fel på 15 minuter), och spärrarna är tidsbegränsade.
+- [x] Bardiskens namn och klubb normaliseras; hjälpen säger att funktionären ser fullt namn och kan ladda ner CSV.
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

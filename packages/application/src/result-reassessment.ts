@@ -112,6 +112,33 @@ export async function assessReadOutEntries(tx: Transaction, raceId: string, clas
   return assessed;
 }
 
+/** Beslut som kan ligga på en löpare utan avläsning (borttappad bricka): manuell tid, brutit, disk, utom tävlan, utan tid. */
+const WITHOUT_READOUT_CAUSES: Revision["cause"][] = ["MANUAL_TIME", "MANUAL_DID_NOT_FINISH", "MANUAL_DISQUALIFICATION",
+  "MANUAL_OUT_OF_COMPETITION", "MANUAL_WITHOUT_TIMING"];
+
+/**
+ * Steg 44: löpare i de berörda klasserna som inte har läst ut men har ett beslut (t.ex. manuell tid för en borttappad
+ * bricka) får beslutet lagt på nytt mot det nya underlaget när det bygger på ett äldre (banversion eller starttid).
+ */
+async function carryDecisionsWithoutReadout(tx: Transaction, input: { raceId: string; assessed: readonly AssessedEntry[];
+  snapshot: RaceSnapshot; snapshotVersion: number; courseVersionId: string | ReadonlyMap<string, string> }) {
+  const classIds = new Set(typeof input.courseVersionId === "string"
+    ? input.snapshot.classes.filter(row => row.courseVersionId === input.courseVersionId).map(row => row.id)
+    : [...input.courseVersionId.keys()]);
+  const assessed = new Set(input.assessed.map(row => row.entryId));
+  const entryIds = input.snapshot.entries.filter(row => classIds.has(row.classId) && !assessed.has(row.id)).map(row => row.id);
+  if (entryIds.length === 0) return;
+  const heads = await tx.selectDistinctOn([schema.resultRevisions.entryId], { entryId: schema.resultRevisions.entryId,
+    cause: schema.resultRevisions.cause, readoutId: schema.resultRevisions.readoutId }).from(schema.resultRevisions)
+    .where(and(eq(schema.resultRevisions.raceId, input.raceId), inArray(schema.resultRevisions.entryId, entryIds)))
+    .orderBy(asc(schema.resultRevisions.entryId), desc(schema.resultRevisions.revision), desc(schema.resultRevisions.id));
+  for (const head of heads) {
+    if (head.readoutId !== null || !WITHOUT_READOUT_CAUSES.includes(head.cause)) continue;
+    await carryEntryDecisions(tx, { raceId: input.raceId, entryId: head.entryId, snapshotVersion: input.snapshotVersion,
+      withoutReadout: true });
+  }
+}
+
 /** Beskedet i siffror: hur många som läst ut, vilka som byter status och om bekräftelse krävs. */
 export function summarizeAssessment(assessed: readonly AssessedEntry[]) {
   const outcomes = assessed.flatMap(row => row.outcome === "NOT_RECALCULATED" ? [] : [row.outcome]);
@@ -143,5 +170,6 @@ export async function recalculateAssessedEntries(tx: Transaction, input: { raceI
       await carryEntryDecisions(tx, { raceId: input.raceId, entryId: row.entryId, snapshotVersion: input.snapshotVersion });
     }
   }
+  await carryDecisionsWithoutReadout(tx, input);
   return recalculated;
 }

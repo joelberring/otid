@@ -263,10 +263,14 @@ export async function setEntryStatus(db: Database, input: Auth & { entryId: stri
  * låst löparen och lagt till den tekniska revisionen i samma transaktion.
  */
 export async function carryEntryDecisions(tx: Transaction, input: { raceId: string; entryId: string; snapshotVersion: number;
-  createdAt?: Date }): Promise<{ status: "none" | "carried" | "not-carried"; decisions: number }> {
+  createdAt?: Date; withoutReadout?: boolean }): Promise<{ status: "none" | "carried" | "not-carried"; decisions: number }> {
   const value = await loadEntryContext(tx, input.raceId, input.entryId);
   if (!value) return { status: "none", decisions: 0 };
-  const carry = carryManualDecisions(value.revisions, value.context);
+  // Utan avläsning: bara när beslutet bygger på ett äldre underlag (annan banversion eller starttid).
+  const effective = value.history.effective;
+  if (input.withoutReadout && (!effective || (value.context.isCurrent(effective) &&
+    effective.courseVersionId === value.entry.courseVersionId))) return { status: "none", decisions: 0 };
+  const carry = carryManualDecisions(value.revisions, value.context, { withoutReadout: input.withoutReadout === true });
   if (carry.kind === "NONE") return { status: "none", decisions: 0 };
   if (carry.kind === "NOT_CARRIED") return { status: "not-carried", decisions: 1 };
   let head = value.history.head!;

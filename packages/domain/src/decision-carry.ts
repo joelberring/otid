@@ -36,7 +36,8 @@ const MISPUNCH_ACCEPTANCE: ReadonlySet<GoverningDecision> = new Set<GoverningDec
   "MP_CONFIRMED"]);
 
 /** Löparens beslut med samma innehåll som det lagrade, eller undefined om det inte går att återskapa. */
-function decisionFor(revision: CarriedDecisionRevision, below: CarriedDecisionRevision | null): ManualDecision | undefined {
+function decisionFor(revision: CarriedDecisionRevision, below: CarriedDecisionRevision | null, fixedStart: boolean):
+  ManualDecision | undefined {
   const outcome = revision.evaluation as EvaluationResult;
   const note = revision.note ?? undefined;
   switch (revision.cause) {
@@ -54,8 +55,9 @@ function decisionFor(revision: CarriedDecisionRevision, below: CarriedDecisionRe
       // Måltiden står kvar. Starten följer löparens kända start (flyttad starttid, ny lottning) när beslutet använde
       // den; en egen starttid i beslutet står kvar.
       if (typeof outcome.startTime !== "string" || typeof outcome.finishTime !== "string") return undefined;
+      // Utan avläsning under beslutet: i en klass med lottad start var starten den lottade.
       const belowStart = (below?.evaluation as EvaluationResult | undefined)?.startTime;
-      const knownStart = typeof belowStart === "string" && Date.parse(belowStart) === Date.parse(outcome.startTime);
+      const knownStart = typeof belowStart === "string" ? Date.parse(belowStart) === Date.parse(outcome.startTime) : fixedStart;
       return { kind: "MANUAL_TIME", note: note ?? "", status: outcome.status === "MP" ? "MP" : "OK",
         ...(knownStart ? {} : { startTime: outcome.startTime }), finishTime: outcome.finishTime };
     }
@@ -90,14 +92,17 @@ function stillMissing(controls: readonly number[], missing: readonly number[]): 
  * revisioner i stigande ordning, där den nya tekniska revisionen är den senaste. `context` gäller det nya underlaget.
  */
 export function carryManualDecisions<T extends CarriedDecisionRevision>(revisions: readonly T[],
-  context: ManualDecisionContext): DecisionCarry {
+  context: ManualDecisionContext, options: { readonly withoutReadout?: boolean } = {}): DecisionCarry {
   const ordered = [...revisions].sort((left, right) => left.revision - right.revision);
   let rows: CarriedDecisionRevision[] = ordered;
   let history = resolveResultHistory(rows);
   if (!CARRIED.has(history.governing)) return { kind: "NONE" };
   const technical = history.technical;
-  // Bara när det finns ett nytt tekniskt resultat ovanpå beslutet (annars finns inget att flytta till).
-  if (!technical || technical !== ordered.at(-1)) return { kind: "NONE" };
+  // Bara när det finns ett nytt tekniskt resultat ovanpå beslutet, eller (utan avläsning, t.ex. borttappad bricka) när
+  // anroparen vet att beslutet bygger på ett äldre underlag: då läggs det på nytt mot det nya.
+  const withoutReadout = options.withoutReadout === true;
+  if (withoutReadout ? technical !== null || ordered.some((row) => row.readoutId !== null)
+    : !technical || technical !== ordered.at(-1)) return { kind: "NONE" };
   const governing = history.governing;
   const steps: DecisionCarryStep[] = [];
   const append = (step: DecisionCarryStep) => {
@@ -111,16 +116,16 @@ export function carryManualDecisions<T extends CarriedDecisionRevision>(revision
   while (CARRIED.has(history.governing)) {
     const decision = history.effective!;
     const withdrawal = applyManualDecision(history, { kind: "WITHDRAW" }, { ...context, isCurrent: () => true });
-    if (!withdrawal.ok || withdrawal.cause === "MANUAL_RESULT_REMOVED") return { kind: "NOT_CARRIED", governing };
+    if (!withdrawal.ok || (withdrawal.cause === "MANUAL_RESULT_REMOVED") !== withoutReadout) return { kind: "NOT_CARRIED", governing };
     const before = resolveResultHistory(ordered.filter((row) => row.revision < decision.revision));
     removed.unshift({ revision: decision, below: before.effective });
     append({ cause: withdrawal.cause, outcome: withdrawal.outcome, engineVersion: withdrawal.engineVersion, note: null });
   }
   if (removed.length === 0 || history.technical !== technical) return { kind: "NOT_CARRIED", governing };
   // 2. Lägg besluten på nytt (understa först) mot det nya underlaget.
-  const technicalStatus = (technical.evaluation as EvaluationResult).status;
+  const technicalStatus = technical ? (technical.evaluation as EvaluationResult).status : undefined;
   for (const { revision, below } of removed) {
-    let decision = decisionFor(revision, below);
+    let decision = decisionFor(revision, below, withoutReadout && context.startRule === "FIXED");
     if (decision?.kind === "APPROVE_CONTROLS") {
       const source = controlApprovalSource(history, context);
       const controls = typeof source === "string" ? [] : stillMissing(decision.controls, source.outcome.missingControls);

@@ -83,4 +83,19 @@ describe("steg 44: carryManualDecisions", () => {
     expect(carry.steps.at(-1)).toMatchObject({ cause: "MANUAL_TIME", note: "Mål saknas", outcome: {
       startTime: "2026-09-12T10:05:00.000Z", finishTime: "2026-09-12T10:25:00.000Z", elapsedMs: 1_200_000, courseVersionId: newVersion } });
   });
+
+  it("utan avläsning: manuell tid i en klass med lottad start läggs på nytt med den nya starten", () => {
+    const fixed = (courseVersionId: string, start: string): ManualDecisionContext => ({ ...contextFor(courseVersionId, start),
+      startRule: "FIXED" });
+    const decided = applyManualDecision(resolveResultHistory([]), { kind: "MANUAL_TIME", status: "OK",
+      finishTime: "2026-09-12T10:25:00.000Z", note: "Tappade brickan" }, fixed(oldVersion, "2026-09-12T10:00:00.000Z"));
+    if (!decided.ok) throw new Error(decided.readiness);
+    const rows = [row(1, decided.cause, decided.outcome, "Tappade brickan")];
+    expect(carryManualDecisions(rows, fixed(newVersion, "2026-09-12T10:05:00.000Z"))).toEqual({ kind: "NONE" });
+    const carry = carryManualDecisions(rows, fixed(newVersion, "2026-09-12T10:05:00.000Z"), { withoutReadout: true });
+    if (carry.kind !== "CARRIED") throw new Error(carry.kind);
+    expect(carry.steps.map((step) => step.cause)).toEqual(["MANUAL_RESULT_REMOVED", "MANUAL_TIME"]);
+    expect(carry.steps[1]!.outcome).toMatchObject({ startTime: "2026-09-12T10:05:00.000Z", elapsedMs: 1_200_000,
+      courseVersionId: newVersion });
+  });
 });

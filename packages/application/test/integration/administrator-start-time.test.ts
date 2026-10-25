@@ -111,6 +111,17 @@ describe("TASK031 administrator start-time correction", () => {
       "MANUAL_TIME_WITHDRAWAL", "MANUAL_TIME"]);
   });
 
+  it("steg 44: en manuell tid utan avläsning (tappad bricka) följer den flyttade starttiden", async () => {
+    const f = await fixture();
+    expect((await statusFlow(db).decide(f.administrator, f.entryId, { kind: "MANUAL_TIME", status: "OK",
+      finishTime: "2026-09-12T10:25:00Z", note: "Tappade brickan" }, { now })).status).toBe("decided");
+    expect((await changeEntryStartTimeAsAdmin(db, f.input, now)).status).toBe("changed");
+    const effective = await getAdministratorEffectiveResult(db, { ...f.administrator, entryId: f.entryId }, now);
+    if (effective.status !== "ok" || effective.response.state !== "ACTIVE_RESULT") throw new Error("Resultat saknas");
+    expect(effective.response).toMatchObject({ resultCurrent: true, result: { status: "OK", elapsedMs: 19 * 60_000 + 59_875 } });
+    expect((await results(f.raceId)).map((row) => row.cause)).toEqual(["MANUAL_TIME", "MANUAL_RESULT_REMOVED", "MANUAL_TIME"]);
+  });
+
   it("rejects PUNCH, unauthorized/stale requests and submillisecond current state without writes", async () => {
     const f = await fixture(), reader = await auth(f.raceId, "FUNCTIONARY");
     const before = await state(f.raceId);

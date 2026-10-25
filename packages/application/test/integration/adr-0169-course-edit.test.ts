@@ -244,6 +244,8 @@ describe("steg 44: manuella beslut följer med när banan redigeras", () => {
     const bo = await register(f, "Bo", "9102");
     const cia = await register(f, "Cia", "9103");
     const dan = await register(f, "Dan", "9104");
+    // Eva tappade brickan: manuell tid utan avläsning.
+    const eva = await register(f, "Eva", "9105");
     await readout(f, "9101", [31, 32, 33]);
     await readout(f, "9102", [31, 32, 33]);
     await readout(f, "9103", [31, 33]);
@@ -256,6 +258,8 @@ describe("steg 44: manuella beslut följer med när banan redigeras", () => {
     expect((await flow.decide(auth, cia, { kind: "APPROVE_MANUALLY", note: "Kontrollen var borta" })).status).toBe("decided");
     // Dan: brutit med sträcktider.
     expect((await flow.decide(auth, dan, { kind: "DID_NOT_FINISH", note: "Bröt" })).status).toBe("decided");
+    expect((await flow.decide(auth, eva, { kind: "MANUAL_TIME", status: "OK", startTime: "2026-10-08T16:00:00.000Z",
+      finishTime: "2026-10-08T16:40:00.000Z", note: "Tappade brickan" })).status).toBe("decided");
 
     const preview = await previewCourseEditAsAdmin(db, { ...f.proof, courseId: f.courseId,
       request: { formatVersion: 1, controlCodes: [31, 33, 32] } });
@@ -277,7 +281,7 @@ describe("steg 44: manuella beslut följer med när banan redigeras", () => {
     const list = await publicResults(db, f.raceId);
     if (list.formatVersion !== 7) throw new Error("Fel format");
     const ranked = list.results.flatMap(row => row.rankingState === "RANKED" && "position" in row ? [[row.givenName, row.position]] : []);
-    expect(ranked).toEqual([["Cia", 1], ["Bo", 2]]);
+    expect(ranked).toEqual([["Cia", 1], ["Bo", 2], ["Eva", 3]]);
     expect(list.results.some(row => row.rankingState === "MIXED_COURSE_VERSIONS")).toBe(false);
 
     // "Resultaten är klara": klassen och loppet kan fastställas.

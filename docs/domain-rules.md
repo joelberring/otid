@@ -69,6 +69,21 @@ bricknummer, valfri start- och målstämpling och stämplingar.
 Motorn returnerar stabila koder. Svenska texter hör till `apps/web/src/i18n`. Avläsningsskalet kör samma
 funktion lokalt; dess besked är preliminärt och serverns revision är auktoritativ.
 
+## Gafflingar (steg 49, ADR-0175)
+
+- En gafflad bana kan ha en struktur (`course_version.forking`): grundföljd med enkla gafflingar (2–4 alternativ) och
+  fjärilar (2–4 slingor från en central kontroll, alla ordningar), i följd. Varianterna genereras ur strukturen, högst 100;
+  koderna följer OCAD/Purple Pen (bokstäver i följd över gafflingspunkterna, fjärilens slingor i springordning utom sista).
+- När en struktur sparas behåller en löpare sin kontrollföljd under den nya koden; försvinner kontrollföljden får löparen
+  en ny variant genom fördelningen (avläst: den som stämplingarna passar). Omräkning i samma transaktion som sparandet.
+- Varianter utan struktur (banfil) får en härledd struktur för bilden; den kan sparas ("Gör om till struktur") när den
+  klarar reglerna.
+- Rättvisekontroll per gafflingssätt (`course.forking_mode`): Utjämnad varnar för varje sträcka som inte finns lika många
+  gånger i alla varianter; Fulgaffling gör sträckor i enkla gafflingars alternativ till en upplysning. Kontrollen stoppar
+  aldrig sparande, lottning eller avläsning.
+- Sträcktidsanalysen för en gafflad klass jämför varje kontrollpar mellan alla som sprungit det (`buildLegSplitTable`);
+  per variant (`splitTablesByVariant`) är ett val.
+
 ## Statusbeslut
 
 - Arrangören kan sätta ej start, ej fullföljt, disk, utom tävlan, deltog utan tid, godkänt manuellt samt

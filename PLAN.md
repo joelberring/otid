@@ -734,6 +734,7 @@ Genomlysningen 2026-10-25 (motor, avläsning och drift). Ägarens beslut: stämp
 - [x] Tidsjustering för "Alla enheter (start, mål och kontroller)" (migration 0020).
 - [x] Backup varje timme kl. 08–23, 48 timdumpar och dagsbackup, "dump nu", scp, återställning, misslyckad migrering, swap, loggstorlek.
 - [x] Disk och utom tävlan ovanpå manuell tid, utom tävlan på rogaining; index på card_readout(race_id, read_at).
+- [x] Motor 0.6.0: stämplingar mellan start och mål väljs vid lika matchning (oröjd bricka); varning när ett godkänt saknar sträcktider.
 
 ## Efter målet (inte nu)
 

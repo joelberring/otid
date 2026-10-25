@@ -16,7 +16,8 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Regler: rättad starttid/manuell tid efter tidsjustering (`preparedReadoutTimes`); omräkning tar aldrig en avläsning som någon annans resultat bygger på (NO_READOUT); "Beslut att se över" (deltagarkort, kopplingskvitto, Efterarbete) när ett beslut döljer en senare avläsning; station ALL = alla enheter; disk/utom tävlan ovanpå manuell tid; utom tävlan på rogaining.
 - Migration 0020 (station ALL, index card_readout(race_id, read_at)). Drift: backup varje timme 08–23 (48 + dagsbackup, atomärt), `sh /backup.sh dump`, scp, återställning, misslyckad migrering, build före up -d, swap, loggstorlek.
 - Tester: webb `readout`, `clock`, `failed-readouts`, `decision-review`; domän `station-corrections`, `decision-review`, `manual-decision`, `rogaining`; integration `steg-45-rattelser`, `steg-31-lanad-bricka`, `entry-status-times`.
-- Återstår: motor #5 (stämplingar inom start–mål, varning när OK saknar sträcktider). Otolkade avläsningar stoppar inte "Resultaten är klara".
+- Motor 0.6.0: vid lika många matchade kontroller väljs stämplingar mellan start och mål (oröjd bricka); "Godkänd, men inga sträcktider" i avläsningens besked.
+- Kvar: otolkade avläsningar stoppar inte "Resultaten är klara"; varningen för godkänt utan sträcktider finns bara på avläsningssidan.
 
 ### 2026-10-24 – Steg 42: fest – Eventor-nyckel, kvällens sträcktider och QR-skylt
 - Fest-typen visar Eventor-nyckeln och löpardatabasen under Inställningar (utan tävlingsval och import).

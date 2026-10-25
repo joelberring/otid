@@ -678,6 +678,7 @@ function Verdict({ current, verdict, item, qr, registration, timeZone }: { curre
     {verdict?.startNote ? <p className="start-note" role="note" data-testid="verdict-start-punch" data-kind={verdict.startNote.kind}>
       {verdict.startNote.kind === "FROM_PUNCH" ? "" : "! "}{startPunchText(verdict.startNote, timeZone)}</p> : null}
     {verdict?.ignoredPunches && !verdict.punchList ? <p className="start-note" role="note" data-testid="verdict-old-punches">! {t.ignoredPunches(verdict.ignoredPunches)}</p> : null}
+    {verdict?.splitsMissing ? <p className="start-note" role="note" data-testid="verdict-no-splits">! {t.noSplits}</p> : null}
     {verdict && verdict.status !== "OK" ? <p>{t.reason[verdict.reason]}</p> : null}
     {verdict && verdict.missingControls.length > 0 ? <p>{t.missing(verdict.missingControls)}</p> : null}
     {verdict?.punchList ? <PunchListView list={verdict.punchList} timeZone={timeZone} /> : null}

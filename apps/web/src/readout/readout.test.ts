@@ -296,3 +296,15 @@ describe("synk av avläsningskön", () => {
       [2, "stored", false]]);
   });
 });
+
+describe("godkänt utan sträcktider (steg 45)", () => {
+  it("märks när alla stämplingar ligger före starten", () => {
+    const at = (minute: number) => new Date(Date.UTC(2026, 9, 1, 15, minute)).toISOString();
+    const payload = { cardNumber: String(TEST_CARD), cardType: "SI10" as const, startPunchedAt: at(30), finishPunchedAt: at(55),
+      punches: [31, 32, 33].map((code, index) => ({ code, punchedAt: at(index * 5) })), untimedPunchCodes: [], frames: ["02"],
+      simulated: true };
+    expect(evaluateLocally(payload, testPackage())).toMatchObject({ status: "OK", splits: [], splitsMissing: true });
+    const normal = { ...payload, punches: [31, 32, 33].map((code, index) => ({ code, punchedAt: at(35 + index * 5) })) };
+    expect(evaluateLocally(normal, testPackage()).splitsMissing).toBeUndefined();
+  });
+});

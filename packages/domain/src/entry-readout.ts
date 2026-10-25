@@ -1,5 +1,5 @@
 import { evaluateCardReadout } from "./evaluate-card-readout";
-import { prepareReadoutForEvaluation } from "./station-corrections";
+import { controlCodesOutOfOrder, prepareReadoutForEvaluation } from "./station-corrections";
 import type { EvaluationReadout, EvaluationResult, RaceSnapshot } from "./types";
 
 /**
@@ -44,4 +44,18 @@ export function preparedReadoutTimes(readout: EvaluationReadout, snapshot: RaceS
   { readonly startPunchedAt: string | null; readonly finishPunchedAt: string | null } {
   const prepared = prepareReadoutForEvaluation(readout, snapshot).readout;
   return { startPunchedAt: prepared.startPunchedAt ?? null, finishPunchedAt: prepared.finishPunchedAt ?? null };
+}
+
+/**
+ * Steg 45: godkänt utan en enda sträcktid fast banan har kontroller, till exempel när stämplingarna ligger före starten
+ * eller efter målet (fel klocka, eller en oröjd bricka). Statusen ändras inte; avläsningen visar en varning.
+ */
+export function okWithoutSplits(result: EvaluationResult, snapshot: RaceSnapshot): boolean {
+  if (result.status !== "OK" || result.rogaining || result.splits.length > 0 || !result.courseVersionId) return false;
+  const version = snapshot.courses.flatMap((course) => course.versions).find((candidate) => candidate.id === result.courseVersionId);
+  if (!version) return false;
+  const outOfOrder = controlCodesOutOfOrder(snapshot);
+  const codes = [...version.controls.map((control) => control.controlCode),
+    ...(version.variants ?? []).flatMap((variant) => variant.controls.map((control) => control.controlCode))];
+  return codes.some((code) => !outOfOrder.has(code));
 }

@@ -1,5 +1,5 @@
 import type { ReadoutPackage, SportidentReadoutPayload } from "@o-tid/contracts";
-import { cardPunchList, courseVariantForReadout, evaluateCardReadout, prepareReadoutForEvaluation, startPunchNote, type CardPunchList, type EvaluationResult,
+import { cardPunchList, courseVariantForReadout, evaluateCardReadout, okWithoutSplits, prepareReadoutForEvaluation, startPunchNote, type CardPunchList, type EvaluationResult,
   type RaceSnapshot, type RogainingScore, type StartPunchNote } from "@o-tid/domain";
 import { localRelay, relaySnapshot, type LocalRelay } from "./relay";
 import type { QueuedRegistration } from "./store";
@@ -29,6 +29,8 @@ export interface LocalVerdict {
   readonly rental?: boolean;
   /** Felstämplad eller okänd bricka (PLAN.md steg 27): alla stämplingar på brickan mot banan och tävlingsdagen. */
   readonly punchList?: CardPunchList;
+  /** Steg 45: godkänt men utan en enda sträcktid (stämplingarna ligger före start eller efter mål). */
+  readonly splitsMissing?: true;
   /** Oröjd bricka (PLAN.md steg 31): gamla stämplingar som inte räknades, även när resultatet är godkänt. */
   readonly ignoredPunches?: number;
   /**
@@ -152,6 +154,7 @@ export function evaluateLocally(payload: SportidentReadoutPayload, pkg: ReadoutP
     ...(owner?.rental ? { rental: true } : {}),
     ...(punchList ? { punchList } : {}),
     ...(ignoredPunches > 0 ? { ignoredPunches } : {}),
+    ...(okWithoutSplits(result, snapshot) ? { splitsMissing: true as const } : {}),
     ...(alreadyReadOutBy ? { alreadyReadOutBy } : {}),
     missingControls: result.missingControls,
     splits: result.splits.map((split) => ({ controlCode: split.controlCode, elapsedMs: split.elapsedMs, legMs: split.legMs }))

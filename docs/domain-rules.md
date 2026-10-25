@@ -31,7 +31,10 @@ bricknummer, valfri start- och målstämpling och stämplingar.
    tiden är en varning i avläsningen, deltagarkortet och arbetsytans resultatlista, aldrig publikt; den lottade
    tiden gäller (motor 0.4.0, PLAN.md steg 25).
 3. Målstämpling krävs för en sluttid. Saknad start eller mål ger `MP` med stabil förklaringskod.
-4. Kontroller matchas som en ordnad delsekvens. Extra stämplingar ignoreras för godkännandet men redovisas.
+4. Kontroller matchas som en ordnad delsekvens. Extra stämplingar ignoreras för godkännandet men redovisas. Motor 0.6.0
+   (steg 45): vid lika många matchade kontroller väljs stämplingar mellan start och mål (oröjd bricka med ett varv tidigare
+   samma dag), så att sträcktiderna finns; antalet matchade avgör först, så ingen blir felstämplad av regeln. Ett godkänt
+   utan sträcktider varnas i avläsningens besked.
 5. Saknad obligatorisk kontroll ger `MP/MISSING_CONTROL`.
 6. En obligatorisk kontroll som är stämplad men bara utanför sin plats i följden (före föregående matchade
    kontroll eller efter en senare obligatorisk kontroll) ger `MP/WRONG_ORDER`. En extra stämpling av en

@@ -40,7 +40,7 @@ describe("startstämpling vid lottad start (PLAN.md steg 25)", () => {
   it("lottad tid är den officiella starten; startstämplingen ändrar inte tiden", () => {
     const result = evaluateCardReadout(readout(), snapshot());
     expect(result).toMatchObject({ status: "OK", startTime: "2026-08-30T10:02:00Z", elapsedMs: 43 * 60_000 });
-    expect(RESULT_ENGINE_VERSION).toBe("0.5.0");
+    expect(RESULT_ENGINE_VERSION).toBe("0.6.0");
   });
 
   it("sen startstämpling över toleransen blir en varning med avvikelsen", () => {

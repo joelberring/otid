@@ -67,6 +67,7 @@ export const readoutText = {
     ? "fel på servern" : "servern tog inte emot dem"}). De ligger kvar på den här datorn. Resten av kön skickas som vanligt.`,
   syncThrottled: "Servern ber oss vänta en stund. Kön ligger kvar och skickas igen strax.",
   heldRetry: "Försök igen",
+  noSplits: "Godkänd, men inga sträcktider: stämplingarna ligger före start eller efter mål. Kontrollera klockorna och om brickan var tömd.",
   alreadyReadOutTitle: "Brickan är redan avläst",
   alreadyReadOut: (name: string) => `Brickan har redan lästs ut för ${name} – lånad bricka?`,
   alreadyReadOutPossible: (name: string) => `${name} har redan lästs ut med den här brickan. Är det en lånad bricka? Servern kontrollerar.`,

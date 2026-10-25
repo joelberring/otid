@@ -2,8 +2,16 @@
 # Kräver en .env bredvid filen med OTID_DOMAIN och POSTGRES_PASSWORD.
 name: otid
 
+# Steg 45: loggarna får inte fylla disken (högst 5 × 10 MB per tjänst).
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   postgres:
+    logging: *logging
     # Vanlig PostgreSQL för alla arkitekturer (steg 28); samma datakatalog som den tidigare PostGIS-bilden.
     image: postgres:17
     restart: unless-stopped
@@ -20,6 +28,7 @@ services:
       retries: 30
 
   web:
+    logging: *logging
     build: .
     image: otid-web
     restart: unless-stopped
@@ -52,6 +61,7 @@ services:
       retries: 60
 
   caddy:
+    logging: *logging
     image: caddy:2
     restart: unless-stopped
     depends_on:
@@ -69,6 +79,7 @@ services:
       - caddy-config:/config
 
   backup:
+    logging: *logging
     image: postgres:17
     restart: unless-stopped
     depends_on:
@@ -80,8 +91,12 @@ services:
       PGPASSWORD: ${POSTGRES_PASSWORD}
       PGDATABASE: otid
       BACKUP_DIR: /backups
+      # Steg 45: varje hel timme kl. 08–23 svensk tid; de 48 senaste timdumparna och en dagsbackup i 14 dagar.
+      TZ: Europe/Stockholm
+      BACKUP_FIRST_HOUR: "8"
+      BACKUP_LAST_HOUR: "23"
+      BACKUP_KEEP_HOURLY: "48"
       BACKUP_KEEP_DAYS: "14"
-      BACKUP_HOUR_UTC: "2"
     volumes:
       - ./backups:/backups
       - ./deploy/backup.sh:/backup.sh:ro

@@ -7,7 +7,6 @@ import {
 import { resolveStoredResultHeadStates } from "./result-revision-state";
 import { appendResultRevision, normalizedReadout } from "./result-revisions";
 import { latestResultReadouts, recalculationReadout } from "./card-reuse";
-import { carryEntryDecisions } from "./entry-status";
 
 /**
  * Gemensam omprövning för "Redigera bana" och "Redigera klass" (ADR-0169 beslut 4).
@@ -36,6 +35,15 @@ const CARRIED_DECISIONS: ReadonlySet<string> = new Set(["DSQ", "APPROVAL", "DNF"
   "FINISH_TIME", "START_TIME", "MANUAL_TIME"]);
 
 /** Steg 44: hur många av de avlästa som har ett manuellt beslut som följer med (förhandsvisningen). */
+/**
+ * Steg 44: beslutet flyttas med i statusflödet (`entry-status`), som i sin tur når omräkningen via stafetten. Läses in vid
+ * behov så att modulerna inte laddar varandra i en ring.
+ */
+async function carryEntryDecisions(...args: Parameters<typeof import("./entry-status").carryEntryDecisions>) {
+  const { carryEntryDecisions: carry } = await import("./entry-status");
+  return carry(...args);
+}
+
 export function countManualDecisions(assessed: readonly AssessedEntry[]): number {
   return assessed.filter(row => row.manualDecision === true).length;
 }

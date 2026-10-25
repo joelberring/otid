@@ -1,3 +1,13 @@
+/** "3 h 20 min", "2 dygn 4 h" – en stor klockavvikelse i hela minuter. */
+function formatSkew(minutes: number): string {
+  const total = Math.abs(minutes);
+  const days = Math.floor(total / 1_440);
+  const hours = Math.floor((total % 1_440) / 60);
+  const rest = total % 60;
+  return [days > 0 ? `${days} dygn` : "", hours > 0 ? `${hours} h` : "", rest > 0 && days === 0 ? `${rest} min` : ""]
+    .filter(Boolean).join(" ") || "0 min";
+}
+
 export const readoutText = {
   title: "O-Tid – avläsning",
   noRace: "Ingen tävling vald. Öppna avläsningen från tävlingens administrationssida.",
@@ -49,6 +59,7 @@ export const readoutText = {
   misconfiguredHelp: "Ställ stationen i läget avläsning (Readout) med utökat protokoll och anslut igen.",
   // Stationens klocka (PLAN.md steg 22).
   clockSkew: (minutes: number) => `Stationens klocka avviker ${Math.abs(minutes)} min från datorn (${minutes > 0 ? "går före" : "går efter"}). Stämplingstiderna räknas mot stationens klocka. Kontrollera att kontrollenheterna och stationen är tidsynkade.`,
+  clockIgnored: (minutes: number) => `Stationens klocka går helt fel (${formatSkew(minutes)} ${minutes > 0 ? "före" : "efter"} datorn). O-Tid räknar stämplingstiderna mot datorns klocka i stället. Kontrollera att datorns klocka stämmer, och ställ stationens klocka innan nästa tävling.`,
   clockMissing: "Stationen svarade inte på klockfrågan. Stämplingstiderna räknas mot datorns klocka.",
   timeUnresolvable: (detail: string) => `Brickans tider går inte att tolka (${detail}). Läs om brickan. Går det inte: ange tiden manuellt i deltagarkortet. Brickan står i listan nedan.`,
   // Steg 45: även 400/404/409 hålls åt sidan, så att resten av kön går.

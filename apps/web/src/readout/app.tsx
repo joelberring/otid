@@ -8,6 +8,7 @@ import { exerciseAnchor, exerciseCard, exerciseRunners, exerciseWindow, type Exe
 import { FakeStationTransport } from "./fake-transport";
 import { buildReadoutPayload, payloadHash } from "./payload";
 import { StationController, type StationFacts, type StationStatus } from "./station";
+import { chooseReadoutClock, stationClockUnusable } from "./clock";
 import { TrafficLog } from "./rawlog";
 import { IdbReadoutStore, type QueuedReadout, type QueuedRegistration, type ReadoutStore } from "./store";
 import { RegistrationForm, RegistrationStatus, type RegistrationFields } from "./registration-form";
@@ -182,14 +183,15 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
     const timeZone = known?.event.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
     // Stämplingstiderna löses mot stationens klocka när den finns (PLAN.md steg 22); övningsstationens klocka
     // står på tävlingsdagen. Datorns klocka är reservalternativet och avläsningen bär vilken som användes.
+    // Steg 45: en stationsklocka som går mer än sex timmar fel används inte (`chooseReadoutClock`).
     const exercise = exerciseRef.current;
-    const reference = exercise ? exercise.now() : station.clock ? new Date(now.getTime() + station.clock.clockOffsetMs) : now;
-    const clockOffsetMs = exercise ? exercise.now().getTime() - now.getTime() : station.clock?.clockOffsetMs;
+    const clock = chooseReadoutClock({ stationOffsetMs: station.clock?.clockOffsetMs,
+      exerciseOffsetMs: exercise ? exercise.now().getTime() - now.getTime() : undefined });
     const build = (useStation: boolean) => buildReadoutPayload(card, frames, {
-      reference: useStation ? reference : now, timeZone, simulated: exercise !== undefined,
+      reference: useStation ? new Date(now.getTime() + clock.referenceOffsetMs) : now, timeZone, simulated: exercise !== undefined,
       ...(station.serialNumber !== undefined ? { stationSerial: station.serialNumber } : {}),
-      clockSource: !useStation || clockOffsetMs === undefined ? "device" : "station",
-      ...(!useStation || clockOffsetMs === undefined ? {} : { clockOffsetMs: Math.round(clockOffsetMs) })
+      clockSource: useStation ? clock.clockSource : "device",
+      ...(useStation && clock.clockOffsetMs !== undefined ? { clockOffsetMs: clock.clockOffsetMs } : {})
     });
     let payload: ReturnType<typeof buildReadoutPayload>;
     try { payload = build(true); }
@@ -439,6 +441,8 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
   // Klockskillnad i hela minuter, bara för en riktig station (övningsstationens klocka står med flit på tävlingsdagen).
   const clockSkew = !exercise && station.kind === "ready" && station.clock && Math.abs(station.clock.clockOffsetMs) >= CLOCK_SKEW_WARNING_MS
     ? Math.round(station.clock.clockOffsetMs / 60_000) : undefined;
+  // Steg 45: mer än sex timmar fel – datorns klocka gäller i stället.
+  const clockIgnored = !exercise && station.kind === "ready" && station.clock !== undefined && stationClockUnusable(station.clock.clockOffsetMs);
   const printable: Printable | undefined = current?.phase === "done" && verdict && pkg
     ? { localSequence: current.localSequence, cardNumber: current.cardNumber, verdict } : undefined;
   // QR-koden på skärmen: för en känd löpare, så att hen kan skanna i stället för att ta ett papperskvitto.
@@ -479,7 +483,8 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
     </section> : null}
     {!persistent ? <p className="notice">{t.storageNotPersistent}</p> : null}
     {station.kind === "misconfigured" ? <p className="notice" role="alert">{t.misconfiguredHelp} ({station.problems.join(", ")})</p> : null}
-    {clockSkew !== undefined ? <p className="notice" role="alert" data-testid="clock-skew">{t.clockSkew(clockSkew)}</p> : null}
+    {clockIgnored ? <p className="notice" role="alert" data-testid="clock-ignored">{t.clockIgnored(clockSkew ?? 0)}</p>
+      : clockSkew !== undefined ? <p className="notice" role="alert" data-testid="clock-skew">{t.clockSkew(clockSkew)}</p> : null}
     {!exercise && station.kind === "ready" && !station.clock ? <p className="notice" data-testid="clock-missing">{t.clockMissing}</p> : null}
   </>;
   const controls = <>

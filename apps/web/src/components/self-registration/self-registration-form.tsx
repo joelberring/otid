@@ -97,7 +97,7 @@ export function SelfRegistrationForm({ raceId, collapsible = false }: { raceId: 
         focusFirstError(formRef.current);
         return;
       }
-      setMessage(code === "CARD_TAKEN" ? text.errors.taken : code === "CLASS_FULL" ? text.errors.full
+      setMessage(code === "CARD_TAKEN" ? text.errors.taken : code === "CARD_HAS_PURCHASES" ? text.errors.hasPurchases : code === "CLASS_FULL" ? text.errors.full
         : code === "CLOSED" || code === "NOT_FOUND" ? text.errors.closed : code === "RATE_LIMITED" ? text.errors.rateLimited : text.errors.failed);
     } catch { setMessage(text.errors.failed); }
     finally { setSaving(false); }

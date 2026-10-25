@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase, migrate } from "@o-tid/database";
-import { readPartyAsAdmin, readPublicParty, readSelfRegistrationInfo, selfRegisterCard } from "../../src";
+import { changePartyAsAdmin, readPartyAsAdmin, readPublicParty, readSelfRegistrationInfo, selfRegisterCard, setPartyGuestAsAdmin } from "../../src";
 import { auth, ingest, NOW, RACE_DATE, run, seedRace } from "./steg-25-fixtures";
 
 /**
@@ -129,5 +129,26 @@ describe("självregistrering på tävlingsdagen (PLAN.md steg 41)", () => {
     expect(await register(ids.race, { cardNumber: card(), givenName: "!!!" })).toEqual({ status: "invalid-request", fields: ["givenName"] });
     expect(await register(ids.race, { cardNumber: card(), givenName: "x".repeat(61) })).toEqual({ status: "invalid-request", fields: ["givenName"] });
     expect(RACE_DATE).toBe("2026-09-19");
+  });
+
+  it("steg 44: en festpinne som redan har köp men saknar namn namnges inte via formuläret, men i bardisken", async () => {
+    const { ids } = await openRace({ party: true });
+    const admin = await auth(db, ids.race, "ADMIN");
+    const change = (value: Record<string, unknown>) => changePartyAsAdmin(db, { ...admin, request: { formatVersion: 1,
+      requestId: randomUUID(), change: value } }, NOW);
+    expect((await change({ kind: "settings", startsAt: `${RACE_DATE}T00:00:00.000Z`, showPublicNames: true, doublePunchSeconds: 5 })).status)
+      .toBe("ok");
+    expect((await change({ kind: "item-add", code: 31, name: "Öl", priceOre: 4_000 })).status).toBe("ok");
+    const number = card();
+    await ingest(db, ids.race, [run(number, "11:00:00", 30)]);
+    expect(await register(ids.race, { cardNumber: number, givenName: "Någon", familyName: "Annan" }))
+      .toEqual({ status: "card-has-purchases" });
+    expect((await pool.query("SELECT 1 FROM party_guest WHERE race_id=$1 AND card_number=$2", [ids.race, number])).rowCount).toBe(0);
+    // Personalen i bardisken namnger pinnen som förut.
+    const functionary = await auth(db, ids.race, "FUNCTIONARY");
+    expect((await setPartyGuestAsAdmin(db, { ...functionary, request: { formatVersion: 1, cardNumber: number, name: "Gun Gäst",
+      club: null } }, NOW)).status).toBe("ok");
+    // En pinne utan köp går fortfarande att registrera.
+    expect((await register(ids.race, { cardNumber: card() })).status).toBe("ok");
   });
 });

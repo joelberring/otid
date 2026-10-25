@@ -31,6 +31,8 @@ export const selfRegistrationSv = {
     classId: "Välj en klass.",
     displayName: "Visningsnamnet får vara högst 40 tecken och innehålla bokstäver.",
     taken: "Pinnen är redan registrerad. Kontakta arrangören.",
+    // Steg 44: en festpinne med köp men utan namn namnges i bardisken.
+    hasPurchases: "Pinnen har redan köp i kväll – gå till bardisken så hjälper personalen dig.",
     full: "Klassen är full. Välj en annan klass eller kontakta arrangören.",
     closed: "Självregistreringen är stängd just nu.",
     rateLimited: "För många registreringar på kort tid. Vänta några minuter och försök igen.",

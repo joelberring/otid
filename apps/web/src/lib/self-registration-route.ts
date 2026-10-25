@@ -38,6 +38,7 @@ export async function selfRegistrationRoute(db: Database, request: Request, race
       case "not-found": return failure(404, "NOT_FOUND");
       case "closed": return failure(403, "CLOSED");
       case "card-taken": return failure(409, "CARD_TAKEN");
+      case "card-has-purchases": return failure(409, "CARD_HAS_PURCHASES");
       case "class-full": return failure(409, "CLASS_FULL");
       case "rate-limited": return failure(429, "RATE_LIMITED");
     }

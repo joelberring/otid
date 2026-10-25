@@ -40,7 +40,7 @@ export const selfRegistrationInfoResponseSchema = z.object({
   clubs: z.array(z.string().min(1).max(200)).max(2000)
 }).strict();
 
-export const selfRegistrationErrorCodes = ["INVALID_REQUEST", "NOT_FOUND", "CLOSED", "CARD_TAKEN", "CLASS_FULL", "RATE_LIMITED",
+export const selfRegistrationErrorCodes = ["INVALID_REQUEST", "NOT_FOUND", "CLOSED", "CARD_TAKEN", "CARD_HAS_PURCHASES", "CLASS_FULL", "RATE_LIMITED",
   "FORBIDDEN", "INTERNAL_ERROR"] as const;
 
 export const selfRegistrationResponseSchema = z.object({

@@ -9,6 +9,7 @@ import {
 } from "@o-tid/domain";
 import { consumeAccountRequestAllowance } from "./account-throttle";
 import { lockRaceForMutation } from "./concurrency";
+import { loadPartyState } from "./party";
 import { canAddClassEntry } from "./class-capacity-guard";
 import { latestResultReadAt, latestUnresolvedReadout } from "./readout-registration";
 import { evaluateAndStore, normalizedReadout } from "./result-revisions";
@@ -34,7 +35,7 @@ export const SELF_REGISTRATION_SOURCE = "PUBLIC_SELF_REGISTRATION";
 
 type Field = "cardNumber" | "givenName" | "familyName" | "club" | "classId" | "displayName";
 export type SelfRegistrationResult =
-  | { status: "not-found" | "closed" | "card-taken" | "class-full" | "rate-limited" }
+  | { status: "not-found" | "closed" | "card-taken" | "card-has-purchases" | "class-full" | "rate-limited" }
   | { status: "invalid-request"; fields?: Field[] }
   | { status: "ok"; response: SelfRegistrationResponse };
 
@@ -133,6 +134,9 @@ export async function selfRegisterCard(db: Database, input: { raceId: string; cl
       const [guest] = await tx.select({ name: schema.partyGuests.name }).from(schema.partyGuests)
         .where(and(eq(schema.partyGuests.raceId, race.id), eq(schema.partyGuests.cardNumber, cardNumber)));
       if (guest) return { status: "card-taken" as const };
+      // Steg 44: en pinne som redan har köp i kväll namnges bara i bardisken (annars kan vem som helst styra om notan).
+      const state = await loadPartyState(tx, race.id, now);
+      if (state.purchases.some(row => row.cardNumber === cardNumber)) return { status: "card-has-purchases" as const };
       await tx.insert(schema.partyGuests).values({ raceId: race.id, cardNumber, name, club: clubText, displayName, updatedAt: now,
         selfRegisteredAt: now });
       await tx.insert(schema.auditEvents).values({ raceId: race.id, entityType: "party", entityId: race.id, actorKind: null, actorId: null,

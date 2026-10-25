@@ -55,13 +55,13 @@ export async function latestResultReadouts(tx: DbExecutor, raceId: string, entry
 }
 
 /**
- * Avläsningen som en omräkning utgår från: deltagarens egen (den som resultatet bygger på) så länge brickan inte bytts
- * sedan dess; har deltagaren fått en annan bricka gäller den brickans senaste avläsning.
+ * Avläsningen som en omräkning utgår från: alltid deltagarens egen (den som resultatet bygger på). Steg 45: tidigare
+ * föll omräkningen tillbaka på brickans senaste avläsning när deltagaren saknade eget resultat eller hade bytt bricka, och
+ * då kunde en deltagare få någon annans avläsning (lånad bricka). En avläsning blir deltagarens först när den kopplas:
+ * vid avläsningen, via "Okända brickor" eller via direktanmälan.
  */
-export function recalculationReadout<T extends { readonly cardNumber: string }>(own: T | undefined, activeCard: string | undefined,
-  latestByCard: T | undefined): T | undefined {
-  if (own && (activeCard === undefined || own.cardNumber === activeCard)) return own;
-  return latestByCard ?? own;
+export function recalculationReadout<T>(own: T | undefined): T | undefined {
+  return own;
 }
 
 /**

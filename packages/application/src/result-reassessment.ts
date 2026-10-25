@@ -50,16 +50,6 @@ export async function assessReadOutEntries(tx: Transaction, raceId: string, clas
   if (entries.length > MAX_ENTRIES) return "too-large";
   if (entries.length === 0) return [];
   const entryIds = entries.map(row => row.id);
-  const assignments = await tx.select({ entryId: schema.cardAssignments.entryId, cardNumber: schema.cardAssignments.cardNumber })
-    .from(schema.cardAssignments).where(and(eq(schema.cardAssignments.raceId, raceId), eq(schema.cardAssignments.active, true),
-      inArray(schema.cardAssignments.entryId, entryIds)));
-  const cardsByEntry = new Map<string, string[]>();
-  for (const row of assignments) cardsByEntry.set(row.entryId, [...cardsByEntry.get(row.entryId) ?? [], row.cardNumber]);
-  const cards = [...new Set(assignments.map(row => row.cardNumber))];
-  const readouts = cards.length === 0 ? [] : await tx.selectDistinctOn([schema.cardReadouts.cardNumber]).from(schema.cardReadouts)
-    .where(and(eq(schema.cardReadouts.raceId, raceId), inArray(schema.cardReadouts.cardNumber, cards)))
-    .orderBy(asc(schema.cardReadouts.cardNumber), desc(schema.cardReadouts.readAt), desc(schema.cardReadouts.id));
-  const readoutByCard = new Map(readouts.map(row => [row.cardNumber, row]));
   // Steg 31 (B4): resultatet följer avläsningen och deltagaren. Den som har ett resultat räknas om från sin egen
   // avläsning, även om brickan sedan lästs ut för någon annan (lånad bricka) eller flyttats.
   const resultReadouts = await latestResultReadouts(tx, raceId, entryIds);
@@ -74,9 +64,7 @@ export async function assessReadOutEntries(tx: Transaction, raceId: string, clas
   const stateByEntry = new Map((await resolveStoredResultHeadStates(tx, raceId, latest)).map(state => [state.head.entryId, state]));
   const assessed: AssessedEntry[] = [];
   for (const entry of entries) {
-    const entryCards = cardsByEntry.get(entry.id) ?? [];
-    const card = entryCards.length === 1 ? entryCards[0]! : undefined;
-    const readout = recalculationReadout(resultReadouts.get(entry.id), card, card ? readoutByCard.get(card) : undefined);
+    const readout = recalculationReadout(resultReadouts.get(entry.id));
     if (!readout) continue;
     const head = latestByEntry.get(entry.id) ?? null;
     const state = stateByEntry.get(entry.id);

@@ -84,6 +84,14 @@ funktion lokalt; dess besked är preliminärt och serverns revision är auktorit
 - Sträcktidsanalysen för en gafflad klass jämför varje kontrollpar mellan alla som sprungit det (`buildLegSplitTable`);
   per variant (`splitTablesByVariant`) är ett val.
 
+## Banhemlighet (steg 52, ADR-0176)
+
+- Banorna (gafflingsbilden, kontrollernas lägen och kontrollkartan) är publika när arrangören valt "Visa banorna publikt
+  nu", när resultaten är fastställda eller när det finns deltagare och alla ej strukna har ett resultat eller beslut (även
+  ej start; ett borttaget beslut räknas inte). Utan deltagare är de hemliga. Läget räknas vid varje fråga (`courseSecrecy`).
+- Innan dess visar inget publikt svar gafflingsbilden eller kontrollägen; variantkoden och sträcktiderna står kvar.
+  Arrangören och funktionärerna ser allt. Valet sparas med en auditpost och går att ångra.
+
 ## Statusbeslut
 
 - Arrangören kan sätta ej start, ej fullföljt, disk, utom tävlan, deltog utan tid, godkänt manuellt samt

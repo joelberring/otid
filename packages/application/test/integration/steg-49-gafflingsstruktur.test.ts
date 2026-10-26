@@ -184,14 +184,14 @@ describe("steg 49: gafflingsstruktur", () => {
     expect((await editCourseAsAdmin(db, { ...proof, idempotencyKey: `course-edit:${invalidId}`, request: { formatVersion: 1, requestId: invalidId,
       courseId, forking: { items: [control(31), { kind: "FORK", branches: [[41], []] }] }, confirmResultChanges: false } })).status).toBe("invalid-request");
 
-    // Publikt: klassens bana med strukturen och varje variants val.
-    const published = await publicResults(db, proof.raceId);
+    // Publikt: klassens bana med strukturen och varje variants val (steg 52: när banorna är publika, här för arrangören).
+    const published = await publicResults(db, proof.raceId, { staff: true });
     const h21 = "classCourses" in published ? published.classCourses?.find(row => row.className === "H21") : undefined;
     expect(h21?.forking?.items).toEqual(forked.items);
     expect(h21?.forking?.variants.find(variant => variant.code === "AD")?.choices).toEqual([null, [0, 1], null, null, 1, null, null]);
     const cia = published.results.find(row => "publicResultId" in row && row.givenName === "Cia");
     if (!cia || !("publicResultId" in cia)) throw new Error("Cia saknas publikt");
-    const detail = await publicResultDetail(db, proof.raceId, cia.publicResultId);
+    const detail = await publicResultDetail(db, proof.raceId, cia.publicResultId, { staff: true });
     expect(detail).toMatchObject({ status: "ok", response: { classCourse: { className: "H21", forking: { items: forked.items } } } });
   });
 

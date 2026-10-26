@@ -815,6 +815,22 @@ ADR-0174 beslut 9. Migration 0024.
 - [x] Teamsprint vid okända utläsningar och omläsning från rådata; löpare, växlingskontroll och utläsningssätt kan ändras
   när lag finns.
 
+## [ ] Steg 52 – Kontrollkartan och banhemlighet
+
+ADR-0176. Migration 0026.
+
+- [x] Banhemlighet: publikt ingen gafflingsbild, ingen bana med kontrollägen på vägvalskartan och inga kontrollägen i
+  API:erna förrän ingen deltagare är kvar, resultaten är fastställda eller arrangören valt "Visa banorna publikt nu"
+  (auditpost, går att ångra). Arbetsytan visar läget under Publicera. Arrangören och funktionärerna ser allt.
+- [ ] Kontrollkartan i arbetsytan: kontroller, start och mål i rätt läge och skala, kartbilden under; kartlägen
+  (MapPosition) när lägena saknas.
+- [ ] Växla bana och variant; vald bana med linjer och nummer, övriga nedtonade; gafflade grenar.
+- [ ] Belastning per kontroll (banor, varianter, planerade löpare, stämplingar) med färg, storlek och tabell; kontroll ur
+  funktion markerad.
+- [ ] Deltagarkortet "Visa på kartan": stämplade, saknade och fel ordning; stafettsträckor och teamsprintdelar.
+- [ ] Publikt på deltagarsidan bakom "Visa på kartan" (när banorna är publika).
+- [ ] Utan koordinater: gafflingsbilden och en lista.
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

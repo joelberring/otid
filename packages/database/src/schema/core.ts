@@ -123,6 +123,10 @@ export const races = pgTable("race", {
   startListLive: boolean("start_list_live").notNull().default(false),
   /** Steg 41 (migration 0018): "Tillåt självregistrering på tävlingsdagen". Av som standard. */
   selfRegistration: boolean("self_registration").notNull().default(false),
+  /** Steg 52 (migration 0026): "Visa banorna publikt nu". NULL = banorna hemliga publikt tills alla är i mål (ADR-0176). */
+  coursesPublicAt: timestamp("courses_public_at", { withTimezone: true }),
+  /** Steg 52: kartans skala ur banfilen (IOF Map/Scale, t.ex. 10000) för kontrollernas kartlägen. NULL = okänd. */
+  courseMapScale: integer("course_map_scale"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (table) => [
   check("race_info_check", sql`${table.info} IS NULL OR char_length(${table.info}) BETWEEN 1 AND 1000`),
@@ -146,6 +150,9 @@ export const courses = pgTable("course", {
   /** Steg 49 (migration 0023): startens och målets lägen ur banfilen ({ latitude, longitude }). NULL = okänt. */
   startPosition: jsonb("start_position").$type<{ latitude: number; longitude: number }>(),
   finishPosition: jsonb("finish_position").$type<{ latitude: number; longitude: number }>(),
+  /** Steg 52 (migration 0026): startens och målets lägen på kartan ur banfilen ({ x, y } i mm, IOF MapPosition). */
+  startMapPosition: jsonb("start_map_position").$type<{ x: number; y: number }>(),
+  finishMapPosition: jsonb("finish_map_position").$type<{ x: number; y: number }>(),
   externalSource: text("external_source"),
   externalId: text("external_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
@@ -170,6 +177,9 @@ export const controls = pgTable("control", {
   /** Steg 49 (migration 0023): kontrollens läge ur banfilen (IOF Control/Position, WGS 84). NULL = okänt. */
   latitude: doublePrecision("latitude"),
   longitude: doublePrecision("longitude"),
+  /** Steg 52 (migration 0026): kontrollens läge på kartan i mm (IOF MapPosition). NULL = okänt. */
+  mapX: doublePrecision("map_x"),
+  mapY: doublePrecision("map_y"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (table) => [uniqueIndex("control_race_code_uidx").on(table.raceId, table.code),
   check("control_points_check", sql`${table.points} IS NULL OR ${table.points} BETWEEN 0 AND 1000`)]);

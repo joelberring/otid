@@ -1,3 +1,4 @@
+import { courseSecrecyState, loadCourseSecrecy } from "./course-secrecy";
 import { and, asc, desc, eq, getTableColumns, sql, isNull } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
 import { entryTransferCandidatesSchema, entryTransferIdempotencyKeySchema,
@@ -141,6 +142,7 @@ export async function listEntryTransfersAsAdmin(db: Database, input: Authenticat
       formatVersion: 2, raceId: input.raceId, snapshotVersion: race.snapshotVersion,
       generatedAt: now.toISOString(), ...raceFacts,
       publication: { shortCode, publishedAt: publishedAt?.toISOString() ?? null, hiddenBySuperadmin },
+      courseSecrecy: courseSecrecyState(await loadCourseSecrecy(tx, input.raceId)),
       classes: classRows.map(row => ({ id: row.id, name: row.name, courseVersionId: row.courseVersionId,
         courseName: row.courseName, courseVersion: row.courseVersion, startRule: row.startRule,
         courseLengthMeters: row.courseLengthMeters, courseClimbMeters: row.courseClimbMeters, maxTimeMinutes: row.maxTimeMinutes,

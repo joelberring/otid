@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { racePublicationResponseSchema } from "@o-tid/contracts";
+import { courseSecrecyResponseSchema, racePublicationResponseSchema } from "@o-tid/contracts";
 import { publicRaceSv } from "../../i18n/public-race-sv";
+import { courseSecrecySv as secrecyText } from "../../i18n/course-secrecy-sv";
 import { displayAddress, formatRaceInstant, raceHubPath, raceQrPath } from "../../lib/public-race-format";
 import { PublicLinkShare } from "../public-link-share";
 import { Button, Notice, Section } from "../ui";
@@ -67,8 +68,47 @@ function RacePublicationSection({ ws, id }: { ws: Workspace; id: string }) {
   </Section>;
 }
 
+/**
+ * Steg 52 (ADR-0176): banorna publikt. Läget i en mening och "Visa banorna publikt nu" (eller ångra valet). Sparas direkt;
+ * inget resultat ändras.
+ */
+function CourseSecrecySection({ ws, id }: { ws: Workspace; id: string }) {
+  const { begin, busy, writingRef, csrf, current, data, finish, load, pending, raceId, request, json, requireSession, workflowLocked } = ws;
+  const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
+  const secrecy = data?.courseSecrecy;
+  if (!secrecy) return null;
+
+  async function change(reveal: boolean) {
+    if (writingRef.current || pending.current || !requireSession()) return;
+    setMessage(undefined);
+    const op = begin(true);
+    try {
+      const response = await request("/course-secrecy", op, { method: reveal ? "PUT" : "DELETE", headers: { "x-otid-csrf": csrf() } });
+      if (!response.ok) throw new Error("Course secrecy failed");
+      const receipt = courseSecrecyResponseSchema.parse(await json(response, op));
+      if (receipt.raceId !== raceId) throw new Error("Course secrecy receipt mismatch");
+      await load(op);
+      setMessage({ tone: "ok", text: reveal ? secrecyText.revealedNow : secrecyText.withdrawnNow });
+    } catch { if (current(op)) setMessage({ tone: "error", text: secrecyText.failed }); }
+    finally { finish(op); }
+  }
+
+  return <Section id={id} title={secrecyText.title} help={secrecyText.help}>
+    <Notice tone={secrecy.public ? "ok" : "info"}>{secrecy.reason ? secrecyText.reason[secrecy.reason]
+      : data.entries.length === 0 ? secrecyText.secretEmpty : secrecyText.secret(secrecy.remaining)}</Notice>
+    <div className={styles.actions}>
+      {secrecy.revealedAt
+        ? <Button variant="secondary" disabled={busy || workflowLocked} onClick={() => void change(false)}>{secrecyText.withdraw}</Button>
+        : !secrecy.public && <Button variant="secondary" disabled={busy || workflowLocked} onClick={() => void change(true)}>{secrecyText.reveal}</Button>}
+    </div>
+    {secrecy.revealedAt && <p className={styles.muted}>{secrecyText.withdrawNote}</p>}
+    {message && <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>{message.text}</Notice>}
+  </Section>;
+}
+
 /** Steget Publicera i sidopanelen. */
 export function PublishPanel({ ws }: { ws: Workspace }) {
   if (!ws.shows("PUBLISH") || !ws.data) return null;
-  return <div className={styles.workflowGroup}><RacePublicationSection ws={ws} id={`publish-${ws.raceId}`} /></div>;
+  return <div className={styles.workflowGroup}><RacePublicationSection ws={ws} id={`publish-${ws.raceId}`} />
+    <CourseSecrecySection ws={ws} id={`course-secrecy-${ws.raceId}`} /></div>;
 }

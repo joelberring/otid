@@ -195,6 +195,12 @@ describe("ADR-0171 karta och vägval", () => {
     const placed = await readPublicLegRoutes(db, f.raceId, annaId, "31.1-32.1");
     expect(placed!.course!.points.map(point => [point.label, Math.round(point.x), Math.round(point.y), point.leg])).toEqual([
       ["31", 260, 330, true], ["32", 470, 230, true]]);
+    // Steg 52 (ADR-0176): med en löpare kvar är banan hemlig publikt; arrangören och funktionärerna ser den.
+    const late = await register(f, "Dag", "8100099");
+    expect((await readPublicLegRoutes(db, f.raceId, annaId, "31.1-32.1"))!.course).toBeUndefined();
+    expect((await readPublicLegRoutes(db, f.raceId, annaId, "31.1-32.1", { staff: true }))!.course!.points).toHaveLength(2);
+    await pool.query("update entry set struck_at = now() where id = $1", [late]);
+    expect((await readPublicLegRoutes(db, f.raceId, annaId, "31.1-32.1"))!.course!.points).toHaveLength(2);
 
     // Start–31 för Anna och Cia: den valda först, andra löpare på samma sträcka att jämföra med. Inget före start:
     // fixturen står still vid starten i fem minuter, så sträckan börjar vid starttriangeln (140,500).

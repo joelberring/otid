@@ -10,6 +10,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-10-26 – Steg 52 del 1: banhemlighet (agent D)
+- Ny regel (ADR-0176, `courseSecrecy`): banorna är publika när alla ej strukna har resultat eller beslut, när resultaten är fastställda eller när arrangören valt "Visa banorna publikt nu" (`race.courses_public_at`, migration 0026, auditpost, går att ångra).
+- Innan dess publikt: ingen gafflingsbild i resultatlistan och på deltagarsidan och ingen bana på vägvalskartan. Variant och sträcktider står kvar.
+- Arrangören och funktionärerna ser allt, även på de publika sidorna när de är inloggade (svaret cachas då inte delat). Läget visas under Publicera.
+- Tester: domän `course-secrecy`, integration `steg-52-banhemlighet` och `adr-0171-map-routes`, Playwright `banhemlighet`.
+
 ### 2026-10-26 – Steg 50: teamsprint med utläsning efter varje sträcka (agent A)
 - Förval som MeOS (`class.relay_readout_mode`, migration 0024): utläsningen går till löparens första sträcka utan resultat och bedöms mot stämplingarna efter förra utläsningens mål; ingen växlingskontroll behövs. Steg 48:s sätt är ett val.
 - Dubblett = omläsning; tidigare måltid eller alla sträckor utlästa blir okänd utläsning med besked. Glömd utläsning: växlingskontrollen om den finns, annars banorna i tur och ordning och "Utläsning efter sträcka X saknas".

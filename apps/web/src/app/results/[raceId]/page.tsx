@@ -7,7 +7,7 @@ import { splitAnalysisSv } from "../../../i18n/split-analysis-sv";
 import { analysisClassNames } from "../../../lib/split-analysis";
 import { resultListFromPublic } from "../../../lib/lists/result-list-model";
 import Link from "next/link";
-import { requirePublicRace } from "../../../lib/public-race-gate";
+import { raceStaff, requirePublicRace } from "../../../lib/public-race-gate";
 import { PreviewBanner } from "../../../components/public-race/preview-banner";
 import { liveSv } from "../../../i18n/live-sv";
 import { raceHubPath } from "../../../lib/public-race-format";
@@ -17,7 +17,9 @@ export const dynamic = "force-dynamic";
 export default async function ResultsPage({ params }: { params: Promise<{ raceId: string }> }) {
   const { raceId } = await params;
   const access = await requirePublicRace(raceId);
-  const [summary, results, relay, finalization, radio] = await Promise.all([publicRaceSummary(db, raceId), publicResults(db, raceId),
+  // Steg 52: arrangören och funktionärerna ser gafflingsbilden även när banorna är hemliga publikt.
+  const staff = await raceStaff(raceId);
+  const [summary, results, relay, finalization, radio] = await Promise.all([publicRaceSummary(db, raceId), publicResults(db, raceId, { staff }),
     publicRelayResults(db, raceId), readLatestPublicFrozenRaceFinalization(db, raceId), readPublicRadio(db, raceId)]);
   // Sträcktidsanalysen (PLAN.md steg 16) finns när någon individuell klass har sträcktider.
   const analysis = analysisClassNames(resultListFromPublic(results, relay)).length > 0;

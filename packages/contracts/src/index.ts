@@ -24,6 +24,7 @@ export * from "./organizer-account";
 export * from "./superadmin";
 export * from "./race-people";
 export * from "./race-publication";
+export * from "./course-secrecy";
 export * from "./iof-import-admin";
 export * from "./iof-result-list-export";
 export * from "./local-station-evaluation";

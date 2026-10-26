@@ -10,6 +10,7 @@ export * from "./superadmin";
 export * from "./public-race-visibility";
 export * from "./public-races";
 export * from "./race-publication";
+export * from "./course-secrecy";
 export * from "./serialization";
 export * from "./import-iof";
 export * from "./ingest";

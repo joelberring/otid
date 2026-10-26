@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
-import { publicRaceAccess, type PublicRaceAccess } from "@o-tid/application";
+import { isRaceStaff, publicRaceAccess, type PublicRaceAccess } from "@o-tid/application";
 import { db } from "./db";
 import { organizerAccountSessionCookieName } from "./organizer-account-cookies";
 
@@ -38,4 +38,22 @@ export async function publicRaceResponse(raceId: string, respond: () => Promise<
   const response = await respond();
   if (access === "PREVIEW") response.headers.set("cache-control", "private, no-store, no-transform");
   return response;
+}
+
+/** Steg 52 (ADR-0176): den inloggade är arrangör eller funktionär på tävlingen och ser banorna även när de är hemliga. */
+export async function raceStaff(raceId: string): Promise<boolean> {
+  return isRaceStaff(db, raceId, await accountSessionToken());
+}
+
+/**
+ * Som `publicRaceResponse`, men svaret får veta om den som frågar är arrangör eller funktionär (banorna visas då även när
+ * de är hemliga publikt). Ett sådant svar sparas aldrig i en delad cache.
+ */
+export async function publicRaceStaffResponse(raceId: string, respond: (staff: boolean) => Promise<Response> | Response): Promise<Response> {
+  return publicRaceResponse(raceId, async () => {
+    const staff = await raceStaff(raceId);
+    const response = await respond(staff);
+    if (staff) response.headers.set("cache-control", "private, no-store, no-transform");
+    return response;
+  });
 }

@@ -32,6 +32,11 @@ export function ClassTable({ ws, visible }: { ws: Workspace; visible: boolean })
     (ws.removalMessage?.kind === "CLASS" && ws.removalMessage.id === classId);
   // Stafettklass (ADR-0169 beslut 3): antal sträckor i stället för startsätt.
   const relayLegs = new Map(data?.classes.flatMap(row => row.relayLegCount ? [[row.id, row.relayLegCount] as const] : []));
+  // Steg 56: en stafettklass har banor per sträcka (ADR-0174 beslut 10); raden visar dem i sträckordning.
+  const relayCourses = (classId: string) => {
+    const legs = ws.relay?.classes.find(row => row.id === classId)?.legCourses;
+    return legs ? [...new Set(legs.map(leg => leg.courseName))].join(", ") : undefined;
+  };
   const noCourses = courseList?.courses.length === 0, empty = courseList?.classes.length === 0;
   // Banor och klasser i samma steg (Träning, Rogaining): tomläget står under Banor, inte två gånger (PLAN.md steg 24).
   if (noCourses && section.panels.includes("COURSES")) return null;
@@ -61,7 +66,7 @@ export function ClassTable({ ws, visible }: { ws: Workspace; visible: boolean })
         const selected = row.classId === selectedClassId;
         return [<tr key={row.classId} data-selected={selected ? "true" : undefined} aria-current={selected ? "true" : undefined}>
           <th scope="row">{row.name}</th>
-          <td>{courseNames.get(row.courseId) ?? "–"}
+          <td>{(relayLegs.get(row.classId) ? relayCourses(row.classId) : undefined) ?? courseNames.get(row.courseId) ?? "–"}
             {variants && row.variantCount > 0 && <span className={styles.subLine}>{variantText.forked(row.variantCount)}</span>}
             {variants && row.missingVariantCount > 0 && <>
               <span className={styles.subLine}>{variantText.missingVariants(row.missingVariantCount)}</span>
@@ -113,10 +118,12 @@ function ClassEditor({ ws, row }: { ws: Workspace; row: ClassRow }) {
     <div className={styles.fieldRow}>
       <label htmlFor={`${id}-name`}>{text.fieldName}<input id={`${id}-name`} value={classEditName} maxLength={160}
         disabled={locked || !row.renamable} onChange={event => changeClassEdit({ name: event.target.value })} /></label>
-      <label htmlFor={`${id}-course`}>{text.fieldCourse}<select id={`${id}-course`} value={classEditCourseId} disabled={locked}
-        onChange={event => changeClassEdit({ courseId: event.target.value })}>
-        {courseList?.courses.map(course => <option key={course.courseId} value={course.courseId}>{course.name}</option>)}
-      </select></label>
+      {ws.data?.classes.some(raceClass => raceClass.id === row.classId && raceClass.relayLegCount)
+        ? <p className={styles.workflowHelp}>{relayText.classTableCourses}</p>
+        : <label htmlFor={`${id}-course`}>{text.fieldCourse}<select id={`${id}-course`} value={classEditCourseId} disabled={locked}
+          onChange={event => changeClassEdit({ courseId: event.target.value })}>
+          {courseList?.courses.map(course => <option key={course.courseId} value={course.courseId}>{course.name}</option>)}
+        </select></label>}
       {startRuleChoice && <label htmlFor={`${id}-start`}>{text.fieldStartRule}<select id={`${id}-start`} value={classEditStartRule}
         disabled={locked || !!ws.data?.classes.some(raceClass => raceClass.id === row.classId && raceClass.relayLegCount)}
         onChange={event => changeClassEdit({ startRule: event.target.value === "FIXED" ? "FIXED" : "PUNCH" })}>

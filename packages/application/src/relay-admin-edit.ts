@@ -18,7 +18,7 @@ import { classNameTaken } from "./duplicate-names";
 import { applyEntryDecision } from "./entry-status";
 import { PurgeProtectedError, purgeRows } from "./purge";
 import {
-  MAX_VERSION, mutate, parseIntent, relayLegRow, relayLegRules, resolveLegCourses, type Failure, type Transaction
+  MAX_VERSION, latestCourseVersion, mutate, parseIntent, relayLegRow, relayLegRules, resolveLegCourses, type Failure, type Transaction
 } from "./relay-admin";
 import { loadRelayClassConfigs, type RelayClassConfig } from "./relay-model";
 import { recomputeRelayStarts, synchronizeRelayClass } from "./relay-sync";
@@ -138,7 +138,11 @@ export async function editRelayClassAsAdmin(db: Database, input: Input, now = ne
         });
         const droppedRunners = classEntries.filter(entry => runnerChanges.some(change => change.leg === entry.leg &&
           (entry.legOrder ?? 1) > change.to));
-        const legCourses = await resolveLegCourses(tx, raceId, raceClass.courseVersionId, intent.legs);
+        // Steg 56 (ADR-0174 beslut 10): klassens bana följer sträcka 1:s bana.
+        const firstCourseId = intent.legs[0]?.courseId ?? null;
+        const classVersion = firstCourseId === null ? raceClass.courseVersionId : await latestCourseVersion(tx, raceId, firstCourseId);
+        if (!classVersion) return { status: "not-found" };
+        const legCourses = await resolveLegCourses(tx, raceId, classVersion, intent.legs);
         if (legCourses === "not-found") return { status: "not-found" };
         if (legCourses === "invalid") return { status: "invalid-request" };
         const before = await loadRaceSnapshot(tx, raceId);
@@ -181,13 +185,15 @@ export async function editRelayClassAsAdmin(db: Database, input: Input, now = ne
           const row = relayLegRow(raceClass.id, raceId, leg, legCourses.get(leg.leg) ?? null);
           const old = config.legs.find(candidate => candidate.leg === leg.leg);
           if (!old) { await tx.insert(schema.relayLegs).values(row); continue; }
-          if ((old.courseVersionId ?? null) !== row.courseVersionId || old.variantCode !== row.courseVariantCode) replan.add(leg.leg);
+          // Banan som sträckan faktiskt springer: en sträcka som går från "klassens" till samma bana uttryckligen är oförändrad.
+          if ((old.courseVersionId ?? raceClass.courseVersionId) !== (row.courseVersionId ?? classVersion) ||
+            old.variantCode !== row.courseVariantCode) replan.add(leg.leg);
           await tx.update(schema.relayLegs).set({ startMethod: row.startMethod, startTime: row.startTime, courseVariantCode: row.courseVariantCode,
             courseVersionId: row.courseVersionId, restartAfterMinutes: row.restartAfterMinutes, runners: row.runners,
             changeoverRule: row.changeoverRule, approvalRule: row.approvalRule })
             .where(and(eq(schema.relayLegs.classId, raceClass.id), eq(schema.relayLegs.leg, leg.leg)));
         }
-        await tx.update(schema.classes).set({ name: intent.name, relayRestartRanking: intent.restartRanking, relayForking: intent.forking,
+        await tx.update(schema.classes).set({ name: intent.name, courseVersionId: classVersion, relayRestartRanking: intent.restartRanking, relayForking: intent.forking,
           relayChangeoverCode: intent.changeoverCode, relayReadoutMode: readoutMode })
           .where(eq(schema.classes.id, raceClass.id));
         // Nya sträckor får en vakant löpare per lag, som på en sträcka utan löpare från Eventor.

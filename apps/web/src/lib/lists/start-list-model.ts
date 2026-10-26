@@ -9,7 +9,9 @@ import { compareText, matches, searchable } from "./search";
  */
 
 export type StartMode = { kind: "FREE" } | { kind: "MINUTE" } | { kind: "MASS"; time: string | null } | { kind: "RELAY"; legCount: number };
-export type StartRelay = { teamNumber: number; teamName: string; teamClub: string | null; leg: number };
+export type StartRelay = { teamNumber: number; teamName: string; teamClub: string | null; leg: number;
+  /** Steg 56: sträckans bana när klassens sträckor springer olika banor. */
+  courseName?: string };
 export type StartEntry = {
   /** Deltagarens id i arbetsytan (öppnar deltagarkortet). Saknas på den publika sidan. */
   id?: string;
@@ -81,12 +83,14 @@ export function startListFromPublication(content: StartListPublicationContent, c
         ...(cards ? { card: entry.cardNumber ?? null } : {}),
         ...(entry.selfRegistered ? { selfRegistered: true } : {}),
         ...(entry.relay ? { relay: { teamNumber: entry.relay.teamNumber, teamName: entry.relay.teamName,
-          teamClub: entry.relay.teamOrganisationName, leg: entry.relay.leg } } : {})
+          teamClub: entry.relay.teamOrganisationName, leg: entry.relay.leg, ...(entry.relay.courseName ? { courseName: entry.relay.courseName } : {}) } } : {})
       }));
+      // Steg 56: springer sträckorna olika banor står banan per sträcka, inte i klassens rubrik.
+      const legCourses = entries.some(entry => entry.relay?.courseName);
       const relayLegCount = raceClass.relayLegCount ?? (entries.some(entry => entry.relay)
         ? Math.max(...entries.map(entry => entry.relay?.leg ?? 1)) : undefined);
-      return { name: raceClass.name, courseName: raceClass.courseName ?? null, firstControlCode: raceClass.firstControlCode ?? null,
-        lengthMeters: raceClass.courseLengthMeters ?? null, climbMeters: raceClass.courseClimbMeters ?? null,
+      return { name: raceClass.name, courseName: legCourses ? null : raceClass.courseName ?? null, firstControlCode: raceClass.firstControlCode ?? null,
+        lengthMeters: legCourses ? null : raceClass.courseLengthMeters ?? null, climbMeters: legCourses ? null : raceClass.courseClimbMeters ?? null,
         mode: mode({ ...raceClass, relayLegCount }, entries.map(entry => entry.startTime)), entries, vacancies: raceClass.vacancies ?? [] };
     })
   };

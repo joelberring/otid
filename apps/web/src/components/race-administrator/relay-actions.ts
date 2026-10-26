@@ -1,19 +1,22 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { relayClassCreateResponseSchema, relayLegRunnerResponseSchema, relayOverviewSchema, relayStartTimesResponseSchema,
   relayTeamCreateResponseSchema, type RelayClassCreateRequest, type RelayLegRunnerRequest, type RelayOverview,
   type RelayStartTimesRequest, type RelayTeamCreateRequest } from "@o-tid/contracts";
 import { relaySv as text } from "../../i18n/relay-sv";
 import { isDuplicateName } from "../../lib/duplicate-name";
 import { formatClockTime, parseRaceClock } from "../../lib/clock-time";
+import { hasErrors, type FieldErrors } from "../../lib/form-validation";
+import type { RelayTemplateId } from "../../i18n/relay-form-sv";
+import { focusFirstError } from "../ui";
+import { changeoverCodeOf, relayClock, restartMinutes, validateRelayClass, validateRelayTeam } from "./relay-form-validation";
+import { defaultLegs, relayTemplate, type RelayLegForm } from "./relay-templates";
 import type { Operation } from "./types";
 import type { Base } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
 
 type Method = RelayClassCreateRequest["legs"][number]["startMethod"];
-/** En sträcka i stafettklassens formulär. Steg 47: egen bana (tomt = klassens) och minuter för flygande omstart. */
-export type RelayLegForm = { method: Method; time: string; variant: string; course: string; minutes: string;
-  /** Steg 48: löpare på sträckan och reglerna för flera löpare. */
-  runners: string; changeoverRule: "FIRST" | "LAST"; approvalRule: "ALL" | "ANY" };
+export type { RelayLegForm };
+export { changeoverCodeOf, defaultLegs };
 export type RelayRestartRanking = RelayClassCreateRequest["restartRanking"];
 export type RelayForking = RelayClassCreateRequest["forking"];
 /** En plats i lagformuläret: sträcka och ordning, eller (teamsprint) en person med sina sträckor. */
@@ -28,34 +31,22 @@ export function teamSprintPersonLegs(legCount: number) {
   return TEAM_SPRINT_PERSONS.map((person, index) => ({ person,
     legs: Array.from({ length: legCount }, (_, leg) => leg + 1).filter(leg => (leg - 1) % TEAM_SPRINT_PERSONS.length === index) }));
 }
-const defaultLegs = (count: number, previous: readonly RelayLegForm[] = []): RelayLegForm[] =>
-  Array.from({ length: count }, (_, index) => previous[index] ??
-    { method: index === 0 ? "MASS_START" : "CHANGEOVER", time: "", variant: "", course: "", minutes: "", runners: "1",
-      changeoverRule: "FIRST", approvalRule: "ALL" });
-
-/** Formulärets sträckor som begäran; undefined när en tid eller ett antal minuter saknas. */
+/**
+ * Formulärets sträckor som begäran; undefined när en tid, ett antal minuter eller en bana saknas. Steg 56: tider skrivs
+ * 18:30, 18.30 eller 1830, och varje sträcka har sin bana uttryckligen.
+ */
 export function relayLegSettings(forms: readonly RelayLegForm[], raceDate: string, timeZone: string) {
   const legs = forms.map((leg, index) => {
     const method: Method = index === 0 ? "MASS_START" : leg.method;
-    const startTime = method === "CHANGEOVER" || method === "FLYING_RESTART" ? null : parseRaceClock(raceDate, leg.time, timeZone);
-    const minutes = leg.minutes.trim() === "" ? Number.NaN : Number(leg.minutes.trim());
-    const restartAfterMinutes = method === "FLYING_RESTART" ? (Number.isInteger(minutes) && minutes >= 1 && minutes <= 720 ? minutes : -1) : null;
+    const startTime = method === "CHANGEOVER" || method === "FLYING_RESTART" ? null : parseRaceClock(raceDate, relayClock(leg.time), timeZone);
+    const restartAfterMinutes = method === "FLYING_RESTART" ? restartMinutes(leg.minutes) ?? -1 : null;
     const runners = Math.min(4, Math.max(1, Number(leg.runners) || 1));
     return { leg: index + 1, startMethod: method, startTime, variantCode: leg.variant || null, courseId: leg.course || null, restartAfterMinutes,
       runners, changeoverRule: leg.changeoverRule, approvalRule: leg.approvalRule };
   });
   if (legs.some(leg => (leg.startMethod === "MASS_START" || leg.startMethod === "RESTART") && leg.startTime === null) ||
-      legs.some(leg => leg.restartAfterMinutes === -1)) return undefined;
+      legs.some(leg => leg.restartAfterMinutes === -1 || leg.courseId === null)) return undefined;
   return legs;
-}
-export { defaultLegs };
-
-/** Växlingskontrollens kod: tom = ingen (null), annars 1–999; undefined = ogiltig. */
-export function changeoverCodeOf(value: string): number | null | undefined {
-  const trimmed = value.trim();
-  if (trimmed === "") return null;
-  const code = Number(trimmed);
-  return Number.isInteger(code) && code >= 1 && code <= 999 ? code : undefined;
 }
 
 /**
@@ -68,7 +59,6 @@ export function useRelayState() {
   const [relayError, setRelayError] = useState("");
   const [relayMessage, setRelayMessage] = useState("");
   const [relayClassName, setRelayClassName] = useState("");
-  const [relayClassCourseId, setRelayClassCourseId] = useState("");
   const [relayLegForms, setRelayLegForms] = useState<RelayLegForm[]>(defaultLegs(3));
   const [relayRestartRanking, setRelayRestartRanking] = useState<RelayRestartRanking>("AFTER_NORMAL");
   const [relayForking, setRelayForking] = useState<RelayForking>("EVEN");
@@ -76,6 +66,18 @@ export function useRelayState() {
   /** Steg 50: teamsprint och dess utläsning; "" = vanlig stafett. */
   const [relayReadoutMode, setRelayReadoutMode] = useState<"" | "EACH_LEG" | "LAST_LEG">("");
   const [relayClassAttempt, setRelayClassAttempt] = useState<RelayClassCreateRequest>();
+  /** Steg 56: fel vid fälten i stafettklassens formulär (nytt och ändrat), besked när sparandet nekas, mall och snabbval. */
+  const [relayClassErrors, setRelayClassErrors] = useState<FieldErrors<string>>({});
+  const [relayClassError, setRelayClassError] = useState("");
+  const [relaySameCourse, setRelaySameCourse] = useState("");
+  const [relayTemplateId, setRelayTemplateId] = useState<RelayTemplateId>();
+  const [relayMoreOpen, setRelayMoreOpen] = useState(false);
+  /** "Ny stafettklass" står öppen efter sparandet, för nästa klass. */
+  const [relayNewClassOpen, setRelayNewClassOpen] = useState(false);
+  const relayClassForm = useRef<HTMLFormElement>(null);
+  const [teamErrors, setTeamErrors] = useState<FieldErrors<string>>({});
+  const [teamError, setTeamError] = useState("");
+  const teamForm = useRef<HTMLFormElement>(null);
   const [teamClassId, setTeamClassId] = useState("");
   const [teamNumber, setTeamNumber] = useState("");
   const [teamName, setTeamName] = useState("");
@@ -88,9 +90,11 @@ export function useRelayState() {
   const [relayTimes, setRelayTimes] = useState<Record<string, string>>({});
   const [timesAttempt, setTimesAttempt] = useState<RelayStartTimesRequest>();
   return { relay, setRelay, relayError, setRelayError, relayMessage, setRelayMessage, relayClassName, setRelayClassName,
-    relayClassCourseId, setRelayClassCourseId, relayLegForms, setRelayLegForms, relayClassAttempt, setRelayClassAttempt,
+    relayLegForms, setRelayLegForms, relayClassAttempt, setRelayClassAttempt,
     relayRestartRanking, setRelayRestartRanking, relayForking, setRelayForking, relayChangeoverCode, setRelayChangeoverCode,
-    relayReadoutMode, setRelayReadoutMode,
+    relayReadoutMode, setRelayReadoutMode, relayClassErrors, setRelayClassErrors, relayClassError, setRelayClassError, relaySameCourse,
+    setRelaySameCourse, relayTemplateId, setRelayTemplateId, relayMoreOpen, setRelayMoreOpen, relayNewClassOpen, setRelayNewClassOpen, relayClassForm, teamErrors, setTeamErrors,
+    teamError, setTeamError, teamForm,
     teamClassId, setTeamClassId, teamNumber, setTeamNumber, teamName, setTeamName, teamClub, setTeamClub, teamRunners, setTeamRunners,
     teamAttempt, setTeamAttempt, selectedTeamId, setSelectedTeamId, runnerChange, setRunnerChange, runnerAttempt, setRunnerAttempt,
     relayTimes, setRelayTimes, timesAttempt, setTimesAttempt };
@@ -98,7 +102,7 @@ export function useRelayState() {
 
 export function createRelayActions(ws: Base & RaceDataActions) {
   const { raceId, data, relay, writingRef, pending, requireSession, begin, beginRequest, finish, current, request, json, csrf, load,
-    relayClassName, relayClassCourseId, relayLegForms, relayClassAttempt, teamClassId, teamNumber, teamName, teamClub, teamRunners,
+    relayClassName, relayLegForms, relayClassAttempt, teamClassId, teamNumber, teamName, teamClub, teamRunners,
     teamAttempt, runnerChange, runnerAttempt, relayTimes, timesAttempt, setRelay, setRelayError, setRelayMessage, setRelayLegForms,
     setRelayClassAttempt, setRelayClassName, setTeamAttempt, setTeamName, setTeamNumber, setTeamRunners, setTeamClassId,
     setRunnerChange, setRunnerAttempt, setRelayTimes, setTimesAttempt, setSelectedTeamId } = ws;
@@ -120,16 +124,20 @@ export function createRelayActions(ws: Base & RaceDataActions) {
     finally { finish(op); }
   }
 
-  /** Skickar en stafettändring. 400/404/409: beskedet visas och lagvyn läses om; försöket släpps. */
+  /**
+   * Skickar en stafettändring. 400/404/409: beskedet visas och lagvyn läses om; försöket släpps. Steg 56: `refused` visar
+   * beskedet i formuläret i stället för överst (och ett upptaget namn vid fältet).
+   */
   async function send<T extends { requestId: string }>(path: string, prefix: string, attempt: T, parse: (value: unknown) => unknown,
-    messages: { conflict: string; error: string }, clear: () => void, done: (receipt: unknown) => string) {
+    messages: { conflict: string; error: string }, clear: () => void, done: (receipt: unknown) => string,
+    refused: (message: string, duplicate: boolean) => void = message => setRelayMessage(message)) {
     const op = begin(true);
     try {
       const response = await request(path, op, { method: "POST", headers: { "content-type": "application/json", "x-otid-csrf": csrf(),
         "idempotency-key": `${prefix}:${attempt.requestId}` }, body: JSON.stringify(attempt) });
       if (response.status === 400 || response.status === 404 || response.status === 409) {
         const duplicate = await isDuplicateName(response);
-        clear(); setRelayMessage(duplicate ? text.classDuplicate : messages.conflict);
+        clear(); refused(duplicate ? text.classDuplicate : messages.conflict, duplicate);
         await load(op); await readRelay(op);
         return;
       }
@@ -138,34 +146,80 @@ export function createRelayActions(ws: Base & RaceDataActions) {
       if (receipt.raceId !== raceId || receipt.requestId !== attempt.requestId) throw new Error("Relay receipt mismatch");
       clear(); setRelayMessage(done(receipt));
       await load(op); await readRelay(op);
-    } catch { if (current(op)) setRelayMessage(messages.error); }
+    } catch { if (current(op)) refused(messages.error, false); }
     finally { finish(op); }
   }
 
   function changeLegCount(count: number) {
-    if (Number.isInteger(count) && count >= 2 && count <= 30) setRelayLegForms(defaultLegs(count, relayLegForms));
+    if (Number.isInteger(count) && count >= 2 && count <= 30) setRelayLegForms(defaultLegs(count, relayLegForms, ws.relaySameCourse));
+  }
+  /** Ett ändrat fält tar bort sitt fel. */
+  function clearRelayClassError(...fields: string[]) {
+    if (fields.some(field => ws.relayClassErrors[field])) {
+      ws.setRelayClassErrors(Object.fromEntries(Object.entries(ws.relayClassErrors).filter(([key]) => !fields.includes(key))));
+    }
   }
   function changeLeg(index: number, change: Partial<RelayLegForm>) {
     setRelayLegForms(relayLegForms.map((leg, current) => current === index ? { ...leg, ...change } : leg));
+    clearRelayClassError(...Object.keys(change).map(key => `${key}-${index + 1}`), ...(change.method ? [`time-${index + 1}`, `minutes-${index + 1}`] : []));
+  }
+  /** Steg 56: "Samma bana på alla sträckor" fyller i banan på varje sträcka; varje sträcka kan sedan ändras. */
+  function chooseSameCourse(courseId: string) {
+    ws.setRelaySameCourse(courseId);
+    if (!courseId) return;
+    setRelayLegForms(relayLegForms.map(leg => leg.course === courseId ? leg : { ...leg, course: courseId, variant: "" }));
+    clearRelayClassError(...relayLegForms.map((_, index) => `course-${index + 1}`));
+  }
+  /** Steg 56: en mall sätter sträckorna och inställningarna (inte namnet eller banorna) och kan bytas tills man sparar. */
+  function applyRelayTemplate(id: RelayTemplateId) {
+    const settings = relayTemplate(id, relayLegForms, ws.relaySameCourse);
+    setRelayLegForms(settings.legs);
+    ws.setRelayReadoutMode(settings.readoutMode); ws.setRelayChangeoverCode(settings.changeoverCode);
+    ws.setRelayRestartRanking(settings.restartRanking); ws.setRelayForking(settings.forking);
+    ws.setRelayTemplateId(id);
+    if (settings.more) ws.setRelayMoreOpen(true);
+    // Visas fel redan kontrolleras fälten igen med mallens sträckor, så att felen stämmer med det som syns.
+    if (hasErrors(ws.relayClassErrors)) {
+      ws.setRelayClassErrors(validateRelayClass({ name: relayClassName, legs: settings.legs, changeoverCode: settings.changeoverCode,
+        readoutMode: settings.readoutMode }));
+    }
+  }
+  /** Fälten kontrolleras före sparandet; felen visas vid fälten och sammanfattas överst, och fokus går till det första. */
+  function checkRelayClass(): boolean {
+    const errors = validateRelayClass({ name: relayClassName, legs: relayLegForms, changeoverCode: ws.relayChangeoverCode,
+      readoutMode: ws.relayReadoutMode });
+    ws.setRelayClassErrors(errors);
+    if (!hasErrors(errors)) return true;
+    if (errors.changeoverCode) ws.setRelayMoreOpen(true);
+    focusFirstError(ws.relayClassForm.current);
+    return false;
+  }
+  function relayClassRefused(message: string, duplicate: boolean) {
+    if (duplicate) { ws.setRelayClassErrors({ name: message }); focusFirstError(ws.relayClassForm.current); }
+    else ws.setRelayClassError(message);
   }
   async function createRelayClass() {
     if (writingRef.current || pending.current || !requireSession() || !data) return;
-    setRelayMessage("");
+    setRelayMessage(""); ws.setRelayClassError("");
     let attempt = relayClassAttempt;
     if (!attempt) {
+      if (!checkRelayClass()) return;
       const legs = relayLegSettings(relayLegForms, data.raceDate, data.timeZone);
       const code = changeoverCodeOf(ws.relayChangeoverCode);
-      if (!relayClassName.trim() || !relayClassCourseId || !legs || code === undefined) { setRelayMessage(text.classInvalid); return; }
-      attempt = { formatVersion: 1, requestId: crypto.randomUUID(), name: relayClassName.trim(), courseId: relayClassCourseId, legs,
+      if (!legs || code === undefined) { ws.setRelayClassError(text.classInvalid); return; }
+      // Steg 56 (ADR-0174 beslut 10): klassens bana är sträcka 1:s; den visas inte i formuläret.
+      attempt = { formatVersion: 1, requestId: crypto.randomUUID(), name: relayClassName.trim(), courseId: legs[0]!.courseId!, legs,
         restartRanking: ws.relayRestartRanking, forking: ws.relayForking, changeoverCode: code, readoutMode: ws.relayReadoutMode || null };
       setRelayClassAttempt(attempt);
     }
     const name = attempt.name;
     await send("/relay-classes", "relay-class", attempt, value => relayClassCreateResponseSchema.parse(value),
       { conflict: text.classConflict, error: text.classError }, () => setRelayClassAttempt(undefined), () => {
-        setRelayClassName(""); setRelayLegForms(defaultLegs(3));
+        setRelayClassName(""); setRelayLegForms(defaultLegs(3)); ws.setRelaySameCourse(""); ws.setRelayTemplateId(undefined);
+        ws.setRelayReadoutMode(""); ws.setRelayChangeoverCode(""); ws.setRelayRestartRanking("AFTER_NORMAL"); ws.setRelayForking("EVEN");
+        ws.setRelayMoreOpen(false); ws.setRelayClassErrors({});
         return text.classSaved(name);
-      });
+      }, relayClassRefused);
   }
 
   /** Lagformulärets platser: en per sträcka och löpare (steg 48), eller en per person i teamsprint. */
@@ -179,20 +233,24 @@ export function createRelayActions(ws: Base & RaceDataActions) {
     }
     setTeamRunners(raceClass.legs.flatMap(leg => Array.from({ length: leg.runners }, (_, order) => emptyRunner(leg.leg, order + 1))));
   }
-  function applyTeamSprintTemplate() {
-    setRelayLegForms(defaultLegs(4));
-    ws.setRelayChangeoverCode("");
-    // Steg 50: som MeOS – löparna läser ut efter varje sträcka.
-    ws.setRelayReadoutMode("EACH_LEG");
-  }
   function changeTeamRunner(index: number, change: Partial<RelayRunnerForm>) {
     setTeamRunners(teamRunners.map((runner, current) => current === index ? { ...runner, ...change } : runner));
+    clearTeamError(...[change.givenName !== undefined && `given-${index}`, change.familyName !== undefined && `family-${index}`,
+      change.card !== undefined && `card-${index}`].filter((key): key is string => !!key));
+  }
+  function clearTeamError(...fields: string[]) {
+    if (fields.some(field => ws.teamErrors[field])) {
+      ws.setTeamErrors(Object.fromEntries(Object.entries(ws.teamErrors).filter(([key]) => !fields.includes(key))));
+    }
   }
   async function registerTeam() {
     if (writingRef.current || pending.current || !requireSession() || !relay) return;
-    setRelayMessage("");
+    setRelayMessage(""); ws.setTeamError("");
     let attempt = teamAttempt;
     if (!attempt) {
+      const errors = validateRelayTeam({ classId: teamClassId, number: teamNumber, name: teamName, club: teamClub, runners: teamRunners });
+      ws.setTeamErrors(errors);
+      if (hasErrors(errors)) { focusFirstError(ws.teamForm.current); return; }
       const raceClass = relay.classes.find(row => row.id === teamClassId);
       const number = teamNumber.trim() === "" ? null : Number(teamNumber.trim());
       // Teamsprint: personen springer alla sina sträckor; brickan sitter på personens första sträcka.
@@ -207,7 +265,7 @@ export function createRelayActions(ws: Base & RaceDataActions) {
       if (!raceClass || !teamName.trim() || runners.length !== slots || (number !== null && !(Number.isInteger(number) && number > 0)) ||
           runners.some(runner => !runner.givenName || !runner.familyName || (runner.cardNumber !== null && !/^[1-9][0-9]*$/.test(runner.cardNumber))) ||
           new Set(cards).size !== cards.length) {
-        setRelayMessage(text.teamInvalid); return;
+        ws.setTeamError(text.teamInvalid); return;
       }
       attempt = { formatVersion: 1, requestId: crypto.randomUUID(), classId: raceClass.id,
         number, name: teamName.trim(), organisationName: teamClub.trim() || null, runners };
@@ -217,8 +275,9 @@ export function createRelayActions(ws: Base & RaceDataActions) {
     await send("/relay-teams", "relay-team", attempt, value => relayTeamCreateResponseSchema.parse(value),
       { conflict: text.teamConflict, error: text.teamError }, () => setTeamAttempt(undefined), receipt => {
         setTeamName(""); setTeamNumber(""); setTeamRunners(teamRunners.map(runner => ({ ...runner, givenName: "", familyName: "", card: "" })));
+        ws.setTeamErrors({});
         return text.teamSaved((receipt as { number: number }).number, name);
-      });
+      }, message => ws.setTeamError(message));
   }
 
   function startRunnerChange(teamId: string, leg: number, legOrder = 1) {
@@ -277,7 +336,7 @@ export function createRelayActions(ws: Base & RaceDataActions) {
     let attempt = timesAttempt?.classId === classId ? timesAttempt : undefined;
     if (!attempt) {
       const legs = raceClass.legs.filter(leg => leg.startMethod === "MASS_START" || leg.startMethod === "RESTART").map(leg => ({ leg: leg.leg,
-        startTime: parseRaceClock(data.raceDate, relayTimeValue(classId, leg.leg), data.timeZone) }));
+        startTime: parseRaceClock(data.raceDate, relayClock(relayTimeValue(classId, leg.leg)), data.timeZone) }));
       if (legs.length === 0 || legs.some(leg => leg.startTime === null)) { setRelayMessage(text.timesInvalid); return; }
       attempt = { formatVersion: 1, requestId: crypto.randomUUID(), classId,
         legs: legs.map(leg => ({ leg: leg.leg, startTime: leg.startTime! })) };
@@ -290,7 +349,8 @@ export function createRelayActions(ws: Base & RaceDataActions) {
         return count > 0 ? text.timesSavedRecalculated(raceClass.name, count) : text.timesSaved(raceClass.name);
       });
   }
-  return { readRelay, loadRelay, send, changeLegCount, changeLeg, createRelayClass, applyTeamSprintTemplate, chooseTeamClass, changeTeamRunner, registerTeam,
+  return { readRelay, loadRelay, send, changeLegCount, changeLeg, clearRelayClassError, chooseSameCourse, applyRelayTemplate, checkRelayClass,
+    relayClassRefused, createRelayClass, chooseTeamClass, changeTeamRunner, clearTeamError, registerTeam,
     startRunnerChange, saveRunnerChange, cancelRunnerChange, openTeam, relayTimeValue, changeRelayTime, saveRelayTimes };
 }
 export type RelayActions = ReturnType<typeof createRelayActions>;

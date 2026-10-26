@@ -147,7 +147,8 @@ describe("steg 47 stafett", () => {
     expect(view.classes[0]!.legCourses.map(row => row.courseName)).toEqual(["Lång", "Kort", "Lång"]);
     expect(view.teams[0]).toMatchObject({ status: "OK", elapsedMs: minutes(105) });
     const publicView = await publicRelayResults(db, proof.raceId);
-    expect(publicView.classes[0]!.teams[0]!.legs.map(leg => leg.courseName)).toEqual([null, "Kort", null]);
+    // Steg 56: springer sträckorna olika banor står banan på varje sträcka.
+    expect(publicView.classes[0]!.teams[0]!.legs.map(leg => leg.courseName)).toEqual(["Lång", "Kort", "Lång"]);
 
     const startList = await exportCurrentStartListXmlAsAdmin(db, proof);
     if (startList.status !== "exported") throw new Error(startList.status);
@@ -172,6 +173,58 @@ describe("steg 47 stafett", () => {
     expect(after.teams[0]).toMatchObject({ status: "MP" });
     const audit = await pool.query("select action from audit_event where race_id = $1 and action = 'RELAY_CLASS_EDIT_SAVED_BY_ADMIN'", [proof.raceId]);
     expect(audit.rowCount).toBe(1);
+  });
+
+  it("steg 56: varje sträckas bana sparas uttryckligen och klassens bana är sträcka 1:s, också efter en ändring", async () => {
+    const proof = await race();
+    const long = await course(proof, "Lång", LONG);
+    const short = await course(proof, "Kort", SHORT);
+    const other = await course(proof, "Annan", [51, 52]);
+    const legRows = async (classId: string) => (await pool.query<{ leg: number; name: string | null }>(
+      `select l.leg, c.name from relay_leg l left join course_version v on v.id = l.course_version_id left join course c on c.id = v.course_id
+       where l.class_id = $1 order by l.leg`, [classId])).rows.map(row => row.name);
+    const classCourse = async (classId: string) => (await pool.query<{ name: string }>(
+      `select c.name from class k join course_version v on v.id = k.course_version_id join course c on c.id = v.course_id where k.id = $1`,
+      [classId])).rows[0]!.name;
+    // Klassens bana i begäran ("Annan") gäller inte när sträcka 1 har en bana: den blir sträcka 1:s.
+    const classId = await relayClass(proof, other, [{ startMethod: "MASS_START", startTime: at("17:00"), courseId: long },
+      { startMethod: "CHANGEOVER", courseId: short }, { startMethod: "CHANGEOVER", courseId: long }]);
+    expect(await legRows(classId)).toEqual(["Lång", "Kort", "Lång"]);
+    expect(await classCourse(classId)).toBe("Lång");
+    const one = await team(proof, classId, "OK Uttrycklig 1", ["9601", "9602", "9603"]);
+    expect(await readout(proof, "9601", at("17:40"), LONG, at("17:00"))).toMatchObject({ status: "OK" });
+    expect(await readout(proof, "9602", at("18:00"), SHORT, at("17:40"))).toMatchObject({ status: "OK" });
+
+    // En äldre klass utan bana på sträckorna (NULL = klassens) som sparas med banorna uttryckligen: oförändrat underlag.
+    const legacy = await relayClass(proof, long, [{ startMethod: "MASS_START", startTime: at("17:00") }, { startMethod: "CHANGEOVER" }], "Äldre");
+    expect(await legRows(legacy)).toEqual([null, null]);
+    await team(proof, legacy, "OK Äldre 1", ["9611", "9612"]);
+    expect(await readout(proof, "9611", at("17:40"), LONG, at("17:00"))).toMatchObject({ status: "OK" });
+    expect(await editRelayClassAsAdmin(db, { ...proof, ...editRequest(legacy, [{ startMethod: "MASS_START", startTime: at("17:00"), courseId: long },
+      { startMethod: "CHANGEOVER", courseId: long }], false, "Äldre") })).toMatchObject({ status: "saved", response: { recalculatedCount: 0 } });
+    expect(await legRows(legacy)).toEqual(["Lång", "Lång"]);
+
+    // Samma banor uttryckligen igen: inget räknas om och inget besked.
+    const same: Leg[] = [{ startMethod: "MASS_START", startTime: at("17:00"), courseId: long }, { startMethod: "CHANGEOVER", courseId: short },
+      { startMethod: "CHANGEOVER", courseId: long }];
+    expect(await editRelayClassAsAdmin(db, { ...proof, ...editRequest(classId, same) })).toMatchObject({ status: "saved",
+      response: { recalculatedCount: 0 } });
+
+    // Sträcka 1 byter till den korta banan: klassens bana följer med, sträcka 1 räknas om (felstämplad) efter besked.
+    const shortFirst: Leg[] = [{ ...same[0]!, courseId: short }, same[1]!, same[2]!];
+    expect(await editRelayClassAsAdmin(db, { ...proof, ...editRequest(classId, shortFirst) })).toMatchObject({ status: "confirmation-required",
+      preview: { changes: [{ leg: 1, teamNumber: one.number, before: "OK", after: "MP" }] } });
+    expect(await editRelayClassAsAdmin(db, { ...proof, ...editRequest(classId, shortFirst, true) })).toMatchObject({ status: "saved" });
+    expect(await legRows(classId)).toEqual(["Kort", "Kort", "Lång"]);
+    expect(await classCourse(classId)).toBe("Kort");
+    const view = (await overview(proof)).classes.find(row => row.id === classId)!;
+    expect(view.legCourses.map(row => row.courseName)).toEqual(["Kort", "Kort", "Lång"]);
+    expect(view.legs.map(leg => leg.courseId)).toEqual([short, short, long]);
+    // Alla sträckor på samma bana: ingen bana per sträcka i den publika listan.
+    const allShort: Leg[] = shortFirst.map(leg => ({ ...leg, courseId: short }));
+    expect(await editRelayClassAsAdmin(db, { ...proof, ...editRequest(classId, allShort, true) })).toMatchObject({ status: "saved" });
+    const listed = (await publicRelayResults(db, proof.raceId)).classes.find(row => row.name === "Stafett")!;
+    expect(listed.teams[0]!.legs.map(leg => leg.courseName)).toEqual([null, null, null]);
   });
 
   it("ändrat antal sträckor: lägg till sist, ta bort sist, inte en sträcka med resultat", async () => {

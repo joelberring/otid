@@ -81,6 +81,20 @@ describe("startlistan per klubb och sökning", () => {
     expect(hidden.cards).toBe(false);
     expect(hidden.classes[0]!.entries[0]!.card).toBeUndefined();
   });
+
+  it("steg 56: stafett med olika banor per sträcka har banan på sträckan, inte i klassens rubrik", () => {
+    const relay = (leg: number, courseName?: string) => ({ displayName: `L${leg}`, organisationName: null, fixedStartTime: null,
+      relay: { teamNumber: 1, teamName: "OK Lag", teamOrganisationName: null, leg, startMethod: leg === 1 ? "MASS_START" as const : "CHANGEOVER" as const,
+        ...(courseName ? { courseName } : {}) } });
+    const several = startListFromPublication({ eventName: "E", raceName: "R", raceDate: "2026-10-08", timeZone: "Europe/Stockholm",
+      classes: [{ name: "Stafett", startRule: "FIXED", courseName: "Lång", courseLengthMeters: 4200, relayLegCount: 2,
+        entries: [relay(1, "Lång"), relay(2, "Kort")] }] });
+    expect(several.classes[0]).toMatchObject({ courseName: null, lengthMeters: null });
+    expect(several.classes[0]!.entries.map(entry => entry.relay?.courseName)).toEqual(["Lång", "Kort"]);
+    const same = startListFromPublication({ eventName: "E", raceName: "R", raceDate: "2026-10-08", timeZone: "Europe/Stockholm",
+      classes: [{ name: "Stafett", startRule: "FIXED", courseName: "Lång", relayLegCount: 2, entries: [relay(1), relay(2)] }] });
+    expect(same.classes[0]!.courseName).toBe("Lång");
+  });
 });
 
 const results: PublicResultListResponse = { formatVersion: 7, results: [

@@ -9,6 +9,7 @@ import { formatClockTime } from "../../lib/clock-time";
 import { resultDuration } from "./types";
 import { RelayMessages, useRelayLoad } from "./relay-panels";
 import { Notice } from "../ui";
+import { RelayErrorSummary, RelayField } from "./relay-fields";
 import type { Workspace } from "./workspace-state";
 
 type Team = RelayOverview["teams"][number];
@@ -73,6 +74,8 @@ function TeamCard({ ws, team }: { ws: Workspace; team: Team }) {
   const timeZone = relay?.timeZone ?? "UTC";
   const raceClass = relay?.classes.find(row => row.id === team.classId);
   const locked = busy || workflowLocked || !!runnerChange || !!teamEdit;
+  // Steg 56: sträckans bana visas när klassens sträckor springer olika banor.
+  const severalCourses = new Set(raceClass?.legCourses.map(row => row.courseId)).size > 1;
   return <section className={`${styles.panel} ${relayStyles.card}`} aria-label={text.teamCard}>
     <h3>{text.teamHeading(team.number, team.name)}</h3>
     <p>{team.organisationName ?? ""} · <span className={relayStyles.status} data-status={team.status}>{teamStatusText(team)}</span>
@@ -86,8 +89,7 @@ function TeamCard({ ws, team }: { ws: Workspace; team: Team }) {
         const choosing = variantChange?.teamId === team.id && variantChange.leg === leg.leg && variantChange.legOrder === leg.legOrder;
         return <tr key={`${leg.leg}:${leg.legOrder}`}>
           <th scope="row">{parallel ? text.legRunner(leg.leg, leg.legOrder) : text.leg(leg.leg)}
-            <span className={relayStyles.muted}>{course && raceClass && course.courseId !== raceClass.courseId
-            ? ` · ${course.courseName}` : ""}{leg.variantCode ? ` · ${leg.variantCode}` : ""}
+            <span className={relayStyles.muted}>{course && severalCourses ? ` · ${course.courseName}` : ""}{leg.variantCode ? ` · ${leg.variantCode}` : ""}
             {leg.sameAsLeg !== null ? ` · ${text.sameRunnerAs(leg.sameAsLeg)}` : ""}{parallel && leg.changedOver ? ` · ${text.changedOver}` : ""}</span></th>
           <td>{leg.givenName} {leg.familyName}<span className={relayStyles.muted}> {leg.organisationName ?? ""}</span></td>
           <td>{leg.cardNumber ?? text.noCard}</td>
@@ -178,25 +180,31 @@ function TeamEditForm({ ws }: { ws: Workspace }) {
 
 /** "Nytt lag": klass, nummer (tomt = nästa lediga), namn, klubb och en löpare med bricka per sträcka. */
 function NewTeam({ ws, relay }: { ws: Workspace; relay: RelayOverview }) {
-  const { changeTeamRunner, chooseTeamClass, raceId, registerTeam, setTeamClub, setTeamName, setTeamNumber, teamAttempt, teamClassId,
-    teamClub, teamName, teamNumber, teamRunners, workflowLocked } = ws;
+  const { changeTeamRunner, chooseTeamClass, clearTeamError, raceId, registerTeam, setTeamClub, setTeamName, setTeamNumber, teamAttempt,
+    teamClassId, teamClub, teamError, teamErrors: errors, teamForm, teamName, teamNumber, teamRunners, workflowLocked } = ws;
   const locked = workflowLocked || !!teamAttempt;
   const id = `relay-team-${raceId}`;
+  const order = ["class", "number", "name", "club", ...teamRunners.flatMap((_, index) => [`given-${index}`, `family-${index}`, `card-${index}`])];
   return <details className={styles.disclosure} open={teamAttempt || teamClassId ? true : undefined}>
     <summary>{text.newTeam}</summary>
-    <form noValidate className={styles.disclosureBody} aria-label={text.newTeam} onSubmit={event => { event.preventDefault(); void registerTeam(); }}>
+    <form ref={teamForm} noValidate className={styles.disclosureBody} aria-label={text.newTeam}
+      onSubmit={event => { event.preventDefault(); void registerTeam(); }}>
+      <RelayErrorSummary errors={errors} order={order} />
       <div className={relayStyles.fields}>
-        <label htmlFor={`${id}-class`}>{text.teamClass}<select id={`${id}-class`} value={teamClassId} required disabled={locked}
-          onChange={event => chooseTeamClass(event.target.value)}>
-          <option value="">{text.chooseClass}</option>
-          {relay.classes.map(row => <option key={row.id} value={row.id}>{row.name}</option>)}
-        </select></label>
-        <label htmlFor={`${id}-number`}>{text.teamNumber}<input id={`${id}-number`} value={teamNumber} inputMode="numeric" autoComplete="off"
-          disabled={locked} onChange={event => setTeamNumber(event.target.value)} /></label>
-        <label htmlFor={`${id}-name`}>{text.teamName}<input id={`${id}-name`} value={teamName} maxLength={160} required autoComplete="off"
-          disabled={locked} onChange={event => setTeamName(event.target.value)} /></label>
-        <label htmlFor={`${id}-club`}>{text.teamClub}<input id={`${id}-club`} value={teamClub} maxLength={200} autoComplete="off"
-          disabled={locked} onChange={event => setTeamClub(event.target.value)} /></label>
+        <RelayField id={`${id}-class`} label={text.teamClass} error={errors.class}>
+          <select value={teamClassId} disabled={locked} onChange={event => { chooseTeamClass(event.target.value); clearTeamError("class"); }}>
+            <option value="">{text.chooseClass}</option>
+            {relay.classes.map(row => <option key={row.id} value={row.id}>{row.name}</option>)}
+          </select></RelayField>
+        <RelayField id={`${id}-number`} label={text.teamNumber} error={errors.number}>
+          <input value={teamNumber} inputMode="numeric" autoComplete="off" disabled={locked}
+            onChange={event => { setTeamNumber(event.target.value); clearTeamError("number"); }} /></RelayField>
+        <RelayField id={`${id}-name`} label={text.teamName} error={errors.name}>
+          <input value={teamName} maxLength={160} autoComplete="off" disabled={locked}
+            onChange={event => { setTeamName(event.target.value); clearTeamError("name"); }} /></RelayField>
+        <RelayField id={`${id}-club`} label={text.teamClub} error={errors.club}>
+          <input value={teamClub} maxLength={200} autoComplete="off" disabled={locked}
+            onChange={event => { setTeamClub(event.target.value); clearTeamError("club"); }} /></RelayField>
       </div>
       {teamRunners.length > 0 && <div className={relayStyles.runners}>{teamRunners.map((runner, index) => {
         // Steg 48: sträcka (och löpare inom sträckan) eller teamsprintens person med sina sträckor.
@@ -205,15 +213,19 @@ function NewTeam({ ws, relay }: { ws: Workspace; relay: RelayOverview }) {
         return <div key={index} className={relayStyles.runner}>
           <span className={relayStyles.legName}>{runner.person ? text.personHeading(runner.person, runner.personLegs ?? [])
             : parallel ? text.legRunner(runner.leg, runner.legOrder) : text.leg(runner.leg)}</span>
-          <label>{text.givenNameOf(slot)}<input value={runner.givenName} maxLength={160} required autoComplete="off" disabled={locked}
-            onChange={event => changeTeamRunner(index, { givenName: event.target.value })} /></label>
-          <label>{text.familyNameOf(slot)}<input value={runner.familyName} maxLength={160} required autoComplete="off" disabled={locked}
-            onChange={event => changeTeamRunner(index, { familyName: event.target.value })} /></label>
-          <label>{text.cardOf(slot)}<input value={runner.card} inputMode="numeric" autoComplete="off" disabled={locked}
-            onChange={event => changeTeamRunner(index, { card: event.target.value })} /></label>
+          <RelayField id={`${id}-given-${index}`} label={text.givenNameOf(slot)} error={errors[`given-${index}`]}>
+            <input value={runner.givenName} maxLength={160} autoComplete="off" disabled={locked}
+              onChange={event => changeTeamRunner(index, { givenName: event.target.value })} /></RelayField>
+          <RelayField id={`${id}-family-${index}`} label={text.familyNameOf(slot)} error={errors[`family-${index}`]}>
+            <input value={runner.familyName} maxLength={160} autoComplete="off" disabled={locked}
+              onChange={event => changeTeamRunner(index, { familyName: event.target.value })} /></RelayField>
+          <RelayField id={`${id}-card-${index}`} label={text.cardOf(slot)} error={errors[`card-${index}`]}>
+            <input value={runner.card} inputMode="numeric" autoComplete="off" disabled={locked}
+              onChange={event => changeTeamRunner(index, { card: event.target.value })} /></RelayField>
         </div>;
       })}</div>}
-      <div className={styles.actions}><button type="submit" disabled={workflowLocked || !teamClassId}>{text.saveTeam}</button></div>
+      {teamError && <Notice tone="error" role="alert">{teamError}</Notice>}
+      <div className={styles.actions}><button type="submit" disabled={workflowLocked}>{text.saveTeam}</button></div>
     </form>
   </details>;
 }

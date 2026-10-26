@@ -855,6 +855,17 @@ ADR-0176. Migration 0026.
 - [x] Tester: plan för 0–128+ stämplingar, reservvägen, bit för bit samma block och bild som "alla block", natt-KM:s SIAC.
 - [ ] Ägaren provar SIAC, SI10, SI8 och SI5 på riktig station (steg 7).
 
+## [x] Steg 56 – Stafettformuläret: fel vid fälten och mallar
+
+ADR-0174 beslut 10. Ingen migration.
+
+- [x] Fel vid fälten i "Ny stafettklass", "Ändra stafettklass" och "Nytt lag" (klassnamn, bana, masstart- och omstartstid,
+  minuter för flygande omstart, växlingskontroll, lagnamn, löparnas namn och brickor), sammanfattade överst, fokus på det första.
+- [x] Bana per sträcka ("Bana sträcka N", krävs) och snabbvalet "Samma bana på alla sträckor"; klassens bana är sträcka 1:s.
+- [x] Mallar som en rad med val: vanlig stafett, teamsprint, ungdomsstafett och linjestafett, med besked och markering.
+- [x] "Fler inställningar": lag i omstart (vid omstart), gaffling (vid gafflad bana), teamsprint och växlingskontroll.
+- [x] Tider som 18:30, 18.30 och 1830. Playwright `stafett-steg56.spec.ts`.
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

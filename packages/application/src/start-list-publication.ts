@@ -69,7 +69,10 @@ async function projection(tx: DbExecutor, race: {
     const relayOf = (e: (typeof es)[number]) => {
         const team = e.teamId ? teams.get(e.teamId) : undefined, legs = relayClasses.get(e.classId)?.legs;
         const rule = legs?.find(l => l.leg === e.relayLeg);
-        const own = rule?.courseVersionId ? legCourseNames.get(rule.courseVersionId) : undefined;
+        // Steg 56: sträckans bana visas när klassens sträckor springer olika banor (och då på varje sträcka).
+        const courseOf = (versionId: string | null) => versionId ? legCourseNames.get(versionId) : cs.find(c => c.id === e.classId)?.courseName;
+        const several = new Set((legs ?? []).map(l => courseOf(l.courseVersionId))).size > 1;
+        const own = several && rule ? courseOf(rule.courseVersionId) : undefined;
         return team && rule ? { teamNumber: team.number, teamName: team.name, teamOrganisationName: team.organisationName, leg: rule.leg,
             startMethod: rule.startMethod, ...(own ? { courseName: own } : {}) } : null;
     };

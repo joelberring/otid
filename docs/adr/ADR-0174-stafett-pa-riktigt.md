@@ -1,6 +1,6 @@
 # ADR-0174: Stafett på riktigt – banor per sträcka, omstart, rättvis gaffling och flera löpare per sträcka
 
-Status: beslutad 2026-10-25 (steg 47 och 48, PLAN.md), beslut 9 2026-10-26 (steg 50). Kompletterar ADR-0169 beslut 2–3.
+Status: beslutad 2026-10-25 (steg 47 och 48, PLAN.md), beslut 9 2026-10-26 (steg 50), beslut 10 2026-10-26 (steg 56). Kompletterar ADR-0169 beslut 2–3.
 
 ## Bakgrund
 
@@ -153,3 +153,19 @@ migration 0024), och mallen "Teamsprint (2 löpare × 4 sträckor)" ger det. Ste
   Ett namnbyte gäller löparens alla sträckor.
 - Alternativet att alltid kräva växlingskontroll (beslut 7) valdes bort som förval: det kräver en extra enhet och en
   stämpling som löparna glömmer. Med utläsning efter varje sträcka får varje sträcka sin måltid från målenheten.
+
+## Beslut (steg 56)
+
+### 10. Banor per sträcka i formuläret; klassens bana är sträcka 1:s
+Ägaren: "man väljer aldrig bara en bana till en stafettklass utan man kopplar banor per sträcka". Formulären "Ny
+stafettklass" och "Ändra stafettklass" har därför inget fält för klassens bana. Varje sträcka har ett obligatoriskt fält
+"Bana sträcka N" (variantvalet som förut när banan är gafflad), och snabbvalet "Samma bana på alla sträckor" fyller i alla
+på en gång. Modellen behåller klassens bana (`classes.course_version_id`, NOT NULL och läst på många ställen): den sätts
+i bakgrunden till **sträcka 1:s bana**, både när klassen skapas och när den ändras, och visas inte för en stafettklass
+(klasstabellen visar sträckornas banor och klassredigeraren hänvisar till "Ändra stafettklass"). Alla sträckors banor sparas
+uttryckligen i `relay_leg.course_version_id`; NULL (= klassens) finns kvar för äldre klasser och IOF-import och läses som
+förut (`entryCourseVersionId`). En sträcka som går från NULL till samma bana uttryckligen räknas som oförändrad (ingen ny
+variantfördelning, ingen omräkning). Lagkortet, den publika resultatlistan och startlistan visar sträckans bana på varje
+sträcka när klassens sträckor springer olika banor, annars ingen. Inga regler i domänen ändras.
+Formulären visar fel vid fälten (sammanfattade överst, fokus till det första), tider skrivs 18:30, 18.30 eller 1830, och
+mallarna (vanlig stafett, teamsprint, ungdomsstafett, linjestafett) sätter sträckor och inställningar men inte namn eller banor.

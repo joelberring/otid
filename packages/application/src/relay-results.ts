@@ -228,6 +228,11 @@ export async function getRelayOverviewAsAdmin(db: Database, input: Authenticatio
 }
 
 /** Publika stafettresultat: lagresultat med utfällbara sträckor och sträckresultat per sträcka. */
+/** Steg 56: om klassens sträckor springer olika banor; då visas sträckans bana på varje sträcka i de publika listorna. */
+function severalCourses(row: { courseId: string; config: RelayClassConfig; legCourses: ReadonlyMap<number, { courseId: string }> }) {
+  return new Set(row.config.legs.map(leg => row.legCourses.get(leg.leg)?.courseId ?? row.courseId)).size > 1;
+}
+
 export async function publicRelayResults(db: Database, raceId: string): Promise<PublicRelayResults> {
   return db.transaction(async tx => {
     await lockRaceForSnapshot(tx, raceId);
@@ -242,7 +247,7 @@ export async function publicRelayResults(db: Database, raceId: string): Promise<
           status: leg.waiting ? null : leg.result?.status ?? null,
           elapsedMs: leg.result?.elapsedMs ?? null, legPosition: row.legRankings.get(leg.entry.id)?.position ?? null,
           restarted: leg.restarted, variantCode: leg.entry.courseVariantCode,
-          courseName: row.legCourses.get(leg.entry.leg)?.courseName ?? null, legOrder: leg.entry.legOrder,
+          courseName: severalCourses(row) ? row.legCourses.get(leg.entry.leg)?.courseName ?? row.courseName : null, legOrder: leg.entry.legOrder,
           changedOver: leg.changedOver })), restarted: view.result.restarted })),
       legs: row.config.legs.map(rule => ({ leg: rule.leg, results: row.teams.flatMap(view => view.legs
         .filter(leg => leg.entry.leg === rule.leg && leg.result && !leg.waiting).map(leg => ({ ranking: row.legRankings.get(leg.entry.id) ?? {},

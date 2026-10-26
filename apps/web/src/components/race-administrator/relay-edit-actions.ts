@@ -44,9 +44,13 @@ export function createRelayEditActions(ws: Base & RaceDataActions & RelayActions
     teamEditAttempt, setTeamEditAttempt, teamRemovalAttempt, setTeamRemovalAttempt, teamDnsAttempt, setTeamDnsAttempt, variantChange,
     setVariantChange, variantAttempt, setVariantAttempt, setVariantPreview, setSelectedTeamId } = ws;
 
-  /** Skickar en ändring som kan kräva bekräftelse. 409 med besked: beskedet visas och försöket väntar på bekräftelse. */
+  /**
+   * Skickar en ändring som kan kräva bekräftelse. 409 med besked: beskedet visas och försöket väntar på bekräftelse.
+   * Steg 56: `refused` visar ett nekat sparande i formuläret (och ett upptaget namn vid fältet).
+   */
   async function sendConfirmable<T extends { requestId: string }>(path: string, prefix: string, attempt: T, parse: (value: unknown) => unknown,
-    onPreview: (preview: RelayClassEditPreview) => void, clear: () => void, done: (receipt: unknown) => string) {
+    onPreview: (preview: RelayClassEditPreview) => void, clear: () => void, done: (receipt: unknown) => string,
+    refused: (message: string, duplicate: boolean) => void = message => setRelayMessage(message)) {
     const op = begin(true);
     try {
       const response = await request(path, op, { method: "POST", headers: { "content-type": "application/json", "x-otid-csrf": csrf(),
@@ -57,17 +61,17 @@ export function createRelayEditActions(ws: Base & RaceDataActions & RelayActions
           clear(); onPreview(refusal.data.preview); return;
         }
         const duplicate = await isDuplicateName(response);
-        clear(); setRelayMessage(refusal.success && refusal.data.error === "LEG_HAS_RESULT" ? text.editLegHasResult
-          : duplicate ? text.classDuplicate : text.classConflict);
+        const legHasResult = refusal.success && refusal.data.error === "LEG_HAS_RESULT";
+        clear(); refused(legHasResult ? text.editLegHasResult : duplicate ? text.classDuplicate : text.classConflict, !legHasResult && duplicate);
         await readRelay(op); return;
       }
-      if (response.status === 400 || response.status === 404) { clear(); setRelayMessage(text.classConflict); await readRelay(op); return; }
+      if (response.status === 400 || response.status === 404) { clear(); refused(text.classConflict, false); await readRelay(op); return; }
       if (!response.ok) throw new Error("Unknown relay outcome");
       const receipt = parse(await json(response, op)) as { raceId: string; requestId: string };
       if (receipt.raceId !== raceId || receipt.requestId !== attempt.requestId) throw new Error("Relay receipt mismatch");
       clear(); setRelayMessage(done(receipt));
       await load(op); await readRelay(op);
-    } catch { if (current(op)) setRelayMessage(text.teamActionError); }
+    } catch { if (current(op)) refused(text.teamActionError, false); }
     finally { finish(op); }
   }
 
@@ -76,12 +80,19 @@ export function createRelayEditActions(ws: Base & RaceDataActions & RelayActions
     const raceClass = relay?.classes.find(row => row.id === classId);
     if (pending.current) return;
     setRelayEditClassId(classId); setRelayEditAttempt(undefined); setRelayEditPreview(undefined); setRelayMessage("");
+    ws.setRelayClassErrors({}); ws.setRelayClassError("");
     if (!raceClass || !relay) return;
     setRelayClassName(raceClass.name);
     setRelayRestartRanking(raceClass.restartRanking); setRelayForking(raceClass.forking);
+    // Steg 56: varje sträcka visar banan den springer (en äldre sträcka utan egen bana springer klassens, alltså sträcka 1:s).
+    const courseOf = (leg: number) => raceClass.legCourses.find(row => row.leg === leg)?.courseId ?? raceClass.courseId;
+    const courses = new Set(raceClass.legs.map(leg => courseOf(leg.leg)));
+    ws.setRelaySameCourse(courses.size === 1 ? [...courses][0]! : "");
+    ws.setRelayMoreOpen(raceClass.readoutMode !== null || raceClass.changeoverCode !== null || raceClass.restartRanking !== "AFTER_NORMAL" ||
+      raceClass.forking !== "EVEN");
     setRelayLegForms(raceClass.legs.map((leg): RelayLegForm => ({ method: leg.startMethod,
       time: leg.startTime ? formatClockTime(leg.startTime, relay.timeZone).slice(0, 5) : "", variant: leg.variantCode ?? "",
-      course: leg.courseId ?? "", minutes: leg.restartAfterMinutes === null ? "" : String(leg.restartAfterMinutes), runners: String(leg.runners),
+      course: courseOf(leg.leg), minutes: leg.restartAfterMinutes === null ? "" : String(leg.restartAfterMinutes), runners: String(leg.runners),
       changeoverRule: leg.changeoverRule, approvalRule: leg.approvalRule })));
     ws.setRelayChangeoverCode(raceClass.changeoverCode === null ? "" : String(raceClass.changeoverCode));
     ws.setRelayReadoutMode(raceClass.readoutMode ?? "");
@@ -90,16 +101,18 @@ export function createRelayEditActions(ws: Base & RaceDataActions & RelayActions
     if (pending.current) return;
     setRelayEditClassId(""); setRelayEditAttempt(undefined); setRelayEditPreview(undefined);
     setRelayClassName(""); setRelayLegForms(defaultLegs(3)); setRelayRestartRanking("AFTER_NORMAL"); setRelayForking("EVEN");
-    ws.setRelayReadoutMode(""); ws.setRelayChangeoverCode("");
+    ws.setRelayReadoutMode(""); ws.setRelayChangeoverCode(""); ws.setRelaySameCourse(""); ws.setRelayMoreOpen(false);
+    ws.setRelayClassErrors({}); ws.setRelayClassError(""); ws.setRelayTemplateId(undefined);
   }
   async function saveRelayClassEdit(confirm: boolean) {
     if (writingRef.current || pending.current || !requireSession() || !data || !relayEditClassId) return;
-    setRelayMessage("");
+    setRelayMessage(""); ws.setRelayClassError("");
     let attempt = relayEditAttempt && relayEditAttempt.confirmResultChanges === confirm ? relayEditAttempt : undefined;
     if (!attempt) {
+      if (!ws.checkRelayClass()) return;
       const legs = relayLegSettings(relayLegForms, data.raceDate, data.timeZone);
       const code = changeoverCodeOf(ws.relayChangeoverCode);
-      if (!relayClassName.trim() || !legs || code === undefined) { setRelayMessage(text.classInvalid); return; }
+      if (!legs || code === undefined) { ws.setRelayClassError(text.classInvalid); return; }
       attempt = { formatVersion: 1, requestId: crypto.randomUUID(), classId: relayEditClassId, name: relayClassName.trim(), legs,
         restartRanking: ws.relayRestartRanking, forking: ws.relayForking, confirmResultChanges: confirm, changeoverCode: code,
         readoutMode: ws.relayReadoutMode || null };
@@ -109,8 +122,9 @@ export function createRelayEditActions(ws: Base & RaceDataActions & RelayActions
     await sendConfirmable("/relay-class-edit", "relay-class-edit", attempt, value => relayClassEditResponseSchema.parse(value),
       preview => setRelayEditPreview(preview), () => setRelayEditAttempt(undefined), receipt => {
         setRelayEditPreview(undefined); setRelayEditClassId(""); setRelayClassName(""); setRelayLegForms(defaultLegs(3));
+        ws.setRelaySameCourse(""); ws.setRelayMoreOpen(false); ws.setRelayClassErrors({});
         return text.editSaved(name, (receipt as { recalculatedCount: number }).recalculatedCount);
-      });
+      }, ws.relayClassRefused);
   }
 
   function startTeamEdit(teamId: string) {

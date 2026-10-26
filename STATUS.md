@@ -10,6 +10,11 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-10-26 – Steg 56: stafettformuläret (agent H)
+- "Ny stafettklass"/"Ändra stafettklass"/"Nytt lag": fel vid fälten (`relay-form-validation.ts`, `relay-fields.tsx`), sammanfattning överst, fokus på första felet; nekat sparande visas i formuläret, upptaget namn vid klassnamnet.
+- Ingen klassbana i formuläret: "Bana sträcka N" krävs, snabbval "Samma bana på alla sträckor"; servern sätter klassens bana till sträcka 1:s och sparar alla sträckors banor (ADR-0174 beslut 10). Lagkort, publika resultat och startlista visar bana per sträcka när banorna skiljer sig; klasstabellen visar sträckornas banor.
+- Mallar som en rad med val (vanlig, teamsprint, ungdom, linjestafett) med besked; "Fler inställningar" öppnas av mall eller fel. Tider 18:30, 18.30, 1830.
+- Verifierat: lint, typecheck, enhetstester (web 410), integration (382, nytt fall i `adr-0174-stafett`), bygget; Playwright `stafett-steg56` (ny) och `stafett`, `stafett-steg47/48/50`. Kvar: arbetsytans startlista visar fortfarande klassens rubrikbana (sträcka 1:s) för stafett.
 ### 2026-10-26 – Steg 51: lasttest (agent C)
 - `docs/lasttest.md`: scenarier, uppställning (produktionsbygget, PostgreSQL 17, cgroup 2 kärnor/4 GB), resultat och gränser; skripten i `scripts/lasttest/`.
 - Före: 100 besökare på 3 000 löpare mättade CX23 (publika anrop 30 s, avläsningspaketet kom aldrig).

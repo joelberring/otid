@@ -80,8 +80,8 @@ Gemensamma hjälpare: UUID-mönstret och idempotensnycklarnas form (`UUID_PATTER
   `publicRaceContentVersion` (`application/src/public-race-version.ts`: resultatströmmens markör, `snapshot_version`,
   fastställandet, startlistans publicering, publiceringen, banornas publicering); det som inte syns i den täcks av en
   maxålder (15 s, Live 5 s). Högst en uträkning åt gången och högst en tredjedel av processens tid. Har bara nya resultat
-  kommit in får besökaren den senaste listan (högst 3 s gammal) direkt, märkt `x-otid-stale`, och sidan hämtar igen efter
-  3–4 s; är något annat ändrat (fastställt eller ångrat, klasser, lag, banor) väntar anropet på den nya listan, och en
+  kommit in får besökaren den senaste listan (högst 1 s gammal) direkt, märkt `x-otid-stale`, och sidan hämtar igen efter
+  1,5–2,5 s; är något annat ändrat (fastställt eller ångrat, klasser, lag, banor) väntar anropet på den nya listan, och en
   uträkning som började före ändringen görs om. Sidorna läser versionen direkt (`exact`), API:et högst 250 ms gammal.
   Grinden (`publicRaceResponse`) körs som förut för varje anrop. Sidor med en stor lista (fler än 400 rader) skickar inte
   med listan utan hämtar den från API:et.
@@ -92,8 +92,11 @@ Gemensamma hjälpare: UUID-mönstret och idempotensnycklarnas form (`UUID_PATTER
 - Läsningar som PostgreSQL avbryter för en samtidig ändring (40001) görs om (`lib/read-conflict.ts`), både i cachen och
   för arbetsytans läsningar.
 - Drift: två webbinstanser (`web`, `web2`) bakom Caddy, eftersom en Node-process bara använder en kärna. Var instans har
-  sin cache och lyssnar själv på resultatströmmen; ett svar från den instans som inte hunnit räkna är märkt `x-otid-stale`
-  eller väntar in den nya listan, så att en besökare aldrig blir stående med en äldre lista.
+  sin cache och lyssnar på resultatströmmen så snart den visar en publik lista (inte först när en besökare öppnar
+  strömmen där). Med `least_conn` ligger besökarens ström på den ena instansen och hämtningarna oftast på den andra, så
+  varje instans som visat tävlingen de senaste två minuterna räknar om listorna när ett resultat kommer in. Ett svar för en
+  äldre version är märkt `x-otid-stale` eller väntar in den nya listan. Mätt bakom Caddy 2.11 med två instanser: en ny
+  avläsning syns i Live inom 0,5–2 s, också med processorn fullt belastad (före rättelsen enstaka 4–5 s).
 
 ## Var resultatlogiken finns
 

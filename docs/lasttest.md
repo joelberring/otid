@@ -129,7 +129,16 @@ ett ångrat fastställande kunde ge "Officiella resultat" vid omladdning (versio
 som började före ändringen gavs ut). Nu: den äldre listan ges direkt bara när enbart nya resultat har kommit in, och
 svaret märks `x-otid-stale` så att sidan hämtar igen efter 3–4 s (lika glest som väckningarna under rusningen); allt
 annat väntar in den nya listan, en uträkning från före ändringen görs om, sidorna läser versionen direkt och API:et
-högst 250 ms gammal, och reserven med öppen ström är 10 s. Stafettsynken per lag var inte orsaken (stafettestarna gick
+högst 250 ms gammal, och reserven med öppen ström är 10 s.
+
+**Live inom 5 s med två instanser (efter CI:s driftjobb).** Live-testet föll ibland i CI (Anna syntes inte inom 10 s).
+Instansen som bara fick besökarens hämtningar (strömmen låg på den andra, `least_conn`) lyssnade inte på
+resultatströmmen och räknade därför inte om i förväg; hämtningen fick den äldre listan eller väntade på uträkningen, och
+sidan hämtade igen först efter 3–4 s. Nu lyssnar varje instans som visar en publik lista, och räknar om de tävlingar den
+visat de senaste två minuterna; väckningen ger alltid listan för den nya versionen (en uträkning från före avläsningen
+görs om); den äldre listan ges direkt bara om den är högst 1 s gammal, och sidan hämtar då igen efter 1,5–2,5 s. Mätt
+med Caddy 2.11 och två produktionsinstanser (avläsning till rad i Live): före 0,9–5,0 s, efter 0,5–2,0 s, också med båda
+kärnorna fullt belastade. Stafettsynken per lag var inte orsaken (stafettestarna gick
 igenom lokalt även före rättelsen; ett lags starter beror utan flygande omstart bara på lagets egna växlingar).
 
 Resultatreglerna är oförändrade: listorna ur cachen är byte för byte samma som förut (jämfört för den individuella tävlingen och stafetten),

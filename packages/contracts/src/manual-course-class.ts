@@ -9,17 +9,32 @@ const controlCode = z.number().int().positive().max(2_147_483_647);
 const utcMilliseconds = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/).refine(value =>
   Number(value.slice(0, 4)) >= 1 && Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value);
 
+/**
+ * Ny bana, med eller utan klass (steg 55). Utan `className` skapas bara banan med kontrollföljden; startsätt och
+ * rogaining gäller klassen och får då inte skickas. Med `className` krävs startsättet, som tidigare.
+ */
 export const manualCourseClassCreateRequestSchema = z.object({
-  formatVersion: z.literal(1), requestId: uuid,   courseName: name, className: name, startRule, controlCodes: z.array(controlCode).min(1).max(1000),
+  formatVersion: z.literal(1), requestId: uuid, courseName: name, className: name.optional(), startRule: startRule.optional(),
+  controlCodes: z.array(controlCode).min(1).max(1000),
   /** Rogainingtävling: klassen blir rogaining med tidsgräns och straff (ADR-0170 beslut 5). */
   rogaining: rogainingClassRulesInputSchema.optional()
-}).strict();
+}).strict().superRefine((value, context) => {
+  if (value.className === undefined && value.startRule !== undefined) {
+    context.addIssue({ code: "custom", path: ["startRule"], message: "Startsättet gäller klassen och kräver ett klassnamn" });
+  }
+  if (value.className === undefined && value.rogaining !== undefined) {
+    context.addIssue({ code: "custom", path: ["rogaining"], message: "Rogainingreglerna gäller klassen och kräver ett klassnamn" });
+  }
+  if (value.className !== undefined && value.startRule === undefined) {
+    context.addIssue({ code: "custom", path: ["startRule"], message: "En klass behöver ett startsätt" });
+  }
+});
 export const manualCourseClassCreateIdempotencyKeySchema = z.string().regex(
   prefixedUuidPattern("manual-course-class-create"));
 
 export const manualCourseClassCreateResponseSchema = z.object({
   formatVersion: z.literal(1), replayed: z.boolean(), requestId: uuid, raceId: uuid,
-  courseId: uuid, courseVersionId: uuid, classId: uuid,
+  courseId: uuid, courseVersionId: uuid, classId: uuid.nullable(),
   request: manualCourseClassCreateRequestSchema,
   snapshotVersionBefore: version, snapshotVersionAfter: version, createdAt: utcMilliseconds
 }).strict().superRefine((value, context) => {
@@ -28,6 +43,9 @@ export const manualCourseClassCreateResponseSchema = z.object({
   }
   if (value.requestId !== value.request.requestId) {
     context.addIssue({ code: "custom", path: ["requestId"], message: "Kvittensen måste binda request-id" });
+  }
+  if ((value.classId === null) !== (value.request.className === undefined)) {
+    context.addIssue({ code: "custom", path: ["classId"], message: "Klassen finns precis när ett klassnamn skickades" });
   }
 });
 

@@ -69,12 +69,15 @@ test("ny tävling: direkt in, tomlägen med åtgärd, svenska fältfel och tre d
   await expect(owner.getByRole("button", { name: "eller läs in banfil" })).toBeVisible();
   await screenshots(owner, "tom-arbetsyta");
   await owner.getByRole("button", { name: "Ny bana" }).click();
-  const courseForm = owner.locator("form").filter({ has: owner.getByRole("button", { name: "Spara bana och klass" }) });
+  const courseForm = owner.locator("form").filter({ has: owner.getByRole("button", { name: /^Spara bana( och klass)?$/ }) });
   await expect(courseForm).toHaveAttribute("novalidate", "");
-  await courseForm.getByRole("button", { name: "Spara bana och klass" }).click();
-  for (const error of ["Skriv banans namn.", "Skriv klassens namn.", "Skriv kontrollerna i ordning, till exempel 31 32 33."]) {
+  // Steg 55: klassnamnet är valfritt; utan det heter knappen "Spara bana" och startsättet visas inte.
+  await expect(courseForm.getByLabel("Startsätt")).toHaveCount(0);
+  await courseForm.getByRole("button", { name: "Spara bana", exact: true }).click();
+  for (const error of ["Skriv banans namn.", "Skriv kontrollerna i ordning, till exempel 31 32 33."]) {
     await expect(courseForm.getByText(error)).toBeVisible();
   }
+  await expect(courseForm.getByText("Skriv klassens namn.")).toHaveCount(0);
   await expectNoNativeValidation(owner);
   await courseForm.getByLabel("Bannamn").fill("Lång");
   await courseForm.getByLabel("Klassnamn").fill("H21");
@@ -84,9 +87,10 @@ test("ny tävling: direkt in, tomlägen med åtgärd, svenska fältfel och tre d
   await expect(owner.getByText("Banan och klassen är sparade.")).toBeVisible();
   // Formuläret töms helt efter sparandet, även startsättet, och står kvar för nästa bana.
   await expect(courseForm.getByLabel("Bannamn")).toHaveValue("");
-  await expect(courseForm.getByLabel("Startsätt")).toHaveValue("PUNCH");
+  await expect(courseForm.getByLabel("Startsätt")).toHaveCount(0);
   await courseForm.getByLabel("Bannamn").fill("Kort");
   await courseForm.getByLabel("Klassnamn").fill("D21");
+  await expect(courseForm.getByLabel("Startsätt")).toHaveValue("PUNCH");
   await courseForm.getByLabel("Kontrollföljd").fill("31 33");
   await courseForm.getByRole("button", { name: "Spara bana och klass" }).click();
   await expect(owner.getByRole("row", { name: /^Kort/ })).toBeVisible();

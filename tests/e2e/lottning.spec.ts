@@ -21,7 +21,7 @@ test("lotta tre klasser, publicera startlistan och placera en efteranmäld på v
   await addCourseAndClass(owner, "Lång", "H21", "31 32 33");
   // Dubbelt klassnamn avvisas med ett begripligt besked (PLAN.md steg 22).
   // Formuläret "Ny bana" står kvar efter sparandet, tömt (PLAN.md steg 24).
-  const courseForm = owner.locator("form").filter({ has: owner.getByRole("button", { name: "Spara bana och klass" }) });
+  const courseForm = owner.locator("form").filter({ has: owner.getByRole("button", { name: /^Spara bana( och klass)?$/ }) });
   await expect(courseForm.getByLabel("Bannamn")).toHaveValue("");
   await courseForm.getByLabel("Bannamn").fill("Lång igen");
   await courseForm.getByLabel("Klassnamn").fill("h21");

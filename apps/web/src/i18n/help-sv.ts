@@ -67,7 +67,7 @@ export const helpArticles: readonly HelpArticle[] = [
     title: "Banor",
     views: ["COURSES"],
     body: [
-      "Lägg till en bana med ”Ny bana”. Skriv ”Bannamn”, ”Klassnamn” och kontrollerna i ordning och tryck på ”Spara bana och klass”.",
+      "Lägg till en bana med ”Ny bana”. Skriv ”Bannamn” och kontrollerna i ordning och tryck på ”Spara bana”. Fyll i ”Klassnamn (valfritt)” om en klass ska springa banan direkt; knappen heter då ”Spara bana och klass”. Annars lägger du till klassen under Klasser.",
       [
         "Banfil från Purple Pen, OCAD eller Condes: exportera banorna som IOF XML 3.0 och välj ”Läs in banfil”. Du ser skillnaderna innan något sparas.",
         "”Redigera”: rätta en bana, även när löpare har läst ut. Tryck på ”Visa vad som händer” och ”Spara ändringen”. Resultaten räknas om.",

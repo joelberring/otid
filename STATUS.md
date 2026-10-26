@@ -10,6 +10,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-10-26 – Steg 55: bana utan klass (agent G)
+- "Ny bana" kräver inte längre klass: utan klassnamn sparas bara banan (kontrakt, `createManualCourseClassAsAdmin`, journalens `class_id` NULL i `0027_bana_utan_klass`, audit `MANUAL_COURSE_CREATED_BY_ADMIN`). Startsätt och rogaining visas först med klassnamn; knapp och besked följer.
+- Fälten i "Ny bana" och "Ny klass" linjeras överst (`fieldRowTop`), också när ett fält visar fel. Kontrollerat på 1280 och 390 px.
+- "Ny klass" på en gafflad bana (tom grundföljd, bara varianter) avvisades som konflikt; nu går den att välja.
+- Verifierat: lint, typecheck, enhets- och integrationstester (bana utan klass, omspelning, dubblettnamn, ändring, gaffling, klass, stafettsträcka, kontrollkarta), bygget, Playwright `bana-utan-klass` och specarna som använder formuläret.
+
 ### 2026-10-26 – Steg 51: lasttest (agent C)
 - `docs/lasttest.md`: scenarier, uppställning (produktionsbygget, PostgreSQL 17, cgroup 2 kärnor/4 GB), resultat och gränser; skripten i `scripts/lasttest/`.
 - Före: 100 besökare på 3 000 löpare mättade CX23 (publika anrop 30 s, avläsningspaketet kom aldrig).

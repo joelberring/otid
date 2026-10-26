@@ -81,7 +81,7 @@ async function race(owner: AccountProof, eventName: string): Promise<{ proof: Pr
     request: { formatVersion: 1, requestId, courseName: "Lång",
       className: "H21", startRule: "PUNCH", controlCodes: [31, 32, 33] } });
   if (course.status !== "created") throw new Error("Banan kunde inte skapas");
-  return { proof, eventId: created.response.eventId, classId: course.response.classId };
+  return { proof, eventId: created.response.eventId, classId: course.response.classId! };
 }
 
 async function entry(proof: Proof, classId: string, givenName: string, cardNumber: string): Promise<string> {

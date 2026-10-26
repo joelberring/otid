@@ -48,7 +48,10 @@ export async function createManualClassAsAdmin(db: Database, input: Input, now =
       raceId: schema.controls.raceId }).from(schema.courseControls)
       .innerJoin(schema.controls, eq(schema.controls.id, schema.courseControls.controlId))
       .where(eq(schema.courseControls.courseVersionId, target.courseVersionId)).orderBy(schema.courseControls.sequence);
-    if (!controls.length || controls.length > 1000 || controls.some((control, index) =>
+    // En gafflad bana har sin kontrollföljd i varianterna och en tom grundföljd (steg 49); den går också att välja (steg 55).
+    const forked = controls.length === 0 && (await tx.select({ id: schema.courseVariants.id }).from(schema.courseVariants)
+      .where(eq(schema.courseVariants.courseVersionId, target.courseVersionId)).limit(1)).length > 0;
+    if ((!controls.length && !forked) || controls.length > 1000 || controls.some((control, index) =>
       control.sequence !== index + 1 || control.raceId !== input.raceId ||
       !Number.isInteger(control.code) || control.code <= 0 || control.code > 2_147_483_647)) return { status: "conflict" as const };
     const [raceClass] = await tx.insert(schema.classes).values({ raceId: input.raceId, name: intent.className,

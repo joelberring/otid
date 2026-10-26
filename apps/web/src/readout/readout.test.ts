@@ -7,7 +7,7 @@ import { cardTypeForNumber, simulatedRun, stationClock } from "@o-tid/sportident
 import { exerciseAnchor, exerciseCard, exerciseRunners, exerciseWindow } from "./exercise";
 import { FakeStationTransport } from "./fake-transport";
 import { buildReadoutPayload, payloadHash } from "./payload";
-import { StationController, type StationStatus } from "./station";
+import { loadFastRead, saveFastRead, StationController, type StationStatus } from "./station";
 import { TrafficLog } from "./rawlog";
 import { heldReadouts, pendingBatches, releaseHeldReadouts, syncPending } from "./sync";
 import { forkedTestPackage, ids, MemoryReadoutStore, TEST_CARD, testPackage } from "./test-support";
@@ -19,7 +19,7 @@ const NOW = new Date("2026-10-01T17:45:00.000Z");
 interface Read { card: SiCardData; frames: readonly Uint8Array[]; serial: number | undefined; clockOffsetMs: number | undefined }
 
 async function readThroughExerciseStation(codes: readonly number[], variant: "ok" | "missing-control" | "no-finish", cardNumber = TEST_CARD,
-  traffic?: TrafficLog) {
+  traffic?: TrafficLog, fastRead?: boolean) {
   const transport = new FakeStationTransport();
   const statuses: StationStatus[] = [];
   let read: Read | undefined;
@@ -29,8 +29,9 @@ async function readThroughExerciseStation(codes: readonly number[], variant: "ok
     onCardRead: (card, frames, station) => { read = { card, frames, serial: station.serialNumber, clockOffsetMs: station.clock?.clockOffsetMs }; },
     onReadFailed: (cardNumber, reason) => { throw new Error(`${cardNumber}: ${reason}`); },
     onUnsupportedCard: (card) => { throw new Error(`Okänd typ ${card}`); },
-    onTraffic: (direction, bytes) => traffic?.add(direction, bytes)
-  }, { timeoutMs: 500, timeZone: TIME_ZONE });
+    onTraffic: (direction, bytes) => traffic?.add(direction, bytes),
+    onLog: (text) => traffic?.note(text)
+  }, { timeoutMs: 500, timeZone: TIME_ZONE, ...(fastRead === undefined ? {} : { fastRead }) });
   expect(await controller.start()).toBe(true);
   transport.insert(exerciseCard(cardNumber, codes, variant, NOW, TIME_ZONE));
   for (let i = 0; i < 200 && !read; i += 1) await new Promise((resolve) => setTimeout(resolve, 5));
@@ -111,6 +112,28 @@ describe("avläsning i webbläsaren", () => {
     expect(log.traffic.some((entry) => entry.direction === "in")).toBe(true);
     expect(log.readouts[0]!.frames).toEqual(payload.frames);
     expect(JSON.stringify(log)).not.toContain("Anna");
+  });
+
+  it("steg 53: snabb utläsning som förval, kan stängas av, och utläsningssättet står i felsökningsloggen", async () => {
+    const fast = new TrafficLog();
+    const first = await readThroughExerciseStation([31, 32, 33], "ok", TEST_CARD, fast);
+    expect(first.read.frames).toHaveLength(3); // detektering + block 0 och 4
+    expect(fast.notes.map((note) => note.text)).toEqual([
+      expect.stringMatching(/^Station 999001: kod 10, .*blockinställning 0xc1, snabb utläsning på$/),
+      expect.stringMatching(/^SI10 7123456: snabb utläsning, 2 svar, \d+ ms$/)]);
+    const full = new TrafficLog();
+    const second = await readThroughExerciseStation([31, 32, 33], "ok", TEST_CARD, full, false);
+    expect(second.read.frames).toHaveLength(6);
+    expect(second.read.card).toEqual(first.read.card);
+    expect(full.notes[1]?.text).toMatch(/^SI10 7123456: hel utläsning, 5 svar/);
+    expect((JSON.parse(full.export(ids.race, [], "test")) as { notes: unknown[] }).notes).toHaveLength(2);
+    const values = new Map<string, string>();
+    const storage = { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value); } };
+    expect(loadFastRead(storage)).toBe(true);
+    saveFastRead(false, storage);
+    expect(loadFastRead(storage)).toBe(false);
+    saveFastRead(true, storage);
+    expect(loadFastRead(storage)).toBe(true);
   });
 
   // PLAN.md steg 22: stationens klocka, övning på tävlingsdagen och brickbyte i övningsstationen.

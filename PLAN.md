@@ -832,6 +832,20 @@ ADR-0176. Migration 0026.
 - [x] Publikt på deltagarsidan bakom "Visa på kartan" när banorna är publika; bara löparens bana, ingen belastning.
 - [x] Utan koordinater: gafflingsbilden, kontrollerna i ordning och tabellen, inget fel.
 
+## [x] Steg 53 – Snabbare utläsning av nyare brickor
+
+Ägaren: "Det tar ganska lång tid att läsa in nyare pinnar jämfört med äldre." Underlag (MeOS, sportident.js, sireader) i
+`docs/research/sportident-protocol-source-gate.md`, beskrivning och siffror i `docs/sportident.md`.
+
+- [x] SI10/SI11: block 0, sedan bara stämplingsblocken 4, 5 … (32 per block). SIAC: block 0, 1 och stämplingsblocken.
+  SI6: block 0, sedan 6/7 efter antal. SI5 och SI8/SI9/pCard som förut. 20 stämplingar: 2 svar (SIAC 3) i stället för 5/8.
+- [x] Reserv: NAK, fel block, tidsgräns, fel bricka i block 0 eller block som inte går ihop med block 0 ger "alla block" för
+  samma bricka direkt, med post i felsökningsloggen. Bricka uttagen mitt i: misslyckad avläsning som förut.
+- [x] Inställning "Snabb utläsning av SI10/11/SIAC" (på som förval) under felsökningsloggen på avläsningssidan.
+- [x] Felsökningsloggen: stationens inställningar (blockinställning `0x33`), utläsningssätt, antal svar och ms per bricka.
+- [x] Tester: plan för 0–128+ stämplingar, reservvägen, bit för bit samma block och bild som "alla block", natt-KM:s SIAC.
+- [ ] Ägaren provar SIAC, SI10, SI8 och SI5 på riktig station (steg 7).
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

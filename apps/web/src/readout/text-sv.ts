@@ -202,6 +202,8 @@ export const readoutText = {
   syncFailed: (status: number) => `Servern svarade ${status}. Kön ligger kvar och skickas igen.`,
   rawLog: "Ladda ner felsökningslogg",
   rawLogHelp: "Stationens trafik sedan sidan öppnades, utan namn. Skicka filen till den som driver O-Tid om en station eller bricka beter sig fel.",
+  fastRead: "Snabb utläsning av SI10/11/SIAC",
+  fastReadHelp: "Läser bara de delar av brickan som har stämplingar (även SI6). Svarar stationen konstigt läses hela brickan direkt, utan att du behöver göra något. Stäng av om en station ändå krånglar.",
   // Kvitto och QR-kod (PLAN.md steg 21).
   receipt: {
     print: "Skriv ut kvitto",

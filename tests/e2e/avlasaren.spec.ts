@@ -14,7 +14,7 @@ async function openReadout(page: Page, raceId: string) {
   await expect(page.getByTestId("package-status")).toContainText("v");
 }
 
-test("avläsaren ansluter själv, klarar webbläsare utan USB och låter vid avläsning", async ({ browser }) => {
+test("avläsaren ansluter själv, klarar webbläsare utan USB, låter vid avläsning och har snabb utläsning", async ({ browser }) => {
   test.setTimeout(240_000);
   const suffix = unique();
   const owner = await registerAccount(browser, `steg35a.${suffix}@exempel.se`, "Kim Klubb");
@@ -88,6 +88,10 @@ test("avläsaren ansluter själv, klarar webbläsare utan USB och låter vid avl
   await owner.getByRole("button", { name: "Läs av: missad kontroll" }).click();
   await expect(owner.getByTestId("verdict")).toContainText("FELSTÄMPLAD");
   await expect.poll(tones).toEqual([523, 659, 784, 659, 523, 440]);
+  // Steg 53: snabb utläsning av SI10/11/SIAC är på som förval och kan stängas av i felsökningsdelen; avläsningen går som förut.
+  const fastRead = owner.getByLabel("Snabb utläsning av SI10/11/SIAC");
+  await expect(fastRead).toBeChecked();
+  await fastRead.uncheck();
   await sound.uncheck();
   await runner.selectOption({ label: await runner.locator("option", { hasText: "Cia Tyst" }).innerText() });
   await owner.getByRole("button", { name: "Läs av: rätt stämplat" }).click();
@@ -97,4 +101,5 @@ test("avläsaren ansluter själv, klarar webbläsare utan USB och låter vid avl
   await reviewScreenshots(owner, "step35-readout-sound");
   await owner.reload();
   await expect(owner.getByLabel("Ljud vid avläsning")).not.toBeChecked();
+  await expect(owner.getByLabel("Snabb utläsning av SI10/11/SIAC")).not.toBeChecked();
 });

@@ -7,7 +7,7 @@ import { evaluateLocally, formatRunningTime, withLocalRegistrations, type LocalV
 import { exerciseAnchor, exerciseCard, exerciseRunners, exerciseWindow, teamSprintExerciseCard, type ExerciseVariant } from "./exercise";
 import { FakeStationTransport } from "./fake-transport";
 import { buildReadoutPayload, payloadHash } from "./payload";
-import { StationController, type StationFacts, type StationStatus } from "./station";
+import { loadFastRead, saveFastRead, StationController, type StationFacts, type StationStatus } from "./station";
 import { chooseReadoutClock, stationClockUnusable } from "./clock";
 import { TrafficLog } from "./rawlog";
 import { IdbReadoutStore, type QueuedReadout, type QueuedRegistration, type ReadoutStore } from "./store";
@@ -99,6 +99,9 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
   const exerciseRef = useRef<FakeStationTransport | undefined>(undefined);
   const syncing = useRef(false);
   const trafficRef = useRef(new TrafficLog());
+  // Steg 53: snabb utläsning av SI10/11/SIAC (och SI6), på som förval; kan stängas av om en station krånglar.
+  const [fastRead, setFastRead] = useState(() => loadFastRead());
+  const fastReadRef = useRef(fastRead);
   // Steg 35: ljud vid avläsning (på som standard, sparas per webbläsare).
   const sound = useRef(new ReadoutSound());
   const [soundOn, setSoundOn] = useState(() => loadSoundEnabled());
@@ -253,8 +256,15 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
     },
     onReadFailed: (cardNumber: number) => setCurrent({ phase: "failed", at: Date.now(), message: t.readFailed(cardNumber) }),
     onUnsupportedCard: (cardNumber: number) => setCurrent({ phase: "failed", at: Date.now(), message: t.unsupported(cardNumber) }),
-    onTraffic: (direction: "in" | "out", bytes: Uint8Array) => trafficRef.current.add(direction, bytes)
+    onTraffic: (direction: "in" | "out", bytes: Uint8Array) => trafficRef.current.add(direction, bytes),
+    onLog: (text: string) => trafficRef.current.note(text)
   };
+
+  function changeFastRead(enabled: boolean) {
+    setFastRead(enabled); saveFastRead(enabled); fastReadRef.current = enabled;
+    if (controllerRef.current) controllerRef.current.fastRead = enabled;
+    trafficRef.current.note(`Snabb utläsning ${enabled ? "på" : "av"}`);
+  }
 
   function downloadRawLog() {
     if (!raceId) return;
@@ -293,7 +303,9 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
     exerciseRef.current = undefined; setExercise(false);
     const timeZone = pkgRef.current?.event.timeZone;
     for (const baudRate of BAUD_RATES) {
-      if (await attach(new StationController(new WebSerialTransport(port, { baudRate }), callbacks, timeZone ? { timeZone } : {}))) return true;
+      trafficRef.current.note(`Ansluter med ${baudRate} baud`);
+      if (await attach(new StationController(new WebSerialTransport(port, { baudRate }), callbacks,
+        { fastRead: fastReadRef.current, ...(timeZone ? { timeZone } : {}) }))) return true;
     }
     await controllerRef.current?.stop();
     setStation({ kind: "error", message: t.serialFailed });
@@ -330,7 +342,7 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
     const timeZone = pkgRef.current?.event.timeZone;
     const transport = new FakeStationTransport(timeZone ? { timeZone } : {});
     exerciseRef.current = transport; setExercise(true);
-    await attach(new StationController(transport, callbacks, timeZone ? { timeZone } : {}));
+    await attach(new StationController(transport, callbacks, { fastRead: fastReadRef.current, ...(timeZone ? { timeZone } : {}) }));
   }
 
   async function disconnect() {
@@ -553,6 +565,9 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
     <section className="rawlog">
       <button type="button" onClick={downloadRawLog}>{t.rawLog}</button>
       <p>{t.rawLogHelp}</p>
+      <label className="sound-choice"><input type="checkbox" checked={fastRead}
+        onChange={(event) => changeFastRead(event.target.checked)} />{t.fastRead}</label>
+      <p>{t.fastReadHelp}</p>
     </section>
 
     {/* Steg 35: länkarna öppnas i en ny flik, så att stationen inte kopplas från när man byter sida. */}

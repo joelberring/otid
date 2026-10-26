@@ -27,6 +27,43 @@ Web Serial (device-transport) → ramar och protokoll (sportident) → bricka �
 Råa ramar från varje utläsning följer med händelsen `card-read` (`frames`) och
 ska sparas oförändrade tillsammans med avläsningen.
 
+## Snabb utläsning (steg 53)
+
+SI6 och SI10/11/SIAC läses block för block: block 0 först, sedan bara blocken som har stämplingar (32 per block). SI10 och
+SI11 läser block 0, 4, 5 …; SIAC läser block 0, 1, 4, 5 … (block 1 som MeOS, för SIAC i beacon-läge); SI6 block 0, 6, 7.
+En bricka med 20 stämplingar ger alltså två svar (SIAC tre) i stället för fem eller åtta. SI5 och SI8/SI9/pCard läses som
+förut. Underlag: `docs/research/sportident-protocol-source-gate.md`.
+
+- **Reserv:** svarar stationen NAK, med fel block, inte alls (tidsgräns), med block 0 från en annan bricka eller med block
+  som inte går ihop med block 0 (en stämpling inom antalet är tom), läses samma bricka direkt med "alla block" som före
+  steg 53 (`fast-read-fallback`). Avläsningen sparar då bara detekteringen och "alla block"-svaren, så att omläsning från
+  rådata ger samma bild. Togs brickan ur mitt i läsningen blir det en misslyckad avläsning som förut.
+- **Samma resultat:** blocken som läses är byte för byte desamma som i "alla block", och minnesbilden är början av samma
+  bild. Räknaren begränsas till brickans största antal (128, SI6 64) precis som avkodningen gör.
+- **Inställning:** avläsningssidan, under felsökningsloggen: "Snabb utläsning av SI10/11/SIAC" (på som förval, sparas i
+  webbläsaren; gäller även SI6). Av = "alla block" för alla brickor. Utan handskakning läses alltid som förut.
+- **Felsökningsloggen** (`notes`) skriver stationens inställningar vid anslutning (blockinställningen på systemvärde
+  `0x33`, handskakning, hastighet), och för varje bricka utläsningssätt, antal svar och millisekunder, samt varför den
+  snabba utläsningen gav upp.
+
+| Bricka, stämplingar | Före: svar | Före: byte | Efter: svar | Efter: byte | 38 400 baud före → efter | 4 800 baud före → efter |
+|---|---|---|---|---|---|---|
+| SIAC, 0 | 5 / 8 | 694 / 1 105 | 2 | 291 | 181 / 288 → 76 ms | 1,4 / 2,3 → 0,6 s |
+| SIAC, 1–32 | 5 / 8 | 694 / 1 105 | 3 | 436 | 181 / 288 → 114 ms | 1,4 / 2,3 → 0,9 s |
+| SIAC, 33–64 | 5 / 8 | 694 / 1 105 | 4 | 581 | 181 / 288 → 151 ms | 1,4 / 2,3 → 1,2 s |
+| SIAC, 97–128 | 5 / 8 | 694 / 1 105 | 6 | 871 | 181 / 288 → 227 ms | 1,4 / 2,3 → 1,8 s |
+| SI10/SI11, 1–32 | 5 / 8 | 694 / 1 105 | 2 | 291 | 181 / 288 → 76 ms | 1,4 / 2,3 → 0,6 s |
+| SI10/SI11, 33–64 | 5 / 8 | 694 / 1 105 | 3 | 436 | 181 / 288 → 114 ms | 1,4 / 2,3 → 0,9 s |
+| SI10/SI11, 97–128 | 5 / 8 | 694 / 1 105 | 5 | 726 | 181 / 288 → 189 ms | 1,4 / 2,3 → 1,5 s |
+| SI6, 1–32 | 3 / 8 | 420 / 1 105 | 2 | 291 | 109 / 288 → 76 ms | 0,9 / 2,3 → 0,6 s |
+| SI6, 33–64 | 3 / 8 | 420 / 1 105 | 3 | 436 | 109 / 288 → 114 ms | 0,9 / 2,3 → 0,9 s |
+| SI8/SI9 (oförändrat) | 2 | 291 | 2 | 291 | 76 ms | 0,6 s |
+
+"5 / 8": stationen skickar datablocken respektive alla åtta. Byte = kommandon (8 byte) + svar (137 byte per block) +
+kvittens, räknat i `packages/sportident/test/fast-read.test.ts`. Tiden är bara överföringen (10 bitar per byte). Till det
+kommer stationens tid att läsa varje block ur brickan och fördröjningen per kommando, som inte går att mäta utan riktig
+station; snabb utläsning har ett kommando per block i stället för ett för alla.
+
 ## Avläsning i webbläsaren
 
 Admin öppnar `/admin/<lopp>/readout` (länk "Öppna avläsning" i arbetsytan).
@@ -101,13 +138,13 @@ på tävling/träning).
 | Bricka | Bricknummer | Läsning | Status |
 |---|---|---|---|
 | SI-Card 5 | 1–499 999 | `0xB1`, 1 block | untested |
-| SI-Card 6 / 6* | 500 000–999 999, 16 711 680– | `0xE1 0x08`, block 0/6/7 | untested |
+| SI-Card 6 / 6* | 500 000–999 999, 16 711 680– | `0xE1` block 0, sedan 6/7 efter antal (reserv `0xE1 0x08`) | untested |
 | SI-Card 8 | 2 000 000–2 999 999 | `0xEF` block 0, 1 | untested |
 | SI-Card 9 | 1 000 000–1 999 999 | `0xEF` block 0, 1 | field-verified¹ |
 | pCard | 4 000 000–4 999 999 | `0xEF` block 0, 1 | untested |
-| SI-Card 10 | 7 000 000–7 999 999 | `0xEF 0x08`, block 0/4–7 | untested |
-| SIAC | 8 000 000–8 999 999 | `0xEF 0x08`, block 0/4–7 | untested |
-| SI-Card 11 | 9 000 000–9 999 999 | `0xEF 0x08`, block 0/4–7 | untested |
+| SI-Card 10 | 7 000 000–7 999 999 | `0xEF` block 0, sedan 4–7 efter antal (reserv `0xEF 0x08`) | untested |
+| SIAC | 8 000 000–8 999 999 | `0xEF` block 0, 1, sedan 4–7 efter antal (reserv `0xEF 0x08`) | untested² |
+| SI-Card 11 | 9 000 000–9 999 999 | `0xEF` block 0, sedan 4–7 efter antal (reserv `0xEF 0x08`) | untested |
 | tCard, fCard | – | stöds inte | – |
 
 | Station | Status |
@@ -121,3 +158,6 @@ på tävling/träning).
 och stämplingarnas tider avkodades rätt (jämfört med brickorna). Stationens modell och firmware är inte noterade.
 Inget annat är provat på riktig hårdvara: start-, mål- och checkstämplingens tider, andra bricktyper, 4 800 baud,
 Windows och Linux är fortfarande `untested`.
+
+² SIAC lästes med "alla block" på natt-KM 2026-10-20 (steg 34, stationen skickade alla åtta block). Snabb utläsning
+(steg 53) är bara provad med den falska stationen och den brickans inspelade block.

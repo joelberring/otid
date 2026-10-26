@@ -10,6 +10,15 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-10-26 – Steg 53: snabbare utläsning av nyare brickor (agent E)
+- SI10/11/SIAC och SI6 läses block för block efter antalet stämplingar i block 0 (som MeOS); SIAC läser också block 1.
+  20 stämplingar: 2 svar (SIAC 3) i stället för 5 eller 8; vid 4 800 baud ca 0,6–0,9 s i stället för 1,4–2,3 s.
+- Oväntat svar (NAK, fel block, tidsgräns, fel bricka, block som inte går ihop) ger "alla block" direkt för samma bricka och
+  en post i felsökningsloggen. Inställningen "Snabb utläsning av SI10/11/SIAC" (på) kan stänga av det.
+- Felsökningsloggen har nu `notes`: stationens inställningar, utläsningssätt, svar och ms per bricka.
+- Tester: `packages/sportident/test/fast-read.test.ts` (plan, reserv, bit för bit, natt-KM), webb `readout.test.ts`,
+  Playwright `avlasaren`. Bara provat med den falska stationen; ägaren provar SIAC, SI10, SI8 och SI5 på riktigt.
+
 ### 2026-10-26 – Steg 52 del 2: kontrollkartan (agent D)
 - Banor → "Kontrollkarta" (dialog): belastning (färg, storlek, tabell; planerade eller stämplingar) eller en bana/variant med linjer och nummer. SVG utan bibliotek, kartbilden under när den är georefererad.
 - Lägen: WGS 84, annars kartlägen (MapPosition mm + Map/Scale, sparas nu vid inläsning, kopiering och synk; migration 0026).

@@ -115,6 +115,35 @@ export function cardImageBlocks(type: SiCardType): readonly number[] {
 /** Sista blocket som stationen skickar vid "alla block", i båda lägena. */
 export const LAST_BLOCK = 7;
 
+/** Stämplingar per 128-byteblock (fyra byte per stämpling) på SI6 och SI10/11/SIAC. */
+export const PUNCHES_PER_BLOCK = 32;
+
+/**
+ * Steg 53: kommandot för snabb utläsning (block 0 först, sedan bara blocken med stämplingar, ett i taget), eller
+ * undefined för bricktyper som läses som förut (SI5 ett svar, SI8/SI9/pCard block 0 och 1).
+ */
+export function fastReadCommand(type: SiCardType): number | undefined {
+  switch (type) {
+    case "SI6": return Command.READ_SI6;
+    case "SI10": case "SI11": case "SIAC": return Command.READ_SI8_PLUS;
+    default: return undefined;
+  }
+}
+
+/**
+ * Steg 53: blocken som ska läsas efter block 0, i ordning, utifrån antalet stämplingar i block 0. Antalet begränsas
+ * till brickans största antal på samma sätt som `decodeCard` gör, så att resultatet blir detsamma som med "alla block".
+ * SIAC läser även block 1 före stämplingarna, som MeOS gör ("to handle SIACs using Beacon"); blocket ingår inte i
+ * minnesbilden. Undefined för bricktyper utan snabb utläsning.
+ */
+export function fastReadBlocks(type: SiCardType, block0: Uint8Array): readonly number[] | undefined {
+  const punchBlocks = type === "SI6" ? [6, 7] : type === "SI10" || type === "SI11" || type === "SIAC" ? [4, 5, 6, 7] : undefined;
+  if (!punchBlocks) return undefined;
+  const layout = CARD_LAYOUTS[type];
+  const count = Math.min(block0[layout.punchCount] ?? 0, layout.maxPunches);
+  return [...(type === "SIAC" ? [1] : []), ...punchBlocks.slice(0, Math.ceil(count / PUNCHES_PER_BLOCK))];
+}
+
 /** Förväntad minnesstorlek efter utläsning, för kontroll. */
 export function expectedImageSize(type: SiCardType): number {
   return cardReadPlan(type).reduce((sum, step) => sum + step.responses, 0) * BLOCK_SIZE;

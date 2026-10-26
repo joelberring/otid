@@ -1,5 +1,8 @@
-import { ACK, Command, MASTER_DIRECT, READ_ALL_BLOCKS, StationMode, SystemOffset } from "./constants";
-import { cardReadPlan, cardTypeFromSi8PlusNumber, decodeCardNumber, LAST_BLOCK, type SiCardType } from "./card-types";
+import { ACK, BLOCK_SIZE, Command, MASTER_DIRECT, READ_ALL_BLOCKS, StationMode, SystemOffset } from "./constants";
+import {
+  CARD_LAYOUTS, cardReadPlan, cardTypeFromSi8PlusNumber, decodeCardNumber, fastReadBlocks, fastReadCommand, LAST_BLOCK,
+  type CardReadStep, type SiCardType
+} from "./card-types";
 import { cardImageFromResponses, CardDecodeError, decodeCard, type SiCardData } from "./decode";
 import { encodeCommand, FrameDecoder, type SiFrame } from "./frame";
 import { decodeStationClock, type StationClock } from "./time";
@@ -10,6 +13,8 @@ export interface StationInfo {
   readonly mode: number;
   readonly extendedProtocol: boolean;
   readonly handshake: boolean;
+  /** Steg 53: stationens blockinställning för "alla block" (`SystemOffset.CARD_BLOCKS`), för felsökningsloggen. */
+  readonly cardBlocks: number;
   /**
    * Stationens klocka vid handskakningen (GET_TIME). Saknas när stationen
    * inte svarade på frågan; då får värden använda datorns klocka.
@@ -27,7 +32,24 @@ export type ReadoutEvent =
   | { readonly type: "no-response" }
   | { readonly type: "card-inserted"; readonly cardNumber: number; readonly cardType: SiCardType }
   | { readonly type: "card-unsupported"; readonly cardNumber: number }
-  | { readonly type: "card-read"; readonly card: SiCardData; readonly frames: readonly Uint8Array[] }
+  | {
+      readonly type: "card-read";
+      readonly card: SiCardData;
+      readonly frames: readonly Uint8Array[];
+      /** Steg 53: "fast" = block 0 och bara blocken med stämplingar; "full" = som förut ("alla block", SI5, SI8/SI9). */
+      readonly readMode: ReadMode;
+    }
+  | {
+      /**
+       * Steg 53: den snabba utläsningen fick ett oväntat svar. Brickan läses om med "alla block" direkt, utan att
+       * användaren behöver göra något; `frames` är det som kom i det avbrutna försöket (för felsökningsloggen).
+       */
+      readonly type: "fast-read-fallback";
+      readonly cardNumber: number;
+      readonly cardType: SiCardType;
+      readonly reason: FastReadFallbackReason;
+      readonly frames: readonly Uint8Array[];
+    }
   | { readonly type: "card-removed" }
   | {
       readonly type: "read-failed";
@@ -43,14 +65,28 @@ export interface SessionOutput {
   readonly events: readonly ReadoutEvent[];
 }
 
+export type ReadMode = "fast" | "full";
+
+/** Varför den snabba utläsningen gav upp: NAK, svar med fel block, inget svar, fel bricka i block 0, data som inte går ihop. */
+export type FastReadFallbackReason = "nak" | "wrong-block" | "timeout" | "mismatch" | "inconsistent";
+
+export interface ReadoutSessionOptions {
+  /** Steg 53: snabb utläsning av SI6 och SI10/11/SIAC (förval på). Av = "alla block" som före steg 53. */
+  readonly fastRead?: boolean;
+}
+
 interface Reading {
   readonly cardNumber: number;
   readonly cardType: SiCardType;
-  readonly steps: ReturnType<typeof cardReadPlan>;
+  readonly detection: Uint8Array;
+  mode: ReadMode;
+  /** Snabb utläsning: blocken som återstår att läsa; det första är det som väntas nu. */
+  fastBlocks: number[];
+  readonly steps: readonly CardReadStep[];
   step: number;
   received: number;
-  readonly responses: Uint8Array[];
-  readonly frames: Uint8Array[];
+  responses: Uint8Array[];
+  frames: Uint8Array[];
 }
 
 type State =
@@ -76,6 +112,15 @@ export class ReadoutSession {
   #state: State = { name: "idle" };
   /** Senaste detekteringsram som kom under handskakningen. */
   #earlyCard: SiFrame | undefined;
+  #fastRead: boolean;
+
+  constructor(options: ReadoutSessionOptions = {}) {
+    this.#fastRead = options.fastRead ?? true;
+  }
+
+  /** Steg 53: slå på eller av snabb utläsning; gäller från nästa bricka. */
+  set fastRead(value: boolean) { this.#fastRead = value; }
+  get fastRead(): boolean { return this.#fastRead; }
 
   /** Startar handskakningen: direktläge och läsning av stationens inställningar. */
   start(): SessionOutput {
@@ -121,6 +166,8 @@ export class ReadoutSession {
     } else if (state.name === "get-time") {
       // Stationen svarade inte på GET_TIME: fortsätt utan stationsklocka.
       this.#ready(state.station, send, events);
+    } else if (state.name === "reading" && state.reading.mode === "fast") {
+      this.#fallBack(state.station, state.reading, "timeout", send, events);
     } else if (state.name === "reading") {
       this.#state = { name: "waiting", station: state.station };
       events.push({ type: "read-failed", cardNumber: state.reading.cardNumber, reason: "timeout", frames: state.reading.frames });
@@ -130,7 +177,9 @@ export class ReadoutSession {
 
   #onNak(send: Uint8Array[], events: ReadoutEvent[]): void {
     const state = this.#state;
-    if (state.name === "reading") {
+    if (state.name === "reading" && state.reading.mode === "fast") {
+      this.#fallBack(state.station, state.reading, "nak", send, events);
+    } else if (state.name === "reading") {
       this.#state = { name: "waiting", station: state.station };
       events.push({ type: "read-failed", cardNumber: state.reading.cardNumber, reason: "nak", frames: state.reading.frames });
     } else if (state.name === "set-master" || state.name === "get-config") {
@@ -203,9 +252,14 @@ export class ReadoutSession {
       events.push({ type: "card-unsupported", cardNumber: detected.cardNumber });
       return;
     }
+    // Snabb utläsning kräver handskakning: utan den skickar stationen själv det den är inställd på.
+    const fast = this.#fastRead && station.handshake && fastReadCommand(detected.cardType) !== undefined;
     const reading: Reading = {
       cardNumber: detected.cardNumber,
       cardType: detected.cardType,
+      detection: frame.raw,
+      mode: fast ? "fast" : "full",
+      fastBlocks: fast ? [0] : [],
       steps: cardReadPlan(detected.cardType),
       step: 0,
       received: 0,
@@ -220,8 +274,77 @@ export class ReadoutSession {
   #requestStep(station: StationInfo, reading: Reading, send: Uint8Array[]): void {
     // Utan handskakning skickar stationen data själv; då begär vi inget.
     if (!station.handshake) return;
+    if (reading.mode === "fast") {
+      send.push(encodeCommand(fastReadCommand(reading.cardType)!, [reading.fastBlocks[0]!]));
+      return;
+    }
     const step = reading.steps[reading.step]!;
     send.push(encodeCommand(step.command, step.params));
+  }
+
+  /**
+   * Steg 53: snabb utläsning gav upp. Läs samma bricka med "alla block" som före steg 53. Det avbrutna försökets
+   * ramar följer med händelsen men inte avläsningen, så att avläsningens råramar ger samma bild vid omläsning.
+   */
+  #fallBack(station: StationInfo, reading: Reading, reason: FastReadFallbackReason, send: Uint8Array[], events: ReadoutEvent[]): void {
+    events.push({ type: "fast-read-fallback", cardNumber: reading.cardNumber, cardType: reading.cardType, reason, frames: reading.frames });
+    reading.mode = "full";
+    reading.fastBlocks = [];
+    reading.step = 0;
+    reading.received = 0;
+    reading.responses = [];
+    reading.frames = [reading.detection];
+    this.#state = { name: "reading", station, reading };
+    this.#requestStep(station, reading, send);
+  }
+
+  /** Snabb utläsning: ett block i taget, i ordning. Allt oväntat ger "alla block" i stället. */
+  #onFastFrame(station: StationInfo, reading: Reading, frame: SiFrame, send: Uint8Array[], events: ReadoutEvent[]): void {
+    if (frame.command !== fastReadCommand(reading.cardType)) return;
+    const expected = reading.fastBlocks[0]!;
+    if (frame.data[0] !== expected || frame.data.length < BLOCK_SIZE + 1) {
+      reading.frames.push(frame.raw);
+      this.#fallBack(station, reading, "wrong-block", send, events);
+      return;
+    }
+    reading.frames.push(frame.raw);
+    reading.responses.push(frame.data);
+    reading.fastBlocks.shift();
+    if (expected === 0) {
+      const block0 = frame.data.subarray(1, BLOCK_SIZE + 1);
+      const [high, mid, low] = CARD_LAYOUTS[reading.cardType].cardNumber;
+      if (decodeCardNumber(block0[high]!, block0[mid]!, block0[low]!) !== reading.cardNumber) {
+        this.#fallBack(station, reading, "mismatch", send, events);
+        return;
+      }
+      reading.fastBlocks = [...fastReadBlocks(reading.cardType, block0)!];
+    }
+    if (reading.fastBlocks.length > 0) {
+      this.#requestStep(station, reading, send);
+      return;
+    }
+    let card: SiCardData;
+    let image: Uint8Array;
+    try {
+      image = cardImageFromResponses(reading.cardType, reading.responses);
+      card = decodeCard(reading.cardType, image);
+    } catch (error) {
+      if (!(error instanceof CardDecodeError)) throw error;
+      this.#fallBack(station, reading, "inconsistent", send, events);
+      return;
+    }
+    if (card.cardNumber !== reading.cardNumber || hasEmptyPunch(reading.cardType, image)) {
+      this.#fallBack(station, reading, "inconsistent", send, events);
+      return;
+    }
+    this.#finish(station, reading, card, send, events);
+  }
+
+  #finish(station: StationInfo, reading: Reading, card: SiCardData, send: Uint8Array[], events: ReadoutEvent[]): void {
+    this.#state = { name: "waiting", station };
+    events.push({ type: "card-read", card, frames: reading.frames, readMode: reading.mode });
+    // Kvittens får stationen att pipa och blinka.
+    send.push(Uint8Array.of(ACK));
   }
 
   #onReadingFrame(station: StationInfo, reading: Reading, frame: SiFrame, send: Uint8Array[], events: ReadoutEvent[]): void {
@@ -231,14 +354,28 @@ export class ReadoutSession {
       reading.frames.push(frame.raw);
       this.#state = { name: "waiting", station };
       // "Alla block": brickan kan tas ur efter att stämplingarna kommit men före sista blocket. Räcker det som kom
-      // (block 0 och blocken med brickans stämplingar) är avläsningen ändå fullständig.
-      const card = allBlocks && reading.step === reading.steps.length - 1 ? this.#tryDecode(reading) : undefined;
-      if (card) events.push({ type: "card-read", card, frames: reading.frames });
+      // (block 0 och blocken med brickans stämplingar) är avläsningen ändå fullständig. Samma vid snabb utläsning.
+      const complete = reading.mode === "fast" || (allBlocks && reading.step === reading.steps.length - 1);
+      const card = complete ? this.#tryDecode(reading) : undefined;
+      if (card) events.push({ type: "card-read", card, frames: reading.frames, readMode: reading.mode });
       else events.push({ type: "read-failed", cardNumber: reading.cardNumber, reason: "removed", frames: reading.frames });
       events.push({ type: "card-removed" });
       return;
     }
+    if (reading.mode === "fast") {
+      this.#onFastFrame(station, reading, frame, send, events);
+      return;
+    }
     if (frame.command !== step.command) return;
+    if (allBlocks) {
+      // "Alla block" börjar alltid med block 0. Svar före block 0 är rester av ett avbrutet snabbförsök (steg 53), och
+      // ett nytt block 0 börjar om samlingen, så att sena svar inte blandas med stationens nya följd.
+      if (frame.data[0] === 0) {
+        reading.frames = [reading.detection];
+        reading.responses = [];
+        reading.received = 0;
+      } else if (reading.responses.length === 0) return;
+    }
     reading.frames.push(frame.raw);
     reading.responses.push(frame.data);
     reading.received += 1;
@@ -260,9 +397,7 @@ export class ReadoutSession {
         events.push({ type: "read-failed", cardNumber: reading.cardNumber, reason: "mismatch", frames: reading.frames });
         return;
       }
-      events.push({ type: "card-read", card, frames: reading.frames });
-      // Kvittens får stationen att pipa och blinka.
-      send.push(Uint8Array.of(ACK));
+      this.#finish(station, reading, card, send, events);
     } catch (error) {
       if (!(error instanceof CardDecodeError)) throw error;
       events.push({ type: "read-failed", cardNumber: reading.cardNumber, reason: "decode", frames: reading.frames });
@@ -281,6 +416,20 @@ export class ReadoutSession {
   }
 }
 
+/**
+ * Steg 53: en stämpling inom brickans antal som är helt tom (0xEE). Med "alla block" avkodas den som förut; vid snabb
+ * utläsning betyder den att blocken inte går ihop med block 0, och brickan läses om med "alla block".
+ */
+function hasEmptyPunch(cardType: SiCardType, image: Uint8Array): boolean {
+  const layout = CARD_LAYOUTS[cardType];
+  const count = Math.min(image[layout.punchCount]!, layout.maxPunches);
+  for (let index = 0; index < count; index += 1) {
+    const offset = layout.firstPunch + index * layout.punchSize;
+    if (image.subarray(offset, offset + layout.punchSize).every((byte) => byte === 0xee)) return true;
+  }
+  return false;
+}
+
 /** Tolkar svaret på GET_SYSTEM_VALUE 0x00 0x80. Första databyten är offset-ekot. */
 export function parseSystemValues(frame: SiFrame): StationInfo {
   const at = (offset: number): number => frame.data[offset + 1] ?? 0;
@@ -295,7 +444,8 @@ export function parseSystemValues(frame: SiFrame): StationInfo {
     stationCode: frame.stationCode,
     mode: at(SystemOffset.MODE),
     extendedProtocol: (protocol & 0b001) !== 0,
-    handshake: (protocol & 0b100) !== 0
+    handshake: (protocol & 0b100) !== 0,
+    cardBlocks: at(SystemOffset.CARD_BLOCKS)
   };
 }
 

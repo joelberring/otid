@@ -84,11 +84,13 @@ export function createRelayEditActions(ws: Base & RaceDataActions & RelayActions
       course: leg.courseId ?? "", minutes: leg.restartAfterMinutes === null ? "" : String(leg.restartAfterMinutes), runners: String(leg.runners),
       changeoverRule: leg.changeoverRule, approvalRule: leg.approvalRule })));
     ws.setRelayChangeoverCode(raceClass.changeoverCode === null ? "" : String(raceClass.changeoverCode));
+    ws.setRelayReadoutMode(raceClass.readoutMode ?? "");
   }
   function cancelRelayClassEdit() {
     if (pending.current) return;
     setRelayEditClassId(""); setRelayEditAttempt(undefined); setRelayEditPreview(undefined);
     setRelayClassName(""); setRelayLegForms(defaultLegs(3)); setRelayRestartRanking("AFTER_NORMAL"); setRelayForking("EVEN");
+    ws.setRelayReadoutMode(""); ws.setRelayChangeoverCode("");
   }
   async function saveRelayClassEdit(confirm: boolean) {
     if (writingRef.current || pending.current || !requireSession() || !data || !relayEditClassId) return;
@@ -99,7 +101,8 @@ export function createRelayEditActions(ws: Base & RaceDataActions & RelayActions
       const code = changeoverCodeOf(ws.relayChangeoverCode);
       if (!relayClassName.trim() || !legs || code === undefined) { setRelayMessage(text.classInvalid); return; }
       attempt = { formatVersion: 1, requestId: crypto.randomUUID(), classId: relayEditClassId, name: relayClassName.trim(), legs,
-        restartRanking: ws.relayRestartRanking, forking: ws.relayForking, confirmResultChanges: confirm, changeoverCode: code };
+        restartRanking: ws.relayRestartRanking, forking: ws.relayForking, confirmResultChanges: confirm, changeoverCode: code,
+        readoutMode: ws.relayReadoutMode || null };
       setRelayEditAttempt(attempt);
     }
     const name = attempt.name;

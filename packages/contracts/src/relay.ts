@@ -32,6 +32,11 @@ export const relayApprovalRuleSchema = z.enum(["ALL", "ANY"]);
 const runnersPerLeg = z.number().int().min(1).max(4);
 const legOrder = z.number().int().min(1).max(4);
 const changeoverCode = z.number().int().min(1).max(999);
+/**
+ * Steg 50: teamsprint – utläsning efter varje sträcka (`EACH_LEG`, mallens förval, som MeOS) eller efter sista sträckan
+ * (`LAST_LEG`, växlingskontroll, steg 48). En klass utan teamsprint har null.
+ */
+export const relayReadoutModeSchema = z.enum(["EACH_LEG", "LAST_LEG"]);
 export const relayTeamStatusSchema = z.enum(["OK", "OVERTIME", "MP", "DSQ", "DNF", "OOC", "NT", "DNS", "RUNNING"]);
 
 /**
@@ -54,7 +59,9 @@ export const relayClassCreateRequestSchema = z.object({
   formatVersion: z.literal(1), requestId: uuid, name, courseId: uuid, legs,
   restartRanking: relayRestartRankingSchema.default("AFTER_NORMAL"), forking: relayForkingSchema.default("EVEN"),
   /** Steg 48: teamsprint – växlingskontrollens kod. */
-  changeoverCode: changeoverCode.nullable().default(null)
+  changeoverCode: changeoverCode.nullable().default(null),
+  /** Steg 50: teamsprint och dess utläsning; null = vanlig stafett. */
+  readoutMode: relayReadoutModeSchema.nullable().default(null)
 }).strict();
 export const relayClassCreateIdempotencyKeySchema = z.string().regex(/^relay-class:[0-9a-f-]{36}$/);
 export const relayClassCreateResponseSchema = z.object({
@@ -113,7 +120,13 @@ const overviewLeg = z.object({
   /** Steg 47: sträckans måltid (växlingen ut) och om sträckan har ett resultat som går att ändra. */
   finishTime: instant.nullable(), hasResult: z.boolean(), resultRevision: z.number().int().min(0).max(2_147_483_647),
   /** Steg 48: ordning inom sträckan, löparen som växlade, teamsprint (sträckan där löparens bricka sitter) och saknad växling. */
-  legOrder, changedOver: z.boolean(), sameAsLeg: legNumber.nullable(), changeoverMissing: z.boolean()
+  legOrder, changedOver: z.boolean(), sameAsLeg: legNumber.nullable(), changeoverMissing: z.boolean(),
+  /**
+   * Steg 50: utläsningen som sträckans resultat bygger på (teamsprint: en per sträcka), och om utläsningen efter sträckan
+   * saknas (en senare utläsning av samma löpares bricka täcker den).
+   */
+  readout: z.object({ readAt: instant, finishTime: instant.nullable() }).strict().nullable().default(null),
+  readoutMissing: z.boolean().default(false)
 }).strict();
 
 const fairnessPoint = z.union([z.literal("START"), z.literal("FINISH"), z.number().int().min(1).max(999)]);
@@ -133,7 +146,7 @@ export const relayOverviewSchema = z.object({
       leaderTeamNumber: teamNumber.nullable(), restartAfterMinutes: restartAfter.nullable() }).strict()).max(MAX_LEGS),
     unfairTeams: z.array(z.object({ teamId: uuid, missing: z.array(fairnessLeg).max(200), extra: z.array(fairnessLeg).max(200) }).strict())
       .max(10_000),
-    changeoverCode: changeoverCode.nullable()
+    changeoverCode: changeoverCode.nullable(), readoutMode: relayReadoutModeSchema.nullable()
   }).strict()).max(1000),
   teams: z.array(z.object({
     id: uuid, classId: uuid, number: teamNumber, name, organisationName: z.string().max(200).nullable(),
@@ -197,7 +210,9 @@ export const relayReadoutSchema = z.object({
 export const relayClassEditRequestSchema = z.object({
   formatVersion: z.literal(1), requestId: uuid, classId: uuid, name, legs,
   restartRanking: relayRestartRankingSchema, forking: relayForkingSchema, confirmResultChanges: z.boolean(),
-  changeoverCode: changeoverCode.nullable().default(null)
+  changeoverCode: changeoverCode.nullable().default(null),
+  /** Steg 50: teamsprint och dess utläsning (null = vanlig stafett); saknas = oförändrat. */
+  readoutMode: relayReadoutModeSchema.nullable().optional()
 }).strict();
 export const relayClassEditIdempotencyKeySchema = z.string().regex(/^relay-class-edit:[0-9a-f-]{36}$/);
 const statusChange = z.object({ displayName: z.string().min(1).max(400), leg: legNumber, teamNumber,
@@ -271,6 +286,7 @@ export type RelayStartTimesResponse = z.infer<typeof relayStartTimesResponseSche
 export type RelayOverview = z.infer<typeof relayOverviewSchema>;
 export type PublicRelayResults = z.infer<typeof publicRelayResultsSchema>;
 export type RelayReadout = z.infer<typeof relayReadoutSchema>;
+export type RelayReadoutMode = z.infer<typeof relayReadoutModeSchema>;
 export type RelayClassEditRequest = z.infer<typeof relayClassEditRequestSchema>;
 export type RelayClassEditPreview = z.infer<typeof relayClassEditPreviewSchema>;
 export type RelayClassEditResponse = z.infer<typeof relayClassEditResponseSchema>;

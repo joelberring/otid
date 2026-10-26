@@ -119,13 +119,25 @@ export async function editRelayClassAsAdmin(db: Database, input: Input, now = ne
           .from(schema.classes).where(and(eq(schema.classes.id, intent.classId), eq(schema.classes.raceId, raceId)));
         if (!config || !raceClass) return { status: "not-found" };
         if (intent.name !== raceClass.name && await classNameTaken(tx, raceId, intent.name, raceClass.id)) return { status: "duplicate-name" };
-        // Steg 48: löpare per sträcka och teamsprint ändras bara innan lag är anmälda (lagens platser bygger på dem).
-        const [teamCount] = await tx.select({ value: count() }).from(schema.teams).where(eq(schema.teams.classId, raceClass.id));
-        const shapeChanged = intent.changeoverCode !== config.changeoverCode || intent.legs.some(leg => {
+        // Steg 50: löpare per sträcka, växlingskontroll och utläsningssätt kan ändras även när lag finns. Avlästa sträckor
+        // räknas om (med besked när någon byter status), en ny löparplats blir vakant och en borttagen löparplats får inte ha
+        // ett resultat. En teamsprintlöpares sträckor (samma löpare på flera sträckor) kan inte bli parallella.
+        const readoutMode = intent.readoutMode === undefined ? config.readoutMode : intent.readoutMode;
+        const classEntries = await tx.select({ id: schema.entries.id, leg: schema.entries.relayLeg, legOrder: schema.entries.relayLegOrder,
+          teamId: schema.entries.teamId, cardEntryId: schema.entries.relayCardEntryId, organisationName: schema.entries.organisationName })
+          .from(schema.entries).where(and(eq(schema.entries.classId, raceClass.id), isNull(schema.entries.struckAt)));
+        const sprintLegs = new Set(classEntries.flatMap(entry => entry.cardEntryId === null ? [] : [entry.leg,
+          classEntries.find(owner => owner.id === entry.cardEntryId)?.leg]).filter((leg): leg is number => leg !== null && leg !== undefined));
+        if (intent.legs.some(leg => leg.runners > 1 && sprintLegs.has(leg.leg))) return { status: "invalid-request" };
+        if (sprintLegs.size > 0 && (readoutMode === null || (readoutMode === "LAST_LEG" && intent.changeoverCode === null))) {
+          return { status: "invalid-request" };
+        }
+        const runnerChanges = intent.legs.flatMap(leg => {
           const old = config.legs.find(candidate => candidate.leg === leg.leg);
-          return old !== undefined && old.runners !== leg.runners;
-        }) || intent.legs.some(leg => leg.leg > config.legs.length && leg.runners !== 1);
-        if (shapeChanged && (teamCount?.value ?? 0) > 0) return { status: "invalid-request" };
+          return old && old.runners !== leg.runners ? [{ leg: leg.leg, from: old.runners, to: leg.runners }] : [];
+        });
+        const droppedRunners = classEntries.filter(entry => runnerChanges.some(change => change.leg === entry.leg &&
+          (entry.legOrder ?? 1) > change.to));
         const legCourses = await resolveLegCourses(tx, raceId, raceClass.courseVersionId, intent.legs);
         if (legCourses === "not-found") return { status: "not-found" };
         if (legCourses === "invalid") return { status: "invalid-request" };
@@ -134,8 +146,9 @@ export async function editRelayClassAsAdmin(db: Database, input: Input, now = ne
         const removedLegs = Array.from({ length: Math.max(0, oldCount - newCount) }, (_, index) => newCount + index + 1);
         const addedLegs = Array.from({ length: Math.max(0, newCount - oldCount) }, (_, index) => oldCount + index + 1);
         // Borttagna sträckor: inte om någon löpare på dem har ett resultat. Övriga löpare tas bort med sin brickkoppling.
-        const removed = removedLegs.length === 0 ? [] : await tx.select({ id: schema.entries.id }).from(schema.entries)
-          .where(and(eq(schema.entries.classId, raceClass.id), inArray(schema.entries.relayLeg, removedLegs)));
+        const removed = [...(removedLegs.length === 0 ? [] : await tx.select({ id: schema.entries.id }).from(schema.entries)
+          .where(and(eq(schema.entries.classId, raceClass.id), inArray(schema.entries.relayLeg, removedLegs)))),
+          ...droppedRunners.map(entry => ({ id: entry.id }))];
         if (removed.length > 0) {
           const [withResult] = await tx.select({ value: count() }).from(schema.resultRevisions)
             .where(inArray(schema.resultRevisions.entryId, removed.map(row => row.id)));
@@ -148,8 +161,20 @@ export async function editRelayClassAsAdmin(db: Database, input: Input, now = ne
             throw error;
           }
           await tx.delete(schema.relayLegs).where(and(eq(schema.relayLegs.classId, raceClass.id), inArray(schema.relayLegs.leg, removedLegs)));
+          if (removedLegs.length > 0) {
+            await tx.delete(schema.relayLegs).where(and(eq(schema.relayLegs.classId, raceClass.id), inArray(schema.relayLegs.leg, removedLegs)));
+          }
         } else if (removedLegs.length > 0) {
           await tx.delete(schema.relayLegs).where(and(eq(schema.relayLegs.classId, raceClass.id), inArray(schema.relayLegs.leg, removedLegs)));
+        }
+        // Fler löpare på en sträcka: varje lag får vakanta platser.
+        const teamRows = await tx.select({ id: schema.teams.id, organisationName: schema.teams.organisationName }).from(schema.teams)
+          .where(and(eq(schema.teams.classId, raceClass.id), isNull(schema.teams.struckAt)));
+        for (const change of runnerChanges.filter(row => row.to > row.from)) {
+          for (const team of teamRows) for (let order = change.from + 1; order <= change.to; order += 1) {
+            await tx.insert(schema.entries).values({ raceId, classId: raceClass.id, teamId: team.id, relayLeg: change.leg, relayLegOrder: order,
+              givenName: "Vakant", familyName: `sträcka ${change.leg}`, organisationName: team.organisationName, version: 1 });
+          }
         }
         const replan = new Set<number>(addedLegs);
         for (const leg of intent.legs) {
@@ -163,7 +188,7 @@ export async function editRelayClassAsAdmin(db: Database, input: Input, now = ne
             .where(and(eq(schema.relayLegs.classId, raceClass.id), eq(schema.relayLegs.leg, leg.leg)));
         }
         await tx.update(schema.classes).set({ name: intent.name, relayRestartRanking: intent.restartRanking, relayForking: intent.forking,
-          relayChangeoverCode: intent.changeoverCode })
+          relayChangeoverCode: intent.changeoverCode, relayReadoutMode: readoutMode })
           .where(eq(schema.classes.id, raceClass.id));
         // Nya sträckor får en vakant löpare per lag, som på en sträcka utan löpare från Eventor.
         if (addedLegs.length > 0) {

@@ -143,6 +143,13 @@ export const readoutText = {
   // Stafett (ADR-0169 beslut 3).
   relayTeam: (number: number, name: string, leg: number, legCount: number) => `Lag ${number} ${name} · Sträcka ${leg} av ${legCount}`,
   relayNext: (leg: number) => `Växlar till sträcka ${leg}`,
+  // Steg 50: teamsprint med utläsning efter varje sträcka.
+  relayTeamSprintLeg: (number: number, name: string, leg: number, runner: string, part: number) =>
+    `Lag ${number} ${name} – sträcka ${leg} (${runner}, ${ordinal(part)} sträckan)`,
+  teamSprintReadoutMissing: (leg: number) => `Utläsning efter sträcka ${leg} saknas – läs ut efter varje sträcka`,
+  teamSprintEarlierFinish: (leg: number) =>
+    `Måltiden är tidigare än sträcka ${leg}:s mål – kontrollera brickan. Utläsningen sparas som okänd.`,
+  teamSprintAllRead: "Löparen är redan utläst efter alla sina sträckor. Utläsningen sparas som okänd.",
   relayTeamLegs: (number: number, name: string, legs: readonly number[], legCount: number) =>
     `Lag ${number} ${name} · Sträcka ${legs.slice(0, -1).join(", ")} och ${legs.at(-1)} av ${legCount}`,
   relayChangeoverMissing: (found: number, needed: number) =>
@@ -224,3 +231,9 @@ export const readoutText = {
   },
   storageNotPersistent: "Spara-läget är inte bekräftat av webbläsaren. Stäng inte fliken och töm inte webbläsardata under tävlingen."
 } as const;
+
+/** Ordningstal i klartext: första, andra … tionde, sedan 11:e. */
+function ordinal(value: number): string {
+  const words = ["första", "andra", "tredje", "fjärde", "femte", "sjätte", "sjunde", "åttonde", "nionde", "tionde"];
+  return words[value - 1] ?? `${value}:e`;
+}

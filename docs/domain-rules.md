@@ -138,7 +138,7 @@ funktion lokalt; dess besked är preliminärt och serverns revision är auktorit
 
 ## Stafett (ADR-0169 beslut 3, ADR-0174)
 
-Koden finns i `packages/domain/src/relay.ts`, `relay-starts.ts`, `relay-forking.ts` och `relay-parallel.ts`.
+Koden finns i `packages/domain/src/relay.ts`, `relay-starts.ts`, `relay-forking.ts`, `relay-parallel.ts` och `team-sprint.ts`.
 
 - En sträcka springer sin egen bana (`relay_leg.course_version_id`) eller klassens; `entryCourseVersionId` är regeln.
   Underlagshashen använder sträckans bana.
@@ -157,8 +157,17 @@ Koden finns i `packages/domain/src/relay.ts`, `relay-starts.ts`, `relay-forking.
 - Flera löpare per sträcka (2–4, `relay_leg.runners`; löparens ordning `entry.relay_leg_order`, NULL = 1): sträckan växlar
   när första i mål (förval) eller sista i mål (när alla har ett resultat, senaste måltiden) och är godkänd när alla är
   godkända (förval) eller minst en. Sträckans tid är från sträckans start till växlingen.
-- Teamsprint: en bricka per löpare (sitter på löparens första sträcka; övriga sträckor pekar på den med
-  `entry.relay_card_entry_id`). Avläsningen delas vid klassens växlingskontroll (`class.relay_changeover_code`, dubbel
+- Teamsprint (`class.relay_readout_mode`, NULL = ingen): en bricka per löpare (sitter på löparens första sträcka; övriga
+  sträckor pekar på den med `entry.relay_card_entry_id`).
+- Teamsprint med utläsning efter varje sträcka (`EACH_LEG`, förval, som MeOS): varje utläsning går till löparens första
+  sträcka utan resultat och bedöms mot stämplingarna efter föregående utläsnings mål och brickans mål; sträckans start är
+  föregående sträckas växling. Samma måltid igen är en omläsning; en tidigare måltid eller en utläsning när alla sträckor
+  har resultat blir en okänd utläsning med besked. Glömd utläsning: delas vid växlingskontrollen om klassen har en, annars
+  efter banorna i tur och ordning – då får bara sista sträckan resultat och de tidigare visas som "Utläsning efter
+  sträcka X saknas" tills manuell tid. Vilken utläsning varje sträcka bygger på står i sträckans resultatrevision.
+- En stafettsträcka som saknar start för att föregående sträcka saknar växling (`MISSING_START`) räknas som ute i
+  lagresultatet, inte som felstämplad.
+- Teamsprint med utläsning efter sista sträckan (`LAST_LEG`, steg 48): avläsningen delas vid klassens växlingskontroll (`class.relay_changeover_code`, dubbel
   stämpling inom 60 s räknas en gång); del j bedöms mot löparens j:e sträcka från sträckans start och slutar vid den j:e
   växlingsstämplingen, lagets sista sträcka vid målet. Saknad växlingsstämpling: delen får inget mål (felstämplad) och
   beskedet "Växlingsstämpling saknas".

@@ -1,6 +1,8 @@
 import type { ReadoutPackage, SportidentReadoutPayload } from "@o-tid/contracts";
 import {
-  evaluateCardReadout, relayClassLegStarts, relayTeamResult, type RaceSnapshot, type RelayLegOutcome, type RelayTeamResult
+  entryCourseControls, evaluateReadoutForEntry, relayClassLegStarts, relayTeamResult, teamSprintEachLegLayout,
+  teamSprintRoute, type EvaluationReadout, type RaceSnapshot, type RelayLegOutcome, type RelayTeamResult, type TeamSprintEachLegPart,
+  type TeamSprintRoute
 } from "@o-tid/domain";
 
 /**
@@ -15,6 +17,11 @@ export interface LocalRelay {
   /** Steg 48: teamsprint – alla sträckor som löparen springer med brickan, och saknade växlingsstämplingar. */
   readonly legs: readonly number[];
   readonly changeoverMissing?: { readonly needed: number; readonly found: number };
+  /**
+   * Steg 50: teamsprint med utläsning efter varje sträcka – vilken av löparens sträckor utläsningen gällde (`part` = 1 för
+   * löparens första), löparen, och sträckor vars utläsning saknas (glömd utläsning).
+   */
+  readonly teamSprint?: { readonly part: number; readonly runner: string; readonly missingLegs: readonly number[] };
   readonly legCount: number;
   readonly team: RelayTeamResult;
 }
@@ -33,14 +40,83 @@ function cardOf(pkg: ReadoutPackage, entryId: string): string | undefined {
   return pkg.raceSnapshot.cardAssignments.find((assignment) => assignment.active && assignment.entryId === entryId)?.cardNumber;
 }
 
-/** Senaste avläsningen av sträcklöparens bricka i den här webbläsaren. */
-function localPayload(pkg: ReadoutPackage, local: readonly SportidentReadoutPayload[], entryId: string) {
-  const card = cardOf(pkg, entryId);
-  return card === undefined ? undefined : [...local].reverse().find((payload) => payload.cardNumber === card);
+export function payloadReadout(payload: SportidentReadoutPayload): EvaluationReadout {
+  return { cardNumber: payload.cardNumber, punches: payload.punches,
+    ...(payload.finishPunchedAt ? { finishPunchedAt: payload.finishPunchedAt } : {}),
+    ...(payload.startPunchedAt ? { startPunchedAt: payload.startPunchedAt } : {}) };
 }
 
-function legFinish(pkg: ReadoutPackage, local: readonly SportidentReadoutPayload[], entryId: string): string | undefined {
-  return localPayload(pkg, local, entryId)?.finishPunchedAt ??
+/** Steg 50: löparen (brickans ägare) i en teamsprint med utläsning efter varje sträcka, med sträckorna i ordning. */
+function eachLegRunner(pkg: ReadoutPackage, cardNumber: string) {
+  const owner = pkg.raceSnapshot.cardAssignments.find((assignment) => assignment.active && assignment.cardNumber === cardNumber);
+  const entry = owner && pkg.raceSnapshot.entries.find((candidate) => candidate.id === owner.entryId);
+  const sprint = entry?.teamSprint;
+  if (!entry || sprint?.mode !== "EACH_LEG") return undefined;
+  const legs = teamSprintLegs(pkg, entry.id)?.legs;
+  return legs ? { owner: entry, legs, changeoverCode: sprint.changeoverCode } : undefined;
+}
+
+export interface LocalTeamSprintRouting {
+  /** Löparens sträckor med utläsningen som varje sträcka bygger på i den här webbläsaren. */
+  readonly assigned: ReadonlyMap<string, SportidentReadoutPayload>;
+  /** Den sista utläsningens fördelning, sträckan den gäller och delningen för bedömningen. */
+  readonly last?: { readonly route: TeamSprintRoute; readonly target?: string; readonly layout: ReadonlyMap<string, TeamSprintEachLegPart> };
+}
+
+/**
+ * Steg 50: fördelar brickans utläsningar i den här webbläsaren (i tur och ordning) på löparens sträckor med samma regel som
+ * servern. Sträckor som har ett resultat i paketet räknas som utlästa (med paketets måltid).
+ */
+export function routeTeamSprintLocally(pkg: ReadoutPackage, payloads: readonly SportidentReadoutPayload[]): LocalTeamSprintRouting | undefined {
+  const runner = payloads[0] && eachLegRunner(pkg, payloads[0].cardNumber);
+  if (!runner) return undefined;
+  const known = new Map((pkg.relay?.legResults ?? []).map((row) => [row.entryId, row]));
+  const assigned = new Map<string, SportidentReadoutPayload>();
+  const links = new Map<string, { id: string; finishPunchedAt?: string }>();
+  const snapshot = pkg.raceSnapshot as RaceSnapshot;
+  let last: LocalTeamSprintRouting["last"];
+  payloads.forEach((payload, index) => {
+    const parts = runner.legs.map((leg) => {
+      const readout = links.get(leg.entryId) ?? (known.get(leg.entryId)?.finishTime
+        ? { id: `server:${leg.entryId}`, finishPunchedAt: known.get(leg.entryId)!.finishTime! } : undefined);
+      return { entryId: leg.entryId, leg: leg.leg, done: links.has(leg.entryId) || known.has(leg.entryId),
+        controlCodes: entryCourseControls(snapshot, leg.entryId)?.controlCodes ?? [], ...(readout ? { readout } : {}) };
+    });
+    const route = teamSprintRoute(parts, payloadReadout(payload), runner.changeoverCode);
+    const missing = new Set(route.kind === "LEGS" ? route.missing : []);
+    const linked = route.kind === "REREAD" ? route.parts.map((part) => runner.legs[part - 1]!.entryId)
+      : route.kind === "LEGS" ? runner.legs.slice(route.from - 1, route.to).flatMap((leg, offset) => missing.has(route.from + offset) ? [] : [leg.entryId])
+      : [];
+    const link = { id: `local:${index}`, ...(payload.finishPunchedAt ? { finishPunchedAt: payload.finishPunchedAt } : {}) };
+    for (const entryId of linked) { links.set(entryId, link); assigned.set(entryId, payload); }
+    const layout = teamSprintEachLegLayout(parts.map((part) => {
+      const readout = links.get(part.entryId) ?? part.readout;
+      return { entryId: part.entryId, ...(readout ? { readout } : {}) };
+    }), runner.changeoverCode);
+    last = { route, ...(linked.length > 0 ? { target: linked.at(-1)! } : {}), layout };
+  });
+  return { assigned, ...(last ? { last } : {}) };
+}
+
+/** Sträcklöparnas avläsningar i den här webbläsaren: brickans senaste, eller i teamsprint den som sträckan fick. */
+function localPayloads(pkg: ReadoutPackage, local: readonly SportidentReadoutPayload[]): (entryId: string) => SportidentReadoutPayload | undefined {
+  const sprints = new Map<string, ReadonlyMap<string, SportidentReadoutPayload>>();
+  return (entryId) => {
+    const entry = pkg.raceSnapshot.entries.find((candidate) => candidate.id === entryId);
+    if (entry?.teamSprint?.mode === "EACH_LEG") {
+      const owner = entry.teamSprint.legEntryIds[0]!;
+      const card = cardOf(pkg, owner);
+      if (card === undefined) return undefined;
+      if (!sprints.has(owner)) sprints.set(owner, routeTeamSprintLocally(pkg, local.filter((payload) => payload.cardNumber === card))?.assigned ?? new Map());
+      return sprints.get(owner)!.get(entryId);
+    }
+    const card = cardOf(pkg, entryId);
+    return card === undefined ? undefined : [...local].reverse().find((payload) => payload.cardNumber === card);
+  };
+}
+
+function legFinish(pkg: ReadoutPackage, payloadOf: (entryId: string) => SportidentReadoutPayload | undefined, entryId: string): string | undefined {
+  return payloadOf(entryId)?.finishPunchedAt ??
     pkg.relay?.legResults.find((row) => row.entryId === entryId)?.finishTime ?? undefined;
 }
 
@@ -55,20 +131,19 @@ export function relaySnapshot(pkg: ReadoutPackage, entryId: string, local: reado
   const classRules = relay.classes.find((row) => row.classId === found.team.classId)!.legs.map((leg) => ({ leg: leg.leg,
     startMethod: leg.startMethod, ...(leg.startTime ? { startTime: leg.startTime } : {}),
     ...(leg.restartAfterMinutes !== null ? { restartAfterMinutes: leg.restartAfterMinutes } : {}) }));
+  const payloadOf = localPayloads(pkg, local);
   const teams = relay.teams.filter((team) => team.classId === found.team.classId).map((team) => ({ key: team.id,
-    changeovers: new Map(team.legs.map((leg) => [leg.leg, legFinish(pkg, local, leg.entryId)])) }));
+    changeovers: new Map(team.legs.map((leg) => [leg.leg, legFinish(pkg, payloadOf, leg.entryId)])) }));
   const start = relayClassLegStarts(classRules, teams).teams.get(found.team.id)?.get(found.leg)?.start;
   if (!start || rule.leg !== found.leg) return snapshot;
   return { ...snapshot, entries: snapshot.entries.map((entry) => entry.id === entryId ? { ...entry, fixedStartTime: start } : entry) };
 }
 
-function legOutcome(pkg: ReadoutPackage, local: readonly SportidentReadoutPayload[], entryId: string, leg: number): RelayLegOutcome {
-  const payload = localPayload(pkg, local, entryId);
+function legOutcome(pkg: ReadoutPackage, local: readonly SportidentReadoutPayload[], entryId: string, leg: number,
+  payloadOf: (entryId: string) => SportidentReadoutPayload | undefined): RelayLegOutcome {
+  const payload = payloadOf(entryId);
   if (payload) {
-    const readout = { cardNumber: payload.cardNumber, punches: payload.punches,
-      ...(payload.finishPunchedAt ? { finishPunchedAt: payload.finishPunchedAt } : {}),
-      ...(payload.startPunchedAt ? { startPunchedAt: payload.startPunchedAt } : {}) };
-    const result = evaluateCardReadout(readout, relaySnapshot(pkg, entryId, local));
+    const result = evaluateReadoutForEntry(payloadReadout(payload), relaySnapshot(pkg, entryId, local), entryId);
     if (result.status !== "UNKNOWN_CARD") return { leg, status: result.status, ...(result.elapsedMs !== undefined ? { elapsedMs: result.elapsedMs } : {}) };
   }
   const known = pkg.relay?.legResults.find((row) => row.entryId === entryId);
@@ -82,8 +157,9 @@ export function localRelay(pkg: ReadoutPackage, entryId: string, current: Omit<R
   const found = relay && teamOf(relay, entryId);
   const legCount = found && relay.classes.find((row) => row.classId === found.team.classId)?.legs.length;
   if (!found || !legCount) return undefined;
+  const payloadOf = localPayloads(pkg, local);
   const outcomes = found.team.legs.map((leg) => leg.entryId === entryId ? { ...current, leg: leg.leg }
-    : legOutcome(pkg, local, leg.entryId, leg.leg));
+    : legOutcome(pkg, local, leg.entryId, leg.leg, payloadOf));
   const legs = [found.leg, ...found.team.legs.filter((leg) => leg.sameAsLeg === found.leg).map((leg) => leg.leg)].sort((a, b) => a - b);
   return { teamNumber: found.team.number, teamName: found.team.name, leg: found.leg, legs, legCount,
     team: relayTeamResult(legCount, outcomes) };

@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, inArray, max, ne, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, max, ne, sql } from "drizzle-orm";
 import {
   relayClassCreateIdempotencyKeySchema, relayClassCreateRequestSchema, relayClassCreateResponseSchema,
   relayLegRunnerIdempotencyKeySchema, relayLegRunnerRequestSchema, relayLegRunnerResponseSchema,
@@ -104,7 +104,9 @@ export async function createRelayClassAsAdmin(db: Database, input: Authenticatio
     if (await classNameTaken(tx, raceId, intent.name)) return { status: "duplicate-name" };
     const [raceClass] = await tx.insert(schema.classes).values({ raceId, name: intent.name, courseVersionId: version,
       startRule: "FIXED", relayRestartRanking: intent.restartRanking, relayForking: intent.forking,
-      relayChangeoverCode: intent.changeoverCode }).returning({ id: schema.classes.id });
+      // Steg 48: en växlingskontroll utan utläsningssätt är teamsprint med utläsning efter sista sträckan.
+      relayChangeoverCode: intent.changeoverCode,
+      relayReadoutMode: intent.readoutMode ?? (intent.changeoverCode !== null ? "LAST_LEG" : null) }).returning({ id: schema.classes.id });
     if (!raceClass) throw new Error("Stafettklassen kunde inte skapas");
     await tx.insert(schema.relayLegs).values(intent.legs.map(leg => relayLegRow(raceClass.id, raceId, leg, legCourses.get(leg.leg) ?? null)));
     const response = relayClassCreateResponseSchema.parse({ formatVersion: 1, replayed: false, requestId: intent.requestId, raceId,
@@ -174,11 +176,39 @@ export async function changeRelayLegRunnerAsAdmin(db: Database, input: Authentic
   const key = relayLegRunnerIdempotencyKeySchema.safeParse(input.idempotencyKey);
   if (!intent || !key.success || key.data !== `relay-leg-runner:${intent.requestId}` || !uuid.test(input.raceId)) return { status: "invalid-request" };
   return mutate(db, input, "LEG_RUNNER", intent, value => relayLegRunnerResponseSchema.parse(value), now, async (tx, raceId, snapshotVersionAfter) => {
-    const [entry] = await tx.select({ id: schema.entries.id, classId: schema.entries.classId, version: schema.entries.version })
+    const [entry] = await tx.select({ id: schema.entries.id, classId: schema.entries.classId, version: schema.entries.version,
+      cardEntryId: schema.entries.relayCardEntryId })
       .from(schema.entries).where(and(eq(schema.entries.raceId, raceId), eq(schema.entries.teamId, intent.teamId),
         eq(schema.entries.relayLeg, intent.leg), sql`coalesce(${schema.entries.relayLegOrder}, 1) = ${intent.legOrder}`)).for("update");
     if (!entry) return { status: "not-found" };
     if (entry.version !== intent.expectedEntryVersion || entry.version >= MAX_VERSION) return { status: "conflict" };
+    // Steg 50: teamsprint – en löpare på flera sträckor. Byt vilken löpare sträckan har (samma som en tidigare sträcka, eller
+    // en egen löpare) bara när ingen av de berörda sträckorna har ett resultat; byte av namn gäller löparens alla sträckor.
+    const team = await tx.select({ id: schema.entries.id, leg: schema.entries.relayLeg, legOrder: schema.entries.relayLegOrder,
+      cardEntryId: schema.entries.relayCardEntryId }).from(schema.entries)
+      .where(and(eq(schema.entries.teamId, intent.teamId), isNull(schema.entries.struckAt)));
+    const requested = intent.runner.sameAsLeg;
+    const currentOwner = entry.cardEntryId;
+    const target = requested === undefined || requested === null ? undefined : team.find(row => row.leg === requested && (row.legOrder ?? 1) === 1);
+    if (requested !== undefined && (requested ?? null) !== (currentOwner ? team.find(row => row.id === currentOwner)?.leg ?? null : null)) {
+      const config = (await loadRelayClassConfigs(tx, raceId)).get(entry.classId);
+      const ownSiblings = team.filter(row => row.cardEntryId === entry.id);
+      if (!config || ownSiblings.length > 0 || (requested !== null && (config.readoutMode === null || !target || target.cardEntryId !== null || requested >= intent.leg ||
+          intent.runner.cardNumber !== null || config.legs.find(leg => leg.leg === requested)?.runners !== 1 ||
+          config.legs.find(leg => leg.leg === intent.leg)?.runners !== 1 ||
+          (config.readoutMode === "LAST_LEG" && config.changeoverCode === null)))) return { status: "invalid-request" };
+      const affected = [entry.id, ...(target ? [target.id, ...team.filter(row => row.cardEntryId === target.id).map(row => row.id)] : []),
+        ...(currentOwner ? [currentOwner, ...team.filter(row => row.cardEntryId === currentOwner).map(row => row.id)] : [])];
+      const [withResult] = await tx.select({ value: count() }).from(schema.resultRevisions)
+        .where(inArray(schema.resultRevisions.entryId, [...new Set(affected)]));
+      if ((withResult?.value ?? 0) > 0) return { status: "conflict" };
+      await tx.update(schema.entries).set({ relayCardEntryId: target?.id ?? null }).where(eq(schema.entries.id, entry.id));
+      entry.cardEntryId = target?.id ?? null;
+    }
+    const owner = entry.cardEntryId ?? entry.id;
+    const person = team.filter(row => row.id === owner || row.cardEntryId === owner).map(row => row.id);
+    // Sträckor med samma löpare har ingen egen bricka: brickan sitter på löparens första sträcka.
+    if (entry.cardEntryId !== null && intent.runner.cardNumber !== null) return { status: "invalid-request" };
     const card = intent.runner.cardNumber;
     if (card !== null && await cardsInUse(tx, raceId, [card], entry.id)) return { status: "conflict" };
     const active = await tx.select({ id: schema.cardAssignments.id, cardNumber: schema.cardAssignments.cardNumber })
@@ -191,6 +221,9 @@ export async function changeRelayLegRunnerAsAdmin(db: Database, input: Authentic
     }
     await tx.update(schema.entries).set({ givenName: intent.runner.givenName, familyName: intent.runner.familyName,
       organisationName: intent.runner.organisationName, version: entry.version + 1 }).where(eq(schema.entries.id, entry.id));
+    const others = person.filter(id => id !== entry.id);
+    if (others.length > 0) await tx.update(schema.entries).set({ givenName: intent.runner.givenName, familyName: intent.runner.familyName,
+      organisationName: intent.runner.organisationName, version: sql`${schema.entries.version} + 1` }).where(inArray(schema.entries.id, others));
     const { recalculated } = await synchronizeRelayTeams(tx, raceId, [intent.teamId], snapshotVersionAfter);
     const response = relayLegRunnerResponseSchema.parse({ formatVersion: 1, replayed: false, requestId: intent.requestId, raceId,
       teamId: intent.teamId, leg: intent.leg, entryId: entry.id, request: intent, recalculatedCount: recalculated, snapshotVersionAfter,
@@ -226,8 +259,9 @@ export async function setRelayStartTimesAsAdmin(db: Database, input: Authenticat
 
 /**
  * Steg 48: lagets platser (sträcka, ordning) ur begärans löpare. Utan `leg` tas platserna i tur och ordning
- * (sträcka 1, sträcka 2 löpare 1, sträcka 2 löpare 2 …). Varje plats ska finnas en gång. `sameAsLeg` (teamsprint) kräver
- * växlingskontroll, en tidigare sträcka med ensam löpare och ingen egen bricka. Ger undefined när löparna inte passar klassen.
+ * * (sträcka 1, sträcka 2 löpare 1, sträcka 2 löpare 2 …). Varje plats ska finnas en gång. `sameAsLeg` (teamsprint) kräver (vid
+ * utläsning efter sista sträckan) växlingskontroll, en tidigare sträcka med ensam löpare och ingen egen bricka. Ger undefined
+ * när löparna inte passar klassen.
  */
 export function relayTeamSlots(config: RelayClassConfig, runners: readonly RelayRunner[]):
   { leg: number; legOrder: number; sameAsLeg: number | null; runner: RelayRunner }[] | undefined {
@@ -241,7 +275,8 @@ export function relayTeamSlots(config: RelayClassConfig, runners: readonly Relay
     if (slot.sameAsLeg === null) continue;
     const target = config.legs.find(leg => leg.leg === slot.sameAsLeg);
     const own = config.legs.find(leg => leg.leg === slot.leg)!;
-    if (config.changeoverCode === null || !target || slot.sameAsLeg >= slot.leg || target.runners !== 1 || own.runners !== 1 ||
+    // Steg 50: växlingskontrollen behövs bara vid utläsning efter sista sträckan.
+    if (config.readoutMode === null || (config.readoutMode === "LAST_LEG" && config.changeoverCode === null) || !target || slot.sameAsLeg >= slot.leg || target.runners !== 1 || own.runners !== 1 ||
         slot.runner.cardNumber !== null || slots.some(other => other.leg === slot.sameAsLeg && other.sameAsLeg !== null)) return undefined;
   }
   return slots.sort((left, right) => left.leg - right.leg || left.legOrder - right.legOrder);

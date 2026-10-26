@@ -223,6 +223,11 @@ export const classes = pgTable("class", {
   relayForking: text("relay_forking").$type<"EVEN" | "UNEVEN">(),
   /** Steg 48 (migration 0022): teamsprint – växlingskontrollens kod. NULL = vanlig stafett. */
   relayChangeoverCode: integer("relay_changeover_code"),
+  /**
+   * Steg 50: teamsprint – utläsning efter varje sträcka (`EACH_LEG`) eller efter sista sträckan (`LAST_LEG`, växlingskontroll).
+   * NULL = vanlig stafett.
+   */
+  relayReadoutMode: text("relay_readout_mode").$type<"EACH_LEG" | "LAST_LEG">(),
   externalSource: text("external_source"),
   externalId: text("external_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
@@ -290,7 +295,8 @@ export const cardAssignments = pgTable("card_assignment", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (table) => [
   uniqueIndex("card_assignment_active_race_card_uidx").on(table.raceId, table.cardNumber).where(sql`${table.active}`),
-  uniqueIndex("card_assignment_id_race_entry_card_uidx").on(table.id, table.raceId, table.entryId, table.cardNumber)
+  uniqueIndex("card_assignment_id_race_entry_card_uidx").on(table.id, table.raceId, table.entryId, table.cardNumber),
+  uniqueIndex("card_assignment_id_race_card_uidx").on(table.id, table.raceId, table.cardNumber)
 ]);
 
 export const importFiles = pgTable("import_file", {

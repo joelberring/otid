@@ -73,6 +73,8 @@ export function useRelayState() {
   const [relayRestartRanking, setRelayRestartRanking] = useState<RelayRestartRanking>("AFTER_NORMAL");
   const [relayForking, setRelayForking] = useState<RelayForking>("EVEN");
   const [relayChangeoverCode, setRelayChangeoverCode] = useState("");
+  /** Steg 50: teamsprint och dess utläsning; "" = vanlig stafett. */
+  const [relayReadoutMode, setRelayReadoutMode] = useState<"" | "EACH_LEG" | "LAST_LEG">("");
   const [relayClassAttempt, setRelayClassAttempt] = useState<RelayClassCreateRequest>();
   const [teamClassId, setTeamClassId] = useState("");
   const [teamNumber, setTeamNumber] = useState("");
@@ -88,6 +90,7 @@ export function useRelayState() {
   return { relay, setRelay, relayError, setRelayError, relayMessage, setRelayMessage, relayClassName, setRelayClassName,
     relayClassCourseId, setRelayClassCourseId, relayLegForms, setRelayLegForms, relayClassAttempt, setRelayClassAttempt,
     relayRestartRanking, setRelayRestartRanking, relayForking, setRelayForking, relayChangeoverCode, setRelayChangeoverCode,
+    relayReadoutMode, setRelayReadoutMode,
     teamClassId, setTeamClassId, teamNumber, setTeamNumber, teamName, setTeamName, teamClub, setTeamClub, teamRunners, setTeamRunners,
     teamAttempt, setTeamAttempt, selectedTeamId, setSelectedTeamId, runnerChange, setRunnerChange, runnerAttempt, setRunnerAttempt,
     relayTimes, setRelayTimes, timesAttempt, setTimesAttempt };
@@ -154,7 +157,7 @@ export function createRelayActions(ws: Base & RaceDataActions) {
       const code = changeoverCodeOf(ws.relayChangeoverCode);
       if (!relayClassName.trim() || !relayClassCourseId || !legs || code === undefined) { setRelayMessage(text.classInvalid); return; }
       attempt = { formatVersion: 1, requestId: crypto.randomUUID(), name: relayClassName.trim(), courseId: relayClassCourseId, legs,
-        restartRanking: ws.relayRestartRanking, forking: ws.relayForking, changeoverCode: code };
+        restartRanking: ws.relayRestartRanking, forking: ws.relayForking, changeoverCode: code, readoutMode: ws.relayReadoutMode || null };
       setRelayClassAttempt(attempt);
     }
     const name = attempt.name;
@@ -170,7 +173,7 @@ export function createRelayActions(ws: Base & RaceDataActions) {
     setTeamClassId(classId);
     const raceClass = relay?.classes.find(row => row.id === classId);
     if (!raceClass) { setTeamRunners([]); return; }
-    if (raceClass.changeoverCode !== null) {
+    if (raceClass.readoutMode !== null) {
       setTeamRunners(teamSprintPersonLegs(raceClass.legs.length).map(({ person, legs }) => ({ ...emptyRunner(legs[0] ?? 1), person, personLegs: legs })));
       return;
     }
@@ -179,6 +182,8 @@ export function createRelayActions(ws: Base & RaceDataActions) {
   function applyTeamSprintTemplate() {
     setRelayLegForms(defaultLegs(4));
     ws.setRelayChangeoverCode("");
+    // Steg 50: som MeOS – löparna läser ut efter varje sträcka.
+    ws.setRelayReadoutMode("EACH_LEG");
   }
   function changeTeamRunner(index: number, change: Partial<RelayRunnerForm>) {
     setTeamRunners(teamRunners.map((runner, current) => current === index ? { ...runner, ...change } : runner));

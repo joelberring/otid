@@ -3,6 +3,7 @@ import type { Database } from "@o-tid/database";
 import { schema } from "@o-tid/database";
 import type { RaceSnapshot } from "@o-tid/domain";
 import { compareText } from "./serialization";
+import { loadTeamSprintRunners, teamSprintRunnerLayout } from "./team-sprint-readout";
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 export type DbExecutor = Database | Transaction;
@@ -140,7 +141,7 @@ export async function loadRaceSnapshot(db: DbExecutor, raceId: string): Promise<
     courseVersionId: schema.relayLegs.courseVersionId }).from(schema.relayLegs).where(eq(schema.relayLegs.raceId, raceId));
   const legCourse = new Map(legCourseRows.flatMap((row) => row.courseVersionId ? [[`${row.classId}:${row.leg}`, row.courseVersionId] as const] : []));
   // Steg 48: teamsprint – varje sträcklöpares del av brickan (löparens sträckor i ordning, växlingskontrollen).
-  const teamSprint = !anyLeg ? new Map<string, { part: number; parts: number; changeoverCode: number; endsAtFinish: boolean }>()
+  const teamSprint = !anyLeg ? new Map<string, NonNullable<RaceSnapshot["entries"][number]["teamSprint"]>>()
     : await loadTeamSprintParts(db, raceId);
   const assignmentRows = await db.select().from(schema.cardAssignments)
     .where(eq(schema.cardAssignments.raceId, raceId))
@@ -234,8 +235,12 @@ export async function loadTeamSprintParts(db: DbExecutor, raceId: string) {
     cardEntryId: schema.entries.relayCardEntryId, classId: schema.entries.classId, code: schema.classes.relayChangeoverCode })
     .from(schema.entries).innerJoin(schema.classes, eq(schema.classes.id, schema.entries.classId))
     .where(and(eq(schema.entries.raceId, raceId), isNotNull(schema.classes.relayChangeoverCode), isNotNull(schema.entries.teamId),
-      isNull(schema.entries.struckAt)));
-  const result = new Map<string, { part: number; parts: number; changeoverCode: number; endsAtFinish: boolean }>();
+      eq(schema.classes.relayReadoutMode, "LAST_LEG"), isNull(schema.entries.struckAt)));
+  const result = new Map<string, NonNullable<RaceSnapshot["entries"][number]["teamSprint"]>>();
+  // Steg 50: utläsning efter varje sträcka – delningen följer vilken utläsning varje sträckas resultat bygger på.
+  for (const runner of await loadTeamSprintRunners(db, raceId)) {
+    for (const [entryId, part] of teamSprintRunnerLayout(runner)) result.set(entryId, part);
+  }
   if (rows.length === 0) return result;
   const legCounts = new Map((await db.select({ classId: schema.relayLegs.classId, leg: schema.relayLegs.leg }).from(schema.relayLegs)
     .where(eq(schema.relayLegs.raceId, raceId))).reduce((counts, row) => counts.set(row.classId, Math.max(counts.get(row.classId) ?? 0, row.leg)),

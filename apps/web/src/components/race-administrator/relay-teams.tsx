@@ -94,7 +94,11 @@ function TeamCard({ ws, team }: { ws: Workspace; team: Team }) {
           <td>{leg.startTime ? formatClockTime(leg.startTime, timeZone) : text.waitingStart}{leg.restarted ? ` · ${text.restarted}` : ""}</td>
           <td>{leg.status ? <span className={relayStyles.status} data-status={leg.status}>{sv.publicResultsStatusLabels[leg.status]}
             {leg.elapsedMs !== null ? ` · ${resultDuration(leg.elapsedMs)}` : ""}</span> : "–"}
-            {leg.changeoverMissing && <strong className={relayStyles.status} data-status="MP"> · {text.changeoverMissing}</strong>}</td>
+            {leg.changeoverMissing && <strong className={relayStyles.status} data-status="MP"> · {text.changeoverMissing}</strong>}
+            {/* Steg 50: utläsningen som sträckan bygger på (teamsprint: en per sträcka) och en utläsning som saknas. */}
+            {leg.readout && <span className={relayStyles.muted} data-testid="leg-readout"> · {text.legReadout(formatClockTime(leg.readout.readAt, timeZone),
+              leg.readout.finishTime ? formatClockTime(leg.readout.finishTime, timeZone) : null)}</span>}
+            {leg.readoutMissing && <strong className={relayStyles.status} data-status="MP"> · {text.readoutMissing(leg.leg)}</strong>}</td>
           <td className={relayStyles.legActions}>
             <button type="button" className="secondary" disabled={locked} onClick={() => startRunnerChange(team.id, leg.leg, leg.legOrder)}>
               {parallel ? text.changeRunnerOrder(leg.leg, leg.legOrder) : text.changeRunner(leg.leg)}</button>

@@ -10,6 +10,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-10-26 – Steg 50: teamsprint med utläsning efter varje sträcka (agent A)
+- Förval som MeOS (`class.relay_readout_mode`, migration 0024): utläsningen går till löparens första sträcka utan resultat och bedöms mot stämplingarna efter förra utläsningens mål; ingen växlingskontroll behövs. Steg 48:s sätt är ett val.
+- Dubblett = omläsning; tidigare måltid eller alla sträckor utlästa blir okänd utläsning med besked. Glömd utläsning: växlingskontrollen om den finns, annars banorna i tur och ordning och "Utläsning efter sträcka X saknas".
+- En sträcka som saknar start (föregående saknar växling) räknas som ute, inte felstämplad. Delningen räknas ur sträckornas resultatrevisioner.
+- Avläsningens besked "Lag 12 Ek – sträcka 3 (Ada Ek, andra sträckan)"; lagkortet visar varje sträckas utläsning; övningsstationen har en bricka per sträcka.
+- Rättat: teamsprint vid okända utläsningar (journalens brickkoppling hör till brickan) och omläsning; löpare, växlingskontroll och utläsningssätt kan ändras när lag finns.
+- Tester: domän `team-sprint-steg50`, integration `adr-0174-teamsprint-utlasning`, Playwright `stafett-steg50`; `stafett-steg48` provar valet efter sista sträckan.
+
 ### 2026-10-26 – Steg 48: flera löpare per sträcka och teamsprint (agent A)
 - Parallella sträckor (migration 0022: `relay_leg.runners`, växlings- och godkännanderegel, `entry.relay_leg_order`): FIRST/LAST, ALL/ANY.
 - Teamsprint: växlingskontroll per klass, brickan på löparens första sträcka (`entry.relay_card_entry_id`), avläsningen delas i resultatmotorn; saknad växling ger besked.

@@ -164,8 +164,9 @@ export const unknownReadoutResolutions = pgTable("unknown_readout_resolution", {
     foreignColumns: [entries.id, entries.raceId] }),
   foreignKey({ name: "unknown_readout_resolution_class_scope_fk", columns: [table.classId, table.raceId],
     foreignColumns: [classes.id, classes.raceId] }),
-  foreignKey({ name: "unknown_readout_resolution_assignment_scope_fk", columns: [table.assignmentId, table.raceId, table.entryId, table.cardNumber],
-    foreignColumns: [cardAssignments.id, cardAssignments.raceId, cardAssignments.entryId, cardAssignments.cardNumber] }),
+  // Steg 50: kopplingen hör till tävlingen och brickan (en teamsprintsträcka har brickan på löparens första sträcka).
+  foreignKey({ name: "unknown_readout_resolution_assignment_card_fkey", columns: [table.assignmentId, table.raceId, table.cardNumber],
+    foreignColumns: [cardAssignments.id, cardAssignments.raceId, cardAssignments.cardNumber] }),
   foreignKey({ name: "unknown_readout_resolution_result_scope_fk", columns: [table.createdResultRevisionId, table.raceId, table.entryId, table.createdResultRevision],
     foreignColumns: [resultRevisions.id, resultRevisions.raceId, resultRevisions.entryId, resultRevisions.revision] }),
 ]);

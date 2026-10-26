@@ -672,6 +672,9 @@ function Verdict({ current, verdict, item, qr, registration, timeZone }: { curre
     {verdict?.rental ? <p className="rental" data-testid="verdict-rental">▲ {t.rental}</p> : null}
     {registration ? <RegistrationStatus registration={registration} className={verdict?.className ?? ""} /> : null}
     {verdict?.relay ? <RelayLine relay={verdict.relay} /> : null}
+    {/* Steg 50: teamsprint – utläsningen gick inte att lägga på någon av löparens sträckor. */}
+    {verdict?.teamSprintProblem ? <p role="alert" data-testid="verdict-team-sprint">{verdict.teamSprintProblem.kind === "ALL_READ"
+      ? t.teamSprintAllRead : t.teamSprintEarlierFinish(verdict.teamSprintProblem.leg)}</p> : null}
     {verdict?.variant ? <p className="variant" data-testid="verdict-variant">{verdict.variant.assigned
       ? t.variant(verdict.variant.code) : t.variantGuessed(verdict.variant.code)}</p> : null}
     {verdict?.rogaining && verdict.elapsedMs !== undefined ? <Rogaining score={verdict.rogaining} elapsedMs={verdict.elapsedMs}
@@ -750,11 +753,14 @@ function RelayLine({ relay }: { relay: NonNullable<LocalVerdict["relay"]> }) {
   const outcome = !last ? t.relayNext(own + 1)
     : team.status === "OK" && team.elapsedMs !== undefined ? `${t.relayLast} – ${t.relayTeamTime(formatRunningTime(team.elapsedMs))}`
       : team.status === "RUNNING" ? `${t.relayLast} – ${t.relayTeamWaiting}` : `${t.relayLast} – ${t.relayTeamStatus[team.status]}`;
-  // Steg 48: teamsprint – "Sträcka 1 och 3 av 4"; saknad växlingsstämpling sägs tydligt.
-  const legs = relay.legs.length > 1 ? t.relayTeamLegs(relay.teamNumber, relay.teamName, relay.legs, relay.legCount)
-    : t.relayTeam(relay.teamNumber, relay.teamName, relay.leg, relay.legCount);
+  // Steg 48: teamsprint – "Sträcka 1 och 3 av 4"; saknad växlingsstämpling sägs tydligt. Steg 50: utläsning efter varje
+  // sträcka – "Lag 12 Ek – sträcka 3 (Ada Ek, andra sträckan)".
+  const legs = relay.teamSprint ? t.relayTeamSprintLeg(relay.teamNumber, relay.teamName, relay.leg, relay.teamSprint.runner, relay.teamSprint.part)
+    : relay.legs.length > 1 ? t.relayTeamLegs(relay.teamNumber, relay.teamName, relay.legs, relay.legCount)
+      : t.relayTeam(relay.teamNumber, relay.teamName, relay.leg, relay.legCount);
   return <>
     <p className="relay" data-testid="verdict-relay">{legs} · {outcome}</p>
+    {relay.teamSprint?.missingLegs.map(leg => <p key={leg} role="alert" data-testid="verdict-readout-missing">{t.teamSprintReadoutMissing(leg)}</p>)}
     {relay.changeoverMissing ? <p role="alert" data-testid="verdict-changeover">
       {t.relayChangeoverMissing(relay.changeoverMissing.found, relay.changeoverMissing.needed)}</p> : null}
   </>;

@@ -801,6 +801,20 @@ varianter och rättvisekontroll per gafflingssätt (Utjämnad/Fulgaffling). Bild
 gafflad bana), "Visa gafflingar" i resultatlistan och på deltagarsidan, sträcktidsanalys per sträcka, kontrollernas lägen
 ur IOF XML, längd per variant och banan på vägvalskartan.
 
+## [x] Steg 50 – Teamsprint: utläsning efter varje sträcka
+
+ADR-0174 beslut 9. Migration 0024.
+
+- [x] Förval "Utläsning efter varje sträcka" (som MeOS): utläsningen går till löparens första sträcka utan resultat och
+  bedöms mot stämplingarna efter föregående utläsnings mål; ingen växlingskontroll behövs. Mallen ger förvalet.
+- [x] Dubblett är omläsning; tidigare måltid eller alla sträckor utlästa ger besked och en okänd utläsning.
+- [x] Glömd utläsning: delas vid växlingskontrollen om den finns, annars efter banorna med beskedet "Utläsning efter
+  sträcka X saknas – läs ut efter varje sträcka"; ingen felstämpling av den.
+- [x] "Utläsning efter sista sträckan (växlingskontroll)" finns kvar som val per klass.
+- [x] Beskedet säger vilken sträcka utläsningen gällde; lagkortet visar varje sträckas utläsning.
+- [x] Teamsprint vid okända utläsningar och omläsning från rådata; löpare, växlingskontroll och utläsningssätt kan ändras
+  när lag finns.
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

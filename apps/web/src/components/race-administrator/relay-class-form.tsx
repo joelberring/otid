@@ -72,8 +72,14 @@ function LegRows({ ws, locked, classCourseId, idPrefix }: { ws: Workspace; locke
 
 /** Placering av lag i omstart och gaffling: klassens inställningar. */
 function ClassSettings({ ws, locked, idPrefix }: { ws: Workspace; locked: boolean; idPrefix: string }) {
-  const { relayChangeoverCode, relayForking, relayRestartRanking, setRelayChangeoverCode, setRelayForking, setRelayRestartRanking } = ws;
+  const { relayChangeoverCode, relayForking, relayReadoutMode, relayRestartRanking, setRelayChangeoverCode, setRelayForking,
+    setRelayReadoutMode, setRelayRestartRanking } = ws;
   return <div className={`${styles.fieldRow} ${relayStyles.settings}`}>
+    <div className={relayStyles.legField}><label htmlFor={`${idPrefix}-readout-mode`}>{text.readoutMode}</label>
+      <select id={`${idPrefix}-readout-mode`} value={relayReadoutMode} disabled={locked}
+        onChange={event => setRelayReadoutMode(event.target.value as typeof relayReadoutMode)}>
+        {(["", "EACH_LEG", "LAST_LEG"] as const).map(value => <option key={value} value={value}>{text.readoutModes[value || "NONE"]}</option>)}
+      </select></div>
     <div className={relayStyles.legField}><label htmlFor={`${idPrefix}-changeover-code`}>{text.changeoverCode}</label>
       <input id={`${idPrefix}-changeover-code`} value={relayChangeoverCode} inputMode="numeric" autoComplete="off" disabled={locked}
         placeholder={text.changeoverCodeExample} onChange={event => setRelayChangeoverCode(event.target.value)} /></div>

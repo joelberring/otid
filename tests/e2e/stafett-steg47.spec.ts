@@ -110,7 +110,6 @@ test("stafett: kort bana på sträcka 2, omstart, placering efter omstart och ä
   needsFullWindow();
   test.setTimeout(420_000);
   const suffix = unique();
-  const began = Date.now();
   const { date, clock } = raceClock(BACK);
   const owner = await registerAccount(browser, `stafett47.${suffix}@exempel.se`, "Sara Sträcka");
   const raceId = await createRace(owner, `Banstafett ${suffix}`, date, "Stafett", TIME_ZONE);
@@ -134,28 +133,40 @@ test("stafett: kort bana på sträcka 2, omstart, placering efter omstart och ä
   await expect(teamCard.getByRole("row", { name: /Sträcka 2/ })).toContainText("Kort");
 
   const relayLabel = (team: number, leg: number) => `L${leg} Lag${team} · Stafett · Lag ${team} · Sträcka ${leg} · ${card(team, leg)}`;
+  // Alla sträckor läses ut först. Omstarten (fem minuter före nu) ligger då efter båda lagens växlingar till sträcka 3.
   await openReadout(owner, raceId);
-  for (let team = 1; team <= 2; team += 1) await read(owner, relayLabel(team, 1));
+  for (const leg of [1, 2, 3]) for (let team = 1; team <= 2; team += 1) await read(owner, relayLabel(team, leg));
   await expect(owner.getByTestId("queue-status")).toHaveText("0 väntar", { timeout: 30_000 });
 
-  // Omstarten flyttas på tävlingsdagen så att den ligger mellan lagens växlingar till sträcka 3: sträcka 2 går i mål efter
-  // 2/3 av fönstret gånger farten (lag 2 94 %, lag 1 97 %). Omstarten läggs vid 95,5 %.
-  const restart = Math.round(0.955 * (2 / 3) * (BACK + (Date.now() - began) / 60_000 + 1.5));
+  // Lagens faktiska växlingar till sträcka 3 (sträcka 2:s mål). Omstarten flyttas på tävlingsdagen till en hel minut mitt
+  // emellan dem; flytten räknas om, och laget som växlade efter omstarten startar sträcka 3 i den. Testet beror därmed inte
+  // på väggklockan eller övningsstationens tider.
+  const overview = await (await owner.request.get(`/api/admin/races/${raceId}/administrator/relay`)).json() as
+    { teams: { number: number; legs: { leg: number; finishTime: string | null }[] }[] };
+  const changeover = (team: number) => Date.parse(overview.teams.find(row => row.number === team)!.legs.find(leg => leg.leg === 2)!.finishTime!);
+  const [early, late] = [changeover(1), changeover(2)].sort((left, right) => left - right) as [number, number];
+  expect(late - early).toBeGreaterThanOrEqual(2 * 60_000);
+  const restartAt = Math.round((early + late) / 2 / 60_000) * 60_000;
+  expect(restartAt).toBeGreaterThan(early);
+  expect(restartAt).toBeLessThan(late);
+  const restart = new Intl.DateTimeFormat("sv-SE", { timeZone: TIME_ZONE, hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+    .format(new Date(restartAt));
+  const restartedTeam = changeover(1) > changeover(2) ? 1 : 2;
+  const normalTeam = 3 - restartedTeam;
   await owner.goto(`/admin/${raceId}/manage`);
   await openStep(owner, "Start");
   const times = owner.getByRole("form", { name: "Stafett", exact: true });
-  await times.getByLabel("Omstart sträcka 3").fill(clock(restart));
+  await times.getByLabel("Omstart sträcka 3").fill(restart);
   await times.getByRole("button", { name: "Spara tider för Stafett" }).click();
   await expect(owner.getByText("Tiderna för Stafett är sparade.")).toBeVisible();
-  await openReadout(owner, raceId);
-  for (const leg of [2, 3]) for (let team = 1; team <= 2; team += 1) await read(owner, relayLabel(team, leg));
-  await expect(owner.getByTestId("queue-status")).toHaveText("0 väntar", { timeout: 30_000 });
 
-  // Lag 1 växlade efter omstarten och deltog i omstart: placeras efter lag 2 (SOFT TR 5.8.2).
+  // Laget som växlade efter omstarten (med övningsstationens farter lag 1) deltog i omstart: placeras efter laget med
+  // vanliga växlingar (SOFT TR 5.8.2).
   const visitor = await (await browser.newContext()).newPage();
   await visitor.goto(`/results/${raceId}`);
   const results = visitor.getByRole("table", { name: "Lagresultat Stafett" }).locator("tbody");
-  await expect(results.nth(0).getByRole("row").first()).toContainText("2 OK Linje 2");
+  await expect(results.nth(0).getByRole("row").first()).toContainText(`${normalTeam} OK Linje ${normalTeam}`);
+  await expect(results.nth(1).getByRole("row").first()).toContainText(`${restartedTeam} OK Linje ${restartedTeam}`);
   await expect(results.nth(1).getByRole("row").first()).toContainText("deltog i omstart");
   await expect(results.nth(1)).toContainText("omstart");
   await expect(results.nth(0).getByRole("row").nth(2)).toContainText("Kort");
@@ -163,7 +174,7 @@ test("stafett: kort bana på sträcka 2, omstart, placering efter omstart och ä
   // Kontrollvyn visar omstarten.
   await owner.goto(`/admin/${raceId}/manage`);
   await openStep(owner, "Avläsning");
-  await expect(owner.getByTestId("relay-restarts")).toContainText(`Stafett · Sträcka 3: omstart kl. ${clock(restart)}`);
+  await expect(owner.getByTestId("relay-restarts")).toContainText(`Stafett · Sträcka 3: omstart kl. ${restart}`);
   await expect(owner.getByTestId("relay-restarts")).toContainText("Alla lag har växlat.");
 
   // Ändra stafettklassen: sträcka 2 springer klassens (långa) bana. Två avlästa löpare blir felstämplade: först beskedet.
@@ -171,7 +182,7 @@ test("stafett: kort bana på sträcka 2, omstart, placering efter omstart och ä
   await owner.getByText("Ändra stafettklass").click();
   await owner.getByLabel("Stafettklass att ändra").selectOption({ label: "Stafett" });
   const edit = owner.getByRole("form", { name: "Ändra stafettklass" });
-  await expect(edit.getByLabel("Omstart sträcka 3")).toHaveValue(clock(restart));
+  await expect(edit.getByLabel("Omstart sträcka 3")).toHaveValue(restart);
   await edit.getByLabel("Sträcka 2 springer").selectOption({ label: "Samma som klassen" });
   await edit.getByRole("button", { name: "Spara ändringen" }).click();
   await expect(edit).toContainText("2 löpare byter status:");

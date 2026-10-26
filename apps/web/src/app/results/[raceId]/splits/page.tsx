@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { publicRaceSummary, publicRelayResults, publicResults, readPublicRouteIndex, readPublicRadio } from "@o-tid/application";
+import { publicRaceSummary, readPublicRouteIndex } from "@o-tid/application";
+import { cachedPublicRadio, cachedPublicRelayResults, cachedPublicResults } from "../../../../lib/public-race-data";
 import { db } from "../../../../lib/db";
 import { SplitAnalysis } from "../../../../components/split-analysis/split-analysis";
 import { splitAnalysisSv as text } from "../../../../i18n/split-analysis-sv";
@@ -14,8 +15,9 @@ export default async function SplitAnalysisPage({ params, searchParams }: {
 }) {
   const [{ raceId }, query] = await Promise.all([params, searchParams]);
   const access = await requirePublicRace(raceId);
-  const [summary, results, relay, routes, radio] = await Promise.all([publicRaceSummary(db, raceId), publicResults(db, raceId),
-    publicRelayResults(db, raceId), readPublicRouteIndex(db, raceId), readPublicRadio(db, raceId)]);
+  const [summary, results, relay, routes, radio] = await Promise.all([publicRaceSummary(db, raceId),
+    cachedPublicResults(raceId).then(entry => entry.value), cachedPublicRelayResults(raceId).then(entry => entry.value),
+    readPublicRouteIndex(db, raceId), cachedPublicRadio(raceId).then(entry => entry.value)]);
   const className = typeof query.class === "string" ? query.class : null;
   return <main className="stack public-list-page">
     <nav className="nav" aria-label={text.title}><Link href={`/results/${raceId}`}>{text.back}</Link></nav>

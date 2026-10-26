@@ -1,10 +1,18 @@
 import { expect, it } from "vitest";
-import type { Database } from "@o-tid/database";
 import type { getPublicStartList } from "@o-tid/application";
-import { publicStartListRoute } from "./public-start-list-route";
+import { createPublicRaceCache } from "./public-race-cache";
+import { cachedPublicStartListRoute, publicStartListValue } from "./public-start-list-route";
+
+type Read = typeof getPublicStartList;
+/** Samma väg som rutten: läsningen valideras när cachen räknar listan (steg 51). */
+async function publicStartListRoute(_db: unknown, raceId: string, read: Read) {
+  const cache = createPublicRaceCache({ version: async () => "v1" });
+  return cachedPublicStartListRoute(new Request("http://127.0.0.1/"), () =>
+    cache.read(raceId, "start-list", async () => publicStartListValue(await read({} as Parameters<Read>[0], raceId))));
+}
 
 it("lämnar bara validerad fryst publik data utan cookies/cache och inget innehåll vid withdrawal/fel", async () => {
-  const db = {} as Database;
+  const db = {};
   const response = { formatVersion: 1 as const, revision: 1, iofExportAvailable: true, showCardNumbers: false, live: false, publishedAt: "2026-09-04T10:00:00Z",
     content: { eventName: "Träning", raceName: "Medel", raceDate: "2026-09-04", timeZone: "Europe/Stockholm",
       classes: [{ name: "Öppen", startRule: "PUNCH" as const, entries: [{ displayName: "Ada", organisationName: null, fixedStartTime: null }] }] } };

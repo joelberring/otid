@@ -26,6 +26,7 @@ import { handleRadioRoute } from "./race-administrator-routes-radio";
 import { handleCompetitionRoute } from "./race-administrator-routes-competition";
 import { handleRemovalRoute } from "./race-administrator-routes-removal";
 import { handleCorrectionRoute } from "./race-administrator-routes-corrections";
+import { retryReadConflicts } from "./read-conflict";
 import { handlePartyRoute } from "./race-administrator-routes-party";
 import { principalAllows, raceRoleFor } from "./race-roles";
 import { UUID_PATTERN as uuid } from "@o-tid/contracts";
@@ -85,15 +86,22 @@ export async function raceAdministratorRoute(db: Database, request: Request, rac
     if (action.kind === "session") return json(raceSessionResponseSchema.parse({
       formatVersion: 1, raceId, role: auth.principal.role, expiresAt: auth.principal.expiresAt }));
     const context: RaceAdministratorRouteContext = { db, request, raceId, action, dependencies, proof, cursor, beforeVersion };
-    return await handleRaceDayRoute(context) ?? await handlePreparationRoute(context) ?? await handleResultRoute(context) ??
-      await handleEntryRoute(context) ?? await handleVariantRoute(context) ?? await handleRelayRoute(context) ?? await handleSourceRoute(context) ??
-      await handleMapRoute(context) ?? await handlePeopleRoute(context) ?? await handlePublicationRoute(context) ?? await handleRadioRoute(context) ??
-      await handleCompetitionRoute(context) ?? await handleRemovalRoute(context) ?? await handleCorrectionRoute(context) ??
-      await handlePartyRoute(context) ??
-      (action.kind === "race-settings"
-        ? await idempotentWrite(context, "race-settings", raceSettingsRequestSchema, raceSettingsResponseSchema, dependencies.raceSettings) : undefined) ??
-      failure(500, "INTERNAL_ERROR");
+    // Steg 51: en läsning (speakern, kvar i skogen, listorna) som avbröts av en samtidig ändring görs om i stället för 500.
+    if (!write) return await retryReadConflicts(() => dispatchRaceAdministratorRoute(context));
+    return await dispatchRaceAdministratorRoute(context);
   } catch { return failure(500, "INTERNAL_ERROR"); }
+}
+
+async function dispatchRaceAdministratorRoute(context: RaceAdministratorRouteContext): Promise<Response> {
+  const { action, dependencies } = context;
+  return await handleRaceDayRoute(context) ?? await handlePreparationRoute(context) ?? await handleResultRoute(context) ??
+    await handleEntryRoute(context) ?? await handleVariantRoute(context) ?? await handleRelayRoute(context) ?? await handleSourceRoute(context) ??
+    await handleMapRoute(context) ?? await handlePeopleRoute(context) ?? await handlePublicationRoute(context) ?? await handleRadioRoute(context) ??
+    await handleCompetitionRoute(context) ?? await handleRemovalRoute(context) ?? await handleCorrectionRoute(context) ??
+    await handlePartyRoute(context) ??
+    (action.kind === "race-settings"
+      ? await idempotentWrite(context, "race-settings", raceSettingsRequestSchema, raceSettingsResponseSchema, dependencies.raceSettings) : undefined) ??
+    failure(500, "INTERNAL_ERROR");
 }
 
 function allowedMethods(action: Action): string[] {

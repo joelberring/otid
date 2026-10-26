@@ -8,6 +8,7 @@ export const startListPublicationSv = {
   empty: "En tom deltagarlista kan inte publiceras.",
   invalidContent: "Startlistan kan inte publiceras just nu. En redan publicerad lista kan fortfarande avpubliceras.",
   publicUnavailable: "Ingen startlista kan visas just nu. Listan kan vara opublicerad, avpublicerad eller tillfälligt otillgänglig.",
+  publicLoading: "Hämtar startlistan…",
   publicHelp: "Planerad start, inte bekräftelse på faktisk start. Listan uppdateras automatiskt var femte sekund.",
   publicRefreshFailed: "Startlistan kunde inte uppdateras. Senast hämtade lista visas.",
   publishedAt: "Publicerad",

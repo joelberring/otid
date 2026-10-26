@@ -76,6 +76,7 @@ export * from "./radio-ingest";
 export * from "./radio-settings";
 export * from "./radio-standings";
 export * from "./public-live";
+export * from "./public-race-version";
 export * from "./race-copy";
 export { classNameTaken, courseNameTaken, DuplicateNameError } from "./duplicate-names";
 export { registerReadoutCard } from "./readout-registration";

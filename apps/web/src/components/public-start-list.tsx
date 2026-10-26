@@ -13,8 +13,9 @@ import styles from "./lists/lists.module.css";
  * bricknummer (steg 33, inställningen gäller direkt även för en redan publicerad lista). Hämtas på nytt
  * var femte sekund så att en ny publicering syns utan omladdning.
  */
-export function PublicStartList({ raceId, initial }: { raceId: string; initial: PublicStartListResponse | null }) {
-  const [data, setData] = useState<PublicStartListResponse | null>(initial);
+export function PublicStartList({ raceId, initial }: { raceId: string; initial: PublicStartListResponse | null | undefined }) {
+  // Steg 51: undefined = en stor startlista som inte skickades med sidan; den hämtas direkt.
+  const [data, setData] = useState<PublicStartListResponse | null | undefined>(initial);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     let stopped = false, running = false;
@@ -39,6 +40,7 @@ export function PublicStartList({ raceId, initial }: { raceId: string; initial: 
         if (!stopped) setFailed(true);
       } finally { window.clearTimeout(timeout); running = false; }
     }
+    if (initial === undefined) void refresh();
     const timer = window.setInterval(() => { void refresh(); }, 5_000);
     const onVisible = () => { if (document.visibilityState === "visible") void refresh(); };
     document.addEventListener("visibilitychange", onVisible);
@@ -46,7 +48,7 @@ export function PublicStartList({ raceId, initial }: { raceId: string; initial: 
   }, [raceId]);
   const model = useMemo(() => data ? startListFromPublication(data.content, data.showCardNumbers) : undefined, [data]);
   if (!data || !model) return <section className="public-list-heading"><h1>{text.publicTitle}</h1>
-    <p role="status">{text.publicUnavailable}</p></section>;
+    <p role="status">{data === undefined && !failed ? text.publicLoading : text.publicUnavailable}</p></section>;
   const zone = data.content.timeZone;
   return <>
     <section className="public-list-heading"><h1>{data.content.eventName}</h1>

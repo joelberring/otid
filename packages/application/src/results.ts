@@ -7,7 +7,7 @@ import {
   entryClassChangeResponseSchema,
   publicResultDetailResponseSchema,
   publicResultIdSchema,
-  publicResultListResponseSchema,
+  publicResultListResponseV7Schema,
   publicResultV7Schema,
   type EntryClassAdminListResponse,
   type EntryClassChangeResponse,
@@ -36,6 +36,10 @@ import { canAddClassEntry, ClassCapacityConflictError } from "./class-capacity-g
 import { UUID_PATTERN } from "./serialization";
 
 type DatabaseTransaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+
+/** Samma ordning som `localeCompare(…, "sv")`, men en gång skapad (steg 51: sorteringen av 3 000 löpare tog en tredjedel av listan). */
+const collator = new Intl.Collator("sv");
+const swedish = (left: string, right: string) => collator.compare(left, right);
 
 /**
  * The public list and public route overlays must resolve exactly the same
@@ -367,7 +371,7 @@ export async function publicResults(db: Database, raceId: string): Promise<Publi
     }
     const results: PublicResultV7[] = [];
     const orderedClasses = classIds.sort((left, right) => {
-      const nameDifference = (classNameById.get(left) ?? "").localeCompare(classNameById.get(right) ?? "", "sv");
+      const nameDifference = swedish(classNameById.get(left) ?? "", classNameById.get(right) ?? "");
       return nameDifference || (left < right ? -1 : left > right ? 1 : 0);
     });
     for (const classId of orderedClasses) {
@@ -389,8 +393,8 @@ export async function publicResults(db: Database, raceId: string): Promise<Publi
         if (scoreDifference !== 0) return scoreDifference;
         const elapsedDifference = (left.elapsedMs ?? Number.MAX_SAFE_INTEGER) -
           (right.elapsedMs ?? Number.MAX_SAFE_INTEGER);
-        return elapsedDifference || left.familyName.localeCompare(right.familyName, "sv") ||
-          left.givenName.localeCompare(right.givenName, "sv") ||
+        return elapsedDifference || swedish(left.familyName, right.familyName) ||
+          swedish(left.givenName, right.givenName) ||
           (left.entryId < right.entryId ? -1 : left.entryId > right.entryId ? 1 : 0);
       });
       for (const row of classResultRows) {
@@ -439,12 +443,17 @@ export async function publicResults(db: Database, raceId: string): Promise<Publi
         });
       }
     }
-    return publicResultListResponseSchema.parse({
+    // Steg 51: varje rad är redan prövad mot det publika radformatet (`publicRow`); här prövas resten av svaret, så att
+    // listan inte valideras två gånger (en tredjedel av tiden för en lista med 3 000 löpare).
+    const publicRows = results.flatMap((row) => publicRow(row, raceId));
+    if (publicRows.length > 10_000) throw new Error("Publikresultatet är för stort");
+    const envelope = publicResultListResponseV7Schema.parse({
       formatVersion: 7,
-      results: results.flatMap((row) => publicRow(row, raceId)),
+      results: [],
       standing: await publicResultStanding(tx, raceId),
       classCourses: await publicClassCourses(tx, raceId)
     });
+    return { ...envelope, results: publicRows };
   }, { isolationLevel: "repeatable read" });
 }
 
@@ -491,7 +500,8 @@ export async function publicClassCourses(tx: DatabaseTransaction, raceId: string
  * utelämnas den. Båda fallen loggas utan namn så att felet kan följas upp.
  */
 function publicRow(row: PublicResultV7, raceId: string): PublicResultV7[] {
-  if (publicResultV7Schema.safeParse(row).success) return [row];
+  const valid = publicResultV7Schema.safeParse(row);
+  if (valid.success) return [valid.data];
   const reduced = "splits" in row ? { ...row, splits: [], missingControls: [], extraPunches: [] } : row;
   const parsed = publicResultV7Schema.safeParse(reduced);
   console.error(parsed.success
@@ -549,7 +559,12 @@ export async function publicResultDetail(
   publicResultId: string
 ): Promise<PublicResultDetailLookup> {
   if (!publicResultIdSchema.safeParse(publicResultId).success) return { status: "not-found" };
-  const results = await publicResults(db, raceId);
+  return publicResultDetailFrom(await publicResults(db, raceId), publicResultId);
+}
+
+/** Steg 51: deltagarens rad ur en redan läst publik resultatlista (webbens cache per tävlingsversion). */
+export function publicResultDetailFrom(results: PublicResultListResponse, publicResultId: string): PublicResultDetailLookup {
+  if (!publicResultIdSchema.safeParse(publicResultId).success) return { status: "not-found" };
   const result = results.results.find((candidate) =>
     "publicResultId" in candidate && candidate.publicResultId === publicResultId
   );

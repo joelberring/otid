@@ -129,7 +129,16 @@ async function readArrivals(db: Database, raceId: string): Promise<PublicLiveArr
 
 /** Live för en publicerad tävling. Anroparen har redan kontrollerat att tävlingen får visas (`publicRaceAccess`). */
 export async function readPublicLive(db: Database, raceId: string, now = new Date()): Promise<PublicLiveResponse> {
-  const [results, radio, arrivals, relay] = await Promise.all([publicResults(db, raceId), readPublicRadio(db, raceId), readArrivals(db, raceId),
-    publicRelayResults(db, raceId)]);
-  return projectPublicLive({ raceId, now, timeZone: radio.timeZone, results, arrivals, radio, relay });
+  const [results, radio, relay] = await Promise.all([publicResults(db, raceId), readPublicRadio(db, raceId), publicRelayResults(db, raceId)]);
+  return readPublicLiveFrom(db, raceId, { results, radio, relay }, now);
+}
+
+/**
+ * Steg 51: Live ur redan lästa publika listor (webbens cache per tävlingsversion), så att resultatlistan inte räknas
+ * en gång till för varje besökare på Live. Samma projektion som `readPublicLive`.
+ */
+export async function readPublicLiveFrom(db: Database, raceId: string, sources: Pick<PublicLiveInput, "results" | "radio" | "relay">,
+  now = new Date()): Promise<PublicLiveResponse> {
+  const arrivals = await readArrivals(db, raceId);
+  return projectPublicLive({ raceId, now, timeZone: sources.radio.timeZone, arrivals, ...sources });
 }

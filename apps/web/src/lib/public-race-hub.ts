@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { isRadioLive, raceIdForShortCode, readPublicRaceHub, readPublicRouteIndex, type PublicRaceHub } from "@o-tid/application";
 import { db } from "./db";
 import { raceAccess } from "./public-race-gate";
+import { retryReadConflicts } from "./read-conflict";
 
 /**
  * Tävlingssidan (/t/{kod}) och QR-sidan läser samma underlag (ADR-0172 beslut 4), bakom samma grind som de
@@ -17,7 +18,9 @@ export const loadRaceHub = cache(async (code: string): Promise<RaceHubView | und
   if (!raceId) return undefined;
   const access = await raceAccess(raceId);
   if (access === "NONE") return undefined;
-  const [hub, routes, radio] = await Promise.all([readPublicRaceHub(db, raceId), readPublicRouteIndex(db, raceId), isRadioLive(db, raceId)]);
+  // Steg 51: en läsning som avbröts av en samtidig ändring (en funktionär flyttar starttider) görs om i stället för 500.
+  const [hub, routes, radio] = await retryReadConflicts(() =>
+    Promise.all([readPublicRaceHub(db, raceId), readPublicRouteIndex(db, raceId), isRadioLive(db, raceId)]));
   if (!hub) return undefined;
   return { ...hub, access, routes: Object.keys(routes.legs).length > 0, radio };
 });

@@ -1,4 +1,5 @@
-import { publicRaceSummary, publicRelayResults, publicResults, readLatestPublicFrozenRaceFinalization, readPublicRadio } from "@o-tid/application";
+import { publicRaceSummary, readLatestPublicFrozenRaceFinalization } from "@o-tid/application";
+import { cachedPublicRadio, cachedPublicRelayResults, cachedPublicResults, PUBLIC_PAGE_INLINE_ROWS, publicPageRows } from "../../../lib/public-race-data";
 import { db } from "../../../lib/db";
 import { PublicResultLists } from "../../../components/public-result-lists";
 import { PublicRaceNavigation } from "../../../components/public-race-navigation";
@@ -14,13 +15,24 @@ import { raceHubPath } from "../../../lib/public-race-format";
 
 export const dynamic = "force-dynamic";
 
+/** Steg 51: om sträcktidsanalysen finns, en gång per cachad resultatlista (samma objekt för samma tävlingsversion). */
+const analysisByResults = new WeakMap<object, boolean>();
+
 export default async function ResultsPage({ params }: { params: Promise<{ raceId: string }> }) {
   const { raceId } = await params;
   const access = await requirePublicRace(raceId);
-  const [summary, results, relay, finalization, radio] = await Promise.all([publicRaceSummary(db, raceId), publicResults(db, raceId),
-    publicRelayResults(db, raceId), readLatestPublicFrozenRaceFinalization(db, raceId), readPublicRadio(db, raceId)]);
+  // Steg 51: listorna ur cachen per tävlingsversion, samma som API:et.
+  const [summary, results, relay, finalization, radio] = await Promise.all([publicRaceSummary(db, raceId),
+    cachedPublicResults(raceId).then(entry => entry.value), cachedPublicRelayResults(raceId).then(entry => entry.value),
+    readLatestPublicFrozenRaceFinalization(db, raceId), cachedPublicRadio(raceId).then(entry => entry.value)]);
   // Sträcktidsanalysen (PLAN.md steg 16) finns när någon individuell klass har sträcktider.
-  const analysis = analysisClassNames(resultListFromPublic(results, relay)).length > 0;
+  let analysis = analysisByResults.get(results);
+  if (analysis === undefined) {
+    analysis = analysisClassNames(resultListFromPublic(results, relay)).length > 0;
+    analysisByResults.set(results, analysis);
+  }
+  // Steg 51: en stor lista skickas inte med sidan (flera MB HTML per besök); sidan hämtar den cachade listan direkt.
+  const inline = publicPageRows(results, relay) <= PUBLIC_PAGE_INLINE_ROWS;
   return <main className="stack public-list-page">
     <PublicRaceNavigation raceId={raceId} shortCode={summary.shortCode} currentPage="results" />
     <PreviewBanner access={access} />
@@ -30,7 +42,7 @@ export default async function ResultsPage({ params }: { params: Promise<{ raceId
         {analysis && <Link href={`/results/${raceId}/splits`}>{splitAnalysisSv.title}</Link>}
         {finalization.status === "ok" && <Link href={`/results/${raceId}/finalizations/${finalization.finalizationId}`}>{sv.publicFrozenResultsLink}</Link>}
       </p></section>
-    <PublicResultLists raceId={raceId} initial={{ results, relay, radio }} race={`${summary.eventName} · ${summary.name} · ${summary.raceDate}`}
+    <PublicResultLists raceId={raceId} initial={inline ? { results, relay, radio } : undefined} race={`${summary.eventName} · ${summary.name} · ${summary.raceDate}`}
       raceDate={summary.raceDate} />
   </main>;
 }

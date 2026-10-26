@@ -9,7 +9,8 @@ describe("TASK 006I/006J/006K/006M DNF projection policy", () => {
   it("publishes current format 7 from the centrally resolved DNF head", () => {
     const results = source("results.ts");
     expect(results).toContain("resolveStoredResultHeadStates(tx, raceId, rows)");
-    expect(results).toMatch(/publicResultListResponseSchema\.parse\(\{\s*formatVersion: 7,/);
+    // Steg 51: svaret prövas mot format 7 (raderna var för sig i `publicRow`).
+    expect(results).toMatch(/publicResultListResponseV7Schema\.parse\(\{\s*formatVersion: 7,/);
   });
 
   it("keeps Snapshot DNF status-only at the IOF boundary", () => {

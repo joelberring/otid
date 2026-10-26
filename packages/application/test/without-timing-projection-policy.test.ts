@@ -9,7 +9,8 @@ describe("TASK 006M projection policy", () => {
   it("publishes current format 7 from the central NT overlay", () => {
     const results = source("results.ts");
     expect(results).toContain("resolveStoredResultHeadStates(tx, raceId, rows)");
-    expect(results).toMatch(/publicResultListResponseSchema\.parse\(\{\s*formatVersion: 7,/);
+    // Steg 51: svaret prövas mot format 7 (raderna var för sig i `publicRow`).
+    expect(results).toMatch(/publicResultListResponseV7Schema\.parse\(\{\s*formatVersion: 7,/);
   });
 
   it("exports NT (deltog utan tid) as NotCompeting without time at the IOF boundary (steg 35)", () => {

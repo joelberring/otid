@@ -6,6 +6,7 @@ import { sv } from "../i18n/sv";
 import { courseVariantsSv as variantText } from "../i18n/course-variants-sv";
 import { listsSv } from "../i18n/lists-sv";
 import { startPublicResultEventStream } from "../lib/public-result-event-stream-client";
+import { timerShouldFetch } from "../lib/use-public-race-data";
 import { formatDuration } from "../lib/clock-time";
 import { forkingSv } from "../i18n/forking-sv";
 import { RunnerForking } from "./forking/runner-forking";
@@ -37,6 +38,7 @@ export function PublicResultDetail({ raceId, publicResultId, initial }: {
     const refresh = async () => {
       if (disposed || refreshInFlight.current) return;
       refreshInFlight.current = true;
+      lastFetch = Date.now();
       try {
         const result = await fetch(`/api/public/races/${raceId}/results/${publicResultId}`, { cache: "no-store" });
         if (!result.ok) { if (!disposed) setUnavailable(true); return; }
@@ -50,9 +52,11 @@ export function PublicResultDetail({ raceId, publicResultId, initial }: {
         refreshInFlight.current = false;
       }
     };
-    const timer = window.setInterval(() => { void refresh(); }, 5_000);
+    // Steg 51: med öppen resultatström hämtar sidan av sig själv bara som reserv (`timerShouldFetch`).
+    let streamOpen = false, lastFetch = 0;
+    const timer = window.setInterval(() => { if (timerShouldFetch(streamOpen, lastFetch, Date.now(), 5_000)) void refresh(); }, 5_000);
     const stopEventStream = typeof window.EventSource === "function"
-      ? startPublicResultEventStream(raceId, window.EventSource, () => { void refresh(); })
+      ? startPublicResultEventStream(raceId, window.EventSource, () => { void refresh(); }, undefined, (open) => { streamOpen = open; })
       : undefined;
     return () => {
       disposed = true;

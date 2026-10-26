@@ -1,9 +1,9 @@
-import { publicResults } from "@o-tid/application";
-import { db } from "../../../../../../lib/db";
+import { cachedJsonResponse } from "../../../../../../lib/public-race-cache";
+import { cachedPublicResults } from "../../../../../../lib/public-race-data";
 import { publicRaceResponse } from "../../../../../../lib/public-race-gate";
 
-export async function GET(_request: Request, { params }: { params: Promise<{ raceId: string }> }) {
+/** Den publika resultatlistan, räknad en gång per tävlingsversion (steg 51). */
+export async function GET(request: Request, { params }: { params: Promise<{ raceId: string }> }) {
   const { raceId } = await params;
-  return publicRaceResponse(raceId, async () =>
-    Response.json(await publicResults(db, raceId), { headers: { "cache-control": "public, max-age=2, stale-while-revalidate=3" } }));
+  return publicRaceResponse(raceId, async () => cachedJsonResponse(request, await cachedPublicResults(raceId), "public, max-age=2, stale-while-revalidate=3"));
 }

@@ -1,7 +1,8 @@
 import { publicResultUpdateEventExists, readPublicResultEventStream } from "@o-tid/application";
 import type { Pool, PoolClient } from "@o-tid/database";
 import { db, pool } from "./db";
-import { formatPublicResultEvent, parsePublicResultUpdateNotification } from "./public-result-event-stream-wire";
+import { warmPublicRaceLists } from "./public-race-data";
+import { coalesceNotifications, formatPublicResultEvent, NOTIFICATION_WINDOW_MS, parsePublicResultUpdateNotification } from "./public-result-event-stream-wire";
 
 const notificationChannel = "otid_public_result_update";
 
@@ -32,10 +33,17 @@ function closeSubscribers(): void {
   current.subscribers.clear();
 }
 
-async function deliverNotification(payloadValue: string | undefined): Promise<void> {
+const deliverLatest = coalesceNotifications(NOTIFICATION_WINDOW_MS, async (raceId, eventSequence) => {
+  if (!await publicResultUpdateEventExists(db, raceId, eventSequence)) return;
+  if ((hub().subscribers.get(raceId)?.size ?? 0) === 0) return;
+  // Steg 51: listorna för den nya versionen räknas först, så att alla väckta besökare får den färdiga listan.
+  try { await warmPublicRaceLists(raceId); } catch (error) { console.error("De publika listorna kunde inte räknas före väckningen", error); }
+  for (const subscriber of hub().subscribers.get(raceId) ?? []) subscriber(eventSequence);
+});
+
+function deliverNotification(payloadValue: string | undefined): void {
   const parsed = parsePublicResultUpdateNotification(payloadValue);
-  if (!parsed || !await publicResultUpdateEventExists(db, parsed.raceId, parsed.eventSequence)) return;
-  for (const subscriber of hub().subscribers.get(parsed.raceId) ?? []) subscriber(parsed.eventSequence);
+  if (parsed) deliverLatest(parsed.raceId, parsed.eventSequence);
 }
 
 async function ensureListener(databasePool: Pool): Promise<void> {
@@ -54,7 +62,7 @@ async function ensureListener(databasePool: Pool): Promise<void> {
     try {
       await client.query(`LISTEN ${notificationChannel}`);
       client.on("notification", (message) => {
-        if (message.channel === notificationChannel) void deliverNotification(message.payload);
+        if (message.channel === notificationChannel) deliverNotification(message.payload);
       });
       client.on("error", stop);
       client.on("end", stop);

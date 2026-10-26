@@ -14,9 +14,10 @@ import styles from "./lists/lists.module.css";
  * löparens resultatsida. Uppdateras av sig själv. Stjärnorna följer löpare och klubbar (PLAN.md steg 30; sparas bara i
  * webbläsaren och syns överst i Live).
  */
-export function PublicResultLists({ raceId, initial, race, raceDate }: { raceId: string; initial: ResultListData; race: string; raceDate: string }) {
+export function PublicResultLists({ raceId, initial, race, raceDate }: { raceId: string; initial?: ResultListData | undefined; race: string; raceDate: string }) {
   const { data, failed } = useResultListData(raceId, initial);
-  const model = useMemo(() => resultListFromPublic((data ?? initial).results, (data ?? initial).relay, (data ?? initial).radio), [data, initial]);
+  const current = data ?? initial;
+  const model = useMemo(() => current ? resultListFromPublic(current.results, current.relay, current.radio) : undefined, [current]);
   const follows = useFollows();
   const follow = useMemo<ResultListFollow>(() => ({
     runner: row => row.publicResultId && <FollowStar compact name={row.name}
@@ -24,6 +25,8 @@ export function PublicResultLists({ raceId, initial, race, raceDate }: { raceId:
       onToggle={() => followStore.toggleRunner({ raceId, publicResultId: row.publicResultId!, name: row.name, club: row.club, className: row.className })} />,
     club: club => <FollowStar compact name={club} followed={follows.clubs.includes(club)} onToggle={() => followStore.toggleClub(club)} />
   }), [follows, raceId]);
+  // Steg 51: en stor tävling skickas inte med sidan; listan hämtas direkt (samma cachade svar som uppdateringarna).
+  if (!model) return <p className={styles.notice} role="status">{failed ? text.results.refreshFailed : text.results.loading}</p>;
   return <ResultLists model={model} raceId={raceId} race={race} raceDate={raceDate} links follow={follow}
     iof={{ href: `/api/public/races/${encodeURIComponent(raceId)}/iof-results` }}
     status={failed ? <p className={styles.notice} role="alert">{text.results.refreshFailed}</p> : undefined} />;

@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { readPublicLive } from "@o-tid/application";
 import { sv } from "../../../../i18n/sv";
 import { liveSv as text } from "../../../../i18n/live-sv";
 import { publicRaceSv } from "../../../../i18n/public-race-sv";
-import { db } from "../../../../lib/db";
+import { cachedPublicLive } from "../../../../lib/public-race-data";
 import { loadRaceHub, requireRaceHub } from "../../../../lib/public-race-hub";
 import { formatRaceDate, raceHubPath } from "../../../../lib/public-race-format";
 import { PreviewBanner } from "../../../../components/public-race/preview-banner";
@@ -26,7 +25,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
  */
 export default async function LivePage({ params }: Params) {
   const hub = await requireRaceHub((await params).code);
-  const initial = await readPublicLive(db, hub.raceId);
+  const initial = (await cachedPublicLive(hub.raceId)).value;
   const race = [hub.raceName !== hub.eventName ? hub.raceName : undefined, formatRaceDate(hub.raceDate)].filter(Boolean).join(" · ");
   return <main className={styles.livePage}>
     <nav className={styles.hubNav} aria-label={publicRaceSv.hub.navigation}>

@@ -21,6 +21,14 @@ describe("administratörsroutes: tävlingsdagen", () => {
     expect((await raceAdministratorRoute(db, new Request(read.url, { headers: read.headers }), id,
       { kind: "speaker-board" }, services, environment)).status).toBe(500);
     expect((await raceAdministratorRoute(db, request("POST"), id, { kind: "speaker-board" }, services, environment)).status).toBe(405);
+    // Steg 51: en läsning som PostgreSQL avbröt för en samtidig ändring (40001) görs om; andra fel ger 500 som förut.
+    const conflict = Object.assign(new Error("Failed query"), { cause: Object.assign(new Error("could not serialize access"), { code: "40001" }) });
+    speakerBoard.mockRejectedValueOnce(conflict).mockRejectedValueOnce(conflict);
+    expect((await raceAdministratorRoute(db, new Request(read.url, { headers: read.headers }), id,
+      { kind: "speaker-board" }, services, environment)).status).toBe(200);
+    speakerBoard.mockRejectedValueOnce(new Error("annat fel"));
+    expect((await raceAdministratorRoute(db, new Request(read.url, { headers: read.headers }), id,
+      { kind: "speaker-board" }, services, environment)).status).toBe(500);
   });
   it("TASK085 binds one unknown readout, its optimistic basis and idempotent resolution request", async () => {
     const candidate = { formatVersion: 1 as const, raceId: id, snapshotVersion: 1, engineVersion: "v1",

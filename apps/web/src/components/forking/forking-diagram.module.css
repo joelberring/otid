@@ -1,0 +1,34 @@
+/* Steg 49: banbilden för gafflingar. Bara färgtoken, så att bilden följer sidans tema (ljust, mörkt, festtema). */
+.figure { margin: 0; display: grid; gap: 6px; min-width: 0; }
+.scroll { overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; }
+.svg { display: block; color: var(--ink); font-family: var(--font-dense); }
+.compact { max-width: 100%; height: auto; }
+.edge { fill: none; stroke: var(--line-strong); stroke-width: 2.5; stroke-linecap: round; }
+.compact .edge { stroke-width: 1.4; }
+.edge[data-active="true"] { stroke: var(--accent); stroke-width: 3.5; }
+.compact .edge[data-active="true"] { stroke-width: 2; }
+.edge[data-active="false"] { stroke: var(--line); stroke-dasharray: 4 4; }
+.compact .edge[data-active="false"] { stroke-dasharray: 2 2; }
+.node circle { fill: var(--surface); stroke: var(--ink); stroke-width: 2; }
+.compact .node circle { stroke-width: 1.2; }
+.node[data-kind="CENTER"] circle { stroke-width: 3.5; }
+.node[data-active="true"] circle { stroke: var(--accent); }
+.node[data-active="false"] circle { stroke: var(--line-strong); }
+.node[data-active="false"] text { fill: var(--muted); }
+.node text { fill: var(--ink); font-size: 12px; font-weight: 600; text-anchor: middle; dominant-baseline: central; }
+.node polygon { fill: none; stroke: var(--ink); stroke-width: 2; }
+.compact .node polygon { stroke-width: 1.2; }
+.letter, .order { text-anchor: middle; dominant-baseline: central; }
+.count { fill: var(--muted); font-size: 11px; font-weight: 600; }
+.node[data-kind="SPLIT"] circle { fill: var(--ink); stroke: none; }
+.labelBox { fill: var(--surface); stroke: var(--line); stroke-width: 1; opacity: .92; }
+.letter { fill: var(--accent); font-size: 13px; font-weight: 700; }
+.compact .letter { font-size: 6px; }
+.letter[data-active="false"] { fill: var(--muted); }
+.order { fill: var(--accent); font-size: 11px; font-weight: 700; }
+.compact .order { font-size: 6px; }
+.hit { fill: transparent; stroke: none; cursor: pointer; }
+.hit:focus-visible, .hit:hover { fill: color-mix(in srgb, var(--accent) 18%, transparent); outline: none; }
+.selected { fill: color-mix(in srgb, var(--accent) 24%, transparent); }
+.caption { font-size: var(--text-xs); color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.caption strong { color: var(--ink); font-weight: 600; }

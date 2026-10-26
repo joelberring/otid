@@ -8,6 +8,7 @@ export const splitAnalysisSv = {
   help: "Sträcktid och placering på sträckan överst, förlust mot bästa sträcka under och tid totalt med placering längst ner. " +
     "Tryck på en sträcka för att sortera på den. Bästa sträcka är fetstilt och märkt ★.",
   helpForked: "Klassen har gafflade banor. Sträckorna jämförs inom samma variant, eftersom varianterna har olika sträckor.",
+  helpForkedLegs: "Klassen har gafflade banor. Varje sträcka (kontrollpar) jämförs mellan alla som sprungit den, oavsett variant. Välj Per variant för en tabell per variant.",
   helpMispunched: "Felstämplade och andra utan godkänt resultat står under de godkända, utan placeringar. Sträckor de har sprungit visas; " +
     "– betyder att tiden saknas.",
   helpRoutes: "Vägval: tryck på länken i en sträcka för att se löparens väg på kartan.",
@@ -43,6 +44,8 @@ export const splitAnalysisSv = {
 export const routeChoiceSv = {
   title: (leg: string) => `Vägval ${leg}`,
   back: "Till sträcktidsanalysen",
+  courseStart: "Start",
+  courseFinish: "Mål",
   intro: "Löparens väg på sträckan enligt GPS-klockan, kopplad till stämplingstiderna. Andra löpares vägval på samma sträcka visas tunnare.",
   map: "Karta med vägval",
   zoomIn: "Zooma in", zoomOut: "Zooma ut", fitLeg: "Hela sträckan", fitMap: "Hela kartan",

@@ -26,6 +26,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Rättvis gaffling (utjämnad/fulgaffling) med kontroll per lag i lagvyn; funktionärsvy för omstarter; radio, Live, speaker och vägval för sträcklöpare; 30 sträckor.
 - Tester: domän `relay-steg47`, integration `adr-0174-stafett` (25 × 300: avläsning 0,35 s, publik lista 0,25 s), Playwright `stafett-steg47`.
 - Kvar: längd per variant (kräver steg 49:s variantlängd). Två Playwright-test behöver sex timmar av dygnet: tävlingen läggs i New York-tid när det inte ryms i Stockholm.
+### 2026-10-25 – Steg 49: gafflingar som struktur och bild (ADR-0175)
+- Domän `course-forking.ts`: enkel gaffling och fjäril (Purple Pen fork/loop) i följd, varianter med OCAD/Purple Pen-koder, härledning ur banfilens varianter, graf, rättvisa per gafflingssätt (Utjämnad/Fulgaffling, stoppar aldrig), längd ur lägen; `buildLegSplitTable` (sträcktider per kontrollpar).
+- Migration 0023: `course_version.forking`, `course.forking_mode`, start/mål-lägen, `course_variant.length_meters`, `control.latitude/longitude`. Redigera bana tar en struktur: löparna behåller kontrollföljden under ny kod, försvunna får ny variant genom fördelningen; omräkning i samma transaktion.
+- Banor: bilden (SVG) med anmälda/avlästa per gren, Gafflingssätt, längd och skillnad per variant, "Gaffla banan", "Redigera gafflingar" (klick på kontroll/sträcka i bilden, fält per alternativ, varianterna direkt), "Gör om till struktur".
+- Publikt: "Visa gafflingar" i resultatlistan och på deltagarsidan; sträcktidsanalysen per sträcka (förval) eller per variant; banan på vägvalskartan.
+- Tester: domän `course-forking`, `split-table`; iof-xml `parser`; webb `forking-diagram`; integration `steg-49-gafflingsstruktur`, `adr-0171-map-routes`; Playwright `gafflingsbild` (ny), `gafflingar`, `stafett`, `listor`, `strackanalys`.
+- Kvar: gaffling inuti fjäril går inte att bygga; banan ritas inte på en egen karta i arbetsytan.
 
 ### 2026-10-25 – Steg 44: rättelser efter genomlysningen (stopp och fest)
 - Speakern: strukna löpare filtreras i urvalet av de 25 senaste (gav 500). Migratorn bokför per tagg (ny kolumn `tag`; äldre rader matchas på `when` eller hash och får taggen), kör varje saknad migration i journalordning oavsett `when`; journalens `idx` är nu 0..n (0014–0018 numrerades om).

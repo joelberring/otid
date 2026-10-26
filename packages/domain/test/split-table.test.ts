@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSplitTable, sortByTotalLoss, sortSplitRows, splitTablesByVariant, type SplitTableRunner } from "../src";
+import { buildLegSplitTable, buildSplitTable, sortByTotalLoss, sortSplitRows, splitTablesByVariant, type SplitTableRunner } from "../src";
 
 /** En löpare med sträckor [kontroll, sträcktid] och tid sista kontroll–mål. */
 const runner = (key: string, ok: boolean, legs: [number, number][], finishMs?: number): SplitTableRunner => {
@@ -111,6 +111,27 @@ describe("sträcktidsanalys", () => {
     const table = buildSplitTable([{ key: "a", ok: false, splits: [] }]);
     expect(table.columns).toEqual([{ kind: "FINISH", leg: "S-F", bestLegMs: null }]);
     expect(table.rows[0]!.cells).toEqual([null]);
+    expect(table.idealMs).toBeNull();
+  });
+});
+
+describe("sträcktidsanalys per sträcka i en gafflad klass (steg 49)", () => {
+  it("jämför varje kontrollpar mellan alla som sprungit det, oavsett variant", () => {
+    const split = (controlCode: number, elapsedMs: number, legMs: number) => ({ controlCode, occurrence: 1, elapsedMs, legMs });
+    // Fjäril vid 50: A springer 41 först, B springer 42 först.
+    const table = buildLegSplitTable([
+      { key: "a", ok: true, variant: "A", elapsedMs: 700, splits: [split(50, 100, 100), split(41, 200, 100), { ...split(50, 300, 100), occurrence: 2 },
+        split(42, 450, 150), { ...split(50, 550, 100), occurrence: 3 }] },
+      { key: "b", ok: true, variant: "B", elapsedMs: 650, splits: [split(50, 90, 90), split(42, 210, 120), { ...split(50, 300, 90), occurrence: 2 },
+        split(41, 380, 80), { ...split(50, 480, 100), occurrence: 3 }] }
+    ]);
+    expect(table.columns.map(column => column.leg)).toEqual(["S-50", "50-41", "41-50", "50-42", "42-50", "50-F"]);
+    expect(table.columns[1]!.fromCode).toBe(50);
+    const leg = (row: number, key: string) => table.rows[row]!.cells[table.columns.findIndex(column => column.leg === key)];
+    expect(leg(0, "50-41")).toMatchObject({ legMs: 100, place: 2, lossMs: 20 });
+    expect(leg(1, "50-41")).toMatchObject({ legMs: 80, place: 1, best: true });
+    expect(leg(0, "50-42")).toMatchObject({ legMs: 150, place: 2 });
+    expect(leg(1, "41-50")).toMatchObject({ legMs: 100, place: 1 });
     expect(table.idealMs).toBeNull();
   });
 });

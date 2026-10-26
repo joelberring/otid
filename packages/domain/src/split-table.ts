@@ -25,6 +25,8 @@ export type SplitTableColumn = ({ kind: "CONTROL"; controlCode: number; occurren
   leg: string;
   /** Bästa sträcktid bland godkända, eller null om ingen godkänd har sträckan. */
   bestLegMs: number | null;
+  /** Tabell per sträcka (gafflad klass, steg 49): sträckans från-kontroll ("START" för start). */
+  fromCode?: number | "START";
 };
 export type SplitTableCell = {
   /** Sträcktiden, eller null när tiden vid föregående kontroll saknas. */
@@ -172,4 +174,81 @@ export function splitTablesByVariant(runners: readonly VariantSplitRunner[]): Va
   return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b, "sv")).map(([variant, group]) => ({
     variant: variant || null, keys: group.map(runner => runner.key), table: buildSplitTable(group)
   }));
+}
+
+/**
+ * Steg 49: en gafflad klass jämförs per sträcka (kontrollpar) mellan alla som sprungit den, oavsett variant. Kolumnerna
+ * är sträckorna i banans ordning (löparnas följder flätas ihop, varianterna i kodordning); en löpare har tid bara på
+ * sina egna sträckor. Totaltid vid kontrollen placeras inte, eftersom varianterna når kontrollerna i olika ordning.
+ * En sträcka som samma löpare springer flera gånger (samma kontrollpar) blir en kolumn per gång.
+ */
+export function buildLegSplitTable(runners: readonly VariantSplitRunner[]): SplitTable {
+  type Leg = { key: string; from: number | "START"; to: number | "FINISH"; legMs: number | null; elapsedMs: number };
+  const legsOf = (runner: VariantSplitRunner): Leg[] => {
+    const points: { code: number | "START" | "FINISH"; elapsedMs: number }[] = [{ code: "START", elapsedMs: 0 },
+      ...runner.splits.map(split => ({ code: split.controlCode, elapsedMs: split.elapsedMs })),
+      ...(runner.elapsedMs === undefined ? [] : [{ code: "FINISH" as const, elapsedMs: runner.elapsedMs }])];
+    const seen = new Map<string, number>();
+    const legs: Leg[] = [];
+    for (let index = 1; index < points.length; index += 1) {
+      const from = points[index - 1]!, to = points[index]!;
+      const base = `${from.code === "START" ? START_KEY : from.code}-${to.code === "FINISH" ? FINISH_KEY : to.code}`;
+      const count = (seen.get(base) ?? 0) + 1;
+      seen.set(base, count);
+      legs.push({ key: count === 1 ? base : `${base}#${count}`, from: from.code as number | "START", to: to.code as number | "FINISH",
+        legMs: to.elapsedMs < from.elapsedMs ? null : to.elapsedMs - from.elapsedMs, elapsedMs: to.elapsedMs });
+    }
+    return legs;
+  };
+  const perRunner = runners.map(legsOf);
+  const ordered = runners.map((runner, index) => ({ runner, index })).sort((a, b) => Number(b.runner.ok) - Number(a.runner.ok) ||
+    (a.runner.variant ?? "").localeCompare(b.runner.variant ?? "", "sv") || b.runner.splits.length - a.runner.splits.length);
+  const keys: string[] = [];
+  const meta = new Map<string, Leg>();
+  for (const { index } of ordered) {
+    let previous: string | undefined;
+    for (const leg of perRunner[index]!) {
+      if (!keys.includes(leg.key)) {
+        keys.splice(previous === undefined ? 0 : keys.indexOf(previous) + 1, 0, leg.key);
+        meta.set(leg.key, leg);
+      }
+      previous = leg.key;
+    }
+  }
+  // Mål sist.
+  keys.sort((a, b) => Number(meta.get(a)!.to === "FINISH") - Number(meta.get(b)!.to === "FINISH"));
+  const occurrences = new Map<number, number>();
+  const columns: SplitTableColumn[] = keys.map(key => {
+    const leg = meta.get(key)!;
+    if (leg.to === "FINISH") return { kind: "FINISH" as const, leg: key, bestLegMs: null, fromCode: leg.from };
+    const occurrence = (occurrences.get(leg.to) ?? 0) + 1;
+    occurrences.set(leg.to, occurrence);
+    return { kind: "CONTROL" as const, controlCode: leg.to, occurrence, leg: key, bestLegMs: null, fromCode: leg.from };
+  });
+  const rows: SplitTableRow[] = runners.map((runner, rowIndex) => {
+    const byKey = new Map(perRunner[rowIndex]!.map(leg => [leg.key, leg]));
+    return { key: runner.key, ok: runner.ok, totalLossMs: null, cells: keys.map(key => {
+      const leg = byKey.get(key);
+      return leg ? { legMs: leg.legMs, elapsedMs: leg.elapsedMs, place: null, elapsedPlace: null, best: false, lossMs: null } : null;
+    }) };
+  });
+  columns.forEach((column, index) => {
+    const legs = rows.flatMap((row, rowIndex) => row.ok && row.cells[index]?.legMs != null ? [{ index: rowIndex, ms: row.cells[index].legMs }] : []);
+    for (const [rowIndex, place] of places(legs)) {
+      const cell = rows[rowIndex]!.cells[index]!;
+      cell.place = place;
+      cell.best = place === 1;
+    }
+    column.bestLegMs = legs.length === 0 ? null : Math.min(...legs.map(leg => leg.ms));
+    for (const row of rows) {
+      const cell = row.cells[index];
+      if (cell && cell.legMs !== null && column.bestLegMs !== null) cell.lossMs = cell.legMs - column.bestLegMs;
+    }
+  });
+  for (const row of rows) {
+    const own = row.cells.filter((cell): cell is SplitTableCell => cell !== null);
+    row.totalLossMs = own.length > 0 && own.every(cell => cell.lossMs !== null)
+      ? own.reduce((sum, cell) => sum + Math.max(0, cell.lossMs!), 0) : null;
+  }
+  return { columns, rows, idealMs: null };
 }

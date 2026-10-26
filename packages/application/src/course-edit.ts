@@ -7,7 +7,8 @@ import {
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import {
-  courseVariantForReadout, entryCourseVersionId, sameControlCodes, unevenCourseVariantLegs, withProposedCourseVersion, type RaceSnapshot
+  courseForkingFairness, courseVariantForReadout, entryCourseVersionId, forkingControlSet, sameControlCodes, unevenCourseVariantLegs,
+  withProposedCourseVersion, withProposedEntryVariants, type CourseForking, type RaceSnapshot
 } from "@o-tid/domain";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
@@ -15,7 +16,11 @@ import { bumpReadoutPackageVersion, loadRaceSnapshot } from "./snapshot";
 import {
   assessReadOutEntries, countManualDecisions, normalizedReadout, recalculateAssessedEntries, summarizeAssessment, type AssessedEntry
 } from "./result-reassessment";
-import { insertCourseVersionControls, loadCourseVersionVariants, type StoredCourseVariant } from "./course-variants";
+import {
+  insertCourseVersionControls, loadCourseVersionVariants, planVariantDistribution, writeEntryVariants, type StoredCourseVariant
+} from "./course-variants";
+import { courseForkingView, loadCourseVersionForking, planForkingSave, type ForkingSavePlan } from "./course-forking";
+import { loadCoursePositions, withPositionLengths } from "./course-positions";
 import { PLACEHOLDER_COURSE } from "./source-sync-model";
 import { loadRogainingSetup } from "./rogaining";
 import { UUID_PATTERN as uuid } from "./serialization";
@@ -33,7 +38,7 @@ type Authentication = RaceSessionProof;
 
 async function loadCourse(tx: Transaction, raceId: string, courseId: string) {
   const [course] = await tx.select({ id: schema.courses.id, name: schema.courses.name, lengthMeters: schema.courses.lengthMeters,
-    climbMeters: schema.courses.climbMeters }).from(schema.courses)
+    climbMeters: schema.courses.climbMeters, forkingMode: schema.courses.forkingMode }).from(schema.courses)
     .where(and(eq(schema.courses.id, courseId), eq(schema.courses.raceId, raceId)));
   if (!course) return null;
   const [version] = await tx.select({ id: schema.courseVersions.id, version: schema.courseVersions.version })
@@ -53,8 +58,12 @@ async function loadCourse(tx: Transaction, raceId: string, courseId: string) {
   const classes = [...classCourse, ...legClasses.filter(row => !classCourse.some(other => other.id === row.id))]
     .sort((left, right) => left.name.localeCompare(right.name, "sv-SE") || (left.id < right.id ? -1 : 1));
   const variants = (await loadCourseVersionVariants(tx, [version.id])).get(version.id) ?? [];
-  return { ...course, version, controlCodes: controls.map(row => row.code), variants, classes,
-    classCourseIds: classCourse.map(row => row.id) };
+  const forking = (await loadCourseVersionForking(tx, [version.id])).get(version.id);
+  const positions = await loadCoursePositions(tx, raceId, course.id, [...controls.map(row => row.code),
+    ...variants.flatMap(variant => variant.controlCodes), ...(forking ? forkingControlSet(forking) : [])]);
+  // Steg 49: en variant utan längd i banfilen får längden ur kontrollernas lägen när alla är kända.
+  return { ...course, raceId, version, controlCodes: controls.map(row => row.code), variants: withPositionLengths(variants, positions), forking,
+    positions, classes, classCourseIds: classCourse.map(row => row.id) };
 }
 type LoadedCourse = NonNullable<Awaited<ReturnType<typeof loadCourse>>>;
 
@@ -63,19 +72,57 @@ type LoadedCourse = NonNullable<Awaited<ReturnType<typeof loadCourse>>>;
  * Bana utan varianter: ingen variant får anges. Ger varianternas nya kontrollföljder,
  * eller undefined när begäran inte passar banan.
  */
-function proposedVariants(course: LoadedCourse, variantCode: string | undefined, controlCodes: readonly number[])
-  : { variants: StoredCourseVariant[]; currentControlCodes: readonly number[] } | undefined {
-  if (course.variants.length === 0) return variantCode === undefined ? { variants: [], currentControlCodes: course.controlCodes } : undefined;
+type EditPlan = { variants: StoredCourseVariant[]; currentControlCodes: readonly number[]; controlCodes: readonly number[];
+  forking?: ForkingSavePlan };
+
+async function proposedVariants(tx: Transaction, course: LoadedCourse, request: { variantCode?: string | undefined; controlCodes?: number[] | undefined;
+  forking?: CourseForking | undefined }): Promise<EditPlan | undefined> {
+  // Steg 49: en ny struktur ersätter banans kontroller och varianter. Samma struktur igen är ingen ändring.
+  if (request.forking) {
+    const plan = planForkingSave(course.variants, request.forking);
+    if (!plan || (course.forking && JSON.stringify(course.forking) === JSON.stringify(plan.forking))) return undefined;
+    if (!plan.forking && sameControlCodes(course.controlCodes, plan.controlCodes) && course.variants.length === 0) return undefined;
+    const positions = await loadCoursePositions(tx, course.raceId, course.id, forkingControlSet(request.forking));
+    return { variants: withPositionLengths(plan.variants, positions), currentControlCodes: course.controlCodes, controlCodes: plan.controlCodes,
+      forking: plan };
+  }
+  const controlCodes = request.controlCodes ?? [];
+  const variantCode = request.variantCode;
+  if (sameControlCodes(course.variants.find(variant => variant.code === variantCode)?.controlCodes ??
+    (variantCode === undefined ? course.controlCodes : []), controlCodes)) return undefined;
+  if (course.variants.length === 0) return variantCode === undefined ? { variants: [], currentControlCodes: course.controlCodes, controlCodes } : undefined;
   const current = course.variants.find(variant => variant.code === variantCode);
   if (!current) return undefined;
-  return { currentControlCodes: current.controlCodes,
-    variants: course.variants.map(variant => variant.code === variantCode ? { code: variant.code, controlCodes: [...controlCodes] } : variant) };
+  // En ändrad variant har ingen känd längd längre.
+  return { currentControlCodes: current.controlCodes, controlCodes,
+    variants: withPositionLengths(course.variants.map(variant => variant.code === variantCode
+      ? { code: variant.code, controlCodes: [...controlCodes], lengthMeters: null } : variant), course.positions) };
+}
+
+/** Löparnas koder när strukturen sparas: samma kontrollföljd under ny kod, null när kontrollföljden försvinner. */
+function entryCodeChanges(snapshot: RaceSnapshot, course: LoadedCourse, plan: EditPlan): Map<string, string | null> {
+  const changes = new Map<string, string | null>();
+  if (!plan.forking) return changes;
+  const classes = new Map(snapshot.classes.map(row => [row.id, row]));
+  const classIds = new Set(course.classes.map(row => row.id));
+  for (const entry of snapshot.entries) {
+    if (!classIds.has(entry.classId) || entry.courseVariantCode === undefined) continue;
+    // Steg 47: en stafettsträcka med en annan bana berörs inte.
+    const raceClass = classes.get(entry.classId);
+    if (!raceClass || entryCourseVersionId(entry, raceClass) !== course.version.id) continue;
+    const next = plan.forking.codeMap.has(entry.courseVariantCode) ? plan.forking.codeMap.get(entry.courseVariantCode)! : null;
+    if (next !== entry.courseVariantCode) changes.set(entry.id, next);
+  }
+  return changes;
 }
 
 /** Prövar varje avläst löpare på banans klasser mot den föreslagna kontrollföljden. */
-async function assess(tx: Transaction, raceId: string, course: LoadedCourse, snapshot: RaceSnapshot,
-  controlCodes: readonly number[], variants: readonly StoredCourseVariant[]): Promise<AssessedEntry[] | "too-large"> {
+async function assess(tx: Transaction, raceId: string, course: LoadedCourse, base: RaceSnapshot,
+  controlCodes: readonly number[], variants: readonly StoredCourseVariant[], entryCodes: ReadonlyMap<string, string | null> = new Map())
+  : Promise<AssessedEntry[] | "too-large"> {
   const forked = variants.length > 0;
+  // Löpare vars kontrollföljd försvinner bedöms mot varianten som stämplingarna passar (samma som fördelningen ger dem).
+  const snapshot = entryCodes.size > 0 ? withProposedEntryVariants(base, entryCodes) : base;
   const proposed = withProposedCourseVersion(snapshot, course.id, course.version.id,
     { id: randomUUID(), version: course.version.version + 1, createdAt: new Date(0).toISOString(),
       controlCodes: forked ? [] : controlCodes, ...(forked ? { variants } : {}) });
@@ -99,10 +146,15 @@ function onVariant(assessed: readonly AssessedEntry[], snapshot: RaceSnapshot, v
   return assessed.filter(row => courseVariantForReadout(normalizedReadout(row.readout), snapshot)?.code === variantCode);
 }
 
-function previewResponse(raceId: string, course: LoadedCourse, snapshotVersion: number, controlCodes: number[],
-  variantCode: string | undefined, currentControlCodes: readonly number[], assessed: AssessedEntry[]): CourseEditPreviewResponse {
+function previewResponse(raceId: string, course: LoadedCourse, snapshotVersion: number, plan: EditPlan,
+  variantCode: string | undefined, assessed: AssessedEntry[], entryCodes: ReadonlyMap<string, string | null>): CourseEditPreviewResponse {
+  const forking = plan.forking && { variants: plan.forking.variants.map(variant => ({ code: variant.code, controlCodes: [...variant.controlCodes],
+    previousCode: variant.previousCode })), removedCodes: [...plan.forking.removedCodes],
+    renamedEntryCount: [...entryCodes.values()].filter(code => code !== null).length,
+    reassignedEntryCount: plan.forking.variants.length === 0 ? 0 : [...entryCodes.values()].filter(code => code === null).length };
   return courseEditPreviewResponseSchema.parse({ formatVersion: 1, raceId, courseId: course.id, courseName: course.name,
-    snapshotVersion, ...(variantCode === undefined ? {} : { variantCode }), currentControlCodes, controlCodes,
+    snapshotVersion, ...(variantCode === undefined ? {} : { variantCode }), currentControlCodes: plan.currentControlCodes,
+    controlCodes: plan.forking ? [] : plan.controlCodes, ...(forking ? { forking } : {}),
     ...summarizeAssessment(assessed), manualDecisionCount: countManualDecisions(assessed) });
 }
 
@@ -148,15 +200,21 @@ export async function listCoursesForEditAsAdmin(db: Database, input: Authenticat
       const variants = course.variants.map(variant => {
         const onVariant = courseEntries.filter(row => entryVariants.get(row.id) === variant.code);
         return { code: variant.code, controlCodes: [...variant.controlCodes], entryCount: onVariant.length,
-          readOutCount: onVariant.filter(row => readEntries.has(row.id)).length };
+          readOutCount: onVariant.filter(row => readEntries.has(row.id)).length, lengthMeters: variant.lengthMeters ?? null };
       });
+      // Steg 49: bilden (sparad eller härledd struktur) och rättvisekontrollen per gafflingssätt.
+      const forking = courseForkingView(course.variants, course.forking);
+      const relayOnly = course.classes.length > 0 && course.classes.every(row => relayClassIds.has(row.id));
+      const fairness = course.variants.length === 0 ? undefined : courseForkingFairness({ mode: course.forkingMode, variants: course.variants,
+        forking: course.forking ?? null });
       rows.push({ courseId: course.id, courseVersionId: course.version.id, name: course.name, controlCodes: course.controlCodes,
         lengthMeters: course.lengthMeters, climbMeters: course.climbMeters,
         classes: course.classes.map(row => ({ classId: row.id, name: row.name })), entryCount: courseEntries.length,
         readOutCount: courseEntries.filter(row => readEntries.has(row.id)).length, variants,
         // Steg 47: en bana som bara används i stafett kontrolleras per lag (lagvyn), inte per variant.
-        unevenLegs: course.classes.length > 0 && course.classes.every(row => relayClassIds.has(row.id)) ? []
-          : unevenCourseVariantLegs(course.variants) });
+        unevenLegs: relayOnly ? [] : unevenCourseVariantLegs(course.variants), ...(forking ? { forking, forkingMode: course.forkingMode } : {}),
+        ...(fairness && !relayOnly ? { fairness: { level: fairness.level, warningLegs: fairness.warningLegs, noticeLegs: fairness.noticeLegs,
+          shortestMeters: fairness.shortestMeters, longestMeters: fairness.longestMeters } } : {}) });
     }
     rows.sort((left, right) => left.name.localeCompare(right.name, "sv-SE") || (left.courseId < right.courseId ? -1 : 1));
     // Klasserna som tabell: varje klass med sin bana, startsätt och läge.
@@ -208,13 +266,14 @@ export async function previewCourseEditAsAdmin(db: Database, input: Authenticati
     const race = await lockRaceForSnapshot(tx, raceId);
     const course = await loadCourse(tx, raceId, input.courseId);
     if (!course) return { status: "not-found" };
-    const plan = proposedVariants(course, parsed.data.variantCode, parsed.data.controlCodes);
-    if (!plan || sameControlCodes(plan.currentControlCodes, parsed.data.controlCodes)) return { status: "invalid-request" };
+    const plan = await proposedVariants(tx, course, parsed.data);
+    if (!plan) return { status: "invalid-request" };
     const snapshot = await loadRaceSnapshot(tx, raceId);
-    const assessed = await assess(tx, raceId, course, snapshot, parsed.data.controlCodes, plan.variants);
+    const entryCodes = entryCodeChanges(snapshot, course, plan);
+    const assessed = await assess(tx, raceId, course, snapshot, plan.controlCodes, plan.variants, entryCodes);
     if (assessed === "too-large") return { status: "too-large" };
-    return { status: "ok", response: previewResponse(raceId, course, race.snapshotVersion, parsed.data.controlCodes,
-      parsed.data.variantCode, plan.currentControlCodes, onVariant(assessed, snapshot, parsed.data.variantCode)) };
+    return { status: "ok", response: previewResponse(raceId, course, race.snapshotVersion, plan,
+      parsed.data.variantCode, onVariant(assessed, snapshot, parsed.data.variantCode), entryCodes) };
   }, { isolationLevel: "repeatable read" });
 }
 
@@ -254,27 +313,30 @@ export async function editCourseAsAdmin(db: Database, input: Authentication & { 
     if (race.snapshotVersion >= 2_147_483_647) return { status: "conflict" };
     const course = await loadCourse(tx, raceId, intent.courseId);
     if (!course) return { status: "not-found" };
-    const plan = proposedVariants(course, intent.variantCode, intent.controlCodes);
-    if (!plan || sameControlCodes(plan.currentControlCodes, intent.controlCodes)) return { status: "invalid-request" };
+    const plan = await proposedVariants(tx, course, intent);
+    if (!plan) return { status: "invalid-request" };
     if (course.classes.length > 0) {
       await tx.select({ id: schema.entries.id }).from(schema.entries).where(and(eq(schema.entries.raceId, raceId),
         inArray(schema.entries.classId, course.classes.map(row => row.id)))).orderBy(asc(schema.entries.id)).for("update");
     }
     const before = await loadRaceSnapshot(tx, raceId);
-    const assessed = await assess(tx, raceId, course, before, intent.controlCodes, plan.variants);
+    const entryCodes = entryCodeChanges(before, course, plan);
+    const assessed = await assess(tx, raceId, course, before, plan.controlCodes, plan.variants, entryCodes);
     if (assessed === "too-large") return { status: "too-large" };
-    const preview = previewResponse(raceId, course, race.snapshotVersion, intent.controlCodes, intent.variantCode,
-      plan.currentControlCodes, onVariant(assessed, before, intent.variantCode));
+    const preview = previewResponse(raceId, course, race.snapshotVersion, plan, intent.variantCode,
+      onVariant(assessed, before, intent.variantCode), entryCodes);
     if (preview.requiresConfirmation && !intent.confirmResultChanges) return { status: "confirmation-required", preview };
 
     const [latestVersion] = await tx.select({ version: max(schema.courseVersions.version) }).from(schema.courseVersions)
       .where(eq(schema.courseVersions.courseId, course.id));
     const nextVersion = (latestVersion?.version ?? 0) + 1;
     if (nextVersion > 2_147_483_647) return { status: "conflict" };
-    const [courseVersion] = await tx.insert(schema.courseVersions).values({ courseId: course.id, version: nextVersion }).returning();
+    // Steg 49: strukturen sparas med banversionen; en ändrad enskild variant tar bort den (varianterna redigeras då var för sig).
+    const [courseVersion] = await tx.insert(schema.courseVersions).values({ courseId: course.id, version: nextVersion,
+      forking: plan.forking?.forking ?? null }).returning();
     if (!courseVersion) throw new Error("Banversionen kunde inte skapas");
     // Gafflad bana: banans egen kontrollföljd är tom och alla varianter följer med till nya versionen.
-    await insertCourseVersionControls(tx, raceId, courseVersion.id, plan.variants.length > 0 ? [] : intent.controlCodes, plan.variants);
+    await insertCourseVersionControls(tx, raceId, courseVersion.id, plan.variants.length > 0 ? [] : plan.controlCodes, plan.variants);
     const classIds = course.classes.map(row => row.id);
     if (course.classCourseIds.length > 0) {
       await tx.update(schema.classes).set({ courseVersionId: courseVersion.id })
@@ -283,6 +345,20 @@ export async function editCourseAsAdmin(db: Database, input: Authentication & { 
     // Steg 47: sträckor med banan som egen bana följer med till den nya versionen.
     await tx.update(schema.relayLegs).set({ courseVersionId: courseVersion.id })
       .where(and(eq(schema.relayLegs.raceId, raceId), eq(schema.relayLegs.courseVersionId, course.version.id)));
+    // Löparna behåller sin kontrollföljd under den nya koden; den vars kontrollföljd försvann får en ny variant
+    // genom fördelningen (en avläst löpare den som stämplingarna passar). Stafettsträckor fördelas inte här:
+    // en sträcka utan variant bedöms mot den variant som stämplingarna passar.
+    let reassigned = 0;
+    if (entryCodes.size > 0) {
+      await writeEntryVariants(tx, raceId, entryCodes);
+      const open = new Set([...entryCodes].filter(([, code]) => code === null).map(([entryId]) => entryId));
+      if (open.size > 0 && plan.variants.length > 0 && course.classCourseIds.length > 0) {
+        const seed = Number.parseInt(intent.requestId.replace(/-/g, "").slice(0, 8), 16) || 1;
+        const planned = await planVariantDistribution(tx, raceId, course.classCourseIds, seed, await loadRaceSnapshot(tx, raceId), open);
+        await writeEntryVariants(tx, raceId, planned);
+        reassigned = planned.size;
+      }
+    }
     const snapshotVersionAfter = race.snapshotVersion + 1;
     await bumpReadoutPackageVersion(tx, raceId);
 
@@ -299,9 +375,11 @@ export async function editCourseAsAdmin(db: Database, input: Authentication & { 
     await tx.insert(schema.auditEvents).values({ raceId, entityType: "course", entityId: course.id, requestId: intent.requestId,
       actorKind: "USER_ACCOUNT", actorId: auth.principal.accountId, action: "COURSE_EDITED_BY_ADMIN",
       before: { courseVersionId: course.version.id, controlCodes: plan.currentControlCodes, variantCode: intent.variantCode ?? null,
-        snapshotVersion: race.snapshotVersion },
-      after: { courseVersionId: courseVersion.id, controlCodes: intent.controlCodes, variantCode: intent.variantCode ?? null, classIds, snapshotVersion: snapshotVersionAfter,
-        recalculatedCount: recalculated.length }, createdAt: now });
+        variantCodes: course.variants.map(variant => variant.code), snapshotVersion: race.snapshotVersion },
+      after: { courseVersionId: courseVersion.id, controlCodes: plan.controlCodes, variantCode: intent.variantCode ?? null, classIds,
+        snapshotVersion: snapshotVersionAfter, recalculatedCount: recalculated.length,
+        ...(plan.forking ? { forking: true, variantCodes: plan.variants.map(variant => variant.code), removedCodes: plan.forking.removedCodes,
+          renamedEntryCount: [...entryCodes.values()].filter(code => code !== null).length, reassignedEntryCount: reassigned } : {}) }, createdAt: now });
     if (recalculated.length > 0) {
       await tx.insert(schema.auditEvents).values(recalculated.map(item => ({ raceId, entityType: "result_revision",
         entityId: item.resultRevisionId, action: "RESULT_RECALCULATED_AFTER_COURSE_EDIT", actorKind: "USER_ACCOUNT" as const,

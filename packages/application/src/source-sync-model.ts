@@ -25,8 +25,9 @@ export interface EventorProjection {
 
 export interface CourseFileProjection {
   readonly kind: "COURSE_FILE";
-  /** Steg 47: `legAssignments` (AllowedOnLeg) saknas i projektioner sparade före steget. */
-  readonly data: Omit<CourseDataImport, "kind" | "legAssignments"> & { readonly legAssignments?: CourseDataImport["legAssignments"] };
+  /** Steg 47: `legAssignments` (AllowedOnLeg) och steg 49: `controlPositions` saknas i projektioner sparade före stegen. */
+  readonly data: Omit<CourseDataImport, "kind" | "legAssignments" | "controlPositions"> &
+    Partial<Pick<CourseDataImport, "legAssignments" | "controlPositions">>;
 }
 
 export type SourceProjection = EventorProjection | CourseFileProjection;

@@ -44,7 +44,9 @@ export async function handlePreparationRoute(context: RaceAdministratorRouteCont
     if (result.status !== "ok") return resultFailure(result.status);
     const response = courseEditPreviewResponseSchema.parse(result.response);
     if (response.raceId !== raceId || response.courseId !== action.courseId ||
-        JSON.stringify(response.controlCodes) !== JSON.stringify(parsed.data.controlCodes)) return failure(500, "INTERNAL_ERROR");
+        JSON.stringify(response.controlCodes) !== JSON.stringify(parsed.data.controlCodes ?? []) ||
+        // Steg 49: en prövad struktur ger varianterna i `forking`.
+        (parsed.data.forking !== undefined) !== (response.forking !== undefined)) return failure(500, "INTERNAL_ERROR");
     return json(response);
   }
   if (action.kind === "course-edit") {

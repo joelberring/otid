@@ -2,6 +2,7 @@ import {
   boolean,
   check,
   date,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -140,6 +141,11 @@ export const courses = pgTable("course", {
   /** Längd och stigning i meter (migration 0004): från banfilen eller banformuläret. */
   lengthMeters: integer("length_meters"),
   climbMeters: integer("climb_meters"),
+  /** Steg 49 (migration 0023): gafflingssätt, utjämnad eller fulgaffling. Påverkar bara rättvisekontrollen. */
+  forkingMode: text("forking_mode").$type<"BALANCED" | "UNEQUAL">().notNull().default("BALANCED"),
+  /** Steg 49 (migration 0023): startens och målets lägen ur banfilen ({ latitude, longitude }). NULL = okänt. */
+  startPosition: jsonb("start_position").$type<{ latitude: number; longitude: number }>(),
+  finishPosition: jsonb("finish_position").$type<{ latitude: number; longitude: number }>(),
   externalSource: text("external_source"),
   externalId: text("external_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
@@ -149,6 +155,8 @@ export const courseVersions = pgTable("course_version", {
   id: uuid("id").primaryKey().defaultRandom(),
   courseId: uuid("course_id").notNull().references(() => courses.id),
   version: integer("version").notNull(),
+  /** Steg 49 (migration 0023): gafflingsstrukturen som varianterna genererades ur. NULL = ingen struktur. */
+  forking: jsonb("forking"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (table) => [uniqueIndex("course_version_uidx").on(table.courseId, table.version), uniqueIndex("course_version_id_course_uidx").on(table.id, table.courseId)]);
 
@@ -159,6 +167,9 @@ export const controls = pgTable("control", {
   kind: text("kind").notNull().default("CONTROL"),
   /** Rogaining (migration 0097): poäng när arrangören ändrat förvalet (kontrollkoden delat med tio). NULL = förvalet. */
   points: integer("points"),
+  /** Steg 49 (migration 0023): kontrollens läge ur banfilen (IOF Control/Position, WGS 84). NULL = okänt. */
+  latitude: doublePrecision("latitude"),
+  longitude: doublePrecision("longitude"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (table) => [uniqueIndex("control_race_code_uidx").on(table.raceId, table.code),
   check("control_points_check", sql`${table.points} IS NULL OR ${table.points} BETWEEN 0 AND 1000`)]);
@@ -175,7 +186,9 @@ export const courseVariants = pgTable("course_variant", {
   id: uuid("id").primaryKey().defaultRandom(),
   courseVersionId: uuid("course_version_id").notNull().references(() => courseVersions.id),
   code: text("code").notNull(),
-  sequence: integer("sequence").notNull()
+  sequence: integer("sequence").notNull(),
+  /** Steg 49 (migration 0023): variantens längd i meter, när den är känd. */
+  lengthMeters: integer("length_meters")
 }, (table) => [
   uniqueIndex("course_variant_code_uidx").on(table.courseVersionId, table.code),
   uniqueIndex("course_variant_sequence_uidx").on(table.courseVersionId, table.sequence),

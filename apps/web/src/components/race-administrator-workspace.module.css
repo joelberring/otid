@@ -278,3 +278,20 @@
 }
 /* PLAN.md steg 27: bekräftelsen under en tabellrad stannar inom skärmen när tabellen rullar i sidled (mobil). */
 .rowReview { position: sticky; left: 0; max-width: min(100%, calc(100vw - 56px)); }
+/* Steg 49: gafflingar i banlistan och redigeringen. */
+
+.forkingTools { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 12px; }
+.forkingTools label { min-width: 150px; }
+.forkingSelection { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--subtle); }
+.forkingItem { display: grid; gap: 8px; margin: 0; padding: 10px; border: 1px solid var(--line); border-radius: var(--radius); min-width: 0; }
+.forkingItem legend { padding: 0 4px; font-weight: 600; }
+.forkingBranches { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
+.forkingBranch { display: grid; gap: 4px; align-content: start; }
+.forkingBranch[data-selected] input { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.forkingVariants { display: grid; gap: 6px; }
+/* Steg 49: banlistan bryter aldrig rubriker eller klassnamn; gafflingarna har en egen rad under banan. */
+.courseTable thead th, .courseTable tbody th, .courseTable .inlineLink { white-space: nowrap; }
+.forkingRow > td { padding-top: 0; }
+.forkingRow:hover > * { background: transparent !important; }
+/* På smal skärm rullar tabellen i sidled; gafflingarna står kvar i synfältet med skärmens bredd. */
+.forkingDetail { position: sticky; left: 0; max-width: min(100%, calc(100vw - 48px)); min-width: 0; }

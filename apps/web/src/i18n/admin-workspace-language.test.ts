@@ -20,7 +20,7 @@ const adminFiles = [
   "race-administrator-sv.ts", "race-workspace-navigation-sv.ts", "start-draw-sv.ts", "start-list-publication-sv.ts",
   "forest-watch-sv.ts", "participant-card-sv.ts", "class-table-sv.ts", "checkin-history-sv.ts", "checkin-conflict-review-sv.ts",
   "race-workflow-detail-sv.ts", "lists-sv.ts",
-  "speaker-sv.ts", "course-variants-sv.ts", "relay-sv.ts", "race-type-sv.ts", "sources-sv.ts", "rogaining-sv.ts", "race-map-sv.ts",
+  "speaker-sv.ts", "course-variants-sv.ts", "forking-sv.ts", "relay-sv.ts", "race-type-sv.ts", "sources-sv.ts", "rogaining-sv.ts", "race-map-sv.ts",
   "public-race-sv.ts", "public-link-share-sv.ts", "radio-sv.ts", "race-copy-sv.ts", "form-errors-sv.ts", "start-rule-sv.ts", "start-draw-advanced-sv.ts",
   // PLAN.md steg 27.
   "card-punches-sv.ts", "removal-sv.ts", "results-official-sv.ts", "race-export-sv.ts", "race-corrections-sv.ts",

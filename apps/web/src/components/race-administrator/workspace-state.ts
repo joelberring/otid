@@ -54,7 +54,8 @@ export function deriveWorkspace(s: WorkspaceState) {
   // eller ett beslut som inte är bekräftat. En skrivning som är på väg avslutas av sig själv och hindrar inget.
   const course = s.courseList?.courses.find(row => row.courseId === s.editingCourseId);
   const original = (s.editingVariantCode ? course?.variants.find(row => row.code === s.editingVariantCode)?.controlCodes : course?.controlCodes) ?? [];
-  const courseEdited = !!course && s.courseEditControls.trim().split(/[\s,]+/).filter(Boolean).join(" ") !== original.join(" ");
+  const courseEdited = !!course && (s.courseEditForking ? JSON.stringify(s.courseEditForking) !== s.courseEditForkingOriginal
+    : s.courseEditControls.trim().split(/[\s,]+/).filter(Boolean).join(" ") !== original.join(" "));
   const classRow = s.courseList?.classes.find(row => row.classId === s.editingClassId);
   const classEdited = !!classRow && (s.classEditName.trim() !== classRow.name || s.classEditCourseId !== classRow.courseId ||
     s.classEditStartRule !== classRow.startRule || s.classEditMaxTime.trim() !== (classRow.maxTimeMinutes ? String(classRow.maxTimeMinutes) : ""));

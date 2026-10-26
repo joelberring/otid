@@ -1,6 +1,6 @@
 import type { PublicClassCourse, PublicRadioResponse, PublicRelayResults, PublicResultListResponse,
   PublicResultStanding } from "@o-tid/contracts";
-import { splitTablesByVariant, type SplitTable } from "@o-tid/domain";
+import { buildLegSplitTable, splitTablesByVariant, type SplitTable } from "@o-tid/domain";
 import { compareText, matches, searchable } from "./search";
 import { groupByClub, type ClubGroup } from "./start-list-model";
 import { listsSv } from "../../i18n/lists-sv";
@@ -136,6 +136,18 @@ export function splitGroups(raceClass: ResultClass): SplitGroup[] {
   return splitTablesByVariant(rows.map((result, index) => ({ key: String(index), ok: result.status === "OK", variant: result.variant,
     ...(result.timeMs === null ? {} : { elapsedMs: result.timeMs }), splits: result.splits })))
     .map(group => ({ className: raceClass.name, variant: group.variant, rows: group.keys.map(key => rows[Number(key)]!), table: group.table }));
+}
+
+/**
+ * Steg 49: en gafflad klass som en tabell per sträcka (kontrollpar): alla som sprungit sträckan jämförs, oavsett variant.
+ * Undefined när klassen inte är gafflad.
+ */
+export function legSplitGroup(raceClass: ResultClass): SplitGroup | undefined {
+  const rows = raceClass.rows.filter(result => result.splits.length > 0 || result.timeMs !== null);
+  if (!rows.some(row => row.variant !== null)) return undefined;
+  const table = buildLegSplitTable(rows.map((result, index) => ({ key: String(index), ok: result.status === "OK", variant: result.variant,
+    ...(result.timeMs === null ? {} : { elapsedMs: result.timeMs }), splits: result.splits })));
+  return { className: raceClass.name, variant: null, rows, table };
 }
 
 export type ClubResultRow = { className: string; result: ResultRow };

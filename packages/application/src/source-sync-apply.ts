@@ -6,7 +6,8 @@ import {
   parseRaceClock, withProposedClass, withProposedClassSetup, withProposedCourse,
   withProposedCourseVersion, withProposedEntryClasses, type RaceSnapshot
 } from "@o-tid/domain";
-import { insertCourseVersionControls, leastUsedVariantForClass, variantAfterClassChange } from "./course-variants";
+import { storeControlPositions, storeCourseEnds } from "./course-positions";
+import { insertCourseVersionControls, leastUsedVariantForClass, loadCourseVersionVariants, variantAfterClassChange } from "./course-variants";
 import { applyEntryDecision } from "./entry-status";
 import { importLegCourses, importPersonCourseAssignments, importTeamCourseAssignments } from "./import-iof";
 import { loadRelayClassConfigs } from "./relay-model";
@@ -320,11 +321,14 @@ export async function assessCourseFile(tx: Transaction, raceId: string, rows: re
  */
 async function storeCourseMeasurements(tx: Transaction, raceId: string, projection: CourseFileProjection, state: CurrentState,
   links: readonly { id: string; externalId: string }[], ids: Ids): Promise<void> {
+  // Steg 49: kontrollernas lägen (äldre förhandsvisningar saknar dem).
+  await storeControlPositions(tx, raceId, projection.data.controlPositions ?? []);
   for (const course of projection.data.courses) {
-    if (course.lengthMeters === undefined && course.climbMeters === undefined) continue;
     const courseId = ids.courses.get(course.externalId)?.courseId ?? links.find(link => link.externalId === course.externalId)?.id ??
       state.courses.find(row => row.externalSource === "iof" && row.externalId === course.externalId)?.id;
     if (!courseId) continue;
+    await storeCourseEnds(tx, raceId, courseId, course);
+    if (course.lengthMeters === undefined && course.climbMeters === undefined) continue;
     await tx.update(schema.courses).set({ ...(course.lengthMeters !== undefined ? { lengthMeters: course.lengthMeters } : {}),
       ...(course.climbMeters !== undefined ? { climbMeters: course.climbMeters } : {}) })
       .where(and(eq(schema.courses.id, courseId), eq(schema.courses.raceId, raceId)));

@@ -7,6 +7,8 @@ import { courseVariantsSv as variantText } from "../i18n/course-variants-sv";
 import { listsSv } from "../i18n/lists-sv";
 import { startPublicResultEventStream } from "../lib/public-result-event-stream-client";
 import { formatDuration } from "../lib/clock-time";
+import { forkingSv } from "../i18n/forking-sv";
+import { RunnerForking } from "./forking/runner-forking";
 
 function duration(milliseconds?: number) {
   if (milliseconds === undefined) return "–";
@@ -28,6 +30,7 @@ export function PublicResultDetail({ raceId, publicResultId, initial }: {
 }) {
   const [response, setResponse] = useState(initial);
   const [unavailable, setUnavailable] = useState(false);
+  const [showForking, setShowForking] = useState(false);
   const refreshInFlight = useRef(false);
   useEffect(() => {
     let disposed = false;
@@ -75,6 +78,12 @@ export function PublicResultDetail({ raceId, publicResultId, initial }: {
       .map(control => listsSv.results.scoredControl(control.controlCode, control.points)).join(", ")}</p>}
     {"missingControls" in result && result.missingControls.length > 0 && <p><strong>{sv.publicResultsMissingControls}:</strong> {result.missingControls.join(", ")}</p>}
     {"extraPunches" in result && result.extraPunches.length > 0 && <p><strong>{sv.publicResultsExtraPunches}:</strong> {result.extraPunches.join(", ")}</p>}
+    {/* Steg 49: gafflad klass: banbilden med löparens variant ("Visa gafflingar"). */}
+    {response.classCourse?.forking && "courseVariantCode" in result && result.courseVariantCode && <section className="public-result-forking">
+      <button type="button" className="secondary" aria-pressed={showForking} onClick={() => setShowForking(!showForking)}>{forkingSv.showForking}</button>
+      {showForking && <RunnerForking view={response.classCourse.forking} code={result.courseVariantCode}
+        name={`${result.givenName} ${result.familyName}`} compact={false} />}
+    </section>}
     {"splits" in result && result.splits && result.splits.length > 0 && <details><summary>{sv.publicResultsShowSplits}</summary><ol>
       {result.splits.map((split) => <li key={`${split.controlCode}:${split.occurrence}`}>
         <span><strong>{sv.publicResultsControl}</strong> {split.controlCode}{split.occurrence > 1 ? ` (${split.occurrence})` : ""}</span>

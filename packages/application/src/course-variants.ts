@@ -16,6 +16,8 @@ type Executor = Database | Transaction;
 export interface StoredCourseVariant {
   readonly code: string;
   readonly controlCodes: readonly number[];
+  /** Steg 49: variantens längd i meter när den är känd. */
+  readonly lengthMeters?: number | null;
 }
 
 /** Varianterna per banversion i visningsordning (banversioner utan varianter saknas i kartan). */
@@ -23,7 +25,7 @@ export async function loadCourseVersionVariants(tx: Executor, courseVersionIds: 
   const result = new Map<string, StoredCourseVariant[]>();
   if (courseVersionIds.length === 0) return result;
   const variants = await tx.select({ id: schema.courseVariants.id, courseVersionId: schema.courseVariants.courseVersionId,
-    code: schema.courseVariants.code }).from(schema.courseVariants)
+    code: schema.courseVariants.code, lengthMeters: schema.courseVariants.lengthMeters }).from(schema.courseVariants)
     .where(inArray(schema.courseVariants.courseVersionId, [...new Set(courseVersionIds)]))
     .orderBy(asc(schema.courseVariants.courseVersionId), asc(schema.courseVariants.sequence));
   if (variants.length === 0) return result;
@@ -33,7 +35,8 @@ export async function loadCourseVersionVariants(tx: Executor, courseVersionIds: 
     .orderBy(asc(schema.courseVariantControls.courseVariantId), asc(schema.courseVariantControls.sequence));
   for (const variant of variants) {
     const list = result.get(variant.courseVersionId) ?? [];
-    list.push({ code: variant.code, controlCodes: controls.filter(row => row.variantId === variant.id).map(row => row.code) });
+    list.push({ code: variant.code, controlCodes: controls.filter(row => row.variantId === variant.id).map(row => row.code),
+      lengthMeters: variant.lengthMeters });
     result.set(variant.courseVersionId, list);
   }
   return result;
@@ -54,7 +57,8 @@ export async function insertCourseVersionControls(tx: Executor, raceId: string, 
     await tx.insert(schema.courseControls).values({ courseVersionId, controlId: await controlId(tx, raceId, code), sequence: index + 1 });
   }
   for (const [variantIndex, variant] of variants.entries()) {
-    const [saved] = await tx.insert(schema.courseVariants).values({ courseVersionId, code: variant.code, sequence: variantIndex + 1 })
+    const [saved] = await tx.insert(schema.courseVariants).values({ courseVersionId, code: variant.code, sequence: variantIndex + 1,
+      lengthMeters: variant.lengthMeters ?? null })
       .returning({ id: schema.courseVariants.id });
     if (!saved) throw new Error("Varianten kunde inte sparas");
     for (const [index, code] of variant.controlCodes.entries()) {
@@ -134,14 +138,17 @@ async function latestReadouts(tx: Transaction, raceId: string, entryIds: readonl
  * fördelas jämnt med fröet. Ger nya koder per deltagare; klasser utan varianter hoppas över.
  */
 export async function planVariantDistribution(tx: Transaction, raceId: string, classIds: readonly string[], seed: number,
-  snapshot: RaceSnapshot): Promise<Map<string, string>> {
+  snapshot: RaceSnapshot, onlyEntryIds?: ReadonlySet<string>): Promise<Map<string, string>> {
   const planned = new Map<string, string>();
   for (const [index, classId] of [...classIds].sort().entries()) {
     const codes = await classVariantCodes(tx, raceId, classId);
     if (codes.length === 0) continue;
     const entries = await tx.select({ id: schema.entries.id, code: schema.entries.courseVariantCode }).from(schema.entries)
       .where(and(eq(schema.entries.raceId, raceId), eq(schema.entries.classId, classId)));
-    const open = entries.filter(row => row.code === null || !codes.includes(row.code)).map(row => row.id);
+    // Steg 49: med `onlyEntryIds` får bara de löparna en variant; andra utan variant räknas inte.
+    const valid = (row: { code: string | null }) => row.code !== null && codes.includes(row.code);
+    if (onlyEntryIds) entries.splice(0, entries.length, ...entries.filter(row => valid(row) || onlyEntryIds.has(row.id)));
+    const open = entries.filter(row => !valid(row)).map(row => row.id);
     const readouts = await latestReadouts(tx, raceId, open);
     const runners = entries.map(row => {
       const readout = readouts.get(row.id);

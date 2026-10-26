@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { courseDetailsResponseSchema, type CourseDetailsRequest } from "@o-tid/contracts";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
+import { forkingSv } from "../../i18n/forking-sv";
 import type { FieldErrors } from "../../lib/form-validation";
 import type { Base } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
@@ -71,5 +72,26 @@ export function createCourseDetailsActions(ws: Base & RaceDataActions & CourseEd
     } catch { if (current(op)) setDetailsMessage(text.courseDetailsError); }
     finally { finish(op); }
   }
-  return { startCourseDetails, cancelCourseDetails, changeCourseDetails, saveCourseDetails };
+  /** Steg 49: gafflingssätt (utjämnad eller fulgaffling). Påverkar bara rättvisekontrollen och sparas direkt. */
+  async function saveForkingMode(courseId: string, forkingMode: "BALANCED" | "UNEQUAL") {
+    if (writingRef.current || pending.current || !requireSession()) return;
+    const course = courseList?.courses.find(row => row.courseId === courseId);
+    if (!course || course.forkingMode === forkingMode) return;
+    const body: CourseDetailsRequest = { formatVersion: 1, requestId: crypto.randomUUID(), courseId,
+      lengthMeters: course.lengthMeters ?? null, climbMeters: course.climbMeters ?? null, forkingMode };
+    setDetailsMessage("");
+    const op = begin(true);
+    try {
+      const response = await request(`/courses/${courseId}/details`, op, { method: "POST",
+        headers: { "content-type": "application/json", "x-otid-csrf": csrf(), "idempotency-key": `course-details:${body.requestId}` },
+        body: JSON.stringify(body) });
+      if (!response.ok) throw new Error("Forking mode not saved");
+      const receipt = courseDetailsResponseSchema.parse(await json(response, op));
+      if (receipt.raceId !== raceId || receipt.requestId !== body.requestId) throw new Error("Forking mode receipt mismatch");
+      setDetailsMessage(forkingSv.modeSaved(forkingMode));
+      await readCourses(op);
+    } catch { if (current(op)) setDetailsMessage(text.courseDetailsError); }
+    finally { finish(op); }
+  }
+  return { startCourseDetails, cancelCourseDetails, changeCourseDetails, saveCourseDetails, saveForkingMode };
 }

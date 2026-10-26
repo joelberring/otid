@@ -105,6 +105,16 @@ export function RouteMap({ raceId, data }: { raceId: string; data: PublicLegRout
         onPointerMove={onPointerMove} onPointerUp={endDrag} onPointerCancel={endDrag}>
         <image href={`/api/public/races/${encodeURIComponent(raceId)}/map?v=${version}`} x={0} y={0} width={width} height={height}
           preserveAspectRatio="none" onError={() => setImageFailed(true)} />
+        {/* Steg 49: löparens bana (variant) ur banfilens lägen, med den valda sträckan markerad. */}
+        {data.course && <g className={styles.course} data-testid="route-course">
+          <polyline points={data.course.points.map(point => `${point.x},${point.y}`).join(" ")} vectorEffect="non-scaling-stroke" />
+          {data.course.points.map((point, index) => <g key={`${point.label}-${index}`} data-leg={point.leg || undefined}>
+            <circle cx={point.x} cy={point.y} r={marker * 1.6} vectorEffect="non-scaling-stroke" />
+            {point.label === "M" && <circle cx={point.x} cy={point.y} r={marker * 1.1} vectorEffect="non-scaling-stroke" />}
+            <text x={point.x + marker * 1.9} y={point.y - marker * 1.2} fontSize={marker * 2}>{point.label === "S" ? text.courseStart
+              : point.label === "M" ? text.courseFinish : point.label}</text>
+          </g>)}
+        </g>}
         {showOthers && others.map(runner => <g key={runner.publicResultId} className={styles.other}
           data-highlight={highlight === runner.publicResultId || undefined}>
           <polyline className={styles.halo} points={path(runner.points)} vectorEffect="non-scaling-stroke" />

@@ -15,6 +15,7 @@ import {
   removeParticipantRouteAsAdmin, saveParticipantRouteAsAdmin, saveRaceMapAsAdmin
 } from "../../src/race-map";
 import { accountOnRace } from "./accounts";
+import { projectRasterPixel } from "@o-tid/domain";
 
 /**
  * ADR-0171 / PLAN.md steg 16: karta och vägval i PostgreSQL. Admin laddar upp kartan, georefererar den och laddar
@@ -183,6 +184,17 @@ describe("ADR-0171 karta och vägval", () => {
     expect(points.at(-1)![0]).toBeCloseTo(470, -1);
     expect(points.at(-1)![1]).toBeCloseTo(230, -1);
     expect(leg!.map).toEqual({ width: 800, height: 600, version: image!.sha256.slice(0, 16) });
+    // Steg 49: utan kontrollernas lägen ritas ingen bana.
+    expect(leg!.course).toBeUndefined();
+    // Med lägen (som ur banfilen) ritas löparens bana; sträckans ändpunkter är markerade.
+    const [stored] = (await pool.query<{ transform: Parameters<typeof projectRasterPixel>[0] }>("select transform from race_map where race_id = $1", [f.raceId])).rows;
+    for (const [code, x, y] of [[31, 260, 330], [32, 470, 230]] as const) {
+      const place = projectRasterPixel(stored!.transform, x, y);
+      await pool.query("update control set latitude = $1, longitude = $2 where race_id = $3 and code = $4", [place.latitude, place.longitude, f.raceId, code]);
+    }
+    const placed = await readPublicLegRoutes(db, f.raceId, annaId, "31.1-32.1");
+    expect(placed!.course!.points.map(point => [point.label, Math.round(point.x), Math.round(point.y), point.leg])).toEqual([
+      ["31", 260, 330, true], ["32", 470, 230, true]]);
 
     // Start–31 för Anna och Cia: den valda först, andra löpare på samma sträcka att jämföra med. Inget före start:
     // fixturen står still vid starten i fem minuter, så sträckan börjar vid starttriangeln (140,500).

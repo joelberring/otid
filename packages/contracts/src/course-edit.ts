@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { rogainingSetupSchema } from "./rogaining";
 import { prefixedUuidPattern, uuidSchema as uuid } from "./ids";
+import { courseForkingSchema, courseForkingViewSchema, forkingModeSchema } from "./course-forking";
 
 /** Redigera bana (ADR-0169): ett ställe för att ändra en banas kontrollföljd, även när löpare läst ut. */
 const version = z.number().int().positive().max(2_147_483_647);
@@ -24,9 +25,24 @@ export const courseEditListResponseSchema = z.object({
     classes: z.array(z.object({ classId: uuid, name }).strict()).max(1000),
     entryCount: count, readOutCount: count,
     // Gafflad bana: varianterna med kontrollföljd och löpare. Tom lista = inte gafflad.
-    variants: z.array(z.object({ code: courseVariantCodeSchema, controlCodes, entryCount: count, readOutCount: count }).strict()).max(100),
+    variants: z.array(z.object({ code: courseVariantCodeSchema, controlCodes, entryCount: count, readOutCount: count,
+      /** Steg 49: variantens längd i meter när den är känd. */
+      lengthMeters: z.number().int().min(1).max(1_000_000).nullable().optional() }).strict()).max(100),
     // Gafflingskontroll: sträckor som inte finns lika många gånger i alla varianter.
-    unevenLegs: z.array(z.object({ from: legPoint, to: legPoint, variantCodes: z.array(courseVariantCodeSchema).max(1000) }).strict()).max(1000)
+    unevenLegs: z.array(z.object({ from: legPoint, to: legPoint, variantCodes: z.array(courseVariantCodeSchema).max(1000) }).strict()).max(1000),
+    /**
+     * Steg 49: strukturen (sparad, eller härledd ur varianterna) med varje variants val, för bilden. `stored` = sparad
+     * struktur; `convertible` = den härledda strukturen klarar reglerna ("Gör om till struktur"), `addedCount` = varianter
+     * som tillkommer då. Null för en bana utan varianter.
+     */
+    forking: courseForkingViewSchema.extend({ stored: z.boolean(), convertible: z.boolean(), addedCount: count }).nullable().optional(),
+    forkingMode: forkingModeSchema.optional(),
+    /** Steg 49: rättvisekontrollen per gafflingssätt (stoppar aldrig att banan sparas eller används). */
+    fairness: z.object({ level: z.enum(["NONE", "NOTICE", "WARNING"]),
+      warningLegs: z.array(z.object({ from: legPoint, to: legPoint, variantCodes: z.array(courseVariantCodeSchema).max(1000) }).strict()).max(1000),
+      noticeLegs: z.array(z.object({ from: legPoint, to: legPoint, variantCodes: z.array(courseVariantCodeSchema).max(1000) }).strict()).max(1000),
+      shortestMeters: z.number().int().min(1).max(1_000_000).nullable(), longestMeters: z.number().int().min(1).max(1_000_000).nullable()
+    }).strict().optional()
   }).strict()).max(1000),
   // ADR-0169 beslut 4: klasserna som tabell (bana, startsätt, anmälda, avlästa/resultat, status).
   classes: z.array(z.object({
@@ -41,9 +57,17 @@ export const courseEditListResponseSchema = z.object({
   rogaining: rogainingSetupSchema
 }).strict();
 
+/** Steg 49: en ny struktur ersätter banans kontroller och varianter; då anges varken kontroller eller variant. */
+const forkingOrControls = (value: { controlCodes?: unknown; variantCode?: unknown; forking?: unknown }, context: z.RefinementCtx) => {
+  if (value.forking === undefined ? value.controlCodes === undefined : value.controlCodes !== undefined || value.variantCode !== undefined) {
+    context.addIssue({ code: "custom", message: "Ange kontroller eller en gafflingsstruktur" });
+  }
+};
+
 export const courseEditPreviewRequestSchema = z.object({
-  formatVersion: z.literal(1), controlCodes, variantCode: courseVariantCodeSchema.optional()
-}).strict();
+  formatVersion: z.literal(1), controlCodes: controlCodes.optional(), variantCode: courseVariantCodeSchema.optional(),
+  forking: courseForkingSchema.optional()
+}).strict().superRefine(forkingOrControls);
 
 export const courseEditChangeSchema = z.object({
   entryId: uuid, displayName: z.string().min(1).max(400), className: name, before: status, after: status
@@ -51,7 +75,17 @@ export const courseEditChangeSchema = z.object({
 
 export const courseEditPreviewResponseSchema = z.object({
   formatVersion: z.literal(1), raceId: uuid, courseId: uuid, courseName: name, snapshotVersion: version,
-  variantCode: courseVariantCodeSchema.optional(), currentControlCodes: z.array(controlCode).max(1000), controlCodes,
+  variantCode: courseVariantCodeSchema.optional(), currentControlCodes: z.array(controlCode).max(1000),
+  /** Tom när en gafflingsstruktur prövas (varianterna står då i `forking`). */
+  controlCodes: z.array(controlCode).max(1000),
+  /**
+   * Steg 49: varianterna som strukturen ger, med koden som samma kontrollföljd hade förut (`previousCode`), koderna som
+   * försvinner, löpare som behåller sin kontrollföljd under en ny kod och löpare som får en ny variant.
+   */
+  forking: z.object({
+    variants: z.array(z.object({ code: courseVariantCodeSchema, controlCodes, previousCode: courseVariantCodeSchema.nullable() }).strict()).max(100),
+    removedCodes: z.array(courseVariantCodeSchema).max(100), renamedEntryCount: count, reassignedEntryCount: count
+  }).strict().optional(),
   readOutCount: count, becomesOkCount: count, becomesMispunchedCount: count, unchangedCount: count,
   notRecalculatedCount: count, changes: z.array(courseEditChangeSchema).max(10_000), requiresConfirmation: z.boolean(),
   /** Steg 44: avlästa löpare med ett manuellt beslut (manuell tid, godkänt, brutit …) som följer med till den nya banan. */
@@ -66,9 +100,9 @@ export const courseEditPreviewResponseSchema = z.object({
 });
 
 export const courseEditRequestSchema = z.object({
-  formatVersion: z.literal(1), requestId: uuid, courseId: uuid, controlCodes,
-  variantCode: courseVariantCodeSchema.optional(), confirmResultChanges: z.boolean()
-}).strict();
+  formatVersion: z.literal(1), requestId: uuid, courseId: uuid, controlCodes: controlCodes.optional(),
+  variantCode: courseVariantCodeSchema.optional(), forking: courseForkingSchema.optional(), confirmResultChanges: z.boolean()
+}).strict().superRefine(forkingOrControls);
 
 export const courseEditIdempotencyKeySchema = z.string().regex(
   prefixedUuidPattern("course-edit"));
@@ -93,7 +127,9 @@ export const courseEditResponseSchema = z.object({
 export const courseDetailsRequestSchema = z.object({
   formatVersion: z.literal(1), requestId: uuid, courseId: uuid,
   lengthMeters: z.number().int().min(1).max(1_000_000).nullable(),
-  climbMeters: z.number().int().min(0).max(100_000).nullable()
+  climbMeters: z.number().int().min(0).max(100_000).nullable(),
+  /** Steg 49: gafflingssätt (utjämnad eller fulgaffling); påverkar bara rättvisekontrollen. */
+  forkingMode: forkingModeSchema.optional()
 }).strict();
 export const courseDetailsIdempotencyKeySchema = z.string().regex(prefixedUuidPattern("course-details"));
 export const courseDetailsResponseSchema = z.object({

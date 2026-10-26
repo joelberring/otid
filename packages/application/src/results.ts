@@ -21,9 +21,12 @@ import type { Database } from "@o-tid/database";
 import { schema } from "@o-tid/database";
 import {
   compareResultStatuses,
-  rankClassResults
+  rankClassResults,
+  type CourseForking
 } from "@o-tid/domain";
 import { loadCourseVersionVariants, variantAfterClassChange } from "./course-variants";
+import { courseForkingView, loadCourseVersionForking } from "./course-forking";
+import { loadCoursePositions, withPositionLengths } from "./course-positions";
 import { bumpReadoutPackageVersion } from "./snapshot";
 import { lockEntryForRevision, lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
@@ -460,11 +463,26 @@ async function publicResultStanding(tx: DatabaseTransaction, raceId: string): Pr
 /** Klassernas banor med längd och stigning för listornas rubriker (PLAN.md steg 25). */
 export async function publicClassCourses(tx: DatabaseTransaction, raceId: string): Promise<PublicClassCourse[]> {
   const rows = await tx.select({ className: schema.classes.name, courseName: schema.courses.name,
-    lengthMeters: schema.courses.lengthMeters, climbMeters: schema.courses.climbMeters }).from(schema.classes)
+    lengthMeters: schema.courses.lengthMeters, climbMeters: schema.courses.climbMeters, courseVersionId: schema.classes.courseVersionId,
+    courseId: schema.courses.id })
+    .from(schema.classes)
     .innerJoin(schema.courseVersions, eq(schema.courseVersions.id, schema.classes.courseVersionId))
     .innerJoin(schema.courses, eq(schema.courses.id, schema.courseVersions.courseId))
     .where(eq(schema.classes.raceId, raceId)).orderBy(asc(schema.classes.name)).limit(1_000);
-  return rows;
+  // Steg 49: gafflad bana: strukturen och varje variants val för "Visa gafflingar".
+  const versionIds = rows.map((row) => row.courseVersionId);
+  const variants = await loadCourseVersionVariants(tx, versionIds);
+  const forkings = variants.size === 0 ? new Map<string, CourseForking>() : await loadCourseVersionForking(tx, versionIds);
+  const result: PublicClassCourse[] = [];
+  for (const { courseVersionId, courseId, ...row } of rows) {
+    const own = variants.get(courseVersionId) ?? [];
+    // Längd per variant: banfilens, annars ur kontrollernas lägen.
+    const measured = own.length === 0 ? own : withPositionLengths(own, await loadCoursePositions(tx, raceId, courseId,
+      own.flatMap(variant => variant.controlCodes)));
+    const view = courseForkingView(measured, forkings.get(courseVersionId));
+    result.push({ ...row, ...(view ? { forking: { items: view.items, variants: view.variants } } : {}) } as PublicClassCourse);
+  }
+  return result;
 }
 
 /**
@@ -536,9 +554,11 @@ export async function publicResultDetail(
     "publicResultId" in candidate && candidate.publicResultId === publicResultId
   );
   if (!result || !("publicResultId" in result)) return { status: "not-found" };
+  // Steg 49: klassens bana följer med bara när den är gafflad ("Visa gafflingar").
+  const classCourse = "classCourses" in results ? results.classCourses?.find((row) => row.className === result.className && row.forking) : undefined;
   return {
     status: "ok",
-    response: publicResultDetailResponseSchema.parse({ formatVersion: 1, result })
+    response: publicResultDetailResponseSchema.parse({ formatVersion: 1, result, ...(classCourse ? { classCourse } : {}) })
   };
 }
 

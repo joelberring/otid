@@ -10,6 +10,8 @@ import { GpxValidationError, parseGpxTrack } from "@o-tid/iof-xml";
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { publicResultTimings, type PublicResultTiming } from "./results";
+import { coursePoints, loadCoursePositions } from "./course-positions";
+import { storedResultVariantControls } from "./course-variants";
 import { imageDimensions } from "./image-dimensions";
 import { UUID_PATTERN as uuid, sha256Hex as sha256 } from "./serialization";
 
@@ -245,6 +247,35 @@ export async function readPublicRouteIndex(db: Database, raceId: string): Promis
   }) ?? { legs: {} };
 }
 
+/**
+ * Steg 49: löparens bana på kartan (variant för en gafflad klass): start, kontroller och mål med kända lägen som pixlar,
+ * med sträckans ändpunkter markerade. Undefined när färre än två lägen är kända.
+ */
+async function runnerCourseOnMap(tx: DatabaseTransaction, raceId: string, timing: PublicResultTiming, leg: string,
+  transform: NonNullable<Awaited<ReturnType<typeof georeferencedMap>>>["transform"]) {
+  const [row] = await tx.select({ courseVersionId: schema.classes.courseVersionId, courseId: schema.courseVersions.courseId,
+    code: schema.entries.courseVariantCode }).from(schema.entries)
+    .innerJoin(schema.classes, eq(schema.classes.id, schema.entries.classId))
+    .innerJoin(schema.courseVersions, eq(schema.courseVersions.id, schema.classes.courseVersionId))
+    .where(and(eq(schema.entries.id, timing.entryId), eq(schema.entries.raceId, raceId)));
+  if (!row) return undefined;
+  const variant = await storedResultVariantControls(tx, row.courseVersionId, row.code, timing.splits.map(split => split.controlCode));
+  const codes = variant ? variant.controls.map(control => control.controlCode) : (await tx.select({ code: schema.controls.code })
+    .from(schema.courseControls).innerJoin(schema.controls, eq(schema.controls.id, schema.courseControls.controlId))
+    .where(eq(schema.courseControls.courseVersionId, row.courseVersionId)).orderBy(asc(schema.courseControls.sequence))).map(item => item.code);
+  const positions = await loadCoursePositions(tx, raceId, row.courseId, codes);
+  const seen = new Map<number, number>();
+  const keys = ["S", ...codes.map(code => { const count = (seen.get(code) ?? 0) + 1; seen.set(code, count); return `${code}.${count}`; }), "F"];
+  const [from, to] = leg.split("-");
+  const points = coursePoints(positions, codes).flatMap((point, index) => {
+    if (!point) return [];
+    const [x, y] = projectRoute(transform, [[0, point.latitude, point.longitude]])[0]!;
+    const label = index === 0 ? "S" : index === codes.length + 1 ? "M" : String(codes[index - 1]);
+    return [{ label, x, y, leg: keys[index] === from || keys[index] === to }];
+  });
+  return points.length >= 2 ? { points } : undefined;
+}
+
 /** Andra löpares vägval som visas för jämförelse på samma sträcka (snabbast först). */
 const MAX_COMPARED_ROUTES = 50;
 
@@ -276,7 +307,9 @@ export async function readPublicLegRoutes(db: Database, raceId: string, publicRe
     const selected = runners.find(runner => runner.selected);
     if (!selected) return undefined;
     const others = runners.filter(runner => !runner.selected).sort((a, b) => a.legMs - b.legMs).slice(0, MAX_COMPARED_ROUTES);
+    const timing = [...timings.values()].find(row => row.publicResultId === publicResultId);
+    const course = timing ? await runnerCourseOnMap(tx, raceId, timing, leg, map.transform) : undefined;
     return publicLegRoutesSchema.parse({ formatVersion: 1, raceId, leg, map: { width: map.width, height: map.height,
-      version: map.sha256.slice(0, 16) }, runners: [selected, ...others] });
+      version: map.sha256.slice(0, 16) }, runners: [selected, ...others], ...(course ? { course } : {}) });
   });
 }

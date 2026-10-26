@@ -1,4 +1,4 @@
-import { eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
 import { RELAY_MAX_LEGS, relayClassLegStarts, relayParallelChangeover, type StoredResultStatus } from "@o-tid/domain";
 import { loadRelayClassConfigs, loadRelayLegEntries, loadRelayLegFinishTimes, loadRelayLegResults, loadRelayTeams, type RelayClassConfig,
@@ -31,12 +31,37 @@ export async function lockRelayClasses(tx: Executor, classIds: readonly string[]
   }
 }
 
-/** Låser stafettklassen för brickans deltagare (anropas före bedömningen av en avläsning). */
+/**
+ * Steg 54 (ADR-0177): utan flygande omstart beror ett lags starter bara på lagets egna växlingar. Då låses klassen delat
+ * och laget ensamt, så att avläsningar för olika lag i samma klass (25-manna med flera avläsningsdatorer) görs samtidigt.
+ * Det som räknar hela klassen (flygande omstart, ändrade starttider) låser klassen ensam och väntar ut dem. Ordningen är
+ * alltid klassen före laget.
+ */
+export async function lockRelayTeams(tx: Executor, classId: string, teamIds: readonly string[]): Promise<void> {
+  await tx.execute(sql`select pg_advisory_xact_lock_shared(hashtextextended(${"relay-class:" + classId}, 0))`);
+  for (const teamId of [...new Set(teamIds)].sort()) {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${"relay-team:" + teamId}, 0))`);
+  }
+}
+
+async function hasFlyingRestart(tx: Executor, classId: string): Promise<boolean> {
+  const [row] = await tx.select({ leg: schema.relayLegs.leg }).from(schema.relayLegs)
+    .where(and(eq(schema.relayLegs.classId, classId), eq(schema.relayLegs.startMethod, "FLYING_RESTART"))).limit(1);
+  return row !== undefined;
+}
+
+/**
+ * Låser för brickans deltagare (anropas före bedömningen av en avläsning): hela klassen med flygande omstart, annars
+ * laget (steg 54). Fick klassen flygande omstart medan låset togs görs avläsningen om (avläsningsdatorn försöker igen).
+ */
 export async function lockRelayClassOfEntry(tx: Executor, entryId: string | undefined): Promise<void> {
   if (!entryId) return;
   const [row] = await tx.select({ classId: schema.entries.classId, teamId: schema.entries.teamId }).from(schema.entries)
     .where(eq(schema.entries.id, entryId));
-  if (row?.teamId) await lockRelayClasses(tx, [row.classId]);
+  if (!row?.teamId) return;
+  if (await hasFlyingRestart(tx, row.classId)) { await lockRelayClasses(tx, [row.classId]); return; }
+  await lockRelayTeams(tx, row.classId, [row.teamId]);
+  if (await hasFlyingRestart(tx, row.classId)) throw new Error("Stafettklassen ändrades under avläsningen; försök igen");
 }
 
 export async function synchronizeRelayTeams(tx: Transaction, raceId: string, teamIds: readonly string[],
@@ -80,7 +105,8 @@ export async function synchronizeRelayClasses(tx: Transaction, raceId: string, c
     const changed = await recomputeRelayStarts(tx, raceId, classIds, teamIds);
     if (changed.length === 0) return { changedStarts, recalculated };
     changedStarts += changed.length;
-    const snapshot = await loadRaceSnapshot(tx, raceId);
+    // Steg 54: bara lagen som fick nya starter (deras sträckor räknas om), inte hela tävlingen.
+    const snapshot = await loadRaceSnapshot(tx, raceId, { entryIds: changed.map(row => row.entryId) });
     for (const classId of [...new Set(changed.map(row => row.classId))]) {
       const raceClass = snapshot.classes.find(row => row.id === classId);
       if (!raceClass) throw new Error("Stafettklassen saknas");
@@ -101,12 +127,20 @@ export async function synchronizeRelayClasses(tx: Transaction, raceId: string, c
  */
 export async function recomputeRelayStarts(tx: Transaction, raceId: string, classIds: readonly string[], teamIds?: readonly string[])
   : Promise<{ entryId: string; classId: string }[]> {
-  await lockRelayClasses(tx, classIds);
-  const configs = await loadRelayClassConfigs(tx, raceId);
   const onlyTeams = teamIds === undefined ? undefined : new Set(teamIds);
-  const wholeClass = (classId: string) => onlyTeams === undefined ||
-    (configs.get(classId)?.legs.some(leg => leg.startMethod === "FLYING_RESTART") ?? true);
-  const teams = (await loadRelayTeams(tx, raceId)).filter(team => classIds.includes(team.classId) &&
+  const flying = new Map(await Promise.all(classIds.map(async classId => [classId, await hasFlyingRestart(tx, classId)] as const)));
+  const wholeClass = (classId: string) => onlyTeams === undefined || flying.get(classId) !== false;
+  // Steg 54: hela klasser låses ensamma, klasser utan flygande omstart bara för de ändrade lagen (klassen delat).
+  await lockRelayClasses(tx, classIds.filter(wholeClass));
+  const allTeams = await loadRelayTeams(tx, raceId);
+  for (const classId of [...classIds].filter(classId => !wholeClass(classId)).sort()) {
+    await lockRelayTeams(tx, classId, allTeams.filter(team => team.classId === classId && onlyTeams!.has(team.id)).map(team => team.id));
+  }
+  const configs = await loadRelayClassConfigs(tx, raceId);
+  if (classIds.some(classId => !wholeClass(classId) && configs.get(classId)?.legs.some(leg => leg.startMethod === "FLYING_RESTART"))) {
+    throw new Error("Stafettklassen ändrades under omräkningen; försök igen");
+  }
+  const teams = allTeams.filter(team => classIds.includes(team.classId) &&
     (wholeClass(team.classId) || onlyTeams!.has(team.id)));
   const entries = await loadRelayLegEntries(tx, raceId, teams.map(team => team.id));
   const entriesByTeam = new Map<string, RelayLegEntry[]>();

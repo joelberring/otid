@@ -112,7 +112,8 @@ export async function storeIngestedReadout(tx: IngestTransaction, raceId: string
     .where(and(eq(schema.cardAssignments.raceId, raceId), eq(schema.cardAssignments.active, true),
       eq(schema.cardAssignments.cardNumber, readoutRow.cardNumber))).limit(1);
   await lockRelayClassOfEntry(tx, cardOwner?.entryId);
-  const snapshot = await loadRaceSnapshot(tx, raceId);
+  // Steg 54: bara brickans löpare och laget, inte hela tävlingen (samma bedömning, ADR-0177).
+  const snapshot = await loadRaceSnapshot(tx, raceId, { cardNumber: readoutRow.cardNumber });
   const normalized = normalizedReadout(readoutRow);
   // Steg 31 (B4): har brickans deltagare redan ett resultat från en annan avläsning av samma bricka (lånad bricka,
   // två löpare efter varandra) skrivs det inte över. Avläsningen blir okänd tills någon väljer vem den hör till.

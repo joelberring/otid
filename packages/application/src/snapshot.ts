@@ -1,8 +1,9 @@
-import { asc, eq, sql, and, isNotNull, isNull } from "drizzle-orm";
+import { asc, eq, sql, and, inArray, isNotNull, isNull, or } from "drizzle-orm";
 import type { Database } from "@o-tid/database";
 import { schema } from "@o-tid/database";
 import type { RaceSnapshot } from "@o-tid/domain";
 import { compareText } from "./serialization";
+import { inUuids } from "./sql-ids";
 import { loadTeamSprintRunners, teamSprintRunnerLayout } from "./team-sprint-readout";
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
@@ -58,7 +59,36 @@ export function sortRaceSnapshotForPackage(snapshot: RaceSnapshot) {
   };
 }
 
-export async function loadRaceSnapshot(db: DbExecutor, raceId: string): Promise<RaceSnapshot> {
+/**
+ * Steg 54 (ADR-0177): en avläsning behöver bara löparens (eller lagets) del av tävlingen, inte alla anmälda. Med `scope`
+ * innehåller ögonblicksbilden alla klasser, banor och rättningar men bara deltagarna som har brickan (`cardNumber`, även
+ * en inaktiv koppling) eller anges (`entryIds`), deras lagkamrater (stafett, teamsprint) och just de deltagarnas och
+ * brickans kopplingar. Resultatmotorn ser då samma sak för löparen som i hela paketet: bedömningen läser bara brickans
+ * ägare, dennes klass och bana, lagets sträckor och rättningarna. I en 25-mannastafett med 300 lag läses 25 deltagare i
+ * stället för 7 500.
+ */
+export type RaceSnapshotScope = { readonly cardNumber?: string; readonly entryIds?: readonly string[] };
+
+/** Deltagarna i `scope` med lagkamrater (inte strukna), eller undefined för hela tävlingen. */
+async function scopedEntryIds(db: DbExecutor, raceId: string, scope: RaceSnapshotScope | undefined): Promise<string[] | undefined> {
+  if (!scope) return undefined;
+  const seeds = new Set(scope.entryIds ?? []);
+  if (scope.cardNumber !== undefined) {
+    for (const row of await db.select({ entryId: schema.cardAssignments.entryId }).from(schema.cardAssignments)
+      .where(and(eq(schema.cardAssignments.raceId, raceId), eq(schema.cardAssignments.cardNumber, scope.cardNumber)))) seeds.add(row.entryId);
+  }
+  if (seeds.size === 0) return [];
+  const ids = [...seeds];
+  const team = db.select({ teamId: schema.entries.teamId }).from(schema.entries)
+    .where(and(inUuids(schema.entries.id, ids), isNotNull(schema.entries.teamId)));
+  const rows = await db.select({ id: schema.entries.id }).from(schema.entries)
+    .where(and(eq(schema.entries.raceId, raceId), isNull(schema.entries.struckAt),
+      or(inUuids(schema.entries.id, ids), inArray(schema.entries.teamId, team))));
+  return rows.map((row) => row.id);
+}
+
+export async function loadRaceSnapshot(db: DbExecutor, raceId: string, scope?: RaceSnapshotScope): Promise<RaceSnapshot> {
+  const scoped = await scopedEntryIds(db, raceId, scope);
   const [raceRow] = await db.select().from(schema.races).where(eq(schema.races.id, raceId));
   if (!raceRow) throw new Error("Loppet finns inte");
   const [eventRow] = await db.select().from(schema.events).where(eq(schema.events.id, raceRow.eventId));
@@ -133,7 +163,8 @@ export async function loadRaceSnapshot(db: DbExecutor, raceId: string): Promise<
     givenName: schema.entries.givenName, familyName: schema.entries.familyName, organisationName: schema.entries.organisationName,
     fixedStartTime: schema.entries.fixedStartTime, courseVariantCode: schema.entries.courseVariantCode, teamId: schema.entries.teamId,
     relayLeg: schema.entries.relayLeg, externalId: schema.entries.externalId }).from(schema.entries)
-    .where(and(eq(schema.entries.raceId, raceId), isNull(schema.entries.struckAt)))
+    .where(and(eq(schema.entries.raceId, raceId), isNull(schema.entries.struckAt),
+      ...(scoped ? [inUuids(schema.entries.id, scoped)] : [])))
     .orderBy(asc(schema.entries.id));
   // Steg 47: stafettsträckor med egen bana; sträcklöparen bär banan i paketet.
   const [anyLeg] = await db.select({ leg: schema.relayLegs.leg }).from(schema.relayLegs).where(eq(schema.relayLegs.raceId, raceId)).limit(1);
@@ -142,9 +173,11 @@ export async function loadRaceSnapshot(db: DbExecutor, raceId: string): Promise<
   const legCourse = new Map(legCourseRows.flatMap((row) => row.courseVersionId ? [[`${row.classId}:${row.leg}`, row.courseVersionId] as const] : []));
   // Steg 48: teamsprint – varje sträcklöpares del av brickan (löparens sträckor i ordning, växlingskontrollen).
   const teamSprint = !anyLeg ? new Map<string, NonNullable<RaceSnapshot["entries"][number]["teamSprint"]>>()
-    : await loadTeamSprintParts(db, raceId);
+    : await loadTeamSprintParts(db, raceId, scoped);
   const assignmentRows = await db.select().from(schema.cardAssignments)
-    .where(eq(schema.cardAssignments.raceId, raceId))
+    .where(and(eq(schema.cardAssignments.raceId, raceId), ...(scoped ? [scope?.cardNumber !== undefined
+      ? or(inUuids(schema.cardAssignments.entryId, scoped), eq(schema.cardAssignments.cardNumber, scope.cardNumber))!
+      : inUuids(schema.cardAssignments.entryId, scoped)] : [])))
     .orderBy(asc(schema.cardAssignments.id));
   const correctionRows = await db.select().from(schema.raceStationCorrections)
     .where(and(eq(schema.raceStationCorrections.raceId, raceId), isNull(schema.raceStationCorrections.removedAt)))
@@ -230,15 +263,18 @@ export async function loadRaceSnapshot(db: DbExecutor, raceId: string): Promise<
  * Steg 48: teamsprint (ADR-0174 beslut 7). För klasser med växlingskontroll: varje sträcklöpare hör till brickans ägare
  * (`relay_card_entry_id`, annars sig själv); löparens sträckor i ordning ger delens nummer. Lagets sista sträcka slutar vid målet.
  */
-export async function loadTeamSprintParts(db: DbExecutor, raceId: string) {
-  const rows = await db.select({ id: schema.entries.id, teamId: schema.entries.teamId, leg: schema.entries.relayLeg,
+export async function loadTeamSprintParts(db: DbExecutor, raceId: string, entryIds?: readonly string[]) {
+  const only = entryIds === undefined ? undefined : new Set(entryIds);
+  const rows = (await db.select({ id: schema.entries.id, teamId: schema.entries.teamId, leg: schema.entries.relayLeg,
     cardEntryId: schema.entries.relayCardEntryId, classId: schema.entries.classId, code: schema.classes.relayChangeoverCode })
     .from(schema.entries).innerJoin(schema.classes, eq(schema.classes.id, schema.entries.classId))
     .where(and(eq(schema.entries.raceId, raceId), isNotNull(schema.classes.relayChangeoverCode), isNotNull(schema.entries.teamId),
-      eq(schema.classes.relayReadoutMode, "LAST_LEG"), isNull(schema.entries.struckAt)));
+      eq(schema.classes.relayReadoutMode, "LAST_LEG"), isNull(schema.entries.struckAt))))
+    // Steg 54: med en avgränsad ögonblicksbild bara de valda (hela lag, så delarna räknas som för hela tävlingen).
+    .filter((row) => only === undefined || only.has(row.id));
   const result = new Map<string, NonNullable<RaceSnapshot["entries"][number]["teamSprint"]>>();
   // Steg 50: utläsning efter varje sträcka – delningen följer vilken utläsning varje sträckas resultat bygger på.
-  for (const runner of await loadTeamSprintRunners(db, raceId)) {
+  for (const runner of await loadTeamSprintRunners(db, raceId, undefined, only)) {
     for (const [entryId, part] of teamSprintRunnerLayout(runner)) result.set(entryId, part);
   }
   if (rows.length === 0) return result;

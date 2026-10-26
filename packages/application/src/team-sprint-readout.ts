@@ -31,7 +31,9 @@ export interface TeamSprintRunner {
 }
 
 /** Löparna med flera sträckor i klasser med utläsning efter varje sträcka (bara brickans ägare om `ownerEntryId`). */
-export async function loadTeamSprintRunners(db: DbExecutor, raceId: string, ownerEntryId?: string): Promise<TeamSprintRunner[]> {
+export async function loadTeamSprintRunners(db: DbExecutor, raceId: string, ownerEntryId?: string,
+  /** Steg 54: bara löpare vars alla sträckor finns här (en avgränsad ögonblicksbild med hela lag). */
+  onlyEntryIds?: ReadonlySet<string>): Promise<TeamSprintRunner[]> {
   const rows = await db.select({ id: schema.entries.id, teamId: schema.entries.teamId, leg: schema.entries.relayLeg,
     cardEntryId: schema.entries.relayCardEntryId, classId: schema.entries.classId, code: schema.classes.relayChangeoverCode })
     .from(schema.entries).innerJoin(schema.classes, eq(schema.classes.id, schema.entries.classId))
@@ -41,6 +43,7 @@ export async function loadTeamSprintRunners(db: DbExecutor, raceId: string, owne
   for (const row of rows) {
     const key = row.cardEntryId ?? row.id;
     if (ownerEntryId !== undefined && key !== ownerEntryId) continue;
+    if (onlyEntryIds !== undefined && !onlyEntryIds.has(row.id)) continue;
     byRunner.set(key, [...byRunner.get(key) ?? [], row]);
   }
   const groups = [...byRunner].filter(([, legs]) => legs.length > 1);

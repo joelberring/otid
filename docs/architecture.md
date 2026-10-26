@@ -78,17 +78,22 @@ Gemensamma hjälpare: UUID-mönstret och idempotensnycklarnas form (`UUID_PATTER
 - De publika listorna (resultat, stafett, radio, Live, startlistan) räknas en gång per tävlingsversion i webbprocessen
   (`lib/public-race-cache.ts`, `lib/public-race-data.ts`) och delas av alla besökare, som JSON och gzip med ETag. Versionen är
   `publicRaceContentVersion` (`application/src/public-race-version.ts`: resultatströmmens markör, `snapshot_version`,
-  fastställandet, startlistans publicering, publiceringen); det som inte syns i den täcks av en maxålder (15 s, Live 5 s).
-  Högst en uträkning åt gången och högst en tredjedel av processens tid; under en uträkning får besökaren den senaste
-  listan (högst 3 s gammal) direkt. Grinden (`publicRaceResponse`) körs som förut för varje anrop. Sidor med en stor lista
-  (fler än 400 rader) skickar inte med listan utan hämtar den från API:et.
+  fastställandet, startlistans publicering, publiceringen, banornas publicering); det som inte syns i den täcks av en
+  maxålder (15 s, Live 5 s). Högst en uträkning åt gången och högst en tredjedel av processens tid. Har bara nya resultat
+  kommit in får besökaren den senaste listan (högst 3 s gammal) direkt, märkt `x-otid-stale`, och sidan hämtar igen efter
+  3–4 s; är något annat ändrat (fastställt eller ångrat, klasser, lag, banor) väntar anropet på den nya listan, och en
+  uträkning som började före ändringen görs om. Sidorna läser versionen direkt (`exact`), API:et högst 250 ms gammal.
+  Grinden (`publicRaceResponse`) körs som förut för varje anrop. Sidor med en stor lista (fler än 400 rader) skickar inte
+  med listan utan hämtar den från API:et.
 - Resultatströmmen samlar markörer per tävling i 250 ms, räknar listorna för den nya versionen och väcker sedan
-  besökarna. Sidorna sprider hämtningen (0–1 s, minst 3 s mellan väckta hämtningar) och hämtar själva bara var 15:e
+  besökarna. Sidorna sprider hämtningen (0–1 s, minst 3 s mellan väckta hämtningar) och hämtar själva bara var 10:e
   sekund medan strömmen är öppen (annars var femte); resultatsidan hämtar stafett och radio bara när de har innehåll
   (annars var 30:e sekund).
 - Läsningar som PostgreSQL avbryter för en samtidig ändring (40001) görs om (`lib/read-conflict.ts`), både i cachen och
   för arbetsytans läsningar.
-- Drift: två webbinstanser (`web`, `web2`) bakom Caddy, eftersom en Node-process bara använder en kärna.
+- Drift: två webbinstanser (`web`, `web2`) bakom Caddy, eftersom en Node-process bara använder en kärna. Var instans har
+  sin cache och lyssnar själv på resultatströmmen; ett svar från den instans som inte hunnit räkna är märkt `x-otid-stale`
+  eller väntar in den nya listan, så att en besökare aldrig blir stående med en äldre lista.
 
 ## Var resultatlogiken finns
 

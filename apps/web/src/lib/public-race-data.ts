@@ -2,7 +2,7 @@ import {
   coursesArePublic, getPublicStartList, publicRaceContentVersion, publicRelayResults, publicResultDetailFrom, publicResults, readPublicLiveFrom, readPublicRadio
 } from "@o-tid/application";
 import { db } from "./db";
-import { createPublicRaceCache } from "./public-race-cache";
+import { createPublicRaceCache, onlyNewResults } from "./public-race-cache";
 import { publicStartListValue } from "./public-start-list-route";
 
 /**
@@ -10,9 +10,11 @@ import { publicStartListValue } from "./public-start-list-route";
  * API:erna läser här; grinden (`publicRaceResponse`/`requirePublicRace`) körs som förut för varje anrop.
  */
 const globalCache = globalThis as typeof globalThis & { oTidPublicRaceCache?: ReturnType<typeof createPublicRaceCache> };
-const cache = globalCache.oTidPublicRaceCache ??= createPublicRaceCache({ version: (raceId) => publicRaceContentVersion(db, raceId) });
+const cache = globalCache.oTidPublicRaceCache ??= createPublicRaceCache({ version: (raceId) => publicRaceContentVersion(db, raceId),
+  staleAllowed: onlyNewResults });
 
-type Read = { fresh?: boolean };
+/** `fresh`: vänta på den aktuella versionen (väckningen). `exact`: läs versionen nu (sidorna, efter en sparad ändring). */
+type Read = { fresh?: boolean; exact?: boolean };
 export const cachedPublicResults = (raceId: string, read: Read = {}) => cache.read(raceId, "results", () => publicResults(db, raceId), read);
 export const cachedPublicRelayResults = (raceId: string, read: Read = {}) =>
   cache.read(raceId, "relay", () => publicRelayResults(db, raceId), read);
@@ -34,18 +36,19 @@ export async function warmPublicRaceLists(raceId: string): Promise<void> {
 }
 
 /** Den publicerade (eller löpande) startlistan, eller null. */
-export const cachedPublicStartList = (raceId: string) => cache.read(raceId, "start-list", async () => {
+export const cachedPublicStartList = (raceId: string, read: Read = {}) => cache.read(raceId, "start-list", async () => {
   return publicStartListValue(await getPublicStartList(db, raceId));
-});
+}, read);
 
 /** Steg 52: om banorna är publika (ADR-0176), per tävlingsversion; versionen tar med arrangörens val. */
-export const cachedCoursesArePublic = (raceId: string) =>
-  cache.read(raceId, "courses-public", () => db.transaction(tx => coursesArePublic(tx, raceId)));
+export const cachedCoursesArePublic = (raceId: string, read: Read = {}) =>
+  cache.read(raceId, "courses-public", () => db.transaction(tx => coursesArePublic(tx, raceId)), read);
 
-/** En deltagares rad ur den cachade resultatlistan. */
-export async function cachedPublicResultDetail(raceId: string, publicResultId: string) {
-  const [results, coursesPublic] = await Promise.all([cachedPublicResults(raceId), cachedCoursesArePublic(raceId)]);
-  return publicResultDetailFrom(results.value, publicResultId, coursesPublic.value);
+/** En deltagares rad ur den cachade resultatlistan; `stale` som i `CachedPublic`. */
+export async function cachedPublicResultDetail(raceId: string, publicResultId: string, read: Read = {}) {
+  const [results, coursesPublic] = await Promise.all([cachedPublicResults(raceId, read), cachedCoursesArePublic(raceId, read)]);
+  return { ...publicResultDetailFrom(results.value, publicResultId, coursesPublic.value),
+    stale: results.stale === true || coursesPublic.stale === true };
 }
 
 /**

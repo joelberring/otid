@@ -5,9 +5,17 @@ import { startPublicResultEventStream } from "./public-result-event-stream-clien
 
 /**
  * Steg 51: när resultatströmmen är öppen väcker den sidan vid varje nytt resultat, och sidan hämtar då av sig själv bara
- * var 15:e sekund, för det som inte väcker strömmen (till exempel "Resultaten är klara"). Utan öppen ström var femte sekund.
+ * var 10:e sekund, för det som inte väcker strömmen (till exempel "Resultaten är klara"). Utan öppen ström var femte sekund.
  */
-export const STREAM_OPEN_INTERVAL_MS = 15_000;
+export const STREAM_OPEN_INTERVAL_MS = 10_000;
+
+/**
+ * Steg 51: gällde svaret en äldre version (servern räknade just om listan, `x-otid-stale`) hämtar sidan igen efter
+ * 3–4 s, lika glest som väckningarna under en målrusning. Annars kunde en besökare som öppnade sidan just efter sista
+ * avläsningen (och därför inte väcks av den) stå kvar med listan före avläsningen tills reservhämtningen.
+ */
+export const STALE_RETRY_MS = { minMs: 3_000, spreadMs: 1_000 };
+export type PublicRead<T> = (raceId: string, onStale: () => void) => Promise<T>;
 
 /** Ska sidans egen timer hämta nu? Med öppen ström bara när förra hämtningen är äldre än reservintervallet. */
 export function timerShouldFetch(streamOpen: boolean, lastFetchAt: number, now: number, intervalMs: number): boolean {
@@ -20,7 +28,7 @@ export function timerShouldFetch(streamOpen: boolean, lastFetchAt: number, now: 
  * ligger kvar; nästa försök sker vid nästa intervall eller väckning. `online` följer webbläsarens nätstatus.
  * `active` false pausar hämtningen (arbetsytan när Resultat inte visas).
  */
-export function usePublicRaceData<T>(raceId: string, read: (raceId: string) => Promise<T>, initial?: T, active = true, intervalMs = 5_000) {
+export function usePublicRaceData<T>(raceId: string, read: PublicRead<T>, initial?: T, active = true, intervalMs = 5_000) {
   const [data, setData] = useState<T | undefined>(initial);
   const [failed, setFailed] = useState(false);
   const [online, setOnline] = useState(true);
@@ -30,12 +38,18 @@ export function usePublicRaceData<T>(raceId: string, read: (raceId: string) => P
   useEffect(() => {
     if (!active) return;
     let stopped = false;
+    let retry: number | undefined;
+    const retryStale = () => {
+      if (retry !== undefined || stopped) return;
+      retry = window.setTimeout(() => { retry = undefined; void refresh(); },
+        STALE_RETRY_MS.minMs + Math.random() * STALE_RETRY_MS.spreadMs);
+    };
     const refresh = async () => {
       if (running.current || stopped) return;
       running.current = true;
       lastFetch.current = Date.now();
       try {
-        const value = await reader.current(raceId);
+        const value = await reader.current(raceId, retryStale);
         warned.current = false;
         if (!stopped) { setData(value); setFailed(false); }
       } catch (error) {
@@ -62,7 +76,7 @@ export function usePublicRaceData<T>(raceId: string, read: (raceId: string) => P
     setOnline(navigator.onLine);
     window.addEventListener("online", network); window.addEventListener("offline", network);
     return () => {
-      stopped = true; window.clearInterval(timer); stopStream?.();
+      stopped = true; window.clearInterval(timer); window.clearTimeout(retry); stopStream?.();
       window.removeEventListener("online", network); window.removeEventListener("offline", network);
     };
     // `initial` är bara startvärdet: effekten startas om bara för en annan tävling, paus eller ett annat intervall.

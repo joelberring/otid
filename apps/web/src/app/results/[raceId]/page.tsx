@@ -25,9 +25,9 @@ export default async function ResultsPage({ params }: { params: Promise<{ raceId
   // resultatlistan utan cache och ser gafflingsbilden även när banorna är hemliga publikt.
   const staff = await raceStaff(raceId);
   const [summary, results, relay, finalization, radio] = await Promise.all([publicRaceSummary(db, raceId),
-    staff ? publicResults(db, raceId, { staff }) : cachedPublicResults(raceId).then(entry => entry.value),
-    cachedPublicRelayResults(raceId).then(entry => entry.value),
-    readLatestPublicFrozenRaceFinalization(db, raceId), cachedPublicRadio(raceId).then(entry => entry.value)]);
+    staff ? publicResults(db, raceId, { staff }) : cachedPublicResults(raceId, { exact: true }).then(entry => entry.value),
+    cachedPublicRelayResults(raceId, { exact: true }).then(entry => entry.value),
+    readLatestPublicFrozenRaceFinalization(db, raceId), cachedPublicRadio(raceId, { exact: true }).then(entry => entry.value)]);
   // Sträcktidsanalysen (PLAN.md steg 16) finns när någon individuell klass har sträcktider.
   let analysis = analysisByResults.get(results);
   if (analysis === undefined) {

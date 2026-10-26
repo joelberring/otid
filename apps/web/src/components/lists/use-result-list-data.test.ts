@@ -6,12 +6,13 @@ const results = { formatVersion: 7, results: [] };
 const noRelay = { formatVersion: 1, classes: [] };
 const radioOff = { formatVersion: 1, raceId, enabled: false, timeZone: "Europe/Stockholm", classes: [], latest: [] };
 
-function stubFetch(relay: unknown, radio: unknown) {
+function stubFetch(relay: unknown, radio: unknown, staleRelay = false) {
   const calls: string[] = [];
   vi.stubGlobal("fetch", async (url: string) => {
     calls.push(url.split("/").at(-1)!);
     const body = url.endsWith("/results") ? results : url.endsWith("/relay-results") ? relay : radio;
-    return new Response(JSON.stringify(body), { status: 200 });
+    const headers: Record<string, string> = staleRelay && url.endsWith("/relay-results") ? { "x-otid-stale": "1" } : {};
+    return new Response(JSON.stringify(body), { status: 200, headers });
   });
   return calls;
 }
@@ -42,5 +43,16 @@ describe("steg 51: resultatlistans hämtning", () => {
     clock = 5_000;
     await read(raceId);
     expect(calls).toEqual(["results", "radio"]);
+  });
+
+  it("säger till när något svar gäller en äldre version, så att sidan hämtar igen strax", async () => {
+    stubFetch(noRelay, radioOff, true);
+    const onStale = vi.fn();
+    await createResultListReader()(raceId, onStale);
+    expect(onStale).toHaveBeenCalledTimes(1);
+    stubFetch(noRelay, radioOff);
+    const fresh = vi.fn();
+    await createResultListReader()(raceId, fresh);
+    expect(fresh).not.toHaveBeenCalled();
   });
 });

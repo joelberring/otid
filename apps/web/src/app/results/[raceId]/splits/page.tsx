@@ -16,8 +16,9 @@ export default async function SplitAnalysisPage({ params, searchParams }: {
   const [{ raceId }, query] = await Promise.all([params, searchParams]);
   const access = await requirePublicRace(raceId);
   const [summary, results, relay, routes, radio] = await Promise.all([publicRaceSummary(db, raceId),
-    cachedPublicResults(raceId).then(entry => entry.value), cachedPublicRelayResults(raceId).then(entry => entry.value),
-    readPublicRouteIndex(db, raceId), cachedPublicRadio(raceId).then(entry => entry.value)]);
+    cachedPublicResults(raceId, { exact: true }).then(entry => entry.value),
+    cachedPublicRelayResults(raceId, { exact: true }).then(entry => entry.value),
+    readPublicRouteIndex(db, raceId), cachedPublicRadio(raceId, { exact: true }).then(entry => entry.value)]);
   const className = typeof query.class === "string" ? query.class : null;
   return <main className="stack public-list-page">
     <nav className="nav" aria-label={text.title}><Link href={`/results/${raceId}`}>{text.back}</Link></nav>

@@ -25,7 +25,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
  */
 export default async function LivePage({ params }: Params) {
   const hub = await requireRaceHub((await params).code);
-  const initial = (await cachedPublicLive(hub.raceId)).value;
+  const initial = (await cachedPublicLive(hub.raceId, { exact: true })).value;
   const race = [hub.raceName !== hub.eventName ? hub.raceName : undefined, formatRaceDate(hub.raceDate)].filter(Boolean).join(" · ");
   return <main className={styles.livePage}>
     <nav className={styles.hubNav} aria-label={publicRaceSv.hub.navigation}>

@@ -15,7 +15,7 @@ export default async function PublicResultDetailPage({ params }: { params: Promi
   const access = await requirePublicRace(raceId);
   const staff = await raceStaff(raceId);
   const [summary, detail] = await Promise.all([publicRaceSummary(db, raceId),
-    staff ? publicResultDetail(db, raceId, publicResultId, { staff }) : cachedPublicResultDetail(raceId, publicResultId)]);
+    staff ? publicResultDetail(db, raceId, publicResultId, { staff }) : cachedPublicResultDetail(raceId, publicResultId, { exact: true })]);
   if (detail.status === "not-found") notFound();
   return <main className="stack public-result-detail-page">
     <nav className="nav"><Link href={`/results/${raceId}`}>{sv.publicResultBack}</Link></nav>

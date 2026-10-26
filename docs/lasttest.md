@@ -112,15 +112,25 @@ Mätt med profilering (CPU-profiler i Node, `pg_stat_statements`, `EXPLAIN ANALY
 | Startlistan | 0,7 s per sidladdning, ny validering för varje anrop | cachad per version; sidan hämtar stora listor själv |
 | Uträkningen av resultatlistan | – | 470 → 320 ms: raderna valideras en gång i stället för två, `Intl.Collator` i stället för `localeCompare` per jämförelse, urval med `= any($1::uuid[])` i stället för en parameter per id (37 → 4 ms per fråga med 3 000 id) |
 | Resultatströmmen (SSE) | varje markör väckte **alla** besökare direkt, och var och en hämtade listan på nytt (vid en omräkning av 300 löpare: 300 väckningar) | markörer samlas per tävling i 250 ms; listorna räknas först och sedan väcks besökarna; sidan sprider hämtningen (0–1 s, minst 3 s mellan) |
-| Sidornas egen hämtning | var femte sekund, alla tre listorna (resultat, stafett, radio) | var 15:e sekund medan strömmen är öppen (annars var femte); stafett och radio bara när de har innehåll (annars var 30:e) ¹ |
+| Sidornas egen hämtning | var femte sekund, alla tre listorna (resultat, stafett, radio) | var 10:e sekund medan strömmen är öppen (annars var femte); stafett och radio bara när de har innehåll (annars var 30:e) ¹ |
 | Avläsning i stafett (300 lag) | hela klassens sträckor lästes och räknades vid varje avläsning: 25-manna **1,1–1,6 s**, 3 sträckor 0,31 s | bara lagets sträckor (utan flygande omstart, som är den enda regel som beror på andra lag): 25-manna **0,33 s**, 3 sträckor 0,1 s |
 | Flytta en klass starttider (160 löpare) | prövade och räknade om **alla 2 700 avlästa** i tävlingen: 15 s, 2 700 nya revisioner, avläsningarna stod still | bara klassens avlästa: 1,0–1,7 s |
 | Läsningar under en funktionärsåtgärd | 500 på publika listor och speakern (PostgreSQL 40001 i upprepbar läsning) | läsningen görs om (högst tre gånger); listan som fanns visas hellre än ett fel |
 | En Node-process | använder en kärna; på 2 vCPU blev webben flaskhalsen långt före databasen (0,15 kärnor) | `docker-compose.prod.yml` kör två webbinstanser (`web`, `web2`) bakom Caddy |
 
 ¹ Mätningarna gjordes med 30 s; webbläsartesterna visade att "Resultaten är klara" (som inte väcker resultatströmmen) då
-syntes för sent i arbetsytan, så reserven blev 15 s. Under en målrusning väcker strömmen sidorna oftare än så (var 3–5 s),
-så skillnaden syns inte i mätningarna.
+syntes för sent i arbetsytan, så reserven blev först 15 s och efter CI:s driftjobb (två instanser) 10 s. Under en
+målrusning väcker strömmen sidorna oftare än så (var 3–5 s), så skillnaden syns inte i mätningarna.
+
+**Rättat efter sammanslagningen med main (CI:s driftjobb, `web` + `web2` bakom Caddy).** Fyra webbläsartester såg en
+inaktuell lista: en besökare som öppnade sidan just efter sista avläsningen fick listan före avläsningen (cachen gav en
+upp till 3 s gammal lista direkt), väcktes inte av en avläsning som redan var gjord och hämtade själv först efter 15 s;
+ett ångrat fastställande kunde ge "Officiella resultat" vid omladdning (versionen var delad i 500 ms, och en uträkning
+som började före ändringen gavs ut). Nu: den äldre listan ges direkt bara när enbart nya resultat har kommit in, och
+svaret märks `x-otid-stale` så att sidan hämtar igen efter 3–4 s (lika glest som väckningarna under rusningen); allt
+annat väntar in den nya listan, en uträkning från före ändringen görs om, sidorna läser versionen direkt och API:et
+högst 250 ms gammal, och reserven med öppen ström är 10 s. Stafettsynken per lag var inte orsaken (stafettestarna gick
+igenom lokalt även före rättelsen; ett lags starter beror utan flygande omstart bara på lagets egna växlingar).
 
 Resultatreglerna är oförändrade: listorna ur cachen är byte för byte samma som förut (jämfört för den individuella tävlingen och stafetten),
 och alla tester går igenom. Det enda som räknas om mer sällan är starttidsflytten, där bara klassens underlag ändras.

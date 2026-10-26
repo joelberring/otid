@@ -18,6 +18,7 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Efter: 300 besökare p95 0,5–0,95 s publikt, uppdatering p95 4,0 s; kvitto p95 1,3–1,7 s (målet 1 s nås inte); 500 besökare p95 1,2–1,5 s.
 - Verifierat: lint, typecheck, enhets- och integrationstester (ny `steg-51-lasttest`), bygget, Playwright publikt/live/listor/stafett/gafflingar; `funktionarer.spec.ts` fallerar på speakern även på main ac2e06d.
 - Kvar: avläsningen läser hela avläsningspaketet (se Idéer); 25-manna med täta växlingar; docker-läget i `server.sh` och `web2` i drift är inte provade (inga bilder i miljön).
+- Efter sammanslagningen med main (steg 50, 52, 53): CI:s driftjobb såg inaktuella publika listor (live, stafett 47/48, listor, gafflingsbild). Rättat i cachen: äldre lista bara när enbart nya resultat kommit in och då märkt `x-otid-stale` (sidan hämtar igen efter 3–4 s), annars väntar anropet på den nya listan; uträkning från före en ändring görs om; sidorna läser versionen direkt; reserven med öppen ström 10 s. Provat med två produktionsinstanser bakom en lastbalanserare (least_conn och slumpvis).
 ### 2026-10-26 – Steg 53: snabbare utläsning av nyare brickor (agent E)
 - SI10/11/SIAC och SI6 läses block för block efter antalet stämplingar i block 0 (som MeOS); SIAC läser också block 1.
   20 stämplingar: 2 svar (SIAC 3) i stället för 5 eller 8; vid 4 800 baud ca 0,6–0,9 s i stället för 1,4–2,3 s.

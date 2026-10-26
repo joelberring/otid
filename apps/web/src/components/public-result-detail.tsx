@@ -6,7 +6,8 @@ import { sv } from "../i18n/sv";
 import { courseVariantsSv as variantText } from "../i18n/course-variants-sv";
 import { listsSv } from "../i18n/lists-sv";
 import { startPublicResultEventStream } from "../lib/public-result-event-stream-client";
-import { timerShouldFetch } from "../lib/use-public-race-data";
+import { anyStale } from "../lib/public-stale";
+import { STALE_RETRY_MS, timerShouldFetch } from "../lib/use-public-race-data";
 import { formatDuration } from "../lib/clock-time";
 import { forkingSv } from "../i18n/forking-sv";
 import { RunnerForking } from "./forking/runner-forking";
@@ -43,6 +44,9 @@ export function PublicResultDetail({ raceId, publicResultId, initial }: {
       try {
         const result = await fetch(`/api/public/races/${raceId}/results/${publicResultId}`, { cache: "no-store" });
         if (!result.ok) { if (!disposed) setUnavailable(true); return; }
+        if (anyStale(result) && retry === undefined) {
+          retry = window.setTimeout(() => { retry = undefined; void refresh(); }, STALE_RETRY_MS.minMs + Math.random() * STALE_RETRY_MS.spreadMs);
+        }
         const parsed = publicResultDetailResponseSchema.safeParse(await result.json());
         if (!parsed.success) { if (!disposed) setUnavailable(true); return; }
         if (disposed) return;
@@ -54,14 +58,14 @@ export function PublicResultDetail({ raceId, publicResultId, initial }: {
       }
     };
     // Steg 51: med öppen resultatström hämtar sidan av sig själv bara som reserv (`timerShouldFetch`).
-    let streamOpen = false, lastFetch = 0;
+    let streamOpen = false, lastFetch = 0, retry: number | undefined;
     const timer = window.setInterval(() => { if (timerShouldFetch(streamOpen, lastFetch, Date.now(), 5_000)) void refresh(); }, 5_000);
     const stopEventStream = typeof window.EventSource === "function"
       ? startPublicResultEventStream(raceId, window.EventSource, () => { void refresh(); }, undefined, (open) => { streamOpen = open; })
       : undefined;
     return () => {
       disposed = true;
-      window.clearInterval(timer);
+      window.clearInterval(timer); window.clearTimeout(retry);
       stopEventStream?.();
     };
   }, [raceId, publicResultId]);

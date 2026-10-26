@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export default async function Page({ params }: { params: Promise<{ raceId: string }> }) {
   const { raceId } = await params;
   const access = await requirePublicRace(raceId);
-  const [summary, published] = await Promise.all([publicRaceSummary(db, raceId), cachedPublicStartList(raceId).then(entry => entry.value)]);
+  const [summary, published] = await Promise.all([publicRaceSummary(db, raceId), cachedPublicStartList(raceId, { exact: true }).then(entry => entry.value)]);
   return <main className="stack public-list-page"><PublicRaceNavigation raceId={raceId} shortCode={summary.shortCode} currentPage="starts" />
     <PreviewBanner access={access} />
     <PublicStartList key={raceId} raceId={raceId}

@@ -1,6 +1,6 @@
 import { gunzipSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
-import { cachedJsonResponse, createPublicRaceCache, isRetryableReadConflict } from "./public-race-cache";
+import { cachedJsonResponse, createPublicRaceCache, isRetryableReadConflict, onlyNewResults } from "./public-race-cache";
 
 const race = "10000000-0000-4000-8000-000000000001";
 const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -26,15 +26,17 @@ describe("steg 51: publika listor en gång per tävlingsversion", () => {
 
   it("ger den senaste färdiga listan medan en långsam uträkning pågår, och den nya när den är klar", async () => {
     let version = "v1", slow = false;
-    const cache = createPublicRaceCache({ version: async () => version, minIntervalMs: 0, waitMs: 30, versionTtlMs: 0 });
+    const cache = createPublicRaceCache({ version: async () => version, minIntervalMs: 0, waitMs: 30, versionTtlMs: 0, staleAllowed: () => true });
     const compute = async () => { if (slow) await delay(200); return version; };
     expect((await cache.read(race, "results", compute)).value).toBe("v1");
     version = "v2"; slow = true;
     const started = Date.now();
-    expect((await cache.read(race, "results", compute)).value).toBe("v1");
+    const stale = await cache.read(race, "results", compute);
+    expect([stale.value, stale.stale]).toEqual(["v1", true]);
     expect(Date.now() - started).toBeLessThan(150);
     await delay(250);
-    expect((await cache.read(race, "results", compute)).value).toBe("v2");
+    const fresh = await cache.read(race, "results", compute);
+    expect([fresh.value, fresh.stale]).toEqual(["v2", undefined]);
   });
 
   it("räknar om högst en gång per minIntervalMs och efter maxAgeMs även utan ny version", async () => {
@@ -99,7 +101,8 @@ describe("steg 51: publika listor en gång per tävlingsversion", () => {
 
   it("ger en nyss räknad lista direkt medan nästa räknas, och fresh väntar på den nya versionen", async () => {
     let version = "v1";
-    const cache = createPublicRaceCache({ version: async () => version, minIntervalMs: 0, versionTtlMs: 0, serveStaleMs: 1_000, waitMs: 5_000 });
+    const cache = createPublicRaceCache({ version: async () => version, minIntervalMs: 0, versionTtlMs: 0, serveStaleMs: 1_000, waitMs: 5_000,
+      staleAllowed: () => true });
     const compute = async () => { await delay(100); return version; };
     expect((await cache.read(race, "results", compute)).value).toBe("v1");
     version = "v2";
@@ -108,6 +111,34 @@ describe("steg 51: publika listor en gång per tävlingsversion", () => {
     expect(Date.now() - started).toBeLessThan(50);
     expect((await cache.read(race, "results", compute, { fresh: true })).value).toBe("v2");
     expect((await cache.read(race, "results", compute)).value).toBe("v2");
+  });
+
+  it("väntar på den nya listan när något annat än nya resultat ändrats, även om en uträkning redan pågick", async () => {
+    let version = "3:10:fast:pub:0:-";
+    const cache = createPublicRaceCache({ version: async () => version, minIntervalMs: 0, versionTtlMs: 0, serveStaleMs: 10_000,
+      waitMs: 10, staleAllowed: onlyNewResults });
+    const compute = async () => { const seen = version; await delay(80); return seen; };
+    await cache.read(race, "results", compute);
+    // Ett nytt resultat: den nyss räknade listan direkt, märkt som äldre.
+    version = "3:11:fast:pub:0:-";
+    const quick = await cache.read(race, "results", compute);
+    expect([quick.value, quick.stale]).toEqual(["3:10:fast:pub:0:-", true]);
+    // Fastställandet ångras medan listan för resultat 11 räknas: anropet väntar ut den och räknar en gång till.
+    version = "3:11:-:pub:0:-";
+    const undone = await cache.read(race, "results", compute);
+    expect([undone.value, undone.stale]).toEqual(["3:11:-:pub:0:-", undefined]);
+    // Svaret för en äldre version sparas inte i webbläsaren och märks.
+    const response = cachedJsonResponse(new Request("http://localhost/"), quick, "public, max-age=2");
+    expect([response.headers.get("x-otid-stale"), response.headers.get("cache-control")]).toEqual(["1", "no-store"]);
+    expect(cachedJsonResponse(new Request("http://localhost/"), undone, "public, max-age=2").headers.get("x-otid-stale")).toBeNull();
+  });
+
+  it("bara resultatströmmens markör får skilja versionerna åt för att visa den förra listan", () => {
+    expect(onlyNewResults("3:10:-:pub:0:-", "3:12:-:pub:0:-")).toBe(true);
+    expect(onlyNewResults("3:10:fast:pub:0:-", "3:10:-:pub:0:-")).toBe(false);
+    expect(onlyNewResults("3:10:-:pub:0:-", "4:10:-:pub:0:-")).toBe(false);
+    expect(onlyNewResults("3:10:-:pub:0:-", "3:10:-:pub:1:-")).toBe(false);
+    expect(onlyNewResults("3:10:-:pub:0:-", "3:10:-:pub:0:kl")).toBe(false);
   });
 
   it("en långsam uträkning glesar ut nästa (högst en tredjedel av tiden), så att avläsningarna får plats", async () => {

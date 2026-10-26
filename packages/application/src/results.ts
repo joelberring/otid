@@ -566,9 +566,12 @@ export async function publicResultDetail(
   if (!result || !("publicResultId" in result)) return { status: "not-found" };
   // Steg 49: klassens bana följer med bara när den är gafflad ("Visa gafflingar").
   const classCourse = "classCourses" in results ? results.classCourses?.find((row) => row.className === result.className && row.forking) : undefined;
+  // Steg 52: kontrollkartan bakom "Visa på kartan" när banorna är publika (ADR-0176).
+  const controlMap = options.staff === true || await db.transaction(tx => coursesArePublic(tx, raceId));
   return {
     status: "ok",
-    response: publicResultDetailResponseSchema.parse({ formatVersion: 1, result, ...(classCourse ? { classCourse } : {}) })
+    response: publicResultDetailResponseSchema.parse({ formatVersion: 1, result, ...(classCourse ? { classCourse } : {}),
+      ...(controlMap ? { controlMap: true } : {}) })
   };
 }
 

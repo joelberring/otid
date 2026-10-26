@@ -11,6 +11,7 @@ export * from "./public-race-visibility";
 export * from "./public-races";
 export * from "./race-publication";
 export * from "./course-secrecy";
+export { readControlMapAsAdmin, readEntryControlMapAsAdmin, readPublicRunnerControlMap } from "./control-map";
 export * from "./serialization";
 export * from "./import-iof";
 export * from "./ingest";

@@ -172,6 +172,12 @@ describe("parseIofXml", () => {
       </RaceCourseData></CourseData>`;
     const forked = parseIofXml(xml);
     if (forked.kind !== "CourseData") throw new Error("Fel typ");
+    // Steg 52: kartlägena (mm) för kontrollerna, start och mål och kartans skala sparas för kontrollkartan.
+    expect(forked.controlMapPositions).toEqual([{ code: 31, x: 30, y: 40 }, { code: 32, x: 0, y: 40 }]);
+    expect(forked.mapScale).toBe(10000);
+    expect(forked.courses[0]).toMatchObject({ startMapPosition: { x: 0, y: 0 }, finishMapPosition: { x: 0, y: 0 } });
+    expect(parsed.controlMapPositions?.find(control => control.code === 31)).toEqual({ code: 31, x: 93, y: 62 });
+    expect(parsed.mapScale).toBe(4000);
     // 1:10 000: 50 mm = 500 m dit och tillbaka; 40 mm = 400 m dit och tillbaka.
     expect(forked.courses[0]!.variants!.map(variant => [variant.code, variant.lengthMeters])).toEqual([["1", 1000], ["2", 800]]);
     expect(forked.courses[0]!.lengthMeters).toBeUndefined();

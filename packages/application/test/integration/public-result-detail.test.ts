@@ -56,7 +56,8 @@ describe("TASK089 public result detail PostgreSQL projection", () => {
     const listRow = list.results[0];
     expect(listRow).toMatchObject({ publicResultId: first.publicResultId, givenName: "Ada" });
     const detail = await publicResultDetail(db, first.raceId, first.publicResultId);
-    expect(detail).toEqual({ status: "ok", response: { formatVersion: 1, result: listRow } });
+    // Steg 52: alla har resultat, så banorna är publika och "Visa på kartan" finns.
+    expect(detail).toEqual({ status: "ok", response: { formatVersion: 1, result: listRow, controlMap: true } });
     expect(await publicResultDetail(db, first.raceId, randomUUID())).toEqual({ status: "not-found" });
     expect(await publicResultDetail(db, first.raceId, "not-an-id")).toEqual({ status: "not-found" });
     expect((await publicResultDetail(db, second.raceId, first.publicResultId))).toMatchObject({

@@ -41,7 +41,7 @@ import { readCourseData, type CourseDataImport } from "./course-data";
 
 export { IofValidationError } from "./xml";
 export type {
-  ClassCourseImport, CourseDataImport, CourseImport, CourseVariantImport, GeoPosition, LegCourseAssignmentImport,
+  ClassCourseImport, CourseDataImport, CourseImport, CourseVariantImport, GeoPosition, LegCourseAssignmentImport, MapPositionImport,
   PersonCourseAssignmentImport, TeamCourseAssignmentImport
 } from "./course-data";
 

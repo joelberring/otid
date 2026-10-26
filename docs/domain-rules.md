@@ -91,6 +91,10 @@ funktion lokalt; dess besked är preliminärt och serverns revision är auktorit
   ej start; ett borttaget beslut räknas inte). Utan deltagare är de hemliga. Läget räknas vid varje fråga (`courseSecrecy`).
 - Innan dess visar inget publikt svar gafflingsbilden eller kontrollägen; variantkoden och sträcktiderna står kvar.
   Arrangören och funktionärerna ser allt. Valet sparas med en auditpost och går att ångra.
+- Kontrollkartan (`layoutControlMap`): lägen i kartbildens pixlar (georefererad karta), annars i meter ur WGS 84, annars ur
+  kartlägena (mm) med kartans skala. Belastning (`controlLoads`): banor, varianter, planerade löpare (utan variant bara
+  kontroller som alla varianter har) och stämplingar (sträcktider). Löparens stämplingar (`runnerControlMarks`): sträcktid =
+  stämplad, bland extra stämplingar = fel ordning, annars saknas; ur funktion = frivillig.
 
 ## Statusbeslut
 

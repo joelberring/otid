@@ -46,3 +46,4 @@ export * from "./party-public";
 export * from "./party-theme";
 export * from "./self-registration";
 export * from "./course-secrecy";
+export * from "./control-map";

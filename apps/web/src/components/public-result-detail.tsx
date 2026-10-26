@@ -9,6 +9,7 @@ import { startPublicResultEventStream } from "../lib/public-result-event-stream-
 import { formatDuration } from "../lib/clock-time";
 import { forkingSv } from "../i18n/forking-sv";
 import { RunnerForking } from "./forking/runner-forking";
+import { PublicRunnerControlMap } from "./control-map/runner-control-map";
 
 function duration(milliseconds?: number) {
   if (milliseconds === undefined) return "–";
@@ -84,6 +85,8 @@ export function PublicResultDetail({ raceId, publicResultId, initial }: {
       {showForking && <RunnerForking view={response.classCourse.forking} code={result.courseVariantCode}
         name={`${result.givenName} ${result.familyName}`} compact={false} />}
     </section>}
+    {/* Steg 52: löparens bana på kartan, bara när banorna är publika (ADR-0176). */}
+    {response.controlMap && <PublicRunnerControlMap raceId={raceId} publicResultId={publicResultId} />}
     {"splits" in result && result.splits && result.splits.length > 0 && <details><summary>{sv.publicResultsShowSplits}</summary><ol>
       {result.splits.map((split) => <li key={`${split.controlCode}:${split.occurrence}`}>
         <span><strong>{sv.publicResultsControl}</strong> {split.controlCode}{split.occurrence > 1 ? ` (${split.occurrence})` : ""}</span>

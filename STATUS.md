@@ -10,6 +10,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-10-26 – Steg 52 del 2: kontrollkartan (agent D)
+- Banor → "Kontrollkarta" (dialog): belastning (färg, storlek, tabell; planerade eller stämplingar) eller en bana/variant med linjer och nummer. SVG utan bibliotek, kartbilden under när den är georefererad.
+- Lägen: WGS 84, annars kartlägen (MapPosition mm + Map/Scale, sparas nu vid inläsning, kopiering och synk; migration 0026).
+- Deltagarkortet och den publika deltagarsidan (när banorna är publika): "Visa på kartan" med saknade, fel ordning och ur funktion.
+- Tester: domän `control-map`, iof `parser`, webb `control-map`, integration `steg-52-kontrollkarta`, Playwright `kontrollkarta`.
+- Playwright `gafflingar` faller i den här miljön även på main (75ce9d9) vid deltagarkortets resultat; inte undersökt vidare.
+
 ### 2026-10-26 – Steg 52 del 1: banhemlighet (agent D)
 - Ny regel (ADR-0176, `courseSecrecy`): banorna är publika när alla ej strukna har resultat eller beslut, när resultaten är fastställda eller när arrangören valt "Visa banorna publikt nu" (`race.courses_public_at`, migration 0026, auditpost, går att ångra).
 - Innan dess publikt: ingen gafflingsbild i resultatlistan och på deltagarsidan och ingen bana på vägvalskartan. Variant och sträcktider står kvar.

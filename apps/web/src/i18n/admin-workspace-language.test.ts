@@ -25,7 +25,7 @@ const adminFiles = [
   // PLAN.md steg 27.
   "card-punches-sv.ts", "removal-sv.ts", "results-official-sv.ts", "race-export-sv.ts", "race-corrections-sv.ts",
   // Steg 52.
-  "course-secrecy-sv.ts",
+  "course-secrecy-sv.ts", "control-map-sv.ts",
   // Steg 31.
   "manual-result-sv.ts",
   // Steg 33.

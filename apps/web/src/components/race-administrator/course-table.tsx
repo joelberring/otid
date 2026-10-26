@@ -15,6 +15,7 @@ import { forkingLetters } from "@o-tid/domain";
 import { forkingSv as forking } from "../../i18n/forking-sv";
 import { ForkingDiagram } from "../forking/forking-diagram";
 import { ForkingEditor } from "./forking-editor";
+import { ControlMapButton } from "../control-map/control-map-dialog";
 
 type CourseRow = CourseEditListResponse["courses"][number];
 
@@ -34,7 +35,9 @@ export function CourseTable({ ws, visible }: { ws: Workspace; visible: boolean }
   const newCourse = (primary: boolean) => <Button variant={primary ? "primary" : "secondary"} disabled={courseFormOpen}
     onClick={() => setCourseFormOpen(true)}>{text.courseClassOpen}</Button>;
   return <Section id={`course-table-${raceId}`} title={text.courseEditTitle} help={empty ? undefined : text.courseEditHelp}
-    actions={!empty && courseList && !courseFormOpen ? newCourse(false) : undefined}>
+    actions={!empty && courseList ? <>{!courseFormOpen && newCourse(false)}
+      {/* Steg 52: kontrollkartan i en egen dialog, så att den inte tar plats vid vanlig genomgång. */}
+      <ControlMapButton ws={ws} /></> : undefined}>
     {courseEditSaved && <Notice tone="ok" role="status">{courseEditSaved}</Notice>}
     {ws.detailsMessage && <Notice tone={ws.detailsMessage === text.courseDetailsError ? "error" : "ok"} role="status">{ws.detailsMessage}</Notice>}
     {courseListError && <Notice tone="error" role="alert"><p>{courseListError}</p>

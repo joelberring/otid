@@ -29,10 +29,19 @@ export interface GeoPosition {
   readonly longitude: number;
 }
 
+/** Steg 52: ett läge på kartan i millimeter (IOF `MapPosition`). */
+export interface MapPositionImport {
+  readonly x: number;
+  readonly y: number;
+}
+
 export interface CourseImport {
   /** Steg 49: startens och målets lägen när banfilen har dem. */
   readonly startPosition?: GeoPosition;
   readonly finishPosition?: GeoPosition;
+  /** Steg 52: startens och målets lägen på kartan (mm). */
+  readonly startMapPosition?: MapPositionImport;
+  readonly finishMapPosition?: MapPositionImport;
   readonly externalId: string;
   readonly name: string;
   /** Tom för en gafflad bana; kontrollerna finns då i varianterna. */
@@ -83,6 +92,9 @@ export interface CourseDataImport {
   readonly teamAssignments: readonly TeamCourseAssignmentImport[];
   /** Steg 49: kontrollernas lägen (IOF `Control/Position`) när banfilen har dem. */
   readonly controlPositions: readonly ({ readonly code: number } & GeoPosition)[];
+  /** Steg 52: kontrollernas lägen på kartan (IOF `Control/MapPosition`, mm) och kartans skala (`Map/Scale`). */
+  readonly controlMapPositions?: readonly ({ readonly code: number } & MapPositionImport)[];
+  readonly mapScale?: number;
   readonly warnings: readonly string[];
 }
 
@@ -102,6 +114,8 @@ interface ParsedCourse {
   readonly computedMeters?: number;
   readonly startPosition?: GeoPosition;
   readonly finishPosition?: GeoPosition;
+  readonly startMapPosition?: MapPositionImport;
+  readonly finishMapPosition?: MapPositionImport;
   readonly externalId: string;
   readonly name: string;
   readonly family: string;
@@ -136,7 +150,8 @@ function mapPosition(value: unknown): { x: number; y: number } | undefined {
   const position = record(value);
   const x = Number(text(position["@_x"])), y = Number(text(position["@_y"]));
   const unit = text(position["@_unit"]) || "mm";
-  if (!text(position["@_x"]) || !Number.isFinite(x) || !Number.isFinite(y) || unit !== "mm") return undefined;
+  if (!text(position["@_x"]) || !Number.isFinite(x) || !Number.isFinite(y) || unit !== "mm" ||
+    Math.abs(x) > 100_000 || Math.abs(y) > 100_000) return undefined;
   return { x, y };
 }
 
@@ -172,7 +187,9 @@ const variantLength = (course: ParsedCourse) => {
   return value === undefined ? {} : { lengthMeters: value };
 };
 const placed = (course: ParsedCourse) => ({ ...(course.startPosition ? { startPosition: course.startPosition } : {}),
-  ...(course.finishPosition ? { finishPosition: course.finishPosition } : {}) });
+  ...(course.finishPosition ? { finishPosition: course.finishPosition } : {}),
+  ...(course.startMapPosition ? { startMapPosition: course.startMapPosition } : {}),
+  ...(course.finishMapPosition ? { finishMapPosition: course.finishMapPosition } : {}) });
 
 function measured(lengthMeters: number | undefined, climbMeters: number | undefined) {
   return { ...(lengthMeters !== undefined && lengthMeters > 0 ? { lengthMeters } : {}), ...(climbMeters !== undefined ? { climbMeters } : {}) };
@@ -189,6 +206,8 @@ export function readCourseData(root: XmlRecord): CourseDataImport {
   const personAssignments: PersonCourseAssignmentImport[] = [];
   const teamAssignments: TeamCourseAssignmentImport[] = [];
   const controlPositions: ({ code: number } & GeoPosition)[] = [];
+  const controlMapPositions: ({ code: number } & MapPositionImport)[] = [];
+  let mapScale: number | undefined;
 
   for (const [raceIndex, rawRaceData] of array(root.RaceCourseData).entries()) {
     const raceData = record(rawRaceData);
@@ -204,6 +223,7 @@ export function readCourseData(root: XmlRecord): CourseDataImport {
     const mapPositions = new Map<string, { x: number; y: number }>();
     const scaleText = text(record(array(raceData.Map)[0]).Scale);
     const scale = scaleText && Number.isFinite(Number(scaleText)) && Number(scaleText) > 0 ? Number(scaleText) : undefined;
+    if (scale !== undefined && scale >= 100 && scale <= 1_000_000 && mapScale === undefined) mapScale = Math.round(scale);
     for (const [index, rawControl] of array(raceData.Control).entries()) {
       const control = record(rawControl);
       const externalId = requireText(control.Id, `RaceCourseData[${raceIndex}].Control[${index}].Id`, issues);
@@ -252,10 +272,12 @@ export function readCourseData(root: XmlRecord): CourseDataImport {
         id: text(courseControl.Control) }));
       const startId = ids.find((entry) => entry.type === "Start")?.id, finishId = [...ids].reverse().find((entry) => entry.type === "Finish")?.id;
       const startPosition = startId ? positions.get(startId) : undefined, finishPosition = finishId ? positions.get(finishId) : undefined;
+      const startMapPosition = startId ? mapPositions.get(startId) : undefined, finishMapPosition = finishId ? mapPositions.get(finishId) : undefined;
       const routeIds = ids.filter((entry) => entry.type === "Start" || entry.type === "Control" || entry.type === "Finish").map((entry) => entry.id);
       // Längden ur lägena används bara för att jämföra varianter; banans längd är filens Length.
       const computedMeters = lengthFromPositions(routeIds.map((id) => positions.get(id)), routeIds.map((id) => mapPositions.get(id)), scale);
       return { externalId, name, family, controlCodes, ...(startPosition ? { startPosition } : {}), ...(finishPosition ? { finishPosition } : {}),
+        ...(startMapPosition ? { startMapPosition } : {}), ...(finishMapPosition ? { finishMapPosition } : {}),
         ...(computedMeters === undefined ? {} : { computedMeters }),
         ...measured(meters(course.Length, `${path}.Length`, warnings, 0), meters(course.Climb, `${path}.Climb`, warnings, 0)) };
     });
@@ -291,6 +313,8 @@ export function readCourseData(root: XmlRecord): CourseDataImport {
     for (const [externalId, code] of controls) {
       const position = positions.get(externalId);
       if (position && !controlPositions.some((known) => known.code === code)) controlPositions.push({ code, ...position });
+      const onMap = mapPositions.get(externalId);
+      if (onMap && !controlMapPositions.some((known) => known.code === code)) controlMapPositions.push({ code, ...onMap });
     }
 
     for (const [index, rawAssignment] of array(raceData.ClassCourseAssignment).entries()) {
@@ -387,5 +411,6 @@ export function readCourseData(root: XmlRecord): CourseDataImport {
   if (courses.length === 0 && personAssignments.length === 0 && teamAssignments.length === 0) issues.push("RaceCourseData.Course saknas");
   if (courses.length > 0 && assignments.length === 0) warnings.push("Inga ClassCourseAssignment hittades");
   if (issues.length > 0) throw new IofValidationError(issues);
-  return { kind: "CourseData", courses, assignments, legAssignments, personAssignments, teamAssignments, controlPositions, warnings };
+  return { kind: "CourseData", courses, assignments, legAssignments, personAssignments, teamAssignments, controlPositions,
+    ...(controlMapPositions.length > 0 ? { controlMapPositions } : {}), ...(mapScale !== undefined ? { mapScale } : {}), warnings };
 }

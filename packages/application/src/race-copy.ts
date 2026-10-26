@@ -57,7 +57,8 @@ export async function copyRaceAsAdmin(db: Database, input: UserAccountSessionPro
       return { status: "copied", response: { ...raceCopyResponseSchema.parse(prior.response), replayed: true } } as const;
     }
     const [source] = await tx.select({ id: schema.races.id, eventId: schema.races.eventId, raceDate: schema.races.raceDate,
-      raceType: schema.races.raceType, hidden: schema.races.hiddenBySuperadmin, timeZone: schema.events.timeZone })
+      raceType: schema.races.raceType, hidden: schema.races.hiddenBySuperadmin, timeZone: schema.events.timeZone,
+      courseMapScale: schema.races.courseMapScale })
       .from(schema.races).innerJoin(schema.events, eq(schema.events.id, schema.races.eventId))
       .where(eq(schema.races.id, input.raceId));
     if (!source) return { status: "not-found" } as const;
@@ -72,7 +73,7 @@ export async function copyRaceAsAdmin(db: Database, input: UserAccountSessionPro
     if (!event) throw new Error("Eventet kunde inte skapas");
     // Superadminens döljning följer med, så att en kopia inte kringgår den.
     const [race] = await tx.insert(schema.races).values({ eventId: event.id, name: intent.raceName, raceDate: intent.raceDate,
-      raceType: source.raceType, hiddenBySuperadmin: source.hidden, snapshotVersion: 1, createdAt: now })
+      raceType: source.raceType, hiddenBySuperadmin: source.hidden, courseMapScale: source.courseMapScale, snapshotVersion: 1, createdAt: now })
       .returning({ id: schema.races.id });
     if (!race) throw new Error("Loppet kunde inte skapas");
 
@@ -106,13 +107,14 @@ async function copyRaceContent(tx: Transaction, input: ContentInput) {
   const controlIds = new Map(controls.map(control => [control.id, randomUUID()]));
   await insertChunked(controls, chunk => tx.insert(schema.controls).values(chunk.map(control => ({ id: mapped(controlIds, control.id), raceId,
     code: control.code, kind: control.kind, points: control.points, latitude: control.latitude, longitude: control.longitude,
-    createdAt: now }))));
+    mapX: control.mapX, mapY: control.mapY, createdAt: now }))));
 
   const courses = await tx.select().from(schema.courses).where(eq(schema.courses.raceId, sourceRaceId)).orderBy(asc(schema.courses.createdAt));
   const courseIds = new Map(courses.map(course => [course.id, randomUUID()]));
   await insertChunked(courses, chunk => tx.insert(schema.courses).values(chunk.map(course => ({ id: mapped(courseIds, course.id), raceId,
     name: course.name, lengthMeters: course.lengthMeters, climbMeters: course.climbMeters, forkingMode: course.forkingMode,
     startPosition: course.startPosition, finishPosition: course.finishPosition,
+    startMapPosition: course.startMapPosition, finishMapPosition: course.finishMapPosition,
     externalSource: course.externalSource, externalId: course.externalId, createdAt: now }))));
 
   const versions = courses.length === 0 ? [] : await tx.select().from(schema.courseVersions)

@@ -6,7 +6,6 @@ import { controlMapSv as text } from "../../i18n/control-map-sv";
 import { controlMapView, typicalSpacing } from "../../lib/control-map";
 import { runnerDrawing, runnerMessages } from "./control-map-drawing";
 import { ControlMapSvg } from "./control-map-svg";
-import type { Workspace } from "../race-administrator/workspace-state";
 import styles from "./control-map.module.css";
 
 /**
@@ -38,32 +37,33 @@ export function RunnerControlMapView({ data, imageHref }: { data: RunnerControlM
 }
 
 /**
- * Deltagarkortet: "Visa på kartan" hämtar löparens karta när den öppnas (och kartbilden när kartan är georefererad).
+ * Deltagarkortet: "Visa på kartan" hämtar löparens karta när den öppnas (och kartbilden när kartan är georefererad). Egen
+ * hämtning utanför arbetsytans anropskö, så att den aldrig avbryter kortets andra läsningar (resultatet).
  */
-export function ParticipantControlMap({ ws, entryId, refreshKey }: { ws: Workspace; entryId: string; refreshKey: string }) {
-  const { beginRequest, request, json, finish, current } = ws;
+export function ParticipantControlMap({ raceId, entryId, refreshKey }: { raceId: string; entryId: string; refreshKey: string }) {
   const [open, setOpen] = useState(false);
   const [data, setData] = useState<RunnerControlMap>();
   const [image, setImage] = useState<string>();
   const [failed, setFailed] = useState(false);
-  async function load() {
-    setFailed(false);
-    const op = beginRequest();
-    try {
-      const response = await request(`/entries/${entryId}/control-map`, op);
-      if (!response.ok) throw new Error("Kartan kunde inte hämtas");
-      const next = runnerControlMapSchema.parse(await json(response, op));
-      let blob: Blob | undefined;
-      if (next.map && !image) {
-        const imageResponse = await request("/map/image", op);
-        if (imageResponse.ok) blob = await imageResponse.blob();
-      }
-      if (!current(op)) return;
-      if (blob) setImage(URL.createObjectURL(blob));
-      setData(next);
-    } catch { if (current(op)) setFailed(true); } finally { finish(op); }
-  }
-  useEffect(() => { if (open) void load(); }, [open, entryId, refreshKey]);
+  useEffect(() => {
+    if (!open) return;
+    const controller = new AbortController();
+    const base = `/api/admin/races/${raceId}/administrator`;
+    void (async () => {
+      try {
+        setFailed(false);
+        const response = await fetch(`${base}/entries/${entryId}/control-map`, { cache: "no-store", signal: controller.signal });
+        if (!response.ok) throw new Error("Kartan kunde inte hämtas");
+        const next = runnerControlMapSchema.parse(await response.json());
+        if (next.map && !image) {
+          const imageResponse = await fetch(`${base}/map/image`, { cache: "no-store", signal: controller.signal });
+          if (imageResponse.ok) setImage(URL.createObjectURL(await imageResponse.blob()));
+        }
+        setData(next);
+      } catch { if (!controller.signal.aborted) setFailed(true); }
+    })();
+    return () => controller.abort();
+  }, [open, raceId, entryId, refreshKey]);
   useEffect(() => () => { if (image) URL.revokeObjectURL(image); }, [image]);
   return <section className={styles.runner} aria-label={text.showOnMap}>
     <div><button type="button" className="secondary" aria-expanded={open} onClick={() => setOpen(!open)}>

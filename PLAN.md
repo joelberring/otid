@@ -855,6 +855,17 @@ ADR-0176. Migration 0026.
 - [x] Tester: plan för 0–128+ stämplingar, reservvägen, bit för bit samma block och bild som "alla block", natt-KM:s SIAC.
 - [ ] Ägaren provar SIAC, SI10, SI8 och SI5 på riktig station (steg 7).
 
+## [x] Steg 55 – Bana utan klass
+
+Ägaren: "varför måste man välja klass när man skapar banor?"
+
+- [x] "Ny bana": klassnamnet är valfritt ("Klassnamn (valfritt)"). Utan klassnamn sparas bara banan med kontrollföljden
+  ("Spara bana", "Banan är sparad."); med klassnamn som förut ("Spara bana och klass"). Startsätt och rogainingens
+  tidsgräns och straff visas bara när ett klassnamn finns. Journal (`class_id` NULL, migration 0027), auditpost för banan,
+  idempotens och dubblettnamn som förut.
+- [x] Fälten på samma rad börjar på samma höjd, även med ett fel under ett av dem (även "Ny klass").
+- [x] Banan utan klass syns i Banor, kan ändras och gafflas, väljas under Klasser ("Ny klass", nu även en gafflad bana),
+  som sträckans bana i stafett och i kontrollkartan.
 ## [x] Steg 56 – Stafettformuläret: fel vid fälten och mallar
 
 ADR-0174 beslut 10. Ingen migration.

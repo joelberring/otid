@@ -68,7 +68,7 @@ async function race(): Promise<Race> {
     request: { formatVersion: 1, requestId, courseName: "Lång",
       className: "H21", startRule: "PUNCH", controlCodes: [31, 32, 33] } });
   if (course.status !== "created") throw new Error(`Banan kunde inte skapas: ${course.status}`);
-  return { proof, raceId, classId: course.response.classId };
+  return { proof, raceId, classId: course.response.classId! };
 }
 
 async function register(f: Race, givenName: string, cardNumber: string): Promise<string> {

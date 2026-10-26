@@ -21,9 +21,11 @@ describe("fältfel (PLAN.md steg 24)", () => {
     expect(validateCreateRace({ eventName: "KM", stageName: "E", raceDate: "2026-10-25", timeZone: "x" }).stageName).toBe(text.stageName);
   });
 
-  it("ny bana: namn, klass och kontroller per fält; rogaining kräver tidsgräns och straff", () => {
+  it("ny bana: namn och kontroller per fält, klassen är valfri; rogaining kräver tidsgräns och straff när klassen finns", () => {
     expect(validateCourseClass({ courseName: " ", className: "", controls: "" }))
-      .toEqual({ courseName: text.courseName, className: text.className, controls: text.controls, timeLimit: undefined, penalty: undefined });
+      .toEqual({ courseName: text.courseName, className: undefined, controls: text.controls, timeLimit: undefined, penalty: undefined });
+    expect(hasErrors(validateCourseClass({ courseName: "Lång", className: " ", controls: "31 32",
+      rogaining: { timeLimit: "0", penalty: "abc" } }))).toBe(false);
     expect(validateCourseClass({ courseName: "Lång", className: "H21", controls: "31 x" }).controls).toBe(text.controlsInvalid);
     expect(hasErrors(validateCourseClass({ courseName: "Lång", className: "H21", controls: "31, 32 33" }))).toBe(false);
     const rogaining = validateCourseClass({ courseName: "R", className: "R60", controls: "31", rogaining: { timeLimit: "0", penalty: "abc" } });

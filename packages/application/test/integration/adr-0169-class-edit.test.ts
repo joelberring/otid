@@ -67,7 +67,7 @@ async function race(): Promise<Race> {
   const proof: Proof = { raceId, sessionToken: entered.sessionToken, csrfCookie: entered.csrfToken, csrfHeader: entered.csrfToken };
   const long = await courseClass(proof, "Lång", "H21", [31, 32, 33]);
   const short = await courseClass(proof, "Kort", "D21", [31, 33]);
-  return { proof, raceId, classId: long.classId, longId: long.courseId, shortId: short.courseId };
+  return { proof, raceId, classId: long.classId!, longId: long.courseId, shortId: short.courseId };
 }
 
 async function register(f: Race, givenName: string, cardNumber: string): Promise<string> {

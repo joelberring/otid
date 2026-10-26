@@ -10,6 +10,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-10-26 – Steg 55: bana utan klass (agent G)
+- "Ny bana" kräver inte längre klass: utan klassnamn sparas bara banan (kontrakt, `createManualCourseClassAsAdmin`, journalens `class_id` NULL i `0027_bana_utan_klass`, audit `MANUAL_COURSE_CREATED_BY_ADMIN`). Startsätt och rogaining visas först med klassnamn; knapp och besked följer.
+- Fälten i "Ny bana" och "Ny klass" linjeras överst (`fieldRowTop`), också när ett fält visar fel. Kontrollerat på 1280 och 390 px.
+- "Ny klass" på en gafflad bana (tom grundföljd, bara varianter) avvisades som konflikt; nu går den att välja.
+- Verifierat: lint, typecheck, enhets- och integrationstester (bana utan klass, omspelning, dubblettnamn, ändring, gaffling, klass, stafettsträcka, kontrollkarta), bygget, Playwright `bana-utan-klass` och specarna som använder formuläret.
+
 ### 2026-10-26 – Steg 56: stafettformuläret (agent H)
 - "Ny stafettklass"/"Ändra stafettklass"/"Nytt lag": fel vid fälten (`relay-form-validation.ts`, `relay-fields.tsx`), sammanfattning överst, fokus på första felet; nekat sparande visas i formuläret, upptaget namn vid klassnamnet.
 - Ingen klassbana i formuläret: "Bana sträcka N" krävs, snabbval "Samma bana på alla sträckor"; servern sätter klassens bana till sträcka 1:s och sparar alla sträckors banor (ADR-0174 beslut 10). Lagkort, publika resultat och startlista visar bana per sträcka när banorna skiljer sig; klasstabellen visar sträckornas banor.

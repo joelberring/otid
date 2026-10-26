@@ -208,9 +208,10 @@ export const startListPublications = pgTable("start_list_publication", {
   check("start_list_publication_payload_check", sql`(${table.action} = 'PUBLISH' AND ${table.sourceHash} IS NOT NULL AND ${table.sourceHash} ~ '^[a-f0-9]{64}$' AND ${table.content} IS NOT NULL AND jsonb_typeof(${table.content}) = 'object') OR (${table.action} = 'WITHDRAW' AND ${table.sourceHash} IS NULL AND ${table.content} IS NULL)`)
 ]);
 
+/** "Ny bana": banan och, om ett klassnamn angavs, klassen. Utan klass är `class_id` NULL (steg 55). */
 export const manualCourseClassCreateRequests = pgTable("manual_course_class_create_request", {
   requestId: uuid("request_id").primaryKey(), raceId: uuid("race_id").notNull().references(() => races.id),
-  courseId: uuid("course_id").notNull(), courseVersionId: uuid("course_version_id").notNull(), classId: uuid("class_id").notNull(),
+  courseId: uuid("course_id").notNull(), courseVersionId: uuid("course_version_id").notNull(), classId: uuid("class_id"),
   actorAccountId: uuid("actor_account_id").notNull(),
   request: jsonb("request").$type<Record<string, unknown>>().notNull(), response: jsonb("response").$type<Record<string, unknown>>().notNull()
 }, table => [

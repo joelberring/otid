@@ -49,12 +49,14 @@ export type CourseClassInput = { courseName: string; className: string; controls
   rogaining?: { timeLimit: string; penalty: string } | undefined };
 export function validateCourseClass(input: CourseClassInput): FieldErrors<"courseName" | "className" | "controls" | "timeLimit" | "penalty"> {
   const limit = input.rogaining?.timeLimit.trim() ?? "", penalty = input.rogaining?.penalty.trim() ?? "";
+  // Steg 55: klassnamnet är valfritt; tidsgräns och straff gäller klassen och prövas bara när ett klassnamn finns.
+  const withClass = input.className.trim() !== "";
   return {
     courseName: name(input.courseName, 1, 160) ? undefined : text.courseName,
-    className: name(input.className, 1, 160) ? undefined : text.className,
+    className: !withClass || name(input.className, 1, 160) ? undefined : text.tooLong(160),
     controls: !input.controls.trim() ? text.controls : parseControlCodes(input.controls) ? undefined : text.controlsInvalid,
-    timeLimit: !input.rogaining || (/^\d+$/.test(limit) && Number(limit) >= 1 && Number(limit) <= 2_880) ? undefined : text.timeLimit,
-    penalty: !input.rogaining || (/^\d+$/.test(penalty) && Number(penalty) <= 1_000) ? undefined : text.penalty
+    timeLimit: !input.rogaining || !withClass || (/^\d+$/.test(limit) && Number(limit) >= 1 && Number(limit) <= 2_880) ? undefined : text.timeLimit,
+    penalty: !input.rogaining || !withClass || (/^\d+$/.test(penalty) && Number(penalty) <= 1_000) ? undefined : text.penalty
   };
 }
 

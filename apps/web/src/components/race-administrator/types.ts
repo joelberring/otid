@@ -14,8 +14,9 @@ import { formatDuration } from "../../lib/clock-time";
 
 /** Ett pågående ändringsförsök. Alla försök granskas innan de skickas och kan skickas om med samma id. */
 export type ConflictReviewAttempt = { kind: "CONFLICT_REVIEW"; candidate: StartCheckinConflictReviewCandidate; request: StartCheckinConflictReviewRequest };
-export type CourseClassRequest = { formatVersion: 1; requestId: string; courseName: string; className: string;
-  startRule: "PUNCH" | "FIXED"; controlCodes: number[]; rogaining?: { timeLimitMinutes: number; penaltyPoints: number } };
+/** "Ny bana": utan klassnamn sparas bara banan, och då skickas varken startsätt eller rogaining (steg 55). */
+export type CourseClassRequest = { formatVersion: 1; requestId: string; courseName: string; className?: string;
+  startRule?: "PUNCH" | "FIXED"; controlCodes: number[]; rogaining?: { timeLimitMinutes: number; penaltyPoints: number } };
 export type CourseClassAttempt = { kind: "COURSE_CLASS"; request: CourseClassRequest };
 export type ManualClassAttempt = { kind: "MANUAL_CLASS"; request: ManualClassCreateRequest; targetLabel: string };
 export type CourseEditAttempt = { kind: "COURSE_EDIT"; request: CourseEditRequest };

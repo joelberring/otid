@@ -1,7 +1,7 @@
 import { publicResultUpdateEventExists, readPublicResultEventStream } from "@o-tid/application";
 import type { Pool, PoolClient } from "@o-tid/database";
 import { db, pool } from "./db";
-import { warmPublicRaceLists } from "./public-race-data";
+import { publicRaceListsRecentlyRead, warmPublicRaceLists } from "./public-race-data";
 import { coalesceNotifications, formatPublicResultEvent, NOTIFICATION_WINDOW_MS, parsePublicResultUpdateNotification } from "./public-result-event-stream-wire";
 
 const notificationChannel = "otid_public_result_update";
@@ -34,9 +34,12 @@ function closeSubscribers(): void {
 }
 
 const deliverLatest = coalesceNotifications(NOTIFICATION_WINDOW_MS, async (raceId, eventSequence) => {
+  const listening = (hub().subscribers.get(raceId)?.size ?? 0) > 0;
+  // Steg 51: också en instans utan egna lyssnare räknar om en tävling den nyss visat, för med två instanser kan den väckta
+  // besökarens hämtning hamna här.
+  if (!listening && !publicRaceListsRecentlyRead(raceId)) return;
   if (!await publicResultUpdateEventExists(db, raceId, eventSequence)) return;
-  if ((hub().subscribers.get(raceId)?.size ?? 0) === 0) return;
-  // Steg 51: listorna för den nya versionen räknas först, så att alla väckta besökare får den färdiga listan.
+  // Listorna för den nya versionen räknas först, så att alla väckta besökare får den färdiga listan.
   try { await warmPublicRaceLists(raceId); } catch (error) { console.error("De publika listorna kunde inte räknas före väckningen", error); }
   for (const subscriber of hub().subscribers.get(raceId) ?? []) subscriber(eventSequence);
 });
@@ -73,6 +76,14 @@ async function ensureListener(databasePool: Pool): Promise<void> {
     }
   })().finally(() => { hub().connecting = null; });
   return current.connecting;
+}
+
+/**
+ * Steg 51: instansen lyssnar på resultatströmmen så snart den visar en publik lista, inte först när en besökare öppnar
+ * strömmen här. Annars räknar den instans som bara får hämtningarna (den andra bakom Caddy) aldrig om i förväg.
+ */
+export function ensurePublicResultListener(): void {
+  void ensureListener(pool).catch((error) => console.error("Resultatströmmen kunde inte lyssna", error));
 }
 
 function subscribe(raceId: string, subscriber: Subscriber): () => void {

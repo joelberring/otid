@@ -17,7 +17,7 @@ export { isRetryableReadConflict } from "./read-conflict";
  *   uträkningens tid om den är längre: under en målrusning, när versionen ändras flera gånger i sekunden, räknas listan
  *   om i takt med att den hinner och tar högst en tredjedel av processen, så att avläsningarna alltid får plats.
  * - Har bara nya resultat kommit in (`staleAllowed`, under en målrusning flera gånger i sekunden) får anropet den senaste
- *   färdiga listan direkt om den är högst `serveStaleMs` gammal, annars väntar det högst `waitMs`. Resultatströmmen väcker
+ *   färdiga listan direkt om den är högst `serveStaleMs` (1 s) gammal, annars väntar det högst `waitMs`. Resultatströmmen väcker
  *   publiken först när den nya listan är räknad (`fresh`). Är något annat ändrat (fastställt eller ångrat, ändrad klass,
  *   bana, lag eller publicering) väntar anropet på den nya listan: en omladdad sida visar aldrig det som ändrats bort.
  * - Versionen läses högst en gång per `versionTtlMs` och tävling (en fråga i stället för en per anrop).
@@ -61,9 +61,11 @@ export function onlyNewResults(cached: string, current: string): boolean {
 export function createPublicRaceCache(options: PublicRaceCacheOptions) {
   const now = options.now ?? Date.now;
   const defaults = { maxAgeMs: options.maxAgeMs ?? 15_000, minIntervalMs: options.minIntervalMs ?? 1_000, waitMs: options.waitMs ?? 2_000,
-    maxStaleMs: options.maxStaleMs ?? 30_000, serveStaleMs: options.serveStaleMs ?? 3_000 };
+    maxStaleMs: options.maxStaleMs ?? 30_000, serveStaleMs: options.serveStaleMs ?? 1_000 };
   const maxEntries = options.maxEntries ?? 300;
   const slots = new Map<string, Slot>();
+  /** När tävlingens listor senast lästes här (för att värma bara det som den här instansen visar). */
+  const readAt = new Map<string, number>();
   const versionTtlMs = options.versionTtlMs ?? 250;
   const staleAllowed = options.staleAllowed ?? ((cached: string, current: string) => cached === current);
   const versions = new Map<string, { at: number; value: Promise<string | null> }>();
@@ -120,6 +122,11 @@ export function createPublicRaceCache(options: PublicRaceCacheOptions) {
     const maxAgeMs = overrides.maxAgeMs ?? defaults.maxAgeMs;
     const minIntervalMs = overrides.minIntervalMs ?? defaults.minIntervalMs;
     const slot = slotFor(`${raceId}:${kind}`);
+    // Uppvärmningen (`fresh`) räknas inte som läsning: en tävling som ingen tittar på värms inte i all evighet.
+    if (!overrides.fresh) {
+      readAt.delete(raceId); readAt.set(raceId, now());
+      while (readAt.size > maxEntries) readAt.delete(readAt.keys().next().value!);
+    }
     const key = overrides.fresh || overrides.exact ? await options.version(raceId) : await versionOf(raceId);
     const cached = slot.entry as CachedPublic<T> | undefined;
     if (cached && key !== null && cached.key === key && now() - cached.at < maxAgeMs) return cached;
@@ -129,8 +136,8 @@ export function createPublicRaceCache(options: PublicRaceCacheOptions) {
     const pending = (async () => {
       let entry = await start();
       // En uträkning som började före en ändring som inte bara är nya resultat (t.ex. ett ångrat fastställande) räcker
-      // inte: räkna en gång till, med den nya versionen.
-      if (key !== null && entry.key !== key && !staleAllowed(entry.key, key)) entry = await start();
+      // inte, och inte heller för väckningen (`fresh`), som ska ge den nya avläsningen: räkna en gång till.
+      if (key !== null && entry.key !== key && (overrides.fresh || !staleAllowed(entry.key, key))) entry = await start();
       return mark(entry);
     })();
     // Den som får den senaste färdiga listan väntar inte på uträkningen; ett fel loggas inte två gånger.
@@ -146,7 +153,10 @@ export function createPublicRaceCache(options: PublicRaceCacheOptions) {
     return cached ? pending.catch(() => mark(cached)) : pending;
   }
 
-  return { read, clear: () => { slots.clear(); versions.clear(); } };
+  /** Har instansen läst tävlingens listor de senaste `withinMs`? (Då räknas de om när ett resultat kommer in.) */
+  const recentlyRead = (raceId: string, withinMs: number) => now() - (readAt.get(raceId) ?? Number.NEGATIVE_INFINITY) < withinMs;
+
+  return { read, recentlyRead, clear: () => { slots.clear(); versions.clear(); readAt.clear(); } };
 }
 
 /**

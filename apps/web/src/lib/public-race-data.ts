@@ -15,10 +15,25 @@ const cache = globalCache.oTidPublicRaceCache ??= createPublicRaceCache({ versio
 
 /** `fresh`: vänta på den aktuella versionen (väckningen). `exact`: läs versionen nu (sidorna, efter en sparad ändring). */
 type Read = { fresh?: boolean; exact?: boolean };
-export const cachedPublicResults = (raceId: string, read: Read = {}) => cache.read(raceId, "results", () => publicResults(db, raceId), read);
-export const cachedPublicRelayResults = (raceId: string, read: Read = {}) =>
-  cache.read(raceId, "relay", () => publicRelayResults(db, raceId), read);
-export const cachedPublicRadio = (raceId: string, read: Read = {}) => cache.read(raceId, "radio", () => readPublicRadio(db, raceId), read);
+
+/** Instansen som visar en lista lyssnar på resultatströmmen (se `ensurePublicResultListener`); inläst först vid behov. */
+let streamModule: Promise<typeof import("./public-result-event-stream")> | undefined;
+function listenForResults(): void {
+  streamModule ??= import("./public-result-event-stream");
+  streamModule.then((module) => module.ensurePublicResultListener(), (error) => {
+    streamModule = undefined;
+    console.error("Resultatströmmen kunde inte läsas in", error);
+  });
+}
+
+const read = <T>(raceId: string, kind: string, compute: () => Promise<T>, options: Read & { maxAgeMs?: number } = {}) => {
+  listenForResults();
+  return cache.read(raceId, kind, compute, options);
+};
+export const cachedPublicResults = (raceId: string, options: Read = {}) => read(raceId, "results", () => publicResults(db, raceId), options);
+export const cachedPublicRelayResults = (raceId: string, options: Read = {}) =>
+  read(raceId, "relay", () => publicRelayResults(db, raceId), options);
+export const cachedPublicRadio = (raceId: string, options: Read = {}) => read(raceId, "radio", () => readPublicRadio(db, raceId), options);
 
 /** Live ur de cachade listorna; "Ny ledare" och tiden följer klockan, så Live räknas om minst var femte sekund. */
 export const cachedPublicLive = (raceId: string, read: Read = {}) => cache.read(raceId, "live", async () => {
@@ -26,6 +41,12 @@ export const cachedPublicLive = (raceId: string, read: Read = {}) => cache.read(
     cachedPublicRadio(raceId, read)]);
   return readPublicLiveFrom(db, raceId, { results: results.value, relay: relay.value, radio: radio.value });
 }, { maxAgeMs: 5_000, ...read });
+
+/**
+ * Har den här instansen visat tävlingens listor de senaste två minuterna? Med två instanser bakom Caddy kan besökarens
+ * resultatström ligga på den ena och hämtningen hamna på den andra; båda räknar då om när ett resultat kommer in.
+ */
+export const publicRaceListsRecentlyRead = (raceId: string) => cache.recentlyRead(raceId, 120_000);
 
 /**
  * Räknar resultatlistorna och Live för tävlingens nya version innan resultatströmmen väcker publiken, så att

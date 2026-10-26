@@ -133,6 +133,32 @@ describe("steg 51: publika listor en gång per tävlingsversion", () => {
     expect(cachedJsonResponse(new Request("http://localhost/"), undone, "public, max-age=2").headers.get("x-otid-stale")).toBeNull();
   });
 
+  it("väckningen (fresh) väntar ut en uträkning från före avläsningen och räknar om med den nya", async () => {
+    let version = "3:10:-:pub:0:-";
+    const cache = createPublicRaceCache({ version: async () => version, minIntervalMs: 0, versionTtlMs: 0, staleAllowed: onlyNewResults });
+    const compute = async () => { const seen = version; await delay(60); return seen; };
+    await cache.read(race, "live", compute);
+    version = "3:11:-:pub:0:-";
+    const before = cache.read(race, "live", compute, { exact: true });
+    await delay(10);
+    version = "3:12:-:pub:0:-";
+    const woken = await cache.read(race, "live", compute, { fresh: true });
+    expect([woken.value, woken.stale]).toEqual(["3:12:-:pub:0:-", undefined]);
+    await before;
+  });
+
+  it("minns vilka tävlingar instansen visat, men inte uppvärmningens egna läsningar", async () => {
+    let clock = 0;
+    const cache = createPublicRaceCache({ version: async () => "v1", now: () => clock, versionTtlMs: 0 });
+    const other = "10000000-0000-4000-8000-000000000002";
+    await cache.read(race, "live", async () => 1);
+    await cache.read(other, "live", async () => 1, { fresh: true });
+    clock = 60_000;
+    expect([cache.recentlyRead(race, 120_000), cache.recentlyRead(other, 120_000)]).toEqual([true, false]);
+    clock = 120_000;
+    expect(cache.recentlyRead(race, 120_000)).toBe(false);
+  });
+
   it("bara resultatströmmens markör får skilja versionerna åt för att visa den förra listan", () => {
     expect(onlyNewResults("3:10:-:pub:0:-", "3:12:-:pub:0:-")).toBe(true);
     expect(onlyNewResults("3:10:fast:pub:0:-", "3:10:-:pub:0:-")).toBe(false);

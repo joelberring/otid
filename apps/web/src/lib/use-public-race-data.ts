@@ -11,10 +11,11 @@ export const STREAM_OPEN_INTERVAL_MS = 10_000;
 
 /**
  * Steg 51: gällde svaret en äldre version (servern räknade just om listan, `x-otid-stale`) hämtar sidan igen efter
- * 3–4 s, lika glest som väckningarna under en målrusning. Annars kunde en besökare som öppnade sidan just efter sista
- * avläsningen (och därför inte väcks av den) stå kvar med listan före avläsningen tills reservhämtningen.
+ * 1,5–2,5 s, när den nya listan är räknad. Annars kunde en besökare som öppnade sidan just efter sista avläsningen (och
+ * därför inte väcks av den) stå kvar med listan före avläsningen tills reservhämtningen. Målet är att en ny avläsning
+ * syns inom 5 s.
  */
-export const STALE_RETRY_MS = { minMs: 3_000, spreadMs: 1_000 };
+export const STALE_RETRY_MS = { minMs: 1_500, spreadMs: 1_000 };
 export type PublicRead<T> = (raceId: string, onStale: () => void) => Promise<T>;
 
 /** Ska sidans egen timer hämta nu? Med öppen ström bara när förra hämtningen är äldre än reservintervallet. */

@@ -1,7 +1,7 @@
 import type { ReadoutPackage, SportidentReadoutPayload } from "@o-tid/contracts";
-import { cardPunchList, courseVariantForReadout, evaluateCardReadout, okWithoutSplits, prepareReadoutForEvaluation, startPunchNote, teamSprintChangeoverProblem, type CardPunchList, type EvaluationResult,
-  type RaceSnapshot, type RogainingScore, type StartPunchNote } from "@o-tid/domain";
-import { localRelay, relaySnapshot, type LocalRelay } from "./relay";
+import { cardPunchList, courseVariantForReadout, evaluateCardReadout, evaluateReadoutForEntry, okWithoutSplits, prepareReadoutForEvaluation, startPunchNote, teamSprintChangeoverProblem, type CardPunchList, type EvaluationResult,
+  type RaceSnapshot, type RogainingScore, type StartPunchNote, type TeamSprintEachLegPart } from "@o-tid/domain";
+import { localRelay, relaySnapshot, routeTeamSprintLocally, type LocalRelay } from "./relay";
 import type { QueuedRegistration } from "./store";
 
 /** Det som avläsningsvyn visar direkt efter en avläsning, före serverns svar. */
@@ -40,6 +40,11 @@ export interface LocalVerdict {
    */
   readonly alreadyReadOutBy?: { readonly entryId: string; readonly classId: string; readonly name: string; readonly className: string;
     readonly certain: boolean };
+  /**
+   * Steg 50: teamsprint med utläsning efter varje sträcka – utläsningen gick inte att lägga på någon av löparens sträckor:
+   * måltiden är före sträcka `leg`:s mål, eller löparen är redan utläst efter alla sina sträckor.
+   */
+  readonly teamSprintProblem?: { readonly kind: "EARLIER_FINISH"; readonly leg: number } | { readonly kind: "ALL_READ" };
 }
 
 /** Har brickan använts i ett nytt lopp (start- eller kontrollstämpling) efter den förra avläsningens mål? */
@@ -123,23 +128,40 @@ export function evaluateLocally(payload: SportidentReadoutPayload, pkg: ReadoutP
   // Samma regel som servern: brickan har använts i ett nytt lopp efter förra avläsningens mål.
   const differsLocally = sameCard.some((candidate) => !samePayloadContent(candidate, payload) && laterRunThan(candidate, payload));
   const readOutByOwner = owner !== undefined && (pkg.readOutEntryIds ?? []).includes(owner.entryId) && sameCard.length === 0;
-  const alreadyReadOutBy = ownerEntry && (differsLocally || readOutByOwner) ? { entryId: ownerEntry.id, classId: ownerEntry.classId,
+  // Steg 50: teamsprint med utläsning efter varje sträcka – samma bricka läses ut efter varje sträcka och fördelas på löparens
+  // sträckor (samma regel som servern), i stället för att räknas som en lånad bricka.
+  const sprintRouting = ownerEntry?.teamSprint?.mode === "EACH_LEG" ? routeTeamSprintLocally(pkg, [...sameCard, payload]) : undefined;
+  const sprintTarget = sprintRouting?.last?.target;
+  const alreadyReadOutBy = !sprintRouting && ownerEntry && (differsLocally || readOutByOwner) ? { entryId: ownerEntry.id, classId: ownerEntry.classId,
     name: `${ownerEntry.givenName} ${ownerEntry.familyName}`.trim(),
     className: pkg.raceSnapshot.classes.find((candidate) => candidate.id === ownerEntry.classId)?.name ?? "", certain: differsLocally }
     : undefined;
   // Kontraktets valfria fält tillåter uttryckligt undefined; resultatmotorn läser dem inte.
-  const snapshot = owner ? relaySnapshot(pkg, owner.entryId, earlier) : pkg.raceSnapshot as RaceSnapshot;
-  const result = evaluateCardReadout(readout, snapshot);
+  const snapshot = sprintRouting ? withLayout(relaySnapshot(pkg, sprintTarget ?? owner!.entryId, earlier), sprintRouting.last?.layout)
+    : owner ? relaySnapshot(pkg, owner.entryId, earlier) : pkg.raceSnapshot as RaceSnapshot;
+  const route = sprintRouting?.last?.route;
+  const teamSprintProblem: LocalVerdict["teamSprintProblem"] = route?.kind === "ALL_READ" ? { kind: "ALL_READ" }
+    : route?.kind === "EARLIER_FINISH" ? { kind: "EARLIER_FINISH",
+      leg: ownerEntry?.teamSprint?.mode === "EACH_LEG" ? legOf(pkg, ownerEntry.teamSprint.legEntryIds[route.part - 1]!) : route.part } : undefined;
+  const result: EvaluationResult = sprintRouting ? (sprintTarget ? evaluateReadoutForEntry(readout, snapshot, sprintTarget)
+    : { status: "UNKNOWN_CARD", reason: "UNKNOWN_CARD", missingControls: [], extraPunches: [], splits: [] })
+    : evaluateCardReadout(readout, snapshot);
   const variant = result.entryId ? courseVariantForReadout(readout, snapshot) : undefined;
   const entry = result.entryId ? pkg.raceSnapshot.entries.find((candidate) => candidate.id === result.entryId) : undefined;
   const raceClass = result.classId ? pkg.raceSnapshot.classes.find((candidate) => candidate.id === result.classId) : undefined;
   const localTeam = result.entryId && result.status !== "UNKNOWN_CARD" ? localRelay(pkg, result.entryId, { status: result.status,
     ...(result.elapsedMs !== undefined ? { elapsedMs: result.elapsedMs } : {}) }, earlier) : undefined;
-  // Steg 48: teamsprint – saknas växlingsstämplingar på brickan sägs det tydligt (ADR-0174 beslut 7).
+  // Steg 48: teamsprint (efter sista sträckan) – saknas växlingsstämplingar på brickan sägs det tydligt (ADR-0174 beslut 7).
   const sprint = entry?.teamSprint;
-  const missing = sprint && localTeam ? teamSprintChangeoverProblem(readout, { ...sprint, part: sprint.parts,
+  const missing = sprint && sprint.mode !== "EACH_LEG" && localTeam ? teamSprintChangeoverProblem(readout, { ...sprint, part: sprint.parts,
     endsAtFinish: localTeam.legs.at(-1) === localTeam.legCount }) : undefined;
-  const relay = localTeam ? { ...localTeam, ...(missing ? { changeoverMissing: missing } : {}) } : undefined;
+  // Steg 50: vilken av löparens sträckor utläsningen gällde, och sträckor vars utläsning saknas (glömd utläsning).
+  const part = sprint?.mode === "EACH_LEG" ? sprint.part : undefined;
+  const ownerSprint = ownerEntry?.teamSprint?.mode === "EACH_LEG" ? ownerEntry.teamSprint : undefined;
+  const missingLegs = route?.kind === "LEGS" && ownerSprint ? route.missing.map((index) => legOf(pkg, ownerSprint.legEntryIds[index - 1]!)) : [];
+  const relay = localTeam ? { ...localTeam, ...(missing ? { changeoverMissing: missing } : {}),
+    ...(part !== undefined && entry ? { legs: [localTeam.leg], teamSprint: { part, runner: `${entry.givenName} ${entry.familyName}`.trim(), missingLegs } } : {}) }
+    : undefined;
   const punchList = result.status === "MP" || result.status === "UNKNOWN_CARD"
     ? cardPunchList(readout, snapshot, result.entryId, pkg.event.timeZone) : undefined;
   const ignoredPunches = prepareReadoutForEvaluation(readout, snapshot).ignoredPunches;
@@ -161,9 +183,25 @@ export function evaluateLocally(payload: SportidentReadoutPayload, pkg: ReadoutP
     ...(ignoredPunches > 0 ? { ignoredPunches } : {}),
     ...(okWithoutSplits(result, snapshot) ? { splitsMissing: true as const } : {}),
     ...(alreadyReadOutBy ? { alreadyReadOutBy } : {}),
+    ...(teamSprintProblem ? { teamSprintProblem } : {}),
     missingControls: result.missingControls,
     splits: result.splits.map((split) => ({ controlCode: split.controlCode, elapsedMs: split.elapsedMs, legMs: split.legMs }))
   };
+}
+
+/** Ögonblicksbilden med teamsprintens delning för utläsningen (steg 50). */
+function withLayout(snapshot: RaceSnapshot, layout: ReadonlyMap<string, TeamSprintEachLegPart> | undefined): RaceSnapshot {
+  if (!layout) return snapshot;
+  return { ...snapshot, entries: snapshot.entries.map((entry) => layout.has(entry.id) ? { ...entry, teamSprint: layout.get(entry.id)! } : entry) };
+}
+
+/** Sträckans nummer för en sträcklöpare. */
+function legOf(pkg: ReadoutPackage, entryId: string): number {
+  for (const team of pkg.relay?.teams ?? []) {
+    const leg = team.legs.find((candidate) => candidate.entryId === entryId);
+    if (leg) return leg.leg;
+  }
+  return 0;
 }
 
 /** Löptid som t:mm:ss eller m:ss. */

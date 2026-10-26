@@ -23,7 +23,7 @@ import { lockRaceForMutation } from "./concurrency";
 import { applyStartListImport, StartListImportConflictError } from "./import-start-list";
 import { assertRaceClassCapacities, ClassCapacityConflictError } from "./class-capacity-guard";
 import { insertCourseVersionControls, loadCourseVersionVariants } from "./course-variants";
-import { storeControlPositions, storeCourseEnds } from "./course-positions";
+import { storeControlMapPositions, storeControlPositions, storeCourseEnds } from "./course-positions";
 import { DuplicateNameError } from "./duplicate-names";
 export class EntryCardImportConflictError extends Error {}
 export class EntryIdentityImportConflictError extends Error {}
@@ -37,6 +37,7 @@ async function importCourses(tx: DbExecutor, raceId: string, parsed: CourseDataI
   const versionByCourse = new Map<string, string>();
   // Steg 49: kontrollernas lägen före banorna, så att kontrollerna finns med läge när banorna sparas.
   await storeControlPositions(tx, raceId, parsed.controlPositions);
+  await storeControlMapPositions(tx, raceId, parsed.controlMapPositions ?? [], parsed.mapScale);
   for (const imported of parsed.courses) {
     // En bana med samma namn men annan identitet (manuellt skapad eller annan fil) får inte dubbleras (PLAN.md steg 22).
     const [sameName] = await tx.select({ externalSource: schema.courses.externalSource, externalId: schema.courses.externalId })

@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { publicRaceSummary } from "@o-tid/application";
+import { publicRaceSummary, publicResultDetail } from "@o-tid/application";
 import { cachedPublicResultDetail } from "../../../../../lib/public-race-data";
 import { PublicResultDetail } from "../../../../../components/public-result-detail";
 import { db } from "../../../../../lib/db";
 import { sv } from "../../../../../i18n/sv";
-import { requirePublicRace } from "../../../../../lib/public-race-gate";
+import { raceStaff, requirePublicRace } from "../../../../../lib/public-race-gate";
 import { PreviewBanner } from "../../../../../components/public-race/preview-banner";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +13,9 @@ export const dynamic = "force-dynamic";
 export default async function PublicResultDetailPage({ params }: { params: Promise<{ raceId: string; publicResultId: string }> }) {
   const { raceId, publicResultId } = await params;
   const access = await requirePublicRace(raceId);
-  const [summary, detail] = await Promise.all([publicRaceSummary(db, raceId), cachedPublicResultDetail(raceId, publicResultId)]);
+  const staff = await raceStaff(raceId);
+  const [summary, detail] = await Promise.all([publicRaceSummary(db, raceId),
+    staff ? publicResultDetail(db, raceId, publicResultId, { staff }) : cachedPublicResultDetail(raceId, publicResultId)]);
   if (detail.status === "not-found") notFound();
   return <main className="stack public-result-detail-page">
     <nav className="nav"><Link href={`/results/${raceId}`}>{sv.publicResultBack}</Link></nav>

@@ -66,6 +66,8 @@ async function loadCourse(tx: Transaction, raceId: string, courseId: string) {
     positions, classes, classCourseIds: classCourse.map(row => row.id) };
 }
 type LoadedCourse = NonNullable<Awaited<ReturnType<typeof loadCourse>>>;
+/** Steg 52: kontrollkartan läser banorna som banlistan. */
+export const loadCourseForMap = loadCourse;
 
 /**
  * Gafflad bana: varianten som ändras måste finnas och banan behåller alla varianter.

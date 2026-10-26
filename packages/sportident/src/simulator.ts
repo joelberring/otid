@@ -1,5 +1,5 @@
 import { BLOCK_SIZE, Command, MASTER_DIRECT, NAK, READ_ALL_BLOCKS, StationMode, SystemOffset } from "./constants";
-import { CARD_LAYOUTS, expectedImageSize, type FieldLayout, type SiCardType } from "./card-types";
+import { CARD_LAYOUTS, cardImageBlocks, expectedImageSize, type FieldLayout, type SiCardType } from "./card-types";
 import { encodeStationFrame, FrameDecoder } from "./frame";
 import { encodeStationClock, stationClockFromDate, type StationClock } from "./time";
 
@@ -86,6 +86,9 @@ export function encodeCardImage(card: SimulatedCard): Uint8Array {
   return image;
 }
 
+/** Block som inte är stämplingar (inställningar, batteridata på en riktig SIAC). */
+const OTHER_BLOCK = new Uint8Array(BLOCK_SIZE).map((_value, index) => index % 2 === 0 ? 0x02 : 0x00);
+
 export interface FakeStationOptions {
   readonly stationCode?: number;
   readonly serialNumber?: number;
@@ -99,6 +102,24 @@ export interface FakeStationOptions {
   readonly clock?: (() => { clock: StationClock; dayOfWeek: number }) | null;
   /** Stationen är inställd på att skicka alla åtta block för SI6 och SI10/11/SIAC (som BSM8 på natt-KM 2026-10-20). */
   readonly eightBlocks?: boolean;
+  /** Steg 53: stationen svarar fel på en enskild blockläsning (inte på "alla block"), för att prova reservvägen. */
+  readonly singleBlockFault?: SingleBlockFault;
+}
+
+/**
+ * Steg 53: ett fel vid enskild blockläsning. `nak` = NAK, `wrong-block` = svar med ett annat block, `silent` = inget
+ * svar (tidsgräns), `remove` = brickan tas ur i stället för att svaret kommer.
+ */
+export interface SingleBlockFault {
+  readonly block: number;
+  readonly answer: "nak" | "wrong-block" | "silent" | "remove";
+}
+
+interface InsertedCard {
+  readonly cardType: SiCardType;
+  readonly cardNumber: number;
+  /** Brickans block efter blocknummer, 128 byte vardera. Block som saknas innehåller annat än stämplingar. */
+  readonly blocks: ReadonlyMap<number, Uint8Array>;
 }
 
 /**
@@ -107,8 +128,8 @@ export interface FakeStationOptions {
  */
 export class FakeSiStation {
   readonly #decoder = new FrameDecoder({ stationFrames: false });
-  readonly #options: Required<FakeStationOptions>;
-  #card: { readonly spec: SimulatedCard; readonly image: Uint8Array } | undefined;
+  readonly #options: Required<Omit<FakeStationOptions, "singleBlockFault">> & Pick<FakeStationOptions, "singleBlockFault">;
+  #card: InsertedCard | undefined;
 
   constructor(options: FakeStationOptions = {}) {
     this.#options = {
@@ -118,6 +139,7 @@ export class FakeSiStation {
       extendedProtocol: options.extendedProtocol ?? true,
       handshake: options.handshake ?? true,
       eightBlocks: options.eightBlocks ?? false,
+      ...(options.singleBlockFault ? { singleBlockFault: options.singleBlockFault } : {}),
       clock: options.clock === undefined ? () => stationClockFromDate(new Date(), "UTC") : options.clock
     };
   }
@@ -134,7 +156,15 @@ export class FakeSiStation {
 
   /** Brickan sätts i: returnerar detekteringsramen (och data om stationen saknar handskakning). */
   insert(card: SimulatedCard): Uint8Array[] {
-    this.#card = { spec: card, image: encodeCardImage(card) };
+    const image = encodeCardImage(card);
+    const blocks = new Map(cardImageBlocks(card.cardType).map((number, index) => [number, this.#block(image, index)] as const));
+    return this.insertBlocks(card.cardType, card.cardNumber, blocks);
+  }
+
+  /** Steg 53: sätter i en bricka med givna block (t.ex. inspelade från en riktig bricka). */
+  insertBlocks(cardType: SiCardType, cardNumber: number, blocks: ReadonlyMap<number, Uint8Array>): Uint8Array[] {
+    this.#card = { cardType, cardNumber, blocks };
+    const card = { cardType, cardNumber };
     const n = card.cardNumber;
     const detection =
       card.cardType === "SI5"
@@ -157,7 +187,7 @@ export class FakeSiStation {
   #allCardFrames(): Uint8Array[] {
     const card = this.#card;
     if (!card) return [];
-    switch (card.spec.cardType) {
+    switch (card.cardType) {
       case "SI5":
         return this.#respond(Command.READ_SI5, new Uint8Array());
       case "SI6":
@@ -179,15 +209,27 @@ export class FakeSiStation {
    * "Alla block": bara blocken med data, eller (stationen inställd på åtta block) block 0–7 där de övriga innehåller
    * annat än stämplingar, som på en riktig SIAC (inställningar, batteridata).
    */
-  #allBlocks(dataBlocks: readonly number[], command: number, image: Uint8Array): Uint8Array[] {
-    if (!this.#options.eightBlocks) {
-      return dataBlocks.map((block, index) => this.#frame(command, [block, ...this.#block(image, index)]));
+  #allBlocks(card: InsertedCard, command: number): Uint8Array[] {
+    const numbers = this.#options.eightBlocks ? [0, 1, 2, 3, 4, 5, 6, 7] : cardImageBlocks(card.cardType);
+    return numbers.map((block) => this.#blockFrame(card, command, block));
+  }
+
+  #blockFrame(card: InsertedCard, command: number, block: number): Uint8Array {
+    return this.#frame(command, [block, ...(card.blocks.get(block) ?? OTHER_BLOCK)]);
+  }
+
+  /** Enskild blockläsning, med det fel som stationen är inställd att ge. */
+  #singleBlock(card: InsertedCard, command: number, block: number): Uint8Array[] {
+    const fault = this.#options.singleBlockFault;
+    if (fault?.block === block) {
+      switch (fault.answer) {
+        case "nak": return [Uint8Array.of(NAK)];
+        case "wrong-block": return [this.#blockFrame(card, command, (block + 1) % 8)];
+        case "silent": return [];
+        case "remove": return [this.remove()];
+      }
     }
-    const other = new Uint8Array(BLOCK_SIZE).map((_value, index) => index % 2 === 0 ? 0x02 : 0x00);
-    return [0, 1, 2, 3, 4, 5, 6, 7].map((block) => {
-      const index = dataBlocks.indexOf(block);
-      return this.#frame(command, [block, ...(index >= 0 ? this.#block(image, index) : other)]);
-    });
+    return [this.#blockFrame(card, command, block)];
   }
 
   #block(image: Uint8Array, index: number): Uint8Array {
@@ -207,6 +249,7 @@ export class FakeSiStation {
         sys[SystemOffset.SERIAL_NUMBER + 3] = serial & 0xff;
         sys[SystemOffset.MODE] = this.#options.mode;
         sys[SystemOffset.STATION_CODE] = this.#options.stationCode & 0xff;
+        sys[SystemOffset.CARD_BLOCKS] = this.#options.eightBlocks ? 0xff : 0xc1;
         sys[SystemOffset.PROTOCOL] = (this.#options.extendedProtocol ? 0b001 : 0) | (this.#options.handshake ? 0b100 : 0);
         return [this.#frame(Command.GET_SYSTEM_VALUE, [params[0] ?? 0, ...sys])];
       }
@@ -219,19 +262,14 @@ export class FakeSiStation {
     }
     const card = this.#card;
     if (!card) return [];
-    const image = card.image;
     switch (command) {
       case Command.READ_SI5:
-        return card.spec.cardType === "SI5" ? [this.#frame(Command.READ_SI5, this.#block(image, 0))] : [];
+        return card.cardType === "SI5" ? [this.#frame(Command.READ_SI5, card.blocks.get(0)!)] : [];
       case Command.READ_SI6:
-        if (card.spec.cardType !== "SI6") return [];
-        return this.#allBlocks([0, 6, 7], Command.READ_SI6, image);
       case Command.READ_SI8_PLUS: {
+        if ((command === Command.READ_SI6) !== (card.cardType === "SI6") || card.cardType === "SI5") return [];
         const param = params[0] ?? 0;
-        if (param === READ_ALL_BLOCKS) {
-          return this.#allBlocks([0, 4, 5, 6, 7], Command.READ_SI8_PLUS, image);
-        }
-        return [this.#frame(Command.READ_SI8_PLUS, [param, ...this.#block(image, param)])];
+        return param === READ_ALL_BLOCKS ? this.#allBlocks(card, command) : this.#singleBlock(card, command, param);
       }
       default:
         return [];

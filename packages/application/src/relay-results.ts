@@ -1,8 +1,8 @@
-import { and, asc, eq, inArray, max } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, max } from "drizzle-orm";
 import { publicRelayResultsSchema, relayOverviewSchema, relayReadoutSchema, type PublicRelayResults, type RelayOverview,
   type RelayReadout } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { rankRelayLegs, rankRelayTeams, relayClassLegStarts, relayParallelLegOutcome, relayTeamResult, type RelayLegRestart, type RelayTeamResult,
+import { rankRelayLegs, rankRelayTeams, relayClassLegStarts, relayParallelLegOutcome, relayTeamResult, teamSprintMissingReadouts, type RelayLegRestart, type RelayTeamResult,
   type UnfairRelayTeam } from "@o-tid/domain";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForSnapshot } from "./concurrency";
@@ -24,7 +24,15 @@ type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 export interface RelayTeamView {
   readonly team: RelayTeamRow;
   readonly legs: readonly { readonly entry: RelayLegEntry; readonly result?: RelayLegResult; readonly restarted: boolean;
-    readonly finishTime?: string; readonly changedOver: boolean }[];
+    readonly finishTime?: string; readonly changedOver: boolean;
+    /**
+     * Steg 50: sträckan saknar start för att föregående sträcka saknar växling (t.ex. en glömd teamsprintutläsning):
+     * räknas som ute, inte som felstämplad. `result` finns kvar för avläsningspaketet.
+     */
+    readonly waiting: boolean;
+    /** Steg 50: utläsningen som sträckans resultat bygger på, och om utläsningen efter sträckan saknas (teamsprint). */
+    readonly readout?: { readonly readAt: string; readonly finishTime?: string };
+    readonly readoutMissing: boolean }[];
   readonly result: RelayTeamResult;
   readonly position?: number;
   readonly timeBehindMs?: number;
@@ -44,6 +52,18 @@ export interface RelayClassView {
   readonly legCourses: ReadonlyMap<number, { courseId: string; courseName: string; courseVersionId: string }>;
   readonly restarts: ReadonlyMap<number, RelayLegRestart>;
   readonly unfairTeams: readonly UnfairRelayTeam[];
+}
+
+/** Utläsningen (lästid och mål) som varje sträckas senaste resultat med utläsning bygger på. */
+async function loadLegReadouts(tx: Transaction, raceId: string, entryIds: readonly string[]) {
+  if (entryIds.length === 0) return new Map<string, { readAt: string; finishTime?: string }>();
+  const rows = await tx.selectDistinctOn([schema.resultRevisions.entryId], { entryId: schema.resultRevisions.entryId,
+    readAt: schema.cardReadouts.readAt, finish: schema.cardReadouts.finishPunchedAt }).from(schema.resultRevisions)
+    .innerJoin(schema.cardReadouts, eq(schema.cardReadouts.id, schema.resultRevisions.readoutId))
+    .where(and(eq(schema.resultRevisions.raceId, raceId), inArray(schema.resultRevisions.entryId, [...entryIds]),
+      isNotNull(schema.resultRevisions.readoutId)))
+    .orderBy(asc(schema.resultRevisions.entryId), desc(schema.resultRevisions.revision));
+  return new Map(rows.map(row => [row.entryId, { readAt: row.readAt.toISOString(), ...(row.finish ? { finishTime: row.finish.toISOString() } : {}) }]));
 }
 
 /** Stafettklasserna med lag, sträckor, resultat och placeringar. Tom lista när loppet saknar stafett. */
@@ -71,6 +91,7 @@ export async function loadRelayView(tx: Transaction, raceId: string) {
   const [teams, entries] = await Promise.all([loadRelayTeams(tx, raceId), loadRelayLegEntries(tx, raceId)]);
   const entryIds = entries.map(entry => entry.id);
   const [results, finishes] = await Promise.all([loadRelayLegResults(tx, raceId, entryIds), loadRelayLegFinishTimes(tx, raceId, entryIds)]);
+  const readouts = await loadLegReadouts(tx, raceId, entryIds);
   const classes: RelayClassView[] = [];
   for (const row of classRows) {
     const config = configs.get(row.id)!;
@@ -84,8 +105,17 @@ export async function loadRelayView(tx: Transaction, raceId: string) {
       const legs = legsOf.get(team.id)!.map(entry => {
         const result = results.get(entry.id);
         const finishTime = finishes.get(entry.id);
+        const readout = readouts.get(entry.id);
         return { entry, ...(result ? { result } : {}), ...(finishTime ? { finishTime } : {}),
-          restarted: starts.teams.get(team.id)?.get(entry.leg)?.restarted ?? false, changedOver: false };
+          restarted: starts.teams.get(team.id)?.get(entry.leg)?.restarted ?? false, changedOver: false,
+          waiting: result?.reason === "MISSING_START", ...(readout ? { readout } : {}), readoutMissing: false };
+      }).map((leg, _index, all) => {
+        // Steg 50: teamsprint med utläsning efter varje sträcka – en senare utläsning av samma löpares bricka täcker sträckan.
+        if (config.readoutMode !== "EACH_LEG" || leg.result) return leg;
+        const owner = leg.entry.cardEntryId ?? leg.entry.id;
+        const own = all.filter(other => (other.entry.cardEntryId ?? other.entry.id) === owner);
+        const missing = teamSprintMissingReadouts(own.map(other => ({ done: other.result !== undefined, hasReadout: other.readout !== undefined })));
+        return { ...leg, readoutMissing: own.length > 1 && missing.includes(own.indexOf(leg) + 1) };
       }).map((leg, _index, all) => {
         // Steg 48: vid flera löpare på sträckan den (första i ordning) vars mål är lagets växling.
         const sameLeg = all.filter(other => other.entry.leg === leg.entry.leg);
@@ -97,19 +127,20 @@ export async function loadRelayView(tx: Transaction, raceId: string) {
         const runners = legs.filter(leg => leg.entry.leg === rule.leg);
         if (runners.length <= 1) {
           const leg = runners[0];
-          return { leg: rule.leg, restarted: leg?.restarted ?? false, ...(leg?.result ? { status: leg.result.status,
+          return { leg: rule.leg, restarted: leg?.restarted ?? false, ...(leg?.result && !leg.waiting ? { status: leg.result.status,
             ...(leg.result.elapsedMs === undefined ? {} : { elapsedMs: leg.result.elapsedMs }) } : {}) };
         }
         const legStart = starts.teams.get(team.id)?.get(rule.leg)?.start;
         return relayParallelLegOutcome({ leg: rule.leg, changeover: rule.changeoverRule, approval: rule.approvalRule,
           ...(legStart ? { legStart } : {}), restarted: runners[0]!.restarted, runners: runners.map(runner => ({
-            ...(runner.result ? { status: runner.result.status } : {}), ...(runner.finishTime ? { finishTime: runner.finishTime } : {}) })) });
+            ...(runner.result && !runner.waiting ? { status: runner.result.status } : {}),
+            ...(runner.finishTime ? { finishTime: runner.finishTime } : {}) })) });
       });
       return { team, legs, result: relayTeamResult(config.legs.length, outcomes) };
     });
     const ranking = rankRelayTeams(views.map(view => ({ key: view.team.id, result: view.result })), { restartRanking: config.restartRanking });
     const byId = new Map(views.map(view => [view.team.id, view]));
-    const legRankings = new Map(rankRelayLegs(views.flatMap(view => view.legs.flatMap(leg => leg.result ? [{ key: leg.entry.id,
+    const legRankings = new Map(rankRelayLegs(views.flatMap(view => view.legs.flatMap(leg => leg.result && !leg.waiting ? [{ key: leg.entry.id,
       leg: leg.entry.leg, status: leg.result.status, courseVersionId: leg.result.courseVersionId,
       ...(leg.result.elapsedMs === undefined ? {} : { elapsedMs: leg.result.elapsedMs }) }] : []))).map(ranking =>
       [ranking.key, { ...(ranking.position === undefined ? {} : { position: ranking.position, timeBehindMs: ranking.timeBehindMs }) }]));
@@ -163,7 +194,7 @@ export async function getRelayOverviewAsAdmin(db: Database, input: Authenticatio
           variantCode: leg.variantCode, courseId: row.legCourses.get(leg.leg)?.courseId ?? null,
           restartAfterMinutes: leg.restartAfterMinutes ?? null, runners: leg.runners, changeoverRule: leg.changeoverRule,
           approvalRule: leg.approvalRule })), teamCount: row.teams.length, changeoverCode: row.config.changeoverCode,
-        restartRanking: row.config.restartRanking, forking: row.config.forking,
+        restartRanking: row.config.restartRanking, forking: row.config.forking, readoutMode: row.config.readoutMode,
         legCourses: row.config.legs.map(leg => {
           const own = row.legCourses.get(leg.leg);
           const version = own?.courseVersionId ?? row.courseVersionId;
@@ -182,13 +213,16 @@ export async function getRelayOverviewAsAdmin(db: Database, input: Authenticatio
         legs: view.legs.map(leg => ({ leg: leg.entry.leg, entryId: leg.entry.id, entryVersion: leg.entry.version,
           givenName: leg.entry.givenName, familyName: leg.entry.familyName, organisationName: leg.entry.organisationName,
           cardNumber: cardByEntry.get(leg.entry.id) ?? null, variantCode: leg.entry.courseVariantCode,
-          startTime: leg.entry.fixedStartTime?.toISOString() ?? null, status: leg.result?.status ?? null,
+          startTime: leg.entry.fixedStartTime?.toISOString() ?? null, status: leg.waiting ? null : leg.result?.status ?? null,
           elapsedMs: leg.result?.elapsedMs ?? null, restarted: leg.restarted, finishTime: leg.finishTime ?? null,
           hasResult: (revisions.get(leg.entry.id) ?? 0) > 0, resultRevision: revisions.get(leg.entry.id) ?? 0,
           legOrder: leg.entry.legOrder, changedOver: leg.changedOver,
           sameAsLeg: leg.entry.cardEntryId ? view.legs.find(other => other.entry.id === leg.entry.cardEntryId)?.entry.leg ?? null : null,
           // Steg 48: teamsprint – sträckan har ett resultat men inget mål: växlingsstämplingen saknas på brickan.
-          changeoverMissing: row.config.changeoverCode !== null && leg.result !== undefined && leg.finishTime === undefined }))
+          changeoverMissing: row.config.readoutMode === "LAST_LEG" && row.config.changeoverCode !== null && leg.result !== undefined &&
+            leg.finishTime === undefined,
+          readout: leg.readout ? { readAt: leg.readout.readAt, finishTime: leg.readout.finishTime ?? null } : null,
+          readoutMissing: leg.readoutMissing }))
       }))) }) };
   }, { isolationLevel: "repeatable read" });
 }
@@ -204,13 +238,14 @@ export async function publicRelayResults(db: Database, raceId: string): Promise<
         status: view.result.status, elapsedMs: view.result.elapsedMs ?? null, position: view.position ?? null,
         timeBehindMs: view.timeBehindMs ?? null, currentLeg: view.result.currentLeg ?? null,
         legs: view.legs.map(leg => ({ leg: leg.entry.leg, givenName: leg.entry.givenName, familyName: leg.entry.familyName,
-          organisationName: leg.entry.organisationName, publicResultId: leg.entry.publicResultId, status: leg.result?.status ?? null,
+          organisationName: leg.entry.organisationName, publicResultId: leg.entry.publicResultId,
+          status: leg.waiting ? null : leg.result?.status ?? null,
           elapsedMs: leg.result?.elapsedMs ?? null, legPosition: row.legRankings.get(leg.entry.id)?.position ?? null,
           restarted: leg.restarted, variantCode: leg.entry.courseVariantCode,
           courseName: row.legCourses.get(leg.entry.leg)?.courseName ?? null, legOrder: leg.entry.legOrder,
           changedOver: leg.changedOver })), restarted: view.result.restarted })),
       legs: row.config.legs.map(rule => ({ leg: rule.leg, results: row.teams.flatMap(view => view.legs
-        .filter(leg => leg.entry.leg === rule.leg && leg.result).map(leg => ({ ranking: row.legRankings.get(leg.entry.id) ?? {},
+        .filter(leg => leg.entry.leg === rule.leg && leg.result && !leg.waiting).map(leg => ({ ranking: row.legRankings.get(leg.entry.id) ?? {},
           givenName: leg.entry.givenName, familyName: leg.entry.familyName, teamNumber: view.team.number, teamName: view.team.name,
           status: leg.result!.status, elapsedMs: leg.result!.elapsedMs ?? null, variantCode: leg.entry.courseVariantCode,
           restarted: leg.restarted })))

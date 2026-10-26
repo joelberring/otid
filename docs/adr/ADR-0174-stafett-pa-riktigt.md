@@ -1,6 +1,6 @@
 # ADR-0174: Stafett på riktigt – banor per sträcka, omstart, rättvis gaffling och flera löpare per sträcka
 
-Status: beslutad 2026-10-25 (steg 47 och 48, PLAN.md). Kompletterar ADR-0169 beslut 2–3.
+Status: beslutad 2026-10-25 (steg 47 och 48, PLAN.md), beslut 9 2026-10-26 (steg 50). Kompletterar ADR-0169 beslut 2–3.
 
 ## Bakgrund
 
@@ -85,7 +85,8 @@ Sträckans tid för laget är tiden från sträckans start till växlingen; näs
 omstarten). Varje löpare bedöms som en individuell avläsning från sträckans start. Domänen: `relayParallelChangeover` och
 `relayParallelLegOutcome` (`relay-parallel.ts`).
 
-### 7. Teamsprint
+### 7. Teamsprint med utläsning efter sista sträckan (valet "Utläsning efter sista sträckan (växlingskontroll)")
+Steg 48:s sätt. Sedan steg 50 är det ett val per klass; förvalet är utläsning efter varje sträcka (beslut 9).
 Praxis med SPORTident (IOF:s regler för sprintstafett och mixed sprint relay, och hur MeOS beskriver teamsprint): varje
 löpare har en egen bricka och springer flera sträckor; växlingen sker i ett växlingsområde där löparen stämplar en
 växlingskontroll (eller målenheten) när sträckan är slut och lagkamraten går ut. Brickan läses ut först efter löparens
@@ -112,5 +113,43 @@ kontroller och växlingsstämplingen; O-Tid gör samma sak med en uttrycklig vä
 - IOF EntryList: `TeamEntry` med `TeamEntryPerson` (`Leg`, `LegOrder`) blir lag i stafettklassen (klassens IOF-id, annars
   samma namn); en plats utan person blir vakant, en okänd sträcka eller ordning ger en varning i rapporten. Startlistan
   har en `TeamMemberStart` per löpare (samma `Leg` flera gånger) och resultatlistan `LegOrder` när sträckan har flera löpare.
-- Eventors eget lagformat (`TeamSequence`) läses inte än; lagen kommer via IOF EntryList. Löparna och växlingskontrollen
-  ändras bara innan lag finns i klassen (teamsprintens delning bygger på dem).
+- Eventors eget lagformat (`TeamSequence`) läses inte än; lagen kommer via IOF EntryList.
+- Steg 50: löpare per sträcka, växlingskontroll och utläsningssätt kan ändras även när lag finns (beslut 9).
+
+## Beslut (steg 50)
+
+### 9. Teamsprint med utläsning efter varje sträcka (förval, som MeOS)
+Det vanliga med SPORTident är att varje teamsprintlöpare stämplar mål och läser ut efter varje sträcka utan att tömma
+brickan; så gör MeOS. Den andra utläsningen har då kvar första sträckans stämplingar, och målstämplingen är den nya (brickan
+sparar bara den senaste). Förvalet är därför "Utläsning efter varje sträcka" (`class.relay_readout_mode = 'EACH_LEG'`,
+migration 0024), och mallen "Teamsprint (2 löpare × 4 sträckor)" ger det. Steg 48:s sätt finns kvar som val
+(`LAST_LEG`, beslut 7); en klass utan teamsprint har `NULL`, och steg 48:s klasser med växlingskontroll fick `LAST_LEG`.
+- **Fördelning** (`teamSprintRoute`): en utläsning av brickan går till löparens första sträcka som ännu saknar resultat. Den
+  sträckan bedöms mot stämplingarna efter föregående utläsnings måltid och mot brickans mål. Sträckans start är föregående
+  sträckas växling i laget, även när den kommer från lagkamratens bricka; lagkamratens växlingstid är alltså
+  målstämplingen i hens utläsning. Ingen växlingskontroll behövs.
+- **Dubblett**: samma bricka utläst igen med samma måltid är en omläsning av den sträckan, inte nästa. En måltid före
+  föregående sträckas mål, eller en utläsning när löparen redan har resultat på alla sina sträckor, sparas som en okänd
+  utläsning med tydligt besked ("Måltiden är tidigare än sträcka X:s mål – kontrollera brickan"). Den kan sedan kopplas
+  till vald sträcka under okända brickor.
+- **Glömd utläsning**: kommer första utläsningen först efter löparens sista sträcka finns bara en måltid. Har klassen en
+  växlingskontroll delas utläsningen vid växlingsstämplingarna som i beslut 7, och alla sträckor får mål. Annars läggs
+  sträckornas banor i tur och ordning på stämplingarna (en bana räknas när den är fullbordad och nästa bana till minst
+  hälften finns efter). Bara den sista sträckan får då ett resultat. De tidigare visas med "Utläsning efter sträcka X
+  saknas – läs ut efter varje sträcka" i avläsningen och lagkortet, och en funktionär rättar med manuell tid. Ingen sträcka
+  blir felstämplad av den glömda utläsningen: en sträcka som saknar start för att föregående sträcka saknar växling räknas
+  som ute (`MISSING_START` visas inte som felstämplad i lagresultatet och de publika listorna).
+- **Delningen följer resultaten**: vilken utläsning varje sträcka bygger på står i sträckans resultatrevision
+  (`readout_id`). Ögonblicksbilden räknar fram varje sträckas del ur det (`teamSprintEachLegLayout`), så omräkning,
+  manuella beslut och avläsningsskalet använder samma delning. När en tidigare utläsning kommer efter en senare (två
+  datorer) räknas löparens andra sträckor om mot den nya delningen.
+- **Okänd utläsning och omläsning från rådata**: en okänd utläsning kan kopplas till vald teamsprintsträcka, och brickan
+  stannar på löparens första sträcka. Journalens koppling hör därför till tävlingen och brickan, inte till den valda
+  sträckan (migration 0024). En omläsning flyttar alla sträckor som byggde på den gamla utläsningen till den nya (gäller
+  också beslut 7).
+- **Ändra när lag finns**: löpare per sträcka kan ändras (nya platser blir vakanta, en borttagen plats får inte ha
+  resultat). Växlingskontrollen och utläsningssättet kan också ändras, med besked och omräkning som för andra klassändringar.
+  En sträcka kan byta mellan "samma löpare som sträcka X" och egen löpare när ingen av de berörda sträckorna har resultat.
+  Ett namnbyte gäller löparens alla sträckor.
+- Alternativet att alltid kräva växlingskontroll (beslut 7) valdes bort som förval: det kräver en extra enhet och en
+  stämpling som löparna glömmer. Med utläsning efter varje sträcka får varje sträcka sin måltid från målenheten.

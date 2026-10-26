@@ -1,4 +1,4 @@
-import { publicRaceSummary, readLatestPublicFrozenRaceFinalization } from "@o-tid/application";
+import { publicRaceSummary, publicResults, readLatestPublicFrozenRaceFinalization } from "@o-tid/application";
 import { cachedPublicRadio, cachedPublicRelayResults, cachedPublicResults, PUBLIC_PAGE_INLINE_ROWS, publicPageRows } from "../../../lib/public-race-data";
 import { db } from "../../../lib/db";
 import { PublicResultLists } from "../../../components/public-result-lists";
@@ -8,7 +8,7 @@ import { splitAnalysisSv } from "../../../i18n/split-analysis-sv";
 import { analysisClassNames } from "../../../lib/split-analysis";
 import { resultListFromPublic } from "../../../lib/lists/result-list-model";
 import Link from "next/link";
-import { requirePublicRace } from "../../../lib/public-race-gate";
+import { raceStaff, requirePublicRace } from "../../../lib/public-race-gate";
 import { PreviewBanner } from "../../../components/public-race/preview-banner";
 import { liveSv } from "../../../i18n/live-sv";
 import { raceHubPath } from "../../../lib/public-race-format";
@@ -21,9 +21,12 @@ const analysisByResults = new WeakMap<object, boolean>();
 export default async function ResultsPage({ params }: { params: Promise<{ raceId: string }> }) {
   const { raceId } = await params;
   const access = await requirePublicRace(raceId);
-  // Steg 51: listorna ur cachen per tävlingsversion, samma som API:et.
+  // Steg 51: listorna ur cachen per tävlingsversion, samma som API:et. Steg 52: arrangören och funktionärerna läser
+  // resultatlistan utan cache och ser gafflingsbilden även när banorna är hemliga publikt.
+  const staff = await raceStaff(raceId);
   const [summary, results, relay, finalization, radio] = await Promise.all([publicRaceSummary(db, raceId),
-    cachedPublicResults(raceId).then(entry => entry.value), cachedPublicRelayResults(raceId).then(entry => entry.value),
+    staff ? publicResults(db, raceId, { staff }) : cachedPublicResults(raceId).then(entry => entry.value),
+    cachedPublicRelayResults(raceId).then(entry => entry.value),
     readLatestPublicFrozenRaceFinalization(db, raceId), cachedPublicRadio(raceId).then(entry => entry.value)]);
   // Sträcktidsanalysen (PLAN.md steg 16) finns när någon individuell klass har sträcktider.
   let analysis = analysisByResults.get(results);

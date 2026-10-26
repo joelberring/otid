@@ -19,6 +19,7 @@ import { loadRaceSnapshot, type DbExecutor } from "./snapshot";
 import { appendResultRevision, evaluateAndStore, normalizedReadout } from "./result-revisions";
 import { relayTeamOfEntry } from "./relay-model";
 import { lockRelayClassOfEntry, synchronizeRelayTeams } from "./relay-sync";
+import { loadTeamSprintRunners, storeTeamSprintReadoutAndRecalculate } from "./team-sprint-readout";
 
 export type AckStatus = DeviceEventAcknowledgement["status"];
 
@@ -116,9 +117,17 @@ export async function storeIngestedReadout(tx: IngestTransaction, raceId: string
   // Steg 31 (B4): har brickans deltagare redan ett resultat från en annan avläsning av samma bricka (lånad bricka,
   // två löpare efter varandra) skrivs det inte över. Avläsningen blir okänd tills någon väljer vem den hör till.
   const owner = snapshot.cardAssignments.find((assignment) => assignment.active && assignment.cardNumber === normalized.cardNumber);
-  const alreadyReadOutBy = await cardAlreadyReadOutBy(tx, owner?.entryId, normalized);
   const unknown: EvaluationResult = { status: "UNKNOWN_CARD", reason: "UNKNOWN_CARD", missingControls: [], extraPunches: [], splits: [] };
-  const stored = alreadyReadOutBy ? { stored: false as const, evaluation: unknown }
+  // Steg 50: teamsprint med utläsning efter varje sträcka – samma bricka läses ut efter varje sträcka. Utläsningen fördelas på
+  // löparens sträckor i stället för att bli en lånad bricka.
+  const sprintOwner = owner && snapshot.entries.find((entry) => entry.id === owner.entryId)?.teamSprint?.mode === "EACH_LEG";
+  const sprintRunner = owner && sprintOwner ? (await loadTeamSprintRunners(tx, raceId, owner.entryId))[0] : undefined;
+  const sprint = sprintRunner ? await storeTeamSprintReadoutAndRecalculate(tx, { runner: sprintRunner, snapshot, readout: normalized,
+    cause: "CARD_READOUT", snapshotVersion: snapshot.race.snapshotVersion }) : undefined;
+  const alreadyReadOutBy = sprintRunner ? undefined : await cardAlreadyReadOutBy(tx, owner?.entryId, normalized);
+  const stored = sprint ? (sprint.kind === "stored" ? { stored: true as const, evaluation: sprint.evaluation, revision: sprint.revisions.at(-1)! }
+    : { stored: false as const, evaluation: unknown })
+    : alreadyReadOutBy ? { stored: false as const, evaluation: unknown }
     : await evaluateAndStore(tx, snapshot, normalized, "CARD_READOUT");
   const evaluation = stored.evaluation;
   const resultEvaluationHash = hashEvaluation(evaluation);
@@ -130,8 +139,8 @@ export async function storeIngestedReadout(tx: IngestTransaction, raceId: string
     // Stafett: sträckans måltid ger nästa sträckas start; senare sträckor räknas om vid behov.
     const teamId = await relayTeamOfEntry(tx, entryId);
     if (teamId) {
-      // Steg 48: teamsprint – löparens övriga sträckor bedöms mot sina delar av samma bricka.
-      for (const sibling of await tx.select({ id: schema.entries.id }).from(schema.entries)
+      // Steg 48: teamsprint med utläsning efter sista sträckan – löparens övriga sträckor bedöms mot sina delar av brickan.
+      if (!sprint) for (const sibling of await tx.select({ id: schema.entries.id }).from(schema.entries)
         .where(and(eq(schema.entries.relayCardEntryId, entryId), isNull(schema.entries.struckAt))).orderBy(asc(schema.entries.relayLeg))) {
         const part = evaluateReadoutForEntry(normalized, snapshot, sibling.id);
         if (part.entryId !== sibling.id || !part.courseVersionId) continue;

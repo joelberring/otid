@@ -14,6 +14,7 @@ import { officialStartTime } from "./start-punch";
 import { withMaxTime } from "./max-time";
 import { controlCodesOutOfOrder, prepareReadoutForEvaluation } from "./station-corrections";
 import { teamSprintReadoutPart } from "./relay-parallel";
+import { teamSprintEachLegReadout } from "./team-sprint";
 
 /**
  * Versionen sparas på varje resultatrevision. 0.3.0 (PLAN.md steg 22): kontrollföljden matchas som ordnad
@@ -298,8 +299,10 @@ export function evaluateCardReadout(
   const resolved = resolveEntry(prepared, snapshot);
   if (!resolved) return invalid("UNKNOWN_CARD");
   const { entry, raceClass, courseVersion } = resolved;
-  // Steg 48: teamsprint – sträckan bedöms mot sin del av löparens bricka (ADR-0174 beslut 7).
-  const readout = entry.teamSprint ? teamSprintReadoutPart(prepared, entry.teamSprint) : prepared;
+  // Teamsprint: sträckan bedöms mot sin del av löparens bricka (ADR-0174 beslut 7 och 9).
+  const sprint = entry.teamSprint;
+  const readout = !sprint ? prepared : sprint.mode === "EACH_LEG" ? teamSprintEachLegReadout(prepared, sprint, snapshot)
+    : teamSprintReadoutPart(prepared, sprint);
 
   const common = {
     entryId: entry.id,

@@ -6,6 +6,7 @@ import { speakerBoardEffectiveResultSchema } from "./speaker-board";
 import { courseVariantCodeSchema } from "./course-edit";
 import { raceFirstStartTimeSchema, raceInfoSchema, raceTypeSchema } from "./race-settings";
 import { racePublicationStateSchema } from "./race-publication";
+import { courseSecrecyStateSchema } from "./course-secrecy";
 import { decisionReviewSchema } from "./decision-review";
 import { prefixedUuidPattern, uuidSchema as uuid } from "./ids";
 
@@ -48,6 +49,8 @@ export const entryTransferCandidatesSchema = z.object({
   raceType: raceTypeSchema,
   /** ADR-0172 beslut 4: publicerad tävling och kort adress till tävlingssidan. */
   publication: racePublicationStateSchema,
+  /** Steg 52 (ADR-0176): om banorna syns publikt och varför. */
+  courseSecrecy: courseSecrecyStateSchema.optional(),
   /** Steg 33: Inställningar → bricka i den publika startlistan, kort info och första start (bara information). */
   publicStartListCardNumbers: z.boolean().optional(),
   info: raceInfoSchema.nullable().optional(),

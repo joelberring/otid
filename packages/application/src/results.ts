@@ -27,6 +27,7 @@ import {
 import { loadCourseVersionVariants, variantAfterClassChange } from "./course-variants";
 import { courseForkingView, loadCourseVersionForking } from "./course-forking";
 import { loadCoursePositions, withPositionLengths } from "./course-positions";
+import { coursesArePublic } from "./course-secrecy";
 import { bumpReadoutPackageVersion } from "./snapshot";
 import { lockEntryForRevision, lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
@@ -307,7 +308,13 @@ export async function changeEntryClassAsAdmin(
   });
 }
 
-export async function publicResults(db: Database, raceId: string): Promise<PublicResultListResponse> {
+/**
+ * Steg 52 (ADR-0176): `staff` = den som frågar är arrangör eller funktionär på tävlingen (arbetsytans resultatlista eller
+ * förhandsvisning); då följer gafflingsbilden med även när banorna är hemliga publikt.
+ */
+export type PublicResultsOptions = { readonly staff?: boolean };
+
+export async function publicResults(db: Database, raceId: string, options: PublicResultsOptions = {}): Promise<PublicResultListResponse> {
   return db.transaction(async (tx) => {
     await lockRaceForSnapshot(tx, raceId);
     // Stafettens sträcklöpare visas i lagresultaten och sträckresultaten (publicRelayResults).
@@ -451,7 +458,7 @@ export async function publicResults(db: Database, raceId: string): Promise<Publi
       formatVersion: 7,
       results: [],
       standing: await publicResultStanding(tx, raceId),
-      classCourses: await publicClassCourses(tx, raceId)
+      classCourses: await publicClassCourses(tx, raceId, options.staff === true || await coursesArePublic(tx, raceId))
     });
     return { ...envelope, results: publicRows };
   }, { isolationLevel: "repeatable read" });
@@ -470,7 +477,7 @@ async function publicResultStanding(tx: DatabaseTransaction, raceId: string): Pr
 }
 
 /** Klassernas banor med längd och stigning för listornas rubriker (PLAN.md steg 25). */
-export async function publicClassCourses(tx: DatabaseTransaction, raceId: string): Promise<PublicClassCourse[]> {
+export async function publicClassCourses(tx: DatabaseTransaction, raceId: string, showCourses: boolean): Promise<PublicClassCourse[]> {
   const rows = await tx.select({ className: schema.classes.name, courseName: schema.courses.name,
     lengthMeters: schema.courses.lengthMeters, climbMeters: schema.courses.climbMeters, courseVersionId: schema.classes.courseVersionId,
     courseId: schema.courses.id })
@@ -478,7 +485,9 @@ export async function publicClassCourses(tx: DatabaseTransaction, raceId: string
     .innerJoin(schema.courseVersions, eq(schema.courseVersions.id, schema.classes.courseVersionId))
     .innerJoin(schema.courses, eq(schema.courses.id, schema.courseVersions.courseId))
     .where(eq(schema.classes.raceId, raceId)).orderBy(asc(schema.classes.name)).limit(1_000);
-  // Steg 49: gafflad bana: strukturen och varje variants val för "Visa gafflingar".
+  // Steg 49: gafflad bana: strukturen och varje variants val för "Visa gafflingar". Steg 52: bara när banorna är publika.
+  if (!showCourses) return rows.map(row => ({ className: row.className, courseName: row.courseName, lengthMeters: row.lengthMeters,
+    climbMeters: row.climbMeters }) as PublicClassCourse);
   const versionIds = rows.map((row) => row.courseVersionId);
   const variants = await loadCourseVersionVariants(tx, versionIds);
   const forkings = variants.size === 0 ? new Map<string, CourseForking>() : await loadCourseVersionForking(tx, versionIds);
@@ -556,14 +565,17 @@ export async function publicResultTimings(tx: DatabaseTransaction, raceId: strin
 export async function publicResultDetail(
   db: Database,
   raceId: string,
-  publicResultId: string
+  publicResultId: string,
+  options: PublicResultsOptions = {}
 ): Promise<PublicResultDetailLookup> {
   if (!publicResultIdSchema.safeParse(publicResultId).success) return { status: "not-found" };
-  return publicResultDetailFrom(await publicResults(db, raceId), publicResultId);
+  const [results, controlMap] = await Promise.all([publicResults(db, raceId, options),
+    options.staff === true ? Promise.resolve(true) : db.transaction(tx => coursesArePublic(tx, raceId))]);
+  return publicResultDetailFrom(results, publicResultId, controlMap);
 }
 
 /** Steg 51: deltagarens rad ur en redan läst publik resultatlista (webbens cache per tävlingsversion). */
-export function publicResultDetailFrom(results: PublicResultListResponse, publicResultId: string): PublicResultDetailLookup {
+export function publicResultDetailFrom(results: PublicResultListResponse, publicResultId: string, controlMap: boolean): PublicResultDetailLookup {
   if (!publicResultIdSchema.safeParse(publicResultId).success) return { status: "not-found" };
   const result = results.results.find((candidate) =>
     "publicResultId" in candidate && candidate.publicResultId === publicResultId
@@ -571,9 +583,11 @@ export function publicResultDetailFrom(results: PublicResultListResponse, public
   if (!result || !("publicResultId" in result)) return { status: "not-found" };
   // Steg 49: klassens bana följer med bara när den är gafflad ("Visa gafflingar").
   const classCourse = "classCourses" in results ? results.classCourses?.find((row) => row.className === result.className && row.forking) : undefined;
+  // Steg 52: kontrollkartan bakom "Visa på kartan" när banorna är publika (ADR-0176); `controlMap` är det läget.
   return {
     status: "ok",
-    response: publicResultDetailResponseSchema.parse({ formatVersion: 1, result, ...(classCourse ? { classCourse } : {}) })
+    response: publicResultDetailResponseSchema.parse({ formatVersion: 1, result, ...(classCourse ? { classCourse } : {}),
+      ...(controlMap ? { controlMap: true } : {}) })
   };
 }
 

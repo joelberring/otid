@@ -308,7 +308,9 @@ export const publicResultDetailResponseSchema = z.object({
   formatVersion: z.literal(1),
   result: publicResultV7Schema,
   /** Steg 49: klassens bana (med gafflingarna) för "Visa gafflingar". */
-  classCourse: publicClassCourseSchema.optional()
+  classCourse: publicClassCourseSchema.optional(),
+  /** Steg 52: "Visa på kartan" finns (banorna är publika eller den som frågar är arrangör eller funktionär). */
+  controlMap: z.boolean().optional()
 }).strict();
 
 export const publicResultListResponseSchema = z.discriminatedUnion("formatVersion", [

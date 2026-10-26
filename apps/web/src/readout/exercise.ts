@@ -36,6 +36,19 @@ export function exerciseRunners(pkg: ReadoutPackage): ExerciseRunner[] {
     // Gafflad bana: brickan stämplas med löparens variant (ADR-0169 beslut 2).
     const course = entry && entryCourseControls(snapshot as RaceSnapshot, entry.id);
     if (!entry || !raceClass || !course) continue;
+    // Steg 50: teamsprint med utläsning efter varje sträcka – en övningsbricka per sträcka som löparen springer.
+    const sprint = entry.teamSprint;
+    if (sprint?.mode === "EACH_LEG") {
+      for (const legEntryId of sprint.legEntryIds.slice(1)) {
+        const sibling = snapshot.entries.find((candidate) => candidate.id === legEntryId);
+        const legCourse = entryCourseControls(snapshot as RaceSnapshot, legEntryId);
+        const legPlace = relayPlace(pkg, legEntryId);
+        if (!sibling || !legCourse) continue;
+        runners.push({ entryId: sibling.id, label: [`${sibling.givenName} ${sibling.familyName}`, raceClass.name,
+          ...(legPlace ? [t.relayPlace(legPlace.teamNumber, legPlace.leg)] : []), String(cardNumber)].join(" · "),
+          cardNumber, controlCodes: legCourse.controlCodes });
+      }
+    }
     // Stafett: lag och sträcka i etiketten.
     const place = relayPlace(pkg, entry.id);
     runners.push({
@@ -98,29 +111,38 @@ export function exerciseWindow(pkg: ReadoutPackage, runner: ExerciseRunner, vari
 }
 
 /**
- * Steg 48: teamsprint – en bricka för löparens alla sträckor. Varje sträcka stämplas i sitt eget fönster (som de andra
- * sträcklöparna), med växlingskontrollen sist; lagets sista sträcka slutar med målstämplingen. "Missad kontroll" gäller
- * löparens första sträcka. Undefined när löparen bara springer en sträcka.
+ * Teamsprint: en bricka för löparens sträckor. Varje sträcka stämplas i sitt eget fönster (som de andra sträcklöparna).
+ * Steg 48, utläsning efter sista sträckan: alla löparens sträckor med växlingskontrollen sist i varje, lagets sista sträcka
+ * slutar med målstämplingen; "Missad kontroll" gäller löparens första sträcka.
+ * Steg 50, utläsning efter varje sträcka: brickan töms inte, så den har stämplingarna från löparens alla sträckor fram till
+ * den valda och målstämplingen efter den (växlingskontrollen också när klassen har en); "Missad kontroll" gäller den valda.
+ * Undefined när löparen bara springer en sträcka.
  */
 export function teamSprintExerciseCard(pkg: ReadoutPackage, runner: ExerciseRunner, variant: ExerciseVariant, now: Date):
   { card: SimulatedCard; finishAt: Date } | undefined {
   const entry = pkg.raceSnapshot.entries.find((candidate) => candidate.id === runner.entryId);
   const sprint = entry?.teamSprint;
-  const legs = sprint && teamSprintLegs(pkg, runner.entryId);
-  if (!sprint || !legs) return undefined;
-  const parts = legs.legs.map((leg, index) => {
+  if (!sprint) return undefined;
+  const eachLeg = sprint.mode === "EACH_LEG";
+  const legs = teamSprintLegs(pkg, eachLeg ? sprint.legEntryIds[0]! : runner.entryId);
+  if (!legs) return undefined;
+  const chosen = eachLeg ? legs.legs.findIndex((leg) => leg.entryId === runner.entryId) : legs.legs.length - 1;
+  if (chosen < 0) return undefined;
+  const code = sprint.changeoverCode;
+  const parts = legs.legs.slice(0, chosen + 1).map((leg, index) => {
     const window = relayExerciseWindow(pkg, leg.entryId, now);
     const codes = entryCourseControls(pkg.raceSnapshot as RaceSnapshot, leg.entryId)?.controlCodes ?? [];
     const final = leg.leg === legs.legCount;
-    const own = variant === "missing-control" && index === 0 && codes.length > 0
-      ? codes.filter((_, position) => position !== Math.floor(codes.length / 2)) : codes;
+    const missed = variant === "missing-control" && index === (eachLeg ? chosen : 0) && codes.length > 0;
+    const own = missed ? codes.filter((_, position) => position !== Math.floor(codes.length / 2)) : codes;
     return { window, final, run: window && simulatedRun(runner.cardNumber, { startAt: window.startAt, finishAt: window.finishAt,
-      controlCodes: final ? own : [...own, sprint.changeoverCode], timeZone: pkg.event.timeZone }) };
+      controlCodes: final || code === undefined ? own : [...own, code], timeZone: pkg.event.timeZone }) };
   });
   if (parts.some((part) => !part.run || !part.window)) return undefined;
   const last = parts.at(-1)!;
+  const finish = eachLeg || last.final ? last.run!.finish : undefined;
   const card: SimulatedCard = { cardType: parts[0]!.run!.cardType, cardNumber: runner.cardNumber, ...(parts[0]!.run!.start ? { start: parts[0]!.run!.start } : {}),
-    ...(last.final && last.run!.finish ? { finish: last.run!.finish } : {}), punches: parts.flatMap((part) => part.run!.punches) };
+    ...(finish ? { finish } : {}), punches: parts.flatMap((part) => part.run!.punches) };
   return { card, finishAt: last.window!.finishAt };
 }
 

@@ -36,6 +36,11 @@ export const READ_ALL_BLOCKS = 0x08;
 /** Offset i systemdata (svaret på GET_SYSTEM_VALUE 0x00 0x80). */
 export const SystemOffset = {
   SERIAL_NUMBER: 0x00,
+  /**
+   * Steg 53: bitmask för vilka block stationen skickar vid "alla block" (SI6, och enligt natt-KM även SI10/11/SIAC):
+   * 0xC1 (eller 0x00) = block 0, 6, 7; 0xFF (eller 0x08) = alla åtta. Enligt sireader.py (O_SI6_CB), inte SPORTident.
+   */
+  CARD_BLOCKS: 0x33,
   MODE: 0x71,
   STATION_CODE: 0x72,
   PROTOCOL: 0x74

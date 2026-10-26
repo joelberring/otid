@@ -24,6 +24,8 @@ const adminFiles = [
   "public-race-sv.ts", "public-link-share-sv.ts", "radio-sv.ts", "race-copy-sv.ts", "form-errors-sv.ts", "start-rule-sv.ts", "start-draw-advanced-sv.ts",
   // PLAN.md steg 27.
   "card-punches-sv.ts", "removal-sv.ts", "results-official-sv.ts", "race-export-sv.ts", "race-corrections-sv.ts",
+  // Steg 52.
+  "course-secrecy-sv.ts", "control-map-sv.ts",
   // Steg 31.
   "manual-result-sv.ts",
   // Steg 33.

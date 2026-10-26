@@ -101,9 +101,17 @@ const entrySchema = z.object({
   courseVariantCode: courseVariantCodeSchema.optional(),
   /** Steg 47: stafettsträckans egen bana. Saknas = klassens. */
   courseVersionId: uuidSchema.optional(),
-  /** Steg 48: teamsprint – sträckans del av löparens bricka. */
-  teamSprint: z.object({ part: z.number().int().min(1).max(30), parts: z.number().int().min(1).max(30),
-    changeoverCode: z.number().int().min(1).max(999), endsAtFinish: z.boolean() }).strict().optional(),
+  /**
+   * Teamsprint: sträckans del av löparens bricka. Steg 48: utläsning efter sista sträckan (delad vid växlingsstämplingarna).
+   * Steg 50: utläsning efter varje sträcka (`EACH_LEG`) – vilka av löparens sträckor utläsningen täcker och föregående mål.
+   */
+  teamSprint: z.union([
+    z.object({ mode: z.literal("LAST_LEG").optional(), part: z.number().int().min(1).max(30), parts: z.number().int().min(1).max(30),
+      changeoverCode: z.number().int().min(1).max(999), endsAtFinish: z.boolean() }).strict(),
+    z.object({ mode: z.literal("EACH_LEG"), part: z.number().int().min(1).max(30), parts: z.number().int().min(1).max(30),
+      legEntryIds: z.array(uuidSchema).min(1).max(30), from: z.number().int().min(1).max(30), to: z.number().int().min(1).max(30),
+      after: z.iso.datetime({ offset: true }).optional(), changeoverCode: z.number().int().min(1).max(999).optional() }).strict()
+  ]).optional(),
   externalIdentity: externalIdentitySchema.optional()
 }).strict();
 

@@ -10,7 +10,7 @@ import {
   evaluateReadoutForEntry, RESULT_ENGINE_VERSION, type EvaluationResult, type NormalizedCardReadout, type RaceSnapshot
 } from "@o-tid/domain";
 import { CardDecodeError, decodeRecordedFrames, framesFromHex, normalizeCard, SiTimeError, type NormalizedSiReadout } from "@o-tid/sportident";
-import { latestResultReadouts } from "./card-reuse";
+import { latestResultReadouts, readoutClaims } from "./card-reuse";
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { relayTeamOfEntry } from "./relay-model";
@@ -195,9 +195,22 @@ export async function previewReadoutRereadAsAdmin(db: Database, input: RaceSessi
 }
 
 /** Sparar en omläsning: nytt råmeddelande, ny avläsning, ny revision för samma deltagare och en auditpost. */
+type Moved = Map<string, { entryId: string; replacedReadoutId: string; readoutId: string; resultRevisionId: string; revision: number }>;
+
 async function storeReread(tx: Transaction, raceId: string, snapshot: RaceSnapshot, candidate: Candidate, accountId: string,
-  requestId: string, now: Date) {
+  requestId: string, now: Date, moved: Moved = new Map()) {
   const { readout, source, payload, decoded, item } = candidate;
+  // Steg 50: teamsprint – sträckan flyttades redan till den nya avläsningen tillsammans med löparens andra sträckor.
+  const already = moved.get(item.entryId);
+  if (already && already.replacedReadoutId === readout.id) {
+    await tx.insert(schema.auditEvents).values({ raceId, entityType: "card_readout", entityId: already.readoutId, action: AUDIT_ACTION,
+      actorKind: "USER_ACCOUNT", actorId: accountId, requestId,
+      before: { readoutId: readout.id, rawMessageId: readout.rawMessageId, ...item.before },
+      after: { readoutId: already.readoutId, entryId: item.entryId, resultRevisionId: already.resultRevisionId, revision: already.revision,
+        cause: "READOUT_REREAD", manualDecision: item.manualDecision, ...item.after },
+      createdAt: now });
+    return already;
+  }
   const [sequence] = await tx.select({ value: max(schema.rawDeviceMessages.localSequence) }).from(schema.rawDeviceMessages)
     .where(eq(schema.rawDeviceMessages.deviceId, source.id));
   const rawPayload: Record<string, unknown> = {
@@ -234,6 +247,17 @@ async function storeReread(tx: Transaction, raceId: string, snapshot: RaceSnapsh
   const revision = await appendResultRevision(tx, { raceId, entryId: item.entryId, cause: "READOUT_REREAD", outcome: evaluation,
     engineVersion: RESULT_ENGINE_VERSION, snapshotVersion: snapshot.race.snapshotVersion, courseVersionId: evaluation.courseVersionId,
     readoutId: created.id, actorAccountId: accountId });
+  // Steg 48/50: teamsprint – löparens andra sträckor som bygger på samma utläsning flyttas till den nya, så att delningen
+  // (vilka sträckor utläsningen täcker) stämmer.
+  const claimants = [...(await readoutClaims(tx, raceId, [readout.id])).get(readout.id) ?? []].filter((id) => id !== item.entryId);
+  const latest = await latestResultReadouts(tx, raceId, claimants);
+  for (const entryId of claimants.filter((id) => latest.get(id)?.id === readout.id)) {
+    const outcome = evaluateReadoutForEntry(normalizedReadout(created), snapshot, entryId);
+    if (outcome.entryId !== entryId || !outcome.courseVersionId) continue;
+    const sibling = await appendResultRevision(tx, { raceId, entryId, cause: "READOUT_REREAD", outcome, engineVersion: RESULT_ENGINE_VERSION,
+      snapshotVersion: snapshot.race.snapshotVersion, courseVersionId: outcome.courseVersionId, readoutId: created.id, actorAccountId: accountId });
+    moved.set(entryId, { entryId, replacedReadoutId: readout.id, readoutId: created.id, resultRevisionId: sibling.id, revision: sibling.revision });
+  }
   // Stafett: sträckans måltid ger nästa sträckas start (som vid avläsning).
   const teamId = await relayTeamOfEntry(tx, item.entryId);
   if (teamId) await synchronizeRelayTeams(tx, raceId, [teamId], snapshot.race.snapshotVersion);
@@ -295,8 +319,9 @@ export async function applyReadoutRereadAsAdmin(db: Database, input: RaceSession
       return { status: "conflict" as const };
     }
     const saved = [];
+    const moved: Moved = new Map();
     for (const candidate of chosen) {
-      saved.push(await storeReread(tx, raceId, snapshot, candidate!, auth.principal.accountId, request.requestId, now));
+      saved.push(await storeReread(tx, raceId, snapshot, candidate!, auth.principal.accountId, request.requestId, now, moved));
     }
     return { status: "applied" as const, response: readoutRereadCommitResponseSchema.parse({ formatVersion: 1, raceId,
       requestId: request.requestId, replayed: false, saved, appliedAt: now.toISOString() }) };

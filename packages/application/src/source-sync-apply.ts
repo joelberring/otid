@@ -6,7 +6,7 @@ import {
   parseRaceClock, withProposedClass, withProposedClassSetup, withProposedCourse,
   withProposedCourseVersion, withProposedEntryClasses, type RaceSnapshot
 } from "@o-tid/domain";
-import { storeControlPositions, storeCourseEnds } from "./course-positions";
+import { storeControlMapPositions, storeControlPositions, storeCourseEnds } from "./course-positions";
 import { insertCourseVersionControls, leastUsedVariantForClass, variantAfterClassChange } from "./course-variants";
 import { applyEntryDecision } from "./entry-status";
 import { importLegCourses, importPersonCourseAssignments, importTeamCourseAssignments } from "./import-iof";
@@ -323,6 +323,8 @@ async function storeCourseMeasurements(tx: Transaction, raceId: string, projecti
   links: readonly { id: string; externalId: string }[], ids: Ids): Promise<void> {
   // Steg 49: kontrollernas lägen (äldre förhandsvisningar saknar dem).
   await storeControlPositions(tx, raceId, projection.data.controlPositions ?? []);
+  // Steg 52: kartlägena och kartans skala.
+  await storeControlMapPositions(tx, raceId, projection.data.controlMapPositions ?? [], projection.data.mapScale);
   for (const course of projection.data.courses) {
     const courseId = ids.courses.get(course.externalId)?.courseId ?? links.find(link => link.externalId === course.externalId)?.id ??
       state.courses.find(row => row.externalSource === "iof" && row.externalId === course.externalId)?.id;

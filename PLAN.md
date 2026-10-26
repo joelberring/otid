@@ -810,6 +810,50 @@ Före: 100 besökare mättade servern. Rättat: de publika listorna räknas en g
 listor skickas inte med sidan, resultatströmmen samlar och sprider väckningarna, stafettsynk per lag, starttidsflytt per
 klass, omförsök vid läskonflikter och två webbinstanser i drift. Efter: 3 000 löpare och 300 besökare med p95 under 1 s
 för publiken och uppdatering inom 5 s; serverns kvitto p95 1,3–1,7 s; 25-manna klarar ungefär en utläsning per sekund.
+## [x] Steg 50 – Teamsprint: utläsning efter varje sträcka
+
+ADR-0174 beslut 9. Migration 0024.
+
+- [x] Förval "Utläsning efter varje sträcka" (som MeOS): utläsningen går till löparens första sträcka utan resultat och
+  bedöms mot stämplingarna efter föregående utläsnings mål; ingen växlingskontroll behövs. Mallen ger förvalet.
+- [x] Dubblett är omläsning; tidigare måltid eller alla sträckor utlästa ger besked och en okänd utläsning.
+- [x] Glömd utläsning: delas vid växlingskontrollen om den finns, annars efter banorna med beskedet "Utläsning efter
+  sträcka X saknas – läs ut efter varje sträcka"; ingen felstämpling av den.
+- [x] "Utläsning efter sista sträckan (växlingskontroll)" finns kvar som val per klass.
+- [x] Beskedet säger vilken sträcka utläsningen gällde; lagkortet visar varje sträckas utläsning.
+- [x] Teamsprint vid okända utläsningar och omläsning från rådata; löpare, växlingskontroll och utläsningssätt kan ändras
+  när lag finns.
+
+## [x] Steg 52 – Kontrollkartan och banhemlighet
+
+ADR-0176. Migration 0026.
+
+- [x] Banhemlighet: publikt ingen gafflingsbild, ingen bana med kontrollägen på vägvalskartan och inga kontrollägen i
+  API:erna förrän ingen deltagare är kvar, resultaten är fastställda eller arrangören valt "Visa banorna publikt nu"
+  (auditpost, går att ångra). Arbetsytan visar läget under Publicera. Arrangören och funktionärerna ser allt.
+- [x] Kontrollkartan i arbetsytan (Banor → Kontrollkarta, egen dialog): kontroller, start och mål i rätt läge och skala med
+  skalstock, georefererad kartbild under; kartlägen (MapPosition, mm, med kartans skala) när lägena saknas.
+- [x] Växla bana och variant; vald bana med linjer och nummer, övriga nedtonade; gafflingsbilden för en gafflad bana.
+- [x] Belastning per kontroll (banor, varianter, planerade löpare, stämplingar) med färg, storlek och tabell; kontroll ur
+  funktion markerad.
+- [x] Deltagarkortet "Visa på kartan": stämplade, saknade ("Kontroll 35 saknas, mellan 34 och 36") och fel ordning;
+  stafettsträckan och teamsprintlöparens alla sträckor.
+- [x] Publikt på deltagarsidan bakom "Visa på kartan" när banorna är publika; bara löparens bana, ingen belastning.
+- [x] Utan koordinater: gafflingsbilden, kontrollerna i ordning och tabellen, inget fel.
+
+## [x] Steg 53 – Snabbare utläsning av nyare brickor
+
+Ägaren: "Det tar ganska lång tid att läsa in nyare pinnar jämfört med äldre." Underlag (MeOS, sportident.js, sireader) i
+`docs/research/sportident-protocol-source-gate.md`, beskrivning och siffror i `docs/sportident.md`.
+
+- [x] SI10/SI11: block 0, sedan bara stämplingsblocken 4, 5 … (32 per block). SIAC: block 0, 1 och stämplingsblocken.
+  SI6: block 0, sedan 6/7 efter antal. SI5 och SI8/SI9/pCard som förut. 20 stämplingar: 2 svar (SIAC 3) i stället för 5/8.
+- [x] Reserv: NAK, fel block, tidsgräns, fel bricka i block 0 eller block som inte går ihop med block 0 ger "alla block" för
+  samma bricka direkt, med post i felsökningsloggen. Bricka uttagen mitt i: misslyckad avläsning som förut.
+- [x] Inställning "Snabb utläsning av SI10/11/SIAC" (på som förval) under felsökningsloggen på avläsningssidan.
+- [x] Felsökningsloggen: stationens inställningar (blockinställning `0x33`), utläsningssätt, antal svar och ms per bricka.
+- [x] Tester: plan för 0–128+ stämplingar, reservvägen, bit för bit samma block och bild som "alla block", natt-KM:s SIAC.
+- [ ] Ägaren provar SIAC, SI10, SI8 och SI5 på riktig station (steg 7).
 
 ## Efter målet (inte nu)
 

@@ -43,3 +43,20 @@ export async function publicRaceAccess(db: Database, raceId: string, accountSess
     return grant ? "PREVIEW" : "NONE";
   });
 }
+
+/**
+ * Steg 52 (ADR-0176): den inloggade är ägare, administratör eller funktionär på tävlingen. Då visar de publika svaren
+ * banorna även när de är hemliga publikt (arbetsytans resultatlista, förhandsvisningen). Svaret får då aldrig sparas i en
+ * delad cache.
+ */
+export async function isRaceStaff(db: Database, raceId: string, accountSessionToken: string | null, now = new Date()): Promise<boolean> {
+  if (!accountSessionToken || !UUID_PATTERN.test(raceId)) return false;
+  const [race] = await db.select({ eventId: schema.races.eventId }).from(schema.races).where(eq(schema.races.id, raceId)).limit(1);
+  if (!race) return false;
+  return db.transaction(async tx => {
+    const auth = await authenticateUserAccountSessionForProtectedRead(tx, { sessionToken: accountSessionToken }, now);
+    if (auth.status !== "authenticated") return false;
+    return !!await activeEventAdministrationGrant(tx, { accountId: auth.principal.accountId, eventId: race.eventId,
+      roles: ["OWNER", "ADMIN", "FUNCTIONARY"] }, "share");
+  });
+}

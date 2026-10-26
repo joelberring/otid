@@ -183,8 +183,9 @@ describe("steg 48: flera löpare per sträcka", () => {
     // Två avläsningsdatorer: sträcka 3 och 2 läses före sträcka 1.
     await readout(proof, "9403", at("17:45"), run(at("17:30"), at("17:45")));
     await readout(proof, "9402", at("17:30"), run(at("17:15"), at("17:30")));
-    // Sträcka 2 saknar start (sträcka 1 är inte avläst); sträcka 3 startar vid sträcka 2:s målstämpling.
-    expect((await overview(proof)).teams[0]!.legs.map(leg => leg.status)).toEqual([null, "MP", "OK"]);
+    // Sträcka 2 saknar start (sträcka 1 är inte avläst) och väntar (steg 50: inte felstämplad); sträcka 3 startar vid sträcka
+    // 2:s målstämpling.
+    expect((await overview(proof)).teams[0]!.legs.map(leg => leg.status)).toEqual([null, null, "OK"]);
     await readout(proof, "9401", at("17:15"), run(at("17:00"), at("17:15")));
     const view = await overview(proof);
     expect(view.teams[0]!.legs.map(leg => leg.startTime)).toEqual([at("17:00"), at("17:15"), at("17:30")]);

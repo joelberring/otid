@@ -1,5 +1,5 @@
 import {
-  getPublicStartList, publicRaceContentVersion, publicRelayResults, publicResultDetailFrom, publicResults, readPublicLiveFrom, readPublicRadio
+  coursesArePublic, getPublicStartList, publicRaceContentVersion, publicRelayResults, publicResultDetailFrom, publicResults, readPublicLiveFrom, readPublicRadio
 } from "@o-tid/application";
 import { db } from "./db";
 import { createPublicRaceCache } from "./public-race-cache";
@@ -38,9 +38,14 @@ export const cachedPublicStartList = (raceId: string) => cache.read(raceId, "sta
   return publicStartListValue(await getPublicStartList(db, raceId));
 });
 
+/** Steg 52: om banorna är publika (ADR-0176), per tävlingsversion; versionen tar med arrangörens val. */
+export const cachedCoursesArePublic = (raceId: string) =>
+  cache.read(raceId, "courses-public", () => db.transaction(tx => coursesArePublic(tx, raceId)));
+
 /** En deltagares rad ur den cachade resultatlistan. */
 export async function cachedPublicResultDetail(raceId: string, publicResultId: string) {
-  return publicResultDetailFrom((await cachedPublicResults(raceId)).value, publicResultId);
+  const [results, coursesPublic] = await Promise.all([cachedPublicResults(raceId), cachedCoursesArePublic(raceId)]);
+  return publicResultDetailFrom(results.value, publicResultId, coursesPublic.value);
 }
 
 /**

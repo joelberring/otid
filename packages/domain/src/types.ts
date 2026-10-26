@@ -1,3 +1,4 @@
+import type { TeamSprintEachLegPart } from "./team-sprint";
 import type { ControlOutOfOrder, StationTimeAdjustment } from "./station-corrections";
 
 export type UUID = string;
@@ -121,13 +122,17 @@ export interface Entry {
   readonly courseVariantCode?: string;
   /** Stafettsträckans egen bana (steg 47). Saknas = klassens bana. */
   readonly courseVersionId?: UUID;
-  /** Steg 48: teamsprint – sträckans del av löparens bricka (delas vid växlingsstämplingarna). */
+  /**
+   * Teamsprint: sträckans del av löparens bricka. Steg 48: utläsning efter sista sträckan, delad vid växlingsstämplingarna
+   * (`mode` saknas eller `LAST_LEG`). Steg 50: utläsning efter varje sträcka (`EACH_LEG`).
+   */
   readonly teamSprint?: {
+    readonly mode?: "LAST_LEG";
     readonly part: number;
     readonly parts: number;
     readonly changeoverCode: number;
     readonly endsAtFinish: boolean;
-  };
+  } | TeamSprintEachLegPart;
   readonly externalIdentity?: ExternalIdentity;
 }
 

@@ -17,6 +17,7 @@ import { resultDuration } from "./types";
 import { startPunchText } from "../../lib/start-punch-text";
 import { EntryActionForms, RegistrationForm } from "./entry-action-forms";
 import { CardPunches } from "./card-punches";
+import { ParticipantControlMap } from "../control-map/runner-control-map";
 import { RemovalReview } from "./removal-review";
 import { ManualResult } from "./manual-result";
 import { DecisionReviewNotice } from "./decision-review";
@@ -68,6 +69,9 @@ export function ParticipantCard({ ws }: { ws: Workspace }) {
       {selected.decisionReview && !ws.functionary && <DecisionReviewNotice ws={ws} review={selected.decisionReview} />}
       {/* PLAN.md steg 27: brickans alla stämplingar, även från en annan dag eller bana. */}
       {result?.cardPunches && data && <CardPunches punches={result.cardPunches} timeZone={data.timeZone} />}
+      {/* Steg 52: löparens bana på kartan med stämplade, saknade och i fel ordning. */}
+      {!ws.functionary && <ParticipantControlMap key={`map-${selected.id}`} raceId={raceId} entryId={selected.id}
+        refreshKey={result ? `${result.history[0]?.revision ?? 0}:${result.snapshotVersion}` : ""} />}
       {/* PLAN.md steg 36: avläsningen blir annorlunda om den läses om från rådata (bara administratören). */}
       {/* Står kvar medan kortet läses in på nytt, så att beskedet efter sparandet syns. */}
       {!ws.functionary && <ParticipantReadoutReread key={`reread-${selected.id}`} raceId={raceId} entryId={selected.id} disabled={disabled}

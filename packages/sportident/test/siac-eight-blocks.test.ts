@@ -12,9 +12,10 @@ const CARD = NATT_KM_CARD;
 const detection = nattKmDetection();
 const blockFrame = (number: number) => nattKmBlockFrame(number);
 
+/** "Alla block" (före steg 53, och reservvägen när snabb utläsning ger upp): stationens följd matas in direkt. */
 function readySession() {
   const station = new FakeSiStation({ stationCode: STATION });
-  const session = new ReadoutSession();
+  const session = new ReadoutSession({ fastRead: false });
   const pump = (bytes: readonly Uint8Array[]): void => {
     for (const command of bytes) for (const reply of station.receive(command)) pump(session.receive(reply).send);
   };
@@ -67,15 +68,15 @@ describe("SIAC från en station som skickar alla åtta block (natt-KM 2026-10-20
     expect(events.map((event) => event.type)).toEqual(["card-inserted", "read-failed", "card-removed"]);
   });
 
-  for (const cardType of ["SIAC", "SI10", "SI11", "SI6"] as const) {
-    it(`${cardType}: samma resultat oavsett om stationen skickar dataklocken eller alla åtta`, () => {
+  for (const [cardType, fastRead] of (["SIAC", "SI10", "SI11", "SI6"] as const).flatMap((type) => [[type, false], [type, true]] as const)) {
+    it(`${cardType}${fastRead ? " (snabb utläsning)" : ""}: samma resultat oavsett om stationen skickar datablocken eller alla åtta`, () => {
       const at = (minute: number) => ({ secondsOfDay: 19 * 3600 + minute * 60, dayOfWeek: 2 });
       const numbers = { SIAC: 8_001_234, SI10: 7_000_123, SI11: 9_000_123, SI6: 765_432 };
       const card: SimulatedCard = { cardType, cardNumber: numbers[cardType], start: at(0), finish: at(40),
         punches: Array.from({ length: 40 }, (_value, index) => ({ code: 31 + index, time: at(1 + (index % 38)) })) };
       const codes = (eightBlocks: boolean) => {
         const station = new FakeSiStation({ eightBlocks });
-        const session = new ReadoutSession();
+        const session = new ReadoutSession({ fastRead });
         const events: ReadoutEvent[] = [];
         const pump = (bytes: readonly Uint8Array[]): void => {
           for (const command of bytes) for (const reply of station.receive(command)) {

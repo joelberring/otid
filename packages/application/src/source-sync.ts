@@ -123,7 +123,8 @@ export async function previewCourseFileAsAdmin(db: Database, input: Authenticati
   if (parsed.kind !== "CourseData") return { status: "invalid-iof-xml", issues: ["Filen är inte en banfil (CourseData)"] };
   const data = { courses: parsed.courses, assignments: parsed.assignments, legAssignments: parsed.legAssignments,
     personAssignments: parsed.personAssignments, teamAssignments: parsed.teamAssignments,
-    controlPositions: parsed.controlPositions, warnings: parsed.warnings };
+    controlPositions: parsed.controlPositions, ...(parsed.controlMapPositions ? { controlMapPositions: parsed.controlMapPositions } : {}),
+    ...(parsed.mapScale !== undefined ? { mapScale: parsed.mapScale } : {}), warnings: parsed.warnings };
   const fileName = input.fileName.trim().slice(0, 260) || "banfil.xml";
   return preview(db, input, "COURSE_FILE", { kind: "COURSE_FILE", data }, { originalXml: input.xml, fileName, sourceName: fileName }, now);
 }

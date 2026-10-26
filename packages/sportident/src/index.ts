@@ -5,7 +5,10 @@ export {
   CARD_LAYOUTS,
   cardImageBlocks,
   cardReadPlan,
+  fastReadBlocks,
+  fastReadCommand,
   LAST_BLOCK,
+  PUNCHES_PER_BLOCK,
   cardTypeFromSi8PlusNumber,
   decodeCardNumber,
   expectedImageSize,
@@ -21,6 +24,9 @@ export {
 export { cardImageFromResponses, CardDecodeError, decodeCard, type SiCardData, type SiPunchRecord, type SiStationRecord } from "./decode";
 export { normalizeCard, type NormalizedSiReadout } from "./normalize";
 export { decodeRecordedFrames, framesFromHex } from "./recorded";
-export { detectCard, parseSystemValues, ReadoutSession, type ReadoutEvent, type SessionOutput, type StationInfo } from "./readout-session";
-export { encodeCardImage, FakeSiStation, type FakeStationOptions, type SimulatedCard, type SimulatedTime } from "./simulator";
+export {
+  detectCard, parseSystemValues, ReadoutSession, type FastReadFallbackReason, type ReadMode, type ReadoutEvent, type ReadoutSessionOptions,
+  type SessionOutput, type StationInfo
+} from "./readout-session";
+export { encodeCardImage, FakeSiStation, type FakeStationOptions, type SimulatedCard, type SimulatedTime, type SingleBlockFault } from "./simulator";
 export { cardTypeForNumber, readSimulatedCard, simulatedRun, stationClock, type SimulatedRunOptions } from "./simulated-run";

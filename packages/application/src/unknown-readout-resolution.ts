@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import {
   unknownReadoutResolutionCandidateResponseSchema,
   unknownReadoutResolutionIdempotencyKeySchema,
@@ -9,7 +9,8 @@ import {
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import {
-  courseVariantForReadout, evaluateCardReadout, RESULT_ENGINE_VERSION, withProposedEntryVariants, type NormalizedCardReadout
+  courseVariantForReadout, evaluateCardReadout, evaluateReadoutForEntry, RESULT_ENGINE_VERSION, withProposedEntryVariants, type EvaluationResult,
+  type NormalizedCardReadout
 } from "@o-tid/domain";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
@@ -22,6 +23,7 @@ import { appendResultRevision } from "./result-revisions";
 import { readoutsWithResults } from "./readout-registration";
 import { cardAlreadyReadOutBy } from "./card-reuse";
 import { normalizedReadout } from "./result-revisions";
+import { loadTeamSprintRunners, storeTeamSprintReadoutAndRecalculate } from "./team-sprint-readout";
 
 type Authentication = RaceSessionProof;
 /**
@@ -192,8 +194,14 @@ export async function resolveUnknownReadoutAsAdmin(
     // samma deltagare ("det är samma löpare – använd den nya avläsningen").
     const borrowedFrom = activeOwner
       ? await cardAlreadyReadOutBy(tx, activeOwner.entryId, normalizedReadout(readout.readout)) : undefined;
-    if (activeOwner && !borrowedFrom) return { status: "conflict" };
-    const sameRunner = borrowedFrom !== undefined && intent.target === "EXISTING_ENTRY" && intent.entryId === borrowedFrom;
+    // Steg 50: teamsprint – brickan sitter på löparens första sträcka och avläsningen kopplas till en av löparens sträckor
+    // (t.ex. en utläsning som inte gick att lägga automatiskt). Brickan stannar hos löparen.
+    const sprintOwnerId = intent.target === "EXISTING_ENTRY" && lockedEntry?.teamId ? lockedEntry.relayCardEntryId ?? lockedEntry.id : undefined;
+    const sprintEntries = sprintOwnerId ? await tx.select({ id: schema.entries.id }).from(schema.entries)
+      .where(and(eq(schema.entries.relayCardEntryId, sprintOwnerId), isNull(schema.entries.struckAt))).orderBy(asc(schema.entries.relayLeg)) : [];
+    const teamSprintSame = sprintEntries.length > 0 && activeOwner?.entryId === sprintOwnerId;
+    if (activeOwner && !borrowedFrom && !teamSprintSame) return { status: "conflict" };
+    const sameRunner = teamSprintSame || (borrowedFrom !== undefined && intent.target === "EXISTING_ENTRY" && intent.entryId === borrowedFrom);
     const [cardOwner] = sameRunner ? [activeOwner] : await tx.select().from(schema.cardAssignments).where(and(
       eq(schema.cardAssignments.raceId, input.raceId), eq(schema.cardAssignments.cardNumber, intent.cardNumber),
       eq(schema.cardAssignments.active, false))).limit(1);
@@ -204,7 +212,7 @@ export async function resolveUnknownReadoutAsAdmin(
     if (intent.target === "EXISTING_ENTRY") {
       entry = lockedEntry!;
       if (entry.version !== intent.expectedEntryVersion || entry.classId !== intent.expectedClassId ||
-        entry.version >= 2_147_483_647 || (cardOwner && cardOwner.entryId !== entry.id)) return { status: "conflict" };
+        entry.version >= 2_147_483_647 || (cardOwner && cardOwner.entryId !== (teamSprintSame ? sprintOwnerId : entry.id))) return { status: "conflict" };
       const active = await tx.select().from(schema.cardAssignments).where(and(eq(schema.cardAssignments.raceId, input.raceId),
         eq(schema.cardAssignments.entryId, entry.id), eq(schema.cardAssignments.active, true))).orderBy(asc(schema.cardAssignments.id)).limit(2);
       if (active.length > 1 || (active[0]?.id ?? null) !== (intent.expectedAssignment?.id ?? null) ||
@@ -264,13 +272,36 @@ export async function resolveUnknownReadoutAsAdmin(
         eq(schema.entries.raceId, input.raceId)));
       snapshot = withProposedEntryVariants(snapshot, new Map([[entry.id, detected.code]]));
     }
-    const evaluation = evaluateCardReadout(normalized, snapshot);
-    if (evaluation.entryId !== entry.id || !evaluation.courseVersionId || evaluation.status === "UNKNOWN_CARD") {
-      throw new Error("Den valda avläsningen kunde inte bedömas mot deltagaren");
+    const sprintRunner = teamSprintSame ? (await loadTeamSprintRunners(tx, input.raceId, sprintOwnerId))[0] : undefined;
+    let evaluation: EvaluationResult;
+    let result: { id: string; revision: number; cause: string };
+    if (sprintRunner) {
+      // Utläsning efter varje sträcka: den valda sträckan.
+      const part = sprintRunner.parts.findIndex(row => row.entryId === entry.id) + 1;
+      const stored = await storeTeamSprintReadoutAndRecalculate(tx, { runner: sprintRunner, snapshot, readout: normalized,
+        cause: "UNKNOWN_READOUT_RESOLUTION", snapshotVersion: snapshotVersionAfter, createdAt: resolvedAt,
+        route: { kind: "LEGS", from: part, to: part, byChangeover: false, missing: [] } });
+      if (stored.kind !== "stored") throw new Error("Den valda avläsningen kunde inte bedömas mot deltagaren");
+      evaluation = stored.evaluation;
+      result = { id: stored.revisions[0]!.id, revision: stored.revisions[0]!.revision, cause: "UNKNOWN_READOUT_RESOLUTION" };
+    } else {
+      // Utläsning efter sista sträckan: brickan gäller löparens alla sträckor (delad vid växlingarna).
+      const targets = teamSprintSame ? [sprintOwnerId!, ...sprintEntries.map(row => row.id)] : [entry.id];
+      let own: { evaluation: EvaluationResult; row: { id: string; revision: number; cause: string } } | undefined;
+      for (const target of targets) {
+        const outcome = teamSprintSame ? evaluateReadoutForEntry(normalized, snapshot, target) : evaluateCardReadout(normalized, snapshot);
+        if (outcome.entryId !== target || !outcome.courseVersionId || outcome.status === "UNKNOWN_CARD") {
+          throw new Error("Den valda avläsningen kunde inte bedömas mot deltagaren");
+        }
+        const row = await appendResultRevision(tx, { raceId: input.raceId, entryId: target, readoutId: readout.readout.id,
+          cause: "UNKNOWN_READOUT_RESOLUTION", outcome, engineVersion: RESULT_ENGINE_VERSION,
+          snapshotVersion: snapshotVersionAfter, courseVersionId: outcome.courseVersionId, createdAt: resolvedAt });
+        if (target === entry.id) own = { evaluation: outcome, row };
+      }
+      if (!own) throw new Error("Den valda avläsningen kunde inte bedömas mot deltagaren");
+      evaluation = own.evaluation;
+      result = own.row;
     }
-    const result = await appendResultRevision(tx, { raceId: input.raceId, entryId: entry.id, readoutId: readout.readout.id,
-      cause: "UNKNOWN_READOUT_RESOLUTION", outcome: evaluation, engineVersion: RESULT_ENGINE_VERSION,
-      snapshotVersion: snapshotVersionAfter, courseVersionId: evaluation.courseVersionId, createdAt: resolvedAt });
     const revision = result.revision;
     const teamId = await relayTeamOfEntry(tx, entry.id);
     if (teamId) await synchronizeRelayTeams(tx, input.raceId, [teamId], snapshotVersionAfter);

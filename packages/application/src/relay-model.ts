@@ -33,6 +33,8 @@ export interface RelayClassConfig {
   readonly classCourseVersionId: string;
   /** Steg 48: teamsprint – växlingskontrollens kod; null = vanlig stafett. */
   readonly changeoverCode: number | null;
+  /** Steg 50: teamsprint – utläsning efter varje sträcka eller efter sista sträckan; null = vanlig stafett. */
+  readonly readoutMode: "EACH_LEG" | "LAST_LEG" | null;
 }
 
 /** Stafettklasserna i loppet med sträckor i ordning. En klass utan sträckor är individuell. */
@@ -42,7 +44,7 @@ export async function loadRelayClassConfigs(tx: Executor, raceId: string): Promi
   if (rows.length === 0) return new Map();
   const classRows = await tx.select({ id: schema.classes.id, courseVersionId: schema.classes.courseVersionId,
     restartRanking: schema.classes.relayRestartRanking, forking: schema.classes.relayForking,
-    changeoverCode: schema.classes.relayChangeoverCode }).from(schema.classes)
+    changeoverCode: schema.classes.relayChangeoverCode, readoutMode: schema.classes.relayReadoutMode }).from(schema.classes)
     .where(and(eq(schema.classes.raceId, raceId), inArray(schema.classes.id, [...new Set(rows.map(row => row.classId))])));
   const settings = new Map(classRows.map(row => [row.id, row]));
   const configs = new Map<string, RelayLegConfig[]>();
@@ -57,7 +59,7 @@ export async function loadRelayClassConfigs(tx: Executor, raceId: string): Promi
   return new Map([...configs].map(([classId, legs]) => {
     const setting = settings.get(classId)!;
     return [classId, { classId, legs, restartRanking: setting.restartRanking ?? "AFTER_NORMAL", forking: setting.forking ?? "EVEN",
-      classCourseVersionId: setting.courseVersionId, changeoverCode: setting.changeoverCode }];
+      classCourseVersionId: setting.courseVersionId, changeoverCode: setting.changeoverCode, readoutMode: setting.readoutMode }];
   }));
 }
 
@@ -120,6 +122,8 @@ export async function loadRelayLegFinishTimes(tx: Executor, raceId: string, entr
 
 export interface RelayLegResult {
   readonly status: StoredResultStatus;
+  /** Bedömningens orsak (steg 50: `MISSING_START` = sträckan väntar på föregående sträckas växling). */
+  readonly reason?: string;
   readonly elapsedMs?: number;
   readonly startTime?: string;
   readonly finishTime?: string;
@@ -138,6 +142,7 @@ export async function loadRelayLegResults(tx: Transaction, raceId: string, entry
     if (state.state !== "ACTIVE_RESULT") continue;
     const outcome = parseAdministratorStoredResultHead(state);
     results.set(state.head.entryId, { status: outcome.status as StoredResultStatus, courseVersionId: state.head.courseVersionId,
+      ...("reason" in outcome && typeof outcome.reason === "string" ? { reason: outcome.reason } : {}),
       ...("elapsedMs" in outcome && outcome.elapsedMs !== undefined ? { elapsedMs: outcome.elapsedMs } : {}),
       ...("startTime" in outcome && outcome.startTime !== undefined ? { startTime: outcome.startTime } : {}),
       ...("finishTime" in outcome && outcome.finishTime !== undefined ? { finishTime: outcome.finishTime } : {}) });

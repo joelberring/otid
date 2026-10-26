@@ -15,12 +15,12 @@ import { UUID_PATTERN } from "./serialization";
  */
 export async function publicRaceContentVersion(db: Database, raceId: string): Promise<string | null> {
   if (!UUID_PATTERN.test(raceId)) return null;
-  const result = await db.execute<{ snapshot_version: number; finalization: string | null; published_at: string | null; sequence: string | null; start_list: number | null }>(sql`
-    select r.snapshot_version, r.official_result_finalization_id::text as finalization, r.published_at::text as published_at,
+  const result = await db.execute<{ snapshot_version: number; finalization: string | null; published_at: string | null; courses_public: string | null; sequence: string | null; start_list: number | null }>(sql`
+    select r.snapshot_version, r.official_result_finalization_id::text as finalization, r.published_at::text as published_at, r.courses_public_at::text as courses_public,
       (select max(e.event_sequence) from public_result_update_event e where e.race_id = r.id)::text as sequence,
       (select max(p.revision) from start_list_publication p where p.race_id = r.id) as start_list
     from race r where r.id = ${raceId}`);
   const row = result.rows[0];
   if (!row) return null;
-  return [row.snapshot_version, row.sequence ?? "0", row.finalization ?? "-", row.published_at ?? "-", row.start_list ?? 0].join(":");
+  return [row.snapshot_version, row.sequence ?? "0", row.finalization ?? "-", row.published_at ?? "-", row.start_list ?? 0, row.courses_public ?? "-"].join(":");
 }

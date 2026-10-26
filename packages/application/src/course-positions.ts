@@ -1,7 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
 import { geoLengthMeters, type ForkingGeoPoint } from "@o-tid/domain";
-import type { GeoPosition } from "@o-tid/iof-xml";
+import type { GeoPosition, MapPositionImport } from "@o-tid/iof-xml";
 import type { StoredCourseVariant } from "./course-variants";
 
 /**
@@ -20,12 +20,28 @@ export async function storeControlPositions(tx: Executor, raceId: string, positi
   }
 }
 
-/** Startens och målets lägen på en bana; ett läge som filen inte har står kvar. */
+/**
+ * Steg 52: kontrollernas lägen på kartan (IOF MapPosition, mm) och kartans skala, för kontrollkartan när WGS 84 saknas.
+ * En kontroll som saknas skapas, som för lägena i WGS 84.
+ */
+export async function storeControlMapPositions(tx: Executor, raceId: string, positions: readonly ({ code: number } & MapPositionImport)[],
+  scale: number | undefined): Promise<void> {
+  for (const position of positions) {
+    await tx.insert(schema.controls).values({ raceId, code: position.code, mapX: position.x, mapY: position.y })
+      .onConflictDoUpdate({ target: [schema.controls.raceId, schema.controls.code], set: { mapX: position.x, mapY: position.y } });
+  }
+  if (scale !== undefined) await tx.update(schema.races).set({ courseMapScale: scale }).where(eq(schema.races.id, raceId));
+}
+
+/** Startens och målets lägen på en bana (WGS 84 och på kartan); ett läge som filen inte har står kvar. */
 export async function storeCourseEnds(tx: Executor, raceId: string, courseId: string,
-  ends: { startPosition?: GeoPosition | undefined; finishPosition?: GeoPosition | undefined }): Promise<void> {
-  if (!ends.startPosition && !ends.finishPosition) return;
+  ends: { startPosition?: GeoPosition | undefined; finishPosition?: GeoPosition | undefined;
+    startMapPosition?: MapPositionImport | undefined; finishMapPosition?: MapPositionImport | undefined }): Promise<void> {
+  if (!ends.startPosition && !ends.finishPosition && !ends.startMapPosition && !ends.finishMapPosition) return;
   await tx.update(schema.courses).set({ ...(ends.startPosition ? { startPosition: ends.startPosition } : {}),
-    ...(ends.finishPosition ? { finishPosition: ends.finishPosition } : {}) })
+    ...(ends.finishPosition ? { finishPosition: ends.finishPosition } : {}),
+    ...(ends.startMapPosition ? { startMapPosition: { x: ends.startMapPosition.x, y: ends.startMapPosition.y } } : {}),
+    ...(ends.finishMapPosition ? { finishMapPosition: { x: ends.finishMapPosition.x, y: ends.finishMapPosition.y } } : {}) })
     .where(and(eq(schema.courses.id, courseId), eq(schema.courses.raceId, raceId)));
 }
 

@@ -31,7 +31,27 @@ export interface StationCallbacks {
   onUnsupportedCard(cardNumber: number): void;
   /** Varje mottagen och skickad byteföljd, för rålogg vid felsökning med riktig station. */
   onTraffic?(direction: "in" | "out", bytes: Uint8Array): void;
+  /** Steg 53: händelser i klartext till felsökningsloggen (utläsningssätt, tid, reservväg). Inga namn. */
+  onLog?(text: string): void;
 }
+
+const FAST_READ_KEY = "otid.readout.fast-read.v1";
+
+/** Steg 53: "Snabb utläsning av SI10/11/SIAC" (på som förval), sparad i webbläsaren. */
+export function loadFastRead(storage?: Pick<Storage, "getItem">): boolean {
+  try { return (storage ?? window.localStorage).getItem(FAST_READ_KEY) !== "off"; }
+  catch (error) { console.warn("Valet för snabb utläsning kunde inte läsas; den är på", error); return true; }
+}
+
+export function saveFastRead(enabled: boolean, storage?: Pick<Storage, "setItem">): void {
+  try { (storage ?? window.localStorage).setItem(FAST_READ_KEY, enabled ? "on" : "off"); }
+  catch (error) { console.warn("Valet för snabb utläsning kunde inte sparas i webbläsaren", error); }
+}
+
+const FALLBACK_REASONS: Record<string, string> = {
+  nak: "stationen svarade NAK", "wrong-block": "svar med fel block", timeout: "inget svar",
+  mismatch: "block 0 från en annan bricka", inconsistent: "blocken stämmer inte med block 0"
+};
 
 /**
  * Kör protokollets tillståndsmaskin mot en bytetransport: skriver kommandon,
@@ -42,19 +62,27 @@ export class StationController {
   readonly #callbacks: StationCallbacks;
   readonly #timeoutMs: number;
   readonly #timeZone: string;
-  readonly #session = new ReadoutSession();
+  readonly #session: ReadoutSession;
+  /** När brickan sattes i (för utläsningstiden i felsökningsloggen). */
+  #insertedAt: number | undefined;
   #timer: ReturnType<typeof setTimeout> | undefined;
   #unsubscribe: Unsubscribe[] = [];
   #facts: StationFacts = { serialNumber: undefined, clock: undefined };
   #handshakeDone: ((ok: boolean) => void) | undefined;
 
   /** `timeZone`: tävlingens tidszon, som stationens väggklocka tolkas i. */
-  constructor(transport: ByteTransport, callbacks: StationCallbacks, options: { timeoutMs?: number; timeZone?: string } = {}) {
+  constructor(transport: ByteTransport, callbacks: StationCallbacks,
+    options: { timeoutMs?: number; timeZone?: string; fastRead?: boolean } = {}) {
+    this.#session = new ReadoutSession({ fastRead: options.fastRead ?? true });
     this.#transport = transport;
     this.#callbacks = callbacks;
     this.#timeoutMs = options.timeoutMs ?? 3000;
     this.#timeZone = options.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
   }
+
+  /** Steg 53: snabb utläsning av SI6 och SI10/11/SIAC; gäller från nästa bricka. */
+  set fastRead(value: boolean) { this.#session.fastRead = value; }
+  get fastRead(): boolean { return this.#session.fastRead; }
 
   /** Stationens klocka i förhållande till datorns, när stationen har svarat på GET_TIME. */
   get clock(): StationClockInfo | undefined { return this.#facts.clock; }
@@ -106,16 +134,25 @@ export class StationController {
     }
   }
 
+  #logStation(station: StationInfo): void {
+    const hex = (value: number) => `0x${value.toString(16).padStart(2, "0")}`;
+    this.#callbacks.onLog?.(`Station ${station.serialNumber}: kod ${station.stationCode}, läge ${hex(station.mode)}, `
+      + `utökat protokoll ${station.extendedProtocol ? "på" : "av"}, handskakning ${station.handshake ? "på" : "av"}, `
+      + `blockinställning ${hex(station.cardBlocks)}, snabb utläsning ${this.#session.fastRead ? "på" : "av"}`);
+  }
+
   #event(event: ReadoutEvent): void {
     switch (event.type) {
       case "station-ready":
         this.#remember(event.station);
+        this.#logStation(event.station);
         this.#callbacks.onStatus({ kind: "ready", serialNumber: event.station.serialNumber,
           ...(this.#facts.clock ? { clock: this.#facts.clock } : {}) });
         this.#handshakeDone?.(true);
         return;
       case "station-misconfigured":
         this.#remember(event.station);
+        this.#logStation(event.station);
         this.#callbacks.onStatus({ kind: "misconfigured", problems: event.problems });
         this.#handshakeDone?.(true);
         return;
@@ -124,12 +161,22 @@ export class StationController {
         this.#handshakeDone?.(false);
         return;
       case "card-inserted":
+        this.#insertedAt = Date.now();
         this.#callbacks.onCardInserted(event.cardNumber);
         return;
-      case "card-read":
+      case "card-read": {
+        const ms = this.#insertedAt === undefined ? undefined : Date.now() - this.#insertedAt;
+        this.#callbacks.onLog?.(`${event.card.cardType} ${event.card.cardNumber}: ${event.readMode === "fast" ? "snabb utläsning" : "hel utläsning"}, `
+          + `${event.frames.length - 1} svar${ms === undefined ? "" : `, ${ms} ms`}`);
         this.#callbacks.onCardRead(event.card, event.frames, this.#facts);
         return;
+      }
+      case "fast-read-fallback":
+        this.#callbacks.onLog?.(`${event.cardType} ${event.cardNumber}: snabb utläsning gav upp (${FALLBACK_REASONS[event.reason] ?? event.reason}) `
+          + `efter ${event.frames.length - 1} svar; läser om med alla block`);
+        return;
       case "read-failed":
+        this.#callbacks.onLog?.(`${event.cardNumber}: avläsningen misslyckades (${event.reason})`);
         this.#callbacks.onReadFailed(event.cardNumber, event.reason);
         return;
       case "card-unsupported":

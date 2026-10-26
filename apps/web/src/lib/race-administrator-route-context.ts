@@ -29,7 +29,7 @@ import { loadStartDrawSetupAsAdmin, previewStartDrawAsAdmin, commitStartDrawAsAd
   readRaceMapStateAsAdmin, readRaceMapImageAsAdmin, saveRaceMapAsAdmin, georeferenceRaceMapAsAdmin,
   removeRaceMapAsAdmin, saveParticipantRouteAsAdmin, removeParticipantRouteAsAdmin,
   listRacePeopleAsAdmin, grantRacePersonAsAdmin, revokeRacePersonAsAdmin,
-  setRacePublicationAsAdmin, getRadioSettingsAsAdmin, saveRadioSettingsAsAdmin,
+  setRacePublicationAsAdmin, setCoursesPublicAsAdmin, readControlMapAsAdmin, readEntryControlMapAsAdmin, getRadioSettingsAsAdmin, saveRadioSettingsAsAdmin,
   fetchRadioNowAsAdmin, registerReadoutCard, previewRemainingRunnersAsAdmin, markRemainingDidNotStartAsAdmin,
   saveCourseDetailsAsAdmin, removeEntryAsAdmin, removeClassAsAdmin, removeCourseAsAdmin, readResultsOfficialAsAdmin,
   setResultsOfficialAsAdmin, exportRaceAsAdmin, getRunnerDatabaseSettingsAsAdmin, refreshRunnerDatabaseAsAdmin,
@@ -90,7 +90,9 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   raceMapGeoreference: georeferenceRaceMapAsAdmin, raceMapRemove: removeRaceMapAsAdmin,
   participantRouteSave: saveParticipantRouteAsAdmin, participantRouteRemove: removeParticipantRouteAsAdmin,
   people: listRacePeopleAsAdmin, grantPerson: grantRacePersonAsAdmin, revokePerson: revokeRacePersonAsAdmin,
-  racePublication: setRacePublicationAsAdmin,
+  racePublication: setRacePublicationAsAdmin, courseSecrecy: setCoursesPublicAsAdmin,
+  // Steg 52: kontrollkartan och löparens bana på kartan.
+  controlMap: readControlMapAsAdmin, entryControlMap: readEntryControlMapAsAdmin,
   radioSettings: getRadioSettingsAsAdmin, radioSave: saveRadioSettingsAsAdmin, radioFetch: fetchRadioNowAsAdmin,
   // PLAN.md steg 25: direktanmälan från avläsningssidan, kvar i skogen som ej start och banans längd och stigning.
   readoutRegistration: registerReadoutCard, remainingRunners: previewRemainingRunnersAsAdmin,
@@ -139,7 +141,7 @@ export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: str
   { kind: "identity-candidates" } | { kind: "identity"; entryId: string } | { kind: "registration" } | { kind: "registration-candidates" } |
   { kind: "changes"; entryId: string } |
   { kind: "race-map" } | { kind: "race-map-image" } | { kind: "race-map-georeference" } | { kind: "participant-route" } |
-  { kind: "people" } | { kind: "race-publication" } | { kind: "radio" } | { kind: "radio-fetch" } |
+  { kind: "people" } | { kind: "race-publication" } | { kind: "course-secrecy" } | { kind: "control-map" } | { kind: "entry-control-map"; entryId: string } | { kind: "radio" } | { kind: "radio-fetch" } |
   { kind: "readout-registrations" } | { kind: "remaining-runners" } | { kind: "course-details"; courseId: string } |
   { kind: "entry-removal"; entryId: string } | { kind: "class-removal"; classId: string } | { kind: "course-removal"; courseId: string } |
   { kind: "results-official" } | { kind: "race-export" } | { kind: "runner-database" } | { kind: "runner-search" } |

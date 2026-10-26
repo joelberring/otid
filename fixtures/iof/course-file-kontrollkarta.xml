@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Steg 52: påhittad banfil med koordinater och kartlägen för kontrollkartan (Playwright). -->
+<CourseData xmlns="http://www.orienteering.org/datastandard/3.0" iofVersion="3.0" createTime="2026-10-26T08:00:00+01:00" creator="OCAD 2018.0.0">
+  <Event>
+    <Name>Kvällsträning i Påhittskogen</Name>
+  </Event>
+  <RaceCourseData>
+    <Map>
+      <Scale>10000</Scale>
+    </Map>
+    <Control type="Start">
+      <Id>S1</Id>
+      <Position lng="18.100706" lat="59.350719" />
+      <MapPosition x="4.0" y="8.0" unit="mm" />
+    </Control>
+    <Control>
+      <Id>31</Id>
+      <Position lng="18.102646" lat="59.353777" />
+      <MapPosition x="15.0" y="42.0" unit="mm" />
+    </Control>
+    <Control>
+      <Id>32</Id>
+      <Position lng="18.107409" lat="59.355486" />
+      <MapPosition x="42.0" y="61.0" unit="mm" />
+    </Control>
+    <Control>
+      <Id>33</Id>
+      <Position lng="18.113407" lat="59.354676" />
+      <MapPosition x="76.0" y="52.0" unit="mm" />
+    </Control>
+    <Control>
+      <Id>34</Id>
+      <Position lng="18.117288" lat="59.352698" />
+      <MapPosition x="98.0" y="30.0" unit="mm" />
+    </Control>
+    <Control>
+      <Id>35</Id>
+      <Position lng="18.114466" lat="59.350809" />
+      <MapPosition x="82.0" y="9.0" unit="mm" />
+    </Control>
+    <Control>
+      <Id>36</Id>
+      <Position lng="18.108820" lat="59.351619" />
+      <MapPosition x="50.0" y="18.0" unit="mm" />
+    </Control>
+    <Control>
+      <Id>37</Id>
+      <Position lng="18.104587" lat="59.356835" />
+      <MapPosition x="26.0" y="76.0" unit="mm" />
+    </Control>
+    <Control>
+      <Id>38</Id>
+      <Position lng="18.111290" lat="59.357914" />
+      <MapPosition x="64.0" y="88.0" unit="mm" />
+    </Control>
+    <Control>
+      <Id>39</Id>
+      <Position lng="18.119405" lat="59.356295" />
+      <MapPosition x="110.0" y="70.0" unit="mm" />
+    </Control>
+    <Control>
+      <Id>40</Id>
+      <Position lng="18.106174" lat="59.352698" />
+      <MapPosition x="35.0" y="30.0" unit="mm" />
+    </Control>
+    <Control type="Finish">
+      <Id>F1</Id>
+      <Position lng="18.102117" lat="59.350360" />
+      <MapPosition x="12.0" y="4.0" unit="mm" />
+    </Control>
+    <Course>
+      <Name>Lång</Name>
+      <Length>3900</Length>
+      <CourseControl type="Start"><Control>S1</Control></CourseControl>
+      <CourseControl><Control>31</Control></CourseControl>
+      <CourseControl><Control>32</Control></CourseControl>
+      <CourseControl><Control>33</Control></CourseControl>
+      <CourseControl><Control>34</Control></CourseControl>
+      <CourseControl><Control>35</Control></CourseControl>
+      <CourseControl><Control>36</Control></CourseControl>
+      <CourseControl type="Finish"><Control>F1</Control></CourseControl>
+    </Course>
+    <Course>
+      <Name>Mellan</Name>
+      <Length>3100</Length>
+      <CourseControl type="Start"><Control>S1</Control></CourseControl>
+      <CourseControl><Control>31</Control></CourseControl>
+      <CourseControl><Control>37</Control></CourseControl>
+      <CourseControl><Control>38</Control></CourseControl>
+      <CourseControl><Control>33</Control></CourseControl>
+      <CourseControl><Control>36</Control></CourseControl>
+      <CourseControl type="Finish"><Control>F1</Control></CourseControl>
+    </Course>
+    <Course>
+      <Name>Kort</Name>
+      <Length>2300</Length>
+      <CourseControl type="Start"><Control>S1</Control></CourseControl>
+      <CourseControl><Control>40</Control></CourseControl>
+      <CourseControl><Control>36</Control></CourseControl>
+      <CourseControl><Control>35</Control></CourseControl>
+      <CourseControl type="Finish"><Control>F1</Control></CourseControl>
+    </Course>
+    <ClassCourseAssignment><ClassName>H21</ClassName><CourseName>Lång</CourseName></ClassCourseAssignment>
+    <ClassCourseAssignment><ClassName>D21</ClassName><CourseName>Mellan</CourseName></ClassCourseAssignment>
+    <ClassCourseAssignment><ClassName>Öppen</ClassName><CourseName>Kort</CourseName></ClassCourseAssignment>
+  </RaceCourseData>
+</CourseData>

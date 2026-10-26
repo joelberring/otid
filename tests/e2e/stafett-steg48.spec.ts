@@ -122,6 +122,9 @@ test("teamsprint: två löpare × fyra sträckor, en bricka per person, avläsni
   await expect(form.getByLabel("Antal sträckor")).toHaveValue("4");
   await form.getByLabel("Klassnamn").fill("Teamsprint");
   await form.getByLabel("Bana").selectOption({ label: "Sprintslinga" });
+  // Steg 50: mallens förval är utläsning efter varje sträcka; här provas steg 48:s sätt med växlingskontroll.
+  await expect(form.getByLabel("Teamsprint", { exact: true })).toHaveValue("EACH_LEG");
+  await form.getByLabel("Teamsprint", { exact: true }).selectOption("LAST_LEG");
   await form.getByLabel("Växlingskontroll").fill("100");
   await form.getByLabel("Masstart sträcka 1").fill(clock(0));
   await form.getByRole("button", { name: "Spara stafettklass" }).click();

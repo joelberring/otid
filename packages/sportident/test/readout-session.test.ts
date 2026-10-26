@@ -26,8 +26,8 @@ const siac: SimulatedCard = {
 };
 
 /** Kopplar ihop session och falsk station, med valfri chunkstorlek på tråden. */
-function wire(station: FakeSiStation, chunkSize = Infinity) {
-  const session = new ReadoutSession();
+function wire(station: FakeSiStation, chunkSize = Infinity, options: { fastRead?: boolean } = {}) {
+  const session = new ReadoutSession(options);
   const events: ReadoutEvent[] = [];
   const written: Uint8Array[] = [];
   const deliver = (bytes: readonly Uint8Array[]): void => {
@@ -66,7 +66,7 @@ describe("ReadoutSession", () => {
     expect(w.events).toEqual([
       {
         type: "station-ready",
-        station: { serialNumber: 501_234, stationCode: 10, mode: StationMode.READOUT, extendedProtocol: true, handshake: true, clock: CLOCK }
+        station: { serialNumber: 501_234, stationCode: 10, mode: StationMode.READOUT, extendedProtocol: true, handshake: true, cardBlocks: 0xc1, clock: CLOCK }
       }
     ]);
     // Handskakningen frågar efter stationens klocka (GET_TIME) sist.
@@ -74,7 +74,9 @@ describe("ReadoutSession", () => {
     w.deliver(station.insert(siac));
     const read = w.events.find((e) => e.type === "card-read");
     expect(read?.type === "card-read" && read.card).toMatchObject({ cardType: "SIAC", cardNumber: 8_001_234 });
-    expect(read?.type === "card-read" && read.frames.length).toBe(6); // detektering + 5 block
+    // Steg 53: detektering + block 0, 1 och 4 (två stämplingar), inte alla fem.
+    expect(read?.type === "card-read" && read.frames.length).toBe(4);
+    expect(read?.type === "card-read" && read.readMode).toBe("fast");
     expect(w.written.at(-1)).toEqual(Uint8Array.of(ACK));
     expect(w.session.expectsResponse).toBe(false);
   });
@@ -148,7 +150,8 @@ describe("ReadoutSession", () => {
 
   it("rapporterar tidsgräns under läsning och fortsätter vänta på nästa bricka", () => {
     const station = new FakeSiStation();
-    const w = wire(station);
+    // "Alla block": tidsgränsen ger en misslyckad avläsning. (Snabb utläsning prövar först "alla block", fast-read.test.ts.)
+    const w = wire(station, Infinity, { fastRead: false });
     w.start();
     const [detection] = station.insert(siac);
     w.events.push(...w.session.receive(detection!).events);

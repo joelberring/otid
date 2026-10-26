@@ -1,5 +1,5 @@
 import {
-  adminRaceMapStateSchema, PARTICIPANT_ROUTE_CONTENT_TYPE, PARTICIPANT_ROUTE_MAX_BYTES, participantRouteUploadResponseSchema, RACE_MAP_MAX_BYTES,
+  adminRaceMapStateSchema, controlMapResponseSchema, runnerControlMapSchema, PARTICIPANT_ROUTE_CONTENT_TYPE, PARTICIPANT_ROUTE_MAX_BYTES, participantRouteUploadResponseSchema, RACE_MAP_MAX_BYTES,
   RACE_MAP_MEDIA_TYPES, raceMapProblemSchema, type RaceMapProblem
 } from "@o-tid/contracts";
 import {
@@ -43,6 +43,17 @@ export async function handleMapRoute(context: RaceAdministratorRouteContext): Pr
   const { db, request, raceId, action, dependencies, proof } = context;
   const input = { ...proof, raceId };
   switch (action.kind) {
+    // Steg 52 (ADR-0176): kontrollkartan och löparens bana på kartan (deltagarkortet).
+    case "control-map": {
+      const result = await dependencies.controlMap(db, input);
+      if (result.status !== "ok") return resultFailure(result.status);
+      return json(controlMapResponseSchema.parse(result.response));
+    }
+    case "entry-control-map": {
+      const result = await dependencies.entryControlMap(db, { ...input, entryId: action.entryId });
+      if (result.status !== "ok") return resultFailure(result.status);
+      return json(runnerControlMapSchema.parse(result.response));
+    }
     case "race-map": {
       if (request.method === "GET") {
         const result = await dependencies.raceMapState(db, input);

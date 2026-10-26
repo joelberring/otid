@@ -18,6 +18,35 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Efter: 300 besökare p95 0,5–0,95 s publikt, uppdatering p95 4,0 s; kvitto p95 1,3–1,7 s (målet 1 s nås inte); 500 besökare p95 1,2–1,5 s.
 - Verifierat: lint, typecheck, enhets- och integrationstester (ny `steg-51-lasttest`), bygget, Playwright publikt/live/listor/stafett/gafflingar; `funktionarer.spec.ts` fallerar på speakern även på main ac2e06d.
 - Kvar: avläsningen läser hela avläsningspaketet (se Idéer); 25-manna med täta växlingar; docker-läget i `server.sh` och `web2` i drift är inte provade (inga bilder i miljön).
+### 2026-10-26 – Steg 53: snabbare utläsning av nyare brickor (agent E)
+- SI10/11/SIAC och SI6 läses block för block efter antalet stämplingar i block 0 (som MeOS); SIAC läser också block 1.
+  20 stämplingar: 2 svar (SIAC 3) i stället för 5 eller 8; vid 4 800 baud ca 0,6–0,9 s i stället för 1,4–2,3 s.
+- Oväntat svar (NAK, fel block, tidsgräns, fel bricka, block som inte går ihop) ger "alla block" direkt för samma bricka och
+  en post i felsökningsloggen. Inställningen "Snabb utläsning av SI10/11/SIAC" (på) kan stänga av det.
+- Felsökningsloggen har nu `notes`: stationens inställningar, utläsningssätt, svar och ms per bricka.
+- Tester: `packages/sportident/test/fast-read.test.ts` (plan, reserv, bit för bit, natt-KM), webb `readout.test.ts`,
+  Playwright `avlasaren`. Bara provat med den falska stationen; ägaren provar SIAC, SI10, SI8 och SI5 på riktigt.
+
+### 2026-10-26 – Steg 52 del 2: kontrollkartan (agent D)
+- Banor → "Kontrollkarta" (dialog): belastning (färg, storlek, tabell; planerade eller stämplingar) eller en bana/variant med linjer och nummer. SVG utan bibliotek, kartbilden under när den är georefererad.
+- Lägen: WGS 84, annars kartlägen (MapPosition mm + Map/Scale, sparas nu vid inläsning, kopiering och synk; migration 0026).
+- Deltagarkortet och den publika deltagarsidan (när banorna är publika): "Visa på kartan" med saknade, fel ordning och ur funktion.
+- Tester: domän `control-map`, iof `parser`, webb `control-map`, integration `steg-52-kontrollkarta`, Playwright `kontrollkarta`.
+- Playwright `gafflingar` faller i den här miljön även på main (75ce9d9) vid deltagarkortets resultat; inte undersökt vidare.
+
+### 2026-10-26 – Steg 52 del 1: banhemlighet (agent D)
+- Ny regel (ADR-0176, `courseSecrecy`): banorna är publika när alla ej strukna har resultat eller beslut, när resultaten är fastställda eller när arrangören valt "Visa banorna publikt nu" (`race.courses_public_at`, migration 0026, auditpost, går att ångra).
+- Innan dess publikt: ingen gafflingsbild i resultatlistan och på deltagarsidan och ingen bana på vägvalskartan. Variant och sträcktider står kvar.
+- Arrangören och funktionärerna ser allt, även på de publika sidorna när de är inloggade (svaret cachas då inte delat). Läget visas under Publicera.
+- Tester: domän `course-secrecy`, integration `steg-52-banhemlighet` och `adr-0171-map-routes`, Playwright `banhemlighet`.
+
+### 2026-10-26 – Steg 50: teamsprint med utläsning efter varje sträcka (agent A)
+- Förval som MeOS (`class.relay_readout_mode`, migration 0024): utläsningen går till löparens första sträcka utan resultat och bedöms mot stämplingarna efter förra utläsningens mål; ingen växlingskontroll behövs. Steg 48:s sätt är ett val.
+- Dubblett = omläsning; tidigare måltid eller alla sträckor utlästa blir okänd utläsning med besked. Glömd utläsning: växlingskontrollen om den finns, annars banorna i tur och ordning och "Utläsning efter sträcka X saknas".
+- En sträcka som saknar start (föregående saknar växling) räknas som ute, inte felstämplad. Delningen räknas ur sträckornas resultatrevisioner.
+- Avläsningens besked "Lag 12 Ek – sträcka 3 (Ada Ek, andra sträckan)"; lagkortet visar varje sträckas utläsning; övningsstationen har en bricka per sträcka.
+- Rättat: teamsprint vid okända utläsningar (journalens brickkoppling hör till brickan) och omläsning; löpare, växlingskontroll och utläsningssätt kan ändras när lag finns.
+- Tester: domän `team-sprint-steg50`, integration `adr-0174-teamsprint-utlasning`, Playwright `stafett-steg50`; `stafett-steg48` provar valet efter sista sträckan.
 
 ### 2026-10-26 – Steg 48: flera löpare per sträcka och teamsprint (agent A)
 - Parallella sträckor (migration 0022: `relay_leg.runners`, växlings- och godkännanderegel, `entry.relay_leg_order`): FIRST/LAST, ALL/ANY.

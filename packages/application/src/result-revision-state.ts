@@ -4,6 +4,7 @@ import { schema } from "@o-tid/database";
 import { DECISION_CAUSES, resolveResultHistory, type GoverningDecision } from "@o-tid/domain";
 import { loadStoredStartCheckinDnsStates, type StoredStartCheckinDnsState } from "./start-checkin-dns-state";
 import { StoredResultRevisionConflict, type StoredResultRevisionInput } from "./stored-result-revision";
+import { inUuids } from "./sql-ids";
 
 type DatabaseTransaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 type Revision = typeof schema.resultRevisions.$inferSelect;
@@ -30,7 +31,7 @@ export type StoredResultHeadState<T extends StoredResultHead> = {
 /** Beslut och återtaganden per deltagare, i stigande revisionsordning. */
 async function loadDecisionRows(tx: DatabaseTransaction, raceId: string, entryIds: readonly string[]) {
   const rows = entryIds.length === 0 ? [] : await tx.select().from(schema.resultRevisions).where(and(
-    eq(schema.resultRevisions.raceId, raceId), inArray(schema.resultRevisions.entryId, [...entryIds]),
+    eq(schema.resultRevisions.raceId, raceId), inUuids(schema.resultRevisions.entryId, entryIds),
     inArray(schema.resultRevisions.cause, [...DECISION_CAUSES] as Revision["cause"][])
   )).orderBy(asc(schema.resultRevisions.entryId), asc(schema.resultRevisions.revision));
   const byEntry = new Map<string, Revision[]>();

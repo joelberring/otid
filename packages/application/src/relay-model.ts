@@ -4,6 +4,7 @@ import type { RelayApprovalRule, RelayChangeoverRule, RelayForkingMode, RelayLeg
   StoredResultStatus } from "@o-tid/domain";
 import { parseAdministratorStoredResultHead } from "./administrator-effective-result";
 import { resolveStoredResultHeadStates } from "./result-revision-state";
+import { inUuids } from "./sql-ids";
 
 /**
  * Stafett (ADR-0169 beslut 3): läsning av stafettklassernas sträckor, lagen, sträcklöparna
@@ -105,7 +106,7 @@ export async function loadRelayLegFinishTimes(tx: Executor, raceId: string, entr
   const rows = await tx.select({ entryId: schema.resultRevisions.entryId, revision: schema.resultRevisions.revision,
     evaluation: schema.resultRevisions.evaluation, readoutFinish: schema.cardReadouts.finishPunchedAt })
     .from(schema.resultRevisions).leftJoin(schema.cardReadouts, eq(schema.cardReadouts.id, schema.resultRevisions.readoutId))
-    .where(and(eq(schema.resultRevisions.raceId, raceId), inArray(schema.resultRevisions.entryId, [...entryIds])))
+    .where(and(eq(schema.resultRevisions.raceId, raceId), inUuids(schema.resultRevisions.entryId, entryIds)))
     .orderBy(asc(schema.resultRevisions.entryId), desc(schema.resultRevisions.revision));
   const finishes = new Map<string, string>();
   for (const row of rows) {
@@ -130,7 +131,7 @@ export async function loadRelayLegResults(tx: Transaction, raceId: string, entry
   if (entryIds.length === 0) return new Map();
   const heads = await tx.selectDistinctOn([schema.resultRevisions.entryId], { ...getTableColumns(schema.resultRevisions) })
     .from(schema.resultRevisions).where(and(eq(schema.resultRevisions.raceId, raceId), eq(schema.resultRevisions.published, true),
-      inArray(schema.resultRevisions.entryId, [...entryIds])))
+      inUuids(schema.resultRevisions.entryId, entryIds)))
     .orderBy(asc(schema.resultRevisions.entryId), desc(schema.resultRevisions.revision), desc(schema.resultRevisions.id));
   const results = new Map<string, RelayLegResult>();
   for (const state of await resolveStoredResultHeadStates(tx, raceId, heads)) {

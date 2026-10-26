@@ -59,7 +59,8 @@ bricknummer, valfri start- och målstämpling och stämplingar.
    sträcktid, och sträckan räknas från kontrollen före. Den lagrade avläsningen ändras aldrig. Ändringen räknar om alla
    avlästa; en manuellt rättad tid räknas inte om. Steg 45: stationen ALL (alla enheter) gäller start, mål och alla
    kontroller och läggs ihop med en justering för en enskild enhet. Besluten (rättad starttid, manuell tid) utgår från
-   tiderna efter justeringen (`preparedReadoutTimes`).
+   tiderna efter justeringen (`preparedReadoutTimes`). Steg 51: "Flytta starttider" för en klass ändrar bara klassens
+   underlag och räknar bara om klassens avlästa (inte hela tävlingen).
 12. Oröjd bricka (steg 31): kontroll-, start- och målstämplingar mer än 12 timmar före avläsningen räknas inte, och
    kontrollstämplingar mer än 10 minuter före brickans clear- eller checkstämpling (från i kväll och inte efter
    startstämplingen) räknas inte. Bara den inledande följden av gamla kontrollstämplingar i brickans minnesordning tas

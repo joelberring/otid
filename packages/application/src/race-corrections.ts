@@ -133,7 +133,11 @@ async function apply(tx: Transaction, raceId: string, accountId: string, correct
   if ("status" in changed) return changed;
   if (changed.bump) await bumpReadoutPackageVersion(tx, raceId);
   const after = await loadRaceSnapshot(tx, raceId);
-  const assessed = await assessReadOutEntries(tx, raceId, classes, before, after);
+  // Steg 51 (lasttest): flyttade starttider ändrar bara klassens underlag (starten ingår i underlagshashen, inte i andra
+  // klassers). Bara klassens avlästa prövas och räknas om; förut räknades alla avlästa i tävlingen om (3 000 nya revisioner
+  // och 15 s för en klass med 160 löpare under last). Stationsrättningar gäller alla klasser och prövar som förut alla.
+  const assessedClasses = correction.action === "SHIFT_START_TIMES" ? classes.filter(row => row.id === correction.classId) : classes;
+  const assessed = await assessReadOutEntries(tx, raceId, assessedClasses, before, after);
   if (assessed === "too-large") return { status: "conflict" };
   const totals = summarizeAssessment(assessed);
   const summary: Summary = { readOutCount: totals.readOutCount, notRecalculatedCount: totals.notRecalculatedCount,

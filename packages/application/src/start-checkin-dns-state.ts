@@ -7,6 +7,7 @@ import {
 } from "./start-checkin-dns-source";
 import { StoredResultRevisionConflict } from "./stored-result-revision";
 import { UUID_PATTERN } from "./serialization";
+import { inUuids } from "./sql-ids";
 
 type DatabaseTransaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 type Operation = typeof schema.startCheckinOperations.$inferSelect;
@@ -64,7 +65,7 @@ export async function loadStoredStartCheckinDnsStates(
 
   const decisions = await tx.select().from(schema.startCheckinDnsDecisions).where(and(
     eq(schema.startCheckinDnsDecisions.raceId, raceId),
-    inArray(schema.startCheckinDnsDecisions.entryId, entryIds)
+    inUuids(schema.startCheckinDnsDecisions.entryId, entryIds)
   )).limit(MAX_SOURCES + 1);
   if (decisions.length > MAX_SOURCES) {
     conflict("Avpricknings-DNS-källor överskrider läsarens gräns");

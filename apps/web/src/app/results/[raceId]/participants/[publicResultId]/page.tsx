@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { publicRaceSummary, publicResultDetail } from "@o-tid/application";
+import { publicRaceSummary } from "@o-tid/application";
 import { cachedPublicResultDetail } from "../../../../../lib/public-race-data";
 import { PublicResultDetail } from "../../../../../components/public-result-detail";
 import { db } from "../../../../../lib/db";
@@ -15,7 +15,7 @@ export default async function PublicResultDetailPage({ params }: { params: Promi
   const access = await requirePublicRace(raceId);
   const staff = await raceStaff(raceId);
   const [summary, detail] = await Promise.all([publicRaceSummary(db, raceId),
-    staff ? publicResultDetail(db, raceId, publicResultId, { staff }) : cachedPublicResultDetail(raceId, publicResultId, { exact: true })]);
+    cachedPublicResultDetail(raceId, publicResultId, { exact: true, staff })]);
   if (detail.status === "not-found") notFound();
   return <main className="stack public-result-detail-page">
     <nav className="nav"><Link href={`/results/${raceId}`}>{sv.publicResultBack}</Link></nav>

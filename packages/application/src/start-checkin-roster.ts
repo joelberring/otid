@@ -13,8 +13,15 @@ const compare = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0;
 const validDate = (value: Date) => { if (!Number.isFinite(value.getTime())) throw new Error("Lästiden är ogiltig"); return value; };
 
 /** Kvar i skogen (ADR-0172 beslut 3): administratören och funktionären läser samma lista. */
+/**
+ * Steg 54: flera skärmar (speakern, arbetsytan) frågar samma sak samtidigt. `reuse` får dela en uträkning per tävling en
+ * kort stund (webben: 2 s); behörigheten kontrolleras ändå för varje anrop, och innehållet är detsamma för alla med
+ * behörighet.
+ */
+export type ForestWatchReuse = <T>(raceId: string, compute: () => Promise<T>) => Promise<T>;
+
 export async function listAdministratorForestWatch(
-  db: Database, input: RaceSessionProof, now = new Date()
+  db: Database, input: RaceSessionProof, now = new Date(), reuse: ForestWatchReuse = (_raceId, compute) => compute()
 ) {
   now = validDate(now);
   return db.transaction(async (tx) => {
@@ -22,10 +29,13 @@ export async function listAdministratorForestWatch(
       ...input, role: "FUNCTIONARY"
     }, now, "share");
     if (authorization.status !== "authenticated") return authorization;
-    const result = await readAuthorizedStartCheckinRoster(tx, authorization.principal.raceId, now, false, true);
-    if (result.status !== "ok") return result;
-    return { status: "ok" as const, response: administratorForestWatchResponseSchema.parse({ ...result.response, raceDate: result.raceDate,
-      reportedStarts: result.reportedStarts }) };
+    const raceId = authorization.principal.raceId;
+    return reuse(raceId, async () => {
+      const result = await readAuthorizedStartCheckinRoster(tx, raceId, now, false, true);
+      if (result.status !== "ok") return result;
+      return { status: "ok" as const, response: administratorForestWatchResponseSchema.parse({ ...result.response, raceDate: result.raceDate,
+        reportedStarts: result.reportedStarts }) };
+    });
   }, { isolationLevel: "repeatable read" });
 }
 

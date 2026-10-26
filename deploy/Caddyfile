@@ -1,11 +1,26 @@
 # Automatisk HTTPS (Let's Encrypt) för OTID_DOMAIN. "localhost" ger ett lokalt certifikat.
 {$OTID_DOMAIN} {
 	encode zstd gzip
-	# Steg 51: två webbinstanser (docs/lasttest.md). Färst pågående anrop (även öppna resultatströmmar); svarar inte en
-	# instans prövas den andra i högst 5 s.
-	reverse_proxy {$OTID_UPSTREAM:web:3000} {$OTID_UPSTREAM2:web2:3000} {
-		lb_policy least_conn
-		lb_try_duration 5s
-		fail_duration 10s
+
+	# Steg 54 (ADR-0177, docs/drift.md): tävlingen går före publiken. Två slags webbinstanser:
+	# - web: arbetsytan, avläsningen, funktionärerna, inloggningen och admin-API:t (och allt för den som är inloggad),
+	# - web-public och web-public2: publika sidor och API:er, Live och resultatströmmen för besökare utan inloggning.
+	# Publika sökvägar utan sessionskaka går till web-public/web-public2 (färst pågående anrop, även öppna strömmar; svarar
+	# en inte prövas den andra). Allt annat går till web.
+	@public {
+		path / /om /integritet /results /results/* /starts /starts/* /t/* /fest/* /api/public/* /api/races/*/start-list /api/races/*/start-list/* /_next/static/* /favicon.ico /robots.txt
+		not header_regexp Cookie (^|;\s*)(__Host-otid-organizer-session|otid_organizer_session)=
+	}
+	handle @public {
+		reverse_proxy {$OTID_PUBLIC_UPSTREAM:web-public:3000} {$OTID_PUBLIC_UPSTREAM2:web-public2:3000} {
+			lb_policy least_conn
+			lb_try_duration 5s
+			fail_duration 10s
+		}
+	}
+	handle {
+		reverse_proxy {$OTID_UPSTREAM:web:3000} {
+			lb_try_duration 10s
+		}
 	}
 }

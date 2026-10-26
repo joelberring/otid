@@ -1,5 +1,5 @@
-import { publicRaceSummary, publicResults, readLatestPublicFrozenRaceFinalization } from "@o-tid/application";
-import { cachedPublicRadio, cachedPublicRelayResults, cachedPublicResults, PUBLIC_PAGE_INLINE_ROWS, publicPageRows } from "../../../lib/public-race-data";
+import { publicRaceSummary, readLatestPublicFrozenRaceFinalization } from "@o-tid/application";
+import { cachedPublicRadio, cachedPublicRelayResults, cachedPublicResults, cachedStaffResults, PUBLIC_PAGE_INLINE_ROWS, publicPageRows } from "../../../lib/public-race-data";
 import { db } from "../../../lib/db";
 import { PublicResultLists } from "../../../components/public-result-lists";
 import { PublicRaceNavigation } from "../../../components/public-race-navigation";
@@ -25,7 +25,7 @@ export default async function ResultsPage({ params }: { params: Promise<{ raceId
   // resultatlistan utan cache och ser gafflingsbilden även när banorna är hemliga publikt.
   const staff = await raceStaff(raceId);
   const [summary, results, relay, finalization, radio] = await Promise.all([publicRaceSummary(db, raceId),
-    staff ? publicResults(db, raceId, { staff }) : cachedPublicResults(raceId, { exact: true }).then(entry => entry.value),
+    (staff ? cachedStaffResults(raceId, { exact: true }) : cachedPublicResults(raceId, { exact: true })).then(entry => entry.value),
     cachedPublicRelayResults(raceId, { exact: true }).then(entry => entry.value),
     readLatestPublicFrozenRaceFinalization(db, raceId), cachedPublicRadio(raceId, { exact: true }).then(entry => entry.value)]);
   // Sträcktidsanalysen (PLAN.md steg 16) finns när någon individuell klass har sträcktider.

@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { isRaceStaff, publicRaceAccess, type PublicRaceAccess } from "@o-tid/application";
 import { db } from "./db";
+import { publicBusyResponse, publicLoad } from "./public-load";
 import { organizerAccountSessionCookieName } from "./organizer-account-cookies";
 
 /**
@@ -17,8 +18,26 @@ export async function accountSessionToken(): Promise<string | null> {
   return value && SESSION_TOKEN.test(value) ? value : null;
 }
 
+/**
+ * Steg 54: för besökare utan inloggning är svaret detsamma för alla (publicerad och inte dold), så det delas i högst en
+ * sekund per tävling i stället för en databasfråga per anrop. En ändrad publicering syns inom en sekund.
+ */
+const ANONYMOUS_ACCESS_MS = 1_000;
+const anonymousAccess = new Map<string, { at: number; value: Promise<PublicRaceAccess> }>();
+
+/** För tester: glöm de delade svaren. */
+export function clearAnonymousRaceAccess(): void { anonymousAccess.clear(); }
+
 export async function raceAccess(raceId: string): Promise<PublicRaceAccess> {
-  return publicRaceAccess(db, raceId, await accountSessionToken());
+  const token = await accountSessionToken();
+  if (token !== null) return publicRaceAccess(db, raceId, token);
+  const known = anonymousAccess.get(raceId);
+  if (known && Date.now() - known.at < ANONYMOUS_ACCESS_MS) return known.value;
+  const value = publicRaceAccess(db, raceId, null);
+  anonymousAccess.set(raceId, { at: Date.now(), value });
+  value.catch(() => { if (anonymousAccess.get(raceId)?.value === value) anonymousAccess.delete(raceId); });
+  if (anonymousAccess.size > 500) anonymousAccess.delete(anonymousAccess.keys().next().value!);
+  return value;
 }
 
 /** För publika sidor: ger PUBLIC eller PREVIEW, annars sidan "Tävlingen är inte publicerad" (404). */
@@ -33,11 +52,18 @@ export async function requirePublicRace(raceId: string): Promise<"PUBLIC" | "PRE
  * förhandsvisning får aldrig sparas i en delad cache.
  */
 export async function publicRaceResponse(raceId: string, respond: () => Promise<Response> | Response): Promise<Response> {
-  const access = await raceAccess(raceId);
-  if (access === "NONE") return Response.json({ formatVersion: 1, error: "NOT_FOUND" }, { status: 404, headers: { "cache-control": "no-store" } });
-  const response = await respond();
-  if (access === "PREVIEW") response.headers.set("cache-control", "private, no-store, no-transform");
-  return response;
+  // Steg 54 (ADR-0177): publiken utan inloggning får en plats i taget (kö, sist 503 med Retry-After); inloggade går före.
+  const slot = await accountSessionToken() === null ? await publicLoad().admit() : undefined;
+  if (slot?.kind === "busy") return publicBusyResponse(slot.retryAfterSeconds);
+  try {
+    const access = await raceAccess(raceId);
+    if (access === "NONE") return Response.json({ formatVersion: 1, error: "NOT_FOUND" }, { status: 404, headers: { "cache-control": "no-store" } });
+    const response = await respond();
+    if (access === "PREVIEW") response.headers.set("cache-control", "private, no-store, no-transform");
+    return response;
+  } finally {
+    slot?.release();
+  }
 }
 
 /** Steg 52 (ADR-0176): den inloggade är arrangör eller funktionär på tävlingen och ser banorna även när de är hemliga. */

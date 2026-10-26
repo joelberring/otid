@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createResultListReader } from "./use-result-list-data";
+import { PublicBusyError } from "../../lib/public-stale";
 
 const raceId = "10000000-0000-4000-8000-000000000001";
 const results = { formatVersion: 7, results: [] };
@@ -54,5 +55,17 @@ describe("steg 51: resultatlistans hämtning", () => {
     const fresh = vi.fn();
     await createResultListReader()(raceId, fresh);
     expect(fresh).not.toHaveBeenCalled();
+  });
+
+  it("steg 54: 503 från servern blir 'försök igen om en stund' (inget felbesked), och servern kan be om längre väntan", async () => {
+    vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ formatVersion: 1, error: "BUSY" }), { status: 503, headers: { "retry-after": "4" } }));
+    const busy = await createResultListReader(() => 0)(raceId).catch((error: unknown) => error);
+    expect(busy).toBeInstanceOf(PublicBusyError);
+    expect((busy as PublicBusyError).retryAfterMs).toBe(4_000);
+    const waits: (number | undefined)[] = [];
+    vi.stubGlobal("fetch", async (url: string) => new Response(JSON.stringify(url.endsWith("/results") ? results : url.endsWith("/radio") ? radioOff : noRelay),
+      { headers: url.endsWith("/results") ? { "x-otid-stale": "1", "x-otid-stale-retry": "5" } : {} }));
+    await createResultListReader(() => 0)(raceId, (ms) => waits.push(ms));
+    expect(waits).toEqual([5_000]);
   });
 });

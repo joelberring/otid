@@ -3,7 +3,7 @@
 import { publicRadioResponseSchema, publicRelayResultsSchema, publicResultListResponseSchema, type PublicRadioResponse,
   type PublicRelayResults, type PublicResultListResponse } from "@o-tid/contracts";
 import { useState } from "react";
-import { anyStale } from "../../lib/public-stale";
+import { anyStale, staleRetryMs, throwIfBusy } from "../../lib/public-stale";
 import { usePublicRaceData } from "../../lib/use-public-race-data";
 
 /** Resultaten och (ADR-0172 beslut 5) mellantiderna vid radiokontrollerna. */
@@ -17,7 +17,7 @@ const SIDE_LIST_INTERVAL_MS = 30_000;
 
 export function createResultListReader(now: () => number = Date.now) {
   let side: { relay: PublicRelayResults; radio: PublicRadioResponse | undefined; at: number } | undefined;
-  return async (raceId: string, onStale: () => void = () => undefined): Promise<ResultListData> => {
+  return async (raceId: string, onStale: (retryMs?: number) => void = () => undefined): Promise<ResultListData> => {
     const id = encodeURIComponent(raceId);
     const stale = !side || now() - side.at >= SIDE_LIST_INTERVAL_MS;
     const wantRelay = stale || side!.relay.classes.length > 0;
@@ -25,8 +25,9 @@ export function createResultListReader(now: () => number = Date.now) {
     const [results, relay, radio] = await Promise.all([fetch(`/api/public/races/${id}/results`, { cache: "no-store" }),
       wantRelay ? fetch(`/api/public/races/${id}/relay-results`, { cache: "no-store" }) : undefined,
       wantRadio ? fetch(`/api/public/races/${id}/radio`, { cache: "no-store" }) : undefined]);
+    throwIfBusy(results, relay, radio);
     if (!results.ok || (relay && !relay.ok) || (radio && !radio.ok)) throw new Error("Resultaten kunde inte hämtas");
-    if (anyStale(results, relay, radio)) onStale();
+    if (anyStale(results, relay, radio)) onStale(staleRetryMs(results, relay, radio));
     const next = { relay: relay ? publicRelayResultsSchema.parse(await relay.json()) : side!.relay,
       radio: radio ? publicRadioResponseSchema.parse(await radio.json()) : side!.radio };
     side = { ...next, at: stale ? now() : side!.at };

@@ -32,7 +32,10 @@ export function parsePublicResultUpdateNotification(value: string | undefined): 
  */
 export const NOTIFICATION_WINDOW_MS = 250;
 
-export function coalesceNotifications(windowMs: number, deliver: (raceId: string, eventSequence: string) => Promise<void>,
+/** Steg 54: under tryck (ADR-0177) väcks publiken högst var tredje sekund per tävling; resultaten kommer ändå med. */
+export const PRESSURE_NOTIFICATION_WINDOW_MS = 3_000;
+
+export function coalesceNotifications(windowMs: number | (() => number), deliver: (raceId: string, eventSequence: string) => Promise<void>,
   onError: (error: unknown) => void = (error) => console.error("Resultatströmmens väckning misslyckades", error)) {
   const pending = new Map<string, string>();
   return (raceId: string, eventSequence: string): void => {
@@ -46,6 +49,6 @@ export function coalesceNotifications(windowMs: number, deliver: (raceId: string
       const latest = pending.get(raceId)!;
       pending.delete(raceId);
       deliver(raceId, latest).catch(onError);
-    }, windowMs);
+    }, typeof windowMs === "number" ? windowMs : windowMs());
   };
 }

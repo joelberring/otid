@@ -6,7 +6,7 @@ import { sv } from "../i18n/sv";
 import { courseVariantsSv as variantText } from "../i18n/course-variants-sv";
 import { listsSv } from "../i18n/lists-sv";
 import { startPublicResultEventStream } from "../lib/public-result-event-stream-client";
-import { anyStale } from "../lib/public-stale";
+import { anyStale, staleRetryMs } from "../lib/public-stale";
 import { STALE_RETRY_MS, timerShouldFetch } from "../lib/use-public-race-data";
 import { formatDuration } from "../lib/clock-time";
 import { forkingSv } from "../i18n/forking-sv";
@@ -43,10 +43,14 @@ export function PublicResultDetail({ raceId, publicResultId, initial }: {
       lastFetch = Date.now();
       try {
         const result = await fetch(`/api/public/races/${raceId}/results/${publicResultId}`, { cache: "no-store" });
-        if (!result.ok) { if (!disposed) setUnavailable(true); return; }
-        if (anyStale(result) && retry === undefined) {
-          retry = window.setTimeout(() => { retry = undefined; void refresh(); }, STALE_RETRY_MS.minMs + Math.random() * STALE_RETRY_MS.spreadMs);
+        // Steg 54: många besökare (503) – raden som visas ligger kvar, nytt försök efter Retry-After.
+        const busy = result.status === 503 ? (Number(result.headers.get("retry-after")) || 3) * 1_000 : undefined;
+        if (busy === undefined && !result.ok) { if (!disposed) setUnavailable(true); return; }
+        if ((busy !== undefined || anyStale(result)) && retry === undefined) {
+          retry = window.setTimeout(() => { retry = undefined; void refresh(); },
+            (busy ?? staleRetryMs(result) ?? STALE_RETRY_MS.minMs) + Math.random() * STALE_RETRY_MS.spreadMs);
         }
+        if (busy !== undefined) return;
         const parsed = publicResultDetailResponseSchema.safeParse(await result.json());
         if (!parsed.success) { if (!disposed) setUnavailable(true); return; }
         if (disposed) return;

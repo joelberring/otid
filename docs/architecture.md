@@ -91,12 +91,28 @@ Gemensamma hjälpare: UUID-mönstret och idempotensnycklarnas form (`UUID_PATTER
   (annars var 30:e sekund).
 - Läsningar som PostgreSQL avbryter för en samtidig ändring (40001) görs om (`lib/read-conflict.ts`), både i cachen och
   för arbetsytans läsningar.
-- Drift: två webbinstanser (`web`, `web2`) bakom Caddy, eftersom en Node-process bara använder en kärna. Var instans har
+- Drift (steg 51; steg 54 delar dem i `web` och `web-public`/`web-public2`, se nedan): flera webbinstanser bakom Caddy, eftersom en Node-process bara använder en kärna. Var instans har
   sin cache och lyssnar på resultatströmmen så snart den visar en publik lista (inte först när en besökare öppnar
   strömmen där). Med `least_conn` ligger besökarens ström på den ena instansen och hämtningarna oftast på den andra, så
   varje instans som visat tävlingen de senaste två minuterna räknar om listorna när ett resultat kommer in. Ett svar för en
   äldre version är märkt `x-otid-stale` eller väntar in den nya listan. Mätt bakom Caddy 2.11 med två instanser: en ny
   avläsning syns i Live inom 0,5–2 s, också med processorn fullt belastad (före rättelsen enstaka 4–5 s).
+
+## Tävlingen först (PLAN.md steg 54, ADR-0177)
+
+- Instansens roll (`OTID_INSTANCE_ROLE`, `lib/instance-role.ts`): `competition` (`web`: arbetsytan, avläsningen,
+  funktionärerna, admin-API:t), `public` (`web-public`, `web-public2`: publika sidor och API:er, Live, resultatströmmen)
+  eller `all` (förval, en instans gör allt). Caddy delar upp per sökväg; den som är inloggad går alltid till `web`.
+- Pooler (`lib/db.ts`): `db` är tävlingens pool (eller publikens i `web-public`), `publicDb` publikens pool med
+  `statement_timeout`, `lock_timeout` och `idle_in_transaction_session_timeout`. De publika listorna räknas i `publicDb`.
+- Lastavlastning (`lib/public-load.ts`): tryck (händelseloopen efter eller kö) ger äldre listor längre, glesare
+  uträkning och väckning och `x-otid-stale-retry`; ett tak för samtidiga publika anrop med kö och sist 503 med Retry-After
+  (`publicRaceResponse`), och ett tak för öppna strömmar. Sidorna försöker igen tyst (`PublicBusyError` i
+  `lib/public-stale.ts`, `usePublicRaceData`, strömmen öppnas igen efter 10–30 s).
+- I `web` räknas inga publika listor i förväg; arrangörens och funktionärernas resultatlista cachas per version
+  (`cachedStaffResults`), och Kvar i skogen delas av skärmarna i 2 s (`lib/shared-read.ts`).
+- Avläsningen läser bara löparens eller lagets del (`loadRaceSnapshot(…, { cardNumber })`), och stafettklasser utan
+  flygande omstart låses per lag (klassen delat), så att avläsningar för olika lag görs samtidigt.
 
 ## Var resultatlogiken finns
 

@@ -21,17 +21,26 @@ services:
       POSTGRES_DB: otid
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    # Steg 54 (ADR-0177, docs/drift.md): databasen och tävlingens webb går före publiken när processorn inte räcker
+    # (cpu_shares är vikter: 1024 mot web-publics 256), och varje tjänst har ett minnestak på CX23 (4 GB).
+    cpu_shares: 1024
+    mem_limit: 1g
+    shm_size: 256m
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U otid -d otid"]
       interval: 5s
       timeout: 3s
       retries: 30
 
+  # Steg 54: tävlingens instans – arbetsytan, avläsningen, funktionärerna, inloggningen och admin-API:t. Migrerar databasen
+  # och hämtar radiostämplingar. Caddy skickar hit allt utom publika sidor för besökare utan inloggning.
   web:
     logging: *logging
     build: .
     image: otid-web
     restart: unless-stopped
+    cpu_shares: 1024
+    mem_limit: 1g
     depends_on:
       postgres:
         condition: service_healthy
@@ -54,6 +63,8 @@ services:
       OTID_ROC_BASE_URL: ${OTID_ROC_BASE_URL:-}
       # off = den här instansen hämtar inga radiostämplingar. Tom = hämtar (bara en instans åt gången, PostgreSQL-lås).
       OTID_RADIO_POLLER: ${OTID_RADIO_POLLER:-}
+      OTID_INSTANCE_ROLE: competition
+      NODE_OPTIONS: --max-old-space-size=768
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:
@@ -62,27 +73,35 @@ services:
       timeout: 5s
       retries: 60
 
-  # Steg 51 (docs/lasttest.md): en andra webbinstans. En Node-process använder en kärna; med två används båda kärnorna på en
-  # server med 2 vCPU, och avläsningarna får svar även när publiken är många. Den startar när web har migrerat databasen,
-  # migrerar inte själv och hämtar inga radiostämplingar. Caddy fördelar anropen mellan web och web2.
-  web2:
+  # Steg 54 (ADR-0177, docs/lasttest.md): publikens instanser – publika sidor och API:er, Live och resultatströmmen. Två,
+  # eftersom en Node-process bara använder en kärna; Caddy fördelar publiken mellan dem. Lägre CPU-vikt än web och
+  # databasen (256 mot 1024): när processorn inte räcker blir resultatredovisningen långsammare, inte avläsningen. Egen
+  # liten databaspool med tidsgräns och lastavlastning (äldre lista, glesare uppdatering, sist 503 med Retry-After).
+  # Startar när web har migrerat, migrerar inte och hämtar inga radiostämplingar.
+  web-public: &web-public
     logging: *logging
     image: otid-web
     restart: unless-stopped
+    cpu_shares: 256
+    mem_limit: 768m
     depends_on:
       web:
         condition: service_healthy
     environment:
       <<: *web-environment
       OTID_RADIO_POLLER: "off"
+      OTID_INSTANCE_ROLE: public
+      NODE_OPTIONS: --max-old-space-size=512
     command: ["node", "apps/web/server.js"]
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/organizer').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/om').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
       interval: 5s
       timeout: 5s
       retries: 60
+
+  web-public2: *web-public
 
   caddy:
     logging: *logging
@@ -91,8 +110,12 @@ services:
     depends_on:
       web:
         condition: service_healthy
-      web2:
+      web-public:
         condition: service_healthy
+      web-public2:
+        condition: service_healthy
+    cpu_shares: 1024
+    mem_limit: 192m
     ports:
       - "80:80"
       - "443:443"
@@ -108,6 +131,8 @@ services:
     logging: *logging
     image: postgres:17
     restart: unless-stopped
+    cpu_shares: 128
+    mem_limit: 192m
     depends_on:
       postgres:
         condition: service_healthy

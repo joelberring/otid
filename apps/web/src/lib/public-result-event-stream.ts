@@ -2,7 +2,10 @@ import { publicResultUpdateEventExists, readPublicResultEventStream } from "@o-t
 import type { Pool, PoolClient } from "@o-tid/database";
 import { db, pool } from "./db";
 import { publicRaceListsRecentlyRead, warmPublicRaceLists } from "./public-race-data";
-import { coalesceNotifications, formatPublicResultEvent, NOTIFICATION_WINDOW_MS, parsePublicResultUpdateNotification } from "./public-result-event-stream-wire";
+import { instanceRole } from "./instance-role";
+import { publicLoad } from "./public-load";
+import { coalesceNotifications, formatPublicResultEvent, NOTIFICATION_WINDOW_MS, parsePublicResultUpdateNotification,
+  PRESSURE_NOTIFICATION_WINDOW_MS } from "./public-result-event-stream-wire";
 
 const notificationChannel = "otid_public_result_update";
 
@@ -33,8 +36,18 @@ function closeSubscribers(): void {
   current.subscribers.clear();
 }
 
-const deliverLatest = coalesceNotifications(NOTIFICATION_WINDOW_MS, async (raceId, eventSequence) => {
+/** Steg 54: tävlingens instans (`web`) räknar inte de publika listorna i förväg; där läser bara inloggade. */
+const warmsLists = instanceRole() !== "competition";
+
+const deliverLatest = coalesceNotifications(() => publicLoad().pressure() ? PRESSURE_NOTIFICATION_WINDOW_MS : NOTIFICATION_WINDOW_MS,
+  async (raceId, eventSequence) => {
   const listening = (hub().subscribers.get(raceId)?.size ?? 0) > 0;
+  if (!warmsLists) {
+    if (listening && await publicResultUpdateEventExists(db, raceId, eventSequence)) {
+      for (const subscriber of hub().subscribers.get(raceId) ?? []) subscriber(eventSequence);
+    }
+    return;
+  }
   // Steg 51: också en instans utan egna lyssnare räknar om en tävling den nyss visat, för med två instanser kan den väckta
   // besökarens hämtning hamna här.
   if (!listening && !publicRaceListsRecentlyRead(raceId)) return;
@@ -104,7 +117,9 @@ export async function publicResultEventStreamStatus(raceId: string, lastEventId:
 export function createPublicResultEventStream(
   request: Request,
   raceId: string,
-  lastEventId: string | null
+  lastEventId: string | null,
+  /** Steg 54: anropas en gång när strömmen stängs (taket för öppna strömmar). */
+  onClose: () => void = () => undefined
 ): ReadableStream<Uint8Array> {
   let unsubscribe: (() => void) | undefined;
   let heartbeat: ReturnType<typeof setInterval> | undefined;
@@ -116,6 +131,7 @@ export function createPublicResultEventStream(
       close = (closeController = true) => {
         if (closed) return;
         closed = true;
+        onClose();
         if (heartbeat) clearInterval(heartbeat);
         unsubscribe?.();
         request.signal.removeEventListener("abort", onAbort);

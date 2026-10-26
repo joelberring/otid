@@ -3,10 +3,13 @@
 O-Tid körs med `docker-compose.prod.yml` på en vanlig VPS:
 
 - PostgreSQL 17 (den officiella bilden `postgres:17`, finns för både x86 och ARM),
-- webben (Next standalone, migrerar databasen vid start) i två instanser, `web` och `web2` (steg 51: en Node-process
-  använder en kärna; med två används båda kärnorna och avläsningarna får svar även med många besökare, se
-  [lasttest.md](lasttest.md)). `web2` startar när `web` har migrerat, och bara `web` hämtar radiostämplingar,
-- Caddy (HTTPS med Let's Encrypt, fördelar anropen mellan `web` och `web2`),
+- webben (Next standalone) i två slags instanser (steg 54, [ADR-0177](adr/ADR-0177-tavlingen-forst.md)):
+  - `web` – tävlingen: arbetsytan, avläsningen, funktionärerna, inloggningen och admin-API:t. Migrerar databasen vid start
+    och hämtar radiostämplingar.
+  - `web-public` och `web-public2` – publiken: publika sidor och API:er, Live och resultatströmmen. Två, eftersom en
+    Node-process bara använder en kärna (steg 51). Startar när `web` har migrerat.
+  Se [Tävlingen först](#tävlingen-först),
+- Caddy (HTTPS med Let's Encrypt, skickar publika anrop till `web-public`/`web-public2` och allt annat till `web`),
 - en backuptjänst.
 
 All data, även kartbilder och GPS-rutter för vägval (PLAN.md steg 16), ligger i PostgreSQL och kommer
@@ -67,6 +70,47 @@ för bullseye); 0007 bygger då om textindexen och uppdaterar databasens sorteri
 "collation version mismatch"). Lokalt: se README (säkerhetskopia, `git pull`, `docker compose up -d postgres`,
 `pnpm db:migrate`). Dumpar från före steg 28 innehåller `CREATE EXTENSION postgis`; vid återställning på den nya
 bilden skriver `pg_restore` fel för just tillägget, och de kan ignoreras.
+
+## Tävlingen först
+
+Steg 54 ([ADR-0177](adr/ADR-0177-tavlingen-forst.md), mätt i [lasttest.md](lasttest.md)): när många tittar ska
+avläsningen, arbetsytan och funktionärerna fungera som vanligt, och resultatredovisningen till publiken får bli
+långsammare. Servern skalas inte upp (CX23 räcker), utan tävlingen får gå före:
+
+- **Uppdelning (Caddy, `deploy/Caddyfile`):** publika sökvägar (`/`, `/om`, `/integritet`, `/results/…`, `/starts/…`, `/t/…`,
+  `/fest/…`, `/api/public/…`, den publika startlistan och Nexts statiska filer) går till `web-public` eller `web-public2`
+  (färst pågående anrop; svarar den ena inte prövas den andra) för den som inte är inloggad. Allt annat, och allt för
+  den som är inloggad (arrangörer och funktionärer, även speakern och de publika sidorna), går till `web`. Varje instans
+  klarar alla sökvägar: lokalt och med `pnpm dev` finns bara en (`OTID_INSTANCE_ROLE` saknas, `all`).
+- **Processortid:** `cpu_shares` i `docker-compose.prod.yml` är 1024 för `postgres`, `web` och Caddy, 256 för var och en av
+  `web-public` och `web-public2` och 128 för backupen. Vikterna gäller bara när processorn inte räcker till alla: då går
+  tävlingen och databasen före publiken. Annars får publiken all ledig tid.
+- **Minne (CX23, 4 GB):** `postgres` 1 GB, `web` 1 GB (Node 768 MB), `web-public` och `web-public2` 768 MB var (Node
+  512 MB), Caddy och backupen 192 MB var. Summan 3,9 GB; swappen räcker till bygget.
+- **Databasen:** separata pooler. `web` har tävlingens pool (högst 10 anslutningar, inga tidsgränser) och en liten pool
+  för de publika listorna (3). `web-public` och `web-public2` har bara publikens pool (8 var). Publikens frågor avbryts
+  efter 5 s (`statement_timeout`), väntar högst 2 s på lås och en transaktion får inte stå öppen i mer än 10 s. Totalt
+  högst ungefär 30 av PostgreSQL:s 100 anslutningar; publiken kan aldrig ta tävlingens.
+- **Lastavlastning i `web-public` och `web-public2`:** när processen inte hinner (händelseloopen ligger mer än 150 ms efter, eller anrop
+  köar) ges den senast färdiga listan i upp till 10 s när bara nya resultat kommit in, listorna räknas om högst var tredje
+  sekund, resultatströmmen väcker publiken högst var tredje sekund och sidan ombeds hämta igen först efter 5 s. Högst 24
+  publika anrop åt gången; nästa väntar i kö (högst 600, högst 8 s). Som sista utväg svarar servern 503 med Retry-After
+  och sidan försöker igen tyst med det den redan visar. Högst 3 000 öppna resultatströmmar per instans; nästa får 503,
+  och sidan hämtar själv tills den ansluter igen efter 10–30 s.
+- **Avläsningar går aldrig förlorade:** avläsningsdatorn lägger varje avläsning i sin lokala kö och tar bort den först
+  när servern har kvitterat den. Avläsningen läser bara löparens eller lagets del av tävlingen (steg 54).
+
+Gränserna kan ändras i `.env` (förvalen räcker för CX23): `OTID_PUBLIC_CONCURRENCY`, `OTID_PUBLIC_QUEUE`,
+`OTID_PUBLIC_MAX_WAIT_MS`, `OTID_PUBLIC_STREAMS_MAX`, `OTID_PUBLIC_LAG_MS`, `OTID_DB_POOL_MAX`, `OTID_PUBLIC_DB_POOL_MAX` och
+`OTID_PUBLIC_STATEMENT_TIMEOUT_MS`. Lägg i så fall till dem under `environment` i `docker-compose.prod.yml`.
+
+**Se läget under tävlingen:**
+
+```bash
+docker stats otid-web-1 otid-web-public-1 otid-web-public2-1 otid-postgres-1   # CPU och minne per tjänst
+docker compose -f docker-compose.prod.yml exec postgres psql -U otid -c \
+  "select application_name, state, count(*) from pg_stat_activity group by 1, 2 order by 1"   # otid-web / otid-public
+```
 
 ## Server och domän
 
@@ -226,10 +270,10 @@ Provat lokalt 2026-10-03: dump och återställning gav samma antal deltagare,
 resultatrevisioner och råavläsningar. Så här gör du:
 
 ```bash
-docker compose -f docker-compose.prod.yml stop web
+docker compose -f docker-compose.prod.yml stop web web-public web-public2
 docker compose -f docker-compose.prod.yml exec -T backup \
   pg_restore --clean --if-exists --no-owner -d otid /backups/daily/otid-<datum>.dump
-docker compose -f docker-compose.prod.yml start web
+docker compose -f docker-compose.prod.yml start web web-public web-public2
 ```
 
 Välj en fil i `/backups/hourly/` för en senare tidpunkt samma dag. `pg_restore -l <fil> | head` visar när dumpen

@@ -8,15 +8,16 @@ import { radioControlName } from "../../i18n/radio-sv";
 import { formatClockTime, formatDuration } from "../../lib/clock-time";
 import { followStore, useFollows } from "../../lib/follow-store";
 import { clubOptions, followedView, hasActivity, LATEST_SHOWN, leadersByClass } from "../../lib/public-live-view";
-import { anyStale } from "../../lib/public-stale";
+import { anyStale, staleRetryMs, throwIfBusy } from "../../lib/public-stale";
 import { usePublicRaceData } from "../../lib/use-public-race-data";
 import { FollowStar } from "../follow-star";
 import styles from "./public-live.module.css";
 
-async function readLive(raceId: string, onStale: () => void): Promise<PublicLiveResponse> {
+async function readLive(raceId: string, onStale: (retryMs?: number) => void): Promise<PublicLiveResponse> {
   const response = await fetch(`/api/public/races/${encodeURIComponent(raceId)}/live`, { cache: "no-store" });
+  throwIfBusy(response);
   if (!response.ok) throw new Error(`Live svarade ${response.status}`);
-  if (anyStale(response)) onStale();
+  if (anyStale(response)) onStale(staleRetryMs(response));
   const live = publicLiveResponseSchema.parse(await response.json());
   if (live.raceId !== raceId) throw new Error("Live gäller en annan tävling");
   return live;

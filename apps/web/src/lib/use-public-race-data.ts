@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { startPublicResultEventStream } from "./public-result-event-stream-client";
+import { PublicBusyError } from "./public-stale";
 
 /**
  * Steg 51: när resultatströmmen är öppen väcker den sidan vid varje nytt resultat, och sidan hämtar då av sig själv bara
@@ -16,7 +17,8 @@ export const STREAM_OPEN_INTERVAL_MS = 10_000;
  * syns inom 5 s.
  */
 export const STALE_RETRY_MS = { minMs: 1_500, spreadMs: 1_000 };
-export type PublicRead<T> = (raceId: string, onStale: () => void) => Promise<T>;
+/** `onStale(ms)`: svaret gällde en äldre version; hämta igen efter `ms` (steg 54, under tryck) eller 1,5–2,5 s. */
+export type PublicRead<T> = (raceId: string, onStale: (retryMs?: number) => void) => Promise<T>;
 
 /** Ska sidans egen timer hämta nu? Med öppen ström bara när förra hämtningen är äldre än reservintervallet. */
 export function timerShouldFetch(streamOpen: boolean, lastFetchAt: number, now: number, intervalMs: number): boolean {
@@ -40,10 +42,10 @@ export function usePublicRaceData<T>(raceId: string, read: PublicRead<T>, initia
     if (!active) return;
     let stopped = false;
     let retry: number | undefined;
-    const retryStale = () => {
+    const retryStale = (retryMs?: number) => {
       if (retry !== undefined || stopped) return;
       retry = window.setTimeout(() => { retry = undefined; void refresh(); },
-        STALE_RETRY_MS.minMs + Math.random() * STALE_RETRY_MS.spreadMs);
+        (retryMs ?? STALE_RETRY_MS.minMs) + Math.random() * STALE_RETRY_MS.spreadMs);
     };
     const refresh = async () => {
       if (running.current || stopped) return;
@@ -54,6 +56,8 @@ export function usePublicRaceData<T>(raceId: string, read: PublicRead<T>, initia
         warned.current = false;
         if (!stopped) { setData(value); setFailed(false); }
       } catch (error) {
+        // Steg 54: servern har många besökare (503). Det som visas ligger kvar utan felbesked; nytt försök efter Retry-After.
+        if (error instanceof PublicBusyError) { retryStale(error.retryAfterMs); return; }
         // Visas som besked på sidan; senast hämtade data ligger kvar och nästa försök sker av sig självt.
         // Loggas en gång per avbrott, inte var femte sekund.
         if (!warned.current) console.warn("Publika uppgifter kunde inte hämtas", error);

@@ -28,6 +28,8 @@ export function PublicStartList({ raceId, initial }: { raceId: string; initial: 
         const response = await fetch(`/api/races/${encodeURIComponent(raceId)}/start-list`, { cache: "no-store", credentials: "same-origin",
           signal: controller.signal });
         if (response.status === 404) { if (!stopped) { setData(null); setFailed(false); } return; }
+        // Steg 54: många besökare (503) – listan som visas ligger kvar utan felbesked; nästa försök om fem sekunder.
+        if (response.status === 503) return;
         if (!response.ok) throw new Error("Startlistan kunde inte hämtas");
         const result = publicStartListResponseSchema.parse(await response.json());
         if (!stopped) {

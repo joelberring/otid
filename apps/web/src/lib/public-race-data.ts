@@ -1,8 +1,10 @@
 import {
   coursesArePublic, getPublicStartList, publicRaceContentVersion, publicRelayResults, publicResultDetailFrom, publicResults, readPublicLiveFrom, readPublicRadio
 } from "@o-tid/application";
-import { db } from "./db";
+import { publicDb as db } from "./db";
+import { instanceRole } from "./instance-role";
 import { createPublicRaceCache, onlyNewResults } from "./public-race-cache";
+import { publicLoad } from "./public-load";
 import { publicStartListValue } from "./public-start-list-route";
 
 /**
@@ -10,8 +12,17 @@ import { publicStartListValue } from "./public-start-list-route";
  * API:erna läser här; grinden (`publicRaceResponse`/`requirePublicRace`) körs som förut för varje anrop.
  */
 const globalCache = globalThis as typeof globalThis & { oTidPublicRaceCache?: ReturnType<typeof createPublicRaceCache> };
+/**
+ * Steg 54: listorna räknas i publikens pool (tidsgräns, egna anslutningar). I tävlingens instans (`web`), där bara
+ * inloggade läser listorna, tar en uträkning högst en sjättedel av processen, räknas aldrig i förväg och en upp till 5 s
+ * gammal lista ges direkt.
+ */
+const competition = instanceRole() === "competition";
 const cache = globalCache.oTidPublicRaceCache ??= createPublicRaceCache({ version: (raceId) => publicRaceContentVersion(db, raceId),
-  staleAllowed: onlyNewResults });
+  staleAllowed: onlyNewResults, pressure: () => publicLoad().pressure(), computeShare: competition ? 6 : 3,
+  // I tävlingens instans väntar arbetsytan och speakern hellre inte: en lista som är högst 5 s gammal ges direkt (märkt,
+  // sidan hämtar igen strax) när bara nya resultat har kommit in.
+  ...(competition ? { serveStaleMs: 5_000 } : {}) });
 
 /** `fresh`: vänta på den aktuella versionen (väckningen). `exact`: läs versionen nu (sidorna, efter en sparad ändring). */
 type Read = { fresh?: boolean; exact?: boolean };
@@ -31,6 +42,13 @@ const read = <T>(raceId: string, kind: string, compute: () => Promise<T>, option
   return cache.read(raceId, kind, compute, options);
 };
 export const cachedPublicResults = (raceId: string, options: Read = {}) => read(raceId, "results", () => publicResults(db, raceId), options);
+/**
+ * Steg 54: resultatlistan för arrangören och funktionärerna (gafflingsbilden även när banorna är hemliga, ADR-0176), per
+ * tävlingsversion som den publika. Grinden kontrollerar fortfarande vem som frågar vid varje anrop; svaret är privat.
+ * Förut räknades den om vid varje anrop från en speakerskärm eller arbetsyta.
+ */
+export const cachedStaffResults = (raceId: string, options: Read = {}) =>
+  read(raceId, "results:staff", () => publicResults(db, raceId, { staff: true }), options);
 export const cachedPublicRelayResults = (raceId: string, options: Read = {}) =>
   read(raceId, "relay", () => publicRelayResults(db, raceId), options);
 export const cachedPublicRadio = (raceId: string, options: Read = {}) => read(raceId, "radio", () => readPublicRadio(db, raceId), options);
@@ -66,10 +84,14 @@ export const cachedCoursesArePublic = (raceId: string, read: Read = {}) =>
   cache.read(raceId, "courses-public", () => db.transaction(tx => coursesArePublic(tx, raceId)), read);
 
 /** En deltagares rad ur den cachade resultatlistan; `stale` som i `CachedPublic`. */
-export async function cachedPublicResultDetail(raceId: string, publicResultId: string, read: Read = {}) {
+export async function cachedPublicResultDetail(raceId: string, publicResultId: string, read: Read & { staff?: boolean } = {}) {
+  if (read.staff) {
+    const results = await cachedStaffResults(raceId, read);
+    return { ...publicResultDetailFrom(results.value, publicResultId, true), stale: results.stale === true, retryMs: results.retryMs };
+  }
   const [results, coursesPublic] = await Promise.all([cachedPublicResults(raceId, read), cachedCoursesArePublic(raceId, read)]);
   return { ...publicResultDetailFrom(results.value, publicResultId, coursesPublic.value),
-    stale: results.stale === true || coursesPublic.stale === true };
+    stale: results.stale === true || coursesPublic.stale === true, retryMs: results.retryMs };
 }
 
 /**

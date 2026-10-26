@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { promisify } from "node:util";
 import { gzip as gzipCallback } from "node:zlib";
-import { PUBLIC_STALE_HEADER } from "./public-stale";
+import { PUBLIC_STALE_HEADER, PUBLIC_STALE_RETRY_HEADER } from "./public-stale";
 import { retryReadConflicts } from "./read-conflict";
 
 const gzip = promisify(gzipCallback);
@@ -24,7 +24,9 @@ export { isRetryableReadConflict } from "./read-conflict";
  * Cachen ligger i webbprocessen (i drift en per webbinstans, två bakom Caddy); den ändrar aldrig vad listorna innehåller.
  */
 export type CachedPublic<T> = { readonly key: string; readonly at: number; readonly value: T; readonly json: string;
-  readonly gzip: Buffer; readonly etag: string; readonly stale?: boolean };
+  readonly gzip: Buffer; readonly etag: string; readonly stale?: boolean;
+  /** Steg 54: under tryck – sidan hämtar igen först efter så här lång tid (i stället för 1,5–2,5 s). */
+  readonly retryMs?: number };
 
 export type PublicRaceCacheOptions = {
   readonly version: (raceId: string) => Promise<string | null>;
@@ -38,6 +40,17 @@ export type PublicRaceCacheOptions = {
   readonly staleAllowed?: (cached: string, current: string) => boolean;
   readonly maxEntries?: number;
   readonly versionTtlMs?: number;
+  /**
+   * Steg 54 (ADR-0177): processen hinner inte (`public-load.ts`). Då ges den senast färdiga listan i upp till
+   * `pressureStaleMs` (10 s) när bara nya resultat kommit in, en lista räknas om högst var `pressureIntervalMs` (3 s),
+   * och sidan ombeds hämta igen först efter `pressureRetryMs` (5 s). Det som ändrats på annat sätt väntar som förut.
+   */
+  readonly pressure?: () => boolean;
+  readonly pressureStaleMs?: number;
+  readonly pressureIntervalMs?: number;
+  readonly pressureRetryMs?: number;
+  /** Hur stor del av processen en uträkning högst får ta: 1/`computeShare` (förval 3; tävlingens instans 6). */
+  readonly computeShare?: number;
 };
 
 type Slot = { entry?: CachedPublic<unknown>; inflight?: Promise<CachedPublic<unknown>> | undefined; lastStart: number; lastDuration: number };
@@ -62,6 +75,9 @@ export function createPublicRaceCache(options: PublicRaceCacheOptions) {
   const now = options.now ?? Date.now;
   const defaults = { maxAgeMs: options.maxAgeMs ?? 15_000, minIntervalMs: options.minIntervalMs ?? 1_000, waitMs: options.waitMs ?? 2_000,
     maxStaleMs: options.maxStaleMs ?? 30_000, serveStaleMs: options.serveStaleMs ?? 1_000 };
+  const pressure = options.pressure ?? (() => false);
+  const pressureStaleMs = options.pressureStaleMs ?? 10_000, pressureIntervalMs = options.pressureIntervalMs ?? 3_000;
+  const pressureRetryMs = options.pressureRetryMs ?? 5_000, computeShare = options.computeShare ?? COMPUTE_SHARE;
   const maxEntries = options.maxEntries ?? 300;
   const slots = new Map<string, Slot>();
   /** När tävlingens listor senast lästes här (för att värma bara det som den här instansen visar). */
@@ -96,7 +112,7 @@ export function createPublicRaceCache(options: PublicRaceCacheOptions) {
   }
 
   async function build<T>(raceId: string, slot: Slot, compute: () => Promise<T>, minIntervalMs: number): Promise<CachedPublic<T>> {
-    const delay = slot.lastStart + Math.max(minIntervalMs, COMPUTE_SHARE * slot.lastDuration) - now();
+    const delay = slot.lastStart + Math.max(minIntervalMs, computeShare * slot.lastDuration) - now();
     if (delay > 0) await sleep(delay);
     slot.lastStart = now();
     // Nyckeln läses före uträkningen: ändras något under tiden räknas listan om vid nästa anrop.
@@ -119,8 +135,9 @@ export function createPublicRaceCache(options: PublicRaceCacheOptions) {
    */
   async function read<T>(raceId: string, kind: string, compute: () => Promise<T>,
     overrides: { maxAgeMs?: number; minIntervalMs?: number; fresh?: boolean; exact?: boolean } = {}): Promise<CachedPublic<T>> {
+    const busy = pressure();
     const maxAgeMs = overrides.maxAgeMs ?? defaults.maxAgeMs;
-    const minIntervalMs = overrides.minIntervalMs ?? defaults.minIntervalMs;
+    const minIntervalMs = Math.max(overrides.minIntervalMs ?? defaults.minIntervalMs, busy ? pressureIntervalMs : 0);
     const slot = slotFor(`${raceId}:${kind}`);
     // Uppvärmningen (`fresh`) räknas inte som läsning: en tävling som ingen tittar på värms inte i all evighet.
     if (!overrides.fresh) {
@@ -132,7 +149,8 @@ export function createPublicRaceCache(options: PublicRaceCacheOptions) {
     if (cached && key !== null && cached.key === key && now() - cached.at < maxAgeMs) return cached;
     const start = () => (slot.inflight ??= build(raceId, slot, compute, minIntervalMs)
       .finally(() => { slot.inflight = undefined; })) as Promise<CachedPublic<T>>;
-    const mark = (entry: CachedPublic<T>): CachedPublic<T> => key !== null && entry.key !== key ? { ...entry, stale: true } : entry;
+    const mark = (entry: CachedPublic<T>): CachedPublic<T> => key !== null && entry.key !== key
+      ? { ...entry, stale: true, ...(busy ? { retryMs: pressureRetryMs } : {}) } : entry;
     const pending = (async () => {
       let entry = await start();
       // En uträkning som började före en ändring som inte bara är nya resultat (t.ex. ett ångrat fastställande) räcker
@@ -144,7 +162,7 @@ export function createPublicRaceCache(options: PublicRaceCacheOptions) {
     pending.catch(() => undefined);
     if (overrides.fresh) return pending;
     const mayBeStale = cached !== undefined && key !== null && staleAllowed(cached.key, key);
-    if (cached && mayBeStale && now() - cached.at < defaults.serveStaleMs) return mark(cached);
+    if (cached && mayBeStale && now() - cached.at < (busy ? pressureStaleMs : defaults.serveStaleMs)) return mark(cached);
     if (cached && mayBeStale && now() - cached.at < defaults.maxStaleMs) {
       const stale = sleep(defaults.waitMs).then(() => mark(cached));
       return Promise.race([pending.catch(() => mark(cached)), stale]);
@@ -166,13 +184,14 @@ export function createPublicRaceCache(options: PublicRaceCacheOptions) {
 export function cachedJsonResponse(request: Request, entry: CachedPublic<unknown>, cacheControl: string): Response {
   // En lista för en äldre version än den aktuella sparas inte och märks, så att webbläsaren hämtar igen strax.
   const headers: Record<string, string> = { "content-type": "application/json", "cache-control": entry.stale ? "no-store" : cacheControl,
-    etag: entry.etag, vary: "accept-encoding", ...(entry.stale ? { [PUBLIC_STALE_HEADER]: "1" } : {}) };
+    etag: entry.etag, vary: "accept-encoding", ...(entry.stale ? { [PUBLIC_STALE_HEADER]: "1" } : {}),
+    ...(entry.stale && entry.retryMs !== undefined ? { [PUBLIC_STALE_RETRY_HEADER]: String(Math.ceil(entry.retryMs / 1000)) } : {}) };
   const match = request.headers.get("if-none-match");
   if (match !== null && match.split(",").some((tag) => tag.trim() === entry.etag)) return new Response(null, { status: 304, headers });
   const acceptsGzip = (request.headers.get("accept-encoding") ?? "").split(",").some((part) => {
     const [coding, ...params] = part.trim().toLowerCase().split(";");
     return coding?.trim() === "gzip" && !params.some((param) => /^\s*q=0(\.0*)?\s*$/.test(param));
   });
-  if (acceptsGzip) return new Response(new Uint8Array(entry.gzip), { headers: { ...headers, "content-encoding": "gzip" } });
+  if (acceptsGzip) return new Response(entry.gzip as Uint8Array<ArrayBuffer>, { headers: { ...headers, "content-encoding": "gzip" } });
   return new Response(entry.json, { headers });
 }

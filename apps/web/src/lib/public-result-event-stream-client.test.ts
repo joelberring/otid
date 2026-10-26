@@ -5,7 +5,9 @@ class FakeEventSource {
   static current: FakeEventSource | undefined;
   readonly listeners = new Map<string, (event: MessageEvent<string>) => void>();
   closed = false;
-  constructor(readonly url: string) { FakeEventSource.current = this; }
+  readyState = 1;
+  static created = 0;
+  constructor(readonly url: string) { FakeEventSource.current = this; FakeEventSource.created += 1; }
   addEventListener(type: "refresh" | "reset" | "open" | "error", callback: (event: MessageEvent<string>) => void) { this.listeners.set(type, callback); }
   close() { this.closed = true; }
   emit(type: "refresh" | "reset" | "open" | "error", data = "") { this.listeners.get(type)?.({ data } as MessageEvent<string>); }
@@ -49,5 +51,27 @@ describe("TASK129 publikresultat-SSE-klient", () => {
     stop();
     vi.advanceTimersByTime(5_000);
     expect(runs).toEqual([500, 3_000]);
+  });
+
+  it("steg 54: en ström som servern stängt (503, taket för strömmar) öppnas igen efter 10–30 s; ett vanligt avbrott sköter webbläsaren", () => {
+    vi.useFakeTimers({ now: 0 });
+    const health: boolean[] = [];
+    FakeEventSource.created = 0;
+    const stop = startPublicResultEventStream("10000000-0000-4000-8000-000000000001", FakeEventSource, () => undefined,
+      { spreadMs: 0, minGapMs: 0, random: () => 0 }, (open) => health.push(open));
+    const first = FakeEventSource.current!;
+    first.emit("error");
+    vi.advanceTimersByTime(60_000);
+    expect(FakeEventSource.created).toBe(1);
+    first.readyState = 2;
+    first.emit("error");
+    vi.advanceTimersByTime(9_999);
+    expect(FakeEventSource.created).toBe(1);
+    vi.advanceTimersByTime(1);
+    expect(FakeEventSource.created).toBe(2);
+    FakeEventSource.current!.emit("open");
+    expect(health).toEqual([false, false, true]);
+    stop();
+    expect(FakeEventSource.current!.closed).toBe(true);
   });
 });

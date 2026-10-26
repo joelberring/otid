@@ -10,7 +10,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
  */
 const state = vi.hoisted(() => ({ access: "NONE" as "NONE" | "PREVIEW" | "PUBLIC", calls: [] as [string, string | null][], cookie: "" }));
 vi.mock("server-only", () => ({}));
-vi.mock("./db", () => ({ db: {}, pool: {}, database: {} }));
+vi.mock("./db", () => ({ db: {}, pool: {}, database: {}, publicDb: {}, publicDatabase: {} }));
 vi.mock("@o-tid/application", async (importOriginal) => {
   // Varje tjänst kastar "reached:<namn>" så att testet ser att grinden släppt igenom anropet; grinden själv styrs av `state`.
   const actual = await importOriginal<Record<string, unknown>>();
@@ -38,7 +38,11 @@ async function call(route: { file: string; path: string }) {
 }
 
 describe("publika routes bakom grinden (ADR-0172 beslut 4)", () => {
-  beforeEach(() => { state.calls = []; state.cookie = ""; vi.spyOn(console, "error").mockImplementation(() => undefined); });
+  beforeEach(async () => {
+    state.calls = []; state.cookie = ""; vi.spyOn(console, "error").mockImplementation(() => undefined);
+    // Steg 54: svaret för besökare utan inloggning delas i en sekund; varje fall här har en egen tävlingsstatus.
+    (await import("./public-race-gate")).clearAnonymousRaceAccess();
+  });
   afterAll(() => { vi.restoreAllMocks(); });
 
   it("hittar resultat, ström, karta, exporter och startlistor", () => {

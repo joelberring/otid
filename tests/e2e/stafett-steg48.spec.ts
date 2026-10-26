@@ -59,7 +59,7 @@ test("ungdomsstafett: två löpare på sträcka 2, växlar när första är i m�
   await owner.getByText("Ny stafettklass").click();
   const form = owner.getByRole("form", { name: "Ny stafettklass" });
   await form.getByLabel("Klassnamn").fill("Ungdom");
-  await form.getByLabel("Bana").selectOption({ label: "Ungdomsbana" });
+  await form.getByLabel("Samma bana på alla sträckor").selectOption({ label: "Ungdomsbana" });
   await form.getByLabel("Masstart sträcka 1").fill(clock(0));
   await form.getByLabel("Löpare sträcka 2").selectOption("2");
   await form.getByLabel("Växlar när sträcka 2").selectOption("FIRST");
@@ -118,10 +118,10 @@ test("teamsprint: två löpare × fyra sträckor, en bricka per person, avläsni
   await openStep(owner, "Klasser & sträckor");
   await owner.getByText("Ny stafettklass").click();
   const form = owner.getByRole("form", { name: "Ny stafettklass" });
-  await form.getByRole("button", { name: "Mall: Teamsprint (2 löpare × 4 sträckor)" }).click();
+  await form.getByRole("button", { name: "Teamsprint (2 löpare × 4 sträckor)" }).click();
   await expect(form.getByLabel("Antal sträckor")).toHaveValue("4");
   await form.getByLabel("Klassnamn").fill("Teamsprint");
-  await form.getByLabel("Bana").selectOption({ label: "Sprintslinga" });
+  await form.getByLabel("Samma bana på alla sträckor").selectOption({ label: "Sprintslinga" });
   // Steg 50: mallens förval är utläsning efter varje sträcka; här provas steg 48:s sätt med växlingskontroll.
   await expect(form.getByLabel("Teamsprint", { exact: true })).toHaveValue("EACH_LEG");
   await form.getByLabel("Teamsprint", { exact: true }).selectOption("LAST_LEG");

@@ -96,7 +96,8 @@ export async function createRelayClassAsAdmin(db: Database, input: Authenticatio
   if (!intent || !key.success || key.data !== `relay-class:${intent.requestId}` || !uuid.test(input.raceId)) return { status: "invalid-request" };
   if (relayLegRuleProblem(relayLegRules(intent.legs))) return { status: "invalid-request" };
   return mutate(db, input, "CLASS", intent, value => relayClassCreateResponseSchema.parse(value), now, async (tx, raceId, snapshotVersionAfter) => {
-    const version = await latestCourseVersion(tx, raceId, intent.courseId);
+    // Steg 56: klassens bana är sträcka 1:s (ADR-0174 beslut 10); den visas inte i formuläret.
+    const version = await latestCourseVersion(tx, raceId, intent.legs[0]?.courseId ?? intent.courseId);
     if (!version) return { status: "not-found" };
     const legCourses = await resolveLegCourses(tx, raceId, version, intent.legs);
     if (legCourses === "not-found") return { status: "not-found" };
@@ -299,7 +300,8 @@ export async function latestCourseVersion(tx: Transaction, raceId: string, cours
 
 /**
  * Steg 47: sträckornas egna banor (senaste versionen) och kontroll av sträckans variant mot sträckans bana
- * (eller klassens). Ger banversion per sträcka med egen bana.
+ * (eller klassens). Ger banversion per sträcka som har en bana; steg 56: också när den är densamma som klassens, så att
+ * varje sträckas bana är sparad uttryckligen (NULL = klassens finns bara kvar för äldre klasser och IOF-import).
  */
 export async function resolveLegCourses(tx: Transaction, raceId: string, classCourseVersionId: string, legs: readonly RelayLegSetting[])
   : Promise<Map<number, string> | "not-found" | "invalid"> {
@@ -308,7 +310,7 @@ export async function resolveLegCourses(tx: Transaction, raceId: string, classCo
     if (leg.courseId === null) continue;
     const version = await latestCourseVersion(tx, raceId, leg.courseId);
     if (!version) return "not-found";
-    if (version !== classCourseVersionId) result.set(leg.leg, version);
+    result.set(leg.leg, version);
   }
   const variants = await loadCourseVersionVariants(tx, [classCourseVersionId, ...result.values()]);
   for (const leg of legs) {

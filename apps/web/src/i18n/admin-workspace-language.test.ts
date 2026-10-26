@@ -39,7 +39,9 @@ const adminFiles = [
   // Steg 41: självregistrering.
   "self-registration-sv.ts",
   // Steg 45: beslut att se över och otolkade avläsningar.
-  "decision-review-sv.ts", "uninterpreted-readouts-sv.ts"
+  "decision-review-sv.ts", "uninterpreted-readouts-sv.ts",
+  // Steg 56: stafettformulären.
+  "relay-form-sv.ts"
 ];
 /** Delade textfiler (även publika sidor): bara nycklarna som arbetsytan läser granskas. */
 const sharedFiles = ["sv.ts", "account-sv.ts"];

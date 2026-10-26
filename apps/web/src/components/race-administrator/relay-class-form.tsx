@@ -1,128 +1,171 @@
 "use client";
 
 import styles from "../race-administrator-workspace.module.css";
+import uiStyles from "../ui/ui.module.css";
 import relayStyles from "./relay.module.css";
 import { relaySv as text } from "../../i18n/relay-sv";
+import { relayFormSv as formText } from "../../i18n/relay-form-sv";
 import { Button, Notice } from "../ui";
 import type { RelayLegForm } from "./relay-actions";
+import { RELAY_TEMPLATES } from "./relay-templates";
 import type { Workspace } from "./workspace-state";
 import { RelayMessages, useRelayLoad } from "./relay-panels";
+import { RelayErrorSummary, RelayField } from "./relay-fields";
 
 const METHODS = ["MASS_START", "CHANGEOVER", "RESTART", "FLYING_RESTART"] as const;
 
+const legKeys = (count: number) => Array.from({ length: count }, (_, index) => [`course-${index + 1}`, `time-${index + 1}`,
+  `minutes-${index + 1}`]).flat();
+
 /**
- * Sträckorna i stafettklassens formulär (ny och ändrad klass): startsätt, tid eller minuter efter ledaren, bana och
- * variant per sträcka. Steg 47: upp till 30 sträckor; på mobil två kolumner per sträcka.
+ * Sträckorna i stafettklassens formulär (ny och ändrad klass): bana (krävs), startsätt, tid eller minuter efter ledaren,
+ * löpare och variant per sträcka. Steg 47: upp till 30 sträckor; på mobil två kolumner per sträcka.
  */
-function LegRows({ ws, locked, classCourseId, idPrefix }: { ws: Workspace; locked: boolean; classCourseId: string; idPrefix: string }) {
-  const { changeLeg, courseList, relayLegForms } = ws;
+function LegRows({ ws, locked, idPrefix }: { ws: Workspace; locked: boolean; idPrefix: string }) {
+  const { changeLeg, courseList, relayClassErrors: errors, relayLegForms } = ws;
   return <div className={relayStyles.legs}>
     {relayLegForms.map((leg: RelayLegForm, index: number) => {
       const method = index === 0 ? "MASS_START" : leg.method;
-      const legCourse = courseList?.courses.find(row => row.courseId === (leg.course || classCourseId));
+      const legCourse = courseList?.courses.find(row => row.courseId === leg.course);
       const fieldId = (name: string) => `${idPrefix}-${name}-${index + 1}`;
-      // Etiketten står bredvid fältet (htmlFor), så att fältets namn inte får med alternativen i listan.
+      const number = index + 1;
       return <div key={index} className={relayStyles.leg}>
-        <span className={relayStyles.legName}>{text.leg(index + 1)}</span>
-        <div className={relayStyles.legField}><label htmlFor={fieldId("method")}>{text.legMethod(index + 1)}</label>
-          <select id={fieldId("method")} value={method} disabled={locked || index === 0}
+        <span className={relayStyles.legName}>{text.leg(number)}</span>
+        <RelayField id={fieldId("course")} label={formText.legCourse(number)} error={errors[`course-${number}`]}>
+          <select value={leg.course} disabled={locked} onChange={event => changeLeg(index, { course: event.target.value, variant: "" })}>
+            <option value="">{formText.chooseLegCourse}</option>
+            {courseList?.courses.map(row => <option key={row.courseId} value={row.courseId}>{row.name}</option>)}
+          </select></RelayField>
+        <RelayField id={fieldId("method")} label={text.legMethod(number)}>
+          <select value={method} disabled={locked || index === 0}
             onChange={event => changeLeg(index, { method: event.target.value as RelayLegForm["method"] })}>
             {METHODS.map(value => <option key={value} value={value}>{text.methods[value]}</option>)}
-          </select></div>
+          </select></RelayField>
         {method === "MASS_START" || method === "RESTART"
-          ? <div className={relayStyles.legField}><label htmlFor={fieldId("time")}>{text.legTime(index + 1, method)}</label>
-            <input id={fieldId("time")} value={leg.time} inputMode="numeric" placeholder={text.timeExample}
-              autoComplete="off" disabled={locked} onChange={event => changeLeg(index, { time: event.target.value })} /></div>
+          ? <RelayField id={fieldId("time")} label={text.legTime(number, method)} error={errors[`time-${number}`]}>
+            <input value={leg.time} inputMode="numeric" placeholder={text.timeExample} autoComplete="off" disabled={locked}
+              onChange={event => changeLeg(index, { time: event.target.value })} /></RelayField>
           : method === "FLYING_RESTART"
-            ? <div className={relayStyles.legField}><label htmlFor={fieldId("minutes")}>{text.legRestartAfter(index + 1)}</label>
-              <input id={fieldId("minutes")} value={leg.minutes} inputMode="numeric" placeholder={text.restartAfterExample}
-                autoComplete="off" disabled={locked} onChange={event => changeLeg(index, { minutes: event.target.value })} /></div>
+            ? <RelayField id={fieldId("minutes")} label={text.legRestartAfter(number)} error={errors[`minutes-${number}`]}>
+              <input value={leg.minutes} inputMode="numeric" placeholder={text.restartAfterExample} autoComplete="off" disabled={locked}
+                onChange={event => changeLeg(index, { minutes: event.target.value })} /></RelayField>
             : <span />}
-        <div className={relayStyles.legField}><label htmlFor={fieldId("course")}>{text.legCourse(index + 1)}</label>
-          <select id={fieldId("course")} value={leg.course} disabled={locked}
-            onChange={event => changeLeg(index, { course: event.target.value, variant: "" })}>
-            <option value="">{text.classCourseOption}</option>
-            {courseList?.courses.map(row => <option key={row.courseId} value={row.courseId}>{row.name}</option>)}
-          </select></div>
-        <div className={relayStyles.legField}><label htmlFor={fieldId("runners")}>{text.legRunners(index + 1)}</label>
-          <select id={fieldId("runners")} value={leg.runners} disabled={locked} onChange={event => changeLeg(index, { runners: event.target.value })}>
+        <RelayField id={fieldId("runners")} label={text.legRunners(number)}>
+          <select value={leg.runners} disabled={locked} onChange={event => changeLeg(index, { runners: event.target.value })}>
             {["1", "2", "3", "4"].map(value => <option key={value} value={value}>{value}</option>)}
-          </select></div>
+          </select></RelayField>
         {leg.runners !== "1" && <>
-          <div className={relayStyles.legField}><label htmlFor={fieldId("changeover")}>{text.legChangeoverRule(index + 1)}</label>
-            <select id={fieldId("changeover")} value={leg.changeoverRule} disabled={locked}
+          <RelayField id={fieldId("changeover")} label={text.legChangeoverRule(number)}>
+            <select value={leg.changeoverRule} disabled={locked}
               onChange={event => changeLeg(index, { changeoverRule: event.target.value as RelayLegForm["changeoverRule"] })}>
               {(["FIRST", "LAST"] as const).map(value => <option key={value} value={value}>{text.changeoverRules[value]}</option>)}
-            </select></div>
-          <div className={relayStyles.legField}><label htmlFor={fieldId("approval")}>{text.legApprovalRule(index + 1)}</label>
-            <select id={fieldId("approval")} value={leg.approvalRule} disabled={locked}
+            </select></RelayField>
+          <RelayField id={fieldId("approval")} label={text.legApprovalRule(number)}>
+            <select value={leg.approvalRule} disabled={locked}
               onChange={event => changeLeg(index, { approvalRule: event.target.value as RelayLegForm["approvalRule"] })}>
               {(["ALL", "ANY"] as const).map(value => <option key={value} value={value}>{text.approvalRules[value]}</option>)}
-            </select></div></>}
-        {legCourse && legCourse.variants.length > 0 ? <div className={relayStyles.legField}>
-          <label htmlFor={fieldId("variant")}>{text.legVariant(index + 1)}</label>
-          <select id={fieldId("variant")} value={leg.variant} disabled={locked} onChange={event => changeLeg(index, { variant: event.target.value })}>
+            </select></RelayField></>}
+        {legCourse && legCourse.variants.length > 0 && <RelayField id={fieldId("variant")} label={text.legVariant(number)}>
+          <select value={leg.variant} disabled={locked} onChange={event => changeLeg(index, { variant: event.target.value })}>
             <option value="">{text.forkedVariants}</option>
             {legCourse.variants.map(variant => <option key={variant.code} value={variant.code}>{variant.code}</option>)}
-          </select></div> : <span />}
+          </select></RelayField>}
       </div>;
     })}
   </div>;
 }
 
-/** Placering av lag i omstart och gaffling: klassens inställningar. */
-function ClassSettings({ ws, locked, idPrefix }: { ws: Workspace; locked: boolean; idPrefix: string }) {
-  const { relayChangeoverCode, relayForking, relayReadoutMode, relayRestartRanking, setRelayChangeoverCode, setRelayForking,
-    setRelayReadoutMode, setRelayRestartRanking } = ws;
-  return <div className={`${styles.fieldRow} ${relayStyles.settings}`}>
-    <div className={relayStyles.legField}><label htmlFor={`${idPrefix}-readout-mode`}>{text.readoutMode}</label>
-      <select id={`${idPrefix}-readout-mode`} value={relayReadoutMode} disabled={locked}
-        onChange={event => setRelayReadoutMode(event.target.value as typeof relayReadoutMode)}>
-        {(["", "EACH_LEG", "LAST_LEG"] as const).map(value => <option key={value} value={value}>{text.readoutModes[value || "NONE"]}</option>)}
-      </select></div>
-    <div className={relayStyles.legField}><label htmlFor={`${idPrefix}-changeover-code`}>{text.changeoverCode}</label>
-      <input id={`${idPrefix}-changeover-code`} value={relayChangeoverCode} inputMode="numeric" autoComplete="off" disabled={locked}
-        placeholder={text.changeoverCodeExample} onChange={event => setRelayChangeoverCode(event.target.value)} /></div>
-    <label htmlFor={`${idPrefix}-ranking`}>{text.restartRanking}<select id={`${idPrefix}-ranking`} value={relayRestartRanking} disabled={locked}
-      onChange={event => setRelayRestartRanking(event.target.value as typeof relayRestartRanking)}>
-      {(["AFTER_NORMAL", "BY_TIME"] as const).map(value => <option key={value} value={value}>{text.restartRankings[value]}</option>)}
-    </select></label>
-    <label htmlFor={`${idPrefix}-forking`}>{text.forking}<select id={`${idPrefix}-forking`} value={relayForking} disabled={locked}
-      onChange={event => setRelayForking(event.target.value as typeof relayForking)}>
-      {(["EVEN", "UNEVEN"] as const).map(value => <option key={value} value={value}>{text.forkings[value]}</option>)}
-    </select></label>
+/**
+ * "Fler inställningar" (steg 56): lag i omstart (bara när någon sträcka har omstart), gaffling (bara när någon vald bana är
+ * gafflad), teamsprint och växlingskontroll. Öppnas av sig själv när en mall sätter något här eller ett fält här har fel.
+ */
+function MoreSettings({ ws, locked, idPrefix }: { ws: Workspace; locked: boolean; idPrefix: string }) {
+  const { courseList, relayChangeoverCode, relayClassErrors: errors, relayForking, relayLegForms, relayMoreOpen, relayReadoutMode,
+    relayRestartRanking, setRelayChangeoverCode, setRelayForking, setRelayMoreOpen, setRelayReadoutMode, setRelayRestartRanking } = ws;
+  const restart = relayLegForms.some((leg, index) => index > 0 && (leg.method === "RESTART" || leg.method === "FLYING_RESTART"));
+  const forked = relayLegForms.some(leg => (courseList?.courses.find(row => row.courseId === leg.course)?.variants.length ?? 0) > 0);
+  return <details className={styles.disclosure} open={relayMoreOpen} onToggle={event => setRelayMoreOpen(event.currentTarget.open)}>
+    <summary>{formText.more}</summary>
+    <div className={styles.disclosureBody}>
+      <p className={styles.workflowHelp}>{formText.moreHelp}</p>
+      <div className={`${styles.fieldRow} ${relayStyles.settings}`}>
+        {restart && <RelayField id={`${idPrefix}-ranking`} label={text.restartRanking}>
+          <select value={relayRestartRanking} disabled={locked}
+            onChange={event => setRelayRestartRanking(event.target.value as typeof relayRestartRanking)}>
+            {(["AFTER_NORMAL", "BY_TIME"] as const).map(value => <option key={value} value={value}>{text.restartRankings[value]}</option>)}
+          </select></RelayField>}
+        {forked && <RelayField id={`${idPrefix}-forking`} label={text.forking}>
+          <select value={relayForking} disabled={locked} onChange={event => setRelayForking(event.target.value as typeof relayForking)}>
+            {(["EVEN", "UNEVEN"] as const).map(value => <option key={value} value={value}>{text.forkings[value]}</option>)}
+          </select></RelayField>}
+        <RelayField id={`${idPrefix}-readout-mode`} label={text.readoutMode}>
+          <select value={relayReadoutMode} disabled={locked} onChange={event => {
+            setRelayReadoutMode(event.target.value as typeof relayReadoutMode); ws.clearRelayClassError("changeoverCode");
+          }}>
+            {(["", "EACH_LEG", "LAST_LEG"] as const).map(value => <option key={value} value={value}>{text.readoutModes[value || "NONE"]}</option>)}
+          </select></RelayField>
+        <RelayField id={`${idPrefix}-changeover-code`} label={text.changeoverCode} error={errors.changeoverCode}>
+          <input value={relayChangeoverCode} inputMode="numeric" autoComplete="off" disabled={locked} placeholder={text.changeoverCodeExample}
+            onChange={event => { setRelayChangeoverCode(event.target.value); ws.clearRelayClassError("changeoverCode"); }} /></RelayField>
+      </div>
+    </div>
+  </details>;
+}
+
+/** Klassnamn, antal sträckor och snabbvalet "Samma bana på alla sträckor". */
+function ClassFields({ ws, locked, idPrefix }: { ws: Workspace; locked: boolean; idPrefix: string }) {
+  const { changeLegCount, chooseSameCourse, courseList, relayClassErrors: errors, relayClassName, relayLegForms, relaySameCourse,
+    setRelayClassName } = ws;
+  return <div className={styles.fieldRow}>
+    <RelayField id={`${idPrefix}-name`} label={text.className} error={errors.name} className={uiStyles.fieldWithHelp}>
+      <input value={relayClassName} maxLength={160} autoComplete="off" disabled={locked}
+        onChange={event => { setRelayClassName(event.target.value); ws.clearRelayClassError("name"); }} /></RelayField>
+    <RelayField id={`${idPrefix}-legs`} label={text.legCount} className={uiStyles.fieldWithHelp}>
+      <select value={relayLegForms.length} disabled={locked} onChange={event => changeLegCount(Number(event.target.value))}>
+        {Array.from({ length: 29 }, (_, index) => index + 2).map(count => <option key={count} value={count}>{count}</option>)}
+      </select></RelayField>
+    <RelayField id={`${idPrefix}-same-course`} label={formText.sameCourse} help={formText.sameCourseHelp} className={uiStyles.fieldWithHelp}>
+      <select value={relaySameCourse} disabled={locked} onChange={event => chooseSameCourse(event.target.value)}>
+        <option value="">{formText.chooseSameCourse}</option>
+        {courseList?.courses.map(row => <option key={row.courseId} value={row.courseId}>{row.name}</option>)}
+      </select></RelayField>
   </div>;
 }
 
-/** Klasser: "Ny stafettklass" med bana, antal sträckor och startsätt, bana och variant per sträcka. */
+/** Mallarna: en rad med val. Den valda är markerad (aria-pressed) och beskedet säger vad mallen satte. */
+function Templates({ ws, locked }: { ws: Workspace; locked: boolean }) {
+  const { applyRelayTemplate, relayTemplateId } = ws;
+  return <div className={relayStyles.templates}>
+    <div role="group" aria-label={formText.templates} className={relayStyles.templateRow}>
+      <span className={relayStyles.templateLabel}>{formText.templates}</span>
+      {RELAY_TEMPLATES.map(id => <Button key={id} variant="secondary" disabled={locked} aria-pressed={relayTemplateId === id}
+        className={relayStyles.template} onClick={() => applyRelayTemplate(id)}>{formText.template[id]}</Button>)}
+    </div>
+    {relayTemplateId ? <Notice role="status">{formText.templateNote[relayTemplateId]}</Notice>
+      : <p className={styles.workflowHelp}>{formText.templatesHelp}</p>}
+  </div>;
+}
+
+/** Klasser: "Ny stafettklass" med mall, namn, antal sträckor, bana per sträcka och startsätt. */
 export function RelayClassForm({ ws, visible }: { ws: Workspace; visible: boolean }) {
-  const { changeLegCount, courseList, createRelayClass, raceId, relayClassAttempt, relayClassCourseId, relayClassName,
-    relayEditClassId, relayLegForms, setRelayClassCourseId, setRelayClassName, workflowLocked } = ws;
+  const { createRelayClass, raceId, relayClassAttempt, relayClassError, relayClassErrors, relayClassForm, relayEditClassId, relayLegForms,
+    workflowLocked } = ws;
   useRelayLoad(ws, visible);
   const locked = workflowLocked || !!relayClassAttempt;
   const id = `relay-class-${raceId}`;
-  return <>{visible && <RelayMessages ws={ws} />}{!relayEditClassId && <details className={styles.disclosure} open={relayClassAttempt ? true : undefined}>
+  return <>{visible && <RelayMessages ws={ws} />}{!relayEditClassId && <details className={styles.disclosure} open={ws.relayNewClassOpen || !!relayClassAttempt}
+    onToggle={event => ws.setRelayNewClassOpen(event.currentTarget.open)}>
     <summary>{text.newClass}</summary>
-    <form noValidate className={styles.disclosureBody} aria-label={text.newClass} onSubmit={event => { event.preventDefault(); void createRelayClass(); }}>
+    <form ref={relayClassForm} noValidate className={styles.disclosureBody} aria-label={text.newClass}
+      onSubmit={event => { event.preventDefault(); void createRelayClass(); }}>
       <p className={styles.workflowHelp}>{text.newClassHelp}</p>
-      <div className={styles.actions}><Button type="button" variant="secondary" disabled={locked} onClick={() => ws.applyTeamSprintTemplate()}>
-        {text.teamSprintTemplate}</Button></div>
-      <div className={styles.fieldRow}>
-        <label htmlFor={`${id}-name`}>{text.className}<input id={`${id}-name`} value={relayClassName} maxLength={160} required
-          autoComplete="off" disabled={locked} onChange={event => setRelayClassName(event.target.value)} /></label>
-        <label htmlFor={`${id}-course`}>{text.course}<select id={`${id}-course`} value={relayClassCourseId} required disabled={locked}
-          onChange={event => setRelayClassCourseId(event.target.value)}>
-          <option value="">{text.chooseCourse}</option>
-          {courseList?.courses.map(row => <option key={row.courseId} value={row.courseId}>{row.name}</option>)}
-        </select></label>
-        <label htmlFor={`${id}-legs`}>{text.legCount}<select id={`${id}-legs`} value={relayLegForms.length} disabled={locked}
-          onChange={event => changeLegCount(Number(event.target.value))}>
-          {Array.from({ length: 29 }, (_, index) => index + 2).map(count => <option key={count} value={count}>{count}</option>)}
-        </select></label>
-      </div>
-      <ClassSettings ws={ws} locked={locked} idPrefix={id} />
+      <RelayErrorSummary errors={relayClassErrors} order={["name", ...legKeys(relayLegForms.length), "changeoverCode"]} />
+      <Templates ws={ws} locked={locked} />
+      <ClassFields ws={ws} locked={locked} idPrefix={id} />
       <p className={styles.workflowHelp}>{text.methodHelp}</p>
-      <LegRows ws={ws} locked={locked} classCourseId={relayClassCourseId} idPrefix={id} />
+      <LegRows ws={ws} locked={locked} idPrefix={id} />
+      <MoreSettings ws={ws} locked={locked} idPrefix={id} />
+      {relayClassError && <Notice tone="error" role="alert">{relayClassError}</Notice>}
       <div className={styles.actions}><Button type="submit" disabled={workflowLocked}>{text.saveClass}</Button></div>
     </form>
   </details>}<RelayClassEdit ws={ws} /></>;
@@ -130,8 +173,8 @@ export function RelayClassForm({ ws, visible }: { ws: Workspace; visible: boolea
 
 /** "Ändra stafettklass": välj klass, ändra och spara; byter resultat status visas beskedet först. */
 function RelayClassEdit({ ws }: { ws: Workspace }) {
-  const { busy, cancelRelayClassEdit, changeLegCount, raceId, relay, relayClassName, relayEditAttempt, relayEditClassId, relayEditPreview,
-    relayLegForms, saveRelayClassEdit, setRelayClassName, startRelayClassEdit, workflowLocked } = ws;
+  const { busy, cancelRelayClassEdit, raceId, relay, relayClassError, relayClassErrors, relayClassForm, relayEditAttempt, relayEditClassId,
+    relayEditPreview, relayLegForms, saveRelayClassEdit, startRelayClassEdit, workflowLocked } = ws;
   if (!relay || relay.classes.length === 0) return null;
   const raceClass = relay.classes.find(row => row.id === relayEditClassId);
   const locked = busy || !!relayEditAttempt || !!relayEditPreview;
@@ -145,17 +188,13 @@ function RelayClassEdit({ ws }: { ws: Workspace }) {
         <option value="">{text.chooseClass}</option>
         {relay.classes.map(row => <option key={row.id} value={row.id}>{row.name}</option>)}
       </select></label>
-      {raceClass && <form noValidate aria-label={text.editClass} onSubmit={event => { event.preventDefault(); void saveRelayClassEdit(false); }}>
-        <div className={styles.fieldRow}>
-          <label htmlFor={`${id}-name`}>{text.className}<input id={`${id}-name`} value={relayClassName} maxLength={160} required
-            autoComplete="off" disabled={locked} onChange={event => setRelayClassName(event.target.value)} /></label>
-          <label htmlFor={`${id}-legs`}>{text.legCount}<select id={`${id}-legs`} value={relayLegForms.length} disabled={locked}
-            onChange={event => changeLegCount(Number(event.target.value))}>
-            {Array.from({ length: 29 }, (_, index) => index + 2).map(count => <option key={count} value={count}>{count}</option>)}
-          </select></label>
-        </div>
-        <ClassSettings ws={ws} locked={locked} idPrefix={id} />
-        <LegRows ws={ws} locked={locked} classCourseId={raceClass.courseId} idPrefix={id} />
+      {raceClass && <form ref={relayClassForm} noValidate className={relayStyles.editForm} aria-label={text.editClass}
+        onSubmit={event => { event.preventDefault(); void saveRelayClassEdit(false); }}>
+        <RelayErrorSummary errors={relayClassErrors} order={["name", ...legKeys(relayLegForms.length), "changeoverCode"]} />
+        <ClassFields ws={ws} locked={locked} idPrefix={id} />
+        <LegRows ws={ws} locked={locked} idPrefix={id} />
+        <MoreSettings ws={ws} locked={locked} idPrefix={id} />
+        {relayClassError && <Notice tone="error" role="alert">{relayClassError}</Notice>}
         {relayEditPreview && <Notice tone="attention" role="alert">
           <p><strong>{text.editConfirmTitle}</strong></p>
           {relayEditPreview.changes.length > 0 && <><p>{text.editConfirmChanges(relayEditPreview.changes.length)}</p>

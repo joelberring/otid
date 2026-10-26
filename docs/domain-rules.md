@@ -154,6 +154,8 @@ funktion lokalt; dess besked är preliminärt och serverns revision är auktorit
 Koden finns i `packages/domain/src/relay.ts`, `relay-starts.ts`, `relay-forking.ts`, `relay-parallel.ts` och `team-sprint.ts`.
 
 - En sträcka springer sin egen bana (`relay_leg.course_version_id`) eller klassens; `entryCourseVersionId` är regeln.
+  Steg 56: formulären sparar varje sträckas bana uttryckligen och klassens bana är sträcka 1:s (den visas inte); NULL
+  (= klassens) finns kvar för äldre klasser och IOF-import. Regeln i domänen är oförändrad.
   Underlagshashen använder sträckans bana.
 - Startsätt per sträcka: masstart, växling, omstart (fast tid) och flygande omstart (ledarlagets växling till sträckan plus
   en gräns i minuter; ledaren är första laget som växlade, oavsett status). Sträcka 1 är masstart. Starterna räknas för

@@ -66,7 +66,7 @@ async function race(): Promise<Race> {
       request: { formatVersion: 1, requestId, courseName, className,
         startRule: "PUNCH", controlCodes: [...controlCodes] } });
     if (result.status !== "created") throw new Error(`Banan kunde inte skapas: ${result.status}`);
-    classes[className] = result.response.classId;
+    classes[className] = result.response.classId!;
   }
   return { proof, raceId, classes };
 }

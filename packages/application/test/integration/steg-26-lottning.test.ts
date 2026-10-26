@@ -52,7 +52,7 @@ async function addClass(proof: Proof, courseName: string, className: string, con
   const result = await createManualCourseClassAsAdmin(db, { ...proof, idempotencyKey: `manual-course-class-create:${requestId}`,
     request: { formatVersion: 1, requestId, courseName, className, startRule: "PUNCH", controlCodes } });
   if (result.status !== "created") throw new Error(`Banan kunde inte skapas: ${result.status}`);
-  return result.response.classId;
+  return result.response.classId!;
 }
 
 async function register(proof: Proof, classId: string, givenName: string) {

@@ -58,7 +58,10 @@ async function course(proof: Proof, name: string) {
   const created = await createManualCourseClassAsAdmin(db, { ...proof, idempotencyKey: `manual-course-class-create:${requestId}`,
     request: { formatVersion: 1, requestId, courseName: name, className: `Klass ${name}`, startRule: "PUNCH", controlCodes: CODES } });
   if (created.status !== "created") throw new Error(`Banan kunde inte skapas: ${created.status}`);
-  return created.response;
+  // Steg 55: klassen är valfri; här skapas den alltid.
+  const { classId } = created.response;
+  if (classId === null) throw new Error("Klassen skapades inte");
+  return { ...created.response, classId };
 }
 
 async function relayClass(proof: Proof, courseId: string, second: "CHANGEOVER" | "FLYING_RESTART", name: string) {

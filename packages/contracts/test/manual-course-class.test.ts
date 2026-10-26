@@ -23,3 +23,19 @@ it("TASK081 receipt freezes the intent and exactly one snapshot step", () => {
   expect(manualCourseClassCreateResponseSchema.safeParse({ ...response, snapshotVersionAfter: 3 }).success).toBe(false);
   expect(manualCourseClassCreateResponseSchema.safeParse({ ...response, requestId: "10000000-0000-4000-8000-000000000002" }).success).toBe(false);
 });
+
+it("steg 55: en bana utan klass har varken startsätt eller rogaining, och kvittensen saknar klass", () => {
+  const courseOnly = { formatVersion: 1, requestId: id, courseName: " Bana ", controlCodes: [31, 42, 31] };
+  expect(manualCourseClassCreateRequestSchema.parse(courseOnly)).toEqual({ ...courseOnly, courseName: "Bana" });
+  expect(manualCourseClassCreateRequestSchema.safeParse({ ...courseOnly, startRule: "PUNCH" }).success).toBe(false);
+  expect(manualCourseClassCreateRequestSchema.safeParse({ ...courseOnly,
+    rogaining: { timeLimitMinutes: 60, penaltyPoints: 1 } }).success).toBe(false);
+  expect(manualCourseClassCreateRequestSchema.safeParse({ ...request, startRule: undefined }).success).toBe(false);
+  expect(manualCourseClassCreateRequestSchema.safeParse({ ...courseOnly, className: " " }).success).toBe(false);
+  const response = { formatVersion: 1, replayed: false, requestId: id, raceId: id, courseId: id, courseVersionId: id,
+    classId: null, request: { ...courseOnly, courseName: "Bana" }, snapshotVersionBefore: 1, snapshotVersionAfter: 2,
+    createdAt: "2026-09-19T12:00:00.000Z" };
+  expect(manualCourseClassCreateResponseSchema.safeParse(response).success).toBe(true);
+  expect(manualCourseClassCreateResponseSchema.safeParse({ ...response, classId: id }).success).toBe(false);
+  expect(manualCourseClassCreateResponseSchema.safeParse({ ...response, request: { ...request, courseName: "Bana", className: "Klass" } }).success).toBe(false);
+});

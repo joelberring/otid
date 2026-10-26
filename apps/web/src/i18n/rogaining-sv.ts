@@ -11,7 +11,7 @@ export const rogainingSv = {
   noControlsHelp: "Skriv in kontrollerna och en klass med tidsgräns. Ordningen spelar ingen roll; poängen kan ändras efteråt.",
   addControls: "Lägg till kontroller och klass",
   newCourseTitle: "Kontroller och klass",
-  newCourseHelp: "Skriv kontrollkoderna och klassens namn, tidsgräns och straff. Sparas direkt.",
+  newCourseHelp: "Skriv kontrollkoderna. Fyll i ett klassnamn om du vill skapa en klass med tidsgräns och straff direkt.",
   classesTitle: "Klasser: tidsgräns och straff",
   className: "Klass",
   timeLimit: "Tidsgräns (min)",

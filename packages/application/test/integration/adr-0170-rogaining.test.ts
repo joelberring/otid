@@ -64,7 +64,7 @@ async function race(controlCodes: number[]): Promise<Race> {
     request: { formatVersion: 1, requestId, courseName: "Kontroller",
       className: "Rogaining 60", startRule: "PUNCH", controlCodes, rogaining: { timeLimitMinutes: 60, penaltyPoints: 2 } } });
   if (course.status !== "created") throw new Error(`Banan kunde inte skapas: ${course.status}`);
-  return { proof, raceId, classId: course.response.classId };
+  return { proof, raceId, classId: course.response.classId! };
 }
 
 async function register(f: Race, givenName: string, cardNumber: string): Promise<string> {

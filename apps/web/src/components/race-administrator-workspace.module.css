@@ -38,6 +38,8 @@
 .fieldRow, .settingsFields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: 12px;
   align-items: end; max-width: 70ch; }
 .settingsFields { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 11rem); align-items: start; }
+/* Steg 55: fält med etikett, hjälptext och fel börjar på samma höjd i raden, även när bara ett av dem visar ett fel. */
+.fieldRow.fieldRowTop { align-items: start; }
 /* Steg 33: information till löparna under Inställningar. */
 .settingsInfo { display: grid; gap: 12px; min-width: 0; margin: 0; padding: 12px 14px 14px; border: 1px solid var(--line);
   border-radius: var(--radius); }

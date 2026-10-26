@@ -75,7 +75,7 @@ async function manualCourse(proof: Proof, courseName: string, className: string,
     request: { formatVersion: 1, requestId, courseName, className,
       startRule: "PUNCH", controlCodes, ...(rogaining ? { rogaining } : {}) } });
   if (created.status !== "created") throw new Error(`Banan kunde inte skapas: ${created.status}`);
-  return created.response;
+  return { ...created.response, classId: created.response.classId! };
 }
 
 async function register(proof: Proof, classId: string, givenName: string, cardNumber: string): Promise<string> {

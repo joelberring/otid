@@ -58,7 +58,7 @@ async function race(controlCodes: number[]) {
     request: { formatVersion: 1, requestId, courseName: "Bana 1",
       className: "Öppen", startRule: "PUNCH", controlCodes } });
   if (course.status !== "created") throw new Error(`Banan kunde inte skapas: ${course.status}`);
-  return { proof, raceId, classId: course.response.classId, courseId: course.response.courseId };
+  return { proof, raceId, classId: course.response.classId!, courseId: course.response.courseId };
 }
 
 async function snapshot(raceId: string): Promise<number> {

@@ -871,6 +871,27 @@ ADR-0177, `docs/lasttest.md`, `docs/drift.md`. Ingen ny migration. Ingen uppskal
 - [x] Lasttest före/efter: 1 000 besökare och målrusning gav kvitto p95 6,8 → 0,68 s och arbetsytan p95 4,0 → 0,69 s;
   25-manna 300 lag kvitto p50 26,6 → 2,0 s (p95 91 → 11 s).
 - [x] "Hur stora tävlingar klarar O-Tid?" på `/om` med de uppmätta siffrorna.
+## [x] Steg 55 – Bana utan klass
+
+Ägaren: "varför måste man välja klass när man skapar banor?"
+
+- [x] "Ny bana": klassnamnet är valfritt ("Klassnamn (valfritt)"). Utan klassnamn sparas bara banan med kontrollföljden
+  ("Spara bana", "Banan är sparad."); med klassnamn som förut ("Spara bana och klass"). Startsätt och rogainingens
+  tidsgräns och straff visas bara när ett klassnamn finns. Journal (`class_id` NULL, migration 0027), auditpost för banan,
+  idempotens och dubblettnamn som förut.
+- [x] Fälten på samma rad börjar på samma höjd, även med ett fel under ett av dem (även "Ny klass").
+- [x] Banan utan klass syns i Banor, kan ändras och gafflas, väljas under Klasser ("Ny klass", nu även en gafflad bana),
+  som sträckans bana i stafett och i kontrollkartan.
+## [x] Steg 56 – Stafettformuläret: fel vid fälten och mallar
+
+ADR-0174 beslut 10. Ingen migration.
+
+- [x] Fel vid fälten i "Ny stafettklass", "Ändra stafettklass" och "Nytt lag" (klassnamn, bana, masstart- och omstartstid,
+  minuter för flygande omstart, växlingskontroll, lagnamn, löparnas namn och brickor), sammanfattade överst, fokus på det första.
+- [x] Bana per sträcka ("Bana sträcka N", krävs) och snabbvalet "Samma bana på alla sträckor"; klassens bana är sträcka 1:s.
+- [x] Mallar som en rad med val: vanlig stafett, teamsprint, ungdomsstafett och linjestafett, med besked och markering.
+- [x] "Fler inställningar": lag i omstart (vid omstart), gaffling (vid gafflad bana), teamsprint och växlingskontroll.
+- [x] Tider som 18:30, 18.30 och 1830. Playwright `stafett-steg56.spec.ts`.
 
 ## Efter målet (inte nu)
 

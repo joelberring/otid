@@ -74,7 +74,7 @@ async function newRelayClass(owner: Page, name: string, course: string, legs: nu
   await owner.getByText("Ny stafettklass").click();
   const form = owner.getByRole("form", { name: "Ny stafettklass" });
   await form.getByLabel("Klassnamn").fill(name);
-  await form.getByLabel("Bana").selectOption({ label: course });
+  await form.getByLabel("Samma bana på alla sträckor").selectOption({ label: course });
   await form.getByLabel("Antal sträckor").selectOption(String(legs));
   return form;
 }
@@ -120,7 +120,7 @@ test("stafett: kort bana på sträcka 2, omstart, placering efter omstart och ä
 
   const form = await newRelayClass(owner, "Stafett", "Lång", 3);
   await form.getByLabel("Masstart sträcka 1").fill(clock(0));
-  await form.getByLabel("Sträcka 2 springer").selectOption({ label: "Kort" });
+  await form.getByLabel("Bana sträcka 2", { exact: true }).selectOption({ label: "Kort" });
   await form.getByLabel("Startsätt sträcka 3").selectOption("RESTART");
   await form.getByLabel("Omstart sträcka 3").fill(clock(BACK - 5));
   await form.getByRole("button", { name: "Spara stafettklass" }).click();
@@ -177,13 +177,13 @@ test("stafett: kort bana på sträcka 2, omstart, placering efter omstart och ä
   await expect(owner.getByTestId("relay-restarts")).toContainText(`Stafett · Sträcka 3: omstart kl. ${restart}`);
   await expect(owner.getByTestId("relay-restarts")).toContainText("Alla lag har växlat.");
 
-  // Ändra stafettklassen: sträcka 2 springer klassens (långa) bana. Två avlästa löpare blir felstämplade: först beskedet.
+  // Ändra stafettklassen: sträcka 2 springer den långa banan. Två avlästa löpare blir felstämplade: först beskedet.
   await openStep(owner, "Klasser & sträckor");
   await owner.getByText("Ändra stafettklass").click();
   await owner.getByLabel("Stafettklass att ändra").selectOption({ label: "Stafett" });
   const edit = owner.getByRole("form", { name: "Ändra stafettklass" });
   await expect(edit.getByLabel("Omstart sträcka 3")).toHaveValue(restart);
-  await edit.getByLabel("Sträcka 2 springer").selectOption({ label: "Samma som klassen" });
+  await edit.getByLabel("Bana sträcka 2", { exact: true }).selectOption({ label: "Lång" });
   await edit.getByRole("button", { name: "Spara ändringen" }).click();
   await expect(edit).toContainText("2 löpare byter status:");
   await expect(edit).toContainText("Lag 1 sträcka 2, L2 Lag1: godkänd → felstämplad");
@@ -210,7 +210,7 @@ test("linjestafett: egen bana per sträcka, flygande och fast omstart, avläsnin
   const form = await newRelayClass(owner, "Mot centrum", "Rotebro–Sollentuna", 6);
   await form.getByLabel("Masstart sträcka 1").fill(clock(0));
   const courses = ["Rotebro–Sollentuna", "Sollentuna–Haga", "Haga–City"];
-  for (let leg = 2; leg <= 6; leg += 1) await form.getByLabel(`Sträcka ${leg} springer`).selectOption({ label: courses[(leg - 1) % 3]! });
+  for (let leg = 2; leg <= 6; leg += 1) await form.getByLabel(`Bana sträcka ${leg}`, { exact: true }).selectOption({ label: courses[(leg - 1) % 3]! });
   // Ledaren (lag 3) växlar till sträcka 3 efter 2/6 × 91 % av fönstret (sex timmar); lag 1 omkring 7 min senare och lag 2
   // omkring 3,6 min senare. Gränsen 5 min: lag 1 går i den flygande omstarten, lag 2 växlar som vanligt.
   await form.getByLabel("Startsätt sträcka 3").selectOption("FLYING_RESTART");
@@ -265,7 +265,7 @@ test("linjestafett: egen bana per sträcka, flygande och fast omstart, avläsnin
   await teamsView.getByRole("button", { name: "Öppna lag 1 OK Linje 1" }).click();
   const teamCard = control.getByRole("region", { name: "Lagkort" });
   await expect(teamCard.getByRole("row", { name: /Sträcka 3/ })).toContainText("Omstart");
-  // Sträckans egen bana visas när den skiljer sig från klassens (sträcka 4 springer klassens bana).
+  // Sträckans bana visas när sträckorna springer olika banor (sträcka 4 springer Rotebro–Sollentuna).
   await expect(teamCard.getByRole("row", { name: /Sträcka 3/ })).toContainText("Haga–City");
   await expect(teamCard.getByRole("row", { name: /Sträcka 4/ })).not.toContainText("Haga–City");
   await expect(teamCard).toContainText("Deltog i omstart");

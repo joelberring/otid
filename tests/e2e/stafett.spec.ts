@@ -79,7 +79,7 @@ test("klubbstafett: stafettklass, lag, byte av löpare, avläsning per sträcka,
   await owner.getByText("Ny stafettklass").click();
   const classForm = owner.getByRole("form", { name: "Ny stafettklass" });
   await classForm.getByLabel("Klassnamn").fill("Stafett");
-  await classForm.getByLabel("Bana").selectOption({ label: "Stafettbana" });
+  await classForm.getByLabel("Samma bana på alla sträckor").selectOption({ label: "Stafettbana" });
   await expect(classForm.getByLabel("Antal sträckor")).toHaveValue("3");
   await classForm.getByLabel("Masstart sträcka 1").fill(massStart);
   await expect(classForm.getByLabel("Startsätt sträcka 2")).toHaveValue("CHANGEOVER");

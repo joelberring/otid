@@ -6,6 +6,9 @@ import { createDatabase } from "@o-tid/database";
 import { createManualCourseClassAsAdmin } from "../../src/manual-course-class";
 import { createManualClassAsAdmin } from "../../src/manual-class";
 import { importIofXml } from "../../src/import-iof";
+import { editCourseAsAdmin, listCoursesForEditAsAdmin } from "../../src/course-edit";
+import { readControlMapAsAdmin } from "../../src/control-map";
+import { createRelayClassAsAdmin } from "../../src/relay-admin";
 import { raceLogin } from "./accounts";
 
 const url = process.env.TEST_DATABASE_URL;
@@ -145,4 +148,74 @@ it("TASK300 adds two manual classes to one exact version without copying its cou
   expect((await pool.query<{ name: string; course_version_id: string; capacity_version: number }>(
     "SELECT name,course_version_id,capacity_version FROM class WHERE id=$1", [first.response.classId])).rows[0])
     .toEqual({ name: "D40", course_version_id: source.response.courseVersionId, capacity_version: 1 });
+});
+
+it("steg 55: en bana utan klass sparas ensam, spelas om utan dubblett och kan få klass, ändras och gafflas", async () => {
+  const f = await fixture();
+  const courseOnly = { formatVersion: 1 as const, requestId: f.request.requestId, courseName: "Bara banan", controlCodes: [31, 42, 31] };
+  const created = await createManualCourseClassAsAdmin(db, { ...f.auth, idempotencyKey: f.key, request: courseOnly }, now);
+  expect(created.status).toBe("created");
+  if (created.status !== "created") return;
+  expect(created.response).toMatchObject({ classId: null, request: courseOnly, snapshotVersionBefore: 1, snapshotVersionAfter: 2, replayed: false });
+  expect((await pool.query("SELECT count(*)::int AS n FROM class WHERE race_id=$1", [f.raceId])).rows[0]).toEqual({ n: 0 });
+  expect((await pool.query("SELECT course_id,class_id FROM manual_course_class_create_request WHERE request_id=$1", [f.request.requestId])).rows[0])
+    .toEqual({ course_id: created.response.courseId, class_id: null });
+  expect((await pool.query("SELECT entity_type,entity_id,action,after->>'classId' AS class_id FROM audit_event WHERE request_id=$1", [f.request.requestId])).rows)
+    .toEqual([{ entity_type: "course", entity_id: created.response.courseId, action: "MANUAL_COURSE_CREATED_BY_ADMIN", class_id: null }]);
+  // Samma förfrågan igen ger samma bana utan en ny rad; en ändrad förfrågan med samma id avvisas.
+  const replay = await createManualCourseClassAsAdmin(db, { ...f.auth, idempotencyKey: f.key, request: courseOnly }, now);
+  expect(replay.status === "created" && replay.response).toMatchObject({ replayed: true, classId: null, courseId: created.response.courseId });
+  expect((await createManualCourseClassAsAdmin(db, { ...f.auth, idempotencyKey: f.key,
+    request: { ...courseOnly, className: "Öppen", startRule: "PUNCH" } }, now)).status).toBe("conflict");
+  expect((await pool.query("SELECT count(*)::int AS n FROM course WHERE race_id=$1", [f.raceId])).rows[0]).toEqual({ n: 1 });
+  expect((await pool.query<{ snapshot_version: number }>("SELECT snapshot_version FROM race WHERE id=$1", [f.raceId])).rows[0]?.snapshot_version).toBe(2);
+  // Startsätt utan klass avvisas.
+  const withRule = { ...courseOnly, requestId: randomUUID(), courseName: "Med startsätt", startRule: "PUNCH" as const };
+  expect((await createManualCourseClassAsAdmin(db, { ...f.auth, idempotencyKey: `manual-course-class-create:${withRule.requestId}`,
+    request: withRule }, now)).status).toBe("invalid-request");
+  // Dubblettnamn: samma bannamn avvisas med och utan klass.
+  for (const request of [{ ...courseOnly, requestId: randomUUID(), courseName: "bara banan" },
+    { ...f.request, requestId: randomUUID(), courseName: "Bara banan", className: "Ny klass" }]) {
+    expect((await createManualCourseClassAsAdmin(db, { ...f.auth, idempotencyKey: `manual-course-class-create:${request.requestId}`,
+      request }, now)).status).toBe("duplicate-name");
+  }
+  // Utan klass prövas inget klassnamn: en ny bana bredvid en befintlig klass går bra.
+  const withClass = { ...f.request, requestId: randomUUID(), courseName: "Med klass", className: "H21" };
+  expect((await createManualCourseClassAsAdmin(db, { ...f.auth, idempotencyKey: `manual-course-class-create:${withClass.requestId}`,
+    request: withClass }, now)).status).toBe("created");
+  // Banan syns i banlistan utan klasser och kan ändras.
+  const listed = await listCoursesForEditAsAdmin(db, f.auth, now);
+  if (listed.status !== "ok") throw new Error("Banlistan saknas");
+  expect(listed.response.courses.find(course => course.courseId === created.response.courseId))
+    .toMatchObject({ name: "Bara banan", controlCodes: [31, 42, 31], classes: [], entryCount: 0 });
+  const editId = randomUUID();
+  const edited = await editCourseAsAdmin(db, { ...f.auth, idempotencyKey: `course-edit:${editId}`, request: { formatVersion: 1,
+    requestId: editId, courseId: created.response.courseId, controlCodes: [31, 42, 33], confirmResultChanges: false } }, now);
+  expect(edited).toMatchObject({ status: "edited", response: { classIds: [] } });
+  // En gafflad struktur går också att spara på banan utan klass.
+  const forkId = randomUUID();
+  const forked = await editCourseAsAdmin(db, { ...f.auth, idempotencyKey: `course-edit:${forkId}`, request: { formatVersion: 1,
+    requestId: forkId, courseId: created.response.courseId, confirmResultChanges: false, forking: { items: [{ kind: "CONTROL", code: 31 },
+      { kind: "FORK", branches: [[41], [42]] }, { kind: "CONTROL", code: 33 }] } } }, now);
+  expect(forked.status).toBe("edited");
+  const after = await listCoursesForEditAsAdmin(db, f.auth, now);
+  if (after.status !== "ok") throw new Error("Banlistan saknas");
+  const course = after.response.courses.find(row => row.courseId === created.response.courseId)!;
+  expect(course.variants.map(variant => variant.controlCodes)).toEqual([[31, 41, 33], [31, 42, 33]]);
+  // Klassen läggs till senare på banan.
+  const classRequest = { formatVersion: 1 as const, requestId: randomUUID(), courseVersionId: course.courseVersionId, className: "Öppen", startRule: "PUNCH" as const };
+  const raceClass = await createManualClassAsAdmin(db, { ...f.auth, idempotencyKey: `manual-class-create:${classRequest.requestId}`, request: classRequest }, now);
+  expect(raceClass).toMatchObject({ status: "created", response: { courseId: created.response.courseId, courseName: "Bara banan" } });
+  // Banan går att välja som stafettsträckans bana och står i kontrollkartan.
+  const withClassCourse = after.response.courses.find(row => row.name === "Med klass")!;
+  const relayId = randomUUID();
+  const relay = await createRelayClassAsAdmin(db, { ...f.auth, idempotencyKey: `relay-class:${relayId}`, request: { formatVersion: 1,
+    requestId: relayId, name: "Stafett", courseId: withClassCourse.courseId, legs: [
+      { leg: 1, startMethod: "MASS_START", startTime: "2026-09-19T16:00:00.000Z", variantCode: null },
+      { leg: 2, startMethod: "CHANGEOVER", startTime: null, variantCode: null, courseId: created.response.courseId }] } }, now);
+  expect(relay.status).toBe("saved");
+  expect((await pool.query("SELECT rl.course_version_id FROM relay_leg rl JOIN class c ON c.id=rl.class_id WHERE c.race_id=$1 AND c.name='Stafett' AND rl.leg=2",
+    [f.raceId])).rows[0]).toEqual({ course_version_id: course.courseVersionId });
+  const map = await readControlMapAsAdmin(db, f.auth, now);
+  expect(map.status === "ok" && map.response.courses.find(row => row.courseId === created.response.courseId)?.variants.length).toBe(2);
 });

@@ -148,7 +148,7 @@ async function openFirst(page: Page, names: SectionName[]): Promise<void> {
 
 /** Formuläret "Ny bana" (PLAN.md steg 24): öppnas med knappen i tomläget eller i Banors rubrik. */
 export async function openCourseForm(owner: Page) {
-  const courseForm = owner.locator("form").filter({ has: owner.getByRole("button", { name: "Spara bana och klass" }) });
+  const courseForm = owner.locator("form").filter({ has: owner.getByRole("button", { name: /^Spara bana( och klass)?$/ }) });
   if (!await courseForm.isVisible()) {
     await owner.getByRole("button", { name: "Ny bana" }).or(owner.getByRole("button", { name: "Lägg till kontroller och klass" })).first().click();
   }

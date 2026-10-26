@@ -60,11 +60,11 @@ async function sprintRace(browser: Parameters<typeof registerAccount>[0], prefix
   await openStep(owner, "Klasser & sträckor");
   await owner.getByText("Ny stafettklass").click();
   const form = owner.getByRole("form", { name: "Ny stafettklass" });
-  await form.getByRole("button", { name: "Mall: Teamsprint (2 löpare × 4 sträckor)" }).click();
+  await form.getByRole("button", { name: "Teamsprint (2 löpare × 4 sträckor)" }).click();
   // Mallens förval: utläsning efter varje sträcka, ingen växlingskontroll behövs.
   await expect(form.getByLabel("Teamsprint", { exact: true })).toHaveValue("EACH_LEG");
   await form.getByLabel("Klassnamn").fill("Teamsprint");
-  await form.getByLabel("Bana").selectOption({ label: "Sprintslinga" });
+  await form.getByLabel("Samma bana på alla sträckor").selectOption({ label: "Sprintslinga" });
   await form.getByLabel("Masstart sträcka 1").fill(clock(0));
   await form.getByRole("button", { name: "Spara stafettklass" }).click();
   await expect(owner.getByText("Stafettklassen Teamsprint är sparad.")).toBeVisible();

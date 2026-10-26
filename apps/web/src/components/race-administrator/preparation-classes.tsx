@@ -68,7 +68,7 @@ function ManualClassForm({ ws }: { ws: Workspace }) {
       <Button variant="quiet" disabled={locked} onClick={() => { setManualClassOpen(false); setManualClassErrors({}); }}>{text.courseClassClose}</Button>
     </div>
     <p className={styles.workflowHelp}>{text.manualClassHelp}</p>
-    <div className={styles.fieldRow}>
+    <div className={`${styles.fieldRow} ${styles.fieldRowTop}`}>
       <Field label={text.manualClassName} error={manualClassErrors.className}><input value={manualClassName} maxLength={160}
         autoComplete="off" disabled={locked} onChange={event => { setManualClassName(event.target.value);
           setManualClassErrors({ ...manualClassErrors, className: undefined }); }} /></Field>

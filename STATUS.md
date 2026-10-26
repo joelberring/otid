@@ -10,13 +10,22 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-10-26 – Steg 48: flera löpare per sträcka och teamsprint (agent A)
+- Parallella sträckor (migration 0022: `relay_leg.runners`, växlings- och godkännanderegel, `entry.relay_leg_order`): FIRST/LAST, ALL/ANY.
+- Teamsprint: växlingskontroll per klass, brickan på löparens första sträcka (`entry.relay_card_entry_id`), avläsningen delas i resultatmotorn; saknad växling ger besked.
+- Lagformulär, lagkort, resultatlista ("växlade"), avläsningsskalet (alla sträckor på brickan), mallen Teamsprint.
+- IOF EntryList TeamEntry (Leg, LegOrder) importeras; LegOrder i resultatlistan; startlistan tar flera löpare per sträcka.
+- Rättat: klassynken upprepas tills starterna är stabila (avläsning i omvänd ordning, teamsprintens sista sträcka); stafettens skrivningar får 64 KiB (25 sträckor gick inte att spara med 4 KiB).
+- Tester: domän `relay-steg48`, integration `adr-0174-flera-lopare`, Playwright `stafett-steg48`.
+- Kvar: Eventors `TeamSequence`; teamsprintdelar i okänd-bricka-lösningen och omläsning; ändra löpare/växlingskontroll bara innan lag finns.
+
 ### 2026-10-25 – Steg 47: stafett på riktigt (agent A)
 - Bana per sträcka (`relay_leg.course_version_id`, migration 0021, underlagshash per sträcka), AllowedOnLeg i IOF, banan per sträcka i startlista/export.
 - Ändra stafettklass med besked och omräkning; ändra/ta bort/stryk lag, hela laget ej start, byt variant per sträcka.
 - Omstart: flyttad tid räknas om, flygande omstart (ledarens växling + gräns), klassynk under lås per klass, SOFT TR 5.8.2 som förval.
 - Rättvis gaffling (utjämnad/fulgaffling) med kontroll per lag i lagvyn; funktionärsvy för omstarter; radio, Live, speaker och vägval för sträcklöpare; 30 sträckor.
 - Tester: domän `relay-steg47`, integration `adr-0174-stafett` (25 × 300: avläsning 0,35 s, publik lista 0,25 s), Playwright `stafett-steg47`.
-- Kvar: längd per variant (kräver steg 49:s variantlängd). Två Playwright-test behöver sex timmar av dygnet och hoppas över före 06:05.
+- Kvar: längd per variant (kräver steg 49:s variantlängd). Två Playwright-test behöver sex timmar av dygnet: tävlingen läggs i New York-tid när det inte ryms i Stockholm.
 
 ### 2026-10-25 – Steg 44: rättelser efter genomlysningen (stopp och fest)
 - Speakern: strukna löpare filtreras i urvalet av de 25 senaste (gav 500). Migratorn bokför per tagg (ny kolumn `tag`; äldre rader matchas på `when` eller hash och får taggen), kör varje saknad migration i journalordning oavsett `when`; journalens `idx` är nu 0..n (0014–0018 numrerades om).

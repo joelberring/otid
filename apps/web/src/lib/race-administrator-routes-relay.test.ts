@@ -27,6 +27,20 @@ describe("administratörsroutes: stafett", () => {
     expect((await raceAdministratorRoute(db, request("GET"), id, action, services, environment)).status).toBe(405);
   });
 
+  it("stort lag (steg 48): 30 sträckor × 4 löpare ryms i stafettens gräns för begäran", async () => {
+    const runners = Array.from({ length: 120 }, (_, index) => ({ givenName: `Löpare${index}`, familyName: "Ekström-Lindqvist",
+      organisationName: "Orienteringsklubben Test", cardNumber: String(8_100_000 + index) }));
+    const body = { formatVersion: 1 as const, requestId: id, classId: other, number: null, name: "OK Test 1", organisationName: "OK Test", runners };
+    expect(JSON.stringify(body).length).toBeGreaterThan(4 * 1024);
+    const receipt = { formatVersion: 1 as const, replayed: false, requestId: id, raceId: id, teamId: other, number: 1, request: body,
+      snapshotVersionAfter: 3, createdAt: "2026-10-04T12:00:00.000Z" };
+    const relayTeam = vi.fn<typeof import("@o-tid/application").registerRelayTeamAsAdmin>()
+      .mockResolvedValue({ status: "saved", response: receipt });
+    const saved = await raceAdministratorRoute(db, request("POST", JSON.stringify(body), { "idempotency-key": `relay-team:${id}` }),
+      id, { kind: "relay-team" }, { ...dependencies(), relayTeam }, environment);
+    expect(saved.status).toBe(200);
+  });
+
   it("lagvyn läses med GET och kvittot måste gälla tävlingen", async () => {
     const overview = { formatVersion: 1 as const, raceId: id, snapshotVersion: 2, timeZone: "Europe/Stockholm", classes: [], teams: [] };
     const relayOverview = vi.fn<typeof import("@o-tid/application").getRelayOverviewAsAdmin>()

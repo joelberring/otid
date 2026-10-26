@@ -143,6 +143,10 @@ export const readoutText = {
   // Stafett (ADR-0169 beslut 3).
   relayTeam: (number: number, name: string, leg: number, legCount: number) => `Lag ${number} ${name} · Sträcka ${leg} av ${legCount}`,
   relayNext: (leg: number) => `Växlar till sträcka ${leg}`,
+  relayTeamLegs: (number: number, name: string, legs: readonly number[], legCount: number) =>
+    `Lag ${number} ${name} · Sträcka ${legs.slice(0, -1).join(", ")} och ${legs.at(-1)} av ${legCount}`,
+  relayChangeoverMissing: (found: number, needed: number) =>
+    `Växlingsstämpling saknas: brickan har ${found} av ${needed}. Sträckan utan växling blir felstämplad – kontrollera med löparen.`,
   relayLast: "Sista sträckan",
   relayTeamTime: (time: string) => `Lagets tid ${time}`,
   relayTeamWaiting: "Lagets tid när alla sträckor är avlästa",

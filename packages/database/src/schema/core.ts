@@ -208,6 +208,8 @@ export const classes = pgTable("class", {
   relayRestartRanking: text("relay_restart_ranking").$type<"AFTER_NORMAL" | "BY_TIME">(),
   /** Stafett: utjämnad gaffling (EVEN, NULL = förval) eller fulgaffling (UNEVEN). */
   relayForking: text("relay_forking").$type<"EVEN" | "UNEVEN">(),
+  /** Steg 48 (migration 0022): teamsprint – växlingskontrollens kod. NULL = vanlig stafett. */
+  relayChangeoverCode: integer("relay_changeover_code"),
   externalSource: text("external_source"),
   externalId: text("external_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
@@ -240,6 +242,10 @@ export const entries = pgTable("entry", {
   /** Stafett (migration 0094): laget och sträckan som löparen springer. Båda NULL för individuella löpare. */
   teamId: uuid("team_id"),
   relayLeg: integer("relay_leg"),
+  /** Steg 48 (migration 0022): ordning inom sträckan (IOF LegOrder); NULL = 1. */
+  relayLegOrder: integer("relay_leg_order"),
+  /** Steg 48: teamsprint – sträcklöparen springer med brickan som sitter på denna deltagare (löparens första sträcka). */
+  relayCardEntryId: uuid("relay_card_entry_id"),
   externalSource: text("external_source"),
   externalId: text("external_id"),
   /** Eventors id för personen och klubben (migration 0004), för IOF-resultatets Person/Organisation Id. */

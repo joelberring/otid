@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, count, eq, inArray, isNull, ne } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import {
   relayClassEditIdempotencyKeySchema, relayClassEditPreviewSchema, relayClassEditRequestSchema, relayClassEditResponseSchema,
   relayLegVariantIdempotencyKeySchema, relayLegVariantRequestSchema, relayLegVariantResponseSchema,
@@ -119,6 +119,13 @@ export async function editRelayClassAsAdmin(db: Database, input: Input, now = ne
           .from(schema.classes).where(and(eq(schema.classes.id, intent.classId), eq(schema.classes.raceId, raceId)));
         if (!config || !raceClass) return { status: "not-found" };
         if (intent.name !== raceClass.name && await classNameTaken(tx, raceId, intent.name, raceClass.id)) return { status: "duplicate-name" };
+        // Steg 48: löpare per sträcka och teamsprint ändras bara innan lag är anmälda (lagens platser bygger på dem).
+        const [teamCount] = await tx.select({ value: count() }).from(schema.teams).where(eq(schema.teams.classId, raceClass.id));
+        const shapeChanged = intent.changeoverCode !== config.changeoverCode || intent.legs.some(leg => {
+          const old = config.legs.find(candidate => candidate.leg === leg.leg);
+          return old !== undefined && old.runners !== leg.runners;
+        }) || intent.legs.some(leg => leg.leg > config.legs.length && leg.runners !== 1);
+        if (shapeChanged && (teamCount?.value ?? 0) > 0) return { status: "invalid-request" };
         const legCourses = await resolveLegCourses(tx, raceId, raceClass.courseVersionId, intent.legs);
         if (legCourses === "not-found") return { status: "not-found" };
         if (legCourses === "invalid") return { status: "invalid-request" };
@@ -151,10 +158,12 @@ export async function editRelayClassAsAdmin(db: Database, input: Input, now = ne
           if (!old) { await tx.insert(schema.relayLegs).values(row); continue; }
           if ((old.courseVersionId ?? null) !== row.courseVersionId || old.variantCode !== row.courseVariantCode) replan.add(leg.leg);
           await tx.update(schema.relayLegs).set({ startMethod: row.startMethod, startTime: row.startTime, courseVariantCode: row.courseVariantCode,
-            courseVersionId: row.courseVersionId, restartAfterMinutes: row.restartAfterMinutes })
+            courseVersionId: row.courseVersionId, restartAfterMinutes: row.restartAfterMinutes, runners: row.runners,
+            changeoverRule: row.changeoverRule, approvalRule: row.approvalRule })
             .where(and(eq(schema.relayLegs.classId, raceClass.id), eq(schema.relayLegs.leg, leg.leg)));
         }
-        await tx.update(schema.classes).set({ name: intent.name, relayRestartRanking: intent.restartRanking, relayForking: intent.forking })
+        await tx.update(schema.classes).set({ name: intent.name, relayRestartRanking: intent.restartRanking, relayForking: intent.forking,
+          relayChangeoverCode: intent.changeoverCode })
           .where(eq(schema.classes.id, raceClass.id));
         // Nya sträckor får en vakant löpare per lag, som på en sträcka utan löpare från Eventor.
         if (addedLegs.length > 0) {
@@ -246,7 +255,7 @@ export async function changeRelayLegVariantAsAdmin(db: Database, input: Input, n
         const [entry] = await tx.select({ id: schema.entries.id, classId: schema.entries.classId, version: schema.entries.version,
           className: schema.classes.name }).from(schema.entries).innerJoin(schema.classes, eq(schema.classes.id, schema.entries.classId))
           .where(and(eq(schema.entries.raceId, raceId), eq(schema.entries.teamId, intent.teamId), eq(schema.entries.relayLeg, intent.leg),
-            isNull(schema.entries.struckAt))).for("update");
+            sql`coalesce(${schema.entries.relayLegOrder}, 1) = ${intent.legOrder}`, isNull(schema.entries.struckAt))).for("update");
         if (!entry) return { status: "not-found" };
         if (entry.version !== intent.expectedEntryVersion || entry.version >= MAX_VERSION) return { status: "conflict" };
         const config = (await loadRelayClassConfigs(tx, raceId)).get(entry.classId);

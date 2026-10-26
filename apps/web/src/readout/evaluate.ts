@@ -1,5 +1,5 @@
 import type { ReadoutPackage, SportidentReadoutPayload } from "@o-tid/contracts";
-import { cardPunchList, courseVariantForReadout, evaluateCardReadout, okWithoutSplits, prepareReadoutForEvaluation, startPunchNote, type CardPunchList, type EvaluationResult,
+import { cardPunchList, courseVariantForReadout, evaluateCardReadout, okWithoutSplits, prepareReadoutForEvaluation, startPunchNote, teamSprintChangeoverProblem, type CardPunchList, type EvaluationResult,
   type RaceSnapshot, type RogainingScore, type StartPunchNote } from "@o-tid/domain";
 import { localRelay, relaySnapshot, type LocalRelay } from "./relay";
 import type { QueuedRegistration } from "./store";
@@ -133,8 +133,13 @@ export function evaluateLocally(payload: SportidentReadoutPayload, pkg: ReadoutP
   const variant = result.entryId ? courseVariantForReadout(readout, snapshot) : undefined;
   const entry = result.entryId ? pkg.raceSnapshot.entries.find((candidate) => candidate.id === result.entryId) : undefined;
   const raceClass = result.classId ? pkg.raceSnapshot.classes.find((candidate) => candidate.id === result.classId) : undefined;
-  const relay = result.entryId && result.status !== "UNKNOWN_CARD" ? localRelay(pkg, result.entryId, { status: result.status,
+  const localTeam = result.entryId && result.status !== "UNKNOWN_CARD" ? localRelay(pkg, result.entryId, { status: result.status,
     ...(result.elapsedMs !== undefined ? { elapsedMs: result.elapsedMs } : {}) }, earlier) : undefined;
+  // Steg 48: teamsprint – saknas växlingsstämplingar på brickan sägs det tydligt (ADR-0174 beslut 7).
+  const sprint = entry?.teamSprint;
+  const missing = sprint && localTeam ? teamSprintChangeoverProblem(readout, { ...sprint, part: sprint.parts,
+    endsAtFinish: localTeam.legs.at(-1) === localTeam.legCount }) : undefined;
+  const relay = localTeam ? { ...localTeam, ...(missing ? { changeoverMissing: missing } : {}) } : undefined;
   const punchList = result.status === "MP" || result.status === "UNKNOWN_CARD"
     ? cardPunchList(readout, snapshot, result.entryId, pkg.event.timeZone) : undefined;
   const ignoredPunches = prepareReadoutForEvaluation(readout, snapshot).ignoredPunches;

@@ -16,12 +16,18 @@ type Writer = (db: RaceAdministratorRouteContext["db"], input: RaceAdministrator
   idempotencyKey: string; request: unknown }) => Promise<{ status: string; response?: unknown; preview?: RelayClassEditPreview }>;
 
 /** Samma ram för skrivningar med request-id: idempotensnyckel, kropp, tjänst och kontroll av kvittot. */
+/**
+ * Stafettens skrivningar kan vara stora: en klass med 30 sträckor och ett lag med upp till 30 × 4 löpare (namn, klubb och
+ * bricka per löpare). Den allmänna gränsen (4 KiB) räcker inte.
+ */
+export const RELAY_MAX_BODY_BYTES = 64 * 1024;
+
 export async function write(context: RaceAdministratorRouteContext, prefix: string, request: Parser, response: { parse(value: unknown): unknown },
-  service: Writer): Promise<Response> {
+  service: Writer, maxBytes?: number): Promise<Response> {
   const { db, raceId, proof } = context;
   const key = context.request.headers.get("idempotency-key");
   let body: unknown;
-  try { body = await readJsonBody(context.request); } catch { return failure(400, "INVALID_REQUEST"); }
+  try { body = await readJsonBody(context.request, maxBytes); } catch { return failure(400, "INVALID_REQUEST"); }
   const parsed = request.safeParse(body);
   if (!parsed.success || key !== `${prefix}:${parsed.data.requestId}`) return failure(400, "INVALID_REQUEST");
   const result = await service(db, { ...proof, raceId, idempotencyKey: key, request: parsed.data });
@@ -48,23 +54,23 @@ export async function handleRelayRoute(context: RaceAdministratorRouteContext): 
       return response.raceId === raceId ? json(response) : failure(500, "INTERNAL_ERROR");
     }
     case "relay-class":
-      return write(context, "relay-class", relayClassCreateRequestSchema, relayClassCreateResponseSchema, dependencies.relayClass);
+      return write(context, "relay-class", relayClassCreateRequestSchema, relayClassCreateResponseSchema, dependencies.relayClass, RELAY_MAX_BODY_BYTES);
     case "relay-team":
-      return write(context, "relay-team", relayTeamCreateRequestSchema, relayTeamCreateResponseSchema, dependencies.relayTeam);
+      return write(context, "relay-team", relayTeamCreateRequestSchema, relayTeamCreateResponseSchema, dependencies.relayTeam, RELAY_MAX_BODY_BYTES);
     case "relay-leg-runner":
-      return write(context, "relay-leg-runner", relayLegRunnerRequestSchema, relayLegRunnerResponseSchema, dependencies.relayLegRunner);
+      return write(context, "relay-leg-runner", relayLegRunnerRequestSchema, relayLegRunnerResponseSchema, dependencies.relayLegRunner, RELAY_MAX_BODY_BYTES);
     case "relay-start-times":
-      return write(context, "relay-start-times", relayStartTimesRequestSchema, relayStartTimesResponseSchema, dependencies.relayStartTimes);
+      return write(context, "relay-start-times", relayStartTimesRequestSchema, relayStartTimesResponseSchema, dependencies.relayStartTimes, RELAY_MAX_BODY_BYTES);
     case "relay-class-edit":
-      return write(context, "relay-class-edit", relayClassEditRequestSchema, relayClassEditResponseSchema, dependencies.relayClassEdit);
+      return write(context, "relay-class-edit", relayClassEditRequestSchema, relayClassEditResponseSchema, dependencies.relayClassEdit, RELAY_MAX_BODY_BYTES);
     case "relay-team-edit":
-      return write(context, "relay-team-edit", relayTeamEditRequestSchema, relayTeamEditResponseSchema, dependencies.relayTeamEdit);
+      return write(context, "relay-team-edit", relayTeamEditRequestSchema, relayTeamEditResponseSchema, dependencies.relayTeamEdit, RELAY_MAX_BODY_BYTES);
     case "relay-team-removal":
-      return write(context, "relay-team-removal", relayTeamRemovalRequestSchema, relayTeamRemovalResponseSchema, dependencies.relayTeamRemoval);
+      return write(context, "relay-team-removal", relayTeamRemovalRequestSchema, relayTeamRemovalResponseSchema, dependencies.relayTeamRemoval, RELAY_MAX_BODY_BYTES);
     case "relay-team-dns":
-      return write(context, "relay-team-dns", relayTeamDidNotStartRequestSchema, relayTeamDidNotStartResponseSchema, dependencies.relayTeamDns);
+      return write(context, "relay-team-dns", relayTeamDidNotStartRequestSchema, relayTeamDidNotStartResponseSchema, dependencies.relayTeamDns, RELAY_MAX_BODY_BYTES);
     case "relay-leg-variant":
-      return write(context, "relay-leg-variant", relayLegVariantRequestSchema, relayLegVariantResponseSchema, dependencies.relayLegVariant);
+      return write(context, "relay-leg-variant", relayLegVariantRequestSchema, relayLegVariantResponseSchema, dependencies.relayLegVariant, RELAY_MAX_BODY_BYTES);
     default:
       return undefined;
   }

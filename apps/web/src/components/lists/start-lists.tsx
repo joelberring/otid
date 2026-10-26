@@ -76,7 +76,7 @@ function ClassBlock({ raceClass, context }: { raceClass: StartClass; context: Co
           return <tbody key={number} className={styles.team}>
             <tr><th scope="rowgroup" colSpan={3 + (model.cards ? 1 : 0) + (variants ? 1 : 0) + 1}>
               {team && t.teamHeading(team.teamNumber, team.teamName)}{team?.teamClub && <span className={styles.muted}> · {team.teamClub}</span>}</th></tr>
-            {legs.map(entry => <tr key={`${number}-${entry.relay?.leg}`} className={styles.legRow}>
+            {legs.map((entry, index) => <tr key={`${number}-${entry.relay?.leg}-${index}`} className={styles.legRow}>
               <td className={styles.narrow}>{t.legShort(entry.relay?.leg ?? 0)}</td>
               <Name entry={entry} context={context} />
               <td className={styles.wideOnly}>{entry.club ?? ""}</td>

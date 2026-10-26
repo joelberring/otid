@@ -123,7 +123,7 @@ funktion lokalt; dess besked är preliminärt och serverns revision är auktorit
 
 ## Stafett (ADR-0169 beslut 3, ADR-0174)
 
-Koden finns i `packages/domain/src/relay.ts`, `relay-starts.ts` och `relay-forking.ts`.
+Koden finns i `packages/domain/src/relay.ts`, `relay-starts.ts`, `relay-forking.ts` och `relay-parallel.ts`.
 
 - En sträcka springer sin egen bana (`relay_leg.course_version_id`) eller klassens; `entryCourseVersionId` är regeln.
   Underlagshashen använder sträckans bana.
@@ -139,6 +139,15 @@ Koden finns i `packages/domain/src/relay.ts`, `relay-starts.ts` och `relay-forki
   transaktion; byter någon status visas först ett besked. En sträcka med resultat tas inte bort. Ett lag utan resultat tas
   bort helt; med resultat stryks det (`team.struck_at`, sträcklöparnas `entry.struck_at`).
 - Upp till 30 sträckor.
+- Flera löpare per sträcka (2–4, `relay_leg.runners`; löparens ordning `entry.relay_leg_order`, NULL = 1): sträckan växlar
+  när första i mål (förval) eller sista i mål (när alla har ett resultat, senaste måltiden) och är godkänd när alla är
+  godkända (förval) eller minst en. Sträckans tid är från sträckans start till växlingen.
+- Teamsprint: en bricka per löpare (sitter på löparens första sträcka; övriga sträckor pekar på den med
+  `entry.relay_card_entry_id`). Avläsningen delas vid klassens växlingskontroll (`class.relay_changeover_code`, dubbel
+  stämpling inom 60 s räknas en gång); del j bedöms mot löparens j:e sträcka från sträckans start och slutar vid den j:e
+  växlingsstämplingen, lagets sista sträcka vid målet. Saknad växlingsstämpling: delen får inget mål (felstämplad) och
+  beskedet "Växlingsstämpling saknas".
+- Klassynken upprepas tills inga starter ändras: en omräknad sträcka kan få ett mål och ge nästa sträcka en start.
 
 ## Lottning
 

@@ -1,7 +1,8 @@
 import { eq, inArray, sql } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
-import { relayClassLegStarts } from "@o-tid/domain";
-import { loadRelayClassConfigs, loadRelayLegEntries, loadRelayLegFinishTimes, loadRelayTeams, type RelayLegEntry } from "./relay-model";
+import { RELAY_MAX_LEGS, relayClassLegStarts, relayParallelChangeover, type StoredResultStatus } from "@o-tid/domain";
+import { loadRelayClassConfigs, loadRelayLegEntries, loadRelayLegFinishTimes, loadRelayLegResults, loadRelayTeams, type RelayClassConfig,
+  type RelayLegEntry } from "./relay-model";
 import { assessReadOutEntries, recalculateAssessedEntries } from "./result-reassessment";
 import { loadRaceSnapshot } from "./snapshot";
 
@@ -50,29 +51,46 @@ export async function synchronizeRelayClass(tx: Transaction, raceId: string, cla
   return synchronizeRelayClasses(tx, raceId, [classId], snapshotVersion);
 }
 
-/** Lagets växling ut från varje sträcka (sträckans måltid). */
-export function relayChangeovers(legs: readonly RelayLegEntry[], finishes: ReadonlyMap<string, string>): Map<number, string | undefined> {
-  return new Map(legs.map(entry => [entry.leg, finishes.get(entry.id)]));
+/**
+ * Lagets växling ut från varje sträcka: sträckans måltid, eller vid flera löpare på sträckan (steg 48) första eller sista
+ * löparens mål enligt sträckans regel.
+ */
+export function relayChangeovers(legs: readonly RelayLegEntry[], finishes: ReadonlyMap<string, string>, config?: RelayClassConfig,
+  statuses?: ReadonlyMap<string, StoredResultStatus>): Map<number, string | undefined> {
+  const byLeg = new Map<number, RelayLegEntry[]>();
+  for (const entry of legs) byLeg.set(entry.leg, [...byLeg.get(entry.leg) ?? [], entry]);
+  return new Map([...byLeg].map(([leg, runners]) => {
+    if (runners.length === 1) return [leg, finishes.get(runners[0]!.id)] as const;
+    const rule = config?.legs.find(row => row.leg === leg)?.changeoverRule ?? "FIRST";
+    return [leg, relayParallelChangeover(rule, runners.map(runner => ({ ...(finishes.has(runner.id) ? { finishTime: finishes.get(runner.id)! } : {}),
+      ...(statuses?.has(runner.id) ? { status: statuses.get(runner.id)! } : {}) })))] as const;
+  }));
 }
 
 export async function synchronizeRelayClasses(tx: Transaction, raceId: string, classIds: readonly string[],
   snapshotVersion: number): Promise<{ readonly changedStarts: number; readonly recalculated: number }> {
   if (classIds.length === 0) return { changedStarts: 0, recalculated: 0 };
-  const changed = await recomputeRelayStarts(tx, raceId, classIds);
-  if (changed.length === 0) return { changedStarts: 0, recalculated: 0 };
-  const snapshot = await loadRaceSnapshot(tx, raceId);
-  let recalculated = 0;
-  for (const classId of [...new Set(changed.map(row => row.classId))]) {
-    const raceClass = snapshot.classes.find(row => row.id === classId);
-    if (!raceClass) throw new Error("Stafettklassen saknas");
-    const changedIds = changed.filter(row => row.classId === classId).map(row => row.entryId);
-    const assessed = await assessReadOutEntries(tx, raceId, [{ id: classId, name: raceClass.name }], snapshot, snapshot, changedIds);
-    if (assessed === "too-large") throw new Error("Stafettklassen är för stor");
-    const rows = await recalculateAssessedEntries(tx, { raceId, assessed, snapshot, snapshotVersion,
-      courseVersionId: new Map([[classId, raceClass.courseVersionId]]) });
-    recalculated += rows.length;
+  // En omräknad sträcka kan få ett mål (t.ex. en avläsning som kom före föregående sträckas, eller teamsprintens del vars
+  // växling står på lagkamratens bricka) och därmed ge nästa sträcka en ny start: upprepa tills inga starter ändras.
+  // Varje varv fastställer minst en sträcka till, så antalet varv begränsas av antalet platser (30 sträckor × 4 löpare).
+  let changedStarts = 0, recalculated = 0;
+  for (let round = 0; round <= RELAY_MAX_LEGS * 4; round += 1) {
+    const changed = await recomputeRelayStarts(tx, raceId, classIds);
+    if (changed.length === 0) return { changedStarts, recalculated };
+    changedStarts += changed.length;
+    const snapshot = await loadRaceSnapshot(tx, raceId);
+    for (const classId of [...new Set(changed.map(row => row.classId))]) {
+      const raceClass = snapshot.classes.find(row => row.id === classId);
+      if (!raceClass) throw new Error("Stafettklassen saknas");
+      const changedIds = changed.filter(row => row.classId === classId).map(row => row.entryId);
+      const assessed = await assessReadOutEntries(tx, raceId, [{ id: classId, name: raceClass.name }], snapshot, snapshot, changedIds);
+      if (assessed === "too-large") throw new Error("Stafettklassen är för stor");
+      const rows = await recalculateAssessedEntries(tx, { raceId, assessed, snapshot, snapshotVersion,
+        courseVersionId: new Map([[classId, raceClass.courseVersionId]]) });
+      recalculated += rows.length;
+    }
   }
-  return { changedStarts: changed.length, recalculated };
+  throw new Error("Stafettens starter blev inte stabila");
 }
 
 /** Räknar och sparar sträckornas starttider i klasserna utan omräkning. Ger sträcklöparna som fick ny start. */
@@ -83,6 +101,8 @@ export async function recomputeRelayStarts(tx: Transaction, raceId: string, clas
   const teams = (await loadRelayTeams(tx, raceId)).filter(team => classIds.includes(team.classId));
   const entries = await loadRelayLegEntries(tx, raceId, teams.map(team => team.id));
   const finishes = await loadRelayLegFinishTimes(tx, raceId, entries.map(entry => entry.id));
+  // Steg 48: "sista i mål" kräver att alla löpare på sträckan har ett resultat.
+  const statuses = new Map([...await loadRelayLegResults(tx, raceId, entries.map(entry => entry.id))].map(([id, result]) => [id, result.status]));
   const changed: { entryId: string; classId: string }[] = [];
   for (const classId of classIds) {
     const config = configs.get(classId);
@@ -90,7 +110,7 @@ export async function recomputeRelayStarts(tx: Transaction, raceId: string, clas
     const classTeams = teams.filter(team => team.classId === classId);
     const legsByTeam = new Map(classTeams.map(team => [team.id, entries.filter(entry => entry.teamId === team.id)]));
     const starts = relayClassLegStarts(config.legs, classTeams.map(team => ({ key: team.id,
-      changeovers: relayChangeovers(legsByTeam.get(team.id)!, finishes) })));
+      changeovers: relayChangeovers(legsByTeam.get(team.id)!, finishes, config, statuses) })));
     for (const team of classTeams) {
       for (const entry of legsByTeam.get(team.id)!) {
         if (!config.legs.some(leg => leg.leg === entry.leg)) throw new Error("Sträckan saknas i stafettklassen");

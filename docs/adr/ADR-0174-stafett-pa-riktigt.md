@@ -70,3 +70,47 @@ Radiokontroller, Live och speakern tar med stafettlöpare (klassen "Klass · str
 sträcklöpare (rutt per sträcklöpare, samma sträcknycklar). Upp till 30 sträckor (25-manna med marginal).
 Mätt (integrationstest, 25 sträckor × 300 lag = 7 500 sträcklöpare, utvecklingsdator): första starterna 0,5–0,9 s,
 avläsning med klassynk 0,35 s, flyttad omstart 0,35–0,4 s, publik lagresultatlista 0,25 s.
+
+
+## Beslut (steg 48)
+
+### 6. Flera löpare per sträcka (parallella sträckor)
+En sträcka kan ha 2–4 löpare i samma lag (`relay_leg.runners`, migration 0022) som springer samtidigt, var och en med egen
+bricka och egen variant. Löparens plats inom sträckan är `entry.relay_leg_order` (IOF `LegOrder`; NULL = 1, så att
+befintliga sträcklöpare är oförändrade); det unika indexet är (lag, sträcka, ordning). Inställning per sträcka:
+- "Växlar när": första i mål (`FIRST`, förval) eller sista i mål (`LAST`: när alla löpare har ett resultat, den senaste
+  måltiden bland dem som gått i mål – en löpare som brutit utan mål hindrar alltså inte växlingen).
+- "Godkänt när": alla är godkända (`ALL`, förval) eller minst en är godkänd (`ANY`).
+Sträckans tid för laget är tiden från sträckans start till växlingen; nästa sträcka startar vid växlingen (eller i
+omstarten). Varje löpare bedöms som en individuell avläsning från sträckans start. Domänen: `relayParallelChangeover` och
+`relayParallelLegOutcome` (`relay-parallel.ts`).
+
+### 7. Teamsprint
+Praxis med SPORTident (IOF:s regler för sprintstafett och mixed sprint relay, och hur MeOS beskriver teamsprint): varje
+löpare har en egen bricka och springer flera sträckor; växlingen sker i ett växlingsområde där löparen stämplar en
+växlingskontroll (eller målenheten) när sträckan är slut och lagkamraten går ut. Brickan läses ut först efter löparens
+sista sträcka och innehåller då stämplingar från flera sträckor. MeOS delar avläsningen per sträcka med hjälp av banornas
+kontroller och växlingsstämplingen; O-Tid gör samma sak med en uttrycklig växlingskontroll:
+- Klassen har en växlingskontroll (`class.relay_changeover_code`). Varje sträckas bana slutar vid den (koden ingår inte i
+  banan); lagets sista sträcka slutar vid målet.
+- Sträcklöparen pekar på brickans ägare (`entry.relay_card_entry_id`, löparens första sträcka); brickan sitter bara där.
+- Avläsningen delas vid växlingsstämplingarna (dubbelstämpling inom 60 s räknas en gång): del j slutar vid löparens j:e
+  växlingsstämpling och bedöms mot löparens j:e sträcka med sträckans start (`teamSprintReadoutPart`). Delningen görs i
+  resultatmotorn, så avläsning, omräkning och avläsningsskalet använder samma regel.
+- Sträcka n startar när sträcka n−1 växlade, även när den tiden kommer från lagkamratens bricka (växlingen är den delens mål).
+- En felstämplad del gör bara den sträckan felstämplad. Lagets tid är summan av sträcktiderna, alltså sista målgång minus
+  start när ingen omstart skett.
+- Saknas en växlingsstämpling får delen inget mål (felstämplad, saknat mål) och avläsningen och lagkortet säger
+  "Växlingsstämpling saknas" (`teamSprintChangeoverProblem`) – aldrig ett tyst fel. Alternativet att dela på banornas
+  kontroller (utan växlingskontroll) valdes bort: det blir tvetydigt när sträckorna har gemensamma kontroller.
+- Mallen "Teamsprint" i stafettklassformuläret: två löpare × fyra sträckor (A på 1 och 3, B på 2 och 4) och växlingskontroll.
+
+### 8. Klassynk till stabila starter, IOF och begränsningar
+- Klassynken räknar starter, räknar om de sträckor som fick ny start och upprepar tills inga starter ändras (högst en
+  gång per plats). En omräknad sträcka kan nämligen få ett mål först då: teamsprintens del vars växling står på
+  lagkamratens bricka, eller en sträcka som lästes av före föregående sträcka på en annan avläsningsdator.
+- IOF EntryList: `TeamEntry` med `TeamEntryPerson` (`Leg`, `LegOrder`) blir lag i stafettklassen (klassens IOF-id, annars
+  samma namn); en plats utan person blir vakant, en okänd sträcka eller ordning ger en varning i rapporten. Startlistan
+  har en `TeamMemberStart` per löpare (samma `Leg` flera gånger) och resultatlistan `LegOrder` när sträckan har flera löpare.
+- Eventors eget lagformat (`TeamSequence`) läses inte än; lagen kommer via IOF EntryList. Löparna och växlingskontrollen
+  ändras bara innan lag finns i klassen (teamsprintens delning bygger på dem).

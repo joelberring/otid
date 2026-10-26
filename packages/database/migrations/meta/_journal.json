@@ -22,6 +22,7 @@
     { "idx": 17, "version": "7", "when": 1799078400000, "tag": "0018_sjalvregistrering", "breakpoints": true },
     { "idx": 18, "version": "7", "when": 1799164800000, "tag": "0019_stopp_och_fest", "breakpoints": true },
     { "idx": 19, "version": "7", "when": 1799251200000, "tag": "0020_rattelser_avlasning", "breakpoints": true },
-    { "idx": 20, "version": "7", "when": 1799337600000, "tag": "0021_stafett_banor_omstart", "breakpoints": true }
+    { "idx": 20, "version": "7", "when": 1799337600000, "tag": "0021_stafett_banor_omstart", "breakpoints": true },
+    { "idx": 21, "version": "7", "when": 1799424000000, "tag": "0022_flera_lopare_per_stracka", "breakpoints": true }
   ]
 }

@@ -28,6 +28,9 @@ export class EntryCardImportConflictError extends Error {}
 export class EntryIdentityImportConflictError extends Error {}
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { bumpReadoutPackageVersion } from "./snapshot";
+import { loadRelayClassConfigs } from "./relay-model";
+import { recomputeRelayStarts } from "./relay-sync";
+import { planNewRelayTeamVariants } from "./relay-variants";
 
 async function importCourses(tx: DbExecutor, raceId: string, parsed: CourseDataImport) {
   const versionByCourse = new Map<string, string>();
@@ -122,6 +125,58 @@ export async function importLegCourses(tx: DbExecutor, raceId: string, parsed: P
       .where(and(eq(schema.relayLegs.classId, raceClass.id), eq(schema.relayLegs.leg, assignment.leg)));
   }
   return warnings;
+}
+
+/**
+ * Steg 48: IOF EntryList `TeamEntry` – lag i en stafettklass (klassens IOF-id, annars samma namn) med en löpare per plats
+ * (`Leg`, `LegOrder`). Platser utan löpare blir vakanta. Ett lag som redan finns (samma IOF-id) hoppas över. Ett lag som inte
+ * passar klassen ger en varning i rapporten.
+ */
+async function importRelayTeams(tx: DbExecutor, raceId: string, parsed: EntryListImport): Promise<{ imported: number; warnings: string[] }> {
+  const warnings: string[] = [];
+  let imported = 0;
+  if (parsed.teams.length === 0) return { imported, warnings };
+  const configs = await loadRelayClassConfigs(tx, raceId);
+  const touched = new Set<string>();
+  for (const team of parsed.teams) {
+    const [byId] = await tx.select({ id: schema.classes.id }).from(schema.classes).where(and(eq(schema.classes.raceId, raceId),
+      eq(schema.classes.externalSource, "iof"), eq(schema.classes.externalId, team.classExternalId)));
+    const [byName] = byId ? [byId] : await tx.select({ id: schema.classes.id }).from(schema.classes)
+      .where(and(eq(schema.classes.raceId, raceId), sql`lower(${schema.classes.name}) = lower(${team.className})`));
+    const config = byName ? configs.get(byName.id) : undefined;
+    if (!config) { warnings.push(`Laget ${team.name}: ${team.className} är inte en stafettklass`); continue; }
+    const [existing] = await tx.select({ id: schema.teams.id }).from(schema.teams).where(and(eq(schema.teams.raceId, raceId),
+      eq(schema.teams.externalSource, "iof"), eq(schema.teams.externalId, team.externalId)));
+    if (existing) continue;
+    const slots = config.legs.flatMap(leg => Array.from({ length: leg.runners }, (_, order) => ({ leg: leg.leg, legOrder: order + 1 })));
+    if (team.members.some(member => !slots.some(slot => slot.leg === member.leg && slot.legOrder === member.legOrder))) {
+      warnings.push(`Laget ${team.name}: en löpare har en sträcka eller ordning som klassen inte har`); continue;
+    }
+    const [highest] = await tx.select({ value: max(schema.teams.number) }).from(schema.teams).where(eq(schema.teams.raceId, raceId));
+    const [taken] = team.bibNumber === undefined ? [] : await tx.select({ id: schema.teams.id }).from(schema.teams)
+      .where(and(eq(schema.teams.raceId, raceId), eq(schema.teams.number, team.bibNumber)));
+    const number = team.bibNumber !== undefined && !taken ? team.bibNumber : (highest?.value ?? 0) + 1;
+    const variants = await planNewRelayTeamVariants(tx, config);
+    const [created] = await tx.insert(schema.teams).values({ raceId, classId: config.classId, number, name: team.name,
+      organisationName: team.organisationName ?? null, externalSource: "iof", externalId: team.externalId }).returning({ id: schema.teams.id });
+    for (const slot of slots) {
+      const member = team.members.find(row => row.leg === slot.leg && row.legOrder === slot.legOrder);
+      const [entry] = await tx.insert(schema.entries).values({ raceId, classId: config.classId, teamId: created!.id, relayLeg: slot.leg,
+        relayLegOrder: slot.legOrder === 1 ? null : slot.legOrder, givenName: member?.givenName ?? "Vakant",
+        familyName: member?.familyName ?? `sträcka ${slot.leg}`, organisationName: member?.organisationName ?? team.organisationName ?? null,
+        courseVariantCode: variants.get(slot.leg) ?? null, version: 1 }).returning({ id: schema.entries.id });
+      if (member?.cardNumber) {
+        const [owner] = await tx.select({ id: schema.cardAssignments.id }).from(schema.cardAssignments).where(and(
+          eq(schema.cardAssignments.raceId, raceId), eq(schema.cardAssignments.active, true), eq(schema.cardAssignments.cardNumber, member.cardNumber)));
+        if (owner) warnings.push(`Laget ${team.name}: brickan ${member.cardNumber} används redan`);
+        else await tx.insert(schema.cardAssignments).values({ raceId, entryId: entry!.id, cardNumber: member.cardNumber });
+      }
+    }
+    touched.add(config.classId);
+    imported += 1;
+  }
+  for (const classId of touched) await recomputeRelayStarts(tx as Parameters<typeof recomputeRelayStarts>[0], raceId, [classId]);
+  return { imported, warnings };
 }
 
 const normalize = (value: string) => value.replace(/\s+/g, " ").trim().toLocaleLowerCase("sv-SE");
@@ -298,11 +353,12 @@ async function applyParsedImport(tx: DbExecutor, raceId: string, parsed: IofImpo
   }
   if (parsed.kind === "EntryList") {
     await importEntries(tx, raceId, parsed);
+    const teams = await importRelayTeams(tx, raceId, parsed);
     await assertRaceClassCapacities(tx, raceId);
     return { snapshotChanged: true, report: {
       kind: parsed.kind,
-      warnings: [...parsed.warnings],
-      imported: { entries: parsed.entries.length }
+      warnings: [...parsed.warnings, ...teams.warnings],
+      imported: { entries: parsed.entries.length, ...(parsed.teams.length > 0 ? { teams: teams.imported } : {}) }
     } };
   }
   const effect = await applyStartListImport(tx, raceId, parsed);

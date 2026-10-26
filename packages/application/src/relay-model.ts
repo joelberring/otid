@@ -1,6 +1,7 @@
-import { and, asc, desc, eq, getTableColumns, inArray, isNotNull, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
-import type { RelayForkingMode, RelayLegRule, RelayRestartRanking, RelayStartMethod, StoredResultStatus } from "@o-tid/domain";
+import type { RelayApprovalRule, RelayChangeoverRule, RelayForkingMode, RelayLegRule, RelayRestartRanking, RelayStartMethod,
+  StoredResultStatus } from "@o-tid/domain";
 import { parseAdministratorStoredResultHead } from "./administrator-effective-result";
 import { resolveStoredResultHeadStates } from "./result-revision-state";
 
@@ -15,6 +16,10 @@ export interface RelayLegConfig extends RelayLegRule {
   readonly variantCode: string | null;
   /** Steg 47: sträckans egen banversion; null = klassens. */
   readonly courseVersionId: string | null;
+  /** Steg 48: löpare på sträckan (1–4), när laget växlar och när sträckan är godkänd. */
+  readonly runners: number;
+  readonly changeoverRule: RelayChangeoverRule;
+  readonly approvalRule: RelayApprovalRule;
 }
 
 export interface RelayClassConfig {
@@ -25,6 +30,8 @@ export interface RelayClassConfig {
   readonly forking: RelayForkingMode;
   /** Klassens banversion, som gäller sträckor utan egen bana. */
   readonly classCourseVersionId: string;
+  /** Steg 48: teamsprint – växlingskontrollens kod; null = vanlig stafett. */
+  readonly changeoverCode: number | null;
 }
 
 /** Stafettklasserna i loppet med sträckor i ordning. En klass utan sträckor är individuell. */
@@ -33,14 +40,15 @@ export async function loadRelayClassConfigs(tx: Executor, raceId: string): Promi
     .orderBy(asc(schema.relayLegs.classId), asc(schema.relayLegs.leg));
   if (rows.length === 0) return new Map();
   const classRows = await tx.select({ id: schema.classes.id, courseVersionId: schema.classes.courseVersionId,
-    restartRanking: schema.classes.relayRestartRanking, forking: schema.classes.relayForking }).from(schema.classes)
+    restartRanking: schema.classes.relayRestartRanking, forking: schema.classes.relayForking,
+    changeoverCode: schema.classes.relayChangeoverCode }).from(schema.classes)
     .where(and(eq(schema.classes.raceId, raceId), inArray(schema.classes.id, [...new Set(rows.map(row => row.classId))])));
   const settings = new Map(classRows.map(row => [row.id, row]));
   const configs = new Map<string, RelayLegConfig[]>();
   for (const row of rows) {
     const legs = configs.get(row.classId) ?? [];
     legs.push({ leg: row.leg, startMethod: row.startMethod as RelayStartMethod, variantCode: row.courseVariantCode,
-      courseVersionId: row.courseVersionId,
+      courseVersionId: row.courseVersionId, runners: row.runners, changeoverRule: row.changeoverRule, approvalRule: row.approvalRule,
       ...(row.startTime ? { startTime: row.startTime.toISOString() } : {}),
       ...(row.restartAfterMinutes !== null ? { restartAfterMinutes: row.restartAfterMinutes } : {}) });
     configs.set(row.classId, legs);
@@ -48,7 +56,7 @@ export async function loadRelayClassConfigs(tx: Executor, raceId: string): Promi
   return new Map([...configs].map(([classId, legs]) => {
     const setting = settings.get(classId)!;
     return [classId, { classId, legs, restartRanking: setting.restartRanking ?? "AFTER_NORMAL", forking: setting.forking ?? "EVEN",
-      classCourseVersionId: setting.courseVersionId }];
+      classCourseVersionId: setting.courseVersionId, changeoverCode: setting.changeoverCode }];
   }));
 }
 
@@ -72,11 +80,12 @@ export async function loadRelayLegEntries(tx: Executor, raceId: string, teamIds?
   const rows = await tx.select({ id: schema.entries.id, classId: schema.entries.classId, teamId: schema.entries.teamId,
     leg: schema.entries.relayLeg, givenName: schema.entries.givenName, familyName: schema.entries.familyName,
     organisationName: schema.entries.organisationName, fixedStartTime: schema.entries.fixedStartTime, version: schema.entries.version,
-    courseVariantCode: schema.entries.courseVariantCode, publicResultId: schema.entries.publicResultId }).from(schema.entries)
+    courseVariantCode: schema.entries.courseVariantCode, publicResultId: schema.entries.publicResultId,
+    legOrder: schema.entries.relayLegOrder, cardEntryId: schema.entries.relayCardEntryId }).from(schema.entries)
     .where(and(eq(schema.entries.raceId, raceId), isNotNull(schema.entries.teamId), isNull(schema.entries.struckAt),
       ...(teamIds ? [inArray(schema.entries.teamId, [...teamIds])] : [])))
-    .orderBy(asc(schema.entries.teamId), asc(schema.entries.relayLeg));
-  return rows.map(row => ({ ...row, teamId: row.teamId!, leg: row.leg! }));
+    .orderBy(asc(schema.entries.teamId), asc(schema.entries.relayLeg), asc(sql`coalesce(${schema.entries.relayLegOrder}, 1)`));
+  return rows.map(row => ({ ...row, teamId: row.teamId!, leg: row.leg!, legOrder: row.legOrder ?? 1 }));
 }
 export type RelayLegEntry = Awaited<ReturnType<typeof loadRelayLegEntries>>[number];
 

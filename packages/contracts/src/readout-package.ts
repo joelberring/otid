@@ -101,6 +101,9 @@ const entrySchema = z.object({
   courseVariantCode: courseVariantCodeSchema.optional(),
   /** Steg 47: stafettsträckans egen bana. Saknas = klassens. */
   courseVersionId: uuidSchema.optional(),
+  /** Steg 48: teamsprint – sträckans del av löparens bricka. */
+  teamSprint: z.object({ part: z.number().int().min(1).max(30), parts: z.number().int().min(1).max(30),
+    changeoverCode: z.number().int().min(1).max(999), endsAtFinish: z.boolean() }).strict().optional(),
   externalIdentity: externalIdentitySchema.optional()
 }).strict();
 

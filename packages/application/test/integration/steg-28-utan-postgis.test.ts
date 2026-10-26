@@ -49,7 +49,8 @@ const extensionTypedColumns = (pool: Pool) => scalar(pool, `SELECT count(*)::tex
   WHERE c.relnamespace = 'public'::regnamespace AND a.attnum > 0 AND NOT a.attisdropped`);
 const fingerprint = (pool: Pool) => scalar(pool, `SELECT concat_ws('|',
   (SELECT count(*) FROM entry), (SELECT count(*) FROM card_readout), (SELECT count(*) FROM result_revision),
-  (SELECT md5(string_agg(e::text, ',' ORDER BY e.id)) FROM entry e),
+  -- Steg 48 (0022) lägger till sträckans ordning och teamsprintens brickägare (NULL för alla befintliga anmälda).
+  (SELECT md5(string_agg((to_jsonb(e) - 'relay_leg_order' - 'relay_card_entry_id')::text, ',' ORDER BY e.id)) FROM entry e),
   (SELECT md5(string_agg(r::text, ',' ORDER BY r.id)) FROM card_readout r),
   -- Steg 31 (0009) tar bort den oanvända kolumnen control_neutralization_id; övriga värden ska vara oförändrade.
   (SELECT md5(string_agg((to_jsonb(r) - 'control_neutralization_id')::text, ',' ORDER BY r.id)) FROM result_revision r)) AS value`);

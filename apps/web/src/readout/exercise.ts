@@ -1,7 +1,7 @@
 import type { ReadoutPackage } from "@o-tid/contracts";
 import { entryCourseControls, parseRaceClock, type RaceSnapshot } from "@o-tid/domain";
 import { cardTypeForNumber, simulatedRun, type SimulatedCard } from "@o-tid/sportident";
-import { relayExerciseWindow, relayPlace } from "./relay";
+import { relayExerciseWindow, relayPlace, teamSprintLegs } from "./relay";
 import { readoutText as t } from "./text-sv";
 
 /**
@@ -95,6 +95,33 @@ export function exerciseWindow(pkg: ReadoutPackage, runner: ExerciseRunner, vari
     return { startAt, finishAt };
   }
   return { startAt: new Date(finishedNow.getTime() - duration), finishAt: finishedNow };
+}
+
+/**
+ * Steg 48: teamsprint – en bricka för löparens alla sträckor. Varje sträcka stämplas i sitt eget fönster (som de andra
+ * sträcklöparna), med växlingskontrollen sist; lagets sista sträcka slutar med målstämplingen. "Missad kontroll" gäller
+ * löparens första sträcka. Undefined när löparen bara springer en sträcka.
+ */
+export function teamSprintExerciseCard(pkg: ReadoutPackage, runner: ExerciseRunner, variant: ExerciseVariant, now: Date):
+  { card: SimulatedCard; finishAt: Date } | undefined {
+  const entry = pkg.raceSnapshot.entries.find((candidate) => candidate.id === runner.entryId);
+  const sprint = entry?.teamSprint;
+  const legs = sprint && teamSprintLegs(pkg, runner.entryId);
+  if (!sprint || !legs) return undefined;
+  const parts = legs.legs.map((leg, index) => {
+    const window = relayExerciseWindow(pkg, leg.entryId, now);
+    const codes = entryCourseControls(pkg.raceSnapshot as RaceSnapshot, leg.entryId)?.controlCodes ?? [];
+    const final = leg.leg === legs.legCount;
+    const own = variant === "missing-control" && index === 0 && codes.length > 0
+      ? codes.filter((_, position) => position !== Math.floor(codes.length / 2)) : codes;
+    return { window, final, run: window && simulatedRun(runner.cardNumber, { startAt: window.startAt, finishAt: window.finishAt,
+      controlCodes: final ? own : [...own, sprint.changeoverCode], timeZone: pkg.event.timeZone }) };
+  });
+  if (parts.some((part) => !part.run || !part.window)) return undefined;
+  const last = parts.at(-1)!;
+  const card: SimulatedCard = { cardType: parts[0]!.run!.cardType, cardNumber: runner.cardNumber, ...(parts[0]!.run!.start ? { start: parts[0]!.run!.start } : {}),
+    ...(last.final && last.run!.finish ? { finish: last.run!.finish } : {}), punches: parts.flatMap((part) => part.run!.punches) };
+  return { card, finishAt: last.window!.finishAt };
 }
 
 /**

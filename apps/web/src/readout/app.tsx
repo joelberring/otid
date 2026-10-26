@@ -4,7 +4,7 @@ import { CP210X_USB_FILTERS, WebSerialTransport, WebUsbCp210xPort, type WebSeria
 import { SiTimeError, type SiCardData } from "@o-tid/sportident";
 import { accountCsrf, fetchReadoutPackage, searchRunnerDatabase } from "./api";
 import { evaluateLocally, formatRunningTime, withLocalRegistrations, type LocalVerdict } from "./evaluate";
-import { exerciseAnchor, exerciseCard, exerciseRunners, exerciseWindow, type ExerciseVariant } from "./exercise";
+import { exerciseAnchor, exerciseCard, exerciseRunners, exerciseWindow, teamSprintExerciseCard, type ExerciseVariant } from "./exercise";
 import { FakeStationTransport } from "./fake-transport";
 import { buildReadoutPayload, payloadHash } from "./payload";
 import { StationController, type StationFacts, type StationStatus } from "./station";
@@ -357,6 +357,9 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
       return;
     }
     if (!runner) return;
+    // Steg 48: teamsprint – brickan har alla löparens sträckor och växlingsstämplingar.
+    const sprint = variant === "ok" || variant === "missing-control" ? teamSprintExerciseCard(pkg, runner, variant, now) : undefined;
+    if (sprint) { transport.insert(sprint.card, new Date(sprint.finishAt.getTime() + 5_000)); return; }
     // Tiderna följer löparens starttid och tävlingsdagen; övningsstationens klocka ställs strax efter målgången.
     const window = exerciseWindow(pkg, runner, variant, now);
     transport.insert(exerciseCard(runner.cardNumber, runner.controlCodes, variant, now, pkg.event.timeZone, window),
@@ -741,10 +744,18 @@ function Rogaining({ score, elapsedMs, splits }: { score: NonNullable<LocalVerdi
 
 /** Stafett: "Lag 12 OK Test · Sträcka 2 av 3 · Växlar till sträcka 3", eller lagets tid på sista sträckan. */
 function RelayLine({ relay }: { relay: NonNullable<LocalVerdict["relay"]> }) {
-  const last = relay.leg === relay.legCount;
+  const own = relay.legs.at(-1) ?? relay.leg;
+  const last = own === relay.legCount;
   const team = relay.team;
-  const outcome = !last ? t.relayNext(relay.leg + 1)
+  const outcome = !last ? t.relayNext(own + 1)
     : team.status === "OK" && team.elapsedMs !== undefined ? `${t.relayLast} – ${t.relayTeamTime(formatRunningTime(team.elapsedMs))}`
       : team.status === "RUNNING" ? `${t.relayLast} – ${t.relayTeamWaiting}` : `${t.relayLast} – ${t.relayTeamStatus[team.status]}`;
-  return <p className="relay" data-testid="verdict-relay">{t.relayTeam(relay.teamNumber, relay.teamName, relay.leg, relay.legCount)} · {outcome}</p>;
+  // Steg 48: teamsprint – "Sträcka 1 och 3 av 4"; saknad växlingsstämpling sägs tydligt.
+  const legs = relay.legs.length > 1 ? t.relayTeamLegs(relay.teamNumber, relay.teamName, relay.legs, relay.legCount)
+    : t.relayTeam(relay.teamNumber, relay.teamName, relay.leg, relay.legCount);
+  return <>
+    <p className="relay" data-testid="verdict-relay">{legs} · {outcome}</p>
+    {relay.changeoverMissing ? <p role="alert" data-testid="verdict-changeover">
+      {t.relayChangeoverMissing(relay.changeoverMissing.found, relay.changeoverMissing.needed)}</p> : null}
+  </>;
 }

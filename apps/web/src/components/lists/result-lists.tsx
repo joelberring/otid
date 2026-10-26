@@ -180,13 +180,14 @@ function RelayBlock({ raceClass, context }: { raceClass: RelayClass; context: Co
             <td className={`${styles.num} ${styles.wideOnly} ${styles.muted}`}>{behind(team.timeBehindMs)}</td>
             <td className={`${styles.status} ${styles.statusCol}`} data-status={team.status}>{teamStatus(team)}</td>
           </tr>
-          {team.legs.map(leg => <tr key={leg.leg} className={styles.legRow}>
+          {team.legs.map(leg => <tr key={`${leg.leg}:${leg.legOrder}`} className={styles.legRow}>
             <td className={styles.place}>{t.legShort(leg.leg)}</td>
             <th scope="row">{context.links
               ? <Link href={`/results/${context.raceId}/participants/${leg.publicResultId}`}>{leg.givenName} {leg.familyName}</Link>
               : `${leg.givenName} ${leg.familyName}`}{leg.restarted && <span className={styles.muted}> · {t.restarted}</span>}
-              {(leg.courseName || leg.variantCode) && <span className={styles.sub}>
-                {[leg.courseName, leg.variantCode ? t.variant(leg.variantCode) : null].filter(Boolean).join(" · ")}</span>}</th>
+              {(leg.courseName || leg.variantCode || leg.changedOver) && <span className={styles.sub}>
+                {[leg.courseName, leg.variantCode ? t.variant(leg.variantCode) : null, leg.changedOver ? t.changedOver : null]
+                  .filter(Boolean).join(" · ")}</span>}</th>
             <td className={styles.num}>{leg.status === "OK" ? duration(leg.elapsedMs) : ""}
               {leg.legPosition !== null && <span className={styles.sub}>({leg.legPosition})</span>}</td>
             <td className={styles.wideOnly} />

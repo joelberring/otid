@@ -11,7 +11,12 @@ import { addCourseAndClass, createRace, logIn, openStep, publishRace, registerAc
  * Övningsstationen lägger sträckornas mål jämnt mellan masstarten och nu med fart per lag (lag 1 97 %, lag 2 94 %, lag 3 91 %),
  * så växlingstiderna går att räkna ut: sträcka k av n går i mål efter k/n av fönstret gånger lagets fart.
  */
-const TIME_ZONE = "Europe/Stockholm";
+/** Minuter efter midnatt i tidszonen. */
+function minutesOfDay(timeZone: string, now = new Date()) {
+  const [hour, minute] = new Intl.DateTimeFormat("sv-SE", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+    .format(now).split(":").map(Number) as [number, number];
+  return hour * 60 + minute;
+}
 
 /**
  * Dagens datum och klockslag `back` minuter bakåt (och plus `offset` minuter) i tävlingens tidszon. Masstarten ligger sex
@@ -30,13 +35,17 @@ function raceClock(back: number) {
 }
 
 /**
- * Testerna med växlingstider behöver ett fönster på sex timmar samma dag. Strax efter midnatt finns det inte (masstarten kan inte
- * läggas på gårdagen), så de testerna hoppas över före 06:05 i stället för att fallera av klockan.
+ * Testerna med växlingstider behöver ett fönster på sex timmar samma dag (masstarten kan inte läggas på gårdagen). Tävlingen
+ * läggs därför i Stockholm när det ryms och annars i New York (sex timmar efter); ryms det i ingen av dem (eller kan testet
+ * gå över midnatt) hoppas testet över i stället för att fallera av klockan.
  */
+const TIME_ZONE = ["Europe/Stockholm", "America/New_York"].find(zone => {
+  const minutes = minutesOfDay(zone);
+  return minutes >= BACK + 5 && minutes < 23 * 60 + 30;
+}) ?? "Europe/Stockholm";
 function needsFullWindow() {
-  const [hour, minute] = new Intl.DateTimeFormat("sv-SE", { timeZone: TIME_ZONE, hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
-    .format(new Date()).split(":").map(Number) as [number, number];
-  test.skip(hour * 60 + minute < BACK + 5, "Fönstret på sex timmar ryms inte i dygnet ännu (före 06:05)");
+  const minutes = minutesOfDay(TIME_ZONE);
+  test.skip(minutes < BACK + 5 || minutes >= 23 * 60 + 30, "Fönstret på sex timmar ryms inte i dygnet just nu");
 }
 
 async function compileRoutes(page: Page, raceId: string) {
@@ -104,7 +113,7 @@ test("stafett: kort bana på sträcka 2, omstart, placering efter omstart och ä
   const began = Date.now();
   const { date, clock } = raceClock(BACK);
   const owner = await registerAccount(browser, `stafett47.${suffix}@exempel.se`, "Sara Sträcka");
-  const raceId = await createRace(owner, `Banstafett ${suffix}`, date, "Stafett");
+  const raceId = await createRace(owner, `Banstafett ${suffix}`, date, "Stafett", TIME_ZONE);
   await publishRace(owner);
   await addCourseAndClass(owner, "Lång", "Långklass", "31 32 33 34");
   await addCourseAndClass(owner, "Kort", "Kortklass", "41 42");
@@ -180,7 +189,7 @@ test("linjestafett: egen bana per sträcka, flygande och fast omstart, avläsnin
   const { date, clock } = raceClock(BACK);
   const email = `linje47.${suffix}@exempel.se`;
   const owner = await registerAccount(browser, email, "Lina Linje");
-  const raceId = await createRace(owner, `Mot centrum ${suffix}`, date, "Stafett");
+  const raceId = await createRace(owner, `Mot centrum ${suffix}`, date, "Stafett", TIME_ZONE);
   await publishRace(owner);
   await addCourseAndClass(owner, "Rotebro–Sollentuna", "Etapp A", "31 32");
   await addCourseAndClass(owner, "Sollentuna–Haga", "Etapp B", "41 42");
@@ -258,7 +267,7 @@ test("25-manna: formuläret med 25 sträckor och resultatlistan, även på mobil
   const suffix = unique();
   const { date, clock } = raceClock(60);
   const owner = await registerAccount(browser, `manna25.${suffix}@exempel.se`, "Tor Tjugofem");
-  const raceId = await createRace(owner, `25-manna ${suffix}`, date, "Stafett");
+  const raceId = await createRace(owner, `25-manna ${suffix}`, date, "Stafett", TIME_ZONE);
   await publishRace(owner);
   await addCourseAndClass(owner, "Mannabana", "Träning", "31 32");
   await compileRoutes(owner, raceId);

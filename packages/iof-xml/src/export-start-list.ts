@@ -228,7 +228,8 @@ function validateTeam(value: unknown, path: string, issues: string[]): Validated
     void _leg;
     return { ...validateStart(rest, memberPath, issues), leg: typeof leg === "number" ? leg : 0 };
   });
-  if (members.some((member, index) => index > 0 && member.leg <= members[index - 1]!.leg)) issues.push(`${path}.members måste ha unika sträckor i ordning`);
+  // Steg 48: flera löpare kan ha samma sträcka (parallell sträcka); ordningen följer sträckorna.
+  if (members.some((member, index) => index > 0 && member.leg < members[index - 1]!.leg)) issues.push(`${path}.members måste ha sträckorna i ordning`);
   return {
     name: typeof value.name === "string" ? value.name : "",
     bibNumber: typeof value.bibNumber === "number" ? value.bibNumber : 0,

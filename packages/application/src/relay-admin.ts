@@ -4,14 +4,14 @@ import {
   relayLegRunnerIdempotencyKeySchema, relayLegRunnerRequestSchema, relayLegRunnerResponseSchema,
   relayStartTimesIdempotencyKeySchema, relayStartTimesRequestSchema, relayStartTimesResponseSchema,
   relayTeamCreateIdempotencyKeySchema, relayTeamCreateRequestSchema, relayTeamCreateResponseSchema,
-  type RelayClassCreateResponse, type RelayLegRunnerResponse, type RelayLegSetting, type RelayStartTimesResponse, type RelayTeamCreateResponse
+  type RelayClassCreateResponse, type RelayLegRunnerResponse, type RelayLegSetting, type RelayRunner, type RelayStartTimesResponse, type RelayTeamCreateResponse
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { relayLegRuleProblem, type RelayLegRule } from "@o-tid/domain";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation } from "./concurrency";
 import { loadCourseVersionVariants } from "./course-variants";
-import { loadRelayClassConfigs } from "./relay-model";
+import { loadRelayClassConfigs, type RelayClassConfig } from "./relay-model";
 import { synchronizeRelayClass, synchronizeRelayTeams } from "./relay-sync";
 import { planNewRelayTeamVariants } from "./relay-variants";
 import { classNameTaken } from "./duplicate-names";
@@ -103,7 +103,8 @@ export async function createRelayClassAsAdmin(db: Database, input: Authenticatio
     if (legCourses === "invalid") return { status: "invalid-request" };
     if (await classNameTaken(tx, raceId, intent.name)) return { status: "duplicate-name" };
     const [raceClass] = await tx.insert(schema.classes).values({ raceId, name: intent.name, courseVersionId: version,
-      startRule: "FIXED", relayRestartRanking: intent.restartRanking, relayForking: intent.forking }).returning({ id: schema.classes.id });
+      startRule: "FIXED", relayRestartRanking: intent.restartRanking, relayForking: intent.forking,
+      relayChangeoverCode: intent.changeoverCode }).returning({ id: schema.classes.id });
     if (!raceClass) throw new Error("Stafettklassen kunde inte skapas");
     await tx.insert(schema.relayLegs).values(intent.legs.map(leg => relayLegRow(raceClass.id, raceId, leg, legCourses.get(leg.leg) ?? null)));
     const response = relayClassCreateResponseSchema.parse({ formatVersion: 1, replayed: false, requestId: intent.requestId, raceId,
@@ -126,7 +127,8 @@ export async function registerRelayTeamAsAdmin(db: Database, input: Authenticati
   return mutate(db, input, "TEAM", intent, value => relayTeamCreateResponseSchema.parse(value), now, async (tx, raceId, snapshotVersionAfter) => {
     const config = (await loadRelayClassConfigs(tx, raceId)).get(intent.classId);
     if (!config) return { status: "not-found" };
-    if (intent.runners.length !== config.legs.length) return { status: "invalid-request" };
+    const slots = relayTeamSlots(config, intent.runners);
+    if (!slots) return { status: "invalid-request" };
     const cards = intent.runners.flatMap(runner => runner.cardNumber === null ? [] : [runner.cardNumber]);
     if (await cardsInUse(tx, raceId, cards)) return { status: "conflict" };
     const [highest] = await tx.select({ value: max(schema.teams.number) }).from(schema.teams).where(eq(schema.teams.raceId, raceId));
@@ -134,17 +136,23 @@ export async function registerRelayTeamAsAdmin(db: Database, input: Authenticati
     const [taken] = await tx.select({ id: schema.teams.id }).from(schema.teams)
       .where(and(eq(schema.teams.raceId, raceId), eq(schema.teams.number, number)));
     const [entryTotal] = await tx.select({ value: count() }).from(schema.entries).where(eq(schema.entries.raceId, raceId));
-    if (taken || number > 99_999 || (entryTotal?.value ?? 0) + config.legs.length > 10_000) return { status: "conflict" };
+    if (taken || number > 99_999 || (entryTotal?.value ?? 0) + slots.length > 10_000) return { status: "conflict" };
     // Steg 47: rättvis fördelning utifrån klassens befintliga lag, med sträckornas egna banor.
     const variants = await planNewRelayTeamVariants(tx, config);
     const [team] = await tx.insert(schema.teams).values({ raceId, classId: intent.classId, number, name: intent.name,
       organisationName: intent.organisationName }).returning({ id: schema.teams.id });
     if (!team) throw new Error("Laget kunde inte sparas");
-    for (const [index, runner] of intent.runners.entries()) {
-      const [entry] = await tx.insert(schema.entries).values({ raceId, classId: intent.classId, teamId: team.id, relayLeg: index + 1,
+    // Steg 48: en sträcklöpare per plats (sträcka, ordning); teamsprint pekar på brickans ägare (löparens första sträcka).
+    const entryOfLeg = new Map<number, string>();
+    for (const slot of slots) {
+      const runner = slot.runner;
+      const [entry] = await tx.insert(schema.entries).values({ raceId, classId: intent.classId, teamId: team.id, relayLeg: slot.leg,
+        relayLegOrder: slot.legOrder === 1 ? null : slot.legOrder,
+        relayCardEntryId: slot.sameAsLeg === null ? null : entryOfLeg.get(slot.sameAsLeg)!,
         givenName: runner.givenName, familyName: runner.familyName, organisationName: runner.organisationName ?? intent.organisationName,
-        courseVariantCode: variants.get(index + 1) ?? null, version: 1 }).returning({ id: schema.entries.id });
+        courseVariantCode: variants.get(slot.leg) ?? null, version: 1 }).returning({ id: schema.entries.id });
       if (!entry) throw new Error("Sträcklöparen kunde inte sparas");
+      if (slot.legOrder === 1) entryOfLeg.set(slot.leg, entry.id);
       if (runner.cardNumber !== null) await tx.insert(schema.cardAssignments).values({ raceId, entryId: entry.id, cardNumber: runner.cardNumber });
     }
     await synchronizeRelayTeams(tx, raceId, [team.id], snapshotVersionAfter);
@@ -168,7 +176,7 @@ export async function changeRelayLegRunnerAsAdmin(db: Database, input: Authentic
   return mutate(db, input, "LEG_RUNNER", intent, value => relayLegRunnerResponseSchema.parse(value), now, async (tx, raceId, snapshotVersionAfter) => {
     const [entry] = await tx.select({ id: schema.entries.id, classId: schema.entries.classId, version: schema.entries.version })
       .from(schema.entries).where(and(eq(schema.entries.raceId, raceId), eq(schema.entries.teamId, intent.teamId),
-        eq(schema.entries.relayLeg, intent.leg))).for("update");
+        eq(schema.entries.relayLeg, intent.leg), sql`coalesce(${schema.entries.relayLegOrder}, 1) = ${intent.legOrder}`)).for("update");
     if (!entry) return { status: "not-found" };
     if (entry.version !== intent.expectedEntryVersion || entry.version >= MAX_VERSION) return { status: "conflict" };
     const card = intent.runner.cardNumber;
@@ -216,6 +224,29 @@ export async function setRelayStartTimesAsAdmin(db: Database, input: Authenticat
   });
 }
 
+/**
+ * Steg 48: lagets platser (sträcka, ordning) ur begärans löpare. Utan `leg` tas platserna i tur och ordning
+ * (sträcka 1, sträcka 2 löpare 1, sträcka 2 löpare 2 …). Varje plats ska finnas en gång. `sameAsLeg` (teamsprint) kräver
+ * växlingskontroll, en tidigare sträcka med ensam löpare och ingen egen bricka. Ger undefined när löparna inte passar klassen.
+ */
+export function relayTeamSlots(config: RelayClassConfig, runners: readonly RelayRunner[]):
+  { leg: number; legOrder: number; sameAsLeg: number | null; runner: RelayRunner }[] | undefined {
+  const expected = config.legs.flatMap(leg => Array.from({ length: leg.runners }, (_, index) => ({ leg: leg.leg, legOrder: index + 1 })));
+  if (runners.length !== expected.length) return undefined;
+  const slots = runners.map((runner, index) => ({ leg: runner.leg ?? expected[index]!.leg, legOrder: runner.legOrder ?? (runner.leg === undefined
+    ? expected[index]!.legOrder : 1), sameAsLeg: runner.sameAsLeg ?? null, runner }));
+  const keys = new Set(slots.map(slot => `${slot.leg}:${slot.legOrder}`));
+  if (keys.size !== slots.length || expected.some(slot => !keys.has(`${slot.leg}:${slot.legOrder}`))) return undefined;
+  for (const slot of slots) {
+    if (slot.sameAsLeg === null) continue;
+    const target = config.legs.find(leg => leg.leg === slot.sameAsLeg);
+    const own = config.legs.find(leg => leg.leg === slot.leg)!;
+    if (config.changeoverCode === null || !target || slot.sameAsLeg >= slot.leg || target.runners !== 1 || own.runners !== 1 ||
+        slot.runner.cardNumber !== null || slots.some(other => other.leg === slot.sameAsLeg && other.sameAsLeg !== null)) return undefined;
+  }
+  return slots.sort((left, right) => left.leg - right.leg || left.legOrder - right.legOrder);
+}
+
 /** Sträckornas regler i domänens form. */
 export function relayLegRules(legs: readonly RelayLegSetting[]): RelayLegRule[] {
   return legs.map(leg => ({ leg: leg.leg, startMethod: leg.startMethod, ...(leg.startTime === null ? {} : { startTime: leg.startTime }),
@@ -255,5 +286,6 @@ export async function resolveLegCourses(tx: Transaction, raceId: string, classCo
 
 export function relayLegRow(classId: string, raceId: string, leg: RelayLegSetting, courseVersionId: string | null) {
   return { classId, raceId, leg: leg.leg, startMethod: leg.startMethod, startTime: leg.startTime === null ? null : new Date(leg.startTime),
-    courseVariantCode: leg.variantCode, courseVersionId, restartAfterMinutes: leg.restartAfterMinutes };
+    courseVariantCode: leg.variantCode, courseVersionId, restartAfterMinutes: leg.restartAfterMinutes, runners: leg.runners,
+    changeoverRule: leg.changeoverRule, approvalRule: leg.approvalRule };
 }

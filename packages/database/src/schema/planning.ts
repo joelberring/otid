@@ -135,7 +135,11 @@ export const relayLegs = pgTable("relay_leg", {
   /** Steg 47 (migration 0021): sträckans egen bana; NULL = klassens bana. */
   courseVersionId: uuid("course_version_id").references(() => courseVersions.id),
   /** Steg 47: flygande omstart, minuter efter ledarlagets växling till sträckan. */
-  restartAfterMinutes: integer("restart_after_minutes")
+  restartAfterMinutes: integer("restart_after_minutes"),
+  /** Steg 48 (migration 0022): löpare per sträcka (1–4), när laget växlar och när sträckan är godkänd. */
+  runners: integer("runners").notNull().default(1),
+  changeoverRule: text("changeover_rule").$type<"FIRST" | "LAST">().notNull().default("FIRST"),
+  approvalRule: text("approval_rule").$type<"ALL" | "ANY">().notNull().default("ALL")
 }, table => [
   primaryKey({ columns: [table.classId, table.leg] }),
   foreignKey({ name: "relay_leg_class_fk", columns: [table.classId, table.raceId], foreignColumns: [classes.id, classes.raceId] })

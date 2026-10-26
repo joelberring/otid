@@ -127,7 +127,14 @@ describe("serializeIofStartList", () => {
   it("avvisar stafettlag med sträckor i fel ordning", () => {
     expect(() => serializeIofStartList({ eventName: "Test", classes: [{ className: "Stafett", startRule: "FIXED", starts: [],
       teamStarts: [{ name: "Lag", bibNumber: 1, members: [{ leg: 2, givenName: "A", familyName: "B" }, { leg: 1, givenName: "C", familyName: "D" }] }] }] }))
-      .toThrowError(/sträckor i ordning/);
+      .toThrowError(/sträckorna i ordning/);
+  });
+
+  it("tar emot två löpare på samma sträcka (steg 48, parallell sträcka)", () => {
+    const xml = text(serializeIofStartList({ eventName: "Test", classes: [{ className: "Stafett", startRule: "FIXED", starts: [],
+      teamStarts: [{ name: "Lag", bibNumber: 1, members: [{ leg: 1, givenName: "A", familyName: "B" }, { leg: 1, givenName: "C", familyName: "D" },
+        { leg: 2, givenName: "E", familyName: "F" }] }] }] }));
+    expect(xml.match(/<Leg>1<\/Leg>/g)).toHaveLength(2);
   });
 
   it("avvisar gränser", () => {

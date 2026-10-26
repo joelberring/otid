@@ -37,7 +37,9 @@ export const iofEntryListImportReportSchema = z.object({
   kind: z.literal("EntryList"),
   warnings: z.array(warningSchema).max(100),
   imported: z.object({
-    entries: z.number().int().nonnegative()
+    entries: z.number().int().nonnegative(),
+    /** Steg 48: stafettlag ur TeamEntry. */
+    teams: z.number().int().nonnegative().optional()
   }).strict()
 }).strict();
 

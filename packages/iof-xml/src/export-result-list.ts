@@ -112,6 +112,8 @@ export type IofResultListPersonResult =
 /** Stafett: en sträcklöpares resultat. Placering och tid efter gäller sträckan (type="Leg"). */
 export interface IofResultListTeamMemberResult {
   readonly leg: number;
+  /** Steg 48: ordning inom sträckan (IOF LegOrder) när sträckan har flera löpare. */
+  readonly legOrder?: number;
   readonly result: IofResultListPersonResult;
 }
 
@@ -591,7 +593,7 @@ function serializeResult(
   lines: string[],
   result: IofResultListPersonResult,
   validated: ValidatedResult,
-  team?: { readonly indent: number; readonly leg: number; readonly overall?: IofResultListTeamResult }
+  team?: { readonly indent: number; readonly leg: number; readonly legOrder?: number; readonly overall?: IofResultListTeamResult }
 ): void {
   const base = team?.indent ?? 2;
   line(lines, base, team ? "<TeamMemberResult>" : "<PersonResult>");
@@ -615,6 +617,7 @@ function serializeResult(
   }
   line(lines, base + 1, "<Result>");
   if (team) line(lines, base + 2, `<Leg>${team.leg}</Leg>`);
+  if (team?.legOrder !== undefined) line(lines, base + 2, `<LegOrder>${team.legOrder}</LegOrder>`);
   if (validated.startTime) line(lines, base + 2, `<StartTime>${validated.startTime}</StartTime>`);
   if (validated.finishTime) line(lines, base + 2, `<FinishTime>${validated.finishTime}</FinishTime>`);
   if (result.elapsedMs !== undefined) {
@@ -686,9 +689,10 @@ function validateTeamResult(team: IofResultListTeamResult, path: string, issues:
     issues.push(`${path} får bara ha tid och placering när laget är godkänt`);
   }
   if (team.elapsedMs !== undefined) validateMilliseconds(team.elapsedMs, `${path}.elapsedMs`, issues);
-  const legs = team.members.map((member) => member.leg);
-  if (new Set(legs).size !== legs.length || legs.some((leg, index) => !Number.isSafeInteger(leg) || leg < 1 || leg > team.legCount ||
-      (index > 0 && leg <= legs[index - 1]!))) {
+  // Steg 48: flera löpare på samma sträcka har var sin ordning (LegOrder).
+  const legs = team.members.map((member) => member.leg * 10 + (member.legOrder ?? 1));
+  if (new Set(legs).size !== legs.length || team.members.some((member, index) => !Number.isSafeInteger(member.leg) || member.leg < 1 ||
+      member.leg > team.legCount || (index > 0 && legs[index]! <= legs[index - 1]!))) {
     issues.push(`${path}.members måste ha unika sträckor i ordning`);
   }
 }
@@ -705,6 +709,7 @@ function serializeTeam(lines: string[], team: IofResultListTeamResult, validated
   // Lagets resultat efter den senaste avlästa sträckan: tid och placering när laget är klart, annars status.
   for (const [index, member] of team.members.entries()) {
     serializeResult(lines, member.result, validated.get(member.result)!, { indent: 3, leg: member.leg,
+      ...(member.legOrder !== undefined ? { legOrder: member.legOrder } : {}),
       ...(index === team.members.length - 1 ? { overall: team } : {}) });
   }
   line(lines, 2, "</TeamResult>");

@@ -9,10 +9,10 @@ import { isDuplicateName } from "../../lib/duplicate-name";
 import { formatClockTime } from "../../lib/clock-time";
 import type { Base } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
-import { defaultLegs, relayLegSettings, type RelayActions, type RelayLegForm } from "./relay-actions";
+import { changeoverCodeOf, defaultLegs, relayLegSettings, type RelayActions, type RelayLegForm } from "./relay-actions";
 
 export type RelayTeamEditForm = { teamId: string; number: string; name: string; club: string };
-export type RelayVariantChange = { teamId: string; leg: number; code: string };
+export type RelayVariantChange = { teamId: string; leg: number; legOrder: number; code: string };
 
 /**
  * Steg 47 (ADR-0174) i arbetsytan: ändra stafettklassen (med besked i klartext innan resultat byter status), ändra,
@@ -81,7 +81,9 @@ export function createRelayEditActions(ws: Base & RaceDataActions & RelayActions
     setRelayRestartRanking(raceClass.restartRanking); setRelayForking(raceClass.forking);
     setRelayLegForms(raceClass.legs.map((leg): RelayLegForm => ({ method: leg.startMethod,
       time: leg.startTime ? formatClockTime(leg.startTime, relay.timeZone).slice(0, 5) : "", variant: leg.variantCode ?? "",
-      course: leg.courseId ?? "", minutes: leg.restartAfterMinutes === null ? "" : String(leg.restartAfterMinutes) })));
+      course: leg.courseId ?? "", minutes: leg.restartAfterMinutes === null ? "" : String(leg.restartAfterMinutes), runners: String(leg.runners),
+      changeoverRule: leg.changeoverRule, approvalRule: leg.approvalRule })));
+    ws.setRelayChangeoverCode(raceClass.changeoverCode === null ? "" : String(raceClass.changeoverCode));
   }
   function cancelRelayClassEdit() {
     if (pending.current) return;
@@ -94,9 +96,10 @@ export function createRelayEditActions(ws: Base & RaceDataActions & RelayActions
     let attempt = relayEditAttempt && relayEditAttempt.confirmResultChanges === confirm ? relayEditAttempt : undefined;
     if (!attempt) {
       const legs = relayLegSettings(relayLegForms, data.raceDate, data.timeZone);
-      if (!relayClassName.trim() || !legs) { setRelayMessage(text.classInvalid); return; }
+      const code = changeoverCodeOf(ws.relayChangeoverCode);
+      if (!relayClassName.trim() || !legs || code === undefined) { setRelayMessage(text.classInvalid); return; }
       attempt = { formatVersion: 1, requestId: crypto.randomUUID(), classId: relayEditClassId, name: relayClassName.trim(), legs,
-        restartRanking: ws.relayRestartRanking, forking: ws.relayForking, confirmResultChanges: confirm };
+        restartRanking: ws.relayRestartRanking, forking: ws.relayForking, confirmResultChanges: confirm, changeoverCode: code };
       setRelayEditAttempt(attempt);
     }
     const name = attempt.name;
@@ -158,17 +161,17 @@ export function createRelayEditActions(ws: Base & RaceDataActions & RelayActions
       receipt => text.teamDidNotStartSaved(team.number, (receipt as { didNotStartCount: number }).didNotStartCount));
   }
 
-  function chooseVariant(teamId: string, leg: number, code: string) {
+  function chooseVariant(teamId: string, leg: number, legOrder: number, code: string) {
     if (pending.current) return;
-    setVariantChange({ teamId, leg, code }); setVariantAttempt(undefined); setVariantPreview(undefined);
+    setVariantChange({ teamId, leg, legOrder, code }); setVariantAttempt(undefined); setVariantPreview(undefined);
   }
   async function saveVariantChange(confirm: boolean) {
     if (writingRef.current || pending.current || !requireSession() || !variantChange) return;
-    const leg = relay?.teams.find(row => row.id === variantChange.teamId)?.legs.find(row => row.leg === variantChange.leg);
+    const leg = relay?.teams.find(row => row.id === variantChange.teamId)?.legs.find(row => row.leg === variantChange.leg && row.legOrder === variantChange.legOrder);
     if (!leg || !variantChange.code) return;
     const attempt = variantAttempt && variantAttempt.confirmResultChanges === confirm ? variantAttempt
       : { formatVersion: 1 as const, requestId: crypto.randomUUID(), teamId: variantChange.teamId, leg: variantChange.leg,
-        expectedEntryVersion: leg.entryVersion, variantCode: variantChange.code, confirmResultChanges: confirm };
+        expectedEntryVersion: leg.entryVersion, variantCode: variantChange.code, confirmResultChanges: confirm, legOrder: variantChange.legOrder };
     setVariantAttempt(attempt);
     await sendConfirmable("/relay-leg-variant", "relay-leg-variant", attempt, value => relayLegVariantResponseSchema.parse(value),
       preview => setVariantPreview(preview), () => setVariantAttempt(undefined), () => {

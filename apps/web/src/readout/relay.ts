@@ -12,6 +12,9 @@ export interface LocalRelay {
   readonly teamNumber: number;
   readonly teamName: string;
   readonly leg: number;
+  /** Steg 48: teamsprint – alla sträckor som löparen springer med brickan, och saknade växlingsstämplingar. */
+  readonly legs: readonly number[];
+  readonly changeoverMissing?: { readonly needed: number; readonly found: number };
   readonly legCount: number;
   readonly team: RelayTeamResult;
 }
@@ -81,7 +84,9 @@ export function localRelay(pkg: ReadoutPackage, entryId: string, current: Omit<R
   if (!found || !legCount) return undefined;
   const outcomes = found.team.legs.map((leg) => leg.entryId === entryId ? { ...current, leg: leg.leg }
     : legOutcome(pkg, local, leg.entryId, leg.leg));
-  return { teamNumber: found.team.number, teamName: found.team.name, leg: found.leg, legCount, team: relayTeamResult(legCount, outcomes) };
+  const legs = [found.leg, ...found.team.legs.filter((leg) => leg.sameAsLeg === found.leg).map((leg) => leg.leg)].sort((a, b) => a - b);
+  return { teamNumber: found.team.number, teamName: found.team.name, leg: found.leg, legs, legCount,
+    team: relayTeamResult(legCount, outcomes) };
 }
 
 /**
@@ -100,6 +105,17 @@ export function relayExerciseWindow(pkg: ReadoutPackage, entryId: string, now: D
   const pace = 1 - 0.03 * (found.team.number % 5);
   const at = (fraction: number) => new Date(Date.parse(massStart) + Math.floor(window * pace * fraction / 1_000) * 1_000);
   return { startAt: at((found.leg - 1) / legs.length), finishAt: at(found.leg / legs.length) };
+}
+
+/** Steg 48: teamsprint – löparens sträckor (med brickans ägare först) och lagets antal sträckor. */
+export function teamSprintLegs(pkg: ReadoutPackage, entryId: string): { legs: { leg: number; entryId: string }[]; legCount: number } | undefined {
+  const relay = pkg.relay;
+  const found = relay && teamOf(relay, entryId);
+  const legCount = found && relay.classes.find((row) => row.classId === found.team.classId)?.legs.length;
+  if (!found || !legCount) return undefined;
+  const legs = found.team.legs.filter((leg) => leg.entryId === entryId || leg.sameAsLeg === found.leg)
+    .map((leg) => ({ leg: leg.leg, entryId: leg.entryId })).sort((a, b) => a.leg - b.leg);
+  return legs.length > 1 ? { legs, legCount } : undefined;
 }
 
 /** Lagets nummer och sträckan, för övningsstationens lista. */

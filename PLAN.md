@@ -783,6 +783,18 @@ ADR-0174 beslut 1–5. Migration 0021.
 - [x] Rättvis gaffling (utjämnad eller fulgaffling), kontroll per lag.
 - [x] Variant och omstart i resultatlistan, lagkortet och speakern; radio, Live och vägval för sträcklöpare. 30 sträckor.
 
+## [x] Steg 48 – Stafett: flera löpare per sträcka och teamsprint
+
+ADR-0174 beslut 6–8. Migration 0022.
+
+- [x] Parallella sträckor: 2–4 löpare per sträcka, växlar när första eller sista är i mål, godkänt när alla eller minst
+  en är godkända; IOF EntryList `TeamEntryPerson` med `Leg` och `LegOrder`, `LegOrder` i resultatlistan.
+- [x] Teamsprint: växlingskontroll, brickan delas per sträcka, felstämplad del, tydligt besked vid saknad växling; mallen
+  "Teamsprint (2 löpare × 4 sträckor)".
+- [x] Lagformuläret och lagkortet visar flera löpare och teamsprintens sträckor; resultatlistan löparna i ordning och vem
+  som växlade. Klassynken upprepas tills starterna är stabila.
+- [ ] Eventors lagformat (`TeamSequence`); längd per variant (steg 49).
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

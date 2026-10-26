@@ -26,6 +26,12 @@ export const relayStartMethodSchema = z.enum(["MASS_START", "CHANGEOVER", "RESTA
 export const relayRestartRankingSchema = z.enum(["AFTER_NORMAL", "BY_TIME"]);
 export const relayForkingSchema = z.enum(["EVEN", "UNEVEN"]);
 const restartAfter = z.number().int().min(1).max(720);
+/** Steg 48: flera löpare per sträcka och teamsprint. */
+export const relayChangeoverRuleSchema = z.enum(["FIRST", "LAST"]);
+export const relayApprovalRuleSchema = z.enum(["ALL", "ANY"]);
+const runnersPerLeg = z.number().int().min(1).max(4);
+const legOrder = z.number().int().min(1).max(4);
+const changeoverCode = z.number().int().min(1).max(999);
 export const relayTeamStatusSchema = z.enum(["OK", "OVERTIME", "MP", "DSQ", "DNF", "OOC", "NT", "DNS", "RUNNING"]);
 
 /**
@@ -34,7 +40,8 @@ export const relayTeamStatusSchema = z.enum(["OK", "OVERTIME", "MP", "DSQ", "DNF
  */
 export const relayLegSettingSchema = z.object({
   leg: legNumber, startMethod: relayStartMethodSchema, startTime: instant.nullable(), variantCode: courseVariantCodeSchema.nullable(),
-  courseId: uuid.nullable().default(null), restartAfterMinutes: restartAfter.nullable().default(null)
+  courseId: uuid.nullable().default(null), restartAfterMinutes: restartAfter.nullable().default(null),
+  runners: runnersPerLeg.default(1), changeoverRule: relayChangeoverRuleSchema.default("FIRST"), approvalRule: relayApprovalRuleSchema.default("ALL")
 }).strict()
   .refine(value => (value.startMethod === "CHANGEOVER" || value.startMethod === "FLYING_RESTART") === (value.startTime === null),
     "Masstart och omstart kräver en tid")
@@ -45,7 +52,9 @@ const legs = z.array(relayLegSettingSchema).min(2).max(MAX_LEGS).refine(value =>
 
 export const relayClassCreateRequestSchema = z.object({
   formatVersion: z.literal(1), requestId: uuid, name, courseId: uuid, legs,
-  restartRanking: relayRestartRankingSchema.default("AFTER_NORMAL"), forking: relayForkingSchema.default("EVEN")
+  restartRanking: relayRestartRankingSchema.default("AFTER_NORMAL"), forking: relayForkingSchema.default("EVEN"),
+  /** Steg 48: teamsprint – växlingskontrollens kod. */
+  changeoverCode: changeoverCode.nullable().default(null)
 }).strict();
 export const relayClassCreateIdempotencyKeySchema = z.string().regex(/^relay-class:[0-9a-f-]{36}$/);
 export const relayClassCreateResponseSchema = z.object({
@@ -53,12 +62,17 @@ export const relayClassCreateResponseSchema = z.object({
   request: relayClassCreateRequestSchema, snapshotVersionAfter: version, createdAt: instant
 }).strict();
 
-export const relayRunnerSchema = z.object({ givenName: person, familyName: person, organisationName: club, cardNumber: card }).strict();
+/**
+ * En sträcklöpare. Steg 48: `leg`/`legOrder` (förval: platsen i listan och 1) för flera löpare per sträcka, och `sameAsLeg`
+ * för teamsprint – löparen springer också sträckan `sameAsLeg` och använder brickan därifrån (ingen egen bricka).
+ */
+export const relayRunnerSchema = z.object({ givenName: person, familyName: person, organisationName: club, cardNumber: card,
+  leg: legNumber.optional(), legOrder: legOrder.optional(), sameAsLeg: legNumber.nullable().optional() }).strict();
 
 export const relayTeamCreateRequestSchema = z.object({
   formatVersion: z.literal(1), requestId: uuid, classId: uuid,
   /** null = nästa lediga lagnummer. */
-  number: teamNumber.nullable(), name, organisationName: club, runners: z.array(relayRunnerSchema).min(2).max(MAX_LEGS)
+  number: teamNumber.nullable(), name, organisationName: club, runners: z.array(relayRunnerSchema).min(2).max(MAX_LEGS * 4)
 }).strict().refine(value => {
   const cards = value.runners.flatMap(runner => runner.cardNumber === null ? [] : [runner.cardNumber]);
   return new Set(cards).size === cards.length;
@@ -71,7 +85,9 @@ export const relayTeamCreateResponseSchema = z.object({
 
 export const relayLegRunnerRequestSchema = z.object({
   formatVersion: z.literal(1), requestId: uuid, teamId: uuid, leg: legNumber,
-  expectedEntryVersion: version, runner: relayRunnerSchema
+  expectedEntryVersion: version, runner: relayRunnerSchema,
+  /** Steg 48: löparen inom sträckan. */
+  legOrder: legOrder.default(1)
 }).strict();
 export const relayLegRunnerIdempotencyKeySchema = z.string().regex(/^relay-leg-runner:[0-9a-f-]{36}$/);
 export const relayLegRunnerResponseSchema = z.object({
@@ -95,7 +111,9 @@ const overviewLeg = z.object({
   variantCode: courseVariantCodeSchema.nullable(), startTime: instant.nullable(), status: resultStatus.nullable(),
   elapsedMs: milliseconds.nullable(), restarted: z.boolean(),
   /** Steg 47: sträckans måltid (växlingen ut) och om sträckan har ett resultat som går att ändra. */
-  finishTime: instant.nullable(), hasResult: z.boolean(), resultRevision: z.number().int().min(0).max(2_147_483_647)
+  finishTime: instant.nullable(), hasResult: z.boolean(), resultRevision: z.number().int().min(0).max(2_147_483_647),
+  /** Steg 48: ordning inom sträckan, löparen som växlade, teamsprint (sträckan där löparens bricka sitter) och saknad växling. */
+  legOrder, changedOver: z.boolean(), sameAsLeg: legNumber.nullable(), changeoverMissing: z.boolean()
 }).strict();
 
 const fairnessPoint = z.union([z.literal("START"), z.literal("FINISH"), z.number().int().min(1).max(999)]);
@@ -114,12 +132,13 @@ export const relayOverviewSchema = z.object({
     restarts: z.array(z.object({ leg: legNumber, time: instant.nullable(), leaderChangeover: instant.nullable(),
       leaderTeamNumber: teamNumber.nullable(), restartAfterMinutes: restartAfter.nullable() }).strict()).max(MAX_LEGS),
     unfairTeams: z.array(z.object({ teamId: uuid, missing: z.array(fairnessLeg).max(200), extra: z.array(fairnessLeg).max(200) }).strict())
-      .max(10_000)
+      .max(10_000),
+    changeoverCode: changeoverCode.nullable()
   }).strict()).max(1000),
   teams: z.array(z.object({
     id: uuid, classId: uuid, number: teamNumber, name, organisationName: z.string().max(200).nullable(),
     status: relayTeamStatusSchema, elapsedMs: milliseconds.nullable(), position: z.number().int().positive().nullable(),
-    currentLeg: legNumber.nullable(), legs: z.array(overviewLeg).max(MAX_LEGS),
+    currentLeg: legNumber.nullable(), legs: z.array(overviewLeg).max(MAX_LEGS * 4),
     /** Steg 47: laget har deltagit i en omstart; laget har något resultat (kan då bara strykas). */
     restarted: z.boolean(), hasResult: z.boolean()
   }).strict()).max(10_000)
@@ -130,7 +149,9 @@ const publicLeg = z.object({
   publicResultId: uuid, status: resultStatus.nullable(), elapsedMs: milliseconds.nullable(),
   legPosition: z.number().int().positive().nullable(), restarted: z.boolean(), variantCode: courseVariantCodeSchema.nullable(),
   /** Steg 47: sträckans bana när den inte är klassens. */
-  courseName: z.string().max(160).nullable()
+  courseName: z.string().max(160).nullable(),
+  /** Steg 48: ordning inom sträckan och om löparen växlade (vid flera löpare på sträckan). */
+  legOrder, changedOver: z.boolean()
 }).strict();
 
 /** Publika stafettresultat: lagresultat per klass med sträckorna och sträckresultat per sträcka. */
@@ -141,7 +162,7 @@ export const publicRelayResultsSchema = z.object({
     teams: z.array(z.object({
       number: teamNumber, name, organisationName: z.string().max(200).nullable(), status: relayTeamStatusSchema,
       elapsedMs: milliseconds.nullable(), position: z.number().int().positive().nullable(), timeBehindMs: milliseconds.nullable(),
-      currentLeg: legNumber.nullable(), legs: z.array(publicLeg).max(MAX_LEGS), restarted: z.boolean()
+      currentLeg: legNumber.nullable(), legs: z.array(publicLeg).max(MAX_LEGS * 4), restarted: z.boolean()
     }).strict()).max(10_000),
     legs: z.array(z.object({
       leg: legNumber,
@@ -162,10 +183,12 @@ export const publicRelayResultsSchema = z.object({
 export const relayReadoutSchema = z.object({
   classes: z.array(z.object({ classId: uuid, legs: z.array(z.object({
     leg: legNumber, startMethod: relayStartMethodSchema, startTime: z.iso.datetime({ offset: true }).nullable(),
-    restartAfterMinutes: restartAfter.nullable().default(null) }).strict()).min(2).max(MAX_LEGS)
+    restartAfterMinutes: restartAfter.nullable().default(null), changeoverRule: relayChangeoverRuleSchema.default("FIRST")
+  }).strict()).min(2).max(MAX_LEGS)
   }).strict()).max(1000),
   teams: z.array(z.object({ id: uuid, classId: uuid, number: teamNumber, name,
-    legs: z.array(z.object({ leg: legNumber, entryId: uuid }).strict()).max(MAX_LEGS) }).strict()).max(10_000),
+    legs: z.array(z.object({ leg: legNumber, entryId: uuid, legOrder: legOrder.default(1), sameAsLeg: legNumber.nullable().default(null) })
+      .strict()).max(MAX_LEGS * 4) }).strict()).max(10_000),
   legResults: z.array(z.object({ entryId: uuid, status: resultStatus, finishTime: z.iso.datetime({ offset: true }).nullable(),
     elapsedMs: milliseconds.nullable() }).strict()).max(10_000)
 }).strict();
@@ -173,7 +196,8 @@ export const relayReadoutSchema = z.object({
 /** Steg 47: ändra stafettklassen (namn, sträckor, startsätt och tider, bana och variant per sträcka, inställningar). */
 export const relayClassEditRequestSchema = z.object({
   formatVersion: z.literal(1), requestId: uuid, classId: uuid, name, legs,
-  restartRanking: relayRestartRankingSchema, forking: relayForkingSchema, confirmResultChanges: z.boolean()
+  restartRanking: relayRestartRankingSchema, forking: relayForkingSchema, confirmResultChanges: z.boolean(),
+  changeoverCode: changeoverCode.nullable().default(null)
 }).strict();
 export const relayClassEditIdempotencyKeySchema = z.string().regex(/^relay-class-edit:[0-9a-f-]{36}$/);
 const statusChange = z.object({ displayName: z.string().min(1).max(400), leg: legNumber, teamNumber,
@@ -225,7 +249,7 @@ export const relayTeamDidNotStartResponseSchema = z.object({
 /** Steg 47: byt variant på en sträcka för ett lag (lagkortet); en avläst sträcka räknas om. */
 export const relayLegVariantRequestSchema = z.object({
   formatVersion: z.literal(1), requestId: uuid, teamId: uuid, leg: legNumber, expectedEntryVersion: version,
-  variantCode: courseVariantCodeSchema, confirmResultChanges: z.boolean()
+  variantCode: courseVariantCodeSchema, confirmResultChanges: z.boolean(), legOrder: legOrder.default(1)
 }).strict();
 export const relayLegVariantIdempotencyKeySchema = z.string().regex(/^relay-leg-variant:[0-9a-f-]{36}$/);
 export const relayLegVariantResponseSchema = z.object({

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import {
   deviceBatchAcknowledgementSchema,
   deviceBatchSchema,
@@ -11,12 +11,12 @@ import {
 } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
 import { schema } from "@o-tid/database";
-import { RESULT_ENGINE_VERSION, type EvaluationResult } from "@o-tid/domain";
+import { evaluateReadoutForEntry, RESULT_ENGINE_VERSION, type EvaluationResult } from "@o-tid/domain";
 import { cardAlreadyReadOutBy } from "./card-reuse";
 import { lockRaceForSnapshot } from "./concurrency";
 import { contentHash, evaluationHash as hashEvaluation } from "./serialization";
 import { loadRaceSnapshot, type DbExecutor } from "./snapshot";
-import { evaluateAndStore, normalizedReadout } from "./result-revisions";
+import { appendResultRevision, evaluateAndStore, normalizedReadout } from "./result-revisions";
 import { relayTeamOfEntry } from "./relay-model";
 import { lockRelayClassOfEntry, synchronizeRelayTeams } from "./relay-sync";
 
@@ -129,7 +129,17 @@ export async function storeIngestedReadout(tx: IngestTransaction, raceId: string
     const entryId = stored.revision.entryId;
     // Stafett: sträckans måltid ger nästa sträckas start; senare sträckor räknas om vid behov.
     const teamId = await relayTeamOfEntry(tx, entryId);
-    if (teamId) await synchronizeRelayTeams(tx, raceId, [teamId], snapshot.race.snapshotVersion);
+    if (teamId) {
+      // Steg 48: teamsprint – löparens övriga sträckor bedöms mot sina delar av samma bricka.
+      for (const sibling of await tx.select({ id: schema.entries.id }).from(schema.entries)
+        .where(and(eq(schema.entries.relayCardEntryId, entryId), isNull(schema.entries.struckAt))).orderBy(asc(schema.entries.relayLeg))) {
+        const part = evaluateReadoutForEntry(normalized, snapshot, sibling.id);
+        if (part.entryId !== sibling.id || !part.courseVersionId) continue;
+        await appendResultRevision(tx, { raceId, entryId: sibling.id, readoutId: readoutRow.id, cause: "CARD_READOUT", outcome: part,
+          engineVersion: RESULT_ENGINE_VERSION, snapshotVersion: snapshot.race.snapshotVersion, courseVersionId: part.courseVersionId });
+      }
+      await synchronizeRelayTeams(tx, raceId, [teamId], snapshot.race.snapshotVersion);
+    }
     serverResult = serverResultSummarySchema.parse({
       resultRevisionId: stored.revision.id,
       revision,

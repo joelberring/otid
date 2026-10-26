@@ -50,8 +50,9 @@ export function RelayTeams({ ws, visible }: { ws: Workspace; visible: boolean })
             <td><button type="button" className={styles.participant} disabled={disabled} aria-label={text.openTeam(team.number, team.name)}
               aria-pressed={team.id === selectedTeamId} onClick={() => openTeam(team.id)}>{team.name}</button>
               <span className={relayStyles.muted}>{team.organisationName ?? ""}</span></td>
-            <td><ol className={relayStyles.legList}>{team.legs.map(leg => <li key={leg.leg}>
-              <span className={relayStyles.legNumber}>{leg.leg}.</span><span>{leg.givenName} {leg.familyName}</span>
+            <td><ol className={relayStyles.legList}>{team.legs.map(leg => <li key={`${leg.leg}:${leg.legOrder}`}>
+              <span className={relayStyles.legNumber}>{leg.legOrder > 1 ? `${leg.leg}:${leg.legOrder}` : `${leg.leg}.`}</span>
+              <span>{leg.givenName} {leg.familyName}</span>
               <span className={relayStyles.muted}>{leg.cardNumber ?? text.noCard}{leg.variantCode ? ` · ${leg.variantCode}` : ""}</span>
             </li>)}</ol></td>
             <td><span className={relayStyles.status} data-status={team.status}>{teamStatusText(team)}</span></td>
@@ -81,19 +82,24 @@ function TeamCard({ ws, team }: { ws: Workspace; team: Team }) {
         <th scope="col">{text.legStart}</th><th scope="col">{text.legResult}</th><th scope="col"><span className={styles.visuallyHidden}>{text.actions}</span></th></tr></thead>
       <tbody>{team.legs.map(leg => {
         const course = raceClass?.legCourses.find(row => row.leg === leg.leg);
-        const choosing = variantChange?.teamId === team.id && variantChange.leg === leg.leg;
-        return <tr key={leg.leg}>
-          <th scope="row">{text.leg(leg.leg)}<span className={relayStyles.muted}>{course && raceClass && course.courseId !== raceClass.courseId
-            ? ` · ${course.courseName}` : ""}{leg.variantCode ? ` · ${leg.variantCode}` : ""}</span></th>
+        const parallel = (raceClass?.legs.find(row => row.leg === leg.leg)?.runners ?? 1) > 1;
+        const choosing = variantChange?.teamId === team.id && variantChange.leg === leg.leg && variantChange.legOrder === leg.legOrder;
+        return <tr key={`${leg.leg}:${leg.legOrder}`}>
+          <th scope="row">{parallel ? text.legRunner(leg.leg, leg.legOrder) : text.leg(leg.leg)}
+            <span className={relayStyles.muted}>{course && raceClass && course.courseId !== raceClass.courseId
+            ? ` · ${course.courseName}` : ""}{leg.variantCode ? ` · ${leg.variantCode}` : ""}
+            {leg.sameAsLeg !== null ? ` · ${text.sameRunnerAs(leg.sameAsLeg)}` : ""}{parallel && leg.changedOver ? ` · ${text.changedOver}` : ""}</span></th>
           <td>{leg.givenName} {leg.familyName}<span className={relayStyles.muted}> {leg.organisationName ?? ""}</span></td>
           <td>{leg.cardNumber ?? text.noCard}</td>
           <td>{leg.startTime ? formatClockTime(leg.startTime, timeZone) : text.waitingStart}{leg.restarted ? ` · ${text.restarted}` : ""}</td>
           <td>{leg.status ? <span className={relayStyles.status} data-status={leg.status}>{sv.publicResultsStatusLabels[leg.status]}
-            {leg.elapsedMs !== null ? ` · ${resultDuration(leg.elapsedMs)}` : ""}</span> : "–"}</td>
+            {leg.elapsedMs !== null ? ` · ${resultDuration(leg.elapsedMs)}` : ""}</span> : "–"}
+            {leg.changeoverMissing && <strong className={relayStyles.status} data-status="MP"> · {text.changeoverMissing}</strong>}</td>
           <td className={relayStyles.legActions}>
-            <button type="button" className="secondary" disabled={locked} onClick={() => startRunnerChange(team.id, leg.leg)}>{text.changeRunner(leg.leg)}</button>
-            {course && course.variants.length > 1 && <label>{text.legVariant(leg.leg)}<select disabled={locked || (!!variantChange && !choosing)}
-              value={choosing ? variantChange.code : leg.variantCode ?? ""} onChange={event => chooseVariant(team.id, leg.leg, event.target.value)}>
+            <button type="button" className="secondary" disabled={locked} onClick={() => startRunnerChange(team.id, leg.leg, leg.legOrder)}>
+              {parallel ? text.changeRunnerOrder(leg.leg, leg.legOrder) : text.changeRunner(leg.leg)}</button>
+            {course && course.variants.length > 1 && <label>{parallel ? text.legRunnerVariant(leg.leg, leg.legOrder) : text.legVariant(leg.leg)}<select disabled={locked || (!!variantChange && !choosing)}
+              value={choosing ? variantChange.code : leg.variantCode ?? ""} onChange={event => chooseVariant(team.id, leg.leg, leg.legOrder, event.target.value)}>
               {leg.variantCode === null && <option value="">–</option>}
               {course.variants.map(code => <option key={code} value={code}>{code}</option>)}
             </select></label>}
@@ -188,15 +194,21 @@ function NewTeam({ ws, relay }: { ws: Workspace; relay: RelayOverview }) {
         <label htmlFor={`${id}-club`}>{text.teamClub}<input id={`${id}-club`} value={teamClub} maxLength={200} autoComplete="off"
           disabled={locked} onChange={event => setTeamClub(event.target.value)} /></label>
       </div>
-      {teamRunners.length > 0 && <div className={relayStyles.runners}>{teamRunners.map((runner, index) => <div key={index} className={relayStyles.runner}>
-        <span className={relayStyles.legName}>{text.leg(index + 1)}</span>
-        <label>{text.givenName(index + 1)}<input value={runner.givenName} maxLength={160} required autoComplete="off" disabled={locked}
-          onChange={event => changeTeamRunner(index, { givenName: event.target.value })} /></label>
-        <label>{text.familyName(index + 1)}<input value={runner.familyName} maxLength={160} required autoComplete="off" disabled={locked}
-          onChange={event => changeTeamRunner(index, { familyName: event.target.value })} /></label>
-        <label>{text.card(index + 1)}<input value={runner.card} inputMode="numeric" autoComplete="off" disabled={locked}
-          onChange={event => changeTeamRunner(index, { card: event.target.value })} /></label>
-      </div>)}</div>}
+      {teamRunners.length > 0 && <div className={relayStyles.runners}>{teamRunners.map((runner, index) => {
+        // Steg 48: sträcka (och löpare inom sträckan) eller teamsprintens person med sina sträckor.
+        const parallel = !runner.person && teamRunners.some(other => other.leg === runner.leg && other.legOrder > 1);
+        const slot = runner.person ? text.personSlot(runner.person) : parallel ? text.legRunnerSlot(runner.leg, runner.legOrder) : text.legSlot(runner.leg);
+        return <div key={index} className={relayStyles.runner}>
+          <span className={relayStyles.legName}>{runner.person ? text.personHeading(runner.person, runner.personLegs ?? [])
+            : parallel ? text.legRunner(runner.leg, runner.legOrder) : text.leg(runner.leg)}</span>
+          <label>{text.givenNameOf(slot)}<input value={runner.givenName} maxLength={160} required autoComplete="off" disabled={locked}
+            onChange={event => changeTeamRunner(index, { givenName: event.target.value })} /></label>
+          <label>{text.familyNameOf(slot)}<input value={runner.familyName} maxLength={160} required autoComplete="off" disabled={locked}
+            onChange={event => changeTeamRunner(index, { familyName: event.target.value })} /></label>
+          <label>{text.cardOf(slot)}<input value={runner.card} inputMode="numeric" autoComplete="off" disabled={locked}
+            onChange={event => changeTeamRunner(index, { card: event.target.value })} /></label>
+        </div>;
+      })}</div>}
       <div className={styles.actions}><button type="submit" disabled={workflowLocked || !teamClassId}>{text.saveTeam}</button></div>
     </form>
   </details>;

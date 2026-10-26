@@ -11,16 +11,27 @@ import type { RaceDataActions } from "./race-data";
 
 type Method = RelayClassCreateRequest["legs"][number]["startMethod"];
 /** En sträcka i stafettklassens formulär. Steg 47: egen bana (tomt = klassens) och minuter för flygande omstart. */
-export type RelayLegForm = { method: Method; time: string; variant: string; course: string; minutes: string };
+export type RelayLegForm = { method: Method; time: string; variant: string; course: string; minutes: string;
+  /** Steg 48: löpare på sträckan och reglerna för flera löpare. */
+  runners: string; changeoverRule: "FIRST" | "LAST"; approvalRule: "ALL" | "ANY" };
 export type RelayRestartRanking = RelayClassCreateRequest["restartRanking"];
 export type RelayForking = RelayClassCreateRequest["forking"];
-export type RelayRunnerForm = { givenName: string; familyName: string; card: string };
-export type RelayRunnerChange = { teamId: string; leg: number; givenName: string; familyName: string; club: string; card: string };
+/** En plats i lagformuläret: sträcka och ordning, eller (teamsprint) en person med sina sträckor. */
+export type RelayRunnerForm = { givenName: string; familyName: string; card: string; leg: number; legOrder: number;
+  person?: string; personLegs?: number[] };
+export type RelayRunnerChange = { teamId: string; leg: number; legOrder: number; givenName: string; familyName: string; club: string; card: string };
 
-const emptyRunner = (): RelayRunnerForm => ({ givenName: "", familyName: "", card: "" });
+const emptyRunner = (leg = 1, legOrder = 1): RelayRunnerForm => ({ givenName: "", familyName: "", card: "", leg, legOrder });
+/** Steg 48: teamsprint – två personer, A på udda och B på jämna sträckor. */
+export const TEAM_SPRINT_PERSONS = ["A", "B"] as const;
+export function teamSprintPersonLegs(legCount: number) {
+  return TEAM_SPRINT_PERSONS.map((person, index) => ({ person,
+    legs: Array.from({ length: legCount }, (_, leg) => leg + 1).filter(leg => (leg - 1) % TEAM_SPRINT_PERSONS.length === index) }));
+}
 const defaultLegs = (count: number, previous: readonly RelayLegForm[] = []): RelayLegForm[] =>
   Array.from({ length: count }, (_, index) => previous[index] ??
-    { method: index === 0 ? "MASS_START" : "CHANGEOVER", time: "", variant: "", course: "", minutes: "" });
+    { method: index === 0 ? "MASS_START" : "CHANGEOVER", time: "", variant: "", course: "", minutes: "", runners: "1",
+      changeoverRule: "FIRST", approvalRule: "ALL" });
 
 /** Formulärets sträckor som begäran; undefined när en tid eller ett antal minuter saknas. */
 export function relayLegSettings(forms: readonly RelayLegForm[], raceDate: string, timeZone: string) {
@@ -29,13 +40,23 @@ export function relayLegSettings(forms: readonly RelayLegForm[], raceDate: strin
     const startTime = method === "CHANGEOVER" || method === "FLYING_RESTART" ? null : parseRaceClock(raceDate, leg.time, timeZone);
     const minutes = leg.minutes.trim() === "" ? Number.NaN : Number(leg.minutes.trim());
     const restartAfterMinutes = method === "FLYING_RESTART" ? (Number.isInteger(minutes) && minutes >= 1 && minutes <= 720 ? minutes : -1) : null;
-    return { leg: index + 1, startMethod: method, startTime, variantCode: leg.variant || null, courseId: leg.course || null, restartAfterMinutes };
+    const runners = Math.min(4, Math.max(1, Number(leg.runners) || 1));
+    return { leg: index + 1, startMethod: method, startTime, variantCode: leg.variant || null, courseId: leg.course || null, restartAfterMinutes,
+      runners, changeoverRule: leg.changeoverRule, approvalRule: leg.approvalRule };
   });
   if (legs.some(leg => (leg.startMethod === "MASS_START" || leg.startMethod === "RESTART") && leg.startTime === null) ||
       legs.some(leg => leg.restartAfterMinutes === -1)) return undefined;
   return legs;
 }
 export { defaultLegs };
+
+/** Växlingskontrollens kod: tom = ingen (null), annars 1–999; undefined = ogiltig. */
+export function changeoverCodeOf(value: string): number | null | undefined {
+  const trimmed = value.trim();
+  if (trimmed === "") return null;
+  const code = Number(trimmed);
+  return Number.isInteger(code) && code >= 1 && code <= 999 ? code : undefined;
+}
 
 /**
  * Stafett i arbetsytan (ADR-0169 beslut 3): lagvyn läses från servern; ny stafettklass, nytt lag,
@@ -51,6 +72,7 @@ export function useRelayState() {
   const [relayLegForms, setRelayLegForms] = useState<RelayLegForm[]>(defaultLegs(3));
   const [relayRestartRanking, setRelayRestartRanking] = useState<RelayRestartRanking>("AFTER_NORMAL");
   const [relayForking, setRelayForking] = useState<RelayForking>("EVEN");
+  const [relayChangeoverCode, setRelayChangeoverCode] = useState("");
   const [relayClassAttempt, setRelayClassAttempt] = useState<RelayClassCreateRequest>();
   const [teamClassId, setTeamClassId] = useState("");
   const [teamNumber, setTeamNumber] = useState("");
@@ -65,7 +87,7 @@ export function useRelayState() {
   const [timesAttempt, setTimesAttempt] = useState<RelayStartTimesRequest>();
   return { relay, setRelay, relayError, setRelayError, relayMessage, setRelayMessage, relayClassName, setRelayClassName,
     relayClassCourseId, setRelayClassCourseId, relayLegForms, setRelayLegForms, relayClassAttempt, setRelayClassAttempt,
-    relayRestartRanking, setRelayRestartRanking, relayForking, setRelayForking,
+    relayRestartRanking, setRelayRestartRanking, relayForking, setRelayForking, relayChangeoverCode, setRelayChangeoverCode,
     teamClassId, setTeamClassId, teamNumber, setTeamNumber, teamName, setTeamName, teamClub, setTeamClub, teamRunners, setTeamRunners,
     teamAttempt, setTeamAttempt, selectedTeamId, setSelectedTeamId, runnerChange, setRunnerChange, runnerAttempt, setRunnerAttempt,
     relayTimes, setRelayTimes, timesAttempt, setTimesAttempt };
@@ -129,9 +151,10 @@ export function createRelayActions(ws: Base & RaceDataActions) {
     let attempt = relayClassAttempt;
     if (!attempt) {
       const legs = relayLegSettings(relayLegForms, data.raceDate, data.timeZone);
-      if (!relayClassName.trim() || !relayClassCourseId || !legs) { setRelayMessage(text.classInvalid); return; }
+      const code = changeoverCodeOf(ws.relayChangeoverCode);
+      if (!relayClassName.trim() || !relayClassCourseId || !legs || code === undefined) { setRelayMessage(text.classInvalid); return; }
       attempt = { formatVersion: 1, requestId: crypto.randomUUID(), name: relayClassName.trim(), courseId: relayClassCourseId, legs,
-        restartRanking: ws.relayRestartRanking, forking: ws.relayForking };
+        restartRanking: ws.relayRestartRanking, forking: ws.relayForking, changeoverCode: code };
       setRelayClassAttempt(attempt);
     }
     const name = attempt.name;
@@ -142,10 +165,20 @@ export function createRelayActions(ws: Base & RaceDataActions) {
       });
   }
 
+  /** Lagformulärets platser: en per sträcka och löpare (steg 48), eller en per person i teamsprint. */
   function chooseTeamClass(classId: string) {
     setTeamClassId(classId);
-    const legs = relay?.classes.find(row => row.id === classId)?.legs.length ?? 0;
-    setTeamRunners(Array.from({ length: legs }, (_, index) => teamRunners[index] ?? emptyRunner()));
+    const raceClass = relay?.classes.find(row => row.id === classId);
+    if (!raceClass) { setTeamRunners([]); return; }
+    if (raceClass.changeoverCode !== null) {
+      setTeamRunners(teamSprintPersonLegs(raceClass.legs.length).map(({ person, legs }) => ({ ...emptyRunner(legs[0] ?? 1), person, personLegs: legs })));
+      return;
+    }
+    setTeamRunners(raceClass.legs.flatMap(leg => Array.from({ length: leg.runners }, (_, order) => emptyRunner(leg.leg, order + 1))));
+  }
+  function applyTeamSprintTemplate() {
+    setRelayLegForms(defaultLegs(4));
+    ws.setRelayChangeoverCode("");
   }
   function changeTeamRunner(index: number, change: Partial<RelayRunnerForm>) {
     setTeamRunners(teamRunners.map((runner, current) => current === index ? { ...runner, ...change } : runner));
@@ -157,10 +190,16 @@ export function createRelayActions(ws: Base & RaceDataActions) {
     if (!attempt) {
       const raceClass = relay.classes.find(row => row.id === teamClassId);
       const number = teamNumber.trim() === "" ? null : Number(teamNumber.trim());
-      const runners = teamRunners.map(runner => ({ givenName: runner.givenName.trim(), familyName: runner.familyName.trim(),
-        organisationName: null, cardNumber: runner.card.trim() || null }));
+      // Teamsprint: personen springer alla sina sträckor; brickan sitter på personens första sträcka.
+      const runners = teamRunners.some(runner => runner.personLegs)
+        ? teamRunners.flatMap(runner => (runner.personLegs ?? []).map((leg, index) => ({ givenName: runner.givenName.trim(),
+          familyName: runner.familyName.trim(), organisationName: null, cardNumber: index === 0 ? runner.card.trim() || null : null, leg,
+          ...(index === 0 ? {} : { sameAsLeg: runner.personLegs![0]! }) }))).sort((a, b) => a.leg - b.leg)
+        : teamRunners.map(runner => ({ givenName: runner.givenName.trim(), familyName: runner.familyName.trim(),
+          organisationName: null, cardNumber: runner.card.trim() || null, leg: runner.leg, legOrder: runner.legOrder }));
       const cards = runners.flatMap(runner => runner.cardNumber ? [runner.cardNumber] : []);
-      if (!raceClass || !teamName.trim() || runners.length !== raceClass.legs.length || (number !== null && !(Number.isInteger(number) && number > 0)) ||
+      const slots = raceClass ? raceClass.legs.reduce((sum, leg) => sum + leg.runners, 0) : 0;
+      if (!raceClass || !teamName.trim() || runners.length !== slots || (number !== null && !(Number.isInteger(number) && number > 0)) ||
           runners.some(runner => !runner.givenName || !runner.familyName || (runner.cardNumber !== null && !/^[1-9][0-9]*$/.test(runner.cardNumber))) ||
           new Set(cards).size !== cards.length) {
         setRelayMessage(text.teamInvalid); return;
@@ -172,15 +211,15 @@ export function createRelayActions(ws: Base & RaceDataActions) {
     const name = attempt.name;
     await send("/relay-teams", "relay-team", attempt, value => relayTeamCreateResponseSchema.parse(value),
       { conflict: text.teamConflict, error: text.teamError }, () => setTeamAttempt(undefined), receipt => {
-        setTeamName(""); setTeamNumber(""); setTeamRunners(teamRunners.map(emptyRunner));
+        setTeamName(""); setTeamNumber(""); setTeamRunners(teamRunners.map(runner => ({ ...runner, givenName: "", familyName: "", card: "" })));
         return text.teamSaved((receipt as { number: number }).number, name);
       });
   }
 
-  function startRunnerChange(teamId: string, leg: number) {
-    const runner = relay?.teams.find(row => row.id === teamId)?.legs.find(row => row.leg === leg);
+  function startRunnerChange(teamId: string, leg: number, legOrder = 1) {
+    const runner = relay?.teams.find(row => row.id === teamId)?.legs.find(row => row.leg === leg && row.legOrder === legOrder);
     if (!runner || pending.current) return;
-    setRunnerChange({ teamId, leg, givenName: runner.givenName, familyName: runner.familyName, club: runner.organisationName ?? "",
+    setRunnerChange({ teamId, leg, legOrder, givenName: runner.givenName, familyName: runner.familyName, club: runner.organisationName ?? "",
       card: runner.cardNumber ?? "" });
     setRunnerAttempt(undefined); setRelayMessage("");
   }
@@ -188,13 +227,14 @@ export function createRelayActions(ws: Base & RaceDataActions) {
     if (writingRef.current || pending.current || !requireSession() || !relay || !runnerChange) return;
     let attempt = runnerAttempt;
     if (!attempt) {
-      const leg = relay.teams.find(row => row.id === runnerChange.teamId)?.legs.find(row => row.leg === runnerChange.leg);
+      const leg = relay.teams.find(row => row.id === runnerChange.teamId)?.legs.find(row => row.leg === runnerChange.leg &&
+        row.legOrder === runnerChange.legOrder);
       const card = runnerChange.card.trim();
       if (!leg || !runnerChange.givenName.trim() || !runnerChange.familyName.trim() || (card !== "" && !/^[1-9][0-9]*$/.test(card))) {
         setRelayMessage(text.teamInvalid); return;
       }
       attempt = { formatVersion: 1, requestId: crypto.randomUUID(), teamId: runnerChange.teamId,
-        leg: runnerChange.leg, expectedEntryVersion: leg.entryVersion, runner: { givenName: runnerChange.givenName.trim(),
+        leg: runnerChange.leg, legOrder: runnerChange.legOrder, expectedEntryVersion: leg.entryVersion, runner: { givenName: runnerChange.givenName.trim(),
           familyName: runnerChange.familyName.trim(), organisationName: runnerChange.club.trim() || null, cardNumber: card || null } };
       setRunnerAttempt(attempt);
     }
@@ -245,7 +285,7 @@ export function createRelayActions(ws: Base & RaceDataActions) {
         return count > 0 ? text.timesSavedRecalculated(raceClass.name, count) : text.timesSaved(raceClass.name);
       });
   }
-  return { readRelay, loadRelay, send, changeLegCount, changeLeg, createRelayClass, chooseTeamClass, changeTeamRunner, registerTeam,
+  return { readRelay, loadRelay, send, changeLegCount, changeLeg, createRelayClass, applyTeamSprintTemplate, chooseTeamClass, changeTeamRunner, registerTeam,
     startRunnerChange, saveRunnerChange, cancelRunnerChange, openTeam, relayTimeValue, changeRelayTime, saveRelayTimes };
 }
 export type RelayActions = ReturnType<typeof createRelayActions>;

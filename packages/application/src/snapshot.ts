@@ -1,4 +1,4 @@
-import { asc, eq, sql, and, isNull } from "drizzle-orm";
+import { asc, eq, sql, and, isNotNull, isNull } from "drizzle-orm";
 import type { Database } from "@o-tid/database";
 import { schema } from "@o-tid/database";
 import type { RaceSnapshot } from "@o-tid/domain";
@@ -128,7 +128,10 @@ export async function loadRaceSnapshot(db: DbExecutor, raceId: string): Promise<
     .where(eq(schema.courses.raceId, raceId))
     .orderBy(asc(schema.courseVariantControls.courseVariantId), asc(schema.courseVariantControls.sequence));
   // Strukna deltagare (PLAN.md steg 27) finns inte i paketet; deras bricka är släppt.
-  const entryRows = await db.select().from(schema.entries)
+  const entryRows = await db.select({ id: schema.entries.id, raceId: schema.entries.raceId, classId: schema.entries.classId,
+    givenName: schema.entries.givenName, familyName: schema.entries.familyName, organisationName: schema.entries.organisationName,
+    fixedStartTime: schema.entries.fixedStartTime, courseVariantCode: schema.entries.courseVariantCode, teamId: schema.entries.teamId,
+    relayLeg: schema.entries.relayLeg, externalId: schema.entries.externalId }).from(schema.entries)
     .where(and(eq(schema.entries.raceId, raceId), isNull(schema.entries.struckAt)))
     .orderBy(asc(schema.entries.id));
   // Steg 47: stafettsträckor med egen bana; sträcklöparen bär banan i paketet.
@@ -136,6 +139,9 @@ export async function loadRaceSnapshot(db: DbExecutor, raceId: string): Promise<
   const legCourseRows = !anyLeg ? [] : await db.select({ classId: schema.relayLegs.classId, leg: schema.relayLegs.leg,
     courseVersionId: schema.relayLegs.courseVersionId }).from(schema.relayLegs).where(eq(schema.relayLegs.raceId, raceId));
   const legCourse = new Map(legCourseRows.flatMap((row) => row.courseVersionId ? [[`${row.classId}:${row.leg}`, row.courseVersionId] as const] : []));
+  // Steg 48: teamsprint – varje sträcklöpares del av brickan (löparens sträckor i ordning, växlingskontrollen).
+  const teamSprint = !anyLeg ? new Map<string, { part: number; parts: number; changeoverCode: number; endsAtFinish: boolean }>()
+    : await loadTeamSprintParts(db, raceId);
   const assignmentRows = await db.select().from(schema.cardAssignments)
     .where(eq(schema.cardAssignments.raceId, raceId))
     .orderBy(asc(schema.cardAssignments.id));
@@ -202,6 +208,7 @@ export async function loadRaceSnapshot(db: DbExecutor, raceId: string): Promise<
       ...(row.courseVariantCode ? { courseVariantCode: row.courseVariantCode } : {}),
       ...(row.relayLeg !== null && legCourse.has(`${row.classId}:${row.relayLeg}`)
         ? { courseVersionId: legCourse.get(`${row.classId}:${row.relayLeg}`)! } : {}),
+      ...(teamSprint.has(row.id) ? { teamSprint: teamSprint.get(row.id)! } : {}),
       ...(row.externalId ? { externalIdentity: { source: "iof" as const, externalId: row.externalId } } : {})
     })),
     cardAssignments: assignmentRows.map((row) => ({
@@ -216,6 +223,34 @@ export async function loadRaceSnapshot(db: DbExecutor, raceId: string): Promise<
     stationTimeAdjustments,
     controlsOutOfOrder
   });
+}
+
+/**
+ * Steg 48: teamsprint (ADR-0174 beslut 7). För klasser med växlingskontroll: varje sträcklöpare hör till brickans ägare
+ * (`relay_card_entry_id`, annars sig själv); löparens sträckor i ordning ger delens nummer. Lagets sista sträcka slutar vid målet.
+ */
+export async function loadTeamSprintParts(db: DbExecutor, raceId: string) {
+  const rows = await db.select({ id: schema.entries.id, teamId: schema.entries.teamId, leg: schema.entries.relayLeg,
+    cardEntryId: schema.entries.relayCardEntryId, classId: schema.entries.classId, code: schema.classes.relayChangeoverCode })
+    .from(schema.entries).innerJoin(schema.classes, eq(schema.classes.id, schema.entries.classId))
+    .where(and(eq(schema.entries.raceId, raceId), isNotNull(schema.classes.relayChangeoverCode), isNotNull(schema.entries.teamId),
+      isNull(schema.entries.struckAt)));
+  const result = new Map<string, { part: number; parts: number; changeoverCode: number; endsAtFinish: boolean }>();
+  if (rows.length === 0) return result;
+  const legCounts = new Map((await db.select({ classId: schema.relayLegs.classId, leg: schema.relayLegs.leg }).from(schema.relayLegs)
+    .where(eq(schema.relayLegs.raceId, raceId))).reduce((counts, row) => counts.set(row.classId, Math.max(counts.get(row.classId) ?? 0, row.leg)),
+    new Map<string, number>()));
+  const byRunner = new Map<string, typeof rows>();
+  for (const row of rows) {
+    const key = row.cardEntryId ?? row.id;
+    byRunner.set(key, [...byRunner.get(key) ?? [], row]);
+  }
+  for (const legs of byRunner.values()) {
+    const sorted = [...legs].sort((left, right) => (left.leg ?? 0) - (right.leg ?? 0));
+    sorted.forEach((row, index) => result.set(row.id, { part: index + 1, parts: sorted.length, changeoverCode: row.code!,
+      endsAtFinish: row.leg === legCounts.get(row.classId) }));
+  }
+  return result;
 }
 
 /** Kontrollkoderna som är ur funktion i tävlingen just nu (PLAN.md steg 31), för sträcktidernas visning och export. */

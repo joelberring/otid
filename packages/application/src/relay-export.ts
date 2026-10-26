@@ -28,7 +28,8 @@ export async function relayTeamResultsForExport(tx: Transaction, raceId: string,
         const ranking = raceClass.legRankings.get(leg.entry.id);
         const ranked = result.status === "OK" && ranking?.position !== undefined
           ? { ...result, position: ranking.position, timeBehindMs: ranking.timeBehindMs! } : result;
-        return [{ leg: leg.entry.leg, result: ranked }];
+        const parallel = view.legs.filter(other => other.entry.leg === leg.entry.leg).length > 1;
+        return [{ leg: leg.entry.leg, ...(parallel ? { legOrder: leg.entry.legOrder } : {}), result: ranked }];
       })
     })));
   }

@@ -56,9 +56,31 @@ export interface EntryImport {
   readonly fixedStartTime?: string;
 }
 
+/** Steg 48: en lagmedlem i IOF `TeamEntry` (`TeamEntryPerson` med `Leg` och `LegOrder`). */
+export interface TeamMemberEntryImport {
+  readonly leg: number;
+  readonly legOrder: number;
+  readonly givenName: string;
+  readonly familyName: string;
+  readonly organisationName?: string;
+  readonly cardNumber?: string;
+}
+
+/** Steg 48: ett stafettlag i IOF EntryList. */
+export interface TeamEntryImport {
+  readonly externalId: string;
+  readonly name: string;
+  readonly organisationName?: string;
+  readonly classExternalId: string;
+  readonly className: string;
+  readonly bibNumber?: number;
+  readonly members: readonly TeamMemberEntryImport[];
+}
+
 export interface EntryListImport {
   readonly kind: "EntryList";
   readonly entries: readonly EntryImport[];
+  readonly teams: readonly TeamEntryImport[];
   readonly warnings: readonly string[];
 }
 
@@ -129,9 +151,44 @@ function readEntryList(root: XmlRecord): EntryListImport {
       ...(cardNumber ? { cardNumber } : {})
     };
   });
-  if (entries.length === 0) issues.push("EntryList.PersonEntry saknas");
+  const teams: TeamEntryImport[] = array(root.TeamEntry).map((rawTeam, index) => {
+    const team = record(rawTeam);
+    const path = `TeamEntry[${index}]`;
+    rejectUnexpectedKeys(team, ["Id", "Name", "Organisation", "TeamEntryPerson", "Class", "Race", "AssignedFee", "ServiceRequest",
+      "StartTimeAllocationRequest", "ContactInformation", "EntryTime", "BibNumber", "Extensions", "@_modifyTime"], path, issues);
+    const name = requireText(team.Name, `${path}.Name`, issues);
+    const externalId = text(team.Id) || name;
+    const classValue = record(array(team.Class)[0]);
+    const classExternalId = requireText(classValue.Id ?? classValue.Name, `${path}.Class.Id`, issues);
+    const className = text(classValue.Name) || classExternalId;
+    const organisationName = text(record(array(team.Organisation)[0]).Name);
+    const bib = text(team.BibNumber);
+    const members = array(team.TeamEntryPerson).flatMap((rawMember, memberIndex) => {
+      const member = record(rawMember);
+      const memberPath = `${path}.TeamEntryPerson[${memberIndex}]`;
+      rejectUnexpectedKeys(member, ["Person", "Organisation", "Leg", "LegOrder", "ControlCard", "Score", "AssignedFee", "Extensions"],
+        memberPath, issues);
+      const person = record(member.Person);
+      const personName = record(person.Name);
+      const legText = text(member.Leg);
+      const orderText = text(member.LegOrder) || "1";
+      if (!/^[1-9][0-9]?$/.test(legText) || Number(legText) > 30) { issues.push(`${memberPath}.Leg saknas eller är ogiltig`); return []; }
+      if (!/^[1-4]$/.test(orderText)) { issues.push(`${memberPath}.LegOrder måste vara 1–4`); return []; }
+      const givenName = text(personName.Given), familyName = text(personName.Family);
+      // En plats utan person (laget har inte satt löparen än) blir vakant.
+      if (!givenName || !familyName) return [];
+      const cardNumber = text(array(member.ControlCard)[0]);
+      if (cardNumber && !CONTROL_CARD_PATTERN.test(cardNumber)) issues.push(`${memberPath}: ControlCard "${cardNumber}" är inte ett giltigt bricknummer`);
+      const club = text(record(member.Organisation).Name);
+      return [{ leg: Number(legText), legOrder: Number(orderText), givenName, familyName, ...(club ? { organisationName: club } : {}),
+        ...(cardNumber ? { cardNumber } : {}) }];
+    });
+    return { externalId, name, classExternalId, className, ...(organisationName ? { organisationName } : {}),
+      ...(/^[1-9][0-9]{0,4}$/.test(bib) ? { bibNumber: Number(bib) } : {}), members };
+  });
+  if (entries.length === 0 && teams.length === 0) issues.push("EntryList.PersonEntry saknas");
   if (issues.length > 0) throw new IofValidationError(issues);
-  return { kind: "EntryList", entries, warnings };
+  return { kind: "EntryList", entries, teams, warnings };
 }
 
 function readStartTime(value: unknown, path: string, issues: string[]): string {

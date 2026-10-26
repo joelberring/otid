@@ -3,8 +3,10 @@
 O-Tid körs med `docker-compose.prod.yml` på en vanlig VPS:
 
 - PostgreSQL 17 (den officiella bilden `postgres:17`, finns för både x86 och ARM),
-- webben (Next standalone, migrerar databasen vid start),
-- Caddy (HTTPS med Let's Encrypt),
+- webben (Next standalone, migrerar databasen vid start) i två instanser, `web` och `web2` (steg 51: en Node-process
+  använder en kärna; med två används båda kärnorna och avläsningarna får svar även med många besökare, se
+  [lasttest.md](lasttest.md)). `web2` startar när `web` har migrerat, och bara `web` hämtar radiostämplingar,
+- Caddy (HTTPS med Let's Encrypt, fördelar anropen mellan `web` och `web2`),
 - en backuptjänst.
 
 All data, även kartbilder och GPS-rutter för vägval (PLAN.md steg 16), ligger i PostgreSQL och kommer

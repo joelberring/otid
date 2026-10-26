@@ -35,7 +35,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    environment:
+    environment: &web-environment
       DATABASE_URL: postgresql://otid:${POSTGRES_PASSWORD}@postgres:5432/otid
       O_TID_PUBLIC_ORIGIN: https://${OTID_DOMAIN:?Sätt OTID_DOMAIN i .env}
       # Eventor (docs/drift.md): masternyckel för klubbarnas API-nycklar. Tom = Eventor avstängt.
@@ -62,12 +62,36 @@ services:
       timeout: 5s
       retries: 60
 
+  # Steg 51 (docs/lasttest.md): en andra webbinstans. En Node-process använder en kärna; med två används båda kärnorna på en
+  # server med 2 vCPU, och avläsningarna får svar även när publiken är många. Den startar när web har migrerat databasen,
+  # migrerar inte själv och hämtar inga radiostämplingar. Caddy fördelar anropen mellan web och web2.
+  web2:
+    logging: *logging
+    image: otid-web
+    restart: unless-stopped
+    depends_on:
+      web:
+        condition: service_healthy
+    environment:
+      <<: *web-environment
+      OTID_RADIO_POLLER: "off"
+    command: ["node", "apps/web/server.js"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/organizer').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+
   caddy:
     logging: *logging
     image: caddy:2
     restart: unless-stopped
     depends_on:
       web:
+        condition: service_healthy
+      web2:
         condition: service_healthy
     ports:
       - "80:80"

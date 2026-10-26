@@ -14,9 +14,11 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - ADR-0177: `web` (tävlingen) och `web-public` + `web-public2` (publiken) bakom Caddy (`deploy/Caddyfile`, inloggade alltid
   till `web`), `cpu_shares` och minnestak, separata pooler med tidsgränser för publiken, lastavlastning (`lib/public-load.ts`).
 - Avläsningen läser bara löparens/lagets del (`loadRaceSnapshot` med scope); stafett utan flygande omstart låses per lag.
-  Arrangörens resultatlista cachas per version, Kvar i skogen delas i 2 s, besökarnas tillträde delas i 1 s.
-- Mätt (`docs/lasttest.md`): 1 000 besökare + målrusning: kvitto p95 6,8 → 0,87 s, arbetsytan p95 4,0 → 0,58 s, publiken
-  p95 under 4 s men uppdatering p50 6 s (före 2,6 s). 25-manna 300 lag: kvitto p50 26,6 → 2,0 s, p95 91 → 11 s.
+  Arrangörens resultatlista cachas per version och Kvar i skogen delas i 2 s, båda med ändringsgenerationen i nyckeln.
+- Efter CI:s driftjobb: tillträdet cachas inte (avpublicering/döljande syns direkt), en ändring i arbetsytan räknar upp
+  generationen (Kvar i skogen och listorna räknas om, ingen äldre lista); publikt, konton, statusval, funktionarer 5 × gröna.
+- Mätt (`docs/lasttest.md`): 1 000 besökare + målrusning: kvitto p95 6,8 → 0,68 s, arbetsytan p95 4,0 → 0,69 s, publiken
+  p95 under 5 s men uppdatering p50 5 s (före 2,6 s). 25-manna 300 lag: kvitto p50 26,6 → 2,0 s, p95 91 → 11 s.
 - `/om`: "Hur stora tävlingar klarar O-Tid?". Verifierat: lint, typecheck, enhets- och integrationstester (ny
   `steg-54-tavlingen-forst`), bygget, Playwright i utvecklingsläge och mot Caddy med tre produktionsinstanser (17 specar).
 - Kvar: Docker-läget (`cpu_shares`, `mem_limit`, tre webbtjänster) provas först i CI:s driftjobb; tät 25-manna når inte 1 s.

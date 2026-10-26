@@ -14,9 +14,10 @@ under 1 s (p95), en 25-manna med 300 lag.
 ### Svar i korthet
 
 - **1 000 besökare och 3 000 löpare under en målrusning (toppar på 3 avläsningar/s):** kvittot på avläsningsdatorn
-  **p95 0,87 s** (före 6,8 s) och arbetsytan **p95 0,58 s** (före 4,0 s). Publiken fick sina sidor och listor snabbare än
-  före (p95 1,7–3,9 s, före 3,0–5,7 s) och inga fel, men ett nytt resultat syntes senare: p50 6,2 s, p95 13 s (före 2,6
-  och 6,1 s). Det är priset för att tävlingen går före.
+  **p95 0,68 s** (före 6,8 s) och arbetsytan **p95 0,69 s** (före 4,0 s). Publiken fick sina sidor och listor ungefär
+  lika snabbt som före (p95 2,8–4,7 s, före 3,0–5,7 s) och inga fel, men ett nytt resultat syntes senare: p50 5,0 s, p95
+  9,5 s (före 2,6 och 6,1 s). Det är priset för att tävlingen går före. (Mätt efter rättelsen att en ändring i arbetsytan
+  syns direkt, se nedan.)
 - **25-manna 300 lag × 25 med 300 besökare, 300 utläsningar på 5 minuter med toppar på 3/s:** kvitto p50 2,0 s, p95
   10,9 s (före 26,6 s och 91 s, och satser som fick tidsgräns). En utläsning tar 0,11 s utan last (före 0,33 s). Målet 1 s
   nås inte när många lag växlar på en gång; med jämnare växlingar (ungefär en per sekund) går det.
@@ -46,17 +47,17 @@ arbetsytor. Tider under rusningen, p50 / p95 / p99 i ms. CPU i kärnor (medel / 
 
 | | Före (web + web2) | Efter (web + 2 × web-public) |
 |---|---|---|
-| Kvitto på avläsningsdatorn | 1 769 / 6 795 / 8 425 | **92 / 870 / 1 048** |
-| Arbetsytan (alla anrop) | 1 548 / 3 981 / 8 801 | **70 / 578 / 705** |
-| Arbetsytan: banorna, Kvar i skogen, deltagarlistan p95 | 8 801, 3 113, 2 563 | 697, 523, 482 |
-| Resultat som inloggad (arbetsytan) p95 | 3 828 (räknades om varje gång) | 385 |
-| Speakern: Kvar i skogen, resultat p95 | 3 944, 3 631 | 1 087, 746 |
-| Publiken: resultatlistan, Live, deltagare, startlistan p95 | 5 667, 5 543, 5 087, 3 406 | 3 851, 2 993, 3 014, 1 692 |
-| Publiken: sidladdningar p95 (sämsta) | 5 715 | 3 367 |
-| Uppdatering till publiken p50 / p95 | 2,6 s / 6,1 s | 6,2 s / 13,0 s |
-| Fel | 0 | 0 (inga 503 behövdes) |
-| CPU web / publika / databas | 1,33 / – / 0,25 (p95 1,62 / – / 0,39) | 0,27 / 0,99 / 0,16 (p95 0,78 / 1,63 / 0,31) |
-| Minne max web / publika / databas | 2 175 MB (två) / – / 530 MB | 318 MB / 979 MB (två) / 474 MB |
+| Kvitto på avläsningsdatorn | 1 769 / 6 795 / 8 425 | **74 / 676 / 986** |
+| Arbetsytan (alla anrop) | 1 548 / 3 981 / 8 801 | **124 / 694 / 1 109** |
+| Arbetsytan: banorna, Kvar i skogen, deltagarlistan p95 | 8 801, 3 113, 2 563 | 1 088, 474, 579 |
+| Resultat som inloggad (arbetsytan) p95 | 3 828 (räknades om varje gång) | 656 |
+| Speakern: Kvar i skogen, resultat p95 | 3 944, 3 631 | 970, 1 264 |
+| Publiken: resultatlistan, Live, deltagare, startlistan p95 | 5 667, 5 543, 5 087, 3 406 | 4 596, 3 573, 3 529, 3 178 |
+| Publiken: sidladdningar p95 (sämsta) | 5 715 | 3 922 |
+| Uppdatering till publiken p50 / p95 | 2,6 s / 6,1 s | 5,0 s / 9,5 s |
+| Fel | 0 | 1 (ECONNRESET i lastgeneratorn; inga 503 behövdes) |
+| CPU web / publika / databas | 1,33 / – / 0,25 (p95 1,62 / – / 0,39) | 0,26 / 1,03 / 0,19 (p95 0,80 / 1,60 / 0,31) |
+| Minne max web / publika / databas | 2 175 MB (två) / – / 530 MB | 339 MB / 943 MB (två) / 414 MB |
 
 25-mannastafett, 300 lag × 25 (7 500 sträcklöpare, sträcka 1–4 avlästa), 300 besökare, 300 utläsningar på 5 minuter
 (toppar på 3/s), två speakerskärmar och två arbetsytor:
@@ -90,20 +91,25 @@ Mätt i ordning med 1 000 besökare (individuell tävling):
 | `web` + **två** publika | 1,1 s | 1,2 s | p95 4,3–7,1 s, inga fel |
 | Två publika med en hård gräns på 1,3 kärnor | 1,0 s | 1,2 s | tidsgränser igen; används inte |
 | Kvar i skogen delas av skärmarna i 2 s | 0,62 s | 0,64 s | p95 1,7–3,8 s |
-| Inloggades resultatlista högst 5 s gammal direkt i `web` | **0,87 s** | **0,58 s** | p95 1,7–3,9 s |
+| Inloggades resultatlista högst 5 s gammal direkt i `web` | 0,87 s | 0,58 s | p95 1,7–3,9 s |
+| Rättat efter CI: tillträdet cachas inte, ändringsgeneration i nycklarna, ingen 5 s gammal lista ³ | **0,68 s** | **0,69 s** | p95 2,8–4,7 s |
 
 ² Med en generatorprocess och kvoten från steg 51; de andra raderna utan kvot och med två generatorprocesser.
+³ CI:s driftjobb (tre instanser bakom Caddy) visade att en avpublicering, superadmins döljande, en ändrad status och en
+manuell återkomst inte syntes direkt: tillträdet sparades 1 s per instans, Kvar i skogen 2 s och arbetsytans lista
+upp till 5 s. Nu cachas tillträdet inte, och en lyckad ändring i arbetsytan räknar upp tävlingens ändringsgeneration som
+ingår i nycklarna (ADR-0177 beslut 7). Siffrorna i tabellen ovan är från den här körningen.
 
 - **Instanserna:** en Node-process använder en kärna. I steg 51 delade `web` och `web2` allt, så en avläsning väntade i
   samma kö som hundratals publika anrop. Nu tar `web` bara tävlingen (och allt för den som är inloggad) och använde
   0,27 kärnor i medel, medan de publika tog resten.
 - **Profilering av `web-public`** under last: 19 % skräpsamling, 13 % sidrendering, 7 % skrivning till nätet och 7 %
-  databasfrågor (en per anrop för grinden). Grindens svar för besökare utan inloggning delas nu i 1 s, och det packade
-  svaret kopieras inte längre för varje anrop.
+  databasfrågor (en per anrop för grinden). Det packade svaret kopieras inte längre för varje anrop. (Grindens svar
+  delades först i 1 s, men då syntes en avpublicering inte direkt; det är borttaget.)
 - **Profilering av `web`:** 71 % ledig. Kvittona var sega för att tunga läsningar (Kvar i skogen 1,7 MB, 0,3 s, från två
   speakerskärmar vid varje väckning) blockerade processen när en avläsning kom. Delad i 2 s halverade kvittots p95.
 - **Arrangörens och funktionärernas resultatlista** (steg 52) räknades om vid varje anrop (4 MB, 0,5 s); nu en gång per
-  tävlingsversion, och `web` ger en upp till 5 s gammal lista direkt.
+  tävlingsversion och ändringsgeneration.
 - **Avläsningen** läser bara löparens eller lagets del av tävlingen, och stafettklasser utan flygande omstart låses per lag
   i stället för per klass.
 - **Lastavlastningen** (äldre lista i upp till 10 s, uträkning och väckning högst var tredje sekund, kö, 503) slog till
@@ -113,7 +119,7 @@ Mätt i ordning med 1 000 besökare (individuell tävling):
 ### Gränser och rekommendation (steg 54)
 
 - **CX23 räcker** för 3 000 löpare och 1 000 samtidiga besökare under en målrusning: kvitto och arbetsyta under 1 s (p95),
-  publiken p95 under 4 s och ett nytt resultat syns hos publiken efter ungefär 5–10 s (p95 13 s).
+  publiken p95 under 5 s och ett nytt resultat syns hos publiken efter ungefär 5–10 s (p95 9,5 s).
 - **25-manna:** fungerar med 300 lag, men vid täta växlingar (3 per sekund) får avläsningen vänta: kvitto p50 2 s, p95 11 s.
   Inget går förlorat; kön på avläsningsdatorn tar hand om det. En utläsning gör 84 databasfrågor i följd, och under last
   väntar varje fråga på processorn (se Idéer i STATUS.md).

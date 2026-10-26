@@ -61,8 +61,8 @@ tänker att vi inte skalar upp än".
 - Med en publik instans nere tar den andra all publik; med båda nere svarar Caddy 502 för publiken men tävlingen
   påverkas inte. Med `web` nere fungerar publiken men inte arbetsytan, och avläsningsdatorerna köar lokalt tills `web` är
   uppe igen.
-- Uppdateringen till publiken blir glesare under tryck (mätt p50 ca 5 s i stället för 2–3 s vid 1 000 besökare); det
-  är priset för att tävlingen går före.
+- Uppdateringen till publiken blir glesare under tryck (mätt p50 5 s i stället för 2,6 s vid 1 000 besökare); det
+  är priset för att tävlingen går före. Kvitto p95 0,68 s och arbetsytan p95 0,69 s (före 6,8 och 4,0 s).
 - En besökare som har en sessionskaka från O-Tid räknas som inloggad av Caddy. Det ger ingen behörighet (tjänsterna
   kontrollerar sessionen), bara att anropet går till `web`.
 - Docker-läget (cpu_shares, mem_limit) provas första gången i CI:s driftjobb; lasttestet efterliknar det med cgroups.

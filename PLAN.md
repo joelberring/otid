@@ -868,7 +868,7 @@ ADR-0177, `docs/lasttest.md`, `docs/drift.md`. Ingen ny migration. Ingen uppskal
 - [x] Lastavlastning: senast färdiga listan längre vid tryck, glesare uppdatering och väckning, tak för strömmar, kö och
   sist 503 med Retry-After; sidorna försöker igen tyst.
 - [x] Avläsningen läser bara löparens eller lagets del; stafettklasser utan flygande omstart låses per lag.
-- [x] Lasttest före/efter: 1 000 besökare och målrusning gav kvitto p95 6,8 → 0,87 s och arbetsytan p95 4,0 → 0,58 s;
+- [x] Lasttest före/efter: 1 000 besökare och målrusning gav kvitto p95 6,8 → 0,68 s och arbetsytan p95 4,0 → 0,69 s;
   25-manna 300 lag kvitto p50 26,6 → 2,0 s (p95 91 → 11 s).
 - [x] "Hur stora tävlingar klarar O-Tid?" på `/om` med de uppmätta siffrorna.
 

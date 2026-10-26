@@ -801,6 +801,16 @@ varianter och rättvisekontroll per gafflingssätt (Utjämnad/Fulgaffling). Bild
 gafflad bana), "Visa gafflingar" i resultatlistan och på deltagarsidan, sträcktidsanalys per sträcka, kontrollernas lägen
 ur IOF XML, längd per variant och banan på vägvalskartan.
 
+## [x] Steg 51 – Lasttest: hur stor tävling klarar en liten server
+
+`docs/lasttest.md`, skript i `scripts/lasttest/` (`pnpm lasttest:seed`, `pnpm lasttest:load`). Produktionsbygget och
+PostgreSQL 17 med 2 kärnor och 4 GB (CX23): 3 000 löpare/40 klasser (gafflade, lottade), stafett 300 × 3 och 300 × 25,
+målrusning från tre avläsningsdatorer (toppar 3/s), 100–500 besökare med resultatströmmen, speakern och funktionärsåtgärder.
+Före: 100 besökare mättade servern. Rättat: de publika listorna räknas en gång per tävlingsversion (gzip, ETag), stora
+listor skickas inte med sidan, resultatströmmen samlar och sprider väckningarna, stafettsynk per lag, starttidsflytt per
+klass, omförsök vid läskonflikter och två webbinstanser i drift. Efter: 3 000 löpare och 300 besökare med p95 under 1 s
+för publiken och uppdatering inom 5 s; serverns kvitto p95 1,3–1,7 s; 25-manna klarar ungefär en utläsning per sekund.
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

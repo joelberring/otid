@@ -10,6 +10,15 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-10-26 – Steg 51: lasttest (agent C)
+- `docs/lasttest.md`: scenarier, uppställning (produktionsbygget, PostgreSQL 17, cgroup 2 kärnor/4 GB), resultat och gränser; skripten i `scripts/lasttest/`.
+- Före: 100 besökare på 3 000 löpare mättade CX23 (publika anrop 30 s, avläsningspaketet kom aldrig).
+- Rättat: publika listor en gång per tävlingsversion (`lib/public-race-cache.ts`, gzip/ETag, versionsnyckel), stora listor inte i sidan, SSE samlar och väcker efter uträkningen, sidorna sprider hämtningen och hämtar mer sällan med öppen ström.
+- Rättat: stafettsynk bara för laget utan flygande omstart (25-manna 1,1–1,6 s → 0,33 s per avläsning), starttidsflytt bara för klassen (15 s → 1–2 s), `= any()` i stället för `inArray`, omförsök vid 40001, två webbinstanser (`web2`) bakom Caddy.
+- Efter: 300 besökare p95 0,5–0,95 s publikt, uppdatering p95 4,0 s; kvitto p95 1,3–1,7 s (målet 1 s nås inte); 500 besökare p95 1,2–1,5 s.
+- Verifierat: lint, typecheck, enhets- och integrationstester (ny `steg-51-lasttest`), bygget, Playwright publikt/live/listor/stafett/gafflingar; `funktionarer.spec.ts` fallerar på speakern även på main ac2e06d.
+- Kvar: avläsningen läser hela avläsningspaketet (se Idéer); 25-manna med täta växlingar; docker-läget i `server.sh` och `web2` i drift är inte provade (inga bilder i miljön).
+
 ### 2026-10-26 – Steg 48: flera löpare per sträcka och teamsprint (agent A)
 - Parallella sträckor (migration 0022: `relay_leg.runners`, växlings- och godkännanderegel, `entry.relay_leg_order`): FIRST/LAST, ALL/ANY.
 - Teamsprint: växlingskontroll per klass, brickan på löparens första sträcka (`entry.relay_card_entry_id`), avläsningen delas i resultatmotorn; saknad växling ger besked.
@@ -553,6 +562,10 @@ Kvarstår för ägaren: begära *PC Programmer's Guide* från SPORTident
 brickor till steg 7.
 
 ## Idéer (inte i planen än)
+
+- Steg 51: avläsningen läser hela tävlingens avläsningspaket för varje utläsning (3 000–7 500 deltagare, ca 25 frågor); bara
+  löparens klass och bana skulle ge kvitto p95 under 1 s och snabbare 25-manna (`docs/lasttest.md`).
+- Steg 51: resultatlistan är 411 kB packad för 3 000 löpare och hämtas hel; en lista per klass skulle minska trafiken.
 
 - Import av "Exportera tävlingen" (`otid-race-export` v1) till en ny tävling; ångra strykning; Eventors "struken" som strykning i stället för ej start.
 

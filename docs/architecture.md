@@ -110,7 +110,9 @@ Gemensamma hjälpare: UUID-mönstret och idempotensnycklarnas form (`UUID_PATTER
   (`publicRaceResponse`), och ett tak för öppna strömmar. Sidorna försöker igen tyst (`PublicBusyError` i
   `lib/public-stale.ts`, `usePublicRaceData`, strömmen öppnas igen efter 10–30 s).
 - I `web` räknas inga publika listor i förväg; arrangörens och funktionärernas resultatlista cachas per version
-  (`cachedStaffResults`), och Kvar i skogen delas av skärmarna i 2 s (`lib/shared-read.ts`).
+  (`cachedStaffResults`), och Kvar i skogen delas av skärmarna i 2 s (`lib/shared-read.ts`). En lyckad skrivning i
+  arbetsytan (utom avläsningar) räknar upp tävlingens ändringsgeneration (`lib/race-change-generation.ts`), som ingår i
+  nycklarna: efter en ändring räknas båda om vid nästa läsning. Tillträdet till publika sidor cachas inte.
 - Avläsningen läser bara löparens eller lagets del (`loadRaceSnapshot(…, { cardNumber })`), och stafettklasser utan
   flygande omstart låses per lag (klassen delat), så att avläsningar för olika lag görs samtidigt.
 

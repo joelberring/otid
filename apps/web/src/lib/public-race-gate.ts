@@ -18,26 +18,8 @@ export async function accountSessionToken(): Promise<string | null> {
   return value && SESSION_TOKEN.test(value) ? value : null;
 }
 
-/**
- * Steg 54: för besökare utan inloggning är svaret detsamma för alla (publicerad och inte dold), så det delas i högst en
- * sekund per tävling i stället för en databasfråga per anrop. En ändrad publicering syns inom en sekund.
- */
-const ANONYMOUS_ACCESS_MS = 1_000;
-const anonymousAccess = new Map<string, { at: number; value: Promise<PublicRaceAccess> }>();
-
-/** För tester: glöm de delade svaren. */
-export function clearAnonymousRaceAccess(): void { anonymousAccess.clear(); }
-
 export async function raceAccess(raceId: string): Promise<PublicRaceAccess> {
-  const token = await accountSessionToken();
-  if (token !== null) return publicRaceAccess(db, raceId, token);
-  const known = anonymousAccess.get(raceId);
-  if (known && Date.now() - known.at < ANONYMOUS_ACCESS_MS) return known.value;
-  const value = publicRaceAccess(db, raceId, null);
-  anonymousAccess.set(raceId, { at: Date.now(), value });
-  value.catch(() => { if (anonymousAccess.get(raceId)?.value === value) anonymousAccess.delete(raceId); });
-  if (anonymousAccess.size > 500) anonymousAccess.delete(anonymousAccess.keys().next().value!);
-  return value;
+  return publicRaceAccess(db, raceId, await accountSessionToken());
 }
 
 /** För publika sidor: ger PUBLIC eller PREVIEW, annars sidan "Tävlingen är inte publicerad" (404). */

@@ -41,7 +41,12 @@ tänker att vi inte skalar upp än".
 7. **Arrangörens och funktionärernas resultatlista cachas per tävlingsversion** (egen post, privat svar; grinden
    kontrollerar varje anrop). Steg 52 räknade om den vid varje anrop från speakern och arbetsytan. **Kvar i skogen** (1,7 MB
    för 3 000 löpare, 0,3 s) delas av speakerskärmarna och arbetsytan i 2 s efter varje anropares behörighetskontroll.
-   Besökarnas tillträde till en tävling (publicerad, inte dold) delas i 1 s i stället för en databasfråga per anrop.
+   **En ändring syns direkt** (rättat efter CI:s driftjobb): varje lyckad skrivning i arbetsytan utom avläsningar räknar
+   upp tävlingens ändringsgeneration i `web` (`lib/race-change-generation.ts`), och både Kvar i skogen och listornas
+   version har generationen i nyckeln, så nästa läsning räknas om och ingen äldre lista ges. Det räcker med en process,
+   eftersom Caddy skickar allt för inloggade till `web`. Tillträdet till en tävling (publicerad, inte dold) cachas inte:
+   avpublicering och superadmins döljande syns direkt på alla instanser. Äldre listor under tryck gäller bara publikens
+   resultatlistor, och avläsningar (nya resultat) räknar inte upp generationen.
 8. **Avläsningen läser bara löparens eller lagets del** (`loadRaceSnapshot(db, raceId, { cardNumber })`): alla klasser,
    banor och rättningar, men bara deltagarna som har brickan (även en inaktiv koppling), deras lagkamrater och deras
    kopplingar. Stafettens omräkning efter nya starter läser bara de berörda lagen (`{ entryIds }`). Bedömningen ser samma

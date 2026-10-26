@@ -38,11 +38,7 @@ async function call(route: { file: string; path: string }) {
 }
 
 describe("publika routes bakom grinden (ADR-0172 beslut 4)", () => {
-  beforeEach(async () => {
-    state.calls = []; state.cookie = ""; vi.spyOn(console, "error").mockImplementation(() => undefined);
-    // Steg 54: svaret för besökare utan inloggning delas i en sekund; varje fall här har en egen tävlingsstatus.
-    (await import("./public-race-gate")).clearAnonymousRaceAccess();
-  });
+  beforeEach(() => { state.calls = []; state.cookie = ""; vi.spyOn(console, "error").mockImplementation(() => undefined); });
   afterAll(() => { vi.restoreAllMocks(); });
 
   it("hittar resultat, ström, karta, exporter och startlistor", () => {

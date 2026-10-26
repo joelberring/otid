@@ -44,14 +44,19 @@ import {
   type sessionProof
 } from "./security-policy";
 import type { Database } from "@o-tid/database";
+import { raceChangeGeneration } from "./race-change-generation";
 import { createSharedRead } from "./shared-read";
 
-/** Steg 54: Kvar i skogen delas av speakerskärmarna och arbetsytan i högst 2 s (samma innehåll för alla med behörighet). */
+/**
+ * Steg 54: Kvar i skogen delas av speakerskärmarna och arbetsytan i högst 2 s (samma innehåll för alla med behörighet).
+ * Nyckeln har tävlingens ändringsgeneration: efter en ändring i arbetsytan räknas listan om vid nästa läsning.
+ */
 const sharedForestWatch = createSharedRead(2_000);
 
 /** Tjänsterna som administratörsroutes använder. Tester kan ersätta enskilda tjänster. */
 export const raceAdministratorServices = { conflictCandidate: readStartCheckinConflictReviewAsAdmin, reviewConflicts: reviewStartCheckinConflictsAsAdmin, checkinHistory: listCheckinHistoryAsAdmin, correctStart: correctAdministratorStart, withdrawReturn: withdrawAdministratorReturn, manualReturn: registerAdministratorReturn, forestWatch: (db: Database, input: Parameters<typeof listAdministratorForestWatch>[1]) =>
-    listAdministratorForestWatch(db, input, new Date(), (raceId, compute) => sharedForestWatch(`forest-watch:${raceId}`, compute)), publicationPreview: getStartListPublicationPreviewAsAdmin, publication: decideStartListPublicationAsAdmin,
+    listAdministratorForestWatch(db, input, new Date(), (raceId, compute) =>
+      sharedForestWatch(`forest-watch:${raceId}:${raceChangeGeneration(raceId)}`, compute)), publicationPreview: getStartListPublicationPreviewAsAdmin, publication: decideStartListPublicationAsAdmin,
   startListExport: exportCurrentStartListXmlAsAdmin,
   drawSetup: loadStartDrawSetupAsAdmin, drawPreview: previewStartDrawAsAdmin, draw: commitStartDrawAsAdmin,
   finalizationCandidates: listResultFinalizationCandidatesAsAdmin, finalize: finalizeResultsAsAdmin,

@@ -3,6 +3,7 @@ import {
 } from "@o-tid/application";
 import { publicDb as db } from "./db";
 import { instanceRole } from "./instance-role";
+import { raceChangeGeneration } from "./race-change-generation";
 import { createPublicRaceCache, onlyNewResults } from "./public-race-cache";
 import { publicLoad } from "./public-load";
 import { publicStartListValue } from "./public-start-list-route";
@@ -14,15 +15,15 @@ import { publicStartListValue } from "./public-start-list-route";
 const globalCache = globalThis as typeof globalThis & { oTidPublicRaceCache?: ReturnType<typeof createPublicRaceCache> };
 /**
  * Steg 54: listorna räknas i publikens pool (tidsgräns, egna anslutningar). I tävlingens instans (`web`), där bara
- * inloggade läser listorna, tar en uträkning högst en sjättedel av processen, räknas aldrig i förväg och en upp till 5 s
- * gammal lista ges direkt.
+ * inloggade läser listorna, tar en uträkning högst en sjättedel av processen och räknas aldrig i förväg.
  */
 const competition = instanceRole() === "competition";
-const cache = globalCache.oTidPublicRaceCache ??= createPublicRaceCache({ version: (raceId) => publicRaceContentVersion(db, raceId),
-  staleAllowed: onlyNewResults, pressure: () => publicLoad().pressure(), computeShare: competition ? 6 : 3,
-  // I tävlingens instans väntar arbetsytan och speakern hellre inte: en lista som är högst 5 s gammal ges direkt (märkt,
-  // sidan hämtar igen strax) när bara nya resultat har kommit in.
-  ...(competition ? { serveStaleMs: 5_000 } : {}) });
+// Versionen har också tävlingens ändringsgeneration (`race-change-generation.ts`): efter en ändring i arbetsytan ges ingen
+// äldre lista (bara nya resultat, de sista delarna lika, får det), och arrangörens lista räknas om vid nästa läsning.
+const cache = globalCache.oTidPublicRaceCache ??= createPublicRaceCache({
+  version: async (raceId) => { const version = await publicRaceContentVersion(db, raceId);
+    return version === null ? null : `${version}:g${raceChangeGeneration(raceId)}`; },
+  staleAllowed: onlyNewResults, pressure: () => publicLoad().pressure(), computeShare: competition ? 6 : 3 });
 
 /** `fresh`: vänta på den aktuella versionen (väckningen). `exact`: läs versionen nu (sidorna, efter en sparad ändring). */
 type Read = { fresh?: boolean; exact?: boolean };
@@ -48,7 +49,7 @@ export const cachedPublicResults = (raceId: string, options: Read = {}) => read(
  * Förut räknades den om vid varje anrop från en speakerskärm eller arbetsyta.
  */
 export const cachedStaffResults = (raceId: string, options: Read = {}) =>
-  read(raceId, "results:staff", () => publicResults(db, raceId, { staff: true }), options);
+  read(raceId, "results:staff", () => publicResults(db, raceId, { staff: true }), { ...options, exact: true });
 export const cachedPublicRelayResults = (raceId: string, options: Read = {}) =>
   read(raceId, "relay", () => publicRelayResults(db, raceId), options);
 export const cachedPublicRadio = (raceId: string, options: Read = {}) => read(raceId, "radio", () => readPublicRadio(db, raceId), options);

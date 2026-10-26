@@ -26,6 +26,7 @@ import { handleRadioRoute } from "./race-administrator-routes-radio";
 import { handleCompetitionRoute } from "./race-administrator-routes-competition";
 import { handleRemovalRoute } from "./race-administrator-routes-removal";
 import { handleCorrectionRoute } from "./race-administrator-routes-corrections";
+import { bumpRaceChangeGeneration, RESULT_WRITES } from "./race-change-generation";
 import { retryReadConflicts } from "./read-conflict";
 import { handlePartyRoute } from "./race-administrator-routes-party";
 import { principalAllows, raceRoleFor } from "./race-roles";
@@ -88,7 +89,10 @@ export async function raceAdministratorRoute(db: Database, request: Request, rac
     const context: RaceAdministratorRouteContext = { db, request, raceId, action, dependencies, proof, cursor, beforeVersion };
     // Steg 51: en läsning (speakern, kvar i skogen, listorna) som avbröts av en samtidig ändring görs om i stället för 500.
     if (!write) return await retryReadConflicts(() => dispatchRaceAdministratorRoute(context));
-    return await dispatchRaceAdministratorRoute(context);
+    const response = await dispatchRaceAdministratorRoute(context);
+    // Steg 54: en lyckad ändring syns direkt i det som delas eller cachas för inloggade (`race-change-generation.ts`).
+    if (response.ok && !RESULT_WRITES.has(action.kind)) bumpRaceChangeGeneration(raceId);
+    return response;
   } catch { return failure(500, "INTERNAL_ERROR"); }
 }
 

@@ -1,9 +1,133 @@
-# Lasttest (PLAN.md steg 51)
+# Lasttest (PLAN.md steg 51 och 54)
 
 Frågan från ägaren: hur stora tävlingar klarar O-Tid på produktionsservern (Hetzner CX23, 2 vCPU x86, 4 GB) utan att bli seg?
-Mätt 2026-10-26. Skripten finns i `scripts/lasttest/` (se [Köra om](#köra-om)).
+Steg 51 mätte och rättade det publika; steg 54 ([ADR-0177](adr/ADR-0177-tavlingen-forst.md)) ser till att tävlingen
+(avläsningen, arbetsytan, funktionärerna) går före publiken. Skripten finns i `scripts/lasttest/` (se [Köra om](#köra-om)).
 
-## Svar i korthet
+## Steg 54: tävlingen först (mätt 2026-10-26)
+
+Ägaren: "det är ju ett problem om själva tävlingsservern börjar strula för att det är för många som ska kolla på
+tävlingen" och "bra om du fixar så att tävlingsadmin alltid fungerar bra även om resultatredovisningen blir
+långsammare. jag tänker att vi inte skalar upp än". Kraven: 1 000 besökare under en målrusning, kvitto och arbetsytan
+under 1 s (p95), en 25-manna med 300 lag.
+
+### Svar i korthet
+
+- **1 000 besökare och 3 000 löpare under en målrusning (toppar på 3 avläsningar/s):** kvittot på avläsningsdatorn
+  **p95 0,87 s** (före 6,8 s) och arbetsytan **p95 0,58 s** (före 4,0 s). Publiken fick sina sidor och listor snabbare än
+  före (p95 1,7–3,9 s, före 3,0–5,7 s) och inga fel, men ett nytt resultat syntes senare: p50 6,2 s, p95 13 s (före 2,6
+  och 6,1 s). Det är priset för att tävlingen går före.
+- **25-manna 300 lag × 25 med 300 besökare, 300 utläsningar på 5 minuter med toppar på 3/s:** kvitto p50 2,0 s, p95
+  10,9 s (före 26,6 s och 91 s, och satser som fick tidsgräns). En utläsning tar 0,11 s utan last (före 0,33 s). Målet 1 s
+  nås inte när många lag växlar på en gång; med jämnare växlingar (ungefär en per sekund) går det.
+- **Ingen uppskalning:** samma CX23 och samma två kärnor. Det som ändrades är hur de delas (se nedan).
+
+### Uppställning (skillnader mot steg 51)
+
+- **Instanserna som i `docker-compose.prod.yml`:** `web` (tävlingen, `OTID_INSTANCE_ROLE=competition`) och två publika
+  (`web-public`, `web-public2`), produktionsbygget (Next standalone) och PostgreSQL 17.10 som i steg 51. Lastgeneratorn
+  delade anropen som `deploy/Caddyfile`: publika sökvägar utan inloggning till de publika, allt annat till `web`. Caddy
+  provades för sig med samma bygge (Playwright mot HTTPS, se nedan).
+- **Processortid som `cpu_shares`:** cgroup v1 med vikterna 1024 (databasen), 1024 (`web`) och 512 (de två publika
+  tillsammans, 256 var), minnestak 1 GB, 1 GB och 1,5 GB. **Ingen kvot**: maskinen har 2 kärnor, som CX23, och compose
+  sätter inte `--cpus`. (Steg 51 hade en kvot på 2 kärnor för hela gruppen; en kvot stoppar också `web` när publiken har
+  använt upp den.)
+- **Lastgeneratorn i två processer:** besökarna i en (vanlig prioritet, 0,15–0,2 kärnor) och avläsningsdatorerna,
+  arbetsytan och speakern i en annan med hög prioritet. I verkligheten är de egna datorer; med en process räknades
+  generatorns egen kö in i kvittot (mätt: kvitto p95 2,0 s i stället för 1,1 s med samma server).
+- **Arbetsytan mäts för sig:** två inloggade funktionärer öppnar var femte sekund deltagarlistan, Kvar i skogen, "Kvar att
+  läsa ut", banorna och inloggningen, och var tionde sekund resultatlistan som inloggad (`--office`).
+- **Före** = `main` e6a4123 (steg 51, `web` + `web2`), mätt med samma uppställning (utan kvot, två generatorprocesser).
+
+### Resultat
+
+Individuell tävling, 3 000 löpare, 1 000 besökare, 150 avläsningar på 5 minuter (toppar på 3/s), två speakerskärmar, två
+arbetsytor. Tider under rusningen, p50 / p95 / p99 i ms. CPU i kärnor (medel / p95).
+
+| | Före (web + web2) | Efter (web + 2 × web-public) |
+|---|---|---|
+| Kvitto på avläsningsdatorn | 1 769 / 6 795 / 8 425 | **92 / 870 / 1 048** |
+| Arbetsytan (alla anrop) | 1 548 / 3 981 / 8 801 | **70 / 578 / 705** |
+| Arbetsytan: banorna, Kvar i skogen, deltagarlistan p95 | 8 801, 3 113, 2 563 | 697, 523, 482 |
+| Resultat som inloggad (arbetsytan) p95 | 3 828 (räknades om varje gång) | 385 |
+| Speakern: Kvar i skogen, resultat p95 | 3 944, 3 631 | 1 087, 746 |
+| Publiken: resultatlistan, Live, deltagare, startlistan p95 | 5 667, 5 543, 5 087, 3 406 | 3 851, 2 993, 3 014, 1 692 |
+| Publiken: sidladdningar p95 (sämsta) | 5 715 | 3 367 |
+| Uppdatering till publiken p50 / p95 | 2,6 s / 6,1 s | 6,2 s / 13,0 s |
+| Fel | 0 | 0 (inga 503 behövdes) |
+| CPU web / publika / databas | 1,33 / – / 0,25 (p95 1,62 / – / 0,39) | 0,27 / 0,99 / 0,16 (p95 0,78 / 1,63 / 0,31) |
+| Minne max web / publika / databas | 2 175 MB (två) / – / 530 MB | 318 MB / 979 MB (två) / 474 MB |
+
+25-mannastafett, 300 lag × 25 (7 500 sträcklöpare, sträcka 1–4 avlästa), 300 besökare, 300 utläsningar på 5 minuter
+(toppar på 3/s), två speakerskärmar och två arbetsytor:
+
+| | Före | Efter |
+|---|---|---|
+| Kvitto p50 / p95 / p99 | 26 608 / 91 246 / 96 602 | **2 000 / 10 895 / 12 561** |
+| Satser med tidsgräns (30 s) | 8 (skickades om) | 0 |
+| Arbetsytan p50 / p95 | 771 / 2 508 | 604 / 1 694 |
+| Publiken (resultat, Live, stafett) p95 | 2 691–3 957 | 1 938–2 319 |
+| CPU web / publika / databas | 1,15 / – / 0,34 | 0,69 / 0,55 / 0,27 |
+
+Utan last (en utläsning i taget, applikationslagret): individuell 81 → 50 ms (38 databasfrågor), stafett 3 sträckor 115 ms
+före, 25-manna 343 → 110 ms (84 frågor). ¹
+
+¹ Före: lasttestets testdata (`seed.ts`, ms per avläsning med main). Efter: samma avläsningar en och en mot en kopia av
+testdatan.
+
+Lastgeneratorn byggde före rättelsen om en avläsning vid omsändning efter tidsgräns (ny hash), och servern avvisade den
+som sekvenskonflikt; det gav fem "ej sparad" i 25-mannakörningen före. Avläsningssidans kö skickar alltid samma
+avläsning, och generatorn gör nu likadant.
+
+### Vad som ändrades (och vad som provades)
+
+Mätt i ordning med 1 000 besökare (individuell tävling):
+
+| Ändring | Kvitto p95 | Arbetsytan p95 | Publiken |
+|---|---:|---:|---|
+| Före (`web` + `web2` delar allt) | 6,8 s | 4,0 s | p95 3,0–5,7 s |
+| `web` + **en** `web-public`, CPU-vikter, pooler, lastavlastning, avgränsad avläsning ² | 1,05 s | 1,15 s | nästan 2 000 tidsgränser (30 s): en Node-process räcker inte |
+| `web` + **två** publika | 1,1 s | 1,2 s | p95 4,3–7,1 s, inga fel |
+| Två publika med en hård gräns på 1,3 kärnor | 1,0 s | 1,2 s | tidsgränser igen; används inte |
+| Kvar i skogen delas av skärmarna i 2 s | 0,62 s | 0,64 s | p95 1,7–3,8 s |
+| Inloggades resultatlista högst 5 s gammal direkt i `web` | **0,87 s** | **0,58 s** | p95 1,7–3,9 s |
+
+² Med en generatorprocess och kvoten från steg 51; de andra raderna utan kvot och med två generatorprocesser.
+
+- **Instanserna:** en Node-process använder en kärna. I steg 51 delade `web` och `web2` allt, så en avläsning väntade i
+  samma kö som hundratals publika anrop. Nu tar `web` bara tävlingen (och allt för den som är inloggad) och använde
+  0,27 kärnor i medel, medan de publika tog resten.
+- **Profilering av `web-public`** under last: 19 % skräpsamling, 13 % sidrendering, 7 % skrivning till nätet och 7 %
+  databasfrågor (en per anrop för grinden). Grindens svar för besökare utan inloggning delas nu i 1 s, och det packade
+  svaret kopieras inte längre för varje anrop.
+- **Profilering av `web`:** 71 % ledig. Kvittona var sega för att tunga läsningar (Kvar i skogen 1,7 MB, 0,3 s, från två
+  speakerskärmar vid varje väckning) blockerade processen när en avläsning kom. Delad i 2 s halverade kvittots p95.
+- **Arrangörens och funktionärernas resultatlista** (steg 52) räknades om vid varje anrop (4 MB, 0,5 s); nu en gång per
+  tävlingsversion, och `web` ger en upp till 5 s gammal lista direkt.
+- **Avläsningen** läser bara löparens eller lagets del av tävlingen, och stafettklasser utan flygande omstart låses per lag
+  i stället för per klass.
+- **Lastavlastningen** (äldre lista i upp till 10 s, uträkning och väckning högst var tredje sekund, kö, 503) slog till
+  under hela rusningen (händelseloopen låg mer än 150 ms efter). Inga anrop behövde avvisas med 503 vid 1 000 besökare;
+  taket finns som sista utväg och är provat i enhetstesterna.
+
+### Gränser och rekommendation (steg 54)
+
+- **CX23 räcker** för 3 000 löpare och 1 000 samtidiga besökare under en målrusning: kvitto och arbetsyta under 1 s (p95),
+  publiken p95 under 4 s och ett nytt resultat syns hos publiken efter ungefär 5–10 s (p95 13 s).
+- **25-manna:** fungerar med 300 lag, men vid täta växlingar (3 per sekund) får avläsningen vänta: kvitto p50 2 s, p95 11 s.
+  Inget går förlorat; kön på avläsningsdatorn tar hand om det. En utläsning gör 84 databasfrågor i följd, och under last
+  väntar varje fråga på processorn (se Idéer i STATUS.md).
+- **Fler besökare:** publiken får det långsammare (glesare uppdatering, sist 503 och ett nytt försök), men tävlingen
+  påverkas inte. Vill ni ha snabbare uppdatering till publiken: en större server med fler publika instanser.
+- **Provat med Caddy** (2.11, `deploy/Caddyfile`) och tre produktionsinstanser med rollerna: en besökare utan inloggning
+  får `/om` från en publik instans när `web` står still, en inloggad får `web`. Webbläsartesterna `hjalp`, `live`,
+  `listor`, `publikt`, `stafett`, `stafett-steg47`, `stafett-steg48`, `stafett-steg50`, `gafflingar`, `gafflingsbild`,
+  `banhemlighet`, `funktionarer`, `avlasaren`, `sakerhetshuvuden`, `radio`, `avslut` och `arbetsyta` gick igenom mot den.
+  Docker-läget (`cpu_shares`, `mem_limit`) provas först i CI:s driftjobb.
+
+## Steg 51 (mätt 2026-10-26)
+
+### Svar i korthet
 
 - **Före steg 51 klarade CX23 inte ens 100 samtidiga besökare** på en tävling med 3 000 löpare: varje besökare fick
   resultatlistan, Live och deltagarsidan uträknade på nytt var femte sekund och vid varje avläsning. Webben var mättad,
@@ -18,7 +142,7 @@ Mätt 2026-10-26. Skripten finns i `scripts/lasttest/` (se [Köra om](#köra-om)
 - **Gräns i en mening:** klarar 3 000 löpare och 300 samtidiga besökare på CX23 med p95 under 1 s för publiken och
   1,5 s för avläsningens kvitto; fler besökare eller en tät 25-manna kräver en större server (4 vCPU, fyra webbinstanser).
 
-## Scenarier
+### Scenarier
 
 Testdatan skapas av `scripts/lasttest/seed.ts` (påhittade namn) genom applikationslagret, som en arrangör gör det:
 
@@ -45,7 +169,7 @@ Lastgeneratorn (`scripts/lasttest/load.ts`) kör ett scenario i taget:
 - **Uppdatering till publiken:** 24 provbesökare letar efter varje kvitterad löpare i sina svar; tiden från kvitto till
   att löparen syns.
 
-## Maskin och uppställning
+### Maskin och uppställning
 
 - **Maskin:** en molnmaskin med 2 kärnor (Intel Xeon 2,8 GHz), 8 GB, Linux 6.18. Docker fanns men kunde inte hämta
   bilder (registret var spärrat i miljön), så PostgreSQL **17.10** kördes som vanlig process (binärerna från npm-paketet
@@ -62,7 +186,7 @@ Lastgeneratorn (`scripts/lasttest/load.ts`) kör ett scenario i taget:
   vitest-, playwright-, tsc- eller next build-processer körde och load average var under 2 i 20 s; load average under
   varje mätning (som även räknar webben, databasen och lastgeneratorn) står i tabellen.
 
-## Resultat
+### Resultat
 
 Alla körningar: den individuella tävlingen (3 000 löpare) om inget annat står, 150 avläsningar på 5 minuter (toppar på
 3/s i 15 s varannan minut), två speakerskärmar, två webbinstanser om inget annat står. Tiderna gäller under rusningen.
@@ -99,7 +223,7 @@ Funktionärsåtgärderna under last (300 besökare, målrusning, två webbinstan
 Andra mätningar: avläsningspaketet för 3 000 löpare är 2,0 MB och tar 0,3–0,8 s att hämta. En utläsning utan last tar
 90–150 ms på servern (individuell), 0,1 s (stafett, 3 sträckor) och 0,33 s (25-manna).
 
-## Vad som var långsamt och vad som rättades
+### Vad som var långsamt och vad som rättades
 
 Mätt med profilering (CPU-profiler i Node, `pg_stat_statements`, `EXPLAIN ANALYZE`). Före = `main` ac2e06d.
 
@@ -144,7 +268,7 @@ igenom lokalt även före rättelsen; ett lags starter beror utan flygande omsta
 Resultatreglerna är oförändrade: listorna ur cachen är byte för byte samma som förut (jämfört för den individuella tävlingen och stafetten),
 och alla tester går igenom. Det enda som räknas om mer sällan är starttidsflytten, där bara klassens underlag ändras.
 
-## Gränser och rekommendation
+### Gränser och rekommendation
 
 Gränserna att jämföra med: besked på avläsningsdatorn under 1 s (p95), publika sidor under 1 s (p95), uppdatering till
 publiken inom 5 s, inga fel.
@@ -186,20 +310,26 @@ publiken inom 5 s, inga fel.
 ## Köra om
 
 ```bash
-# 1. Server: produktionsbygget och PostgreSQL 17 med 2 kärnor och 4 GB tillsammans.
+# 1. Server: produktionsbygget och PostgreSQL 17 (cgroup v1, root, en maskin med 2 kärnor).
 pnpm install && pnpm --filter @o-tid/web build
-# cgroup-läget (som mätningen här, root och cgroup v1): PostgreSQL 17-binärer i PG_BIN, två webbinstanser.
-PG_BIN=/väg/till/postgres17/bin LASTTEST_INSTANCES=2 scripts/lasttest/server.sh cgroup
-# (eller scripts/lasttest/server.sh docker: postgres:17 och otid-web med --cpus 2 --memory 4g, en instans, inte provat här)
+# Steg 54 (förval): web på 3000 och två publika på 3001 och 3002 med CPU-vikter och minnestak som docker-compose.prod.yml.
+# LASTTEST_ROLES=off LASTTEST_INSTANCES=2 ger steg 51:s två likadana instanser (för en mätning före).
+PG_BIN=/väg/till/postgres17/bin scripts/lasttest/server.sh cgroup
 # 2. Testdata (tom databas, påhittade namn). --small ger en tiondel; --races väljer individual,relay3,relay25.
-DATABASE_URL=postgresql://otid:otid@127.0.0.1:5440/otid pnpm lasttest:seed -- --out /tmp/otid-lasttest/manifest.json
-# 3. Last: välj tävling, besökare, avläsningar och minuter. --actions kör funktionärsåtgärderna, --base a,b två webbinstanser.
-pnpm lasttest:load -- --manifest /tmp/otid-lasttest/manifest.json --race individual --visitors 300 --readouts 300 \
-  --minutes 10 --actions --base http://127.0.0.1:3000,http://127.0.0.1:3001 --cgroups web=otid/web,db=otid/db \
-  --out /tmp/otid-lasttest/resultat.json   # --client old efterliknar sidorna före steg 51
+DATABASE_URL=postgresql://otid:otid@127.0.0.1:5440/otid pnpm lasttest:seed -- --out /tmp/otid-lasttest/manifest.json --relay25-legs-read 4
+# 3. Last i två processer (steg 54): besökarna och tävlingens del (avläsningsdatorer, arbetsyta, speaker) med hög prioritet.
+NET="--base http://127.0.0.1:3000 --public-base http://127.0.0.1:3001,http://127.0.0.1:3002 --cgroups web=otid/web,public=otid/public,db=otid/db"
+pnpm lasttest:load -- --manifest /tmp/otid-lasttest/manifest.json --race individual --visitors 1000 --readouts 150 --minutes 5 \
+  $NET --part public --seen /tmp/otid-lasttest/seen.json --out /tmp/otid-lasttest/publik.json &
+sleep 30   # besökarna hinner komma
+mkdir -p /sys/fs/cgroup/cpu/otidhi && echo 8192 > /sys/fs/cgroup/cpu/otidhi/cpu.shares
+sh -c 'echo $$ > /sys/fs/cgroup/cpu/otidhi/cgroup.procs; exec "$@"' sh pnpm lasttest:load -- --manifest /tmp/otid-lasttest/manifest.json \
+  --race individual --visitors 1000 --readouts 150 --minutes 5 $NET --part competition --seen /tmp/otid-lasttest/seen.json \
+  --out /tmp/otid-lasttest/tavlingen.json   # --actions kör funktionärsåtgärderna, --client old efterliknar sidorna före steg 51
+wait
 scripts/lasttest/server.sh stop
 ```
 
-Lastgeneratorn skriver tabellerna här ovan (Markdown) och JSON med alla anrop. Kör testdatan på nytt (eller kopiera
-databasen med `create database … template …`) före varje mätning: avläsningarna i manifestet kan bara läsas ut en gång,
-och de lottade starttiderna utgår från klockan när testdatan skapades (kör lasten inom några timmar).
+Utan `--part` kör en process allt (som steg 51). Lastgeneratorn skriver tabellerna (Markdown) och JSON. Kör testdatan på
+nytt (eller kopiera databasen med `create database … template …`) före varje mätning: avläsningarna i manifestet kan
+bara läsas ut en gång, och de lottade starttiderna utgår från klockan när testdatan skapades (kör lasten inom några timmar).

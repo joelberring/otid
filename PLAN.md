@@ -855,6 +855,23 @@ ADR-0176. Migration 0026.
 - [x] Tester: plan för 0–128+ stämplingar, reservvägen, bit för bit samma block och bild som "alla block", natt-KM:s SIAC.
 - [ ] Ägaren provar SIAC, SI10, SI8 och SI5 på riktig station (steg 7).
 
+## [x] Steg 54 – Tävlingen först: avläsning och arbetsyta före publiken
+
+ADR-0177, `docs/lasttest.md`, `docs/drift.md`. Ingen ny migration. Ingen uppskalning (CX23 kvar).
+
+- [x] Två slags instanser: `web` (arbetsytan, avläsningen, funktionärerna, inloggningen, admin-API:t) och `web-public` +
+  `web-public2` (publika sidor och API:er, Live, resultatströmmen). Caddy delar per sökväg; inloggade går alltid till
+  `web`. En instans klarar ändå allt (`OTID_INSTANCE_ROLE` saknas, lokalt och med `pnpm dev`).
+- [x] `cpu_shares` (1024 databasen och `web`, 256 per publik instans) och minnestak per tjänst som ryms i 4 GB.
+- [x] Separata pooler: tävlingens utan tidsgränser, publikens med `statement_timeout` 5 s, `lock_timeout` 2 s och
+  `idle_in_transaction_session_timeout` 10 s; publiken kan inte ta tävlingens anslutningar.
+- [x] Lastavlastning: senast färdiga listan längre vid tryck, glesare uppdatering och väckning, tak för strömmar, kö och
+  sist 503 med Retry-After; sidorna försöker igen tyst.
+- [x] Avläsningen läser bara löparens eller lagets del; stafettklasser utan flygande omstart låses per lag.
+- [x] Lasttest före/efter: 1 000 besökare och målrusning gav kvitto p95 6,8 → 0,87 s och arbetsytan p95 4,0 → 0,58 s;
+  25-manna 300 lag kvitto p50 26,6 → 2,0 s (p95 91 → 11 s).
+- [x] "Hur stora tävlingar klarar O-Tid?" på `/om` med de uppmätta siffrorna.
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

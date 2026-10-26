@@ -29,6 +29,16 @@ export const aboutSv = {
     "Nödlägen under tävlingen: justera tiden för en station, kontroll ur funktion, manuell tid och omläsning från sparade rådata.",
     "Tävlingstyperna Träning, Liten tävling, Tävling, Tävling med gafflade banor, Stafett och Rogaining."
   ],
+  // Steg 54: uppmätt i docs/lasttest.md på en liten server (Hetzner CX23). Enkel svenska, inga tekniska ord.
+  capacityTitle: "Hur stora tävlingar klarar O-Tid?",
+  capacity: [
+    "O-Tid körs på en liten server med två processorkärnor och 4 GB minne. Vi har provat den med en tävling med 3 000 löpare och 1 000 besökare samtidigt, medan de sista 150 löparna kom i mål.",
+    "Tävlingen går före publiken. Avläsningen fick svar på under en sekund för 95 av 100 brickor, och arbetsytan och funktionärerna arbetade som vanligt.",
+    "När många tittar blir resultatlistan och Live långsammare. Ett nytt resultat syntes oftast efter 5–10 sekunder, ibland lite senare.",
+    "Stafetter med 300 lag går också, både med tre sträckor och som 25-manna (7 500 sträcklöpare). I en 25-manna där många lag växlar samtidigt kan det ta några sekunder, ibland upp till tio, innan avläsningen får svar.",
+    "Avläsningar går aldrig förlorade. Varje avläsning sparas först på avläsningsdatorn och tas bort därifrån först när servern har tagit emot den. Är nätet borta eller servern upptagen skickas den senare.",
+    "Väntar ni fler besökare än så fungerar O-Tid ändå, men listorna uppdateras mer sällan."
+  ],
   contactTitle: "Frågor och kontakt",
   contact: "Har du frågor om O-Tid, hittat ett fel eller saknar något? Skicka ett mejl till",
   clubTitle: "Vill du använda O-Tid på din klubb?",

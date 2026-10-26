@@ -10,13 +10,16 @@
  * - Publiken: virtuella webbläsare öppnar en sida (resultat, Live, startlista, deltagare, tävlingssidan), håller
  *   resultatströmmen öppen och hämtar som sidorna gör: var femte sekund och direkt vid en händelse, aldrig två samtidigt.
  * - Speakern: två inloggade speakerskärmar (var tionde sekund och vid händelse).
+ * - Arbetsytan (steg 54, --office): inloggade funktionärer som öppnar deltagarlistan, kvar i skogen, kvar att läsa ut och banorna
+ *   var femte sekund och resultatlistan var tionde; mäts för sig (kravet p95 under 1 s).
+ * - Två slags instanser (steg 54, --public-base): som Caddy går publika anrop utan inloggning till web-public, resten till web.
  * - Funktionärsåtgärder (--actions): redigera den delade banan (> 300 avlästa) och tillbaka, flytta en klass
  *   starttider 2 min och tillbaka, och "Resultaten är klara" när rusningen är slut.
  * - Uppdatering till publiken: provbesökare letar efter varje kvitterad löpare i sina svar.
  * Resultatet skrivs som tabeller (Markdown) och JSON.
  */
 import { randomUUID } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { parseArgs } from "node:util";
 import { readoutEvent } from "./common.ts";
@@ -24,6 +27,18 @@ import { averages, CgroupMeter, Client, percentile, Recorder, sleep, summarize, 
 
 const { values: args } = parseArgs({ options: {
   base: { type: "string", default: "http://127.0.0.1:3000" },
+  /** Steg 54: `web-public` (a,b för två; publika sidor och API:er utan inloggning, som Caddy delar upp). Tom = allt till --base. */
+  "public-base": { type: "string", default: "" },
+  /**
+   * Steg 54: `all` (en process), `competition` (avläsningsdatorerna, arbetsytan, speakern, åtgärderna) eller `public`
+   * (besökarna). I verkligheten är avläsningsdatorerna egna datorer; med två processer kan tävlingens del köras med hög
+   * prioritet så att lastgeneratorns egen kö inte räknas in i kvittot. `--seen` är filen där `public` skriver när varje
+   * löpare syntes och som `competition` läser för uppdateringstiden.
+   */
+  part: { type: "string", default: "all" },
+  seen: { type: "string", default: "" },
+  /** Steg 54: inloggade arbetsytor (deltagarlistan, kvar i skogen, klasser, resultat) som mäts för sig. */
+  office: { type: "string", default: "2" },
   origin: { type: "string", default: "https://otid.lasttest" },
   manifest: { type: "string", default: "/tmp/otid-lasttest/manifest.json" },
   race: { type: "string", default: "individual" },
@@ -49,7 +64,9 @@ const recorder = new Recorder();
 /** Flera webbinstanser (`--base a,b`): varje klient (webbläsare, avläsningsdator) håller sig till en, som bakom Caddy med lb. */
 const bases = args.base.split(",");
 let clients = 0;
-const client = () => new Client(bases[clients++ % bases.length]!, args.origin, recorder);
+const publicBases = args["public-base"] ? args["public-base"].split(",") : [];
+const client = () => { const index = clients++; return new Client(bases[index % bases.length]!, args.origin, recorder,
+  publicBases.length > 0 ? publicBases[index % publicBases.length] : undefined); };
 const durationMs = Number(args.minutes) * 60_000;
 const admin = `/api/admin/races/${raceId}/administrator`;
 let stopping = false;
@@ -68,7 +85,18 @@ function arrivals(count: number, spanMs: number): number[] {
 // ---- Uppdatering till publiken: när kvitterades löparen, när såg en provbesökare den?
 const acked = new Map<string, number>();
 const seen = new Map<string, number[]>();
+/** `--part public`: när varje väntande löpare först syntes (ms sedan epoken). */
+const firstSeen = new Map<string, number>();
+const pendingNames = new Set(race.pending.map((run) => run.name));
 function lookFor(text: string): void {
+  if (args.part === "public") {
+    const now = Date.now();
+    for (const match of text.matchAll(/"givenName":"([^"]*)","familyName":"([^"]*)"/g)) {
+      const name = `${match[1]} ${match[2]}`;
+      if (pendingNames.has(name) && !firstSeen.has(name)) firstSeen.set(name, now);
+    }
+    return;
+  }
   const now = Date.now();
   for (const [name, at] of acked) {
     const [given, ...family] = name.split(" ");
@@ -100,20 +128,22 @@ async function readoutDevice(index: number, runs: Run[], times: number[], starte
   }
   let packageVersion = (JSON.parse(pkg.text()) as { packageVersion: number }).packageVersion;
   const deviceId = randomUUID(), sessionId = randomUUID();
-  const queue: { run: Run; insertedAt: number; sequence: number }[] = [];
+  // Som avläsningskön: avläsningen byggs när brickan sätts i och skickas oförändrad tills den är kvitterad (steg 54; förut
+  // byggdes den om vid omsändning, med ny hash, och servern avvisade den som sekvenskonflikt).
+  const queue: { run: Run; insertedAt: number; sequence: number; event: ReturnType<typeof readoutEvent> }[] = [];
   let next = 0, sequence = 0;
   while (next < runs.length || queue.length > 0) {
     const now = Date.now() - startedAt;
     while (next < runs.length && times[next]! <= now) {
-      queue.push({ run: runs[next]!, insertedAt: startedAt + times[next]!, sequence: ++sequence });
+      const readAt = new Date(startedAt + times[next]!), run = runs[next]!;
+      queue.push({ run, insertedAt: readAt.getTime(), sequence: ++sequence, event: readoutEvent({ cardNumber: run.cardNumber,
+        startAt: new Date(run.startAt), finishAt: new Date(readAt.getTime() - 60_000), controlCodes: run.controlCodes }, sequence, readAt) });
       next += 1;
     }
     if (queue.length === 0) { await sleep(Math.min(250, Math.max(10, times[next]! - now))); continue; }
     // Som avläsningskön: sammanhängande löpnummer, högst 100 per sats.
     const batch = queue.splice(0, 100);
-    const readAt = new Date();
-    const events = batch.map(({ run, sequence: localSequence }) => readoutEvent({ cardNumber: run.cardNumber, startAt: new Date(run.startAt),
-      finishAt: new Date(readAt.getTime() - 60_000), controlCodes: run.controlCodes }, localSequence, readAt));
+    const events = batch.map((item) => item.event);
     const reply = await device.request(batch.length === 1 ? "readouts POST (1)" : "readouts POST (sats)", `${admin}/readouts`, { method: "POST",
       body: { deviceId, sessionId, packageVersion, firstSequence: batch[0]!.sequence, lastSequence: batch.at(-1)!.sequence, events } });
     if (reply.status !== 200) {
@@ -161,7 +191,12 @@ async function visitor(index: number, pages: Page[], participantIds: string[]): 
     if (sideDue) sideAt = Date.now();
     try {
       const replies = await Promise.all(reads.filter((path) => !side(path) || sideDue).map(async (path) => {
-        const reply = await browser.request(`GET ${label(path)}`, path);
+        let reply = await browser.request(`GET ${label(path)}`, path);
+        // Steg 54: 503 med Retry-After – sidan visar det den har och försöker igen tyst.
+        for (let attempt = 0; reply.status === 503 && attempt < 3 && !stopping; attempt += 1) {
+          await sleep((reply.retryAfter ?? 2) * 1_000 + Math.random() * 1_000);
+          reply = await browser.request(`GET ${label(path)}`, path);
+        }
         if (side(path) && reply.status === 200) sideHasContent ||= /"classes":\[\{|"enabled":true/.test(reply.text());
         return reply;
       }));
@@ -198,6 +233,21 @@ async function visitor(index: number, pages: Page[], participantIds: string[]): 
 function label(path: string): string {
   return path.replace(raceId, "{id}").replace(/\/administrator\//, "/admin/").replace(/[0-9a-f]{8}-[0-9a-f-]{27}/g, "{pid}")
     .replace(/^\/api\/(public\/)?races\/\{id\}\//, "").replace("/api/admin/races/{id}/admin/", "admin/");
+}
+
+// ---- Arbetsytan (steg 54): inloggade funktionärer som arbetar under rusningen. Var femte sekund en vy i arbetsytan
+// (deltagarlistan, kvar i skogen, kvar att läsa ut, banorna, inloggningen), var tionde resultatlistan som inloggad.
+async function workspace(index: number): Promise<void> {
+  const desk = client();
+  await desk.login(manifest.email, manifest.password);
+  const views = [`${admin}/participants`, `${admin}/forest-watch`, `${admin}/remaining-runners`, `${admin}/courses`, `${admin}/session`];
+  await sleep(index * 1_700);
+  for (let round = 0; !stopping; round += 1) {
+    const path = views[(round + index) % views.length]!;
+    void desk.request(`arbetsyta ${label(path)}`, path, { timeoutMs: 60_000 });
+    if (round % 2 === 0) void desk.request("arbetsyta resultat (inloggad)", `/api/public/races/${raceId}/results`, { timeoutMs: 60_000 });
+    await sleep(5_000);
+  }
 }
 
 // ---- Funktionärsåtgärder
@@ -253,8 +303,9 @@ async function main(): Promise<void> {
     loadSamples.push(Number(readFileSync("/proc/loadavg", "utf8").split(" ")[0]));
   }, 1_000);
   const generatorCpu = process.cpuUsage();
+  const competitionPart = args.part !== "public", publicPart = args.part !== "competition";
   const office = client();
-  await office.login(manifest.email, manifest.password);
+  if (competitionPart) await office.login(manifest.email, manifest.password);
   // Deltagarsidorna: publika resultat-id ur resultatlistan.
   const results = await office.request("förberedelse", `/api/public/races/${raceId}/results`, { timeoutMs: 120_000 });
   const participantIds = results.status === 200 ? (JSON.parse(results.text()) as { results: { publicResultId?: string }[] }).results
@@ -275,13 +326,13 @@ async function main(): Promise<void> {
   process.stdout.write(`Lasttest ${args.race}: ${visitorCount} besökare, ${readoutCount} avläsningar på ${args.minutes} min, ${args.devices} datorer\n`);
   const startedAt = Date.now();
   const visitors: Promise<void>[] = [];
-  for (let index = 0; index < visitorCount; index += 1) {
+  for (let index = 0; publicPart && index < visitorCount; index += 1) {
     visitors.push(visitor(index, pages, participantIds));
     if (index % 10 === 9) await sleep(300);
   }
   const speakerPage: Page = { name: "speaker", html: `/admin/${raceId}/speaker`, stream: true, interval: 10_000,
     reads: [`${admin}/speaker-board`, `/api/public/races/${raceId}/results`, `${admin}/forest-watch`, `${admin}/relay`, `/api/public/races/${raceId}/radio`] };
-  const speakers = Array.from({ length: Number(args.speakers) }, async (_, index) => {
+  const speakers = Array.from({ length: competitionPart ? Number(args.speakers) : 0 }, async (_, index) => {
     const screen = client();
     await screen.login(manifest.email, manifest.password);
     let running = false;
@@ -305,10 +356,13 @@ async function main(): Promise<void> {
     close();
   });
 
+  const desks = Array.from({ length: competitionPart ? Number(args.office) : 0 }, (_, index) => workspace(index));
   // Målrusningen börjar när publiken är på plats.
   await sleep(20_000);
   const rushStart = Date.now();
-  const runs = race.pending.slice(0, readoutCount);
+  const runs = competitionPart ? race.pending.slice(0, readoutCount) : [];
+  // Besökarna ensamma (`--part public`): lika länge som rusningen, sedan när varje löpare syntes till `--seen`.
+  if (!competitionPart) await sleep(durationMs + 15_000);
   const times = arrivals(runs.length, durationMs);
   const devices = Number(args.devices);
   const rush = Array.from({ length: devices }, (_, index) => readoutDevice(index,
@@ -332,23 +386,38 @@ async function main(): Promise<void> {
   if (args.actions) await timed("resultaten är klara", () => resultsOfficial(office));
   await sleep(15_000);
   stopping = true;
-  await Promise.race([Promise.all([...visitors, ...speakers]), sleep(15_000)]);
+  await Promise.race([Promise.all([...visitors, ...speakers, ...desks]), sleep(15_000)]);
   clearInterval(sampler);
   const cpu = process.cpuUsage(generatorCpu);
 
   // ---- Rapport
+  if (args.part === "public" && args.seen) writeFileSync(args.seen, JSON.stringify(Object.fromEntries(firstSeen)));
+  if (args.part === "competition" && args.seen) {
+    // Besökarprocessen skriver filen när den är klar.
+    for (let waited = 0; !existsSync(args.seen) && waited < 120_000; waited += 1_000) await sleep(1_000);
+    const shown = existsSync(args.seen) ? JSON.parse(readFileSync(args.seen, "utf8")) as Record<string, number> : {};
+    for (const [name, at] of acked) if (shown[name] !== undefined) seen.set(name, [Math.max(0, shown[name] - at)]);
+  }
   const sorted = [...beskedMs].sort((a, b) => a - b);
   const freshness = [...seen.values()].map((list) => Math.min(...list)).sort((a, b) => a - b);
   const notSeen = [...acked.keys()].filter((name) => !seen.has(name)).length;
   const rows = summarize(recorder.samples, rushStart, rushEnd);
   const resources = meters.map((meter) => ({ name: meter.name, cpu: averages(meter.cpu), memoryMb: averages(meter.memoryMb) }));
   const generatorCores = (cpu.user + cpu.system) / 1e6 / ((Date.now() - startedAt) / 1000);
+  const during = (prefix: string) => recorder.samples.filter((sample) => sample.label.startsWith(prefix) && sample.at >= rushStart && sample.at <= rushEnd);
+  const deskMs = during("arbetsyta").map((sample) => sample.ms).sort((a, b) => a - b);
+  const publicSamples = recorder.samples.filter((sample) => sample.at >= rushStart && sample.at <= rushEnd &&
+    /^(GET |sida |SSE )/.test(sample.label));
+  const rejected = publicSamples.filter((sample) => sample.status === 503).length;
   const report = [
     `## ${args.label || args.race}: ${visitorCount} besökare, ${runs.length} avläsningar på ${args.minutes} min`,
     "",
     `Besked på avläsningsdatorn (insatt bricka → kvitto): p50 ${percentile(sorted, 50).toFixed(0)} ms, p95 ${percentile(sorted, 95).toFixed(0)} ms, ` +
       `p99 ${percentile(sorted, 99).toFixed(0)} ms, max ${(sorted.at(-1) ?? 0).toFixed(0)} ms (${sorted.length} st)` +
       (devicesWithoutPackage > 0 ? `; ${devicesWithoutPackage} av ${devices} avläsningsdatorer fick aldrig avläsningspaketet.` : "."),
+    `Arbetsytan (inloggad, ${args.office} st): p50 ${percentile(deskMs, 50).toFixed(0)} ms, p95 ${percentile(deskMs, 95).toFixed(0)} ms, ` +
+      `p99 ${percentile(deskMs, 99).toFixed(0)} ms, max ${(deskMs.at(-1) ?? 0).toFixed(0)} ms (${deskMs.length} anrop).`,
+    `Publiken avvisad med 503 (försöker igen tyst): ${rejected} av ${publicSamples.length} anrop under rusningen.`,
     `Uppdatering till publiken (kvitto → syns hos en provbesökare): p50 ${(percentile(freshness, 50) / 1000).toFixed(1)} s, ` +
       `p95 ${(percentile(freshness, 95) / 1000).toFixed(1)} s, max ${((freshness.at(-1) ?? 0) / 1000).toFixed(1)} s; ${notSeen} syntes aldrig.`,
     `Resurser: ${resources.map((row) => `${row.name} CPU medel ${row.cpu.mean.toFixed(2)} / p95 ${row.cpu.p95.toFixed(2)} kärnor, minne max ` +
@@ -366,6 +435,7 @@ async function main(): Promise<void> {
   process.stdout.write(`\n${report}\n`);
   mkdirSync(dirname(args.out), { recursive: true });
   writeFileSync(args.out, JSON.stringify({ args, report, rows, besked: { p50: percentile(sorted, 50), p95: percentile(sorted, 95), p99: percentile(sorted, 99) },
+    office: { p50: percentile(deskMs, 50), p95: percentile(deskMs, 95), p99: percentile(deskMs, 99) }, rejected,
     freshness: { p50: percentile(freshness, 50), p95: percentile(freshness, 95), notSeen }, resources, generatorCores, actions: actionLog,
     errors: Object.fromEntries(recorder.errors), all: summarize(recorder.samples) }, null, 1));
   writeFileSync(args.out.replace(/\.json$/, ".md"), report);

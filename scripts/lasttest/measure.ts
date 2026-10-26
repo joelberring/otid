@@ -57,7 +57,8 @@ export function table(rows: readonly Summary[]): string {
 }
 
 /** Ett svar: status, råa (komprimerade) byte och text (uppackad bara när någon läser den). */
-export type Reply = { status: number; ms: number; bytes: number; body: Buffer; encoding: string | undefined; text(): string };
+export type Reply = { status: number; ms: number; bytes: number; body: Buffer; encoding: string | undefined; retryAfter: number | undefined;
+  text(): string };
 
 // Lediga anslutningar stängs efter 4 s, före webbens keep-alive på 5 s (annars krockar återanvändning och stängning).
 const agent = new http.Agent({ keepAlive: true, maxSockets: Number.POSITIVE_INFINITY, timeout: 4_000 });
@@ -66,10 +67,27 @@ const agent = new http.Agent({ keepAlive: true, maxSockets: Number.POSITIVE_INFI
  * En webbläsares anrop: Origin, kakor och gzip (som bakom Caddy, som skickar vidare Accept-Encoding till webben).
  * node:http i stället för fetch: svaret packas bara upp när det läses, så att lastgeneratorn inte stjäl CPU.
  */
+/**
+ * Steg 54: Caddys uppdelning (deploy/Caddyfile). Publika sidor och API:er utan inloggning går till `web-public`, allt
+ * annat (arbetsytan, avläsningen, inloggade funktionärer även på publika sidor) till `web`.
+ */
+const PUBLIC_PATH = /^\/(results|starts|t|fest|om|integritet)(\/|$|\?)|^\/api\/public\/|^\/api\/races\/[^/]+\/start-list(\/|$|\?)/;
+export const isPublicPath = (path: string) => PUBLIC_PATH.test(path) || path === "/" || path.startsWith("/?");
+
 export class Client {
   cookies = new Map<string, string>();
   private readonly url: URL;
-  constructor(readonly base: string, readonly origin: string, readonly recorder: Recorder) { this.url = new URL(base); }
+  private readonly publicUrl: URL | undefined;
+  constructor(readonly base: string, readonly origin: string, readonly recorder: Recorder, publicBase?: string) {
+    this.url = new URL(base);
+    this.publicUrl = publicBase ? new URL(publicBase) : undefined;
+  }
+
+  /** Instansen för anropet: som Caddy, publikt utan sessionskaka till `web-public`. */
+  private target(path: string): URL {
+    const signedIn = [...this.cookies.keys()].some((name) => name.endsWith("organizer-session") || name.endsWith("organizer_session"));
+    return this.publicUrl && !signedIn && isPublicPath(path) ? this.publicUrl : this.url;
+  }
 
   headers(extra: Record<string, string> = {}): Record<string, string> {
     const cookie = [...this.cookies].map(([name, value]) => `${name}=${value}`).join("; ");
@@ -82,14 +100,16 @@ export class Client {
   }
 
   private raw(path: string, method: string, headers: Record<string, string>, body: string | undefined, timeoutMs: number):
-    Promise<{ status: number; body: Buffer; encoding: string | undefined; setCookie: string[] }> {
+    Promise<{ status: number; body: Buffer; encoding: string | undefined; setCookie: string[]; retryAfter: number | undefined }> {
+    const url = this.target(path);
     return new Promise((resolve, reject) => {
-      const request = http.request({ agent, host: this.url.hostname, port: this.url.port, path, method,
+      const request = http.request({ agent, host: url.hostname, port: url.port, path, method,
         headers: { ...headers, ...(body === undefined ? {} : { "content-length": String(Buffer.byteLength(body)) }) } }, (response) => {
         const chunks: Buffer[] = [];
         response.on("data", (chunk: Buffer) => chunks.push(chunk));
         response.on("end", () => resolve({ status: response.statusCode ?? 0, body: Buffer.concat(chunks),
-          encoding: response.headers["content-encoding"], setCookie: response.headers["set-cookie"] ?? [] }));
+          encoding: response.headers["content-encoding"], setCookie: response.headers["set-cookie"] ?? [],
+          retryAfter: response.headers["retry-after"] === undefined ? undefined : Number(response.headers["retry-after"]) }));
         response.on("error", reject);
       });
       request.setTimeout(timeoutMs, () => request.destroy(new Error("tidsgräns")));
@@ -104,7 +124,7 @@ export class Client {
     const started = performance.now();
     const method = init.method ?? "GET";
     const write = method !== "GET";
-    let status = 0, body: Buffer = Buffer.alloc(0), encoding: string | undefined;
+    let status = 0, body: Buffer = Buffer.alloc(0), encoding: string | undefined, retryAfter: number | undefined;
     try {
       const send = () => this.raw(path, method, this.headers({ ...(write ? { origin: this.origin, "content-type": "application/json",
         "x-otid-csrf": this.csrfOrEmpty() } : {}), ...init.headers }), init.body === undefined ? undefined : JSON.stringify(init.body), init.timeoutMs ?? 30_000);
@@ -113,7 +133,7 @@ export class Client {
         if (!write && error instanceof Error && /ECONNRESET|socket hang up/.test(error.message)) return send();
         throw error;
       });
-      ({ status, body, encoding } = reply);
+      ({ status, body, encoding, retryAfter } = reply);
       for (const setCookie of reply.setCookie) {
         const [pair] = setCookie.split(";");
         const index = pair!.indexOf("=");
@@ -126,7 +146,7 @@ export class Client {
     }
     const ms = performance.now() - started;
     this.recorder.record({ label, ms, ok: status >= 200 && status < 400, status, bytes: body.byteLength, at: Date.now() });
-    return { status, ms, bytes: body.byteLength, body, encoding,
+    return { status, ms, bytes: body.byteLength, body, encoding, retryAfter,
       text: () => (encoding === "gzip" ? zlib.gunzipSync(body) : encoding === "br" ? zlib.brotliDecompressSync(body) : body).toString("utf8") };
   }
 
@@ -158,11 +178,16 @@ export class Client {
       const started = performance.now();
       let opened = false;
       const retry = () => { if (!opened) onOpen(performance.now() - started, false); if (!closed) setTimeout(connect, 3_000); };
-      current = http.request({ agent, host: this.url.hostname, port: this.url.port, path, headers: this.headers({ accept: "text/event-stream",
+      const url = this.target(path);
+      current = http.request({ agent, host: url.hostname, port: url.port, path, headers: this.headers({ accept: "text/event-stream",
         "accept-encoding": "identity" }) }, (response) => {
         opened = true;
         onOpen(performance.now() - started, response.statusCode === 200);
-        if (response.statusCode !== 200) { response.resume(); response.on("end", () => { if (!closed) setTimeout(connect, 3_000); }); return; }
+        // Steg 54: 503 (taket för strömmar) – som sidan: försök igen efter Retry-After (10–30 s), annars efter 3 s.
+        if (response.statusCode !== 200) {
+          const wait = response.statusCode === 503 ? 10_000 + Math.random() * 20_000 : 3_000;
+          response.resume(); response.on("end", () => { if (!closed) setTimeout(connect, wait); }); return;
+        }
         let buffer = "";
         response.setEncoding("utf8");
         response.on("data", (chunk: string) => {

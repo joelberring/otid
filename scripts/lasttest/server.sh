@@ -8,7 +8,7 @@
 #
 # Docker-läget är inte provat i lasttestets miljö (bilderna gick inte att hämta där); mät då med `docker stats`.
 # cgroup-läget (Linux, root, cgroup v1) kräver PG_BIN (katalog med postgres och initdb för PostgreSQL 17) och ett
-# färdigt produktionsbygge (pnpm --filter @o-tid/web build). Web och databas delar 2 kärnor och 4 GB, som på servern.
+# färdigt produktionsbygge (pnpm --filter @o-tid/web build). Web och databas delar maskinens kärnor (kör på en maskin med 2) och 4 GB, som på servern.
 # Mätningen läser cgroup-vägarna otid/web och otid/db (load.ts --cgroups web=otid/web,db=otid/db). Webben och databasen
 # får högre CPU-vikt än resten av maskinen (cpu.shares), så att andra processer inte stjäl av de 2 kärnorna.
 set -eu
@@ -24,10 +24,18 @@ mode=${1:-}
 
 cgroup_create() {
   for controller in cpu cpuacct memory; do
-    mkdir -p "/sys/fs/cgroup/$controller/otid/web" "/sys/fs/cgroup/$controller/otid/db"
+    mkdir -p "/sys/fs/cgroup/$controller/otid/web" "/sys/fs/cgroup/$controller/otid/db" "/sys/fs/cgroup/$controller/otid/public"
   done
-  echo 100000 > /sys/fs/cgroup/cpu/otid/cpu.cfs_period_us
-  echo 200000 > /sys/fs/cgroup/cpu/otid/cpu.cfs_quota_us
+  # Steg 54: samma vikter och minnestak som docker-compose.prod.yml (cpu_shares 1024/1024/256, mem_limit).
+  echo 1024 > /sys/fs/cgroup/cpu/otid/db/cpu.shares
+  echo 1024 > /sys/fs/cgroup/cpu/otid/web/cpu.shares
+  echo 512 > /sys/fs/cgroup/cpu/otid/public/cpu.shares   # två instanser med 256 var
+  echo $((1024 * 1024 * 1024)) > /sys/fs/cgroup/memory/otid/db/memory.limit_in_bytes
+  echo $((1024 * 1024 * 1024)) > /sys/fs/cgroup/memory/otid/web/memory.limit_in_bytes
+  echo $((1536 * 1024 * 1024)) > /sys/fs/cgroup/memory/otid/public/memory.limit_in_bytes
+  # Steg 54: ingen kvot. På en maskin med 2 kärnor (som CX23, där compose inte sätter --cpus) är kärnorna gränsen; en
+  # kvot på gruppen stoppar annars också web när publiken har använt upp den (steg 51 hade 2 kärnor i kvot).
+  echo -1 > /sys/fs/cgroup/cpu/otid/cpu.cfs_quota_us
   echo 4096 > /sys/fs/cgroup/cpu/otid/cpu.shares
   echo $((4 * 1024 * 1024 * 1024)) > /sys/fs/cgroup/memory/otid/memory.limit_in_bytes
 }
@@ -64,12 +72,26 @@ case "$mode" in
       cp "$ROOT/apps/web/.next/migrate.mjs" "$STANDALONE/../migrate.mjs"
     fi
     DATABASE_URL=$DB_URL MIGRATIONS_DIR="$ROOT/packages/database/migrations" node "$STANDALONE/../migrate.mjs" > "$DATA/migrate.log" 2>&1
-    # LASTTEST_INSTANCES=2: två webbinstanser (port och port+1) som i docker-compose.prod.yml; lastgeneratorn fördelar
-    # webbläsarna mellan dem med --base http://127.0.0.1:3000,http://127.0.0.1:3001.
-    for instance in $(seq 1 "${LASTTEST_INSTANCES:-1}"); do
-      (cd "$STANDALONE" && sh -c "$IN_CGROUP" sh web env NODE_ENV=production PORT=$((PORT + instance - 1)) HOSTNAME=127.0.0.1 NEXT_TELEMETRY_DISABLED=1 \
-        DATABASE_URL="$DB_URL" O_TID_PUBLIC_ORIGIN="$ORIGIN" OTID_RADIO_POLLER=off node apps/web/server.js > "$DATA/web$instance.log" 2>&1 &)
-    done
+    # Steg 54 (förval, som docker-compose.prod.yml): web (tävlingen, cgroup otid/web) på porten och web-public och
+    # web-public2 (publiken, otid/public, lägre CPU-vikt) på porten + 1 och + 2. Lastgeneratorn delar upp som Caddy:
+    #   --base http://127.0.0.1:3000 --public-base http://127.0.0.1:3001,http://127.0.0.1:3002
+    #   --cgroups web=otid/web,public=otid/public,db=otid/db
+    # LASTTEST_ROLES=off: som steg 51, LASTTEST_INSTANCES likadana instanser (port, port + 1, …) i otid/web.
+    if [ "${LASTTEST_ROLES:-on}" = "off" ]; then
+      for instance in $(seq 1 "${LASTTEST_INSTANCES:-1}"); do
+        (cd "$STANDALONE" && sh -c "$IN_CGROUP" sh web env NODE_ENV=production PORT=$((PORT + instance - 1)) HOSTNAME=127.0.0.1 NEXT_TELEMETRY_DISABLED=1 \
+          DATABASE_URL="$DB_URL" O_TID_PUBLIC_ORIGIN="$ORIGIN" OTID_RADIO_POLLER=off node apps/web/server.js > "$DATA/web$instance.log" 2>&1 &)
+      done
+    else
+      (cd "$STANDALONE" && sh -c "$IN_CGROUP" sh web env NODE_ENV=production PORT=$PORT HOSTNAME=127.0.0.1 NEXT_TELEMETRY_DISABLED=1 \
+        DATABASE_URL="$DB_URL" O_TID_PUBLIC_ORIGIN="$ORIGIN" OTID_RADIO_POLLER=off OTID_INSTANCE_ROLE=competition \
+        NODE_OPTIONS=--max-old-space-size=768 node apps/web/server.js > "$DATA/web1.log" 2>&1 &)
+      for instance in 1 2; do
+        (cd "$STANDALONE" && sh -c "$IN_CGROUP" sh public env NODE_ENV=production PORT=$((PORT + instance)) HOSTNAME=127.0.0.1 \
+          NEXT_TELEMETRY_DISABLED=1 DATABASE_URL="$DB_URL" O_TID_PUBLIC_ORIGIN="$ORIGIN" OTID_RADIO_POLLER=off OTID_INSTANCE_ROLE=public \
+          NODE_OPTIONS=--max-old-space-size=512 node apps/web/server.js > "$DATA/public$instance.log" 2>&1 &)
+      done
+    fi
     for _ in $(seq 1 60); do
       if curl -fsS "http://127.0.0.1:$PORT/organizer" >/dev/null 2>&1; then break; fi
       sleep 1
@@ -90,7 +112,9 @@ case "$mode" in
   stop)
     docker rm -f otid-lasttest-web otid-lasttest-db >/dev/null 2>&1 || true
     # Bara lasttestets egna processer (cgroupen otid/web), aldrig andra Next-servrar på maskinen.
-    [ -f /sys/fs/cgroup/cpuacct/otid/web/cgroup.procs ] && xargs -r kill < /sys/fs/cgroup/cpuacct/otid/web/cgroup.procs || true
+    for group in web public; do
+      [ -f /sys/fs/cgroup/cpuacct/otid/$group/cgroup.procs ] && xargs -r kill < /sys/fs/cgroup/cpuacct/otid/$group/cgroup.procs || true
+    done
     [ -n "${PG_BIN:-}" ] && [ -d "$PGDIR" ] && su postgres -s /bin/sh -c "$PG_BIN/pg_ctl -D $PGDIR stop -m fast" || true
     ;;
   *)

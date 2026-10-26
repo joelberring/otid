@@ -28,6 +28,10 @@ test("Om O-Tid och sidfoten utan inloggning", async ({ browser }) => {
   await expect(features.getByRole("listitem")).toHaveCount(13);
   await expect(features).toContainText("WebUSB i Chrome på Android-platta");
   await expect(features).toContainText("ROC");
+  // Steg 54: gränserna med uppmätta siffror, i enkel svenska.
+  await expect(visitor.getByRole("heading", { name: "Hur stora tävlingar klarar O-Tid?" })).toBeVisible();
+  await expect(visitor.getByText("3 000 löpare och 1 000 besökare samtidigt", { exact: false })).toBeVisible();
+  await expect(visitor.getByText("Avläsningar går aldrig förlorade", { exact: false })).toBeVisible();
   await expect(visitor.getByRole("main").getByRole("link", { name: contact })).toHaveAttribute("href", `mailto:${contact}`);
   await expect(visitor.getByRole("link", { name: "Skapa konto eller logga in" })).toHaveAttribute("href", "/organizer");
   await visitor.setViewportSize({ width: 390, height: 844 });

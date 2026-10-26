@@ -10,6 +10,17 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-10-26 – Steg 54: tävlingen först (agent F)
+- ADR-0177: `web` (tävlingen) och `web-public` + `web-public2` (publiken) bakom Caddy (`deploy/Caddyfile`, inloggade alltid
+  till `web`), `cpu_shares` och minnestak, separata pooler med tidsgränser för publiken, lastavlastning (`lib/public-load.ts`).
+- Avläsningen läser bara löparens/lagets del (`loadRaceSnapshot` med scope); stafett utan flygande omstart låses per lag.
+  Arrangörens resultatlista cachas per version, Kvar i skogen delas i 2 s, besökarnas tillträde delas i 1 s.
+- Mätt (`docs/lasttest.md`): 1 000 besökare + målrusning: kvitto p95 6,8 → 0,87 s, arbetsytan p95 4,0 → 0,58 s, publiken
+  p95 under 4 s men uppdatering p50 6 s (före 2,6 s). 25-manna 300 lag: kvitto p50 26,6 → 2,0 s, p95 91 → 11 s.
+- `/om`: "Hur stora tävlingar klarar O-Tid?". Verifierat: lint, typecheck, enhets- och integrationstester (ny
+  `steg-54-tavlingen-forst`), bygget, Playwright i utvecklingsläge och mot Caddy med tre produktionsinstanser (17 specar).
+- Kvar: Docker-läget (`cpu_shares`, `mem_limit`, tre webbtjänster) provas först i CI:s driftjobb; tät 25-manna når inte 1 s.
+
 ### 2026-10-26 – Steg 51: lasttest (agent C)
 - `docs/lasttest.md`: scenarier, uppställning (produktionsbygget, PostgreSQL 17, cgroup 2 kärnor/4 GB), resultat och gränser; skripten i `scripts/lasttest/`.
 - Före: 100 besökare på 3 000 löpare mättade CX23 (publika anrop 30 s, avläsningspaketet kom aldrig).
@@ -594,8 +605,9 @@ brickor till steg 7.
 
 ## Idéer (inte i planen än)
 
-- Steg 51: avläsningen läser hela tävlingens avläsningspaket för varje utläsning (3 000–7 500 deltagare, ca 25 frågor); bara
-  löparens klass och bana skulle ge kvitto p95 under 1 s och snabbare 25-manna (`docs/lasttest.md`).
+- Steg 54: en utläsning i 25-manna gör 84 databasfrågor i följd (individuell 38); under last väntar varje fråga på
+  processorn. Färre frågor (lagets sträckor, starter och resultat i en fråga) skulle ge snabbare kvitto vid täta växlingar.
+- Steg 54: Kvar i skogen och "Kvar att läsa ut" skickar hela tävlingen (1,7 MB för 3 000 löpare, 4 MB för 25-manna) varje gång.
 - Steg 51: resultatlistan är 411 kB packad för 3 000 löpare och hämtas hel; en lista per klass skulle minska trafiken.
 
 - Import av "Exportera tävlingen" (`otid-race-export` v1) till en ny tävling; ångra strykning; Eventors "struken" som strykning i stället för ej start.

@@ -7,7 +7,7 @@ import {
   withProposedCourseVersion, withProposedEntryClasses, type RaceSnapshot
 } from "@o-tid/domain";
 import { storeControlPositions, storeCourseEnds } from "./course-positions";
-import { insertCourseVersionControls, leastUsedVariantForClass, loadCourseVersionVariants, variantAfterClassChange } from "./course-variants";
+import { insertCourseVersionControls, leastUsedVariantForClass, variantAfterClassChange } from "./course-variants";
 import { applyEntryDecision } from "./entry-status";
 import { importLegCourses, importPersonCourseAssignments, importTeamCourseAssignments } from "./import-iof";
 import { loadRelayClassConfigs } from "./relay-model";

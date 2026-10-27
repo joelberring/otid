@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { addCourseAndClass, addEntry, createRace, ongoingRaceTimeZone, openStep, publishRace, registerAccount, reviewScreenshots, unique, warmRoute, newContext } from "./helpers";
+import { addCourseAndClass, addEntry, createRace, expectSaved, openStep, publishRace, registerAccount, reviewScreenshots, unique, warmRoute, newContext } from "./helpers";
 
 /**
  * PLAN.md steg 13 (ADR-0170 beslut 3): start- och resultatlistor med samma verktygsrad i arbetsytan och på de
@@ -9,8 +9,11 @@ import { addCourseAndClass, addEntry, createRace, ongoingRaceTimeZone, openStep,
  * listan och CSV och IOF XML laddas ner. Fem löpare läses av med övningsstationen för resultatlistorna. Steg 27:
  * "Resultaten är klara" gör listorna officiella och ger IOF-filen för Eventor; det går att ångra.
  */
-/** Stockholm, eller en tidszon där klockan inte är nära midnatt (starterna ligger upp till 45 minuter bakåt). */
-const TIME_ZONE = ongoingRaceTimeZone();
+/**
+ * Stockholm, oavsett klockslag. Steg 58: tävlingsdagen är första startens datum; på natten går tävlingen över midnatt på
+ * riktigt (stämplingar och starttider efter 00:00 hör till tävlingen) i stället för att flyttas till en annan tidszon.
+ */
+const TIME_ZONE = "Europe/Stockholm";
 const RUNNERS = [
   { className: "H21", givenName: "Anna", familyName: "Ek", club: "OK Ek", card: "8301001" },
   { className: "H21", givenName: "Bo", familyName: "Lind", club: "IFK Lidingö", card: "8301002" },
@@ -184,6 +187,8 @@ test("start- och resultatlistor: vyer, sök, utskrift och export i arbetsytan oc
     const missing = runner.givenName === "Cia";
     await owner.getByRole("button", { name: missing ? "Läs av: missad kontroll" : "Läs av: rätt stämplat" }).click();
     await expect(owner.getByTestId("verdict")).toContainText(missing ? "FELSTÄMPLAD" : "GODKÄND");
+    // Steg 58: servern har tagit emot avläsningen innan nästa (ett "0 väntar" ensamt kan vara gammalt).
+    await expectSaved(owner);
   }
   await expect(owner.getByTestId("queue-status")).toHaveText("0 väntar", { timeout: 30_000 });
   const packageVersion = Number(/v(\d+)$/.exec((await owner.getByTestId("package-status").innerText()).trim())?.[1]);
@@ -214,6 +219,7 @@ test("start- och resultatlistor: vyer, sök, utskrift och export i arbetsytan oc
   await owner.getByLabel("Deltagare").selectOption({ label: "Filip Ås · H16 · 8301006" });
   await owner.getByRole("button", { name: "Läs av: rätt stämplat" }).click();
   await expect(owner.getByTestId("verdict")).toContainText("GODKÄND");
+  await expectSaved(owner);
   await expect(owner.getByTestId("queue-status")).toHaveText("0 väntar", { timeout: 30_000 });
   await owner.goto(`/admin/${raceId}/manage`);
   await openStep(owner, "Anmälda");

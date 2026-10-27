@@ -30,6 +30,17 @@ describe("wallClockToUtc", () => {
 });
 
 describe("resolveSiTime", () => {
+  it("steg 58: en nattävling läst efter midnatt – stämplingar före och efter 00:00 hamnar på rätt dygn", () => {
+    // Avläsning tisdag 2026-10-27 00:15 i Stockholm (CET). 23:58 (PM, måndag) är kvällen före; 00:09 (AM, tisdag) är nyss.
+    const reference = new Date("2026-10-26T23:15:00Z");
+    expect(resolveSiTime({ secondsIn12h: 11 * 3600 + 58 * 60, pm: true, dayOfWeek: 1 }, { reference, timeZone: zone }).toISOString())
+      .toBe("2026-10-26T22:58:00.000Z");
+    expect(resolveSiTime({ secondsIn12h: 9 * 60, pm: false, dayOfWeek: 2 }, { reference, timeZone: zone }).toISOString())
+      .toBe("2026-10-26T23:09:00.000Z");
+    // SI5 utan AM/PM och veckodag: 11:58 kan vara 11:58 eller 23:58; det senaste före avläsningen är 23:58 kvällen före.
+    expect(resolveSiTime({ secondsIn12h: 11 * 3600 + 58 * 60 }, { reference, timeZone: zone }).toISOString()).toBe("2026-10-26T22:58:00.000Z");
+  });
+
   it("SI5 utan AM/PM väljer senaste halvdygn före avläsningen", () => {
     // Avläsning 14:30 lokal tid. 10:00 kan vara 10:00 eller 22:00; 22:00 är i framtiden.
     const reference = new Date("2026-10-03T12:30:00Z");

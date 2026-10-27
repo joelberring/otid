@@ -97,6 +97,18 @@ funktion lokalt; dess besked är preliminärt och serverns revision är auktorit
   kontroller som alla varianter har) och stämplingar (sträcktider). Löparens stämplingar (`runnerControlMarks`): sträcktid =
   stämplad, bland extra stämplingar = fel ordning, annars saknas; ur funktion = frivillig.
 
+## Tävlingsdygnet och klockslag (steg 58, ADR-0178)
+
+- Tävlingsdygnet är från 00:00 på tävlingsdagen till kl 12 dagen efter i tävlingens tidszon (`inRaceDay`,
+  `RACE_DAY_END_HOUR_NEXT_DAY`). En tävling som börjar på kvällen och går över midnatt hör till tävlingsdagen; stämplingar
+  efter 00:00 är tävlingens, och "annan dag" i stämplingslistan gäller bara utanför tävlingsdygnet. Radiopollern och
+  övningsstationen räknar också med tävlingsdygnet.
+- Ett klockslag som skrivs in (omstart, start, sista start, rättad tid) blir det av tävlingsdagen och dagen efter som ligger
+  inom tolv timmar från en känd tid i tävlingen (masstart, första start, klassens tidigaste start, den avlästa tiden),
+  annars tävlingsdagen (`parseRaceClockNear`). En omstart kl 00:30 efter en masstart kl 22:00 är alltså natten efter.
+- Resultat, SPORTident-tider och stafettens starter räknas med ögonblick och påverkas inte av datumgränsen. Stämpling
+  efter mål eller före start har ingen betydelse (ägarens beslut, oförändrat).
+
 ## Statusbeslut
 
 - Arrangören kan sätta ej start, ej fullföljt, disk, utom tävlan, deltog utan tid, godkänt manuellt samt

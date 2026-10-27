@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { addCourseAndClass, createRace, openStep, publishRace, registerAccount, unique } from "./helpers";
+import { addCourseAndClass, createRace, openStep, publishRace, registerAccount, unique, expectSaved, raceStartedAgo } from "./helpers";
 
 /**
  * PLAN.md steg 11 (ADR-0169 beslut 3): klubbstafett med 6 lag × 3 sträckor. Stafettklassen skapas
@@ -13,14 +13,10 @@ const FAMILIES = ["Ek", "Al", "Björk", "Gran", "Tall", "Lönn"];
 const GIVEN = ["Anna", "Bo", "Cia"];
 const card = (team: number, leg: number) => String(8_000_000 + team * 100 + leg);
 
-/** Dagens datum och klockslaget två timmar bakåt i tävlingens tidszon (masstarten ligger i det förflutna). */
+/** Masstarten två timmar bakåt. Steg 58: tävlingsdagen är masstartens datum (på natten i går, över midnatt på riktigt). */
 function raceClock(): { date: string; massStart: string } {
-  const now = new Date();
-  const date = new Intl.DateTimeFormat("sv-SE", { timeZone: TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
-  const [hour, minute] = new Intl.DateTimeFormat("sv-SE", { timeZone: TIME_ZONE, hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
-    .format(now).split(":").map(Number) as [number, number];
-  const minutes = Math.max(1, hour * 60 + minute - 120);
-  return { date, massStart: `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}` };
+  const { date, clock } = raceStartedAgo(120, TIME_ZONE);
+  return { date, massStart: clock(0) };
 }
 
 /** Skärmbilder för dokumentation när E2E_SCREENSHOT_DIR är satt (1280 och 390 px). */
@@ -40,6 +36,7 @@ async function readLeg(page: Page, team: number, leg: number, name: string, vari
   const verdict = page.getByTestId("verdict");
   await expect(verdict).toContainText(variant === "ok" ? "GODKÄND" : "FELSTÄMPLAD");
   await expect(verdict).toContainText(name);
+  await expectSaved(page);
   await expect(page.getByTestId("verdict-relay")).toContainText(`Lag ${team} OK Test ${team} · Sträcka ${leg} av 3`);
   return page.getByTestId("verdict-relay");
 }

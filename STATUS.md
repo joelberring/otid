@@ -10,6 +10,16 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-10-27 – Steg 58: tävlingar över midnatt (agent A)
+- Tävlingsdygnet till kl 12 dagen efter (`inRaceDay`): stämplingar efter 00:00 är tävlingens; "annan dag", radiopollern och övningsstationen följer det.
+- Klockslag nära masstart/första start/klassens start (`parseRaceClockNear`): omstart 00:30 efter masstart 22:00 blir natten efter (stafettformulär, Start, lottning, starttid, rättad tid).
+- Avläsningsskalet läser om kön innan beskedet visas (tidigare kunde "0 väntar" vara gammalt bredvid beskedet).
+- E2E: tävlingen alltid i Stockholm, tävlingsdagen = startens datum (`raceStartedAgo`), kvitto per avläsning (`expectSaved`), `E2E_FAKE_CLOCK` för webbläsaren.
+- CI-felen: de sista avläsningarna saknades (stafettens lag 2, listornas Eva); troligen kön, men inte återskapat lokalt med falsk klocka eller strypt processor.
+- Tester: domän `race-over-midnight`, integration `steg-58-over-midnatt`, Playwright `avlasning-ko`; listor och stafett-steg47 vid 21:59, 23:30, 00:10, 13:00 (TZ=UTC).
+- Kvar: fem specar med `ongoingRaceTimeZone`; ADR-0178.
+
+
 ### 2026-10-26 – Steg 55: bana utan klass (agent G)
 - "Ny bana" kräver inte längre klass: utan klassnamn sparas bara banan (kontrakt, `createManualCourseClassAsAdmin`, journalens `class_id` NULL i `0027_bana_utan_klass`, audit `MANUAL_COURSE_CREATED_BY_ADMIN`). Startsätt och rogaining visas först med klassnamn; knapp och besked följer.
 - Fälten i "Ny bana" och "Ny klass" linjeras överst (`fieldRowTop`), också när ett fält visar fel. Kontrollerat på 1280 och 390 px.

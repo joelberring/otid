@@ -27,6 +27,26 @@ export function ongoingRaceTimeZone(now = new Date()): string {
   return hour >= 2 && hour < 23 ? TIME_ZONE : "America/New_York";
 }
 
+/**
+ * Steg 58: en tävling som startade `backMinutes` minuter sedan. Tävlingsdagen är startens datum i tidszonen (efter
+ * midnatt alltså i går) och `clock(offset)` är klockslaget `offset` minuter efter starten, som går över midnatt som på
+ * riktigt. Testerna kör därmed samma väg oavsett klockslag, i stället för att undvika midnatt.
+ */
+export function raceStartedAgo(backMinutes: number, timeZone = TIME_ZONE, now = new Date()) {
+  const start = new Date(Math.floor(now.getTime() / 60_000) * 60_000 - backMinutes * 60_000);
+  const clock = (offset: number) => new Intl.DateTimeFormat("sv-SE", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+    .format(new Date(start.getTime() + offset * 60_000));
+  return { start, date: today(start, timeZone), clock };
+}
+
+/**
+ * Steg 58: väntar tills servern har tagit emot avläsningen som beskedet visar ("Sparad."). En avvisad avläsning syns som
+ * avvisad och testet faller med det beskedet; ett "0 väntar" ensamt räcker inte innan sidan lämnas.
+ */
+export async function expectSaved(page: Page): Promise<void> {
+  await expect(page.getByTestId("verdict-sync")).toHaveText("Sparad.", { timeout: 30_000 });
+}
+
 /** Datumet `days` dagar från i dag (negativt bakåt), ÅÅÅÅ-MM-DD i Stockholm. */
 export function daysFromToday(days: number, now = new Date()): string {
   const [year, month, day] = today(now).split("-").map(Number) as [number, number, number];

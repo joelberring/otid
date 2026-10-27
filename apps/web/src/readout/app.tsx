@@ -717,7 +717,7 @@ function Verdict({ current, verdict, item, qr, registration, timeZone }: { curre
     </ol> : null}
     {current.invalid ? <p>{t.localInvalid}</p> : null}
     {verdict && server && server !== verdict.status ? <p role="alert">{t.serverDiffers(t.verdict[server])}</p> : null}
-    <p className="sync">{item?.status === "pending" ? t.savedLocally
+    <p className="sync" data-testid="verdict-sync">{item?.status === "pending" ? t.savedLocally
       : item?.status === "rejected" ? t.rejected(item.rejectedReason ?? "")
       : item ? t.confirmed : t.savedLocally}</p>
   </div>

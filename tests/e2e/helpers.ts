@@ -41,6 +41,9 @@ export function daysFromToday(days: number, now = new Date()): string {
 export async function newContext(browser: Browser) {
   const context = await browser.newContext();
   if (process.env.E2E_FAKE_CLOCK) await context.clock.install({ time: Date.now() });
+  // Steg 58: E2E_CPU_THROTTLE=6 gör webbläsaren sex gånger långsammare, som en belastad CI-maskin.
+  const throttle = Number(process.env.E2E_CPU_THROTTLE ?? 0);
+  if (throttle > 1) context.on("page", page => { void context.newCDPSession(page).then(cdp => cdp.send("Emulation.setCPUThrottlingRate", { rate: throttle })); });
   return context;
 }
 

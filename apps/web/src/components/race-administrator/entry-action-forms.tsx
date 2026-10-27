@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import type { RunnerSuggestion } from "@o-tid/contracts";
 import styles from "../race-administrator-workspace.module.css";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
-import { formatClockTime, parseRaceClock } from "../../lib/clock-time";
+import { formatClockTime, parseRaceClockNear, startReference } from "../../lib/clock-time";
 import { TargetClassStartTimes } from "../target-class-start-times";
 import { Button, Field, Notice } from "../ui";
 import type { Workspace } from "./workspace-state";
@@ -42,7 +42,7 @@ export function EntryActionForms({ ws }: { ws: Workspace }) {
       {target && <p>{text.capacityCount}: {target.entryCount} / {target.maxEntries ?? text.unlimited} {targetFull && <strong>— {text.classFull}</strong>}</p>}
       {target?.startRule === "FIXED" && <>
         {data && <TargetClassStartTimes key={`${target.id}:${data.snapshotVersion}`} entries={data.entries} classId={target.id}
-          timeZone={data.timeZone} proposedTime={parseRaceClock(data.raceDate, startClock, data.timeZone)} />}
+          timeZone={data.timeZone} proposedTime={parseRaceClockNear(data.raceDate, startClock, data.timeZone, startReference(data.entries, target.id))} />}
         <div className={styles.timeFields}>
           <label>{text.startClock}<input type="text" inputMode="numeric" autoComplete="off" placeholder="18:30" value={startClock} required disabled={disabled}
             onChange={(event) => setStartClock(event.target.value)} /></label>

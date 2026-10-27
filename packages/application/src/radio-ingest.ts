@@ -1,6 +1,7 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, sql, type SQLWrapper } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
 import { RocAdapterError, rocClient, type RocFetchResult } from "@o-tid/roc";
+import { RACE_DAY_END_HOUR_NEXT_DAY } from "@o-tid/domain";
 
 /**
  * Hämtning av radiostämplingar (ADR-0172 beslut 5, PLAN.md steg 20). Servern frågar ROC eller OResults med
@@ -106,7 +107,16 @@ export async function pollRadioRace(db: Database, raceId: string, runtime: Radio
 }
 
 /**
- * Tävlingar som pollern ska fråga nu: radion påslagen, tävlingsdagen i tävlingens tidszon och dags enligt
+ * Steg 58 (ADR-0178): ögonblicket ligger i tävlingsdygnet (från midnatt på tävlingsdagen till kl 12 dagen efter i
+ * tävlingens tidszon), så att en nattävling som går över midnatt fortsätter att hämta radiostämplingar.
+ */
+export function inRaceDaySql(raceDate: SQLWrapper, timeZone: SQLWrapper | string, now: Date) {
+  const local = sql`(${now.toISOString()}::timestamptz at time zone ${timeZone})`;
+  return sql`(${local} >= ${raceDate}::timestamp and ${local} < ${raceDate}::timestamp + interval '1 hour' * ${24 + RACE_DAY_END_HOUR_NEXT_DAY})`;
+}
+
+/**
+ * Tävlingar som pollern ska fråga nu: radion påslagen, tävlingsdygnet i tävlingens tidszon och dags enligt
  * intervallet (längre väntan efter fel).
  */
 export async function listRadioRacesDue(db: Database, now = new Date()): Promise<string[]> {
@@ -115,7 +125,6 @@ export async function listRadioRacesDue(db: Database, now = new Date()): Promise
     .from(schema.raceRadioLinks)
     .innerJoin(schema.races, eq(schema.races.id, schema.raceRadioLinks.raceId))
     .innerJoin(schema.events, eq(schema.events.id, schema.races.eventId))
-    .where(and(eq(schema.raceRadioLinks.enabled, true),
-      sql`${schema.races.raceDate} = (${now.toISOString()}::timestamptz at time zone ${schema.events.timeZone})::date`));
+    .where(and(eq(schema.raceRadioLinks.enabled, true), inRaceDaySql(schema.races.raceDate, schema.events.timeZone, now)));
   return rows.filter(row => radioPollDue(row, now)).map(row => row.raceId);
 }

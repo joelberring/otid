@@ -4,7 +4,7 @@ import {
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
-import { pollRadioRace, type RadioRuntime } from "./radio-ingest";
+import { inRaceDaySql, pollRadioRace, type RadioRuntime } from "./radio-ingest";
 
 /**
  * Inställningar → Radiokontroller (ADR-0172 beslut 5): källa (ROC eller OResults), enhetens id, vilka
@@ -59,8 +59,8 @@ export async function readRadioSettings(tx: Executor, raceId: string, now: Date)
       select count(*)::int as punches, count(*) filter (where ${known})::int as matched,
         count(*) filter (where not ${known})::int as unknown, count(*) filter (where not ${radioCode})::int as other
       from ${schema.radioPunches} p where p.race_id = ${raceId}`)).rows;
-    const today = (await tx.execute<{ today: boolean }>(sql`select ${race.raceDate}::date =
-      (${now.toISOString()}::timestamptz at time zone ${race.timeZone})::date as today`)).rows[0]?.today === true;
+    const today = (await tx.execute<{ today: boolean }>(sql`select ${inRaceDaySql(sql`${race.raceDate}::date`, race.timeZone, now)} as today`))
+      .rows[0]?.today === true;
     status = { polling: !link.enabled ? "OFF" : today ? "TODAY" : "NOT_TODAY",
       lastAttemptAt: link.lastAttemptAt?.toISOString() ?? null, lastSuccessAt: link.lastSuccessAt?.toISOString() ?? null,
       lastError: link.lastError, lastErrorAt: link.lastErrorAt?.toISOString() ?? null, consecutiveFailures: link.consecutiveFailures,

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { StartDrawLaterStart, StartDrawRules, StartDrawSetupResponse } from "@o-tid/contracts";
 import { startDrawAdvancedSv as text } from "../../i18n/start-draw-advanced-sv";
-import { formatClockTime, parseRaceClock } from "../../lib/clock-time";
+import { formatClockTime, parseRaceClockNear } from "../../lib/clock-time";
 import { matchSeedRanking } from "../../lib/seed-ranking-csv";
 import type { DrawRow } from "./start-draw";
 
@@ -68,9 +68,10 @@ export function drawClassOrder(setup: StartDrawSetupResponse, rows: Record<strin
 const limit = (value: string) => value.trim() === "" ? null : /^\d+$/.test(value.trim()) && Number(value) >= 1 && Number(value) <= 1_000
   ? Number(value) : undefined;
 const clock = (value: string) => CLOCK.exec(value.trim());
-const clockInstant = (setup: StartDrawSetupResponse, value: string) => {
+/** Steg 58: sista start och senare starter hör till natten efter första start när den är på kvällen (ADR-0178). */
+const clockInstant = (setup: StartDrawSetupResponse, value: string, firstStartTime: string) => {
   const match = clock(value);
-  return match ? parseRaceClock(setup.raceDate, `${match[1]!.padStart(2, "0")}:${match[2]}`, setup.timeZone) : null;
+  return match ? parseRaceClockNear(setup.raceDate, `${match[1]!.padStart(2, "0")}:${match[2]}`, setup.timeZone, firstStartTime) : null;
 };
 
 export type AdvancedRequest = { rules: StartDrawRules; seeds: { entryId: string; rank: number }[]; laterStarts: Map<string, StartDrawLaterStart> };
@@ -87,7 +88,7 @@ export function advancedRequest(setup: StartDrawSetupResponse, rows: Record<stri
   if (maxPerMinutePerPen === undefined) errors.maxPerMinutePerPen = text.errors.limit;
   let lastStartTime: string | null = null;
   if (advanced.lastStart.trim() !== "") {
-    lastStartTime = clockInstant(setup, advanced.lastStart);
+    lastStartTime = clockInstant(setup, advanced.lastStart, firstStartTime);
     if (!lastStartTime) errors.lastStart = text.errors.lastStart;
     else if (Date.parse(lastStartTime) < Date.parse(firstStartTime)) errors.lastStart = text.errors.lastStartBefore;
   }
@@ -96,7 +97,7 @@ export function advancedRequest(setup: StartDrawSetupResponse, rows: Record<stri
     const later = advanced.laterStarts[classId];
     if (!later || later.kind === "NONE") continue;
     if (later.kind === "CLOCK") {
-      const startTime = clockInstant(setup, later.value);
+      const startTime = clockInstant(setup, later.value, firstStartTime);
       if (!startTime || Date.parse(startTime) <= Date.parse(firstStartTime)) errors[`later:${classId}`] = text.errors.clock;
       else laterStarts.set(classId, { kind: "CLOCK", startTime });
     } else {

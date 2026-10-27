@@ -1,5 +1,5 @@
 import type { ReadoutPackage } from "@o-tid/contracts";
-import { entryCourseControls, parseRaceClock, type RaceSnapshot } from "@o-tid/domain";
+import { entryCourseControls, inRaceDay, parseRaceClock, type RaceSnapshot } from "@o-tid/domain";
 import { cardTypeForNumber, simulatedRun, type SimulatedCard } from "@o-tid/sportident";
 import { relayExerciseWindow, relayPlace, teamSprintLegs } from "./relay";
 import { readoutText as t } from "./text-sv";
@@ -73,14 +73,15 @@ function exerciseDuration(runner: Pick<ExerciseRunner, "timeLimitMs">, variant: 
 }
 
 /**
- * "Nu" på tävlingsdagen: är tävlingen idag är det datorns klocka, annars samma klockslag på tävlingsdagen
- * (i tävlingens tidszon). Övningen läses då som om det vore tävlingsdag.
+ * "Nu" på tävlingsdagen: i tävlingsdygnet (steg 58: tävlingsdagen till kl 12 dagen efter, så en nattävling efter
+ * midnatt) är det datorns klocka, annars samma klockslag på tävlingsdagen (i tävlingens tidszon). Övningen läses då som
+ * om det vore tävlingsdag.
  */
 export function exerciseAnchor(raceDate: string, timeZone: string, now: Date): Date {
+  if (inRaceDay(now, raceDate, timeZone)) return now;
   const parts = new Intl.DateTimeFormat("sv-SE", { timeZone, year: "numeric", month: "2-digit", day: "2-digit",
     hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }).formatToParts(now);
   const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((value) => value.type === type)?.value ?? "00";
-  if (`${part("year")}-${part("month")}-${part("day")}` === raceDate) return now;
   const shifted = parseRaceClock(raceDate, `${part("hour")}:${part("minute")}:${part("second")}`, timeZone);
   return shifted ? new Date(shifted) : now;
 }

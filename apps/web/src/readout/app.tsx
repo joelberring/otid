@@ -16,7 +16,7 @@ import type { EntrySuggestion } from "./runner-lookup";
 import { startPunchText } from "../lib/start-punch-text";
 import { heldReadouts, releaseHeldReadouts, requeueLocallyInvalid, syncPending } from "./sync";
 import { failedReadoutsFile, loadFailedReadouts, saveFailedReadouts, syncFailedReadouts, type FailedReadout } from "./failed-readouts";
-import { localRaceDate } from "@o-tid/domain";
+import { inRaceDay } from "@o-tid/domain";
 import { toHex } from "./payload";
 import { readoutText as t } from "./text-sv";
 import { ReceiptPanel, type Printable } from "./receipt-panel";
@@ -232,11 +232,15 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
       payload, contentHash: await payloadHash(payload)
     });
     if (!valid) await storeRef.current.update({ ...stored, status: "rejected", rejectedReason: "LOCAL_INVALID" });
-    setCurrent({ phase: "done", cardNumber: payload.cardNumber, localSequence: stored.localSequence,
-      ...(known ? { verdict: evaluateLocally(payload, withLocalRegistrations(known, registrationsRef.current),
-        itemsRef.current.map((item) => item.payload), now.toISOString()) } : {}),
-      ...(valid ? {} : { invalid: true }) });
+    // Beskedet bedöms mot de tidigare avläsningarna i den här webbläsaren (utan den nya).
+    const verdict = known ? evaluateLocally(payload, withLocalRegistrations(known, registrationsRef.current),
+      itemsRef.current.map((item) => item.payload), now.toISOString()) : undefined;
+    // Steg 58: kön läses om innan beskedet visas, så att "väntar" räknar den nya avläsningen när beskedet syns. Tidigare
+    // kunde beskedet stå bredvid ett gammalt "0 väntar" en stund; den som då lämnade sidan trodde att allt var skickat
+    // (och e2e-testerna gick vidare innan den sista avläsningen hade skickats).
     await reload();
+    setCurrent({ phase: "done", cardNumber: payload.cardNumber, localSequence: stored.localSequence,
+      ...(verdict ? { verdict } : {}), ...(valid ? {} : { invalid: true }) });
     void sync();
   }, [raceId, reload, sync]);
 
@@ -475,7 +479,8 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
     partyActions.filter((row) => row.status === "pending").length;
   const held = heldReadouts(items);
   // Steg 31: övningsstationen skriver riktiga avläsningar; på tävlingsdagen varnas tydligt.
-  const raceDay = pkg ? localRaceDate(new Date(), pkg.event.timeZone) === pkg.raceSnapshot.race.raceDate : false;
+  // Steg 58: tävlingsdygnet, så att varningen gäller även efter midnatt i en nattävling.
+  const raceDay = pkg ? inRaceDay(new Date(), pkg.raceSnapshot.race.raceDate, pkg.event.timeZone) : false;
   const recent = [...items].sort((a, b) => b.localSequence - a.localSequence).slice(0, 10);
   // Klockskillnad i hela minuter, bara för en riktig station (övningsstationens klocka står med flit på tävlingsdagen).
   const clockSkew = !exercise && station.kind === "ready" && station.clock && Math.abs(station.clock.clockOffsetMs) >= CLOCK_SKEW_WARNING_MS

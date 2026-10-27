@@ -15,7 +15,8 @@ import { publicStartListValue } from "./public-start-list-route";
 const globalCache = globalThis as typeof globalThis & { oTidPublicRaceCache?: ReturnType<typeof createPublicRaceCache> };
 /**
  * Steg 54: listorna räknas i publikens pool (tidsgräns, egna anslutningar). I tävlingens instans (`web`), där bara
- * inloggade läser listorna, tar en uträkning högst en sjättedel av processen och räknas aldrig i förväg.
+ * inloggade läser listorna, tar en uträkning högst en sjättedel av processen, räknas aldrig i förväg och har ingen
+ * lastavlastning.
  */
 const competition = instanceRole() === "competition";
 // Versionen har också tävlingens ändringsgeneration (`race-change-generation.ts`): efter en ändring i arbetsytan ges ingen
@@ -23,7 +24,11 @@ const competition = instanceRole() === "competition";
 const cache = globalCache.oTidPublicRaceCache ??= createPublicRaceCache({
   version: async (raceId) => { const version = await publicRaceContentVersion(db, raceId);
     return version === null ? null : `${version}:g${raceChangeGeneration(raceId)}`; },
-  staleAllowed: onlyNewResults, pressure: () => publicLoad().pressure(), computeShare: competition ? 6 : 3 });
+  // Lastavlastningen (äldre listor under tryck) gäller bara publikens instanser, aldrig tävlingens.
+  staleAllowed: onlyNewResults, pressure: () => !competition && publicLoad().pressure(), computeShare: competition ? 6 : 3,
+  // I `web` (bara inloggade) ingen lastavlastning; en lista ges direkt bara om den är högst 3 s gammal och bara nya
+  // avläsningar kommit in sedan dess (ingen ändring i arbetsytan, se generationen ovan). Den är märkt, och sidan hämtar igen.
+  ...(competition ? { serveStaleMs: 3_000 } : {}) });
 
 /** `fresh`: vänta på den aktuella versionen (väckningen). `exact`: läs versionen nu (sidorna, efter en sparad ändring). */
 type Read = { fresh?: boolean; exact?: boolean };

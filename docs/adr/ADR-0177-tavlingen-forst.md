@@ -37,7 +37,9 @@ tänker att vi inte skalar upp än".
    har och försöker igen tyst (`PublicBusyError`). Högst 3 000 öppna resultatströmmar per instans; en stängd ström öppnas
    igen efter 10–30 s. Inloggade räknas inte.
 6. **Tävlingens instans räknar inte publikt i förväg:** i `web` väcker resultatströmmen bara (ingen uppvärmning), och en
-   uträkning av en publik lista får högst en sjättedel av processen (förut en tredjedel).
+   uträkning av en publik lista får högst en sjättedel av processen (förut en tredjedel). Lastavlastningen (beslut 5)
+   gäller inte i `web`: där ges en lista direkt bara om den är högst 3 s gammal och bara nya avläsningar kommit in sedan
+   dess (märkt, sidan hämtar igen); efter en ändring i arbetsytan aldrig (beslut 7).
 7. **Arrangörens och funktionärernas resultatlista cachas per tävlingsversion** (egen post, privat svar; grinden
    kontrollerar varje anrop). Steg 52 räknade om den vid varje anrop från speakern och arbetsytan. **Kvar i skogen** (1,7 MB
    för 3 000 löpare, 0,3 s) delas av speakerskärmarna och arbetsytan i 2 s efter varje anropares behörighetskontroll.

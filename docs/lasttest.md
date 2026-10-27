@@ -92,13 +92,18 @@ Mätt i ordning med 1 000 besökare (individuell tävling):
 | Två publika med en hård gräns på 1,3 kärnor | 1,0 s | 1,2 s | tidsgränser igen; används inte |
 | Kvar i skogen delas av skärmarna i 2 s | 0,62 s | 0,64 s | p95 1,7–3,8 s |
 | Inloggades resultatlista högst 5 s gammal direkt i `web` | 0,87 s | 0,58 s | p95 1,7–3,9 s |
-| Rättat efter CI: tillträdet cachas inte, ändringsgeneration i nycklarna, ingen 5 s gammal lista ³ | **0,68 s** | **0,69 s** | p95 2,8–4,7 s |
+| Rättat efter CI: tillträdet cachas inte, ändringsgeneration i nycklarna, ingen 5 s gammal lista ³ | 0,68 s | 0,69 s | p95 2,8–4,7 s |
+| Ingen lastavlastning i `web`; en inloggads lista högst 3 s gammal och bara efter nya avläsningar ⁴ | **0,57 s** | **0,73 s** | p95 under 4 s |
 
 ² Med en generatorprocess och kvoten från steg 51; de andra raderna utan kvot och med två generatorprocesser.
 ³ CI:s driftjobb (tre instanser bakom Caddy) visade att en avpublicering, superadmins döljande, en ändrad status och en
 manuell återkomst inte syntes direkt: tillträdet sparades 1 s per instans, Kvar i skogen 2 s och arbetsytans lista
 upp till 5 s. Nu cachas tillträdet inte, och en lyckad ändring i arbetsytan räknar upp tävlingens ändringsgeneration som
 ingår i nycklarna (ADR-0177 beslut 7). Siffrorna i tabellen ovan är från den här körningen.
+⁴ Efter sammanslagningen med steg 55–56 (CI): lastavlastningen gällde också `web`, där en inloggad under tryck kunde få
+en upp till 10 s gammal lista. Nu har `web` ingen lastavlastning. Utan någon äldre lista alls blev arbetsytans
+resultatlista p95 2–5 s (varje läsning väntar på en ny uträkning under rusningen), därför högst 3 s, märkt och hämtad
+igen.
 
 - **Instanserna:** en Node-process använder en kärna. I steg 51 delade `web` och `web2` allt, så en avläsning väntade i
   samma kö som hundratals publika anrop. Nu tar `web` bara tävlingen (och allt för den som är inloggad) och använde

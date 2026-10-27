@@ -17,13 +17,15 @@ till midnatt, och ett klockslag (HH:MM) som skrevs in hamnade alltid på tävlin
   Avläsningsskalet visade beskedet ("GODKÄND") innan kön hade lästs om, så "0 väntar" kunde vara gammalt en stund, och
   testerna väntade bara på "0 väntar". Det är den troligaste förklaringen för stafetten (avläsningssidan öppnas inte igen,
   så avläsningen skickas aldrig). För listorna förklarar det inte allt: sidan öppnas igen för Filip, och en osänd avläsning
-  skickas då (provat). Lokalt föll inget av testerna, varken med falsk klocka för server, databas och webbläsare (driftbygget,
-  21:59, 23:30, 00:10 och 13:00 i Stockholm, TZ=UTC) eller med strypt processor i webbläsaren, så orsaken i CI är inte
-  bevisad. Testerna väntar därför nu på serverns kvitto för varje avläsning, så att ett fel i CI syns där det uppstår.
+  skickas då (provat). Lokalt gick felen inte att få fram, varken med falsk klocka för server, databas och webbläsare
+  (driftbygget, 21:59, 23:30, 00:10 och 13:00 i Stockholm, TZ=UTC) eller med strypt processor i webbläsaren, så orsaken i
+  CI är inte bevisad. Testerna väntar därför nu på serverns kvitto för varje avläsning, så att ett fel i CI syns där det uppstår.
 - **Övningsstationen.** Med falsk klocka föll stafett-steg47 med "Bricka … lästes inte färdigt" (00:10 och 23:30, alltså
   inte bara över midnatt). Den falska brickan drogs ur en fast tid (400 ms) efter isättningen; hackar webbläsaren mitt i en
   snabb utläsning hinner brickan dras ur innan alla block lästs. Nu dras den ur 400 ms efter stationens senaste svar
-  (enhetstest med en tråd som står still 600 ms). Det gäller bara övningsstationen, inte riktiga stationer.
+  (enhetstest med en tråd som står still 600 ms). Det gäller bara övningsstationen, inte riktiga stationer. Därefter går
+  listor och stafett-steg47 igenom vid alla fyra klockslagen (linjestafetten körd för sig: med falsk klocka går allt
+  omkring fem gånger långsammare och testets 15 minuter räcker inte efter de andra testen; i realtid tar specen 2,7 min).
 - **Appen.** Samma fel fanns i appen: den som läser av kunde se "0 väntar" bredvid beskedet och lämna sidan. Dessutom:
   - ett klockslag efter midnatt (omstart 00:30 i en stafett med masstart 22:00, en start 00:20 i en nattklass) blev
     morgonen *före* tävlingen;

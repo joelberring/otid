@@ -17,7 +17,7 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - E2E: tävlingen alltid i Stockholm, tävlingsdagen = startens datum (`raceStartedAgo`), kvitto per avläsning (`expectSaved`), `E2E_FAKE_CLOCK` för webbläsaren.
 - CI-felen: de sista avläsningarna saknades (stafettens lag 2, listornas Eva); troligen kön, men inte återskapat lokalt med falsk klocka eller strypt processor.
 - Övningsbrickan dras ur 400 ms efter stationens senaste svar (inte efter isättningen): med falsk klocka föll stafett-steg47 annars med "lästes inte färdigt" när webbläsaren hackade.
-- Tester: domän `race-over-midnight`, integration `steg-58-over-midnatt`, Playwright `avlasning-ko`; listor och stafett-steg47 vid 21:59, 23:30, 00:10, 13:00 (TZ=UTC).
+- Tester: domän `race-over-midnight`, webb `readout` (hackande utläsning), integration `steg-58-over-midnatt`, Playwright `avlasning-ko`; listor och stafett-steg47 med falsk klocka vid 21:59, 23:30, 00:10, 13:00 (TZ=UTC, driftbygget). Verifierat: lint, typecheck, test, test:integration, build, alla Playwright-specar en i taget (fest och tavlingstyper mot driftbygget: utvecklingsservern dödades av minnesgränsen).
 - Kvar: fem specar med `ongoingRaceTimeZone`; ADR-0178.
 
 

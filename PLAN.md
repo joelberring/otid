@@ -909,6 +909,23 @@ ADR-0178.
 - [ ] Orsaken till felen i CI är inte bevisad (gick inte att få fram lokalt); live, radio, sträckanalys, tävlingsdag-
   rättningar och tävlingsfunktioner flyttar fortfarande tävlingen till en annan tidszon nära midnatt.
 
+## [x] Steg 57 – Placering vid avläsningen
+
+ADR-0177 beslut 10. Ingen migration. Ägaren: "det borde stå placering av de som är i mål här och hur långt man är efter".
+
+- [x] Godkänd löpare: "2:a av 12 i mål · +2:14 efter Ada Ek" / "Leder · 1:05 före tvåan" i avläsningsrutan, märkt
+  preliminärt; lika tid ger delad placering, en gafflad klass rankas ihop, rogaining på poäng. Ej godkända: ingen placering.
+- [x] Från serverns kvitto, ur den cachade listan för tävlingsversionen med de nyare avläsningarna inlagda (ingen ny
+  uträkning per avläsning). Lasttestet: kvitto p95 0,51 → 0,59 s under målrusning med 1 000 besökare, 150 av 150 med placering.
+- [x] Utan nät: "Placering visas när nätet är tillbaka"; placeringen kommer när kön har skickats. Aldrig en gammal siffra.
+- [x] Stafett: lagets placering efter sträckan och sträcktiden mot bästa på sträckan; flera löpare per sträcka och teamsprint
+  enligt ADR-0174.
+- [x] Papperskvittot (80/58 mm) har samma rad ("Preliminärt: …"); utan placering hänvisar det till resultatlistan.
+  Automatisk utskrift väntar högst 2 s på placeringen när nätet finns.
+- [x] Tester: domän `readout-placement`, webb `placement-text`, `readout-placement`, cachens `latest`, integration
+  `steg-57-placering` (placering, lika tid, felstämplad, stafett), Playwright `placering.spec.ts` (övningsstation, utan nät,
+  papperskvitto).
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

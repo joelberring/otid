@@ -1,8 +1,28 @@
-# Lasttest (PLAN.md steg 51 och 54)
+# Lasttest (PLAN.md steg 51, 54 och 57)
 
 Frågan från ägaren: hur stora tävlingar klarar O-Tid på produktionsservern (Hetzner CX23, 2 vCPU x86, 4 GB) utan att bli seg?
 Steg 51 mätte och rättade det publika; steg 54 ([ADR-0177](adr/ADR-0177-tavlingen-forst.md)) ser till att tävlingen
 (avläsningen, arbetsytan, funktionärerna) går före publiken. Skripten finns i `scripts/lasttest/` (se [Köra om](#köra-om)).
+
+## Steg 57: placering i kvittot (mätt 2026-10-27)
+
+Kravet från steg 54: kvittot under 1 s (p95) under målrusningen även med placeringen. Samma uppställning som steg 54
+(individuell tävling, 3 000 löpare, 1 000 besökare, 150 avläsningar på 5 minuter, två speakerskärmar, två arbetsytor, två
+generatorprocesser), samma testdata (en kopia per körning) och maskin. Före = `main` 64b32b2, efter = grenen för steg 57.
+
+| | Före | Efter |
+|---|---|---|
+| Kvitto på avläsningsdatorn p50 / p95 / p99 ms | 94 / 514 / 1 007 | 110 / 589 / 812 |
+| Kvitton med placering | – | 150 av 150 godkända |
+| Arbetsytan p50 / p95 ms | 84 / 838 | 81 / 566 |
+| Speakerns resultatlista p95 ms | 2 058 | 798 |
+| Uppdatering till publiken p50 / p95 s | 4,6 / 8,1 | 4,6 / 10,9 |
+| CPU web / publika / databas (medel) | 0,25 / 1,09 / 0,19 | 0,27 / 1,10 / 0,19 |
+
+Placeringen räknas ur den senast räknade arrangörslistan med de nyare avläsningarna inlagda (ADR-0177 beslut 10), så
+kvittot väntar aldrig på en uträkning under rusningen; skillnaden i kvittot ligger inom spridningen mellan körningar (load
+medel 6,4 och 5,8 på maskinen). Listan räknas om i bakgrunden i samma takt som för speakern, vilket gjorde speakerns
+resultatlista snabbare (den fanns oftare färdig).
 
 ## Steg 54: tävlingen först (mätt 2026-10-26)
 

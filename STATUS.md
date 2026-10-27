@@ -10,6 +10,19 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-10-27 – Steg 57: placering vid avläsningen (agent I)
+- Kvittot från servern har `placement` per godkänd avläsning: "2:a av 12 i mål · +2:14 efter Ada Ek", "Leder · 1:05 före tvåan",
+  stafett "Laget 3:e av 12 efter sträcka 2 …" och "Sträcktid 23:10 · 4:e av 10 på sträckan …"; märkt preliminärt.
+- Räknas i `web` ur den senast räknade arrangörs-/stafettlistan (`latest` i cachen) med avläsningarna sedan listan började
+  räknas inlagda (`lib/readout-placement.ts`); domänen `readoutStanding`/`relayReadoutStanding`. ADR-0177 beslut 10.
+- Avläsningsrutan och papperskvittot visar raden; utan nät "Placering visas när nätet är tillbaka".
+- Lasttest (docs/lasttest.md): kvitto p95 514 → 589 ms, p99 1 007 → 812 ms, 150/150 med placering.
+- Verifierat: lint, typecheck, test, test:integration (93 filer), build; Playwright placering, avlasaren, kopiera, avlasning-ko,
+  stafett, stafett-steg50, gafflingar, rogaining, lanad-bricka, traningskvall, tavlingsfunktioner gröna en i taget;
+  funktionarer 2 av 4 (fel i speakerns "Senast i mål" och i createRace, inte i avläsningen).
+- Kvar: klassnamn matchas mot listan (två klasser med samma namn rankas ihop); teamsprint med utläsning efter sista
+  sträckan placeras efter löparens första sträcka.
+
 ### 2026-10-27 – Steg 58: tävlingar över midnatt (agent A)
 - Tävlingsdygnet till kl 12 dagen efter (`inRaceDay`): stämplingar efter 00:00 är tävlingens; "annan dag", radiopollern och övningsstationen följer det.
 - Klockslag nära masstart/första start/klassens start (`parseRaceClockNear`): omstart 00:30 efter masstart 22:00 blir natten efter (stafettformulär, Start, lottning, starttid, rättad tid).

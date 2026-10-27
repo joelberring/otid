@@ -1,6 +1,6 @@
 # ADR-0177: Tävlingen först
 
-Status: beslutad 2026-10-26 (PLAN.md steg 54, ägarens önskemål samma dag). Bygger på steg 51 (`docs/lasttest.md`).
+Status: beslutad 2026-10-26 (PLAN.md steg 54, ägarens önskemål samma dag), beslut 10 2026-10-27 (steg 57). Bygger på steg 51 (`docs/lasttest.md`).
 
 ## Bakgrund
 
@@ -57,6 +57,15 @@ tänker att vi inte skalar upp än".
    för det som räknar hela klassen, låses klassen ensam som förut. Resultatreglerna är oförändrade.
 9. **Ingen uppskalning:** CX23 kvar. Gränserna står med uppmätta siffror på `/om` ("Hur stora tävlingar klarar O-Tid?")
    och i `docs/lasttest.md`.
+10. **Placering i kvittot (steg 57, ägaren 2026-10-26: "det borde stå placering av de som är i mål här och hur långt man är
+   efter"):** svaret på en avläsningssats har per godkänd avläsning en preliminär placering (`placement`, se
+   docs/domain-rules.md). Den räknas i `web` ur den senast räknade listan i cachen (arrangörens resultatlista respektive
+   stafettlistan, samma post som speakern och arbetsytan läser) med de avläsningsresultat som sparats sedan listan började
+   räknas (`startedAt`) inlagda (`lib/readout-placement.ts`). Alla avläsningar går till `web`, så processen känner dem. Kvittot
+   väntar aldrig på en ny uträkning när bara nya resultat kommit in; den startas i bakgrunden i cachens vanliga takt. Finns
+   ingen lista, eller har något annat ändrats (generationen, en ny paketversion …), väntar kvittot högst 0,75 s och saknar
+   annars placering – hellre ingen siffra än en från före ändringen. En extra fråga per sats (resultaten bakom kvittot).
+   Ett fel i placeringen loggas och ger kvittot utan placering.
 
 ## Följder
 

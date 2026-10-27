@@ -110,6 +110,8 @@ const probeNames = new Set<string>();
 
 // ---- Avläsningsdatorerna
 const beskedMs: number[] = [];
+/** Steg 57: godkända kvitton och hur många av dem som hade en placering. */
+const placements = { ok: 0, placed: 0 };
 let devicesWithoutPackage = 0;
 async function readoutDevice(index: number, runs: Run[], times: number[], startedAt: number): Promise<void> {
   const device = client();
@@ -151,8 +153,11 @@ async function readoutDevice(index: number, runs: Run[], times: number[], starte
       await sleep(1_000);
       continue;
     }
-    const ack = JSON.parse(reply.text()) as { currentPackageVersion: number; packageUpdateRequired: boolean; acknowledgements: { status: string }[] };
+    const ack = JSON.parse(reply.text()) as { currentPackageVersion: number; packageUpdateRequired: boolean;
+      acknowledgements: { status: string; serverResult?: { status: string }; placement?: unknown }[] };
     const doneAt = Date.now();
+    // Steg 57: hur många godkända kvitton som fick en placering.
+    for (const row of ack.acknowledgements) if (row.serverResult?.status === "OK") { placements.ok += 1; if (row.placement) placements.placed += 1; }
     for (const item of batch) { beskedMs.push(doneAt - item.insertedAt); acked.set(item.run.name, doneAt); }
     if (ack.acknowledgements.some((row) => row.status !== "stored" && row.status !== "duplicate")) {
       recorder.record({ label: "readouts ej sparad", ms: 0, ok: false, status: 200, bytes: 0, at: doneAt });
@@ -415,6 +420,7 @@ async function main(): Promise<void> {
     `Besked på avläsningsdatorn (insatt bricka → kvitto): p50 ${percentile(sorted, 50).toFixed(0)} ms, p95 ${percentile(sorted, 95).toFixed(0)} ms, ` +
       `p99 ${percentile(sorted, 99).toFixed(0)} ms, max ${(sorted.at(-1) ?? 0).toFixed(0)} ms (${sorted.length} st)` +
       (devicesWithoutPackage > 0 ? `; ${devicesWithoutPackage} av ${devices} avläsningsdatorer fick aldrig avläsningspaketet.` : "."),
+    ...(placements.ok > 0 ? [`Placering i kvittot (steg 57): ${placements.placed} av ${placements.ok} godkända.`] : []),
     `Arbetsytan (inloggad, ${args.office} st): p50 ${percentile(deskMs, 50).toFixed(0)} ms, p95 ${percentile(deskMs, 95).toFixed(0)} ms, ` +
       `p99 ${percentile(deskMs, 99).toFixed(0)} ms, max ${(deskMs.at(-1) ?? 0).toFixed(0)} ms (${deskMs.length} anrop).`,
     `Publiken avvisad med 503 (försöker igen tyst): ${rejected} av ${publicSamples.length} anrop under rusningen.`,
@@ -436,7 +442,7 @@ async function main(): Promise<void> {
   mkdirSync(dirname(args.out), { recursive: true });
   writeFileSync(args.out, JSON.stringify({ args, report, rows, besked: { p50: percentile(sorted, 50), p95: percentile(sorted, 95), p99: percentile(sorted, 99) },
     office: { p50: percentile(deskMs, 50), p95: percentile(deskMs, 95), p99: percentile(deskMs, 99) }, rejected,
-    freshness: { p50: percentile(freshness, 50), p95: percentile(freshness, 95), notSeen }, resources, generatorCores, actions: actionLog,
+    freshness: { p50: percentile(freshness, 50), p95: percentile(freshness, 95), notSeen }, placements, resources, generatorCores, actions: actionLog,
     errors: Object.fromEntries(recorder.errors), all: summarize(recorder.samples) }, null, 1));
   writeFileSync(args.out.replace(/\.json$/, ".md"), report);
   process.exit(0);

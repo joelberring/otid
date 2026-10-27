@@ -109,6 +109,20 @@ funktion lokalt; dess besked är preliminärt och serverns revision är auktorit
 - Resultat, SPORTident-tider och stafettens starter räknas med ögonblick och påverkas inte av datumgränsen. Stämpling
   efter mål eller före start har ingen betydelse (ägarens beslut, oförändrat).
 
+## Placering vid avläsningen (steg 57, ADR-0177 beslut 10)
+
+- Avläsningens kvitto från servern har löparens preliminära placering när resultatet är godkänt: plats bland de hittills
+  godkända i klassen, antal godkända och avståndet till ledaren (eller ledarens marginal till tvåan). Samma rangordning som
+  resultatlistan (`readoutStanding` med `rankClassResults`): lika tid ger samma (delad) placering, en gafflad klass rankas
+  ihop, rogaining rangordnas på poäng och sedan tid och avståndet anges i poäng när poängen skiljer. Ej godkända
+  (felstämplad, maxtid, ej start …) får ingen placering.
+- Stafett (`relayReadoutStanding`): lagets placering efter sträckan, räknad som om stafetten hade så många sträckor (summan
+  av sträcktiderna, omstartslag efter de andra med förvalet), och löparens sträcktid mot de andra på sträckan. Flera löpare
+  på sträckan och teamsprint följer ADR-0174 (växlar när, godkänt när). Ett lag med en underkänd sträcka får ingen
+  lagplacering; sträcktiden placeras ändå när sträckan är godkänd.
+- Placeringen räknas på servern ur den senast räknade resultatlistan med de nya avläsningarna inlagda, aldrig i
+  webbläsaren. Utan nät står att den visas när nätet är tillbaka; den kommer när kön har skickats. Den sparas inte.
+
 ## Statusbeslut
 
 - Arrangören kan sätta ej start, ej fullföljt, disk, utom tävlan, deltog utan tid, godkänt manuellt samt

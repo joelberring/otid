@@ -1,7 +1,8 @@
 import { ingestReadoutsAsAdmin, readReadoutPackageAsAdmin, requireRaceRole } from "@o-tid/application";
-import { deviceBatchAcknowledgementSchema, deviceBatchSchema, readoutPackageSchema } from "@o-tid/contracts";
+import { deviceBatchAcknowledgementSchema, deviceBatchSchema, readoutPackageSchema, type DeviceBatchAcknowledgement } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
 import { DeviceBatchRequestError, readBoundedDeviceBatchJson } from "./readout-batch-body";
+import { withPlacements } from "./readout-placement";
 import {
   adminFailure as failure,
   hasExpectedOrigin,
@@ -17,8 +18,14 @@ import { UUID_PATTERN as uuid } from "@o-tid/contracts";
  * tar emot avläsningar med kontots session och rollen administratör eller funktionär (ADR-0172, ADR-0173).
  */
 type Environment = Partial<Pick<NodeJS.ProcessEnv, "NODE_ENV" | "O_TID_PUBLIC_ORIGIN">>;
+/** Steg 57: placeringen till kvittot ur de cachade listorna (inläst först här, så att testerna inte behöver cachen). */
+async function placeReadouts(db: Database, raceId: string, acknowledgement: DeviceBatchAcknowledgement): Promise<DeviceBatchAcknowledgement> {
+  const lists = await import("./public-race-data");
+  return withPlacements(db, raceId, acknowledgement, { results: lists.latestStaffResults, relay: lists.latestRelayResults });
+}
+
 const services = { authenticate: requireRaceRole, readPackage: readReadoutPackageAsAdmin,
-  ingest: ingestReadoutsAsAdmin };
+  ingest: ingestReadoutsAsAdmin, place: placeReadouts };
 
 function policy(environment: Environment) {
   return securityPolicy(environment);
@@ -74,7 +81,7 @@ export async function readoutIngestRoute(db: Database, request: Request, raceId:
   try {
     const result = await dependencies.ingest(db, { ...proof, raceId, batch: parsed.data });
     if (result.status !== "ok") return authFailure(result.status);
-    return json(deviceBatchAcknowledgementSchema.parse(result.response));
+    return json(deviceBatchAcknowledgementSchema.parse(await dependencies.place(db, raceId, result.response)));
   } catch (error) {
     console.error("Avläsningar kunde inte tas emot", error);
     return failure(500, "INTERNAL_ERROR");

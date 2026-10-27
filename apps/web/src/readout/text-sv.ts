@@ -228,6 +228,7 @@ export const readoutText = {
     scan: "Skanna för dina resultat",
     notPublished: "Resultatsidan syns när tävlingen publiceras.",
     rental: "Lämna tillbaka hyrbrickan",
+    placement: (line: string) => `Preliminärt: ${line}`,
     printedAt: (time: string) => `Utskrivet ${time}`,
     footer: "O-Tid"
   },

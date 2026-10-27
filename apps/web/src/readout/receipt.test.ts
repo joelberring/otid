@@ -33,10 +33,21 @@ function receiptFor(pkg: ReadoutPackage, readout: SportidentReadoutPayload) {
 }
 
 describe("kvitto efter avläsning", () => {
+  it("steg 57: placeringen ur serverns kvitto står på kvittot, preliminärt", () => {
+    const pkg = clubPackage();
+    const readout = payload([[31, 7, 30], [32, 15], [33, 22, 30]], 30);
+    const receipt = buildReceipt({ verdict: evaluateLocally(readout, pkg), cardNumber: readout.cardNumber, pkg, origin: ORIGIN,
+      printedAt: PRINTED, placement: ["2:a av 2 i mål · +0:30 efter Ada Ek"] });
+    expect(receipt.notes).toEqual(["Preliminärt: 2:a av 2 i mål · +0:30 efter Ada Ek"]);
+    // Felstämplad: ingen placering och ingen hänvisning.
+    expect(receiptFor(pkg, payload([[31, 7, 30], [33, 22, 30]], 30)).notes.some((note) => note.includes("Placering"))).toBe(false);
+  });
+
   it("godkänd: löpare, klass och klubb, tid, sträcktider med sträcka och total, mål och QR-kod till löparens resultat", () => {
     const receipt = receiptFor(clubPackage(), payload([[31, 7, 30], [32, 15], [33, 22, 30]], 30));
     expect(receipt).toMatchObject({ eventName: "Klubbträning", details: "Torsdagsträning · tors 1 okt. 2026", runner: "Anna Berg",
-      team: "Lång · OK Test", card: `Bricka ${TEST_CARD}`, symbol: "✓", status: "GODKÄND", result: "30:00", notes: [], lines: [],
+      team: "Lång · OK Test", card: `Bricka ${TEST_CARD}`, symbol: "✓", status: "GODKÄND", result: "30:00",
+      notes: ["Placering: se resultatlistan (QR-koden)."], lines: [],
       columns: ["", "Kontroll", "Sträcka", "Tid"] });
     expect(receipt.rows).toEqual([
       { index: "1", code: "31", leg: "7:30", total: "7:30" },
@@ -70,7 +81,7 @@ describe("kvitto efter avläsning", () => {
     // Förvalda poäng: kontrollkoden delat med tio (31 och 33 ger 3 p). Två påbörjade minuter för sent à 2 p.
     expect(receipt).toMatchObject({ status: "GODKÄND", result: "2 poäng", columns: ["", "Kontroll", "Poäng", "Tid"],
       lines: [{ label: "Kontrollpoäng", value: "6 p" }, { label: "Straff", value: "−4 p" }, { label: "Tid", value: "22:00 av 20:00" }],
-      notes: ["För sen: 2 påbörjade minuter över tidsgränsen"] });
+      notes: ["Placering: se resultatlistan (QR-koden).", "För sen: 2 påbörjade minuter över tidsgränsen"] });
     expect(receipt.rows).toEqual([{ index: "1", code: "33", leg: "3 p", total: "5:00" }, { index: "2", code: "31", leg: "3 p", total: "12:00" }]);
   });
 

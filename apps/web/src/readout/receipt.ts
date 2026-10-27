@@ -2,11 +2,12 @@ import QRCode from "qrcode";
 import type { ReadoutPackage } from "@o-tid/contracts";
 import { formatRunningTime, type LocalVerdict } from "./evaluate";
 import { readoutText } from "./text-sv";
+import { placementText } from "./placement-text";
 
 /**
  * Sträcktidskvitto efter avläsning (PLAN.md steg 21). Byggs helt av det lokala beskedet och avläsningspaketet, så
- * det går att skriva ut utan nät. Placering visas inte: utan nät känner enheten bara sina egna avläsningar, och
- * andra stationer och senare avläsningar ändrar placeringen – QR-koden leder till den aktuella resultatlistan.
+ * det går att skriva ut utan nät. Steg 57: placeringen kommer från serverns kvitto (preliminär); finns den inte än står
+ * det att den finns i resultatlistan, som QR-koden leder till. Enheten räknar aldrig placeringen själv.
  */
 const t = readoutText.receipt;
 
@@ -41,6 +42,8 @@ export interface ReceiptInput {
   /** Webbplatsens adress, t.ex. https://o-tid.se (avläsningen körs från samma adress). */
   readonly origin: string;
   readonly printedAt: Date;
+  /** Steg 57: placeringens rader ur serverns kvitto, om de finns. */
+  readonly placement?: readonly string[] | undefined;
 }
 
 function formatDate(date: string): string {
@@ -62,7 +65,7 @@ export function receiptLink(pkg: ReadoutPackage, entryId: string | undefined, or
   return { url, address: `${host}/t/${links.shortCode}`, published: links.published };
 }
 
-export function buildReceipt({ verdict, cardNumber, pkg, origin, printedAt }: ReceiptInput): Receipt {
+export function buildReceipt({ verdict, cardNumber, pkg, origin, printedAt, placement }: ReceiptInput): Receipt {
   const race = pkg.raceSnapshot.race;
   const symbol = verdict.status === "OK" ? "✓" : verdict.status === "MP" || verdict.status === "OVERTIME" ? "✗" : "?";
   const notes: string[] = [];
@@ -73,6 +76,10 @@ export function buildReceipt({ verdict, cardNumber, pkg, origin, printedAt }: Re
   if (verdict.missingControls.length > 0) notes.push(t.missing(verdict.missingControls));
   if (verdict.relay) notes.push(readoutText.relayTeam(verdict.relay.teamNumber, verdict.relay.teamName, verdict.relay.leg, verdict.relay.legCount));
   if (verdict.variant) notes.push(verdict.variant.assigned ? readoutText.variant(verdict.variant.code) : readoutText.variantGuessed(verdict.variant.code));
+  if (verdict.status === "OK") {
+    if (placement && placement.length > 0) notes.push(...placement.map((line) => t.placement(line)));
+    else notes.push(placementText.receiptLater);
+  }
 
   const score = verdict.rogaining;
   const lines = score && verdict.elapsedMs !== undefined ? [

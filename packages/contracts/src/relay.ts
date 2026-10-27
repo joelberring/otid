@@ -172,6 +172,13 @@ export const publicRelayResultsSchema = z.object({
   formatVersion: z.literal(1),
   classes: z.array(z.object({
     name, legCount: legNumber,
+    /**
+     * Steg 57: hur lag i omstart placeras och sträckornas regler vid flera löpare, så att placeringen efter en sträcka
+     * (avläsningens kvitto) kan räknas ur den cachade listan.
+     */
+    restartRanking: relayRestartRankingSchema.optional(),
+    legRules: z.array(z.object({ leg: legNumber, changeoverRule: relayChangeoverRuleSchema, approvalRule: relayApprovalRuleSchema })
+      .strict()).max(MAX_LEGS).optional(),
     teams: z.array(z.object({
       number: teamNumber, name, organisationName: z.string().max(200).nullable(), status: relayTeamStatusSchema,
       elapsedMs: milliseconds.nullable(), position: z.number().int().positive().nullable(), timeBehindMs: milliseconds.nullable(),

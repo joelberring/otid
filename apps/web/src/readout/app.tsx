@@ -32,6 +32,7 @@ import { IdbPartyActionStore, type PartyAction, type PartyActionStore, type Queu
 import { syncPartyActions } from "./party-sync";
 import { PartyDesk } from "./party-desk";
 import { partyText } from "./party-text-sv";
+import { placementState, placementText as pt } from "./placement-text";
 
 type Current =
   | { readonly phase: "reading"; readonly cardNumber: number }
@@ -487,8 +488,10 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
     ? Math.round(station.clock.clockOffsetMs / 60_000) : undefined;
   // Steg 45: mer än sex timmar fel – datorns klocka gäller i stället.
   const clockIgnored = !exercise && station.kind === "ready" && station.clock !== undefined && stationClockUnusable(station.clock.clockOffsetMs);
+  const placement = current?.phase === "done" ? placementState(currentItem, online) : undefined;
   const printable: Printable | undefined = current?.phase === "done" && verdict && pkg
-    ? { localSequence: current.localSequence, cardNumber: current.cardNumber, verdict } : undefined;
+    ? { localSequence: current.localSequence, cardNumber: current.cardNumber, verdict,
+      ...(placement?.kind === "known" ? { placement: placement.lines } : {}), placementPending: verdict.status === "OK" && placement?.kind === "sending" } : undefined;
   // QR-koden på skärmen: för en känd löpare, så att hen kan skanna i stället för att ta ett papperskvitto.
   const screenQr = printable && receiptSettings.showQr && pkg && printable.verdict.entryId
     ? receiptLink(pkg, printable.verdict.entryId, window.location.origin) : undefined;
@@ -602,7 +605,7 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
     <section className="verdict" aria-live="assertive" data-testid="verdict"
       data-status={current?.phase === "done" ? verdict?.status ?? "NO_PACKAGE" : current?.phase ?? "idle"}>
       <Verdict current={current} verdict={verdict} item={currentItem} qr={screenQr} registration={currentRegistration}
-        timeZone={pkg?.event.timeZone ?? "Europe/Stockholm"} />
+        timeZone={pkg?.event.timeZone ?? "Europe/Stockholm"} online={online} />
     </section>
 
     {/* Steg 31 (B4): brickan har redan lästs ut för någon annan – lånad bricka? */}
@@ -677,9 +680,9 @@ function serverStatus(item: QueuedReadout | undefined, registration: QueuedRegis
   return registration.response?.linkedResult?.status;
 }
 
-function Verdict({ current, verdict, item, qr, registration, timeZone }: { current: Current | undefined; verdict: LocalVerdict | undefined;
+function Verdict({ current, verdict, item, qr, registration, timeZone, online }: { current: Current | undefined; verdict: LocalVerdict | undefined;
   item: QueuedReadout | undefined; qr: ReturnType<typeof receiptLink> | undefined; registration: QueuedRegistration | undefined;
-  timeZone: string }) {
+  timeZone: string; online: boolean }) {
   if (!current) return <p className="big">{t.waitingForCard}</p>;
   if (current.phase === "reading") return <p className="big">{t.reading(current.cardNumber)}</p>;
   if (current.phase === "failed") return <p className="big">✗ {current.message}</p>;
@@ -701,6 +704,7 @@ function Verdict({ current, verdict, item, qr, registration, timeZone }: { curre
       splits={verdict.splits} />
       : verdict?.elapsedMs !== undefined && (verdict.status === "OK" || verdict.status === "OVERTIME")
         ? <p className="time">{formatRunningTime(verdict.elapsedMs)}</p> : null}
+    {verdict?.status === "OK" && (!server || server === "OK") ? <Placement item={item} online={online} /> : null}
     {/* Minutstart (PLAN.md steg 25): sen eller tidig startstämpling är en varning, inte en ny status. */}
     {verdict?.startNote ? <p className="start-note" role="note" data-testid="verdict-start-punch" data-kind={verdict.startNote.kind}>
       {verdict.startNote.kind === "FROM_PUNCH" ? "" : "! "}{startPunchText(verdict.startNote, timeZone)}</p> : null}
@@ -725,6 +729,21 @@ function Verdict({ current, verdict, item, qr, registration, timeZone }: { curre
     <QrCode value={qr.url} label={t.receipt.scan} />
     <figcaption>{t.receipt.scan}{qr.published ? null : <small>{t.receipt.notPublished}</small>}</figcaption>
   </figure> : null}
+  </div>;
+}
+
+/**
+ * Steg 57: placeringen ur serverns kvitto ("2:a av 5 i mål · +0:30 efter Ada Ek", preliminärt). Innan servern svarat står
+ * när den kommer; aldrig en gammal eller lokalt gissad placering.
+ */
+function Placement({ item, online }: { item: QueuedReadout | undefined; online: boolean }) {
+  const placement = placementState(item, online);
+  if (placement.kind === "none") return null;
+  if (placement.kind !== "known") return <p className="placement" data-state="waiting" data-testid="verdict-placement">
+    {placement.kind === "offline" ? pt.offline : pt.sending}</p>;
+  return <div className="placement" data-testid="verdict-placement" aria-label={pt.label}>
+    <small>{pt.preliminary}</small>
+    {placement.lines.map((line) => <span key={line}>{line}</span>)}
   </div>;
 }
 

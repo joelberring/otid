@@ -9,8 +9,15 @@ import { readoutText } from "./text-sv";
 const t = readoutText.receipt;
 const PAGE_STYLE_ID = "otid-receipt-page";
 
-/** Avläsningen som kvittot gäller: det senaste beskedet med underlag. */
-export interface Printable { readonly localSequence: number; readonly cardNumber: string; readonly verdict: LocalVerdict }
+/**
+ * Avläsningen som kvittot gäller: det senaste beskedet med underlag. Steg 57: `placement` är placeringens rader ur
+ * serverns kvitto; `placementPending` när avläsningen just skickas (automatisk utskrift väntar då en stund på den).
+ */
+export interface Printable { readonly localSequence: number; readonly cardNumber: string; readonly verdict: LocalVerdict;
+  readonly placement?: readonly string[]; readonly placementPending?: boolean }
+
+/** Så länge väntar den automatiska utskriften på placeringen när nätet finns. */
+const PLACEMENT_WAIT_MS = 2_000;
 
 /** Godkänd eller felstämplad: en känd löpare med ett resultat att ta med sig. */
 export function autoPrintable(verdict: LocalVerdict): boolean {
@@ -32,7 +39,8 @@ export function ReceiptPanel({ printable, pkg, settings, onSettings }: {
   const autoHandled = useRef<number | undefined>(printable?.localSequence);
 
   const receipt = useMemo(() => printable && pkg && shown?.sequence === printable.localSequence
-    ? buildReceipt({ verdict: printable.verdict, cardNumber: printable.cardNumber, pkg, origin: window.location.origin, printedAt: shown.printedAt })
+    ? buildReceipt({ verdict: printable.verdict, cardNumber: printable.cardNumber, pkg, origin: window.location.origin, printedAt: shown.printedAt,
+      placement: printable.placement })
     : undefined, [printable, pkg, shown]);
 
   function print(sequence: number) {
@@ -40,11 +48,22 @@ export function ReceiptPanel({ printable, pkg, settings, onSettings }: {
     setPrintRequest((count) => count + 1);
   }
 
+  // Steg 57: medan avläsningen skickas väntar utskriften högst två sekunder på placeringen; utan nät skrivs den ut direkt.
+  const sequence = printable?.localSequence;
+  const pending = printable?.placementPending === true;
+  const printableRef = useRef(printable);
+  printableRef.current = printable;
   useEffect(() => {
-    if (!printable || !settings.auto || autoHandled.current === printable.localSequence) return;
-    autoHandled.current = printable.localSequence;
-    if (autoPrintable(printable.verdict)) print(printable.localSequence);
-  }, [printable, settings.auto]);
+    const now = printableRef.current;
+    if (!now || sequence === undefined || !settings.auto || autoHandled.current === sequence) return;
+    const go = () => {
+      autoHandled.current = sequence;
+      if (printableRef.current && autoPrintable(printableRef.current.verdict)) print(sequence);
+    };
+    if (!pending || !autoPrintable(now.verdict)) { go(); return; }
+    const timer = setTimeout(go, PLACEMENT_WAIT_MS);
+    return () => clearTimeout(timer);
+  }, [sequence, pending, settings.auto]);
 
   useEffect(() => {
     if (printRequest === 0 || !receiptRef.current) return;

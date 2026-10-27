@@ -29,6 +29,7 @@ export * from "./relay";
 export * from "./relay-starts";
 export * from "./relay-forking";
 export * from "./relay-parallel";
+export * from "./readout-placement";
 export * from "./team-sprint";
 export * from "./split-table";
 export * from "./source-sync";

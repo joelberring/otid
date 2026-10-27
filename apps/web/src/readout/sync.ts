@@ -183,6 +183,8 @@ export async function syncPending(store: ReadoutStore, raceId: string, deps: Syn
         ...released(item),
         status: ack.status,
         ...("serverResult" in ack && ack.serverResult ? { serverResult: ack.serverResult } : {}),
+        // Steg 57: placeringen när servern svarade (avläsningen kvitteras en gång).
+        ...("placement" in ack && ack.placement ? { placement: ack.placement } : {}),
         ...(ack.status === "rejected" ? { rejectedReason: ack.reason } : {})
       });
       count += 1;

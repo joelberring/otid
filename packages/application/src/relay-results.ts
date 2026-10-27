@@ -238,7 +238,8 @@ export async function publicRelayResults(db: Database, raceId: string): Promise<
     await lockRaceForSnapshot(tx, raceId);
     const { classes } = await loadRelayView(tx, raceId);
     return publicRelayResultsSchema.parse({ formatVersion: 1, classes: classes.map(row => ({
-      name: row.name, legCount: row.config.legs.length,
+      name: row.name, legCount: row.config.legs.length, restartRanking: row.config.restartRanking,
+      legRules: row.config.legs.map(leg => ({ leg: leg.leg, changeoverRule: leg.changeoverRule, approvalRule: leg.approvalRule })),
       teams: row.teams.map(view => ({ number: view.team.number, name: view.team.name, organisationName: view.team.organisationName,
         status: view.result.status, elapsedMs: view.result.elapsedMs ?? null, position: view.position ?? null,
         timeBehindMs: view.timeBehindMs ?? null, currentLeg: view.result.currentLeg ?? null,

@@ -189,3 +189,29 @@ describe("steg 51: publika listor en gång per tävlingsversion", () => {
     expect(isRetryableReadConflict({ code: "40P01" })).toBe(true);
   });
 });
+
+describe("steg 57: den senast räknade listan för avläsningens placering", () => {
+  it("ger listan direkt efter nya resultat och räknar om i bakgrunden; väntar efter en annan ändring och utan lista", async () => {
+    let version = "1:10:-", computed = 0, slow = 0;
+    const cache = createPublicRaceCache({ version: async () => version, minIntervalMs: 0, versionTtlMs: 0, computeShare: 0 });
+    const compute = async () => { computed += 1; if (slow) await delay(slow); return version; };
+    // Ingen lista: väntar på uträkningen (högst waitMs).
+    expect((await cache.latest(race, "results:staff", compute, 500))?.value).toBe("1:10:-");
+    // Bara nya resultat (andra delen): den gamla listan direkt, ny uträkning i bakgrunden.
+    version = "1:11:-"; slow = 100;
+    const started = Date.now();
+    const old = await cache.latest(race, "results:staff", compute, 500);
+    expect(old?.value).toBe("1:10:-");
+    expect(Date.now() - started).toBeLessThan(80);
+    await delay(150);
+    expect(computed).toBe(2);
+    expect((await cache.latest(race, "results:staff", compute, 500))?.value).toBe("1:11:-");
+    // Något annat ändrat (första delen): ingen gammal lista; för lång uträkning ger undefined.
+    version = "2:11:-"; slow = 200;
+    expect(await cache.latest(race, "results:staff", compute, 50)).toBeUndefined();
+    await delay(250);
+    const fresh = await cache.latest(race, "results:staff", compute, 50);
+    expect(fresh?.value).toBe("2:11:-");
+    expect(fresh!.startedAt).toBeLessThanOrEqual(fresh!.at);
+  });
+});

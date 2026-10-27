@@ -1,4 +1,4 @@
-import type { ReadoutPackage, ReadoutRegistrationRequest, ReadoutRegistrationResponse, ServerResultSummary,
+import type { ReadoutPackage, ReadoutPlacement, ReadoutRegistrationRequest, ReadoutRegistrationResponse, ServerResultSummary,
   SportidentReadoutPayload } from "@o-tid/contracts";
 
 export type QueueStatus = "pending" | "stored" | "duplicate" | "rejected";
@@ -16,6 +16,8 @@ export interface QueuedReadout {
   readonly contentHash: string;
   readonly status: QueueStatus;
   readonly serverResult?: ServerResultSummary;
+  /** Steg 57: placeringen när servern kvitterade avläsningen (preliminär, för de som då var godkända). */
+  readonly placement?: ReadoutPlacement;
   readonly rejectedReason?: string;
   /**
    * Steg 31: servern svarade med ett serverfel (5xx) för just den här avläsningen. Den ligger kvar som väntande men

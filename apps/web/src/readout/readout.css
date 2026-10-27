@@ -44,6 +44,11 @@ p { margin: 0; }
 .verdict .splits span:first-child { font-weight: 700; }
 .verdict .splits span:last-child { color: var(--muted); }
 .verdict .sync { color: var(--muted); font-size: var(--text-sm); }
+/* Steg 57: placeringen från serverns kvitto, med ordet "Preliminärt" (inte bara färg). */
+.verdict .placement { display: grid; gap: 2px; justify-self: start; padding: 4px 12px; border-left: 4px solid var(--line);
+  font-size: 1.45rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.verdict .placement small { font-size: var(--text-sm); font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.verdict .placement[data-state="waiting"] { font-size: 1.05rem; font-weight: 600; color: var(--muted); }
 /* Rogaining: summan som tiden, uppdelningen under; för sent med symbol och ord. */
 .verdict .breakdown { font-family: var(--font-dense); font-size: 1.3rem; font-weight: 600; font-variant-numeric: tabular-nums; }
 .verdict .breakdown span { white-space: nowrap; }

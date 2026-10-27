@@ -186,11 +186,33 @@ export const serverResultSummarySchema = z.discriminatedUnion("status", [
   }).strict()
 ]);
 
+const standingMs = z.number().int().nonnegative().max(1_000 * 60 * 60 * 24 * 7);
+const readoutStandingSchema = z.object({
+  position: z.number().int().positive(),
+  tied: z.boolean(),
+  finished: z.number().int().positive(),
+  leader: z.object({ name: z.string().min(1).max(320), behindMs: standingMs.optional(),
+    pointsBehind: z.number().int().positive().optional() }).strict().optional(),
+  ahead: z.object({ ms: standingMs.optional(), points: z.number().int().positive().optional() }).strict().optional()
+}).strict();
+
+/**
+ * Steg 57: placeringen vid avläsningen, räknad på servern ur den cachade resultatlistan för tävlingsversionen med
+ * avläsningens resultat inlagt. Preliminär: bara de som hittills är godkända räknas. Sparas inte; skickas med kvittot
+ * (även för en dubblett, då med dagens ställning). Saknas när löparen inte är godkänd eller listan inte fanns.
+ */
+export const readoutPlacementSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("individual"), standing: readoutStandingSchema }).strict(),
+  z.object({ kind: z.literal("relay"), leg: z.number().int().min(1).max(30), team: readoutStandingSchema.optional(),
+    legTime: readoutStandingSchema.extend({ elapsedMs: standingMs }).strict().optional() }).strict()
+]);
+
 const acknowledgedDeviceEventSchema = z.object({
   localSequence: z.number().int().positive(),
   contentHash: z.string().regex(/^[a-f0-9]{64}$/),
   rawMessageId: z.uuid(),
-  serverResult: serverResultSummarySchema.optional()
+  serverResult: serverResultSummarySchema.optional(),
+  placement: readoutPlacementSchema.optional()
 }).strict();
 
 export const deviceEventAcknowledgementSchema = z.discriminatedUnion("status", [
@@ -241,6 +263,8 @@ export type CreateEventInput = z.infer<typeof createEventSchema>;
 export type SimulatorPayload = z.infer<typeof simulatorPayloadSchema>;
 export type DeviceBatch = z.infer<typeof deviceBatchSchema>;
 export type ServerResultSummary = z.infer<typeof serverResultSummarySchema>;
+export type ReadoutPlacement = z.infer<typeof readoutPlacementSchema>;
+export type ReadoutStandingSummary = z.infer<typeof readoutStandingSchema>;
 export type DeviceEventAcknowledgement = z.infer<typeof deviceEventAcknowledgementSchema>;
 export type DeviceBatchAcknowledgement = z.infer<typeof deviceBatchAcknowledgementSchema>;
 export * from "./start-draw";

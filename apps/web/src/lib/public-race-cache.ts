@@ -23,7 +23,9 @@ export { isRetryableReadConflict } from "./read-conflict";
  * - Versionen läses högst en gång per `versionTtlMs` och tävling (en fråga i stället för en per anrop).
  * Cachen ligger i webbprocessen (i drift en per webbinstans, två bakom Caddy); den ändrar aldrig vad listorna innehåller.
  */
-export type CachedPublic<T> = { readonly key: string; readonly at: number; readonly value: T; readonly json: string;
+export type CachedPublic<T> = { readonly key: string; readonly at: number;
+  /** Steg 57: när uträkningen började; allt som sparats före det finns med i listan. */
+  readonly startedAt: number; readonly value: T; readonly json: string;
   readonly gzip: Buffer; readonly etag: string; readonly stale?: boolean;
   /** Steg 54: under tryck – sidan hämtar igen först efter så här lång tid (i stället för 1,5–2,5 s). */
   readonly retryMs?: number };
@@ -114,14 +116,14 @@ export function createPublicRaceCache(options: PublicRaceCacheOptions) {
   async function build<T>(raceId: string, slot: Slot, compute: () => Promise<T>, minIntervalMs: number): Promise<CachedPublic<T>> {
     const delay = slot.lastStart + Math.max(minIntervalMs, computeShare * slot.lastDuration) - now();
     if (delay > 0) await sleep(delay);
-    slot.lastStart = now();
+    const startedAt = slot.lastStart = now();
     // Nyckeln läses före uträkningen: ändras något under tiden räknas listan om vid nästa anrop.
     const key = await options.version(raceId) ?? "okänd";
     versions.set(raceId, { at: now(), value: Promise.resolve(key === "okänd" ? null : key) });
     const value = await retryReadConflicts(compute);
     const json = JSON.stringify(value);
     slot.lastDuration = now() - slot.lastStart;
-    const entry: CachedPublic<T> = { key, at: now(), value, json, gzip: await gzip(json),
+    const entry: CachedPublic<T> = { key, at: now(), startedAt, value, json, gzip: await gzip(json),
       etag: `"${createHash("sha256").update(json).digest("base64url").slice(0, 27)}"` };
     slot.entry = entry;
     return entry;
@@ -171,10 +173,33 @@ export function createPublicRaceCache(options: PublicRaceCacheOptions) {
     return cached ? pending.catch(() => mark(cached)) : pending;
   }
 
+  /**
+   * Steg 57 (avläsningens placering): den senast färdiga listan utan att vänta på en ny uträkning. Är den för en äldre
+   * version startas en uträkning i bakgrunden (i samma takt som `read`). Har bara nya resultat kommit in sedan dess ges den
+   * direkt (anroparen lägger själv in resultaten som kommit efter `startedAt`); har något annat ändrats, eller finns ingen
+   * lista, väntas högst `waitMs` på den nya. Annars undefined – aldrig en lista från före en annan ändring.
+   */
+  async function latest<T>(raceId: string, kind: string, compute: () => Promise<T>, waitMs: number): Promise<CachedPublic<T> | undefined> {
+    const slot = slotFor(`${raceId}:${kind}`);
+    const key = await versionOf(raceId);
+    const cached = slot.entry as CachedPublic<T> | undefined;
+    if (cached && key !== null && cached.key === key && now() - cached.at < defaults.maxAgeMs) return cached;
+    const pending = (slot.inflight ??= build(raceId, slot, compute, defaults.minIntervalMs)
+      .finally(() => { slot.inflight = undefined; })) as Promise<CachedPublic<T>>;
+    if (cached && key !== null && onlyNewResults(cached.key, key)) {
+      pending.catch((error: unknown) => console.error("Resultatlistan kunde inte räknas om", error));
+      return cached;
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<undefined>((resolve) => { timer = setTimeout(() => resolve(undefined), waitMs); });
+    try { return await Promise.race([pending, timeout]); }
+    finally { clearTimeout(timer); }
+  }
+
   /** Har instansen läst tävlingens listor de senaste `withinMs`? (Då räknas de om när ett resultat kommer in.) */
   const recentlyRead = (raceId: string, withinMs: number) => now() - (readAt.get(raceId) ?? Number.NEGATIVE_INFINITY) < withinMs;
 
-  return { read, recentlyRead, clear: () => { slots.clear(); versions.clear(); readAt.clear(); } };
+  return { read, latest, recentlyRead, clear: () => { slots.clear(); versions.clear(); readAt.clear(); } };
 }
 
 /**

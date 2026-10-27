@@ -55,6 +55,18 @@ export const cachedPublicResults = (raceId: string, options: Read = {}) => read(
  */
 export const cachedStaffResults = (raceId: string, options: Read = {}) =>
   read(raceId, "results:staff", () => publicResults(db, raceId, { staff: true }), { ...options, exact: true });
+/**
+ * Steg 57: avläsningens placering läser den senast räknade listan (arrangörens resultatlista och stafettlistan) utan att
+ * vänta på en ny uträkning; se `latest` i `public-race-cache.ts`. Samma post i cachen som `cachedStaffResults`.
+ */
+export const latestStaffResults = (raceId: string, waitMs: number) => {
+  listenForResults();
+  return cache.latest(raceId, "results:staff", () => publicResults(db, raceId, { staff: true }), waitMs);
+};
+export const latestRelayResults = (raceId: string, waitMs: number) => {
+  listenForResults();
+  return cache.latest(raceId, "relay", () => publicRelayResults(db, raceId), waitMs);
+};
 export const cachedPublicRelayResults = (raceId: string, options: Read = {}) =>
   read(raceId, "relay", () => publicRelayResults(db, raceId), options);
 export const cachedPublicRadio = (raceId: string, options: Read = {}) => read(raceId, "radio", () => readPublicRadio(db, raceId), options);

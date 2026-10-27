@@ -42,3 +42,47 @@ export function localRaceDate(instant: Date, timeZone: string): string {
 export function raceDayStarted(raceDate: string, timeZone: string, now: Date): boolean {
   return localRaceDate(now, timeZone) >= raceDate;
 }
+
+/**
+ * Steg 58 (ADR-0178): tävlingsdygnet. En tävling som börjar på kvällen och går över midnatt (nattstafett, Tiomila, Jukola,
+ * natt-KM) hör till tävlingsdagen fram till kl 12 dagen efter i tävlingens tidszon. Stämplingar, avläsningar och
+ * klockslag i det fönstret räknas till tävlingen; "annan dag" gäller bara utanför det.
+ */
+export const RACE_DAY_END_HOUR_NEXT_DAY = 12;
+
+/** Datumet efter (ÅÅÅÅ-MM-DD). */
+export function nextRaceDate(date: string): string {
+  const [year, month, day] = date.split("-").map(Number) as [number, number, number];
+  return new Date(Date.UTC(year, month - 1, day + 1)).toISOString().slice(0, 10);
+}
+
+/** Tävlingsdygnets början och slut som ögonblick (ms): 00:00 tävlingsdagen till kl 12 dagen efter. */
+export function raceDayWindow(raceDate: string, timeZone: string): { readonly startMs: number; readonly endMs: number } | null {
+  const start = parseRaceClock(raceDate, "00:00", timeZone);
+  const end = parseRaceClock(nextRaceDate(raceDate), `${String(RACE_DAY_END_HOUR_NEXT_DAY).padStart(2, "0")}:00`, timeZone);
+  return start && end ? { startMs: Date.parse(start), endMs: Date.parse(end) } : null;
+}
+
+/** Sant när ögonblicket ligger i tävlingsdygnet. */
+export function inRaceDay(instant: Date, raceDate: string, timeZone: string): boolean {
+  const window = raceDayWindow(raceDate, timeZone);
+  const ms = instant.getTime();
+  return window !== null && Number.isFinite(ms) && ms >= window.startMs && ms < window.endMs;
+}
+
+/**
+ * Ett klockslag som hör till tävlingen, nära en känd tid i den (klassens masstart, första start, löparens start): det av
+ * tävlingsdagen och dagen efter som ligger inom tolv timmar från referensen. En omstart kl 00:30 i en stafett med masstart
+ * kl 22:00 blir alltså natten efter, inte morgonen före. Utan referens, eller när inget av dem ligger inom tolv timmar,
+ * gäller tävlingsdagen (som `parseRaceClock`).
+ */
+export function parseRaceClockNear(date: string, clock: string, timeZone: string, reference?: string | null): string | null {
+  const sameDay = parseRaceClock(date, clock, timeZone);
+  const referenceMs = reference ? Date.parse(reference) : Number.NaN;
+  if (!sameDay || !Number.isFinite(referenceMs)) return sameDay;
+  const window = 12 * 3_600_000;
+  const near = (value: string | null) => value !== null && Math.abs(Date.parse(value) - referenceMs) < window;
+  if (near(sameDay)) return sameDay;
+  const nextDay = parseRaceClock(nextRaceDate(date), clock, timeZone);
+  return near(nextDay) ? nextDay : sameDay;
+}

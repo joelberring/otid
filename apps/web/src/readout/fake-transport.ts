@@ -1,7 +1,7 @@
 import type { ByteTransport, TransportState, Unsubscribe } from "@o-tid/device-transport";
 import { FakeSiStation, stationClockFromDate, type SimulatedCard } from "@o-tid/sportident";
 
-/** Hur länge den falska brickan sitter i efter att den satts i, om ingen ny bricka sätts i före. */
+/** Hur länge den falska brickan sitter i efter isättningen och efter stationens senaste svar, om ingen ny bricka sätts i före. */
 const REMOVE_AFTER_MS = 400;
 
 /**
@@ -39,7 +39,16 @@ export class FakeStationTransport implements ByteTransport {
   async write(bytes: Uint8Array): Promise<void> {
     const replies = this.#station.receive(bytes);
     // Svara asynkront i små bitar, som en riktig serieport.
-    setTimeout(() => { for (const reply of replies) this.#emitChunked(reply); }, 5);
+    setTimeout(() => {
+      for (const reply of replies) this.#emitChunked(reply);
+      // Löparen drar brickan en stund efter att stationen har svarat sist, inte en fast tid efter isättningen: annars
+      // tas brickan ur mitt i utläsningen när webbläsaren hackar (en belastad dator), och avläsningen "läses inte färdigt".
+      const card = this.#current;
+      if (card && this.#removeTimer !== undefined && replies.length > 0) {
+        clearTimeout(this.#removeTimer);
+        this.#removeTimer = setTimeout(() => this.#remove(card), REMOVE_AFTER_MS);
+      }
+    }, 5);
   }
 
   onBytes(handler: (chunk: Uint8Array) => void): Unsubscribe {

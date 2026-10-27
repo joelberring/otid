@@ -893,6 +893,22 @@ ADR-0174 beslut 10. Ingen migration.
 - [x] "Fler inställningar": lag i omstart (vid omstart), gaffling (vid gafflad bana), teamsprint och växlingskontroll.
 - [x] Tider som 18:30, 18.30 och 1830. Playwright `stafett-steg56.spec.ts`.
 
+## [x] Steg 58 – Tävlingar över midnatt
+
+ADR-0178.
+
+- [x] Tävlingsdygnet till kl 12 dagen efter: stämplingar efter 00:00 hör till tävlingen; "annan dag" bara utanför det.
+- [x] Klockslag efter midnatt (omstarter, starter, sista start, rättad tid) blir natten efter när de ligger nära
+  masstarten eller första start.
+- [x] Radiokontrollerna fortsätter efter midnatt; övningsstationen flyttar inte "nu" ett dygn bakåt.
+- [x] Avläsningsskalet räknar avläsningen i kön innan beskedet visas.
+- [x] Övningsbrickan dras ur efter stationens senaste svar, så att en hackande webbläsare inte ger "lästes inte färdigt".
+- [x] E2E-testerna oberoende av klockslaget (tävlingsdagen är startens datum, kvitto per avläsning); domän- och
+  integrationstest över midnatt (individuell klass, stafett med omstart 00:30); listor och stafett-steg47 körda med
+  simulerad klocka (21:59, 23:30, 00:10, 13:00, TZ=UTC).
+- [ ] Orsaken till felen i CI är inte bevisad (gick inte att få fram lokalt); live, radio, sträckanalys, tävlingsdag-
+  rättningar och tävlingsfunktioner flyttar fortfarande tävlingen till en annan tidszon nära midnatt.
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

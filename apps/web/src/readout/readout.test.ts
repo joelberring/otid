@@ -205,6 +205,30 @@ describe("avläsning i webbläsaren", () => {
     expect(events).toEqual(["inserted 8001001", "read 8001001", "inserted 8001002", "read 8001002"]);
   });
 
+  // Steg 58: en webbläsare som hackar (belastad dator) mitt i utläsningen får inte göra att övningsbrickan dras ur.
+  it("övningsbrickan sitter kvar tills stationen har svarat färdigt, även när webbläsaren hackar", async () => {
+    const transport = new FakeStationTransport({ timeZone: TIME_ZONE });
+    const events: string[] = [];
+    let stall = false;
+    // Före stationens hanterare: tråden står still innan nästa fråga till stationen hinner skickas.
+    transport.onBytes(() => {
+      if (!stall) return;
+      stall = false;
+      const until = Date.now() + 600;
+      while (Date.now() < until) { /* hackar */ }
+    });
+    const controller = new StationController(transport, {
+      onStatus: () => undefined, onCardInserted: (card) => { events.push(`inserted ${card}`); stall = true; },
+      onCardRead: (card) => events.push(`read ${card.cardNumber}`), onReadFailed: (card, reason) => events.push(`failed ${card} ${reason}`),
+      onUnsupportedCard: () => undefined
+    }, { timeoutMs: 3000, timeZone: TIME_ZONE, fastRead: true });
+    expect(await controller.start()).toBe(true);
+    transport.insert(simulatedRun(8_001_003, { startAt: new Date(NOW.getTime() - 60_000), controlCodes: [31, 32], timeZone: TIME_ZONE, finishAt: NOW }));
+    for (let i = 0; i < 400 && events.length < 2; i += 1) await new Promise((resolve) => setTimeout(resolve, 5));
+    await controller.stop();
+    expect(events).toEqual(["inserted 8001003", "read 8001003"]);
+  });
+
   it("räknar stationens klocka i tävlingens tidszon", () => {
     expect(stationClock(new Date("2026-10-01T17:45:00.000Z"), TIME_ZONE)).toEqual({ secondsOfDay: 19 * 3600 + 45 * 60, dayOfWeek: 4 });
     expect(cardTypeForNumber(23_456)).toBe("SI5");

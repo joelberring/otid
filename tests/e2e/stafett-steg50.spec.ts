@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { addCourseAndClass, createRace, openStep, publishRace, registerAccount, unique } from "./helpers";
+import { addCourseAndClass, createRace, openStep, publishRace, registerAccount, unique, expectSaved, raceStartedAgo } from "./helpers";
 
 /**
  * Steg 50 (ADR-0174 beslut 9): teamsprint med utläsning efter varje sträcka, som MeOS. Löparna stämplar mål och läser ut
@@ -13,15 +13,8 @@ import { addCourseAndClass, createRace, openStep, publishRace, registerAccount, 
 const TIME_ZONE = "Europe/Stockholm";
 const BACK = 60;
 
-function raceClock(back: number) {
-  const now = new Date();
-  const date = new Intl.DateTimeFormat("sv-SE", { timeZone: TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
-  const [hour, minute] = new Intl.DateTimeFormat("sv-SE", { timeZone: TIME_ZONE, hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
-    .format(now).split(":").map(Number) as [number, number];
-  const start = Math.max(1, hour * 60 + minute - back);
-  const clock = (offset: number) => `${String(Math.floor((start + offset) / 60)).padStart(2, "0")}:${String((start + offset) % 60).padStart(2, "0")}`;
-  return { date, clock };
-}
+/** Steg 58: tävlingsdagen är masstartens datum; på natten går tävlingen över midnatt på riktigt. */
+const raceClock = (back: number) => raceStartedAgo(back, TIME_ZONE);
 
 async function compileRoutes(page: Page, raceId: string) {
   for (const path of ["relay", "relay-classes", "relay-teams"]) {
@@ -46,6 +39,7 @@ async function read(page: Page, label: RegExp, verdict: string | null = "GODKÄN
   await page.getByRole("button", { name: "Läs av: rätt stämplat" }).click();
   if (verdict) await expect(page.getByTestId("verdict")).toContainText(verdict);
   else await expect(page.getByTestId("verdict")).toBeVisible();
+  await expectSaved(page);
 }
 
 async function sprintRace(browser: Parameters<typeof registerAccount>[0], prefix: string, teams: readonly string[]) {

@@ -9,7 +9,7 @@ import {
   entryTransferResponseSchema, type EntryIdentityAdminListResponse, type RunnerClub, type RunnerSuggestion
 } from "@o-tid/contracts";
 import { registrationEventorIds } from "./runner-suggestions";
-import { formatClockTime, parseRaceClock } from "../../lib/clock-time";
+import { formatClockTime, parseRaceClockNear, startReference } from "../../lib/clock-time";
 import { hasErrors, validateRegistration, type FieldErrors } from "../../lib/form-validation";
 import { focusFirstError, focusWhenEnabled } from "../ui";
 import { parseIdentityReceipt } from "../../lib/entry-identity-client";
@@ -110,7 +110,8 @@ export function createEntryActions(ws: Base & RaceDataActions) {
     const previous = data?.classes.find((row) => row.id === entry?.classId);
     if (!data || !entry || !target || !previous || entry.classId === target.id) { setMessage(text.invalid); return; }
     if (target.maxEntries !== null && target.entryCount >= target.maxEntries) { setMessage(text.classFull); return; }
-    const fixedStartTime = target.startRule === "FIXED" ? parseRaceClock(data.raceDate, startClock, data.timeZone) : null;
+    const fixedStartTime = target.startRule === "FIXED"
+      ? parseRaceClockNear(data.raceDate, startClock, data.timeZone, startReference(data.entries, target.id)) : null;
     if (target.startRule === "FIXED" && fixedStartTime === null) { setMessage(text.invalidTime); return; }
     const value: TransferAttempt = { kind: "TRANSFER", id: crypto.randomUUID(), entryId: entry.id, displayName: entry.displayName,
       previousClassId: entry.classId, previousClassName: previous.name, className: target.name,
@@ -328,7 +329,8 @@ export function createEntryActions(ws: Base & RaceDataActions) {
     event.preventDefault(); if (writingRef.current || pending.current || !requireSession()) return;
     const entry = data?.entries.find((row) => row.id === entryId);
     const currentClass = data?.classes.find((row) => row.id === entry?.classId);
-    const fixedStartTime = data ? parseRaceClock(data.raceDate, startClock, data.timeZone) : null;
+    const fixedStartTime = data ? parseRaceClockNear(data.raceDate, startClock, data.timeZone,
+      entry?.fixedStartTime ?? startReference(data.entries, entry?.classId)) : null;
     if (!data || !entry || currentClass?.startRule !== "FIXED" || fixedStartTime === null || fixedStartTime === entry.fixedStartTime) {
       setMessage(text.timeInvalid); return;
     }
@@ -418,7 +420,8 @@ export function createEntryActions(ws: Base & RaceDataActions) {
       expectedCourseVersionId: target.courseVersionId, expectedStartRule: target.startRule, givenName, familyName,
       organisationName: organisationName.trim() || null, cardNumber: newCard.trim() || null,
       // Lottad klass: appen ger första lediga vakanta tid. Inte lottad än och tomt fält: tiden ges vid lottningen.
-      fixedStartTime: target.startRule === "FIXED" && !target.startDrawn && clock ? parseRaceClock(data.raceDate, clock, data.timeZone) : null,
+      fixedStartTime: target.startRule === "FIXED" && !target.startDrawn && clock
+        ? parseRaceClockNear(data.raceDate, clock, data.timeZone, startReference(data.entries, target.id)) : null,
       ...registrationEventorIds({ givenName, familyName, organisationName }, registrationRunner, registrationClubs) });
     if (!parsed.success) { setMessage(text.registrationConflict); return; }
     const frozen = { kind: "REGISTRATION" as const, id: crypto.randomUUID(), className: target.name, timeZone: data.timeZone, request: parsed.data };

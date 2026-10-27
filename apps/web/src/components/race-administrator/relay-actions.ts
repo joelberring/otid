@@ -4,7 +4,7 @@ import { relayClassCreateResponseSchema, relayLegRunnerResponseSchema, relayOver
   type RelayStartTimesRequest, type RelayTeamCreateRequest } from "@o-tid/contracts";
 import { relaySv as text } from "../../i18n/relay-sv";
 import { isDuplicateName } from "../../lib/duplicate-name";
-import { formatClockTime, parseRaceClock } from "../../lib/clock-time";
+import { formatClockTime, parseRaceClock, parseRaceClockNear } from "../../lib/clock-time";
 import { hasErrors, type FieldErrors } from "../../lib/form-validation";
 import type { RelayTemplateId } from "../../i18n/relay-form-sv";
 import { focusFirstError } from "../ui";
@@ -36,9 +36,12 @@ export function teamSprintPersonLegs(legCount: number) {
  * 18:30, 18.30 eller 1830, och varje sträcka har sin bana uttryckligen.
  */
 export function relayLegSettings(forms: readonly RelayLegForm[], raceDate: string, timeZone: string) {
+  // Steg 58: en omstart efter midnatt hör till natten efter masstarten (ADR-0178).
+  const massStart = forms[0] ? parseRaceClock(raceDate, relayClock(forms[0].time), timeZone) : null;
   const legs = forms.map((leg, index) => {
     const method: Method = index === 0 ? "MASS_START" : leg.method;
-    const startTime = method === "CHANGEOVER" || method === "FLYING_RESTART" ? null : parseRaceClock(raceDate, relayClock(leg.time), timeZone);
+    const startTime = method === "CHANGEOVER" || method === "FLYING_RESTART" ? null : index === 0 ? massStart
+      : parseRaceClockNear(raceDate, relayClock(leg.time), timeZone, massStart);
     const restartAfterMinutes = method === "FLYING_RESTART" ? restartMinutes(leg.minutes) ?? -1 : null;
     const runners = Math.min(4, Math.max(1, Number(leg.runners) || 1));
     return { leg: index + 1, startMethod: method, startTime, variantCode: leg.variant || null, courseId: leg.course || null, restartAfterMinutes,
@@ -335,8 +338,10 @@ export function createRelayActions(ws: Base & RaceDataActions) {
     if (!raceClass) return;
     let attempt = timesAttempt?.classId === classId ? timesAttempt : undefined;
     if (!attempt) {
+      // Steg 58: omstarter efter midnatt hör till natten efter masstarten (ADR-0178).
+      const massStart = parseRaceClock(data.raceDate, relayClock(relayTimeValue(classId, 1)), data.timeZone);
       const legs = raceClass.legs.filter(leg => leg.startMethod === "MASS_START" || leg.startMethod === "RESTART").map(leg => ({ leg: leg.leg,
-        startTime: parseRaceClock(data.raceDate, relayClock(relayTimeValue(classId, leg.leg)), data.timeZone) }));
+        startTime: leg.leg === 1 ? massStart : parseRaceClockNear(data.raceDate, relayClock(relayTimeValue(classId, leg.leg)), data.timeZone, massStart) }));
       if (legs.length === 0 || legs.some(leg => leg.startTime === null)) { setRelayMessage(text.timesInvalid); return; }
       attempt = { formatVersion: 1, requestId: crypto.randomUUID(), classId,
         legs: legs.map(leg => ({ leg: leg.leg, startTime: leg.startTime! })) };

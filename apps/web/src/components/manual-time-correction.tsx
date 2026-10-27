@@ -3,7 +3,7 @@
 import { useEffect, useState, type FormEvent, type SyntheticEvent } from "react";
 import type { EntryStatusRequest, EntryStatusResponse } from "@o-tid/contracts";
 import { raceAdministratorSv as text } from "../i18n/race-administrator-sv";
-import { formatClockTime, parseRaceClock, zonedDate } from "../lib/clock-time";
+import { formatClockTime, parseRaceClockNear, zonedDate } from "../lib/clock-time";
 import { entryStatusRequest, fetchEntryStatus, postEntryStatus } from "../lib/entry-status-client";
 import { sv } from "../i18n/sv";
 import styles from "./race-administrator-workspace.module.css";
@@ -23,9 +23,12 @@ function duration(milliseconds: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}.${String(milliseconds % 1_000).padStart(3, "0")}`;
 }
 
-/** Klockslaget skrivs på samma dag som den avlästa tiden, i tävlingens tidszon. */
+/**
+ * Klockslaget hör till den avlästa tiden, i tävlingens tidszon: samma dag, eller dagen efter när tiden är strax efter
+ * midnatt (steg 58, ADR-0178).
+ */
 function inputInstant(reference: string, clock: string, timeZone: string): string | null {
-  return parseRaceClock(zonedDate(reference, timeZone), clock, timeZone);
+  return parseRaceClockNear(zonedDate(reference, timeZone), clock, timeZone, reference);
 }
 
 /** Gemensamt för alla fyra: vald löpare, läsning, försök, kvitto och att arbetsytan vet att något pågår. */

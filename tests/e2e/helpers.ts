@@ -27,15 +27,49 @@ export function ongoingRaceTimeZone(now = new Date()): string {
   return hour >= 2 && hour < 23 ? TIME_ZONE : "America/New_York";
 }
 
+/**
+ * Steg 58: en tävling som startade `backMinutes` minuter sedan. Tävlingsdagen är startens datum i tidszonen (efter
+ * midnatt alltså i går) och `clock(offset)` är klockslaget `offset` minuter efter starten, som går över midnatt som på
+ * riktigt. Testerna kör därmed samma väg oavsett klockslag, i stället för att undvika midnatt.
+ */
+export function raceStartedAgo(backMinutes: number, timeZone = TIME_ZONE, now = new Date()) {
+  const start = new Date(Math.floor(now.getTime() / 60_000) * 60_000 - backMinutes * 60_000);
+  const clock = (offset: number) => new Intl.DateTimeFormat("sv-SE", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+    .format(new Date(start.getTime() + offset * 60_000));
+  return { start, date: today(start, timeZone), clock };
+}
+
+/**
+ * Steg 58: väntar tills servern har tagit emot avläsningen som beskedet visar ("Sparad."). En avvisad avläsning syns som
+ * avvisad och testet faller med det beskedet; ett "0 väntar" ensamt räcker inte innan sidan lämnas.
+ */
+export async function expectSaved(page: Page): Promise<void> {
+  await expect(page.getByTestId("verdict-sync")).toHaveText("Sparad.", { timeout: 30_000 });
+}
+
 /** Datumet `days` dagar från i dag (negativt bakåt), ÅÅÅÅ-MM-DD i Stockholm. */
 export function daysFromToday(days: number, now = new Date()): string {
   const [year, month, day] = today(now).split("-").map(Number) as [number, number, number];
   return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
 }
 
+/**
+ * Steg 58: en ny webbläsarkontext. Med E2E_FAKE_CLOCK satt får sidan testkörningens klocka (Playwrights klocka, som går
+ * vidare i vanlig takt), så att webbläsaren, servern och databasen har samma falska tid när testerna körs vid ett visst
+ * klockslag (libfaketime för Node och PostgreSQL; webbläsaren tål inte libfaketime). Utan variabeln är det en vanlig kontext.
+ */
+export async function newContext(browser: Browser) {
+  const context = await browser.newContext();
+  if (process.env.E2E_FAKE_CLOCK) await context.clock.install({ time: Date.now() });
+  // Steg 58: E2E_CPU_THROTTLE=6 gör webbläsaren sex gånger långsammare, som en belastad CI-maskin.
+  const throttle = Number(process.env.E2E_CPU_THROTTLE ?? 0);
+  if (throttle > 1) context.on("page", page => { void context.newCDPSession(page).then(cdp => cdp.send("Emulation.setCPUThrottlingRate", { rate: throttle })); });
+  return context;
+}
+
 /** Registrerar ett konto med e-post (ADR-0172) i en egen webbläsarkontext och landar i Mina tävlingar. */
 export async function registerAccount(browser: Browser, email: string, displayName: string): Promise<Page> {
-  const page = await (await browser.newContext()).newPage();
+  const page = await (await newContext(browser)).newPage();
   await page.goto("/organizer");
   await page.getByRole("button", { name: "Har du inget konto? Skapa ett" }).click();
   await page.getByLabel("Ditt namn").fill(displayName);

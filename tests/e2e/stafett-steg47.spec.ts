@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
-import { addCourseAndClass, createRace, logIn, openStep, publishRace, registerAccount, unique } from "./helpers";
+import { addCourseAndClass, createRace, expectSaved, logIn, newContext, openStep, publishRace, raceStartedAgo, registerAccount, unique } from "./helpers";
 
 /**
  * Steg 47 (ADR-0174): stafett på riktigt.
@@ -11,42 +11,14 @@ import { addCourseAndClass, createRace, logIn, openStep, publishRace, registerAc
  * Övningsstationen lägger sträckornas mål jämnt mellan masstarten och nu med fart per lag (lag 1 97 %, lag 2 94 %, lag 3 91 %),
  * så växlingstiderna går att räkna ut: sträcka k av n går i mål efter k/n av fönstret gånger lagets fart.
  */
-/** Minuter efter midnatt i tidszonen. */
-function minutesOfDay(timeZone: string, now = new Date()) {
-  const [hour, minute] = new Intl.DateTimeFormat("sv-SE", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
-    .format(now).split(":").map(Number) as [number, number];
-  return hour * 60 + minute;
-}
-
+const TIME_ZONE = "Europe/Stockholm";
 /**
- * Dagens datum och klockslag `back` minuter bakåt (och plus `offset` minuter) i tävlingens tidszon. Masstarten ligger sex
- * timmar bakåt så att skillnaden mellan lagens växlingar (2–3 % av fönstret) blir flera minuter och inte påverkas av att
- * fönstret växer medan testet läser av.
+ * Masstarten ligger sex timmar bakåt så att skillnaden mellan lagens växlingar (2–3 % av fönstret) blir flera minuter och
+ * inte påverkas av att fönstret växer medan testet läser av. Steg 58: tävlingsdagen är masstartens datum och klockslagen
+ * räknas från den, så på natten går tävlingen över midnatt på riktigt (i stället för att flyttas till en annan tidszon).
  */
 const BACK = 360;
-function raceClock(back: number) {
-  const now = new Date();
-  const date = new Intl.DateTimeFormat("sv-SE", { timeZone: TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
-  const [hour, minute] = new Intl.DateTimeFormat("sv-SE", { timeZone: TIME_ZONE, hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
-    .format(now).split(":").map(Number) as [number, number];
-  const start = Math.max(1, hour * 60 + minute - back);
-  const clock = (offset: number) => `${String(Math.floor((start + offset) / 60)).padStart(2, "0")}:${String((start + offset) % 60).padStart(2, "0")}`;
-  return { date, clock };
-}
-
-/**
- * Testerna med växlingstider behöver ett fönster på sex timmar samma dag (masstarten kan inte läggas på gårdagen). Tävlingen
- * läggs därför i Stockholm när det ryms och annars i New York (sex timmar efter); ryms det i ingen av dem (eller kan testet
- * gå över midnatt) hoppas testet över i stället för att fallera av klockan.
- */
-const TIME_ZONE = ["Europe/Stockholm", "America/New_York"].find(zone => {
-  const minutes = minutesOfDay(zone);
-  return minutes >= BACK + 5 && minutes < 23 * 60 + 30;
-}) ?? "Europe/Stockholm";
-function needsFullWindow() {
-  const minutes = minutesOfDay(TIME_ZONE);
-  test.skip(minutes < BACK + 5 || minutes >= 23 * 60 + 30, "Fönstret på sex timmar ryms inte i dygnet just nu");
-}
+const raceClock = (back: number) => raceStartedAgo(back, TIME_ZONE);
 
 async function compileRoutes(page: Page, raceId: string) {
   for (const path of ["relay", "relay-classes", "relay-teams", "relay-class-edit", "relay-start-times", "relay-team-edit"]) {
@@ -67,6 +39,8 @@ async function read(page: Page, label: string, ok = true) {
   await page.getByLabel("Deltagare").selectOption({ label });
   await page.getByRole("button", { name: ok ? "Läs av: rätt stämplat" : "Läs av: missad kontroll" }).click();
   await expect(page.getByTestId("verdict")).toContainText(ok ? "GODKÄND" : "FELSTÄMPLAD");
+  // Steg 58: servern har tagit emot avläsningen innan testet går vidare (ett "0 väntar" ensamt kan vara gammalt).
+  await expectSaved(page);
 }
 
 async function newRelayClass(owner: Page, name: string, course: string, legs: number) {
@@ -99,7 +73,7 @@ async function addTeams(owner: Page, className: string, teams: number, legs: num
 }
 
 async function secondComputer(browser: Browser, email: string, raceId: string) {
-  const page = await (await browser.newContext()).newPage();
+  const page = await (await newContext(browser)).newPage();
   await logIn(page, email);
   await expect(page.getByRole("heading", { name: "Dina tävlingar" })).toBeVisible();
   await openReadout(page, raceId);
@@ -107,7 +81,6 @@ async function secondComputer(browser: Browser, email: string, raceId: string) {
 }
 
 test("stafett: kort bana på sträcka 2, omstart, placering efter omstart och ändrad sträcka med besked", async ({ browser }) => {
-  needsFullWindow();
   test.setTimeout(420_000);
   const suffix = unique();
   const { date, clock } = raceClock(BACK);
@@ -162,7 +135,7 @@ test("stafett: kort bana på sträcka 2, omstart, placering efter omstart och ä
 
   // Laget som växlade efter omstarten (med övningsstationens farter lag 1) deltog i omstart: placeras efter laget med
   // vanliga växlingar (SOFT TR 5.8.2).
-  const visitor = await (await browser.newContext()).newPage();
+  const visitor = await (await newContext(browser)).newPage();
   await visitor.goto(`/results/${raceId}`);
   const results = visitor.getByRole("table", { name: "Lagresultat Stafett" }).locator("tbody");
   await expect(results.nth(0).getByRole("row").first()).toContainText(`${normalTeam} OK Linje ${normalTeam}`);
@@ -194,7 +167,6 @@ test("stafett: kort bana på sträcka 2, omstart, placering efter omstart och ä
 });
 
 test("linjestafett: egen bana per sträcka, flygande och fast omstart, avläsning på två datorer", async ({ browser }) => {
-  needsFullWindow();
   test.setTimeout(900_000);
   const suffix = unique();
   const { date, clock } = raceClock(BACK);
@@ -238,7 +210,7 @@ test("linjestafett: egen bana per sträcka, flygande och fast omstart, avläsnin
   await expect(other.getByTestId("queue-status")).toHaveText("0 väntar", { timeout: 30_000 });
 
   // Funktionärsvyn: omstarten räknas från ledarens växling, och lag 1 har inte växlat till sträcka 3.
-  const control = await (await browser.newContext()).newPage();
+  const control = await (await newContext(browser)).newPage();
   await logIn(control, email);
   await expect(control.getByRole("heading", { name: "Dina tävlingar" })).toBeVisible();
   await control.goto(`/admin/${raceId}/manage`);

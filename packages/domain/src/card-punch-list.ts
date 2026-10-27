@@ -1,5 +1,5 @@
 import { alignReadoutToCourse } from "./evaluate-card-readout";
-import { localRaceDate } from "./race-clock";
+import { inRaceDay, localRaceDate } from "./race-clock";
 import type { Punch, RaceSnapshot } from "./types";
 import { prepareReadoutForEvaluation, type AppliedStationAdjustment } from "./station-corrections";
 
@@ -42,9 +42,9 @@ export interface CardPunchList {
   readonly punches: readonly CardPunchRow[];
   /** Obligatoriska kontroller på banan som inte finns bland stämplingarna (tom utan bana). */
   readonly missingControls: readonly number[];
-  /** Andra datum än tävlingsdagen som brickans tider ligger på, stigande. */
+  /** Datum som brickans tider utanför tävlingsdygnet (steg 58: tävlingsdagen till kl 12 dagen efter) ligger på, stigande. */
   readonly otherDates: readonly string[];
-  /** Sant när brickan har tider och alla ligger på andra dagar än tävlingsdagen. */
+  /** Sant när brickan har tider och alla ligger utanför tävlingsdygnet. */
   readonly allOtherDay: boolean;
   /**
    * Brickan saknar startstämpling och starten behövs för tiden: startsätt stämpling, fast start utan lottad tid
@@ -79,6 +79,10 @@ export function cardPunchList(readout: CardPunchReadout, snapshot: RaceSnapshot,
     const date = new Date(instant);
     return Number.isFinite(date.getTime()) ? localRaceDate(date, timeZone) : raceDate;
   };
+  const outside = (instant: string) => {
+    const date = new Date(instant);
+    return Number.isFinite(date.getTime()) && !inRaceDay(date, raceDate, timeZone);
+  };
   const station = (instant: string | undefined): CardStationPunch | undefined =>
     instant ? { punchedAt: instant, localDate: dateOf(instant) } : undefined;
   // Samma förberedelse som bedömningen: tidsjusteringar och gamla stämplingar som inte räknas (PLAN.md steg 31).
@@ -92,7 +96,7 @@ export function cardPunchList(readout: CardPunchReadout, snapshot: RaceSnapshot,
   const alignment = aligned && { ...aligned, onCourse: new Set([...aligned.onCourse].map((index) => prepared.keptPunchIndexes[index]!)) };
   const punches = readout.punches.map((punch, index): CardPunchRow => {
     const localDate = dateOf(punch.punchedAt);
-    const placement: CardPunchPlacement = localDate !== raceDate ? "OTHER_DAY" : !kept.has(index) ? "OLD" : !alignment ? "NO_COURSE"
+    const placement: CardPunchPlacement = outside(punch.punchedAt) ? "OTHER_DAY" : !kept.has(index) ? "OLD" : !alignment ? "NO_COURSE"
       : alignment.onCourse.has(index) ? "ON_COURSE" : "EXTRA";
     return { order: index + 1, code: punch.code, punchedAt: punch.punchedAt, localDate, placement };
   });
@@ -100,8 +104,9 @@ export function cardPunchList(readout: CardPunchReadout, snapshot: RaceSnapshot,
   const entry = entryId === undefined ? undefined : snapshot.entries.find((candidate) => candidate.id === entryId);
   const raceClass = entry && snapshot.classes.find((candidate) => candidate.id === entry.classId);
   const startNeeded = !raceClass || raceClass.startRule === "PUNCH" || !entry?.fixedStartTime;
-  const dates = [check, start, finish, ...punches].flatMap((row) => row ? [row.localDate] : []);
-  const otherDates = [...new Set(dates.filter((date) => date !== raceDate))].sort();
+  // Steg 58: "annan dag" bara utanför tävlingsdygnet; en stämpling efter midnatt i en nattävling är tävlingens.
+  const stamps = [check, start, finish, ...punches].flatMap((row) => row ? [row] : []);
+  const otherDates = [...new Set(stamps.filter((row) => outside(row.punchedAt)).map((row) => row.localDate))].sort();
   // Listan visar brickans egna tider; justeringarna och de gamla stämplingarna som bedömningen inte räknade står som notiser.
   const { adjustments, ignoredPunches } = prepared;
   return {
@@ -112,7 +117,7 @@ export function cardPunchList(readout: CardPunchReadout, snapshot: RaceSnapshot,
     punches,
     missingControls: alignment?.missingControls ?? [],
     otherDates,
-    allOtherDay: dates.length > 0 && dates.every((date) => date !== raceDate),
+    allOtherDay: stamps.length > 0 && stamps.every((row) => outside(row.punchedAt)),
     noStartPunch: !start && startNeeded,
     noFinishPunch: !finish
   };

@@ -20,6 +20,10 @@ till midnatt, och ett klockslag (HH:MM) som skrevs in hamnade alltid på tävlin
   skickas då (provat). Lokalt föll inget av testerna, varken med falsk klocka för server, databas och webbläsare (driftbygget,
   21:59, 23:30, 00:10 och 13:00 i Stockholm, TZ=UTC) eller med strypt processor i webbläsaren, så orsaken i CI är inte
   bevisad. Testerna väntar därför nu på serverns kvitto för varje avläsning, så att ett fel i CI syns där det uppstår.
+- **Övningsstationen.** Med falsk klocka föll stafett-steg47 med "Bricka … lästes inte färdigt" (00:10 och 23:30, alltså
+  inte bara över midnatt). Den falska brickan drogs ur en fast tid (400 ms) efter isättningen; hackar webbläsaren mitt i en
+  snabb utläsning hinner brickan dras ur innan alla block lästs. Nu dras den ur 400 ms efter stationens senaste svar
+  (enhetstest med en tråd som står still 600 ms). Det gäller bara övningsstationen, inte riktiga stationer.
 - **Appen.** Samma fel fanns i appen: den som läser av kunde se "0 väntar" bredvid beskedet och lämna sidan. Dessutom:
   - ett klockslag efter midnatt (omstart 00:30 i en stafett med masstart 22:00, en start 00:20 i en nattklass) blev
     morgonen *före* tävlingen;

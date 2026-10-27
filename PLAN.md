@@ -886,6 +886,7 @@ ADR-0178.
   masstarten eller första start.
 - [x] Radiokontrollerna fortsätter efter midnatt; övningsstationen flyttar inte "nu" ett dygn bakåt.
 - [x] Avläsningsskalet räknar avläsningen i kön innan beskedet visas.
+- [x] Övningsbrickan dras ur efter stationens senaste svar, så att en hackande webbläsare inte ger "lästes inte färdigt".
 - [x] E2E-testerna oberoende av klockslaget (tävlingsdagen är startens datum, kvitto per avläsning); domän- och
   integrationstest över midnatt (individuell klass, stafett med omstart 00:30); listor och stafett-steg47 körda med
   simulerad klocka (21:59, 23:30, 00:10, 13:00, TZ=UTC).

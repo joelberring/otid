@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
-import { addCourseAndClass, createRace, logIn, openStep, publishRace, registerAccount, unique } from "./helpers";
+import { addCourseAndClass, createRace, logIn, openStep, publishRace, registerAccount, unique, newContext } from "./helpers";
 
 /**
  * Steg 47 (ADR-0174): stafett på riktigt.
@@ -99,7 +99,7 @@ async function addTeams(owner: Page, className: string, teams: number, legs: num
 }
 
 async function secondComputer(browser: Browser, email: string, raceId: string) {
-  const page = await (await browser.newContext()).newPage();
+  const page = await (await newContext(browser)).newPage();
   await logIn(page, email);
   await expect(page.getByRole("heading", { name: "Dina tävlingar" })).toBeVisible();
   await openReadout(page, raceId);
@@ -162,7 +162,7 @@ test("stafett: kort bana på sträcka 2, omstart, placering efter omstart och ä
 
   // Laget som växlade efter omstarten (med övningsstationens farter lag 1) deltog i omstart: placeras efter laget med
   // vanliga växlingar (SOFT TR 5.8.2).
-  const visitor = await (await browser.newContext()).newPage();
+  const visitor = await (await newContext(browser)).newPage();
   await visitor.goto(`/results/${raceId}`);
   const results = visitor.getByRole("table", { name: "Lagresultat Stafett" }).locator("tbody");
   await expect(results.nth(0).getByRole("row").first()).toContainText(`${normalTeam} OK Linje ${normalTeam}`);
@@ -238,7 +238,7 @@ test("linjestafett: egen bana per sträcka, flygande och fast omstart, avläsnin
   await expect(other.getByTestId("queue-status")).toHaveText("0 väntar", { timeout: 30_000 });
 
   // Funktionärsvyn: omstarten räknas från ledarens växling, och lag 1 har inte växlat till sträcka 3.
-  const control = await (await browser.newContext()).newPage();
+  const control = await (await newContext(browser)).newPage();
   await logIn(control, email);
   await expect(control.getByRole("heading", { name: "Dina tävlingar" })).toBeVisible();
   await control.goto(`/admin/${raceId}/manage`);

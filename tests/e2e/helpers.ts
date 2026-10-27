@@ -33,9 +33,20 @@ export function daysFromToday(days: number, now = new Date()): string {
   return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
 }
 
+/**
+ * Steg 58: en ny webbläsarkontext. Med E2E_FAKE_CLOCK satt får sidan testkörningens klocka (Playwrights klocka, som går
+ * vidare i vanlig takt), så att webbläsaren, servern och databasen har samma falska tid när testerna körs vid ett visst
+ * klockslag (libfaketime för Node och PostgreSQL; webbläsaren tål inte libfaketime). Utan variabeln är det en vanlig kontext.
+ */
+export async function newContext(browser: Browser) {
+  const context = await browser.newContext();
+  if (process.env.E2E_FAKE_CLOCK) await context.clock.install({ time: Date.now() });
+  return context;
+}
+
 /** Registrerar ett konto med e-post (ADR-0172) i en egen webbläsarkontext och landar i Mina tävlingar. */
 export async function registerAccount(browser: Browser, email: string, displayName: string): Promise<Page> {
-  const page = await (await browser.newContext()).newPage();
+  const page = await (await newContext(browser)).newPage();
   await page.goto("/organizer");
   await page.getByRole("button", { name: "Har du inget konto? Skapa ett" }).click();
   await page.getByLabel("Ditt namn").fill(displayName);

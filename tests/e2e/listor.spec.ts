@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { addCourseAndClass, addEntry, createRace, ongoingRaceTimeZone, openStep, publishRace, registerAccount, reviewScreenshots, unique, warmRoute } from "./helpers";
+import { addCourseAndClass, addEntry, createRace, ongoingRaceTimeZone, openStep, publishRace, registerAccount, reviewScreenshots, unique, warmRoute, newContext } from "./helpers";
 
 /**
  * PLAN.md steg 13 (ADR-0170 beslut 3): start- och resultatlistor med samma verktygsrad i arbetsytan och på de
@@ -151,7 +151,7 @@ test("start- och resultatlistor: vyer, sök, utskrift och export i arbetsytan oc
   await owner.getByRole("button", { name: "Publicera startlistan" }).click();
   await expect(owner.getByText("Startlistan är publicerad.")).toBeVisible();
   await expect(owner.getByText(/Publicerad kl\. \d\d:\d\d\. Den publika listan är aktuell\./)).toBeVisible();
-  const visitor = await (await browser.newContext()).newPage();
+  const visitor = await (await newContext(browser)).newPage();
   // Klockan sätts till första startminuten: den minuten markeras som "Nu" i listan per starttid.
   await visitor.clock.setFixedTime(new Date(firstStart.getTime() + 20_000));
   await visitor.goto(`/starts/${raceId}`);

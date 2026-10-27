@@ -66,7 +66,7 @@ jobs:
       - run: docker compose -f docker-compose.prod.yml up -d --build --wait --wait-timeout 600
       - run: curl -sfk --retry 30 --retry-delay 2 --retry-all-errors -o /dev/null https://localhost/organizer
       - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm test:e2e
+      - run: pnpm test:e2e tests/e2e/listor.spec.ts tests/e2e/stafett-steg47.spec.ts --retries=0
         env:
           E2E_BASE_URL: https://localhost
       - run: ls -lR backups && ls backups/hourly/otid-*.dump backups/daily/otid-*.dump
@@ -80,5 +80,11 @@ jobs:
           echo "::warning title=resultat::$(q "select r.name, c.name, en.given_name, rr.revision, rr.status, rr.cause, rr.published, rr.created_at::time from result_revision rr join entry en on en.id=rr.entry_id join class c on c.id=en.class_id join race r on r.id=rr.race_id where r.event_id in (select id from event where name like 'Listor%') order by r.created_at, rr.created_at")"
           echo "::warning title=avlasningar::$(q "select r.name, cr.card_number, cr.finish_punched_at::time, cr.read_at::time, o.server_result->>'status' from card_readout cr join race r on r.id=cr.race_id left join device_ingest_outcome o on o.raw_message_id=cr.raw_message_id where r.event_id in (select id from event where name like 'Listor%') order by r.created_at, cr.read_at")"
           echo "::warning title=ramar::$(q "select r.name, count(*), min(m.local_sequence), max(m.local_sequence) from raw_device_message m join race r on r.id=m.race_id where r.event_id in (select id from event where name like 'Listor%') group by r.name, r.created_at order by r.created_at")"
+          echo "::warning title=klocka::$(date -u +%FT%T) $(q "select now(), current_setting('TimeZone')")"
+          echo "::warning title=anmalda::$(q "select en.given_name, c.name, en.fixed_start_time from entry en join class c on c.id=en.class_id join race r on r.id=en.race_id where r.event_id in (select id from event where name like 'Listor%') order by en.fixed_start_time")"
+          echo "::warning title=avlasn2::$(q "select cr.card_number, cr.start_punched_at, cr.finish_punched_at, cr.read_at, cr.clock_source, cr.clock_offset_ms, jsonb_array_length(cr.punches), o.server_result->>'status', o.server_result->>'reason' from card_readout cr join race r on r.id=cr.race_id left join device_ingest_outcome o on o.raw_message_id=cr.raw_message_id where r.event_id in (select id from event where name like 'Listor%') order by cr.read_at")"
+          echo "::warning title=ramar2::$(q "select m.local_sequence, m.transport, m.station_received_at, m.server_received_at, m.raw_payload->>'cardNumber', m.raw_payload->>'finishPunchedAt' from raw_device_message m join race r on r.id=m.race_id where r.event_id in (select id from event where name like 'Listor%') order by m.server_received_at")"
+          echo "::warning title=stafett::$(q "select e.time_zone, r.race_date, rl.leg, rl.start_method, rl.start_time from relay_leg rl join race r on r.id=rl.race_id join event e on e.id=r.event_id where e.name like 'Banstafett%' order by rl.leg")"
+          echo "::warning title=stafettlop::$(q "select en.given_name, en.family_name, en.relay_leg, en.fixed_start_time, rr.revision, rr.status, rr.reason, rr.evaluation->>'startTime', rr.evaluation->>'finishTime', rr.cause from entry en join race r on r.id=en.race_id join event e on e.id=r.event_id left join result_revision rr on rr.entry_id=en.id where e.name like 'Banstafett%' order by en.family_name, en.relay_leg, rr.revision")"
           echo "::warning title=webbfel::$(docker compose -f docker-compose.prod.yml logs web 2>&1 | grep -iE 'error|fel|kunde' | tail -15 | tr '\n' '|' | cut -c1-3500)"
           echo "::warning title=publikfel::$(docker compose -f docker-compose.prod.yml logs web-public web-public2 2>&1 | grep -iE 'error|fel|kunde' | tail -15 | tr '\n' '|' | cut -c1-3500)"

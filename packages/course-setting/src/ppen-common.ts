@@ -122,6 +122,51 @@ export function encodeOldCircleGaps(gaps: readonly CircleGap[]): string {
   return (bits >>> 0).toString(2).padStart(32, "0");
 }
 
+/** Attributens ordning när Purple Pen skriver (EventDB.cs), så att en fil från Purple Pen skrivs likadant. */
+const ATTRIBUTE_ORDER: Readonly<Record<string, readonly string[]>> = {
+  map: ["kind", "scale", "dpi", "ignore-missing-fonts", "absolute-path"],
+  standards: ["map", "description"],
+  numbering: ["start", "disallow-invertible"],
+  control: ["id", "kind", "orientation", "stretch", "all-controls-code-angle", "map-issue-location"],
+  course: ["id", "kind", "order"],
+  options: ["print-scale", "climb", "load", "course-length", "hide-from-reports", "score-column", "description-kind"],
+  relay: ["first-team", "teams", "legs"],
+  "course-control": ["id", "control", "variation", "variation-end", "map-exchange", "map-flip", "points"],
+  leg: ["id", "start-control", "end-control"],
+  flagging: ["kind", "x", "y"],
+  first: ["course-control", "control-number"]
+};
+
+/** Attributen (stabilt) i Purple Pens ordning; okända sist. Läsarens stubbar och skrivaren använder samma ordning. */
+export function sortAttributes(element: string, attrs: readonly [string, string][]): [string, string][] {
+  const order = ATTRIBUTE_ORDER[element] ?? [];
+  const rank = (key: string) => (order.includes(key) ? order.indexOf(key) : order.length);
+  return attrs.map((entry, index) => ({ entry, index })).sort((a, b) => rank(a.entry[0]) - rank(b.entry[0]) || a.index - b.index).map(e => e.entry);
+}
+
+/** Barnens ordning när Purple Pen skriver (EventDB.cs); okända element sist, i sin ordning. */
+const CHILD_ORDER: Readonly<Record<string, readonly string[]>> = {
+  event: [
+    "title", "notes", "map", "standards", "all-controls", "print-area", "numbering", "punch-card", "course-appearance",
+    "descriptions", "ocad", "custom-symbol-text", "livelox"
+  ],
+  control: ["code", "location", "description", "punch-pattern", "gaps", "circle-gaps", "description-text", "description-text-line"],
+  course: ["name", "secondary-title", "labels", "first", "print-area", "options", "relay", "relay-branch", "part-options"],
+  "course-control": ["next", "variation", "number-location", "description-text-line"],
+  leg: ["flagging", "bends", "gaps"]
+};
+
+/** Sortera barnen (stabilt) i Purple Pens ordning. Läsaren och skrivaren använder samma ordning för `raw`. */
+export function sortChildren<T>(parent: string, items: readonly T[], name: (item: T) => string = item => (item as { name: string }).name): T[] {
+  const order = CHILD_ORDER[parent] ?? [];
+  const rank = (item: T) => {
+    const n = name(item);
+    if (n === parent) return -1;
+    return order.includes(n) ? order.indexOf(n) : order.length;
+  };
+  return items.map((item, index) => ({ item, index })).sort((a, b) => rank(a.item) - rank(b.item) || a.index - b.index).map(e => e.item);
+}
+
 export function legKey(from: string, to: string): string {
   return `${from}-${to}`;
 }
@@ -150,7 +195,7 @@ export function rawAttribute(raws: readonly RawXml[] | undefined, element: strin
 
 /** Elementet utan de attribut som lästs; `null` om inget återstår (och elementet inte behöver finnas kvar). */
 export function stub(element: XmlElement, used: readonly string[], keepEmpty = false, dropContent = false): RawXml | null {
-  const attrs = element.attrs.filter(([name]) => !used.includes(name));
+  const attrs = sortAttributes(element.name, element.attrs.filter(([name]) => !used.includes(name)));
   const children = dropContent ? [] : element.children;
   if (!keepEmpty && attrs.length === 0 && children.length === 0) return null;
   return toRaw(el(element.name, attrs, children));

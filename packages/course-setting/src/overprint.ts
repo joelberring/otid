@@ -124,7 +124,8 @@ function pointPrimitives(object: PointObject, sizes: Sizes): OverprintPrimitive[
     kind: "circle", role, color: "COURSE", center: at, diameter, lineWidth: line, ...(gaps ? { gaps } : {}), ref
   });
   const triangle = (role: OverprintRole, radius: number): OverprintPrimitive => {
-    const a = control.orientation ?? object.angleOut ?? 90;
+    // Spetsen mot nästa kontroll; en angiven orientering vrider figuren moturs från spetsen uppåt, som passagen.
+    const a = control.orientation !== undefined ? control.orientation + 90 : object.angleOut ?? 90;
     return { kind: "polyline", role, color: "COURSE", points: [0, 120, 240].map(d => polar(at, radius, a + d)), width: line, closed: true, ref };
   };
   switch (control.kind) {

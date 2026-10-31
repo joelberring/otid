@@ -6,7 +6,7 @@
 import type { Point } from "@o-tid/map-file";
 import {
   CONTROL_KINDS, FLAGGING_KINDS, LABEL_KINDS, MAP_STANDARDS, ROOT, SPECIAL_KINDS, decodeCircleGaps, decodeOldCircleGaps,
-  invalid, legKey, parseBool, parseInteger, parseNumber, stub, toRaw
+  invalid, legKey, parseBool, parseInteger, parseNumber, rawName, sortChildren, stub, toRaw
 } from "./ppen-common";
 import type {
   CircleGap, ControlPoint, Course, CourseControl, CourseRelayOptions, CourseSettingDocument, DescriptionBox, Leg,
@@ -205,7 +205,7 @@ function readEvent(element: XmlElement, warnings: Warnings): CourseSettingDocume
   if (!mapStandardSeen) warnings.add("MAP_STANDARD", "Banpåtryck enligt 2000 ritas som ISOM 2017");
   if (mapScale === undefined) throw invalid("<event> saknar <map>");
   if (!(mapScale > 0)) throw invalid("kartans skala är inte positiv");
-  return { title, mapScale, overprintStandard, descriptionStandard, numbering, raw };
+  return { title, mapScale, overprintStandard, descriptionStandard, numbering, raw: sortChildren("event", raw, rawName) };
 }
 
 function readControl(element: XmlElement, warnings: Warnings): ControlPoint {
@@ -286,7 +286,7 @@ function readControl(element: XmlElement, warnings: Warnings): ControlPoint {
     ...(code !== undefined ? { code } : {}),
     ...(orientation !== undefined ? { orientation } : {}),
     ...(circleGaps.length > 0 ? { circleGaps } : {}),
-    ...(raw.length > 0 ? { raw } : {})
+    ...(raw.length > 0 ? { raw: sortChildren("control", raw, rawName) } : {})
   };
 }
 
@@ -383,7 +383,7 @@ function readCourse(element: XmlElement): Course {
     ...(climbMeters !== undefined ? { climbMeters } : {}),
     ...(lengthOverrideMeters !== undefined ? { lengthOverrideMeters } : {}),
     ...(relayOptions ? { relay: relayOptions } : {}),
-    ...(raw.length > 0 ? { raw } : {})
+    ...(raw.length > 0 ? { raw: sortChildren("course", raw, rawName) } : {})
   };
 }
 
@@ -435,7 +435,7 @@ function readCourseControl(element: XmlElement): { courseControl: CourseControl;
     ...(next !== undefined ? { next } : {}),
     ...(splitKind ? { split: { kind: splitKind, branches, end: end! } } : {}),
     ...(points !== 0 ? { points } : {}),
-    ...(raw.length > 0 ? { raw } : {})
+    ...(raw.length > 0 ? { raw: sortChildren("course-control", raw, rawName) } : {})
   };
   return numberDelta ? { courseControl, numberDelta } : { courseControl };
 }
@@ -477,7 +477,7 @@ function readLeg(element: XmlElement): Leg {
     from, to, bends, gaps,
     ...(flagging !== undefined ? { flagging } : {}),
     ...(flaggingAt !== undefined ? { flaggingAt } : {}),
-    raw
+    raw: sortChildren("leg", raw, rawName)
   };
 }
 

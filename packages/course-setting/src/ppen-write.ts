@@ -3,7 +3,7 @@
  * skrivs tillbaka likadant; råa element skrivs i samma ordning som de lästes.
  */
 import {
-  MAP_STANDARDS, ROOT, decodeCircleGaps, decodeOldCircleGaps, encodeCircleGaps, formatFloat32, formatNumber, fromRaw,
+  MAP_STANDARDS, ROOT, sortAttributes, sortChildren, decodeCircleGaps, decodeOldCircleGaps, encodeCircleGaps, formatFloat32, formatNumber, fromRaw,
   invertRecord, nextId, CONTROL_KINDS, FLAGGING_KINDS, LABEL_KINDS
 } from "./ppen-common";
 import { specialCourses } from "./ppen-read";
@@ -17,7 +17,7 @@ const MAP_STANDARD_TEXT: Record<string, string> = { ISOM2017: "2017", ISSPROM201
 
 type Attr = [string, string | undefined];
 
-/** Elementet med de tolkade attributen (i stubbens ordning om de fanns där) och stubbens övriga attribut. */
+/** Elementet med de tolkade attributen och stubbens övriga, i Purple Pens ordning (okända sist, i sin ordning). */
 function merge(name: string, stubElement: XmlElement | undefined, attrs: readonly Attr[], children: XmlNode[] = []): XmlElement {
   const defined = attrs.filter((entry): entry is [string, string] => entry[1] !== undefined);
   const out: [string, string][] = defined.filter(([key]) => !stubElement?.attrs.some(([k]) => k === key));
@@ -25,12 +25,12 @@ function merge(name: string, stubElement: XmlElement | undefined, attrs: readonl
     const own = attrs.find(([k]) => k === key)?.[1];
     out.push([key, own ?? value]);
   }
-  return el(name, out, children.length > 0 ? children : stubElement?.children ?? []);
+  return el(name, sortAttributes(name, out), children.length > 0 ? children : stubElement?.children ?? []);
 }
 
 /**
- * Barnen till ett objekt: först de tolkade elementen som inte har någon stubbe, sedan de råa i ordning där stubbarna
- * slås ihop med modellens värden. `parts` ger elementet för ett namn (med stubbe eller utan); `null` = skrivs inte.
+ * Barnen till ett objekt i Purple Pens ordning: de tolkade elementen och de råa, där stubbarna slås ihop med modellens
+ * värden. `parts` ger elementet för ett namn (med stubbe eller utan); `null` = skrivs inte.
  */
 function children(
   self: string, raws: readonly RawXml[] | undefined, canonical: readonly XmlElement[],
@@ -40,13 +40,12 @@ function children(
   const selfStub = parsed.find(element => element.name === self);
   const stubs = new Map<string, XmlElement>();
   for (const element of parsed) if (element.name in parts && !stubs.has(element.name)) stubs.set(element.name, element);
-  const out: XmlElement[] = [];
+  const out: XmlElement[] = [...canonical];
   for (const name of Object.keys(parts)) {
     if (stubs.has(name)) continue;
     const built = parts[name]!(undefined);
     if (built) out.push(built);
   }
-  out.push(...canonical);
   for (const element of parsed) {
     if (element === selfStub) continue;
     if (stubs.get(element.name) === element) {
@@ -56,7 +55,7 @@ function children(
       out.push(element);
     }
   }
-  return { attrs: selfStub?.attrs ?? [], children: out };
+  return { attrs: selfStub?.attrs ?? [], children: sortChildren(self, out) };
 }
 
 const num = (value: number | undefined) => value === undefined ? undefined : formatNumber(value);
@@ -149,10 +148,10 @@ function courseElement(course: Course): XmlElement {
   };
   const canonical: XmlElement[] = [];
   if (course.secondaryTitle !== undefined) canonical.push(el("secondary-title", [], course.secondaryTitle === "" ? [] : [course.secondaryTitle]));
-  const { attrs, children: kids } = children("course", course.raw, canonical, parts);
   for (const [leg, branches] of Object.entries(course.relay?.fixedBranches ?? {})) {
-    for (const branch of branches) kids.push(el("relay-branch", [["branch", branch], ["leg", leg]]));
+    for (const branch of branches) canonical.push(el("relay-branch", [["branch", branch], ["leg", leg]]));
   }
+  const { attrs, children: kids } = children("course", course.raw, canonical, parts);
   return merge("course", el("course", attrs), [
     ["id", course.id], ["kind", course.kind === "SCORE" ? "score" : "normal"], ["order", String(course.order)]
   ], kids);

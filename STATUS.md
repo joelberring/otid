@@ -17,8 +17,10 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
   sträcka (avbryts vid byte); tabell, summa, varningar i klartext, karta med bästa väg, stråk och alternativ. Inställningar (okända symboler,
   ekvidistans, stigning, fart), kalibrering, "Visa bästa vägval publikt"; publika vägvalskartan visar linjen bara när banorna är publika.
 - Djurgården 2025 (OCAD) med Natt-KM:s bana, manuellt i Node: 20 sträckor, modellen 0,25 s, 1,1–1,5 km 1,3–1,5 s per sträcka.
-- Fixtur `fixtures/maps/vagval.omap` (kartfil.omap + sjö): 31–32 blir vägvalssträcka. Verifierat: se slutrapporten.
-- Kvar: kalibreringen kräver `calibrateSpeeds` i motorn (saknas än); prestandakravet < 1 s per 1,5 km mäts i webbläsaren av motorn.
+- Kalibreringen: ruttdelarna (ms från sträckans start, WGS 84) räknas om till kartfilens mm i webbläsaren och går till motorns
+  `calibrateSpeeds`; före/efter och "Spara" skriver `speedByClass`. Fixtur `fixtures/maps/vagval.omap` (kartfil.omap + sjö): 31–32 har vägval.
+- Verifierat: lint, typecheck, test, test:integration (96 filer), Playwright vagval-analys, kartfil, kontrollkarta, strackanalys, banhemlighet.
+- Kvar: prestandakravet (< 1 s per 1,5 km i webbläsaren) och motorns egna punkter bockas av på steg60-motor.
 
 ### 2026-10-31 – Steg 61: gafflingar till start och karta (agent C, gren steg61-gafflingar)
 - Domän `map-bundles.ts`: en plan (`planMapBundles`) för tryckantal (löpare + lediga tider med efteranmälans variantregel + reserv i

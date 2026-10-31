@@ -10,7 +10,12 @@
  */
 import type { Point } from "@o-tid/map-file";
 
-/** Ett XML-element som O-Tid inte tolkar men skriver tillbaka orört (attribut och innehåll som text). */
+/**
+ * Ett XML-element som O-Tid inte tolkar men skriver tillbaka orört (attribut och innehåll som text). Ett element som
+ * bara delvis tolkas (t.ex. `<options>`) sparas utan de tolkade attributen och slås ihop med modellens värden när filen
+ * skrivs. Ett element med samma namn som det omgivande (t.ex. `<control …/>` i en kontrolls `raw`) bär de attribut på
+ * själva elementet som O-Tid inte tolkar.
+ */
 export interface RawXml {
   readonly xml: string;
 }
@@ -60,7 +65,10 @@ export interface CourseControlSplit {
   readonly end: string;
 }
 
-/** En kontroll på en bana. Banan är en länkad lista från `Course.first` via `next`. */
+/**
+ * En kontroll på en bana. Banan är en länkad lista från `Course.first` via `next`. En gaffling är som i Purple Pen: varje
+ * gren börjar med en egen banans kontroll för gaffelkontrollen, alla med samma `split`.
+ */
 export interface CourseControl {
   readonly id: string;
   readonly control: string;
@@ -109,6 +117,8 @@ export interface Leg {
   readonly gaps: readonly { readonly start: number; readonly length: number }[];
   /** Snitslat: hela sträckan eller en del (början, slutet eller mitten mellan brytpunkterna). */
   readonly flagging?: "NONE" | "ALL" | "BEGINNING" | "END" | "MIDDLE" | undefined;
+  /** Brytpunkten där snitslingen börjar eller slutar (BEGINNING/END) eller kartutdelningen sitter (MIDDLE). */
+  readonly flaggingAt?: Point | undefined;
   readonly raw?: readonly RawXml[] | undefined;
 }
 
@@ -209,6 +219,14 @@ export interface CourseSummary {
   readonly variants: readonly CourseVariant[];
 }
 
+/** Gränserna för för nära kontroller (ADR-0180 beslut 9); standardvärdena finns i `CONTROL_DISTANCE_LIMITS`. */
+export interface CheckOptions {
+  /** Under detta avstånd (m) är två kontroller alltid för nära. */
+  readonly minMeters?: number | undefined;
+  /** Under detta avstånd (m) ska kontrollerna ha tydligt olika objekt; rapporteras för granskning. */
+  readonly similarMeters?: number | undefined;
+}
+
 export type CourseCheck =
   | { readonly kind: "CONTROLS_TOO_CLOSE"; readonly controls: readonly [string, string]; readonly meters: number; readonly limitMeters: number }
   | { readonly kind: "DUPLICATE_CODE"; readonly code: string; readonly controls: readonly string[] }
@@ -230,6 +248,7 @@ export type OverprintRole =
  * standarden vid utskriftsskalan: en figur som ska vara 5 mm på papperet är 5 · printScale / mapScale mm i kartan.
  */
 export type OverprintPrimitive =
+  /** `diameter` till linjens mitt. */
   | { readonly kind: "circle"; readonly role: OverprintRole; readonly color: OverprintColor; readonly center: Point; readonly diameter: number; readonly lineWidth: number; readonly gaps?: readonly { readonly startDegrees: number; readonly endDegrees: number }[] | undefined; readonly ref?: string | undefined }
   | { readonly kind: "polyline"; readonly role: OverprintRole; readonly color: OverprintColor; readonly points: readonly Point[]; readonly width: number; readonly dash?: readonly number[] | undefined; readonly closed?: boolean | undefined; readonly ref?: string | undefined }
   | { readonly kind: "polygon"; readonly role: OverprintRole; readonly color: OverprintColor; readonly rings: readonly (readonly Point[])[]; readonly ref?: string | undefined }

@@ -16,6 +16,7 @@ import { coursesArePublic } from "./course-secrecy";
 import { storedResultVariantControls } from "./course-variants";
 import { imageDimensions } from "./image-dimensions";
 import { readAdminRaceMapSource } from "./race-map-source";
+import { loadPublishedBestRoute, runnerCourseOf } from "./route-choice";
 import { UUID_PATTERN as uuid, sha256Hex as sha256 } from "./serialization";
 
 /**
@@ -333,7 +334,11 @@ export async function readPublicLegRoutes(db: Database, raceId: string, publicRe
     // Steg 52 (ADR-0176): banan med kontrollägena bara när banorna är publika (eller för arrangören och funktionärerna).
     const showCourse = options.staff === true || await coursesArePublic(tx, raceId);
     const course = timing && showCourse ? await runnerCourseOnMap(tx, raceId, timing, leg, map.transform) : undefined;
+    // Steg 60: bästa vägvalet enligt kartan, med samma regler som banan (publicerat av arrangören, samma kartfil).
+    const runnerCourse = timing && showCourse ? await runnerCourseOf(tx, raceId, timing.entryId) : undefined;
+    const bestRoute = runnerCourse ? await loadPublishedBestRoute(tx, raceId, runnerCourse, leg) : undefined;
     return publicLegRoutesSchema.parse({ formatVersion: 1, raceId, leg, map: { width: map.width, height: map.height,
-      version: map.sha256.slice(0, 16) }, runners: [selected, ...others], ...(course ? { course } : {}) });
+      version: map.sha256.slice(0, 16) }, runners: [selected, ...others], ...(course ? { course } : {}),
+      ...(bestRoute && bestRoute.length >= 2 ? { bestRoute: { points: bestRoute } } : {}) });
   });
 }

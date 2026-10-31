@@ -30,6 +30,7 @@ import { loadStartDrawSetupAsAdmin, previewStartDrawAsAdmin, commitStartDrawAsAd
   readRaceMapStateAsAdmin, readRaceMapImageAsAdmin, saveRaceMapAsAdmin, georeferenceRaceMapAsAdmin,
   removeRaceMapAsAdmin, saveParticipantRouteAsAdmin, removeParticipantRouteAsAdmin,
   saveRaceMapSourceAsAdmin, readRaceMapSourceFileAsAdmin, removeRaceMapSourceAsAdmin,
+  readRouteChoiceAsAdmin, saveRouteChoiceSettingsAsAdmin, publishRouteChoiceAsAdmin, readRouteChoiceCalibrationAsAdmin,
   listRacePeopleAsAdmin, grantRacePersonAsAdmin, revokeRacePersonAsAdmin,
   setRacePublicationAsAdmin, setCoursesPublicAsAdmin, readControlMapAsAdmin, readEntryControlMapAsAdmin, getRadioSettingsAsAdmin, saveRadioSettingsAsAdmin,
   fetchRadioNowAsAdmin, registerReadoutCard, previewRemainingRunnersAsAdmin, markRemainingDidNotStartAsAdmin,
@@ -104,6 +105,9 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   raceMapGeoreference: georeferenceRaceMapAsAdmin, raceMapRemove: removeRaceMapAsAdmin,
   // Steg 59: kartfilen (OCAD eller Mapper).
   raceMapSourceSave: saveRaceMapSourceAsAdmin, raceMapSourceFile: readRaceMapSourceFileAsAdmin, raceMapSourceRemove: removeRaceMapSourceAsAdmin,
+  // Steg 60: vägvalsanalysen (inställningar, publicering och rutterna för kalibreringen).
+  routeChoice: readRouteChoiceAsAdmin, routeChoiceSettings: saveRouteChoiceSettingsAsAdmin, routeChoicePublish: publishRouteChoiceAsAdmin,
+  routeChoiceCalibration: readRouteChoiceCalibrationAsAdmin,
   participantRouteSave: saveParticipantRouteAsAdmin, participantRouteRemove: removeParticipantRouteAsAdmin,
   people: listRacePeopleAsAdmin, grantPerson: grantRacePersonAsAdmin, revokePerson: revokeRacePersonAsAdmin,
   racePublication: setRacePublicationAsAdmin, courseSecrecy: setCoursesPublicAsAdmin,
@@ -158,6 +162,7 @@ export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: str
   { kind: "identity-candidates" } | { kind: "identity"; entryId: string } | { kind: "registration" } | { kind: "registration-candidates" } |
   { kind: "changes"; entryId: string } |
   { kind: "race-map" } | { kind: "race-map-image" } | { kind: "race-map-georeference" } | { kind: "race-map-source" } | { kind: "participant-route" } |
+  { kind: "route-choice" } | { kind: "route-choice-settings" } | { kind: "route-choice-published" } | { kind: "route-choice-calibration"; courseId: string } |
   { kind: "people" } | { kind: "race-publication" } | { kind: "course-secrecy" } | { kind: "control-map" } | { kind: "entry-control-map"; entryId: string } | { kind: "radio" } | { kind: "radio-fetch" } |
   { kind: "readout-registrations" } | { kind: "remaining-runners" } | { kind: "course-details"; courseId: string } |
   { kind: "entry-removal"; entryId: string } | { kind: "class-removal"; classId: string } | { kind: "course-removal"; courseId: string } |

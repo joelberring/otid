@@ -31,4 +31,5 @@ export function createDatabase(connectionString: string, options: DatabaseOption
 }
 
 export * as schema from "./schema";
+export type { RouteChoicePublished, RouteChoicePublishedCourse } from "./schema/planning";
 export { migrate } from "./migrator";

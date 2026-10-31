@@ -20,6 +20,7 @@ import { handleVariantRoute } from "./race-administrator-routes-variants";
 import { handleRelayRoute, write as idempotentWrite } from "./race-administrator-routes-relay";
 import { handleSourceRoute } from "./race-administrator-routes-sources";
 import { handleMapRoute } from "./race-administrator-routes-maps";
+import { handleRouteChoiceRoute } from "./race-administrator-routes-route-choice";
 import { handlePeopleRoute } from "./race-administrator-routes-people";
 import { handlePublicationRoute } from "./race-administrator-routes-publication";
 import { handleRadioRoute } from "./race-administrator-routes-radio";
@@ -100,7 +101,7 @@ async function dispatchRaceAdministratorRoute(context: RaceAdministratorRouteCon
   const { action, dependencies } = context;
   return await handleRaceDayRoute(context) ?? await handlePreparationRoute(context) ?? await handleResultRoute(context) ??
     await handleEntryRoute(context) ?? await handleVariantRoute(context) ?? await handleRelayRoute(context) ?? await handleSourceRoute(context) ??
-    await handleMapRoute(context) ?? await handlePeopleRoute(context) ?? await handlePublicationRoute(context) ?? await handleRadioRoute(context) ??
+    await handleMapRoute(context) ?? await handleRouteChoiceRoute(context) ?? await handlePeopleRoute(context) ?? await handlePublicationRoute(context) ?? await handleRadioRoute(context) ??
     await handleCompetitionRoute(context) ?? await handleRemovalRoute(context) ?? await handleCorrectionRoute(context) ??
     await handlePartyRoute(context) ??
     (action.kind === "race-settings"
@@ -115,6 +116,8 @@ function allowedMethods(action: Action): string[] {
     action.kind === "radio-fetch" ? ["POST"] : action.kind === "race-publication" || action.kind === "course-secrecy" ? ["PUT", "DELETE"] : action.kind === "race-map" ? ["GET", "PUT", "DELETE"] :
     action.kind === "race-map-image" ? ["GET"] : action.kind === "race-map-georeference" ? ["POST"] :
     action.kind === "race-map-source" ? ["GET", "POST", "DELETE"] :
+    action.kind === "route-choice" || action.kind === "route-choice-calibration" ? ["GET"] :
+    action.kind === "route-choice-settings" || action.kind === "route-choice-published" ? ["POST"] :
     action.kind === "participant-route" ? ["POST", "DELETE"] : action.kind === "eventor" ? ["GET", "PUT", "DELETE"] :
     action.kind === "runner-database" ? ["GET", "POST", "DELETE"] : action.kind === "runner-search" ? ["POST"] :
     action.kind === "source-sync" ? ["GET", "POST"] : action.kind === "eventor-events" ? ["GET"] :

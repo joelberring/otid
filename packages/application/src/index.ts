@@ -77,6 +77,8 @@ export * from "./eventor-link";
 export * from "./source-sync";
 export * from "./race-map";
 export { mapFileFormatOf, readRaceMapSourceFileAsAdmin, removeRaceMapSourceAsAdmin, saveRaceMapSourceAsAdmin } from "./race-map-source";
+export { courseLegKeys, publishRouteChoiceAsAdmin, readRouteChoiceAsAdmin, readRouteChoiceCalibrationAsAdmin, saveRouteChoiceSettingsAsAdmin }
+  from "./route-choice";
 export * from "./radio-ingest";
 export * from "./radio-settings";
 export * from "./radio-standings";

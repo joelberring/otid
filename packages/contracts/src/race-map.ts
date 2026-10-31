@@ -77,7 +77,12 @@ export const publicLegRoutesSchema = z.object({
    * mål som pixlar. `leg` markerar sträckans två ändpunkter.
    */
   course: z.object({ points: z.array(z.object({ label: z.string().min(1).max(12), x: z.number().finite(), y: z.number().finite(),
-    leg: z.boolean() }).strict()).min(2).max(1002) }).strict().optional()
+    leg: z.boolean() }).strict()).min(2).max(1002) }).strict().optional(),
+  /**
+   * Steg 60: "Bästa vägval enligt kartan" för sträckan, som arrangören publicerat ur vägvalsanalysen (pixlar). Bara när banorna
+   * är publika (ADR-0176) och kartfilen är densamma som linjen räknades på.
+   */
+  bestRoute: z.object({ points: z.array(pixel).min(2).max(2000) }).strict().optional()
 }).strict();
 
 export type RaceMapTiePoint = z.infer<typeof raceMapTiePointSchema>;

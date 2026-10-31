@@ -328,6 +328,23 @@ export const mapPrints = pgTable("map_print", {
   check("map_print_list_check", sql`${table.list} IN ('BUNDLE', 'BACKS')`)
 ]);
 
+/** Steg 60: en publicerad bästa väg per sträcka (kartfilens mm), för en bana eller variant. */
+export type RouteChoicePublishedCourse = {
+  courseId: string; variantCode: string | null; publishedAt: string; legs: Record<string, [number, number][]>;
+};
+export type RouteChoicePublished = { mapSha256: string; courses: RouteChoicePublishedCourse[] };
+
+/**
+ * Steg 60 (migration 0030, ADR-0179 beslut 11–12): vägvalsanalysens inställningar (`RouteChoiceSettings`) och de bästa
+ * vägar som arrangören publicerat, med kartfilen (sha256) som de räknades på.
+ */
+export const raceRouteChoices = pgTable("race_route_choice", {
+  raceId: uuid("race_id").primaryKey().references(() => races.id),
+  settings: jsonb("settings").$type<Record<string, unknown> & { version: 1 }>().notNull(),
+  published: jsonb("published").$type<RouteChoicePublished>(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull()
+});
+
 /** PLAN.md steg 21 (migration 0103): "Ny tävling som …" – idempotent journal över kopior och deras källa. */
 export const raceCopyRequests = pgTable("race_copy_request", {
   requestId: uuid("request_id").primaryKey(),

@@ -137,10 +137,12 @@ export function courseChain(document: CourseSettingDocument, courseId: string): 
 const KIND_OF_TOOL: Partial<Record<Tool, ControlKind>> = { ADD_CONTROL: "NORMAL", ADD_START: "START", ADD_FINISH: "FINISH", ADD_CROSSING: "CROSSING_POINT" };
 export const toolControlKind = (tool: Tool) => KIND_OF_TOOL[tool];
 
-/** Var en ny kontroll läggs in på banan: start först, mål sist, annars efter vald kontroll (utan val: före målet). */
+/**
+ * Var en ny kontroll läggs in på banan: start och mål utan `after` (paketet ersätter en befintlig start eller ett
+ * befintligt mål, som Purple Pen), annars efter vald kontroll (utan val: före målet).
+ */
 function insertAfter(state: EditorState, kind: ControlKind): string | null | undefined {
-  if (kind === "START") return null;
-  if (kind === "FINISH") return courseChain(state.document, state.view).at(-1) ?? null;
+  if (kind === "START" || kind === "FINISH") return undefined;
   const selected = state.selection?.kind === "control" ? state.selection.courseControl : undefined;
   return selected && state.document.courseControls[selected] ? selected : undefined;
 }

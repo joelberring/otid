@@ -8,7 +8,8 @@ import {
 } from "./course-setting-editor";
 import { ALL_CONTROLS, bendInsertIndex, hitTest, nearestBend, primitiveDistance } from "./course-setting-hit";
 import { checkRows, controlLabel, legInput, minutes } from "./course-setting-text";
-import { testApply as apply, testDocument } from "./course-setting-test-document";
+import { applyEdit as apply } from "@o-tid/course-setting";
+import { testDocument } from "./course-setting-test-document";
 import { bitmapPlacement, fitBounds, panBy, toMap, toScreen, topLeft, wheelFactor, zoomAt } from "./course-setting-viewport";
 
 /** Steg 62: banläggningens rena moduler – kartvyn (mm ↔ skärm, y uppåt), träff-test, editorn, autosparandet och texterna. */
@@ -102,15 +103,21 @@ describe("editorn", () => {
       .toEqual({ x: -5, y: 0 });
   });
 
-  it("lägger in en befintlig kontroll, tar bort från banan med Delete och avvisar en borttagning som inte går", () => {
+  it("lägger in en befintlig kontroll, tar bort från banan med Delete och ger begripligt fel när en ändring inte går", () => {
     let state = select(setView(createEditor(testDocument()), "k"), { kind: "control", control: "b", courseControl: "c3" });
     state = insertExisting(state, "a", apply);
     expect(courseChain(state.document, "k").map(id => state.document.courseControls[id]!.control)).toEqual(["s", "a", "b", "a", "f"]);
     state = removeSelected(state, apply);
     expect(courseChain(state.document, "k").map(id => state.document.courseControls[id]!.control)).toEqual(["s", "a", "b", "f"]);
-    const blocked = removeSelected(select(createEditor(testDocument()), { kind: "control", control: "a" }), apply);
-    expect(blocked.error).toBe("Kontrollen används på en bana");
-    expect(blocked.past).toHaveLength(0);
+    // I Alla kontroller tas kontrollen bort helt, även från banorna (som Purple Pen).
+    const removed = removeSelected(select(createEditor(testDocument()), { kind: "control", control: "a" }), apply);
+    expect(removed.document.controls.a).toBeUndefined();
+    expect(courseChain(removed.document, "k").map(id => removed.document.courseControls[id]!.control)).toEqual(["s", "b", "f"]);
+    expect(removed.selection).toBeUndefined();
+    // En ändring som inte går ändrar inget och säger varför.
+    const failed = applySteps(createEditor(testDocument()), [{ type: "MOVE_CONTROL", control: "finns-inte", at: { x: 0, y: 0 } }], apply);
+    expect(failed.error).toBeTruthy();
+    expect(failed.past).toHaveLength(0);
   });
 
   it("en dragning är ett steg i historiken; Escape tar tillbaka Välj", () => {
@@ -134,7 +141,7 @@ describe("editorn", () => {
     state = addBend(state, { x: 18, y: 8 }, apply);
     expect(state.document.legs["a-b"]!.bends).toEqual([{ x: 15, y: 2 }, { x: 18, y: 8 }]);
     state = removeSelected(state, apply);
-    expect(state.document.legs["a-b"]!.bends).toEqual([]);
+    expect(state.document.legs["a-b"]?.bends ?? []).toEqual([]);
   });
 
   it("flera steg som bygger på varandra blir ett", () => {

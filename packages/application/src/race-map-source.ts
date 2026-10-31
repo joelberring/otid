@@ -27,9 +27,9 @@ function looksLikeOcad(bytes: Uint8Array): boolean {
   return bytes.length >= 64 && bytes[0] === 0xad && bytes[1] === 0x0c;
 }
 
-/** Mapper: XML med elementet `map` i OpenOrienteerings namnrymd bland de första 4 kB (ingen tolkning av resten). */
+/** Mapper: XML med elementet `map` i OpenOrienteerings namnrymd bland de första 4 kB (ingen tolkning av resten). TextDecoder tar bort en BOM. */
 function looksLikeMapper(bytes: Uint8Array): boolean {
-  const head = new TextDecoder("utf-8", { fatal: false }).decode(bytes.subarray(0, 4096)).replace(/^﻿/, "").trimStart();
+  const head = new TextDecoder("utf-8", { fatal: false }).decode(bytes.subarray(0, 4096)).trimStart();
   return head.startsWith("<?xml") && /<map\b[^>]*xmlns="http:\/\/openorienteering\.org\/apps\/mapper\/xml\/v\d+"/.test(head);
 }
 

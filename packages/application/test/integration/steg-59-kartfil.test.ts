@@ -82,7 +82,7 @@ const georeference = { scale: 10_000, crs: { kind: "EPSG" as const, code: 3006 }
 const render = { pxPerMm: 8, originX: -2, originY: 102 };
 const WIDTH = 992, HEIGHT = 832;
 const corner = (x: number, y: number) => {
-  const geo = mapPointToWgs84(georeference, { x: render.originX + x / render.pxPerMm, y: render.originY - y / render.pxPerMm })!;
+  const geo = mapPointToWgs84(georeference, { x: render.originX + x / render.pxPerMm, y: render.originY - y / render.pxPerMm });
   return { pixelX: x, pixelY: y, latitude: geo.latitude, longitude: geo.longitude };
 };
 
@@ -103,8 +103,9 @@ describe("steg 59: kartfilen", () => {
     const functionary = await raceAuth(db, proof.raceId, "FUNCTIONARY");
     expect(await saveRaceMapSourceAsAdmin(db, { ...functionary, file: omap, fileName: "kartfil.omap", image, metadata: metadata() }))
       .toEqual({ status: "forbidden" });
-    expect(await saveRaceMapSourceAsAdmin(db, { ...proof, csrfHeader: "fel", file: omap, fileName: "kartfil.omap", image, metadata: metadata() }))
-      .toMatchObject({ status: expect.stringMatching(/unauthorized|forbidden/) });
+    const wrongCsrf = await saveRaceMapSourceAsAdmin(db, { ...proof, csrfHeader: "fel", file: omap, fileName: "kartfil.omap", image,
+      metadata: metadata() });
+    expect(["unauthorized", "forbidden"]).toContain(wrongCsrf.status);
     // Filen måste se ut som det format som anges, bilden vara en PNG och täcka kartans yta.
     expect(await saveRaceMapSourceAsAdmin(db, { ...proof, file: omap, fileName: "karta.ocd", image, metadata: metadata({ format: "OCD" }) }))
       .toEqual({ status: "problem", problem: "INVALID_MAP_FILE" });

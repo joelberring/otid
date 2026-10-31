@@ -43,7 +43,7 @@ export function parseCoordText(text: string, start: number, end: number): number
 export function coordsToParts(triples: readonly number[]): Path[] {
   const n = Math.floor(triples.length / 3);
   const px = (i: number) => triples[3 * i]! / 1000;
-  const py = (i: number) => -triples[3 * i + 1]! / 1000;
+  const py = (i: number) => (0 - triples[3 * i + 1]!) / 1000;
   const flag = (i: number) => triples[3 * i + 2]!;
   const parts: Path[] = [];
   let i = 0;

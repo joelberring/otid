@@ -2,7 +2,7 @@
  * OCAD .ocd, version 12 och senare. Varje position och längd kontrolleras mot filen, alla slingor är begränsade och
  * index som pekar i cirkel avbryts, så att en trasig fil ger `MapFileError` i stället för att hänga eller allokera.
  */
-import { boundsOf } from "../geometry";
+import { boundsOf, normalizeAngle, openRing } from "../geometry";
 import { MapFileError, type MapObject, type MapSymbol, type ParsedMap } from "../model";
 import { WarningCollector } from "../warnings";
 import { Bytes, indexBlocks } from "./bytes";
@@ -28,7 +28,7 @@ export function readOcd(data: Uint8Array): ParsedMap {
   const warnings = new WarningCollector();
   const strings = readParameterStrings(bytes, bytes.u32(HEADER.firstStringBlock));
   const colors = readColors(strings);
-  const { symbols } = readOcdSymbols(bytes, bytes.u32(HEADER.firstSymbolBlock), warnings);
+  const symbols = readOcdSymbols(bytes, bytes.u32(HEADER.firstSymbolBlock), warnings);
   const objects = readObjects(bytes, bytes.u32(HEADER.firstObjectBlock), symbols, warnings);
   const { scale, georeference } = readGeoreference(strings, warnings);
   return {
@@ -81,7 +81,7 @@ function readObject(
   const definition = symbols.get(symbol);
   if (!definition) { warnings.add("UNKNOWN_SYMBOL"); return null; }
   const coords = readCoords(bytes, at + OBJECT.coords, count);
-  const angle = bytes.i16(at + OBJECT.angle) / 10;
+  const angle = normalizeAngle(bytes.i16(at + OBJECT.angle) / 10);
   const first = { x: coords.x[0]!, y: coords.y[0]! };
   switch (type) {
     case OBJECT_TYPE.point:
@@ -100,7 +100,7 @@ function readObject(
       return { kind: "line", symbol, path: parts.flat() };
     }
     case OBJECT_TYPE.area: {
-      const rings = coordsToParts(coords);
+      const rings = coordsToParts(coords).map(openRing);
       if (rings.length === 0) { warnings.add("BROKEN_OBJECT"); return null; }
       return { kind: "area", symbol, rings, angle };
     }

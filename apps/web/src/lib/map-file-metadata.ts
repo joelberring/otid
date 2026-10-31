@@ -23,7 +23,9 @@ export function cornerTiePoints(georeference: MapGeoreference | null, size: Rend
     if (!geo || !Number.isFinite(geo.latitude) || !Number.isFinite(geo.longitude) || Math.abs(geo.latitude) > 90 || Math.abs(geo.longitude) > 180) {
       return null;
     }
-    points.push({ pixelX: pixel.x, pixelY: pixel.y, latitude: geo.latitude, longitude: geo.longitude });
+    // Sju decimaler (ungefär 1 cm) räcker och blir läsbart i georeferensens fält.
+    const round = (value: number) => Math.round(value * 1e7) / 1e7;
+    points.push({ pixelX: pixel.x, pixelY: pixel.y, latitude: round(geo.latitude), longitude: round(geo.longitude) });
   }
   return points as unknown as TiePoints;
 }

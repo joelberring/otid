@@ -10,6 +10,15 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-10-31 – Steg 62: banläggningens lagring, editor och överföring (webben, gren steg62-webb)
+- Migration 0031 `course_setting` (dokument, version, ändrad av/när, inläst .ppen orörd) och `course_setting_revision` (högst 50; autosparandet behåller en version per 10 min, alltid vid inläsning/återställning). Spara med `expectedVersion` (409 med aktuell version), lås per tävling, inte tävlingen (ADR-0177). Med i adminexporten och kopian, aldrig publikt.
+- API `administrator/course-setting*` (läge/spara, import, versioner, återställ, originalfilen, överför); bara admin, skrivningar med CSRF.
+- "Överför till tävlingen": dokumentet blir en `CourseFileProjection` som Purple Pens IOF-export (familj + Purple Pens variantkod, längd till 100 m, klasser ur undertiteln, MapPosition, Position med kartfilens georeferens) och går genom banfilens förhandsvisning och `applySyncAsAdmin`. Ägarens SBN26_2.ppen ger samma banor och varianter som SBN26_1.xml (manuellt, filen inte committad).
+- Editorn `/admin/[raceId]/course-setting` (länk under Banor): kartfilen ritad i en Worker per vy, banpåtrycket i eget lager, zoom/panorering/nyp, banlista, verktyg (välj/flytta, ny kontroll/start/mål/passage, lägg in, brytpunkt), gaffling/slinga, flytta nummer, ångra/gör om, tangenter, autosparande med konfliktbesked, kontrollerna i klartext, vald sträckas vägval (route-choice-workern), .ppen in/ut, tidigare versioner.
+- Logiken i `lib/course-setting-*` (kartvy, träff-test mot `ref`, editorns tillstånd, autosparande, texter) med enhetstester; fixturen `fixtures/course-setting/kartfil.ppen`.
+- Verifierat: lint, typecheck, test, test:integration (se slutet), Playwright banlaggning, kartfil, kontrollkarta, vagval-analys.
+- Återstår/ej gjort: stafettlagens varianter (Purple Pens relay-teams) förs inte över; banläggningen i editorn är bara provad i Playwright, inte av ägaren på en riktig bana.
+
 ### 2026-10-31 – Steg 60: vägvalsanalys (motorn steg60-motor, webben steg60-webb, ihopslagna i main)
 - `packages/route-choice`: standardtabell (ISOM/ISSprOM + egna tumregler), kostnadsmodell, rutnät per sträcka (2 m / 0,5 m sprint, större ruta
   vid behov), A* med 16 grannar och två fält, stråk ≤ 5 %, upp till 3 alternativ, stigning ur höjdkurvorna, ±15 % → "ungefär lika", kalibrering.

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import type { CourseSettingState } from "@o-tid/contracts";
+import { raceMapProblemSchema, type CourseSettingState } from "@o-tid/contracts";
 import { emptyDocument } from "@o-tid/course-setting";
 import { courseSettingSv as text } from "../../i18n/course-setting-sv";
 import { raceMapSv } from "../../i18n/race-map-sv";
@@ -39,7 +39,16 @@ export function CourseSettingPage({ raceId }: { raceId: string }) {
     try {
       const response = await fetch(`${courseSettingBase(raceId)}/map/source`, { method: "POST", credentials: "same-origin",
         headers: { "x-otid-csrf": csrf }, body: form });
-      if (!response.ok) return { tone: "error", text: response.status === 413 ? raceMapSv.mapFile.tooLarge : raceMapSv.mapFile.invalid };
+      // Samma besked som i Karta och vägval: 422 säger vad som är fel med filen, annat är ett fel vid sparandet.
+      if (response.status === 422) {
+        const problem = raceMapProblemSchema.safeParse(await response.json()).data?.error;
+        return { tone: "error", text: problem === "MAP_FILE_TOO_LARGE" ? raceMapSv.mapFile.tooLarge
+          : problem === "IMAGE_TOO_LARGE" ? raceMapSv.mapFile.errors.TOO_LARGE : raceMapSv.mapFile.invalid };
+      }
+      if (!response.ok) {
+        console.error("Kartfilen sparades inte", response.status);
+        return { tone: "error", text: raceMapSv.mapFile.failed };
+      }
       await load();
       return { tone: "ok", text: text.mapSaved };
     } catch { return { tone: "error", text: raceMapSv.mapFile.failed }; }

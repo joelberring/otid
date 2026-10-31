@@ -48,7 +48,7 @@ export function createCourseVariantActions(ws: Base & RaceDataActions & CourseEd
   }
 
   /** Arrangören väljer en variant i deltagarkortet: besked först om resultatet ändras, annars sparas direkt. */
-  async function chooseEntryVariant(variantCode: string) {
+  async function chooseEntryVariant(variantCode: string, reason?: "WRONG_MAP") {
     if (writingRef.current || pending.current || !requireSession() || !data || !selected || !variantCode ||
         variantCode === selected.courseVariantCode) return;
     setEntryVariantMessage(""); setEntryVariantError(""); setEntryVariantPreview(undefined);
@@ -66,7 +66,7 @@ export function createCourseVariantActions(ws: Base & RaceDataActions & CourseEd
       }
       const attempt: EntryVariantRequest = { formatVersion: 1, requestId: crypto.randomUUID(),
         expectedEntryVersion: selected.version, entryId: selected.id, variantCode,
-        confirmResultChanges: preview.requiresConfirmation };
+        confirmResultChanges: preview.requiresConfirmation, ...(reason ? { reason } : {}) };
       setEntryVariantAttempt(attempt);
       // Resultatet ändras: visa beskedet och vänta på bekräftelse.
       if (preview.requiresConfirmation) { setEntryVariantPreview(preview); return; }

@@ -314,6 +314,20 @@ export const radioPunches = pgTable("radio_punch", {
   index("radio_punch_race_time_idx").on(table.raceId, table.punchedAt)
 ]);
 
+/**
+ * Steg 61 (migration 0029): senaste utskriften av kartbuntslistan (`BUNDLE`) eller baksidorna (`BACKS`) med läget då
+ * (domänens `PrintedMapState`), för "N ändringar sedan listan skrevs ut". Skrivs över vid nästa utskrift.
+ */
+export const mapPrints = pgTable("map_print", {
+  raceId: uuid("race_id").notNull().references(() => races.id),
+  list: text("list").$type<"BUNDLE" | "BACKS">().notNull(),
+  printedAt: timestamp("printed_at", { withTimezone: true }).notNull(),
+  state: jsonb("state").$type<Record<string, unknown>>().notNull()
+}, (table) => [
+  primaryKey({ columns: [table.raceId, table.list] }),
+  check("map_print_list_check", sql`${table.list} IN ('BUNDLE', 'BACKS')`)
+]);
+
 /** PLAN.md steg 21 (migration 0103): "Ny tävling som …" – idempotent journal över kopior och deras källa. */
 export const raceCopyRequests = pgTable("race_copy_request", {
   requestId: uuid("request_id").primaryKey(),

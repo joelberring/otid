@@ -964,34 +964,34 @@ ADR-0179 (beslut 1–6). Migration 0028.
 ur Purple Pen och ur OCAD för samma karta. Testerna i repot använder små utklipp eller syntetiska filer, inte hela
 klubbkartor.
 
-## [ ] Steg 61 – Gafflingar till start och karta (före steg 60)
+## [x] Steg 61 – Gafflingar till start och karta (före steg 60)
 
 Ägaren 2026-10-31: Stockholm by Night 9 december har många fulgafflingar och därmed många gafflingsnycklar. Det som går
 fel är överlämningen mellan O-Tids fördelning, de tryckta kartbuntarna och utdelningen vid starten. Kartorna trycks
 fortfarande i Purple Pen/macpurplepen (tryck i O-Tid är ett senare steg).
 
-- [ ] **Tryckantal per variant:** per bana och variant antal löpare med den varianten, plus reserv (procent eller antal,
+- [x] **Tryckantal per variant:** per bana och variant antal löpare med den varianten, plus reserv (procent eller antal,
   inställbart), att skriva ut kartor efter. Även vakanter och lediga starttider räknas, så att efteranmälda får en karta.
-- [ ] **Variantkod i startlistan** (skärm, utskrift, CSV och IOF StartList) för gafflade klasser. Kontrollera att
+- [x] **Variantkod i startlistan** (skärm, utskrift, CSV och IOF StartList) för gafflade klasser. Kontrollera att
   IOF-exporten skriver varianten och rätta STATUS.md:s idérad om den.
-- [ ] **Kartbuntslista för starten:** per starttid (individuell start) eller per klass och variant (masstart), i den ordning
+- [x] **Kartbuntslista för starten:** per starttid (individuell start) eller per klass och variant (masstart), i den ordning
   kartorna ska ligga, med startnummer, namn, klass och variantkod; utskrift A4 och CSV. Ändras fördelningen eller kommer
   en efteranmälan efter utskriften syns det överst ("3 ändringar sedan listan skrevs ut 18:02") med vad som ändrats.
-- [ ] **Baksidor och framsidor per löpare** (ägaren: "skriva ut framsidor/baksidor så att kartorna går till rätt person"):
+- [x] **Baksidor och framsidor per löpare** (ägaren: "skriva ut framsidor/baksidor så att kartorna går till rätt person"):
   utskrift med en sida per löpare – startnummer, namn, klubb, klass, starttid och variantkod i stort – i samma ordning
   som kartbunten för varianten (sorterad på starttid inom varianten), plus reservsidor ("Reserv · variant BD") så att
   antalet sidor per variant är exakt tryckantalet. Den redan tryckta kartbunten körs igenom skrivaren igen för baksidan,
   eller sidan används som framsida/omslag. Pappersformat (A4/A3, stående/liggande), var på sidan texten hamnar och
   spegling för baksida går att ställa in, med en provsida. Varje variant börjar med en avdelare ("Variant BD · 23 kartor ·
   lägg kartbunt BD här"). Webbläsarens utskrift räcker (bara svart text).
-- [ ] **Fel karta vid avläsningen:** en löpare som är felstämplad mot sin tilldelade variant men vars stämplingar passar en
+- [x] **Fel karta vid avläsningen:** en löpare som är felstämplad mot sin tilldelade variant men vars stämplingar passar en
   annan variant av samma bana utan fel får beskedet "Felstämplad mot AC, men stämplingarna passar BD. Fick löparen fel
   karta?" i avläsningen, deltagarkortet och arbetsytans lista. "Godkänn på BD" byter variant med den befintliga vägen
   (`changeEntryVariantAsAdmin`, ny revision, auditpost med orsaken "fel karta vid starten"). Inget byts automatiskt.
-- [ ] **Kontroll före tävlingen:** varje variant i banfilen har löpare (eller är medvetet oanvänd), fördelningen är jämn per
+- [x] **Kontroll före tävlingen:** varje variant i banfilen har löpare (eller är medvetet oanvänd), fördelningen är jämn per
   gafflingspunkt inom klassen, ingen löpare saknar variant, och antal varianter ryms (högst 100 per bana, 26 bokstäver).
   Visas som en rad per bana under Banor, i klartext.
-- [ ] **Tester:** domän (tryckantal, fel karta-matchning, kontrollen), integration `steg-61-gafflingar-start`, Playwright
+- [x] **Tester:** domän (tryckantal, fel karta-matchning, kontrollen), integration `steg-61-gafflingar-start`, Playwright
   (kartbuntslista, fel karta → godkänn på annan variant).
 
 ## [ ] Steg 60 – Vägvalsanalys

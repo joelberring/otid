@@ -76,6 +76,7 @@ export function buildReceipt({ verdict, cardNumber, pkg, origin, printedAt, plac
   if (verdict.missingControls.length > 0) notes.push(t.missing(verdict.missingControls));
   if (verdict.relay) notes.push(readoutText.relayTeam(verdict.relay.teamNumber, verdict.relay.teamName, verdict.relay.leg, verdict.relay.legCount));
   if (verdict.variant) notes.push(verdict.variant.assigned ? readoutText.variant(verdict.variant.code) : readoutText.variantGuessed(verdict.variant.code));
+  if (verdict.wrongMap) notes.push(readoutText.wrongMap(verdict.wrongMap.assignedCode, verdict.wrongMap.fittingCodes));
   if (verdict.status === "OK") {
     if (placement && placement.length > 0) notes.push(...placement.map((line) => t.placement(line)));
     else notes.push(placementText.receiptLater);

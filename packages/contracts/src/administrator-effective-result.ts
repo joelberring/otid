@@ -16,7 +16,9 @@ export const startPunchNoteSchema = z.discriminatedUnion("kind", [
 /** Arbetsytans anteckningar om ett resultat: startstämplingen och diskens orsak (PLAN.md steg 25). */
 export const resultNotesSchema = z.object({
   startPunch: startPunchNoteSchema.optional(),
-  disqualificationReason: z.string().trim().min(1).max(500).optional()
+  disqualificationReason: z.string().trim().min(1).max(500).optional(),
+  /** Steg 61: felstämplad mot sin variant men stämplingarna passar en annan variant av samma bana ("Fick löparen fel karta?"). */
+  wrongMap: z.object({ assignedCode: z.string().min(1).max(32), fittingCodes: z.array(z.string().min(1).max(32)).min(1).max(100) }).strict().optional()
 }).strict();
 export type StartPunchNoteDto = z.infer<typeof startPunchNoteSchema>;
 export type ResultNotes = z.infer<typeof resultNotesSchema>;

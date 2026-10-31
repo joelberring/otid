@@ -700,6 +700,8 @@ function Verdict({ current, verdict, item, qr, registration, timeZone, online }:
       ? t.teamSprintAllRead : t.teamSprintEarlierFinish(verdict.teamSprintProblem.leg)}</p> : null}
     {verdict?.variant ? <p className="variant" data-testid="verdict-variant">{verdict.variant.assigned
       ? t.variant(verdict.variant.code) : t.variantGuessed(verdict.variant.code)}</p> : null}
+    {verdict?.wrongMap ? <p role="note" className="start-note" data-testid="verdict-wrong-map">! {t.wrongMap(verdict.wrongMap.assignedCode,
+      verdict.wrongMap.fittingCodes)}</p> : null}
     {verdict?.rogaining && verdict.elapsedMs !== undefined ? <Rogaining score={verdict.rogaining} elapsedMs={verdict.elapsedMs}
       splits={verdict.splits} />
       : verdict?.elapsedMs !== undefined && (verdict.status === "OK" || verdict.status === "OVERTIME")

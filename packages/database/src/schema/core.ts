@@ -127,6 +127,8 @@ export const races = pgTable("race", {
   coursesPublicAt: timestamp("courses_public_at", { withTimezone: true }),
   /** Steg 52: kartans skala ur banfilen (IOF Map/Scale, t.ex. 10000) för kontrollernas kartlägen. NULL = okänd. */
   courseMapScale: integer("course_map_scale"),
+  /** Steg 61 (migration 0029): reserv för tryckantalet per variant. NULL = standard (10 %). */
+  mapReserve: jsonb("map_reserve").$type<{ kind: "PERCENT" | "COUNT"; value: number }>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (table) => [
   check("race_info_check", sql`${table.info} IS NULL OR char_length(${table.info}) BETWEEN 1 AND 1000`),

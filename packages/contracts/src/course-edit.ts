@@ -42,6 +42,13 @@ export const courseEditListResponseSchema = z.object({
       warningLegs: z.array(z.object({ from: legPoint, to: legPoint, variantCodes: z.array(courseVariantCodeSchema).max(1000) }).strict()).max(1000),
       noticeLegs: z.array(z.object({ from: legPoint, to: legPoint, variantCodes: z.array(courseVariantCodeSchema).max(1000) }).strict()).max(1000),
       shortestMeters: z.number().int().min(1).max(1_000_000).nullable(), longestMeters: z.number().int().min(1).max(1_000_000).nullable()
+    }).strict().optional(),
+    /** Steg 61: kontrollen före tävlingen (domänens `forkingReadiness`). Saknas för ogafflade banor och stafettbanor. */
+    readiness: z.object({ ok: z.boolean(), variantCount: count, tooManyVariants: z.boolean(), tooManyLetters: z.boolean(),
+      unusedVariants: z.array(courseVariantCodeSchema).max(1000), unusedExpected: z.boolean(),
+      missingVariant: z.array(z.object({ className: name, count }).strict()).max(1000),
+      uneven: z.array(z.object({ className: name, point: z.number().int().min(1).max(1000),
+        counts: z.array(z.object({ letters: z.string().min(1).max(32), count }).strict()).max(100) }).strict()).max(1000)
     }).strict().optional()
   }).strict()).max(1000),
   // ADR-0169 beslut 4: klasserna som tabell (bana, startsätt, anmälda, avlästa/resultat, status).

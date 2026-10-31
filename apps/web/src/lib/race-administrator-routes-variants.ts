@@ -1,6 +1,7 @@
 import { classVariantDistributionIdempotencyKeySchema, classVariantDistributionRequestSchema, classVariantDistributionResponseSchema,
   entryVariantIdempotencyKeySchema, entryVariantPreviewRequestSchema, entryVariantPreviewResponseSchema, entryVariantRequestSchema,
-  entryVariantResponseSchema } from "@o-tid/contracts";
+  entryVariantResponseSchema, mapBundleResponseSchema, mapPrintRequestSchema, mapPrintResponseSchema, mapReserveRequestSchema,
+  mapReserveResponseSchema } from "@o-tid/contracts";
 import {
   adminFailure as failure,
   privateJson as json,
@@ -8,9 +9,36 @@ import {
 } from "./security-policy";
 import { resultFailure, type RaceAdministratorRouteContext } from "./race-administrator-route-context";
 
-/** Gafflingar (ADR-0169 beslut 2): byt löparens variant och "Fördela gafflingar". Ger undefined för andra åtgärder. */
+/**
+ * Gafflingar (ADR-0169 beslut 2): byt löparens variant och "Fördela gafflingar". Steg 61: kartor till starten (tryckantal,
+ * kartbuntslistan, utskriften och reserven). Ger undefined för andra åtgärder.
+ */
 export async function handleVariantRoute(context: RaceAdministratorRouteContext): Promise<Response | undefined> {
   const { db, request, raceId, action, dependencies, proof } = context;
+  if (action.kind === "map-bundles") {
+    const result = await dependencies.mapBundles(db, { ...proof, raceId });
+    if (result.status !== "ok") return resultFailure(result.status);
+    const response = mapBundleResponseSchema.parse(result.response);
+    return response.raceId === raceId ? json(response) : failure(500, "INTERNAL_ERROR");
+  }
+  if (action.kind === "map-print" || action.kind === "map-reserve") {
+    let body: unknown;
+    try { body = await readJsonBody(request); } catch { return failure(400, "INVALID_REQUEST"); }
+    if (action.kind === "map-print") {
+      const parsed = mapPrintRequestSchema.safeParse(body);
+      if (!parsed.success) return failure(400, "INVALID_REQUEST");
+      const result = await dependencies.mapPrint(db, { ...proof, raceId, request: parsed.data });
+      if (result.status !== "printed") return resultFailure(result.status);
+      const response = mapPrintResponseSchema.parse(result.response);
+      return response.raceId === raceId ? json(response) : failure(500, "INTERNAL_ERROR");
+    }
+    const parsed = mapReserveRequestSchema.safeParse(body);
+    if (!parsed.success) return failure(400, "INVALID_REQUEST");
+    const result = await dependencies.mapReserve(db, { ...proof, raceId, request: parsed.data });
+    if (result.status !== "saved") return resultFailure(result.status);
+    const response = mapReserveResponseSchema.parse(result.response);
+    return response.raceId === raceId ? json(response) : failure(500, "INTERNAL_ERROR");
+  }
   if (action.kind === "entry-variant-preview") {
     let body: unknown;
     try { body = await readJsonBody(request); } catch { return failure(400, "INVALID_REQUEST"); }

@@ -124,6 +124,17 @@ function ParticipantVariant({ ws }: { ws: Workspace }) {
   </section>;
 }
 
+/** Steg 61: "Felstämplad mot AC, men stämplingarna passar BD. Fick löparen fel karta?" med "Godkänn på BD". */
+function WrongMap({ ws, wrongMap }: { ws: Workspace; wrongMap: { assignedCode: string; fittingCodes: readonly string[] } }) {
+  const { chooseEntryVariant, disabled, functionary } = ws;
+  return <div className={styles.warning} role="note" data-testid="wrong-map">
+    <p>{variantText.wrongMap(wrongMap.assignedCode, wrongMap.fittingCodes)}</p>
+    {!functionary && <><div className={styles.actions}>{wrongMap.fittingCodes.map(code => <button key={code} type="button" className="secondary"
+      disabled={disabled} onClick={() => void chooseEntryVariant(code, "WRONG_MAP")}>{variantText.approveOn(code)}</button>)}</div>
+      <p className={styles.muted}>{variantText.approveOnHelp}</p></>}
+  </div>;
+}
+
 /** Resultatet i ord: status, löptid, orsak och gällande beslut. */
 function CardResult({ ws, result, error }: { ws: Workspace; result: AdministratorEffectiveResultResponse | undefined; error: boolean }) {
   const { chooseStatusChange, disabled } = ws;
@@ -144,6 +155,8 @@ function CardResult({ ws, result, error }: { ws: Workspace; result: Administrato
           {result.notes?.startPunch && <p className={result.notes.startPunch.kind === "FROM_PUNCH" ? styles.muted : styles.warning} role="note"
             data-testid="start-punch-note">
             {result.notes.startPunch.kind === "FROM_PUNCH" ? "" : "! "}{startPunchText(result.notes.startPunch, result.timeZone)}</p>}
+          {/* Steg 61: fel karta vid starten. Inget byts förrän arrangören väljer "Godkänn på …". */}
+          {result.notes?.wrongMap && <WrongMap ws={ws} wrongMap={result.notes.wrongMap} />}
           {!result.resultCurrent && <>
             <p className={styles.resultStale}>{adminText.resultStale}</p>
             <button type="button" className="secondary" disabled={disabled} onClick={() => void chooseStatusChange("RECALCULATION")}>

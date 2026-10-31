@@ -15,6 +15,7 @@ import { RelayStartTimes } from "./relay-panels";
 import { ShiftStartTimes } from "../race-corrections";
 import type { Workspace } from "./workspace-state";
 import { RaceInfo } from "../race-info";
+import { mapBundlesSv as mapText } from "../../i18n/map-bundles-sv";
 
 /**
  * Publiceringen av startlistan (PLAN.md steg 13): läget i en mening och en tydlig åtgärd. Läses in när Start visas
@@ -84,12 +85,16 @@ export function PreparationStartList({ ws }: { ws: Workspace }) {
       iof={{ onSelect: () => void downloadStartList(), disabled }} />);
   // Steg 33: kort info och första start överst i Start-steget, för administratören och funktionärerna.
   const info = data && <RaceInfo info={data.info} firstStartTime={data.firstStartTime} heading="h3" />;
-  if (functionary) return <section className={styles.workflowGroup} aria-label={navigationText.steps.START} hidden={!visible}>{info}{lists}</section>;
+  // Steg 61: kartor till starten (tryckantal, kartbuntslistan och baksidor) när någon klass är gafflad.
+  const maps = data?.classes.some(row => row.courseVariants.length > 0) && <p className={styles.workflowHelp}>
+    <Link href={`/admin/${raceId}/maps`}>{mapText.link}</Link> – {mapText.linkHelp}</p>;
+  if (functionary) return <section className={styles.workflowGroup} aria-label={navigationText.steps.START} hidden={!visible}>{info}{maps}{lists}</section>;
   const first = profile.features.draw || profile.features.relay;
   return <section className={styles.workflowGroup} aria-label={navigationText.steps.START} hidden={!visible}>
     {info}
     {profile.features.draw && <StartDrawPanel ws={ws} visible={visible} number={1} />}
     {profile.features.relay && <RelayStartTimes ws={ws} visible={visible} number={1} />}
+    {maps}
     <Section id={`start-lists-${raceId}`} title={publicationText.listHeading} number={first ? 2 : 1}
       help={publicationText.listHelp}>{lists}
       {/* PLAN.md steg 31: flytta en klass starttider; bara administratören. */}

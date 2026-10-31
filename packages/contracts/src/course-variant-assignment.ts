@@ -29,7 +29,9 @@ export const entryVariantPreviewResponseSchema = z.object({
 
 export const entryVariantRequestSchema = z.object({
   formatVersion: z.literal(1), requestId: uuid, expectedEntryVersion: version, entryId: uuid,
-  variantCode: courseVariantCodeSchema, confirmResultChanges: z.boolean()
+  variantCode: courseVariantCodeSchema, confirmResultChanges: z.boolean(),
+  /** Steg 61: "Godkänn på BD" efter beskedet om fel karta; orsaken står i auditposten. */
+  reason: z.literal("WRONG_MAP").optional()
 }).strict();
 
 export const entryVariantIdempotencyKeySchema = z.string().regex(

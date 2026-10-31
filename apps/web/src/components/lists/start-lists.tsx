@@ -107,6 +107,7 @@ function ByTime({ classes, context, now }: { classes: StartClass[]; context: Con
   const { model } = context;
   const groups = useMemo(() => groupByStartTime(classes), [classes]);
   const several = groups.places.length > 1;
+  const variants = classes.some(row => row.entries.some(entry => entry.variant));
   const current = Math.floor(now / 60_000) * 60_000;
   return <>
     {groups.places.map(place => {
@@ -118,7 +119,8 @@ function ByTime({ classes, context, now }: { classes: StartClass[]; context: Con
         <table className={styles.table}>
           <thead><tr><th scope="col" className={styles.time}>{t.time}</th><th scope="col" className={styles.classCol}>{t.className}</th>
             <th scope="col">{t.name}</th><th scope="col" className={styles.wideOnly}>{t.club}</th>
-            {model.cards && <th scope="col" className={styles.card}>{t.card}</th>}</tr></thead>
+            {model.cards && <th scope="col" className={styles.card}>{t.card}</th>}
+            {variants && <th scope="col" className={styles.narrow}>{t.variant}</th>}</tr></thead>
           {place.minutes.map(minute => {
             const isNow = minute.minute === current;
             return <tbody key={minute.minute} className={styles.minute} data-current={isNow || undefined}
@@ -131,6 +133,7 @@ function ByTime({ classes, context, now }: { classes: StartClass[]; context: Con
                 {row.entry ? <Name entry={row.entry} context={context} /> : <th scope="row">{t.vacant}</th>}
                 <td className={styles.wideOnly}>{row.entry ? startClub(row.entry) ?? "" : ""}</td>
                 {model.cards && (row.entry ? <Card entry={row.entry} /> : <td className={styles.card} />)}
+                {variants && <td className={styles.narrow}>{row.entry?.variant ?? ""}</td>}
               </tr>)}
             </tbody>;
           })}
@@ -154,19 +157,22 @@ function ByClub({ classes, context }: { classes: StartClass[]; context: Context 
   const { model } = context;
   const groups = useMemo(() => startListByClub(classes), [classes]);
   const modeOf = new Map(classes.map(row => [row.name, row.mode]));
+  const variants = classes.some(row => row.entries.some(entry => entry.variant));
   return <>{groups.map(group => {
     const id = `start-club-${(group.club ?? "none").replace(/\W+/g, "-")}`;
     return <section key={group.club ?? ""} className={styles.block} aria-labelledby={id}>
       <div className={styles.blockHead}><h3 id={id}>{group.club ?? t.noClub}</h3><p>{t.clubCount(group.rows.length)}</p></div>
       <table className={styles.table} aria-labelledby={id}>
         <thead><tr><th scope="col">{t.name}</th><th scope="col" className={styles.classCol}>{t.className}</th>
-          <th scope="col" className={styles.time}>{t.time}</th>{model.cards && <th scope="col" className={styles.card}>{t.card}</th>}</tr></thead>
+          <th scope="col" className={styles.time}>{t.time}</th>{model.cards && <th scope="col" className={styles.card}>{t.card}</th>}
+          {variants && <th scope="col" className={styles.narrow}>{t.variant}</th>}</tr></thead>
         <tbody>{group.rows.map(({ className, entry }, index) => <tr key={entry.id ?? `${className}-${entry.name}-${index}`}>
           <Name entry={entry} context={context} club={false} />
           <td className={styles.classCol}>{className}{entry.relay && <span className={styles.sub}>{t.legShort(entry.relay.leg)}</span>}</td>
           <td className={styles.time}>{entry.startTime ? clock(entry.startTime, model.timeZone)
             : <span className={styles.muted}>{modeOf.get(className)?.kind === "FREE" ? t.freeStart : entry.relay ? t.waitingChangeover : "–"}</span>}</td>
           {model.cards && <Card entry={entry} />}
+          {variants && <td className={styles.narrow}>{entry.variant ?? ""}</td>}
         </tr>)}</tbody>
       </table>
     </section>;

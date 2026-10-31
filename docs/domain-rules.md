@@ -85,6 +85,21 @@ funktion lokalt; dess besked är preliminärt och serverns revision är auktorit
 - Sträcktidsanalysen för en gafflad klass jämför varje kontrollpar mellan alla som sprungit det (`buildLegSplitTable`);
   per variant (`splitTablesByVariant`) är ett val.
 
+## Kartor till starten (steg 61)
+
+- En plan (`planMapBundles`) ger tryckantalet, kartbuntslistan och baksidorna, så att ordningen och räkningen alltid är densamma.
+  Grupp per bana och variant; tryckantal = löpare med varianten + lediga lottade tider + reserv (procent avrundat uppåt eller
+  antal per variant). En ledig tid i en gafflad klass får den minst använda varianten (samma regel som efteranmälan), i
+  tidsordning. Löpare utan giltig variant får ingen karta förrän de fått en variant. Stafett- och rogainingklasser ingår inte.
+- Startnummer: löpande i startordning (tid, klass, namn; lediga tider får ett nummer; fri start sist per klass). Varianten
+  påverkar inte numret. Baksidorna: en avdelare per variant och exakt tryckantalet sidor (löpare, lediga tider, reserv).
+- Utskriften sparar läget; ändringar sedan dess (ny, borttagen, variant, klass, starttid, flyttade nummer och för baksidorna
+  tryckantal) visas överst.
+- Fel karta (`wrongMapVariants`): felstämplad mot den tilldelade varianten men utan fel mot en annan variant av samma bana
+  (samma matchning, kontroller ur funktion och tidsrättningar som bedömningen). Bara ett besked; inget byts automatiskt.
+- Kontrollen före tävlingen (`forkingReadiness`): varianter utan löpare (väntat när löparna är färre än varianterna), löpare utan
+  variant, ojämn fördelning per gafflingspunkt (mer än en löpare i skillnad), högst 100 varianter och 26 bokstäver.
+
 ## Banhemlighet (steg 52, ADR-0176)
 
 - Banorna (gafflingsbilden, kontrollernas lägen och kontrollkartan) är publika när arrangören valt "Visa banorna publikt

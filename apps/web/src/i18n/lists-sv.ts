@@ -129,6 +129,7 @@ export const listsSv = {
     },
     finish: "Mål",
     vacant: "Vakant",
+    variant: "Variant",
     free: rule.methods.FREE, minute: rule.methods.MINUTE, mass: rule.methods.MASS, relay: "Stafett",
     files: {
       start: { CLASS: "startlista-per-klass", TIME: "startlista-per-starttid", CLUB: "startlista-per-klubb" },

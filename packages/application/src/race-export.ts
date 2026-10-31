@@ -55,6 +55,8 @@ function sections(raceId: string): readonly (readonly [string, SQL])[] {
     // Steg 59: kartfilen orörd, i base64.
     ["mapSources", rows(sql`race_map_source t where ${race}`, sql`t.race_id`,
       sql`(to_jsonb(t) - 'file') || jsonb_build_object('file_base64', encode(t.file, 'base64'))`)],
+    // Steg 60: vägvalsanalysens inställningar och publicerade bästa vägar.
+    ["routeChoice", rows(sql`race_route_choice t where ${race}`, sql`t.race_id`)],
     ["participantRoutes", rows(sql`participant_route t where ${race}`, sql`t.entry_id`,
       sql`(to_jsonb(t) - 'gpx') || jsonb_build_object('gpx_base64', encode(t.gpx, 'base64'))`)],
     // Eventor: vilken tävling och klubb loppet hör till, utan den krypterade nyckeln.

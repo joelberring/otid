@@ -171,6 +171,9 @@ async function copyRaceContent(tx: Transaction, input: ContentInput) {
     select ${raceId}, s.file_name, s.format, s.version, s.file, s.sha256, s.byte_length, s.scale, s.bounds, s.georeference, s.render,
       s.summary, case when m.georeferenced_at = s.uploaded_at then ${now}::timestamptz else ${now}::timestamptz - interval '1 millisecond' end
     from race_map_source s join race_map m on m.race_id = s.race_id where s.race_id = ${sourceRaceId}`);
+  // Steg 60: vägvalsanalysens inställningar följer med; publicerade bästa vägar hör till den gamla tävlingen.
+  await tx.execute(sql`insert into race_route_choice (race_id, settings, published, updated_at)
+    select ${raceId}, settings, null, ${now} from race_route_choice where race_id = ${sourceRaceId}`);
 
   const [radio] = await tx.select().from(schema.raceRadioLinks).where(eq(schema.raceRadioLinks.raceId, sourceRaceId));
   if (radio) await tx.insert(schema.raceRadioLinks).values({ raceId, source: radio.source, unitId: radio.unitId, enabled: false, updatedAt: now });

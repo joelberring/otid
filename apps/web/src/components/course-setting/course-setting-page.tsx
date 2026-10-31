@@ -51,7 +51,7 @@ export function CourseSettingPage({ raceId }: { raceId: string }) {
       const outcome = await importCourseSetting(raceId, { document: file.document, expectedVersion: 0, fileName: file.fileName, ppen: file.ppen });
       if (outcome.kind === "too-large") { setMessage({ tone: "error", text: text.file.tooLarge }); return; }
       setNotice(outcome.kind === "saved" ? [text.file.imported(file.document.courses.length, Object.keys(file.document.controls).length),
-        ...file.warnings.map(warning => warning.text)].join(" ") : undefined);
+        ...file.warnings.map(warning => `${warning.text.replace(/\.$/, "")}.`)].join(" ") : undefined);
       await load();
     } catch { setMessage({ tone: "error", text: text.file.failed }); } finally { setBusy(false); }
   }

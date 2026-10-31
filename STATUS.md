@@ -5,10 +5,20 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 61 – gafflingar till start och karta (klart på grenen steg61-gafflingar). Därefter steg 60, vägvalsanalys. Steg 59 (kartfilen) är klart. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
+Steg 60 – vägvalsanalys (webben på steg60-webb, motorn på steg60-motor). Steg 61 är klart. Steg 59 (kartfilen) är klart. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
 Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbens löpare via `cachedcompetitors`, strukturen) provad mot riktiga Eventor 2026-10-19; hela landets `cachedcompetitors` och `/api/organisations` måste provas av ägaren; ROC:s sökväg för stämplingar (bara provad mot falsk ROC) och e-post via SMTP är inte provade.
 
 ## Logg
+
+### 2026-10-31 – Steg 60: vägvalsanalysen i webben (agent W, gren steg60-webb; motorn på steg60-motor)
+- Migration 0030 `race_route_choice` (inställningar + publicerade bästa vägar i kartfilens mm med kartfilens sha256). Applikation
+  `route-choice.ts` (läge, inställningar, publicering, kalibreringens ruttdelar utan namn), API under `administrator/route-choice*`, bara admin.
+- Kontrollkartans läge "Vägval": Worker (`lib/route-choice-worker.ts`) hämtar kartfilen, bygger modellen en gång och räknar banan sträcka för
+  sträcka (avbryts vid byte); tabell, summa, varningar i klartext, karta med bästa väg, stråk och alternativ. Inställningar (okända symboler,
+  ekvidistans, stigning, fart), kalibrering, "Visa bästa vägval publikt"; publika vägvalskartan visar linjen bara när banorna är publika.
+- Djurgården 2025 (OCAD) med Natt-KM:s bana, manuellt i Node: 20 sträckor, modellen 0,25 s, 1,1–1,5 km 1,3–1,5 s per sträcka.
+- Fixtur `fixtures/maps/vagval.omap` (kartfil.omap + sjö): 31–32 blir vägvalssträcka. Verifierat: se slutrapporten.
+- Kvar: kalibreringen kräver `calibrateSpeeds` i motorn (saknas än); prestandakravet < 1 s per 1,5 km mäts i webbläsaren av motorn.
 
 ### 2026-10-31 – Steg 61: gafflingar till start och karta (agent C, gren steg61-gafflingar)
 - Domän `map-bundles.ts`: en plan (`planMapBundles`) för tryckantal (löpare + lediga tider med efteranmälans variantregel + reserv i

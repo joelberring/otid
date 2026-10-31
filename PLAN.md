@@ -977,6 +977,13 @@ fortfarande i Purple Pen/macpurplepen (tryck i O-Tid är ett senare steg).
 - [ ] **Kartbuntslista för starten:** per starttid (individuell start) eller per klass och variant (masstart), i den ordning
   kartorna ska ligga, med startnummer, namn, klass och variantkod; utskrift A4 och CSV. Ändras fördelningen eller kommer
   en efteranmälan efter utskriften syns det överst ("3 ändringar sedan listan skrevs ut 18:02") med vad som ändrats.
+- [ ] **Baksidor och framsidor per löpare** (ägaren: "skriva ut framsidor/baksidor så att kartorna går till rätt person"):
+  utskrift med en sida per löpare – startnummer, namn, klubb, klass, starttid och variantkod i stort – i samma ordning
+  som kartbunten för varianten (sorterad på starttid inom varianten), plus reservsidor ("Reserv · variant BD") så att
+  antalet sidor per variant är exakt tryckantalet. Den redan tryckta kartbunten körs igenom skrivaren igen för baksidan,
+  eller sidan används som framsida/omslag. Pappersformat (A4/A3, stående/liggande), var på sidan texten hamnar och
+  spegling för baksida går att ställa in, med en provsida. Varje variant börjar med en avdelare ("Variant BD · 23 kartor ·
+  lägg kartbunt BD här"). Webbläsarens utskrift räcker (bara svart text).
 - [ ] **Fel karta vid avläsningen:** en löpare som är felstämplad mot sin tilldelade variant men vars stämplingar passar en
   annan variant av samma bana utan fel får beskedet "Felstämplad mot AC, men stämplingarna passar BD. Fick löparen fel
   karta?" i avläsningen, deltagarkortet och arbetsytans lista. "Godkänn på BD" byter variant med den befintliga vägen

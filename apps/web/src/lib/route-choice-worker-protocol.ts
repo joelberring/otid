@@ -1,5 +1,5 @@
-import type { Point } from "@o-tid/map-file";
-import type { CostModel, LegAnalysis, LegInput, RouteChoiceSettings, SpeedClass } from "@o-tid/route-choice";
+import type { CalibrationSample as EngineCalibrationSample, CostModel, LegAnalysis, LegInput, RouteChoiceSettings, SpeedClass }
+  from "@o-tid/route-choice";
 
 /**
  * Steg 60 (ADR-0177, ADR-0179 beslut 11): meddelandena mellan arbetsytan och vägvalsanalysens Worker. Kartfilen läses och
@@ -8,18 +8,16 @@ import type { CostModel, LegAnalysis, LegInput, RouteChoiceSettings, SpeedClass 
  */
 export type SpeedFactors = Partial<Record<Exclude<SpeedClass, "IMPASSABLE" | "IGNORE">, number>>;
 
-/** En GPS-rutts del för en sträcka i kartfilens mm, för kalibreringen. */
-export interface CalibrationSample {
-  readonly key: string;
-  readonly points: readonly Point[];
-  readonly seconds: number;
-}
+/** En GPS-rutts del för en sträcka i kartfilens mm med tiden i ms, för kalibreringen (motorns `CalibrationSample`). */
+export type CalibrationSample = EngineCalibrationSample;
 
 export interface CalibrationResult {
   readonly before: SpeedFactors;
   readonly after: SpeedFactors;
   /** Antal sträckor som räknades. */
   readonly samples: number;
+  /** Hur mycket data det fanns: LOW/MEDIUM/HIGH, NONE när inget ändrades. */
+  readonly reliability: "NONE" | "LOW" | "MEDIUM" | "HIGH";
 }
 
 export type RouteChoiceWorkerRequest =

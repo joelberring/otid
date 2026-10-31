@@ -95,6 +95,8 @@ export const routeChoiceSv = {
     before: "Före",
     after: "Efter",
     samples: (count: number) => `Räknat på ${count} ${count === 1 ? "sträcka" : "sträckor"}.`,
+    reliability: { NONE: "För lite data: farterna ändras inte.", LOW: "Lite data: se förslaget som en fingervisning.",
+      MEDIUM: "Ganska mycket data.", HIGH: "Mycket data." },
     save: "Spara",
     saved: "Farterna är sparade.",
     failed: "Farterna kunde inte räknas."

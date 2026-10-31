@@ -1,7 +1,6 @@
 /// <reference lib="webworker" />
 import { MapFileError, readMapFile, type ParsedMap } from "@o-tid/map-file";
-import { analyseLeg, buildCostModel, resolveSettings, type CostModel, type RouteChoiceSettings } from "@o-tid/route-choice";
-import { calibrateSpeeds } from "./route-choice-engine";
+import { analyseLeg, buildCostModel, calibrateSpeeds, resolveSettings, type CostModel, type RouteChoiceSettings } from "@o-tid/route-choice";
 import type { RouteChoiceWorkerRequest, RouteChoiceWorkerResponse } from "./route-choice-worker-protocol";
 
 /**
@@ -40,11 +39,11 @@ async function analyse(runId: number, request: Extract<RouteChoiceWorkerRequest,
 }
 
 function calibrate(request: Extract<RouteChoiceWorkerRequest, { type: "calibrate" }>) {
-  const calibrateWith = calibrateSpeeds();
-  if (!model || !calibrateWith) { post({ type: "error", code: "NO_MODEL", runId: request.runId }); return; }
+  if (!model) { post({ type: "error", code: "NO_MODEL", runId: request.runId }); return; }
   const before = { ...resolveSettings(settings).speedByClass };
-  const result = calibrateWith(model, request.samples, settings);
-  post({ type: "calibrated", runId: request.runId, result: { before, after: { ...before, ...result.speedByClass }, samples: result.samples } });
+  const result = calibrateSpeeds(model, request.samples, settings);
+  post({ type: "calibrated", runId: request.runId, result: { before, after: { ...before, ...result.speedByClass }, samples: result.samplesUsed,
+    reliability: result.reliability } });
 }
 
 function handle(request: RouteChoiceWorkerRequest): Promise<void> | void {

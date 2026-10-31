@@ -250,10 +250,11 @@ export async function readRouteChoiceCalibrationAsAdmin(db: Database, input: Rea
       const entry = entries.get(route.entryId), timing = timings.get(route.entryId);
       if (!entry || entry.relayLeg !== null || !classIds.has(entry.classId) || !timing || timing.startMs === null) return [];
       const legs = runnerLegs(timing.splits, timing.elapsedMs).flatMap(leg => {
-        const segment = routeSegment(route.points, timing.startMs! + leg.fromElapsedMs, timing.startMs! + leg.toElapsedMs);
+        const fromMs = timing.startMs! + leg.fromElapsedMs;
+        const segment = routeSegment(route.points, fromMs, timing.startMs! + leg.toElapsedMs);
         const milliseconds = leg.toElapsedMs - leg.fromElapsedMs;
         return segment.length >= 2 && milliseconds > 0
-          ? [{ key: leg.leg, milliseconds, points: segment.map(point => [point[1], point[2]] as [number, number]) }] : [];
+          ? [{ key: leg.leg, milliseconds, points: segment.map(point => [Math.round(point[0] - fromMs), point[1], point[2]] as [number, number, number]) }] : [];
       });
       return legs.length > 0 ? [{ variantCode: entry.variantCode, legs }] : [];
     });

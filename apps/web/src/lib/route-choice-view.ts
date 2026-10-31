@@ -206,9 +206,10 @@ export function simplifyLine(points: readonly Point[], toleranceMm = 0.25, maxPo
  */
 export function calibrationSamples(routes: RouteChoiceCalibrationRoutes, toMap: (latitude: number, longitude: number) => Point | undefined)
   : CalibrationSample[] {
-  return routes.runners.flatMap(runner => runner.legs.flatMap(leg => {
-    const points = leg.points.flatMap(([latitude, longitude]) => { const point = toMap(latitude, longitude); return point ? [point] : []; });
-    return points.length >= 2 && points.length === leg.points.length ? [{ key: leg.key, points, seconds: leg.milliseconds / 1000 }] : [];
+  // Löparen som ett löpnummer i svaret (ingen identitet behövs, bara att samma löpares sträckor hör ihop).
+  return routes.runners.flatMap((runner, index) => runner.legs.flatMap(leg => {
+    const points = leg.points.flatMap(([ms, latitude, longitude]) => { const point = toMap(latitude, longitude); return point ? [{ ...point, ms }] : []; });
+    return points.length >= 2 && points.length === leg.points.length ? [{ key: leg.key, runner: String(index + 1), points }] : [];
   }));
 }
 

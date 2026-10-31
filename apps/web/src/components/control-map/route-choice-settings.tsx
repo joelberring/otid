@@ -120,7 +120,7 @@ export function RouteChoiceCalibration({ runners, onCalibrate, onSave }: {
             <tbody>{ROUTE_CHOICE_SPEED_FACTOR_CLASSES.map(kind => <tr key={kind}><th scope="row">{text.shortClasses[kind]}</th>
               <td>{format(result.before[kind])}</td><td>{format(result.after[kind])}</td></tr>)}</tbody>
           </table>
-          <p className={styles.muted}>{text.calibration.samples(result.samples)}</p>
+          <p className={styles.muted}>{text.calibration.samples(result.samples)} {text.calibration.reliability[result.reliability]}</p>
           <div className={styles.actions}><Button onClick={() => void save()}>{text.calibration.save}</Button></div>
           {state === "saved" && <Notice tone="ok" role="status">{text.calibration.saved}</Notice>}
           {state === "saveFailed" && <Notice tone="error" role="alert">{text.settings.failed}</Notice>}

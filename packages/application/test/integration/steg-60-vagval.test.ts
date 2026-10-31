@@ -228,6 +228,9 @@ describe("steg 60: vägvalsanalysen", () => {
     expect(calibration.response.runners).toHaveLength(1);
     expect(calibration.response.runners[0]!.legs.map(leg => [leg.key, leg.milliseconds])).toEqual([["S-31.1", 300_000], ["31.1-32.1", 300_000],
       ["32.1-33.1", 300_000], ["33.1-34.1", 300_000], ["34.1-35.1", 300_000], ["35.1-36.1", 300_000], ["36.1-F", 200_000]]);
+    // Punkterna har tiden från sträckans start först: start–31 börjar på 0 ms och slutar vid sträcktiden.
+    const first = calibration.response.runners[0]!.legs[0]!.points;
+    expect([first[0]![0], first.at(-1)![0]]).toEqual([0, 300_000]);
     expect(JSON.stringify(calibration.response)).not.toMatch(/Anna|Vägval|7201/);
 
     // Exporten och kopian: inställningarna följer med, publiceringen bara i exporten.

@@ -104,9 +104,9 @@ describe("vägvalsvyn", () => {
 
   it("gör om rutternas delar till kartfilens mm för kalibreringen och hoppar över delar utanför kartan", () => {
     const routes = { formatVersion: 1 as const, raceId: RACE, courseId: COURSE, runners: [{ variantCode: null, legs: [
-      { key: "S-31.1", milliseconds: 150_000, points: [[59.1, 18.1], [59.2, 18.2]] as [number, number][] },
-      { key: "31.1-32.1", milliseconds: 90_000, points: [[59.1, 18.1], [10, 10]] as [number, number][] }] }] };
+      { key: "S-31.1", milliseconds: 150_000, points: [[0, 59.1, 18.1], [150_000, 59.2, 18.2]] as [number, number, number][] },
+      { key: "31.1-32.1", milliseconds: 90_000, points: [[0, 59.1, 18.1], [90_000, 10, 10]] as [number, number, number][] }] }] };
     const samples = calibrationSamples(routes, (latitude, longitude) => latitude > 50 ? { x: longitude, y: latitude } : undefined);
-    expect(samples).toEqual([{ key: "S-31.1", seconds: 150, points: [{ x: 18.1, y: 59.1 }, { x: 18.2, y: 59.2 }] }]);
+    expect(samples).toEqual([{ key: "S-31.1", runner: "1", points: [{ x: 18.1, y: 59.1, ms: 0 }, { x: 18.2, y: 59.2, ms: 150_000 }] }]);
   });
 });

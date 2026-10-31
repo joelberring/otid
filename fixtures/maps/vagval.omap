@@ -28,7 +28,7 @@
 <object type="1" symbol="0"><coords count="5">30000 -30000;60000 -30000;60000 -55000;30000 -55000;30000 -30000 18;</coords><pattern rotation="0"><coord x="0" y="0"/></pattern></object>
 <object type="1" symbol="2"><coords count="5">70000 -60000;100000 -60000;100000 -80000;70000 -80000;70000 -60000 18;</coords><pattern rotation="0"><coord x="0" y="0"/></pattern></object>
 <object type="1" symbol="3"><coords count="5">85000 -10000;110000 -10000;110000 -25000;85000 -25000;85000 -10000 18;</coords><pattern rotation="0"><coord x="0" y="0"/></pattern></object>
-<object type="1" symbol="3"><coords count="5">31800 -41600;36700 -45050;25200 -61400;20300 -57950;31800 -41600 18;</coords><pattern rotation="0"><coord x="0" y="0"/></pattern></object>
+<object type="1" symbol="3"><coords count="5">31500 -43800;34700 -46100;25500 -59200;22300 -56900;31500 -43800 18;</coords><pattern rotation="0"><coord x="0" y="0"/></pattern></object>
 <object type="1" symbol="4"><coords count="4">5000 -60000;25000 -70000;45000 -66000;65000 -90000;</coords><pattern rotation="0"><coord x="0" y="0"/></pattern></object>
 <object type="1" symbol="4"><coords count="3">10000 -20000;20000 -25000;28000 -15000;</coords><pattern rotation="0"><coord x="0" y="0"/></pattern></object>
 <object type="1" symbol="5"><coords count="4">2000 -5000;40000 -20000;80000 -50000;118000 -95000;</coords><pattern rotation="0"><coord x="0" y="0"/></pattern></object>

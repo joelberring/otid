@@ -95,7 +95,7 @@ export type RouteChoiceProblem = z.infer<typeof routeChoiceProblemSchema>["error
 
 /**
  * GPS-rutternas delar per sträcka för kalibreringen (bara admin): löpare med publicerat resultat på banan och uppladdad
- * rutt, utan namn. Punkterna är WGS 84 [lat, lon] i tidsordning, klippta som i den publika sträcktidsanalysen.
+ * rutt, utan namn. Punkterna är [ms från sträckans start, lat, lon] i tidsordning, klippta som i den publika sträcktidsanalysen.
  */
 export const routeChoiceCalibrationRoutesSchema = z.object({
   formatVersion: z.literal(1),
@@ -103,8 +103,10 @@ export const routeChoiceCalibrationRoutesSchema = z.object({
   courseId: uuid,
   runners: z.array(z.object({
     variantCode: courseVariantCodeSchema.nullable(),
+    /** Punkterna [ms från sträckans start, lat, lon]. */
     legs: z.array(z.object({ key: legKeySchema, milliseconds: z.number().int().positive().max(86_400_000),
-      points: z.array(z.tuple([z.number().finite().min(-90).max(90), z.number().finite().min(-180).max(180)])).min(2).max(100_000) }).strict())
+      points: z.array(z.tuple([z.number().int().min(0).max(86_400_000), z.number().finite().min(-90).max(90), z.number().finite().min(-180).max(180)]))
+        .min(2).max(100_000) }).strict())
       .max(300)
   }).strict()).max(5000)
 }).strict();

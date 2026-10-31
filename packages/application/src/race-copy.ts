@@ -78,7 +78,7 @@ export async function copyRaceAsAdmin(db: Database, input: UserAccountSessionPro
     if (!race) throw new Error("Loppet kunde inte skapas");
 
     const content = await copyRaceContent(tx, { sourceRaceId: source.id, raceId: race.id, timeZone: source.timeZone,
-      dayShift: Math.round((Date.parse(intent.raceDate) - Date.parse(source.raceDate)) / DAY_MS), now });
+      dayShift: Math.round((Date.parse(intent.raceDate) - Date.parse(source.raceDate)) / DAY_MS), now, accountId });
     const people = await copyPeople(tx, { sourceEventId: source.eventId, eventId: event.id, accountId, include: intent.includePeople, now });
     const [eventor] = await tx.select({ raceId: schema.raceEventorLinks.raceId }).from(schema.raceEventorLinks)
       .where(eq(schema.raceEventorLinks.raceId, source.id));
@@ -98,7 +98,7 @@ export async function copyRaceAsAdmin(db: Database, input: UserAccountSessionPro
   });
 }
 
-interface ContentInput { sourceRaceId: string; raceId: string; timeZone: string; dayShift: number; now: Date }
+interface ContentInput { sourceRaceId: string; raceId: string; timeZone: string; dayShift: number; now: Date; accountId: string }
 
 /** Kontroller, banor (versioner, kontrollföljd, varianter), klasser, sträckor, karta och radiokontroller som nya rader. */
 async function copyRaceContent(tx: Transaction, input: ContentInput) {
@@ -174,6 +174,12 @@ async function copyRaceContent(tx: Transaction, input: ContentInput) {
   // Steg 60: vägvalsanalysens inställningar följer med; publicerade bästa vägar hör till den gamla tävlingen.
   await tx.execute(sql`insert into race_route_choice (race_id, settings, published, updated_at)
     select ${raceId}, settings, null, ${now} from race_route_choice where race_id = ${sourceRaceId}`);
+  // Steg 62: banläggningen följer med som första versionen (med den inlästa .ppen-filen); tidigare versioner gör det inte.
+  await tx.execute(sql`insert into course_setting (race_id, document, version, updated_at, updated_by, original_ppen, original_file_name,
+      original_imported_at)
+    select ${raceId}, document, 1, ${now}, ${input.accountId}, original_ppen, original_file_name,
+      case when original_ppen is null then null else ${now}::timestamptz end
+    from course_setting where race_id = ${sourceRaceId}`);
 
   const [radio] = await tx.select().from(schema.raceRadioLinks).where(eq(schema.raceRadioLinks.raceId, sourceRaceId));
   if (radio) await tx.insert(schema.raceRadioLinks).values({ raceId, source: radio.source, unitId: radio.unitId, enabled: false, updatedAt: now });

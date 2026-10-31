@@ -12,7 +12,7 @@ import { clientForLink, upstreamOutcome, type EventorRuntime } from "./eventor-l
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
 import { applyCourseFile, applyEventor, assessCourseFile, assessEventor, SourceSyncConflictError } from "./source-sync-apply";
-import type { CourseFileAction, CurrentState, EventorAction, EventorProjection, PlannedRow, SourceDiff, SourceProjection } from "./source-sync-model";
+import type { CourseFileAction, CourseFileProjection, CurrentState, EventorAction, EventorProjection, PlannedRow, SourceDiff, SourceProjection } from "./source-sync-model";
 import { loadCurrentState, readOutByClass } from "./source-sync-state";
 import { sha256Hex } from "./serialization";
 
@@ -127,6 +127,15 @@ export async function previewCourseFileAsAdmin(db: Database, input: Authenticati
     ...(parsed.mapScale !== undefined ? { mapScale: parsed.mapScale } : {}), warnings: parsed.warnings };
   const fileName = input.fileName.trim().slice(0, 260) || "banfil.xml";
   return preview(db, input, "COURSE_FILE", { kind: "COURSE_FILE", data }, { originalXml: input.xml, fileName, sourceName: fileName }, now);
+}
+
+/**
+ * Steg 62: banläggningens dokument som banfil ("Överför till tävlingen"). Samma ögonblicksbild, jämförelse och
+ * tillämpning som en inläst IOF XML; `original` är dokumentet som .ppen.
+ */
+export async function previewCourseFileProjectionAsAdmin(db: Database, input: Authentication, projection: CourseFileProjection,
+  extra: { original: string; fileName: string; sourceName: string }, now = new Date()) {
+  return preview(db, input, "COURSE_FILE", projection, { originalXml: extra.original, fileName: extra.fileName, sourceName: extra.sourceName }, now);
 }
 
 async function loadSnapshot(tx: Transaction, raceId: string, snapshotId: string): Promise<Snapshot | undefined> {

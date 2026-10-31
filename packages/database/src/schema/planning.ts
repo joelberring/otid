@@ -345,6 +345,32 @@ export const raceRouteChoices = pgTable("race_route_choice", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull()
 });
 
+/**
+ * Steg 62 (migration 0031, ADR-0180 beslut 1): banläggningens dokument (`CourseSettingDocument` i @o-tid/course-setting)
+ * med version för att två flikar inte ska skriva över varandra. `originalPpen` = senast inlästa .ppen orörd.
+ * `updatedBy` är kontots id utan främmande nyckel (ett borttaget hjälpkonto tar inte dokumentet med sig).
+ */
+export const courseSettings = pgTable("course_setting", {
+  raceId: uuid("race_id").primaryKey().references(() => races.id),
+  document: jsonb("document").$type<Record<string, unknown> & { version: 1 }>().notNull(),
+  version: integer("version").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  updatedBy: uuid("updated_by").notNull(),
+  originalPpen: text("original_ppen"),
+  originalFileName: text("original_file_name"),
+  originalImportedAt: timestamp("original_imported_at", { withTimezone: true })
+});
+
+/** Steg 62: tidigare versioner av banläggningen (de senaste 50). */
+export const courseSettingRevisions = pgTable("course_setting_revision", {
+  raceId: uuid("race_id").notNull().references(() => races.id),
+  version: integer("version").notNull(),
+  kind: text("kind").$type<"SAVE" | "IMPORT" | "RESTORE">().notNull(),
+  document: jsonb("document").$type<Record<string, unknown> & { version: 1 }>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  createdBy: uuid("created_by").notNull()
+}, (table) => [primaryKey({ columns: [table.raceId, table.version] })]);
+
 /** PLAN.md steg 21 (migration 0103): "Ny tävling som …" – idempotent journal över kopior och deras källa. */
 export const raceCopyRequests = pgTable("race_copy_request", {
   requestId: uuid("request_id").primaryKey(),

@@ -14,7 +14,8 @@ Inställningar → "Exportera tävlingen" (bara administratör) ger en fil `otid
   `startDraws`, `startDrawClasses`, `startDrawSlots`, `startListPublications`, `rawReadouts` (oförändrade nyttolaster med
   råa ramar i hex), `cardReadouts`, `readoutOutcomes`, `readoutRegistrations`, `unknownReadoutResolutions`,
   `resultRevisions`, `resultFinalizations` (med fastställd IOF XML), `radioControls`, `radioLink`, `radioPunches`, `maps`
-  (bilden i `image_base64`), `mapSources` (kartfilen från OCAD eller Mapper i `file_base64`, steg 59), `participantRoutes` (GPX i `gpx_base64`), `eventorLink` och `auditEvents`.
+  (bilden i `image_base64`), `mapSources` (kartfilen från OCAD eller Mapper i `file_base64`, steg 59), `routeChoice` (steg 60),
+  `courseSetting` och `courseSettingRevisions` (banläggningens dokument och tidigare versioner, steg 62), `participantRoutes` (GPX i `gpx_base64`), `eventorLink` och `auditEvents`.
 - Med: personuppgifter om deltagarna (namn, klubb, bricka). Filen ska hanteras som tävlingens övriga uppgifter.
 - Inte med: klubbens krypterade Eventor-nyckel, konton, lösenord och sessioner (konton finns bara som id).
 - `formatVersion` höjs när ett avsnitt eller en kolumn ändrar betydelse. Nya kolumner kan komma utan ny version.

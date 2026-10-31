@@ -66,6 +66,9 @@ importers:
       '@o-tid/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@o-tid/course-setting':
+        specifier: workspace:*
+        version: link:../../packages/course-setting
       '@o-tid/database':
         specifier: workspace:*
         version: link:../../packages/database
@@ -121,6 +124,9 @@ importers:
       '@o-tid/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@o-tid/course-setting':
+        specifier: workspace:*
+        version: link:../course-setting
       '@o-tid/database':
         specifier: workspace:*
         version: link:../database

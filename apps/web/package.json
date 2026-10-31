@@ -16,6 +16,7 @@
     "@fontsource/poppins": "5.2.7",
     "@o-tid/application": "workspace:*",
     "@o-tid/contracts": "workspace:*",
+    "@o-tid/course-setting": "workspace:*",
     "@o-tid/database": "workspace:*",
     "@o-tid/device-transport": "workspace:*",
     "@o-tid/domain": "workspace:*",

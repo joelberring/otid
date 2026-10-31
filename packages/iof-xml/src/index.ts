@@ -40,6 +40,8 @@ import {
 import { readCourseData, type CourseDataImport } from "./course-data";
 
 export { IofValidationError } from "./xml";
+/** Steg 62: variantkoden ur familjens och banans namn (banläggningens överföring gör som inläsningen). */
+export { courseVariantCode } from "./course-data";
 export type {
   ClassCourseImport, CourseDataImport, CourseImport, CourseVariantImport, GeoPosition, LegCourseAssignmentImport, MapPositionImport,
   PersonCourseAssignmentImport, TeamCourseAssignmentImport

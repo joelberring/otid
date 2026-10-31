@@ -297,3 +297,4 @@ export * from "./party";
 export * from "./self-registration";
 export * from "./self-registration-cleanup";
 export * from "./route-choice";
+export * from "./course-setting";

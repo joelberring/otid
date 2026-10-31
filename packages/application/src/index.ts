@@ -79,6 +79,12 @@ export * from "./race-map";
 export { mapFileFormatOf, readRaceMapSourceFileAsAdmin, removeRaceMapSourceAsAdmin, saveRaceMapSourceAsAdmin } from "./race-map-source";
 export { courseLegKeys, publishRouteChoiceAsAdmin, readRouteChoiceAsAdmin, readRouteChoiceCalibrationAsAdmin, saveRouteChoiceSettingsAsAdmin }
   from "./route-choice";
+export {
+  importCourseSettingAsAdmin, listCourseSettingRevisionsAsAdmin, previewCourseSettingTransferAsAdmin, readCourseSettingAsAdmin,
+  readCourseSettingOriginalAsAdmin, readCourseSettingRevisionAsAdmin, restoreCourseSettingRevisionAsAdmin, saveCourseSettingAsAdmin,
+  type CourseSettingTransferResult
+} from "./course-setting";
+export { classNamesOf, courseSettingProjection } from "./course-setting-transfer";
 export * from "./radio-ingest";
 export * from "./radio-settings";
 export * from "./radio-standings";

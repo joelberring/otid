@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@o-tid/contracts": "workspace:*",
+    "@o-tid/course-setting": "workspace:*",
     "@o-tid/database": "workspace:*",
     "@o-tid/domain": "workspace:*",
     "@o-tid/eventor": "workspace:*",

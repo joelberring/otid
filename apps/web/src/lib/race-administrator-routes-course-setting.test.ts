@@ -6,11 +6,11 @@ import { ppenFileName } from "./race-administrator-routes-course-setting";
 import { csrf, db, dependencies, environment, id, request, token } from "./race-administrator-route-test-helpers";
 
 /** Steg 62: banläggningens routes (läge, sparande med version, .ppen, versioner, överföring) och kontraktets grundform. */
-const document = { version: 1 as const, event: { title: "Träning", mapScale: 10000, overprintStandard: "ISOM2017", descriptionStandard: "2018",
+const document = courseSettingDocumentSchema.parse({ version: 1, event: { title: "Träning", mapScale: 10000, overprintStandard: "ISOM2017", descriptionStandard: "2018",
   numbering: { start: 31, disallowInvertible: false } },
 controls: { "1": { id: "1", kind: "START", at: { x: 4, y: 8 }, descriptions: [] }, "2": { id: "2", kind: "NORMAL", code: "31", at: { x: 15, y: 42 }, descriptions: [] } },
 courseControls: { "1": { id: "1", control: "1", next: "2" }, "2": { id: "2", control: "2" } },
-courses: [{ id: "1", name: "Lång", kind: "NORMAL", order: 1, first: "1", labelKind: "SEQUENCE" }], legs: {}, specialObjects: [], raw: [] };
+courses: [{ id: "1", name: "Lång", kind: "NORMAL", order: 1, first: "1", labelKind: "SEQUENCE" }], legs: {}, specialObjects: [], raw: [] });
 const saved = { formatVersion: 1 as const, raceId: id, version: 3, updatedAt: "2026-10-31T10:00:00.000Z" };
 const conflict = { formatVersion: 1 as const, error: "VERSION_CONFLICT" as const,
   current: { version: 4, updatedAt: "2026-10-31T10:01:00.000Z", updatedBy: { accountId: id, displayName: "Anna" } } };
@@ -22,8 +22,8 @@ describe("banläggningens kontrakt", () => {
   it("tar emot ett dokument med rätt grundform och avvisar trasiga länkar, fel version och okända slag", () => {
     expect(courseSettingDocumentSchema.safeParse(document).success).toBe(true);
     const broken = [{ ...document, version: 2 }, { ...document, courseControls: { "1": { id: "1", control: "9" } } },
-      { ...document, courses: [{ ...document.courses[0], first: "7" }] }, { ...document, controls: { "1": { ...document.controls["1"], id: "x" } } },
-      { ...document, controls: { "1": { ...document.controls["1"], kind: "BOJ" } } }, { ...document, event: { ...document.event, mapScale: 1 } }];
+      { ...document, courses: [{ ...document.courses[0]!, first: "7" }] }, { ...document, controls: { "1": { ...document.controls["1"]!, id: "x" } } },
+      { ...document, controls: { "1": { ...document.controls["1"]!, kind: "BOJ" } } }, { ...document, event: { ...document.event, mapScale: 1 } }];
     for (const value of broken) expect(courseSettingDocumentSchema.safeParse(value).success, JSON.stringify(value).slice(0, 80)).toBe(false);
     expect(courseSettingSaveRequestSchema.safeParse({ formatVersion: 1, expectedVersion: 0, document }).success).toBe(true);
     expect(courseSettingSaveRequestSchema.safeParse({ formatVersion: 1, expectedVersion: -1, document }).success).toBe(false);

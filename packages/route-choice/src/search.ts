@@ -56,42 +56,51 @@ export function stepCost(grid: SearchGrid, pace: Float32Array, from: number, to:
   return { cost: meters * (pace[from]! + pace[to]!) / 2 + climbUnits * grid.climbCostPerUnit, climbUnits, meters };
 }
 
-/** Binär min-hög med flyttalsnycklar och lat borttagning. */
+/** Binär min-hög med flyttalsnycklar och lat borttagning (en per sökning, återanvänds inte). */
 class Heap {
-  keys = new Float64Array(1024);
-  values = new Int32Array(1024);
+  keys: Float64Array;
+  values: Int32Array;
   size = 0;
-  push(key: number, value: number) {
+  /** Nyckeln för det senast borttagna. */
+  lastKey = 0;
+  constructor(capacity: number) {
+    this.keys = new Float64Array(capacity);
+    this.values = new Int32Array(capacity);
+  }
+  push(key: number, value: number): void {
     if (this.size === this.keys.length) {
       const keys = new Float64Array(this.size * 2); keys.set(this.keys); this.keys = keys;
       const values = new Int32Array(this.size * 2); values.set(this.values); this.values = values;
     }
     const keys = this.keys, values = this.values;
-    let index = this.size++;
+    let index = this.size;
+    this.size = index + 1;
     while (index > 0) {
       const parent = (index - 1) >> 1;
-      if (keys[parent]! <= key) break;
-      keys[index] = keys[parent]!; values[index] = values[parent]!;
+      const parentKey = keys[parent]!;
+      if (parentKey <= key) break;
+      keys[index] = parentKey; values[index] = values[parent]!;
       index = parent;
     }
     keys[index] = key; values[index] = value;
   }
-  /** Tar bort det minsta; nyckeln finns kvar i `lastKey`. */
-  lastKey = 0;
   pop(): number {
     const keys = this.keys, values = this.values;
     const top = values[0]!;
     this.lastKey = keys[0]!;
-    const size = --this.size;
+    const size = this.size - 1;
+    this.size = size;
     if (size > 0) {
       const key = keys[size]!, value = values[size]!;
       let index = 0;
-      for (;;) {
+      const half = size >> 1;
+      while (index < half) {
         let child = 2 * index + 1;
-        if (child >= size) break;
-        if (child + 1 < size && keys[child + 1]! < keys[child]!) child += 1;
-        if (keys[child]! >= key) break;
-        keys[index] = keys[child]!; values[index] = values[child]!;
+        let childKey = keys[child]!;
+        const right = child + 1;
+        if (right < size) { const rightKey = keys[right]!; if (rightKey < childKey) { child = right; childKey = rightKey; } }
+        if (childKey >= key) break;
+        keys[index] = childKey; values[index] = values[child]!;
         index = child;
       }
       keys[index] = key; values[index] = value;
@@ -109,6 +118,11 @@ export interface SearchOptions {
   readonly minPace?: number;
   /** Beskär celler där kostnad + nedre gräns till `towards` är större än detta. */
   readonly bound?: number;
+  /**
+   * Fortsätt efter målet (`towards`) och beskär därefter vid målets kostnad gånger detta. Ger bästa vägen och ett
+   * avståndsfält i samma sökning.
+   */
+  readonly boundFactorAfterGoal?: number;
 }
 
 export interface SearchResult {
@@ -117,49 +131,86 @@ export interface SearchResult {
 }
 
 /**
- * Dijkstra från `start`. Med `goal` blir det A* (nedre gräns mot målet) och sökningen stannar vid målet; med `bound`
- * beskärs celler som inte kan ligga på en väg under gränsen. `parent` = −1 för start och ej nådda celler.
+ * Återanvändbara fält för många små sökningar i samma rutnät (T-testet för alternativen). Bara de celler som en sökning
+ * rört återställs efteråt, så att en kort sökning inte kostar ett helt rutnät.
  */
-export function search(grid: SearchGrid, pace: Float32Array, start: number, options: SearchOptions = {}): SearchResult {
+export class SearchWorkspace {
+  readonly cost: Float64Array;
+  readonly parent: Int32Array;
+  readonly done: Uint8Array;
+  touched: Int32Array;
+  count = 0;
+  constructor(cells: number) {
+    this.cost = new Float64Array(cells).fill(Infinity);
+    this.parent = new Int32Array(cells).fill(-1);
+    this.done = new Uint8Array(cells);
+    this.touched = new Int32Array(1024);
+  }
+  touch(index: number): void {
+    if (this.count === this.touched.length) { const next = new Int32Array(this.count * 2); next.set(this.touched); this.touched = next; }
+    this.touched[this.count++] = index;
+  }
+  reset(): void {
+    for (let k = 0; k < this.count; k += 1) {
+      const index = this.touched[k]!;
+      this.cost[index] = Infinity; this.parent[index] = -1; this.done[index] = 0;
+    }
+    this.count = 0;
+  }
+}
+
+/**
+ * Dijkstra från `start`. Med `goal` blir det A* (nedre gräns mot målet) och sökningen stannar vid målet; med `bound`
+ * beskärs celler som inte kan ligga på en väg under gränsen. `parent` = −1 för start och ej nådda celler. Med
+ * `workspace` är resultatet arbetsytans fält och gäller till nästa sökning med samma arbetsyta.
+ */
+export function search(grid: SearchGrid, pace: Float32Array, start: number, options: SearchOptions = {}, workspace?: SearchWorkspace): SearchResult {
   const w = grid.width, h = grid.height, n = w * h;
-  const cost = new Float64Array(n).fill(Infinity);
-  const parent = new Int32Array(n).fill(-1);
-  const done = new Uint8Array(n);
+  if (workspace) workspace.reset();
+  const cost = workspace ? workspace.cost : new Float64Array(n).fill(Infinity);
+  const parent = workspace ? workspace.parent : new Int32Array(n).fill(-1);
+  const done = workspace ? workspace.done : new Uint8Array(n);
   const c = grid.contour;
   const climb = grid.climbCostPerUnit;
   const towards = options.towards ?? options.goal;
   const goal = options.goal ?? -1;
-  const bound = options.bound ?? Infinity;
+  let bound = options.bound ?? Infinity;
+  const afterGoal = options.boundFactorAfterGoal;
   const lower = (options.minPace ?? 0) * grid.cellMeters;
   const tc = towards === undefined ? 0 : towards % w, tr = towards === undefined ? 0 : (towards - tc) / w;
   const useLower = towards !== undefined && lower > 0;
-  const heuristic = (index: number) => {
-    if (!useLower) return 0;
-    const col = index % w, dx = col - tc, dy = (index - col) / w - tr;
-    return Math.sqrt(dx * dx + dy * dy) * lower;
-  };
-  const astar = goal >= 0;
+  // Nedre gräns: fågelväg till `towards` gånger lägsta tid per meter (konsistent, så kostnaden är slutgiltig när
+  // cellen tas ut även med A*).
+  const lowerFor = useLower ? lower : 0;
   const count = DIRECTIONS.length;
   const dxs = Int32Array.from(DIRECTIONS, d => d.dx), dys = Int32Array.from(DIRECTIONS, d => d.dy);
   const offs = Int32Array.from(DIRECTIONS, d => d.dy * w + d.dx);
   const kinds = Uint8Array.from(DIRECTIONS, d => d.kind);
   const lens = Float64Array.from(DIRECTIONS, d => d.length * grid.cellMeters);
   const m1 = Int32Array.from(DIRECTIONS, d => d.m1y * w + d.m1x), m2 = Int32Array.from(DIRECTIONS, d => d.m2y * w + d.m2x);
-  const heap = new Heap();
+  const heap = new Heap(Math.max(1024, Math.min(n, 1 << 16)));
   if (!(pace[start]! < Infinity)) return { cost, parent };
   cost[start] = 0;
-  heap.push(astar ? heuristic(start) : 0, start);
+  workspace?.touch(start);
+  {
+    const sc = start % w, dx = sc - tc, dy = (start - sc) / w - tr;
+    heap.push(Math.sqrt(dx * dx + dy * dy) * lowerFor, start);
+  }
   while (heap.size > 0) {
     const u = heap.pop();
     if (done[u] === 1) continue;
+    if (heap.lastKey > bound) break;
     done[u] = 1;
     if (u === goal) break;
+    if (afterGoal !== undefined && u === towards && bound === Infinity) bound = cost[u]! * afterGoal + 1e-6;
     const gu = cost[u]!;
     const pu = pace[u]!, cu = c[u]!;
     const col = u % w, row = (u - col) / w;
+    // Bara celler nära kanten behöver kontrollera att grannarna finns.
+    const edge = col < 2 || row < 2 || col >= w - 2 || row >= h - 2;
     for (let k = 0; k < count; k += 1) {
       const nc = col + dxs[k]!, nr = row + dys[k]!;
-      if (nc < 0 || nr < 0 || nc >= w || nr >= h) continue;
+      if (edge && (nc < 0 || nr < 0 || nc >= w || nr >= h)) continue;
       const v = u + offs[k]!;
       if (done[v] === 1) continue;
       const pv = pace[v]!;
@@ -167,24 +218,28 @@ export function search(grid: SearchGrid, pace: Float32Array, start: number, opti
       let step: number;
       const kind = kinds[k]!;
       if (kind === 0) {
-        step = lens[k]! * (pu + pv) * 0.5 + Math.abs(c[v]! - cu) * climb;
+        const cv = c[v]!;
+        step = lens[k]! * (pu + pv) * 0.5 + (cv > cu ? cv - cu : cu - cv) * climb;
       } else if (kind === 1) {
         if (pace[u + m1[k]!] === Infinity || pace[u + m2[k]!] === Infinity) continue;
-        step = lens[k]! * (pu + pv) * 0.5 + Math.abs(c[v]! - cu) * climb;
+        const cv = c[v]!;
+        step = lens[k]! * (pu + pv) * 0.5 + (cv > cu ? cv - cu : cu - cv) * climb;
       } else {
         const a = u + m1[k]!, b = u + m2[k]!;
         const pa = pace[a]!, pb = pace[b]!;
         if (pa === Infinity || pb === Infinity) continue;
-        const ca = c[a]!, cb = c[b]!;
-        step = lens[k]! * (pu + pa + pb + pv) * 0.25 + (Math.abs(ca - cu) + Math.abs(cb - ca) + Math.abs(c[v]! - cb)) * climb;
+        const ca = c[a]!, cb = c[b]!, cv = c[v]!;
+        step = lens[k]! * (pu + pa + pb + pv) * 0.25 + (Math.abs(ca - cu) + Math.abs(cb - ca) + Math.abs(cv - cb)) * climb;
       }
       const g = gu + step;
       if (g >= cost[v]!) continue;
-      const hv = heuristic(v);
-      if (g + hv > bound) continue;
+      let f = g;
+      if (useLower) { const ex = nc - tc, ey = nr - tr; f += Math.sqrt(ex * ex + ey * ey) * lowerFor; }
+      if (f > bound) continue;
+      if (workspace && cost[v] === Infinity) workspace.touch(v);
       cost[v] = g;
       parent[v] = u;
-      heap.push(astar ? g + hv : g, v);
+      heap.push(f, v);
     }
   }
   return { cost, parent };

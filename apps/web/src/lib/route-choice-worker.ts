@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 import { MapFileError, readMapFile, type ParsedMap } from "@o-tid/map-file";
-import type { CostModel, LegAnalysis, RouteChoiceSettings } from "@o-tid/route-choice";
-import { engine } from "./route-choice-engine";
+import { analyseLeg, buildCostModel, resolveSettings, type CostModel, type RouteChoiceSettings } from "@o-tid/route-choice";
+import { calibrateSpeeds } from "./route-choice-engine";
 import type { RouteChoiceWorkerRequest, RouteChoiceWorkerResponse } from "./route-choice-worker-protocol";
 
 /**
@@ -19,22 +19,20 @@ let settings: RouteChoiceSettings = { version: 1 };
 let activeRun = 0;
 
 function build() {
-  const routeChoice = engine();
-  if (!routeChoice || !map) { model = undefined; post({ type: "error", code: "NO_MODEL" }); return; }
-  model = routeChoice.buildCostModel(map, settings);
-  post({ type: "model", unknownSymbols: model.unknownSymbols, speeds: { ...routeChoice.resolveSettings(settings).speedByClass } });
+  if (!map) { model = undefined; post({ type: "error", code: "NO_MODEL" }); return; }
+  model = buildCostModel(map, settings);
+  post({ type: "model", unknownSymbols: model.unknownSymbols, speeds: { ...resolveSettings(settings).speedByClass } });
 }
 
 /** Ger plats åt nya meddelanden (t.ex. `cancel`) mellan två sträckor. */
 const yieldToMessages = () => new Promise<void>(resolve => setTimeout(resolve, 0));
 
 async function analyse(runId: number, request: Extract<RouteChoiceWorkerRequest, { type: "analyse" }>) {
-  const routeChoice = engine();
-  if (!routeChoice || !model) { post({ type: "error", code: "NO_MODEL", runId }); return; }
+  if (!model) { post({ type: "error", code: "NO_MODEL", runId }); return; }
   for (const [index, leg] of request.legs.entries()) {
     await yieldToMessages();
-    if (runId !== activeRun) return;
-    const analysis: LegAnalysis = routeChoice.analyseLeg(model, leg);
+    if (runId !== activeRun || !model) return;
+    const analysis = analyseLeg(model, leg, settings);
     if (runId !== activeRun) return;
     post({ type: "leg", runId, index, analysis }, analysis.corridor ? [analysis.corridor.mask.buffer] : []);
   }
@@ -42,10 +40,10 @@ async function analyse(runId: number, request: Extract<RouteChoiceWorkerRequest,
 }
 
 function calibrate(request: Extract<RouteChoiceWorkerRequest, { type: "calibrate" }>) {
-  const routeChoice = engine();
-  if (!routeChoice || !model || typeof routeChoice.calibrateSpeeds !== "function") { post({ type: "error", code: "NO_MODEL", runId: request.runId }); return; }
-  const before = { ...routeChoice.resolveSettings(settings).speedByClass };
-  const result = routeChoice.calibrateSpeeds(model, request.samples);
+  const calibrateWith = calibrateSpeeds();
+  if (!model || !calibrateWith) { post({ type: "error", code: "NO_MODEL", runId: request.runId }); return; }
+  const before = { ...resolveSettings(settings).speedByClass };
+  const result = calibrateWith(model, request.samples, settings);
   post({ type: "calibrated", runId: request.runId, result: { before, after: { ...before, ...result.speedByClass }, samples: result.samples } });
 }
 

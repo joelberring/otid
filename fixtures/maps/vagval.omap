@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <map xmlns="http://openorienteering.org/apps/mapper/xml/v2" version="9">
-<notes>Syntetisk testkarta för O-Tid (steg 60): kartfil.omap plus en sjö (24–33 × 40–63 mm) tvärs över sträckan 31–32, så att den sträckan får vägval norr eller söder om sjön. Påhittad terräng, SWEREF 99 TM.</notes>
+<notes>Syntetisk testkarta för O-Tid (steg 60): kartfil.omap plus en avlång sjö mitt på och tvärs över sträckan 31–32, så att den sträckan får vägval runt sjöns norra eller södra ände. Påhittad terräng, SWEREF 99 TM.</notes>
 <georeferencing scale="10000" auxiliary_scale_factor="1" declination="0" grivation="0"><projected_crs id="EPSG"><spec language="PROJ.4">+init=epsg:3006</spec><parameter>3006</parameter><ref_point x="675000" y="6580000"/></projected_crs><geographic_crs id="Geographic coordinates"><spec language="PROJ.4">+proj=latlong +datum=WGS84</spec></geographic_crs></georeferencing>
 <colors count="7">
 <color priority="0" name="Violett" c="0.35" m="0.85" y="0" k="0" opacity="1"><cmyk method="custom"/><rgb method="cmyk" r="0.65" g="0.15" b="1"/></color>
@@ -28,7 +28,7 @@
 <object type="1" symbol="0"><coords count="5">30000 -30000;60000 -30000;60000 -55000;30000 -55000;30000 -30000 18;</coords><pattern rotation="0"><coord x="0" y="0"/></pattern></object>
 <object type="1" symbol="2"><coords count="5">70000 -60000;100000 -60000;100000 -80000;70000 -80000;70000 -60000 18;</coords><pattern rotation="0"><coord x="0" y="0"/></pattern></object>
 <object type="1" symbol="3"><coords count="5">85000 -10000;110000 -10000;110000 -25000;85000 -25000;85000 -10000 18;</coords><pattern rotation="0"><coord x="0" y="0"/></pattern></object>
-<object type="1" symbol="3"><coords count="5">24000 -40000;33000 -40000;33000 -63000;24000 -63000;24000 -40000 18;</coords><pattern rotation="0"><coord x="0" y="0"/></pattern></object>
+<object type="1" symbol="3"><coords count="5">31800 -41600;36700 -45050;25200 -61400;20300 -57950;31800 -41600 18;</coords><pattern rotation="0"><coord x="0" y="0"/></pattern></object>
 <object type="1" symbol="4"><coords count="4">5000 -60000;25000 -70000;45000 -66000;65000 -90000;</coords><pattern rotation="0"><coord x="0" y="0"/></pattern></object>
 <object type="1" symbol="4"><coords count="3">10000 -20000;20000 -25000;28000 -15000;</coords><pattern rotation="0"><coord x="0" y="0"/></pattern></object>
 <object type="1" symbol="5"><coords count="4">2000 -5000;40000 -20000;80000 -50000;118000 -95000;</coords><pattern rotation="0"><coord x="0" y="0"/></pattern></object>

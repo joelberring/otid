@@ -1,6 +1,6 @@
 import { basename, relative } from "node:path";
 import { describe, expect, it } from "vitest";
-import { CourseSettingEditError, readPpen, writePpen } from "../src";
+import { CourseSettingEditError, checkDocument, courseSummaries, courseVariants, layoutOverprint, readPpen, writePpen } from "../src";
 import { normalizedXml, ppenFiles, readText, testFilesDir } from "./helpers";
 
 /** Filer som Purple Pen själv inte kan läsa (okänt kontrollslag "marked-route-end"). */
@@ -45,6 +45,27 @@ describe.skipIf(files.length === 0)("Purple Pens testfiler", () => {
       }
     });
   }
+
+  it("ger banpåtryck, kontroller och sammanfattning för alla banor", () => {
+    let primitives = 0;
+    for (const path of files) {
+      if (relative(testFilesDir, path) === "sampleevent2.ppen") continue;
+      const { document } = readPpen(readText(path));
+      checkDocument(document);
+      const summaries = courseSummaries(document);
+      for (const summary of summaries) expect(Number.isFinite(summary.lengthMeters), `${path} ${summary.name}`).toBe(true);
+      for (const course of ["ALL_CONTROLS", ...document.courses.map(c => c.id)]) {
+        const figures = layoutOverprint(document, { course });
+        primitives += figures.length;
+        // NaN och Infinity blir null i JSON.
+        expect(JSON.stringify(figures), `${path} ${course}`).not.toContain("null");
+      }
+      for (const course of document.courses) {
+        for (const variant of courseVariants(document, course.id).slice(0, 3)) layoutOverprint(document, { course: course.id, variant: variant.code });
+      }
+    }
+    expect(primitives).toBeGreaterThan(1000);
+  });
 
   it("rapporterar specialobjekten i testfilerna", () => {
     const kinds = new Map<string, number>();

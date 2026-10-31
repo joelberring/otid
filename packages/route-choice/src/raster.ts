@@ -45,8 +45,14 @@ export function legFrame(from: Point, to: Point, scale: number, maxCells = MAX_C
   const mmPerMeter = 1000 / scale;
   const legMeters = Math.hypot(to.x - from.x, to.y - from.y) / mmPerMeter;
   const margin = Math.max(MIN_MARGIN_METERS, 0.2 * legMeters) * mmPerMeter;
-  const minX = Math.min(from.x, to.x) - margin, maxX = Math.max(from.x, to.x) + margin;
-  const minY = Math.min(from.y, to.y) - margin, maxY = Math.max(from.y, to.y) + margin;
+  return boxFrame({ minX: Math.min(from.x, to.x) - margin, maxX: Math.max(from.x, to.x) + margin,
+    minY: Math.min(from.y, to.y) - margin, maxY: Math.max(from.y, to.y) + margin }, scale, maxCells);
+}
+
+/** Rutnät över rutan (kartans mm) med cellstorleken för skalan, grövre om det skulle bli fler än `maxCells` celler. */
+export function boxFrame(box: { minX: number; minY: number; maxX: number; maxY: number }, scale: number, maxCells = MAX_CELLS): GridFrame {
+  const mmPerMeter = 1000 / scale;
+  const { minX, minY, maxX, maxY } = box;
   let cellMeters = scale < SPRINT_SCALE_LIMIT ? 0.5 : 2;
   let cellMm = cellMeters * mmPerMeter;
   let width = Math.ceil((maxX - minX) / cellMm), height = Math.ceil((maxY - minY) / cellMm);
@@ -185,8 +191,13 @@ function paintCrossing(frame: GridFrame, feature: Feature, visit: Visit): void {
   for (const line of feature.lines) strokeLine(frame, line, Math.max(feature.radius, 0.4), visit);
 }
 
-/** Rutnätet för ramen ur den förberedda modellen; farterna avgör vilken klass som är långsammast/snabbast. */
-export function rasterize(model: PreparedModel, frame: GridFrame, speeds: Readonly<Record<RunnableClass, number>>): Grid {
+/**
+ * Rutnätet för ramen ur den förberedda modellen; farterna avgör vilken klass som är långsammast/snabbast.
+ * `trackRadiusMm` breddar vägar och stigar (kalibreringen, där GPS-spåret sällan ligger exakt på stigen).
+ */
+export function rasterize(model: PreparedModel, frame: GridFrame, speeds: Readonly<Record<RunnableClass, number>>,
+  options: { readonly trackRadiusMm?: number } = {}): Grid {
+  const trackRadius = options.trackRadiusMm ?? 0;
   const cells = frame.width * frame.height;
   const area = new Uint8Array(cells).fill(NONE);
   const track = new Uint8Array(cells).fill(NONE);
@@ -204,7 +215,9 @@ export function rasterize(model: PreparedModel, frame: GridFrame, speeds: Readon
       }
       case "TRACK": {
         const cls = RUNNABLE_CLASSES.indexOf(feature.cls), speed = speedOf[cls]!;
-        paint(frame, feature, index => { const old = track[index]!; if (old === NONE || speedOf[old]! < speed) track[index] = cls; });
+        const visit = (index: number) => { const old = track[index]!; if (old === NONE || speedOf[old]! < speed) track[index] = cls; };
+        for (const polygon of feature.polygons) fillPolygon(frame, polygon, visit);
+        for (const line of feature.lines) strokeLine(frame, line, Math.max(feature.radius, trackRadius), visit);
         break;
       }
       case "BLOCK": paint(frame, feature, index => { block[index] = block[index]! | 1; }); break;

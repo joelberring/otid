@@ -7,7 +7,7 @@ import {
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import {
-  courseForkingFairness, courseVariantForReadout, entryCourseVersionId, forkingControlSet, sameControlCodes, unevenCourseVariantLegs,
+  courseForkingFairness, courseVariantForReadout, forkingReadiness, entryCourseVersionId, forkingControlSet, sameControlCodes, unevenCourseVariantLegs,
   withProposedCourseVersion, withProposedEntryVariants, type CourseForking, type RaceSnapshot
 } from "@o-tid/domain";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
@@ -174,7 +174,8 @@ export async function listCoursesForEditAsAdmin(db: Database, input: Authenticat
     const placeholder = new Set(courses.filter(row => row.externalSource === PLACEHOLDER_COURSE.externalSource &&
       row.externalId === PLACEHOLDER_COURSE.externalId).map(row => row.id));
     const entries = await tx.select({ id: schema.entries.id, classId: schema.entries.classId,
-      fixedStartTime: schema.entries.fixedStartTime, teamId: schema.entries.teamId, relayLeg: schema.entries.relayLeg })
+      fixedStartTime: schema.entries.fixedStartTime, teamId: schema.entries.teamId, relayLeg: schema.entries.relayLeg,
+      struckAt: schema.entries.struckAt })
       .from(schema.entries).where(eq(schema.entries.raceId, raceId));
     // Steg 47: banan som löparen springer (stafettsträckans egen bana eller klassens).
     const legRows = await tx.select({ classId: schema.relayLegs.classId, leg: schema.relayLegs.leg,
@@ -209,6 +210,13 @@ export async function listCoursesForEditAsAdmin(db: Database, input: Authenticat
       const relayOnly = course.classes.length > 0 && course.classes.every(row => relayClassIds.has(row.id));
       const fairness = course.variants.length === 0 ? undefined : courseForkingFairness({ mode: course.forkingMode, variants: course.variants,
         forking: course.forking ?? null });
+      // Steg 61: kontrollen före tävlingen, per klass på banan (stafettbanor kontrolleras per lag i lagvyn).
+      const readiness = course.variants.length === 0 || relayOnly ? undefined : forkingReadiness({
+        variantCodes: course.variants.map(variant => variant.code),
+        forking: forking ? { items: forking.items } : null,
+        choices: new Map((forking?.variants ?? []).map(variant => [variant.code, variant.choices])),
+        classes: course.classes.filter(row => !relayClassIds.has(row.id)).map(row => ({ name: row.name,
+          runnerVariants: courseEntries.filter(entry => entry.classId === row.id && entry.struckAt === null).map(entry => entryVariants.get(entry.id) ?? null) })) });
       rows.push({ courseId: course.id, courseVersionId: course.version.id, name: course.name, controlCodes: course.controlCodes,
         lengthMeters: course.lengthMeters, climbMeters: course.climbMeters,
         classes: course.classes.map(row => ({ classId: row.id, name: row.name })), entryCount: courseEntries.length,
@@ -216,7 +224,7 @@ export async function listCoursesForEditAsAdmin(db: Database, input: Authenticat
         // Steg 47: en bana som bara används i stafett kontrolleras per lag (lagvyn), inte per variant.
         unevenLegs: relayOnly ? [] : unevenCourseVariantLegs(course.variants), ...(forking ? { forking, forkingMode: course.forkingMode } : {}),
         ...(fairness && !relayOnly ? { fairness: { level: fairness.level, warningLegs: fairness.warningLegs, noticeLegs: fairness.noticeLegs,
-          shortestMeters: fairness.shortestMeters, longestMeters: fairness.longestMeters } } : {}) });
+          shortestMeters: fairness.shortestMeters, longestMeters: fairness.longestMeters } } : {}), ...(readiness ? { readiness } : {}) });
     }
     rows.sort((left, right) => left.name.localeCompare(right.name, "sv-SE") || (left.courseId < right.courseId ? -1 : 1));
     // Klasserna som tabell: varje klass med sin bana, startsätt och läge.

@@ -19,6 +19,7 @@ import { loadStartDrawSetupAsAdmin, previewStartDrawAsAdmin, commitStartDrawAsAd
   listAdministratorForestWatch, registerAdministratorReturn, withdrawAdministratorReturn, correctAdministratorStart,
   listCheckinHistoryAsAdmin, readStartCheckinConflictReviewAsAdmin, reviewStartCheckinConflictsAsAdmin,
   previewEntryVariantAsAdmin, changeEntryVariantAsAdmin, distributeClassVariantsAsAdmin,
+  readMapBundlesAsAdmin, recordMapPrintAsAdmin, saveMapReserveAsAdmin,
   getRelayOverviewAsAdmin, createRelayClassAsAdmin, registerRelayTeamAsAdmin,
   changeRelayLegRunnerAsAdmin, setRelayStartTimesAsAdmin, saveRaceSettingsAsAdmin,
   editRelayClassAsAdmin, editRelayTeamAsAdmin, removeRelayTeamAsAdmin, setRelayTeamDidNotStartAsAdmin, changeRelayLegVariantAsAdmin,
@@ -73,6 +74,8 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   rogainingPreview: previewRogainingChangeAsAdmin, rogaining: changeRogainingAsAdmin,
   entryVariantPreview: previewEntryVariantAsAdmin, entryVariant: changeEntryVariantAsAdmin,
   classVariantDistribution: distributeClassVariantsAsAdmin,
+  // Steg 61: kartor till starten (tryckantal, kartbuntslistan, baksidorna).
+  mapBundles: readMapBundlesAsAdmin, mapPrint: recordMapPrintAsAdmin, mapReserve: saveMapReserveAsAdmin,
   relayOverview: getRelayOverviewAsAdmin, relayClass: createRelayClassAsAdmin, relayTeam: registerRelayTeamAsAdmin,
   relayLegRunner: changeRelayLegRunnerAsAdmin, relayStartTimes: setRelayStartTimesAsAdmin,
   relayClassEdit: editRelayClassAsAdmin, relayTeamEdit: editRelayTeamAsAdmin, relayTeamRemoval: removeRelayTeamAsAdmin,
@@ -138,6 +141,7 @@ export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: str
   { kind: "rogaining-preview" } | { kind: "rogaining" } |
   { kind: "entry-variant-preview"; entryId: string } | { kind: "entry-variant"; entryId: string } |
   { kind: "class-variant-distribution"; classId: string } |
+  { kind: "map-bundles" } | { kind: "map-print" } | { kind: "map-reserve" } |
   { kind: "relay" } | { kind: "relay-class" } | { kind: "relay-team" } | { kind: "relay-leg-runner" } | { kind: "relay-start-times" } |
   { kind: "relay-class-edit" } | { kind: "relay-team-edit" } | { kind: "relay-team-removal" } | { kind: "relay-team-dns" } |
   { kind: "relay-leg-variant" } |

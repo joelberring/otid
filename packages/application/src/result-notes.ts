@@ -3,12 +3,14 @@ import type { ResultNotes } from "@o-tid/contracts";
 import { schema } from "@o-tid/database";
 import { startPunchNote } from "@o-tid/domain";
 import type { DbExecutor } from "./snapshot";
+import { loadWrongMaps } from "./wrong-map";
 
 /**
  * Arbetsytans anteckningar om löparnas resultat (PLAN.md steg 25): startstämplingen vid lottad start (sen eller tidig
  * start, eller starttid från stämplingen när lottad tid saknas) och diskens orsak. Reglerna finns i domänen
  * (`startPunchNote`); här läses bara fakta: löparens senaste avläsning, klassens startsätt och den lottade tiden.
- * Visas i avläsningens besked, deltagarkortet och arbetsytans resultatlista, aldrig på publika sidor.
+ * Steg 61: fel karta (`loadWrongMaps`). Visas i avläsningens besked, deltagarkortet och arbetsytans resultatlista, aldrig på
+ * publika sidor.
  */
 export async function loadResultNotes(tx: DbExecutor, raceId: string, entryIds?: readonly string[]): Promise<Map<string, ResultNotes>> {
   const notes = new Map<string, ResultNotes>();
@@ -40,6 +42,14 @@ export async function loadResultNotes(tx: DbExecutor, raceId: string, entryIds?:
   for (const row of disqualifications) {
     if (row.note) notes.set(row.entryId, { ...notes.get(row.entryId), disqualificationReason: row.note });
   }
+  // Steg 61: fel karta – bara för felstämplade (senaste resultatet MP) med tilldelad variant.
+  const mispunched = (await tx.selectDistinctOn([schema.resultRevisions.entryId], { entryId: schema.resultRevisions.entryId,
+    status: schema.resultRevisions.status }).from(schema.resultRevisions)
+    .where(and(eq(schema.resultRevisions.raceId, raceId), eq(schema.resultRevisions.published, true), scope(schema.resultRevisions.entryId)))
+    .orderBy(asc(schema.resultRevisions.entryId), desc(schema.resultRevisions.revision))).filter((row) => row.status === "MP");
+  for (const [entryId, wrongMap] of await loadWrongMaps(tx, raceId, mispunched.map((row) => row.entryId))) {
+    notes.set(entryId, { ...notes.get(entryId), wrongMap: { assignedCode: wrongMap.assignedCode, fittingCodes: [...wrongMap.fittingCodes] } });
+  }
   return notes;
 }
 
@@ -48,6 +58,7 @@ export function applicableResultNotes(notes: ResultNotes | undefined, status: st
   if (!notes || !status) return undefined;
   const timed = status === "OK" || status === "OVERTIME" || status === "MP" || status === "DSQ" || status === "OOC";
   const value: ResultNotes = { ...(timed && notes.startPunch ? { startPunch: notes.startPunch } : {}),
-    ...(status === "DSQ" && notes.disqualificationReason ? { disqualificationReason: notes.disqualificationReason } : {}) };
-  return value.startPunch || value.disqualificationReason ? value : undefined;
+    ...(status === "DSQ" && notes.disqualificationReason ? { disqualificationReason: notes.disqualificationReason } : {}),
+    ...(status === "MP" && notes.wrongMap ? { wrongMap: notes.wrongMap } : {}) };
+  return value.startPunch || value.disqualificationReason || value.wrongMap ? value : undefined;
 }

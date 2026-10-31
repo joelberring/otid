@@ -37,6 +37,9 @@ export const FUNCTIONARY_ROUTES: Readonly<Record<string, readonly string[]>> = {
   "manual-return-withdrawal": ["POST"],
   /** Start: startläget (startat, ej start). */
   "start-correction": ["POST"],
+  /** Steg 61: kartor till starten – läsa tryckantal och kartbuntslistan och skriva ut (reserven kräver administratör). */
+  "map-bundles": ["GET"],
+  "map-print": ["POST"],
   /** Speaker och kontrollvyn: senaste avläsningar och stafettens lag. */
   "speaker-board": ["GET"],
   relay: ["GET"],

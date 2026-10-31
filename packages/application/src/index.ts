@@ -66,6 +66,8 @@ export {
   changeEntryVariantAsAdmin, distributeClassVariantsAsAdmin, previewEntryVariantAsAdmin
 } from "./course-variant-assignment";
 export type { ClassVariantDistributionResult, EntryVariantPreviewResult, EntryVariantResult } from "./course-variant-assignment";
+export { readMapBundlesAsAdmin, recordMapPrintAsAdmin, saveMapReserveAsAdmin } from "./map-bundles";
+export type { MapBundleResult, MapPrintResult, MapReserveResult } from "./map-bundles";
 export * from "./relay-admin";
 export * from "./relay-admin-edit";
 export * from "./relay-results";

@@ -126,6 +126,7 @@ function allowedMethods(action: Action): string[] {
     action.kind === "class-edit-preview" || action.kind === "class-edit" ||
     action.kind === "rogaining-preview" || action.kind === "rogaining" ||
     action.kind === "entry-variant-preview" || action.kind === "entry-variant" || action.kind === "class-variant-distribution" ||
+    action.kind === "map-print" || action.kind === "map-reserve" ||
     action.kind === "relay-class" || action.kind === "relay-team" || action.kind === "relay-leg-runner" ||
     action.kind === "relay-start-times" || action.kind === "relay-class-edit" || action.kind === "relay-team-edit" ||
     action.kind === "relay-team-removal" || action.kind === "relay-team-dns" || action.kind === "relay-leg-variant" ||

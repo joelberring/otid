@@ -139,7 +139,7 @@ export async function changeEntryVariantAsAdmin(db: Database, input: Authenticat
       actorKind: "USER_ACCOUNT", actorId: auth.principal.accountId, action: "ENTRY_COURSE_VARIANT_CHANGED_BY_ADMIN",
       before: { courseVariantCode: entry.code, entryVersion: entry.version, snapshotVersion: race.snapshotVersion },
       after: { courseVariantCode: intent.variantCode, entryVersion: entry.version + 1, snapshotVersion: snapshotVersionAfter,
-        recalculatedCount: recalculated.length }, createdAt: now });
+        recalculatedCount: recalculated.length, ...(intent.reason === "WRONG_MAP" ? { reason: "Fel karta vid starten" } : {}) }, createdAt: now });
     return { status: "changed", response };
   });
 }

@@ -245,10 +245,13 @@ export type OverprintRole =
 
 /**
  * Banpåtrycket som enkla figurer i kartans mm, samma för skärm (canvas) och tryck (PDF, steg 65). Storlekarna följer
- * standarden vid utskriftsskalan: en figur som ska vara 5 mm på papperet är 5 · printScale / mapScale mm i kartan.
+ * standarden vid utskriftsskalan: en figur som ska vara 5 mm på papperet är 5 · printScale / mapScale mm i kartan
+ * (med händelsens `course-appearance scale-sizes` som Purple Pen: "RelativeTo15000" ger 5 · 15000 / mapScale,
+ * "RelativeToMap" 5 mm). Cirklarnas `diameter` och linjerna räknas till linjens mitt; ringavbrotten i grader moturs.
+ * Texten har `at` i textens mitt (i höjd och bredd). `ref` är banans kontroll-id för kontroller och nummer
+ * (kontrollens id i "ALL_CONTROLS") och sträckans nyckel `${från}-${till}` (kontrollernas id) för sträckor.
  */
 export type OverprintPrimitive =
-  /** `diameter` till linjens mitt. */
   | { readonly kind: "circle"; readonly role: OverprintRole; readonly color: OverprintColor; readonly center: Point; readonly diameter: number; readonly lineWidth: number; readonly gaps?: readonly { readonly startDegrees: number; readonly endDegrees: number }[] | undefined; readonly ref?: string | undefined }
   | { readonly kind: "polyline"; readonly role: OverprintRole; readonly color: OverprintColor; readonly points: readonly Point[]; readonly width: number; readonly dash?: readonly number[] | undefined; readonly closed?: boolean | undefined; readonly ref?: string | undefined }
   | { readonly kind: "polygon"; readonly role: OverprintRole; readonly color: OverprintColor; readonly rings: readonly (readonly Point[])[]; readonly ref?: string | undefined }

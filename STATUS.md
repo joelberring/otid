@@ -10,6 +10,17 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-10-31 – Steg 59: kartfilen i webben (agent B, gren steg59-webb)
+- Skärmritning i `packages/map-file/src/render` (`drawMap`, `renderSize`): färgordning, ytor med raster/punktmönster (tonad yta när
+  mönstret är för tätt), linjer med alla streck/dubbellinjer/upprepade tecken, punkter, text och kombinerade symboler; förenklingar på svenska.
+- Webbläsaren läser och ritar i en Worker (`lib/map-file-worker.ts`, `OffscreenCanvas` → PNG, 8/10/12 px/mm, ritar om mindre över 30 MB)
+  och räknar tre hörn till WGS 84 så att `race_map`s georeferens används. Uppladdningen (multipart) sparar `race_map_source` (migration 0028)
+  och ersätter `race_map` i en transaktion med auditpost; ny kartbild tar bort kartfilen. Originalet bara till admin; Caddy 100 MB för sökvägen.
+- Kontroller med `MapPosition` placeras på kartfilens mm (domänen `layoutControlMap` med `mapFile`), annars "Banfilen verkar inte vara gjord på
+  den här kartan" och dagens ordning; samma på den publika vägvalskartan. Djurgården 2025 (OCAD och Mapper) med Natt-KM:s banfil: alla 25 på kartan.
+- Verifierat: lint, typecheck, test, test:integration (94 filer), Playwright kartfil, kontrollkarta, strackanalys, banhemlighet, sakerhetshuvuden.
+- Kvar: banläggarens kartfil i Banor (bara hänvisning från kontrollkartan); registerfärg och text längs linje förenklade.
+
 ### 2026-10-27 – Steg 57: placering vid avläsningen (agent I)
 - Kvittot från servern har `placement` per godkänd avläsning: "2:a av 12 i mål · +2:14 efter Ada Ek", "Leder · 1:05 före tvåan",
   stafett "Laget 3:e av 12 efter sträcka 2 …" och "Sträcktid 23:10 · 4:e av 10 på sträckan …"; märkt preliminärt.

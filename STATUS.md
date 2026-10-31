@@ -16,7 +16,7 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - "Överför till tävlingen": dokumentet blir en `CourseFileProjection` som Purple Pens IOF-export (familj + Purple Pens variantkod, längd till 100 m, klasser ur undertiteln, MapPosition, Position med kartfilens georeferens) och går genom banfilens förhandsvisning och `applySyncAsAdmin`. Ägarens SBN26_2.ppen ger samma banor och varianter som SBN26_1.xml (manuellt, filen inte committad).
 - Editorn `/admin/[raceId]/course-setting` (länk under Banor): kartfilen ritad i en Worker per vy, banpåtrycket i eget lager, zoom/panorering/nyp, banlista, verktyg (välj/flytta, ny kontroll/start/mål/passage, lägg in, brytpunkt), gaffling/slinga, flytta nummer, ångra/gör om, tangenter, autosparande med konfliktbesked, kontrollerna i klartext, vald sträckas vägval (route-choice-workern), .ppen in/ut, tidigare versioner.
 - Logiken i `lib/course-setting-*` (kartvy, träff-test mot `ref`, editorns tillstånd, autosparande, texter) med enhetstester; fixturen `fixtures/course-setting/kartfil.ppen`.
-- Verifierat: lint, typecheck, test, test:integration (se slutet), Playwright banlaggning, kartfil, kontrollkarta, vagval-analys.
+- Verifierat: lint, typecheck, test, test:integration (97 filer, 401 tester), Playwright banlaggning, kartfil, kontrollkarta, vagval-analys. Ostadigt: banlaggning föll en gång av fem vid uppladdningen av kartfilen (okänd status, nu loggad); kartfil en gång när tävlingen skapades (kall dev-server).
 - Återstår/ej gjort: stafettlagens varianter (Purple Pens relay-teams) förs inte över; banläggningen i editorn är bara provad i Playwright, inte av ägaren på en riktig bana.
 
 ### 2026-10-31 – Steg 60: vägvalsanalys (motorn steg60-motor, webben steg60-webb, ihopslagna i main)

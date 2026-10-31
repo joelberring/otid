@@ -5,12 +5,13 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 62 (banläggning: .ppen och editorn) pågår; därefter 63–65 (ADR-0180). Steg 59–61 är klara. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
+Steg 63 (kontrollbeskrivningar) är nästa; därefter 64–65 (ADR-0180). Steg 59–62 är klara. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
 Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbens löpare via `cachedcompetitors`, strukturen) provad mot riktiga Eventor 2026-10-19; hela landets `cachedcompetitors` och `/api/organisations` måste provas av ägaren; ROC:s sökväg för stämplingar (bara provad mot falsk ROC) och e-post via SMTP är inte provade.
 
 ## Logg
 
-### 2026-10-31 – Steg 62: banläggningens lagring, editor och överföring (webben, gren steg62-webb)
+### 2026-10-31 – Steg 62: banläggning – .ppen och editorn (paketet steg62-paket, webben steg62-webb, ihopslagna i main)
+- `packages/course-setting`: .ppen in/ut utan förlust (Purple Pens 151 läsbara testfiler, nu fixturer i `fixtures/purplepen`), ändringar, varianter portade från Purple Pens QueryEvent (SBN26_2.ppen = SBN26_1.xml i namn och kodsiffror), kontroller, banpåtryck med Purple Pens mått; 201 tester.
 - Migration 0031 `course_setting` (dokument, version, ändrad av/när, inläst .ppen orörd) och `course_setting_revision` (högst 50; autosparandet behåller en version per 10 min, alltid vid inläsning/återställning). Spara med `expectedVersion` (409 med aktuell version), lås per tävling, inte tävlingen (ADR-0177). Med i adminexporten och kopian, aldrig publikt.
 - API `administrator/course-setting*` (läge/spara, import, versioner, återställ, originalfilen, överför); bara admin, skrivningar med CSRF.
 - "Överför till tävlingen": dokumentet blir en `CourseFileProjection` som Purple Pens IOF-export (familj + Purple Pens variantkod, längd till 100 m, klasser ur undertiteln, MapPosition, Position med kartfilens georeferens) och går genom banfilens förhandsvisning och `applySyncAsAdmin`. Ägarens SBN26_2.ppen ger samma banor och varianter som SBN26_1.xml (manuellt, filen inte committad).

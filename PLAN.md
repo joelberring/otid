@@ -1051,7 +1051,7 @@ ADR-0179 (beslut 7–13). Migration 0030. Kontraktet: `packages/route-choice/src
   alternativ, stigning), webb (tabellen, varningar), Playwright `vagval-analys.spec.ts` (bana med en känd vägvalssträcka,
   banhemlighet publikt).
 
-## [ ] Steg 62 – Banläggning: .ppen och editorn
+## [x] Steg 62 – Banläggning: .ppen och editorn
 
 ADR-0180. Migration 0031. Kontraktet: `packages/course-setting/src/types.ts` och `src/index.ts`.
 

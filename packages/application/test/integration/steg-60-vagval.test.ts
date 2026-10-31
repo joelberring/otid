@@ -164,7 +164,8 @@ describe("steg 60: vägvalsanalysen", () => {
     expect(state.response.mapFile).toMatchObject({ scale: 10_000, render, placement: "PAPER", mismatch: false, image: { width: WIDTH, height: HEIGHT } });
     // Kontrollerna och starten på kartfilens mm (banfilens MapPosition).
     expect(state.response.controls.find(control => control.code === 32)!.at).toEqual({ x: 42, y: 61 });
-    expect(state.response.courses.find(course => course.courseId === courseId)).toMatchObject({ start: { x: 4, y: 8 }, finish: { x: 12, y: 4 } });
+    expect(state.response.courses.find(course => course.courseId === courseId)).toMatchObject({ start: { x: 4, y: 8 }, finish: { x: 12, y: 4 },
+      routeRunners: 0 });
 
     // Bara admin läser och skriver; fel CSRF ändrar inget.
     expect(await readRouteChoiceAsAdmin(db, functionary)).toEqual({ status: "forbidden" });
@@ -217,7 +218,9 @@ describe("steg 60: vägvalsanalysen", () => {
     expect((await readPublicLegRoutes(db, proof.raceId, annaId, "32.1-33.1"))!.bestRoute).toBeUndefined();
     expect(await readPublicLegRoutes(db, proof.raceId, await publicIdOf(bo), "31.1-32.1")).toBeUndefined();
 
-    // Kalibreringen: rutternas delar per sträcka utan namn, bara för admin.
+    // Kalibreringen: en löpare med resultat och rutt på banan; rutternas delar per sträcka utan namn, bara för admin.
+    state = await readRouteChoiceAsAdmin(db, proof);
+    expect(state.status === "ok" && state.response.courses.find(course => course.courseId === courseId)!.routeRunners).toBe(1);
     expect(await readRouteChoiceCalibrationAsAdmin(db, { ...functionary, courseId })).toEqual({ status: "forbidden" });
     expect(await readRouteChoiceCalibrationAsAdmin(db, { ...proof, courseId: randomUUID() })).toEqual({ status: "not-found" });
     const calibration = await readRouteChoiceCalibrationAsAdmin(db, { ...proof, courseId });

@@ -11,6 +11,8 @@ import { Button, Notice } from "../ui";
 import type { Workspace } from "../race-administrator/workspace-state";
 import { adminDrawing } from "./control-map-drawing";
 import { ControlMapSvg } from "./control-map-svg";
+import { RouteChoicePanel } from "./route-choice-panel";
+import { routeChoiceSv } from "../../i18n/route-choice-sv";
 import styles from "./control-map.module.css";
 
 /**
@@ -26,13 +28,13 @@ export function ControlMapButton({ ws }: { ws: Workspace }) {
 }
 
 function ControlMapDialog({ ws, onClose }: { ws: Workspace; onClose: () => void }) {
-  const { beginRequest, request, json, finish, current } = ws;
+  const { beginRequest, request, json, finish, current, raceId, navigateStep } = ws;
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const [data, setData] = useState<ControlMapResponse>();
   const [image, setImage] = useState<string>();
   const [failed, setFailed] = useState(false);
-  const [mode, setMode] = useState<"LOAD" | "COURSE">("LOAD");
+  const [mode, setMode] = useState<"LOAD" | "COURSE" | "ROUTES">("LOAD");
   const [metric, setMetric] = useState<"planned" | "punched">("planned");
   const [courseId, setCourseId] = useState<string>("");
   const [variant, setVariant] = useState<string | null>(null);
@@ -44,11 +46,10 @@ function ControlMapDialog({ ws, onClose }: { ws: Workspace; onClose: () => void 
       const response = await request("/control-map", op);
       if (!response.ok) throw new Error("Kontrollkartan kunde inte hämtas");
       const next = controlMapResponseSchema.parse(await json(response, op));
+      // Steg 60: bilden även när den inte är georefererad (vägvalen ritas på kartfilens bild).
       let blob: Blob | undefined;
-      if (next.map) {
-        const imageResponse = await request("/map/image", op);
-        if (imageResponse.ok) blob = await imageResponse.blob();
-      }
+      const imageResponse = await request("/map/image", op);
+      if (imageResponse.ok) blob = await imageResponse.blob();
       if (!current(op)) return;
       setImage(previous => { if (previous) URL.revokeObjectURL(previous); return blob ? URL.createObjectURL(blob) : undefined; });
       setData(next);
@@ -61,7 +62,7 @@ function ControlMapDialog({ ws, onClose }: { ws: Workspace; onClose: () => void 
   const course = data?.courses.find(row => row.courseId === courseId);
   const view = useMemo(() => data ? controlMapView(data.bounds, data.map,
     typicalSpacing(data.controls.flatMap(control => control.position ? [control.position] : []))) : null, [data]);
-  const drawing = useMemo(() => data && view ? adminDrawing(data, view, mode, metric, course, variant) : undefined,
+  const drawing = useMemo(() => data && view ? adminDrawing(data, view, mode === "ROUTES" ? "COURSE" : mode, metric, course, variant) : undefined,
     [data, view, mode, metric, course, variant]);
   const max = Math.max(0, ...(data?.controls ?? []).map(control => control[metric]));
   const missing = data ? data.controls.filter(control => !control.position).length : 0;
@@ -85,6 +86,7 @@ function ControlMapDialog({ ws, onClose }: { ws: Workspace; onClose: () => void 
           <div className={styles.segmented} role="group" aria-label={text.mode}>
             <button type="button" aria-pressed={mode === "LOAD"} onClick={() => setMode("LOAD")}>{text.modeLoad}</button>
             <button type="button" aria-pressed={mode === "COURSE"} disabled={data.courses.length === 0} onClick={() => setMode("COURSE")}>{text.modeCourse}</button>
+            <button type="button" aria-pressed={mode === "ROUTES"} disabled={data.courses.length === 0} onClick={() => setMode("ROUTES")}>{routeChoiceSv.mode}</button>
           </div>
           {mode === "LOAD" && <label>{text.metric}<select value={metric} onChange={event => setMetric(event.target.value as "planned" | "punched")}>
             <option value="planned">{text.metricPlanned}</option><option value="punched">{text.metricPunched}</option></select></label>}
@@ -96,7 +98,9 @@ function ControlMapDialog({ ws, onClose }: { ws: Workspace; onClose: () => void 
             {course.variants.map(row => <option key={row.code} value={row.code ?? ""}>{text.variantOption(row.code ?? "", row.entryCount)}</option>)}
           </select></label>}
         </div>
-        <div className={styles.layout}>
+        {mode === "ROUTES" && <RouteChoicePanel raceId={raceId} data={data} imageHref={image}
+          onGoToMapFile={() => { dialog.current?.close(); navigateStep("RESULTS"); }} />}
+        {mode !== "ROUTES" && <div className={styles.layout}>
           <div className={styles.runner}>
             {view && drawing ? <ControlMapSvg view={view} controls={drawing.controls} lines={drawing.lines} ends={drawing.ends}
               metersPerUnit={data.metersPerUnit} image={image && data.map ? { href: image, width: data.map.width, height: data.map.height } : undefined}
@@ -130,7 +134,7 @@ function ControlMapDialog({ ws, onClose }: { ws: Workspace; onClose: () => void 
               </table>
             </div>
           </div>
-        </div>
+        </div>}
       </>}
     </div>
   </dialog>;

@@ -78,6 +78,9 @@ importers:
       '@o-tid/map-file':
         specifier: workspace:*
         version: link:../../packages/map-file
+      '@o-tid/route-choice':
+        specifier: workspace:*
+        version: link:../../packages/route-choice
       '@o-tid/sportident':
         specifier: workspace:*
         version: link:../../packages/sportident

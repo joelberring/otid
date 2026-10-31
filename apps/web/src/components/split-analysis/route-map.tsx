@@ -115,6 +115,11 @@ export function RouteMap({ raceId, data }: { raceId: string; data: PublicLegRout
               : point.label === "M" ? text.courseFinish : point.label}</text>
           </g>)}
         </g>}
+        {/* Steg 60: bästa vägvalet enligt kartan, som arrangören publicerat (bara när banorna är publika). */}
+        {data.bestRoute && <g className={styles.best} data-testid="best-route">
+          <polyline className={styles.halo} points={path(data.bestRoute.points)} vectorEffect="non-scaling-stroke" />
+          <polyline className={styles.line} points={path(data.bestRoute.points)} vectorEffect="non-scaling-stroke" />
+        </g>}
         {showOthers && others.map(runner => <g key={runner.publicResultId} className={styles.other}
           data-highlight={highlight === runner.publicResultId || undefined}>
           <polyline className={styles.halo} points={path(runner.points)} vectorEffect="non-scaling-stroke" />
@@ -148,6 +153,7 @@ export function RouteMap({ raceId, data }: { raceId: string; data: PublicLegRout
         })}
       </ol>
       {others.length === 0 && <p className={styles.sub}>{text.noOthers}</p>}
+      {data.bestRoute && <p className={styles.bestLegend}><span className={styles.swatch} data-kind="best" aria-hidden="true" />{text.bestRoute}</p>}
       <p className={styles.sub}>{text.gpsNotice}</p>
     </section>
   </div>;

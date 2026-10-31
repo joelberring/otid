@@ -57,5 +57,6 @@ export const routeChoiceSv = {
   noOthers: "Ingen annan har en uppladdad rutt på den här sträckan.",
   imageError: "Kartan kunde inte visas.",
   notFound: "Det finns inget vägval för löparen på den här sträckan.",
+  bestRoute: "Bästa vägval enligt kartan (räknat ur kartan, inte en löpares väg)",
   gpsNotice: "GPS-spåret är inte kontrollerat mot kontrollernas lägen. Klockan i GPS:en och stämplingarna kan skilja några sekunder."
 } as const;

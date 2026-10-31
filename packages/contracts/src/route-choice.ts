@@ -67,7 +67,8 @@ export const adminRouteChoiceSchema = z.object({
     mismatch: z.boolean()
   }).strict().nullable(),
   controls: z.array(z.object({ code, at: paper.nullable() }).strict()).max(2000),
-  courses: z.array(z.object({ courseId: uuid, start: paper.nullable(), finish: paper.nullable() }).strict()).max(1000),
+  /** `routeRunners` = löpare med publicerat resultat på banan och uppladdad GPS-rutt (för kalibreringen). */
+  courses: z.array(z.object({ courseId: uuid, start: paper.nullable(), finish: paper.nullable(), routeRunners: count }).strict()).max(1000),
   published: z.array(routeChoicePublishedCourseSchema).max(5000),
   /** Kartfilen som de publicerade linjerna räknades på; skiljer den sig från dagens kartfil visas de inte publikt. */
   publishedMapSha256: sha256.nullable()

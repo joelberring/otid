@@ -112,6 +112,24 @@ function placeOnMapFile(source: NonNullable<Awaited<ReturnType<typeof loadSource
   return { points, placement, mismatch: onPaper.length > 0 && !fits };
 }
 
+/** Individuella löpare per bana med publicerat resultat och uppladdad GPS-rutt. */
+async function routeRunnersPerCourse(tx: Transaction, raceId: string): Promise<Map<string, number>> {
+  const routes = await tx.select({ entryId: schema.participantRoutes.entryId, courseId: schema.courseVersions.courseId,
+    relayLeg: schema.entries.relayLeg }).from(schema.participantRoutes)
+    .innerJoin(schema.entries, eq(schema.entries.id, schema.participantRoutes.entryId))
+    .innerJoin(schema.classes, eq(schema.classes.id, schema.entries.classId))
+    .innerJoin(schema.courseVersions, eq(schema.courseVersions.id, schema.classes.courseVersionId))
+    .where(eq(schema.participantRoutes.raceId, raceId));
+  const counts = new Map<string, number>();
+  if (routes.length === 0) return counts;
+  const timed = new Set((await publicResultTimings(tx, raceId)).filter(timing => timing.startMs !== null).map(timing => timing.entryId));
+  for (const route of routes) {
+    if (route.relayLeg !== null || !timed.has(route.entryId)) continue;
+    counts.set(route.courseId, (counts.get(route.courseId) ?? 0) + 1);
+  }
+  return counts;
+}
+
 /** Publicerade banor med kartfilen de räknades på (tomt när inget är publicerat). */
 function publishedCourses(published: RouteChoicePublished | null | undefined) {
   return (published?.courses ?? []).map(course => ({ courseId: course.courseId, variantCode: course.variantCode,
@@ -141,11 +159,13 @@ export async function readRouteChoiceAsAdmin(db: Database, input: ReadProof, now
     ].filter(item => item.paper || item.geo);
     const layout = placeOnMapFile(source, places);
     const at = (key: string) => layout.points.get(key) ?? null;
+    const routeRunners = await routeRunnersPerCourse(tx, raceId);
     return { status: "ok" as const, response: adminRouteChoiceSchema.parse({ ...base,
       mapFile: { sha256: source.sha256, scale: source.scale, render: source.render, georeference: source.georeference,
         image: { width: source.width, height: source.height }, placement: layout.placement, mismatch: layout.mismatch },
       controls: controls.map(control => ({ code: control.code, at: at(`c${control.code}`) })).sort((left, right) => left.code - right.code),
-      courses: courses.map(course => ({ courseId: course.id, start: at(`s${course.id}`), finish: at(`f${course.id}`) })) }) };
+      courses: courses.map(course => ({ courseId: course.id, start: at(`s${course.id}`), finish: at(`f${course.id}`),
+        routeRunners: routeRunners.get(course.id) ?? 0 })) }) };
   });
 }
 

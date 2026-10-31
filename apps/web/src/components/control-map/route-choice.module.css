@@ -1,0 +1,35 @@
+/* Steg 60: vägvalen i kontrollkartan. Sparsam färg: bästa vägen svart med vit kant, stråket som tonad banlila yta, alternativen streckade. */
+.routes { pointer-events: none; }
+.corridor { fill: color-mix(in srgb, var(--accent) 22%, transparent); }
+.alternative { fill: none; stroke: var(--ink); opacity: .75; stroke-linecap: round; stroke-linejoin: round; }
+.halo { fill: none; stroke: var(--surface); stroke-linecap: round; stroke-linejoin: round; opacity: .9; }
+.best { fill: none; stroke: var(--ink); stroke-linecap: round; stroke-linejoin: round; }
+.muted { color: var(--muted); font-size: var(--text-sm); margin: 0; }
+.panel { display: grid; gap: 12px; min-width: 0; }
+.status { color: var(--muted); font-size: var(--text-sm); margin: 0; }
+.table { border-collapse: collapse; width: 100%; font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
+.table th, .table td { padding: 4px 6px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+.table th:first-child, .table td:first-child, .table td:last-child, .table th:last-child { text-align: left; }
+.table caption { text-align: left; font-weight: 600; padding-bottom: 4px; }
+.table tbody tr { cursor: pointer; }
+.table tbody tr[aria-selected="true"] { background: var(--subtle); }
+.table tbody tr[aria-selected="true"] th { box-shadow: inset 3px 0 0 var(--accent); }
+.legButton { border: 0; padding: 0; background: none; color: inherit; font: inherit; font-weight: 700; cursor: pointer; text-decoration: underline; }
+.verdict[data-kind="ROUTE_CHOICE"] { font-weight: 700; }
+.verdict[data-kind="ABOUT_EQUAL"] { font-weight: 700; color: var(--attention); }
+.verdict[data-kind="NO_ROUTE"] { font-weight: 700; color: var(--mp); }
+.verdict[data-kind="PENDING"], .verdict[data-kind="NO_PLACE"] { color: var(--muted); }
+.warnings { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+.warnings li { color: var(--mp); font-weight: 600; }
+.details { border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 12px; background: var(--surface); }
+.details > summary { cursor: pointer; font-weight: 600; }
+.details[open] > summary { margin-bottom: 8px; }
+.form { display: grid; gap: 8px; }
+.form label { display: grid; gap: 4px; font-size: var(--text-sm); }
+.form input, .form select { max-width: 100%; }
+.numbers { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+.numbers input { width: 7rem; }
+.symbols { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.symbols li { display: grid; gap: 4px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 640px) { .symbols li { grid-template-columns: minmax(0, 1fr) 14rem; align-items: center; } }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }

@@ -27,10 +27,12 @@ export interface DrawnEnd { readonly key: string; readonly at: XY; readonly kind
  * Steg 52 (ADR-0176): kontrollkartan som SVG. Kartbilden under (beskuren till utsnittet), sträckorna, kontrollerna som
  * ringar, starttriangel och målring, och en skalstock. Bara färgtoken. Bilden skalar med bredden; sidan rullar aldrig i sidled.
  */
-export function ControlMapSvg({ view, image, controls, lines, ends, metersPerUnit, label, children }: {
+export function ControlMapSvg({ view, image, controls, lines, ends, metersPerUnit, label, children, underlay }: {
   view: ControlMapView; image?: { href: string; width: number; height: number } | undefined;
   controls: readonly DrawnControl[]; lines: readonly DrawnLine[]; ends: readonly DrawnEnd[];
   metersPerUnit: number | null; label: string; children?: ReactNode;
+  /** Steg 60: ritas på kartbilden under kontrollerna (vägvalen). */
+  underlay?: ReactNode;
 }) {
   // Texten och strecken hålls läsbara när bilden är smal (mobilen): minst 11 px text och 1,5 px streck på skärmen.
   const svg = useRef<SVGSVGElement>(null);
@@ -52,6 +54,7 @@ export function ControlMapSvg({ view, image, controls, lines, ends, metersPerUni
     <title>{label}</title>
     <rect className={styles.paper} x={view.x} y={view.y} width={view.width} height={view.height} />
     {image && <image className={styles.image} href={image.href} x={0} y={0} width={image.width} height={image.height} />}
+    {underlay}
     <g style={{ strokeWidth: stroke }}>
       {lines.map(line => <line key={line.key} className={styles.leg} data-tone={line.tone} x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2} />)}
       {ends.map(end => end.kind === "START"

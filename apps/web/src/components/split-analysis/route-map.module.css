@@ -48,3 +48,9 @@
 .course polyline, .course circle { fill: none; stroke: var(--accent); stroke-width: 2px; opacity: .85; }
 .course [data-leg] circle { stroke-width: 3.5px; opacity: 1; }
 .course text { fill: var(--accent); font-weight: 700; paint-order: stroke; stroke: #fff; stroke-width: 3px; }
+
+/* Steg 60: bästa vägvalet enligt kartan: streckad blå linje (skiljer sig från löparnas röda och svarta även utan färg). */
+.best .halo { stroke-width: 6px; opacity: .9; }
+.best .line { stroke: #1f5fbf; stroke-width: 3px; stroke-dasharray: 10 6; }
+.swatch[data-kind="best"] { border-top: 3px dashed #1f5fbf; }
+.bestLegend { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 8px; align-items: center; margin: 0; font-size: var(--text-sm); }

@@ -43,7 +43,9 @@ const adminFiles = [
   // Steg 56: stafettformulären.
   "relay-form-sv.ts",
   // Steg 61: kartor till starten.
-  "map-bundles-sv.ts"
+  "map-bundles-sv.ts",
+  // Steg 60: vägvalsanalysen.
+  "route-choice-sv.ts"
 ];
 /** Delade textfiler (även publika sidor): bara nycklarna som arbetsytan läser granskas. */
 const sharedFiles = ["sv.ts", "account-sv.ts"];

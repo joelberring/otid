@@ -3,13 +3,13 @@
  * Banläggningen (steg 62, ADR-0180). Funktionerna nedan är kontraktet mellan paketet och webben; de byggs i
  * `src/*.ts` och ersätter stubbarna.
  */
+import { readPpenDocument } from "./ppen-read";
+import { writePpenDocument } from "./ppen-write";
+import { controlOrder, courseVariantList, nextUnusedCode, summaries } from "./summary";
 import type {
   CourseCheck, CourseSettingDocument, CourseSettingEdit, CourseSummary, CourseVariant, EditResult, OverprintOptions,
   OverprintPrimitive, PpenReadWarning
 } from "./types";
-
-import { readPpenDocument } from "./ppen-read";
-import { writePpenDocument } from "./ppen-write";
 
 export * from "./types";
 
@@ -24,14 +24,14 @@ export function emptyDocument(_options: { readonly title: string; readonly mapSc
 /** Gör en ändring. Kastar `CourseSettingEditError` när den inte går. */
 export function applyEdit(_document: CourseSettingDocument, _edit: CourseSettingEdit): EditResult { return notYet("applyEdit"); }
 /** Banans kontroller i ordning för en variant (eller alla grenar, i ordningen de ritas). */
-export function courseControlOrder(_document: CourseSettingDocument, _course: string, _variant?: string): readonly string[] { return notYet("courseControlOrder"); }
+export function courseControlOrder(document: CourseSettingDocument, course: string, variant?: string): readonly string[] { return controlOrder(document, course, variant); }
 /** Alla varianter av en bana, med koder som Purple Pen. */
-export function courseVariants(_document: CourseSettingDocument, _course: string): readonly CourseVariant[] { return notYet("courseVariants"); }
+export function courseVariants(document: CourseSettingDocument, course: string): readonly CourseVariant[] { return courseVariantList(document, course); }
 /** Längd, antal kontroller och varianter per bana (längden i meter med kartans skala). */
-export function courseSummaries(_document: CourseSettingDocument): readonly CourseSummary[] { return notYet("courseSummaries"); }
+export function courseSummaries(document: CourseSettingDocument): readonly CourseSummary[] { return summaries(document); }
 /** Kontrollerna som banläggaren bör titta på. */
 export function checkDocument(_document: CourseSettingDocument): readonly CourseCheck[] { return notYet("checkDocument"); }
 /** Banpåtrycket som figurer i kartans mm (skärm nu, PDF i steg 65). */
 export function layoutOverprint(_document: CourseSettingDocument, _options: OverprintOptions): readonly OverprintPrimitive[] { return notYet("layoutOverprint"); }
 /** Nästa lediga kodsiffra enligt numreringen. */
-export function nextFreeCode(_document: CourseSettingDocument): string { return notYet("nextFreeCode"); }
+export function nextFreeCode(document: CourseSettingDocument): string { return nextUnusedCode(document); }

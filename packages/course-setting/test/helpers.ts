@@ -1,7 +1,7 @@
 /** Hjälp för testerna: Purple Pens testfiler och normaliserad XML. */
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { parseXml, type XmlElement } from "../src/xml";
+import { attr, childElements, parseXml, textOf, type XmlElement } from "../src/xml";
 
 /** Purple Pens testfiler (BSD, finns inte i repot); sökvägen sätts med `OTID_PURPLE_PEN_TESTFILES`. */
 export const testFilesDir = process.env.OTID_PURPLE_PEN_TESTFILES
@@ -54,3 +54,19 @@ export function normalize(element: XmlElement): unknown {
 }
 
 export const normalizedXml = (xml: string) => normalize(parseXml(xml).root);
+
+const child = (element: XmlElement, name: string) => childElements(element).find(c => c.name === name);
+
+export interface IofCourse { readonly name: string; readonly family: string; readonly length: number; readonly codes: readonly string[] }
+
+/** Banorna i en IOF CourseData 3.0 (Purple Pens export): namn, familj, längd och kodsiffrorna i ordning. */
+export function iofCourses(xml: string): IofCourse[] {
+  const root = parseXml(xml).root;
+  const raceCourseData = child(root, "RaceCourseData")!;
+  return childElements(raceCourseData).filter(c => c.name === "Course").map(course => ({
+    name: textOf(child(course, "Name")!),
+    family: textOf(child(course, "CourseFamily") ?? child(course, "Name")!),
+    length: Number(textOf(child(course, "Length") ?? { name: "Length", attrs: [], children: ["NaN"] })),
+    codes: childElements(course).filter(c => c.name === "CourseControl" && attr(c, "type") === "Control").map(c => textOf(child(c, "Control")!))
+  }));
+}

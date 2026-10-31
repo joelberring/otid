@@ -19,6 +19,7 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Prestanda: 1,5 km i terräng (≈ 690 000 celler) 0,66–0,90 s i Node på 2 kärnor; kostnadsmodellen 0,1–0,2 s.
 - Kalibreringen bara provad på syntetiska spår; branter/vallar/staket som går att passera kostar inget extra ännu.
 - Verifierat: lint, typecheck, test, test:integration (96 filer, 397 tester), Playwright vagval-analys, kartfil, kontrollkarta, strackanalys, banhemlighet, kartbuntar.
+- Ostadigt: strackanalys föll två gånger i en serie av flera specar (kartbilden syns inte inom 15 s, rad 115) men går igenom ensam; inte utrett.
 
 ### 2026-10-31 – Steg 61: gafflingar till start och karta (agent C, gren steg61-gafflingar)
 - Domän `map-bundles.ts`: en plan (`planMapBundles`) för tryckantal (löpare + lediga tider med efteranmälans variantregel + reserv i

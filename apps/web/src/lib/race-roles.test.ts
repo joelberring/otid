@@ -25,6 +25,9 @@ const FUNCTIONARY_ALLOWED: Record<string, readonly string[]> = {
   "admin/races/[raceId]/administrator/manual-return": ["POST"],
   "admin/races/[raceId]/administrator/manual-return-withdrawal": ["POST"],
   "admin/races/[raceId]/administrator/start-correction": ["POST"],
+  /** Steg 61: kartor till starten – läsa och skriva ut (reserven bara administratören). */
+  "admin/races/[raceId]/administrator/map-bundles": ["GET"],
+  "admin/races/[raceId]/administrator/map-print": ["POST"],
   "admin/races/[raceId]/administrator/speaker-board": ["GET"],
   "admin/races/[raceId]/administrator/relay": ["GET"],
   /** PLAN.md steg 40: festens läge, gästnamn och bardiskens in- och utcheckning (varor och ångra bara administratören). */

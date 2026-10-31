@@ -67,7 +67,10 @@ describe("avläsning i webbläsaren", () => {
     const payload = buildReadoutPayload(read.card, read.frames, { reference: NOW, timeZone: TIME_ZONE, simulated: true });
     expect(evaluateLocally(payload, pkg)).toMatchObject({ status: "OK", variant: { code: "BA", assigned: true } });
     const other = { ...pkg, raceSnapshot: { ...pkg.raceSnapshot, entries: pkg.raceSnapshot.entries.map((entry) => ({ ...entry, courseVariantCode: "AB" })) } };
-    expect(evaluateLocally(payload, other)).toMatchObject({ status: "MP", variant: { code: "AB", assigned: true } });
+    // Steg 61: stämplingarna passar BA utan fel – "Fick löparen fel karta?" i beskedet och på kvittot.
+    expect(evaluateLocally(payload, other)).toMatchObject({ status: "MP", variant: { code: "AB", assigned: true },
+      wrongMap: { assignedCode: "AB", fittingCodes: ["BA"] } });
+    expect(evaluateLocally(payload, pkg).wrongMap).toBeUndefined();
   });
 
   it("visar felstämpling och saknat mål", async () => {

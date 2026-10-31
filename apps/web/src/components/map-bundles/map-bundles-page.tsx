@@ -149,7 +149,7 @@ export function MapBundlesPage({ raceId }: { raceId: string }) {
           <BackSheet page={page} settings={settings} clock={clock} /></div>)}
       </div>
     </section>}
-    {(printing === "BACKS" || printing === "TEST") && <div className={styles.printPages}>
+    {(printing === "BACKS" || printing === "TEST") && <div className={styles.printPages} data-testid="map-back-print">
       {printing === "TEST" ? <BackSheet page="TEST" settings={settings} clock={clock} />
         : pages.map((page, index) => <BackSheet key={index} page={page} settings={settings} clock={clock} />)}
     </div>}

@@ -17,6 +17,8 @@ import { georeferenceRaceMapAsAdmin, saveParticipantRouteAsAdmin, saveRaceMapAsA
 import { publicResults } from "../../src/results";
 import { deleteEventAsOwner } from "../../src/account-self-service";
 import { loginUserAccount } from "../../src/user-account";
+import { emptyDocument } from "@o-tid/course-setting";
+import { saveCourseSettingAsAdmin } from "../../src/course-setting";
 import { grantRacePerson, registerTestAccount, accountOnRace } from "./accounts";
 
 /**
@@ -161,6 +163,12 @@ async function fillRace(f: { proof: Proof; eventId: string; classId: string }, o
   expect((await saveParticipantRouteAsAdmin(db, { ...proof, entryId: annaId, bytes: new TextEncoder().encode(gpx),
     fileName: "anna.gpx" })).status).toBe("ok");
 
+  // Steg 62: banläggningen med en tidigare version.
+  const document = emptyDocument({ title: "Banläggning", mapScale: 10_000 });
+  for (const expectedVersion of [0, 1]) {
+    expect((await saveCourseSettingAsAdmin(db, { ...proof, request: { formatVersion: 1, expectedVersion, document } })).status).toBe("ok");
+  }
+
   // Medadministratör som har öppnat arbetsytan.
   expect((await grantRacePerson(db, owner, proof.raceId, helperEmail, "ADMIN")).status).toBe("granted");
   expect((await accountOnRace(db, { ...helper, raceId: proof.raceId })).status).toBe("authenticated");
@@ -182,7 +190,7 @@ describe("ADR-0172 ta bort tävling", () => {
     const touched = [...filled].filter(([table, count]) => count > (before.get(table) ?? 0) && !ACCOUNT_TABLES.has(table)).map(([table]) => table);
     for (const table of ["raw_device_message", "card_readout", "result_revision", "start_list_publication",
       "race_eventor_link", "source_snapshot", "race_map", "participant_route", "event_administration_grant",
-      "audit_event", "entry", "course_version"]) expect(touched, table).toContain(table);
+      "audit_event", "entry", "course_version", "course_setting", "course_setting_revision"]) expect(touched, table).toContain(table);
 
     // Bara ägaren, och bara med tävlingens namn.
     expect((await deleteEventAsOwner(db, { ...helper.proof, raceId: doomed.proof.raceId },

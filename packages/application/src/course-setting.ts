@@ -20,7 +20,8 @@ import { previewCourseFileProjectionAsAdmin } from "./source-sync";
  *
  * Sparandet låser inte tävlingen (ADR-0177: avläsningen går före); två sparanden för samma tävling turas om med ett lås
  * per tävling. Autosparandet ger inte en tidigare version per sparande: en version behålls när den är minst tio minuter
- * äldre än den senast behållna, sparades av någon annan, eller ersätts av en inläst .ppen eller en återställning.
+ * äldre än den senast behållna, sparades av någon annan, kom från en inläsning eller återställning, eller ersätts av en
+ * inläst .ppen eller en återställning.
  */
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 type Failure = { status: "unauthorized" | "forbidden" | "invalid-request" | "not-found" | "too-large" };
@@ -85,10 +86,12 @@ async function store(tx: Transaction, input: { raceId: string; actorId: string; 
   const { raceId, actorId, now, current, kind, document } = input;
   const version = (current?.version ?? 0) + 1;
   if (current) {
-    const [latest] = await tx.select({ createdAt: schema.courseSettingRevisions.createdAt, createdBy: schema.courseSettingRevisions.createdBy })
-      .from(schema.courseSettingRevisions).where(eq(schema.courseSettingRevisions.raceId, raceId))
-      .orderBy(desc(schema.courseSettingRevisions.version)).limit(1);
+    const table = schema.courseSettingRevisions;
+    const [latest] = await tx.select({ version: table.version, kind: table.kind, createdAt: table.createdAt, createdBy: table.createdBy })
+      .from(table).where(eq(table.raceId, raceId)).orderBy(desc(table.version)).limit(1);
+    // Versionen som en inläsning eller återställning gav behålls alltid (den går att gå tillbaka till).
     const keep = kind !== "SAVE" || !latest || latest.createdBy !== current.updatedBy ||
+      (latest.kind !== "SAVE" && latest.version === current.version - 1) ||
       current.updatedAt.getTime() - latest.createdAt.getTime() >= REVISION_INTERVAL_MS;
     if (keep) {
       await tx.insert(schema.courseSettingRevisions).values({ raceId, version: current.version, kind, document: current.document,

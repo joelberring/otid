@@ -165,7 +165,7 @@ export function addPoint(state: EditorState, tool: Tool, at: Point, apply: Apply
 /** Klick på en befintlig kontroll med "Lägg in på banan": in efter vald kontroll. */
 export function insertExisting(state: EditorState, control: string, apply: Apply): EditorState {
   if (state.view === ALL_CONTROLS || !state.document.controls[control]) return state;
-  const kind = state.document.controls[control]!.kind;
+  const kind = state.document.controls[control].kind;
   const after = insertAfter(state, kind);
   return applySteps(state, [{ type: "INSERT_COURSE_CONTROL", course: state.view, control, after }], apply,
     (created, document) => ({ kind: "control", control, courseControl: created && document.courseControls[created] ? created : undefined }));

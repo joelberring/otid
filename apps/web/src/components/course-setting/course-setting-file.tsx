@@ -1,0 +1,95 @@
+"use client";
+
+import { useRef, useState } from "react";
+import { COURSE_SETTING_PPEN_MAX_BYTES, type CourseSettingRevisions } from "@o-tid/contracts";
+import { CourseSettingEditError, readPpen, writePpen, type CourseSettingDocument, type PpenReadWarning } from "@o-tid/course-setting";
+import { courseSettingSv as text } from "../../i18n/course-setting-sv";
+import { courseSettingBase, downloadText, fetchCourseSettingRevisions } from "../../lib/course-setting-api";
+import { Button, Notice } from "../ui";
+import styles from "./course-setting.module.css";
+
+export interface ReadFile { readonly document: CourseSettingDocument; readonly warnings: readonly PpenReadWarning[]; readonly fileName: string;
+  readonly ppen: string }
+
+/** Läser en vald .ppen i webbläsaren (ADR-0177). Ger dokumentet eller ett begripligt fel. */
+export async function readChosenPpen(file: File): Promise<ReadFile | { error: string }> {
+  if (file.size > COURSE_SETTING_PPEN_MAX_BYTES) return { error: text.file.tooLarge };
+  const ppen = await file.text();
+  try {
+    const { document, warnings } = readPpen(ppen);
+    return { document, warnings, fileName: file.name.slice(0, 200) || "banlaggning.ppen", ppen };
+  } catch (error) {
+    if (error instanceof CourseSettingEditError) return { error: text.file.invalid };
+    throw error;
+  }
+}
+
+/** Filväljaren för .ppen (inläsning ersätter dokumentet; `onRead` frågar och sparar). */
+export function PpenImport({ onRead, busy, label = text.file.import }: { onRead: (file: ReadFile) => Promise<void>; busy: boolean; label?: string }) {
+  const input = useRef<HTMLInputElement>(null);
+  const [message, setMessage] = useState<string>();
+  const [reading, setReading] = useState(false);
+  async function read() {
+    const file = input.current?.files?.[0];
+    if (!file) return;
+    setMessage(undefined); setReading(true);
+    try {
+      const result = await readChosenPpen(file);
+      if ("error" in result) { setMessage(result.error); return; }
+      await onRead(result);
+      if (input.current) input.current.value = "";
+    } catch (error) {
+      console.error("Filen kunde inte läsas", error);
+      setMessage(text.file.invalid);
+    } finally { setReading(false); }
+  }
+  return <form className={styles.row} onSubmit={event => { event.preventDefault(); void read(); }}>
+    <label>{text.file.importLabel}<input ref={input} className={styles.fileInput} type="file" accept=".ppen,application/xml,text/xml"
+      disabled={busy || reading} data-testid="course-setting-ppen" /></label>
+    <Button type="submit" variant="secondary" disabled={busy || reading}>{label}</Button>
+    {reading && <p role="status" className={styles.muted}>{text.file.reading}</p>}
+    {message && <p role="alert" className={styles.muted}>{message}</p>}
+  </form>;
+}
+
+/** Fil: läs in, ladda ned som .ppen (writePpen), den inlästa filen orörd och tidigare versioner. */
+export function FilePanel({ raceId, document, original, busy, onImport, onRestore }: {
+  raceId: string; document: CourseSettingDocument; original: { fileName: string } | null; busy: boolean;
+  onImport: (file: ReadFile) => Promise<void>; onRestore: (version: number) => Promise<boolean>;
+}) {
+  const [revisions, setRevisions] = useState<CourseSettingRevisions["revisions"]>();
+  const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
+  async function showRevisions() {
+    try { setRevisions((await fetchCourseSettingRevisions(raceId)).revisions); } catch { setMessage({ tone: "error", text: text.loadFailed }); }
+  }
+  function download() {
+    const title = document.event.title.trim().replace(/[^\p{L}\p{N} ._-]/gu, "_") || "banlaggning";
+    downloadText(`${title}.ppen`, writePpen(document));
+  }
+  return <section className={styles.panel} aria-labelledby="course-setting-file">
+    <h2 id="course-setting-file">{text.file.heading}</h2>
+    <PpenImport onRead={onImport} busy={busy} />
+    <p className={styles.muted}>{text.file.importHelp}</p>
+    <div className={styles.row}>
+      <Button variant="secondary" onClick={download}>{text.file.download}</Button>
+      {original && <a href={`${courseSettingBase(raceId)}/course-setting/original`} download>{text.file.downloadOriginal(original.fileName)}</a>}
+    </div>
+    {!revisions && <div className={styles.row}><Button variant="quiet" onClick={() => void showRevisions()}>{text.revisions.show}</Button></div>}
+    {revisions && <>
+      <h3 className={styles.muted}>{text.revisions.heading}</h3>
+      {revisions.length === 0 ? <p className={styles.muted}>{text.revisions.none}</p> : <ul className={styles.revisions}>
+        {revisions.map(revision => <li key={revision.version}>
+          <span>{text.revisions.kind[revision.kind]}: {text.revisions.row(revision.version, new Date(revision.createdAt).toLocaleString("sv-SE",
+            { dateStyle: "short", timeStyle: "short" }), revision.createdBy.displayName, revision.courses, revision.controls)}</span>
+          <Button variant="quiet" disabled={busy} onClick={() => void (async () => {
+            if (!window.confirm(text.revisions.restoreConfirm(revision.version))) return;
+            const ok = await onRestore(revision.version);
+            setMessage(ok ? { tone: "ok", text: text.revisions.restored(revision.version) } : { tone: "error", text: text.revisions.failed });
+            if (ok) await showRevisions();
+          })()}>{text.revisions.restore}</Button>
+        </li>)}
+      </ul>}
+    </>}
+    {message && <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>{message.text}</Notice>}
+  </section>;
+}

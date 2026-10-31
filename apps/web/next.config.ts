@@ -34,7 +34,7 @@ const nextConfig: NextConfig = {
       // Steg 42: QR-skylten har samma skydd.
       { source: "/fest/:code/qr", headers: [noIndex] },
       { source: "/api/public/parties/:path*", headers: [noIndex, { key: "Cache-Control", value: "private, no-store" }] },
-      ...["", "/manage", "/readout", "/speaker", "/imports", "/party-labels"].map((surface) => ({
+      ...["", "/manage", "/readout", "/speaker", "/imports", "/party-labels", "/course-setting"].map((surface) => ({
         source: `/admin/:raceId${surface}`, headers: [...privateAdminHeaders]
       })),
       // Avläsningen och bardisken: adressen i arbetsytan och det statiska skalet som den leder till.

@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import styles from "../race-administrator-workspace.module.css";
+import { courseSettingSv } from "../../i18n/course-setting-sv";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
 import { raceWorkspaceNavigationSv as navigationText } from "../../i18n/race-workspace-navigation-sv";
 import { rogainingSv } from "../../i18n/rogaining-sv";
@@ -21,6 +23,9 @@ export function PreparationCourses({ ws }: { ws: Workspace }) {
     {visible && <CourseTable ws={ws} visible={visible} />}
     <CourseClassForm ws={ws} />
     {visible && <CourseFileSection ws={ws} />}
+    {/* Steg 62: banläggningen i webben (inte för rogaining, som har sina kontroller med poäng här). */}
+    {visible && !ws.functionary && !ws.profile.features.rogaining && <p className={styles.workflowHelp}>
+      <Link href={`/admin/${ws.raceId}/course-setting`}>{courseSettingSv.link}</Link> – {courseSettingSv.linkHelp}</p>}
   </section>;
 }
 

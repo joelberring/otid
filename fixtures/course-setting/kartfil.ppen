@@ -6,6 +6,7 @@
   <event id="1">
     <title>Kvällsträning på kartfilen</title>
     <map kind="OCAD" scale="10000" ignore-missing-fonts="false">kartfil.omap</map>
+    <standards map="2017" description="2018" />
     <all-controls print-scale="10000" description-kind="symbols" />
     <print-area automatic="true" restrict-to-page-size="true" left="-10" top="90" right="110" bottom="-10" page-width="827" page-height="1169" page-margins="0" page-landscape="false" />
     <numbering start="31" disallow-invertible="false" />

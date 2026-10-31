@@ -5,7 +5,7 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 62 (banläggning: .ppen och editorn) pågår; därefter 63–65 (ADR-0180). Steg 59–61 är klara. Steg 59 (kartfilen) är klart. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
+Steg 62 (banläggning: .ppen och editorn) pågår; därefter 63–65 (ADR-0180). Steg 59–61 är klara. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
 Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbens löpare via `cachedcompetitors`, strukturen) provad mot riktiga Eventor 2026-10-19; hela landets `cachedcompetitors` och `/api/organisations` måste provas av ägaren; ROC:s sökväg för stämplingar (bara provad mot falsk ROC) och e-post via SMTP är inte provade.
 
 ## Logg

@@ -5,22 +5,20 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 60 – vägvalsanalys (webben på steg60-webb, motorn på steg60-motor). Steg 61 är klart. Steg 59 (kartfilen) är klart. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
+Steg 60 (vägvalsanalys), 61 och 59 är klara. Nästa i spåret: banläggning i webben och tryck med dekorfärger. Steg 59 (kartfilen) är klart. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
 Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbens löpare via `cachedcompetitors`, strukturen) provad mot riktiga Eventor 2026-10-19; hela landets `cachedcompetitors` och `/api/organisations` måste provas av ägaren; ROC:s sökväg för stämplingar (bara provad mot falsk ROC) och e-post via SMTP är inte provade.
 
 ## Logg
 
-### 2026-10-31 – Steg 60: vägvalsanalysen i webben (agent W, gren steg60-webb; motorn på steg60-motor)
-- Migration 0030 `race_route_choice` (inställningar + publicerade bästa vägar i kartfilens mm med kartfilens sha256). Applikation
-  `route-choice.ts` (läge, inställningar, publicering, kalibreringens ruttdelar utan namn), API under `administrator/route-choice*`, bara admin.
-- Kontrollkartans läge "Vägval": Worker (`lib/route-choice-worker.ts`) hämtar kartfilen, bygger modellen en gång och räknar banan sträcka för
-  sträcka (avbryts vid byte); tabell, summa, varningar i klartext, karta med bästa väg, stråk och alternativ. Inställningar (okända symboler,
-  ekvidistans, stigning, fart), kalibrering, "Visa bästa vägval publikt"; publika vägvalskartan visar linjen bara när banorna är publika.
-- Djurgården 2025 (OCAD) med Natt-KM:s bana, manuellt i Node: 20 sträckor, modellen 0,25 s, 1,1–1,5 km 1,3–1,5 s per sträcka.
-- Kalibreringen: ruttdelarna (ms från sträckans start, WGS 84) räknas om till kartfilens mm i webbläsaren och går till motorns
-  `calibrateSpeeds`; före/efter och "Spara" skriver `speedByClass`. Fixtur `fixtures/maps/vagval.omap` (kartfil.omap + sjö): 31–32 har vägval.
-- Verifierat: lint, typecheck, test, test:integration (96 filer), Playwright vagval-analys, kartfil, kontrollkarta, strackanalys, banhemlighet.
-- Kvar: prestandakravet (< 1 s per 1,5 km i webbläsaren) och motorns egna punkter bockas av på steg60-motor.
+### 2026-10-31 – Steg 60: vägvalsanalys (motorn steg60-motor, webben steg60-webb, ihopslagna i main)
+- `packages/route-choice`: standardtabell (ISOM/ISSprOM + egna tumregler), kostnadsmodell, rutnät per sträcka (2 m / 0,5 m sprint, större ruta
+  vid behov), A* med 16 grannar och två fält, stråk ≤ 5 %, upp till 3 alternativ, stigning ur höjdkurvorna, ±15 % → "ungefär lika", kalibrering.
+- Migration 0030 `race_route_choice` (inställningar, publicerade bästa vägar med kartfilens sha256). Worker räknar i webbläsaren; servern lagrar.
+- Kontrollkartans läge "Vägval": tabell, summa, varningar, karta med bästa väg, stråk och alternativ; inställningar, kalibrering, "Visa bästa vägval publikt".
+- Djurgården H21, 20 sträckor: OCAD och Mapper samma besked (±10 m); 3 vägval, 13 tydligt bästa, 4 ungefär lika; ingen saknar väg.
+- Prestanda: 1,5 km i terräng (≈ 690 000 celler) 0,66–0,90 s i Node på 2 kärnor; kostnadsmodellen 0,1–0,2 s.
+- Kalibreringen bara provad på syntetiska spår; branter/vallar/staket som går att passera kostar inget extra ännu.
+- Verifierat: lint, typecheck, test, test:integration (96 filer, 397 tester), Playwright vagval-analys, kartfil, kontrollkarta, strackanalys, banhemlighet, kartbuntar.
 
 ### 2026-10-31 – Steg 61: gafflingar till start och karta (agent C, gren steg61-gafflingar)
 - Domän `map-bundles.ts`: en plan (`planMapBundles`) för tryckantal (löpare + lediga tider med efteranmälans variantregel + reserv i

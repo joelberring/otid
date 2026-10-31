@@ -994,11 +994,11 @@ fortfarande i Purple Pen/macpurplepen (tryck i O-Tid är ett senare steg).
 - [x] **Tester:** domän (tryckantal, fel karta-matchning, kontrollen), integration `steg-61-gafflingar-start`, Playwright
   (kartbuntslista, fel karta → godkänn på annan variant).
 
-## [ ] Steg 60 – Vägvalsanalys
+## [x] Steg 60 – Vägvalsanalys
 
 ADR-0179 (beslut 7–13). Migration 0030. Kontraktet: `packages/route-choice/src/types.ts`.
 
-- [ ] **Löpbarhet per symbol** i ett nytt rent paket `packages/route-choice`. Standardtabellen utgår från ISOM 2017-2:s
+- [x] **Löpbarhet per symbol** i ett nytt rent paket `packages/route-choice`. Standardtabellen utgår från ISOM 2017-2:s
   riktvärden och ISSprOM 2019-2. Värdena nedan är startvärden att kalibrera:
 
   | Klass | Exempel (ISOM) | Fart mot normal skog |
@@ -1010,21 +1010,24 @@ ADR-0179 (beslut 7–13). Migration 0030. Kontraktet: `packages/route-choice/src
   | Nästan stopp | 410 | 0–0,2 |
   | Ej passerbar | 201 stup, 301 sjö, 515, 521.1, 520 förbjudet område, sprintens byggnader | spärr |
 
-  Symboler som saknas i tabellen listas ("räknas som vanlig skog") och kan ges en klass per tävling.
-- [ ] **Rutnät per sträcka:** sträckans ruta plus marginal (minst 300 m), 2 m celler i skog och 0,5 m i sprint
+  Symboler som saknas i tabellen listas ("räknas som vanlig skog") och kan ges en klass per tävling. Banpåtryckets
+  förbjudna område är 708/709 (spärr); 707 markerad sträcka och 711 förbjuden väg räknas som vanlig mark. Genomgångar
+  (519) och passager (710) öppnar staket, murar och byggnader där de står.
+- [x] **Rutnät per sträcka:** sträckans ruta plus marginal (minst 300 m), 2 m celler i skog och 0,5 m i sprint
   (smala passager mellan hus). Varje cell får den långsammaste symbolen som täcker den. Linjer som stigar, staket och
   murar läggs in med sin bredd, och ej passerbara linjer spärrar alltid.
-- [ ] **Bästa väg:** sökning med 16 grannar (mindre sicksack än 8) från båda ändar. Summan av de två fälten ger alla
+- [x] **Bästa väg:** sökning med 16 grannar (mindre sicksack än 8) från båda ändar. Summan av de två fälten ger alla
   vägar som högst är 5 % sämre än den bästa. Det visas som ett tonat stråk, och det är den tydligaste bilden av om en
   sträcka har vägval. Upp till tre tydligt skilda vägval (högst 15 % sämre och mindre än hälften gemensamt) tas fram
-  genom att straffa den bästa vägens stråk och söka igen.
-- [ ] **Höjd ur kartan, inget annat.** Analysen använder bara det de tävlande ser på kartan (ägaren 2026-10-31).
+  ur de två fälten: celler prövas i ordning efter vägen genom dem, och en väg godtas bara om den inte är en onödig krok.
+  (Att straffa bästa vägen och söka igen gav krokar ut i öppen skog.)
+- [x] **Höjd ur kartan, inget annat.** Analysen använder bara det de tävlande ser på kartan (ägaren 2026-10-31).
   Orienteringskartor har höjdkurvor men inga höjdvärden (kontrollerat på Djurgården 2025 i både OCAD och Mapper).
   Stigningen räknas som antalet passerade höjdkurvor (101, 102) gånger ekvidistansen, plus hjälpkurvor (103) som halv
   ekvidistans. Standard 5 m eller enligt arrangören, och 1 m stigning räknas som 8 m plan väg (inställbart). Uppför och
   nedför skiljs inte åt. Branter (201, 202) och annan terräng räknas via sina symboler. Ingen höjdmodell och ingen
   rekonstruktion av höjder ur kurvorna.
-- [ ] **Osäkerheten syns:** farterna är riktvärden (ISOM:s spann för vegetation, egna tumregler för stigar och
+- [x] **Osäkerheten syns:** farterna är riktvärden (ISOM:s spann för vegetation, egna tumregler för stigar och
   stigning). Varje sträcka räknas också med alla farter 15 % högre och 15 % lägre; byter bästa vägvalet plats märks
   sträckan "Vägvalen är ungefär lika bra", annars är beskedet robust.
 - [x] **Kalibrering mot GPS-rutter:** "Justera farterna efter de här rutterna" skattar fart per symbolklass ur löparnas
@@ -1042,9 +1045,9 @@ ADR-0179 (beslut 7–13). Migration 0030. Kontraktet: `packages/route-choice/src
   sträcktidsanalysen en linje "Bästa vägval enligt kartan" bredvid löparnas GPS-rutter, med samma regler som i dag
   (ADR-0171 beslut 5, ADR-0176). Kartfilen lämnas aldrig ut publikt, så arrangörens webbläsare sparar de bästa vägarna
   per sträcka ("Visa bästa vägval publikt", små linjer i jsonb) och det publika läser bara dem.
-- [ ] **Prestanda mätt:** en sträcka på 1,5 km i skog (cirka 1 miljon celler) ska ta under 1 s på en vanlig laptop. En
+- [x] **Prestanda mätt:** en sträcka på 1,5 km i skog (cirka 1 miljon celler) ska ta under 1 s på en vanlig laptop. En
   hel bana räknas sträcka för sträcka med svar efter hand. Mätningen skrivs i STATUS.md.
-- [ ] **Tester:** `route-choice` (kostnadstabell, rastrering, sökning mot kända svar på små syntetiska kartor, stråk,
+- [x] **Tester:** `route-choice` (kostnadstabell, rastrering, sökning mot kända svar på små syntetiska kartor, stråk,
   alternativ, stigning), webb (tabellen, varningar), Playwright `vagval-analys.spec.ts` (bana med en känd vägvalssträcka,
   banhemlighet publikt).
 

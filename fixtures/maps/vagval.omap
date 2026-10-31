@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map xmlns="http://openorienteering.org/apps/mapper/xml/v2" version="9">
+<notes>Syntetisk testkarta för O-Tid (steg 60): kartfil.omap plus en sjö (24–33 × 40–63 mm) tvärs över sträckan 31–32, så att den sträckan får vägval norr eller söder om sjön. Påhittad terräng, SWEREF 99 TM.</notes>
+<georeferencing scale="10000" auxiliary_scale_factor="1" declination="0" grivation="0"><projected_crs id="EPSG"><spec language="PROJ.4">+init=epsg:3006</spec><parameter>3006</parameter><ref_point x="675000" y="6580000"/></projected_crs><geographic_crs id="Geographic coordinates"><spec language="PROJ.4">+proj=latlong +datum=WGS84</spec></geographic_crs></georeferencing>
+<colors count="7">
+<color priority="0" name="Violett" c="0.35" m="0.85" y="0" k="0" opacity="1"><cmyk method="custom"/><rgb method="cmyk" r="0.65" g="0.15" b="1"/></color>
+<color priority="1" name="Svart" c="0" m="0" y="0" k="1" opacity="1"><cmyk method="custom"/><rgb method="cmyk" r="0" g="0" b="0"/></color>
+<color priority="2" name="Blå" c="1" m="0" y="0" k="0" opacity="1"><cmyk method="custom"/><rgb method="cmyk" r="0" g="0.6" b="1"/></color>
+<color priority="3" name="Brun" c="0" m="0.56" y="1" k="0.18" opacity="1"><cmyk method="custom"/><rgb method="cmyk" r="0.8" g="0.4" b="0.1"/></color>
+<color priority="4" name="Grön" c="0.76" m="0" y="0.91" k="0" opacity="1"><cmyk method="custom"/><rgb method="cmyk" r="0.25" g="0.8" b="0.2"/></color>
+<color priority="5" name="Gul" c="0" m="0.27" y="0.79" k="0" opacity="1"><cmyk method="custom"/><rgb method="cmyk" r="1" g="0.73" b="0.21"/></color>
+<color priority="6" name="Vit" c="0" m="0" y="0" k="0" opacity="1"><cmyk method="custom"/><rgb method="cmyk" r="1" g="1" b="1"/></color>
+</colors>
+<barrier version="6" required="0.6.0">
+<symbols count="8" id="ISOM">
+<symbol type="4" id="0" code="401.0" name="Öppen mark"><area_symbol inner_color="5" min_area="0" patterns="0"/></symbol>
+<symbol type="4" id="1" code="406.0" name="Skog, löphindrande"><area_symbol inner_color="4" min_area="0" patterns="0"/></symbol>
+<symbol type="4" id="2" code="308.0" name="Sankmark"><area_symbol inner_color="-1" min_area="0" patterns="1"><pattern type="1" angle="0" line_spacing="300" line_offset="0" offset_along_line="0" color="2" line_width="100"/></area_symbol></symbol>
+<symbol type="4" id="3" code="301.0" name="Sjö"><area_symbol inner_color="2" min_area="0" patterns="0"/></symbol>
+<symbol type="2" id="4" code="101.0" name="Höjdkurva"><line_symbol color="3" line_width="140" minimum_length="0" join_style="2" cap_style="1" start_offset="0" end_offset="0" segment_length="0" end_length="0" show_at_least_one_symbol="true" minimum_mid_symbol_count="0" minimum_mid_symbol_count_when_closed="0" dash_length="4000" break_length="1000" dashes_in_group="1" in_group_break_length="500" mid_symbols_per_spot="1" mid_symbol_distance="0"/></symbol>
+<symbol type="2" id="5" code="505.0" name="Stig"><line_symbol color="1" line_width="250" minimum_length="0" join_style="0" cap_style="0" start_offset="0" end_offset="0" dashed="true" segment_length="4000" end_length="0" show_at_least_one_symbol="true" minimum_mid_symbol_count="0" minimum_mid_symbol_count_when_closed="0" dash_length="2000" break_length="250" dashes_in_group="1" in_group_break_length="500" mid_symbols_per_spot="1" mid_symbol_distance="0"/></symbol>
+<symbol type="1" id="6" code="206.0" name="Sten"><point_symbol rotatable="false" inner_radius="200" inner_color="1" outer_width="0" outer_color="-1" elements="0"/></symbol>
+<symbol type="8" id="7" code="999.0" name="Namn"><text_symbol icon_text="A"><font family="Arial" size="3000"/><text color="1" line_spacing="1" paragraph_spacing="0" character_spacing="0"/></text_symbol></symbol>
+</symbols>
+<parts count="1" current="0">
+<part name="förvald del"><objects count="12">
+<object type="1" symbol="1"><coords count="5">0 0;120000 0;120000 -100000;0 -100000;0 0 18;</coords><pattern rotation="0"><coord x="0" y="0"/></pattern></object>
+<object type="1" symbol="0"><coords count="5">30000 -30000;60000 -30000;60000 -55000;30000 -55000;30000 -30000 18;</coords><pattern rotation="0"><coord x="0" y="0"/></pattern></object>
+<object type="1" symbol="2"><coords count="5">70000 -60000;100000 -60000;100000 -80000;70000 -80000;70000 -60000 18;</coords><pattern rotation="0"><coord x="0" y="0"/></pattern></object>
+<object type="1" symbol="3"><coords count="5">85000 -10000;110000 -10000;110000 -25000;85000 -25000;85000 -10000 18;</coords><pattern rotation="0"><coord x="0" y="0"/></pattern></object>
+<object type="1" symbol="3"><coords count="5">24000 -40000;33000 -40000;33000 -63000;24000 -63000;24000 -40000 18;</coords><pattern rotation="0"><coord x="0" y="0"/></pattern></object>
+<object type="1" symbol="4"><coords count="4">5000 -60000;25000 -70000;45000 -66000;65000 -90000;</coords><pattern rotation="0"><coord x="0" y="0"/></pattern></object>
+<object type="1" symbol="4"><coords count="3">10000 -20000;20000 -25000;28000 -15000;</coords><pattern rotation="0"><coord x="0" y="0"/></pattern></object>
+<object type="1" symbol="5"><coords count="4">2000 -5000;40000 -20000;80000 -50000;118000 -95000;</coords><pattern rotation="0"><coord x="0" y="0"/></pattern></object>
+<object type="0" symbol="6" rotation="0"><coords count="1">42000 -61000;</coords></object>
+<object type="0" symbol="6" rotation="0"><coords count="1">76000 -52000;</coords></object>
+<object type="0" symbol="6" rotation="0"><coords count="1">98000 -30000;</coords></object>
+<object type="4" symbol="7" h_align="0" v_align="0"><coords count="1">88000 -18000;</coords><text>Sjön</text></object>
+</objects></part>
+</parts>
+<templates count="0" first_front_template="0"><defaults use_meters_per_pixel="true" meters_per_pixel="0" dpi="0" scale="0"/></templates>
+<view><grid color="#80646464" display="0" alignment="0" additional_rotation="0" unit="1" h_spacing="500" v_spacing="500" h_offset="0" v_offset="0" snapping_enabled="true"/><map_view zoom="1" position_x="60000" position_y="-50000"><map opacity="1" visible="true"/><templates count="0"/></map_view></view>
+</barrier>
+</map>

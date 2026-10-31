@@ -36,7 +36,11 @@ export function segmentCost(grid: SearchGrid, pace: Float32Array, ax: number, ay
     cost += (next - t) * length * p;
     t = next;
     if (col === endCol && row === endRow) break;
-    if (tMaxX <= tMaxY) { col += stepX; tMaxX += tDeltaX; } else { row += stepY; tMaxY += tDeltaY; }
+    if (Math.abs(tMaxX - tMaxY) < 1e-9) {
+      // Genom ett hörn: som sökningens diagonalsteg (båda hörncellerna måste vara passerbara, ingen stigning i dem).
+      if (pace[index + stepX] === Infinity || pace[index + stepY * w] === Infinity) return { cost: Infinity, climbUnits, meters: length * grid.cellMeters };
+      col += stepX; row += stepY; tMaxX += tDeltaX; tMaxY += tDeltaY;
+    } else if (tMaxX < tMaxY) { col += stepX; tMaxX += tDeltaX; } else { row += stepY; tMaxY += tDeltaY; }
     if (col < 0 || row < 0 || col >= w || row >= h) break;
     const nextIndex = row * w + col;
     climbUnits += Math.abs(contour[nextIndex]! - contour[index]!);

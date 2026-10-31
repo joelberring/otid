@@ -111,7 +111,9 @@ class Plan {
   constructor(readonly colors: ReadonlyMap<number, MapColor>, readonly simplifications: Simplifications) {}
   add(colorId: number, drawer: (ctx: MapCanvasContext, color: MapColor) => void) {
     const color = this.colors.get(colorId);
-    if (!color || color.opacity <= 0) return;
+    // En färg som inte finns i färgtabellen (t.ex. Mappers registerfärg för passmärken) ritas inte.
+    if (!color) { this.simplifications.add("Delar i färger som saknas i färgtabellen (t.ex. passmärken) ritas inte"); return; }
+    if (color.opacity <= 0) return;
     const list = this.byColor.get(colorId);
     const item: Drawer = ctx => drawer(ctx, color);
     if (list) list.push(item); else this.byColor.set(colorId, [item]);
@@ -237,7 +239,9 @@ function planArea(plan: Plan, symbol: AreaSymbol, rings: readonly Path[], angleD
             ctx.save();
             clipTo(ctx, rings);
             ctx.translate(cx, cy);
-            if (angleDegrees !== 0) ctx.rotate(angleDegrees * DEGREES);
+            // Rutnätets egen vinkel (symbolen) plus objektets vinkel.
+            const rotation = (pattern.angle ?? 0) + angleDegrees;
+            if (rotation !== 0) ctx.rotate(rotation * DEGREES);
             for (let i = -nx; i <= nx; i += 1) for (let j = -ny; j <= ny; j += 1) {
               placed(ctx, { x: i * pattern.dx, y: j * pattern.dy }, 0, () => { for (const part of parts) drawElement(ctx, part, color); });
             }

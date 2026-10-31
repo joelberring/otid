@@ -78,7 +78,6 @@ export function MapFileSummary({ source, downloadHref }: { source: Source; downl
     </p>
     {source.summary.simplifications.length > 0 && <p className={styles.muted}>
       {summary.simplifications}: {source.summary.simplifications.join(". ")}.</p>}
-    {skipped.length > 0 && <p className={styles.muted}>
-      {summary.warnings}: {skipped.map(warning => `${warning.text} (${warning.count})`).join(". ")}.</p>}
+    {skipped.length > 0 && <p className={styles.muted}>{skipped.map(warning => warning.text).join(" ")}</p>}
   </div>;
 }

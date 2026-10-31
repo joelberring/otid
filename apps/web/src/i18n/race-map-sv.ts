@@ -62,8 +62,7 @@ export const raceMapSv = {
       objects: (count: number) => count === 1 ? "1 objekt" : `${count.toLocaleString("sv-SE")} objekt`,
       fromFile: "Georefererad ur filen",
       setPoints: "Sätt tre punkter",
-      simplifications: "Förenklat i bilden",
-      warnings: "Hoppades över"
+      simplifications: "Förenklat i bilden"
     }
   },
   georeference: {

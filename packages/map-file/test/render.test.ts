@@ -152,6 +152,14 @@ describe("drawMap", () => {
     expect(report.simplifications).toContain("Text ritas med standardtypsnitt och vänsterställd");
   });
 
+  it("vrider punktmönstret med mönstrets vinkel plus objektets", () => {
+    const symbols: MapSymbol[] = [{ id: "rocky", kind: "AREA", code: code("209"), name: "Stenig mark", hidden: false, hatches: [],
+      pattern: { dx: 2, dy: 2, angle: 45, elements: [{ kind: "dot", color: 1, center: { x: 0, y: 0 }, diameter: 0.2 }] } }];
+    const { ctx, calls } = fakeContext();
+    drawMap(ctx, map(symbols, [{ kind: "area", symbol: "rocky", rings: [square(0, 0, 4)], angle: 15 }]), { pxPerMm: 8, origin: { x: 0, y: 30 } });
+    expect(calls.find(call => call.op === "rotate")?.args[0]).toBeCloseTo(60 * Math.PI / 180);
+  });
+
   it("ritar kombinerade symboler med sina delar och text i bildens pixlar", () => {
     const symbols: MapSymbol[] = [
       { id: "fill", kind: "AREA", code: code("301.1"), name: "", hidden: false, fill: 2, hatches: [] },
@@ -181,6 +189,7 @@ describe("drawMap", () => {
     ]), { pxPerMm: 8, origin: { x: 0, y: 30 } });
     expect(strokes(calls)).toEqual([]);
     expect(report.parts).toBe(1);
+    expect(report.simplifications).toContain("Delar i färger som saknas i färgtabellen (t.ex. passmärken) ritas inte");
   });
 });
 

@@ -136,11 +136,12 @@ export function planMapBundles(input: {
       slots.push({ vacancy, raceClass, variantCode: code });
     }
   }
-  // Startordning: tid, klass, variant, namn (lediga tider efter löparna samma minut); fri start sist per klass.
+  // Startordning: tid, klass, namn (lediga tider efter löparna samma minut); fri start sist per klass. Varianten ingår inte,
+  // så att ett byte av variant inte flyttar startnumren.
   const sortKey = (slot: Slot) => slot.entry ? slot.entry.startTime : slot.vacancy!;
   slots.sort((left, right) => timeOf(sortKey(left)) - timeOf(sortKey(right)) ||
     compare(left.raceClass.name, right.raceClass.name) || compare(left.raceClass.id, right.raceClass.id) ||
-    compare(left.variantCode ?? "", right.variantCode ?? "") || Number(!left.entry) - Number(!right.entry) ||
+    Number(!left.entry) - Number(!right.entry) ||
     compare(left.entry?.name ?? "", right.entry?.name ?? "") || compare(left.entry?.id ?? "", right.entry?.id ?? ""));
   const rows: MapBundleRow[] = slots.map((slot, index) => ({ number: index + 1, entryId: slot.entry?.id ?? null,
     name: slot.entry?.name ?? null, club: slot.entry?.club ?? null, classId: slot.raceClass.id, className: slot.raceClass.name,
@@ -180,18 +181,17 @@ export function planMapBundles(input: {
   };
 }
 
-/** Kartbuntslistan per starttid: en grupp per minut (fri start sist, per klass och variant). */
-export function mapBundlesByTime(rows: readonly MapBundleRow[]): { readonly startTime: string | null; readonly label?: string;
-  readonly rows: readonly MapBundleRow[] }[] {
-  const result: { startTime: string | null; label?: string; rows: MapBundleRow[] }[] = [];
+/** Kartbuntslistan per starttid: en grupp per minut; fri start sist, en grupp per klass. */
+export function mapBundlesByTime(rows: readonly MapBundleRow[]): { readonly startTime: string | null; readonly rows: readonly MapBundleRow[] }[] {
+  const result: { startTime: string | null; classId: string | null; rows: MapBundleRow[] }[] = [];
   for (const row of rows) {
     const minute = row.startTime === null ? null : new Date(Math.floor(Date.parse(row.startTime) / 60_000) * 60_000).toISOString();
-    const label = row.startTime === null ? `${row.className}\u0000${row.variantCode ?? ""}` : undefined;
+    const classId = minute === null ? row.classId : null;
     const last = result.at(-1);
-    if (last && last.startTime === minute && last.label === label) last.rows.push(row);
-    else result.push({ startTime: minute, ...(label ? { label } : {}), rows: [row] });
+    if (last && last.startTime === minute && last.classId === classId) last.rows.push(row);
+    else result.push({ startTime: minute, classId, rows: [row] });
   }
-  return result;
+  return result.map(({ startTime, rows: groupRows }) => ({ startTime, rows: groupRows }));
 }
 
 /** Kartbuntslistan per klass och variant (masstart): klasserna i namnordning, varianterna i banans ordning. */
@@ -234,6 +234,7 @@ export function mapBackPages(groups: readonly MapBundleGroup[]): MapBackPage[] {
 /** Det som sparas när en lista skrivs ut: varje löpares karta och tryckantalet per grupp. */
 export interface PrintedMapRow {
   readonly entryId: string;
+  readonly number: number;
   readonly name: string;
   readonly className: string;
   readonly courseName: string;
@@ -245,7 +246,7 @@ export interface PrintedMapState { readonly rows: readonly PrintedMapRow[]; read
 
 export function printedMapState(plan: MapBundlePlan): PrintedMapState {
   return {
-    rows: plan.rows.flatMap((row) => row.entryId === null || row.name === null ? [] : [{ entryId: row.entryId, name: row.name,
+    rows: plan.rows.flatMap((row) => row.entryId === null || row.name === null ? [] : [{ entryId: row.entryId, number: row.number, name: row.name,
       className: row.className, courseName: row.courseName, variantCode: row.variantCode, startTime: row.startTime }]),
     counts: plan.groups.map((group) => ({ courseName: group.courseName, variantCode: group.variantCode, printCount: group.printCount }))
   };
@@ -257,11 +258,13 @@ export type MapPrintChange =
   | { readonly kind: "VARIANT"; readonly name: string; readonly className: string; readonly from: string | null; readonly to: string | null }
   | { readonly kind: "CLASS"; readonly name: string; readonly from: string; readonly to: string; readonly variantCode: string | null }
   | { readonly kind: "START_TIME"; readonly name: string; readonly className: string; readonly from: string | null; readonly to: string | null }
-  | { readonly kind: "COUNT"; readonly courseName: string; readonly variantCode: string | null; readonly from: number; readonly to: number };
+  | { readonly kind: "COUNT"; readonly courseName: string; readonly variantCode: string | null; readonly from: number; readonly to: number }
+  /** Startnumret har flyttats för så många löpare som fanns förut (t.ex. efter en efteranmälan med fri start). */
+  | { readonly kind: "NUMBERS"; readonly count: number };
 
 /**
  * Vad som ändrats sedan listan skrevs ut: nya och borttagna löpare, ändrad variant, klass eller starttid, och (med
- * `counts`) ändrat tryckantal. Startnumret räknas inte, eftersom det följer av ordningen.
+ * `counts`) ändrat tryckantal. Flyttade startnummer räknas ihop till en rad.
  */
 export function mapPrintChanges(printed: PrintedMapState, current: PrintedMapState, options: { readonly counts?: boolean } = {}): MapPrintChange[] {
   const before = new Map(printed.rows.map((row) => [row.entryId, row]));
@@ -275,6 +278,8 @@ export function mapPrintChanges(printed: PrintedMapState, current: PrintedMapSta
     if (timeOf(old.startTime) !== timeOf(row.startTime)) changes.push({ kind: "START_TIME", name: row.name, className: row.className,
       from: old.startTime, to: row.startTime });
   }
+  const moved = current.rows.filter((row) => before.has(row.entryId) && before.get(row.entryId)!.number !== row.number).length;
+  if (moved > 0) changes.push({ kind: "NUMBERS", count: moved });
   for (const row of printed.rows) {
     if (!after.has(row.entryId)) changes.push({ kind: "REMOVED", name: row.name, className: row.className, variantCode: row.variantCode });
   }

@@ -290,6 +290,31 @@ export function alignReadoutToCourse(punches: readonly Punch[], snapshot: RaceSn
     missingControls: expected.flatMap((control, index) => matchedExpected.has(index) || control.neutralized ? [] : [control.controlCode]) };
 }
 
+/**
+ * Fel karta vid starten (PLAN.md steg 61): löparen har en tilldelad variant och är felstämplad mot den (saknad kontroll
+ * eller fel ordning), men stämplingarna passar en annan variant av samma bana utan fel. Samma matchning, kontroller ur
+ * funktion och tidsrättningar som bedömningen. Ger den tilldelade varianten och varianterna som passar (banans ordning),
+ * annars undefined. Bara ett besked: inget byts och resultatet är oförändrat.
+ */
+export function wrongMapVariants(readout: EvaluationReadout, snapshot: RaceSnapshot, entryId: string):
+  { readonly assignedCode: string; readonly fittingCodes: readonly string[] } | undefined {
+  const entry = snapshot.entries.find((candidate) => candidate.id === entryId);
+  const raceClass = entry && snapshot.classes.find((candidate) => candidate.id === entry.classId);
+  if (!entry || !raceClass || raceClass.rogaining || entry.teamSprint) return undefined;
+  const courseVersion = activeVersion(snapshot, entryCourseVersionId(entry, raceClass));
+  const assigned = courseVersion && assignedCourseVariant(courseVersion, entry.courseVariantCode);
+  if (!courseVersion || !assigned) return undefined;
+  const punches = prepareReadoutForEvaluation(readout, snapshot).readout.punches;
+  const outOfOrder = controlCodesOutOfOrder(snapshot);
+  const codesOf = (variant: typeof assigned) => [...variant.controls].sort((left, right) => left.sequence - right.sequence)
+    .map((control) => control.controlCode);
+  const ok = (match: ControlMatch) => !match.wrongOrder && match.missingControls.length === 0;
+  if (ok(matchControls(expectedOf(codesOf(assigned), outOfOrder), punches, ANY_TIME))) return undefined;
+  const fittingCodes = courseVariantsOf(courseVersion).filter((variant) => variant.code !== assigned.code && variant.controls.length > 0 &&
+    ok(matchControls(expectedOf(codesOf(variant), outOfOrder), punches, ANY_TIME))).map((variant) => variant.code);
+  return fittingCodes.length > 0 ? { assignedCode: assigned.code, fittingCodes } : undefined;
+}
+
 export function evaluateCardReadout(
   input: EvaluationReadout,
   snapshot: RaceSnapshot

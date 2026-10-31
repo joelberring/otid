@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   courseVariantForReadout, distributeCourseVariants, entryCourseControls, evaluateCardReadout, leastUsedCourseVariant, storedResultCourseVariant,
-  unevenCourseVariantLegs, withProposedCourseVersion, withProposedEntryVariants, type EvaluationReadout, type RaceSnapshot
+  unevenCourseVariantLegs, withProposedCourseVersion, withProposedEntryVariants, wrongMapVariants, type EvaluationReadout, type RaceSnapshot
 } from "../src";
 
 const ids = {
@@ -172,5 +172,23 @@ describe("sparat resultats variant", () => {
     expect(storedResultCourseVariant(variants, null, variantCodes("BC"))?.code).toBe("BC");
     expect(storedResultCourseVariant(variants, "XX", [])?.code).toBe("AC");
     expect(storedResultCourseVariant([], "AC", [31])).toBeUndefined();
+  });
+});
+
+describe("fel karta vid starten (steg 61)", () => {
+  it("felstämplad mot AC men stämplingarna passar BD", () => {
+    expect(wrongMapVariants(readout(variantCodes("BD")), snapshot("AC"), ids.entry)).toEqual({ assignedCode: "AC", fittingCodes: ["BD"] });
+    // Godkänd mot sin variant: inget besked.
+    expect(wrongMapVariants(readout(variantCodes("AC")), snapshot("AC"), ids.entry)).toBeUndefined();
+    // Utan tilldelad variant bedöms avläsningen redan mot den som passar.
+    expect(wrongMapVariants(readout(variantCodes("BD")), snapshot(), ids.entry)).toBeUndefined();
+    // Ingen variant passar utan fel: inget besked.
+    expect(wrongMapVariants(readout(variantCodes("BD").filter((code) => code !== 63)), snapshot("AC"), ids.entry)).toBeUndefined();
+  });
+
+  it("samma neutralisering som bedömningen: kontroll ur funktion krävs inte på den andra varianten", () => {
+    const punched = readout(variantCodes("BD").filter((code) => code !== 63));
+    const outOfOrder: RaceSnapshot = { ...snapshot("AC"), controlsOutOfOrder: [{ id: "out", controlCode: 63 }] };
+    expect(wrongMapVariants(punched, outOfOrder, ids.entry)).toEqual({ assignedCode: "AC", fittingCodes: ["BD"] });
   });
 });

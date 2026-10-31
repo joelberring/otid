@@ -84,8 +84,11 @@ export interface AreaSymbol extends SymbolBase {
   readonly kind: "AREA";
   readonly fill?: number | undefined;
   readonly hatches: readonly HatchStyle[];
-  /** Punktmönster i rutnät (t.ex. stenig mark). */
-  readonly pattern?: { readonly elements: readonly PointElement[]; readonly dx: number; readonly dy: number } | undefined;
+  /**
+   * Punktmönster i rutnät (t.ex. stenig mark): elementen upprepas var `dx` mm längs raden och var `dy` mm mellan raderna.
+   * Förskjutna rader ligger som extra element i samma ruta. `angle` är rutnätets vinkel i grader moturs (0 när den saknas).
+   */
+  readonly pattern?: { readonly elements: readonly PointElement[]; readonly dx: number; readonly dy: number; readonly angle?: number | undefined } | undefined;
   /** Kantlinje som ritas längs ytans ytterkant. */
   readonly border?: readonly StrokeStyle[] | undefined;
 }

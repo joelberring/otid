@@ -1,6 +1,6 @@
 /** Mapper-symboler (`<symbol type=…>`) → modellens symboler. Mått i Mapper är 0,001 mm. */
-import { NO_CODE, parseSymbolCode } from "../geometry";
-import type { AreaSymbol, HatchStyle, LineSymbol, MapSymbol, PathCommand, PointElement, StrokeStyle, TextSymbol } from "../model";
+import { moveCommand, moveElement, NO_CODE, normalizeAngle, normalizeHatchAngle, parseSymbolCode } from "../geometry";
+import type { AreaSymbol, HatchStyle, LineSymbol, MapSymbol, PointElement, StrokeStyle, TextSymbol } from "../model";
 import type { WarningCollector } from "../warnings";
 import { coordsToParts, parseCoordText } from "./coords";
 import { asArray, attr, bool, child, num, text, type XmlNode } from "./xml";
@@ -123,20 +123,32 @@ function lineSymbol(line: XmlNode | undefined): Pick<LineSymbol, "strokes" | "re
   return { strokes, repeated: elements.length > 0 && spacing > 0 ? { elements, spacing } : undefined };
 }
 
+/**
+ * Ytans mönster. Linjemönster blir raster. Punktmönster med samma vinkel och rutstorlek slås ihop till en ruta med
+ * flera element (Mapper skriver OCAD:s förskjutna rader som två mönster med förskjutning); övriga punktmönster hoppas över.
+ */
 function areaSymbol(area: XmlNode | undefined): Pick<AreaSymbol, "fill" | "hatches" | "pattern" | "border"> {
   const hatches: HatchStyle[] = [];
-  let pattern: AreaSymbol["pattern"];
+  let pattern: { elements: PointElement[]; dx: number; dy: number; angle: number } | undefined;
   for (const node of asArray(area?.pattern)) {
-    const angle = num(node, "angle", 0) * DEG;
+    const radians = num(node, "angle", 0);
     const spacing = num(node, "line_spacing", 0) * UM;
     if (attr(node, "type") === "1") {
       const hatchColor = color(node, "color");
       const width = num(node, "line_width", 0) * UM;
-      if (hatchColor !== null && width > 0 && spacing > 0) hatches.push({ color: hatchColor, width, spacing, angle });
-    } else if (attr(node, "type") === "2" && !pattern) {
+      if (hatchColor !== null && width > 0 && spacing > 0) {
+        hatches.push({ color: hatchColor, width, spacing, angle: normalizeHatchAngle(radians * DEG) });
+      }
+    } else if (attr(node, "type") === "2") {
       const elements = pointElements(child(child(node, "symbol"), "point_symbol"));
       const dx = num(node, "point_distance", 0) * UM;
-      if (elements.length > 0 && dx > 0 && spacing > 0) pattern = { elements, dx, dy: spacing };
+      if (elements.length === 0 || dx <= 0 || spacing <= 0) continue;
+      const angle = normalizeAngle(radians * DEG);
+      const along = num(node, "offset_along_line", 0) * UM;
+      const across = (0 - num(node, "line_offset", 0)) * UM;
+      const moved = elements.map(element => moveElement(element, along, across));
+      if (!pattern) pattern = { elements: moved, dx, dy: spacing, angle };
+      else if (pattern.dx === dx && pattern.dy === spacing && pattern.angle === angle) pattern.elements.push(...moved);
     }
   }
   return { fill: color(area, "inner_color") ?? undefined, hatches, pattern, border: undefined };
@@ -177,7 +189,7 @@ function pointElements(point: XmlNode | undefined, center = { x: 0, y: 0 }, dept
       elements.push(...pointElements(child(symbol, "point_symbol"), at, depth + 1));
       continue;
     }
-    const parts = coordsToParts(triples).map(part => part.map(command => shift(command, center)));
+    const parts = coordsToParts(triples).map(part => part.map(command => moveCommand(command, center.x, center.y)));
     if (parts.length === 0) continue;
     if (type === "2") {
       const line = child(symbol, "line_symbol");
@@ -190,13 +202,4 @@ function pointElements(point: XmlNode | undefined, center = { x: 0, y: 0 }, dept
     }
   }
   return elements;
-}
-
-function shift(command: PathCommand, by: { x: number; y: number }): PathCommand {
-  if (by.x === 0 && by.y === 0) return command;
-  if (command.type !== "C") return { type: command.type, x: command.x + by.x, y: command.y + by.y };
-  return {
-    type: "C", x1: command.x1 + by.x, y1: command.y1 + by.y, x2: command.x2 + by.x, y2: command.y2 + by.y,
-    x: command.x + by.x, y: command.y + by.y
-  };
 }

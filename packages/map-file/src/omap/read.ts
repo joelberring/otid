@@ -4,10 +4,10 @@
  * Huvudet (färger, georeferens, symboler) tolkas med fast-xml-parser. Objekten (`<parts>`), som är nästan hela filen,
  * läses med en egen linjär genomgång av texten: det är flera gånger snabbare och håller minnet nere för 60 MB-filer.
  */
-import { XMLParser } from "fast-xml-parser";
+import { XMLParser, XMLValidator } from "fast-xml-parser";
 import { clamp01, rgbFromCmyk, spotName } from "../color";
 import { crsFromEpsg } from "../georef";
-import { boundsOf } from "../geometry";
+import { boundsOf, normalizeAngle, openRing } from "../geometry";
 import { MapFileError, type MapColor, type MapGeoreference, type MapObject, type MapSymbol, type ParsedMap } from "../model";
 import { WarningCollector } from "../warnings";
 import { coordsToParts, joinParts, parseCoordText } from "./coords";
@@ -58,6 +58,11 @@ function findTag(content: string, name: string, from: number): number {
 function parseHeader(header: string): XmlNode {
   // Ikonerna (base64-PNG per symbol) behövs inte och tas bort före tolkningen.
   const stripped = header.replace(/<icon\b[^>]*\/>/g, "");
+  // Parsern godtar en del trasig XML; huvudet är litet (objekten är redan bortklippta), så det kontrolleras först.
+  const valid = XMLValidator.validate(stripped);
+  if (valid !== true) {
+    throw new MapFileError("INVALID", `Mapper-filen går inte att tolka som XML (rad ${valid.err.line}: ${valid.err.msg}).`);
+  }
   let document: XmlNode;
   try {
     const parser = new XMLParser({
@@ -82,8 +87,9 @@ function readColors(colorsNode: XmlNode | undefined): MapColor[] {
   const nodes = asArray(colorsNode?.color);
   const names = new Map<number, string>();
   nodes.forEach((node, index) => {
-    const own = asArray(child(node, "spotcolors")?.namedcolor)[0];
-    names.set(num(node, "priority", index), own ? text(own) : "");
+    // <namedcolor> utan attribut blir en ren sträng i parsern, med attribut ett objekt med "#text".
+    const own = child(node, "spotcolors")?.namedcolor;
+    names.set(num(node, "priority", index), text(Array.isArray(own) ? own[0] : own).trim());
   });
   const colors = nodes.map((node, index): MapColor => {
     const id = num(node, "priority", index);
@@ -127,7 +133,7 @@ function readGeoreference(node: XmlNode | undefined, warnings: WarningCollector)
       scale,
       crs,
       refPoint: { easting: num(refPoint, "x", 0), northing: num(refPoint, "y", 0) },
-      mapRefPoint: mapRef ? { x: num(mapRef, "x", 0) / 1000, y: -num(mapRef, "y", 0) / 1000 } : { x: 0, y: 0 },
+      mapRefPoint: mapRef ? { x: num(mapRef, "x", 0) / 1000, y: (0 - num(mapRef, "y", 0)) / 1000 } : { x: 0, y: 0 },
       grivationDegrees: num(node, "grivation", 0),
       combinedScaleFactor: factor > 0 ? factor : 1
     }
@@ -183,13 +189,13 @@ function readObject(
   if (!symbols.has(symbol)) { warnings.add(symbol.startsWith("-") ? "OBJECT_WITHOUT_SYMBOL" : "UNKNOWN_SYMBOL"); return null; }
   const triples = readCoords(content, from, to);
   if (!triples || triples.length < 3) { warnings.add("BROKEN_OBJECT"); return null; }
-  const rotation = (Number(attributes.get("rotation") ?? "0") || 0) * (180 / Math.PI);
-  const at = { x: triples[0]! / 1000, y: -triples[1]! / 1000 };
+  const rotation = normalizeAngle((Number(attributes.get("rotation") ?? "0") || 0) * (180 / Math.PI));
+  const at = { x: triples[0]! / 1000, y: (0 - triples[1]!) / 1000 };
   if (type === "0") return { kind: "point", symbol, at, angle: rotation };
   if (type === "4") return { kind: "text", symbol, at, angle: rotation, text: readText(content, from, to) };
   const parts = coordsToParts(triples);
   if (parts.length === 0) { warnings.add("BROKEN_OBJECT"); return null; }
-  if (isArea(symbol)) return { kind: "area", symbol, rings: parts, angle: patternRotation(content, from, to) };
+  if (isArea(symbol)) return { kind: "area", symbol, rings: parts.map(openRing), angle: patternRotation(content, from, to) };
   return { kind: "line", symbol, path: joinParts(parts) };
 }
 
@@ -231,5 +237,5 @@ function patternRotation(content: string, from: number, to: number): number {
   const tagEnd = content.indexOf(">", open);
   if (tagEnd < 0 || tagEnd > to) return 0;
   const rotation = Number(tagAttributes(content.slice(open, tagEnd)).get("rotation") ?? "0");
-  return Number.isFinite(rotation) ? rotation * (180 / Math.PI) : 0;
+  return Number.isFinite(rotation) ? normalizeAngle(rotation * (180 / Math.PI)) : 0;
 }

@@ -23,8 +23,9 @@ export function readParameterStrings(bytes: Bytes, first: number): ParameterStri
       const length = bytes.i32(entry + 4);
       const type = bytes.i32(entry + 8);
       if (position <= 0 || length <= 0) continue;
-      const size = Math.min(length, MAX_STRING_BYTES, bytes.length - position);
-      if (size <= 0) continue;
+      // En sträng som går utanför filen betyder att filen är avkortad.
+      const size = Math.min(length, MAX_STRING_BYTES);
+      bytes.check(position, size, "inställning");
       strings.push({ type, value: bytes.utf8(position, size) });
     }
   }

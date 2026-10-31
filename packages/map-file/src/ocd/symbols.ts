@@ -1,5 +1,5 @@
 /** OCAD-symboler → modellens symboler. Mått i OCAD är 0,01 mm, vinklar 0,1 grad, textstorlek 0,1 punkt. */
-import { ocdSymbolCode } from "../geometry";
+import { moveElement, normalizeAngle, normalizeHatchAngle, ocdSymbolCode } from "../geometry";
 import type { AreaSymbol, HatchStyle, LineSymbol, MapSymbol, PointElement, StrokeStyle, TextSymbol } from "../model";
 import type { WarningCollector } from "../warnings";
 import { indexBlocks, type Bytes } from "./bytes";
@@ -10,16 +10,10 @@ const MAX_SYMBOLS = 100_000;
 const MAX_SYMBOL_BYTES = 1 << 20;
 const POINT_PER_PT = 25.4 / 72;
 
-export interface OcdSymbols {
-  readonly symbols: Map<string, MapSymbol>;
-  readonly kinds: Map<number, number>;
-}
-
-export function readOcdSymbols(bytes: Bytes, first: number, warnings: WarningCollector): OcdSymbols {
+export function readOcdSymbols(bytes: Bytes, first: number, warnings: WarningCollector): Map<string, MapSymbol> {
   const symbols = new Map<string, MapSymbol>();
-  const kinds = new Map<number, number>();
   const borders = new Map<string, number>();
-  if (first === 0) return { symbols, kinds };
+  if (first === 0) return symbols;
   for (const block of indexBlocks(bytes, first, SYMBOL_BLOCK_SIZE)) {
     for (let index = 0; index < 256; index++) {
       const position = bytes.i32(block + 4 + index * 4);
@@ -37,18 +31,14 @@ export function readOcdSymbols(bytes: Bytes, first: number, warnings: WarningCol
         name: bytes.utf16(position + SYMBOL.description, SYMBOL.descriptionBytes),
         hidden: (bytes.u8(position + SYMBOL.status) & 2) !== 0
       };
-      const end = position + size;
+      // Symbolen ryms i filen (kontrollerat ovan). Är den kortare än typens fasta fält ritas den inte, men objekten behålls.
+      const minimum = MIN_SIZE[type];
       let symbol: MapSymbol | null;
-      try {
-        symbol = convert(bytes, position, end, type, base, warnings);
-      } catch {
-        // Trasiga ritdata inom en symbol som ändå ryms i filen: behåll symbolen utan ritning hellre än att tappa objekten.
-        warnings.add("BROKEN_SYMBOL");
-        symbol = emptySymbol(type, base);
-      }
+      if (minimum === undefined) symbol = null;
+      else if (size < minimum) { warnings.add("BROKEN_SYMBOL"); symbol = emptySymbol(type, base); }
+      else symbol = convert(bytes, position, position + size, type, base, warnings);
       if (!symbol) { warnings.add("UNKNOWN_SYMBOL_TYPE"); continue; }
       symbols.set(id, symbol);
-      kinds.set(number, type);
       if (type === SYMBOL_TYPE.area && bytes.u8(position + AREA.borderOn) !== 0) {
         const border = bytes.i32(position + AREA.borderSymbol);
         if (border > 0) borders.set(id, border);
@@ -61,8 +51,18 @@ export function readOcdSymbols(bytes: Bytes, first: number, warnings: WarningCol
     const line = symbols.get(String(border));
     if (area?.kind === "AREA" && line?.kind === "LINE") symbols.set(id, { ...area, border: line.strokes });
   }
-  return { symbols, kinds };
+  return symbols;
 }
+
+/** Minsta storlek per symboltyp för att de fasta fälten ska rymmas. */
+const MIN_SIZE: Readonly<Record<number, number>> = {
+  [SYMBOL_TYPE.point]: POINT.elements,
+  [SYMBOL_TYPE.line]: LINE.elements,
+  [SYMBOL_TYPE.area]: AREA.elements,
+  [SYMBOL_TYPE.text]: TEXT.italic + 2,
+  [SYMBOL_TYPE.lineText]: TEXT.italic + 2,
+  [SYMBOL_TYPE.rectangle]: RECTANGLE.width + 2
+};
 
 type Base = Pick<MapSymbol, "id" | "code" | "name" | "hidden">;
 
@@ -199,15 +199,22 @@ function areaSymbol(bytes: Bytes, at: number, end: number, warnings: WarningColl
     const width = bytes.u16(at + AREA.hatchWidth) * UNIT;
     const spacing = bytes.u16(at + AREA.hatchDistance) * UNIT;
     const angles = [bytes.i16(at + AREA.hatchAngle1), ...(hatchMode === 2 ? [bytes.i16(at + AREA.hatchAngle2)] : [])];
-    if (width > 0 && spacing > 0) for (const angle of angles) hatches.push({ color, width, spacing, angle: angle / 10 });
+    if (width > 0 && spacing > 0) for (const angle of angles) hatches.push({ color, width, spacing, angle: normalizeHatchAngle(angle / 10) });
   }
+  // Mönster 1 = raka rader, 2 = varannan rad förskjuten en halv ruta. Det senare blir en dubbelt så hög ruta med
+  // elementen två gånger, så att modellen bara behöver ett rakt rutnät.
   let pattern: AreaSymbol["pattern"];
   const structureMode = bytes.u8(at + AREA.structureMode);
   if (structureMode === 1 || structureMode === 2) {
     const dx = bytes.u16(at + AREA.structureWidth) * UNIT;
     const dy = bytes.u16(at + AREA.structureHeight) * UNIT;
     const elements = readElements(bytes, at + AREA.elements, bytes.u16(at + AREA.dataSize), end, warnings);
-    if (elements.length > 0 && dx > 0 && dy > 0) pattern = { elements, dx, dy };
+    const angle = normalizeAngle(bytes.i16(at + AREA.structureAngle) / 10);
+    if (elements.length > 0 && dx > 0 && dy > 0) {
+      pattern = structureMode === 1
+        ? { elements, dx, dy, angle }
+        : { elements: [...elements, ...elements.map(element => moveElement(element, dx / 2, -dy))], dx, dy: 2 * dy, angle };
+    }
   }
   return { fill, hatches, pattern };
 }

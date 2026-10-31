@@ -25,6 +25,8 @@ export class Autosaver<D, C = unknown> {
   private inFlight = false;
   private running: Promise<void> | undefined;
   private stopped = false;
+  /** Vyn är borta (eller monteras om): inget sparas förrän `attach`. */
+  private detached = false;
   private readonly delayMs: number;
   private readonly retryMs: number;
   private readonly setTimer: (callback: () => void, ms: number) => unknown;
@@ -70,13 +72,25 @@ export class Autosaver<D, C = unknown> {
     if (this.timer !== undefined) { this.clearTimer(this.timer); this.timer = undefined; }
   }
 
+  /** Vyn finns (Reacts effekt); en ändring som väntar sparas. */
+  attach() {
+    this.detached = false;
+    if (this.pending !== undefined && !this.stopped) this.schedule(this.delayMs);
+  }
+
+  /** Vyn tas bort; en Reacts omkörning av effekterna (StrictMode) följs av `attach`. */
+  detach() {
+    this.detached = true;
+    if (this.timer !== undefined) { this.clearTimer(this.timer); this.timer = undefined; }
+  }
+
   private schedule(ms: number) {
     if (this.timer !== undefined) this.clearTimer(this.timer);
     this.timer = this.setTimer(() => { this.timer = undefined; void this.run(); }, ms);
   }
 
   private run(): Promise<void> {
-    if (this.inFlight || this.stopped || this.pending === undefined) return this.running ?? Promise.resolve();
+    if (this.inFlight || this.stopped || this.detached || this.pending === undefined) return this.running ?? Promise.resolve();
     this.running = this.save().finally(() => { this.running = undefined; });
     return this.running;
   }

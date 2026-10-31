@@ -76,7 +76,7 @@ test("banläggning: .ppen in, flytta, ny bana med klick, ångra, sparat efter om
   await owner.getByRole("button", { name: "Välj och flytta" }).click();
   const legFrom = await screenOf(map, 76, 52), legTo = await screenOf(map, 92, 48);
   await owner.mouse.click((legFrom.x + legTo.x) / 2, (legFrom.y + legTo.y) / 2);
-  await expect(owner.getByTestId("course-setting-selected")).toHaveText("Vald: Sträckan kontroll 33–kontroll 34");
+  await expect(owner.getByTestId("course-setting-selected")).toHaveText("Sträckan kontroll 33–kontroll 34");
   await expect(owner.getByTestId("course-setting-leg").getByText(/Fågelväg/)).toBeVisible({ timeout: 60_000 });
 
   // Ny bana med tre kontroller, byggd med klick.

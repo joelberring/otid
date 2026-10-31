@@ -188,6 +188,7 @@ describe("autosparandet", () => {
       const save = vi.fn(async (document: string, version: number) => document === "konflikt"
         ? { kind: "conflict" as const, conflict: { version: 9 } } : { kind: "saved" as const, version: version + 1 });
       const saver = new Autosaver<string, { version: number }>(3, { save, onStatus: status => statuses.push(status), delayMs: 1500 });
+      saver.detach(); saver.attach();
       saver.change("a"); saver.change("b");
       await vi.advanceTimersByTimeAsync(1000);
       expect(save).not.toHaveBeenCalled();

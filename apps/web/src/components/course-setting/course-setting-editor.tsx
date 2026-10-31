@@ -62,7 +62,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
     save: (document, expectedVersion) => saveCourseSetting(raceId, document, expectedVersion),
     onStatus: (next, detail) => { setStatus(next); if (next === "conflict") setConflict(detail?.conflict); }
   }), [raceId, state.setting.version]);
-  useEffect(() => () => saver.stop(), [saver]);
+  useEffect(() => { saver.attach(); return () => saver.detach(); }, [saver]);
 
   // Kartfilen: en Worker ritar kartan, en annan räknar vägvalen.
   const [mapSession, setMapSession] = useState<MapRenderSession>();

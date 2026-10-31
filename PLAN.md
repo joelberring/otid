@@ -1055,7 +1055,7 @@ ADR-0179 (beslut 7–13). Migration 0030. Kontraktet: `packages/route-choice/src
 
 ADR-0180. Migration 0031. Kontraktet: `packages/course-setting/src/types.ts` och `src/index.ts`.
 
-- [ ] **Paketet `course-setting`:** läsa och skriva .ppen utan att något tappas (alla Purple Pens testfiler och ägarens
+- [x] **Paketet `course-setting`:** läsa och skriva .ppen utan att något tappas (alla Purple Pens testfiler och ägarens
   SBN26_1.ppen går fram och tillbaka), ändringar (`applyEdit`), varianter med Purple Pens koder, längder, nästa lediga
   kod, kontrollerna (ADR-0180 beslut 9) och banpåtrycket som figurer enligt ISOM 2017-2 och ISSprOM 2019-2.
 - [x] **Lagring:** `course_setting` (dokument, version, ändrad av, när) och `course_setting_revision` (tidigare

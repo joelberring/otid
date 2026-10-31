@@ -1,11 +1,12 @@
 /** Hjälp för testerna: Purple Pens testfiler och normaliserad XML. */
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { attr, childElements, parseXml, textOf, type XmlElement } from "../src/xml";
 
-/** Purple Pens testfiler (BSD, finns inte i repot); sökvägen sätts med `OTID_PURPLE_PEN_TESTFILES`. */
+/** Purple Pens testfiler (BSD, kopior i `fixtures/purplepen`); en annan sökväg kan sättas med `OTID_PURPLE_PEN_TESTFILES`. */
 export const testFilesDir = process.env.OTID_PURPLE_PEN_TESTFILES
-  ?? "/tmp/claude-0/-home-claude/002e7d1a-c2f2-5e79-9caf-4b3181a5b50f/scratchpad/purplepen/src/TestFiles";
+  ?? join(dirname(fileURLToPath(import.meta.url)), "../../../fixtures/purplepen");
 
 export function ppenFiles(): string[] {
   if (!existsSync(testFilesDir)) return [];

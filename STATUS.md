@@ -5,10 +5,23 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 61 – gafflingar till start och karta (pågår). Därefter steg 60, vägvalsanalys. Steg 59 (kartfilen) är klart. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
+Steg 61 – gafflingar till start och karta (klart på grenen steg61-gafflingar). Därefter steg 60, vägvalsanalys. Steg 59 (kartfilen) är klart. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
 Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbens löpare via `cachedcompetitors`, strukturen) provad mot riktiga Eventor 2026-10-19; hela landets `cachedcompetitors` och `/api/organisations` måste provas av ägaren; ROC:s sökväg för stämplingar (bara provad mot falsk ROC) och e-post via SMTP är inte provade.
 
 ## Logg
+
+### 2026-10-31 – Steg 61: gafflingar till start och karta (agent C, gren steg61-gafflingar)
+- Domän `map-bundles.ts`: en plan (`planMapBundles`) för tryckantal (löpare + lediga tider med efteranmälans variantregel + reserv i
+  procent eller antal), kartbuntslistan (startnummer i startordning, per starttid eller per klass och variant) och baksidorna
+  (`mapBackPages`: avdelare per variant, sidor = tryckantal) och ändringar sedan utskriften (`mapPrintChanges`). `wrongMapVariants`
+  (fel karta, samma matchning/neutralisering som bedömningen) och `forkingReadiness` (kontrollen före tävlingen).
+- Migration 0029: `map_print` (senaste utskriften per tävling och lista med läget då) och `race.map_reserve`.
+- Webben: sidan Kartor till starten (länk under Start när någon klass är gafflad; funktionären läser och skriver ut, reserven kräver
+  admin), baksidor med A4/A3, riktning, textens läge, spegling och provsida. Variantkod även i startlistan per starttid och per klubb
+  (skärm och CSV). Fel karta i avläsningens besked och kvitto, deltagarkortet ("Godkänn på BD" via `changeEntryVariantAsAdmin` med
+  orsaken i auditposten) och Anmälda-listan. Kontrollraden under Banor. IOF StartList skrev redan varianten (verifierat).
+- Verifierat: se slutrapporten (lint, typecheck, test, test:integration, Playwright `kartbuntar` + gafflingar/avläsning/listor).
+- Kvar: utskriften av baksidorna är bara provad i webbläsarens förhandsvisning, inte på papper mot tryckta kartor.
 
 ### 2026-10-31 – Steg 59: läsarna (agent A, gren steg59-lasare)
 - `packages/map-file`: `readMapFile` för OCAD 12/2018+ och Mapper v9 till modellen i `model.ts`; georeferens SWEREF 99 TM, lokala zoner och RT 90 2,5 gon V
@@ -675,7 +688,7 @@ brickor till steg 7.
 
 - Stafett: bana per sträcka finns bara via en gafflad bana (variant per sträcka). Det fastställda resultatets IOF-export skriver inte lag än. Kvar i skogen räknar även sträcklöpare som inte startat.
 
-- Gafflingar: en klass som byter till en gafflad bana (Redigera klass) får inga varianter automatiskt; "Fördela gafflingar" gör det. IOF StartList/ResultList-export skriver inte variantens namn.
+- Gafflingar: en klass som byter till en gafflad bana (Redigera klass) får inga varianter automatiskt; "Fördela gafflingar" gör det. (Rättat steg 61: IOF StartList och ResultList skriver varianten som bana, "Lång-AC".)
 - Klassbyte till en lottad klass ger inte automatiskt en vakant tid; arrangören anger tid som förut.
 - Fastställande jämför beslutsrevisionens bana med klassens: en disk som ligger kvar efter banändring kan ge "fel bana" där. Pröva i steg 8.5/8.6.
 - …

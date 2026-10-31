@@ -19,6 +19,8 @@ OCAD och Mapper, och formaten ritar linjer olika. Därför ska filerna inte konv
 10. Analysen använder bara kartans information, samma som de tävlande har. Stigningen räknas med höjdkurvor gånger ekvidistans. Ingen höjdmodell.
 11. Analysen räknas i webbläsaren och sparas inte. Bara inställningarna sparas.
 12. Banhemligheten gäller: bara admin innan banorna är publika.
+13. Farterna är riktvärden. Analysen visar när bästa vägvalet byter plats om farterna ändras ±15 %, och farterna kan
+    kalibreras mot löparnas GPS-rutter per tävling.
 
 **Konsekvenser.** Skärmbilden är inte tryckkvalitet. Tryck med dekorfärger och övertryck (steg 4) görs senare på
 servern med låg prioritet eller i macpurplepen. Uppför och nedför skiljs inte åt i stigningen. Filer från äldre OCAD än

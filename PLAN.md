@@ -994,6 +994,11 @@ ADR-0179 (beslut 7–12). Migration 0029 (bara inställningar per tävling).
   ekvidistans. Standard 5 m eller enligt arrangören, och 1 m stigning räknas som 8 m plan väg (inställbart). Uppför och
   nedför skiljs inte åt. Branter (201, 202) och annan terräng räknas via sina symboler. Ingen höjdmodell och ingen
   rekonstruktion av höjder ur kurvorna.
+- [ ] **Osäkerheten syns:** farterna är riktvärden (ISOM:s spann för vegetation, egna tumregler för stigar och
+  stigning). Varje sträcka räknas också med alla farter 15 % högre och 15 % lägre; byter bästa vägvalet plats märks
+  sträckan "Vägvalen är ungefär lika bra", annars är beskedet robust.
+- [ ] **Kalibrering mot GPS-rutter:** "Justera farterna efter de här rutterna" skattar fart per symbolklass ur löparnas
+  uppladdade rutter och sträcktider (ADR-0171) och sparar dem som tävlingens inställning. Tabellen visar före och efter.
 - [ ] **Allt i webbläsaren:** beräkningen körs i en Worker när arrangören öppnar analysen. Resultatet sparas inte i
   databasen (det går snabbt att räkna om), bara inställningarna: klass per symbol, ekvidistans och
   stigningsfaktor (`race_route_choice_settings`, jsonb).

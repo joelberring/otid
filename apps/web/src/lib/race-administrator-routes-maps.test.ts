@@ -15,7 +15,7 @@ async function multipart(parts: Record<string, Blob | string>, fileNames: Record
   return { body: new Uint8Array(await encoded.arrayBuffer()), contentType: encoded.headers.get("content-type")! };
 }
 
-function upload(body: Uint8Array, contentType: string, headers: Record<string, string> = {}) {
+function upload(body: Uint8Array<ArrayBuffer>, contentType: string, headers: Record<string, string> = {}) {
   return new Request("https://otid.example/api/admin", { method: "POST", body, headers: { origin: environment.O_TID_PUBLIC_ORIGIN,
     "x-otid-csrf": csrf, "content-type": contentType, cookie: `__Host-otid-organizer-session=${token}; __Host-otid-organizer-csrf=${csrf}`,
     ...headers } });

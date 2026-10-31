@@ -12,8 +12,9 @@ O-Tid körs med `docker-compose.prod.yml` på en vanlig VPS:
 - Caddy (HTTPS med Let's Encrypt, skickar publika anrop till `web-public`/`web-public2` och allt annat till `web`),
 - en backuptjänst.
 
-All data, även kartbilder och GPS-rutter för vägval (PLAN.md steg 16), ligger i PostgreSQL och kommer
-med i backupen. MinIO behövs inte.
+All data, även kartbilder, kartfiler från OCAD och Mapper (steg 59, högst 60 MB per tävling) och GPS-rutter för vägval
+(PLAN.md steg 16), ligger i PostgreSQL och kommer med i backupen. MinIO behövs inte. Kartfilens uppladdning är den enda
+stora bodyn; `deploy/Caddyfile` tillåter 100 MB för just den sökvägen.
 
 ## Starta
 

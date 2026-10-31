@@ -75,3 +75,35 @@ export interface LegAnalysis {
   readonly warnings: readonly LegWarning[];
   readonly milliseconds: number;
 }
+
+/** Ett GPS-spår för kalibreringen: en löpares väg (t.ex. en sträcka) i kartans mm med tid i ms. */
+export interface CalibrationSample {
+  readonly key?: string | undefined;
+  /**
+   * Löparen (t.ex. deltagarens id). Varje löpare får en egen faktor för sin form; utan id delar alla prov en faktor.
+   * En faktor per sträcka går inte, eftersom den skulle svälja skillnaden mellan klasserna.
+   */
+  readonly runner?: string | undefined;
+  readonly points: readonly { readonly x: number; readonly y: number; readonly ms: number }[];
+}
+
+export type CalibratedClass = Exclude<SpeedClass, "IMPASSABLE" | "IGNORE">;
+
+export interface CalibrationResult {
+  /** Föreslagna farter (relativt normal skog); klasser med för lite data behåller sitt värde. */
+  readonly speedByClass: Readonly<Record<CalibratedClass, number>>;
+  readonly perClass: Readonly<Record<CalibratedClass, {
+    /** Segment som räknats in (klassen utgör minst en del av segmentet). */
+    readonly segments: number;
+    /** Meter i klassen i de inräknade segmenten. */
+    readonly meters: number;
+    /** Farten är skattad ur rutterna (annars behållen). */
+    readonly estimated: boolean;
+  }>>;
+  /** NONE: inget ändrat; LOW/MEDIUM/HIGH efter mängden data. */
+  readonly reliability: "NONE" | "LOW" | "MEDIUM" | "HIGH";
+  readonly samplesUsed: number;
+  readonly segmentsUsed: number;
+  /** Segment som räknats bort (orimlig fart, GPS-hopp, genom ej passerbart, avvikare). */
+  readonly segmentsRejected: number;
+}

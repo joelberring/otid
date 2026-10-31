@@ -5,11 +5,11 @@
  * långsamma klasser.
  */
 import type { Point } from "@o-tid/map-file";
-import { preparedOf } from "./cost-model";
+import { preparedOf, type PreparedModel } from "./cost-model";
 import { RUNNABLE_CLASSES, type ResolvedSettings, type RunnableClass, resolveSettings } from "./defaults";
 import { distance, distanceToPolyline, polylineLength, simplify } from "./geometry";
 import { cellCenter, cellOf, legFrame, paceField, rasterize, strokeLine, type Grid } from "./raster";
-import { backtrack, minimumPace, search, SearchWorkspace, type SearchGrid, type SearchResult } from "./search";
+import { backtrack, minimumPace, pathCost, search, SearchWorkspace, type SearchGrid, type SearchResult } from "./search";
 import { polylineCost, straighten } from "./smooth";
 import type { CostModel, LegAnalysis, LegInput, LegWarning, RouteChoiceSettings, RouteLine } from "./types";
 
@@ -35,6 +35,8 @@ interface Context {
 
 interface FoundRoute {
   readonly corners: number[];
+  /** Rutnätsvägens celler. */
+  readonly cells: number[];
   /** Rutnätsvägens kostnad med farterna sökningen gjordes med (jämförbar med avståndsfälten). */
   readonly gridCost: number;
   readonly cost: number;
@@ -71,10 +73,6 @@ function snap(grid: Grid, pace: Float32Array, at: Point): number {
   return best;
 }
 
-function findRoute(searchGrid: SearchGrid, pace: Float32Array, start: number, goal: number, minPace: number, truePace: Float32Array): FoundRoute | null {
-  return routeFrom(searchGrid, search(searchGrid, pace, start, { goal, minPace }), start, goal, truePace);
-}
-
 /** Vägen ur ett sökträd, uträtad och mätt med `truePace`. */
 function routeFrom(searchGrid: SearchGrid, result: SearchResult, start: number, goal: number, truePace: Float32Array): FoundRoute | null {
   const pace = searchGrid.pace;
@@ -83,7 +81,7 @@ function routeFrom(searchGrid: SearchGrid, result: SearchResult, start: number, 
   if (cells.length === 0) return null;
   const corners = straighten(searchGrid, pace, cells);
   const measured = polylineCost(searchGrid, truePace, corners);
-  return { corners, gridCost: result.cost[goal]!, cost: measured.cost, climbUnits: measured.climbUnits, meters: measured.meters };
+  return { corners, cells, gridCost: result.cost[goal]!, cost: measured.cost, climbUnits: measured.climbUnits, meters: measured.meters };
 }
 
 function toLine(context: Context, route: FoundRoute, from: Point, to: Point): RouteLine {
@@ -165,15 +163,40 @@ function corridorOf(grid: Grid, fieldA: Float64Array, fieldB: Float64Array, limi
  */
 export function analyseLeg(model: CostModel, leg: LegInput, settings?: RouteChoiceSettings | null): LegAnalysis {
   const started = performance.now();
+  // Saknas vägen, eller går bästa vägen längs ramen, räknas sträckan om med större marginal (vägen runt en sjö eller
+  // ett förbjudet område kan ligga utanför den vanliga rutan).
+  const factors = [1, 2.5, 6];
+  let result = analyseInFrame(model, leg, settings, factors[0]!, false);
+  for (let attempt = 1; attempt < factors.length && result.retry; attempt += 1) {
+    result = analyseInFrame(model, leg, settings, factors[attempt]!, attempt === factors.length - 1);
+  }
+  return { ...result.analysis, milliseconds: performance.now() - started };
+}
+
+/** Så nära ramen (celler) räknas bästa vägen som att den går längs kanten. */
+const EDGE_CELLS = 3;
+
+function touchesEdge(grid: Grid, cells: readonly number[]): boolean {
+  for (const index of cells) {
+    const col = index % grid.width, row = (index - col) / grid.width;
+    if (col < EDGE_CELLS || row < EDGE_CELLS || col >= grid.width - EDGE_CELLS || row >= grid.height - EDGE_CELLS) return true;
+  }
+  return false;
+}
+
+function analyseInFrame(model: CostModel, leg: LegInput, settings: RouteChoiceSettings | null | undefined, marginFactor: number, last: boolean):
+  { analysis: LegAnalysis; retry: boolean } {
+  const started = performance.now();
+  let retry = false;
   const prepared = preparedOf(model, settings);
   const resolved = settings ? resolveSettings({ ...settings, classBySymbol: {} }) : prepared.settings;
   const mmPerMeter = 1000 / prepared.scale;
   const straightMeters = distance(leg.from, leg.to) / mmPerMeter;
   const warnings: LegWarning[] = [];
-  const finish = (rest: Omit<LegAnalysis, "key" | "straightMeters" | "warnings" | "milliseconds">): LegAnalysis =>
-    ({ key: leg.key, straightMeters, ...rest, warnings, milliseconds: performance.now() - started });
+  const finish = (rest: Omit<LegAnalysis, "key" | "straightMeters" | "warnings" | "milliseconds">) =>
+    ({ analysis: { key: leg.key, straightMeters, ...rest, warnings, milliseconds: performance.now() - started }, retry });
 
-  const frame = legFrame(leg.from, leg.to, prepared.scale);
+  const frame = legFrame(leg.from, leg.to, prepared.scale, undefined, marginFactor);
   const grid = rasterize(prepared, frame, resolved.speedByClass);
   const pace = paceField(grid, resolved.speedByClass);
   const searchGrid = searchGridFor(grid, pace, resolved);
@@ -197,15 +220,20 @@ export function analyseLeg(model: CostModel, leg: LegInput, settings?: RouteChoi
   const fromA = search(searchGrid, pace, a.cell, { towards: b.cell, minPace, boundFactorAfterGoal: ALTERNATIVE_FACTOR });
   const best = routeFrom(searchGrid, fromA, a.cell, b.cell, pace);
   if (!best) {
+    // Instängt i rutan: en väg kan finnas utanför den, men bara om sökningen nådde ramen.
+    // Båda ändarna måste nå ramen; är den ena instängd i rutan finns ingen väg hur stor rutan än blir.
+    retry = canGrow(prepared.bounds, grid) && reachedEdge(grid, fromA.cost) && reachedEdge(grid, search(searchGrid, pace, b.cell).cost);
     warnings.push({ kind: "NO_ROUTE" });
     return finish({ best: undefined, alternatives: [], corridor: undefined, verdict: "NO_CHOICE" });
   }
+  if (!last && canGrow(prepared.bounds, grid) && touchesEdge(grid, best.cells)) { retry = true; return finish({ best: undefined, alternatives: [], corridor: undefined, verdict: "NO_CHOICE" }); }
   const bestLine = toLine(context, best, a.point, b.point);
 
   // Två fält från ändarna, beskurna till celler som kan ligga på en väg högst 15 % sämre än bästa. Stråket är de
   // celler där summan är högst 5 % sämre; alternativen söks bland resten.
   const bound = best.gridCost * ALTERNATIVE_FACTOR + 1e-6;
-  const fromB = search(searchGrid, pace, b.cell, { towards: a.cell, minPace, bound });
+  // Fältet från A är exakt resten av vägen, så sökningen från B tar bara stråkets celler.
+  const fromB = search(searchGrid, pace, b.cell, { towards: a.cell, bound, estimate: fromA.cost });
   const corridor = corridorOf(grid, fromA.cost, fromB.cost, best.gridCost * CORRIDOR_FACTOR + 1e-6);
   const fields: Fields = { costA: fromA.cost, costB: fromB.cost, parentA: fromA.parent, parentB: fromB.parent };
   const alternatives = findAlternatives(context, best, bestLine, a, b, fields, minPace);
@@ -217,7 +245,7 @@ export function analyseLeg(model: CostModel, leg: LegInput, settings?: RouteChoi
 
   const region = new Uint8Array(fromA.cost.length);
   for (let index = 0; index < region.length; index += 1) if (fromA.cost[index]! + fromB.cost[index]! <= bound) region[index] = 1;
-  const switched = bestSwitches(context, resolved, best, alternatives.map(alt => alt.route), a, b, region);
+  const switched = bestSwitches(context, resolved, best, alternatives.map(alt => alt.route), a, b, region, fromB.cost);
   const verdict = switched ? "ABOUT_EQUAL" : alternatives.length > 0 ? "ROUTE_CHOICE" : "NO_CHOICE";
   return finish({
     best: bestLine,
@@ -228,6 +256,20 @@ export function analyseLeg(model: CostModel, leg: LegInput, settings?: RouteChoi
 }
 
 interface End { readonly cell: number; readonly point: Point }
+
+/** Finns det karta utanför rutnätet? (Utan kartans yta: anta att det gör det.) */
+function canGrow(bounds: PreparedModel["bounds"], grid: Grid): boolean {
+  if (!bounds) return true;
+  return grid.x0 > bounds.minX || grid.yTop < bounds.maxY || grid.x0 + grid.width * grid.cellMm < bounds.maxX ||
+    grid.yTop - grid.height * grid.cellMm > bounds.minY;
+}
+
+function reachedEdge(grid: Grid, cost: Float64Array): boolean {
+  const w = grid.width, h = grid.height;
+  for (let col = 0; col < w; col += 1) if (cost[col]! < Infinity || cost[(h - 1) * w + col]! < Infinity) return true;
+  for (let row = 0; row < h; row += 1) if (cost[row * w]! < Infinity || cost[row * w + w - 1]! < Infinity) return true;
+  return false;
+}
 
 interface Fields { readonly costA: Float64Array; readonly costB: Float64Array; readonly parentA: Int32Array; readonly parentB: Int32Array }
 
@@ -253,7 +295,7 @@ function straightenVia(searchGrid: SearchGrid, cells: readonly number[], positio
  * inte räknas som vägval. En krok ut i öppen skog klarar inte testet; en väg runt andra sidan av en sjö gör det.
  */
 function locallyOptimal(searchGrid: SearchGrid, cells: readonly number[], position: number, reach: number, minPace: number,
-  workspace: SearchWorkspace): boolean {
+  workspace: SearchWorkspace, toB: Float64Array): boolean {
   const w = searchGrid.width;
   const step = (i: number, j: number) => {
     const p = cells[i]!, q = cells[j]!;
@@ -268,7 +310,9 @@ function locallyOptimal(searchGrid: SearchGrid, cells: readonly number[], positi
   const along = polylineCost(searchGrid, searchGrid.pace, straightenVia(searchGrid, cells.slice(before, after + 1), position - before)).cost;
   // Beskuren sökning: en väg mer än 10 % dyrare än delvägen spelar ingen roll (rutnätsvägen är högst några procent
   // dyrare än den uträtade).
-  const result = search(searchGrid, searchGrid.pace, u, { goal: x, minPace, bound: along * 1.1 }, workspace);
+  // Nedre gräns: fältet till B minus fältet i x (triangelolikheten; kostnaden är symmetrisk). Celler utanför fältet
+  // kan inte ligga på en kortare delväg, för då vore hela vägen via dem inom 15 %.
+  const result = search(searchGrid, searchGrid.pace, u, { goal: x, minPace, bound: along * 1.1, estimate: toB, estimateOffset: toB[x]! }, workspace);
   const shortestCells = backtrack(result.parent, u, x);
   if (shortestCells.length === 0) return true;
   const shortest = polylineCost(searchGrid, searchGrid.pace, straighten(searchGrid, searchGrid.pace, shortestCells)).cost;
@@ -313,13 +357,13 @@ function findAlternatives(context: Context, best: FoundRoute, bestLine: RouteLin
     const position = cells.indexOf(via);
     const corners = straightenVia(searchGrid, cells, position);
     const measured = polylineCost(searchGrid, pace, corners);
-    if (measured.cost <= best.cost * ALTERNATIVE_FACTOR && locallyOptimal(searchGrid, cells, position, reach, minPace, workspace)) {
-      const route: FoundRoute = { corners, gridCost: viaCost, cost: measured.cost, climbUnits: measured.climbUnits, meters: measured.meters };
-      const line = toLine(context, route, a.point, b.point);
-      if (sharedFraction(grid, line.points, bufferMask(grid, lines, bufferMm)) < MAX_SHARED) {
-        accepted.push({ route, line });
-        lines.push(line.points);
-      }
+    const route: FoundRoute = { corners, cells, gridCost: viaCost, cost: measured.cost, climbUnits: measured.climbUnits, meters: measured.meters };
+    const line = toLine(context, route, a.point, b.point);
+    // Billigast först: kostnad, sedan gemensamt med tidigare vägar, sist T-testet (en sökning).
+    if (measured.cost <= best.cost * ALTERNATIVE_FACTOR && sharedFraction(grid, line.points, bufferMask(grid, lines, bufferMm)) < MAX_SHARED &&
+      locallyOptimal(searchGrid, cells, position, reach, minPace, workspace, fields.costB)) {
+      accepted.push({ route, line });
+      lines.push(line.points);
     }
     // Stäng omgivningen kring den prövade vägen (hörnen räcker; den uträtade vägen ligger nära rutnätsvägen).
     strokeLine(grid, simplify(points, grid.cellMm), bufferMm, index => { closed[index] = 1; });
@@ -335,7 +379,7 @@ function findAlternatives(context: Context, best: FoundRoute, bestLine: RouteLin
  * långsamma klasser lyfter i praktiken inte en sådan väg förbi den bästa.
  */
 function bestSwitches(context: Context, settings: ResolvedSettings, best: FoundRoute, alternatives: readonly FoundRoute[], a: End, b: End,
-  region: Uint8Array): boolean {
+  region: Uint8Array, toB: Float64Array): boolean {
   const { grid, searchGrid, mmPerMeter } = context;
   const bestPoints = best.corners.map(index => cellCenter(grid, index));
   const bufferMm = Math.max(2 * grid.cellMm, 10 * mmPerMeter, 0.03 * distance(a.point, b.point));
@@ -349,7 +393,15 @@ function bestSwitches(context: Context, settings: ResolvedSettings, best: FoundR
     const inside = new Float32Array(pace);
     for (let index = 0; index < inside.length; index += 1) if (region[index] !== 1) inside[index] = Infinity;
     const regionGrid = { ...searchGrid, pace: inside };
-    const other = findRoute(regionGrid, inside, a.cell, b.cell, minimumPace(pace), pace);
+    // Bara vägar som kan slå den bästa är intressanta; rutnätsvägen är några procent längre än den uträtade.
+    // Nedre gräns: fältet till B med grundfarterna gånger den största fartökningen (konsistent, eftersom varje steg
+    // blir högst så mycket billigare och stigningen inte ändras).
+    let scale = 1;
+    for (const cls of RUNNABLE_CLASSES) scale = Math.min(scale, settings.speedByClass[cls] / speeds[cls]);
+    // Gräns: bästa rutnätsvägen med de ändrade farterna. En väg som inte slår den i rutnätet byter inte plats med den.
+    const bound = pathCost(shiftedGrid, pace, best.cells).cost + 1e-6;
+    const result = search(regionGrid, inside, a.cell, { goal: b.cell, bound, estimate: toB, estimateScale: scale });
+    const other = routeFrom(regionGrid, result, a.cell, b.cell, pace);
     if (other && other.cost < bestCost * 0.995) {
       const points = other.corners.map(index => cellCenter(grid, index));
       if (sharedFraction(grid, points, bestMask) < MAX_SHARED) return true;
@@ -371,8 +423,8 @@ export function analyseCourse(model: CostModel, legs: readonly LegInput[], setti
 }
 
 /** Rutnätet för en sträcka (för bilder och felsökning). */
-export function legGrid(model: CostModel, leg: Pick<LegInput, "from" | "to">, settings?: RouteChoiceSettings | null): Grid {
+export function legGrid(model: CostModel, leg: Pick<LegInput, "from" | "to">, settings?: RouteChoiceSettings | null, marginFactor = 1): Grid {
   const prepared = preparedOf(model, settings);
   const resolved = settings ? resolveSettings({ ...settings, classBySymbol: {} }) : prepared.settings;
-  return rasterize(prepared, legFrame(leg.from, leg.to, prepared.scale), resolved.speedByClass);
+  return rasterize(prepared, legFrame(leg.from, leg.to, prepared.scale, undefined, marginFactor), resolved.speedByClass);
 }

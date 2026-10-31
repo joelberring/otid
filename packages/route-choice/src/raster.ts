@@ -40,13 +40,22 @@ export const MIN_MARGIN_METERS = 300;
 
 export interface GridFrame { readonly x0: number; readonly yTop: number; readonly cellMm: number; readonly cellMeters: number; readonly width: number; readonly height: number }
 
-/** Rutnätets läge och storlek för en sträcka: sträckans ruta plus marginal (minst 300 m och 30 % av sträckan). */
-export function legFrame(from: Point, to: Point, scale: number, maxCells = MAX_CELLS): GridFrame {
+/**
+ * Rutnätets läge och storlek för en sträcka: sträckans ruta plus marginal (minst 300 m och 20 % av sträckan), gånger
+ * `marginFactor` när analysen behöver mer plats (vägen saknas eller går längs ramen).
+ */
+export function legFrame(from: Point, to: Point, scale: number, maxCells = MAX_CELLS, marginFactor = 1): GridFrame {
   const mmPerMeter = 1000 / scale;
   const legMeters = Math.hypot(to.x - from.x, to.y - from.y) / mmPerMeter;
-  const margin = Math.max(MIN_MARGIN_METERS, 0.3 * legMeters) * mmPerMeter;
-  const minX = Math.min(from.x, to.x) - margin, maxX = Math.max(from.x, to.x) + margin;
-  const minY = Math.min(from.y, to.y) - margin, maxY = Math.max(from.y, to.y) + margin;
+  const margin = Math.max(MIN_MARGIN_METERS, 0.2 * legMeters) * marginFactor * mmPerMeter;
+  return boxFrame({ minX: Math.min(from.x, to.x) - margin, maxX: Math.max(from.x, to.x) + margin,
+    minY: Math.min(from.y, to.y) - margin, maxY: Math.max(from.y, to.y) + margin }, scale, maxCells);
+}
+
+/** Rutnät över rutan (kartans mm) med cellstorleken för skalan, grövre om det skulle bli fler än `maxCells` celler. */
+export function boxFrame(box: { minX: number; minY: number; maxX: number; maxY: number }, scale: number, maxCells = MAX_CELLS): GridFrame {
+  const mmPerMeter = 1000 / scale;
+  const { minX, minY, maxX, maxY } = box;
   let cellMeters = scale < SPRINT_SCALE_LIMIT ? 0.5 : 2;
   let cellMm = cellMeters * mmPerMeter;
   let width = Math.ceil((maxX - minX) / cellMm), height = Math.ceil((maxY - minY) / cellMm);
@@ -83,8 +92,9 @@ export function fillPolygon(frame: GridFrame, rings: readonly (readonly Point[])
       const p = ring[index]!, q = ring[(index + 1) % ring.length]!;
       if (p.y === q.y) continue;
       const low = Math.min(p.y, q.y), high = Math.max(p.y, q.y);
-      const first = Math.max(rowFrom, Math.ceil((frame.yTop - high) / frame.cellMm - 0.5));
-      const last = Math.min(rowTo, Math.floor((frame.yTop - low) / frame.cellMm - 0.5));
+      // En rad för mycket åt varje håll: avrundningen får inte tappa en rad, villkoret nedan avgör.
+      const first = Math.max(rowFrom, Math.ceil((frame.yTop - high) / frame.cellMm - 0.5) - 1);
+      const last = Math.min(rowTo, Math.floor((frame.yTop - low) / frame.cellMm - 0.5) + 1);
       for (let row = first; row <= last; row += 1) {
         const y = frame.yTop - (row + 0.5) * frame.cellMm;
         if (y < low || y >= high) continue;
@@ -185,8 +195,13 @@ function paintCrossing(frame: GridFrame, feature: Feature, visit: Visit): void {
   for (const line of feature.lines) strokeLine(frame, line, Math.max(feature.radius, 0.4), visit);
 }
 
-/** Rutnätet för ramen ur den förberedda modellen; farterna avgör vilken klass som är långsammast/snabbast. */
-export function rasterize(model: PreparedModel, frame: GridFrame, speeds: Readonly<Record<RunnableClass, number>>): Grid {
+/**
+ * Rutnätet för ramen ur den förberedda modellen; farterna avgör vilken klass som är långsammast/snabbast.
+ * `trackRadiusMm` breddar vägar och stigar (kalibreringen, där GPS-spåret sällan ligger exakt på stigen).
+ */
+export function rasterize(model: PreparedModel, frame: GridFrame, speeds: Readonly<Record<RunnableClass, number>>,
+  options: { readonly trackRadiusMm?: number } = {}): Grid {
+  const trackRadius = options.trackRadiusMm ?? 0;
   const cells = frame.width * frame.height;
   const area = new Uint8Array(cells).fill(NONE);
   const track = new Uint8Array(cells).fill(NONE);
@@ -204,7 +219,9 @@ export function rasterize(model: PreparedModel, frame: GridFrame, speeds: Readon
       }
       case "TRACK": {
         const cls = RUNNABLE_CLASSES.indexOf(feature.cls), speed = speedOf[cls]!;
-        paint(frame, feature, index => { const old = track[index]!; if (old === NONE || speedOf[old]! < speed) track[index] = cls; });
+        const visit = (index: number) => { const old = track[index]!; if (old === NONE || speedOf[old]! < speed) track[index] = cls; };
+        for (const polygon of feature.polygons) fillPolygon(frame, polygon, visit);
+        for (const line of feature.lines) strokeLine(frame, line, Math.max(feature.radius, trackRadius), visit);
         break;
       }
       case "BLOCK": paint(frame, feature, index => { block[index] = block[index]! | 1; }); break;
@@ -212,6 +229,18 @@ export function rasterize(model: PreparedModel, frame: GridFrame, speeds: Readon
       case "CROSSING": paintCrossing(frame, feature, index => { block[index] = block[index]! | 4; }); break;
       case "CONTOUR": paintContour(frame, feature, index => { contour[index] = 2; }); break;
       case "FORM_LINE": paintContour(frame, feature, index => { if (contour[index] === 0) contour[index] = 1; }); break;
+    }
+  }
+  // Utanför kartans yta finns ingen karta: spärrat.
+  const bounds = model.bounds;
+  if (bounds) {
+    for (let row = 0; row < frame.height; row += 1) {
+      const y = frame.yTop - (row + 0.5) * frame.cellMm;
+      const outsideRow = y < bounds.minY || y > bounds.maxY;
+      for (let col = 0; col < frame.width; col += 1) {
+        const x = frame.x0 + (col + 0.5) * frame.cellMm;
+        if (outsideRow || x < bounds.minX || x > bounds.maxX) block[row * frame.width + col] = 1;
+      }
     }
   }
   const normal = RUNNABLE_CLASSES.indexOf("NORMAL");

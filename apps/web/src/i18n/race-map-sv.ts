@@ -51,7 +51,10 @@ export const raceMapSv = {
     failed: "Kartfilen kunde inte sparas.",
     download: "Hämta kartfilen",
     summary: {
-      format: (format: "OCD" | "OMAP", version: string) => format === "OCD" ? `OCAD (${version})` : `Mapper (${version})`,
+      format: (format: "OCD" | "OMAP", version: string) => {
+        const name = format === "OCD" ? "OCAD" : "Mapper";
+        return version.toLowerCase().startsWith(name.toLowerCase()) ? version : `${name} ${version}`;
+      },
       scale: (scale: number) => `1:${scale.toLocaleString("sv-SE")}`,
       crs: (code: number | null) => code === 3006 ? "SWEREF 99 TM" : code === 3021 ? "RT 90 2,5 gon V"
         : code !== null && code >= 3007 && code <= 3018 ? "SWEREF 99 lokal zon" : code !== null ? `EPSG ${code}` : "Okänt koordinatsystem",

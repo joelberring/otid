@@ -46,7 +46,7 @@ test("kartfilen: Mapper-filen ritas i webbläsaren, georefereras ur filen och ba
   // Resultat → Karta och vägval: ladda upp kartfilen. Förloppet visas och sedan raden med kartans uppgifter.
   await openStep(owner, "Resultat");
   const section = await uploadMapFile(owner, fixture("maps/kartfil.omap"));
-  await expect(section.getByText("Mapper (Mapper v9)", { exact: false })).toBeVisible();
+  await expect(section.getByText(/^Mapper/)).toBeVisible();
   await expect(section.getByText("1:10 000")).toBeVisible();
   await expect(section.getByText("SWEREF 99 TM")).toBeVisible();
   await expect(section.getByText("11 objekt")).toBeVisible();

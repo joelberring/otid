@@ -1051,6 +1051,40 @@ ADR-0179 (beslut 7–13). Migration 0030. Kontraktet: `packages/route-choice/src
   alternativ, stigning), webb (tabellen, varningar), Playwright `vagval-analys.spec.ts` (bana med en känd vägvalssträcka,
   banhemlighet publikt).
 
+## [ ] Steg 62 – Banläggning: .ppen och editorn
+
+ADR-0180. Migration 0031. Kontraktet: `packages/course-setting/src/types.ts` och `src/index.ts`.
+
+- [ ] **Paketet `course-setting`:** läsa och skriva .ppen utan att något tappas (alla Purple Pens testfiler och ägarens
+  SBN26_1.ppen går fram och tillbaka), ändringar (`applyEdit`), varianter med Purple Pens koder, längder, nästa lediga
+  kod, kontrollerna (ADR-0180 beslut 9) och banpåtrycket som figurer enligt ISOM 2017-2 och ISSprOM 2019-2.
+- [ ] **Lagring:** `course_setting` (dokument, version, ändrad av, när) och `course_setting_revision` (tidigare
+  versioner). Spara med versionskontroll (två flikar skriver inte över varandra). Bara admin, banhemlighet som banorna.
+- [ ] **Import och export:** ladda upp .ppen (ersätter eller blir första dokumentet), ladda ned .ppen.
+- [ ] **Editorn** (`/admin/[raceId]/course-setting`): kartfilen (steg 59) med banpåtrycket, banlista och "Alla
+  kontroller". Lägga till, flytta och ta bort kontroller, start och mål; bygga banan genom att klicka; lägga in och ta
+  bort kontroller på banan; gafflingar och slingor; flytta nummer; brytpunkter på sträckor; ångra och gör om.
+  Kontrollerna listas och visas på kartan. Vald sträcka får vägvalsanalysens besked och linje (steg 60).
+- [ ] **Överför till tävlingen:** dokumentet blir tävlingens banor, kontroller och varianter via samma jämförelse som en
+  banfil (`course-file-diff`), med ändringarna visade före.
+- [ ] **Tester:** paketet (läsa/skriva, ändringar, varianter, kontroller, storlekar), integration (spara, version,
+  överföring), Playwright `banlaggning.spec.ts` (importera .ppen, flytta en kontroll, lägg till en bana, för över).
+
+## [ ] Steg 63 – Kontrollbeskrivningar
+
+- [ ] IOF 2018 (och 2004 för äldre filer) med symbolerna ur Purple Pens `symbols.xml` (BSD), text på svenska och
+  engelska, editorn för beskrivningen per kontroll och utskrift per bana (symboler, text, båda).
+
+## [ ] Steg 64 – Banpåtryck och utskriftslayout
+
+- [ ] Specialobjekten (förbjudet område och väg, passage, vit bakgrund, text, bild, gräns, snitsling), tryckyta och
+  sida per bana, utskrift i annan skala än kartans, beskrivningen på kartan.
+
+## [ ] Steg 65 – Tryck med dekorfärger och övertryck
+
+- [ ] PDF på servern (låg prioritet) eller via macpurplepen: kartan som vektorer med sina färger, banpåtrycket i egen
+  dekorfärg med övertryck, provtryck hos tryckeriet innan det används skarpt.
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

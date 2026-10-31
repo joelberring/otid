@@ -156,6 +156,12 @@ importers:
         specifier: 4.1.5
         version: 4.1.5
 
+  packages/course-setting:
+    dependencies:
+      '@o-tid/map-file':
+        specifier: workspace:*
+        version: link:../map-file
+
   packages/database:
     dependencies:
       '@o-tid/domain':

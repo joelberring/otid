@@ -200,6 +200,12 @@ importers:
         specifier: workspace:*
         version: link:../domain
 
+  packages/route-choice:
+    dependencies:
+      '@o-tid/map-file':
+        specifier: workspace:*
+        version: link:../map-file
+
   packages/sportident: {}
 
 packages:

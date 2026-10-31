@@ -996,7 +996,7 @@ fortfarande i Purple Pen/macpurplepen (tryck i O-Tid är ett senare steg).
 
 ## [ ] Steg 60 – Vägvalsanalys
 
-ADR-0179 (beslut 7–12). Migration 0029 (bara inställningar per tävling).
+ADR-0179 (beslut 7–13). Migration 0030. Kontraktet: `packages/route-choice/src/types.ts`.
 
 - [ ] **Löpbarhet per symbol** i ett nytt rent paket `packages/route-choice`. Standardtabellen utgår från ISOM 2017-2:s
   riktvärden och ISSprOM 2019-2. Värdena nedan är startvärden att kalibrera:
@@ -1030,8 +1030,8 @@ ADR-0179 (beslut 7–12). Migration 0029 (bara inställningar per tävling).
 - [ ] **Kalibrering mot GPS-rutter:** "Justera farterna efter de här rutterna" skattar fart per symbolklass ur löparnas
   uppladdade rutter och sträcktider (ADR-0171) och sparar dem som tävlingens inställning. Tabellen visar före och efter.
 - [ ] **Allt i webbläsaren:** beräkningen körs i en Worker när arrangören öppnar analysen. Resultatet sparas inte i
-  databasen (det går snabbt att räkna om), bara inställningarna: klass per symbol, ekvidistans och
-  stigningsfaktor (`race_route_choice_settings`, jsonb).
+  databasen (det går snabbt att räkna om), bara inställningarna: klass per symbol, farter, ekvidistans och
+  stigningsfaktor (`race_route_choice_settings`, jsonb), och de bästa vägarna som arrangören publicerar (nedan).
 - [ ] **Arbetsytan:** Kontrollkartan får läget "Vägval". Där väljs bana eller variant, och en tabell per sträcka visar
   fågelväg, bästa väg i meter, stigning, uppskattad tid relativt och antal vägval, med en markering "Vägvalssträcka"
   eller "Inget vägval". Kartan visar bästa vägen, stråket och alternativen för vald sträcka. Totalt per bana: bästa
@@ -1040,7 +1040,8 @@ ADR-0179 (beslut 7–12). Migration 0029 (bara inställningar per tävling).
   mark, eller en sträcka saknar väg (spärrad).
 - [ ] **Banhemlighet:** analysen finns bara för admin tills banorna är publika. Därefter får den publika
   sträcktidsanalysen en linje "Bästa vägval enligt kartan" bredvid löparnas GPS-rutter, med samma regler som i dag
-  (ADR-0171 beslut 5, ADR-0176).
+  (ADR-0171 beslut 5, ADR-0176). Kartfilen lämnas aldrig ut publikt, så arrangörens webbläsare sparar de bästa vägarna
+  per sträcka ("Visa bästa vägval publikt", små linjer i jsonb) och det publika läser bara dem.
 - [ ] **Prestanda mätt:** en sträcka på 1,5 km i skog (cirka 1 miljon celler) ska ta under 1 s på en vanlig laptop. En
   hel bana räknas sträcka för sträcka med svar efter hand. Mätningen skrivs i STATUS.md.
 - [ ] **Tester:** `route-choice` (kostnadstabell, rastrering, sökning mot kända svar på små syntetiska kartor, stråk,

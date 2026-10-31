@@ -178,7 +178,8 @@ describe("steg 61: gafflingar till start och karta", () => {
     const roster = await listEntryTransfersAsAdmin(db, proof);
     if (roster.status !== "ok") throw new Error("Deltagarlistan saknas");
     expect(roster.response.entries.find(entry => entry.id === people.Eva)?.notes?.wrongMap).toEqual({ assignedCode: assigned, fittingCodes: [other] });
-    expect((await pool.query("select course_variant_code from entry where id = $1", [people.Eva])).rows[0]!.course_variant_code).toBe(assigned);
+    expect((await pool.query<{ course_variant_code: string }>("select course_variant_code from entry where id = $1", [people.Eva])).rows[0]!.course_variant_code)
+      .toBe(assigned);
 
     // "Godkänn på …": befintliga variantbytet med ny revision och orsaken i auditposten.
     const approveId = randomUUID();

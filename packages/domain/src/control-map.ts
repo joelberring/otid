@@ -4,9 +4,10 @@ import { invertRasterCoordinate, projectRasterPixel, type RasterAffineTransform 
  * Steg 52 (ADR-0176): kontrollkartan. Ren layout utan I/O: kontrollernas, startens och målets lägen i en gemensam ram,
  * belastningen per kontroll och löparens stämplingar mot banan. Webben ritar resultatet som SVG.
  *
- * Ramen väljs i ordning: kartbilden (georefererad, pixlar) när lägen i WGS 84 finns; annars lägena i meter runt
- * mittpunkten (norr uppåt); annars kartlägena (IOF MapPosition, mm) i meter med kartans skala. Ett läge som bara har
- * kartläge placeras i en WGS 84-ram när minst två andra punkter har båda (likformig anpassning).
+ * Ramen väljs i ordning: kartfilens mm direkt till bildens pixlar (steg 59, när bilden är ritad ur kartfilen och banfilen
+ * hör till kartan); kartbilden (georefererad, pixlar) när lägen i WGS 84 finns; annars lägena i meter runt mittpunkten
+ * (norr uppåt); annars kartlägena (IOF MapPosition, mm) i meter med kartans skala. Ett läge som bara har kartläge
+ * placeras i en WGS 84-ram när minst två andra punkter har båda (likformig anpassning).
  */
 export type ControlMapFrame = "MAP" | "GEO" | "PAPER" | "NONE";
 export interface ControlMapGeo { readonly latitude: number; readonly longitude: number }
@@ -20,7 +21,34 @@ export interface ControlMapLayoutInput {
   readonly map?: { readonly transform: RasterAffineTransform; readonly width: number; readonly height: number } | undefined;
   /** Kartans skala (t.ex. 10000) för kartlägena. */
   readonly scale?: number | null | undefined;
+  /** Steg 59: kartfilen som kartbilden är ritad ur. */
+  readonly mapFile?: ControlMapFileFrame | undefined;
 }
+
+/**
+ * Kartfilen bakom kartbilden (steg 59, ADR-0179 beslut 5): bildens upplösning och kartans punkt (mm, y uppåt) i bildens
+ * övre vänstra hörn, kartans yta i mm, skala och, när filen har en georeferens, kartans mm → WGS 84.
+ */
+export interface ControlMapFileFrame {
+  readonly render: { readonly pxPerMm: number; readonly originX: number; readonly originY: number };
+  readonly bounds: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number };
+  readonly image: { readonly width: number; readonly height: number };
+  readonly scale: number;
+  /** Kartans mm → WGS 84; undefined från funktionen = kan inte räknas om (då kontrolleras bara ytan). */
+  readonly toGeo?: ((paper: ControlMapPaper) => ControlMapGeo | undefined) | undefined;
+}
+
+/** Kartlägen får ligga så långt utanför kartans yta (mm), t.ex. en start strax utanför kartramen. */
+export const MAP_FILE_BOUNDS_MARGIN_MM = 10;
+/** Största skillnad mellan banfilens Position och kartläget via kartfilens georeferens. */
+export const MAP_FILE_MAX_DEVIATION_METERS = 10;
+
+/**
+ * Hur kartfilen användes: USED = lägena ligger på kartfilens mm; MISMATCH = banfilen verkar inte vara gjord på kartan
+ * (ett kartläge utanför kartan eller mer än 10 m från Position), dagens ordning används; null = ingen kartfil eller inga
+ * kartlägen.
+ */
+export type ControlMapFileUse = "USED" | "MISMATCH" | null;
 
 export interface ControlMapLayout {
   readonly frame: ControlMapFrame;
@@ -29,6 +57,7 @@ export interface ControlMapLayout {
   readonly points: ReadonlyMap<string, ControlMapXY>;
   /** Ytan som punkterna täcker (null utan punkter). */
   readonly bounds: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number } | null;
+  readonly mapFile: ControlMapFileUse;
 }
 
 const EARTH = 6_371_008.8;
@@ -62,7 +91,51 @@ function similarity(pairs: readonly { from: ControlMapXY; to: ControlMapXY }[]):
 /** Kartläget med y nedåt (IOF MapPosition har y uppåt). */
 const paperXY = (paper: ControlMapPaper): ControlMapXY => ({ x: paper.x, y: -paper.y });
 
+/** Kartfilens kontroll: alla kartlägen inom kartans yta och, med georeferens, nära Position. */
+function mapFileFits(frame: ControlMapFileFrame, places: readonly ControlMapPlace[]): boolean {
+  const { bounds } = frame, margin = MAP_FILE_BOUNDS_MARGIN_MM;
+  for (const place of places) {
+    const paper = place.paper!;
+    if (!Number.isFinite(paper.x) || !Number.isFinite(paper.y) || paper.x < bounds.minX - margin || paper.x > bounds.maxX + margin ||
+      paper.y < bounds.minY - margin || paper.y > bounds.maxY + margin) return false;
+    // Utan omräkning (koordinatsystemet stöds inte) kontrolleras bara ytan.
+    const expected = place.geo && frame.toGeo ? frame.toGeo(paper) : undefined;
+    if (expected && !(geoDistance(expected, place.geo!) <= MAP_FILE_MAX_DEVIATION_METERS)) return false;
+  }
+  return true;
+}
+
+function finish(frame: ControlMapFrame, metersPerUnit: number | null, points: ReadonlyMap<string, ControlMapXY>,
+  mapFile: ControlMapFileUse): ControlMapLayout {
+  const rounded = new Map([...points].map(([key, point]) => [key, { x: round(point.x), y: round(point.y) }]));
+  const all = [...rounded.values()];
+  const bounds = all.length === 0 ? null : { minX: Math.min(...all.map(p => p.x)), minY: Math.min(...all.map(p => p.y)),
+    maxX: Math.max(...all.map(p => p.x)), maxY: Math.max(...all.map(p => p.y)) };
+  return { frame, metersPerUnit, points: rounded, bounds, mapFile };
+}
+
+/** Kartfilens ram: kartlägen direkt till bildens pixlar, lägen med bara WGS 84 via kartbildens georeferens. */
+function mapFileLayout(frame: ControlMapFileFrame, input: ControlMapLayoutInput): ControlMapLayout {
+  const { pxPerMm, originX, originY } = frame.render;
+  const points = new Map<string, ControlMapXY>();
+  for (const place of input.places) {
+    if (place.paper) points.set(place.key, { x: (place.paper.x - originX) * pxPerMm, y: (originY - place.paper.y) * pxPerMm });
+    else if (place.geo && input.map) {
+      const pixel = invertRasterCoordinate(input.map.transform, place.geo.longitude, place.geo.latitude);
+      points.set(place.key, { x: pixel.pixelX, y: pixel.pixelY });
+    }
+  }
+  const meters = frame.scale / 1000 / pxPerMm;
+  return finish("MAP", Number.isFinite(meters) && meters > 0 ? meters : null, points, "USED");
+}
+
 export function layoutControlMap(input: ControlMapLayoutInput): ControlMapLayout {
+  let mapFile: ControlMapFileUse = null;
+  const onPaper = input.places.filter(place => place.paper);
+  if (input.mapFile && onPaper.length > 0) {
+    if (mapFileFits(input.mapFile, onPaper)) return mapFileLayout(input.mapFile, input);
+    mapFile = "MISMATCH";
+  }
   const geo = input.places.filter(place => place.geo);
   const paper = input.places.filter(place => place.paper);
   const points = new Map<string, ControlMapXY>();
@@ -97,11 +170,7 @@ export function layoutControlMap(input: ControlMapLayoutInput): ControlMapLayout
     metersPerUnit = input.scale && input.scale > 0 ? 1 : null;
     for (const place of paper) { const xy = paperXY(place.paper!); points.set(place.key, { x: xy.x * factor, y: xy.y * factor }); }
   }
-  const rounded = new Map([...points].map(([key, point]) => [key, { x: round(point.x), y: round(point.y) }]));
-  const all = [...rounded.values()];
-  const bounds = all.length === 0 ? null : { minX: Math.min(...all.map(p => p.x)), minY: Math.min(...all.map(p => p.y)),
-    maxX: Math.max(...all.map(p => p.x)), maxY: Math.max(...all.map(p => p.y)) };
-  return { frame, metersPerUnit, points: rounded, bounds };
+  return finish(frame, metersPerUnit, points, mapFile);
 }
 
 /** En bana eller variant: kontrollerna i ordning. `variant` null = banan utan gafflingar. */

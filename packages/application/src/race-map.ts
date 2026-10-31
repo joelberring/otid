@@ -3,17 +3,19 @@ import {
   adminRaceMapStateSchema, publicLegRoutesSchema, raceMapGeoreferenceRequestSchema, participantRouteUploadResponseSchema,
   legKeySchema, type AdminRaceMapState, type ParticipantRouteUploadResponse, type PublicLegRoutes, type RaceMapProblem
 } from "@o-tid/contracts";
-import { deriveRasterGeoreference, projectRoute, RasterGeoreferenceError, routeLegs, routeSegment, runnerLegs, timedRoutePoints,
+import { deriveRasterGeoreference, layoutControlMap, projectRoute, RasterGeoreferenceError, routeLegs, routeSegment, runnerLegs, timedRoutePoints,
   type RoutePoint } from "@o-tid/domain";
 import { schema, type Database } from "@o-tid/database";
 import { GpxValidationError, parseGpxTrack } from "@o-tid/iof-xml";
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { publicResultTimings, type PublicResultTiming } from "./results";
-import { coursePoints, loadCoursePositions } from "./course-positions";
+import { coursePoints, loadCourseMapPositions, loadCoursePositions } from "./course-positions";
+import { loadMapFileFrame } from "./map-file-frame";
 import { coursesArePublic } from "./course-secrecy";
 import { storedResultVariantControls } from "./course-variants";
 import { imageDimensions } from "./image-dimensions";
+import { readAdminRaceMapSource } from "./race-map-source";
 import { UUID_PATTERN as uuid, sha256Hex as sha256 } from "./serialization";
 
 /**
@@ -83,8 +85,9 @@ export async function readRaceMapStateAsAdmin(db: Database, input: Authenticatio
       .from(schema.participantRoutes).where(eq(schema.participantRoutes.raceId, raceId));
     const timings = routes.length === 0 ? new Map<string, PublicResultTiming>()
       : new Map((await publicResultTimings(tx, raceId, { includeRelay: true })).map(timing => [timing.entryId, timing]));
+    const source = map ? await readAdminRaceMapSource(tx, raceId, map.georeferencedAt) : null;
     return { status: "ok" as const, response: adminRaceMapStateSchema.parse({
-      formatVersion: 1, raceId,
+      formatVersion: 1, raceId, source,
       map: map ? { fileName: map.fileName, mediaType: map.mediaType, width: map.width, height: map.height, byteLength: map.byteLength,
         uploadedAt: iso(map.uploadedAt), tiePoints: map.tiePoints, georeferencedAt: map.georeferencedAt ? iso(map.georeferencedAt) : null } : null,
       runners: runners.map(runner => ({ entryId: runner.entryId, name: `${runner.givenName} ${runner.familyName}`, className: runner.className,
@@ -108,7 +111,10 @@ export async function readRaceMapImageAsAdmin(db: Database, input: Authenticatio
   });
 }
 
-/** Ny eller utbytt kartbild (PNG eller JPEG). En ny bild måste georefereras igen. */
+/**
+ * Ny eller utbytt kartbild (PNG eller JPEG). En ny bild måste georefereras igen. Steg 59: bilden är inte längre ritad ur
+ * kartfilen, så en sparad kartfil tas bort.
+ */
 export async function saveRaceMapAsAdmin(db: Database, input: Authentication & { bytes: Uint8Array; fileName: string }, now = new Date())
   : Promise<Failure | Problem | { status: "ok" }> {
   const image = imageDimensions(input.bytes);
@@ -119,6 +125,7 @@ export async function saveRaceMapAsAdmin(db: Database, input: Authentication & {
       tiePoints: null, transform: null, uploadedAt: now, georeferencedAt: null };
     await tx.insert(schema.raceMaps).values({ raceId: input.raceId, ...values })
       .onConflictDoUpdate({ target: schema.raceMaps.raceId, set: values });
+    await tx.delete(schema.raceMapSources).where(eq(schema.raceMapSources.raceId, input.raceId));
     await audit(tx, input.raceId, input.raceId, actorId, "RACE_MAP_SAVED", { fileName: values.fileName, sha256: values.sha256,
       width: image.width, height: image.height });
     return { status: "ok" as const };
@@ -148,9 +155,10 @@ export async function georeferenceRaceMapAsAdmin(db: Database, input: Authentica
   });
 }
 
-/** Tar bort kartan. Rutterna finns kvar men visas inte förrän en ny karta är georefererad. */
+/** Tar bort kartan (och kartfilen, steg 59). Rutterna finns kvar men visas inte förrän en ny karta är georefererad. */
 export async function removeRaceMapAsAdmin(db: Database, input: Authentication, now = new Date()): Promise<Failure | { status: "ok" }> {
   return adminWrite(db, input, now, async (tx, actorId) => {
+    await tx.delete(schema.raceMapSources).where(eq(schema.raceMapSources.raceId, input.raceId));
     const removed = await tx.delete(schema.raceMaps).where(eq(schema.raceMaps.raceId, input.raceId)).returning({ raceId: schema.raceMaps.raceId });
     if (removed.length === 0) return { status: "not-found" as const };
     await audit(tx, input.raceId, input.raceId, actorId, "RACE_MAP_REMOVED", {});
@@ -268,11 +276,24 @@ async function runnerCourseOnMap(tx: DatabaseTransaction, raceId: string, timing
   const seen = new Map<number, number>();
   const keys = ["S", ...codes.map(code => { const count = (seen.get(code) ?? 0) + 1; seen.set(code, count); return `${code}.${count}`; }), "F"];
   const [from, to] = leg.split("-");
-  const points = coursePoints(positions, codes).flatMap((point, index) => {
-    if (!point) return [];
-    const [x, y] = projectRoute(transform, [[0, point.latitude, point.longitude]])[0]!;
+  const geo = coursePoints(positions, codes);
+  // Steg 59: kartlägena direkt på kartfilens mm när bilden är ritad ur kartfilen och banfilen hör till kartan.
+  const mapFile = await loadMapFileFrame(tx, raceId, { requireGeoreferenced: true });
+  let onFile: ({ x: number; y: number } | undefined)[] | undefined;
+  if (mapFile) {
+    const paper = await loadCourseMapPositions(tx, raceId, row.courseId, codes);
+    const papers = [paper.start, ...codes.map(code => paper.controls.get(code)), paper.finish];
+    const layout = layoutControlMap({ places: papers.map((point, index) => ({ key: String(index), paper: point, geo: geo[index] })),
+      map: { transform, width: mapFile.image.width, height: mapFile.image.height }, mapFile });
+    if (layout.mapFile === "USED") onFile = papers.map((_point, index) => layout.points.get(String(index)));
+  }
+  const points = geo.flatMap((point, index) => {
+    let xy: { x: number; y: number } | undefined;
+    if (onFile) xy = onFile[index];
+    else if (point) { const [x, y] = projectRoute(transform, [[0, point.latitude, point.longitude]])[0]!; xy = { x, y }; }
+    if (!xy) return [];
     const label = index === 0 ? "S" : index === codes.length + 1 ? "M" : String(codes[index - 1]);
-    return [{ label, x, y, leg: keys[index] === from || keys[index] === to }];
+    return [{ label, x: xy.x, y: xy.y, leg: keys[index] === from || keys[index] === to }];
   });
   return points.length >= 2 ? { points } : undefined;
 }

@@ -104,6 +104,8 @@ function ControlMapDialog({ ws, onClose }: { ws: Workspace; onClose: () => void 
               : <Notice tone="info">{text.noPositions}</Notice>}
             {view && missing > 0 && <p className={styles.muted}>{text.missingPositions(missing)}</p>}
             {data.frame === "PAPER" && !data.metersPerUnit && <p className={styles.muted}>{text.paperNoScale}</p>}
+            {data.mapFile === "MISMATCH" && <Notice tone="attention">{text.mapFileMismatch}</Notice>}
+            {!data.map && <p className={styles.muted}>{text.noMapImage}</p>}
             {mode === "LOAD" && view && <p className={styles.muted}>{text.legend}</p>}
             {/* Utan lägen (eller som komplement): gafflingsbilden och kontrollerna i ordning. */}
             {mode === "COURSE" && course && (!view || course.forking) && <>

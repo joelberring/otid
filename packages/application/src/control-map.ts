@@ -5,6 +5,7 @@ import {
 import { schema, type Database } from "@o-tid/database";
 import { controlCodesOutOfOrder, controlLoads, layoutControlMap, runnerControlMarks, type ControlMapLayout, type ControlMapPlace } from "@o-tid/domain";
 import { loadCourseForMap } from "./course-edit";
+import { loadMapFileFrame } from "./map-file-frame";
 import { courseForkingView } from "./course-forking";
 import { coursesArePublic } from "./course-secrecy";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
@@ -26,6 +27,8 @@ interface RacePlaces {
   readonly ends: Map<string, { start?: ControlMapPlace; finish?: ControlMapPlace }>;
   readonly map: { transform: NonNullable<typeof schema.raceMaps.$inferSelect.transform>; width: number; height: number; version: string } | undefined;
   readonly scale: number | null;
+  /** Steg 59: kartfilen som kartbilden är ritad ur, när bilden är georefererad. */
+  readonly mapFile: Awaited<ReturnType<typeof loadMapFileFrame>>;
 }
 
 async function loadPlaces(tx: DbExecutor, raceId: string): Promise<RacePlaces> {
@@ -46,17 +49,18 @@ async function loadPlaces(tx: DbExecutor, raceId: string): Promise<RacePlaces> {
   const [map] = await tx.select({ width: schema.raceMaps.width, height: schema.raceMaps.height, sha256: schema.raceMaps.sha256,
     transform: schema.raceMaps.transform }).from(schema.raceMaps).where(eq(schema.raceMaps.raceId, raceId));
   const [race] = await tx.select({ scale: schema.races.courseMapScale }).from(schema.races).where(eq(schema.races.id, raceId));
-  return { controls, ends, scale: race?.scale ?? null,
+  const mapFile = map?.transform ? await loadMapFileFrame(tx, raceId) : undefined;
+  return { controls, ends, scale: race?.scale ?? null, mapFile,
     map: map?.transform ? { transform: map.transform, width: map.width, height: map.height, version: map.sha256.slice(0, 16) } : undefined };
 }
 
 function layoutFor(places: RacePlaces, keys: readonly ControlMapPlace[]): ControlMapLayout {
-  return layoutControlMap({ places: keys, map: places.map, scale: places.scale });
+  return layoutControlMap({ places: keys, map: places.map, scale: places.scale, mapFile: places.mapFile });
 }
 
 const layoutFields = (layout: ControlMapLayout, places: RacePlaces) => ({ frame: layout.frame, metersPerUnit: layout.metersPerUnit,
   map: layout.frame === "MAP" && places.map ? { width: places.map.width, height: places.map.height, version: places.map.version } : null,
-  bounds: layout.bounds });
+  bounds: layout.bounds, mapFile: layout.mapFile });
 
 /** Arbetsytans kontrollkarta: alla banor, kontroller och belastningen. Arrangören och funktionärerna. */
 export async function readControlMapAsAdmin(db: Database, input: Omit<RaceSessionProof, "csrfCookie" | "csrfHeader">, now = new Date())

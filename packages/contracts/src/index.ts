@@ -283,6 +283,7 @@ export * from "./relay";
 export * from "./race-settings";
 export * from "./rogaining";
 export * from "./race-map";
+export * from "./race-map-source";
 export * from "./radio";
 export * from "./public-live";
 export * from "./race-copy";

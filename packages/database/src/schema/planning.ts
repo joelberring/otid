@@ -214,6 +214,41 @@ export const raceMaps = pgTable("race_map", {
   georeferencedAt: timestamp("georeferenced_at", { withTimezone: true })
 });
 
+/** Steg 59: kartfilens georeferens (mm → projicerade meter), samma fält som `MapGeoreference` i `@o-tid/map-file`. */
+export type RaceMapSourceGeoreference = {
+  scale: number;
+  crs: { kind: "EPSG"; code: number } | { kind: "UNKNOWN"; description: string };
+  refPoint: { easting: number; northing: number };
+  mapRefPoint: { x: number; y: number };
+  grivationDegrees: number;
+  combinedScaleFactor: number;
+};
+/** Bildens upplösning och kartans punkt (mm, y uppåt) i bildens övre vänstra hörn. */
+export type RaceMapSourceRender = { pxPerMm: number; originX: number; originY: number };
+export type RaceMapSourceBounds = { minX: number; minY: number; maxX: number; maxY: number };
+/** Det som arbetsytan visar efter uppladdningen. */
+export type RaceMapSourceSummary = { objectCount: number; warnings: { code: string; count: number; text: string }[]; simplifications: string[] };
+
+/**
+ * Steg 59 (migration 0028, ADR-0179): banläggarens kartfil orörd (OCAD eller Mapper, högst 60 MB). Bilden i `race_map`
+ * är ritad ur den i webbläsaren; `render` kopplar kartans mm till bildens pixlar.
+ */
+export const raceMapSources = pgTable("race_map_source", {
+  raceId: uuid("race_id").primaryKey().references(() => races.id),
+  fileName: text("file_name").notNull(),
+  format: text("format").$type<"OCD" | "OMAP">().notNull(),
+  version: text("version").notNull(),
+  file: bytea("file").notNull(),
+  sha256: text("sha256").notNull(),
+  byteLength: integer("byte_length").notNull(),
+  scale: integer("scale").notNull(),
+  bounds: jsonb("bounds").$type<RaceMapSourceBounds>().notNull(),
+  georeference: jsonb("georeference").$type<RaceMapSourceGeoreference>(),
+  render: jsonb("render").$type<RaceMapSourceRender>().notNull(),
+  summary: jsonb("summary").$type<RaceMapSourceSummary>().notNull(),
+  uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull()
+});
+
 /** PLAN.md steg 16 (migration 0098): löparens GPS-rutt. Punkterna är [tid ms, lat, lon] i tidsordning. */
 export const participantRoutes = pgTable("participant_route", {
   entryId: uuid("entry_id").primaryKey(),

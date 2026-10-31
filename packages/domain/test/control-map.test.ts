@@ -50,7 +50,70 @@ describe("steg 52: kontrollkartans lägen", () => {
   });
 
   it("ger ingen ram utan lägen", () => {
-    expect(layoutControlMap({ places: [{ key: "a" }] })).toMatchObject({ frame: "NONE", bounds: null });
+    expect(layoutControlMap({ places: [{ key: "a" }] })).toMatchObject({ frame: "NONE", bounds: null, mapFile: null });
+  });
+});
+
+describe("steg 59: kontrollerna på kartfilens mm", () => {
+  // Kartfil 1:10 000, bilden ritad med 8 px/mm från (−2, 102) mm; 1 mm = 10 m. Georeferensen: norr uppåt, origo i 59,3 N 18,0 E.
+  const toGeo = (paper: { x: number; y: number }) => ({ latitude: 59.3 + paper.y * 10 / 111_195, longitude: 18.0 + paper.x * 10 / (111_195 * Math.cos(59.3 * Math.PI / 180)) });
+  const { transform } = deriveRasterGeoreference({ imageWidth: 832, imageHeight: 832, tiePoints: [
+    { pixelX: 0, pixelY: 0, ...toGeo({ x: -2, y: 102 }) },
+    { pixelX: 800, pixelY: 0, ...toGeo({ x: 98, y: 102 }) },
+    { pixelX: 0, pixelY: 800, ...toGeo({ x: -2, y: 2 }) }
+  ] });
+  const mapFile = { render: { pxPerMm: 8, originX: -2, originY: 102 }, bounds: { minX: 0, minY: 0, maxX: 100, maxY: 100 },
+    image: { width: 832, height: 832 }, scale: 10_000, toGeo };
+  const map = { transform, width: 832, height: 832 };
+
+  it("placerar kartlägena direkt i bildens pixlar och räknar skalan ur kartfilen", () => {
+    const layout = layoutControlMap({ map, mapFile, scale: 10_000, places: [
+      { key: "a", paper: { x: 10, y: 20 }, geo: toGeo({ x: 10.3, y: 20 }) },
+      { key: "b", paper: { x: 50, y: 50 } },
+      // Bara WGS 84: via kartbildens georeferens.
+      { key: "c", geo: toGeo({ x: 30, y: 40 }) }
+    ] });
+    expect(layout.frame).toBe("MAP");
+    expect(layout.mapFile).toBe("USED");
+    expect(layout.points.get("a")).toEqual({ x: 96, y: 656 });
+    expect(layout.points.get("b")).toEqual({ x: 416, y: 416 });
+    expect(layout.points.get("c")!.x).toBeCloseTo(256, 0);
+    expect(layout.points.get("c")!.y).toBeCloseTo(496, 0);
+    // 10 m per mm och 8 px per mm.
+    expect(layout.metersPerUnit).toBeCloseTo(1.25);
+  });
+
+  it("faller tillbaka till dagens ordning när ett kartläge ligger utanför kartan", () => {
+    const layout = layoutControlMap({ map, mapFile, scale: 10_000, places: [
+      { key: "a", paper: { x: 10, y: 20 }, geo: toGeo({ x: 10, y: 20 }) },
+      { key: "b", paper: { x: 150, y: 50 }, geo: toGeo({ x: 50, y: 50 }) }
+    ] });
+    expect(layout.mapFile).toBe("MISMATCH");
+    expect(layout.frame).toBe("MAP");
+    // Via WGS 84 som förut: b hamnar där Position säger, inte vid 150 mm.
+    expect(layout.points.get("b")!.x).toBeCloseTo(416, 0);
+  });
+
+  it("faller tillbaka när Position och kartläget skiljer sig mer än 10 m", () => {
+    const layout = layoutControlMap({ map, mapFile, places: [
+      { key: "a", paper: { x: 10, y: 20 }, geo: toGeo({ x: 10, y: 20 }) },
+      { key: "b", paper: { x: 50, y: 50 }, geo: toGeo({ x: 51.2, y: 50 }) }
+    ] });
+    expect(layout.mapFile).toBe("MISMATCH");
+    const fits = layoutControlMap({ map, mapFile, places: [{ key: "b", paper: { x: 50, y: 50 }, geo: toGeo({ x: 50.9, y: 50 }) }] });
+    expect(fits.mapFile).toBe("USED");
+  });
+
+  it("kontrollerar bara ytan när kartfilen saknar georeferens, och ignorerar kartfilen utan kartlägen", () => {
+    const { toGeo: _ignored, ...withoutGeo } = mapFile;
+    void _ignored;
+    expect(layoutControlMap({ map, mapFile: withoutGeo, places: [{ key: "a", paper: { x: 10, y: 20 }, geo: toGeo({ x: 40, y: 20 }) }] }).mapFile)
+      .toBe("USED");
+    // Lite utanför kartramen (en start vid kanten) är okej.
+    expect(layoutControlMap({ map, mapFile: withoutGeo, places: [{ key: "s", paper: { x: -8, y: 105 } }] }).mapFile).toBe("USED");
+    const plain = layoutControlMap({ map, mapFile, places: [{ key: "a", geo: toGeo({ x: 10, y: 20 }) }] });
+    expect(plain.mapFile).toBeNull();
+    expect(plain.frame).toBe("MAP");
   });
 });
 

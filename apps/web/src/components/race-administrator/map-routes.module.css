@@ -41,3 +41,8 @@
   .inlineForm, .routeForm { grid-template-columns: minmax(0, 1fr); }
   .wide { display: none; }
 }
+
+/* Steg 59: kartfilen. Förloppet och sammanfattningen i vanlig text, ingen extra färg. */
+.progress { grid-column: 1 / -1; color: var(--muted); font-size: var(--text-sm); }
+.sourceSummary { display: grid; gap: 4px; min-width: 0; }
+.or { color: var(--muted); font-size: var(--text-sm); }

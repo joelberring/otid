@@ -2,6 +2,14 @@
 {$OTID_DOMAIN} {
 	encode zstd gzip
 
+	# Steg 59: kartfilens uppladdning (OCAD eller Mapper, högst 60 MB, plus bilden på högst 30 MB) är den enda stora bodyn.
+	# Caddy har ingen gräns som standard; här står den uttryckligen så att den inte sänks av misstag. Appen kontrollerar
+	# storleken igen innan något sparas (RACE_MAP_SOURCE_UPLOAD_MAX_BYTES).
+	@mapsource path /api/admin/races/*/administrator/map/source
+	request_body @mapsource {
+		max_size 100MB
+	}
+
 	# Steg 54 (ADR-0177, docs/drift.md): tävlingen går före publiken. Två slags webbinstanser:
 	# - web: arbetsytan, avläsningen, funktionärerna, inloggningen och admin-API:t (och allt för den som är inloggad),
 	# - web-public och web-public2: publika sidor och API:er, Live och resultatströmmen för besökare utan inloggning.

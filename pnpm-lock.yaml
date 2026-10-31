@@ -75,6 +75,9 @@ importers:
       '@o-tid/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@o-tid/map-file':
+        specifier: workspace:*
+        version: link:../../packages/map-file
       '@o-tid/sportident':
         specifier: workspace:*
         version: link:../../packages/sportident
@@ -127,6 +130,9 @@ importers:
       '@o-tid/iof-xml':
         specifier: workspace:*
         version: link:../iof-xml
+      '@o-tid/map-file':
+        specifier: workspace:*
+        version: link:../map-file
       '@o-tid/roc':
         specifier: workspace:*
         version: link:../roc

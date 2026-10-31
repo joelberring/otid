@@ -926,37 +926,37 @@ ADR-0177 beslut 10. Ingen migration. Ägaren: "det borde stå placering av de so
   `steg-57-placering` (placering, lika tid, felstämplad, stafett), Playwright `placering.spec.ts` (övningsstation, utan nät,
   papperskvitto).
 
-## [ ] Steg 59 – Kartfilen: OCAD och Mapper med banorna på
+## [x] Steg 59 – Kartfilen: OCAD och Mapper med banorna på
 
 ADR-0179 (beslut 1–6). Migration 0028.
 
-- [ ] **Läsare** i ett nytt rent paket `packages/map-file` (ingen I/O):
+- [x] **Läsare** i ett nytt rent paket `packages/map-file` (ingen I/O):
   - Mapper `.omap`/`.xmap` (XML): färger, symboler med nummer, objekt, georeferens.
   - OCAD 12, 2018 och senare (binärt): färgtabell (även dekorfärgsdefinitioner, behålls för steg 4), symboler,
     objekt med kurvor, inställning 1039 (skala, referenspunkt, vridning, koordinatsystem).
   - Okända symbol- eller objekttyper hoppas över och räknas i en sammanfattning. Inga undantag ut till användaren.
   - Tester med godtyckliga fel: trunkerad fil, fel version, tomma lager. Läsaren får aldrig hänga på en trasig fil.
-- [ ] **Georeferens ur filen:** Gauss–Krüger (transversal Mercator på GRS 80) för SWEREF 99 TM, de tolv lokala
+- [x] **Georeferens ur filen:** Gauss–Krüger (transversal Mercator på GRS 80) för SWEREF 99 TM, de tolv lokala
   SWEREF 99-zonerna (t.ex. 18 00 för Stockholm) och RT 90 2,5 gon V med Lantmäteriets direkta parametrar. Egen
   funktion på ett par hundra rader, testad mot Lantmäteriets kontrollpunkter. Okänt koordinatsystem eller ingen
   georeferens i filen ger de tre punkterna för hand som i dag.
-- [ ] **Ritning för skärm** (inte för tryck): ytor med färg och de vanligaste mönstren (raster, streck), linjer med
+- [x] **Ritning för skärm** (inte för tryck): ytor med färg och de vanligaste mönstren (raster, streck), linjer med
   bredd, streckning och dubbellinjer, punktsymboler och text, allt i filens färgordning. Görs på `OffscreenCanvas` i en
   Worker till en PNG, med upplösning efter skala: cirka 8 px/mm för 1:10 000 och 1:15 000, 12 px/mm för sprint, och
   högst 30 MB som i dag. Förenklingar listas för arrangören ("Mönstret för 412 ritas som tonad yta").
-- [ ] **Lagring:** ny tabell `race_map_source` med originalfilen (`bytea`, högst 60 MB), format och version, SHA-256,
+- [x] **Lagring:** ny tabell `race_map_source` med originalfilen (`bytea`, högst 60 MB), format och version, SHA-256,
   kartans yta i mm, skala och georeferens. Den genererade bilden går till `race_map` som förut. En ny kartfil ersätter
   bild och georeferens. Tas med i den nattliga `pg_dump`.
-- [ ] **Kontroller på kartfilen utan omräkning:** banfiler från OCAD och Purple Pen har `MapPosition` i samma
+- [x] **Kontroller på kartfilen utan omräkning:** banfiler från OCAD och Purple Pen har `MapPosition` i samma
   mm-system som kartfilen. Kontrollkartan placerar då kontrollerna direkt via kartfilens mm, i stället för via WGS 84.
   Kontroll: ligger kartlägena utanför kartan, eller skiljer sig `Position` och `MapPosition` mer än 10 m, visas
   "Banfilen verkar inte vara gjord på den här kartan" och O-Tid faller tillbaka till dagens ordning.
-- [ ] **Arbetsytan:** Banor → Kontrollkarta och Resultat → Karta och vägval får "Ladda upp kartfil (OCAD eller Mapper)"
+- [x] **Arbetsytan:** Resultat → Karta och vägval får "Ladda upp kartfil (OCAD eller Mapper)" (Kontrollkartan utan karta hänvisar dit)
   bredvid "Ladda upp kartbild". Efter uppladdningen visas en rad med format, skala, koordinatsystem, antal objekt,
   eventuella förenklingar och "Georefererad ur filen".
-- [ ] **Publikt:** oförändrat. Bilden visas när den är georefererad, och banorna först när banhemligheten tillåter det.
+- [x] **Publikt:** oförändrat. Bilden visas när den är georefererad, och banorna först när banhemligheten tillåter det.
   Originalfilen lämnas aldrig ut publikt, bara till admin.
-- [ ] **Tester:** paketet (läsare, georeferens, ritkommandon), domän `control-map` med kartfilens ram, integration
+- [x] **Tester:** paketet (läsare, georeferens, ritkommandon), domän `control-map` med kartfilens ram, integration
   `steg-59-kartfil` (uppladdning, ersättning, behörighet, `pg_dump`), Playwright `kartfil.spec.ts` (ladda upp .omap och
   .ocd, kontrollkartan med banan på).
 

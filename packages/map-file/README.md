@@ -6,3 +6,10 @@ och tar fram ritkommandon för skärmbilden. Ren TypeScript utan I/O, körs i we
 
 Egen kod. ocad2geojson (AGPL) och OpenOrienteering Mapper (GPL) får läsas för förståelse men ingen kod kopieras eller
 översätts (ADR-0168 beslut 3, ADR-0179 beslut 6).
+
+- `readMapFile(bytes, fileName?)` känner igen formatet på innehållet och kastar `MapFileError` för oanvändbara filer.
+- `mapPointToWgs84(georef, point)` och `wgs84ToMapPoint` räknar kartans mm via SWEREF 99 TM, de tolv lokala zonerna
+  eller RT 90 2,5 gon V. Övriga koordinatsystem ger `crs.kind = "UNKNOWN"`.
+
+Kontroll mot riktiga kartor (filerna committas inte): `OTID_REAL_MAP_DIR=/sökväg/till/mappen pnpm --filter
+@o-tid/map-file test`. Mappen ska innehålla en `.ocd`, en `.omap` av samma karta och banfilen (`.xml`) från Purple Pen.

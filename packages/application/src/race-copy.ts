@@ -165,6 +165,12 @@ async function copyRaceContent(tx: Transaction, input: ContentInput) {
     select ${raceId}, file_name, media_type, image, sha256, byte_length, width, height, tie_points, transform, ${now},
       case when georeferenced_at is null then null else ${now}::timestamptz end
     from race_map where race_id = ${sourceRaceId}`);
+  // Steg 59: kartfilen som bilden är ritad ur följer med bilden.
+  await tx.execute(sql`insert into race_map_source (race_id, file_name, format, version, file, sha256, byte_length, scale, bounds,
+      georeference, render, summary, uploaded_at)
+    select ${raceId}, s.file_name, s.format, s.version, s.file, s.sha256, s.byte_length, s.scale, s.bounds, s.georeference, s.render,
+      s.summary, case when m.georeferenced_at = s.uploaded_at then ${now}::timestamptz else ${now}::timestamptz - interval '1 millisecond' end
+    from race_map_source s join race_map m on m.race_id = s.race_id where s.race_id = ${sourceRaceId}`);
 
   const [radio] = await tx.select().from(schema.raceRadioLinks).where(eq(schema.raceRadioLinks.raceId, sourceRaceId));
   if (radio) await tx.insert(schema.raceRadioLinks).values({ raceId, source: radio.source, unitId: radio.unitId, enabled: false, updatedAt: now });

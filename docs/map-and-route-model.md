@@ -18,6 +18,11 @@ kontrollgeometri; TASK106–155) är borttagen.
   vänstra hörn). Arrangörens webbläsare läser och ritar filen i en Worker; bilden (PNG) och tre punkter ur filens
   georeferens går till `race_map` i samma transaktion. En ny kartbild tar bort kartfilen; en ny kartfil ersätter båda.
   Originalfilen lämnas bara ut till admin.
+- `race_route_choice` (steg 60, ADR-0179 beslut 11–12): vägvalsanalysens inställningar (`RouteChoiceSettings`: klass per
+  symbol, farter, ekvidistans, stigningsfaktor, referensfart) och de bästa vägar som arrangören publicerat: per bana eller
+  variant och sträcknyckel en förenklad linje i kartfilens mm, plus kartfilens SHA-256 som linjerna räknades på. Själva
+  analysen räknas i arrangörens webbläsare ur kartfilen och sparas inte. En kopia av tävlingen får inställningarna, inte
+  publiceringen.
 - Alla tas med i den nattliga `pg_dump`. Ingen objektlagring behövs.
 
 ## Koppling till sträckorna
@@ -40,4 +45,7 @@ kontrollgeometri; TASK106–155) är borttagen.
 - Bara admin (OWNER/ADMIN, samma serverkontroll som resten av arbetsytan) laddar upp, georefererar och tar bort.
 - Publikt visas kartbilden bara när den är georefererad, och rutterna bara som delar för en sträcka i ett
   publicerat resultat. Tiden före start och efter mål visas aldrig, inte heller den råa GPX-filen.
+- Steg 60: vägvalsanalysen och kalibreringens rutter (delarna per sträcka, utan namn) bara för admin. Publikt visas
+  "Bästa vägval enligt kartan" på vägvalskartan bara när banorna är publika (ADR-0176), bara för en sträcka som löparen
+  har i ett publicerat resultat och bara när kartfilen är densamma som linjen räknades på.
 - Ingen GPS-följning, inga deltagarkonton för uppladdning och inga Livelox-data.

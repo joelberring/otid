@@ -1029,16 +1029,16 @@ ADR-0179 (beslut 7–13). Migration 0030. Kontraktet: `packages/route-choice/src
   sträckan "Vägvalen är ungefär lika bra", annars är beskedet robust.
 - [ ] **Kalibrering mot GPS-rutter:** "Justera farterna efter de här rutterna" skattar fart per symbolklass ur löparnas
   uppladdade rutter och sträcktider (ADR-0171) och sparar dem som tävlingens inställning. Tabellen visar före och efter.
-- [ ] **Allt i webbläsaren:** beräkningen körs i en Worker när arrangören öppnar analysen. Resultatet sparas inte i
+- [x] **Allt i webbläsaren:** beräkningen körs i en Worker när arrangören öppnar analysen. Resultatet sparas inte i
   databasen (det går snabbt att räkna om), bara inställningarna: klass per symbol, farter, ekvidistans och
-  stigningsfaktor (`race_route_choice_settings`, jsonb), och de bästa vägarna som arrangören publicerar (nedan).
-- [ ] **Arbetsytan:** Kontrollkartan får läget "Vägval". Där väljs bana eller variant, och en tabell per sträcka visar
+  stigningsfaktor (`race_route_choice.settings`, jsonb, migration 0030), och de bästa vägarna som arrangören publicerar (nedan).
+- [x] **Arbetsytan:** Kontrollkartan får läget "Vägval". Där väljs bana eller variant, och en tabell per sträcka visar
   fågelväg, bästa väg i meter, stigning, uppskattad tid relativt och antal vägval, med en markering "Vägvalssträcka"
   eller "Inget vägval". Kartan visar bästa vägen, stråket och alternativen för vald sträcka. Totalt per bana: bästa
   vägens längd mot fågelvägen.
-- [ ] **Varningar till banläggaren:** bästa vägen går genom en annan kontrolls ring, en kontroll ligger i ej passerbar
+- [x] **Varningar till banläggaren:** bästa vägen går genom en annan kontrolls ring, en kontroll ligger i ej passerbar
   mark, eller en sträcka saknar väg (spärrad).
-- [ ] **Banhemlighet:** analysen finns bara för admin tills banorna är publika. Därefter får den publika
+- [x] **Banhemlighet:** analysen finns bara för admin tills banorna är publika. Därefter får den publika
   sträcktidsanalysen en linje "Bästa vägval enligt kartan" bredvid löparnas GPS-rutter, med samma regler som i dag
   (ADR-0171 beslut 5, ADR-0176). Kartfilen lämnas aldrig ut publikt, så arrangörens webbläsare sparar de bästa vägarna
   per sträcka ("Visa bästa vägval publikt", små linjer i jsonb) och det publika läser bara dem.

@@ -182,6 +182,12 @@ importers:
         specifier: 5.2.5
         version: 5.2.5
 
+  packages/map-file:
+    dependencies:
+      fast-xml-parser:
+        specifier: 5.2.5
+        version: 5.2.5
+
   packages/roc:
     dependencies:
       '@o-tid/domain':

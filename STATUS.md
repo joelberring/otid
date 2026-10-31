@@ -5,7 +5,7 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 7 – Riktig hårdvara och pilot (ägaren). Alla andra steg i `PLAN.md` är klara.
+Steg 59 – Kartfilen: OCAD och Mapper med banorna på (pågår). Därefter steg 60, vägvalsanalys. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
 Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbens löpare via `cachedcompetitors`, strukturen) provad mot riktiga Eventor 2026-10-19; hela landets `cachedcompetitors` och `/api/organisations` måste provas av ägaren; ROC:s sökväg för stämplingar (bara provad mot falsk ROC) och e-post via SMTP är inte provade.
 
 ## Logg

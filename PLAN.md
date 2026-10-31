@@ -926,6 +926,92 @@ ADR-0177 beslut 10. Ingen migration. Ägaren: "det borde stå placering av de so
   `steg-57-placering` (placering, lika tid, felstämplad, stafett), Playwright `placering.spec.ts` (övningsstation, utan nät,
   papperskvitto).
 
+## [ ] Steg 59 – Kartfilen: OCAD och Mapper med banorna på
+
+ADR-0179 (beslut 1–6). Migration 0028.
+
+- [ ] **Läsare** i ett nytt rent paket `packages/map-file` (ingen I/O):
+  - Mapper `.omap`/`.xmap` (XML): färger, symboler med nummer, objekt, georeferens.
+  - OCAD 12, 2018 och senare (binärt): färgtabell (även dekorfärgsdefinitioner, behålls för steg 4), symboler,
+    objekt med kurvor, inställning 1039 (skala, referenspunkt, vridning, koordinatsystem).
+  - Okända symbol- eller objekttyper hoppas över och räknas i en sammanfattning. Inga undantag ut till användaren.
+  - Tester med godtyckliga fel: trunkerad fil, fel version, tomma lager. Läsaren får aldrig hänga på en trasig fil.
+- [ ] **Georeferens ur filen:** Gauss–Krüger (transversal Mercator på GRS 80) för SWEREF 99 TM, de tolv lokala
+  SWEREF 99-zonerna (t.ex. 18 00 för Stockholm) och RT 90 2,5 gon V med Lantmäteriets direkta parametrar. Egen
+  funktion på ett par hundra rader, testad mot Lantmäteriets kontrollpunkter. Okänt koordinatsystem eller ingen
+  georeferens i filen ger de tre punkterna för hand som i dag.
+- [ ] **Ritning för skärm** (inte för tryck): ytor med färg och de vanligaste mönstren (raster, streck), linjer med
+  bredd, streckning och dubbellinjer, punktsymboler och text, allt i filens färgordning. Görs på `OffscreenCanvas` i en
+  Worker till en PNG, med upplösning efter skala: cirka 8 px/mm för 1:10 000 och 1:15 000, 12 px/mm för sprint, och
+  högst 30 MB som i dag. Förenklingar listas för arrangören ("Mönstret för 412 ritas som tonad yta").
+- [ ] **Lagring:** ny tabell `race_map_source` med originalfilen (`bytea`, högst 60 MB), format och version, SHA-256,
+  kartans yta i mm, skala och georeferens. Den genererade bilden går till `race_map` som förut. En ny kartfil ersätter
+  bild och georeferens. Tas med i den nattliga `pg_dump`.
+- [ ] **Kontroller på kartfilen utan omräkning:** banfiler från OCAD och Purple Pen har `MapPosition` i samma
+  mm-system som kartfilen. Kontrollkartan placerar då kontrollerna direkt via kartfilens mm, i stället för via WGS 84.
+  Kontroll: ligger kartlägena utanför kartan, eller skiljer sig `Position` och `MapPosition` mer än 10 m, visas
+  "Banfilen verkar inte vara gjord på den här kartan" och O-Tid faller tillbaka till dagens ordning.
+- [ ] **Arbetsytan:** Banor → Kontrollkarta och Resultat → Karta och vägval får "Ladda upp kartfil (OCAD eller Mapper)"
+  bredvid "Ladda upp kartbild". Efter uppladdningen visas en rad med format, skala, koordinatsystem, antal objekt,
+  eventuella förenklingar och "Georefererad ur filen".
+- [ ] **Publikt:** oförändrat. Bilden visas när den är georefererad, och banorna först när banhemligheten tillåter det.
+  Originalfilen lämnas aldrig ut publikt, bara till admin.
+- [ ] **Tester:** paketet (läsare, georeferens, ritkommandon), domän `control-map` med kartfilens ram, integration
+  `steg-59-kartfil` (uppladdning, ersättning, behörighet, `pg_dump`), Playwright `kartfil.spec.ts` (ladda upp .omap och
+  .ocd, kontrollkartan med banan på).
+
+**Behövs från ägaren:** en OCAD-fil och en Mapper-fil (gärna en skog och en sprint) plus banfilen i IOF XML exporterad
+ur Purple Pen och ur OCAD för samma karta. Testerna i repot använder små utklipp eller syntetiska filer, inte hela
+klubbkartor.
+
+## [ ] Steg 60 – Vägvalsanalys
+
+ADR-0179 (beslut 7–12). Migration 0029 (bara inställningar per tävling).
+
+- [ ] **Löpbarhet per symbol** i ett nytt rent paket `packages/route-choice`. Standardtabellen utgår från ISOM 2017-2:s
+  riktvärden och ISSprOM 2019-2. Värdena nedan är startvärden att kalibrera:
+
+  | Klass | Exempel (ISOM) | Fart mot normal skog |
+  |---|---|---|
+  | Snabb | 501–506 vägar och stigar, 401 öppen mark | 1,2–1,4 |
+  | Normal | 405 skog | 1,0 |
+  | Långsam | 406, 403 | 0,6–0,8 |
+  | Mycket långsam | 408 | 0,2–0,6 |
+  | Nästan stopp | 410 | 0–0,2 |
+  | Ej passerbar | 201 stup, 301 sjö, 515, 521.1, 520 förbjudet område, sprintens byggnader | spärr |
+
+  Symboler som saknas i tabellen listas ("räknas som vanlig skog") och kan ges en klass per tävling.
+- [ ] **Rutnät per sträcka:** sträckans ruta plus marginal (minst 300 m), 2 m celler i skog och 0,5 m i sprint
+  (smala passager mellan hus). Varje cell får den långsammaste symbolen som täcker den. Linjer som stigar, staket och
+  murar läggs in med sin bredd, och ej passerbara linjer spärrar alltid.
+- [ ] **Bästa väg:** sökning med 16 grannar (mindre sicksack än 8) från båda ändar. Summan av de två fälten ger alla
+  vägar som högst är 5 % sämre än den bästa. Det visas som ett tonat stråk, och det är den tydligaste bilden av om en
+  sträcka har vägval. Upp till tre tydligt skilda vägval (högst 15 % sämre och mindre än hälften gemensamt) tas fram
+  genom att straffa den bästa vägens stråk och söka igen.
+- [ ] **Höjd ur kartan, inget annat.** Analysen använder bara det de tävlande ser på kartan (ägaren 2026-10-31).
+  Orienteringskartor har höjdkurvor men inga höjdvärden (kontrollerat på Djurgården 2025 i både OCAD och Mapper).
+  Stigningen räknas som antalet passerade höjdkurvor (101, 102) gånger ekvidistansen, plus hjälpkurvor (103) som halv
+  ekvidistans. Standard 5 m eller enligt arrangören, och 1 m stigning räknas som 8 m plan väg (inställbart). Uppför och
+  nedför skiljs inte åt. Branter (201, 202) och annan terräng räknas via sina symboler. Ingen höjdmodell och ingen
+  rekonstruktion av höjder ur kurvorna.
+- [ ] **Allt i webbläsaren:** beräkningen körs i en Worker när arrangören öppnar analysen. Resultatet sparas inte i
+  databasen (det går snabbt att räkna om), bara inställningarna: klass per symbol, ekvidistans och
+  stigningsfaktor (`race_route_choice_settings`, jsonb).
+- [ ] **Arbetsytan:** Kontrollkartan får läget "Vägval". Där väljs bana eller variant, och en tabell per sträcka visar
+  fågelväg, bästa väg i meter, stigning, uppskattad tid relativt och antal vägval, med en markering "Vägvalssträcka"
+  eller "Inget vägval". Kartan visar bästa vägen, stråket och alternativen för vald sträcka. Totalt per bana: bästa
+  vägens längd mot fågelvägen.
+- [ ] **Varningar till banläggaren:** bästa vägen går genom en annan kontrolls ring, en kontroll ligger i ej passerbar
+  mark, eller en sträcka saknar väg (spärrad).
+- [ ] **Banhemlighet:** analysen finns bara för admin tills banorna är publika. Därefter får den publika
+  sträcktidsanalysen en linje "Bästa vägval enligt kartan" bredvid löparnas GPS-rutter, med samma regler som i dag
+  (ADR-0171 beslut 5, ADR-0176).
+- [ ] **Prestanda mätt:** en sträcka på 1,5 km i skog (cirka 1 miljon celler) ska ta under 1 s på en vanlig laptop. En
+  hel bana räknas sträcka för sträcka med svar efter hand. Mätningen skrivs i STATUS.md.
+- [ ] **Tester:** `route-choice` (kostnadstabell, rastrering, sökning mot kända svar på små syntetiska kartor, stråk,
+  alternativ, stigning), webb (tabellen, varningar), Playwright `vagval-analys.spec.ts` (bana med en känd vägvalssträcka,
+  banhemlighet publikt).
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

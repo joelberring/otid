@@ -18,6 +18,8 @@ import { UUID_PATTERN as uuid, sha256Hex as sha256 } from "./serialization";
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 type Failure = { status: "unauthorized" | "forbidden" | "invalid-request" | "not-found" };
 type Problem = { status: "problem"; problem: RaceMapProblem };
+/** Bytes som Buffer utan kopia (en kartfil kan vara 60 MB). */
+const view = (bytes: Uint8Array) => Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 const cleanName = (value: string, fallback: string) => value.replace(/\p{Cc}/gu, "").trim().slice(0, 200) || fallback;
 
 /** OCAD: filen börjar med 0x0CAD (little endian) följt av filtypen. */
@@ -91,10 +93,10 @@ export async function saveRaceMapSourceAsAdmin(db: Database, input: RaceSessionP
     const raceId = input.raceId, fileName = cleanName(input.fileName, metadata.data.format === "OCD" ? "karta.ocd" : "karta.omap");
     const imageHash = sha256(input.image), fileHash = sha256(input.file);
     const map = { fileName: `${fileName.replace(/\.[^.]{1,8}$/, "")}.png`.slice(0, 200), mediaType: "image/png" as const,
-      image: Buffer.from(input.image), sha256: imageHash, byteLength: input.image.byteLength, width: image.width, height: image.height,
+      image: view(input.image), sha256: imageHash, byteLength: input.image.byteLength, width: image.width, height: image.height,
       tiePoints: tiePoints ? [...tiePoints] : null, transform, uploadedAt: now, georeferencedAt: transform ? now : null };
     await tx.insert(schema.raceMaps).values({ raceId, ...map }).onConflictDoUpdate({ target: schema.raceMaps.raceId, set: map });
-    const source = { fileName, format: metadata.data.format, version: metadata.data.version, file: Buffer.from(input.file),
+    const source = { fileName, format: metadata.data.format, version: metadata.data.version, file: view(input.file),
       sha256: fileHash, byteLength: input.file.byteLength, scale: metadata.data.scale, bounds, georeference: metadata.data.georeference,
       render, summary: metadata.data.summary, uploadedAt: now };
     await tx.insert(schema.raceMapSources).values({ raceId, ...source }).onConflictDoUpdate({ target: schema.raceMapSources.raceId, set: source });

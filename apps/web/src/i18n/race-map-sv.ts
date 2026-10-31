@@ -21,7 +21,47 @@ export const raceMapSv = {
     chooseFile: "Välj en bild först.",
     tooLarge: "Bilden är större än 30 MB.",
     invalid: "Filen är inte en PNG- eller JPEG-bild.",
-    failed: "Kartan kunde inte sparas."
+    failed: "Kartan kunde inte sparas.",
+    replacesMapFile: "En ny kartbild ersätter kartfilen."
+  },
+  /** Steg 59: kartfilen från OCAD eller Mapper. */
+  mapFile: {
+    upload: "Ladda upp kartfil (OCAD eller Mapper)",
+    replace: "Byt kartfil",
+    file: "Kartfil (.ocd, .omap eller .xmap, högst 60 MB)",
+    fileHelp: "Kartan ritas i din webbläsare. Är kartan georefererad i filen hamnar den rätt direkt, annars sätter du tre punkter nedan.",
+    chooseFile: "Välj en kartfil först.",
+    tooLarge: "Kartfilen är större än 60 MB.",
+    reading: "Läser kartfilen …",
+    drawing: "Ritar kartan …",
+    saving: "Sparar kartan …",
+    saved: "Kartan är ritad och sparad.",
+    savedNeedsPoints: "Kartan är ritad och sparad. Filen saknar en georeferens som O-Tid kan använda, så ange tre punkter nedan.",
+    errors: {
+      NOT_A_MAP_FILE: "Filen är ingen kartfil från OCAD eller Mapper.",
+      UNSUPPORTED_VERSION: "Kartfilen är från en OCAD-version som inte stöds. Spara den i OCAD 12 eller senare, eller i Mapper.",
+      TRUNCATED: "Kartfilen är avkortad eller trasig.",
+      INVALID: "Kartfilen går inte att läsa.",
+      EMPTY: "Kartfilen innehåller inga objekt att rita.",
+      NO_CANVAS: "Webbläsaren kan inte rita kartan. Prova en nyare webbläsare.",
+      TOO_LARGE: "Kartan blir för stor som bild.",
+      FAILED: "Kartfilen kunde inte ritas."
+    },
+    invalid: "Servern godtog inte kartfilen. Kontrollera att det är en kartfil från OCAD eller Mapper.",
+    failed: "Kartfilen kunde inte sparas.",
+    download: "Hämta kartfilen",
+    summary: {
+      format: (format: "OCD" | "OMAP", version: string) => format === "OCD" ? `OCAD (${version})` : `Mapper (${version})`,
+      scale: (scale: number) => `1:${scale.toLocaleString("sv-SE")}`,
+      crs: (code: number | null) => code === 3006 ? "SWEREF 99 TM" : code === 3021 ? "RT 90 2,5 gon V"
+        : code !== null && code >= 3007 && code <= 3018 ? "SWEREF 99 lokal zon" : code !== null ? `EPSG ${code}` : "Okänt koordinatsystem",
+      noCrs: "Ingen georeferens i filen",
+      objects: (count: number) => count === 1 ? "1 objekt" : `${count.toLocaleString("sv-SE")} objekt`,
+      fromFile: "Georefererad ur filen",
+      setPoints: "Sätt tre punkter",
+      simplifications: "Förenklat i bilden",
+      warnings: "Hoppades över"
+    }
   },
   georeference: {
     heading: "2. Georeferens",

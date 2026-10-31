@@ -6,6 +6,7 @@ import { adminRaceMapStateSchema, PARTICIPANT_ROUTE_CONTENT_TYPE, participantRou
   raceMapProblemSchema, type AdminRaceMapState, type RaceMapProblem } from "@o-tid/contracts";
 import { raceMapSv } from "../../i18n/race-map-sv";
 import { Button, Field, Notice, Section } from "../ui";
+import { MapFileSummary, MapFileUpload } from "./map-file-upload";
 import { MapGeoreference } from "./map-georeference";
 import type { Message } from "./source-sync-actions";
 import styles from "./map-routes.module.css";
@@ -91,6 +92,28 @@ export function MapRoutesSection({ ws }: { ws: Workspace }) {
     }, { INVALID_IMAGE: text.map.invalid, IMAGE_TOO_LARGE: text.map.tooLarge }, text.map.failed);
   }
 
+  /**
+   * Steg 59: kartfilen med bilden i en uppladdning. En kartfil på 60 MB tar tid att skicka, så gränsen för anropet är
+   * längre än arbetsytans vanliga 15 s.
+   */
+  async function uploadMapFile(form: FormData, georeferenced: boolean): Promise<Message | undefined> {
+    if (writingRef.current || !requireSession()) return undefined;
+    const op = beginRequest(true);
+    clearTimeout(op.timer);
+    op.timer = setTimeout(() => op.controller.abort(), 10 * 60_000);
+    let next: Message | undefined;
+    try {
+      const response = await request("/map/source", op, { method: "POST", headers: { "x-otid-csrf": csrf() }, body: form });
+      const problem = await problemOf(response);
+      if (problem) next = { tone: "error", text: problem === "MAP_FILE_TOO_LARGE" ? text.mapFile.tooLarge
+        : problem === "IMAGE_TOO_LARGE" ? text.mapFile.errors.TOO_LARGE : text.mapFile.invalid };
+      else if (!response.ok) throw new Error("Kartfilen kunde inte sparas");
+      else next = { tone: "ok", text: georeferenced ? text.mapFile.saved : text.mapFile.savedNeedsPoints };
+    } catch { if (current(op)) next = { tone: "error", text: text.mapFile.failed }; } finally { finish(op); }
+    if (next?.tone === "ok") await load(true);
+    return next;
+  }
+
   async function uploadRoute() {
     const file = routeFile.current?.files?.[0];
     const chosen = state?.runners.find(row => row.entryId === runner);
@@ -120,8 +143,10 @@ export function MapRoutesSection({ ws }: { ws: Workspace }) {
           {map && <p className={styles.current}><span>{text.map.current(map.fileName, map.width, map.height)}</span>
             <span className={styles.state} data-ok={map.georeferencedAt ? "true" : "false"}>
               {map.georeferencedAt ? text.map.georeferenced : text.map.notGeoreferenced}</span></p>}
+          {state.source && <MapFileSummary source={state.source} downloadHref={`/api/admin/races/${raceId}/administrator/map/source`} />}
+          <MapFileUpload disabled={busy} hasMap={!!state.source} upload={uploadMapFile} onMessage={setMessage} />
           <form className={styles.inlineForm} onSubmit={event => { event.preventDefault(); void uploadMap(); }}>
-            <Field label={text.map.file} help={text.map.fileHelp}>
+            <Field label={text.map.file} help={state.source ? `${text.map.fileHelp} ${text.map.replacesMapFile}` : text.map.fileHelp}>
               <input ref={mapFile} type="file" accept="image/png,image/jpeg,.png,.jpg,.jpeg" disabled={busy} /></Field>
             <div className={styles.actions}>
               <Button type="submit" variant={map ? "secondary" : "primary"} disabled={busy}>{map ? text.map.replace : text.map.upload}</Button>

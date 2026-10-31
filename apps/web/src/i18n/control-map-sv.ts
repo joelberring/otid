@@ -24,6 +24,9 @@ export const controlMapSv = {
   noPositions: "Banfilen har inga lägen för kontrollerna, så kartan kan inte ritas. Läs in en banfil med koordinater (IOF XML från OCAD eller Purple Pen) för att se kontrollerna på kartan.",
   missingPositions: (count: number) => count === 1 ? "1 kontroll saknar läge och finns bara i tabellen." : `${count} kontroller saknar läge och finns bara i tabellen.`,
   paperNoScale: "Lägena kommer från kartan i banfilen utan skala; avstånden är ungefärliga.",
+  // Steg 59: kartfilen.
+  noMapImage: "Ingen karta under kontrollerna än. Ladda upp kartfilen (OCAD eller Mapper) eller en kartbild under Resultat → Karta och vägval.",
+  mapFileMismatch: "Banfilen verkar inte vara gjord på den här kartan. Kontrollerna placeras med koordinaterna i banfilen i stället.",
   scale: (meters: number) => meters >= 1000 ? `${meters / 1000} km` : `${meters} m`,
   start: "Start",
   finish: "Mål",

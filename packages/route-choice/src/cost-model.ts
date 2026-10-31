@@ -42,6 +42,8 @@ export interface PreparedModel {
   readonly settings: ResolvedSettings;
   readonly features: readonly Feature[];
   readonly scale: number;
+  /** Kartans yta (objektens ruta); utanför den finns ingen karta och ingen väg. */
+  readonly bounds: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number } | null;
 }
 
 const prepared = new WeakMap<CostModel, PreparedModel>();
@@ -208,7 +210,7 @@ export function buildCostModel(map: ParsedMap, settings?: RouteChoiceSettings | 
   const unknownSymbols = classes.filter(row => row.source === "UNKNOWN" && !isTextSymbol(map, row.code))
     .map(row => ({ code: row.code, name: row.name, objects: row.objects }));
   const model: BuiltCostModel = { map, unknownSymbols, classes };
-  prepared.set(model, { settings: resolved, features, scale: map.scale > 0 ? map.scale : 15000 });
+  prepared.set(model, { settings: resolved, features, scale: map.scale > 0 ? map.scale : 15000, bounds: map.bounds });
   return model;
 }
 

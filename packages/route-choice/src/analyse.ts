@@ -5,7 +5,7 @@
  * långsamma klasser.
  */
 import type { Point } from "@o-tid/map-file";
-import { preparedOf } from "./cost-model";
+import { preparedOf, type PreparedModel } from "./cost-model";
 import { RUNNABLE_CLASSES, type ResolvedSettings, type RunnableClass, resolveSettings } from "./defaults";
 import { distance, distanceToPolyline, polylineLength, simplify } from "./geometry";
 import { cellCenter, cellOf, legFrame, paceField, rasterize, strokeLine, type Grid } from "./raster";
@@ -163,15 +163,40 @@ function corridorOf(grid: Grid, fieldA: Float64Array, fieldB: Float64Array, limi
  */
 export function analyseLeg(model: CostModel, leg: LegInput, settings?: RouteChoiceSettings | null): LegAnalysis {
   const started = performance.now();
+  // Saknas vägen, eller går bästa vägen längs ramen, räknas sträckan om med större marginal (vägen runt en sjö eller
+  // ett förbjudet område kan ligga utanför den vanliga rutan).
+  const factors = [1, 2.5, 6];
+  let result = analyseInFrame(model, leg, settings, factors[0]!, false);
+  for (let attempt = 1; attempt < factors.length && result.retry; attempt += 1) {
+    result = analyseInFrame(model, leg, settings, factors[attempt]!, attempt === factors.length - 1);
+  }
+  return { ...result.analysis, milliseconds: performance.now() - started };
+}
+
+/** Så nära ramen (celler) räknas bästa vägen som att den går längs kanten. */
+const EDGE_CELLS = 3;
+
+function touchesEdge(grid: Grid, cells: readonly number[]): boolean {
+  for (const index of cells) {
+    const col = index % grid.width, row = (index - col) / grid.width;
+    if (col < EDGE_CELLS || row < EDGE_CELLS || col >= grid.width - EDGE_CELLS || row >= grid.height - EDGE_CELLS) return true;
+  }
+  return false;
+}
+
+function analyseInFrame(model: CostModel, leg: LegInput, settings: RouteChoiceSettings | null | undefined, marginFactor: number, last: boolean):
+  { analysis: LegAnalysis; retry: boolean } {
+  const started = performance.now();
+  let retry = false;
   const prepared = preparedOf(model, settings);
   const resolved = settings ? resolveSettings({ ...settings, classBySymbol: {} }) : prepared.settings;
   const mmPerMeter = 1000 / prepared.scale;
   const straightMeters = distance(leg.from, leg.to) / mmPerMeter;
   const warnings: LegWarning[] = [];
-  const finish = (rest: Omit<LegAnalysis, "key" | "straightMeters" | "warnings" | "milliseconds">): LegAnalysis =>
-    ({ key: leg.key, straightMeters, ...rest, warnings, milliseconds: performance.now() - started });
+  const finish = (rest: Omit<LegAnalysis, "key" | "straightMeters" | "warnings" | "milliseconds">) =>
+    ({ analysis: { key: leg.key, straightMeters, ...rest, warnings, milliseconds: performance.now() - started }, retry });
 
-  const frame = legFrame(leg.from, leg.to, prepared.scale);
+  const frame = legFrame(leg.from, leg.to, prepared.scale, undefined, marginFactor);
   const grid = rasterize(prepared, frame, resolved.speedByClass);
   const pace = paceField(grid, resolved.speedByClass);
   const searchGrid = searchGridFor(grid, pace, resolved);
@@ -195,9 +220,13 @@ export function analyseLeg(model: CostModel, leg: LegInput, settings?: RouteChoi
   const fromA = search(searchGrid, pace, a.cell, { towards: b.cell, minPace, boundFactorAfterGoal: ALTERNATIVE_FACTOR });
   const best = routeFrom(searchGrid, fromA, a.cell, b.cell, pace);
   if (!best) {
+    // Instängt i rutan: en väg kan finnas utanför den, men bara om sökningen nådde ramen.
+    // Båda ändarna måste nå ramen; är den ena instängd i rutan finns ingen väg hur stor rutan än blir.
+    retry = canGrow(prepared.bounds, grid) && reachedEdge(grid, fromA.cost) && reachedEdge(grid, search(searchGrid, pace, b.cell).cost);
     warnings.push({ kind: "NO_ROUTE" });
     return finish({ best: undefined, alternatives: [], corridor: undefined, verdict: "NO_CHOICE" });
   }
+  if (!last && canGrow(prepared.bounds, grid) && touchesEdge(grid, best.cells)) { retry = true; return finish({ best: undefined, alternatives: [], corridor: undefined, verdict: "NO_CHOICE" }); }
   const bestLine = toLine(context, best, a.point, b.point);
 
   // Två fält från ändarna, beskurna till celler som kan ligga på en väg högst 15 % sämre än bästa. Stråket är de
@@ -227,6 +256,20 @@ export function analyseLeg(model: CostModel, leg: LegInput, settings?: RouteChoi
 }
 
 interface End { readonly cell: number; readonly point: Point }
+
+/** Finns det karta utanför rutnätet? (Utan kartans yta: anta att det gör det.) */
+function canGrow(bounds: PreparedModel["bounds"], grid: Grid): boolean {
+  if (!bounds) return true;
+  return grid.x0 > bounds.minX || grid.yTop < bounds.maxY || grid.x0 + grid.width * grid.cellMm < bounds.maxX ||
+    grid.yTop - grid.height * grid.cellMm > bounds.minY;
+}
+
+function reachedEdge(grid: Grid, cost: Float64Array): boolean {
+  const w = grid.width, h = grid.height;
+  for (let col = 0; col < w; col += 1) if (cost[col]! < Infinity || cost[(h - 1) * w + col]! < Infinity) return true;
+  for (let row = 0; row < h; row += 1) if (cost[row * w]! < Infinity || cost[row * w + w - 1]! < Infinity) return true;
+  return false;
+}
 
 interface Fields { readonly costA: Float64Array; readonly costB: Float64Array; readonly parentA: Int32Array; readonly parentB: Int32Array }
 
@@ -380,8 +423,8 @@ export function analyseCourse(model: CostModel, legs: readonly LegInput[], setti
 }
 
 /** Rutnätet för en sträcka (för bilder och felsökning). */
-export function legGrid(model: CostModel, leg: Pick<LegInput, "from" | "to">, settings?: RouteChoiceSettings | null): Grid {
+export function legGrid(model: CostModel, leg: Pick<LegInput, "from" | "to">, settings?: RouteChoiceSettings | null, marginFactor = 1): Grid {
   const prepared = preparedOf(model, settings);
   const resolved = settings ? resolveSettings({ ...settings, classBySymbol: {} }) : prepared.settings;
-  return rasterize(prepared, legFrame(leg.from, leg.to, prepared.scale), resolved.speedByClass);
+  return rasterize(prepared, legFrame(leg.from, leg.to, prepared.scale, undefined, marginFactor), resolved.speedByClass);
 }

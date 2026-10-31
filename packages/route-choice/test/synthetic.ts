@@ -61,9 +61,16 @@ export class MapBuilder {
   }
 
   build(scale = SCALE): ParsedMap {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    const add = (x: number, y: number) => { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y); };
+    for (const object of this.objects) {
+      if (object.kind === "area") for (const r of object.rings) for (const c of r) add(c.x, c.y);
+      else if (object.kind === "line") for (const c of object.path) add(c.x, c.y);
+      else add(object.at.x, object.at.y);
+    }
     return {
       format: "OMAP", version: "test", colors: [], symbols: this.symbols, objects: this.objects, scale,
-      georeference: null, bounds: null, warnings: []
+      georeference: null, bounds: Number.isFinite(minX) ? { minX, minY, maxX, maxY } : null, warnings: []
     };
   }
 }

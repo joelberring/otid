@@ -48,7 +48,7 @@ describe("träff-testet", () => {
     ({ kind: "circle", role: "CONTROL", color: "COURSE", center: { x, y }, diameter: 6, lineWidth: 0.35, ref });
   const primitives: OverprintPrimitive[] = [
     ring("c2", 10, 0), ring("c3", 20, 10),
-    { kind: "polyline", role: "LEG", color: "COURSE", points: [{ x: 13, y: 3 }, { x: 17, y: 7 }], width: 0.35, ref: "c2-c3" },
+    { kind: "polyline", role: "LEG", color: "COURSE", points: [{ x: 13, y: 3 }, { x: 17, y: 7 }], width: 0.35, ref: "a-b" },
     { kind: "text", role: "NUMBER", color: "COURSE", at: { x: 14, y: -3 }, text: "1", heightMm: 4, align: "center", ref: "c2" }
   ];
 
@@ -59,7 +59,7 @@ describe("träff-testet", () => {
 
   it("ger banans kontroll i en bana, kontrollen i Alla kontroller, sträckan och numret först", () => {
     expect(hitTest(document, "k", primitives, { x: 10.5, y: 0 }, 1)).toEqual({ kind: "control", control: "a", courseControl: "c2" });
-    expect(hitTest(document, "k", primitives, { x: 15, y: 5 }, 1)).toMatchObject({ kind: "leg", from: "a", to: "b", fromCourseControl: "c2" });
+    expect(hitTest(document, "k", primitives, { x: 15, y: 5 }, 1)).toEqual({ kind: "leg", from: "a", to: "b" });
     expect(hitTest(document, "k", primitives, { x: 14, y: -3 }, 1)).toMatchObject({ kind: "number", control: "a" });
     expect(hitTest(document, ALL_CONTROLS, [{ ...ring("a", 10, 0) }], { x: 10, y: 0 }, 1)).toEqual({ kind: "control", control: "a" });
     expect(hitTest(document, "k", primitives, { x: 40, y: 40 }, 1)).toBeUndefined();

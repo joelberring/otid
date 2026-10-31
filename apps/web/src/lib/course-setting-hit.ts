@@ -83,11 +83,12 @@ export function resolveTarget(document: CourseSettingDocument, view: string, pri
     }
     case "LEG": case "FLAGGING": {
       if (document.legs[ref]) return { kind: "leg", from: document.legs[ref].from, to: document.legs[ref].to };
-      const [fromId, toId] = ref.split("-");
-      if (!fromId || !toId) return undefined;
-      const from = point(fromId), to = point(toId);
-      return from && to ? { kind: "leg", from: from.control, to: to.control, fromCourseControl: from.courseControl, toCourseControl: to.courseControl }
-        : undefined;
+      // Sträckans nyckel är kontrollernas id (`från-till`); ett id kan självt innehålla bindestreck.
+      for (let index = ref.indexOf("-"); index > 0; index = ref.indexOf("-", index + 1)) {
+        const from = ref.slice(0, index), to = ref.slice(index + 1);
+        if (document.controls[from] && document.controls[to]) return { kind: "leg", from, to };
+      }
+      return undefined;
     }
     default:
       return undefined;

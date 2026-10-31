@@ -56,7 +56,7 @@ export function stepCost(grid: SearchGrid, pace: Float32Array, from: number, to:
   return { cost: meters * (pace[from]! + pace[to]!) / 2 + climbUnits * grid.climbCostPerUnit, climbUnits, meters };
 }
 
-/** Binär min-hög med flyttalsnycklar och lat borttagning (en per sökning, återanvänds inte). */
+/** 4-är min-hög med flyttalsnycklar och lat borttagning (grundare än en binär hög, färre cachemissar). */
 class Heap {
   keys: Float64Array;
   values: Int32Array;
@@ -76,7 +76,7 @@ class Heap {
     let index = this.size;
     this.size = index + 1;
     while (index > 0) {
-      const parent = (index - 1) >> 1;
+      const parent = (index - 1) >> 2;
       const parentKey = keys[parent]!;
       if (parentKey <= key) break;
       keys[index] = parentKey; values[index] = values[parent]!;
@@ -93,12 +93,15 @@ class Heap {
     if (size > 0) {
       const key = keys[size]!, value = values[size]!;
       let index = 0;
-      const half = size >> 1;
-      while (index < half) {
-        let child = 2 * index + 1;
-        let childKey = keys[child]!;
-        const right = child + 1;
-        if (right < size) { const rightKey = keys[right]!; if (rightKey < childKey) { child = right; childKey = rightKey; } }
+      for (;;) {
+        const first = 4 * index + 1;
+        if (first >= size) break;
+        let child = first, childKey = keys[first]!;
+        const last = Math.min(first + 4, size);
+        for (let other = first + 1; other < last; other += 1) {
+          const otherKey = keys[other]!;
+          if (otherKey < childKey) { child = other; childKey = otherKey; }
+        }
         if (childKey >= key) break;
         keys[index] = childKey; values[index] = values[child]!;
         index = child;
@@ -123,6 +126,14 @@ export interface SearchOptions {
    * avståndsfält i samma sökning.
    */
   readonly boundFactorAfterGoal?: number;
+  /**
+   * Nedre gräns per cell för resten av vägen (t.ex. ett avståndsfält från andra änden), gånger `estimateScale`. Måste
+   * vara konsistent; används i stället för fågelvägen.
+   */
+  readonly estimate?: Float64Array;
+  readonly estimateScale?: number;
+  /** Dras från `estimate` (gränsen blir max(0, estimate − offset)): ett fält till en punkt bortom målet. */
+  readonly estimateOffset?: number;
 }
 
 export interface SearchResult {
@@ -182,6 +193,9 @@ export function search(grid: SearchGrid, pace: Float32Array, start: number, opti
   // Nedre gräns: fågelväg till `towards` gånger lägsta tid per meter (konsistent, så kostnaden är slutgiltig när
   // cellen tas ut även med A*).
   const lowerFor = useLower ? lower : 0;
+  const estimate = options.estimate;
+  const estimateScale = options.estimateScale ?? 1;
+  const estimateOffset = options.estimateOffset ?? 0;
   const count = DIRECTIONS.length;
   const dxs = Int32Array.from(DIRECTIONS, d => d.dx), dys = Int32Array.from(DIRECTIONS, d => d.dy);
   const offs = Int32Array.from(DIRECTIONS, d => d.dy * w + d.dx);
@@ -194,7 +208,7 @@ export function search(grid: SearchGrid, pace: Float32Array, start: number, opti
   workspace?.touch(start);
   {
     const sc = start % w, dx = sc - tc, dy = (start - sc) / w - tr;
-    heap.push(Math.sqrt(dx * dx + dy * dy) * lowerFor, start);
+    heap.push(estimate ? Math.max(0, estimate[start]! - estimateOffset) * estimateScale : Math.sqrt(dx * dx + dy * dy) * lowerFor, start);
   }
   while (heap.size > 0) {
     const u = heap.pop();
@@ -234,7 +248,8 @@ export function search(grid: SearchGrid, pace: Float32Array, start: number, opti
       const g = gu + step;
       if (g >= cost[v]!) continue;
       let f = g;
-      if (useLower) { const ex = nc - tc, ey = nr - tr; f += Math.sqrt(ex * ex + ey * ey) * lowerFor; }
+      if (estimate) { const e = estimate[v]! - estimateOffset; if (e > 0) f += e * estimateScale; }
+      else if (useLower) { const ex = nc - tc, ey = nr - tr; f += Math.sqrt(ex * ex + ey * ey) * lowerFor; }
       if (f > bound) continue;
       if (workspace && cost[v] === Infinity) workspace.touch(v);
       cost[v] = g;

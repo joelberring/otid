@@ -40,11 +40,11 @@ export const MIN_MARGIN_METERS = 300;
 
 export interface GridFrame { readonly x0: number; readonly yTop: number; readonly cellMm: number; readonly cellMeters: number; readonly width: number; readonly height: number }
 
-/** Rutnätets läge och storlek för en sträcka: sträckans ruta plus marginal (minst 300 m och 30 % av sträckan). */
+/** Rutnätets läge och storlek för en sträcka: sträckans ruta plus marginal (minst 300 m och 20 % av sträckan). */
 export function legFrame(from: Point, to: Point, scale: number, maxCells = MAX_CELLS): GridFrame {
   const mmPerMeter = 1000 / scale;
   const legMeters = Math.hypot(to.x - from.x, to.y - from.y) / mmPerMeter;
-  const margin = Math.max(MIN_MARGIN_METERS, 0.3 * legMeters) * mmPerMeter;
+  const margin = Math.max(MIN_MARGIN_METERS, 0.2 * legMeters) * mmPerMeter;
   const minX = Math.min(from.x, to.x) - margin, maxX = Math.max(from.x, to.x) + margin;
   const minY = Math.min(from.y, to.y) - margin, maxY = Math.max(from.y, to.y) + margin;
   let cellMeters = scale < SPRINT_SCALE_LIMIT ? 0.5 : 2;

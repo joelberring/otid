@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { uuidSchema as uuid } from "./ids";
+import { adminRaceMapSourceSchema } from "./race-map-source";
 
 /**
  * Karta och vägval (ADR-0171, PLAN.md steg 16). Admin laddar upp kartbilden, georefererar den med tre punkter
@@ -38,6 +39,8 @@ export const adminRaceMapStateSchema = z.object({
     byteLength: count.max(RACE_MAP_MAX_BYTES), uploadedAt: instant,
     tiePoints: z.array(raceMapTiePointSchema).length(3).nullable(), georeferencedAt: instant.nullable()
   }).strict().nullable(),
+  /** Steg 59: kartfilen som bilden är ritad ur (OCAD eller Mapper), utan originalet. */
+  source: adminRaceMapSourceSchema.nullable(),
   /** Individuella löpare som kan få en rutt (stafettens sträcklöpare stöds inte). */
   runners: z.array(z.object({ entryId: uuid, name, className: name, club: name.nullable() }).strict()).max(20_000),
   routes: z.array(z.object({
@@ -54,7 +57,7 @@ export const participantRouteUploadResponseSchema = z.object({
 /** Begripliga fel vid uppladdning och georeferens (HTTP 422). */
 export const raceMapProblemSchema = z.object({
   formatVersion: z.literal(1),
-  error: z.enum(["INVALID_IMAGE", "IMAGE_TOO_LARGE", "INVALID_GPX", "ROUTE_WITHOUT_TIMES", "INVALID_GEOREFERENCE", "NO_MAP", "NOT_INDIVIDUAL"])
+  error: z.enum(["INVALID_IMAGE", "IMAGE_TOO_LARGE", "INVALID_MAP_FILE", "MAP_FILE_TOO_LARGE", "INVALID_GPX", "ROUTE_WITHOUT_TIMES", "INVALID_GEOREFERENCE", "NO_MAP", "NOT_INDIVIDUAL"])
 }).strict();
 
 const pixel = z.tuple([z.number().finite(), z.number().finite()]);

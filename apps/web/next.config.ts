@@ -50,7 +50,8 @@ const nextConfig: NextConfig = {
     "@o-tid/application",
     "@o-tid/contracts",
     "@o-tid/database",
-    "@o-tid/domain"
+    "@o-tid/domain",
+    "@o-tid/map-file"
   ]
 };
 

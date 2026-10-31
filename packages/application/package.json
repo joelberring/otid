@@ -17,6 +17,7 @@
     "@o-tid/domain": "workspace:*",
     "@o-tid/eventor": "workspace:*",
     "@o-tid/iof-xml": "workspace:*",
+    "@o-tid/map-file": "workspace:*",
     "@o-tid/roc": "workspace:*",
     "@o-tid/sportident": "workspace:*",
     "drizzle-orm": "0.44.5"

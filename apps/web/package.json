@@ -19,6 +19,7 @@
     "@o-tid/database": "workspace:*",
     "@o-tid/device-transport": "workspace:*",
     "@o-tid/domain": "workspace:*",
+    "@o-tid/map-file": "workspace:*",
     "@o-tid/sportident": "workspace:*",
     "next": "16.3.3",
     "nodemailer": "10.0.12",

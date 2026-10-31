@@ -63,6 +63,23 @@ export async function loadCoursePositions(tx: Executor, raceId: string, courseId
   return { controls, start: course?.start ?? undefined, finish: course?.finish ?? undefined };
 }
 
+/** Steg 59: kartlägena (IOF MapPosition, mm) för en banas kontroller, start och mål. */
+export interface CourseMapPositions {
+  readonly controls: ReadonlyMap<number, { x: number; y: number }>;
+  readonly start?: { x: number; y: number } | undefined;
+  readonly finish?: { x: number; y: number } | undefined;
+}
+
+export async function loadCourseMapPositions(tx: Executor, raceId: string, courseId: string, codes: readonly number[]): Promise<CourseMapPositions> {
+  const [course] = await tx.select({ start: schema.courses.startMapPosition, finish: schema.courses.finishMapPosition }).from(schema.courses)
+    .where(and(eq(schema.courses.id, courseId), eq(schema.courses.raceId, raceId)));
+  const rows = codes.length === 0 ? [] : await tx.select({ code: schema.controls.code, x: schema.controls.mapX, y: schema.controls.mapY })
+    .from(schema.controls).where(and(eq(schema.controls.raceId, raceId), inArray(schema.controls.code, [...new Set(codes)])));
+  const controls = new Map<number, { x: number; y: number }>();
+  for (const row of rows) if (row.x !== null && row.y !== null) controls.set(row.code, { x: row.x, y: row.y });
+  return { controls, start: course?.start ?? undefined, finish: course?.finish ?? undefined };
+}
+
 /** Kontrollföljden som lägen: start, kontroller, mål (undefined där läget saknas). */
 export function coursePoints(positions: CoursePositions, controlCodes: readonly number[]): (ForkingGeoPoint | undefined)[] {
   return [positions.start, ...controlCodes.map(code => positions.controls.get(code)), positions.finish];

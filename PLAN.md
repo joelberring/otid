@@ -926,17 +926,17 @@ ADR-0177 beslut 10. Ingen migration. Ägaren: "det borde stå placering av de so
   `steg-57-placering` (placering, lika tid, felstämplad, stafett), Playwright `placering.spec.ts` (övningsstation, utan nät,
   papperskvitto).
 
-## [ ] Steg 59 – Kartfilen: OCAD och Mapper med banorna på
+## [x] Steg 59 – Kartfilen: OCAD och Mapper med banorna på
 
 ADR-0179 (beslut 1–6). Migration 0028.
 
-- [ ] **Läsare** i ett nytt rent paket `packages/map-file` (ingen I/O):
+- [x] **Läsare** i ett nytt rent paket `packages/map-file` (ingen I/O):
   - Mapper `.omap`/`.xmap` (XML): färger, symboler med nummer, objekt, georeferens.
   - OCAD 12, 2018 och senare (binärt): färgtabell (även dekorfärgsdefinitioner, behålls för steg 4), symboler,
     objekt med kurvor, inställning 1039 (skala, referenspunkt, vridning, koordinatsystem).
   - Okända symbol- eller objekttyper hoppas över och räknas i en sammanfattning. Inga undantag ut till användaren.
   - Tester med godtyckliga fel: trunkerad fil, fel version, tomma lager. Läsaren får aldrig hänga på en trasig fil.
-- [ ] **Georeferens ur filen:** Gauss–Krüger (transversal Mercator på GRS 80) för SWEREF 99 TM, de tolv lokala
+- [x] **Georeferens ur filen:** Gauss–Krüger (transversal Mercator på GRS 80) för SWEREF 99 TM, de tolv lokala
   SWEREF 99-zonerna (t.ex. 18 00 för Stockholm) och RT 90 2,5 gon V med Lantmäteriets direkta parametrar. Egen
   funktion på ett par hundra rader, testad mot Lantmäteriets kontrollpunkter. Okänt koordinatsystem eller ingen
   georeferens i filen ger de tre punkterna för hand som i dag.
@@ -951,7 +951,7 @@ ADR-0179 (beslut 1–6). Migration 0028.
   mm-system som kartfilen. Kontrollkartan placerar då kontrollerna direkt via kartfilens mm, i stället för via WGS 84.
   Kontroll: ligger kartlägena utanför kartan, eller skiljer sig `Position` och `MapPosition` mer än 10 m, visas
   "Banfilen verkar inte vara gjord på den här kartan" och O-Tid faller tillbaka till dagens ordning.
-- [x] **Arbetsytan:** Banor → Kontrollkarta och Resultat → Karta och vägval får "Ladda upp kartfil (OCAD eller Mapper)"
+- [x] **Arbetsytan:** Resultat → Karta och vägval får "Ladda upp kartfil (OCAD eller Mapper)" (Kontrollkartan utan karta hänvisar dit)
   bredvid "Ladda upp kartbild". Efter uppladdningen visas en rad med format, skala, koordinatsystem, antal objekt,
   eventuella förenklingar och "Georefererad ur filen".
 - [x] **Publikt:** oförändrat. Bilden visas när den är georefererad, och banorna först när banhemligheten tillåter det.

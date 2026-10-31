@@ -5,10 +5,16 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 59 – Kartfilen: OCAD och Mapper med banorna på (pågår) och steg 61 – gafflingar till start och karta (pågår). Därefter steg 60, vägvalsanalys. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
+Steg 61 – gafflingar till start och karta (pågår). Därefter steg 60, vägvalsanalys. Steg 59 (kartfilen) är klart. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
 Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbens löpare via `cachedcompetitors`, strukturen) provad mot riktiga Eventor 2026-10-19; hela landets `cachedcompetitors` och `/api/organisations` måste provas av ägaren; ROC:s sökväg för stämplingar (bara provad mot falsk ROC) och e-post via SMTP är inte provade.
 
 ## Logg
+
+### 2026-10-31 – Steg 59: läsarna (agent A, gren steg59-lasare)
+- `packages/map-file`: `readMapFile` för OCAD 12/2018+ och Mapper v9 till modellen i `model.ts`; georeferens SWEREF 99 TM, lokala zoner och RT 90 2,5 gon V
+  (Lantmäteriets räkneexempel och 14 kontrollpunkter < 1 mm; RT 90 bara rundresa). 200 slumpfiler per format hänger inte.
+- Djurgården 2025 (`OTID_REAL_MAP_DIR`, filerna committas inte): OCAD och Mapper ger samma 10 877 objekt och samma geometri per symbol; banfilens
+  25 kontroller via kartfilens georeferens inom 0,07 m (OCAD) och 0,36 m (Mapper) från `Position`. Läses på < 0,5 s.
 
 ### 2026-10-31 – Steg 59: kartfilen i webben (agent B, gren steg59-webb)
 - Skärmritning i `packages/map-file/src/render` (`drawMap`, `renderSize`): färgordning, ytor med raster/punktmönster (tonad yta när

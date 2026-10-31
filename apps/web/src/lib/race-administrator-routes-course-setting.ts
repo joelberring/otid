@@ -60,6 +60,8 @@ export async function handleCourseSettingRoute(context: RaceAdministratorRouteCo
       return response.raceId === raceId ? json(response) : failure(500, "INTERNAL_ERROR");
     }
     case "course-setting-revision": {
+      // Versionen prövas efter rollen (en funktionär får 403 oavsett adress).
+      if (!Number.isSafeInteger(action.version) || action.version < 1 || action.version > 2_147_483_647) return failure(400, "INVALID_REQUEST");
       const result = await dependencies.courseSettingRevision(db, { ...input, version: action.version });
       if (result.status !== "ok") return resultFailure(result.status);
       const response = courseSettingRevisionSchema.parse(result.response);

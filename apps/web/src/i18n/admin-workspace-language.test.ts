@@ -45,7 +45,9 @@ const adminFiles = [
   // Steg 61: kartor till starten.
   "map-bundles-sv.ts",
   // Steg 60: vägvalsanalysen.
-  "route-choice-sv.ts"
+  "route-choice-sv.ts",
+  // Steg 62: banläggningen.
+  "course-setting-sv.ts"
 ];
 /** Delade textfiler (även publika sidor): bara nycklarna som arbetsytan läser granskas. */
 const sharedFiles = ["sv.ts", "account-sv.ts"];

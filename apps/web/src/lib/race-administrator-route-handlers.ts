@@ -59,7 +59,7 @@ export async function raceAdministratorRoute(db: Database, request: Request, rac
     ("finalizationId" in action && !uuid.test(action.finalizationId)) ||
     ("classId" in action && !uuid.test(action.classId)) ||
     ("courseId" in action && !uuid.test(action.courseId)) ||
-    ("version" in action && !(Number.isSafeInteger(action.version) && action.version >= 1 && action.version <= 2_147_483_647)) || (url.search && !validHistoryQuery && !validCheckinQuery)) {
+    (url.search && !validHistoryQuery && !validCheckinQuery)) {
     return failure(400, "INVALID_REQUEST");
   }
   const allowed = allowedMethods(action);

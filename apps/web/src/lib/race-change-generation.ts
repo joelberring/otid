@@ -17,5 +17,8 @@ export function bumpRaceChangeGeneration(raceId: string): void {
   if (generations.size > 1_000) generations.delete(generations.keys().next().value!);
 }
 
-/** Skrivningar som är nya resultat (avläsningar) och därför får visas som publikens listor, högst lite fördröjda. */
-export const RESULT_WRITES: ReadonlySet<string> = new Set(["readouts"]);
+/** Skrivningar som inte räknar upp generationen: nya resultat (avläsningar, får visas högst lite fördröjda) och banläggningen. */
+export const RESULT_WRITES: ReadonlySet<string> = new Set(["readouts",
+  // Steg 62: banläggningens dokument ändrar inget i tävlingen förrän det förs över (då via source-sync), så autosparandet
+  // räknar inte upp generationen.
+  "course-setting", "course-setting-import", "course-setting-restore", "course-setting-transfer"]);

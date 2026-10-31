@@ -31,6 +31,8 @@ import { loadStartDrawSetupAsAdmin, previewStartDrawAsAdmin, commitStartDrawAsAd
   removeRaceMapAsAdmin, saveParticipantRouteAsAdmin, removeParticipantRouteAsAdmin,
   saveRaceMapSourceAsAdmin, readRaceMapSourceFileAsAdmin, removeRaceMapSourceAsAdmin,
   readRouteChoiceAsAdmin, saveRouteChoiceSettingsAsAdmin, publishRouteChoiceAsAdmin, readRouteChoiceCalibrationAsAdmin,
+  readCourseSettingAsAdmin, saveCourseSettingAsAdmin, importCourseSettingAsAdmin, listCourseSettingRevisionsAsAdmin,
+  readCourseSettingRevisionAsAdmin, restoreCourseSettingRevisionAsAdmin, readCourseSettingOriginalAsAdmin, previewCourseSettingTransferAsAdmin,
   listRacePeopleAsAdmin, grantRacePersonAsAdmin, revokeRacePersonAsAdmin,
   setRacePublicationAsAdmin, setCoursesPublicAsAdmin, readControlMapAsAdmin, readEntryControlMapAsAdmin, getRadioSettingsAsAdmin, saveRadioSettingsAsAdmin,
   fetchRadioNowAsAdmin, registerReadoutCard, previewRemainingRunnersAsAdmin, markRemainingDidNotStartAsAdmin,
@@ -108,6 +110,11 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   // Steg 60: vägvalsanalysen (inställningar, publicering och rutterna för kalibreringen).
   routeChoice: readRouteChoiceAsAdmin, routeChoiceSettings: saveRouteChoiceSettingsAsAdmin, routeChoicePublish: publishRouteChoiceAsAdmin,
   routeChoiceCalibration: readRouteChoiceCalibrationAsAdmin,
+  // Steg 62: banläggningen (dokumentet, versioner, inläst .ppen och överföringen till tävlingen).
+  courseSetting: readCourseSettingAsAdmin, courseSettingSave: saveCourseSettingAsAdmin, courseSettingImport: importCourseSettingAsAdmin,
+  courseSettingRevisions: listCourseSettingRevisionsAsAdmin, courseSettingRevision: readCourseSettingRevisionAsAdmin,
+  courseSettingRestore: restoreCourseSettingRevisionAsAdmin, courseSettingOriginal: readCourseSettingOriginalAsAdmin,
+  courseSettingTransfer: previewCourseSettingTransferAsAdmin,
   participantRouteSave: saveParticipantRouteAsAdmin, participantRouteRemove: removeParticipantRouteAsAdmin,
   people: listRacePeopleAsAdmin, grantPerson: grantRacePersonAsAdmin, revokePerson: revokeRacePersonAsAdmin,
   racePublication: setRacePublicationAsAdmin, courseSecrecy: setCoursesPublicAsAdmin,
@@ -163,6 +170,9 @@ export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: str
   { kind: "changes"; entryId: string } |
   { kind: "race-map" } | { kind: "race-map-image" } | { kind: "race-map-georeference" } | { kind: "race-map-source" } | { kind: "participant-route" } |
   { kind: "route-choice" } | { kind: "route-choice-settings" } | { kind: "route-choice-published" } | { kind: "route-choice-calibration"; courseId: string } |
+  { kind: "course-setting" } | { kind: "course-setting-import" } | { kind: "course-setting-revisions" } |
+  { kind: "course-setting-revision"; version: number } | { kind: "course-setting-restore" } | { kind: "course-setting-original" } |
+  { kind: "course-setting-transfer" } |
   { kind: "people" } | { kind: "race-publication" } | { kind: "course-secrecy" } | { kind: "control-map" } | { kind: "entry-control-map"; entryId: string } | { kind: "radio" } | { kind: "radio-fetch" } |
   { kind: "readout-registrations" } | { kind: "remaining-runners" } | { kind: "course-details"; courseId: string } |
   { kind: "entry-removal"; entryId: string } | { kind: "class-removal"; classId: string } | { kind: "course-removal"; courseId: string } |

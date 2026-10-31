@@ -21,6 +21,7 @@ import { handleRelayRoute, write as idempotentWrite } from "./race-administrator
 import { handleSourceRoute } from "./race-administrator-routes-sources";
 import { handleMapRoute } from "./race-administrator-routes-maps";
 import { handleRouteChoiceRoute } from "./race-administrator-routes-route-choice";
+import { handleCourseSettingRoute } from "./race-administrator-routes-course-setting";
 import { handlePeopleRoute } from "./race-administrator-routes-people";
 import { handlePublicationRoute } from "./race-administrator-routes-publication";
 import { handleRadioRoute } from "./race-administrator-routes-radio";
@@ -57,7 +58,8 @@ export async function raceAdministratorRoute(db: Database, request: Request, rac
   if (!uuid.test(raceId) || ("entryId" in action && !uuid.test(action.entryId)) ||
     ("finalizationId" in action && !uuid.test(action.finalizationId)) ||
     ("classId" in action && !uuid.test(action.classId)) ||
-    ("courseId" in action && !uuid.test(action.courseId)) || (url.search && !validHistoryQuery && !validCheckinQuery)) {
+    ("courseId" in action && !uuid.test(action.courseId)) ||
+    ("version" in action && !(Number.isSafeInteger(action.version) && action.version >= 1 && action.version <= 2_147_483_647)) || (url.search && !validHistoryQuery && !validCheckinQuery)) {
     return failure(400, "INVALID_REQUEST");
   }
   const allowed = allowedMethods(action);
@@ -101,7 +103,7 @@ async function dispatchRaceAdministratorRoute(context: RaceAdministratorRouteCon
   const { action, dependencies } = context;
   return await handleRaceDayRoute(context) ?? await handlePreparationRoute(context) ?? await handleResultRoute(context) ??
     await handleEntryRoute(context) ?? await handleVariantRoute(context) ?? await handleRelayRoute(context) ?? await handleSourceRoute(context) ??
-    await handleMapRoute(context) ?? await handleRouteChoiceRoute(context) ?? await handlePeopleRoute(context) ?? await handlePublicationRoute(context) ?? await handleRadioRoute(context) ??
+    await handleMapRoute(context) ?? await handleRouteChoiceRoute(context) ?? await handleCourseSettingRoute(context) ?? await handlePeopleRoute(context) ?? await handlePublicationRoute(context) ?? await handleRadioRoute(context) ??
     await handleCompetitionRoute(context) ?? await handleRemovalRoute(context) ?? await handleCorrectionRoute(context) ??
     await handlePartyRoute(context) ??
     (action.kind === "race-settings"
@@ -118,6 +120,9 @@ function allowedMethods(action: Action): string[] {
     action.kind === "race-map-source" ? ["GET", "POST", "DELETE"] :
     action.kind === "route-choice" || action.kind === "route-choice-calibration" ? ["GET"] :
     action.kind === "route-choice-settings" || action.kind === "route-choice-published" ? ["POST"] :
+    action.kind === "course-setting" ? ["GET", "PUT"] :
+    action.kind === "course-setting-revisions" || action.kind === "course-setting-revision" || action.kind === "course-setting-original" ? ["GET"] :
+    action.kind === "course-setting-import" || action.kind === "course-setting-restore" || action.kind === "course-setting-transfer" ? ["POST"] :
     action.kind === "participant-route" ? ["POST", "DELETE"] : action.kind === "eventor" ? ["GET", "PUT", "DELETE"] :
     action.kind === "runner-database" ? ["GET", "POST", "DELETE"] : action.kind === "runner-search" ? ["POST"] :
     action.kind === "source-sync" ? ["GET", "POST"] : action.kind === "eventor-events" ? ["GET"] :

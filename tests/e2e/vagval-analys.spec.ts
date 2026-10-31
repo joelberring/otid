@@ -133,11 +133,6 @@ test("vägvalsanalys: kartfilen räknas i webbläsaren, en vägvalssträcka, ins
   const saved = await owner.request.get(`${admin}/route-choice`);
   expect(((await saved.json()) as { settings: { contourIntervalMeters?: number } }).settings.contourIntervalMeters).toBe(2.5);
 
-  // Kalibreringen: knappen finns när en löpare med resultat på banan har en rutt; före och efter i en tabell.
-  await dialog.getByText("Farterna mot löparnas rutter").click();
-  await dialog.getByRole("button", { name: "Justera farterna efter de här rutterna" }).click();
-  await expect(dialog.getByRole("table", { name: "Fart mot vanlig skog" })).toBeVisible({ timeout: 60_000 });
-
   // Publicera bästa vägvalen.
   await dialog.getByRole("button", { name: "Visa bästa vägval publikt" }).click();
   await expect(dialog.getByText("Bästa vägvalen visas publikt när banorna är publika.")).toBeVisible();
@@ -168,4 +163,22 @@ test("vägvalsanalys: kartfilen räknas i webbläsaren, en vägvalssträcka, ins
   await reviewScreenshots(visitor, "vagval-publikt");
   expect((await visitor.request.get(`${admin}/map/source`)).status()).toBe(401);
   expect((await visitor.request.get(`${admin}/route-choice`)).status()).toBe(401);
+
+  // Kalibreringen: knappen finns när en löpare med resultat på banan har en rutt; före och efter i en tabell, och "Spara"
+  // sparar farterna i inställningarna. Rutterna räknas i webbläsaren.
+  await openStep(owner, "Banor");
+  await owner.getByRole("button", { name: "Öppna kontrollkartan" }).click();
+  dialog = owner.getByRole("dialog", { name: "Kontrollkarta" });
+  await dialog.getByRole("button", { name: "Vägval", exact: true }).click();
+  await expect(dialog.getByRole("status").filter({ hasText: "Klart: 7 sträckor." })).toBeVisible({ timeout: 120_000 });
+  await dialog.getByText("Farterna mot löparnas rutter").click();
+  await expect(dialog.getByText("1 löpare med resultat på banan har en uppladdad GPS-rutt.", { exact: false })).toBeVisible();
+  await dialog.getByRole("button", { name: "Justera farterna efter de här rutterna" }).click();
+  const speeds = dialog.getByRole("table", { name: "Fart mot vanlig skog" });
+  await expect(speeds).toBeVisible({ timeout: 60_000 });
+  await expect(speeds.getByRole("row", { name: /Vanlig skog/ })).toBeVisible();
+  await dialog.getByRole("button", { name: "Spara", exact: true }).click();
+  await expect(dialog.getByText("Farterna är sparade.")).toBeVisible();
+  const calibrated = await (await owner.request.get(`${admin}/route-choice`)).json() as { settings: { speedByClass?: Record<string, number> } };
+  expect(Object.keys(calibrated.settings.speedByClass ?? {})).toContain("NORMAL");
 });

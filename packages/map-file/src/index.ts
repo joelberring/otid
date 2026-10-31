@@ -1,4 +1,5 @@
 export * from "./model";
+export * from "./render";
 export { readMapFile } from "./read";
 export {
   crsFromEpsg, geodeticToGrid, gridToGeodetic, isSupportedEpsg, mapPointToProjected, mapPointToWgs84, projectedToMapPoint,

@@ -74,6 +74,7 @@ export { synchronizeRelayTeams } from "./relay-sync";
 export * from "./eventor-link";
 export * from "./source-sync";
 export * from "./race-map";
+export { mapFileFormatOf, readRaceMapSourceFileAsAdmin, removeRaceMapSourceAsAdmin, saveRaceMapSourceAsAdmin } from "./race-map-source";
 export * from "./radio-ingest";
 export * from "./radio-settings";
 export * from "./radio-standings";

@@ -5,11 +5,13 @@
  * - Sidorna: bara skript med sidans nonce (och de som de laddar, 'strict-dynamic') får köras. Stilar, bilder och anrop
  *   begränsas inte: React sätter style-attribut och festens färger, och det enda som laddas är från samma värd.
  * - Utvecklingsläget behöver 'unsafe-eval' (React bygger om felstackar med eval), aldrig i drift.
+ * - Steg 59: kartfilen läses och ritas i en Worker från samma värd (byggverktyget kan starta den via en blob:-adress).
  */
 export function pageContentSecurityPolicy(nonce: string, development: boolean): string {
   if (!/^[A-Za-z0-9+/=]{16,64}$/.test(nonce)) throw new Error("Ogiltig nonce");
   return [
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${development ? " 'unsafe-eval'" : ""}`,
+    "worker-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",

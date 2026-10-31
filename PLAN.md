@@ -940,23 +940,23 @@ ADR-0179 (beslut 1–6). Migration 0028.
   SWEREF 99-zonerna (t.ex. 18 00 för Stockholm) och RT 90 2,5 gon V med Lantmäteriets direkta parametrar. Egen
   funktion på ett par hundra rader, testad mot Lantmäteriets kontrollpunkter. Okänt koordinatsystem eller ingen
   georeferens i filen ger de tre punkterna för hand som i dag.
-- [ ] **Ritning för skärm** (inte för tryck): ytor med färg och de vanligaste mönstren (raster, streck), linjer med
+- [x] **Ritning för skärm** (inte för tryck): ytor med färg och de vanligaste mönstren (raster, streck), linjer med
   bredd, streckning och dubbellinjer, punktsymboler och text, allt i filens färgordning. Görs på `OffscreenCanvas` i en
   Worker till en PNG, med upplösning efter skala: cirka 8 px/mm för 1:10 000 och 1:15 000, 12 px/mm för sprint, och
   högst 30 MB som i dag. Förenklingar listas för arrangören ("Mönstret för 412 ritas som tonad yta").
-- [ ] **Lagring:** ny tabell `race_map_source` med originalfilen (`bytea`, högst 60 MB), format och version, SHA-256,
+- [x] **Lagring:** ny tabell `race_map_source` med originalfilen (`bytea`, högst 60 MB), format och version, SHA-256,
   kartans yta i mm, skala och georeferens. Den genererade bilden går till `race_map` som förut. En ny kartfil ersätter
   bild och georeferens. Tas med i den nattliga `pg_dump`.
-- [ ] **Kontroller på kartfilen utan omräkning:** banfiler från OCAD och Purple Pen har `MapPosition` i samma
+- [x] **Kontroller på kartfilen utan omräkning:** banfiler från OCAD och Purple Pen har `MapPosition` i samma
   mm-system som kartfilen. Kontrollkartan placerar då kontrollerna direkt via kartfilens mm, i stället för via WGS 84.
   Kontroll: ligger kartlägena utanför kartan, eller skiljer sig `Position` och `MapPosition` mer än 10 m, visas
   "Banfilen verkar inte vara gjord på den här kartan" och O-Tid faller tillbaka till dagens ordning.
-- [ ] **Arbetsytan:** Banor → Kontrollkarta och Resultat → Karta och vägval får "Ladda upp kartfil (OCAD eller Mapper)"
+- [x] **Arbetsytan:** Banor → Kontrollkarta och Resultat → Karta och vägval får "Ladda upp kartfil (OCAD eller Mapper)"
   bredvid "Ladda upp kartbild". Efter uppladdningen visas en rad med format, skala, koordinatsystem, antal objekt,
   eventuella förenklingar och "Georefererad ur filen".
-- [ ] **Publikt:** oförändrat. Bilden visas när den är georefererad, och banorna först när banhemligheten tillåter det.
+- [x] **Publikt:** oförändrat. Bilden visas när den är georefererad, och banorna först när banhemligheten tillåter det.
   Originalfilen lämnas aldrig ut publikt, bara till admin.
-- [ ] **Tester:** paketet (läsare, georeferens, ritkommandon), domän `control-map` med kartfilens ram, integration
+- [x] **Tester:** paketet (läsare, georeferens, ritkommandon), domän `control-map` med kartfilens ram, integration
   `steg-59-kartfil` (uppladdning, ersättning, behörighet, `pg_dump`), Playwright `kartfil.spec.ts` (ladda upp .omap och
   .ocd, kontrollkartan med banan på).
 

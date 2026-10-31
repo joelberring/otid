@@ -21,7 +21,12 @@ const layoutFields = {
   /** Kartbilden under (bara MAP): storlek och version för bildens adress. */
   map: z.object({ width: z.number().int().positive(), height: z.number().int().positive(), version: z.string().regex(/^[0-9a-f]{16}$/) })
     .strict().nullable(),
-  bounds: z.object({ minX: coordinate, minY: coordinate, maxX: coordinate, maxY: coordinate }).strict().nullable()
+  bounds: z.object({ minX: coordinate, minY: coordinate, maxX: coordinate, maxY: coordinate }).strict().nullable(),
+  /**
+   * Steg 59: USED = kontrollerna ligger direkt på kartfilens mm; MISMATCH = banfilen verkar inte vara gjord på kartan och
+   * lägena räknas som förut; null = ingen kartfil eller inga kartlägen.
+   */
+  mapFile: z.enum(["USED", "MISMATCH"]).nullable()
 };
 
 const variantSchema = z.object({ code: courseVariantCodeSchema.nullable(), controlCodes: z.array(code).max(1000), entryCount: count }).strict();

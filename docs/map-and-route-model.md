@@ -13,7 +13,12 @@ kontrollgeometri; TASK106–155) är borttagen.
 - `participant_route`: en rutt per individuell deltagare. Original-GPX (högst 8 MB) sparas som `bytea`,
   de tolkade punkterna som `[tid ms, lat, lon]` i tidsordning (bara punkter med tid). En ny fil ersätter
   den förra.
-- Båda tas med i den nattliga `pg_dump`. Ingen objektlagring behövs.
+- `race_map_source` (steg 59, ADR-0179): banläggarens kartfil från OCAD eller Mapper orörd (högst 60 MB) med format och
+  version, SHA-256, skala, kartans yta i mm, kartfilens georeferens och `render` (px/mm och kartans punkt i bildens övre
+  vänstra hörn). Arrangörens webbläsare läser och ritar filen i en Worker; bilden (PNG) och tre punkter ur filens
+  georeferens går till `race_map` i samma transaktion. En ny kartbild tar bort kartfilen; en ny kartfil ersätter båda.
+  Originalfilen lämnas bara ut till admin.
+- Alla tas med i den nattliga `pg_dump`. Ingen objektlagring behövs.
 
 ## Koppling till sträckorna
 
@@ -22,6 +27,13 @@ kontrollgeometri; TASK106–155) är borttagen.
 - Löparens sträckor räknas ur starttid och stämplingstider i det publicerade resultatet. Ruttens del för en
   sträcka är punkterna mellan sträckans två klockslag, med interpolerade ändpunkter.
 - En sträcka över en missad kontroll (t.ex. `31.1-33.1`) är en egen sträcka och jämförs aldrig med `32.1-33.1`.
+
+## Kontrollerna på kartfilen
+
+- När bilden är ritad ur kartfilen och kontrollerna har kartlägen (`MapPosition`) placeras de direkt via `render`
+  (mm → pixel), i arbetsytans kontrollkarta och på den publika vägvalskartan. Ligger ett kartläge utanför kartans yta
+  (plus 10 mm) eller mer än 10 m från banfilens `Position` (via kartfilens georeferens) visas "Banfilen verkar inte vara
+  gjord på den här kartan" och lägena räknas via WGS 84 som förut (`layoutControlMap`, `mapFile`).
 
 ## Vem ser vad
 

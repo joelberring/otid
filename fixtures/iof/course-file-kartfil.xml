@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Steg 59: påhittad banfil till fixtures/maps/kartfil.omap (Playwright). Position är räknad ur kartfilens georeferens
+     (SWEREF 99 TM, 1:10 000, norr uppåt) från MapPosition. -->
+<CourseData xmlns="http://www.orienteering.org/datastandard/3.0" iofVersion="3.0" createTime="2026-10-31T08:00:00+01:00" creator="Purple Pen 3.5.0">
+  <Event>
+    <Name>Kvällsträning på kartfilen</Name>
+  </Event>
+  <RaceCourseData>
+    <Map>
+      <Scale>10000</Scale>
+    </Map>
+    <Control type="Start">
+      <Id>S1</Id>
+      <Position lng="18.0762772" lat="59.3231608" />
+      <MapPosition x="4.0" y="8.0" unit="mm" />
+    </Control>
+    <Control>
+      <Id>31</Id>
+      <Position lng="18.0784832" lat="59.3261641" />
+      <MapPosition x="15.0" y="42.0" unit="mm" />
+    </Control>
+    <Control>
+      <Id>32</Id>
+      <Position lng="18.0833753" lat="59.3277558" />
+      <MapPosition x="42.0" y="61.0" unit="mm" />
+    </Control>
+    <Control>
+      <Id>33</Id>
+      <Position lng="18.0892681" lat="59.3268073" />
+      <MapPosition x="76.0" y="52.0" unit="mm" />
+    </Control>
+    <Control>
+      <Id>34</Id>
+      <Position lng="18.0929490" lat="59.3247429" />
+      <MapPosition x="98.0" y="30.0" unit="mm" />
+    </Control>
+    <Control>
+      <Id>35</Id>
+      <Position lng="18.0899706" lat="59.3229265" />
+      <MapPosition x="82.0" y="9.0" unit="mm" />
+    </Control>
+    <Control>
+      <Id>36</Id>
+      <Position lng="18.0844294" lat="59.3238666" />
+      <MapPosition x="50.0" y="18.0" unit="mm" />
+    </Control>
+    <Control>
+      <Id>37</Id>
+      <Position lng="18.0806895" lat="59.3291673" />
+      <MapPosition x="26.0" y="76.0" unit="mm" />
+    </Control>
+    <Control type="Finish">
+      <Id>F1</Id>
+      <Position lng="18.0776484" lat="59.3227690" />
+      <MapPosition x="12.0" y="4.0" unit="mm" />
+    </Control>
+    <Course>
+      <Name>Lång</Name>
+      <Length>3900</Length>
+      <CourseControl type="Start"><Control>S1</Control></CourseControl>
+      <CourseControl><Control>31</Control></CourseControl>
+      <CourseControl><Control>32</Control></CourseControl>
+      <CourseControl><Control>33</Control></CourseControl>
+      <CourseControl><Control>34</Control></CourseControl>
+      <CourseControl><Control>35</Control></CourseControl>
+      <CourseControl><Control>36</Control></CourseControl>
+      <CourseControl type="Finish"><Control>F1</Control></CourseControl>
+    </Course>
+    <ClassCourseAssignment><ClassName>H21</ClassName><CourseName>Lång</CourseName></ClassCourseAssignment>
+  </RaceCourseData>
+</CourseData>

@@ -52,6 +52,9 @@ function sections(raceId: string): readonly (readonly [string, SQL])[] {
     ["radioPunches", rows(sql`radio_punch t where ${race}`, sql`t.punched_at, t.id`)],
     ["maps", rows(sql`race_map t where ${race}`, sql`t.race_id`,
       sql`(to_jsonb(t) - 'image') || jsonb_build_object('image_base64', encode(t.image, 'base64'))`)],
+    // Steg 59: kartfilen orörd, i base64.
+    ["mapSources", rows(sql`race_map_source t where ${race}`, sql`t.race_id`,
+      sql`(to_jsonb(t) - 'file') || jsonb_build_object('file_base64', encode(t.file, 'base64'))`)],
     ["participantRoutes", rows(sql`participant_route t where ${race}`, sql`t.entry_id`,
       sql`(to_jsonb(t) - 'gpx') || jsonb_build_object('gpx_base64', encode(t.gpx, 'base64'))`)],
     // Eventor: vilken tävling och klubb loppet hör till, utan den krypterade nyckeln.

@@ -74,4 +74,20 @@ describe.skipIf(!directory)("vägval på riktiga kartfiler (OTID_REAL_MAP_DIR)",
       expect(b.best!.meters, leg.key).toBeCloseTo(a.best!.meters, -1);
     }
   }, 120_000);
+
+  it("räknar en sträcka på 1,5 km i terräng på under 1 s", () => {
+    // Från kontroll 41 mot sydväst, 1 500 m i terrängen (100 mm på kartan i 1:15 000). Första körningen värmer upp.
+    const model = buildCostModel(readMapFile(new Uint8Array(readFileSync(find(".ocd")))));
+    const from = { x: 168.01, y: 746.94 };
+    const to = { x: from.x + 100 * Math.cos(225 * Math.PI / 180), y: from.y + 100 * Math.sin(225 * Math.PI / 180) };
+    const times: number[] = [];
+    for (let run = 0; run < 5; run += 1) {
+      const result = analyseCourse(model, [{ key: "41-P", from, to }])[0]!;
+      expect(result.best).toBeDefined();
+      times.push(result.milliseconds);
+    }
+    const warm = Math.min(...times.slice(1));
+    console.info(`1,5 km: ${times.map(t => t.toFixed(0)).join(", ")} ms (bästa efter uppvärmning ${warm.toFixed(0)} ms)`);
+    expect(warm).toBeLessThan(1000);
+  }, 60_000);
 });

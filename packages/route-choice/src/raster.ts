@@ -152,21 +152,42 @@ export function strokeLine(frame: GridFrame, points: readonly Point[], radius: n
   }
 }
 
-/** Celler vars mitt ligger inom `r` mm från sträckan a–b. */
+/**
+ * Celler vars mitt ligger inom `r` mm från sträckan a–b (en kapsel). Kapseln är konvex, så varje rad är ett intervall:
+ * unionen av rektangeln längs sträckan och de två ändcirklarna. Kostar bara de celler som täcks, inte hela rutan.
+ */
 function disc(frame: GridFrame, a: Point, b: Point, r: number, visit: Visit): void {
-  const colFrom = Math.max(0, Math.floor((Math.min(a.x, b.x) - r - frame.x0) / frame.cellMm));
-  const colTo = Math.min(frame.width - 1, Math.floor((Math.max(a.x, b.x) + r - frame.x0) / frame.cellMm));
   const rowFrom = Math.max(0, Math.floor((frame.yTop - Math.max(a.y, b.y) - r) / frame.cellMm));
   const rowTo = Math.min(frame.height - 1, Math.floor((frame.yTop - Math.min(a.y, b.y) + r) / frame.cellMm));
-  const dx = b.x - a.x, dy = b.y - a.y, lengthSquared = dx * dx + dy * dy, r2 = r * r;
+  const dx = b.x - a.x, dy = b.y - a.y, length = Math.hypot(dx, dy);
+  const nx = length > 0 ? -dy / length : 0, ny = length > 0 ? dx / length : 0;
+  const nDotA = nx * a.x + ny * a.y, dDotA = dx * a.x + dy * a.y, lengthSquared = length * length;
   for (let row = rowFrom; row <= rowTo; row += 1) {
     const y = frame.yTop - (row + 0.5) * frame.cellMm;
-    for (let col = colFrom; col <= colTo; col += 1) {
-      const x = frame.x0 + (col + 0.5) * frame.cellMm;
-      const t = lengthSquared > 0 ? Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / lengthSquared)) : 0;
-      const ex = x - (a.x + t * dx), ey = y - (a.y + t * dy);
-      if (ex * ex + ey * ey <= r2) visit(row * frame.width + col);
+    let low = Infinity, high = -Infinity;
+    for (const end of [a, b]) {
+      const ey = y - end.y;
+      if (Math.abs(ey) <= r) { const half = Math.sqrt(r * r - ey * ey); low = Math.min(low, end.x - half); high = Math.max(high, end.x + half); }
     }
+    if (length > 0) {
+      // Rektangeln: fyra halvplan c0 + c1·x ≤ 0.
+      let from = -Infinity, to = Infinity;
+      const clip = (c0: number, c1: number) => {
+        if (Math.abs(c1) < 1e-12) { if (c0 > 0) { from = Infinity; to = -Infinity; } return; }
+        const x = -c0 / c1;
+        if (c1 > 0) to = Math.min(to, x); else from = Math.max(from, x);
+      };
+      clip(ny * y - nDotA - r, nx);
+      clip(-ny * y + nDotA - r, -nx);
+      clip(-dy * y + dDotA, -dx);
+      clip(dy * y - dDotA - lengthSquared, dx);
+      if (from <= to) { low = Math.min(low, from); high = Math.max(high, to); }
+    }
+    if (low > high) continue;
+    const colFrom = Math.max(0, Math.ceil((low - frame.x0) / frame.cellMm - 0.5));
+    const colTo = Math.min(frame.width - 1, Math.floor((high - frame.x0) / frame.cellMm - 0.5));
+    const base = row * frame.width;
+    for (let col = colFrom; col <= colTo; col += 1) visit(base + col);
   }
 }
 
@@ -258,12 +279,14 @@ export function rasterize(model: PreparedModel, frame: GridFrame, speeds: Readon
 
 /**
  * Tid per meter (relativt normal skog) per cell med farterna: den snabbaste av stig och mark, `Infinity` för spärrat.
- * Görs om för varje uppsättning farter (osäkerheten) utan att rastrera om.
+ * Görs om för varje uppsättning farter (osäkerheten) utan att rastrera om. Med `only` räknas bara de cellerna; resten
+ * blir spärrade.
  */
-export function paceField(grid: Grid, speeds: Readonly<Record<RunnableClass, number>>): Float32Array {
+export function paceField(grid: Grid, speeds: Readonly<Record<RunnableClass, number>>, only?: Uint8Array): Float32Array {
   const pace = RUNNABLE_CLASSES.map(cls => 1 / speeds[cls]);
   const out = new Float32Array(grid.ground.length);
   for (let index = 0; index < out.length; index += 1) {
+    if (only && only[index] !== 1) { out[index] = Infinity; continue; }
     const g = grid.ground[index]!, t = grid.track[index]!;
     const pg = g === BLOCKED ? Infinity : pace[g]!;
     const pt = t === NONE ? Infinity : pace[t]!;

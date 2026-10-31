@@ -338,19 +338,23 @@ function findAlternatives(context: Context, best: FoundRoute, bestLine: RouteLin
   const limit = best.gridCost * ALTERNATIVE_FACTOR;
   const reach = Math.max(10 / grid.cellMeters, 0.25 * straightMm / grid.cellMm);
   const accepted: { route: FoundRoute; line: RouteLine }[] = [];
-  const lines: (readonly Point[])[] = [bestLine.points];
-  const closed = bufferMask(grid, [bestLine.points], bufferMm);
+  // Bufferten kring vägar som redan godtagits (för "gemensamt") och kring prövade vägar (stängda för nya kandidater).
+  const taken = bufferMask(grid, [bestLine.points], bufferMm);
+  const closed = new Uint8Array(taken);
   for (const end of [a.point, b.point]) strokeLine(grid, [end], endClearMm, index => { closed[index] = 1; });
   const total = fields.costA.length;
   const workspace = new SearchWorkspace(total);
+  // Kandidaterna (celler inom 15 %) sorterade efter vägens kostnad, en gång.
+  const candidates: number[] = [];
+  for (let index = 0; index < total; index += 1) if (fields.costA[index]! + fields.costB[index]! <= limit) candidates.push(index);
+  const candidateCost = Float64Array.from(candidates, index => fields.costA[index]! + fields.costB[index]!);
   for (let attempt = 0; attempt < MAX_CANDIDATES && accepted.length < MAX_ALTERNATIVES; attempt += 1) {
-    let via = -1, viaCost = Infinity;
-    for (let index = 0; index < total; index += 1) {
-      if (closed[index] === 1) continue;
-      const cost = fields.costA[index]! + fields.costB[index]!;
-      if (cost < viaCost) { viaCost = cost; via = index; }
+    let pick = -1, viaCost = Infinity;
+    for (let k = 0; k < candidates.length; k += 1) {
+      if (candidateCost[k]! < viaCost && closed[candidates[k]!] !== 1) { viaCost = candidateCost[k]!; pick = k; }
     }
-    if (via < 0 || viaCost > limit) break;
+    if (pick < 0) break;
+    const via = candidates[pick]!;
     const cells = viaCells(fields, a.cell, b.cell, via);
     if (cells.length === 0) { closed[via] = 1; continue; }
     const points = cells.map(index => cellCenter(grid, index));
@@ -360,10 +364,10 @@ function findAlternatives(context: Context, best: FoundRoute, bestLine: RouteLin
     const route: FoundRoute = { corners, cells, gridCost: viaCost, cost: measured.cost, climbUnits: measured.climbUnits, meters: measured.meters };
     const line = toLine(context, route, a.point, b.point);
     // Billigast först: kostnad, sedan gemensamt med tidigare vägar, sist T-testet (en sökning).
-    if (measured.cost <= best.cost * ALTERNATIVE_FACTOR && sharedFraction(grid, line.points, bufferMask(grid, lines, bufferMm)) < MAX_SHARED &&
+    if (measured.cost <= best.cost * ALTERNATIVE_FACTOR && sharedFraction(grid, line.points, taken) < MAX_SHARED &&
       locallyOptimal(searchGrid, cells, position, reach, minPace, workspace, fields.costB)) {
       accepted.push({ route, line });
-      lines.push(line.points);
+      strokeLine(grid, line.points, bufferMm, index => { taken[index] = 1; });
     }
     // Stäng omgivningen kring den prövade vägen (hörnen räcker; den uträtade vägen ligger nära rutnätsvägen).
     strokeLine(grid, simplify(points, grid.cellMm), bufferMm, index => { closed[index] = 1; });
@@ -386,13 +390,13 @@ function bestSwitches(context: Context, settings: ResolvedSettings, best: FoundR
   const bestMask = bufferMask(grid, [bestPoints], bufferMm);
   for (const sign of [1, -1]) {
     const speeds = shiftedSpeeds(settings.speedByClass, sign * UNCERTAINTY);
-    const pace = paceField(grid, speeds);
+    // Farterna bara inom regionen (utanför spärrat); alla vägar som jämförs ligger där.
+    const pace = paceField(grid, speeds, region);
     const shiftedGrid = { ...searchGrid, pace };
     const bestCost = polylineCost(shiftedGrid, pace, best.corners).cost;
     if (alternatives.some(alt => polylineCost(shiftedGrid, pace, alt.corners).cost < bestCost)) return true;
-    const inside = new Float32Array(pace);
-    for (let index = 0; index < inside.length; index += 1) if (region[index] !== 1) inside[index] = Infinity;
-    const regionGrid = { ...searchGrid, pace: inside };
+    const inside = pace;
+    const regionGrid = shiftedGrid;
     // Bara vägar som kan slå den bästa är intressanta; rutnätsvägen är några procent längre än den uträtade.
     // Nedre gräns: fältet till B med grundfarterna gånger den största fartökningen (konsistent, eftersom varje steg
     // blir högst så mycket billigare och stigningen inte ändras).

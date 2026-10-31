@@ -217,7 +217,8 @@ export type MapBackPage =
   | { readonly kind: "RESERVE"; readonly courseName: string; readonly variantCode: string | null; readonly index: number };
 
 /** Baksidorna i kartbuntens ordning: per variant en avdelare och sedan exakt tryckantalet sidor. */
-export function mapBackPages(groups: readonly MapBundleGroup[]): MapBackPage[] {
+export function mapBackPages(groups: readonly Pick<MapBundleGroup, "courseName" | "variantCode" | "items" | "reserveCount" | "printCount">[]):
+  MapBackPage[] {
   const pages: MapBackPage[] = [];
   for (const group of groups) {
     if (group.printCount === 0) continue;

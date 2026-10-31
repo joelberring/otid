@@ -37,6 +37,25 @@ export const courseVariantsSv = {
   variantResultChange: (name: string, before: string, after: string) => `${name}: ${before} → ${after}`,
   variantError: "Varianten kunde inte ändras. Försök igen.",
   variantConflict: "Tävlingen har ändrats under tiden. Deltagaren är inläst igen; välj variant en gång till.",
+  // Steg 61: kontroll före tävlingen, en rad per bana.
+  readinessOk: (variants: number) => `Klar för start: alla ${variants} varianter har löpare och fördelningen är jämn.`,
+  readinessOkUnused: (unused: readonly string[]) =>
+    `Klar för start. Färre löpare än varianter, så ${unused.join(", ")} används inte.`,
+  readinessLabel: "Före start",
+  readinessUnused: (unused: readonly string[]) => unused.length === 1 ? `Variant ${unused[0]} har inga löpare`
+    : `Varianterna ${unused.slice(0, 8).join(", ")}${unused.length > 8 ? " …" : ""} har inga löpare`,
+  readinessMissing: (className: string, count: number) => count === 1 ? `1 löpare i ${className} saknar variant`
+    : `${count} löpare i ${className} saknar variant`,
+  readinessUneven: (className: string, point: number, counts: readonly { letters: string; count: number }[]) =>
+    `${className}, gaffling ${point}: ${counts.map(row => `${row.letters} ${row.count}`).join(", ")}`,
+  readinessTooMany: (count: number) => `${count} varianter – högst 100 går`,
+  readinessLetters: "Fler än 26 gafflingsbokstäver",
+  // Steg 61: fel karta vid starten.
+  wrongMap: (assigned: string, fitting: readonly string[]) =>
+    `Felstämplad mot ${assigned}, men stämplingarna passar ${fitting.join(" och ")}. Fick löparen fel karta?`,
+  wrongMapShort: (fitting: readonly string[]) => `Fel karta? Passar ${fitting.join(", ")}`,
+  approveOn: (code: string) => `Godkänn på ${code}`,
+  approveOnHelp: "Byter löparens variant och räknar om resultatet. Orsaken sparas i historiken.",
   // Startlista, avläsning och resultat
   variantShort: (code: string) => `Variant ${code}`,
   variantGuessed: (code: string) => `Variant ${code} (efter stämplingarna)`,

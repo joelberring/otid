@@ -41,7 +41,9 @@ const adminFiles = [
   // Steg 45: beslut att se över och otolkade avläsningar.
   "decision-review-sv.ts", "uninterpreted-readouts-sv.ts",
   // Steg 56: stafettformulären.
-  "relay-form-sv.ts"
+  "relay-form-sv.ts",
+  // Steg 61: kartor till starten.
+  "map-bundles-sv.ts"
 ];
 /** Delade textfiler (även publika sidor): bara nycklarna som arbetsytan läser granskas. */
 const sharedFiles = ["sv.ts", "account-sv.ts"];

@@ -140,6 +140,9 @@ export const readoutText = {
   // Gafflad bana (ADR-0169 beslut 2).
   variant: (code: string) => `Variant ${code}`,
   variantGuessed: (code: string) => `Variant ${code} (efter stämplingarna)`,
+  // Steg 61: fel karta vid starten.
+  wrongMap: (assigned: string, fitting: readonly string[]) =>
+    `Felstämplad mot ${assigned}, men stämplingarna passar ${fitting.join(" och ")}. Fick löparen fel karta?`,
   // Stafett (ADR-0169 beslut 3).
   relayTeam: (number: number, name: string, leg: number, legCount: number) => `Lag ${number} ${name} · Sträcka ${leg} av ${legCount}`,
   relayNext: (leg: number) => `Växlar till sträcka ${leg}`,

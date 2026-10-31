@@ -9,6 +9,7 @@ import { raceTypeSv } from "../../i18n/race-type-sv";
 import { sv } from "../../i18n/sv";
 import { selfRegistrationSv } from "../../i18n/self-registration-sv";
 import { relaySv as relayText } from "../../i18n/relay-sv";
+import { courseVariantsSv as variantText } from "../../i18n/course-variants-sv";
 import { formatClockTime } from "../../lib/clock-time";
 import { rosterStatusOptions } from "../../lib/administrator-roster-filter";
 import { sectionForPanel } from "../../lib/race-sections";
@@ -161,7 +162,9 @@ export function ParticipantList({ ws }: { ws: Workspace }) {
                 <strong className={entry.effectiveResult.result.status === "MP" || entry.effectiveResult.result.status === "DSQ" ? styles.rosterCritical : undefined}>{sv.publicResultsStatusLabels[entry.effectiveResult.result.status]}</strong>
                 {"elapsedMs" in entry.effectiveResult.result && entry.effectiveResult.result.elapsedMs !== undefined &&
                   <span className={styles.rosterResultTime}>{resultDuration(entry.effectiveResult.result.elapsedMs)}</span>}
-              </span>{entry.resultFreshness === "OLDER_SNAPSHOT" &&
+              </span>{entry.notes?.wrongMap && <span className={styles.rosterStale} data-testid="roster-wrong-map">
+                {variantText.wrongMapShort(entry.notes.wrongMap.fittingCodes)}</span>}
+              {entry.resultFreshness === "OLDER_SNAPSHOT" &&
                 <span className={styles.rosterStale}>{text.rosterOlderResult}</span>}</>
               : <span className={styles.muted}>{entry.effectiveResult.state === "NO_ACTIVE_RESULT" ? text.rosterNoActiveResult : text.rosterNoPublishedResult}</span>}
             <span className={styles.rowChevron} aria-hidden="true">›</span>

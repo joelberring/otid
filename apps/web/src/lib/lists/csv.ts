@@ -37,17 +37,20 @@ export function startListCsv(view: StartView, classes: readonly StartClass[], ti
   const clock = (instant: string | null) => instant ? formatClockTime(instant, timeZone) : "";
   const withoutCard = <T,>(header: readonly T[], cardIndex: number) => cards ? [...header] : header.filter((_, index) => index !== cardIndex);
   const card = (value: string | null | undefined, multiple?: boolean) => multiple ? text.start.multipleCards : value ?? "";
+  // Steg 61: variantkoden står i alla vyer när någon klass är gafflad (kolumnen sist, så att övriga listor är som förut).
+  const variants = classes.some(raceClass => raceClass.entries.some(entry => entry.variant));
+  const withVariant = <T,>(row: T[], value: T) => variants ? [...row, value] : row;
   if (view === "TIME") {
     const groups = groupByStartTime(classes);
-    const rows = groups.places.flatMap(place => place.minutes.flatMap(minute => minute.rows.map(row => withoutCard([
+    const rows = groups.places.flatMap(place => place.minutes.flatMap(minute => minute.rows.map(row => withVariant(withoutCard([
       clock(row.time), place.firstControlCode ?? "", row.className, row.entry?.name ?? text.csv.vacant, row.entry ? startClub(row.entry) : "",
-      row.entry ? card(row.entry.card, row.entry.multipleCards) : ""], 5))));
-    return toCsv(withoutCard(text.csv.start.TIME, 5), rows);
+      row.entry ? card(row.entry.card, row.entry.multipleCards) : ""], 5), row.entry?.variant ?? ""))));
+    return toCsv(withVariant(withoutCard(text.csv.start.TIME, 5), text.csv.variant), rows);
   }
   if (view === "CLUB") {
-    const rows = startListByClub(classes).flatMap(group => group.rows.map(({ className, entry }) => withoutCard([
-      group.club ?? "", entry.name, className, clock(entry.startTime), card(entry.card, entry.multipleCards)], 4)));
-    return toCsv(withoutCard(text.csv.start.CLUB, 4), rows);
+    const rows = startListByClub(classes).flatMap(group => group.rows.map(({ className, entry }) => withVariant(withoutCard([
+      group.club ?? "", entry.name, className, clock(entry.startTime), card(entry.card, entry.multipleCards)], 4), entry.variant ?? "")));
+    return toCsv(withVariant(withoutCard(text.csv.start.CLUB, 4), text.csv.variant), rows);
   }
   const rows = classes.flatMap(raceClass => classStartRows(raceClass).map(({ time, entry }) => withoutCard([raceClass.name,
     raceClass.courseName ?? "", modeText(raceClass.mode), clock(time), entry?.name ?? text.csv.vacant, entry ? startClub(entry) : "",

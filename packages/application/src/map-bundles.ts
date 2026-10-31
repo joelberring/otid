@@ -92,7 +92,8 @@ export async function readMapBundlesAsAdmin(db: Database, input: Authentication,
       eventName: race.eventName, raceName: race.raceName, raceDate: race.raceDate, timeZone: race.timeZone, reserve, stateHash: stateHash(basis),
       classes: classes.map(row => ({ classId: row.id, name: row.name, courseName: row.courseName, variantCodes: row.variantCodes,
         startMode: row.startMode })),
-      groups: plan.groups.map(({ courseVersionId: _ignored, ...group }) => group), rows: plan.rows, missingVariant: plan.missingVariant, prints }) };
+      groups: plan.groups.map(group => ({ courseName: group.courseName, variantCode: group.variantCode, items: group.items,
+        runnerCount: group.runnerCount, vacancyCount: group.vacancyCount, reserveCount: group.reserveCount, printCount: group.printCount })), rows: plan.rows, missingVariant: plan.missingVariant, prints }) };
   }, { isolationLevel: "repeatable read" });
 }
 

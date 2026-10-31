@@ -101,6 +101,21 @@ export function CourseTable({ ws, visible }: { ws: Workspace; visible: boolean }
   </Section>;
 }
 
+/** Steg 61: kontrollen före tävlingen i klartext, en rad per bana. Stoppar aldrig något. */
+function Readiness({ readiness }: { readiness: NonNullable<CourseRow["readiness"]> }) {
+  if (readiness.ok) return <p className={styles.workflowHelp} role="status" data-testid="forking-readiness">
+    {readiness.unusedVariants.length > 0 ? variantText.readinessOkUnused(readiness.unusedVariants) : variantText.readinessOk(readiness.variantCount)}</p>;
+  const problems = [
+    ...(readiness.tooManyVariants ? [variantText.readinessTooMany(readiness.variantCount)] : []),
+    ...(readiness.tooManyLetters ? [variantText.readinessLetters] : []),
+    ...readiness.missingVariant.map(row => variantText.readinessMissing(row.className, row.count)),
+    ...(readiness.unusedVariants.length > 0 && !readiness.unusedExpected ? [variantText.readinessUnused(readiness.unusedVariants)] : []),
+    ...readiness.uneven.map(row => variantText.readinessUneven(row.className, row.point, row.counts))
+  ];
+  return <Notice tone="attention" role="status"><span data-testid="forking-readiness">
+    <strong>{variantText.readinessLabel}:</strong> {problems.join(" · ")}</span></Notice>;
+}
+
 /**
  * Antal anmälda och avlästa per alternativ (enkel gaffling) eller för hela fjärilen (vid första slingan), efter grenens
  * bokstav. Inga antal när banan saknar anmälda, så att bilden är lugn medan banan byggs.
@@ -132,6 +147,7 @@ function CourseVariants({ ws, course }: { ws: Workspace; course: CourseRow }) {
   const id = `forking-mode-${course.courseId}`;
   return <div className={styles.courseVariants}>
     <strong>{variantText.forked(course.variants.length)}</strong>
+    {course.readiness && <Readiness readiness={course.readiness} />}
     {view && <ForkingDiagram items={view.items} letters={forkingLetters({ items: view.items })} count={branchCount(course)}
       label={forking.courseDiagram(course.name)} caption={lengths ? <span>{forking.lengths(lengths.shortest, lengths.longest)}</span> : undefined} />}
     <div className={styles.forkingTools}>

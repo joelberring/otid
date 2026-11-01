@@ -324,11 +324,11 @@ function locallyOptimal(searchGrid: SearchGrid, cells: readonly number[], positi
   const corners = straighten(searchGrid, searchGrid.pace, sub);
   if (cellDistanceToPath(w, cells[position]!, corners) > VIA_SLACK_CELLS) return false;
   const along = polylineCost(searchGrid, searchGrid.pace, corners).cost;
-  // Beskuren sökning: en väg mer än 10 % dyrare än delvägen spelar ingen roll (rutnätsvägen är högst några procent
-  // dyrare än den uträtade).
+  // Beskuren sökning: bara en väg som uträtad är mer än `LOCAL_TOLERANCE` billigare än delvägen spelar roll, och en
+  // rutnätsväg är högst ungefär 3 % dyrare än samma väg uträtad (16 grannar); dyrare rutnätsvägar söks inte.
   // Nedre gräns: fältet till B minus fältet i x (triangelolikheten; kostnaden är symmetrisk). Celler utanför fältet
   // kan inte ligga på en kortare delväg, för då vore hela vägen via dem inom 25 %.
-  const result = search(searchGrid, searchGrid.pace, u, { goal: x, minPace, bound: along * 1.1, estimate: toB, estimateOffset: toB[x]! }, workspace);
+  const result = search(searchGrid, searchGrid.pace, u, { goal: x, minPace, bound: along * (1 + LOCAL_TOLERANCE) * GRID_EXCESS, estimate: toB, estimateOffset: toB[x]! }, workspace);
   const shortestCells = backtrack(result.parent, u, x);
   if (shortestCells.length === 0) return true;
   const shortest = polylineCost(searchGrid, searchGrid.pace, straighten(searchGrid, searchGrid.pace, shortestCells)).cost;
@@ -368,17 +368,20 @@ const LOCAL_TOLERANCE = 0.01;
 /** Så långt (celler) från via-cellen får den uträtade delvägen gå. */
 const VIA_SLACK_CELLS = 3;
 
+/** Högst så många via-celler prövas per sträcka (med T-testet), och så många nära dubbletter räknas bort billigt. */
+const MAX_CANDIDATES = 10;
+/** En rutnätsväg med 16 grannar är högst så här mycket längre än samma väg rak (≈ 2,7 % i sämsta riktningen). */
+const GRID_EXCESS = 1.03;
+const MAX_CHEAP = 300;
+/** Cellindex ryms under 2^23 (rutnätet har högst `MAX_CELLS` = 4 miljoner celler). */
+const CELL_KEY = 2 ** 23;
+
 /** Avståndet (celler) från cellen till polylinjen genom hörncellerna. */
 function cellDistanceToPath(width: number, cell: number, corners: readonly number[]): number {
   const p = { x: cell % width, y: Math.floor(cell / width) };
   const points = corners.map(index => ({ x: index % width, y: Math.floor(index / width) }));
   return distanceToPolyline(p, points);
 }
-/** Högst så många via-celler prövas per sträcka (med T-testet), och så många nära dubbletter räknas bort billigt. */
-const MAX_CANDIDATES = 12;
-const MAX_CHEAP = 300;
-/** Cellindex ryms under 2^23 (rutnätet har högst `MAX_CELLS` = 4 miljoner celler). */
-const CELL_KEY = 2 ** 23;
 
 /**
  * Alternativen: via-celler i ordning efter kostnaden för vägen genom dem (summan av fälten), högst 25 % sämre än bästa.

@@ -10,7 +10,7 @@ import { ALL_CONTROLS, bendInsertIndex, hitTest, nearestBend, primitiveDistance 
 import { checkRows, controlLabel, legInput, minutes } from "./course-setting-text";
 import { applyEdit as apply } from "@o-tid/course-setting";
 import { testDocument } from "./course-setting-test-document";
-import { bitmapPlacement, fitBounds, panBy, toMap, toScreen, topLeft, wheelFactor, zoomAt } from "./course-setting-viewport";
+import { bitmapPlacement, fitBounds, panBy, toMap, toScreen, topLeft, wheelAction, wheelFactor, zoomAt } from "./course-setting-viewport";
 
 /** Steg 62: banläggningens rena moduler – kartvyn (mm ↔ skärm, y uppåt), träff-test, editorn, autosparandet och texterna. */
 const view = { centerX: 50, centerY: 40, pxPerMm: 4, width: 400, height: 300 };
@@ -33,6 +33,12 @@ describe("kartvyn", () => {
     expect(toScreen(panned, { x: 50, y: 40 })).toEqual({ x: 240, y: 130 });
     expect(zoomAt(view, 1e6).pxPerMm).toBe(80);
     expect(wheelFactor(100)).toBeCloseTo(0.8);
+    // Styrplattan: två fingrar panorerar, nyp (ctrlKey) zoomar; mushjulet zoomar.
+    expect(wheelAction({ deltaX: 0, deltaY: 12.5, deltaMode: 0, ctrlKey: false })).toBe("pan");
+    expect(wheelAction({ deltaX: -8, deltaY: 0, deltaMode: 0, ctrlKey: false })).toBe("pan");
+    expect(wheelAction({ deltaX: 0, deltaY: 4.2, deltaMode: 0, ctrlKey: true })).toBe("zoom");
+    expect(wheelAction({ deltaX: 0, deltaY: 100, deltaMode: 0, ctrlKey: false })).toBe("zoom");
+    expect(wheelAction({ deltaX: 0, deltaY: 3, deltaMode: 1, ctrlKey: false })).toBe("zoom");
     expect(wheelFactor(-100)).toBeCloseTo(1.25);
   });
 

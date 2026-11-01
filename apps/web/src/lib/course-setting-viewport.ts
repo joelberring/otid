@@ -68,6 +68,19 @@ export function wheelFactor(deltaY: number, deltaMode = 0): number {
   return Math.exp(-Math.max(-400, Math.min(400, pixels)) * Math.log(1.25) / 100);
 }
 
+/**
+ * Vad ett hjul- eller styrplatte-event ska göra. Nyp på styrplattan (och Ctrl/Cmd + hjul) kommer som `ctrlKey` och
+ * zoomar. Två fingrar på styrplattan ger pixel-steg, ofta i sidled eller med decimaler, och panorerar som i andra
+ * kartprogram. Ett vanligt mushjul (radsteg, eller stora heltalssteg rakt i höjdled) zoomar.
+ */
+export function wheelAction(event: { deltaX: number; deltaY: number; deltaMode: number; ctrlKey: boolean; metaKey?: boolean }):
+  "zoom" | "pan" {
+  if (event.ctrlKey || event.metaKey) return "zoom";
+  if (event.deltaMode !== 0) return "zoom";
+  const trackpad = event.deltaX !== 0 || !Number.isInteger(event.deltaY) || Math.abs(event.deltaY) < 50;
+  return trackpad ? "pan" : "zoom";
+}
+
 /** Skalan i en ruta som en bitmapp ritats i: hur den ska ritas om till den nya vyn (för snabb panorering och zoom). */
 export function bitmapPlacement(drawn: Viewport, view: Viewport): { x: number; y: number; width: number; height: number } {
   const origin = toScreen(view, topLeft(drawn));

@@ -131,17 +131,18 @@ export function overlapGaps(figures: readonly OverlapFigure[]): Arc[][][] {
       ringFigure.rings.forEach((r, ring) => { for (const arc of arcsAtFigure(ringFigure.at, r, ringFigure.lineWidth, other)) add(i, ring, arc, id); });
     });
   }
-  // Taket: högst hälften av den yttre ringen. Ringens största bidrag tas bort först (bara för den här ringen: den andra
-  // ringen klipps fortfarande, som vid kraftig överlappning).
+  // Taket: högst hälften av varje ring (också målets inre, t.ex. med starttriangeln ovanpå). Ringens största bidrag tas
+  // bort först (bara för den här figuren: den andra ringen klipps fortfarande, som vid kraftig överlappning).
   const dropped = new Set<string>();
   const kept = (c: Contribution) => !dropped.has(`${c.figure}:${c.pair}`);
   figures.forEach((figure, index) => {
-    if (figure.rings.length === 0) return;
-    const own = () => contributions.filter(c => c.figure === index && c.ring === 0 && kept(c));
-    while (totalDegrees(own().map(c => c.arc)) > half + 1e-9) {
-      const largest = [...own()].sort((x, y) => (y.arc.endDegrees - y.arc.startDegrees) - (x.arc.endDegrees - x.arc.startDegrees))[0]!;
-      dropped.add(`${index}:${largest.pair}`);
-    }
+    figure.rings.forEach((_, ring) => {
+      const own = () => contributions.filter(c => c.figure === index && c.ring === ring && kept(c));
+      while (totalDegrees(own().map(c => c.arc)) > half + 1e-9) {
+        const largest = [...own()].sort((x, y) => (y.arc.endDegrees - y.arc.startDegrees) - (x.arc.endDegrees - x.arc.startDegrees))[0]!;
+        dropped.add(`${index}:${largest.pair}`);
+      }
+    });
   });
   return figures.map((figure, index) => figure.rings.map((_, ring) =>
     simplifyGaps(contributions.filter(c => c.figure === index && c.ring === ring && kept(c)).map(c => c.arc))));

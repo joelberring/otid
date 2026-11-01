@@ -209,6 +209,21 @@ describe("överlappsklipp", () => {
     void finish;
   });
 
+  it("starten ovanpå målet: ingen av målets ringar tappar mer än hälften", () => {
+    const b = new Builder({ mapScale: 15000 });
+    const start = b.control("START", 0, 0.3);
+    const one = b.control("NORMAL", 30, 0);
+    const finish = b.control("FINISH", 0, 0);
+    const course = b.course("A");
+    for (const id of [start, one, finish]) b.insert(course, id);
+    const doc = withCutting(b.document, true, false);
+    for (const view of [course, "ALL_CONTROLS"]) {
+      const rings = circles(layoutOverprint(doc, { course: view })).filter(c => c.role === "FINISH");
+      expect(rings).toHaveLength(2);
+      for (const ring of rings) expect(gapDegrees(ring)).toBeLessThanOrEqual(180);
+    }
+  });
+
   it("passage: ringen klipps där den korsar passagen, passagen klipps inte", () => {
     const { b, course, one } = pair(10);
     const crossing = b.control("CROSSING_POINT", 2.5, 0);

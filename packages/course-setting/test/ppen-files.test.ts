@@ -1,6 +1,9 @@
 import { basename, relative } from "node:path";
 import { describe, expect, it } from "vitest";
-import { CourseSettingEditError, checkDocument, courseSummaries, courseVariants, layoutOverprint, readPpen, writePpen } from "../src";
+import {
+  applyEdit, CourseSettingEditError, checkDocument, courseSummaries, courseVariants, layoutOverprint, readPpen, writePpen
+} from "../src";
+import { totalDegrees } from "../src/arcs";
 import { normalizedXml, ppenFiles, readText, testFilesDir } from "./helpers";
 
 /** Filer som Purple Pen själv inte kan läsa (okänt kontrollslag "marked-route-end"). */
@@ -65,7 +68,29 @@ describe.skipIf(files.length === 0)("Purple Pens testfiler", () => {
       }
     }
     expect(primitives).toBeGreaterThan(1000);
-  });
+  }, 30_000);
+
+  it("ringklippen vid överlapp ger giltiga figurer och tar högst hälften av en ring (ADR-0180 beslut 10)", () => {
+    let cut = 0;
+    for (const path of files) {
+      if (UNREADABLE.has(relative(testFilesDir, path))) continue;
+      const { document } = readPpen(readText(path));
+      const on = applyEdit(document, { type: "SET_EVENT", changes: { circleCutting: { overlap: true, details: true } } }).document;
+      for (const course of ["ALL_CONTROLS", ...document.courses.map(c => c.id)]) {
+        const figures = layoutOverprint(on, { course });
+        expect(JSON.stringify(figures), `${path} ${course}`).not.toContain("null");
+        for (const figure of figures) {
+          if (figure.kind !== "circle" || !figure.gaps) continue;
+          // Ringavbrotten i filen räknas inte in i taket; utan dem högst hälften.
+          const own = layoutOverprint(document, { course }).find(f => f.kind === "circle" && f.ref === figure.ref && f.diameter === figure.diameter);
+          if (own?.kind === "circle" && own.gaps) continue;
+          expect(totalDegrees(figure.gaps), `${path} ${course}`).toBeLessThanOrEqual(180 + 1e-6);
+          cut++;
+        }
+      }
+    }
+    expect(cut).toBeGreaterThan(20);
+  }, 30_000);
 
   it("rapporterar specialobjekten i testfilerna", () => {
     const kinds = new Map<string, number>();

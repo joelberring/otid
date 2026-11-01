@@ -139,6 +139,7 @@ function allowedMethods(action: Action): string[] {
     action.kind === "course-setting-notes" || action.kind === "course-setting-suggestions" ? ["GET", "POST"] :
     action.kind === "course-setting-edits" || action.kind === "course-setting-note-reply" || action.kind === "course-setting-suggestion-decision" ? ["POST"] :
     action.kind === "course-setting-mode" || action.kind === "course-setting-note-status" ? ["PUT"] :
+    action.kind === "course-setting-inspections" ? ["GET", "PUT"] :
     action.kind === "course-setting-note-photo" || action.kind === "course-setting-events" ? ["GET"] :
     action.kind === "participant-route" ? ["POST", "DELETE"] : action.kind === "eventor" ? ["GET", "PUT", "DELETE"] :
     action.kind === "runner-database" ? ["GET", "POST", "DELETE"] : action.kind === "runner-search" ? ["POST"] :

@@ -12,6 +12,7 @@ export interface CourseSettingStreamHandlers {
   readonly notes: (by: string) => void;
   readonly suggestions: (by: string) => void;
   readonly mode: (by: string) => void;
+  readonly inspections: (by: string) => void;
   readonly presence: (people: CourseSettingPresence) => void;
   /** Ansluten igen efter ett avbrott. */
   readonly reconnected: () => void;
@@ -24,7 +25,7 @@ export function handleStreamEvent(type: string, data: string, handlers: CourseSe
   try { value = JSON.parse(data); } catch { return false; }
   switch (type) {
     case "version": { const parsed = version.safeParse(value); if (!parsed.success) return false; handlers.version(parsed.data.version, parsed.data.by); return true; }
-    case "notes": case "suggestions": case "mode": {
+    case "notes": case "suggestions": case "mode": case "inspections": {
       const parsed = by.safeParse(value);
       if (!parsed.success) return false;
       handlers[type](parsed.data.by);
@@ -44,7 +45,7 @@ export function openCourseSettingStream(url: string, handlers: CourseSettingStre
     if (closed) return;
     const current = create(url);
     source = current;
-    for (const type of ["version", "notes", "suggestions", "mode", "presence"]) {
+    for (const type of ["version", "notes", "suggestions", "mode", "inspections", "presence"]) {
       current.addEventListener(type, event => handleStreamEvent(type, (event as MessageEvent<string>).data, handlers));
     }
     current.addEventListener("open", () => { if (failed) { failed = false; handlers.reconnected(); } });

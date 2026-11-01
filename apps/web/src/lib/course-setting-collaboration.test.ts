@@ -82,11 +82,14 @@ describe("förslagen", () => {
 
 describe("banläggningens ström", () => {
   it("lämnar besked om ny version, notiser och närvaro och avvisar trasiga", () => {
-    const handlers = { version: vi.fn(), notes: vi.fn(), suggestions: vi.fn(), mode: vi.fn(), presence: vi.fn(), reconnected: vi.fn() };
+    const handlers = { version: vi.fn(), notes: vi.fn(), suggestions: vi.fn(), mode: vi.fn(), inspections: vi.fn(), presence: vi.fn(),
+      reconnected: vi.fn() };
     expect(handleStreamEvent("version", JSON.stringify({ version: 7, by: actor.accountId }), handlers)).toBe(true);
     expect(handlers.version).toHaveBeenCalledWith(7, actor.accountId);
     expect(handleStreamEvent("notes", JSON.stringify({ by: "x" }), handlers)).toBe(true);
     expect(handlers.notes).toHaveBeenCalledWith("x");
+    expect(handleStreamEvent("inspections", JSON.stringify({ by: "y" }), handlers)).toBe(true);
+    expect(handlers.inspections).toHaveBeenCalledWith("y");
     expect(handleStreamEvent("presence", JSON.stringify([{ ...actor, level: "EDIT" }]), handlers)).toBe(true);
     expect(handlers.presence).toHaveBeenCalledWith([{ ...actor, level: "EDIT" }]);
     expect(handleStreamEvent("version", "{inte json", handlers)).toBe(false);

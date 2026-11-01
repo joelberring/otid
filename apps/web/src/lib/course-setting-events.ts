@@ -13,6 +13,8 @@ export type CourseSettingEvent =
   | { readonly type: "notes"; readonly by: string }
   | { readonly type: "suggestions"; readonly by: string }
   | { readonly type: "mode"; readonly by: string }
+  /** Steg 67: någon bockade en kontroll som kollad (eller av). */
+  | { readonly type: "inspections"; readonly by: string }
   | { readonly type: "presence"; readonly people: CourseSettingPresence };
 
 type Listener = (event: CourseSettingEvent) => void;

@@ -135,6 +135,23 @@ export type CourseSettingNoteCreate = z.infer<typeof courseSettingNoteCreateSche
 export const courseSettingNoteReplySchema = z.object({ formatVersion: z.literal(1), requestId: uuid, text }).strict();
 export const courseSettingNoteStatusSchema = z.object({ formatVersion: z.literal(1), status: z.enum(["OPEN", "DONE"]) }).strict();
 
+// Kollad (steg 67, ADR-0181 beslut 6): per kontroll, utanför dokumentet.
+/** En kollad kontroll: vem, när och var kontrollen låg då (mm; null om den inte fanns i dokumentet). */
+export const courseSettingInspectionSchema = z.object({ control: id, checkedAt: instant, checkedBy: actor, at: point.nullable() }).strict();
+export type CourseSettingInspection = z.infer<typeof courseSettingInspectionSchema>;
+
+export const courseSettingInspectionsSchema = z.object({ formatVersion: z.literal(1), raceId: uuid,
+  inspections: z.array(courseSettingInspectionSchema).max(5000) }).strict();
+export type CourseSettingInspections = z.infer<typeof courseSettingInspectionsSchema>;
+
+/**
+ * Bocka i eller av. `at` är när det gjordes i telefonen (en kö utan nät skickar senare); den senaste vinner, så en äldre
+ * bock eller avbockning ändrar inte en nyare. `position` är kontrollens läge i telefonens dokument då.
+ */
+export const courseSettingInspectionRequestSchema = z.object({ formatVersion: z.literal(1), control: id, checked: z.boolean(), at: instant,
+  position: point.nullable() }).strict();
+export type CourseSettingInspectionRequest = z.infer<typeof courseSettingInspectionRequestSchema>;
+
 // Förslag (ADR-0181 beslut 3).
 export const courseSettingSuggestionStatusSchema = z.enum(["OPEN", "APPROVED", "PARTIAL", "DECLINED"]);
 export const courseSettingSuggestionSchema = z.object({

@@ -437,6 +437,17 @@ export const courseSettingSuggestions = pgTable("course_setting_suggestion", {
   requestId: uuid("request_id").notNull()
 });
 
+/** Steg 67: "kollad" per kontroll (fältläget), utanför dokumentet; `checked` false = avbockad (den senaste vinner). */
+export const courseSettingInspections = pgTable("course_setting_inspection", {
+  raceId: uuid("race_id").notNull().references(() => races.id),
+  controlId: text("control_id").notNull(),
+  checked: boolean("checked").notNull(),
+  changedAt: timestamp("changed_at", { withTimezone: true }).notNull(),
+  changedBy: uuid("changed_by").notNull(),
+  atX: doublePrecision("at_x"),
+  atY: doublePrecision("at_y")
+}, (table) => [primaryKey({ columns: [table.raceId, table.controlId] })]);
+
 /** Steg 62: tidigare versioner av banläggningen (de senaste 50). */
 export const courseSettingRevisions = pgTable("course_setting_revision", {
   raceId: uuid("race_id").notNull().references(() => races.id),

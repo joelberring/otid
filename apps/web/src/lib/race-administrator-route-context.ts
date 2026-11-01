@@ -34,6 +34,7 @@ import { loadStartDrawSetupAsAdmin, previewStartDrawAsAdmin, commitStartDrawAsAd
   readCourseSettingAsAdmin, saveCourseSettingAsAdmin, importCourseSettingAsAdmin, listCourseSettingRevisionsAsAdmin,
   requireCourseSettingAccess, saveCourseSettingEditsAsAdmin, setCourseSettingModeAsAdmin, listCourseSettingNotesAsAdmin,
   createCourseSettingNoteAsAdmin, replyCourseSettingNoteAsAdmin, setCourseSettingNoteStatusAsAdmin, readCourseSettingNotePhotoAsAdmin,
+  listCourseSettingInspectionsAsAdmin, setCourseSettingInspectionAsAdmin,
   listCourseSettingSuggestionsAsAdmin, createCourseSettingSuggestionAsAdmin, decideCourseSettingSuggestionAsAdmin, type CourseSettingPrincipal,
   readCourseSettingRevisionAsAdmin, restoreCourseSettingRevisionAsAdmin, readCourseSettingOriginalAsAdmin, previewCourseSettingTransferAsAdmin,
   listRacePeopleAsAdmin, grantRacePersonAsAdmin, revokeRacePersonAsAdmin,
@@ -124,6 +125,8 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   courseSettingNoteReply: replyCourseSettingNoteAsAdmin, courseSettingNoteStatus: setCourseSettingNoteStatusAsAdmin,
   courseSettingNotePhoto: readCourseSettingNotePhotoAsAdmin, courseSettingSuggestions: listCourseSettingSuggestionsAsAdmin,
   courseSettingSuggestion: createCourseSettingSuggestionAsAdmin, courseSettingSuggestionDecision: decideCourseSettingSuggestionAsAdmin,
+  // Steg 67: "kollad" per kontroll.
+  courseSettingInspections: listCourseSettingInspectionsAsAdmin, courseSettingInspection: setCourseSettingInspectionAsAdmin,
   participantRouteSave: saveParticipantRouteAsAdmin, participantRouteRemove: removeParticipantRouteAsAdmin,
   people: listRacePeopleAsAdmin, grantPerson: grantRacePersonAsAdmin, revokePerson: revokeRacePersonAsAdmin,
   racePublication: setRacePublicationAsAdmin, courseSecrecy: setCoursesPublicAsAdmin,
@@ -185,7 +188,7 @@ export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: str
   { kind: "course-setting-edits" } | { kind: "course-setting-mode" } | { kind: "course-setting-notes" } |
   { kind: "course-setting-note-reply"; noteId: string } | { kind: "course-setting-note-status"; noteId: string } |
   { kind: "course-setting-note-photo"; noteId: string } | { kind: "course-setting-suggestions" } |
-  { kind: "course-setting-suggestion-decision"; suggestionId: string } | { kind: "course-setting-events" } |
+  { kind: "course-setting-suggestion-decision"; suggestionId: string } | { kind: "course-setting-events" } | { kind: "course-setting-inspections" } |
   { kind: "people" } | { kind: "race-publication" } | { kind: "course-secrecy" } | { kind: "control-map" } | { kind: "entry-control-map"; entryId: string } | { kind: "radio" } | { kind: "radio-fetch" } |
   { kind: "readout-registrations" } | { kind: "remaining-runners" } | { kind: "course-details"; courseId: string } |
   { kind: "entry-removal"; entryId: string } | { kind: "class-removal"; classId: string } | { kind: "course-removal"; courseId: string } |

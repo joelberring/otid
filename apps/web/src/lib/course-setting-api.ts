@@ -4,10 +4,11 @@ import {
   type CourseSettingRevisions, type CourseSettingState, type CourseSettingTransferProblem, type SyncPreviewResponse
 } from "@o-tid/contracts";
 import {
-  courseSettingEditsSavedSchema, courseSettingModeRequestSchema, courseSettingNoteSchema, courseSettingNotesSchema, courseSettingSuggestionDecidedSchema,
+  courseSettingEditsSavedSchema, courseSettingInspectionsSchema, courseSettingModeRequestSchema, courseSettingNoteSchema, courseSettingNotesSchema, courseSettingSuggestionDecidedSchema,
   courseSettingSuggestionSchema, courseSettingSuggestionsSchema, type CourseSettingEditsRequest, type CourseSettingEditsSaved, type CourseSettingMode,
   type CourseSettingNote, type CourseSettingNoteCreate, type CourseSettingNotes, type CourseSettingSuggestion, type CourseSettingSuggestionCreate,
-  type CourseSettingSuggestionDecided, type CourseSettingSuggestionDecision, type CourseSettingSuggestions
+  type CourseSettingSuggestionDecided, type CourseSettingSuggestionDecision, type CourseSettingSuggestions, type CourseSettingInspectionRequest,
+  type CourseSettingInspections
 } from "@o-tid/contracts";
 import type { CourseSettingDocument } from "@o-tid/course-setting";
 import { HttpStatusError } from "./course-setting-sync";
@@ -151,4 +152,14 @@ export async function decideCourseSettingSuggestion(raceId: string, suggestionId
   request: Omit<CourseSettingSuggestionDecision, "formatVersion" | "requestId">): Promise<CourseSettingSuggestionDecided> {
   return parsed(await write(raceId, `/course-setting/suggestions/${encodeURIComponent(suggestionId)}/decision`, "POST",
     { formatVersion: 1, requestId: crypto.randomUUID(), ...request }), courseSettingSuggestionDecidedSchema);
+}
+
+// Steg 67: "kollad" per kontroll.
+export async function fetchCourseSettingInspections(raceId: string): Promise<CourseSettingInspections> {
+  return parsed(await fetchWithRetry(`${base(raceId)}/course-setting/inspections`, { credentials: "same-origin", cache: "no-store" }),
+    courseSettingInspectionsSchema);
+}
+
+export async function setCourseSettingInspection(raceId: string, request: CourseSettingInspectionRequest): Promise<CourseSettingInspections> {
+  return parsed(await write(raceId, "/course-setting/inspections", "PUT", request), courseSettingInspectionsSchema);
 }

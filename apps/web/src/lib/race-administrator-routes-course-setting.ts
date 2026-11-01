@@ -1,6 +1,6 @@
 import {
   COURSE_SETTING_EDITS_MAX_BYTES, COURSE_SETTING_IMPORT_MAX_BYTES, COURSE_SETTING_NOTE_MAX_BYTES, COURSE_SETTING_SAVE_MAX_BYTES,
-  courseSettingConflictSchema, courseSettingEditsSavedSchema, courseSettingModeRequestSchema, courseSettingNoteSchema, courseSettingNotesSchema,
+  courseSettingConflictSchema, courseSettingEditsSavedSchema, courseSettingInspectionsSchema, courseSettingModeRequestSchema, courseSettingNoteSchema, courseSettingNotesSchema,
   courseSettingRevisionSchema, courseSettingRevisionsSchema, courseSettingSavedSchema, courseSettingStateSchema, courseSettingSuggestionDecidedSchema,
   courseSettingSuggestionSchema, courseSettingSuggestionsSchema, courseSettingTransferProblemSchema, syncPreviewResponseSchema
 } from "@o-tid/contracts";
@@ -16,6 +16,8 @@ import { resultFailure, type RaceAdministratorRouteContext } from "./race-admini
  * Steg 66: behörigheten är banläggningens (`COURSE_SETTING_ROUTES` i race-roles.ts). Nytt: åtgärder (POST edits),
  * arbetssättet (PUT mode), notiser med svar, status och foto, förslag och beslut, och strömmen till editorn (GET events,
  * SSE). En lyckad skrivning ger ett besked i strömmen (`course-setting-events.ts`).
+ *
+ * Steg 67: "kollad" per kontroll (GET och PUT inspections).
  */
 async function body(request: Request, maxBytes: number): Promise<unknown> {
   try { return await readJsonBody(request, maxBytes); } catch { return undefined; }
@@ -163,6 +165,22 @@ export async function handleCourseSettingRoute(context: RaceAdministratorRouteCo
       if (response.raceId !== raceId) return failure(500, "INTERNAL_ERROR");
       publishCourseSettingEvent(raceId, { type: "suggestions", by });
       if (response.saved && response.saved.applied > 0) publishCourseSettingEvent(raceId, { type: "version", version: response.saved.version, by });
+      return json(response);
+    }
+    case "course-setting-inspections": {
+      if (request.method === "GET") {
+        const result = await dependencies.courseSettingInspections(db, input);
+        if (result.status !== "ok") return resultFailure(result.status);
+        const response = courseSettingInspectionsSchema.parse(result.response);
+        return response.raceId === raceId ? json(response) : failure(500, "INTERNAL_ERROR");
+      }
+      const value = await body(request, 4096);
+      if (value === undefined) return failure(400, "INVALID_REQUEST");
+      const result = await dependencies.courseSettingInspection(db, { ...input, request: value });
+      if (result.status !== "ok") return resultFailure(result.status);
+      const response = courseSettingInspectionsSchema.parse(result.response);
+      if (response.raceId !== raceId) return failure(500, "INTERNAL_ERROR");
+      if (result.changed) publishCourseSettingEvent(raceId, { type: "inspections", by });
       return json(response);
     }
     case "course-setting-events": {

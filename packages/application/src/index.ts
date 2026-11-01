@@ -94,6 +94,7 @@ export {
   createCourseSettingNoteAsAdmin, listCourseSettingNotesAsAdmin, readCourseSettingNotePhotoAsAdmin, replyCourseSettingNoteAsAdmin,
   setCourseSettingNoteStatusAsAdmin
 } from "./course-setting-notes";
+export { listCourseSettingInspectionsAsAdmin, setCourseSettingInspectionAsAdmin } from "./course-setting-inspections";
 export * from "./radio-ingest";
 export * from "./radio-settings";
 export * from "./radio-standings";

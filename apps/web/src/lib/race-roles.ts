@@ -82,6 +82,8 @@ export const COURSE_SETTING_ROUTES: Readonly<Record<string, Readonly<Record<stri
   "course-setting-suggestions": { GET: "COMMENT", POST: "SUGGEST" },
   "course-setting-suggestion-decision": { POST: "EDIT" },
   "course-setting-events": { GET: "COMMENT" },
+  // Steg 67: "kollad" per kontroll (bankontrollanten får bocka).
+  "course-setting-inspections": { GET: "COMMENT", PUT: "COMMENT" },
   "race-map-source": { GET: "COMMENT" }
 };
 

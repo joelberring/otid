@@ -198,6 +198,7 @@ async function copyRaceContent(tx: Transaction, input: ContentInput) {
     select gen_random_uuid(), c.new_id, ${raceId}, r.text, r.created_at, r.created_by, gen_random_uuid()
     from course_setting_note_reply r join course_setting_note_copy c on c.old_id = r.note_id`);
   await tx.execute(sql`drop table course_setting_note_copy`);
+  // Steg 67: "kollad" (course_setting_inspection) kopieras inte; kontrollerna kollas på nytt.
 
   const [radio] = await tx.select().from(schema.raceRadioLinks).where(eq(schema.raceRadioLinks.raceId, sourceRaceId));
   if (radio) await tx.insert(schema.raceRadioLinks).values({ raceId, source: radio.source, unitId: radio.unitId, enabled: false, updatedAt: now });

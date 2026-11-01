@@ -117,6 +117,8 @@ export interface SyncOptions {
   readonly newId?: () => string;
   readonly setTimer?: (callback: () => void, ms: number) => unknown;
   readonly clearTimer?: (timer: unknown) => void;
+  /** Steg 67: begäran som var på väg när sidan stängdes (ur telefonens lagring) skickas med samma requestId. */
+  readonly resume?: { readonly requestId: string; readonly upTo: number } | undefined;
 }
 
 type After = { ackedUpTo: number; authorView: CourseSettingDocument; idMap?: IdMap; rejected: readonly { seq: number; message: string }[] };
@@ -135,6 +137,7 @@ export class CourseSettingSync {
   private running: Promise<void> | undefined;
   private stopped = false;
   private detached = false;
+  private resumeRequest: SyncOptions["resume"];
   private readonly delayMs: number;
   private readonly retryMs: number;
   private readonly setTimer: (callback: () => void, ms: number) => unknown;
@@ -148,12 +151,26 @@ export class CourseSettingSync {
     this.retryMs = options.retryMs ?? 3000;
     this.setTimer = options.setTimer ?? ((callback, ms) => setTimeout(callback, ms));
     this.clearTimer = options.clearTimer ?? (timer => clearTimeout(timer as ReturnType<typeof setTimeout>));
+    this.resumeRequest = options.resume;
   }
 
   get version(): number { return this.serverVersion; }
   get document(): CourseSettingDocument { return this.serverDocument; }
   /** Något är inte sparat. */
   get dirty(): boolean { return this.inFlight !== undefined || this.unread !== undefined || this.unsent().length > 0; }
+  /** Steg 67: den skickade begäran som inte är kvitterad (sparas i telefonen med åtgärderna). */
+  get pendingRequest(): { requestId: string; upTo: number } | undefined {
+    const flight = this.inFlight;
+    return flight ? { requestId: flight.request.requestId, upTo: flight.entries.at(-1)!.seq } : this.resumeRequest;
+  }
+  /** Sparandet har stannat (utloggad, för stort). */
+  get halted(): boolean { return this.stopped; }
+
+  /** Steg 67: efter en ny inloggning (eller när nätet är tillbaka) försöker sparandet igen direkt. */
+  resume(): void {
+    this.stopped = false;
+    if (this.dirty || this.remoteVersion > this.serverVersion) { this.options.onStatus("pending"); this.schedule(0); }
+  }
 
   private unsent(): LoggedEdit[] {
     const state = this.store.state;
@@ -217,7 +234,11 @@ export class CourseSettingSync {
     if (this.store.state.dragBase) return;
     if (this.unread) { await this.refresh(this.unread); return; }
     if (!this.inFlight) {
-      const entries = this.unsent();
+      let entries = this.unsent();
+      // Steg 67: samma requestId som förra gången för åtgärderna som då var på väg (servern ger samma svar igen).
+      const resumed = this.resumeRequest;
+      this.resumeRequest = undefined;
+      if (resumed && entries.length > 0 && entries[0]!.seq <= resumed.upTo) entries = entries.filter(entry => entry.seq <= resumed.upTo);
       if (entries.length === 0) {
         if (this.remoteVersion > this.serverVersion) await this.refresh();
         return;
@@ -225,7 +246,8 @@ export class CourseSettingSync {
       let authorView = this.serverDocument;
       const replay = replayEdits(authorView, entries.map(entry => entry.edit));
       authorView = replay.document;
-      this.inFlight = { entries, authorView, request: { formatVersion: 1, requestId: (this.options.newId ?? (() => crypto.randomUUID()))(),
+      const requestId = resumed && entries.at(-1)!.seq <= resumed.upTo ? resumed.requestId : (this.options.newId ?? (() => crypto.randomUUID()))();
+      this.inFlight = { entries, authorView, request: { formatVersion: 1, requestId,
         baseVersion: this.serverVersion, edits: entries.map(entry => entry.edit) as CourseSettingEditsRequest["edits"],
         created: entries.map(entry => ({ controls: [...entry.created.controls], courseControls: [...entry.created.courseControls],
           courses: [...entry.created.courses] })) } };

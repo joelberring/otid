@@ -138,6 +138,11 @@ export const courseSettingSv = {
     best: (length: number, climb: number, minutes: string) => `Bästa väg ${meters(length)}, ${Math.round(climb)} m stigning, ca ${minutes}`,
     choices: (count: number) => count === 1 ? "Ett tydligt vägval" : `${count} vägval`,
     noRoute: "Ingen väg hittades mellan kontrollerna.",
+    routes: "Vägvalen",
+    bestRow: "Bästa",
+    alternative: (index: number) => `Alternativ ${index}`,
+    row: (length: number, climb: number, minutes: string) => `${meters(length)} · ${Math.round(climb)} m · ${minutes}`,
+    slower: (ratio: number) => `+${Math.max(0, Math.round((ratio - 1) * 100))} %`,
     legend: "Bästa väg som blå linje, likvärdiga vägar streckade och stråket (högst 5 % sämre) tonat."
   },
   file: {

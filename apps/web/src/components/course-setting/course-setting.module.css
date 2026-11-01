@@ -1,28 +1,102 @@
-/* Steg 62: banläggningen. Kartan tar platsen; verktyg och listor i en spalt bredvid (under på smal skärm). */
+/* Steg 62: banläggningen. Sidorna före editorn (kartfil, första .ppen) är vanliga sidor. */
 .page { display: grid; gap: 12px; padding: 12px 16px 24px; }
 .head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; }
 .head h1 { margin: 0; font-size: var(--text-xl, 1.5rem); }
 .head p { margin: 0; color: var(--muted); }
-.back { color: var(--muted); font-size: var(--text-sm); }
-.status { margin-left: auto; padding: 4px 10px; border: 1px solid var(--line-strong); border-radius: 999px; font-size: var(--text-sm); }
-.status[data-status="conflict"], .status[data-status="too-large"] { border-color: var(--danger, #b00020); color: var(--danger, #b00020); font-weight: 700; }
+.back { color: var(--muted); font-size: var(--text-sm); white-space: nowrap; }
+.status { margin: 0; padding: 3px 10px; border: 1px solid var(--line-strong); border-radius: 999px; font-size: var(--text-sm); white-space: nowrap; }
+.status[data-status="too-large"], .status[data-status="stopped"] { border-color: var(--danger, #b00020); color: var(--danger, #b00020); font-weight: 700; }
 .status[data-status="failed"] { border-color: var(--attention); }
-.workspace { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 12px; align-items: start; }
-.mapFrame { position: relative; min-width: 0; }
-.map { position: relative; height: calc(100vh - 150px); min-height: 420px; overflow: hidden; border: 1px solid var(--line-strong);
-  background: #fff; touch-action: none; user-select: none; }
+.status[data-status="pending"], .status[data-status="saving"] { border-style: dashed; }
+
+/*
+ * Steg 66: arbetsytan i helskärm. Kartan fyller fönstret under en smal rad; sidan skrollar aldrig. Verktygen, zoomen,
+ * vald kontroll och beskeden flyter ovanpå kartan; panelerna är en låda med flikar till höger (ett blad nerifrån på
+ * smal skärm). Inget skjuter ned kartan.
+ */
+.shell { position: fixed; inset: 0; z-index: 10; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; background: var(--surface); }
+.topbar { display: flex; align-items: center; gap: 6px; min-height: 48px; padding: 4px 10px; border-bottom: 1px solid var(--line-strong);
+  background: var(--surface); overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+.topbar button, .topbar select { min-height: 36px; white-space: nowrap; }
+.topbar select { max-width: 220px; padding: 2px 6px; font: inherit; }
+.inline { display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-sm); }
+.spacer { flex: 1 1 auto; min-width: 4px; }
+.access, .presence { color: var(--muted); font-size: var(--text-sm); white-space: nowrap; }
+.srOnly, .srOnlyNarrow { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.menu { position: relative; }
+.menuList { position: fixed; z-index: 30; display: grid; min-width: 220px; margin-top: 4px; padding: 4px; border: 1px solid var(--line-strong);
+  background: var(--surface); box-shadow: 0 6px 20px rgba(0, 0, 0, .18); }
+.menuList button { padding: 10px 12px; border: none; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.menuList button:hover, .menuList button:focus-visible { background: var(--surface-strong, rgba(0, 0, 0, .06)); }
+
+.stage { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; min-height: 0; }
+.mapArea { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
+.mapFrame { position: absolute; inset: 0; }
+.map { position: absolute; inset: 0; overflow: hidden; background: #fff; touch-action: none; user-select: none; }
+.map:focus-visible { outline: 3px solid var(--ink); outline-offset: -3px; }
 .layer { position: absolute; inset: 0; width: 100%; height: 100%; }
-.zoom { position: absolute; top: 8px; right: 8px; display: grid; gap: 4px; }
-.zoom button { min-width: 40px; min-height: 40px; padding: 0; font-size: 1.2rem; }
-.side { display: grid; gap: 12px; max-height: calc(100vh - 150px); overflow-y: auto; padding-right: 4px; }
+.zoom { position: absolute; right: 10px; bottom: 10px; display: grid; gap: 4px; }
+.zoom button { min-width: 40px; min-height: 40px; padding: 0; font-size: 1.2rem; box-shadow: 0 2px 8px rgba(0, 0, 0, .2); }
+
+.toolbar { position: absolute; top: 10px; left: 10px; display: flex; flex-wrap: wrap; gap: 2px; max-width: calc(100% - 80px); padding: 4px;
+  border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); box-shadow: 0 2px 10px rgba(0, 0, 0, .2); }
+.tool { display: grid; justify-items: center; gap: 1px; min-width: 52px; min-height: 48px; padding: 4px 6px; border: 2px solid transparent;
+  border-radius: 6px; background: none; color: inherit; font: inherit; font-size: 0.75rem; cursor: pointer; }
+.tool:hover:not(:disabled) { background: var(--surface-strong, rgba(0, 0, 0, .06)); }
+.tool[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: var(--surface); font-weight: 700; }
+.tool:disabled { opacity: .4; cursor: default; }
+.toolIcon { font-size: 1.1rem; line-height: 1.2; }
+
+.toasts { position: absolute; top: 76px; left: 50%; z-index: 5; display: grid; gap: 6px; width: min(520px, calc(100% - 24px));
+  transform: translateX(-50%); pointer-events: none; }
+.toasts > * { pointer-events: auto; }
+.toast { margin: 0; padding: 6px 12px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .15); font-size: var(--text-sm); }
+.toastBox { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; box-shadow: 0 2px 8px rgba(0, 0, 0, .15); }
+.toastBox ul { margin: 4px 0 0; padding-left: 1.1rem; font-size: var(--text-sm); }
+.card { position: absolute; left: 50%; bottom: 12px; z-index: 4; display: grid; gap: 6px; width: min(560px, calc(100% - 120px)); padding: 8px 12px;
+  transform: translateX(-50%); border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); box-shadow: 0 4px 16px rgba(0, 0, 0, .22); }
+.cardHead { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+.drawer { --drawer-width: 380px; position: relative; display: grid; grid-template-columns: 6px 48px minmax(0, 1fr); width: var(--drawer-width);
+  min-height: 0; border-left: 1px solid var(--line-strong); background: var(--surface); }
+.drawer[data-collapsed] { grid-template-columns: 0 48px 0; width: 48px; }
+.drawer[data-collapsed] .tabpanel, .drawer[data-collapsed] .resize { display: none; }
+.resize { cursor: col-resize; background: var(--line); touch-action: none; }
+.resize:hover, .resize:focus-visible { background: var(--ink); outline: none; }
+.sheetHandle { display: none; }
+.tabs { display: flex; flex-direction: column; gap: 2px; padding: 4px 2px; border-right: 1px solid var(--line); overflow-y: auto; }
+.collapse, .tab { position: relative; display: grid; justify-items: center; gap: 2px; min-height: 48px; padding: 4px 2px; border: none;
+  border-radius: 6px; background: none; color: inherit; font: inherit; font-size: 0.65rem; cursor: pointer; }
+.tab[aria-selected="true"] { background: var(--ink); color: var(--surface); font-weight: 700; }
+.tab:hover:not([aria-selected="true"]), .collapse:hover { background: var(--surface-strong, rgba(0, 0, 0, .06)); }
+.tabIcon { font-size: 1.1rem; }
+.tabLabel { max-width: 44px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.badge { position: absolute; top: 2px; right: 2px; min-width: 18px; padding: 0 4px; border-radius: 9px; background: var(--attention, #c60);
+  color: #fff; font-size: 0.65rem; font-weight: 700; line-height: 18px; }
+.tabpanel { display: grid; align-content: start; gap: 10px; min-height: 0; padding: 10px; overflow-y: auto; overscroll-behavior: contain; }
+.tabpanel .panel { border: none; padding: 0; background: none; }
+
+.dialog { width: min(900px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); padding: 0; border: 1px solid var(--line-strong);
+  background: var(--surface); color: inherit; }
+.dialog::backdrop { background: rgba(0, 0, 0, .35); }
+.dialogHead { position: sticky; top: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 14px;
+  border-bottom: 1px solid var(--line); background: var(--surface); }
+.dialogHead h2 { margin: 0; font-size: var(--text-md, 1rem); }
+.dialogBody { display: grid; gap: 12px; padding: 12px 14px; }
+
 .panel { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); background: var(--surface); }
 .panel h2 { margin: 0; font-size: var(--text-md, 1rem); }
 .muted { margin: 0; color: var(--muted); font-size: var(--text-sm); }
 .row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .row label { display: grid; gap: 2px; font-size: var(--text-sm); font-weight: 600; }
 .row input[type="text"], .row select { min-height: 36px; padding: 2px 8px; font: inherit; }
-.tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
-.tools button[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: var(--surface); }
+.stack { display: grid; gap: 2px; font-size: var(--text-sm); font-weight: 600; }
+.stack textarea, .stack select, .noteForm textarea { width: 100%; padding: 6px 8px; font: inherit; }
+.check { display: flex; align-items: flex-start; gap: 6px; font-size: var(--text-sm); }
+.check input { margin-top: 3px; }
+.segmented { display: flex; gap: 4px; }
+.segmented button[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: var(--surface); }
 .courses { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
 .course { display: grid; width: 100%; padding: 6px 8px; border: 1px solid transparent; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .course[aria-pressed="true"] { border-color: var(--ink); background: var(--surface-strong, rgba(0, 0, 0, .05)); }
@@ -32,10 +106,36 @@
   color: inherit; font: inherit; font-size: var(--text-sm); text-align: left; cursor: pointer; }
 .verdict { font-weight: 700; }
 .warnings { margin: 0; padding-left: 1.1rem; font-size: var(--text-sm); }
+.routes { display: grid; gap: 2px; margin: 6px 0; padding: 0; list-style: none; }
+.routes button { display: grid; grid-template-columns: 7.5em minmax(0, 1fr) 3.5em; gap: 6px; width: 100%; padding: 4px 6px; border: 1px solid var(--line);
+  background: none; color: inherit; font: inherit; font-size: var(--text-sm); text-align: left; cursor: pointer; }
+.routes button[aria-pressed="true"] { border-color: rgb(200, 150, 0); background: rgba(255, 200, 0, .25); }
 .fileInput { max-width: 100%; }
 .revisions { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: var(--text-sm); }
 .revisions li { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .review { grid-column: 1 / -1; }
+
+/* Steg 66: notiser och förslag. */
+.noteForm { display: grid; gap: 6px; }
+.noteForm label { display: grid; gap: 2px; font-size: var(--text-sm); font-weight: 600; }
+.noteList, .replies, .suggestionList { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.noteList > li { border: 1px solid var(--line); border-left: 4px solid rgb(230, 180, 0); }
+.noteList > li[data-status="DONE"] { border-left-color: var(--line-strong); }
+.noteList > li[data-selected] { border-color: rgb(0, 110, 220); }
+.noteHead { display: grid; gap: 2px; width: 100%; padding: 6px 8px; border: none; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.noteStatus { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; }
+.noteText { white-space: pre-wrap; }
+.thread { display: grid; gap: 6px; padding: 0 8px 8px; }
+.notePhoto { max-width: 100%; max-height: 240px; border: 1px solid var(--line); }
+.replies li { padding: 4px 6px; background: var(--surface-strong, rgba(0, 0, 0, .04)); }
+.replies p { margin: 0; white-space: pre-wrap; }
+.draft { display: grid; gap: 6px; padding: 8px; border: 2px dashed rgb(0, 120, 90); }
+.suggestionList > li { display: grid; gap: 6px; padding: 6px 8px; border: 1px solid var(--line); }
+.suggestionHead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; font-size: var(--text-sm); }
+.reviewBox { display: grid; gap: 6px; }
+.quote { margin: 0; padding: 4px 8px; border-left: 3px solid var(--line-strong); white-space: pre-wrap; }
+.editList { display: grid; gap: 4px; margin: 0; padding: 6px 8px; border: 1px solid var(--line); }
+.editList label[data-rejected] { color: var(--danger, #b00020); }
 
 /* Steg 63: kontrollbeskrivningen och väljaren. */
 .description { border: 1px solid var(--line); background: #fff; }
@@ -57,8 +157,30 @@
 .textLines input { min-height: 36px; padding: 2px 8px; font: inherit; }
 .describe { margin: 0; font-style: italic; }
 
+/*
+ * Smal skärm: lådan blir ett blad nerifrån (fliklisten syns alltid, dras upp med handtaget eller en flik), verktygsraden
+ * ligger nertill ovanför bladet. Steg 67 bygger mobilvyn vidare på detta.
+ */
 @media (max-width: 900px) {
-  .workspace { grid-template-columns: minmax(0, 1fr); }
-  .map { height: 62vh; min-height: 320px; }
-  .side { max-height: none; overflow: visible; }
+  .wide { display: none; }
+  .srOnlyNarrow { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
+  .stage { grid-template-columns: minmax(0, 1fr); }
+  .drawer, .drawer[data-collapsed] { position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; display: grid; grid-template-columns: 1fr;
+    grid-template-rows: 18px auto 0; width: auto; max-height: 50px; border-top: 1px solid var(--line-strong); border-left: none;
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, .2); transition: none; }
+  .drawer[data-sheet-open] { grid-template-rows: 18px auto minmax(0, 1fr); height: 58dvh; max-height: 58dvh; }
+  .resize, .collapse { display: none; }
+  .sheetHandle { display: grid; place-items: center; min-height: 18px; padding: 0; border: none; background: none; cursor: pointer; }
+  .sheetHandle span { width: 44px; height: 4px; border-radius: 2px; background: var(--line-strong); }
+  .tabs { flex-direction: row; padding: 0 4px 4px; border-right: none; overflow-x: auto; overflow-y: hidden; }
+  .tab { flex: 1 0 auto; min-width: 48px; min-height: 32px; grid-auto-flow: column; align-items: center; gap: 4px; font-size: 0.75rem; }
+  .tabLabel { max-width: none; }
+  .drawer:not([data-sheet-open]) .tabpanel { display: none; }
+  .drawer[data-collapsed] .tabpanel { display: grid; }
+  .drawer[data-collapsed]:not([data-sheet-open]) .tabpanel { display: none; }
+  .toolbar { top: auto; bottom: 62px; left: 6px; right: 6px; max-width: none; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .tool { min-width: 48px; flex: 0 0 auto; }
+  .zoom { bottom: 136px; right: 8px; }
+  .card { bottom: 136px; width: calc(100% - 72px); left: 8px; transform: none; }
+  .toasts { top: 8px; }
 }

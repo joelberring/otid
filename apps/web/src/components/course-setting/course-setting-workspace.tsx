@@ -66,7 +66,10 @@ export function TopBar({ raceId, document, summaries, view, variant, onView, sta
     </div>
     <Button variant="secondary" title={full ? copy.topbar.exitFullscreen : copy.topbar.fullscreen}
       aria-label={full ? copy.topbar.exitFullscreen : copy.topbar.fullscreen}
-      onClick={() => void (full ? window.document.exitFullscreen() : window.document.documentElement.requestFullscreen?.()).catch(() => undefined)}>
+      onClick={() => {
+        const request = full ? window.document.exitFullscreen?.() : window.document.documentElement.requestFullscreen?.();
+        void request?.catch(() => undefined);
+      }}>
       {full ? "⤡" : "⛶"}</Button>
   </header>;
 }
@@ -89,8 +92,8 @@ export function ToolBar({ tool, tools, onTool, onFork, inCourse, help }: { tool:
   </div>;
 }
 
-export type DrawerTab = "courses" | "description" | "selected" | "checks" | "notes" | "suggestions";
-const TAB_ICON: Record<DrawerTab, string> = { courses: "☰", description: "▦", selected: "◉", checks: "⚠", notes: "✎", suggestions: "⇄" };
+export type DrawerTab = "courses" | "description" | "selected" | "checks" | "notes" | "suggestions" | "settings";
+const TAB_ICON: Record<DrawerTab, string> = { courses: "☰", description: "▦", selected: "◉", checks: "⚠", notes: "✎", suggestions: "⇄", settings: "⚙" };
 const WIDTH_KEY = "otid.course-setting.drawer";
 
 function readWidth(): number {

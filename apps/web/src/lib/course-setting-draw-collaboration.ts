@@ -99,3 +99,14 @@ export function drawSuggestion(ctx: Context, view: Viewport, suggestion: Suggest
   }
   ctx.restore();
 }
+
+/** Steg 66: vald rad i vägvalslistan – linjen markerad brett och gult under den vanliga ritningen. */
+export function drawHighlightedRoute(ctx: Context, view: Viewport, points: readonly Point[]) {
+  if (points.length < 2) return;
+  ctx.save();
+  ctx.lineCap = "round"; ctx.lineJoin = "round";
+  ctx.strokeStyle = "rgba(255, 200, 0, 0.75)";
+  ctx.lineWidth = 12;
+  line(ctx, view, points, false); ctx.stroke();
+  ctx.restore();
+}

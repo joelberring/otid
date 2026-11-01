@@ -13,8 +13,8 @@ import { Button } from "../ui";
 import styles from "./course-setting.module.css";
 
 /** Steg 62: banläggningens spalt – banlistan, verktygen, det valda, kontrollerna och vald sträckas vägval. Tunna vyer. */
-export function CourseList({ document, summaries, view, variant, onView, onAdd, onRename, onClasses, onRemove }: {
-  document: CourseSettingDocument; summaries: readonly CourseSummary[]; view: string; variant: string | undefined;
+export function CourseList({ document, summaries, view, variant, readOnly = false, onView, onAdd, onRename, onClasses, onRemove }: {
+  document: CourseSettingDocument; summaries: readonly CourseSummary[]; view: string; variant: string | undefined; readOnly?: boolean;
   onView: (view: string, variant?: string) => void; onAdd: (name: string) => void; onRename: (course: string, name: string) => void;
   onClasses: (course: string, classes: string) => void; onRemove: (course: string) => void;
 }) {
@@ -44,7 +44,7 @@ export function CourseList({ document, summaries, view, variant, onView, onAdd, 
         <option value="">{text.courses.allVariants}</option>
         {variants.map(row => <option key={row.code} value={row.code}>{row.code}</option>)}
       </select></label>}
-    {selected && renaming !== selected.id && <div className={styles.row}>
+    {selected && !readOnly && renaming !== selected.id && <div className={styles.row}>
       <Button variant="secondary" onClick={() => { setRenaming(selected.id); setName(selected.name); setClasses(selected.secondaryTitle ?? ""); }}>
         {text.courses.rename}</Button>
       <Button variant="quiet" onClick={() => { if (window.confirm(text.courses.removeConfirm(selected.name))) onRemove(selected.id); }}>
@@ -61,7 +61,7 @@ export function CourseList({ document, summaries, view, variant, onView, onAdd, 
       <Button type="submit">{text.courses.save}</Button>
       <Button variant="quiet" onClick={() => setRenaming(undefined)}>{text.courses.cancel}</Button>
     </form>}
-    <form className={styles.row} onSubmit={event => {
+    {!readOnly && <form className={styles.row} onSubmit={event => {
       event.preventDefault();
       const value = (new FormData(event.currentTarget).get("name") as string | null)?.trim() || text.courses.newName(courses.length + 1);
       onAdd(value);
@@ -69,7 +69,7 @@ export function CourseList({ document, summaries, view, variant, onView, onAdd, 
     }}>
       <label>{text.courses.addName}<input type="text" name="name" maxLength={120} placeholder={text.courses.newName(courses.length + 1)} /></label>
       <Button type="submit" variant="secondary">{text.courses.add}</Button>
-    </form>
+    </form>}
   </section>;
 }
 
@@ -161,8 +161,13 @@ export function ChecksPanel({ rows, onShow }: { rows: readonly CheckRow[]; onSho
   </section>;
 }
 
-export function LegPanel({ legKey, analysis, status }: { legKey: string | undefined; analysis: LegAnalysis | undefined;
-  status: "idle" | "waiting" | "analysing" | "failed" | "done" }) {
+/**
+ * Vald sträckas vägval. Steg 66 (ägaren): bästa vägen och alternativen i en lista (längd, stigning, tid relativt bästa,
+ * t.ex. "+8 %"); ett klick på en rad markerar linjen på kartan.
+ */
+export function LegPanel({ legKey, analysis, status, highlighted, onHighlight }: { legKey: string | undefined; analysis: LegAnalysis | undefined;
+  status: "idle" | "waiting" | "analysing" | "failed" | "done"; highlighted?: number | undefined; onHighlight?: (index: number | undefined) => void }) {
+  const rows = analysis?.best ? [{ ...analysis.best, timeRatio: 1 }, ...analysis.alternatives] : [];
   return <section className={styles.panel} aria-labelledby="course-setting-leg" data-testid="course-setting-leg">
     <h2 id="course-setting-leg">{text.leg.heading}</h2>
     {!legKey && <p className={styles.muted}>{text.leg.help}</p>}
@@ -174,6 +179,14 @@ export function LegPanel({ legKey, analysis, status }: { legKey: string | undefi
       <p>{text.leg.straight(analysis.straightMeters)}</p>
       {analysis.best ? <p>{text.leg.best(analysis.best.meters, analysis.best.climbMeters, minutes(analysis.best.seconds))}</p> : <p>{text.leg.noRoute}</p>}
       {analysis.best && <p>{text.leg.choices(1 + analysis.alternatives.length)}</p>}
+      {rows.length > 1 && <ol className={styles.routes} aria-label={text.leg.routes}>
+        {rows.map((row, index) => <li key={index}><button type="button" aria-pressed={highlighted === index}
+          onClick={() => onHighlight?.(highlighted === index ? undefined : index)}>
+          <strong>{index === 0 ? text.leg.bestRow : text.leg.alternative(index)}</strong>
+          <span>{text.leg.row(row.meters, row.climbMeters, minutes(row.seconds))}</span>
+          <span>{index === 0 ? "" : text.leg.slower(row.timeRatio)}</span>
+        </button></li>)}
+      </ol>}
       {analysis.warnings.length > 0 && <ul className={styles.warnings}>
         {analysis.warnings.map((warning, index) => <li key={index}>{warningText(legKey, warning)}</li>)}</ul>}
       <p className={styles.muted}>{text.leg.legend}</p>

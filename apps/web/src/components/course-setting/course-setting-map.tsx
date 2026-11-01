@@ -6,7 +6,7 @@ import type { Point } from "@o-tid/map-file";
 import type { LegAnalysis } from "@o-tid/route-choice";
 import { courseSettingSv as text } from "../../i18n/course-setting-sv";
 import { drawMarks, drawOverprint, drawRouteChoice } from "../../lib/course-setting-draw";
-import { drawNoteMarks, drawSuggestion, type SuggestionDrawing } from "../../lib/course-setting-draw-collaboration";
+import { drawHighlightedRoute, drawNoteMarks, drawSuggestion, type SuggestionDrawing } from "../../lib/course-setting-draw-collaboration";
 import { hitNoteMark, noteMarkGeometry, type NoteMark } from "../../lib/course-setting-note-marks";
 import { MAX_RENDER_SIDE, type MapRenderSession } from "../../lib/course-setting-map-protocol";
 import {
@@ -49,7 +49,7 @@ const tolerancePx = (pointerType: string) => pointerType === "touch" ? 18 : 8;
  * dra (`cursorAt`), och piltangenterna panorerar när kartan har fokus (+ och − zoomar).
  */
 export function CourseSettingMap({ session, mapBounds, primitives, faded, marks, analysis, label, cursor, handlers, handle, noteMarks,
-  selectedNote, onNoteTap, suggestion, cursorAt }: {
+  selectedNote, onNoteTap, suggestion, cursorAt, highlightRoute }: {
   session: MapRenderSession | undefined;
   mapBounds: Bounds | undefined;
   primitives: readonly OverprintPrimitive[];
@@ -66,6 +66,8 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
   suggestion?: SuggestionDrawing | undefined;
   /** Markören där pekaren står (utan att något dras); undefined = `cursor`. */
   cursorAt?: ((point: Point, toleranceMm: number) => string | undefined) | undefined;
+  /** Vägvalet som är valt i listan. */
+  highlightRoute?: readonly Point[] | undefined;
 }) {
   const [hoverCursor, setHoverCursor] = useState<string>();
   const [grabbing, setGrabbing] = useState(false);
@@ -170,13 +172,14 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
     if (!ctx) return;
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     ctx.clearRect(0, 0, view.width, view.height);
+    if (highlightRoute) drawHighlightedRoute(ctx, view, highlightRoute);
     if (analysis) drawRouteChoice(ctx, view, analysis);
     drawOverprint(ctx, view, faded, { faded: true });
     drawOverprint(ctx, view, primitives);
     if (suggestion) drawSuggestion(ctx, view, suggestion);
     drawMarks(ctx, view, marks);
     if (noteMarks) drawNoteMarks(ctx, view, noteMarks.map(mark => ({ ...mark, selected: mark.id === selectedNote })));
-  }, [view, primitives, faded, marks, analysis, suggestion, noteMarks, selectedNote]);
+  }, [view, primitives, faded, marks, analysis, suggestion, noteMarks, selectedNote, highlightRoute]);
 
   function local(event: { clientX: number; clientY: number }) {
     const rect = box.current!.getBoundingClientRect();

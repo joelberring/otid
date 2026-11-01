@@ -42,7 +42,7 @@ function Review({ suggestion, document, skip, onSkip, canDecide, onDecide, rejec
   const [comment, setComment] = useState("");
   const [busy, setBusy] = useState(false);
   const selectedCount = suggestion.edits.length - skip.size;
-  return <div className={styles.review} data-testid="course-setting-review">
+  return <div className={styles.reviewBox} data-testid="course-setting-review">
     <p className={styles.muted}>{text.suggestions.reviewing}</p>
     {suggestion.comment && <blockquote className={styles.quote}>{suggestion.comment}</blockquote>}
     <fieldset className={styles.editList}>

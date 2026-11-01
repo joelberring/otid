@@ -41,7 +41,8 @@ export const collaborationSv = {
     collapse: "Fäll ihop panelerna",
     expand: "Visa panelerna",
     resize: "Ändra panelernas bredd",
-    tabs: { courses: "Banor", description: "Beskrivning", selected: "Vald", checks: "Varningar", notes: "Notiser", suggestions: "Förslag" },
+    tabs: { courses: "Banor", description: "Beskrivning", selected: "Vald", checks: "Varningar", notes: "Notiser", suggestions: "Förslag",
+      settings: "Inställningar" },
     count: (label: string, count: number) => count > 0 ? `${label} (${count})` : label
   },
   card: {

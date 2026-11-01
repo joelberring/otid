@@ -7,7 +7,7 @@ import { collaborationSv as text } from "../../i18n/course-setting-collaboration
 import { courseSettingNotePhotoUrl } from "../../lib/course-setting-api";
 import { filterNotes, PHOTO_QUALITIES, PHOTO_SIDES, scaledSize, type NoteFilter } from "../../lib/course-setting-note-marks";
 import { controlLabel } from "../../lib/course-setting-text";
-import { Button, Notice } from "../ui";
+import { Button } from "../ui";
 import styles from "./course-setting.module.css";
 
 /** Fotot förminskat i webbläsaren (JPEG, högst 2 MB). */
@@ -106,7 +106,6 @@ export function NotesPanel({ raceId, notes, document, show, onShow, selected, on
         </button>
         {note.id === selected && <div className={styles.thread}>
           {note.photo && <a href={courseSettingNotePhotoUrl(raceId, note.id)} target="_blank" rel="noreferrer">
-            {/* eslint-disable-next-line @next/next/no-img-element -- privat foto bakom inloggning, inte en publik bild */}
             <img src={courseSettingNotePhotoUrl(raceId, note.id)} alt={text.notes.photoAlt} className={styles.notePhoto} loading="lazy" /></a>}
           <ul className={styles.replies}>{note.replies.map(row => <li key={row.id}><p>{row.text}</p>
             <span className={styles.muted}>{text.notes.by(row.createdBy.displayName, row.createdAt)}</span></li>)}</ul>
@@ -128,6 +127,3 @@ export function NotesPanel({ raceId, notes, document, show, onShow, selected, on
   </section>;
 }
 
-export function NoteMessage({ message }: { message: string | undefined }) {
-  return message ? <Notice tone="error" role="alert">{message}</Notice> : null;
-}

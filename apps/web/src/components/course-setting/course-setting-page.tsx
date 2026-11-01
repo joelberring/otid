@@ -81,6 +81,9 @@ export function CourseSettingPage({ raceId }: { raceId: string }) {
     {failed === "other" && <div><Button variant="secondary" onClick={() => void load()}>{text.retry}</Button></div>}</Notice></main>;
   if (!state) return <main className={styles.page}>{back}<p role="status">{text.loading}</p></main>;
   const setting = state.setting;
+  // Steg 66: editorn fyller fönstret (egen rad överst med bakåtlänken).
+  if (state.mapFile && setting) return <CourseSettingEditor key={`${generation}-${setting.version}`} raceId={raceId} state={{ ...state, setting }}
+    notice={notice} onReload={() => { setNotice(undefined); void load(); }} />;
   return <main className={styles.page}>
     <header className={styles.head}>{back}<h1>{text.title}</h1>{state.mapFile && <p>{state.mapFile.fileName} · 1:{state.mapFile.scale}</p>}</header>
     {!state.mapFile && <section className={styles.panel} aria-labelledby="course-setting-map-file">
@@ -89,13 +92,11 @@ export function CourseSettingPage({ raceId }: { raceId: string }) {
       <MapFileUpload disabled={busy} hasMap={false} upload={uploadMapFile} onMessage={setMessage} />
     </section>}
     {message && <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>{message.text}</Notice>}
-    {state.mapFile && !setting && <section className={styles.panel} aria-labelledby="course-setting-start">
+    {state.mapFile && <section className={styles.panel} aria-labelledby="course-setting-start">
       <h2 id="course-setting-start">{text.start.heading}</h2>
       <p>{text.start.help}</p>
       <PpenImport onRead={first} busy={busy} />
       <div className={styles.row}><Button variant="secondary" disabled={busy} onClick={() => void empty()}>{text.start.empty}</Button></div>
     </section>}
-    {state.mapFile && setting && <CourseSettingEditor key={`${generation}-${setting.version}`} raceId={raceId} state={{ ...state, setting }}
-      notice={notice} onReload={() => { setNotice(undefined); void load(); }} />}
   </main>;
 }

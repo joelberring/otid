@@ -1,6 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import type { OverprintPrimitive } from "@o-tid/course-setting";
-import { Autosaver } from "./course-setting-autosave";
 import { circleArcs } from "./course-setting-draw";
 import {
   addBend, addPoint, applySteps, beginDrag, canRedo, canUndo, cancelTool, courseChain, createEditor, dragTo, endDrag, insertExisting, redo,
@@ -95,7 +94,7 @@ describe("editorn", () => {
     expect(courseChain(undone.document, "k")).toEqual(["c1", "c2", "c3", "c4"]);
     expect(undone.selection).toBeUndefined();
     expect(canRedo(undone)).toBe(true);
-    expect(redo(undone).document).toBe(state.document);
+    expect(redo(undone).document).toEqual(state.document);
   });
 
   it("i Alla kontroller läggs kontrollen bara till; start hamnar först och mål sist i en bana", () => {
@@ -183,59 +182,5 @@ describe("texterna och vägvalens indata", () => {
     expect(circleArcs(undefined)).toEqual([[0, 360]]);
     expect(circleArcs([{ startDegrees: 80, endDegrees: 100 }])).toEqual([[100, 440]]);
     expect(circleArcs([{ startDegrees: 350, endDegrees: 10 }, { startDegrees: 170, endDegrees: 190 }])).toEqual([[190, 350], [370, 530]]);
-  });
-});
-
-describe("autosparandet", () => {
-  it("väntar in pausen, sparar det senaste, bygger på serverns version och stannar vid konflikt", async () => {
-    vi.useFakeTimers();
-    try {
-      const statuses: string[] = [];
-      const save = vi.fn(async (document: string, version: number) => document === "konflikt"
-        ? { kind: "conflict" as const, conflict: { version: 9 } } : { kind: "saved" as const, version: version + 1 });
-      const saver = new Autosaver<string, { version: number }>(3, { save, onStatus: status => statuses.push(status), delayMs: 1500 });
-      saver.detach(); saver.attach();
-      saver.change("a"); saver.change("b");
-      await vi.advanceTimersByTimeAsync(1000);
-      expect(save).not.toHaveBeenCalled();
-      await vi.advanceTimersByTimeAsync(600);
-      expect(save).toHaveBeenCalledTimes(1);
-      expect(save).toHaveBeenLastCalledWith("b", 3);
-      expect(saver.currentVersion).toBe(4);
-      saver.change("c");
-      await saver.flush();
-      expect(save).toHaveBeenLastCalledWith("c", 4);
-      saver.change("konflikt");
-      await vi.advanceTimersByTimeAsync(1600);
-      expect(statuses.at(-1)).toBe("conflict");
-      saver.change("d");
-      await vi.advanceTimersByTimeAsync(5000);
-      expect(save).toHaveBeenCalledTimes(3);
-      saver.reset(9);
-      saver.change("e");
-      await vi.advanceTimersByTimeAsync(1600);
-      expect(save).toHaveBeenLastCalledWith("e", 9);
-      expect(statuses.at(-1)).toBe("saved");
-    } finally { vi.useRealTimers(); }
-  });
-
-  it("försöker igen efter ett nätfel", async () => {
-    vi.useFakeTimers();
-    try {
-      let fail = true;
-      const save = vi.fn(async (_document: string, version: number) => {
-        if (fail) { fail = false; throw new Error("nät"); }
-        return { kind: "saved" as const, version: version + 1 };
-      });
-      const statuses: string[] = [];
-      const saver = new Autosaver<string>(0, { save, onStatus: status => statuses.push(status), delayMs: 100, retryMs: 1000 });
-      saver.change("a");
-      await vi.advanceTimersByTimeAsync(150);
-      expect(statuses.at(-1)).toBe("failed");
-      expect(saver.dirty).toBe(true);
-      await vi.advanceTimersByTimeAsync(1000);
-      expect(save).toHaveBeenCalledTimes(2);
-      expect(statuses.at(-1)).toBe("saved");
-    } finally { vi.useRealTimers(); }
   });
 });

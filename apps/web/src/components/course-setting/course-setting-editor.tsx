@@ -1,34 +1,46 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
-import type { CourseSettingConflict, CourseSettingState } from "@o-tid/contracts";
+import type { CourseSettingMode, CourseSettingNoteTarget, CourseSettingState, CourseSettingSuggestionDecided } from "@o-tid/contracts";
 import {
-  applyEdit, checkDocument, courseControlOrder, courseSummaries, describeControl, layoutOverprint, nextFreeCode, type CourseSettingDocument, type OverprintPrimitive
+  applyEdit, checkDocument, courseControlOrder, courseSummaries, describeControl, layoutOverprint, nextFreeCode, type CourseSettingDocument,
+  type OverprintPrimitive
 } from "@o-tid/course-setting";
 import type { LegAnalysis, RouteChoiceSettings } from "@o-tid/route-choice";
 import { courseSettingSv as text } from "../../i18n/course-setting-sv";
-import { Autosaver, type AutosaveStatus } from "../../lib/course-setting-autosave";
+import { collaborationSv as copy } from "../../i18n/course-setting-collaboration-sv";
 import {
   browserStorage, descriptionLanguageOf, readDescriptionSettings, writeDescriptionSettings, type DescriptionSettings
 } from "../../lib/course-setting-description";
-import { fetchCourseSettingRevision, importCourseSetting, restoreCourseSetting, saveCourseSetting } from "../../lib/course-setting-api";
 import {
-  addBend, addPoint, addSplit, applySteps, beginDrag, cancelTool, createEditor, dragTo, endDrag, insertExisting, redo, removeSelected,
-  removeSplit, replaceDocument, select, setTool, setView, undo, type EditorState, type Tool
+  createCourseSettingNote, createCourseSettingSuggestion, decideCourseSettingSuggestion, fetchCourseSetting, fetchCourseSettingRevision,
+  importCourseSetting, replyCourseSettingNote, restoreCourseSetting, saveCourseSettingEdits, setCourseSettingMode, setCourseSettingNoteStatus
+} from "../../lib/course-setting-api";
+import {
+  addBend, addPoint, addSplit, applySteps, beginDrag, cancelTool, canRedo, canUndo, createEditor, dragTo, endDrag, endSuggestion, insertExisting,
+  redo, removeSelected, removeSplit, replaceDocument, select, setTool, setView, undo, type EditorState, type Tool
 } from "../../lib/course-setting-editor";
 import { ALL_CONTROLS, hitTest, nearestBend } from "../../lib/course-setting-hit";
 import { MapRenderSession } from "../../lib/course-setting-map-protocol";
+import { noteInView, noteMarks, notePosition, noteTargetAt } from "../../lib/course-setting-note-marks";
+import { previewSuggestion, suggestionOverlay } from "../../lib/course-setting-suggestion";
+import { CourseSettingSync, EditorStore, type LostEdit, type SyncStatus } from "../../lib/course-setting-sync";
 import { checkRows, legInput, type CheckRow } from "../../lib/course-setting-text";
 import type { Bounds } from "../../lib/course-setting-viewport";
 import { fetchMapSource, fetchRouteChoice } from "../../lib/route-choice-api";
 import { RouteChoiceSession } from "../../lib/route-choice-client";
+import { describeEdit } from "../../lib/course-setting-suggestion";
 import { Button, Notice } from "../ui";
 import { FilePanel, type ReadFile } from "./course-setting-file";
 import { DescriptionPanel } from "./course-setting-description";
 import { CourseSettingMap, type CourseSettingMapHandle, type MapPointerHandlers } from "./course-setting-map";
-import { ChecksPanel, CourseList, LegPanel, SelectedPanel, ToolPanel } from "./course-setting-panels";
+import { NoteForm, NotesPanel } from "./course-setting-notes";
+import { ChecksPanel, CourseList, LegPanel, SelectedPanel, SelectionCard } from "./course-setting-panels";
+import { SuggestionDraft, SuggestionsPanel } from "./course-setting-suggestions";
 import { TransferPanel } from "./course-setting-transfer";
+import { Dialog, Drawer, ToolBar, TopBar, type DrawerTab } from "./course-setting-workspace";
+import { useCourseSettingCollaboration } from "./use-course-setting-collaboration";
 import styles from "./course-setting.module.css";
 
 const createMapWorker = () => new Worker(new URL("../../lib/course-setting-map-worker.ts", import.meta.url), { type: "module" });
@@ -42,32 +54,72 @@ function safely<T>(name: string, compute: () => T, fallback: T): T {
 type Drag = { kind: "control"; control: string; dx: number; dy: number } | { kind: "number"; courseControl: string }
   | { kind: "bend"; from: string; to: string; index: number };
 type LegStatus = "idle" | "waiting" | "analysing" | "failed" | "done";
+type Message = { id: number; tone: "ok" | "error" | "attention"; text: string; list?: readonly string[] | undefined };
 
-const CURSOR: Record<Tool, string> = { SELECT: "default", ADD_CONTROL: "crosshair", ADD_START: "crosshair", ADD_FINISH: "crosshair",
-  ADD_CROSSING: "crosshair", INSERT_EXISTING: "copy", ADD_BEND: "crosshair" };
+const CURSOR: Record<Tool, string> = { SELECT: "grab", ADD_CONTROL: "crosshair", ADD_START: "crosshair", ADD_FINISH: "crosshair",
+  ADD_CROSSING: "crosshair", INSERT_EXISTING: "copy", ADD_BEND: "crosshair", NOTE: "cell" };
+const EDIT_TOOLS: readonly Tool[] = ["SELECT", "ADD_CONTROL", "ADD_START", "ADD_FINISH", "ADD_CROSSING", "INSERT_EXISTING", "ADD_BEND", "NOTE"];
+const KEYS: Record<string, Tool> = { v: "SELECT", k: "ADD_CONTROL", s: "ADD_START", m: "ADD_FINISH", p: "ADD_CROSSING", l: "INSERT_EXISTING",
+  b: "ADD_BEND", n: "NOTE" };
+const STATUS_TEXT: Record<SyncStatus, string> = { saved: text.status.saved, pending: text.status.pending, saving: text.status.saving,
+  failed: text.status.failed, "too-large": text.status.tooLarge, stopped: text.status.stopped };
 
 /**
- * Steg 62 (ADR-0180): editorn. Logiken finns i `lib/course-setting-*` (editorns tillstånd, träff-test, kartvy,
- * autosparande); här kopplas den till kartan, spalten, tangenterna, autosparandet och vägvalens Worker.
+ * Steg 62 (ADR-0180) och 66 (ADR-0181): editorn. Logiken finns i `lib/course-setting-*` (editorns tillstånd, sparandet med
+ * åtgärder och uppspelning, träff-test, notiser, förslag, kartvy); här kopplas den till kartan, arbetsytan, tangenterna,
+ * strömmen och vägvalens Worker. Behörigheten avgör vad som går: ändra direkt (EDIT), föreslå (SUGGEST, förslagsläget)
+ * eller läsa och kommentera (COMMENT).
  */
 export function CourseSettingEditor({ raceId, state, notice, onReload }: {
   raceId: string; state: CourseSettingState & { setting: NonNullable<CourseSettingState["setting"]> };
   notice?: string | undefined; onReload: () => void;
 }) {
-  const [editor, setEditor] = useState<EditorState>(() => createEditor(state.setting.document as unknown as CourseSettingDocument));
-  const stateRef = useRef(editor);
-  stateRef.current = editor;
-  const [status, setStatus] = useState<AutosaveStatus>("saved");
-  const [conflict, setConflict] = useState<CourseSettingConflict>();
-  const [message, setMessage] = useState<{ tone: "ok" | "error" | "attention"; text: string; warnings?: readonly string[] } | undefined>(
-    notice ? { tone: "ok", text: notice } : undefined);
+  const access = state.access;
+  const readOnly = access.level === "COMMENT";
+  const initialDocument = state.setting.document as unknown as CourseSettingDocument;
+  const store = useMemo(() => {
+    const created = createEditor(initialDocument);
+    return new EditorStore(access.level === "SUGGEST" ? { ...created, suggesting: { base: initialDocument, baseVersion: state.setting.version } } : created);
+    // Editorn monteras om (nyckeln) när dokumentet laddas om.
+  }, []);
+  const editor = useSyncExternalStore(store.subscribe, store.getState, store.getState);
+  const [status, setStatus] = useState<SyncStatus>("saved");
+  const [messages, setMessages] = useState<readonly Message[]>(notice ? [{ id: 0, tone: "ok", text: notice }] : []);
+  const say = (message: Omit<Message, "id">) => setMessages(current => [...current.slice(-3), { ...message, id: Date.now() + Math.random() }]);
   const [busy, setBusy] = useState(false);
-  const serverRevision = useRef(0);
-  const saver = useMemo(() => new Autosaver<CourseSettingDocument, CourseSettingConflict>(state.setting.version, {
-    save: (document, expectedVersion) => saveCourseSetting(raceId, document, expectedVersion),
-    onStatus: (next, detail) => { setStatus(next); if (next === "conflict") setConflict(detail?.conflict); }
-  }), [raceId, state.setting.version]);
-  useEffect(() => { saver.attach(); return () => saver.detach(); }, [saver]);
+  const [dialog, setDialog] = useState<"file" | "transfer">();
+  const [tab, setTab] = useState<DrawerTab>("courses");
+
+  const lostText = (lost: readonly LostEdit[], document: CourseSettingDocument) =>
+    lost.map(row => `${describeEdit(row.edit, document)}: ${row.message}`);
+  const sync = useMemo(() => new CourseSettingSync(store, { version: state.setting.version, document: initialDocument }, {
+    saveEdits: request => saveCourseSettingEdits(raceId, request),
+    fetchSetting: async () => {
+      const fresh = await fetchCourseSetting(raceId);
+      if (!fresh.setting) throw new Error("Banläggningen finns inte längre");
+      return { version: fresh.setting.version, document: fresh.setting.document as unknown as CourseSettingDocument };
+    }
+  }, {
+    onStatus: setStatus,
+    onLost: lost => say({ tone: "attention", text: copy.lost(lost.length), list: lostText(lost, store.state.document) })
+  }), [raceId, store]);
+  useEffect(() => { sync.attach(); return () => sync.detach(); }, [sync]);
+  useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => { if (sync.dirty) event.preventDefault(); };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [sync]);
+
+  const collaboration = useCourseSettingCollaboration(raceId, access.accountId, state.setting.mode, (version, by) => {
+    if (version <= sync.version) return;
+    const name = collaboration.presence.find(person => person.accountId === by)?.displayName;
+    if (by) say({ tone: "ok", text: copy.remoteChanged(name ?? copy.someone) });
+    sync.remote(version);
+  });
+
+  /** En ändring: editorns läge och sedan sparandet. */
+  const apply = (change: (current: EditorState) => EditorState) => { store.update(change); sync.changed(); };
+  const edit = (change: (current: EditorState) => EditorState) => { if (!readOnly) apply(change); };
 
   // Kartfilen: en Worker ritar kartan, en annan räknar vägvalen.
   const [mapSession, setMapSession] = useState<MapRenderSession>();
@@ -82,8 +134,10 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
     let session: MapRenderSession | undefined;
     void (async () => {
       try {
-        const [file, settings] = await Promise.all([fetchMapSource(raceId, controller.signal),
-          fetchRouteChoice(raceId, controller.signal).then(value => value.settings as RouteChoiceSettings, () => ({ version: 1 }) as RouteChoiceSettings)]);
+        // Vägvalens inställningar är admins; den som bara har banläggningen räknar med standardinställningarna.
+        const [file, settings] = await Promise.all([fetchMapSource(raceId, controller.signal), access.admin
+          ? fetchRouteChoice(raceId, controller.signal).then(value => value.settings as RouteChoiceSettings, () => ({ version: 1 }) as RouteChoiceSettings)
+          : Promise.resolve({ version: 1 } as RouteChoiceSettings)]);
         if (closed) return;
         session = new MapRenderSession(createMapWorker, bounds => { if (!closed) { setMapBounds(bounds); setMapStatus("ready"); } },
           () => { if (!closed) setMapStatus("failed"); });
@@ -95,18 +149,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
       } catch { if (!closed) setMapStatus("failed"); }
     })();
     return () => { closed = true; controller.abort(); session?.close(); routes.current?.close(); routes.current = undefined; };
-  }, [raceId, state.mapFile]);
-
-  // Autosparandet: varje ändring (inte under en dragning, inte ett dokument som just kom från servern).
-  useEffect(() => {
-    if (editor.dragBase || editor.revision === 0 || editor.revision === serverRevision.current) return;
-    saver.change(editor.document);
-  }, [editor.revision, editor.dragBase, editor.document, saver]);
-  useEffect(() => {
-    const warn = (event: BeforeUnloadEvent) => { if (saver.dirty) event.preventDefault(); };
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [saver]);
+  }, [raceId, state.mapFile, access.admin]);
 
   const { document, view, variant, selection } = editor;
   const options = { course: view, ...(variant ? { variant } : {}) };
@@ -134,12 +177,13 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
   // Vald sträcka: vägvalen räknas om (bara den sträckan) en kort stund efter senaste ändringen; en ny ändring avbryter.
   const [analysis, setAnalysis] = useState<LegAnalysis>();
   const [legStatus, setLegStatus] = useState<LegStatus>("idle");
+  const [highlighted, setHighlighted] = useState<number>();
   const legCourseControls = useMemo(() => view === ALL_CONTROLS ? [] : safely("Banans kontroller",
     () => courseControlOrder(document, view, variant), [] as readonly string[]), [document, view, variant]);
   const input = selection?.kind === "leg" && view !== ALL_CONTROLS ? legInput(document, selection.from, selection.to, legCourseControls) : undefined;
   const inputKey = input?.key;
   useEffect(() => {
-    setAnalysis(undefined);
+    setAnalysis(undefined); setHighlighted(undefined);
     if (!input) { setLegStatus("idle"); return; }
     if (!routeReady || !routes.current) { setLegStatus("waiting"); return; }
     setLegStatus("analysing");
@@ -152,32 +196,93 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
   }, [inputKey, routeReady]);
   const code = (id: string, end: "S" | "F") => document.controls[id]?.kind === "NORMAL" ? `${document.controls[id].code ?? "?"}.1` : end;
   const legKey = selection?.kind === "leg" && view !== ALL_CONTROLS ? `${code(selection.from, "S")}-${code(selection.to, "F")}` : undefined;
+  const routeRows = analysis?.best ? [analysis.best, ...analysis.alternatives] : [];
+  const highlightRoute = highlighted !== undefined ? routeRows[highlighted]?.points : undefined;
 
-  const apply = (next: (current: EditorState) => EditorState) => setEditor(current => next(current));
+  // Notiser (ADR-0181 beslut 1): markeringar som går att dölja, en ny fästs med verktyget Notis.
+  const [showNotes, setShowNotes] = useState(true);
+  const [selectedNote, setSelectedNote] = useState<string>();
+  const [noteDraft, setNoteDraft] = useState<CourseSettingNoteTarget>();
+  const controlsInView = useMemo(() => new Set(view === ALL_CONTROLS ? Object.keys(document.controls)
+    : legCourseControls.map(id => document.courseControls[id]?.control).filter((id): id is string => id !== undefined)), [document, view, legCourseControls]);
+  const notesInView = useMemo(() => collaboration.notes.filter(note => noteInView(note, view, controlsInView)), [collaboration.notes, view, controlsInView]);
+  const mapNotes = useMemo(() => showNotes ? noteMarks(notesInView.filter(note => note.status === "OPEN" || note.id === selectedNote), document) : [],
+    [showNotes, notesInView, selectedNote, document]);
+  async function saveNote(input: { text: string; photo: { mediaType: "image/jpeg"; base64: string } | null }): Promise<boolean> {
+    if (!noteDraft) return false;
+    try {
+      const note = await createCourseSettingNote(raceId, { requestId: crypto.randomUUID(), target: noteDraft,
+        at: notePosition({ target: noteDraft, at: null }, document) ?? null, course: noteDraft.kind === "COURSE" ? noteDraft.course
+          : view === ALL_CONTROLS ? null : view, text: input.text, photo: input.photo });
+      setNoteDraft(undefined); setSelectedNote(note.id);
+      await collaboration.reloadNotes();
+      return true;
+    } catch (error) { console.error("Notisen sparades inte", error); return false; }
+  }
+
+  // Förslag (ADR-0181 beslut 3): granskas ovanpå banan, godkänns helt eller delvis eller avböjs.
+  const [reviewing, setReviewing] = useState<string>();
+  const [skip, setSkip] = useState<ReadonlySet<number>>(new Set());
+  const [decision, setDecision] = useState<{ suggestion: string; decided: CourseSettingSuggestionDecided } | { suggestion: string; failed: true }>();
+  const reviewed = collaboration.suggestions.find(row => row.id === reviewing);
+  const preview = useMemo(() => reviewed ? safely("Förslaget", () => previewSuggestion(document, reviewed, skip), undefined) : undefined,
+    [reviewed, document, skip]);
+  const suggestionDrawing = useMemo(() => {
+    if (!preview) return undefined;
+    const overlay = suggestionOverlay(document, preview.document);
+    return { ...overlay, primitives: safely("Förslagets banpåtryck", () => layoutOverprint(preview.document, options), [] as readonly OverprintPrimitive[]),
+      radiusMm };
+  }, [preview, document, view, variant, radiusMm]);
+  const rejectedInPreview = useMemo(() => new Set(preview?.rejected.map(row => row.index) ?? []), [preview]);
+  async function decide(id: string, choice: "APPROVE" | "DECLINE", comment: string) {
+    try {
+      await sync.flush();
+      const decided = await decideCourseSettingSuggestion(raceId, id, { decision: choice, ...(choice === "APPROVE" ? { skip: [...skip] } : {}),
+        ...(comment.trim() ? { comment: comment.trim() } : {}) });
+      setDecision({ suggestion: id, decided });
+      if (decided.saved && decided.saved.applied > 0) sync.remote(decided.saved.version);
+      setSkip(new Set());
+      await collaboration.reloadSuggestions();
+    } catch (error) { console.error("Beslutet sparades inte", error); setDecision({ suggestion: id, failed: true }); }
+  }
+  async function sendSuggestion(comment: string): Promise<boolean> {
+    const current = store.state;
+    if (!current.suggesting || current.log.length === 0) return false;
+    try {
+      await createCourseSettingSuggestion(raceId, { requestId: crypto.randomUUID(), baseVersion: current.suggesting.baseVersion,
+        edits: current.log.map(entry => entry.edit) as never, created: current.log.map(entry => ({ controls: [...entry.created.controls],
+          courseControls: [...entry.created.courseControls], courses: [...entry.created.courses] })), comment });
+      store.update(next => endSuggestion(next, true));
+      await collaboration.reloadSuggestions();
+      return true;
+    } catch (error) { console.error("Förslaget skickades inte", error); return false; }
+  }
+
   const drag = useRef<Drag | undefined>(undefined);
-  const hit = (point: { x: number; y: number }, tolerance: number) => hitTest(stateRef.current.document, stateRef.current.view, primitives, point, tolerance);
+  const hit = (point: { x: number; y: number }, tolerance: number) => hitTest(store.state.document, store.state.view, primitives, point, tolerance);
   const handlers: MapPointerHandlers = {
     onTap(point, tolerance) {
-      const current = stateRef.current;
+      const current = store.state;
       const target = hit(point, tolerance);
       setFlagged(undefined);
       switch (current.tool) {
-        case "SELECT": apply(state => select(state, target)); return;
-        case "INSERT_EXISTING": if (target && target.kind !== "leg") apply(state => insertExisting(state, target.control, applyEdit)); return;
+        case "SELECT": apply(next => select(next, target)); return;
+        case "NOTE": setNoteDraft(noteTargetAt(target, point)); setSelectedNote(undefined); return;
+        case "INSERT_EXISTING": if (target && target.kind !== "leg") edit(next => insertExisting(next, target.control, applyEdit)); return;
         case "ADD_BEND":
-          if (target?.kind === "leg") apply(state => addBend(select(state, target), point, applyEdit));
-          else apply(state => addBend(state, point, applyEdit));
+          if (target?.kind === "leg") edit(next => addBend(select(next, target), point, applyEdit));
+          else edit(next => addBend(next, point, applyEdit));
           return;
-        default: apply(state => addPoint(state, current.tool, point, applyEdit, nextFreeCode));
+        default: edit(next => addPoint(next, current.tool, point, applyEdit, nextFreeCode));
       }
     },
     onDragStart(point, tolerance) {
-      const current = stateRef.current;
-      if (current.tool !== "SELECT") return false;
+      const current = store.state;
+      if (current.tool !== "SELECT" || readOnly) return false;
       const selected = current.selection;
       if (selected?.kind === "leg") {
         const index = nearestBend(current.document.legs[`${selected.from}-${selected.to}`]?.bends ?? [], point, tolerance);
-        if (index !== undefined) { drag.current = { kind: "bend", from: selected.from, to: selected.to, index }; apply(beginDrag); return true; }
+        if (index !== undefined) { drag.current = { kind: "bend", from: selected.from, to: selected.to, index }; store.update(beginDrag); return true; }
       }
       const target = hit(point, tolerance);
       if (!target || target.kind === "leg") return false;
@@ -186,70 +291,83 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
         const at = current.document.controls[target.control]!.at;
         drag.current = { kind: "control", control: target.control, dx: at.x - point.x, dy: at.y - point.y };
       }
-      apply(state => beginDrag(select(state, target)));
+      store.update(next => beginDrag(select(next, target)));
       return true;
     },
     onDragMove(point) {
       const current = drag.current;
       if (!current) return;
-      if (current.kind === "control") apply(state => dragTo(state, { type: "MOVE_CONTROL", control: current.control, at: { x: point.x + current.dx, y: point.y + current.dy } }, applyEdit));
-      else if (current.kind === "number") apply(state => dragTo(state, { type: "MOVE_NUMBER", course: state.view, courseControl: current.courseControl, at: point }, applyEdit));
-      else apply(state => {
-        const bends = [...(state.dragBase?.legs[`${current.from}-${current.to}`]?.bends ?? [])];
+      if (current.kind === "control") store.update(next => dragTo(next, { type: "MOVE_CONTROL", control: current.control,
+        at: { x: point.x + current.dx, y: point.y + current.dy } }, applyEdit));
+      else if (current.kind === "number") store.update(next => dragTo(next, { type: "MOVE_NUMBER", course: next.view, courseControl: current.courseControl, at: point }, applyEdit));
+      else store.update(next => {
+        const bends = [...(next.dragBase?.legs[`${current.from}-${current.to}`]?.bends ?? [])];
         bends[current.index] = point;
-        return dragTo(state, { type: "SET_LEG_BENDS", from: current.from, to: current.to, bends }, applyEdit);
+        return dragTo(next, { type: "SET_LEG_BENDS", from: current.from, to: current.to, bends }, applyEdit);
       });
     },
-    onDragEnd() { drag.current = undefined; apply(endDrag); }
+    onDragEnd() { drag.current = undefined; apply(endDrag); sync.poke(); }
+  };
+  const cursorAt = (point: { x: number; y: number }, tolerance: number) => {
+    if (store.state.tool !== "SELECT") return undefined;
+    const target = hit(point, tolerance);
+    return target ? (readOnly ? "pointer" : target.kind === "leg" ? "pointer" : "move") : "grab";
+  };
+  const fork = () => {
+    const at = store.state.selection?.kind === "control" ? store.state.selection.courseControl : undefined;
+    if (!at || store.state.view === ALL_CONTROLS) { say({ tone: "attention", text: text.tools.forkNeedsSelection }); return; }
+    edit(next => addSplit(next, "FORK", 2, applyEdit));
   };
 
-  // Tangenterna (inte när man skriver i ett fält).
+  // Tangenterna (inte när man skriver i ett fält): verktygen med en bokstav, Delete, Escape, ångra och gör om.
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
-      if (target && (target.closest("input, textarea, select, [contenteditable='true']"))) return;
+      if (target && (target.closest("input, textarea, select, [contenteditable='true'], dialog"))) return;
       const mod = event.ctrlKey || event.metaKey;
-      if (event.key === "Delete" || event.key === "Backspace") { event.preventDefault(); apply(state => removeSelected(state, applyEdit)); }
-      else if (event.key === "Escape") apply(cancelTool);
-      else if (mod && event.key.toLowerCase() === "z") { event.preventDefault(); apply(event.shiftKey ? redo : undo); }
-      else if (mod && event.key.toLowerCase() === "y") { event.preventDefault(); apply(redo); }
+      const key = event.key.toLowerCase();
+      if (event.key === "Delete" || event.key === "Backspace") { event.preventDefault(); edit(next => removeSelected(next, applyEdit)); }
+      else if (event.key === "Escape") { apply(cancelTool); setNoteDraft(undefined); }
+      else if (mod && key === "z") { event.preventDefault(); edit(event.shiftKey ? redo : undo); }
+      else if (mod && key === "y") { event.preventDefault(); edit(redo); }
+      else if (!mod && !event.altKey && key === "g") fork();
+      else if (!mod && !event.altKey && KEYS[key] && (!readOnly || KEYS[key] === "SELECT" || KEYS[key] === "NOTE")) apply(next => setTool(next, KEYS[key]!));
     };
     window.addEventListener("keydown", keydown);
     return () => window.removeEventListener("keydown", keydown);
-  }, []);
+  }, [readOnly]);
 
   /** Ett dokument från servern (inläsning, återställning): historiken börjar om och sparandet bygger på dess version. */
   function fromServer(next: CourseSettingDocument, version: number) {
-    setEditor(current => { const replaced = replaceDocument(current, next); serverRevision.current = replaced.revision; return replaced; });
-    saver.reset(version);
-    setConflict(undefined);
+    store.update(current => replaceDocument(current, next, version));
+    sync.reset(version, next);
   }
 
   async function flush(): Promise<boolean> {
-    await saver.flush();
-    return !saver.dirty && status !== "conflict" && !conflict;
+    await sync.flush();
+    return !sync.dirty;
   }
 
   async function onImport(file: ReadFile) {
     if (!window.confirm(text.file.replaceConfirm)) return;
-    setBusy(true); setMessage(undefined);
+    setBusy(true);
     try {
-      await saver.flush();
-      const outcome = await importCourseSetting(raceId, { document: file.document, expectedVersion: saver.currentVersion, fileName: file.fileName, ppen: file.ppen });
-      if (outcome.kind === "conflict") { setStatus("conflict"); setConflict(outcome.conflict); saver.stop(); return; }
-      if (outcome.kind === "too-large") { setMessage({ tone: "error", text: text.file.tooLarge }); return; }
+      await sync.flush();
+      const outcome = await importCourseSetting(raceId, { document: file.document, expectedVersion: sync.version, fileName: file.fileName, ppen: file.ppen });
+      if (outcome.kind === "conflict") { say({ tone: "error", text: text.status.conflict }); sync.remote(outcome.conflict.current?.version ?? sync.version + 1); return; }
+      if (outcome.kind === "too-large") { say({ tone: "error", text: text.file.tooLarge }); return; }
       fromServer(file.document, outcome.version);
-      setMessage({ tone: "ok", text: text.file.imported(file.document.courses.length, Object.keys(file.document.controls).length),
-        warnings: file.warnings.map(warning => warning.text) });
-    } catch { setMessage({ tone: "error", text: text.file.failed }); } finally { setBusy(false); }
+      say({ tone: "ok", text: text.file.imported(file.document.courses.length, Object.keys(file.document.controls).length),
+        list: file.warnings.map(warning => warning.text) });
+    } catch { say({ tone: "error", text: text.file.failed }); } finally { setBusy(false); }
   }
 
   async function onRestore(version: number): Promise<boolean> {
     setBusy(true);
     try {
-      await saver.flush();
-      const outcome = await restoreCourseSetting(raceId, saver.currentVersion, version);
-      if (outcome.kind !== "saved") { if (outcome.kind === "conflict") { setStatus("conflict"); setConflict(outcome.conflict); saver.stop(); } return false; }
+      await sync.flush();
+      const outcome = await restoreCourseSetting(raceId, sync.version, version);
+      if (outcome.kind !== "saved") { if (outcome.kind === "conflict") sync.remote(outcome.conflict.current?.version ?? sync.version + 1); return false; }
       const revision = await fetchCourseSettingRevision(raceId, version);
       fromServer(revision.document as unknown as CourseSettingDocument, outcome.version);
       return true;
@@ -257,17 +375,22 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
   }
 
   function addCourse(name: string) {
-    apply(current => {
+    edit(current => {
       const next = applySteps(current, [{ type: "ADD_COURSE", name }], applyEdit);
       const created = next.document.courses.find(row => !current.document.courses.some(old => old.id === row.id));
       return created ? setView(next, created.id) : next;
     });
   }
 
+  async function changeMode(mode: CourseSettingMode) {
+    try { collaboration.setMode(await setCourseSettingMode(raceId, mode)); say({ tone: "ok", text: copy.mode.saved }); }
+    catch { say({ tone: "error", text: copy.mode.failed }); }
+  }
+
   // Steg 63: beskrivningens språk (i dokumentet) och visningssätt (i webbläsaren per tävling), vald kontrolls beskrivning i text.
   const router = useRouter();
   const [descriptionKind, setDescriptionKind] = useState<DescriptionSettings["kind"]>(() =>
-    readDescriptionSettings(browserStorage(), raceId, state.setting.document as unknown as CourseSettingDocument).kind);
+    readDescriptionSettings(browserStorage(), raceId, initialDocument).kind);
   const descriptionSettings = useMemo<DescriptionSettings>(() => ({ language: descriptionLanguageOf(document), kind: descriptionKind }),
     [document, descriptionKind]);
   const selectedControl = selection?.kind === "control" ? selection.control : undefined;
@@ -275,61 +398,125 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
     ? safely("Textbeskrivningen", () => describeControl(document, selectedControl, descriptionSettings.language), "") : "",
   [document, selectedControl, descriptionSettings.language]);
 
-  const statusText = status === "conflict" ? text.status.conflict : status === "too-large" ? text.status.tooLarge : text.status[status];
-  const conflictTime = conflict?.current ? new Date(conflict.current.updatedAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" }) : "";
+  const suggesting = editor.suggesting !== undefined;
+  const statusText = suggesting ? copy.suggestions.draftCount(editor.log.length) : STATUS_TEXT[status];
   const label = text.map(course?.name ?? text.courses.all);
-  return <>
-    <div className={styles.head}>
-      <p role="status" aria-live="polite" className={styles.status} data-status={status} data-testid="course-setting-status">{statusText}</p>
-    </div>
-    {(status === "conflict") && <Notice tone="error" role="alert"><p>{text.status.conflictHelp(conflict?.current?.updatedBy.displayName ?? null, conflictTime)}</p>
-      <div><Button variant="secondary" onClick={onReload}>{text.status.reload}</Button></div></Notice>}
-    {message && <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>
-      <p>{message.text}</p>
-      {message.warnings && message.warnings.length > 0 && <><p>{text.file.warnings}</p><ul>{message.warnings.map(row => <li key={row}>{row}</li>)}</ul></>}
-    </Notice>}
-    {mapStatus === "reading" && <p role="status" className={styles.muted}>{text.readingMap}</p>}
-    {mapStatus === "failed" && <Notice tone="attention">{text.mapFailed}</Notice>}
-    <div className={styles.workspace}>
-      <CourseSettingMap session={mapSession} mapBounds={mapBounds} primitives={primitives} faded={faded} marks={marks} analysis={analysis}
-        label={label} cursor={CURSOR[editor.tool]} handlers={handlers} handle={mapHandle} />
-      <div className={styles.side}>
-        <CourseList document={document} summaries={summaries} view={view} variant={variant} onView={(next, code) => apply(state => setView(state, next, code))}
-          onAdd={addCourse}
-          onRename={(id, name) => apply(state => applySteps(state, [{ type: "UPDATE_COURSE", course: id, changes: { name } }], applyEdit))}
-          onClasses={(id, classes) => apply(state => applySteps(state, [{ type: "UPDATE_COURSE", course: id, changes: { secondaryTitle: classes } }], applyEdit))}
-          onRemove={id => apply(state => setView(applySteps(state, [{ type: "DELETE_COURSE", course: id }], applyEdit), ALL_CONTROLS))} />
-        <DescriptionPanel document={document} view={view} variant={variant} selection={selection} settings={descriptionSettings}
-          onSettings={next => {
-            setDescriptionKind(next.kind);
-            writeDescriptionSettings(browserStorage(), raceId, next);
-            if (next.language !== descriptionSettings.language) {
-              apply(current => applySteps(current, [{ type: "SET_EVENT", changes: { descriptionLanguage: next.language } }], applyEdit));
-            }
-          }}
-          onSelect={target => apply(state => select(state, target))}
-          onEdit={edits => apply(state => applySteps(state, edits, applyEdit))}
-          onPrint={() => void flush().finally(() => router.push(`/admin/${raceId}/course-setting/descriptions`))} />
-        <ToolPanel state={editor} onTool={tool => apply(state => setTool(state, tool))} onUndo={() => apply(undo)} onRedo={() => apply(redo)} />
-        <SelectedPanel state={editor} described={describedControl}
-          onCode={(control, value) => apply(state => applySteps(state, [{ type: "SET_CONTROL_CODE", control, code: value }], applyEdit))}
-          onRemoveFromCourse={() => apply(state => removeSelected(state, applyEdit, false))}
-          onDelete={() => apply(state => removeSelected(state, applyEdit, true))}
-          onSplit={(kind, branches) => apply(state => addSplit(state, kind, branches, applyEdit))}
-          onRemoveSplit={() => apply(state => removeSplit(state, applyEdit))}
-          onResetNumber={() => apply(state => state.selection?.kind === "control" && state.selection.courseControl
-            ? applySteps(state, [{ type: "MOVE_NUMBER", course: state.view, courseControl: state.selection.courseControl, at: null }], applyEdit) : state)}
-          onStraighten={() => apply(state => removeSelected(state, applyEdit))} />
-        <LegPanel legKey={legKey} analysis={analysis} status={legStatus} />
-        <ChecksPanel rows={checks} onShow={row => {
-          setFlagged(row);
-          if (row.course && document.courses.some(item => item.id === row.course)) apply(state => setView(state, row.course!));
-          if (row.controls.length === 1) apply(state => select(state, { kind: "control", control: row.controls[0]! }));
-          mapHandle.current?.reveal(row.controls.flatMap(id => document.controls[id] ? [document.controls[id].at] : []));
-        }} />
-        <FilePanel raceId={raceId} document={document} original={state.original} busy={busy} onImport={onImport} onRestore={onRestore} />
-        <TransferPanel raceId={raceId} ready={status !== "conflict" && !busy} flush={flush} version={() => saver.currentVersion} />
+  const others = collaboration.presence.filter(person => person.accountId !== access.accountId).map(person => person.displayName ?? copy.someone);
+  const openSuggestions = collaboration.suggestions.filter(row => row.status === "OPEN").length;
+  const openNotes = notesInView.filter(note => note.status === "OPEN").length;
+  const tools = readOnly ? (["SELECT", "NOTE"] as const) : EDIT_TOOLS;
+  const draft = suggesting ? <SuggestionDraft count={editor.log.length} onSend={sendSuggestion}
+    onDiscard={() => store.update(next => endSuggestion(next, true))} /> : undefined;
+
+  const panel = (() => {
+    switch (tab) {
+      case "courses": return <CourseList document={document} summaries={summaries} view={view} variant={variant} readOnly={readOnly}
+        onView={(next, value) => apply(current => setView(current, next, value))} onAdd={addCourse}
+        onRename={(id, name) => edit(current => applySteps(current, [{ type: "UPDATE_COURSE", course: id, changes: { name } }], applyEdit))}
+        onClasses={(id, classes) => edit(current => applySteps(current, [{ type: "UPDATE_COURSE", course: id, changes: { secondaryTitle: classes } }], applyEdit))}
+        onRemove={id => edit(current => setView(applySteps(current, [{ type: "DELETE_COURSE", course: id }], applyEdit), ALL_CONTROLS))} />;
+      case "description": return <DescriptionPanel document={document} view={view} variant={variant} selection={selection} settings={descriptionSettings}
+        onSettings={next => {
+          setDescriptionKind(next.kind);
+          writeDescriptionSettings(browserStorage(), raceId, next);
+          if (next.language !== descriptionSettings.language) {
+            edit(current => applySteps(current, [{ type: "SET_EVENT", changes: { descriptionLanguage: next.language } }], applyEdit));
+          }
+        }}
+        onSelect={target => apply(current => select(current, target))}
+        onEdit={edits => edit(current => applySteps(current, edits, applyEdit))}
+        onPrint={() => void flush().finally(() => router.push(`/admin/${raceId}/course-setting/descriptions`))} />;
+      case "selected": return <>
+        <SelectedPanel state={editor} described={describedControl} readOnly={readOnly}
+          onCode={(control, value) => edit(current => applySteps(current, [{ type: "SET_CONTROL_CODE", control, code: value }], applyEdit))}
+          onRemoveFromCourse={() => edit(current => removeSelected(current, applyEdit, false))}
+          onDelete={() => edit(current => removeSelected(current, applyEdit, true))}
+          onSplit={(kind, branches) => edit(current => addSplit(current, kind, branches, applyEdit))}
+          onRemoveSplit={() => edit(current => removeSplit(current, applyEdit))}
+          onResetNumber={() => edit(current => current.selection?.kind === "control" && current.selection.courseControl
+            ? applySteps(current, [{ type: "MOVE_NUMBER", course: current.view, courseControl: current.selection.courseControl, at: null }], applyEdit) : current)}
+          onStraighten={() => edit(current => removeSelected(current, applyEdit))} />
+        <LegPanel legKey={legKey} analysis={analysis} status={legStatus} highlighted={highlighted} onHighlight={setHighlighted} />
+      </>;
+      case "checks": return <ChecksPanel rows={checks} onShow={row => {
+        setFlagged(row);
+        if (row.course && document.courses.some(item => item.id === row.course)) apply(current => setView(current, row.course!));
+        if (row.controls.length === 1) apply(current => select(current, { kind: "control", control: row.controls[0]! }));
+        mapHandle.current?.reveal(row.controls.flatMap(id => document.controls[id] ? [document.controls[id].at] : []));
+      }} />;
+      case "notes": return <NotesPanel raceId={raceId} notes={notesInView} document={document} show={showNotes} onShow={setShowNotes}
+        selected={selectedNote} onSelect={setSelectedNote} view={view}
+        onReveal={note => { const at = notePosition(note, document); if (at) mapHandle.current?.focus(at); }}
+        onReply={async (id, value) => { try { await replyCourseSettingNote(raceId, id, value); await collaboration.reloadNotes(); return true; } catch { return false; } }}
+        onStatus={async (id, value) => { try { await setCourseSettingNoteStatus(raceId, id, value); await collaboration.reloadNotes(); return true; } catch { return false; } }}
+        onCourseNote={() => { if (course) setNoteDraft({ kind: "COURSE", course: course.id }); }} />;
+      case "suggestions": return <SuggestionsPanel suggestions={collaboration.suggestions} document={document} reviewing={reviewing}
+        onReview={id => { setReviewing(id); setSkip(new Set()); setDecision(undefined); }} skip={skip} onSkip={setSkip}
+        canDecide={access.level === "EDIT"} onDecide={decide} result={decision} rejected={rejectedInPreview} draft={draft} />;
+      case "settings": return <section className={styles.panel} aria-labelledby="course-setting-mode">
+        <h2 id="course-setting-mode">{copy.mode.heading}</h2>
+        <label className={styles.stack}>{copy.mode.label}
+          <select value={collaboration.mode} disabled={!access.admin} onChange={event => void changeMode(event.target.value === "SHARED" ? "SHARED" : "LEAD")}>
+            <option value="LEAD">{copy.mode.LEAD}</option><option value="SHARED">{copy.mode.SHARED}</option>
+          </select></label>
+        <p className={styles.muted}>{copy.mode.help[collaboration.mode]}</p>
+        <p className={styles.muted}>{copy.access[access.level]}</p>
+        <p className={styles.muted}>{text.tools.keys}</p>
+      </section>;
+    }
+  })();
+
+  const menu = [{ label: copy.topbar.fileMenu, onClick: () => setDialog("file") },
+    ...(access.admin ? [{ label: copy.topbar.transfer, onClick: () => setDialog("transfer") }] : []),
+    { label: copy.topbar.settings, onClick: () => setTab("settings") }];
+  return <main className={styles.shell}>
+    <TopBar raceId={raceId} document={document} summaries={summaries} view={view} variant={variant}
+      onView={(next, value) => apply(current => setView(current, next, value))}
+      status={<p role="status" aria-live="polite" className={styles.status} data-status={suggesting ? "pending" : status}
+        data-testid="course-setting-status">{statusText}</p>}
+      access={access.level === "EDIT" ? "" : copy.access[access.level]} presence={copy.presence(others)}
+      canUndo={canUndo(editor) && !readOnly} canRedo={canRedo(editor) && !readOnly} onUndo={() => edit(undo)} onRedo={() => edit(redo)} menu={menu} />
+    <div className={styles.stage}>
+      <div className={styles.mapArea}>
+        <CourseSettingMap session={mapSession} mapBounds={mapBounds} primitives={primitives} faded={faded} marks={marks} analysis={analysis}
+          label={label} cursor={CURSOR[editor.tool]} handlers={handlers} handle={mapHandle} noteMarks={mapNotes} selectedNote={selectedNote}
+          onNoteTap={id => { setSelectedNote(id); setTab("notes"); }} suggestion={suggestionDrawing} cursorAt={cursorAt} highlightRoute={highlightRoute} />
+        <ToolBar tool={editor.tool} tools={tools} inCourse={view !== ALL_CONTROLS} onTool={tool => apply(current => setTool(current, tool))}
+          onFork={readOnly ? undefined : fork} help={text.tools.help[editor.tool] ?? ""} />
+        <div className={styles.toasts}>
+          {mapStatus === "reading" && <p role="status" className={styles.toast}>{text.readingMap}</p>}
+          {mapStatus === "failed" && <Notice tone="attention">{text.mapFailed}</Notice>}
+          {suggesting && <p className={styles.toast} data-testid="course-setting-suggesting">{copy.suggestions.drafting}: {copy.suggestions.draftCount(editor.log.length)}
+            {" "}<Button variant="quiet" onClick={() => setTab("suggestions")}>{copy.suggestions.send} …</Button></p>}
+          {reviewed && <p className={styles.toast}>{copy.suggestions.reviewing}</p>}
+          {editor.error && <p role="alert" className={styles.toast}>{editor.error}</p>}
+          {messages.map(message => <div key={message.id} className={styles.toastBox}>
+            <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>
+              <p>{message.text}</p>
+              {message.list && message.list.length > 0 && <ul>{message.list.map(row => <li key={row}>{row}</li>)}</ul>}
+            </Notice>
+            <Button variant="quiet" aria-label={copy.topbar.close} onClick={() => setMessages(current => current.filter(row => row.id !== message.id))}>×</Button>
+          </div>)}
+        </div>
+        {noteDraft ? <div className={styles.card}><NoteForm target={noteDraft} document={document} onSave={saveNote} onCancel={() => setNoteDraft(undefined)} /></div>
+          : <SelectionCard state={editor} described={describedControl} readOnly={readOnly}
+            onCode={(control, value) => edit(current => applySteps(current, [{ type: "SET_CONTROL_CODE", control, code: value }], applyEdit))}
+            onRemoveFromCourse={() => edit(current => removeSelected(current, applyEdit, false))}
+            onDelete={() => edit(current => removeSelected(current, applyEdit, true))}
+            onDescription={() => setTab("description")} onMore={() => setTab("selected")} onClose={() => apply(current => select(current, undefined))} />}
       </div>
+      <Drawer tab={tab} onTab={setTab} counts={{ checks: checks.length, notes: openNotes, suggestions: openSuggestions + (suggesting ? editor.log.length : 0) }}>
+        {panel}
+      </Drawer>
     </div>
-  </>;
+    {dialog === "file" && <Dialog title={text.file.heading} onClose={() => setDialog(undefined)}>
+      <FilePanel raceId={raceId} document={document} original={state.original} busy={busy || access.level !== "EDIT"} onImport={onImport}
+        onRestore={onRestore} />
+    </Dialog>}
+    {dialog === "transfer" && access.admin && <Dialog title={text.transfer.heading} onClose={() => setDialog(undefined)}>
+      <TransferPanel raceId={raceId} ready={!busy && status !== "too-large"} flush={flush} version={() => sync.version} />
+    </Dialog>}
+    {status === "stopped" && <div className={styles.toasts}><Notice tone="error" role="alert"><p>{text.status.stopped}</p>
+      <Button variant="secondary" onClick={onReload}>{text.status.reload}</Button></Notice></div>}
+  </main>;
 }

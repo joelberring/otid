@@ -170,3 +170,5 @@ export type CourseSettingSuggestionDecided = z.infer<typeof courseSettingSuggest
 export const courseSettingStreamPresenceSchema = z.array(z.object({ accountId: uuid, displayName: z.string().max(200).nullable(),
   level: courseSettingLevelSchema }).strict()).max(200);
 export type CourseSettingPresence = z.infer<typeof courseSettingStreamPresenceSchema>;
+export const courseSettingStreamBySchema = z.object({ by: z.string().max(64) });
+export const courseSettingStreamVersionSchema = courseSettingStreamBySchema.extend({ version });

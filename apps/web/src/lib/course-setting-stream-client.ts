@@ -1,5 +1,6 @@
-import { courseSettingStreamPresenceSchema, type CourseSettingPresence } from "@o-tid/contracts";
-import { z } from "zod";
+import {
+  courseSettingStreamBySchema as by, courseSettingStreamPresenceSchema, courseSettingStreamVersionSchema as version, type CourseSettingPresence
+} from "@o-tid/contracts";
 
 /**
  * Steg 66: editorns lyssnare på banläggningens ström (`course-setting/events`, SSE). Ett besked om ny version, notiser,
@@ -16,8 +17,6 @@ export interface CourseSettingStreamHandlers {
   readonly reconnected: () => void;
 }
 
-const by = z.object({ by: z.string().max(64) });
-const version = by.extend({ version: z.number().int().positive() });
 
 /** Ett besked ur strömmen; okänt eller trasigt ger false. */
 export function handleStreamEvent(type: string, data: string, handlers: CourseSettingStreamHandlers): boolean {

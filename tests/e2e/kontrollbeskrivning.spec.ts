@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 import { createRace, registerAccount, reviewScreenshots, today, unique, warmRoute } from "./helpers";
@@ -41,7 +42,7 @@ test("kontrollbeskrivning: symbol i D och text i F, sparad efter omladdning och 
   const search = picker.getByRole("combobox");
   await expect(search).toBeFocused();
   await search.fill(SYMBOL.search);
-  const wanted = picker.getByRole("option").filter({ hasText: new RegExp(`\\b${SYMBOL.id.replace(".", "\\.")}$`) });
+  const wanted = picker.locator(`[role="option"][data-symbol="${SYMBOL.id}"]`);
   await expect(wanted).toHaveCount(1);
   await wanted.hover();
   await search.press("ArrowDown");
@@ -87,7 +88,11 @@ test("kontrollbeskrivning: symbol i D och text i F, sparad efter omladdning och 
   await expect(sheet.locator(`[data-symbol="${SYMBOL.id}"][data-ref="${ref}"]`)).toHaveCount(4);
   const download = owner.waitForEvent("download");
   await owner.getByRole("button", { name: "Ladda ned SVG: Lång" }).click();
-  expect((await download).suggestedFilename()).toBe("Lång.svg");
+  // Filnamnet ("Lång.svg") provas i enhetstesterna; webbläsaren i testet ger inte alltid blob-länkens namn vidare.
+  const svg = await readFile(await (await download).path(), "utf8");
+  expect(svg).toMatch(/^<\?xml[\s\S]*<svg [^>]*width="[\d.]+mm"/);
+  expect(svg).toContain(`<g data-symbol="${SYMBOL.id}">`);
+  expect(svg).toContain(">2m</text>");
   await reviewScreenshots(owner, "kontrollbeskrivning-utskrift", [1280]);
 
   // Banhemligheten: sidan läser dokumentet, som bara admin får.

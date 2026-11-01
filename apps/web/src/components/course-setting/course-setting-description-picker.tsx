@@ -56,7 +56,8 @@ export function DescriptionPicker({ label, box, current, symbols, recent, langua
       }} />
     <ul id={`${id}-list`} role="listbox" aria-label={text.picker.options} className={styles.pickerList}>
       {options.map((option, index) => <li key={option.kind === "symbol" ? option.symbol.id : option.kind} id={`${id}-${index}`} role="option"
-        aria-selected={index === active} data-active={index === active} onMouseEnter={() => setActive(index)}
+        aria-selected={index === active} data-active={index === active}
+        data-symbol={option.kind === "symbol" ? option.symbol.id : undefined} onMouseEnter={() => setActive(index)}
         onMouseDown={event => event.preventDefault()} onClick={() => pick(option)}>
         {option.kind === "symbol" && <><SymbolIcon symbol={option.symbol} /><span>{option.name}</span>
           <span className={styles.muted}>{option.recent ? `${text.picker.recent} · ` : ""}{option.symbol.id}</span></>}

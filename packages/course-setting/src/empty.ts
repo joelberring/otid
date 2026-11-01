@@ -18,6 +18,7 @@ export function createEmptyDocument(options: { readonly title: string; readonly 
       overprintStandard: sprint ? "ISSPROM2019" : "ISOM2017",
       descriptionStandard: "2018",
       numbering: { start: 31, disallowInvertible: true },
+      descriptionLanguage: "sv",
       raw: [
         el("event", [["id", "1"]]),
         el("map", [["kind", "none"]]),
@@ -29,7 +30,7 @@ export function createEmptyDocument(options: { readonly title: string; readonly 
           ["scale-sizes", scaleSizes], ["scale-sizes-circle-gaps", "true"], ["number-font", "Roboto"], ["auto-leg-gap-size", "3.5"],
           ["blend-purple", "true"], ["blend-style", "blend"]
         ]),
-        el("descriptions", [["lang", "sv"], ["color", "black"]]),
+        el("descriptions", [["color", "black"]]),
         el("ocad", [["overprint-colors", "false"]])
       ].map(toRaw)
     },

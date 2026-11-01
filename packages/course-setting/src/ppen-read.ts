@@ -164,6 +164,7 @@ function readEvent(element: XmlElement, warnings: Warnings): CourseSettingDocume
   let descriptionStandard: CourseSettingDocument["event"]["descriptionStandard"] = "2004";
   let mapStandardSeen = false;
   let numbering = { start: 31, disallowInvertible: true };
+  let descriptionLanguage: string | undefined;
   for (const child of childElements(element)) {
     switch (child.name) {
       case "title": title = textOf(child); break;
@@ -199,13 +200,21 @@ function readEvent(element: XmlElement, warnings: Warnings): CourseSettingDocume
         raw.push(stub(child, ["start", "disallow-invertible"], true)!);
         break;
       }
+      case "descriptions": {
+        descriptionLanguage = attr(child, "lang");
+        raw.push(stub(child, descriptionLanguage === undefined ? [] : ["lang"], true)!);
+        break;
+      }
       default: raw.push(toRaw(child));
     }
   }
   if (!mapStandardSeen) warnings.add("MAP_STANDARD", "Banpåtryck enligt 2000 ritas som ISOM 2017");
   if (mapScale === undefined) throw invalid("<event> saknar <map>");
   if (!(mapScale > 0)) throw invalid("kartans skala är inte positiv");
-  return { title, mapScale, overprintStandard, descriptionStandard, numbering, raw: sortChildren("event", raw, rawName) };
+  return {
+    title, mapScale, overprintStandard, descriptionStandard, numbering,
+    ...(descriptionLanguage !== undefined ? { descriptionLanguage } : {}), raw: sortChildren("event", raw, rawName)
+  };
 }
 
 type TextLines = { descriptionTextBefore?: string; descriptionTextAfter?: string };

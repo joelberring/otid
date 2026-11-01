@@ -1070,23 +1070,23 @@ ADR-0180. Migration 0031. Kontraktet: `packages/course-setting/src/types.ts` och
 - [x] **Tester:** paketet (läsa/skriva, ändringar, varianter, kontroller, storlekar), integration (spara, version,
   överföring), Playwright `banlaggning.spec.ts` (importera .ppen, flytta en kontroll, lägg till en bana, för över).
 
-## [ ] Steg 63 – Kontrollbeskrivningar
+## [x] Steg 63 – Kontrollbeskrivningar
 
 ADR-0180. Kontraktet: `packages/course-setting/src/description-types.ts` och stubbarna i `src/index.ts`.
 
-- [ ] **Symbolerna** ur Purple Pens `symbols.xml` (BSD) som data i paketet: ritningar för IOF 2004 och 2018, namn och
+- [x] **Symbolerna** ur Purple Pens `symbols.xml` (BSD) som data i paketet: ritningar för IOF 2004 och 2018, namn och
   texter på svenska och engelska (fler språk om storleken tillåter). `descriptionSymbols`, `symbolsForBox`.
-- [ ] **Utläggning** (`layoutDescription`): huvud (tävling, bana, längd, stigning), rad per kontroll med nummer och kod,
+- [x] **Utläggning** (`layoutDescription`): huvud (tävling, bana, längd, stigning), rad per kontroll med nummer och kod,
   start, passager, kartbyte, textrader före/efter, målraden (14.x), gafflade banor som Purple Pen; symboler, text eller
   båda. Figurer i mm (y nedåt) för skärm, SVG och senare PDF.
-- [ ] **Textbeskrivning** (`describeControl`) som Purple Pens, på svenska och engelska.
-- [ ] **Ändringar:** `SET_DESCRIPTION`, `SET_DESCRIPTION_TEXT_LINE`; skrivs till .ppen som Purple Pen.
+- [x] **Textbeskrivning** (`describeControl`) som Purple Pens, på svenska och engelska.
+- [x] **Ändringar:** `SET_DESCRIPTION`, `SET_DESCRIPTION_TEXT_LINE`; skrivs till .ppen som Purple Pen.
 - [x] **Editorn:** beskrivningen för vald bana bredvid kartan; klick på en ruta öppnar väljaren (sök på namn, senast
   använda), fri text i F (G har bara symboler, som Purple Pen); kontrollens textbeskrivning syns vid kontrollen; vald
   standard (i dokumentet) och språk per tävling (språket och visningssättet sparas i webbläsaren, se STATUS).
 - [x] **Utskrift:** per bana eller alla banor, symboler/text/båda, flera per A4 att klippa (rutstorlek inställbar),
   som SVG i webbläsarens utskrift; nedladdning som SVG.
-- [ ] **Tester:** paketet (alla symboler ritas, utläggning mot Purple Pens testfiler och ägarens SBN26_2.ppen, texter).
+- [x] **Tester:** paketet (alla symboler ritas, utläggning mot Purple Pens testfiler och ägarens SBN26_2.ppen, texter).
 - [x] **Tester i webben:** väljaren, utskriftssidan och SVG-ritningen (enhetstester), Playwright `kontrollbeskrivning.spec.ts`.
 
 ## [ ] Steg 66 – Samarbete i banläggningen (före steg 64)

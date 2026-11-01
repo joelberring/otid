@@ -154,6 +154,8 @@ export interface CourseSettingDocument {
     readonly descriptionStandard: DescriptionStandard;
     /** Första kodsiffran och om omvändbara koder (66/99, 68/89 …) ska undvikas. */
     readonly numbering: { readonly start: number; readonly disallowInvertible: boolean };
+    /** Kontrollbeskrivningarnas språk (Purple Pens `<descriptions lang>`, t.ex. "sv"); saknas = svenska i O-Tid. */
+    readonly descriptionLanguage?: string | undefined;
     /** Resten av `<event>` (utskriftsyta, kortlayout, färg …), orört. */
     readonly raw?: readonly RawXml[] | undefined;
   };
@@ -193,7 +195,7 @@ export type CourseSettingEdit =
   | { readonly type: "SET_LEG_BENDS"; readonly from: string; readonly to: string; readonly bends: readonly Point[] }
   | { readonly type: "SET_LEG_GAPS"; readonly from: string; readonly to: string; readonly gaps: Leg["gaps"] }
   | { readonly type: "SET_CIRCLE_GAPS"; readonly control: string; readonly gaps: readonly CircleGap[] }
-  | { readonly type: "SET_EVENT"; readonly changes: Partial<Pick<CourseSettingDocument["event"], "title" | "mapScale" | "overprintStandard" | "descriptionStandard" | "numbering">> }
+  | { readonly type: "SET_EVENT"; readonly changes: Partial<Pick<CourseSettingDocument["event"], "title" | "mapScale" | "overprintStandard" | "descriptionStandard" | "numbering" | "descriptionLanguage">> }
   /** Steg 63: kontrollbeskrivningen. */
   | DescriptionEdit;
 

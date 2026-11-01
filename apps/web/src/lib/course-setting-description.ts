@@ -61,8 +61,10 @@ export function rowArea(layout: DescriptionLayout, ref: string | undefined): { x
 
 const unescapeXml = (value: string) => value.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"").replace(/&apos;/g, "'").replace(/&amp;/g, "&");
 
-/** Språket som .ppen-filen har för beskrivningarna (`<descriptions lang="sv">` i `<event>`), om det finns. */
+/** Beskrivningarnas språk i dokumentet (`event.descriptionLanguage`, från .ppen-filens `<descriptions lang>`), om det finns. */
 export function ppenDescriptionLanguage(document: CourseSettingDocument): DescriptionLanguage | undefined {
+  if (document.event.descriptionLanguage) return document.event.descriptionLanguage;
+  // Dokument sparade före språket fanns i modellen har det kvar i den råa `<descriptions>`.
   for (const raw of document.event.raw ?? []) {
     const lang = /<descriptions\b[^>]*\blang="([^"]+)"/.exec(raw.xml)?.[1];
     if (lang) return unescapeXml(lang);
@@ -85,22 +87,27 @@ const settingsKey = (raceId: string) => `otid.course-setting.descriptions.${race
 const isLanguage = (value: unknown): value is DescriptionLanguage => typeof value === "string" && DESCRIPTION_LANGUAGES.some(language => language.id === value);
 const isKind = (value: unknown): value is DescriptionKind => typeof value === "string" && (DESCRIPTION_KINDS as readonly string[]).includes(value);
 
-/**
- * Tävlingens språk och visningssätt. Språket utgår från .ppen-filen (svenska om den inte säger något); det banläggaren
- * väljer sparas i webbläsaren per tävling, så att editorn och utskriftssidan visar samma sak.
- */
-export function readDescriptionSettings(storage: Storage | undefined, raceId: string, document: CourseSettingDocument): DescriptionSettings {
-  const fromFile = ppenDescriptionLanguage(document);
-  const fallback: DescriptionSettings = { language: isLanguage(fromFile) ? fromFile : "sv", kind: "SYMBOLS" };
-  try {
-    const value = JSON.parse(storage?.getItem(settingsKey(raceId)) ?? "null") as Partial<Record<keyof DescriptionSettings, unknown>> | null;
-    if (!value || typeof value !== "object") return fallback;
-    return { language: isLanguage(value.language) ? value.language : fallback.language, kind: isKind(value.kind) ? value.kind : fallback.kind };
-  } catch { return fallback; }
+/** Beskrivningarnas språk för tävlingen: dokumentets (följer med .ppen och till andra datorer), annars svenska. */
+export function descriptionLanguageOf(document: CourseSettingDocument): DescriptionLanguage {
+  const language = ppenDescriptionLanguage(document);
+  return isLanguage(language) ? language : "sv";
 }
 
+/**
+ * Tävlingens språk och visningssätt. Språket står i dokumentet (ändras med SET_EVENT); visningssättet (symboler, text,
+ * båda) är en vy och sparas i webbläsaren per tävling, så att editorn och utskriftssidan visar samma sak.
+ */
+export function readDescriptionSettings(storage: Storage | undefined, raceId: string, document: CourseSettingDocument): DescriptionSettings {
+  const language = descriptionLanguageOf(document);
+  try {
+    const value = JSON.parse(storage?.getItem(settingsKey(raceId)) ?? "null") as Partial<Record<keyof DescriptionSettings, unknown>> | null;
+    return { language, kind: value && typeof value === "object" && isKind(value.kind) ? value.kind : "SYMBOLS" };
+  } catch { return { language, kind: "SYMBOLS" }; }
+}
+
+/** Sparar visningssättet i webbläsaren (språket sparas i dokumentet). */
 export function writeDescriptionSettings(storage: Storage | undefined, raceId: string, settings: DescriptionSettings): void {
-  try { storage?.setItem(settingsKey(raceId), JSON.stringify(settings)); } catch { /* Avstängd lagring: valet gäller tills sidan laddas om. */ }
+  try { storage?.setItem(settingsKey(raceId), JSON.stringify({ kind: settings.kind })); } catch { /* Avstängd lagring: valet gäller tills sidan laddas om. */ }
 }
 
 /** Webbläsarens lagring, eller inget (privat fönster, avstängd lagring, servern). */

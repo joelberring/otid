@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DescriptionLayout, DescriptionSymbol } from "@o-tid/course-setting";
 import {
-  descriptionTextLine, ppenDescriptionLanguage, readDescriptionSettings, refOfSelection, rowArea, targetOfRef, writeDescriptionSettings
+  descriptionLanguageOf, descriptionTextLine, ppenDescriptionLanguage, readDescriptionSettings, refOfSelection, rowArea, targetOfRef, writeDescriptionSettings
 } from "./course-setting-description";
 import { descriptionNodes, descriptionSvg, symbolLookup, symbolNodes, symbolPoint, textNode } from "./course-setting-description-draw";
 import {
@@ -247,13 +247,17 @@ describe("beskrivningen i editorn", () => {
     expect(descriptionTextLine({ ...document.courseControls.c2!, descriptionTextBefore: "Vatten" }, "before")).toBe("Vatten");
   });
 
-  it("sparar språk och visningssätt per tävling, med filens språk som utgångsläge", () => {
+  it("tar språket ur dokumentet och sparar bara visningssättet i webbläsaren", () => {
     const storage = new MemoryStorage();
-    const withLanguage = { ...document, event: { ...document.event, raw: [{ xml: `<descriptions lang="en" />` }] } };
-    expect(readDescriptionSettings(storage, "r1", withLanguage)).toEqual({ language: "en", kind: "SYMBOLS" });
+    const fromRaw = { ...document, event: { ...document.event, raw: [{ xml: `<descriptions lang="en" />` }] } };
+    const fromModel = { ...document, event: { ...document.event, descriptionLanguage: "nb-NO" } };
+    expect(readDescriptionSettings(storage, "r1", fromRaw)).toEqual({ language: "en", kind: "SYMBOLS" });
+    expect(readDescriptionSettings(storage, "r1", fromModel)).toEqual({ language: "nb-NO", kind: "SYMBOLS" });
     expect(readDescriptionSettings(storage, "r1", document)).toEqual({ language: "sv", kind: "SYMBOLS" });
+    expect(descriptionLanguageOf({ ...document, event: { ...document.event, descriptionLanguage: "xx" } })).toBe("sv");
     writeDescriptionSettings(storage, "r1", { language: "sv", kind: "SYMBOLS_AND_TEXT" });
-    expect(readDescriptionSettings(storage, "r1", withLanguage)).toEqual({ language: "sv", kind: "SYMBOLS_AND_TEXT" });
+    // Språket i webbläsaren räknas inte: dokumentets gäller.
+    expect(readDescriptionSettings(storage, "r1", fromRaw)).toEqual({ language: "en", kind: "SYMBOLS_AND_TEXT" });
     expect(readDescriptionSettings(storage, "r2", document)).toEqual({ language: "sv", kind: "SYMBOLS" });
     storage.setItem("otid.course-setting.descriptions.r1", `{"language":"xx","kind":"ALL"}`);
     expect(readDescriptionSettings(storage, "r1", document)).toEqual({ language: "sv", kind: "SYMBOLS" });

@@ -75,6 +75,10 @@ function eventElement(document: CourseSettingDocument): XmlElement {
         ["description", keep(s, "description", { "2004": "2004", "2018": "2018" }, event.descriptionStandard, event.descriptionStandard)]
       ]);
     },
+    descriptions: (s: XmlElement | undefined) => {
+      if (event.descriptionLanguage === undefined) return s ? merge("descriptions", s, []) : null;
+      return merge("descriptions", s, [["lang", event.descriptionLanguage]]);
+    },
     numbering: (s: XmlElement | undefined) => {
       if (!s && event.numbering.start === 31 && event.numbering.disallowInvertible) return null;
       return merge("numbering", s, [["start", String(event.numbering.start)], ["disallow-invertible", String(event.numbering.disallowInvertible)]]);

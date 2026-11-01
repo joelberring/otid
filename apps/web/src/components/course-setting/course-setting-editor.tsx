@@ -9,7 +9,9 @@ import {
 import type { LegAnalysis, RouteChoiceSettings } from "@o-tid/route-choice";
 import { courseSettingSv as text } from "../../i18n/course-setting-sv";
 import { Autosaver, type AutosaveStatus } from "../../lib/course-setting-autosave";
-import { browserStorage, readDescriptionSettings, writeDescriptionSettings, type DescriptionSettings } from "../../lib/course-setting-description";
+import {
+  browserStorage, descriptionLanguageOf, readDescriptionSettings, writeDescriptionSettings, type DescriptionSettings
+} from "../../lib/course-setting-description";
 import { fetchCourseSettingRevision, importCourseSetting, restoreCourseSetting, saveCourseSetting } from "../../lib/course-setting-api";
 import {
   addBend, addPoint, addSplit, applySteps, beginDrag, cancelTool, createEditor, dragTo, endDrag, insertExisting, redo, removeSelected,
@@ -262,10 +264,12 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
     });
   }
 
-  // Steg 63: beskrivningens språk och visningssätt (i webbläsaren per tävling) och vald kontrolls beskrivning i text.
+  // Steg 63: beskrivningens språk (i dokumentet) och visningssätt (i webbläsaren per tävling), vald kontrolls beskrivning i text.
   const router = useRouter();
-  const [descriptionSettings, setDescriptionSettings] = useState<DescriptionSettings>(() =>
-    readDescriptionSettings(browserStorage(), raceId, state.setting.document as unknown as CourseSettingDocument));
+  const [descriptionKind, setDescriptionKind] = useState<DescriptionSettings["kind"]>(() =>
+    readDescriptionSettings(browserStorage(), raceId, state.setting.document as unknown as CourseSettingDocument).kind);
+  const descriptionSettings = useMemo<DescriptionSettings>(() => ({ language: descriptionLanguageOf(document), kind: descriptionKind }),
+    [document, descriptionKind]);
   const selectedControl = selection?.kind === "control" ? selection.control : undefined;
   const describedControl = useMemo(() => selectedControl
     ? safely("Textbeskrivningen", () => describeControl(document, selectedControl, descriptionSettings.language), "") : "",
@@ -296,7 +300,13 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
           onClasses={(id, classes) => apply(state => applySteps(state, [{ type: "UPDATE_COURSE", course: id, changes: { secondaryTitle: classes } }], applyEdit))}
           onRemove={id => apply(state => setView(applySteps(state, [{ type: "DELETE_COURSE", course: id }], applyEdit), ALL_CONTROLS))} />
         <DescriptionPanel document={document} view={view} variant={variant} selection={selection} settings={descriptionSettings}
-          onSettings={next => { setDescriptionSettings(next); writeDescriptionSettings(browserStorage(), raceId, next); }}
+          onSettings={next => {
+            setDescriptionKind(next.kind);
+            writeDescriptionSettings(browserStorage(), raceId, next);
+            if (next.language !== descriptionSettings.language) {
+              apply(current => applySteps(current, [{ type: "SET_EVENT", changes: { descriptionLanguage: next.language } }], applyEdit));
+            }
+          }}
           onSelect={target => apply(state => select(state, target))}
           onEdit={edits => apply(state => applySteps(state, edits, applyEdit))}
           onPrint={() => void flush().finally(() => router.push(`/admin/${raceId}/course-setting/descriptions`))} />

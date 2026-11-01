@@ -459,6 +459,9 @@ export function applyDocumentEdit(document: CourseSettingDocument, edit: CourseS
       if (changes.numbering && !(Number.isInteger(changes.numbering.start) && changes.numbering.start > 0 && changes.numbering.start < 1000)) {
         throw invalidEdit("Numreringen börjar på 1–999");
       }
+      if (changes.descriptionLanguage !== undefined && !/^[a-z]{2}(-[A-Z]{2})?$/.test(changes.descriptionLanguage)) {
+        throw invalidEdit("Språket anges som t.ex. sv eller nb-NO");
+      }
       const defined = Object.fromEntries(Object.entries(changes).filter(([, value]) => value !== undefined));
       draft.event = { ...draft.event, ...defined };
       break;

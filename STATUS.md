@@ -5,18 +5,18 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 63 (kontrollbeskrivningar) pågår; därefter 66 (samarbete) och 67 (fältläge i mobilen, ADR-0181), sist 64–65 (tryck, ADR-0180). Steg 59–62 är klara. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
+Steg 66 (samarbete) är nästa; därefter 67 (fältläge i mobilen, ADR-0181), sist 64–65 (tryck, ADR-0180). Steg 59–62 är klara. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
 Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbens löpare via `cachedcompetitors`, strukturen) provad mot riktiga Eventor 2026-10-19; hela landets `cachedcompetitors` och `/api/organisations` måste provas av ägaren; ROC:s sökväg för stämplingar (bara provad mot falsk ROC) och e-post via SMTP är inte provade.
 
 ## Logg
 
-### 2026-11-01 – Steg 63: kontrollbeskrivningar, webben (gren steg63-webb, ihopslagen med main 4abdcb9)
+### 2026-11-01 – Steg 63: kontrollbeskrivningar (paketet steg63-paket, webben steg63-webb, ihopslagna i main)
+- Paketet: symbolerna ur Purple Pens `symbols.xml` (201, 2004 och 2018, sv/en/nb/fi/de; 20 kB gzip), `layoutDescription` och `describeControl` som Purple Pen (11 + 13 jämförelser tecken för tecken), SET_DESCRIPTION/…_TEXT_LINE.
 - Editorn: beskrivningen för vald bana/variant (eller Alla kontroller) i spalten bredvid kartan, ritad som SVG ur `layoutDescription` och symbolernas figurer (vända rätt, i mm); rad ↔ kartval åt båda hållen, rutorna nås med Tab.
 - Väljaren (C–H och riktningsraden "all"): `symbolsForBox`, ikon och namn på valt språk, sökning på namn/id, senast använda överst (i webbläsaren), "Ingen", fri text bara i F (paketet avvisar text i G, som Purple Pen), pilar/Enter/Escape. Textrader före/efter (`SET_DESCRIPTION_TEXT_LINE`); banans egna textrader visas men ändras inte.
 - Kontrollens textbeskrivning (`describeControl`) i Vald-rutan. Inställningar: standard (SET_EVENT), språk (paketets fem) och visningssätt.
-- Avvikelse: språk och visningssätt sparas i webbläsaren per tävling (localStorage), utgångsläge från .ppen `<descriptions lang>`; följer inte med filen. Förslag: `event.descriptionLanguage` i dokumentet och SET_EVENT.
+- Språket ligger i dokumentet (`event.descriptionLanguage` ↔ .ppen `<descriptions lang>`, SET_EVENT); visningssättet i webbläsaren.
 - Utskrift `/admin/[raceId]/course-setting/descriptions` (bara admin): banor och varianter, symboler/text/båda, 5–7 mm, kopior; tätt i kolumner på A4 (`@page` utan marginal, 8 mm kant) med skärmarker; "Skriv ut" och "Ladda ned SVG" per bana. Bara svart.
-- Logiken i `lib/course-setting-description*.ts` (ritning, väljare, A4-utläggning, inställningar) med 20 enhetstester.
 - Verifierat: lint, typecheck, test; Playwright kontrollbeskrivning och banlaggning gröna. Ostadigt: uppladdningen av kartfilen gav 404 (POST map/source i dev-servern) i 2 av 6 körningar, i båda specarna; samma fel som steg 62 noterade, inte utrett.
 
 ### 2026-10-31 – Steg 62: banläggning – .ppen och editorn (paketet steg62-paket, webben steg62-webb, ihopslagna i main)

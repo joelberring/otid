@@ -63,6 +63,7 @@ export interface LegAnalysis {
   readonly alternatives: readonly (RouteLine & { readonly timeRatio: number })[];
   /** Stråket med vägar högst 5 % sämre än bästa: ett rutnät som kan ritas som tonad yta. */
   readonly corridor?: {
+    /** Nedre vänstra hörnet i mm (y uppåt); masken börjar ändå med översta raden. */
     readonly origin: Point;
     readonly cellMm: number;
     readonly width: number;

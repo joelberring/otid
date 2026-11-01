@@ -7,7 +7,7 @@ import { courseSettingSv as text } from "../../i18n/course-setting-sv";
 import { routeChoiceSv } from "../../i18n/route-choice-sv";
 import { warningText } from "../../lib/route-choice-view";
 import { ALL_CONTROLS } from "../../lib/course-setting-hit";
-import type { EditorState, Tool } from "../../lib/course-setting-editor";
+import type { EditorState } from "../../lib/course-setting-editor";
 import { controlLabel, minutes, type CheckRow } from "../../lib/course-setting-text";
 import { Button } from "../ui";
 import styles from "./course-setting.module.css";
@@ -73,28 +73,44 @@ export function CourseList({ document, summaries, view, variant, onView, onAdd, 
   </section>;
 }
 
-const TOOLS: readonly Tool[] = ["SELECT", "ADD_CONTROL", "ADD_START", "ADD_FINISH", "ADD_CROSSING", "INSERT_EXISTING", "ADD_BEND"];
-
-export function ToolPanel({ state, onTool, onUndo, onRedo }: { state: EditorState; onTool: (tool: Tool) => void; onUndo: () => void; onRedo: () => void }) {
-  const inCourse = state.view !== ALL_CONTROLS;
-  return <section className={styles.panel} aria-labelledby="course-setting-tools">
-    <h2 id="course-setting-tools">{text.tools.heading}</h2>
-    <div className={styles.tools} role="group" aria-label={text.tools.heading}>
-      {TOOLS.map(tool => <Button key={tool} variant="secondary" aria-pressed={state.tool === tool} onClick={() => onTool(tool)}
-        disabled={(tool === "INSERT_EXISTING" || tool === "ADD_BEND") && !inCourse}>{text.tools[tool]}</Button>)}
+/** Steg 66: vald kontroll eller sträcka i en liten ruta på kartan, med de vanligaste åtgärderna. */
+export function SelectionCard({ state, described, readOnly, onCode, onRemoveFromCourse, onDelete, onDescription, onMore, onClose }: {
+  state: EditorState; described?: string | undefined; readOnly: boolean; onCode: (control: string, code: string) => void;
+  onRemoveFromCourse: () => void; onDelete: () => void; onDescription: () => void; onMore: () => void; onClose: () => void;
+}) {
+  const { selection, document } = state;
+  if (!selection) return null;
+  const control = selection.kind === "control" ? document.controls[selection.control] : undefined;
+  const inCourse = selection.kind === "control" && selection.courseControl !== undefined && state.view !== ALL_CONTROLS;
+  return <section className={styles.card} aria-label={text.selected.heading} data-testid="course-setting-card">
+    <div className={styles.cardHead}>
+      <strong data-testid="course-setting-selected">{control ? text.selected.control(controlLabel(document, control.id))
+        : selection.kind === "leg" ? text.selected.leg(controlLabel(document, selection.from), controlLabel(document, selection.to)) : ""}</strong>
+      <Button variant="quiet" aria-label={text.selected.deselect} title={text.selected.deselect} onClick={onClose}>×</Button>
     </div>
-    <p className={styles.muted}>{text.tools.help[state.tool]}</p>
-    <div className={styles.row}>
-      <Button variant="secondary" onClick={onUndo} disabled={state.past.length === 0}>{text.tools.undo}</Button>
-      <Button variant="secondary" onClick={onRedo} disabled={state.future.length === 0}>{text.tools.redo}</Button>
-    </div>
-    <p className={styles.muted}>{text.tools.keys}</p>
-    {state.error && <p role="alert" className={styles.muted}>{state.error}</p>}
+    {described && <p className={styles.describe} data-testid="course-setting-described" title={text.selected.described}>{described}</p>}
+    {control && <div className={styles.row}>
+      {control.kind === "NORMAL" && !readOnly && <form key={control.id} className={styles.row} onSubmit={event => {
+        event.preventDefault();
+        const code = (new FormData(event.currentTarget).get("code") as string | null)?.trim() ?? "";
+        if (code && code !== control.code) onCode(control.id, code);
+      }}>
+        <label className={styles.inline}>{text.selected.code}<input type="text" name="code" defaultValue={control.code ?? ""} inputMode="numeric"
+          maxLength={8} size={4} /></label>
+        <Button type="submit" variant="secondary">{text.selected.saveCode}</Button>
+      </form>}
+      {inCourse && !readOnly && <Button variant="secondary" onClick={onRemoveFromCourse}>{text.tools.removeFromCourse}</Button>}
+      {!readOnly && <Button variant="quiet" onClick={onDelete}>{text.tools.deleteControl}</Button>}
+      <Button variant="quiet" onClick={onDescription}>{text.selected.description}</Button>
+      <Button variant="quiet" onClick={onMore}>{text.selected.more}</Button>
+    </div>}
+    {selection.kind === "leg" && <div className={styles.row}><Button variant="quiet" onClick={onMore}>{text.selected.more}</Button></div>}
   </section>;
 }
 
-export function SelectedPanel({ state, described, onCode, onRemoveFromCourse, onDelete, onSplit, onRemoveSplit, onResetNumber, onStraighten }: {
-  state: EditorState; described?: string | undefined; onCode: (control: string, code: string) => void; onRemoveFromCourse: () => void; onDelete: () => void;
+export function SelectedPanel({ state, described, readOnly = false, onCode, onRemoveFromCourse, onDelete, onSplit, onRemoveSplit, onResetNumber,
+  onStraighten }: {
+  state: EditorState; described?: string | undefined; readOnly?: boolean; onCode: (control: string, code: string) => void; onRemoveFromCourse: () => void; onDelete: () => void;
   onSplit: (kind: "FORK" | "LOOP", branches: number) => void; onRemoveSplit: () => void; onResetNumber: () => void; onStraighten: () => void;
 }) {
   const [branches, setBranches] = useState(2);
@@ -105,9 +121,9 @@ export function SelectedPanel({ state, described, onCode, onRemoveFromCourse, on
     <h2 id="course-setting-selected">{text.selected.heading}</h2>
     {!selection && <p className={styles.muted}>{text.selected.none}</p>}
     {control && <>
-      <p data-testid="course-setting-selected">{text.selected.control(controlLabel(document, control.id))}</p>
-      {described && <p className={styles.describe} data-testid="course-setting-described" title={text.selected.described}>{described}</p>}
-      {control.kind === "NORMAL" && <form key={control.id} className={styles.row} onSubmit={event => {
+      <p>{text.selected.control(controlLabel(document, control.id))}</p>
+      {described && <p className={styles.describe} title={text.selected.described}>{described}</p>}
+      {control.kind === "NORMAL" && !readOnly && <form key={control.id} className={styles.row} onSubmit={event => {
         event.preventDefault();
         const code = (new FormData(event.currentTarget).get("code") as string | null)?.trim() ?? "";
         if (code && code !== control.code) onCode(control.id, code);
@@ -115,11 +131,11 @@ export function SelectedPanel({ state, described, onCode, onRemoveFromCourse, on
         <label>{text.selected.code}<input type="text" name="code" defaultValue={control.code ?? ""} inputMode="numeric" maxLength={8} size={6} /></label>
         <Button type="submit" variant="secondary">{text.selected.saveCode}</Button>
       </form>}
-      <div className={styles.row}>
+      {!readOnly && <div className={styles.row}>
         {courseControl && <Button variant="secondary" onClick={onRemoveFromCourse}>{text.tools.removeFromCourse}</Button>}
         <Button variant="quiet" onClick={onDelete}>{text.tools.deleteControl}</Button>
-      </div>
-      {courseControl && <div className={styles.row}>
+      </div>}
+      {courseControl && !readOnly && <div className={styles.row}>
         <label>{text.tools.branches}<select value={branches} onChange={event => setBranches(Number(event.target.value))}>
           {[2, 3, 4, 5, 6].map(count => <option key={count} value={count}>{count}</option>)}</select></label>
         <Button variant="secondary" onClick={() => onSplit("FORK", branches)}>{text.tools.fork}</Button>
@@ -129,8 +145,8 @@ export function SelectedPanel({ state, described, onCode, onRemoveFromCourse, on
       </div>}
     </>}
     {selection?.kind === "leg" && <>
-      <p data-testid="course-setting-selected">{text.selected.leg(controlLabel(document, selection.from), controlLabel(document, selection.to))}</p>
-      {(document.legs[`${selection.from}-${selection.to}`]?.bends.length ?? 0) > 0 &&
+      <p>{text.selected.leg(controlLabel(document, selection.from), controlLabel(document, selection.to))}</p>
+      {!readOnly && (document.legs[`${selection.from}-${selection.to}`]?.bends.length ?? 0) > 0 &&
         <div className={styles.row}><Button variant="secondary" onClick={onStraighten}>{text.tools.straighten}</Button></div>}
     </>}
   </section>;

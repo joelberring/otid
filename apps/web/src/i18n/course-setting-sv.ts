@@ -52,6 +52,15 @@ export const courseSettingSv = {
     ADD_CROSSING: "Ny passage",
     INSERT_EXISTING: "Lägg in befintlig kontroll",
     ADD_BEND: "Brytpunkt på sträcka",
+    NOTE: "Ny notis",
+    /** Steg 66: korta etiketter i verktygsraden och tangenterna. */
+    short: { SELECT: "Välj", ADD_CONTROL: "Kontroll", ADD_START: "Start", ADD_FINISH: "Mål", ADD_CROSSING: "Passage",
+      INSERT_EXISTING: "Lägg in", ADD_BEND: "Brytpunkt", NOTE: "Notis", FORK: "Gaffling" } as Record<string, string>,
+    shortcut: { SELECT: "V", ADD_CONTROL: "K", ADD_START: "S", ADD_FINISH: "M", ADD_CROSSING: "P", INSERT_EXISTING: "L", ADD_BEND: "B",
+      NOTE: "N", FORK: "G" } as Record<string, string>,
+    forkTool: "Gaffling vid vald kontroll",
+    forkNeedsSelection: "Välj en kontroll på banan först.",
+    withKey: (label: string, key: string) => `${label} (${key})`,
     help: {
       SELECT: "Klicka för att välja. Dra en kontroll, ett nummer eller en brytpunkt för att flytta. Dra kartan för att panorera.",
       ADD_CONTROL: "Klicka på kartan där kontrollen ska stå. I en bana läggs den in efter vald kontroll.",
@@ -59,7 +68,8 @@ export const courseSettingSv = {
       ADD_FINISH: "Klicka där målet ska stå.",
       ADD_CROSSING: "Klicka där passagen ska stå.",
       INSERT_EXISTING: "Klicka på en kontrollring för att lägga in kontrollen i banan efter vald kontroll.",
-      ADD_BEND: "Välj en sträcka och klicka där linjen ska brytas."
+      ADD_BEND: "Välj en sträcka och klicka där linjen ska brytas.",
+      NOTE: "Klicka på kartan, en kontroll eller en sträcka där notisen ska sitta."
     } as Record<string, string>,
     undo: "Ångra",
     redo: "Gör om",
@@ -71,7 +81,7 @@ export const courseSettingSv = {
     branches: "Antal grenar",
     resetNumber: "Numret tillbaka",
     straighten: "Rak sträcka",
-    keys: "Tangenter: Delete tar bort, Escape avbryter, Ctrl/Cmd+Z ångrar och Ctrl/Cmd+Shift+Z gör om."
+    keys: "Tangenter: Delete tar bort, Escape avbryter, Ctrl/Cmd+Z ångrar och Ctrl/Cmd+Shift+Z gör om. Pilarna flyttar kartan."
   },
   selected: {
     heading: "Vald",
@@ -80,7 +90,10 @@ export const courseSettingSv = {
     described: "Kontrollbeskrivningen i text",
     code: "Kod",
     saveCode: "Ändra koden",
-    leg: (from: string, to: string) => `Sträckan ${from}–${to}`
+    leg: (from: string, to: string) => `Sträckan ${from}–${to}`,
+    deselect: "Avmarkera",
+    description: "Beskrivning",
+    more: "Mer …"
   },
   label: {
     START: "start", FINISH: "mål", CROSSING_POINT: "passage", MAP_EXCHANGE: "kartbyte", MAP_ISSUE: "kartutdelning",
@@ -92,6 +105,7 @@ export const courseSettingSv = {
     pending: "Ändrat – sparas strax",
     conflict: "Konflikt – någon annan har ändrat",
     failed: "Kunde inte spara – försöker igen",
+    stopped: "Sparas inte – logga in igen",
     tooLarge: "Banläggningen är för stor för att sparas.",
     reload: "Ladda om",
     conflictHelp: (name: string | null, time: string) =>

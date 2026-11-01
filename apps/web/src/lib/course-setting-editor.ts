@@ -1,15 +1,33 @@
 import {
-  CourseSettingEditError, type ControlKind, type CourseSettingDocument, type CourseSettingEdit, type EditResult
+  applyEdit, CourseSettingEditError, createdIdsBetween, objectPatch, type ControlKind, type CourseSettingDocument, type CourseSettingEdit,
+  type CreatedIds, type EditResult, type PutObjectsEdit
 } from "@o-tid/course-setting";
 import type { Point } from "@o-tid/map-file";
 import { ALL_CONTROLS, bendInsertIndex, type HitTarget } from "./course-setting-hit";
 
 /**
- * Steg 62 (ADR-0180): banläggningens editor utan React. Varje ändring ger ett nytt dokument via paketets `applyEdit`;
- * ångra och gör om är listor av tidigare dokument. En dragning ändrar dokumentet medan musen rör sig men blir ett enda
- * steg i historiken. Verktyget avgör vad ett klick på kartan gör.
+ * Steg 62 (ADR-0180): banläggningens editor utan React. Varje ändring ger ett nytt dokument via paketets `applyEdit`.
+ * En dragning ändrar dokumentet medan musen rör sig men blir ett enda steg i historiken. Verktyget avgör vad ett klick på
+ * kartan gör.
+ *
+ * Steg 66 (ADR-0181 beslut 3–4): varje ändring loggas som åtgärd (`log`, med id som den skapade) för att sparas eller bli
+ * ett förslag. Ångra sätter tillbaka bara objekten som steget ändrade (`PUT_OBJECTS` ur `objectPatch`), så att andras
+ * ändringar står kvar; i förslagsläget (`suggesting`) tar ångra i stället bort stegets åtgärder ur förslaget.
  */
-export type Tool = "SELECT" | "ADD_CONTROL" | "ADD_START" | "ADD_FINISH" | "ADD_CROSSING" | "INSERT_EXISTING" | "ADD_BEND";
+export type Tool = "SELECT" | "ADD_CONTROL" | "ADD_START" | "ADD_FINISH" | "ADD_CROSSING" | "INSERT_EXISTING" | "ADD_BEND" | "NOTE";
+
+/** En gjord åtgärd som inte är sparad (eller ingår i förslaget), med id som den skapade. */
+export interface LoggedEdit {
+  readonly seq: number;
+  readonly edit: CourseSettingEdit;
+  readonly created: CreatedIds;
+}
+
+/** Ett steg i historiken: åtgärderna och (vid direkt ändring) det som sätter tillbaka objekten. */
+export interface HistoryStep {
+  readonly undo?: PutObjectsEdit | undefined;
+  readonly entries: readonly LoggedEdit[];
+}
 
 export type Selection =
   | { readonly kind: "control"; readonly control: string; readonly courseControl?: string | undefined }
@@ -18,16 +36,22 @@ export type Selection =
 
 export interface EditorState {
   readonly document: CourseSettingDocument;
-  readonly past: readonly CourseSettingDocument[];
-  readonly future: readonly CourseSettingDocument[];
+  readonly past: readonly HistoryStep[];
+  readonly future: readonly HistoryStep[];
+  /** Gjorda åtgärder som inte är sparade (direkt) eller som är förslaget (förslagsläget). */
+  readonly log: readonly LoggedEdit[];
+  readonly nextSeq: number;
+  /** Förslagsläget: dokumentet som förslaget bygger på och dess version. */
+  readonly suggesting?: { readonly base: CourseSettingDocument; readonly baseVersion: number } | undefined;
   /** `ALL_CONTROLS` eller banans id. */
   readonly view: string;
   /** Variantkod för en gafflad bana; saknas = alla grenar. */
   readonly variant?: string | undefined;
   readonly tool: Tool;
   readonly selection?: Selection | undefined;
-  /** Dokumentet när en dragning började. */
+  /** Dokumentet när en dragning började och dragningens senaste åtgärd. */
   readonly dragBase?: CourseSettingDocument | undefined;
+  readonly dragEdit?: CourseSettingEdit | undefined;
   /** Räknas upp vid varje ändring av dokumentet (autosparandet sparar när den ändrats). */
   readonly revision: number;
   /** Varför senaste ändringen inte gick. */
@@ -42,17 +66,35 @@ const HISTORY = 200;
 
 export function createEditor(document: CourseSettingDocument, view = ALL_CONTROLS): EditorState {
   const known = view === ALL_CONTROLS || document.courses.some(course => course.id === view);
-  return { document, past: [], future: [], view: known ? view : ALL_CONTROLS, tool: "SELECT", revision: 0 };
+  return { document, past: [], future: [], log: [], nextSeq: 1, view: known ? view : ALL_CONTROLS, tool: "SELECT", revision: 0 };
 }
 
-/** Ett nytt dokument utifrån (inläst .ppen, återställd version, omladdat efter konflikt): historiken börjar om. */
-export function replaceDocument(state: EditorState, document: CourseSettingDocument): EditorState {
+/** Ett nytt dokument utifrån (inläst .ppen, återställd version): historiken och de osparade åtgärderna börjar om. */
+export function replaceDocument(state: EditorState, document: CourseSettingDocument, version?: number): EditorState {
   const next = createEditor(document, state.view);
-  return { ...next, tool: state.tool, revision: state.revision + 1 };
+  return { ...next, tool: state.tool, nextSeq: state.nextSeq, revision: state.revision + 1,
+    ...(state.suggesting ? { suggesting: { base: document, baseVersion: version ?? state.suggesting.baseVersion } } : {}) };
 }
+
+/** Förslagsläget börjar på dokumentet som det är (inga osparade åtgärder får finnas). */
+export function startSuggesting(state: EditorState, baseVersion: number): EditorState {
+  return { ...state, suggesting: { base: state.document, baseVersion }, past: [], future: [], log: [], error: undefined };
+}
+
+/** Förslaget skickat eller kastat: tillbaka till dokumentet det byggde på (som förslagsläge, eller direkt). */
+export function endSuggestion(state: EditorState, keepSuggesting: boolean, base?: { document: CourseSettingDocument; version: number }): EditorState {
+  const current = state.suggesting;
+  if (!current) return state;
+  const document = base?.document ?? current.base;
+  return { ...state, document, past: [], future: [], log: [], selection: stillThere(document, state.selection), revision: state.revision + 1,
+    suggesting: keepSuggesting ? { base: document, baseVersion: base?.version ?? current.baseVersion } : undefined, error: undefined };
+}
+
+/** Åtgärden som den går över nätet (utan `undefined`), så att webbläsaren och servern gör exakt samma sak. */
+export const wireEdit = (edit: CourseSettingEdit): CourseSettingEdit => JSON.parse(JSON.stringify(edit)) as CourseSettingEdit;
 
 /** Kontrollen eller sträckan finns fortfarande i dokumentet (efter ångra eller borttagning). */
-function stillThere(document: CourseSettingDocument, selection: Selection | undefined): Selection | undefined {
+export function stillThere(document: CourseSettingDocument, selection: Selection | undefined): Selection | undefined {
   if (!selection) return undefined;
   if (selection.kind === "control") {
     if (!document.controls[selection.control]) return undefined;
@@ -64,12 +106,15 @@ function stillThere(document: CourseSettingDocument, selection: Selection | unde
 /** Gör ändringarna i ordning som ett steg i historiken. Går en inte blir inget gjort och `error` säger varför. */
 export function applySteps(state: EditorState, steps: readonly EditStep[], apply: Apply,
   select?: (created: string | undefined, document: CourseSettingDocument) => Selection | undefined): EditorState {
-  let document = state.document, created: string | undefined;
+  let document = state.document, created: string | undefined, seq = state.nextSeq;
+  const entries: LoggedEdit[] = [];
   try {
     for (const step of steps) {
-      const edit = typeof step === "function" ? step(created, document) : step;
-      if (!edit) continue;
+      const raw = typeof step === "function" ? step(created, document) : step;
+      if (!raw) continue;
+      const edit = wireEdit(raw);
       const result = apply(document, edit);
+      if (result.document !== document) entries.push({ seq: seq++, edit, created: createdIdsBetween(document, result.document) });
       document = result.document;
       created = result.created ?? created;
     }
@@ -80,26 +125,66 @@ export function applySteps(state: EditorState, steps: readonly EditStep[], apply
   if (document === state.document) return { ...state, error: undefined };
   const selection = select ? select(created, document) : stillThere(document, state.selection);
   const view = state.view === ALL_CONTROLS || document.courses.some(course => course.id === state.view) ? state.view : ALL_CONTROLS;
-  return { ...state, document, past: [...state.past, state.document].slice(-HISTORY), future: [], selection, view,
-    variant: view === state.view ? state.variant : undefined, revision: state.revision + 1, error: undefined };
+  const step: HistoryStep = { undo: state.suggesting ? undefined : objectPatch(document, state.document), entries };
+  return { ...state, document, past: [...state.past, step].slice(-HISTORY), future: [], log: [...state.log, ...entries], nextSeq: seq,
+    selection, view, variant: view === state.view ? state.variant : undefined, revision: state.revision + 1, error: undefined };
 }
 
 export const canUndo = (state: EditorState) => state.past.length > 0 && !state.dragBase;
 export const canRedo = (state: EditorState) => state.future.length > 0 && !state.dragBase;
 
-export function undo(state: EditorState): EditorState {
-  const previous = state.past.at(-1);
-  if (!previous || state.dragBase) return state;
-  return { ...state, document: previous, past: state.past.slice(0, -1), future: [state.document, ...state.future].slice(0, HISTORY),
-    selection: stillThere(previous, state.selection), revision: state.revision + 1, error: undefined };
+/** Ångra går inte när någon annan har ändrat samma sak (eller tagit bort det som steget bygger på). */
+export const UNDO_FAILED = "Det går inte att ångra: någon annan har ändrat samma sak.";
+
+/** Förslagsläget: dokumentet = förslagets grund med åtgärderna. */
+function replayLog(base: CourseSettingDocument, log: readonly LoggedEdit[]): CourseSettingDocument {
+  let document = base;
+  for (const entry of log) {
+    try { document = applyEdit(document, entry.edit).document; } catch (error) { if (!(error instanceof CourseSettingEditError)) throw error; }
+  }
+  return document;
 }
 
-export function redo(state: EditorState): EditorState {
-  const next = state.future[0];
-  if (!next || state.dragBase) return state;
-  return { ...state, document: next, past: [...state.past, state.document].slice(-HISTORY), future: state.future.slice(1),
-    selection: stillThere(next, state.selection), revision: state.revision + 1, error: undefined };
+/** Direkt ändring: sätt objekten som steget ändrade; ger det nya läget och steget som gör tvärtom. */
+function putBack(state: EditorState, patch: PutObjectsEdit | undefined, entries: readonly LoggedEdit[]):
+  { document: CourseSettingDocument; entry?: LoggedEdit; step: HistoryStep } | undefined {
+  if (!patch) return { document: state.document, step: { entries } };
+  try {
+    const document = applyEdit(state.document, patch).document;
+    const entry: LoggedEdit = { seq: state.nextSeq, edit: patch, created: createdIdsBetween(state.document, document) };
+    return { document, entry, step: { undo: objectPatch(document, state.document), entries: [entry] } };
+  } catch (error) {
+    if (error instanceof CourseSettingEditError) return undefined;
+    throw error;
+  }
 }
+
+function travel(state: EditorState, direction: "undo" | "redo"): EditorState {
+  const step = direction === "undo" ? state.past.at(-1) : state.future[0];
+  if (!step || state.dragBase) return state;
+  const past = direction === "undo" ? state.past.slice(0, -1) : state.past;
+  const future = direction === "undo" ? state.future : state.future.slice(1);
+  let document: CourseSettingDocument, log = state.log, nextSeq = state.nextSeq, moved: HistoryStep;
+  if (state.suggesting) {
+    const seqs = new Set(step.entries.map(entry => entry.seq));
+    log = direction === "undo" ? state.log.filter(entry => !seqs.has(entry.seq)) : [...state.log, ...step.entries];
+    document = replayLog(state.suggesting.base, log);
+    moved = step;
+  } else {
+    const result = putBack(state, step.undo, step.entries);
+    if (!result) return { ...state, past, future, error: UNDO_FAILED };
+    document = result.document;
+    if (result.entry) { log = [...state.log, result.entry]; nextSeq = state.nextSeq + 1; }
+    moved = result.step;
+  }
+  return { ...state, document, log, nextSeq,
+    past: direction === "undo" ? past : [...past, moved].slice(-HISTORY),
+    future: direction === "undo" ? [moved, ...future].slice(0, HISTORY) : future,
+    selection: stillThere(document, state.selection), revision: state.revision + 1, error: undefined };
+}
+
+export function undo(state: EditorState): EditorState { return travel(state, "undo"); }
+export function redo(state: EditorState): EditorState { return travel(state, "redo"); }
 
 export function setView(state: EditorState, view: string, variant?: string): EditorState {
   return { ...state, view, variant, selection: undefined, error: undefined };
@@ -213,14 +298,15 @@ export function addBend(state: EditorState, at: Point, apply: Apply): EditorStat
 
 /** En dragning börjar: dokumentet nu är det som ångra går tillbaka till. */
 export function beginDrag(state: EditorState): EditorState {
-  return state.dragBase ? state : { ...state, dragBase: state.document };
+  return state.dragBase ? state : { ...state, dragBase: state.document, dragEdit: undefined };
 }
 
 /** Under dragningen: ändringen görs på dokumentet från dragningens början, utan historik. */
 export function dragTo(state: EditorState, edit: CourseSettingEdit, apply: Apply): EditorState {
   if (!state.dragBase) return state;
   try {
-    return { ...state, document: apply(state.dragBase, edit).document, error: undefined };
+    const wired = wireEdit(edit);
+    return { ...state, document: apply(state.dragBase, wired).document, dragEdit: wired, error: undefined };
   } catch (error) {
     if (error instanceof CourseSettingEditError) return { ...state, error: error.message };
     throw error;
@@ -231,10 +317,13 @@ export function dragTo(state: EditorState, edit: CourseSettingEdit, apply: Apply
 export function endDrag(state: EditorState): EditorState {
   const base = state.dragBase;
   if (!base) return state;
-  if (base === state.document) return { ...state, dragBase: undefined };
-  return { ...state, dragBase: undefined, past: [...state.past, base].slice(-HISTORY), future: [], revision: state.revision + 1 };
+  if (base === state.document || !state.dragEdit) return { ...state, document: base, dragBase: undefined, dragEdit: undefined };
+  const entry: LoggedEdit = { seq: state.nextSeq, edit: state.dragEdit, created: createdIdsBetween(base, state.document) };
+  const step: HistoryStep = { undo: state.suggesting ? undefined : objectPatch(state.document, base), entries: [entry] };
+  return { ...state, dragBase: undefined, dragEdit: undefined, past: [...state.past, step].slice(-HISTORY), future: [],
+    log: [...state.log, entry], nextSeq: state.nextSeq + 1, revision: state.revision + 1 };
 }
 
 export function cancelDrag(state: EditorState): EditorState {
-  return state.dragBase ? { ...state, document: state.dragBase, dragBase: undefined } : state;
+  return state.dragBase ? { ...state, document: state.dragBase, dragBase: undefined, dragEdit: undefined } : state;
 }

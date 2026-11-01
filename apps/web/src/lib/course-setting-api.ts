@@ -3,14 +3,22 @@ import {
   courseSettingTransferProblemSchema, syncPreviewResponseSchema, type CourseSettingConflict, type CourseSettingRevision,
   type CourseSettingRevisions, type CourseSettingState, type CourseSettingTransferProblem, type SyncPreviewResponse
 } from "@o-tid/contracts";
+import {
+  courseSettingEditsSavedSchema, courseSettingModeRequestSchema, courseSettingNoteSchema, courseSettingNotesSchema, courseSettingSuggestionDecidedSchema,
+  courseSettingSuggestionSchema, courseSettingSuggestionsSchema, type CourseSettingEditsRequest, type CourseSettingEditsSaved, type CourseSettingMode,
+  type CourseSettingNote, type CourseSettingNoteCreate, type CourseSettingNotes, type CourseSettingSuggestion, type CourseSettingSuggestionCreate,
+  type CourseSettingSuggestionDecided, type CourseSettingSuggestionDecision, type CourseSettingSuggestions
+} from "@o-tid/contracts";
 import type { CourseSettingDocument } from "@o-tid/course-setting";
+import { HttpStatusError } from "./course-setting-sync";
 import { readAccountCsrfCookie } from "./organizer-account-cookies";
 import { fetchWithRetry } from "./retrying-fetch";
-import type { SaveOutcome } from "./course-setting-autosave";
+export type SaveOutcome<C> = { readonly kind: "saved"; readonly version: number } | { readonly kind: "conflict"; readonly conflict: C }
+  | { readonly kind: "too-large" };
 
 /**
- * Steg 62: banläggningens anrop. Egna anrop (som vägvalen), så att autosparandet inte stör något annat. Bara admin;
- * servern kontrollerar behörigheten. 409 ger den aktuella versionen.
+ * Steg 62: banläggningens anrop. Egna anrop (som vägvalen), så att autosparandet inte stör något annat. Servern
+ * kontrollerar behörigheten (steg 66: banläggningens). 409 ger den aktuella versionen.
  */
 export const courseSettingBase = (raceId: string) => `/api/admin/races/${encodeURIComponent(raceId)}/administrator`;
 const base = courseSettingBase;
@@ -91,4 +99,55 @@ export function downloadText(fileName: string, content: string, type = "applicat
   link.click();
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// Steg 66: åtgärder, arbetssätt, notiser, förslag och strömmen.
+async function parsed<T>(response: Response, schema: { parse: (value: unknown) => T }): Promise<T> {
+  if (!response.ok) throw new HttpStatusError(response.status);
+  return schema.parse(await response.json());
+}
+
+export async function saveCourseSettingEdits(raceId: string, request: CourseSettingEditsRequest): Promise<CourseSettingEditsSaved> {
+  return parsed(await write(raceId, "/course-setting/edits", "POST", request), courseSettingEditsSavedSchema);
+}
+
+export async function setCourseSettingMode(raceId: string, mode: CourseSettingMode): Promise<CourseSettingMode> {
+  return (await parsed(await write(raceId, "/course-setting/mode", "PUT", { formatVersion: 1, mode }), courseSettingModeRequestSchema)).mode;
+}
+
+export async function fetchCourseSettingNotes(raceId: string): Promise<CourseSettingNotes> {
+  return parsed(await fetchWithRetry(`${base(raceId)}/course-setting/notes`, { credentials: "same-origin", cache: "no-store" }), courseSettingNotesSchema);
+}
+
+export async function createCourseSettingNote(raceId: string, request: Omit<CourseSettingNoteCreate, "formatVersion">): Promise<CourseSettingNote> {
+  return parsed(await write(raceId, "/course-setting/notes", "POST", { formatVersion: 1, ...request }), courseSettingNoteSchema);
+}
+
+export async function replyCourseSettingNote(raceId: string, noteId: string, text: string): Promise<CourseSettingNote> {
+  return parsed(await write(raceId, `/course-setting/notes/${encodeURIComponent(noteId)}/replies`, "POST",
+    { formatVersion: 1, requestId: crypto.randomUUID(), text }), courseSettingNoteSchema);
+}
+
+export async function setCourseSettingNoteStatus(raceId: string, noteId: string, status: "OPEN" | "DONE"): Promise<CourseSettingNote> {
+  return parsed(await write(raceId, `/course-setting/notes/${encodeURIComponent(noteId)}/status`, "PUT", { formatVersion: 1, status }),
+    courseSettingNoteSchema);
+}
+
+export const courseSettingNotePhotoUrl = (raceId: string, noteId: string) => `${base(raceId)}/course-setting/notes/${encodeURIComponent(noteId)}/photo`;
+export const courseSettingEventsUrl = (raceId: string) => `${base(raceId)}/course-setting/events`;
+
+export async function fetchCourseSettingSuggestions(raceId: string): Promise<CourseSettingSuggestions> {
+  return parsed(await fetchWithRetry(`${base(raceId)}/course-setting/suggestions`, { credentials: "same-origin", cache: "no-store" }),
+    courseSettingSuggestionsSchema);
+}
+
+export async function createCourseSettingSuggestion(raceId: string, request: Omit<CourseSettingSuggestionCreate, "formatVersion">)
+  : Promise<CourseSettingSuggestion> {
+  return parsed(await write(raceId, "/course-setting/suggestions", "POST", { formatVersion: 1, ...request }), courseSettingSuggestionSchema);
+}
+
+export async function decideCourseSettingSuggestion(raceId: string, suggestionId: string,
+  request: Omit<CourseSettingSuggestionDecision, "formatVersion" | "requestId">): Promise<CourseSettingSuggestionDecided> {
+  return parsed(await write(raceId, `/course-setting/suggestions/${encodeURIComponent(suggestionId)}/decision`, "POST",
+    { formatVersion: 1, requestId: crypto.randomUUID(), ...request }), courseSettingSuggestionDecidedSchema);
 }

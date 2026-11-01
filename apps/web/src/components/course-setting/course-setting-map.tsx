@@ -6,6 +6,8 @@ import type { Point } from "@o-tid/map-file";
 import type { LegAnalysis } from "@o-tid/route-choice";
 import { courseSettingSv as text } from "../../i18n/course-setting-sv";
 import { drawMarks, drawOverprint, drawRouteChoice } from "../../lib/course-setting-draw";
+import { drawNoteMarks, drawSuggestion, type SuggestionDrawing } from "../../lib/course-setting-draw-collaboration";
+import { hitNoteMark, noteMarkGeometry, type NoteMark } from "../../lib/course-setting-note-marks";
 import { MAX_RENDER_SIDE, type MapRenderSession } from "../../lib/course-setting-map-protocol";
 import {
   bitmapPlacement, fitBounds, panBy, resize, toMap, topLeft, wheelAction, wheelFactor, zoomAt, type Bounds, type Viewport
@@ -26,7 +28,11 @@ export interface MapPointerHandlers {
 export interface CourseSettingMapHandle {
   /** Visar ytan (t.ex. en kontroll från kontrollistan) om den inte redan syns. */
   readonly reveal: (points: readonly Point[]) => void;
+  /** Steg 66: zoomar in till punkten (en notis i listan). */
+  readonly focus: (point: Point) => void;
 }
+
+const PAN_STEP_PX = 80;
 
 interface Drawn { readonly bitmap: ImageBitmap; readonly view: Viewport }
 
@@ -38,8 +44,12 @@ const tolerancePx = (pointerType: string) => pointerType === "touch" ? 18 : 8;
  * Steg 62: banläggningens karta. Kartfilen (Workern i `course-setting-map-worker.ts`) i ett lager och banpåtrycket,
  * markeringarna och vald sträckas vägval i ett eget lager ovanpå. Hjul och knappar zoomar, dra panorerar (eller drar det
  * editorn tar tag i), två fingrar zoomar. Medan en ny bild ritas visas den förra omskalad.
+ *
+ * Steg 66: notisernas markeringar (ett klick på en öppnar den), ett förslag ovanpå banan, handmarkören där kartan går att
+ * dra (`cursorAt`), och piltangenterna panorerar när kartan har fokus (+ och − zoomar).
  */
-export function CourseSettingMap({ session, mapBounds, primitives, faded, marks, analysis, label, cursor, handlers, handle }: {
+export function CourseSettingMap({ session, mapBounds, primitives, faded, marks, analysis, label, cursor, handlers, handle, noteMarks,
+  selectedNote, onNoteTap, suggestion, cursorAt }: {
   session: MapRenderSession | undefined;
   mapBounds: Bounds | undefined;
   primitives: readonly OverprintPrimitive[];
@@ -50,7 +60,15 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
   cursor: string;
   handlers: MapPointerHandlers;
   handle?: Ref<CourseSettingMapHandle>;
+  noteMarks?: readonly NoteMark[] | undefined;
+  selectedNote?: string | undefined;
+  onNoteTap?: ((id: string) => void) | undefined;
+  suggestion?: SuggestionDrawing | undefined;
+  /** Markören där pekaren står (utan att något dras); undefined = `cursor`. */
+  cursorAt?: ((point: Point, toleranceMm: number) => string | undefined) | undefined;
 }) {
+  const [hoverCursor, setHoverCursor] = useState<string>();
+  const [grabbing, setGrabbing] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   const base = useRef<HTMLCanvasElement>(null);
   const overlay = useRef<HTMLCanvasElement>(null);
@@ -96,6 +114,9 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
       const pad = 40 / current.pxPerMm;
       const fitted = fitBounds({ minX: area.minX - pad, maxX: area.maxX + pad, minY: area.minY - pad, maxY: area.maxY + pad }, current.width, current.height);
       setView({ ...fitted, pxPerMm: Math.min(fitted.pxPerMm, Math.max(current.pxPerMm, 2)) });
+    },
+    focus(point) {
+      setView(current => current ? { ...current, centerX: point.x, centerY: point.y, pxPerMm: Math.max(current.pxPerMm, 6) } : current);
     }
   }), []);
 
@@ -152,8 +173,10 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
     if (analysis) drawRouteChoice(ctx, view, analysis);
     drawOverprint(ctx, view, faded, { faded: true });
     drawOverprint(ctx, view, primitives);
+    if (suggestion) drawSuggestion(ctx, view, suggestion);
     drawMarks(ctx, view, marks);
-  }, [view, primitives, faded, marks, analysis]);
+    if (noteMarks) drawNoteMarks(ctx, view, noteMarks.map(mark => ({ ...mark, selected: mark.id === selectedNote })));
+  }, [view, primitives, faded, marks, analysis, suggestion, noteMarks, selectedNote]);
 
   function local(event: { clientX: number; clientY: number }) {
     const rect = box.current!.getBoundingClientRect();
@@ -179,6 +202,12 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
 
   function onPointerMove(event: React.PointerEvent<HTMLDivElement>) {
     const current = gesture.current;
+    if (!current && view && cursorAt && event.pointerType === "mouse") {
+      const point = toMap(view, local(event));
+      const tolerance = tolerancePx(event.pointerType) / view.pxPerMm;
+      const overNote = noteMarks && hitNoteMark(noteMarks, point, tolerance, noteMarkGeometry(view.pxPerMm));
+      setHoverCursor(overNote ? "pointer" : cursorAt(point, tolerance));
+    }
     if (!current || !view || !pointers.current.has(event.pointerId)) return;
     const at = local(event);
     pointers.current.set(event.pointerId, at);
@@ -196,6 +225,7 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
       if (Math.hypot(at.x - current.startX, at.y - current.startY) < TAP_SLOP_PX) return;
       const start = toMap(view, { x: current.startX, y: current.startY });
       current.kind = handlers.onDragStart(start, tolerancePx(current.pointerType) / view.pxPerMm) ? "drag" : "pan";
+      if (current.kind === "pan") setGrabbing(true);
     }
     if (current.kind === "drag") handlers.onDragMove(toMap(view, at));
     else setView(previous => previous ? panBy(previous, at.x - current.lastX, at.y - current.lastY) : previous);
@@ -208,8 +238,13 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
     if (!current || !view) return;
     if (current.kind === "pinch") { if (pointers.current.size === 0) gesture.current = undefined; return; }
     gesture.current = undefined;
+    setGrabbing(false);
     if (current.kind === "pending" && event.type === "pointerup") {
-      handlers.onTap(toMap(view, { x: current.startX, y: current.startY }), tolerancePx(current.pointerType) / view.pxPerMm);
+      const point = toMap(view, { x: current.startX, y: current.startY });
+      const tolerance = tolerancePx(current.pointerType) / view.pxPerMm;
+      const note = noteMarks && onNoteTap ? hitNoteMark(noteMarks, point, tolerance, noteMarkGeometry(view.pxPerMm)) : undefined;
+      if (note) onNoteTap!(note.id);
+      else handlers.onTap(point, tolerance);
     } else if (current.kind === "drag") handlers.onDragEnd();
   }
 
@@ -230,8 +265,17 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
   }, []);
 
   const zoom = (factor: number) => setView(previous => previous ? zoomAt(previous, factor) : previous);
+  function onKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    const moves: Record<string, [number, number]> = { ArrowLeft: [PAN_STEP_PX, 0], ArrowRight: [-PAN_STEP_PX, 0], ArrowUp: [0, PAN_STEP_PX],
+      ArrowDown: [0, -PAN_STEP_PX] };
+    const move = moves[event.key];
+    if (move) { event.preventDefault(); setView(previous => previous ? panBy(previous, move[0], move[1]) : previous); return; }
+    if (event.key === "+" || event.key === "=") { event.preventDefault(); zoom(1.25); }
+    else if (event.key === "-") { event.preventDefault(); zoom(1 / 1.25); }
+  }
   return <div className={styles.mapFrame}>
-    <div ref={box} className={styles.map} role="img" aria-label={label} style={{ cursor }} data-testid="course-setting-map"
+    <div ref={box} className={styles.map} role="img" aria-label={label} tabIndex={0} onKeyDown={onKeyDown}
+      style={{ cursor: grabbing ? "grabbing" : hoverCursor ?? cursor }} data-testid="course-setting-map"
       data-px-per-mm={view ? view.pxPerMm.toFixed(3) : undefined}
       data-center={view ? `${view.centerX.toFixed(2)},${view.centerY.toFixed(2)}` : undefined}
       onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>

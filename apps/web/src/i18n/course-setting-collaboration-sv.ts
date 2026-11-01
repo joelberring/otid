@@ -22,6 +22,8 @@ export const collaborationSv = {
   },
   presence: (names: readonly string[]) => names.length === 0 ? "" : `Inne nu: ${names.join(", ")}`,
   someone: "Någon",
+  waitForMap: "Ägaren eller en administratör laddar upp kartfilen. Sidan visar banläggningen när den finns.",
+  waitForStart: "Banläggningen är inte påbörjad än. Den som har behörigheten ändra läser in en .ppen eller börjar tomt.",
   remoteChanged: (name: string) => `${name} ändrade banorna. Dina osparade ändringar är kvar.`,
   lost: (count: number) => `${plural(count, "ändring", "ändringar")} gick inte att spara efter andras ändringar:`,
   topbar: {

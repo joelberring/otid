@@ -5,6 +5,7 @@ import Link from "next/link";
 import { raceMapProblemSchema, type CourseSettingState } from "@o-tid/contracts";
 import { emptyDocument } from "@o-tid/course-setting";
 import { courseSettingSv as text } from "../../i18n/course-setting-sv";
+import { collaborationSv as copy } from "../../i18n/course-setting-collaboration-sv";
 import { raceMapSv } from "../../i18n/race-map-sv";
 import { courseSettingBase, fetchCourseSetting, HttpError, importCourseSetting, saveCourseSetting } from "../../lib/course-setting-api";
 import { readAccountCsrfCookie } from "../../lib/organizer-account-cookies";
@@ -90,14 +91,17 @@ export function CourseSettingPage({ raceId }: { raceId: string }) {
     {!state.mapFile && <section className={styles.panel} aria-labelledby="course-setting-map-file">
       <h2 id="course-setting-map-file">{raceMapSv.mapFile.upload}</h2>
       <p>{text.noMapFile}</p>
-      <MapFileUpload disabled={busy} hasMap={false} upload={uploadMapFile} onMessage={setMessage} />
+      {state.access.admin ? <MapFileUpload disabled={busy} hasMap={false} upload={uploadMapFile} onMessage={setMessage} />
+        : <p className={styles.muted}>{copy.waitForMap}</p>}
     </section>}
     {message && <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>{message.text}</Notice>}
     {state.mapFile && <section className={styles.panel} aria-labelledby="course-setting-start">
       <h2 id="course-setting-start">{text.start.heading}</h2>
-      <p>{text.start.help}</p>
-      <PpenImport onRead={first} busy={busy} />
-      <div className={styles.row}><Button variant="secondary" disabled={busy} onClick={() => void empty()}>{text.start.empty}</Button></div>
+      {state.access.level === "EDIT" ? <>
+        <p>{text.start.help}</p>
+        <PpenImport onRead={first} busy={busy} />
+        <div className={styles.row}><Button variant="secondary" disabled={busy} onClick={() => void empty()}>{text.start.empty}</Button></div>
+      </> : <p className={styles.muted}>{copy.waitForStart}</p>}
     </section>}
   </main>;
 }

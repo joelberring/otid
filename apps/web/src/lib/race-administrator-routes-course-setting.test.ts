@@ -3,6 +3,7 @@ import type * as Application from "@o-tid/application";
 import { courseSettingDocumentSchema, courseSettingSaveRequestSchema } from "@o-tid/contracts";
 import { raceAdministratorRoute } from "./race-administrator-route-handlers";
 import { ppenFileName } from "./race-administrator-routes-course-setting";
+import { subscribeCourseSetting, type CourseSettingEvent } from "./course-setting-events";
 import { csrf, db, dependencies, environment, id, request, token } from "./race-administrator-route-test-helpers";
 
 /** Steg 62: banläggningens routes (läge, sparande med version, .ppen, versioner, överföring) och kontraktets grundform. */
@@ -116,5 +117,49 @@ describe("administratörsroutes: banläggningen", () => {
     expect(services.authenticateCourseSetting.mock.calls.at(-1)![1]).toMatchObject({ required: "EDIT" });
     // Rollen på tävlingen frågas aldrig (funktionären har den, men inte banläggningen).
     expect(services.authenticate).not.toHaveBeenCalled();
+  });
+});
+
+describe("administratörsroutes: samarbetet (steg 66)", () => {
+  const savedEdits = { formatVersion: 1 as const, raceId: id, version: 5, updatedAt: "2026-11-01T10:00:00.000Z", rebased: true, applied: 1,
+    rejected: [{ index: 1, code: "CONFLICT" as const, message: "Någon annan hann ändra samma sak" }], idMap: { controls: {}, courseControls: {}, courses: {} } };
+  it("sparar åtgärder, ger avvisade åtgärder och säger till öppna editorer att en ny version finns", async () => {
+    const courseSettingEdits = vi.fn<typeof Application.saveCourseSettingEditsAsAdmin>().mockResolvedValue({ status: "ok", response: savedEdits });
+    const services = { ...dependencies(), courseSettingEdits };
+    const events: CourseSettingEvent[] = [];
+    const stop = subscribeCourseSetting(id, { accountId: id, displayName: "Bo", level: "EDIT" }, event => events.push(event))!;
+    try {
+      const body = JSON.stringify({ formatVersion: 1, requestId: id, baseVersion: 3, edits: [{ type: "DELETE_CONTROL", control: "1" }] });
+      const response = await raceAdministratorRoute(db, request("POST", body), id, { kind: "course-setting-edits" }, services, environment);
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual(savedEdits);
+      expect(events).toContainEqual({ type: "version", version: 5, by: id });
+      expect(services.authenticateCourseSetting.mock.calls.at(-1)![1]).toMatchObject({ required: "EDIT", requireCsrf: true });
+      courseSettingEdits.mockResolvedValueOnce({ status: "forbidden" });
+      expect((await raceAdministratorRoute(db, request("POST", body), id, { kind: "course-setting-edits" }, services, environment)).status).toBe(403);
+      expect((await raceAdministratorRoute(db, get(), id, { kind: "course-setting-edits" }, services, environment)).status).toBe(405);
+    } finally { stop(); }
+  });
+
+  it("ger notisens foto privat och utan tolkning, och strömmen som text/event-stream", async () => {
+    const courseSettingNotePhoto = vi.fn<typeof Application.readCourseSettingNotePhotoAsAdmin>()
+      .mockResolvedValue({ status: "ok", mediaType: "image/jpeg", photo: Buffer.from([0xff, 0xd8, 0xff]) });
+    const services = { ...dependencies(), courseSettingNotePhoto };
+    const photo = await raceAdministratorRoute(db, get(), id, { kind: "course-setting-note-photo", noteId: id }, services, environment);
+    expect(photo.status).toBe(200);
+    expect(photo.headers.get("content-type")).toBe("image/jpeg");
+    expect(photo.headers.get("cache-control")).toBe("private, no-store");
+    expect(photo.headers.get("x-content-type-options")).toBe("nosniff");
+    expect((await raceAdministratorRoute(db, get(), id, { kind: "course-setting-note-photo", noteId: "inte-ett-id" }, services, environment)).status)
+      .toBe(400);
+    const controller = new AbortController();
+    const stream = await raceAdministratorRoute(db, new Request("https://otid.example/api/admin", { signal: controller.signal,
+      headers: { cookie: `__Host-otid-organizer-session=${token}` } }), id, { kind: "course-setting-events" }, services, environment);
+    expect(stream.status).toBe(200);
+    expect(stream.headers.get("content-type")).toBe("text/event-stream; charset=utf-8");
+    const reader = stream.body!.getReader();
+    expect(new TextDecoder().decode((await reader.read()).value)).toContain("event: presence");
+    controller.abort();
+    await reader.cancel();
   });
 });

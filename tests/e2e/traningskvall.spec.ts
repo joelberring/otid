@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
-import { addCourseAndClass, addEntry, createRace, daysFromToday, openStep, publishRace, registerAccount, reviewScreenshots, sectionButton,
+import { addCourseAndClass, addEntry, createRace, daysFromToday, ongoingRaceTimeZone, openStep, publishRace, registerAccount, reviewScreenshots, sectionButton,
   sendReadout, today, unique, warmRoute } from "./helpers";
 
 /**
@@ -35,7 +35,9 @@ test("träningskväll från tävling till IOF-export", async ({ browser, request
   test.setTimeout(360_000);
   const suffix = unique();
   const owner = await registerAccount(browser, `kvall.${suffix}@exempel.se`, "Kim Klubb");
-  const raceId = await createRace(owner, `Träningskväll ${suffix}`, today(), "Träning");
+  // Avläsningarna sker nu; nära midnatt i Stockholm körs tävlingen i en tidszon där det är samma dag (som listor m.fl.).
+  const timeZone = ongoingRaceTimeZone();
+  const raceId = await createRace(owner, `Träningskväll ${suffix}`, today(new Date(), timeZone), "Träning", timeZone);
   // Besökarna ska se tävlingen (ADR-0172 beslut 4).
   await publishRace(owner);
   await addCourseAndClass(owner, "Lång", "H21", "31 32 33 34");

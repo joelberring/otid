@@ -1133,10 +1133,15 @@ ADR-0182. Görs efter steg 67. Migration 0035.
 - [x] **Inställningar för synlighet** (ADR-0182 beslut 7) med försiktiga standardvärden; aldrig indexerad.
 - [x] **Tester:** integration (behörighet via gruppen, synlighetsinställningarna, upprepning), Playwright gruppsidan.
 
-## [ ] Steg 64 – Banpåtryck och utskriftslayout
+## [x] Steg 64 – Banpåtryck och utskriftslayout
 
-- [ ] Specialobjekten (förbjudet område och väg, passage, vit bakgrund, text, bild, gräns, snitsling), tryckyta och
-  sida per bana, utskrift i annan skala än kartans, beskrivningen på kartan.
+ADR-0180 beslut 11. Kontraktet: `SpecialObject`, `PrintArea`, `OverprintPrimitive` i `types.ts` och `page-layout.ts`.
+
+- [x] Specialobjekten (förbjudet område och väg, passage, vit bakgrund, text, bild, gräns, linje, rektangel, ellips, första
+  hjälpen, vatten, konstruktion, passmärke, beskrivningen på kartan) tolkade bredvid `raw` och ritade; ändringar för dem.
+- [x] Tryckyta och sida per bana (`layoutCoursePage`), utskrift i annan skala än kartans, varianter.
+- [x] Editorn: flikarna Objekt och Utskrift, ramen på kartan, förhandsvisningen `/admin/[raceId]/course-setting/print`.
+- [x] Tester: paketet (specialobjekt, .ppen, sidor, SBN26_2), webbens lib, Playwright `banlaggning-utskrift`.
 
 ## [ ] Steg 65 – Tryck med dekorfärger och övertryck
 

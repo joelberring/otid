@@ -543,7 +543,8 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
           </div>)}
         </div>
         {field.narrow && !readOnly ? null : noteDraft ? <div className={styles.card}><NoteForm target={noteDraft} document={document} onSave={saveNote} onCancel={() => setNoteDraft(undefined)} /></div>
-          : <SelectionCard state={editor} described={describedControl} readOnly={readOnly}
+          // Rutan med vald kontroll bara med Välj: när man sätter ut kontroller eller notiser ligger den inte i vägen.
+          : editor.tool === "SELECT" && <SelectionCard state={editor} described={describedControl} readOnly={readOnly}
             onCode={(control, value) => edit(current => applySteps(current, [{ type: "SET_CONTROL_CODE", control, code: value }], applyEdit))}
             onRemoveFromCourse={() => edit(current => removeSelected(current, applyEdit, false))}
             onDelete={() => edit(current => removeSelected(current, applyEdit, true))}

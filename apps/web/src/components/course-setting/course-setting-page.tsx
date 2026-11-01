@@ -28,12 +28,24 @@ export function CourseSettingPage({ raceId }: { raceId: string }) {
   const [notice, setNotice] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [generation, setGeneration] = useState(0);
-  const load = useCallback(async () => {
+  /** Läser läget; `active` säger om svaret fortfarande gäller (en ny editor monteras för varje läsning som gäller). */
+  const load = useCallback(async (active: () => boolean = () => true) => {
     setFailed(undefined);
-    try { setState(await fetchCourseSetting(raceId)); setGeneration(value => value + 1); }
-    catch (error) { setFailed(error instanceof HttpError && (error.status === 401 || error.status === 403) ? "login" : "other"); }
+    try {
+      const fresh = await fetchCourseSetting(raceId);
+      if (!active()) return;
+      setState(fresh); setGeneration(value => value + 1);
+    } catch (error) {
+      if (active()) setFailed(error instanceof HttpError && (error.status === 401 || error.status === 403) ? "login" : "other");
+    }
   }, [raceId]);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    // Ett svar efter att effekten städats (t.ex. Reacts dubbla körning i utvecklingsläget) monterar inte om editorn: ett
+    // klick mellan de två svaren gick annars förlorat.
+    let active = true;
+    void load(() => active);
+    return () => { active = false; };
+  }, [load]);
 
   async function uploadMapFile(form: FormData): Promise<Message | undefined> {
     const csrf = readAccountCsrfCookie(document.cookie, new URL(window.location.href));

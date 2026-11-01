@@ -8,7 +8,7 @@ import { courseSettingSv as text } from "../../i18n/course-setting-sv";
 import { drawMarks, drawOverprint, drawRouteChoice } from "../../lib/course-setting-draw";
 import { MAX_RENDER_SIDE, type MapRenderSession } from "../../lib/course-setting-map-protocol";
 import {
-  bitmapPlacement, fitBounds, panBy, resize, toMap, topLeft, wheelFactor, zoomAt, type Bounds, type Viewport
+  bitmapPlacement, fitBounds, panBy, resize, toMap, topLeft, wheelAction, wheelFactor, zoomAt, type Bounds, type Viewport
 } from "../../lib/course-setting-viewport";
 import { Button } from "../ui";
 import styles from "./course-setting.module.css";
@@ -213,7 +213,8 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
     } else if (current.kind === "drag") handlers.onDragEnd();
   }
 
-  // Hjulet zoomar kring pekaren (passiv lyssnare går inte att stoppa, därför här).
+  // Mushjulet och nyp zoomar kring pekaren, två fingrar på styrplattan panorerar (`wheelAction`). Passiv lyssnare går
+  // inte att stoppa, därför här.
   useEffect(() => {
     const element = box.current;
     if (!element) return;
@@ -221,7 +222,8 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
       event.preventDefault();
       const rect = element.getBoundingClientRect();
       const at = { x: event.clientX - rect.left, y: event.clientY - rect.top };
-      setView(previous => previous ? zoomAt(previous, wheelFactor(event.deltaY, event.deltaMode), at) : previous);
+      if (wheelAction(event) === "pan") setView(previous => previous ? panBy(previous, -event.deltaX, -event.deltaY) : previous);
+      else setView(previous => previous ? zoomAt(previous, wheelFactor(event.deltaY, event.deltaMode), at) : previous);
     };
     element.addEventListener("wheel", wheel, { passive: false });
     return () => element.removeEventListener("wheel", wheel);

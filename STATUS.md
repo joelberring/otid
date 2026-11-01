@@ -5,10 +5,18 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 66 (samarbete) är klart på grenen steg66-samarbete; därefter 67 (fältläge i mobilen, ADR-0181) och 68 (träningsgrupper, ADR-0182), sist 64–65 (tryck, ADR-0180). Steg 59–63 är klara. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
+Steg 66 (samarbete) och 67 (fältläge i mobilen, grenen steg67-falt) är klara; därefter 68 (träningsgrupper, ADR-0182), sist 64–65 (tryck, ADR-0180). Steg 59–63 är klara. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
 Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbens löpare via `cachedcompetitors`, strukturen) provad mot riktiga Eventor 2026-10-19; hela landets `cachedcompetitors` och `/api/organisations` måste provas av ägaren; ROC:s sökväg för stämplingar (bara provad mot falsk ROC) och e-post via SMTP är inte provade.
 
 ## Logg
+
+### 2026-11-01 – Steg 67: fältläget i mobilen (grenen steg67-falt)
+- Kollad per kontroll i egen tabell (migration 0034 `course_setting_inspection`, PUT/GET `course-setting/inspections`), inte i dokumentet: bankontrollanten (läsa och kommentera) får bocka, en bock ger ingen version, inget förslag och ingen konflikt, en ny .ppen tar inte bort bockarna, och .ppen/banpåtryck/överföring är orörda (integrationstest). Den senaste vinner med tiden från telefonen (avbockning står kvar som rad); export ja, kopia nej. Diskret bock på kartan (orange om kontrollen flyttats efter kollen), fliken Kollat med "Ej kollade".
+- Fältraden: Kollad, Notis här (kameran öppnas direkt, `capture="environment"`; vald kontroll eller positionen), Lista, Offline. Kompassens kon (`deviceorientationabsolute`, iOS `webkitCompassHeading` med lovfrågan), Följ släpper när kartan dras, ±m och varning över 15 m. Läsa och kommentera ser raden utan flyttknapparna.
+- Utan nät: editorns osparade åtgärder (med versionen de bygger på och requestId för den som var på väg) och en kö med notiser (foton) och bockar i IndexedDB (`otid-course-setting`; ersätter localStorage-kopian), raderas först när servern svarat. Sidan öppnas ur telefonen utan nät eller utloggad; "Utan nät – N ändringar väntar", "Nätet är tillbaka: …" och avvisat i klartext; utloggad: logga in i ny flik, sidan skickar sedan (CSRF läses vid varje anrop).
+- "Spara kartan för offline" (storleken visas): kartfilen i IndexedDB (används också med nät när sha256 stämmer) och service workern `/course-setting-sw.js` med scope `/admin/<tävling>/course-setting` (bara sidan och `/_next/static/`, aldrig API eller publika sidor; avläsningens `/readout/` orörd). Workerns filer: startas via blob när sidan styrs, annars styr ingen service worker dem.
+- Verifierat: lint, typecheck, test, test:integration (100 filer, 408 tester); Playwright banlaggning-falt (ny), banlaggning-mobil, banlaggning-mobil-kartan, banlaggning, banlaggning-samarbete gröna i dev; banlaggning-falt med omladdning utan nät grön mot driftbygget bakom HTTPS lokalt och i CI (a27d58f, 65 specar). Utan nät i Playwright = `setOffline` + route som avbryter allt (setOffline gäller inte service workerns anrop); omladdningen utan nät provas bara mot driftbygget (dev-servern startar inte ur service workern).
+- Återstår: ägaren provar i terrängen (iPhone och Android: kompassen, kameran, flygplansläge och omladdning, en riktig kartfil på 20–60 MB).
 
 ### 2026-11-01 – Steg 66: samarbete i banläggningen (grenen steg66-samarbete)
 - Behörighet för banläggning per person och tävling (migration 0033 `course_setting_grant`, ändra/föreslå/läsa och kommentera), given under Inställningar → Personer som andra roller; `requireCourseSettingAccess` och tabellen `COURSE_SETTING_ROUTES` i race-roles.ts avgör alla banläggningens routes och kartfilens GET; ägare/admin har ändra, överföring och arbetssätt kräver admin. Resten av tävlingen nås inte (ingen roll på eventet). Mina tävlingar visar loppet med "Öppna banläggningen".

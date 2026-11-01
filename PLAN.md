@@ -1107,16 +1107,16 @@ ADR-0181 beslut 1–5. Görs efter steg 63.
   nerifrån under 900 px med fältläget; sidan skrollar aldrig.
 - [x] **Tester:** integration (behörighet, notiser aldrig i utdata, förslag, uppspelning), Playwright med två användare.
 
-## [ ] Steg 67 – Fältläge i mobilen (före steg 64)
+## [x] Steg 67 – Fältläge i mobilen (före steg 64)
 
 ADR-0181 beslut 6–7. Görs efter steg 66.
 
-- [ ] **Mobilvyn** av editorn: stora knappar, en hand, kartan i helskärm, vald kontroll i en ruta nertill.
-- [ ] **Egen position** ur telefonens GPS på georefererad karta, noggrannheten som cirkel; "Flytta hit" med medelvärde
+- [x] **Mobilvyn** av editorn: stora knappar, en hand, kartan i helskärm, vald kontroll i en ruta nertill.
+- [x] **Egen position** ur telefonens GPS på georefererad karta, noggrannheten som cirkel; "Flytta hit" med medelvärde
   och pilar i steg om 1 m.
-- [ ] **Snabbinmatning** av F (mått, t.ex. höjd) och G (läge: väderstreck, fot, topp …), notis med foto, "kollad".
-- [ ] **Utan täckning:** sidan och kartfilen sparas i telefonen, ändringar och notiser köas och skickas sedan.
-- [ ] **Tester:** Playwright med mobilvy och fejkad position, kö utan nät; ägaren provar i terrängen.
+- [x] **Snabbinmatning** av F (mått, t.ex. höjd) och G (läge: väderstreck, fot, topp …), notis med foto, "kollad".
+- [x] **Utan täckning:** sidan och kartfilen sparas i telefonen, ändringar och notiser köas och skickas sedan.
+- [x] **Tester:** Playwright med mobilvy och fejkad position, kö utan nät; ägaren provar i terrängen.
 
 ## [ ] Steg 68 – Träningsgrupper (före steg 64)
 

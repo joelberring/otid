@@ -40,7 +40,7 @@ inte överlappar ersätter regeln (`packages/route-choice/src/defaults.ts`):
    så rangordningen blir exakt; bara den uppskattade tiden kan fela med (upp − ned) / 2 × |Δh|. Standard
    `climbFactor` 8 (Naismith: 8,3 m per höjdmeter) och `descentFactor` 3 (Langmuir: +2,8 m per höjdmeter brant nedför;
    Tobler 2,1–3,4 vid −20 till −30 %), alltså 27,5 m per kurva med 5 m ekvidistans. Bästa vägens stigning visas som
-   hälften av de passerade höjdmetrarna.
+   hälften av de passerade höjdmetrarna. `descentFactor` är minst 0,5 (brant nedför kostar alltid något).
 2. **Lutningsfaktorn** står för framkomligheten i brant mark utan stig (upp, ned och skrå). Lutningen skattas ur
    kurvlängden per ytenhet (lådfilter med radien 20 m, en gång per rutnät): ekvidistans × längd per m². Tiden per meter i
    marken gånger 1 + `slopeFactor` × (e^(3,5·(g − 0,1)) − 1) över 10 % lutning (Toblers nedförsgren); stigar och vägar
@@ -51,6 +51,11 @@ inte överlappar ersätter regeln (`packages/route-choice/src/defaults.ts`):
 
 Kalibreringen skattar `climbFactor` (med `descentFactor` fast; upp och ned går inte att skilja utan höjder) och
 `slopeFactor` med minsta kvadrat när rutterna räcker. Alla nya inställningar är valfria fält i `RouteChoiceSettings`.
+
+På kartan (banläggningens kanvas och kontrollkartans vägvalsvy) är bästa vägen en tjock blå linje och alternativen
+streckade i var sin färg (röd, turkos, orange, vinröd; aldrig banlila eller kartans färger), alla med vit kant, och
+numrerade med tidsskillnaden ("1 · +8 %") där de ligger längst från bästa vägen. Ägarens fall (Högdalen, bana A 8–9)
+provas i `real-map.test.ts` med `OTID_SBN_DIR` mot hans .ppen; filerna committas inte.
 
 ## Risker och öppna frågor
 

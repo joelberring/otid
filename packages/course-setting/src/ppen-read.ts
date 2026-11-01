@@ -208,6 +208,22 @@ function readEvent(element: XmlElement, warnings: Warnings): CourseSettingDocume
   return { title, mapScale, overprintStandard, descriptionStandard, numbering, raw: sortChildren("event", raw, rawName) };
 }
 
+type TextLines = { descriptionTextBefore?: string; descriptionTextAfter?: string };
+
+/**
+ * Textrad före/efter i beskrivningen (EventDB.cs, description-text-line). Bara den enkla formen tolkas; annat (tom text,
+ * okänt läge, fler attribut, en andra rad på samma plats) sparas orört.
+ */
+function textLine(element: XmlElement, lines: TextLines): boolean {
+  const location = attr(element, "location");
+  const text = textOf(element);
+  if (element.attrs.length !== 1 || childElements(element).length > 0 || text === "") return false;
+  const key = location === "before" ? "descriptionTextBefore" : location === "after" ? "descriptionTextAfter" : undefined;
+  if (key === undefined || lines[key] !== undefined) return false;
+  lines[key] = text;
+  return true;
+}
+
 function readControl(element: XmlElement, warnings: Warnings): ControlPoint {
   const id = parseIdText(attr(element, "id"), "control");
   const kindText = required(element, "kind");
@@ -222,6 +238,7 @@ function readControl(element: XmlElement, warnings: Warnings): ControlPoint {
   let code: string | undefined;
   let at: Point = { x: 0, y: 0 };
   const descriptions: DescriptionBox[] = [];
+  const textLines: TextLines = {};
   const circleGaps: CircleGap[] = [];
   const newScales = new Set<number | null>();
   const oldGaps: { scale: number | null; text: string }[] = [];
@@ -270,6 +287,9 @@ function readControl(element: XmlElement, warnings: Warnings): ControlPoint {
         raw.push(toRaw(child));
         break;
       }
+      case "description-text-line":
+        if (!textLine(child, textLines)) raw.push(toRaw(child));
+        break;
       default: raw.push(toRaw(child));
     }
   }
@@ -283,6 +303,7 @@ function readControl(element: XmlElement, warnings: Warnings): ControlPoint {
   }
   return {
     id, kind, at, descriptions,
+    ...textLines,
     ...(code !== undefined ? { code } : {}),
     ...(orientation !== undefined ? { orientation } : {}),
     ...(circleGaps.length > 0 ? { circleGaps } : {}),
@@ -406,6 +427,7 @@ function readCourseControl(element: XmlElement): { courseControl: CourseControl;
   if (self) raw.push(self);
   let next: string | undefined;
   const branches: string[] = [];
+  const textLines: TextLines = {};
   let numberDelta: Point | undefined;
   for (const child of childElements(element)) {
     switch (child.name) {
@@ -425,6 +447,9 @@ function readCourseControl(element: XmlElement): { courseControl: CourseControl;
         if (rest) raw.push(rest);
         break;
       }
+      case "description-text-line":
+        if (!textLine(child, textLines)) raw.push(toRaw(child));
+        break;
       default: raw.push(toRaw(child));
     }
   }
@@ -435,6 +460,7 @@ function readCourseControl(element: XmlElement): { courseControl: CourseControl;
     ...(next !== undefined ? { next } : {}),
     ...(splitKind ? { split: { kind: splitKind, branches, end: end! } } : {}),
     ...(points !== 0 ? { points } : {}),
+    ...textLines,
     ...(raw.length > 0 ? { raw: sortChildren("course-control", raw, rawName) } : {})
   };
   return numberDelta ? { courseControl, numberDelta } : { courseControl };

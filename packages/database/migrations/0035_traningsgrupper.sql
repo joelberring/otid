@@ -88,8 +88,16 @@ CREATE TABLE IF NOT EXISTS training_group_request (
     CONSTRAINT training_group_request_kind_check CHECK (kind IN ('SESSIONS'))
 );
 
-ALTER TABLE event ADD COLUMN IF NOT EXISTS training_group_id uuid REFERENCES training_group(id);
-ALTER TABLE event ADD COLUMN IF NOT EXISTS training_group_series_id uuid REFERENCES training_group_series(id);
+ALTER TABLE event ADD COLUMN IF NOT EXISTS training_group_id uuid;
+ALTER TABLE event ADD COLUMN IF NOT EXISTS training_group_series_id uuid;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'event_training_group_id_fkey') THEN
+    ALTER TABLE event ADD CONSTRAINT event_training_group_id_fkey FOREIGN KEY (training_group_id) REFERENCES training_group(id);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'event_training_group_series_id_fkey') THEN
+    ALTER TABLE event ADD CONSTRAINT event_training_group_series_id_fkey FOREIGN KEY (training_group_series_id) REFERENCES training_group_series(id);
+  END IF;
+END $$;
 CREATE INDEX IF NOT EXISTS event_training_group_idx ON event (training_group_id);
 
 -- Kartbiblioteket (beslut 4): kartbilden med georeferens (som race_map), kartfilen (som race_map_source) och banläggningen

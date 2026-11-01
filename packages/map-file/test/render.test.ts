@@ -1,29 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  drawMap, mmToPixel, offsetPolyline, pixelToMm, placementsAlong, preferredPxPerMm, renderSize, type MapCanvasContext, type MapColor,
-  type MapObject, type MapSymbol, type ParsedMap
+  drawMap, mmToPixel, offsetPolyline, pixelToMm, placementsAlong, preferredPxPerMm, renderSize, type MapColor, type MapObject,
+  type MapSymbol, type ParsedMap
 } from "../src";
-
-/** En falsk canvas som spelar in anropen och de egenskaper som sätts. */
-type Call = { op: string; args: unknown[]; state: Record<string, unknown> };
-function fakeContext(width = 400, height = 300) {
-  const calls: Call[] = [];
-  const state: Record<string, unknown> = {};
-  const stack: Record<string, unknown>[] = [];
-  const record = (op: string) => (...args: unknown[]) => { calls.push({ op, args, state: { ...state } }); };
-  const handler: ProxyHandler<Record<string, unknown>> = {
-    get(_target, key: string) {
-      if (key === "canvas") return { width, height };
-      if (key === "save") return () => { stack.push({ ...state }); calls.push({ op: "save", args: [], state: { ...state } }); };
-      if (key === "restore") return () => { Object.assign(state, stack.pop() ?? {}); calls.push({ op: "restore", args: [], state: { ...state } }); };
-      if (key === "setLineDash") return (dash: number[]) => { state.lineDash = dash; };
-      if (key in state) return state[key];
-      return record(key);
-    },
-    set(_target, key: string, value) { state[key] = value; return true; }
-  };
-  return { ctx: new Proxy({}, handler) as unknown as MapCanvasContext, calls };
-}
+import { fakeContext, type Call } from "./fake-canvas";
 
 const color = (id: number, rank: number, rgb: [number, number, number], opacity = 1): MapColor =>
   ({ id, name: `Färg ${id}`, rank, cmyk: { c: 0, m: 0, y: 0, k: 0 }, rgb: { r: rgb[0], g: rgb[1], b: rgb[2] }, opacity });

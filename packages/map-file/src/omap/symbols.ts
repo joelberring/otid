@@ -90,7 +90,7 @@ function joinOf(node: XmlNode | undefined): StrokeStyle["join"] {
   }
 }
 
-function lineSymbol(line: XmlNode | undefined): Pick<LineSymbol, "strokes" | "repeated"> {
+function lineSymbol(line: XmlNode | undefined): Pick<LineSymbol, "strokes" | "repeated" | "corner" | "start" | "end"> {
   const strokes: StrokeStyle[] = [];
   const width = num(line, "line_width", 0) * UM;
   const main = color(line, "color");
@@ -117,10 +117,52 @@ function lineSymbol(line: XmlNode | undefined): Pick<LineSymbol, "strokes" | "re
     const sides = borders.length === 1 ? [offset, -offset] : [index === 0 ? offset : -offset];
     for (const side of sides) strokes.push({ color: borderColor, width: borderWidth, offset: side, join });
   });
-  const mid = child(child(line, "mid_symbol"), "symbol");
-  const spacing = num(line, "segment_length", 0) * UM;
-  const elements = mid ? pointElements(child(mid, "point_symbol")) : [];
-  return { strokes, repeated: elements.length > 0 && spacing > 0 ? { elements, spacing } : undefined };
+  const part = (name: string) => {
+    const symbol = child(child(line, name), "symbol");
+    return symbol ? pointElements(child(symbol, "point_symbol")) : [];
+  };
+  const dash = part("dash_symbol");
+  const start = part("start_symbol");
+  const end = part("end_symbol");
+  return {
+    strokes,
+    repeated: midSymbols(line, part("mid_symbol")),
+    corner: dash.length > 0
+      ? { elements: dash, stretch: attr(line, "scale_dash_symbol") !== "false", skipEnds: bool(line, "suppress_dash_symbol_at_ends") }
+      : undefined,
+    start: start.length > 0 ? { elements: start } : undefined,
+    end: end.length > 0 ? { elements: end } : undefined
+  };
+}
+
+/**
+ * Mappers mittsymboler. Heldragen linje: var `segment_length` med `end_length` från ändarna. Streckad linje: i mitten av
+ * strecken (placering 0 och 1) eller av mellanrummen (2). `mid_symbols_per_spot` symboler `mid_symbol_distance` isär.
+ */
+function midSymbols(line: XmlNode | undefined, elements: PointElement[]): LineSymbol["repeated"] {
+  if (elements.length === 0) return undefined;
+  const placement = num(line, "mid_symbol_placement", 0);
+  if (placement < 0 || placement > 2) return undefined;
+  const count = Math.max(1, num(line, "mid_symbols_per_spot", 1));
+  const groupSpacing = Math.max(0, num(line, "mid_symbol_distance", 0) * UM);
+  const group = { elements, count, groupSpacing };
+  if (bool(line, "dashed")) {
+    const dashes = Math.max(1, num(line, "dashes_in_group", 1));
+    const dashLength = num(line, "dash_length", 4000) * UM * dashes + num(line, "in_group_break_length", 500) * UM * (dashes - 1);
+    const gap = num(line, "break_length", 1000) * UM;
+    const first = bool(line, "half_outer_dashes") ? dashLength / 2 : dashLength;
+    if (!(dashLength + gap > 0)) return undefined;
+    return { ...group, spacing: dashLength + gap, endLength: placement === 2 ? first + gap / 2 : first / 2, minimum: 1 };
+  }
+  const segment = num(line, "segment_length", 0) * UM;
+  const spread = (count - 1) * groupSpacing;
+  return {
+    ...group,
+    // Utan avstånd blir det en symbol per del (mitt på, eller minst en).
+    spacing: segment + spread > 0 ? segment + spread : 1e6,
+    endLength: num(line, "end_length", 0) * UM + spread / 2,
+    minimum: bool(line, "show_at_least_one_symbol") ? 1 : 0
+  };
 }
 
 /**

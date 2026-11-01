@@ -14,7 +14,7 @@ const OMAP = `<?xml version="1.0" encoding="UTF-8"?>
 <colors count="4">
 <color priority="0" name="Lila" c="0.35" m="0.85" y="0" k="0" opacity="1"><spotcolors knockout="true"><component factor="1" spotcolor="3"/></spotcolors><cmyk method="spotcolor"/><rgb method="cmyk" r="0.65" g="0.15" b="1"/></color>
 <color priority="1" name="Svart" c="0" m="0" y="0" k="1" opacity="1"><cmyk method="custom"/><rgb method="cmyk" r="0" g="0" b="0"/></color>
-<color priority="2" name="Gul &amp; grön" c="0" m="0.27" y="0.79" k="0" opacity="0.5"><cmyk method="custom"/><rgb method="cmyk" r="1" g="0.73" b="0.21"/></color>
+<color priority="2" name="Gul &amp; grön" c="0" m="0.27" y="0.79" k="0" opacity="0.5"><cmyk method="custom"/><rgb method="custom" r="1" g="0.8" b="0.2"/></color>
 <color priority="3" name="Purple" c="0.35" m="0.85" y="0" k="0" opacity="1"><spotcolors><namedcolor>Purple</namedcolor></spotcolors><cmyk method="custom"/><rgb method="cmyk" r="0.65" g="0.15" b="1"/></color>
 </colors>
 <barrier version="6" required="0.6.0">
@@ -55,7 +55,9 @@ describe("Mapper-läsaren", () => {
     const { colors } = read();
     expect(colors.map(color => [color.id, color.rank, color.name])).toEqual([[0, 0, "Lila"], [1, 1, "Svart"], [2, 2, "Gul & grön"], [3, 3, "Purple"]]);
     expect(colors[0]!.cmyk).toEqual({ c: 0.35, m: 0.85, y: 0, k: 0 });
-    expect(colors[0]!.rgb).toEqual({ r: 0.65, g: 0.15, b: 1 });
+    // Mappers RGB är räknad naivt ur CMYK (method="cmyk") och ersätts av tryckfärgen; egen RGB (method="custom") behålls.
+    expect(colors[0]!.rgb).toEqual({ r: 171 / 255, g: 74 / 255, b: 156 / 255 });
+    expect(colors[2]!.rgb).toEqual({ r: 1, g: 0.8, b: 0.2 });
     expect(colors[0]!.spot).toEqual({ name: "Purple", overprint: false });
     expect(colors[1]!.spot).toBeUndefined();
     expect(colors[2]!.opacity).toBe(0.5);

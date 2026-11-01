@@ -1,7 +1,9 @@
-import type {
-  AreaSymbol, HatchStyle, LineSymbol, MapColor, MapObject, MapSymbol, ParsedMap, Path, Point, PointElement, StrokeStyle, TextSymbol
+import {
+  GAP, type AreaSymbol, type HatchStyle, type LineSymbol, type MapColor, type MapObject, type MapSymbol, type ParsedMap, type Path,
+  type Point, type PointElement, type StrokeStyle, type TextSymbol
 } from "../model";
-import { flattenPath, offsetPolyline, pathsBox, placementsAlong, type Polyline } from "./geometry";
+import { lineDecorations, type Placement } from "./along";
+import { closeRing, flattenPath, offsetPolyline, pathsBox, withoutGaps, type Polyline } from "./geometry";
 
 /**
  * Steg 59 (ADR-0179 beslut 2): kartan ritad för skärmen (inte för tryck) på en canvas i webbläsaren. Bara typerna för
@@ -29,7 +31,7 @@ export interface DrawMapReport {
 
 /** Högst så många mönsterpunkter per yta; fler ritas som tonad yta (skärmen blir ändå en jämn ton). */
 export const MAX_PATTERN_INSTANCES = 20_000;
-/** Högst så många upprepade punktsymboler per linje. */
+/** Högst så många punktsymboler av ett slag per linje. */
 const MAX_REPEATS = 20_000;
 const DEGREES = Math.PI / 180;
 
@@ -97,10 +99,11 @@ function drawElement(ctx: MapCanvasContext, element: PointElement, color: MapCol
   }
 }
 
-function placed(ctx: MapCanvasContext, at: Point, angleRadians: number, draw: () => void) {
+function placed(ctx: MapCanvasContext, at: Point, angleRadians: number, draw: () => void, stretch = 1) {
   ctx.save();
   ctx.translate(at.x, at.y);
   if (angleRadians !== 0) ctx.rotate(angleRadians);
+  if (stretch !== 1) ctx.scale(1, stretch);
   draw();
   ctx.restore();
 }
@@ -135,8 +138,11 @@ function planPoint(plan: Plan, elements: readonly PointElement[], at: Point, ang
   }
 }
 
-function planStroke(plan: Plan, stroke: StrokeStyle, paths: readonly Path[]) {
+/** Ett streck längs vägarna, utan luckorna för dess sida (vänster eller höger kantlinje, annars huvudlinjen). */
+function planStroke(plan: Plan, stroke: StrokeStyle, input: readonly Path[]) {
   if (!(stroke.width > 0)) return;
+  const bit = stroke.offset && stroke.offset > 0 ? GAP.left : stroke.offset && stroke.offset < 0 ? GAP.right : GAP.main;
+  const paths = input.map(path => withoutGaps(path, bit));
   plan.add(stroke.color, (ctx, color) => {
     ctx.beginPath();
     if (stroke.offset) tracePolylines(ctx, paths.flatMap(path => flattenPath(path).map(line => offsetPolyline(line, stroke.offset!))));
@@ -146,19 +152,22 @@ function planStroke(plan: Plan, stroke: StrokeStyle, paths: readonly Path[]) {
   });
 }
 
+/** Linjens streck och dess punktsymboler (upprepade, i hörnen, i början och i slutet). */
 function planLine(plan: Plan, symbol: LineSymbol, paths: readonly Path[]) {
   for (const stroke of symbol.strokes) planStroke(plan, stroke, paths);
-  const repeated = symbol.repeated;
-  if (!repeated || repeated.elements.length === 0) return;
-  const spacing = repeated.spacing > 0 ? repeated.spacing : 0;
-  let places = paths.flatMap(path => flattenPath(path).flatMap(line => placementsAlong(line, spacing)));
-  if (places.length > MAX_REPEATS) {
-    places = places.slice(0, MAX_REPEATS);
-    plan.simplifications.add(`Upprepade tecken längs ${symbol.code.text} ritas bara delvis`);
+  if (!symbol.repeated && !symbol.between && !symbol.corner && !symbol.start && !symbol.end) return;
+  for (const { elements, places } of lineDecorations(symbol, paths, MAX_REPEATS)) {
+    if (places.length >= MAX_REPEATS) plan.simplifications.add(`Upprepade tecken längs ${symbol.code.text} ritas bara delvis`);
+    planPlacements(plan, elements, places);
   }
-  for (const [colorId, parts] of elementsByColor(repeated.elements)) {
+}
+
+function planPlacements(plan: Plan, elements: readonly PointElement[], places: readonly Placement[]) {
+  for (const [colorId, parts] of elementsByColor(elements)) {
     plan.add(colorId, (ctx, color) => {
-      for (const place of places) placed(ctx, place.at, place.angle, () => { for (const part of parts) drawElement(ctx, part, color); });
+      for (const place of places) {
+        placed(ctx, place.at, place.angle, () => { for (const part of parts) drawElement(ctx, part, color); }, place.stretch);
+      }
     });
   }
 }
@@ -251,7 +260,10 @@ function planArea(plan: Plan, symbol: AreaSymbol, rings: readonly Path[], angleD
       }
     }
   }
-  if (symbol.border) for (const stroke of symbol.border) planStroke(plan, stroke, rings);
+  if (symbol.border) {
+    const closed = rings.map(closeRing);
+    for (const stroke of symbol.border) planStroke(plan, stroke, closed);
+  }
 }
 
 function planText(plan: Plan, symbol: TextSymbol, object: Extract<MapObject, { kind: "text" }>, options: DrawMapOptions) {
@@ -299,7 +311,7 @@ function planObject(plan: Plan, map: ParsedMap, object: MapObject, options: Draw
         break;
       case "area":
         if (symbol.kind === "AREA") { planArea(plan, symbol, object.rings, object.angle); parts += 1; }
-        else if (symbol.kind === "LINE") { planLine(plan, symbol, object.rings); parts += 1; }
+        else if (symbol.kind === "LINE") { planLine(plan, symbol, object.rings.map(closeRing)); parts += 1; }
         break;
       case "text":
         if (symbol.kind === "TEXT") { planText(plan, symbol, object, options); parts += 1; }

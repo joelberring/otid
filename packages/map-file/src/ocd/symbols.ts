@@ -4,7 +4,9 @@ import type { AreaSymbol, HatchStyle, LineSymbol, MapSymbol, PointElement, Strok
 import type { WarningCollector } from "../warnings";
 import { indexBlocks, type Bytes } from "./bytes";
 import { coordsToParts, readCoords } from "./coords";
-import { AREA, ELEMENT, ELEMENT_TYPE, LINE, POINT, RECTANGLE, SYMBOL, SYMBOL_BLOCK_SIZE, SYMBOL_TYPE, TEXT, UNIT } from "./layout";
+import {
+  AREA, ELEMENT, ELEMENT_TYPE, LINE, LINE_SYMBOL_FLAG, POINT, RECTANGLE, SYMBOL, SYMBOL_BLOCK_SIZE, SYMBOL_TYPE, TEXT, UNIT
+} from "./layout";
 
 const MAX_SYMBOLS = 100_000;
 const MAX_SYMBOL_BYTES = 1 << 20;
@@ -145,7 +147,9 @@ function styleOf(style: number): Pick<StrokeStyle, "cap" | "join"> {
   }
 }
 
-function lineSymbol(bytes: Bytes, at: number, end: number, warnings: WarningCollector): Pick<LineSymbol, "strokes" | "repeated"> {
+function lineSymbol(
+  bytes: Bytes, at: number, end: number, warnings: WarningCollector
+): Pick<LineSymbol, "strokes" | "repeated" | "between" | "corner" | "start" | "end"> {
   const strokes: StrokeStyle[] = [];
   const style = styleOf(bytes.u16(at + LINE.style));
   const framingWidth = bytes.i16(at + LINE.framingWidth) * UNIT;
@@ -179,15 +183,47 @@ function lineSymbol(bytes: Bytes, at: number, end: number, warnings: WarningColl
     strokes.push({ color: bytes.u16(at + LINE.color), width, ...style, dash });
   }
 
-  const primaryWords = bytes.u16(at + LINE.primaryDataSize);
-  const symbolCount = bytes.i16(at + LINE.symbolCount);
-  let repeated: LineSymbol["repeated"];
-  if (primaryWords > 0 && symbolCount > 0) {
-    const elements = readElements(bytes, at + LINE.elements, primaryWords, end, warnings);
-    const spacing = bytes.i16(at + LINE.mainLength) * UNIT;
-    if (elements.length > 0 && spacing > 0) repeated = { elements, spacing };
-  }
-  return { strokes, repeated };
+  return { strokes, ...lineDecorations(bytes, at, end, warnings) };
+}
+
+/**
+ * Linjesymbolens punktsymboler. Elementen ligger efter varandra: primär, sekundär, hörn, start och slut, var och en
+ * med sin storlek i enheter om 8 byte. Sekundär-, hörn-, start- och slutsymbolen används bara när flaggan är satt.
+ *
+ * Primärsymbolen ligger i mitten av streckens mellanrum (eller med strecklängdens avstånd när linjen inte är streckad),
+ * första och sista slutlängden in från ändarna; `symbolCount` symboler per ställe med `symbolDistance` emellan.
+ */
+function lineDecorations(bytes: Bytes, at: number, end: number, warnings: WarningCollector): Pick<LineSymbol, "repeated" | "between" | "corner" | "start" | "end"> {
+  const flags = bytes.u8(at + LINE.useSymbolFlags);
+  const sizes = [LINE.primaryDataSize, LINE.secondaryDataSize, LINE.cornerDataSize, LINE.startDataSize, LINE.endDataSize]
+    .map(offset => bytes.u16(at + offset));
+  let position = at + LINE.elements;
+  const groups = sizes.map(words => {
+    const elements = words > 0 ? readElements(bytes, position, words, end, warnings) : [];
+    position += words * 8;
+    return elements;
+  });
+  const [primary, secondary, corner, start, finish] = groups as [PointElement[], PointElement[], PointElement[], PointElement[], PointElement[]];
+  const mainLength = bytes.i16(at + LINE.mainLength) * UNIT;
+  const mainGap = Math.max(0, bytes.i16(at + LINE.mainGap) * UNIT);
+  const spacing = mainLength + mainGap;
+  const count = bytes.i16(at + LINE.symbolCount);
+  const along = {
+    spacing,
+    endLength: Math.max(0, bytes.i16(at + LINE.endLength) * UNIT) + mainGap / 2,
+    // OCAD lägger alltid minst en symbol, även när filen säger noll.
+    minimum: Math.max(1, bytes.i16(at + LINE.minimumSymbols) + 1)
+  };
+  const use = (elements: PointElement[], flag: number) => elements.length > 0 && (flags & flag) !== 0;
+  return {
+    repeated: primary.length > 0 && count > 0 && spacing > 0
+      ? { elements: primary, ...along, count, groupSpacing: Math.max(0, bytes.i16(at + LINE.symbolDistance) * UNIT) }
+      : undefined,
+    between: use(secondary, LINE_SYMBOL_FLAG.secondary) && spacing > 0 ? { elements: secondary, ...along } : undefined,
+    corner: use(corner, LINE_SYMBOL_FLAG.corner) ? { elements: corner, stretch: true } : undefined,
+    start: use(start, LINE_SYMBOL_FLAG.start) ? { elements: start } : undefined,
+    end: use(finish, LINE_SYMBOL_FLAG.end) ? { elements: finish } : undefined
+  };
 }
 
 function areaSymbol(bytes: Bytes, at: number, end: number, warnings: WarningCollector): Pick<AreaSymbol, "fill" | "hatches" | "pattern"> {

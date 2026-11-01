@@ -53,11 +53,24 @@ export type PointElement =
 
 export interface Point { readonly x: number; readonly y: number }
 
+/**
+ * Punktens och sträckans flaggor ur filen (sätts bara när de gäller):
+ * - `corner`: hörnpunkt i OCAD eller streckpunkt i Mapper. Linjens hörnsymbol (t.ex. kraftledningens stolpe) ritas här
+ *   och mönstret längs linjen börjar om.
+ * - `dash`: OCAD:s streckpunkt. Mönstret börjar om men ingen hörnsymbol ritas.
+ * - `gap`: sträckan fram till punkten ritas inte för huvudlinjen (`GAP.main`), vänster (`GAP.left`) eller höger
+ *   (`GAP.right`) kantlinje, som OCAD:s luckor i en linje (t.ex. där vägkanter möts i en korsning). På en dels första
+ *   punkt (M) gäller `gap` sträckan som stänger en yta (från sista punkten tillbaka till den första).
+ */
+interface PointFlags { readonly corner?: true; readonly dash?: true; readonly gap?: number }
+
+export const GAP = { main: 1, left: 2, right: 4 } as const;
+
 /** En väg: flyttning, raka linjer och kubiska bézierkurvor, i mm med y uppåt. */
 export type PathCommand =
-  | { readonly type: "M"; readonly x: number; readonly y: number }
-  | { readonly type: "L"; readonly x: number; readonly y: number }
-  | { readonly type: "C"; readonly x1: number; readonly y1: number; readonly x2: number; readonly y2: number; readonly x: number; readonly y: number };
+  | { readonly type: "M"; readonly x: number; readonly y: number } & PointFlags
+  | { readonly type: "L"; readonly x: number; readonly y: number } & PointFlags
+  | { readonly type: "C"; readonly x1: number; readonly y1: number; readonly x2: number; readonly y2: number; readonly x: number; readonly y: number } & PointFlags;
 export type Path = readonly PathCommand[];
 
 interface SymbolBase {
@@ -70,11 +83,46 @@ interface SymbolBase {
 
 export interface PointSymbol extends SymbolBase { readonly kind: "POINT"; readonly elements: readonly PointElement[] }
 
+/**
+ * Punktsymbol som upprepas längs linjen (taggar på brant, prickar på mur, streck på staket). Mått i mm.
+ *
+ * Linjen delas i hörn- och streckpunkterna. På varje del ligger första och sista stället `endLength` från ändarna och
+ * resten med avståndet `spacing`, justerat så att det går jämnt ut (som OCAD och Mapper). Utan `endLength` ligger första
+ * stället ett halvt avstånd in. `count` symboler per ställe, `groupSpacing` isär (t.ex. två prickar på opasserbar mur).
+ * `minimum` ställen läggs alltid på den längsta delen.
+ */
+export interface RepeatedSymbol {
+  readonly elements: readonly PointElement[];
+  readonly spacing: number;
+  readonly endLength?: number | undefined;
+  readonly count?: number | undefined;
+  readonly groupSpacing?: number | undefined;
+  readonly minimum?: number | undefined;
+}
+
+/** Punktsymbol i linjens hörn (OCAD:s hörnsymbol, Mappers strecksymbol), t.ex. kraftledningens stolpar. */
+export interface CornerSymbol {
+  readonly elements: readonly PointElement[];
+  /** Symbolen sträcks på tvären i spetsiga hörn (högst 3 gånger), så att tvärstrecket når över båda linjerna. */
+  readonly stretch: boolean;
+  /** Ritas inte i linjens första och sista punkt. */
+  readonly skipEnds?: boolean | undefined;
+}
+
+/**
+ * Punktsymbolerna i en linjesymbol ritas med x-axeln i linjens riktning (y åt vänster). Hörnsymbolen ligger längs
+ * bisektrisen.
+ */
 export interface LineSymbol extends SymbolBase {
   readonly kind: "LINE";
   readonly strokes: readonly StrokeStyle[];
-  /** Punktsymbol som upprepas längs linjen (t.ex. taggar på brant), med avstånd i mm. */
-  readonly repeated?: { readonly elements: readonly PointElement[]; readonly spacing: number } | undefined;
+  readonly repeated?: RepeatedSymbol | undefined;
+  /** OCAD:s sekundärsymbol: mitt emellan ställena som `repeated` skulle få med samma mått (en symbol per mellanrum). */
+  readonly between?: RepeatedSymbol | undefined;
+  readonly corner?: CornerSymbol | undefined;
+  /** Symbol i linjens början och slut (t.ex. brons vingar). */
+  readonly start?: { readonly elements: readonly PointElement[] } | undefined;
+  readonly end?: { readonly elements: readonly PointElement[] } | undefined;
 }
 
 /** Linjemönster (raster) i en yta. Mått i mm, vinkel i grader moturs från x-axeln. */

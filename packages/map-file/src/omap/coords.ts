@@ -1,11 +1,13 @@
 /**
  * Mappers koordinater: heltal i 0,001 mm med y nedåt, som text "x y flaggor;". Flaggor: 1 = kurvan börjar här (de två
- * följande punkterna är styrpunkter), 2 = stängningspunkt, 16 = sista punkten i en del (nästa punkt börjar ett hål).
+ * följande punkterna är styrpunkter), 2 = stängningspunkt, 16 = sista punkten i en del (nästa punkt börjar ett hål),
+ * 32 = streckpunkt (linjens strecksymbol ritas här, t.ex. kraftledningens stolpe).
  */
 import type { Path, PathCommand } from "../model";
 
 const CURVE_START = 1;
 const HOLE_POINT = 16;
+const DASH_POINT = 32;
 
 /** Tolkar "x y f;x y;…" i `text[start, end)` till trippel (x, y, flaggor). Null om texten inte är koordinater. */
 export function parseCoordText(text: string, start: number, end: number): number[] | null {
@@ -45,17 +47,18 @@ export function coordsToParts(triples: readonly number[]): Path[] {
   const px = (i: number) => triples[3 * i]! / 1000;
   const py = (i: number) => (0 - triples[3 * i + 1]!) / 1000;
   const flag = (i: number) => triples[3 * i + 2]!;
+  const mark = (i: number) => ((flag(i) & DASH_POINT) !== 0 ? { corner: true as const } : {});
   const parts: Path[] = [];
   let i = 0;
   while (i < n) {
-    const commands: PathCommand[] = [{ type: "M", x: px(i), y: py(i) }];
+    const commands: PathCommand[] = [{ type: "M", x: px(i), y: py(i), ...mark(i) }];
     for (;;) {
       if (i >= n - 1 || (flag(i) & HOLE_POINT) !== 0) { i++; break; }
       if ((flag(i) & CURVE_START) !== 0 && i + 3 < n) {
-        commands.push({ type: "C", x1: px(i + 1), y1: py(i + 1), x2: px(i + 2), y2: py(i + 2), x: px(i + 3), y: py(i + 3) });
+        commands.push({ type: "C", x1: px(i + 1), y1: py(i + 1), x2: px(i + 2), y2: py(i + 2), x: px(i + 3), y: py(i + 3), ...mark(i + 3) });
         i += 3;
       } else {
-        commands.push({ type: "L", x: px(i + 1), y: py(i + 1) });
+        commands.push({ type: "L", x: px(i + 1), y: py(i + 1), ...mark(i + 1) });
         i += 1;
       }
     }

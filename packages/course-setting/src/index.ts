@@ -24,6 +24,11 @@ export * from "./description-types";
 export { CONTROL_DISTANCE_LIMITS } from "./check";
 export { OVERPRINT_SIZES } from "./appearance";
 export { INVERTIBLE_CODES } from "./summary";
+// Steg 66: flera som arbetar samtidigt (åtgärder som spelas upp på en nyare version, ångra med PUT_OBJECTS).
+export {
+  createdIdsBetween, documentChanges, editTouches, EMPTY_ID_MAP, NO_CREATED_IDS, objectPatch, remapEdit, replayEdits, touchedConflict,
+  touchesOverlap, type CreatedIds, type IdMap, type ReplayedEdit, type ReplayOptions, type ReplayRejection, type ReplayResult
+} from "./collaboration";
 
 /** Läs en Purple Pen-fil (.ppen, XML). Kastar `CourseSettingEditError("INVALID")` om filen inte är en .ppen. */
 export function readPpen(xml: string): { readonly document: CourseSettingDocument; readonly warnings: readonly PpenReadWarning[] } { return readPpenDocument(xml); }

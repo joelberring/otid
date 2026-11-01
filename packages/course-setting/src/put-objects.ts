@@ -1,0 +1,59 @@
+/**
+ * Steg 66 (ADR-0181 beslut 4): `PUT_OBJECTS` sätter hela objekt per id. Används för ångra och gör om när flera ändrar
+ * samtidigt: bara de objekt som ett steg ändrade sätts tillbaka. Efteråt kontrolleras att allt pekar på det som finns.
+ */
+import { legKey } from "./ppen-common";
+import type { CourseSettingDocument, PutObjectsEdit } from "./types";
+import { CourseSettingEditError } from "./types";
+
+const invalid = (message: string) => new CourseSettingEditError("INVALID", message);
+const gone = () => invalid("Ändringen går inte längre: något den bygger på har ändrats eller tagits bort");
+
+function put<T extends { readonly id: string }>(target: Record<string, T>, changes: Readonly<Record<string, T | null>> | undefined, what: string) {
+  for (const [id, value] of Object.entries(changes ?? {})) {
+    if (value === null) { delete target[id]; continue; }
+    if (typeof value !== "object" || value.id !== id) throw invalid(`${what} ${id} har fel id`);
+    target[id] = value;
+  }
+}
+
+/** Sätter objekten och kontrollerar att banornas kontroller, banorna, sträckorna och specialobjekten pekar rätt. */
+export function putObjects(document: CourseSettingDocument, edit: PutObjectsEdit): CourseSettingDocument {
+  const controls = { ...document.controls };
+  const courseControls = { ...document.courseControls };
+  const legs = { ...document.legs };
+  put(controls, edit.controls, "Kontrollen");
+  put(courseControls, edit.courseControls, "Banans kontroll");
+  for (const [key, value] of Object.entries(edit.legs ?? {})) {
+    if (value === null) { delete legs[key]; continue; }
+    if (typeof value !== "object" || legKey(value.from, value.to) !== key) throw invalid(`Sträckan ${key} har fel nyckel`);
+    legs[key] = value;
+  }
+  let courses = [...document.courses];
+  for (const [id, value] of Object.entries(edit.courses ?? {})) {
+    if (value !== null && (typeof value !== "object" || value.id !== id)) throw invalid(`Banan ${id} har fel id`);
+    const index = courses.findIndex(course => course.id === id);
+    if (value === null) courses = courses.filter(course => course.id !== id);
+    else if (index >= 0) courses[index] = value;
+    else courses.push(value);
+  }
+  let specialObjects = [...document.specialObjects];
+  for (const [id, value] of Object.entries(edit.specialObjects ?? {})) {
+    if (value !== null && (typeof value !== "object" || value.id !== id)) throw invalid(`Specialobjektet ${id} har fel id`);
+    const index = specialObjects.findIndex(special => special.id === id);
+    if (value === null) specialObjects = specialObjects.filter(special => special.id !== id);
+    else if (index >= 0) specialObjects[index] = value;
+    else specialObjects.push(value);
+  }
+  const has = (id: string | undefined) => id === undefined || courseControls[id] !== undefined;
+  for (const item of Object.values(courseControls)) {
+    if (!controls[item.control] || !has(item.next)) throw gone();
+    if (item.split && (!has(item.split.end) || item.split.branches.some(branch => !has(branch)))) throw gone();
+  }
+  if (courses.some(course => !has(course.first))) throw gone();
+  if (new Set(courses.map(course => course.id)).size !== courses.length) throw invalid("Två banor med samma id");
+  if (Object.values(legs).some(leg => !controls[leg.from] || !controls[leg.to])) throw gone();
+  const courseIds = new Set(courses.map(course => course.id));
+  if (specialObjects.some(special => special.courses.some(course => !courseIds.has(course)))) throw gone();
+  return { ...document, event: edit.event ?? document.event, controls, courseControls, courses, legs, specialObjects };
+}

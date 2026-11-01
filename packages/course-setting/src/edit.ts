@@ -11,6 +11,7 @@ import type {
   CircleGap, ControlPoint, Course, CourseControl, CourseSettingDocument, CourseSettingEdit, DescriptionBox, EditResult, Leg, RawXml
 } from "./types";
 import { CourseSettingEditError } from "./types";
+import { putObjects } from "./put-objects";
 import { enumerateCourseControls, findCourse } from "./walk";
 import { el } from "./xml";
 
@@ -396,6 +397,7 @@ function validDescription(current: ControlPoint, boxes: readonly DescriptionBox[
 
 /** Gör en ändring. */
 export function applyDocumentEdit(document: CourseSettingDocument, edit: CourseSettingEdit): EditResult {
+  if (edit.type === "PUT_OBJECTS") return { document: putObjects(document, edit) };
   const draft = draftOf(document);
   let created: string | undefined;
   switch (edit.type) {

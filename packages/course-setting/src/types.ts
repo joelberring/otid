@@ -197,7 +197,24 @@ export type CourseSettingEdit =
   | { readonly type: "SET_CIRCLE_GAPS"; readonly control: string; readonly gaps: readonly CircleGap[] }
   | { readonly type: "SET_EVENT"; readonly changes: Partial<Pick<CourseSettingDocument["event"], "title" | "mapScale" | "overprintStandard" | "descriptionStandard" | "numbering" | "descriptionLanguage">> }
   /** Steg 63: kontrollbeskrivningen. */
-  | DescriptionEdit;
+  | DescriptionEdit
+  /** Steg 66: sätt (eller ta bort, null) hela objekt per id – ångra och gör om när flera arbetar samtidigt. */
+  | PutObjectsEdit;
+
+/**
+ * Steg 66 (ADR-0181 beslut 4): objekten som de ska vara efter ändringen, per id (null = finns inte). Ångra i en editor där
+ * andra också ändrar sätter tillbaka bara de objekt som steget ändrade (`objectPatch`), så att andras ändringar står kvar.
+ * Efteråt måste banornas kontroller, banorna och sträckorna peka på det som finns, annars `INVALID`.
+ */
+export interface PutObjectsEdit {
+  readonly type: "PUT_OBJECTS";
+  readonly controls?: Readonly<Record<string, ControlPoint | null>> | undefined;
+  readonly courseControls?: Readonly<Record<string, CourseControl | null>> | undefined;
+  readonly courses?: Readonly<Record<string, Course | null>> | undefined;
+  readonly legs?: Readonly<Record<string, Leg | null>> | undefined;
+  readonly specialObjects?: Readonly<Record<string, SpecialObject | null>> | undefined;
+  readonly event?: CourseSettingDocument["event"] | undefined;
+}
 
 export interface EditResult {
   readonly document: CourseSettingDocument;

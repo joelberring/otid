@@ -12,7 +12,7 @@ import {
 import type { CourseSettingDocument } from "@o-tid/course-setting";
 import { HttpStatusError } from "./course-setting-sync";
 import { readAccountCsrfCookie } from "./organizer-account-cookies";
-import { fetchWithRetry } from "./retrying-fetch";
+import { fetchUntilReached, fetchWithRetry } from "./retrying-fetch";
 export type SaveOutcome<C> = { readonly kind: "saved"; readonly version: number } | { readonly kind: "conflict"; readonly conflict: C }
   | { readonly kind: "too-large" };
 
@@ -33,7 +33,8 @@ export class HttpError extends Error {
   constructor(readonly status: number) { super(String(status)); }
 }
 
-const write = (raceId: string, path: string, method: string, body: unknown) => fetch(`${base(raceId)}${path}`, { method,
+/** Skrivningarna: ett svar som aldrig nådde routen (utvecklingsserverns 404-sida) skickas om (`fetchUntilReached`). */
+const write = (raceId: string, path: string, method: string, body: unknown) => fetchUntilReached(`${base(raceId)}${path}`, { method,
   credentials: "same-origin", headers: { "content-type": "application/json", "x-otid-csrf": csrf() }, body: JSON.stringify(body) });
 
 export async function fetchCourseSetting(raceId: string, signal?: AbortSignal): Promise<CourseSettingState> {

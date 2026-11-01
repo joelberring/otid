@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { createRace, openStep, registerAccount, reviewScreenshots, today, unique, warmRoute } from "./helpers";
+import { createRace, openStep, registerAccount, reviewScreenshots, today, unique, warmCourseSetting } from "./helpers";
 
 /**
  * Steg 62 (ADR-0180): banläggningen i webben. Kartfilen och en .ppen (Purple Pen) laddas upp på sidan, banan syns, en
@@ -35,7 +35,7 @@ test("banläggning: .ppen in, flytta, ny bana med klick, ångra, sparat efter om
   const owner = await registerAccount(browser, `banlaggning.${suffix}@exempel.se`, "Bea Banläggare");
   const raceId = await createRace(owner, `Banläggning ${suffix}`, today(), "Tävling");
   const admin = `/api/admin/races/${raceId}/administrator`;
-  for (const path of ["course-setting", "map/source", "route-choice"]) await warmRoute(owner, `${admin}/${path}`);
+  await warmCourseSetting(owner, raceId);
 
   // Länken från Banor.
   await owner.goto(`/admin/${raceId}/manage`);
@@ -59,6 +59,8 @@ test("banläggning: .ppen in, flytta, ny bana med klick, ångra, sparat efter om
   await expect(map).toBeVisible();
   await expect(owner.getByText("Läser kartfilen …")).toHaveCount(0, { timeout: 30_000 });
   await expect(owner.getByTestId("course-setting-course").filter({ hasText: "Lång" })).toContainText("6 kontroller");
+  // Steg 66: arbetsytan fyller fönstret och sidan skrollar inte.
+  expect(await owner.evaluate(() => document.scrollingElement!.scrollHeight <= window.innerHeight + 1)).toBe(true);
   await reviewScreenshots(owner, "banlaggning-inlast");
 
   // Flytta kontroll 32 (42, 61 mm) 5 mm åt höger med musen.
@@ -77,9 +79,11 @@ test("banläggning: .ppen in, flytta, ny bana med klick, ångra, sparat efter om
   const legFrom = await screenOf(map, 76, 52), legTo = await screenOf(map, 92, 48);
   await owner.mouse.click((legFrom.x + legTo.x) / 2, (legFrom.y + legTo.y) / 2);
   await expect(owner.getByTestId("course-setting-selected")).toHaveText("Sträckan kontroll 33–kontroll 34");
+  await owner.getByRole("tab", { name: "Vald" }).click();
   await expect(owner.getByTestId("course-setting-leg").getByText(/Fågelväg/)).toBeVisible({ timeout: 60_000 });
 
   // Ny bana med tre kontroller, byggd med klick.
+  await owner.getByRole("tab", { name: "Banor" }).click();
   await owner.getByLabel("Namn på ny bana").fill("Kort");
   await owner.getByRole("button", { name: "Ny bana" }).click();
   const short = owner.getByRole("img", { name: "Karta med banpåtryck: Kort" });
@@ -112,8 +116,10 @@ test("banläggning: .ppen in, flytta, ny bana med klick, ångra, sparat efter om
   expect(Object.values(state.setting.document.controls).filter(control => control.kind === "NORMAL").map(control => control.code).sort())
     .toEqual(["31", "32", "33", "34", "35", "36", "37", "38", "39", "40"]);
 
-  // Överför till tävlingen: banfilens förhandsvisning och godkännandet.
-  await owner.getByRole("button", { name: "Överför till tävlingen" }).click();
+  // Överför till tävlingen (Fil-menyn): banfilens förhandsvisning och godkännandet.
+  await owner.getByRole("button", { name: /^Fil/ }).click();
+  await owner.getByRole("menuitem", { name: "Överför till tävlingen …" }).click();
+  await owner.getByRole("dialog").getByRole("button", { name: "Överför till tävlingen" }).click();
   const review = owner.getByRole("region", { name: /Banläggningen, version \d+/ });
   await expect(review.getByText("Kort", { exact: true })).toBeVisible();
   await review.getByRole("button", { name: /^Godkänn \d+ ändring/ }).click();

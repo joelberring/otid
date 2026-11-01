@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { canRetry, fetchWithRetry } from "./retrying-fetch";
+import { canRetry, fetchUntilReached, fetchWithRetry, neverReachedRoute } from "./retrying-fetch";
 
 const ok = () => new Response("{}", { status: 200 });
 const post = (headers: Record<string, string>, body: unknown) =>
@@ -47,5 +47,22 @@ describe("automatiska omförsök", () => {
     const aborted = vi.fn<typeof fetch>().mockRejectedValue(new TypeError("aborted"));
     await expect(fetchWithRetry("/x", { signal: controller.signal }, { delays: [0, 0], fetchImpl: aborted })).rejects.toBeInstanceOf(TypeError);
     expect(aborted).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("steg 66: utvecklingsserverns 404 som aldrig nådde routen", () => {
+  it("skickar om en POST som fick Next egen 404-sida, men inte appens 404 (JSON)", async () => {
+    const page = () => new Response("<html>404</html>", { status: 404, headers: { "content-type": "text/html; charset=utf-8" } });
+    const app = () => new Response(JSON.stringify({ error: "NOT_FOUND" }), { status: 404, headers: { "content-type": "application/json" } });
+    expect(neverReachedRoute(page())).toBe(true);
+    expect(neverReachedRoute(app())).toBe(false);
+    const responses = [page(), new Response(null, { status: 204 })];
+    const fetchImpl = vi.fn(async () => responses.shift()!);
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    expect((await fetchUntilReached("/x", { method: "POST" }, { delays: [0], fetchImpl })).status).toBe(204);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    const once = vi.fn(async () => app());
+    expect((await fetchUntilReached("/x", { method: "POST" }, { delays: [0], fetchImpl: once })).status).toBe(404);
+    expect(once).toHaveBeenCalledTimes(1);
   });
 });

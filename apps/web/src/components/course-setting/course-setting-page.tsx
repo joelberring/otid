@@ -8,6 +8,7 @@ import { courseSettingSv as text } from "../../i18n/course-setting-sv";
 import { raceMapSv } from "../../i18n/race-map-sv";
 import { courseSettingBase, fetchCourseSetting, HttpError, importCourseSetting, saveCourseSetting } from "../../lib/course-setting-api";
 import { readAccountCsrfCookie } from "../../lib/organizer-account-cookies";
+import { fetchUntilReached } from "../../lib/retrying-fetch";
 import { MapFileUpload } from "../race-administrator/map-file-upload";
 import type { Message } from "../race-administrator/source-sync-actions";
 import { Button, Notice } from "../ui";
@@ -37,7 +38,7 @@ export function CourseSettingPage({ raceId }: { raceId: string }) {
     const csrf = readAccountCsrfCookie(document.cookie, new URL(window.location.href));
     if (!csrf) return { tone: "error", text: raceMapSv.mapFile.failed };
     try {
-      const response = await fetch(`${courseSettingBase(raceId)}/map/source`, { method: "POST", credentials: "same-origin",
+      const response = await fetchUntilReached(`${courseSettingBase(raceId)}/map/source`, { method: "POST", credentials: "same-origin",
         headers: { "x-otid-csrf": csrf }, body: form });
       // Samma besked som i Karta och vägval: 422 säger vad som är fel med filen, annat är ett fel vid sparandet.
       if (response.status === 422) {
@@ -46,7 +47,7 @@ export function CourseSettingPage({ raceId }: { raceId: string }) {
           : problem === "IMAGE_TOO_LARGE" ? raceMapSv.mapFile.errors.TOO_LARGE : raceMapSv.mapFile.invalid };
       }
       if (!response.ok) {
-        console.error("Kartfilen sparades inte", response.status);
+        console.error("Kartfilen sparades inte", response.status, response.headers.get("content-type"));
         return { tone: "error", text: raceMapSv.mapFile.failed };
       }
       await load();

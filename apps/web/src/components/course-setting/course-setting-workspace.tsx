@@ -54,10 +54,10 @@ export function TopBar({ raceId, document, summaries, view, variant, onView, sta
     <span className={`${styles.access} ${styles.wide}`}>{access}</span>
     {presence && <span className={`${styles.presence} ${styles.wide}`} data-testid="course-setting-presence">{presence}</span>}
     <span className={styles.spacer} />
-    <Button variant="secondary" onClick={onUndo} disabled={!canUndo} title={text.tools.withKey(text.tools.undo, "Ctrl+Z")}>
-      <span aria-hidden="true">↶</span> <span className={styles.wide}>{text.tools.undo}</span><span className={styles.srOnlyNarrow}>{text.tools.undo}</span></Button>
-    <Button variant="secondary" onClick={onRedo} disabled={!canRedo} title={text.tools.withKey(text.tools.redo, "Ctrl+Shift+Z")}>
-      <span aria-hidden="true">↷</span> <span className={styles.wide}>{text.tools.redo}</span><span className={styles.srOnlyNarrow}>{text.tools.redo}</span></Button>
+    <Button variant="secondary" onClick={onUndo} disabled={!canUndo} title={text.tools.withKey(text.tools.undo, "Ctrl+Z")} aria-label={text.tools.undo}>
+      <span aria-hidden="true">↶<span className={styles.wide}> {text.tools.undo}</span></span></Button>
+    <Button variant="secondary" onClick={onRedo} disabled={!canRedo} title={text.tools.withKey(text.tools.redo, "Ctrl+Shift+Z")} aria-label={text.tools.redo}>
+      <span aria-hidden="true">↷<span className={styles.wide}> {text.tools.redo}</span></span></Button>
     <div className={styles.menu} ref={menuRef}>
       <Button variant="secondary" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(value => !value)}>{copy.topbar.file} ▾</Button>
       {open && <div role="menu" className={styles.menuList}>

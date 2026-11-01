@@ -156,6 +156,20 @@ export async function warmRoute(page: Page, path: string, method: "GET" | "POST"
   await page.request.fetch(path, { method, failOnStatusCode: false, timeout: 120_000 });
 }
 
+/**
+ * Steg 66: banläggningens routes kompileras i förväg i utvecklingsservern (annars tar första sparningen eller notisen
+ * 10–20 s och sparstatusen hinner inte bli "Sparat"). Strömmen (`course-setting/events`) är öppen tills den stängs och
+ * kompileras när editorn öppnar den.
+ */
+export async function warmCourseSetting(page: Page, raceId: string): Promise<void> {
+  const admin = `/api/admin/races/${raceId}/administrator`;
+  for (const path of ["course-setting", "map/source", "route-choice", "course-setting/notes", "course-setting/suggestions"]) {
+    await warmRoute(page, `${admin}/${path}`);
+  }
+  for (const path of ["course-setting/import", "course-setting/edits", "course-setting/notes", "course-setting/transfer"]) await warmRoute(page, `${admin}/${path}`, "POST");
+  await warmRoute(page, `/admin/${raceId}/course-setting`);
+}
+
 /** Delarna i sidopanelen; vilka som finns avgörs av tävlingstypen (ADR-0170). */
 export type SectionName = "Banor" | "Banor & klasser" | "Kontroller & poäng" | "Klasser" | "Klasser & sträckor" | "Anmälda" | "Deltagare" |
   "Lag" | "Start" | "Publicera" | "Avläsning" | "Resultat" | "Fest" | "Inställningar";

@@ -22,7 +22,7 @@
 .inline { display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-sm); }
 .spacer { flex: 1 1 auto; min-width: 4px; }
 .access, .presence { color: var(--muted); font-size: var(--text-sm); white-space: nowrap; }
-.srOnly, .srOnlyNarrow { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .menu { position: relative; }
 .menuList { position: fixed; z-index: 30; display: grid; min-width: 220px; margin-top: 4px; padding: 4px; border: 1px solid var(--line-strong);
   background: var(--surface); box-shadow: 0 6px 20px rgba(0, 0, 0, .18); }
@@ -163,7 +163,6 @@
  */
 @media (max-width: 900px) {
   .wide { display: none; }
-  .srOnlyNarrow { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
   .stage { grid-template-columns: minmax(0, 1fr); }
   .drawer, .drawer[data-collapsed] { position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; display: grid; grid-template-columns: 1fr;
     grid-template-rows: 18px auto 0; width: auto; max-height: 50px; border-top: 1px solid var(--line-strong); border-left: none;

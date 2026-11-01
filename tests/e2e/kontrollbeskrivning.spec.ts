@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
-import { createRace, registerAccount, reviewScreenshots, today, unique, warmRoute } from "./helpers";
+import { createRace, registerAccount, reviewScreenshots, today, unique, warmCourseSetting } from "./helpers";
 
 /**
  * Steg 63 (ADR-0180): kontrollbeskrivningarna. Kartfilen och en .ppen läses in, banans beskrivning syns bredvid kartan,
@@ -19,7 +19,7 @@ test("kontrollbeskrivning: symbol i D och text i F, sparad efter omladdning och 
   const owner = await registerAccount(browser, `beskrivning.${suffix}@exempel.se`, "Bo Beskrivare");
   const raceId = await createRace(owner, `Beskrivning ${suffix}`, today(), "Tävling");
   const admin = `/api/admin/races/${raceId}/administrator`;
-  for (const path of ["course-setting", "map/source", "route-choice"]) await warmRoute(owner, `${admin}/${path}`);
+  await warmCourseSetting(owner, raceId);
 
   await owner.goto(`/admin/${raceId}/course-setting`);
   await owner.getByLabel("Kartfil (.ocd, .omap eller .xmap, högst 60 MB)").setInputFiles(fixture("maps/kartfil.omap"));
@@ -30,6 +30,7 @@ test("kontrollbeskrivning: symbol i D och text i F, sparad efter omladdning och 
   await owner.getByTestId("course-setting-course").filter({ hasText: "Lång" }).click();
 
   // Banans beskrivning bredvid kartan; .ppen har en symbol i D på kontroll 31.
+  await owner.getByRole("tab", { name: "Beskrivning" }).click();
   const panel = owner.getByTestId("description-panel");
   const description = panel.getByRole("group", { name: "Kontrollbeskrivning: Lång" });
   await expect(description).toBeVisible();
@@ -68,6 +69,7 @@ test("kontrollbeskrivning: symbol i D och text i F, sparad efter omladdning och 
   // Ladda om: sparat i dokumentet och i panelen.
   await owner.reload();
   await owner.getByTestId("course-setting-course").filter({ hasText: "Lång" }).click();
+  await owner.getByRole("tab", { name: "Beskrivning" }).click();
   await expect(description.getByRole("button", { name: /^kontroll 33, ruta D: / })).toBeVisible();
   await expect(description.locator(`[data-symbol="${SYMBOL.id}"][data-ref="${ref}"]`)).toBeVisible();
   await expect(description.getByRole("button", { name: "kontroll 33, ruta F: 2m" })).toBeVisible();

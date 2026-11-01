@@ -91,7 +91,7 @@ export const courseSettingSv = {
     saving: "Sparar …",
     pending: "Ändrat – sparas strax",
     conflict: "Konflikt – någon annan har ändrat",
-    failed: "Kunde inte spara – försöker igen",
+    failed: "Inte sparat – försöker igen",
     tooLarge: "Banläggningen är för stor för att sparas.",
     reload: "Ladda om",
     conflictHelp: (name: string | null, time: string) =>

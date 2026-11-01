@@ -1,0 +1,50 @@
+/* Fältläget (första versionen): knapparna på kartan, raden nertill på smal skärm och bladet "Uppgifter". */
+
+.big { min-width: 44px; min-height: 44px; padding: 0 12px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
+  font-size: 1rem; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.big:hover:not(:disabled) { background: var(--surface); border-color: var(--ink); }
+.big[aria-pressed="true"], .big[data-mode="on"], .big[data-mode="follow"] { border-color: rgb(26, 115, 232); background: rgb(232, 240, 254);
+  color: rgb(13, 71, 161); box-shadow: inset 0 0 0 1px rgb(26, 115, 232); }
+.big[data-primary="true"] { border-color: var(--ink); background: var(--ink); color: var(--surface); }
+.big[data-primary="true"]:hover:not(:disabled) { background: #000; }
+.icon { font-size: 1.4rem; line-height: 1; }
+.small { font-size: var(--text-sm); }
+
+.line { margin: 0; padding: 4px 8px; background: var(--surface); font-size: var(--text-sm); border-left: 4px solid rgb(26, 115, 232); }
+.line[data-problem="true"] { border-left-color: var(--danger, #b00020); font-weight: 600; }
+
+/* Bred skärm: knapparna uppe till vänster på kartan. */
+.tools { position: absolute; top: 8px; left: 8px; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 4px; max-width: calc(100% - 72px); }
+.toolLines { display: grid; gap: 2px; flex-basis: 100%; max-width: 360px; }
+.arrows { display: inline-flex; gap: 4px; }
+
+.notice { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--attention, #b26a00); border-left-width: 6px; background: var(--surface); }
+.row { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* Smal skärm: kartan på hela skärmen, raden nertill. */
+.shell { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; background: var(--surface, #fff); }
+.shellMap { position: relative; flex: 1 1 auto; min-height: 0; }
+.shellMap > div { display: block; height: 100%; }
+.shellMap > div > div:first-child { height: 100%; }
+.shellMap [data-testid="course-setting-map"] { height: 100%; min-height: 0; border: 0; }
+
+.bar { display: grid; gap: 6px; padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line-strong);
+  background: var(--surface); }
+.barHead { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; }
+.status { padding: 2px 8px; border: 1px solid var(--line-strong); border-radius: 999px; font-size: var(--text-sm); white-space: nowrap; }
+.status[data-status="failed"], .status[data-status="conflict"], .status[data-status="too-large"] { border-color: var(--danger, #b00020);
+  color: var(--danger, #b00020); font-weight: 700; }
+.barRow { display: flex; gap: 6px; }
+.barRow > * { flex: 1 1 0; }
+.barRow .arrows { flex: 3 1 0; }
+.barRow .arrows > * { flex: 1 1 0; }
+
+.sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 110; display: grid; gap: 10px; max-height: 85vh; overflow-y: auto;
+  padding: 12px 12px calc(12px + env(safe-area-inset-bottom, 0px)); border-top: 2px solid var(--ink); background: var(--surface);
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.2); }
+.sheet h2 { margin: 0; font-size: var(--text-md, 1rem); }
+.field { display: grid; gap: 4px; font-weight: 600; }
+.field input { min-height: 44px; font-size: 1.1rem; padding: 0 10px; }
+.fieldset { margin: 0; padding: 0; border: 0; display: grid; gap: 4px; }
+.fieldset legend { padding: 0 0 4px; font-weight: 600; }
+.grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }

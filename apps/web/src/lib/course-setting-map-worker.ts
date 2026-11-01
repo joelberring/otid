@@ -60,7 +60,7 @@ self.onmessage = (event: MessageEvent<MapRenderRequest>) => {
   try {
     map = readMapFile(new Uint8Array(request.bytes), request.fileName);
     if (!map.bounds || map.objects.length === 0) { post({ type: "error", code: "EMPTY" }); return; }
-    post({ type: "loaded", bounds: map.bounds, scale: map.scale });
+    post({ type: "loaded", bounds: map.bounds, scale: map.scale, georeference: map.georeference });
   } catch (error) {
     // Ett läsfel är ett begripligt besked till arrangören; allt annat loggas i webbläsarens konsol.
     if (error instanceof MapFileError) post({ type: "error", code: error.code });

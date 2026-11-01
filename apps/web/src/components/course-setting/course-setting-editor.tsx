@@ -6,6 +6,7 @@ import type { CourseSettingConflict, CourseSettingState } from "@o-tid/contracts
 import {
   applyEdit, checkDocument, courseControlOrder, courseSummaries, describeControl, layoutOverprint, nextFreeCode, type CourseSettingDocument, type OverprintPrimitive
 } from "@o-tid/course-setting";
+import type { MapGeoreference } from "@o-tid/map-file";
 import type { LegAnalysis, RouteChoiceSettings } from "@o-tid/route-choice";
 import { courseSettingSv as text } from "../../i18n/course-setting-sv";
 import { Autosaver, type AutosaveStatus } from "../../lib/course-setting-autosave";
@@ -25,6 +26,7 @@ import { fetchMapSource, fetchRouteChoice } from "../../lib/route-choice-api";
 import { RouteChoiceSession } from "../../lib/route-choice-client";
 import { Button, Notice } from "../ui";
 import { CircleCuttingPanel, useDetailGaps } from "./course-setting-circle-cutting";
+import { FieldShell, useFieldMode } from "./course-setting-field";
 import { FilePanel, type ReadFile } from "./course-setting-file";
 import { DescriptionPanel } from "./course-setting-description";
 import { CourseSettingMap, type CourseSettingMapHandle, type MapPointerHandlers } from "./course-setting-map";
@@ -74,6 +76,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
   const [mapSession, setMapSession] = useState<MapRenderSession>();
   const [mapBounds, setMapBounds] = useState<Bounds | undefined>(state.mapFile?.bounds);
   const [mapStatus, setMapStatus] = useState<"none" | "reading" | "ready" | "failed">(state.mapFile ? "reading" : "none");
+  const [georeference, setGeoreference] = useState<MapGeoreference | null>();
   const routes = useRef<RouteChoiceSession | undefined>(undefined);
   const [routeReady, setRouteReady] = useState(false);
   useEffect(() => {
@@ -86,7 +89,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
         const [file, settings] = await Promise.all([fetchMapSource(raceId, controller.signal),
           fetchRouteChoice(raceId, controller.signal).then(value => value.settings as RouteChoiceSettings, () => ({ version: 1 }) as RouteChoiceSettings)]);
         if (closed) return;
-        session = new MapRenderSession(createMapWorker, bounds => { if (!closed) { setMapBounds(bounds); setMapStatus("ready"); } },
+        session = new MapRenderSession(createMapWorker, (bounds, _scale, georef) => { if (!closed) { setMapBounds(bounds); setGeoreference(georef); setMapStatus("ready"); } },
           () => { if (!closed) setMapStatus("failed"); });
         session.load(file.bytes.slice(0), file.fileName);
         setMapSession(session);
@@ -281,6 +284,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
   const statusText = status === "conflict" ? text.status.conflict : status === "too-large" ? text.status.tooLarge : text.status[status];
   const conflictTime = conflict?.current ? new Date(conflict.current.updatedAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" }) : "";
   const label = text.map(course?.name ?? text.courses.all);
+  const field = useFieldMode({ raceId, state: editor, apply, georeference, mapBounds, status, statusText, version: () => saver.currentVersion });
   return <>
     <div className={styles.head}>
       <p role="status" aria-live="polite" className={styles.status} data-status={status} data-testid="course-setting-status">{statusText}</p>
@@ -291,12 +295,13 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
       <p>{message.text}</p>
       {message.warnings && message.warnings.length > 0 && <><p>{text.file.warnings}</p><ul>{message.warnings.map(row => <li key={row}>{row}</li>)}</ul></>}
     </Notice>}
+    {field.notice}
     {mapStatus === "reading" && <p role="status" className={styles.muted}>{text.readingMap}</p>}
     {mapStatus === "failed" && <Notice tone="attention">{text.mapFailed}</Notice>}
-    <div className={styles.workspace}>
+    <FieldShell narrow={field.narrow} bar={field.bar}><div className={styles.workspace}>
       <CourseSettingMap session={mapSession} mapBounds={mapBounds} primitives={primitives} faded={faded} marks={marks} analysis={analysis}
-        label={label} cursor={CURSOR[editor.tool]} handlers={handlers} handle={mapHandle} />
-      <div className={styles.side}>
+        label={label} cursor={CURSOR[editor.tool]} handlers={handlers} handle={mapHandle} position={field.position} tools={field.narrow ? undefined : field.tools} />
+      <div className={styles.side} style={field.narrow ? { display: "none" } : undefined}>
         <CourseList document={document} summaries={summaries} view={view} variant={variant} onView={(next, code) => apply(state => setView(state, next, code))}
           onAdd={addCourse}
           onRename={(id, name) => apply(state => applySteps(state, [{ type: "UPDATE_COURSE", course: id, changes: { name } }], applyEdit))}
@@ -334,6 +339,6 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
         <FilePanel raceId={raceId} document={document} original={state.original} busy={busy} onImport={onImport} onRestore={onRestore} />
         <TransferPanel raceId={raceId} ready={status !== "conflict" && !busy} flush={flush} version={() => saver.currentVersion} />
       </div>
-    </div>
+    </div></FieldShell>
   </>;
 }

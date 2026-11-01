@@ -5,7 +5,7 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 66 (samarbete) är nästa; därefter 67 (fältläge i mobilen, ADR-0181), sist 64–65 (tryck, ADR-0180). Steg 59–62 är klara. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
+Steg 66 (samarbete) pågår; därefter 67 (fältläge i mobilen, ADR-0181) och 68 (träningsgrupper, ADR-0182), sist 64–65 (tryck, ADR-0180). Steg 59–63 är klara. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
 Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbens löpare via `cachedcompetitors`, strukturen) provad mot riktiga Eventor 2026-10-19; hela landets `cachedcompetitors` och `/api/organisations` måste provas av ägaren; ROC:s sökväg för stämplingar (bara provad mot falsk ROC) och e-post via SMTP är inte provade.
 
 ## Logg
@@ -14,6 +14,11 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Valbart i `event.circleCutting` (skrivs inte till .ppen): överlapp (bågen inne i den andra ringen bort, kraftig överlappning behåller en hel ring, högst hälften) och detaljer (`detailCircleGaps` över kartfilen, symboltabell ISOM 2017-2/ISSprOM 2019-2, högst en fjärdedel, inte vid sträckorna).
 - Webben: kartans Worker räknar detaljgapen (ca 30–60 ms för SBN26 på Högdalen, 200 ringar ~40 ms); kryssrutorna och "Gör klippen fasta (för Purple Pen)" (SET_CIRCLE_GAPS) i egen komponent.
 - Verifierat: paketets och webbens lint/typecheck/test; ägarens karta i test med `OTID_REAL_MAP`/`OTID_REAL_MAP_PPEN`; före/efter-bilder granskade.
+
+### 2026-11-01 – Fältläget, snabbversion (grenen faltlage-snabb; hela fältläget är steg 67)
+- Min position (WGS 84 → kartans mm med kartfilens georeferens, som kartans Worker nu skickar med), Flytta hit (medel under 5 s, avvikare > 2 × medianen kastas), pilar 1 m; under 700 px kartan på hela skärmen med stora knappar och "Uppgifter" (F, G). Permissions-Policy `geolocation=(self)` på `/admin/:raceId/course-setting`.
+- Osparade ändringar ligger i localStorage tills servern sparat och erbjuds vid nästa öppning; statusen säger "Inte sparat – försöker igen". Logiken i `lib/course-setting-field.ts` och `-geo.ts` med enhetstester.
+- Verifierat: lint, typecheck, test; Playwright banlaggning-mobil (390 × 844, fejkad position, nätfel och återställning) och banlaggning gröna. Inte provat på en riktig telefon i skogen.
 
 ### 2026-11-01 – Steg 63: kontrollbeskrivningar (paketet steg63-paket, webben steg63-webb, ihopslagna i main)
 - Paketet: symbolerna ur Purple Pens `symbols.xml` (201, 2004 och 2018, sv/en/nb/fi/de; 20 kB gzip), `layoutDescription` och `describeControl` som Purple Pen (11 + 13 jämförelser tecken för tecken), SET_DESCRIPTION/…_TEXT_LINE.

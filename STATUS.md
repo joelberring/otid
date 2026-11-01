@@ -5,7 +5,7 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 66 (samarbete) pågår; därefter 67 (fältläge i mobilen, ADR-0181) och 68 (träningsgrupper, ADR-0182), sist 64–65 (tryck, ADR-0180). Steg 59–63 är klara. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
+Steg 66 (samarbete) är klart på grenen steg66-samarbete; därefter 67 (fältläge i mobilen, ADR-0181) och 68 (träningsgrupper, ADR-0182), sist 64–65 (tryck, ADR-0180). Steg 59–63 är klara. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
 Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbens löpare via `cachedcompetitors`, strukturen) provad mot riktiga Eventor 2026-10-19; hela landets `cachedcompetitors` och `/api/organisations` måste provas av ägaren; ROC:s sökväg för stämplingar (bara provad mot falsk ROC) och e-post via SMTP är inte provade.
 
 ## Logg
@@ -15,9 +15,10 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Åtgärder i stället för hela dokument (`POST course-setting/edits`): paketets `replayEdits` (tillägg i `packages/course-setting`, med `PUT_OBJECTS` för ångra) spelar upp på aktuell version, översätter nya id, avvisar det som någon annan ändrat sedan (`course_setting_change`, den första vinner) och det som bygger på avvisade; samma requestId ger samma svar. Editorn ombaserar osparade åtgärder och ångra-historiken (`lib/course-setting-sync.ts`).
 - Notiser (`course_setting_note`, svar, öppen/klar, foto ≤ 2 MB förminskat i webbläsaren) på punkt, kontroll, sträcka eller bana; markeringar som går att dölja; aldrig i banpåtryck, beskrivning, .ppen eller överföring (integrationstest jämför utdata). Förslag (`course_setting_suggestion`): förslagsläge för den som föreslår, granskning streckad ovanpå banan, godkänn helt/delvis eller avböj. Arbetssätt (Huvudbanläggare/Gemensamt) i lådans Inställningar.
 - Ström per tävling (`course-setting/events`, SSE): ny version, notiser, förslag, arbetssätt och närvaro. Ett nav i processen utan databasfrågor (allt inloggat går till `web`, ADR-0177), så avläsningen påverkas inte.
-- Arbetsytan i helskärm (ägarens önskemål): smal rad överst (banväljare, sparstatus, ångra/gör om, Fil-meny, helskärm), flytande verktygsrad med kortetiketter och tangenter, zoom i hörnet, vald kontroll i en ruta på kartan, låda med flikar (fäll ihop, dra bredd, varje flik skrollar), blad nerifrån under 900 px; handmarkör och piltangenter på kartan; vägvalens alternativ som lista (klick markerar linjen).
+- Arbetsytan i helskärm (ägarens önskemål): smal rad överst (banväljare, sparstatus, ångra/gör om, Fil-meny, helskärm), verktygsrad med ikoner och tangenter, låda med flikar (fäll ihop, dra bredd, varje flik skrollar), blad nerifrån under 900 px med fältläget (på 390 px namnet bara på vald flik), kryss i vald kontroll; rutan med vald kontroll bara med Välj (annars hamnade klick på den); vägvalens alternativ som lista (klick markerar linjen).
 - Sidouppdraget (404 på POST map/source i dev): anropet nådde aldrig routen – Next (Turbopack) svarade med sin 404-sida och loggade "Failed to find Server Action" medan den kompilerade annat. Gick inte att framkalla med curl. Klienten skickar nu om en sådan 404 (inte appens JSON-404) och specarna förvärmer banläggningens routes.
-VERIFIERAT_PLATS
+- Verifierat: lint, typecheck, test, test:integration (99 filer, 407 tester; migrationen är 0033 efter main:s 0032_tomt_loppnamn), Playwright banlaggning-samarbete (två–tre användare, skärmbilder 1440×900 och 390×844 granskade), banlaggning, banlaggning-mobil, banlaggning-mobil-kartan, kontrollbeskrivning, kartfil, vagval-analys; CI grönt på 7afb4b1. Utvecklingslägets dubbla laddning monterade om editorn (ett klick försvann); rättat.
+- Återstår: inte provat av ägaren med flera personer på riktigt; foton bara provade i tester.
 
 ### 2026-11-01 – Tomt loppnamn (gren tomt-loppnamn)
 - Etapp/lopp är valfritt på riktigt: tomt sparas som "" (inte "Lopp 1") vid skapande, i Inställningar och vid kopiering; kontrakten tar emot och tål tomt.

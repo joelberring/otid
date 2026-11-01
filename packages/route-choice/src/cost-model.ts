@@ -8,7 +8,7 @@ import {
   BRIDGEABLE_SYMBOLS, classForCode, CONTOUR_SYMBOLS, crossingForCode, CROSSING_SYMBOLS, FORM_LINE_SYMBOLS, isTrackSymbol, resolveSettings,
   type ResolvedSettings, type RunnableClass
 } from "./defaults";
-import type { CostModel, RouteChoiceSettings, SpeedClass } from "./types";
+import type { CostModel, RouteBarriers, RouteChoiceSettings, SpeedClass } from "./types";
 
 /**
  * Lager i rutnätet: AREA = vegetation och mark (långsammaste vinner), TRACK = vägar och stigar (snabbt lager ovanpå),
@@ -242,4 +242,27 @@ export function buildCostModel(map: ParsedMap, settings?: RouteChoiceSettings | 
 function isTextSymbol(map: ParsedMap, code: string): boolean {
   for (const symbol of map.symbols.values()) if (symbol.code.text === code) return symbol.kind === "TEXT";
   return false;
+}
+
+/**
+ * Steg 64: modellen med banläggningens spärrar och öppningar (`RouteBarriers`) som egna objekt: ytor och linjer i lagret
+ * BLOCK (ej passerbart, som kartans 709/520), öppningarna i lagret CROSSING (som 710/519). Rastreras i samma rutnät som
+ * kartans symboler; kartans egna objekt ändras inte.
+ */
+export function withBarriers(model: PreparedModel, barriers: RouteBarriers | undefined): PreparedModel {
+  if (!barriers) return model;
+  const extra: Feature[] = [];
+  for (const ring of barriers.areas ?? []) {
+    if (ring.length < 3) continue;
+    const polygons = [[closeRing([...ring])]];
+    extra.push({ layer: "BLOCK", cls: "NORMAL", polygons, lines: [], radius: 0, box: boxOf(polygons, [], 0) });
+  }
+  for (const [layer, list] of [["BLOCK", barriers.lines ?? []], ["CROSSING", barriers.openings ?? []]] as const) {
+    for (const line of list) {
+      if (line.points.length === 0) continue;
+      const radius = Math.max(0, line.widthMm / 2);
+      extra.push({ layer, cls: "NORMAL", polygons: [], lines: [line.points], radius, box: boxOf([], [line.points], radius) });
+    }
+  }
+  return extra.length === 0 ? model : { ...model, features: [...model.features, ...extra] };
 }

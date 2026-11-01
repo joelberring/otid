@@ -266,7 +266,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
   const [highlighted, setHighlighted] = useState<number>();
   const legCourseControls = useMemo(() => view === ALL_CONTROLS ? [] : safely("Banans kontroller",
     () => courseControlOrder(document, view, variant), [] as readonly string[]), [document, view, variant]);
-  const input = selection?.kind === "leg" && view !== ALL_CONTROLS ? legInput(document, selection.from, selection.to, legCourseControls) : undefined;
+  const input = selection?.kind === "leg" && view !== ALL_CONTROLS ? legInput(document, selection.from, selection.to, legCourseControls, view) : undefined;
   const inputKey = input?.key;
   useEffect(() => {
     setAnalysis(undefined); setHighlighted(undefined);

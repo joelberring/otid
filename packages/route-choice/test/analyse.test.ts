@@ -249,4 +249,32 @@ describe("analyseLeg", () => {
     expect(seen).toEqual(["S-1", "1-2"]);
     expect(results.every(result => result.milliseconds >= 0)).toBe(true);
   });
+
+  it("går runt ett förbjudet område som bara finns i banläggningen (steg 64)", () => {
+    const model = buildCostModel(forest().build());
+    const area = [m(150, -100), m(250, -100), m(250, 100), m(150, 100)];
+    const free = analyseLeg(model, leg([0, 0], [400, 0]));
+    const blocked = analyseLeg(model, leg([0, 0], [400, 0], { barriers: { areas: [area] } }));
+    expect(free.best!.meters / free.straightMeters).toBeLessThan(1.02);
+    // Runt hörnet: minst 2 × √(150² + 100²) + 100 = 460 m.
+    expect(blocked.best!.meters).toBeGreaterThan(455);
+    const inside = blocked.best!.points.some(p => p.x > m(152, 0).x && p.x < m(248, 0).x && Math.abs(p.y) < m(0, 98).y);
+    expect(inside).toBe(false);
+    // Rutnätet: spärrat där området ligger, bara med spärren.
+    const at = (grid: ReturnType<typeof legGrid>) => { const col = Math.floor((m(200, 0).x - grid.x0) / grid.cellMm), row = Math.floor((grid.yTop - 0) / grid.cellMm); return grid.ground[row * grid.width + col]; };
+    expect(at(legGrid(model, leg([0, 0], [400, 0], { barriers: { areas: [area] } })))).toBe(5);
+    expect(at(legGrid(model, leg([0, 0], [400, 0])))).not.toBe(5);
+  });
+
+  it("går genom en passage i en spärr som bara finns i banläggningen (steg 64)", () => {
+    const model = buildCostModel(forest().build());
+    const wall = { points: [m(200, -3000), m(200, 3000)], widthMm: 0.5 };
+    const shut = analyseLeg(model, leg([0, 0], [400, 0], { barriers: { lines: [wall] } }));
+    expect(shut.best).toBeUndefined();
+    const open = analyseLeg(model, leg([0, 0], [400, 0], { barriers: { lines: [wall], openings: [{ points: [m(190, 150), m(210, 150)], widthMm: 0.8 }] } }));
+    expect(open.best).toBeDefined();
+    // Genom passagen vid y 150: ungefär 2 × √(200² + 150²) = 500 m.
+    expect(open.best!.meters).toBeGreaterThan(490);
+    expect(open.best!.meters).toBeLessThan(515);
+  });
 });

@@ -5,7 +5,7 @@
  * långsamma klasser.
  */
 import type { Point } from "@o-tid/map-file";
-import { preparedOf, type PreparedModel } from "./cost-model";
+import { preparedOf, withBarriers, type PreparedModel } from "./cost-model";
 import { climbCostPerUnit, RUNNABLE_CLASSES, type ResolvedSettings, type RunnableClass, resolveSettings } from "./defaults";
 import { distance, distanceToPolyline, polylineLength, simplify } from "./geometry";
 import { cellCenter, cellOf, legFrame, paceField, rasterize, strokeLine, type Grid } from "./raster";
@@ -194,7 +194,7 @@ function analyseInFrame(model: CostModel, leg: LegInput, settings: RouteChoiceSe
   { analysis: LegAnalysis; retry: boolean } {
   const started = performance.now();
   let retry = false;
-  const prepared = preparedOf(model, settings);
+  const prepared = withBarriers(preparedOf(model, settings), leg.barriers);
   const resolved = settings ? resolveSettings({ ...settings, classBySymbol: {} }) : prepared.settings;
   const mmPerMeter = 1000 / prepared.scale;
   const straightMeters = distance(leg.from, leg.to) / mmPerMeter;
@@ -502,8 +502,8 @@ export function analyseCourse(model: CostModel, legs: readonly LegInput[], setti
 }
 
 /** Rutnätet för en sträcka (för bilder och felsökning). */
-export function legGrid(model: CostModel, leg: Pick<LegInput, "from" | "to">, settings?: RouteChoiceSettings | null, marginFactor = 1): Grid {
-  const prepared = preparedOf(model, settings);
+export function legGrid(model: CostModel, leg: Pick<LegInput, "from" | "to" | "barriers">, settings?: RouteChoiceSettings | null, marginFactor = 1): Grid {
+  const prepared = withBarriers(preparedOf(model, settings), leg.barriers);
   const resolved = settings ? resolveSettings({ ...settings, classBySymbol: {} }) : prepared.settings;
   return rasterize(prepared, legFrame(leg.from, leg.to, prepared.scale, undefined, marginFactor), resolved.speedByClass,
     { contourIntervalMeters: resolved.contourIntervalMeters });

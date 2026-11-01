@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { applyEdit, layoutCoursePage, layoutOverprint } from "@o-tid/course-setting";
+import { applyEdit, checkDocument, layoutCoursePage, layoutOverprint } from "@o-tid/course-setting";
+import { checkRows, legInput } from "./course-setting-text";
+import { withRouteBarriers } from "./route-choice-view";
 import { applySteps, cancelTool, createEditor, removeSelected, select, setTool, undo } from "./course-setting-editor";
 import { hitTest } from "./course-setting-hit";
 import { mapRenderRequest, pageNodes, pageStyles } from "./course-setting-print";
@@ -65,6 +67,27 @@ describe("specialobjekten i editorn (steg 64)", () => {
       points: [{ x: 40, y: 40 }, { x: 60, y: 40 }, { x: 70, y: 70 }, { x: 40, y: 60 }] });
     expect(moveSpecialEdit(special, { dx: 1, dy: -1 })).toMatchObject({ points: [{ x: 41, y: 39 }, { x: 61, y: 39 }, { x: 61, y: 59 }, { x: 41, y: 59 }] });
     expect(removeSelected(state, applyEdit).document.specialObjects).toEqual([]);
+  });
+});
+
+describe("spärrarna till vägvalen och varningen (steg 64)", () => {
+  it("vald sträcka får banans förbjudna områden och ny nyckel när de ändras; varningen i klartext", () => {
+    const base = testDocument();
+    const before = legInput(base, "a", "b", ["c1", "c2", "c3", "c4"], "k")!;
+    expect(before.barriers).toBeUndefined();
+    const added = applyEdit(base, { type: "ADD_SPECIAL", special: { kind: "out-of-bounds", points: [{ x: 13, y: 3 }, { x: 17, y: 3 }, { x: 15, y: 8 }] } });
+    const after = legInput(added.document, "a", "b", ["c1", "c2", "c3", "c4"], "k")!;
+    expect(after.barriers?.areas).toHaveLength(1);
+    expect(after.key).not.toBe(before.key);
+    const moved = applyEdit(added.document, { type: "MOVE_SPECIAL", special: added.created!, points: [{ x: 13, y: 4 }, { x: 17, y: 4 }, { x: 15, y: 8 }] });
+    expect(legInput(moved.document, "a", "b", ["c1", "c2", "c3", "c4"], "k")!.key).not.toBe(after.key);
+    const rows = checkRows(added.document, checkDocument(added.document)).filter(row => row.key.startsWith("LEG_THROUGH_FORBIDDEN"));
+    expect(rows.map(row => row.text)).toEqual(["Lång: sträckan kontroll 31–kontroll 32 går genom ett förbjudet område."]);
+    const planned = withRouteBarriers([{ key: "S-31.1", input: { key: "S-31.1", from: { x: 0, y: 0 }, to: { x: 1, y: 1 } } }, { key: "31.1-F" }],
+      after.barriers);
+    expect(planned[0]!.input!.barriers?.areas).toHaveLength(1);
+    expect(planned[1]!.input).toBeUndefined();
+    expect(withRouteBarriers(planned, { areas: [] })[0]).toBe(planned[0]);
   });
 });
 

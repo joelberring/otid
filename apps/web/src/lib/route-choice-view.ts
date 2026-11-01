@@ -1,6 +1,6 @@
 import type { AdminRouteChoice, ControlMapResponse, RouteChoiceCalibrationRoutes } from "@o-tid/contracts";
 import type { Point } from "@o-tid/map-file";
-import type { LegAnalysis, LegInput, LegWarning } from "@o-tid/route-choice";
+import type { LegAnalysis, LegInput, LegWarning, RouteBarriers } from "@o-tid/route-choice";
 import { routeChoiceSv as text } from "../i18n/route-choice-sv";
 import type { CalibrationSample } from "./route-choice-worker-protocol";
 
@@ -54,6 +54,16 @@ export function plannedLegs(option: RouteChoiceOption, state: AdminRouteChoice):
       .map(code => ({ code: String(code), at: at.get(code)! }));
     return { key, input: { key, from, to, otherControls } };
   });
+}
+
+/**
+ * Steg 64: banläggningens spärrar (förbjudna områden, gränser, passager ur `routeBarriers`) med på varje sträcka, så att
+ * analysen ser det som inte står i kartfilen. Utan spärrar oförändrat.
+ */
+export function withRouteBarriers(legs: readonly PlannedLeg[], barriers: RouteBarriers | undefined): PlannedLeg[] {
+  const any = barriers && ((barriers.areas?.length ?? 0) + (barriers.lines?.length ?? 0) + (barriers.openings?.length ?? 0)) > 0;
+  if (!any) return [...legs];
+  return legs.map(leg => leg.input ? { ...leg, input: { ...leg.input, barriers } } : leg);
 }
 
 export const legName = (key: string) => { const [from = "", to = ""] = key.split("-"); return text.legName(from, to); };

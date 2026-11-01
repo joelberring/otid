@@ -126,6 +126,10 @@ export const courseSettingSv = {
     SAME_CONTROL_TWICE_IN_ROW: (course: string, control: string) => `${course}: ${control} kommer två gånger i rad.`,
     LEG_THROUGH_CONTROL: (course: string, from: string, to: string, control: string) =>
       `${course}: sträckan ${from}–${to} går genom ringen för ${control}.`,
+    LEG_THROUGH_FORBIDDEN: (course: string, from: string, to: string, what: string) =>
+      `${course}: sträckan ${from}–${to} går genom ${what}.`,
+    forbidden: { "out-of-bounds": "ett förbjudet område", "dangerous-area": "ett farligt område", "temporary-construction": "en tillfällig konstruktion",
+      boundary: "en gräns som inte får passeras", "forbidden-route": "en förbjuden väg" } as Record<string, string>,
     COURSE_WITHOUT_START_OR_FINISH: (course: string) => `${course} saknar start eller mål.`,
     UNUSED_CONTROL: (control: string) => `${control} används inte på någon bana.`,
     MISSING_CODE: (control: string) => `En kontroll saknar kod (${control}).`

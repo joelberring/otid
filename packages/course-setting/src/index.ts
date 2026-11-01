@@ -46,6 +46,7 @@ export { approximateTextWidth, DIGIT_HEIGHT_EM, expandText, specialVisible, TEXT
 export { SPECIAL_KIND_LIST, specialPointCount } from "./special-edit";
 export { specialImage } from "./ppen-special";
 export { printScaleOf } from "./overprint";
+export { BARRIER_KINDS, routeBarriers, type RouteBarrierGeometry } from "./barriers";
 
 /** Läs en Purple Pen-fil (.ppen, XML). Kastar `CourseSettingEditError("INVALID")` om filen inte är en .ppen. */
 export function readPpen(xml: string): { readonly document: CourseSettingDocument; readonly warnings: readonly PpenReadWarning[] } { return readPpenDocument(xml); }

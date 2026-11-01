@@ -382,6 +382,8 @@ export type CourseCheck =
   | { readonly kind: "INVERTIBLE_CODE"; readonly code: string; readonly control: string }
   | { readonly kind: "SAME_CONTROL_TWICE_IN_ROW"; readonly course: string; readonly control: string }
   | { readonly kind: "LEG_THROUGH_CONTROL"; readonly course: string; readonly from: string; readonly to: string; readonly control: string }
+  /** Steg 64: sträckans linje går genom ett förbjudet område (specialobjektet) eller över en gräns eller förbjuden väg. */
+  | { readonly kind: "LEG_THROUGH_FORBIDDEN"; readonly course: string; readonly from: string; readonly to: string; readonly special: string }
   | { readonly kind: "COURSE_WITHOUT_START_OR_FINISH"; readonly course: string }
   | { readonly kind: "UNUSED_CONTROL"; readonly control: string }
   | { readonly kind: "MISSING_CODE"; readonly control: string };

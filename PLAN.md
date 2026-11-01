@@ -1142,6 +1142,9 @@ ADR-0180 beslut 11. Kontraktet: `SpecialObject`, `PrintArea`, `OverprintPrimitiv
 - [x] Tryckyta och sida per bana (`layoutCoursePage`), utskrift i annan skala än kartans, varianter.
 - [x] Editorn: flikarna Objekt och Utskrift, ramen på kartan, förhandsvisningen `/admin/[raceId]/course-setting/print`.
 - [x] Tester: paketet (specialobjekt, .ppen, sidor, SBN26_2), webbens lib, Playwright `banlaggning-utskrift`.
+- [x] Banläggningsstödet ser specialobjekten (ägarens krav): `routeBarriers` (förbjudet och farligt område, konstruktion,
+  gräns, förbjuden väg som spärrar, valfri passage som öppning) till vägvalsmotorn (`LegInput.barriers`) i editorn och
+  kontrollkartan, och varningen när en sträcka går genom ett förbjudet område eller över en spärr.
 
 ## [ ] Steg 65 – Tryck med dekorfärger och övertryck
 

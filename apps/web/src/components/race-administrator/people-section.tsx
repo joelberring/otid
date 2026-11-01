@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { racePeopleResponseSchema, racePersonGrantResponseSchema, racePersonRevokeResponseSchema,
-  type RacePeopleResponse, type RacePerson } from "@o-tid/contracts";
+  type RacePeopleResponse, type RacePerson, type RacePersonGrantRequest } from "@o-tid/contracts";
 import { raceTypeSv } from "../../i18n/race-type-sv";
 import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
 import { readAccountCsrfCookie } from "../../lib/organizer-account-cookies";
@@ -11,6 +11,7 @@ import styles from "./people-section.module.css";
 import { formErrorsSv } from "../../i18n/form-errors-sv";
 
 const text = raceTypeSv.settings.people;
+const GRANTABLE = ["ADMIN", "FUNCTIONARY", "COURSE_EDIT", "COURSE_SUGGEST", "COURSE_COMMENT"] as const;
 type Message = { tone: "ok" | "error"; text: string };
 
 /**
@@ -24,7 +25,7 @@ export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: s
   const [data, setData] = useState<RacePeopleResponse>();
   const [loadFailed, setLoadFailed] = useState(false);
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<"FUNCTIONARY" | "ADMIN">("FUNCTIONARY");
+  const [role, setRole] = useState<RacePersonGrantRequest["role"]>("FUNCTIONARY");
   const [busy, setBusy] = useState(false);
   const [emailError, setEmailError] = useState("");
   const [message, setMessage] = useState<Message>();
@@ -87,8 +88,9 @@ export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: s
   }
 
   const owner = data?.viewer.role === "OWNER";
+  // Steg 66: banläggningens behörigheter tas bort av alla administratörer, som funktionärer.
   const removable = (person: RacePerson) => person.accountId !== data?.viewer.accountId &&
-    (person.role === "FUNCTIONARY" || (person.role === "ADMIN" && owner));
+    (person.role === "FUNCTIONARY" || person.role.startsWith("COURSE_") || (person.role === "ADMIN" && owner));
   const locked = busy || disabled;
   return <Section id={`settings-${raceId}-people`} title={text.title} help={text.help}>
     {!data && !loadFailed && <p className={styles.muted} role="status">{text.loading}</p>}
@@ -113,9 +115,12 @@ export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: s
           onChange={event => { setEmail(event.target.value); setEmailError(""); }} />
       </Field>
       <Field label={text.addRole}>
-        <select value={role} disabled={locked || !owner} onChange={event => setRole(event.target.value === "ADMIN" ? "ADMIN" : "FUNCTIONARY")}>
+        <select value={role} disabled={locked} onChange={event => setRole(GRANTABLE.find(value => value === event.target.value) ?? "FUNCTIONARY")}>
           <option value="FUNCTIONARY">{text.roles.FUNCTIONARY}</option>
           {owner && <option value="ADMIN">{text.roles.ADMIN}</option>}
+          <option value="COURSE_EDIT">{text.roles.COURSE_EDIT}</option>
+          <option value="COURSE_SUGGEST">{text.roles.COURSE_SUGGEST}</option>
+          <option value="COURSE_COMMENT">{text.roles.COURSE_COMMENT}</option>
         </select>
       </Field>
       <Button type="submit" disabled={locked || !email.trim()}>{text.add}</Button>

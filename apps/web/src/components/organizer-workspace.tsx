@@ -279,10 +279,10 @@ export function OrganizerWorkspace() {
   }
 
   /** Kontots session gäller tävlingen direkt (ADR-0173 beslut 4): arbetsytan öppnas utan eget steg. */
-  function enterRace(raceId: string) {
+  function enterRace(raceId: string, page: "manage" | "course-setting" = "manage") {
     setEnteringRaceId(raceId);
     setMessage(copy.openingRace);
-    window.location.assign(`/admin/${encodeURIComponent(raceId)}/manage`);
+    window.location.assign(`/admin/${encodeURIComponent(raceId)}/${page}`);
   }
 
   const attemptMatchesSession = !!session && !!attempt && attempt.accountId === session.accountId;
@@ -384,11 +384,14 @@ export function OrganizerWorkspace() {
             <ul className={styles.raceList}>{event.races.map((race) => <li key={race.raceId}>
               <div><strong>{race.raceName}</strong><span>{race.raceDate} · {raceTypeSv.types[race.raceType].name}</span></div>
               <div className={styles.raceActions}>
-                {event.role !== "FUNCTIONARY" && <button type="button" className={styles.secondary} disabled={busy || enteringRaceId !== undefined}
+                {(event.role === "OWNER" || event.role === "ADMIN") && <button type="button" className={styles.secondary} disabled={busy || enteringRaceId !== undefined}
                   aria-label={raceCopySv.actionLabel(race.raceName)} onClick={() => setCopySource({ raceId: race.raceId, eventName: event.eventName,
                     raceName: race.raceName, raceDate: race.raceDate })}>{raceCopySv.action}</button>}
-                <button type="button" className={styles.secondary} disabled={busy || enteringRaceId !== undefined} aria-busy={enteringRaceId === race.raceId}
-                  onClick={() => enterRace(race.raceId)}>{enteringRaceId === race.raceId ? copy.opening : copy.openRace}</button>
+                {event.role !== "COURSE_SETTER" && <button type="button" className={styles.secondary} disabled={busy || enteringRaceId !== undefined}
+                  aria-busy={enteringRaceId === race.raceId} onClick={() => enterRace(race.raceId)}>
+                  {enteringRaceId === race.raceId ? copy.opening : copy.openRace}</button>}
+                {race.courseSetting && <button type="button" className={styles.secondary} disabled={busy || enteringRaceId !== undefined}
+                  onClick={() => enterRace(race.raceId, "course-setting")}>{copy.openCourseSetting}</button>}
               </div>
             </li>)}</ul>
           </li>)}

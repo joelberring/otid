@@ -15,9 +15,6 @@ const saved = { formatVersion: 1 as const, raceId: id, version: 3, updatedAt: "2
 const conflict = { formatVersion: 1 as const, error: "VERSION_CONFLICT" as const,
   current: { version: 4, updatedAt: "2026-10-31T10:01:00.000Z", updatedBy: { accountId: id, displayName: "Anna" } } };
 const get = () => new Request("https://otid.example/api/admin", { headers: { cookie: `__Host-otid-organizer-session=${token}` } });
-const functionary = { status: "authenticated" as const, principal: { accountId: id, sessionId: id, raceId: id, eventId: id, grantId: id,
-  grantRole: "FUNCTIONARY" as const, role: "FUNCTIONARY" as const, expiresAt: "2026-09-12T13:00:00Z" } };
-
 describe("banläggningens kontrakt", () => {
   it("tar emot ett dokument med rätt grundform och avvisar trasiga länkar, fel version och okända slag", () => {
     expect(courseSettingDocumentSchema.safeParse(document).success).toBe(true);
@@ -39,7 +36,8 @@ describe("banläggningens kontrakt", () => {
 describe("administratörsroutes: banläggningen", () => {
   it("ger läget och sparar med versionskontroll (409 med aktuell version)", async () => {
     const courseSetting = vi.fn<typeof Application.readCourseSettingAsAdmin>().mockResolvedValue({ status: "ok", response: {
-      formatVersion: 1, raceId: id, setting: null, original: null, mapFile: null } });
+      formatVersion: 1, raceId: id, access: { accountId: id, displayName: "Anna", level: "EDIT", admin: true }, setting: null, original: null,
+      mapFile: null } });
     const courseSettingSave = vi.fn<typeof Application.saveCourseSettingAsAdmin>().mockResolvedValue({ status: "ok", response: saved });
     const services = { ...dependencies(), courseSetting, courseSettingSave };
     const read = await raceAdministratorRoute(db, get(), id, { kind: "course-setting" }, services, environment);
@@ -105,13 +103,18 @@ describe("administratörsroutes: banläggningen", () => {
     expect(await problem.json()).toEqual({ formatVersion: 1, error: "INVALID_CODES", controls: ["7"] });
   });
 
-  it("kräver administratör för allt", async () => {
+  it("prövar banläggningens behörighet: läsa med COMMENT, spara med EDIT, överföra bara admin", async () => {
     const services = dependencies();
-    services.authenticate.mockResolvedValue(functionary);
+    services.authenticateCourseSetting.mockResolvedValue({ status: "forbidden" });
     for (const action of [{ kind: "course-setting" as const }, { kind: "course-setting-revisions" as const }, { kind: "course-setting-original" as const }]) {
       expect((await raceAdministratorRoute(db, get(), id, action, services, environment)).status).toBe(403);
+      expect(services.authenticateCourseSetting.mock.calls.at(-1)![1]).toMatchObject({ required: "COMMENT" });
     }
     expect((await raceAdministratorRoute(db, request("POST", "{}"), id, { kind: "course-setting-transfer" }, services, environment)).status).toBe(403);
-    expect(services.authenticate.mock.calls.at(-1)![1]).toMatchObject({ role: "ADMIN" });
+    expect(services.authenticateCourseSetting.mock.calls.at(-1)![1]).toMatchObject({ required: "ADMIN", requireCsrf: true });
+    expect((await raceAdministratorRoute(db, request("PUT", "{}"), id, { kind: "course-setting" }, services, environment)).status).toBe(403);
+    expect(services.authenticateCourseSetting.mock.calls.at(-1)![1]).toMatchObject({ required: "EDIT" });
+    // Rollen på tävlingen frågas aldrig (funktionären har den, men inte banläggningen).
+    expect(services.authenticate).not.toHaveBeenCalled();
   });
 });

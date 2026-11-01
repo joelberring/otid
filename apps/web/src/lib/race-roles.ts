@@ -1,4 +1,4 @@
-import type { RaceRole } from "@o-tid/application";
+import type { CourseSettingRequirement, RaceRole } from "@o-tid/application";
 
 /**
  * Behörighet på en tävling (ADR-0168 beslut 4, ändrat av ADR-0172 beslut 3).
@@ -57,4 +57,35 @@ export function raceRoleFor(action: string, method: string): RaceRole {
 /** Dubbelkoll av rollkontrollens svar: rätt tävling och (för administratörens åtgärder) administratörens roll. */
 export function principalAllows(principal: { raceId: string; role: RaceRole }, raceId: string, role: RaceRole): boolean {
   return principal.raceId === raceId && (role === "FUNCTIONARY" || principal.role === "ADMIN");
+}
+
+/**
+ * Steg 66 (ADR-0181 beslut 5): banläggningens åtgärder prövas med banläggningens behörighet (`requireCourseSettingAccess`)
+ * i stället för rollen på tävlingen: COMMENT läser och skriver notiser, SUGGEST föreslår, EDIT ändrar, ADMIN (ägare och
+ * administratör) för över till tävlingen och väljer arbetssätt. Kartfilen (GET) behövs för att rita kartan och räkna
+ * vägval. Den här tabellen är den enda platsen som avgör det; allt annat i tävlingen kräver rollen på eventet.
+ */
+export const COURSE_SETTING_ROUTES: Readonly<Record<string, Readonly<Record<string, CourseSettingRequirement>>>> = {
+  "course-setting": { GET: "COMMENT", PUT: "EDIT" },
+  "course-setting-import": { POST: "EDIT" },
+  "course-setting-restore": { POST: "EDIT" },
+  "course-setting-revisions": { GET: "COMMENT" },
+  "course-setting-revision": { GET: "COMMENT" },
+  "course-setting-original": { GET: "COMMENT" },
+  "course-setting-transfer": { POST: "ADMIN" },
+  "course-setting-edits": { POST: "EDIT" },
+  "course-setting-mode": { PUT: "ADMIN" },
+  "course-setting-notes": { GET: "COMMENT", POST: "COMMENT" },
+  "course-setting-note-reply": { POST: "COMMENT" },
+  "course-setting-note-status": { PUT: "COMMENT" },
+  "course-setting-note-photo": { GET: "COMMENT" },
+  "course-setting-suggestions": { GET: "COMMENT", POST: "SUGGEST" },
+  "course-setting-suggestion-decision": { POST: "EDIT" },
+  "course-setting-events": { GET: "COMMENT" },
+  "race-map-source": { GET: "COMMENT" }
+};
+
+/** Kravet i banläggningen för åtgärden, eller undefined (då gäller rollen på tävlingen). */
+export function courseSettingRequirementFor(action: string, method: string): CourseSettingRequirement | undefined {
+  return COURSE_SETTING_ROUTES[action]?.[method];
 }

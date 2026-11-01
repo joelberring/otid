@@ -2,7 +2,7 @@
 import { vi } from "vitest";
 import type { Database } from "@o-tid/database";
 import type { changeEntryClassAsAdmin, listEntryClassesAsAdmin, logoutUserAccountSession,
-  requireRaceRole } from "@o-tid/application";
+  requireCourseSettingAccess, requireRaceRole } from "@o-tid/application";
 
 export const db = {} as Database;
 export const id = "10000000-0000-4000-8000-000000000001";
@@ -18,6 +18,9 @@ export function dependencies() {
     authenticate: vi.fn<typeof requireRaceRole>().mockResolvedValue({ status: "authenticated", principal: {
       accountId: id, sessionId: id, raceId: id, eventId: id, grantId: id, grantRole: "OWNER", role: "ADMIN",
       expiresAt: session.expiresAt } }),
+    // Steg 66: banläggningens behörighet (förval: administratör med EDIT).
+    authenticateCourseSetting: vi.fn<typeof requireCourseSettingAccess>().mockResolvedValue({ status: "authenticated", principal: {
+      accountId: id, displayName: "Anna", raceId: id, eventId: id, level: "EDIT", admin: true } }),
     logout: vi.fn<typeof logoutUserAccountSession>().mockResolvedValue({ status: "logged-out" }),
     participants: vi.fn<typeof listEntryClassesAsAdmin>().mockResolvedValue({ status: "ok", response: list }),
     changeClass: vi.fn<typeof changeEntryClassAsAdmin>().mockResolvedValue({ status: "conflict" })

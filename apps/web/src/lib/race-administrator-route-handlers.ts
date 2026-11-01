@@ -31,7 +31,8 @@ import { handleCorrectionRoute } from "./race-administrator-routes-corrections";
 import { bumpRaceChangeGeneration, RESULT_WRITES } from "./race-change-generation";
 import { retryReadConflicts } from "./read-conflict";
 import { handlePartyRoute } from "./race-administrator-routes-party";
-import { principalAllows, raceRoleFor } from "./race-roles";
+import { courseSettingRequirementFor, principalAllows, raceRoleFor } from "./race-roles";
+import { courseSettingAllows } from "@o-tid/application";
 import { UUID_PATTERN as uuid } from "@o-tid/contracts";
 
 type Environment = Partial<Pick<NodeJS.ProcessEnv, "NODE_ENV" | "O_TID_PUBLIC_ORIGIN">>;
@@ -59,6 +60,7 @@ export async function raceAdministratorRoute(db: Database, request: Request, rac
     ("finalizationId" in action && !uuid.test(action.finalizationId)) ||
     ("classId" in action && !uuid.test(action.classId)) ||
     ("courseId" in action && !uuid.test(action.courseId)) ||
+    ("noteId" in action && !uuid.test(action.noteId)) || ("suggestionId" in action && !uuid.test(action.suggestionId)) ||
     (url.search && !validHistoryQuery && !validCheckinQuery)) {
     return failure(400, "INVALID_REQUEST");
   }
@@ -77,6 +79,17 @@ export async function raceAdministratorRoute(db: Database, request: Request, rac
       if (result.status === "unauthorized") return clearSessionCookies(resultFailure(result.status), policy);
       if (result.status !== "logged-out" && result.status !== "already-logged-out") return resultFailure(result.status);
       return clearSessionCookies(new Response(null, { status: 204, headers: privateHeaders }), policy);
+    }
+    // Steg 66: banläggningens åtgärder prövas med banläggningens behörighet (race-roles.ts), inte rollen på tävlingen.
+    const courseRequirement = courseSettingRequirementFor(action.kind, request.method);
+    if (courseRequirement) {
+      const access = await dependencies.authenticateCourseSetting(db, { ...proof, raceId, required: courseRequirement, requireCsrf: write });
+      if (access.status !== "authenticated") return resultFailure(access.status);
+      if (access.principal.raceId !== raceId || !courseSettingAllows(access.principal, courseRequirement)) return failure(403, "FORBIDDEN");
+      const context: RaceAdministratorRouteContext = { db, request, raceId, action, dependencies, proof, cursor, beforeVersion,
+        courseSetting: access.principal };
+      if (!write) return await retryReadConflicts(() => dispatchRaceAdministratorRoute(context));
+      return await dispatchRaceAdministratorRoute(context);
     }
     // Rollen kontrolleras innan en ändring tolkas eller deltagardata läses. Funktionären får 403 för allt annat.
     const role = raceRoleFor(action.kind, request.method);
@@ -123,6 +136,10 @@ function allowedMethods(action: Action): string[] {
     action.kind === "course-setting" ? ["GET", "PUT"] :
     action.kind === "course-setting-revisions" || action.kind === "course-setting-revision" || action.kind === "course-setting-original" ? ["GET"] :
     action.kind === "course-setting-import" || action.kind === "course-setting-restore" || action.kind === "course-setting-transfer" ? ["POST"] :
+    action.kind === "course-setting-notes" || action.kind === "course-setting-suggestions" ? ["GET", "POST"] :
+    action.kind === "course-setting-edits" || action.kind === "course-setting-note-reply" || action.kind === "course-setting-suggestion-decision" ? ["POST"] :
+    action.kind === "course-setting-mode" || action.kind === "course-setting-note-status" ? ["PUT"] :
+    action.kind === "course-setting-note-photo" || action.kind === "course-setting-events" ? ["GET"] :
     action.kind === "participant-route" ? ["POST", "DELETE"] : action.kind === "eventor" ? ["GET", "PUT", "DELETE"] :
     action.kind === "runner-database" ? ["GET", "POST", "DELETE"] : action.kind === "runner-search" ? ["POST"] :
     action.kind === "source-sync" ? ["GET", "POST"] : action.kind === "eventor-events" ? ["GET"] :

@@ -2,7 +2,7 @@ import { readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join, relative, sep } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import type { RaceRoleRequest } from "@o-tid/application";
+import type { CourseSettingRequirement, RaceRoleRequest } from "@o-tid/application";
 
 /**
  * ADR-0172 beslut 3: varje adminroute (alla filer under app/api/admin och tävlingens import) anropas som funktionär.
@@ -35,14 +35,39 @@ const FUNCTIONARY_ALLOWED: Record<string, readonly string[]> = {
   "admin/races/[raceId]/administrator/party-guests": ["POST"],
   "admin/races/[raceId]/administrator/party-desk-events": ["POST"]
 };
+/**
+ * Steg 66 (ADR-0181 beslut 5): banläggningens routes och vad de kräver. Den som bara har banläggningen (läsa och
+ * kommentera) når dessa och inget annat; funktionären (utan banläggning) når inga av dem.
+ */
+const COURSE_SETTING: Record<string, Record<string, CourseSettingRequirement>> = {
+  "admin/races/[raceId]/administrator/course-setting": { GET: "COMMENT", PUT: "EDIT" },
+  "admin/races/[raceId]/administrator/course-setting/import": { POST: "EDIT" },
+  "admin/races/[raceId]/administrator/course-setting/restore": { POST: "EDIT" },
+  "admin/races/[raceId]/administrator/course-setting/revisions": { GET: "COMMENT" },
+  "admin/races/[raceId]/administrator/course-setting/revisions/[version]": { GET: "COMMENT" },
+  "admin/races/[raceId]/administrator/course-setting/original": { GET: "COMMENT" },
+  "admin/races/[raceId]/administrator/course-setting/transfer": { POST: "ADMIN" },
+  "admin/races/[raceId]/administrator/course-setting/edits": { POST: "EDIT" },
+  "admin/races/[raceId]/administrator/course-setting/mode": { PUT: "ADMIN" },
+  "admin/races/[raceId]/administrator/course-setting/notes": { GET: "COMMENT", POST: "COMMENT" },
+  "admin/races/[raceId]/administrator/course-setting/notes/[noteId]/replies": { POST: "COMMENT" },
+  "admin/races/[raceId]/administrator/course-setting/notes/[noteId]/status": { PUT: "COMMENT" },
+  "admin/races/[raceId]/administrator/course-setting/notes/[noteId]/photo": { GET: "COMMENT" },
+  "admin/races/[raceId]/administrator/course-setting/suggestions": { GET: "COMMENT", POST: "SUGGEST" },
+  "admin/races/[raceId]/administrator/course-setting/suggestions/[suggestionId]/decision": { POST: "EDIT" },
+  "admin/races/[raceId]/administrator/course-setting/events": { GET: "COMMENT" },
+  "admin/races/[raceId]/administrator/map/source": { GET: "COMMENT" }
+};
 /** Publika routes under api/races (startlistor) har ingen inloggning och ingår inte. */
 const PUBLIC = ["races/[raceId]/start-list", "races/[raceId]/start-list/iof"];
 
 const origin = "http://127.0.0.1:3100";
 const uuid = "10000000-0000-4000-8000-000000000001";
-const state = vi.hoisted(() => ({ role: "FUNCTIONARY" as "FUNCTIONARY" | "ADMIN", calls: 0 }));
+const state = vi.hoisted(() => ({ role: "FUNCTIONARY" as "FUNCTIONARY" | "ADMIN" | "COURSE_COMMENT", calls: 0 }));
 const authenticate = vi.hoisted(() => async (_db: unknown, input: RaceRoleRequest) => {
   state.calls += 1;
+  // Banläggning utan roll på eventet: ingen roll på tävlingen alls.
+  if (state.role === "COURSE_COMMENT") return { status: "unauthorized" as const };
   // Samma regel som tjänsterna: administratören får allt, funktionären bara funktionärens åtgärder.
   if (state.role === "FUNCTIONARY" && input.role === "ADMIN") return { status: "forbidden" as const };
   const id = "10000000-0000-4000-8000-000000000001";
@@ -53,8 +78,19 @@ const authenticate = vi.hoisted(() => async (_db: unknown, input: RaceRoleReques
 
 vi.mock("server-only", () => ({}));
 vi.mock("./db", () => ({ db: {}, pool: {}, database: {} }));
+const authenticateCourseSetting = vi.hoisted(() => async (_db: unknown, input: { raceId: string; required: string }) => {
+  state.calls += 1;
+  const id = "10000000-0000-4000-8000-000000000001";
+  // Funktionären har ingen banläggning (403); den med läsa och kommentera når bara COMMENT.
+  if (state.role === "FUNCTIONARY") return { status: "forbidden" as const };
+  if (state.role === "COURSE_COMMENT" && input.required !== "COMMENT") return { status: "forbidden" as const };
+  return { status: "authenticated" as const, principal: { accountId: id, displayName: "Anna", raceId: input.raceId, eventId: id,
+    level: state.role === "ADMIN" ? "EDIT" as const : "COMMENT" as const, admin: state.role === "ADMIN" } };
+});
+
 vi.mock("@o-tid/application", async (importOriginal) => ({
-  ...await importOriginal<typeof import("@o-tid/application")>(), requireRaceRole: authenticate
+  ...await importOriginal<typeof import("@o-tid/application")>(), requireRaceRole: authenticate,
+  requireCourseSettingAccess: authenticateCourseSetting
 }));
 
 const api = fileURLToPath(new URL("../app/api/", import.meta.url));
@@ -69,7 +105,8 @@ const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
 
 async function call(route: { file: string; path: string }, method: string): Promise<number> {
   const handlers = await import(route.file) as Record<string, (request: Request, context: unknown) => Promise<Response>>;
-  const params = Promise.resolve({ raceId: uuid, entryId: uuid, classId: uuid, courseId: uuid, finalizationId: uuid });
+  const params = Promise.resolve({ raceId: uuid, entryId: uuid, classId: uuid, courseId: uuid, finalizationId: uuid, noteId: uuid,
+    suggestionId: uuid, version: "1" });
   const write = method !== "GET";
   const response = await handlers[method]!(new Request(`${origin}/api/${route.path.replaceAll(/\[[a-zA-Z]+\]/g, uuid)}`, {
     method, ...(write ? { body: "{}" } : {}), headers: {
@@ -109,6 +146,27 @@ describe("behörighet per adminroute (ADR-0172 beslut 3)", () => {
       }
     }
     expect(checked.length).toBeGreaterThan(85);
+  });
+
+  it("ger den som bara har banläggningen (läsa och kommentera) banläggningens läsning och notiser, inget annat", { timeout: 60_000 }, async () => {
+    state.role = "COURSE_COMMENT";
+    for (const path of Object.keys(COURSE_SETTING)) expect(routes.map(route => route.path), path).toContain(path);
+    let reached = 0;
+    for (const route of routes) {
+      const handlers = await import(route.file) as Record<string, unknown>;
+      for (const method of METHODS.filter(name => typeof handlers[name] === "function")) {
+        // Strömmen är öppen tills den stängs; den prövas i banläggningens tester.
+        // "Har jag en session?" svarar 200 med authenticated: false utan roll på tävlingen.
+        if (route.path.endsWith("course-setting/events") || route.path.endsWith("administrator/session")) continue;
+        const status = await call(route, method);
+        const required = COURSE_SETTING[route.path]?.[method];
+        const label = `${method} /api/${route.path} → ${status}`;
+        if (required === "COMMENT") { expect([401, 403, 405], label).not.toContain(status); reached += 1; }
+        else if (required) expect(status, label).toBe(403);
+        else expect([401, 403], label).toContain(status);
+      }
+    }
+    expect(reached).toBeGreaterThan(8);
   });
 
   it("ger administratören (som också har funktionärens rättigheter) tillträde till varje route", { timeout: 60_000 }, async () => {

@@ -32,6 +32,9 @@ import { loadStartDrawSetupAsAdmin, previewStartDrawAsAdmin, commitStartDrawAsAd
   saveRaceMapSourceAsAdmin, readRaceMapSourceFileAsAdmin, removeRaceMapSourceAsAdmin,
   readRouteChoiceAsAdmin, saveRouteChoiceSettingsAsAdmin, publishRouteChoiceAsAdmin, readRouteChoiceCalibrationAsAdmin,
   readCourseSettingAsAdmin, saveCourseSettingAsAdmin, importCourseSettingAsAdmin, listCourseSettingRevisionsAsAdmin,
+  requireCourseSettingAccess, saveCourseSettingEditsAsAdmin, setCourseSettingModeAsAdmin, listCourseSettingNotesAsAdmin,
+  createCourseSettingNoteAsAdmin, replyCourseSettingNoteAsAdmin, setCourseSettingNoteStatusAsAdmin, readCourseSettingNotePhotoAsAdmin,
+  listCourseSettingSuggestionsAsAdmin, createCourseSettingSuggestionAsAdmin, decideCourseSettingSuggestionAsAdmin, type CourseSettingPrincipal,
   readCourseSettingRevisionAsAdmin, restoreCourseSettingRevisionAsAdmin, readCourseSettingOriginalAsAdmin, previewCourseSettingTransferAsAdmin,
   listRacePeopleAsAdmin, grantRacePersonAsAdmin, revokeRacePersonAsAdmin,
   setRacePublicationAsAdmin, setCoursesPublicAsAdmin, readControlMapAsAdmin, readEntryControlMapAsAdmin, getRadioSettingsAsAdmin, saveRadioSettingsAsAdmin,
@@ -115,6 +118,12 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   courseSettingRevisions: listCourseSettingRevisionsAsAdmin, courseSettingRevision: readCourseSettingRevisionAsAdmin,
   courseSettingRestore: restoreCourseSettingRevisionAsAdmin, courseSettingOriginal: readCourseSettingOriginalAsAdmin,
   courseSettingTransfer: previewCourseSettingTransferAsAdmin,
+  // Steg 66: samarbetet (behörigheten, åtgärder, arbetssätt, notiser och förslag).
+  authenticateCourseSetting: requireCourseSettingAccess, courseSettingEdits: saveCourseSettingEditsAsAdmin,
+  courseSettingMode: setCourseSettingModeAsAdmin, courseSettingNotes: listCourseSettingNotesAsAdmin, courseSettingNote: createCourseSettingNoteAsAdmin,
+  courseSettingNoteReply: replyCourseSettingNoteAsAdmin, courseSettingNoteStatus: setCourseSettingNoteStatusAsAdmin,
+  courseSettingNotePhoto: readCourseSettingNotePhotoAsAdmin, courseSettingSuggestions: listCourseSettingSuggestionsAsAdmin,
+  courseSettingSuggestion: createCourseSettingSuggestionAsAdmin, courseSettingSuggestionDecision: decideCourseSettingSuggestionAsAdmin,
   participantRouteSave: saveParticipantRouteAsAdmin, participantRouteRemove: removeParticipantRouteAsAdmin,
   people: listRacePeopleAsAdmin, grantPerson: grantRacePersonAsAdmin, revokePerson: revokeRacePersonAsAdmin,
   racePublication: setRacePublicationAsAdmin, courseSecrecy: setCoursesPublicAsAdmin,
@@ -173,6 +182,10 @@ export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: str
   { kind: "course-setting" } | { kind: "course-setting-import" } | { kind: "course-setting-revisions" } |
   { kind: "course-setting-revision"; version: number } | { kind: "course-setting-restore" } | { kind: "course-setting-original" } |
   { kind: "course-setting-transfer" } |
+  { kind: "course-setting-edits" } | { kind: "course-setting-mode" } | { kind: "course-setting-notes" } |
+  { kind: "course-setting-note-reply"; noteId: string } | { kind: "course-setting-note-status"; noteId: string } |
+  { kind: "course-setting-note-photo"; noteId: string } | { kind: "course-setting-suggestions" } |
+  { kind: "course-setting-suggestion-decision"; suggestionId: string } | { kind: "course-setting-events" } |
   { kind: "people" } | { kind: "race-publication" } | { kind: "course-secrecy" } | { kind: "control-map" } | { kind: "entry-control-map"; entryId: string } | { kind: "radio" } | { kind: "radio-fetch" } |
   { kind: "readout-registrations" } | { kind: "remaining-runners" } | { kind: "course-details"; courseId: string } |
   { kind: "entry-removal"; entryId: string } | { kind: "class-removal"; classId: string } | { kind: "course-removal"; courseId: string } |
@@ -200,4 +213,6 @@ export type RaceAdministratorServices = typeof raceAdministratorServices;
 export type RaceAdministratorRouteContext = {
   db: Database; request: Request; raceId: string; action: RaceAdministratorAction; dependencies: RaceAdministratorServices;
   proof: ReturnType<typeof sessionProof>; cursor: string | null; beforeVersion: number | undefined;
+  /** Steg 66: den inloggade i banläggningen (för banläggningens åtgärder). */
+  courseSetting?: CourseSettingPrincipal | undefined;
 };

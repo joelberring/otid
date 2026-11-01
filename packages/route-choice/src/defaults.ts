@@ -145,6 +145,11 @@ export const FIRST_CUSTOM_SYMBOL = 800;
  */
 export const CLIMB_FACTOR = 8;
 export const DESCENT_FACTOR = 3;
+/**
+ * Lägsta `descentFactor`: brant nedför kostar alltid något (Langmuir, Tobler), och med 0 skulle en kulle bara räknas
+ * som halva stigningen. Lägre värden ersätts med standardvärdet.
+ */
+export const MIN_DESCENT_FACTOR = 0.5;
 export const SLOPE_FACTOR = 0.2;
 /** Lutning (höjd/längd) där lutningsfaktorn börjar verka: Toblers fart är lika med plant vid −10 %. */
 export const SLOPE_FREE_GRADE = 0.1;
@@ -225,7 +230,8 @@ export function resolveSettings(settings?: RouteChoiceSettings | null): Resolved
     speedByClass: speeds,
     contourIntervalMeters: positive(settings?.contourIntervalMeters, 5),
     climbFactor: nonNegative(settings?.climbFactor, CLIMB_FACTOR),
-    descentFactor: nonNegative(settings?.descentFactor, DESCENT_FACTOR),
+    descentFactor: settings?.descentFactor !== undefined && Number.isFinite(settings.descentFactor) &&
+      settings.descentFactor >= MIN_DESCENT_FACTOR ? settings.descentFactor : DESCENT_FACTOR,
     slopeFactor: nonNegative(settings?.slopeFactor, SLOPE_FACTOR),
     crossingMetersBySymbol: Object.fromEntries(Object.entries(settings?.crossingMetersBySymbol ?? {})
       .filter(([, value]) => Number.isFinite(value) && value >= 0)),

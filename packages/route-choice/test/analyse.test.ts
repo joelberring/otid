@@ -110,6 +110,9 @@ describe("analyseLeg", () => {
     expect(result.best!.seconds).toBeCloseTo((400 + 151.25) * 0.36, 0);
     const steeper = analyseLeg(model, leg([0, 0], [400, 0]), { version: 1, slopeFactor: 0, descentFactor: 4 });
     expect(steeper.best!.seconds).toBeCloseTo((400 + 27.5 * 6) * 0.36, 0);
+    // Nedför är aldrig gratis: 0 (och allt under 0,5) ger standardvärdet 3.
+    const free = analyseLeg(model, leg([0, 0], [400, 0]), { version: 1, slopeFactor: 0, descentFactor: 0 });
+    expect(free.best!.seconds).toBeCloseTo(result.best!.seconds, 5);
     const flat = analyseLeg(buildCostModel(forest().build()), leg([0, 0], [400, 0]));
     expect(flat.best!.climbMeters).toBe(0);
   });

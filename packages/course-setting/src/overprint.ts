@@ -14,6 +14,7 @@ import type {
   ControlPoint, Course, CourseSettingDocument, OverprintOptions, OverprintPrimitive, OverprintRole
 } from "./types";
 import { CourseSettingEditError } from "./types";
+import { inPaintOrder, specialPrimitives, specialVisible } from "./specials";
 import { enumerateCourseControls, enumerateLegs, findCourse, variations } from "./walk";
 
 type Gap = { startDegrees: number; endDegrees: number };
@@ -172,8 +173,9 @@ function pointPrimitives(object: PointObject, sizes: Sizes): OverprintPrimitive[
       const left = [{ x: -0.85, y: -1.5 }, { x: -0.35, y: -0.65 }, { x: -0.35, y: 0.65 }, { x: -0.85, y: 1.5 }].map(p => ({ x: p.x - shift, y: p.y }));
       const arc = (points: Point[]) => bezier(points[0]!, points[1]!, points[2]!, points[3]!).map(p => place(p, at, control.orientation ?? 0, scale));
       return [
-        { kind: "polyline", role: "CROSSING_POINT", color: "COURSE", points: arc(left), width: line, ref },
-        { kind: "polyline", role: "CROSSING_POINT", color: "COURSE", points: arc(left.map(p => ({ x: -p.x, y: p.y }))), width: line, ref }
+        // Undre lila som hos Purple Pen (CrossingCourseObj).
+        { kind: "polyline", role: "CROSSING_POINT", color: "COURSE_LOWER", points: arc(left), width: line, ref },
+        { kind: "polyline", role: "CROSSING_POINT", color: "COURSE_LOWER", points: arc(left.map(p => ({ x: -p.x, y: p.y }))), width: line, ref }
       ];
     }
     case "MAP_ISSUE": {
@@ -304,14 +306,28 @@ function allControls(document: CourseSettingDocument, printScale: number, option
   return out;
 }
 
-/** Banpåtrycket för en bana (eller alla kontroller). */
+/** Utskriftsskalan för banan (eller Alla kontroller): vald, banans eller kartans. */
+export function printScaleOf(document: CourseSettingDocument, course: string, printScale?: number): number {
+  if (printScale !== undefined) return printScale;
+  if (course === "ALL_CONTROLS") return document.event.allControlsPrintScale ?? document.event.mapScale;
+  return findCourse(document, course).printScale ?? document.event.mapScale;
+}
+
+/**
+ * Banpåtrycket för en bana (eller alla kontroller) med specialobjekten som syns där (steg 64), i målningsordning. Som i
+ * Purple Pen kommer specialobjekten före banans figurer inom samma färg.
+ */
 export function layout(document: CourseSettingDocument, options: OverprintOptions): OverprintPrimitive[] {
-  if (options.course === "ALL_CONTROLS") {
-    const allScale = Number(rawAttribute(document.event.raw, "all-controls", "print-scale"));
-    return allControls(document, options.printScale ?? (allScale > 0 ? allScale : document.event.mapScale), options);
-  }
+  const printScale = printScaleOf(document, options.course, options.printScale);
+  const course = options.course === "ALL_CONTROLS" ? allControls(document, printScale, options) : layoutCourse(document, options, printScale);
+  const context = { document, course: options.course, variant: options.variant, printScale, sizes: sizesFor(document, printScale) };
+  const specials = document.specialObjects.filter(special => specialVisible(special, options.course))
+    .flatMap(special => specialPrimitives(context, special));
+  return inPaintOrder([...specials, ...course]);
+}
+
+function layoutCourse(document: CourseSettingDocument, options: OverprintOptions, printScale: number): OverprintPrimitive[] {
   const course = findCourse(document, options.course);
-  const printScale = options.printScale ?? course.printScale ?? document.event.mapScale;
   const sizes = sizesFor(document, printScale);
   let choices: readonly string[] | null = null;
   if (options.variant !== undefined) {

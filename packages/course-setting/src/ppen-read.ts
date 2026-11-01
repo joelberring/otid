@@ -6,12 +6,13 @@
 import type { Point } from "@o-tid/map-file";
 import {
   CONTROL_KINDS, FLAGGING_KINDS, LABEL_KINDS, MAP_STANDARDS, ROOT, SPECIAL_KINDS, decodeCircleGaps, decodeOldCircleGaps,
-  invalid, legKey, parseBool, parseInteger, parseNumber, rawName, sortChildren, stub, toRaw
+  invalid, legKey, parseBool, parseInteger, parseNumber, rawAttribute, rawName, sortChildren, stub, toRaw
 } from "./ppen-common";
 import type {
   CircleGap, ControlPoint, Course, CourseControl, CourseRelayOptions, CourseSettingDocument, DescriptionBox, Leg,
-  PpenReadWarning, RawXml, SpecialObject
+  PpenReadWarning, PrintArea, RawXml, SpecialObject
 } from "./types";
+import { rawPrintArea, readSpecialFields } from "./ppen-special";
 import { enumerateCourseControls } from "./walk";
 import { attr, childElements, parseXml, textOf, type XmlElement } from "./xml";
 
@@ -138,9 +139,13 @@ export function readPpenDocument(xml: string): { readonly document: CourseSettin
   for (const course of fixedCourses) for (const ccId of enumerateCourseControls(document, course.id)) used.add(ccId);
   const unused = Object.keys(courseControls).filter(ccId => !used.has(ccId)).length;
   for (let i = 0; i < unused; i++) warnings.add("UNUSED_COURSE_CONTROL", "Banans kontroller som ingen bana når sparas orörda");
-  const specialKinds = new Set(specialObjects.map(special => special.kind));
-  if (specialKinds.size > 0) warnings.add("SPECIAL_OBJECTS", `Specialobjekt (${[...specialKinds].join(", ")}) sparas men ritas inte än`);
   return { document, warnings: warnings.list() };
+}
+
+/** Steg 64: tryckytan bredvid det råa `<print-area>` (som skrivs orört om ytan inte ändrats). */
+function printAreaField(raw: readonly RawXml[]): { printArea?: PrintArea } {
+  const area = rawPrintArea(raw);
+  return area ? { printArea: area } : {};
 }
 
 function parseIdText(id: string | undefined, element: string): string {
@@ -211,8 +216,10 @@ function readEvent(element: XmlElement, warnings: Warnings): CourseSettingDocume
   if (!mapStandardSeen) warnings.add("MAP_STANDARD", "Banpåtryck enligt 2000 ritas som ISOM 2017");
   if (mapScale === undefined) throw invalid("<event> saknar <map>");
   if (!(mapScale > 0)) throw invalid("kartans skala är inte positiv");
+  const allScale = Number(rawAttribute(raw, "all-controls", "print-scale"));
   return {
     title, mapScale, overprintStandard, descriptionStandard, numbering,
+    ...(allScale > 0 ? { allControlsPrintScale: allScale } : {}), ...printAreaField(raw),
     ...(descriptionLanguage !== undefined ? { descriptionLanguage } : {}), raw: sortChildren("event", raw, rawName)
   };
 }
@@ -413,6 +420,7 @@ function readCourse(element: XmlElement): Course {
     ...(climbMeters !== undefined ? { climbMeters } : {}),
     ...(lengthOverrideMeters !== undefined ? { lengthOverrideMeters } : {}),
     ...(relayOptions ? { relay: relayOptions } : {}),
+    ...printAreaField(raw),
     ...(raw.length > 0 ? { raw: sortChildren("course", raw, rawName) } : {})
   };
 }
@@ -526,7 +534,8 @@ function readSpecial(element: XmlElement): SpecialObject {
   if (points.length === 0) throw invalid(`specialobjektet ${id} saknar location`);
   if (kind === "text" && !children.some(child => child.name === "font")) throw invalid(`texten ${id} saknar font`);
   if (kind === "image" && !children.some(child => child.name === "image-data")) throw invalid(`bilden ${id} saknar image-data`);
-  return { id, kind, points, courses: specialCourses(element), raw: toRaw(element) };
+  const fields = Object.fromEntries(Object.entries(readSpecialFields(element, kind)).filter(([, value]) => value !== undefined));
+  return { id, kind, points, courses: specialCourses(element), ...fields, raw: toRaw(element) };
 }
 
 /** Banorna ett specialobjekt syns på; tomt = alla. */

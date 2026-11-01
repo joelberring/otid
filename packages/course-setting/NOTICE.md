@@ -5,7 +5,9 @@ banpåtrycket, kontrollbeskrivningarnas symboler i steg 63) bygger på Purple Pe
 Kontrollbeskrivningarna: `src/description-symbols.data.ts` är genererad ur Purple Pens `symbols.xml` (ritningar, namn,
 texter; svenska för fyra 2018-symboler är O-Tids egna, se `scripts/generate-description-symbols.ts`), och
 `src/description-*.ts` är portade från SymbolDB.cs, Textifier.cs, CourseView.cs, DescriptionFormatter.cs och
-DescriptionRenderer.cs:
+DescriptionRenderer.cs. Steg 64: specialobjekten och utskriftslayouten (`src/specials.ts`, `src/special-*.ts`,
+`src/ppen-special.ts`, `src/page-layout.ts`) bygger på CourseObject.cs, CourseFormatter.cs, CourseLayout.cs,
+CoursePageLayout.cs, Controller.cs (tryckytan), CoreMapUtil.cs och EventDB.cs (Special, PrintArea):
 
 ```
 Copyright (c) 2006-2008, Peter Golde

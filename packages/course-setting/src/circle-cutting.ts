@@ -11,7 +11,7 @@ import { arcContains, arcsFromSamples, simplifyGaps, totalDegrees, type Arc } fr
 import { appearanceOf, circleGapScale, sizesFor } from "./appearance";
 import type { DetailCircle } from "./detail-gaps";
 import { angleDegrees, distance, nearestOnSegment } from "./geometry";
-import { legKey, rawAttribute } from "./ppen-common";
+import { legKey } from "./ppen-common";
 import type { CircleGap, ControlPoint, CourseSettingDocument, CourseSettingEdit } from "./types";
 import { enumerateCourseControls, enumerateLegs } from "./walk";
 
@@ -186,8 +186,7 @@ function legAnglesByControl(document: CourseSettingDocument): Map<string, number
 export const detailGapKey = (control: string, radiusMm: number) => `${control}@${radiusMm.toFixed(3)}`;
 
 function allControlsScale(document: CourseSettingDocument): number {
-  const value = Number(rawAttribute(document.event.raw, "all-controls", "print-scale"));
-  return value > 0 ? value : document.event.mapScale;
+  return document.event.allControlsPrintScale ?? document.event.mapScale;
 }
 
 /** Utskriftsskalorna där kontrollen syns: banornas och alla kontrollers. */

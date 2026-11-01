@@ -54,17 +54,19 @@ type Align = "left" | "center" | "right";
 class Painter {
   readonly primitives: DescriptionPrimitive[] = [];
   private originY = 0;
+  private originX = 0;
   private ref: string | undefined;
 
   constructor(private readonly unit: number, private readonly offset: number) {}
 
-  /** Raden som ritas nu: dess överkant i enheter och kontrollen den hör till. */
-  startLine(index: number, ref: string | undefined): void {
-    this.originY = index * 100;
+  /** Raden som ritas nu: dess överkant (och vänsterkant i flera spalter) i enheter och kontrollen den hör till. */
+  startLine(row: number, ref: string | undefined, left = 0): void {
+    this.originY = row * 100;
+    this.originX = left;
     this.ref = ref;
   }
 
-  private x(units: number) { return this.offset + units * this.unit; }
+  private x(units: number) { return this.offset + (this.originX + units) * this.unit; }
   private y(units: number) { return this.offset + (this.originY + units) * this.unit; }
   private withRef<T extends object>(item: T): T { return this.ref !== undefined ? { ...item, ref: this.ref } : item; }
 
@@ -265,21 +267,46 @@ function nextThickCounter(line: DescriptionLine, counter: number): number {
   return counter + 1 === 3 ? 0 : counter + 1;
 }
 
-/** Rader till figurer (DescriptionRenderer.Render med en spalt). */
-export function renderDescription(lines: readonly DescriptionLine[], kind: DescriptionKind, boxMm: number, columnHScore = false): DescriptionLayout {
+/** Mellanrummet mellan spalterna i rutor (DescriptionRenderer.columnGap). */
+const COLUMN_GAP = 0.6;
+
+/**
+ * Spalt och rad för varje rad i beskrivningen (DescriptionRenderer.ColumnAndRow): de första spalterna får en rad mer när
+ * raderna inte går jämnt ut.
+ */
+function columnsOf(count: number, columns: number): { row: number; column: number }[] {
+  const length = Math.ceil(count / columns);
+  const long = count % columns === 0 ? columns : count % columns;
+  const out: { row: number; column: number }[] = [];
+  let column = 0, row = 0;
+  for (let index = 0; index < count; index++) {
+    if (row >= (column < long ? length : length - 1)) { column++; row = 0; }
+    out.push({ row, column });
+    row++;
+  }
+  return out;
+}
+
+/** Rader till figurer (DescriptionRenderer.Render, också i flera spalter som på kartan). */
+export function renderDescription(lines: readonly DescriptionLine[], kind: DescriptionKind, boxMm: number, columnHScore = false, columns = 1): DescriptionLayout {
   const unit = boxMm / 100;
   const offset = (THICK / 2) * unit;
   const painter = new Painter(unit, offset);
+  const cells = kind === "SYMBOLS_AND_TEXT" ? 13 : 8;
+  const count = Math.max(1, Math.min(Math.floor(columns), lines.length || 1));
+  const places = columnsOf(lines.length, count);
   let counter = 0;
   lines.forEach((line, index) => {
-    painter.startLine(index, line.control);
-    const last = index === lines.length - 1;
-    const noTopLine = index !== 0 && noBoundaryBetween(line, lines[index - 1]!);
-    renderLine(painter, line, kind, last, counter === 0 || index === 0, noTopLine, columnHScore);
+    const { row, column } = places[index]!;
+    if (column > 0 && row === 0) counter = 0;
+    painter.startLine(row, line.control, column * (cells + COLUMN_GAP) * 100);
+    const last = index === lines.length - 1 || places[index + 1]!.column !== column;
+    const noTopLine = index !== 0 && row !== 0 && noBoundaryBetween(line, lines[index - 1]!);
+    renderLine(painter, line, kind, last, counter === 0 || index === 0 || row === 0, noTopLine, columnHScore);
     counter = nextThickCounter(line, counter);
   });
-  const width = (kind === "SYMBOLS_AND_TEXT" ? 13 : 8) * boxMm;
-  return { widthMm: width + 2 * offset, heightMm: lines.length * boxMm + 2 * offset, primitives: painter.primitives };
+  const width = (cells * count + COLUMN_GAP * (count - 1)) * boxMm;
+  return { widthMm: width + 2 * offset, heightMm: Math.ceil(lines.length / count) * boxMm + 2 * offset, primitives: painter.primitives };
 }
 
 export function layout(document: CourseSettingDocument, options: DescriptionLayoutOptions): DescriptionLayout {
@@ -288,5 +315,5 @@ export function layout(document: CourseSettingDocument, options: DescriptionLayo
   const { lines, scoreColumn } = formatDescription(document, {
     course: options.course, variant: options.variant, language: options.language, createKey: options.kind === "SYMBOLS"
   });
-  return renderDescription(lines, options.kind, boxMm, options.kind === "TEXT" && scoreColumn === 7);
+  return renderDescription(lines, options.kind, boxMm, options.kind === "TEXT" && scoreColumn === 7, options.columns ?? 1);
 }

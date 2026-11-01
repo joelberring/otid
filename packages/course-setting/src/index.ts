@@ -37,6 +37,15 @@ export {
   DEFAULT_DETAIL_SYMBOLS, DETAIL_GAP_LIMITS, DETAIL_PRIORITY_WEIGHT, SPRINT_DETAIL_SYMBOLS, type DetailClass, type DetailPriority
 } from "./detail-symbols";
 export type { DetailCircle, DetailGapOptions } from "./detail-gaps";
+// Steg 64: specialobjekt och utskriftslayout (ADR-0180 beslut 11).
+export {
+  DEFAULT_MARGINS, defaultPage, figureBounds, HEADER_MM, HUNDREDTH_INCH_MM, layoutCoursePage, PAPER_SIZES, printAreaOf, printRectangle,
+  printVariants, toPage, type CoursePage, type CoursePageOptions, type PageText, type PaperName
+} from "./page-layout";
+export { approximateTextWidth, DIGIT_HEIGHT_EM, expandText, specialVisible, TEXT_LINE_EM } from "./specials";
+export { SPECIAL_KIND_LIST, specialPointCount } from "./special-edit";
+export { specialImage } from "./ppen-special";
+export { printScaleOf } from "./overprint";
 
 /** Läs en Purple Pen-fil (.ppen, XML). Kastar `CourseSettingEditError("INVALID")` om filen inte är en .ppen. */
 export function readPpen(xml: string): { readonly document: CourseSettingDocument; readonly warnings: readonly PpenReadWarning[] } { return readPpenDocument(xml); }

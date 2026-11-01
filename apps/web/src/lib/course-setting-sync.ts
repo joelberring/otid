@@ -2,7 +2,7 @@ import type { CourseSettingEditsRequest, CourseSettingEditsSaved } from "@o-tid/
 import {
   documentChanges, editTouches, remapEdit, replayEdits, type CourseSettingDocument, type CourseSettingEdit, type IdMap
 } from "@o-tid/course-setting";
-import { stillThere, type EditorState, type HistoryStep, type LoggedEdit, type Selection } from "./course-setting-editor";
+import { stillThere, wireCreated, type EditorState, type HistoryStep, type LoggedEdit, type Selection } from "./course-setting-editor";
 
 /**
  * Steg 66 (ADR-0181 beslut 4): samtidigt arbete i editorn. Editorns läge finns i en `EditorStore` (React läser den med
@@ -249,8 +249,7 @@ export class CourseSettingSync {
       const requestId = resumed && entries.at(-1)!.seq <= resumed.upTo ? resumed.requestId : (this.options.newId ?? (() => crypto.randomUUID()))();
       this.inFlight = { entries, authorView, request: { formatVersion: 1, requestId,
         baseVersion: this.serverVersion, edits: entries.map(entry => entry.edit) as CourseSettingEditsRequest["edits"],
-        created: entries.map(entry => ({ controls: [...entry.created.controls], courseControls: [...entry.created.courseControls],
-          courses: [...entry.created.courses] })) } };
+        created: entries.map(entry => wireCreated(entry.created)) } };
       this.sentUpTo = entries.at(-1)!.seq;
     }
     const flight = this.inFlight;

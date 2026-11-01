@@ -43,10 +43,20 @@ export function primitiveDistance(primitive: OverprintPrimitive, point: Point): 
     }
     case "text": {
       const halfWidth = primitive.heightMm * 0.32 * Math.max(1, primitive.text.length), halfHeight = primitive.heightMm / 2;
-      const dx = Math.max(0, Math.abs(point.x - primitive.at.x) - halfWidth), dy = Math.max(0, Math.abs(point.y - primitive.at.y) - halfHeight);
+      const centerX = primitive.align === "left" ? primitive.at.x + halfWidth : primitive.at.x;
+      const dx = Math.max(0, Math.abs(point.x - centerX) - halfWidth), dy = Math.max(0, Math.abs(point.y - primitive.at.y) - halfHeight);
       return Math.hypot(dx, dy);
     }
+    case "image": return rectDistance(primitive.rect, point);
+    case "description": {
+      const { topLeft, layout } = primitive;
+      return rectDistance({ minX: topLeft.x, maxX: topLeft.x + layout.widthMm, minY: topLeft.y - layout.heightMm, maxY: topLeft.y }, point);
+    }
   }
+}
+
+function rectDistance(rect: { minX: number; minY: number; maxX: number; maxY: number }, point: Point): number {
+  return Math.hypot(Math.max(0, rect.minX - point.x, point.x - rect.maxX), Math.max(0, rect.minY - point.y, point.y - rect.maxY));
 }
 
 function inside(ring: readonly Point[], point: Point): boolean {

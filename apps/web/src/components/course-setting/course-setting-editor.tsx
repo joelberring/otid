@@ -6,8 +6,8 @@ import type {
   CourseSettingMode, CourseSettingNote, CourseSettingNoteTarget, CourseSettingState, CourseSettingSuggestionDecided
 } from "@o-tid/contracts";
 import {
-  applyEdit, checkDocument, courseControlOrder, courseSummaries, describeControl, layoutOverprint, nextFreeCode, type CourseSettingDocument,
-  type OverprintPrimitive
+  applyEdit, checkDocument, courseControlOrder, courseSummaries, describeControl, descriptionSymbols, layoutOverprint, nextFreeCode,
+  type CourseSettingDocument, type DescriptionSymbol, type OverprintPrimitive
 } from "@o-tid/course-setting";
 import type { MapGeoreference } from "@o-tid/map-file";
 import type { LegAnalysis, RouteChoiceSettings } from "@o-tid/route-choice";
@@ -23,8 +23,9 @@ import {
 } from "../../lib/course-setting-api";
 import {
   addBend, addPoint, addSplit, applySteps, beginDrag, cancelTool, canRedo, canUndo, createEditor, dragTo, endDrag, endSuggestion, insertExisting,
-  redo, removeSelected, removeSplit, replaceDocument, select, setTool, setView, undo, type EditorState, type Tool
+  redo, removeSelected, removeSplit, replaceDocument, select, setTool, setView, undo, wireCreated, type EditorState, type Tool
 } from "../../lib/course-setting-editor";
+import { symbolLookup } from "../../lib/course-setting-description-draw";
 import { ALL_CONTROLS, hitTest, nearestBend } from "../../lib/course-setting-hit";
 import { MapRenderSession } from "../../lib/course-setting-map-protocol";
 import { noteInView, noteMarks, notePosition, noteTargetAt } from "../../lib/course-setting-note-marks";
@@ -221,6 +222,9 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
   const faded = useMemo(() => variant ? safely("Banpåtrycket", () => layoutOverprint(document, { course: view, ...cutting.options }), [] as readonly OverprintPrimitive[]) : [],
     [document, view, variant, cutting.options]);
   const summaries = useMemo(() => safely("Banornas längder", () => courseSummaries(document), []), [document]);
+  // Steg 64: symbolerna för beskrivningen på kartan.
+  const standard = document.event.descriptionStandard;
+  const symbols = useMemo(() => symbolLookup(safely("Symbolerna", () => descriptionSymbols(standard), [] as readonly DescriptionSymbol[])), [standard]);
   const checks = useMemo(() => checkRows(document, safely("Kontrollerna", () => checkDocument(document), [])), [document]);
   const [flagged, setFlagged] = useState<CheckRow>();
   const mapHandle = useRef<CourseSettingMapHandle>(null);
@@ -338,8 +342,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
     if (!current.suggesting || current.log.length === 0) return false;
     try {
       await createCourseSettingSuggestion(raceId, { requestId: crypto.randomUUID(), baseVersion: current.suggesting.baseVersion,
-        edits: current.log.map(entry => entry.edit) as never, created: current.log.map(entry => ({ controls: [...entry.created.controls],
-          courseControls: [...entry.created.courseControls], courses: [...entry.created.courses] })), comment });
+        edits: current.log.map(entry => entry.edit) as never, created: current.log.map(entry => wireCreated(entry.created)), comment });
       store.update(next => endSuggestion(next, true));
       await collaboration.reloadSuggestions();
       return true;
@@ -605,7 +608,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
         <CourseSettingMap session={mapSession} mapBounds={mapBounds} primitives={primitives} faded={faded} marks={marks} analysis={analysis}
           label={label} cursor={CURSOR[editor.tool]} handlers={handlers} handle={mapHandle} noteMarks={mapNotes} selectedNote={selectedNote}
           onNoteTap={id => { setSelectedNote(id); setTab("notes"); }} suggestion={suggestionDrawing} cursorAt={cursorAt} highlightRoute={highlightRoute}
-          position={field.position} inspected={inspectedMarks} onPan={field.onPan} cross={selection?.kind === "control" && document.controls[selection.control]
+          position={field.position} inspected={inspectedMarks} onPan={field.onPan} symbols={symbols} cross={selection?.kind === "control" && document.controls[selection.control]
             ? { at: document.controls[selection.control]!.at, dragging: editor.dragBase !== undefined } : undefined} />
         {field.narrow ? <div className={styles.bottomStack}>
           {toolBar}

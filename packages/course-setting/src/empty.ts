@@ -19,6 +19,7 @@ export function createEmptyDocument(options: { readonly title: string; readonly 
       descriptionStandard: "2018",
       numbering: { start: 31, disallowInvertible: true },
       descriptionLanguage: "sv",
+      allControlsPrintScale: options.mapScale,
       raw: [
         el("event", [["id", "1"]]),
         el("map", [["kind", "none"]]),

@@ -4,9 +4,10 @@
  */
 import {
   MAP_STANDARDS, ROOT, sortAttributes, sortChildren, decodeCircleGaps, decodeOldCircleGaps, encodeCircleGaps, formatFloat32, formatNumber, fromRaw,
-  invertRecord, nextId, CONTROL_KINDS, FLAGGING_KINDS, LABEL_KINDS
+  invertRecord, nextId, toRaw, CONTROL_KINDS, FLAGGING_KINDS, LABEL_KINDS
 } from "./ppen-common";
 import { specialCourses } from "./ppen-read";
+import { buildSpecialElement, fieldsOf, readSpecialFields, sameFields, withPrintArea } from "./ppen-special";
 import type { CircleGap, ControlPoint, Course, CourseControl, CourseSettingDocument, Leg, RawXml, SpecialObject } from "./types";
 import { attr, childElements, el, serializeXml, textOf, type XmlElement, type XmlNode } from "./xml";
 
@@ -60,6 +61,19 @@ function children(
 
 const num = (value: number | undefined) => value === undefined ? undefined : formatNumber(value);
 
+/** `<all-controls print-scale>` som modellen har den (orörd om den är densamma). */
+function withAllControlsScale(raws: RawXml[], scale: number | undefined): RawXml[] {
+  const index = raws.findIndex(raw => raw.xml.startsWith("<all-controls"));
+  const old = index >= 0 ? fromRaw(raws[index]!) : undefined;
+  const current = old ? Number(attr(old, "print-scale")) : NaN;
+  if (scale === undefined ? !(current > 0) : current === scale) return raws;
+  const attrs = (old?.attrs ?? []).filter(([name]) => name !== "print-scale");
+  const next = el("all-controls", scale === undefined ? attrs : [["print-scale", formatNumber(scale)], ...attrs], old?.children ?? []);
+  const list = [...raws];
+  if (index >= 0) list[index] = toRaw(next); else list.push(toRaw(next));
+  return list;
+}
+
 function eventElement(document: CourseSettingDocument): XmlElement {
   const event = document.event;
   const keep = (stubElement: XmlElement | undefined, name: string, map: Readonly<Record<string, string>>, value: string, text: string) => {
@@ -84,7 +98,8 @@ function eventElement(document: CourseSettingDocument): XmlElement {
       return merge("numbering", s, [["start", String(event.numbering.start)], ["disallow-invertible", String(event.numbering.disallowInvertible)]]);
     }
   };
-  const { attrs, children: kids } = children("event", event.raw, [el("title", [], event.title === "" ? [] : [event.title])], parts);
+  const raws = withAllControlsScale(withPrintArea(event.raw, event.printArea), event.allControlsPrintScale);
+  const { attrs, children: kids } = children("event", raws, [el("title", [], event.title === "" ? [] : [event.title])], parts);
   return el("event", attrs.length > 0 ? attrs : [["id", "1"]], kids);
 }
 
@@ -164,7 +179,7 @@ function courseElement(course: Course): XmlElement {
   for (const [leg, branches] of Object.entries(course.relay?.fixedBranches ?? {})) {
     for (const branch of branches) canonical.push(el("relay-branch", [["branch", branch], ["leg", leg]]));
   }
-  const { attrs, children: kids } = children("course", course.raw, canonical, parts);
+  const { attrs, children: kids } = children("course", withPrintArea(course.raw, course.printArea), canonical, parts);
   return merge("course", el("course", attrs), [
     ["id", course.id], ["kind", course.kind === "SCORE" ? "score" : "normal"], ["order", String(course.order)]
   ], kids);
@@ -209,9 +224,12 @@ function legElement(leg: Leg, id: string): XmlElement {
   return merge("leg", el("leg", attrs.length > 0 ? attrs : [["id", id]]), [["start-control", leg.from], ["end-control", leg.to]], ordered);
 }
 
-/** Specialobjektet orört, eller med nya punkter och banor om de ändrats. */
+/** Specialobjektet orört, med nya punkter och banor om de ändrats, eller omskrivet om de tolkade fälten ändrats. */
 function specialElement(special: SpecialObject): XmlElement {
   const element = fromRaw(special.raw);
+  if (!sameFields(readSpecialFields(element, special.kind), fieldsOf(special)) || attr(element, "kind") !== special.kind) {
+    return buildSpecialElement(special, element);
+  }
   const points = childElements(element).filter(child => child.name === "location")
     .map(child => ({ x: Number(attr(child, "x")), y: Number(attr(child, "y")) }));
   const samePoints = JSON.stringify(points) === JSON.stringify(special.points);

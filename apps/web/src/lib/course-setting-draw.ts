@@ -2,12 +2,15 @@ import type { OverprintPrimitive } from "@o-tid/course-setting";
 import type { Point } from "@o-tid/map-file";
 import { toScreen, type Viewport } from "./course-setting-viewport";
 import { alternativeColor, alternativeLabels, ROUTE_CHOICE_COLORS } from "./route-choice-view";
+import type { SymbolLookup } from "./course-setting-description-draw";
+import { cachedDescriptionNodes, COURSE_PURPLE, drawSvgNodes, screenColor, specialImage } from "./course-setting-draw-special";
 
 /**
  * Steg 62 (ADR-0180 beslut 5): banpåtryckets figurer på skärmen, i ett eget canvas-lager ovanpå kartan. Samma figurer blir
  * PDF i steg 65. Färgen "banans" är Purple Pens standardlila (CMYK 20/100/0/0); vit är vit bakgrund och kant.
+ * Steg 64: specialobjekten (rastrerade ytor, text, bild, beskrivningen på kartan) med skärmens färger (`screenColor`).
  */
-export const COURSE_PURPLE = "rgb(204, 0, 255)";
+export { COURSE_PURPLE };
 const DEGREES = Math.PI / 180;
 
 type Context = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
@@ -39,15 +42,31 @@ function path(ctx: Context, view: Viewport, points: readonly Point[], closed: bo
   if (closed) ctx.closePath();
 }
 
-/** Ritar figurerna i vyn. `faded` ritar dem tonade (t.ex. andra grenar eller banor). */
-export function drawOverprint(ctx: Context, view: Viewport, primitives: readonly OverprintPrimitive[], options: { faded?: boolean } = {}) {
+export interface OverprintDrawOptions {
+  /** Tonade (t.ex. andra grenar eller banor). */
+  readonly faded?: boolean | undefined;
+  /** Symbolerna för beskrivningen på kartan; saknas = beskrivningen ritas som sin ruta. */
+  readonly symbols?: SymbolLookup | undefined;
+  /** Anropas när en bild i ett specialobjekt är avkodad (kartan ritas då om). */
+  readonly onImage?: (() => void) | undefined;
+}
+
+/** Ritar figurerna i vyn, i den ordning de kommer (`layoutOverprint` ger målningsordningen). */
+export function drawOverprint(ctx: Context, view: Viewport, primitives: readonly OverprintPrimitive[], options: OverprintDrawOptions = {}) {
   const scale = view.pxPerMm;
+  const alpha = options.faded ? 0.35 : 1;
   ctx.save();
-  ctx.globalAlpha = options.faded ? 0.35 : 1;
   ctx.lineCap = "butt";
   ctx.lineJoin = "round";
   for (const primitive of primitives) {
-    const color = primitive.color === "WHITE" ? "#fff" : COURSE_PURPLE;
+    ctx.globalAlpha = alpha;
+    if (primitive.kind === "image") {
+      const bitmap = specialImage(primitive, options.onImage);
+      const corner = toScreen(view, { x: primitive.rect.minX, y: primitive.rect.maxY });
+      if (bitmap) ctx.drawImage(bitmap, corner.x, corner.y, (primitive.rect.maxX - primitive.rect.minX) * scale, (primitive.rect.maxY - primitive.rect.minY) * scale);
+      continue;
+    }
+    const color = screenColor(primitive);
     ctx.strokeStyle = color;
     ctx.fillStyle = color;
     switch (primitive.kind) {
@@ -62,13 +81,16 @@ export function drawOverprint(ctx: Context, view: Viewport, primitives: readonly
         break;
       }
       case "polyline":
-        ctx.lineWidth = Math.max(1, primitive.width * scale);
+        ctx.lineWidth = Math.max(primitive.role === "SPECIAL" ? 0.5 : 1, primitive.width * scale);
+        ctx.lineCap = primitive.cap ?? "butt";
         ctx.setLineDash(primitive.dash ? primitive.dash.map(value => value * scale) : []);
         path(ctx, view, primitive.points, primitive.closed === true);
         ctx.stroke();
         ctx.setLineDash([]);
+        ctx.lineCap = "butt";
         break;
       case "polygon":
+        ctx.globalAlpha = alpha * (primitive.tint ?? 1);
         ctx.beginPath();
         for (const ring of primitive.rings) {
           ring.forEach((point, index) => {
@@ -81,10 +103,22 @@ export function drawOverprint(ctx: Context, view: Viewport, primitives: readonly
         break;
       case "text": {
         const at = toScreen(view, primitive.at);
-        ctx.font = `${Math.max(6, primitive.heightMm * scale)}px Arial, Helvetica, sans-serif`;
-        ctx.textAlign = "center";
+        const font = primitive.font;
+        const family = font ? `"${font.family.replace(/"/g, "")}", Arial, Helvetica, sans-serif` : "Arial, Helvetica, sans-serif";
+        ctx.font = `${font?.italic ? "italic " : ""}${font?.bold ? "bold " : ""}${Math.max(primitive.role === "SPECIAL" ? 1 : 6, primitive.heightMm * scale)}px ${family}`;
+        ctx.textAlign = primitive.align;
         ctx.textBaseline = "middle";
         ctx.fillText(primitive.text, at.x, at.y);
+        break;
+      }
+      case "description": {
+        const at = toScreen(view, primitive.topLeft);
+        ctx.save();
+        ctx.translate(at.x, at.y);
+        ctx.scale(scale, scale);
+        if (options.symbols) drawSvgNodes(ctx, cachedDescriptionNodes(primitive.layout, options.symbols), color);
+        else { ctx.lineWidth = 0.2; ctx.strokeRect(0, 0, primitive.layout.widthMm, primitive.layout.heightMm); }
+        ctx.restore();
         break;
       }
     }

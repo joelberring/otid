@@ -68,6 +68,8 @@ export interface DescriptionLayoutOptions {
   readonly language: DescriptionLanguage;
   /** Rutans storlek i mm (IOF: 5–7 mm, Purple Pen 6 mm som standard). */
   readonly boxMm?: number | undefined;
+  /** Steg 64: antal spalter (beskrivningen på kartan, Purple Pens `<appearance columns>`); saknas = 1. */
+  readonly columns?: number | undefined;
 }
 
 export interface DescriptionLayout {

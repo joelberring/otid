@@ -93,6 +93,10 @@ export function endSuggestion(state: EditorState, keepSuggesting: boolean, base?
 /** Åtgärden som den går över nätet (utan `undefined`), så att webbläsaren och servern gör exakt samma sak. */
 export const wireEdit = (edit: CourseSettingEdit): CourseSettingEdit => JSON.parse(JSON.stringify(edit)) as CourseSettingEdit;
 
+/** Id som åtgärden skapade som de går över nätet (`courseSettingCreatedIdsSchema`), också specialobjekten (steg 64). */
+export const wireCreated = (created: CreatedIds) => ({ controls: [...created.controls], courseControls: [...created.courseControls],
+  courses: [...created.courses], ...(created.specialObjects?.length ? { specialObjects: [...created.specialObjects] } : {}) });
+
 /** Kontrollen eller sträckan finns fortfarande i dokumentet (efter ångra eller borttagning). */
 export function stillThere(document: CourseSettingDocument, selection: Selection | undefined): Selection | undefined {
   if (!selection) return undefined;

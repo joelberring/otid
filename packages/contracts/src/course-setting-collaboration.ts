@@ -25,6 +25,23 @@ export const COURSE_SETTING_NOTE_PHOTO_TYPES = ["image/jpeg", "image/png", "imag
 const nullableRecord = <T extends z.ZodType>(key: z.ZodString, value: T) => z.record(key, value.nullable())
   .refine(record => Object.keys(record).length <= 50_000);
 
+const specialFields = z.object({
+  orientation: z.number().finite().optional(), stretch: z.number().finite().optional(), text: z.string().max(4000).optional(),
+  font: z.object({ name: z.string().min(1).max(100), bold: z.boolean(), italic: z.boolean(), height: z.number().finite().optional() }).strict().optional(),
+  color: z.string().max(80).optional(), columns: z.number().int().optional(),
+  line: z.object({ kind: z.enum(["single", "double", "dashed"]), width: z.number().finite(), gapSize: z.number().finite(), dashSize: z.number().finite(),
+    cornerRadius: z.number().finite().optional() }).strict().optional()
+});
+const specialInput = specialFields.extend({
+  kind: z.enum(["first-aid", "water", "optional-crossing-point", "forbidden-route", "registration-mark", "boundary", "out-of-bounds",
+    "dangerous-area", "temporary-construction", "white-out", "text", "descriptions", "image", "line", "rectangle", "ellipse"]),
+  points: z.array(point).min(1).max(10_000), courses: z.array(id).max(1000).optional(),
+  image: z.object({ format: z.string().min(1).max(16), data: z.string().max(COURSE_SETTING_DOCUMENT_MAX_BYTES) }).strict().optional()
+}).strict();
+const printArea = z.object({ automatic: z.boolean(), restrictToPageSize: z.boolean(),
+  rect: z.object({ minX: part.mm, minY: part.mm, maxX: part.mm, maxY: part.mm }).strict().optional(),
+  page: z.object({ width: z.number().int(), height: z.number().int(), margins: z.number().int(), landscape: z.boolean() }).strict().optional() }).strict();
+
 /** En åtgärd (`CourseSettingEdit` i `@o-tid/course-setting`). */
 export const courseSettingEditSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("ADD_CONTROL"), kind: z.enum(["START", "NORMAL", "FINISH", "CROSSING_POINT", "MAP_EXCHANGE", "MAP_ISSUE"]),
@@ -52,12 +69,18 @@ export const courseSettingEditSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("SET_EVENT"), changes: z.object({ title: z.string().max(400).optional(), mapScale: z.number().finite().optional(),
     overprintStandard: z.enum(["ISOM2017", "ISSPROM2019"]).optional(), descriptionStandard: z.enum(["2004", "2018"]).optional(),
     numbering: z.object({ start: z.number().int(), disallowInvertible: z.boolean() }).strict().optional(),
-    descriptionLanguage: z.string().max(16).optional(),
+    descriptionLanguage: z.string().max(16).optional(), allControlsPrintScale: z.number().finite().optional(),
     // Ringklippen (ADR-0180 beslut 10).
     circleCutting: z.object({ overlap: z.boolean(), details: z.boolean() }).strict().optional() }).strict() }).strict(),
   z.object({ type: z.literal("SET_DESCRIPTION"), control: id, boxes: z.array(z.object({ box: z.string().max(8), ref: z.string().max(32).optional(),
     text: z.string().max(64).optional() }).strict()).max(16) }).strict(),
   z.object({ type: z.literal("SET_DESCRIPTION_TEXT_LINE"), control: id, location: z.enum(["before", "after"]), text: z.string().max(400).nullable() }).strict(),
+  // Steg 64: specialobjekt och tryckyta (fälten kontrolleras av paketets applyEdit).
+  z.object({ type: z.literal("ADD_SPECIAL"), special: specialInput }).strict(),
+  z.object({ type: z.literal("MOVE_SPECIAL"), special: id, points: z.array(point).min(1).max(10_000) }).strict(),
+  z.object({ type: z.literal("UPDATE_SPECIAL"), special: id, changes: specialFields.extend({ courses: z.array(id).max(1000).optional() }).strict() }).strict(),
+  z.object({ type: z.literal("DELETE_SPECIAL"), special: id }).strict(),
+  z.object({ type: z.literal("SET_PRINT_AREA"), course: id, area: printArea.nullable() }).strict(),
   z.object({ type: z.literal("PUT_OBJECTS"), controls: nullableRecord(id, part.control).optional(),
     courseControls: nullableRecord(id, part.courseControl).optional(), courses: nullableRecord(id, part.course).optional(),
     legs: nullableRecord(z.string().max(140), part.leg).optional(), specialObjects: nullableRecord(id, part.specialObject).optional(),
@@ -67,8 +90,9 @@ export type CourseSettingEditDto = z.infer<typeof courseSettingEditSchema>;
 
 /** Id som en åtgärd skapade hos författaren (`CreatedIds`). */
 export const courseSettingCreatedIdsSchema = z.object({ controls: z.array(id).max(1000), courseControls: z.array(id).max(1000),
-  courses: z.array(id).max(1000) }).strict();
-const idMapSchema = z.object({ controls: z.record(id, id), courseControls: z.record(id, id), courses: z.record(id, id) }).strict();
+  courses: z.array(id).max(1000), specialObjects: z.array(id).max(1000).optional() }).strict();
+const idMapSchema = z.object({ controls: z.record(id, id), courseControls: z.record(id, id), courses: z.record(id, id),
+  specialObjects: z.record(id, id).optional() }).strict();
 const edits = z.array(courseSettingEditSchema).min(1).max(COURSE_SETTING_EDITS_MAX);
 const createdList = z.array(courseSettingCreatedIdsSchema).max(COURSE_SETTING_EDITS_MAX);
 

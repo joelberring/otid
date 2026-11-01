@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { CourseSettingNote } from "@o-tid/contracts";
 import { applyEdit, createdIdsBetween, type CourseSettingEdit } from "@o-tid/course-setting";
 import { ALL_CONTROLS } from "./course-setting-hit";
+import { wireCreated } from "./course-setting-editor";
 import {
   filterNotes, hitNoteMark, noteInView, noteMarkGeometry, noteMarks, notePosition, noteTargetAt, scaledSize
 } from "./course-setting-note-marks";
@@ -65,8 +66,7 @@ describe("förslagen", () => {
       { type: "ADD_CONTROL", kind: "NORMAL", at: { x: 40, y: 40 }, code: "50" }, { type: "DELETE_CONTROL", control: "b" }];
     let document = base;
     const created = edits.map(edit => { const next = applyEdit(document, edit).document; const ids = createdIdsBetween(document, next); document = next; return ids; });
-    const preview = previewSuggestion(base, { edits: edits as never, created: created.map(row => ({ ...row, controls: [...row.controls],
-      courseControls: [...row.courseControls], courses: [...row.courses] })) });
+    const preview = previewSuggestion(base, { edits: edits as never, created: created.map(wireCreated) });
     expect(preview.rejected).toEqual([]);
     const overlay = suggestionOverlay(base, preview.document);
     expect(overlay.moved).toEqual([{ control: "a", from: { x: 10, y: 0 }, to: { x: 12, y: 3 } }]);

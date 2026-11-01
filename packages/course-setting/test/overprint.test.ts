@@ -107,7 +107,8 @@ describe("layoutOverprint", () => {
     const { b } = lineCourse(2, { mapScale: 15000 });
     const p = layoutOverprint(b.document, { course: "ALL_CONTROLS" });
     expect(texts(p).map(t => t.text).sort()).toEqual(["31", "32"]);
-    expect(texts(p)[0]!.heightMm).toBeCloseTo(3, 6);
+    // Siffrorna är 3 mm höga: em 4,18 mm som Purple Pen (Roboto Condensed).
+    expect(texts(p)[0]!.heightMm).toBeCloseTo(4.18, 6);
   });
 
   it("ringavbrott och snitsling", () => {

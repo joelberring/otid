@@ -30,6 +30,7 @@ test("banläggning-utskrift: förbjudet område, beskrivningen på kartan, A4 li
   await warmRoute(owner, `/admin/${raceId}/course-setting/print`);
 
   await owner.goto(`/admin/${raceId}/course-setting`);
+  await owner.waitForLoadState("networkidle");
   await owner.getByLabel("Kartfil (.ocd, .omap eller .xmap, högst 60 MB)").setInputFiles(fixture("maps/kartfil.omap"));
   await owner.getByRole("button", { name: "Ladda upp kartfil (OCAD eller Mapper)" }).click();
   await expect(owner.getByRole("heading", { name: "Ingen banläggning än" })).toBeVisible({ timeout: 60_000 });
@@ -53,7 +54,7 @@ test("banläggning-utskrift: förbjudet område, beskrivningen på kartan, A4 li
 
   // Beskrivningen på kartan med ett klick (bara på banan).
   await objects.getByRole("button", { name: "Beskrivningen på kartan" }).click();
-  await clickMap(owner, map, 82, 88);
+  await clickMap(owner, map, 56, 44);
   await expect(owner.getByTestId("course-setting-special")).toHaveAttribute("data-kind", "descriptions");
   await expect(owner.getByTestId("course-setting-status")).toHaveText("Sparat", { timeout: 15_000 });
   await owner.keyboard.press("Escape");
@@ -115,6 +116,7 @@ test("banläggning-utskrift med ägarens Stockholm by Night (OTID_E2E_SBN_DIR)",
   await warmCourseSetting(owner, raceId);
   await warmRoute(owner, `/admin/${raceId}/course-setting/print`);
   await owner.goto(`/admin/${raceId}/course-setting`);
+  await owner.waitForLoadState("networkidle");
   await owner.getByLabel("Kartfil (.ocd, .omap eller .xmap, högst 60 MB)").setInputFiles(`${sbnDir}/${mapFile}`);
   await owner.getByRole("button", { name: "Ladda upp kartfil (OCAD eller Mapper)" }).click();
   await expect(owner.getByRole("heading", { name: "Ingen banläggning än" })).toBeVisible({ timeout: 120_000 });

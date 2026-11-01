@@ -19,6 +19,13 @@ import { enumerateCourseControls, enumerateLegs, findCourse, variations } from "
 
 type Gap = { startDegrees: number; endDegrees: number };
 
+/**
+ * Textens em-höjd per siffhöjd (NormalCourseAppearance: em 5,57 ger IOF:s 4 mm höga siffror, koderna em 4,18 för 3 mm).
+ * Storlekarna i `Sizes` är siffrornas höjd; figurens `heightMm` är em-höjden (steg 64).
+ */
+const NUMBER_EM_PER_DIGIT = 5.57 / 4;
+const CODE_EM_PER_DIGIT = 4.18 / 3;
+
 interface PointObject {
   readonly control: ControlPoint;
   readonly ref: string;
@@ -232,7 +239,8 @@ function label(course: Course, ordinal: number | undefined, control: ControlPoin
 
 interface Box { readonly cx: number; readonly cy: number; readonly w: number; readonly h: number }
 
-const textWidth = (text: string, height: number) => Math.max(1, text.length) * 0.62 * height;
+// Siffrornas bredd i Arial/Roboto är 0,556 em, alltså 0,78 av siffhöjden.
+const textWidth = (text: string, height: number) => Math.max(1, text.length) * 0.78 * height;
 
 function segmentHitsBox(a: Point, b: Point, box: Box, margin: number): boolean {
   const minX = box.cx - box.w / 2 - margin, maxX = box.cx + box.w / 2 + margin;
@@ -301,7 +309,7 @@ function allControls(document: CourseSettingDocument, printScale: number, option
     const box = placeLabel(object.control.at, apparentRadius("NORMAL", sizes), sizes.codeDistance, code, sizes.codeHeight, [],
       circles.filter(c => c.center !== object.control.at), placed, sizes.line, Number.isFinite(fixed) ? fixed : undefined);
     placed.push(box);
-    out.push({ kind: "text", role: "NUMBER", color: "COURSE", at: { x: box.cx, y: box.cy }, text: code, heightMm: sizes.codeHeight, align: "center", ref: object.ref });
+    out.push({ kind: "text", role: "NUMBER", color: "COURSE", at: { x: box.cx, y: box.cy }, text: code, heightMm: sizes.codeHeight * CODE_EM_PER_DIGIT, align: "center", ref: object.ref });
   }
   return out;
 }
@@ -450,7 +458,7 @@ function layoutCourse(document: CourseSettingDocument, options: OverprintOptions
       placed.push(box);
       at = { x: box.cx, y: box.cy };
     }
-    out.push({ kind: "text", role: "NUMBER", color: "COURSE", at, text, heightMm: sizes.numberHeight, align: "center", ref: object.ref });
+    out.push({ kind: "text", role: "NUMBER", color: "COURSE", at, text, heightMm: sizes.numberHeight * NUMBER_EM_PER_DIGIT, align: "center", ref: object.ref });
   }
   return out;
 }

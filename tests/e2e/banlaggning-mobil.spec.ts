@@ -55,9 +55,10 @@ test("banläggning på telefonen: min position, flytta hit, finjustera, F och G,
 
   // Telefonen: samma konto, smal skärm, position på (60, 50) mm med ±5 m.
   const wgs = mapPointToWgs84(georeference, target);
-  const phone = await (await browser.newContext({ storageState: await owner.context().storageState(), viewport: { width: 390, height: 844 },
+  const phoneContext = await browser.newContext({ storageState: await owner.context().storageState(), viewport: { width: 390, height: 844 },
     hasTouch: true, isMobile: true, geolocation: { latitude: wgs.latitude, longitude: wgs.longitude, accuracy: 5 },
-    permissions: ["geolocation"] })).newPage();
+    permissions: ["geolocation"] });
+  let phone = await phoneContext.newPage();
   const page = await phone.goto(`/admin/${raceId}/course-setting`);
   expect(page!.headers()["permissions-policy"]).toBe("camera=(), geolocation=(self), microphone=()");
   await expect(phone.getByTestId("course-setting-field")).toBeVisible();
@@ -96,13 +97,28 @@ test("banläggning på telefonen: min position, flytta hit, finjustera, F och G,
   await expect(sheet).toHaveCount(0);
   await expect(phone.getByTestId("course-setting-field-status")).toHaveText("Sparat", { timeout: 15_000 });
 
+  // Utan nät: "Inte sparat – försöker igen". Sidan stängs innan nätet kommer tillbaka; ändringen finns kvar i
+  // webbläsaren och erbjuds när sidan öppnas igen.
+  const status = () => phone.getByTestId("course-setting-field-status");
+  await phone.route(`**${admin}/course-setting`, route => route.request().method() === "PUT" ? route.abort("internetdisconnected") : route.continue());
+  await phone.getByRole("button", { name: "Flytta 1 m österut" }).click();
+  await expect(status()).toHaveText("Inte sparat – försöker igen", { timeout: 15_000 });
+  await screenshot(phone, "banlaggning-mobil-inte-sparat");
+  await phone.close({ runBeforeUnload: false });
+  phone = await phoneContext.newPage();
+  await phone.goto(`/admin/${raceId}/course-setting`);
+  await expect(phone.getByText(/osparade ändringar/)).toBeVisible();
+  await screenshot(phone, "banlaggning-mobil-aterstall");
+  await phone.getByRole("button", { name: "Återställ ändringarna" }).click();
+  await expect(status()).toHaveText("Sparat", { timeout: 15_000 });
+
   // Omladdning: allt är sparat och inget erbjuds att återställa.
   await phone.reload();
   await expect(phone.getByTestId("course-setting-field")).toBeVisible();
   await expect(phone.getByText(/osparade ändringar/)).toHaveCount(0);
   const state = await (await phone.request.get(`${admin}/course-setting`)).json() as { setting: { document: Document } };
   const moved = Object.values(state.setting.document.controls).find(row => row.code === "32")!;
-  expect(moved.at.x).toBeCloseTo(target.x, 2);
+  expect(moved.at.x).toBeCloseTo(target.x + 0.1, 2);
   expect(moved.at.y).toBeCloseTo(target.y + 0.1, 2);
   expect(moved.descriptions.find(box => box.box === "F")).toEqual({ box: "F", text: "1.5" });
   expect(moved.descriptions.find(box => box.box === "G")).toEqual({ box: "G", ref: "11.1SE" });

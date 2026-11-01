@@ -216,6 +216,7 @@ export function useFieldMode(input: FieldInput): FieldMode {
       <strong data-testid="course-setting-field-selected">{label ? text.selected(label) : text.none}</strong>
       <span className={css.status} data-status={status} role="status" data-testid="course-setting-field-status">{input.statusText}</span>
     </div>
+    {notice}
     {state.error && <p className={css.line} data-problem="true" role="alert">{state.error}</p>}
     {lines}
     <div className={css.barRow}>
@@ -238,7 +239,8 @@ export function useFieldMode(input: FieldInput): FieldMode {
       }} />}
   </div>;
 
-  return { narrow, position: position ? { position, follow: mode === "follow" } : undefined, tools, bar, notice };
+  // Smal skärm: erbjudandet står i raden nertill (resten av sidan ligger under kartan).
+  return { narrow, position: position ? { position, follow: mode === "follow" } : undefined, tools, bar, notice: narrow ? null : notice };
 }
 
 /** Bladet "Uppgifter": kolumn F (höjd) och G (läge) med stora knappar. */

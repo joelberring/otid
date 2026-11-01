@@ -15,6 +15,11 @@ efter vecka (ledare, kartor, banor, deltagare, länk) borde ligga på ett ställ
 3. **Mallar och upprepning:** ny träning ur gruppens mall eller förra tillfället (klasser, banor, karta, tidtagning);
    upprepning (t.ex. varje tisdag en termin) skapar tillfällena i förväg.
 4. **Kartbibliotek per grupp:** kartfiler och banläggningar (steg 59, 62) sparas i gruppen och kan användas igen.
+   Varje karta har uppgifter om rättigheterna (ägarens önskemål 2026-11-01): klubbens egen eller extern; för en extern
+   karta ägaren (klubb, kommun, kartritare) och vilket avtal som gäller, som fri text, med valfria fält för giltighetstid,
+   kontaktperson och villkor (t.ex. bara träning, avgift per utskrift, inte publik visning). Avtalet syns där kartan väljs
+   och används; när avtalet inte tillåter publik visning eller har gått ut säger O-Tid till innan kartan används för en
+   tävling eller visas publikt (vägvalskartan, GPS-rutterna).
 5. **Deltagare** känns igen mellan tillfällena (självanmälan för gruppen, samma löpare igen).
 6. **Säsongen:** närvaro per deltagare och valfri enkel poängserie.
 7. **Allt som rör synlighet är inställningar per grupp**, med försiktiga standardvärden eftersom grupperna ofta är barn:

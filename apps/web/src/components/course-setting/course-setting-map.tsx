@@ -228,7 +228,10 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
     pointers.current.set(event.pointerId, at);
     if (pointers.current.size === 2) {
       if (gesture.current?.kind === "drag") handlers.onDragEnd();
-      gesture.current = { kind: "pinch", startX: at.x, startY: at.y, lastX: at.x, lastY: at.y, distance: pinchDistance(), pointerType: event.pointerType };
+      const [a, b] = [...pointers.current.values()];
+      const middle = a && b ? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : at;
+      gesture.current = { kind: "pinch", startX: middle.x, startY: middle.y, lastX: middle.x, lastY: middle.y, distance: pinchDistance(),
+        pointerType: event.pointerType };
       return;
     }
     gesture.current = { kind: "pending", startX: at.x, startY: at.y, lastX: at.x, lastY: at.y, pointerType: event.pointerType };
@@ -249,11 +252,14 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
       const distance = pinchDistance();
       const [a, b] = [...pointers.current.values()];
       if (current.distance && distance > 0 && a && b) {
+        // Två fingrar: zooma kring mitten mellan fingrarna och följ mitten när fingrarna flyttas (värdena räknas nu,
+        // eftersom uppdateringen körs efter händelsen).
         const center = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-        // Faktorn räknas nu: uppdateringen kan köras senare, när `current` redan har ändrats.
         const factor = distance / current.distance;
-        setView(previous => previous ? zoomAt(previous, factor, center) : previous);
+        const dx = center.x - current.lastX, dy = center.y - current.lastY;
+        setView(previous => previous ? zoomAt(panBy(previous, dx, dy), factor, center) : previous);
         current.distance = distance;
+        current.lastX = center.x; current.lastY = center.y;
       }
       return;
     }

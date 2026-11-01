@@ -1,0 +1,66 @@
+/* Steg 68: träningsgruppernas vyer – Mina grupper, ledarnas vy och gruppsidan. */
+.myGroups { margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--line); }
+.myGroups h2 { margin: 0; font-size: var(--text-lg); font-weight: 600; }
+.muted { margin: .25rem 0 .65rem; color: var(--muted); }
+.groupList, .sessionList, .plainList { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.groupList > li, .sessionList > li, .plainList > li {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .35rem 1rem;
+  min-width: 0; padding: 10px 0; border-bottom: 1px solid var(--line);
+}
+.groupList > li > div:first-child, .sessionList > li > div:first-child, .plainList > li > div:first-child { display: grid; gap: .1rem; min-width: 0; }
+.groupList span, .sessionList span, .plainList span { color: var(--muted); font-size: var(--text-sm); overflow-wrap: anywhere; }
+.rowActions { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem .8rem; }
+.rowActions a { display: inline-flex; align-items: center; min-height: 44px; }
+.buttonLink {
+  display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border: 1px solid var(--line-strong);
+  border-radius: var(--radius); color: var(--ink); text-decoration: none; font-weight: 550;
+}
+.createGroup { margin-top: 12px; }
+.createGroup > summary { display: flex; align-items: center; min-height: 44px; font-weight: 600; cursor: pointer; }
+.form { display: grid; gap: .65rem; max-width: 40rem; }
+.form input:not([type="radio"]):not([type="checkbox"]), .form select, .form textarea { width: 100%; min-height: 44px; }
+.form textarea { min-height: 5rem; }
+.form > button { justify-self: start; min-height: 44px; }
+.inline { display: flex; flex-wrap: wrap; align-items: end; gap: .65rem; }
+.inline > * { flex: 1 1 12rem; min-width: 0; }
+.check { display: flex; align-items: center; gap: .5rem; min-height: 44px; font-weight: 500; }
+.check input { width: 22px; height: 22px; }
+.choice { display: grid; gap: .1rem; margin: 0; padding: 0; border: 0; min-width: 0; }
+.choice legend { margin-bottom: .2rem; padding: 0; font-weight: 600; }
+
+.leader { width: min(100%, 1120px); margin-inline: auto; padding: 24px 16px 48px; }
+.leaderHeader { display: flex; align-items: end; justify-content: space-between; flex-wrap: wrap; gap: .5rem 1rem;
+  margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.leaderHeader h1 { margin: 0; font-size: var(--text-xl); font-weight: 600; overflow-wrap: anywhere; }
+.kicker { margin: 0 0 2px; color: var(--muted); font-size: var(--text-xs); }
+.leaderGrid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 28px 40px; align-items: start; }
+.leaderGrid > section { min-width: 0; }
+.leaderGrid h2 { margin: 0 0 .35rem; font-size: var(--text-lg); font-weight: 600; }
+.leaderGrid h3 { margin: 1rem 0 .3rem; font-size: var(--text-md); font-weight: 600; }
+.wide { grid-column: 1 / -1; }
+.badge { display: inline-block; margin-left: .4rem; padding: 0 .4rem; border: 1px solid var(--line-strong); border-radius: 999px;
+  color: var(--muted); font-size: var(--text-xs); font-weight: 600; }
+
+.agreement { display: grid; gap: .2rem; margin: .35rem 0; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: var(--radius);
+  background: var(--surface); }
+.agreement p { margin: 0; overflow-wrap: anywhere; }
+.agreementText { white-space: pre-wrap; }
+.warning { border-color: var(--warn, #b45309); }
+.warning strong { color: var(--warn, #b45309); }
+.issues { margin: .2rem 0 0; padding-left: 1.2rem; }
+
+.table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.table th, .table td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; }
+.table th { color: var(--muted); font-size: var(--text-sm); font-weight: 600; }
+.num { text-align: right !important; }
+
+.public { width: min(100%, 860px); margin-inline: auto; padding: 24px 16px 48px; display: grid; gap: 24px; }
+.public h1 { margin: 0; font-size: var(--text-xl); overflow-wrap: anywhere; }
+.public h2 { margin: 0 0 .4rem; font-size: var(--text-lg); }
+.public h3 { margin: .8rem 0 .3rem; font-size: var(--text-md); }
+.publicFoot { display: grid; gap: .4rem; padding-top: 12px; border-top: 1px solid var(--line); color: var(--muted); }
+.publicFoot code { overflow-wrap: anywhere; }
+
+@media (max-width: 900px) {
+  .leaderGrid { grid-template-columns: minmax(0, 1fr); }
+}

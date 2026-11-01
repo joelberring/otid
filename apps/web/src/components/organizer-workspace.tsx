@@ -26,6 +26,7 @@ import { hasErrors, validateCreateRace, type CreateRaceInput, type FieldErrors }
 import { DateInput, Field, focusFirstError } from "./ui";
 import { orderMyEvents } from "../lib/my-events-order";
 import { raceListName } from "../lib/race-list-name";
+import { MyGroups } from "./training-group/my-groups";
 import styles from "./organizer-workspace.module.css";
 
 type Session = { accountId: string; email: string; displayName: string; superadmin: boolean; expiresAt: string };
@@ -438,6 +439,7 @@ export function OrganizerWorkspace() {
       </section>
     </div>}
 
+    {session && <MyGroups />}
     {session && <p className={styles.message} role="status" aria-live="polite">{message}</p>}
     <CopyRaceDialog source={copySource} onClose={() => setCopySource(undefined)}
       onCopied={() => void loadEvents().catch((error) => setMessage(errorMessage(error)))} />

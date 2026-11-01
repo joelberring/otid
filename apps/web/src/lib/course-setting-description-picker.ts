@@ -6,13 +6,23 @@ import type { DescriptionBox, DescriptionLanguage, DescriptionSymbol } from "@o-
  * även fri text ("2m", "4x4") och "Ingen" tömmer rutan. Tangenterna flyttar markeringen i listan.
  */
 export const PICKER_BOXES = ["C", "D", "E", "F", "G", "H"] as const;
-/** Rutorna som får fri text i stället för en symbol (mått och storlek). */
-export const TEXT_BOXES: readonly string[] = ["F", "G"];
+/** Rutan som får fri text i stället för en symbol (mått: "2m", "4x4", "0.5/3"); paketet tillåter text bara i F, som Purple Pen. */
+export const TEXT_BOXES: readonly string[] = ["F"];
 export const RECENT_COUNT = 6;
 
 export const allowsText = (box: string) => TEXT_BOXES.includes(box);
-export const isPickerBox = (box: string | undefined): box is (typeof PICKER_BOXES)[number] =>
-  box !== undefined && (PICKER_BOXES as readonly string[]).includes(box);
+/** C–H, och "all" för riktningsradens symbol (mål, passage, kartutdelning). */
+export const isPickerBox = (box: string | undefined): box is string =>
+  box !== undefined && (box === "all" || (PICKER_BOXES as readonly string[]).includes(box));
+
+/** Symbolslaget för riktningsraden ("all") per kontrollslag, som Purple Pen: mål Z, passage X, kartutdelning V. */
+const DIRECTIVE_KIND: Readonly<Record<string, string>> = { FINISH: "Z", CROSSING_POINT: "X", MAP_ISSUE: "V" };
+
+/** Det som `symbolsForBox` ska fråga efter för en ruta på en kontroll av slaget (eller inget: rutan har inga symboler). */
+export function symbolBoxFor(box: string, controlKind: string): string | undefined {
+  if (box === "all") return DIRECTIVE_KIND[controlKind];
+  return DIRECTIVE_KIND[controlKind] ? undefined : box;
+}
 
 export type PickerOption =
   | { readonly kind: "symbol"; readonly symbol: DescriptionSymbol; readonly name: string; readonly recent: boolean }

@@ -5,7 +5,7 @@ import {
 } from "./course-setting-description";
 import { descriptionNodes, descriptionSvg, symbolLookup, symbolNodes, symbolPoint, textNode } from "./course-setting-description-draw";
 import {
-  allowsText, boxValue, moveActive, pickerOptions, readRecent, rememberRecent, sameBoxes, setBox, symbolName, writeRecent
+  allowsText, boxValue, isPickerBox, moveActive, pickerOptions, readRecent, rememberRecent, sameBoxes, setBox, symbolBoxFor, symbolName, writeRecent
 } from "./course-setting-description-picker";
 import { copiesOf, cutMarks, layoutPages, svgFileName } from "./course-setting-description-print";
 import { ALL_CONTROLS } from "./course-setting-hit";
@@ -50,9 +50,9 @@ describe("väljaren", () => {
       .toEqual(["2.5", "2.4"]);
   });
 
-  it("tar fri text i F och G men inte i D", () => {
+  it("tar fri text i F (som paketet och Purple Pen) men inte i D eller G", () => {
     expect(allowsText("F")).toBe(true);
-    expect(allowsText("G")).toBe(true);
+    expect(allowsText("G")).toBe(false);
     expect(allowsText("D")).toBe(false);
     expect(pickerOptions(symbols, { box: "F", query: " 4x4 ", recent: [], language: "sv" })[0]).toEqual({ kind: "text", text: "4x4" });
     expect(pickerOptions(symbols, { box: "D", query: "4x4", recent: [], language: "sv" })).toEqual([]);
@@ -208,13 +208,28 @@ describe("SVG-ritningen", () => {
 describe("beskrivningen i editorn", () => {
   const document = testDocument();
 
-  it("översätter en rad till editorns val och tillbaka", () => {
-    expect(targetOfRef(document, "k", "c2")).toEqual({ kind: "control", control: "a", courseControl: "c2" });
+  it("översätter en rad (kontrollens id) till editorns val och tillbaka", () => {
+    expect(targetOfRef(document, "k", "a")).toEqual({ kind: "control", control: "a", courseControl: "c2" });
     expect(targetOfRef(document, ALL_CONTROLS, "a")).toEqual({ kind: "control", control: "a" });
-    expect(targetOfRef(document, ALL_CONTROLS, "c2")).toBeUndefined();
-    expect(refOfSelection("k", { kind: "control", control: "a", courseControl: "c2" })).toBe("c2");
-    expect(refOfSelection(ALL_CONTROLS, { kind: "control", control: "a" })).toBe("a");
-    expect(refOfSelection("k", { kind: "leg", from: "a", to: "b" })).toBeUndefined();
+    expect(targetOfRef(document, "k", "c2")).toBeUndefined();
+    // Redan vald på banan: samma banans kontroll (en kontroll kan finnas två gånger).
+    const chosen = { kind: "control" as const, control: "a", courseControl: "c9" };
+    expect(targetOfRef(document, "k", "a", undefined, chosen)).toBe(chosen);
+    expect(targetOfRef(document, "saknas", "a")).toEqual({ kind: "control", control: "a" });
+    expect(refOfSelection({ kind: "control", control: "a", courseControl: "c2" })).toBe("a");
+    expect(refOfSelection({ kind: "leg", from: "a", to: "b" })).toBeUndefined();
+    expect(refOfSelection(undefined)).toBeUndefined();
+  });
+
+  it("ger rätt symbolslag för riktningsraden och inga rutor C–H på mål och passage", () => {
+    expect(symbolBoxFor("all", "FINISH")).toBe("Z");
+    expect(symbolBoxFor("all", "CROSSING_POINT")).toBe("X");
+    expect(symbolBoxFor("all", "NORMAL")).toBeUndefined();
+    expect(symbolBoxFor("D", "NORMAL")).toBe("D");
+    expect(symbolBoxFor("D", "FINISH")).toBeUndefined();
+    expect(isPickerBox("all")).toBe(true);
+    expect(isPickerBox("B")).toBe(false);
+    expect(isPickerBox("before")).toBe(false);
   });
 
   it("läser språket ur .ppen och textraderna ur kontrollen", () => {

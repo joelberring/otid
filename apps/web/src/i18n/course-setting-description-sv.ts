@@ -7,13 +7,16 @@ export const courseSettingDescriptionSv = {
   empty: "Banan har inga kontroller än.",
   row: (label: string) => `${label}: välj kontrollen`,
   box: (label: string, box: string, value: string | undefined) => `${label}, ruta ${box}${value ? `: ${value}` : ""}`,
+  directive: (label: string, value: string | undefined) => `${label}, riktning${value ? `: ${value}` : ""}`,
+  textLine: (label: string, before: boolean) => `${label}: textrad ${before ? "före" : "efter"}`,
   boxNames: {
-    C: "vilket av objekten", D: "objekt", E: "objekt eller utseende", F: "mått eller kombination", G: "kontrollens läge", H: "övrigt"
+    C: "vilket av objekten", D: "objekt", E: "objekt eller utseende", F: "mått eller kombination", G: "kontrollens läge", H: "övrigt",
+    all: "riktning"
   } as Record<string, string>,
   picker: {
-    heading: (label: string, box: string, name: string) => `${label}, ruta ${box} (${name})`,
+    heading: (label: string, box: string, name: string) => box === "all" ? `${label}, ${name}` : `${label}, ruta ${box} (${name})`,
     search: "Sök symbol",
-    searchText: "Sök symbol eller skriv text (t.ex. 2m eller 4x4)",
+    searchText: "Sök symbol eller skriv mått (t.ex. 2m eller 4x4)",
     options: "Symboler",
     recent: "Senast använd",
     none: "Ingen (töm rutan)",

@@ -19,7 +19,7 @@ function Shape({ node }: { node: SvgNode }) {
     case "circle": return node.fill ? <circle cx={node.cx} cy={node.cy} r={node.r} fill="#000" />
       : <circle cx={node.cx} cy={node.cy} r={node.r} fill="none" stroke="#000" strokeWidth={node.strokeWidth} />;
     case "text": return <text x={node.x} y={node.y} fontSize={node.size} fontWeight={node.bold ? "bold" : undefined} textAnchor={node.anchor}
-      dominantBaseline="central" textLength={node.textLength} lengthAdjust={node.textLength !== undefined ? "spacingAndGlyphs" : undefined}>{node.text}</text>;
+      textLength={node.textLength} lengthAdjust={node.textLength !== undefined ? "spacingAndGlyphs" : undefined}>{node.text}</text>;
     case "symbol": return <g data-symbol={node.symbol} data-ref={node.ref}><DescriptionShapes nodes={node.children} /></g>;
   }
 }

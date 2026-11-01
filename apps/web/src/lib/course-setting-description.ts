@@ -1,13 +1,14 @@
-import type {
-  ControlPoint, CourseSettingDocument, DescriptionKind, DescriptionLanguage, DescriptionLayout, DescriptionPrimitive
+import {
+  courseControlOrder, type ControlPoint, type CourseSettingDocument, type DescriptionKind, type DescriptionLanguage, type DescriptionLayout,
+  type DescriptionPrimitive
 } from "@o-tid/course-setting";
 import { ALL_CONTROLS } from "./course-setting-hit";
 import type { Selection } from "./course-setting-editor";
 
 /**
- * Steg 63 (ADR-0180): kontrollbeskrivningen i editorn. Beskrivningens markerbara ytor (`hit`) pekar med `ref` på en rad,
- * som banpåtrycket: banans kontroll-id när en bana visas, kontrollens id i Alla kontroller. Här översätts det till
- * editorns val och tillbaka, och här finns tävlingens inställningar för beskrivningen (språk och visningssätt).
+ * Steg 63 (ADR-0180): kontrollbeskrivningen i editorn. Beskrivningens markerbara ytor (`hit`) pekar med `ref` på
+ * kontrollen (kontrollens id, inte banans kontroll). Här översätts det till editorns val och tillbaka, och här finns
+ * tävlingens inställningar för beskrivningen (språk och visningssätt).
  */
 export const DESCRIPTION_LANGUAGES = ["sv", "en"] as const;
 export const DESCRIPTION_KINDS: readonly DescriptionKind[] = ["SYMBOLS", "TEXT", "SYMBOLS_AND_TEXT"];
@@ -17,19 +18,24 @@ export interface DescriptionSettings {
   readonly kind: DescriptionKind;
 }
 
-/** Kontrollen (och banans kontroll) som en rad i beskrivningen gäller. */
-export function targetOfRef(document: CourseSettingDocument, view: string, ref: string): Selection | undefined {
-  if (view !== ALL_CONTROLS) {
-    const courseControl = document.courseControls[ref];
-    if (courseControl && document.controls[courseControl.control]) return { kind: "control", control: courseControl.control, courseControl: ref };
-  }
-  return document.controls[ref] ? { kind: "control", control: ref } : undefined;
+/**
+ * Kontrollen som en rad i beskrivningen gäller, med banans kontroll när en bana visas (den valda om kontrollen redan är
+ * vald, annars första gången kontrollen finns på banan eller varianten), så att kartan väljer samma som ett klick där.
+ */
+export function targetOfRef(document: CourseSettingDocument, view: string, ref: string, variant?: string,
+  current?: Selection): Selection | undefined {
+  if (!document.controls[ref]) return undefined;
+  if (view === ALL_CONTROLS) return { kind: "control", control: ref };
+  if (current?.kind === "control" && current.control === ref && current.courseControl) return current;
+  let order: readonly string[] = [];
+  try { order = courseControlOrder(document, view, variant); } catch { order = []; }
+  const courseControl = order.find(id => document.courseControls[id]?.control === ref);
+  return { kind: "control", control: ref, ...(courseControl ? { courseControl } : {}) };
 }
 
 /** Raden i beskrivningen som ska markeras för editorns val (en vald kontroll; inget för en sträcka). */
-export function refOfSelection(view: string, selection: Selection | undefined): string | undefined {
-  if (selection?.kind !== "control") return undefined;
-  return view !== ALL_CONTROLS && selection.courseControl ? selection.courseControl : selection.control;
+export function refOfSelection(selection: Selection | undefined): string | undefined {
+  return selection?.kind === "control" ? selection.control : undefined;
 }
 
 export type HitPrimitive = Extract<DescriptionPrimitive, { kind: "hit" }>;

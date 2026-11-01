@@ -118,7 +118,7 @@ function nodeXml(node: SvgNode): string {
     case "circle": return node.fill ? `<circle cx="${node.cx}" cy="${node.cy}" r="${node.r}" fill="#000"/>`
       : `<circle cx="${node.cx}" cy="${node.cy}" r="${node.r}" fill="none" stroke="#000" stroke-width="${node.strokeWidth ?? 0}"/>`;
     case "text": return `<text x="${node.x}" y="${node.y}" font-size="${node.size}"${node.bold ? ` font-weight="bold"` : ""} text-anchor="${node.anchor}"`
-      + ` dominant-baseline="central"${node.textLength !== undefined ? ` textLength="${node.textLength}" lengthAdjust="spacingAndGlyphs"` : ""}>${escape(node.text)}</text>`;
+      + `${node.textLength !== undefined ? ` textLength="${node.textLength}" lengthAdjust="spacingAndGlyphs"` : ""}>${escape(node.text)}</text>`;
     case "symbol": return `<g data-symbol="${escape(node.symbol)}">${node.children.map(nodeXml).join("")}</g>`;
   }
 }

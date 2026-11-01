@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   descriptionSymbols, layoutDescription, symbolsForBox, type CourseSettingDocument, type CourseSettingEdit, type DescriptionKind,
   type DescriptionLayout, type DescriptionStandard, type DescriptionSymbol
@@ -13,7 +13,7 @@ import {
 } from "../../lib/course-setting-description";
 import { symbolLookup } from "../../lib/course-setting-description-draw";
 import {
-  boxValue, isPickerBox, readRecent, rememberRecent, sameBoxes, setBox, symbolName, writeRecent
+  boxValue, isPickerBox, readRecent, rememberRecent, sameBoxes, setBox, symbolBoxFor, symbolName, writeRecent
 } from "../../lib/course-setting-description-picker";
 import type { Selection } from "../../lib/course-setting-editor";
 import { controlLabel } from "../../lib/course-setting-text";
@@ -46,9 +46,13 @@ export function DescriptionPanel({ document, view, variant, selection, settings,
     { course: view, ...(variant ? { variant } : {}), kind: settings.kind, language: settings.language }), undefined as DescriptionLayout | undefined),
   [document, view, variant, settings.kind, settings.language]);
   const [picking, setPicking] = useState<Picking>();
+  const [focusLine, setFocusLine] = useState<"before" | "after">();
   const [recent, setRecent] = useState(() => readRecent(browserStorage()));
-  const boxSymbols = useMemo(() => picking ? safely("Rutans symboler", () => symbolsForBox(picking.box, standard), [] as readonly DescriptionSymbol[]) : [],
-    [picking, standard]);
+  const pickingKind = picking ? document.controls[picking.control]?.kind : undefined;
+  const boxSymbols = useMemo(() => {
+    const box = picking && pickingKind ? symbolBoxFor(picking.box, pickingKind) : undefined;
+    return box ? safely("Rutans symboler", () => symbolsForBox(box, standard), [] as readonly DescriptionSymbol[]) : [];
+  }, [picking, pickingKind, standard]);
   const selectedControl = selection?.kind === "control" ? selection.control : undefined;
   // Ett annat val på kartan (eller en annan bana) stänger väljaren.
   useEffect(() => { setPicking(current => current && current.control === selectedControl ? current : undefined); }, [selectedControl, view]);
@@ -63,15 +67,18 @@ export function DescriptionPanel({ document, view, variant, selection, settings,
     return symbol ? symbolName(symbol, settings.language) : value.ref;
   };
   const hitLabel = (hit: HitPrimitive) => {
-    const target = targetOfRef(document, view, hit.ref);
-    if (!target || target.kind !== "control") return hit.ref;
-    return hit.box ? text.box(label(target.control), hit.box, valueName(target.control, hit.box)) : text.row(label(target.control));
+    if (!document.controls[hit.ref]) return hit.ref;
+    const name = label(hit.ref);
+    if (hit.box === "before" || hit.box === "after") return text.textLine(name, hit.box === "before");
+    if (hit.box === "all") return text.directive(name, valueName(hit.ref, "all"));
+    return hit.box ? text.box(name, hit.box, valueName(hit.ref, hit.box)) : text.row(name);
   };
   const onHit = (hit: HitPrimitive) => {
-    const target = targetOfRef(document, view, hit.ref);
+    const target = targetOfRef(document, view, hit.ref, variant, selection);
     if (!target || target.kind !== "control") return;
     onSelect(target);
     setPicking(isPickerBox(hit.box) ? { ref: hit.ref, control: target.control, box: hit.box } : undefined);
+    if (hit.box === "before" || hit.box === "after") setFocusLine(hit.box);
   };
   const pick = (value: PickedValue) => {
     if (!picking) return;
@@ -87,7 +94,7 @@ export function DescriptionPanel({ document, view, variant, selection, settings,
     }
   };
 
-  const ref = refOfSelection(view, selection);
+  const ref = refOfSelection(selection);
   const selectedPoint = selectedControl ? document.controls[selectedControl] : undefined;
   const before = descriptionTextLine(selectedPoint, "before"), after = descriptionTextLine(selectedPoint, "after");
   return <section className={styles.panel} aria-labelledby="course-setting-description" data-testid="description-panel">
@@ -102,6 +109,7 @@ export function DescriptionPanel({ document, view, variant, selection, settings,
       onPick={pick} onClose={() => setPicking(undefined)} />}
     {!picking && <p className={styles.muted}>{text.help}</p>}
     {selectedPoint && <TextLines key={`${selectedPoint.id}|${before}|${after}`} label={label(selectedPoint.id)} before={before} after={after}
+      focus={focusLine} onFocused={() => setFocusLine(undefined)}
       onSave={changes => onEdit(changes.map(change => ({ type: "SET_DESCRIPTION_TEXT_LINE", control: selectedPoint.id, ...change })))} />}
     <details className={styles.settings}>
       <summary>{text.settings.heading}</summary>
@@ -124,11 +132,17 @@ export function DescriptionPanel({ document, view, variant, selection, settings,
 }
 
 /** Textraderna före och efter vald kontroll. Ett tomt fält tar bort raden. */
-function TextLines({ label, before, after, onSave }: {
-  label: string; before: string; after: string;
+function TextLines({ label, before, after, focus, onFocused, onSave }: {
+  label: string; before: string; after: string; focus: "before" | "after" | undefined; onFocused: () => void;
   onSave: (changes: readonly { location: "before" | "after"; text: string | null }[]) => void;
 }) {
-  return <form className={styles.textLines} aria-label={`${text.textLines.heading}: ${label}`} onSubmit={event => {
+  const form = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    if (!focus) return;
+    form.current?.querySelector<HTMLInputElement>(`input[name="${focus}"]`)?.focus();
+    onFocused();
+  }, [focus, onFocused]);
+  return <form ref={form} className={styles.textLines} aria-label={`${text.textLines.heading}: ${label}`} onSubmit={event => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const changes = (["before", "after"] as const).flatMap(location => {

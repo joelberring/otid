@@ -97,6 +97,12 @@ export function DescriptionPanel({ document, view, variant, selection, settings,
   const ref = refOfSelection(selection);
   const selectedPoint = selectedControl ? document.controls[selectedControl] : undefined;
   const before = descriptionTextLine(selectedPoint, "before"), after = descriptionTextLine(selectedPoint, "after");
+  // Textrader som bara gäller den här banan (från Purple Pen) visas men ändras inte här.
+  const onCourse = selection?.kind === "control" && selection.courseControl ? document.courseControls[selection.courseControl] : undefined;
+  const courseLines = (["before", "after"] as const).flatMap(location => {
+    const value = descriptionTextLine(onCourse, location);
+    return value ? [text.textLines.courseOnly(location === "before", value)] : [];
+  });
   return <section className={styles.panel} aria-labelledby="course-setting-description" data-testid="description-panel">
     <h2 id="course-setting-description">{text.heading}</h2>
     {!layout && <p role="alert" className={styles.muted}>{text.failed}</p>}
@@ -111,6 +117,7 @@ export function DescriptionPanel({ document, view, variant, selection, settings,
     {selectedPoint && <TextLines key={`${selectedPoint.id}|${before}|${after}`} label={label(selectedPoint.id)} before={before} after={after}
       focus={focusLine} onFocused={() => setFocusLine(undefined)}
       onSave={changes => onEdit(changes.map(change => ({ type: "SET_DESCRIPTION_TEXT_LINE", control: selectedPoint.id, ...change })))} />}
+    {courseLines.length > 0 && <p className={styles.muted} data-testid="description-course-lines">{courseLines.join(" ")}</p>}
     <details className={styles.settings}>
       <summary>{text.settings.heading}</summary>
       <div className={styles.row}>
@@ -119,7 +126,7 @@ export function DescriptionPanel({ document, view, variant, selection, settings,
           {(["2004", "2018"] as const).map(value => <option key={value} value={value}>{text.settings.standards[value]}</option>)}
         </select></label>
         <label>{text.settings.language}<select value={settings.language} onChange={event => onSettings({ ...settings, language: event.target.value })}>
-          {DESCRIPTION_LANGUAGES.map(value => <option key={value} value={value}>{text.settings.languages[value]}</option>)}
+          {DESCRIPTION_LANGUAGES.map(language => <option key={language.id} value={language.id}>{text.settings.languages[language.id] ?? language.name}</option>)}
         </select></label>
         <label>{text.settings.kind}<select value={settings.kind} onChange={event => onSettings({ ...settings, kind: event.target.value as DescriptionKind })}>
           {DESCRIPTION_KINDS.map(value => <option key={value} value={value}>{text.settings.kinds[value]}</option>)}

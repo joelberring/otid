@@ -2,7 +2,7 @@
 
 import type { KeyboardEvent } from "react";
 import type { DescriptionLayout } from "@o-tid/course-setting";
-import { DESCRIPTION_FONT, descriptionNodes, mm, type SvgNode, type SymbolLookup } from "../../lib/course-setting-description-draw";
+import { CONDENSED_FONT, DESCRIPTION_FONT, descriptionNodes, mm, type SvgNode, type SymbolLookup } from "../../lib/course-setting-description-draw";
 import { hitAreas, type HitPrimitive } from "../../lib/course-setting-description";
 import { isPickerBox } from "../../lib/course-setting-description-picker";
 
@@ -13,12 +13,14 @@ export function DescriptionShapes({ nodes }: { nodes: readonly SvgNode[] }) {
 
 function Shape({ node }: { node: SvgNode }) {
   switch (node.tag) {
-    case "path": return node.fill ? <path d={node.d} fill="#000" />
-      : <path d={node.d} fill="none" stroke="#000" strokeWidth={node.strokeWidth} strokeLinecap="round" strokeLinejoin="round" />;
+    case "path": return node.fill ? <path d={node.d} fill="#000" fillRule="evenodd" />
+      : <path d={node.d} fill="none" stroke="#000" strokeWidth={node.strokeWidth} strokeLinecap={node.cap ?? "round"} strokeLinejoin={node.join ?? "round"}
+        strokeMiterlimit={node.join ? 5 : undefined} />;
     case "line": return <line x1={node.x1} y1={node.y1} x2={node.x2} y2={node.y2} stroke="#000" strokeWidth={node.strokeWidth} />;
     case "circle": return node.fill ? <circle cx={node.cx} cy={node.cy} r={node.r} fill="#000" />
       : <circle cx={node.cx} cy={node.cy} r={node.r} fill="none" stroke="#000" strokeWidth={node.strokeWidth} />;
     case "text": return <text x={node.x} y={node.y} fontSize={node.size} fontWeight={node.bold ? "bold" : undefined} textAnchor={node.anchor}
+      fontFamily={node.condensed ? CONDENSED_FONT : undefined}
       textLength={node.textLength} lengthAdjust={node.textLength !== undefined ? "spacingAndGlyphs" : undefined}>{node.text}</text>;
     case "symbol": return <g data-symbol={node.symbol} data-ref={node.ref}><DescriptionShapes nodes={node.children} /></g>;
   }

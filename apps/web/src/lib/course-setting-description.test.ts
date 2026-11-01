@@ -146,7 +146,7 @@ describe("SVG-ritningen", () => {
   it("ritar symbolens alla figurer med linjebredder i mm", () => {
     const nodes = symbolNodes([
       { kind: "polyline", points: [{ x: -50, y: 0 }, { x: 50, y: 0 }], width: 10 },
-      { kind: "polyline", points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 0, y: 100 }], width: 10, closed: true },
+      { kind: "polyline", points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 0, y: 100 }], width: 10, closed: true, ends: "flat", corners: "sharp" },
       { kind: "polygon", points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 0, y: 100 }] },
       { kind: "circle", center: { x: 0, y: 50 }, radius: 50, width: 20 },
       { kind: "disc", center: { x: 0, y: 0 }, radius: 100 },
@@ -155,7 +155,7 @@ describe("SVG-ritningen", () => {
     ], { x: 3, y: 3 }, 6);
     expect(nodes).toEqual([
       { tag: "path", d: "M1.5 3 L4.5 3", fill: false, strokeWidth: 0.3 },
-      { tag: "path", d: "M3 3 L6 3 L3 0 Z", fill: false, strokeWidth: 0.3 },
+      { tag: "path", d: "M3 3 L6 3 L3 0 Z", fill: false, strokeWidth: 0.3, cap: "butt", join: "miter" },
       { tag: "path", d: "M3 3 L6 3 L3 0 Z", fill: true },
       { tag: "circle", cx: 3, cy: 1.5, r: 1.5, fill: false, strokeWidth: 0.6 },
       { tag: "circle", cx: 3, cy: 3, r: 3, fill: true },
@@ -167,7 +167,8 @@ describe("SVG-ritningen", () => {
   it("krymper bara text som inte får plats", () => {
     const base = { kind: "text" as const, at: { x: 1, y: 2 }, heightMm: 3, align: "center" as const };
     expect(textNode({ ...base, text: "31", maxWidth: 6 })).toEqual({ tag: "text", x: 1, y: 2, text: "31", size: 3, bold: false, anchor: "middle" });
-    expect(textNode({ ...base, text: "Kvällsträning på kartfilen", maxWidth: 30, bold: true })).toMatchObject({ textLength: 30, bold: true });
+    expect(textNode({ ...base, text: "Kvällsträning på kartfilen", maxWidth: 30, bold: true, condensed: true }))
+      .toMatchObject({ textLength: 30, bold: true, condensed: true });
   });
 
   const layout: DescriptionLayout = { widthMm: 48, heightMm: 12, primitives: [
@@ -195,6 +196,8 @@ describe("SVG-ritningen", () => {
     expect(svg).toContain(`<g data-symbol="2.4"><circle cx="21" cy="9" r="1.5" fill="#000"/></g>`);
     expect(svg.match(/#[0-9a-f]{3,6}/gi)!.every(color => color === "#000" || color === "#fff")).toBe(true);
     expect(svg).not.toContain("hit");
+    expect(descriptionSvg({ widthMm: 10, heightMm: 10, primitives: [{ kind: "text", at: { x: 1, y: 2 }, text: "H21", heightMm: 3, align: "left", condensed: true }] }, lookup))
+      .toContain(`font-family="&apos;Roboto Condensed&apos;`);
   });
 
   it("markerar raden för vald kontroll", () => {
@@ -236,10 +239,12 @@ describe("beskrivningen i editorn", () => {
     expect(ppenDescriptionLanguage(document)).toBeUndefined();
     const withLanguage = { ...document, event: { ...document.event, raw: [{ xml: `<descriptions lang="en" color="black" />` }] } };
     expect(ppenDescriptionLanguage(withLanguage)).toBe("en");
-    const control = { ...document.controls.a!, raw: [{ xml: `<description-text line="after">Följ &amp; snitsel</description-text>` }] };
-    expect(descriptionTextLine(control, "after")).toBe("Följ & snitsel");
+    const control = { ...document.controls.a!, descriptionTextAfter: "Följ snitseln" };
+    expect(descriptionTextLine(control, "after")).toBe("Följ snitseln");
     expect(descriptionTextLine(control, "before")).toBe("");
-    expect(descriptionTextLine({ ...control, descriptionTextLines: { before: "Vatten" } } as typeof control, "before")).toBe("Vatten");
+    expect(descriptionTextLine(undefined, "before")).toBe("");
+    // Banans kontroll (textrad bara på den banan) har samma fält.
+    expect(descriptionTextLine({ ...document.courseControls.c2!, descriptionTextBefore: "Vatten" }, "before")).toBe("Vatten");
   });
 
   it("sparar språk och visningssätt per tävling, med filens språk som utgångsläge", () => {

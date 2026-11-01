@@ -1,5 +1,5 @@
 import {
-  courseControlOrder, type ControlPoint, type CourseSettingDocument, type DescriptionKind, type DescriptionLanguage, type DescriptionLayout,
+  courseControlOrder, DESCRIPTION_LANGUAGES as SYMBOL_LANGUAGES, type ControlPoint, type CourseSettingDocument, type DescriptionKind, type DescriptionLanguage, type DescriptionLayout,
   type DescriptionPrimitive
 } from "@o-tid/course-setting";
 import { ALL_CONTROLS } from "./course-setting-hit";
@@ -10,7 +10,10 @@ import type { Selection } from "./course-setting-editor";
  * kontrollen (kontrollens id, inte banans kontroll). Här översätts det till editorns val och tillbaka, och här finns
  * tävlingens inställningar för beskrivningen (språk och visningssätt).
  */
-export const DESCRIPTION_LANGUAGES = ["sv", "en"] as const;
+/** Språken som symbolerna har texter på (paketet), svenska och engelska först. */
+export const DESCRIPTION_LANGUAGES: readonly { readonly id: string; readonly name: string }[] = [...SYMBOL_LANGUAGES]
+  .sort((left, right) => rank(left.id) - rank(right.id) || left.name.localeCompare(right.name, "sv"));
+function rank(id: string) { return id === "sv" ? 0 : id === "en" ? 1 : 2; }
 export const DESCRIPTION_KINDS: readonly DescriptionKind[] = ["SYMBOLS", "TEXT", "SYMBOLS_AND_TEXT"];
 
 export interface DescriptionSettings {
@@ -68,24 +71,18 @@ export function ppenDescriptionLanguage(document: CourseSettingDocument): Descri
 }
 
 /**
- * Textraden före eller efter kontrollens rad (Purple Pens `<description-text line="before|after">`). Paketet kan ha
- * den i modellen; annars ligger den orörd i kontrollens `raw`.
+ * Kontrollens textrad före eller efter raden (Purple Pens description-text-line, på alla banor; "|" = ny rad).
+ * Samma fält finns på banans kontroll för en textrad som bara gäller den banan; den visas men ändras inte här.
  */
-export function descriptionTextLine(control: ControlPoint | undefined, location: "before" | "after"): string {
-  if (!control) return "";
-  const field = (control as unknown as { descriptionTextLines?: Partial<Record<"before" | "after", string>> }).descriptionTextLines?.[location];
-  if (typeof field === "string") return field;
-  for (const raw of control.raw ?? []) {
-    const match = new RegExp(`<description-text\\b[^>]*\\bline="${location}"[^>]*>([\\s\\S]*?)</description-text>`).exec(raw.xml);
-    if (match) return unescapeXml(match[1]!);
-  }
-  return "";
+export function descriptionTextLine(control: Pick<ControlPoint, "descriptionTextBefore" | "descriptionTextAfter"> | undefined,
+  location: "before" | "after"): string {
+  return (location === "before" ? control?.descriptionTextBefore : control?.descriptionTextAfter) ?? "";
 }
 
 type Storage = Pick<globalThis.Storage, "getItem" | "setItem">;
 const settingsKey = (raceId: string) => `otid.course-setting.descriptions.${raceId}`;
 
-const isLanguage = (value: unknown): value is DescriptionLanguage => typeof value === "string" && (DESCRIPTION_LANGUAGES as readonly string[]).includes(value);
+const isLanguage = (value: unknown): value is DescriptionLanguage => typeof value === "string" && DESCRIPTION_LANGUAGES.some(language => language.id === value);
 const isKind = (value: unknown): value is DescriptionKind => typeof value === "string" && (DESCRIPTION_KINDS as readonly string[]).includes(value);
 
 /**

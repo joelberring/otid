@@ -118,7 +118,7 @@ export function DescriptionPrintPage({ raceId }: { raceId: string }) {
         <label>{text.page.kind}<select value={settings.kind} onChange={event => setSettings({ ...settings, kind: event.target.value as DescriptionKind })}>
           {DESCRIPTION_KINDS.map(value => <option key={value} value={value}>{text.settings.kinds[value]}</option>)}</select></label>
         <label>{text.page.language}<select value={settings.language} onChange={event => setSettings({ ...settings, language: event.target.value })}>
-          {DESCRIPTION_LANGUAGES.map(value => <option key={value} value={value}>{text.settings.languages[value]}</option>)}</select></label>
+          {DESCRIPTION_LANGUAGES.map(language => <option key={language.id} value={language.id}>{text.settings.languages[language.id] ?? language.name}</option>)}</select></label>
         <label>{text.page.box}<select value={boxMm} onChange={event => setBoxMm(Number(event.target.value))}>
           {BOX_SIZES_MM.map(value => <option key={value} value={value}>{text.page.boxSize(value)}</option>)}</select></label>
         <label>{text.page.copies}<input type="number" min={1} max={MAX_COPIES} value={copies} onChange={event => setCopies(copiesOf(event.target.value))} /></label>

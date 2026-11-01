@@ -30,7 +30,8 @@ export const courseSettingDescriptionSv = {
     before: "Text före kontrollen",
     after: "Text efter kontrollen",
     save: "Spara texten",
-    help: "Tomt fält tar bort raden."
+    help: "Tomt fält tar bort raden.",
+    courseOnly: (before: boolean, value: string) => `Bara på den här banan, ${before ? "före" : "efter"}: "${value}".`
   },
   settings: {
     heading: "Inställningar för beskrivningen",

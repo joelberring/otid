@@ -7,17 +7,21 @@ import type { DescriptionLayout, DescriptionPrimitive, DescriptionSymbol, Symbol
  * på utskriftssidan och i den nedladdade SVG-filen. Allt är rent svart.
  */
 export type SvgNode =
-  | { readonly tag: "path"; readonly d: string; readonly fill: boolean; readonly strokeWidth?: number | undefined }
+  /** Linjer har runda ändar och hörn om inte `cap: "butt"` eller `join: "miter"` (gräns 5) anges; ytor fylls jämn–udda. */
+  | { readonly tag: "path"; readonly d: string; readonly fill: boolean; readonly strokeWidth?: number | undefined; readonly cap?: "butt" | undefined;
+      readonly join?: "miter" | undefined }
   | { readonly tag: "line"; readonly x1: number; readonly y1: number; readonly x2: number; readonly y2: number; readonly strokeWidth: number }
   | { readonly tag: "circle"; readonly cx: number; readonly cy: number; readonly r: number; readonly fill: boolean; readonly strokeWidth?: number | undefined }
   | { readonly tag: "text"; readonly x: number; readonly y: number; readonly text: string; readonly size: number; readonly bold: boolean;
-      readonly anchor: "start" | "middle" | "end"; readonly textLength?: number | undefined }
+      readonly anchor: "start" | "middle" | "end"; readonly condensed?: boolean | undefined; readonly textLength?: number | undefined }
   /** En symbol: figurerna i papperets mm. `symbol` och `ref` blir data-attribut (för tester och markering). */
   | { readonly tag: "symbol"; readonly symbol: string; readonly ref?: string | undefined; readonly children: readonly SvgNode[] };
 
 export type SymbolLookup = ReadonlyMap<string, DescriptionSymbol>;
 
-export const DESCRIPTION_FONT = "Arial, Helvetica, sans-serif";
+/** Purple Pen ritar med Roboto (smal text med Roboto Condensed); här de vanliga typsnitten som finns i alla datorer. */
+export const DESCRIPTION_FONT = "Roboto, Arial, Helvetica, sans-serif";
+export const CONDENSED_FONT = "'Roboto Condensed', 'Arial Narrow', Arial, sans-serif";
 /** Ungefärlig medelbredd för ett tecken i Arial, i fontstorlekar (för att krympa text som inte får plats). */
 const CHARACTER_WIDTH = 0.56;
 
@@ -58,7 +62,8 @@ export function symbolNodes(shapes: readonly SymbolShape[], center: { x: number;
   const unit = size / 200;
   return shapes.map((shape): SvgNode => {
     switch (shape.kind) {
-      case "polyline": return { tag: "path", d: `${pointList(shape.points, center, size)}${shape.closed ? " Z" : ""}`, fill: false, strokeWidth: mm(shape.width * unit) };
+      case "polyline": return { tag: "path", d: `${pointList(shape.points, center, size)}${shape.closed ? " Z" : ""}`, fill: false, strokeWidth: mm(shape.width * unit),
+        ...(shape.ends === "flat" ? { cap: "butt" as const } : {}), ...(shape.corners === "sharp" ? { join: "miter" as const } : {}) };
       case "polygon": return { tag: "path", d: `${pointList(shape.points, center, size)} Z`, fill: true };
       case "circle": {
         const at = symbolPoint(shape.center, center, size);
@@ -69,7 +74,7 @@ export function symbolNodes(shapes: readonly SymbolShape[], center: { x: number;
         return { tag: "circle", cx: at.x, cy: at.y, r: mm(shape.radius * unit), fill: true };
       }
       case "bezier": return shape.filled ? { tag: "path", d: `${bezierPath(shape.points, center, size)} Z`, fill: true }
-        : { tag: "path", d: bezierPath(shape.points, center, size), fill: false, strokeWidth: mm(shape.width * unit) };
+        : { tag: "path", d: bezierPath(shape.points, center, size), fill: false, strokeWidth: mm(shape.width * unit), ...(shape.ends === "flat" ? { cap: "butt" as const } : {}) };
     }
   });
 }
@@ -78,9 +83,9 @@ const ANCHOR = { left: "start", center: "middle", right: "end" } as const;
 
 /** Texten krymps (tecknen pressas ihop) bara när en uppskattning säger att den inte får plats i `maxWidth`. */
 export function textNode(primitive: Extract<DescriptionPrimitive, { kind: "text" }>): SvgNode {
-  const estimate = primitive.text.length * primitive.heightMm * CHARACTER_WIDTH * (primitive.bold ? 1.08 : 1);
+  const estimate = primitive.text.length * primitive.heightMm * CHARACTER_WIDTH * (primitive.bold ? 1.08 : 1) * (primitive.condensed ? 0.82 : 1);
   return { tag: "text", x: mm(primitive.at.x), y: mm(primitive.at.y), text: primitive.text, size: mm(primitive.heightMm), bold: primitive.bold === true,
-    anchor: ANCHOR[primitive.align], ...(primitive.maxWidth !== undefined && estimate > primitive.maxWidth ? { textLength: mm(primitive.maxWidth) } : {}) };
+    anchor: ANCHOR[primitive.align], ...(primitive.condensed ? { condensed: true } : {}), ...(primitive.maxWidth !== undefined && estimate > primitive.maxWidth ? { textLength: mm(primitive.maxWidth) } : {}) };
 }
 
 /**
@@ -112,12 +117,14 @@ const escape = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&l
 
 function nodeXml(node: SvgNode): string {
   switch (node.tag) {
-    case "path": return node.fill ? `<path d="${node.d}" fill="#000"/>`
-      : `<path d="${node.d}" fill="none" stroke="#000" stroke-width="${node.strokeWidth ?? 0}" stroke-linecap="round" stroke-linejoin="round"/>`;
+    case "path": return node.fill ? `<path d="${node.d}" fill="#000" fill-rule="evenodd"/>`
+      : `<path d="${node.d}" fill="none" stroke="#000" stroke-width="${node.strokeWidth ?? 0}" stroke-linecap="${node.cap ?? "round"}"`
+        + ` stroke-linejoin="${node.join ?? "round"}"${node.join ? ` stroke-miterlimit="5"` : ""}/>`;
     case "line": return `<line x1="${node.x1}" y1="${node.y1}" x2="${node.x2}" y2="${node.y2}" stroke="#000" stroke-width="${node.strokeWidth}"/>`;
     case "circle": return node.fill ? `<circle cx="${node.cx}" cy="${node.cy}" r="${node.r}" fill="#000"/>`
       : `<circle cx="${node.cx}" cy="${node.cy}" r="${node.r}" fill="none" stroke="#000" stroke-width="${node.strokeWidth ?? 0}"/>`;
-    case "text": return `<text x="${node.x}" y="${node.y}" font-size="${node.size}"${node.bold ? ` font-weight="bold"` : ""} text-anchor="${node.anchor}"`
+    case "text": return `<text x="${node.x}" y="${node.y}" font-size="${node.size}"${node.bold ? ` font-weight="bold"` : ""}`
+      + `${node.condensed ? ` font-family="${CONDENSED_FONT.replace(/'/g, "&apos;")}"` : ""} text-anchor="${node.anchor}"`
       + `${node.textLength !== undefined ? ` textLength="${node.textLength}" lengthAdjust="spacingAndGlyphs"` : ""}>${escape(node.text)}</text>`;
     case "symbol": return `<g data-symbol="${escape(node.symbol)}">${node.children.map(nodeXml).join("")}</g>`;
   }

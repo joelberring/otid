@@ -22,7 +22,10 @@
 .row { display: flex; flex-wrap: wrap; gap: 8px; }
 
 /* Smal skärm: kartan på hela skärmen, raden nertill. */
-.shell { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; background: var(--surface, #fff); }
+.shell { position: fixed; inset: 0; height: 100dvh; z-index: 100; display: flex; flex-direction: column; background: var(--surface, #fff);
+  overscroll-behavior: none; touch-action: none; }
+.bar, .sheet { touch-action: pan-y; }
+.select { min-height: 44px; font-size: 1rem; padding: 0 8px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); }
 .shellMap { position: relative; flex: 1 1 auto; min-height: 0; }
 .shellMap > div { display: block; height: 100%; }
 .shellMap > div > div:first-child { height: 100%; }

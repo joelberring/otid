@@ -67,6 +67,18 @@ test("banläggning på telefonen: min position, flytta hit, finjustera, F och G,
   await expect(map).toHaveAttribute("data-px-per-mm", /\d/);
   await phone.waitForTimeout(500);
 
+  // Banväljaren: en bana med sträckor syns på telefonen, och sidan skrollar inte när man drar på kartan.
+  const course = phone.getByTestId("course-setting-field-course");
+  await expect(course).toBeVisible();
+  await course.selectOption({ label: "Lång" });
+  await expect(course).toHaveValue("1");
+  const box = (await map.boundingBox())!;
+  await phone.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await phone.mouse.wheel(0, 400);
+  expect(await phone.evaluate(() => window.scrollY)).toBe(0);
+  await course.selectOption({ label: "Alla kontroller" });
+  await phone.waitForTimeout(300);
+
   // Välj kontroll 32 (42, 61 mm) med fingret.
   const control = await screenOf(map, 42, 61);
   await phone.touchscreen.tap(control.x, control.y);

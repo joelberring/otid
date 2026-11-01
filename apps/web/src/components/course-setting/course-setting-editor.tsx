@@ -281,7 +281,9 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
   const statusText = status === "conflict" ? text.status.conflict : status === "too-large" ? text.status.tooLarge : text.status[status];
   const conflictTime = conflict?.current ? new Date(conflict.current.updatedAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" }) : "";
   const label = text.map(course?.name ?? text.courses.all);
-  const field = useFieldMode({ raceId, state: editor, apply, georeference, mapBounds, status, statusText, version: () => saver.currentVersion });
+  const variantsByCourse = useMemo(() => Object.fromEntries(summaries.map(row => [row.course, row.variants.map(v => v.code)])), [summaries]);
+  const field = useFieldMode({ raceId, state: editor, apply, georeference, mapBounds, status, statusText, version: () => saver.currentVersion,
+    onView: (next, code) => apply(state => setView(state, next, code)), variants: variantsByCourse });
   return <>
     <div className={styles.head}>
       <p role="status" aria-live="polite" className={styles.status} data-status={status} data-testid="course-setting-status">{statusText}</p>

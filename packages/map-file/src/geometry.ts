@@ -29,12 +29,16 @@ export function normalizeHatchAngle(degrees: number): number {
   return value >= 180 ? value - 180 : value;
 }
 
-/** En ytas ring är alltid stängd: en sista rak linje tillbaka till startpunkten tas bort (Mapper skriver den, OCAD inte). */
+/**
+ * En ytas ring är alltid stängd: en sista rak linje tillbaka till startpunkten tas bort (Mapper skriver den, OCAD inte).
+ * Har den en lucka flyttas luckan till första punkten, som då gäller den stängande sträckan.
+ */
 export function openRing(ring: Path): Path {
   const first = ring[0];
   const last = ring[ring.length - 1];
   if (ring.length > 2 && first && last?.type === "L" && Math.abs(last.x - first.x) < 1e-9 && Math.abs(last.y - first.y) < 1e-9) {
-    return ring.slice(0, -1);
+    const rest = ring.slice(0, -1);
+    return last.gap ? [{ ...first, gap: last.gap }, ...rest.slice(1)] : rest;
   }
   return ring;
 }

@@ -1,4 +1,4 @@
-import type { Path, Point } from "../model";
+import type { Path, PathCommand, Point } from "../model";
 
 /**
  * Steg 59: geometri för skärmritningen. Vägar i kartans mm (y uppåt) plattas till polylinjer när de behöver förskjutas
@@ -92,6 +92,25 @@ export function placementsAlong(line: Polyline, spacing: number): { at: Point; a
     out.push({ at: { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t }, angle: Math.atan2(to.y - from.y, to.x - from.x) });
   }
   return out;
+}
+
+/** Ytans ring som stängd väg: en sista sträcka tillbaka till början, med luckan som ringens första punkt bär. */
+export function closeRing(ring: Path): Path {
+  const first = ring[0];
+  if (!first || ring.length < 2) return ring;
+  return [...ring, { type: "L", x: first.x, y: first.y, ...(first.gap ? { gap: first.gap } : {}) }];
+}
+
+/** Vägen utan sträckorna som har luckan `bit` (se `GAP`); varje bit som blir kvar börjar med en flyttning. */
+export function withoutGaps(path: Path, bit: number): Path {
+  if (!path.some(command => command.type !== "M" && ((command.gap ?? 0) & bit) !== 0)) return path;
+  const out: PathCommand[] = [];
+  for (const command of path) {
+    const gapped = command.type !== "M" && ((command.gap ?? 0) & bit) !== 0;
+    out.push(gapped ? { type: "M", x: command.x, y: command.y } : command);
+  }
+  // Flyttningar som inte följs av någon sträcka behövs inte.
+  return out.filter((command, index) => command.type !== "M" || (out[index + 1] !== undefined && out[index + 1]!.type !== "M"));
 }
 
 export interface Box { minX: number; minY: number; maxX: number; maxY: number }

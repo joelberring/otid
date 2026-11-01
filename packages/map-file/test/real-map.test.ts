@@ -1,20 +1,32 @@
 /**
  * Kontroll mot ägarens riktiga kartfiler (Djurgården 2025, OCAD 2018.8 och samma karta i Mapper v9, plus Purple Pens
  * banfil för Natt-KM 2026). Filerna är klubbens och committas inte; testet körs bara när OTID_REAL_MAP_DIR pekar på
- * mappen.
+ * mappen. Med OTID_SBN_DIR (mappen med Högdalen 2026, OCAD 2018) provas kraftledningarna och färgerna där.
  */
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { mapPointToWgs84, readMapFile, type MapGeoreference, type ParsedMap } from "../src";
+import { mapPointToWgs84, readMapFile, type LineSymbol, type MapGeoreference, type MapSymbol, type ParsedMap } from "../src";
 
 const directory = process.env.OTID_REAL_MAP_DIR;
+const sbnDirectory = process.env.OTID_SBN_DIR;
 
-function find(suffix: string): string {
-  const name = readdirSync(directory!).find(file => file.normalize("NFC").toLowerCase().endsWith(suffix));
-  if (!name) throw new Error(`Hittar ingen fil som slutar på ${suffix} i ${directory}`);
-  return join(directory!, name);
+function find(suffix: string, folder = directory): string {
+  const name = readdirSync(folder!).find(file => file.normalize("NFC").toLowerCase().endsWith(suffix));
+  if (!name) throw new Error(`Hittar ingen fil som slutar på ${suffix} i ${folder}`);
+  return join(folder!, name);
 }
+
+function lineByCode(map: ParsedMap, code: string): LineSymbol {
+  const symbol = [...map.symbols.values()].find((item: MapSymbol) => item.code.text === code && item.kind === "LINE");
+  if (!symbol) throw new Error(`Ingen linjesymbol ${code}`);
+  return symbol as LineSymbol;
+}
+
+const rgb255 = (map: ParsedMap, name: string) => {
+  const color = map.colors.find(item => item.name === name);
+  return color ? [color.rgb.r, color.rgb.g, color.rgb.b].map(value => Math.round(value * 255)) : undefined;
+};
 
 function timedRead(path: string): { map: ParsedMap; ms: number } {
   const bytes = new Uint8Array(readFileSync(path));
@@ -128,5 +140,54 @@ describe.skipIf(!directory)("riktiga kartfiler (OTID_REAL_MAP_DIR)", () => {
       expect(map.colors.find(color => color.name === "Violett för banlayout")?.spot?.name).toBe("Purple");
       expect(map.colors.find(color => color.name === "Vit för banlayout")?.spot?.name).toBe("Purple 0 %");
     }
+  });
+});
+
+describe.skipIf(!directory)("riktiga kartfiler: linjesymbolernas punktsymboler och skärmfärger (OTID_REAL_MAP_DIR)", () => {
+  const ocd = directory ? readMapFile(new Uint8Array(readFileSync(find(".ocd")))) : null;
+  const omap = directory ? readMapFile(new Uint8Array(readFileSync(find(".omap")))) : null;
+
+  it("har brons vingar, stängslens streck och murarnas prickar i båda formaten", () => {
+    for (const map of [ocd!, omap!]) {
+      expect(lineByCode(map, "512.0").start?.elements.length, map.format).toBeGreaterThan(0);
+      expect(lineByCode(map, "512.0").end?.elements.length, map.format).toBeGreaterThan(0);
+      const fence = lineByCode(map, "516.0").repeated!;
+      expect(fence.spacing, map.format).toBeCloseTo(2, 6);
+      expect(fence.endLength, map.format).toBeCloseTo(1, 6);
+      expect(lineByCode(map, "515.0").repeated, map.format).toMatchObject({ count: 2 });
+    }
+  });
+
+  it("ger samma skärmfärg ur OCAD och Mapper (Mappers egen RGB är naiv och används inte)", () => {
+    let compared = 0;
+    for (const color of ocd!.colors) {
+      const other = rgb255(omap!, color.name);
+      if (!other) continue;
+      expect(other, color.name).toEqual(rgb255(ocd!, color.name));
+      compared += 1;
+    }
+    expect(compared).toBeGreaterThan(30);
+    expect(rgb255(omap!, "Grön för ytsymboler")).toEqual([32, 180, 87]);
+  });
+});
+
+describe.skipIf(!sbnDirectory)("Högdalen 2026 (OTID_SBN_DIR)", () => {
+  const map = sbnDirectory ? readMapFile(new Uint8Array(readFileSync(find(".ocd", sbnDirectory)))) : null;
+
+  it("har kraftledningarnas stolpar som hörnsymbol och hörnpunkterna i linjerna", () => {
+    for (const code of ["510.0", "511.0", "511.1"]) expect(lineByCode(map!, code).corner?.elements.length, code).toBeGreaterThan(0);
+    const id = lineByCode(map!, "510.0").id;
+    const lines = map!.objects.filter(object => object.symbol === id);
+    expect(lines).toHaveLength(8);
+    const corners = lines.reduce((sum, object) => sum + (object.kind === "line" ? object.path.filter(command => command.corner).length : 0), 0);
+    expect(corners).toBe(27);
+    expect(lines.some(object => object.kind === "line" && object.path.some(command => command.gap))).toBe(true);
+  });
+
+  it("visar grönt och lila som Purple Pen", () => {
+    expect(rgb255(map!, "Grön 100% - Ytobjekt")).toEqual([12, 177, 75]);
+    expect(rgb255(map!, "Grön 50% - Ytobjekt")).toEqual([159, 209, 138]);
+    expect(rgb255(map!, "Övre violett för banpåtryck")).toEqual([180, 29, 142]);
+    expect(rgb255(map!, "Svart 100%")).toEqual([0, 0, 0]);
   });
 });

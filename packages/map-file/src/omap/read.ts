@@ -94,8 +94,11 @@ function readColors(colorsNode: XmlNode | undefined): MapColor[] {
   const colors = nodes.map((node, index): MapColor => {
     const id = num(node, "priority", index);
     const cmyk = { c: clamp01(num(node, "c", 0)), m: clamp01(num(node, "m", 0)), y: clamp01(num(node, "y", 0)), k: clamp01(num(node, "k", 0)) };
+    // Filens RGB används bara när den är satt för hand (eller CMYK räknats ur den). Annars har Mapper räknat den naivt ur
+    // CMYK, vilket ger för mättade färger, och då räknas den om som Purple Pen gör.
     const rgbNode = child(node, "rgb");
-    const rgb = rgbNode
+    const ownRgb = rgbNode && (attr(rgbNode, "method") === "custom" || attr(child(node, "cmyk"), "method") === "rgb");
+    const rgb = ownRgb
       ? { r: clamp01(num(rgbNode, "r", 0)), g: clamp01(num(rgbNode, "g", 0)), b: clamp01(num(rgbNode, "b", 0)) }
       : rgbFromCmyk(cmyk);
     const spotNode = child(node, "spotcolors");

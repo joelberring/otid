@@ -10,6 +10,11 @@ Egen kod. ocad2geojson (AGPL) och OpenOrienteering Mapper (GPL) får läsas för
 - `readMapFile(bytes, fileName?)` känner igen formatet på innehållet och kastar `MapFileError` för oanvändbara filer.
 - `mapPointToWgs84(georef, point)` och `wgs84ToMapPoint` räknar kartans mm via SWEREF 99 TM, de tolv lokala zonerna
   eller RT 90 2,5 gon V. Övriga koordinatsystem ger `crs.kind = "UNKNOWN"`.
+- `drawMap(ctx, map, options)` ritar kartan för skärmen. Linjesymbolernas punktsymboler (OCAD: primär-, sekundär-,
+  hörn-, start- och slutsymbol; Mapper: mitt-, streck-, start- och slutsymbol) ritas på sina platser, t.ex.
+  kraftledningens stolpar i hörnpunkterna, och luckorna i OCAD-linjer (huvudlinje och kantlinjer) lämnas tomma.
+- Skärmfärgen räknas ur CMYK med tryckprofilen SWOP, samma tabell som Purple Pen använder (BSD, Peter Golde; notisen
+  finns i `src/swop-table.ts`). `MapColor.cmyk` är orört för tryck. Mappers RGB används bara när den är satt för hand.
 
 Kontroll mot riktiga kartor (filerna committas inte): `OTID_REAL_MAP_DIR=/sökväg/till/mappen pnpm --filter
 @o-tid/map-file test`. Mappen ska innehålla en `.ocd`, en `.omap` av samma karta och banfilen (`.xml`) från Purple Pen.

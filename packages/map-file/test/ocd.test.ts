@@ -68,7 +68,7 @@ describe("OCAD-läsaren", () => {
     const { colors } = read();
     expect(colors.map(color => [color.id, color.rank, color.name])).toEqual([[54, 0, "Lila"], [2, 1, "Svart"], [34, 2, "Gul 50%"]]);
     expect(colors[0]!.cmyk).toEqual({ c: 0.35, m: 0.85, y: 0, k: 0 });
-    expect(colors[0]!.rgb.r).toBeCloseTo(0.65, 9);
+    expect(colors[0]!.rgb).toEqual({ r: 171 / 255, g: 74 / 255, b: 156 / 255 });
     expect(colors[0]!.spot).toEqual({ name: "Purple", overprint: false });
     expect(colors[1]!.spot).toBeUndefined();
     expect(colors[1]!.rgb).toEqual({ r: 0, g: 0, b: 0 });

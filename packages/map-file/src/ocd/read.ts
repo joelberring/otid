@@ -95,12 +95,12 @@ function readObject(
     }
     case OBJECT_TYPE.line:
     case OBJECT_TYPE.rectangle: {
-      const parts = coordsToParts(coords);
+      const parts = coordsToParts(coords, undefined, true);
       if (parts.length === 0) { warnings.add("BROKEN_OBJECT"); return null; }
       return { kind: "line", symbol, path: parts.flat() };
     }
     case OBJECT_TYPE.area: {
-      const rings = coordsToParts(coords).map(openRing);
+      const rings = coordsToParts(coords, undefined, true).map(openRing);
       if (rings.length === 0) { warnings.add("BROKEN_OBJECT"); return null; }
       return { kind: "area", symbol, rings, angle };
     }

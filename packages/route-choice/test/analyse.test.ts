@@ -1,9 +1,32 @@
 import { describe, expect, it } from "vitest";
-import { analyseCourse, analyseLeg, buildCostModel, type LegInput } from "../src";
-import { forest, m, rect } from "./synthetic";
+import { analyseCourse, analyseLeg, buildCostModel, legGrid, SLOPE_FACTOR, slopeExcess, type LegInput } from "../src";
+import { forest, m, rect, ring } from "./synthetic";
 
 function leg(from: [number, number], to: [number, number], extra: Partial<LegInput> = {}): LegInput {
   return { key: "1-2", from: m(...from), to: m(...to), ...extra };
+}
+
+/** Punkter på en cirkelbåge (meter), grader moturs från öster. */
+function circle(cx: number, cy: number, r: number, from = 0, to = 360, steps = 128): [number, number][] {
+  const points: [number, number][] = [];
+  for (let k = 0; k <= steps; k += 1) {
+    const a = (from + (to - from) * k / steps) * Math.PI / 180;
+    points.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]);
+  }
+  return points;
+}
+
+/**
+ * En kulle med kurvorna `rings` runt (200, 0) mellan kontrollerna (0, 0) och (400, 0). Utanför radien `outer` är det
+ * förbjudet utom i två kilar mot kontrollerna, så att omvägen måste skrå längs kullens sida.
+ */
+function hillBetween(rings: readonly number[], outer: number) {
+  const map = forest();
+  for (const r of rings) map.line("101", 0.14, ...circle(200, 0, r));
+  for (const [from, to] of [[20, 160], [200, 340]] as const) {
+    map.area("520", ring([...circle(200, 0, outer, from, to, 32), ...circle(200, 0, 900, to, from, 32)].map(([x, y]) => m(x, y))));
+  }
+  return map;
 }
 
 describe("analyseLeg", () => {
@@ -79,12 +102,90 @@ describe("analyseLeg", () => {
     for (let x = 100; x <= 300; x += 50) contours.line("101", 0.14, [x, -1000], [x, 1000]);
     contours.line("103", 0.1, [325, -1000], [325, 1000]);
     const model = buildCostModel(contours.build());
-    const result = analyseLeg(model, leg([0, 0], [400, 0]));
-    expect(result.best!.climbMeters).toBeCloseTo(5 * 5 + 2.5, 5);
-    // 27,5 m × 8 = 220 m plan väg extra.
-    expect(result.best!.seconds).toBeCloseTo((400 + 220) * 0.36, 0);
+    // Lutningen av, så att bara kurvpassagerna räknas.
+    const result = analyseLeg(model, leg([0, 0], [400, 0]), { version: 1, slopeFactor: 0 });
+    // 27,5 passerade höjdmeter; riktningen syns inte, så stigningen uppför är i snitt hälften.
+    expect(result.best!.climbMeters).toBeCloseTo((5 * 5 + 2.5) / 2, 5);
+    // Varje passerad höjdmeter kostar (8 upp + 3 ned) / 2 = 5,5 m plan väg: 151,25 m extra.
+    expect(result.best!.seconds).toBeCloseTo((400 + 151.25) * 0.36, 0);
+    const steeper = analyseLeg(model, leg([0, 0], [400, 0]), { version: 1, slopeFactor: 0, descentFactor: 4 });
+    expect(steeper.best!.seconds).toBeCloseTo((400 + 27.5 * 6) * 0.36, 0);
+    // Nedför är aldrig gratis: 0 (och allt under 0,5) ger standardvärdet 3.
+    const free = analyseLeg(model, leg([0, 0], [400, 0]), { version: 1, slopeFactor: 0, descentFactor: 0 });
+    expect(free.best!.seconds).toBeCloseTo(result.best!.seconds, 5);
     const flat = analyseLeg(buildCostModel(forest().build()), leg([0, 0], [400, 0]));
     expect(flat.best!.climbMeters).toBe(0);
+  });
+
+  it("räknar en kulle som en gång upp och en gång ned, inte två gånger upp", () => {
+    // Tre ringar runt (200, 0): rakt över är 6 passager = 15 m upp och 15 m ned; runt den yttersta ringen är ≈ 601 m.
+    const hill = forest();
+    for (const r of [100, 150, 190]) hill.line("101", 0.14, ...circle(200, 0, r));
+    const model = buildCostModel(hill.build());
+    // 400 + 30 × (8 + 3) / 2 = 565 < 601: över kullen.
+    const over = analyseLeg(model, leg([0, 0], [400, 0]), { version: 1, slopeFactor: 0 });
+    expect(over.best!.climbMeters).toBeCloseTo(15, 5);
+    expect(over.best!.meters / over.straightMeters).toBeLessThan(1.02);
+    // Den gamla regeln (nedför lika dyrt som uppför): 400 + 30 × 8 = 640 > 601, runt.
+    const around = analyseLeg(model, leg([0, 0], [400, 0]), { version: 1, slopeFactor: 0, descentFactor: 8 });
+    expect(around.best!.climbMeters).toBeLessThanOrEqual(5);
+    expect(around.best!.meters / around.straightMeters).toBeGreaterThan(1.2);
+  });
+
+  it("skattar lutningen ur kurvtätheten och gör skrå i brant mark långsamt, men inte på stigen", () => {
+    // Parallella kurvor var 10:e meter längs sträckan: lutning 5 / 10 = 50 %.
+    const slope = forest();
+    for (let y = -200; y <= 200; y += 10) slope.line("101", 0.14, [-1000, y], [1000, y]);
+    const model = buildCostModel(slope.build());
+    const grid = legGrid(model, leg([0, 5], [400, 5]));
+    const middle = Math.floor(grid.height / 2) * grid.width + Math.floor(grid.width / 2);
+    // Rutan (41 m) rymmer 4 eller 5 kurvor: lutningen skattas till 45–55 %.
+    expect(grid.steep[middle]).toBeGreaterThan(slopeExcess(0.45));
+    expect(grid.steep[middle]).toBeLessThan(slopeExcess(0.55));
+    const traverse = analyseLeg(model, leg([0, 5], [400, 5]));
+    expect(traverse.best!.climbMeters).toBe(0);
+    // Tiden i plan skog gånger 1 + 0,2 × lutningens tillägg (≈ 1,6 vid 50 %).
+    const factor = traverse.best!.seconds / (400 * 0.36);
+    expect(factor).toBeGreaterThan(1 + SLOPE_FACTOR * slopeExcess(0.45));
+    expect(factor).toBeLessThan(1 + SLOPE_FACTOR * slopeExcess(0.55));
+    const off = analyseLeg(model, leg([0, 5], [400, 5]), { version: 1, slopeFactor: 0 });
+    expect(off.best!.seconds).toBeCloseTo(400 * 0.36, 0);
+    // En stig längs sluttningen påverkas inte av lutningen.
+    const path = buildCostModel(slope.line("505", 0.25, [-1000, 5], [1000, 5]).build());
+    expect(analyseLeg(path, leg([0, 5], [400, 5])).best!.seconds).toBeCloseTo(400 / 1.25 * 0.36, 0);
+  });
+
+  it("tar stigen som skrår runt en hög kulle men inte samma omväg i brant skog med branter", () => {
+    // Kullen: kurvor var 8:e meter (lutning ≈ 60 %) från radien 60 till 84, platt topp; rakt över är 8 passager
+    // (20 m upp och 20 m ned). Omvägen skrår i sluttningen (utanför är det förbjudet).
+    const rings = [60, 68, 76, 84];
+    const arc = circle(200, 0, 80, 180, 0, 64);
+    const viaPath = analyseLeg(buildCostModel(hillBetween(rings, 85).line("505", 0.25, [0, 0], ...arc, [400, 0]).build()),
+      leg([0, 0], [400, 0]));
+    const highest = (line: { points: readonly { y: number }[] }) => Math.max(...line.points.map(p => Math.abs(p.y))) / 0.1;
+    // Stigen vinner: omvägen följer den runt kullen.
+    expect(highest(viaPath.best!)).toBeGreaterThan(70);
+    expect(viaPath.best!.climbMeters).toBeLessThanOrEqual(5);
+    // Samma omväg utan stig, i brant skrå med branter (202) tvärs över, förlorar mot raka vägen över toppen.
+    const rough = hillBetween(rings, 85);
+    for (const angle of [40, 65, 90, 115, 140, 220, 245, 270, 295, 320]) {
+      const radians = angle * Math.PI / 180;
+      rough.line("202", 0.25, [200 + 55 * Math.cos(radians), 55 * Math.sin(radians)], [200 + 86 * Math.cos(radians), 86 * Math.sin(radians)]);
+    }
+    const viaForest = analyseLeg(buildCostModel(rough.build()), leg([0, 0], [400, 0]));
+    expect(highest(viaForest.best!)).toBeLessThan(20);
+    expect(viaForest.best!.climbMeters).toBeCloseTo(20, 0);
+  });
+
+  it("räknar en passerbar brant som en kostnad per passage, men inte där en stig går igenom", () => {
+    const cliff = forest().line("202", 0.25, [200, -1000], [200, 1000]);
+    const result = analyseLeg(buildCostModel(cliff.build()), leg([0, 0], [400, 0]));
+    expect(result.best!.meters / result.straightMeters).toBeLessThan(1.02);
+    expect(result.best!.seconds).toBeCloseTo((400 + 15) * 0.36, 0);
+    const own = analyseLeg(buildCostModel(cliff.build(), { version: 1, crossingMetersBySymbol: { "202": 40 } }), leg([0, 0], [400, 0]));
+    expect(own.best!.seconds).toBeCloseTo((400 + 40) * 0.36, 0);
+    const withPath = buildCostModel(cliff.line("506", 0.18, [0, 0], [400, 0]).build());
+    expect(analyseLeg(withPath, leg([0, 0], [400, 0])).best!.seconds).toBeCloseTo(400 / 1.25 * 0.36, 0);
   });
 
   it("väljer att gå runt en kulle när stigningen kostar mer än omvägen", () => {

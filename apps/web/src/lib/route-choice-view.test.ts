@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { AdminRouteChoice, ControlMapResponse } from "@o-tid/contracts";
 import type { LegAnalysis } from "@o-tid/route-choice";
 import {
-  calibrationSamples, corridorPath, courseTotal, courseWarnings, legKeys, legRows, mmToPixel, plannedLegs, publishableLegs, routeChoiceOptions,
+  alternativeColor, alternativeLabels, calibrationSamples, ROUTE_CHOICE_COLORS, corridorPath, courseTotal, courseWarnings, legKeys, legRows, mmToPixel, plannedLegs, publishableLegs, routeChoiceOptions,
   simplifyLine, warningText
 } from "./route-choice-view";
 
@@ -108,5 +108,20 @@ describe("vägvalsvyn", () => {
       { key: "31.1-32.1", milliseconds: 90_000, points: [[0, 59.1, 18.1], [90_000, 10, 10]] as [number, number, number][] }] }] };
     const samples = calibrationSamples(routes, (latitude, longitude) => latitude > 50 ? { x: longitude, y: latitude } : undefined);
     expect(samples).toEqual([{ key: "S-31.1", runner: "1", points: [{ x: 18.1, y: 59.1, ms: 0 }, { x: 18.2, y: 59.2, ms: 150_000 }] }]);
+  });
+
+  it("sätter alternativens etiketter där de ligger längst från bästa vägen, med nummer och tidsskillnad", () => {
+    const best = { points: [{ x: 0, y: 0 }, { x: 100, y: 0 }] };
+    const north = { points: [{ x: 0, y: 0 }, { x: 50, y: 40 }, { x: 100, y: 0 }], timeRatio: 1.081 };
+    const south = { points: [{ x: 0, y: 0 }, { x: 50, y: -20 }, { x: 100, y: 0 }], timeRatio: 1.2 };
+    const labels = alternativeLabels({ best, alternatives: [north, south] });
+    expect(labels.map(label => [label.index, label.at, label.percent, label.text])).toEqual([
+      [0, { x: 50, y: 40 }, 8, "1 · +8 %"], [1, { x: 50, y: -20 }, 20, "2 · +20 %"]]);
+    // Två alternativ som går ut på samma ställe får skilda etiketter.
+    const twin = { points: [{ x: 0, y: 0 }, { x: 50, y: 40 }, { x: 100, y: 0 }], timeRatio: 1.1 };
+    const [first, second] = alternativeLabels({ best, alternatives: [north, twin] }, 6);
+    expect(Math.hypot(first!.at.x - second!.at.x, first!.at.y - second!.at.y)).toBeGreaterThanOrEqual(6);
+    expect(ROUTE_CHOICE_COLORS.alternatives).toHaveLength(4);
+    expect(alternativeColor(4)).toBe(alternativeColor(0));
   });
 });

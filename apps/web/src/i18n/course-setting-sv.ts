@@ -124,7 +124,7 @@ export const courseSettingSv = {
     best: (length: number, climb: number, minutes: string) => `Bästa väg ${meters(length)}, ${Math.round(climb)} m stigning, ca ${minutes}`,
     choices: (count: number) => count === 1 ? "Ett tydligt vägval" : `${count} vägval`,
     noRoute: "Ingen väg hittades mellan kontrollerna.",
-    legend: "Bästa väg som blå linje, likvärdiga vägar streckade och stråket (högst 5 % sämre) tonat."
+    legend: "Bästa väg som blå linje, andra vägval streckade och numrerade med tidsskillnaden (högst 25 % sämre) och stråket (högst 5 % sämre) tonat."
   },
   file: {
     heading: "Fil",

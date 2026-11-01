@@ -27,8 +27,8 @@ export function segmentCost(grid: SearchGrid, pace: Float32Array, ax: number, ay
   let tMaxX = dx !== 0 ? (dx > 0 ? col + 1 - ax : ax - col) * tDeltaX : Infinity;
   let tMaxY = dy !== 0 ? (dy > 0 ? row + 1 - ay : ay - row) * tDeltaY : Infinity;
   let index = row * w + col;
-  let t = 0, cost = 0, climbUnits = 0;
-  const contour = grid.contour;
+  let t = 0, cost = 0, climbUnits = 0, crossing = 0;
+  const contour = grid.contour, barrier = grid.barrier;
   for (let guard = Math.abs(endCol - col) + Math.abs(endRow - row) + 2; guard > 0; guard -= 1) {
     const p = pace[index]!;
     if (p === Infinity) return { cost: Infinity, climbUnits, meters: length * grid.cellMeters };
@@ -44,9 +44,10 @@ export function segmentCost(grid: SearchGrid, pace: Float32Array, ax: number, ay
     if (col < 0 || row < 0 || col >= w || row >= h) break;
     const nextIndex = row * w + col;
     climbUnits += Math.abs(contour[nextIndex]! - contour[index]!);
+    crossing += Math.abs(barrier[nextIndex]! - barrier[index]!);
     index = nextIndex;
   }
-  return { cost: cost * grid.cellMeters + climbUnits * grid.climbCostPerUnit, climbUnits, meters: length * grid.cellMeters };
+  return { cost: cost * grid.cellMeters + climbUnits * grid.climbCostPerUnit + crossing * 0.5, climbUnits, meters: length * grid.cellMeters };
 }
 
 function center(grid: SearchGrid, index: number): [number, number] {

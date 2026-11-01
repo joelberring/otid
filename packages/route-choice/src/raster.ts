@@ -5,10 +5,12 @@
  * snabbt lager ovanpå marken (den snabbaste av stig och mark gäller), och för marken den långsammaste ytan som täcker
  * cellen. Vatten och opasserbar sankmark spärrar men kan korsas av vägar och broar. Ytor fylls med cellens mittpunkt
  * (jämn–udda, så hål respekteras). Linjer läggs in med sin bredd och alltid med alla celler som mittlinjen passerar
- * (4-sammanhängande), så att en ej passerbar linje aldrig läcker diagonalt. Höjdkurvorna blir ett eget lager.
+ * (4-sammanhängande), så att en ej passerbar linje aldrig läcker diagonalt. Höjdkurvorna blir ett eget lager, och
+ * linjer som går att passera men kostar (202 brant, staket …) ett till. Ur höjdkurvorna räknas också lutningen per cell
+ * (`steep`, en gång per rutnät): kurvlängd per ytenhet gånger ekvidistansen, se `slopeField`.
  */
 import type { Point } from "@o-tid/map-file";
-import { RUNNABLE_CLASSES, type RunnableClass } from "./defaults";
+import { FORM_LINE_WEIGHT, RUNNABLE_CLASSES, SLOPE_RADIUS_METERS, slopeExcess, type RunnableClass } from "./defaults";
 import type { Feature, PreparedModel } from "./cost-model";
 
 /** Klassindex i rutnätet: 0–4 = `RUNNABLE_CLASSES`, 5 = spärrad. */
@@ -30,6 +32,13 @@ export interface Grid {
   readonly track: Uint8Array;
   /** Höjdkurvor: 2 = höjd- eller stödkurva, 1 = hjälpkurva, 0 = ingen. */
   readonly contour: Uint8Array;
+  /**
+   * Linjer som kostar per passage (meter plan väg, 0 = ingen). Ett steg kostar halva skillnaden mellan cellerna, så en
+   * passage (in och ut) kostar hela värdet. 0 där en väg eller stig går.
+   */
+  readonly barrier: Uint8Array;
+  /** Lutningens tillägg på tiden per meter i marken, utan styrkan (`slopeExcess` av den skattade lutningen). */
+  readonly steep: Float32Array;
 }
 
 /** Tak för antalet celler; större rutnät får grövre celler. */
@@ -210,6 +219,60 @@ function paintContour(frame: GridFrame, feature: Feature, visit: Visit): void {
   for (const line of feature.lines) strokeLine(frame, line, Math.max(feature.radius, frame.cellMm * 0.75), visit);
 }
 
+/**
+ * Kurvlängden (meter, gånger `weight`) läggs i cellen där varje bit av linjen ligger, bitar högst en cell långa: en tunn
+ * rastrering som mäter längden lika i alla riktningar.
+ */
+function addLength(frame: GridFrame, line: readonly Point[], weight: number, length: Float32Array): void {
+  const metersPerMm = frame.cellMeters / frame.cellMm;
+  for (let index = 1; index < line.length; index += 1) {
+    const a = line[index - 1]!, b = line[index]!;
+    const mm = Math.hypot(b.x - a.x, b.y - a.y);
+    if (mm === 0) continue;
+    const pieces = Math.ceil(mm / frame.cellMm);
+    const piece = mm / pieces * metersPerMm * weight;
+    for (let k = 0; k < pieces; k += 1) {
+      const t = (k + 0.5) / pieces;
+      const col = Math.floor((a.x + (b.x - a.x) * t - frame.x0) / frame.cellMm);
+      const row = Math.floor((frame.yTop - (a.y + (b.y - a.y) * t)) / frame.cellMm);
+      if (col >= 0 && row >= 0 && col < frame.width && row < frame.height) length[row * frame.width + col]! += piece;
+    }
+  }
+}
+
+/**
+ * Lutningen per cell ur kurvlängden: parallella kurvor med avståndet w meter har längden 1/w per kvadratmeter, och
+ * lutningen är ekvidistansen / w. Längden summeras i en kvadrat med radien `SLOPE_RADIUS_METERS` (lådfilter med en
+ * integralbild, så att kostnaden inte beror på radien) och delas med kvadratens yta inom rutnätet. Ut: `slopeExcess` av
+ * lutningen, som tidstillägg utan styrkan.
+ */
+export function slopeField(frame: GridFrame, length: Float32Array, contourIntervalMeters: number): Float32Array {
+  const w = frame.width, h = frame.height, stride = w + 1;
+  const sum = new Float64Array(stride * (h + 1));
+  for (let row = 0; row < h; row += 1) {
+    let line = 0;
+    const base = (row + 1) * stride, above = row * stride, cells = row * w;
+    for (let col = 0; col < w; col += 1) {
+      line += length[cells + col]!;
+      sum[base + col + 1] = sum[above + col + 1]! + line;
+    }
+  }
+  const r = Math.max(1, Math.round(SLOPE_RADIUS_METERS / frame.cellMeters));
+  const cellArea = frame.cellMeters * frame.cellMeters;
+  const out = new Float32Array(w * h);
+  for (let row = 0; row < h; row += 1) {
+    const top = Math.max(0, row - r), bottom = Math.min(h, row + r + 1);
+    for (let col = 0; col < w; col += 1) {
+      const left = Math.max(0, col - r), right = Math.min(w, col + r + 1);
+      const total = sum[bottom * stride + right]! - sum[top * stride + right]! - sum[bottom * stride + left]! + sum[top * stride + left]!;
+      if (total <= 0) continue;
+      const grade = contourIntervalMeters * total / ((bottom - top) * (right - left) * cellArea);
+      out[row * w + col] = slopeExcess(grade);
+    }
+  }
+  return out;
+}
+
 /** Genomgångar och passager öppnar minst 0,4 mm runt sig, så att hela staketets eller murens bredd öppnas. */
 function paintCrossing(frame: GridFrame, feature: Feature, visit: Visit): void {
   for (const polygon of feature.polygons) fillPolygon(frame, polygon, visit);
@@ -221,7 +284,7 @@ function paintCrossing(frame: GridFrame, feature: Feature, visit: Visit): void {
  * `trackRadiusMm` breddar vägar och stigar (kalibreringen, där GPS-spåret sällan ligger exakt på stigen).
  */
 export function rasterize(model: PreparedModel, frame: GridFrame, speeds: Readonly<Record<RunnableClass, number>>,
-  options: { readonly trackRadiusMm?: number } = {}): Grid {
+  options: { readonly trackRadiusMm?: number; readonly contourIntervalMeters?: number } = {}): Grid {
   const trackRadius = options.trackRadiusMm ?? 0;
   const cells = frame.width * frame.height;
   const area = new Uint8Array(cells).fill(NONE);
@@ -229,6 +292,8 @@ export function rasterize(model: PreparedModel, frame: GridFrame, speeds: Readon
   /** Bitar: 1 = spärr, 2 = vatten, 4 = genomgång. */
   const block = new Uint8Array(cells);
   const contour = new Uint8Array(cells);
+  const barrier = new Uint8Array(cells);
+  const length = new Float32Array(cells);
   const speedOf = RUNNABLE_CLASSES.map(cls => speeds[cls]);
   for (const feature of model.features) {
     if (!intersects(frame, feature)) continue;
@@ -248,8 +313,22 @@ export function rasterize(model: PreparedModel, frame: GridFrame, speeds: Readon
       case "BLOCK": paint(frame, feature, index => { block[index] = block[index]! | 1; }); break;
       case "WATER": paint(frame, feature, index => { block[index] = block[index]! | 2; }); break;
       case "CROSSING": paintCrossing(frame, feature, index => { block[index] = block[index]! | 4; }); break;
-      case "CONTOUR": paintContour(frame, feature, index => { contour[index] = 2; }); break;
-      case "FORM_LINE": paintContour(frame, feature, index => { if (contour[index] === 0) contour[index] = 1; }); break;
+      case "CONTOUR":
+        paintContour(frame, feature, index => { contour[index] = 2; });
+        for (const line of feature.lines) addLength(frame, line, 1, length);
+        break;
+      case "FORM_LINE":
+        paintContour(frame, feature, index => { if (contour[index] === 0) contour[index] = 1; });
+        for (const line of feature.lines) addLength(frame, line, FORM_LINE_WEIGHT, length);
+        break;
+      case "BARRIER": {
+        // Som höjdkurvorna minst 1,5 cell breda, så att ingen passage smiter förbi diagonalt.
+        const value = Math.min(255, Math.round(feature.crossing ?? 0));
+        const visit = (index: number) => { if (barrier[index]! < value) barrier[index] = value; };
+        paintContour(frame, feature, visit);
+        for (const polygon of feature.polygons) for (const ring of polygon) strokeLine(frame, ring, Math.max(feature.radius, frame.cellMm * 0.75), visit);
+        break;
+      }
     }
   }
   // Utanför kartans yta finns ingen karta: spärrat.
@@ -269,26 +348,30 @@ export function rasterize(model: PreparedModel, frame: GridFrame, speeds: Readon
   for (let index = 0; index < cells; index += 1) {
     const bits = block[index]!;
     const open = (bits & 4) !== 0;
+    if (track[index] !== NONE) barrier[index] = 0;
     if ((bits & 1) !== 0 && !open) { ground[index] = BLOCKED; track[index] = NONE; continue; }
     // Vatten och opasserbar sankmark: bara vägar, broar och passager går över.
     if ((bits & 2) !== 0 && !open) ground[index] = BLOCKED;
     else if (ground[index] === NONE) ground[index] = normal;
   }
-  return { ...frame, ground, track, contour };
+  const steep = slopeField(frame, length, options.contourIntervalMeters ?? model.settings.contourIntervalMeters);
+  return { ...frame, ground, track, contour, barrier, steep };
 }
 
 /**
  * Tid per meter (relativt normal skog) per cell med farterna: den snabbaste av stig och mark, `Infinity` för spärrat.
- * Görs om för varje uppsättning farter (osäkerheten) utan att rastrera om. Med `only` räknas bara de cellerna; resten
- * blir spärrade.
+ * Marken (inte stigar och vägar) blir långsammare i brant terräng: tiden gånger 1 + `slopeFactor` × `steep`. Görs om
+ * för varje uppsättning farter (osäkerheten) utan att rastrera om. Med `only` räknas bara de cellerna; resten blir
+ * spärrade.
  */
-export function paceField(grid: Grid, speeds: Readonly<Record<RunnableClass, number>>, only?: Uint8Array): Float32Array {
+export function paceField(grid: Grid, speeds: Readonly<Record<RunnableClass, number>>, slopeFactor: number, only?: Uint8Array): Float32Array {
   const pace = RUNNABLE_CLASSES.map(cls => 1 / speeds[cls]);
   const out = new Float32Array(grid.ground.length);
+  const steep = grid.steep;
   for (let index = 0; index < out.length; index += 1) {
     if (only && only[index] !== 1) { out[index] = Infinity; continue; }
     const g = grid.ground[index]!, t = grid.track[index]!;
-    const pg = g === BLOCKED ? Infinity : pace[g]!;
+    const pg = g === BLOCKED ? Infinity : pace[g]! * (1 + slopeFactor * steep[index]!);
     const pt = t === NONE ? Infinity : pace[t]!;
     out[index] = pt < pg ? pt : pg;
   }

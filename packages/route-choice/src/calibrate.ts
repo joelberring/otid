@@ -1,21 +1,28 @@
 /**
  * Steg 60 (ADR-0179 beslut 13): farterna kalibreras mot löparnas GPS-rutter.
  *
- * Varje spår delas i segment på ungefär 40 m. För varje segment räknas hur många meter som går i varje klass (ur samma
- * rutnät som analysen) och hur många höjdkurvor det korsar. Modellen är att segmentets tid är löparens egen faktor
- * (per `runner`, annars en gemensam) gånger summan av meter × tid per meter för klassen (stigningen räknas som meter
- * normal skog). Tiden per meter per
- * klass skattas med minsta kvadrat, löparfaktorerna växelvis, och segment med stora avvikelser (mer än 3 × MAD)
- * räknas bort i några varv (robust mot GPS-brus och stopp). Segment med orimlig fart, GPS-hopp eller mycket tid i ej
- * passerbar mark räknas bort från början.
+ * Varje spår delas i segment på ungefär 40 m. För varje segment räknas ur samma rutnät som analysen hur många meter som
+ * går i varje klass, hur många meter av dem som ligger i brant mark (vägda med lutningens tillägg), hur många höjdkurvor
+ * det korsar och vad passagerna kostar. Modellen är analysens: segmentets tid är löparens egen faktor (per `runner`,
+ * annars en gemensam) gånger
+ *   Σ tid per meter i klassen × (meter + slopeFactor × branta meter) + tid per meter i normal skog × (stigningsenheter ×
+ *   kostnad per enhet + passager).
+ * Tiden per meter per klass och kostnaden per stigningsenhet skattas med minsta kvadrat, sedan `slopeFactor` med
+ * farterna fasta (modellen är linjär i var och en), och löparfaktorerna växelvis. Segment med stora avvikelser (mer än
+ * 3 × MAD) räknas bort i några varv (robust mot GPS-brus och stopp). Segment med orimlig fart, GPS-hopp eller mycket
+ * tid i ej passerbar mark räknas bort från början.
  *
  * Farterna är relativa: normal skog behåller sin fart när den har tillräckligt med data, annars den klass som har mest
- * data. Klasser med för lite data behåller sitt värde.
+ * data. Klasser med för lite data behåller sitt värde, och stigning och lutning sina inställningar.
+ *
+ * `descentFactor` går inte att skatta: kartan visar inte vilka kurvpassager som var uppför, så bara kostnaden per
+ * passage (climbFactor + descentFactor) / 2 syns i tiderna. Den föreslagna `climbFactor` räknas därför med tävlingens
+ * `descentFactor`.
  */
 import type { Point } from "@o-tid/map-file";
 import { preparedOf } from "./cost-model";
-import { RUNNABLE_CLASSES, resolveSettings, type RunnableClass } from "./defaults";
-import { boxFrame, BLOCKED, cellClass, cellOf, rasterize, type Grid } from "./raster";
+import { climbCostPerUnit, RUNNABLE_CLASSES, resolveSettings, type RunnableClass } from "./defaults";
+import { boxFrame, BLOCKED, cellClass, cellOf, NO_TRACK, rasterize, type Grid } from "./raster";
 import type { CalibrationResult, CalibrationSample, CostModel, RouteChoiceSettings } from "./types";
 
 /** Segmentlängd i terrängen. */
@@ -30,19 +37,33 @@ const MAX_BLOCKED_SHARE = 0.25;
 /** Minsta data för att skatta en klass. */
 export const MIN_CLASS_METERS = 300;
 export const MIN_CLASS_SEGMENTS = 8;
+/** Minsta data för stigningen: segment som korsar minst en kurva, och passerade kurvor totalt. */
+export const MIN_CLIMB_SEGMENTS = 20;
+const MIN_CLIMB_CROSSINGS = 40;
+/** Minsta data för lutningsfaktorn: segment med minst 5 % branta meter, och branta meter totalt. */
+export const MIN_SLOPE_SEGMENTS = 15;
+const MIN_SLOPE_METERS = 50;
 /** En klass räknas in i ett segment från så här stor andel. */
 const SHARE_FOR_COUNT = 0.25;
 const ROUNDS = 4;
 /** GPS-noggrannhet: punkter inom så här många meter från en väg eller stig räknas som på den. */
 export const GPS_TRACK_METERS = 6;
+/** Rimliga skattningar; utanför behålls inställningen. */
+const CLIMB_FACTOR_RANGE = [1, 30] as const;
+const SLOPE_FACTOR_RANGE = [0, 3] as const;
 
 interface Segment {
   /** Löparens grupp (samma löpare = samma faktor). */
   readonly group: string;
   readonly sample: number;
   readonly seconds: number;
-  /** Meter per klass (index i `RUNNABLE_CLASSES`); stigningen ligger som meter i NORMAL. */
+  /** Meter per klass (index i `RUNNABLE_CLASSES`). */
   readonly meters: Float64Array;
+  /** Branta meter per klass: meter i marken gånger lutningens tillägg (`Grid.steep`). */
+  readonly steep: Float64Array;
+  readonly climbUnits: number;
+  /** Passagernas kostnad (meter normal skog). */
+  readonly crossing: number;
   readonly length: number;
   used: boolean;
 }
@@ -54,10 +75,11 @@ function frameFor(points: readonly Point[], scale: number) {
   return boxFrame({ minX: minX - margin, minY: minY - margin, maxX: maxX + margin, maxY: maxY + margin }, scale, 2_000_000);
 }
 
-/** Meter per klass längs polylinjen, stigningsenheter och meter i ej passerbart. */
+/** Meter och branta meter per klass längs polylinjen, stigningsenheter, passager och meter i ej passerbart. */
 function measure(grid: Grid, points: readonly Point[], speeds: Readonly<Record<RunnableClass, number>>, mmPerMeter: number) {
   const meters = new Float64Array(RUNNABLE_CLASSES.length);
-  let blocked = 0, climbUnits = 0, previousContour = -1;
+  const steep = new Float64Array(RUNNABLE_CLASSES.length);
+  let blocked = 0, climbUnits = 0, crossing = 0, previous = -1;
   for (let index = 1; index < points.length; index += 1) {
     const a = points[index - 1]!, b = points[index]!;
     const lengthMm = Math.hypot(b.x - a.x, b.y - a.y);
@@ -69,13 +91,21 @@ function measure(grid: Grid, points: readonly Point[], speeds: Readonly<Record<R
       if (col < 0 || row < 0 || col >= grid.width || row >= grid.height) continue;
       const cell = row * grid.width + col;
       const cls = cellClass(grid, cell, speeds);
-      if (cls === BLOCKED) blocked += stepMeters; else meters[cls] = meters[cls]! + stepMeters;
-      const contour = grid.contour[cell]!;
-      if (previousContour >= 0) climbUnits += Math.abs(contour - previousContour);
-      previousContour = contour;
+      if (cls === BLOCKED) blocked += stepMeters;
+      else {
+        meters[cls] = meters[cls]! + stepMeters;
+        // Lutningen gäller marken, inte stigar och vägar (som i `paceField`).
+        const onTrack = grid.track[cell] !== NO_TRACK && grid.track[cell] === cls;
+        if (!onTrack) steep[cls] = steep[cls]! + stepMeters * grid.steep[cell]!;
+      }
+      if (previous >= 0) {
+        climbUnits += Math.abs(grid.contour[cell]! - grid.contour[previous]!);
+        crossing += Math.abs(grid.barrier[cell]! - grid.barrier[previous]!) * 0.5;
+      }
+      previous = cell;
     }
   }
-  return { meters, blocked, climbUnits };
+  return { meters, steep, blocked, climbUnits, crossing };
 }
 
 /** Utjämningens fönster (s åt varje håll): GPS-brus ger annars sicksack som gör vägen längre än den är. */
@@ -129,15 +159,14 @@ function median(values: number[]): number {
 }
 
 /**
- * Föreslagna farter ur GPS-rutterna. Proven är i kartans mm med tid i ms (webben räknar om GPX med `wgs84ToMapPoint`).
- * Rena funktioner: inget sparas.
+ * Föreslagna farter, stigning och lutningsfaktor ur GPS-rutterna. Proven är i kartans mm med tid i ms (webben räknar om
+ * GPX med `wgs84ToMapPoint`). Rena funktioner: inget sparas.
  */
 export function calibrateSpeeds(model: CostModel, samples: readonly CalibrationSample[], settings?: RouteChoiceSettings | null): CalibrationResult {
   const prepared = preparedOf(model, settings);
   const resolved = settings ? resolveSettings({ ...settings, classBySymbol: {} }) : prepared.settings;
   const speeds = resolved.speedByClass;
   const mmPerMeter = 1000 / prepared.scale;
-  const climbMetersPerUnit = resolved.contourIntervalMeters * resolved.climbFactor / 4;
   const normal = RUNNABLE_CLASSES.indexOf("NORMAL");
   const segments: Segment[] = [];
   let rejected = 0;
@@ -145,7 +174,8 @@ export function calibrateSpeeds(model: CostModel, samples: readonly CalibrationS
   samples.forEach((sample, sampleIndex) => {
     const points = smooth(sample.points.filter(p => Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.ms)), mmPerMeter);
     if (points.length < 2) return;
-    const grid = rasterize(prepared, frameFor(points, prepared.scale), speeds, { trackRadiusMm: GPS_TRACK_METERS * mmPerMeter });
+    const grid = rasterize(prepared, frameFor(points, prepared.scale), speeds,
+      { trackRadiusMm: GPS_TRACK_METERS * mmPerMeter, contourIntervalMeters: resolved.contourIntervalMeters });
     let start = 0, length = 0, jump = false;
     for (let index = 1; index < points.length; index += 1) {
       const a = points[index - 1]!, b = points[index]!;
@@ -161,8 +191,8 @@ export function calibrateSpeeds(model: CostModel, samples: readonly CalibrationS
         const measured = measure(grid, part, speeds, mmPerMeter);
         if (jump || speed < MIN_SEGMENT_SPEED || speed > MAX_SEGMENT_SPEED || measured.blocked > MAX_BLOCKED_SHARE * length) rejected += 1;
         else {
-          measured.meters[normal] = measured.meters[normal]! + measured.climbUnits * climbMetersPerUnit;
-          segments.push({ group: sample.runner ?? "", sample: sampleIndex, seconds: totalSeconds, meters: measured.meters, length, used: true });
+          segments.push({ group: sample.runner ?? "", sample: sampleIndex, seconds: totalSeconds, meters: measured.meters, steep: measured.steep,
+            climbUnits: measured.climbUnits, crossing: measured.crossing, length, used: true });
         }
       }
       start = index; length = 0; jump = false;
@@ -176,39 +206,74 @@ export function calibrateSpeeds(model: CostModel, samples: readonly CalibrationS
   let anchor = enough[normal] ? normal : -1;
   if (anchor < 0) for (let cls = 0; cls < RUNNABLE_CLASSES.length; cls += 1) if (enough[cls] && (anchor < 0 || totals[cls]! > totals[anchor]!)) anchor = cls;
   const free = RUNNABLE_CLASSES.map((_, cls) => enough[cls]! && cls !== anchor);
+  const climbFree = anchor >= 0 && segments.filter(s => s.climbUnits >= 4).length >= MIN_CLIMB_SEGMENTS &&
+    segments.reduce((sum, s) => sum + s.climbUnits, 0) / 4 >= MIN_CLIMB_CROSSINGS;
+  const slopeFree = anchor >= 0 && segments.filter(s => s.steep.reduce((a, b) => a + b, 0) >= 0.05 * s.length).length >= MIN_SLOPE_SEGMENTS &&
+    segments.reduce((sum, s) => sum + s.steep.reduce((a, b) => a + b, 0), 0) >= MIN_SLOPE_METERS;
   const pace = RUNNABLE_CLASSES.map(cls => 1 / speeds[cls]);
+  let climbCost = climbCostPerUnit(resolved);
+  let slopeFactor = resolved.slopeFactor;
   const runner = new Map<string, number>();
-  const predicted = (s: Segment) => s.meters.reduce((sum, m, cls) => sum + m * pace[cls]!, 0);
+  /** Klassernas del av tiden med lutningen. */
+  const classTime = (s: Segment) => s.meters.reduce((sum, m, cls) => sum + (m + slopeFactor * s.steep[cls]!) * pace[cls]!, 0);
+  const otherTime = (s: Segment) => (s.climbUnits * climbCost + s.crossing) * pace[normal]!;
+  const predicted = (s: Segment) => classTime(s) + otherTime(s);
+  let climbEstimated = false, slopeEstimated = false;
 
-  if (anchor >= 0 && free.some(Boolean)) {
+  if (anchor >= 0 && (free.some(Boolean) || climbFree || slopeFree)) {
     for (let round = 0; round < ROUNDS; round += 1) {
       // Löparfaktor: median av tid / förväntad tid per löpare.
       const ratios = new Map<string, number[]>();
       for (const s of segments) if (s.used) { const list = ratios.get(s.group) ?? []; list.push(s.seconds / predicted(s)); ratios.set(s.group, list); }
       for (const [group, list] of ratios) runner.set(group, median(list));
-      // Minsta kvadrat för de fria klasserna, de andra flyttas till höger sida.
+      // Minsta kvadrat för de fria klasserna (och stigningen), de andra flyttas till höger sida.
       const columns = RUNNABLE_CLASSES.map((_, cls) => cls).filter(cls => free[cls]);
-      const ata = columns.map(() => columns.map(() => 0));
-      const atb = columns.map(() => 0);
+      const size = columns.length + (climbFree ? 1 : 0);
+      const ata = Array.from({ length: size }, () => new Array<number>(size).fill(0));
+      const atb = new Array<number>(size).fill(0);
       for (const s of segments) {
         if (!s.used) continue;
         const factor = runner.get(s.group) ?? 1;
-        let y = s.seconds / factor;
-        for (let cls = 0; cls < RUNNABLE_CLASSES.length; cls += 1) if (!free[cls]) y -= s.meters[cls]! * pace[cls]!;
+        let y = s.seconds / factor - s.crossing * pace[normal]!;
+        const row: number[] = [];
+        for (let cls = 0; cls < RUNNABLE_CLASSES.length; cls += 1) {
+          const x = s.meters[cls]! + slopeFactor * s.steep[cls]!;
+          if (free[cls]) row.push(x); else y -= x * pace[cls]!;
+        }
+        if (climbFree) row.push(s.climbUnits * pace[normal]!); else y -= s.climbUnits * climbCost * pace[normal]!;
         // Vikt 1/längd: segmenten är ungefär lika långa, och långa segment ska inte dominera.
         const weight = 1 / Math.max(1, s.length);
-        columns.forEach((ci, i) => {
-          atb[i]! += weight * s.meters[ci]! * y;
-          columns.forEach((cj, j) => { ata[i]![j]! += weight * s.meters[ci]! * s.meters[cj]!; });
-        });
+        for (let i = 0; i < size; i += 1) {
+          atb[i]! += weight * row[i]! * y;
+          for (let j = 0; j < size; j += 1) ata[i]![j]! += weight * row[i]! * row[j]!;
+        }
       }
-      const solution = solve(ata, atb);
+      const solution = size > 0 ? solve(ata, atb) : [];
       if (!solution) break;
       columns.forEach((cls, i) => {
         const value = solution[i]!;
         // Fart mellan 0,05 och 3 gånger normal skog; annars behålls förra värdet.
         if (value > 1 / 3 && value < 20) pace[cls] = value;
       });
+      if (climbFree) {
+        const value = solution[columns.length]!;
+        const factor = 8 * value / resolved.contourIntervalMeters - resolved.descentFactor;
+        if (factor >= CLIMB_FACTOR_RANGE[0] && factor <= CLIMB_FACTOR_RANGE[1]) { climbCost = value; climbEstimated = true; }
+      }
+      // Lutningsfaktorn med farterna fasta: y − (klassernas tid utan lutning) − stigning = slopeFactor × branta meter × tid per meter.
+      if (slopeFree) {
+        let xx = 0, xy = 0;
+        for (const s of segments) {
+          if (!s.used) continue;
+          const factor = runner.get(s.group) ?? 1;
+          const x = s.steep.reduce((sum, m, cls) => sum + m * pace[cls]!, 0);
+          const y = s.seconds / factor - s.meters.reduce((sum, m, cls) => sum + m * pace[cls]!, 0) - otherTime(s);
+          const weight = 1 / Math.max(1, s.length);
+          xx += weight * x * x; xy += weight * x * y;
+        }
+        const value = xx > 0 ? xy / xx : NaN;
+        if (value >= SLOPE_FACTOR_RANGE[0] && value <= SLOPE_FACTOR_RANGE[1]) { slopeFactor = value; slopeEstimated = true; }
+      }
       // Avvikare: relativt fel mer än 3 × MAD räknas bort till nästa varv.
       const errors = segments.map(s => {
         const factor = runner.get(s.group) ?? 1;
@@ -232,12 +297,15 @@ export function calibrateSpeeds(model: CostModel, samples: readonly CalibrationS
       estimated
     };
   });
-  const anyEstimated = RUNNABLE_CLASSES.some(cls => perClass[cls].estimated);
+  const climbFactor = climbEstimated
+    ? Math.round((8 * climbCost / resolved.contourIntervalMeters - resolved.descentFactor) * 10) / 10 : resolved.climbFactor;
+  const terrain = { climbFactor, climbEstimated, slopeFactor: slopeEstimated ? Math.round(slopeFactor * 100) / 100 : resolved.slopeFactor, slopeEstimated };
+  const anyEstimated = RUNNABLE_CLASSES.some(cls => perClass[cls].estimated) || climbEstimated || slopeEstimated;
   const samplesUsed = new Set(used.map(s => s.sample)).size;
   const reliability = !anyEstimated ? "NONE" : used.length >= 300 && samplesUsed >= 10 ? "HIGH"
     : used.length >= 80 && samplesUsed >= 3 ? "MEDIUM" : "LOW";
   return {
     speedByClass, perClass, reliability, samplesUsed, segmentsUsed: used.length,
-    segmentsRejected: rejected + (segments.length - used.length)
+    segmentsRejected: rejected + (segments.length - used.length), terrain
   };
 }

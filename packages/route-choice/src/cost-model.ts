@@ -5,7 +5,7 @@
  */
 import { flattenPath, type MapObject, type MapSymbol, type ParsedMap, type Path, type Point, type PointElement } from "@o-tid/map-file";
 import {
-  BRIDGEABLE_SYMBOLS, classForCode, CONTOUR_SYMBOLS, CROSSING_SYMBOLS, FORM_LINE_SYMBOLS, isTrackSymbol, resolveSettings,
+  BRIDGEABLE_SYMBOLS, classForCode, CONTOUR_SYMBOLS, crossingForCode, CROSSING_SYMBOLS, FORM_LINE_SYMBOLS, isTrackSymbol, resolveSettings,
   type ResolvedSettings, type RunnableClass
 } from "./defaults";
 import type { CostModel, RouteChoiceSettings, SpeedClass } from "./types";
@@ -13,9 +13,10 @@ import type { CostModel, RouteChoiceSettings, SpeedClass } from "./types";
 /**
  * Lager i rutnätet: AREA = vegetation och mark (långsammaste vinner), TRACK = vägar och stigar (snabbt lager ovanpå),
  * BLOCK = ej passerbart, WATER = ej passerbart som vägar och broar får korsa, CROSSING = öppnar ej passerbart,
- * CONTOUR/FORM_LINE = höjdkurvor för stigningen.
+ * CONTOUR/FORM_LINE = höjdkurvor för stigningen, BARRIER = linjer som går att passera men kostar en sträcka per passage
+ * (202 brant, 104 jordbrant, staket …).
  */
-export type Layer = "AREA" | "TRACK" | "BLOCK" | "WATER" | "CROSSING" | "CONTOUR" | "FORM_LINE";
+export type Layer = "AREA" | "TRACK" | "BLOCK" | "WATER" | "CROSSING" | "CONTOUR" | "FORM_LINE" | "BARRIER";
 
 /** Ett förberett kartobjekt. `polygons` fylls (jämn–udda, så hål respekteras); `lines` stryks med `radius` mm. */
 export interface Feature {
@@ -26,6 +27,8 @@ export interface Feature {
   readonly lines: readonly (readonly Point[])[];
   /** Halva linjebredden i mm (0 = så smalt som rutnätet tillåter). */
   readonly radius: number;
+  /** BARRIER: meter plan väg per passage. */
+  readonly crossing?: number;
   readonly box: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number };
 }
 
@@ -56,7 +59,22 @@ export function preparedOf(model: CostModel, settings?: RouteChoiceSettings | nu
   return prepared.get(built)!;
 }
 
-interface Role { readonly layer: Layer | null; readonly cls: SpeedClass | null; readonly source: SymbolClassRow["source"]; readonly main: number }
+interface Role {
+  readonly layer: Layer | null; readonly cls: SpeedClass | null; readonly source: SymbolClassRow["source"]; readonly main: number;
+  readonly crossing?: number;
+}
+
+/** Passagekostnaden för symbolen; en kombinerad symbol utan egen rad får den största av delarnas. */
+function crossingOf(symbol: MapSymbol, settings: ResolvedSettings, symbols: ReadonlyMap<string, MapSymbol>, depth = 0): number {
+  const own = crossingForCode(settings, symbol.code);
+  if (own > 0 || symbol.kind !== "COMBINED" || depth >= 4) return own;
+  let most = 0;
+  for (const id of symbol.parts) {
+    const part = symbols.get(id);
+    if (part) most = Math.max(most, crossingOf(part, settings, symbols, depth + 1));
+  }
+  return most;
+}
 
 function classOf(symbol: MapSymbol, settings: ResolvedSettings, symbols: ReadonlyMap<string, MapSymbol>, depth = 0): { cls: SpeedClass | null; main: number; inherited: boolean } {
   const own = classForCode(settings, symbol.code);
@@ -89,7 +107,11 @@ function roleOf(symbol: MapSymbol, settings: ResolvedSettings, symbols: Readonly
   if (CONTOUR_SYMBOLS.includes(code)) return { layer: "CONTOUR", cls, source, main };
   if (FORM_LINE_SYMBOLS.includes(code)) return { layer: "FORM_LINE", cls, source, main };
   if (CROSSING_SYMBOLS.includes(code)) return { layer: "CROSSING", cls, source, main };
-  if (cls === null || cls === "IGNORE") return { layer: null, cls, source, main };
+  if (cls === "IGNORE") {
+    const crossing = crossingOf(symbol, settings, symbols);
+    return crossing > 0 ? { layer: "BARRIER", cls, source, main, crossing } : { layer: null, cls, source, main };
+  }
+  if (cls === null) return { layer: null, cls, source, main };
   if (cls === "IMPASSABLE") return { layer: BRIDGEABLE_SYMBOLS.includes(main) ? "WATER" : "BLOCK", cls, source, main };
   if (isTrackSymbol(main)) return { layer: "TRACK", cls, source, main };
   return { layer: "AREA", cls, source, main };
@@ -198,7 +220,10 @@ export function buildCostModel(map: ParsedMap, settings?: RouteChoiceSettings | 
     counts.set(symbol.id, (counts.get(symbol.id) ?? 0) + 1);
     let role = roles.get(symbol.id);
     if (!role) { role = roleOf(symbol, resolved, map.symbols); roles.set(symbol.id, role); }
-    if (role.layer) features.push(...prepareObject(object, symbol, role as Role & { layer: Layer }, map.symbols));
+    if (!role.layer) continue;
+    const parts = prepareObject(object, symbol, role as Role & { layer: Layer }, map.symbols);
+    const crossing = role.crossing;
+    features.push(...(crossing ? parts.map(part => ({ ...part, crossing })) : parts));
   }
   const classes: SymbolClassRow[] = [];
   for (const [id, objects] of counts) {

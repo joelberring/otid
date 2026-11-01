@@ -51,8 +51,10 @@ export const routeChoiceSv = {
   legWarning: (leg: string) => `Sträcka ${leg}:`,
   map: (leg: string) => `Vägval på sträckan ${leg}`,
   control: (code: number) => `Kontroll ${code}`,
-  legend: "Svart linje = bästa vägen. Tonad yta = vägar som är högst 5 % sämre. Streckade linjer = andra vägval.",
+  legend: "Blå linje = bästa vägen. Tonad yta = vägar som är högst 5 % sämre. Streckade linjer i andra färger = andra vägval, numrerade med hur mycket längre tid de tar (högst 25 %).",
   alternative: (index: number, percent: number) => `Vägval ${index + 1}: ${percent} % längre tid`,
+  /** Etiketten vid alternativets linje på kartan. */
+  alternativeLabel: (index: number, percent: number) => `${index + 1} · +${percent} %`,
   selectLeg: "Välj en sträcka i tabellen för att se den på kartan.",
   showLeg: (leg: string) => `Visa ${leg} på kartan`,
   // Inställningar.

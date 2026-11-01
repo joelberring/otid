@@ -16,6 +16,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Verifierat: lint, typecheck, test (överlapp också över Purple Pens 151 testfiler); ägarens karta med `OTID_REAL_MAP`/`OTID_REAL_MAP_PPEN`; före/efter-bilder granskade; Playwright banlaggning (med kryssrutorna och fasta klipp) och banlaggning-mobil gröna.
 - Idé: ringar med tre gap ser splittrade ut i översikt; ett tak på antal gap per ring kan prövas.
 
+### 2026-11-01 – Vägvalsmodellen (grenen vagval-modell, ADR-0179)
+- Kurvpassage = ekvidistans × (climbFactor 8 + descentFactor 3) / 2 (descentFactor minst 0,5); lutningsfaktor 0,2 ur kurvtätheten i marken, inte på stig/väg; passerbara branter/vallar/staket 2–15 m per passage.
+- Alternativ upp till 25 % sämre, högst fyra, tydligt skilda; ±15 % gäller "ungefär lika". Ritningen: blå bästa väg, numrerade streckade alternativ ("1 · +8 %") med vit kant.
+- Högdalen A 8–9 (OTID_SBN_DIR, SBN26_2.ppen): bästa vägen följer stigen runt kullen i stället för vit skog nedanför den; över kullen +13 % (ungefär lika).
+- Verifierat: route-choice lint/typecheck/test, pnpm typecheck, pnpm test, Playwright vagval-analys och kontrollkarta; 1,5 km i Djurgården 0,88 s (last 3,8), lika snabbt som före ändringen.
+
 ### 2026-11-01 – Fältläget, snabbversion (grenen faltlage-snabb; hela fältläget är steg 67)
 - Min position (WGS 84 → kartans mm med kartfilens georeferens, som kartans Worker nu skickar med), Flytta hit (medel under 5 s, avvikare > 2 × medianen kastas), pilar 1 m; under 700 px kartan på hela skärmen med stora knappar och "Uppgifter" (F, G). Permissions-Policy `geolocation=(self)` på `/admin/:raceId/course-setting`.
 - Osparade ändringar ligger i localStorage tills servern sparat och erbjuds vid nästa öppning; statusen säger "Inte sparat – försöker igen". Logiken i `lib/course-setting-field.ts` och `-geo.ts` med enhetstester.

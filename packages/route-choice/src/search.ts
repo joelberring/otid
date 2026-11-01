@@ -1,9 +1,11 @@
 /**
  * Steg 60 (ADR-0179 beslut 8): sökning i rutnätet med 16 grannar (8 närmaste plus springarhopp, mindre sicksack än 8).
  *
- * Kostnaden är "meter i normal skog": längd × tid per meter (medel över cellerna som steget passerar) plus stigning.
- * Stigningen räknas på höjdkurvornas lager (2 = kurva, 1 = hjälpkurva): summan av |skillnaden| längs stegets celler
- * delad med 4 är antalet ekvidistanser (in i och ut ur en kurva = en hel, en hjälpkurva = en halv). Kostnaden är
+ * Kostnaden är "meter i normal skog": längd × tid per meter (medel över cellerna som steget passerar, lutningen
+ * inräknad) plus stigning plus passager. Stigningen räknas på höjdkurvornas lager (2 = kurva, 1 = hjälpkurva): summan
+ * av |skillnaden| längs stegets celler delad med 4 är antalet passerade ekvidistanser (in i och ut ur en kurva = en hel,
+ * en hjälpkurva = en halv), och varje enhet kostar `climbCostPerUnit` (väntevärdet för upp eller ned, se
+ * `defaults.ts`). Passagerna räknas likadant på passagelagret: halva |skillnaden| i meter. Kostnaden är
  * symmetrisk, så fälten från båda ändarna kan läggas ihop. Ett steg får bara gå genom passerbara celler: springarhoppet
  * kontrollerar sina två mellanceller och diagonalsteget båda hörncellerna, så att inget läcker genom en spärrlinje.
  */
@@ -15,8 +17,10 @@ export interface SearchGrid {
   /** Tid per meter relativt normal skog; `Infinity` = spärrat. */
   readonly pace: Float32Array;
   readonly contour: Uint8Array;
-  /** Kostnad (meter) per stigningsenhet = ekvidistans × stigningsfaktor / 4. */
+  /** Kostnad (meter) per stigningsenhet = ekvidistans × (climbFactor + descentFactor) / 2 / 4. */
   readonly climbCostPerUnit: number;
+  /** Passagekostnad per cell (meter); ett steg kostar halva skillnaden. */
+  readonly barrier: Uint8Array;
 }
 
 interface Direction { dx: number; dy: number; length: number; kind: 0 | 1 | 2; m1x: number; m1y: number; m2x: number; m2y: number }
@@ -42,18 +46,20 @@ export function stepCost(grid: SearchGrid, pace: Float32Array, from: number, to:
   const direction = DIRECTIONS.find(d => d.dx === tc - fc && d.dy === tr - fr);
   if (!direction) return { cost: Infinity, climbUnits: 0, meters: 0 };
   const meters = direction.length * grid.cellMeters;
-  const c = grid.contour;
+  const c = grid.contour, b = grid.barrier;
   if (direction.kind === 2) {
     const m1 = from + direction.m1y * w + direction.m1x, m2 = from + direction.m2y * w + direction.m2x;
     const climbUnits = Math.abs(c[m1]! - c[from]!) + Math.abs(c[m2]! - c[m1]!) + Math.abs(c[to]! - c[m2]!);
-    const cost = meters * (pace[from]! + pace[m1]! + pace[m2]! + pace[to]!) / 4 + climbUnits * grid.climbCostPerUnit;
+    const crossing = (Math.abs(b[m1]! - b[from]!) + Math.abs(b[m2]! - b[m1]!) + Math.abs(b[to]! - b[m2]!)) * 0.5;
+    const cost = meters * (pace[from]! + pace[m1]! + pace[m2]! + pace[to]!) / 4 + climbUnits * grid.climbCostPerUnit + crossing;
     return { cost, climbUnits, meters };
   }
   if (direction.kind === 1 && (pace[from + direction.m1x] === Infinity || pace[from + direction.m2y * w] === Infinity)) {
     return { cost: Infinity, climbUnits: 0, meters };
   }
   const climbUnits = Math.abs(c[to]! - c[from]!);
-  return { cost: meters * (pace[from]! + pace[to]!) / 2 + climbUnits * grid.climbCostPerUnit, climbUnits, meters };
+  const crossing = Math.abs(b[to]! - b[from]!) * 0.5;
+  return { cost: meters * (pace[from]! + pace[to]!) / 2 + climbUnits * grid.climbCostPerUnit + crossing, climbUnits, meters };
 }
 
 /** 4-är min-hög med flyttalsnycklar och lat borttagning (grundare än en binär hög, färre cachemissar). */
@@ -182,6 +188,7 @@ export function search(grid: SearchGrid, pace: Float32Array, start: number, opti
   const parent = workspace ? workspace.parent : new Int32Array(n).fill(-1);
   const done = workspace ? workspace.done : new Uint8Array(n);
   const c = grid.contour;
+  const bar = grid.barrier;
   const climb = grid.climbCostPerUnit;
   const towards = options.towards ?? options.goal;
   const goal = options.goal ?? -1;
@@ -218,7 +225,7 @@ export function search(grid: SearchGrid, pace: Float32Array, start: number, opti
     if (u === goal) break;
     if (afterGoal !== undefined && u === towards && bound === Infinity) bound = cost[u]! * afterGoal + 1e-6;
     const gu = cost[u]!;
-    const pu = pace[u]!, cu = c[u]!;
+    const pu = pace[u]!, cu = c[u]!, bu = bar[u]!;
     const col = u % w, row = (u - col) / w;
     // Bara celler nära kanten behöver kontrollera att grannarna finns.
     const edge = col < 2 || row < 2 || col >= w - 2 || row >= h - 2;
@@ -232,18 +239,20 @@ export function search(grid: SearchGrid, pace: Float32Array, start: number, opti
       let step: number;
       const kind = kinds[k]!;
       if (kind === 0) {
-        const cv = c[v]!;
-        step = lens[k]! * (pu + pv) * 0.5 + (cv > cu ? cv - cu : cu - cv) * climb;
+        const cv = c[v]!, bv = bar[v]!;
+        step = lens[k]! * (pu + pv) * 0.5 + (cv > cu ? cv - cu : cu - cv) * climb + (bv > bu ? bv - bu : bu - bv) * 0.5;
       } else if (kind === 1) {
         if (pace[u + m1[k]!] === Infinity || pace[u + m2[k]!] === Infinity) continue;
-        const cv = c[v]!;
-        step = lens[k]! * (pu + pv) * 0.5 + (cv > cu ? cv - cu : cu - cv) * climb;
+        const cv = c[v]!, bv = bar[v]!;
+        step = lens[k]! * (pu + pv) * 0.5 + (cv > cu ? cv - cu : cu - cv) * climb + (bv > bu ? bv - bu : bu - bv) * 0.5;
       } else {
         const a = u + m1[k]!, b = u + m2[k]!;
         const pa = pace[a]!, pb = pace[b]!;
         if (pa === Infinity || pb === Infinity) continue;
         const ca = c[a]!, cb = c[b]!, cv = c[v]!;
-        step = lens[k]! * (pu + pa + pb + pv) * 0.25 + (Math.abs(ca - cu) + Math.abs(cb - ca) + Math.abs(cv - cb)) * climb;
+        const ba = bar[a]!, bb = bar[b]!, bv = bar[v]!;
+        step = lens[k]! * (pu + pa + pb + pv) * 0.25 + (Math.abs(ca - cu) + Math.abs(cb - ca) + Math.abs(cv - cb)) * climb +
+          (Math.abs(ba - bu) + Math.abs(bb - ba) + Math.abs(bv - bb)) * 0.5;
       }
       const g = gu + step;
       if (g >= cost[v]!) continue;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCostModel, calibrateSpeeds, DEFAULT_SPEED_BY_CLASS, type CalibrationSample } from "../src";
+import { buildCostModel, calibrateSpeeds, DEFAULT_SPEED_BY_CLASS, legGrid, type CalibrationSample } from "../src";
 import { forest, MM, rect } from "./synthetic";
 
 /** Ett deterministiskt slumptal (så att testet alltid ger samma svar). */
@@ -64,6 +64,53 @@ describe("calibrateSpeeds", () => {
     expect(result.speedByClass.FAST).toBeGreaterThan(1.25);
     expect(result.speedByClass.FAST).toBeLessThan(1.55);
     expect(result.segmentsRejected).toBeGreaterThan(0);
+  });
+
+  it("skattar stigningen och lutningsfaktorn ur rutter i brant terräng", () => {
+    // Kurvor var 10:e meter mellan y = 0 och 300 (lutning 50 %). Sanningen: climbFactor 10 (med descentFactor 3, alltså
+    // 32,5 m per kurvpassage) och slopeFactor 0,5. Löparna skrår längs sluttningen, springer i plan skog och tvärs över.
+    const slope = forest();
+    for (let y = 0; y <= 300; y += 10) slope.line("101", 0.14, [-1000, y], [1000, y]);
+    const steepModel = buildCostModel(slope.build());
+    const grid = legGrid(steepModel, { from: { x: -900 * MM, y: -300 * MM }, to: { x: 900 * MM, y: 600 * MM } });
+    const steepAt = (x: number, y: number) => grid.steep[Math.floor((grid.yTop - y * MM) / grid.cellMm) * grid.width + Math.floor((x * MM - grid.x0) / grid.cellMm)]!;
+    const next = random(11);
+    const out: CalibrationSample[] = [];
+    const run = (runner: string, key: string, path: [number, number][]) => {
+      const points: { x: number; y: number; ms: number }[] = [];
+      let ms = 0;
+      for (let index = 0; index < path.length; index += 1) {
+        const [x, y] = path[index]!;
+        points.push({ x: (x + (next() - 0.5) * 2) * MM, y: (y + (next() - 0.5) * 2) * MM, ms });
+        const following = path[index + 1];
+        if (!following) break;
+        const meters = Math.hypot(following[0] - x, following[1] - y);
+        const crossings = Math.abs(Math.floor(Math.min(following[1], 305) / 10) - Math.floor(Math.min(y, 305) / 10)) *
+          (Math.max(y, following[1]) > -5 ? 1 : 0);
+        ms += (meters * (1 + 0.5 * steepAt(x, y)) + crossings * 32.5) / 4 * 1000;
+      }
+      out.push({ key, runner, points });
+    };
+    for (let runner = 0; runner < 6; runner += 1) {
+      const line = (x0: number, y0: number, x1: number, y1: number): [number, number][] => {
+        const steps = Math.round(Math.hypot(x1 - x0, y1 - y0) / 5);
+        return Array.from({ length: steps + 1 }, (_, k) => [x0 + (x1 - x0) * k / steps, y0 + (y1 - y0) * k / steps]);
+      };
+      run(String(runner), "skrå", line(-700, 155 + runner * 10 - 25, 700, 155 + runner * 10 - 25));
+      run(String(runner), "plant", line(-700, -200 - runner * 10, 700, -200 - runner * 10));
+      for (const x of [-500, -100, 300]) run(String(runner), `upp${x}`, line(x + runner * 20, -150, x + runner * 20, 450));
+    }
+    const result = calibrateSpeeds(steepModel, out);
+    expect(result.terrain.climbEstimated).toBe(true);
+    expect(result.terrain.slopeEstimated).toBe(true);
+    // Inom ungefär 25 % (i dag 8,8 och 0,38): löparnas egna faktorer tar upp en del av skillnaden.
+    expect(result.terrain.climbFactor).toBeGreaterThan(7.5);
+    expect(result.terrain.climbFactor).toBeLessThan(12.5);
+    expect(result.terrain.slopeFactor).toBeGreaterThan(0.3);
+    expect(result.terrain.slopeFactor).toBeLessThan(0.7);
+    // Utan tillräckligt med branta rutter behålls inställningarna.
+    const flat = calibrateSpeeds(model, samples(2));
+    expect(flat.terrain).toEqual({ climbFactor: 8, climbEstimated: false, slopeFactor: 0.2, slopeEstimated: false });
   });
 
   it("ändrar inget utan tillräckligt med data", () => {

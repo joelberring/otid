@@ -10,5 +10,6 @@
     "test": "vitest run",
     "build": "tsc -p tsconfig.build.json"
   },
-  "dependencies": { "@o-tid/map-file": "workspace:*" }
+  "dependencies": { "@o-tid/map-file": "workspace:*" },
+  "devDependencies": { "@o-tid/course-setting": "workspace:*" }
 }

@@ -364,7 +364,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
         default: edit(next => addPoint(next, current.tool, point, applyEdit, nextFreeCode));
       }
     },
-    onDragStart(point, tolerance) {
+    onDragStart(point, tolerance, pointerType) {
       const current = store.state;
       if (current.tool !== "SELECT" || readOnly) return false;
       const selected = current.selection;
@@ -374,6 +374,9 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
       }
       const target = hit(point, tolerance);
       if (!target || target.kind === "leg") return false;
+      // Med fingret flyttas bara en kontroll som redan är vald (tryck först, dra sedan); annars panorerar dragningen.
+      // Ägarens erfarenhet från snitslingen: det var lätt att flytta kontroller av misstag när man ville flytta kartan.
+      if (pointerType === "touch" && !(selected?.kind === "control" && selected.control === target.control)) return false;
       if (target.kind === "number" && target.courseControl && current.view !== ALL_CONTROLS) drag.current = { kind: "number", courseControl: target.courseControl };
       else {
         const at = current.document.controls[target.control]!.at;

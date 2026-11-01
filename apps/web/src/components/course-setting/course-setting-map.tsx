@@ -24,7 +24,8 @@ export interface MapPointerHandlers {
   /** Ett klick (utan att dra). `toleranceMm` är träffytan för fingret eller musen. */
   readonly onTap: (point: Point, toleranceMm: number) => void;
   /** En dragning börjar på `point`. Sant = editorn drar något (kontroll, nummer, brytpunkt); falskt = kartan panoreras. */
-  readonly onDragStart: (point: Point, toleranceMm: number) => boolean;
+  /** `pointerType` "touch": editorn kan kräva att kontrollen redan är vald (skydd mot att flytta av misstag med fingret). */
+  readonly onDragStart: (point: Point, toleranceMm: number, pointerType: string) => boolean;
   readonly onDragMove: (point: Point) => void;
   readonly onDragEnd: () => void;
 }
@@ -273,7 +274,7 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
     if (current.kind === "pending") {
       if (Math.hypot(at.x - current.startX, at.y - current.startY) < TAP_SLOP_PX) return;
       const start = toMap(view, { x: current.startX, y: current.startY });
-      current.kind = handlers.onDragStart(start, tolerancePx(current.pointerType) / view.pxPerMm) ? "drag" : "pan";
+      current.kind = handlers.onDragStart(start, tolerancePx(current.pointerType) / view.pxPerMm, current.pointerType) ? "drag" : "pan";
       if (current.kind === "pan") { setGrabbing(true); onPan?.(); }
     }
     if (current.kind === "drag") {

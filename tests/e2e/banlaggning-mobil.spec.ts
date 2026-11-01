@@ -113,10 +113,21 @@ test("banläggning på telefonen: min position, flytta hit, finjustera, F och G,
   expect(await scrolled(phone)).toEqual([0, 0, 0]);
   await expect(map).not.toHaveAttribute("data-center", centerBefore!);
 
-  // Dra kontroll 31 med fingret: kontrollen lyfts ovanför fingret, krysset syns i mitten och sidan står still.
+  // Skydd mot att flytta av misstag: en kontroll som inte är vald flyttas inte med fingret, dragningen panorerar.
   const before = await (await phone.request.get(`${admin}/course-setting`)).json() as { setting: { document: Document } };
   const c31 = Object.values(before.setting.document.controls).find(row => row.code === "31")!.at;
+  const unselected = await screenOf(map, c31.x, c31.y);
+  const centerUnselected = await map.getAttribute("data-center");
+  await touchDrag(phone, unselected, { x: unselected.x + 30, y: unselected.y + 10 });
+  await expect(map).not.toHaveAttribute("data-center", centerUnselected!);
+  const still = await (await phone.request.get(`${admin}/course-setting`)).json() as { setting: { document: Document } };
+  expect(Object.values(still.setting.document.controls).find(row => row.code === "31")!.at).toEqual(c31);
+
+  // Tryck för att välja kontroll 31, dra den sedan med fingret: kontrollen lyfts ovanför fingret, krysset syns i mitten
+  // och sidan står still.
   const from = await screenOf(map, c31.x, c31.y);
+  await phone.touchscreen.tap(from.x, from.y);
+  await expect(phone.getByTestId("course-setting-field-selected")).toHaveText("Vald: kontroll 31");
   const to = { x: from.x + 30, y: from.y + 10 };
   const scale = Number(await map.getAttribute("data-px-per-mm"));
   await touchDrag(phone, from, to, async () => {

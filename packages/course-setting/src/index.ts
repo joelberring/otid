@@ -14,6 +14,10 @@ import type {
   DescriptionStandard, OverprintOptions, OverprintPrimitive, PpenReadWarning
 } from "./types";
 import type { DescriptionLanguage, DescriptionLayout, DescriptionLayoutOptions, DescriptionSymbol } from "./description-types";
+import { layout as layoutDescriptionFigures } from "./description-layout";
+import { symbolDb, symbolsInStandard, symbolsOfBox } from "./description-symbols";
+import { descriptionContext, Textifier } from "./description-text";
+import { CourseSettingEditError } from "./types";
 
 export * from "./types";
 export * from "./description-types";
@@ -42,15 +46,22 @@ export function layoutOverprint(document: CourseSettingDocument, options: Overpr
 /** Nästa lediga kodsiffra enligt numreringen. */
 export function nextFreeCode(document: CourseSettingDocument): string { return nextUnusedCode(document); }
 
-// Steg 63: kontrollbeskrivningar. Stubbar tills steget är byggt.
-const notYet = (name: string): never => { throw new Error(`${name} är inte byggd än (steg 63)`); };
-/* eslint-disable @typescript-eslint/no-unused-vars -- stubbar tills steg 63 är byggt */
-/** Alla symboler för en standard (för väljaren och ritningen). */
-export function descriptionSymbols(_standard: DescriptionStandard): readonly DescriptionSymbol[] { return notYet("descriptionSymbols"); }
-/** Symbolerna som får stå i en ruta ("C"–"H"), i Purple Pens ordning. */
-export function symbolsForBox(_box: string, _standard: DescriptionStandard): readonly DescriptionSymbol[] { return notYet("symbolsForBox"); }
+// Steg 63: kontrollbeskrivningar (description-*.ts, ur Purple Pen).
+/** Alla symboler med ritning i en standard (för väljaren och ritningen), i Purple Pens ordning. */
+export function descriptionSymbols(standard: DescriptionStandard): readonly DescriptionSymbol[] { return symbolsInStandard(standard); }
+/**
+ * Symbolerna som får stå i en ruta ("C"–"H"), i Purple Pens ordning; E visar E och sedan D (två objekt). Slagen "V"–"Z"
+ * ger riktningsradernas symboler (mål "Z", passage "X").
+ */
+export function symbolsForBox(box: string, standard: DescriptionStandard): readonly DescriptionSymbol[] { return symbolsOfBox(box, standard); }
 /** Kontrollbeskrivningen för en bana som figurer i mm (y nedåt): huvud, rader per kontroll, textrader, mål. */
-export function layoutDescription(_document: CourseSettingDocument, _options: DescriptionLayoutOptions): DescriptionLayout { return notYet("layoutDescription"); }
-/** Kontrollens beskrivning som text ("Sydöstra stenen, 1 m hög") på valt språk, som Purple Pens textbeskrivning. */
-export function describeControl(_document: CourseSettingDocument, _control: string, _language: DescriptionLanguage): string { return notYet("describeControl"); }
-/* eslint-enable @typescript-eslint/no-unused-vars */
+export function layoutDescription(document: CourseSettingDocument, options: DescriptionLayoutOptions): DescriptionLayout { return layoutDescriptionFigures(document, options); }
+/** Kontrollens beskrivning som text ("SÖ stenen, 1m hög") på valt språk, som Purple Pens textbeskrivning. */
+export function describeControl(document: CourseSettingDocument, control: string, language: DescriptionLanguage): string {
+  const found = document.controls[control];
+  if (!found) throw new CourseSettingEditError("NOT_FOUND", `Kontrollen ${control} finns inte`);
+  return new Textifier(descriptionContext(document, language)).createTextForControl(found, "");
+}
+/** Språken som symbolerna har namn och texter på (id och namnet på språket självt). */
+export const DESCRIPTION_LANGUAGES: readonly { readonly id: string; readonly name: string }[] =
+  symbolDb().data.languages.map(language => ({ id: language.id, name: language.name }));

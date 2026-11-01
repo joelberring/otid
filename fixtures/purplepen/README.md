@@ -3,6 +3,9 @@
 Kopior av `.ppen`-filerna, två oläsbara filer (`X*.coursescribe`) och de förväntade IOF-exporterna (`exportxml/*_expected_v3.xml`) ur Purple Pens
 `src/TestFiles` (https://github.com/petergolde/PurplePen). Används av `packages/course-setting/test` för att visa att
 O-Tid läser och skriver filerna utan att något tappas och ger samma varianter som Purple Pen (ADR-0180 beslut 6–7).
+För kontrollbeskrivningarna (steg 63) finns också Purple Pens äldre testfiler (`*.coursescribe`) i `descformatter`,
+`descriptions` och `textifier`, och testdatabaserna med låtsasspråk (`textifier/de_symbols.xml`, `pl-symbols.xml`); de
+förväntade resultaten står i paketets tester, tagna ur Purple Pens `DescriptionFormatterTests.cs` och `TextifierTests.cs`.
 
 Filerna omfattas av Purple Pens licens:
 

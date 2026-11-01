@@ -8,6 +8,7 @@ Purple Pen gör sämst är trycket: färger och övertryck håller inte OCAD-kva
 Det O-Tid kan göra bättre är det samlade flödet: gafflingsnycklar rakt till startlista, baksidor och avläsning,
 vägvalsanalys medan banan läggs, kontroller under arbetet och granskning i webbläsaren. Ordningen bestämdes av ägaren:
 .ppen-import och editor (62), kontrollbeskrivningar (63), banpåtryck och utskriftslayout (64), PDF med dekorfärger (65).
+Samarbete och fältläge i mobilen (66–67, ADR-0181) lades till 2026-11-01 och görs före 64–65.
 
 **Beslut.**
 1. Banläggningen är ett eget dokument per tävling (`course_setting`, jsonb, migration 0031) med versionsnummer och

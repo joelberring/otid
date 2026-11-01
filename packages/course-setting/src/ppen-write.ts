@@ -91,6 +91,7 @@ function controlElement(control: ControlPoint): XmlElement {
     canonical.push(merge("description", undefined, [["box", box.box], ["iof-2004-ref", box.ref]], box.text ? [box.text] : []));
   }
   canonical.push(...circleGapElements(control));
+  canonical.push(...textLineElements(control));
   const parts = {
     location: (s: XmlElement | undefined) => merge("location", s, [["x", num(control.at.x)], ["y", num(control.at.y)]])
   };
@@ -98,6 +99,14 @@ function controlElement(control: ControlPoint): XmlElement {
   return merge("control", el("control", attrs), [
     ["id", control.id], ["kind", CONTROL_KIND_TEXT[control.kind]], ["orientation", num(control.orientation)]
   ], kids);
+}
+
+/** Textraderna före och efter i beskrivningen, i Purple Pens ordning (före, efter). */
+function textLineElements(item: Pick<ControlPoint, "descriptionTextBefore" | "descriptionTextAfter">): XmlElement[] {
+  const out: XmlElement[] = [];
+  if (item.descriptionTextBefore) out.push(el("description-text-line", [["location", "before"]], [item.descriptionTextBefore]));
+  if (item.descriptionTextAfter) out.push(el("description-text-line", [["location", "after"]], [item.descriptionTextAfter]));
+  return out;
 }
 
 /** Avbrotten för skalor där de råa elementen (orörda från filen eller från SET_CIRCLE_GAPS) inte redan ger samma avbrott. */
@@ -160,6 +169,7 @@ function courseElement(course: Course): XmlElement {
 function courseControlElement(cc: CourseControl, control: ControlPoint | undefined): XmlElement {
   const canonical: XmlElement[] = [];
   for (const branch of cc.split?.branches ?? []) canonical.push(el("variation", [["course-control", branch]]));
+  canonical.push(...textLineElements(cc));
   const parts = {
     next: (s: XmlElement | undefined) => cc.next === undefined ? null : merge("next", s, [["course-control", cc.next]]),
     "number-location": (s: XmlElement | undefined) => {

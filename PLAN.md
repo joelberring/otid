@@ -1088,6 +1088,32 @@ ADR-0180. Kontraktet: `packages/course-setting/src/description-types.ts` och stu
 - [ ] **Tester:** paketet (alla symboler ritas, utläggning mot Purple Pens testfiler och ägarens SBN26_2.ppen, texter),
   webben (väljaren, utskriftssidan), Playwright `kontrollbeskrivning.spec.ts`.
 
+## [ ] Steg 66 – Samarbete i banläggningen (före steg 64)
+
+ADR-0181 beslut 1–5. Görs efter steg 63.
+
+- [ ] **Behörighet för banläggning** per person och tävling: *ändra*, *föreslå*, *läsa och kommentera*, utan tillgång till
+  resten av tävlingen. Inbjudan som för andra roller. Banhemligheten gäller.
+- [ ] **Notiser** (`course_setting_note`): på punkt, kontroll, sträcka eller bana; trådar, öppen/klar, foto; visas som
+  markeringar som går att dölja; aldrig i tryck, beskrivning, .ppen eller överföring (test som visar det).
+- [ ] **Arbetssätt per tävling:** "Huvudbanläggare" eller "Gemensamt".
+- [ ] **Förslag:** ändringar mot en version med kommentar, streckade ovanpå banan, godkänn helt/delvis eller avböj,
+  uppspelning på aktuell version med det som inte går längre markerat.
+- [ ] **Samtidigt arbete:** åtgärder i stället för hela dokument, egna osparade åtgärder spelas upp på andras nya version,
+  andras ändringar syns inom någon sekund (SSE som de publika resultaten).
+- [ ] **Tester:** integration (behörighet, notiser aldrig i utdata, förslag, uppspelning), Playwright med två användare.
+
+## [ ] Steg 67 – Fältläge i mobilen (före steg 64)
+
+ADR-0181 beslut 6–7. Görs efter steg 66.
+
+- [ ] **Mobilvyn** av editorn: stora knappar, en hand, kartan i helskärm, vald kontroll i en ruta nertill.
+- [ ] **Egen position** ur telefonens GPS på georefererad karta, noggrannheten som cirkel; "Flytta hit" med medelvärde
+  och pilar i steg om 1 m.
+- [ ] **Snabbinmatning** av F (mått, t.ex. höjd) och G (läge: väderstreck, fot, topp …), notis med foto, "kollad".
+- [ ] **Utan täckning:** sidan och kartfilen sparas i telefonen, ändringar och notiser köas och skickas sedan.
+- [ ] **Tester:** Playwright med mobilvy och fejkad position, kö utan nät; ägaren provar i terrängen.
+
 ## [ ] Steg 64 – Banpåtryck och utskriftslayout
 
 - [ ] Specialobjekten (förbjudet område och väg, passage, vit bakgrund, text, bild, gräns, snitsling), tryckyta och

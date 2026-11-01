@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { UUID_SOURCE as canonicalUuidPattern } from "./ids";
+import { raceNameSchema } from "./race-name";
 
 /** Skapa tävling med kontot (ADR-0168): begäran, kvitto och felsvar. */
 const canonicalUuidSchema = z.string().regex(
@@ -19,7 +20,7 @@ const ianaTimeZoneSchema = z.string().trim().min(1).max(100).refine((timeZone) =
 export const eventCreationRequestSchema = z.object({
   formatVersion: z.literal(1),
   eventName: z.string().trim().min(2).max(160),
-  raceName: z.string().trim().min(2).max(160),
+  raceName: raceNameSchema,
   raceDate: z.iso.date(),
   timeZone: ianaTimeZoneSchema
 }).strict();

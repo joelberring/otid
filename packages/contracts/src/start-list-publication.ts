@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { courseVariantCodeSchema } from "./course-edit";
 import { prefixedUuidPattern, uuidSchema as uuid } from "./ids";
+import { raceNameSchema } from "./race-name";
 const version = z.number().int().nonnegative().max(2147483647);
 const positive = z.number().int().positive().max(2147483647);
 const instant = z.iso.datetime({
@@ -55,7 +56,7 @@ const raceClass = z.object({
     ...startListClassFactsSchema.shape
 }).strict().refine((v) => v.startRule === "FIXED" || v.entries.every((e) => e.fixedStartTime === null));
 export const startListPublicationContentSchema = z.object({
-    eventName: z.string().trim().min(1).max(160), raceName: z.string().trim().min(1).max(160), raceDate: z.iso.date(), timeZone: timezone, classes: z.array(raceClass).max(1000)
+    eventName: z.string().trim().min(1).max(160), raceName: raceNameSchema, raceDate: z.iso.date(), timeZone: timezone, classes: z.array(raceClass).max(1000)
 }).strict().superRefine((v, c) => {
     if (v.classes.flatMap((x) => x.entries).length > 10000)
         c.addIssue({

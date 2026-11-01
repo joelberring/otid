@@ -364,7 +364,7 @@ export const courseSettings = pgTable("course_setting", {
   mode: text("mode").$type<"LEAD" | "SHARED">().notNull().default("LEAD")
 });
 
-/** Steg 66 (migration 0032): behörighet för banläggningen per person och tävling (ägare och admin har EDIT utan rad). */
+/** Steg 66 (migration 0033): behörighet för banläggningen per person och tävling (ägare och admin har EDIT utan rad). */
 export const courseSettingGrants = pgTable("course_setting_grant", {
   id: uuid("id").primaryKey(),
   raceId: uuid("race_id").notNull().references(() => races.id),

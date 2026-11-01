@@ -20,6 +20,7 @@ import { RelayTeams } from "./relay-teams";
 import { Button, EmptyState } from "../ui";
 import type { Workspace } from "./workspace-state";
 import { SelfRegistrationCleanup } from "./self-registration-cleanup";
+import { joinRaceParts, raceTitle } from "@o-tid/domain";
 
 /**
  * Anmälda: listan och deltagarkortet för vald deltagare. Rubriken heter som steget (Anmälda, Deltagare eller Lag);
@@ -195,7 +196,7 @@ export function RentalPrint({ ws }: { ws: Workspace }) {
   return <>
     {data && rentalEntries.length > 0 && <section className={styles.rentalPrint} data-rental-print aria-label={text.rentalPrintHeading}>
       <h1>{text.rentalPrintHeading}</h1>
-      <p>{data.eventName} · {data.raceName} · {data.raceDate}</p>
+      <p>{joinRaceParts([raceTitle(data.eventName, data.raceName), data.raceDate])}</p>
       <p>{text.rentalPrintGenerated}: {formatClockTime(data.generatedAt, data.timeZone)}</p>
       <p>{text.rentalPrintCount}: {rentalEntries.length}</p>
       <p>{text.rentalPrintPrivacy}</p>

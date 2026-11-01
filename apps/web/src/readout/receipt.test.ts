@@ -58,6 +58,10 @@ describe("kvitto efter avläsning", () => {
     expect(receipt.qr).toEqual({ url: `${ORIGIN}/results/${ids.race}/participants/${PUBLIC_RESULT}`, address: "o-tid.example/t/k7m2xq",
       published: true });
     expect(receipt.printedAt).toBe("Utskrivet 1 okt. 18:45");
+    // Loppet utan eget namn: kvittot visar bara datumet under evenemangets namn.
+    const unnamed = clubPackage();
+    unnamed.raceSnapshot.race.name = "";
+    expect(receiptFor(unnamed, payload([[31, 7, 30], [32, 15], [33, 22, 30]], 30)).details).toBe("tors 1 okt. 2026");
   });
 
   it("felstämplad: orsak och saknade kontroller, sträcktider för det som stämplats och ingen tid som resultat", () => {

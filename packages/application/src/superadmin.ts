@@ -8,6 +8,7 @@ import {
   type SuperadminOverview
 } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
+import { raceTitle } from "@o-tid/domain";
 import { schema } from "@o-tid/database";
 import type { DbExecutor } from "./snapshot";
 import { deleteAccountWithOwnedEvents } from "./account-self-service";
@@ -130,7 +131,7 @@ export async function performSuperadminAction(
       if (!race) return { status: "not-found" };
       await tx.update(schema.races).set({ hiddenBySuperadmin: action.action === "HIDE_RACE" }).where(eq(schema.races.id, race.race.id));
       await logAction(tx, { ...actor, action: action.action, targetType: "RACE", targetId: race.race.id,
-        targetLabel: `${race.eventName} – ${race.race.name}` }, now);
+        targetLabel: raceTitle(race.eventName, race.race.name, " – ") }, now);
       return { status: "done", action: action.action };
     }
 

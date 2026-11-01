@@ -11,7 +11,7 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 ## Logg
 
 ### 2026-11-01 – Steg 66: samarbete i banläggningen (grenen steg66-samarbete)
-- Behörighet för banläggning per person och tävling (migration 0032 `course_setting_grant`, ändra/föreslå/läsa och kommentera), given under Inställningar → Personer som andra roller; `requireCourseSettingAccess` och tabellen `COURSE_SETTING_ROUTES` i race-roles.ts avgör alla banläggningens routes och kartfilens GET; ägare/admin har ändra, överföring och arbetssätt kräver admin. Resten av tävlingen nås inte (ingen roll på eventet). Mina tävlingar visar loppet med "Öppna banläggningen".
+- Behörighet för banläggning per person och tävling (migration 0033 `course_setting_grant`, ändra/föreslå/läsa och kommentera), given under Inställningar → Personer som andra roller; `requireCourseSettingAccess` och tabellen `COURSE_SETTING_ROUTES` i race-roles.ts avgör alla banläggningens routes och kartfilens GET; ägare/admin har ändra, överföring och arbetssätt kräver admin. Resten av tävlingen nås inte (ingen roll på eventet). Mina tävlingar visar loppet med "Öppna banläggningen".
 - Åtgärder i stället för hela dokument (`POST course-setting/edits`): paketets `replayEdits` (tillägg i `packages/course-setting`, med `PUT_OBJECTS` för ångra) spelar upp på aktuell version, översätter nya id, avvisar det som någon annan ändrat sedan (`course_setting_change`, den första vinner) och det som bygger på avvisade; samma requestId ger samma svar. Editorn ombaserar osparade åtgärder och ångra-historiken (`lib/course-setting-sync.ts`).
 - Notiser (`course_setting_note`, svar, öppen/klar, foto ≤ 2 MB förminskat i webbläsaren) på punkt, kontroll, sträcka eller bana; markeringar som går att dölja; aldrig i banpåtryck, beskrivning, .ppen eller överföring (integrationstest jämför utdata). Förslag (`course_setting_suggestion`): förslagsläge för den som föreslår, granskning streckad ovanpå banan, godkänn helt/delvis eller avböj. Arbetssätt (Huvudbanläggare/Gemensamt) i lådans Inställningar.
 - Ström per tävling (`course-setting/events`, SSE): ny version, notiser, förslag, arbetssätt och närvaro. Ett nav i processen utan databasfrågor (allt inloggat går till `web`, ADR-0177), så avläsningen påverkas inte.
@@ -19,11 +19,22 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Sidouppdraget (404 på POST map/source i dev): anropet nådde aldrig routen – Next (Turbopack) svarade med sin 404-sida och loggade "Failed to find Server Action" medan den kompilerade annat. Gick inte att framkalla med curl. Klienten skickar nu om en sådan 404 (inte appens JSON-404) och specarna förvärmer banläggningens routes.
 VERIFIERAT_PLATS
 
+### 2026-11-01 – Tomt loppnamn (gren tomt-loppnamn)
+- Etapp/lopp är valfritt på riktigt: tomt sparas som "" (inte "Lopp 1") vid skapande, i Inställningar och vid kopiering; kontrakten tar emot och tål tomt.
+- `raceTitle`/`raceDetails` i domänen: evenemangets namn och loppets bara när det finns, på alla rubriker, publika sidor, listor, utskrifter, kvitto, speaker och kartbuntar. Mina tävlingar: ensamt lopp utan namn visar datumet, flera "Lopp N".
+- Migration 0032: skapandeförsökens loppnamn får vara tomt; det enda loppet i ett evenemang som heter exakt "Lopp 1" får inget namn (versionen räknas upp).
+
 ### 2026-11-01 – Ringklipp i banpåtrycket (grenen ringklipp, ADR-0180 beslut 10)
 - Valbart i `event.circleCutting` (skrivs inte till .ppen): överlapp (bågen inne i den andra ringen bort, kraftig överlappning behåller en hel ring, högst hälften per ring, också målets inre) och detaljer (`detailCircleGaps`, symboltabell ISOM 2017-2/ISSprOM 2019-2, högst en fjärdedel, inte vid sträckorna, gap per ringstorlek).
 - Webben: kartans Worker räknar detaljgapen 400 ms efter senaste ändringen (Högdalen/SBN26: 34 ringar 6–60 ms, första gången med index 70–210 ms); kryssrutorna och "Gör klippen fasta (för Purple Pen)" i egen komponent, sju rader i editorn.
 - Verifierat: lint, typecheck, test (överlapp också över Purple Pens 151 testfiler); ägarens karta med `OTID_REAL_MAP`/`OTID_REAL_MAP_PPEN`; före/efter-bilder granskade; Playwright banlaggning (med kryssrutorna och fasta klipp) och banlaggning-mobil gröna.
 - Idé: ringar med tre gap ser splittrade ut i översikt; ett tak på antal gap per ring kan prövas.
+
+### 2026-11-01 – Vägvalsmodellen (grenen vagval-modell, ADR-0179)
+- Kurvpassage = ekvidistans × (climbFactor 8 + descentFactor 3) / 2 (descentFactor minst 0,5); lutningsfaktor 0,2 ur kurvtätheten i marken, inte på stig/väg; passerbara branter/vallar/staket 2–15 m per passage.
+- Alternativ upp till 25 % sämre, högst fyra, tydligt skilda; ±15 % gäller "ungefär lika". Ritningen: blå bästa väg, numrerade streckade alternativ ("1 · +8 %") med vit kant.
+- Högdalen A 8–9 (OTID_SBN_DIR, SBN26_2.ppen): bästa vägen följer stigen runt kullen i stället för vit skog nedanför den; över kullen +13 % (ungefär lika).
+- Verifierat: route-choice lint/typecheck/test, pnpm typecheck, pnpm test, Playwright vagval-analys och kontrollkarta; 1,5 km i Djurgården 0,88 s (last 3,8), lika snabbt som före ändringen.
 
 ### 2026-11-01 – Fältläget, snabbversion (grenen faltlage-snabb; hela fältläget är steg 67)
 - Min position (WGS 84 → kartans mm med kartfilens georeferens, som kartans Worker nu skickar med), Flytta hit (medel under 5 s, avvikare > 2 × medianen kastas), pilar 1 m; under 700 px kartan på hela skärmen med stora knappar och "Uppgifter" (F, G). Permissions-Policy `geolocation=(self)` på `/admin/:raceId/course-setting`.

@@ -9,6 +9,7 @@ import { formatRaceDate, raceHubPath } from "../../../../lib/public-race-format"
 import { PreviewBanner } from "../../../../components/public-race/preview-banner";
 import { PublicLive } from "../../../../components/public-live/public-live";
 import styles from "../../../../components/public-race/public-race.module.css";
+import { raceDetails } from "@o-tid/domain";
 
 export const dynamic = "force-dynamic";
 type Params = { params: Promise<{ code: string }> };
@@ -26,7 +27,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 export default async function LivePage({ params }: Params) {
   const hub = await requireRaceHub((await params).code);
   const initial = (await cachedPublicLive(hub.raceId, { exact: true })).value;
-  const race = [hub.raceName !== hub.eventName ? hub.raceName : undefined, formatRaceDate(hub.raceDate)].filter(Boolean).join(" · ");
+  const race = raceDetails(hub.eventName, hub.raceName, [formatRaceDate(hub.raceDate)]);
   return <main className={styles.livePage}>
     <nav className={styles.hubNav} aria-label={publicRaceSv.hub.navigation}>
       <Link href={raceHubPath(hub.shortCode)}>{publicRaceSv.hub.back}</Link>

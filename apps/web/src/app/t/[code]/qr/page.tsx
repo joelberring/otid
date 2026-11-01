@@ -8,6 +8,7 @@ import { publicOrigin } from "../../../../lib/public-origin";
 import { displayAddress, formatRaceDate, raceHubPath } from "../../../../lib/public-race-format";
 import { PreviewBanner } from "../../../../components/public-race/preview-banner";
 import { QrSheet } from "../../../../components/public-race/qr-sheet";
+import { raceDetails } from "@o-tid/domain";
 
 export const dynamic = "force-dynamic";
 type Params = { params: Promise<{ code: string }> };
@@ -28,8 +29,7 @@ export default async function RaceQrPage({ params }: Params) {
   const origin = await publicOrigin();
   const url = new URL(path, origin).toString();
   const svg = await QRCode.toString(url, { type: "svg", errorCorrectionLevel: "M", margin: 2, color: { dark: "#000000", light: "#ffffff" } });
-  const details = [hub.raceName !== hub.eventName ? hub.raceName : undefined, formatRaceDate(hub.raceDate), raceTypeSv.types[hub.raceType].name]
-    .filter(Boolean).join(" · ");
+  const details = raceDetails(hub.eventName, hub.raceName, [formatRaceDate(hub.raceDate), raceTypeSv.types[hub.raceType].name]);
   return <main className="stack">
     <PreviewBanner access={hub.access} />
     <QrSheet hubPath={path} eventName={hub.eventName} details={details} address={displayAddress(origin, path)}

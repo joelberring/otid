@@ -1025,7 +1025,7 @@ ADR-0179 (beslut 7–13). Migration 0030. Kontraktet: `packages/route-choice/src
   Orienteringskartor har höjdkurvor men inga höjdvärden (kontrollerat på Djurgården 2025 i både OCAD och Mapper).
   Stigningen räknas som antalet passerade höjdkurvor (101, 102) gånger ekvidistansen, plus hjälpkurvor (103) som halv
   ekvidistans. Standard 5 m eller enligt arrangören, och 1 m stigning räknas som 8 m plan väg (inställbart). Uppför och
-  nedför skiljs inte åt. Branter (201, 202) och annan terräng räknas via sina symboler. Ingen höjdmodell och ingen
+  nedför skiljs inte åt. (Ändrat 2026-11-01: upp och ned i väntevärde, lutningsfaktor och passerbara branter, ADR-0179.) Branter (201, 202) och annan terräng räknas via sina symboler. Ingen höjdmodell och ingen
   rekonstruktion av höjder ur kurvorna.
 - [x] **Osäkerheten syns:** farterna är riktvärden (ISOM:s spann för vegetation, egna tumregler för stigar och
   stigning). Varje sträcka räknas också med alla farter 15 % högre och 15 % lägre; byter bästa vägvalet plats märks
@@ -1125,7 +1125,9 @@ ADR-0182. Görs efter steg 67.
 - [ ] **Grupp** med namn och ledare; tävlingar kan höra till en grupp; ledarna är ADMIN på gruppens tävlingar.
 - [ ] **Gruppsidan:** kommande tillfällen, senaste resultat, arkiv; fast länk och QR-kod.
 - [ ] **Mallar och upprepning:** ny träning ur mall eller förra tillfället; upprepning en termin i förväg.
-- [ ] **Kartbibliotek:** gruppens kartfiler och banläggningar används igen.
+- [ ] **Kartbibliotek:** gruppens kartfiler och banläggningar används igen. Per karta: klubbens egen eller extern, ägare,
+  avtal (fri text), giltighetstid, kontakt och villkor (bara träning, avgift per utskrift, inte publik visning); varning
+  när avtalet gått ut eller inte tillåter det kartan ska användas till.
 - [ ] **Deltagare** känns igen mellan tillfällena; självanmälan för gruppen.
 - [ ] **Säsongen:** närvaro per deltagare, valfri poängserie.
 - [ ] **Inställningar för synlighet** (ADR-0182 beslut 7) med försiktiga standardvärden; aldrig indexerad.

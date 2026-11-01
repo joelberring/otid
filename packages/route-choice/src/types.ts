@@ -17,8 +17,17 @@ export interface RouteChoiceSettings {
   readonly speedByClass?: Readonly<Partial<Record<Exclude<SpeedClass, "IMPASSABLE" | "IGNORE">, number>>>;
   /** Ekvidistans i meter (standard 5). */
   readonly contourIntervalMeters?: number;
-  /** Meter plan väg per meter stigning (standard 8). */
+  /** Meter plan väg per meter stigning uppför (standard 8, Naismith). */
   readonly climbFactor?: number;
+  /**
+   * Meter plan väg per meter nedför (standard 3, Langmuir för brant nedför). Riktningen syns inte på kartan, så varje
+   * kurvpassage kostar ekvidistans × (climbFactor + descentFactor) / 2 (se `defaults.ts`).
+   */
+  readonly descentFactor?: number;
+  /** Lutningsfaktorns styrka i brant terräng utan stig, åt alla håll (standard 0,2; 0 = av). Se `defaults.ts`. */
+  readonly slopeFactor?: number;
+  /** Meter plan väg per passage av linjeobjekt som går att passera (202 brant, 104 jordbrant …), per symbolnummer. */
+  readonly crossingMetersBySymbol?: Readonly<Record<string, number>>;
   /** Fart i normal skog för uppskattad tid, sekunder per km (standard 360 = 6:00/km). */
   readonly referencePaceSecondsPerKm?: number;
 }
@@ -43,7 +52,10 @@ export interface RouteLine {
   /** Vägen i kartans mm. */
   readonly points: readonly Point[];
   readonly meters: number;
-  /** Stigning ur höjdkurvorna (meter). */
+  /**
+   * Stigning uppför ur höjdkurvorna (meter): hälften av de passerade höjdmetrarna, eftersom kartan inte visar vilket håll
+   * som är upp (exakt när vägen börjar och slutar på samma höjd).
+   */
   readonly climbMeters: number;
   /** Uppskattad tid i sekunder med referensfarten. */
   readonly seconds: number;
@@ -59,7 +71,7 @@ export interface LegAnalysis {
   readonly straightMeters: number;
   /** Saknas när ingen väg finns (varningen NO_ROUTE). */
   readonly best?: RouteLine | undefined;
-  /** Upp till tre tydligt skilda vägval utöver det bästa (högst 15 % sämre, under hälften gemensamt). */
+  /** Upp till fyra tydligt skilda vägval utöver det bästa (högst 25 % sämre, under hälften gemensamt), bäst först. */
   readonly alternatives: readonly (RouteLine & { readonly timeRatio: number })[];
   /** Stråket med vägar högst 5 % sämre än bästa: ett rutnät som kan ritas som tonad yta. */
   readonly corridor?: {
@@ -107,4 +119,14 @@ export interface CalibrationResult {
   readonly segmentsUsed: number;
   /** Segment som räknats bort (orimlig fart, GPS-hopp, genom ej passerbart, avvikare). */
   readonly segmentsRejected: number;
+  /**
+   * Föreslagen stigning och lutningsfaktor. `climbFactor` skattas ur kostnaden per kurvpassage med `descentFactor`
+   * fast: utan höjder syns inte vilka passager som var uppför, så bara summan upp + ned går att skatta.
+   */
+  readonly terrain: {
+    readonly climbFactor: number;
+    readonly climbEstimated: boolean;
+    readonly slopeFactor: number;
+    readonly slopeEstimated: boolean;
+  };
 }

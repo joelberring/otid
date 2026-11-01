@@ -143,7 +143,7 @@ export const courseSettingSv = {
     alternative: (index: number) => `Alternativ ${index}`,
     row: (length: number, climb: number, minutes: string) => `${meters(length)} · ${Math.round(climb)} m · ${minutes}`,
     slower: (ratio: number) => `+${Math.max(0, Math.round((ratio - 1) * 100))} %`,
-    legend: "Bästa väg som blå linje, likvärdiga vägar streckade och stråket (högst 5 % sämre) tonat."
+    legend: "Bästa väg som blå linje, andra vägval streckade och numrerade med tidsskillnaden (högst 25 % sämre) och stråket (högst 5 % sämre) tonat."
   },
   file: {
     heading: "Fil",

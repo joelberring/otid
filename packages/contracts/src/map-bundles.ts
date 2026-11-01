@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { courseVariantCodeSchema } from "./course-edit";
 import { uuidSchema as uuid } from "./ids";
+import { raceNameSchema } from "./race-name";
 
 /**
  * Kartor till starten (PLAN.md steg 61): tryckantal per variant, kartbuntslistan och baksidorna ur samma plan
@@ -52,7 +53,7 @@ const printSchema = z.object({ printedAt: instant, changes: z.array(mapPrintChan
 
 export const mapBundleResponseSchema = z.object({
   formatVersion: z.literal(1), raceId: uuid, snapshotVersion: z.number().int().positive(),
-  eventName: name, raceName: name, raceDate: z.iso.date(), timeZone: z.string().min(1).max(100),
+  eventName: name, raceName: raceNameSchema, raceDate: z.iso.date(), timeZone: z.string().min(1).max(100),
   reserve: mapReserveSchema,
   /** Hash av listans innehåll; utskriften sparas bara mot det innehåll som visades. */
   stateHash: z.string().regex(/^[a-f0-9]{64}$/),

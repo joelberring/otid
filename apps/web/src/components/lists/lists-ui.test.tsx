@@ -33,6 +33,13 @@ describe("startlistorna", () => {
     expect(html).not.toContain("Bricka");
     expect(html).toContain('href="/api/races/x/start-list/iof"');
   });
+
+  it("utskriftens rubrik har loppets namn bara när det finns", () => {
+    expect(renderToStaticMarkup(<StartLists model={startModel(false)} />)).toContain("<p>Klubbkväll · Torsdag · 2026-10-08</p>");
+    const html = renderToStaticMarkup(<StartLists model={{ ...startModel(false), raceName: "" }} />);
+    expect(html).toContain("<p>Klubbkväll · 2026-10-08</p>");
+    expect(html).not.toContain("·  ·");
+  });
 });
 
 const resultModel: ResultListModel = { relayClasses: [], classes: [{ name: "H21", mixedCourses: false, scored: false, rows: [

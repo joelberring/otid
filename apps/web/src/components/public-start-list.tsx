@@ -7,6 +7,7 @@ import { startListFromPublication } from "../lib/lists/start-list-model";
 import { formatClockTime, zonedDate } from "../lib/clock-time";
 import { startListPublicationSv as text } from "../i18n/start-list-publication-sv";
 import styles from "./lists/lists.module.css";
+import { raceDetails } from "@o-tid/domain";
 
 /**
  * Den publicerade startlistan (PLAN.md steg 13): samma tre vyer som i arbetsytan; bricka bara när tävlingen visar
@@ -54,7 +55,7 @@ export function PublicStartList({ raceId, initial }: { raceId: string; initial: 
   const zone = data.content.timeZone;
   return <>
     <section className="public-list-heading"><h1>{data.content.eventName}</h1>
-      <p>{data.content.raceName} · {data.content.raceDate} · {data.live ? text.publicLive
+      <p>{raceDetails(data.content.eventName, data.content.raceName, [data.content.raceDate])} · {data.live ? text.publicLive
         : <>{text.publishedAt} {zonedDate(data.publishedAt, zone)} {formatClockTime(data.publishedAt, zone).slice(0, 5)}</>}</p>
       <p className="public-list-help">{text.publicHelp}</p></section>
     {failed && <p className={styles.notice} role="alert">{text.publicRefreshFailed}</p>}

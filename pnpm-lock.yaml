@@ -220,6 +220,10 @@ importers:
       '@o-tid/map-file':
         specifier: workspace:*
         version: link:../map-file
+    devDependencies:
+      '@o-tid/course-setting':
+        specifier: workspace:*
+        version: link:../course-setting
 
   packages/sportident: {}
 

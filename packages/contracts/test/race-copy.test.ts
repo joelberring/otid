@@ -16,6 +16,8 @@ describe("Ny tävling som … (PLAN.md steg 21)", () => {
       raceDate: "2026-10-15", includePeople: true };
     expect(raceCopyRequestSchema.safeParse(request).success).toBe(true);
     expect(raceCopyRequestSchema.safeParse({ ...request, eventName: "T" }).success).toBe(false);
+    expect(raceCopyRequestSchema.parse({ ...request, raceName: " " }).raceName).toBe("");
+    expect(raceCopyRequestSchema.safeParse({ ...request, raceName: "x".repeat(161) }).success).toBe(false);
     expect(raceCopyRequestSchema.safeParse({ ...request, raceDate: "15/10" }).success).toBe(false);
     expect(raceCopyRequestSchema.safeParse({ ...request, includePeople: undefined }).success).toBe(false);
   });

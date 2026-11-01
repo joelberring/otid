@@ -82,7 +82,8 @@ describe("TASK029 atomiskt klass-/startbyteskontrakt", () => {
     }
     expect(entryTransferCandidatesSchema.safeParse({ ...value, entries: [{ ...entry, resultFreshness: "STALE" }] }).success).toBe(false);
     expect(entryTransferCandidatesSchema.safeParse({ ...value, entries: [{ ...entry, resultRevisionMarker: "UNKNOWN" }] }).success).toBe(false);
-    for (const change of [{ eventName: "" }, { raceName: "" }, { generatedAt: "2026-09-12" },
+    expect(entryTransferCandidatesSchema.safeParse({ ...value, raceName: "" }).success).toBe(true);
+    for (const change of [{ eventName: "" }, { raceName: "x".repeat(161) }, { generatedAt: "2026-09-12" },
       { timeZone: "Unknown/Zone" }, { classes: [] }, { entries: [entry, entry] },
       { classes: [raceClass, raceClass] }]) expect(entryTransferCandidatesSchema.safeParse({ ...value, ...change }).success).toBe(false);
   });

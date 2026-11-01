@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { raceNameSchema } from "./race-name";
 export * from "./administrator-effective-result";
 export * from "./manual-course-class";
 export * from "./manual-class";
@@ -11,6 +12,7 @@ export * from "./unknown-readout-resolution";
 
 export * from "./canonical-json";
 export * from "./ids";
+export * from "./race-name";
 export * from "./entry-class-admin";
 export * from "./entry-start-time-admin";
 export * from "./entry-card-admin";
@@ -48,7 +50,7 @@ export * from "./start-checkin";
 
 export const createEventSchema = z.object({
   name: z.string().trim().min(2).max(160),
-  raceName: z.string().trim().min(2).max(160),
+  raceName: raceNameSchema,
   raceDate: z.iso.date(),
   timeZone: z.string().trim().min(1).default("Europe/Stockholm")
 });

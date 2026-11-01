@@ -9,7 +9,8 @@
  * - Vägar och stigar (501–508) som snabba är en egen tumregel; ISOM anger bara att de är lättlöpta.
  * - Vad som är ej passerbart (201, 301, 307, 411, 515, 518, 520, 521, 529, 708, 709, 714) står i ISOM/ISSprOM:s
  *   definitioner ("impassable", "uncrossable", "shall not be entered", byggnader i sprint).
- * - Stigningen (1 m stigning = 8 m plan väg, ekvidistans 5 m) och referensfarten 6:00/km är egna tumregler.
+ * - Stigning, lutning och passerbara branter: se `CLIMB_FACTOR` och följande konstanter (Naismith/Langmuir, Tobler).
+ * - Referensfarten 6:00/km är en egen tumregel.
  * Alla tal är startvärden att kalibrera (`calibrateSpeeds`) eller ändra per tävling.
  */
 import type { RouteChoiceSettings, SpeedClass } from "./types";
@@ -115,17 +116,105 @@ export const FORM_LINE_SYMBOLS: readonly number[] = [103];
 /** Från 800 och uppåt: filens egna hjälpsymboler. */
 export const FIRST_CUSTOM_SYMBOL = 800;
 
+/**
+ * Stigningsmodellen (ADR-0179 beslut 10, ändrad 2026-11-01). Kartan har höjdkurvor men inga höjder, så vid en
+ * kurvpassage vet vi inte om det går uppför eller nedför. Tre delar som inte överlappar:
+ *
+ * 1. **Kurvpassagerna** står för det vertikala arbetet, överallt (även på stigar och vägar: uppför är jobbigt och
+ *    brant nedför går långsamt även på stig). En passage kostar i väntevärde ekvidistans × (`climbFactor` +
+ *    `descentFactor`) / 2 meter plan väg. Mellan två givna kontroller är höjdskillnaden Δh = upp − ned densamma för
+ *    alla vägar, så skillnaden mellan två vägar blir exakt (`climbFactor` + `descentFactor`) × skillnaden i stigning
+ *    uppför: regeln rangordnar vägarna rätt utan att veta riktningen. En kurva som passeras två gånger är alltid ett upp
+ *    och ett ned. Bara den uppskattade tiden kan bli fel, med högst (`climbFactor` − `descentFactor`) / 2 × |Δh|.
+ *    - `climbFactor` 8: Naismith (1892), 1 timme per 600 m stigning mot 5 km/h plant = 8,3 m plan väg per höjdmeter;
+ *      orienteringens tumregel 1 höjdmeter ≈ 8–10 m plan väg.
+ *    - `descentFactor` 3: Langmuir (1984) lägger till 10 min per 300 m nedför i brant lutning (över 12°) = 2,8 m plan väg
+ *      per höjdmeter (och drar av lika mycket i lätt lutning, 5–12°). Tobler (1993) ger 2,1 m per höjdmeter vid −20 %
+ *      och 3,4 vid −30 %. Där kurvorna ligger tätt nog att påverka vägvalet är lutningen oftast över 12°, så den branta
+ *      siffran gäller, avrundad till 3. En passerad kurva kostar då 5 × (8 + 3) / 2 = 27,5 m med 5 m ekvidistans.
+ * 2. **Lutningsfaktorn** står för framkomligheten i brant terräng utan stig: uppför, nedför och skrå. Lutningen g
+ *    skattas ur kurvbildens täthet (g ≈ ekvidistans × kurvlängd per ytenhet, se `raster.ts`), och tiden per meter i
+ *    marken multipliceras med 1 + `slopeFactor` × (e^(3,5·(g − 0,10)) − 1) när g är över 10 %. Stigar och vägar
+ *    påverkas inte: en stig som skrår längs en sluttning är lättlöpt. Formen är Toblers nedförsgren (farten är densamma
+ *    som plant vid −10 % och faller med e^(−3,5·Δg) därefter), som speglar underlag och fotfäste och inte höjdarbetet.
+ *    Styrkan 0,2 är vald så att upp + ned över en sluttning i skog (lutningsfaktorn åt båda hållen plus kurvpassagerna)
+ *    hamnar mitt emellan Langmuir och Tobler vid 50 %: 8,7 m tid per meter fram och tillbaka (Langmuir 7,6, Tobler
+ *    9,8); vid 30 % 5,7 (5,3 och 4,9). Skrå i skog längs 30 % blir 20 % långsammare, längs 50 % 60 % långsammare.
+ *    Lutningen står bara för framkomligheten; höjdarbetet räknas inte en gång till.
+ * 3. **Branter, vallar, staket och murar som går att passera** kostar en fast sträcka per passage (tabellen nedan).
+ */
+export const CLIMB_FACTOR = 8;
+export const DESCENT_FACTOR = 3;
+/**
+ * Lägsta `descentFactor`: brant nedför kostar alltid något (Langmuir, Tobler), och med 0 skulle en kulle bara räknas
+ * som halva stigningen. Lägre värden ersätts med standardvärdet.
+ */
+export const MIN_DESCENT_FACTOR = 0.5;
+export const SLOPE_FACTOR = 0.2;
+/** Lutning (höjd/längd) där lutningsfaktorn börjar verka: Toblers fart är lika med plant vid −10 %. */
+export const SLOPE_FREE_GRADE = 0.1;
+/** Toblers exponent: farten faller med e^(−3,5 × lutning). */
+export const SLOPE_EXPONENT = 3.5;
+/** Högsta lutning som räknas (35°); brantare än så ritas som brant (201/202) på kartan. */
+export const SLOPE_MAX_GRADE = 0.7;
+/**
+ * Radien (m) som kurvlängden per ytenhet räknas över: mindre än en typisk sluttning, men så stor att rutan (41 m med
+ * 2 m celler) nästan alltid rymmer en kurva där lutningen är över 10 % (kurvavstånd under 50 m med 5 m ekvidistans).
+ * Annars blir skattningen taggig mellan glesa kurvor och lutningens tillägg för stort i snitt.
+ */
+export const SLOPE_RADIUS_METERS = 20;
+/** Hjälpkurvor (103) är halv ekvidistans och räknas till hälften i lutningen, som i stigningen. */
+export const FORM_LINE_WEIGHT = 0.5;
+
+/** Lutningens tillägg på tiden per meter, utan styrkan: e^(3,5·(g − 0,10)) − 1 när g är över 10 %, annars 0. */
+export function slopeExcess(grade: number): number {
+  const g = Math.min(grade, SLOPE_MAX_GRADE);
+  return g > SLOPE_FREE_GRADE ? Math.exp(SLOPE_EXPONENT * (g - SLOPE_FREE_GRADE)) - 1 : 0;
+}
+
+/**
+ * Meter plan väg per passage av ett linjeobjekt som går att passera. Med 6:00/km är 1 m ≈ 0,36 s. Egna tumregler
+ * utifrån definitionerna i ISOM 2017-2 och ISSprOM 2019-2 (omapwiki.orienteering.sport):
+ * - 202 brant (ISSprOM: passable rock face), minst 1 m hög (0,6 m i sprint), "crossing a cliff will normally slow
+ *   progress": 15 m ≈ 5 s.
+ * - 104 jordbrant, minst 1 m, "may impact runnability": 8 m ≈ 3 s. 105 jordvall (105.1, 105.2): 5 m. 106 rasad
+ *   jordvall: 2 m.
+ * - 107 erosionsränna (ned och upp): 8 m. 108 liten erosionsränna: 3 m. 215 dike: 8 m.
+ * - 513 mur (513.1, 513.2; i sprint passable wall): 8 m. 514 rasad mur: 2 m.
+ * - 516 staket (klättra över): 15 m. 517 rasat staket: 3 m.
+ * Ej passerbara varianter (201, 515, 518) spärrar. Där en väg eller stig korsar linjen kostar passagen inget (en stig
+ * genom en brant eller ett staket betyder att det finns en väg igenom). Ändras per tävling med `crossingMetersBySymbol`.
+ */
+export const DEFAULT_CROSSING_METERS_BY_SYMBOL: Readonly<Record<string, number>> = {
+  "104": 8, "105": 5, "106": 2, "107": 8, "108": 3,
+  "202": 15, "215": 8,
+  "513": 8, "514": 2, "516": 15, "517": 3
+};
+
 export interface ResolvedSettings {
   readonly version: 1;
   readonly classBySymbol: Readonly<Record<string, SpeedClass>>;
   readonly speedByClass: Readonly<Record<RunnableClass, number>>;
   readonly contourIntervalMeters: number;
   readonly climbFactor: number;
+  readonly descentFactor: number;
+  readonly slopeFactor: number;
+  /** Tävlingens egna passagekostnader; slås upp före standardtabellen (`crossingForCode`). */
+  readonly crossingMetersBySymbol: Readonly<Record<string, number>>;
   readonly referencePaceSecondsPerKm: number;
+}
+
+/** Kostnaden (meter plan väg) per stigningsenhet i rutnätet; en passerad kurva är 4 enheter (2 in och 2 ut). */
+export function climbCostPerUnit(settings: Pick<ResolvedSettings, "contourIntervalMeters" | "climbFactor" | "descentFactor">): number {
+  return settings.contourIntervalMeters * (settings.climbFactor + settings.descentFactor) / 2 / 4;
 }
 
 function positive(value: number | undefined, fallback: number): number {
   return value !== undefined && Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function nonNegative(value: number | undefined, fallback: number): number {
+  return value !== undefined && Number.isFinite(value) && value >= 0 ? value : fallback;
 }
 
 /**
@@ -140,13 +229,17 @@ export function resolveSettings(settings?: RouteChoiceSettings | null): Resolved
     classBySymbol: { ...(settings?.classBySymbol ?? {}) },
     speedByClass: speeds,
     contourIntervalMeters: positive(settings?.contourIntervalMeters, 5),
-    climbFactor: settings?.climbFactor !== undefined && Number.isFinite(settings.climbFactor) && settings.climbFactor >= 0
-      ? settings.climbFactor : 8,
+    climbFactor: nonNegative(settings?.climbFactor, CLIMB_FACTOR),
+    descentFactor: settings?.descentFactor !== undefined && Number.isFinite(settings.descentFactor) &&
+      settings.descentFactor >= MIN_DESCENT_FACTOR ? settings.descentFactor : DESCENT_FACTOR,
+    slopeFactor: nonNegative(settings?.slopeFactor, SLOPE_FACTOR),
+    crossingMetersBySymbol: Object.fromEntries(Object.entries(settings?.crossingMetersBySymbol ?? {})
+      .filter(([, value]) => Number.isFinite(value) && value >= 0)),
     referencePaceSecondsPerKm: positive(settings?.referencePaceSecondsPerKm, 360)
   };
 }
 
-function lookup(table: Readonly<Record<string, SpeedClass>>, text: string, main: number, sub: number): SpeedClass | undefined {
+function lookup<T>(table: Readonly<Record<string, T>>, text: string, main: number, sub: number): T | undefined {
   return table[text] ?? table[`${main}.${sub}`] ?? (sub === 0 ? table[String(main)] ?? table[`${main}.0`] : undefined) ??
     table[String(main)];
 }
@@ -162,4 +255,10 @@ export function classForCode(settings: ResolvedSettings, code: { readonly text: 
   if (standard) return standard;
   if (code.main >= FIRST_CUSTOM_SYMBOL) return "IGNORE";
   return undefined;
+}
+
+/** Passagekostnaden (meter plan väg) för ett symbolnummer: tävlingens tabell först, sedan standardtabellen; 0 = ingen. */
+export function crossingForCode(settings: ResolvedSettings, code: { readonly text: string; readonly main: number; readonly sub: number }): number {
+  return lookup(settings.crossingMetersBySymbol, code.text.trim(), code.main, code.sub) ??
+    lookup(DEFAULT_CROSSING_METERS_BY_SYMBOL, code.text.trim(), code.main, code.sub) ?? 0;
 }

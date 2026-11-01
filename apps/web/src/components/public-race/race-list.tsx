@@ -4,6 +4,7 @@ import { publicRaceSv } from "../../i18n/public-race-sv";
 import { raceTypeSv } from "../../i18n/race-type-sv";
 import { formatRaceDate, raceHubPath } from "../../lib/public-race-format";
 import styles from "./public-race.module.css";
+import { shownRaceName } from "@o-tid/domain";
 
 const text = publicRaceSv.links;
 export type RaceListTiming = "ONGOING" | "UPCOMING" | "RECENT";
@@ -24,7 +25,7 @@ export function RaceList({ races, timing, today }: { races: readonly PublicRaceL
         started && <Link key="results" href={`/results/${race.raceId}`}>{text.results}</Link>,
         started && hasSplitAnalysis(race.raceType) && <Link key="splits" href={`/results/${race.raceId}/splits`}>{text.splits}</Link>]
         .filter(Boolean);
-      const details = [race.raceName !== race.eventName ? race.raceName : undefined, raceTypeSv.types[race.raceType].name].filter(Boolean);
+      const details = [shownRaceName(race.eventName, race.raceName), raceTypeSv.types[race.raceType].name].filter(Boolean);
       return <li key={race.raceId} className={styles.raceRow}>
         <time className={styles.raceDate} dateTime={race.raceDate}>{formatRaceDate(race.raceDate, today)}</time>
         <div className={styles.raceName}>

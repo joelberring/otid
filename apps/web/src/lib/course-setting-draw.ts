@@ -1,6 +1,7 @@
 import type { OverprintPrimitive } from "@o-tid/course-setting";
 import type { Point } from "@o-tid/map-file";
 import { toScreen, type Viewport } from "./course-setting-viewport";
+import { alternativeColor, alternativeLabels, ROUTE_CHOICE_COLORS } from "./route-choice-view";
 
 /**
  * Steg 62 (ADR-0180 beslut 5): banpåtryckets figurer på skärmen, i ett eget canvas-lager ovanpå kartan. Samma figurer blir
@@ -141,9 +142,15 @@ export function drawMarks(ctx: Context, view: Viewport, marks: { selected: reado
   ctx.restore();
 }
 
-/** Vägvalen för vald sträcka (steg 60): stråket tonat, likvärdiga vägar streckade och bästa vägen som blå linje. */
+/** Linjebredderna (px) för vägvalen: bästa vägen, alternativen och den vita kanten under dem. */
+export const ROUTE_LINE = { best: 5, alternative: 4, halo: 4 } as const;
+
+/**
+ * Vägvalen för vald sträcka (steg 60): stråket tonat, alternativen streckade i var sin färg med vit kant och en etikett
+ * med nummer och tidsskillnad ("1 · +8 %"), och bästa vägen överst som tjock blå linje med vit kant.
+ */
 export function drawRouteChoice(ctx: Context, view: Viewport, analysis: {
-  best?: { points: readonly Point[] } | undefined; alternatives: readonly { points: readonly Point[] }[];
+  best?: { points: readonly Point[] } | undefined; alternatives: readonly { points: readonly Point[]; timeRatio: number }[];
   corridor?: { origin: Point; cellMm: number; width: number; height: number; mask: Uint8Array } | undefined;
 }) {
   ctx.save();
@@ -164,18 +171,43 @@ export function drawRouteChoice(ctx: Context, view: Viewport, analysis: {
   }
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
-  ctx.strokeStyle = "rgb(0, 90, 200)";
-  ctx.lineWidth = 2;
-  ctx.setLineDash([8, 5]);
-  for (const alternative of analysis.alternatives) { path(ctx, view, alternative.points, false); ctx.stroke(); }
+  // Sämsta alternativet först, så att de bättre och bästa vägen hamnar ovanpå.
+  const order = analysis.alternatives.map((_, index) => index).reverse();
+  for (const index of order) {
+    const points = analysis.alternatives[index]!.points;
+    ctx.setLineDash([]);
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+    ctx.lineWidth = ROUTE_LINE.alternative + ROUTE_LINE.halo;
+    path(ctx, view, points, false); ctx.stroke();
+    ctx.setLineDash([12, 7]);
+    ctx.strokeStyle = alternativeColor(index);
+    ctx.lineWidth = ROUTE_LINE.alternative;
+    path(ctx, view, points, false); ctx.stroke();
+  }
   ctx.setLineDash([]);
   if (analysis.best) {
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.85)";
-    ctx.lineWidth = 6;
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+    ctx.lineWidth = ROUTE_LINE.best + ROUTE_LINE.halo;
     path(ctx, view, analysis.best.points, false); ctx.stroke();
-    ctx.strokeStyle = "rgb(0, 90, 200)";
-    ctx.lineWidth = 3;
+    ctx.strokeStyle = ROUTE_CHOICE_COLORS.best;
+    ctx.lineWidth = ROUTE_LINE.best;
     path(ctx, view, analysis.best.points, false); ctx.stroke();
+  }
+  // Etiketterna: vit platta med färgad kant, numret och tidsskillnaden.
+  ctx.font = "bold 13px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  for (const label of alternativeLabels(analysis, 12 / view.pxPerMm)) {
+    const at = toScreen(view, label.at);
+    const width = ctx.measureText(label.text).width + 10, height = 18;
+    ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+    ctx.strokeStyle = alternativeColor(label.index);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.rect(at.x - width / 2, at.y - height / 2, width, height);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "rgb(20, 20, 20)";
+    ctx.fillText(label.text, at.x, at.y + 0.5);
   }
   ctx.restore();
 }

@@ -25,6 +25,7 @@ import { raceCopySv } from "../i18n/race-copy-sv";
 import { hasErrors, validateCreateRace, type CreateRaceInput, type FieldErrors } from "../lib/form-validation";
 import { DateInput, Field, focusFirstError } from "./ui";
 import { orderMyEvents } from "../lib/my-events-order";
+import { raceListName } from "../lib/race-list-name";
 import styles from "./organizer-workspace.module.css";
 
 type Session = { accountId: string; email: string; displayName: string; superadmin: boolean; expiresAt: string };
@@ -234,7 +235,7 @@ export function OrganizerWorkspace() {
       const request = organizerEventCreateRequestSchema.parse({
         formatVersion: 1,
         eventName: input.eventName,
-        raceName: input.stageName.trim() || copy.defaultRaceName,
+        raceName: input.stageName.trim(),
         raceDate: input.raceDate,
         timeZone: input.timeZone.trim(),
         raceType: form.get("raceType")
@@ -381,11 +382,14 @@ export function OrganizerWorkspace() {
               <span className={styles.eventRole}>{copy.eventRole[event.role]}</span>
             </div>
             <p className={styles.eventMeta}>{event.startsOn} · {event.timeZone} · {event.races.length} {copy.raceCountLabel}</p>
-            <ul className={styles.raceList}>{event.races.map((race) => <li key={race.raceId}>
-              <div><strong>{race.raceName}</strong><span>{race.raceDate} · {raceTypeSv.types[race.raceType].name}</span></div>
+            <ul className={styles.raceList}>{event.races.map((race) => {
+              // Loppets namn är valfritt: ett ensamt lopp utan namn visar datumet, flera visar "Lopp N".
+              const name = raceListName(race, event.races, copy.raceNumber);
+              return <li key={race.raceId}>
+              <div><strong>{name ?? race.raceDate}</strong><span>{name ? `${race.raceDate} · ` : ""}{raceTypeSv.types[race.raceType].name}</span></div>
               <div className={styles.raceActions}>
                 {(event.role === "OWNER" || event.role === "ADMIN") && <button type="button" className={styles.secondary} disabled={busy || enteringRaceId !== undefined}
-                  aria-label={raceCopySv.actionLabel(race.raceName)} onClick={() => setCopySource({ raceId: race.raceId, eventName: event.eventName,
+                  aria-label={raceCopySv.actionLabel(name ?? event.eventName)} onClick={() => setCopySource({ raceId: race.raceId, eventName: event.eventName,
                     raceName: race.raceName, raceDate: race.raceDate })}>{raceCopySv.action}</button>}
                 {event.role !== "COURSE_SETTER" && <button type="button" className={styles.secondary} disabled={busy || enteringRaceId !== undefined}
                   aria-busy={enteringRaceId === race.raceId} onClick={() => enterRace(race.raceId)}>
@@ -393,7 +397,8 @@ export function OrganizerWorkspace() {
                 {race.courseSetting && <button type="button" className={styles.secondary} disabled={busy || enteringRaceId !== undefined}
                   onClick={() => enterRace(race.raceId, "course-setting")}>{copy.openCourseSetting}</button>}
               </div>
-            </li>)}</ul>
+            </li>;
+            })}</ul>
           </li>)}
         </ul>}
       </section>
@@ -421,7 +426,7 @@ export function OrganizerWorkspace() {
           <h3>{attemptMatchesSession ? copy.createUnconfirmed : copy.savedAttemptOtherAccountTitle}</h3>
           <p>{attemptBelongsToOtherAccount ? copy.attemptBelongsToOtherAccount : copy.createUnconfirmedHint}</p>
           <dl><dt>{copy.eventName}</dt><dd>{attempt.request.eventName}</dd>
-            <dt>{copy.raceName}</dt><dd>{attempt.request.raceName}</dd>
+            <dt>{copy.raceName}</dt><dd>{attempt.request.raceName || copy.noRaceName}</dd>
             <dt>{copy.date}</dt><dd>{attempt.request.raceDate}</dd>
             <dt>{raceTypeSv.typeLegend}</dt><dd>{raceTypeSv.types[attempt.request.raceType ?? "STANDARD"].name}</dd>
             <dt>{copy.timeZone}</dt><dd>{attempt.request.timeZone}</dd></dl>

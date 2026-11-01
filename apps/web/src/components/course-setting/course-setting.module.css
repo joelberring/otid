@@ -21,6 +21,8 @@
 .topbar button, .topbar select { min-height: 36px; white-space: nowrap; }
 .topbar select { max-width: 220px; padding: 2px 6px; font: inherit; }
 .inline { display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-sm); }
+/* Telefonen med fältets rad: banväljaren finns där (stora rutor), inte i raden överst. */
+.shell[data-field] .viewPicker { display: none; }
 .spacer { flex: 1 1 auto; min-width: 4px; }
 .access, .presence { color: var(--muted); font-size: var(--text-sm); white-space: nowrap; }
 .srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

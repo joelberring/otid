@@ -92,6 +92,21 @@ export function drawOverprint(ctx: Context, view: Viewport, primitives: readonly
 }
 
 /** Markeringar ovanpå: vald kontroll eller sträcka (blå) och kontroller från kontrollistan (orange), alltid synliga. */
+/** Ett tunt kryss, svart med vit kant, som syns mot både kartan och den lila ringen. */
+export function drawCenterCross(ctx: Context, at: { x: number; y: number }, arm = 9) {
+  ctx.save();
+  ctx.setLineDash([]);
+  ctx.lineCap = "butt";
+  for (const [color, width] of [["rgba(255, 255, 255, 0.95)", 4], ["rgb(0, 0, 0)", 1.5]] as const) {
+    ctx.strokeStyle = color; ctx.lineWidth = width;
+    ctx.beginPath();
+    ctx.moveTo(at.x - arm, at.y); ctx.lineTo(at.x + arm, at.y);
+    ctx.moveTo(at.x, at.y - arm); ctx.lineTo(at.x, at.y + arm);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 export function drawMarks(ctx: Context, view: Viewport, marks: { selected: readonly Point[]; selectedLine?: readonly Point[] | undefined;
   flagged: readonly Point[]; bends?: readonly Point[] | undefined; radiusMm: number }) {
   const radius = Math.max(10, marks.radiusMm * view.pxPerMm + 6);
@@ -116,6 +131,8 @@ export function drawMarks(ctx: Context, view: Viewport, marks: { selected: reado
     const at = toScreen(view, point);
     ctx.beginPath(); ctx.arc(at.x, at.y, radius, 0, 2 * Math.PI); ctx.stroke();
   }
+  // Kryss i vald kontrolls mitt, så att den hamnar rätt när den dras (bara på skärmen, aldrig i banpåtrycket).
+  for (const point of marks.selected) drawCenterCross(ctx, toScreen(view, point));
   ctx.fillStyle = "rgb(0, 110, 220)";
   for (const point of marks.bends ?? []) {
     const at = toScreen(view, point);

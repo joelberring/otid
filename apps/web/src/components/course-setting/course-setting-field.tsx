@@ -12,6 +12,7 @@ import {
 import {
   averagePositions, insideBounds, metersPerMm, stepPoint, toMapPosition, type MapPosition, type PositionFix, type StepDirection
 } from "../../lib/course-setting-geo";
+import { ALL_CONTROLS } from "../../lib/course-setting-hit";
 import type { Bounds } from "../../lib/course-setting-viewport";
 import { Button } from "../ui";
 import css from "./course-setting-field.module.css";
@@ -60,6 +61,10 @@ export interface FieldInput {
   readonly statusText: string;
   /** Versionen som nästa sparande bygger på. */
   readonly version: () => number;
+  /** Byt bana/variant (smal skärm har ingen banlista). */
+  readonly onView?: ((view: string, variant?: string) => void) | undefined;
+  /** Varianterna per bana (koder), för väljaren. */
+  readonly variants?: Readonly<Record<string, readonly string[]>> | undefined;
 }
 
 export interface FieldMode {
@@ -215,7 +220,24 @@ export function useFieldMode(input: FieldInput): FieldMode {
     {(info || note) && <div className={css.toolLines}>{lines}</div>}
   </div>;
 
+  // Banväljaren: på telefonen syns banan med sträckor, nummer, start och mål (hur löparna kommer in till kontrollen).
+  const courses = [...document.courses].sort((a, b) => a.order - b.order);
+  const variantCodes = (input.variants?.[state.view] ?? []).filter(code => code !== "");
+  const picker = input.onView && <div className={css.barRow}>
+    <select className={css.select} aria-label={text.course} value={state.view} data-testid="course-setting-field-course"
+      onChange={event => input.onView!(event.target.value)}>
+      <option value={ALL_CONTROLS}>{text.allControls}</option>
+      {courses.map(course => <option key={course.id} value={course.id}>{course.name}</option>)}
+    </select>
+    {variantCodes.length > 0 && <select className={css.select} aria-label={text.variant} value={state.variant ?? ""}
+      data-testid="course-setting-field-variant" onChange={event => input.onView!(state.view, event.target.value || undefined)}>
+      <option value="">{text.allVariants}</option>
+      {variantCodes.map(code => <option key={code} value={code}>{code}</option>)}
+    </select>}
+  </div>;
+
   const bar = <div className={css.bar}>
+    {picker}
     <div className={css.barHead}>
       <strong data-testid="course-setting-field-selected">{label ? text.selected(label) : text.none}</strong>
       <span className={css.status} data-status={status} role="status" data-testid="course-setting-field-status">{input.statusText}</span>
@@ -280,4 +302,22 @@ function DetailsSheet({ label, boxes, standard, onSave, onClose }: {
       <button type="button" className={css.big} onClick={onClose}>{text.close}</button>
     </div>
   </div>;
+}
+
+/**
+ * Sidan under arbetsytan får inte skrolla eller studsa när man drar på kartan (iOS/Android). Samma lås som
+ * `course-setting-shell` i globals.css, här också i stilen på html/body för webbläsare utan `:has()`.
+ */
+export function useLockedPage(): void {
+  useEffect(() => {
+    const html = document.documentElement, body = document.body;
+    const before = { htmlOverflow: html.style.overflow, htmlOverscroll: html.style.overscrollBehavior,
+      bodyOverflow: body.style.overflow, bodyOverscroll: body.style.overscrollBehavior };
+    html.style.overflow = "hidden"; html.style.overscrollBehavior = "none";
+    body.style.overflow = "hidden"; body.style.overscrollBehavior = "none";
+    return () => {
+      html.style.overflow = before.htmlOverflow; html.style.overscrollBehavior = before.htmlOverscroll;
+      body.style.overflow = before.bodyOverflow; body.style.overscrollBehavior = before.bodyOverscroll;
+    };
+  }, []);
 }

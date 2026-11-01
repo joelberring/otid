@@ -7,7 +7,7 @@ import type { LegAnalysis } from "@o-tid/route-choice";
 import { courseSettingSv as text } from "../../i18n/course-setting-sv";
 import { drawMarks, drawOverprint, drawRouteChoice } from "../../lib/course-setting-draw";
 import { drawHighlightedRoute, drawNoteMarks, drawSuggestion, type SuggestionDrawing } from "../../lib/course-setting-draw-collaboration";
-import { drawCenterCross, liftedPoint, type CenterCross } from "../../lib/course-setting-draw-cross";
+import { drawDragGuide, liftedPoint, type CenterCross } from "../../lib/course-setting-draw-cross";
 import { drawPosition } from "../../lib/course-setting-field";
 import type { MapPosition } from "../../lib/course-setting-geo";
 import { hitNoteMark, noteMarkGeometry, type NoteMark } from "../../lib/course-setting-note-marks";
@@ -192,7 +192,7 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
     if (noteMarks) drawNoteMarks(ctx, view, noteMarks.map(mark => ({ ...mark, selected: mark.id === selectedNote })));
     if (position) drawPosition(ctx, view, position.position);
   }, [view, primitives, faded, marks, analysis, suggestion, noteMarks, selectedNote, highlightRoute, position]);
-  // Skärmlagret: krysset (och fingrets linje). Ritas aldrig i banpåtrycket och döljs vid utskrift.
+  // Skärmlagret: det stora krysset medan man drar (och fingrets linje). Aldrig i banpåtrycket, dolt vid utskrift.
   const crossX = cross?.at.x, crossY = cross?.at.y, crossDragging = cross?.dragging, radiusMm = marks.radiusMm;
   useEffect(() => {
     const canvas = screen.current;
@@ -204,7 +204,7 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     ctx.clearRect(0, 0, view.width, view.height);
     if (crossX !== undefined && crossY !== undefined) {
-      drawCenterCross(ctx, view, { at: { x: crossX, y: crossY }, dragging: crossDragging ?? false }, radiusMm, crossDragging ? finger : undefined);
+      drawDragGuide(ctx, view, { at: { x: crossX, y: crossY }, dragging: crossDragging ?? false }, radiusMm, finger);
     }
   }, [view, crossX, crossY, crossDragging, radiusMm, finger]);
   const followX = position?.follow ? position.position.at.x : undefined, followY = position?.follow ? position.position.at.y : undefined;
@@ -250,7 +250,9 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
       const [a, b] = [...pointers.current.values()];
       if (current.distance && distance > 0 && a && b) {
         const center = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-        setView(previous => previous ? zoomAt(previous, distance / current.distance!, center) : previous);
+        // Faktorn räknas nu: uppdateringen kan köras senare, när `current` redan har ändrats.
+        const factor = distance / current.distance;
+        setView(previous => previous ? zoomAt(previous, factor, center) : previous);
         current.distance = distance;
       }
       return;
@@ -265,7 +267,12 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
       handlers.onDragMove(toMap(view, liftedPoint(at, current.pointerType)));
       if (current.pointerType === "touch") setFinger(at);
     }
-    else setView(previous => previous ? panBy(previous, at.x - current.lastX, at.y - current.lastY) : previous);
+    else {
+      // Förflyttningen räknas nu, inte i uppdateringen: React kan köra den efter att `lastX`/`lastY` har flyttats fram
+      // (då blev panoreringen noll, märkbart med fingret på telefonen).
+      const dx = at.x - current.lastX, dy = at.y - current.lastY;
+      setView(previous => previous ? panBy(previous, dx, dy) : previous);
+    }
     current.lastX = at.x; current.lastY = at.y;
   }
 

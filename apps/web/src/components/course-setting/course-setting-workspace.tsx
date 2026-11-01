@@ -40,12 +40,12 @@ export function TopBar({ raceId, document, summaries, view, variant, onView, sta
   const variants = summaries.find(row => row.course === view)?.variants ?? [];
   return <header className={styles.topbar}>
     <Link className={styles.back} href={`/admin/${raceId}/manage`} title={text.back}>← <span className={styles.wide}>{text.title}</span></Link>
-    <label className={styles.inline}><span className={styles.srOnly}>{copy.topbar.course}</span>
+    <label className={`${styles.inline} ${styles.viewPicker}`}><span className={styles.srOnly}>{copy.topbar.course}</span>
       <select value={view} onChange={event => onView(event.target.value)} data-testid="course-setting-view">
         <option value={ALL_CONTROLS}>{text.courses.all}</option>
         {courses.map(course => <option key={course.id} value={course.id}>{course.name}</option>)}
       </select></label>
-    {variants.length > 1 && <label className={styles.inline}><span className={styles.srOnly}>{copy.topbar.variant}</span>
+    {variants.length > 1 && <label className={`${styles.inline} ${styles.viewPicker}`}><span className={styles.srOnly}>{copy.topbar.variant}</span>
       <select value={variant ?? ""} onChange={event => onView(view, event.target.value || undefined)}>
         <option value="">{text.courses.allVariants}</option>
         {variants.map(row => <option key={row.code} value={row.code}>{row.code}</option>)}

@@ -21,7 +21,9 @@
 .notice { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--attention, #b26a00); border-left-width: 6px; background: var(--surface); }
 .row { display: flex; flex-wrap: wrap; gap: 8px; }
 
-/* Smal skärm: raden nertill (i arbetsytans stapel ovanför bladet). */
+/* Smal skärm: raden nertill (i arbetsytans stapel ovanför bladet); den skrollar bara på höjden, kartan inte alls. */
+.bar, .sheet { touch-action: pan-y; }
+.select { min-height: 44px; font-size: 1rem; padding: 0 8px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); }
 .bar { display: grid; gap: 6px; padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line-strong);
   background: var(--surface); }
 .barHead { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; }

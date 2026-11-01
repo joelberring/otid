@@ -88,15 +88,22 @@ test("banläggning på telefonen: min position, flytta hit, finjustera, F och G,
   await expect(map).toHaveAttribute("data-px-per-mm", /\d/);
   await phone.waitForTimeout(500);
 
-  // Banväljaren i raden överst: banan Lång ritas med sträckor, nummer, start och mål (inte bara kontrollerna).
+  // Banväljaren i fältets rad: banan Lång ritas med sträckor, nummer, start och mål (inte bara kontrollerna).
   const allControls = await map.getByTestId("course-setting-overprint").screenshot();
-  await phone.getByTestId("course-setting-view").selectOption({ label: "Lång" });
+  const course = phone.getByTestId("course-setting-field-course");
+  await expect(course).toBeVisible();
+  await course.selectOption({ label: "Lång" });
+  await expect(course).toHaveValue("1");
   await expect(phone.getByRole("img", { name: "Karta med banpåtryck: Lång" })).toBeVisible();
   await phone.waitForTimeout(300);
   expect((await map.getByTestId("course-setting-overprint").screenshot()).equals(allControls)).toBe(false);
   await screenshot(phone, "banlaggning-mobil-bana");
 
-  // Sidan skrollar inte när man panorerar kartan med fingret.
+  // Sidan skrollar inte när man panorerar kartan med fingret (eller hjulet).
+  const box = (await map.boundingBox())!;
+  await phone.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await phone.mouse.wheel(0, 400);
+  expect(await scrolled(phone)).toEqual([0, 0, 0]);
   // Kartans övre vänstra hörn (5, 95 mm) är tomt.
   const empty = await screenOf(map, 5, 95);
   const centerBefore = await map.getAttribute("data-center");

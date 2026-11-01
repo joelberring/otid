@@ -33,7 +33,7 @@ import { fetchMapSource, fetchRouteChoice } from "../../lib/route-choice-api";
 import { RouteChoiceSession } from "../../lib/route-choice-client";
 import { describeEdit } from "../../lib/course-setting-suggestion";
 import { Button, Notice } from "../ui";
-import { useFieldMode } from "./course-setting-field";
+import { useFieldMode, useLockedPage } from "./course-setting-field";
 import { FilePanel, type ReadFile } from "./course-setting-file";
 import { DescriptionPanel } from "./course-setting-description";
 import { CourseSettingMap, type CourseSettingMapHandle, type MapPointerHandlers } from "./course-setting-map";
@@ -487,7 +487,11 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
 
   // Fältläget (grenen faltlage-snabb, steg 67 bygger vidare): position, Flytta hit, pilar och Uppgifter; på smal skärm i
   // raden nertill i stället för rutan med vald kontroll.
-  const field = useFieldMode({ raceId, state: editor, apply: edit, georeference, mapBounds, status, statusText, version: () => sync.version });
+  // Banväljaren finns i fältets rad på telefonen (raden överst har den på bredare skärm).
+  const variantsByCourse = useMemo(() => Object.fromEntries(summaries.map(row => [row.course, row.variants.map(item => item.code)])), [summaries]);
+  const field = useFieldMode({ raceId, state: editor, apply: edit, georeference, mapBounds, status, statusText, version: () => sync.version,
+    onView: (next, code) => apply(current => setView(current, next, code)), variants: variantsByCourse });
+  useLockedPage();
   const toolBar = <ToolBar tool={editor.tool} tools={tools} inCourse={view !== ALL_CONTROLS} onTool={tool => apply(current => setTool(current, tool))}
     onFork={readOnly ? undefined : fork} help={text.tools.help[editor.tool] ?? ""} />;
 
@@ -495,7 +499,8 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
     ...(access.admin ? [{ label: copy.topbar.transfer, onClick: () => setDialog("transfer") }] : []),
     { label: copy.topbar.settings, onClick: () => setTab("settings") }];
   // `course-setting-shell` (globals.css): sidan under arbetsytan skrollar och studsar aldrig.
-  return <main className={`${styles.shell} course-setting-shell`} data-version={version} data-level={access.level}>
+  return <main className={`${styles.shell} course-setting-shell`} data-version={version} data-level={access.level}
+    data-field={field.narrow && !readOnly ? "" : undefined}>
     <TopBar raceId={raceId} document={document} summaries={summaries} view={view} variant={variant}
       onView={(next, value) => apply(current => setView(current, next, value))}
       status={<p role="status" aria-live="polite" className={styles.status} data-status={suggesting ? "pending" : status}

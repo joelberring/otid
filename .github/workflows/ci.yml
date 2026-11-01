@@ -36,6 +36,13 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
+      # pg_dump i integrationstesterna (steg 59) måste ha samma huvudversion som servern (postgres:17).
+      - name: pg_dump 17
+        run: |
+          sudo apt-get install -y postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
       - run: pnpm test:integration
       - run: pnpm build
       # Webbläsartesterna körs i jobbet production mot det byggda driftpaketet. Utvecklingsservern

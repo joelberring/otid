@@ -7,6 +7,7 @@ import {
   applyEdit, checkDocument, courseControlOrder, courseSummaries, describeControl, layoutOverprint, nextFreeCode, type CourseSettingDocument,
   type OverprintPrimitive
 } from "@o-tid/course-setting";
+import type { MapGeoreference } from "@o-tid/map-file";
 import type { LegAnalysis, RouteChoiceSettings } from "@o-tid/route-choice";
 import { courseSettingSv as text } from "../../i18n/course-setting-sv";
 import { collaborationSv as copy } from "../../i18n/course-setting-collaboration-sv";
@@ -32,6 +33,7 @@ import { fetchMapSource, fetchRouteChoice } from "../../lib/route-choice-api";
 import { RouteChoiceSession } from "../../lib/route-choice-client";
 import { describeEdit } from "../../lib/course-setting-suggestion";
 import { Button, Notice } from "../ui";
+import { useFieldMode } from "./course-setting-field";
 import { FilePanel, type ReadFile } from "./course-setting-file";
 import { DescriptionPanel } from "./course-setting-description";
 import { CourseSettingMap, type CourseSettingMapHandle, type MapPointerHandlers } from "./course-setting-map";
@@ -126,6 +128,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
   const [mapSession, setMapSession] = useState<MapRenderSession>();
   const [mapBounds, setMapBounds] = useState<Bounds | undefined>(state.mapFile?.bounds);
   const [mapStatus, setMapStatus] = useState<"none" | "reading" | "ready" | "failed">(state.mapFile ? "reading" : "none");
+  const [georeference, setGeoreference] = useState<MapGeoreference | null>();
   const routes = useRef<RouteChoiceSession | undefined>(undefined);
   const [routeReady, setRouteReady] = useState(false);
   useEffect(() => {
@@ -140,7 +143,9 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
           ? fetchRouteChoice(raceId, controller.signal).then(value => value.settings as RouteChoiceSettings, () => ({ version: 1 }) as RouteChoiceSettings)
           : Promise.resolve({ version: 1 } as RouteChoiceSettings)]);
         if (closed) return;
-        session = new MapRenderSession(createMapWorker, bounds => { if (!closed) { setMapBounds(bounds); setMapStatus("ready"); } },
+        session = new MapRenderSession(createMapWorker, (bounds, _scale, georef) => {
+          if (!closed) { setMapBounds(bounds); setGeoreference(georef); setMapStatus("ready"); }
+        },
           () => { if (!closed) setMapStatus("failed"); });
         session.load(file.bytes.slice(0), file.fileName);
         setMapSession(session);
@@ -467,6 +472,12 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
     }
   })();
 
+  // Fältläget (grenen faltlage-snabb, steg 67 bygger vidare): position, Flytta hit, pilar och Uppgifter; på smal skärm i
+  // raden nertill i stället för rutan med vald kontroll.
+  const field = useFieldMode({ raceId, state: editor, apply: edit, georeference, mapBounds, status, statusText, version: () => sync.version });
+  const toolBar = <ToolBar tool={editor.tool} tools={tools} inCourse={view !== ALL_CONTROLS} onTool={tool => apply(current => setTool(current, tool))}
+    onFork={readOnly ? undefined : fork} help={text.tools.help[editor.tool] ?? ""} />;
+
   const menu = [{ label: copy.topbar.fileMenu, onClick: () => setDialog("file") },
     ...(access.admin ? [{ label: copy.topbar.transfer, onClick: () => setDialog("transfer") }] : []),
     { label: copy.topbar.settings, onClick: () => setTab("settings") }];
@@ -481,16 +492,21 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
       <div className={styles.mapArea}>
         <CourseSettingMap session={mapSession} mapBounds={mapBounds} primitives={primitives} faded={faded} marks={marks} analysis={analysis}
           label={label} cursor={CURSOR[editor.tool]} handlers={handlers} handle={mapHandle} noteMarks={mapNotes} selectedNote={selectedNote}
-          onNoteTap={id => { setSelectedNote(id); setTab("notes"); }} suggestion={suggestionDrawing} cursorAt={cursorAt} highlightRoute={highlightRoute} />
-        <ToolBar tool={editor.tool} tools={tools} inCourse={view !== ALL_CONTROLS} onTool={tool => apply(current => setTool(current, tool))}
-          onFork={readOnly ? undefined : fork} help={text.tools.help[editor.tool] ?? ""} />
+          onNoteTap={id => { setSelectedNote(id); setTab("notes"); }} suggestion={suggestionDrawing} cursorAt={cursorAt} highlightRoute={highlightRoute}
+          position={field.position} />
+        {field.narrow ? <div className={styles.bottomStack}>
+          {toolBar}
+          {noteDraft && <div className={styles.cardStatic}><NoteForm target={noteDraft} document={document} onSave={saveNote} onCancel={() => setNoteDraft(undefined)} /></div>}
+          {!readOnly && <div className={styles.fieldBar} data-testid="course-setting-field">{field.bar}</div>}
+        </div> : <>{toolBar}{!readOnly && <div className={styles.fieldTools}>{field.tools}</div>}</>}
         <div className={styles.toasts}>
           {mapStatus === "reading" && <p role="status" className={styles.toast}>{text.readingMap}</p>}
           {mapStatus === "failed" && <Notice tone="attention">{text.mapFailed}</Notice>}
           {suggesting && <p className={styles.toast} data-testid="course-setting-suggesting">{copy.suggestions.drafting}: {copy.suggestions.draftCount(editor.log.length)}
             {" "}<Button variant="quiet" onClick={() => setTab("suggestions")}>{copy.suggestions.send} …</Button></p>}
           {reviewed && <p className={styles.toast}>{copy.suggestions.reviewing}</p>}
-          {editor.error && <p role="alert" className={styles.toast}>{editor.error}</p>}
+          {editor.error && !field.narrow && <p role="alert" className={styles.toast}>{editor.error}</p>}
+          {field.notice}
           {messages.map(message => <div key={message.id} className={styles.toastBox}>
             <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>
               <p>{message.text}</p>
@@ -499,7 +515,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
             <Button variant="quiet" aria-label={copy.topbar.close} onClick={() => setMessages(current => current.filter(row => row.id !== message.id))}>×</Button>
           </div>)}
         </div>
-        {noteDraft ? <div className={styles.card}><NoteForm target={noteDraft} document={document} onSave={saveNote} onCancel={() => setNoteDraft(undefined)} /></div>
+        {field.narrow && !readOnly ? null : noteDraft ? <div className={styles.card}><NoteForm target={noteDraft} document={document} onSave={saveNote} onCancel={() => setNoteDraft(undefined)} /></div>
           : <SelectionCard state={editor} described={describedControl} readOnly={readOnly}
             onCode={(control, value) => edit(current => applySteps(current, [{ type: "SET_CONTROL_CODE", control, code: value }], applyEdit))}
             onRemoveFromCourse={() => edit(current => removeSelected(current, applyEdit, false))}

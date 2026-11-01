@@ -7,6 +7,8 @@ import type { LegAnalysis } from "@o-tid/route-choice";
 import { courseSettingSv as text } from "../../i18n/course-setting-sv";
 import { drawMarks, drawOverprint, drawRouteChoice } from "../../lib/course-setting-draw";
 import { drawHighlightedRoute, drawNoteMarks, drawSuggestion, type SuggestionDrawing } from "../../lib/course-setting-draw-collaboration";
+import { drawPosition } from "../../lib/course-setting-field";
+import type { MapPosition } from "../../lib/course-setting-geo";
 import { hitNoteMark, noteMarkGeometry, type NoteMark } from "../../lib/course-setting-note-marks";
 import { MAX_RENDER_SIDE, type MapRenderSession } from "../../lib/course-setting-map-protocol";
 import {
@@ -49,7 +51,7 @@ const tolerancePx = (pointerType: string) => pointerType === "touch" ? 18 : 8;
  * dra (`cursorAt`), och piltangenterna panorerar när kartan har fokus (+ och − zoomar).
  */
 export function CourseSettingMap({ session, mapBounds, primitives, faded, marks, analysis, label, cursor, handlers, handle, noteMarks,
-  selectedNote, onNoteTap, suggestion, cursorAt, highlightRoute }: {
+  selectedNote, onNoteTap, suggestion, cursorAt, highlightRoute, position }: {
   session: MapRenderSession | undefined;
   mapBounds: Bounds | undefined;
   primitives: readonly OverprintPrimitive[];
@@ -68,6 +70,8 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
   cursorAt?: ((point: Point, toleranceMm: number) => string | undefined) | undefined;
   /** Vägvalet som är valt i listan. */
   highlightRoute?: readonly Point[] | undefined;
+  /** Fältläget: telefonens position och om kartan följer den. */
+  position?: { readonly position: MapPosition; readonly follow: boolean } | undefined;
 }) {
   const [hoverCursor, setHoverCursor] = useState<string>();
   const [grabbing, setGrabbing] = useState(false);
@@ -179,7 +183,12 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
     if (suggestion) drawSuggestion(ctx, view, suggestion);
     drawMarks(ctx, view, marks);
     if (noteMarks) drawNoteMarks(ctx, view, noteMarks.map(mark => ({ ...mark, selected: mark.id === selectedNote })));
-  }, [view, primitives, faded, marks, analysis, suggestion, noteMarks, selectedNote, highlightRoute]);
+    if (position) drawPosition(ctx, view, position.position);
+  }, [view, primitives, faded, marks, analysis, suggestion, noteMarks, selectedNote, highlightRoute, position]);
+  const followX = position?.follow ? position.position.at.x : undefined, followY = position?.follow ? position.position.at.y : undefined;
+  useEffect(() => {
+    if (followX !== undefined && followY !== undefined) setView(previous => previous ? { ...previous, centerX: followX, centerY: followY } : previous);
+  }, [followX, followY]);
 
   function local(event: { clientX: number; clientY: number }) {
     const rect = box.current!.getBoundingClientRect();

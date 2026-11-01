@@ -47,8 +47,8 @@
 .tool:disabled { opacity: .4; cursor: default; }
 .toolIcon { font-size: 1.1rem; line-height: 1.2; }
 
-.toasts { position: absolute; top: 76px; left: 50%; z-index: 5; display: grid; gap: 6px; width: min(520px, calc(100% - 24px));
-  transform: translateX(-50%); pointer-events: none; }
+.toasts { position: absolute; top: 10px; right: 64px; z-index: 5; display: grid; gap: 6px; width: min(460px, calc(100% - 640px));
+  min-width: 280px; pointer-events: none; }
 .toasts > * { pointer-events: auto; }
 .toast { margin: 0; padding: 6px 12px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface);
   box-shadow: 0 2px 8px rgba(0, 0, 0, .15); font-size: var(--text-sm); }
@@ -56,6 +56,14 @@
 .toastBox ul { margin: 4px 0 0; padding-left: 1.1rem; font-size: var(--text-sm); }
 .card { position: absolute; left: 50%; bottom: 12px; z-index: 4; display: grid; gap: 6px; width: min(560px, calc(100% - 120px)); padding: 8px 12px;
   transform: translateX(-50%); border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); box-shadow: 0 4px 16px rgba(0, 0, 0, .22); }
+/* Fältläget: knapparna under verktygsraden (bred skärm), raden nertill i en stapel (smal skärm). */
+.fieldTools { position: absolute; top: 72px; left: 10px; z-index: 3; max-width: calc(100% - 80px); }
+.bottomStack { position: absolute; left: 0; right: 0; bottom: 50px; z-index: 5; display: grid; gap: 4px; pointer-events: none; }
+.bottomStack > * { pointer-events: auto; }
+.bottomStack .toolbar { position: static; margin: 0 6px; max-width: none; }
+.cardStatic { margin: 0 6px; padding: 8px 12px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .22); }
+.fieldBar { box-shadow: 0 -2px 10px rgba(0, 0, 0, .15); }
 .cardHead { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 
 .drawer { --drawer-width: 380px; position: relative; display: grid; grid-template-columns: 6px 48px minmax(0, 1fr); width: var(--drawer-width);
@@ -181,5 +189,10 @@
   .tool { min-width: 48px; flex: 0 0 auto; }
   .zoom { bottom: 136px; right: 8px; }
   .card { bottom: 136px; width: calc(100% - 72px); left: 8px; transform: none; }
-  .toasts { top: 8px; }
+  .toasts { top: 8px; left: 8px; right: 60px; width: auto; min-width: 0; }
+}
+
+/* Under 700 px: fältlägets rad och verktygen i stapeln nertill, zoomen uppe till höger. */
+@media (max-width: 699px) {
+  .zoom { top: 8px; bottom: auto; }
 }

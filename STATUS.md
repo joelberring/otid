@@ -19,6 +19,11 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Sidouppdraget (404 på POST map/source i dev): anropet nådde aldrig routen – Next (Turbopack) svarade med sin 404-sida och loggade "Failed to find Server Action" medan den kompilerade annat. Gick inte att framkalla med curl. Klienten skickar nu om en sådan 404 (inte appens JSON-404) och specarna förvärmer banläggningens routes.
 VERIFIERAT_PLATS
 
+### 2026-11-01 – Fältläget, snabbversion (grenen faltlage-snabb; hela fältläget är steg 67)
+- Min position (WGS 84 → kartans mm med kartfilens georeferens, som kartans Worker nu skickar med), Flytta hit (medel under 5 s, avvikare > 2 × medianen kastas), pilar 1 m; under 700 px kartan på hela skärmen med stora knappar och "Uppgifter" (F, G). Permissions-Policy `geolocation=(self)` på `/admin/:raceId/course-setting`.
+- Osparade ändringar ligger i localStorage tills servern sparat och erbjuds vid nästa öppning; statusen säger "Inte sparat – försöker igen". Logiken i `lib/course-setting-field.ts` och `-geo.ts` med enhetstester.
+- Verifierat: lint, typecheck, test; Playwright banlaggning-mobil (390 × 844, fejkad position, nätfel och återställning) och banlaggning gröna. Inte provat på en riktig telefon i skogen.
+
 ### 2026-11-01 – Steg 63: kontrollbeskrivningar (paketet steg63-paket, webben steg63-webb, ihopslagna i main)
 - Paketet: symbolerna ur Purple Pens `symbols.xml` (201, 2004 och 2018, sv/en/nb/fi/de; 20 kB gzip), `layoutDescription` och `describeControl` som Purple Pen (11 + 13 jämförelser tecken för tecken), SET_DESCRIPTION/…_TEXT_LINE.
 - Editorn: beskrivningen för vald bana/variant (eller Alla kontroller) i spalten bredvid kartan, ritad som SVG ur `layoutDescription` och symbolernas figurer (vända rätt, i mm); rad ↔ kartval åt båda hållen, rutorna nås med Tab.

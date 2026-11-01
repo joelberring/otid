@@ -26,9 +26,9 @@ const FONTS = {
   textLine: { em: 56, bold: true, condensed: true }
 } satisfies Record<string, Font>;
 
-/** Typsnittets höjd (ascent + descent) och radavstånd som andel av em-höjden, ungefär som Roboto. */
-const LINE_HEIGHT = 1.17;
-const ASCENT = 0.93;
+/** Radavstånd och höjd över baslinjen som andel av em-höjden, ungefär som Robotos (Windows-mått, som Purple Pen får). */
+const LINE_HEIGHT = 1.32;
+const ASCENT = 1.05;
 
 /**
  * Ungefärlig bredd av ett tecken i em. Paketet har inga typsnittsmått; bredden används bara för att bryta och krympa

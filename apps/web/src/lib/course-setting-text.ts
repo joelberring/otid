@@ -29,7 +29,7 @@ export function checkRows(document: CourseSettingDocument, checks: readonly Cour
     const key = `${check.kind}-${index}`;
     switch (check.kind) {
       case "CONTROLS_TOO_CLOSE": return { key, controls: check.controls,
-        text: text.checks.CONTROLS_TOO_CLOSE(label(check.controls[0]), label(check.controls[1]), check.meters, check.limitMeters) };
+        text: text.checks.CONTROLS_TOO_CLOSE(label(check.controls[0]), label(check.controls[1]), check.meters, check.limitMeters, check.feature) };
       case "DUPLICATE_CODE": return { key, controls: check.controls, text: text.checks.DUPLICATE_CODE(check.code, check.controls.length) };
       case "INVERTIBLE_CODE": return { key, controls: [check.control], text: text.checks.INVERTIBLE_CODE(check.code) };
       case "SAME_CONTROL_TWICE_IN_ROW": return { key, controls: [check.control], course: check.course,

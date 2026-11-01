@@ -154,7 +154,8 @@ function corridorOf(grid: Grid, fieldA: Float64Array, fieldB: Float64Array, limi
       if (fieldA[index]! + fieldB[index]! <= limit) mask[row * width + col] = 1;
     }
   }
-  return { origin: { x: grid.x0 + minCol * grid.cellMm, y: grid.yTop - minRow * grid.cellMm }, cellMm: grid.cellMm, width, height, mask };
+  // `origin` är stråkets nedre vänstra hörn (kontraktet); raderna i masken börjar överst.
+  return { origin: { x: grid.x0 + minCol * grid.cellMm, y: grid.yTop - (maxRow + 1) * grid.cellMm }, cellMm: grid.cellMm, width, height, mask };
 }
 
 /**

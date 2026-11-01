@@ -260,7 +260,11 @@ export interface CheckOptions {
 }
 
 export type CourseCheck =
-  | { readonly kind: "CONTROLS_TOO_CLOSE"; readonly controls: readonly [string, string]; readonly meters: number; readonly limitMeters: number }
+  /**
+   * Under `minMeters` alltid; upp till `similarMeters` bara när objekten (kolumn D) är samma slag (`feature` "SAME") eller
+   * okända ("UNKNOWN"). Saknas `feature` gäller den undre gränsen.
+   */
+  | { readonly kind: "CONTROLS_TOO_CLOSE"; readonly controls: readonly [string, string]; readonly meters: number; readonly limitMeters: number; readonly feature?: "SAME" | "UNKNOWN" | undefined }
   | { readonly kind: "DUPLICATE_CODE"; readonly code: string; readonly controls: readonly string[] }
   | { readonly kind: "INVERTIBLE_CODE"; readonly code: string; readonly control: string }
   | { readonly kind: "SAME_CONTROL_TWICE_IN_ROW"; readonly course: string; readonly control: string }

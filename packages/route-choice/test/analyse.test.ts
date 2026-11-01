@@ -34,6 +34,13 @@ describe("analyseLeg", () => {
     const corridor = result.corridor!;
     expect(corridor).toBeDefined();
     expect(corridor.mask.reduce((sum, v) => sum + v, 0)).toBeGreaterThan(100);
+    // `origin` är nedre vänstra hörnet: bästa vägens punkter ligger i stråkets celler (inte förskjutna en höjd uppåt).
+    const inside = result.best!.points.filter(p => {
+      const col = Math.floor((p.x - corridor.origin.x) / corridor.cellMm);
+      const row = corridor.height - 1 - Math.floor((p.y - corridor.origin.y) / corridor.cellMm);
+      return col >= 0 && col < corridor.width && row >= 0 && row < corridor.height && corridor.mask[row * corridor.width + col] === 1;
+    });
+    expect(inside.length / result.best!.points.length).toBeGreaterThan(0.8);
   });
 
   it("tar stigen när omvägen lönar sig och inte annars", () => {

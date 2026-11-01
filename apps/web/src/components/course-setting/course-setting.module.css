@@ -238,3 +238,11 @@
   font-size: 0.85rem; cursor: pointer; }
 .specialKind[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: var(--surface); font-weight: 700; }
 .specialList { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+
+/* Telefonen, kompakt läge (ägaren 2026-11-01): verktygsraden och flikarna göms tills "Mer" öppnas, så att kartan får
+   nästan hela skärmen. Välj är verktyget; flytta, uppgifter, kollad och notis finns i fältets rad. */
+@media (max-width: 699px) {
+  .stage[data-compact="true"] .toolbar, .stage[data-compact="true"] .drawer { display: none; }
+  .stage[data-compact="true"] .mapArea { padding-bottom: 0; }
+  .stage[data-compact="true"] .card { display: none; }
+}

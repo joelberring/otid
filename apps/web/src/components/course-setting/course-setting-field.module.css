@@ -53,3 +53,17 @@
 .status[data-offline="true"] { border-color: var(--attention, #b26a00); color: var(--ink); font-weight: 700; background: rgb(255, 244, 222); }
 .inspected { font-size: var(--text-sm); color: var(--ink-muted, #444); }
 .hidden { display: none; }
+
+/* Smal skärm, kompakt (ägaren 2026-11-01): kartan först. En rad med det vanligaste, en rad till bara när en kontroll är
+   vald; resten bakom "Mer". */
+.bar { gap: 4px; padding: 4px 6px calc(4px + env(safe-area-inset-bottom, 0px)); }
+.barHead { min-height: 22px; gap: 6px; font-size: var(--text-sm); }
+.selectedLabel { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.barHead .inspected { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.compactRow { display: flex; gap: 4px; align-items: stretch; }
+.compactRow > .big { flex: 0 1 auto; padding: 0 10px; }
+.compactRow .arrows { flex: 1 1 auto; display: flex; gap: 4px; }
+.compactRow .arrows > * { flex: 1 1 0; padding: 0; }
+.picker { display: flex; gap: 4px; flex: 1 1 auto; min-width: 0; }
+.picker .select { flex: 1 1 0; min-width: 0; max-width: 100%; }
+.bar .line { padding: 2px 6px; }

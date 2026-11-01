@@ -10,6 +10,7 @@ const megabytes = (bytes: number) => bytes < 1024 * 1024 ? `${Math.max(1, Math.r
   : `${(bytes / 1024 / 1024).toLocaleString("sv-SE", { maximumFractionDigits: 1 })} MB`;
 
 export const offlineSv = {
+  more: "Mer",
   status: {
     offline: (waiting: number) => waiting === 0 ? "Utan nät" : `Utan nät – ${plural(waiting, "ändring", "ändringar")} väntar`,
     loggedOut: (waiting: number) => `Utloggad – ${plural(waiting, "ändring", "ändringar")} väntar i telefonen`,

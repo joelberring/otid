@@ -174,6 +174,58 @@ function distanceToSegment(point: Point, from: Point, to: Point): number {
   return Math.hypot(point.x - (from.x + share * dx), point.y - (from.y + share * dy));
 }
 
+function distanceToLine(point: Point, line: readonly Point[]): number {
+  if (line.length === 1) return Math.hypot(point.x - line[0]!.x, point.y - line[0]!.y);
+  let best = Infinity;
+  for (let index = 1; index < line.length; index += 1) best = Math.min(best, distanceToSegment(point, line[index - 1]!, line[index]!));
+  return best;
+}
+
+/**
+ * Färgerna för vägvalen på kartan (kanvas och SVG): bästa vägen blå, alternativen i ordning röd, orange, turkos och grå.
+ * Ingen är banlila eller kartans gröna, gula eller bruna.
+ */
+export const ROUTE_CHOICE_COLORS = {
+  best: "rgb(0, 85, 210)",
+  alternatives: ["rgb(220, 30, 30)", "rgb(235, 120, 0)", "rgb(0, 150, 140)", "rgb(70, 70, 70)"]
+} as const;
+
+export const alternativeColor = (index: number) => ROUTE_CHOICE_COLORS.alternatives[index % ROUTE_CHOICE_COLORS.alternatives.length]!;
+
+export interface AlternativeLabel {
+  readonly index: number;
+  /** Etikettens läge i kartfilens mm. */
+  readonly at: Point;
+  /** Tidsskillnaden mot bästa vägen i hela procent. */
+  readonly percent: number;
+  readonly text: string;
+}
+
+/**
+ * Etiketterna för alternativen ("1 · +8 %"): på den punkt där alternativet ligger längst från bästa vägen (där
+ * vägvalen skiljer sig), och minst `separationMm` från etiketter som redan satts.
+ */
+export function alternativeLabels(analysis: {
+  best?: { points: readonly Point[] } | undefined; alternatives: readonly { points: readonly Point[]; timeRatio: number }[];
+}, separationMm = 6): AlternativeLabel[] {
+  const best = analysis.best?.points ?? [];
+  const placed: Point[] = [];
+  return analysis.alternatives.map((alternative, index) => {
+    const candidates: Point[] = [];
+    alternative.points.forEach((point, at) => {
+      candidates.push(point);
+      const next = alternative.points[at + 1];
+      if (next) for (const share of [0.25, 0.5, 0.75]) candidates.push({ x: point.x + (next.x - point.x) * share, y: point.y + (next.y - point.y) * share });
+    });
+    const ranked = candidates.map(point => ({ point, away: best.length > 0 ? distanceToLine(point, best) : 0 })).sort((a, b) => b.away - a.away);
+    const free = ranked.find(({ point }) => placed.every(other => Math.hypot(other.x - point.x, other.y - point.y) >= separationMm)) ?? ranked[0];
+    const at = free?.point ?? alternative.points[0] ?? { x: 0, y: 0 };
+    placed.push(at);
+    const percent = Math.max(0, Math.round((alternative.timeRatio - 1) * 100));
+    return { index, at, percent, text: text.alternativeLabel(index, percent) };
+  });
+}
+
 /**
  * Förenklar en linje (Douglas–Peucker) med toleransen i mm och avrundar till 0,01 mm, för det som publiceras. Ändpunkterna
  * behålls alltid. Högst `maxPoints` punkter (toleransen ökas tills det räcker).

@@ -53,6 +53,8 @@ export const routeChoiceSv = {
   control: (code: number) => `Kontroll ${code}`,
   legend: "Svart linje = bästa vägen. Tonad yta = vägar som är högst 5 % sämre. Streckade linjer = andra vägval.",
   alternative: (index: number, percent: number) => `Vägval ${index + 1}: ${percent} % längre tid`,
+  /** Etiketten vid alternativets linje på kartan. */
+  alternativeLabel: (index: number, percent: number) => `${index + 1} · +${percent} %`,
   selectLeg: "Välj en sträcka i tabellen för att se den på kartan.",
   showLeg: (leg: string) => `Visa ${leg} på kartan`,
   // Inställningar.

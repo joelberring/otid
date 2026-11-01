@@ -1,9 +1,11 @@
-/* Steg 60: vägvalen i kontrollkartan. Sparsam färg: bästa vägen svart med vit kant, stråket som tonad banlila yta, alternativen streckade. */
+/* Steg 60: vägvalen i kontrollkartan. Bästa vägen blå med vit kant, alternativen streckade i var sin färg med vit kant och etikett, stråket som tonad banlila yta. Färgerna står i `ROUTE_CHOICE_COLORS`. */
 .routes { pointer-events: none; }
 .corridor { fill: color-mix(in srgb, var(--accent) 22%, transparent); }
-.alternative { fill: none; stroke: var(--ink); opacity: .75; stroke-linecap: round; stroke-linejoin: round; }
+.alternative { fill: none; stroke-linecap: round; stroke-linejoin: round; }
 .halo { fill: none; stroke: var(--surface); stroke-linecap: round; stroke-linejoin: round; opacity: .9; }
-.best { fill: none; stroke: var(--ink); stroke-linecap: round; stroke-linejoin: round; }
+.best { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.label rect { fill: #fff; fill-opacity: .95; }
+.label text { fill: #141414; font-weight: 700; text-anchor: middle; dominant-baseline: central; font-variant-numeric: tabular-nums; }
 .muted { color: var(--muted); font-size: var(--text-sm); margin: 0; }
 .panel { display: grid; gap: 12px; min-width: 0; }
 .status { color: var(--muted); font-size: var(--text-sm); margin: 0; }

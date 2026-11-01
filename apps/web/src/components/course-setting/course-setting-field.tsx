@@ -139,7 +139,6 @@ export function useFieldMode(input: FieldInput): FieldMode {
   const [fix, setFix] = useState<PositionFix>();
   const [error, setError] = useState<string>();
   const [note, setNote] = useState<Note>();
-  const [compassAllowed, setCompassAllowed] = useState(false);
   const georeferenceRef = useRef(georeference);
   georeferenceRef.current = georeference;
   const collector = useRef<MapPosition[] | undefined>(undefined);
@@ -159,7 +158,7 @@ export function useFieldMode(input: FieldInput): FieldMode {
     }, failure => setError(geolocationError(failure)), { enableHighAccuracy: true, maximumAge: 0 });
     return () => navigator.geolocation.clearWatch(id);
   }, [active]);
-  const heading = useCompass(active && compassAllowed);
+  const heading = useCompass(active);
 
   const located = useMemo<{ position?: MapPosition; problem?: string }>(() => {
     if (!fix || !georeference) return {};
@@ -259,12 +258,13 @@ export function useFieldMode(input: FieldInput): FieldMode {
   const problem = georeference === null && active ? text.noGeoreference : error ?? located.problem;
   const positionTitle = mode === "off" ? text.positionOff : mode === "on" ? text.positionOn : text.positionFollow;
   const cycle = () => {
-    // iOS: kompassen kräver lov, och frågan måste komma från ett tryck.
+    // iOS: kompassen kräver lov, och frågan måste komma från ett tryck. Utan lov kommer inga riktningar (ingen kon).
     if (mode === "off") {
       const orientation = (typeof DeviceOrientationEvent === "undefined" ? undefined : DeviceOrientationEvent) as OrientationPermission | undefined;
       if (typeof orientation?.requestPermission === "function") {
-        orientation.requestPermission().then(answer => setCompassAllowed(answer === "granted"), () => setCompassAllowed(false));
-      } else setCompassAllowed(true);
+        orientation.requestPermission().then(answer => { if (answer !== "granted") console.info("Kompassen: inget lov", answer); },
+          error => console.info("Kompassen: frågan gick inte", error));
+      }
     }
     setMode(current => current === "off" ? "on" : current === "on" ? "follow" : "off");
   };
@@ -298,7 +298,7 @@ export function useFieldMode(input: FieldInput): FieldMode {
   </>;
   const inspectedLine = input.inspection && <span className={css.inspected} data-testid="course-setting-inspected-by">
     {copy.inspection.by(input.inspection.checkedBy.displayName, input.inspection.checkedAt)}
-    {input.inspection.pending ? ` (${copy.inspection.pending})` : ""}</span>;
+    {input.inspection.pending ? ` (${input.offline ? copy.inspection.pending : copy.inspection.sending})` : ""}</span>;
 
   const tools = <div className={css.tools}>
     {positionButton}

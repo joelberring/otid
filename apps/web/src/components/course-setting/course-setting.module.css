@@ -147,7 +147,8 @@
   background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .inspectionList strong { min-width: 2.5em; font-size: 1.1rem; }
 .inspectionList button:hover, .inspectionList button:focus-visible { background: var(--surface-strong, rgba(0, 0, 0, .05)); color: inherit; }
-.segmented button[aria-pressed="true"]:hover { background: var(--ink); color: var(--surface); }
+.panel .segmented button[aria-pressed="true"]:hover:not(:disabled), .panel .segmented button[aria-pressed="true"]:focus { background: var(--ink); color: var(--surface);
+  border-color: var(--ink); }
 .noteHead { display: grid; gap: 2px; width: 100%; padding: 6px 8px; border: none; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .noteStatus { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; }
 .noteText { white-space: pre-wrap; }

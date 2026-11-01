@@ -336,6 +336,7 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
       style={{ cursor: grabbing ? "grabbing" : hoverCursor ?? cursor }} data-testid="course-setting-map"
       data-px-per-mm={view ? view.pxPerMm.toFixed(3) : undefined}
       data-center={view ? `${view.centerX.toFixed(2)},${view.centerY.toFixed(2)}` : undefined}
+      data-heading={position?.heading} data-follow={position?.follow || undefined}
       onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
       <canvas ref={base} className={styles.layer} aria-hidden="true" />
       <canvas ref={overlay} className={styles.layer} aria-hidden="true" data-testid="course-setting-overprint" />

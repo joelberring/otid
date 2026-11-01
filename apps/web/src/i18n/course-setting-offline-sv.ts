@@ -48,6 +48,7 @@ export const offlineSv = {
     checked: "Kollad ✓",
     by: (name: string | null, at: string) => `Kollad av ${name ?? "någon"} ${when(at)}`,
     pending: "väntar på nät",
+    sending: "skickas …",
     movedSince: "flyttad efter kollen",
     notSaved: "Kontrollen är inte sparad än – kolla den när den är sparad.",
     heading: "Kollade kontroller",
@@ -78,8 +79,6 @@ export const offlineSv = {
   list: "Lista",
   offlineButton: "Offline",
   follow: "Följer",
-  compass: "Kompass",
-  compassDenied: "Kompassen får inte användas (tillåt rörelse och orientering för sidan).",
   poorAccuracy: (meters: number) => `Position ±${meters} m – osäker (sämre än 15 m). Vänta en stund eller gå ut i det öppna.`,
   movedPoor: (meters: number) => `Flyttad, men noggrannheten var bara ±${meters} m – kontrollera mot kartbilden.`
 } as const;

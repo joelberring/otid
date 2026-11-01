@@ -112,7 +112,7 @@ test("fältläget: kollad, notis med foto och ändringar utan nät som sparas n�
   // 3. Spara kartan och sidan för offline; service workern gäller bara banläggningen.
   await phone.getByRole("button", { name: "Offline", exact: true }).click();
   const dialog = phone.getByRole("dialog", { name: "Utan nät" });
-  await dialog.getByRole("button", { name: /^Spara kartan för offline \(.+ MB\)$/ }).click();
+  await dialog.getByRole("button", { name: /^Spara kartan för offline \(\d+ kB\)$/ }).click();
   await expect(dialog.getByTestId("course-setting-offline-saved")).toContainText("Sparad i telefonen", { timeout: 30_000 });
   await expect(dialog.getByRole("status")).toHaveCount(0);
   await screenshot(phone, "falt-offline-sparad");
@@ -138,6 +138,19 @@ test("fältläget: kollad, notis med foto och ändringar utan nät som sparas n�
   // Positionen med noggrannheten (GPS fungerar utan nät).
   await phone.getByRole("button", { name: "Min position" }).click();
   await expect(phone.getByTestId("course-setting-position-info")).toHaveText("Position ±6 m", { timeout: 15_000 });
+  // Kompassen (Android: absolut riktning moturs) ger konen; sämre än 15 m ger en varning.
+  await phone.evaluate(() => window.dispatchEvent(Object.assign(new Event("deviceorientationabsolute"), { alpha: 90, absolute: true })));
+  await expect(map).toHaveAttribute("data-heading", "270");
+  await phoneContext.setGeolocation({ latitude: wgs.latitude, longitude: wgs.longitude, accuracy: 25 });
+  await expect(phone.getByTestId("course-setting-position-info")).toHaveText(/^Position ±25 m – osäker/, { timeout: 15_000 });
+  await screenshot(phone, "falt-kompass-osaker");
+  await phoneContext.setGeolocation({ latitude: wgs.latitude, longitude: wgs.longitude, accuracy: 6 });
+  // Följ: ett tryck till håller positionen i mitten; att dra kartan släpper.
+  await phone.getByRole("button", { name: "Min position" }).click();
+  await expect(map).toHaveAttribute("data-follow", "true");
+  const drag = await screenOf(map, 20, 90);
+  await phone.mouse.move(drag.x, drag.y); await phone.mouse.down(); await phone.mouse.move(drag.x + 40, drag.y + 40, { steps: 4 }); await phone.mouse.up();
+  await expect(map).not.toHaveAttribute("data-follow", "true");
   // Notisen vid kontroll 33; kameran avbryts och texten räcker.
   const offlineChooser = phone.waitForEvent("filechooser");
   await phone.getByTestId("course-setting-note-here-button").click();
@@ -202,8 +215,11 @@ test("fältläget: kollad, notis med foto och ändringar utan nät som sparas n�
   await kim.getByTestId("course-setting-inspect").click();
   await expect(kim.getByTestId("course-setting-inspected-by")).toContainText("Kollad av Kim Kontrollant");
   await screenshot(kim, "falt-kontrollant");
-  const inspections = ((await (await phone.request.get(`${admin}/course-setting/inspections`)).json()) as Inspections).inspections;
-  expect(inspections.map(row => row.checkedBy.displayName).sort()).toEqual(["Bea Banläggare", "Bea Banläggare", "Kim Kontrollant"]);
+  await expect.poll(async () => ((await (await phone.request.get(`${admin}/course-setting/inspections`)).json()) as Inspections).inspections
+    .map(row => row.checkedBy.displayName).sort()).toEqual(["Bea Banläggare", "Bea Banläggare", "Kim Kontrollant"]);
+  // Telefonen får bocken via strömmen.
+  await phone.getByRole("button", { name: "Lista", exact: true }).click();
+  await expect(list).toContainText(/3 av [67] kollade/);
   const savedNotes = ((await (await phone.request.get(`${admin}/course-setting/notes`)).json()) as Notes).notes;
   expect(savedNotes.find(note => note.text === "Snitseln saknas vid stigen")?.target).toMatchObject({ kind: "CONTROL" });
   await phoneContext.close();

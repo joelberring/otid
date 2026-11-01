@@ -8,8 +8,8 @@ import { Button } from "../ui";
 import styles from "./course-setting.module.css";
 
 /** Steg 67: kontrollerna i banan som visas (eller alla) med "kollad", filtret "Ej kollade" och klick som visar kontrollen. */
-export function InspectionsPanel({ rows, selected, onSelect }: { rows: readonly InspectionRow[]; selected: string | undefined;
-  onSelect: (control: string) => void }) {
+export function InspectionsPanel({ rows, selected, onSelect, offline }: { rows: readonly InspectionRow[]; selected: string | undefined;
+  onSelect: (control: string) => void; offline: boolean }) {
   const [filter, setFilter] = useState<InspectionFilter>("UNCHECKED");
   const visible = filterInspectionRows(rows, filter);
   const checked = rows.filter(row => row.inspection).length;
@@ -28,7 +28,7 @@ export function InspectionsPanel({ rows, selected, onSelect }: { rows: readonly 
               <strong>{row.code}</strong>
               <span>{row.inspection ? `${row.movedSince ? "⚠" : "✓"} ${text.inspection.by(row.inspection.checkedBy.displayName, row.inspection.checkedAt)}`
                 : text.inspection.unchecked}
-                {row.inspection?.pending ? ` (${text.inspection.pending})` : ""}
+                {row.inspection?.pending ? ` (${offline ? text.inspection.pending : text.inspection.sending})` : ""}
                 {row.movedSince ? ` – ${text.inspection.movedSince}` : ""}</span>
             </button>
           </li>)}

@@ -135,12 +135,14 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
     onLost: lost => say({ tone: "attention", text: copy.lost(lost.length), list: lostText(lost, store.state.document) }),
     resume: resume?.inFlight
   }), [raceId, store]);
+  const resumed = useRef(false);
   useEffect(() => {
     sync.attach();
-    // Steg 67: åtgärder från förra gången (ur telefonen) skickas direkt.
+    // Steg 67: åtgärder från förra gången (ur telefonen) skickas direkt (beskedet en gång, också med Reacts dubbla körning).
     if (resume && resume.log.length > 0) {
       sync.changed();
-      if (navigator.onLine) say({ tone: "ok", text: offlineSv.resumed(resume.log.length) });
+      if (navigator.onLine && !resumed.current) say({ tone: "ok", text: offlineSv.resumed(resume.log.length) });
+      resumed.current = true;
     }
     return () => sync.detach();
   }, [sync]);
@@ -539,6 +541,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
         onStatus={async (id, value) => { try { await setCourseSettingNoteStatus(raceId, id, value); await collaboration.reloadNotes(); return true; } catch { return false; } }}
         onCourseNote={() => { if (course) setNoteDraft({ kind: "COURSE", course: course.id }); }} />;
       case "inspections": return <InspectionsPanel rows={inspectionList} selected={selection?.kind === "control" ? selection.control : undefined}
+        offline={offline.offline}
         onSelect={control => {
           apply(current => select(current, { kind: "control", control }));
           const at = document.controls[control]?.at;

@@ -81,8 +81,9 @@ export async function exportRaceAsAdmin(db: Database, input: Omit<RaceSessionPro
     const raceId = auth.principal.raceId;
     const [race] = await tx.execute<{ race: Record<string, unknown>; event: Record<string, unknown> }>(sql`select to_jsonb(r) as race,
       to_jsonb(e) as event from race r join event e on e.id = r.event_id where r.id = ${raceId}`).then((result) => result.rows);
-    const [names] = await tx.select({ name: schema.races.name, raceDate: schema.races.raceDate, shortCode: schema.races.shortCode })
-      .from(schema.races).where(eq(schema.races.id, raceId));
+    const [names] = await tx.select({ name: schema.races.name, eventName: schema.events.name, raceDate: schema.races.raceDate,
+      shortCode: schema.races.shortCode }).from(schema.races).innerJoin(schema.events, eq(schema.events.id, schema.races.eventId))
+      .where(eq(schema.races.id, raceId));
     if (!race || !names) return { status: "not-found" };
     const content: Record<string, unknown> = { format: RACE_EXPORT_FORMAT, formatVersion: RACE_EXPORT_FORMAT_VERSION,
       exportedAt: now.toISOString(), engineVersion: RESULT_ENGINE_VERSION, event: race.event, race: race.race };
@@ -90,7 +91,8 @@ export async function exportRaceAsAdmin(db: Database, input: Omit<RaceSessionPro
       const result = await tx.execute<{ rows: unknown[] }>(query);
       content[name] = result.rows[0]?.rows ?? [];
     }
-    const slug = names.name.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-")
+    // Loppets namn, eller evenemangets när loppet saknar eget namn.
+    const slug = (names.name.trim() || names.eventName).normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "").slice(0, 60) || names.shortCode;
     return { status: "ok", bytes: new TextEncoder().encode(JSON.stringify(content)),
       fileName: `otid-${slug}-${names.raceDate}.json` };

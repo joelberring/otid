@@ -10,6 +10,7 @@ import { accountRequest } from "../../lib/account-client";
 import { Button, EmptyState, Field, Notice, numeric, Section, Table } from "../ui";
 import { actionRequest, ResetLink, SuperadminActionPanel, type PendingAction } from "./superadmin-action-panel";
 import styles from "../account-pages.module.css";
+import { raceTitle, shownRaceName } from "@o-tid/domain";
 
 const dateTime = (value: string) => new Date(value).toLocaleString("sv-SE", { dateStyle: "short", timeStyle: "short" });
 const date = (value: string) => new Date(value).toLocaleDateString("sv-SE");
@@ -104,13 +105,13 @@ export function SuperadminPage() {
           <thead><tr><th>{text.columns.race}</th><th>{text.columns.date}</th><th>{text.columns.owner}</th><th>{text.columns.type}</th>
             <th>{text.columns.created}</th><th>{text.columns.status}</th><th>{text.columns.actions}</th></tr></thead>
           <tbody>{overview.races.map(race => <tr key={race.raceId}>
-            <th scope="row">{race.eventName}{race.raceName !== race.eventName && <span className={styles.muted}> – {race.raceName}</span>}</th>
+            <th scope="row">{race.eventName}{shownRaceName(race.eventName, race.raceName) && <span className={styles.muted}> – {shownRaceName(race.eventName, race.raceName)}</span>}</th>
             <td className={styles.nowrap}>{race.raceDate}</td><td>{race.ownerEmail ?? <span className={styles.muted}>{text.noOwner}</span>}</td>
             <td>{raceTypeSv.types[race.raceType].name}</td><td className={styles.nowrap}>{date(race.createdAt)}</td>
             <td>{race.hidden ? <span className={styles.badge} data-tone="attention">{text.status.hidden}</span> : text.status.visible}</td>
             <td><div className={styles.rowActions}>
               <Button variant="secondary" disabled={busy} aria-label={`${race.hidden ? text.action.UNHIDE_RACE : text.action.HIDE_RACE} ${race.eventName}`}
-                onClick={() => start({ kind: race.hidden ? "UNHIDE_RACE" : "HIDE_RACE", raceId: race.raceId, label: `${race.eventName} – ${race.raceName}` })}>
+                onClick={() => start({ kind: race.hidden ? "UNHIDE_RACE" : "HIDE_RACE", raceId: race.raceId, label: raceTitle(race.eventName, race.raceName, " – ") })}>
                 {race.hidden ? text.action.UNHIDE_RACE : text.action.HIDE_RACE}</Button>
               <Button variant="secondary" disabled={busy} aria-label={`${text.action.DELETE_EVENT} ${race.eventName}`}
                 onClick={() => start({ kind: "DELETE_EVENT", eventId: race.eventId, label: race.eventName, confirm: race.eventName })}>

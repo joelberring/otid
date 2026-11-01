@@ -46,7 +46,7 @@ export function SettingsPanel({ ws }: { ws: Workspace }) {
         <div className={styles.settingsFields}>
           <Field label={text.eventName} error={settingsErrors.eventName}><input value={form.eventName} minLength={2} maxLength={160} required disabled={locked || !!settingsAttempt}
             onChange={event => changeSettings({ eventName: event.target.value })} /></Field>
-          <Field label={text.raceName} error={settingsErrors.raceName}><input value={form.raceName} minLength={2} maxLength={160} required disabled={locked || !!settingsAttempt}
+          <Field label={text.raceName} error={settingsErrors.raceName} help={text.raceNameHelp}><input value={form.raceName} maxLength={160} disabled={locked || !!settingsAttempt}
             onChange={event => changeSettings({ raceName: event.target.value })} /></Field>
           <Field label={text.raceDate} error={settingsErrors.raceDate} help={dateLocked ? text.raceDateLocked : undefined}><DateInput value={form.raceDate}
             disabled={locked || dateLocked || !!settingsAttempt} onChange={event => changeSettings({ raceDate: event.target.value })} /></Field>

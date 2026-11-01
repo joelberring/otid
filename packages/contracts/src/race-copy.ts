@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { uuidSchema as canonicalUuidSchema } from "./ids";
+import { raceNameSchema } from "./race-name";
 
 /**
  * "Ny tävling som …" (PLAN.md steg 21): kopierar en tävling till ett nytt event med ett lopp. Banor, klasser,
@@ -11,7 +12,7 @@ export const raceCopyRequestSchema = z.object({
   formatVersion: z.literal(1),
   requestId: canonicalUuidSchema,
   eventName: z.string().trim().min(2).max(160),
-  raceName: z.string().trim().min(2).max(160),
+  raceName: raceNameSchema,
   raceDate: z.iso.date(),
   includePeople: z.boolean()
 }).strict();

@@ -63,8 +63,10 @@ export const organizerSv = {
   createHint: "Skapa ett event med dess första lopp.",
   eventName: "Tävlingens namn",
   raceName: "Etapp/lopp (valfritt)",
-  raceNameHelp: "Till exempel Etapp 1 eller Torsdag. Tomt blir Lopp 1.",
-  defaultRaceName: "Lopp 1",
+  raceNameHelp: "Till exempel Etapp 1 eller Torsdag. Lämna tomt om evenemanget bara har ett lopp.",
+  /** Ett lopp utan eget namn i ett evenemang med flera lopp (bara i listan). */
+  raceNumber: (n: number) => `Lopp ${n}`,
+  noRaceName: "Inget (bara tävlingens namn)",
   date: "Datum",
   more: "Mer",
   timeZone: "Tidszon",

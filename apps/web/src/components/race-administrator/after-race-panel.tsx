@@ -28,6 +28,7 @@ import { ResultsOfficialSection } from "./results-official-section";
 import { resultsOfficialSv as officialText } from "../../i18n/results-official-sv";
 import { decisionReviewSv as reviewText } from "../../i18n/decision-review-sv";
 import { DecisionReviewList } from "./decision-review";
+import { joinRaceParts, raceTitle } from "@o-tid/domain";
 
 /**
  * Resultatlistorna i arbetsytan (PLAN.md steg 13): samma vyer som den publika sidan, med de publicerade
@@ -50,7 +51,7 @@ function AdminResultLists({ ws }: { ws: Workspace }) {
     return map;
   }, [data]);
   if (!model || !data) return <p className={styles.muted} role="status">{failed ? listText.results.refreshFailed : listText.results.loading}</p>;
-  return <ResultLists model={model} raceId={raceId} race={`${data.eventName} · ${data.raceName} · ${data.raceDate}`} raceDate={data.raceDate}
+  return <ResultLists model={model} raceId={raceId} race={joinRaceParts([raceTitle(data.eventName, data.raceName), data.raceDate])} raceDate={data.raceDate}
     links={false} iof={{ onSelect: () => void downloadResults(), disabled }} notes={notes}
     status={failed ? <p className={listStyles.notice} role="alert">{listText.results.refreshFailed}</p> : undefined} />;
 }

@@ -9,6 +9,7 @@ import { racePublicationStateSchema } from "./race-publication";
 import { courseSecrecyStateSchema } from "./course-secrecy";
 import { decisionReviewSchema } from "./decision-review";
 import { prefixedUuidPattern, uuidSchema as uuid } from "./ids";
+import { raceNameSchema } from "./race-name";
 
 const version = z.number().int().positive().max(2_147_483_647);
 const startRule = z.enum(["FIXED", "PUNCH"]);
@@ -44,7 +45,7 @@ export const entryTransferRequestSchema = z.object({
 
 export const entryTransferCandidatesSchema = z.object({
   formatVersion: z.literal(2), raceId: uuid, eventName: z.string().trim().min(1).max(160),
-  raceName: z.string().trim().min(1).max(160), snapshotVersion: version, raceDate: z.iso.date(),
+  raceName: raceNameSchema, snapshotVersion: version, raceDate: z.iso.date(),
   /** ADR-0170: tävlingstypen styr vilka delar arbetsytan visar. */
   raceType: raceTypeSchema,
   /** ADR-0172 beslut 4: publicerad tävling och kort adress till tävlingssidan. */

@@ -5,7 +5,7 @@ import { raceInfoSv } from "../../i18n/race-info-sv";
 import { startListPublicationSv } from "../../i18n/start-list-publication-sv";
 import { formErrorsSv } from "../../i18n/form-errors-sv";
 import { selfRegistrationSv } from "../../i18n/self-registration-sv";
-import { isIsoDate, type FieldErrors } from "../../lib/form-validation";
+import { isIsoDate, isRaceName, type FieldErrors } from "../../lib/form-validation";
 import type { Base } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
 
@@ -68,7 +68,7 @@ export function createSettingsActions(ws: Base & RaceDataActions) {
     const info = normalizeRaceInfo(form.info), firstStartTime = normalizeFirstStart(form.firstStartTime);
     // Svenska fältfel i stället för webbläsarens (PLAN.md steg 24).
     const errors = { eventName: form.eventName.trim().length >= 2 ? undefined : formErrorsSv.eventName,
-      raceName: form.raceName.trim().length >= 2 ? undefined : formErrorsSv.stageName,
+      raceName: isRaceName(form.raceName) ? undefined : formErrorsSv.stageName,
       raceDate: isIsoDate(form.raceDate) ? undefined : formErrorsSv.raceDate,
       info: info === null || info.length <= RACE_INFO_MAX ? undefined : raceInfoSv.settings.infoTooLong(RACE_INFO_MAX),
       firstStartTime: firstStartTime === undefined ? raceInfoSv.settings.firstStartInvalid : undefined };

@@ -26,7 +26,8 @@ const externalIdentitySchema = z.object({
 const raceSchema = z.object({
   id: uuidSchema,
   eventId: uuidSchema,
-  name: z.string().min(1).max(160),
+  /** Tomt när evenemanget bara har ett lopp utan eget namn. */
+  name: z.string().max(160),
   raceDate: z.iso.date(),
   snapshotVersion: positiveIntegerSchema
 }).strict();

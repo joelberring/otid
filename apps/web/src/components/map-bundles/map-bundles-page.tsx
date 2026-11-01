@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { MapBundleResponse, MapBundleRowDto, MapPrintList, MapReserveDto } from "@o-tid/contracts";
-import { mapBackPages, mapBundlesByClass, mapBundlesByTime } from "@o-tid/domain";
+import { mapBackPages, mapBundlesByClass, mapBundlesByTime, joinRaceParts, raceTitle } from "@o-tid/domain";
 import { mapBundlesSv as text } from "../../i18n/map-bundles-sv";
 import { formatClockTime } from "../../lib/clock-time";
 import { toCsv } from "../../lib/lists/csv";
@@ -89,7 +89,7 @@ export function MapBundlesPage({ raceId }: { raceId: string }) {
   if (failed) return <main className={styles.page}><p role="alert">{text.loadError}</p>
     <div><button type="button" onClick={() => void load()}>{text.retry}</button></div></main>;
   if (!data) return <main className={styles.page}><p role="status">{text.loading}</p></main>;
-  const race = `${data.eventName} · ${data.raceName} · ${data.raceDate}`;
+  const race = joinRaceParts([raceTitle(data.eventName, data.raceName), data.raceDate]);
   return <main className={styles.page} data-printing={printing}>
     <header className={`${styles.head} ${styles.noPrint}`}>
       <Link className={styles.back} href={`/admin/${raceId}/manage`}>{text.back}</Link>

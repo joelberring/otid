@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { uuidSchema as uuid } from "./ids";
+import { raceNameSchema } from "./race-name";
 
 /**
  * ADR-0170 beslut 1: tävlingstypen väljs när tävlingen skapas och kan ändras under Inställningar.
@@ -26,7 +27,7 @@ export const raceSettingsRequestSchema = z.object({
   formatVersion: z.literal(1),
   requestId: uuid,
   eventName: name,
-  raceName: name,
+  raceName: raceNameSchema,
   raceDate: z.iso.date(),
   raceType: raceTypeSchema,
   /** Steg 33. Saknas i förfrågningar sparade före steg 33; då ändras inte värdet. */

@@ -10,6 +10,7 @@ import { checklistFacts, inForest, sectionStatus, type SectionFacts } from "../.
 import type { Section } from "../../lib/race-sections";
 import type { Workspace } from "./workspace-state";
 import { HelpButton } from "../help/help-panel";
+import { shownRaceName } from "@o-tid/domain";
 
 function facts(ws: Workspace): SectionFacts | undefined {
   const { courseList, data, forestData, unknownReadoutCandidate } = ws;
@@ -43,7 +44,7 @@ export function TopBar({ ws }: { ws: Workspace }) {
       onClick={event => { if (!mayLeave()) event.preventDefault(); }}>‹ {navigationText.backToEvents}</Link>
     {data && <div className={styles.race}>
       <h2>{data.eventName}</h2>
-      <p>{data.raceName} · <time dateTime={data.raceDate}>{data.raceDate}</time> · {typeText.types[data.raceType].name}
+      <p>{shownRaceName(data.eventName, data.raceName) && <>{shownRaceName(data.eventName, data.raceName)} · </>}<time dateTime={data.raceDate}>{data.raceDate}</time> · {typeText.types[data.raceType].name}
         {functionary && <> · <strong className={styles.role}>{typeText.functionary}</strong></>}</p>
     </div>}
     {current && data?.raceType !== "PARTY" && <p className={styles.live} aria-label={typeText.liveState}>

@@ -77,6 +77,7 @@ export const courseSettingSv = {
     heading: "Vald",
     none: "Inget valt. Klicka på en kontroll eller en sträcka.",
     control: (label: string) => `Vald: ${label}`,
+    described: "Kontrollbeskrivningen i text",
     code: "Kod",
     saveCode: "Ändra koden",
     leg: (from: string, to: string) => `Sträckan ${from}–${to}`

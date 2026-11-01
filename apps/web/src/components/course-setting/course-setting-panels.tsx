@@ -93,8 +93,8 @@ export function ToolPanel({ state, onTool, onUndo, onRedo }: { state: EditorStat
   </section>;
 }
 
-export function SelectedPanel({ state, onCode, onRemoveFromCourse, onDelete, onSplit, onRemoveSplit, onResetNumber, onStraighten }: {
-  state: EditorState; onCode: (control: string, code: string) => void; onRemoveFromCourse: () => void; onDelete: () => void;
+export function SelectedPanel({ state, described, onCode, onRemoveFromCourse, onDelete, onSplit, onRemoveSplit, onResetNumber, onStraighten }: {
+  state: EditorState; described?: string | undefined; onCode: (control: string, code: string) => void; onRemoveFromCourse: () => void; onDelete: () => void;
   onSplit: (kind: "FORK" | "LOOP", branches: number) => void; onRemoveSplit: () => void; onResetNumber: () => void; onStraighten: () => void;
 }) {
   const [branches, setBranches] = useState(2);
@@ -106,6 +106,7 @@ export function SelectedPanel({ state, onCode, onRemoveFromCourse, onDelete, onS
     {!selection && <p className={styles.muted}>{text.selected.none}</p>}
     {control && <>
       <p data-testid="course-setting-selected">{text.selected.control(controlLabel(document, control.id))}</p>
+      {described && <p className={styles.describe} data-testid="course-setting-described" title={text.selected.described}>{described}</p>}
       {control.kind === "NORMAL" && <form key={control.id} className={styles.row} onSubmit={event => {
         event.preventDefault();
         const code = (new FormData(event.currentTarget).get("code") as string | null)?.trim() ?? "";

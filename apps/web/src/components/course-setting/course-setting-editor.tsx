@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { CourseSettingConflict, CourseSettingState } from "@o-tid/contracts";
 import {
-  applyEdit, checkDocument, courseControlOrder, courseSummaries, layoutOverprint, nextFreeCode, type CourseSettingDocument, type OverprintPrimitive
+  applyEdit, checkDocument, courseControlOrder, courseSummaries, describeControl, layoutOverprint, nextFreeCode, type CourseSettingDocument, type OverprintPrimitive
 } from "@o-tid/course-setting";
 import type { LegAnalysis, RouteChoiceSettings } from "@o-tid/route-choice";
 import { courseSettingSv as text } from "../../i18n/course-setting-sv";
 import { Autosaver, type AutosaveStatus } from "../../lib/course-setting-autosave";
+import { browserStorage, readDescriptionSettings, writeDescriptionSettings, type DescriptionSettings } from "../../lib/course-setting-description";
 import { fetchCourseSettingRevision, importCourseSetting, restoreCourseSetting, saveCourseSetting } from "../../lib/course-setting-api";
 import {
   addBend, addPoint, addSplit, applySteps, beginDrag, cancelTool, createEditor, dragTo, endDrag, insertExisting, redo, removeSelected,
@@ -21,6 +23,7 @@ import { fetchMapSource, fetchRouteChoice } from "../../lib/route-choice-api";
 import { RouteChoiceSession } from "../../lib/route-choice-client";
 import { Button, Notice } from "../ui";
 import { FilePanel, type ReadFile } from "./course-setting-file";
+import { DescriptionPanel } from "./course-setting-description";
 import { CourseSettingMap, type CourseSettingMapHandle, type MapPointerHandlers } from "./course-setting-map";
 import { ChecksPanel, CourseList, LegPanel, SelectedPanel, ToolPanel } from "./course-setting-panels";
 import { TransferPanel } from "./course-setting-transfer";
@@ -259,6 +262,15 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
     });
   }
 
+  // Steg 63: beskrivningens språk och visningssätt (i webbläsaren per tävling) och vald kontrolls beskrivning i text.
+  const router = useRouter();
+  const [descriptionSettings, setDescriptionSettings] = useState<DescriptionSettings>(() =>
+    readDescriptionSettings(browserStorage(), raceId, state.setting.document as unknown as CourseSettingDocument));
+  const selectedControl = selection?.kind === "control" ? selection.control : undefined;
+  const describedControl = useMemo(() => selectedControl
+    ? safely("Textbeskrivningen", () => describeControl(document, selectedControl, descriptionSettings.language), "") : "",
+  [document, selectedControl, descriptionSettings.language]);
+
   const statusText = status === "conflict" ? text.status.conflict : status === "too-large" ? text.status.tooLarge : text.status[status];
   const conflictTime = conflict?.current ? new Date(conflict.current.updatedAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" }) : "";
   const label = text.map(course?.name ?? text.courses.all);
@@ -283,8 +295,13 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
           onRename={(id, name) => apply(state => applySteps(state, [{ type: "UPDATE_COURSE", course: id, changes: { name } }], applyEdit))}
           onClasses={(id, classes) => apply(state => applySteps(state, [{ type: "UPDATE_COURSE", course: id, changes: { secondaryTitle: classes } }], applyEdit))}
           onRemove={id => apply(state => setView(applySteps(state, [{ type: "DELETE_COURSE", course: id }], applyEdit), ALL_CONTROLS))} />
+        <DescriptionPanel document={document} view={view} variant={variant} selection={selection} settings={descriptionSettings}
+          onSettings={next => { setDescriptionSettings(next); writeDescriptionSettings(browserStorage(), raceId, next); }}
+          onSelect={target => apply(state => select(state, target))}
+          onEdit={edits => apply(state => applySteps(state, edits, applyEdit))}
+          onPrint={() => void flush().finally(() => router.push(`/admin/${raceId}/course-setting/descriptions`))} />
         <ToolPanel state={editor} onTool={tool => apply(state => setTool(state, tool))} onUndo={() => apply(undo)} onRedo={() => apply(redo)} />
-        <SelectedPanel state={editor}
+        <SelectedPanel state={editor} described={describedControl}
           onCode={(control, value) => apply(state => applySteps(state, [{ type: "SET_CONTROL_CODE", control, code: value }], applyEdit))}
           onRemoveFromCourse={() => apply(state => removeSelected(state, applyEdit, false))}
           onDelete={() => apply(state => removeSelected(state, applyEdit, true))}

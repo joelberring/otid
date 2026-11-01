@@ -37,6 +37,26 @@
 .revisions li { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .review { grid-column: 1 / -1; }
 
+/* Steg 63: kontrollbeskrivningen och väljaren. */
+.description { border: 1px solid var(--line); background: #fff; }
+.description svg rect[role="button"]:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
+.picker { display: grid; gap: 6px; padding: 8px; border: 1px solid var(--line-strong); background: var(--surface); }
+.pickerHead { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: var(--text-sm); }
+.picker input[type="search"] { min-height: 36px; padding: 2px 8px; font: inherit; }
+.pickerList { max-height: 280px; overflow-y: auto; margin: 0; padding: 0; list-style: none; }
+.pickerList li { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center; gap: 6px; min-height: 36px;
+  padding: 2px 6px; cursor: pointer; font-size: var(--text-sm); }
+.pickerList li > span:only-child { grid-column: 1 / -1; }
+.pickerList li[data-active="true"] { background: var(--ink); color: var(--surface); }
+.pickerList li[data-active="true"] .muted { color: inherit; }
+.symbolIcon { background: #fff; border: 1px solid var(--line); }
+.settings summary { cursor: pointer; font-size: var(--text-sm); font-weight: 600; }
+.settings[open] { display: grid; gap: 6px; }
+.textLines { display: grid; gap: 6px; }
+.textLines label { display: grid; gap: 2px; font-size: var(--text-sm); font-weight: 600; }
+.textLines input { min-height: 36px; padding: 2px 8px; font: inherit; }
+.describe { margin: 0; font-style: italic; }
+
 @media (max-width: 900px) {
   .workspace { grid-template-columns: minmax(0, 1fr); }
   .map { height: 62vh; min-height: 320px; }

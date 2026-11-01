@@ -10,6 +10,11 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-01 – Ringklipp i banpåtrycket (grenen ringklipp, ADR-0180 beslut 10)
+- Valbart i `event.circleCutting` (skrivs inte till .ppen): överlapp (bågen inne i den andra ringen bort, kraftig överlappning behåller en hel ring, högst hälften) och detaljer (`detailCircleGaps` över kartfilen, symboltabell ISOM 2017-2/ISSprOM 2019-2, högst en fjärdedel, inte vid sträckorna).
+- Webben: kartans Worker räknar detaljgapen (ca 30–60 ms för SBN26 på Högdalen, 200 ringar ~40 ms); kryssrutorna och "Gör klippen fasta (för Purple Pen)" (SET_CIRCLE_GAPS) i egen komponent.
+- Verifierat: paketets och webbens lint/typecheck/test; ägarens karta i test med `OTID_REAL_MAP`/`OTID_REAL_MAP_PPEN`; före/efter-bilder granskade.
+
 ### 2026-11-01 – Steg 63: kontrollbeskrivningar (paketet steg63-paket, webben steg63-webb, ihopslagna i main)
 - Paketet: symbolerna ur Purple Pens `symbols.xml` (201, 2004 och 2018, sv/en/nb/fi/de; 20 kB gzip), `layoutDescription` och `describeControl` som Purple Pen (11 + 13 jämförelser tecken för tecken), SET_DESCRIPTION/…_TEXT_LINE.
 - Editorn: beskrivningen för vald bana/variant (eller Alla kontroller) i spalten bredvid kartan, ritad som SVG ur `layoutDescription` och symbolernas figurer (vända rätt, i mm); rad ↔ kartval åt båda hållen, rutorna nås med Tab.

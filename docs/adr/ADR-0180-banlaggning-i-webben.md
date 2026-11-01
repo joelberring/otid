@@ -31,6 +31,15 @@ Samarbete och fältläge i mobilen (66–67, ADR-0181) lades till 2026-11-01 och
 9. Kontrollerna under arbetet: för nära kontroller (IOF:s riktvärden 30/60 m, sprint 15/30 m, inställbart), samma kod
    två gånger, omvändbara koder, samma kontroll två gånger i rad, sträcka genom en annan kontrolls ring, bana utan start
    eller mål, oanvända kontroller. Vägvalsanalysen (steg 60) visas för vald sträcka medan man flyttar kontroller.
+10. Automatiska ringklipp (ägarens önskemål 2026-11-01) är valbara i dokumentets `event.circleCutting` (bara O-Tid, skrivs
+    inte till .ppen; saknas = som Purple Pen). **Överlapp:** där ringar på samma kartbild går in i varandra tas bågen inne
+    i den andra bort för båda (också målets dubbelring; passager och starttrianglar klipper ringen men klipps inte), vid
+    kraftig överlappning (under 0,35 av radiesumman, Purple Pens gräns) behålls en hel ring, ingen ring tappar mer än
+    hälften. **Detaljer:** ringen klipps över viktiga linje- och punktobjekt enligt en ändringsbar symboltabell (ISOM
+    2017-2 och ISSprOM 2019-2, numren kontrollerade mot omapwiki), gapet täcker objektets bredd plus 0,15 mm, högst en
+    fjärdedel av ringen (viktigast och mest vinkelrätt först), inte där en sträcka går ut. Detaljgapen räknas i kartans
+    Worker och kan göras fasta som vanliga ringavbrott (`SET_CIRCLE_GAPS`) så att de följer med till Purple Pen; ingen ny
+    ändringstyp, så samarbetets uppspelning (ADR-0181) behöver inget nytt. Överlappsklippen beror på banan och görs aldrig fasta.
 
 **Konsekvenser.** Purple Pen och macpurplepen kan användas parallellt: .ppen in och ut. Stockholm by Night (9 december)
 läggs i Purple Pen som vanligt; .ppen-importen gör att banor och gafflingar går rakt in. Editorn blir inte lika snabb att

@@ -182,12 +182,12 @@ function distanceToLine(point: Point, line: readonly Point[]): number {
 }
 
 /**
- * Färgerna för vägvalen på kartan (kanvas och SVG): bästa vägen blå, alternativen i ordning röd, orange, turkos och grå.
- * Ingen är banlila eller kartans gröna, gula eller bruna.
+ * Färgerna för vägvalen på kartan (kanvas och SVG): bästa vägen blå, alternativen i ordning röd, turkos, klarorange och
+ * vinröd. Ingen är banlila, kartans gröna, gula eller bruna, eller svart/grå (en streckad mörk linje ser ut som en stig).
  */
 export const ROUTE_CHOICE_COLORS = {
   best: "rgb(0, 85, 210)",
-  alternatives: ["rgb(220, 30, 30)", "rgb(235, 120, 0)", "rgb(0, 150, 140)", "rgb(70, 70, 70)"]
+  alternatives: ["rgb(220, 20, 20)", "rgb(0, 150, 140)", "rgb(255, 100, 0)", "rgb(150, 0, 60)"]
 } as const;
 
 export const alternativeColor = (index: number) => ROUTE_CHOICE_COLORS.alternatives[index % ROUTE_CHOICE_COLORS.alternatives.length]!;

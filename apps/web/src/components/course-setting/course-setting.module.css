@@ -231,3 +231,11 @@
   .tab { flex: 1 1 auto; min-width: 40px; padding-inline: 4px; }
   .tab:not([aria-selected="true"]) .tabLabel { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
+
+/* Telefonen, kompakt läge (ägaren 2026-11-01): verktygsraden och flikarna göms tills "Mer" öppnas, så att kartan får
+   nästan hela skärmen. Välj är verktyget; flytta, uppgifter, kollad och notis finns i fältets rad. */
+@media (max-width: 699px) {
+  .stage[data-compact="true"] .toolbar, .stage[data-compact="true"] .drawer { display: none; }
+  .stage[data-compact="true"] .mapArea { padding-bottom: 0; }
+  .stage[data-compact="true"] .card { display: none; }
+}

@@ -4,6 +4,12 @@ import { mapPointToWgs84 } from "../../packages/map-file/src/georef";
 import type { MapGeoreference } from "../../packages/map-file/src/model";
 import { addPerson, createRace, registerAccount, today, unique, warmCourseSetting } from "./helpers";
 
+/** Telefonens rad är kompakt: Lista, Offline och Notis utan vald kontroll ligger bakom "Mer" (⋯). */
+async function openMore(page: Page) {
+  const more = page.getByTestId("course-setting-field-more");
+  if (await more.getAttribute("aria-expanded") !== "true") await more.click();
+}
+
 /**
  * Steg 67 (ADR-0181 beslut 6–7): fältläget på en telefon (390 × 844, fejkad position). Kolla en kontroll och se den i
  * listan, notis med foto (filväljaren med en testbild), "Spara kartan för offline", och utan nät: flytta en kontroll,
@@ -83,6 +89,7 @@ test("fältläget: kollad, notis med foto och ändringar utan nät som sparas n�
   await expect.poll(async () => ((await (await phone.request.get(`${admin}/course-setting/inspections`)).json()) as Inspections).inspections.length)
     .toBe(1);
   await screenshot(phone, "falt-kollad");
+  await openMore(phone);
   await phone.getByRole("button", { name: "Lista", exact: true }).click();
   const list = phone.getByTestId("course-setting-inspections");
   await expect(list).toBeVisible();
@@ -97,6 +104,7 @@ test("fältläget: kollad, notis med foto och ändringar utan nät som sparas n�
 
   // 2. Notis med foto vid vald kontroll: knappen öppnar kameran (filväljaren) direkt.
   const chooser = phone.waitForEvent("filechooser");
+  if (!(await phone.getByTestId("course-setting-note-here-button").isVisible())) await openMore(phone);
   await phone.getByTestId("course-setting-note-here-button").click();
   await (await chooser).setFiles(fixture("maps/strackanalys.png"));
   const sheet = phone.getByTestId("course-setting-note-here");
@@ -110,6 +118,7 @@ test("fältläget: kollad, notis med foto och ändringar utan nät som sparas n�
     .map(note => [note.text, note.target.kind, note.photo?.mediaType ?? null])).toEqual([["Flaggan på norra sidan", "CONTROL", "image/jpeg"]]);
 
   // 3. Spara kartan och sidan för offline; service workern gäller bara banläggningen.
+  await openMore(phone);
   await phone.getByRole("button", { name: "Offline", exact: true }).click();
   const dialog = phone.getByRole("dialog", { name: "Utan nät" });
   await dialog.getByRole("button", { name: /^Spara kartan för offline \(\d+ kB\)$/ }).click();
@@ -153,6 +162,7 @@ test("fältläget: kollad, notis med foto och ändringar utan nät som sparas n�
   await expect(map).not.toHaveAttribute("data-follow", "true");
   // Notisen vid kontroll 33; kameran avbryts och texten räcker.
   const offlineChooser = phone.waitForEvent("filechooser");
+  if (!(await phone.getByTestId("course-setting-note-here-button").isVisible())) await openMore(phone);
   await phone.getByTestId("course-setting-note-here-button").click();
   await (await offlineChooser).setFiles([]);
   await sheet.getByLabel("Text (valfritt med foto)").fill("Snitseln saknas vid stigen");
@@ -176,7 +186,8 @@ test("fältläget: kollad, notis med foto och ändringar utan nät som sparas n�
     await phone.waitForTimeout(500);
     await screenshot(phone, "falt-omladdad-utan-nat");
     // Bockarna från servern (sparade i telefonen) och den som väntar syns i listan utan nät.
-    await phone.getByRole("button", { name: "Lista", exact: true }).click();
+    await openMore(phone);
+  await phone.getByRole("button", { name: "Lista", exact: true }).click();
     await expect(list).toContainText("2 av 7 kollade");
     await list.getByRole("button", { name: "Alla" }).click();
     await expect(list.getByRole("button", { name: /^32 ✓ Kollad av Bea Banläggare/ })).toBeVisible();
@@ -218,6 +229,7 @@ test("fältläget: kollad, notis med foto och ändringar utan nät som sparas n�
   await expect.poll(async () => ((await (await phone.request.get(`${admin}/course-setting/inspections`)).json()) as Inspections).inspections
     .map(row => row.checkedBy.displayName).sort()).toEqual(["Bea Banläggare", "Bea Banläggare", "Kim Kontrollant"]);
   // Telefonen får bocken via strömmen.
+  await openMore(phone);
   await phone.getByRole("button", { name: "Lista", exact: true }).click();
   await expect(list).toContainText(/3 av [67] kollade/);
   const savedNotes = ((await (await phone.request.get(`${admin}/course-setting/notes`)).json()) as Notes).notes;

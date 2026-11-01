@@ -124,6 +124,12 @@ export interface FieldMode {
   readonly tools: ReactNode;
   /** Raden nertill (smal skärm). */
   readonly bar: ReactNode;
+  /**
+   * Smal skärm: "Mer" är öppnat (verktygen, flikarna och de mindre vanliga knapparna syns). Annars är raden så liten som
+   * möjligt så att kartan får plats (ägaren 2026-11-01: "måste kunna se kartan … oftast vill man bara justera och
+   * lägga in info om kontrollpunkten").
+   */
+  readonly expanded: boolean;
 }
 
 export function useFieldMode(input: FieldInput): FieldMode {
@@ -254,6 +260,7 @@ export function useFieldMode(input: FieldInput): FieldMode {
     }} />;
 
   const [details, setDetails] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const canMove = active && selected !== undefined && Boolean(position) && !readOnly;
   const problem = georeference === null && active ? text.noGeoreference : error ?? located.problem;
   const positionTitle = mode === "off" ? text.positionOff : mode === "on" ? text.positionOn : text.positionFollow;
@@ -275,7 +282,7 @@ export function useFieldMode(input: FieldInput): FieldMode {
   const positionButton = <button type="button" className={css.big} aria-label={text.position} title={positionTitle}
     data-mode={mode} aria-pressed={active} onClick={cycle}>
     <span aria-hidden="true" className={css.icon}>{mode === "follow" ? "◉" : "◎"}</span>
-    {narrow && <span className={css.small}>{mode === "follow" ? copy.follow : active ? "Visas" : "Position"}</span>}
+    {narrow && mode === "follow" && <span className={css.small}>{copy.follow}</span>}
   </button>;
   const moveButton = <button type="button" className={css.big} data-testid="course-setting-move-here"
     disabled={!canMove && measuring === undefined} onClick={moveHere}>
@@ -312,7 +319,7 @@ export function useFieldMode(input: FieldInput): FieldMode {
   // Banväljaren: på telefonen syns banan med sträckor, nummer, start och mål (hur löparna kommer in till kontrollen).
   const courses = [...document.courses].sort((a, b) => a.order - b.order);
   const variantCodes = (input.variants?.[state.view] ?? []).filter(code => code !== "");
-  const picker = input.onView && <div className={css.barRow}>
+  const picker = input.onView && <div className={css.picker}>
     <select className={css.select} aria-label={text.course} value={state.view} data-testid="course-setting-field-course"
       onChange={event => input.onView!(event.target.value)}>
       <option value={ALL_CONTROLS}>{text.allControls}</option>
@@ -325,31 +332,35 @@ export function useFieldMode(input: FieldInput): FieldMode {
     </select>}
   </div>;
 
-  const bar = <div className={css.bar}>
-    {picker}
+  const bar = <div className={css.bar} data-expanded={expanded || undefined}>
     <div className={css.barHead}>
-      <strong data-testid="course-setting-field-selected">{label ? text.selected(label) : text.none}</strong>
+      <strong className={css.selectedLabel} data-testid="course-setting-field-selected">{label ? text.selected(label) : text.none}</strong>
+      {inspectedLine}
       <span className={css.status} data-status={status} data-offline={input.offline || undefined} role="status"
         data-testid="course-setting-field-status">{input.statusText}</span>
     </div>
-    {inspectedLine}
     {state.error && <p className={css.line} data-problem="true" role="alert">{state.error}</p>}
     {lines}
-    <div className={css.barRow}>
+    <div className={css.compactRow}>
+      {picker}
       {positionButton}
-      {!readOnly && moveButton}
-      {!readOnly && <button type="button" className={css.big} disabled={selectedPoint?.kind !== "NORMAL"} onClick={() => setDetails(true)}>{text.details}</button>}
+      {!readOnly && selected && moveButton}
+      {!readOnly && selected && <button type="button" className={css.big} disabled={selectedPoint?.kind !== "NORMAL"}
+        onClick={() => setDetails(true)}>{text.details}</button>}
+      <button type="button" className={css.big} aria-expanded={expanded} aria-label={copy.more} title={copy.more}
+        data-testid="course-setting-field-more" onClick={() => setExpanded(value => !value)}>{expanded ? "✕" : "⋯"}</button>
     </div>
-    {!readOnly && <div className={css.barRow}>
-      {arrows}
-      <button type="button" className={css.big} disabled={state.past.length === 0} onClick={() => apply(undo)}>{text.undo}</button>
-    </div>}
-    <div className={css.barRow}>
+    {selected && <div className={css.compactRow}>
+      {!readOnly && arrows}
       {inspectButton}
       {noteButton}
+    </div>}
+    {expanded && <div className={css.compactRow}>
+      {!selected && noteButton}
       <button type="button" className={css.big} onClick={input.onList}>{copy.list}</button>
       <button type="button" className={css.big} onClick={input.onOffline}>{copy.offlineButton}</button>
-    </div>
+      {!readOnly && <button type="button" className={css.big} disabled={state.past.length === 0} onClick={() => apply(undo)}>{text.undo}</button>}
+    </div>}
     {cameraInput}{noteSheet}
     {details && selected && selectedPoint?.kind === "NORMAL" && <DetailsSheet key={selected} label={label ?? ""}
       boxes={selectedPoint.descriptions} standard={document.event.descriptionStandard} onClose={() => setDetails(false)}
@@ -363,7 +374,7 @@ export function useFieldMode(input: FieldInput): FieldMode {
   </div>;
 
   return { narrow, position: position ? { position, follow: mode === "follow", heading } : undefined,
-    onPan: () => setMode(current => current === "follow" ? "on" : current), tools, bar };
+    onPan: () => setMode(current => current === "follow" ? "on" : current), tools, bar, expanded };
 }
 
 /**

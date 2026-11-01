@@ -1,4 +1,5 @@
 /// <reference lib="webworker" />
+import { detailCircleGaps } from "@o-tid/course-setting";
 import { drawMap, MapFileError, readMapFile, type ParsedMap } from "@o-tid/map-file";
 import { MAX_RENDER_SIDE, type MapRenderRequest, type MapRenderResponse } from "./course-setting-map-protocol";
 
@@ -48,6 +49,14 @@ function drain() {
 self.onmessage = (event: MessageEvent<MapRenderRequest>) => {
   const request = event.data;
   if (request.type === "render") { queued = request; drain(); return; }
+  if (request.type === "detailGaps") {
+    // Ringklippen (ADR-0180 beslut 10): kartan är redan inläst här; första gången indexeras den (sparas per karta).
+    let gaps = {};
+    try { if (map) gaps = detailCircleGaps(map, request.circles, { sprint: request.sprint }); }
+    catch (error) { console.error("Ringklippen kunde inte räknas", error); }
+    post({ type: "detailGaps", id: request.id, gaps });
+    return;
+  }
   try {
     map = readMapFile(new Uint8Array(request.bytes), request.fileName);
     if (!map.bounds || map.objects.length === 0) { post({ type: "error", code: "EMPTY" }); return; }

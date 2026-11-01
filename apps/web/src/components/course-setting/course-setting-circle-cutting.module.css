@@ -1,0 +1,4 @@
+/* Ringklipp (ADR-0180 beslut 10): kryssrutor med förklaring under texten. */
+.check { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 8px; font-size: var(--text-sm); font-weight: 600; cursor: pointer; }
+.check input { width: 20px; height: 20px; margin: 1px 0 0; }
+.check small { display: block; color: var(--muted); font-weight: 400; }

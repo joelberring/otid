@@ -24,6 +24,7 @@ import type { Bounds } from "../../lib/course-setting-viewport";
 import { fetchMapSource, fetchRouteChoice } from "../../lib/route-choice-api";
 import { RouteChoiceSession } from "../../lib/route-choice-client";
 import { Button, Notice } from "../ui";
+import { CircleCuttingPanel, useDetailGaps } from "./course-setting-circle-cutting";
 import { FilePanel, type ReadFile } from "./course-setting-file";
 import { DescriptionPanel } from "./course-setting-description";
 import { CourseSettingMap, type CourseSettingMapHandle, type MapPointerHandlers } from "./course-setting-map";
@@ -109,11 +110,13 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
   }, [saver]);
 
   const { document, view, variant, selection } = editor;
-  const options = { course: view, ...(variant ? { variant } : {}) };
+  const cutting = useDetailGaps(mapSession, document);
+  const detailGaps = cutting.gaps ? { detailGaps: cutting.gaps } : {};
+  const options = { course: view, ...(variant ? { variant } : {}), ...detailGaps };
   const primitives = useMemo(() => safely("Banpåtrycket", () => layoutOverprint(document, options), [] as readonly OverprintPrimitive[]),
-    [document, view, variant]);
-  const faded = useMemo(() => variant ? safely("Banpåtrycket", () => layoutOverprint(document, { course: view }), [] as readonly OverprintPrimitive[]) : [],
-    [document, view, variant]);
+    [document, view, variant, cutting.gaps]);
+  const faded = useMemo(() => variant ? safely("Banpåtrycket", () => layoutOverprint(document, { course: view, ...detailGaps }), [] as readonly OverprintPrimitive[]) : [],
+    [document, view, variant, cutting.gaps]);
   const summaries = useMemo(() => safely("Banornas längder", () => courseSummaries(document), []), [document]);
   const checks = useMemo(() => checkRows(document, safely("Kontrollerna", () => checkDocument(document), [])), [document]);
   const [flagged, setFlagged] = useState<CheckRow>();
@@ -310,6 +313,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
           onSelect={target => apply(state => select(state, target))}
           onEdit={edits => apply(state => applySteps(state, edits, applyEdit))}
           onPrint={() => void flush().finally(() => router.push(`/admin/${raceId}/course-setting/descriptions`))} />
+        <CircleCuttingPanel document={document} cutting={cutting} onEdits={edits => apply(state => applySteps(state, edits, applyEdit))} />
         <ToolPanel state={editor} onTool={tool => apply(state => setTool(state, tool))} onUndo={() => apply(undo)} onRedo={() => apply(redo)} />
         <SelectedPanel state={editor} described={describedControl}
           onCode={(control, value) => apply(state => applySteps(state, [{ type: "SET_CONTROL_CODE", control, code: value }], applyEdit))}

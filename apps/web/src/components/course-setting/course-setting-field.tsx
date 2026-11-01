@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { applyEdit, objectPatch, type CourseSettingDocument } from "@o-tid/course-setting";
 import type { MapGeoreference } from "@o-tid/map-file";
 import { courseSettingFieldSv as text } from "../../i18n/course-setting-field-sv";
@@ -278,7 +279,8 @@ function DetailsSheet({ label, boxes, standard, onSave, onClose }: {
   const currentG = boxes.find(box => box.box === "G")?.ref;
   const [g, setG] = useState<string | null>(currentG ?? null);
   const unknownG = currentG && !gChoiceOf(currentG) && g === currentG;
-  return <div className={css.sheet} role="dialog" aria-modal="true" aria-label={text.detailsTitle(label)}>
+  // Över arbetsytan (och bladet nertill), därför direkt i body.
+  return createPortal(<div className={css.sheet} role="dialog" aria-modal="true" aria-label={text.detailsTitle(label)}>
     <h2>{text.detailsTitle(label)}</h2>
     <label className={css.field}>{text.f}
       <input type="text" inputMode="decimal" value={f} onChange={event => setF(event.target.value)} />
@@ -301,7 +303,7 @@ function DetailsSheet({ label, boxes, standard, onSave, onClose }: {
       <button type="button" className={css.big} data-primary="true" onClick={() => onSave(f, g)}>{text.save}</button>
       <button type="button" className={css.big} onClick={onClose}>{text.close}</button>
     </div>
-  </div>;
+  </div>, document.body);
 }
 
 /**

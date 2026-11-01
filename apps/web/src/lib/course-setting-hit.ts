@@ -95,22 +95,24 @@ export function resolveTarget(document: CourseSettingDocument, view: string, pri
   }
 }
 
-/** Nummer går före ringar (de ligger ovanpå), ringar före sträckor. */
-const PRIORITY: Record<HitTarget["kind"], number> = { number: 0, control: 1, leg: 2 };
-
-/** Det som ligger närmast punkten inom `toleranceMm`, eller undefined. */
+/**
+ * Nummer går före ringar (de ligger ovanpå), ringar före sträckor. Ett nummer vinner ändå inte över en ring som är
+ * närmare: med fingrets större träffyta tog ett tryck mitt i ringen annars numret bredvid (steg 66, telefonen).
+ */
 export function hitTest(document: CourseSettingDocument, view: string, primitives: readonly OverprintPrimitive[], point: Point,
   toleranceMm: number): HitTarget | undefined {
-  let best: { target: HitTarget; distance: number } | undefined;
+  const best: Partial<Record<HitTarget["kind"], { target: HitTarget; distance: number }>> = {};
   for (const primitive of primitives) {
     const distance = primitiveDistance(primitive, point);
     if (distance > toleranceMm) continue;
     const target = resolveTarget(document, view, primitive);
     if (!target) continue;
-    if (!best || PRIORITY[target.kind] < PRIORITY[best.target.kind] ||
-      (PRIORITY[target.kind] === PRIORITY[best.target.kind] && distance < best.distance)) best = { target, distance };
+    const current = best[target.kind];
+    if (!current || distance < current.distance) best[target.kind] = { target, distance };
   }
-  return best?.target;
+  const { number, control, leg } = best;
+  if (number && (!control || number.distance <= control.distance)) return number.target;
+  return (control ?? leg)?.target;
 }
 
 /** Var en ny brytpunkt hör hemma bland de befintliga: indexet där linjen genom den blir kortast. */

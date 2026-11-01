@@ -71,6 +71,11 @@ describe("träff-testet", () => {
     expect(hitTest(document, "k", primitives, { x: 40, y: 40 }, 1)).toBeUndefined();
   });
 
+  it("tar ringen och inte numret bredvid när trycket är mitt i ringen, även med fingrets stora träffyta", () => {
+    expect(hitTest(document, "k", primitives, { x: 10, y: 0 }, 6)).toEqual({ kind: "control", control: "a", courseControl: "c2" });
+    expect(hitTest(document, "k", primitives, { x: 14, y: -3 }, 6)).toMatchObject({ kind: "number", control: "a" });
+  });
+
   it("lägger brytpunkter i ordning längs linjen och hittar den närmaste", () => {
     expect(bendInsertIndex({ x: 0, y: 0 }, { x: 30, y: 0 }, [{ x: 10, y: 5 }, { x: 20, y: 5 }], { x: 25, y: 3 })).toBe(2);
     expect(bendInsertIndex({ x: 0, y: 0 }, { x: 30, y: 0 }, [{ x: 10, y: 5 }], { x: 3, y: 1 })).toBe(0);

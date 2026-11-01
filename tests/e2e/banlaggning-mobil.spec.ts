@@ -104,6 +104,8 @@ test("banläggning på telefonen: min position, flytta hit, finjustera, F och G,
   await phone.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await phone.mouse.wheel(0, 400);
   expect(await scrolled(phone)).toEqual([0, 0, 0]);
+  await phone.getByRole("button", { name: "Visa hela kartan" }).click();
+  await phone.waitForTimeout(300);
   // Kartans övre vänstra hörn (5, 95 mm) är tomt.
   const empty = await screenOf(map, 5, 95);
   const centerBefore = await map.getAttribute("data-center");

@@ -1145,11 +1145,20 @@ ADR-0180 beslut 11. Kontraktet: `SpecialObject`, `PrintArea`, `OverprintPrimitiv
 - [x] Banläggningsstödet ser specialobjekten (ägarens krav): `routeBarriers` (förbjudet och farligt område, konstruktion,
   gräns, förbjuden väg som spärrar, valfri passage som öppning) till vägvalsmotorn (`LegInput.barriers`) i editorn och
   kontrollkartan, och varningen när en sträcka går genom ett förbjudet område eller över en spärr.
+- [x] Utskriftsprofil per tävling (ADR-0183): kartans färger per OCAD-färg (dölj, ljusare/mörkare, ny CMYK, dekorfärg med
+  övertryck) utan att kartfilen ändras, banans CMYK, dekorfärg och övertryck, förhandskontroll; färdiga profiler
+  "Tryckeri (som i filen)" och "Kontorsskrivare (ljusare grönt)".
+- [x] Layoutmall som paperspace: papper, kartramar, texter med platshållare, logotyp, beskrivning, remsa och skärmarker;
+  flera kartor per A4/A3 (fyll sidan eller samma bana i alla ramar), sparad per tävling och kopierbar.
+- [x] En karta per löpare ur kartbuntarna (steg 61): bunt- eller startordning, baksida dubbelsidigt eller remsa
+  enkelsidigt, lediga och reserver, kontroll av varianter och antal före utskrift.
 
 ## [ ] Steg 65 – Tryck med dekorfärger och övertryck
 
 - [ ] PDF på servern (låg prioritet) eller via macpurplepen: kartan som vektorer med sina färger, banpåtrycket i egen
   dekorfärg med övertryck, provtryck hos tryckeriet innan det används skarpt.
+- [ ] Arken ur steg 64 (`Sheet`, ADR-0183) som PDF: utskriftsprofilens kartfärger och dekorfärger med övertryck, banan som
+  dekorfärg, eventuellt PDF/X och ICC; baksidorna per löpare i rätt vändning för dubbelsidigt.
 
 ## Efter målet (inte nu)
 

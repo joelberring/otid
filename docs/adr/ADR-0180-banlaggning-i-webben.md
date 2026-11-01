@@ -57,6 +57,7 @@ Samarbete och fältläge i mobilen (66–67, ADR-0181) lades till 2026-11-01 och
     Specialobjekten är också spärrar för vägvalsanalysen (ADR-0179): `routeBarriers` ger ytor och linjer som inte går att
     passera och passager som öppningar, som motorn tar emot per sträcka (`LegInput.barriers`) och rastrerar som kartans
     ej passerbara symboler respektive genomgångar; kontrollerna varnar när en sträckas linje går genom en spärr.
+    Utskriftsprofilen (kartans färger och banans dekorfärg), layoutmallarna och en karta per löpare beskrivs i ADR-0183.
 
 **Konsekvenser.** Purple Pen och macpurplepen kan användas parallellt: .ppen in och ut. Stockholm by Night (9 december)
 läggs i Purple Pen som vanligt; .ppen-importen gör att banor och gafflingar går rakt in. Editorn blir inte lika snabb att

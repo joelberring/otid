@@ -97,6 +97,47 @@ test("banläggning-utskrift: förbjudet område, beskrivningen på kartan, A4 li
   // Alla banor: en sida per bana och Alla kontroller.
   await owner.getByLabel("Alla", { exact: true }).check();
   await expect(sheet).toHaveCount(document.courses.length + 1);
+
+  // Layoutmallen (ADR-0183): fyra kartor per A4 i ordning, med skärmarker; webbläsarens utskrift fungerar som utkast.
+  await owner.getByTestId("layout-template-select").selectOption("a4-four");
+  await expect(sheet).toHaveCount(Math.ceil((document.courses.length + 1) / 4));
+  await expect(sheet.first()).toHaveAttribute("data-frames", String(Math.min(4, document.courses.length + 1)));
+  await expect(sheet.first().getByTestId("print-frame")).toHaveCount(Math.min(4, document.courses.length + 1));
+  await expect(sheet.first()).toHaveAttribute("data-map", "ready", { timeout: 60_000 });
+  await owner.getByTestId("print-fill").selectOption("REPEAT");
+  await expect(sheet).toHaveCount(document.courses.length + 1);
+  await expect(sheet.first().getByTestId("print-frame")).toHaveCount(4);
+
+  // Utskriftsprofilen: kartans färger ur filen, Kontorsskrivare (ljusare grönt) väljs för tävlingen och kartan ritas om.
+  const profile = owner.getByTestId("print-profile");
+  await expect(profile.getByTestId("print-profile-colors").locator("tbody tr").first()).toBeVisible({ timeout: 60_000 });
+  await expect(profile.getByTestId("print-preflight")).toBeVisible();
+  await profile.getByTestId("print-profile-select").selectOption("office");
+  await expect.poll(async () => ((await (await owner.request.get(`${admin}/course-setting`)).json()) as { setting: { document: { event: { printProfileId?: string } } } })
+    .setting.document.event.printProfileId, { timeout: 15_000 }).toBe("office");
+  await expect(sheet.first()).toHaveAttribute("data-map", "ready", { timeout: 60_000 });
+  await reviewScreenshots(owner, "banlaggning-utskrift-mall-profil", [1280]);
+
+  // En karta per löpare: kartbuntarna (inga anmälda här) och kontrollen före utskrift.
+  await owner.getByTestId("print-mode-runners").check();
+  await expect(owner.getByTestId("print-runners")).toBeVisible({ timeout: 30_000 });
+  await expect(owner.getByTestId("print-runner-check")).toBeVisible();
+
+  // Telefonen: Specialobjekt och fliken Utskrift ligger bakom "Mer" som resten av verktygen.
+  const phoneContext = await browser.newContext({ storageState: await owner.context().storageState(), viewport: { width: 390, height: 844 }, hasTouch: true });
+  const phone = await phoneContext.newPage();
+  await phone.goto(`/admin/${raceId}/course-setting`);
+  const more = phone.getByTestId("course-setting-field-more");
+  await expect(more).toBeVisible({ timeout: 60_000 });
+  await expect(phone.getByRole("button", { name: /Specialobjekt/ })).toBeHidden();
+  await expect(phone.getByRole("tab", { name: "Utskrift" })).toBeHidden();
+  await more.click();
+  await expect(phone.getByRole("button", { name: /Specialobjekt/ })).toBeVisible();
+  await expect(phone.getByRole("tab", { name: "Utskrift" })).toBeVisible();
+  await phone.getByRole("tab", { name: "Utskrift" }).click();
+  await expect(phone.getByTestId("course-setting-print")).toBeVisible();
+  if (process.env.E2E_SCREENSHOT_DIR) await phone.screenshot({ path: `${process.env.E2E_SCREENSHOT_DIR}/banlaggning-utskrift-telefon-mer.png` });
+  await phoneContext.close();
 });
 
 /**

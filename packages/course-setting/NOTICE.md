@@ -1,7 +1,11 @@
 # Tredjepartskod och format
 
 Paketet läser och skriver Purple Pens händelsefil (.ppen). Där logik eller data (t.ex. variantkoder, storlekar i
-banpåtrycket, kontrollbeskrivningarnas symboler i steg 63) bygger på Purple Pens källkod gäller dess licens:
+banpåtrycket, kontrollbeskrivningarnas symboler i steg 63) bygger på Purple Pens källkod gäller dess licens.
+Kontrollbeskrivningarna: `src/description-symbols.data.ts` är genererad ur Purple Pens `symbols.xml` (ritningar, namn,
+texter; svenska för fyra 2018-symboler är O-Tids egna, se `scripts/generate-description-symbols.ts`), och
+`src/description-*.ts` är portade från SymbolDB.cs, Textifier.cs, CourseView.cs, DescriptionFormatter.cs och
+DescriptionRenderer.cs:
 
 ```
 Copyright (c) 2006-2008, Peter Golde

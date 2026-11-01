@@ -4,10 +4,11 @@
  * AddVariation, AddStartOrMapIssueToCourse, AddFinishToCourse, DeleteCourse, CreateCourse; BSD, Peter Golde).
  */
 import type { Point } from "@o-tid/map-file";
+import { BOX_KINDS, hasImage, symbolDb } from "./description-symbols";
 import { encodeCircleGaps, encodeOldCircleGaps, fromRaw, legKey, nextId, toRaw } from "./ppen-common";
 import { isLegalCode, nextUnusedCode } from "./summary";
 import type {
-  CircleGap, ControlPoint, Course, CourseControl, CourseSettingDocument, CourseSettingEdit, EditResult, Leg, RawXml
+  CircleGap, ControlPoint, Course, CourseControl, CourseSettingDocument, CourseSettingEdit, DescriptionBox, EditResult, Leg, RawXml
 } from "./types";
 import { CourseSettingEditError } from "./types";
 import { enumerateCourseControls, findCourse } from "./walk";
@@ -358,6 +359,41 @@ function setCode(draft: Draft, controlId: string, code: string, allowSame: boole
   draft.controls[controlId] = { ...current, code };
 }
 
+/** Symbolen som en ny kontroll av slaget får, som i Purple Pens AddControlMode (navigera till mål, passage, kartutdelning). */
+const DEFAULT_DIRECTIVE: Partial<Record<ControlPoint["kind"], string>> = { FINISH: "14.3", CROSSING_POINT: "13.3", MAP_ISSUE: "13.6" };
+
+/** Riktningsradernas symboler per kontrollslag (Purple Pens symbolslag Z, X, V). */
+const DIRECTIVE_KINDS: Partial<Record<ControlPoint["kind"], string>> = { FINISH: "Z", CROSSING_POINT: "X", MAP_ISSUE: "V" };
+
+/**
+ * Rutorna kontrolleras mot standarden: start, kartbyte och vanliga kontroller har C–H med symboler av rätt slag (E får
+ * även ett objekt ur D), text bara i F och då ingen symbol där; mål, passage och kartutdelning har en ruta "all".
+ */
+function validDescription(current: ControlPoint, boxes: readonly DescriptionBox[], standard: string): DescriptionBox[] {
+  const directiveKind = DIRECTIVE_KINDS[current.kind];
+  const allowed = directiveKind ? ["all"] : ["C", "D", "E", "F", "G", "H"];
+  const seen = new Set<string>();
+  const out: DescriptionBox[] = [];
+  for (const box of boxes) {
+    if (!allowed.includes(box.box)) throw invalidEdit(`Rutan ${box.box} finns inte för den här kontrollen`);
+    if (seen.has(box.box)) throw invalidEdit(`Rutan ${box.box} finns två gånger`);
+    seen.add(box.box);
+    const text = box.text === "" ? undefined : box.text;
+    if (box.ref === undefined && text === undefined) continue;
+    if (text !== undefined && box.box !== "F") throw invalidEdit("Text får bara stå i ruta F");
+    if (text !== undefined && box.ref !== undefined) throw invalidEdit("Ruta F har antingen en symbol eller ett mått");
+    if (box.ref !== undefined) {
+      const symbol = symbolDb().find(box.ref, standard);
+      if (!symbol || !hasImage(symbol)) throw invalidEdit(`Symbolen ${box.ref} finns inte i standarden ${standard}`);
+      const kinds = directiveKind ? [directiveKind] : BOX_KINDS[box.box]!;
+      if (!kinds.includes(symbol.kind)) throw invalidEdit(`Symbolen ${box.ref} hör inte till ruta ${box.box}`);
+    }
+    out.push({ box: box.box, ...(box.ref !== undefined ? { ref: box.ref } : {}), ...(text !== undefined ? { text } : {}) });
+  }
+  // Purple Pens ordning i filen: C–H.
+  return out.sort((a, b) => allowed.indexOf(a.box) - allowed.indexOf(b.box));
+}
+
 /** Gör en ändring. */
 export function applyDocumentEdit(document: CourseSettingDocument, edit: CourseSettingEdit): EditResult {
   const draft = draftOf(document);
@@ -367,8 +403,9 @@ export function applyDocumentEdit(document: CourseSettingDocument, edit: CourseS
       assertPoint(edit.at, "Läget");
       const id = nextId(Object.keys(draft.controls));
       if (edit.kind !== "NORMAL" && edit.code !== undefined) throw invalidEdit("Bara vanliga kontroller har kod");
+      const directive = DEFAULT_DIRECTIVE[edit.kind];
       draft.controls[id] = {
-        id, kind: edit.kind, at: edit.at, descriptions: [],
+        id, kind: edit.kind, at: edit.at, descriptions: directive ? [{ box: "all", ref: directive }] : [],
         ...(edit.kind === "CROSSING_POINT" ? { orientation: 0 } : {})
       };
       if (edit.kind === "NORMAL") setCode(draft, id, edit.code ?? nextUnusedCode(asDocument(draft)), false);
@@ -426,9 +463,18 @@ export function applyDocumentEdit(document: CourseSettingDocument, edit: CourseS
       draft.event = { ...draft.event, ...defined };
       break;
     }
-    case "SET_DESCRIPTION":
-    case "SET_DESCRIPTION_TEXT_LINE":
-      throw invalidEdit("Kontrollbeskrivningen är inte byggd än (steg 63)");
+    case "SET_DESCRIPTION": {
+      const current = control(draft, edit.control);
+      draft.controls[edit.control] = { ...current, descriptions: validDescription(current, edit.boxes, draft.event.descriptionStandard) };
+      break;
+    }
+    case "SET_DESCRIPTION_TEXT_LINE": {
+      const current = control(draft, edit.control);
+      const key = edit.location === "before" ? "descriptionTextBefore" : edit.location === "after" ? "descriptionTextAfter" : undefined;
+      if (key === undefined) throw invalidEdit("Textraden ska stå före eller efter");
+      draft.controls[edit.control] = edit.text === null || edit.text === "" ? without(current, key) : { ...current, [key]: edit.text };
+      break;
+    }
     default: {
       const never: never = edit;
       throw invalidEdit(`Okänd ändring ${(never as { type: string }).type}`);

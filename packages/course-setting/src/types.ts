@@ -28,9 +28,13 @@ export type DescriptionStandard = "2004" | "2018";
 
 export type ControlKind = "START" | "NORMAL" | "FINISH" | "CROSSING_POINT" | "MAP_EXCHANGE" | "MAP_ISSUE";
 
-/** En ruta i kontrollbeskrivningen: symbol (`ref`, t.ex. "2.4" eller "0.1N") eller fri text. Tolkas i steg 63. */
+/**
+ * En ruta i kontrollbeskrivningen: symbol (`ref`, t.ex. "2.4" eller "0.1N") eller fri text. Som i Purple Pen har start,
+ * kartbyte och vanliga kontroller rutorna "C"–"H" och mål, passage och kartutdelning en ruta "all"; text finns bara i
+ * "F" (mått, "2x3", "0.5/3", "2|3") och då ingen symbol där.
+ */
 export interface DescriptionBox {
-  /** "A"–"H", eller "all" för hela raden (start, mål, passage). */
+  /** "C"–"H", eller "all" för hela raden (mål, passage, kartutdelning). */
   readonly box: string;
   readonly ref?: string | undefined;
   readonly text?: string | undefined;
@@ -53,6 +57,9 @@ export interface ControlPoint {
   readonly orientation?: number | undefined;
   readonly circleGaps?: readonly CircleGap[] | undefined;
   readonly descriptions: readonly DescriptionBox[];
+  /** Textrad före och efter kontrollens rad i beskrivningen, på alla banor (Purple Pens description-text-line). "|" = ny rad. */
+  readonly descriptionTextBefore?: string | undefined;
+  readonly descriptionTextAfter?: string | undefined;
   /** Det som filen har mer om kontrollen (punch-pattern, description-text …). */
   readonly raw?: readonly RawXml[] | undefined;
 }
@@ -79,6 +86,9 @@ export interface CourseControl {
   readonly numberAt?: Point | undefined;
   /** Poäng för poängorientering. */
   readonly points?: number | undefined;
+  /** Textrad före och efter raden, bara på den här banan (description-text-line på banans kontroll). */
+  readonly descriptionTextBefore?: string | undefined;
+  readonly descriptionTextAfter?: string | undefined;
   readonly raw?: readonly RawXml[] | undefined;
 }
 

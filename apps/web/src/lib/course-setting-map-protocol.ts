@@ -1,4 +1,4 @@
-import type { Point } from "@o-tid/map-file";
+import type { MapGeoreference, Point } from "@o-tid/map-file";
 import type { Bounds } from "./course-setting-viewport";
 
 /**
@@ -13,7 +13,7 @@ export type MapRenderRequest =
 export type MapRenderErrorCode = "NOT_A_MAP_FILE" | "UNSUPPORTED_VERSION" | "TRUNCATED" | "INVALID" | "EMPTY" | "NO_CANVAS" | "FAILED";
 
 export type MapRenderResponse =
-  | { readonly type: "loaded"; readonly bounds: Bounds; readonly scale: number }
+  | { readonly type: "loaded"; readonly bounds: Bounds; readonly scale: number; readonly georeference: MapGeoreference | null }
   | { readonly type: "rendered"; readonly id: number; readonly bitmap: ImageBitmap }
   | { readonly type: "error"; readonly code: MapRenderErrorCode };
 
@@ -26,12 +26,12 @@ export class MapRenderSession {
   private latest = 0;
   private onRendered: ((id: number, bitmap: ImageBitmap) => void) | undefined;
 
-  constructor(createWorker: () => Worker, private readonly onLoaded: (bounds: Bounds, scale: number) => void,
+  constructor(createWorker: () => Worker, private readonly onLoaded: (bounds: Bounds, scale: number, georeference: MapGeoreference | null) => void,
     private readonly onError: (code: MapRenderErrorCode) => void) {
     this.worker = createWorker();
     this.worker.onmessage = (event: MessageEvent<MapRenderResponse>) => {
       const message = event.data;
-      if (message.type === "loaded") this.onLoaded(message.bounds, message.scale);
+      if (message.type === "loaded") this.onLoaded(message.bounds, message.scale, message.georeference);
       else if (message.type === "error") this.onError(message.code);
       else if (message.id === this.latest && this.onRendered) this.onRendered(message.id, message.bitmap);
       else message.bitmap.close();

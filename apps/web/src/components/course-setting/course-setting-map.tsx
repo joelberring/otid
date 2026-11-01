@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
+import { useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref } from "react";
 import type { OverprintPrimitive } from "@o-tid/course-setting";
 import type { Point } from "@o-tid/map-file";
 import type { LegAnalysis } from "@o-tid/route-choice";
 import { courseSettingSv as text } from "../../i18n/course-setting-sv";
 import { drawMarks, drawOverprint, drawRouteChoice } from "../../lib/course-setting-draw";
+import { drawPosition } from "../../lib/course-setting-field";
+import type { MapPosition } from "../../lib/course-setting-geo";
 import { MAX_RENDER_SIDE, type MapRenderSession } from "../../lib/course-setting-map-protocol";
 import {
   bitmapPlacement, fitBounds, panBy, resize, toMap, topLeft, wheelAction, wheelFactor, zoomAt, type Bounds, type Viewport
@@ -39,7 +41,7 @@ const tolerancePx = (pointerType: string) => pointerType === "touch" ? 18 : 8;
  * markeringarna och vald sträckas vägval i ett eget lager ovanpå. Hjul och knappar zoomar, dra panorerar (eller drar det
  * editorn tar tag i), två fingrar zoomar. Medan en ny bild ritas visas den förra omskalad.
  */
-export function CourseSettingMap({ session, mapBounds, primitives, faded, marks, analysis, label, cursor, handlers, handle }: {
+export function CourseSettingMap({ session, mapBounds, primitives, faded, marks, analysis, label, cursor, handlers, handle, position, tools }: {
   session: MapRenderSession | undefined;
   mapBounds: Bounds | undefined;
   primitives: readonly OverprintPrimitive[];
@@ -50,6 +52,9 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
   cursor: string;
   handlers: MapPointerHandlers;
   handle?: Ref<CourseSettingMapHandle>;
+  /** Fältläget: telefonens position och om kartan följer den; knapparna på kartan. */
+  position?: { readonly position: MapPosition; readonly follow: boolean } | undefined;
+  tools?: ReactNode;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const base = useRef<HTMLCanvasElement>(null);
@@ -153,7 +158,12 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
     drawOverprint(ctx, view, faded, { faded: true });
     drawOverprint(ctx, view, primitives);
     drawMarks(ctx, view, marks);
-  }, [view, primitives, faded, marks, analysis]);
+    if (position) drawPosition(ctx, view, position.position);
+  }, [view, primitives, faded, marks, analysis, position]);
+  const followX = position?.follow ? position.position.at.x : undefined, followY = position?.follow ? position.position.at.y : undefined;
+  useEffect(() => {
+    if (followX !== undefined && followY !== undefined) setView(previous => previous ? { ...previous, centerX: followX, centerY: followY } : previous);
+  }, [followX, followY]);
 
   function local(event: { clientX: number; clientY: number }) {
     const rect = box.current!.getBoundingClientRect();
@@ -244,5 +254,6 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
       <Button variant="secondary" aria-label={text.fit} title={text.fit} disabled={!mapBounds}
         onClick={() => setView(previous => previous && mapBounds ? fitBounds(mapBounds, previous.width, previous.height) : previous)}>⤢</Button>
     </div>
+    {tools}
   </div>;
 }

@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
-import type { CourseSettingMode, CourseSettingNoteTarget, CourseSettingState, CourseSettingSuggestionDecided } from "@o-tid/contracts";
+import type {
+  CourseSettingMode, CourseSettingNote, CourseSettingNoteTarget, CourseSettingState, CourseSettingSuggestionDecided
+} from "@o-tid/contracts";
 import {
   applyEdit, checkDocument, courseControlOrder, courseSummaries, describeControl, layoutOverprint, nextFreeCode, type CourseSettingDocument,
   type OverprintPrimitive
@@ -11,11 +13,12 @@ import type { MapGeoreference } from "@o-tid/map-file";
 import type { LegAnalysis, RouteChoiceSettings } from "@o-tid/route-choice";
 import { courseSettingSv as text } from "../../i18n/course-setting-sv";
 import { collaborationSv as copy } from "../../i18n/course-setting-collaboration-sv";
+import { offlineSv } from "../../i18n/course-setting-offline-sv";
 import {
   browserStorage, descriptionLanguageOf, readDescriptionSettings, writeDescriptionSettings, type DescriptionSettings
 } from "../../lib/course-setting-description";
 import {
-  createCourseSettingNote, createCourseSettingSuggestion, decideCourseSettingSuggestion, fetchCourseSetting, fetchCourseSettingRevision,
+  createCourseSettingSuggestion, decideCourseSettingSuggestion, fetchCourseSetting, fetchCourseSettingRevision,
   importCourseSetting, replyCourseSettingNote, restoreCourseSetting, saveCourseSettingEdits, setCourseSettingMode, setCourseSettingNoteStatus
 } from "../../lib/course-setting-api";
 import {
@@ -27,9 +30,12 @@ import { MapRenderSession } from "../../lib/course-setting-map-protocol";
 import { noteInView, noteMarks, notePosition, noteTargetAt } from "../../lib/course-setting-note-marks";
 import { previewSuggestion, suggestionOverlay } from "../../lib/course-setting-suggestion";
 import { CourseSettingSync, EditorStore, type LostEdit, type SyncStatus } from "../../lib/course-setting-sync";
-import { checkRows, legInput, type CheckRow } from "../../lib/course-setting-text";
+import { inspectedPoints, inspectionRows, mergeInspections } from "../../lib/course-setting-inspections";
+import type { FieldRecord, QueuedItem } from "../../lib/course-setting-offline";
+import { checkRows, controlLabel, legInput, type CheckRow } from "../../lib/course-setting-text";
 import type { Bounds } from "../../lib/course-setting-viewport";
-import { fetchMapSource, fetchRouteChoice } from "../../lib/route-choice-api";
+import { controlledWorker } from "../../lib/course-setting-worker";
+import { fetchRouteChoice } from "../../lib/route-choice-api";
 import { RouteChoiceSession } from "../../lib/route-choice-client";
 import { describeEdit } from "../../lib/course-setting-suggestion";
 import { Button, Notice } from "../ui";
@@ -37,6 +43,7 @@ import { CircleCuttingPanel, useDetailGaps } from "./course-setting-circle-cutti
 import { useFieldMode, useLockedPage } from "./course-setting-field";
 import { FilePanel, type ReadFile } from "./course-setting-file";
 import { DescriptionPanel } from "./course-setting-description";
+import { InspectionsPanel, OfflinePanel } from "./course-setting-inspections";
 import { CourseSettingMap, type CourseSettingMapHandle, type MapPointerHandlers } from "./course-setting-map";
 import { NoteForm, NotesPanel } from "./course-setting-notes";
 import { ChecksPanel, CourseList, LegPanel, SelectedPanel, SelectionCard } from "./course-setting-panels";
@@ -44,10 +51,12 @@ import { SuggestionDraft, SuggestionsPanel } from "./course-setting-suggestions"
 import { TransferPanel } from "./course-setting-transfer";
 import { Dialog, Drawer, ToolBar, TopBar, type DrawerTab } from "./course-setting-workspace";
 import { useCourseSettingCollaboration } from "./use-course-setting-collaboration";
+import { loadMapFile, useCourseSettingOffline } from "./use-course-setting-offline";
 import styles from "./course-setting.module.css";
 
-const createMapWorker = () => new Worker(new URL("../../lib/course-setting-map-worker.ts", import.meta.url), { type: "module" });
-const createRouteWorker = () => new Worker(new URL("../../lib/route-choice-worker.ts", import.meta.url), { type: "module" });
+// Steg 67: styrda av service workern när sidan är sparad för offline (`controlledWorker`).
+const createMapWorker = () => controlledWorker(() => new Worker(new URL("../../lib/course-setting-map-worker.ts", import.meta.url), { type: "module" }));
+const createRouteWorker = () => controlledWorker(() => new Worker(new URL("../../lib/route-choice-worker.ts", import.meta.url), { type: "module" }));
 
 /** Paketets uträkningar får inte fälla editorn; ett fel syns i konsolen och vyn visar det som går. */
 function safely<T>(name: string, compute: () => T, fallback: T): T {
@@ -73,16 +82,20 @@ const STATUS_TEXT: Record<SyncStatus, string> = { saved: text.status.saved, pend
  * åtgärder och uppspelning, träff-test, notiser, förslag, kartvy); här kopplas den till kartan, arbetsytan, tangenterna,
  * strömmen och vägvalens Worker. Behörigheten avgör vad som går: ändra direkt (EDIT), föreslå (SUGGEST, förslagsläget)
  * eller läsa och kommentera (COMMENT).
+ *
+ * Steg 67 (ADR-0181 beslut 6–7): `resume` är posten i telefonen med åtgärder som väntar (eller hela läget utan nät);
+ * editorn öppnas med dem och skickar dem. Kollad, notiser i fältet, kön och "Spara för offline" (`useCourseSettingOffline`).
  */
-export function CourseSettingEditor({ raceId, state, notice, onReload }: {
+export function CourseSettingEditor({ raceId, state, notice, onReload, resume }: {
   raceId: string; state: CourseSettingState & { setting: NonNullable<CourseSettingState["setting"]> };
-  notice?: string | undefined; onReload: () => void;
+  notice?: string | undefined; onReload: () => void; resume?: FieldRecord | undefined;
 }) {
   const access = state.access;
   const readOnly = access.level === "COMMENT";
   const initialDocument = state.setting.document as unknown as CourseSettingDocument;
   const store = useMemo(() => {
-    const created = createEditor(initialDocument);
+    const created = resume ? { ...createEditor(resume.document), log: resume.log, nextSeq: Math.max(0, ...resume.log.map(row => row.seq)) + 1,
+      revision: 1 } : createEditor(initialDocument);
     return new EditorStore(access.level === "SUGGEST" ? { ...created, suggesting: { base: initialDocument, baseVersion: state.setting.version } } : created);
     // Editorn monteras om (nyckeln) när dokumentet laddas om.
   }, []);
@@ -108,7 +121,9 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
 
   const lostText = (lost: readonly LostEdit[], document: CourseSettingDocument) =>
     lost.map(row => `${describeEdit(row.edit, document)}: ${row.message}`);
-  const sync = useMemo(() => new CourseSettingSync(store, { version: state.setting.version, document: initialDocument }, {
+  const base = resume ? { version: resume.state.setting.version, document: resume.state.setting.document as unknown as CourseSettingDocument }
+    : { version: state.setting.version, document: initialDocument };
+  const sync = useMemo(() => new CourseSettingSync(store, base, {
     saveEdits: request => saveCourseSettingEdits(raceId, request),
     fetchSetting: async () => {
       const fresh = await fetchCourseSetting(raceId);
@@ -117,9 +132,18 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
     }
   }, {
     onStatus: setStatus, onVersion: setVersion,
-    onLost: lost => say({ tone: "attention", text: copy.lost(lost.length), list: lostText(lost, store.state.document) })
+    onLost: lost => say({ tone: "attention", text: copy.lost(lost.length), list: lostText(lost, store.state.document) }),
+    resume: resume?.inFlight
   }), [raceId, store]);
-  useEffect(() => { sync.attach(); return () => sync.detach(); }, [sync]);
+  useEffect(() => {
+    sync.attach();
+    // Steg 67: åtgärder från förra gången (ur telefonen) skickas direkt.
+    if (resume && resume.log.length > 0) {
+      sync.changed();
+      if (navigator.onLine) say({ tone: "ok", text: offlineSv.resumed(resume.log.length) });
+    }
+    return () => sync.detach();
+  }, [sync]);
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => { if (sync.dirty) event.preventDefault(); };
     window.addEventListener("beforeunload", warn);
@@ -134,7 +158,18 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
       say({ tone: "ok", text: copy.remoteChanged(name ?? copy.someone, kept) });
     }
     sync.remote(version);
-  });
+  }, resume);
+
+  // Steg 67: kön utan nät (notiser och bockar), åtgärderna i telefonen och "Spara för offline".
+  const offline = useCourseSettingOffline({ raceId, state, store, sync, version, status, mapSha256: state.mapFile?.sha256, say,
+    notes: collaboration.notes, inspections: collaboration.inspections,
+    describe: (item: QueuedItem, code: number) => item.kind === "note" ? offlineSv.rejectedNote(item.request.text, code)
+      : offlineSv.rejectedInspection(store.state.document.controls[item.request.control] ? controlLabel(store.state.document, item.request.control)
+        : item.request.control, code),
+    onSent: result => {
+      if (result.sent.some(item => item.kind === "note")) void collaboration.reloadNotes();
+      if (result.sent.some(item => item.kind === "inspection") || result.rejected.length > 0) void collaboration.reloadInspections();
+    } });
 
   /** En ändring: editorns läge och sedan sparandet. */
   const apply = (change: (current: EditorState) => EditorState) => { store.update(change); sync.changed(); };
@@ -145,6 +180,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
   const [mapBounds, setMapBounds] = useState<Bounds | undefined>(state.mapFile?.bounds);
   const [mapStatus, setMapStatus] = useState<"none" | "reading" | "ready" | "failed">(state.mapFile ? "reading" : "none");
   const [georeference, setGeoreference] = useState<MapGeoreference | null>();
+  const [mapBytes, setMapBytes] = useState<number>();
   const routes = useRef<RouteChoiceSession | undefined>(undefined);
   const [routeReady, setRouteReady] = useState(false);
   useEffect(() => {
@@ -155,10 +191,12 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
     void (async () => {
       try {
         // Vägvalens inställningar är admins; den som bara har banläggningen räknar med standardinställningarna.
-        const [file, settings] = await Promise.all([fetchMapSource(raceId, controller.signal), access.admin
+        const [file, settings] = await Promise.all([loadMapFile(raceId, state.mapFile!.sha256, offline.storage, controller.signal, () => say({
+          tone: "attention", text: offlineSv.olderMap })), access.admin
           ? fetchRouteChoice(raceId, controller.signal).then(value => value.settings as RouteChoiceSettings, () => ({ version: 1 }) as RouteChoiceSettings)
           : Promise.resolve({ version: 1 } as RouteChoiceSettings)]);
         if (closed) return;
+        setMapBytes(file.bytes.byteLength);
         session = new MapRenderSession(createMapWorker, (bounds, _scale, georef) => {
           if (!closed) { setMapBounds(bounds); setGeoreference(georef); setMapStatus("ready"); }
         },
@@ -228,20 +266,45 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
   const [noteDraft, setNoteDraft] = useState<CourseSettingNoteTarget>();
   const controlsInView = useMemo(() => new Set(view === ALL_CONTROLS ? Object.keys(document.controls)
     : legCourseControls.map(id => document.courseControls[id]?.control).filter((id): id is string => id !== undefined)), [document, view, legCourseControls]);
-  const notesInView = useMemo(() => collaboration.notes.filter(note => noteInView(note, view, controlsInView)), [collaboration.notes, view, controlsInView]);
+  // Steg 67: notiser som väntar i telefonens kö visas också (märkta "väntar på nät").
+  const me = { accountId: access.accountId, displayName: access.displayName };
+  const pendingNotes = useMemo(() => offline.queue.flatMap((item): CourseSettingNote[] => item.kind !== "note" ? [] : [{ id: item.id,
+    target: item.request.target, at: item.request.at, course: item.request.course, text: item.request.text, status: "OPEN",
+    createdAt: item.createdAt, createdBy: me, resolvedAt: null, resolvedBy: null, photo: null, replies: [] }]), [offline.queue]);
+  const pendingNoteIds = useMemo(() => new Set(pendingNotes.map(note => note.id)), [pendingNotes]);
+  const notesInView = useMemo(() => [...collaboration.notes, ...pendingNotes].filter(note => noteInView(note, view, controlsInView)),
+    [collaboration.notes, pendingNotes, view, controlsInView]);
   const mapNotes = useMemo(() => showNotes ? noteMarks(notesInView.filter(note => note.status === "OPEN" || note.id === selectedNote), document) : [],
     [showNotes, notesInView, selectedNote, document]);
+  /**
+   * Steg 67: en notis går alltid genom kön i telefonen (skickas direkt med nät, annars när nätet kommer). En notis på en
+   * ny kontroll som inte är sparad än fästs vid punkten (kontrollens id finns inte på servern än).
+   */
+  async function queueNote(target: CourseSettingNoteTarget, at: { x: number; y: number } | null, value: string,
+    photo: { mediaType: "image/jpeg"; base64: string } | null): Promise<void> {
+    const saved = (id: string) => Boolean(sync.document.controls[id]);
+    const fixed: CourseSettingNoteTarget = target.kind === "CONTROL" && !saved(target.control) && at ? { kind: "POINT", at }
+      : target.kind === "LEG" && (!saved(target.from) || !saved(target.to)) && at ? { kind: "POINT", at } : target;
+    await offline.enqueueNote({ requestId: crypto.randomUUID(), target: fixed, at, course: fixed.kind === "COURSE" ? fixed.course
+      : view === ALL_CONTROLS ? null : view, text: value, photo });
+  }
   async function saveNote(input: { text: string; photo: { mediaType: "image/jpeg"; base64: string } | null }): Promise<boolean> {
     if (!noteDraft) return false;
     try {
-      const note = await createCourseSettingNote(raceId, { requestId: crypto.randomUUID(), target: noteDraft,
-        at: notePosition({ target: noteDraft, at: null }, document) ?? null, course: noteDraft.kind === "COURSE" ? noteDraft.course
-          : view === ALL_CONTROLS ? null : view, text: input.text, photo: input.photo });
-      setNoteDraft(undefined); setSelectedNote(note.id);
-      await collaboration.reloadNotes();
+      await queueNote(noteDraft, notePosition({ target: noteDraft, at: null }, document) ?? null, input.text, input.photo);
+      setNoteDraft(undefined);
+      if (offline.offline) say({ tone: "ok", text: offlineSv.noteHere.queued });
       return true;
-    } catch (error) { console.error("Notisen sparades inte", error); return false; }
+    } catch (error) { console.error("Notisen sparades inte i telefonen", error); return false; }
   }
+
+  // Steg 67: kollad per kontroll – serverns bockar med de väntande i kön ovanpå.
+  const inspections = useMemo(() => mergeInspections(collaboration.inspections,
+    offline.queue.flatMap(item => item.kind === "inspection" ? [item.request] : []), me), [collaboration.inspections, offline.queue]);
+  const inspectionList = useMemo(() => inspectionRows(document, controlsInView, inspections), [document, controlsInView, inspections]);
+  const inspectedMarks = useMemo(() => inspectedPoints(document, controlsInView, inspections), [document, controlsInView, inspections]);
+  const [reveal, setReveal] = useState(0);
+  const [offlineDialog, setOfflineDialog] = useState(false);
 
   // Förslag (ADR-0181 beslut 3): granskas ovanpå banan, godkänns helt eller delvis eller avböjs.
   const [reviewing, setReviewing] = useState<string>();
@@ -423,6 +486,8 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
 
   const suggesting = editor.suggesting !== undefined;
   const statusText = suggesting ? copy.suggestions.draftCount(editor.log.length) : STATUS_TEXT[status];
+  // Steg 67: utan nät (eller utloggad) säger statusen hur mycket som väntar i telefonen.
+  const shownStatus = suggesting ? statusText : offline.statusText ?? statusText;
   const label = text.map(course?.name ?? text.courses.all);
   const others = collaboration.presence.filter(person => person.accountId !== access.accountId).map(person => person.displayName ?? copy.someone);
   const openSuggestions = collaboration.suggestions.filter(row => row.status === "OPEN").length;
@@ -467,12 +532,18 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
         if (row.controls.length === 1) apply(current => select(current, { kind: "control", control: row.controls[0]! }));
         mapHandle.current?.reveal(row.controls.flatMap(id => document.controls[id] ? [document.controls[id].at] : []));
       }} />;
-      case "notes": return <NotesPanel raceId={raceId} notes={notesInView} document={document} show={showNotes} onShow={setShowNotes}
+      case "notes": return <NotesPanel raceId={raceId} notes={notesInView} pending={pendingNoteIds} document={document} show={showNotes} onShow={setShowNotes}
         selected={selectedNote} onSelect={setSelectedNote} view={view}
         onReveal={note => { const at = notePosition(note, document); if (at) mapHandle.current?.focus(at); }}
         onReply={async (id, value) => { try { await replyCourseSettingNote(raceId, id, value); await collaboration.reloadNotes(); return true; } catch { return false; } }}
         onStatus={async (id, value) => { try { await setCourseSettingNoteStatus(raceId, id, value); await collaboration.reloadNotes(); return true; } catch { return false; } }}
         onCourseNote={() => { if (course) setNoteDraft({ kind: "COURSE", course: course.id }); }} />;
+      case "inspections": return <InspectionsPanel rows={inspectionList} selected={selection?.kind === "control" ? selection.control : undefined}
+        onSelect={control => {
+          apply(current => select(current, { kind: "control", control }));
+          const at = document.controls[control]?.at;
+          if (at) mapHandle.current?.focus(at);
+        }} />;
       case "suggestions": return <SuggestionsPanel suggestions={collaboration.suggestions} document={document} reviewing={reviewing}
         onReview={id => { setReviewing(id); setSkip(new Set()); setDecision(undefined); }} skip={skip} onSkip={setSkip}
         canDecide={access.level === "EDIT"} onDecide={decide} result={decision} rejected={rejectedInPreview} draft={draft} />;
@@ -487,6 +558,8 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
         <p className={styles.muted}>{copy.access[access.level]}</p>
         <p className={styles.muted}>{text.tools.keys}</p>
       </section>
+      <OfflinePanel info={offline.mapInfo} mapSha256={state.mapFile?.sha256} mapBytes={mapBytes} busy={offline.busy} message={offline.panelMessage}
+        waiting={offline.waiting} onSave={() => void offline.saveOffline()} onRemove={() => void offline.removeOffline()} onSend={offline.retry} />
       {!readOnly && <CircleCuttingPanel document={document} cutting={cutting} onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} />}
       </>;
     }
@@ -496,22 +569,29 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
   // raden nertill i stället för rutan med vald kontroll.
   // Banväljaren finns i fältets rad på telefonen (raden överst har den på bredare skärm).
   const variantsByCourse = useMemo(() => Object.fromEntries(summaries.map(row => [row.course, row.variants.map(item => item.code)])), [summaries]);
-  const field = useFieldMode({ raceId, state: editor, apply: edit, georeference, mapBounds, status, statusText, version: () => sync.version,
-    onView: (next, code) => apply(current => setView(current, next, code)), variants: variantsByCourse });
+  const field = useFieldMode({ raceId, state: editor, apply: edit, georeference, mapBounds, status, statusText: shownStatus, offline: offline.offline,
+    readOnly, onView: (next, code) => apply(current => setView(current, next, code)), variants: variantsByCourse,
+    inspection: selectedControl ? inspections.get(selectedControl) : undefined, saved: id => Boolean(sync.document.controls[id]),
+    onInspect: (control, checked, position) => void offline.enqueueInspection({ formatVersion: 1, control, checked, at: new Date().toISOString(),
+      position }).catch(error => console.error("Bocken sparades inte i telefonen", error)),
+    onNote: ({ target, at, text: value, photo }) => queueNote(target, at, value, photo),
+    onList: () => { setTab("inspections"); setReveal(value => value + 1); },
+    onOffline: () => setOfflineDialog(true) });
   useLockedPage();
   const toolBar = <ToolBar tool={editor.tool} tools={tools} inCourse={view !== ALL_CONTROLS} onTool={tool => apply(current => setTool(current, tool))}
     onFork={readOnly ? undefined : fork} help={text.tools.help[editor.tool] ?? ""} />;
 
   const menu = [{ label: copy.topbar.fileMenu, onClick: () => setDialog("file") },
     ...(access.admin ? [{ label: copy.topbar.transfer, onClick: () => setDialog("transfer") }] : []),
-    { label: copy.topbar.settings, onClick: () => setTab("settings") }];
+    { label: copy.topbar.settings, onClick: () => setTab("settings") },
+    { label: `${offlineSv.panel.heading} …`, onClick: () => setOfflineDialog(true) }];
   // `course-setting-shell` (globals.css): sidan under arbetsytan skrollar och studsar aldrig.
   return <main className={`${styles.shell} course-setting-shell`} data-version={version} data-level={access.level}
-    data-field={field.narrow && !readOnly ? "" : undefined}>
+    data-field={field.narrow ? "" : undefined}>
     <TopBar raceId={raceId} document={document} summaries={summaries} view={view} variant={variant}
       onView={(next, value) => apply(current => setView(current, next, value))}
-      status={<p role="status" aria-live="polite" className={styles.status} data-status={suggesting ? "pending" : status}
-        data-testid="course-setting-status">{statusText}</p>}
+      status={<p role="status" aria-live="polite" className={styles.status} data-status={suggesting ? "pending" : offline.offline ? "failed" : status}
+        data-testid="course-setting-status">{shownStatus}</p>}
       access={access.level === "EDIT" ? "" : copy.access[access.level]} presence={copy.presence(others)}
       canUndo={canUndo(editor) && !readOnly} canRedo={canRedo(editor) && !readOnly} onUndo={() => edit(undo)} onRedo={() => edit(redo)} menu={menu} />
     <div className={styles.stage}>
@@ -519,13 +599,13 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
         <CourseSettingMap session={mapSession} mapBounds={mapBounds} primitives={primitives} faded={faded} marks={marks} analysis={analysis}
           label={label} cursor={CURSOR[editor.tool]} handlers={handlers} handle={mapHandle} noteMarks={mapNotes} selectedNote={selectedNote}
           onNoteTap={id => { setSelectedNote(id); setTab("notes"); }} suggestion={suggestionDrawing} cursorAt={cursorAt} highlightRoute={highlightRoute}
-          position={field.position} cross={selection?.kind === "control" && document.controls[selection.control]
+          position={field.position} inspected={inspectedMarks} onPan={field.onPan} cross={selection?.kind === "control" && document.controls[selection.control]
             ? { at: document.controls[selection.control]!.at, dragging: editor.dragBase !== undefined } : undefined} />
         {field.narrow ? <div className={styles.bottomStack}>
           {toolBar}
           {noteDraft && <div className={styles.cardStatic}><NoteForm target={noteDraft} document={document} onSave={saveNote} onCancel={() => setNoteDraft(undefined)} /></div>}
-          {!readOnly && <div className={styles.fieldBar} data-testid="course-setting-field">{field.bar}</div>}
-        </div> : <>{toolBar}{!readOnly && <div className={styles.fieldTools}>{field.tools}</div>}</>}
+          <div className={styles.fieldBar} data-testid="course-setting-field">{field.bar}</div>
+        </div> : <>{toolBar}<div className={styles.fieldTools}>{field.tools}</div></>}
         <div className={styles.toasts}>
           {mapStatus === "reading" && <p role="status" className={styles.toast}>{text.readingMap}</p>}
           {mapStatus === "failed" && <Notice tone="attention">{text.mapFailed}</Notice>}
@@ -533,7 +613,6 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
             {" "}<Button variant="quiet" onClick={() => setTab("suggestions")}>{copy.suggestions.send} …</Button></p>}
           {reviewed && <p className={styles.toast}>{copy.suggestions.reviewing}</p>}
           {editor.error && !field.narrow && <p role="alert" className={styles.toast}>{editor.error}</p>}
-          {field.notice}
           {messages.map(message => <div key={message.id} className={styles.toastBox}>
             <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>
               <p>{message.text}</p>
@@ -542,7 +621,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
             <Button variant="quiet" aria-label={copy.topbar.close} onClick={() => dismiss(message.id)}>×</Button>
           </div>)}
         </div>
-        {field.narrow && !readOnly ? null : noteDraft ? <div className={styles.card}><NoteForm target={noteDraft} document={document} onSave={saveNote} onCancel={() => setNoteDraft(undefined)} /></div>
+        {field.narrow ? null : noteDraft ? <div className={styles.card}><NoteForm target={noteDraft} document={document} onSave={saveNote} onCancel={() => setNoteDraft(undefined)} /></div>
           // Rutan med vald kontroll bara med Välj: när man sätter ut kontroller eller notiser ligger den inte i vägen.
           : editor.tool === "SELECT" && <SelectionCard state={editor} described={describedControl} readOnly={readOnly}
             onCode={(control, value) => edit(current => applySteps(current, [{ type: "SET_CONTROL_CODE", control, code: value }], applyEdit))}
@@ -550,7 +629,8 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
             onDelete={() => edit(current => removeSelected(current, applyEdit, true))}
             onDescription={() => setTab("description")} onMore={() => setTab("selected")} onClose={() => apply(current => select(current, undefined))} />}
       </div>
-      <Drawer tab={tab} onTab={setTab} counts={{ checks: checks.length, notes: openNotes, suggestions: openSuggestions + (suggesting ? editor.log.length : 0) }}>
+      <Drawer tab={tab} onTab={setTab} reveal={reveal} counts={{ checks: checks.length, notes: openNotes,
+        suggestions: openSuggestions + (suggesting ? editor.log.length : 0) }}>
         {panel}
       </Drawer>
     </div>
@@ -561,7 +641,16 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
     {dialog === "transfer" && access.admin && <Dialog title={text.transfer.heading} onClose={() => setDialog(undefined)}>
       <TransferPanel raceId={raceId} ready={!busy && status !== "too-large"} flush={flush} version={() => sync.version} />
     </Dialog>}
-    {status === "stopped" && <div className={styles.toasts}><Notice tone="error" role="alert"><p>{text.status.stopped}</p>
-      <Button variant="secondary" onClick={onReload}>{text.status.reload}</Button></Notice></div>}
+    {offlineDialog && <Dialog title={offlineSv.panel.heading} onClose={() => setOfflineDialog(false)}>
+      <OfflinePanel info={offline.mapInfo} mapSha256={state.mapFile?.sha256} mapBytes={mapBytes} busy={offline.busy} message={offline.panelMessage}
+        waiting={offline.waiting} onSave={() => void offline.saveOffline()} onRemove={() => void offline.removeOffline()} onSend={offline.retry}
+        heading={false} />
+    </Dialog>}
+    {/* Steg 67: utloggad – det som väntar ligger kvar i telefonen; efter inloggning i en ny flik skickas det (sidan försöker igen). */}
+    {offline.loggedOut && <div className={styles.toasts}><Notice tone="error" role="alert"><p>{offline.waiting > 0
+      ? offlineSv.loggedOut(offline.waiting) : text.status.stopped}</p>
+      <div className={styles.row}><a className={styles.back} href="/konto" target="_blank" rel="noopener">{offlineSv.login}</a>
+        <Button variant="secondary" onClick={offline.retry}>{offlineSv.panel.sendNow}</Button>
+        <Button variant="quiet" onClick={onReload}>{text.status.reload}</Button></div></Notice></div>}
   </main>;
 }

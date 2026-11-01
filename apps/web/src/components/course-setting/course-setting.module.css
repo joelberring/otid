@@ -138,6 +138,16 @@
 .noteList > li { border: 1px solid var(--line); border-left: 4px solid rgb(230, 180, 0); }
 .noteList > li[data-status="DONE"] { border-left-color: var(--line-strong); }
 .noteList > li[data-selected] { border-color: rgb(0, 110, 220); }
+/* Steg 67: kollade kontroller. */
+.inspectionList { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.inspectionList > li { border: 1px solid var(--line); border-left: 4px solid var(--line-strong); }
+.inspectionList > li[data-checked] { border-left-color: rgb(21, 128, 61); }
+.inspectionList > li[data-selected] { border-color: rgb(0, 110, 220); }
+.inspectionList button { display: flex; gap: 10px; align-items: center; width: 100%; min-height: 44px; padding: 4px 8px; border: none;
+  background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.inspectionList strong { min-width: 2.5em; font-size: 1.1rem; }
+.inspectionList button:hover, .inspectionList button:focus-visible { background: var(--surface-strong, rgba(0, 0, 0, .05)); color: inherit; }
+.segmented button[aria-pressed="true"]:hover { background: var(--ink); color: var(--surface); }
 .noteHead { display: grid; gap: 2px; width: 100%; padding: 6px 8px; border: none; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .noteStatus { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; }
 .noteText { white-space: pre-wrap; }

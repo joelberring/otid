@@ -152,7 +152,7 @@ export async function publishRaceViaApi(page: Page, raceId: string): Promise<voi
  * Utvecklingsservern kompilerar en route vid första anropet, ibland långsammare än arbetsytans gräns på 15 s.
  * Ett anrop i förväg (svaret spelar ingen roll) gör att flödet sedan mäter appen, inte kompileringen.
  */
-export async function warmRoute(page: Page, path: string, method: "GET" | "POST" = "GET"): Promise<void> {
+export async function warmRoute(page: Page, path: string, method: "GET" | "POST" | "PUT" = "GET"): Promise<void> {
   await page.request.fetch(path, { method, failOnStatusCode: false, timeout: 120_000 });
 }
 
@@ -178,10 +178,11 @@ export async function warmUpload(page: Page, path: string): Promise<void> {
  */
 export async function warmCourseSetting(page: Page, raceId: string): Promise<void> {
   const admin = `/api/admin/races/${raceId}/administrator`;
-  for (const path of ["course-setting", "map/source", "route-choice", "course-setting/notes", "course-setting/suggestions"]) {
+  for (const path of ["course-setting", "map/source", "route-choice", "course-setting/notes", "course-setting/suggestions", "course-setting/inspections"]) {
     await warmRoute(page, `${admin}/${path}`);
   }
   for (const path of ["course-setting/import", "course-setting/edits", "course-setting/notes", "course-setting/transfer"]) await warmRoute(page, `${admin}/${path}`, "POST");
+  await warmRoute(page, `${admin}/course-setting/inspections`, "PUT");
   await warmRoute(page, `/admin/${raceId}/course-setting`);
   await warmUpload(page, `${admin}/map/source`);
 }

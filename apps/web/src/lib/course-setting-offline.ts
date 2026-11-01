@@ -1,4 +1,6 @@
-import type { CourseSettingInspectionRequest, CourseSettingNoteCreate, CourseSettingState } from "@o-tid/contracts";
+import type {
+  CourseSettingInspection, CourseSettingInspectionRequest, CourseSettingNote, CourseSettingNoteCreate, CourseSettingState
+} from "@o-tid/contracts";
 import type { CourseSettingDocument } from "@o-tid/course-setting";
 import type { LoggedEdit } from "./course-setting-editor";
 import { HttpStatusError } from "./course-setting-sync";
@@ -28,6 +30,9 @@ export interface FieldRecord {
   readonly log: readonly LoggedEdit[];
   /** Begäran som var skickad men inte kvitterad: samma requestId för åtgärderna till och med `upTo`. */
   readonly inFlight?: { readonly requestId: string; readonly upTo: number } | undefined;
+  /** Senast hämtade notiser och bockar, så att de syns när sidan öppnas utan nät. */
+  readonly notes?: readonly CourseSettingNote[] | undefined;
+  readonly inspections?: readonly CourseSettingInspection[] | undefined;
   readonly savedAt: string;
 }
 
@@ -82,12 +87,13 @@ export function memoryFieldStore(): FieldStore {
 
 /** Posten att spara: undefined = inget behöver ligga kvar (inga väntande åtgärder och inte sparad för offline). */
 export function recordToKeep(input: { raceId: string; state: CourseSettingState; version: number; base: CourseSettingDocument;
-  document: CourseSettingDocument; log: readonly LoggedEdit[]; inFlight?: FieldRecord["inFlight"]; offline: boolean; now: Date })
-  : FieldRecord | undefined {
+  document: CourseSettingDocument; log: readonly LoggedEdit[]; inFlight?: FieldRecord["inFlight"]; offline: boolean; now: Date;
+  notes?: readonly CourseSettingNote[]; inspections?: readonly CourseSettingInspection[] }): FieldRecord | undefined {
   if (!input.state.setting || (input.log.length === 0 && !input.inFlight && !input.offline)) return undefined;
   return { formatVersion: 1, raceId: input.raceId,
     state: { ...input.state, setting: { ...input.state.setting, version: input.version, document: input.base as never } },
-    document: input.document, log: input.log, inFlight: input.inFlight, savedAt: input.now.toISOString() };
+    document: input.document, log: input.log, inFlight: input.inFlight, notes: input.notes, inspections: input.inspections,
+    savedAt: input.now.toISOString() };
 }
 
 /** Posten kan användas: rätt format och tävling och en logg som stämmer med sig själv. */

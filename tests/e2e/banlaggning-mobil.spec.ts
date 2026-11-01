@@ -7,7 +7,7 @@ import { createRace, openStep, registerAccount, today, unique, warmCourseSetting
 /**
  * Fältläget, första versionen (ADR-0181 beslut 6–7): banläggningen på en telefon (390 × 844) med fejkad position. Välj
  * kontroll 32, Min position, Flytta hit (medelvärdet under 5 s), en meter norrut, kolumn F = 1.5 och G = SO via
- * Uppgifter, och allt är sparat efter omladdning.
+ * Uppgifter, och allt är sparat efter omladdning. En ändring utan nät ligger i telefonen och skickas när sidan öppnas igen.
  *
  * Ägarens synpunkter från skogen (steg 66): banväljaren i raden överst och banan ritad med sträckor, nummer, start och
  * mål; fältknapparna med en bana vald; krysset i vald kontrolls mitt; en dragning med fingret lyfter kontrollen ovanför
@@ -165,26 +165,26 @@ test("banläggning på telefonen: min position, flytta hit, finjustera, F och G,
   await expect(sheet).toHaveCount(0);
   await expect(phone.getByTestId("course-setting-field-status")).toHaveText("Sparat", { timeout: 15_000 });
 
-  // Utan nät: "Inte sparat – försöker igen". Sidan stängs innan nätet kommer tillbaka; ändringen finns kvar i
-  // webbläsaren och erbjuds när sidan öppnas igen.
+  // Utan nät (steg 67): "Utan nät – 1 ändring väntar". Sidan stängs innan nätet kommer tillbaka; ändringen ligger i
+  // telefonen (IndexedDB) och skickas när sidan öppnas igen.
   const status = () => phone.getByTestId("course-setting-field-status");
   // Steg 66: ändringarna sparas som åtgärder (POST course-setting/edits).
   await phone.route(`**${admin}/course-setting/edits`, route => route.request().method() === "POST" ? route.abort("internetdisconnected") : route.continue());
   await phone.getByRole("button", { name: "Flytta 1 m österut" }).click();
-  await expect(status()).toHaveText("Inte sparat – försöker igen", { timeout: 15_000 });
+  await expect(status()).toHaveText("Utan nät – 1 ändring väntar", { timeout: 15_000 });
   await screenshot(phone, "banlaggning-mobil-inte-sparat");
+  await phone.waitForTimeout(500);
   await phone.close({ runBeforeUnload: false });
   phone = await phoneContext.newPage();
   await phone.goto(`/admin/${raceId}/course-setting`);
-  await expect(phone.getByText(/osparade ändringar/)).toBeVisible();
+  await expect(phone.getByText("1 ändring från förra gången skickas.")).toBeVisible();
   await screenshot(phone, "banlaggning-mobil-aterstall");
-  await phone.getByRole("button", { name: "Återställ ändringarna" }).click();
   await expect(status()).toHaveText("Sparat", { timeout: 15_000 });
 
   // Omladdning: allt är sparat och inget erbjuds att återställa.
   await phone.reload();
   await expect(phone.getByTestId("course-setting-field")).toBeVisible();
-  await expect(phone.getByText(/osparade ändringar/)).toHaveCount(0);
+  await expect(phone.getByText(/från förra gången/)).toHaveCount(0);
   const state = await (await phone.request.get(`${admin}/course-setting`)).json() as { setting: { document: Document } };
   const moved = Object.values(state.setting.document.controls).find(row => row.code === "32")!;
   expect(moved.at.x).toBeCloseTo(target.x + 0.1, 2);

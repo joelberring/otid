@@ -10,6 +10,9 @@ import { build } from "esbuild";
  * Bygger det statiska appskal som ska fungera utan nät: /readout/.
  * Skalet får hashade filer (även typsnitten, ADR-0170),
  * index.html och en service worker med manifest över exakt de filerna.
+ *
+ * Steg 67: banläggningens service worker (/course-setting-sw.js) byggs här också. Banläggningen är en Next-sida, så den
+ * har inget eget skal; service workern sparar sidan och Nexts filer när banläggaren väljer "Spara för offline".
  */
 const web = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -50,3 +53,9 @@ async function buildShell(shell) {
 }
 
 for (const shell of shells) await buildShell(shell);
+
+const courseSettingWorker = await build({ absWorkingDir: web, entryPoints: ["src/course-setting-offline/service-worker.ts"], bundle: true,
+  write: false, minify: true, format: "iife", platform: "browser", target: "chrome110" });
+await mkdir(resolve(web, "public"), { recursive: true });
+await writeFile(resolve(web, "public/course-setting-sw.js"), courseSettingWorker.outputFiles[0].contents);
+process.stdout.write("course-setting service worker built\n");

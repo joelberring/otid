@@ -3,6 +3,7 @@ node_modules
 .next
 apps/web/public/checkin/
 apps/web/public/readout/
+apps/web/public/course-setting-sw.js
 dist
 coverage
 playwright-report

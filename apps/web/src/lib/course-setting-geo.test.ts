@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { mapPointToWgs84, readMapFile, type MapGeoreference } from "@o-tid/map-file";
-import { averagePositions, insideBounds, metersPerMm, stepPoint, toMapPosition, type MapPosition } from "./course-setting-geo";
+import { averagePositions, compassHeading, insideBounds, metersPerMm, stepPoint, toMapPosition, type MapPosition } from "./course-setting-geo";
 
 const fixture = (name: string) => new Uint8Array(readFileSync(new URL(`../../../../fixtures/maps/${name}`, import.meta.url)));
 
@@ -68,5 +68,19 @@ describe("finjustering i meter", () => {
     const bounds = { minX: 0, minY: 0, maxX: 100, maxY: 100 };
     expect(insideBounds({ x: 120, y: 50 }, bounds)).toBe(true);
     expect(insideBounds({ x: 5000, y: 50 }, bounds)).toBe(false);
+  });
+});
+
+describe("steg 67: kompassen", () => {
+  it("iOS ger riktningen direkt, Android absolut alpha moturs; skärmens vridning läggs till och avrundas till 5°", () => {
+    expect(compassHeading({ webkitCompassHeading: 92 })).toBe(90);
+    expect(compassHeading({ absolute: true, alpha: 90 })).toBe(270);
+    expect(compassHeading({ absolute: true, alpha: 0 })).toBe(0);
+    expect(compassHeading({ absolute: true, alpha: 10 }, 90)).toBe(80);
+    expect(compassHeading({ webkitCompassHeading: 350 }, 90)).toBe(80);
+    // Relativ riktning (inte mot norr) eller ingen alls: ingen kon.
+    expect(compassHeading({ absolute: false, alpha: 30 })).toBeUndefined();
+    expect(compassHeading({ webkitCompassHeading: -1 })).toBeUndefined();
+    expect(compassHeading({})).toBeUndefined();
   });
 });

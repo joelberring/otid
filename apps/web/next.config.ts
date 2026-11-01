@@ -39,6 +39,9 @@ const nextConfig: NextConfig = {
       })),
       // Banläggningens fältläge (ADR-0181 beslut 6–7): telefonens position på kartan. Gäller före regeln ovan.
       { source: "/admin/:raceId/course-setting", headers: [{ key: "Permissions-Policy", value: "camera=(), geolocation=(self), microphone=()" }] },
+      // Steg 67: banläggningens service worker (scope per tävling under /admin/, bara banläggningen; se service-worker.ts).
+      { source: "/course-setting-sw.js", headers: [{ key: "Cache-Control", value: "no-cache" }, { key: "Service-Worker-Allowed", value: "/admin/" },
+        { key: "Content-Security-Policy", value: "default-src 'none'; connect-src 'self'" }] },
       // Avläsningen och bardisken: adressen i arbetsytan och det statiska skalet som den leder till.
       { source: "/admin/:raceId/readout", headers: [readout] },
       { source: "/readout/:path*", headers: [{ key: "Cache-Control", value: "no-cache" },

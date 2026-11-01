@@ -9,6 +9,7 @@ import { drawMarks, drawOverprint, drawRouteChoice } from "../../lib/course-sett
 import { drawHighlightedRoute, drawNoteMarks, drawSuggestion, type SuggestionDrawing } from "../../lib/course-setting-draw-collaboration";
 import { drawDragGuide, liftedPoint, type CenterCross } from "../../lib/course-setting-draw-cross";
 import { drawPosition } from "../../lib/course-setting-field";
+import { drawInspected } from "../../lib/course-setting-inspections";
 import type { MapPosition } from "../../lib/course-setting-geo";
 import { hitNoteMark, noteMarkGeometry, type NoteMark } from "../../lib/course-setting-note-marks";
 import { MAX_RENDER_SIDE, type MapRenderSession } from "../../lib/course-setting-map-protocol";
@@ -53,7 +54,7 @@ const tolerancePx = (pointerType: string) => pointerType === "touch" ? 18 : 8;
  * ett eget lager som bara finns på skärmen; en dragning med fingret lyfts ovanför fingret (`liftedPoint`).
  */
 export function CourseSettingMap({ session, mapBounds, primitives, faded, marks, analysis, label, cursor, handlers, handle, noteMarks,
-  selectedNote, onNoteTap, suggestion, cursorAt, highlightRoute, position, cross }: {
+  selectedNote, onNoteTap, suggestion, cursorAt, highlightRoute, position, cross, inspected, onPan }: {
   session: MapRenderSession | undefined;
   mapBounds: Bounds | undefined;
   primitives: readonly OverprintPrimitive[];
@@ -72,8 +73,12 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
   cursorAt?: ((point: Point, toleranceMm: number) => string | undefined) | undefined;
   /** Vägvalet som är valt i listan. */
   highlightRoute?: readonly Point[] | undefined;
-  /** Fältläget: telefonens position och om kartan följer den. */
-  position?: { readonly position: MapPosition; readonly follow: boolean } | undefined;
+  /** Fältläget: telefonens position, om kartan följer den och kompassens riktning (steg 67). */
+  position?: { readonly position: MapPosition; readonly follow: boolean; readonly heading?: number | undefined } | undefined;
+  /** Steg 67: kollade kontroller (diskret bock, bara på skärmen). */
+  inspected?: readonly { at: Point; moved: boolean }[] | undefined;
+  /** Steg 67: kartan panorerades med fingret eller musen ("Följ" släpper). */
+  onPan?: (() => void) | undefined;
   /** Krysset i vald kontrolls mitt (bara på skärmen). */
   cross?: CenterCross | undefined;
 }) {
@@ -189,9 +194,10 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
     drawOverprint(ctx, view, primitives);
     if (suggestion) drawSuggestion(ctx, view, suggestion);
     drawMarks(ctx, view, marks);
+    if (inspected) drawInspected(ctx, view, inspected, marks.radiusMm);
     if (noteMarks) drawNoteMarks(ctx, view, noteMarks.map(mark => ({ ...mark, selected: mark.id === selectedNote })));
-    if (position) drawPosition(ctx, view, position.position);
-  }, [view, primitives, faded, marks, analysis, suggestion, noteMarks, selectedNote, highlightRoute, position]);
+    if (position) drawPosition(ctx, view, position.position, position.heading);
+  }, [view, primitives, faded, marks, analysis, suggestion, noteMarks, selectedNote, highlightRoute, position, inspected]);
   // Skärmlagret: det stora krysset medan man drar (och fingrets linje). Aldrig i banpåtrycket, dolt vid utskrift.
   const crossX = cross?.at.x, crossY = cross?.at.y, crossDragging = cross?.dragging, radiusMm = marks.radiusMm;
   useEffect(() => {
@@ -230,6 +236,7 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
       if (gesture.current?.kind === "drag") handlers.onDragEnd();
       const [a, b] = [...pointers.current.values()];
       const middle = a && b ? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : at;
+      onPan?.();
       gesture.current = { kind: "pinch", startX: middle.x, startY: middle.y, lastX: middle.x, lastY: middle.y, distance: pinchDistance(),
         pointerType: event.pointerType };
       return;
@@ -267,7 +274,7 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
       if (Math.hypot(at.x - current.startX, at.y - current.startY) < TAP_SLOP_PX) return;
       const start = toMap(view, { x: current.startX, y: current.startY });
       current.kind = handlers.onDragStart(start, tolerancePx(current.pointerType) / view.pxPerMm) ? "drag" : "pan";
-      if (current.kind === "pan") setGrabbing(true);
+      if (current.kind === "pan") { setGrabbing(true); onPan?.(); }
     }
     if (current.kind === "drag") {
       handlers.onDragMove(toMap(view, liftedPoint(at, current.pointerType)));

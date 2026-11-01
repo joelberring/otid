@@ -17,12 +17,13 @@ import { openCourseSettingStream } from "../../lib/course-setting-stream-client"
  * Steg 67: bockarna för "kollad" på samma sätt. Utan nät misslyckas hämtningen tyst (det som visas står kvar).
  */
 export function useCourseSettingCollaboration(raceId: string, initialMode: CourseSettingMode,
-  onRemoteVersion: (version: number, by: string) => void) {
-  const [notes, setNotes] = useState<readonly CourseSettingNote[]>([]);
+  onRemoteVersion: (version: number, by: string) => void,
+  saved?: { readonly notes?: readonly CourseSettingNote[] | undefined; readonly inspections?: readonly CourseSettingInspection[] | undefined }) {
+  const [notes, setNotes] = useState<readonly CourseSettingNote[]>(saved?.notes ?? []);
   const [suggestions, setSuggestions] = useState<readonly CourseSettingSuggestion[]>([]);
   const [presence, setPresence] = useState<CourseSettingPresence>([]);
   const [mode, setMode] = useState<CourseSettingMode>(initialMode);
-  const [inspections, setInspections] = useState<readonly CourseSettingInspection[]>([]);
+  const [inspections, setInspections] = useState<readonly CourseSettingInspection[]>(saved?.inspections ?? []);
   const remote = useRef(onRemoteVersion);
   remote.current = onRemoteVersion;
 

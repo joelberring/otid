@@ -94,8 +94,9 @@ export function ToolBar({ tool, tools, onTool, onFork, inCourse, help }: { tool:
   </div>;
 }
 
-export type DrawerTab = "courses" | "description" | "selected" | "checks" | "notes" | "suggestions" | "settings";
-const TAB_ICON: Record<DrawerTab, string> = { courses: "☰", description: "▦", selected: "◉", checks: "⚠", notes: "✎", suggestions: "⇄", settings: "⚙" };
+export type DrawerTab = "courses" | "description" | "selected" | "checks" | "notes" | "inspections" | "suggestions" | "settings";
+const TAB_ICON: Record<DrawerTab, string> = { courses: "☰", description: "▦", selected: "◉", checks: "⚠", notes: "✎", inspections: "✓",
+  suggestions: "⇄", settings: "⚙" };
 const WIDTH_KEY = "otid.course-setting.drawer";
 
 function readWidth(): number {
@@ -103,12 +104,15 @@ function readWidth(): number {
 }
 
 /** Lådan med flikar: fälls ihop till en list med ikoner, bredden dras i kanten; på smal skärm ett blad nerifrån. */
-export function Drawer({ tab, onTab, counts, children }: { tab: DrawerTab; onTab: (tab: DrawerTab) => void;
-  counts: Partial<Record<DrawerTab, number>>; children: ReactNode }) {
+export function Drawer({ tab, onTab, counts, children, reveal }: { tab: DrawerTab; onTab: (tab: DrawerTab) => void;
+  counts: Partial<Record<DrawerTab, number>>; children: ReactNode;
+  /** Steg 67: räknas upp när fältraden vill visa en flik (bladet fälls upp). */
+  reveal?: number | undefined }) {
   const [collapsed, setCollapsed] = useState(false);
   const [width, setWidth] = useState(380);
   const [sheetOpen, setSheetOpen] = useState(false);
   useEffect(() => { setWidth(readWidth()); }, []);
+  useEffect(() => { if (reveal) { setCollapsed(false); setSheetOpen(true); } }, [reveal]);
   const drag = useRef<{ startX: number; width: number } | undefined>(undefined);
   const sheetDrag = useRef<number | undefined>(undefined);
   const tabs = Object.keys(TAB_ICON) as DrawerTab[];

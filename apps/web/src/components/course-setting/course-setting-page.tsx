@@ -6,21 +6,33 @@ import { raceMapProblemSchema, type CourseSettingState } from "@o-tid/contracts"
 import { emptyDocument } from "@o-tid/course-setting";
 import { courseSettingSv as text } from "../../i18n/course-setting-sv";
 import { collaborationSv as copy } from "../../i18n/course-setting-collaboration-sv";
+import { offlineSv } from "../../i18n/course-setting-offline-sv";
 import { raceMapSv } from "../../i18n/race-map-sv";
 import { courseSettingBase, fetchCourseSetting, HttpError, importCourseSetting, saveCourseSetting } from "../../lib/course-setting-api";
 import { readAccountCsrfCookie } from "../../lib/organizer-account-cookies";
+import { usableRecord, type FieldRecord } from "../../lib/course-setting-offline";
 import { fetchUntilReached } from "../../lib/retrying-fetch";
 import { MapFileUpload } from "../race-administrator/map-file-upload";
 import type { Message } from "../race-administrator/source-sync-actions";
 import { Button, Notice } from "../ui";
 import { CourseSettingEditor } from "./course-setting-editor";
 import { PpenImport, type ReadFile } from "./course-setting-file";
+import { fieldStore } from "./use-course-setting-offline";
 import styles from "./course-setting.module.css";
 
 /**
  * Steg 62 (ADR-0180): sidan `/admin/[raceId]/course-setting`. Hämtar läget; utan kartfil laddas den upp här (samma Worker
  * som i Karta och vägval), utan dokument läses en .ppen in eller börjar banläggaren tomt. Sedan editorn.
+ *
+ * Steg 67: posten i telefonen (`FieldRecord`) läses först. Väntande åtgärder från förra gången skickas när editorn öppnas;
+ * utan nät (eller utloggad) öppnas editorn ur posten och ändringarna köas tills nätet och inloggningen finns.
  */
+async function phoneRecord(raceId: string): Promise<FieldRecord | undefined> {
+  try { return usableRecord(await fieldStore().readRecord(raceId), raceId); } catch (error) {
+    console.error("Banläggningen i telefonen kunde inte läsas", error);
+    return undefined;
+  }
+}
 export function CourseSettingPage({ raceId }: { raceId: string }) {
   const [state, setState] = useState<CourseSettingState>();
   const [failed, setFailed] = useState<"login" | "other">();
@@ -28,15 +40,24 @@ export function CourseSettingPage({ raceId }: { raceId: string }) {
   const [notice, setNotice] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [generation, setGeneration] = useState(0);
+  const [resume, setResume] = useState<{ record: FieldRecord; fromPhone: boolean }>();
   /** Läser läget; `active` säger om svaret fortfarande gäller (en ny editor monteras för varje läsning som gäller). */
   const load = useCallback(async (active: () => boolean = () => true) => {
     setFailed(undefined);
+    const record = await phoneRecord(raceId);
     try {
       const fresh = await fetchCourseSetting(raceId);
       if (!active()) return;
+      // Med nät gäller serverns läge; posten används bara för åtgärder som väntar.
+      const pending = record && (record.log.length > 0 || record.inFlight) && fresh.setting ? record : undefined;
+      setResume(pending ? { record: pending, fromPhone: false } : undefined);
       setState(fresh); setGeneration(value => value + 1);
     } catch (error) {
-      if (active()) setFailed(error instanceof HttpError && (error.status === 401 || error.status === 403) ? "login" : "other");
+      if (!active()) return;
+      // Utan nät (eller utloggad) öppnas banläggningen ur telefonen.
+      const fromPhone = record && (!(error instanceof HttpError) || error.status === 401 || error.status >= 500);
+      if (fromPhone) { setResume({ record, fromPhone: true }); setState(record.state); setGeneration(value => value + 1); return; }
+      setFailed(error instanceof HttpError && (error.status === 401 || error.status === 403) ? "login" : "other");
     }
   }, [raceId]);
   useEffect(() => {
@@ -97,7 +118,8 @@ export function CourseSettingPage({ raceId }: { raceId: string }) {
   const setting = state.setting;
   // Steg 66: editorn fyller fönstret (egen rad överst med bakåtlänken).
   if (state.mapFile && setting) return <CourseSettingEditor key={`${generation}-${setting.version}`} raceId={raceId} state={{ ...state, setting }}
-    notice={notice} onReload={() => { setNotice(undefined); void load(); }} />;
+    notice={notice ?? (resume?.fromPhone ? offlineSv.openedFromPhone(resume.record.savedAt) : undefined)} resume={resume?.record}
+    onReload={() => { setNotice(undefined); void load(); }} />;
   return <main className={styles.page}>
     <header className={styles.head}>{back}<h1>{text.title}</h1>{state.mapFile && <p>{state.mapFile.fileName} · 1:{state.mapFile.scale}</p>}</header>
     {!state.mapFile && <section className={styles.panel} aria-labelledby="course-setting-map-file">

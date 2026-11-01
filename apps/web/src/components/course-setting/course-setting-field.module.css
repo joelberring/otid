@@ -44,3 +44,12 @@
 .fieldset { margin: 0; padding: 0; border: 0; display: grid; gap: 4px; }
 .fieldset legend { padding: 0 0 4px; font-weight: 600; }
 .grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+
+/* Steg 67: notis här (foto och text), kollad, utan nät och varningen för dålig noggrannhet. */
+.photoRow { display: flex; align-items: center; gap: 10px; }
+.photo { width: 96px; height: 72px; object-fit: cover; border: 1px solid var(--line-strong); }
+.textarea { min-height: 64px; font-size: 1.05rem; padding: 8px 10px; font-family: inherit; }
+.line[data-warning="true"] { border-left-color: var(--attention, #b26a00); font-weight: 600; }
+.status[data-offline="true"] { border-color: var(--attention, #b26a00); color: var(--ink); font-weight: 700; background: rgb(255, 244, 222); }
+.inspected { font-size: var(--text-sm); color: var(--ink-muted, #444); }
+.hidden { display: none; }

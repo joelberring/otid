@@ -56,6 +56,8 @@ const COURSE_SETTING: Record<string, Record<string, CourseSettingRequirement>> =
   "admin/races/[raceId]/administrator/course-setting/suggestions": { GET: "COMMENT", POST: "SUGGEST" },
   "admin/races/[raceId]/administrator/course-setting/suggestions/[suggestionId]/decision": { POST: "EDIT" },
   "admin/races/[raceId]/administrator/course-setting/events": { GET: "COMMENT" },
+  // Steg 67: bankontrollanten (läsa och kommentera) bockar kontroller som kollade.
+  "admin/races/[raceId]/administrator/course-setting/inspections": { GET: "COMMENT", PUT: "COMMENT" },
   "admin/races/[raceId]/administrator/map/source": { GET: "COMMENT" }
 };
 /** Publika routes under api/races (startlistor) har ingen inloggning och ingår inte. */

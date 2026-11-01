@@ -81,3 +81,27 @@ export function stepPoint(at: Point, direction: StepDirection, meters: number, m
 export function insideBounds(at: Point, bounds: { minX: number; minY: number; maxX: number; maxY: number }, marginMm = 50): boolean {
   return at.x >= bounds.minX - marginMm && at.x <= bounds.maxX + marginMm && at.y >= bounds.minY - marginMm && at.y <= bounds.maxY + marginMm;
 }
+
+/** Det `deviceorientation` ger: iOS `webkitCompassHeading` (grader medurs från norr), annars `alpha` (moturs) när den är absolut. */
+export interface OrientationReading {
+  readonly webkitCompassHeading?: number | undefined;
+  readonly absolute?: boolean | undefined;
+  readonly alpha?: number | null | undefined;
+}
+
+/**
+ * Steg 67: kompassriktningen i grader medurs från norr (kartans uppåt), avrundad till 5°, eller undefined om telefonen inte
+ * ger någon. `screenAngle` är skärmens vridning (liggande telefon). Kompassen ger magnetisk nord, som orienteringskartan.
+ */
+export function compassHeading(reading: OrientationReading, screenAngle = 0): number | undefined {
+  let heading: number | undefined;
+  const ios = reading.webkitCompassHeading;
+  if (typeof ios === "number" && Number.isFinite(ios) && ios >= 0) heading = ios;
+  else if (reading.absolute && typeof reading.alpha === "number" && Number.isFinite(reading.alpha)) heading = 360 - reading.alpha;
+  if (heading === undefined) return undefined;
+  const rounded = Math.round((heading + screenAngle) / 5) * 5;
+  return ((rounded % 360) + 360) % 360;
+}
+
+/** Noggrannheten är sämre än så här (meter): positionen visas med en varning. */
+export const POOR_ACCURACY_M = 15;

@@ -1,31 +1,37 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { createPortal } from "react-dom";
-import { applyEdit, objectPatch, type CourseSettingDocument } from "@o-tid/course-setting";
-import type { MapGeoreference } from "@o-tid/map-file";
+import type { CourseSettingNoteTarget } from "@o-tid/contracts";
+import { applyEdit, type CourseSettingDocument } from "@o-tid/course-setting";
+import type { MapGeoreference, Point } from "@o-tid/map-file";
 import { courseSettingFieldSv as text } from "../../i18n/course-setting-field-sv";
+import { offlineSv as copy } from "../../i18n/course-setting-offline-sv";
 import { applySteps, undo, type EditorState } from "../../lib/course-setting-editor";
 import type { SyncStatus } from "../../lib/course-setting-sync";
+import { withFieldDescription } from "../../lib/course-setting-field";
 import {
-  clearBackup, F_QUICK, G_CHOICES, gChoiceOf, gSymbolId, localStore, readBackup, withFieldDescription, writeBackup, type UnsavedBackup
-} from "../../lib/course-setting-field";
-import {
-  averagePositions, insideBounds, metersPerMm, stepPoint, toMapPosition, type MapPosition, type PositionFix, type StepDirection
+  averagePositions, compassHeading, insideBounds, metersPerMm, POOR_ACCURACY_M, stepPoint, toMapPosition, type MapPosition, type PositionFix,
+  type StepDirection
 } from "../../lib/course-setting-geo";
 import { ALL_CONTROLS } from "../../lib/course-setting-hit";
+import type { Inspection } from "../../lib/course-setting-inspections";
 import type { Bounds } from "../../lib/course-setting-viewport";
-import { Button } from "../ui";
+import { DetailsSheet, NoteHereSheet, type Photo } from "./course-setting-field-sheets";
+import { photoFromFile } from "./course-setting-notes";
 import css from "./course-setting-field.module.css";
 
 /**
- * Fältläget, första versionen (ADR-0181 beslut 6–7; hela fältläget är steg 67): min position på kartan, "Flytta hit"
- * (medelvärdet under 5 s), finjustering 1 m per tryck och, på smal skärm, kartan på hela skärmen med stora knappar och
- * kolumn F och G. Osparade ändringar ligger kvar i webbläsaren tills servern har sparat dem.
+ * Fältläget (ADR-0181 beslut 6–7): min position på kartan, "Flytta hit" (medelvärdet under 5 s), finjustering 1 m per
+ * tryck och, på smal skärm, kartan på hela skärmen med stora knappar och kolumn F och G.
+ *
+ * Steg 67: "Kollad" för vald kontroll, "Notis här" (kameran öppnas direkt, notisen fästs vid vald kontroll eller din
+ * position), kompassens kon på positionen, "Följ" som släpper när kartan dras, noggrannheten med varning över 15 m, och
+ * knapparna till listan över kollade kontroller och "Utan nät". Den som bara läser och kommenterar får kolla och skriva
+ * notiser men inte flytta.
  */
 
 type Mode = "off" | "on" | "follow";
-type Note = { readonly tone: "ok" | "error"; readonly text: string };
+type Note = { readonly tone: "ok" | "error" | "warning"; readonly text: string };
 
 const NARROW = "(max-width: 699px)";
 function subscribeNarrow(callback: () => void) {
@@ -51,6 +57,37 @@ const labelOf = (document: CourseSettingDocument, control: string | undefined): 
   return found.kind === "START" ? text.start : found.kind === "FINISH" ? text.finish : text.crossing;
 };
 
+type OrientationPermission = { requestPermission?: () => Promise<"granted" | "denied"> };
+const screenAngle = () => (typeof screen !== "undefined" && screen.orientation ? screen.orientation.angle : 0);
+
+/** Kompassen medan positionen visas (iOS frågar om lov vid trycket på Min position). Uppdateras högst en gång per bildruta. */
+function useCompass(enabled: boolean): number | undefined {
+  const [heading, setHeading] = useState<number>();
+  useEffect(() => {
+    if (!enabled) { setHeading(undefined); return; }
+    let frame = 0, next: number | undefined, absoluteSeen = false;
+    const read = (event: DeviceOrientationEvent, absoluteEvent: boolean) => {
+      if (absoluteEvent) absoluteSeen = true;
+      else if (absoluteSeen) return;
+      const value = compassHeading({ webkitCompassHeading: (event as DeviceOrientationEvent & { webkitCompassHeading?: number }).webkitCompassHeading,
+        absolute: absoluteEvent || event.absolute, alpha: event.alpha }, screenAngle());
+      if (value === undefined) return;
+      next = value;
+      if (!frame) frame = requestAnimationFrame(() => { frame = 0; setHeading(next); });
+    };
+    const absolute = (event: Event) => read(event as DeviceOrientationEvent, true);
+    const relative = (event: Event) => read(event as DeviceOrientationEvent, false);
+    window.addEventListener("deviceorientationabsolute", absolute);
+    window.addEventListener("deviceorientation", relative);
+    return () => {
+      window.removeEventListener("deviceorientationabsolute", absolute);
+      window.removeEventListener("deviceorientation", relative);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [enabled]);
+  return heading;
+}
+
 export interface FieldInput {
   readonly raceId: string;
   readonly state: EditorState;
@@ -60,28 +97,37 @@ export interface FieldInput {
   readonly mapBounds: Bounds | undefined;
   readonly status: SyncStatus;
   readonly statusText: string;
-  /** Versionen som nästa sparande bygger på. */
-  readonly version: () => number;
+  /** Utan nät (steg 67): statusen visas som det. */
+  readonly offline: boolean;
+  /** Läsa och kommentera: inga flyttar eller uppgifter, men kollad och notiser. */
+  readonly readOnly: boolean;
   /** Byt bana/variant (smal skärm har ingen banlista). */
   readonly onView?: ((view: string, variant?: string) => void) | undefined;
   /** Varianterna per bana (koder), för väljaren. */
   readonly variants?: Readonly<Record<string, readonly string[]>> | undefined;
+  /** Steg 67: vald kontrolls bock och om kontrollen finns på servern (en ny osparad kontroll kan inte bockas än). */
+  readonly inspection: Inspection | undefined;
+  readonly saved: (control: string) => boolean;
+  readonly onInspect: (control: string, checked: boolean, position: Point | null) => void;
+  readonly onNote: (input: { target: CourseSettingNoteTarget; at: Point | null; text: string; photo: Photo | null }) => Promise<void>;
+  readonly onList: () => void;
+  readonly onOffline: () => void;
 }
 
 export interface FieldMode {
   readonly narrow: boolean;
-  /** Till kartan: positionen och om kartan följer den. */
-  readonly position: { readonly position: MapPosition; readonly follow: boolean } | undefined;
+  /** Till kartan: positionen, om kartan följer den och kompassens riktning. */
+  readonly position: { readonly position: MapPosition; readonly follow: boolean; readonly heading?: number | undefined } | undefined;
+  /** Kartan drogs: "Följ" släpper. */
+  readonly onPan: () => void;
   /** Knapparna på kartan (bred skärm). */
   readonly tools: ReactNode;
   /** Raden nertill (smal skärm). */
   readonly bar: ReactNode;
-  /** Erbjudandet att återställa osparade ändringar. */
-  readonly notice: ReactNode;
 }
 
 export function useFieldMode(input: FieldInput): FieldMode {
-  const { raceId, state, apply, georeference, mapBounds, status } = input;
+  const { state, apply, georeference, mapBounds, status, readOnly } = input;
   const narrow = useNarrow();
   const document = state.document;
   const selected = state.selection?.kind === "control" ? state.selection.control : undefined;
@@ -93,6 +139,7 @@ export function useFieldMode(input: FieldInput): FieldMode {
   const [fix, setFix] = useState<PositionFix>();
   const [error, setError] = useState<string>();
   const [note, setNote] = useState<Note>();
+  const [compassAllowed, setCompassAllowed] = useState(false);
   const georeferenceRef = useRef(georeference);
   georeferenceRef.current = georeference;
   const collector = useRef<MapPosition[] | undefined>(undefined);
@@ -112,6 +159,7 @@ export function useFieldMode(input: FieldInput): FieldMode {
     }, failure => setError(geolocationError(failure)), { enableHighAccuracy: true, maximumAge: 0 });
     return () => navigator.geolocation.clearWatch(id);
   }, [active]);
+  const heading = useCompass(active && compassAllowed);
 
   const located = useMemo<{ position?: MapPosition; problem?: string }>(() => {
     if (!fix || !georeference) return {};
@@ -146,7 +194,8 @@ export function useFieldMode(input: FieldInput): FieldMode {
       if (!averaged) { setNote({ tone: "error", text: text.noFix }); return; }
       if (mapBounds && !insideBounds(averaged.at, mapBounds)) { setNote({ tone: "error", text: text.outside }); return; }
       apply(current => applySteps(current, [{ type: "MOVE_CONTROL", control, at: averaged.at }], applyEdit));
-      setNote({ tone: "ok", text: text.moved(Math.max(1, Math.round(averaged.accuracyM))) });
+      const meters = Math.max(1, Math.round(averaged.accuracyM));
+      setNote(averaged.accuracyM > POOR_ACCURACY_M ? { tone: "warning", text: copy.movedPoor(meters) } : { tone: "ok", text: text.moved(meters) });
     }, 1000);
   }
 
@@ -159,47 +208,74 @@ export function useFieldMode(input: FieldInput): FieldMode {
     });
   }
 
-  // Osparade ändringar i webbläsaren: kopian skrivs vid varje ändring och tas bort när servern har sparat.
-  const [offer, setOffer] = useState<UnsavedBackup | undefined>(() => readBackup(localStore(), raceId));
-  const wrote = useRef(false);
-  const versionRef = useRef(input.version);
-  versionRef.current = input.version;
-  useEffect(() => {
-    if (state.revision === 0) return;
-    if (status === "pending" || status === "saving" || status === "failed") {
-      wrote.current = writeBackup(localStore(), raceId, { baseVersion: versionRef.current(), savedAt: new Date().toISOString(), document });
-      setOffer(undefined);
-    } else if (status === "saved" && wrote.current) {
-      clearBackup(localStore(), raceId);
-      wrote.current = false;
-    }
-  }, [document, status, state.revision, raceId]);
-  const restoreOffer = useMemo(() => offer && JSON.stringify(offer.document) !== JSON.stringify(document) ? offer : undefined, [offer, document]);
-  const notice = restoreOffer ? <div className={css.notice} role="alert">
-    <p>{text.restore.offer(new Date(restoreOffer.savedAt).toLocaleString("sv-SE", { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" }))}
-      {restoreOffer.baseVersion !== input.version() && ` ${text.restore.newer}`}</p>
-    <div className={css.row}>
-      {/* Steg 66: kopian återställs som en ändring (objekten som skiljer), så att den sparas som andra åtgärder. */}
-      <Button onClick={() => {
-        setOffer(undefined);
-        apply(current => { const patch = objectPatch(current.document, restoreOffer.document); return patch ? applySteps(current, [patch], applyEdit) : current; });
-      }}>{text.restore.apply}</Button>
-      <Button variant="secondary" onClick={() => { setOffer(undefined); clearBackup(localStore(), raceId); }}>{text.restore.discard}</Button>
-    </div>
-  </div> : null;
+  // Kollad: bara vanliga kontroller som finns på servern.
+  const canInspect = selected !== undefined && selectedPoint?.kind === "NORMAL";
+  const inspected = Boolean(input.inspection);
+  function inspect() {
+    if (!selected || !selectedPoint) return;
+    if (!input.saved(selected)) { setNote({ tone: "error", text: copy.inspection.notSaved }); return; }
+    input.onInspect(selected, !inspected, inspected ? null : selectedPoint.at);
+    setNote(undefined);
+  }
+
+  // Notis här: vald kontroll (sparad) eller positionen. Knappen öppnar kameran direkt (samma tryck, så att webbläsaren tillåter det).
+  const camera = useRef<HTMLInputElement>(null);
+  const [noteTarget, setNoteTarget] = useState<{ target: CourseSettingNoteTarget; at: Point | null; label: string }>();
+  const [photo, setPhoto] = useState<Photo | null>(null);
+  const [photoMessage, setPhotoMessage] = useState<string>();
+  const [savingNote, setSavingNote] = useState(false);
+  const label = labelOf(document, selected);
+  const noteHere = () => {
+    if (selected && selectedPoint && input.saved(selected)) {
+      setNoteTarget({ target: { kind: "CONTROL", control: selected }, at: selectedPoint.at, label: label ?? "" });
+    } else if (latest.current) {
+      setNoteTarget({ target: { kind: "POINT", at: latest.current.at }, at: latest.current.at, label: copy.noteHere.atPosition });
+    } else if (selectedPoint) {
+      setNoteTarget({ target: { kind: "POINT", at: selectedPoint.at }, at: selectedPoint.at, label: label ?? "" });
+    } else return;
+    setPhoto(null); setPhotoMessage(undefined);
+    camera.current?.click();
+  };
+  const cameraInput = <input ref={camera} className={css.hidden} type="file" accept="image/*" capture="environment"
+    data-testid="course-setting-note-camera" aria-label={copy.noteHere.takePhoto} onChange={event => {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      if (!file) return;
+      setPhotoMessage(undefined);
+      void photoFromFile(file).then(result => "error" in result ? setPhotoMessage(result.error) : setPhoto(result));
+    }} />;
+  const noteSheet = noteTarget && <NoteHereSheet target={noteTarget.label} photo={photo} photoMessage={photoMessage} busy={savingNote}
+    onPhoto={() => camera.current?.click()} onClose={() => setNoteTarget(undefined)}
+    onSave={value => {
+      setSavingNote(true);
+      void input.onNote({ target: noteTarget.target, at: noteTarget.at, text: value, photo }).then(() => {
+        setNoteTarget(undefined);
+        setNote({ tone: "ok", text: input.offline ? copy.noteHere.queued : copy.noteHere.saved });
+      }, () => setNote({ tone: "error", text: copy.noteHere.queued })).finally(() => setSavingNote(false));
+    }} />;
 
   const [details, setDetails] = useState(false);
-  const label = labelOf(document, selected);
-  const canMove = active && selected !== undefined && Boolean(position);
+  const canMove = active && selected !== undefined && Boolean(position) && !readOnly;
   const problem = georeference === null && active ? text.noGeoreference : error ?? located.problem;
   const positionTitle = mode === "off" ? text.positionOff : mode === "on" ? text.positionOn : text.positionFollow;
-  const cycle = () => setMode(current => current === "off" ? "on" : current === "on" ? "follow" : "off");
-  const info = problem ?? (active ? (position ? text.accuracy(Math.max(1, Math.round(position.accuracyM))) : text.waiting) : undefined);
+  const cycle = () => {
+    // iOS: kompassen kräver lov, och frågan måste komma från ett tryck.
+    if (mode === "off") {
+      const orientation = (typeof DeviceOrientationEvent === "undefined" ? undefined : DeviceOrientationEvent) as OrientationPermission | undefined;
+      if (typeof orientation?.requestPermission === "function") {
+        orientation.requestPermission().then(answer => setCompassAllowed(answer === "granted"), () => setCompassAllowed(false));
+      } else setCompassAllowed(true);
+    }
+    setMode(current => current === "off" ? "on" : current === "on" ? "follow" : "off");
+  };
+  const meters = position ? Math.max(1, Math.round(position.accuracyM)) : undefined;
+  const poor = position !== undefined && position.accuracyM > POOR_ACCURACY_M;
+  const info = problem ?? (active ? (meters !== undefined ? (poor ? copy.poorAccuracy(meters) : text.accuracy(meters)) : text.waiting) : undefined);
 
   const positionButton = <button type="button" className={css.big} aria-label={text.position} title={positionTitle}
     data-mode={mode} aria-pressed={active} onClick={cycle}>
     <span aria-hidden="true" className={css.icon}>{mode === "follow" ? "◉" : "◎"}</span>
-    {narrow && <span className={css.small}>{mode === "follow" ? "Följer" : active ? "Visas" : "Position"}</span>}
+    {narrow && <span className={css.small}>{mode === "follow" ? copy.follow : active ? "Visas" : "Position"}</span>}
   </button>;
   const moveButton = <button type="button" className={css.big} data-testid="course-setting-move-here"
     disabled={!canMove && measuring === undefined} onClick={moveHere}>
@@ -207,18 +283,30 @@ export function useFieldMode(input: FieldInput): FieldMode {
   </button>;
   const arrows = <div className={css.arrows} role="group" aria-label={text.stepGroup}>
     {(["W", "N", "S", "E"] as const).map(direction => <button key={direction} type="button" className={css.big} aria-label={text.step[direction]}
-      title={text.step[direction]} disabled={!selected} onClick={() => step(direction)}>
+      title={text.step[direction]} disabled={!selected || readOnly} onClick={() => step(direction)}>
       {{ N: "↑", S: "↓", E: "→", W: "←" }[direction]}</button>)}
   </div>;
+  const inspectButton = <button type="button" className={css.big} aria-pressed={inspected} disabled={!canInspect}
+    data-testid="course-setting-inspect" onClick={inspect}>{inspected ? copy.inspection.checked : copy.inspection.button}</button>;
+  const noteButton = <button type="button" className={css.big} disabled={!selectedPoint && !position} data-testid="course-setting-note-here-button"
+    onClick={noteHere}>{copy.noteHere.button}</button>;
   const lines = <>
-    {info && <p className={css.line} data-problem={problem ? "true" : undefined} role={problem ? "alert" : "status"}>{info}</p>}
-    {note && <p className={css.line} data-problem={note.tone === "error" ? "true" : undefined} role="status" data-testid="course-setting-field-note">{note.text}</p>}
+    {info && <p className={css.line} data-problem={problem ? "true" : undefined} data-warning={!problem && poor ? "true" : undefined}
+      role={problem ? "alert" : "status"} data-testid="course-setting-position-info">{info}</p>}
+    {note && <p className={css.line} data-problem={note.tone === "error" ? "true" : undefined} data-warning={note.tone === "warning" ? "true" : undefined}
+      role="status" data-testid="course-setting-field-note">{note.text}</p>}
   </>;
+  const inspectedLine = input.inspection && <span className={css.inspected} data-testid="course-setting-inspected-by">
+    {copy.inspection.by(input.inspection.checkedBy.displayName, input.inspection.checkedAt)}
+    {input.inspection.pending ? ` (${copy.inspection.pending})` : ""}</span>;
 
   const tools = <div className={css.tools}>
     {positionButton}
-    {active && <>{moveButton}{selected && arrows}</>}
-    {(info || note) && <div className={css.toolLines}>{lines}</div>}
+    {active && !readOnly && <>{moveButton}{selected && arrows}</>}
+    {selected && <>{inspectButton}{noteButton}</>}
+    {!selected && active && noteButton}
+    {(info || note || inspectedLine) && <div className={css.toolLines}>{lines}{inspectedLine}</div>}
+    {cameraInput}{noteSheet}
   </div>;
 
   // Banväljaren: på telefonen syns banan med sträckor, nummer, start och mål (hur löparna kommer in till kontrollen).
@@ -241,20 +329,28 @@ export function useFieldMode(input: FieldInput): FieldMode {
     {picker}
     <div className={css.barHead}>
       <strong data-testid="course-setting-field-selected">{label ? text.selected(label) : text.none}</strong>
-      <span className={css.status} data-status={status} role="status" data-testid="course-setting-field-status">{input.statusText}</span>
+      <span className={css.status} data-status={status} data-offline={input.offline || undefined} role="status"
+        data-testid="course-setting-field-status">{input.statusText}</span>
     </div>
-    {notice}
+    {inspectedLine}
     {state.error && <p className={css.line} data-problem="true" role="alert">{state.error}</p>}
     {lines}
     <div className={css.barRow}>
       {positionButton}
-      {moveButton}
-      <button type="button" className={css.big} disabled={selectedPoint?.kind !== "NORMAL"} onClick={() => setDetails(true)}>{text.details}</button>
+      {!readOnly && moveButton}
+      {!readOnly && <button type="button" className={css.big} disabled={selectedPoint?.kind !== "NORMAL"} onClick={() => setDetails(true)}>{text.details}</button>}
     </div>
-    <div className={css.barRow}>
+    {!readOnly && <div className={css.barRow}>
       {arrows}
       <button type="button" className={css.big} disabled={state.past.length === 0} onClick={() => apply(undo)}>{text.undo}</button>
+    </div>}
+    <div className={css.barRow}>
+      {inspectButton}
+      {noteButton}
+      <button type="button" className={css.big} onClick={input.onList}>{copy.list}</button>
+      <button type="button" className={css.big} onClick={input.onOffline}>{copy.offlineButton}</button>
     </div>
+    {cameraInput}{noteSheet}
     {details && selected && selectedPoint?.kind === "NORMAL" && <DetailsSheet key={selected} label={label ?? ""}
       boxes={selectedPoint.descriptions} standard={document.event.descriptionStandard} onClose={() => setDetails(false)}
       onSave={(f, g) => {
@@ -266,44 +362,8 @@ export function useFieldMode(input: FieldInput): FieldMode {
       }} />}
   </div>;
 
-  // Smal skärm: erbjudandet står i raden nertill (resten av sidan ligger under kartan).
-  return { narrow, position: position ? { position, follow: mode === "follow" } : undefined, tools, bar, notice: narrow ? null : notice };
-}
-
-/** Bladet "Uppgifter": kolumn F (höjd) och G (läge) med stora knappar. */
-function DetailsSheet({ label, boxes, standard, onSave, onClose }: {
-  label: string; boxes: CourseSettingDocument["controls"][string]["descriptions"]; standard: CourseSettingDocument["event"]["descriptionStandard"];
-  onSave: (f: string, g: string | null) => void; onClose: () => void;
-}) {
-  const [f, setF] = useState(boxes.find(box => box.box === "F")?.text ?? "");
-  const currentG = boxes.find(box => box.box === "G")?.ref;
-  const [g, setG] = useState<string | null>(currentG ?? null);
-  const unknownG = currentG && !gChoiceOf(currentG) && g === currentG;
-  // Över arbetsytan (och bladet nertill), därför direkt i body.
-  return createPortal(<div className={css.sheet} role="dialog" aria-modal="true" aria-label={text.detailsTitle(label)}>
-    <h2>{text.detailsTitle(label)}</h2>
-    <label className={css.field}>{text.f}
-      <input type="text" inputMode="decimal" value={f} onChange={event => setF(event.target.value)} />
-    </label>
-    <div className={css.grid} role="group" aria-label={text.fQuick}>
-      {F_QUICK.map(value => <button key={value} type="button" className={css.big} aria-pressed={f === value} onClick={() => setF(value)}>{value}</button>)}
-    </div>
-    <fieldset className={css.fieldset}>
-      <legend>{text.g}{unknownG ? ` (${currentG})` : ""}</legend>
-      <div className={css.grid}>
-        {G_CHOICES.map(row => {
-          const ref = gSymbolId(row.choice, standard);
-          return <button key={row.choice} type="button" className={css.big} disabled={!ref} aria-pressed={g === ref}
-            onClick={() => setG(ref ?? null)}>{row.label}</button>;
-        })}
-        <button type="button" className={css.big} aria-pressed={g === null} onClick={() => setG(null)}>{text.gNone}</button>
-      </div>
-    </fieldset>
-    <div className={css.barRow}>
-      <button type="button" className={css.big} data-primary="true" onClick={() => onSave(f, g)}>{text.save}</button>
-      <button type="button" className={css.big} onClick={onClose}>{text.close}</button>
-    </div>
-  </div>, document.body);
+  return { narrow, position: position ? { position, follow: mode === "follow", heading } : undefined,
+    onPan: () => setMode(current => current === "follow" ? "on" : current), tools, bar };
 }
 
 /**

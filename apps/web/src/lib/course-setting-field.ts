@@ -1,11 +1,12 @@
-import { symbolsForBox, type CourseSettingDocument, type DescriptionBox, type DescriptionStandard } from "@o-tid/course-setting";
-import type { MapPosition } from "./course-setting-geo";
+import { symbolsForBox, type DescriptionBox, type DescriptionStandard } from "@o-tid/course-setting";
+import { POOR_ACCURACY_M, type MapPosition } from "./course-setting-geo";
 import { setBox } from "./course-setting-description-picker";
 import { toScreen, type Viewport } from "./course-setting-viewport";
 
 /**
- * Fältläget, första versionen (ADR-0181 beslut 6–7): kontrollbeskrivningens F och G med stora knappar, osparade
- * ändringar i webbläsaren och positionen på kartan. Ren logik; komponenten finns i `course-setting-field.tsx`.
+ * Fältläget (ADR-0181 beslut 6–7): kontrollbeskrivningens F och G med stora knappar och positionen på kartan med
+ * kompassens kon. Ren logik; komponenten finns i `course-setting-field.tsx`. Osparade ändringar ligger i telefonen
+ * (steg 67, `course-setting-offline.ts`).
  */
 
 /** Snabbknapparna för ruta F (höjd i meter, som Purple Pens mått). */
@@ -42,57 +43,29 @@ export function withFieldDescription(boxes: readonly DescriptionBox[], f: string
   return setBox(withF, "G", g ? { ref: g } : null);
 }
 
-// Osparade ändringar i webbläsaren (localStorage): skrivs vid varje ändring och tas bort när servern har sparat.
-
-export interface UnsavedBackup {
-  readonly formatVersion: 1;
-  /** Versionen på servern som ändringarna bygger på. */
-  readonly baseVersion: number;
-  readonly savedAt: string;
-  readonly document: CourseSettingDocument;
-}
-
-type Storage = Pick<globalThis.Storage, "getItem" | "setItem" | "removeItem">;
-const backupKey = (raceId: string) => `otid:course-setting-unsaved:${raceId}`;
-
-/** Webbläsarens localStorage, eller inget (privat fönster, blockerad lagring, servern). */
-export function localStore(): Storage | undefined {
-  try { return typeof window === "undefined" ? undefined : window.localStorage; } catch { return undefined; }
-}
-
-export function readBackup(storage: Storage | undefined, raceId: string): UnsavedBackup | undefined {
-  try {
-    const raw = storage?.getItem(backupKey(raceId));
-    if (!raw) return undefined;
-    const value = JSON.parse(raw) as Partial<UnsavedBackup>;
-    if (value.formatVersion !== 1 || typeof value.baseVersion !== "number" || typeof value.savedAt !== "string" || !value.document
-      || typeof value.document !== "object" || !Array.isArray(value.document.courses)) return undefined;
-    return value as UnsavedBackup;
-  } catch { return undefined; }
-}
-
-/** Sant om kopian skrevs (full lagring eller blockerad lagring ger falskt). */
-export function writeBackup(storage: Storage | undefined, raceId: string, backup: Omit<UnsavedBackup, "formatVersion">): boolean {
-  try {
-    if (!storage) return false;
-    storage.setItem(backupKey(raceId), JSON.stringify({ formatVersion: 1, ...backup } satisfies UnsavedBackup));
-    return true;
-  } catch { return false; }
-}
-
-export function clearBackup(storage: Storage | undefined, raceId: string): void {
-  try { storage?.removeItem(backupKey(raceId)); } catch { /* blockerad lagring: inget att ta bort */ }
-}
-
-/** Positionen på kartan: noggrannhetscirkeln och en blå punkt med vit kant. */
-export function drawPosition(ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, view: Viewport, position: MapPosition) {
+/**
+ * Positionen på kartan: noggrannhetscirkeln, kompassens kon (steg 67: riktningen telefonen pekar, 60° bred) och en blå
+ * punkt med vit kant. Noggrannhet sämre än 15 m ritas streckad.
+ */
+export function drawPosition(ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, view: Viewport, position: MapPosition,
+  heading?: number) {
   const at = toScreen(view, position.at);
   const radius = position.accuracyMm * view.pxPerMm;
   ctx.save();
   if (radius > 8) {
     ctx.beginPath(); ctx.arc(at.x, at.y, radius, 0, 2 * Math.PI);
     ctx.fillStyle = "rgba(26, 115, 232, 0.15)"; ctx.fill();
+    if (position.accuracyM > POOR_ACCURACY_M) ctx.setLineDash([6, 4]);
     ctx.lineWidth = 1.5; ctx.strokeStyle = "rgba(26, 115, 232, 0.6)"; ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  if (heading !== undefined) {
+    // Skärmens vinkel: 0° = uppåt, medurs (y nedåt).
+    const angle = (heading - 90) * Math.PI / 180, half = Math.PI / 6, length = 44;
+    const cone = ctx.createRadialGradient(at.x, at.y, 6, at.x, at.y, length);
+    cone.addColorStop(0, "rgba(26, 115, 232, 0.55)"); cone.addColorStop(1, "rgba(26, 115, 232, 0)");
+    ctx.beginPath(); ctx.moveTo(at.x, at.y); ctx.arc(at.x, at.y, length, angle - half, angle + half); ctx.closePath();
+    ctx.fillStyle = cone; ctx.fill();
   }
   ctx.beginPath(); ctx.arc(at.x, at.y, 8, 0, 2 * Math.PI);
   ctx.fillStyle = "rgb(26, 115, 232)"; ctx.fill();

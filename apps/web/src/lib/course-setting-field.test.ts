@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { symbolsForBox, type CourseSettingDocument } from "@o-tid/course-setting";
-import { clearBackup, G_CHOICES, gChoiceOf, gSymbolId, readBackup, withFieldDescription, writeBackup } from "./course-setting-field";
+import { symbolsForBox } from "@o-tid/course-setting";
+import { G_CHOICES, gChoiceOf, gSymbolId, withFieldDescription } from "./course-setting-field";
 
 describe("ruta G med knappar", () => {
   it.each(["2004", "2018"] as const)("alla knappar finns som symboler i ruta G (%s)", standard => {
@@ -30,35 +30,5 @@ describe("F och G sparas, övriga rutor behålls", () => {
   it("tomt F och inget G tar bort rutorna", () => {
     expect(withFieldDescription([{ box: "D", ref: "1.11" }, { box: "F", text: "2" }, { box: "G", ref: "11.11" }], " ", null))
       .toEqual([{ box: "D", ref: "1.11" }]);
-  });
-});
-
-function memoryStorage() {
-  const map = new Map<string, string>();
-  return { getItem: (key: string) => map.get(key) ?? null, setItem: (key: string, value: string) => { map.set(key, value); },
-    removeItem: (key: string) => { map.delete(key); }, map };
-}
-
-describe("osparade ändringar i webbläsaren", () => {
-  const document = { courses: [], controls: {} } as unknown as CourseSettingDocument;
-
-  it("skrivs, läses och tas bort per tävling", () => {
-    const storage = memoryStorage();
-    expect(writeBackup(storage, "a", { baseVersion: 3, savedAt: "2026-11-01T12:00:00Z", document })).toBe(true);
-    expect(readBackup(storage, "a")).toEqual({ formatVersion: 1, baseVersion: 3, savedAt: "2026-11-01T12:00:00Z", document });
-    expect(readBackup(storage, "b")).toBeUndefined();
-    clearBackup(storage, "a");
-    expect(readBackup(storage, "a")).toBeUndefined();
-  });
-
-  it("trasig eller blockerad lagring fäller inget", () => {
-    const storage = memoryStorage();
-    storage.map.set("otid:course-setting-unsaved:a", "{inte json");
-    expect(readBackup(storage, "a")).toBeUndefined();
-    const blocked = { getItem: () => { throw new Error("blockerad"); }, setItem: () => { throw new Error("full"); }, removeItem: () => { throw new Error("x"); } };
-    expect(readBackup(blocked, "a")).toBeUndefined();
-    expect(writeBackup(blocked, "a", { baseVersion: 1, savedAt: "x", document })).toBe(false);
-    expect(() => clearBackup(blocked, "a")).not.toThrow();
-    expect(writeBackup(undefined, "a", { baseVersion: 1, savedAt: "x", document })).toBe(false);
   });
 });

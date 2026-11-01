@@ -37,11 +37,5 @@ export const courseSettingFieldSv = {
   g: "Läge (kolumn G)",
   gNone: "Inget",
   save: "Spara",
-  close: "Stäng",
-  restore: {
-    offer: (time: string) => `Det finns osparade ändringar från ${time} i den här webbläsaren.`,
-    newer: "Banläggningen har sparats efter det; återställ skriver över den sparade versionen.",
-    apply: "Återställ ändringarna",
-    discard: "Släng dem"
-  }
+  close: "Stäng"
 } as const;

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { COURSE_SETTING_NOTE_PHOTO_MAX_BYTES, type CourseSettingNote, type CourseSettingNoteTarget } from "@o-tid/contracts";
 import type { CourseSettingDocument } from "@o-tid/course-setting";
 import { collaborationSv as text } from "../../i18n/course-setting-collaboration-sv";
+import { offlineSv } from "../../i18n/course-setting-offline-sv";
 import { courseSettingNotePhotoUrl } from "../../lib/course-setting-api";
 import { filterNotes, PHOTO_QUALITIES, PHOTO_SIDES, scaledSize, type NoteFilter } from "../../lib/course-setting-note-marks";
 import { controlLabel } from "../../lib/course-setting-text";
@@ -73,11 +74,13 @@ export function NoteForm({ target, document, onSave, onCancel }: { target: Cours
 
 /** Notiserna: filter, lista (klick visar på kartan), tråden med svar, klar/öppen och foto. */
 export function NotesPanel({ raceId, notes, document, show, onShow, selected, onSelect, onReveal, onReply, onStatus, onCourseNote, view, draft,
-  readOnlyCourse }: {
+  readOnlyCourse, pending }: {
   raceId: string; notes: readonly CourseSettingNote[]; document: CourseSettingDocument; show: boolean; onShow: (show: boolean) => void;
   selected: string | undefined; onSelect: (id: string | undefined) => void; onReveal: (note: CourseSettingNote) => void;
   onReply: (id: string, text: string) => Promise<boolean>; onStatus: (id: string, status: "OPEN" | "DONE") => Promise<boolean>;
   onCourseNote: () => void; view: string; draft?: React.ReactNode; readOnlyCourse?: boolean;
+  /** Steg 67: notiser som väntar i telefonens kö (inget nät): inga svar eller klar än. */
+  pending?: ReadonlySet<string> | undefined;
 }) {
   const [filter, setFilter] = useState<NoteFilter>("OPEN");
   const [reply, setReply] = useState("");
@@ -98,13 +101,13 @@ export function NotesPanel({ raceId, notes, document, show, onShow, selected, on
       {visible.map(note => <li key={note.id} data-status={note.status} data-selected={note.id === selected || undefined}>
         <button type="button" className={styles.noteHead} onClick={() => { onSelect(note.id === selected ? undefined : note.id); onReveal(note); }}
           aria-expanded={note.id === selected}>
-          <span className={styles.noteStatus}>{text.notes.status[note.status]}</span>
+          <span className={styles.noteStatus}>{pending?.has(note.id) ? offlineSv.inspection.pending : text.notes.status[note.status]}</span>
           <strong>{targetText(note.target, document)}</strong>
           <span className={styles.noteText}>{note.text}</span>
           <span className={styles.muted}>{text.notes.by(note.createdBy.displayName, note.createdAt)}
             {note.replies.length > 0 ? ` · ${text.notes.replies(note.replies.length)}` : ""}</span>
         </button>
-        {note.id === selected && <div className={styles.thread}>
+        {note.id === selected && !pending?.has(note.id) && <div className={styles.thread}>
           {note.photo && <a href={courseSettingNotePhotoUrl(raceId, note.id)} target="_blank" rel="noreferrer">
             <img src={courseSettingNotePhotoUrl(raceId, note.id)} alt={text.notes.photoAlt} className={styles.notePhoto} loading="lazy" /></a>}
           <ul className={styles.replies}>{note.replies.map(row => <li key={row.id}><p>{row.text}</p>

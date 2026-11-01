@@ -281,6 +281,11 @@ export class CourseSettingSync {
       return;
     }
     this.unread = undefined;
+    if (!after && fetched.version <= this.serverVersion) {
+      this.remoteVersion = 0;
+      if (!this.dirty) this.options.onStatus("saved");
+      return;
+    }
     let lost: LostEdit[] = [];
     this.store.update(state => {
       const result = rebaseEditor(state, { base: after?.authorView ?? this.serverDocument, current: fetched.document, version: fetched.version,

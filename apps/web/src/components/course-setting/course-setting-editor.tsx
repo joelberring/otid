@@ -89,6 +89,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
   const [busy, setBusy] = useState(false);
   const [dialog, setDialog] = useState<"file" | "transfer">();
   const [tab, setTab] = useState<DrawerTab>("courses");
+  const [version, setVersion] = useState(state.setting.version);
 
   const lostText = (lost: readonly LostEdit[], document: CourseSettingDocument) =>
     lost.map(row => `${describeEdit(row.edit, document)}: ${row.message}`);
@@ -100,7 +101,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
       return { version: fresh.setting.version, document: fresh.setting.document as unknown as CourseSettingDocument };
     }
   }, {
-    onStatus: setStatus,
+    onStatus: setStatus, onVersion: setVersion,
     onLost: lost => say({ tone: "attention", text: copy.lost(lost.length), list: lostText(lost, store.state.document) })
   }), [raceId, store]);
   useEffect(() => { sync.attach(); return () => sync.detach(); }, [sync]);
@@ -110,10 +111,10 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
     return () => window.removeEventListener("beforeunload", warn);
   }, [sync]);
 
-  const collaboration = useCourseSettingCollaboration(raceId, access.accountId, state.setting.mode, (version, by) => {
+  const collaboration = useCourseSettingCollaboration(raceId, state.setting.mode, (version, by) => {
     if (version <= sync.version) return;
     const name = collaboration.presence.find(person => person.accountId === by)?.displayName;
-    if (by) say({ tone: "ok", text: copy.remoteChanged(name ?? copy.someone) });
+    if (by && by !== access.accountId) say({ tone: "ok", text: copy.remoteChanged(name ?? copy.someone) });
     sync.remote(version);
   });
 
@@ -469,7 +470,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
   const menu = [{ label: copy.topbar.fileMenu, onClick: () => setDialog("file") },
     ...(access.admin ? [{ label: copy.topbar.transfer, onClick: () => setDialog("transfer") }] : []),
     { label: copy.topbar.settings, onClick: () => setTab("settings") }];
-  return <main className={styles.shell}>
+  return <main className={styles.shell} data-version={version} data-level={access.level}>
     <TopBar raceId={raceId} document={document} summaries={summaries} view={view} variant={variant}
       onView={(next, value) => apply(current => setView(current, next, value))}
       status={<p role="status" aria-live="polite" className={styles.status} data-status={suggesting ? "pending" : status}

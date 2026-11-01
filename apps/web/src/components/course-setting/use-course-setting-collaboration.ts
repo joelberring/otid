@@ -9,10 +9,10 @@ import { openCourseSettingStream } from "../../lib/course-setting-stream-client"
 
 /**
  * Steg 66: notiserna, förslagen, arbetssättet och närvaron, hållna aktuella med banläggningens ström. En ny version från
- * någon annan lämnas till `onRemoteVersion` (editorns sparande hämtar och spelar upp). Egna besked i strömmen hoppas över;
- * efter egna ändringar hämtar vyn själv.
+ * någon (även samma konto i en annan flik) lämnas till `onRemoteVersion`; editorns sparande hoppar över en version som det
+ * redan har. Notiser och förslag hämtas om vid varje besked (en lätt fråga).
  */
-export function useCourseSettingCollaboration(raceId: string, me: string, initialMode: CourseSettingMode,
+export function useCourseSettingCollaboration(raceId: string, initialMode: CourseSettingMode,
   onRemoteVersion: (version: number, by: string) => void) {
   const [notes, setNotes] = useState<readonly CourseSettingNote[]>([]);
   const [suggestions, setSuggestions] = useState<readonly CourseSettingSuggestion[]>([]);
@@ -37,14 +37,14 @@ export function useCourseSettingCollaboration(raceId: string, me: string, initia
   useEffect(() => {
     void reloadNotes(); void reloadSuggestions();
     return openCourseSettingStream(courseSettingEventsUrl(raceId), {
-      version: (version, by) => { if (by !== me) remote.current(version, by); },
-      notes: by => { if (by !== me) void reloadNotes(); },
-      suggestions: by => { if (by !== me) void reloadSuggestions(); },
-      mode: by => { if (by !== me) void reloadState(); },
+      version: (version, by) => remote.current(version, by),
+      notes: () => void reloadNotes(),
+      suggestions: () => void reloadSuggestions(),
+      mode: () => void reloadState(),
       presence: setPresence,
       reconnected: () => { void reloadNotes(); void reloadSuggestions(); void reloadState(); }
     });
-  }, [raceId, me, reloadNotes, reloadSuggestions, reloadState]);
+  }, [raceId, reloadNotes, reloadSuggestions, reloadState]);
 
   return { notes, suggestions, presence, mode, setMode, reloadNotes, reloadSuggestions };
 }

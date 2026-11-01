@@ -47,11 +47,16 @@ export function subscribeCourseSetting(raceId: string, viewer: Viewer, listener:
   const before = presenceOf(raceId);
   listeners.set(id, { listener, viewer });
   current.listeners.set(raceId, listeners);
-  const announce = (previous: CourseSettingPresence) => {
+  // Den nya strömmen får närvaron av `createCourseSettingEventStream`; de andra får veta att någon kom eller gick.
+  const announce = (previous: CourseSettingPresence, except?: number) => {
     const people = presenceOf(raceId);
-    if (JSON.stringify(previous) !== JSON.stringify(people)) publishCourseSettingEvent(raceId, { type: "presence", people });
+    if (JSON.stringify(previous) === JSON.stringify(people)) return;
+    for (const [key, { listener: other }] of [...listeners]) {
+      if (key === except) continue;
+      try { other({ type: "presence", people }); } catch (error) { console.error("Banläggningens ström kunde inte skicka", error); }
+    }
   };
-  announce(before);
+  announce(before, id);
   return () => {
     const previous = presenceOf(raceId);
     listeners.delete(id);

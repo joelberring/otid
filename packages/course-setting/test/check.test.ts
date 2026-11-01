@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { CONTROL_DISTANCE_LIMITS, checkDocument, readPpen, writePpen } from "../src";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { CONTROL_DISTANCE_LIMITS, checkDocument, courseVariants, readPpen, symbolsForBox, writePpen } from "../src";
+import { testFilesDir } from "./helpers";
 import { Builder, lineCourse } from "./build";
 
 const kinds = (checks: readonly { kind: string }[]) => checks.map(check => check.kind).sort();
@@ -20,9 +23,9 @@ describe("checkDocument", () => {
     const similar = b.control("NORMAL", 0, 4.5); // 45 m från a
     const checks = checkDocument(b.document).filter(check => check.kind === "CONTROLS_TOO_CLOSE");
     expect(checks).toContainEqual({ kind: "CONTROLS_TOO_CLOSE", controls: [a, near], meters: 25, limitMeters: 30 });
-    expect(checks).toContainEqual({ kind: "CONTROLS_TOO_CLOSE", controls: [a, similar], meters: 45, limitMeters: 60 });
+    expect(checks).toContainEqual({ kind: "CONTROLS_TOO_CLOSE", controls: [a, similar], meters: 45, limitMeters: 60, feature: "UNKNOWN" });
     expect(checkDocument(b.document, { minMeters: 20, similarMeters: 40 }).filter(check => check.kind === "CONTROLS_TOO_CLOSE"))
-      .toEqual([{ kind: "CONTROLS_TOO_CLOSE", controls: [a, near], meters: 25, limitMeters: 40 }]);
+      .toEqual([{ kind: "CONTROLS_TOO_CLOSE", controls: [a, near], meters: 25, limitMeters: 40, feature: "UNKNOWN" }]);
   });
 
   it("sprint har 15/30 m", () => {
@@ -66,5 +69,38 @@ describe("checkDocument", () => {
     // 31 (0,0) → 32 (20,0) → 33 (40,0); en brytpunkt får sträckan 31→32 att gå genom 33:s ring.
     b.edit({ type: "SET_LEG_BENDS", from: controls[0]!, to: controls[1]!, bends: [{ x: 40, y: 1 }] });
     expect(checkDocument(b.document)).toContainEqual({ kind: "LEG_THROUGH_CONTROL", course, from: controls[0], to: controls[1], control: controls[2] });
+  });
+
+  it("mellan 30 och 60 m: kolumn D avgör (olika objekt går bra, samma eller okänt granskas)", () => {
+    const b = new Builder({ mapScale: 10000 });
+    const a = b.control("NORMAL", 0, 0);
+    const c = b.control("NORMAL", 4.5, 0); // 45 m
+    const [first, second] = symbolsForBox("D", "2018").map(symbol => symbol.id);
+    const tooClose = () => checkDocument(b.document).filter(check => check.kind === "CONTROLS_TOO_CLOSE");
+    b.edit({ type: "SET_DESCRIPTION", control: a, boxes: [{ box: "D", ref: first! }] });
+    expect(tooClose()).toEqual([{ kind: "CONTROLS_TOO_CLOSE", controls: [a, c], meters: 45, limitMeters: 60, feature: "UNKNOWN" }]);
+    b.edit({ type: "SET_DESCRIPTION", control: c, boxes: [{ box: "D", ref: second! }] });
+    expect(tooClose()).toEqual([]);
+    b.edit({ type: "SET_DESCRIPTION", control: c, boxes: [{ box: "D", ref: first! }] });
+    expect(tooClose()).toEqual([{ kind: "CONTROLS_TOO_CLOSE", controls: [a, c], meters: 45, limitMeters: 60, feature: "SAME" }]);
+  });
+
+  it("gafflad bana: en sträcka varnas bara för ringar i samma variant (andra grenar syns inte på löparens karta)", () => {
+    let read = 0;
+    for (const name of ["variations.ppen", "relay/gaffle.ppen", "relay/harper.ppen", "selectiondescriber/mapexchange1.ppen"]) {
+      let xml: string;
+      try { xml = readFileSync(join(testFilesDir, name), "utf8"); read++; } catch { continue; }
+      const document = readPpen(xml).document;
+      for (const check of checkDocument(document)) {
+        if (check.kind !== "LEG_THROUGH_CONTROL") continue;
+        const ok = courseVariants(document, check.course).some(variant => {
+          const ids = variant.courseControls.map(id => document.courseControls[id]!.control);
+          const leg = ids.some((id, index) => index > 0 && ids[index - 1] === check.from && id === check.to);
+          return leg && ids.includes(check.control);
+        });
+        expect(ok, `${name}: ${check.from}-${check.to} genom ${check.control}`).toBe(true);
+      }
+    }
+    expect(read).toBe(4);
   });
 });

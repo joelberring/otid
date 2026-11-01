@@ -101,8 +101,10 @@ export const courseSettingSv = {
     heading: "Kontroller att titta på",
     none: "Inget att anmärka.",
     show: "Visa på kartan",
-    CONTROLS_TOO_CLOSE: (a: string, b: string, distance: number, limit: number) =>
-      `${a} och ${b} ligger ${Math.round(distance)} m från varandra (riktvärde minst ${limit} m).`,
+    CONTROLS_TOO_CLOSE: (a: string, b: string, distance: number, limit: number, feature?: "SAME" | "UNKNOWN") =>
+      feature === "SAME" ? `${a} och ${b} ligger ${Math.round(distance)} m från varandra på samma slags objekt (riktvärde minst ${limit} m).`
+      : feature === "UNKNOWN" ? `${a} och ${b} ligger ${Math.round(distance)} m från varandra. Under ${limit} m ska objekten vara tydligt olika; ange objekt (kolumn D) så avgörs det.`
+      : `${a} och ${b} ligger ${Math.round(distance)} m från varandra (riktvärde minst ${limit} m).`,
     DUPLICATE_CODE: (code: string, count: number) => `Koden ${code} finns på ${count} kontroller.`,
     INVERTIBLE_CODE: (code: string) => `Koden ${code} kan läsas upp och ned.`,
     SAME_CONTROL_TWICE_IN_ROW: (course: string, control: string) => `${course}: ${control} kommer två gånger i rad.`,

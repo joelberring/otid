@@ -1,8 +1,8 @@
 /** Kontrollerna under arbetet (ADR-0180 beslut 9). */
 import { sizesFor } from "./appearance";
 import { distance, nearestOnPath } from "./geometry";
-import { isInvertibleCode } from "./summary";
-import type { CheckOptions, CourseCheck, CourseSettingDocument } from "./types";
+import { courseVariantList, isInvertibleCode } from "./summary";
+import type { CheckOptions, CourseCheck, CourseSettingDocument, DescriptionBox } from "./types";
 import { enumerateCourseControls, enumerateLegs, legPath } from "./walk";
 
 /** IOF:s riktvärden: under `min` för nära, under `similar` bara med tydligt olika objekt (sprint hälften). */
@@ -25,8 +25,12 @@ export function checkCourseSetting(document: CourseSettingDocument, options: Che
       const a = normal[i]!;
       const b = normal[j]!;
       const meters = distance(a.at, b.at) * metersPerMm;
-      if (meters < similarMeters) {
-        checks.push({ kind: "CONTROLS_TOO_CLOSE", controls: [a.id, b.id], meters, limitMeters: meters < minMeters ? minMeters : similarMeters });
+      if (meters < minMeters) {
+        checks.push({ kind: "CONTROLS_TOO_CLOSE", controls: [a.id, b.id], meters, limitMeters: minMeters });
+      } else if (meters < similarMeters) {
+        // Mellan gränserna går det bra med tydligt olika objekt: kolumn D avgör när båda har ett objekt.
+        const feature = sameFeature(a.descriptions, b.descriptions);
+        if (feature !== "DIFFERENT") checks.push({ kind: "CONTROLS_TOO_CLOSE", controls: [a.id, b.id], meters, limitMeters: similarMeters, feature });
       }
     }
   }
@@ -58,34 +62,51 @@ export function checkCourseSetting(document: CourseSettingDocument, options: Che
 
     const legs = enumerateLegs(document, course.id);
     const seenTwice = new Set<string>();
-    const seenLegs = new Set<string>();
-    const sizes = sizesFor(document, course.printScale ?? document.event.mapScale);
-    const radius = sizes.control / 2 + sizes.line / 2;
-    const courseControlIds = new Set(controlIds);
     for (const [fromCc, toCc] of legs) {
       const from = document.courseControls[fromCc]!.control;
       const to = document.courseControls[toCc]!.control;
       if (from === to) {
         if (!seenTwice.has(from)) checks.push({ kind: "SAME_CONTROL_TWICE_IN_ROW", course: course.id, control: from });
         seenTwice.add(from);
-        continue;
       }
-      const key = `${from}-${to}`;
-      if (seenLegs.has(key)) continue;
-      seenLegs.add(key);
-      const path = legPath(document, from, to);
-      for (const other of courseControlIds) {
-        if (other === from || other === to) continue;
-        const control = document.controls[other];
-        if (!control || control.kind !== "NORMAL") continue;
-        if (nearestOnPath(control.at, path).distance < radius) {
-          checks.push({ kind: "LEG_THROUGH_CONTROL", course: course.id, from, to, control: other });
+    }
+
+    // Sträcka genom en annan kontrolls ring: per variant, eftersom en gafflad banas karta bara visar sin egen variants
+    // kontroller (en annan grens ring syns inte på löparens karta).
+    const sizes = sizesFor(document, course.printScale ?? document.event.mapScale);
+    const radius = sizes.control / 2 + sizes.line / 2;
+    const reported = new Set<string>();
+    for (const variant of course.kind === "SCORE" ? [] : courseVariantList(document, course.id)) {
+      const ids = variant.courseControls.map(id => document.courseControls[id]!.control);
+      const inVariant = new Set(ids);
+      for (let index = 1; index < ids.length; index++) {
+        const from = ids[index - 1]!, to = ids[index]!;
+        if (from === to) continue;
+        const path = legPath(document, from, to);
+        for (const other of inVariant) {
+          if (other === from || other === to) continue;
+          const key = `${from}-${to}-${other}`;
+          if (reported.has(key)) continue;
+          const control = document.controls[other];
+          if (!control || control.kind !== "NORMAL") continue;
+          if (nearestOnPath(control.at, path).distance < radius) {
+            reported.add(key);
+            checks.push({ kind: "LEG_THROUGH_CONTROL", course: course.id, from, to, control: other });
+          }
         }
       }
     }
   }
   for (const control of controls) if (!used.has(control.id)) checks.push({ kind: "UNUSED_CONTROL", control: control.id });
   return checks;
+}
+
+/** Samma slags objekt enligt kolumn D (IOF), olika, eller okänt när någon av kontrollerna saknar objekt. */
+function sameFeature(a: readonly DescriptionBox[], b: readonly DescriptionBox[]): "SAME" | "DIFFERENT" | "UNKNOWN" {
+  const feature = (boxes: readonly DescriptionBox[]) => boxes.find(box => box.box === "D")?.ref;
+  const fa = feature(a), fb = feature(b);
+  if (fa === undefined || fb === undefined) return "UNKNOWN";
+  return fa === fb ? "SAME" : "DIFFERENT";
 }
 
 /** Sista banans kontroll i huvudgrenen (den som ritas sist). */

@@ -1122,7 +1122,9 @@ ADR-0182. Görs efter steg 67.
 - [ ] **Grupp** med namn och ledare; tävlingar kan höra till en grupp; ledarna är ADMIN på gruppens tävlingar.
 - [ ] **Gruppsidan:** kommande tillfällen, senaste resultat, arkiv; fast länk och QR-kod.
 - [ ] **Mallar och upprepning:** ny träning ur mall eller förra tillfället; upprepning en termin i förväg.
-- [ ] **Kartbibliotek:** gruppens kartfiler och banläggningar används igen.
+- [ ] **Kartbibliotek:** gruppens kartfiler och banläggningar används igen. Per karta: klubbens egen eller extern, ägare,
+  avtal (fri text), giltighetstid, kontakt och villkor (bara träning, avgift per utskrift, inte publik visning); varning
+  när avtalet gått ut eller inte tillåter det kartan ska användas till.
 - [ ] **Deltagare** känns igen mellan tillfällena; självanmälan för gruppen.
 - [ ] **Säsongen:** närvaro per deltagare, valfri poängserie.
 - [ ] **Inställningar för synlighet** (ADR-0182 beslut 7) med försiktiga standardvärden; aldrig indexerad.

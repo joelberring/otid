@@ -37,6 +37,8 @@ const nextConfig: NextConfig = {
       ...["", "/manage", "/readout", "/speaker", "/imports", "/party-labels", "/course-setting"].map((surface) => ({
         source: `/admin/:raceId${surface}`, headers: [...privateAdminHeaders]
       })),
+      // Banläggningens fältläge (ADR-0181 beslut 6–7): telefonens position på kartan. Gäller före regeln ovan.
+      { source: "/admin/:raceId/course-setting", headers: [{ key: "Permissions-Policy", value: "camera=(), geolocation=(self), microphone=()" }] },
       // Avläsningen och bardisken: adressen i arbetsytan och det statiska skalet som den leder till.
       { source: "/admin/:raceId/readout", headers: [readout] },
       { source: "/readout/:path*", headers: [{ key: "Cache-Control", value: "no-cache" },

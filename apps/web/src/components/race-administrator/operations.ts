@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { readAccountCsrfCookie } from "../../lib/organizer-account-cookies";
-import { fetchWithRetry } from "../../lib/retrying-fetch";
+import { fetchUntilReached, fetchWithRetry } from "../../lib/retrying-fetch";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
 import type { Operation, PendingAttempt } from "./types";
 import type { WorkspaceState } from "./workspace-state";
@@ -67,7 +67,9 @@ export function useOperations(s: WorkspaceState) {
     return true;
   }
   async function request(path: string, op: Operation, init: RequestInit = {}) {
-    const response = await fetchWithRetry(`${base}${path}`, { ...init, credentials: "same-origin", cache: "no-store", signal: op.controller.signal });
+    // Utvecklingsserverns 404-sida (anropet nådde aldrig routen, se `fetchUntilReached`) skickas om, t.ex. kartfilens POST.
+    const response = await fetchUntilReached(`${base}${path}`, { ...init, credentials: "same-origin", cache: "no-store", signal: op.controller.signal },
+      { fetchImpl: fetchWithRetry });
     assertCurrent(op);
     if (response.status === 401 || response.status === 403) { lock(); throw new Error("Unauthorized"); }
     return response;

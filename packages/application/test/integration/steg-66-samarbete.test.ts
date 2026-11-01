@@ -51,7 +51,7 @@ const fixtures = new URL("../../../../fixtures/", import.meta.url);
 beforeAll(async () => {
   await admin.pool.query(`CREATE DATABASE "${databaseName}"`);
   await migrate(db, { migrationsFolder: new URL("../../../database/migrations", import.meta.url).pathname });
-});
+}, 60_000);
 afterAll(async () => {
   await pool.end();
   if (!/^otid_steg66_samarbete_[a-f0-9]{32}$/.test(databaseName)) throw new Error("Ogiltig testdatabas för rensning");
@@ -253,12 +253,12 @@ describe("steg 66: samarbete i banläggningen", { timeout: 180_000 }, () => {
     const copied = await copyRaceAsAdmin(db, { ...owner, request: { formatVersion: 1, requestId: randomUUID(), eventName: "Samarbete v2",
       raceName: "Torsdag", raceDate: "2026-10-15", includePeople: false } });
     if (copied.status !== "copied") throw new Error(`Kopian skapades inte: ${copied.status}`);
-    const copiedNotes = await pool.query("select count(*)::int as n from course_setting_note where race_id = $1", [copied.response.raceId]);
-    expect(copiedNotes.rows[0].n).toBe(4);
+    const copiedNotes = await pool.query<{ n: number }>("select count(*)::int as n from course_setting_note where race_id = $1", [copied.response.raceId]);
+    expect(copiedNotes.rows[0]!.n).toBe(4);
     await db.transaction(tx => purgeRows(tx, "event", [owner.eventId]));
     for (const table of ["course_setting_note", "course_setting_note_reply", "course_setting_suggestion", "course_setting_change", "course_setting_grant"]) {
-      const left = await pool.query(`select count(*)::int as n from ${table} where race_id = $1`, [owner.raceId]);
-      expect(left.rows[0].n, table).toBe(0);
+      const left = await pool.query<{ n: number }>(`select count(*)::int as n from ${table} where race_id = $1`, [owner.raceId]);
+      expect(left.rows[0]!.n, table).toBe(0);
     }
   });
 

@@ -60,10 +60,11 @@ export function neverReachedRoute(response: Pick<Response, "status" | "headers">
   return response.status === 404 && !(response.headers.get("content-type") ?? "").includes("application/json");
 }
 
-export async function fetchUntilReached(input: string, init: RequestInit, options: { delays?: readonly number[]; fetchImpl?: typeof fetch } = {})
+export async function fetchUntilReached(input: string, init: RequestInit,
+  options: { delays?: readonly number[]; fetchImpl?: (input: string, init: RequestInit) => Promise<Response> } = {})
   : Promise<Response> {
   const delays = options.delays ?? [1_000, 2_000];
-  const fetchImpl = options.fetchImpl ?? fetch;
+  const fetchImpl = options.fetchImpl ?? ((url: string, request: RequestInit) => fetch(url, request));
   for (let attempt = 0; ; attempt += 1) {
     const response = await fetchImpl(input, init);
     if (attempt >= delays.length || !neverReachedRoute(response)) return response;

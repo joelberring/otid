@@ -502,6 +502,12 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
     setBusy(true);
     try {
       await sync.flush();
+      // Steg 64 (ADR-0183): tävlingens utskriftsprofiler och layoutmallar står inte i .ppen-filen och följer med.
+      const event = document.event;
+      const imported: CourseSettingDocument = { ...file.document, event: { ...file.document.event,
+        ...(event.printProfiles ? { printProfiles: event.printProfiles } : {}), ...(event.printProfileId ? { printProfileId: event.printProfileId } : {}),
+        ...(event.layoutTemplates ? { layoutTemplates: event.layoutTemplates } : {}) } };
+      file = { ...file, document: imported };
       const outcome = await importCourseSetting(raceId, { document: file.document, expectedVersion: sync.version, fileName: file.fileName, ppen: file.ppen });
       if (outcome.kind === "conflict") { say({ tone: "error", text: text.status.conflict }); sync.remote(outcome.conflict.current?.version ?? sync.version + 1); return; }
       if (outcome.kind === "too-large") { say({ tone: "error", text: text.file.tooLarge }); return; }

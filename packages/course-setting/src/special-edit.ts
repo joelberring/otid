@@ -4,7 +4,9 @@
  */
 import type { Point } from "@o-tid/map-file";
 import { nextId } from "./ppen-common";
+import { BUILT_IN_TEMPLATES, validateLayoutTemplate } from "./layout-template";
 import { newSpecial } from "./ppen-special";
+import { BUILT_IN_PRINT_PROFILES, validatePrintProfile } from "./print-profile";
 import type { CourseSettingDocument, EditResult, PrintArea, SpecialEdit, SpecialKind, SpecialObject } from "./types";
 import { CourseSettingEditError } from "./types";
 
@@ -17,6 +19,7 @@ const LINE_KINDS = new Set(["boundary", "line"]);
 const AREA_KINDS = new Set(["out-of-bounds", "dangerous-area", "temporary-construction", "white-out"]);
 
 const invalid = (message: string) => new CourseSettingEditError("INVALID", message);
+const BUILT_IN_IDS = new Set([...BUILT_IN_PRINT_PROFILES.map(profile => profile.id), ...BUILT_IN_TEMPLATES.map(template => template.id)]);
 const finite = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
 
 /** Antalet punkter som slaget ska ha (Special.Validate). */
@@ -106,6 +109,23 @@ export function applySpecialEdit(document: CourseSettingDocument, edit: SpecialE
     case "DELETE_SPECIAL":
       findSpecial(document, edit.special);
       return { document: { ...document, specialObjects: specials.filter(item => item.id !== edit.special) } };
+    case "PUT_PRINT_PROFILE": case "PUT_LAYOUT_TEMPLATE": {
+      const key = edit.type === "PUT_PRINT_PROFILE" ? "printProfiles" : "layoutTemplates";
+      const item = edit.type === "PUT_PRINT_PROFILE" ? validatePrintProfile(edit.profile) : validateLayoutTemplate(edit.template);
+      if (BUILT_IN_IDS.has(item.id)) throw invalid("En inbyggd profil eller mall ändras genom att kopieras med nytt id");
+      const list = (document.event[key] ?? []) as readonly { id: string }[];
+      if (list.length >= 50 && !list.some(row => row.id === item.id)) throw invalid("Högst 50 profiler eller mallar");
+      const next = list.some(row => row.id === item.id) ? list.map(row => row.id === item.id ? item : row) : [...list, item];
+      return { document: { ...document, event: { ...document.event, [key]: next } } };
+    }
+    case "DELETE_PRINT_PROFILE": case "DELETE_LAYOUT_TEMPLATE": {
+      const key = edit.type === "DELETE_PRINT_PROFILE" ? "printProfiles" : "layoutTemplates";
+      const list = (document.event[key] ?? []) as readonly { id: string }[];
+      if (!list.some(row => row.id === edit.id)) throw new CourseSettingEditError("NOT_FOUND", `${edit.id} finns inte`);
+      const event = { ...document.event, [key]: list.filter(row => row.id !== edit.id) };
+      if (key === "printProfiles" && event.printProfileId === edit.id) delete (event as { printProfileId?: string }).printProfileId;
+      return { document: { ...document, event } };
+    }
     case "SET_PRINT_AREA": {
       if (edit.area) checkPrintArea(edit.area);
       const area = edit.area ? defined({ automatic: edit.area.automatic, restrictToPageSize: edit.area.restrictToPageSize, rect: edit.area.rect,

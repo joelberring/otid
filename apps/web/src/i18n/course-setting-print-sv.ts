@@ -72,6 +72,31 @@ export const coursePrintSv = {
     pages: (count: number) => `${count} sid${count === 1 ? "a" : "or"}`,
     none: "Välj minst en bana.",
     sheet: (title: string, sheet: number, sheets: number) => sheets > 1 ? `${title} (${sheet} av ${sheets})` : title,
-    failedCourse: (name: string) => `${name} kunde inte läggas ut.`
+    failedCourse: (name: string) => `${name} kunde inte läggas ut.`,
+    sheets: (count: number) => `${count} ark`,
+    mode: "Vad skrivs ut",
+    modeCourses: "Banor",
+    modeRunners: "En karta per löpare (kartbuntarna, steg 61)",
+    fill: "Fyll sidan i ordning",
+    repeat: "Samma bana i alla ramar",
+    order: "Ordning",
+    orderBundle: "Buntordning (per variant)",
+    orderStart: "Startordning",
+    duplex: "Dubbelsidigt: baksida med namn, klass, startnummer, starttid och variant",
+    singleSided: "Enkelsidigt: remsan i mallen syns när kartan är rullad",
+    runnersLoading: "Läser kartbuntarna …",
+    runnersFailed: "Kartbuntarna kunde inte läsas.",
+    runnersNone: "Det finns inga anmälda löpare med bana ännu.",
+    runnerCounts: "Kartor per variant",
+    runnerOk: "Kontrollen före utskrift: varje löpare har en variant och antalet per variant stämmer med kartbuntslistan.",
+    runnerProblems: "Kontrollen före utskrift hittade fel:",
+    problem: {
+      MISSING_VARIANT: (name: string, className: string) => `${name} (${className}) har ingen variant.`,
+      UNKNOWN_COURSE: (course: string) => `Banan ${course} finns inte i banläggningen.`,
+      UNKNOWN_VARIANT: (course: string, variant: string) => `Variant ${variant} finns inte på ${course} i banläggningen.`,
+      COUNT: (course: string, expected: number, actual: number) => `${course}: kartbuntslistan har ${expected} kartor, utskriften ${actual}.`
+    },
+    bundlesLink: "Kartor till starten",
+    noVariant: "utan variant"
   }
 } as const;

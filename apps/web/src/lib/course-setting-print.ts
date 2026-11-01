@@ -1,4 +1,5 @@
 import { toPage, type CoursePage, type OverprintPrimitive } from "@o-tid/course-setting";
+
 import { circleArcs } from "./course-setting-draw";
 import { cachedDescriptionNodes, screenColor } from "./course-setting-draw-special";
 import type { SvgNode, SymbolLookup } from "./course-setting-description-draw";
@@ -21,9 +22,12 @@ export type PrintNode =
   | { readonly tag: "description"; readonly x: number; readonly y: number; readonly scale: number; readonly nodes: readonly SvgNode[];
       readonly ref?: string | undefined };
 
+/** Det som behövs för att rita en kartram (`CoursePage` eller arkets `SheetFrame`). */
+type FrameLike = Pick<CoursePage, "transform" | "figures" | "clip" | "mapArea">;
+
 const r3 = (value: number) => Math.round(value * 1000) / 1000;
 
-function pathOf(page: CoursePage, points: readonly { x: number; y: number }[], closed: boolean): string {
+function pathOf(page: FrameLike, points: readonly { x: number; y: number }[], closed: boolean): string {
   return points.map((point, index) => {
     const at = toPage(page, point);
     return `${index === 0 ? "M" : "L"}${r3(at.x)} ${r3(at.y)}`;
@@ -31,7 +35,7 @@ function pathOf(page: CoursePage, points: readonly { x: number; y: number }[], c
 }
 
 /** Ringens bågar (grader moturs i kartan) som SVG-bågar på sidan; utan avbrott en hel ring. */
-function circlePath(page: CoursePage, primitive: Extract<OverprintPrimitive, { kind: "circle" }>): string {
+function circlePath(page: FrameLike, primitive: Extract<OverprintPrimitive, { kind: "circle" }>): string {
   const r = primitive.diameter / 2;
   const at = (degrees: number) => toPage(page, { x: primitive.center.x + r * Math.cos(degrees * Math.PI / 180), y: primitive.center.y + r * Math.sin(degrees * Math.PI / 180) });
   const radius = r3(r * page.transform.scale);
@@ -46,8 +50,11 @@ function circlePath(page: CoursePage, primitive: Extract<OverprintPrimitive, { k
   }).join(" ");
 }
 
-/** Figurerna på sidan i målningsordning. Bildernas data blir data-URL. */
-export function pageNodes(page: CoursePage, symbols: SymbolLookup): PrintNode[] {
+/**
+ * Figurerna på sidan i målningsordning. Bildernas data blir data-URL. `courseColor` = banans färg ur utskriftsprofilen
+ * (skärmens färg för COURSE och COURSE_LOWER); saknas = Purple Pens lila.
+ */
+export function pageNodes(page: FrameLike, symbols: SymbolLookup, courseColor?: string): PrintNode[] {
   const s = page.transform.scale;
   return page.figures.map((primitive): PrintNode => {
     if (primitive.kind === "image") {
@@ -55,7 +62,7 @@ export function pageNodes(page: CoursePage, symbols: SymbolLookup): PrintNode[] 
       return { tag: "image", x: r3(corner.x), y: r3(corner.y), width: r3((primitive.rect.maxX - primitive.rect.minX) * s),
         height: r3((primitive.rect.maxY - primitive.rect.minY) * s), href: `data:${primitive.mediaType};base64,${primitive.data}`, ref: primitive.ref };
     }
-    const color = screenColor(primitive);
+    const color = courseColor && (primitive.color === "COURSE" || primitive.color === "COURSE_LOWER") ? courseColor : screenColor(primitive);
     const base = { ref: primitive.ref, role: primitive.role };
     switch (primitive.kind) {
       case "circle": return { tag: "path", d: circlePath(page, primitive), stroke: color, width: r3(primitive.lineWidth * s), ...base };
@@ -78,7 +85,7 @@ export function pageNodes(page: CoursePage, symbols: SymbolLookup): PrintNode[] 
 }
 
 /** Kartbilden för sidan: utsnittet `mapArea` i upplösning `dpi` (högst `MAX_RENDER_SIDE` pixlar på längsta sidan). */
-export function mapRenderRequest(page: CoursePage, dpi = 300): { width: number; height: number; pxPerMm: number; origin: { x: number; y: number } } {
+export function mapRenderRequest(page: Pick<CoursePage, "clip" | "transform" | "mapArea">, dpi = 300): { width: number; height: number; pxPerMm: number; origin: { x: number; y: number } } {
   const longest = Math.max(page.clip.width, page.clip.height);
   const pxPerPaperMm = Math.min(dpi / 25.4, MAX_RENDER_SIDE / Math.max(1, longest));
   return { width: Math.round(page.clip.width * pxPerPaperMm), height: Math.round(page.clip.height * pxPerPaperMm),
@@ -86,12 +93,12 @@ export function mapRenderRequest(page: CoursePage, dpi = 300): { width: number; 
 }
 
 /** Namnet på CSS-sidan (`@page`) för papperets storlek, så att varje ark skrivs ut i sin storlek och riktning. */
-export function pageName(page: Pick<CoursePage, "paper">): string {
+export function pageName(page: { readonly paper: { readonly widthMm: number; readonly heightMm: number } }): string {
   return `otid-${Math.round(page.paper.widthMm)}x${Math.round(page.paper.heightMm)}`;
 }
 
 /** `@page`-reglerna för sidorna (utan marginal: sidan har sina egna marginaler i mm). */
-export function pageStyles(pages: readonly Pick<CoursePage, "paper">[]): string {
+export function pageStyles(pages: readonly { readonly paper: { readonly widthMm: number; readonly heightMm: number } }[]): string {
   const sizes = new Map(pages.map(page => [pageName(page), page.paper]));
   return [...sizes].map(([name, paper]) => `@page ${name} { size: ${r3(paper.widthMm)}mm ${r3(paper.heightMm)}mm; margin: 0; }`).join("\n");
 }

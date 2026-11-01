@@ -10,6 +10,8 @@
  */
 import type { Point } from "@o-tid/map-file";
 import type { DescriptionEdit, DescriptionLayout } from "./description-types";
+import type { LayoutTemplate } from "./layout-template";
+import type { PrintProfile } from "./print-profile";
 
 /**
  * Ett XML-element som O-Tid inte tolkar men skriver tillbaka orört (attribut och innehåll som text). Ett element som
@@ -244,6 +246,13 @@ export interface CourseSettingDocument {
     /** Steg 64: Alla kontrollers utskriftsskala (`<all-controls print-scale>`) och tryckyta (`<print-area>` i `<event>`). */
     readonly allControlsPrintScale?: number | undefined;
     readonly printArea?: PrintArea | undefined;
+    /**
+     * Steg 64 (ADR-0183): tävlingens utskriftsprofiler (färger per kartlager, banans färg) och vald profil, och
+     * layoutmallarna. Bara O-Tid; skrivs inte till .ppen och följer med när en ny .ppen läses in.
+     */
+    readonly printProfiles?: readonly PrintProfile[] | undefined;
+    readonly printProfileId?: string | undefined;
+    readonly layoutTemplates?: readonly LayoutTemplate[] | undefined;
     /** Resten av `<event>` (utskriftsyta, kortlayout, färg …), orört. */
     readonly raw?: readonly RawXml[] | undefined;
   };
@@ -283,7 +292,7 @@ export type CourseSettingEdit =
   | { readonly type: "SET_LEG_BENDS"; readonly from: string; readonly to: string; readonly bends: readonly Point[] }
   | { readonly type: "SET_LEG_GAPS"; readonly from: string; readonly to: string; readonly gaps: Leg["gaps"] }
   | { readonly type: "SET_CIRCLE_GAPS"; readonly control: string; readonly gaps: readonly CircleGap[] }
-  | { readonly type: "SET_EVENT"; readonly changes: Partial<Pick<CourseSettingDocument["event"], "title" | "mapScale" | "overprintStandard" | "descriptionStandard" | "numbering" | "descriptionLanguage" | "circleCutting" | "allControlsPrintScale">> }
+  | { readonly type: "SET_EVENT"; readonly changes: Partial<Pick<CourseSettingDocument["event"], "title" | "mapScale" | "overprintStandard" | "descriptionStandard" | "numbering" | "descriptionLanguage" | "circleCutting" | "allControlsPrintScale" | "printProfileId">> }
   /** Steg 63: kontrollbeskrivningen. */
   | DescriptionEdit
   /** Steg 66: sätt (eller ta bort, null) hela objekt per id – ångra och gör om när flera arbetar samtidigt. */
@@ -312,7 +321,12 @@ export type SpecialEdit =
   | { readonly type: "MOVE_SPECIAL"; readonly special: string; readonly points: readonly Point[] }
   | { readonly type: "UPDATE_SPECIAL"; readonly special: string; readonly changes: SpecialFields & { readonly courses?: readonly string[] | undefined } }
   | { readonly type: "DELETE_SPECIAL"; readonly special: string }
-  | { readonly type: "SET_PRINT_AREA"; readonly course: string; readonly area: PrintArea | null };
+  | { readonly type: "SET_PRINT_AREA"; readonly course: string; readonly area: PrintArea | null }
+  /** Utskriftsprofil och layoutmall (ADR-0183): lägg till eller ersätt per id, ta bort. */
+  | { readonly type: "PUT_PRINT_PROFILE"; readonly profile: PrintProfile }
+  | { readonly type: "DELETE_PRINT_PROFILE"; readonly id: string }
+  | { readonly type: "PUT_LAYOUT_TEMPLATE"; readonly template: LayoutTemplate }
+  | { readonly type: "DELETE_LAYOUT_TEMPLATE"; readonly id: string };
 
 /**
  * Steg 66 (ADR-0181 beslut 4): objekten som de ska vara efter ändringen, per id (null = finns inte). Ångra i en editor där

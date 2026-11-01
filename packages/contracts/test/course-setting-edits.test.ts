@@ -26,7 +26,9 @@ describe("banläggningens åtgärder", () => {
     ok({ type: "SET_PRINT_AREA", course: "ALL_CONTROLS", area: { automatic: false, restrictToPageSize: true,
       rect: { minX: -10, minY: 0, maxX: 100, maxY: 80 }, page: { width: 1169, height: 827, margins: 28, landscape: true } } });
     ok({ type: "SET_PRINT_AREA", course: "2", area: null });
-    ok({ type: "SET_EVENT", changes: { allControlsPrintScale: 10000 } });
+    ok({ type: "SET_EVENT", changes: { allControlsPrintScale: 10000, printProfileId: "kontoret" } });
+    ok({ type: "PUT_PRINT_PROFILE", profile: { schemaVersion: 1, id: "kontoret", name: "Kontoret", mapColors: [] } });
+    ok({ type: "DELETE_LAYOUT_TEMPLATE", id: "mina" });
     expect(courseSettingEditSchema.safeParse({ type: "ADD_SPECIAL", special: { kind: "unicorn", points: [{ x: 0, y: 0 }] } }).success).toBe(false);
   });
 });

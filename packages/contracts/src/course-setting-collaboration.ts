@@ -70,6 +70,7 @@ export const courseSettingEditSchema = z.discriminatedUnion("type", [
     overprintStandard: z.enum(["ISOM2017", "ISSPROM2019"]).optional(), descriptionStandard: z.enum(["2004", "2018"]).optional(),
     numbering: z.object({ start: z.number().int(), disallowInvertible: z.boolean() }).strict().optional(),
     descriptionLanguage: z.string().max(16).optional(), allControlsPrintScale: z.number().finite().optional(),
+    printProfileId: id.optional(),
     // Ringklippen (ADR-0180 beslut 10).
     circleCutting: z.object({ overlap: z.boolean(), details: z.boolean() }).strict().optional() }).strict() }).strict(),
   z.object({ type: z.literal("SET_DESCRIPTION"), control: id, boxes: z.array(z.object({ box: z.string().max(8), ref: z.string().max(32).optional(),
@@ -81,6 +82,11 @@ export const courseSettingEditSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("UPDATE_SPECIAL"), special: id, changes: specialFields.extend({ courses: z.array(id).max(1000).optional() }).strict() }).strict(),
   z.object({ type: z.literal("DELETE_SPECIAL"), special: id }).strict(),
   z.object({ type: z.literal("SET_PRINT_AREA"), course: id, area: printArea.nullable() }).strict(),
+  // Utskriftsprofil och layoutmall (ADR-0183); formen kontrolleras av paketet (validatePrintProfile, validateLayoutTemplate).
+  z.object({ type: z.literal("PUT_PRINT_PROFILE"), profile: z.object({ schemaVersion: z.number().int(), id }).loose() }).strict(),
+  z.object({ type: z.literal("DELETE_PRINT_PROFILE"), id }).strict(),
+  z.object({ type: z.literal("PUT_LAYOUT_TEMPLATE"), template: z.object({ schemaVersion: z.number().int(), id }).loose() }).strict(),
+  z.object({ type: z.literal("DELETE_LAYOUT_TEMPLATE"), id }).strict(),
   z.object({ type: z.literal("PUT_OBJECTS"), controls: nullableRecord(id, part.control).optional(),
     courseControls: nullableRecord(id, part.courseControl).optional(), courses: nullableRecord(id, part.course).optional(),
     legs: nullableRecord(z.string().max(140), part.leg).optional(), specialObjects: nullableRecord(id, part.specialObject).optional(),

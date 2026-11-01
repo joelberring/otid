@@ -13,6 +13,28 @@
 .sheets { display: grid; gap: 16px; justify-content: start; overflow-x: auto; max-width: 100%; }
 .sheet { display: block; max-width: 100%; height: auto; background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, .25); }
 
+.panel { display: grid; gap: 8px; width: 100%; max-width: 52rem; padding: 10px 12px; border: 1px solid var(--line); }
+.panel h2 { margin: 0; font-size: var(--text-lg, 1.15rem); }
+.panel h3 { margin: 4px 0 0; font-size: var(--text-base, 1rem); }
+.panel fieldset { margin: 0; padding: 6px 8px; border: 1px solid var(--line); min-width: 0; }
+.panel fieldset[disabled] { opacity: .85; }
+.stack { display: grid; gap: 8px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.field { display: inline-grid; gap: 2px; font-size: var(--text-sm); }
+.field input:not([type=checkbox]):not([type=file]), .field select { min-height: 32px; max-width: 100%; }
+.small { width: 5rem; }
+.medium { width: 8rem; }
+.wide { width: min(26rem, 80vw); }
+.swatch { display: inline-block; width: 14px; height: 14px; margin-right: 6px; vertical-align: -2px; border: 1px solid rgba(0, 0, 0, .3); }
+.tableBox { overflow-x: auto; max-height: 24rem; max-width: 100%; }
+.table { border-collapse: collapse; font-size: var(--text-sm); }
+.table caption { text-align: left; padding: 2px 0 4px; }
+.table th, .table td { padding: 2px 6px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+.table thead th { position: sticky; top: 0; background: var(--surface, #fff); }
+.findings { margin: 0; padding-left: 1.2rem; display: grid; gap: 4px; }
+.findings li[data-severity=BLOCKING] strong { color: var(--danger, #b00020); }
+.findings li[data-severity=WARNING] strong { color: var(--attention, #8a5a00); }
+.problems { margin: 0; padding-left: 1.2rem; }
+
 @media print {
   .controls, :global(body > header), :global(body > footer) { display: none !important; }
   :global(body) { background: #fff; }

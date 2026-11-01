@@ -115,6 +115,8 @@ export function editTouches(edit: CourseSettingEdit): string[] {
     case "UPDATE_SPECIAL": return Object.keys(edit.changes).sort().map(key => `specialObject:${edit.special}:${key}`);
     case "DELETE_SPECIAL": return [`specialObject:${edit.special}`];
     case "SET_PRINT_AREA": return [edit.course === "ALL_CONTROLS" ? "event:printArea" : `course:${edit.course}:printArea`];
+    case "PUT_PRINT_PROFILE": case "DELETE_PRINT_PROFILE": return ["event:printProfiles"];
+    case "PUT_LAYOUT_TEMPLATE": case "DELETE_LAYOUT_TEMPLATE": return ["event:layoutTemplates"];
     case "PUT_OBJECTS": return [
       ...Object.keys(edit.controls ?? {}).map(id => `control:${id}`),
       ...Object.keys(edit.courseControls ?? {}).map(id => `courseControl:${id}`),

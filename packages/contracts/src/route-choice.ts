@@ -32,6 +32,10 @@ export const routeChoiceSettingsSchema = z.object({
     .strict().optional(),
   contourIntervalMeters: z.number().finite().min(0.5).max(50).optional(),
   climbFactor: z.number().finite().min(0).max(50).optional(),
+  descentFactor: z.number().finite().min(0).max(50).optional(),
+  slopeFactor: z.number().finite().min(0).max(5).optional(),
+  crossingMetersBySymbol: z.record(routeChoiceSymbolCodeSchema, z.number().finite().min(0).max(255))
+    .refine(value => Object.keys(value).length <= 2000).optional(),
   referencePaceSecondsPerKm: z.number().finite().min(120).max(1800).optional()
 }).strict();
 export type RouteChoiceSettingsDto = z.infer<typeof routeChoiceSettingsSchema>;

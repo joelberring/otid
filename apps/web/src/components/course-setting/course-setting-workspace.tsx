@@ -23,6 +23,8 @@ export type TopBarProps = {
 
 export function TopBar({ raceId, document, summaries, view, variant, onView, status, access, presence, canUndo, canRedo, onUndo, onRedo, menu }: TopBarProps) {
   const [open, setOpen] = useState(false);
+  // Menyn ligger fast i fönstret under knappen, högerjusterad mot knappen så att den aldrig hamnar utanför bild.
+  const [menuAt, setMenuAt] = useState<{ top: number; right: number }>();
   const [full, setFull] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -59,8 +61,12 @@ export function TopBar({ raceId, document, summaries, view, variant, onView, sta
     <Button variant="secondary" onClick={onRedo} disabled={!canRedo} title={text.tools.withKey(text.tools.redo, "Ctrl+Shift+Z")} aria-label={text.tools.redo}>
       <span aria-hidden="true">↷<span className={styles.wide}> {text.tools.redo}</span></span></Button>
     <div className={styles.menu} ref={menuRef}>
-      <Button variant="secondary" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(value => !value)}>{copy.topbar.file} ▾</Button>
-      {open && <div role="menu" className={styles.menuList}>
+      <Button variant="secondary" aria-haspopup="menu" aria-expanded={open} onClick={event => {
+        const rect = event.currentTarget.getBoundingClientRect();
+        setMenuAt({ top: rect.bottom + 4, right: Math.max(4, window.innerWidth - rect.right) });
+        setOpen(value => !value);
+      }}>{copy.topbar.file} ▾</Button>
+      {open && <div role="menu" className={styles.menuList} style={menuAt ? { top: menuAt.top, right: menuAt.right } : undefined}>
         {menu.map(item => <button key={item.label} type="button" role="menuitem" onClick={() => { setOpen(false); item.onClick(); }}>{item.label}</button>)}
       </div>}
     </div>

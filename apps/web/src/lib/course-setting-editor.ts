@@ -1,6 +1,6 @@
 import {
   applyEdit, CourseSettingEditError, createdIdsBetween, objectPatch, type ControlKind, type CourseSettingDocument, type CourseSettingEdit,
-  type CreatedIds, type EditResult, type PutObjectsEdit
+  type CreatedIds, type EditResult, type PutObjectsEdit, type SpecialKind
 } from "@o-tid/course-setting";
 import type { Point } from "@o-tid/map-file";
 import { ALL_CONTROLS, bendInsertIndex, type HitTarget } from "./course-setting-hit";
@@ -14,7 +14,7 @@ import { ALL_CONTROLS, bendInsertIndex, type HitTarget } from "./course-setting-
  * ett förslag. Ångra sätter tillbaka bara objekten som steget ändrade (`PUT_OBJECTS` ur `objectPatch`), så att andras
  * ändringar står kvar; i förslagsläget (`suggesting`) tar ångra i stället bort stegets åtgärder ur förslaget.
  */
-export type Tool = "SELECT" | "ADD_CONTROL" | "ADD_START" | "ADD_FINISH" | "ADD_CROSSING" | "INSERT_EXISTING" | "ADD_BEND" | "NOTE";
+export type Tool = "SELECT" | "ADD_CONTROL" | "ADD_START" | "ADD_FINISH" | "ADD_CROSSING" | "INSERT_EXISTING" | "ADD_BEND" | "NOTE" | "SPECIAL";
 
 /** En gjord åtgärd som inte är sparad (eller ingår i förslaget), med id som den skapade. */
 export interface LoggedEdit {
@@ -31,6 +31,8 @@ export interface HistoryStep {
 
 export type Selection =
   | { readonly kind: "control"; readonly control: string; readonly courseControl?: string | undefined }
+  /** Steg 64: ett specialobjekt. */
+  | { readonly kind: "special"; readonly special: string }
   | { readonly kind: "leg"; readonly from: string; readonly to: string; readonly fromCourseControl?: string | undefined;
       readonly toCourseControl?: string | undefined };
 
@@ -48,6 +50,9 @@ export interface EditorState {
   /** Variantkod för en gafflad bana; saknas = alla grenar. */
   readonly variant?: string | undefined;
   readonly tool: Tool;
+  /** Steg 64: slaget som verktyget SPECIAL skapar och punkterna som är utsatta (yta eller linje som ritas). */
+  readonly specialKind?: SpecialKind | undefined;
+  readonly drawing?: readonly Point[] | undefined;
   readonly selection?: Selection | undefined;
   /** Dokumentet när en dragning började och dragningens senaste åtgärd. */
   readonly dragBase?: CourseSettingDocument | undefined;
@@ -93,9 +98,14 @@ export function endSuggestion(state: EditorState, keepSuggesting: boolean, base?
 /** Åtgärden som den går över nätet (utan `undefined`), så att webbläsaren och servern gör exakt samma sak. */
 export const wireEdit = (edit: CourseSettingEdit): CourseSettingEdit => JSON.parse(JSON.stringify(edit)) as CourseSettingEdit;
 
+/** Id som åtgärden skapade som de går över nätet (`courseSettingCreatedIdsSchema`), också specialobjekten (steg 64). */
+export const wireCreated = (created: CreatedIds) => ({ controls: [...created.controls], courseControls: [...created.courseControls],
+  courses: [...created.courses], ...(created.specialObjects?.length ? { specialObjects: [...created.specialObjects] } : {}) });
+
 /** Kontrollen eller sträckan finns fortfarande i dokumentet (efter ångra eller borttagning). */
 export function stillThere(document: CourseSettingDocument, selection: Selection | undefined): Selection | undefined {
   if (!selection) return undefined;
+  if (selection.kind === "special") return document.specialObjects.some(special => special.id === selection.special) ? selection : undefined;
   if (selection.kind === "control") {
     if (!document.controls[selection.control]) return undefined;
     return selection.courseControl && !document.courseControls[selection.courseControl] ? { kind: "control", control: selection.control } : selection;
@@ -190,21 +200,22 @@ export function setView(state: EditorState, view: string, variant?: string): Edi
   return { ...state, view, variant, selection: undefined, error: undefined };
 }
 
-export function setTool(state: EditorState, tool: Tool): EditorState {
-  return { ...state, tool, error: undefined };
+export function setTool(state: EditorState, tool: Tool, specialKind?: SpecialKind): EditorState {
+  return { ...state, tool, drawing: undefined, error: undefined, ...(specialKind ? { specialKind } : {}) };
 }
 
 export function select(state: EditorState, target: HitTarget | Selection | undefined): EditorState {
   if (!target) return { ...state, selection: undefined };
-  const selection: Selection = target.kind === "leg" ? { kind: "leg", from: target.from, to: target.to,
-    fromCourseControl: target.fromCourseControl, toCourseControl: target.toCourseControl }
-    : { kind: "control", control: target.control, courseControl: target.courseControl };
+  const selection: Selection = target.kind === "special" ? { kind: "special", special: target.special }
+    : target.kind === "leg" ? { kind: "leg", from: target.from, to: target.to,
+      fromCourseControl: target.fromCourseControl, toCourseControl: target.toCourseControl }
+      : { kind: "control", control: target.control, courseControl: target.courseControl };
   return { ...state, selection, error: undefined };
 }
 
 /** Escape: tillbaka till Välj och ingen markering. */
 export function cancelTool(state: EditorState): EditorState {
-  return { ...state, tool: "SELECT", selection: undefined, error: undefined };
+  return { ...state, tool: "SELECT", selection: undefined, drawing: undefined, error: undefined };
 }
 
 /** Banans kontroller från första till sista (första grenen i en gaffling). */
@@ -262,6 +273,7 @@ export function insertExisting(state: EditorState, control: string, apply: Apply
 export function removeSelected(state: EditorState, apply: Apply, everywhere = state.view === ALL_CONTROLS): EditorState {
   const selection = state.selection;
   if (!selection) return state;
+  if (selection.kind === "special") return applySteps(state, [{ type: "DELETE_SPECIAL", special: selection.special }], apply, () => undefined);
   if (selection.kind === "leg") {
     return state.document.legs[`${selection.from}-${selection.to}`]?.bends.length
       ? applySteps(state, [{ type: "SET_LEG_BENDS", from: selection.from, to: selection.to, bends: [] }], apply) : state;

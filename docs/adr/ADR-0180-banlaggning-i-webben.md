@@ -42,6 +42,22 @@ Samarbete och fältläge i mobilen (66–67, ADR-0181) lades till 2026-11-01 och
     ändringstyp, så samarbetets uppspelning (ADR-0181) behöver inget nytt. Överlappsklippen beror på banan och görs aldrig fasta.
     Gapen räknas per ringstorlek (`detailGapKey`: kontroll och radie), eftersom vinklarna beror på radien: en kontroll i
     flera utskriftsskalor (utan skalning relativt kartan) och målets två ringar får var sina; fasta klipp sparas per skala.
+11. **Specialobjekt och utskriftslayout (steg 64).** Purple Pens specialobjekt tolkas i fält bredvid `raw` (`orientation`,
+    `stretch`, `text`, `font`, `color`, `line`, `columns`, `imageFormat`; bildens data stannar i `raw`); oförändrade fält ger
+    `raw` orört, ändrade skrivs som Purple Pen. Tryckytan är `Course.printArea` och `event.printArea`/`allControlsPrintScale`
+    bredvid de råa `<print-area>`/`<all-controls>`. `layoutOverprint` ger specialobjekten tillsammans med banan, i Purple Pens
+    målningsordning efter färgroll (WHITE, bild, CUSTOM, BLACK, COURSE_LOWER, COURSE). `layoutCoursePage` är en ren funktion
+    som ger sidor: papper i mm (y nedåt), `mapArea` (kartans mm), `clip` och `transform` (x' = s·x + tx, y' = −s·y + ty,
+    s = kartans skala / utskriftsskalan), figurerna i kartans mm och texter på sidan. Webbläsarens förhandsvisning ritar
+    kartan med `drawMap` i `clip` och figurerna som SVG; steg 65 ska skriva samma sidor som PDF (kartan som vektorer, varje
+    färgroll som egen dekorfärg med övertryck) utan att räkna något på nytt. Beskrivningen på kartan är en egen figur med
+    `layoutDescription` i kartans mm (som Purple Pen skalas den med kartan, rutans sida = avståndet mellan punkterna).
+    Avvikelser från Purple Pen: förbjudet område ritas utan kantlinje (som Purple Pen), text mäts med uppskattade
+    teckenbredder, flera sidor räknas uppifrån, en sida per bana-del (`part`) finns inte än.
+    Specialobjekten är också spärrar för vägvalsanalysen (ADR-0179): `routeBarriers` ger ytor och linjer som inte går att
+    passera och passager som öppningar, som motorn tar emot per sträcka (`LegInput.barriers`) och rastrerar som kartans
+    ej passerbara symboler respektive genomgångar; kontrollerna varnar när en sträckas linje går genom en spärr.
+    Utskriftsprofilen (kartans färger och banans dekorfärg), layoutmallarna och en karta per löpare beskrivs i ADR-0183.
 
 **Konsekvenser.** Purple Pen och macpurplepen kan användas parallellt: .ppen in och ut. Stockholm by Night (9 december)
 läggs i Purple Pen som vanligt; .ppen-importen gör att banor och gafflingar går rakt in. Editorn blir inte lika snabb att

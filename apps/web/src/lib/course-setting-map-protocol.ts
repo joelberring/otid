@@ -1,5 +1,5 @@
 import type { CircleArc, DetailCircle } from "@o-tid/course-setting";
-import type { MapGeoreference, Point } from "@o-tid/map-file";
+import type { ColorAdjust, MapColor, MapGeoreference, Point } from "@o-tid/map-file";
 import type { Bounds } from "./course-setting-viewport";
 
 /**
@@ -9,14 +9,18 @@ import type { Bounds } from "./course-setting-viewport";
 export type MapRenderRequest =
   | { readonly type: "load"; readonly bytes: ArrayBuffer; readonly fileName: string }
   | { readonly type: "render"; readonly id: number; readonly width: number; readonly height: number; readonly pxPerMm: number;
-      readonly origin: Point }
+      readonly origin: Point;
+      /** Steg 64: kartans färger enligt utskriftsprofilen (kartfilen ändras inte). */
+      readonly colorAdjust?: Readonly<Record<number, ColorAdjust>> | undefined }
   /** Ringklipp (ADR-0180 beslut 10): detaljgapen för ringarna, räknade på kartfilen som redan är inläst. */
   | { readonly type: "detailGaps"; readonly id: number; readonly circles: readonly DetailCircle[]; readonly sprint: boolean };
 
 export type MapRenderErrorCode = "NOT_A_MAP_FILE" | "UNSUPPORTED_VERSION" | "TRUNCATED" | "INVALID" | "EMPTY" | "NO_CANVAS" | "FAILED";
 
 export type MapRenderResponse =
-  | { readonly type: "loaded"; readonly bounds: Bounds; readonly scale: number; readonly georeference: MapGeoreference | null }
+  | { readonly type: "loaded"; readonly bounds: Bounds; readonly scale: number; readonly georeference: MapGeoreference | null;
+      /** Steg 64: kartfilens färger (utskriftsprofilen och förhandskontrollen). */
+      readonly colors: readonly MapColor[] }
   | { readonly type: "rendered"; readonly id: number; readonly bitmap: ImageBitmap }
   /** Tomt när kartan inte gick att läsa eller uträkningen misslyckades (ringarna ritas då hela). */
   | { readonly type: "detailGaps"; readonly id: number; readonly gaps: Readonly<Record<string, readonly CircleArc[]>> }
@@ -33,12 +37,13 @@ export class MapRenderSession {
   private latestGaps = 0;
   private onGaps: ((gaps: Readonly<Record<string, readonly CircleArc[]>>) => void) | undefined;
 
-  constructor(createWorker: () => Worker, private readonly onLoaded: (bounds: Bounds, scale: number, georeference: MapGeoreference | null) => void,
+  constructor(createWorker: () => Worker, private readonly onLoaded: (bounds: Bounds, scale: number, georeference: MapGeoreference | null,
+    colors: readonly MapColor[]) => void,
     private readonly onError: (code: MapRenderErrorCode) => void) {
     this.worker = createWorker();
     this.worker.onmessage = (event: MessageEvent<MapRenderResponse>) => {
       const message = event.data;
-      if (message.type === "loaded") this.onLoaded(message.bounds, message.scale, message.georeference);
+      if (message.type === "loaded") this.onLoaded(message.bounds, message.scale, message.georeference, message.colors);
       else if (message.type === "error") this.onError(message.code);
       else if (message.type === "detailGaps") { if (message.id === this.latestGaps) this.onGaps?.(message.gaps); }
       else if (message.id === this.latest && this.onRendered) this.onRendered(message.id, message.bitmap);

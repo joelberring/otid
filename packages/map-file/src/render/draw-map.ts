@@ -4,6 +4,7 @@ import {
 } from "../model";
 import { lineDecorations, type Placement } from "./along";
 import { closeRing, flattenPath, offsetPolyline, pathsBox, withoutGaps, type Polyline } from "./geometry";
+import { clamp01, rgbFromCmyk } from "../color";
 
 /**
  * Steg 59 (ADR-0179 beslut 2): kartan ritad för skärmen (inte för tryck) på en canvas i webbläsaren. Bara typerna för
@@ -20,6 +21,17 @@ export type MapCanvasContext = CanvasRenderingContext2D | OffscreenCanvasRenderi
 export interface DrawMapOptions {
   readonly pxPerMm: number;
   readonly origin: Point;
+  /**
+   * Steg 64: färgerna för utskriften utan att kartfilen ändras (utskriftsprofilen), per färgens id: dold, ny CMYK och
+   * ljusare (andel 0–1 mot vitt). Saknas = kartfilens färger.
+   */
+  readonly colorAdjust?: Readonly<Record<number, ColorAdjust>> | undefined;
+}
+
+export interface ColorAdjust {
+  readonly hidden?: boolean | undefined;
+  readonly cmyk?: MapColor["cmyk"] | undefined;
+  readonly lighten?: number | undefined;
 }
 
 export interface DrawMapReport {
@@ -27,6 +39,25 @@ export interface DrawMapReport {
   readonly parts: number;
   /** Förenklingar i skärmbilden, på svenska för arrangören. */
   readonly simplifications: readonly string[];
+}
+
+/**
+ * Färgen som den ska ritas med justeringen (dold = helt genomskinlig). `lighten` −1…1: positivt mot vitt (färgens tryck
+ * minskar), negativt mörkare (trycket ökar, högst 100 %).
+ */
+export function adjustedColor(color: MapColor, adjust: ColorAdjust | undefined): MapColor {
+  if (!adjust) return color;
+  if (adjust.hidden) return { ...color, opacity: 0 };
+  const source = adjust.cmyk ?? color.cmyk;
+  const amount = Math.max(-1, Math.min(1, Number.isFinite(adjust.lighten) ? adjust.lighten! : 0));
+  // Ljusare (> 0) ger mindre färg, mörkare (< 0) mer.
+  const ink = (value: number) => clamp01(value * (1 - amount));
+  const cmyk = { c: ink(source.c), m: ink(source.m), y: ink(source.y), k: ink(source.k) };
+  if (!adjust.cmyk && amount === 0) return color;
+  // Ljusare utan ny CMYK: skärmens färg blandas mot vitt; annars räknas den ur CMYK.
+  const rgb = adjust.cmyk || amount < 0 ? rgbFromCmyk(cmyk)
+    : { r: color.rgb.r + (1 - color.rgb.r) * amount, g: color.rgb.g + (1 - color.rgb.g) * amount, b: color.rgb.b + (1 - color.rgb.b) * amount };
+  return { ...color, cmyk, rgb };
 }
 
 /** Högst så många mönsterpunkter per yta; fler ritas som tonad yta (skärmen blir ändå en jämn ton). */
@@ -328,7 +359,7 @@ export function drawMap(ctx: MapCanvasContext, map: ParsedMap, options: DrawMapO
   const simplifications = new Simplifications();
   simplifications.add("Text ritas med standardtypsnitt och vänsterställd");
   if (map.colors.some(color => color.spot)) simplifications.add("Dekorfärger och övertryck visas som vanliga färger");
-  const colors = new Map(map.colors.map(color => [color.id, color]));
+  const colors = new Map(map.colors.map(color => [color.id, adjustedColor(color, options.colorAdjust?.[color.id])]));
   const plan = new Plan(colors, simplifications);
   let parts = 0;
   for (const object of map.objects) parts += planObject(plan, map, object, options);

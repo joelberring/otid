@@ -1,6 +1,14 @@
-import type { CourseCheck, CourseSettingDocument } from "@o-tid/course-setting";
+import { routeBarriers, type CourseCheck, type CourseSettingDocument } from "@o-tid/course-setting";
 import type { LegInput } from "@o-tid/route-choice";
 import { courseSettingSv as text } from "../i18n/course-setting-sv";
+import { ALL_CONTROLS } from "./course-setting-hit";
+
+/** Kort kontrollsumma (FNV-1a) för att märka indata. */
+export function hash(value: string): string {
+  let h = 0x811c9dc5;
+  for (let index = 0; index < value.length; index += 1) { h ^= value.charCodeAt(index); h = Math.imul(h, 0x01000193); }
+  return (h >>> 0).toString(36);
+}
 
 /**
  * Steg 62: banläggningens klartext och vägvalens indata. Kontrollerna nämns med kod, banorna med namn. Kontrollerna som
@@ -36,6 +44,11 @@ export function checkRows(document: CourseSettingDocument, checks: readonly Cour
         text: text.checks.SAME_CONTROL_TWICE_IN_ROW(courseName(document, check.course), label(check.control)) };
       case "LEG_THROUGH_CONTROL": return { key, controls: [check.from, check.to, check.control], course: check.course,
         text: text.checks.LEG_THROUGH_CONTROL(courseName(document, check.course), label(check.from), label(check.to), label(check.control)) };
+      case "LEG_THROUGH_FORBIDDEN": {
+        const kind = document.specialObjects.find(special => special.id === check.special)?.kind ?? "out-of-bounds";
+        return { key, controls: [check.from, check.to], course: check.course,
+          text: text.checks.LEG_THROUGH_FORBIDDEN(courseName(document, check.course), label(check.from), label(check.to), text.checks.forbidden[kind] ?? kind) };
+      }
       case "COURSE_WITHOUT_START_OR_FINISH": return { key, controls: [], course: check.course,
         text: text.checks.COURSE_WITHOUT_START_OR_FINISH(courseName(document, check.course)) };
       case "UNUSED_CONTROL": return { key, controls: [check.control], text: text.checks.UNUSED_CONTROL(label(check.control)) };
@@ -48,7 +61,7 @@ export function checkRows(document: CourseSettingDocument, checks: readonly Cour
  * Vald sträcka som indata till vägvalsanalysen (steg 60): ändarna och banans övriga kontroller (för varningen om en
  * sträcka genom en annan ring). Nyckeln byter värde när en ände flyttas, så att en gammal analys inte visas för nya lägen.
  */
-export function legInput(document: CourseSettingDocument, from: string, to: string, courseControls: readonly string[]): LegInput | undefined {
+export function legInput(document: CourseSettingDocument, from: string, to: string, courseControls: readonly string[], view?: string): LegInput | undefined {
   const start = document.controls[from], end = document.controls[to];
   if (!start || !end) return undefined;
   const others = new Map<string, { code: string; at: { x: number; y: number } }>();
@@ -58,8 +71,11 @@ export function legInput(document: CourseSettingDocument, from: string, to: stri
     if (!point || point.kind !== "NORMAL" || control === from || control === to) continue;
     others.set(point.id, { code: point.code ?? point.id, at: point.at });
   }
-  const key = `${from}-${to}@${start.at.x},${start.at.y};${end.at.x},${end.at.y}`;
-  return { key, from: start.at, to: end.at, otherControls: [...others.values()] };
+  // Steg 64: banläggningens förbjudna områden och passager för banan; nyckeln ändras när de ändras.
+  const barriers = routeBarriers(document, view ?? ALL_CONTROLS);
+  const shape = barriers.areas.length + barriers.lines.length + barriers.openings.length > 0 ? `#${hash(JSON.stringify(barriers))}` : "";
+  const key = `${from}-${to}@${start.at.x},${start.at.y};${end.at.x},${end.at.y}${shape}`;
+  return { key, from: start.at, to: end.at, otherControls: [...others.values()], ...(shape ? { barriers } : {}) };
 }
 
 /** Sekunder som "m:ss". */

@@ -1,0 +1,76 @@
+import type { MapBundleResponse } from "@o-tid/contracts";
+import { courseVariants, type CourseSettingDocument, type SheetItem } from "@o-tid/course-setting";
+import { mapBackPages } from "@o-tid/domain";
+
+/**
+ * Steg 64: utskrift per löpare. Steg 61:s plan (`planMapBundles` via kartbuntarna) ger ordningen, löparna, lediga tider
+ * och reserver per variant; här blir de en karta var (`SheetItem` med löparens uppgifter) i banläggningens dokument.
+ * Banorna matchas på namn (överföringen ger tävlingens banor samma namn). Kontrollen före utskrift: varje löpare har en
+ * variant, varianten finns i banläggningen och antalet per variant stämmer med kartbuntslistan.
+ */
+export type RunnerPrintProblem =
+  | { readonly kind: "MISSING_VARIANT"; readonly name: string; readonly className: string }
+  | { readonly kind: "UNKNOWN_COURSE"; readonly courseName: string }
+  | { readonly kind: "UNKNOWN_VARIANT"; readonly courseName: string; readonly variantCode: string }
+  | { readonly kind: "COUNT"; readonly courseName: string; readonly variantCode: string | null; readonly expected: number; readonly actual: number };
+
+export interface RunnerPrint {
+  readonly items: readonly SheetItem[];
+  readonly problems: readonly RunnerPrintProblem[];
+  /** Kartor per variant (för översikten). */
+  readonly counts: readonly { readonly courseName: string; readonly variantCode: string | null; readonly count: number }[];
+}
+
+/** Startordningen: löpare och lediga med starttid först, fri start sedan, reserverna sist. */
+const rank = (item: SheetItem, at: string | null) => item.runner?.kind === "RESERVE" ? 2 : at === null ? 1 : 0;
+
+/**
+ * Kartorna med löparens uppgifter. BUNDLE = buntordning (per variant: löpare och lediga tider, sedan reserver);
+ * START = startordning över alla banor (starttid, sedan startnummer), reserverna sist i buntordning.
+ */
+export function runnerPrintItems(document: CourseSettingDocument, bundles: Pick<MapBundleResponse, "groups" | "missingVariant">,
+  clock: (instant: string | null) => string, order: "BUNDLE" | "START" = "BUNDLE"): RunnerPrint {
+  const problems: RunnerPrintProblem[] = bundles.missingVariant.map(row => ({ kind: "MISSING_VARIANT", name: row.name, className: row.className }));
+  const items: SheetItem[] = [];
+  const counts = new Map<string, { courseName: string; variantCode: string | null; count: number }>();
+  const known = new Set<string>();
+  const instants: (string | null)[] = [];
+  for (const page of mapBackPages(bundles.groups)) {
+    if (page.kind === "DIVIDER") continue;
+    const course = document.courses.find(row => row.name === page.courseName);
+    if (!course) {
+      if (!known.has(page.courseName)) problems.push({ kind: "UNKNOWN_COURSE", courseName: page.courseName });
+      known.add(page.courseName);
+      continue;
+    }
+    const variant = page.variantCode ?? undefined;
+    const key = `${page.courseName}|${page.variantCode ?? ""}`;
+    if (variant && !known.has(key)) {
+      known.add(key);
+      let codes: string[] = [];
+      try { codes = courseVariants(document, course.id).map(row => row.code); } catch { codes = []; }
+      if (!codes.includes(variant)) problems.push({ kind: "UNKNOWN_VARIANT", courseName: page.courseName, variantCode: variant });
+    }
+    const runner = page.kind === "RUNNER"
+      ? { kind: "RUNNER" as const, name: page.item.name, club: page.item.club, className: page.item.className, startTime: page.item.startTime ? clock(page.item.startTime) : null,
+        startNumber: page.item.number }
+      : page.kind === "VACANT"
+        ? { kind: "VACANT" as const, name: null, className: page.item.className, startTime: clock(page.item.startTime), startNumber: page.item.number }
+        : { kind: "RESERVE" as const, name: null, className: null, startTime: null, startNumber: null };
+    items.push({ course: course.id, ...(variant ? { variant } : {}), runner });
+    instants.push(page.kind === "RESERVE" ? null : page.item.startTime);
+    const count = counts.get(key) ?? { courseName: page.courseName, variantCode: page.variantCode, count: 0 };
+    count.count += 1;
+    counts.set(key, count);
+  }
+  for (const group of bundles.groups) {
+    const actual = counts.get(`${group.courseName}|${group.variantCode ?? ""}`)?.count ?? 0;
+    if (group.printCount > 0 && actual !== group.printCount && document.courses.some(row => row.name === group.courseName)) {
+      problems.push({ kind: "COUNT", courseName: group.courseName, variantCode: group.variantCode, expected: group.printCount, actual });
+    }
+  }
+  const ordered = order === "BUNDLE" ? items : items.map((item, index) => ({ item, index, at: instants[index] ?? null }))
+    .sort((a, b) => rank(a.item, a.at) - rank(b.item, b.at) || (a.at ?? "").localeCompare(b.at ?? "")
+      || (a.item.runner?.startNumber ?? Infinity) - (b.item.runner?.startNumber ?? Infinity) || a.index - b.index).map(row => row.item);
+  return { items: ordered, problems, counts: [...counts.values()] };
+}

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  drawMap, mmToPixel, offsetPolyline, pixelToMm, placementsAlong, preferredPxPerMm, renderSize, type MapColor, type MapObject,
-  type MapSymbol, type ParsedMap
+  adjustedColor, drawMap, mmToPixel, offsetPolyline, pixelToMm, placementsAlong, preferredPxPerMm, renderSize, type MapCanvasContext, type MapColor,
+  type MapObject, type MapSymbol, type ParsedMap
 } from "../src";
 import { fakeContext, type Call } from "./fake-canvas";
 
@@ -170,6 +170,26 @@ describe("drawMap", () => {
     expect(strokes(calls)).toEqual([]);
     expect(report.parts).toBe(1);
     expect(report.simplifications).toContain("Delar i färger som saknas i färgtabellen (t.ex. passmärken) ritas inte");
+  });
+});
+
+describe("färgjustering för utskrift (steg 64)", () => {
+  it("döljer, byter CMYK och gör ljusare eller mörkare utan att kartan ändras", () => {
+    const green: MapColor = { id: 7, name: "Grön", rank: 3, cmyk: { c: 0.76, m: 0, y: 0.91, k: 0 }, rgb: { r: 0.24, g: 1, b: 0.09 }, opacity: 1 };
+    expect(adjustedColor(green, { hidden: true }).opacity).toBe(0);
+    const lighter = adjustedColor(green, { lighten: 0.3 });
+    expect(lighter.cmyk.c).toBeCloseTo(0.532, 6);
+    expect(lighter.rgb.r).toBeCloseTo(0.24 + 0.76 * 0.3, 6);
+    const darker = adjustedColor(green, { lighten: -0.5 });
+    expect(darker.cmyk.c).toBe(1);
+    expect(darker.cmyk.y).toBe(1);
+    expect(adjustedColor(green, { cmyk: { c: 0, m: 0, y: 0, k: 1 } }).rgb).toEqual({ r: 0, g: 0, b: 0 });
+    expect(green.cmyk.c).toBe(0.76);
+    const symbols: MapSymbol[] = [{ id: "a", kind: "AREA", code: code("401"), name: "Öppen", hidden: false, fill: 3, hatches: [] }];
+    const { ctx, calls } = fakeContext();
+    drawMap(ctx, map(symbols, [{ kind: "area", symbol: "a", rings: [square(0, 0, 10)], angle: 0 }]), { pxPerMm: 8, origin: { x: 0, y: 30 },
+      colorAdjust: { 3: { hidden: true } } });
+    expect(fills(calls)).toEqual([]);
   });
 });
 

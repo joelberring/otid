@@ -79,7 +79,7 @@ export function SelectionCard({ state, described, readOnly, onCode, onRemoveFrom
   onRemoveFromCourse: () => void; onDelete: () => void; onDescription: () => void; onMore: () => void; onClose: () => void;
 }) {
   const { selection, document } = state;
-  if (!selection) return null;
+  if (!selection || selection.kind === "special") return null;
   const control = selection.kind === "control" ? document.controls[selection.control] : undefined;
   const inCourse = selection.kind === "control" && selection.courseControl !== undefined && state.view !== ALL_CONTROLS;
   return <section className={styles.card} aria-label={text.selected.heading} data-testid="course-setting-card">

@@ -7,7 +7,11 @@ import type { LegAnalysis, RouteChoiceSettings } from "@o-tid/route-choice";
 import { routeChoiceSv as text } from "../../i18n/route-choice-sv";
 import { RouteChoiceSession, type RouteChoiceModel } from "../../lib/route-choice-client";
 import { fetchCalibrationRoutes, fetchMapSource, fetchRouteChoice, publishRouteChoice, saveRouteChoiceSettings } from "../../lib/route-choice-api";
-import { calibrationSamples, courseTotal, courseWarnings, legName, legRows, plannedLegs, publishableLegs, routeChoiceOptions } from "../../lib/route-choice-view";
+import { routeBarriers, type CourseSettingDocument } from "@o-tid/course-setting";
+import { fetchCourseSetting } from "../../lib/course-setting-api";
+import {
+  calibrationSamples, courseTotal, courseWarnings, legName, legRows, plannedLegs, publishableLegs, routeChoiceOptions, withRouteBarriers
+} from "../../lib/route-choice-view";
 import type { CalibrationResult, SpeedFactors } from "../../lib/route-choice-worker-protocol";
 import { Button, Notice } from "../ui";
 import { RouteChoiceMap } from "./route-choice-map";
@@ -36,7 +40,22 @@ export function RouteChoicePanel({ raceId, data, imageHref, onGoToMapFile }: {
   const session = useRef<RouteChoiceSession | undefined>(undefined);
   const options = useMemo(() => routeChoiceOptions(data.courses), [data.courses]);
   const option = options.find(row => row.id === optionId) ?? options[0];
-  const legs = useMemo(() => option && state ? plannedLegs(option, state) : [], [option, state]);
+  // Steg 64: banläggningens dokument (om det finns) ger förbjudna områden och passager som kartfilen saknar.
+  const [setting, setSetting] = useState<CourseSettingDocument>();
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchCourseSetting(raceId, controller.signal).then(next => setSetting((next.setting?.document ?? undefined) as unknown as CourseSettingDocument | undefined),
+      () => setSetting(undefined));
+    return () => controller.abort();
+  }, [raceId]);
+  const legs = useMemo(() => {
+    if (!option || !state) return [];
+    const name = data.courses.find(course => course.courseId === option.courseId)?.name;
+    let barriers;
+    try { barriers = setting ? routeBarriers(setting, setting.courses.find(course => course.name === name)?.id) : undefined; }
+    catch (error) { console.error("Banläggningens spärrar kunde inte läsas", error); }
+    return withRouteBarriers(plannedLegs(option, state), barriers);
+  }, [option, state, setting, data.courses]);
 
   // Läget och kartfilen; Workern lever så länge vyn är öppen.
   useEffect(() => {

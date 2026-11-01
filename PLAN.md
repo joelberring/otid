@@ -1133,15 +1133,32 @@ ADR-0182. Görs efter steg 67. Migration 0035.
 - [x] **Inställningar för synlighet** (ADR-0182 beslut 7) med försiktiga standardvärden; aldrig indexerad.
 - [x] **Tester:** integration (behörighet via gruppen, synlighetsinställningarna, upprepning), Playwright gruppsidan.
 
-## [ ] Steg 64 – Banpåtryck och utskriftslayout
+## [x] Steg 64 – Banpåtryck och utskriftslayout
 
-- [ ] Specialobjekten (förbjudet område och väg, passage, vit bakgrund, text, bild, gräns, snitsling), tryckyta och
-  sida per bana, utskrift i annan skala än kartans, beskrivningen på kartan.
+ADR-0180 beslut 11. Kontraktet: `SpecialObject`, `PrintArea`, `OverprintPrimitive` i `types.ts` och `page-layout.ts`.
+
+- [x] Specialobjekten (förbjudet område och väg, passage, vit bakgrund, text, bild, gräns, linje, rektangel, ellips, första
+  hjälpen, vatten, konstruktion, passmärke, beskrivningen på kartan) tolkade bredvid `raw` och ritade; ändringar för dem.
+- [x] Tryckyta och sida per bana (`layoutCoursePage`), utskrift i annan skala än kartans, varianter.
+- [x] Editorn: flikarna Objekt och Utskrift, ramen på kartan, förhandsvisningen `/admin/[raceId]/course-setting/print`.
+- [x] Tester: paketet (specialobjekt, .ppen, sidor, SBN26_2), webbens lib, Playwright `banlaggning-utskrift`.
+- [x] Banläggningsstödet ser specialobjekten (ägarens krav): `routeBarriers` (förbjudet och farligt område, konstruktion,
+  gräns, förbjuden väg som spärrar, valfri passage som öppning) till vägvalsmotorn (`LegInput.barriers`) i editorn och
+  kontrollkartan, och varningen när en sträcka går genom ett förbjudet område eller över en spärr.
+- [x] Utskriftsprofil per tävling (ADR-0183): kartans färger per OCAD-färg (dölj, ljusare/mörkare, ny CMYK, dekorfärg med
+  övertryck) utan att kartfilen ändras, banans CMYK, dekorfärg och övertryck, förhandskontroll; färdiga profiler
+  "Tryckeri (som i filen)" och "Kontorsskrivare (ljusare grönt)".
+- [x] Layoutmall som paperspace: papper, kartramar, texter med platshållare, logotyp, beskrivning, remsa och skärmarker;
+  flera kartor per A4/A3 (fyll sidan eller samma bana i alla ramar), sparad per tävling och kopierbar.
+- [x] En karta per löpare ur kartbuntarna (steg 61): bunt- eller startordning, baksida dubbelsidigt eller remsa
+  enkelsidigt, lediga och reserver, kontroll av varianter och antal före utskrift.
 
 ## [ ] Steg 65 – Tryck med dekorfärger och övertryck
 
 - [ ] PDF på servern (låg prioritet) eller via macpurplepen: kartan som vektorer med sina färger, banpåtrycket i egen
   dekorfärg med övertryck, provtryck hos tryckeriet innan det används skarpt.
+- [ ] Arken ur steg 64 (`Sheet`, ADR-0183) som PDF: utskriftsprofilens kartfärger och dekorfärger med övertryck, banan som
+  dekorfärg, eventuellt PDF/X och ICC; baksidorna per löpare i rätt vändning för dubbelsidigt.
 
 ## Efter målet (inte nu)
 

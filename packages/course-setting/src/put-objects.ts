@@ -54,6 +54,6 @@ export function putObjects(document: CourseSettingDocument, edit: PutObjectsEdit
   if (new Set(courses.map(course => course.id)).size !== courses.length) throw invalid("Två banor med samma id");
   if (Object.values(legs).some(leg => !controls[leg.from] || !controls[leg.to])) throw gone();
   const courseIds = new Set(courses.map(course => course.id));
-  if (specialObjects.some(special => special.courses.some(course => !courseIds.has(course)))) throw gone();
+  if (specialObjects.some(special => special.courses.some(course => course !== "0" && !courseIds.has(course)))) throw gone();
   return { ...document, event: edit.event ?? document.event, controls, courseControls, courses, legs, specialObjects };
 }

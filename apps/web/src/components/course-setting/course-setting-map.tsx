@@ -5,6 +5,7 @@ import type { OverprintPrimitive } from "@o-tid/course-setting";
 import type { Point } from "@o-tid/map-file";
 import type { LegAnalysis } from "@o-tid/route-choice";
 import { courseSettingSv as text } from "../../i18n/course-setting-sv";
+import type { SymbolLookup } from "../../lib/course-setting-description-draw";
 import { drawMarks, drawOverprint, drawRouteChoice } from "../../lib/course-setting-draw";
 import { drawHighlightedRoute, drawNoteMarks, drawSuggestion, type SuggestionDrawing } from "../../lib/course-setting-draw-collaboration";
 import { drawDragGuide, liftedPoint, type CenterCross } from "../../lib/course-setting-draw-cross";
@@ -55,7 +56,7 @@ const tolerancePx = (pointerType: string) => pointerType === "touch" ? 18 : 8;
  * ett eget lager som bara finns på skärmen; en dragning med fingret lyfts ovanför fingret (`liftedPoint`).
  */
 export function CourseSettingMap({ session, mapBounds, primitives, faded, marks, analysis, label, cursor, handlers, handle, noteMarks,
-  selectedNote, onNoteTap, suggestion, cursorAt, highlightRoute, position, cross, inspected, onPan }: {
+  selectedNote, onNoteTap, suggestion, cursorAt, highlightRoute, position, cross, inspected, onPan, symbols, overlayExtra }: {
   session: MapRenderSession | undefined;
   mapBounds: Bounds | undefined;
   primitives: readonly OverprintPrimitive[];
@@ -82,7 +83,12 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
   onPan?: (() => void) | undefined;
   /** Krysset i vald kontrolls mitt (bara på skärmen). */
   cross?: CenterCross | undefined;
+  /** Steg 64: symbolerna för beskrivningen på kartan. */
+  symbols?: SymbolLookup | undefined;
+  /** Steg 64: ritas ovanpå banpåtrycket (specialobjektets punkter under redigering, tryckytans ram). */
+  overlayExtra?: ((ctx: CanvasRenderingContext2D, view: Viewport) => void) | undefined;
 }) {
+  const [imageVersion, setImageVersion] = useState(0);
   const [hoverCursor, setHoverCursor] = useState<string>();
   const [grabbing, setGrabbing] = useState(false);
   const box = useRef<HTMLDivElement>(null);
@@ -191,14 +197,16 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
     ctx.clearRect(0, 0, view.width, view.height);
     if (highlightRoute) drawHighlightedRoute(ctx, view, highlightRoute);
     if (analysis) drawRouteChoice(ctx, view, analysis);
-    drawOverprint(ctx, view, faded, { faded: true });
-    drawOverprint(ctx, view, primitives);
+    const onImage = () => setImageVersion(value => value + 1);
+    drawOverprint(ctx, view, faded, { faded: true, symbols, onImage });
+    drawOverprint(ctx, view, primitives, { symbols, onImage });
     if (suggestion) drawSuggestion(ctx, view, suggestion);
     drawMarks(ctx, view, marks);
     if (inspected) drawInspected(ctx, view, inspected, marks.radiusMm);
     if (noteMarks) drawNoteMarks(ctx, view, noteMarks.map(mark => ({ ...mark, selected: mark.id === selectedNote })));
     if (position) drawPosition(ctx, view, position.position, position.heading);
-  }, [view, primitives, faded, marks, analysis, suggestion, noteMarks, selectedNote, highlightRoute, position, inspected]);
+    overlayExtra?.(ctx, view);
+  }, [view, primitives, faded, marks, analysis, suggestion, noteMarks, selectedNote, highlightRoute, position, inspected, symbols, imageVersion, overlayExtra]);
   // Skärmlagret: det stora krysset medan man drar (och fingrets linje). Aldrig i banpåtrycket, dolt vid utskrift.
   const crossX = cross?.at.x, crossY = cross?.at.y, crossDragging = cross?.dragging, radiusMm = marks.radiusMm;
   useEffect(() => {

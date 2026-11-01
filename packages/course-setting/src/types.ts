@@ -9,7 +9,9 @@
  * Purple Pen är BSD-licensierad (Peter Golde); se `NOTICE.md` i paketet för det som bygger på dess format och kod.
  */
 import type { Point } from "@o-tid/map-file";
-import type { DescriptionEdit } from "./description-types";
+import type { DescriptionEdit, DescriptionLayout } from "./description-types";
+import type { LayoutTemplate } from "./layout-template";
+import type { PrintProfile } from "./print-profile";
 
 /**
  * Ett XML-element som O-Tid inte tolkar men skriver tillbaka orört (attribut och innehåll som text). Ett element som
@@ -121,6 +123,8 @@ export interface Course {
   readonly lengthOverrideMeters?: number | undefined;
   readonly labelKind: "SEQUENCE" | "CODE" | "SEQUENCE_AND_CODE" | "SCORE" | "CODE_AND_SCORE" | "SEQUENCE_AND_SCORE";
   readonly relay?: CourseRelayOptions | undefined;
+  /** Steg 64: tryckytan (Purple Pens `<print-area>` utan `part`); saknas = automatisk. */
+  readonly printArea?: PrintArea | undefined;
   readonly raw?: readonly RawXml[] | undefined;
 }
 
@@ -139,15 +143,87 @@ export interface Leg {
   readonly raw?: readonly RawXml[] | undefined;
 }
 
-/** Specialobjekt (förbjudet område, text, vit bakgrund …). Detaljerna kommer i steg 64; här läses och skrivs de orörda. */
+/** Purple Pens specialobjekt (EventDB.cs `SpecialKind`); steg 64 tolkar och ritar dem. */
+export type SpecialKind =
+  | "first-aid" | "water" | "optional-crossing-point" | "forbidden-route" | "registration-mark" | "boundary" | "out-of-bounds"
+  | "dangerous-area" | "temporary-construction" | "white-out" | "text" | "descriptions" | "image" | "line" | "rectangle" | "ellipse";
+
+/**
+ * Färgen på text, linje, rektangel och ellips (Purple Pens SpecialColor, som i filen): "purple" (övre lila), "lower-purple",
+ * "black" eller CMYK "c,m,y,k" med andelar 0–1.
+ */
+export type SpecialColor = "purple" | "lower-purple" | "black" | (string & {});
+
+/** Linjen för linje, rektangel och ellips (mm i kartan, skalas inte med utskriftsskalan, som i Purple Pen). */
+export interface SpecialLine {
+  readonly kind: "single" | "double" | "dashed";
+  readonly width: number;
+  /** Mellanrum mellan strecken (streckad) eller mellan linjerna (dubbel). */
+  readonly gapSize: number;
+  /** Streckens längd (streckad). */
+  readonly dashSize: number;
+  /** Rundade hörn (rektangel). */
+  readonly cornerRadius?: number | undefined;
+}
+
+/** Typsnittet för en text. `height` = siffrans höjd i kartans mm; saknas = texten fyller rutan (Purple Pens äldre sätt). */
+export interface SpecialFont {
+  readonly name: string;
+  readonly bold: boolean;
+  readonly italic: boolean;
+  readonly height?: number | undefined;
+}
+
+/**
+ * Specialobjekt (förbjudet område, text, vit bakgrund …). De tolkade fälten står bredvid `raw` (elementet som det lästes):
+ * är fälten desamma som i `raw` skrivs `raw` orört (med nya punkter och banor), annars skrivs elementet om som Purple Pen
+ * gör och det som O-Tid inte tolkar följer med. Bildens data finns bara i `raw` (`<image-data>`).
+ */
 export interface SpecialObject {
   readonly id: string;
-  /** Purple Pens `kind`, t.ex. "out-of-bounds", "text", "white-out", "boundary", "descriptions". */
+  /** Purple Pens `kind`, t.ex. "out-of-bounds", "text", "white-out", "boundary", "descriptions" (`SpecialKind`). */
   readonly kind: string;
+  /**
+   * Punkt (punktobjekt), linje (gräns, linje), ytans hörn (förbjudet, farligt, vit bakgrund, byggnad) eller två hörn
+   * (text, bild, rektangel, ellips). Beskrivningen: övre vänstra hörnet och en punkt en ruta åt höger (rutans sida).
+   */
   readonly points: readonly Point[];
-  /** Banor objektet syns på; tomt = alla. */
+  /** Banor objektet syns på; tomt = alla. "0" = Alla kontroller (som i Purple Pen). */
   readonly courses: readonly string[];
+  /** Valfri passage: vinkel (grader moturs) och förlängning i mm. */
+  readonly orientation?: number | undefined;
+  readonly stretch?: number | undefined;
+  /** Text: texten (med Purple Pens $(CourseName) m.fl.) och typsnittet. */
+  readonly text?: string | undefined;
+  readonly font?: SpecialFont | undefined;
+  /** Text, linje, rektangel och ellips. */
+  readonly color?: SpecialColor | undefined;
+  readonly line?: SpecialLine | undefined;
+  /** Beskrivningen i flera spalter. */
+  readonly columns?: number | undefined;
+  /** Bildens format ("png", "jpeg" …). */
+  readonly imageFormat?: string | undefined;
   readonly raw: RawXml;
+}
+
+/** En rektangel i kartans mm (y uppåt). */
+export interface MapRect {
+  readonly minX: number;
+  readonly minY: number;
+  readonly maxX: number;
+  readonly maxY: number;
+}
+
+/**
+ * Tryckytan för en bana eller Alla kontroller (Purple Pens `<print-area>`). `automatic`: ytan räknas fram ur banan och
+ * kartan; `restrictToPageSize`: ytan är alltid lika stor som papperet (bara läget ändras). `rect` sparas också när den är
+ * automatisk (Purple Pen gör så för äldre versioner). Papperet i 1/100 tum som i Purple Pen (A4 = 827 × 1169).
+ */
+export interface PrintArea {
+  readonly automatic: boolean;
+  readonly restrictToPageSize: boolean;
+  readonly rect?: MapRect | undefined;
+  readonly page?: { readonly width: number; readonly height: number; readonly margins: number; readonly landscape: boolean } | undefined;
 }
 
 export interface CourseSettingDocument {
@@ -167,6 +243,16 @@ export interface CourseSettingDocument {
      * viktiga kartdetaljer. Bara O-Tid; skrivs inte till .ppen. Saknas = som Purple Pen.
      */
     readonly circleCutting?: CircleCutting | undefined;
+    /** Steg 64: Alla kontrollers utskriftsskala (`<all-controls print-scale>`) och tryckyta (`<print-area>` i `<event>`). */
+    readonly allControlsPrintScale?: number | undefined;
+    readonly printArea?: PrintArea | undefined;
+    /**
+     * Steg 64 (ADR-0183): tävlingens utskriftsprofiler (färger per kartlager, banans färg) och vald profil, och
+     * layoutmallarna. Bara O-Tid; skrivs inte till .ppen och följer med när en ny .ppen läses in.
+     */
+    readonly printProfiles?: readonly PrintProfile[] | undefined;
+    readonly printProfileId?: string | undefined;
+    readonly layoutTemplates?: readonly LayoutTemplate[] | undefined;
     /** Resten av `<event>` (utskriftsyta, kortlayout, färg …), orört. */
     readonly raw?: readonly RawXml[] | undefined;
   };
@@ -206,11 +292,41 @@ export type CourseSettingEdit =
   | { readonly type: "SET_LEG_BENDS"; readonly from: string; readonly to: string; readonly bends: readonly Point[] }
   | { readonly type: "SET_LEG_GAPS"; readonly from: string; readonly to: string; readonly gaps: Leg["gaps"] }
   | { readonly type: "SET_CIRCLE_GAPS"; readonly control: string; readonly gaps: readonly CircleGap[] }
-  | { readonly type: "SET_EVENT"; readonly changes: Partial<Pick<CourseSettingDocument["event"], "title" | "mapScale" | "overprintStandard" | "descriptionStandard" | "numbering" | "descriptionLanguage" | "circleCutting">> }
+  | { readonly type: "SET_EVENT"; readonly changes: Partial<Pick<CourseSettingDocument["event"], "title" | "mapScale" | "overprintStandard" | "descriptionStandard" | "numbering" | "descriptionLanguage" | "circleCutting" | "allControlsPrintScale" | "printProfileId">> }
   /** Steg 63: kontrollbeskrivningen. */
   | DescriptionEdit
   /** Steg 66: sätt (eller ta bort, null) hela objekt per id – ångra och gör om när flera arbetar samtidigt. */
-  | PutObjectsEdit;
+  | PutObjectsEdit
+  /** Steg 64: specialobjekt och tryckyta. */
+  | SpecialEdit;
+
+/** Specialobjektets tolkade egenskaper (utom punkter och banor). */
+export type SpecialFields = Pick<SpecialObject, "orientation" | "stretch" | "text" | "font" | "color" | "line" | "columns">;
+
+/** Ett nytt specialobjekt. En bild har sin data med (base64, t.ex. PNG). */
+export interface SpecialInput extends SpecialFields {
+  readonly kind: SpecialKind;
+  readonly points: readonly Point[];
+  /** Saknas eller tomt = alla banor. */
+  readonly courses?: readonly string[] | undefined;
+  readonly image?: { readonly format: string; readonly data: string } | undefined;
+}
+
+/**
+ * Steg 64: skapa, flytta (nya punkter), ändra och ta bort specialobjekt; tryckytan för en bana (`course` = banans id eller
+ * "ALL_CONTROLS"), null = automatisk som Purple Pen.
+ */
+export type SpecialEdit =
+  | { readonly type: "ADD_SPECIAL"; readonly special: SpecialInput }
+  | { readonly type: "MOVE_SPECIAL"; readonly special: string; readonly points: readonly Point[] }
+  | { readonly type: "UPDATE_SPECIAL"; readonly special: string; readonly changes: SpecialFields & { readonly courses?: readonly string[] | undefined } }
+  | { readonly type: "DELETE_SPECIAL"; readonly special: string }
+  | { readonly type: "SET_PRINT_AREA"; readonly course: string; readonly area: PrintArea | null }
+  /** Utskriftsprofil och layoutmall (ADR-0183): lägg till eller ersätt per id, ta bort. */
+  | { readonly type: "PUT_PRINT_PROFILE"; readonly profile: PrintProfile }
+  | { readonly type: "DELETE_PRINT_PROFILE"; readonly id: string }
+  | { readonly type: "PUT_LAYOUT_TEMPLATE"; readonly template: LayoutTemplate }
+  | { readonly type: "DELETE_LAYOUT_TEMPLATE"; readonly id: string };
 
 /**
  * Steg 66 (ADR-0181 beslut 4): objekten som de ska vara efter ändringen, per id (null = finns inte). Ångra i en editor där
@@ -280,29 +396,47 @@ export type CourseCheck =
   | { readonly kind: "INVERTIBLE_CODE"; readonly code: string; readonly control: string }
   | { readonly kind: "SAME_CONTROL_TWICE_IN_ROW"; readonly course: string; readonly control: string }
   | { readonly kind: "LEG_THROUGH_CONTROL"; readonly course: string; readonly from: string; readonly to: string; readonly control: string }
+  /** Steg 64: sträckans linje går genom ett förbjudet område (specialobjektet) eller över en gräns eller förbjuden väg. */
+  | { readonly kind: "LEG_THROUGH_FORBIDDEN"; readonly course: string; readonly from: string; readonly to: string; readonly special: string }
   | { readonly kind: "COURSE_WITHOUT_START_OR_FINISH"; readonly course: string }
   | { readonly kind: "UNUSED_CONTROL"; readonly control: string }
   | { readonly kind: "MISSING_CODE"; readonly control: string };
 
-/** Färg i banpåtrycket. COURSE = banans lila (dekorfärg vid tryck, steg 65); WHITE = vit bakgrund/kant. */
-export type OverprintColor = "COURSE" | "WHITE";
+/**
+ * Färg i banpåtrycket (färgroll; dekorfärg och övertryck i steg 65). COURSE = banans övre lila; COURSE_LOWER = undre lila
+ * (passager, gränser, första hjälpen, vatten: under kartans svarta hos Purple Pen); WHITE = vit bakgrund och kant; BLACK =
+ * svart text och beskrivning; CUSTOM = egen CMYK (`cmyk`, andelar 0–1) på text, linje, rektangel eller ellips.
+ */
+export type OverprintColor = "COURSE" | "COURSE_LOWER" | "WHITE" | "BLACK" | "CUSTOM";
 
 export type OverprintRole =
   | "START" | "CONTROL" | "FINISH" | "CROSSING_POINT" | "MAP_EXCHANGE" | "LEG" | "NUMBER" | "FLAGGING" | "SPECIAL";
+
+type Cmyk = readonly [number, number, number, number];
+interface Paint { readonly role: OverprintRole; readonly color: OverprintColor; readonly cmyk?: Cmyk | undefined; readonly ref?: string | undefined }
 
 /**
  * Banpåtrycket som enkla figurer i kartans mm, samma för skärm (canvas) och tryck (PDF, steg 65). Storlekarna följer
  * standarden vid utskriftsskalan: en figur som ska vara 5 mm på papperet är 5 · printScale / mapScale mm i kartan
  * (med händelsens `course-appearance scale-sizes` som Purple Pen: "RelativeTo15000" ger 5 · 15000 / mapScale,
  * "RelativeToMap" 5 mm). Cirklarnas `diameter` och linjerna räknas till linjens mitt; ringavbrotten i grader moturs.
- * Texten har `at` i textens mitt (i höjd och bredd). `ref` är banans kontroll-id för kontroller och nummer
- * (kontrollens id i "ALL_CONTROLS") och sträckans nyckel `${från}-${till}` (kontrollernas id) för sträckor.
+ * Linjer har platta ändar om inte `cap: "round"`. Ytor fylls jämn–udda; `tint` (0–1) = rastrerad färg (50 % lila).
+ * Texten: `heightMm` är em-höjden (font-size); `at.y` är mitten av em-rutan (canvas "middle"); `align` "center" = `at.x` i
+ * mitten, "left" = vänsterkant. `ref` är banans kontroll-id för kontroller och nummer (kontrollens id i "ALL_CONTROLS"),
+ * sträckans nyckel `${från}-${till}` (kontrollernas id) för sträckor och specialobjektets id för role SPECIAL.
+ * `image`: bilden (base64) fyller rektangeln, ingen färgroll. `description`: kontrollbeskrivningen (`layoutDescription` i
+ * kartans mm, y NEDÅT från `topLeft`), med vit bakgrund som egen WHITE-yta.
+ * `layoutOverprint` ger figurerna i målningsordning: WHITE, bilder, CUSTOM, BLACK, COURSE_LOWER, COURSE (Purple Pens
+ * färgordning i CourseLayout.RenderToMap), annars i den ordning de räknats.
  */
 export type OverprintPrimitive =
-  | { readonly kind: "circle"; readonly role: OverprintRole; readonly color: OverprintColor; readonly center: Point; readonly diameter: number; readonly lineWidth: number; readonly gaps?: readonly { readonly startDegrees: number; readonly endDegrees: number }[] | undefined; readonly ref?: string | undefined }
-  | { readonly kind: "polyline"; readonly role: OverprintRole; readonly color: OverprintColor; readonly points: readonly Point[]; readonly width: number; readonly dash?: readonly number[] | undefined; readonly closed?: boolean | undefined; readonly ref?: string | undefined }
-  | { readonly kind: "polygon"; readonly role: OverprintRole; readonly color: OverprintColor; readonly rings: readonly (readonly Point[])[]; readonly ref?: string | undefined }
-  | { readonly kind: "text"; readonly role: OverprintRole; readonly color: OverprintColor; readonly at: Point; readonly text: string; readonly heightMm: number; readonly align: "center"; readonly ref?: string | undefined };
+  | (Paint & { readonly kind: "circle"; readonly center: Point; readonly diameter: number; readonly lineWidth: number; readonly gaps?: readonly { readonly startDegrees: number; readonly endDegrees: number }[] | undefined })
+  | (Paint & { readonly kind: "polyline"; readonly points: readonly Point[]; readonly width: number; readonly dash?: readonly number[] | undefined; readonly closed?: boolean | undefined; readonly cap?: "round" | undefined })
+  | (Paint & { readonly kind: "polygon"; readonly rings: readonly (readonly Point[])[]; readonly tint?: number | undefined })
+  | (Paint & { readonly kind: "text"; readonly at: Point; readonly text: string; readonly heightMm: number; readonly align: "center" | "left";
+      readonly font?: { readonly family: string; readonly bold: boolean; readonly italic: boolean } | undefined })
+  | { readonly kind: "image"; readonly role: "SPECIAL"; readonly color?: undefined; readonly rect: MapRect; readonly mediaType: string; readonly data: string; readonly ref?: string | undefined }
+  | (Paint & { readonly kind: "description"; readonly topLeft: Point; readonly layout: DescriptionLayout });
 
 export interface OverprintOptions {
   /** Banans id, eller "ALL_CONTROLS" för alla kontroller. */

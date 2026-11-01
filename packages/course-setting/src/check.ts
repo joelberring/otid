@@ -1,5 +1,6 @@
 /** Kontrollerna under arbetet (ADR-0180 beslut 9). */
 import { sizesFor } from "./appearance";
+import { forbiddenLegs } from "./barriers";
 import { distance, nearestOnPath } from "./geometry";
 import { courseVariantList, isInvertibleCode } from "./summary";
 import type { CheckOptions, CourseCheck, CourseSettingDocument, DescriptionBox } from "./types";
@@ -96,6 +97,11 @@ export function checkCourseSetting(document: CourseSettingDocument, options: Che
         }
       }
     }
+  }
+  // Steg 64: sträckor genom banläggningens förbjudna områden eller över en spärr (gräns, förbjuden väg).
+  for (const course of document.courses) {
+    if (course.kind === "SCORE") continue;
+    for (const hit of forbiddenLegs(document, course.id)) checks.push({ kind: "LEG_THROUGH_FORBIDDEN", course: course.id, ...hit });
   }
   for (const control of controls) if (!used.has(control.id)) checks.push({ kind: "UNUSED_CONTROL", control: control.id });
   return checks;

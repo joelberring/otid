@@ -14,9 +14,17 @@ import type {
   ControlPoint, Course, CourseSettingDocument, OverprintOptions, OverprintPrimitive, OverprintRole
 } from "./types";
 import { CourseSettingEditError } from "./types";
+import { inPaintOrder, specialPrimitives, specialVisible } from "./specials";
 import { enumerateCourseControls, enumerateLegs, findCourse, variations } from "./walk";
 
 type Gap = { startDegrees: number; endDegrees: number };
+
+/**
+ * Textens em-höjd per siffhöjd (NormalCourseAppearance: em 5,57 ger IOF:s 4 mm höga siffror, koderna em 4,18 för 3 mm).
+ * Storlekarna i `Sizes` är siffrornas höjd; figurens `heightMm` är em-höjden (steg 64).
+ */
+const NUMBER_EM_PER_DIGIT = 5.57 / 4;
+const CODE_EM_PER_DIGIT = 4.18 / 3;
 
 interface PointObject {
   readonly control: ControlPoint;
@@ -172,8 +180,9 @@ function pointPrimitives(object: PointObject, sizes: Sizes): OverprintPrimitive[
       const left = [{ x: -0.85, y: -1.5 }, { x: -0.35, y: -0.65 }, { x: -0.35, y: 0.65 }, { x: -0.85, y: 1.5 }].map(p => ({ x: p.x - shift, y: p.y }));
       const arc = (points: Point[]) => bezier(points[0]!, points[1]!, points[2]!, points[3]!).map(p => place(p, at, control.orientation ?? 0, scale));
       return [
-        { kind: "polyline", role: "CROSSING_POINT", color: "COURSE", points: arc(left), width: line, ref },
-        { kind: "polyline", role: "CROSSING_POINT", color: "COURSE", points: arc(left.map(p => ({ x: -p.x, y: p.y }))), width: line, ref }
+        // Undre lila som hos Purple Pen (CrossingCourseObj).
+        { kind: "polyline", role: "CROSSING_POINT", color: "COURSE_LOWER", points: arc(left), width: line, ref },
+        { kind: "polyline", role: "CROSSING_POINT", color: "COURSE_LOWER", points: arc(left.map(p => ({ x: -p.x, y: p.y }))), width: line, ref }
       ];
     }
     case "MAP_ISSUE": {
@@ -230,7 +239,8 @@ function label(course: Course, ordinal: number | undefined, control: ControlPoin
 
 interface Box { readonly cx: number; readonly cy: number; readonly w: number; readonly h: number }
 
-const textWidth = (text: string, height: number) => Math.max(1, text.length) * 0.62 * height;
+// Siffrornas bredd i Arial/Roboto är 0,556 em, alltså 0,78 av siffhöjden.
+const textWidth = (text: string, height: number) => Math.max(1, text.length) * 0.78 * height;
 
 function segmentHitsBox(a: Point, b: Point, box: Box, margin: number): boolean {
   const minX = box.cx - box.w / 2 - margin, maxX = box.cx + box.w / 2 + margin;
@@ -299,19 +309,33 @@ function allControls(document: CourseSettingDocument, printScale: number, option
     const box = placeLabel(object.control.at, apparentRadius("NORMAL", sizes), sizes.codeDistance, code, sizes.codeHeight, [],
       circles.filter(c => c.center !== object.control.at), placed, sizes.line, Number.isFinite(fixed) ? fixed : undefined);
     placed.push(box);
-    out.push({ kind: "text", role: "NUMBER", color: "COURSE", at: { x: box.cx, y: box.cy }, text: code, heightMm: sizes.codeHeight, align: "center", ref: object.ref });
+    out.push({ kind: "text", role: "NUMBER", color: "COURSE", at: { x: box.cx, y: box.cy }, text: code, heightMm: sizes.codeHeight * CODE_EM_PER_DIGIT, align: "center", ref: object.ref });
   }
   return out;
 }
 
-/** Banpåtrycket för en bana (eller alla kontroller). */
+/** Utskriftsskalan för banan (eller Alla kontroller): vald, banans eller kartans. */
+export function printScaleOf(document: CourseSettingDocument, course: string, printScale?: number): number {
+  if (printScale !== undefined) return printScale;
+  if (course === "ALL_CONTROLS") return document.event.allControlsPrintScale ?? document.event.mapScale;
+  return findCourse(document, course).printScale ?? document.event.mapScale;
+}
+
+/**
+ * Banpåtrycket för en bana (eller alla kontroller) med specialobjekten som syns där (steg 64), i målningsordning. Som i
+ * Purple Pen kommer specialobjekten före banans figurer inom samma färg.
+ */
 export function layout(document: CourseSettingDocument, options: OverprintOptions): OverprintPrimitive[] {
-  if (options.course === "ALL_CONTROLS") {
-    const allScale = Number(rawAttribute(document.event.raw, "all-controls", "print-scale"));
-    return allControls(document, options.printScale ?? (allScale > 0 ? allScale : document.event.mapScale), options);
-  }
+  const printScale = printScaleOf(document, options.course, options.printScale);
+  const course = options.course === "ALL_CONTROLS" ? allControls(document, printScale, options) : layoutCourse(document, options, printScale);
+  const context = { document, course: options.course, variant: options.variant, printScale, sizes: sizesFor(document, printScale) };
+  const specials = document.specialObjects.filter(special => specialVisible(special, options.course))
+    .flatMap(special => specialPrimitives(context, special));
+  return inPaintOrder([...specials, ...course]);
+}
+
+function layoutCourse(document: CourseSettingDocument, options: OverprintOptions, printScale: number): OverprintPrimitive[] {
   const course = findCourse(document, options.course);
-  const printScale = options.printScale ?? course.printScale ?? document.event.mapScale;
   const sizes = sizesFor(document, printScale);
   let choices: readonly string[] | null = null;
   if (options.variant !== undefined) {
@@ -434,7 +458,7 @@ export function layout(document: CourseSettingDocument, options: OverprintOption
       placed.push(box);
       at = { x: box.cx, y: box.cy };
     }
-    out.push({ kind: "text", role: "NUMBER", color: "COURSE", at, text, heightMm: sizes.numberHeight, align: "center", ref: object.ref });
+    out.push({ kind: "text", role: "NUMBER", color: "COURSE", at, text, heightMm: sizes.numberHeight * NUMBER_EM_PER_DIGIT, align: "center", ref: object.ref });
   }
   return out;
 }

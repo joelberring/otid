@@ -39,6 +39,17 @@ export interface CostModel {
   readonly unknownSymbols: readonly { readonly code: string; readonly name: string; readonly objects: number }[];
 }
 
+/**
+ * Spärrar och öppningar som inte finns i kartfilen (steg 64: banläggningens specialobjekt, t.ex. förbjudet område och
+ * passager), i kartans mm. Ytor och linjer blir ej passerbara (som 709/520 på kartan), öppningarna öppnar spärrar
+ * (som 710 passage och 519 genomgång). Linjernas och öppningarnas `widthMm` är hela bredden.
+ */
+export interface RouteBarriers {
+  readonly areas?: readonly (readonly Point[])[] | undefined;
+  readonly lines?: readonly { readonly points: readonly Point[]; readonly widthMm: number }[] | undefined;
+  readonly openings?: readonly { readonly points: readonly Point[]; readonly widthMm: number }[] | undefined;
+}
+
 export interface LegInput {
   /** T.ex. "S-31.1", "31.1-32.1" (samma nyckel som sträcktidstabellen, `packages/domain/src/route-legs.ts`). */
   readonly key: string;
@@ -46,6 +57,8 @@ export interface LegInput {
   readonly to: Point;
   /** Andra kontroller på banan (för varningen om att bästa vägen går genom en annan kontrolls ring). */
   readonly otherControls?: readonly { readonly code: string; readonly at: Point }[];
+  /** Steg 64: banläggningens spärrar och öppningar för sträckan (saknas = bara kartan). */
+  readonly barriers?: RouteBarriers | undefined;
 }
 
 export interface RouteLine {

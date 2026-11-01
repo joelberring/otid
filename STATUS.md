@@ -5,10 +5,20 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 66, 67 och 68 (träningsgrupper, grenen steg68-grupper) är klara; sist 64–65 (tryck, ADR-0180). Steg 59–63 är klara. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
+Steg 64 (banpåtryck och utskriftslayout, grenen steg64-tryck) och 66–68 är klara; sist 65 (PDF med dekorfärger, ADR-0180). Steg 59–63 är klara. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
 Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbens löpare via `cachedcompetitors`, strukturen) provad mot riktiga Eventor 2026-10-19; hela landets `cachedcompetitors` och `/api/organisations` måste provas av ägaren; ROC:s sökväg för stämplingar (bara provad mot falsk ROC) och e-post via SMTP är inte provade.
 
 ## Logg
+
+### 2026-11-01 – Steg 64: banpåtryck och utskriftslayout (grenen steg64-tryck, ADR-0180 beslut 11)
+- Paketet: Purple Pens 16 specialobjekt tolkade bredvid `raw` (orörda om fälten inte ändrats, annars skrivna som Purple Pen) och ritade enligt CourseObject.cs och ISOM 2017-2/ISSprOM 2019-2 (korsraster 0,2/1,2 mm, gräns 0,7/1,0 mm, undre lila för passage, gräns, första hjälpen, vatten); beskrivningen på kartan med `layoutDescription` (också i spalter); figurerna i Purple Pens målningsordning (WHITE … COURSE). Siffrornas em-höjd nu som Purple Pen (5,57 mm för 4 mm siffror).
+- Ändringar ADD/MOVE/UPDATE/DELETE_SPECIAL och SET_PRINT_AREA (också i samarbetets uppspelning: specialobjektens id översätts); tryckytan `printArea` per bana och för Alla kontroller, `allControlsPrintScale`.
+- `layoutCoursePage`: papper, tryckyta (automatisk som Purple Pen eller fast ram), utskriftsskala, flera sidor, rubrik, variant per sida; bara data (kartklipp, transform, figurer med färgroll) för förhandsvisningen och steg 65.
+- Editorn: verktyget Objekt (O) och flikarna Objekt (rita yta/linje med klick och Enter/Klar, ett klick för text, passage och beskrivning; banor, text, storlek, färg, spalter) och Utskrift (papper, riktning, marginal, skala, tryckyta, ram på kartan att dra). Förhandsvisningen `/course-setting/print`: kartan ur Workern (300 dpi) och påtrycket som SVG, en @page per pappersstorlek, raden om utkast.
+- Verifierat: lint, typecheck, test (med `OTID_REAL_PPEN`=SBN26_2), test:integration (101 filer, 413 tester); Playwright banlaggning-utskrift (ny, och med ägarens filer via `OTID_E2E_SBN_DIR`), banlaggning, banlaggning-samarbete, banlaggning-mobil, kontrollbeskrivning gröna; skärmbilder av Högdalen/SBN granskade.
+- Spärrar (ägarens krav): `routeBarriers` ger banans förbjudna/farliga områden, konstruktioner, gränser och förbjudna vägar som spärrar och valfria passager som öppningar; motorn rastrerar dem som BLOCK/CROSSING i samma rutnät (`LegInput.barriers`, bakåtkompatibelt). Editorn och kontrollkartans vägval skickar dem (kontrollkartan läser banläggningens dokument om det finns); analysen räknas om när ett objekt ändras. Ny varning LEG_THROUGH_FORBIDDEN. SBN26_2: sträckan genom området 534 m utan spärren, 716 m runt med den (bild i scratchpad).
+- Utskriftsprofil, layoutmallar och en karta per löpare (ADR-0183 skriven): kartans färger per OCAD-färg utan att kartfilen ändras (`drawMap` colorAdjust), förhandskontroll, mallar med flera kartor per A4/A3, platshållare, logotyp, remsa och skärmarker; per löpare ur kartbuntarna med baksida eller remsa och kontroll av varianter och antal. Telefonen: Objekt och Utskrift bakom "Mer" (main 7046e91).
+- Återstår: steg 65 (PDF med dekorfärger, övertryck, PDF/X/ICC); en sida per bana-del (`part`) och bilder via editorn finns inte; textbredder är uppskattade; varningen prövas inte mot kartfilens egna förbjudna områden (709/520).
 
 ### 2026-11-01 – Kartritningen: stolpar och färger (grenen kartritning, paketet map-file)
 - Linjesymbolernas punktsymboler ritas: OCAD hörn/start/slut/sekundär (flaggorna i 870) och primär med slutlängd, antal per ställe och jämn fördelning; Mapper strecksymbol (streckpunkter, flagga 32), start/slut och mittsymboler. Kraftledningarnas stolpar (510/511) syns nu, liksom brons vingar, staketens och murarnas tecken. OCAD:s luckor (x 8 huvudlinje, x 4/y 4 kantlinjer) och ytornas stängande kantsträcka ritas rätt.

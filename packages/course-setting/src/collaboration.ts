@@ -23,6 +23,8 @@ export interface CreatedIds {
   readonly controls: readonly string[];
   readonly courseControls: readonly string[];
   readonly courses: readonly string[];
+  /** Steg 64: specialobjekt (saknas = inga). */
+  readonly specialObjects?: readonly string[] | undefined;
 }
 
 /** Författarens id → id i dokumentet som åtgärderna spelades upp på. */
@@ -30,23 +32,27 @@ export interface IdMap {
   readonly controls: Readonly<Record<string, string>>;
   readonly courseControls: Readonly<Record<string, string>>;
   readonly courses: Readonly<Record<string, string>>;
+  readonly specialObjects?: Readonly<Record<string, string>> | undefined;
 }
 
 export const NO_CREATED_IDS: CreatedIds = { controls: [], courseControls: [], courses: [] };
 export const EMPTY_ID_MAP: IdMap = { controls: {}, courseControls: {}, courses: {} };
 
 type Kind = keyof IdMap;
-const KINDS: readonly Kind[] = ["controls", "courseControls", "courses"];
+const KINDS: readonly Kind[] = ["controls", "courseControls", "courses", "specialObjects"];
 
 const creationOrder = (a: string, b: string) => (Number(a) - Number(b)) || a.localeCompare(b);
 
 /** Id som finns i `after` men inte i `before`. */
 export function createdIdsBetween(before: CourseSettingDocument, after: CourseSettingDocument): CreatedIds {
   const courseIds = new Set(before.courses.map(course => course.id));
+  const specialIds = new Set(before.specialObjects.map(special => special.id));
+  const specialObjects = after.specialObjects.map(special => special.id).filter(id => !specialIds.has(id)).sort(creationOrder);
   return {
     controls: Object.keys(after.controls).filter(id => !(id in before.controls)).sort(creationOrder),
     courseControls: Object.keys(after.courseControls).filter(id => !(id in before.courseControls)).sort(creationOrder),
-    courses: after.courses.map(course => course.id).filter(id => !courseIds.has(id)).sort(creationOrder)
+    courses: after.courses.map(course => course.id).filter(id => !courseIds.has(id)).sort(creationOrder),
+    ...(specialObjects.length > 0 ? { specialObjects } : {})
   };
 }
 
@@ -105,6 +111,12 @@ export function editTouches(edit: CourseSettingEdit): string[] {
     case "SET_DESCRIPTION": return [`control:${edit.control}:descriptions`];
     case "SET_DESCRIPTION_TEXT_LINE":
       return [`control:${edit.control}:${edit.location === "before" ? "descriptionTextBefore" : "descriptionTextAfter"}`];
+    case "MOVE_SPECIAL": return [`specialObject:${edit.special}:points`];
+    case "UPDATE_SPECIAL": return Object.keys(edit.changes).sort().map(key => `specialObject:${edit.special}:${key}`);
+    case "DELETE_SPECIAL": return [`specialObject:${edit.special}`];
+    case "SET_PRINT_AREA": return [edit.course === "ALL_CONTROLS" ? "event:printArea" : `course:${edit.course}:printArea`];
+    case "PUT_PRINT_PROFILE": case "DELETE_PRINT_PROFILE": return ["event:printProfiles"];
+    case "PUT_LAYOUT_TEMPLATE": case "DELETE_LAYOUT_TEMPLATE": return ["event:layoutTemplates"];
     case "PUT_OBJECTS": return [
       ...Object.keys(edit.controls ?? {}).map(id => `control:${id}`),
       ...Object.keys(edit.courseControls ?? {}).map(id => `courseControl:${id}`),
@@ -147,6 +159,10 @@ export function touchedConflict(touched: readonly string[] | "ALL"): (authorTouc
 
 type Lookup = (kind: Kind, id: string) => string;
 
+/** Banorna ett specialobjekt pekar på ("0" = Alla kontroller finns alltid). */
+const courseRefs = (courses: readonly string[] | undefined): [Kind, string][] =>
+  (courses ?? []).filter(course => course !== "0").map(course => ["courses", course]);
+
 /** Id som åtgärden pekar på (kontroller, banornas kontroller, banor). */
 function editRefs(edit: CourseSettingEdit): [Kind, string][] {
   switch (edit.type) {
@@ -161,6 +177,10 @@ function editRefs(edit: CourseSettingEdit): [Kind, string][] {
     case "MOVE_NUMBER": return [["courses", edit.course], ["courseControls", edit.courseControl]];
     case "SET_LEG_BENDS": case "SET_LEG_GAPS": return [["controls", edit.from], ["controls", edit.to]];
     case "SET_EVENT": return [];
+    case "ADD_SPECIAL": return courseRefs(edit.special.courses);
+    case "MOVE_SPECIAL": case "DELETE_SPECIAL": return [["specialObjects", edit.special]];
+    case "UPDATE_SPECIAL": return [["specialObjects", edit.special], ...courseRefs(edit.changes.courses)];
+    case "SET_PRINT_AREA": return edit.course === "ALL_CONTROLS" ? [] : [["courses", edit.course]];
     case "PUT_OBJECTS": {
       const refs: [Kind, string][] = [];
       for (const [id, control] of Object.entries(edit.controls ?? {})) { refs.push(["controls", id]); if (control) refs.push(["controls", control.id]); }
@@ -176,7 +196,10 @@ function editRefs(edit: CourseSettingEdit): [Kind, string][] {
         if (course?.first !== undefined) refs.push(["courseControls", course.first]);
       }
       for (const leg of Object.values(edit.legs ?? {})) if (leg) refs.push(["controls", leg.from], ["controls", leg.to]);
-      for (const special of Object.values(edit.specialObjects ?? {})) if (special) for (const course of special.courses) refs.push(["courses", course]);
+      for (const [id, special] of Object.entries(edit.specialObjects ?? {})) {
+        refs.push(["specialObjects", id]);
+        if (special) refs.push(...courseRefs(special.courses));
+      }
       return refs;
     }
     default: return [];
@@ -204,14 +227,15 @@ function remapPut(edit: PutObjectsEdit, map: Lookup): PutObjectsEdit {
     }
     return [legKey(c(leg.from), c(leg.to)), { ...leg, from: c(leg.from), to: c(leg.to) }];
   })) : undefined;
-  const specialObjects = remapRecord<SpecialObject>(edit.specialObjects, id => id, special => ({ ...special, courses: special.courses.map(co) }));
+  const so = (id: string) => map("specialObjects", id);
+  const specialObjects = remapRecord<SpecialObject>(edit.specialObjects, so, special => ({ ...special, id: so(special.id), courses: special.courses.map(co) }));
   return { ...edit, ...(controls ? { controls } : {}), ...(courseControls ? { courseControls } : {}), ...(courses ? { courses } : {}),
     ...(legs ? { legs } : {}), ...(specialObjects ? { specialObjects } : {}) };
 }
 
 /** Åtgärden med id översatta (författarens id → dokumentets id). */
 export function remapEdit(edit: CourseSettingEdit, idMap: IdMap): CourseSettingEdit {
-  return remapWith(edit, (kind, id) => idMap[kind][id] ?? id);
+  return remapWith(edit, (kind, id) => idMap[kind]?.[id] ?? id);
 }
 
 function remapWith(edit: CourseSettingEdit, map: Lookup): CourseSettingEdit {
@@ -228,6 +252,11 @@ function remapWith(edit: CourseSettingEdit, map: Lookup): CourseSettingEdit {
     case "MOVE_NUMBER": return { ...edit, course: co(edit.course), courseControl: cc(edit.courseControl) };
     case "SET_LEG_BENDS": case "SET_LEG_GAPS": return { ...edit, from: c(edit.from), to: c(edit.to) };
     case "PUT_OBJECTS": return remapPut(edit, map);
+    case "ADD_SPECIAL": return edit.special.courses ? { ...edit, special: { ...edit.special, courses: edit.special.courses.map(co) } } : edit;
+    case "MOVE_SPECIAL": case "DELETE_SPECIAL": return { ...edit, special: map("specialObjects", edit.special) };
+    case "UPDATE_SPECIAL": return { ...edit, special: map("specialObjects", edit.special),
+      changes: edit.changes.courses ? { ...edit.changes, courses: edit.changes.courses.map(co) } : edit.changes };
+    case "SET_PRINT_AREA": return edit.course === "ALL_CONTROLS" ? edit : { ...edit, course: co(edit.course) };
     default: return edit;
   }
 }
@@ -271,11 +300,12 @@ export interface ReplayOptions {
 /** Spela upp åtgärderna i ordning på `document`. Det som inte går hoppas över och står i `rejected`. */
 export function replayEdits(document: CourseSettingDocument, edits: readonly CourseSettingEdit[], options: ReplayOptions = {}): ReplayResult {
   const map: Record<Kind, Record<string, string>> = { controls: { ...options.idMap?.controls }, courseControls: { ...options.idMap?.courseControls },
-    courses: { ...options.idMap?.courses } };
-  const dead: Record<Kind, Set<string>> = { controls: new Set(), courseControls: new Set(), courses: new Set() };
-  const fresh: Record<Kind, Set<string>> = { controls: new Set(), courseControls: new Set(), courses: new Set() };
+    courses: { ...options.idMap?.courses }, specialObjects: { ...options.idMap?.specialObjects } };
+  const sets = () => ({ controls: new Set<string>(), courseControls: new Set<string>(), courses: new Set<string>(), specialObjects: new Set<string>() });
+  const dead: Record<Kind, Set<string>> = sets();
+  const fresh: Record<Kind, Set<string>> = sets();
   /** Författarens id för det som skapats i uppspelningen (övriga id som träffar något nyskapat pekar på något borttaget). */
-  const ownFresh: Record<Kind, Set<string>> = { controls: new Set(), courseControls: new Set(), courses: new Set() };
+  const ownFresh: Record<Kind, Set<string>> = sets();
   const lookup: Lookup = (kind, id) => map[kind][id] ?? id;
   const applied: ReplayedEdit[] = [];
   const rejected: ReplayRejection[] = [];
@@ -300,7 +330,7 @@ export function replayEdits(document: CourseSettingDocument, edits: readonly Cou
       const isFresh = (touch: string) => {
         const [kind, id] = touch.split(":");
         return (kind === "control" && fresh.controls.has(id!)) || (kind === "courseControl" && fresh.courseControls.has(id!)) ||
-          (kind === "course" && fresh.courses.has(id!));
+          (kind === "course" && fresh.courses.has(id!)) || (kind === "specialObject" && fresh.specialObjects.has(id!));
       };
       if (actualTouches.some((touch, i) => !isFresh(touch) && options.conflict!(authorTouches[i] ?? touch, touch))) {
         rejected.push({ index, edit, code: "CONFLICT", message: "Någon annan hann ändra samma sak" });
@@ -334,9 +364,9 @@ export function replayEdits(document: CourseSettingDocument, edits: readonly Cou
     }
     const created = createdIdsBetween(current, next);
     for (const kind of KINDS) {
-      created[kind].forEach((id, i) => {
+      (created[kind] ?? []).forEach((id, i) => {
         fresh[kind].add(id);
-        const authorId = author ? author[kind][i] : id;
+        const authorId = author ? author[kind]?.[i] : id;
         if (authorId === undefined) return;
         ownFresh[kind].add(authorId);
         if (author) map[kind][authorId] = id;

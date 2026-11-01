@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
-import { isRaceStaff, publicRaceAccess, type PublicRaceAccess } from "@o-tid/application";
+import { isRaceStaff, publicRaceGate, type PublicRaceAccess } from "@o-tid/application";
 import { db } from "./db";
 import { publicBusyResponse, publicLoad } from "./public-load";
 import { organizerAccountSessionCookieName } from "./organizer-account-cookies";
@@ -19,7 +19,12 @@ export async function accountSessionToken(): Promise<string | null> {
 }
 
 export async function raceAccess(raceId: string): Promise<PublicRaceAccess> {
-  return publicRaceAccess(db, raceId, await accountSessionToken());
+  return (await raceGate(raceId)).access;
+}
+
+/** Steg 68: som `raceAccess`, och om svaret är privat (en träningsgrupp vars sida bara är för inloggade medlemmar). */
+export async function raceGate(raceId: string): Promise<{ access: PublicRaceAccess; privateCache: boolean }> {
+  return publicRaceGate(db, raceId, await accountSessionToken());
 }
 
 /** För publika sidor: ger PUBLIC eller PREVIEW, annars sidan "Tävlingen är inte publicerad" (404). */
@@ -38,10 +43,10 @@ export async function publicRaceResponse(raceId: string, respond: () => Promise<
   const slot = await accountSessionToken() === null ? await publicLoad().admit() : undefined;
   if (slot?.kind === "busy") return publicBusyResponse(slot.retryAfterSeconds);
   try {
-    const access = await raceAccess(raceId);
+    const { access, privateCache } = await raceGate(raceId);
     if (access === "NONE") return Response.json({ formatVersion: 1, error: "NOT_FOUND" }, { status: 404, headers: { "cache-control": "no-store" } });
     const response = await respond();
-    if (access === "PREVIEW") response.headers.set("cache-control", "private, no-store, no-transform");
+    if (access === "PREVIEW" || privateCache) response.headers.set("cache-control", "private, no-store, no-transform");
     return response;
   } finally {
     slot?.release();

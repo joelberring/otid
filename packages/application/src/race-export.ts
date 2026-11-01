@@ -69,6 +69,11 @@ function sections(raceId: string): readonly (readonly [string, SQL])[] {
     ["courseSettingSuggestions", rows(sql`course_setting_suggestion t where ${race}`, sql`t.created_at, t.id`)],
     // Steg 67: "kollad" per kontroll (också avbockade), bara här.
     ["courseSettingInspections", rows(sql`course_setting_inspection t where ${race}`, sql`t.control_id`)],
+    // Steg 68: kartans avtal och träningsgruppen (namn, kod och inställningar; inte ledare och medlemmar, som är konton).
+    ["mapAgreement", rows(sql`race_map_agreement t where ${race}`, sql`t.race_id`)],
+    ["trainingGroup", rows(sql`training_group t join event e on e.training_group_id = t.id join race r on r.event_id = e.id
+      where r.id = ${raceId}`, sql`t.id`, sql`jsonb_build_object('id', t.id, 'name', t.name, 'code', t.code, 'page_visibility', t.page_visibility,
+      'name_display', t.name_display, 'stats_visibility', t.stats_visibility, 'points_mode', t.points_mode)`)],
     ["participantRoutes", rows(sql`participant_route t where ${race}`, sql`t.entry_id`,
       sql`(to_jsonb(t) - 'gpx') || jsonb_build_object('gpx_base64', encode(t.gpx, 'base64'))`)],
     // Eventor: vilken tävling och klubb loppet hör till, utan den krypterade nyckeln.

@@ -1,6 +1,8 @@
 import {
-  coursesArePublic, getPublicStartList, publicRaceContentVersion, publicRelayResults, publicResultDetailFrom, publicResults, readPublicLiveFrom, readPublicRadio
+  coursesArePublic, getPublicStartList, publicRaceContentVersion, publicRelayResults, publicResultDetailFrom, publicResults, raceGroupNameDisplay,
+  readPublicLiveFrom, readPublicRadio
 } from "@o-tid/application";
+import { maskPublicNames } from "@o-tid/domain";
 import { publicDb as db } from "./db";
 import { instanceRole } from "./instance-role";
 import { raceChangeGeneration } from "./race-change-generation";
@@ -47,7 +49,18 @@ const read = <T>(raceId: string, kind: string, compute: () => Promise<T>, option
   listenForResults();
   return cache.read(raceId, kind, compute, options);
 };
-export const cachedPublicResults = (raceId: string, options: Read = {}) => read(raceId, "results", () => publicResults(db, raceId), options);
+
+/**
+ * Steg 68 (ADR-0182 beslut 7): namnen i en tävlings publika listor visas som tävlingens träningsgrupp valt (förnamn, fullt
+ * namn eller inga namn); utan grupp oförändrade. Görs när listan räknas, så att allt som läser den publika listan (sidorna,
+ * API:erna, Live och deltagarsidan) får samma namn. Inställningen ingår i versionen (`publicRaceContentVersion`).
+ * Arrangörens lista (`results:staff`) har fullständiga namn.
+ */
+export const publicNames = async <T>(raceId: string, value: T): Promise<T> => maskPublicNames(value, await raceGroupNameDisplay(db, raceId));
+const masked = <T>(raceId: string, compute: () => Promise<T>) => async () => publicNames(raceId, await compute());
+
+export const cachedPublicResults = (raceId: string, options: Read = {}) =>
+  read(raceId, "results", masked(raceId, () => publicResults(db, raceId)), options);
 /**
  * Steg 54: resultatlistan för arrangören och funktionärerna (gafflingsbilden även när banorna är hemliga, ADR-0176), per
  * tävlingsversion som den publika. Grinden kontrollerar fortfarande vem som frågar vid varje anrop; svaret är privat.
@@ -65,17 +78,19 @@ export const latestStaffResults = (raceId: string, waitMs: number) => {
 };
 export const latestRelayResults = (raceId: string, waitMs: number) => {
   listenForResults();
-  return cache.latest(raceId, "relay", () => publicRelayResults(db, raceId), waitMs);
+  // Samma post som den publika stafettlistan och därför samma uträkning (namnen enligt gruppen); placeringen läser inga namn.
+  return cache.latest(raceId, "relay", masked(raceId, () => publicRelayResults(db, raceId)), waitMs);
 };
 export const cachedPublicRelayResults = (raceId: string, options: Read = {}) =>
-  read(raceId, "relay", () => publicRelayResults(db, raceId), options);
-export const cachedPublicRadio = (raceId: string, options: Read = {}) => read(raceId, "radio", () => readPublicRadio(db, raceId), options);
+  read(raceId, "relay", masked(raceId, () => publicRelayResults(db, raceId)), options);
+export const cachedPublicRadio = (raceId: string, options: Read = {}) =>
+  read(raceId, "radio", masked(raceId, () => readPublicRadio(db, raceId)), options);
 
 /** Live ur de cachade listorna; "Ny ledare" och tiden följer klockan, så Live räknas om minst var femte sekund. */
 export const cachedPublicLive = (raceId: string, read: Read = {}) => cache.read(raceId, "live", async () => {
   const [results, relay, radio] = await Promise.all([cachedPublicResults(raceId, read), cachedPublicRelayResults(raceId, read),
     cachedPublicRadio(raceId, read)]);
-  return readPublicLiveFrom(db, raceId, { results: results.value, relay: relay.value, radio: radio.value });
+  return publicNames(raceId, await readPublicLiveFrom(db, raceId, { results: results.value, relay: relay.value, radio: radio.value }));
 }, { maxAgeMs: 5_000, ...read });
 
 /**
@@ -94,7 +109,7 @@ export async function warmPublicRaceLists(raceId: string): Promise<void> {
 
 /** Den publicerade (eller löpande) startlistan, eller null. */
 export const cachedPublicStartList = (raceId: string, read: Read = {}) => cache.read(raceId, "start-list", async () => {
-  return publicStartListValue(await getPublicStartList(db, raceId));
+  return publicNames(raceId, publicStartListValue(await getPublicStartList(db, raceId)));
 }, read);
 
 /** Steg 52: om banorna är publika (ADR-0176), per tävlingsversion; versionen tar med arrangörens val. */

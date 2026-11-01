@@ -4,6 +4,7 @@ import { raceCopyRequestSchema, raceCopyResponseSchema, type RaceCopyResponse } 
 import { schema, type Database } from "@o-tid/database";
 import { lockRaceForSnapshot } from "./concurrency";
 import { activeEventAdministrationGrant } from "./race-session";
+import { leaderMembership } from "./training-group-access";
 import { authenticateUserAccountSessionForMutation, type UserAccountSessionProof } from "./user-account";
 import { UUID_PATTERN as UUID } from "./serialization";
 
@@ -68,8 +69,12 @@ export async function copyRaceAsAdmin(db: Database, input: UserAccountSessionPro
     if (grant.role === "FUNCTIONARY") return { status: "forbidden" } as const;
     await lockRaceForSnapshot(tx, source.id);
 
+    // Steg 68: en ledare i källans träningsgrupp får kopian i samma grupp (inte i upprepningen); andra får en fristående tävling.
+    const [sourceEvent] = await tx.select({ groupId: schema.events.trainingGroupId }).from(schema.events).where(eq(schema.events.id, source.eventId));
+    const groupId = sourceEvent?.groupId && await leaderMembership(tx, { accountId, groupId: sourceEvent.groupId }, "share")
+      ? sourceEvent.groupId : null;
     const [event] = await tx.insert(schema.events).values({ name: intent.eventName, startsOn: intent.raceDate,
-      timeZone: source.timeZone, createdAt: now }).returning({ id: schema.events.id });
+      timeZone: source.timeZone, trainingGroupId: groupId, createdAt: now }).returning({ id: schema.events.id });
     if (!event) throw new Error("Eventet kunde inte skapas");
     // Superadminens döljning följer med, så att en kopia inte kringgår den.
     const [race] = await tx.insert(schema.races).values({ eventId: event.id, name: intent.raceName, raceDate: intent.raceDate,
@@ -98,10 +103,13 @@ export async function copyRaceAsAdmin(db: Database, input: UserAccountSessionPro
   });
 }
 
-interface ContentInput { sourceRaceId: string; raceId: string; timeZone: string; dayShift: number; now: Date; accountId: string }
+export interface ContentInput { sourceRaceId: string; raceId: string; timeZone: string; dayShift: number; now: Date; accountId: string }
 
-/** Kontroller, banor (versioner, kontrollföljd, varianter), klasser, sträckor, karta och radiokontroller som nya rader. */
-async function copyRaceContent(tx: Transaction, input: ContentInput) {
+/**
+ * Kontroller, banor (versioner, kontrollföljd, varianter), klasser, sträckor, karta och radiokontroller som nya rader.
+ * Steg 68: också "Ny träning" i en träningsgrupp och upprepningen (training-group-sessions.ts).
+ */
+export async function copyRaceContent(tx: Transaction, input: ContentInput) {
   const { sourceRaceId, raceId, now } = input;
   const controls = await tx.select().from(schema.controls).where(eq(schema.controls.raceId, sourceRaceId)).orderBy(asc(schema.controls.code));
   const controlIds = new Map(controls.map(control => [control.id, randomUUID()]));
@@ -171,6 +179,12 @@ async function copyRaceContent(tx: Transaction, input: ContentInput) {
     select ${raceId}, s.file_name, s.format, s.version, s.file, s.sha256, s.byte_length, s.scale, s.bounds, s.georeference, s.render,
       s.summary, case when m.georeferenced_at = s.uploaded_at then ${now}::timestamptz else ${now}::timestamptz - interval '1 millisecond' end
     from race_map_source s join race_map m on m.race_id = s.race_id where s.race_id = ${sourceRaceId}`);
+  // Steg 68: kartans avtal följer kartan (villkoren gäller kopian också); ett medvetet val att ändå visa kartan publikt gör det inte.
+  await tx.execute(sql`insert into race_map_agreement (race_id, source_map_id, map_name, ownership, owner_kind, owner_name, agreement,
+      valid_until, contact, training_only, fee_per_print, no_public_display, updated_at)
+    select ${raceId}, source_map_id, map_name, ownership, owner_kind, owner_name, agreement, valid_until, contact, training_only,
+      fee_per_print, no_public_display, ${now}
+    from race_map_agreement where race_id = ${sourceRaceId} and exists (select 1 from race_map where race_id = ${raceId})`);
   // Steg 60: vägvalsanalysens inställningar följer med; publicerade bästa vägar hör till den gamla tävlingen.
   await tx.execute(sql`insert into race_route_choice (race_id, settings, published, updated_at)
     select ${raceId}, settings, null, ${now} from race_route_choice where race_id = ${sourceRaceId}`);

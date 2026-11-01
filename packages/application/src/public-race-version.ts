@@ -9,18 +9,22 @@ import { UUID_PATTERN } from "./serialization";
  * - avläsningspaketets innehåll ändras (`race.snapshot_version`: anmälda, namn, klasser, banor, lag),
  * - resultaten fastställs eller görs preliminära igen (`race.official_result_finalization_id`),
  * - startlistan publiceras eller dras tillbaka (`start_list_publication`),
- * - tävlingen publiceras om.
+ * - tävlingen publiceras om,
+ * - steg 68: träningsgruppens inställningar ändras (namnen visas enligt gruppen), eller tävlingen flyttas till eller från en grupp.
  * Ändringar som inte syns i nyckeln (t.ex. banans längd) täcks av cachens maxålder i webben.
  * Ger null för en okänd tävling.
  */
 export async function publicRaceContentVersion(db: Database, raceId: string): Promise<string | null> {
   if (!UUID_PATTERN.test(raceId)) return null;
-  const result = await db.execute<{ snapshot_version: number; finalization: string | null; published_at: string | null; courses_public: string | null; sequence: string | null; start_list: number | null }>(sql`
+  const result = await db.execute<{ snapshot_version: number; finalization: string | null; published_at: string | null; courses_public: string | null; sequence: string | null; start_list: number | null; group_settings: string | null }>(sql`
     select r.snapshot_version, r.official_result_finalization_id::text as finalization, r.published_at::text as published_at, r.courses_public_at::text as courses_public,
       (select max(e.event_sequence) from public_result_update_event e where e.race_id = r.id)::text as sequence,
-      (select max(p.revision) from start_list_publication p where p.race_id = r.id) as start_list
+      (select max(p.revision) from start_list_publication p where p.race_id = r.id) as start_list,
+      (select g.id::text || '.' || g.settings_version from event e join training_group g on g.id = e.training_group_id
+        where e.id = r.event_id) as group_settings
     from race r where r.id = ${raceId}`);
   const row = result.rows[0];
   if (!row) return null;
-  return [row.snapshot_version, row.sequence ?? "0", row.finalization ?? "-", row.published_at ?? "-", row.start_list ?? 0, row.courses_public ?? "-"].join(":");
+  return [row.snapshot_version, row.sequence ?? "0", row.finalization ?? "-", row.published_at ?? "-", row.start_list ?? 0, row.courses_public ?? "-",
+    row.group_settings ?? "-"].join(":");
 }

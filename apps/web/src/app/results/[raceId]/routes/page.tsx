@@ -1,12 +1,12 @@
 import Link from "next/link";
-import { publicRaceSummary, readPublicLegRoutes } from "@o-tid/application";
+import { publicRaceSummary, raceGroupNameDisplay, readPublicLegRoutes } from "@o-tid/application";
 import { db } from "../../../../lib/db";
 import { RouteMap } from "../../../../components/split-analysis/route-map";
 import { routeChoiceSv as text } from "../../../../i18n/split-analysis-sv";
 import { legLabel, splitsHref } from "../../../../lib/split-analysis";
 import { raceStaff, requirePublicRace } from "../../../../lib/public-race-gate";
 import { PreviewBanner } from "../../../../components/public-race/preview-banner";
-import { joinRaceParts, raceTitle } from "@o-tid/domain";
+import { joinRaceParts, raceTitle, shownDisplayName } from "@o-tid/domain";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +20,10 @@ export default async function RouteChoicePage({ params, searchParams }: {
   const leg = typeof query.leg === "string" ? query.leg : "";
   // Steg 52: banan med kontrollägena bara när banorna är publika, eller för arrangören och funktionärerna.
   const staff = await raceStaff(raceId);
-  const [summary, data] = await Promise.all([publicRaceSummary(db, raceId), readPublicLegRoutes(db, raceId, runner, leg, { staff })]);
+  const [summary, raw, names] = await Promise.all([publicRaceSummary(db, raceId), readPublicLegRoutes(db, raceId, runner, leg, { staff }),
+    staff ? "FULL" as const : raceGroupNameDisplay(db, raceId)]);
+  // Steg 68: löparnas namn enligt träningsgruppen.
+  const data = raw && { ...raw, runners: raw.runners.map(row => ({ ...row, name: shownDisplayName(names, row.name) })) };
   const selected = data?.runners[0];
   return <main className="stack public-list-page">
     <nav className="nav" aria-label={text.back}><Link href={splitsHref(raceId, selected?.className)}>{text.back}</Link></nav>

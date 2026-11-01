@@ -17,6 +17,7 @@ import { storedResultVariantControls } from "./course-variants";
 import { imageDimensions } from "./image-dimensions";
 import { readAdminRaceMapSource } from "./race-map-source";
 import { loadPublishedBestRoute, runnerCourseOf } from "./route-choice";
+import { racePublicMapBlocked } from "./training-group-maps";
 import { UUID_PATTERN as uuid, sha256Hex as sha256 } from "./serialization";
 
 /**
@@ -160,6 +161,9 @@ export async function georeferenceRaceMapAsAdmin(db: Database, input: Authentica
 export async function removeRaceMapAsAdmin(db: Database, input: Authentication, now = new Date()): Promise<Failure | { status: "ok" }> {
   return adminWrite(db, input, now, async (tx, actorId) => {
     await tx.delete(schema.raceMapSources).where(eq(schema.raceMapSources.raceId, input.raceId));
+    // Steg 68: avtalet hör till kartan som tas bort. (En ny bild eller kartfil ersätter inte avtalet: det gäller tills någon
+    // tar bort kartan eller ändrar avtalet i gruppens bibliotek, hellre för strängt än för lite.)
+    await tx.delete(schema.raceMapAgreements).where(eq(schema.raceMapAgreements.raceId, input.raceId));
     const removed = await tx.delete(schema.raceMaps).where(eq(schema.raceMaps.raceId, input.raceId)).returning({ raceId: schema.raceMaps.raceId });
     if (removed.length === 0) return { status: "not-found" as const };
     await audit(tx, input.raceId, input.raceId, actorId, "RACE_MAP_REMOVED", {});
@@ -221,16 +225,23 @@ async function publicRead<T>(db: Database, raceId: string, read: (tx: DatabaseTr
   }, { isolationLevel: "repeatable read" });
 }
 
+/** Den georefererade kartan för de publika vägvalen och GPS-rutterna; undefined också när avtalet spärrar publik visning. */
 async function georeferencedMap(tx: DatabaseTransaction, raceId: string) {
+  if (await racePublicMapBlocked(tx, raceId)) return undefined;
   const [map] = await tx.select({ width: schema.raceMaps.width, height: schema.raceMaps.height, sha256: schema.raceMaps.sha256,
     transform: schema.raceMaps.transform }).from(schema.raceMaps).where(eq(schema.raceMaps.raceId, raceId));
   return map?.transform ? { ...map, transform: map.transform } : undefined;
 }
 
-/** Kartbilden publikt, bara när den är georefererad (annars finns inga vägval att visa). */
+/**
+ * Kartbilden publikt, bara när den är georefererad (annars finns inga vägval att visa). Steg 68 (ADR-0182 beslut 4): inte
+ * när kartans avtal har gått ut eller inte tillåter publik visning, om inte admin medvetet valt att visa den ändå. Den
+ * publika vägvalskartan, GPS-rutterna och kontrollkartan ritas alla på den här bilden.
+ */
 export async function readPublicRaceMapImage(db: Database, raceId: string)
   : Promise<{ mediaType: string; image: Buffer; sha256: string } | undefined> {
   return publicRead(db, raceId, async tx => {
+    if (await racePublicMapBlocked(tx, raceId)) return undefined;
     const [map] = await tx.select({ mediaType: schema.raceMaps.mediaType, image: schema.raceMaps.image, sha256: schema.raceMaps.sha256,
       transform: schema.raceMaps.transform }).from(schema.raceMaps).where(eq(schema.raceMaps.raceId, raceId));
     return map?.transform ? { mediaType: map.mediaType, image: map.image, sha256: map.sha256 } : undefined;

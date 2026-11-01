@@ -11,10 +11,12 @@ import { writePpenDocument } from "./ppen-write";
 import { controlOrder, courseVariantList, nextUnusedCode, summaries } from "./summary";
 import type {
   CheckOptions, CourseCheck, CourseSettingDocument, CourseSettingEdit, CourseSummary, CourseVariant, EditResult,
-  OverprintOptions, OverprintPrimitive, PpenReadWarning
+  DescriptionStandard, OverprintOptions, OverprintPrimitive, PpenReadWarning
 } from "./types";
+import type { DescriptionLanguage, DescriptionLayout, DescriptionLayoutOptions, DescriptionSymbol } from "./description-types";
 
 export * from "./types";
+export * from "./description-types";
 export { CONTROL_DISTANCE_LIMITS } from "./check";
 export { OVERPRINT_SIZES } from "./appearance";
 export { INVERTIBLE_CODES } from "./summary";
@@ -39,3 +41,16 @@ export function checkDocument(document: CourseSettingDocument, options?: CheckOp
 export function layoutOverprint(document: CourseSettingDocument, options: OverprintOptions): readonly OverprintPrimitive[] { return layout(document, options); }
 /** Nästa lediga kodsiffra enligt numreringen. */
 export function nextFreeCode(document: CourseSettingDocument): string { return nextUnusedCode(document); }
+
+// Steg 63: kontrollbeskrivningar. Stubbar tills steget är byggt.
+const notYet = (name: string): never => { throw new Error(`${name} är inte byggd än (steg 63)`); };
+/* eslint-disable @typescript-eslint/no-unused-vars -- stubbar tills steg 63 är byggt */
+/** Alla symboler för en standard (för väljaren och ritningen). */
+export function descriptionSymbols(_standard: DescriptionStandard): readonly DescriptionSymbol[] { return notYet("descriptionSymbols"); }
+/** Symbolerna som får stå i en ruta ("C"–"H"), i Purple Pens ordning. */
+export function symbolsForBox(_box: string, _standard: DescriptionStandard): readonly DescriptionSymbol[] { return notYet("symbolsForBox"); }
+/** Kontrollbeskrivningen för en bana som figurer i mm (y nedåt): huvud, rader per kontroll, textrader, mål. */
+export function layoutDescription(_document: CourseSettingDocument, _options: DescriptionLayoutOptions): DescriptionLayout { return notYet("layoutDescription"); }
+/** Kontrollens beskrivning som text ("Sydöstra stenen, 1 m hög") på valt språk, som Purple Pens textbeskrivning. */
+export function describeControl(_document: CourseSettingDocument, _control: string, _language: DescriptionLanguage): string { return notYet("describeControl"); }
+/* eslint-enable @typescript-eslint/no-unused-vars */

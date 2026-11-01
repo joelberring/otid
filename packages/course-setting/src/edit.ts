@@ -426,6 +426,9 @@ export function applyDocumentEdit(document: CourseSettingDocument, edit: CourseS
       draft.event = { ...draft.event, ...defined };
       break;
     }
+    case "SET_DESCRIPTION":
+    case "SET_DESCRIPTION_TEXT_LINE":
+      throw invalidEdit("Kontrollbeskrivningen är inte byggd än (steg 63)");
     default: {
       const never: never = edit;
       throw invalidEdit(`Okänd ändring ${(never as { type: string }).type}`);

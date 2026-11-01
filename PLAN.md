@@ -1081,12 +1081,13 @@ ADR-0180. Kontraktet: `packages/course-setting/src/description-types.ts` och stu
   båda. Figurer i mm (y nedåt) för skärm, SVG och senare PDF.
 - [ ] **Textbeskrivning** (`describeControl`) som Purple Pens, på svenska och engelska.
 - [ ] **Ändringar:** `SET_DESCRIPTION`, `SET_DESCRIPTION_TEXT_LINE`; skrivs till .ppen som Purple Pen.
-- [ ] **Editorn:** beskrivningen för vald bana bredvid kartan; klick på en ruta öppnar väljaren (sök på namn, senast
-  använda), fri text i F och G; kontrollens textbeskrivning syns vid kontrollen; vald standard och språk per tävling.
-- [ ] **Utskrift:** per bana eller alla banor, symboler/text/båda, flera per A4 att klippa (rutstorlek inställbar),
+- [x] **Editorn:** beskrivningen för vald bana bredvid kartan; klick på en ruta öppnar väljaren (sök på namn, senast
+  använda), fri text i F (G har bara symboler, som Purple Pen); kontrollens textbeskrivning syns vid kontrollen; vald
+  standard (i dokumentet) och språk per tävling (språket och visningssättet sparas i webbläsaren, se STATUS).
+- [x] **Utskrift:** per bana eller alla banor, symboler/text/båda, flera per A4 att klippa (rutstorlek inställbar),
   som SVG i webbläsarens utskrift; nedladdning som SVG.
-- [ ] **Tester:** paketet (alla symboler ritas, utläggning mot Purple Pens testfiler och ägarens SBN26_2.ppen, texter),
-  webben (väljaren, utskriftssidan), Playwright `kontrollbeskrivning.spec.ts`.
+- [ ] **Tester:** paketet (alla symboler ritas, utläggning mot Purple Pens testfiler och ägarens SBN26_2.ppen, texter).
+- [x] **Tester i webben:** väljaren, utskriftssidan och SVG-ritningen (enhetstester), Playwright `kontrollbeskrivning.spec.ts`.
 
 ## [ ] Steg 66 – Samarbete i banläggningen (före steg 64)
 

@@ -10,6 +10,15 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-01 – Steg 63: kontrollbeskrivningar, webben (gren steg63-webb, ihopslagen med main 4abdcb9)
+- Editorn: beskrivningen för vald bana/variant (eller Alla kontroller) i spalten bredvid kartan, ritad som SVG ur `layoutDescription` och symbolernas figurer (vända rätt, i mm); rad ↔ kartval åt båda hållen, rutorna nås med Tab.
+- Väljaren (C–H och riktningsraden "all"): `symbolsForBox`, ikon och namn på valt språk, sökning på namn/id, senast använda överst (i webbläsaren), "Ingen", fri text bara i F (paketet avvisar text i G, som Purple Pen), pilar/Enter/Escape. Textrader före/efter (`SET_DESCRIPTION_TEXT_LINE`); banans egna textrader visas men ändras inte.
+- Kontrollens textbeskrivning (`describeControl`) i Vald-rutan. Inställningar: standard (SET_EVENT), språk (paketets fem) och visningssätt.
+- Avvikelse: språk och visningssätt sparas i webbläsaren per tävling (localStorage), utgångsläge från .ppen `<descriptions lang>`; följer inte med filen. Förslag: `event.descriptionLanguage` i dokumentet och SET_EVENT.
+- Utskrift `/admin/[raceId]/course-setting/descriptions` (bara admin): banor och varianter, symboler/text/båda, 5–7 mm, kopior; tätt i kolumner på A4 (`@page` utan marginal, 8 mm kant) med skärmarker; "Skriv ut" och "Ladda ned SVG" per bana. Bara svart.
+- Logiken i `lib/course-setting-description*.ts` (ritning, väljare, A4-utläggning, inställningar) med 20 enhetstester.
+- Verifierat: lint, typecheck, test; Playwright kontrollbeskrivning och banlaggning gröna. Ostadigt: uppladdningen av kartfilen gav 404 (POST map/source i dev-servern) i 2 av 6 körningar, i båda specarna; samma fel som steg 62 noterade, inte utrett.
+
 ### 2026-10-31 – Steg 62: banläggning – .ppen och editorn (paketet steg62-paket, webben steg62-webb, ihopslagna i main)
 - `packages/course-setting`: .ppen in/ut utan förlust (Purple Pens 151 läsbara testfiler, nu fixturer i `fixtures/purplepen`), ändringar, varianter portade från Purple Pens QueryEvent (SBN26_2.ppen = SBN26_1.xml i namn och kodsiffror), kontroller, banpåtryck med Purple Pens mått; 201 tester.
 - Migration 0031 `course_setting` (dokument, version, ändrad av/när, inläst .ppen orörd) och `course_setting_revision` (högst 50; autosparandet behåller en version per 10 min, alltid vid inläsning/återställning). Spara med `expectedVersion` (409 med aktuell version), lås per tävling, inte tävlingen (ADR-0177). Med i adminexporten och kopian, aldrig publikt.

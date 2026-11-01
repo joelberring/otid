@@ -1,4 +1,4 @@
-import { exportPublicIofResultList } from "@o-tid/application";
+import { exportPublicIofResultList, raceGroupNameDisplay } from "@o-tid/application";
 import { db } from "../../../../../../lib/db";
 import { publicRaceResponse } from "../../../../../../lib/public-race-gate";
 
@@ -8,6 +8,8 @@ const headers = { "cache-control": "no-store", "x-content-type-options": "nosnif
 export async function GET(_request: Request, { params }: { params: Promise<{ raceId: string }> }) {
   const { raceId } = await params;
   return publicRaceResponse(raceId, async () => {
+    // Steg 68: IOF XML har alltid hela namnet; en träningsgrupp som döljer namnen har ingen publik IOF-fil.
+    if (await raceGroupNameDisplay(db, raceId) !== "FULL") return new Response(null, { status: 404, headers });
     const result = await exportPublicIofResultList(db, raceId);
     if (result.status !== "ok") return new Response(null, { status: result.status === "not-found" ? 404 : 409, headers });
     return new Response(Uint8Array.from(result.bytes), { headers: { ...headers, "content-type": "application/xml; charset=utf-8",

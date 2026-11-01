@@ -5,10 +5,20 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 66 (samarbete) och 67 (fältläge i mobilen, grenen steg67-falt) är klara; därefter 68 (träningsgrupper, ADR-0182), sist 64–65 (tryck, ADR-0180). Steg 59–63 är klara. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
+Steg 66, 67 och 68 (träningsgrupper, grenen steg68-grupper) är klara; sist 64–65 (tryck, ADR-0180). Steg 59–63 är klara. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
 Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbens löpare via `cachedcompetitors`, strukturen) provad mot riktiga Eventor 2026-10-19; hela landets `cachedcompetitors` och `/api/organisations` måste provas av ägaren; ROC:s sökväg för stämplingar (bara provad mot falsk ROC) och e-post via SMTP är inte provade.
 
 ## Logg
+
+### 2026-11-01 – Steg 68: träningsgrupper (grenen steg68-grupper, ADR-0182)
+- Migration 0035: `training_group` (kod i länken /g/<kod>, synligheten med standard länk/förnamn/bara ledarna, poängserie, mall), `training_group_member` (LEADER/MEMBER, läggs till med e-post), `training_group_series`, `training_group_request`, kartbiblioteket (`training_group_map`, `_source`, `_course_setting`) och `race_map_agreement`; `event.training_group_id`/`_series_id`. Inga nycklar från gruppen till tävlingar eller konton (purge följer nycklarna). Klubb med flera grupper: en tabell och en nullbar kolumn senare.
+- Behörighet: `activeEventAdministrationGrant` ger en ledare ADMIN på gruppens tävlingar (efter egen ägare/admin, före funktionär); därmed `requireRaceRole`, banläggningen, förhandsvisningen och kopian. Gruppens tillfällen har inga egna administratörer. Att ta en tävling ur gruppen kräver en egen roll på evenemanget.
+- Ny träning ur mall/förra/valt tillfälle via `copyRaceContent` (+ loppets inställningar och starttid); upprepning skapar alla i förväg, "Ångra framtida" tar bort framtida orörda (inga anmälda, inga avläsningar) med purge. Vanlig kopia av en ledare hamnar i gruppen; andras blir fristående.
+- Kartbiblioteket KOPIERAR bild, kartfil och banläggning (in och ut), säkrast mot borttagning; avtalet följer som kopia per tävling och uppdateras när biblioteket ändras. Utgånget/"inte publik visning" spärrar kartbilden publikt (och därmed vägvalskartan, GPS-rutterna) tills admin väljer "Visa publikt ändå"; utgånget eller "bara träning" för en tävling stoppar ny träning tills ledaren går vidare.
+- Namnen: gruppens val gäller gruppsidan och tävlingens egna publika sidor (de cachade listorna: resultat, stafett, mellantider, Live, startlista, deltagarsidan; fastställda listor, GPS-rutter, kontrollkartan); IOF XML publikt 404 utom vid fullt namn; inställningen ingår i innehållsversionen. Gruppens tävlingar listas inte på startsidan; "bara medlemmar" gäller också tävlingens sidor (privat cache). /g/ är noindex (robots.txt, X-Robots-Tag, meta).
+- Deltagare känns igen på namnet (närvaro och poäng ur publicerade resultat); självanmälan på gruppsidan för dagens träning minns förra anmälan i telefonen.
+- Verifierat: lint, typecheck, test, test:integration (101 filer, 413 tester; uppgraderingstestet steg 28 behövde de nya kolumnerna), Playwright traningsgrupp (ny), arbetsyta, publikt, kopiera, sjalvregistrering och sjalvregistrering-tavling gröna i dev; CI grönt (66 specar mot driftbygget); skärmbilder 1280/390 granskade.
+- Återstår: inte provat av ägaren med en riktig grupp; säsongen räknar om alla tillfällens resultat vid varje visning (högst 60).
 
 ### 2026-11-01 – Steg 67: fältläget i mobilen (grenen steg67-falt)
 - Kollad per kontroll i egen tabell (migration 0034 `course_setting_inspection`, PUT/GET `course-setting/inspections`), inte i dokumentet: bankontrollanten (läsa och kommentera) får bocka, en bock ger ingen version, inget förslag och ingen konflikt, en ny .ppen tar inte bort bockarna, och .ppen/banpåtryck/överföring är orörda (integrationstest). Den senaste vinner med tiden från telefonen (avbockning står kvar som rad); export ja, kopia nej. Diskret bock på kartan (orange om kontrollen flyttats efter kollen), fliken Kollat med "Ej kollade".

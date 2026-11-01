@@ -116,3 +116,8 @@ export * from "./party";
 export { readSelfRegistrationInfo, selfRegisterCard, type SelfRegistrationResult } from "./self-registration";
 export { previewSelfRegistrationCleanupAsAdmin, strikeSelfRegisteredAsAdmin } from "./self-registration-cleanup";
 export * from "./readout-placement";
+export * from "./training-group-access";
+export * from "./training-groups";
+export * from "./training-group-maps";
+export * from "./training-group-sessions";
+export * from "./training-group-public";

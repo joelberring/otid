@@ -3,8 +3,9 @@ import type { MetadataRoute } from "next";
 /**
  * robots.txt (PLAN.md steg 40): fest-sidorna (/fest/) och deras API stängs för alla robotar och särskilt för kända
  * AI-robotar. Tävlingssidorna påverkas inte. Fest-sidan har dessutom X-Robots-Tag (next.config) och en robots-meta.
+ * Steg 68 (ADR-0182 beslut 7): träningsgruppernas sidor (/g/) på samma sätt – grupperna är ofta barn.
  */
-const PARTY = ["/fest/", "/api/public/parties/"];
+const PARTY = ["/fest/", "/api/public/parties/", "/g/"];
 const AI_BOTS = ["GPTBot", "ChatGPT-User", "ClaudeBot", "anthropic-ai", "CCBot", "Google-Extended", "PerplexityBot", "Bytespider",
   "Applebot-Extended"];
 

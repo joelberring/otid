@@ -47,7 +47,9 @@ const adminFiles = [
   // Steg 60: vägvalsanalysen.
   "route-choice-sv.ts",
   // Steg 62: banläggningen.
-  "course-setting-sv.ts"
+  "course-setting-sv.ts",
+  // Steg 68: träningsgrupperna (kartans avtal på kartsidan).
+  "training-group-sv.ts"
 ];
 /** Delade textfiler (även publika sidor): bara nycklarna som arbetsytan läser granskas. */
 const sharedFiles = ["sv.ts", "account-sv.ts"];

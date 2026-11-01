@@ -8,7 +8,8 @@ export const publicFrozenRaceResultStatusSchema = z.enum(["OK", "OVERTIME", "MP"
 export const publicFrozenRaceResultSchema = z.object({
   className: z.string().trim().min(1).max(160),
   givenName: z.string().trim().min(1).max(160),
-  familyName: z.string().trim().min(1).max(160),
+  // Steg 68: tomt när träningsgruppen visar bara förnamn.
+  familyName: z.string().trim().max(160),
   organisationName: z.string().trim().min(1).max(240).nullable(),
   status: publicFrozenRaceResultStatusSchema,
   elapsedMs: safeMillisecondsSchema.nullable(),

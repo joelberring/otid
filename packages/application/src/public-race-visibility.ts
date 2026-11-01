@@ -2,6 +2,7 @@ import { and, eq, isNotNull } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
 import type { DbExecutor } from "./snapshot";
 import { activeEventAdministrationGrant } from "./race-session";
+import { groupMembership } from "./training-group-access";
 import { authenticateUserAccountSessionForProtectedRead } from "./user-account";
 import { UUID_PATTERN } from "./serialization";
 
@@ -29,18 +30,35 @@ export type PublicRaceAccess = "PUBLIC" | "PREVIEW" | "NONE";
 
 export async function publicRaceAccess(db: Database, raceId: string, accountSessionToken: string | null,
   now = new Date()): Promise<PublicRaceAccess> {
-  if (!UUID_PATTERN.test(raceId)) return "NONE";
+  return (await publicRaceGate(db, raceId, accountSessionToken, now)).access;
+}
+
+/**
+ * Som `publicRaceAccess`, och om svaret är privat: steg 68 (ADR-0182 beslut 7) – en tävling i en träningsgrupp vars sida
+ * bara är för inloggade medlemmar syns publikt bara för gruppens ledare och medlemmar (och tävlingens egna administratörer
+ * och funktionärer), och svaren får då aldrig sparas i en delad cache.
+ */
+export async function publicRaceGate(db: Database, raceId: string, accountSessionToken: string | null,
+  now = new Date()): Promise<{ access: PublicRaceAccess; privateCache: boolean }> {
+  const none = { access: "NONE" as const, privateCache: true };
+  if (!UUID_PATTERN.test(raceId)) return none;
   const [race] = await db.select({ eventId: schema.races.eventId, publishedAt: schema.races.publishedAt,
-    hidden: schema.races.hiddenBySuperadmin }).from(schema.races).where(eq(schema.races.id, raceId)).limit(1);
-  if (!race || race.hidden) return "NONE";
-  if (race.publishedAt) return "PUBLIC";
-  if (!accountSessionToken) return "NONE";
+    hidden: schema.races.hiddenBySuperadmin, groupId: schema.events.trainingGroupId, pageVisibility: schema.trainingGroups.pageVisibility })
+    .from(schema.races).innerJoin(schema.events, eq(schema.events.id, schema.races.eventId))
+    .leftJoin(schema.trainingGroups, eq(schema.trainingGroups.id, schema.events.trainingGroupId))
+    .where(eq(schema.races.id, raceId)).limit(1);
+  if (!race || race.hidden) return none;
+  const membersOnly = race.groupId !== null && race.pageVisibility === "MEMBERS";
+  if (race.publishedAt && !membersOnly) return { access: "PUBLIC", privateCache: false };
+  if (!accountSessionToken) return none;
   return db.transaction(async tx => {
     const auth = await authenticateUserAccountSessionForProtectedRead(tx, { sessionToken: accountSessionToken }, now);
-    if (auth.status !== "authenticated") return "NONE";
+    if (auth.status !== "authenticated") return none;
     const grant = await activeEventAdministrationGrant(tx, { accountId: auth.principal.accountId, eventId: race.eventId,
       roles: ["OWNER", "ADMIN", "FUNCTIONARY"] }, "share");
-    return grant ? "PREVIEW" : "NONE";
+    if (!race.publishedAt) return grant ? { access: "PREVIEW" as const, privateCache: true } : none;
+    const member = grant || (race.groupId && await groupMembership(tx, { accountId: auth.principal.accountId, groupId: race.groupId }));
+    return member ? { access: "PUBLIC" as const, privateCache: true } : none;
   });
 }
 

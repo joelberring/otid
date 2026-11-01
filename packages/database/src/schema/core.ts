@@ -93,6 +93,9 @@ export const events = pgTable("event", {
   name: text("name").notNull(),
   startsOn: date("starts_on").notNull(),
   timeZone: text("time_zone").notNull(),
+  /** Steg 68 (migration 0035): träningsgruppen evenemanget hör till och upprepningen som skapade det. NULL = ingen. */
+  trainingGroupId: uuid("training_group_id"),
+  trainingGroupSeriesId: uuid("training_group_series_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 });
 

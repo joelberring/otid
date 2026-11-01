@@ -34,6 +34,9 @@ const nextConfig: NextConfig = {
       // Steg 42: QR-skylten har samma skydd.
       { source: "/fest/:code/qr", headers: [noIndex] },
       { source: "/api/public/parties/:path*", headers: [noIndex, { key: "Cache-Control", value: "private, no-store" }] },
+      // Steg 68 (ADR-0182 beslut 7): träningsgruppens sida och QR-skylt indexeras aldrig (som festen).
+      { source: "/g/:code", headers: [noIndex] },
+      { source: "/g/:code/qr", headers: [noIndex] },
       ...["", "/manage", "/readout", "/speaker", "/imports", "/party-labels", "/course-setting"].map((surface) => ({
         source: `/admin/:raceId${surface}`, headers: [...privateAdminHeaders]
       })),
@@ -48,7 +51,7 @@ const nextConfig: NextConfig = {
         { key: "Content-Security-Policy", value: READOUT_SHELL_CSP }, { key: "Referrer-Policy", value: "no-referrer" }, readout] },
       { source: "/starts/:raceId", headers: [...privateAdminHeaders] },
       // Kontosidorna (ADR-0172): inte i cache, inte i ram och ingen referer (återställningslänken).
-      ...["/superadmin", "/konto", "/recover"].map((source) => ({ source, headers: [...privateAdminHeaders] }))
+      ...["/superadmin", "/konto", "/recover", "/organizer/groups/:groupId"].map((source) => ({ source, headers: [...privateAdminHeaders] }))
     ];
   },
   transpilePackages: [

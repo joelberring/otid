@@ -130,6 +130,9 @@ test("banläggning: .ppen in, flytta, ny bana med klick, ångra, sparat efter om
 
   // Överför till tävlingen (Fil-menyn): banfilens förhandsvisning och godkännandet.
   await owner.getByRole("button", { name: /^Fil/ }).click();
+  // Menyn ryms i fönstret (den hamnade utanför till höger).
+  const menuBox = (await owner.getByRole("menu").boundingBox())!;
+  expect(menuBox.x + menuBox.width).toBeLessThanOrEqual(owner.viewportSize()!.width);
   await owner.getByRole("menuitem", { name: "Överför till tävlingen …" }).click();
   await owner.getByRole("dialog").getByRole("button", { name: "Överför till tävlingen" }).click();
   const review = owner.getByRole("region", { name: /Banläggningen, version \d+/ });

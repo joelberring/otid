@@ -1118,20 +1118,20 @@ ADR-0181 beslut 6–7. Görs efter steg 66.
 - [x] **Utan täckning:** sidan och kartfilen sparas i telefonen, ändringar och notiser köas och skickas sedan.
 - [x] **Tester:** Playwright med mobilvy och fejkad position, kö utan nät; ägaren provar i terrängen.
 
-## [ ] Steg 68 – Träningsgrupper (före steg 64)
+## [x] Steg 68 – Träningsgrupper (före steg 64)
 
-ADR-0182. Görs efter steg 67.
+ADR-0182. Görs efter steg 67. Migration 0035.
 
-- [ ] **Grupp** med namn och ledare; tävlingar kan höra till en grupp; ledarna är ADMIN på gruppens tävlingar.
-- [ ] **Gruppsidan:** kommande tillfällen, senaste resultat, arkiv; fast länk och QR-kod.
-- [ ] **Mallar och upprepning:** ny träning ur mall eller förra tillfället; upprepning en termin i förväg.
-- [ ] **Kartbibliotek:** gruppens kartfiler och banläggningar används igen. Per karta: klubbens egen eller extern, ägare,
+- [x] **Grupp** med namn och ledare; tävlingar kan höra till en grupp; ledarna är ADMIN på gruppens tävlingar.
+- [x] **Gruppsidan:** kommande tillfällen, senaste resultat, arkiv; fast länk och QR-kod.
+- [x] **Mallar och upprepning:** ny träning ur mall eller förra tillfället; upprepning en termin i förväg.
+- [x] **Kartbibliotek:** gruppens kartfiler och banläggningar används igen. Per karta: klubbens egen eller extern, ägare,
   avtal (fri text), giltighetstid, kontakt och villkor (bara träning, avgift per utskrift, inte publik visning); varning
   när avtalet gått ut eller inte tillåter det kartan ska användas till.
-- [ ] **Deltagare** känns igen mellan tillfällena; självanmälan för gruppen.
-- [ ] **Säsongen:** närvaro per deltagare, valfri poängserie.
-- [ ] **Inställningar för synlighet** (ADR-0182 beslut 7) med försiktiga standardvärden; aldrig indexerad.
-- [ ] **Tester:** integration (behörighet via gruppen, synlighetsinställningarna, upprepning), Playwright gruppsidan.
+- [x] **Deltagare** känns igen mellan tillfällena; självanmälan för gruppen.
+- [x] **Säsongen:** närvaro per deltagare, valfri poängserie.
+- [x] **Inställningar för synlighet** (ADR-0182 beslut 7) med försiktiga standardvärden; aldrig indexerad.
+- [x] **Tester:** integration (behörighet via gruppen, synlighetsinställningarna, upprepning), Playwright gruppsidan.
 
 ## [ ] Steg 64 – Banpåtryck och utskriftslayout
 

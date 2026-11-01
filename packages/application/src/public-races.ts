@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, ilike, lt, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gt, ilike, isNull, lt, or, sql, type SQL } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
 import type { RaceType } from "@o-tid/contracts";
 import { publicRaceCondition } from "./public-race-visibility";
@@ -47,7 +47,8 @@ export async function listPublicRaces(db: Database, input: { search?: string | u
     raceId: schema.races.id, shortCode: schema.races.shortCode, eventName: schema.events.name, raceName: schema.races.name,
     raceDate: schema.races.raceDate, raceType: schema.races.raceType, startListPublished
   }).from(schema.races).innerJoin(schema.events, eq(schema.events.id, schema.races.eventId))
-    .where(and(publicRaceCondition(), when,
+    // Steg 68 (ADR-0182 beslut 7): en träningsgrupps tillfällen listas inte på startsidan; de nås via gruppens länk.
+    .where(and(publicRaceCondition(), isNull(schema.events.trainingGroupId), when,
       pattern ? or(ilike(schema.events.name, pattern), ilike(schema.races.name, pattern)) : undefined))
     .orderBy(...order).limit(limit);
   const [ongoing, upcoming, recent] = await Promise.all([

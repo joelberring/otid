@@ -3,6 +3,7 @@ import {
   bigint,
   check,
   customType,
+  doublePrecision,
   foreignKey,
   index,
   integer,
@@ -358,7 +359,82 @@ export const courseSettings = pgTable("course_setting", {
   updatedBy: uuid("updated_by").notNull(),
   originalPpen: text("original_ppen"),
   originalFileName: text("original_file_name"),
-  originalImportedAt: timestamp("original_imported_at", { withTimezone: true })
+  originalImportedAt: timestamp("original_imported_at", { withTimezone: true }),
+  /** Steg 66: arbetssättet ("Huvudbanläggare" eller "Gemensamt"). */
+  mode: text("mode").$type<"LEAD" | "SHARED">().notNull().default("LEAD")
+});
+
+/** Steg 66 (migration 0032): behörighet för banläggningen per person och tävling (ägare och admin har EDIT utan rad). */
+export const courseSettingGrants = pgTable("course_setting_grant", {
+  id: uuid("id").primaryKey(),
+  raceId: uuid("race_id").notNull().references(() => races.id),
+  accountId: uuid("account_id").notNull().references(() => userAccounts.id),
+  level: text("level").$type<"EDIT" | "SUGGEST" | "COMMENT">().notNull(),
+  grantedAt: timestamp("granted_at", { withTimezone: true }).notNull(),
+  grantedBy: uuid("granted_by").notNull(),
+  requestId: uuid("request_id").notNull()
+}, (table) => [uniqueIndex("course_setting_grant_race_account_key").on(table.raceId, table.accountId),
+  uniqueIndex("course_setting_grant_request_key").on(table.requestId)]);
+
+/** Steg 66: vad varje version ändrade (konflikter) och svaret på sparningen (idempotens). */
+export const courseSettingChanges = pgTable("course_setting_change", {
+  raceId: uuid("race_id").notNull().references(() => races.id),
+  version: integer("version").notNull(),
+  touches: jsonb("touches").$type<string[] | "ALL">().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  createdBy: uuid("created_by").notNull(),
+  requestId: uuid("request_id"),
+  result: jsonb("result").$type<Record<string, unknown>>()
+}, (table) => [primaryKey({ columns: [table.raceId, table.version] })]);
+
+/** Steg 66: notiser på kartan och i banorna, utanför dokumentet. */
+export const courseSettingNotes = pgTable("course_setting_note", {
+  id: uuid("id").primaryKey(),
+  raceId: uuid("race_id").notNull().references(() => races.id),
+  target: text("target").$type<"POINT" | "CONTROL" | "LEG" | "COURSE">().notNull(),
+  atX: doublePrecision("at_x"),
+  atY: doublePrecision("at_y"),
+  controlId: text("control_id"),
+  fromControlId: text("from_control_id"),
+  toControlId: text("to_control_id"),
+  courseId: text("course_id"),
+  text: text("text").notNull(),
+  status: text("status").$type<"OPEN" | "DONE">().notNull().default("OPEN"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  createdBy: uuid("created_by").notNull(),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  resolvedBy: uuid("resolved_by"),
+  photo: bytea("photo"),
+  photoMediaType: text("photo_media_type"),
+  requestId: uuid("request_id").notNull()
+});
+
+export const courseSettingNoteReplies = pgTable("course_setting_note_reply", {
+  id: uuid("id").primaryKey(),
+  noteId: uuid("note_id").notNull().references(() => courseSettingNotes.id),
+  raceId: uuid("race_id").notNull().references(() => races.id),
+  text: text("text").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  createdBy: uuid("created_by").notNull(),
+  requestId: uuid("request_id").notNull()
+});
+
+/** Steg 66: förslag (åtgärder mot en version) som den med EDIT godkänner helt, delvis eller avböjer. */
+export const courseSettingSuggestions = pgTable("course_setting_suggestion", {
+  id: uuid("id").primaryKey(),
+  raceId: uuid("race_id").notNull().references(() => races.id),
+  baseVersion: integer("base_version").notNull(),
+  edits: jsonb("edits").$type<unknown[]>().notNull(),
+  created: jsonb("created").$type<unknown[]>().notNull(),
+  comment: text("comment").notNull(),
+  status: text("status").$type<"OPEN" | "APPROVED" | "PARTIAL" | "DECLINED">().notNull().default("OPEN"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  createdBy: uuid("created_by").notNull(),
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
+  decidedBy: uuid("decided_by"),
+  decisionComment: text("decision_comment"),
+  result: jsonb("result").$type<Record<string, unknown>>(),
+  requestId: uuid("request_id").notNull()
 });
 
 /** Steg 62: tidigare versioner av banläggningen (de senaste 50). */

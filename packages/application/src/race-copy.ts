@@ -175,11 +175,29 @@ async function copyRaceContent(tx: Transaction, input: ContentInput) {
   await tx.execute(sql`insert into race_route_choice (race_id, settings, published, updated_at)
     select ${raceId}, settings, null, ${now} from race_route_choice where race_id = ${sourceRaceId}`);
   // Steg 62: banläggningen följer med som första versionen (med den inlästa .ppen-filen); tidigare versioner gör det inte.
+  // Steg 66: med arbetssättet, behörigheterna för banläggningen och notiserna (med svar och foton); förslagen gäller den
+  // gamla tävlingens versioner och följer inte med.
   await tx.execute(sql`insert into course_setting (race_id, document, version, updated_at, updated_by, original_ppen, original_file_name,
-      original_imported_at)
+      original_imported_at, mode)
     select ${raceId}, document, 1, ${now}, ${input.accountId}, original_ppen, original_file_name,
-      case when original_ppen is null then null else ${now}::timestamptz end
+      case when original_ppen is null then null else ${now}::timestamptz end, mode
     from course_setting where race_id = ${sourceRaceId}`);
+  await tx.execute(sql`insert into course_setting_change (race_id, version, touches, created_at, created_by)
+    select ${raceId}, 1, '"ALL"'::jsonb, ${now}, ${input.accountId} from course_setting where race_id = ${raceId}`);
+  await tx.execute(sql`insert into course_setting_grant (id, race_id, account_id, level, granted_at, granted_by, request_id)
+    select gen_random_uuid(), ${raceId}, account_id, level, ${now}, ${input.accountId}, gen_random_uuid()
+    from course_setting_grant where race_id = ${sourceRaceId}`);
+  await tx.execute(sql`create temporary table course_setting_note_copy on commit drop as
+    select id as old_id, gen_random_uuid() as new_id from course_setting_note where race_id = ${sourceRaceId}`);
+  await tx.execute(sql`insert into course_setting_note (id, race_id, target, at_x, at_y, control_id, from_control_id, to_control_id,
+      course_id, text, status, created_at, created_by, resolved_at, resolved_by, photo, photo_media_type, request_id)
+    select c.new_id, ${raceId}, n.target, n.at_x, n.at_y, n.control_id, n.from_control_id, n.to_control_id, n.course_id, n.text, n.status,
+      n.created_at, n.created_by, n.resolved_at, n.resolved_by, n.photo, n.photo_media_type, gen_random_uuid()
+    from course_setting_note n join course_setting_note_copy c on c.old_id = n.id`);
+  await tx.execute(sql`insert into course_setting_note_reply (id, note_id, race_id, text, created_at, created_by, request_id)
+    select gen_random_uuid(), c.new_id, ${raceId}, r.text, r.created_at, r.created_by, gen_random_uuid()
+    from course_setting_note_reply r join course_setting_note_copy c on c.old_id = r.note_id`);
+  await tx.execute(sql`drop table course_setting_note_copy`);
 
   const [radio] = await tx.select().from(schema.raceRadioLinks).where(eq(schema.raceRadioLinks.raceId, sourceRaceId));
   if (radio) await tx.insert(schema.raceRadioLinks).values({ raceId, source: radio.source, unitId: radio.unitId, enabled: false, updatedAt: now });

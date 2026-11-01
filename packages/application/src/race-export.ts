@@ -60,6 +60,13 @@ function sections(raceId: string): readonly (readonly [string, SQL])[] {
     // Steg 62: banläggningen och dess tidigare versioner (bara i adminexporten, aldrig publikt).
     ["courseSetting", rows(sql`course_setting t where ${race}`, sql`t.race_id`)],
     ["courseSettingRevisions", rows(sql`course_setting_revision t where ${race}`, sql`t.version`)],
+    // Steg 66: samarbetet (behörigheter, ändringarnas logg, notiser med foton i base64, svar och förslag), bara här.
+    ["courseSettingGrants", rows(sql`course_setting_grant t where ${race}`, sql`t.granted_at, t.id`)],
+    ["courseSettingChanges", rows(sql`course_setting_change t where ${race}`, sql`t.version`)],
+    ["courseSettingNotes", rows(sql`course_setting_note t where ${race}`, sql`t.created_at, t.id`,
+      sql`(to_jsonb(t) - 'photo') || jsonb_build_object('photo_base64', encode(t.photo, 'base64'))`)],
+    ["courseSettingNoteReplies", rows(sql`course_setting_note_reply t where ${race}`, sql`t.created_at, t.id`)],
+    ["courseSettingSuggestions", rows(sql`course_setting_suggestion t where ${race}`, sql`t.created_at, t.id`)],
     ["participantRoutes", rows(sql`participant_route t where ${race}`, sql`t.entry_id`,
       sql`(to_jsonb(t) - 'gpx') || jsonb_build_object('gpx_base64', encode(t.gpx, 'base64'))`)],
     // Eventor: vilken tävling och klubb loppet hör till, utan den krypterade nyckeln.

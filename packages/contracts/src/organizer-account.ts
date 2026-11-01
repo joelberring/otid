@@ -58,14 +58,16 @@ const organizerEventRaceSchema = z.object({
   raceId: uuid,
   raceName: z.string().trim().min(1).max(160),
   raceDate: z.iso.date(),
-  raceType: raceTypeSchema
+  raceType: raceTypeSchema,
+  /** Steg 66: behörighet för banläggningen på loppet (utan roll på eventet når kontot bara den). */
+  courseSetting: z.enum(["EDIT", "SUGGEST", "COMMENT"]).optional()
 }).strict();
 
 const organizerEventSchema = z.object({
   eventId: uuid,
   eventName: z.string().trim().min(1).max(160),
   /** FUNCTIONARY (ADR-0172 beslut 3): når bara avläsning, kvar i skogen, start och speaker. */
-  role: z.enum(["OWNER", "ADMIN", "FUNCTIONARY"]),
+  role: z.enum(["OWNER", "ADMIN", "FUNCTIONARY", "COURSE_SETTER"]),
   startsOn: z.iso.date(),
   timeZone: z.string().trim().min(1).max(100),
   races: z.array(organizerEventRaceSchema).max(10_000)

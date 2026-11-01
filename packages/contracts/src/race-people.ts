@@ -9,9 +9,13 @@ import { UUID_SOURCE as canonicalUuidPattern } from "./ids";
 const canonicalUuidSchema = z.string().regex(new RegExp(`^${canonicalUuidPattern}$`));
 const instantSchema = z.iso.datetime({ offset: true });
 
-export const racePersonRoleSchema = z.enum(["OWNER", "ADMIN", "FUNCTIONARY"]);
+/**
+ * Steg 66 (ADR-0181 beslut 5): banläggningens behörighet på just den här tävlingen – ändra (COURSE_EDIT), föreslå
+ * (COURSE_SUGGEST) eller läsa och kommentera (COURSE_COMMENT). Den ger bara banläggningen, inte resten av tävlingen.
+ */
+export const racePersonRoleSchema = z.enum(["OWNER", "ADMIN", "FUNCTIONARY", "COURSE_EDIT", "COURSE_SUGGEST", "COURSE_COMMENT"]);
 /** Roller som kan läggas till. Ägaren finns från början och kan inte läggas till eller tas bort här. */
-export const racePersonGrantableRoleSchema = z.enum(["ADMIN", "FUNCTIONARY"]);
+export const racePersonGrantableRoleSchema = z.enum(["ADMIN", "FUNCTIONARY", "COURSE_EDIT", "COURSE_SUGGEST", "COURSE_COMMENT"]);
 
 export const racePersonSchema = z.object({
   grantId: canonicalUuidSchema,

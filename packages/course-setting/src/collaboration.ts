@@ -315,7 +315,7 @@ export function replayEdits(document: CourseSettingDocument, edits: readonly Cou
       if (!(error instanceof CourseSettingEditError)) throw error;
       // En ny kontroll fick nästa lediga kod hos författaren; har någon annan tagit koden får den nästa lediga här.
       if (error.code === "IN_USE" && mapped.type === "ADD_CONTROL" && mapped.code !== undefined) {
-        const { code: _code, ...rest } = mapped;
+        const rest: CourseSettingEdit = { type: "ADD_CONTROL", kind: mapped.kind, at: mapped.at };
         try {
           next = applyDocumentEdit(current, rest).document;
           const created = createdIdsBetween(current, next).controls[0];

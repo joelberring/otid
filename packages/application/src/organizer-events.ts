@@ -35,7 +35,7 @@ function validDate(value: Date): Date {
   return value;
 }
 
-const ROLE_ORDER: Record<EventGrantRole, number> = { OWNER: 0, ADMIN: 1, FUNCTIONARY: 2 };
+const ROLE_ORDER: Record<EventGrantRole | "COURSE_SETTER", number> = { OWNER: 0, ADMIN: 1, FUNCTIONARY: 2, COURSE_SETTER: 3 };
 
 function responseFor(row: {
   requestId: string; eventId: string; raceId: string; createdAt: Date;
@@ -153,6 +153,27 @@ export async function listMyEvents(
         timeZone: event.timeZone, role: grant.role,
         races: races.map(race => ({ raceId: race.id, raceName: race.name, raceDate: race.raceDate,
           raceType: race.raceType })) });
+    }
+    // Steg 66: banläggningens behörighet per lopp; utan roll på eventet syns bara de loppen.
+    const courseGrants = await tx.select({ raceId: schema.courseSettingGrants.raceId, level: schema.courseSettingGrants.level,
+      raceName: schema.races.name, raceDate: schema.races.raceDate, raceType: schema.races.raceType, eventId: schema.events.id,
+      eventName: schema.events.name, startsOn: schema.events.startsOn, timeZone: schema.events.timeZone })
+      .from(schema.courseSettingGrants).innerJoin(schema.races, eq(schema.races.id, schema.courseSettingGrants.raceId))
+      .innerJoin(schema.events, eq(schema.events.id, schema.races.eventId))
+      .where(eq(schema.courseSettingGrants.accountId, auth.principal.accountId)).orderBy(asc(schema.races.raceDate)).limit(1000);
+    for (const grant of courseGrants) {
+      let index = eventIndexes.get(grant.eventId);
+      if (index === undefined) {
+        index = events.length;
+        eventIndexes.set(grant.eventId, index);
+        events.push({ eventId: grant.eventId, eventName: grant.eventName, startsOn: grant.startsOn, timeZone: grant.timeZone,
+          role: "COURSE_SETTER", races: [] });
+      }
+      const event = events[index]!;
+      const race = event.races.find(row => row.raceId === grant.raceId);
+      if (race) race.courseSetting = grant.level;
+      else event.races.push({ raceId: grant.raceId, raceName: grant.raceName, raceDate: grant.raceDate, raceType: grant.raceType,
+        courseSetting: grant.level });
     }
     return { status: "ok", response: organizerMyEventsResponseSchema.parse({ formatVersion: 1, events }) } as const;
   });

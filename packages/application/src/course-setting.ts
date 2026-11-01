@@ -9,65 +9,78 @@ import {
 import { writePpen, type CourseSettingDocument } from "@o-tid/course-setting";
 import { schema, type Database } from "@o-tid/database";
 import { courseSettingProjection } from "./course-setting-transfer";
-import { requireRaceRole, type RaceSessionProof } from "./race-session";
+import { requireCourseSettingAccess, type CourseSettingPrincipal, type CourseSettingRequirement } from "./course-setting-access";
+import type { RaceSessionProof } from "./race-session";
 import { UUID_PATTERN as uuid } from "./serialization";
 import { previewCourseFileProjectionAsAdmin } from "./source-sync";
 
 /**
  * Steg 62 (ADR-0180 beslut 1, 4, 8): banläggningens dokument. Webbläsaren läser .ppen, ändrar och räknar; servern sparar
  * dokumentet med versionskontroll (två flikar skriver inte över varandra), behåller tidigare versioner och för över det
- * till tävlingens banor genom samma jämförelse som en banfil. Bara admin, aldrig publikt (banhemligheten, ADR-0176).
+ * till tävlingens banor genom samma jämförelse som en banfil. Aldrig publikt (banhemligheten, ADR-0176).
+ *
+ * Steg 66 (ADR-0181 beslut 5): behörigheten är banläggningens (`requireCourseSettingAccess`): läsa kräver COMMENT, spara,
+ * läsa in och återställa EDIT, överföra till tävlingen ADMIN. Funktionsnamnen (…AsAdmin) är kvar från steg 62.
  *
  * Sparandet låser inte tävlingen (ADR-0177: avläsningen går före); två sparanden för samma tävling turas om med ett lås
  * per tävling. Autosparandet ger inte en tidigare version per sparande: en version behålls när den är minst tio minuter
  * äldre än den senast behållna, sparades av någon annan, kom från en inläsning eller återställning, eller ersätts av en
  * inläst .ppen eller en återställning.
  */
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
-type Failure = { status: "unauthorized" | "forbidden" | "invalid-request" | "not-found" | "too-large" };
-type Conflict = { status: "version-conflict"; conflict: CourseSettingConflict };
-type ReadProof = Omit<RaceSessionProof, "csrfCookie" | "csrfHeader">;
-type Row = typeof schema.courseSettings.$inferSelect;
+export type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+export type Failure = { status: "unauthorized" | "forbidden" | "invalid-request" | "not-found" | "too-large" };
+export type Conflict = { status: "version-conflict"; conflict: CourseSettingConflict };
+export type ReadProof = Omit<RaceSessionProof, "csrfCookie" | "csrfHeader">;
+export type Row = typeof schema.courseSettings.$inferSelect;
 type Kind = "SAVE" | "IMPORT" | "RESTORE";
+/** Versioner vars ändringar (`course_setting_change`) behålls för att se konflikter. */
+const CHANGES_KEPT = 500;
 
 const REVISION_INTERVAL_MS = 10 * 60_000;
-const documentBytes = (document: unknown) => Buffer.byteLength(JSON.stringify(document), "utf8");
+export const documentBytes = (document: unknown) => Buffer.byteLength(JSON.stringify(document), "utf8");
 
-async function adminRead<T>(db: Database, input: ReadProof, now: Date, read: (tx: Transaction, raceId: string) => Promise<T>): Promise<Failure | T> {
-  if (!uuid.test(input.raceId)) return { status: "invalid-request" };
-  return db.transaction(async tx => {
-    const auth = await requireRaceRole(tx, { ...input, role: "ADMIN" }, now, "share");
-    if (auth.status !== "authenticated") return auth;
-    return read(tx, auth.principal.raceId);
-  }, { isolationLevel: "repeatable read" });
-}
-
-async function adminWrite<T>(db: Database, input: RaceSessionProof, now: Date, write: (tx: Transaction, raceId: string, actorId: string) => Promise<T>)
+/** Läsning med banläggningens behörighet (förval COMMENT). */
+export async function courseSettingRead<T>(db: Database, input: ReadProof, now: Date,
+  read: (tx: Transaction, raceId: string, principal: CourseSettingPrincipal) => Promise<T>, required: CourseSettingRequirement = "COMMENT")
   : Promise<Failure | T> {
   if (!uuid.test(input.raceId)) return { status: "invalid-request" };
   return db.transaction(async tx => {
-    const auth = await requireRaceRole(tx, { ...input, role: "ADMIN", requireCsrf: true }, now, "share");
+    const auth = await requireCourseSettingAccess(tx, { ...input, required }, now, "share");
+    if (auth.status !== "authenticated") return auth;
+    return read(tx, auth.principal.raceId, auth.principal);
+  }, { isolationLevel: "repeatable read" });
+}
+
+/** Skrivning med banläggningens behörighet; två skrivningar för samma tävling turas om (lås per tävling, inte tävlingen). */
+export async function courseSettingWrite<T>(db: Database, input: RaceSessionProof, now: Date, required: CourseSettingRequirement,
+  write: (tx: Transaction, raceId: string, actorId: string, principal: CourseSettingPrincipal) => Promise<T>): Promise<Failure | T> {
+  if (!uuid.test(input.raceId)) return { status: "invalid-request" };
+  return db.transaction(async tx => {
+    const auth = await requireCourseSettingAccess(tx, { ...input, required, requireCsrf: true }, now, "share");
     if (auth.status !== "authenticated") return auth;
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${"course-setting:" + auth.principal.raceId}, 0))`);
-    return write(tx, auth.principal.raceId, auth.principal.accountId);
+    return write(tx, auth.principal.raceId, auth.principal.accountId, auth.principal);
   });
 }
 
-async function loadRow(tx: Transaction, raceId: string): Promise<Row | undefined> {
+const adminRead = <T>(db: Database, input: ReadProof, now: Date, read: (tx: Transaction, raceId: string) => Promise<T>) =>
+  courseSettingRead(db, input, now, read, "ADMIN");
+
+export async function loadRow(tx: Transaction, raceId: string): Promise<Row | undefined> {
   const [row] = await tx.select().from(schema.courseSettings).where(eq(schema.courseSettings.raceId, raceId));
   return row;
 }
 
-async function actors(tx: Transaction, ids: readonly string[]): Promise<Map<string, string>> {
+export async function actors(tx: Transaction, ids: readonly string[]): Promise<Map<string, string>> {
   const unique = [...new Set(ids)];
   if (unique.length === 0) return new Map();
   const rows = await tx.select({ id: schema.userAccounts.id, displayName: schema.userAccounts.displayName }).from(schema.userAccounts)
     .where(sql`${schema.userAccounts.id} in (${sql.join(unique.map(id => sql`${id}`), sql`, `)})`);
   return new Map(rows.map(row => [row.id, row.displayName]));
 }
-const actor = (names: Map<string, string>, accountId: string) => ({ accountId, displayName: names.get(accountId) ?? null });
+export const actor = (names: Map<string, string>, accountId: string) => ({ accountId, displayName: names.get(accountId) ?? null });
 
-function conflict(row: Row | undefined, names: Map<string, string>): Conflict {
+export function conflict(row: Row | undefined, names: Map<string, string>): Conflict {
   return { status: "version-conflict", conflict: { formatVersion: 1, error: "VERSION_CONFLICT",
     current: row ? { version: row.version, updatedAt: row.updatedAt.toISOString(), updatedBy: actor(names, row.updatedBy) } : null } };
 }
@@ -81,8 +94,10 @@ async function audit(tx: Transaction, raceId: string, actorId: string, action: s
  * Sparar nästa version. Den ersatta versionen blir en tidigare version enligt regeln överst; högst
  * `COURSE_SETTING_REVISIONS_KEPT` behålls.
  */
-async function store(tx: Transaction, input: { raceId: string; actorId: string; now: Date; current: Row | undefined; kind: Kind;
-  document: CourseSettingDocumentDto; original?: { fileName: string; ppen: string } }): Promise<CourseSettingSaved> {
+export async function store(tx: Transaction, input: { raceId: string; actorId: string; now: Date; current: Row | undefined; kind: Kind;
+  document: CourseSettingDocumentDto; original?: { fileName: string; ppen: string };
+  /** Steg 66: vad versionen ändrade (förval: hela dokumentet) och sparningens id och svar. */
+  change?: { touches: readonly string[]; requestId: string; result: (version: number) => Record<string, unknown> } }): Promise<CourseSettingSaved> {
   const { raceId, actorId, now, current, kind, document } = input;
   const version = (current?.version ?? 0) + 1;
   if (current) {
@@ -107,25 +122,31 @@ async function store(tx: Transaction, input: { raceId: string; actorId: string; 
   const values = { document: document as Row["document"], version, updatedAt: now, updatedBy: actorId, ...original };
   await tx.insert(schema.courseSettings).values({ raceId, ...values })
     .onConflictDoUpdate({ target: schema.courseSettings.raceId, set: values });
+  const changes = schema.courseSettingChanges;
+  await tx.insert(changes).values({ raceId, version, touches: input.change ? [...new Set(input.change.touches)] : "ALL", createdAt: now,
+    createdBy: actorId, requestId: input.change?.requestId ?? null, result: input.change?.result(version) ?? null });
+  if (version > CHANGES_KEPT) await tx.delete(changes).where(and(eq(changes.raceId, raceId), sql`${changes.version} <= ${version - CHANGES_KEPT}`));
   return courseSettingSavedSchema.parse({ formatVersion: 1, raceId, version, updatedAt: now.toISOString() });
 }
 
-async function loadMapFile(tx: Transaction, raceId: string) {
+export async function loadMapFile(tx: Transaction, raceId: string) {
   const [row] = await tx.select({ sha256: schema.raceMapSources.sha256, fileName: schema.raceMapSources.fileName, scale: schema.raceMapSources.scale,
     bounds: schema.raceMapSources.bounds, georeference: schema.raceMapSources.georeference }).from(schema.raceMapSources)
     .where(eq(schema.raceMapSources.raceId, raceId));
   return row;
 }
 
-/** Editorns läge: dokumentet (null = inget än), den inlästa .ppen-filen och kartfilen som editorn ritar. */
+/** Editorns läge: dokumentet (null = inget än), den inlästa .ppen-filen, kartfilen som editorn ritar och behörigheten. */
 export async function readCourseSettingAsAdmin(db: Database, input: ReadProof, now = new Date())
   : Promise<Failure | { status: "ok"; response: CourseSettingState }> {
-  return adminRead(db, input, now, async (tx, raceId) => {
+  return courseSettingRead(db, input, now, async (tx, raceId, principal) => {
     const row = await loadRow(tx, raceId);
     const map = await loadMapFile(tx, raceId);
     const names = await actors(tx, row ? [row.updatedBy] : []);
     return { status: "ok" as const, response: courseSettingStateSchema.parse({ formatVersion: 1, raceId,
-      setting: row ? { version: row.version, updatedAt: row.updatedAt.toISOString(), updatedBy: actor(names, row.updatedBy), document: row.document } : null,
+      access: { accountId: principal.accountId, displayName: principal.displayName || null, level: principal.level, admin: principal.admin },
+      setting: row ? { version: row.version, updatedAt: row.updatedAt.toISOString(), updatedBy: actor(names, row.updatedBy), mode: row.mode,
+        document: row.document } : null,
       original: row?.originalFileName && row.originalImportedAt ? { fileName: row.originalFileName, importedAt: row.originalImportedAt.toISOString() } : null,
       mapFile: map ? { sha256: map.sha256, fileName: map.fileName, scale: map.scale, bounds: map.bounds, georeferenced: map.georeference !== null } : null }) };
   });
@@ -137,7 +158,7 @@ export async function saveCourseSettingAsAdmin(db: Database, input: RaceSessionP
   const parsed = courseSettingSaveRequestSchema.safeParse(input.request);
   if (!parsed.success) return { status: "invalid-request" };
   if (documentBytes(parsed.data.document) > COURSE_SETTING_DOCUMENT_MAX_BYTES) return { status: "too-large" };
-  return adminWrite(db, input, now, async (tx, raceId, actorId) => {
+  return courseSettingWrite(db, input, now, "EDIT", async (tx, raceId, actorId) => {
     const current = await loadRow(tx, raceId);
     if ((current?.version ?? 0) !== parsed.data.expectedVersion) return conflict(current, await actors(tx, current ? [current.updatedBy] : []));
     const response = await store(tx, { raceId, actorId, now, current, kind: "SAVE", document: parsed.data.document });
@@ -152,7 +173,7 @@ export async function importCourseSettingAsAdmin(db: Database, input: RaceSessio
   const parsed = courseSettingImportRequestSchema.safeParse(input.request);
   if (!parsed.success) return { status: "invalid-request" };
   if (documentBytes(parsed.data.document) > COURSE_SETTING_DOCUMENT_MAX_BYTES) return { status: "too-large" };
-  return adminWrite(db, input, now, async (tx, raceId, actorId) => {
+  return courseSettingWrite(db, input, now, "EDIT", async (tx, raceId, actorId) => {
     const current = await loadRow(tx, raceId);
     if ((current?.version ?? 0) !== parsed.data.expectedVersion) return conflict(current, await actors(tx, current ? [current.updatedBy] : []));
     const { fileName, ppen, document } = parsed.data;
@@ -166,7 +187,7 @@ export async function importCourseSettingAsAdmin(db: Database, input: RaceSessio
 /** Tidigare versioner, nyast först (utan dokumenten). */
 export async function listCourseSettingRevisionsAsAdmin(db: Database, input: ReadProof, now = new Date())
   : Promise<Failure | { status: "ok"; response: CourseSettingRevisions }> {
-  return adminRead(db, input, now, async (tx, raceId) => {
+  return courseSettingRead(db, input, now, async (tx, raceId) => {
     const table = schema.courseSettingRevisions;
     const rows = await tx.select({ version: table.version, kind: table.kind, createdAt: table.createdAt, createdBy: table.createdBy,
       courses: sql<number>`jsonb_array_length(${table.document}->'courses')`,
@@ -182,7 +203,7 @@ export async function listCourseSettingRevisionsAsAdmin(db: Database, input: Rea
 export async function readCourseSettingRevisionAsAdmin(db: Database, input: ReadProof & { version: number }, now = new Date())
   : Promise<Failure | { status: "ok"; response: CourseSettingRevision }> {
   if (!Number.isSafeInteger(input.version) || input.version < 1) return { status: "invalid-request" };
-  return adminRead(db, input, now, async (tx, raceId) => {
+  return courseSettingRead(db, input, now, async (tx, raceId) => {
     const [row] = await tx.select().from(schema.courseSettingRevisions).where(and(eq(schema.courseSettingRevisions.raceId, raceId),
       eq(schema.courseSettingRevisions.version, input.version)));
     if (!row) return { status: "not-found" as const };
@@ -197,7 +218,7 @@ export async function restoreCourseSettingRevisionAsAdmin(db: Database, input: R
   : Promise<Failure | Conflict | { status: "ok"; response: CourseSettingSaved }> {
   const parsed = courseSettingRestoreRequestSchema.safeParse(input.request);
   if (!parsed.success) return { status: "invalid-request" };
-  return adminWrite(db, input, now, async (tx, raceId, actorId) => {
+  return courseSettingWrite(db, input, now, "EDIT", async (tx, raceId, actorId) => {
     const current = await loadRow(tx, raceId);
     if (current?.version !== parsed.data.expectedVersion) return conflict(current, await actors(tx, current ? [current.updatedBy] : []));
     const [revision] = await tx.select({ document: schema.courseSettingRevisions.document }).from(schema.courseSettingRevisions)
@@ -213,7 +234,7 @@ export async function restoreCourseSettingRevisionAsAdmin(db: Database, input: R
 /** Den senast inlästa .ppen-filen orörd (för nedladdning). */
 export async function readCourseSettingOriginalAsAdmin(db: Database, input: ReadProof, now = new Date())
   : Promise<Failure | { status: "ok"; fileName: string; ppen: string }> {
-  return adminRead(db, input, now, async (tx, raceId) => {
+  return courseSettingRead(db, input, now, async (tx, raceId) => {
     const [row] = await tx.select({ fileName: schema.courseSettings.originalFileName, ppen: schema.courseSettings.originalPpen })
       .from(schema.courseSettings).where(eq(schema.courseSettings.raceId, raceId));
     if (!row?.fileName || row.ppen === null) return { status: "not-found" as const };

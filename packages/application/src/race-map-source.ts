@@ -6,6 +6,7 @@ import { deriveRasterGeoreference, RasterGeoreferenceError } from "@o-tid/domain
 import { schema, type Database } from "@o-tid/database";
 import { lockRaceForMutation } from "./concurrency";
 import { imageDimensions } from "./image-dimensions";
+import { requireCourseSettingAccess } from "./course-setting-access";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { UUID_PATTERN as uuid, sha256Hex as sha256 } from "./serialization";
 
@@ -118,12 +119,15 @@ export async function removeRaceMapSourceAsAdmin(db: Database, input: RaceSessio
   });
 }
 
-/** Originalfilen, bara för admin. */
+/**
+ * Originalfilen, för att rita och räkna vägval i webbläsaren. Steg 66: banläggningens behörighet (läsa och kommentera
+ * räcker, ADR-0181 beslut 5), som ger admin och den som bara har banläggningen; aldrig publikt.
+ */
 export async function readRaceMapSourceFileAsAdmin(db: Database, input: Omit<RaceSessionProof, "csrfCookie" | "csrfHeader">, now = new Date())
   : Promise<Failure | { status: "ok"; fileName: string; format: "OCD" | "OMAP"; file: Buffer }> {
   if (!uuid.test(input.raceId)) return { status: "invalid-request" };
   return db.transaction(async tx => {
-    const auth = await requireRaceRole(tx, { ...input, role: "ADMIN" }, now, "share");
+    const auth = await requireCourseSettingAccess(tx, { ...input, required: "COMMENT" }, now, "share");
     if (auth.status !== "authenticated") return auth;
     const [row] = await tx.select({ fileName: schema.raceMapSources.fileName, format: schema.raceMapSources.format, file: schema.raceMapSources.file })
       .from(schema.raceMapSources).where(eq(schema.raceMapSources.raceId, input.raceId));

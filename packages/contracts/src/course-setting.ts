@@ -38,15 +38,21 @@ const courseSchema = z.object({ id, name: z.string().max(200), kind: z.enum(["NO
   first: id.optional() }).loose();
 const legSchema = z.object({ from: id, to: id, bends: z.array(point).max(1000) }).loose();
 
+const eventSchema = z.object({ title: z.string().max(400), mapScale: z.number().finite().min(100).max(1_000_000) }).loose();
+const specialObjectSchema = z.object({ id, kind: z.string().max(80) }).loose();
+/** Steg 66: delarna av dokumentet för åtgärderna (`course-setting-collaboration.ts`). */
+export const courseSettingParts = { id, mm, raw, control: controlSchema, courseControl: courseControlSchema, course: courseSchema,
+  leg: legSchema, specialObject: specialObjectSchema, event: eventSchema };
+
 /** Grundformen: rätt version, kontroller, banornas kontroller, banor, sträckor, specialobjekt och orörda element. */
 export const courseSettingDocumentSchema = z.object({
   version: z.literal(1),
-  event: z.object({ title: z.string().max(400), mapScale: z.number().finite().min(100).max(1_000_000) }).loose(),
+  event: eventSchema,
   controls: z.record(id, controlSchema).refine(value => Object.keys(value).length <= 10_000),
   courseControls: z.record(id, courseControlSchema).refine(value => Object.keys(value).length <= 50_000),
   courses: z.array(courseSchema).max(1000),
   legs: z.record(z.string().max(140), legSchema).refine(value => Object.keys(value).length <= 50_000),
-  specialObjects: z.array(z.object({ id, kind: z.string().max(80) }).loose()).max(10_000),
+  specialObjects: z.array(specialObjectSchema).max(10_000),
   raw
 }).loose()
   // Kontrollens och banans id stämmer med nyckeln, och banornas kontroller pekar på kontroller som finns.
@@ -59,11 +65,22 @@ export type CourseSettingDocumentDto = z.infer<typeof courseSettingDocumentSchem
 
 const actor = z.object({ accountId: uuid, displayName: z.string().max(200).nullable() }).strict();
 
-/** Läget: dokumentet (null = inget än), originalfilen, och kartfilen som editorn ritar (null = ingen kartfil). */
+/** Steg 66: behörigheten i banläggningen (ADR-0181 beslut 5) och arbetssättet (beslut 2). */
+export const courseSettingLevelSchema = z.enum(["EDIT", "SUGGEST", "COMMENT"]);
+export type CourseSettingLevel = z.infer<typeof courseSettingLevelSchema>;
+export const courseSettingModeSchema = z.enum(["LEAD", "SHARED"]);
+export type CourseSettingMode = z.infer<typeof courseSettingModeSchema>;
+
+/**
+ * Läget: dokumentet (null = inget än), originalfilen, kartfilen som editorn ritar (null = ingen kartfil) och den inloggades
+ * behörighet (`admin` = ägare eller administratör: får föra över till tävlingen och ändra arbetssättet).
+ */
 export const courseSettingStateSchema = z.object({
   formatVersion: z.literal(1),
   raceId: uuid,
-  setting: z.object({ version, updatedAt: instant, updatedBy: actor, document: courseSettingDocumentSchema }).strict().nullable(),
+  access: z.object({ accountId: uuid, displayName: z.string().max(200).nullable(), level: courseSettingLevelSchema, admin: z.boolean() }).strict(),
+  setting: z.object({ version, updatedAt: instant, updatedBy: actor, mode: courseSettingModeSchema, document: courseSettingDocumentSchema })
+    .strict().nullable(),
   /** Den senast inlästa .ppen-filen orörd (hämtas med `course-setting/original`). */
   original: z.object({ fileName, importedAt: instant }).strict().nullable(),
   mapFile: z.object({ sha256: z.string().regex(/^[a-f0-9]{64}$/), fileName, scale: z.number().int().min(100).max(1_000_000),

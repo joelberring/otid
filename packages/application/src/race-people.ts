@@ -14,6 +14,9 @@ import { requireRaceRole, type RacePrincipal, type RaceSessionProof } from "./ra
  * Alla administratörer ser listan och lägger till eller tar bort funktionärer; bara ägaren lägger till och tar
  * bort administratörer. Personen måste redan ha ett konto (inga inbjudningar). En borttagning gäller direkt:
  * kontots adminförfrågningar på tävlingen nekas från nästa anrop (`requireRaceRole`).
+ *
+ * Steg 66 (ADR-0181 beslut 5): administratörer ger också behörighet för banläggningen på just den här tävlingen
+ * (COURSE_EDIT, COURSE_SUGGEST, COURSE_COMMENT, `course_setting_grant`) på samma sätt. Den ger bara banläggningen.
  */
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 type Authentication = RaceSessionProof;
@@ -39,9 +42,23 @@ async function eventOf(tx: Transaction, raceId: string, lock: "share" | "update"
   return event;
 }
 
-const ROLE_ORDER = { OWNER: 0, ADMIN: 1, FUNCTIONARY: 2 } as const;
+const ROLE_ORDER = { OWNER: 0, ADMIN: 1, FUNCTIONARY: 2, COURSE_EDIT: 3, COURSE_SUGGEST: 4, COURSE_COMMENT: 5 } as const;
+const COURSE_LEVELS = { COURSE_EDIT: "EDIT", COURSE_SUGGEST: "SUGGEST", COURSE_COMMENT: "COMMENT" } as const;
+type CourseRole = keyof typeof COURSE_LEVELS;
+const isCourseRole = (role: string): role is CourseRole => role in COURSE_LEVELS;
 
-async function activePeople(tx: Transaction, eventId: string): Promise<RacePerson[]> {
+/** Banläggningens behörigheter på tävlingen. */
+async function courseSetters(tx: Transaction, raceId: string): Promise<RacePerson[]> {
+  const grants = schema.courseSettingGrants;
+  const rows = await tx.select({ grantId: grants.id, accountId: grants.accountId, level: grants.level, grantedAt: grants.grantedAt,
+    email: schema.userAccounts.email, displayName: schema.userAccounts.displayName })
+    .from(grants).innerJoin(schema.userAccounts, eq(schema.userAccounts.id, grants.accountId))
+    .where(eq(grants.raceId, raceId)).orderBy(asc(grants.grantedAt), asc(grants.id)).limit(1000);
+  return rows.map(row => ({ grantId: row.grantId, accountId: row.accountId, email: row.email, displayName: row.displayName,
+    role: `COURSE_${row.level}`, grantedAt: row.grantedAt.toISOString() }));
+}
+
+async function activePeople(tx: Transaction, eventId: string, raceId?: string): Promise<RacePerson[]> {
   const rows = await tx.select({ grantId: schema.eventAdministrationGrants.id, accountId: schema.eventAdministrationGrants.accountId,
     role: schema.eventAdministrationGrants.role, grantedAt: schema.eventAdministrationGrants.grantedAt,
     email: schema.userAccounts.email, displayName: schema.userAccounts.displayName })
@@ -52,9 +69,9 @@ async function activePeople(tx: Transaction, eventId: string): Promise<RacePerso
     .where(and(eq(schema.eventAdministrationGrants.eventId, eventId), isNull(schema.eventAdministrationGrantRevocations.id)))
     .orderBy(asc(schema.eventAdministrationGrants.grantedAt), asc(schema.eventAdministrationGrants.id)).limit(10_001);
   if (rows.length > 10_000) throw new Error("För många personer med behörighet");
-  return rows.map(row => ({ grantId: row.grantId, accountId: row.accountId, email: row.email, displayName: row.displayName,
-    role: row.role, grantedAt: row.grantedAt.toISOString() }))
-    .sort((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role]);
+  const people: RacePerson[] = rows.map(row => ({ grantId: row.grantId, accountId: row.accountId, email: row.email, displayName: row.displayName,
+    role: row.role, grantedAt: row.grantedAt.toISOString() }));
+  return [...people, ...(raceId ? await courseSetters(tx, raceId) : [])].sort((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role]);
 }
 
 export async function listRacePeopleAsAdmin(db: Database, input: Authentication, now = new Date()): Promise<RacePeopleResult> {
@@ -66,7 +83,7 @@ export async function listRacePeopleAsAdmin(db: Database, input: Authentication,
     const event = await eventOf(tx, actor.raceId, "share");
     if (!event) return { status: "not-found" } as const;
     return { status: "ok", response: racePeopleResponseSchema.parse({ formatVersion: 1, raceId: actor.raceId,
-      viewer: { accountId: actor.accountId, role: actor.role }, people: await activePeople(tx, event.id) }) } as const;
+      viewer: { accountId: actor.accountId, role: actor.role }, people: await activePeople(tx, event.id, actor.raceId) }) } as const;
   });
 }
 
@@ -89,6 +106,8 @@ export async function grantRacePersonAsAdmin(db: Database,
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${intent.requestId}, 0))`);
     const event = await eventOf(tx, actor.raceId, "update");
     if (!event) return { status: "not-found" } as const;
+    const role = intent.role;
+    if (isCourseRole(role)) return grantCourseSetting(tx, actor, event.id, { requestId: intent.requestId, email: intent.email, role }, now);
     const [existing] = await tx.select().from(schema.eventAdministrationAccessRequests)
       .where(eq(schema.eventAdministrationAccessRequests.requestId, intent.requestId));
     if (existing) {
@@ -100,12 +119,12 @@ export async function grantRacePersonAsAdmin(db: Database,
         requestId: intent.requestId, person: { grantId: grant.id, accountId: target.id, email: target.email,
           displayName: target.displayName, role: grant.role, grantedAt: grant.grantedAt.toISOString() } }) } as const;
     }
-    if (intent.role === "ADMIN" && actor.role !== "OWNER") return { status: "forbidden" } as const;
+    if (role === "ADMIN" && actor.role !== "OWNER") return { status: "forbidden" } as const;
     const [target] = await tx.select().from(schema.userAccounts).where(eq(schema.userAccounts.email, intent.email));
     if (!target || target.blockedAt) return { status: "not-found" } as const;
     if ((await activePeople(tx, event.id)).some(person => person.accountId === target.id)) return { status: "conflict" } as const;
     const [grant] = await tx.insert(schema.eventAdministrationGrants).values({
-      eventId: event.id, accountId: target.id, role: intent.role, grantedAt: now }).returning();
+      eventId: event.id, accountId: target.id, role, grantedAt: now }).returning();
     if (!grant) throw new Error("Behörigheten kunde inte sparas");
     await tx.insert(schema.eventAdministrationAccessRequests).values({ requestId: intent.requestId, action,
       actorAccountId: actor.accountId, eventId: event.id, targetAccountId: target.id, grantId: grant.id, reason: null, createdAt: now });
@@ -143,7 +162,7 @@ export async function revokeRacePersonAsAdmin(db: Database,
     }
     const [grant] = await tx.select().from(schema.eventAdministrationGrants).where(and(
       eq(schema.eventAdministrationGrants.id, intent.grantId), eq(schema.eventAdministrationGrants.eventId, event.id))).for("update");
-    if (!grant) return { status: "not-found" } as const;
+    if (!grant) return revokeCourseSetting(tx, actor, intent, now);
     const [prior] = await tx.select({ id: schema.eventAdministrationGrantRevocations.id }).from(schema.eventAdministrationGrantRevocations)
       .where(eq(schema.eventAdministrationGrantRevocations.grantId, grant.id));
     if (prior) return { status: "conflict" } as const;
@@ -160,4 +179,55 @@ export async function revokeRacePersonAsAdmin(db: Database,
     return { status: "revoked", response: racePersonRevokeResponseSchema.parse({ formatVersion: 1, replayed: false,
       requestId: intent.requestId, grantId: grant.id, revokedAt: now.toISOString() }) } as const;
   });
+}
+
+/** Steg 66: behörighet för banläggningen på tävlingen (ett befintligt konto utan behörighet där sedan tidigare). */
+async function grantCourseSetting(tx: Transaction, actor: Actor, eventId: string, intent: { requestId: string; email: string; role: CourseRole },
+  now: Date): Promise<RacePersonGrantResult> {
+  const grants = schema.courseSettingGrants;
+  const person = async (grantId: string) => (await courseSetters(tx, actor.raceId)).find(row => row.grantId === grantId);
+  const [existing] = await tx.select().from(grants).where(eq(grants.requestId, intent.requestId));
+  if (existing) {
+    const found = await person(existing.id);
+    if (existing.raceId !== actor.raceId || !found || found.email !== intent.email || found.role !== intent.role) return { status: "conflict" };
+    return { status: "granted", response: racePersonGrantResponseSchema.parse({ formatVersion: 1, replayed: true, requestId: intent.requestId,
+      person: found }) };
+  }
+  const [target] = await tx.select().from(schema.userAccounts).where(eq(schema.userAccounts.email, intent.email));
+  if (!target || target.blockedAt) return { status: "not-found" };
+  // Ägare och administratörer har redan EDIT; en person har en banläggningsbehörighet per tävling.
+  const people = await activePeople(tx, eventId, actor.raceId);
+  if (people.some(row => row.accountId === target.id && (row.role === "OWNER" || row.role === "ADMIN" || isCourseRole(row.role)))) {
+    return { status: "conflict" };
+  }
+  const id = randomUUID();
+  await tx.insert(grants).values({ id, raceId: actor.raceId, accountId: target.id, level: COURSE_LEVELS[intent.role], grantedAt: now,
+    grantedBy: actor.accountId, requestId: intent.requestId });
+  await tx.insert(schema.auditEvents).values({ raceId: actor.raceId, entityType: "course_setting_grant", entityId: id,
+    action: "COURSE_SETTING_GRANTED", actorKind: "USER_ACCOUNT", actorId: actor.accountId, requestId: intent.requestId,
+    after: { grantId: id, targetAccountId: target.id, level: COURSE_LEVELS[intent.role], grantedAt: now.toISOString() } });
+  const found = await person(id);
+  if (!found) throw new Error("Behörigheten kunde inte sparas");
+  return { status: "granted", response: racePersonGrantResponseSchema.parse({ formatVersion: 1, replayed: false, requestId: intent.requestId,
+    person: found }) };
+}
+
+async function revokeCourseSetting(tx: Transaction, actor: Actor, intent: { requestId: string; grantId: string }, now: Date)
+  : Promise<RacePersonRevokeResult> {
+  const [prior] = await tx.select({ entityId: schema.auditEvents.entityId, createdAt: schema.auditEvents.createdAt }).from(schema.auditEvents)
+    .where(and(eq(schema.auditEvents.requestId, intent.requestId), eq(schema.auditEvents.action, "COURSE_SETTING_REVOKED"),
+      eq(schema.auditEvents.raceId, actor.raceId)));
+  if (prior) {
+    if (prior.entityId !== intent.grantId) return { status: "conflict" };
+    return { status: "revoked", response: racePersonRevokeResponseSchema.parse({ formatVersion: 1, replayed: true, requestId: intent.requestId,
+      grantId: intent.grantId, revokedAt: prior.createdAt.toISOString() }) };
+  }
+  const grants = schema.courseSettingGrants;
+  const [grant] = await tx.delete(grants).where(and(eq(grants.id, intent.grantId), eq(grants.raceId, actor.raceId))).returning();
+  if (!grant) return { status: "not-found" };
+  await tx.insert(schema.auditEvents).values({ raceId: actor.raceId, entityType: "course_setting_grant", entityId: grant.id,
+    action: "COURSE_SETTING_REVOKED", actorKind: "USER_ACCOUNT", actorId: actor.accountId, requestId: intent.requestId, createdAt: now,
+    after: { grantId: grant.id, targetAccountId: grant.accountId, level: grant.level, revokedAt: now.toISOString() } });
+  return { status: "revoked", response: racePersonRevokeResponseSchema.parse({ formatVersion: 1, replayed: false, requestId: intent.requestId,
+    grantId: grant.id, revokedAt: now.toISOString() }) };
 }

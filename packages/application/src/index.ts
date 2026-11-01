@@ -85,6 +85,15 @@ export {
   type CourseSettingTransferResult
 } from "./course-setting";
 export { classNamesOf, courseSettingProjection } from "./course-setting-transfer";
+export { courseSettingAllows, requireCourseSettingAccess, type CourseSettingPrincipal, type CourseSettingRequirement } from "./course-setting-access";
+export {
+  createCourseSettingSuggestionAsAdmin, decideCourseSettingSuggestionAsAdmin, listCourseSettingSuggestionsAsAdmin, saveCourseSettingEditsAsAdmin,
+  setCourseSettingModeAsAdmin
+} from "./course-setting-collaboration";
+export {
+  createCourseSettingNoteAsAdmin, listCourseSettingNotesAsAdmin, readCourseSettingNotePhotoAsAdmin, replyCourseSettingNoteAsAdmin,
+  setCourseSettingNoteStatusAsAdmin
+} from "./course-setting-notes";
 export * from "./radio-ingest";
 export * from "./radio-settings";
 export * from "./radio-standings";

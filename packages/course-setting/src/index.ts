@@ -3,12 +3,15 @@
  * `src/*.ts`. Allt är ren TypeScript utan I/O och går i Web Worker och Node.
  */
 import { checkCourseSetting } from "./check";
+import { bakeDetailGapEdits, detailCircles } from "./circle-cutting";
+import { computeDetailCircleGaps, type DetailCircle, type DetailGapOptions } from "./detail-gaps";
 import { applyDocumentEdit } from "./edit";
 import { createEmptyDocument } from "./empty";
 import { layout } from "./overprint";
 import { readPpenDocument } from "./ppen-read";
 import { writePpenDocument } from "./ppen-write";
 import { controlOrder, courseVariantList, nextUnusedCode, summaries } from "./summary";
+import type { ParsedMap } from "@o-tid/map-file";
 import type {
   CheckOptions, CourseCheck, CourseSettingDocument, CourseSettingEdit, CourseSummary, CourseVariant, EditResult,
   DescriptionStandard, OverprintOptions, OverprintPrimitive, PpenReadWarning
@@ -24,6 +27,11 @@ export * from "./description-types";
 export { CONTROL_DISTANCE_LIMITS } from "./check";
 export { OVERPRINT_SIZES } from "./appearance";
 export { INVERTIBLE_CODES } from "./summary";
+export { detailGapKey, OVERLAP_CUT_LIMITS } from "./circle-cutting";
+export {
+  DEFAULT_DETAIL_SYMBOLS, DETAIL_GAP_LIMITS, DETAIL_PRIORITY_WEIGHT, SPRINT_DETAIL_SYMBOLS, type DetailClass, type DetailPriority
+} from "./detail-symbols";
+export type { DetailCircle, DetailGapOptions } from "./detail-gaps";
 
 /** Läs en Purple Pen-fil (.ppen, XML). Kastar `CourseSettingEditError("INVALID")` om filen inte är en .ppen. */
 export function readPpen(xml: string): { readonly document: CourseSettingDocument; readonly warnings: readonly PpenReadWarning[] } { return readPpenDocument(xml); }
@@ -43,6 +51,26 @@ export function courseSummaries(document: CourseSettingDocument): readonly Cours
 export function checkDocument(document: CourseSettingDocument, options?: CheckOptions): readonly CourseCheck[] { return checkCourseSetting(document, options); }
 /** Banpåtrycket som figurer i kartans mm (skärm nu, PDF i steg 65). */
 export function layoutOverprint(document: CourseSettingDocument, options: OverprintOptions): readonly OverprintPrimitive[] { return layout(document, options); }
+
+// Ringklipp (ADR-0180 beslut 10).
+/** Ett ringavbrott i grader moturs från x-axeln. */
+export type CircleArc = { readonly startDegrees: number; readonly endDegrees: number };
+/**
+ * Gapen där ringarna täcker viktiga detaljer i kartan (symboltabellen `DEFAULT_DETAIL_SYMBOLS`), per ringens id. Ges till
+ * `layoutOverprint` som `detailGaps`. Kartan indexeras första gången och sparas per `ParsedMap`.
+ */
+export function detailCircleGaps(map: ParsedMap, centers: readonly DetailCircle[], options?: DetailGapOptions): Record<string, CircleArc[]> {
+  return computeDetailCircleGaps(map, centers, options);
+}
+/**
+ * Ringarna att räkna detaljgap för: kontroller och mål, en per ringstorlek i banornas och alla kontrollers skalor (id =
+ * `detailGapKey(kontroll, radie)`), med sträckornas vinklar på alla banor.
+ */
+export function detailCircleCenters(document: CourseSettingDocument): DetailCircle[] { return detailCircles(document); }
+/** Ändringarna (`SET_CIRCLE_GAPS`) som gör detaljgapen fasta i kontrollernas ringavbrott, så att de följer med till .ppen. */
+export function bakeDetailGaps(document: CourseSettingDocument, detailGaps: Readonly<Record<string, readonly CircleArc[]>>): CourseSettingEdit[] {
+  return bakeDetailGapEdits(document, detailGaps);
+}
 /** Nästa lediga kodsiffra enligt numreringen. */
 export function nextFreeCode(document: CourseSettingDocument): string { return nextUnusedCode(document); }
 

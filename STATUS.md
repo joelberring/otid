@@ -10,6 +10,11 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-01 – Tomt loppnamn (gren tomt-loppnamn)
+- Etapp/lopp är valfritt på riktigt: tomt sparas som "" (inte "Lopp 1") vid skapande, i Inställningar och vid kopiering; kontrakten tar emot och tål tomt.
+- `raceTitle`/`raceDetails` i domänen: evenemangets namn och loppets bara när det finns, på alla rubriker, publika sidor, listor, utskrifter, kvitto, speaker och kartbuntar. Mina tävlingar: ensamt lopp utan namn visar datumet, flera "Lopp N".
+- Migration 0032: skapandeförsökens loppnamn får vara tomt; det enda loppet i ett evenemang som heter exakt "Lopp 1" får inget namn (versionen räknas upp).
+
 ### 2026-11-01 – Steg 63: kontrollbeskrivningar (paketet steg63-paket, webben steg63-webb, ihopslagna i main)
 - Paketet: symbolerna ur Purple Pens `symbols.xml` (201, 2004 och 2018, sv/en/nb/fi/de; 20 kB gzip), `layoutDescription` och `describeControl` som Purple Pen (11 + 13 jämförelser tecken för tecken), SET_DESCRIPTION/…_TEXT_LINE.
 - Editorn: beskrivningen för vald bana/variant (eller Alla kontroller) i spalten bredvid kartan, ritad som SVG ur `layoutDescription` och symbolernas figurer (vända rätt, i mm); rad ↔ kartval åt båda hållen, rutorna nås med Tab.

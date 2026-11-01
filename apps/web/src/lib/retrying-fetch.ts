@@ -54,7 +54,8 @@ export async function fetchWithRetry(input: string, init: RequestInit = {},
  * Sidouppdraget i steg 66: utvecklingsservern (Next med Turbopack) svarar ibland 404 med sin egen sida på en POST med
  * multipart till en route som finns, när den samtidigt kompilerar annat (loggen säger "Failed to find Server Action":
  * anropet nådde aldrig routen). Ett sådant svar är inte appens (appens fel är JSON) och anropet har inte gjort något, så
- * det får skickas igen. Appens egna 404 (JSON) lämnas till anroparen.
+ * det får skickas igen. Appens egna 404 (JSON) lämnas till anroparen. I specarna varade felet ibland över 3 s (routen
+ * kompilerades om medan maskinen var hårt belastad), så omförsöken sprids över 15 s.
  */
 export function neverReachedRoute(response: Pick<Response, "status" | "headers">): boolean {
   return response.status === 404 && !(response.headers.get("content-type") ?? "").includes("application/json");
@@ -63,7 +64,7 @@ export function neverReachedRoute(response: Pick<Response, "status" | "headers">
 export async function fetchUntilReached(input: string, init: RequestInit,
   options: { delays?: readonly number[]; fetchImpl?: (input: string, init: RequestInit) => Promise<Response> } = {})
   : Promise<Response> {
-  const delays = options.delays ?? [1_000, 2_000];
+  const delays = options.delays ?? [1_000, 2_000, 4_000, 8_000];
   const fetchImpl = options.fetchImpl ?? ((url: string, request: RequestInit) => fetch(url, request));
   for (let attempt = 0; ; attempt += 1) {
     const response = await fetchImpl(input, init);

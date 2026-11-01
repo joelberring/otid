@@ -63,6 +63,7 @@ const CURSOR: Record<Tool, string> = { SELECT: "grab", ADD_CONTROL: "crosshair",
 const EDIT_TOOLS: readonly Tool[] = ["SELECT", "ADD_CONTROL", "ADD_START", "ADD_FINISH", "ADD_CROSSING", "INSERT_EXISTING", "ADD_BEND", "NOTE"];
 const KEYS: Record<string, Tool> = { v: "SELECT", k: "ADD_CONTROL", s: "ADD_START", m: "ADD_FINISH", p: "ADD_CROSSING", l: "INSERT_EXISTING",
   b: "ADD_BEND", n: "NOTE" };
+const OK_TOAST_MS = 8_000;
 const STATUS_TEXT: Record<SyncStatus, string> = { saved: text.status.saved, pending: text.status.pending, saving: text.status.saving,
   failed: text.status.failed, "too-large": text.status.tooLarge, stopped: text.status.stopped };
 
@@ -87,7 +88,18 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
   const editor = useSyncExternalStore(store.subscribe, store.getState, store.getState);
   const [status, setStatus] = useState<SyncStatus>("saved");
   const [messages, setMessages] = useState<readonly Message[]>(notice ? [{ id: 0, tone: "ok", text: notice }] : []);
-  const say = (message: Omit<Message, "id">) => setMessages(current => [...current.slice(-3), { ...message, id: Date.now() + Math.random() }]);
+  const dismiss = (id: number) => setMessages(current => current.filter(row => row.id !== id));
+  /** Ett besked ovanpå kartan; de som bara bekräftar (ok utan lista) försvinner efter en stund. */
+  const say = (message: Omit<Message, "id">) => {
+    const id = Date.now() + Math.random();
+    setMessages(current => [...current.slice(-3), { ...message, id }]);
+    if (message.tone === "ok" && !message.list?.length) setTimeout(() => dismiss(id), OK_TOAST_MS);
+  };
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => dismiss(0), OK_TOAST_MS);
+    return () => clearTimeout(timer);
+  }, []);
   const [busy, setBusy] = useState(false);
   const [dialog, setDialog] = useState<"file" | "transfer">();
   const [tab, setTab] = useState<DrawerTab>("courses");
@@ -459,6 +471,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
       case "suggestions": return <SuggestionsPanel suggestions={collaboration.suggestions} document={document} reviewing={reviewing}
         onReview={id => { setReviewing(id); setSkip(new Set()); setDecision(undefined); }} skip={skip} onSkip={setSkip}
         canDecide={access.level === "EDIT"} onDecide={decide} result={decision} rejected={rejectedInPreview} draft={draft} />;
+      // Inställningar: arbetssättet; här hör också ringklippens kryssrutor och knapp hemma (grenen ringklipp, egen komponent).
       case "settings": return <section className={styles.panel} aria-labelledby="course-setting-mode">
         <h2 id="course-setting-mode">{copy.mode.heading}</h2>
         <label className={styles.stack}>{copy.mode.label}
@@ -481,7 +494,8 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
   const menu = [{ label: copy.topbar.fileMenu, onClick: () => setDialog("file") },
     ...(access.admin ? [{ label: copy.topbar.transfer, onClick: () => setDialog("transfer") }] : []),
     { label: copy.topbar.settings, onClick: () => setTab("settings") }];
-  return <main className={styles.shell} data-version={version} data-level={access.level}>
+  // `course-setting-shell` (globals.css): sidan under arbetsytan skrollar och studsar aldrig.
+  return <main className={`${styles.shell} course-setting-shell`} data-version={version} data-level={access.level}>
     <TopBar raceId={raceId} document={document} summaries={summaries} view={view} variant={variant}
       onView={(next, value) => apply(current => setView(current, next, value))}
       status={<p role="status" aria-live="polite" className={styles.status} data-status={suggesting ? "pending" : status}
@@ -493,7 +507,8 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
         <CourseSettingMap session={mapSession} mapBounds={mapBounds} primitives={primitives} faded={faded} marks={marks} analysis={analysis}
           label={label} cursor={CURSOR[editor.tool]} handlers={handlers} handle={mapHandle} noteMarks={mapNotes} selectedNote={selectedNote}
           onNoteTap={id => { setSelectedNote(id); setTab("notes"); }} suggestion={suggestionDrawing} cursorAt={cursorAt} highlightRoute={highlightRoute}
-          position={field.position} />
+          position={field.position} cross={selection?.kind === "control" && document.controls[selection.control]
+            ? { at: document.controls[selection.control]!.at, dragging: editor.dragBase !== undefined } : undefined} />
         {field.narrow ? <div className={styles.bottomStack}>
           {toolBar}
           {noteDraft && <div className={styles.cardStatic}><NoteForm target={noteDraft} document={document} onSave={saveNote} onCancel={() => setNoteDraft(undefined)} /></div>}
@@ -512,7 +527,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
               <p>{message.text}</p>
               {message.list && message.list.length > 0 && <ul>{message.list.map(row => <li key={row}>{row}</li>)}</ul>}
             </Notice>
-            <Button variant="quiet" aria-label={copy.topbar.close} onClick={() => setMessages(current => current.filter(row => row.id !== message.id))}>×</Button>
+            <Button variant="quiet" aria-label={copy.topbar.close} onClick={() => dismiss(message.id)}>×</Button>
           </div>)}
         </div>
         {field.narrow && !readOnly ? null : noteDraft ? <div className={styles.card}><NoteForm target={noteDraft} document={document} onSave={saveNote} onCancel={() => setNoteDraft(undefined)} /></div>

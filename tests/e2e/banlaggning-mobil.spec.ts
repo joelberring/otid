@@ -8,6 +8,10 @@ import { createRace, openStep, registerAccount, today, unique, warmCourseSetting
  * Fältläget, första versionen (ADR-0181 beslut 6–7): banläggningen på en telefon (390 × 844) med fejkad position. Välj
  * kontroll 32, Min position, Flytta hit (medelvärdet under 5 s), en meter norrut, kolumn F = 1.5 och G = SO via
  * Uppgifter, och allt är sparat efter omladdning.
+ *
+ * Ägarens synpunkter från skogen (steg 66): banväljaren i raden överst och banan ritad med sträckor, nummer, start och
+ * mål; fältknapparna med en bana vald; krysset i vald kontrolls mitt; en dragning med fingret lyfter kontrollen ovanför
+ * fingret; sidan skrollar aldrig när man drar på kartan.
  */
 const fixture = (path: string) => fileURLToPath(new URL(`../../fixtures/${path}`, import.meta.url));
 
@@ -27,6 +31,23 @@ async function screenshot(page: Page, name: string) {
   const directory = process.env.E2E_SCREENSHOT_DIR;
   if (directory) await page.screenshot({ path: `${directory}/${name}.png` });
 }
+
+/** Dragning med ett finger (riktiga touch-händelser via CDP, som ger pekarhändelser av typen touch). */
+async function touchDrag(page: Page, from: { x: number; y: number }, to: { x: number; y: number }, during?: () => Promise<void>) {
+  const cdp = await page.context().newCDPSession(page);
+  const point = (at: { x: number; y: number }) => [{ x: Math.round(at.x), y: Math.round(at.y), id: 1 }];
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: point(from) });
+  for (let step = 1; step <= 8; step += 1) {
+    const at = { x: from.x + (to.x - from.x) * step / 8, y: from.y + (to.y - from.y) * step / 8 };
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: point(at) });
+  }
+  if (during) await during();
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await cdp.detach();
+}
+const scrolled = (page: Page) => page.evaluate(() => [window.scrollY, document.scrollingElement!.scrollTop, document.body.scrollTop]);
+/** Samma lyft som `LIFT_PX` i `course-setting-draw-cross.ts`. */
+const LIFT_PX = 56;
 
 type Document = { controls: Record<string, { kind: string; code?: string; at: { x: number; y: number };
   descriptions: { box: string; ref?: string; text?: string }[] }> };
@@ -67,10 +88,48 @@ test("banläggning på telefonen: min position, flytta hit, finjustera, F och G,
   await expect(map).toHaveAttribute("data-px-per-mm", /\d/);
   await phone.waitForTimeout(500);
 
-  // Välj kontroll 32 (42, 61 mm) med fingret.
+  // Banväljaren i raden överst: banan Lång ritas med sträckor, nummer, start och mål (inte bara kontrollerna).
+  const allControls = await map.getByTestId("course-setting-overprint").screenshot();
+  await phone.getByTestId("course-setting-view").selectOption({ label: "Lång" });
+  await expect(phone.getByRole("img", { name: "Karta med banpåtryck: Lång" })).toBeVisible();
+  await phone.waitForTimeout(300);
+  expect((await map.getByTestId("course-setting-overprint").screenshot()).equals(allControls)).toBe(false);
+  await screenshot(phone, "banlaggning-mobil-bana");
+
+  // Sidan skrollar inte när man panorerar kartan med fingret.
+  // Kartans övre vänstra hörn (5, 95 mm) är tomt.
+  const empty = await screenOf(map, 5, 95);
+  const centerBefore = await map.getAttribute("data-center");
+  await touchDrag(phone, empty, { x: empty.x - 40, y: empty.y + 120 });
+  expect(await scrolled(phone)).toEqual([0, 0, 0]);
+  await expect(map).not.toHaveAttribute("data-center", centerBefore!);
+
+  // Dra kontroll 31 med fingret: kontrollen lyfts ovanför fingret, krysset syns i mitten och sidan står still.
+  const before = await (await phone.request.get(`${admin}/course-setting`)).json() as { setting: { document: Document } };
+  const c31 = Object.values(before.setting.document.controls).find(row => row.code === "31")!.at;
+  const from = await screenOf(map, c31.x, c31.y);
+  const to = { x: from.x + 30, y: from.y + 10 };
+  const scale = Number(await map.getAttribute("data-px-per-mm"));
+  await touchDrag(phone, from, to, async () => {
+    await expect(map.getByTestId("course-setting-cross")).toHaveAttribute("data-cross", /,drag$/);
+    expect(await scrolled(phone)).toEqual([0, 0, 0]);
+    await screenshot(phone, "banlaggning-mobil-dra");
+  });
+  expect(await scrolled(phone)).toEqual([0, 0, 0]);
+  await expect(phone.getByTestId("course-setting-field-selected")).toHaveText("Vald: kontroll 31");
+  await expect(phone.getByTestId("course-setting-field-status")).toHaveText("Sparat", { timeout: 15_000 });
+  const dragged = await (await phone.request.get(`${admin}/course-setting`)).json() as { setting: { document: Document } };
+  const c31After = Object.values(dragged.setting.document.controls).find(row => row.code === "31")!.at;
+  // Fingret flyttades 30 px åt höger och 10 px ned; kontrollen hamnar LIFT_PX ovanför fingret.
+  expect((c31After.x - c31.x) * scale).toBeCloseTo(30, -1);
+  expect((c31.y - c31After.y) * scale).toBeCloseTo(10 - LIFT_PX, -1);
+  await expect(map.getByTestId("course-setting-cross")).toHaveAttribute("data-cross", `${c31After.x.toFixed(2)},${c31After.y.toFixed(2)}`);
+
+  // Välj kontroll 32 (42, 61 mm) med fingret; fältknapparna fungerar med banan vald.
   const control = await screenOf(map, 42, 61);
   await phone.touchscreen.tap(control.x, control.y);
   await expect(phone.getByTestId("course-setting-field-selected")).toHaveText("Vald: kontroll 32");
+  await expect(map.getByTestId("course-setting-cross")).toHaveAttribute("data-cross", "42.00,61.00");
   await screenshot(phone, "banlaggning-mobil-vald");
 
   // Min position och Flytta hit.

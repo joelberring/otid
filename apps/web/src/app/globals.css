@@ -37,6 +37,9 @@ body > .site-footer { padding: 16px max(16px, calc((100vw - 1120px) / 2 + 16px))
 body:has(> main.speaker-page) > .site-footer, body:has(.race-admin-manage-page) > .site-footer { display: none; }
 @media print { body > .site-footer { display: none; } }
 main.race-admin-manage-page, main.speaker-page { max-width: none; padding: 0; }
+/* Banläggningens arbetsyta (steg 66) fyller fönstret: sidan bakom skrollar, studsar och zoomar aldrig när man drar på kartan. */
+html:has(main.course-setting-shell), body:has(> main.course-setting-shell) { height: 100%; overflow: hidden; overscroll-behavior: none; }
+body:has(> main.course-setting-shell) > header, body:has(> main.course-setting-shell) > .site-footer { display: none; }
 body:has(> main.speaker-page) > header { display: none; }
 /* Startsidan har ett eget sidhuvud (ADR-0172 beslut 4). */
 body:has(> [data-site-head]) > header:not([data-site-head]) { display: none; }

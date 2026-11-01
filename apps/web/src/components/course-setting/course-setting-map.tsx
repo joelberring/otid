@@ -7,6 +7,7 @@ import type { LegAnalysis } from "@o-tid/route-choice";
 import { courseSettingSv as text } from "../../i18n/course-setting-sv";
 import { drawMarks, drawOverprint, drawRouteChoice } from "../../lib/course-setting-draw";
 import { drawHighlightedRoute, drawNoteMarks, drawSuggestion, type SuggestionDrawing } from "../../lib/course-setting-draw-collaboration";
+import { drawCenterCross, liftedPoint, type CenterCross } from "../../lib/course-setting-draw-cross";
 import { drawPosition } from "../../lib/course-setting-field";
 import type { MapPosition } from "../../lib/course-setting-geo";
 import { hitNoteMark, noteMarkGeometry, type NoteMark } from "../../lib/course-setting-note-marks";
@@ -48,10 +49,11 @@ const tolerancePx = (pointerType: string) => pointerType === "touch" ? 18 : 8;
  * editorn tar tag i), två fingrar zoomar. Medan en ny bild ritas visas den förra omskalad.
  *
  * Steg 66: notisernas markeringar (ett klick på en öppnar den), ett förslag ovanpå banan, handmarkören där kartan går att
- * dra (`cursorAt`), och piltangenterna panorerar när kartan har fokus (+ och − zoomar).
+ * dra (`cursorAt`), och piltangenterna panorerar när kartan har fokus (+ och − zoomar). Krysset i vald kontrolls mitt i
+ * ett eget lager som bara finns på skärmen; en dragning med fingret lyfts ovanför fingret (`liftedPoint`).
  */
 export function CourseSettingMap({ session, mapBounds, primitives, faded, marks, analysis, label, cursor, handlers, handle, noteMarks,
-  selectedNote, onNoteTap, suggestion, cursorAt, highlightRoute, position }: {
+  selectedNote, onNoteTap, suggestion, cursorAt, highlightRoute, position, cross }: {
   session: MapRenderSession | undefined;
   mapBounds: Bounds | undefined;
   primitives: readonly OverprintPrimitive[];
@@ -72,12 +74,17 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
   highlightRoute?: readonly Point[] | undefined;
   /** Fältläget: telefonens position och om kartan följer den. */
   position?: { readonly position: MapPosition; readonly follow: boolean } | undefined;
+  /** Krysset i vald kontrolls mitt (bara på skärmen). */
+  cross?: CenterCross | undefined;
 }) {
   const [hoverCursor, setHoverCursor] = useState<string>();
   const [grabbing, setGrabbing] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   const base = useRef<HTMLCanvasElement>(null);
   const overlay = useRef<HTMLCanvasElement>(null);
+  const screen = useRef<HTMLCanvasElement>(null);
+  /** Fingret under en lyft dragning (skärmpixlar), för linjen till kontrollen. */
+  const [finger, setFinger] = useState<{ x: number; y: number }>();
   const [view, setView] = useState<Viewport>();
   const drawn = useRef<Drawn | undefined>(undefined);
   const overview = useRef<Drawn | undefined>(undefined);
@@ -185,6 +192,21 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
     if (noteMarks) drawNoteMarks(ctx, view, noteMarks.map(mark => ({ ...mark, selected: mark.id === selectedNote })));
     if (position) drawPosition(ctx, view, position.position);
   }, [view, primitives, faded, marks, analysis, suggestion, noteMarks, selectedNote, highlightRoute, position]);
+  // Skärmlagret: krysset (och fingrets linje). Ritas aldrig i banpåtrycket och döljs vid utskrift.
+  const crossX = cross?.at.x, crossY = cross?.at.y, crossDragging = cross?.dragging, radiusMm = marks.radiusMm;
+  useEffect(() => {
+    const canvas = screen.current;
+    if (!canvas || !view) return;
+    const ratio = window.devicePixelRatio || 1;
+    canvas.width = Math.round(view.width * ratio); canvas.height = Math.round(view.height * ratio);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.clearRect(0, 0, view.width, view.height);
+    if (crossX !== undefined && crossY !== undefined) {
+      drawCenterCross(ctx, view, { at: { x: crossX, y: crossY }, dragging: crossDragging ?? false }, radiusMm, crossDragging ? finger : undefined);
+    }
+  }, [view, crossX, crossY, crossDragging, radiusMm, finger]);
   const followX = position?.follow ? position.position.at.x : undefined, followY = position?.follow ? position.position.at.y : undefined;
   useEffect(() => {
     if (followX !== undefined && followY !== undefined) setView(previous => previous ? { ...previous, centerX: followX, centerY: followY } : previous);
@@ -239,7 +261,10 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
       current.kind = handlers.onDragStart(start, tolerancePx(current.pointerType) / view.pxPerMm) ? "drag" : "pan";
       if (current.kind === "pan") setGrabbing(true);
     }
-    if (current.kind === "drag") handlers.onDragMove(toMap(view, at));
+    if (current.kind === "drag") {
+      handlers.onDragMove(toMap(view, liftedPoint(at, current.pointerType)));
+      if (current.pointerType === "touch") setFinger(at);
+    }
     else setView(previous => previous ? panBy(previous, at.x - current.lastX, at.y - current.lastY) : previous);
     current.lastX = at.x; current.lastY = at.y;
   }
@@ -251,6 +276,7 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
     if (current.kind === "pinch") { if (pointers.current.size === 0) gesture.current = undefined; return; }
     gesture.current = undefined;
     setGrabbing(false);
+    setFinger(undefined);
     if (current.kind === "pending" && event.type === "pointerup") {
       const point = toMap(view, { x: current.startX, y: current.startY });
       const tolerance = tolerancePx(current.pointerType) / view.pxPerMm;
@@ -293,6 +319,8 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
       onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
       <canvas ref={base} className={styles.layer} aria-hidden="true" />
       <canvas ref={overlay} className={styles.layer} aria-hidden="true" data-testid="course-setting-overprint" />
+      <canvas ref={screen} className={`${styles.layer} ${styles.screenOnly}`} aria-hidden="true" data-testid="course-setting-cross"
+        data-cross={cross ? `${cross.at.x.toFixed(2)},${cross.at.y.toFixed(2)}${cross.dragging ? ",drag" : ""}` : undefined} />
     </div>
     <div className={styles.zoom} role="group" aria-label={text.fit}>
       <Button variant="secondary" aria-label={text.zoomIn} title={text.zoomIn} onClick={() => zoom(1.5)}>+</Button>

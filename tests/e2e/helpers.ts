@@ -157,6 +157,21 @@ export async function warmRoute(page: Page, path: string, method: "GET" | "POST"
 }
 
 /**
+ * Sidouppdraget i steg 66: en multipart-POST som utvecklingsservern inte leder till routen renderas av 404-sidan, som tar
+ * den för en Server Action ("Failed to find Server Action") och svarar 404 med HTML. Kartfilens uppladdning väntar därför
+ * tills en multipart-POST når routen (appens svar är JSON, här 401/403 eftersom anropet saknar CSRF).
+ */
+export async function warmUpload(page: Page, path: string): Promise<void> {
+  const until = Date.now() + 90_000;
+  for (;;) {
+    const response = await page.request.post(path, { failOnStatusCode: false, timeout: 120_000,
+      multipart: { file: { name: "tom.omap", mimeType: "application/octet-stream", buffer: Buffer.alloc(0) } } });
+    if ((response.headers()["content-type"] ?? "").includes("application/json") || Date.now() > until) return;
+    await page.waitForTimeout(2_000);
+  }
+}
+
+/**
  * Steg 66: banläggningens routes kompileras i förväg i utvecklingsservern (annars tar första sparningen eller notisen
  * 10–20 s och sparstatusen hinner inte bli "Sparat"). Strömmen (`course-setting/events`) är öppen tills den stängs och
  * kompileras när editorn öppnar den.
@@ -168,6 +183,7 @@ export async function warmCourseSetting(page: Page, raceId: string): Promise<voi
   }
   for (const path of ["course-setting/import", "course-setting/edits", "course-setting/notes", "course-setting/transfer"]) await warmRoute(page, `${admin}/${path}`, "POST");
   await warmRoute(page, `/admin/${raceId}/course-setting`);
+  await warmUpload(page, `${admin}/map/source`);
 }
 
 /** Delarna i sidopanelen; vilka som finns avgörs av tävlingstypen (ADR-0170). */

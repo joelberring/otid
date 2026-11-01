@@ -98,7 +98,7 @@ test("banläggning tillsammans: förslag som godkänns, notis som syns direkt oc
   await expect(helper.getByTestId("course-setting-suggesting")).toContainText("1 ändring");
   await helper.getByRole("tab", { name: "Förslag" }).click();
   await helper.getByLabel("Kommentar till förslaget").fill("Stenen syns bättre härifrån");
-  await helper.getByRole("button", { name: "Skicka förslaget" }).click();
+  await helper.getByTestId("course-setting-draft").getByRole("button", { name: "Skicka förslaget" }).click();
   await expect(helper.getByText("Förslaget är skickat.")).toBeVisible();
   expect((await state(owner, raceId)).setting.version).toBe(before.setting.version);
 

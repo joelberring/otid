@@ -14,7 +14,8 @@
  * vald kontroll och beskeden flyter ovanpå kartan; panelerna är en låda med flikar till höger (ett blad nerifrån på
  * smal skärm). Inget skjuter ned kartan.
  */
-.shell { position: fixed; inset: 0; z-index: 10; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; background: var(--surface); }
+.shell { position: fixed; inset: 0; z-index: 10; display: grid; grid-template-rows: auto minmax(0, 1fr); width: 100%; max-width: none;
+  height: 100dvh; margin: 0; padding: 0; overflow: hidden; overscroll-behavior: none; background: var(--surface); }
 .topbar { display: flex; align-items: center; gap: 6px; min-height: 48px; padding: 4px 10px; border-bottom: 1px solid var(--line-strong);
   background: var(--surface); overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
 .topbar button, .topbar select { min-height: 36px; white-space: nowrap; }
@@ -38,17 +39,22 @@
 .zoom { position: absolute; right: 10px; bottom: 10px; display: grid; gap: 4px; }
 .zoom button { min-width: 40px; min-height: 40px; padding: 0; font-size: 1.2rem; box-shadow: 0 2px 8px rgba(0, 0, 0, .2); }
 
-.toolbar { position: absolute; top: 10px; left: 10px; display: flex; flex-wrap: wrap; gap: 2px; max-width: calc(100% - 80px); padding: 4px;
-  border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); box-shadow: 0 2px 10px rgba(0, 0, 0, .2); }
-.tool { display: grid; justify-items: center; gap: 1px; min-width: 52px; min-height: 48px; padding: 4px 6px; border: 2px solid transparent;
+/* Bred skärm: verktygen i en lodrät list längs kartans vänsterkant (ovansidan är fri för fältets knappar och beskeden). */
+.toolbar { position: absolute; top: 10px; left: 10px; z-index: 3; display: flex; flex-direction: column; flex-wrap: nowrap; gap: 2px;
+  max-height: calc(100% - 20px); padding: 4px; overflow-y: auto; scrollbar-width: thin; border: 1px solid var(--line-strong); border-radius: 8px;
+  background: var(--surface); box-shadow: 0 2px 10px rgba(0, 0, 0, .2); }
+.tool { position: relative; display: grid; justify-items: center; gap: 1px; min-width: 60px; min-height: 48px; padding: 4px 6px; border: 2px solid transparent;
   border-radius: 6px; background: none; color: inherit; font: inherit; font-size: 0.75rem; cursor: pointer; }
 .tool:hover:not(:disabled) { background: var(--surface-strong, rgba(0, 0, 0, .06)); }
 .tool[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: var(--surface); font-weight: 700; }
 .tool:disabled { opacity: .4; cursor: default; }
 .toolIcon { font-size: 1.1rem; line-height: 1.2; }
+.key { position: absolute; top: 2px; right: 3px; font: inherit; font-size: 0.6rem; line-height: 1; opacity: .65; }
+/* Skärmlagret (krysset i vald kontrolls mitt) följer aldrig med vid utskrift. */
+@media print { .screenOnly { display: none; } }
 
-.toasts { position: absolute; top: 10px; right: 64px; z-index: 5; display: grid; gap: 6px; width: min(460px, calc(100% - 640px));
-  min-width: 280px; pointer-events: none; }
+.toasts { position: absolute; top: 10px; right: 10px; z-index: 5; display: grid; gap: 6px; width: min(420px, calc(100% - 110px));
+  pointer-events: none; }
 .toasts > * { pointer-events: auto; }
 .toast { margin: 0; padding: 6px 12px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface);
   box-shadow: 0 2px 8px rgba(0, 0, 0, .15); font-size: var(--text-sm); }
@@ -57,7 +63,7 @@
 .card { position: absolute; left: 50%; bottom: 12px; z-index: 4; display: grid; gap: 6px; width: min(560px, calc(100% - 120px)); padding: 8px 12px;
   transform: translateX(-50%); border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); box-shadow: 0 4px 16px rgba(0, 0, 0, .22); }
 /* Fältläget: knapparna under verktygsraden (bred skärm), raden nertill i en stapel (smal skärm). */
-.fieldTools { position: absolute; top: 72px; left: 10px; z-index: 3; max-width: calc(100% - 80px); }
+.fieldTools { position: absolute; top: 10px; left: 92px; z-index: 3; max-width: calc(100% - 540px); min-width: 200px; }
 .bottomStack { position: absolute; left: 0; right: 0; bottom: 50px; z-index: 5; display: grid; gap: 4px; pointer-events: none; }
 .bottomStack > * { pointer-events: auto; }
 .bottomStack .toolbar { position: static; margin: 0 6px; max-width: none; }
@@ -185,8 +191,11 @@
   .drawer:not([data-sheet-open]) .tabpanel { display: none; }
   .drawer[data-collapsed] .tabpanel { display: grid; }
   .drawer[data-collapsed]:not([data-sheet-open]) .tabpanel { display: none; }
-  .toolbar { top: auto; bottom: 62px; left: 6px; right: 6px; max-width: none; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .toolbar { top: auto; bottom: 62px; left: 6px; right: 6px; flex-direction: row; max-width: none; max-height: none; overflow-x: auto;
+    overflow-y: hidden; scrollbar-width: none; }
   .tool { min-width: 48px; flex: 0 0 auto; }
+  .key { display: none; }
+  .fieldTools { top: 8px; left: 8px; max-width: calc(100% - 60px); }
   .zoom { bottom: 136px; right: 8px; }
   .card { bottom: 136px; width: calc(100% - 72px); left: 8px; transform: none; }
   .toasts { top: 8px; left: 8px; right: 60px; width: auto; min-width: 0; }
@@ -194,5 +203,14 @@
 
 /* Under 700 px: fältlägets rad och verktygen i stapeln nertill, zoomen uppe till höger. */
 @media (max-width: 699px) {
+  /* Kartan slutar ovanför verktygen och fältets rad (inget av banan hamnar under knapparna), bladets list under dem. */
+  .mapArea { display: grid; grid-template-rows: minmax(0, 1fr) auto; padding-bottom: 50px; }
+  .mapFrame { position: relative; inset: auto; min-height: 0; }
+  .bottomStack { position: static; padding-top: 4px; background: var(--surface); }
   .zoom { top: 8px; bottom: auto; }
+  /* Den smala raden: banväljaren först och tydlig, knapparna utan text. */
+  .topbar { gap: 4px; padding: 4px 6px; }
+  .topbar select { flex: 0 1 auto; min-width: 7.5em; max-width: 45vw; }
+  .topbar button { min-width: 36px; padding-inline: 8px; }
+  .toasts { right: 56px; }
 }

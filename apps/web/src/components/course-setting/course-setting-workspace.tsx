@@ -85,10 +85,12 @@ export function ToolBar({ tool, tools, onTool, onFork, inCourse, help }: { tool:
       title={text.tools.withKey(text.tools[item], text.tools.shortcut[item] ?? "")}
       disabled={(item === "INSERT_EXISTING" || item === "ADD_BEND") && !inCourse} onClick={() => onTool(item)}>
       <span aria-hidden="true" className={styles.toolIcon}>{TOOL_ICON[item]}</span><span aria-hidden="true">{text.tools.short[item]}</span>
+      <kbd aria-hidden="true" className={styles.key}>{text.tools.shortcut[item]}</kbd>
     </button>)}
     {onFork && <button type="button" className={styles.tool} aria-label={text.tools.forkTool} disabled={!inCourse}
       title={text.tools.withKey(text.tools.forkTool, text.tools.shortcut.FORK!)} onClick={onFork}>
-      <span aria-hidden="true" className={styles.toolIcon}>{TOOL_ICON.FORK}</span><span aria-hidden="true">{text.tools.short.FORK}</span></button>}
+      <span aria-hidden="true" className={styles.toolIcon}>{TOOL_ICON.FORK}</span><span aria-hidden="true">{text.tools.short.FORK}</span>
+      <kbd aria-hidden="true" className={styles.key}>{text.tools.shortcut.FORK}</kbd></button>}
   </div>;
 }
 

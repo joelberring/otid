@@ -10,6 +10,7 @@ import { PARTY_DISPLAY_NAME_MAX, partyDefaultDisplayName } from "@o-tid/domain";
 import { Button, Field, Notice, focusFirstError } from "../ui";
 import type { FieldErrors } from "../../lib/form-validation";
 import { selfRegistrationSv as text } from "../../i18n/self-registration-sv";
+import { trainingGroupSv } from "../../i18n/training-group-sv";
 import styles from "./self-registration.module.css";
 
 /**
@@ -19,6 +20,23 @@ import styles from "./self-registration.module.css";
  */
 type FieldName = "cardNumber" | "givenName" | "familyName" | "club" | "classId" | "displayName";
 type Form = Record<FieldName | "website", string>;
+type Remembered = { cardNumber: string; givenName: string; familyName: string; club: string; className: string };
+const rememberedKey = (key: string) => `otid-grupp-anmalan:${key}`;
+
+/** Den senaste anmälan till gruppen i den här webbläsaren; ingen (eller blockerad lagring) ger undefined. */
+function readRemembered(key: string): Remembered | undefined {
+  try {
+    const value = JSON.parse(window.localStorage.getItem(rememberedKey(key)) ?? "null") as Partial<Remembered> | null;
+    return value && typeof value.cardNumber === "string" && typeof value.givenName === "string" && typeof value.familyName === "string"
+      ? { cardNumber: value.cardNumber, givenName: value.givenName, familyName: value.familyName, club: value.club ?? "",
+        className: value.className ?? "" } : undefined;
+  } catch { return undefined; }
+}
+
+function writeRemembered(key: string, value: Remembered): void {
+  try { window.localStorage.setItem(rememberedKey(key), JSON.stringify(value)); } catch { /* Utan lagring minns telefonen inget; anmälan är ändå gjord. */ }
+}
+
 const empty: Form = { cardNumber: "", givenName: "", familyName: "", club: "", classId: "", displayName: "", website: "" };
 
 export function validateSelfRegistration(form: Form, needsClass: boolean): FieldErrors<FieldName> {
@@ -39,9 +57,14 @@ export function validateSelfRegistration(form: Form, needsClass: boolean): Field
  * `collapsible` (steg 42, fest-sidan): en knapp "Registrera din pinne" med aria-expanded, stängd från början, som fäller
  * ut formuläret. Knappen och formuläret är egna rader i förälderns flexrad (`display: contents`).
  */
-export function SelfRegistrationForm({ raceId, collapsible = false, publicNames = false }: { raceId: string; collapsible?: boolean;
+export function SelfRegistrationForm({ raceId, collapsible = false, publicNames = false, rememberKey }: { raceId: string; collapsible?: boolean;
   /** Fest: festen visar visningsnamn publikt (steg 46), så formuläret säger det. */
-  publicNames?: boolean }) {
+  publicNames?: boolean;
+  /**
+   * Steg 68 (ADR-0182 beslut 5): träningsgruppens kod. Telefonen minns den senaste anmälan till gruppen (bara i den här
+   * webbläsaren) och erbjuder "Samma som förra gången" vid nästa träning; servern lämnar aldrig ut namn för en bricka.
+   */
+  rememberKey?: string | undefined }) {
   const [expanded, setExpanded] = useState(false);
   const panelId = useId();
   const [info, setInfo] = useState<SelfRegistrationInfoResponse>();
@@ -50,6 +73,7 @@ export function SelfRegistrationForm({ raceId, collapsible = false, publicNames 
   const [message, setMessage] = useState<string>();
   const [receipt, setReceipt] = useState<SelfRegistrationResponse>();
   const [saving, setSaving] = useState(false);
+  const [remembered, setRemembered] = useState<Remembered>();
   const formRef = useRef<HTMLFormElement>(null);
   const clubsId = useId();
 
@@ -65,6 +89,7 @@ export function SelfRegistrationForm({ raceId, collapsible = false, publicNames 
     })();
     return () => { stopped = true; };
   }, [raceId]);
+  useEffect(() => { if (rememberKey) setRemembered(readRemembered(rememberKey)); }, [rememberKey]);
 
   if (!info?.open) return null;
   const needsClass = info.kind === "RACE";
@@ -89,6 +114,12 @@ export function SelfRegistrationForm({ raceId, collapsible = false, publicNames 
           ...(form.website ? { website: form.website } : {}) }) });
       if (response.ok) {
         setReceipt(selfRegistrationResponseSchema.parse(await response.json()));
+        if (rememberKey) {
+          const className = info?.classes.find(row => row.id === form.classId)?.name ?? "";
+          const value = { cardNumber: form.cardNumber.replace(/\s/g, ""), givenName: form.givenName.trim(), familyName: form.familyName.trim(),
+            club: form.club.trim(), className };
+          writeRemembered(rememberKey, value); setRemembered(value);
+        }
         setForm(empty); setErrors({});
         return;
       }
@@ -126,6 +157,11 @@ export function SelfRegistrationForm({ raceId, collapsible = false, publicNames 
         <Button variant="secondary" onClick={() => setReceipt(undefined)}>{text.again}</Button>
       </div> : <form ref={formRef} noValidate onSubmit={submit} className={styles.form}>
         <p className={styles.intro}>{needsClass ? text.intro.race : text.intro.party}</p>
+        {remembered && <Button variant="secondary" onClick={() => {
+          const classId = info.classes.find(row => row.name === remembered.className)?.id ?? "";
+          setForm(current => ({ ...current, cardNumber: remembered.cardNumber, givenName: remembered.givenName, familyName: remembered.familyName,
+            club: remembered.club, classId })); setErrors({});
+        }}>{trainingGroupSv.public.sameAgain(`${remembered.givenName}, ${remembered.cardNumber}${remembered.className ? `, ${remembered.className}` : ""}`)}</Button>}
         <Field label={text.cardNumber} help={text.cardHelp} error={errors.cardNumber}>
           <input name="cardNumber" inputMode="numeric" autoComplete="off" maxLength={9} value={form.cardNumber} onChange={change("cardNumber")} />
         </Field>

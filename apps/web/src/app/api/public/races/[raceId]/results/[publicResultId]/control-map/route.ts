@@ -1,4 +1,5 @@
-import { readPublicRunnerControlMap } from "@o-tid/application";
+import { raceGroupNameDisplay, readPublicRunnerControlMap } from "@o-tid/application";
+import { shownDisplayName } from "@o-tid/domain";
 import { db } from "../../../../../../../../lib/db";
 import { publicRaceStaffResponse } from "../../../../../../../../lib/public-race-gate";
 
@@ -11,6 +12,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ rac
   return publicRaceStaffResponse(raceId, async staff => {
     const map = await readPublicRunnerControlMap(db, raceId, publicResultId, { staff });
     if (!map) return Response.json({ formatVersion: 1, error: "NOT_FOUND" }, { status: 404, headers: { "cache-control": "no-store" } });
-    return Response.json(map, { headers: { "cache-control": "public, max-age=5, stale-while-revalidate=10" } });
+    // Steg 68: löparens namn enligt träningsgruppen (arrangören och funktionärerna ser hela namnet).
+    const names = staff ? "FULL" : await raceGroupNameDisplay(db, raceId);
+    return Response.json({ ...map, name: shownDisplayName(names, map.name) }, { headers: { "cache-control": "public, max-age=5, stale-while-revalidate=10" } });
   });
 }

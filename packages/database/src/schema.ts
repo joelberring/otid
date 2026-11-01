@@ -10,3 +10,4 @@ export * from "./schema/race-day";
 export * from "./schema/planning";
 export * from "./schema/runners";
 export * from "./schema/party";
+export * from "./schema/groups";

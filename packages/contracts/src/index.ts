@@ -301,3 +301,4 @@ export * from "./self-registration-cleanup";
 export * from "./route-choice";
 export * from "./course-setting";
 export * from "./course-setting-collaboration";
+export * from "./training-group";

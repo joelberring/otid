@@ -1,4 +1,5 @@
-import { readPublicFrozenRaceResults } from "@o-tid/application";
+import { raceGroupNameDisplay, readPublicFrozenRaceResults } from "@o-tid/application";
+import { maskPublicNames } from "@o-tid/domain";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PublicFrozenRaceResults } from "../../../../../components/public-frozen-race-results";
@@ -17,6 +18,6 @@ export default async function PublicFrozenRaceResultsPage({ params }: { params: 
   return <main className="stack">
     <nav className="nav"><Link href={`/results/${raceId}`}>{sv.publicFrozenResultsBack}</Link></nav>
     <PreviewBanner access={access} />
-    <section className="panel"><PublicFrozenRaceResults result={result.response} /></section>
+    <section className="panel"><PublicFrozenRaceResults result={maskPublicNames(result.response, await raceGroupNameDisplay(db, raceId))} /></section>
   </main>;
 }

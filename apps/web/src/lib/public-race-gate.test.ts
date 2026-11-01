@@ -14,8 +14,9 @@ vi.mock("./db", () => ({ db: {}, pool: {}, database: {}, publicDb: {}, publicDat
 vi.mock("@o-tid/application", async (importOriginal) => {
   // Varje tjänst kastar "reached:<namn>" så att testet ser att grinden släppt igenom anropet; grinden själv styrs av `state`.
   const actual = await importOriginal<Record<string, unknown>>();
-  return Object.fromEntries(Object.entries(actual).map(([name, value]) => [name, name === "publicRaceAccess"
-    ? async (_db: unknown, id: string, token: string | null) => { state.calls.push([id, token]); return state.access; }
+  return Object.fromEntries(Object.entries(actual).map(([name, value]) => [name, name === "publicRaceGate"
+    ? async (_db: unknown, id: string, token: string | null) => { state.calls.push([id, token]);
+      return { access: state.access, privateCache: false }; }
     : typeof value === "function" && /^[a-z]/.test(name) ? async () => { throw new Error(`reached:${name}`); } : value]));
 });
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: (name: string) =>

@@ -50,7 +50,8 @@ export const publicResultSplitSchema = z.object({
 const publicResultCommonFields = {
   className: z.string().trim().min(1).max(160),
   givenName: z.string().trim().min(1).max(160),
-  familyName: z.string().trim().min(1).max(160),
+  // Steg 68: tomt när träningsgruppen visar bara förnamn.
+  familyName: z.string().trim().max(160),
   organisationName: z.string().trim().min(1).max(240).nullable(),
   revision: z.number().int().positive(),
   elapsedMs: safeMillisecondsSchema.optional(),
@@ -182,7 +183,8 @@ export const publicResultV5Schema = z.object({
 export const publicWithoutTimingResultSchema = z.object({
   className: z.string().trim().min(1).max(160),
   givenName: z.string().trim().min(1).max(160),
-  familyName: z.string().trim().min(1).max(160),
+  // Steg 68: tomt när träningsgruppen visar bara förnamn.
+  familyName: z.string().trim().max(160),
   organisationName: z.string().trim().min(1).max(240).nullable(),
   revision: z.number().int().positive(),
   status: z.literal("NT"),
@@ -219,7 +221,8 @@ const publicResultV7TimedSchema = z.object({
 const publicWithoutTimingResultV7Schema = z.object({
   className: z.string().trim().min(1).max(160),
   givenName: z.string().trim().min(1).max(160),
-  familyName: z.string().trim().min(1).max(160),
+  // Steg 68: tomt när träningsgruppen visar bara förnamn.
+  familyName: z.string().trim().max(160),
   organisationName: z.string().trim().min(1).max(240).nullable(),
   publicResultId: publicResultIdSchema,
   revision: z.number().int().positive(),

@@ -162,6 +162,17 @@ describe("överlappsklipp", () => {
     }
   });
 
+  it("en ring med många grannar tappar högst hälften; grannarna klipps ändå", () => {
+    const b = new Builder({ mapScale: 15000 });
+    const middleId = b.control("NORMAL", 0, 0);
+    const around = [0, 120, 240].map(angle => b.control("NORMAL", 3 * Math.cos(toRad(angle)), 3 * Math.sin(toRad(angle))));
+    const doc = withCutting(b.document, true, false);
+    const p = layoutOverprint(doc, { course: "ALL_CONTROLS" });
+    expect(gapDegrees(ringOf(p, doc, middleId))).toBeLessThanOrEqual(180);
+    expect(gapDegrees(ringOf(p, doc, middleId))).toBeGreaterThan(0);
+    for (const id of around) expect(gapDegrees(ringOf(p, doc, id))).toBeGreaterThan(0);
+  });
+
   it("kraftig överlappning: hela ringen behålls för den ena; samma punkt: båda hela", () => {
     const { b, course, one, two } = pair(1.2);
     expect(1.2).toBeLessThan(OVERLAP_CUT_LIMITS.strongFraction * 5);

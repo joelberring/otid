@@ -1102,6 +1102,9 @@ ADR-0181 beslut 1–5. Görs efter steg 63.
   uppspelning på aktuell version med det som inte går längre markerat.
 - [x] **Samtidigt arbete:** åtgärder i stället för hela dokument, egna osparade åtgärder spelas upp på andras nya version,
   andras ändringar syns inom någon sekund (SSE som de publika resultaten).
+- [x] **Arbetsytan** (ägarens önskemål): kartan fyller fönstret, smal rad överst (banväljare, sparstatus, ångra/gör om,
+  Fil-menyn, helskärm), verktygsrad med ikoner och tangenter, låda med flikar (fäll ihop, bredd, egen skroll), blad
+  nerifrån under 900 px med fältläget; sidan skrollar aldrig.
 - [x] **Tester:** integration (behörighet, notiser aldrig i utdata, förslag, uppspelning), Playwright med två användare.
 
 ## [ ] Steg 67 – Fältläge i mobilen (före steg 64)

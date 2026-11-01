@@ -121,8 +121,9 @@ test("banläggning tillsammans: förslag som godkänns, notis som syns direkt oc
 
   // Notis: hjälparen sätter en notis på kartan; ägaren ser den inom några sekunder.
   await helper.getByRole("button", { name: "Ny notis" }).click();
-  const spot = await screenOf(helperMap, 70, 20);
-  await helper.mouse.click(spot.x, spot.y);
+  // Övre delen av kartan: rutan med vald kontroll (32 är fortfarande vald) ligger nertill.
+  const mapBox = (await helperMap.boundingBox())!;
+  await helper.mouse.click(mapBox.x + mapBox.width * 0.7, mapBox.y + mapBox.height * 0.3);
   await helper.getByRole("form", { name: "Ny notis" }).getByLabel("Text").fill("Stenen saknas på kartan");
   await helper.getByRole("button", { name: "Spara notisen" }).click();
   await owner.getByRole("tab", { name: /Notiser/ }).click();

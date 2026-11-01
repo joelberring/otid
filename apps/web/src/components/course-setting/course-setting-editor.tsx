@@ -129,7 +129,10 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
   const collaboration = useCourseSettingCollaboration(raceId, state.setting.mode, (version, by) => {
     if (version <= sync.version) return;
     const name = collaboration.presence.find(person => person.accountId === by)?.displayName;
-    if (by && by !== access.accountId) say({ tone: "ok", text: copy.remoteChanged(name ?? copy.someone) });
+    if (by && by !== access.accountId) {
+      const kept = sync.dirty || (store.state.suggesting !== undefined && store.state.log.length > 0);
+      say({ tone: "ok", text: copy.remoteChanged(name ?? copy.someone, kept) });
+    }
     sync.remote(version);
   });
 

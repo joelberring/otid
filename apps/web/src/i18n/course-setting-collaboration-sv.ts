@@ -24,7 +24,7 @@ export const collaborationSv = {
   someone: "Någon",
   waitForMap: "Ägaren eller en administratör laddar upp kartfilen. Sidan visar banläggningen när den finns.",
   waitForStart: "Banläggningen är inte påbörjad än. Den som har behörigheten ändra läser in en .ppen eller börjar tomt.",
-  remoteChanged: (name: string) => `${name} ändrade banorna. Dina osparade ändringar är kvar.`,
+  remoteChanged: (name: string, kept: boolean) => `${name} ändrade banorna.${kept ? " Dina osparade ändringar är kvar." : ""}`,
   lost: (count: number) => `${plural(count, "ändring", "ändringar")} gick inte att spara efter andras ändringar:`,
   topbar: {
     course: "Visa bana",

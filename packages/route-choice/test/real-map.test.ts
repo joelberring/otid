@@ -1,20 +1,22 @@
 /**
  * Vägvalsanalysen på ägarens riktiga kartfiler (Djurgården 2025 i OCAD och Mapper, Purple Pens banfil för Natt-KM
- * 2026). Filerna är klubbens och committas inte; testet körs bara när OTID_REAL_MAP_DIR pekar på mappen.
+ * 2026; Högdalen med Stockholm by Night 2026). Filerna är klubbens och committas inte; testen körs bara när
+ * OTID_REAL_MAP_DIR respektive OTID_SBN_DIR pekar på mapparna.
  */
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { readMapFile, type Point } from "@o-tid/map-file";
-import { analyseCourse, buildCostModel, type LegAnalysis, type LegInput } from "../src";
+import { analyseCourse, analyseLeg, buildCostModel, type LegAnalysis, type LegInput } from "../src";
 
 const directory = process.env.OTID_REAL_MAP_DIR;
 const COURSE = process.env.OTID_REAL_COURSE ?? "H21";
+const sbnDirectory = process.env.OTID_SBN_DIR;
 
-function find(suffix: string): string {
-  const name = readdirSync(directory!).find(file => file.normalize("NFC").toLowerCase().endsWith(suffix));
-  if (!name) throw new Error(`Hittar ingen fil som slutar på ${suffix} i ${directory}`);
-  return join(directory!, name);
+function find(suffix: string, folder = directory): string {
+  const name = readdirSync(folder!).find(file => file.normalize("NFC").toLowerCase().endsWith(suffix));
+  if (!name) throw new Error(`Hittar ingen fil som slutar på ${suffix} i ${folder}`);
+  return join(folder!, name);
 }
 
 function readLegs(path: string, course: string): LegInput[] {
@@ -89,5 +91,31 @@ describe.skipIf(!directory)("vägval på riktiga kartfiler (OTID_REAL_MAP_DIR)",
     const warm = Math.min(...times.slice(1));
     console.info(`1,5 km: ${times.map(t => t.toFixed(0)).join(", ")} ms (bästa efter uppvärmning ${warm.toFixed(0)} ms)`);
     expect(warm).toBeLessThan(1000);
+  }, 60_000);
+});
+
+describe.skipIf(!sbnDirectory)("vägval i Högdalen, Stockholm by Night 2026 (OTID_SBN_DIR)", () => {
+  /**
+   * Ägarens rapport 2026-11-01: på bana A, kontroll 8 till 9, valde analysen en lång väg runt kullens fot i vit skog
+   * i stället för över kullen med öppen mark på toppen. Gafflingen ger två sträckor 8–9: 36–37 (AC…) och 36–56 (AD…).
+   * Förr räknades nedför som uppför (16 passager över kullen = 640 m) och skrå, branter och tät kurvbild var gratis.
+   */
+  it("går inte längre runt kullens fot i vit skog, och vägen över kullen kommer med", () => {
+    const model = buildCostModel(readMapFile(new Uint8Array(readFileSync(find(".ocd", sbnDirectory)))));
+    const leg = (variant: string, from: string, to: string) => readLegs(find(".xml", sbnDirectory), `A ${variant}`).find(item => item.key === `${from}-${to}`)!;
+    const results = [leg("ACEG", "36", "37"), leg("ADEG", "36", "56")].map(input => ({ input, result: analyseLeg(model, input) }));
+    for (const { input, result } of results) {
+      const lines = [{ ...result.best!, timeRatio: 1 }, ...result.alternatives];
+      console.info(input.key, result.verdict, Math.round(result.straightMeters), lines.map(line =>
+        `${Math.round(line.meters)} m, ${Math.round(line.climbMeters)} m upp, +${Math.round((line.timeRatio - 1) * 100)} %`).join(" | "));
+      expect(result.verdict, input.key).not.toBe("NO_CHOICE");
+      // Förr 594 m (36–37) och 449 m men i vit skog nedanför stigen (36–56); nu längs stigen och vägen.
+      expect(result.best!.meters, input.key).toBeLessThan(result.straightMeters * 2);
+    }
+    // 36–37: vägen över kullen (högst 25 % längre än fågelvägen) är ett jämbördigt vägval (inom osäkerheten ±15 %).
+    const [toThirtySeven] = results;
+    const over = toThirtySeven!.result.alternatives.find(alternative => alternative.meters <= toThirtySeven!.result.straightMeters * 1.25);
+    expect(over).toBeDefined();
+    expect(over!.timeRatio).toBeLessThanOrEqual(1.15);
   }, 60_000);
 });

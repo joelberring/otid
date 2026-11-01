@@ -1025,7 +1025,7 @@ ADR-0179 (beslut 7–13). Migration 0030. Kontraktet: `packages/route-choice/src
   Orienteringskartor har höjdkurvor men inga höjdvärden (kontrollerat på Djurgården 2025 i både OCAD och Mapper).
   Stigningen räknas som antalet passerade höjdkurvor (101, 102) gånger ekvidistansen, plus hjälpkurvor (103) som halv
   ekvidistans. Standard 5 m eller enligt arrangören, och 1 m stigning räknas som 8 m plan väg (inställbart). Uppför och
-  nedför skiljs inte åt. Branter (201, 202) och annan terräng räknas via sina symboler. Ingen höjdmodell och ingen
+  nedför skiljs inte åt. (Ändrat 2026-11-01: upp och ned i väntevärde, lutningsfaktor och passerbara branter, ADR-0179.) Branter (201, 202) och annan terräng räknas via sina symboler. Ingen höjdmodell och ingen
   rekonstruktion av höjder ur kurvorna.
 - [x] **Osäkerheten syns:** farterna är riktvärden (ISOM:s spann för vegetation, egna tumregler för stigar och
   stigning). Varje sträcka räknas också med alla farter 15 % högre och 15 % lägre; byter bästa vägvalet plats märks

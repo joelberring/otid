@@ -10,6 +10,15 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-01 – Steg 66: samarbete i banläggningen (grenen steg66-samarbete)
+- Behörighet för banläggning per person och tävling (migration 0032 `course_setting_grant`, ändra/föreslå/läsa och kommentera), given under Inställningar → Personer som andra roller; `requireCourseSettingAccess` och tabellen `COURSE_SETTING_ROUTES` i race-roles.ts avgör alla banläggningens routes och kartfilens GET; ägare/admin har ändra, överföring och arbetssätt kräver admin. Resten av tävlingen nås inte (ingen roll på eventet). Mina tävlingar visar loppet med "Öppna banläggningen".
+- Åtgärder i stället för hela dokument (`POST course-setting/edits`): paketets `replayEdits` (tillägg i `packages/course-setting`, med `PUT_OBJECTS` för ångra) spelar upp på aktuell version, översätter nya id, avvisar det som någon annan ändrat sedan (`course_setting_change`, den första vinner) och det som bygger på avvisade; samma requestId ger samma svar. Editorn ombaserar osparade åtgärder och ångra-historiken (`lib/course-setting-sync.ts`).
+- Notiser (`course_setting_note`, svar, öppen/klar, foto ≤ 2 MB förminskat i webbläsaren) på punkt, kontroll, sträcka eller bana; markeringar som går att dölja; aldrig i banpåtryck, beskrivning, .ppen eller överföring (integrationstest jämför utdata). Förslag (`course_setting_suggestion`): förslagsläge för den som föreslår, granskning streckad ovanpå banan, godkänn helt/delvis eller avböj. Arbetssätt (Huvudbanläggare/Gemensamt) i lådans Inställningar.
+- Ström per tävling (`course-setting/events`, SSE): ny version, notiser, förslag, arbetssätt och närvaro. Ett nav i processen utan databasfrågor (allt inloggat går till `web`, ADR-0177), så avläsningen påverkas inte.
+- Arbetsytan i helskärm (ägarens önskemål): smal rad överst (banväljare, sparstatus, ångra/gör om, Fil-meny, helskärm), flytande verktygsrad med kortetiketter och tangenter, zoom i hörnet, vald kontroll i en ruta på kartan, låda med flikar (fäll ihop, dra bredd, varje flik skrollar), blad nerifrån under 900 px; handmarkör och piltangenter på kartan; vägvalens alternativ som lista (klick markerar linjen).
+- Sidouppdraget (404 på POST map/source i dev): anropet nådde aldrig routen – Next (Turbopack) svarade med sin 404-sida och loggade "Failed to find Server Action" medan den kompilerade annat. Gick inte att framkalla med curl. Klienten skickar nu om en sådan 404 (inte appens JSON-404) och specarna förvärmer banläggningens routes.
+VERIFIERAT_PLATS
+
 ### 2026-11-01 – Steg 63: kontrollbeskrivningar (paketet steg63-paket, webben steg63-webb, ihopslagna i main)
 - Paketet: symbolerna ur Purple Pens `symbols.xml` (201, 2004 och 2018, sv/en/nb/fi/de; 20 kB gzip), `layoutDescription` och `describeControl` som Purple Pen (11 + 13 jämförelser tecken för tecken), SET_DESCRIPTION/…_TEXT_LINE.
 - Editorn: beskrivningen för vald bana/variant (eller Alla kontroller) i spalten bredvid kartan, ritad som SVG ur `layoutDescription` och symbolernas figurer (vända rätt, i mm); rad ↔ kartval åt båda hållen, rutorna nås med Tab.

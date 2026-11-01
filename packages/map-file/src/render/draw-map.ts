@@ -16,7 +16,41 @@ import { clamp01, rgbFromCmyk } from "../color";
  *
  * Vinklar i modellen är grader moturs (som hatch-vinkeln); objektens vinkel vrider punktsymboler, text och ytmönster.
  */
-export type MapCanvasContext = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+/** Canvasen i webbläsaren (CanvasRenderingContext2D, OffscreenCanvasRenderingContext2D) eller PDF:ens motsvarighet. */
+export type MapCanvasContext = MapDrawingContext;
+
+/**
+ * Steg 65: det som `drawMap` använder av en 2D-canvas. Canvasen i webbläsaren uppfyller det, och PDF:en
+ * (`@o-tid/print-pdf`) har en egen med samma betydelse som skriver PDF-vägar, så att kartans geometri finns på ett ställe.
+ */
+export interface MapDrawingContext {
+  readonly canvas: { readonly width: number; readonly height: number };
+  fillStyle: unknown;
+  strokeStyle: unknown;
+  lineWidth: number;
+  lineCap: CanvasLineCap;
+  lineJoin: CanvasLineJoin;
+  font: string;
+  textAlign: CanvasTextAlign;
+  textBaseline: CanvasTextBaseline;
+  save(): void;
+  restore(): void;
+  setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void;
+  translate(x: number, y: number): void;
+  rotate(angle: number): void;
+  scale(x: number, y: number): void;
+  beginPath(): void;
+  moveTo(x: number, y: number): void;
+  lineTo(x: number, y: number): void;
+  bezierCurveTo(cp1x: number, cp1y: number, cp2x: number, cp2y: number, x: number, y: number): void;
+  arc(x: number, y: number, radius: number, startAngle: number, endAngle: number, counterclockwise?: boolean): void;
+  setLineDash(segments: number[]): void;
+  stroke(): void;
+  fill(fillRule?: CanvasFillRule): void;
+  clip(fillRule?: CanvasFillRule): void;
+  fillRect(x: number, y: number, w: number, h: number): void;
+  fillText(text: string, x: number, y: number): void;
+}
 
 export interface DrawMapOptions {
   readonly pxPerMm: number;
@@ -26,6 +60,12 @@ export interface DrawMapOptions {
    * ljusare (andel 0–1 mot vitt). Saknas = kartfilens färger.
    */
   readonly colorAdjust?: Readonly<Record<number, ColorAdjust>> | undefined;
+  /** Steg 65: anropas före varje färgs delar med färgen (efter justeringen), så att PDF:en kan välja dekorfärg och övertryck. */
+  readonly beforeColor?: ((color: MapColor) => void) | undefined;
+  /** Högst så många mönsterpunkter per yta innan mönstret blir en tonad yta (förval `MAX_PATTERN_INSTANCES`). */
+  readonly maxPatternInstances?: number | undefined;
+  /** Fyll bilden med vitt först (förval ja). */
+  readonly background?: boolean | undefined;
 }
 
 export interface ColorAdjust {
@@ -251,7 +291,7 @@ function coverage(parts: readonly PointElement[], dx: number, dy: number): numbe
   return Math.min(1, Math.max(0.1, area / (dx * dy)));
 }
 
-function planArea(plan: Plan, symbol: AreaSymbol, rings: readonly Path[], angleDegrees: number) {
+function planArea(plan: Plan, symbol: AreaSymbol, rings: readonly Path[], angleDegrees: number, maxInstances: number) {
   if (rings.length === 0) return;
   if (symbol.fill !== undefined) plan.add(symbol.fill, (ctx, color) => fillRings(ctx, rings, css(color)));
   for (const hatch of symbol.hatches) {
@@ -266,7 +306,7 @@ function planArea(plan: Plan, symbol: AreaSymbol, rings: readonly Path[], angleD
       const nx = Math.ceil(radius / pattern.dx), ny = Math.ceil(radius / pattern.dy);
       const instances = (2 * nx + 1) * (2 * ny + 1);
       const groups = elementsByColor(pattern.elements);
-      if (instances > MAX_PATTERN_INSTANCES) {
+      if (instances > maxInstances) {
         plan.simplifications.pattern(symbol.code.text);
         for (const [colorId, parts] of groups) {
           const alpha = coverage(parts, pattern.dx, pattern.dy);
@@ -331,6 +371,7 @@ function resolveSymbols(symbols: ParsedMap["symbols"], id: string, depth = 0, se
 
 function planObject(plan: Plan, map: ParsedMap, object: MapObject, options: DrawMapOptions): number {
   let parts = 0;
+  const maxInstances = options.maxPatternInstances ?? MAX_PATTERN_INSTANCES;
   for (const symbol of resolveSymbols(map.symbols, object.symbol)) {
     switch (object.kind) {
       case "point":
@@ -338,10 +379,10 @@ function planObject(plan: Plan, map: ParsedMap, object: MapObject, options: Draw
         break;
       case "line":
         if (symbol.kind === "LINE") { planLine(plan, symbol, [object.path]); parts += 1; }
-        else if (symbol.kind === "AREA") { planArea(plan, symbol, [object.path], 0); parts += 1; }
+        else if (symbol.kind === "AREA") { planArea(plan, symbol, [object.path], 0, maxInstances); parts += 1; }
         break;
       case "area":
-        if (symbol.kind === "AREA") { planArea(plan, symbol, object.rings, object.angle); parts += 1; }
+        if (symbol.kind === "AREA") { planArea(plan, symbol, object.rings, object.angle, maxInstances); parts += 1; }
         else if (symbol.kind === "LINE") { planLine(plan, symbol, object.rings.map(closeRing)); parts += 1; }
         break;
       case "text":
@@ -363,17 +404,22 @@ export function drawMap(ctx: MapCanvasContext, map: ParsedMap, options: DrawMapO
   const plan = new Plan(colors, simplifications);
   let parts = 0;
   for (const object of map.objects) parts += planObject(plan, map, object, options);
-  const width = ctx.canvas.width, height = ctx.canvas.height;
-  ctx.save();
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, width, height);
-  ctx.restore();
+  if (options.background !== false) {
+    const width = ctx.canvas.width, height = ctx.canvas.height;
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, width, height);
+    ctx.restore();
+  }
   // Kartans mm (y uppåt) → bildens pixlar (y nedåt).
   ctx.setTransform(options.pxPerMm, 0, 0, -options.pxPerMm, -options.origin.x * options.pxPerMm, options.origin.y * options.pxPerMm);
   const order = [...map.colors].sort((left, right) => right.rank - left.rank || left.id - right.id);
   for (const color of order) {
-    for (const drawer of plan.byColor.get(color.id) ?? []) drawer(ctx);
+    const drawers = plan.byColor.get(color.id);
+    if (!drawers || drawers.length === 0) continue;
+    options.beforeColor?.(colors.get(color.id)!);
+    for (const drawer of drawers) drawer(ctx);
   }
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   return { parts, simplifications: simplifications.list() };

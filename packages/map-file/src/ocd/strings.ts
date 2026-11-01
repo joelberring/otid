@@ -49,7 +49,14 @@ function numberField(pairs: Fields["pairs"], key: string): number | undefined {
 /** Färgtabellen i filens ordning (rank 0 överst). Dekorfärgerna hämtas ur typ 10 via namnet. */
 export function readColors(strings: readonly ParameterString[]): MapColor[] {
   const spotNumbers = new Set<string>();
-  for (const entry of strings) if (entry.type === 10) spotNumbers.add(fields(entry.value).first);
+  const spotCmyk = new Map<string, { c: number; m: number; y: number; k: number }>();
+  for (const entry of strings) {
+    if (entry.type !== 10) continue;
+    const { first, pairs } = fields(entry.value);
+    spotNumbers.add(first);
+    const percent = (key: string) => clamp01((numberField(pairs, key) ?? 0) / 100);
+    spotCmyk.set(first, { c: percent("c"), m: percent("m"), y: percent("y"), k: percent("k") });
+  }
   const colors: MapColor[] = [];
   const usedIds = new Set<number>();
   for (const entry of strings) {
@@ -69,7 +76,8 @@ export function readColors(strings: readonly ParameterString[]): MapColor[] {
         separations[separations.length - 1]!.factor = Number.isFinite(factor) ? clamp01(factor / 100) : 0;
       }
     }
-    const name = spotName(separations.filter(part => part.name !== "" && (spotNumbers.size === 0 || spotNumbers.has(part.name))));
+    const known = separations.filter(part => part.name !== "" && (spotNumbers.size === 0 || spotNumbers.has(part.name)));
+    const name = spotName(known);
     const opacity = numberField(pairs, "t");
     colors.push({
       id,
@@ -78,7 +86,8 @@ export function readColors(strings: readonly ParameterString[]): MapColor[] {
       cmyk,
       rgb: rgbFromCmyk(cmyk),
       opacity: opacity === undefined ? 1 : clamp01(opacity / 100),
-      spot: name ? { name, overprint: numberField(pairs, "o") === 1 } : undefined
+      spot: name ? { name, overprint: numberField(pairs, "o") === 1,
+        separations: known.map(part => ({ name: part.name, factor: part.factor, ...(spotCmyk.has(part.name) ? { cmyk: spotCmyk.get(part.name)! } : {}) })) } : undefined
     });
   }
   return colors;

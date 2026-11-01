@@ -86,14 +86,18 @@ function parseHeader(header: string): XmlNode {
 function readColors(colorsNode: XmlNode | undefined): MapColor[] {
   const nodes = asArray(colorsNode?.color);
   const names = new Map<number, string>();
+  const spotCmyk = new Map<number, { c: number; m: number; y: number; k: number }>();
+  const cmykOf = (node: XmlNode) => ({ c: clamp01(num(node, "c", 0)), m: clamp01(num(node, "m", 0)), y: clamp01(num(node, "y", 0)), k: clamp01(num(node, "k", 0)) });
   nodes.forEach((node, index) => {
     // <namedcolor> utan attribut blir en ren sträng i parsern, med attribut ett objekt med "#text".
     const own = child(node, "spotcolors")?.namedcolor;
-    names.set(num(node, "priority", index), text(Array.isArray(own) ? own[0] : own).trim());
+    const priority = num(node, "priority", index);
+    names.set(priority, text(Array.isArray(own) ? own[0] : own).trim());
+    spotCmyk.set(priority, cmykOf(node));
   });
   const colors = nodes.map((node, index): MapColor => {
     const id = num(node, "priority", index);
-    const cmyk = { c: clamp01(num(node, "c", 0)), m: clamp01(num(node, "m", 0)), y: clamp01(num(node, "y", 0)), k: clamp01(num(node, "k", 0)) };
+    const cmyk = cmykOf(node);
     // Filens RGB används bara när den är satt för hand (eller CMYK räknats ur den). Annars har Mapper räknat den naivt ur
     // CMYK, vilket ger för mättade färger, och då räknas den om som Purple Pen gör.
     const rgbNode = child(node, "rgb");
@@ -106,10 +110,14 @@ function readColors(colorsNode: XmlNode | undefined): MapColor[] {
     if (spotNode) {
       const ownName = names.get(id) ?? "";
       const separations = ownName
-        ? [{ name: ownName, factor: 1 }]
-        : asArray(spotNode.component).map(part => ({ name: names.get(num(part, "spotcolor", -1)) ?? "", factor: num(part, "factor", 0) }));
+        ? [{ name: ownName, factor: 1, cmyk }]
+        : asArray(spotNode.component).map(part => {
+          const ref = num(part, "spotcolor", -1);
+          const other = spotCmyk.get(ref);
+          return { name: names.get(ref) ?? "", factor: clamp01(num(part, "factor", 0)), ...(other ? { cmyk: other } : {}) };
+        });
       const name = spotName(separations);
-      if (name) spot = { name, overprint: attr(spotNode, "knockout") !== "true" };
+      if (name) spot = { name, overprint: attr(spotNode, "knockout") !== "true", separations: separations.filter(part => part.name !== "") };
     }
     return { id, name: attr(node, "name") ?? "", rank: index, cmyk, rgb, opacity: clamp01(num(node, "opacity", 1)), spot };
   });

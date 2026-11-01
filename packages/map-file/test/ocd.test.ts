@@ -69,12 +69,13 @@ describe("OCAD-läsaren", () => {
     expect(colors.map(color => [color.id, color.rank, color.name])).toEqual([[54, 0, "Lila"], [2, 1, "Svart"], [34, 2, "Gul 50%"]]);
     expect(colors[0]!.cmyk).toEqual({ c: 0.35, m: 0.85, y: 0, k: 0 });
     expect(colors[0]!.rgb).toEqual({ r: 171 / 255, g: 74 / 255, b: 156 / 255 });
-    expect(colors[0]!.spot).toEqual({ name: "Purple", overprint: false });
+    expect(colors[0]!.spot).toEqual({ name: "Purple", overprint: false, separations: [{ name: "Purple", factor: 1, cmyk: { c: 0.35, m: 0.85, y: 0, k: 0 } }] });
     expect(colors[1]!.spot).toBeUndefined();
     expect(colors[1]!.rgb).toEqual({ r: 0, g: 0, b: 0 });
     expect(colors[2]!.opacity).toBe(0.5);
     // Okänd dekorfärg (finns inte i strängtyp 10) tas inte med; Purple 0 % blir kvar som enda separation.
-    expect(colors[2]!.spot).toEqual({ name: "Purple 0 %", overprint: false });
+    // Andelen 0 % behålls i separationerna: färgen slår ut den plåten (steg 65).
+    expect(colors[2]!.spot).toEqual({ name: "Purple 0 %", overprint: false, separations: [{ name: "Purple", factor: 0, cmyk: { c: 0.35, m: 0.85, y: 0, k: 0 } }] });
   });
 
   it("läser symbolnummer som OCAD visar dem", () => {

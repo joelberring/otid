@@ -19,8 +19,20 @@ export interface MapColor {
   readonly rgb: { readonly r: number; readonly g: number; readonly b: number };
   /** 0–1. */
   readonly opacity: number;
-  /** Färgen är (eller bygger på) en dekorfärg. Används inte för skärm, sparas för tryck (steg 4 i diskussionen). */
-  readonly spot?: { readonly name: string; readonly overprint: boolean } | undefined;
+  /**
+   * Färgen är (eller bygger på) en dekorfärg. Används inte för skärm. Steg 65: `separations` är dekorfärgerna som färgen
+   * består av med andel (0–1, även 0 %: färgen slår då ut den plåten) och dekorfärgens egen CMYK ur filen (OCAD:s
+   * dekorfärgstabell, Mappers dekorfärg), som PDF:en skriver som `/Separation` eller `/DeviceN` med CMYK-alternativ.
+   * `overprint` är filens övertryck (OCAD "o1", Mapper utan knockout).
+   */
+  readonly spot?: { readonly name: string; readonly overprint: boolean; readonly separations?: readonly SpotSeparation[] | undefined } | undefined;
+}
+
+/** En dekorfärg i en kartfärg: namnet, andelen 0–1 och dekorfärgens CMYK (0–1) när filen anger den. */
+export interface SpotSeparation {
+  readonly name: string;
+  readonly factor: number;
+  readonly cmyk?: { readonly c: number; readonly m: number; readonly y: number; readonly k: number } | undefined;
 }
 
 /** Symbolnummer som i filen, t.ex. "406", "406.0", "105.100", och delat i huvud- och undernummer. */

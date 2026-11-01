@@ -58,10 +58,11 @@ describe("Mapper-läsaren", () => {
     // Mappers RGB är räknad naivt ur CMYK (method="cmyk") och ersätts av tryckfärgen; egen RGB (method="custom") behålls.
     expect(colors[0]!.rgb).toEqual({ r: 171 / 255, g: 74 / 255, b: 156 / 255 });
     expect(colors[2]!.rgb).toEqual({ r: 1, g: 0.8, b: 0.2 });
-    expect(colors[0]!.spot).toEqual({ name: "Purple", overprint: false });
+    // Dekorfärgens CMYK är dekorfärgsfärgens (priority 3) i steg 65.
+    expect(colors[0]!.spot).toEqual({ name: "Purple", overprint: false, separations: [{ name: "Purple", factor: 1, cmyk: { c: 0.35, m: 0.85, y: 0, k: 0 } }] });
     expect(colors[1]!.spot).toBeUndefined();
     expect(colors[2]!.opacity).toBe(0.5);
-    expect(colors[3]!.spot).toEqual({ name: "Purple", overprint: true });
+    expect(colors[3]!.spot).toEqual({ name: "Purple", overprint: true, separations: [{ name: "Purple", factor: 1, cmyk: { c: 0.35, m: 0.85, y: 0, k: 0 } }] });
   });
 
   it("läser symboler med nummer och hoppar över okända typer", () => {

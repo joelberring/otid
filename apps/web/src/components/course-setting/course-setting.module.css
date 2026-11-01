@@ -226,8 +226,15 @@
   .topbar select { flex: 0 1 auto; min-width: 7.5em; max-width: 45vw; }
   .topbar button { min-width: 36px; padding-inline: 8px; }
   .toasts { right: 56px; }
-  /* Alla sju flikarna får plats på 390 px: ikonen för de andra, namnet bara på vald flik (namnet finns kvar för skärmläsare). */
+  /* Alla tio flikarna får plats på 390 px: ikonen för de andra, namnet bara på vald flik (namnet finns kvar för skärmläsare). */
   .tabs { gap: 0; overflow-x: hidden; }
-  .tab { flex: 1 1 auto; min-width: 40px; padding-inline: 4px; }
+  .tab { flex: 1 1 auto; min-width: 32px; padding-inline: 2px; }
   .tab:not([aria-selected="true"]) .tabLabel { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
+
+/* Steg 64: fliken Objekt – slagen att rita och objekten på kartan. */
+.specialKinds { display: flex; flex-wrap: wrap; gap: 4px; }
+.specialKind { padding: 6px 8px; border: 1px solid var(--line, #bbb); border-radius: 6px; background: none; color: inherit; font: inherit;
+  font-size: 0.85rem; cursor: pointer; }
+.specialKind[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: var(--surface); font-weight: 700; }
+.specialList { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }

@@ -10,7 +10,12 @@ export type HitTarget =
   | { readonly kind: "control"; readonly control: string; readonly courseControl?: string | undefined }
   | { readonly kind: "number"; readonly control: string; readonly courseControl?: string | undefined }
   | { readonly kind: "leg"; readonly from: string; readonly to: string; readonly fromCourseControl?: string | undefined;
-      readonly toCourseControl?: string | undefined };
+      readonly toCourseControl?: string | undefined }
+  /** Steg 64: ett specialobjekt (ref = dess id). */
+  | { readonly kind: "special"; readonly special: string };
+
+/** Specialobjekt som är ytor: träffas också inuti (rastret har luckor). */
+const AREA_SPECIALS = new Set(["out-of-bounds", "dangerous-area", "temporary-construction", "white-out"]);
 
 export const ALL_CONTROLS = "ALL_CONTROLS";
 
@@ -100,6 +105,8 @@ export function resolveTarget(document: CourseSettingDocument, view: string, pri
       }
       return undefined;
     }
+    case "SPECIAL":
+      return document.specialObjects.some(special => special.id === ref) ? { kind: "special", special: ref } : undefined;
     default:
       return undefined;
   }
@@ -120,9 +127,16 @@ export function hitTest(document: CourseSettingDocument, view: string, primitive
     const current = best[target.kind];
     if (!current || distance < current.distance) best[target.kind] = { target, distance };
   }
-  const { number, control, leg } = best;
+  // Ytor bland specialobjekten träffas inuti också.
+  const shown = new Set(primitives.filter(primitive => primitive.role === "SPECIAL").map(primitive => primitive.ref));
+  for (const special of document.specialObjects) {
+    if (!shown.has(special.id) || !AREA_SPECIALS.has(special.kind) || !inside(special.points, point)) continue;
+    if (!best.special) best.special = { target: { kind: "special", special: special.id }, distance: 0 };
+  }
+  const { number, control, leg, special } = best;
   if (number && (!control || number.distance <= control.distance)) return number.target;
-  return (control ?? leg)?.target;
+  // Kontroller och sträckor går före specialobjekten (som ofta ligger under dem).
+  return (control ?? leg ?? special)?.target;
 }
 
 /** Var en ny brytpunkt hör hemma bland de befintliga: indexet där linjen genom den blir kortast. */

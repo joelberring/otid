@@ -53,11 +53,12 @@ export const courseSettingSv = {
     INSERT_EXISTING: "Lägg in befintlig kontroll",
     ADD_BEND: "Brytpunkt på sträcka",
     NOTE: "Ny notis",
+    SPECIAL: "Specialobjekt (förbjudet område, text, vit bakgrund …)",
     /** Steg 66: korta etiketter i verktygsraden och tangenterna. */
     short: { SELECT: "Välj", ADD_CONTROL: "Kontroll", ADD_START: "Start", ADD_FINISH: "Mål", ADD_CROSSING: "Passage",
-      INSERT_EXISTING: "Lägg in", ADD_BEND: "Brytpunkt", NOTE: "Notis", FORK: "Gaffling" } as Record<string, string>,
+      INSERT_EXISTING: "Lägg in", ADD_BEND: "Brytpunkt", NOTE: "Notis", FORK: "Gaffling", SPECIAL: "Objekt" } as Record<string, string>,
     shortcut: { SELECT: "V", ADD_CONTROL: "K", ADD_START: "S", ADD_FINISH: "M", ADD_CROSSING: "P", INSERT_EXISTING: "L", ADD_BEND: "B",
-      NOTE: "N", FORK: "G" } as Record<string, string>,
+      NOTE: "N", FORK: "G", SPECIAL: "O" } as Record<string, string>,
     forkTool: "Gaffling vid vald kontroll",
     forkNeedsSelection: "Välj en kontroll på banan först.",
     withKey: (label: string, key: string) => `${label} (${key})`,
@@ -69,7 +70,8 @@ export const courseSettingSv = {
       ADD_CROSSING: "Klicka där passagen ska stå.",
       INSERT_EXISTING: "Klicka på en kontrollring för att lägga in kontrollen i banan efter vald kontroll.",
       ADD_BEND: "Välj en sträcka och klicka där linjen ska brytas.",
-      NOTE: "Klicka på kartan, en kontroll eller en sträcka där notisen ska sitta."
+      NOTE: "Klicka på kartan, en kontroll eller en sträcka där notisen ska sitta.",
+      SPECIAL: "Välj slag under Objekt. En yta eller linje: klicka i hörnen och avsluta med Enter eller ett klick på första punkten."
     } as Record<string, string>,
     undo: "Ångra",
     redo: "Gör om",

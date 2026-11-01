@@ -43,7 +43,8 @@ export const collaborationSv = {
     collapse: "Fäll ihop panelerna",
     expand: "Visa panelerna",
     resize: "Ändra panelernas bredd",
-    tabs: { courses: "Banor", description: "Beskrivning", selected: "Vald", checks: "Varningar", notes: "Notiser", inspections: "Kollat",
+    tabs: { courses: "Banor", description: "Beskrivning", selected: "Vald", objects: "Objekt", print: "Utskrift", checks: "Varningar", notes: "Notiser",
+      inspections: "Kollat",
       suggestions: "Förslag", settings: "Inställningar" },
     count: (label: string, count: number) => count > 0 ? `${label} (${count})` : label
   },

@@ -107,3 +107,53 @@ export function specialImage(primitive: Extract<OverprintPrimitive, { kind: "ima
   }
   return undefined;
 }
+
+type ToScreen = (point: { x: number; y: number }) => { x: number; y: number };
+
+/**
+ * Ytan eller linjen som ritas (streckad, med punkterna) och handtagen på valt specialobjekt. Bara på skärmen, aldrig i
+ * banpåtrycket.
+ */
+export function drawSpecialEditing(ctx: Context, toScreen: ToScreen,
+  editing: { drawing?: readonly { x: number; y: number }[] | undefined; handles?: readonly { x: number; y: number }[] | undefined }): void {
+  ctx.save();
+  const drawing = editing.drawing ?? [];
+  if (drawing.length > 0) {
+    ctx.strokeStyle = "rgb(0, 110, 220)";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    drawing.forEach((point, index) => { const at = toScreen(point); if (index === 0) ctx.moveTo(at.x, at.y); else ctx.lineTo(at.x, at.y); });
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  for (const [list, fill] of [[drawing, "rgb(0, 110, 220)"], [editing.handles ?? [], "#fff"]] as const) {
+    for (const point of list) {
+      const at = toScreen(point);
+      ctx.fillStyle = fill;
+      ctx.strokeStyle = "rgb(0, 110, 220)";
+      ctx.lineWidth = 2;
+      ctx.fillRect(at.x - 5, at.y - 5, 10, 10);
+      ctx.strokeRect(at.x - 5, at.y - 5, 10, 10);
+    }
+  }
+  ctx.restore();
+}
+
+/** Tryckytans ram på kartan (steg 64): papperets yta streckad, utanför tonat. */
+export function drawPrintFrame(ctx: Context, toScreen: ToScreen, frames: readonly { minX: number; minY: number; maxX: number; maxY: number }[],
+  size: { width: number; height: number }): void {
+  if (frames.length === 0) return;
+  ctx.save();
+  ctx.fillStyle = "rgba(40, 40, 40, 0.25)";
+  ctx.beginPath();
+  ctx.rect(0, 0, size.width, size.height);
+  const corners = frames.map(frame => [toScreen({ x: frame.minX, y: frame.maxY }), toScreen({ x: frame.maxX, y: frame.minY })] as const);
+  for (const [a, b] of corners) ctx.rect(a.x, a.y, b.x - a.x, b.y - a.y);
+  ctx.fill("evenodd");
+  ctx.strokeStyle = "rgb(0, 110, 220)";
+  ctx.lineWidth = 2;
+  ctx.setLineDash([10, 5]);
+  for (const [a, b] of corners) ctx.strokeRect(a.x, a.y, b.x - a.x, b.y - a.y);
+  ctx.restore();
+}

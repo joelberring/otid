@@ -81,7 +81,7 @@ export function TopBar({ raceId, document, summaries, view, variant, onView, sta
 }
 
 const TOOL_ICON: Record<string, string> = { SELECT: "↖", ADD_CONTROL: "○", ADD_START: "△", ADD_FINISH: "◎", ADD_CROSSING: ")(", INSERT_EXISTING: "⊕",
-  ADD_BEND: "⌒", NOTE: "✎", FORK: "⑂" };
+  ADD_BEND: "⌒", NOTE: "✎", FORK: "⑂", SPECIAL: "◇" };
 
 /** Verktygen ovanpå kartan: ikon och kort etikett, tangenten i tooltip, valt läge tydligt markerat. */
 export function ToolBar({ tool, tools, onTool, onFork, inCourse, help }: { tool: Tool; tools: readonly Tool[]; onTool: (tool: Tool) => void;
@@ -100,9 +100,9 @@ export function ToolBar({ tool, tools, onTool, onFork, inCourse, help }: { tool:
   </div>;
 }
 
-export type DrawerTab = "courses" | "description" | "selected" | "checks" | "notes" | "inspections" | "suggestions" | "settings";
-const TAB_ICON: Record<DrawerTab, string> = { courses: "☰", description: "▦", selected: "◉", checks: "⚠", notes: "✎", inspections: "✓",
-  suggestions: "⇄", settings: "⚙" };
+export type DrawerTab = "courses" | "description" | "selected" | "objects" | "print" | "checks" | "notes" | "inspections" | "suggestions" | "settings";
+const TAB_ICON: Record<DrawerTab, string> = { courses: "☰", description: "▦", selected: "◉", objects: "◇", print: "⎙", checks: "⚠", notes: "✎",
+  inspections: "✓", suggestions: "⇄", settings: "⚙" };
 const WIDTH_KEY = "otid.course-setting.drawer";
 
 function readWidth(): number {

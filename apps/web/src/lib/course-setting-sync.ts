@@ -46,6 +46,7 @@ export interface RebaseInput {
 function remapSelection(selection: Selection | undefined, map: IdMap): Selection | undefined {
   if (!selection) return undefined;
   const c = (id: string) => map.controls[id] ?? id, cc = (id: string | undefined) => id === undefined ? undefined : map.courseControls[id] ?? id;
+  if (selection.kind === "special") return { kind: "special", special: map.specialObjects?.[selection.special] ?? selection.special };
   return selection.kind === "control" ? { kind: "control", control: c(selection.control), courseControl: cc(selection.courseControl) }
     : { ...selection, from: c(selection.from), to: c(selection.to), fromCourseControl: cc(selection.fromCourseControl),
       toCourseControl: cc(selection.toCourseControl) };

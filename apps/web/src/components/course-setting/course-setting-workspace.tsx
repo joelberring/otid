@@ -108,6 +108,7 @@ export function Drawer({ tab, onTab, counts, children }: { tab: DrawerTab; onTab
   const [sheetOpen, setSheetOpen] = useState(false);
   useEffect(() => { setWidth(readWidth()); }, []);
   const drag = useRef<{ startX: number; width: number } | undefined>(undefined);
+  const sheetDrag = useRef<number | undefined>(undefined);
   const tabs = Object.keys(TAB_ICON) as DrawerTab[];
   return <aside className={styles.drawer} data-collapsed={collapsed || undefined} data-sheet-open={sheetOpen || undefined}
     style={{ "--drawer-width": `${width}px` } as React.CSSProperties} aria-label={copy.drawer.label}>
@@ -122,7 +123,19 @@ export function Drawer({ tab, onTab, counts, children }: { tab: DrawerTab; onTab
       onPointerMove={event => { if (drag.current) setWidth(Math.min(720, Math.max(260, drag.current.width + drag.current.startX - event.clientX))); }}
       onPointerUp={() => { drag.current = undefined; try { window.localStorage.setItem(WIDTH_KEY, String(width)); } catch { /* bara bekvämlighet */ } }} />
     <button type="button" className={styles.sheetHandle} aria-label={sheetOpen ? copy.drawer.collapse : copy.drawer.expand}
-      aria-expanded={sheetOpen} onClick={() => setSheetOpen(value => !value)}><span aria-hidden="true" /></button>
+      aria-expanded={sheetOpen}
+      // Bladet dras upp eller ned med handtaget (eller trycks på); en kort dragning räcker.
+      onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); sheetDrag.current = event.clientY; }}
+      onPointerUp={event => {
+        const start = sheetDrag.current;
+        sheetDrag.current = undefined;
+        if (start === undefined) return;
+        const moved = event.clientY - start;
+        if (moved < -24) setSheetOpen(true);
+        else if (moved > 24) setSheetOpen(false);
+        else setSheetOpen(value => !value);
+      }}
+      onClick={event => { if (event.detail === 0) setSheetOpen(value => !value); }}><span aria-hidden="true" /></button>
     <div className={styles.tabs} role="tablist" aria-label={copy.drawer.label}>
       <button type="button" className={styles.collapse} aria-label={collapsed ? copy.drawer.expand : copy.drawer.collapse}
         title={collapsed ? copy.drawer.expand : copy.drawer.collapse} onClick={() => setCollapsed(value => !value)}>{collapsed ? "«" : "»"}</button>

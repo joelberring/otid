@@ -5,7 +5,7 @@
 import type { Point } from "@o-tid/map-file";
 import { circleGapScale, appearanceOf, sizesFor, type Sizes } from "./appearance";
 import { simplifyGaps } from "./arcs";
-import { detailGapsForView, gapsAtScale, overlapGaps, type OverlapFigure } from "./circle-cutting";
+import { detailGapKey, detailGapsForView, gapsAtScale, overlapGaps, type OverlapFigure } from "./circle-cutting";
 import {
   alongLine, angleDegrees, bezier, cutPath, distance, nearestOnPath, pathIntersections, pathLength, place, polar
 } from "./geometry";
@@ -116,17 +116,25 @@ function cutCircles(document: CourseSettingDocument, objects: readonly PointObje
   const detail = cutting?.details ? options.detailGaps : undefined;
   if (!detail) return;
   objects.forEach((object, index) => {
-    const gaps = detail[object.control.id];
-    const radius = ringRadius(object.control.kind, sizes);
-    if (!gaps || gaps.length === 0 || radius === 0) return;
+    const { id, kind, at } = object.control;
+    const radius = ringRadius(kind, sizes);
+    if (radius === 0) return;
+    // Gapen räknades för just den här ringens storlek (en kontroll kan synas i flera skalor, och målet har två ringar).
+    const of = (r: number) => detail[detailGapKey(id, r)] ?? detail[id] ?? [];
     const legDegrees = legs.flatMap(leg => {
-      if (leg.from === object.control.id) return [angleDegrees(object.control.at, leg.path[0]!)];
-      if (leg.to === object.control.id) return [angleDegrees(object.control.at, leg.path[leg.path.length - 1]!)];
+      if (leg.from === id) return [angleDegrees(at, leg.path[0]!)];
+      if (leg.to === id) return [angleDegrees(at, leg.path[leg.path.length - 1]!)];
       return [];
     });
-    const kept = detailGapsForView(gaps, object.gaps.slice(before[index]), legDegrees, radius, sizes.line);
-    object.gaps.push(...kept);
-    if (object.innerGaps) object.innerGaps.push(...kept);
+    const fileGaps = object.gaps.slice(0, before[index]);
+    const outerCuts = object.gaps.slice(before[index]);
+    const outer = detailGapsForView(of(radius), outerCuts, legDegrees, radius, sizes.line);
+    if (kind === "FINISH") {
+      const inner = sizes.finishInner / 2;
+      const innerCuts = object.innerGaps ? object.innerGaps.slice(before[index]) : outerCuts;
+      object.innerGaps = [...fileGaps, ...innerCuts, ...detailGapsForView(of(inner), innerCuts, legDegrees, inner, sizes.line)];
+    }
+    object.gaps.push(...outer);
   });
 }
 

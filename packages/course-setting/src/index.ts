@@ -27,7 +27,7 @@ export * from "./description-types";
 export { CONTROL_DISTANCE_LIMITS } from "./check";
 export { OVERPRINT_SIZES } from "./appearance";
 export { INVERTIBLE_CODES } from "./summary";
-export { OVERLAP_CUT_LIMITS } from "./circle-cutting";
+export { detailGapKey, OVERLAP_CUT_LIMITS } from "./circle-cutting";
 export {
   DEFAULT_DETAIL_SYMBOLS, DETAIL_GAP_LIMITS, DETAIL_PRIORITY_WEIGHT, SPRINT_DETAIL_SYMBOLS, type DetailClass, type DetailPriority
 } from "./detail-symbols";
@@ -62,7 +62,10 @@ export type CircleArc = { readonly startDegrees: number; readonly endDegrees: nu
 export function detailCircleGaps(map: ParsedMap, centers: readonly DetailCircle[], options?: DetailGapOptions): Record<string, CircleArc[]> {
   return computeDetailCircleGaps(map, centers, options);
 }
-/** Ringarna att räkna detaljgap för: kontroller och mål med storlek och sträckornas vinklar på alla banor. */
+/**
+ * Ringarna att räkna detaljgap för: kontroller och mål, en per ringstorlek i banornas och alla kontrollers skalor (id =
+ * `detailGapKey(kontroll, radie)`), med sträckornas vinklar på alla banor.
+ */
 export function detailCircleCenters(document: CourseSettingDocument): DetailCircle[] { return detailCircles(document); }
 /** Ändringarna (`SET_CIRCLE_GAPS`) som gör detaljgapen fasta i kontrollernas ringavbrott, så att de följer med till .ppen. */
 export function bakeDetailGaps(document: CourseSettingDocument, detailGaps: Readonly<Record<string, readonly CircleArc[]>>): CourseSettingEdit[] {

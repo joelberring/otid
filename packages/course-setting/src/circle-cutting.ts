@@ -178,42 +178,58 @@ function legAnglesByControl(document: CourseSettingDocument): Map<string, number
   return out;
 }
 
-/** Utskriftsskalorna där kontrollen syns: banornas, och alla kontrollers om den inte finns på någon bana. */
-function printScalesOf(document: CourseSettingDocument): Map<string, number[]> {
-  const out = new Map<string, number[]>();
-  for (const course of document.courses) {
-    const scale = course.printScale ?? document.event.mapScale;
-    for (const id of enumerateCourseControls(document, course.id)) {
-      const control = document.courseControls[id]?.control;
-      if (control) out.set(control, [...new Set([...(out.get(control) ?? []), scale])]);
-    }
-  }
-  return out;
-}
+/**
+ * Nyckeln för en rings detaljgap i `OverprintOptions.detailGaps`: kontrollen och ringens radie, eftersom gapens vinklar
+ * beror på ringens storlek (en kontroll kan synas i flera utskriftsskalor, och målet har två ringar).
+ */
+export const detailGapKey = (control: string, radiusMm: number) => `${control}@${radiusMm.toFixed(3)}`;
 
 function allControlsScale(document: CourseSettingDocument): number {
   const value = Number(rawAttribute(document.event.raw, "all-controls", "print-scale"));
   return value > 0 ? value : document.event.mapScale;
 }
 
+/** Utskriftsskalorna där kontrollen syns: banornas och alla kontrollers. */
+function printScalesOf(document: CourseSettingDocument): (control: string) => number[] {
+  const out = new Map<string, Set<number>>();
+  for (const course of document.courses) {
+    const scale = course.printScale ?? document.event.mapScale;
+    for (const id of enumerateCourseControls(document, course.id)) {
+      const control = document.courseControls[id]?.control;
+      if (control) out.set(control, (out.get(control) ?? new Set()).add(scale));
+    }
+  }
+  const all = allControlsScale(document);
+  return control => [...new Set([...(out.get(control) ?? []), all])].sort((a, b) => a - b);
+}
+
+/** Ringarnas radier (kontroll en, mål två, yttre först) och linjebredd vid en utskriftsskala. */
+function ringsAt(document: CourseSettingDocument, kind: ControlPoint["kind"], scale: number): { radii: number[]; line: number } {
+  const sizes = sizesFor(document, scale);
+  return { radii: kind === "FINISH" ? [sizes.finishOuter / 2, sizes.finishInner / 2] : [sizes.control / 2], line: sizes.line };
+}
+
 /**
- * Ringarna som detaljgapen räknas för: alla vanliga kontroller och mål, med den minsta ringen bland banornas
- * utskriftsskalor (då syns detaljen på alla) och vinklarna där sträckorna går ut på någon bana.
+ * Ringarna som detaljgapen räknas för: alla vanliga kontroller och mål, en ring per storlek som syns i banornas och alla
+ * kontrollers utskriftsskalor (id = `detailGapKey`), med vinklarna där sträckorna går ut på någon bana.
  */
 export function detailCircles(document: CourseSettingDocument): DetailCircle[] {
-  const scales = printScalesOf(document);
+  const scalesOf = printScalesOf(document);
   const legs = legAnglesByControl(document);
   const out: DetailCircle[] = [];
   for (const control of Object.values(document.controls)) {
     if (control.kind !== "NORMAL" && control.kind !== "FINISH") continue;
-    let best: { radius: number; line: number } | undefined;
-    for (const scale of scales.get(control.id) ?? [allControlsScale(document)]) {
-      const sizes = sizesFor(document, scale);
-      const radius = (control.kind === "FINISH" ? sizes.finishOuter : sizes.control) / 2;
-      if (!best || radius < best.radius) best = { radius, line: sizes.line };
-    }
     const blocked = legs.get(control.id);
-    out.push({ id: control.id, at: control.at, radiusMm: best!.radius, lineWidthMm: best!.line, ...(blocked ? { blockedDegrees: blocked } : {}) });
+    const seen = new Set<string>();
+    for (const scale of scalesOf(control.id)) {
+      const { radii, line } = ringsAt(document, control.kind, scale);
+      for (const radius of radii) {
+        const id = detailGapKey(control.id, radius);
+        if (seen.has(id) || !(radius > 0)) continue;
+        seen.add(id);
+        out.push({ id, at: control.at, radiusMm: radius, lineWidthMm: line, ...(blocked ? { blockedDegrees: blocked } : {}) });
+      }
+    }
   }
   return out;
 }
@@ -232,20 +248,27 @@ export function gapsAtScale(document: CourseSettingDocument, control: ControlPoi
 
 /**
  * Gör detaljgapen fasta: en `SET_CIRCLE_GAPS` per kontroll som får nya avbrott, för varje skala som kontrollens banor
- * (och alla kontroller) skrivs ut i. Avbrotten som redan gäller vid skalan behålls; övriga skalor rörs inte. Görs som ett
- * steg i editorn (alla ändringar tillsammans), och går fram och tillbaka till Purple Pen som vanliga ringavbrott.
+ * och alla kontroller skrivs ut i, med gapen för ringens storlek vid den skalan (målet: den yttre ringen, som Purple Pen
+ * klipper båda ringarna lika). Avbrotten som redan gäller vid skalan behålls; övriga skalor rörs inte. Görs som ett steg
+ * i editorn (alla ändringar tillsammans), och går fram och tillbaka till Purple Pen som vanliga ringavbrott.
+ * `detailGaps` har nycklarna från `detailCircles` (`detailGapKey`); en nyckel som bara är kontrollens id gäller alla storlekar.
  */
 export function bakeDetailGapEdits(document: CourseSettingDocument, detailGaps: Readonly<Record<string, readonly Arc[]>>): CourseSettingEdit[] {
   const appearance = appearanceOf(document);
-  const scales = printScalesOf(document);
+  const scalesOf = printScalesOf(document);
   const edits: CourseSettingEdit[] = [];
-  for (const [id, gaps] of Object.entries(detailGaps)) {
-    const control = document.controls[id];
-    if (!control || gaps.length === 0 || (control.kind !== "NORMAL" && control.kind !== "FINISH")) continue;
-    const printScales = scales.get(id) ?? [allControlsScale(document)];
-    const gapScales = [...new Set(printScales.map(scale => circleGapScale(appearance, scale, document.event.mapScale)))].sort((a, b) => a - b);
-    let next: CircleGap[] = (control.circleGaps ?? []).filter(gap => gap.scale === null || !gapScales.includes(gap.scale));
-    for (const scale of gapScales) {
+  for (const control of Object.values(document.controls)) {
+    if (control.kind !== "NORMAL" && control.kind !== "FINISH") continue;
+    const id = control.id;
+    const byGapScale = new Map<number, readonly Arc[]>();
+    for (const printScale of scalesOf(id)) {
+      const radius = ringsAt(document, control.kind, printScale).radii[0]!;
+      const gaps = detailGaps[detailGapKey(id, radius)] ?? detailGaps[id];
+      if (gaps && gaps.length > 0) byGapScale.set(circleGapScale(appearance, printScale, document.event.mapScale), gaps);
+    }
+    if (byGapScale.size === 0) continue;
+    let next: CircleGap[] = (control.circleGaps ?? []).filter(gap => gap.scale === null || !byGapScale.has(gap.scale));
+    for (const [scale, gaps] of [...byGapScale].sort((a, b) => a[0] - b[0])) {
       const merged = simplifyGaps([...gapsAtScale(document, control, scale), ...gaps]);
       next = [...next, ...merged.map(arc => ({ scale, startDegrees: round(arc.startDegrees), endDegrees: round(arc.endDegrees) }))];
     }

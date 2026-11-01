@@ -2,7 +2,7 @@
 import type { MapObject, MapSymbol, ParsedMap, Point } from "@o-tid/map-file";
 import { describe, expect, it } from "vitest";
 import {
-  applyEdit, bakeDetailGaps, DETAIL_GAP_LIMITS, detailCircleCenters, detailCircleGaps, layoutOverprint, OVERLAP_CUT_LIMITS, readPpen,
+  applyEdit, bakeDetailGaps, DETAIL_GAP_LIMITS, detailCircleCenters, detailGapKey, detailCircleGaps, layoutOverprint, OVERLAP_CUT_LIMITS, readPpen,
   writePpen, type CircleArc, type CourseSettingDocument, type OverprintPrimitive
 } from "../src";
 import { totalDegrees } from "../src/arcs";
@@ -255,14 +255,50 @@ describe("bakning och .ppen", () => {
     expect(bakeDetailGaps(doc, { [id]: [{ startDegrees: 80.001, endDegrees: 99.999 }] })).toEqual([]);
   });
 
-  it("ringarna att räkna: kontroller och mål, med sträckornas vinklar", () => {
+  it("ringarna att räkna: kontroller och målets två ringar, med sträckornas vinklar", () => {
     const { b, controls, finish } = lineCourse(2, { mapScale: 15000 });
     const centers = detailCircleCenters(b.document);
-    expect(centers.map(c => c.id).sort()).toEqual([...controls, finish].sort());
-    const first = centers.find(c => c.id === controls[0])!;
+    const sizes = layoutOverprint(b.document, { course: "ALL_CONTROLS" });
+    const finishRadii = circles(sizes).filter(c => c.role === "FINISH").map(c => c.diameter / 2);
+    expect(centers.map(c => c.id).sort()).toEqual([
+      ...controls.map(id => detailGapKey(id, 2.5)), ...finishRadii.map(r => detailGapKey(finish, r))
+    ].sort());
+    const first = centers.find(c => c.id === detailGapKey(controls[0]!, 2.5))!;
     expect(first.radiusMm).toBeCloseTo(2.5, 6);
     expect(first.lineWidthMm).toBeCloseTo(0.35, 6);
     expect([...(first.blockedDegrees ?? [])].map(Math.round).sort((x, y) => x - y)).toEqual([0, 180]);
+  });
+
+  it("en ring per storlek: banans skala och alla kontrollers skala ger var sina gap, i layouten och när de görs fasta", () => {
+    // Utan skalning relativt kartan (Purple Pens förval i nya filer här) är ringen 5 mm på papperet: i 1:10 000 på en
+    // 1:15 000-karta 3,33 mm i kartan, i 1:15 000 (alla kontroller) 5 mm.
+    const { b, course: built } = lineCourse(1, { mapScale: 15000 });
+    const xml = writePpen(applyEdit(b.document, { type: "UPDATE_COURSE", course: built, changes: { printScale: 10000 } }).document);
+    expect(xml).toContain("scale-sizes=\"RelativeTo15000\"");
+    const doc = withCutting(readPpen(xml.replace("scale-sizes=\"RelativeTo15000\"", "scale-sizes=\"None\"")).document, false, true);
+    const id = Object.values(doc.controls).find(c => c.kind === "NORMAL")!.id;
+    const course = doc.courses[0]!.id;
+    const radii = detailCircleCenters(doc).filter(c => c.id.startsWith(`${id}@`)).map(c => c.radiusMm).sort((x, y) => x - y);
+    expect(radii).toHaveLength(2);
+    expect(radii[0]).toBeCloseTo(2.5 * 10000 / 15000, 6);
+    expect(radii[1]).toBeCloseTo(2.5, 6);
+    const small = { startDegrees: 100, endDegrees: 110 }, large = { startDegrees: 200, endDegrees: 205 };
+    const gaps = { [detailGapKey(id, radii[0]!)]: [small], [detailGapKey(id, radii[1]!)]: [large] };
+    expect(ringOf(layoutOverprint(doc, { course, detailGaps: gaps }), doc, id).gaps).toEqual([small]);
+    expect(ringOf(layoutOverprint(doc, { course: "ALL_CONTROLS", detailGaps: gaps }), doc, id).gaps).toEqual([large]);
+    const edits = bakeDetailGaps(doc, gaps);
+    expect(edits).toEqual([{ type: "SET_CIRCLE_GAPS", control: id, gaps: [{ scale: 10000, ...small }, { scale: 15000, ...large }] }]);
+  });
+
+  it("målets inre ring får sina egna detaljgap", () => {
+    const { b, finish } = lineCourse(1, { mapScale: 15000 });
+    const doc = withCutting(b.document, false, true);
+    const [outer, inner] = detailCircleCenters(doc).filter(c => c.id.startsWith(`${finish}@`)).sort((x, y) => y.radiusMm - x.radiusMm);
+    const gaps = { [outer!.id]: [{ startDegrees: 80, endDegrees: 90 }], [inner!.id]: [{ startDegrees: 75, endDegrees: 95 }] };
+    const rings = circles(layoutOverprint(doc, { course: "ALL_CONTROLS", detailGaps: gaps })).filter(c => c.role === "FINISH")
+      .sort((x, y) => y.diameter - x.diameter);
+    expect(rings[0]!.gaps).toEqual([{ startDegrees: 80, endDegrees: 90 }]);
+    expect(rings[1]!.gaps).toEqual([{ startDegrees: 75, endDegrees: 95 }]);
   });
 
   it("inställningen sparas i dokumentet men skrivs inte till .ppen", () => {

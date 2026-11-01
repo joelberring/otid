@@ -295,8 +295,9 @@ export interface OverprintOptions {
   /** Saknas = banans utskriftsskala, annars kartans. */
   readonly printScale?: number | undefined;
   /**
-   * Detaljgapen per kontroll-id (`detailCircleGaps` över kartfilen). Används bara när händelsens
-   * `circleCutting.details` är på; inte där en sträcka på kartbilden går ut ur ringen.
+   * Detaljgapen per ring (`detailCircleGaps` över `detailCircleCenters`, nyckel `detailGapKey(kontroll, radie)`; en nyckel
+   * som bara är kontrollens id gäller alla storlekar). Används bara när händelsens `circleCutting.details` är på; inte där
+   * en sträcka på kartbilden går ut ur ringen.
    */
   readonly detailGaps?: Readonly<Record<string, readonly { readonly startDegrees: number; readonly endDegrees: number }[]>> | undefined;
 }

@@ -21,7 +21,8 @@ describe("ringklipp i editorn", () => {
   it("beställer ringarna för kontroller och mål; nyckeln ändras när en kontroll flyttas, inte annars", () => {
     const document = testDocument();
     const request = detailRequest(document);
-    expect(request.circles.map(circle => circle.id).sort()).toEqual(["a", "b", "f"]);
+    // En ring per kontroll och två för målet (nyckeln är kontrollen och ringens radie).
+    expect(request.circles.map(circle => circle.id.split("@")[0]).sort()).toEqual(["a", "b", "f", "f"]);
     expect(request.sprint).toBe(false);
     expect(detailRequest(applyEdit(document, { type: "UPDATE_COURSE", course: "k", changes: { name: "Kort" } }).document).key).toBe(request.key);
     expect(detailRequest(applyEdit(document, { type: "MOVE_CONTROL", control: "a", at: { x: 11, y: 0 } }).document).key).not.toBe(request.key);
@@ -30,17 +31,20 @@ describe("ringklipp i editorn", () => {
   it("en flyttad kontroll ritas hel tills gapen räknats om", () => {
     const document = testDocument();
     const request = detailRequest(document);
-    const gaps = { a: [{ startDegrees: 80, endDegrees: 100 }], b: [{ startDegrees: 10, endDegrees: 20 }], f: [{ startDegrees: 0, endDegrees: 5 }] };
+    const gaps = Object.fromEntries(request.circles.map((circle, i) => [circle.id, [{ startDegrees: 10 * i, endDegrees: 10 * i + 5 }]]));
     expect(currentDetailGaps({ circles: request.circles, gaps }, request)).toEqual(gaps);
     // 31 flyttas: dess gap gäller inte, och inte heller 32:s (sträckan från 31 kommer in från ett annat håll). Målet står kvar.
     const moved = detailRequest(applyEdit(document, { type: "MOVE_CONTROL", control: "a", at: { x: 12, y: 0 } }).document);
-    expect(currentDetailGaps({ circles: request.circles, gaps }, moved)).toEqual({ f: gaps.f });
+    const finish = Object.fromEntries(Object.entries(gaps).filter(([id]) => id.startsWith("f@")));
+    expect(Object.keys(finish)).toHaveLength(2);
+    expect(currentDetailGaps({ circles: request.circles, gaps }, moved)).toEqual(finish);
     expect(currentDetailGaps(undefined, request)).toBeUndefined();
   });
 
   it("gör klippen fasta med en ändring per kontroll", () => {
     const document = testDocument();
-    const { edits, controls } = bakeEdits(document, { a: [{ startDegrees: 80, endDegrees: 100 }] });
+    const ring = detailRequest(document).circles.find(circle => circle.id.startsWith("a@"))!;
+    const { edits, controls } = bakeEdits(document, { [ring.id]: [{ startDegrees: 80, endDegrees: 100 }] });
     expect(controls).toBe(1);
     expect(edits[0]).toMatchObject({ type: "SET_CIRCLE_GAPS", control: "a" });
     expect(bakeEdits(document, undefined)).toEqual({ edits: [], controls: 0 });

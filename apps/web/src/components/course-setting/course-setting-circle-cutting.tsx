@@ -11,9 +11,10 @@ import { Button } from "../ui";
 import own from "./course-setting-circle-cutting.module.css";
 import styles from "./course-setting.module.css";
 
-/** Detaljgapen för editorn: `gaps` till `layoutOverprint`, `pending` medan Workern räknar. */
+/** Detaljgapen för editorn: `options` sprids in i `layoutOverprint`s val, `pending` medan Workern räknar. */
 export interface DetailGapsState {
   readonly gaps: DetailGaps | undefined;
+  readonly options: { readonly detailGaps?: DetailGaps };
   readonly pending: boolean;
   readonly available: boolean;
 }
@@ -41,7 +42,9 @@ export function useDetailGaps(session: MapRenderSession | undefined, document: C
   }, [session, key, first]);
   // Nyckeln ändras med ringarna; samma nyckel ger samma gap (och samma objekt, så att banpåtrycket inte räknas om i onödan).
   const gaps = useMemo(() => currentDetailGaps(result, latest.current), [result, key]);
-  return { gaps: on ? gaps : undefined, pending: on && session !== undefined && result?.key !== key, available: session !== undefined };
+  const shown = on ? gaps : undefined;
+  const options = useMemo(() => shown ? { detailGaps: shown } : {}, [shown]);
+  return { gaps: shown, options, pending: on && session !== undefined && result?.key !== key, available: session !== undefined };
 }
 
 /** Valen för ringklipp och knappen som gör detaljklippen fasta (de följer då med till Purple Pen). */

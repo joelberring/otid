@@ -40,6 +40,8 @@ Samarbete och fältläge i mobilen (66–67, ADR-0181) lades till 2026-11-01 och
     fjärdedel av ringen (viktigast och mest vinkelrätt först), inte där en sträcka går ut. Detaljgapen räknas i kartans
     Worker och kan göras fasta som vanliga ringavbrott (`SET_CIRCLE_GAPS`) så att de följer med till Purple Pen; ingen ny
     ändringstyp, så samarbetets uppspelning (ADR-0181) behöver inget nytt. Överlappsklippen beror på banan och görs aldrig fasta.
+    Gapen räknas per ringstorlek (`detailGapKey`: kontroll och radie), eftersom vinklarna beror på radien: en kontroll i
+    flera utskriftsskalor (utan skalning relativt kartan) och målets två ringar får var sina; fasta klipp sparas per skala.
 
 **Konsekvenser.** Purple Pen och macpurplepen kan användas parallellt: .ppen in och ut. Stockholm by Night (9 december)
 läggs i Purple Pen som vanligt; .ppen-importen gör att banor och gafflingar går rakt in. Editorn blir inte lika snabb att

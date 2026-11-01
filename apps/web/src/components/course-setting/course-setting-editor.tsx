@@ -114,12 +114,11 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
 
   const { document, view, variant, selection } = editor;
   const cutting = useDetailGaps(mapSession, document);
-  const detailGaps = cutting.gaps ? { detailGaps: cutting.gaps } : {};
-  const options = { course: view, ...(variant ? { variant } : {}), ...detailGaps };
+  const options = { course: view, ...(variant ? { variant } : {}), ...cutting.options };
   const primitives = useMemo(() => safely("Banpåtrycket", () => layoutOverprint(document, options), [] as readonly OverprintPrimitive[]),
-    [document, view, variant, cutting.gaps]);
-  const faded = useMemo(() => variant ? safely("Banpåtrycket", () => layoutOverprint(document, { course: view, ...detailGaps }), [] as readonly OverprintPrimitive[]) : [],
-    [document, view, variant, cutting.gaps]);
+    [document, view, variant, cutting.options]);
+  const faded = useMemo(() => variant ? safely("Banpåtrycket", () => layoutOverprint(document, { course: view, ...cutting.options }), [] as readonly OverprintPrimitive[]) : [],
+    [document, view, variant, cutting.options]);
   const summaries = useMemo(() => safely("Banornas längder", () => courseSummaries(document), []), [document]);
   const checks = useMemo(() => checkRows(document, safely("Kontrollerna", () => checkDocument(document), [])), [document]);
   const [flagged, setFlagged] = useState<CheckRow>();

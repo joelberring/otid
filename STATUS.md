@@ -13,7 +13,7 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 ### 2026-11-01 – Ringklipp i banpåtrycket (grenen ringklipp, ADR-0180 beslut 10)
 - Valbart i `event.circleCutting` (skrivs inte till .ppen): överlapp (bågen inne i den andra ringen bort, kraftig överlappning behåller en hel ring, högst hälften per ring, också målets inre) och detaljer (`detailCircleGaps`, symboltabell ISOM 2017-2/ISSprOM 2019-2, högst en fjärdedel, inte vid sträckorna, gap per ringstorlek).
 - Webben: kartans Worker räknar detaljgapen 400 ms efter senaste ändringen (Högdalen/SBN26: 34 ringar 6–60 ms, första gången med index 70–210 ms); kryssrutorna och "Gör klippen fasta (för Purple Pen)" i egen komponent, sju rader i editorn.
-- Verifierat: lint, typecheck, test (överlapp också över Purple Pens 151 testfiler); ägarens karta med `OTID_REAL_MAP`/`OTID_REAL_MAP_PPEN`; före/efter-bilder granskade; Playwright banlaggning PLAYWRIGHT.
+- Verifierat: lint, typecheck, test (överlapp också över Purple Pens 151 testfiler); ägarens karta med `OTID_REAL_MAP`/`OTID_REAL_MAP_PPEN`; före/efter-bilder granskade; Playwright banlaggning (med kryssrutorna och fasta klipp) och banlaggning-mobil gröna.
 - Idé: ringar med tre gap ser splittrade ut i översikt; ett tak på antal gap per ring kan prövas.
 
 ### 2026-11-01 – Fältläget, snabbversion (grenen faltlage-snabb; hela fältläget är steg 67)

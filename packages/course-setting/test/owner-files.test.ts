@@ -1,10 +1,16 @@
 /**
  * Ägarens riktiga filer (Stockholm by Night). De finns inte i repot och testerna körs bara när miljövariablerna pekar
- * på dem: `OTID_REAL_PPEN` (.ppen) och `OTID_REAL_IOF_COURSES` (Purple Pens IOF-export av samma banor).
+ * på dem: `OTID_REAL_PPEN` (.ppen) och `OTID_REAL_IOF_COURSES` (Purple Pens IOF-export av samma banor), och för
+ * ringklippen `OTID_REAL_MAP` (kartfilen, .ocd/.omap) med `OTID_REAL_MAP_PPEN` (banor på den kartan).
  */
 import { existsSync, readFileSync } from "node:fs";
+import { readMapFile } from "@o-tid/map-file";
 import { describe, expect, it } from "vitest";
-import { courseSummaries, courseVariants, readPpen, writePpen } from "../src";
+import {
+  applyEdit, bakeDetailGaps, courseSummaries, courseVariants, DETAIL_GAP_LIMITS, detailCircleCenters, detailCircleGaps, layoutOverprint,
+  readPpen, writePpen
+} from "../src";
+import { totalDegrees } from "../src/arcs";
 import { iofCourses, normalizedXml } from "./helpers";
 
 const ppenPath = process.env.OTID_REAL_PPEN;
@@ -55,5 +61,34 @@ describe.skipIf(!hasIof)("varianterna mot Purple Pens IOF-export (OTID_REAL_IOF_
         if (iof) expect(Math.round(variant.lengthMeters / 100) * 100, name).toBe(iof.length);
       }
     }
+  });
+});
+
+const mapPath = process.env.OTID_REAL_MAP;
+const mapPpenPath = process.env.OTID_REAL_MAP_PPEN;
+const hasMap = mapPath !== undefined && existsSync(mapPath) && mapPpenPath !== undefined && existsSync(mapPpenPath);
+
+describe.skipIf(!hasMap)("ringklipp på ägarens karta (OTID_REAL_MAP, OTID_REAL_MAP_PPEN)", () => {
+  it("klipper ringarna över detaljer inom budgeten, snabbt, och gör klippen fasta", () => {
+    const map = readMapFile(new Uint8Array(readFileSync(mapPath!)), mapPath);
+    const { document } = readPpen(readFileSync(mapPpenPath!, "utf8"));
+    const centers = detailCircleCenters(document);
+    detailCircleGaps(map, centers);
+    const start = performance.now();
+    const gaps = detailCircleGaps(map, centers);
+    expect(performance.now() - start).toBeLessThan(1000);
+    expect(Object.keys(gaps).length).toBeGreaterThan(0);
+    for (const list of Object.values(gaps)) expect(totalDegrees(list)).toBeLessThanOrEqual(360 * DETAIL_GAP_LIMITS.maxFraction + 1e-6);
+    const on = applyEdit(document, { type: "SET_EVENT", changes: { circleCutting: { overlap: true, details: true } } }).document;
+    for (const course of [...document.courses.map(c => c.id), "ALL_CONTROLS"]) {
+      for (const primitive of layoutOverprint(on, { course, detailGaps: gaps })) {
+        if (primitive.kind === "circle") expect(totalDegrees(primitive.gaps ?? [])).toBeLessThanOrEqual(180 + 1e-6);
+      }
+    }
+    let baked = document;
+    for (const edit of bakeDetailGaps(document, gaps)) baked = applyEdit(baked, edit).document;
+    expect(readPpen(writePpen(baked)).document.controls).toEqual(baked.controls);
+    // Inställningen skrivs inte till .ppen.
+    expect(writePpen(on)).toBe(writePpen(document));
   });
 });

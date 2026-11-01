@@ -464,7 +464,11 @@ export function applyDocumentEdit(document: CourseSettingDocument, edit: CourseS
       if (changes.descriptionLanguage !== undefined && !/^[a-z]{2}(-[A-Z]{2})?$/.test(changes.descriptionLanguage)) {
         throw invalidEdit("Språket anges som t.ex. sv eller nb-NO");
       }
-      const defined = Object.fromEntries(Object.entries(changes).filter(([, value]) => value !== undefined));
+      if (changes.circleCutting !== undefined && !(typeof changes.circleCutting.overlap === "boolean" && typeof changes.circleCutting.details === "boolean")) {
+        throw invalidEdit("Ringklippen anges som två val (överlapp och detaljer)");
+      }
+      const defined: Record<string, unknown> = Object.fromEntries(Object.entries(changes).filter(([, value]) => value !== undefined));
+      if (changes.circleCutting) defined.circleCutting = { overlap: changes.circleCutting.overlap, details: changes.circleCutting.details };
       draft.event = { ...draft.event, ...defined };
       break;
     }

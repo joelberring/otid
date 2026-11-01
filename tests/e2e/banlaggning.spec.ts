@@ -5,7 +5,7 @@ import { createRace, openStep, registerAccount, reviewScreenshots, today, unique
 /**
  * Steg 62 (ADR-0180): banläggningen i webben. Kartfilen och en .ppen (Purple Pen) laddas upp på sidan, banan syns, en
  * kontroll flyttas med musen, en ny bana byggs med klick (start, tre kontroller, mål), ångra tar bort ett steg, sidan
- * laddas om (allt är sparat) och dokumentet förs över till tävlingen som en banfil.
+ * laddas om (allt är sparat) och dokumentet förs över till tävlingen som en banfil. Ringklippen slås på och görs fasta.
  */
 const fixture = (path: string) => fileURLToPath(new URL(`../../fixtures/${path}`, import.meta.url));
 
@@ -26,8 +26,8 @@ async function saved(page: Page) {
   await expect(page.getByTestId("course-setting-status")).toHaveText("Sparat", { timeout: 15_000 });
 }
 
-type Document = { controls: Record<string, { kind: string; code?: string; at: { x: number; y: number } }>;
-  courses: { id: string; name: string }[] };
+type Document = { controls: Record<string, { kind: string; code?: string; at: { x: number; y: number }; circleGaps?: unknown[] }>;
+  courses: { id: string; name: string }[]; event: { circleCutting?: { overlap: boolean; details: boolean } } };
 
 test("banläggning: .ppen in, flytta, ny bana med klick, ångra, sparat efter omladdning och överfört till tävlingen", async ({ browser }) => {
   test.setTimeout(300_000);
@@ -106,6 +106,15 @@ test("banläggning: .ppen in, flytta, ny bana med klick, ångra, sparat efter om
   await saved(owner);
   await reviewScreenshots(owner, "banlaggning-ny-bana");
 
+  // Ringklipp (ADR-0180 beslut 10, i lådans Inställningar): valen sparas i dokumentet och detaljklippen kan göras fasta.
+  await owner.getByRole("tab", { name: "Inställningar" }).click();
+  await owner.getByLabel(/Klipp ringar där de överlappar/).check();
+  await owner.getByLabel(/Klipp ringar över viktiga detaljer/).check();
+  await expect(owner.getByText("Räknar klippen …")).toHaveCount(0, { timeout: 30_000 });
+  await owner.getByRole("button", { name: "Gör klippen fasta (för Purple Pen)" }).click();
+  await expect(owner.getByText(/fick fasta klipp|Klippen var redan fasta/)).toBeVisible();
+  await saved(owner);
+
   // Ladda om: allt är sparat.
   await owner.reload();
   await expect(owner.getByTestId("course-setting-course").filter({ hasText: "Kort" })).toContainText("3 kontroller");
@@ -113,6 +122,9 @@ test("banläggning: .ppen in, flytta, ny bana med klick, ångra, sparat efter om
   const moved = Object.values(state.setting.document.controls).find(control => control.code === "32")!;
   expect(moved.at.x).toBeCloseTo(47, 0);
   expect(moved.at.y).toBeCloseTo(61, 0);
+  expect(state.setting.document.event.circleCutting).toEqual({ overlap: true, details: true });
+  await owner.getByRole("tab", { name: "Inställningar" }).click();
+  await expect(owner.getByLabel(/Klipp ringar över viktiga detaljer/)).toBeChecked();
   expect(Object.values(state.setting.document.controls).filter(control => control.kind === "NORMAL").map(control => control.code).sort())
     .toEqual(["31", "32", "33", "34", "35", "36", "37", "38", "39", "40"]);
 

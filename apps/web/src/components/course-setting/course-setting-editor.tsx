@@ -33,6 +33,7 @@ import { fetchMapSource, fetchRouteChoice } from "../../lib/route-choice-api";
 import { RouteChoiceSession } from "../../lib/route-choice-client";
 import { describeEdit } from "../../lib/course-setting-suggestion";
 import { Button, Notice } from "../ui";
+import { CircleCuttingPanel, useDetailGaps } from "./course-setting-circle-cutting";
 import { useFieldMode, useLockedPage } from "./course-setting-field";
 import { FilePanel, type ReadFile } from "./course-setting-file";
 import { DescriptionPanel } from "./course-setting-description";
@@ -170,11 +171,12 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
   }, [raceId, state.mapFile, access.admin]);
 
   const { document, view, variant, selection } = editor;
-  const options = { course: view, ...(variant ? { variant } : {}) };
+  const cutting = useDetailGaps(mapSession, document);
+  const options = { course: view, ...(variant ? { variant } : {}), ...cutting.options };
   const primitives = useMemo(() => safely("Banpåtrycket", () => layoutOverprint(document, options), [] as readonly OverprintPrimitive[]),
-    [document, view, variant]);
-  const faded = useMemo(() => variant ? safely("Banpåtrycket", () => layoutOverprint(document, { course: view }), [] as readonly OverprintPrimitive[]) : [],
-    [document, view, variant]);
+    [document, view, variant, cutting.options]);
+  const faded = useMemo(() => variant ? safely("Banpåtrycket", () => layoutOverprint(document, { course: view, ...cutting.options }), [] as readonly OverprintPrimitive[]) : [],
+    [document, view, variant, cutting.options]);
   const summaries = useMemo(() => safely("Banornas längder", () => courseSummaries(document), []), [document]);
   const checks = useMemo(() => checkRows(document, safely("Kontrollerna", () => checkDocument(document), [])), [document]);
   const [flagged, setFlagged] = useState<CheckRow>();
@@ -471,8 +473,8 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
       case "suggestions": return <SuggestionsPanel suggestions={collaboration.suggestions} document={document} reviewing={reviewing}
         onReview={id => { setReviewing(id); setSkip(new Set()); setDecision(undefined); }} skip={skip} onSkip={setSkip}
         canDecide={access.level === "EDIT"} onDecide={decide} result={decision} rejected={rejectedInPreview} draft={draft} />;
-      // Inställningar: arbetssättet; här hör också ringklippens kryssrutor och knapp hemma (grenen ringklipp, egen komponent).
-      case "settings": return <section className={styles.panel} aria-labelledby="course-setting-mode">
+      // Inställningar: arbetssättet och ringklippen (ADR-0180 beslut 10).
+      case "settings": return <><section className={styles.panel} aria-labelledby="course-setting-mode">
         <h2 id="course-setting-mode">{copy.mode.heading}</h2>
         <label className={styles.stack}>{copy.mode.label}
           <select value={collaboration.mode} disabled={!access.admin} onChange={event => void changeMode(event.target.value === "SHARED" ? "SHARED" : "LEAD")}>
@@ -481,7 +483,9 @@ export function CourseSettingEditor({ raceId, state, notice, onReload }: {
         <p className={styles.muted}>{copy.mode.help[collaboration.mode]}</p>
         <p className={styles.muted}>{copy.access[access.level]}</p>
         <p className={styles.muted}>{text.tools.keys}</p>
-      </section>;
+      </section>
+      {!readOnly && <CircleCuttingPanel document={document} cutting={cutting} onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} />}
+      </>;
     }
   })();
 

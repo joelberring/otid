@@ -40,6 +40,12 @@ export interface DescriptionBox {
   readonly text?: string | undefined;
 }
 
+/** Valen för automatiska ringklipp. */
+export interface CircleCutting {
+  readonly overlap: boolean;
+  readonly details: boolean;
+}
+
 /** Ett avbrott i en kontrollring, i grader moturs från x-axeln. `scale` null = alla utskriftsskalor. */
 export interface CircleGap {
   readonly scale: number | null;
@@ -156,6 +162,11 @@ export interface CourseSettingDocument {
     readonly numbering: { readonly start: number; readonly disallowInvertible: boolean };
     /** Kontrollbeskrivningarnas språk (Purple Pens `<descriptions lang>`, t.ex. "sv"); saknas = svenska i O-Tid. */
     readonly descriptionLanguage?: string | undefined;
+    /**
+     * Automatiska ringklipp (ADR-0180 beslut 10): `overlap` där ringar på samma kartbild går in i varandra, `details` över
+     * viktiga kartdetaljer. Bara O-Tid; skrivs inte till .ppen. Saknas = som Purple Pen.
+     */
+    readonly circleCutting?: CircleCutting | undefined;
     /** Resten av `<event>` (utskriftsyta, kortlayout, färg …), orört. */
     readonly raw?: readonly RawXml[] | undefined;
   };
@@ -195,7 +206,7 @@ export type CourseSettingEdit =
   | { readonly type: "SET_LEG_BENDS"; readonly from: string; readonly to: string; readonly bends: readonly Point[] }
   | { readonly type: "SET_LEG_GAPS"; readonly from: string; readonly to: string; readonly gaps: Leg["gaps"] }
   | { readonly type: "SET_CIRCLE_GAPS"; readonly control: string; readonly gaps: readonly CircleGap[] }
-  | { readonly type: "SET_EVENT"; readonly changes: Partial<Pick<CourseSettingDocument["event"], "title" | "mapScale" | "overprintStandard" | "descriptionStandard" | "numbering" | "descriptionLanguage">> }
+  | { readonly type: "SET_EVENT"; readonly changes: Partial<Pick<CourseSettingDocument["event"], "title" | "mapScale" | "overprintStandard" | "descriptionStandard" | "numbering" | "descriptionLanguage" | "circleCutting">> }
   /** Steg 63: kontrollbeskrivningen. */
   | DescriptionEdit
   /** Steg 66: sätt (eller ta bort, null) hela objekt per id – ångra och gör om när flera arbetar samtidigt. */
@@ -300,4 +311,10 @@ export interface OverprintOptions {
   readonly variant?: string | undefined;
   /** Saknas = banans utskriftsskala, annars kartans. */
   readonly printScale?: number | undefined;
+  /**
+   * Detaljgapen per ring (`detailCircleGaps` över `detailCircleCenters`, nyckel `detailGapKey(kontroll, radie)`; en nyckel
+   * som bara är kontrollens id gäller alla storlekar). Används bara när händelsens `circleCutting.details` är på; inte där
+   * en sträcka på kartbilden går ut ur ringen.
+   */
+  readonly detailGaps?: Readonly<Record<string, readonly { readonly startDegrees: number; readonly endDegrees: number }[]>> | undefined;
 }

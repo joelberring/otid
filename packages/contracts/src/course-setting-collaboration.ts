@@ -52,7 +52,9 @@ export const courseSettingEditSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("SET_EVENT"), changes: z.object({ title: z.string().max(400).optional(), mapScale: z.number().finite().optional(),
     overprintStandard: z.enum(["ISOM2017", "ISSPROM2019"]).optional(), descriptionStandard: z.enum(["2004", "2018"]).optional(),
     numbering: z.object({ start: z.number().int(), disallowInvertible: z.boolean() }).strict().optional(),
-    descriptionLanguage: z.string().max(16).optional() }).strict() }).strict(),
+    descriptionLanguage: z.string().max(16).optional(),
+    // Ringklippen (ADR-0180 beslut 10).
+    circleCutting: z.object({ overlap: z.boolean(), details: z.boolean() }).strict().optional() }).strict() }).strict(),
   z.object({ type: z.literal("SET_DESCRIPTION"), control: id, boxes: z.array(z.object({ box: z.string().max(8), ref: z.string().max(32).optional(),
     text: z.string().max(64).optional() }).strict()).max(16) }).strict(),
   z.object({ type: z.literal("SET_DESCRIPTION_TEXT_LINE"), control: id, location: z.enum(["before", "after"]), text: z.string().max(400).nullable() }).strict(),

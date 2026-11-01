@@ -19,6 +19,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Sidouppdraget (404 på POST map/source i dev): anropet nådde aldrig routen – Next (Turbopack) svarade med sin 404-sida och loggade "Failed to find Server Action" medan den kompilerade annat. Gick inte att framkalla med curl. Klienten skickar nu om en sådan 404 (inte appens JSON-404) och specarna förvärmer banläggningens routes.
 VERIFIERAT_PLATS
 
+### 2026-11-01 – Ringklipp i banpåtrycket (grenen ringklipp, ADR-0180 beslut 10)
+- Valbart i `event.circleCutting` (skrivs inte till .ppen): överlapp (bågen inne i den andra ringen bort, kraftig överlappning behåller en hel ring, högst hälften per ring, också målets inre) och detaljer (`detailCircleGaps`, symboltabell ISOM 2017-2/ISSprOM 2019-2, högst en fjärdedel, inte vid sträckorna, gap per ringstorlek).
+- Webben: kartans Worker räknar detaljgapen 400 ms efter senaste ändringen (Högdalen/SBN26: 34 ringar 6–60 ms, första gången med index 70–210 ms); kryssrutorna och "Gör klippen fasta (för Purple Pen)" i egen komponent, sju rader i editorn.
+- Verifierat: lint, typecheck, test (överlapp också över Purple Pens 151 testfiler); ägarens karta med `OTID_REAL_MAP`/`OTID_REAL_MAP_PPEN`; före/efter-bilder granskade; Playwright banlaggning (med kryssrutorna och fasta klipp) och banlaggning-mobil gröna.
+- Idé: ringar med tre gap ser splittrade ut i översikt; ett tak på antal gap per ring kan prövas.
+
 ### 2026-11-01 – Fältläget, snabbversion (grenen faltlage-snabb; hela fältläget är steg 67)
 - Min position (WGS 84 → kartans mm med kartfilens georeferens, som kartans Worker nu skickar med), Flytta hit (medel under 5 s, avvikare > 2 × medianen kastas), pilar 1 m; under 700 px kartan på hela skärmen med stora knappar och "Uppgifter" (F, G). Permissions-Policy `geolocation=(self)` på `/admin/:raceId/course-setting`.
 - Osparade ändringar ligger i localStorage tills servern sparat och erbjuds vid nästa öppning; statusen säger "Inte sparat – försöker igen". Logiken i `lib/course-setting-field.ts` och `-geo.ts` med enhetstester.

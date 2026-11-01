@@ -4,12 +4,14 @@
  */
 import type { Point } from "@o-tid/map-file";
 import { circleGapScale, appearanceOf, sizesFor, type Sizes } from "./appearance";
+import { simplifyGaps } from "./arcs";
+import { detailGapKey, detailGapsForView, gapsAtScale, overlapGaps, type OverlapFigure } from "./circle-cutting";
 import {
   alongLine, angleDegrees, bezier, cutPath, distance, nearestOnPath, pathIntersections, pathLength, place, polar
 } from "./geometry";
 import { legKey, rawAttribute } from "./ppen-common";
 import type {
-  CircleGap, ControlPoint, Course, CourseSettingDocument, OverprintOptions, OverprintPrimitive, OverprintRole
+  ControlPoint, Course, CourseSettingDocument, OverprintOptions, OverprintPrimitive, OverprintRole
 } from "./types";
 import { CourseSettingEditError } from "./types";
 import { enumerateCourseControls, enumerateLegs, findCourse, variations } from "./walk";
@@ -23,6 +25,8 @@ interface PointObject {
   readonly angleOut: number | undefined;
   readonly exchange: boolean;
   gaps: Gap[];
+  /** Målets inre ring när den klipps för sig (överlappsklippen); annars samma som `gaps`. */
+  innerGaps?: Gap[];
 }
 
 interface LegObject {
@@ -55,44 +59,10 @@ function legRadius(kind: ControlPoint["kind"], sizes: Sizes): number {
   }
 }
 
-/** Avbrott i grader slås ihop när de överlappar (CircleGap.SimplifyGaps). */
-export function simplifyGaps(gaps: readonly Gap[]): Gap[] {
-  const intervals: [number, number][] = [];
-  for (const gap of gaps) {
-    let start = ((gap.startDegrees % 360) + 360) % 360;
-    let end = start + Math.min(360, Math.max(0, gap.endDegrees - gap.startDegrees));
-    if (end - start >= 360) return [{ startDegrees: 0, endDegrees: 360 }];
-    if (end > 360) { intervals.push([start, 360]); start = 0; end -= 360; }
-    intervals.push([start, end]);
-  }
-  intervals.sort((a, b) => a[0] - b[0]);
-  const merged: [number, number][] = [];
-  for (const [start, end] of intervals) {
-    const last = merged[merged.length - 1];
-    if (last && start <= last[1]) last[1] = Math.max(last[1], end);
-    else merged.push([start, end]);
-  }
-  if (merged.length > 1 && merged[0]![0] === 0 && merged[merged.length - 1]![1] === 360) {
-    const first = merged.shift()!;
-    merged[merged.length - 1]![1] = 360 + first[1];
-  }
-  return merged.map(([startDegrees, endDegrees]) => ({ startDegrees, endDegrees }));
-}
-
 /** Ringavbrotten för skalan (QueryEvent.GetControlGaps, med EventDB.FixControlPointGaps för äldre filer). */
 function fileGaps(document: CourseSettingDocument, control: ControlPoint, printScale: number): Gap[] {
-  const gaps = control.circleGaps ?? [];
-  if (gaps.length === 0) return [];
-  const appearance = appearanceOf(document);
-  const scale = circleGapScale(appearance, printScale, document.event.mapScale);
-  const of = (s: number | null) => gaps.filter(gap => gap.scale === s);
-  let found: CircleGap[] = of(scale);
-  if (found.length === 0) found = of(null);
-  if (found.length === 0 && !appearance.circleGapsScaled && appearance.itemScaling !== "None") {
-    const largest = Math.max(...gaps.map(gap => gap.scale ?? 0));
-    found = of(largest);
-  }
-  return found.map(({ startDegrees, endDegrees }) => ({ startDegrees, endDegrees }));
+  const scale = circleGapScale(appearanceOf(document), printScale, document.event.mapScale);
+  return gapsAtScale(document, control, scale).map(({ startDegrees, endDegrees }) => ({ startDegrees, endDegrees }));
 }
 
 /** Avbrott där en annan figur ligger nära ringen (CourseFormatter.CutControlWithRespectTo). */
@@ -112,6 +82,62 @@ function autoCutCircle(object: PointObject, others: readonly PointObject[], size
   }
 }
 
+/** Ringens radie till linjens mitt (för överlapps- och detaljklippen). */
+function ringRadius(kind: ControlPoint["kind"], sizes: Sizes): number {
+  return kind === "NORMAL" ? sizes.control / 2 : kind === "FINISH" ? sizes.finishOuter / 2 : 0;
+}
+
+/**
+ * Ringklippen för kartbilden (ADR-0180 beslut 10). Utan `circleCutting.overlap` Purple Pens automatiska avbrott; med det
+ * tas bågen inne i en annan ring bort. Med `circleCutting.details` läggs detaljgapen till, utom där en sträcka går ut.
+ */
+function cutCircles(document: CourseSettingDocument, objects: readonly PointObject[], sizes: Sizes, legs: readonly LegObject[],
+  options: OverprintOptions): void {
+  const cutting = document.event.circleCutting;
+  const before = objects.map(object => object.gaps.length);
+  if (!cutting?.overlap) {
+    for (const object of objects) autoCutCircle(object, objects, sizes);
+  } else {
+    const figures: OverlapFigure[] = objects.map((object, index) => {
+      const { kind } = object.control;
+      const rings = kind === "NORMAL" ? [sizes.control / 2] : kind === "FINISH" ? [sizes.finishOuter / 2, sizes.finishInner / 2] : [];
+      const lines = kind === "START" || kind === "MAP_EXCHANGE" || kind === "CROSSING_POINT"
+        ? pointPrimitives(object, sizes).flatMap(p => p.kind === "polyline" ? [{ points: p.points, closed: p.closed === true }] : [])
+        : undefined;
+      return { at: object.control.at, rings, lineWidth: sizes.line, rank: (kind === "FINISH" ? 0 : 1_000_000) + index, ...(lines ? { lines } : {}) };
+    });
+    overlapGaps(figures).forEach((rings, index) => {
+      const object = objects[index]!;
+      if (rings.length === 0) return;
+      object.innerGaps = [...object.gaps, ...(rings[1] ?? [])];
+      object.gaps.push(...rings[0]!);
+    });
+  }
+  const detail = cutting?.details ? options.detailGaps : undefined;
+  if (!detail) return;
+  objects.forEach((object, index) => {
+    const { id, kind, at } = object.control;
+    const radius = ringRadius(kind, sizes);
+    if (radius === 0) return;
+    // Gapen räknades för just den här ringens storlek (en kontroll kan synas i flera skalor, och målet har två ringar).
+    const of = (r: number) => detail[detailGapKey(id, r)] ?? detail[id] ?? [];
+    const legDegrees = legs.flatMap(leg => {
+      if (leg.from === id) return [angleDegrees(at, leg.path[0]!)];
+      if (leg.to === id) return [angleDegrees(at, leg.path[leg.path.length - 1]!)];
+      return [];
+    });
+    const fileGaps = object.gaps.slice(0, before[index]);
+    const outerCuts = object.gaps.slice(before[index]);
+    const outer = detailGapsForView(of(radius), outerCuts, legDegrees, radius, sizes.line);
+    if (kind === "FINISH") {
+      const inner = sizes.finishInner / 2;
+      const innerCuts = object.innerGaps ? object.innerGaps.slice(before[index]) : outerCuts;
+      object.innerGaps = [...fileGaps, ...innerCuts, ...detailGapsForView(of(inner), innerCuts, legDegrees, inner, sizes.line)];
+    }
+    object.gaps.push(...outer);
+  });
+}
+
 const flaggedRole = (flagged: boolean): OverprintRole => (flagged ? "FLAGGING" : "LEG");
 
 /** Figurerna för en kontroll. */
@@ -119,8 +145,10 @@ function pointPrimitives(object: PointObject, sizes: Sizes): OverprintPrimitive[
   const { control, ref } = object;
   const at = control.at;
   const line = sizes.line;
-  const gaps = object.gaps.length > 0 ? simplifyGaps(object.gaps) : undefined;
-  const circle = (role: OverprintRole, diameter: number): OverprintPrimitive => ({
+  const simplified = (list: readonly Gap[]) => list.length > 0 ? simplifyGaps(list) : undefined;
+  const outerGaps = simplified(object.gaps);
+  const innerGaps = object.innerGaps ? simplified(object.innerGaps) : outerGaps;
+  const circle = (role: OverprintRole, diameter: number, gaps: Gap[] | undefined): OverprintPrimitive => ({
     kind: "circle", role, color: "COURSE", center: at, diameter, lineWidth: line, ...(gaps ? { gaps } : {}), ref
   });
   const triangle = (role: OverprintRole, radius: number): OverprintPrimitive => {
@@ -130,9 +158,9 @@ function pointPrimitives(object: PointObject, sizes: Sizes): OverprintPrimitive[
   };
   switch (control.kind) {
     case "NORMAL":
-      return object.exchange ? [circle("MAP_EXCHANGE", sizes.control), triangle("MAP_EXCHANGE", sizes.control / 2)] : [circle("CONTROL", sizes.control)];
+      return object.exchange ? [circle("MAP_EXCHANGE", sizes.control, outerGaps), triangle("MAP_EXCHANGE", sizes.control / 2)] : [circle("CONTROL", sizes.control, outerGaps)];
     case "FINISH":
-      return [circle("FINISH", sizes.finishOuter), circle("FINISH", sizes.finishInner)];
+      return [circle("FINISH", sizes.finishOuter, outerGaps), circle("FINISH", sizes.finishInner, innerGaps)];
     case "START":
       return [triangle("START", sizes.startRadius)];
     case "MAP_EXCHANGE":
@@ -254,12 +282,12 @@ function placeLabel(
   return best!.box;
 }
 
-function allControls(document: CourseSettingDocument, printScale: number): OverprintPrimitive[] {
+function allControls(document: CourseSettingDocument, printScale: number, options: OverprintOptions): OverprintPrimitive[] {
   const sizes = sizesFor(document, printScale);
   const objects: PointObject[] = Object.values(document.controls).map(control => ({
     control, ref: control.id, angleOut: undefined, exchange: false, gaps: fileGaps(document, control, printScale)
   }));
-  for (const object of objects) autoCutCircle(object, objects, sizes);
+  cutCircles(document, objects, sizes, [], options);
   const out: OverprintPrimitive[] = objects.flatMap(object => pointPrimitives(object, sizes));
   const circles = objects.map(object => ({ center: object.control.at, radius: apparentRadius(object.control.kind, sizes) }));
   const placed: Box[] = [];
@@ -280,7 +308,7 @@ function allControls(document: CourseSettingDocument, printScale: number): Overp
 export function layout(document: CourseSettingDocument, options: OverprintOptions): OverprintPrimitive[] {
   if (options.course === "ALL_CONTROLS") {
     const allScale = Number(rawAttribute(document.event.raw, "all-controls", "print-scale"));
-    return allControls(document, options.printScale ?? (allScale > 0 ? allScale : document.event.mapScale));
+    return allControls(document, options.printScale ?? (allScale > 0 ? allScale : document.event.mapScale), options);
   }
   const course = findCourse(document, options.course);
   const printScale = options.printScale ?? course.printScale ?? document.event.mapScale;
@@ -344,7 +372,7 @@ export function layout(document: CourseSettingDocument, options: OverprintOption
       }
     });
   }
-  for (const object of points) autoCutCircle(object, points, sizes);
+  cutCircles(document, points, sizes, legs, options);
 
   const out: OverprintPrimitive[] = [];
   const legLines: Point[][] = [];

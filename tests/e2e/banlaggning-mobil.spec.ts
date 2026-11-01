@@ -58,7 +58,8 @@ test("banläggning på telefonen: min position, flytta hit, finjustera, F och G,
   const phone = await (await browser.newContext({ storageState: await owner.context().storageState(), viewport: { width: 390, height: 844 },
     hasTouch: true, isMobile: true, geolocation: { latitude: wgs.latitude, longitude: wgs.longitude, accuracy: 5 },
     permissions: ["geolocation"] })).newPage();
-  await phone.goto(`/admin/${raceId}/course-setting`);
+  const page = await phone.goto(`/admin/${raceId}/course-setting`);
+  expect(page!.headers()["permissions-policy"]).toBe("camera=(), geolocation=(self), microphone=()");
   await expect(phone.getByTestId("course-setting-field")).toBeVisible();
   const map = phone.getByTestId("course-setting-map");
   await expect(phone.getByText("Läser kartfilen …")).toHaveCount(0, { timeout: 30_000 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  adjustedColor, drawMap, mmToPixel, offsetPolyline, pixelToMm, placementsAlong, preferredPxPerMm, renderSize, type MapCanvasContext, type MapColor,
+  adjustedColor, drawMap, mmToPixel, offsetPolyline, pixelToMm, placementsAlong, preferredPxPerMm, renderSize, type MapColor,
   type MapObject, type MapSymbol, type ParsedMap
 } from "../src";
 import { fakeContext, type Call } from "./fake-canvas";

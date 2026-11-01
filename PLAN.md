@@ -1115,6 +1115,19 @@ ADR-0181 beslut 6–7. Görs efter steg 66.
 - [ ] **Utan täckning:** sidan och kartfilen sparas i telefonen, ändringar och notiser köas och skickas sedan.
 - [ ] **Tester:** Playwright med mobilvy och fejkad position, kö utan nät; ägaren provar i terrängen.
 
+## [ ] Steg 68 – Träningsgrupper (före steg 64)
+
+ADR-0182. Görs efter steg 67.
+
+- [ ] **Grupp** med namn och ledare; tävlingar kan höra till en grupp; ledarna är ADMIN på gruppens tävlingar.
+- [ ] **Gruppsidan:** kommande tillfällen, senaste resultat, arkiv; fast länk och QR-kod.
+- [ ] **Mallar och upprepning:** ny träning ur mall eller förra tillfället; upprepning en termin i förväg.
+- [ ] **Kartbibliotek:** gruppens kartfiler och banläggningar används igen.
+- [ ] **Deltagare** känns igen mellan tillfällena; självanmälan för gruppen.
+- [ ] **Säsongen:** närvaro per deltagare, valfri poängserie.
+- [ ] **Inställningar för synlighet** (ADR-0182 beslut 7) med försiktiga standardvärden; aldrig indexerad.
+- [ ] **Tester:** integration (behörighet via gruppen, synlighetsinställningarna, upprepning), Playwright gruppsidan.
+
 ## [ ] Steg 64 – Banpåtryck och utskriftslayout
 
 - [ ] Specialobjekten (förbjudet område och väg, passage, vit bakgrund, text, bild, gräns, snitsling), tryckyta och

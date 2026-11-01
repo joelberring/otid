@@ -1,7 +1,7 @@
 /** Fältfel i formulären (PLAN.md steg 24): på svenska och med fältets namn, i stället för webbläsarens egna. */
 export const formErrorsSv = {
   eventName: "Skriv tävlingens namn (minst 2 tecken).",
-  stageName: "Skriv etappens eller loppets namn med minst 2 tecken, eller lämna fältet tomt.",
+  stageName: "Etappens eller loppets namn får vara högst 160 tecken. Lämna tomt om det inte behövs.",
   raceDate: "Skriv tävlingens datum som ÅÅÅÅ-MM-DD, till exempel 2026-10-25.",
   timeZone: "Skriv en tidszon, till exempel Europe/Stockholm.",
   courseName: "Skriv banans namn.",

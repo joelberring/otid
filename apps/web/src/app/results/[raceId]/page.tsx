@@ -12,6 +12,7 @@ import { raceStaff, requirePublicRace } from "../../../lib/public-race-gate";
 import { PreviewBanner } from "../../../components/public-race/preview-banner";
 import { liveSv } from "../../../i18n/live-sv";
 import { raceHubPath } from "../../../lib/public-race-format";
+import { joinRaceParts, raceDetails, raceTitle } from "@o-tid/domain";
 
 export const dynamic = "force-dynamic";
 
@@ -39,13 +40,13 @@ export default async function ResultsPage({ params }: { params: Promise<{ raceId
   return <main className="stack public-list-page">
     <PublicRaceNavigation raceId={raceId} shortCode={summary.shortCode} currentPage="results" />
     <PreviewBanner access={access} />
-    <section className="public-list-heading"><h1>{summary.eventName}</h1><p>{summary.name} · {summary.raceDate}</p>
+    <section className="public-list-heading"><h1>{summary.eventName}</h1><p>{raceDetails(summary.eventName, summary.name, [summary.raceDate])}</p>
       <p className="public-list-links">
         <Link href={`${raceHubPath(summary.shortCode)}/live`}>{liveSv.title}</Link>
         {analysis && <Link href={`/results/${raceId}/splits`}>{splitAnalysisSv.title}</Link>}
         {finalization.status === "ok" && <Link href={`/results/${raceId}/finalizations/${finalization.finalizationId}`}>{sv.publicFrozenResultsLink}</Link>}
       </p></section>
-    <PublicResultLists raceId={raceId} initial={inline ? { results, relay, radio } : undefined} race={`${summary.eventName} · ${summary.name} · ${summary.raceDate}`}
+    <PublicResultLists raceId={raceId} initial={inline ? { results, relay, radio } : undefined} race={joinRaceParts([raceTitle(summary.eventName, summary.name), summary.raceDate])}
       raceDate={summary.raceDate} />
   </main>;
 }

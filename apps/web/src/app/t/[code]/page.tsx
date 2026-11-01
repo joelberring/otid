@@ -16,6 +16,7 @@ import { PublicLinkShare } from "../../../components/public-link-share";
 import { RaceInfo } from "../../../components/race-info";
 import { SelfRegistrationForm } from "../../../components/self-registration/self-registration-form";
 import styles from "../../../components/public-race/public-race.module.css";
+import { raceDetails, shownRaceName } from "@o-tid/domain";
 
 export const dynamic = "force-dynamic";
 const text = publicRaceSv.hub;
@@ -25,7 +26,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const hub = await loadRaceHub((await params).code);
   if (!hub) return { title: `${publicRaceSv.notPublished.title} – ${sv.appName}`, robots: { index: false } };
   const title = `${hub.eventName} – ${sv.appName}`;
-  const description = `${[hub.raceName !== hub.eventName ? hub.raceName : undefined, formatRaceDate(hub.raceDate)].filter(Boolean).join(", ")}. ` +
+  const description = `${raceDetails(hub.eventName, hub.raceName, [formatRaceDate(hub.raceDate)], ", ")}. ` +
     `${text.startList}, ${text.results.toLowerCase()} och sträcktider.`;
   const url = new URL(raceHubPath(hub.shortCode), await publicOrigin()).toString();
   return { title, description, alternates: { canonical: url }, openGraph: { title, description, url, siteName: sv.appName, type: "website" },
@@ -43,7 +44,7 @@ export default async function RaceHubPage({ params }: Params) {
   const path = raceHubPath(hub.shortCode);
   const address = displayAddress(await publicOrigin(), path);
   const hasStartSection = raceTypeProfile(hub.raceType).course.some(section => section.id === "START");
-  const details = [hub.raceName !== hub.eventName ? hub.raceName : undefined, formatRaceDate(hub.raceDate), raceTypeSv.types[hub.raceType].name]
+  const details = [shownRaceName(hub.eventName, hub.raceName), formatRaceDate(hub.raceDate), raceTypeSv.types[hub.raceType].name]
     .filter(Boolean);
   const link = (href: string, title: string, help: string) => <li><Link className={styles.hubLink} href={href}>
     <strong>{title}</strong><span>{help}</span></Link></li>;

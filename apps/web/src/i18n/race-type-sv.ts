@@ -36,6 +36,7 @@ export const raceTypeSv = {
     help: "Namn, datum och typ. Att byta typ ändrar bara vilka delar som syns; inget tas bort.",
     eventName: "Tävlingens namn",
     raceName: "Etapp/lopp",
+    raceNameHelp: "Till exempel Etapp 1 eller Torsdag. Lämna tomt om evenemanget bara har ett lopp.",
     raceDate: "Datum",
     raceDateLocked: "Datumet kan inte ändras när det finns starttider eller avläsningar.",
     save: "Spara inställningar",

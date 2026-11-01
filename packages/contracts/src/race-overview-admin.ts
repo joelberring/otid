@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { UUID_PATTERN } from "./ids";
+import { raceNameSchema } from "./race-name";
 
 const canonicalUuidSchema = z.string().regex(
   UUID_PATTERN,
@@ -15,7 +16,7 @@ const instantSchema = z.iso.datetime({ offset: true });
 const raceOverviewRaceSchema = z.object({
   id: canonicalUuidSchema,
   eventName: nameSchema,
-  name: nameSchema,
+  name: raceNameSchema,
   raceDate: z.iso.date(),
   timeZone: z.string().trim().min(1).max(100),
   snapshotVersion: positiveVersionSchema

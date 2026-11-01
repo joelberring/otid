@@ -3,6 +3,7 @@ import type { ReadoutPackage } from "@o-tid/contracts";
 import { formatRunningTime, type LocalVerdict } from "./evaluate";
 import { readoutText } from "./text-sv";
 import { placementText } from "./placement-text";
+import { raceDetails } from "@o-tid/domain";
 
 /**
  * Sträcktidskvitto efter avläsning (PLAN.md steg 21). Byggs helt av det lokala beskedet och avläsningspaketet, så
@@ -92,7 +93,7 @@ export function buildReceipt({ verdict, cardNumber, pkg, origin, printedAt, plac
 
   return {
     eventName: pkg.event.name,
-    details: [race.name !== pkg.event.name ? race.name : undefined, formatDate(race.raceDate)].filter(Boolean).join(" · "),
+    details: raceDetails(pkg.event.name, race.name, [formatDate(race.raceDate)]),
     ...(verdict.name ? { runner: verdict.name } : {}),
     ...(verdict.className || verdict.club ? { team: [verdict.className, verdict.club].filter(Boolean).join(" · ") } : {}),
     card: t.card(cardNumber),

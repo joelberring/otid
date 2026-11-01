@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { administratorForestWatchResponseSchema, publicRadioResponseSchema, publicResultListResponseV7Schema, relayOverviewSchema,
   speakerBoardResponseSchema, type AdministratorForestWatchResponse, type PublicRadioResponse, type PublicResultListResponseV7, type RelayOverview,
   type SpeakerBoardResponse } from "@o-tid/contracts";
-import { raceDayStarted } from "@o-tid/domain";
+import { raceDayStarted, raceDetails } from "@o-tid/domain";
 import { speakerSv as text } from "../i18n/speaker-sv";
 import { radioControlName, radioSv } from "../i18n/radio-sv";
 import { passageTime } from "./radio/radio-live";
@@ -96,7 +96,7 @@ export function SpeakerPage({ raceId }: { raceId: string }) {
   const onTheWay = onTheWayKeys(radio);
   return <div className={styles.board}>
     <header className={styles.head}>
-      <div className={styles.title}><h1>{data.board.eventName}</h1><p>{data.board.raceName} · {text.title}</p></div>
+      <div className={styles.title}><h1>{data.board.eventName}</h1><p>{raceDetails(data.board.eventName, data.board.raceName, [text.title])}</p></div>
       <p className={styles.state} role="status" data-problem={!online || problem ? "true" : undefined}>
         {!online ? text.offline : problem === "stale" ? text.stale : text.updatedAt(formatClockTime(data.at, timeZone))}
       </p>

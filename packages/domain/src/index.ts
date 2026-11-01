@@ -50,3 +50,4 @@ export * from "./course-secrecy";
 export * from "./control-map";
 export * from "./map-bundles";
 export * from "./forking-readiness";
+export * from "./race-title";

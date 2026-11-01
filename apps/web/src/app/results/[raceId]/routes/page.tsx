@@ -6,6 +6,7 @@ import { routeChoiceSv as text } from "../../../../i18n/split-analysis-sv";
 import { legLabel, splitsHref } from "../../../../lib/split-analysis";
 import { raceStaff, requirePublicRace } from "../../../../lib/public-race-gate";
 import { PreviewBanner } from "../../../../components/public-race/preview-banner";
+import { joinRaceParts, raceTitle } from "@o-tid/domain";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,7 @@ export default async function RouteChoicePage({ params, searchParams }: {
     <PreviewBanner access={access} />
     <section className="public-list-heading">
       <h1>{data ? text.title(legLabel(data.leg)) : text.title("")}</h1>
-      <p>{selected ? `${selected.name} · ${selected.className} · ` : ""}{summary.eventName} · {summary.name} · {summary.raceDate}</p>
+      <p>{selected ? `${selected.name} · ${selected.className} · ` : ""}{joinRaceParts([raceTitle(summary.eventName, summary.name), summary.raceDate])}</p>
     </section>
     {data ? <><p className="muted">{text.intro}</p><RouteMap raceId={raceId} data={data} /></> : <p className="warning">{text.notFound}</p>}
   </main>;

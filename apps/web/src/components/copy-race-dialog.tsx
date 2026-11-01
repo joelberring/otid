@@ -6,7 +6,8 @@ import { defaultRaceCopyDate, raceCopyResponseSchema, type RaceCopyResponse } fr
 import { raceCopySv as text } from "../i18n/race-copy-sv";
 import { accountRequest } from "../lib/account-client";
 import { formErrorsSv } from "../i18n/form-errors-sv";
-import { hasErrors, isIsoDate, type FieldErrors } from "../lib/form-validation";
+import { hasErrors, isIsoDate, isRaceName, type FieldErrors } from "../lib/form-validation";
+import { raceTitle } from "@o-tid/domain";
 import { Button, DateInput, Field, Notice, focusFirstError } from "./ui";
 import styles from "./copy-race-dialog.module.css";
 
@@ -74,7 +75,7 @@ function CopyRaceDialogContent({ source, onClose, onCopied }: {
     event.preventDefault();
     // Svenska fältfel i stället för webbläsarens (PLAN.md steg 24).
     const next = { eventName: form.eventName.trim().length >= 2 ? undefined : formErrorsSv.eventName,
-      raceName: form.raceName.trim().length >= 2 ? undefined : formErrorsSv.stageName,
+      raceName: isRaceName(form.raceName) ? undefined : formErrorsSv.stageName,
       raceDate: isIsoDate(form.raceDate) ? undefined : formErrorsSv.raceDate };
     setErrors(next);
     if (hasErrors(next)) { focusFirstError(event.currentTarget as HTMLFormElement); return; }
@@ -103,7 +104,7 @@ function CopyRaceDialogContent({ source, onClose, onCopied }: {
   return <dialog ref={dialogRef} className={styles.dialog} aria-labelledby={titleId} onClose={onClose}>
     <h2 id={titleId}>{text.title}</h2>
     {!result && <form className={styles.form} noValidate onSubmit={event => void submit(event)}>
-      <p className={styles.intro}>{text.intro(source.raceName === source.eventName ? source.eventName : `${source.eventName} · ${source.raceName}`)}</p>
+      <p className={styles.intro}>{text.intro(raceTitle(source.eventName, source.raceName))}</p>
       <Field label={text.eventName} error={errors.eventName}><input value={form.eventName} maxLength={160} disabled={busy}
         onChange={event => change({ eventName: event.target.value })} /></Field>
       <div className={styles.row}>

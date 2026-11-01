@@ -7,6 +7,7 @@ import {
 import { raceTypeSchema } from "./race-settings";
 import { accountEmailSchema, ACCOUNT_PASSWORD_MIN_LENGTH, storedAccountEmailSchema } from "./account";
 import { UUID_SOURCE as canonicalUuidPattern } from "./ids";
+import { raceNameSchema } from "./race-name";
 
 const uuid = z.string().regex(new RegExp(`^${canonicalUuidPattern}$`));
 const instant = z.iso.datetime({ offset: true });
@@ -56,7 +57,7 @@ export const organizerEventCreateResponseSchema = eventCreationResponseSchema;
 
 const organizerEventRaceSchema = z.object({
   raceId: uuid,
-  raceName: z.string().trim().min(1).max(160),
+  raceName: raceNameSchema,
   raceDate: z.iso.date(),
   raceType: raceTypeSchema
 }).strict();

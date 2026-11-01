@@ -71,7 +71,7 @@ export const speakerBoardResponseSchema = z.object({
   formatVersion: z.literal(1),
   raceId: uuid,
   eventName: z.string().trim().min(1).max(240),
-  raceName: z.string().trim().min(1).max(240),
+  raceName: z.string().trim().max(240),
   raceSnapshotVersion: revision,
   timeZone,
   generatedAt: instant,

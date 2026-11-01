@@ -2,6 +2,7 @@ import { z } from "zod";
 import { storedAccountEmailSchema } from "./account";
 import { raceTypeSchema } from "./race-settings";
 import { UUID_SOURCE as canonicalUuidPattern } from "./ids";
+import { raceNameSchema } from "./race-name";
 
 /** Superadmin (ADR-0172 beslut 2): översikt över konton och tävlingar, åtgärder och logg. */
 const uuid = z.string().regex(new RegExp(`^${canonicalUuidPattern}$`));
@@ -29,7 +30,7 @@ export const superadminRaceSchema = z.object({
   raceId: uuid,
   eventId: uuid,
   eventName: z.string().trim().min(1).max(160),
-  raceName: z.string().trim().min(1).max(160),
+  raceName: raceNameSchema,
   raceDate: z.iso.date(),
   raceType: raceTypeSchema,
   ownerEmail: storedAccountEmailSchema.nullable(),

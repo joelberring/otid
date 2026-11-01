@@ -9,6 +9,7 @@ import { classStartRows, filterStartList, groupByStartTime, startClub, startList
 import { courseLine } from "../../lib/lists/result-list-model";
 import { download, ListFrame, type IofExport } from "./list-frame";
 import styles from "./lists.module.css";
+import { joinRaceParts, raceTitle } from "@o-tid/domain";
 
 const t = text.start;
 
@@ -204,7 +205,7 @@ export function StartLists({ model, onSelectEntry, disabled, iof, exportable = t
   const runners = classes.reduce((sum, row) => sum + row.entries.length, 0);
   const context: Context = { model, onSelectEntry, disabled };
   const views = (["CLASS", "TIME", "CLUB"] as const).map(id => ({ id, label: t.views[id] }));
-  const race = `${model.eventName} · ${model.raceName} · ${model.raceDate}`;
+  const race = joinRaceParts([raceTitle(model.eventName, model.raceName), model.raceDate]);
   return <ListFrame title={t.titles[view]} race={race} toolbar={{
     views, view, onView: setView, query, onQuery: setQuery, searchPlaceholder: model.cards ? text.searchPlaceholderCards : text.searchPlaceholder,
     classes: classNames, className: selected, onClass: setClassName, count: t.runners(runners), iof,

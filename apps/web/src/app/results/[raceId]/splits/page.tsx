@@ -6,6 +6,7 @@ import { SplitAnalysis } from "../../../../components/split-analysis/split-analy
 import { splitAnalysisSv as text } from "../../../../i18n/split-analysis-sv";
 import { requirePublicRace } from "../../../../lib/public-race-gate";
 import { PreviewBanner } from "../../../../components/public-race/preview-banner";
+import { joinRaceParts, raceTitle } from "@o-tid/domain";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,7 @@ export default async function SplitAnalysisPage({ params, searchParams }: {
   return <main className="stack public-list-page">
     <nav className="nav" aria-label={text.title}><Link href={`/results/${raceId}`}>{text.back}</Link></nav>
     <PreviewBanner access={access} />
-    <section className="public-list-heading"><h1>{text.title}</h1><p>{summary.eventName} · {summary.name} · {summary.raceDate}</p></section>
+    <section className="public-list-heading"><h1>{text.title}</h1><p>{joinRaceParts([raceTitle(summary.eventName, summary.name), summary.raceDate])}</p></section>
     <SplitAnalysis raceId={raceId} initial={{ results, relay, radio }} routeLegs={routes.legs} initialClass={className} />
   </main>;
 }

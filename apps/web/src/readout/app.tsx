@@ -16,7 +16,7 @@ import type { EntrySuggestion } from "./runner-lookup";
 import { startPunchText } from "../lib/start-punch-text";
 import { heldReadouts, releaseHeldReadouts, requeueLocallyInvalid, syncPending } from "./sync";
 import { failedReadoutsFile, loadFailedReadouts, saveFailedReadouts, syncFailedReadouts, type FailedReadout } from "./failed-readouts";
-import { inRaceDay } from "@o-tid/domain";
+import { inRaceDay, raceTitle } from "@o-tid/domain";
 import { toHex } from "./payload";
 import { readoutText as t } from "./text-sv";
 import { ReceiptPanel, type Printable } from "./receipt-panel";
@@ -500,7 +500,7 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
     <header>
       {/* PLAN.md steg 37: Hjälp öppnar en panel ovanpå; avläsningen fortsätter under tiden. */}
       <div className="readout-head"><h1>{pkg?.party ? partyText.title : t.title}</h1><HelpButton view="READOUT_PAGE" large /></div>
-      {pkg ? <p className="race">{pkg.event.name} · {pkg.raceSnapshot.race.name}</p> : null}
+      {pkg ? <p className="race">{raceTitle(pkg.event.name, pkg.raceSnapshot.race.name)}</p> : null}
       <dl className="status" aria-label="Status">
         <div data-state={station.kind === "ready" ? "good" : station.kind === "disconnected" ? "idle" : "bad"}>
           <dt>{t.station}</dt><dd data-testid="station-status">{station.kind === "ready" ? "● " : "○ "}{stationText(station, exercise)}</dd></div>

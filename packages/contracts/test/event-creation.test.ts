@@ -23,6 +23,10 @@ describe("skapa tävling-kontrakt", () => {
     });
     expect(eventCreationRequestSchema.safeParse({ ...request, name: "Äldre wirefält" }).success).toBe(false);
     expect(eventCreationRequestSchema.safeParse({ ...request, eventName: "x" }).success).toBe(false);
+    // Loppets namn är valfritt: tomt (även bara blanksteg) sparas som "", högst 160 tecken.
+    expect(eventCreationRequestSchema.parse({ ...request, raceName: "   " }).raceName).toBe("");
+    expect(eventCreationRequestSchema.parse({ ...request, raceName: "" }).raceName).toBe("");
+    expect(eventCreationRequestSchema.safeParse({ ...request, raceName: "x".repeat(161) }).success).toBe(false);
     expect(eventCreationRequestSchema.safeParse({ ...request, raceDate: "2026-02-30" }).success).toBe(false);
     expect(eventCreationRequestSchema.safeParse({ ...request, timeZone: "Mars/Olympus_Mons" }).success).toBe(false);
   });

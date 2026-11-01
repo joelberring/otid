@@ -58,7 +58,9 @@ test("ny tävling: direkt in, tomlägen med åtgärd, svenska fältfel och tre d
   await owner.waitForURL(/\/admin\/[0-9a-f-]+\/manage$/);
   const raceId = owner.url().split("/").at(-2)!;
   await expect(owner.getByRole("heading", { name: `Arbetsyta ${suffix}` })).toBeVisible();
-  await expect(owner.getByText(/^Lopp 1 · /)).toBeVisible();
+  // Utan etapp visar arbetsytan bara tävlingens namn: inget "Lopp 1" under rubriken.
+  await expect(owner.getByText(new RegExp(`^${today()} · `))).toBeVisible();
+  await expect(owner.getByText("Lopp 1")).toHaveCount(0);
   await warmRoute(owner, `/api/admin/races/${raceId}/administrator/course-classes`, "POST");
   await warmRoute(owner, `/api/admin/races/${raceId}/administrator/registration`, "POST");
   await warmRoute(owner, `/api/admin/races/${raceId}/administrator/registration-candidates`, "POST");

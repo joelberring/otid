@@ -34,12 +34,14 @@ export function isIsoDate(value: string): boolean {
 
 const name = (value: string, min: number, max: number) => value.trim().length >= min && value.trim().length <= max;
 
+/** Loppets namn är valfritt (tomt = bara tävlingens namn visas); högst 160 tecken. */
+export const isRaceName = (value: string) => value.trim().length <= 160;
+
 export type CreateRaceInput = { eventName: string; stageName: string; raceDate: string; timeZone: string };
 export function validateCreateRace(input: CreateRaceInput): FieldErrors<keyof CreateRaceInput> {
-  const stage = input.stageName.trim();
   return {
     eventName: name(input.eventName, 2, 160) ? undefined : text.eventName,
-    stageName: stage === "" || name(stage, 2, 160) ? undefined : text.stageName,
+    stageName: isRaceName(input.stageName) ? undefined : text.stageName,
     raceDate: isIsoDate(input.raceDate) ? undefined : text.raceDate,
     timeZone: input.timeZone.trim() ? undefined : text.timeZone
   };

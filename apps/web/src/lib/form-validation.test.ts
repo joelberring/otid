@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formErrorsSv as text } from "../i18n/form-errors-sv";
-import { hasErrors, isClock, isIsoDate, validateCourseClass, validateCreateRace, validateFirstStart, validateManualClass,
+import { hasErrors, isClock, isIsoDate, isRaceName, validateCourseClass, validateCreateRace, validateFirstStart, validateManualClass,
   validateRegistration } from "./form-validation";
 
 describe("fältfel (PLAN.md steg 24)", () => {
@@ -14,11 +14,16 @@ describe("fältfel (PLAN.md steg 24)", () => {
     for (const value of ["2026-02-30", "10/25/2026", "2026-1-5", ""]) expect(isIsoDate(value)).toBe(false);
   });
 
-  it("Skapa tävling: namnet krävs, etappen är valfri men inte för kort", () => {
+  it("Skapa tävling: namnet krävs, etappen är valfri (tomt = inget loppnamn) och högst 160 tecken", () => {
     const empty = validateCreateRace({ eventName: "", stageName: "", raceDate: "", timeZone: "Europe/Stockholm" });
     expect(empty).toEqual({ eventName: text.eventName, stageName: undefined, raceDate: text.raceDate, timeZone: undefined });
     expect(hasErrors(validateCreateRace({ eventName: "KM", stageName: "", raceDate: "2026-10-25", timeZone: "Europe/Stockholm" }))).toBe(false);
-    expect(validateCreateRace({ eventName: "KM", stageName: "E", raceDate: "2026-10-25", timeZone: "x" }).stageName).toBe(text.stageName);
+    expect(validateCreateRace({ eventName: "KM", stageName: "E", raceDate: "2026-10-25", timeZone: "x" }).stageName).toBeUndefined();
+    expect(validateCreateRace({ eventName: "KM", stageName: "  ", raceDate: "2026-10-25", timeZone: "x" }).stageName).toBeUndefined();
+    expect(validateCreateRace({ eventName: "KM", stageName: "E".repeat(161), raceDate: "2026-10-25", timeZone: "x" }).stageName)
+      .toBe(text.stageName);
+    expect(isRaceName("")).toBe(true);
+    expect(isRaceName(` ${"E".repeat(160)} `)).toBe(true);
   });
 
   it("ny bana: namn och kontroller per fält, klassen är valfri; rogaining kräver tidsgräns och straff när klassen finns", () => {

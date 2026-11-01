@@ -222,7 +222,7 @@ export const userAccountEventCreationRequests = pgTable("user_account_event_crea
   uniqueIndex("user_account_event_creation_race_uidx").on(table.raceId),
   index("user_account_event_creation_actor_idx").on(table.actorAccountId, table.createdAt),
   check("user_account_event_creation_event_name_check", sql`length(btrim(${table.eventName})) between 2 and 160`),
-  check("user_account_event_creation_race_name_check", sql`length(btrim(${table.raceName})) between 2 and 160`),
+  check("user_account_event_creation_race_name_check", sql`length(btrim(${table.raceName})) <= 160`),
   check("user_account_event_creation_time_zone_check", sql`length(btrim(${table.timeZone})) between 1 and 100`),
   foreignKey({ name: "user_account_event_creation_race_event_fk", columns: [table.raceId, table.eventId],
     foreignColumns: [races.id, races.eventId] })

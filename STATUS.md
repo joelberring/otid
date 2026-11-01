@@ -10,6 +10,11 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-01 – Tomt loppnamn (gren tomt-loppnamn)
+- Etapp/lopp är valfritt på riktigt: tomt sparas som "" (inte "Lopp 1") vid skapande, i Inställningar och vid kopiering; kontrakten tar emot och tål tomt.
+- `raceTitle`/`raceDetails` i domänen: evenemangets namn och loppets bara när det finns, på alla rubriker, publika sidor, listor, utskrifter, kvitto, speaker och kartbuntar. Mina tävlingar: ensamt lopp utan namn visar datumet, flera "Lopp N".
+- Migration 0032: skapandeförsökens loppnamn får vara tomt; det enda loppet i ett evenemang som heter exakt "Lopp 1" får inget namn (versionen räknas upp).
+
 ### 2026-11-01 – Ringklipp i banpåtrycket (grenen ringklipp, ADR-0180 beslut 10)
 - Valbart i `event.circleCutting` (skrivs inte till .ppen): överlapp (bågen inne i den andra ringen bort, kraftig överlappning behåller en hel ring, högst hälften per ring, också målets inre) och detaljer (`detailCircleGaps`, symboltabell ISOM 2017-2/ISSprOM 2019-2, högst en fjärdedel, inte vid sträckorna, gap per ringstorlek).
 - Webben: kartans Worker räknar detaljgapen 400 ms efter senaste ändringen (Högdalen/SBN26: 34 ringar 6–60 ms, första gången med index 70–210 ms); kryssrutorna och "Gör klippen fasta (för Purple Pen)" i egen komponent, sju rader i editorn.

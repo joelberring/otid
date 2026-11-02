@@ -45,7 +45,7 @@ function path(ctx: Context, view: Viewport, points: readonly Point[], closed: bo
 export interface OverprintDrawOptions {
   /** Tonade (t.ex. andra grenar eller banor). */
   readonly faded?: boolean | undefined;
-  /** Egen styrka (0–1) i stället för `faded` (ADR-0180 beslut 12: befintliga kontroller och andra banor svagt). */
+  /** Egen styrka (0–1) i stället för `faded` (ADR-0180 beslut 13: befintliga kontroller och andra banor svagt). */
   readonly alpha?: number | undefined;
   /** Symbolerna för beskrivningen på kartan; saknas = beskrivningen ritas som sin ruta. */
   readonly symbols?: SymbolLookup | undefined;

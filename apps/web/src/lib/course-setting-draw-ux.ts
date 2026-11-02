@@ -4,7 +4,7 @@ import type { BranchLabel } from "./course-setting-forks";
 import { handlePosition, type Rotatable } from "./course-setting-rotate";
 
 /**
- * ADR-0180 beslut 12: det som bara finns på skärmen när man arbetar (aldrig i banpåtrycket): markeringen före ett klick
+ * ADR-0180 beslut 13: det som bara finns på skärmen när man arbetar (aldrig i banpåtrycket): markeringen före ett klick
  * som lägger in en befintlig kontroll ("Lägg in 45"), vridhandtaget, grenarnas bokstäver och de oanvända kontrollerna
  * (grå streckade ringar med ett litet kryss).
  */

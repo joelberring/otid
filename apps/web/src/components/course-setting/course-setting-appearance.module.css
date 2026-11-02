@@ -1,0 +1,26 @@
+/* Banans utseende och etiketten vid kontrollen (ADR-0180 beslut 12). */
+.presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.presets button { min-height: 36px; padding: 4px 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: var(--text-sm); text-align: left; cursor: pointer; }
+.presets button[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: var(--surface); }
+.presets button:disabled { cursor: default; opacity: 0.6; }
+.field { display: grid; grid-template-columns: minmax(7rem, auto) 5.5rem minmax(0, 1fr); align-items: center; gap: 6px; font-size: var(--text-sm); }
+.field > span:first-child { font-weight: 600; }
+.field input { min-height: 36px; width: 100%; padding: 2px 6px; font: inherit; }
+.paper { color: var(--muted); font-variant-numeric: tabular-nums; }
+.error { margin: 0; color: var(--mp); font-size: var(--text-sm); }
+.check { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 8px; font-size: var(--text-sm); font-weight: 600; cursor: pointer; }
+.check input { width: 20px; height: 20px; margin: 1px 0 0; }
+.check small { display: block; color: var(--muted); font-weight: 400; }
+.table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
+.table th, .table td { padding: 3px 4px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.table td:not(:last-child) { white-space: nowrap; }
+.table td[data-warn] { color: var(--attention); font-weight: 700; }
+.table td[data-warn]::after { content: " !"; }
+.kinds { display: grid; gap: 4px; margin: 0; padding: 0; border: 0; }
+.kind { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 36px; font-size: var(--text-sm); cursor: pointer; }
+.kind input { width: 18px; height: 18px; margin: 0; }
+.example { min-width: 3.5rem; padding: 1px 6px; border: 1px solid var(--line); color: var(--accent); font-family: Roboto, Arial, sans-serif; font-weight: 600; text-align: center; font-variant-numeric: tabular-nums; }
+@media (max-width: 420px) {
+  .field { grid-template-columns: minmax(0, 1fr) 5rem; }
+  .field .paper { grid-column: 1 / -1; }
+}

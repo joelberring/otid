@@ -1,4 +1,4 @@
-/* ADR-0180 beslut 12: paletten med objekt, gafflingens rad, visningsvalen, kontrollistan som träd och varianterna. */
+/* ADR-0180 beslut 13: paletten med objekt, gafflingens rad, visningsvalen, kontrollistan som träd och varianterna. */
 .popover { position: absolute; top: 10px; left: 92px; z-index: 6; display: grid; gap: 8px; width: min(520px, calc(100% - 110px));
   max-height: calc(100% - 20px); padding: 10px 12px; overflow-y: auto; border: 1px solid var(--line-strong); border-radius: 8px;
   background: var(--surface); box-shadow: 0 6px 20px rgba(0, 0, 0, .25); }

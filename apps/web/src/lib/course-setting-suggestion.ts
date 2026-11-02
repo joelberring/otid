@@ -1,8 +1,10 @@
 import type { CourseSettingSuggestion } from "@o-tid/contracts";
 import {
-  replayEdits, type CourseSettingDocument, type CourseSettingEdit, type CreatedIds, type ReplayRejection
+  replayEdits, type Appearance, type CourseSettingDocument, type CourseSettingEdit, type CreatedIds, type ReplayRejection
 } from "@o-tid/course-setting";
 import type { Point } from "@o-tid/map-file";
+import { appearanceSv, labelSv } from "../i18n/course-setting-appearance-sv";
+import { formatRatio } from "./course-setting-appearance";
 import { controlLabel } from "./course-setting-text";
 
 /**
@@ -41,6 +43,20 @@ export function suggestionOverlay(current: CourseSettingDocument, proposed: Cour
   return { moved, added, removed };
 }
 
+/** Utseendet i en mening: "Utseende: ringstorlek 1,12, skalning relativt 1:15 000". */
+function describeAppearance(changes: Partial<Appearance>): string {
+  const ratio = (value: number) => formatRatio(value).replace(".", ",");
+  const parts = [
+    changes.circleSize !== undefined ? `ringstorlek ${ratio(changes.circleSize)}` : undefined,
+    changes.lineWidth !== undefined ? `linjebredd ${ratio(changes.lineWidth)}` : undefined,
+    changes.numberSize !== undefined ? `nummerstorlek ${ratio(changes.numberSize)}` : undefined,
+    changes.itemScaling !== undefined ? `skalning ${appearanceSv.scalings[changes.itemScaling].toLowerCase()}` : undefined,
+    changes.autoLegGap !== undefined ? `avbrott vid sträckor ${ratio(changes.autoLegGap)} mm` : undefined,
+    changes.circleGapsScaled !== undefined ? `ringavbrotten ${changes.circleGapsScaled ? "följer" : "följer inte"} skalningen` : undefined
+  ].filter((part): part is string => part !== undefined);
+  return `Utseende: ${parts.join(", ") || "oförändrat"}`;
+}
+
 const mm = (point: Point) => `${point.x.toFixed(1)}, ${point.y.toFixed(1)} mm`;
 const KINDS: Record<string, string> = { START: "start", NORMAL: "kontroll", FINISH: "mål", CROSSING_POINT: "passage", MAP_EXCHANGE: "kartbyte",
   MAP_ISSUE: "kartutdelning" };
@@ -62,7 +78,9 @@ export function describeEdit(edit: CourseSettingEdit, document: CourseSettingDoc
     case "SET_CONTROL_ORIENTATION": return `Vrid ${label(edit.control)} till ${Math.round(edit.orientation)}°`;
     case "DUPLICATE_COURSE": return `Kopiera banan ${course(edit.course)} som ${edit.name}`;
     case "ADD_COURSE": return `Ny bana ${edit.name}`;
-    case "UPDATE_COURSE": return `Ändra banan ${course(edit.course)}`;
+    case "UPDATE_COURSE": return edit.changes.labelKind !== undefined && Object.keys(edit.changes).length === 1
+      ? `Vid kontrollerna på ${course(edit.course)}: ${labelSv.kinds[edit.changes.labelKind].toLowerCase()}`
+      : `Ändra banan ${course(edit.course)}`;
     case "DELETE_COURSE": return `Ta bort banan ${course(edit.course)}`;
     case "INSERT_COURSE_CONTROL": return `Lägg in ${label(edit.control)} på ${course(edit.course)}`;
     case "REMOVE_COURSE_CONTROL": return `Ta bort ${onCourse(edit.courseControl)} från ${course(edit.course)}`;
@@ -73,6 +91,7 @@ export function describeEdit(edit: CourseSettingEdit, document: CourseSettingDoc
     case "SET_LEG_GAPS": return `Avbrott på sträckan ${label(edit.from)}–${label(edit.to)}`;
     case "SET_CIRCLE_GAPS": return `Avbrott i ringen för ${label(edit.control)}`;
     case "SET_EVENT": return "Ändra inställningarna";
+    case "SET_APPEARANCE": return describeAppearance(edit.changes);
     case "SET_DESCRIPTION": return `Beskrivningen för ${label(edit.control)}`;
     case "SET_DESCRIPTION_TEXT_LINE": return `Textraden ${edit.location === "before" ? "före" : "efter"} ${label(edit.control)}`;
     case "PUT_OBJECTS": return "Ångra en ändring";

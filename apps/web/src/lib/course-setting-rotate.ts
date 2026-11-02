@@ -6,7 +6,7 @@ import type { Selection } from "./course-setting-editor";
 import { ALL_CONTROLS } from "./course-setting-hit";
 
 /**
- * ADR-0180 beslut 12: vrida passager. Som i Purple Pen (Controller.CanRotate, RotateMode) går bara obligatorisk passage
+ * ADR-0180 beslut 13: vrida passager. Som i Purple Pen (Controller.CanRotate, RotateMode) går bara obligatorisk passage
  * (kontrollslaget CROSSING_POINT) och valfri passage (specialobjektet) att vrida; vinkeln är grader moturs och handtaget
  * pekar i vinkelns riktning från mitten (RotateMode: atan2 från mitten till musen). Vridningen fäster i steg om 5° utom
  * med Skift (eller ett andra finger). Symbolen ")(" har löparens väg längs sin egen y-axel, så en passage som står rätt

@@ -18,7 +18,7 @@ export function CourseList({ document, summaries, view, readOnly = false, onView
   document: CourseSettingDocument; summaries: readonly CourseSummary[]; view: string; readOnly?: boolean;
   onView: (view: string, variant?: string) => void; onAdd: (name: string) => void; onRename: (course: string, name: string) => void;
   onClasses: (course: string, classes: string) => void;
-  /** ADR-0180 beslut 12: borttagningen frågar om kontrollerna som blir oanvända; kopian heter "<namn> (kopia)". */
+  /** ADR-0180 beslut 13: borttagningen frågar om kontrollerna som blir oanvända; kopian heter "<namn> (kopia)". */
   onRemove: (course: string) => void; onDuplicate: (course: string) => void;
 }) {
   const [renaming, setRenaming] = useState<string>();
@@ -74,7 +74,7 @@ export function CourseList({ document, summaries, view, readOnly = false, onView
 export function SelectionCard({ state, described, readOnly, onCode, onRemoveFromCourse, onDelete, onDescription, onMore, onClose, extra }: {
   state: EditorState; described?: string | undefined; readOnly: boolean; onCode: (control: string, code: string) => void;
   onRemoveFromCourse: () => void; onDelete: () => void; onDescription: () => void; onMore: () => void; onClose: () => void;
-  /** ADR-0180 beslut 12: passagens vinkel. */
+  /** ADR-0180 beslut 13: passagens vinkel. */
   extra?: ReactNode;
 }) {
   const { selection, document } = state;
@@ -112,7 +112,7 @@ export function SelectedPanel({ state, described, readOnly = false, onCode, onRe
   onStraighten, extra }: {
   state: EditorState; described?: string | undefined; readOnly?: boolean; onCode: (control: string, code: string) => void; onRemoveFromCourse: () => void; onDelete: () => void;
   onSplit: (kind: "FORK" | "LOOP", branches: number) => void; onRemoveSplit: () => void; onResetNumber: () => void; onStraighten: () => void;
-  /** ADR-0180 beslut 12: vinkeln för en passage. */
+  /** ADR-0180 beslut 13: vinkeln för en passage. */
   extra?: ReactNode;
 }) {
   const [branches, setBranches] = useState(2);

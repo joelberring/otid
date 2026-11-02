@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
+import { useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref } from "react";
 import type { OverprintPrimitive } from "@o-tid/course-setting";
 import type { Point } from "@o-tid/map-file";
 import type { LegAnalysis } from "@o-tid/route-choice";
 import { courseSettingSv as text } from "../../i18n/course-setting-sv";
+import { overprintProbe } from "../../lib/course-setting-appearance";
 import type { SymbolLookup } from "../../lib/course-setting-description-draw";
 import { drawMarks, drawOverprint, drawRouteChoice } from "../../lib/course-setting-draw";
 import { drawHighlightedRoute, drawNoteMarks, drawSuggestion, type SuggestionDrawing } from "../../lib/course-setting-draw-collaboration";
@@ -21,7 +22,7 @@ import { Button } from "../ui";
 import styles from "./course-setting.module.css";
 
 /** Det kartan behöver veta om ett tryck: kartpunkten och om det var en dragning. */
-/** ADR-0180 beslut 12: tangenterna och fingrarna vid ett klick eller en dragning. */
+/** ADR-0180 beslut 13: tangenterna och fingrarna vid ett klick eller en dragning. */
 export interface PointerModifiers {
   readonly alt: boolean;
   /** Skift eller ett andra finger: fri vinkel när man vrider. */
@@ -75,7 +76,7 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
   mapBounds: Bounds | undefined;
   primitives: readonly OverprintPrimitive[];
   faded: readonly OverprintPrimitive[];
-  /** ADR-0180 beslut 12: kontroller som inte är med i banan (svagt, med kod) och andra banor (svagt). */
+  /** ADR-0180 beslut 13: kontroller som inte är med i banan (svagt, med kod) och andra banor (svagt). */
   ghosts?: readonly OverprintPrimitive[] | undefined;
   others?: readonly OverprintPrimitive[] | undefined;
   marks: Parameters<typeof drawMarks>[2];
@@ -262,7 +263,7 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
     const at = local(event);
     pointers.current.set(event.pointerId, at);
     if (pointers.current.size === 2 && gesture.current?.kind === "drag" && handlers.onSecondPointer?.()) {
-      // Ett andra finger medan man vrider: dragningen fortsätter med fri vinkel (ADR-0180 beslut 12).
+      // Ett andra finger medan man vrider: dragningen fortsätter med fri vinkel (ADR-0180 beslut 13).
       gesture.current.free = true;
       return;
     }
@@ -370,6 +371,8 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
   }, []);
 
   const zoom = (factor: number) => setView(previous => previous ? zoomAt(previous, factor) : previous);
+  // Numrens texter och ringens storlek som attribut (Playwright läser dem; själva ritningen är en canvas).
+  const probe = useMemo(() => overprintProbe(primitives), [primitives]);
   function onKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
     const moves: Record<string, [number, number]> = { ArrowLeft: [PAN_STEP_PX, 0], ArrowRight: [-PAN_STEP_PX, 0], ArrowUp: [0, PAN_STEP_PX],
       ArrowDown: [0, -PAN_STEP_PX] };
@@ -387,7 +390,8 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
       onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
       onPointerLeave={event => { if (event.pointerType === "mouse" && view) handlers.onHover?.(undefined, modifiersOf(event, view)); }}>
       <canvas ref={base} className={styles.layer} aria-hidden="true" />
-      <canvas ref={overlay} className={styles.layer} aria-hidden="true" data-testid="course-setting-overprint" />
+      <canvas ref={overlay} className={styles.layer} aria-hidden="true" data-testid="course-setting-overprint"
+        data-labels={probe.labels} data-ring-mm={probe.ring} />
       <canvas ref={screen} className={`${styles.layer} ${styles.screenOnly}`} aria-hidden="true" data-testid="course-setting-cross"
         data-cross={cross ? `${cross.at.x.toFixed(2)},${cross.at.y.toFixed(2)}${cross.dragging ? ",drag" : ""}` : undefined} />
     </div>

@@ -10,7 +10,7 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
-### 2026-11-02 – Banläggningens editor mer som Purple Pen (grenen banlaggning-ux, ADR-0180 beslut 12)
+### 2026-11-02 – Banläggningens editor mer som Purple Pen (grenen banlaggning-ux, ADR-0180 beslut 13)
 - Objekt i verktygsraden (och bakom "Mer") öppnar en palett i fyra grupper med ikoner ritade av kartans ritare; obligatorisk passage ("Obl. passage", tooltip) skiljs från valfri; kartbyte och bild (uppladdning) läggs därifrån.
 - Vridhandtag för obligatorisk och valfri passage (5°-steg, Skift/andra fingret fritt), "Vrid efter sträckan", en ny passage i en bana vrids efter sträckan; ny ändring `SET_CONTROL_ORIENTATION`.
 - Duplicera bana (`DUPLICATE_COURSE`, med gafflingar, nummer, tryckyta och specialobjekt); båda nya ändringarna i samarbetet, kontraktet och förslagens text.
@@ -18,6 +18,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Kontrollistan i Banor visar gafflingen som träd (grenar bredvid varandra, klick = arbeta i grenen), "Gaffla här" (2/3/4 grenar, slinga), Nästa gren, bokstäver på kartan, varianter med antal och bild.
 - Ta bort bana frågar om kontrollerna som blir oanvända (ett ångra-steg); oanvända i Alla kontroller ritas grå streckade, filter, antal och "Ta bort alla oanvända".
 - Verifierat: se slutet av passet (lint, typecheck, test, Playwright banlaggning-objekt-gaffling och befintliga banläggningsspecar).
+
+### 2026-11-02 – Banans utseende och etiketten vid kontrollen (grenen utseende, ADR-0180 beslut 12)
+- `SET_APPEARANCE` skriver om `<course-appearance>` som Purple Pen bara när något ändrats; mm på papperet per skala och varningar mot ISOM 2017-2/ISSprOM 2019-2; konfliktnycklar per fält.
+- Inställningar → Utseende: snabbval (standard, förstorat 1:10 000, ISSprOM:s ring, 3,0 mm nummer), fria kvoter, skalning, avbrott vid sträckor, tabell per skala.
+- Banor → Vid kontrollen: Nummer/Kod/Nummer och kod (1, 31, 1-31), poäng bara för poängbanor, samma för alla stafettbanor eller banor; texter som Purple Pen (3/7-31, 31(30)).
+- Verifierat: lint, typecheck, test (Purple Pens 151 filer fram och tillbaka med ändrat utseende), Playwright banlaggning-utseende lokalt (1280/390), CI grönt med test:integration och alla specar. Återstår: ägaren provar en riktig nattbana; centrumpunkt, typsnitt och vit kant runt numren finns inte i O-Tid.
 
 ### 2026-11-02 – Steg 65: PDF för tryck med dekorfärger och övertryck (grenen steg65-pdf, ADR-0184)
 - Paketet `print-pdf` (pdf-lib + fontkit, MIT): arken ur steg 64 som PDF utan omräkning; kartan som vektorer via `drawMap` med en PDF-kontext (`MapDrawingContext`, ingen dubbel geometri), ett Form XObject per utsnitt; Roboto/Roboto Condensed (OFL) inbäddade som delmängd.

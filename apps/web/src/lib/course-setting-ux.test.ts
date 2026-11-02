@@ -12,7 +12,7 @@ import { clickSpecial, SPECIAL_TOOL_KINDS, specialInput } from "./course-setting
 import { describeEdit } from "./course-setting-suggestion";
 import { testDocument } from "./course-setting-test-document";
 
-/** ADR-0180 beslut 12: fångst av befintliga kontroller, vridning, grenarnas presentation och paletten. */
+/** ADR-0180 beslut 13: fångst av befintliga kontroller, vridning, grenarnas presentation och paletten. */
 const nextCode = (document: CourseSettingDocument) => String(31 + Object.keys(document.controls).length);
 
 /** Testdokumentet med en kontroll till (33) som inte är med i banan. */

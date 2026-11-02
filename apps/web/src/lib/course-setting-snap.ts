@@ -5,7 +5,7 @@ import type { Point } from "@o-tid/map-file";
 import { ALL_CONTROLS } from "./course-setting-hit";
 
 /**
- * ADR-0180 beslut 12: befintliga kontroller syns svagt och snäpper när man lägger till kontroller i en bana, som Purple
+ * ADR-0180 beslut 13: befintliga kontroller syns svagt och snäpper när man lägger till kontroller i en bana, som Purple
  * Pens AddControlMode (SetTemporaryControlView och HitTestPoint mot lagret med alla kontroller). Ett klick inom ringen,
  * eller inom fångavståndet i skärmpixlar från den, lägger in den befintliga kontrollen i stället för att skapa en ny.
  */

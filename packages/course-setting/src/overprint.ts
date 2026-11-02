@@ -5,6 +5,7 @@
 import type { Point } from "@o-tid/map-file";
 import { circleGapScale, appearanceOf, sizesFor, type Sizes } from "./appearance";
 import { simplifyGaps } from "./arcs";
+import { scoreOrdinals } from "./description-format";
 import { detailGapKey, detailGapsForView, gapsAtScale, overlapGaps, type OverlapFigure } from "./circle-cutting";
 import {
   alongLine, angleDegrees, bezier, cutPath, distance, nearestOnPath, pathIntersections, pathLength, place, polar
@@ -223,24 +224,38 @@ function cutLegAt(leg: LegObject, along: number, radius: number): void {
   leg.gaps.push({ start: along - radius, length: 2 * radius });
 }
 
-/** Etiketten för banans kontroll enligt banans `labelKind`. */
-function label(course: Course, ordinal: number | undefined, control: ControlPoint, points: number | undefined): string | undefined {
-  const code = control.code ?? "";
-  const score = points === undefined ? "" : String(points);
-  switch (course.labelKind) {
-    case "SEQUENCE": return ordinal === undefined ? undefined : String(ordinal);
+/**
+ * Texten vid kontrollen enligt banans `labelKind`, som Purple Pen (CourseFormatter.GetControlLabelText): "3", "31",
+ * "3-31", poäng "30", "31(30)" och "3(30)". En kontroll som besöks flera gånger får alla nummer ("3/7", "3/7-31").
+ * Poäng som saknas eller är 0 visas inte. `undefined` = ingen text.
+ */
+export function controlLabelText(labelKind: Course["labelKind"], parts: { readonly ordinals?: readonly number[] | undefined;
+  readonly code?: string | undefined; readonly points?: number | undefined }): string | undefined {
+  const sequence = parts.ordinals && parts.ordinals.length > 0 ? parts.ordinals.join("/") : undefined;
+  const code = parts.code ?? "";
+  const score = parts.points !== undefined && parts.points > 0 ? String(parts.points) : "";
+  switch (labelKind) {
+    case "SEQUENCE": return sequence;
     case "CODE": return code || undefined;
-    case "SEQUENCE_AND_CODE": return ordinal === undefined ? undefined : `${ordinal}-${code}`;
+    case "SEQUENCE_AND_CODE": return sequence === undefined ? undefined : `${sequence}-${code}`;
     case "SCORE": return score || undefined;
-    case "CODE_AND_SCORE": return score ? `${code}-${score}` : code || undefined;
-    case "SEQUENCE_AND_SCORE": return ordinal === undefined ? undefined : score ? `${ordinal}-${score}` : String(ordinal);
+    case "CODE_AND_SCORE": return `${code}${score ? `(${score})` : ""}` || undefined;
+    case "SEQUENCE_AND_SCORE": return sequence === undefined ? undefined : `${sequence}${score ? `(${score})` : ""}`;
   }
 }
 
 interface Box { readonly cx: number; readonly cy: number; readonly w: number; readonly h: number }
 
-// Siffrornas bredd i Arial/Roboto är 0,556 em, alltså 0,78 av siffhöjden.
+// Siffrornas bredd i Arial/Roboto är 0,556 em, alltså 0,78 av siffhöjden; "-", "/" och parenteserna är smalare, så
+// "12-145" och "31(30)" räknas något för breda (hellre lite för stort mellanrum än krock).
 const textWidth = (text: string, height: number) => Math.max(1, text.length) * 0.78 * height;
+// Parenteserna går under baslinjen och över siffrorna.
+const textHeight = (text: string, height: number) => (/[()]/.test(text) ? 1.3 * height : height);
+
+/** Rutan som texten täcker när mitten ligger i `at`. */
+function labelBox(at: Point, text: string, height: number): Box {
+  return { cx: at.x, cy: at.y, w: textWidth(text, height), h: textHeight(text, height) };
+}
 
 function segmentHitsBox(a: Point, b: Point, box: Box, margin: number): boolean {
   const minX = box.cx - box.w / 2 - margin, maxX = box.cx + box.w / 2 + margin;
@@ -270,11 +285,13 @@ function placeLabel(
   lines: readonly Point[][], circles: readonly { center: Point; radius: number }[], placed: readonly Box[], lineWidth: number, fixedAngle?: number
 ): Box {
   const w = textWidth(text, height);
+  const h = textHeight(text, height);
   const boxAt = (degrees: number): Box => {
     const a = degrees * Math.PI / 180;
-    const extent = Math.abs(Math.cos(a)) * w / 2 + Math.abs(Math.sin(a)) * height / 2;
+    // Rutans närmaste kant (i riktningen) hamnar `gap` utanför ringen, hur bred texten än är.
+    const extent = Math.abs(Math.cos(a)) * w / 2 + Math.abs(Math.sin(a)) * h / 2;
     const center = polar(at, radius + gap + extent, degrees);
-    return { cx: center.x, cy: center.y, w, h: height };
+    return { cx: center.x, cy: center.y, w, h };
   };
   if (fixedAngle !== undefined) return boxAt(fixedAngle);
   let best: { box: Box; cost: number } | undefined;
@@ -438,20 +455,22 @@ function layoutCourse(document: CourseSettingDocument, options: OverprintOptions
       ordinal++;
     }
   }
+  // Poängbanan: numren i beskrivningens ordning, efter poäng och kod (CourseView.CreateScoreCourseView).
+  const scoreNumbers = course.kind === "SCORE" ? scoreOrdinals(document, course) : undefined;
   const circles = points.map(object => ({ center: object.control.at, radius: apparentRadius(object.control.kind, sizes) }));
-  const placed: Box[] = [];
-  for (const object of points) {
-    if (object.control.kind !== "NORMAL") continue;
+  const labels = points.flatMap(object => {
+    if (object.control.kind !== "NORMAL") return [];
     const cc = document.courseControls[object.ref]!;
-    const numbers = course.kind === "SCORE" ? undefined : ordinals.get(object.control.id);
-    const text = course.labelKind === "SEQUENCE" && numbers && numbers.length > 1
-      ? numbers.join("/")
-      : label(course, numbers?.[0], object.control, cc.points);
-    if (!text) continue;
+    const numbers = scoreNumbers ? scoreNumbers.get(object.control.id) : ordinals.get(object.control.id);
+    const text = controlLabelText(course.labelKind, { ordinals: numbers, code: object.control.code, points: cc.points });
+    return text ? [{ object, cc, text }] : [];
+  });
+  // Som Purple Pen läggs de flyttade numren först, så att de automatiska undviker dem.
+  const placed: Box[] = labels.flatMap(({ cc, text }) => cc.numberAt ? [labelBox(cc.numberAt, text, sizes.numberHeight)] : []);
+  for (const { object, cc, text } of labels) {
     let at: Point;
     if (cc.numberAt) {
       at = cc.numberAt;
-      placed.push({ cx: at.x, cy: at.y, w: textWidth(text, sizes.numberHeight), h: sizes.numberHeight });
     } else {
       const box = placeLabel(object.control.at, apparentRadius("NORMAL", sizes), sizes.numberDistance, text, sizes.numberHeight, legLines,
         circles.filter(c => c.center !== object.control.at), placed, sizes.line);

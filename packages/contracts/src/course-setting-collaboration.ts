@@ -49,7 +49,7 @@ export const courseSettingEditSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("MOVE_CONTROL"), control: id, at: point }).strict(),
   z.object({ type: z.literal("DELETE_CONTROL"), control: id }).strict(),
   z.object({ type: z.literal("SET_CONTROL_CODE"), control: id, code: z.string().max(32) }).strict(),
-  // ADR-0180 beslut 12: passagens vinkel och kopia av bana.
+  // ADR-0180 beslut 13: passagens vinkel och kopia av bana.
   z.object({ type: z.literal("SET_CONTROL_ORIENTATION"), control: id, orientation: z.number().finite() }).strict(),
   z.object({ type: z.literal("ADD_COURSE"), name: z.string().max(200), kind: z.enum(["NORMAL", "SCORE"]).optional() }).strict(),
   z.object({ type: z.literal("DUPLICATE_COURSE"), course: id, name: z.string().max(200) }).strict(),
@@ -76,6 +76,10 @@ export const courseSettingEditSchema = z.discriminatedUnion("type", [
     printProfileId: id.optional(),
     // Ringklippen (ADR-0180 beslut 10).
     circleCutting: z.object({ overlap: z.boolean(), details: z.boolean() }).strict().optional() }).strict() }).strict(),
+  // Banans utseende (ADR-0180 beslut 12); gränserna kontrolleras av paketets applyEdit.
+  z.object({ type: z.literal("SET_APPEARANCE"), changes: z.object({ itemScaling: z.enum(["None", "RelativeToMap", "RelativeTo15000"]).optional(),
+    circleSize: z.number().finite().optional(), lineWidth: z.number().finite().optional(), numberSize: z.number().finite().optional(),
+    autoLegGap: z.number().finite().optional(), circleGapsScaled: z.boolean().optional() }).strict() }).strict(),
   z.object({ type: z.literal("SET_DESCRIPTION"), control: id, boxes: z.array(z.object({ box: z.string().max(8), ref: z.string().max(32).optional(),
     text: z.string().max(64).optional() }).strict()).max(16) }).strict(),
   z.object({ type: z.literal("SET_DESCRIPTION_TEXT_LINE"), control: id, location: z.enum(["before", "after"]), text: z.string().max(400).nullable() }).strict(),

@@ -40,7 +40,7 @@ export const courseSettingSv = {
     cancel: "Avbryt",
     variant: "Variant",
     allVariants: "Alla grenar",
-    /** ADR-0180 beslut 12: variantväljaren med antal kontroller. */
+    /** ADR-0180 beslut 13: variantväljaren med antal kontroller. */
     variantOption: (code: string, controls: number) => `${code} · ${controls} ${controls === 1 ? "kontroll" : "kontroller"}`,
     classes: "Klasser (som i Purple Pen, t.ex. H21, D21)"
   },
@@ -56,7 +56,7 @@ export const courseSettingSv = {
     ADD_BEND: "Brytpunkt på sträcka",
     NOTE: "Ny notis",
     SPECIAL: "Specialobjekt (förbjudet område, valfri passage, text …)",
-    /** ADR-0180 beslut 12: förklaringen i verktygets tooltip där namnet inte räcker. */
+    /** ADR-0180 beslut 13: förklaringen i verktygets tooltip där namnet inte räcker. */
     title: {
       ADD_CROSSING: "Obligatorisk passage – ingår i banan och numreras inte; löparen måste passera. Valfri passage finns under Objekt",
       SPECIAL: "Objekt – passager, spärrar, service, text och grafik"

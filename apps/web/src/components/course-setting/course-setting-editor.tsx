@@ -44,6 +44,7 @@ import { fetchRouteChoice } from "../../lib/route-choice-api";
 import { RouteChoiceSession } from "../../lib/route-choice-client";
 import { describeEdit } from "../../lib/course-setting-suggestion";
 import { Button, Notice } from "../ui";
+import { AppearancePanel, LabelPanel } from "./course-setting-appearance";
 import { CircleCuttingPanel, useDetailGaps } from "./course-setting-circle-cutting";
 import { useFieldMode, useLockedPage } from "./course-setting-field";
 import { FilePanel, type ReadFile } from "./course-setting-file";
@@ -226,7 +227,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
   const { document, view, selection } = editor;
   const course = document.courses.find(row => row.id === view);
   const radiusMm = 3 * (course?.printScale ?? document.event.mapScale) / document.event.mapScale;
-  // ADR-0180 beslut 12: paletten, vridningen, befintliga kontroller, gafflingens grenar, kopia och oanvända kontroller.
+  // ADR-0180 beslut 13: paletten, vridningen, befintliga kontroller, gafflingens grenar, kopia och oanvända kontroller.
   const ux = useCourseSettingUx({ editor, store, apply, edit, readOnly, radiusMm, say, setTab });
   const variant = ux.variant;
   const cutting = useDetailGaps(mapSession, document);
@@ -473,7 +474,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
     const target = hit(point, tolerance);
     return target ? (readOnly ? "pointer" : target.kind === "leg" ? "pointer" : "move") : "grab";
   };
-  // ADR-0180 beslut 12: "Gaffla här" frågar efter antal grenar eller slinga.
+  // ADR-0180 beslut 13: "Gaffla här" frågar efter antal grenar eller slinga.
   const fork = ux.openForkPicker;
 
   // Tangenterna (inte när man skriver i ett fält): verktygen med en bokstav, Delete, Escape, ångra och gör om.
@@ -588,7 +589,10 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
           selected={selection?.kind === "control" ? (view === ALL_CONTROLS ? selection.control : selection.courseControl) : undefined} unused={ux.unused}
           onSelect={target => { apply(current => select(current, { kind: "control", ...target })); const at = document.controls[target.control]?.at;
             if (at) mapHandle.current?.reveal([at]); }}
-          onBranch={ux.workIn} onVariant={code => apply(current => setView(current, view, code))} onRemoveUnused={ux.requestRemoveUnused} /></>;
+          onBranch={ux.workIn} onVariant={code => apply(current => setView(current, view, code))} onRemoveUnused={ux.requestRemoveUnused} />
+        {/* Etiketten vid kontrollen för vald bana (ADR-0180 beslut 12). */}
+        {course && <LabelPanel document={document} course={course} readOnly={readOnly} onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} />}
+      </>;
       case "description": return <DescriptionPanel document={document} view={view} variant={variant} selection={selection} settings={descriptionSettings}
         onSettings={next => {
           setDescriptionKind(next.kind);
@@ -643,8 +647,10 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
       case "suggestions": return <SuggestionsPanel suggestions={collaboration.suggestions} document={document} reviewing={reviewing}
         onReview={id => { setReviewing(id); setSkip(new Set()); setDecision(undefined); }} skip={skip} onSkip={setSkip}
         canDecide={access.level === "EDIT"} onDecide={decide} result={decision} rejected={rejectedInPreview} draft={draft} />;
-      // Inställningar: arbetssättet och ringklippen (ADR-0180 beslut 10).
-      case "settings": return <><section className={styles.panel} aria-labelledby="course-setting-mode">
+      // Inställningar: banans utseende (ADR-0180 beslut 12), arbetssättet, utan nät och ringklippen (beslut 10).
+      case "settings": return <>
+      <AppearancePanel document={document} view={view} readOnly={readOnly} onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} />
+      <section className={styles.panel} aria-labelledby="course-setting-mode">
         <h2 id="course-setting-mode">{copy.mode.heading}</h2>
         <label className={styles.stack}>{copy.mode.label}
           <select value={collaboration.mode} disabled={!access.admin} onChange={event => void changeMode(event.target.value === "SHARED" ? "SHARED" : "LEAD")}>
@@ -674,7 +680,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
     onList: () => { setTab("inspections"); setReveal(value => value + 1); },
     onOffline: () => setOfflineDialog(true) });
   useLockedPage();
-  // ADR-0180 beslut 12: Objekt öppnar paletten (också i telefonens kompakta läge, bakom "Mer").
+  // ADR-0180 beslut 13: Objekt öppnar paletten (också i telefonens kompakta läge, bakom "Mer").
   const toolBar = <ToolBar tool={ux.palette ? "SPECIAL" : editor.tool} tools={tools} inCourse={view !== ALL_CONTROLS} onTool={tool => {
     if (tool === "SPECIAL") ux.setPalette(open => !open);
     else { ux.setPalette(false); apply(current => setTool(current, tool)); }

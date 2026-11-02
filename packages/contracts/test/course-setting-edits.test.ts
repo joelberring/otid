@@ -32,11 +32,21 @@ describe("banläggningens åtgärder", () => {
     expect(courseSettingEditSchema.safeParse({ type: "ADD_SPECIAL", special: { kind: "unicorn", points: [{ x: 0, y: 0 }] } }).success).toBe(false);
   });
 
-  it("tar passagens vinkel och kopian av en bana (ADR-0180 beslut 12)", () => {
+  it("tar passagens vinkel och kopian av en bana (ADR-0180 beslut 13)", () => {
     const parse = (edit: unknown) => courseSettingEditSchema.safeParse(edit).success;
     expect(parse({ type: "SET_CONTROL_ORIENTATION", control: "4", orientation: 37.5 })).toBe(true);
     expect(parse({ type: "SET_CONTROL_ORIENTATION", control: "4", orientation: "37" })).toBe(false);
     expect(parse({ type: "DUPLICATE_COURSE", course: "2", name: "Lång (kopia)" })).toBe(true);
     expect(parse({ type: "DUPLICATE_COURSE", course: "2" })).toBe(false);
+  });
+
+  it("tar banans utseende och etiketten (ADR-0180 beslut 12)", () => {
+    const parse = (edit: unknown) => courseSettingEditSchema.safeParse(edit).success;
+    expect(parse({ type: "SET_APPEARANCE", changes: { circleSize: 1.12, lineWidth: 1, numberSize: 0.75, itemScaling: "RelativeTo15000",
+      autoLegGap: 0, circleGapsScaled: true } })).toBe(true);
+    expect(parse({ type: "SET_APPEARANCE", changes: {} })).toBe(true);
+    expect(parse({ type: "SET_APPEARANCE", changes: { itemScaling: "Twice" } })).toBe(false);
+    expect(parse({ type: "SET_APPEARANCE", changes: { centerDot: 0.3 } })).toBe(false);
+    expect(parse({ type: "UPDATE_COURSE", course: "3", changes: { labelKind: "SEQUENCE_AND_CODE" } })).toBe(true);
   });
 });

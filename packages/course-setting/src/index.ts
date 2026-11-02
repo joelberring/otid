@@ -25,7 +25,13 @@ import { CourseSettingEditError } from "./types";
 export * from "./types";
 export * from "./description-types";
 export { CONTROL_DISTANCE_LIMITS } from "./check";
-export { OVERPRINT_SIZES } from "./appearance";
+export { appearanceOf, ITEM_SCALINGS, OVERPRINT_SIZES, type Appearance, type ItemScaling } from "./appearance";
+// Banans utseende och etiketten vid kontrollen (ADR-0180 beslut 12).
+export {
+  APPEARANCE_LIMITS, APPEARANCE_TOLERANCE, appearanceWarnings, paperSizesFor, printScalesInUse, standardPaperSizes, type AppearanceWarning,
+  type PaperSizes
+} from "./appearance-edit";
+export { controlLabelText } from "./overprint";
 export { INVERTIBLE_CODES } from "./summary";
 // Steg 66: flera som arbetar samtidigt (åtgärder som spelas upp på en nyare version, ångra med PUT_OBJECTS).
 export {
@@ -46,7 +52,7 @@ export { approximateTextWidth, DIGIT_HEIGHT_EM, expandText, specialVisible, TEXT
 export { SPECIAL_KIND_LIST, specialPointCount } from "./special-edit";
 export { specialImage } from "./ppen-special";
 export { printScaleOf } from "./overprint";
-// Banläggningens UX (ADR-0180 beslut 12): kopia av bana, oanvända kontroller, grenarnas bokstäver och vinklar.
+// Banläggningens UX (ADR-0180 beslut 13): kopia av bana, oanvända kontroller, grenarnas bokstäver och vinklar.
 export { controlsOnlyIn, unusedControls } from "./course-duplicate";
 export { legPath, variantLetters, variations, type Variation } from "./walk";
 export { normalizeDegrees } from "./edit";

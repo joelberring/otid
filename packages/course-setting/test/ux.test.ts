@@ -5,7 +5,7 @@ import {
 } from "../src";
 import { Builder, lineCourse } from "./build";
 
-/** ADR-0180 beslut 12: duplicera bana, passagens vinkel och oanvända kontroller. */
+/** ADR-0180 beslut 13: duplicera bana, passagens vinkel och oanvända kontroller. */
 function author(document: CourseSettingDocument, edits: readonly CourseSettingEdit[]) {
   const created: CreatedIds[] = [];
   let current = document;

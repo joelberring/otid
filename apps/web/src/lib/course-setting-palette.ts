@@ -7,7 +7,7 @@ import { ALL_CONTROLS } from "./course-setting-hit";
 import { specialInput } from "./course-setting-specials";
 
 /**
- * ADR-0180 beslut 12: paletten med objekt. Varje slag har en ikon som räknas fram med paketets banpåtryck
+ * ADR-0180 beslut 13: paletten med objekt. Varje slag har en ikon som räknas fram med paketets banpåtryck
  * (`layoutOverprint`) på ett litet dokument med bara det objektet, och ritas med kartans ritare (`drawOverprint`), så
  * att ikonen ser ut som objektet gör på kartan. Obligatorisk passage och kartbyte är kontroller på banan (verktyg),
  * resten är Purple Pens specialobjekt.

@@ -16,7 +16,7 @@ import { legOrientation } from "./course-setting-rotate";
  * ändringar står kvar; i förslagsläget (`suggesting`) tar ångra i stället bort stegets åtgärder ur förslaget.
  */
 export type Tool = "SELECT" | "ADD_CONTROL" | "ADD_START" | "ADD_FINISH" | "ADD_CROSSING" | "INSERT_EXISTING" | "ADD_BEND" | "NOTE" | "SPECIAL"
-  /** ADR-0180 beslut 12: kartbyte från paletten. */
+  /** ADR-0180 beslut 13: kartbyte från paletten. */
   | "ADD_MAP_EXCHANGE";
 
 /** En gjord åtgärd som inte är sparad (eller ingår i förslaget), med id som den skapade. */
@@ -52,13 +52,13 @@ export interface EditorState {
   readonly view: string;
   /** Variantkod för en gafflad bana; saknas = alla grenar. */
   readonly variant?: string | undefined;
-  /** ADR-0180 beslut 12: grenen man arbetar i (banans kontroll som börjar den); nya kontroller läggs in i grenen. */
+  /** ADR-0180 beslut 13: grenen man arbetar i (banans kontroll som börjar den); nya kontroller läggs in i grenen. */
   readonly branch?: string | undefined;
   readonly tool: Tool;
   /** Steg 64: slaget som verktyget SPECIAL skapar och punkterna som är utsatta (yta eller linje som ritas). */
   readonly specialKind?: SpecialKind | undefined;
   readonly drawing?: readonly Point[] | undefined;
-  /** ADR-0180 beslut 12: bilden som läggs ut med nästa klick (verktyget SPECIAL med slaget "image"). */
+  /** ADR-0180 beslut 13: bilden som läggs ut med nästa klick (verktyget SPECIAL med slaget "image"). */
   readonly specialImage?: { readonly format: string; readonly data: string; readonly aspect: number } | undefined;
   readonly selection?: Selection | undefined;
   /** Dokumentet när en dragning började och dragningens senaste åtgärd. */
@@ -268,7 +268,7 @@ export function addPoint(state: EditorState, tool: Tool, at: Point, apply: Apply
   snap?: string): EditorState {
   const kind = toolControlKind(tool);
   if (!kind) return state;
-  // ADR-0180 beslut 12: ett klick i ringen på en befintlig kontroll lägger in den (som Purple Pens AddControlMode).
+  // ADR-0180 beslut 13: ett klick i ringen på en befintlig kontroll lägger in den (som Purple Pens AddControlMode).
   if (snap !== undefined && state.view !== ALL_CONTROLS && state.document.controls[snap]) return insertExisting(state, snap, apply);
   const inCourse = state.view !== ALL_CONTROLS;
   const after = inCourse ? insertAfter(state, kind) : undefined;
@@ -276,7 +276,7 @@ export function addPoint(state: EditorState, tool: Tool, at: Point, apply: Apply
   return applySteps(state, [
     { type: "ADD_CONTROL", kind, at, ...(kind === "NORMAL" ? { code: nextCode(state.document) } : {}) },
     created => { control = created; return inCourse && created ? { type: "INSERT_COURSE_CONTROL", course: state.view, control: created, after } : undefined; },
-    // En ny obligatorisk passage ställs rätt mot sträckan genom den (Purple Pen ger vinkeln 0, ADR-0180 beslut 12).
+    // En ny obligatorisk passage ställs rätt mot sträckan genom den (Purple Pen ger vinkeln 0, ADR-0180 beslut 13).
     (created, document) => {
       courseControl = inCourse && control ? created : undefined;
       if (kind !== "CROSSING_POINT" || !control || !courseControl) return undefined;
@@ -312,7 +312,7 @@ export function removeSelected(state: EditorState, apply: Apply, everywhere = st
 }
 
 /**
- * Gaffling eller slinga vid vald kontroll på banan. ADR-0180 beslut 12: editorn står sedan i första grenen (A), så att
+ * Gaffling eller slinga vid vald kontroll på banan. ADR-0180 beslut 13: editorn står sedan i första grenen (A), så att
  * nästa kontroll läggs in där (gaffling: efter gaffelkontrollen, slinga: i första slingan).
  */
 export function addSplit(state: EditorState, kind: "FORK" | "LOOP", branches: number, apply: Apply): EditorState {

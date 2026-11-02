@@ -58,7 +58,22 @@ Samarbete och fältläge i mobilen (66–67, ADR-0181) lades till 2026-11-01 och
     passera och passager som öppningar, som motorn tar emot per sträcka (`LegInput.barriers`) och rastrerar som kartans
     ej passerbara symboler respektive genomgångar; kontrollerna varnar när en sträckas linje går genom en spärr.
     Utskriftsprofilen (kartans färger och banans dekorfärg), layoutmallarna och en karta per löpare beskrivs i ADR-0183.
-12. **Editorn mer som Purple Pen (ägarens synpunkter 2026-11-02).** *Objekt:* knappen Objekt i verktygsraden (också i
+12. **Utseende och etikett (ägarens önskemål 2026-11-02).** Banans utseende för hela banläggningen ändras med en ny åtgärd
+    `SET_APPEARANCE` (ringstorlek, linjebredd och nummerstorlek som kvoter, skalning Ingen/Relativt kartan/Relativt 1:15 000,
+    automatiskt avbrott vid sträckor i mm, om ringavbrotten följer skalningen). Inga nya fält i modellen: värdena står kvar i
+    händelsens råa `<course-appearance>` och läses med `appearanceOf`. Ändras inget är `raw` orört; annars skrivs elementet som
+    Purple Pen (kvoterna bara när de inte är 1, `scale-sizes` och `auto-leg-gap-size` alltid, 32-bitarstal, okända attribut
+    kvar). `scale-sizes-circle-gaps` skrivs bara när banläggaren ändrar det, eftersom O-Tid inte flyttar äldre filers
+    ringavbrott som Purple Pen gör när det sätts. Konfliktnycklar per fält (`event:appearance:<fält>`). Som Purple Pen följer
+    numrens avstånd till ringen ringstorleken och koderna nummerstorleken. Webben visar vad kvoten ger i mm på papperet för
+    varje utskriftsskala och varnar när måtten avviker mer än 2 % från ISOM 2017-2 (förstoras med 15 000/skalan, 2.9.1 och
+    3.7) eller ISSprOM 2019-2. Snabbvalen är bara standardernas mått eller mått med angivet ursprung: standard, förstorat i
+    1:10 000 (ISOM 2.9.1, ungdom och äldre), ISSprOM:s ring 6,0 mm och 3,0 mm nummer (Purple Pens kodstorlek); de två
+    sista ger varning. Etiketten vid kontrollen är banans `labelKind` via `UPDATE_COURSE` (också för alla stafettbanor eller
+    alla banor i ett steg); texterna följer Purple Pen ("3-31", "3/7-31", "31(30)", "3(30)") och poängbanans nummer kommer
+    ur beskrivningens ordning (nummer flyttar poängen ur kolumn A, som Purple Pens dialog). `placeLabel` räknar texten
+    något för bred, ger parenteser mer höjd och lägger flyttade nummer först.
+13. **Editorn mer som Purple Pen (ägarens synpunkter 2026-11-02).** *Objekt:* knappen Objekt i verktygsraden (också i
     telefonens "Mer") öppnar en palett i fyra grupper (Passager och kartbyte, Spärrar, Service, Text och grafik); varje slag
     har en ikon som räknas med `layoutOverprint` och ritas med kartans `drawOverprint`, ett namn och en förklarande rad.
     Obligatorisk passage (kontrollslaget i banan, "Obl. passage" i verktygsraden) och valfri passage (specialobjekt på alla

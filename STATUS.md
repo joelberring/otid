@@ -15,7 +15,7 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Inget publikt om löpare indexeras (robots.txt, X-Robots-Tag, meta); HSTS. Varianten (startlista, IOF XML, stafett) och kartbilden publikt först efter start, val under Publicera → Före start; bricknummer av för nya tävlingar.
 - Behörigheter från andra kräver bekräftad e-post; registrering och glömt lösenord svarar likadant och arbetar efter svaret; `superadmin.mjs verify`.
 - Drift: roller otid_owner/otid_app/otid_print (`deploy/db-roles.sh`, provad mot kopia med data, i CI före alla specar), hemligheter bara i web, egen `migrate` med dump före, backup dygnet runt + valfri restic, `monitor` med bevakningspingar, disk > 80 %, utskriftsjobb i barnprocess med tidsgräns, KONFIGURATIONSFEL i loggen, fasta bildversioner, CI `contents: read`.
-- Verifierat: se slutrapporten (lint, typecheck, test, test:integration, berörda specar lokalt; CI).
+- Verifierat: lint, typecheck, test, test:integration (ny adr-0185-sakerhet.test); rollerna, migrering 0038–0040 som ägare, dump/återställning och tillbakagång mot kopia med data; Playwright sakerhetshuvuden, banhemlighet, konton, listor, tavlingsinfo lokalt; CI grönt med alla specar efter rollövergången.
 - Ägaren: SMTP behövs för att nya personer ska få behörigheter utan `verify`; följ docs/drift.md (Databasroller, Kopia utanför servern, Bevakning).
 
 ### 2026-11-02 – Tävlingsdagen robust efter översynen (grenen tavlingsdag-robust, ADR-0185, migration 0038–0039)

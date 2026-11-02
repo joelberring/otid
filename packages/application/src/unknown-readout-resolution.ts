@@ -20,7 +20,7 @@ import { relayTeamOfEntry } from "./relay-model";
 import { loadDecisionReviews } from "./decision-review";
 import { synchronizeRelayTeams } from "./relay-sync";
 import { appendResultRevision } from "./result-revisions";
-import { readoutsWithResults } from "./readout-registration";
+import { readoutsWithResults } from "./readout-lookup";
 import { cardAlreadyReadOutBy } from "./card-reuse";
 import { normalizedReadout } from "./result-revisions";
 import { loadTeamSprintRunners, storeTeamSprintReadoutAndRecalculate } from "./team-sprint-readout";
@@ -202,9 +202,14 @@ export async function resolveUnknownReadoutAsAdmin(
     const teamSprintSame = sprintEntries.length > 0 && activeOwner?.entryId === sprintOwnerId;
     if (activeOwner && !borrowedFrom && !teamSprintSame) return { status: "conflict" };
     const sameRunner = teamSprintSame || (borrowedFrom !== undefined && intent.target === "EXISTING_ENTRY" && intent.entryId === borrowedFrom);
-    const [cardOwner] = sameRunner ? [activeOwner] : await tx.select().from(schema.cardAssignments).where(and(
-      eq(schema.cardAssignments.raceId, input.raceId), eq(schema.cardAssignments.cardNumber, intent.cardNumber),
-      eq(schema.cardAssignments.active, false))).limit(1);
+    // Översynen 2026-11-02 (`card-assignment.ts` regel 2): en inaktiv koppling hos en annan deltagare är historik och hindrar
+    // inte. Deltagarens egen tidigare koppling till brickan återanvänds.
+    const [cardOwner] = sameRunner ? [activeOwner] : intent.target === "EXISTING_ENTRY" && lockedEntry
+      ? await tx.select().from(schema.cardAssignments).where(and(
+        eq(schema.cardAssignments.raceId, input.raceId), eq(schema.cardAssignments.cardNumber, intent.cardNumber),
+        eq(schema.cardAssignments.entryId, lockedEntry.id), eq(schema.cardAssignments.active, false)))
+        .orderBy(desc(schema.cardAssignments.createdAt)).limit(1)
+      : [];
 
     let entry: typeof schema.entries.$inferSelect;
     let targetClassId: string;

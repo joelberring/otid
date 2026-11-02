@@ -30,6 +30,7 @@ import { handleRemovalRoute } from "./race-administrator-routes-removal";
 import { handleCorrectionRoute } from "./race-administrator-routes-corrections";
 import { bumpRaceChangeGeneration, RESULT_WRITES } from "./race-change-generation";
 import { retryReadConflicts } from "./read-conflict";
+import { logServerError } from "./server-error-log";
 import { handlePartyRoute } from "./race-administrator-routes-party";
 import { courseSettingRequirementFor, principalAllows, raceRoleFor } from "./race-roles";
 import { courseSettingAllows } from "@o-tid/application";
@@ -69,7 +70,10 @@ export async function raceAdministratorRoute(db: Database, request: Request, rac
   if (!allowed.includes(request.method)) return new Response(null, { status: 405,
     headers: { ...privateHeaders, allow: allowed.join(", ") } });
   let policy;
-  try { policy = securityPolicy(environment); } catch { return failure(500, "INTERNAL_ERROR"); }
+  try { policy = securityPolicy(environment); } catch (error) {
+    logServerError("race-administrator", "security-policy", error);
+    return failure(500, "INTERNAL_ERROR");
+  }
   const write = request.method !== "GET";
   if (write && !hasExpectedOrigin(request, policy)) return failure(403, "FORBIDDEN");
   const proof = sessionProof(request, policy, write);
@@ -106,11 +110,15 @@ export async function raceAdministratorRoute(db: Database, request: Request, rac
     const context: RaceAdministratorRouteContext = { db, request, raceId, action, dependencies, proof, cursor, beforeVersion };
     // Steg 51: en läsning (speakern, kvar i skogen, listorna) som avbröts av en samtidig ändring görs om i stället för 500.
     if (!write) return await retryReadConflicts(() => dispatchRaceAdministratorRoute(context));
+    // Översynen 2026-11-02: en skrivning som PostgreSQL avbröt (40001, 40P01) görs om i databaspoolen (`createDatabase`).
     const response = await dispatchRaceAdministratorRoute(context);
     // Steg 54: en lyckad ändring syns direkt i det som delas eller cachas för inloggade (`race-change-generation.ts`).
     if (response.ok && !RESULT_WRITES.has(action.kind)) bumpRaceChangeGeneration(raceId);
     return response;
-  } catch { return failure(500, "INTERNAL_ERROR"); }
+  } catch (error) {
+    logServerError("race-administrator", `${request.method} ${action.kind}`, error);
+    return failure(500, "INTERNAL_ERROR");
+  }
 }
 
 async function dispatchRaceAdministratorRoute(context: RaceAdministratorRouteContext): Promise<Response> {

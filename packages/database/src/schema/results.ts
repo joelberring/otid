@@ -94,7 +94,9 @@ export const resultRevisions = pgTable("result_revision", {
     .on(table.id, table.startCheckinDnsDecisionId, table.raceId, table.entryId, table.revision),
   uniqueIndex("result_revision_shortened_course_class_transfer_source_tuple_uidx")
     .on(table.id, table.shortenedCourseClassTransferId, table.raceId, table.entryId, table.revision),
-  index("result_revision_public_idx").on(table.raceId, table.published)
+  index("result_revision_public_idx").on(table.raceId, table.published),
+  // Översynen 2026-11-02 (migration 0038, CONCURRENTLY).
+  index("result_revision_readout_idx").on(table.readoutId).where(sql`${table.readoutId} IS NOT NULL`)
 ]);
 
 /**

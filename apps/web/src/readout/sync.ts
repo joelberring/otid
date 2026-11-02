@@ -11,20 +11,39 @@ export type SyncOutcome =
   | { readonly kind: "unauthorized" }
   /** Steg 45: servern bad oss vänta (429). Inget markeras; kön skickas igen vid nästa försök. */
   | { readonly kind: "throttled" }
+  /**
+   * Översynen 2026-11-02: servern svarar inte (502, 503, 504 även efter omförsöken). Inget hålls åt sidan; kön ligger
+   * kvar och skickas igen automatiskt med växande väntan. `count` är det som hann kvitteras före felet.
+   */
+  | { readonly kind: "unavailable"; readonly status: number; readonly count: number }
   | { readonly kind: "failed"; readonly status: number };
 
 export interface SyncDependencies {
   readonly fetch: typeof fetch;
   /** CSRF-token ur administratörens kaka, eller undefined om den saknas. */
   readonly csrf: () => string | undefined;
+  /** Väntan mellan omförsöken vid 502/503/504 (bytbar i testerna). */
+  readonly sleep?: (ms: number) => Promise<void>;
 }
 
 const MAX_BATCH = 100;
 /**
- * Steg 45: svar som gäller själva avläsningen (felaktig, okänd tävling eller krock) och inte går över av att vänta. Som
- * vid serverfel skickas satsen om en och en, och den som fortfarande avvisas hålls åt sidan så att resten av kön går.
+ * Steg 45: svar som gäller själva avläsningen (felaktig, okänd tävling eller krock) och inte går över av att vänta.
+ * Översynen 2026-11-02: en avläsning hålls åt sidan först när samma svar kommer igen för samma avläsning; första
+ * gången hoppas den bara över i den här omgången så att resten av kön går.
  */
-const HELD_STATUSES = new Set([400, 404, 409]);
+const ITEM_STATUSES = new Set([400, 404, 409]);
+/** Servern eller vägen dit är tillfälligt borta: skicka om automatiskt, håll aldrig något åt sidan. */
+export const TRANSIENT_STATUSES = new Set([502, 503, 504]);
+/** Väntan före omförsök två och tre inom samma synk när servern svarar 502/503/504. */
+export const TRANSIENT_RETRY_DELAYS_MS = [500, 1_500] as const;
+
+/**
+ * Väntan till nästa automatiska synk efter `failures` synkar i rad där servern inte svarade: 2, 4, 8, 16 och sedan 30 s.
+ */
+export function unavailableBackoffMs(failures: number): number {
+  return Math.min(30_000, 2_000 * 2 ** Math.max(0, failures - 1));
+}
 
 /**
  * Sammanhängande följder av väntande avläsningar med stigande löpnummer och
@@ -129,9 +148,33 @@ async function syncRegistrations(store: ReadoutStore, raceId: string, deps: Sync
   return { kind: "done", count };
 }
 
+/** Skickar en sats; vid 502/503/504 görs samma begäran om efter en växande väntan. Undefined = nätfel. */
+async function post(raceId: string, batch: DeviceBatch, csrf: string, deps: SyncDependencies): Promise<Response | undefined> {
+  const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  for (let attempt = 0; ; attempt += 1) {
+    let response: Response;
+    try {
+      response = await deps.fetch(`/api/admin/races/${encodeURIComponent(raceId)}/administrator/readouts`, {
+        method: "POST", credentials: "same-origin", cache: "no-store",
+        headers: { "content-type": "application/json", "x-otid-csrf": csrf }, body: JSON.stringify(batch)
+      });
+    } catch {
+      return undefined;
+    }
+    const delay = TRANSIENT_RETRY_DELAYS_MS[attempt];
+    if (!TRANSIENT_STATUSES.has(response.status) || delay === undefined) return response;
+    await sleep(delay);
+  }
+}
+
 /**
  * Skickar väntande direktanmälningar och avläsningar till servern. En avläsning ändrar status först
  * när servern har kvitterat den; vid nätfel eller fel svar ligger den kvar.
+ *
+ * Översynen 2026-11-02: 502/503/504 skickas om automatiskt (här två gånger, sedan väntar appen allt längre mellan
+ * synkarna) och håller aldrig något åt sidan. En sats som får 400, 404, 409 eller 500 skickas om en och en; en avläsning
+ * hålls åt sidan först när samma svar kommer en andra gång för just den. 500 räknas bara när andra avläsningar gick
+ * igenom i samma omgång, så att ett fel på hela servern inte märker hela kön.
  */
 export async function syncPending(store: ReadoutStore, raceId: string, deps: SyncDependencies): Promise<SyncOutcome> {
   const registrations = await syncRegistrations(store, raceId, deps);
@@ -140,10 +183,9 @@ export async function syncPending(store: ReadoutStore, raceId: string, deps: Syn
   const batches = pendingBatches(await store.list(raceId));
   if (batches.length === 0) return registered > 0 ? { kind: "synced", count: 0, registered } : { kind: "idle" };
   let count = 0;
-  // Steg 31: en sats som ger serverfel skickas om en och en; den som fortfarande ger serverfel hålls åt sidan och resten
-  // av kön fortsätter.
   const queue = [...batches];
   let serverError: number | undefined;
+  const serverErrors: QueuedReadout[] = [];
   while (queue.length > 0) {
     const items = queue.shift()!;
     const first = items[0]!;
@@ -155,23 +197,18 @@ export async function syncPending(store: ReadoutStore, raceId: string, deps: Syn
     };
     const csrf = deps.csrf();
     if (!csrf) return { kind: "unauthorized" };
-    let response: Response;
-    try {
-      response = await deps.fetch(`/api/admin/races/${encodeURIComponent(raceId)}/administrator/readouts`, {
-        method: "POST", credentials: "same-origin", cache: "no-store",
-        headers: { "content-type": "application/json", "x-otid-csrf": csrf }, body: JSON.stringify(batch)
-      });
-    } catch {
-      return { kind: "offline" };
-    }
+    const response = await post(raceId, batch, csrf, deps);
+    if (!response) return { kind: "offline" };
     if (response.status === 401 || response.status === 403) return { kind: "unauthorized" };
     // Steg 45: 429 = vänta och försök igen med nästa synk, utan att hålla något åt sidan.
     if (response.status === 429) return count > 0 ? { kind: "synced", count, ...(registered > 0 ? { registered } : {}) } : { kind: "throttled" };
-    const held = response.status >= 500 || HELD_STATUSES.has(response.status);
-    if (held && items.length > 1) { queue.unshift(...items.map((item) => [item])); continue; }
-    if (held) {
+    if (TRANSIENT_STATUSES.has(response.status)) return { kind: "unavailable", status: response.status, count };
+    const itemProblem = response.status === 500 || ITEM_STATUSES.has(response.status);
+    if (itemProblem && items.length > 1) { queue.unshift(...items.map((item) => [item])); continue; }
+    if (itemProblem) {
       serverError = response.status;
-      await store.update({ ...first, serverFailedAt: new Date().toISOString(), serverFailedStatus: response.status });
+      if (response.status === 500 && first.serverFailedStatus !== 500) serverErrors.push(first);
+      else await strike(store, first, response.status);
       continue;
     }
     if (!response.ok) return { kind: "failed", status: response.status };
@@ -190,8 +227,21 @@ export async function syncPending(store: ReadoutStore, raceId: string, deps: Syn
       count += 1;
     }
   }
+  // 500 för en enskild avläsning medan andra gick igenom: den första gången noteras, nästa gång hålls den.
+  if (count > 0) for (const item of serverErrors) await strike(store, item, 500);
   if (count === 0 && serverError !== undefined) return { kind: "failed", status: serverError };
   return { kind: "synced", count, ...(registered > 0 ? { registered } : {}) };
+}
+
+/** Första gången: svaret noteras och avläsningen skickas igen nästa synk. Samma svar igen: den hålls åt sidan. */
+async function strike(store: ReadoutStore, item: QueuedReadout, status: number): Promise<void> {
+  if (item.serverFailedStatus === status) {
+    await store.update({ ...item, serverFailedAt: new Date().toISOString(), serverFailedStatus: status });
+  } else {
+    const copy: { -readonly [K in keyof QueuedReadout]: QueuedReadout[K] } = { ...item, serverFailedStatus: status };
+    delete copy.serverFailedAt;
+    await store.update(copy);
+  }
 }
 
 function released(item: QueuedReadout): QueuedReadout {

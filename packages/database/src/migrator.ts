@@ -9,6 +9,26 @@ export interface MigrateOptions {
 }
 
 const ADD_ENUM_VALUE = /^\s*ALTER\s+TYPE\s+[^;]+?\s+ADD\s+VALUE\s+IF\s+NOT\s+EXISTS\s+[^;]+;/gim;
+/**
+ * Översynen 2026-11-02: ett index på en stor tabell byggs utan att låsa skrivningar (`CREATE INDEX CONCURRENTLY`). Det
+ * går inte i en transaktion, så satsen körs före filens transaktion, som enum-värdena. `IF NOT EXISTS` krävs så att en
+ * omkörning är ofarlig.
+ */
+const CONCURRENT_INDEX = /^\s*CREATE\s+(?:UNIQUE\s+)?INDEX\s+CONCURRENTLY\b[^;]*;/gim;
+const CONCURRENT_INDEX_NAME = /CONCURRENTLY\s+IF\s+NOT\s+EXISTS\s+"?([A-Za-z_][A-Za-z0-9_]*)"?\s+ON\b/i;
+
+/** Satserna som körs utanför transaktionen och resten av filen (utan dem). */
+export function splitConcurrentIndexes(statement: string): { concurrent: string[]; rest: string } {
+  const concurrent = (statement.match(CONCURRENT_INDEX) ?? []).map((match) => match.trim());
+  for (const match of concurrent) {
+    if (!CONCURRENT_INDEX_NAME.test(match)) throw new Error(`CREATE INDEX CONCURRENTLY kräver IF NOT EXISTS och ett namn: ${match}`);
+  }
+  return { concurrent, rest: statement.replace(CONCURRENT_INDEX, "") };
+}
+
+function onlyComments(statement: string): boolean {
+  return statement.replace(/--[^\n]*/g, "").trim() === "";
+}
 
 interface JournalEntry { readonly idx: number; readonly tag: string; readonly when: number }
 
@@ -67,15 +87,24 @@ export async function migrate(db: NodePgDatabase<any>, options: MigrateOptions):
       }
       continue;
     }
-    const statements = migration.sql;
+    const split = migration.sql.map(splitConcurrentIndexes);
+    const statements = split.map((part) => part.rest);
     for (const statement of statements) {
       for (const match of statement.match(ADD_ENUM_VALUE) ?? []) {
         await db.execute(sql.raw(match));
       }
     }
+    for (const statement of split.flatMap((part) => part.concurrent)) {
+      // Ett avbrutet bygge lämnar ett ogiltigt index som `IF NOT EXISTS` annars hoppar över: ta bort det först.
+      const name = CONCURRENT_INDEX_NAME.exec(statement)![1]!;
+      const invalid = await db.execute(sql`select 1 from pg_index i join pg_class c on c.oid = i.indexrelid
+        where c.relname = ${name} and not i.indisvalid`);
+      if (invalid.rows.length > 0) await db.execute(sql.raw(`DROP INDEX CONCURRENTLY IF EXISTS "${name}"`));
+      await db.execute(sql.raw(statement));
+    }
     await db.transaction(async (tx) => {
       for (const statement of statements) {
-        await tx.execute(sql.raw(statement));
+        if (!onlyComments(statement)) await tx.execute(sql.raw(statement));
       }
       await tx.execute(sql`insert into "drizzle"."__drizzle_migrations" ("hash", "created_at", "tag")
         values (${migration.hash}, ${migration.folderMillis}, ${tag})`);

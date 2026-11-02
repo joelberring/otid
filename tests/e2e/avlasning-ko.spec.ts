@@ -31,3 +31,40 @@ test("avläsningen räknas i kön innan beskedet visas, även när servern svara
   release();
   await expect(owner.getByTestId("queue-status")).toHaveText("0 väntar", { timeout: 30_000 });
 });
+
+/**
+ * Översynen 2026-11-02: servern svarar 503 (omstart, databasen nere). Avläsningen hålls inte åt sidan; statusraden säger
+ * att servern inte svarar och att avläsningarna köas, och kön skickas automatiskt när servern svarar igen.
+ */
+test("när servern inte svarar köas avläsningarna och skickas automatiskt", async ({ browser }) => {
+  test.setTimeout(240_000);
+  const suffix = unique();
+  const owner = await registerAccount(browser, `nere.${suffix}@exempel.se`, "Nere Nilsson");
+  const raceId = await createRace(owner, `Nere ${suffix}`);
+  await addCourseAndClass(owner, "Kort", "Öppen", "31 32");
+  await addEntry(owner, { className: "Öppen", givenName: "Ida", familyName: "Berg", club: "OK Ek", card: "8301006" });
+  await owner.goto(`/admin/${raceId}/readout`);
+  await owner.waitForURL(`**/readout/index.html#${raceId}`);
+  await expect(owner.getByTestId("package-status")).toContainText("v");
+  await owner.getByRole("button", { name: "Starta övningsstation" }).click();
+
+  let down = true;
+  let refused = 0;
+  await owner.route("**/administrator/readouts", async route => {
+    if (!down) return route.continue();
+    refused += 1;
+    return route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ formatVersion: 1, error: "SERVICE_UNAVAILABLE" }) });
+  });
+  await owner.getByLabel("Deltagare").selectOption({ label: "Ida Berg · Öppen · 8301006" });
+  await owner.getByRole("button", { name: "Läs av: rätt stämplat" }).click();
+  await expect(owner.getByTestId("verdict")).toContainText("GODKÄND");
+  await expect(owner.getByTestId("internet-status")).toHaveText("◐ Servern svarar inte", { timeout: 30_000 });
+  await expect(owner.getByTestId("queue-status")).toHaveText("1 köas här – skickas när servern svarar");
+  await expect(owner.getByTestId("server-down")).toContainText("skickas automatiskt");
+  await expect(owner.getByTestId("held-readouts")).toHaveCount(0);
+  expect(refused).toBeGreaterThanOrEqual(3);
+  down = false;
+  // Ingen knapp behövs: nästa automatiska försök skickar kön.
+  await expect(owner.getByTestId("queue-status")).toHaveText("0 väntar", { timeout: 45_000 });
+  await expect(owner.getByTestId("internet-status")).toHaveText("● Ansluten");
+});

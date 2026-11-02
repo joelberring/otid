@@ -119,16 +119,18 @@ describe("TASK 008 skyddad speakerläsning PostgreSQL", () => {
     const original = revisionsBefore[0];
     if (!original) throw new Error("Ursprunglig revision saknas");
 
-    // Exercise the real import boundary: display fields are current, but
-    // changing the roster/course does not recalculate an existing result.
-    const courses = await readFile(new URL("../../../../fixtures/iof/course-data.xml", import.meta.url), "utf8");
-    await importIofXml(db, raceId, courses.replace("<ClassName>H21</ClassName>", "<ClassName>H21 uppdaterad</ClassName>"));
+    // Namn och klubb ur en ny anmälningslista. Översynen 2026-11-02: importen flyttar inte längre en löpare som läst ut
+    // till en annan klass (det gör klassbytet, som räknar om); klassnamnet och flytten utan omräkning görs därför direkt i
+    // databasen här. Det som provas är speakerns visning av ett äldre resultat.
     const entries = await readFile(new URL("../../../../fixtures/iof/entry-list.xml", import.meta.url), "utf8");
     await importIofXml(db, raceId, entries
       .replace("<Given>Ada</Given>", "<Given>Adina</Given>")
       .replace("<Family>Löpare</Family>", "<Family>Testlöpare</Family>")
-      .replace("<Organisation><Name>Centrum OK</Name></Organisation>", "<Organisation><Name>Syntetisk ny klubb</Name></Organisation>")
-      .replace("<Class><Id>class-h21</Id><Name>H21</Name></Class>", "<Class><Id>class-d21</Id><Name>D21</Name></Class>"));
+      .replace("<Organisation><Name>Centrum OK</Name></Organisation>", "<Organisation><Name>Syntetisk ny klubb</Name></Organisation>"));
+    const classes = await db.select().from(schema.classes).where(eq(schema.classes.raceId, raceId));
+    await db.update(schema.classes).set({ name: "H21 uppdaterad" }).where(eq(schema.classes.id, classes.find((item) => item.externalId === "class-h21")!.id));
+    await db.update(schema.entries).set({ classId: classes.find((item) => item.externalId === "class-d21")!.id })
+      .where(eq(schema.entries.id, original.entryId));
     const [currentEntry] = await db.select().from(schema.entries).where(eq(schema.entries.id, original.entryId));
     const currentClasses = await db.select().from(schema.classes).where(eq(schema.classes.raceId, raceId));
     expect(currentEntry?.classId).toBe(currentClasses.find((item) => item.externalId === "class-d21")?.id);

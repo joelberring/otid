@@ -183,7 +183,9 @@ export const entryCardChangeRequests = pgTable("entry_card_change_request", {
   entryVersionAfter: integer("entry_version_after").notNull(),
   snapshotVersionBefore: integer("snapshot_version_before").notNull(),
   snapshotVersionAfter: integer("snapshot_version_after").notNull(),
-  changedAt: timestamp("changed_at", { withTimezone: true }).notNull().defaultNow()
+  changedAt: timestamp("changed_at", { withTimezone: true }).notNull().defaultNow(),
+  /** Migration 0039: bytet med en annan löpare och avläsningar som kopplades (`entry-card.ts`). */
+  outcome: jsonb("outcome").$type<Record<string, unknown>>()
 }, (table) => [
   uniqueIndex("entry_card_change_request_request_uidx").on(table.requestId),
   uniqueIndex("entry_card_change_request_entry_version_uidx").on(table.entryId, table.entryVersionBefore),
@@ -326,7 +328,9 @@ export const entryRegistrationRequests = pgTable("entry_registration_request", {
   snapshotVersionAfter: integer("snapshot_version_after").notNull(),
   /** Starttiden som appen gav en efteranmäld i en lottad klass. */
   assignedStartTime: timestamp("assigned_start_time", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  /** Migration 0039: avläsningen som kopplades när brickan redan var avläst (`entry-registration.ts`). */
+  outcome: jsonb("outcome").$type<Record<string, unknown>>()
 }, (table) => [
   uniqueIndex("entry_registration_request_request_uidx").on(table.requestId),
   uniqueIndex("entry_registration_request_entry_uidx").on(table.entryId),

@@ -92,7 +92,9 @@ export const entryClassAdminErrorCodeSchema = z.enum([
   "CONFLICT",
   /** Klass- eller bannamnet finns redan i tävlingen (PLAN.md steg 22). */
   "DUPLICATE_NAME",
-  "INTERNAL_ERROR"
+  "INTERNAL_ERROR",
+  /** Databasen går inte att nå just nu; försök igen (översynen 2026-11-02, avläsningen skickar om). */
+  "SERVICE_UNAVAILABLE"
 ]);
 
 export const entryClassAdminErrorResponseSchema = z.object({

@@ -18,6 +18,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Verifierat: se slutrapporten (lint, typecheck, test, test:integration, berörda specar lokalt; CI).
 - Ägaren: SMTP behövs för att nya personer ska få behörigheter utan `verify`; följ docs/drift.md (Databasroller, Kopia utanför servern, Bevakning).
 
+### 2026-11-02 – Tävlingsdagen robust efter översynen (grenen tavlingsdag-robust, ADR-0185, migration 0038–0039)
+- 500 loggas utan personuppgifter; databas nere ger 503; transaktioner görs om vid 40001/40P01. Avläsningen skickar om 502–504 med växande väntan, håller bara vid upprepat 400/404/409/500, statusraden säger "Servern svarar inte".
+- Brickregler i `card-assignment.ts`: inaktiv historik hindrar inte, 409 säger vem som har brickan, "Byt bricka med …", okänd avläsning kopplas och räknas i alla vägar.
+- Direkt CourseData efter avläsning går banfilens väg (eller avvisas med hänvisning); EntryList visar vem och vad som skiljer, brickbyten bekräftas.
+- IOF: rad och element i felen, Person.Id utan EntryId, ISO-8859-1. Migrationsregeln i AGENTS.md: två steg, CONCURRENTLY, inte på tävlingsdagen.
+- Verifierat: lint, typecheck, test, test:integration (nya: tavlingsdag-brickor, tavlingsdag-import), Playwright avlasning-ko, brickbyte, lanad-bricka, sjalvregistrering-tavling.
+- Återstår: eget källslag med ögonblicksbild för anmälningsfiler i synken; ett resultat som bygger på den andras bricka står kvar tills löparen läses ut.
+
 ### 2026-11-02 – Banläggningens sparande, utan nät och samarbete (grenen banlaggning-sparande, ADR-0181 beslut 9)
 - Sparandet i omgångar (500 åtgärder/1 MB); 413 halverar, 400 läser om och försöker igen, bara en ensam för stor eller oläslig åtgärd stryks med besked. Routen ger 413.
 - Servern lagrar touches ur skillnaden (`diffTouches`), så strukturändringar krockar; ångra per fält (`eventFields`). Integrationstest med två samtidiga.

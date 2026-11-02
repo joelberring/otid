@@ -12,7 +12,7 @@ import { runnerSuggestionLabel, useRunnerSuggestions } from "./runner-suggestion
 
 /** Deltagaråtgärder: byt klass, bricka och hyrbricka, starttid och identitet. */
 export function EntryActionForms({ ws }: { ws: Workspace }) {
-  const { action, busy, cardAttempt, classId, data, disabled, familyName, givenName, identityAttempt,
+  const { action, busy, cardAttempt, cardSwap, setCardSwap, prepareCardSwap, classId, data, disabled, familyName, givenName, identityAttempt,
     identityMatches, loadIdentity, newCard, organisationName,
     pending, prepareCard, prepareIdentity, prepareRental,
     prepareRentalReturn, prepareRentalReuse, prepareTime, prepareTransfer, rentalAttempt, rentalReturnAttempt,
@@ -103,6 +103,13 @@ export function EntryActionForms({ ws }: { ws: Workspace }) {
             </>}
           </form>
         </>}
+        {cardSwap && cardSwap.entryId === selected.id && <div className={styles.review} role="alert" data-testid="card-swap">
+          <p>{text.cardInUse(cardSwap.cardNumber, cardSwap.holder.displayName, cardSwap.holder.className, cardSwap.canSwap)}</p>
+          {cardSwap.canSwap && <button type="button" disabled={disabled} onClick={prepareCardSwap}>
+            {text.cardSwapButton(cardSwap.holder.displayName)}</button>}
+          <button type="button" className="secondary" disabled={disabled} onClick={() => { setCardSwap(undefined); setMessage(""); }}>
+            {text.cardSwapCancel}</button>
+        </div>}
         <form className={styles.workspace} noValidate onSubmit={prepareCard}>
         <p>{text.currentCard}: <strong>{selected.activeAssignment?.cardNumber ?? text.noCard}</strong></p>
         <div className={styles.cardFields}>

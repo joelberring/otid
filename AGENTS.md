@@ -86,8 +86,17 @@ historik. Läs den inte om du inte letar efter något specifikt.
 
 - PostgreSQL med Drizzle-migrationer. Tester använder PostgreSQL,
   inte SQLite.
-- Det finns ingen produktionsdata ännu, så borttagande migrationer är tillåtna
-  (ADR-0168 beslut 6). Varje schemaändring kräver ändå en migration.
+- Appen används publikt och databasen har riktiga tävlingar (ADR-0185 beslut 1,
+  ersätter ADR-0168 beslut 6). Varje schemaändring kräver en migration.
+- Inga borttagande eller förstörande migrationer (DROP TABLE/COLUMN, ändrad typ,
+  NOT NULL på befintlig kolumn, omskrivning av data) utan en övergång i två steg:
+  först en migration som lägger till och en kodversion som klarar både gammalt och
+  nytt, sedan i en senare driftsättning det som tar bort.
+- Index på stora tabeller (avläsningar, resultat, rådata) byggs med
+  `CREATE INDEX CONCURRENTLY IF NOT EXISTS`, som migratorn kör utanför
+  transaktionen. Ta inga långa lås.
+- Ingen driftsättning eller migrering på en tävlingsdag (dygnet för en tävling som
+  körs i appen, ADR-0178) utom för att rätta ett fel som stoppar tävlingen.
 - Externa id:n är aldrig primärnycklar.
 
 ## UI

@@ -9,7 +9,7 @@ import { FakeStationTransport } from "./fake-transport";
 import { buildReadoutPayload, payloadHash } from "./payload";
 import { loadFastRead, saveFastRead, StationController, type StationStatus } from "./station";
 import { TrafficLog } from "./rawlog";
-import { heldReadouts, pendingBatches, releaseHeldReadouts, syncPending } from "./sync";
+import { heldReadouts, pendingBatches, releaseHeldReadouts, syncPending, TRANSIENT_RETRY_DELAYS_MS, unavailableBackoffMs } from "./sync";
 import { forkedTestPackage, ids, MemoryReadoutStore, TEST_CARD, testPackage } from "./test-support";
 import type { QueuedReadout } from "./store";
 
@@ -282,7 +282,7 @@ describe("synk av avläsningskön", () => {
     expect(await syncPending(store, ids.race, { fetch, csrf: () => "token" })).toEqual({ kind: "idle" });
   });
 
-  it("behåller kön vid nätfel, utloggning och serverfel", async () => {
+  it("behåller kön vid nätfel, utloggning och serverfel utan att hålla något när hela servern svarar 500", async () => {
     const store = await storeWithTwoReadouts();
     const offline = (async () => { throw new TypeError("Failed to fetch"); }) as typeof globalThis.fetch;
     expect(await syncPending(store, ids.race, { fetch: offline, csrf: () => "token" })).toEqual({ kind: "offline" });
@@ -291,15 +291,43 @@ describe("synk av avläsningskön", () => {
     expect(await syncPending(store, ids.race, { fetch: unauthorized, csrf: () => undefined })).toEqual({ kind: "unauthorized" });
     const broken = (async () => new Response(null, { status: 500 })) as typeof globalThis.fetch;
     expect(await syncPending(store, ids.race, { fetch: broken, csrf: () => "token" })).toEqual({ kind: "failed", status: 500 });
-    expect(store.items.every((item) => item.status === "pending")).toBe(true);
-    // Steg 31: avläsningar som ger serverfel hålls åt sidan (skickas en och en) tills "Försök igen".
-    expect(heldReadouts(store.items)).toHaveLength(2);
-    expect(await syncPending(store, ids.race, { fetch: broken, csrf: () => "token" })).toEqual({ kind: "idle" });
-    expect(await releaseHeldReadouts(store, ids.race)).toBe(2);
+    expect(await syncPending(store, ids.race, { fetch: broken, csrf: () => "token" })).toEqual({ kind: "failed", status: 500 });
+    // Översynen 2026-11-02: inget gick igenom, så felet gäller servern och ingen avläsning märks eller hålls.
+    expect(store.items.every((item) => item.status === "pending" && !item.serverFailedAt && item.serverFailedStatus === undefined)).toBe(true);
     expect(heldReadouts(store.items)).toHaveLength(0);
   });
 
-  it("400, 404 och 409 håller bara den avläsningen åt sidan, 429 väntar utan att markera (steg 45)", async () => {
+  it("502, 503 och 504 skickas om automatiskt med växande väntan och håller aldrig något (översynen 2026-11-02)", async () => {
+    for (const status of [502, 503, 504]) {
+      const store = await storeWithTwoReadouts();
+      const waits: number[] = [];
+      let calls = 0;
+      const flaky = (async (_url: string, init?: RequestInit) => {
+        calls += 1;
+        if (calls <= 2) return new Response(null, { status });
+        const body = JSON.parse(init?.body as string) as DeviceBatch;
+        return Response.json({ deviceId: body.deviceId, highestContiguousSequence: 2, currentPackageVersion: body.packageVersion,
+          packageVersionStatus: "current", packageUpdateRequired: false,
+          acknowledgements: body.events.map((event) => ({ localSequence: event.localSequence, contentHash: event.contentHash,
+            status: "stored", rawMessageId: "10000000-0000-4000-8000-000000000099" })) });
+      }) as typeof globalThis.fetch;
+      const sleep = async (ms: number) => { waits.push(ms); };
+      expect(await syncPending(store, ids.race, { fetch: flaky, csrf: () => "token", sleep })).toEqual({ kind: "synced", count: 2 });
+      expect(waits).toEqual([...TRANSIENT_RETRY_DELAYS_MS]);
+      expect(waits[1]!).toBeGreaterThan(waits[0]!);
+      expect(store.items.map((item) => item.status)).toEqual(["stored", "stored"]);
+
+      // Svarar servern inte efter omförsöken: kön ligger kvar orörd och appen väntar allt längre.
+      const down = await storeWithTwoReadouts();
+      const gone = (async () => new Response(null, { status })) as typeof globalThis.fetch;
+      expect(await syncPending(down, ids.race, { fetch: gone, csrf: () => "token", sleep: async () => undefined }))
+        .toEqual({ kind: "unavailable", status, count: 0 });
+      expect(down.items.every((item) => item.status === "pending" && !item.serverFailedAt && item.serverFailedStatus === undefined)).toBe(true);
+    }
+    expect([1, 2, 3, 4, 5, 9].map(unavailableBackoffMs)).toEqual([2_000, 4_000, 8_000, 16_000, 30_000, 30_000]);
+  });
+
+  it("400, 404 och 409 håller avläsningen först när samma svar kommer igen, 429 väntar utan att markera (steg 45)", async () => {
     for (const status of [400, 404, 409]) {
       const store = await storeWithTwoReadouts();
       const bodies: DeviceBatch[] = [];
@@ -314,9 +342,14 @@ describe("synk av avläsningskön", () => {
       }) as typeof globalThis.fetch;
       expect(await syncPending(store, ids.race, { fetch: picky, csrf: () => "token" })).toMatchObject({ kind: "synced", count: 1 });
       expect(bodies.map((body) => body.events.map((event) => event.localSequence))).toEqual([[1, 2], [1], [2]]);
-      expect(store.items.map((item) => [item.localSequence, item.status, item.serverFailedStatus])).toEqual([[1, "pending", status],
-        [2, "stored", undefined]]);
+      // Första gången: noterad men inte hållen.
+      expect(store.items.map((item) => [item.localSequence, item.status, item.serverFailedStatus, !!item.serverFailedAt]))
+        .toEqual([[1, "pending", status, false], [2, "stored", undefined, false]]);
+      expect(heldReadouts(store.items)).toHaveLength(0);
+      // Samma svar igen för samma avläsning: hållen.
+      expect(await syncPending(store, ids.race, { fetch: picky, csrf: () => "token" })).toEqual({ kind: "failed", status });
       expect(heldReadouts(store.items)).toHaveLength(1);
+      expect(await syncPending(store, ids.race, { fetch: picky, csrf: () => "token" })).toEqual({ kind: "idle" });
       // "Försök igen" skickar den igen.
       expect(await releaseHeldReadouts(store, ids.race)).toBe(1);
       expect(store.items[0]!.serverFailedStatus).toBeUndefined();
@@ -328,7 +361,7 @@ describe("synk av avläsningskön", () => {
     expect(store.items.every((item) => item.status === "pending" && !item.serverFailedAt)).toBe(true);
   });
 
-  it("en avläsning som ger serverfel stoppar inte resten av kön (steg 31)", async () => {
+  it("en avläsning som ger 500 stoppar inte resten av kön och hålls när felet upprepas (steg 31)", async () => {
     const store = await storeWithTwoReadouts();
     const bodies: DeviceBatch[] = [];
     const picky = (async (_url: string, init?: RequestInit) => {
@@ -342,6 +375,9 @@ describe("synk av avläsningskön", () => {
     }) as typeof globalThis.fetch;
     expect(await syncPending(store, ids.race, { fetch: picky, csrf: () => "token" })).toMatchObject({ kind: "synced", count: 1 });
     expect(bodies.map((body) => body.events.map((event) => event.localSequence))).toEqual([[1, 2], [1], [2]]);
+    expect(store.items.map((item) => [item.localSequence, item.status, item.serverFailedStatus, !!item.serverFailedAt]))
+      .toEqual([[1, "pending", 500, false], [2, "stored", undefined, false]]);
+    expect(await syncPending(store, ids.race, { fetch: picky, csrf: () => "token" })).toEqual({ kind: "failed", status: 500 });
     expect(store.items.map((item) => [item.localSequence, item.status, !!item.serverFailedAt])).toEqual([[1, "pending", true],
       [2, "stored", false]]);
   });

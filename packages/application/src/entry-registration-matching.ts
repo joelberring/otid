@@ -10,7 +10,9 @@ function comparableName(value: string): string {
 export function matchEntryRegistrationCandidates(
   entries: readonly CandidateEntry[],
   query: EntryRegistrationCandidatesRequest,
-  cardOwnerEntryIds: ReadonlySet<string>
+  cardOwnerEntryIds: ReadonlySet<string>,
+  /** Översynen 2026-11-02: deltagare som haft brickan tidigare (inaktiv koppling). Visas, men hindrar inte anmälan. */
+  previousCardOwnerEntryIds: ReadonlySet<string> = new Set()
 ): { totalMatches: number; candidates: EntryRegistrationCandidate[] } {
   const given = comparableName(query.givenName);
   const family = comparableName(query.familyName);
@@ -22,12 +24,15 @@ export function matchEntryRegistrationCandidates(
     }
     if (query.cardNumber !== null && cardOwnerEntryIds.has(entry.entryId)) {
       reasons.push("CARD_ALREADY_ASSIGNED");
+    } else if (query.cardNumber !== null && previousCardOwnerEntryIds.has(entry.entryId)) {
+      reasons.push("CARD_PREVIOUSLY_ASSIGNED");
     }
     if (reasons.length > 0) matches.push({ ...entry, reasons });
   }
   matches.sort((left, right) => {
-    const cardPriority = Number(right.reasons.includes("CARD_ALREADY_ASSIGNED")) -
-      Number(left.reasons.includes("CARD_ALREADY_ASSIGNED"));
+    const card = (row: EntryRegistrationCandidate) => row.reasons.includes("CARD_ALREADY_ASSIGNED") ? 2
+      : row.reasons.includes("CARD_PREVIOUSLY_ASSIGNED") ? 1 : 0;
+    const cardPriority = card(right) - card(left);
     if (cardPriority !== 0) return cardPriority;
     return left.entryId < right.entryId ? -1 : left.entryId > right.entryId ? 1 : 0;
   });

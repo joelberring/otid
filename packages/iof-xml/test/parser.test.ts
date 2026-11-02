@@ -1,11 +1,44 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { IofValidationError, parseIofXml } from "../src";
+import { decodeIofXml, IofValidationError, parseIofXml } from "../src";
 
 function fixture(name: string): string {
   return readFileSync(fileURLToPath(new URL(`../../../fixtures/iof/${name}`, import.meta.url)), "utf8");
 }
+
+describe("begripliga fel, Person.Id och ISO-8859-1 (översynen 2026-11-02)", () => {
+  it("säger vilket element och vilken rad", () => {
+    const xml = fixture("start-list.xml").replace("<StartTime>2026-08-31T08:03:00Z</StartTime>", "<StartTime>2026-08-31T08:03:00</StartTime>");
+    let issues: readonly string[] = [];
+    try { parseIofXml(xml); } catch (error) { issues = (error as IofValidationError).issues; }
+    expect(issues).toEqual(["Rad 22: ClassStart[0].PersonStart[1].Start.StartTime måste vara en ISO 8601-tid med Z eller explicit UTC-offset"]);
+    const entries = fixture("entry-list.xml").replace(">67890<", ">0678<");
+    expect(() => parseIofXml(entries)).toThrow(/Rad 11: PersonEntry\[1\] Bo Skog: ControlCard "0678"/);
+    expect(() => parseIofXml("<StartList>\n<Event></StartList>")).toThrow(/Rad 2, kolumn \d+: filen är inte giltig XML/);
+  });
+
+  it("matchar på Person.Id när EntryId saknas", () => {
+    const xml = fixture("start-list.xml").replace("<EntryId>entry-bo</EntryId>", "<Person><Id>person-bo</Id></Person>");
+    expect(parseIofXml(xml)).toMatchObject({ classes: [{ starts: [{ entryExternalId: "entry-ada" },
+      { entryExternalId: "", personExternalId: "person-bo" }] }] });
+    expect(parseIofXml(fixture("entry-list.xml"))).toMatchObject({ entries: [{ externalId: "entry-ada", personExternalId: "person-ada" },
+      { externalId: "entry-bo", personExternalId: "person-bo" }] });
+    expect(() => parseIofXml(xml.replace("<Person><Id>person-bo</Id></Person>", ""))).toThrow(/EntryId saknas \(och Person\.Id saknas/);
+  });
+
+  it("läser ISO-8859-1 när deklarationen säger det, och avvisar annan kodning begripligt", () => {
+    const latin = fixture("entry-list.xml").replace('encoding="UTF-8"', 'encoding="ISO-8859-1"');
+    const bytes = Uint8Array.from([...latin].map((char) => char.charCodeAt(0)));
+    const decoded = decodeIofXml(bytes);
+    expect("xml" in decoded && parseIofXml(decoded.xml)).toMatchObject({ entries: [{ familyName: "Löpare" }, { familyName: "Skog" }] });
+    expect(decodeIofXml(bytes.map((byte) => byte))).toEqual(decoded);
+    const notUtf8 = Uint8Array.from([...fixture("entry-list.xml")].map((char) => char.charCodeAt(0)));
+    expect(JSON.stringify(decodeIofXml(notUtf8))).toMatch(/"issue":"Filen är inte UTF-8/);
+    expect(decodeIofXml(new TextEncoder().encode('<?xml version="1.0" encoding="UTF-16"?><a/>'))).toEqual({
+      issue: "Teckenkodningen UTF-16 stöds inte. Spara filen som UTF-8 eller ISO-8859-1." });
+  });
+});
 
 describe("parseIofXml", () => {
   it("tolkar en individuell StartList och normaliserar tider till UTC", () => {

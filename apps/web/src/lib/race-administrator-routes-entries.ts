@@ -1,7 +1,7 @@
 import { entryClassAdminListResponseSchema, entryClassChangeIdempotencyKeySchema, entryClassChangeRequestSchema,
   entryClassChangeResponseSchema, entryTransferCandidatesSchema,
   entryTransferRequestSchema, entryTransferIdempotencyKeySchema, entryTransferResponseSchema,
-  entryCardChangeIdempotencyKeySchema, entryCardChangeRequestSchema, entryCardChangeResponseSchema,
+  entryCardChangeIdempotencyKeySchema, entryCardChangeRequestSchema, entryCardChangeResponseSchema, entryCardInUseResponseSchema,
   entryCardRentalChangeIdempotencyKeySchema, entryCardRentalChangeRequestSchema, entryCardRentalChangeResponseSchema,
   entryCardRentalReturnChangeIdempotencyKeySchema, entryCardRentalReturnChangeRequestSchema,
   entryCardRentalReturnChangeResponseSchema, entryCardRentalReuseIdempotencyKeySchema,
@@ -106,13 +106,18 @@ export async function handleEntryRoute(context: RaceAdministratorRouteContext): 
     const parsed = entryCardChangeRequestSchema.safeParse(body);
     if (!parsed.success) return failure(400, "INVALID_REQUEST");
     const result = await dependencies.card(db, { ...proof, raceId, entryId: action.entryId, idempotencyKey: key.data, request: parsed.data });
+    // Översynen 2026-11-02: brickan är aktiv hos en annan löpare – säg vem, så att administratören kan byta med hen.
+    if (result.status === "card-in-use") {
+      return json(entryCardInUseResponseSchema.parse({ formatVersion: 1, error: "CARD_IN_USE", holder: result.holder }), 409);
+    }
     if (result.status !== "changed") return resultFailure(result.status);
     const response = entryCardChangeResponseSchema.parse(result.response);
     if (response.raceId !== raceId || response.entryId !== action.entryId || response.classId !== parsed.data.expectedClassId ||
       response.requestId !== key.data.slice("entry-card-change:".length) || response.entryVersionBefore !== parsed.data.expectedEntryVersion ||
       response.activeAssignment.cardNumber !== parsed.data.cardNumber ||
       (response.previousAssignment?.id ?? null) !== (parsed.data.expectedAssignment?.id ?? null) ||
-      (response.previousAssignment?.cardNumber ?? null) !== (parsed.data.expectedAssignment?.cardNumber ?? null)) {
+      (response.previousAssignment?.cardNumber ?? null) !== (parsed.data.expectedAssignment?.cardNumber ?? null) ||
+      response.swappedWith?.entryId !== parsed.data.swapWith?.entryId) {
       return failure(500, "INTERNAL_ERROR");
     }
     return json(response);

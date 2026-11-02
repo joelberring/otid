@@ -8,6 +8,7 @@ import { canAddClassEntry } from "./class-capacity-guard";
 import { assignLateStartTime } from "./start-draw-basis";
 import { leastUsedVariantForClass } from "./course-variants";
 import { bumpReadoutPackageVersion } from "./snapshot";
+import { activeCardHolder, assignCard, linkUnresolvedReadout, type LinkedReadout } from "./card-assignment";
 
 type Authentication = RaceSessionProof;
 
@@ -40,7 +41,9 @@ function response(row: typeof schema.entryRegistrationRequests.$inferSelect, rep
     cardNumber: intent.cardNumber, assignmentId: row.assignmentId,
     fixedStartTime: row.assignedStartTime?.toISOString() ?? intent.fixedStartTime, startTimeAssigned: row.assignedStartTime !== null,
     snapshotVersionBefore: row.snapshotVersionAfter - 1, snapshotVersionAfter: row.snapshotVersionAfter,
-    createdAt: row.createdAt.toISOString() });
+    createdAt: row.createdAt.toISOString(),
+    ...((row.outcome as { linkedReadout?: LinkedReadout } | null)?.linkedReadout
+      ? { linkedReadout: (row.outcome as { linkedReadout: LinkedReadout }).linkedReadout } : {}) });
 }
 
 /**
@@ -83,11 +86,8 @@ export async function registerEntryAsAdmin(db: Database,
     const drawnLate = raceClass.startRule === "FIXED" && intent.fixedStartTime === null && raceClass.startDrawId !== null;
     const [total] = await tx.select({ value: count() }).from(schema.entries).where(eq(schema.entries.raceId, input.raceId));
     if (!total || total.value >= 10_000) return { status: "conflict" as const };
-    if (intent.cardNumber) {
-      const [owner] = await tx.select({ id: schema.cardAssignments.id }).from(schema.cardAssignments).where(and(
-        eq(schema.cardAssignments.raceId, input.raceId), eq(schema.cardAssignments.cardNumber, intent.cardNumber)));
-      if (owner) return { status: "conflict" as const };
-    }
+    // Översynen 2026-11-02 (`card-assignment.ts`): bara en aktiv koppling hindrar; inaktiv historik gör det inte.
+    if (intent.cardNumber && await activeCardHolder(tx, input.raceId, intent.cardNumber)) return { status: "conflict" as const };
     if (!await canAddClassEntry(tx, input.raceId, intent.classId)) return { status: "conflict" as const };
     const assignedStartTime = drawnLate ? await assignLateStartTime(tx, input.raceId, intent.classId, now) : null;
     if (drawnLate && assignedStartTime === null) throw new Error("Lottad klass saknar plan");
@@ -102,23 +102,26 @@ export async function registerEntryAsAdmin(db: Database,
       .returning({ id: schema.entries.id });
     if (!entry) throw new Error("Deltagaren kunde inte sparas");
     let assignmentId: string | null = null;
+    let linkedReadout: LinkedReadout | null = null;
     if (intent.cardNumber) {
-      const [assignment] = await tx.insert(schema.cardAssignments).values({ raceId: input.raceId,
-        entryId: entry.id, cardNumber: intent.cardNumber }).returning({ id: schema.cardAssignments.id });
-      if (!assignment) throw new Error("Brickkopplingen kunde inte sparas");
-      assignmentId = assignment.id;
+      assignmentId = (await assignCard(tx, { raceId: input.raceId, entryId: entry.id, cardNumber: intent.cardNumber })).assignmentId;
+      // Brickan kan redan ha lästs ut som okänd (efteranmäld som redan sprungit): kopplas och räknas direkt.
+      linkedReadout = await linkUnresolvedReadout(tx, { raceId: input.raceId, entryId: entry.id, cardNumber: intent.cardNumber,
+        actorAccountId: auth.principal.accountId, detectVariant: true });
     }
     const snapshotVersionAfter = race.snapshotVersion + 1;
     await bumpReadoutPackageVersion(tx, input.raceId);
     const [saved] = await tx.insert(schema.entryRegistrationRequests).values({ requestId, raceId: input.raceId,
       actorAccountId: auth.principal.accountId, entryId: entry.id, assignmentId, request: intent,
-      snapshotVersionAfter, assignedStartTime, createdAt: now }).returning();
+      snapshotVersionAfter, assignedStartTime, createdAt: now,
+      outcome: linkedReadout ? { linkedReadout: { ...linkedReadout } } : null }).returning();
     if (!saved) throw new Error("Registreringsjournalen kunde inte sparas");
     await tx.insert(schema.auditEvents).values({ raceId: input.raceId, entityType: "entry", entityId: entry.id,
       action: "ENTRY_REGISTERED_BY_ADMIN", actorKind: "USER_ACCOUNT",
       actorId: auth.principal.accountId, requestId, before: { snapshotVersion: race.snapshotVersion },
       after: { classId: intent.classId, assignmentId, entryVersion: 1, snapshotVersion: snapshotVersionAfter,
-        fixedStartTime: fixedStartTime?.toISOString() ?? null, startTimeAssigned: assignedStartTime !== null, courseVariantCode } });
+        fixedStartTime: fixedStartTime?.toISOString() ?? null, startTimeAssigned: assignedStartTime !== null, courseVariantCode,
+        ...(linkedReadout ? { linkedRevision: linkedReadout.revision } : {}) } });
     return { status: "registered" as const, response: response(saved, false) };
   });
 }

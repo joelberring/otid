@@ -1,12 +1,13 @@
 import { useRef, useState, type FormEvent } from "react";
 import {
-  entryCardChangeRequestSchema, entryCardChangeResponseSchema, entryCardRentalChangeRequestSchema,
+  entryCardChangeRequestSchema, entryCardChangeResponseSchema, entryCardInUseResponseSchema, entryCardRentalChangeRequestSchema,
   entryCardRentalChangeResponseSchema, entryCardRentalReturnChangeRequestSchema, entryCardRentalReturnChangeResponseSchema,
   entryCardRentalReuseRequestSchema, entryCardRentalReuseResponseSchema, entryIdentityAdminListResponseSchema,
   entryIdentityChangeRequestSchema,
   entryRegistrationCandidatesResponseSchema, entryRegistrationRequestSchema,
   entryStartTimeChangeRequestSchema, entryStartTimeChangeResponseSchema, entryTransferRequestSchema,
-  entryTransferResponseSchema, type EntryIdentityAdminListResponse, type RunnerClub, type RunnerSuggestion
+  entryTransferResponseSchema, type EntryCardChangeResponse, type EntryCardInUseResponse, type EntryIdentityAdminListResponse,
+  type RunnerClub, type RunnerSuggestion
 } from "@o-tid/contracts";
 import { registrationEventorIds } from "./runner-suggestions";
 import { formatClockTime, parseRaceClockNear, startReference } from "../../lib/clock-time";
@@ -23,6 +24,16 @@ import type { Roster } from "./participant-roster";
 import { deriveSections } from "./navigation";
 
 export type RegistrationField = "classId" | "givenName" | "familyName" | "card" | "startClock";
+/** Löparen som har brickan nu, och om bytet går (båda har exakt en aktiv bricka). */
+export type CardSwap = { entryId: string; cardNumber: string; holder: EntryCardInUseResponse["holder"]; canSwap: boolean };
+
+/** Raden efter ett sparat brickbyte: bytet, avläsningar som kopplades och resultat som väntar på ny avläsning. */
+export function cardSavedMessage(receipt: EntryCardChangeResponse): string {
+  const parts = [receipt.swappedWith ? text.cardSwapped(receipt.swappedWith.displayName) : text.cardSaved];
+  for (const linked of receipt.linkedReadouts ?? []) parts.push(text.cardReadoutLinked(linked.cardNumber, text.cardLinkedStatus[linked.status]));
+  if (receipt.staleResults?.length) parts.push(text.cardStaleResults(receipt.staleResults.map((row) => row.displayName).join(", ")));
+  return parts.join(" ");
+}
 
 /** Formulärläge för ändringar av en deltagare: klass, bricka, hyrbricka, betalning, starttid, identitet och anmälan. */
 export function useEntryActionState() {
@@ -31,6 +42,8 @@ export function useEntryActionState() {
   const [transferAttempt, setTransferAttempt] = useState<TransferAttempt>();
   const [newCard, setNewCard] = useState("");
   const [cardAttempt, setCardAttempt] = useState<CardAttempt>();
+  /** Översynen 2026-11-02: brickan är aktiv hos en annan löpare; "Byt bricka med …" erbjuds. */
+  const [cardSwap, setCardSwap] = useState<CardSwap>();
   const [rentalAttempt, setRentalAttempt] = useState<RentalAttempt>();
   const [rentalReturnAttempt, setRentalReturnAttempt] = useState<RentalReturnAttempt>();
   const [rentalReuseAttempt, setRentalReuseAttempt] = useState<RentalReuseAttempt>();
@@ -51,7 +64,7 @@ export function useEntryActionState() {
   const [registrationRunner, setRegistrationRunner] = useState<RunnerSuggestion>();
   const [registrationClubs, setRegistrationClubs] = useState<readonly RunnerClub[]>([]);
   return { registrationRunner, setRegistrationRunner, registrationClubs, setRegistrationClubs, registrationErrors, setRegistrationErrors, registrationSaved, setRegistrationSaved, registrationForm, classId, setClassId, startClock, setStartClock, transferAttempt,
-    setTransferAttempt, newCard, setNewCard, cardAttempt, setCardAttempt, rentalAttempt, setRentalAttempt, rentalReturnAttempt,
+    setTransferAttempt, newCard, setNewCard, cardAttempt, setCardAttempt, cardSwap, setCardSwap, rentalAttempt, setRentalAttempt, rentalReturnAttempt,
     setRentalReturnAttempt, rentalReuseAttempt, setRentalReuseAttempt, rentalReuseSourceId, setRentalReuseSourceId,
     timeAttempt, setTimeAttempt,
     identityCandidates, setIdentityCandidates, identityAttempt, setIdentityAttempt, registrationAttempt, setRegistrationAttempt,
@@ -82,7 +95,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
     registrationRunner, registrationClubs, setRegistrationRunner,
     requireSession, begin, finish, current, request, json, csrf, load, setGivenName, setFamilyName,
     setOrganisationName, setIdentityCandidates, setMessage, setUnknown, setTransferAttempt, setData, setEntryId, setClassId,
-    setNewCard, setStartClock, setCardAttempt, setRentalAttempt, setRentalReturnAttempt,
+    setNewCard, setStartClock, setCardAttempt, setCardSwap, cardSwap, setRentalAttempt, setRentalReturnAttempt,
     setRentalReuseAttempt, setRentalReuseSourceId, setTimeAttempt, setIdentityAttempt, setQuery,
     setPage, setConfirmDistinctPerson, setRegistrationAttempt, setRegistrationErrors, setRegistrationSaved } = ws;
   async function loadIdentity(selectedId = entryId) {
@@ -157,8 +170,38 @@ export function createEntryActions(ws: Base & RaceDataActions) {
       expectedAssignment: entry.activeAssignment ? { id: entry.activeAssignment.id, cardNumber: entry.activeAssignment.cardNumber } : null,
       cardNumber: newCard });
     if (!parsed.success || parsed.data.cardNumber === entry.activeAssignment?.cardNumber) { setMessage(text.cardInvalid); return; }
+    // Brickan är aktiv hos en annan löpare: säg vem och erbjud bytet i stället för att skicka.
+    const holder = data.entries.find((row) => row.id !== entry.id && row.activeAssignment?.cardNumber === parsed.data.cardNumber);
+    if (holder?.activeAssignment) {
+      offerSwap(entry, parsed.data.cardNumber, { entryId: holder.id, displayName: holder.displayName, classId: holder.classId,
+        className: data.classes.find((row) => row.id === holder.classId)?.name ?? "", version: holder.version,
+        assignment: { id: holder.activeAssignment.id, cardNumber: holder.activeAssignment.cardNumber } }, !holder.multipleActiveAssignments);
+      return;
+    }
+    setCardSwap(undefined);
     const value: CardAttempt = { kind: "CARD", id: crypto.randomUUID(), entryId: entry.id,
       displayName: entry.displayName, request: parsed.data };
+    pending.current = value; sent.current = false; setCardAttempt(value); setUnknown(false); setMessage("");
+    void submitCard(value);
+  }
+  function offerSwap(entry: { id: string; activeAssignment: { id: string; cardNumber: string } | null; multipleActiveAssignments: boolean },
+    cardNumber: string, holder: EntryCardInUseResponse["holder"], holderSingle = true) {
+    const canSwap = holderSingle && !!entry.activeAssignment && !entry.multipleActiveAssignments;
+    setCardSwap({ entryId: entry.id, cardNumber, holder, canSwap });
+    setMessage(text.cardInUse(cardNumber, holder.displayName, holder.className, canSwap));
+  }
+  /** "Byt bricka med …": båda löparnas brickor byts i en transaktion. */
+  function prepareCardSwap() {
+    if (writingRef.current || pending.current || !requireSession() || !cardSwap?.canSwap) return;
+    const entry = data?.entries.find((row) => row.id === cardSwap.entryId);
+    if (!data || !entry?.activeAssignment || entry.multipleActiveAssignments) { setMessage(text.cardInvalid); return; }
+    const parsed = entryCardChangeRequestSchema.safeParse({ formatVersion: 1, expectedEntryVersion: entry.version,
+      expectedClassId: entry.classId, expectedAssignment: { id: entry.activeAssignment.id, cardNumber: entry.activeAssignment.cardNumber },
+      cardNumber: cardSwap.cardNumber, swapWith: { entryId: cardSwap.holder.entryId, expectedEntryVersion: cardSwap.holder.version,
+        expectedClassId: cardSwap.holder.classId, expectedAssignment: cardSwap.holder.assignment } });
+    if (!parsed.success) { setMessage(text.cardInvalid); return; }
+    setCardSwap(undefined);
+    const value: CardAttempt = { kind: "CARD", id: crypto.randomUUID(), entryId: entry.id, displayName: entry.displayName, request: parsed.data };
     pending.current = value; sent.current = false; setCardAttempt(value); setUnknown(false); setMessage("");
     void submitCard(value);
   }
@@ -173,7 +216,13 @@ export function createEntryActions(ws: Base & RaceDataActions) {
         body: JSON.stringify(value.request) });
       if ([400, 404, 409].includes(response.status)) {
         if (wasUnknown) { setUnknown(true); setMessage(text.unreachable); return; }
+        const inUse = response.status === 409 ? entryCardInUseResponseSchema.safeParse(await json(response, op).catch(() => null)) : undefined;
         pending.current = undefined; sent.current = false; setCardAttempt(undefined); setUnknown(false);
+        if (inUse?.success) {
+          // Brickan blev aktiv hos någon annan efter att listan lästes: säg vem i stället för "har ändrats under tiden".
+          const entry = data?.entries.find((row) => row.id === value.entryId);
+          if (entry) { offerSwap(entry, value.request.cardNumber, inUse.data.holder); return; }
+        }
         setData(undefined); setEntryId(""); setClassId(""); setNewCard(""); setMessage(text.cardConflict); return;
       }
       if (!response.ok) throw new Error("Unknown card outcome");
@@ -182,9 +231,10 @@ export function createEntryActions(ws: Base & RaceDataActions) {
         receipt.classId !== value.request.expectedClassId || receipt.activeAssignment.cardNumber !== value.request.cardNumber ||
         receipt.previousAssignment?.id !== value.request.expectedAssignment?.id ||
         receipt.previousAssignment?.cardNumber !== value.request.expectedAssignment?.cardNumber ||
-        receipt.entryVersionBefore !== value.request.expectedEntryVersion) throw new Error("Card receipt mismatch");
+        receipt.entryVersionBefore !== value.request.expectedEntryVersion ||
+        receipt.swappedWith?.entryId !== value.request.swapWith?.entryId) throw new Error("Card receipt mismatch");
       committed = true; pending.current = undefined; sent.current = false; setCardAttempt(undefined); setUnknown(false);
-      setData(undefined); setClassId(""); setNewCard(""); setMessage(text.cardSaved);
+      setData(undefined); setClassId(""); setNewCard(""); setMessage(cardSavedMessage(receipt));
       setStartClock("");
       await load(op, value.entryId); setEntryId(value.entryId);
     } catch {
@@ -468,8 +518,9 @@ export function createEntryActions(ws: Base & RaceDataActions) {
       // Klass och klubb står kvar för nästa deltagare; namn, bricka och tid töms.
       setGivenName(""); setFamilyName(""); setNewCard(""); setStartClock(""); setRegistrationErrors({}); setRegistrationRunner(undefined);
       const runner = `${receipt.givenName} ${receipt.familyName}`;
-      setRegistrationSaved(receipt.fixedStartTime ? text.registrationAddedTime(runner, value.className,
-        formatClockTime(receipt.fixedStartTime, value.timeZone)) : text.registrationAdded(runner, value.className));
+      setRegistrationSaved((receipt.fixedStartTime ? text.registrationAddedTime(runner, value.className,
+        formatClockTime(receipt.fixedStartTime, value.timeZone)) : text.registrationAdded(runner, value.className)) +
+        (receipt.linkedReadout ? ` ${text.cardReadoutLinked(receipt.linkedReadout.cardNumber, text.cardLinkedStatus[receipt.linkedReadout.status])}` : ""));
       setMessage(""); await load(op);
     } catch {
       if (current(op)) { setUnknown(!committed); setMessage(committed ? text.registrationSavedLoadError : text.unreachable); }
@@ -479,7 +530,7 @@ export function createEntryActions(ws: Base & RaceDataActions) {
       if (committed) focusWhenEnabled(registrationForm, 'input[name="givenName"]');
     }
   }
-  return { loadIdentity, prepareTransfer, submitTransfer, prepareCard,
+  return { loadIdentity, prepareTransfer, submitTransfer, prepareCard, prepareCardSwap,
     submitCard, prepareRental, submitRental, prepareRentalReturn, submitRentalReturn, prepareRentalReuse, submitRentalReuse,
     prepareTime, submitTime, prepareIdentity, submitIdentity, prepareRegistration,
     submitRegistration };

@@ -81,6 +81,7 @@ planen eller om dess tester blockerar bygget.
 Det finns ingen produktionsdata. Fram till första riktiga användning får
 migrationer ta bort tabeller och kolumner. Expand/migrate/contract behövs inte.
 Efter första riktiga användning gäller försiktiga migrationer igen.
+*Ersatt 2026-11-02 av ADR-0185 beslut 1: appen används publikt; inga förstörande migrationer utan två steg.*
 
 ### 7. Drift
 Systemet körs på en vanlig server med Docker Compose (PostgreSQL + webb +

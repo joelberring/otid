@@ -18,3 +18,7 @@ Filens innehåll avgör alltså inte ensamt. Därför kunde `CREATE EXTENSION po
 utan att befintliga databaser påverkas; `0007_utan_postgis.sql` tar bort tillägget där.
 
 Journalen ska ha unika taggar och unika `when`, och `idx` ska vara 0..n i ordning (`test/migration-journal.test.ts`).
+
+Översynen 2026-11-02 (ADR-0185 beslut 1): appen används publikt, så migrationer får inte längre ta bort eller skriva om
+data i ett steg (se `AGENTS.md`). `CREATE [UNIQUE] INDEX CONCURRENTLY IF NOT EXISTS …;` lyfts ut ur filen och körs före
+filens transaktion; ett ogiltigt index från ett avbrutet bygge tas bort och byggs om (`splitConcurrentIndexes`).

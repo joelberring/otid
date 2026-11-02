@@ -12,6 +12,8 @@ import {
 } from "./security-policy";
 import { principalAllows, raceRoleFor } from "./race-roles";
 import { UUID_PATTERN as uuid } from "@o-tid/contracts";
+import { retryTransactionConflicts } from "./read-conflict";
+import { isDatabaseUnavailable, logServerError } from "./server-error-log";
 
 /**
  * Webbläsarens avläsningsstation (steg 4, ADR-0168): hämtar avläsningspaket och
@@ -31,6 +33,14 @@ function policy(environment: Environment) {
   return securityPolicy(environment);
 }
 
+/** Databasen går inte att nå: 503, så att avläsningen väntar och skickar om. Annars 500. */
+function unavailableOrFailure(error: unknown): Response {
+  if (!isDatabaseUnavailable(error)) return failure(500, "INTERNAL_ERROR");
+  const response = failure(503, "SERVICE_UNAVAILABLE");
+  response.headers.set("retry-after", "5");
+  return response;
+}
+
 function authFailure(status: "unauthorized" | "forbidden"): Response {
   return status === "unauthorized" ? failure(401, "UNAUTHORIZED") : failure(403, "FORBIDDEN");
 }
@@ -40,7 +50,7 @@ export async function readoutPackageRoute(db: Database, request: Request, raceId
   const dependencies = { ...services, ...overrides };
   if (!uuid.test(raceId)) return failure(400, "INVALID_REQUEST");
   let configured;
-  try { configured = policy(environment); } catch { return failure(500, "INTERNAL_ERROR"); }
+  try { configured = policy(environment); } catch (error) { logServerError("readout", "security-policy", error); return failure(500, "INTERNAL_ERROR"); }
   try {
     const proof = sessionProof(request, configured, false);
     const role = raceRoleFor("readout-package", request.method);
@@ -51,8 +61,8 @@ export async function readoutPackageRoute(db: Database, request: Request, raceId
     if (result.status !== "ok") return authFailure(result.status);
     return json(readoutPackageSchema.parse(result.response));
   } catch (error) {
-    console.error("Avläsningspaketet kunde inte skapas", error);
-    return failure(500, "INTERNAL_ERROR");
+    logServerError("readout", "package", error);
+    return unavailableOrFailure(error);
   }
 }
 
@@ -61,7 +71,7 @@ export async function readoutIngestRoute(db: Database, request: Request, raceId:
   const dependencies = { ...services, ...overrides };
   if (!uuid.test(raceId)) return failure(400, "INVALID_REQUEST");
   let configured;
-  try { configured = policy(environment); } catch { return failure(500, "INTERNAL_ERROR"); }
+  try { configured = policy(environment); } catch (error) { logServerError("readout", "security-policy", error); return failure(500, "INTERNAL_ERROR"); }
   if (!hasExpectedOrigin(request, configured)) return failure(403, "FORBIDDEN");
   const proof = sessionProof(request, configured, true);
   try {
@@ -70,20 +80,26 @@ export async function readoutIngestRoute(db: Database, request: Request, raceId:
     if (auth.status !== "authenticated") return authFailure(auth.status);
     if (!principalAllows(auth.principal, raceId, role)) return authFailure("forbidden");
   } catch (error) {
-    console.error("Avläsningens behörighet kunde inte kontrolleras", error);
-    return failure(500, "INTERNAL_ERROR");
+    logServerError("readout", "authenticate", error);
+    return unavailableOrFailure(error);
   }
   let body: unknown;
   try { body = await readBoundedDeviceBatchJson(request); }
-  catch (error) { return error instanceof DeviceBatchRequestError ? failure(400, "INVALID_REQUEST") : failure(500, "INTERNAL_ERROR"); }
+  catch (error) {
+    if (error instanceof DeviceBatchRequestError) return failure(400, "INVALID_REQUEST");
+    logServerError("readout", "read-body", error);
+    return failure(500, "INTERNAL_ERROR");
+  }
   const parsed = deviceBatchSchema.safeParse(body);
   if (!parsed.success) return failure(400, "INVALID_REQUEST");
   try {
-    const result = await dependencies.ingest(db, { ...proof, raceId, batch: parsed.data });
+    // Översynen 2026-11-02: mottagningen är idempotent (enhet, löpnummer, hash). En transaktion som PostgreSQL avbröt
+    // (40001, 40P01) görs om i databaspoolen (`createDatabase`); kvarstår felet görs hela mottagningen om en gång till här.
+    const result = await retryTransactionConflicts(() => dependencies.ingest(db, { ...proof, raceId, batch: parsed.data }));
     if (result.status !== "ok") return authFailure(result.status);
     return json(deviceBatchAcknowledgementSchema.parse(await dependencies.place(db, raceId, result.response)));
   } catch (error) {
-    console.error("Avläsningar kunde inte tas emot", error);
-    return failure(500, "INTERNAL_ERROR");
+    logServerError("readout", "ingest", error);
+    return unavailableOrFailure(error);
   }
 }

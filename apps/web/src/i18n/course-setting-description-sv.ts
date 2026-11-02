@@ -69,6 +69,7 @@ export const courseSettingDescriptionSv = {
     none: "Välj minst en bana.",
     scaled: "En beskrivning är större än sidan och har krympts.",
     sheet: (page: number, count: number) => `Sida ${page} av ${count}`,
+    missing: (names: readonly string[]) => `Kommer inte med i utskriften (beskrivningen kunde inte räknas fram): ${names.join(", ")}.`,
     failedCourse: (name: string) => `Beskrivningen för ${name} kunde inte ritas.`
   }
 };

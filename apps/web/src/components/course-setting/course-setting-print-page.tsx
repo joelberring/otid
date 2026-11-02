@@ -183,19 +183,23 @@ export function CoursePrintPage({ raceId }: { raceId: string }) {
     ? runnerPrintItems(document, bundles, clockIn(bundles.timeZone), order) : undefined, [document, bundles, order]);
 
   // Kartorna i banläget (samma som arken nedan) för PDF:en.
-  const courseItems = useMemo<SheetItem[]>(() => {
-    if (!document) return [];
-    const items: SheetItem[] = [];
+  // Översynen 2026-11-02: en bana vars varianter inte går att räkna hoppas inte tyst över (felet visas med de andra).
+  const { courseItems, variantErrors } = useMemo(() => {
+    const items: SheetItem[] = [], failed: string[] = [];
+    if (!document) return { courseItems: items, variantErrors: failed };
     for (const course of [ALL_CONTROLS, ...courses.map(item => item.id)].filter(id => chosen.includes(id))) {
       try {
         for (const variant of printVariants(document, course, eachVariant)) items.push({ course, ...(variant ? { variant } : {}) });
-      } catch (error) { console.error("Varianterna misslyckades", error); }
+      } catch (error) {
+        console.error("Varianterna misslyckades", error);
+        failed.push(course === ALL_CONTROLS ? text.print.allControls : courses.find(item => item.id === course)?.name ?? course);
+      }
     }
-    return items;
+    return { courseItems: items, variantErrors: failed };
   }, [document, courses, chosen, eachVariant]);
 
   const { sheets, errors } = useMemo(() => {
-    const out: Printed[] = [], bad: string[] = [];
+    const out: Printed[] = [], bad: string[] = mode === "RUNNERS" ? [] : [...variantErrors];
     if (!document) return { sheets: out, errors: bad };
     const options = { mapBounds, ...(bundles ? { date: bundles.raceDate } : {}) };
     if (mode === "RUNNERS") {
@@ -227,7 +231,7 @@ export function CoursePrintPage({ raceId }: { raceId: string }) {
       } catch (error) { console.error("Utskriftslayouten misslyckades", error); bad.push(nameOf(item.course)); }
     }
     return { sheets: out, errors: bad };
-  }, [document, courses, courseItems, header, mapBounds, mode, template, fill, runners, duplex, bundles]);
+  }, [document, courses, courseItems, variantErrors, header, mapBounds, mode, template, fill, runners, duplex, bundles]);
 
   // Kartbilderna per utsnitt och färger (samma utsnitt, skala och profil ritas en gång).
   const [images, setImages] = useState<Readonly<Record<string, string>>>({});

@@ -3,6 +3,7 @@ const place = (key: string) => key === "S" ? "start" : key === "F" ? "mål" : ke
 const meters = (value: number) => value >= 10_000 ? `${(value / 1000).toFixed(1).replace(".", ",")} km` : `${Math.round(value)} m`;
 
 export const routeChoiceSv = {
+  barriersFailed: "Banläggningens spärrar (förbjudna områden och passager) kunde inte läsas. Vägvalen räknas inte, så att inget föreslås genom förbjudet område.",
   mode: "Vägval",
   needsMapFile: "Vägvalen räknas ur kartfilen. Ladda upp kartfilen (OCAD eller Mapper) under Resultat → Karta och vägval.",
   goToMapFile: "Gå till Karta och vägval",

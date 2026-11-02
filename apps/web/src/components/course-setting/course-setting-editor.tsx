@@ -30,6 +30,7 @@ import { ALL_CONTROLS, hitTest, nearestBend } from "../../lib/course-setting-hit
 import { MapRenderSession } from "../../lib/course-setting-map-protocol";
 import { noteTargetAt } from "../../lib/course-setting-note-marks";
 import { previewSuggestion, suggestionOverlay } from "../../lib/course-setting-suggestion";
+import { failedNames, safely } from "../../lib/course-setting-safely";
 import { CourseSettingSync, EditorStore, type LostEdit, type SyncStatus } from "../../lib/course-setting-sync";
 import { inspectedPoints, inspectionRows, mergeInspections } from "../../lib/course-setting-inspections";
 import type { FieldRecord, QueuedItem } from "../../lib/course-setting-offline";
@@ -68,10 +69,6 @@ import styles from "./course-setting.module.css";
 const createMapWorker = () => controlledWorker(() => new Worker(new URL("../../lib/course-setting-map-worker.ts", import.meta.url), { type: "module" }));
 const createRouteWorker = () => controlledWorker(() => new Worker(new URL("../../lib/route-choice-worker.ts", import.meta.url), { type: "module" }));
 
-/** Paketets uträkningar får inte fälla editorn; ett fel syns i konsolen och vyn visar det som går. */
-function safely<T>(name: string, compute: () => T, fallback: T): T {
-  try { return compute(); } catch (error) { console.error(`${name} misslyckades`, error); return fallback; }
-}
 
 type Drag = { kind: "control"; control: string; dx: number; dy: number } | { kind: "number"; courseControl: string } | { kind: "rotate" }
   | { kind: "bend"; from: string; to: string; index: number }
@@ -238,20 +235,21 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
   const suggestions = useDescriptionSuggestions(mapSession, document, view, variant, selection?.kind === "control" ? selection.control : undefined);
   const [suggestionHover, setSuggestionHover] = useState<Parameters<typeof drawSuggestionHighlight>[2]>();
   const options = { course: view, ...(variant ? { variant } : {}), ...cutting.options };
-  const primitives = useMemo(() => safely("Banpåtrycket", () => layoutOverprint(document, options), [] as readonly OverprintPrimitive[]),
+  const primitives = useMemo(() => safely("Banpåtrycket", () => layoutOverprint(document, options), () => [] as readonly OverprintPrimitive[]),
     [document, view, variant, cutting.options]);
-  const faded = useMemo(() => variant ? safely("Banpåtrycket", () => layoutOverprint(document, { course: view, ...cutting.options }), [] as readonly OverprintPrimitive[]) : [],
+  const faded = useMemo(() => variant ? safely("Banpåtrycket", () => layoutOverprint(document, { course: view, ...cutting.options }), () => [] as readonly OverprintPrimitive[]) : [],
     [document, view, variant, cutting.options]);
-  const summaries = useMemo(() => safely("Banornas längder", () => courseSummaries(document), []), [document]);
+  const summaries = useMemo(() => safely("Banornas längder", () => courseSummaries(document), () => []), [document]);
   // Steg 64: symbolerna för beskrivningen på kartan.
   const standard = document.event.descriptionStandard;
-  const symbols = useMemo(() => symbolLookup(safely("Symbolerna", () => descriptionSymbols(standard), [] as readonly DescriptionSymbol[])), [standard]);
-  const checks = useMemo(() => checkRows(document, safely("Kontrollerna", () => checkDocument(document), [])), [document]);
+  const symbols = useMemo(() => symbolLookup(safely("Symbolerna", () => descriptionSymbols(standard), () => [] as readonly DescriptionSymbol[])), [standard]);
+  const checked = useMemo(() => safely("Kontrollerna", () => checkDocument(document), () => []), [document]);
+  const checks = useMemo(() => checkRows(document, checked), [document, checked]);
   const [flagged, setFlagged] = useState<CheckRow>();
   // Steg 64: sidan för vald bana (tryckytans ram på kartan i fliken Utskrift).
   const printPage = useMemo(() => {
     if (tab !== "print") return undefined;
-    const page = safely("Utskriftslayouten", () => layoutCoursePage(document, { course: view, ...(variant ? { variant } : {}), mapBounds })[0], undefined);
+    const page = safely("Utskriftslayouten", () => layoutCoursePage(document, { course: view, ...(variant ? { variant } : {}), mapBounds })[0], () => undefined);
     return page ? { page, automatic: printAreaOf(document, view).automatic || !printAreaOf(document, view).rect } : undefined;
   }, [tab, document, view, variant, mapBounds]);
   const selectedSpecial = selection?.kind === "special" ? document.specialObjects.find(item => item.id === selection.special) : undefined;
@@ -283,7 +281,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
   const [legStatus, setLegStatus] = useState<LegStatus>("idle");
   const [highlighted, setHighlighted] = useState<number>();
   const legCourseControls = useMemo(() => view === ALL_CONTROLS ? [] : safely("Banans kontroller",
-    () => courseControlOrder(document, view, variant), [] as readonly string[]), [document, view, variant]);
+    () => courseControlOrder(document, view, variant), () => [] as readonly string[]), [document, view, variant]);
   const input = selection?.kind === "leg" && view !== ALL_CONTROLS ? legInput(document, selection.from, selection.to, legCourseControls, view) : undefined;
   const inputKey = input?.key;
   useEffect(() => {
@@ -325,12 +323,12 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
   const [skip, setSkip] = useState<ReadonlySet<number>>(new Set());
   const [decision, setDecision] = useState<{ suggestion: string; decided: CourseSettingSuggestionDecided } | { suggestion: string; failed: true }>();
   const reviewed = collaboration.suggestions.find(row => row.id === reviewing);
-  const preview = useMemo(() => reviewed ? safely("Förslaget", () => previewSuggestion(document, reviewed, skip), undefined) : undefined,
+  const preview = useMemo(() => reviewed ? safely("Förslaget", () => previewSuggestion(document, reviewed, skip), () => undefined) : undefined,
     [reviewed, document, skip]);
   const suggestionDrawing = useMemo(() => {
     if (!preview) return undefined;
     const overlay = suggestionOverlay(document, preview.document);
-    return { ...overlay, primitives: safely("Förslagets banpåtryck", () => layoutOverprint(preview.document, options), [] as readonly OverprintPrimitive[]),
+    return { ...overlay, primitives: safely("Förslagets banpåtryck", () => layoutOverprint(preview.document, options), () => [] as readonly OverprintPrimitive[]),
       radiusMm };
   }, [preview, document, view, variant, radiusMm]);
   const rejectedInPreview = useMemo(() => new Set(preview?.rejected.map(row => row.index) ?? []), [preview]);
@@ -497,7 +495,9 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
       const event = document.event;
       const imported: CourseSettingDocument = { ...file.document, event: { ...file.document.event,
         ...(event.printProfiles ? { printProfiles: event.printProfiles } : {}), ...(event.printProfileId ? { printProfileId: event.printProfileId } : {}),
-        ...(event.layoutTemplates ? { layoutTemplates: event.layoutTemplates } : {}) } };
+        ...(event.layoutTemplates ? { layoutTemplates: event.layoutTemplates } : {}),
+        // Ringklippen står inte heller i .ppen-filen (ADR-0180 beslut 10).
+        ...(event.circleCutting ? { circleCutting: event.circleCutting } : {}) } };
       file = { ...file, document: imported };
       const outcome = await importCourseSetting(raceId, { document: file.document, expectedVersion: sync.version, fileName: file.fileName, ppen: file.ppen });
       if (outcome.kind === "conflict") { say({ tone: "error", text: text.status.conflict }); sync.remote(outcome.conflict.current?.version ?? sync.version + 1); return; }
@@ -541,7 +541,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
     [document, descriptionKind]);
   const selectedControl = selection?.kind === "control" ? selection.control : undefined;
   const describedControl = useMemo(() => selectedControl
-    ? safely("Textbeskrivningen", () => describeControl(document, selectedControl, descriptionSettings.language), "") : "",
+    ? safely("Textbeskrivningen", () => describeControl(document, selectedControl, descriptionSettings.language), () => "") : "",
   [document, selectedControl, descriptionSettings.language]);
 
   const suggesting = editor.suggesting !== undefined;
@@ -549,6 +549,9 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
   // Steg 67: utan nät (eller utloggad) säger statusen hur mycket som väntar i telefonen.
   const shownStatus = suggesting ? statusText : offline.statusText ?? statusText;
   const label = text.map(course?.name ?? text.courses.all);
+  // Översynen 2026-11-02: det som inte gick att räkna fram sägs ovanpå kartan (inget sväljs tyst).
+  const problems = failedNames([primitives, faded, summaries, checked, legCourseControls, suggestionDrawing?.primitives],
+    [cutting.failed && text.problems.circleGaps, suggestions.failed && text.problems.suggestions]);
   const others = collaboration.presence.filter(person => person.accountId !== access.accountId).map(person => person.displayName ?? copy.someone);
   const openSuggestions = collaboration.suggestions.filter(row => row.status === "OPEN").length;
   const openNotes = notes.openCount;
@@ -646,7 +649,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
   // Banväljaren finns i fältets rad på telefonen (raden överst har den på bredare skärm).
   const variantsByCourse = useMemo(() => Object.fromEntries(summaries.map(row => [row.course, row.variants.map(item => item.code)])), [summaries]);
   const field = useFieldMode({ raceId, state: editor, apply: edit, georeference, mapBounds, status, statusText: shownStatus, offline: offline.offline,
-    readOnly, onView: (next, code) => apply(current => setView(current, next, code)), variants: variantsByCourse,
+    readOnly, onView: (next, code) => apply(current => setView(current, next, code)), variants: variantsByCourse, variant,
     inspection: selectedControl ? inspections.get(selectedControl) : undefined, saved: id => Boolean(sync.document.controls[id]),
     onInspect: (control, checked, position) => void offline.enqueueInspection({ formatVersion: 1, control, checked, at: new Date().toISOString(),
       position }).catch(error => console.error("Bocken sparades inte i telefonen", error)),
@@ -702,6 +705,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
             {" "}<Button variant="quiet" onClick={() => setTab("suggestions")}>{copy.suggestions.send} …</Button></p>}
           {reviewed && <p className={styles.toast}>{copy.suggestions.reviewing}</p>}
           {editor.error && !field.narrow && <p role="alert" className={styles.toast}>{editor.error}</p>}
+          {problems.length > 0 && <div data-testid="course-setting-problems"><Notice tone="error" role="alert">{text.problems.failed(problems)}</Notice></div>}
           {messages.map(message => <div key={message.id} className={styles.toastBox}>
             <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>
               <p>{message.text}</p>

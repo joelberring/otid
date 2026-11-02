@@ -9,6 +9,7 @@ export const courseSettingSuggestSv = {
   alternatives: "Andra tolkningar",
   alternative: (text: string, reason: string) => `Godta ${text}: ${reason}`,
   computing: "Räknar förslag ur kartan …",
+  failed: "Förslagen kunde inte räknas ur kartfilen.",
   none: "Kartan har inget tydligt objekt i ringen. Välj symbolerna själv.",
   noMap: "Förslag kräver kartfilen (OCAD eller Mapper).",
   hover: "Peka på ett förslag för att se objektet på kartan.",

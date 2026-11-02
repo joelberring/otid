@@ -62,4 +62,6 @@ journalerna för begäranden, festen), skrev binärdata i base64 i en enda JSON 
 - Filen innehåller personuppgifter. Appen säger det vid nedladdningen och återställningen; integritetssidan säger att kopior på
   arrangörens dator är arrangörens ansvar.
 - `docs/export.md` beskriver formatet, `docs/drift.md` arrangörens kopia och återställning på en ny server.
+- Avläsningsdatorns kö hör till den gamla tävlingens id och skickas aldrig till den återställda; avläsningssidan visar väntande
+  avläsningar för en annan tävling med bricka och tid och kan ladda ner dem, och inget tas bort (`docs/drift.md`).
 - Kopian ersätter inte serverns backup: konton, behörigheternas historik och andra tävlingar finns bara där.

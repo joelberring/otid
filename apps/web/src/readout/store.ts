@@ -32,6 +32,30 @@ export interface QueuedReadout {
   readonly serverFailedStatus?: number;
 }
 
+/** Väntande avläsningar för en annan tävling, med tävlingens namn och datum om datorn har dess paket. */
+export interface OtherRacePending {
+  readonly raceId: string;
+  readonly name?: string;
+  readonly raceDate?: string;
+  readonly readouts: readonly QueuedReadout[];
+}
+
+/** Grupperar väntande avläsningar (inte kvitterade) per tävling, utom `raceId`. */
+export function groupPendingElsewhere(raceId: string, items: readonly QueuedReadout[],
+  packages: readonly ReadoutPackage[]): OtherRacePending[] {
+  const byRace = new Map<string, QueuedReadout[]>();
+  for (const item of items) {
+    if (item.raceId === raceId || item.status !== "pending") continue;
+    byRace.set(item.raceId, [...(byRace.get(item.raceId) ?? []), item]);
+  }
+  return [...byRace].map(([id, readouts]) => {
+    const pkg = packages.find(candidate => candidate.raceId === id);
+    const race = pkg?.raceSnapshot.race;
+    return { raceId: id, ...(pkg ? { name: [pkg.event.name, race?.name].filter(Boolean).join(" · "), raceDate: race?.raceDate ?? pkg.event.startsOn } : {}),
+      readouts: [...readouts].sort((a, b) => a.localSequence - b.localSequence) };
+  });
+}
+
 export type NewReadout = Omit<QueuedReadout, "raceId" | "deviceId" | "sessionId" | "localSequence" | "status">;
 
 /**
@@ -62,6 +86,11 @@ export interface ReadoutStore {
   append(raceId: string, item: NewReadout): Promise<QueuedReadout>;
   list(raceId: string): Promise<QueuedReadout[]>;
   update(item: QueuedReadout): Promise<void>;
+  /**
+   * ADR-0187: avläsningar på den här datorn som inte har kommit fram till en ANNAN tävling (t.ex. den som återställdes från en
+   * säkerhetskopia under ett nytt id). De skickas aldrig hit; avläsningssidan visar dem så att inget försvinner tyst.
+   */
+  pendingElsewhere(raceId: string): Promise<OtherRacePending[]>;
   /** Direktanmälningar (PLAN.md steg 25). `addRegistration` lägger till; en befintlig begäran skrivs aldrig över. */
   addRegistration(item: QueuedRegistration): Promise<void>;
   listRegistrations(raceId: string): Promise<QueuedRegistration[]>;
@@ -158,6 +187,14 @@ export class IdbReadoutStore implements ReadoutStore {
     const tx = db.transaction("readouts", "readwrite");
     tx.objectStore("readouts").put(item);
     await done(tx);
+  }
+
+  async pendingElsewhere(raceId: string): Promise<OtherRacePending[]> {
+    const db = await this.#db;
+    const tx = db.transaction(["readouts", "packages"]);
+    const [items, packages] = await Promise.all([request(tx.objectStore("readouts").getAll()) as Promise<QueuedReadout[]>,
+      request(tx.objectStore("packages").getAll()) as Promise<ReadoutPackage[]>]);
+    return groupPendingElsewhere(raceId, items, packages);
   }
 
   async addRegistration(item: QueuedRegistration): Promise<void> {

@@ -10,7 +10,7 @@ import { buildReadoutPayload, payloadHash } from "./payload";
 import { loadFastRead, saveFastRead, StationController, type StationFacts, type StationStatus } from "./station";
 import { chooseReadoutClock, stationClockUnusable } from "./clock";
 import { TrafficLog } from "./rawlog";
-import { IdbReadoutStore, type QueuedReadout, type QueuedRegistration, type ReadoutStore } from "./store";
+import { IdbReadoutStore, type OtherRacePending, type QueuedReadout, type QueuedRegistration, type ReadoutStore } from "./store";
 import { RegistrationForm, RegistrationStatus, type RegistrationFields } from "./registration-form";
 import type { EntrySuggestion } from "./runner-lookup";
 import { startPunchText } from "../lib/start-punch-text";
@@ -78,6 +78,8 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
   const [raceId] = useState(raceIdFromHash);
   const [pkg, setPkg] = useState<ReadoutPackage>();
   const [items, setItems] = useState<QueuedReadout[]>([]);
+  // ADR-0187: väntande avläsningar för andra tävlingar på den här datorn (t.ex. före en återställning). Skickas aldrig hit.
+  const [elsewhere, setElsewhere] = useState<OtherRacePending[]>([]);
   /** Direktanmälningar av okända brickor (PLAN.md steg 25), köade som avläsningarna. */
   const [registrations, setRegistrations] = useState<QueuedRegistration[]>([]);
   const [station, setStation] = useState<StationStatus>({ kind: "disconnected" });
@@ -117,9 +119,9 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
   const registrationsRef = useRef<QueuedRegistration[]>([]);
   const reload = useCallback(async () => {
     if (!raceId) return;
-    const [listed, registered, party] = await Promise.all([storeRef.current.list(raceId), storeRef.current.listRegistrations(raceId),
-      partyStoreRef.current.list(raceId)]);
-    itemsRef.current = listed; setItems(listed); setPartyActions(party);
+    const [listed, registered, party, other] = await Promise.all([storeRef.current.list(raceId), storeRef.current.listRegistrations(raceId),
+      partyStoreRef.current.list(raceId), storeRef.current.pendingElsewhere(raceId)]);
+    itemsRef.current = listed; setItems(listed); setPartyActions(party); setElsewhere(other);
     registrationsRef.current = registered; setRegistrations(registered);
   }, [raceId]);
 
@@ -298,6 +300,18 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
     try {
       const anchor = document.createElement("a");
       anchor.href = url; anchor.download = `otid-ralogg-${new Date().toISOString().replaceAll(":", "")}.json`;
+      document.body.append(anchor); anchor.click(); anchor.remove();
+    } finally { URL.revokeObjectURL(url); }
+  }
+
+  /** ADR-0187: de väntande avläsningarna för en annan tävling som fil (nyttolasten oförändrad), så att inget går förlorat. */
+  function downloadElsewhere(group: OtherRacePending) {
+    const file = JSON.stringify({ format: "otid-vantande-avlasningar", formatVersion: 1, raceId: group.raceId,
+      savedAt: new Date().toISOString(), readouts: group.readouts }, null, 2);
+    const url = URL.createObjectURL(new Blob([file], { type: "application/json" }));
+    try {
+      const anchor = document.createElement("a");
+      anchor.href = url; anchor.download = `otid-vantande-avlasningar-${new Date().toISOString().replaceAll(":", "")}.json`;
       document.body.append(anchor); anchor.click(); anchor.remove();
     } finally { URL.revokeObjectURL(url); }
   }
@@ -555,6 +569,16 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
           {t.failedClear}</button>
       </div>
     </section> : null}
+    {elsewhere.map((group) => <section key={group.raceId} className="notice" role="alert" data-testid="other-race-readouts"
+      aria-label={t.elsewhereTitle}>
+      <strong>{t.elsewhereTitle}</strong> {t.elsewhere(group.readouts.length, group.name, group.raceDate)}
+      <ul>{group.readouts.map((item) => <li key={`${item.deviceId}-${item.localSequence}`}>{t.elsewhereRow(item.payload.cardNumber,
+        new Date(item.stationReceivedAt).toLocaleTimeString("sv-SE"))}</li>)}</ul>
+      <div className="row">
+        <button type="button" onClick={() => downloadElsewhere(group)}>{t.elsewhereDownload}</button>
+        <a href={`/admin/${encodeURIComponent(group.raceId)}/readout`}>{t.elsewhereOpen}</a>
+      </div>
+    </section>)}
     {!persistent ? <p className="notice">{t.storageNotPersistent}</p> : null}
     {station.kind === "misconfigured" ? <p className="notice" role="alert">{t.misconfiguredHelp} ({station.problems.join(", ")})</p> : null}
     {clockIgnored ? <p className="notice" role="alert" data-testid="clock-ignored">{t.clockIgnored(clockSkew ?? 0)}</p>

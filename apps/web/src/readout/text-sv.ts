@@ -78,6 +78,15 @@ export const readoutText = {
   alreadyReadOutPossible: (name: string) => `${name} har redan lästs ut med den här brickan. Är det en lånad bricka? Servern kontrollerar.`,
   alreadyReadOutHelp: (name: string) => `${name}s resultat ändras inte. Anmäl eller koppla den som sprang nedan, eller:`,
   sameRunner: "Det är samma löpare – använd den nya avläsningen",
+  // ADR-0187: väntande avläsningar för en annan tävling (t.ex. tävlingen före en återställning från säkerhetskopia).
+  elsewhereTitle: "Avläsningar till en annan tävling har inte skickats",
+  elsewhere: (count: number, name: string | undefined, date: string | undefined) => `${count} ${count === 1 ? "avläsning" : "avläsningar"} ` +
+    `på den här datorn hör till ${name ? `${name}${date ? ` (${date})` : ""}` : "en annan tävling"} och har inte kommit fram dit. ` +
+    "De skickas aldrig till den här tävlingen, inte heller om den är återställd från en säkerhetskopia (den har nya id). De ligger kvar " +
+    "på datorn. Läs ut brickorna igen här, eller ladda ner listan.",
+  elsewhereRow: (card: string, time: string) => `Bricka ${card}, avläst kl. ${time}`,
+  elsewhereDownload: "Ladda ner listan",
+  elsewhereOpen: "Öppna den tävlingens avläsning",
   failedTitle: "Brickor som inte kunde tolkas",
   failedHelp: "Läs om brickan eller ange tiden manuellt i deltagarkortet. Råramarna skickas till servern, där administratören kan läsa om dem under Avläsning.",
   failedStored: "sparad på servern",

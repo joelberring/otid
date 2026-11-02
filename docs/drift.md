@@ -410,8 +410,14 @@ serverns backup: konton, andra tävlingar och behörigheternas historik finns ba
    (samma e-post) på servern sin roll igen; övriga räknas upp och läggs till under Personer med behörighet när de har konto.
 4. Publicera tävlingen, slå på radiokontrollerna och klistra in Eventor-nyckeln under Inställningar om de användes. Avläsningen
    kopplas till den nya tävlingen (öppna Avläsning i den nya arbetsytan). Det som lästes ut efter att kopian togs finns inte i
-   den: jämför med Resultat och läs ut de brickorna igen (kön i avläsningsdatorn gäller den gamla tävlingen; att den skickas
-   om till den nya är inte provat).
+   den: läs ut de brickorna igen i den nya tävlingen. Avläsningsdatorns kö (IndexedDB) hör till den gamla tävlingens id och
+   skickas **aldrig** till den återställda; inget i den tas bort. Har datorn avläsningar som inte kom fram till den gamla
+   tävlingen visar avläsningssidan för den nya tävlingen "Avläsningar till en annan tävling har inte skickats" med bricka och
+   tid för var och en och "Ladda ner listan" (Playwright `aterstallning`). Kön finns bara i webbläsaren på samma adress: på en
+   ny domän syns den inte alls. Provat på servern (integrationstestet `aterstallning`): skickas den gamla köns sats ändå till
+   den återställda tävlingen avvisas den på samma server (`SEQUENCE_CONTEXT_CONFLICT`, enheten finns i den gamla tävlingen);
+   på en ny server tas den emot som en ny avläsning av samma bricka (en dubblett i avläsningarna och en ny resultatrevision
+   med samma tid och sträcktider).
 5. Peka om domänen eller ge funktionärerna den nya adressen.
 
 En kopia med en formatversion som servern inte känner till (gjord med en nyare O-Tid) avvisas med versionen i beskedet:

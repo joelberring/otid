@@ -19,6 +19,7 @@ import { createManualCourseClassAsAdmin } from "../../src/manual-course-class";
 import { ingestReadoutsAsAdmin } from "../../src/readout-station";
 import { createRelayClassAsAdmin, registerRelayTeamAsAdmin } from "../../src/relay-admin";
 import { publicRelayResults } from "../../src/relay-results";
+import { purgeRows } from "../../src/purge";
 import { accountOnRace, registerTestAccount } from "./accounts";
 import { ingest, NOW, RACE_DATE, run, seedRace } from "./steg-25-fixtures";
 
@@ -216,6 +217,47 @@ describe("ADR-0187: säkerhetskopia och återställning", () => {
       await client.query("rollback");
       client.release();
     }
+  });
+
+  it("avläsningsdatorns kö för den gamla tävlingen skickad till den återställda: avvisas på samma server, dubblett utan ändrat resultat på en ny", async () => {
+    const { ids, cards, admin } = await seedRace(db, pool);
+    const snapshot = async (raceId: string) =>
+      (await pool.query<{ v: number }>("select snapshot_version as v from race where id = $1", [raceId])).rows[0]!.v;
+    // En avläsning från avläsningsdatorn (enhet, session, paketversion och löpnummer som i kön i IndexedDB).
+    // Fälten i kontraktets ordning: servern räknar hashen över den tolkade nyttolasten.
+    const ada = run(cards.ada, "10:02:00", 40);
+    const finishPunchedAt = ada.finishPunchedAt;
+    const payload: SportidentReadoutPayload = { cardNumber: ada.cardNumber, cardType: "SI9", startPunchedAt: ada.startPunchedAt,
+      finishPunchedAt, punches: ada.punches, untimedPunchCodes: [], frames: ["02ef0100"], simulated: false };
+    const batch: DeviceBatch = { deviceId: randomUUID(), sessionId: randomUUID(), packageVersion: await snapshot(ids.race), firstSequence: 1,
+      lastSequence: 1, events: [{ localSequence: 1, stationReceivedAt: new Date(Date.parse(finishPunchedAt) + 60_000).toISOString(),
+        transport: "sportident", payload, contentHash: contentHash(payload) }] };
+    const first = await ingestReadoutsAsAdmin(db, { ...admin, batch }, NOW);
+    expect(first.status === "ok" && first.response.acknowledgements[0]!.status).toBe("stored");
+
+    const exported = await exportRaceAsAdmin(db, admin, NOW);
+    if (exported.status !== "ok") throw new Error(exported.status);
+    const restorer = await registerTestAccount(db, undefined, NOW);
+    const restored = await restoreRaceBackup(db, { ...restorer.proof, bytes: exported.bytes, options: { requestId: randomUUID(), people: "skip" } }, NOW);
+    if (restored.status !== "restored") throw new Error(JSON.stringify(restored));
+    const copy = { raceId: restored.response.raceId, ...restorer.proof };
+    const before = withoutIds({ ...(await publicResults(db, copy.raceId)), raceId: undefined });
+    const readouts = async () => (await pool.query<{ n: number }>("select count(*)::int as n from card_readout where race_id = $1", [copy.raceId])).rows[0]!.n;
+    expect(await readouts()).toBe(1);
+
+    // Samma server: enhetens id finns kvar i den gamla tävlingen, så avläsningen avvisas med ett uttryckligt besked (inget sparas).
+    const same = await ingestReadoutsAsAdmin(db, { ...copy, batch }, NOW);
+    expect(same.status === "ok" && same.response.acknowledgements[0]).toMatchObject({ status: "rejected", reason: "SEQUENCE_CONTEXT_CONFLICT" });
+    expect(await readouts()).toBe(1);
+
+    // En ny server (den gamla tävlingen finns inte där): avläsningen tas emot som en ny avläsning av samma bricka. Det blir en
+    // dubblett i avläsningarna och en ny resultatrevision, men tiden, sträcktiderna och placeringen är desamma.
+    await db.transaction(tx => purgeRows(tx, "event", [ids.event]));
+    const other = await ingestReadoutsAsAdmin(db, { ...copy, batch }, NOW);
+    expect(other.status === "ok" && other.response.acknowledgements[0]!.status).toBe("stored");
+    expect(await readouts()).toBe(2);
+    const revisionless = (text: string) => text.replace(/"revision":\d+/g, "\"revision\":0");
+    expect(revisionless(withoutIds({ ...(await publicResults(db, copy.raceId)), raceId: undefined }))).toBe(revisionless(before));
   });
 
   it("stafett (teamsprint där sträcklöparna delar bricka): samma lag, sträckor och resultat efter återställningen", async () => {

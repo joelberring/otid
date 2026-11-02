@@ -2,16 +2,20 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import {
   COURSE_SETTING_NOTE_PHOTO_MAX_BYTES, courseSettingNoteCreateSchema, courseSettingNoteReplySchema, courseSettingNoteSchema,
-  courseSettingNoteStatusSchema, courseSettingNotesSchema, type CourseSettingNote, type CourseSettingNotes
+  courseSettingNoteStatusSchema, courseSettingNotesSchema, sketchCenter, type CourseSettingNote, type CourseSettingNotes
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { actor, actors, courseSettingRead, courseSettingWrite, type Failure, type ReadProof, type Transaction } from "./course-setting";
+import { courseSettingAllows } from "./course-setting-access";
 import type { RaceSessionProof } from "./race-session";
 
 /**
  * Steg 66 (ADR-0181 beslut 1): notiser i banläggningen. De sparas för sig (`course_setting_note`, svar i
  * `course_setting_note_reply`), aldrig i dokumentet, så banpåtrycket, beskrivningarna, .ppen och överföringen till
  * tävlingen läser dem aldrig. Läsa och skriva kräver COMMENT. Fotot (högst 2 MB, förminskat i webbläsaren) hämtas för sig.
+ *
+ * ADR-0181 beslut 8: en notis kan ha en ritning (target SKETCH) och vara ett kartfel. Den som skrev en notis eller ett
+ * svar och den som får ändra (EDIT) kan ta bort den; svaren och fotot försvinner med notisen.
  */
 type NoteRow = typeof schema.courseSettingNotes.$inferSelect;
 const notes = schema.courseSettingNotes;
@@ -23,6 +27,7 @@ function targetOf(row: NoteListRow): CourseSettingNote["target"] {
   if (row.target === "POINT") return { kind: "POINT", at: { x: row.atX!, y: row.atY! } };
   if (row.target === "CONTROL") return { kind: "CONTROL", control: row.controlId! };
   if (row.target === "LEG") return { kind: "LEG", from: row.fromControlId!, to: row.toControlId! };
+  if (row.target === "SKETCH") return { kind: "SKETCH", shapes: row.sketch as never };
   return { kind: "COURSE", course: row.courseId! };
 }
 
@@ -32,7 +37,7 @@ async function noteDtos(tx: Transaction, rows: readonly NoteListRow[]): Promise<
     .orderBy(asc(replies.createdAt), asc(replies.id));
   const names = await actors(tx, [...rows.flatMap(row => [row.createdBy, ...(row.resolvedBy ? [row.resolvedBy] : [])]),
     ...answers.map(answer => answer.createdBy)]);
-  return rows.map(row => courseSettingNoteSchema.parse({ id: row.id, target: targetOf(row),
+  return rows.map(row => courseSettingNoteSchema.parse({ id: row.id, target: targetOf(row), kind: row.kind,
     at: row.atX !== null && row.atY !== null ? { x: row.atX, y: row.atY } : null, course: row.courseId, text: row.text, status: row.status,
     createdAt: row.createdAt.toISOString(), createdBy: actor(names, row.createdBy), resolvedAt: row.resolvedAt?.toISOString() ?? null,
     resolvedBy: row.resolvedBy ? actor(names, row.resolvedBy) : null,
@@ -45,7 +50,7 @@ const columns = {
   id: notes.id, raceId: notes.raceId, target: notes.target, atX: notes.atX, atY: notes.atY, controlId: notes.controlId,
   fromControlId: notes.fromControlId, toControlId: notes.toControlId, courseId: notes.courseId, text: notes.text, status: notes.status,
   createdAt: notes.createdAt, createdBy: notes.createdBy, resolvedAt: notes.resolvedAt, resolvedBy: notes.resolvedBy,
-  photoMediaType: notes.photoMediaType, requestId: notes.requestId
+  photoMediaType: notes.photoMediaType, requestId: notes.requestId, kind: notes.kind, sketch: notes.sketch
 };
 
 async function selectNotes(tx: Transaction, raceId: string, id?: string): Promise<NoteListRow[]> {
@@ -84,8 +89,9 @@ export async function createCourseSettingNoteAsAdmin(db: Database, input: RaceSe
     const id = existing?.id ?? randomUUID();
     if (!existing) {
       const target = request.target;
-      const at = target.kind === "POINT" ? target.at : request.at;
-      await tx.insert(notes).values({ id, raceId, target: target.kind, atX: at?.x ?? null, atY: at?.y ?? null,
+      const at = target.kind === "POINT" ? target.at : target.kind === "SKETCH" ? sketchCenter(target.shapes) : request.at;
+      await tx.insert(notes).values({ id, raceId, target: target.kind, kind: request.kind ?? "COURSE_SETTING",
+        sketch: target.kind === "SKETCH" ? target.shapes : null, atX: at?.x ?? null, atY: at?.y ?? null,
         controlId: target.kind === "CONTROL" ? target.control : null, fromControlId: target.kind === "LEG" ? target.from : null,
         toControlId: target.kind === "LEG" ? target.to : null, courseId: target.kind === "COURSE" ? target.course : request.course,
         text: request.text, status: "OPEN", createdAt: now, createdBy: actorId, photo: photo ?? null,
@@ -134,5 +140,37 @@ export async function readCourseSettingNotePhotoAsAdmin(db: Database, input: Rea
       .where(and(eq(notes.id, input.noteId), eq(notes.raceId, raceId)));
     if (!row?.photo || !row.mediaType) return { status: "not-found" as const };
     return { status: "ok" as const, mediaType: row.mediaType, photo: row.photo };
+  });
+}
+
+const idPattern = /^[0-9a-f-]{36}$/;
+
+/** Tar bort notisen med svar och foto: den som skrev den eller den som får ändra. En redan borttagen ger not-found. */
+export async function deleteCourseSettingNoteAsAdmin(db: Database, input: RaceSessionProof & { noteId: string }, now = new Date())
+  : Promise<Failure | { status: "ok"; id: string }> {
+  if (!idPattern.test(input.noteId)) return { status: "invalid-request" };
+  return courseSettingWrite(db, input, now, "COMMENT", async (tx, raceId, actorId, principal) => {
+    const [row] = await tx.select({ id: notes.id, createdBy: notes.createdBy }).from(notes)
+      .where(and(eq(notes.id, input.noteId), eq(notes.raceId, raceId)));
+    if (!row) return { status: "not-found" as const };
+    if (row.createdBy !== actorId && !courseSettingAllows(principal, "EDIT")) return { status: "forbidden" as const };
+    await tx.delete(replies).where(and(eq(replies.noteId, row.id), eq(replies.raceId, raceId)));
+    await tx.delete(notes).where(eq(notes.id, row.id));
+    return { status: "ok" as const, id: row.id };
+  });
+}
+
+/** Tar bort ett svar: den som skrev det eller den som får ändra. Ger notisen utan svaret. */
+export async function deleteCourseSettingNoteReplyAsAdmin(db: Database, input: RaceSessionProof & { noteId: string; replyId: string },
+  now = new Date()): Promise<Failure | { status: "ok"; note: CourseSettingNote }> {
+  if (!idPattern.test(input.noteId) || !idPattern.test(input.replyId)) return { status: "invalid-request" };
+  return courseSettingWrite(db, input, now, "COMMENT", async (tx, raceId, actorId, principal) => {
+    const [row] = await tx.select({ id: replies.id, createdBy: replies.createdBy }).from(replies)
+      .where(and(eq(replies.id, input.replyId), eq(replies.noteId, input.noteId), eq(replies.raceId, raceId)));
+    if (!row) return { status: "not-found" as const };
+    if (row.createdBy !== actorId && !courseSettingAllows(principal, "EDIT")) return { status: "forbidden" as const };
+    await tx.delete(replies).where(eq(replies.id, row.id));
+    const [dto] = await noteDtos(tx, await selectNotes(tx, raceId, input.noteId));
+    return dto ? { status: "ok" as const, note: dto } : { status: "not-found" as const };
   });
 }

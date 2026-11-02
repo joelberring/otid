@@ -203,10 +203,10 @@ export async function copyRaceContent(tx: Transaction, input: ContentInput) {
     from course_setting_grant where race_id = ${sourceRaceId}`);
   await tx.execute(sql`create temporary table course_setting_note_copy on commit drop as
     select id as old_id, gen_random_uuid() as new_id from course_setting_note where race_id = ${sourceRaceId}`);
-  await tx.execute(sql`insert into course_setting_note (id, race_id, target, at_x, at_y, control_id, from_control_id, to_control_id,
-      course_id, text, status, created_at, created_by, resolved_at, resolved_by, photo, photo_media_type, request_id)
-    select c.new_id, ${raceId}, n.target, n.at_x, n.at_y, n.control_id, n.from_control_id, n.to_control_id, n.course_id, n.text, n.status,
-      n.created_at, n.created_by, n.resolved_at, n.resolved_by, n.photo, n.photo_media_type, gen_random_uuid()
+  await tx.execute(sql`insert into course_setting_note (id, race_id, target, kind, sketch, at_x, at_y, control_id, from_control_id,
+      to_control_id, course_id, text, status, created_at, created_by, resolved_at, resolved_by, photo, photo_media_type, request_id)
+    select c.new_id, ${raceId}, n.target, n.kind, n.sketch, n.at_x, n.at_y, n.control_id, n.from_control_id, n.to_control_id, n.course_id,
+      n.text, n.status, n.created_at, n.created_by, n.resolved_at, n.resolved_by, n.photo, n.photo_media_type, gen_random_uuid()
     from course_setting_note n join course_setting_note_copy c on c.old_id = n.id`);
   await tx.execute(sql`insert into course_setting_note_reply (id, note_id, race_id, text, created_at, created_by, request_id)
     select gen_random_uuid(), c.new_id, ${raceId}, r.text, r.created_at, r.created_by, gen_random_uuid()

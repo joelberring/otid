@@ -79,6 +79,9 @@ export const COURSE_SETTING_ROUTES: Readonly<Record<string, Readonly<Record<stri
   "course-setting-note-reply": { POST: "COMMENT" },
   "course-setting-note-status": { PUT: "COMMENT" },
   "course-setting-note-photo": { GET: "COMMENT" },
+  // ADR-0181 beslut 8: den som skrev notisen (svaret) eller den med EDIT; det prövas i tjänsten.
+  "course-setting-note": { DELETE: "COMMENT" },
+  "course-setting-note-reply-item": { DELETE: "COMMENT" },
   "course-setting-suggestions": { GET: "COMMENT", POST: "SUGGEST" },
   "course-setting-suggestion-decision": { POST: "EDIT" },
   "course-setting-events": { GET: "COMMENT" },

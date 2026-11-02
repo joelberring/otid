@@ -53,6 +53,8 @@ const COURSE_SETTING: Record<string, Record<string, CourseSettingRequirement>> =
   "admin/races/[raceId]/administrator/course-setting/notes/[noteId]/replies": { POST: "COMMENT" },
   "admin/races/[raceId]/administrator/course-setting/notes/[noteId]/status": { PUT: "COMMENT" },
   "admin/races/[raceId]/administrator/course-setting/notes/[noteId]/photo": { GET: "COMMENT" },
+  "admin/races/[raceId]/administrator/course-setting/notes/[noteId]": { DELETE: "COMMENT" },
+  "admin/races/[raceId]/administrator/course-setting/notes/[noteId]/replies/[replyId]": { DELETE: "COMMENT" },
   "admin/races/[raceId]/administrator/course-setting/suggestions": { GET: "COMMENT", POST: "SUGGEST" },
   "admin/races/[raceId]/administrator/course-setting/suggestions/[suggestionId]/decision": { POST: "EDIT" },
   "admin/races/[raceId]/administrator/course-setting/events": { GET: "COMMENT" },
@@ -112,7 +114,7 @@ const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
 async function call(route: { file: string; path: string }, method: string): Promise<number> {
   const handlers = await import(route.file) as Record<string, (request: Request, context: unknown) => Promise<Response>>;
   const params = Promise.resolve({ raceId: uuid, entryId: uuid, classId: uuid, courseId: uuid, finalizationId: uuid, noteId: uuid,
-    suggestionId: uuid, jobId: uuid, version: "1" });
+    replyId: uuid, suggestionId: uuid, jobId: uuid, version: "1" });
   const write = method !== "GET";
   const response = await handlers[method]!(new Request(`${origin}/api/${route.path.replaceAll(/\[[a-zA-Z]+\]/g, uuid)}`, {
     method, ...(write ? { body: "{}" } : {}), headers: {

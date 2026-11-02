@@ -6,6 +6,7 @@ import { applyEdit, type CourseSettingDocument } from "@o-tid/course-setting";
 import type { MapGeoreference, Point } from "@o-tid/map-file";
 import { courseSettingFieldSv as text } from "../../i18n/course-setting-field-sv";
 import { offlineSv as copy } from "../../i18n/course-setting-offline-sv";
+import { notesSv } from "../../i18n/course-setting-notes-sv";
 import { applySteps, undo, type EditorState } from "../../lib/course-setting-editor";
 import type { SyncStatus } from "../../lib/course-setting-sync";
 import { withFieldDescription } from "../../lib/course-setting-field";
@@ -112,6 +113,8 @@ export interface FieldInput {
   readonly onNote: (input: { target: CourseSettingNoteTarget; at: Point | null; text: string; photo: Photo | null }) => Promise<void>;
   readonly onList: () => void;
   readonly onOffline: () => void;
+  /** ADR-0181 beslut 8: "Rita kartfel" under Mer (ritläget i editorn). */
+  readonly onSketch?: (() => void) | undefined;
 }
 
 export interface FieldMode {
@@ -357,6 +360,8 @@ export function useFieldMode(input: FieldInput): FieldMode {
     </div>}
     {expanded && <div className={css.compactRow}>
       {!selected && noteButton}
+      {input.onSketch && <button type="button" className={css.big} data-testid="course-setting-sketch-button"
+        onClick={() => { setExpanded(false); input.onSketch!(); }}>{notesSv.sketch.drawMapError}</button>}
       <button type="button" className={css.big} onClick={input.onList}>{copy.list}</button>
       <button type="button" className={css.big} onClick={input.onOffline}>{copy.offlineButton}</button>
       {!readOnly && <button type="button" className={css.big} disabled={state.past.length === 0} onClick={() => apply(undo)}>{text.undo}</button>}

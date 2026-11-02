@@ -9,10 +9,10 @@
  */
 import { Duplex, PDFDocument, PDFName, type PDFRawStream, type PDFRef } from "pdf-lib";
 import {
-  coursePlacement, decisionFor, descriptionSymbols, PDF_PRINT_CAPABILITIES, sourceMapColors, type DescriptionStandard, type OverprintPrimitive, type PrintProfile,
+  coursePlacement, decisionFor, descriptionSymbols, drawTrainingMap, passesKey, PDF_PRINT_CAPABILITIES, sourceMapColors, type DescriptionStandard, type OverprintPrimitive, type PrintProfile,
   type Sheet, type SheetFrame
 } from "@o-tid/course-setting";
-import { drawMap, type MapColor, type MapObject, type ParsedMap, type Path } from "@o-tid/map-file";
+import { type MapColor, type MapObject, type ParsedMap, type Path } from "@o-tid/map-file";
 import { ColorSpaces, Content, GS_KNOCKOUT, GS_OVERPRINT, num } from "./content";
 import { descriptionOps, figureOps, textOps, type FigureContext, type Matrix } from "./figures";
 import { Fonts, fontVariant, variantForFamily, type FontFiles, type FontVariant } from "./fonts";
@@ -134,7 +134,7 @@ function neededFonts(sheets: readonly Sheet[], map: ParsedMap | null): Set<FontV
 
 /** Utsnittets nyckel: samma kartyta, storlek och skala ger samma XObject (som förhandsvisningens `frameImageKey`). */
 function frameKey(frame: SheetFrame): string {
-  return `${frame.mapArea.minX.toFixed(3)},${frame.mapArea.maxY.toFixed(3)},${frame.clip.width.toFixed(3)},${frame.clip.height.toFixed(3)},${frame.transform.scale.toFixed(8)}`;
+  return `${frame.mapArea.minX.toFixed(3)},${frame.mapArea.maxY.toFixed(3)},${frame.clip.width.toFixed(3)},${frame.clip.height.toFixed(3)},${frame.transform.scale.toFixed(8)}${frame.mapPasses ? `|${passesKey(frame.mapPasses)}` : ""}`;
 }
 
 /** Funktionen från dekorfärgernas andelar till CMYK: typ 2 för en plåt, typ 4 (summan, högst 1) för flera. */
@@ -221,9 +221,10 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
       paintFor: (color: MapColor) => paints.get(color.id) ?? null });
     const onlyColors = part === "ALL" || !over ? undefined
       : new Set(input.map.colors.filter(color => (part === "OVER") === over.has(color.id)).map(color => color.id));
-    const report = drawMap(canvas, cullMap(input.map, frame.mapArea), { pxPerMm: frame.transform.scale, origin: { x: frame.mapArea.minX, y: frame.mapArea.maxY },
+    // Träningsläget (ADR-0192 beslut 9): kartan i pass med klippning och filter, i båda delarna när banan ligger i färgordningen.
+    const report = drawTrainingMap(canvas, cullMap(input.map, frame.mapArea), { pxPerMm: frame.transform.scale, origin: { x: frame.mapArea.minX, y: frame.mapArea.maxY },
       beforeColor: canvas.beforeColor, maxPatternInstances: input.maxPatternInstances ?? PDF_MAX_PATTERN_INSTANCES,
-      ...(onlyColors ? { onlyColors } : {}), ...(part === "OVER" ? { background: false } : {}) });
+      ...(onlyColors ? { onlyColors } : {}), ...(part === "OVER" ? { background: false } : {}) }, frame.mapPasses);
     for (const text of report.simplifications) {
       if (/Dekorfärger och övertryck|standardtypsnitt/.test(text)) continue;
       notes.add(`Kartan: ${text}.`);

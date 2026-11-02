@@ -5,6 +5,7 @@
 import { legKey } from "./ppen-common";
 import type { CourseSettingDocument, PutObjectsEdit } from "./types";
 import { CourseSettingEditError } from "./types";
+import { applyTrainingPatch } from "./training-edit";
 
 const invalid = (message: string) => new CourseSettingEditError("INVALID", message);
 const gone = () => invalid("Ändringen går inte längre: något den bygger på har ändrats eller tagits bort");
@@ -81,5 +82,6 @@ export function putObjects(document: CourseSettingDocument, edit: PutObjectsEdit
     if (typeof fields.title !== "string" || typeof fields.mapScale !== "number") throw invalid("Händelsen saknar titel eller skala");
     event = fields as unknown as CourseSettingDocument["event"];
   }
-  return { ...document, event, controls, courseControls, courses, legs, specialObjects };
+  const next = { ...document, event, controls, courseControls, courses, legs, specialObjects };
+  return edit.training ? applyTrainingPatch(next, edit.training) : next;
 }

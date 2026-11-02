@@ -14,6 +14,7 @@ import type {
 } from "./types";
 import { rawPrintArea, readSpecialFields } from "./ppen-special";
 import { enumerateCourseControls } from "./walk";
+import { readTrainingElement, TRAINING_ELEMENT } from "./training-ppen";
 import { attr, childElements, parseXml, textOf, type XmlElement } from "./xml";
 
 class Warnings {
@@ -57,6 +58,7 @@ export function readPpenDocument(xml: string): { readonly document: CourseSettin
   const numberDeltas = new Map<string, Point>();
   const legs: Record<string, Leg> = {};
   const specialObjects: SpecialObject[] = [];
+  let trainingXml: XmlElement | undefined;
   const seen = new Map<string, Set<string>>();
   const unique = (kind: string, id: string) => {
     const ids = seen.get(kind) ?? new Set<string>();
@@ -105,6 +107,10 @@ export function readPpenDocument(xml: string): { readonly document: CourseSettin
         specialObjects.push(special);
         break;
       }
+      case TRAINING_ELEMENT:
+        // Träningsläget (ADR-0192 beslut 10) läses när banorna finns; ett andra element sparas orört.
+        if (trainingXml) raw.push(toRaw(child)); else trainingXml = child;
+        break;
       default:
         raw.push(toRaw(child));
         warnings.add("UNKNOWN_ELEMENT", "Element som O-Tid inte känner till sparas orörda");
@@ -132,9 +138,16 @@ export function readPpenDocument(xml: string): { readonly document: CourseSettin
   }
 
   const fixedCourses = fixCourseOrders(courses, warnings);
-  const document: CourseSettingDocument = {
+  let document: CourseSettingDocument = {
     version: 1, event, controls, courseControls, courses: fixedCourses, legs, specialObjects, raw
   };
+  if (trainingXml) {
+    try { document = readTrainingElement(trainingXml, document); }
+    catch {
+      document = { ...document, raw: [...raw, toRaw(trainingXml)] };
+      warnings.add("TRAINING_UNREADABLE", "Träningen i filen gick inte att läsa och sparas orörd");
+    }
+  }
   const used = new Set<string>();
   for (const course of fixedCourses) for (const ccId of enumerateCourseControls(document, course.id)) used.add(ccId);
   const unused = Object.keys(courseControls).filter(ccId => !used.has(ccId)).length;

@@ -136,3 +136,19 @@ export function describeControl(document: CourseSettingDocument, control: string
 export const DESCRIPTION_LANGUAGES: readonly { readonly id: string; readonly name: string }[] =
   symbolDb().data.languages.map(language => ({ id: language.id, name: language.name }));
 export { controlBounds, moveDocumentPoints } from "./move-points";
+// Träningsläget (ADR-0192): avsnitt, symbolfilter, korridor, fönster, sista säkra, stjärna, linje, keps och kartbitar.
+export * from "./training-types";
+export {
+  FILTER_PRESETS, FULL_FILTER, SYMBOL_GROUPS, filterShows, hiddenSymbolIds, isFullFilter, presetFilter, setSymbol, symbolCatalog, symbolGroup, symbolKey,
+  toggleGroup, type SymbolCatalogEntry
+} from "./training-symbols";
+export {
+  DEFAULT_TINT, EMPTY_TRAINING, areasFor, courseTrainingOf, drawTrainingMap, passesKey, trainingMapPasses, trainingOf
+} from "./training-passes";
+export {
+  DEFAULT_BAND_METERS, chaikin, circlePolygon, controlSequences, metersToMm, sectionLegs, sectionRange, sectionRegion, unionRegion, type Region
+} from "./training-regions";
+export { TRAINING_LIMITS, cleanCourseTraining, cleanFilter } from "./training-edit";
+export { TRAINING_ELEMENT, TRAINING_NAMESPACE } from "./training-ppen";
+export { SECTION_MARKER_TEXT, dashedGaps, pairLabels, sectionMarkerText } from "./training-overprint";
+export { DEFAULT_PIECES, expandTrainingItems, starSpokes, trainingPieceSheets } from "./training-print";

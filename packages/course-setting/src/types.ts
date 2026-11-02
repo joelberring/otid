@@ -13,6 +13,7 @@ import type { Appearance } from "./appearance";
 import type { DescriptionEdit, DescriptionLayout } from "./description-types";
 import type { LayoutTemplate } from "./layout-template";
 import type { PrintProfile } from "./print-profile";
+import type { OverprintTraining, TrainingPatch, TrainingSettings } from "./training-types";
 
 /**
  * Ett XML-element som O-Tid inte tolkar men skriver tillbaka orört (attribut och innehåll som text). Ett element som
@@ -263,6 +264,8 @@ export interface CourseSettingDocument {
   /** Nyckel `${from}-${to}` (kontrollernas id). */
   readonly legs: Readonly<Record<string, Leg>>;
   readonly specialObjects: readonly SpecialObject[];
+  /** Träningsläget (ADR-0192): bara O-Tid, i .ppen som eget element i O-Tid:s namnrymd. Saknas = ingen träning. */
+  readonly training?: TrainingSettings | undefined;
   /** Element på toppnivå som O-Tid inte tolkar. */
   readonly raw: readonly RawXml[];
 }
@@ -311,7 +314,9 @@ export type CourseSettingEdit =
   /** Steg 66: sätt (eller ta bort, null) hela objekt per id – ångra och gör om när flera arbetar samtidigt. */
   | PutObjectsEdit
   /** Steg 64: specialobjekt och tryckyta. */
-  | SpecialEdit;
+  | SpecialEdit
+  /** Träningsläget (ADR-0192 beslut 11): hela delar per id, null = tas bort. */
+  | ({ readonly type: "PUT_TRAINING" } & TrainingPatch);
 
 /** Ändringarna i `UPDATE_COURSE`. */
 export interface CourseChanges {
@@ -375,6 +380,8 @@ export interface PutObjectsEdit {
   readonly courseOrder?: Readonly<Record<string, number>> | undefined;
   /** Händelsens fält som ändras (null = tas bort); ångra av en inställning rör bara den (översynen 2026-11-02). */
   readonly eventFields?: Readonly<Record<string, unknown>> | undefined;
+  /** Träningens delar (ADR-0192 beslut 11). */
+  readonly training?: TrainingPatch | undefined;
 }
 
 export interface EditResult {
@@ -444,7 +451,9 @@ export type CourseCheck =
 export type OverprintColor = "COURSE" | "COURSE_LOWER" | "WHITE" | "BLACK" | "CUSTOM";
 
 export type OverprintRole =
-  | "START" | "CONTROL" | "FINISH" | "CROSSING_POINT" | "MAP_EXCHANGE" | "LEG" | "NUMBER" | "FLAGGING" | "SPECIAL";
+  | "START" | "CONTROL" | "FINISH" | "CROSSING_POINT" | "MAP_EXCHANGE" | "LEG" | "NUMBER" | "FLAGGING" | "SPECIAL"
+  /** Träningsläget (ADR-0192): sista säkra, markeringar vid avsnitten, linjen i linjeorientering. */
+  | "TRAINING";
 
 type Cmyk = readonly [number, number, number, number];
 interface Paint { readonly role: OverprintRole; readonly color: OverprintColor; readonly cmyk?: Cmyk | undefined; readonly ref?: string | undefined }
@@ -485,4 +494,6 @@ export interface OverprintOptions {
    * en sträcka på kartbilden går ut ur ringen.
    */
   readonly detailGaps?: Readonly<Record<string, readonly { readonly startDegrees: number; readonly endDegrees: number }[]>> | undefined;
+  /** Träningsläget (ADR-0192 beslut 7): vy, kepsens karta och avsnitt. */
+  readonly training?: OverprintTraining | undefined;
 }

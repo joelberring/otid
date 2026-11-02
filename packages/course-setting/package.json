@@ -3,12 +3,17 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "exports": { ".": "./src/index.ts" },
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
     "lint": "eslint src test scripts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "build": "tsc -p tsconfig.build.json"
   },
-  "dependencies": { "@o-tid/map-file": "workspace:*" }
+  "dependencies": {
+    "@o-tid/map-file": "workspace:*",
+    "polygon-clipping": "0.15.7"
+  }
 }

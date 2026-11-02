@@ -71,6 +71,19 @@ export interface DrawMapOptions {
    * banan först, banan, sedan färgerna över (utan bakgrund). Saknas = alla färger.
    */
   readonly onlyColors?: ReadonlySet<number> | undefined;
+  /** Träningsläget (ADR-0192): rita bara inom klippningen (kartans mm). Saknas = hela bilden. */
+  readonly clip?: MapClip | undefined;
+  /** Träningsläget: objekt med dessa symboler (id) ritas inte. */
+  readonly hiddenSymbols?: ReadonlySet<string> | undefined;
+}
+
+/**
+ * Klippning i kartans mm (ADR-0192 beslut 9). En yta är ringar som fylls jämn–udda (ytor med hål, utan överlapp): rita bara
+ * inom varje yta i `within` och utanför varje yta i `without`.
+ */
+export interface MapClip {
+  readonly within?: readonly (readonly (readonly Point[])[])[] | undefined;
+  readonly without?: readonly (readonly (readonly Point[])[])[] | undefined;
 }
 
 export interface ColorAdjust {
@@ -376,6 +389,7 @@ function resolveSymbols(symbols: ParsedMap["symbols"], id: string, depth = 0, se
 
 function planObject(plan: Plan, map: ParsedMap, object: MapObject, options: DrawMapOptions): number {
   let parts = 0;
+  if (options.hiddenSymbols?.has(object.symbol)) return 0;
   const maxInstances = options.maxPatternInstances ?? MAX_PATTERN_INSTANCES;
   for (const symbol of resolveSymbols(map.symbols, object.symbol)) {
     switch (object.kind) {
@@ -419,6 +433,14 @@ export function drawMap(ctx: MapCanvasContext, map: ParsedMap, options: DrawMapO
   }
   // Kartans mm (y uppåt) → bildens pixlar (y nedåt).
   ctx.setTransform(options.pxPerMm, 0, 0, -options.pxPerMm, -options.origin.x * options.pxPerMm, options.origin.y * options.pxPerMm);
+  const clipped = options.clip !== undefined;
+  if (options.clip) {
+    ctx.save();
+    applyClip(ctx, options.clip, {
+      minX: options.origin.x, maxX: options.origin.x + ctx.canvas.width / options.pxPerMm,
+      minY: options.origin.y - ctx.canvas.height / options.pxPerMm, maxY: options.origin.y
+    });
+  }
   const order = [...map.colors].sort((left, right) => right.rank - left.rank || left.id - right.id);
   for (const color of order) {
     if (options.onlyColors && !options.onlyColors.has(color.id)) continue;
@@ -427,6 +449,30 @@ export function drawMap(ctx: MapCanvasContext, map: ParsedMap, options: DrawMapO
     options.beforeColor?.(colors.get(color.id)!);
     for (const drawer of drawers) drawer(ctx);
   }
+  if (clipped) ctx.restore();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   return { parts, simplifications: simplifications.list() };
+}
+
+function traceRing(ctx: MapCanvasContext, ring: readonly Point[]) {
+  ring.forEach((point, index) => index === 0 ? ctx.moveTo(point.x, point.y) : ctx.lineTo(point.x, point.y));
+}
+
+/** Klippningen i kartans mm; `view` = bildens yta i kartans mm (ramen runt varje `without`). */
+function applyClip(ctx: MapCanvasContext, clip: MapClip, view: { minX: number; minY: number; maxX: number; maxY: number }) {
+  const pad = Math.max(view.maxX - view.minX, view.maxY - view.minY) + 10;
+  const frame = [{ x: view.minX - pad, y: view.minY - pad }, { x: view.maxX + pad, y: view.minY - pad },
+    { x: view.maxX + pad, y: view.maxY + pad }, { x: view.minX - pad, y: view.maxY + pad }];
+  for (const region of clip.within ?? []) {
+    ctx.beginPath();
+    for (const ring of region) if (ring.length >= 3) traceRing(ctx, ring);
+    ctx.clip("evenodd");
+  }
+  for (const region of clip.without ?? []) {
+    if (!region.some(ring => ring.length >= 3)) continue;
+    ctx.beginPath();
+    traceRing(ctx, frame);
+    for (const ring of region) if (ring.length >= 3) traceRing(ctx, ring);
+    ctx.clip("evenodd");
+  }
 }

@@ -10,6 +10,7 @@ import { specialCourses } from "./ppen-read";
 import { buildSpecialElement, fieldsOf, readSpecialFields, sameFields, withPrintArea } from "./ppen-special";
 import type { CircleGap, ControlPoint, Course, CourseControl, CourseSettingDocument, Leg, RawXml, SpecialObject } from "./types";
 import { attr, childElements, el, serializeXml, textOf, type XmlElement, type XmlNode } from "./xml";
+import { trainingElement } from "./training-ppen";
 
 const CONTROL_KIND_TEXT = invertRecord(CONTROL_KINDS);
 const LABEL_KIND_TEXT = invertRecord(LABEL_KINDS);
@@ -275,5 +276,8 @@ export function writePpenDocument(document: CourseSettingDocument): string {
   }
   for (const special of document.specialObjects) kids.push(specialElement(special));
   for (const element of raws) if (element !== rootStub) kids.push(element);
+  // Träningsläget sist, i O-Tid:s namnrymd (ADR-0192 beslut 10).
+  const training = trainingElement(document);
+  if (training) kids.push(training);
   return `${serializeXml(el(ROOT, rootStub?.attrs ?? [], kids), "")}\n`;
 }

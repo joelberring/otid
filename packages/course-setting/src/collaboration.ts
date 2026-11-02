@@ -22,6 +22,7 @@ import type {
   ControlPoint, Course, CourseControl, CourseSettingDocument, CourseSettingEdit, Leg, PutObjectsEdit, SpecialObject
 } from "./types";
 import { CourseSettingEditError } from "./types";
+import { remapTrainingPatch, trainingPatch, trainingRefs, trainingTouches, trainingTouchValue } from "./training-edit";
 
 /** Id som en ändring skapade, i den ordning de skapades. */
 export interface CreatedIds {
@@ -110,10 +111,12 @@ export function objectPatch(from: CourseSettingDocument, to: CourseSettingDocume
   // Händelsen per fält (null = fältet tas bort): ångra av t.ex. ringklippen rör inte profilerna och mallarna.
   const eventFields = same(from.event, to.event) ? undefined
     : diffRecord(from.event as unknown as Record<string, unknown>, to.event as unknown as Record<string, unknown>);
-  if (!controls && !courseControls && !courses && !courseOrder && !legs && !specialObjects && !eventFields) return undefined;
+  // Träningen per del (ADR-0192 beslut 11).
+  const training = trainingPatch(from, to, same);
+  if (!controls && !courseControls && !courses && !courseOrder && !legs && !specialObjects && !eventFields && !training) return undefined;
   return { type: "PUT_OBJECTS", ...(controls ? { controls } : {}), ...(courseControls ? { courseControls } : {}),
     ...(courses ? { courses } : {}), ...(courseOrder ? { courseOrder } : {}), ...(legs ? { legs } : {}),
-    ...(specialObjects ? { specialObjects } : {}), ...(eventFields ? { eventFields } : {}) };
+    ...(specialObjects ? { specialObjects } : {}), ...(eventFields ? { eventFields } : {}), ...(training ? { training } : {}) };
 }
 
 function diffFields(kind: string, from: Readonly<Record<string, unknown>>, to: Readonly<Record<string, unknown>>,
@@ -145,6 +148,7 @@ export function diffTouches(before: CourseSettingDocument, after: CourseSettingD
   if (before.specialObjects !== after.specialObjects) {
     diffFields("specialObject", byId(before.specialObjects), byId(after.specialObjects), new Set(created.specialObjects ?? []), out);
   }
+  if (before.training !== after.training) for (const touch of trainingTouches(trainingPatch(before, after, same) ?? {})) out.add(touch);
   return [...out].sort();
 }
 
@@ -186,8 +190,10 @@ export function editTouches(edit: CourseSettingEdit): string[] {
       ...Object.keys(edit.legs ?? {}).map(key => `leg:${key}`),
       ...Object.keys(edit.specialObjects ?? {}).map(id => `specialObject:${id}`),
       ...Object.keys(edit.eventFields ?? {}).sort().map(key => `event:${key}`),
-      ...(edit.event ? ["event"] : [])
+      ...(edit.event ? ["event"] : []),
+      ...trainingTouches(edit.training ?? {})
     ];
+    case "PUT_TRAINING": return trainingTouches(edit);
     default: return [];
   }
 }
@@ -205,6 +211,7 @@ function touchValue(document: CourseSettingDocument, touch: string): unknown {
     return field === undefined ? appearance : (appearance as unknown as Record<string, unknown>)[field];
   }
   if (kind === "event") return id === undefined ? document.event : (document.event as unknown as Record<string, unknown>)[id];
+  if (kind === "training") return trainingTouchValue(document, touch);
   let object: unknown;
   if (kind === "control") object = document.controls[id!];
   else if (kind === "courseControl") object = document.courseControls[id!];
@@ -269,10 +276,17 @@ function editRefs(edit: CourseSettingEdit): [Kind, string][] {
         refs.push(["specialObjects", id]);
         if (special) refs.push(...courseRefs(special.courses));
       }
+      if (edit.training) refs.push(...trainingKindRefs(edit.training));
       return refs;
     }
+    case "PUT_TRAINING": return trainingKindRefs(edit);
     default: return [];
   }
+}
+
+function trainingKindRefs(patch: Parameters<typeof trainingRefs>[0]): [Kind, string][] {
+  const refs = trainingRefs(patch);
+  return [...refs.courses.map((id): [Kind, string] => ["courses", id]), ...refs.controls.map((id): [Kind, string] => ["controls", id])];
 }
 
 function remapRecord<T>(record: Readonly<Record<string, T | null>> | undefined, key: (id: string) => string, value: (item: T) => T)
@@ -299,9 +313,10 @@ function remapPut(edit: PutObjectsEdit, map: Lookup): PutObjectsEdit {
   const so = (id: string) => map("specialObjects", id);
   const specialObjects = remapRecord<SpecialObject>(edit.specialObjects, so, special => ({ ...special, id: so(special.id), courses: special.courses.map(co) }));
   const courseOrder = edit.courseOrder ? Object.fromEntries(Object.entries(edit.courseOrder).map(([id, order]) => [co(id), order])) : undefined;
+  const training = edit.training ? remapTrainingPatch(edit.training, { control: c, courseControl: cc, course: co }) : undefined;
   return { ...edit, ...(controls ? { controls } : {}), ...(courseControls ? { courseControls } : {}), ...(courses ? { courses } : {}),
     ...(courseOrder ? { courseOrder } : {}),
-    ...(legs ? { legs } : {}), ...(specialObjects ? { specialObjects } : {}) };
+    ...(legs ? { legs } : {}), ...(specialObjects ? { specialObjects } : {}), ...(training ? { training } : {}) };
 }
 
 /** Åtgärden med id översatta (författarens id → dokumentets id). */
@@ -328,6 +343,7 @@ function remapWith(edit: CourseSettingEdit, map: Lookup): CourseSettingEdit {
     case "UPDATE_SPECIAL": return { ...edit, special: map("specialObjects", edit.special),
       changes: edit.changes.courses ? { ...edit.changes, courses: edit.changes.courses.map(co) } : edit.changes };
     case "SET_PRINT_AREA": return edit.course === "ALL_CONTROLS" ? edit : { ...edit, course: co(edit.course) };
+    case "PUT_TRAINING": return { ...remapTrainingPatch(edit, { control: c, courseControl: cc, course: co }), type: "PUT_TRAINING" };
     default: return edit;
   }
 }

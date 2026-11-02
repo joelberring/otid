@@ -4,6 +4,7 @@
  * namn för en ihoprullad karta och skärmarker. Kartan med banpåtrycket ("modelspace") läggs i ramarna per bana, variant
  * eller löpare. Allt är data i papperets mm (y nedåt) som förhandsvisningen och steg 65:s PDF ritar likadant.
  */
+import type { OverprintTraining, TrainingMapPass } from "./training-types";
 import { layout as layoutDescriptionFigures } from "./description-layout";
 import type { DescriptionKind, DescriptionLayout } from "./description-types";
 import { layout, printScaleOf } from "./overprint";
@@ -79,6 +80,8 @@ export interface SheetItem {
   readonly printScale?: number | undefined;
   readonly printArea?: PrintArea | undefined;
   readonly runner?: RunnerInfo | undefined;
+  /** Träningsläget (ADR-0192 beslut 7): vy, kepsens karta och avsnitt. Ett avsnitt ger automatisk tryckyta kring avsnittet. */
+  readonly training?: OverprintTraining | undefined;
 }
 
 export interface SheetText {
@@ -94,6 +97,8 @@ export interface SheetText {
 /** En kartram på arket: kartans utsnitt, transformen till papperet och banpåtrycket (som `CoursePage`). */
 export interface SheetFrame extends Pick<CoursePage, "course" | "variant" | "title" | "mapScale" | "printScale" | "mapArea" | "clip" | "transform" | "figures"> {
   readonly runner?: RunnerInfo | undefined;
+  /** Träningsläget (ADR-0192 beslut 9): kartan i pass med klippning och filter; saknas = kartan som vanligt. */
+  readonly mapPasses?: readonly TrainingMapPass[] | undefined;
 }
 
 /**
@@ -241,8 +246,9 @@ function frameFor(document: CourseSettingDocument, item: SheetItem, rect: Templa
   const variant = item.variant || undefined;
   const printScale = printScaleOf(document, course, item.printScale);
   const ratio = printScale / document.event.mapScale;
-  const figures: OverprintPrimitive[] = layout(document, { course, ...(variant ? { variant } : {}), printScale, ...(options.detailGaps ? { detailGaps: options.detailGaps } : {}) });
-  const area = item.printArea ?? printAreaOf(document, course);
+  const figures: OverprintPrimitive[] = layout(document, { course, ...(variant ? { variant } : {}), printScale, ...(options.detailGaps ? { detailGaps: options.detailGaps } : {}),
+    ...(item.training ? { training: item.training } : {}) });
+  const area = item.training?.section ? { automatic: true, restrictToPageSize: true } : item.printArea ?? printAreaOf(document, course);
   const mapArea = printRectangle({ ...area, restrictToPageSize: true }, { width: rect.width * ratio, height: rect.height * ratio }, figureBounds(figures), options.mapBounds);
   const scale = 1 / ratio;
   const name = found?.name ?? "Alla kontroller";

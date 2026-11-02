@@ -37,6 +37,8 @@ export interface CoursePageOptions {
   /** Rubrikrad överst (tävling, bana, längd, skala). */
   readonly header?: boolean | undefined;
   readonly detailGaps?: OverprintOptions["detailGaps"];
+  /** Träningsläget (ADR-0192 beslut 7); ett avsnitt ger automatisk tryckyta kring avsnittet. */
+  readonly training?: OverprintOptions["training"];
 }
 
 /** En text på sidan (mm, y nedåt): `at` = vänsterkant och baslinje, `heightMm` = em-höjden. */
@@ -188,8 +190,8 @@ export function layoutCoursePage(document: CourseSettingDocument, options: Cours
   const mapScale = document.event.mapScale;
   const ratio = printScale / mapScale;
   const figures = layout(document, { course, ...(variant !== undefined ? { variant } : {}), printScale,
-    ...(options.detailGaps ? { detailGaps: options.detailGaps } : {}) });
-  const area = options.printArea ?? printAreaOf(document, course);
+    ...(options.detailGaps ? { detailGaps: options.detailGaps } : {}), ...(options.training ? { training: options.training } : {}) });
+  const area = options.training?.section ? { automatic: true, restrictToPageSize: true } : options.printArea ?? printAreaOf(document, course);
   const objects = figureBounds(figures);
   const page = area.page ?? defaultPage(area.automatic || !area.rect ? options.mapBounds ?? objects : area.rect, ratio);
   const widthMm = (page.landscape ? page.height : page.width) * HUNDREDTH_INCH_MM;

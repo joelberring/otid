@@ -17,6 +17,7 @@ import type {
 import { CourseSettingEditError } from "./types";
 import { inPaintOrder, specialPrimitives, specialVisible } from "./specials";
 import { enumerateCourseControls, enumerateLegs, findCourse, variations } from "./walk";
+import { withTraining } from "./training-overprint";
 
 type Gap = { startDegrees: number; endDegrees: number };
 
@@ -348,7 +349,8 @@ export function layout(document: CourseSettingDocument, options: OverprintOption
   const context = { document, course: options.course, variant: options.variant, printScale, sizes: sizesFor(document, printScale) };
   const specials = document.specialObjects.filter(special => specialVisible(special, options.course))
     .flatMap(special => specialPrimitives(context, special));
-  return inPaintOrder([...specials, ...course]);
+  // Träningsläget (ADR-0192 beslut 7): sista säkra, markeringar, kepsens etiketter, linjen och avsnittet.
+  return withTraining(document, options, inPaintOrder([...specials, ...course]), printScale);
 }
 
 function layoutCourse(document: CourseSettingDocument, options: OverprintOptions, printScale: number): OverprintPrimitive[] {

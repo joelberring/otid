@@ -42,6 +42,11 @@ const printArea = z.object({ automatic: z.boolean(), restrictToPageSize: z.boole
   rect: z.object({ minX: part.mm, minY: part.mm, maxX: part.mm, maxY: part.mm }).strict().optional(),
   page: z.object({ width: z.number().int(), height: z.number().int(), margins: z.number().int(), landscape: z.boolean() }).strict().optional() }).strict();
 
+/** Träningsläget (ADR-0192 beslut 11): delarna per id; formen kontrolleras av paketets applyEdit. */
+const trainingParts = z.record(id, z.object({}).loose().nullable()).refine(record => Object.keys(record).length <= 1000);
+const trainingPatch = { courses: trainingParts.optional(), areas: trainingParts.optional(), attackPoints: trainingParts.optional(),
+  attackStyle: z.object({}).loose().nullable().optional() };
+
 /** En åtgärd (`CourseSettingEdit` i `@o-tid/course-setting`). */
 export const courseSettingEditSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("ADD_CONTROL"), kind: z.enum(["START", "NORMAL", "FINISH", "CROSSING_POINT", "MAP_EXCHANGE", "MAP_ISSUE"]),
@@ -103,8 +108,10 @@ export const courseSettingEditSchema = z.discriminatedUnion("type", [
     legs: nullableRecord(z.string().max(140), part.leg).optional(), specialObjects: nullableRecord(id, part.specialObject).optional(),
     event: part.event.optional(),
     // Händelsens fält per namn (null = tas bort); hela dokumentet prövas mot schemat efteråt.
-    eventFields: z.record(z.string().regex(/^[A-Za-z][A-Za-z0-9]{0,59}$/), z.unknown()).refine(record => Object.keys(record).length <= 100).optional()
-  }).strict()
+    eventFields: z.record(z.string().regex(/^[A-Za-z][A-Za-z0-9]{0,59}$/), z.unknown()).refine(record => Object.keys(record).length <= 100).optional(),
+    training: z.object(trainingPatch).strict().optional()
+  }).strict(),
+  z.object({ type: z.literal("PUT_TRAINING"), ...trainingPatch }).strict()
 ]);
 export type CourseSettingEditDto = z.infer<typeof courseSettingEditSchema>;
 

@@ -31,6 +31,7 @@ import {
   sessionProof,
   setSessionCookies
 } from "./security-policy";
+import { logServerError } from "./server-error-log";
 
 type Environment = Partial<Pick<NodeJS.ProcessEnv, "NODE_ENV" | "O_TID_PUBLIC_ORIGIN" | "OTID_REGISTRATION_LIMIT_PER_HOUR">>;
 type Login = typeof loginUserAccount;
@@ -83,7 +84,7 @@ export async function organizerLoginRoute(
     return setSessionCookies(privateJson(response), configured.value, {
       sessionToken: result.sessionToken, csrfToken: result.csrfToken, expiresAt: response.expiresAt
     });
-  } catch { return organizerFailure(500, "INTERNAL_ERROR"); }
+  } catch (error) { logServerError("organizer-account", "organizerLoginRoute", error); return organizerFailure(500, "INTERNAL_ERROR"); }
 }
 
 /** Antal registreringar per IP och timme (`OTID_REGISTRATION_LIMIT_PER_HOUR`, förval 10). */
@@ -110,7 +111,7 @@ export async function organizerRegisterRoute(
     return setSessionCookies(privateJson(response, 201), configured.value, {
       sessionToken: result.sessionToken, csrfToken: result.csrfToken, expiresAt: response.expiresAt
     });
-  } catch { return organizerFailure(500, "INTERNAL_ERROR"); }
+  } catch (error) { logServerError("organizer-account", "organizerRegisterRoute", error); return organizerFailure(500, "INTERNAL_ERROR"); }
 }
 
 export async function organizerSessionStatusRoute(
@@ -129,7 +130,7 @@ export async function organizerSessionStatusRoute(
       formatVersion: 1, accountId: result.principal.accountId, email: result.principal.email,
       displayName: result.principal.displayName, superadmin: result.principal.superadmin, expiresAt: result.principal.expiresAt
     }));
-  } catch { return organizerFailure(500, "INTERNAL_ERROR"); }
+  } catch (error) { logServerError("organizer-account", "organizerSessionStatusRoute", error); return organizerFailure(500, "INTERNAL_ERROR"); }
 }
 
 export async function organizerLogoutRoute(
@@ -146,7 +147,7 @@ export async function organizerLogoutRoute(
     if (result.status === "unauthorized") return clearSessionCookies(organizerFailure(401, "UNAUTHORIZED"), configured.value);
     if (result.status === "forbidden") return organizerFailure(403, "FORBIDDEN");
     return clearSessionCookies(new Response(null, { status: 204, headers: privateHeaders }), configured.value);
-  } catch { return organizerFailure(500, "INTERNAL_ERROR"); }
+  } catch (error) { logServerError("organizer-account", "organizerLogoutRoute", error); return organizerFailure(500, "INTERNAL_ERROR"); }
 }
 
 export async function organizerEventsListRoute(
@@ -160,7 +161,7 @@ export async function organizerEventsListRoute(
     const result = await list(db, sessionProof(request, configured.value, false));
     if (result.status !== "ok") return authenticationFailure(result.status);
     return privateJson(organizerMyEventsResponseSchema.parse(result.response));
-  } catch { return organizerFailure(500, "INTERNAL_ERROR"); }
+  } catch (error) { logServerError("organizer-account", "organizerEventsListRoute", error); return organizerFailure(500, "INTERNAL_ERROR"); }
 }
 
 export async function organizerEventCreateRoute(
@@ -174,7 +175,7 @@ export async function organizerEventCreateRoute(
   try {
     const auth = await authenticate(db, { ...proof, requireCsrf: true });
     if (auth.status !== "authenticated") return authenticationFailure(auth.status);
-  } catch { return organizerFailure(500, "INTERNAL_ERROR"); }
+  } catch (error) { logServerError("organizer-account", "organizerEventCreateRoute", error); return organizerFailure(500, "INTERNAL_ERROR"); }
   const idempotencyKey = request.headers.get("idempotency-key");
   if (!organizerEventCreateIdempotencyKeySchema.safeParse(idempotencyKey).success) return organizerFailure(400, "INVALID_REQUEST");
   let body: unknown;
@@ -187,6 +188,6 @@ export async function organizerEventCreateRoute(
     if (result.status !== "created") return requestFailure(result.status);
     const response = organizerEventCreateResponseSchema.parse(result.response);
     return privateJson(response, response.replayed ? 200 : 201);
-  } catch { return organizerFailure(500, "INTERNAL_ERROR"); }
+  } catch (error) { logServerError("organizer-account", "organizerEventCreateRoute", error); return organizerFailure(500, "INTERNAL_ERROR"); }
 }
 

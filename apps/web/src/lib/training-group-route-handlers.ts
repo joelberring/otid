@@ -9,6 +9,7 @@ import {
   SecurityConfigurationError, accountFailure, hasExpectedOrigin, hasNoRequestBody, privateJson, readJsonBody, securityPolicy, sessionProof,
   type SecurityPolicy
 } from "./security-policy";
+import { logServerError } from "./server-error-log";
 
 /**
  * Steg 68 (ADR-0182): träningsgruppernas anrop under /api/organizer/groups och tävlingens grupp och kartavtal. Samma skydd
@@ -61,7 +62,7 @@ async function readProof(request: Request, environment: Environment): Promise<{ 
 async function guarded(run: () => Promise<Response>): Promise<Response> {
   try { return await run(); }
   catch (error) {
-    console.error("Träningsgruppens anrop misslyckades", error);
+    logServerError("training-group", "route", error);
     return accountFailure(500, "INTERNAL_ERROR");
   }
 }

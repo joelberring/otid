@@ -212,7 +212,7 @@ export function privateJson(body: unknown, status = 200): Response {
 }
 
 /** Fel från tävlingens adminroutes. */
-export function adminFailure(status: 400 | 401 | 403 | 404 | 409 | 500, code: EntryClassAdminErrorCode): Response {
+export function adminFailure(status: 400 | 401 | 403 | 404 | 409 | 500 | 503, code: EntryClassAdminErrorCode): Response {
   return privateJson(entryClassAdminErrorResponseSchema.parse({ formatVersion: 1, error: code }), status);
 }
 

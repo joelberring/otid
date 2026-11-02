@@ -14,7 +14,7 @@ import { IdbReadoutStore, type QueuedReadout, type QueuedRegistration, type Read
 import { RegistrationForm, RegistrationStatus, type RegistrationFields } from "./registration-form";
 import type { EntrySuggestion } from "./runner-lookup";
 import { startPunchText } from "../lib/start-punch-text";
-import { heldReadouts, releaseHeldReadouts, requeueLocallyInvalid, syncPending } from "./sync";
+import { heldReadouts, releaseHeldReadouts, requeueLocallyInvalid, syncPending, unavailableBackoffMs } from "./sync";
 import { failedReadoutsFile, loadFailedReadouts, saveFailedReadouts, syncFailedReadouts, type FailedReadout } from "./failed-readouts";
 import { inRaceDay, raceTitle } from "@o-tid/domain";
 import { toHex } from "./payload";
@@ -85,6 +85,11 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
   const [online, setOnline] = useState(navigator.onLine);
   const [loginNeeded, setLoginNeeded] = useState(false);
   const [syncProblem, setSyncProblem] = useState<string>();
+  // Översynen 2026-11-02: servern svarar inte (502/503/504). Kön skickas igen automatiskt med växande väntan.
+  const [serverDown, setServerDown] = useState<{ status: number; retryInMs: number }>();
+  const unavailableCount = useRef(0);
+  const retryAt = useRef(0);
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   // Steg 31: avläsningar vars tider inte gick att tolka (sparas i webbläsaren tills funktionären tar bort dem).
   const [failedReadouts, setFailedReadouts] = useState<FailedReadout[]>(() => raceId ? loadFailedReadouts(raceId) : []);
   const [current, setCurrent] = useState<Current>();
@@ -128,21 +133,34 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
     else if (outcome.kind === "offline") setOnline(false);
   }, [raceId]);
 
-  const sync = useCallback(async () => {
+  const syncRef = useRef<(force?: boolean) => Promise<void>>(async () => undefined);
+  const sync = useCallback(async (force = false) => {
     if (!raceId || syncing.current) return;
+    // Under väntan efter att servern inte svarat skickar bara den schemalagda synken (eller Försök igen/nätet tillbaka).
+    if (!force && Date.now() < retryAt.current) return;
     syncing.current = true;
     try {
       const deps = { fetch: window.fetch.bind(window), csrf: accountCsrf };
       const outcome = await syncPending(storeRef.current, raceId, deps);
       setLoginNeeded(outcome.kind === "unauthorized");
       if (outcome.kind === "offline") setOnline(false);
+      if (outcome.kind === "unavailable") {
+        unavailableCount.current += 1;
+        const wait = unavailableBackoffMs(unavailableCount.current);
+        retryAt.current = Date.now() + wait;
+        setOnline(true); setServerDown({ status: outcome.status, retryInMs: wait }); setSyncProblem(undefined);
+        clearTimeout(retryTimer.current);
+        retryTimer.current = setTimeout(() => { void syncRef.current(true); }, wait);
+      } else if (outcome.kind !== "offline" && outcome.kind !== "unauthorized") {
+        unavailableCount.current = 0; retryAt.current = 0; setServerDown(undefined);
+      }
       if (outcome.kind === "synced" || outcome.kind === "idle") { setOnline(true); setSyncProblem(undefined); }
       if (outcome.kind === "failed") setSyncProblem(t.syncFailed(outcome.status));
       if (outcome.kind === "throttled") setSyncProblem(t.syncThrottled);
       // Kvitterade direktanmälningar finns nu i serverns paket; hämta det så att brickan är känd även utan den lokala kön.
       if (outcome.kind === "synced" && outcome.registered) await refreshPackage();
       // Steg 45: råramarna för avläsningar vars tider inte gick att tolka, så att de finns kvar på servern.
-      if (outcome.kind !== "unauthorized" && outcome.kind !== "offline" && outcome.kind !== "throttled" &&
+      if (outcome.kind !== "unauthorized" && outcome.kind !== "offline" && outcome.kind !== "throttled" && outcome.kind !== "unavailable" &&
         loadFailedReadouts(raceId).some((row) => !row.storedAt)) {
         const failed = await syncFailedReadouts(raceId, await storeRef.current.identity(raceId), pkgRef.current?.packageVersion ?? 1, deps);
         if (failed.kind === "offline") setOnline(false);
@@ -151,7 +169,8 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
         setFailedReadouts(loadFailedReadouts(raceId));
       }
       // Bardisken: in-/utcheckningar och gästnamn efter avläsningarna, så att servern har brickans avläsning först.
-      if (pkgRef.current?.party && outcome.kind !== "unauthorized" && outcome.kind !== "offline" && outcome.kind !== "throttled") {
+      if (pkgRef.current?.party && outcome.kind !== "unauthorized" && outcome.kind !== "offline" && outcome.kind !== "throttled" &&
+        outcome.kind !== "unavailable") {
         const party = await syncPartyActions(partyStoreRef.current, raceId, deps);
         if (party.kind === "offline") setOnline(false);
         if (party.kind === "unauthorized") setLoginNeeded(true);
@@ -164,6 +183,7 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
       await reload();
     }
   }, [raceId, reload, refreshPackage]);
+  useEffect(() => { syncRef.current = sync; return () => clearTimeout(retryTimer.current); }, [sync]);
 
   useEffect(() => {
     if (!raceId) return;
@@ -179,7 +199,7 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
     })().catch((error: unknown) => setSyncProblem(error instanceof Error ? error.message : String(error)));
     const syncTimer = setInterval(() => { void sync(); }, SYNC_INTERVAL_MS);
     const packageTimer = setInterval(() => { void refreshPackage(); }, PACKAGE_INTERVAL_MS);
-    const wentOnline = () => { setOnline(true); void refreshPackage().then(sync); };
+    const wentOnline = () => { setOnline(true); void refreshPackage().then(() => sync(true)); };
     const wentOffline = () => setOnline(false);
     window.addEventListener("online", wentOnline);
     window.addEventListener("offline", wentOffline);
@@ -504,10 +524,11 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
       <dl className="status" aria-label="Status">
         <div data-state={station.kind === "ready" ? "good" : station.kind === "disconnected" ? "idle" : "bad"}>
           <dt>{t.station}</dt><dd data-testid="station-status">{station.kind === "ready" ? "● " : "○ "}{stationText(station, exercise)}</dd></div>
-        <div data-state={online ? "good" : "bad"}>
-          <dt>{t.internet}</dt><dd data-testid="internet-status">{online ? `● ${t.online}` : `○ ${t.offline}`}</dd></div>
-        <div data-state={waiting === 0 ? "good" : "warn"}>
-          <dt>{t.queue}</dt><dd data-testid="queue-status">{waiting === 0 ? t.queueEmpty : t.queueWaiting(waiting)}</dd></div>
+        <div data-state={!online ? "bad" : serverDown ? "warn" : "good"}>
+          <dt>{t.internet}</dt><dd data-testid="internet-status">{!online ? `○ ${t.offline}` : serverDown ? `◐ ${t.serverDown}` : `● ${t.online}`}</dd></div>
+        <div data-state={waiting === 0 ? "good" : serverDown ? "bad" : "warn"}>
+          <dt>{t.queue}</dt><dd data-testid="queue-status">{waiting === 0 ? t.queueEmpty : serverDown ? t.queueServerDown(waiting)
+            : t.queueWaiting(waiting)}</dd></div>
         <div data-state={pkg ? "good" : "bad"}>
           <dt>{t.packageLabel}</dt><dd data-testid="package-status">{pkg ? <>{t.packageUpdated(fetchedAt(pkg))} <small className="package-version"
             title={t.packageVersionTitle(pkg.packageVersion)}>{t.packageVersion(pkg.packageVersion)}</small></> : t.packageMissing}</dd></div>
@@ -518,8 +539,10 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
   const alerts = <>
     {loginNeeded ? <p className="notice" role="alert">{t.loginNeeded} <a href="/organizer">{t.login}</a></p> : null}
     {syncProblem ? <p className="notice" role="alert">{syncProblem}</p> : null}
+    {serverDown ? <p className="notice" role="status" data-testid="server-down">{t.serverDownNotice(serverDown.status,
+      Math.round(serverDown.retryInMs / 1_000))}</p> : null}
     {held.length > 0 ? <p className="notice" role="alert" data-testid="held-readouts">{t.heldReadouts(held.length, held.some((item) => (item.serverFailedStatus ?? 500) >= 500))}{" "}
-      <button type="button" onClick={() => { if (raceId) void releaseHeldReadouts(storeRef.current, raceId).then(sync); }}>
+      <button type="button" onClick={() => { if (raceId) void releaseHeldReadouts(storeRef.current, raceId).then(() => sync(true)); }}>
         {t.heldRetry}</button></p> : null}
     {failedReadouts.length > 0 ? <section className="notice" role="alert" data-testid="failed-readouts" aria-label={t.failedTitle}>
       <strong>{t.failedTitle}</strong> {t.failedHelp}

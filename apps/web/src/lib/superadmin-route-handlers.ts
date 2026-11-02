@@ -11,6 +11,7 @@ import {
   securityPolicy,
   sessionProof
 } from "./security-policy";
+import { logServerError } from "./server-error-log";
 
 /** Superadminsidan (ADR-0172 beslut 2). Behörigheten kontrolleras av `requireSuperadmin` i varje anrop. */
 type Environment = Partial<Pick<NodeJS.ProcessEnv, "NODE_ENV" | "O_TID_PUBLIC_ORIGIN">>;
@@ -44,7 +45,7 @@ export async function superadminOverviewRoute(db: Database, request: Request, en
     const result = await readSuperadminOverview(db, sessionProof(request, policy, false), query);
     if (result.status !== "ok") return failure(result.status);
     return privateJson(superadminOverviewSchema.parse(result.response));
-  } catch { return accountFailure(500, "INTERNAL_ERROR"); }
+  } catch (error) { logServerError("superadmin", "superadminOverviewRoute", error); return accountFailure(500, "INTERNAL_ERROR"); }
 }
 
 export async function superadminActionRoute(db: Database, request: Request, environment: Environment = process.env): Promise<Response> {
@@ -61,5 +62,5 @@ export async function superadminActionRoute(db: Database, request: Request, envi
       ...(result.reset ? { resetUrl: `${policy.publicOrigin}/recover#token=${result.reset.token}`,
         resetExpiresAt: result.reset.expiresAt.toISOString() } : {})
     }));
-  } catch { return accountFailure(500, "INTERNAL_ERROR"); }
+  } catch (error) { logServerError("superadmin", "superadminActionRoute", error); return accountFailure(500, "INTERNAL_ERROR"); }
 }

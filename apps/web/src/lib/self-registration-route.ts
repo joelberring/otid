@@ -4,6 +4,7 @@ import type { Database } from "@o-tid/database";
 import {
   SecurityConfigurationError, clientAddress, hasExpectedOrigin, privateHeaders, readJsonBody, securityPolicy
 } from "./security-policy";
+import { logServerError } from "./server-error-log";
 
 /**
  * Självregistrering på tävlingsdagen (PLAN.md steg 41), utan inloggning. Läsningen säger om formuläret är öppet; skrivningen
@@ -42,5 +43,5 @@ export async function selfRegistrationRoute(db: Database, request: Request, race
       case "class-full": return failure(409, "CLASS_FULL");
       case "rate-limited": return failure(429, "RATE_LIMITED");
     }
-  } catch { return failure(500, "INTERNAL_ERROR"); }
+  } catch (error) { logServerError("self-registration", "selfRegistrationRoute", error); return failure(500, "INTERNAL_ERROR"); }
 }

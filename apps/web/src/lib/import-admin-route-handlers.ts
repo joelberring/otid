@@ -16,6 +16,7 @@ import {
   securityPolicy,
   sessionProof
 } from "./security-policy";
+import { logServerError } from "./server-error-log";
 
 type Environment = Partial<Pick<NodeJS.ProcessEnv, "NODE_ENV" | "O_TID_PUBLIC_ORIGIN">>;
 type Authenticate = typeof requireRaceRole;
@@ -55,9 +56,7 @@ export async function authenticatedIofImportRoute(
     });
     if (authorization.status === "unauthorized") return importFailure(401, "UNAUTHORIZED");
     if (authorization.status === "forbidden") return importFailure(403, "FORBIDDEN");
-  } catch {
-    return importFailure(500, "INTERNAL_ERROR");
-  }
+  } catch (error) { logServerError("import-admin", "authenticatedIofImportRoute", error); return importFailure(500, "INTERNAL_ERROR"); }
 
   const idempotencyKey = request.headers.get("idempotency-key");
   if (!iofImportIdempotencyKeySchema.safeParse(idempotencyKey).success) {
@@ -79,7 +78,5 @@ export async function authenticatedIofImportRoute(
     if (result.status === "conflict") return importFailure(409, "CONFLICT");
     if (!("response" in result)) return importFailure(500, "INTERNAL_ERROR");
     return privateJson(iofImportResponseSchema.parse(result.response), result.status === "stored" ? 201 : 200);
-  } catch {
-    return importFailure(500, "INTERNAL_ERROR");
-  }
+  } catch (error) { logServerError("import-admin", "authenticatedIofImportRoute", error); return importFailure(500, "INTERNAL_ERROR"); }
 }

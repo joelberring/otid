@@ -19,6 +19,11 @@ export const readoutText = {
   offline: "Ej ansluten",
   queueEmpty: "0 väntar",
   queueWaiting: (count: number) => `${count} väntar`,
+  // Översynen 2026-11-02: servern svarar inte, men avläsningarna ligger tryggt på datorn och skickas automatiskt.
+  serverDown: "Servern svarar inte",
+  queueServerDown: (count: number) => `${count} köas här – skickas när servern svarar`,
+  serverDownNotice: (status: number, seconds: number) => `Servern svarar inte (${status}). Avläsningarna köas på den här datorn `
+    + `och skickas automatiskt; nästa försök om ${seconds} s. Fortsätt läsa ut som vanligt.`,
   packageMissing: "Saknas",
   // Paketversionen syns alltid (AGENTS.md) men som en liten detalj; rubriken är när datan hämtades (PLAN.md steg 24).
   packageUpdated: (fetched: string) => `Uppdaterad ${fetched}`,
@@ -63,7 +68,7 @@ export const readoutText = {
   clockMissing: "Stationen svarade inte på klockfrågan. Stämplingstiderna räknas mot datorns klocka.",
   timeUnresolvable: (detail: string) => `Brickans tider går inte att tolka (${detail}). Läs om brickan. Går det inte: ange tiden manuellt i deltagarkortet. Brickan står i listan nedan.`,
   // Steg 45: även 400/404/409 hålls åt sidan, så att resten av kön går.
-  heldReadouts: (count: number, serverError: boolean) => `${count} ${count === 1 ? "avläsning" : "avläsningar"} kunde inte skickas (${serverError
+  heldReadouts: (count: number, serverError: boolean) => `${count} ${count === 1 ? "avläsning" : "avläsningar"} avvisades två gånger i rad (${serverError
     ? "fel på servern" : "servern tog inte emot dem"}). De ligger kvar på den här datorn. Resten av kön skickas som vanligt.`,
   syncThrottled: "Servern ber oss vänta en stund. Kön ligger kvar och skickas igen strax.",
   heldRetry: "Försök igen",

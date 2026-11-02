@@ -20,11 +20,15 @@ export interface QueuedReadout {
   readonly placement?: ReadoutPlacement;
   readonly rejectedReason?: string;
   /**
-   * Steg 31: servern svarade med ett serverfel (5xx) för just den här avläsningen. Den ligger kvar som väntande men
-   * hålls åt sidan så att resten av kön kan skickas; "Försök igen" tar bort markeringen.
+   * Steg 31: servern avvisade just den här avläsningen två gånger i rad med samma svar (översynen 2026-11-02: bara 400,
+   * 404, 409 och 500). Den ligger kvar som väntande men hålls åt sidan så att resten av kön kan skickas; "Försök igen"
+   * tar bort markeringen.
    */
   readonly serverFailedAt?: string;
-  /** Steg 45: serverns svarskod när avläsningen hölls åt sidan (5xx, 400, 404 eller 409). */
+  /**
+   * Senaste svaret som gällde just den här avläsningen (400, 404, 409 eller 500). Utan `serverFailedAt` skickas den igen
+   * nästa synk; kommer samma svar igen hålls den åt sidan.
+   */
   readonly serverFailedStatus?: number;
 }
 

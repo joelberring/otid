@@ -35,6 +35,7 @@ import {
 import { mailEnabled, mailErrorSummary, sendPasswordResetMail } from "./mail";
 import { operatorContactEmail } from "./operator-contact";
 import { UUID_PATTERN as UUID } from "@o-tid/contracts";
+import { logServerError } from "./server-error-log";
 
 /**
  * Kontots egna anrop (ADR-0172): glömt lösenord, Mitt konto och att ta bort en egen tävling. Samma skydd som
@@ -102,7 +103,7 @@ export async function passwordResetRequestRoute(
       }
     }
     return privateJson(passwordResetRequestResponseSchema.parse({ formatVersion: 1, status: "accepted" }), 202);
-  } catch { return accountFailure(500, "INTERNAL_ERROR"); }
+  } catch (error) { logServerError("account", "passwordResetRequestRoute", error); return accountFailure(500, "INTERNAL_ERROR"); }
 }
 
 export async function passwordResetCompleteRoute(db: Database, request: Request, environment: Environment = process.env): Promise<Response> {
@@ -112,7 +113,7 @@ export async function passwordResetCompleteRoute(db: Database, request: Request,
     const result = await completePasswordReset(db, input.body);
     if (result.status !== "reset") return failure(result.status);
     return privateJson(passwordResetCompleteResponseSchema.parse({ formatVersion: 1, status: "reset" }));
-  } catch { return accountFailure(500, "INTERNAL_ERROR"); }
+  } catch (error) { logServerError("account", "passwordResetCompleteRoute", error); return accountFailure(500, "INTERNAL_ERROR"); }
 }
 
 export async function accountProfileRoute(db: Database, request: Request, environment: Environment = process.env): Promise<Response> {
@@ -123,7 +124,7 @@ export async function accountProfileRoute(db: Database, request: Request, enviro
     const result = await readAccountProfile(db, sessionProof(request, configured.value, false));
     if (result.status !== "ok") return failure(result.status);
     return privateJson(accountProfileSchema.parse(result.response));
-  } catch { return accountFailure(500, "INTERNAL_ERROR"); }
+  } catch (error) { logServerError("account", "accountProfileRoute", error); return accountFailure(500, "INTERNAL_ERROR"); }
 }
 
 export async function accountDisplayNameRoute(db: Database, request: Request, environment: Environment = process.env): Promise<Response> {
@@ -133,7 +134,7 @@ export async function accountDisplayNameRoute(db: Database, request: Request, en
     const result = await changeAccountDisplayName(db, input.proof, input.body);
     if (result.status !== "changed") return failure(result.status);
     return privateJson({ formatVersion: 1, displayName: result.displayName });
-  } catch { return accountFailure(500, "INTERNAL_ERROR"); }
+  } catch (error) { logServerError("account", "accountDisplayNameRoute", error); return accountFailure(500, "INTERNAL_ERROR"); }
 }
 
 /** Nytt lösenord: alla andra inloggningar slutar gälla och den här enheten får nya cookies. */
@@ -147,7 +148,7 @@ export async function accountPasswordRoute(db: Database, request: Request, envir
     return setSessionCookies(privateJson(response), input.policy, {
       sessionToken: result.sessionToken, csrfToken: result.csrfToken, expiresAt: response.expiresAt
     });
-  } catch { return accountFailure(500, "INTERNAL_ERROR"); }
+  } catch (error) { logServerError("account", "accountPasswordRoute", error); return accountFailure(500, "INTERNAL_ERROR"); }
 }
 
 export async function accountDeleteRoute(db: Database, request: Request, environment: Environment = process.env): Promise<Response> {
@@ -157,7 +158,7 @@ export async function accountDeleteRoute(db: Database, request: Request, environ
     const result = await deleteOwnAccount(db, input.proof, input.body);
     if (result.status !== "deleted") return failure(result.status);
     return clearSessionCookies(privateJson(deletedResponseSchema.parse({ formatVersion: 1, status: "deleted" })), input.policy);
-  } catch { return accountFailure(500, "INTERNAL_ERROR"); }
+  } catch (error) { logServerError("account", "accountDeleteRoute", error); return accountFailure(500, "INTERNAL_ERROR"); }
 }
 
 /** Ägaren tar bort sin tävling (Inställningar → Ta bort tävling). */
@@ -171,7 +172,7 @@ export async function organizerRaceDeleteRoute(
     const result = await deleteEventAsOwner(db, { ...input.proof, raceId }, input.body);
     if (result.status !== "deleted") return failure(result.status);
     return privateJson(deletedResponseSchema.parse({ formatVersion: 1, status: "deleted" }));
-  } catch { return accountFailure(500, "INTERNAL_ERROR"); }
+  } catch (error) { logServerError("account", "organizerRaceDeleteRoute", error); return accountFailure(500, "INTERNAL_ERROR"); }
 }
 
 /**
@@ -189,5 +190,5 @@ export async function organizerRaceCopyRoute(
     if (result.status !== "copied") return failure(result.status);
     const response = raceCopyResponseSchema.parse(result.response);
     return privateJson(response, response.replayed ? 200 : 201);
-  } catch { return accountFailure(500, "INTERNAL_ERROR"); }
+  } catch (error) { logServerError("account", "organizerRaceCopyRoute", error); return accountFailure(500, "INTERNAL_ERROR"); }
 }

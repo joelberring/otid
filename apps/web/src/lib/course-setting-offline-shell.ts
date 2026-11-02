@@ -68,3 +68,12 @@ export async function removeShell(raceId: string): Promise<void> {
     if (!left.some(row => /\/admin\/[^/]+\/course-setting$/.test(new URL(row.scope).pathname.replace(/\/$/, "")))) await caches.delete("otid-course-setting-v1");
   }
 }
+
+/** Alla tävlingars sparade sidor (utloggning). */
+export async function removeAllShells(): Promise<void> {
+  if (!shellSupported()) return;
+  for (const registration of await navigator.serviceWorker.getRegistrations()) {
+    if (/\/admin\/[^/]+\/course-setting$/.test(new URL(registration.scope).pathname.replace(/\/$/, ""))) await registration.unregister();
+  }
+  if ("caches" in window) await caches.delete("otid-course-setting-v1");
+}

@@ -55,5 +55,16 @@ export function putObjects(document: CourseSettingDocument, edit: PutObjectsEdit
   if (Object.values(legs).some(leg => !controls[leg.from] || !controls[leg.to])) throw gone();
   const courseIds = new Set(courses.map(course => course.id));
   if (specialObjects.some(special => special.courses.some(course => course !== "0" && !courseIds.has(course)))) throw gone();
-  return { ...document, event: edit.event ?? document.event, controls, courseControls, courses, legs, specialObjects };
+  // Händelsen per fält (null = tas bort); `event` (hela) från äldre klienter och förslag gäller fortfarande.
+  let event = edit.event ?? document.event;
+  if (edit.eventFields) {
+    const fields: Record<string, unknown> = { ...event };
+    for (const [key, value] of Object.entries(edit.eventFields)) {
+      if (key === "__proto__" || key === "constructor" || key === "prototype") throw invalid(`Fältet ${key} går inte att ändra`);
+      if (value === null) delete fields[key]; else fields[key] = value;
+    }
+    if (typeof fields.title !== "string" || typeof fields.mapScale !== "number") throw invalid("Händelsen saknar titel eller skala");
+    event = fields as unknown as CourseSettingDocument["event"];
+  }
+  return { ...document, event, controls, courseControls, courses, legs, specialObjects };
 }

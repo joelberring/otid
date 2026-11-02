@@ -5,6 +5,7 @@ import {
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { actor, actors, courseSettingRead, courseSettingWrite, type Failure, type ReadProof, type Transaction } from "./course-setting";
+import { noteTargetExists } from "./course-setting-notes";
 import type { RaceSessionProof } from "./race-session";
 
 /**
@@ -15,7 +16,8 @@ import type { RaceSessionProof } from "./race-session";
  *
  * Telefonen köar bockarna utan nät och skickar dem senare, så tiden i begäran (när det gjordes) avgör: den senaste vinner,
  * också över en avbockning (raden står kvar med `checked` false). Tiden får ligga högst 2 minuter i framtiden (telefonens
- * klocka; den sparas då som serverns tid) och högst 30 dagar bakåt.
+ * klocka; den sparas då som serverns tid) och högst 30 dagar bakåt. En bock på en kontroll som inte finns i dokumentet
+ * avvisas (409, översynen 2026-11-02).
  */
 const inspections = schema.courseSettingInspections;
 type Row = typeof inspections.$inferSelect;
@@ -39,7 +41,7 @@ export async function listCourseSettingInspectionsAsAdmin(db: Database, input: R
 
 /** Bocka i eller av (COMMENT räcker). Svaret är bockarna efteråt; `changed` är falskt om en nyare bock eller avbockning gällde. */
 export async function setCourseSettingInspectionAsAdmin(db: Database, input: RaceSessionProof & { request: unknown }, now = new Date())
-  : Promise<Failure | { status: "ok"; changed: boolean; response: CourseSettingInspections }> {
+  : Promise<Failure | { status: "conflict" } | { status: "ok"; changed: boolean; response: CourseSettingInspections }> {
   const parsed = courseSettingInspectionRequestSchema.safeParse(input.request);
   if (!parsed.success) return { status: "invalid-request" };
   const request = parsed.data;
@@ -47,6 +49,7 @@ export async function setCourseSettingInspectionAsAdmin(db: Database, input: Rac
   if (at > now.getTime() + CLOCK_SKEW_MS || at < now.getTime() - MAX_AGE_MS) return { status: "invalid-request" };
   const when = new Date(Math.min(at, now.getTime()));
   return courseSettingWrite(db, input, now, "COMMENT", async (tx, raceId, actorId) => {
+    if (!await noteTargetExists(tx, raceId, { controls: [request.control], courses: [] })) return { status: "conflict" as const };
     const values = { checked: request.checked, changedAt: when, changedBy: actorId,
       atX: request.checked ? request.position?.x ?? null : null, atY: request.checked ? request.position?.y ?? null : null };
     const written = await tx.insert(inspections).values({ raceId, controlId: request.control, ...values })

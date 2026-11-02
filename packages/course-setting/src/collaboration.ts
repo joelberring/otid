@@ -9,7 +9,11 @@
  *   den.
  * - `editTouches` och `documentChanges`/`touchedConflict`: vad en åtgärd ändrar ("control:12:at") och om någon annan har
  *   ändrat samma sak sedan författarens version (den första vinner, ADR-0181 beslut 4).
- * - `objectPatch`: objekten som skiljer två dokument, som en `PUT_OBJECTS` (ångra och gör om).
+ * - `objectPatch`: objekten som skiljer två dokument, som en `PUT_OBJECTS` (ångra och gör om). Händelsens inställningar
+ *   per fält (`eventFields`), så att ångra av en inställning inte skriver över andras profiler, mallar eller logotyper.
+ * - `diffTouches`: det som en åtgärd faktiskt ändrade (fält för fält ur skillnaden mellan dokumenten före och efter). Ger
+ *   också banornas struktur (lägga in, ta bort, gafflingar), så att en kontroll inte tyst försvinner när två arbetar
+ *   samtidigt (översynen 2026-11-02).
  */
 import { appearanceOf } from "./appearance";
 import { applyDocumentEdit } from "./edit";
@@ -86,10 +90,45 @@ export function objectPatch(from: CourseSettingDocument, to: CourseSettingDocume
   const courses = diffRecord(byId(from.courses), byId(to.courses));
   const legs = diffRecord(from.legs, to.legs);
   const specialObjects = diffRecord(byId(from.specialObjects), byId(to.specialObjects));
-  const event = same(from.event, to.event) ? undefined : to.event;
-  if (!controls && !courseControls && !courses && !legs && !specialObjects && !event) return undefined;
+  // Händelsen per fält (null = fältet tas bort): ångra av t.ex. ringklippen rör inte profilerna och mallarna.
+  const eventFields = same(from.event, to.event) ? undefined
+    : diffRecord(from.event as unknown as Record<string, unknown>, to.event as unknown as Record<string, unknown>);
+  if (!controls && !courseControls && !courses && !legs && !specialObjects && !eventFields) return undefined;
   return { type: "PUT_OBJECTS", ...(controls ? { controls } : {}), ...(courseControls ? { courseControls } : {}),
-    ...(courses ? { courses } : {}), ...(legs ? { legs } : {}), ...(specialObjects ? { specialObjects } : {}), ...(event ? { event } : {}) };
+    ...(courses ? { courses } : {}), ...(legs ? { legs } : {}), ...(specialObjects ? { specialObjects } : {}),
+    ...(eventFields ? { eventFields } : {}) };
+}
+
+function diffFields(kind: string, from: Readonly<Record<string, unknown>>, to: Readonly<Record<string, unknown>>,
+  skip: ReadonlySet<string>, out: Set<string>, ignore: readonly string[] = []) {
+  for (const id of new Set([...Object.keys(from), ...Object.keys(to)])) {
+    const a = from[id], b = to[id];
+    if (a === b || skip.has(id)) continue;
+    if (a === undefined || b === undefined) { out.add(`${kind}:${id}`); continue; }
+    const before = a as Record<string, unknown>, after = b as Record<string, unknown>;
+    for (const field of new Set([...Object.keys(before), ...Object.keys(after)])) {
+      if (!ignore.includes(field) && !same(before[field], after[field])) out.add(`${kind}:${id}:${field}`);
+    }
+  }
+}
+
+/**
+ * Det som skiljer `before` från `after` som "touches": ett nytt eller borttaget objekt helt ("courseControl:7"), ett ändrat
+ * per fält ("courseControl:5:next"). Händelsen ingår inte (dess åtgärder har exakta touches i `editTouches`, och utseendet
+ * står i händelsens råa XML). `created` = id som åtgärden själv skapade (ett id som återanvänds krockar inte). Banornas
+ * ordning (`order`, som flyttas när en bana kopieras in efter en annan) räknas inte.
+ */
+export function diffTouches(before: CourseSettingDocument, after: CourseSettingDocument, created: CreatedIds = NO_CREATED_IDS): string[] {
+  if (before === after) return [];
+  const out = new Set<string>();
+  diffFields("control", before.controls, after.controls, new Set(created.controls), out);
+  diffFields("courseControl", before.courseControls, after.courseControls, new Set(created.courseControls), out);
+  if (before.courses !== after.courses) diffFields("course", byId(before.courses), byId(after.courses), new Set(created.courses), out, ["order"]);
+  diffFields("leg", before.legs, after.legs, new Set(), out);
+  if (before.specialObjects !== after.specialObjects) {
+    diffFields("specialObject", byId(before.specialObjects), byId(after.specialObjects), new Set(created.specialObjects ?? []), out);
+  }
+  return [...out].sort();
 }
 
 /**
@@ -127,6 +166,7 @@ export function editTouches(edit: CourseSettingEdit): string[] {
       ...Object.keys(edit.courses ?? {}).map(id => `course:${id}`),
       ...Object.keys(edit.legs ?? {}).map(key => `leg:${key}`),
       ...Object.keys(edit.specialObjects ?? {}).map(id => `specialObject:${id}`),
+      ...Object.keys(edit.eventFields ?? {}).sort().map(key => `event:${key}`),
       ...(edit.event ? ["event"] : [])
     ];
     default: return [];
@@ -277,6 +317,8 @@ export interface ReplayedEdit {
   readonly edit: CourseSettingEdit;
   /** Id som den skapade i dokumentet. */
   readonly created: CreatedIds;
+  /** Det som den ändrade (`editTouches` och `diffTouches`), för serverns konfliktlogg. */
+  readonly touches: readonly string[];
 }
 
 export interface ReplayRejection {
@@ -316,6 +358,19 @@ export function replayEdits(document: CourseSettingDocument, edits: readonly Cou
   /** Författarens id för det som skapats i uppspelningen (övriga id som träffar något nyskapat pekar på något borttaget). */
   const ownFresh: Record<Kind, Set<string>> = sets();
   const lookup: Lookup = (kind, id) => map[kind][id] ?? id;
+  /** Dokumentets id → författarens (för att jämföra författarens version med den aktuella per "touch"). */
+  const inverse: Record<Kind, Record<string, string>> = { controls: {}, courseControls: {}, courses: {}, specialObjects: {} };
+  for (const kind of KINDS) for (const [authorId, id] of Object.entries(map[kind])) inverse[kind][id] = authorId;
+  const TOUCH_KINDS: Record<string, Kind> = { control: "controls", courseControl: "courseControls", course: "courses", specialObject: "specialObjects" };
+  const authorTouch = (touch: string) => {
+    const [kind, id, ...rest] = touch.split(":");
+    if (kind === "leg") {
+      const [from, to] = (id ?? "").split("-");
+      return [kind, `${inverse.controls[from!] ?? from}-${inverse.controls[to!] ?? to}`, ...rest].join(":");
+    }
+    const mapped = TOUCH_KINDS[kind!];
+    return mapped ? [kind, inverse[mapped][id!] ?? id, ...rest].join(":") : touch;
+  };
   const applied: ReplayedEdit[] = [];
   const rejected: ReplayRejection[] = [];
   let current = document;
@@ -334,15 +389,16 @@ export function replayEdits(document: CourseSettingDocument, edits: readonly Cou
       return;
     }
     let mapped = remapWith(edit, lookup);
+    const isFresh = (touch: string) => {
+      const [kind, id] = touch.split(":");
+      return (kind === "control" && fresh.controls.has(id!)) || (kind === "courseControl" && fresh.courseControls.has(id!)) ||
+        (kind === "course" && fresh.courses.has(id!)) || (kind === "specialObject" && fresh.specialObjects.has(id!));
+    };
+    const conflictMessage = "Någon annan hann ändra samma sak";
     if (options.conflict) {
       const authorTouches = editTouches(edit), actualTouches = editTouches(mapped);
-      const isFresh = (touch: string) => {
-        const [kind, id] = touch.split(":");
-        return (kind === "control" && fresh.controls.has(id!)) || (kind === "courseControl" && fresh.courseControls.has(id!)) ||
-          (kind === "course" && fresh.courses.has(id!)) || (kind === "specialObject" && fresh.specialObjects.has(id!));
-      };
       if (actualTouches.some((touch, i) => !isFresh(touch) && options.conflict!(authorTouches[i] ?? touch, touch))) {
-        rejected.push({ index, edit, code: "CONFLICT", message: "Någon annan hann ändra samma sak" });
+        rejected.push({ index, edit, code: "CONFLICT", message: conflictMessage });
         kill(author);
         return;
       }
@@ -372,17 +428,25 @@ export function replayEdits(document: CourseSettingDocument, edits: readonly Cou
       }
     }
     const created = createdIdsBetween(current, next);
+    // Det som åtgärden faktiskt ändrade (också banornas struktur): har någon annan ändrat det sedan författarens version
+    // vinner den första (t.ex. en gaffling som tas bort medan någon annan lägger in en kontroll i en gren).
+    const changed = diffTouches(current, next, created);
+    if (options.conflict && changed.some(touch => !isFresh(touch) && options.conflict!(authorTouch(touch), touch))) {
+      rejected.push({ index, edit, code: "CONFLICT", message: conflictMessage });
+      kill(author);
+      return;
+    }
     for (const kind of KINDS) {
       (created[kind] ?? []).forEach((id, i) => {
         fresh[kind].add(id);
         const authorId = author ? author[kind]?.[i] : id;
         if (authorId === undefined) return;
         ownFresh[kind].add(authorId);
-        if (author) map[kind][authorId] = id;
+        if (author) { map[kind][authorId] = id; inverse[kind][id] = authorId; }
       });
     }
     current = next;
-    applied.push({ index, edit: mapped, created });
+    applied.push({ index, edit: mapped, created, touches: [...new Set([...editTouches(mapped), ...changed])] });
   });
   return { document: current, applied, rejected, idMap: map };
 }

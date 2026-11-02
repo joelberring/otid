@@ -116,7 +116,6 @@ export const courseSettingSv = {
     conflict: "Konflikt – någon annan har ändrat",
     failed: "Inte sparat – försöker igen",
     stopped: "Sparas inte – logga in igen",
-    tooLarge: "Banläggningen är för stor för att sparas.",
     reload: "Ladda om",
     conflictHelp: (name: string | null, time: string) =>
       `${name ?? "Någon"} sparade ${time}. Ladda om för att se den versionen; dina senaste ändringar sparas inte.`

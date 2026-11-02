@@ -9,20 +9,28 @@ const when = (value: string) => {
 const megabytes = (bytes: number) => bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} kB`
   : `${(bytes / 1024 / 1024).toLocaleString("sv-SE", { maximumFractionDigits: 1 })} MB`;
 
+/** Varför servern inte tog emot en post i kön (409 = kontrollen eller banan finns inte). */
+const reason = (status: number) => status === 409 ? "kontrollen eller banan finns inte längre" : `svar ${status}`;
+
 export const offlineSv = {
   more: "Mer",
   status: {
     offline: (waiting: number) => waiting === 0 ? "Utan nät" : `Utan nät – ${plural(waiting, "ändring", "ändringar")} väntar`,
     loggedOut: (waiting: number) => `Utloggad – ${plural(waiting, "ändring", "ändringar")} väntar i telefonen`,
-    sending: (waiting: number) => `Skickar ${plural(waiting, "ändring", "ändringar")} …`
+    sending: (waiting: number) => `Skickar ${plural(waiting, "ändring", "ändringar")} …`,
+    /** Översynen 2026-11-02: telefonen kunde inte spara (t.ex. fullt på iOS). */
+    storageFailed: (waiting: number) => `Kan inte spara i telefonen${waiting > 0 ? ` – ${plural(waiting, "ändring", "ändringar")} bara i minnet` : ""}. Synka med nät eller frigör plats.`
   },
+  storageFailed: "Telefonen kunde inte spara ändringarna (lagringen kan vara full). Ladda inte om sidan: anslut till nätet så att ändringarna sparas på servern, eller frigör plats (ta bort sparade kartor eller bilder).",
+  accessGone: "Du har inte längre tillgång till banläggningen. Kopian i telefonen är borttagen.",
+  targetGone: "pekar på en kontroll eller bana som inte finns längre",
   back: (parts: readonly string[]) => `Nätet är tillbaka: ${parts.join(", ")} sparade.`,
   backEdits: (count: number) => plural(count, "ändring på kartan", "ändringar på kartan"),
   backNotes: (count: number) => plural(count, "notis", "notiser"),
   backInspections: (count: number) => plural(count, "bock för kollad", "bockar för kollad"),
   rejected: (count: number) => `${plural(count, "sak", "saker")} i kön kunde inte sparas:`,
-  rejectedNote: (text: string, status: number) => `Notisen "${text.slice(0, 40)}" (svar ${status})`,
-  rejectedInspection: (label: string, status: number) => `Kollad för ${label} (svar ${status})`,
+  rejectedNote: (text: string, status: number) => `Notisen "${text.slice(0, 40)}" (${reason(status)})`,
+  rejectedInspection: (label: string, status: number) => `Kollad för ${label} (${reason(status)})`,
   loggedOut: (waiting: number) => `Inloggningen har gått ut. ${plural(waiting, "ändring", "ändringar")} finns kvar i telefonen och skickas när du loggat in igen.`,
   login: "Logga in (ny flik)",
   openedFromPhone: (at: string) => `Utan nät: banläggningen från telefonen (sparad ${when(at)}). Ändringarna skickas när nätet kommer tillbaka.`,

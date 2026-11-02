@@ -18,6 +18,7 @@ import { Button, Notice } from "../ui";
 import { CourseSettingEditor } from "./course-setting-editor";
 import { PpenImport, type ReadFile } from "./course-setting-file";
 import { fieldStore } from "./use-course-setting-offline";
+import { forgetCourseSettingCopy } from "../../lib/course-setting-offline-forget";
 import styles from "./course-setting.module.css";
 
 /**
@@ -57,6 +58,10 @@ export function CourseSettingPage({ raceId }: { raceId: string }) {
       // Utan nät (eller utloggad) öppnas banläggningen ur telefonen.
       const fromPhone = record && (!(error instanceof HttpError) || error.status === 401 || error.status >= 500);
       if (fromPhone) { setResume({ record, fromPhone: true }); setState(record.state); setGeneration(value => value + 1); return; }
+      // Översynen 2026-11-02: ingen tillgång längre (403) – telefonens kopia av banläggningen tas bort.
+      if (error instanceof HttpError && error.status === 403) {
+        await forgetCourseSettingCopy(raceId).catch(problem => console.error("Kopian i telefonen kunde inte tas bort", problem));
+      }
       setFailed(error instanceof HttpError && (error.status === 401 || error.status === 403) ? "login" : "other");
     }
   }, [raceId]);

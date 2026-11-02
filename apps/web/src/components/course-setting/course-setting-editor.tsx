@@ -88,7 +88,7 @@ const KEYS: Record<string, Tool> = { v: "SELECT", k: "ADD_CONTROL", s: "ADD_STAR
   b: "ADD_BEND", n: "NOTE", o: "SPECIAL" };
 const OK_TOAST_MS = 8_000;
 const STATUS_TEXT: Record<SyncStatus, string> = { saved: text.status.saved, pending: text.status.pending, saving: text.status.saving,
-  failed: text.status.failed, "too-large": text.status.tooLarge, stopped: text.status.stopped };
+  failed: text.status.failed, stopped: text.status.stopped };
 
 /**
  * Steg 62 (ADR-0180) och 66 (ADR-0181): editorn. Logiken finns i `lib/course-setting-*` (editorns tillstånd, sparandet med
@@ -178,6 +178,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
   // Steg 67: kön utan nät (notiser och bockar), åtgärderna i telefonen och "Spara för offline".
   const offline = useCourseSettingOffline({ raceId, state, store, sync, version, status, mapSha256: state.mapFile?.sha256, say,
     notes: collaboration.notes, inspections: collaboration.inspections,
+    onAccessGone: () => { say({ tone: "error", text: offlineSv.accessGone }); onReload(); },
     describe: (item: QueuedItem, code: number) => item.kind !== "inspection" ? rejectedNoteText(item, code)
       : offlineSv.rejectedInspection(store.state.document.controls[item.request.control] ? controlLabel(store.state.document, item.request.control)
         : item.request.control, code),
@@ -671,7 +672,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
     data-field={field.narrow ? "" : undefined}>
     <TopBar raceId={raceId} document={document} summaries={summaries} view={view} variant={variant}
       onView={(next, value) => apply(current => setView(current, next, value))}
-      status={<p role="status" aria-live="polite" className={styles.status} data-status={suggesting ? "pending" : offline.offline ? "failed" : status}
+      status={<p role="status" aria-live="polite" className={styles.status} data-status={suggesting ? "pending" : offline.offline || offline.storageError ? "failed" : status}
         data-testid="course-setting-status">{shownStatus}</p>}
       access={access.level === "EDIT" ? "" : copy.access[access.level]} presence={copy.presence(others)}
       canUndo={canUndo(editor) && !readOnly} canRedo={canRedo(editor) && !readOnly} onUndo={() => edit(undo)} onRedo={() => edit(redo)} menu={menu} />
@@ -728,7 +729,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
         onRestore={onRestore} />
     </Dialog>}
     {dialog === "transfer" && access.admin && <Dialog title={text.transfer.heading} onClose={() => setDialog(undefined)}>
-      <TransferPanel raceId={raceId} ready={!busy && status !== "too-large"} flush={flush} version={() => sync.version} />
+      <TransferPanel raceId={raceId} ready={!busy} flush={flush} version={() => sync.version} />
     </Dialog>}
     {offlineDialog && <Dialog title={offlineSv.panel.heading} onClose={() => setOfflineDialog(false)}>
       <OfflinePanel info={offline.mapInfo} mapSha256={state.mapFile?.sha256} mapBytes={mapBytes} busy={offline.busy} message={offline.panelMessage}

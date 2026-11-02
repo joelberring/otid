@@ -1,12 +1,12 @@
 import {
-  COURSE_SETTING_EDITS_MAX_BYTES, COURSE_SETTING_IMPORT_MAX_BYTES, COURSE_SETTING_NOTE_MAX_BYTES, COURSE_SETTING_SAVE_MAX_BYTES,
+  COURSE_SETTING_EDITS_MAX, COURSE_SETTING_EDITS_MAX_BYTES, COURSE_SETTING_IMPORT_MAX_BYTES, COURSE_SETTING_NOTE_MAX_BYTES, COURSE_SETTING_SAVE_MAX_BYTES,
   courseSettingConflictSchema, courseSettingEditsSavedSchema, courseSettingInspectionsSchema, courseSettingModeRequestSchema, courseSettingNoteSchema, courseSettingNotesSchema,
   courseSettingRevisionSchema, courseSettingRevisionsSchema, courseSettingSavedSchema, courseSettingStateSchema, courseSettingSuggestionDecidedSchema,
   courseSettingSuggestionSchema, courseSettingSuggestionsSchema, courseSettingTransferProblemSchema, PRINT_JOB_REQUEST_MAX_BYTES, printJobProblemSchema,
   printJobSchema, printJobsSchema, syncPreviewResponseSchema
 } from "@o-tid/contracts";
 import { createCourseSettingEventStream, publishCourseSettingEvent } from "./course-setting-events";
-import { adminFailure as failure, privateHeaders, privateJson as json, readJsonBody } from "./security-policy";
+import { adminFailure as failure, privateHeaders, privateJson as json, readJsonBody, RequestBodyError } from "./security-policy";
 import { resultFailure, type RaceAdministratorRouteContext } from "./race-administrator-route-context";
 
 /**
@@ -25,6 +25,22 @@ import { resultFailure, type RaceAdministratorRouteContext } from "./race-admini
  */
 async function body(request: Request, maxBytes: number): Promise<unknown> {
   try { return await readJsonBody(request, maxBytes); } catch { return undefined; }
+}
+
+const TOO_LARGE = Symbol("too-large");
+/**
+ * Åtgärderna (översynen 2026-11-02): en för stor kropp eller fler än `COURSE_SETTING_EDITS_MAX` åtgärder ger 413, så att
+ * klienten delar upp omgången i stället för att tro att åtgärderna är avvisade (400 betyder "läs om och försök igen").
+ */
+async function editsBody(request: Request): Promise<unknown> {
+  const declared = request.headers.get("content-length");
+  if (declared !== null && /^\d+$/.test(declared) && Number(declared) > COURSE_SETTING_EDITS_MAX_BYTES) return TOO_LARGE;
+  let value: unknown;
+  try { value = await readJsonBody(request, COURSE_SETTING_EDITS_MAX_BYTES); } catch (error) {
+    return error instanceof RequestBodyError && error.message === "Bodyn är för stor" ? TOO_LARGE : undefined;
+  }
+  const edits = typeof value === "object" && value !== null ? (value as { edits?: unknown }).edits : undefined;
+  return Array.isArray(edits) && edits.length > COURSE_SETTING_EDITS_MAX ? TOO_LARGE : value;
 }
 
 type Saved = { status: string; response?: unknown; conflict?: unknown };
@@ -101,7 +117,8 @@ export async function handleCourseSettingRoute(context: RaceAdministratorRouteCo
       return response.raceId === raceId ? json(response) : failure(500, "INTERNAL_ERROR");
     }
     case "course-setting-edits": {
-      const value = await body(request, COURSE_SETTING_EDITS_MAX_BYTES);
+      const value = await editsBody(request);
+      if (value === TOO_LARGE) return resultFailure("too-large");
       if (value === undefined) return failure(400, "INVALID_REQUEST");
       const result = await dependencies.courseSettingEdits(db, { ...input, request: value });
       if (result.status !== "ok") return resultFailure(result.status);

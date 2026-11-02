@@ -35,7 +35,7 @@ export { controlLabelText } from "./overprint";
 export { INVERTIBLE_CODES } from "./summary";
 // Steg 66: flera som arbetar samtidigt (åtgärder som spelas upp på en nyare version, ångra med PUT_OBJECTS).
 export {
-  createdIdsBetween, documentChanges, editTouches, EMPTY_ID_MAP, NO_CREATED_IDS, objectPatch, remapEdit, replayEdits, touchedConflict,
+  createdIdsBetween, diffTouches, documentChanges, editTouches, EMPTY_ID_MAP, NO_CREATED_IDS, objectPatch, remapEdit, replayEdits, touchedConflict,
   touchesOverlap, type CreatedIds, type IdMap, type ReplayedEdit, type ReplayOptions, type ReplayRejection, type ReplayResult
 } from "./collaboration";
 export { detailGapKey, OVERLAP_CUT_LIMITS } from "./circle-cutting";

@@ -78,7 +78,7 @@ export const trainingGroupSv = {
     personNotFound: "Det finns inget konto med den adressen.",
     personExists: "Personen är redan med i gruppen.",
     mapsHint: "Kartor och banläggningar sparas i gruppen som kopior och kan väljas till en ny träning. En borttagen träning tar inte kartan med sig.",
-    noMaps: "Inga kartor i biblioteket. Spara kartan med Spara karta från ett tillfälle.",
+    noMaps: "Inga kartor i biblioteket än. Lägg till kartan från ett av gruppens tillfällen.",
     saveMap: "Spara karta från ett tillfälle",
     saveMapFrom: "Tillfälle med karta",
     mapName: "Kartans namn",

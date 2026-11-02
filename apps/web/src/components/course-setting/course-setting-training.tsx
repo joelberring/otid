@@ -90,7 +90,7 @@ export function TrainingPanel({ document, view, readOnly, symbols, show, onShow,
     {readOnly && <p className={styles.muted}>{text.readOnly}</p>}
     {tool && tool.kind !== "ATTACK" && <div className={styles.toolBar} role="status">
       <span>{tool.kind === "AREA" ? text.areas.drawing(tool.points.length) : text.line.drawing(tool.points.length)}</span>
-      <Button onClick={onFinish} disabled={tool.points.length < (tool.kind === "AREA" ? 3 : 2)}>{text.areas.finish}</Button>
+      <Button onClick={onFinish} disabled={tool.points.length < (tool.kind === "AREA" ? 3 : 2)} data-testid="training-tool-finish">{text.areas.finish}</Button>
       <Button variant="secondary" onClick={() => onTool(undefined)}>{text.areas.cancel}</Button>
     </div>}
     {!readOnly && <div className={styles.cards} role="group" aria-label={text.forms.heading}>

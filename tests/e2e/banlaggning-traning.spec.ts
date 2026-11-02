@@ -119,7 +119,7 @@ test("banläggning: träningsläget med avsnitt, sista säkra, område, stjärna
   // 5. Ett ritat område (bara kurvbild) ritas punkt för punkt; ångra tar bort det och gör om lägger tillbaka det.
   await panel.getByTestId("training-add-AREA").click();
   for (const [x, y] of [[55, 30], [75, 30], [75, 45], [55, 45]] as const) await clickMap(owner, map, x, y);
-  await panel.getByRole("button", { name: "Klar" }).click();
+  await panel.getByTestId("training-tool-finish").click();
   await saved(owner);
   expect(Object.keys((await documentNow()).training!.areas)).toHaveLength(1);
   await owner.getByRole("button", { name: "Ångra" }).click();

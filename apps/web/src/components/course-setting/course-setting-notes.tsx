@@ -133,7 +133,7 @@ export function NotesPanel({ raceId, notes, document, show, onShow, selected, on
     {visible.length === 0 ? <p className={styles.muted}>{text.notes.none}</p> : <ul className={styles.noteList}>
       {visible.map(note => <li key={note.id} data-status={note.status} data-kind={note.kind} data-selected={note.id === selected || undefined}
         data-testid="course-setting-note">
-        <button type="button" className={styles.noteHead} onClick={() => { onSelect(note.id === selected ? undefined : note.id); onReveal(note); }}
+        <button type="button" className={`${styles.noteHead} ${own.head}`} onClick={() => { onSelect(note.id === selected ? undefined : note.id); onReveal(note); }}
           aria-expanded={note.id === selected}>
           <span className={styles.noteStatus}>{pending?.has(note.id) ? offlineSv.inspection.pending : text.notes.status[note.status]}
             {note.kind === "MAP_ERROR" && <span className={own.kind}>{notesSv.kind.MAP_ERROR}</span>}</span>

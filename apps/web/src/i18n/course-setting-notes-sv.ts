@@ -5,7 +5,7 @@ const plural = (count: number, one: string, many: string) => `${count} ${count =
 /** ADR-0181 beslut 8: notiser med ritning, kartfel, borttagning och exporten till kartritaren. */
 export const notesSv = {
   kind: { label: "Slag", COURSE_SETTING: "Banläggning", MAP_ERROR: "Kartfel" } as Record<string, string>,
-  kindFilter: { label: "Slag", ALL: "Alla slag", COURSE_SETTING: "Banläggning", MAP_ERROR: "Kartfel" } as Record<string, string>,
+  kindFilter: { label: "Slag", ALL: "Båda slagen", COURSE_SETTING: "Banläggning", MAP_ERROR: "Kartfel" } as Record<string, string>,
   mapErrorHelp: "Ett kartfel sitter på en punkt eller en ritning, aldrig på en kontroll eller sträcka, så att det kan lämnas till kartritaren utan banorna.",
   sketchTarget: "Ritning på kartan",
   delete: "Ta bort",
@@ -23,6 +23,7 @@ export const notesSv = {
     helpTouch: "Rita med ett finger. Två fingrar flyttar och zoomar kartan.",
     style: "Färg",
     styles: { MAP_ERROR: "Kartfel", MARKING: "Snitsel/markering", GENERAL: "Allmänt" } as Record<string, string>,
+    short: { MAP_ERROR: "Kartfel", MARKING: "Snitsel", GENERAL: "Allmänt" } as Record<string, string>,
     shape: "Form",
     shapes: { LINE: "Linje", AREA: "Yta" } as Record<string, string>,
     intent: "Betydelse",

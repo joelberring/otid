@@ -176,7 +176,7 @@ test("notiser på datorn: rita ett kartfel, välj det på kartan, filtrera, expo
   await panel.getByRole("group", { name: "Slag" }).getByRole("button", { name: "Banläggning" }).click();
   await expect(items).toHaveCount(1);
   await expect(items).toContainText("Flytta närmare stigen");
-  await panel.getByRole("button", { name: "Alla slag" }).click();
+  await panel.getByRole("button", { name: "Båda slagen" }).click();
   await screenshot(owner, "notiser-lista-1280");
 
   // 5. Exporten till kartritaren: bara kartan och kartfelen; nära en kontroll inte med som förval; fotot av som förval.

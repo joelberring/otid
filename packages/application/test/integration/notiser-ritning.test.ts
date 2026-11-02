@@ -166,7 +166,7 @@ describe("notiser med ritning, kartfel och borttagning (ADR-0181 beslut 8)", { t
     // Den som skrev den: borta med svar och foto.
     expect(await deleteCourseSettingNoteAsAdmin(db, { ...kim, noteId: id })).toEqual({ status: "ok", id });
     expect((await readCourseSettingNotePhotoAsAdmin(db, { ...owner, noteId: id })).status).toBe("not-found");
-    expect((await pool.query("select count(*)::int as n from course_setting_note_reply where note_id = $1", [id])).rows[0].n).toBe(0);
+    expect((await pool.query<{ n: number }>("select count(*)::int as n from course_setting_note_reply where note_id = $1", [id])).rows[0]!.n).toBe(0);
     // Borta redan (t.ex. kön i telefonen skickar igen).
     expect((await deleteCourseSettingNoteAsAdmin(db, { ...kim, noteId: id })).status).toBe("not-found");
 

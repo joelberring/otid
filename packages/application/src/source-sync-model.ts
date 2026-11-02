@@ -60,6 +60,9 @@ export interface CurrentCourse {
   readonly id: string; readonly name: string; readonly externalSource: string | null; readonly externalId: string | null;
   readonly versionId: string; readonly version: number; readonly controlCodes: readonly number[];
   readonly variants: readonly { readonly code: string; readonly controlCodes: readonly number[] }[];
+  /** ADR-0190: banans längd och stigning i tävlingen (null = saknas; utelämnat = jämförs inte). */
+  readonly lengthMeters?: number | null;
+  readonly climbMeters?: number | null;
 }
 export interface CurrentState {
   readonly timeZone: string;
@@ -95,6 +98,8 @@ export type CourseFileAction =
       readonly variants: readonly { readonly code: string; readonly controlCodes: readonly number[] }[] }
   | { readonly type: "CHANGE_COURSE"; readonly courseId: string; readonly controlCodes: readonly number[];
       readonly variants: readonly { readonly code: string; readonly controlCodes: readonly number[] }[] }
+  /** ADR-0190: bara längden eller stigningen ändrad (inga resultat räknas om). */
+  | { readonly type: "SET_COURSE_MEASURES"; readonly courseId: string }
   | { readonly type: "CREATE_CLASS"; readonly externalId: string; readonly name: string; readonly courseRef: CourseRef }
   | { readonly type: "CHANGE_CLASS_COURSE"; readonly classId: string; readonly courseRef: CourseRef }
   | { readonly type: "NONE" };

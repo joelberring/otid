@@ -164,14 +164,17 @@ export function printAreaOf(document: CourseSettingDocument, course: string): Pr
   return saved ?? { automatic: true, restrictToPageSize: true };
 }
 
+/** Rubrikens längd och stigning ("4,3 km, 85 m"; ADR-0190): fast längd före uträknad, stigningen avrundad till 5 m som i beskrivningen. */
 function lengthText(document: CourseSettingDocument, course: string, variant: string | undefined): string {
   const found = document.courses.find(item => item.id === course);
   if (!found) return "";
+  const climb = found.climbMeters !== undefined && found.climbMeters >= 0 ? `, ${Math.round(found.climbMeters / 5) * 5} m` : "";
+  if (found.kind === "SCORE" && found.lengthOverrideMeters === undefined) return climb.slice(2);
   const meters = found.lengthOverrideMeters ?? (() => {
     const all = variations(document, course).filter(item => variant === undefined || item.code === variant);
     return Math.max(...(all.length > 0 ? all.map(item => measuredLengthMeters(document, course, item.choices)) : [measuredLengthMeters(document, course, null)]));
   })();
-  return `${(Math.round(meters / 100) / 10).toFixed(1).replace(".", ",")} km`;
+  return `${(Math.round(meters / 100) / 10).toFixed(1).replace(".", ",")} km${climb}`;
 }
 
 /** Sidorna för en bana (en sida när ytan ryms på papperet, annars flera). */

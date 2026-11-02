@@ -1,7 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { CourseSettingDocument, CourseSummary, CourseVariant } from "@o-tid/course-setting";
+import type { CourseSettingDocument, CourseSettingEdit, CourseSummary, CourseVariant } from "@o-tid/course-setting";
+import { coursePropertiesSv as props } from "../../i18n/course-setting-properties-sv";
+import { scoreTotal } from "../../lib/course-setting-properties";
+import { PointsField } from "./course-setting-course-properties";
 import { courseSettingSv as text } from "../../i18n/course-setting-sv";
 import { courseSettingUxSv as ux } from "../../i18n/course-setting-ux-sv";
 import { courseTree, type TreeBranch, type TreeRow } from "../../lib/course-setting-forks";
@@ -16,27 +19,30 @@ import styles from "./course-setting-ux.module.css";
  * kontroll väljer den. Under trädet varianterna med kod, antal kontroller, längd och en liten bild. I Alla kontroller:
  * alla kontroller, filtret "Bara oanvända" och "Ta bort alla oanvända".
  */
-export function ControlList({ document, summaries, view, variant, branch, selected, unused, readOnly, onSelect, onBranch, onVariant, onRemoveUnused }: {
+export function ControlList({ document, summaries, view, variant, branch, selected, unused, readOnly, onSelect, onBranch, onVariant, onRemoveUnused, onEdits }: {
   document: CourseSettingDocument; summaries: readonly CourseSummary[]; view: string; variant: string | undefined; branch: string | undefined;
   /** Vald banans kontroll (i en bana) eller kontroll (Alla kontroller). */
   selected: string | undefined;
   unused: readonly string[]; readOnly: boolean;
   onSelect: (target: { control: string; courseControl?: string | undefined }) => void;
   onBranch: (branch: TreeBranch) => void; onVariant: (code: string | undefined) => void; onRemoveUnused: () => void;
+  /** ADR-0190: poängen per kontroll på en poängbana. */
+  onEdits: (edits: CourseSettingEdit[]) => void;
 }) {
   if (view === ALL_CONTROLS) return <AllControls document={document} selected={selected} unused={unused} readOnly={readOnly} onSelect={onSelect}
     onRemoveUnused={onRemoveUnused} />;
   const course = document.courses.find(row => row.id === view);
   if (!course) return null;
   return <CourseControls document={document} summary={summaries.find(row => row.course === view)} name={course.name} view={view} variant={variant}
-    branch={branch} selected={selected} onSelect={onSelect} onBranch={onBranch} onVariant={onVariant} />;
+    branch={branch} selected={selected} onSelect={onSelect} onBranch={onBranch} onVariant={onVariant} score={course.kind === "SCORE"}
+    readOnly={readOnly} onEdits={onEdits} />;
 }
 
-function CourseControls({ document, summary, name, view, variant, branch, selected, onSelect, onBranch, onVariant }: {
+function CourseControls({ document, summary, name, view, variant, branch, selected, onSelect, onBranch, onVariant, score, readOnly, onEdits }: {
   document: CourseSettingDocument; summary: CourseSummary | undefined; name: string; view: string; variant: string | undefined;
   branch: string | undefined; selected: string | undefined;
   onSelect: (target: { control: string; courseControl?: string | undefined }) => void; onBranch: (branch: TreeBranch) => void;
-  onVariant: (code: string | undefined) => void;
+  onVariant: (code: string | undefined) => void; score: boolean; readOnly: boolean; onEdits: (edits: CourseSettingEdit[]) => void;
 }) {
   const tree = useMemo(() => { try { return courseTree(document, view); } catch (error) { console.error("Banans träd", error); return []; } },
     [document, view]);
@@ -45,10 +51,14 @@ function CourseControls({ document, summary, name, view, variant, branch, select
   const renderRows = (rows: readonly TreeRow[]): React.ReactNode => rows.map(row => {
     if (row.kind === "control") {
       const kind = document.controls[row.control]?.kind;
-      const number = kind === "NORMAL" ? String(++ordinal) : "";
-      return <li key={row.courseControl}><button type="button" className={styles.row} aria-current={selected === row.courseControl}
+      const number = kind === "NORMAL" && !score ? String(++ordinal) : "";
+      const item = <button type="button" className={styles.row} aria-current={selected === row.courseControl}
         data-testid="course-setting-tree-control" onClick={() => onSelect({ control: row.control, courseControl: row.courseControl })}>
-        <span className={styles.ordinal}>{number}</span><span>{row.label}</span></button></li>;
+        <span className={styles.ordinal}>{number}</span><span>{row.label}</span></button>;
+      // ADR-0190: poängbanans poäng per kontroll bredvid kontrollen.
+      return <li key={row.courseControl} className={score && kind === "NORMAL" ? styles.scoreRow : undefined}>{item}
+        {score && kind === "NORMAL" && <PointsField document={document} course={view} courseControl={row.courseControl} label={row.label}
+          readOnly={readOnly} onEdits={onEdits} />}</li>;
     }
     const start = ordinal;
     return <li key={`fork-${row.at}`}>
@@ -68,6 +78,10 @@ function CourseControls({ document, summary, name, view, variant, branch, select
   return <section className={styles.group} aria-labelledby="course-setting-control-list" data-testid="course-setting-control-list">
     <h2 id="course-setting-control-list" className={styles.listHeading}>{ux.controls.courseHeading(name)}</h2>
     {tree.length === 0 ? <p className={styles.hint}>{ux.controls.empty}</p> : <ul className={styles.tree}>{renderRows(tree)}</ul>}
+    {score && <p className={styles.hint} data-testid="course-setting-score-total">{(() => {
+      const total = scoreTotal(document, variants[0]?.courseControls ?? []);
+      return props.scoreTotal(total.points, total.controls);
+    })()}</p>}
     {variants.length > 1 && <>
       <h3 className={styles.listHeading}>{ux.forks.variants}</h3>
       <ul className={styles.variants}>

@@ -83,20 +83,37 @@ function diffRecord<T>(from: Readonly<Record<string, T>>, to: Readonly<Record<st
 
 const byId = <T extends { readonly id: string }>(items: readonly T[]): Record<string, T> => Object.fromEntries(items.map(item => [item.id, item]));
 
+/**
+ * ADR-0190: banorna som skiljer. En bana som bara bytt plats i listan ger bara `courseOrder` (inte hela banan), och en bana
+ * som finns i båda behåller sin plats när hela banan sätts (`putObjects`), så platsen står i `courseOrder` när den ändrats.
+ */
+function coursePatch(from: readonly Course[], to: readonly Course[]): { courses?: Record<string, Course | null>; courseOrder?: Record<string, number> } {
+  const before = byId(from), after = byId(to);
+  const courses: Record<string, Course | null> = {}, courseOrder: Record<string, number> = {};
+  for (const id of new Set([...Object.keys(before), ...Object.keys(after)])) {
+    const a = before[id], b = after[id];
+    if (!b) { courses[id] = null; continue; }
+    if (!a) { courses[id] = b; continue; }
+    if (a.order !== b.order) courseOrder[id] = b.order;
+    if (!same({ ...a, order: 0 }, { ...b, order: 0 })) courses[id] = b;
+  }
+  return { ...(Object.keys(courses).length > 0 ? { courses } : {}), ...(Object.keys(courseOrder).length > 0 ? { courseOrder } : {}) };
+}
+
 /** Objekten som skiljer `from` från `to`, som en ändring som gör `from` till `to` (undefined = inga skillnader). */
 export function objectPatch(from: CourseSettingDocument, to: CourseSettingDocument): PutObjectsEdit | undefined {
   const controls = diffRecord(from.controls, to.controls);
   const courseControls = diffRecord(from.courseControls, to.courseControls);
-  const courses = diffRecord(byId(from.courses), byId(to.courses));
+  const { courses, courseOrder } = coursePatch(from.courses, to.courses);
   const legs = diffRecord(from.legs, to.legs);
   const specialObjects = diffRecord(byId(from.specialObjects), byId(to.specialObjects));
   // Händelsen per fält (null = fältet tas bort): ångra av t.ex. ringklippen rör inte profilerna och mallarna.
   const eventFields = same(from.event, to.event) ? undefined
     : diffRecord(from.event as unknown as Record<string, unknown>, to.event as unknown as Record<string, unknown>);
-  if (!controls && !courseControls && !courses && !legs && !specialObjects && !eventFields) return undefined;
+  if (!controls && !courseControls && !courses && !courseOrder && !legs && !specialObjects && !eventFields) return undefined;
   return { type: "PUT_OBJECTS", ...(controls ? { controls } : {}), ...(courseControls ? { courseControls } : {}),
-    ...(courses ? { courses } : {}), ...(legs ? { legs } : {}), ...(specialObjects ? { specialObjects } : {}),
-    ...(eventFields ? { eventFields } : {}) };
+    ...(courses ? { courses } : {}), ...(courseOrder ? { courseOrder } : {}), ...(legs ? { legs } : {}),
+    ...(specialObjects ? { specialObjects } : {}), ...(eventFields ? { eventFields } : {}) };
 }
 
 function diffFields(kind: string, from: Readonly<Record<string, unknown>>, to: Readonly<Record<string, unknown>>,
@@ -143,6 +160,7 @@ export function editTouches(edit: CourseSettingEdit): string[] {
     case "SET_CONTROL_CODE": return [`control:${edit.control}:code`];
     case "SET_CONTROL_ORIENTATION": return [`control:${edit.control}:orientation`];
     case "UPDATE_COURSE": return Object.keys(edit.changes).sort().map(key => `course:${edit.course}:${key}`);
+    case "SET_POINTS": return [`courseControl:${edit.courseControl}:points`];
     case "DELETE_COURSE": return [`course:${edit.course}`];
     case "MOVE_NUMBER": return [`courseControl:${edit.courseControl}:numberAt`];
     case "SET_LEG_BENDS": return [`leg:${legKey(edit.from, edit.to)}:bends`];
@@ -164,6 +182,7 @@ export function editTouches(edit: CourseSettingEdit): string[] {
       ...Object.keys(edit.controls ?? {}).map(id => `control:${id}`),
       ...Object.keys(edit.courseControls ?? {}).map(id => `courseControl:${id}`),
       ...Object.keys(edit.courses ?? {}).map(id => `course:${id}`),
+      ...Object.keys(edit.courseOrder ?? {}).map(id => `course:${id}:order`),
       ...Object.keys(edit.legs ?? {}).map(key => `leg:${key}`),
       ...Object.keys(edit.specialObjects ?? {}).map(id => `specialObject:${id}`),
       ...Object.keys(edit.eventFields ?? {}).sort().map(key => `event:${key}`),
@@ -223,7 +242,7 @@ function editRefs(edit: CourseSettingEdit): [Kind, string][] {
       ...(typeof edit.after === "string" ? [["courseControls", edit.after] as [Kind, string]] : [])];
     case "REMOVE_COURSE_CONTROL": return [["courses", edit.course], ["courseControls", edit.courseControl]];
     case "ADD_SPLIT": case "REMOVE_SPLIT": return [["courses", edit.course], ["courseControls", edit.at]];
-    case "MOVE_NUMBER": return [["courses", edit.course], ["courseControls", edit.courseControl]];
+    case "MOVE_NUMBER": case "SET_POINTS": return [["courses", edit.course], ["courseControls", edit.courseControl]];
     case "SET_LEG_BENDS": case "SET_LEG_GAPS": return [["controls", edit.from], ["controls", edit.to]];
     case "SET_EVENT": case "SET_APPEARANCE": return [];
     case "ADD_SPECIAL": return courseRefs(edit.special.courses);
@@ -244,6 +263,7 @@ function editRefs(edit: CourseSettingEdit): [Kind, string][] {
         refs.push(["courses", id]);
         if (course?.first !== undefined) refs.push(["courseControls", course.first]);
       }
+      for (const id of Object.keys(edit.courseOrder ?? {})) refs.push(["courses", id]);
       for (const leg of Object.values(edit.legs ?? {})) if (leg) refs.push(["controls", leg.from], ["controls", leg.to]);
       for (const [id, special] of Object.entries(edit.specialObjects ?? {})) {
         refs.push(["specialObjects", id]);
@@ -278,7 +298,9 @@ function remapPut(edit: PutObjectsEdit, map: Lookup): PutObjectsEdit {
   })) : undefined;
   const so = (id: string) => map("specialObjects", id);
   const specialObjects = remapRecord<SpecialObject>(edit.specialObjects, so, special => ({ ...special, id: so(special.id), courses: special.courses.map(co) }));
+  const courseOrder = edit.courseOrder ? Object.fromEntries(Object.entries(edit.courseOrder).map(([id, order]) => [co(id), order])) : undefined;
   return { ...edit, ...(controls ? { controls } : {}), ...(courseControls ? { courseControls } : {}), ...(courses ? { courses } : {}),
+    ...(courseOrder ? { courseOrder } : {}),
     ...(legs ? { legs } : {}), ...(specialObjects ? { specialObjects } : {}) };
 }
 
@@ -298,7 +320,7 @@ function remapWith(edit: CourseSettingEdit, map: Lookup): CourseSettingEdit {
       ...(typeof edit.after === "string" ? { after: cc(edit.after) } : {}) };
     case "REMOVE_COURSE_CONTROL": return { ...edit, course: co(edit.course), courseControl: cc(edit.courseControl) };
     case "ADD_SPLIT": case "REMOVE_SPLIT": return { ...edit, course: co(edit.course), at: cc(edit.at) };
-    case "MOVE_NUMBER": return { ...edit, course: co(edit.course), courseControl: cc(edit.courseControl) };
+    case "MOVE_NUMBER": case "SET_POINTS": return { ...edit, course: co(edit.course), courseControl: cc(edit.courseControl) };
     case "SET_LEG_BENDS": case "SET_LEG_GAPS": return { ...edit, from: c(edit.from), to: c(edit.to) };
     case "PUT_OBJECTS": return remapPut(edit, map);
     case "ADD_SPECIAL": return edit.special.courses ? { ...edit, special: { ...edit.special, courses: edit.special.courses.map(co) } } : edit;

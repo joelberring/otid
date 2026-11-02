@@ -58,6 +58,8 @@ import { TransferPanel } from "./course-setting-transfer";
 import { Dialog, Drawer, ToolBar, TopBar, type DrawerTab } from "./course-setting-workspace";
 import { useCourseSettingCollaboration } from "./use-course-setting-collaboration";
 import { ControlList } from "./course-setting-controls";
+import { CourseProperties } from "./course-setting-course-properties";
+import { moveCourseEdit } from "../../lib/course-setting-properties";
 import { useCourseSettingUx } from "./use-course-setting-ux";
 import { rejectedNoteText, useCourseSettingNotes } from "./use-course-setting-notes";
 import { loadMapFile, useCourseSettingOffline } from "./use-course-setting-offline";
@@ -574,12 +576,17 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
         onView={(next, value) => apply(current => setView(current, next, value))} onAdd={addCourse}
         onRename={(id, name) => edit(current => applySteps(current, [{ type: "UPDATE_COURSE", course: id, changes: { name } }], applyEdit))}
         onClasses={(id, classes) => edit(current => applySteps(current, [{ type: "UPDATE_COURSE", course: id, changes: { secondaryTitle: classes } }], applyEdit))}
-        onRemove={ux.requestDelete} onDuplicate={ux.duplicate} />
+        onRemove={ux.requestDelete} onDuplicate={ux.duplicate}
+        onMove={(id, position) => edit(current => { const step = moveCourseEdit(current.document, id, position);
+          return step ? applySteps(current, [step], applyEdit) : current; })} />
+        {course && <CourseProperties course={course} summary={summaries.find(row => row.course === course.id)} readOnly={readOnly}
+          onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} />}
         <ControlList document={document} summaries={summaries} view={view} variant={variant} branch={ux.active?.start} readOnly={readOnly}
           selected={selection?.kind === "control" ? (view === ALL_CONTROLS ? selection.control : selection.courseControl) : undefined} unused={ux.unused}
           onSelect={target => { apply(current => select(current, { kind: "control", ...target })); const at = document.controls[target.control]?.at;
             if (at) mapHandle.current?.reveal([at]); }}
-          onBranch={ux.workIn} onVariant={code => apply(current => setView(current, view, code))} onRemoveUnused={ux.requestRemoveUnused} />
+          onBranch={ux.workIn} onVariant={code => apply(current => setView(current, view, code))} onRemoveUnused={ux.requestRemoveUnused}
+          onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} />
         {/* Etiketten vid kontrollen för vald bana (ADR-0180 beslut 12). */}
         {course && <LabelPanel document={document} course={course} readOnly={readOnly} onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} />}
       </>;

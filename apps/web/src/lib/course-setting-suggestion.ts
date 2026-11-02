@@ -62,6 +62,23 @@ const mm = (point: Point) => `${point.x.toFixed(1)}, ${point.y.toFixed(1)} mm`;
 const KINDS: Record<string, string> = { START: "start", NORMAL: "kontroll", FINISH: "mål", CROSSING_POINT: "passage", MAP_EXCHANGE: "kartbyte",
   MAP_ISSUE: "kartutdelning" };
 
+/** ADR-0190: banans egenskaper i en mening ("Stigning 85 m på Lång"); flera ändringar i samma åtgärd skiljs med komma. */
+function describeCourseChanges(changes: Extract<CourseSettingEdit, { type: "UPDATE_COURSE" }>["changes"], name: string): string {
+  if (changes.labelKind !== undefined && Object.keys(changes).length === 1) return `Vid kontrollerna på ${name}: ${labelSv.kinds[changes.labelKind].toLowerCase()}`;
+  const parts: string[] = [];
+  if (changes.name !== undefined) parts.push(`nytt namn ${changes.name}`);
+  if ("secondaryTitle" in changes) parts.push(changes.secondaryTitle ? `klasser ${changes.secondaryTitle}` : "inga klasser");
+  if ("printScale" in changes) parts.push(changes.printScale ? `utskriftsskala 1:${changes.printScale}` : "kartans skala");
+  if ("climbMeters" in changes) parts.push(changes.climbMeters === null || changes.climbMeters === undefined ? "ingen stigning" : `stigning ${changes.climbMeters} m`);
+  if ("lengthOverrideMeters" in changes) parts.push(changes.lengthOverrideMeters ? `fast längd ${changes.lengthOverrideMeters} m` : "uträknad längd");
+  if (changes.kind !== undefined) parts.push(changes.kind === "SCORE" ? "poängbana" : "vanlig bana");
+  if (changes.labelKind !== undefined) parts.push(`vid kontrollerna: ${labelSv.kinds[changes.labelKind].toLowerCase()}`);
+  if (changes.order !== undefined) parts.push(`plats ${changes.order} i listan`);
+  if (parts.length === 0) return `Ändra banan ${name}`;
+  const text = parts.join(", ");
+  return `${text.charAt(0).toUpperCase()}${text.slice(1)} på ${name}`;
+}
+
 /** Åtgärden i en mening, med kontrollernas koder i dokumentet som förslaget gjordes mot (eller det aktuella). */
 export function describeEdit(edit: CourseSettingEdit, document: CourseSettingDocument): string {
   const label = (id: string) => document.controls[id] ? controlLabel(document, id) : "en ny kontroll";
@@ -83,9 +100,8 @@ export function describeEdit(edit: CourseSettingEdit, document: CourseSettingDoc
     case "SET_CONTROL_ORIENTATION": return `Vrid ${label(edit.control)} till ${Math.round(edit.orientation)}°`;
     case "DUPLICATE_COURSE": return `Kopiera banan ${course(edit.course)} som ${edit.name}`;
     case "ADD_COURSE": return `Ny bana ${edit.name}`;
-    case "UPDATE_COURSE": return edit.changes.labelKind !== undefined && Object.keys(edit.changes).length === 1
-      ? `Vid kontrollerna på ${course(edit.course)}: ${labelSv.kinds[edit.changes.labelKind].toLowerCase()}`
-      : `Ändra banan ${course(edit.course)}`;
+    case "UPDATE_COURSE": return describeCourseChanges(edit.changes, course(edit.course));
+    case "SET_POINTS": return `${edit.points ? `${edit.points} poäng` : "Inga poäng"} för ${onCourse(edit.courseControl)} på ${course(edit.course)}`;
     case "DELETE_COURSE": return `Ta bort banan ${course(edit.course)}`;
     case "INSERT_COURSE_CONTROL": return `Lägg in ${label(edit.control)} på ${course(edit.course)}`;
     case "REMOVE_COURSE_CONTROL": return `Ta bort ${onCourse(edit.courseControl)} från ${course(edit.course)}`;

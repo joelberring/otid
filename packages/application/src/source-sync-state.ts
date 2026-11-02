@@ -11,7 +11,8 @@ export async function loadCurrentState(tx: Transaction, raceId: string): Promise
     .innerJoin(schema.events, eq(schema.events.id, schema.races.eventId)).where(eq(schema.races.id, raceId));
   if (!race) throw new Error("Loppet saknas");
   const courseRows = await tx.select({ id: schema.courses.id, name: schema.courses.name, externalSource: schema.courses.externalSource,
-    externalId: schema.courses.externalId }).from(schema.courses).where(eq(schema.courses.raceId, raceId)).orderBy(asc(schema.courses.name));
+    externalId: schema.courses.externalId, lengthMeters: schema.courses.lengthMeters, climbMeters: schema.courses.climbMeters })
+    .from(schema.courses).where(eq(schema.courses.raceId, raceId)).orderBy(asc(schema.courses.name));
   const versions = await tx.selectDistinctOn([schema.courseVersions.courseId], { id: schema.courseVersions.id,
     courseId: schema.courseVersions.courseId, version: schema.courseVersions.version }).from(schema.courseVersions)
     .innerJoin(schema.courses, eq(schema.courses.id, schema.courseVersions.courseId)).where(eq(schema.courses.raceId, raceId))

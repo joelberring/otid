@@ -53,7 +53,7 @@ export const eventorEventChoiceResponseSchema = z.object({
 }).strict();
 
 export const sourceKindSchema = z.enum(["EVENTOR", "COURSE_FILE"]);
-export const syncFieldSchema = z.enum(["NAME", "CLUB", "CLASS", "CARD", "COURSE", "CONTROLS", "VARIANTS", "TEAM_NAME", "CLASS_NAME", "LEGS"]);
+export const syncFieldSchema = z.enum(["NAME", "CLUB", "CLASS", "CARD", "COURSE", "CONTROLS", "VARIANTS", "TEAM_NAME", "CLASS_NAME", "LEGS", "LENGTH", "CLIMB"]);
 /** Varför en rad inte kan godkännas här, eller vad den innebär. Texterna finns i i18n. */
 export const syncNoteSchema = z.enum([
   "WITHDRAWN_READ_OUT", "WITHDRAWN_HAS_RESULT", "CARD_IN_USE", "CARD_AFTER_READOUT", "TEAM_CLASS_CHANGED", "RELAY_CLASS_MISMATCH",

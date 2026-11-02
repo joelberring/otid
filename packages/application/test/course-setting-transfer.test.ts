@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
-import { readPpen } from "@o-tid/course-setting";
+import { applyEdit, readPpen } from "@o-tid/course-setting";
 import { parseIofXml } from "@o-tid/iof-xml";
 import { classNamesOf, courseSettingProjection } from "../src/course-setting-transfer";
 
@@ -74,5 +74,21 @@ describe("banläggningen som banfil", () => {
   it("läser klasserna ur undertiteln som Purple Pen", () => {
     expect(classNamesOf(" H21, D21 | H20 ")).toEqual(["H21", "D21", "H20"]);
     expect(classNamesOf(undefined)).toEqual([]);
+  });
+
+  it("ADR-0190: stigning och fast längd följer med (avrundade som Purple Pen), och ordningen ändrar inga banor", async () => {
+    const ppen = await readFile(new URL("../../../fixtures/course-setting/kartfil.ppen", import.meta.url), "utf8");
+    let document = readPpen(ppen).document;
+    const lang = document.courses.find(course => course.name === "Lång")!;
+    document = applyEdit(document, { type: "UPDATE_COURSE", course: lang.id, changes: { climbMeters: 83, lengthOverrideMeters: 2640 } }).document;
+    const built = courseSettingProjection(document);
+    if (!("projection" in built)) throw new Error(built.problem.error);
+    expect(built.projection.data.courses.find(course => course.name === "Lång")).toMatchObject({ lengthMeters: 2600, climbMeters: 85 });
+    const moved = applyEdit(document, { type: "UPDATE_COURSE", course: lang.id, changes: { order: document.courses.length } }).document;
+    const again = courseSettingProjection(moved);
+    if (!("projection" in again)) throw new Error(again.problem.error);
+    const byName = (courses: readonly { name: string }[]) => [...courses].sort((a, b) => a.name.localeCompare(b.name));
+    expect(byName(again.projection.data.courses)).toEqual(byName(built.projection.data.courses));
+    expect(again.projection.data.courses.at(-1)!.name).toBe("Lång");
   });
 });

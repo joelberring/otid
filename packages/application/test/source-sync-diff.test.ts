@@ -66,4 +66,25 @@ describe("skillnader mot en banfil", () => {
       ["CONFLICT", "Bana 2", false, "NOT_IN_FILE", []]]);
     expect(diff.unchanged).toBe(1);
   });
+
+  it("ADR-0190: bara ändrad längd eller stigning är en egen rad, ny ordning ger inga rader", () => {
+    const current = state([]);
+    const measured = { ...current, courses: [{ ...current.courses[0]!, externalSource: "iof", externalId: "Bana 1", lengthMeters: 2400, climbMeters: null },
+      { id: "course-2", name: "Bana 2", externalSource: "iof", externalId: "Bana 2", versionId: "v2", version: 1, controlCodes: [33], variants: [],
+        lengthMeters: 1800, climbMeters: 20 }] };
+    const file = (courses: { externalId: string; name: string; controlCodes: number[]; lengthMeters?: number; climbMeters?: number }[]) =>
+      diffCourseFile({ kind: "COURSE_FILE", data: { courses, assignments: [], personAssignments: [], teamAssignments: [], warnings: [] } }, measured, new Map());
+    const same = [{ externalId: "Bana 1", name: "Bana 1", controlCodes: [31, 32], lengthMeters: 2400 },
+      { externalId: "Bana 2", name: "Bana 2", controlCodes: [33], lengthMeters: 1800, climbMeters: 20 }];
+    // Samma banor i omvänd ordning: inget att göra (inga nya versioner, inget räknas om).
+    expect(file([...same].reverse()).rows).toEqual([]);
+    expect(file([...same].reverse()).unchanged).toBe(2);
+    const diff = file([{ ...same[0]!, climbMeters: 85 }, { ...same[1]!, lengthMeters: 1900 }]);
+    expect(diff.rows.map(planned => [planned.row.label, planned.action.type, planned.row.changes])).toEqual([
+      ["Bana 1", "SET_COURSE_MEASURES", [{ field: "CLIMB", from: null, to: "85 m" }]],
+      ["Bana 2", "SET_COURSE_MEASURES", [{ field: "LENGTH", from: "1800 m", to: "1900 m" }]]]);
+    // Ändrade kontroller och längd: en rad med båda.
+    const both = file([{ ...same[0]!, controlCodes: [31, 39], lengthMeters: 2500 }, same[1]!]);
+    expect(both.rows.map(planned => [planned.action.type, planned.row.changes.map(change => change.field)])).toEqual([["CHANGE_COURSE", ["CONTROLS", "LENGTH"]]]);
+  });
 });

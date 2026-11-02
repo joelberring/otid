@@ -117,7 +117,7 @@ export const sourcesSv = {
     kindSymbol: { NEW: "+", CHANGED: "~", WITHDRAWN: "−", CONFLICT: "!" } satisfies Record<SyncRow["kind"], string>,
     subject: { CLASS: "Klass", ENTRY: "Deltagare", TEAM: "Lag", COURSE: "Bana" } satisfies Record<SyncRow["subject"], string>,
     field: { NAME: "Namn", CLUB: "Klubb", CLASS: "Klass", CARD: "Bricka", COURSE: "Bana", CONTROLS: "Kontroller", VARIANTS: "Variant",
-      TEAM_NAME: "Lagnamn", CLASS_NAME: "Klassnamn", LEGS: "Sträcka" } satisfies Record<SyncField, string>,
+      LENGTH: "Längd", CLIMB: "Stigning", TEAM_NAME: "Lagnamn", CLASS_NAME: "Klassnamn", LEGS: "Sträcka" } satisfies Record<SyncField, string>,
     none: "–",
     becomes: "blir",
     withdrawnHelp: "Blir ej start. Deltagaren och historiken finns kvar.",

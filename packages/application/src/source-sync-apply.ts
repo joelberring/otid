@@ -320,11 +320,11 @@ export async function assessCourseFile(tx: Transaction, raceId: string, rows: re
 }
 
 /**
- * Banans längd och stigning ur banfilen (PLAN.md steg 25) för varje bana i filen som finns i tävlingen. Uppgifterna
- * påverkar inga resultat och sparas därför även för banor vars kontroller inte ändrats.
+ * Banans längd och stigning ur banfilen (PLAN.md steg 25). Uppgifterna påverkar inga resultat. ADR-0190: en befintlig
+ * bana får dem när dess rad är vald (ändrade kontroller, eller bara ändrad längd eller stigning); nya banor alltid.
  */
 async function storeCourseMeasurements(tx: Transaction, raceId: string, projection: CourseFileProjection, state: CurrentState,
-  links: readonly { id: string; externalId: string }[], ids: Ids): Promise<void> {
+  links: readonly { id: string; externalId: string }[], ids: Ids, measured: ReadonlySet<string>): Promise<void> {
   // Steg 49: kontrollernas lägen (äldre förhandsvisningar saknar dem).
   await storeControlPositions(tx, raceId, projection.data.controlPositions ?? []);
   // Steg 52: kartlägena och kartans skala.
@@ -335,6 +335,7 @@ async function storeCourseMeasurements(tx: Transaction, raceId: string, projecti
     if (!courseId) continue;
     await storeCourseEnds(tx, raceId, courseId, course);
     if (course.lengthMeters === undefined && course.climbMeters === undefined) continue;
+    if (!ids.courses.has(course.externalId) && !measured.has(courseId)) continue;
     await tx.update(schema.courses).set({ ...(course.lengthMeters !== undefined ? { lengthMeters: course.lengthMeters } : {}),
       ...(course.climbMeters !== undefined ? { climbMeters: course.climbMeters } : {}) })
       .where(and(eq(schema.courses.id, courseId), eq(schema.courses.raceId, raceId)));
@@ -372,7 +373,8 @@ export async function applyCourseFile(tx: Transaction, input: ApplyInput, projec
     if (action.type === "CHANGE_CLASS_COURSE") await tx.update(schema.classes).set({ courseVersionId: versionOf(action.courseRef, ids, state) })
       .where(and(eq(schema.classes.id, action.classId), eq(schema.classes.raceId, raceId)));
   }
-  await storeCourseMeasurements(tx, raceId, projection, state, links, ids);
+  const measured = new Set(rows.flatMap(({ action }) => action.type === "CHANGE_COURSE" || action.type === "SET_COURSE_MEASURES" ? [action.courseId] : []));
+  await storeCourseMeasurements(tx, raceId, projection, state, links, ids, measured);
   // Varianter per löpare och lag ur filen; den som läst ut behåller sin variant.
   const keep = new Set(state.entries.filter(entry => entry.readOut || entry.hasResult).map(entry => entry.id));
   // Steg 47: AllowedOnLeg ger stafettsträckornas banor.

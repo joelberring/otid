@@ -288,7 +288,10 @@ export type CourseSettingEdit =
    * nummerlägen, tryckyta och inställningar, direkt efter originalet; banans specialobjekt syns också på kopian.
    */
   | { readonly type: "DUPLICATE_COURSE"; readonly course: string; readonly name: string }
-  | { readonly type: "UPDATE_COURSE"; readonly course: string; readonly changes: Partial<Pick<Course, "name" | "secondaryTitle" | "printScale" | "climbMeters" | "lengthOverrideMeters" | "labelKind" | "order">> }
+  /** Banans egenskaper (ADR-0190): `null` tar bort stigning, fast längd, undertitel och utskriftsskala; `order` = plats i listan. */
+  | { readonly type: "UPDATE_COURSE"; readonly course: string; readonly changes: CourseChanges }
+  /** ADR-0190: poängen för banans kontroll på en poängbana (Purple Pens points); 0 eller null = inga. */
+  | { readonly type: "SET_POINTS"; readonly course: string; readonly courseControl: string; readonly points: number | null }
   | { readonly type: "DELETE_COURSE"; readonly course: string }
   /** Lägg in kontrollen på banan efter `after` (banans kontroll-id); null = först. Utan `after` läggs den före målet. */
   | { readonly type: "INSERT_COURSE_CONTROL"; readonly course: string; readonly control: string; readonly after?: string | null | undefined }
@@ -309,6 +312,19 @@ export type CourseSettingEdit =
   | PutObjectsEdit
   /** Steg 64: specialobjekt och tryckyta. */
   | SpecialEdit;
+
+/** Ändringarna i `UPDATE_COURSE`. */
+export interface CourseChanges {
+  readonly name?: string | undefined;
+  readonly kind?: Course["kind"] | undefined;
+  readonly labelKind?: Course["labelKind"] | undefined;
+  /** Platsen i banlistan (1 = först); de andra banorna numreras om. */
+  readonly order?: number | undefined;
+  readonly secondaryTitle?: string | null | undefined;
+  readonly printScale?: number | null | undefined;
+  readonly climbMeters?: number | null | undefined;
+  readonly lengthOverrideMeters?: number | null | undefined;
+}
 
 /** Specialobjektets tolkade egenskaper (utom punkter och banor). */
 export type SpecialFields = Pick<SpecialObject, "orientation" | "stretch" | "text" | "font" | "color" | "line" | "columns">;
@@ -352,6 +368,11 @@ export interface PutObjectsEdit {
   readonly specialObjects?: Readonly<Record<string, SpecialObject | null>> | undefined;
   /** Hela händelsen (äldre klienter och sparade förslag). */
   readonly event?: CourseSettingDocument["event"] | undefined;
+  /**
+   * ADR-0190: banornas plats i listan per id. Banor i `courses` som redan finns behåller sin ordning (den ändras bara här),
+   * så att ångra av t.ex. ett namnbyte inte flyttar tillbaka en bana som någon annan flyttat. Ordningen numreras om 1, 2, 3 ….
+   */
+  readonly courseOrder?: Readonly<Record<string, number>> | undefined;
   /** Händelsens fält som ändras (null = tas bort); ångra av en inställning rör bara den (översynen 2026-11-02). */
   readonly eventFields?: Readonly<Record<string, unknown>> | undefined;
 }

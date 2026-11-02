@@ -83,3 +83,5 @@ h3.listHeading { font-size: var(--text-sm); }
   .viewMenu { bottom: auto; top: 46px; }
   .forkBar { padding: 4px 8px; }
 }
+/* ADR-0190: poängbanans poäng bredvid kontrollen. */
+.scoreRow { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px; }

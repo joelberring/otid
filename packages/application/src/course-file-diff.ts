@@ -24,6 +24,22 @@ function variantChanges(current: Variants, next: Variants): SyncRow["changes"] {
 }
 
 /**
+ * ADR-0190: längd och stigning som skiljer (bara de som filen har; en bana utan uppgift i tävlingen jämförs inte när
+ * tävlingens värde inte är känt).
+ */
+function measureChanges(local: CurrentCourse, course: CourseFileProjection["data"]["courses"][number]): SyncRow["changes"] {
+  const changes: SyncRow["changes"] = [];
+  const meters = (value: number | null | undefined) => value === null || value === undefined ? null : `${value} m`;
+  if (local.lengthMeters !== undefined && course.lengthMeters !== undefined && course.lengthMeters !== local.lengthMeters) {
+    changes.push({ field: "LENGTH", from: meters(local.lengthMeters), to: meters(course.lengthMeters) });
+  }
+  if (local.climbMeters !== undefined && course.climbMeters !== undefined && course.climbMeters !== local.climbMeters) {
+    changes.push({ field: "CLIMB", from: meters(local.climbMeters), to: meters(course.climbMeters) });
+  }
+  return changes;
+}
+
+/**
  * Skillnaden mellan en banfil (IOF XML CourseData från OCAD, Purple Pen eller Condes) och
  * tävlingen (ADR-0170 beslut 4). Ren funktion.
  *
@@ -31,6 +47,8 @@ function variantChanges(current: Variants, next: Variants): SyncRow["changes"] {
  * - Ändrad kontrollföljd eller ändrade varianter ger en ny banversion; klasserna på banan följer med.
  * - Klasser matchas på filens id, annars på namn (även klasser från Eventor och egna klasser).
  * - Banor som inte finns i filen tas aldrig bort; de visas bara.
+ * - ADR-0190: ändrad längd eller stigning är en egen rad (räknar inte om några resultat). Banornas ordning i filen spelar
+ *   ingen roll för banorna (de matchas på id och namn), bara för vilken bana en klass som nämns två gånger får.
  */
 export function diffCourseFile(projection: CourseFileProjection, state: CurrentState,
   readOutByClass: ReadonlyMap<string, number>): SourceDiff<CourseFileAction> {
@@ -63,7 +81,14 @@ export function diffCourseFile(projection: CourseFileProjection, state: CurrentS
     courseTarget.set(course.externalId, { ref: { existing: local.id }, name: local.name });
     const changes = variants.length > 0 || local.variants.length > 0 ? variantChanges(local.variants, variants)
       : sameCodes(local.controlCodes, course.controlCodes) ? [] : [{ field: "CONTROLS" as const, from: codes(local.controlCodes), to: codes(course.controlCodes) }];
+    const measures = measureChanges(local, course);
+    if (changes.length === 0 && measures.length > 0) {
+      rows.push({ row: row({ key: `course-measures:${local.id}`, kind: "CHANGED", subject: "COURSE", label: local.name, changes: measures }),
+        action: { type: "SET_COURSE_MEASURES", courseId: local.id } });
+      continue;
+    }
     if (changes.length === 0) { unchanged += 1; continue; }
+    changes.push(...measures.slice(0, Math.max(0, 20 - changes.length)));
     rows.push({ row: row({ key: `course:${local.id}`, kind: "CHANGED", subject: "COURSE", label: local.name, changes,
       readOut: readOutOnCourse(local.id) > 0, context: state.classes.filter(raceClass => raceClass.courseId === local.id)
         .map(raceClass => raceClass.name).join(", ") || null }),

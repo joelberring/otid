@@ -126,6 +126,16 @@
 .course { display: grid; width: 100%; padding: 6px 8px; border: 1px solid transparent; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .course[aria-pressed="true"] { border-color: var(--ink); background: var(--surface-strong, rgba(0, 0, 0, .05)); }
 .course span { color: var(--muted); font-size: var(--text-sm); }
+/* ADR-0190: banornas ordning (dra, eller upp och ned) och banans egenskaper. */
+.courseRow { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px; border-top: 2px solid transparent; }
+.courseRow[draggable="true"] .course { cursor: grab; }
+.courseRow[data-drop="true"] { border-top-color: rgb(0, 110, 220); }
+.courseRow[data-dragging="true"] { opacity: .5; }
+.orderButtons { display: flex; gap: 2px; }
+.orderButtons button { min-width: 36px; min-height: 36px; padding: 0 6px; }
+fieldset.row { margin: 0; padding: 0; border: none; }
+fieldset.row legend { width: 100%; padding: 0; font-weight: 600; }
+.points { width: 4.2em; min-height: 32px; padding: 2px 4px; font: inherit; text-align: right; }
 .checks { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
 .checks button { width: 100%; padding: 4px 6px; border: none; border-left: 3px solid var(--attention); background: var(--attention-tint);
   color: inherit; font: inherit; font-size: var(--text-sm); text-align: left; cursor: pointer; }

@@ -34,8 +34,23 @@ export function putObjects(document: CourseSettingDocument, edit: PutObjectsEdit
     if (value !== null && (typeof value !== "object" || value.id !== id)) throw invalid(`Banan ${id} har fel id`);
     const index = courses.findIndex(course => course.id === id);
     if (value === null) courses = courses.filter(course => course.id !== id);
-    else if (index >= 0) courses[index] = value;
+    // ADR-0190: en bana som finns behåller sin plats i listan; platsen ändras bara med `courseOrder`.
+    else if (index >= 0) courses[index] = { ...value, order: courses[index]!.order };
     else courses.push(value);
+  }
+  if (edit.courseOrder) {
+    for (const [id, order] of Object.entries(edit.courseOrder)) {
+      if (!Number.isInteger(order)) throw invalid(`Banan ${id} har fel ordning`);
+      const index = courses.findIndex(course => course.id === id);
+      if (index < 0) throw gone();
+      courses[index] = { ...courses[index]!, order };
+    }
+    // Ordningen 1, 2, 3 … (två banor på samma plats efter andras flyttar: den som flyttades här först).
+    const placed = new Set(Object.keys(edit.courseOrder));
+    const sorted = [...courses].sort((a, b) => a.order - b.order || Number(placed.has(b.id)) - Number(placed.has(a.id)) ||
+      a.name.localeCompare(b.name, "sv-SE"));
+    const rank = new Map(sorted.map((course, index) => [course.id, index + 1]));
+    courses = courses.map(course => course.order === rank.get(course.id) ? course : { ...course, order: rank.get(course.id)! });
   }
   let specialObjects = [...document.specialObjects];
   for (const [id, value] of Object.entries(edit.specialObjects ?? {})) {

@@ -15,6 +15,7 @@ import { CourseSettingEditError } from "./types";
 import { putObjects } from "./put-objects";
 import { applySpecialEdit } from "./special-edit";
 import { duplicateCourse } from "./course-duplicate";
+import { setPoints, updateCourse } from "./course-properties";
 import { enumerateCourseControls, findCourse } from "./walk";
 import { el } from "./xml";
 
@@ -260,57 +261,6 @@ function addCourse(draft: Draft, name: string, kind: "NORMAL" | "SCORE"): string
   return id;
 }
 
-type CourseChanges = Extract<CourseSettingEdit, { type: "UPDATE_COURSE" }>["changes"];
-
-function updateCourse(draft: Draft, courseId: string, changes: CourseChanges): void {
-  let course = findCourse(asDocument(draft), courseId);
-  const set = <K extends keyof CourseChanges>(key: K, valid: (value: NonNullable<Course[K]>) => boolean) => {
-    if (!(key in changes)) return;
-    const value = changes[key];
-    if (value === undefined) {
-      if (key === "name" || key === "labelKind" || key === "order") throw invalidEdit(`${key} måste ha ett värde`);
-      course = without(course, key);
-      return;
-    }
-    if (!valid(value as NonNullable<Course[K]>)) throw invalidEdit(`Ogiltigt värde för ${key}`);
-    course = { ...course, [key]: value };
-  };
-  set("name", name => name.trim() !== "");
-  set("secondaryTitle", () => true);
-  set("printScale", scale => Number.isFinite(scale) && scale > 0);
-  set("climbMeters", climb => Number.isFinite(climb) && climb >= 0);
-  set("lengthOverrideMeters", length => Number.isFinite(length) && length > 0);
-  set("labelKind", label => course.kind === "SCORE" || !label.includes("SCORE"));
-  if (changes.labelKind?.startsWith("SEQUENCE") && course.kind === "SCORE") course = scoreColumnOutsideA(course);
-  if ("order" in changes && changes.order !== undefined) {
-    const target = changes.order;
-    if (!Number.isInteger(target) || target < 1) throw invalidEdit("Ogiltig ordning");
-    const others = [...draft.courses].filter(other => other.id !== courseId).sort((a, b) => a.order - b.order);
-    others.splice(Math.min(target - 1, others.length), 0, course);
-    replaceCourse(draft, course);
-    draft.courses = draft.courses.map(existing => {
-      const order = others.findIndex(other => other.id === existing.id) + 1;
-      return { ...(existing.id === courseId ? course : existing), order };
-    });
-    return;
-  }
-  replaceCourse(draft, course);
-}
-
-/**
- * Nummer på en poängbana står i beskrivningens kolumn A, så poängen kan inte stå där; som Purple Pens dialog (AddCourse)
- * flyttas den då till kolumn B (`<options score-column>`).
- */
-function scoreColumnOutsideA(course: Course): Course {
-  const raws = course.raw ?? [];
-  const index = raws.findIndex(raw => raw.xml.startsWith("<options"));
-  const options = index >= 0 ? fromRaw(raws[index]!) : el("options");
-  const column = (options.attrs.find(([name]) => name === "score-column")?.[1] ?? "").trim().toUpperCase();
-  if (column === "B" || column === "H" || column === "NONE") return course;
-  const next = toRaw(el("options", [...options.attrs.filter(([name]) => name !== "score-column"), ["score-column", "B"]], options.children));
-  return { ...course, raw: index >= 0 ? raws.map((raw, i) => (i === index ? next : raw)) : [...raws, next] };
-}
-
 function isVacuous(leg: Leg): boolean {
   return leg.bends.length === 0 && leg.gaps.length === 0 && (leg.flagging === undefined || leg.flagging === "NONE");
 }
@@ -427,6 +377,8 @@ export function applyDocumentEdit(document: CourseSettingDocument, edit: CourseS
     edit.type === "SET_PRINT_AREA" || edit.type === "PUT_PRINT_PROFILE" || edit.type === "DELETE_PRINT_PROFILE" || edit.type === "PUT_LAYOUT_TEMPLATE" ||
     edit.type === "DELETE_LAYOUT_TEMPLATE") return applySpecialEdit(document, edit);
   if (edit.type === "DUPLICATE_COURSE") return duplicateCourse(document, edit.course, edit.name);
+  if (edit.type === "UPDATE_COURSE") return { document: updateCourse(document, edit.course, edit.changes) };
+  if (edit.type === "SET_POINTS") return { document: setPoints(document, edit.course, edit.courseControl, edit.points) };
   const draft = draftOf(document);
   let created: string | undefined;
   switch (edit.type) {
@@ -464,7 +416,6 @@ export function applyDocumentEdit(document: CourseSettingDocument, edit: CourseS
       break;
     }
     case "ADD_COURSE": created = addCourse(draft, edit.name, edit.kind ?? "NORMAL"); break;
-    case "UPDATE_COURSE": updateCourse(draft, edit.course, edit.changes); break;
     case "DELETE_COURSE": findCourse(asDocument(draft), edit.course); deleteCourse(draft, edit.course); break;
     case "INSERT_COURSE_CONTROL": created = insertCourseControl(draft, edit.course, edit.control, edit.after); break;
     case "REMOVE_COURSE_CONTROL": removeCourseControl(draft, edit.course, edit.courseControl); break;

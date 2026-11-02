@@ -49,4 +49,17 @@ describe("banläggningens åtgärder", () => {
     expect(parse({ type: "SET_APPEARANCE", changes: { centerDot: 0.3 } })).toBe(false);
     expect(parse({ type: "UPDATE_COURSE", course: "3", changes: { labelKind: "SEQUENCE_AND_CODE" } })).toBe(true);
   });
+
+  it("tar banans egenskaper, poängen och ordningen (ADR-0190)", () => {
+    const parse = (edit: unknown) => courseSettingEditSchema.safeParse(edit).success;
+    expect(parse({ type: "UPDATE_COURSE", course: "3", changes: { climbMeters: 85, lengthOverrideMeters: null, kind: "SCORE", order: 2 } })).toBe(true);
+    expect(parse({ type: "UPDATE_COURSE", course: "3", changes: { climbMeters: null } })).toBe(true);
+    expect(parse({ type: "UPDATE_COURSE", course: "3", changes: { kind: "RELAY" } })).toBe(false);
+    expect(parse({ type: "UPDATE_COURSE", course: "3", changes: { order: 0 } })).toBe(false);
+    expect(parse({ type: "SET_POINTS", course: "3", courseControl: "7", points: 30 })).toBe(true);
+    expect(parse({ type: "SET_POINTS", course: "3", courseControl: "7", points: null })).toBe(true);
+    expect(parse({ type: "SET_POINTS", course: "3", courseControl: "7", points: 2.5 })).toBe(false);
+    expect(parse({ type: "PUT_OBJECTS", courseOrder: { "1": 2, "2": 1 } })).toBe(true);
+    expect(parse({ type: "PUT_OBJECTS", courseOrder: { "1": 1.5 } })).toBe(false);
+  });
 });

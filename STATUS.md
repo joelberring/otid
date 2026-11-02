@@ -10,6 +10,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-02 – Banans utseende och etiketten vid kontrollen (grenen utseende, ADR-0180 beslut 12)
+- `SET_APPEARANCE` skriver om `<course-appearance>` som Purple Pen bara när något ändrats; mm på papperet per skala och varningar mot ISOM 2017-2/ISSprOM 2019-2; konfliktnycklar per fält.
+- Inställningar → Utseende: snabbval (standard, förstorat 1:10 000, ISSprOM:s ring, 3,0 mm nummer), fria kvoter, skalning, avbrott vid sträckor, tabell per skala.
+- Banor → Vid kontrollen: Nummer/Kod/Nummer och kod (1, 31, 1-31), poäng bara för poängbanor, samma för alla stafettbanor eller banor; texter som Purple Pen (3/7-31, 31(30)).
+- Verifierat: se slutet av raden nedan. Återstår: ägaren provar med en riktig nattbana; centrumpunkt, typsnitt och vit kant runt numren finns inte.
+
 ### 2026-11-02 – Steg 65: PDF för tryck med dekorfärger och övertryck (grenen steg65-pdf, ADR-0184)
 - Paketet `print-pdf` (pdf-lib + fontkit, MIT): arken ur steg 64 som PDF utan omräkning; kartan som vektorer via `drawMap` med en PDF-kontext (`MapDrawingContext`, ingen dubbel geometri), ett Form XObject per utsnitt; Roboto/Roboto Condensed (OFL) inbäddade som delmängd.
 - Färger: kartans dekorfärger som `/Separation`/`/DeviceN` (typ 4) med filens CMYK och övertryck (kartläsarna behåller nu separationerna), banan i profilens dekorfärg ("Purple") med /OP /op /OPM 1, vitt som knockout, skärmarker i `/All`; lägena tryckeri, tryckeri med kartan i CMYK och kontorsskrivare. Baksidor upprätt med /Duplex DuplexFlipLongEdge.

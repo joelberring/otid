@@ -630,8 +630,10 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
       case "suggestions": return <SuggestionsPanel suggestions={collaboration.suggestions} document={document} reviewing={reviewing}
         onReview={id => { setReviewing(id); setSkip(new Set()); setDecision(undefined); }} skip={skip} onSkip={setSkip}
         canDecide={access.level === "EDIT"} onDecide={decide} result={decision} rejected={rejectedInPreview} draft={draft} />;
-      // Inställningar: arbetssättet och ringklippen (ADR-0180 beslut 10).
-      case "settings": return <><section className={styles.panel} aria-labelledby="course-setting-mode">
+      // Inställningar: banans utseende (ADR-0180 beslut 12), arbetssättet, utan nät och ringklippen (beslut 10).
+      case "settings": return <>
+      <AppearancePanel document={document} view={view} readOnly={readOnly} onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} />
+      <section className={styles.panel} aria-labelledby="course-setting-mode">
         <h2 id="course-setting-mode">{copy.mode.heading}</h2>
         <label className={styles.stack}>{copy.mode.label}
           <select value={collaboration.mode} disabled={!access.admin} onChange={event => void changeMode(event.target.value === "SHARED" ? "SHARED" : "LEAD")}>
@@ -643,7 +645,6 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
       </section>
       <OfflinePanel info={offline.mapInfo} mapSha256={state.mapFile?.sha256} mapBytes={mapBytes} busy={offline.busy} message={offline.panelMessage}
         waiting={offline.waiting} onSave={() => void offline.saveOffline()} onRemove={() => void offline.removeOffline()} onSend={offline.retry} />
-      <AppearancePanel document={document} view={view} readOnly={readOnly} onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} />
       {!readOnly && <CircleCuttingPanel document={document} cutting={cutting} onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} />}
       </>;
     }

@@ -46,7 +46,9 @@ test("banläggning-utseende: större ringar och nummer och kod (1-31) på kartan
   await expect(appearance.getByTestId("appearance-preset-enlarged")).toHaveAttribute("aria-pressed", "true");
   await expect(appearance.getByTestId("appearance-scales")).toContainText("0,53");
   await expect(owner.getByTestId("course-setting-status")).toHaveText("Sparat", { timeout: 15_000 });
-  await reviewScreenshots(owner, "banlaggning-utseende-installningar");
+  await reviewScreenshots(owner, "banlaggning-utseende-installningar", [1280]);
+  await appearance.getByTestId("appearance-scales").scrollIntoViewIfNeeded();
+  await reviewScreenshots(owner, "banlaggning-utseende-installningar-tabell", [1280]);
 
   // Banor → Vid kontrollen: Nummer och kod.
   await owner.getByRole("tab", { name: "Banor" }).click();
@@ -55,7 +57,7 @@ test("banläggning-utseende: större ringar och nummer och kod (1-31) på kartan
   await label.getByLabel("Nummer och kod").check();
   await expect(overprint).toHaveAttribute("data-labels", /(^| )1-31( |$)/);
   await expect(owner.getByTestId("course-setting-status")).toHaveText("Sparat", { timeout: 15_000 });
-  await reviewScreenshots(owner, "banlaggning-utseende-etikett");
+  await reviewScreenshots(owner, "banlaggning-utseende-etikett", [1280]);
 
   const state = await (await owner.request.get(`${admin}/course-setting`)).json() as {
     setting: { document: { courses: { id: string; name: string; labelKind: string }[]; event: { raw: { xml: string }[] } } } };
@@ -63,7 +65,28 @@ test("banläggning-utseende: större ringar och nummer och kod (1-31) på kartan
   const course = document.courses.find(item => item.name === "Lång")!;
   expect(course.labelKind).toBe("SEQUENCE_AND_CODE");
   expect(document.event.raw.find(raw => raw.xml.startsWith("<course-appearance"))!.xml)
-    .toBe('<course-appearance control-circle-size-ratio="1.25" scale-sizes="RelativeTo15000" auto-leg-gap-size="3.5" />');
+    .toBe('<course-appearance control-circle-size-ratio="1.25" scale-sizes="RelativeTo15000" auto-leg-gap-size="3.5"/>');
+
+  // Telefonen: Inställningar och Banor ligger bakom "Mer"; utseendet och etiketten går att nå och läsa på 390 px.
+  const phoneContext = await browser.newContext({ storageState: await owner.context().storageState(), viewport: { width: 390, height: 844 }, hasTouch: true });
+  const phone = await phoneContext.newPage();
+  await phone.goto(`/admin/${raceId}/course-setting`);
+  const more = phone.getByTestId("course-setting-field-more");
+  await expect(more).toBeVisible({ timeout: 60_000 });
+  await more.click();
+  await phone.getByRole("tab", { name: "Inställningar" }).click();
+  await expect(phone.getByTestId("appearance-circleSize")).toHaveValue("1.25");
+  expect(await phone.evaluate(() => window.document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  const shots = process.env.E2E_SCREENSHOT_DIR;
+  if (shots) await phone.screenshot({ path: `${shots}/banlaggning-utseende-installningar-390.png` });
+  await phone.getByTestId("appearance-scales").scrollIntoViewIfNeeded();
+  if (shots) await phone.screenshot({ path: `${shots}/banlaggning-utseende-installningar-tabell-390.png` });
+  await phone.getByRole("tab", { name: "Banor" }).click();
+  await phone.getByTestId("course-setting-course").filter({ hasText: "Lång" }).click();
+  await expect(phone.getByTestId("course-setting-label").getByLabel("Nummer och kod")).toBeChecked();
+  await phone.getByTestId("course-setting-label").scrollIntoViewIfNeeded();
+  if (shots) await phone.screenshot({ path: `${shots}/banlaggning-utseende-etikett-390.png` });
+  await phoneContext.close();
 
   // Förhandsvisningen: samma text och den större ringen på papperet (1:10 000, förstorat: 5,35 · 1,25 · 1,5 = 10,0 mm).
   await owner.goto(`/admin/${raceId}/course-setting/print?course=${course.id}`);

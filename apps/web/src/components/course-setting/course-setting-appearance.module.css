@@ -13,6 +13,7 @@
 .check small { display: block; color: var(--muted); font-weight: 400; }
 .table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
 .table th, .table td { padding: 3px 4px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.table td:not(:last-child) { white-space: nowrap; }
 .table td[data-warn] { color: var(--attention); font-weight: 700; }
 .table td[data-warn]::after { content: " !"; }
 .kinds { display: grid; gap: 4px; margin: 0; padding: 0; border: 0; }

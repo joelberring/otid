@@ -8,7 +8,10 @@
  * PDF/X och ICC skrivs inte (inte verifierade); filen påstår inget av det. Provtryck hos tryckeriet behövs.
  */
 import { Duplex, PDFDocument, PDFName, type PDFRawStream, type PDFRef } from "pdf-lib";
-import { descriptionSymbols, PDF_PRINT_CAPABILITIES, type DescriptionStandard, type OverprintPrimitive, type PrintProfile, type Sheet, type SheetFrame } from "@o-tid/course-setting";
+import {
+  coursePlacement, decisionFor, descriptionSymbols, PDF_PRINT_CAPABILITIES, sourceMapColors, type DescriptionStandard, type OverprintPrimitive, type PrintProfile,
+  type Sheet, type SheetFrame
+} from "@o-tid/course-setting";
 import { drawMap, type MapColor, type MapObject, type ParsedMap, type Path } from "@o-tid/map-file";
 import { ColorSpaces, Content, GS_KNOCKOUT, GS_OVERPRINT, num } from "./content";
 import { descriptionOps, figureOps, textOps, type FigureContext, type Matrix } from "./figures";
@@ -50,6 +53,26 @@ export interface WritePdfResult {
   readonly mapForms: number;
   /** Notiser till arrangören på svenska (förenklingar, avvikande dekorfärger, bilder som inte kunde skrivas). */
   readonly notes: readonly string[];
+  /** Kartfärgerna (id) som ritas över banan när banan ligger i färgordningen (BL); tom = banan överst. */
+  readonly overCourse: readonly number[];
+}
+
+/**
+ * Banans plats i kartans färgordning (BL-profilerna, `courseLayer: "REFERENCE"`): färgerna som ritas över banan, ur det
+ * godkända förslaget. `undefined` = banan överst (Purple Pens sätt, eller inget godkänt att gå efter).
+ */
+export function colorsOverCourse(map: Pick<ParsedMap, "colors">, profile: PrintProfile): ReadonlySet<number> | undefined {
+  const table = profile.reference;
+  if (profile.courseLayer !== "REFERENCE" || !table) return undefined;
+  const placement = coursePlacement(table, sourceMapColors(map.colors), color => decisionFor(profile.colorDecisions, color)?.row);
+  return placement.position === null || placement.above.size === 0 ? undefined : placement.above;
+}
+
+/** Figurerna som hör till banan i färgordningen: ringar, linjer, siffror och undre lila; beskrivningar, bilder och texter ligger överst. */
+export function inCourseLayer(figure: OverprintPrimitive): boolean {
+  if (figure.kind === "image" || figure.kind === "description") return false;
+  if (figure.color !== "COURSE" && figure.color !== "COURSE_LOWER") return false;
+  return !(figure.role === "SPECIAL" && figure.kind === "text");
 }
 
 const base64Bytes = (data: string): Uint8Array => {
@@ -168,7 +191,10 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
   const imageFor = (_mediaType: string, data: string) => images.get(data) ?? undefined;
 
   const plates = new Plates(notes);
-  const paintOptions = { mode: input.mode, profile: input.profile };
+  // BL-profilerna vill ha CMYK (processfärger): PDF:en för tryck skrivs då med kartan i CMYK.
+  const mode: PdfMode = input.mode === "PRESS" && input.profile.processColors ? "PROCESS" : input.mode;
+  if (mode !== input.mode) notes.add(`Profilen ${input.profile.name} vill ha CMYK: kartan och banan skrivs som processfärger utan dekorfärger.`);
+  const paintOptions = { mode, profile: input.profile };
   const course = coursePaint(paintOptions, plates);
   const paints = input.map ? mapPaints(input.map, paintOptions, plates, notes) : new Map<number, Paint | null>();
   plates.report();
@@ -179,16 +205,25 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
 
   // Kartans utsnitt som Form XObject (koordinater: punkter från ramens nedre vänstra hörn).
   const forms = new Map<string, { name: string; stream: PDFRawStream; ref: PDFRef }>();
-  const mapForm = (frame: SheetFrame) => {
-    const key = frameKey(frame);
+  // Banan i färgordningen: kartan i två utsnitt per ram, färgerna under banan (med papperets vitt) och färgerna över.
+  const over = input.map ? colorsOverCourse(input.map, input.profile) : undefined;
+  if (input.map && over) {
+    const names = input.map.colors.filter(color => over.has(color.id)).sort((a, b) => a.rank - b.rank).map(color => color.name);
+    notes.add(`Banan ligger i kartans färgordning enligt ${input.profile.reference?.title ?? "profilen"}: under ${names.length} kartfärger (${names.slice(0, 5).join(", ")}${names.length > 5 ? " m.fl." : ""}).`);
+  }
+  const mapForm = (frame: SheetFrame, part: "ALL" | "UNDER" | "OVER" = "ALL") => {
+    const key = `${frameKey(frame)}|${part}`;
     const known = forms.get(key);
     if (known || !input.map) return known;
     const content = new Content(spaces);
     const w = frame.clip.width, h = frame.clip.height;
     const canvas = new PdfCanvas({ device: [PT_PER_MM, 0, 0, -PT_PER_MM, 0, h * PT_PER_MM], width: w, height: h, content, fonts,
       paintFor: (color: MapColor) => paints.get(color.id) ?? null });
+    const onlyColors = part === "ALL" || !over ? undefined
+      : new Set(input.map.colors.filter(color => (part === "OVER") === over.has(color.id)).map(color => color.id));
     const report = drawMap(canvas, cullMap(input.map, frame.mapArea), { pxPerMm: frame.transform.scale, origin: { x: frame.mapArea.minX, y: frame.mapArea.maxY },
-      beforeColor: canvas.beforeColor, maxPatternInstances: input.maxPatternInstances ?? PDF_MAX_PATTERN_INSTANCES });
+      beforeColor: canvas.beforeColor, maxPatternInstances: input.maxPatternInstances ?? PDF_MAX_PATTERN_INSTANCES,
+      ...(onlyColors ? { onlyColors } : {}), ...(part === "OVER" ? { background: false } : {}) });
     for (const text of report.simplifications) {
       if (/Dekorfärger och övertryck|standardtypsnitt/.test(text)) continue;
       notes.add(`Kartan: ${text}.`);
@@ -215,20 +250,33 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
       `${num(x * PT_PER_MM)} ${num((H - y - h) * PT_PER_MM)} ${num(w * PT_PER_MM)} ${num(h * PT_PER_MM)} re`;
     for (const frame of sheet.frames) {
       const { clip } = frame;
-      const form = mapForm(frame);
-      if (form) {
+      const place = (form: { name: string } | undefined) => {
+        if (!form) return;
         content.save();
         content.op(`${rect(clip.x, clip.y, clip.width, clip.height)} W n`);
         content.op(`1 0 0 1 ${num(clip.x * PT_PER_MM)} ${num((H - clip.y - clip.height) * PT_PER_MM)} cm /${form.name} Do`);
         content.restore();
-      }
+      };
       // Kartans mm (y uppåt) → sidans mm (y nedåt) → punkter: x = K(s·x + tx), y = K(H − (−s·y + ty)).
       const s = frame.transform.scale;
       const mapMatrix: Matrix = [PT_PER_MM * s, 0, 0, PT_PER_MM * s, PT_PER_MM * frame.transform.translateX, PT_PER_MM * (H - frame.transform.translateY)];
-      content.save();
-      content.op(`${rect(clip.x, clip.y, clip.width, clip.height)} W n`);
-      figureOps(figureContext, mapMatrix, frame.figures);
-      content.restore();
+      const figures = (list: readonly OverprintPrimitive[]) => {
+        if (list.length === 0) return;
+        content.save();
+        content.op(`${rect(clip.x, clip.y, clip.width, clip.height)} W n`);
+        figureOps(figureContext, mapMatrix, list);
+        content.restore();
+      };
+      if (over) {
+        // BL: kartans färger under banan, banan, kartans färger över banan, sist beskrivningar och texter.
+        place(mapForm(frame, "UNDER"));
+        figures(frame.figures.filter(inCourseLayer));
+        place(mapForm(frame, "OVER"));
+        figures(frame.figures.filter(figure => !inCourseLayer(figure)));
+      } else {
+        place(mapForm(frame));
+        figures(frame.figures);
+      }
     }
     for (const box of sheet.boxes) {
       content.fill(WHITE);
@@ -300,5 +348,5 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
 
   const bytes = await document.save({ useObjectStreams: false });
   return { bytes, pages: pages.length, plates: spaces.plates().filter(name => name !== "All"), overprint: overprintUsed, mapForms: forms.size,
-    notes: [...notes] };
+    notes: [...notes], overCourse: over ? [...over] : [] };
 }

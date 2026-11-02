@@ -3,7 +3,7 @@ import {
   BUILT_IN_PRINT_PROFILES, BUILT_IN_TEMPLATES, colorPreflight, layoutCoursePage, layoutTemplateSheets, sheetOfPage, sourceMapColors, validateLayoutTemplate,
   validatePrintProfile, type CourseSettingDocument, type LayoutTemplate, type MapRect, type PrintProfile, type Sheet, type SheetItem
 } from "@o-tid/course-setting";
-import { readMapFile } from "@o-tid/map-file";
+import { colorUsage, readMapFile } from "@o-tid/map-file";
 import { PDF_CAPABILITIES, writeSheetsPdf, type FontFiles, type WritePdfResult } from "@o-tid/print-pdf";
 
 /**
@@ -63,7 +63,7 @@ export async function renderPrintJob(input: RenderPrintJobInput): Promise<WriteP
   // Förhandskontrollen igen i servern, mot kartans färger och PDF:ens förmåga (ColorPreflight).
   const preflight: string[] = [];
   if (map) {
-    const report = colorPreflight(profile, sourceMapColors(map.colors), PDF_CAPABILITIES, new Set(request.confirmedRules ?? []));
+    const report = colorPreflight(profile, sourceMapColors(map.colors, colorUsage(map)), PDF_CAPABILITIES, new Set(request.confirmedRules ?? []));
     const blocking = report.findings.filter(finding => finding.severity === "BLOCKING");
     if (blocking.length > 0) throw new PrintJobError(`Förhandskontrollen stoppar: ${blocking.map(finding => finding.text).join(" ")}`);
     const warnings = report.findings.filter(finding => finding.severity === "WARNING");

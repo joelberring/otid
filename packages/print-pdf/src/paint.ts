@@ -87,10 +87,14 @@ export interface PaintOptions {
   readonly profile: PrintProfile;
 }
 
-/** Banans färg (COURSE och COURSE_LOWER): profilens dekorfärg med övertryck, eller CMYK på kontorsskrivaren. */
+/**
+ * Banans färg (COURSE och COURSE_LOWER): profilens dekorfärg med övertryck, eller CMYK på kontorsskrivaren. BL-profilerna
+ * (`course.process`) ger banan som CMYK-processfärg med profilens övertryck (BL:s tabeller anger bara CMYK).
+ */
 export function coursePaint(options: PaintOptions, plates: Plates): Paint {
   const cmyk = fromPercent(options.profile.course.cmyk);
   if (options.mode === "OFFICE") return { ink: { kind: "CMYK", cmyk }, overprint: false };
+  if (options.profile.course.process) return { ink: { kind: "CMYK", cmyk }, overprint: options.profile.course.overprint };
   const name = plateName(options.profile.course.spotName || "Purple");
   const alternate = plates.define(name, cmyk, "banans färg i profilen");
   return { ink: { kind: "SPOT", names: [name], alternates: [alternate], tints: [1] }, overprint: options.profile.course.overprint };

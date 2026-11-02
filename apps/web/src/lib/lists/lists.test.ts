@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { PublicRelayResults, PublicResultListResponse } from "@o-tid/contracts";
-import { classStartRows, filterStartList, groupByStartTime, startListByClub, startListFromPublication, type StartClass } from "./start-list-model";
-import { filterResults, resultListFromPublic, resultsByClub, splitGroups } from "./result-list-model";
+import { classStartRows, filterStartList, groupByStartTime, startListByClub, startListClubs, startListFromPublication, type StartClass } from "./start-list-model";
+import { clubSummary, clubSummaryTotal, filterResults, resultClubs, resultListFromPublic, resultsByClub, splitGroups } from "./result-list-model";
 import { CSV_BOM, csvCell, resultListCsv, startListCsv, toCsv } from "./csv";
 
 const at = (clock: string) => `2026-10-08T${clock}:00.000Z`;
@@ -51,6 +51,13 @@ describe("startlistan per klubb och sökning", () => {
     expect(groups.map(group => group.club)).toEqual(["Alfa OK", "IFK Lidingö", "OK Ek", "Tullinge SK", null]);
     expect(groups.find(group => group.club === "OK Ek")!.rows.map(row => `${row.className} ${row.entry.name}`))
       .toEqual(["D21 Ada Ek", "H21 Cid Berg", "Öppen Fia Mo"]);
+  });
+
+  it("ADR-0191: klubbfiltret visar klubbens löpare i alla klasser utan vakanser", () => {
+    expect(startListClubs(classes)).toEqual(["IFK Lidingö", "OK Ek", "Tullinge SK"]);
+    expect(filterStartList(classes, "", "", "OK Ek").map(row => [row.name, row.entries.map(item => item.name), row.vacancies.length]))
+      .toEqual([["D21", ["Ada Ek"], 0], ["H21", ["Cid Berg"], 0], ["Öppen", ["Fia Mo"], 0]]);
+    expect(filterStartList(classes, "", "H21", "OK Ek").map(row => row.name)).toEqual(["H21"]);
   });
 
   it("söker i namn, klubb och bricka och döljer vakanser vid sökning", () => {
@@ -132,6 +139,28 @@ describe("resultatlistorna", () => {
   it("söker i namn och klubb", () => {
     expect(filterResults(model, "ifk", "").classes[0]!.rows.map(row => row.name)).toEqual(["Bo Al"]);
     expect(filterResults(model, "", "D21").classes).toEqual([]);
+  });
+
+  it("ADR-0191: klubbfiltret visar klubbens löpare med sina placeringar i klassen", () => {
+    expect(resultClubs(model)).toEqual(["IFK; \"Test\"", "OK Ek"]);
+    const ek = filterResults(model, "", "", "OK Ek");
+    expect(ek.classes[0]!.rows.map(row => [row.name, row.place])).toEqual([["Anna Ek", 1], ["=Cia Mo", null]]);
+    expect(filterResults(model, "cia", "", "OK Ek").classes[0]!.rows.map(row => row.name)).toEqual(["=Cia Mo"]);
+    expect(filterResults(model, "", "", "Okänd OK").classes).toEqual([]);
+  });
+
+  it("ADR-0191: sammanställning per klubb med startande, fullföljda och placeringar", () => {
+    const summary = clubSummary(model);
+    expect(summary).toEqual([
+      { club: "IFK; \"Test\"", starters: 1, finished: 1, first: 0, second: 1, third: 0 },
+      { club: "OK Ek", starters: 2, finished: 1, first: 1, second: 0, third: 0 },
+      // Ej start räknas inte som startande.
+      { club: null, starters: 0, finished: 0, first: 0, second: 0, third: 0 }]);
+    expect(clubSummaryTotal(summary)).toEqual({ starters: 3, finished: 2, first: 1, second: 1, third: 0 });
+    const lines = resultListCsv("CLUBS", model).slice(1).split("\r\n");
+    expect(lines[0]).toBe("Klubb;Startande;Fullföljda;Ettor;Tvåor;Treor");
+    expect(lines[2]).toBe("OK Ek;2;1;1;0;0");
+    expect(lines[4]).toBe("Totalt;3;2;1;1;0");
   });
 
   it("CSV: BOM, semikolon, citering och skydd mot formler", () => {

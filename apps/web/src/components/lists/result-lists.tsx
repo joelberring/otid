@@ -5,14 +5,14 @@ import React, { useMemo, useState, type ReactNode } from "react";
 import { listsSv as text } from "../../i18n/lists-sv";
 import { formatDuration } from "../../lib/clock-time";
 import { resultListCsv, type ResultView } from "../../lib/lists/csv";
-import { courseLine, filterResults, resultClassNames, resultsByClub, splitGroups, type RelayClass, type RelayTeam, type ResultClass,
-  type ResultListModel, type ResultRow } from "../../lib/lists/result-list-model";
+import { clubSummary, clubSummaryTotal, courseLine, filterResults, resultClassNames, resultClubs, resultsByClub, splitGroups, type RelayClass,
+  type RelayTeam, type ResultClass, type ResultListModel, type ResultRow } from "../../lib/lists/result-list-model";
 import { RadioLive } from "../radio/radio-live";
 import { RunnerForking } from "../forking/runner-forking";
 import { forkingSv } from "../../i18n/forking-sv";
 import type { CourseForkingView } from "@o-tid/contracts";
 import { radioSv } from "../../i18n/radio-sv";
-import { download, ListFrame, type IofExport } from "./list-frame";
+import { download, ListFrame, useClubFilter, type IofExport } from "./list-frame";
 import styles from "./lists.module.css";
 
 const t = text.results;
@@ -309,6 +309,33 @@ function ByClub({ model, context }: { model: ResultListModel; context: Context }
 }
 
 /**
+ * ADR-0191 beslut 2: sammanställning per klubb som i MeOS – startande, fullföljda och placeringarna 1–3, med totalrad.
+ * Klubbnamnet byter till klubbfiltret, så att klubbens lista är ett klick bort.
+ */
+function ClubSummary({ model, onClub }: { model: ResultListModel; onClub: (club: string) => void }) {
+  const rows = useMemo(() => clubSummary(model), [model]);
+  const total = clubSummaryTotal(rows);
+  const s = t.summary;
+  return <section className={styles.block} aria-labelledby="result-club-summary">
+    <div className={styles.blockHead}><h3 id="result-club-summary">{t.titles.CLUBS}</h3><p>{s.help}</p></div>
+    <table className={`${styles.table} ${styles.summaryTable}`} aria-labelledby="result-club-summary">
+      <thead><tr><th scope="col">{s.club}</th><th scope="col" className={styles.num}>{s.starters}</th>
+        <th scope="col" className={styles.num}>{s.finished}</th>
+        <th scope="col" className={styles.num}><abbr title={s.firstLong}>{s.first}</abbr></th>
+        <th scope="col" className={styles.num}><abbr title={s.secondLong}>{s.second}</abbr></th>
+        <th scope="col" className={styles.num}><abbr title={s.thirdLong}>{s.third}</abbr></th></tr></thead>
+      <tbody>{rows.map(row => <tr key={row.club ?? ""}>
+        <th scope="row">{row.club ? <button type="button" className={styles.person} onClick={() => onClub(row.club!)}>{row.club}</button> : t.noClub}</th>
+        <td className={styles.num}>{row.starters}</td><td className={styles.num}>{row.finished}</td>
+        <td className={styles.num}>{row.first || ""}</td><td className={styles.num}>{row.second || ""}</td><td className={styles.num}>{row.third || ""}</td>
+      </tr>)}</tbody>
+      <tfoot><tr><th scope="row">{s.total}</th><td className={styles.num}>{total.starters}</td><td className={styles.num}>{total.finished}</td>
+        <td className={styles.num}>{total.first}</td><td className={styles.num}>{total.second}</td><td className={styles.num}>{total.third}</td></tr></tfoot>
+    </table>
+  </section>;
+}
+
+/**
  * Resultatlistorna (PLAN.md steg 13): per klass, med sträcktider och per klubb; stafett som lagresultat med
  * sträcklöpare och sträckresultat. Samma komponent i arbetsytan och på den publika sidan (där namnen länkar
  * till löparens resultatsida).
@@ -323,19 +350,23 @@ export function ResultLists({ model, raceId, race, raceDate, links, iof, status,
   const [view, setView] = useState<ResultView>("CLASS");
   const [query, setQuery] = useState("");
   const [className, setClassName] = useState("");
+  const [club, setClub] = useClubFilter(links);
   const classNames = useMemo(() => resultClassNames(model), [model]);
+  const clubs = useMemo(() => resultClubs(model), [model]);
   const selected = classNames.includes(className) ? className : "";
-  const shown = useMemo(() => filterResults(model, query, selected), [model, query, selected]);
+  const selectedClub = clubs.includes(club) ? club : "";
+  const shown = useMemo(() => filterResults(model, query, selected, selectedClub), [model, query, selected, selectedClub]);
   const count = shown.classes.reduce((sum, row) => sum + row.rows.length, 0);
   const teams = shown.relayClasses.reduce((sum, row) => sum + row.teams.length, 0);
   const context: Context = { raceId, links, radioTimeZone: model.radioTimeZone ?? "Europe/Stockholm", notes, follow };
-  const views = (["CLASS", "SPLITS", "CLUB"] as const).map(id => ({ id, label: t.views[id] }));
+  const views = (["CLASS", "SPLITS", "CLUB", "CLUBS"] as const).map(id => ({ id, label: t.views[id] }));
   const empty = model.classes.length === 0 && model.relayClasses.every(row => row.teams.length === 0);
   return <ListFrame title={t.titles[view]} race={race} toolbar={{
     views, view, onView: setView, query, onQuery: setQuery, searchPlaceholder: text.searchPlaceholder,
-    classes: classNames, className: selected, onClass: setClassName,
+    classes: classNames, className: selected, onClass: setClassName, clubs, club: selectedClub, onClub: setClub,
     count: [count > 0 && t.runners(count), teams > 0 && t.teams(teams)].filter(Boolean).join(" · ") || t.runners(0), iof,
-    onCsv: () => download(`${text.csv.files.results[view]}-${raceDate}.csv`, resultListCsv(view, shown), "text/csv;charset=utf-8")
+    onCsv: () => download(`${text.csv.files.results[view]}${selectedClub ? `-${selectedClub.replace(/\W+/g, "-")}` : ""}-${raceDate}.csv`,
+      resultListCsv(view, shown), "text/csv;charset=utf-8")
   }}>
     {status}
     <Standing model={model} />
@@ -347,7 +378,8 @@ export function ResultLists({ model, raceId, race, raceDate, links, iof, status,
           : view === "SPLITS" ? <>
             {shown.relayClasses.map(raceClass => <RelayLegs key={raceClass.name} raceClass={raceClass} />)}
             {shown.classes.map(raceClass => <SplitsBlock key={raceClass.name} raceClass={raceClass} context={context} />)}</>
-            : <ByClub model={shown} context={context} />}
+            : view === "CLUB" ? <ByClub model={shown} context={context} />
+              : <ClubSummary model={shown} onClub={value => { setClub(value); setView("CLUB"); }} />}
   </ListFrame>;
 }
 

@@ -1,7 +1,7 @@
 import { formatClockTime, formatDuration } from "../clock-time";
 import { listsSv as text } from "../../i18n/lists-sv";
 import { classStartRows, groupByStartTime, startClub, startListByClub, type StartClass, type StartMode } from "./start-list-model";
-import { resultsByClub, splitGroups, type ResultListModel, type ResultRow, type ResultStatus } from "./result-list-model";
+import { clubSummary, clubSummaryTotal, resultsByClub, splitGroups, type ResultListModel, type ResultRow, type ResultStatus } from "./result-list-model";
 
 /**
  * CSV för Excel (PLAN.md steg 13): UTF-8 med BOM så att å, ä och ö visas rätt, semikolon som avskiljare
@@ -30,7 +30,7 @@ function modeText(mode: StartMode): string {
 }
 
 export type StartView = "CLASS" | "TIME" | "CLUB";
-export type ResultView = "CLASS" | "SPLITS" | "CLUB";
+export type ResultView = "CLASS" | "SPLITS" | "CLUB" | "CLUBS";
 
 /** Startlistan i vald vy. Bricka tas bara med när modellen har bricka (arbetsytan). */
 export function startListCsv(view: StartView, classes: readonly StartClass[], timeZone: string, cards: boolean): string {
@@ -86,6 +86,11 @@ export function resultListCsv(view: ResultView, model: ResultListModel): string 
           cell?.legMs != null ? formatDuration(cell.legMs) : "", cell?.place ?? "", cell ? formatDuration(cell.elapsedMs) : ""]];
       }))));
     return toCsv(text.csv.results.SPLITS, rows);
+  }
+  if (view === "CLUBS") {
+    const summary = clubSummary(model), total = clubSummaryTotal(summary);
+    return toCsv(text.csv.results.CLUBS, [...summary.map(row => [row.club ?? text.results.noClub, row.starters, row.finished, row.first,
+      row.second, row.third]), [text.results.summary.total, total.starters, total.finished, total.first, total.second, total.third]]);
   }
   if (view === "CLUB") {
     const rows = resultsByClub(model).flatMap(group => [

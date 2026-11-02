@@ -12,11 +12,34 @@ export type ListToolbarProps<View extends string> = {
   view: View; onView: (view: View) => void;
   query: string; onQuery: (query: string) => void; searchPlaceholder: string;
   classes: readonly string[]; className: string; onClass: (className: string) => void;
+  /** ADR-0191 beslut 2: klubbfiltret (klubbens löpare i alla klasser). Saknas i listor utan klubbar. */
+  clubs?: readonly string[] | undefined; club?: string | undefined; onClub?: ((club: string) => void) | undefined;
   count: string;
   iof?: IofExport | undefined;
   /** Saknas när listan inte får exporteras (funktionären, ADR-0172 beslut 3); då visas ingen exportmeny. */
   onCsv?: (() => void) | undefined;
 };
+
+/**
+ * ADR-0191 beslut 2: det valda klubbfiltret. På de publika sidorna står det i adressen (`?klubb=`), så att en klubb kan dela
+ * länken till sin lista; i arbetsytan bara i sidan.
+ */
+export function useClubFilter(inUrl: boolean): [string, (club: string) => void] {
+  const [club, setClub] = useState("");
+  useEffect(() => {
+    if (!inUrl) return;
+    const value = new URLSearchParams(window.location.search).get("klubb");
+    if (value) setClub(value);
+  }, [inUrl]);
+  function choose(value: string) {
+    setClub(value);
+    if (!inUrl) return;
+    const url = new URL(window.location.href);
+    if (value) url.searchParams.set("klubb", value); else url.searchParams.delete("klubb");
+    window.history.replaceState(window.history.state, "", url);
+  }
+  return [club, choose];
+}
 
 const printTime = () => new Intl.DateTimeFormat("sv-SE", { dateStyle: "short", timeStyle: "short" }).format(new Date());
 
@@ -61,7 +84,7 @@ export function ListFrame<View extends string>({ toolbar, title, race, children 
     return () => { observer.disconnect(); window.removeEventListener("resize", update); };
   }, []);
   const close = () => { if (menu.current) menu.current.open = false; };
-  const { views, view, onView, query, onQuery, searchPlaceholder, classes, className, onClass, count, iof, onCsv } = toolbar;
+  const { views, view, onView, query, onQuery, searchPlaceholder, classes, className, onClass, clubs, club, onClub, count, iof, onCsv } = toolbar;
   return <div className={styles.lists} ref={root} data-list="">
     <div className={styles.toolbar} ref={bar} role="toolbar" aria-label={text.toolbar}>
       <div className={styles.segmented} role="group" aria-label={text.view}>
@@ -75,6 +98,11 @@ export function ListFrame<View extends string>({ toolbar, title, race, children 
             <option value="">{text.allClasses}</option>
             {classes.map(name => <option key={name} value={name}>{name}</option>)}
           </select></label>
+        {onClub && clubs && clubs.length > 0 && <label className={styles.classFilter}><span className={styles.hiddenLabel}>{text.clubFilter}</span>
+          <select value={club ?? ""} onChange={event => onClub(event.target.value)}>
+            <option value="">{text.allClubs}</option>
+            {clubs.map(name => <option key={name} value={name}>{name}</option>)}
+          </select></label>}
       </div>
       <p className={styles.count} aria-live="polite">{count}</p>
       <div className={styles.tools}>
@@ -91,7 +119,7 @@ export function ListFrame<View extends string>({ toolbar, title, race, children 
       </div>
     </div>
     <header className={styles.printHeader}>
-      <h2>{title}</h2>
+      <h2>{club ? text.titleForClub(title, club) : title}</h2>
       <p>{race}</p>
       <p>{printedAt && text.printedAt(printedAt)}</p>
     </header>

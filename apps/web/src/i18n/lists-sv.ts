@@ -10,6 +10,10 @@ export const listsSv = {
   searchPlaceholderCards: "Namn, klubb, lag eller bricka",
   classFilter: "Klass",
   allClasses: "Alla klasser",
+  /** ADR-0191 beslut 2: klubbens löpare i alla klasser; utskriften får klubbens namn i rubriken. */
+  clubFilter: "Klubb",
+  allClubs: "Alla klubbar",
+  titleForClub: (title: string, club: string) => `${title} · ${club}`,
   print: "Skriv ut",
   export: "Exportera",
   exportIof: "IOF XML",
@@ -60,8 +64,13 @@ export const listsSv = {
     /** PLAN.md steg 25: listans ställning. */
     preliminary: "Preliminära resultat",
     official: (finalizedAt: string) => `Officiella resultat (fastställda ${finalizedAt})`,
-    views: { CLASS: "Per klass", SPLITS: "Med sträcktider", CLUB: "Per klubb" },
-    titles: { CLASS: "Resultatlista per klass", SPLITS: "Resultatlista med sträcktider", CLUB: "Resultatlista per klubb" },
+    views: { CLASS: "Per klass", SPLITS: "Med sträcktider", CLUB: "Per klubb", CLUBS: "Klubbar" },
+    titles: { CLASS: "Resultatlista per klass", SPLITS: "Resultatlista med sträcktider", CLUB: "Resultatlista per klubb",
+      CLUBS: "Sammanställning per klubb" },
+    /** ADR-0191 beslut 2: sammanställningen per klubb (som i MeOS). */
+    summary: { club: "Klubb", starters: "Startande", finished: "Fullföljda", first: "1:a", second: "2:a", third: "3:a",
+      firstLong: "Ettor", secondLong: "Tvåor", thirdLong: "Treor", total: "Totalt",
+      help: "Startande är alla med resultat utom ej start. Fullföljda är godkända. Ett stafettlag räknas som en start." },
     place: "Plac", name: "Namn", club: "Klubb", time: "Tid", behind: "Efter", statusColumn: "Status", className: "Klass",
     team: "Lag", leg: "Sträcka", runner: "Löpare",
     finish: "Mål",
@@ -123,6 +132,7 @@ export const listsSv = {
       CLASS: ["Klass", "Placering", "Lag", "Sträcka", "Namn", "Klubb", "Tid", "Efter", "Status"],
       SPLITS: ["Klass", "Variant", "Placering", "Namn", "Klubb", "Sluttid", "Status", "Kontroll", "Sträcktid", "Sträckplacering", "Totaltid"],
       CLUB: ["Klubb", "Namn", "Lag", "Klass", "Placering", "Tid", "Status"],
+      CLUBS: ["Klubb", "Startande", "Fullföljda", "Ettor", "Tvåor", "Treor"],
       /** Rogainingklasser: poäng, straff och summa efter tiden (klassvy) och summan (klubbvy). */
       SCORE: ["Poäng", "Straff", "Summa"],
       SCORED_CONTROLS: ["Klass", "Placering", "Namn", "Klubb", "Summa", "Tid", "Status", "Kontroll", "Poäng", "Totaltid"]
@@ -133,7 +143,7 @@ export const listsSv = {
     free: rule.methods.FREE, minute: rule.methods.MINUTE, mass: rule.methods.MASS, relay: "Stafett",
     files: {
       start: { CLASS: "startlista-per-klass", TIME: "startlista-per-starttid", CLUB: "startlista-per-klubb" },
-      results: { CLASS: "resultat-per-klass", SPLITS: "resultat-med-stracktider", CLUB: "resultat-per-klubb" }
+      results: { CLASS: "resultat-per-klass", SPLITS: "resultat-med-stracktider", CLUB: "resultat-per-klubb", CLUBS: "sammanstallning-per-klubb" }
     }
   }
 } as const;

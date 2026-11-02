@@ -2,7 +2,7 @@ import type { PublicClassCourse, PublicRadioResponse, PublicRelayResults, Public
   PublicResultStanding } from "@o-tid/contracts";
 import { buildLegSplitTable, splitTablesByVariant, type SplitTable } from "@o-tid/domain";
 import { compareText, matches, searchable } from "./search";
-import { groupByClub, type ClubGroup } from "./start-list-model";
+import { clubName, groupByClub, type ClubGroup } from "./start-list-model";
 import { listsSv } from "../../i18n/lists-sv";
 
 /**
@@ -93,19 +93,32 @@ export function resultClassNames(model: ResultListModel): string[] {
 const teamMatches = (needle: string, team: RelayTeam) =>
   matches(needle, team.name, team.organisationName, ...team.legs.flatMap(leg => [`${leg.givenName} ${leg.familyName}`, leg.organisationName]));
 
-/** Sök (namn, klubb, lag) och klassfilter. Klasser utan träffar döljs. */
-export function filterResults(model: ResultListModel, query: string, className: string): ResultListModel {
+/** ADR-0191 beslut 2: klubbarna i resultatlistan (löpare och stafettlag), i bokstavsordning, för klubbfiltret. */
+export function resultClubs(model: ResultListModel): string[] {
+  const clubs = new Set([...model.classes.flatMap(raceClass => raceClass.rows.map(row => clubName(row.club))),
+    ...model.relayClasses.flatMap(raceClass => raceClass.teams.map(team => clubName(team.organisationName)))]
+    .filter((club): club is string => club !== null));
+  return [...clubs].sort(compareText);
+}
+
+/**
+ * Sök (namn, klubb, lag), klassfilter och klubbfilter (ADR-0191 beslut 2: klubbens löpare och lag i alla klasser, med sina
+ * placeringar i klassen). Klasser utan träffar döljs.
+ */
+export function filterResults(model: ResultListModel, query: string, className: string, club = ""): ResultListModel {
   const needle = searchable(query.trim());
+  const inClub = (value: string | null | undefined) => !club || clubName(value) === club;
   return {
     classes: model.classes.filter(row => !className || row.name === className).flatMap(raceClass => {
-      if (!needle) return [raceClass];
-      const rows = raceClass.rows.filter(result => matches(needle, result.name, result.club));
-      const radio = raceClass.radio ? filterRadio(raceClass.radio, needle) : undefined;
+      if (!needle && !club) return [raceClass];
+      const rows = raceClass.rows.filter(result => inClub(result.club) && (!needle || matches(needle, result.name, result.club)));
+      // Radiopassagerna följer klubbfiltret som löparna; med bara söktext som förut.
+      const radio = raceClass.radio ? filterRadio(raceClass.radio, needle, club) : undefined;
       return rows.length || radio ? [{ ...raceClass, rows, radio }] : [];
     }),
     relayClasses: model.relayClasses.filter(row => !className || row.name === className).flatMap(raceClass => {
-      if (!needle) return [raceClass];
-      const teams = raceClass.teams.filter(team => teamMatches(needle, team));
+      if (!needle && !club) return [raceClass];
+      const teams = raceClass.teams.filter(team => inClub(team.organisationName) && (!needle || teamMatches(needle, team)));
       const numbers = new Set(teams.map(team => team.number));
       return teams.length ? [{ ...raceClass, teams, legs: raceClass.legs.map(leg => ({ ...leg,
         results: leg.results.filter(result => numbers.has(result.teamNumber)) })) }] : [];
@@ -116,9 +129,9 @@ export function filterResults(model: ResultListModel, query: string, className: 
 }
 
 /** Sökningen i radiodelen: löpare (namn, klubb) som är ute och vid kontrollerna. Undefined utan träffar. */
-function filterRadio(radio: RadioClass, needle: string): RadioClass | undefined {
-  const hit = (passage: RadioClass["onTheWay"][number]) =>
-    matches(needle, `${passage.givenName} ${passage.familyName}`, passage.organisationName);
+function filterRadio(radio: RadioClass, needle: string, club: string): RadioClass | undefined {
+  const hit = (passage: RadioClass["onTheWay"][number]) => (!club || clubName(passage.organisationName) === club) &&
+    (!needle || matches(needle, `${passage.givenName} ${passage.familyName}`, passage.organisationName));
   const onTheWay = radio.onTheWay.filter(hit);
   const controls = radio.controls.map(control => ({ ...control, passages: control.passages.filter(hit) }));
   return onTheWay.length || controls.some(control => control.passages.length) ? { ...radio, onTheWay, controls } : undefined;
@@ -172,6 +185,33 @@ export function resultsByClub(model: ResultListModel): ClubResults[] {
         summary: { runners: runners.length, approved: runners.filter(row => row.result.status === "OK").length,
           podium: runners.filter(row => row.result.place !== null && row.result.place <= 3).length } };
     });
+}
+
+/** En rad i klubbsammanställningen (ADR-0191 beslut 2). Ett stafettlag räknas som en start. */
+export type ClubSummaryRow = { club: string | null; starters: number; finished: number; first: number; second: number; third: number };
+
+/**
+ * ADR-0191 beslut 2: sammanställning per klubb som i MeOS: startande (alla med resultat utom ej start), fullföljda
+ * (godkända) och placeringarna 1–3. Klubbarna i bokstavsordning, utan klubb sist; totalraden räknas av den som visar.
+ */
+export function clubSummary(model: ResultListModel): ClubSummaryRow[] {
+  type Item = { status: string; place: number | null; club: string | null };
+  const items: Item[] = [
+    ...model.classes.flatMap(raceClass => raceClass.rows.map(row => ({ status: row.status, place: row.place, club: row.club }))),
+    ...model.relayClasses.flatMap(raceClass => raceClass.teams.map(team => ({ status: team.status, place: team.position ?? null,
+      club: team.organisationName })))
+  ];
+  return groupByClub(items, item => item.club).map(({ club, rows }) => ({ club,
+    starters: rows.filter(row => row.status !== "DNS").length, finished: rows.filter(row => row.status === "OK").length,
+    first: rows.filter(row => row.place === 1).length, second: rows.filter(row => row.place === 2).length,
+    third: rows.filter(row => row.place === 3).length }));
+}
+
+/** Totalraden i klubbsammanställningen. */
+export function clubSummaryTotal(rows: readonly ClubSummaryRow[]): Omit<ClubSummaryRow, "club"> {
+  return rows.reduce((sum, row) => ({ starters: sum.starters + row.starters, finished: sum.finished + row.finished,
+    first: sum.first + row.first, second: sum.second + row.second, third: sum.third + row.third }),
+  { starters: 0, finished: 0, first: 0, second: 0, third: 0 });
 }
 
 /** "Bana Lång · 4,2 km · 120 m" för listornas klassrubriker (PLAN.md steg 25). Längd och stigning visas när de finns. */

@@ -100,13 +100,24 @@ export function startListFromPublication(content: StartListPublicationContent, c
  * Sök och klassfilter. Sökningen gäller namn, klubb, lag och bricka; klasser utan träffar och vakanser
  * döljs när man söker. Utan sökning visas även tomma klasser.
  */
-export function filterStartList(classes: readonly StartClass[], query: string, className: string): StartClass[] {
+export function filterStartList(classes: readonly StartClass[], query: string, className: string, club = ""): StartClass[] {
   const needle = searchable(query.trim());
   return classes.filter(row => !className || row.name === className).flatMap(row => {
-    if (!needle) return [row];
-    const entries = row.entries.filter(entry => matches(needle, entry.name, entry.club, entry.card, entry.relay?.teamName, entry.relay?.teamClub));
+    if (!needle && !club) return [row];
+    // ADR-0191 beslut 2: klubbfiltret visar klubbens löpare i alla klasser (utan vakanta tider).
+    const entries = row.entries.filter(entry => (!club || clubName(startClub(entry)) === club) &&
+      (!needle || matches(needle, entry.name, entry.club, entry.card, entry.relay?.teamName, entry.relay?.teamClub)));
     return entries.length ? [{ ...row, entries, vacancies: [] }] : [];
   });
+}
+
+/** Klubbens namn som listorna jämför det (utan blanksteg runt, tomt = utan klubb). */
+export const clubName = (club: string | null | undefined): string | null => club?.trim() || null;
+
+/** ADR-0191 beslut 2: klubbarna i startlistan, i bokstavsordning, för klubbfiltret. */
+export function startListClubs(classes: readonly StartClass[]): string[] {
+  const clubs = new Set(classes.flatMap(row => row.entries.map(entry => clubName(startClub(entry)))).filter((club): club is string => club !== null));
+  return [...clubs].sort(compareText);
 }
 
 export type StartClassRow = { time: string | null; entry: StartEntry | null };
@@ -175,7 +186,7 @@ export type ClubGroup<Row> = { club: string | null; rows: Row[] };
 export function groupByClub<Row>(rows: readonly Row[], clubOf: (row: Row) => string | null): ClubGroup<Row>[] {
   const groups = new Map<string | null, Row[]>();
   for (const row of rows) {
-    const club = clubOf(row)?.trim() || null;
+    const club = clubName(clubOf(row));
     groups.set(club, [...(groups.get(club) ?? []), row]);
   }
   return [...groups.entries()].map(([club, items]) => ({ club, rows: items }))

@@ -132,7 +132,10 @@
   .toolbar { margin: 0; padding: 8px 0; gap: 8px; }
   .segmented { flex: 1 1 100%; }
   .segmented button { flex: 1 1 0; padding: 0 6px; }
-  .filters { flex: 1 1 100%; }
+  .filters { flex: 1 1 100%; flex-wrap: wrap; }
+  /* ADR-0191 beslut 2: med klubbfiltret står sökningen på egen rad och klass och klubb delar nästa. */
+  .filters:has(> :nth-child(3)) .search { flex: 1 1 100%; }
+  .filters:has(> :nth-child(3)) .classFilter { flex: 1 1 0; }
   .tools { margin-inline-start: 0; }
   .count { margin-inline-start: auto; }
   .table :is(th, td) { padding: 5px 6px; }
@@ -179,6 +182,11 @@
   .table a { color: #000; text-decoration: none; }
   .status, .attention { color: #000 !important; }
 }
+/* ADR-0191 beslut 2: sammanställningen per klubb; totalraden står sist med linje över. */
+.summaryTable tfoot :is(th, td) { border-top: 1.5px solid var(--ink); font-weight: 700; }
+.summaryTable .num { width: 5.5rem; }
+@media (max-width: 760px) { .summaryTable .num { width: 3.2rem; } }
+@media print { .summaryTable tfoot :is(th, td) { border-top: 1pt solid #000; } }
 /* Steg 49: "Visa gafflingar" och den lilla banbilden under löparens namn. */
 .toggle { min-height: 32px; padding: 0 10px; border-color: var(--line-strong); background: var(--surface); color: var(--ink); font-size: var(--text-xs); }
 .toggle:hover:not(:disabled) { background: var(--subtle); }

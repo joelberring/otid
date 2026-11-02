@@ -4,10 +4,10 @@ import React, { useEffect, useMemo, useState } from "react";
 import { listsSv as text } from "../../i18n/lists-sv";
 import { formatClockTime } from "../../lib/clock-time";
 import { startListCsv, type StartView } from "../../lib/lists/csv";
-import { classStartRows, filterStartList, groupByStartTime, startClub, startListByClub, type StartClass, type StartEntry,
+import { classStartRows, filterStartList, groupByStartTime, startClub, startListByClub, startListClubs, type StartClass, type StartEntry,
   type StartListModel, type StartMode } from "../../lib/lists/start-list-model";
 import { courseLine } from "../../lib/lists/result-list-model";
-import { download, ListFrame, type IofExport } from "./list-frame";
+import { download, ListFrame, useClubFilter, type IofExport } from "./list-frame";
 import styles from "./lists.module.css";
 import { joinRaceParts, raceTitle } from "@o-tid/domain";
 
@@ -184,14 +184,17 @@ function ByClub({ classes, context }: { classes: StartClass[]; context: Context 
  * Startlistorna (PLAN.md steg 13): per klass, per starttid (minut för minut och per startfålla, med vakanta tider
  * och nuvarande minut markerad) och per klubb. Samma komponent i arbetsytan och på den publika sidan.
  */
-export function StartLists({ model, onSelectEntry, disabled, iof, exportable = true }: {
+export function StartLists({ model, onSelectEntry, disabled, iof, exportable = true, clubInUrl = false }: {
   model: StartListModel; onSelectEntry?: ((id: string) => void) | undefined; disabled?: boolean | undefined; iof?: IofExport | undefined;
   /** Funktionären skriver ut men exporterar inte (ADR-0172 beslut 3). */
   exportable?: boolean;
+  /** ADR-0191 beslut 2: den publika sidan har klubbfiltret i adressen (`?klubb=`). */
+  clubInUrl?: boolean;
 }) {
   const [view, setView] = useState<StartView>("CLASS");
   const [query, setQuery] = useState("");
   const [className, setClassName] = useState("");
+  const [club, setClub] = useClubFilter(clubInUrl);
   const [now, setNow] = useState(0);
   useEffect(() => {
     if (view !== "TIME") return;
@@ -201,15 +204,18 @@ export function StartLists({ model, onSelectEntry, disabled, iof, exportable = t
   }, [view]);
   const classNames = useMemo(() => model.classes.map(row => row.name), [model.classes]);
   const selected = classNames.includes(className) ? className : "";
-  const classes = useMemo(() => filterStartList(model.classes, query, selected), [model.classes, query, selected]);
+  const clubs = useMemo(() => startListClubs(model.classes), [model.classes]);
+  const selectedClub = clubs.includes(club) ? club : "";
+  const classes = useMemo(() => filterStartList(model.classes, query, selected, selectedClub), [model.classes, query, selected, selectedClub]);
   const runners = classes.reduce((sum, row) => sum + row.entries.length, 0);
   const context: Context = { model, onSelectEntry, disabled };
   const views = (["CLASS", "TIME", "CLUB"] as const).map(id => ({ id, label: t.views[id] }));
   const race = joinRaceParts([raceTitle(model.eventName, model.raceName), model.raceDate]);
   return <ListFrame title={t.titles[view]} race={race} toolbar={{
     views, view, onView: setView, query, onQuery: setQuery, searchPlaceholder: model.cards ? text.searchPlaceholderCards : text.searchPlaceholder,
-    classes: classNames, className: selected, onClass: setClassName, count: t.runners(runners), iof,
-    onCsv: !exportable ? undefined : () => download(`${text.csv.files.start[view]}-${model.raceDate}.csv`, startListCsv(view, classes, model.timeZone, model.cards),
+    classes: classNames, className: selected, onClass: setClassName, clubs, club: selectedClub, onClub: setClub,
+    count: t.runners(runners), iof,
+    onCsv: !exportable ? undefined : () => download(`${text.csv.files.start[view]}${selectedClub ? `-${selectedClub.replace(/\W+/g, "-")}` : ""}-${model.raceDate}.csv`, startListCsv(view, classes, model.timeZone, model.cards),
       "text/csv;charset=utf-8")
   }}>
     {model.classes.every(row => row.entries.length === 0) ? <p className={styles.nothing}>{t.noEntries}</p>

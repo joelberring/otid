@@ -61,7 +61,7 @@ export function PublicStartList({ raceId, initial }: { raceId: string; initial: 
       <p className="public-list-help">{text.publicHelp}</p>
       {data.variantsHiddenUntilStart && <p className="public-list-help" data-testid="public-variants-hidden">{text.publicVariantsHidden}</p>}</section>
     {failed && <p className={styles.notice} role="alert">{text.publicRefreshFailed}</p>}
-    <StartLists model={model}
+    <StartLists model={model} clubInUrl
       iof={data.iofExportAvailable ? { href: `/api/races/${encodeURIComponent(raceId)}/start-list/iof` } : undefined} />
   </>;
 }

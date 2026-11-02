@@ -232,8 +232,9 @@ export function CoursePrintPage({ raceId }: { raceId: string }) {
         try {
           const url = await renderMap(session, frame, adjust);
           urls.current.push(url);
-          if (!cancelled) setImages(current => ({ ...current, [key]: url }));
-          else started.current.delete(key);
+          // Bilden gäller sin nyckel (utsnitt och färger) även om arken ändrats under tiden: en senare körning hoppar över
+          // nyckeln medan den ritas, så den måste sparas här (annars väntar arket för alltid).
+          setImages(current => ({ ...current, [key]: url }));
         } catch (error) { started.current.delete(key); console.error("Kartan kunde inte ritas", error); }
       }
     })();

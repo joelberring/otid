@@ -24,7 +24,7 @@ export function referencePreflight(profile: PrintProfile, table: ReferenceTable,
   if (decisions.length === 0) {
     findings.push({ severity: "WARNING", text: `Förslaget för ${table.title} är inte godkänt: kartans färger skrivs som i filen. Godkänn förslaget under Utskriftsprofil.` });
   } else if (pending.length > 0) {
-    findings.push({ severity: "WARNING", text: `${pending.length} ${pending.length === 1 ? "färg är" : "färger är"} inte bekräftade och skrivs som i filen: ${listText(unconfirmed)}.` });
+    findings.push({ severity: "WARNING", text: `${pending.length} ${pending.length === 1 ? "färg är inte bekräftad" : "färger är inte bekräftade"} och skrivs som i filen: ${listText(unconfirmed)}.` });
   }
   const stale = staleDecisions(decisions, colors);
   if (stale.length > 0) findings.push({ severity: "WARNING", text: `Kartfilen har ändrats sedan godkännandet; ${stale.length} beslut gäller inte längre (${listText(stale.map(item => item.name))}).` });

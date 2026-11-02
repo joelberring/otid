@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PrintJob, PrintJobKind, PrintJobs } from "@o-tid/contracts";
 import type { PrintProfile } from "@o-tid/course-setting";
-import type { MapColor } from "@o-tid/map-file";
+import type { ColorUsage, MapColor } from "@o-tid/map-file";
 import { printPdfSv as text } from "../../i18n/course-setting-print-pdf-sv";
 import { printProfileSv } from "../../i18n/course-setting-print-profile-sv";
 import {
@@ -17,8 +17,9 @@ import styles from "./course-setting-print-page.module.css";
  * (ColorPreflight mot det PDF:en kan) visas först: blockerande fel stoppar och varningar måste bekräftas. Jobben skrivs
  * på servern med låg prioritet; listan frågar varannan sekund medan något väntar eller skrivs.
  */
-export function PdfPanel({ raceId, selection, profile, colors, disabled, blockedText }: {
-  raceId: string; selection: PrintJobSelection; profile: PrintProfile; colors: readonly MapColor[]; disabled: boolean; blockedText?: string | undefined;
+export function PdfPanel({ raceId, selection, profile, colors, usage, disabled, blockedText }: {
+  raceId: string; selection: PrintJobSelection; profile: PrintProfile; colors: readonly MapColor[]; usage?: ReadonlyMap<number, ColorUsage> | undefined;
+  disabled: boolean; blockedText?: string | undefined;
 }) {
   const [confirmed, setConfirmed] = useState<ReadonlySet<string>>(new Set());
   const [warningsConfirmed, setWarningsConfirmed] = useState(false);
@@ -26,8 +27,9 @@ export function PdfPanel({ raceId, selection, profile, colors, disabled, blocked
   const [jobs, setJobs] = useState<PrintJobs>();
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
   const [busy, setBusy] = useState(false);
-  const report = useMemo(() => colors.length > 0 ? pdfPreflight(profile, colors, confirmed) : undefined, [profile, colors, confirmed]);
-  const hasSpots = colors.some(color => color.spot);
+  const report = useMemo(() => colors.length > 0 ? pdfPreflight(profile, colors, confirmed, usage) : undefined, [profile, colors, confirmed, usage]);
+  // BL-profilerna vill ha CMYK: då finns inget val för kartans dekorfärger.
+  const hasSpots = colors.some(color => color.spot) && !profile.processColors;
   useEffect(() => { setWarningsConfirmed(false); setConfirmed(new Set()); }, [profile.id]);
 
   const load = useCallback(async () => {
@@ -66,8 +68,12 @@ export function PdfPanel({ raceId, selection, profile, colors, disabled, blocked
     <h2 id="print-pdf">{text.heading}</h2>
     <p className={styles.muted}>{text.help}</p>
     <Notice tone="attention"><p data-testid="print-pdf-honesty">{text.honesty}</p></Notice>
-    {report ? <div className={styles.stack} data-testid="print-pdf-preflight" data-can-print={report.canPrint ? "yes" : "no"}>
+    {profile.processColors && <p className={styles.muted} data-testid="print-pdf-process">{text.processOnly(profile.name)}</p>}
+    {report ? <div className={styles.stack} data-testid="print-pdf-preflight" data-can-print={report.canPrint ? "yes" : "no"}
+      data-unconfirmed={report.unconfirmed?.length ?? ""}>
       <h3>{text.preflight}: {report.canPrint ? text.preflightOk : text.preflightBlocked}</h3>
+      {report.unconfirmed !== undefined && <p data-testid="print-pdf-unconfirmed"><strong>{report.unconfirmed.length === 0 ? text.allConfirmed
+        : text.unconfirmed(report.unconfirmed.length)}</strong>{report.unconfirmed.length > 0 && <> <a href="#bl-proposal">{text.toProposal}</a></>}</p>}
       {report.findings.length === 0 ? <p className={styles.muted}>{text.noFindings}</p>
         : <ul className={styles.findings}>{report.findings.map((finding, index) => <li key={index} data-severity={finding.severity}>
           <strong>{printProfileSv.severity[finding.severity]}</strong> {finding.text}

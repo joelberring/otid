@@ -10,6 +10,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-02 – BL-profiler och förslaget att godkänna (grenen bl-profil, ADR-0183 beslut 7)
+- "BL skog" och "BL sprint" (tabellerna kontrollerade mot BL:s sidor 2026-11-02, källa och datum i profilen, tomma celler tolkade och märkta); ny tabell = ny profilversion, de gamla låsta och markerade som ersatta.
+- Förslaget per kartfärg (namn, OCAD-id, CMYK, användning via `colorUsage`, ordning): säker, bekräfta, tvetydig. Godkännandet i förhandsvisningen: färgrutor före/efter, kartbit per färg, hela kartan före/efter med reglage, lagren som bild; beslut sparas i tävlingens kopia, kartfilen orörd.
+- PDF med BL: CMYK (banan 35/95/0/0 som processfärg), banan i kartans färgordning under brunt, svart och 100 % blå (valbart); förhandskontrollen visar obekräftade färger och stoppar passmärket.
+- Högdalen (BL skog): 20 säkra, 12 att bekräfta, 2 tvetydiga, 8 oanvända; banan hamnar under brun höjdkurva, grön punktsymbol över banan blir varning.
+- Verifierat: lint, typecheck, test (Högdalen via `OTID_REAL_MAP`), Ghostscript-rendering av ordningen, Playwright utskrift-bl (se slutrapporten för CI).
+- Återstår: provtryck hos BL; webbläsarens utkast lägger inte banan i färgordningen.
+
 ### 2026-11-02 – Förslag på kontrollbeskrivning ur kartfilen (grenen beskrivningsforslag, ADR-0180 beslut 13)
 - Paketet: tabell ISOM 2017-2/ISSprOM 2019-2 → IOF 2018 D (namnet som reserv), regler för G (sida, fot/uppe på, kant, hörn in/ut, ände, del, mellan; väderstreck från nordlinjerna), C (flera likadana), E (raserad, djup, sank, stenig), F bara korsning/förgrening; säkerhet, förklaring, högst tre förslag.
 - Webben: kartans Worker räknar; beskrivningspanelen visar förslaget som symboler med Godta, Godta alla tomma och alternativen, markerar objektet på kartan; kontroller utan D förhandsvisas ljusare ("förslag"); fältläget har raden "Förslag: … Godta". Allt via SET_DESCRIPTION.

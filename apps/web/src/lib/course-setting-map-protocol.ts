@@ -1,5 +1,5 @@
 import type { CircleArc, DescriptionSuggestion, DetailCircle, SuggestOptions } from "@o-tid/course-setting";
-import type { ColorAdjust, MapColor, MapGeoreference, Point } from "@o-tid/map-file";
+import type { ColorAdjust, ColorUsage, MapColor, MapGeoreference, Point } from "@o-tid/map-file";
 import type { Bounds } from "./course-setting-viewport";
 
 /**
@@ -11,7 +11,10 @@ export type MapRenderRequest =
   | { readonly type: "render"; readonly id: number; readonly width: number; readonly height: number; readonly pxPerMm: number;
       readonly origin: Point;
       /** Steg 64: kartans färger enligt utskriftsprofilen (kartfilen ändras inte). */
-      readonly colorAdjust?: Readonly<Record<number, ColorAdjust>> | undefined }
+      readonly colorAdjust?: Readonly<Record<number, ColorAdjust>> | undefined;
+      /** BL-förslaget: bara dessa färger (id), och utan vit bakgrund (kartan över banan i tabellens ordning). */
+      readonly onlyColors?: readonly number[] | undefined;
+      readonly background?: boolean | undefined }
   /** Ringklipp (ADR-0180 beslut 10): detaljgapen för ringarna, räknade på kartfilen som redan är inläst. */
   | { readonly type: "detailGaps"; readonly id: number; readonly circles: readonly DetailCircle[]; readonly sprint: boolean }
   /** ADR-0180 beslut 13: förslag på kontrollbeskrivning för punkterna (kontrollens id och läge). */
@@ -25,7 +28,9 @@ export type MapRenderErrorCode = "NOT_A_MAP_FILE" | "UNSUPPORTED_VERSION" | "TRU
 export type MapRenderResponse =
   | { readonly type: "loaded"; readonly bounds: Bounds; readonly scale: number; readonly georeference: MapGeoreference | null;
       /** Steg 64: kartfilens färger (utskriftsprofilen och förhandskontrollen). */
-      readonly colors: readonly MapColor[] }
+      readonly colors: readonly MapColor[];
+      /** BL-förslaget: vad varje färg används till (`colorUsage`). */
+      readonly usage?: ReadonlyMap<number, ColorUsage> | undefined }
   | { readonly type: "rendered"; readonly id: number; readonly bitmap: ImageBitmap }
   /** Tomt när kartan inte gick att läsa eller uträkningen misslyckades (ringarna ritas då hela). */
   | { readonly type: "detailGaps"; readonly id: number; readonly gaps: Readonly<Record<string, readonly CircleArc[]>> }
@@ -47,12 +52,12 @@ export class MapRenderSession {
   private onSuggestions: ((suggestions: SuggestionsByControl) => void) | undefined;
 
   constructor(createWorker: () => Worker, private readonly onLoaded: (bounds: Bounds, scale: number, georeference: MapGeoreference | null,
-    colors: readonly MapColor[]) => void,
+    colors: readonly MapColor[], usage: ReadonlyMap<number, ColorUsage>) => void,
     private readonly onError: (code: MapRenderErrorCode) => void) {
     this.worker = createWorker();
     this.worker.onmessage = (event: MessageEvent<MapRenderResponse>) => {
       const message = event.data;
-      if (message.type === "loaded") this.onLoaded(message.bounds, message.scale, message.georeference, message.colors);
+      if (message.type === "loaded") this.onLoaded(message.bounds, message.scale, message.georeference, message.colors, message.usage ?? new Map());
       else if (message.type === "error") this.onError(message.code);
       else if (message.type === "detailGaps") { if (message.id === this.latestGaps) this.onGaps?.(message.gaps); }
       else if (message.type === "suggestions") { if (message.id === this.latestSuggest) this.onSuggestions?.(message.suggestions); }

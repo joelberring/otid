@@ -4,7 +4,7 @@ import {
 import {
   BUILT_IN_TEMPLATES, colorPreflight, PDF_PRINT_CAPABILITIES, sourceMapColors, type LayoutTemplate, type PreflightReport, type PrintProfile, type SheetItem
 } from "@o-tid/course-setting";
-import type { MapColor } from "@o-tid/map-file";
+import type { ColorUsage, MapColor } from "@o-tid/map-file";
 import { courseSettingBase, HttpError } from "./course-setting-api";
 import { readAccountCsrfCookie } from "./organizer-account-cookies";
 import { fetchUntilReached, fetchWithRetry } from "./retrying-fetch";
@@ -42,9 +42,12 @@ export function printJobRequest(selection: PrintJobSelection, kind: PrintJobKind
   };
 }
 
-/** Förhandskontrollen mot det PDF:en kan (äkta övertryck ja, PDF/X och ICC nej). */
-export function pdfPreflight(profile: PrintProfile, colors: readonly MapColor[], confirmed: ReadonlySet<string>): PreflightReport {
-  return colorPreflight(profile, sourceMapColors(colors), PDF_PRINT_CAPABILITIES, confirmed);
+/**
+ * Förhandskontrollen mot det PDF:en kan (äkta övertryck ja, PDF/X och ICC nej). Med användningen vet BL-profilernas
+ * kontroll vilka färger som ritas (oanvända behöver inget godkännande).
+ */
+export function pdfPreflight(profile: PrintProfile, colors: readonly MapColor[], confirmed: ReadonlySet<string>, usage?: ReadonlyMap<number, ColorUsage>): PreflightReport {
+  return colorPreflight(profile, sourceMapColors(colors, usage), PDF_PRINT_CAPABILITIES, confirmed);
 }
 
 /** Kan PDF:en skapas: inga blockerande fel och varningarna bekräftade. */

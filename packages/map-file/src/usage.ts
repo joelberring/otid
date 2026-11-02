@@ -4,7 +4,7 @@ import type { MapObject, MapSymbol, ParsedMap, Path, PointElement } from "./mode
  * BL-profilerna (ADR-0183 beslut 7): vad varje kartfärg används till, som underlag när kartans färger matchas mot ett
  * tryckeris färgtabell. Per färg: hur många objekt som använder den, som vad (yta, linje, punkt, text), vilka symbolnummer
  * (ISOM/ISSprOM) och var den syns tätast (mitten av den ruta på 40 mm som har flest objekt), så att förhandsvisningen kan
- * visa en bit av kartan där färgen finns. Dolda symboler räknas inte (de ritas inte).
+ * visa en bit av kartan där färgen finns (medelpunkten av objektens mitt i den rutan). Dolda symboler räknas inte (de ritas inte).
  */
 export type ColorUseKind = "AREA" | "LINE" | "POINT" | "TEXT";
 
@@ -73,7 +73,7 @@ function objectCenter(object: MapObject): { x: number; y: number } | undefined {
 /** Användningen per färgens id; färger som inget synligt objekt använder saknas. */
 export function colorUsage(map: Pick<ParsedMap, "symbols" | "objects">): Map<number, ColorUsage> {
   const bySymbol = new Map<string, Map<number, Set<ColorUseKind>>>();
-  const collected = new Map<number, { objects: number; kinds: Set<ColorUseKind>; codes: Set<string>; mains: Set<number>; cells: Map<string, number> }>();
+  const collected = new Map<number, { objects: number; kinds: Set<ColorUseKind>; codes: Set<string>; mains: Set<number>; cells: Map<string, { count: number; x: number; y: number }> }>();
   for (const object of map.objects) {
     const symbol = map.symbols.get(object.symbol);
     if (!symbol || symbol.hidden) continue;
@@ -82,20 +82,24 @@ export function colorUsage(map: Pick<ParsedMap, "symbols" | "objects">): Map<num
     const center = objectCenter(object);
     const cell = center ? `${Math.floor(center.x / SAMPLE_CELL_MM)},${Math.floor(center.y / SAMPLE_CELL_MM)}` : undefined;
     for (const [color, kinds] of colors) {
-      const entry = collected.get(color) ?? { objects: 0, kinds: new Set<ColorUseKind>(), codes: new Set<string>(), mains: new Set<number>(), cells: new Map<string, number>() };
+      const entry = collected.get(color) ?? { objects: 0, kinds: new Set<ColorUseKind>(), codes: new Set<string>(), mains: new Set<number>(), cells: new Map<string, { count: number; x: number; y: number }>() };
       entry.objects += 1;
       for (const kind of kinds) entry.kinds.add(kind);
       entry.codes.add(symbol.code.text);
       entry.mains.add(symbol.code.main);
-      if (cell) entry.cells.set(cell, (entry.cells.get(cell) ?? 0) + 1);
+      if (cell && center) {
+        const known = entry.cells.get(cell) ?? { count: 0, x: 0, y: 0 };
+        entry.cells.set(cell, { count: known.count + 1, x: known.x + center.x, y: known.y + center.y });
+      }
       collected.set(color, entry);
     }
   }
   const out = new Map<number, ColorUsage>();
   for (const [color, entry] of collected) {
-    let best: [string, number] | undefined;
-    for (const item of entry.cells) if (!best || item[1] > best[1]) best = item;
-    const sample = best ? (() => { const [x, y] = best[0].split(",").map(Number); return { x: (x! + 0.5) * SAMPLE_CELL_MM, y: (y! + 0.5) * SAMPLE_CELL_MM }; })() : undefined;
+    let best: { count: number; x: number; y: number } | undefined;
+    for (const item of entry.cells.values()) if (!best || item.count > best.count) best = item;
+    // Medelpunkten av objektens mitt i rutan (ligger oftare på färgen än rutans mitt).
+    const sample = best ? { x: best.x / best.count, y: best.y / best.count } : undefined;
     const order: ColorUseKind[] = ["AREA", "LINE", "POINT", "TEXT"];
     out.set(color, {
       objects: entry.objects,

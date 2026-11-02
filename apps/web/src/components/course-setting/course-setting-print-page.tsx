@@ -6,9 +6,9 @@ import type { CourseSettingEditsRequest, MapBundleResponse } from "@o-tid/contra
 import {
   BUILT_IN_PRINT_PROFILES, BUILT_IN_TEMPLATES, cmykToCss, descriptionSymbols, layoutCoursePage, layoutTemplateSheets, mapColorAdjust, printVariants,
   sheetOfPage, type CourseSettingDocument, type CourseSettingEdit, type DescriptionSymbol, type LayoutTemplate, type MapColorAdjust, type MapRect,
-  type Sheet, type SheetFrame, type SheetItem
+  type Sheet, type SheetItem
 } from "@o-tid/course-setting";
-import type { MapColor } from "@o-tid/map-file";
+import type { ColorUsage, MapColor } from "@o-tid/map-file";
 import { coursePrintSv as text } from "../../i18n/course-setting-print-sv";
 import { layoutTemplateSv } from "../../i18n/course-setting-print-profile-sv";
 import { formatClockTime } from "../../lib/clock-time";
@@ -21,7 +21,10 @@ import { runnerPrintItems, type RunnerPrint, type RunnerPrintProblem } from "../
 import { controlledWorker } from "../../lib/course-setting-worker";
 import { fetchMapBundles } from "../../lib/map-bundles-client";
 import { fetchMapSource } from "../../lib/route-choice-api";
+import { RenderQueue } from "../../lib/course-setting-bl-proposal";
 import { Button, Notice } from "../ui";
+import { BlProposalPanel } from "./course-setting-bl-proposal";
+import type { RenderImage, RenderView } from "./course-setting-bl-compare";
 import { PrintProfilePanel } from "./course-setting-print-profile";
 import { PdfPanel } from "./course-setting-pdf-panel";
 import { printPdfSv as pdfText } from "../../i18n/course-setting-print-pdf-sv";
@@ -36,9 +39,11 @@ type Mode = "COURSES" | "RUNNERS";
 interface Printed { readonly key: string; readonly sheet: Sheet; readonly label: string }
 type Adjust = Readonly<Record<number, MapColorAdjust>>;
 
-/** Kartbilden som bild-URL (ritad av Workern med `drawMap` och utskriftsprofilens färger). */
-async function renderMap(session: MapRenderSession, frame: SheetFrame, colorAdjust: Adjust): Promise<string> {
-  const request = { ...mapRenderRequest(frame), ...(Object.keys(colorAdjust).length > 0 ? { colorAdjust } : {}) };
+/**
+ * En kartbild som bild-URL (ritad av Workern med `drawMap`). Workern ritar bara den senaste beställningen, så alla bilder
+ * går genom en kö (`RenderQueue`): BL-förslagets små kartbitar före arkens stora bilder.
+ */
+async function renderView(session: MapRenderSession, request: RenderView): Promise<string> {
   const bitmap = await new Promise<ImageBitmap>(resolve => session.render(request, (_id, image) => resolve(image)));
   const canvas = window.document.createElement("canvas");
   canvas.width = bitmap.width; canvas.height = bitmap.height;
@@ -110,14 +115,20 @@ export function CoursePrintPage({ raceId }: { raceId: string }) {
   const [session, setSession] = useState<MapRenderSession>();
   const [mapState, setMapState] = useState<"none" | "reading" | "ready" | "failed">("none");
   const [colors, setColors] = useState<readonly MapColor[]>([]);
+  const [usage, setUsage] = useState<ReadonlyMap<number, ColorUsage>>(new Map());
+  const queue = useRef(new RenderQueue());
+  const renderImage = useCallback<RenderImage>((view, priority) => {
+    if (!session) return Promise.reject(new Error("Kartan är inte inläst"));
+    return queue.current.add(() => renderView(session, view), priority);
+  }, [session]);
   useEffect(() => {
     if (!hasMap) return;
     const controller = new AbortController();
     let created: MapRenderSession | undefined;
     setMapState("reading");
     void fetchMapSource(raceId, controller.signal).then(file => {
-      created = new MapRenderSession(createMapWorker, (bounds, _scale, _georeference, mapColors) => {
-        setMapBounds(current => current ?? bounds); setColors(mapColors); setSession(created); setMapState("ready");
+      created = new MapRenderSession(createMapWorker, (bounds, _scale, _georeference, mapColors, mapUsage) => {
+        setMapBounds(current => current ?? bounds); setColors(mapColors); setUsage(mapUsage); setSession(created); setMapState("ready");
       }, () => setMapState("failed"));
       created.load(file.bytes, file.fileName);
     }, () => { if (!controller.signal.aborted) setMapState("failed"); });
@@ -156,7 +167,9 @@ export function CoursePrintPage({ raceId }: { raceId: string }) {
   const adjust = useMemo<Adjust>(() => mapColorAdjust(profile, colors), [profile, colors]);
   const colorsKey = useMemo(() => JSON.stringify(adjust), [adjust]);
   const courseColor = cmykToCss(profile.course.cmyk);
-  function chooseProfile(id: string) {
+  function chooseProfile(wanted: string) {
+    // En BL-profil som redan godkänts för tävlingen: välj kopian med besluten.
+    const id = savedProfiles.find(item => item.basedOn === wanted && item.reference)?.id ?? wanted;
     setProfileId(id);
     if (canEdit && id !== document?.event.printProfileId) void save([{ type: "SET_EVENT", changes: { printProfileId: id } }]);
   }
@@ -230,7 +243,7 @@ export function CoursePrintPage({ raceId }: { raceId: string }) {
         if (started.current.has(key)) continue;
         started.current.add(key);
         try {
-          const url = await renderMap(session, frame, adjust);
+          const url = await renderImage({ ...mapRenderRequest(frame), ...(Object.keys(adjust).length > 0 ? { colorAdjust: adjust } : {}) }, 0);
           urls.current.push(url);
           // Bilden gäller sin nyckel (utsnitt och färger) även om arken ändrats under tiden: en senare körning hoppar över
           // nyckeln medan den ritas, så den måste sparas här (annars väntar arket för alltid).
@@ -239,7 +252,7 @@ export function CoursePrintPage({ raceId }: { raceId: string }) {
       }
     })();
     return () => { cancelled = true; };
-  }, [session, sheets, adjust, colorsKey]);
+  }, [session, sheets, adjust, colorsKey, renderImage]);
   useEffect(() => () => { for (const url of urls.current) if (url.startsWith("blob:")) URL.revokeObjectURL(url); }, []);
 
   const toggle = (id: string, on: boolean) => setChosen(current => on ? [...current, id] : current.filter(item => item !== id));
@@ -287,7 +300,10 @@ export function CoursePrintPage({ raceId }: { raceId: string }) {
         {blocked && <span className={styles.muted}>{text.page.runnerProblems}</span>}
       </div>
       {!hasMap && <p className={styles.muted}>{text.page.noMap}</p>}
-      <PdfPanel raceId={raceId} profile={profile} colors={colors} disabled={sheets.length === 0 || blocked || errors.length > 0}
+      {profile.reference && hasMap && <BlProposalPanel key={profile.id} profile={profile} builtIn={BUILT_IN_PRINT_PROFILES} colors={colors} usage={usage}
+        readOnly={!canEdit} frame={sheets[0]?.sheet.frames[0]} symbols={symbols} render={renderImage}
+        onSave={async edits => { const ok = await save(edits); if (ok) setProfileId(undefined); return ok; }} />}
+      <PdfPanel raceId={raceId} profile={profile} colors={colors} usage={usage} disabled={sheets.length === 0 || blocked || errors.length > 0}
         blockedText={blocked ? pdfText.runnerBlocked : undefined}
         selection={{ items: mode === "RUNNERS" ? runners?.items ?? [] : courseItems, template, templateIsDraft: draftTemplate !== undefined,
           savedTemplateIds: savedTemplates.map(item => item.id), header, fill, perRunner: mode === "RUNNERS", duplex,
@@ -296,7 +312,7 @@ export function CoursePrintPage({ raceId }: { raceId: string }) {
       {errors.map(name => <Notice key={name} tone="error">{text.page.failedCourse(name)}</Notice>)}
       <LayoutTemplatePanel key={mode} saved={savedTemplates} selectedId={chosenTemplateId} readOnly={!canEdit}
         onSelect={id => { setTemplateId(id); setDraftTemplate(undefined); }} onDraft={setDraftTemplate} onSave={save} />
-      <PrintProfilePanel saved={savedProfiles} selectedId={profile.id} colors={colors} readOnly={!canEdit} onSelect={chooseProfile}
+      <PrintProfilePanel saved={savedProfiles} selectedId={profile.id} colors={colors} usage={usage} readOnly={!canEdit} onSelect={chooseProfile}
         onSave={async edits => { const ok = await save(edits); if (ok) setProfileId(undefined); return ok; }} />
     </div>
     <div className={styles.sheets}>

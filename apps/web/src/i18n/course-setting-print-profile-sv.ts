@@ -5,6 +5,8 @@ export const printProfileSv = {
   choose: "Profil",
   name: "Namn",
   unsaved: "inte sparad",
+  superseded: "äldre version",
+  source: "Källa",
   save: "Spara profilen",
   saved: "Profilen är sparad och vald för tävlingen.",
   saveFailed: "Profilen sparades inte. Ladda om sidan och försök igen.",

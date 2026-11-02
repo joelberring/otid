@@ -2,10 +2,10 @@
 
 import { useMemo, useRef, useState } from "react";
 import {
-  BUILT_IN_PRINT_PROFILES, cmykToCss, colorPreflight, mapColorAdjust, parsePrintProfile, sourceMapColors, type Cmyk100, type CourseSettingEdit,
-  type PrintProfile
+  BUILT_IN_PRINT_PROFILES, cmykToCss, colorPreflight, mapColorAdjust, parsePrintProfile, sourceMapColors, SUPERSEDED_PRINT_PROFILES, type Cmyk100,
+  type CourseSettingEdit, type PrintProfile
 } from "@o-tid/course-setting";
-import type { MapColor } from "@o-tid/map-file";
+import type { ColorUsage, MapColor } from "@o-tid/map-file";
 import { printProfileSv as text } from "../../i18n/course-setting-print-profile-sv";
 import { downloadText } from "../../lib/course-setting-api";
 import { parseCmyk, rowFor, withColorRow } from "../../lib/course-setting-print-settings";
@@ -20,8 +20,8 @@ const cmykText = (cmyk: Cmyk100 | { c: number; m: number; y: number; k: number }
  * (dölj, ljusare/mörkare, ny CMYK, dekorfärg med övertryck) och banans färg, utan att kartfilen ändras. Förhandskontrollen
  * visar vad som stämmer mot profilens regler; den ändrar ingenting.
  */
-export function PrintProfilePanel({ saved, selectedId, colors, readOnly, onSelect, onSave }: {
-  saved: readonly PrintProfile[]; selectedId: string; colors: readonly MapColor[]; readOnly: boolean;
+export function PrintProfilePanel({ saved, selectedId, colors, usage, readOnly, onSelect, onSave }: {
+  saved: readonly PrintProfile[]; selectedId: string; colors: readonly MapColor[]; usage?: ReadonlyMap<number, ColorUsage> | undefined; readOnly: boolean;
   onSelect: (id: string) => void; onSave: (edits: CourseSettingEdit[]) => Promise<boolean>;
 }) {
   const all = useMemo(() => [...BUILT_IN_PRINT_PROFILES, ...saved], [saved]);
@@ -31,7 +31,9 @@ export function PrintProfilePanel({ saved, selectedId, colors, readOnly, onSelec
   const [confirmed, setConfirmed] = useState<ReadonlySet<string>>(new Set());
   const profile = draft ?? active;
   const builtIn = BUILT_IN_PRINT_PROFILES.some(item => item.id === profile.id);
-  const report = useMemo(() => colors.length > 0 ? colorPreflight(profile, sourceMapColors(colors), undefined, confirmed) : undefined, [profile, colors, confirmed]);
+  const report = useMemo(() => colors.length > 0 ? colorPreflight(profile, sourceMapColors(colors, usage), undefined, confirmed) : undefined, [profile, colors, confirmed, usage]);
+  // Ersatta inbyggda versioner (äldre BL-tabeller) visas bara när de redan är valda.
+  const listed = all.filter(item => !SUPERSEDED_PRINT_PROFILES[item.id] || item.id === active.id);
   const adjust = useMemo(() => mapColorAdjust(profile, colors), [profile, colors]);
   const ordered = useMemo(() => [...colors].sort((a, b) => a.rank - b.rank || a.id - b.id), [colors]);
   const file = useRef<HTMLInputElement>(null);
@@ -53,7 +55,7 @@ export function PrintProfilePanel({ saved, selectedId, colors, readOnly, onSelec
       <label className={styles.field}>{text.choose}
         <select value={draft ? "" : active.id} onChange={event => { setDraft(undefined); setConfirmed(new Set()); onSelect(event.target.value); }} data-testid="print-profile-select">
           {draft && <option value="">{draft.name} ({text.unsaved})</option>}
-          {all.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+          {listed.map(item => <option key={item.id} value={item.id}>{item.name}{SUPERSEDED_PRINT_PROFILES[item.id] ? ` (${text.superseded})` : ""}</option>)}
         </select></label>
       {!readOnly && <label className={styles.field}>{text.name}
         <input value={profile.name} onChange={event => edit({ ...profile, name: event.target.value })} /></label>}
@@ -63,6 +65,8 @@ export function PrintProfilePanel({ saved, selectedId, colors, readOnly, onSelec
         <input ref={file} type="file" accept="application/json,.json" hidden onChange={event => void importFile(event.target.files?.[0])} /></>}
     </div>
     {profile.description && <p className={styles.muted}>{profile.description}</p>}
+    {profile.sourceUrl && <p className={styles.muted}>{text.source}: <a href={profile.sourceUrl} target="_blank" rel="noreferrer">{profile.sourceUrl}</a>
+      {profile.sourceDate ? ` (${profile.sourceDate})` : ""}</p>}
     {message && <Notice tone={message.tone === "ok" ? "ok" : "error"}><p>{message.text}</p></Notice>}
     <fieldset className={styles.row} disabled={readOnly}>
       <legend>{text.course}</legend>

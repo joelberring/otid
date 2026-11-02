@@ -26,7 +26,7 @@ const map: ParsedMap = { format: "OMAP", version: "Mapper v9", colors: [color(1,
 describe("colorUsage (BL-förslaget)", () => {
   it("räknar objekt, sorter och symbolnummer per färg och var färgen syns tätast; dolda symboler räknas inte", () => {
     const usage = colorUsage(map);
-    expect(usage.get(1)).toEqual({ objects: 3, kinds: ["LINE", "POINT"], codes: ["206", "301.1"], mains: [206, 301], sample: { x: 100, y: 100 } });
+    expect(usage.get(1)).toEqual({ objects: 3, kinds: ["LINE", "POINT"], codes: ["206", "301.1"], mains: [206, 301], sample: { x: expect.closeTo(105.333, 2) as number, y: expect.closeTo(103.667, 2) as number } });
     expect(usage.get(2)).toMatchObject({ objects: 1, kinds: ["LINE"], codes: ["101"] });
     expect(usage.get(3)).toMatchObject({ kinds: ["AREA"], mains: [301] });
     expect(usage.has(4)).toBe(false);

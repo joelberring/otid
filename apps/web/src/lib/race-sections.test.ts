@@ -20,14 +20,16 @@ describe("tävlingstypen styr arbetsytans delar (ADR-0170 beslut 1)", () => {
     const features = (type: RaceType) => raceTypeProfile(type).features;
     expect(features("TRAINING")).toMatchObject({ draw: false, speaker: false, import: false, relay: false, variants: false, startRuleChoice: false });
     expect(features("SMALL")).toMatchObject({ draw: false, speaker: false, import: false, finalization: false, startRuleChoice: true });
-    expect(features("STANDARD")).toMatchObject({ draw: true, speaker: true, import: true, finalization: true, relay: false, variants: false });
-    expect(features("FORKED")).toMatchObject({ draw: true, speaker: true, import: true, variants: true, variantsProminent: true });
+    // ADR-0188 beslut 5: Tävling har gafflingar; FORKED är ett alias för Tävling.
+    expect(features("STANDARD")).toMatchObject({ draw: true, speaker: true, import: true, finalization: true, relay: false, variants: true,
+      variantsProminent: true });
+    expect(raceTypeProfile("FORKED")).toEqual(raceTypeProfile("STANDARD"));
     expect(features("RELAY")).toMatchObject({ draw: false, speaker: true, relay: true, variants: true, variantsProminent: false });
     expect(features("ROGAINING")).toMatchObject({ draw: false, speaker: false, relay: false });
     // Stafett- och variantdelar finns bara i typerna som använder dem.
     for (const type of raceTypes) {
       expect(features(type).relay).toBe(type === "RELAY");
-      expect(features(type).variants).toBe(type === "FORKED" || type === "RELAY");
+      expect(features(type).variants).toBe(type === "STANDARD" || type === "FORKED" || type === "RELAY");
       // ADR-0170 beslut 4: Eventor för tävlingarna och stafetten; banfil kan alla läsa under Banor.
       expect(features(type).eventor).toBe(type === "STANDARD" || type === "FORKED" || type === "RELAY");
       expect(features(type).eventorRunners).toBe(type === "PARTY");

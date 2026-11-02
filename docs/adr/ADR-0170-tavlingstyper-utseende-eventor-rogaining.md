@@ -1,6 +1,7 @@
 # ADR-0170: Tävlingstyper, nytt utseende, Eventor och rogaining
 
-Status: beslutad 2026-10-04 av ägaren (Joel). Kompletterar ADR-0168 och ADR-0169.
+Status: beslutad 2026-10-04 av ägaren (Joel). Kompletterar ADR-0168 och ADR-0169. Beslut 1 ändrat av ADR-0188 beslut 5:
+"Tävling med gafflade banor" är en del av Tävling (gaffling följer av banorna).
 
 ## Bakgrund
 

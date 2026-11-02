@@ -27,7 +27,7 @@ export const aboutSv = {
     "Fest med bar: köp med SPORTident-brickor, in- och utcheckning i baren och en publik fest-sida utan belopp och utan namn om arrangören inte väljer det.",
     "Funktionärer med egna konton som når avläsning, start, Kvar i skogen och speaker.",
     "Nödlägen under tävlingen: justera tiden för en station, kontroll ur funktion, manuell tid och omläsning från sparade rådata.",
-    "Tävlingstyperna Träning, Liten tävling, Tävling, Tävling med gafflade banor, Stafett och Rogaining."
+    "Tävlingstyperna Träning, Liten tävling, Tävling (också med gafflade banor), Stafett och Rogaining."
   ],
   // Steg 54: uppmätt i docs/lasttest.md på en liten server (Hetzner CX23). Enkel svenska, inga tekniska ord.
   capacityTitle: "Hur stora tävlingar klarar O-Tid?",

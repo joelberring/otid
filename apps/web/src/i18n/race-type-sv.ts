@@ -6,8 +6,9 @@ export const raceTypeSv = {
   types: {
     TRAINING: { name: "Träning", help: "Fri start. Banor och klasser på samma ställe, deltagare, avläsning och resultat." },
     SMALL: { name: "Liten tävling", help: "Klasser, anmälda och starttider utan lottning. För närtävlingar och klubbmästerskap." },
-    STANDARD: { name: "Tävling", help: "Lottning, import, speaker och fastställda resultat." },
-    FORKED: { name: "Tävling med gafflade banor", help: "Som Tävling, med banvarianter och gafflingskontroll." },
+    STANDARD: { name: "Tävling", help: "Lottning, import, speaker och fastställda resultat. Gafflade banor ger varianter och gafflingskontroll." },
+    /** ADR-0188 beslut 5: alias för Tävling (äldre tävlingar); går inte att välja. */
+    FORKED: { name: "Tävling", help: "Lottning, import, speaker och fastställda resultat. Gafflade banor ger varianter och gafflingskontroll." },
     RELAY: { name: "Stafett", help: "Lag och sträckor, masstart och omstart, lagresultat och speaker." },
     ROGAINING: { name: "Rogaining", help: "Valfria kontroller med poäng, tidsgräns och straff. Resultat på poäng, sedan tid." },
     PARTY: { name: "Fest", help: "Bardisk: gästerna stämplar själva på varornas enheter och läser ut brickan. Köp, summa per person och export." }

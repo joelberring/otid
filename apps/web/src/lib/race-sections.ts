@@ -1,4 +1,4 @@
-import type { RaceType } from "@o-tid/contracts";
+import { normalizeRaceType, type RaceType } from "@o-tid/contracts";
 
 /**
  * ADR-0170 beslut 1: tävlingstypen styr vilka delar av arbetsytan som syns och vilka förval som gäller.
@@ -28,7 +28,7 @@ export type RaceTypeFeatures = {
   eventorRunners: boolean;
   /** Fastställande i Resultat. */ finalization: boolean;
   /** Stafettklasser, lag och sträckor. */ relay: boolean;
-  /** Banvarianter (gafflingar). */ variants: boolean;
+  /** Banvarianter (gafflingar). ADR-0188 beslut 5: Tävling har dem; de syns när en bana är gafflad. */ variants: boolean;
   /** Banor visar varianterna och gafflingskontrollen utfällda. */ variantsProminent: boolean;
   /** Arrangören väljer startsätt per klass. Annars alltid fri start; nya klasser får fri start och lottningen sätter minutstart. */
   startRuleChoice: boolean;
@@ -64,9 +64,9 @@ const settings = section("SETTINGS", "SETTINGS");
 const none: RaceTypeFeatures = { draw: false, speaker: false, import: false, eventor: false, eventorRunners: false, finalization: false, relay: false, variants: false,
   variantsProminent: false, startRuleChoice: false, rogaining: false, radio: false };
 const competition: RaceTypeFeatures = { ...none, draw: true, speaker: true, import: true, eventor: true, finalization: true, startRuleChoice: true,
-  radio: true };
+  radio: true, variants: true, variantsProminent: true };
 
-const profiles: Record<RaceType, Omit<RaceTypeProfile, "type" | "settings">> = {
+const profiles: Record<Exclude<RaceType, "FORKED">, Omit<RaceTypeProfile, "type" | "settings">> = {
   TRAINING: {
     course: [section("COURSES", "COURSES_CLASSES", ["COURSES", "CLASSES"]), section("ENTRIES", "PARTICIPANTS"), publish, readout, results],
     features: none
@@ -78,10 +78,6 @@ const profiles: Record<RaceType, Omit<RaceTypeProfile, "type" | "settings">> = {
   STANDARD: {
     course: [courses, classes, entries, start, publish, readout, results],
     features: competition
-  },
-  FORKED: {
-    course: [courses, classes, entries, start, publish, readout, results],
-    features: { ...competition, variants: true, variantsProminent: true }
   },
   RELAY: {
     course: [courses, section("CLASSES", "CLASSES_LEGS"), section("ENTRIES", "TEAMS"), start, publish, readout, results],
@@ -99,8 +95,10 @@ const profiles: Record<RaceType, Omit<RaceTypeProfile, "type" | "settings">> = {
   }
 };
 
+/** ADR-0188 beslut 5: FORKED (äldre tävlingar) visas som Tävling. */
 export function raceTypeProfile(type: RaceType): RaceTypeProfile {
-  return { type, settings, ...profiles[type] };
+  const normalized = normalizeRaceType(type);
+  return { type: normalized, settings, ...profiles[normalized] };
 }
 
 /**

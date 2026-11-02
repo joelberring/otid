@@ -1,7 +1,6 @@
 import { and, eq, sql } from "drizzle-orm";
 import {
-  raceSettingsIdempotencyKeySchema, raceSettingsRequestSchema, raceSettingsResponseSchema, type RaceSettingsResponse
-} from "@o-tid/contracts";
+  raceSettingsIdempotencyKeySchema, raceSettingsRequestSchema, raceSettingsResponseSchema, type RaceSettingsResponse, normalizeRaceType } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation } from "./concurrency";
@@ -69,7 +68,7 @@ export async function saveRaceSettingsAsAdmin(db: Database, input: Authenticatio
       startListLive: intent.startListLive ?? race.startListLive,
       // Steg 41: självregistrering finns inte för stafett (en deltagare per lag och sträcka).
       selfRegistration: intent.raceType === "RELAY" ? false : intent.selfRegistration ?? race.selfRegistration };
-    await tx.update(schema.races).set({ name: intent.raceName, raceDate: intent.raceDate, raceType: intent.raceType, ...info,
+    await tx.update(schema.races).set({ name: intent.raceName, raceDate: intent.raceDate, raceType: normalizeRaceType(intent.raceType), ...info,
       snapshotVersion: snapshotVersionAfter }).where(eq(schema.races.id, raceId));
     if (datePlan && hasStartTimes(datePlan)) {
       await applyRaceDateMove(tx, { raceId, plan: datePlan, requestId: intent.requestId, actorAccountId: auth.principal.accountId,

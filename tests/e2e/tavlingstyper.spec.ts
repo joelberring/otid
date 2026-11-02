@@ -12,13 +12,12 @@ const EXPECTED: Record<RaceTypeName, SectionName[]> = {
   "Träning": ["Banor & klasser", "Deltagare", "Publicera", "Avläsning", "Resultat", "Inställningar"],
   "Liten tävling": ["Banor", "Klasser", "Anmälda", "Start", "Publicera", "Avläsning", "Resultat", "Inställningar"],
   "Tävling": ["Banor", "Klasser", "Anmälda", "Start", "Publicera", "Avläsning", "Resultat", "Inställningar"],
-  "Tävling med gafflade banor": ["Banor", "Klasser", "Anmälda", "Start", "Publicera", "Avläsning", "Resultat", "Inställningar"],
   "Stafett": ["Banor", "Klasser & sträckor", "Lag", "Start", "Publicera", "Avläsning", "Resultat", "Inställningar"],
   "Rogaining": ["Kontroller & poäng", "Deltagare", "Publicera", "Avläsning", "Resultat", "Inställningar"],
   "Fest": ["Fest", "Publicera", "Inställningar"]
 };
 const SPEAKER: Record<RaceTypeName, boolean> = { "Träning": false, "Liten tävling": false, "Tävling": true,
-  "Tävling med gafflade banor": true, "Stafett": true, "Rogaining": false, "Fest": false };
+  "Stafett": true, "Rogaining": false, "Fest": false };
 
 test("varje tävlingstyp visar sina delar och inga andra", async ({ browser }) => {
   test.setTimeout(240_000);
@@ -26,6 +25,9 @@ test("varje tävlingstyp visar sina delar och inga andra", async ({ browser }) =
   const owner = await registerAccount(browser, `typer.${suffix}@exempel.se`, "Tea Typ");
   for (const type of Object.keys(EXPECTED) as RaceTypeName[]) {
     await owner.goto("/organizer");
+    // ADR-0188 beslut 5: gaffling följer av banorna; ingen egen typ.
+    await expect(owner.getByRole("radio", { name: "Tävling", exact: true })).toBeVisible();
+    await expect(owner.getByRole("radio", { name: /gafflade/ })).toHaveCount(0);
     await createRace(owner, `${type} ${suffix}`, today(), type);
     const navigation = owner.getByRole("navigation", { name: "Tävlingens delar" });
     await expect(navigation.getByRole("button")).toHaveCount(EXPECTED[type].length);

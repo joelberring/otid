@@ -43,8 +43,7 @@ export const helpArticles: readonly HelpArticle[] = [
       [
         "”Träning”: fri start, banor och klasser på samma ställe.",
         "”Liten tävling”: klasser, anmälda och starttider utan lottning.",
-        "”Tävling”: lottning, import, speaker och fastställda resultat.",
-        "”Tävling med gafflade banor”: som Tävling, med banvarianter.",
+        "”Tävling”: lottning, import, speaker och fastställda resultat. Gafflade banor ger banvarianter.",
         "”Stafett”: lag och sträckor.",
         "”Rogaining”: kontroller med poäng och tidsgräns."
       ],
@@ -92,7 +91,7 @@ export const helpArticles: readonly HelpArticle[] = [
     views: ["ENTRIES", "SETTINGS"],
     body: [
       "Lägg till en löpare i taget med ”Ny deltagare”. Välj klass, skriv namn och gärna bricka, och tryck på ”Lägg till”. Formuläret står kvar för nästa.",
-      "Eventor finns för Tävling, Tävling med gafflade banor och Stafett, under ”Inställningar” → ”Eventor”:",
+      "Eventor finns för Tävling och Stafett, under ”Inställningar” → ”Eventor”:",
       [
         "Spara klubbens API-nyckel och välj tävlingen med ”Visa klubbens tävlingar”.",
         "”Hämta från Eventor” hämtar klasser och anmälda. Du ser skillnaderna innan något sparas.",
@@ -218,7 +217,7 @@ export const helpArticles: readonly HelpArticle[] = [
     views: ["READOUT", "RESULTS", "PUBLISH"],
     body: [
       "Live finns på tävlingssidan när tävlingen är publicerad. Där syns senast i mål, ledare per klass och radiokontroller. Publiken kan följa löpare och klubbar.",
-      "Speakersidan öppnas med ”Öppna speaker” i arbetsytans toppbalk. Den finns för Tävling, Tävling med gafflade banor och Stafett och uppdateras av sig själv.",
+      "Speakersidan öppnas med ”Öppna speaker” i arbetsytans toppbalk. Den finns för Tävling och Stafett och uppdateras av sig själv.",
       "”Kvar i skogen” under ”Avläsning” visar anmälda som inte har läst ut. Hela listan med utskrift finns under ”Kvar i skogen – hela listan, manuell återkomst och utskrift”.",
       "Stäm alltid av med målet innan ni slutar leta efter löpare."
     ]

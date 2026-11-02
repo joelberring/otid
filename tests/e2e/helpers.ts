@@ -128,7 +128,8 @@ export function grantSuperadmin(email: string): void {
 }
 
 /** Tävlingstyperna i "Skapa tävling" (ADR-0170 beslut 1). */
-export type RaceTypeName = "Träning" | "Liten tävling" | "Tävling" | "Tävling med gafflade banor" | "Stafett" | "Rogaining" | "Fest";
+/** ADR-0188 beslut 5: "Tävling med gafflade banor" är en del av Tävling (gaffling följer av banorna). */
+export type RaceTypeName = "Träning" | "Liten tävling" | "Tävling" | "Stafett" | "Rogaining" | "Fest";
 
 /**
  * Skapar tävling av vald typ (som standard i dag, tävlingsdagen, i Stockholms tid). "Skapa tävling" leder direkt in i den nya

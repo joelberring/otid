@@ -11,11 +11,20 @@ export const raceTypeSchema = z.enum(raceTypes);
 export type RaceType = z.infer<typeof raceTypeSchema>;
 
 /**
+ * ADR-0188 beslut 5: "Tävling med gafflade banor" är en del av Tävling; gaffling följer av banorna. `FORKED` finns kvar som
+ * alias (befintliga tävlingar och äldre klienter) och behandlas som `STANDARD` överallt. Typerna att välja bland saknar den.
+ */
+export function normalizeRaceType<T extends RaceType>(raceType: T): Exclude<T, "FORKED"> | "STANDARD" {
+  return (raceType === "FORKED" ? "STANDARD" : raceType) as Exclude<T, "FORKED"> | "STANDARD";
+}
+export const selectableRaceTypes = raceTypes.filter(type => type !== "FORKED") as readonly Exclude<RaceType, "FORKED">[];
+
+/**
  * ADR-0188 beslut 4: startsättet för klasser som skapas från en banfil eller Eventor. En vanlig Tävling lottas (fast start);
  * fri start är naturlig för Träning, Liten tävling, Rogaining och Fest. Stafettklasser har egna regler.
  */
 export function defaultStartRule(raceType: RaceType): "FIXED" | "PUNCH" {
-  return raceType === "STANDARD" || raceType === "FORKED" ? "FIXED" : "PUNCH";
+  return normalizeRaceType(raceType) === "STANDARD" ? "FIXED" : "PUNCH";
 }
 
 const name = z.string().trim().min(2).max(160);

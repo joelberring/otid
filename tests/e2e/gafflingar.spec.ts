@@ -29,7 +29,7 @@ test("gafflad klass: import, fördelning, avläsning mot rätt variant och publi
   test.setTimeout(300_000);
   const suffix = unique();
   const owner = await registerAccount(browser, `gaffel.${suffix}@exempel.se`, "Gun Gaffel");
-  const raceId = await createRace(owner, `Gafflingar ${suffix}`, today(), "Tävling med gafflade banor");
+  const raceId = await createRace(owner, `Gafflingar ${suffix}`, today(), "Tävling");
   // Besökarna ska se tävlingen (ADR-0172 beslut 4).
   await publishRace(owner);
 

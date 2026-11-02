@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { raceDateMovePreviewResponseSchema, raceSettingsResponseSchema, type RaceDateMovePreviewResponse, type RaceSettingsRequest,
+import { normalizeRaceType, raceDateMovePreviewResponseSchema, raceSettingsResponseSchema, type RaceDateMovePreviewResponse, type RaceSettingsRequest,
   type RaceType } from "@o-tid/contracts";
 import { raceTypeSv } from "../../i18n/race-type-sv";
 import { raceInfoSv } from "../../i18n/race-info-sv";
@@ -18,7 +18,7 @@ export const RACE_INFO_MAX = 1000;
 /** Formuläret som det ser ut när delen öppnas: tävlingens sparade värden. */
 export function settingsFormFrom(data: { eventName: string; raceName: string; raceDate: string; raceType: RaceType;
   publicStartListCardNumbers?: boolean | undefined; info?: string | null | undefined; firstStartTime?: string | null | undefined }): SettingsForm {
-  return { eventName: data.eventName, raceName: data.raceName, raceDate: data.raceDate, raceType: data.raceType,
+  return { eventName: data.eventName, raceName: data.raceName, raceDate: data.raceDate, raceType: normalizeRaceType(data.raceType),
     publicStartListCardNumbers: data.publicStartListCardNumbers ?? true, info: data.info ?? "", firstStartTime: data.firstStartTime ?? "" };
 }
 

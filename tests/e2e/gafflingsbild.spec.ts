@@ -65,7 +65,7 @@ test("bygg en gafflad bana i bilden, fördela, läs av och se gafflingarna i res
   test.setTimeout(300_000);
   const suffix = unique();
   const owner = await registerAccount(browser, `bild.${suffix}@exempel.se`, "Bo Bild");
-  const raceId = await createRace(owner, `Gafflingsbild ${suffix}`, today(), "Tävling med gafflade banor");
+  const raceId = await createRace(owner, `Gafflingsbild ${suffix}`, today(), "Tävling");
   await publishRace(owner);
   const admin = `/api/admin/races/${raceId}/administrator`;
   await warmRoute(owner, `${admin}/courses`);
@@ -180,7 +180,7 @@ test("två fjärilar i följd och en gaffling med fyra alternativ: etiketterna t
   test.setTimeout(240_000);
   const suffix = unique();
   const owner = await registerAccount(browser, `bon.${suffix}@exempel.se`, "Bo Bon");
-  const raceId = await createRace(owner, `Bon ${suffix}`, today(), "Tävling med gafflade banor");
+  const raceId = await createRace(owner, `Bon ${suffix}`, today(), "Tävling");
   const admin = `/api/admin/races/${raceId}/administrator`;
   await warmRoute(owner, `${admin}/courses`);
   await owner.goto(`/admin/${raceId}/manage`);

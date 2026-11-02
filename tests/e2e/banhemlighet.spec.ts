@@ -22,7 +22,7 @@ test("banorna är hemliga publikt tills arrangören visar dem, och arrangören s
   test.setTimeout(420_000);
   const suffix = unique();
   const owner = await registerAccount(browser, `hemlig.${suffix}@exempel.se`, "Hedda Hemlig");
-  const raceId = await createRace(owner, `Hemliga banor ${suffix}`, today(), "Tävling med gafflade banor");
+  const raceId = await createRace(owner, `Hemliga banor ${suffix}`, today(), "Tävling");
   await publishRace(owner);
   await owner.goto(`/admin/${raceId}/imports`);
   await importFile(owner, "course-data-forked.xml", "2 banor och 2 klasser, 4 varianter");

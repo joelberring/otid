@@ -6,8 +6,7 @@ import {
   organizerEventCreateResponseSchema,
   organizerMyEventsResponseSchema,
   type OrganizerEventCreateResponse,
-  type OrganizerMyEventsResponse
-} from "@o-tid/contracts";
+  type OrganizerMyEventsResponse, normalizeRaceType } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
 import { schema } from "@o-tid/database";
 import {
@@ -83,7 +82,8 @@ export async function createOrganizerEvent(
     if (!event) throw new Error("Eventskapandet kunde inte bekräftas");
     const [race] = await tx.insert(schema.races).values({
       eventId: event.id, name: request.data.raceName, raceDate: request.data.raceDate,
-      raceType: request.data.raceType, snapshotVersion: 1, createdAt
+      // ADR-0188 beslut 5: FORKED är ett alias för Tävling; begäran sparas som den kom (omsändning jämförs med den).
+      raceType: normalizeRaceType(request.data.raceType), snapshotVersion: 1, createdAt
     }).returning({ id: schema.races.id });
     if (!race) throw new Error("Loppskapandet kunde inte bekräftas");
     await tx.insert(schema.eventAdministrationGrants).values({

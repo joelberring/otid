@@ -179,3 +179,16 @@ describe("ADR-0188 beslut 4: startsätt för importerade klasser", () => {
     expect(await startRule(training.raceId)).toEqual(["PUNCH"]);
   });
 });
+
+describe("ADR-0188 beslut 5: Tävling med gafflade banor är ett alias för Tävling", () => {
+  const raceType = async (raceId: string) => (await pool.query<{ race_type: string }>("select race_type from race where id = $1", [raceId])).rows[0]!.race_type;
+
+  it("en ny tävling som begärs som FORKED blir Tävling, och Inställningar sparar Tävling för en äldre tävling", async () => {
+    const created = await race(await account(), { raceType: "FORKED" });
+    expect(await raceType(created.raceId)).toBe("STANDARD");
+    // En äldre tävling med typen kvar i databasen fungerar och sparas som Tävling.
+    await pool.query("update race set race_type = 'FORKED' where id = $1", [created.raceId]);
+    expect(await settings(created, RACE_DATE, { raceType: "FORKED" })).toMatchObject({ status: "saved" });
+    expect(await raceType(created.raceId)).toBe("STANDARD");
+  });
+});

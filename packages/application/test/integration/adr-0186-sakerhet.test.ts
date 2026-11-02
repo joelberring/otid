@@ -21,7 +21,7 @@ import { grantRacePersonAsAdmin } from "../../src/race-people";
 const base = process.env.TEST_DATABASE_URL;
 if (!base) throw new Error("ADR-0186-testet kräver TEST_DATABASE_URL till en PostgreSQL-roll med CREATEDB");
 const admin = createDatabase(base);
-const databaseName = `otid_adr0185_${randomUUID().replaceAll("-", "")}`;
+const databaseName = `otid_adr0186_${randomUUID().replaceAll("-", "")}`;
 const url = new URL(base);
 url.pathname = `/${databaseName}`;
 const { db, pool } = createDatabase(url.href);
@@ -33,7 +33,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await pool.end();
-  if (!/^otid_adr0185_[a-f0-9]{32}$/.test(databaseName)) throw new Error("Ogiltig testdatabas för rensning");
+  if (!/^otid_adr0186_[a-f0-9]{32}$/.test(databaseName)) throw new Error("Ogiltig testdatabas för rensning");
   await admin.pool.query(`DROP DATABASE "${databaseName}"`);
   await admin.pool.end();
 });

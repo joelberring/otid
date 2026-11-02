@@ -172,8 +172,9 @@ test("start- och resultatlistor: vyer, sök, utskrift och export i arbetsytan oc
   }
   await screenshots(visitor, "publik-start-per-starttid");
   const publicCsv = await download(visitor, publicToolbar, "CSV (Excel)");
-  expect(publicCsv).toContain("Starttid;Startfålla;Klass;Namn;Klubb;Bricka\r\n");
-  expect(publicCsv).toContain("8301001");
+  // ADR-0185: ingen bricka publikt (av som standard för nya tävlingar).
+  expect(publicCsv).toContain("Starttid;Startfålla;Klass;Namn;Klubb\r\n");
+  expect(publicCsv).not.toContain("8301001");
   const publicStartXml = await download(visitor, publicToolbar, "IOF XML");
   expect(publicStartXml).toContain("<Family>Ek</Family>");
 

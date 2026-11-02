@@ -14,6 +14,12 @@
 		max_size 100MB
 	}
 
+	# ADR-0187: säkerhetskopian av en tävling (förhandsvisning och återställning), högst 200 MB i appen (RACE_BACKUP_MAX_BYTES).
+	@restore path /api/organizer/restore /api/organizer/restore/preview
+	request_body @restore {
+		max_size 210MB
+	}
+
 	# Steg 54 (ADR-0177, docs/drift.md): tävlingen går före publiken. Två slags webbinstanser:
 	# - web: arbetsytan, avläsningen, funktionärerna, inloggningen och admin-API:t (och allt för den som är inloggad),
 	# - web-public och web-public2: publika sidor och API:er, Live och resultatströmmen för besökare utan inloggning.

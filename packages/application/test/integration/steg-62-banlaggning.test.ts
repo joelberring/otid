@@ -15,6 +15,7 @@ import {
 } from "../../src/course-setting";
 import { copyRaceAsAdmin } from "../../src/race-copy";
 import { exportRaceAsAdmin } from "../../src/race-export";
+import { readBackup } from "./backup";
 import { publicResults } from "../../src/results";
 import { accountOnRace, raceAuth } from "./accounts";
 
@@ -228,10 +229,9 @@ describe("steg 62: banläggningen", { timeout: 120_000 }, () => {
     expect((await save(proof, moved(document, 16), 1)).status).toBe("ok");
     const exported = await exportRaceAsAdmin(db, proof);
     if (exported.status !== "ok") throw new Error("Exporten misslyckades");
-    const json = JSON.parse(new TextDecoder().decode(exported.bytes)) as { courseSetting: { version: number; original_file_name: string }[];
-      courseSettingRevisions: { version: number; kind: string }[] };
-    expect(json.courseSetting[0]).toMatchObject({ version: 2, original_file_name: "kartfil.ppen" });
-    expect(json.courseSettingRevisions.map(row => [row.version, row.kind])).toEqual([[1, "SAVE"]]);
+    const backup = readBackup(exported.bytes);
+    expect(backup.table("course_setting")[0]).toMatchObject({ version: 2, original_file_name: "kartfil.ppen" });
+    expect(backup.table<{ version: number; kind: string }>("course_setting_revision").map(row => [row.version, row.kind])).toEqual([[1, "SAVE"]]);
 
     const copied = await copyRaceAsAdmin(db, { ...proof, request: { formatVersion: 1, requestId: randomUUID(), eventName: "Banläggning v2",
       raceName: "Torsdag", raceDate: "2026-10-15", includePeople: false } });

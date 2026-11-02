@@ -31,6 +31,12 @@ describe("personuppgifter och om O-Tid", () => {
     expect(visible).toContain("självreg.");
   });
 
+  it("säger att arrangörens säkerhetskopior har personuppgifter och är arrangörens ansvar (ADR-0187)", () => {
+    expect(privacy.organizerCopy).toMatch(/personuppgifter/);
+    expect(privacy.organizerCopy).toMatch(/arrangörens ansvar/);
+    expect(privacy.organizerCopy).toMatch(/inga lösenord eller konton/);
+  });
+
   it("säger hur länge och hur radering fungerar", () => {
     expect(privacy.howLong).toMatch(/Tills tävlingen \(festen\) eller kontot tas bort/);
     expect(privacy.howLong).toMatch(/två dygn/);

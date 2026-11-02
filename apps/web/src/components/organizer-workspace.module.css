@@ -77,6 +77,8 @@
 .createDate { max-width: 14rem; }
 .more { border-top: 1px solid var(--line); padding-top: 6px; }
 .more > summary { min-height: 36px; display: flex; align-items: center; color: var(--muted); font-size: var(--text-sm); font-weight: 600; }
+.restore { display: grid; gap: 6px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.restore p { margin: 0; }
 .more[open] > summary { margin-bottom: 6px; }
 .createPanel .actions { gap: .4rem; }
 .createPanel .actions button { min-height: 44px; }

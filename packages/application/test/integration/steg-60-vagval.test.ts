@@ -16,6 +16,7 @@ import { courseLegKeys, publishRouteChoiceAsAdmin, readRouteChoiceAsAdmin, readR
   saveRouteChoiceSettingsAsAdmin } from "../../src/route-choice";
 import { copyRaceAsAdmin } from "../../src/race-copy";
 import { exportRaceAsAdmin } from "../../src/race-export";
+import { readBackup } from "./backup";
 import { accountOnRace, raceAuth } from "./accounts";
 
 /**
@@ -236,8 +237,7 @@ describe("steg 60: vägvalsanalysen", () => {
     // Exporten och kopian: inställningarna följer med, publiceringen bara i exporten.
     const exported = await exportRaceAsAdmin(db, proof);
     if (exported.status !== "ok") throw new Error("Exporten misslyckades");
-    const json = JSON.parse(new TextDecoder().decode(exported.bytes)) as { routeChoice: { settings: unknown; published: { mapSha256: string } }[] };
-    expect(json.routeChoice[0]).toMatchObject({ settings, published: { mapSha256: sha } });
+    expect(readBackup(exported.bytes).table("race_route_choice")[0]).toMatchObject({ settings, published: { mapSha256: sha } });
     const copied0 = await copyRaceAsAdmin(db, { ...proof, request: { formatVersion: 1, requestId: randomUUID(), eventName: "Vägval v2",
       raceName: "Torsdag", raceDate: "2026-10-15", includePeople: false } });
     if (copied0.status !== "copied") throw new Error(`Kopian skapades inte: ${copied0.status}`);

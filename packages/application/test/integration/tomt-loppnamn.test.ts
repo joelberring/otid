@@ -101,7 +101,7 @@ describe("tomt loppnamn", () => {
     expect(await listSpeakerBoardAsAdmin(db, proof)).toMatchObject({ status: "ok", response: { raceName: "" } });
     expect(await readMapBundlesAsAdmin(db, proof)).toMatchObject({ status: "ok", response: { raceName: "" } });
     // Exportfilen får evenemangets namn när loppet saknar eget.
-    expect(await exportRaceAsAdmin(db, proof)).toMatchObject({ status: "ok", fileName: "otid-natt-km-2026-11-05.json" });
+    expect(await exportRaceAsAdmin(db, proof)).toMatchObject({ status: "ok", fileName: expect.stringMatching(/^otid-sakerhetskopia-natt-km-2026-11-05-/) as unknown });
 
     // Inställningar: ett namn kan sättas och tas bort igen.
     expect(await settings(proof, "Etapp 1")).toMatchObject({ status: "saved" });

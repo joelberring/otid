@@ -108,6 +108,8 @@ export const accountSv = {
       "Speakersidan, Kvar i skogen, avläsningen, baren och CSV-filerna är bara för arrangörens administratörer och funktionärer, som ser fullt namn."
     ],
     runnersPublic: "Löpardatabasen är aldrig publik: bara tävlingens administratörer och funktionärer ser den (som förslag), och den följer med avläsningssidans paket för att fungera utan nät.",
+    organizerCopyTitle: "Arrangörens egna kopior",
+    organizerCopy: "En administratör kan ladda ner en säkerhetskopia av sin tävling (Inställningar → Säkerhetskopia) och läsa in den som en ny tävling, också på en annan server. Filen innehåller tävlingens personuppgifter: namn, klubbar, bricknummer, starttider, resultat och e-post för dem som har behörighet, men inga lösenord eller konton. En kopia på arrangörens dator eller i arrangörens lagring är arrangörens ansvar: spara den där bara arrangörerna kommer åt den och ta bort den när den inte behövs. Att tävlingen tas bort i O-Tid tar inte bort sådana kopior.",
     responsibleTitle: "Vem som ansvarar",
     responsible: "Servern och kontona sköts av den som driver den här O-Tid-installationen (kontakt nedan). Vilka löpare och uppgifter som läggs in i en tävling, träningsgrupp eller fest bestämmer arrangören, det vill säga den som skapade den och de som den gett behörighet.",
     contactTitle: "Kontakt",

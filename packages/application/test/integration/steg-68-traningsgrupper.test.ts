@@ -10,6 +10,7 @@ import { listPublicRaces } from "../../src/public-races";
 import { publicRaceContentVersion } from "../../src/public-race-version";
 import { readPublicRaceMapImage } from "../../src/race-map";
 import { exportRaceAsAdmin } from "../../src/race-export";
+import { readBackup } from "./backup";
 import { copyRaceAsAdmin } from "../../src/race-copy";
 import { purgeRows } from "../../src/purge";
 import { addGroupMember, createTrainingGroup, readGroupAsLeader, removeGroupMember, setRaceGroup, updateGroupSettings } from "../../src/training-groups";
@@ -246,11 +247,10 @@ describe("steg 68: träningsgrupper", { timeout: 180_000 }, () => {
     const { groupId, code, seed } = await groupWithRace(leader);
     const exported = await exportRaceAsAdmin(db, { raceId: seed.ids.race, sessionToken: leader.proof.sessionToken }, NOW);
     if (exported.status !== "ok") throw new Error("Exporten misslyckades");
-    const content = JSON.parse(new TextDecoder().decode(exported.bytes)) as { event: { training_group_id: string };
-      trainingGroup: { code: string; name_display: string }[]; mapAgreement: unknown[] };
-    expect(content.event.training_group_id).toBe(groupId);
-    expect(content.trainingGroup).toEqual([expect.objectContaining({ code, name_display: "FIRST" })]);
-    expect(JSON.stringify(content.trainingGroup)).not.toContain(leader.email);
+    // ADR-0187: gruppen själv (namn, kod, ledare och medlemmar) följer inte med, bara evenemangets koppling (töms vid återställning).
+    const backup = readBackup(exported.bytes);
+    expect(backup.table<{ training_group_id: string }>("event")[0]!.training_group_id).toBe(groupId);
+    expect(JSON.stringify(backup.table("event"))).not.toContain(code);
     // En ledare som kopierar får kopian i gruppen (och är ADMIN där via gruppen, och ägare).
     const copy = await copyRaceAsAdmin(db, { ...leader.proof, raceId: seed.ids.race, request: { formatVersion: 1, requestId: randomUUID(),
       eventName: "Kopia", raceName: "", raceDate: "2026-10-01", includePeople: false } }, NOW);

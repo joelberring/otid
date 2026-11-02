@@ -195,7 +195,8 @@ export const helpArticles: readonly HelpArticle[] = [
         "”Resultaten är klara”: när alla är i mål och allt stämmer. Listorna visar då Officiella resultat. Finns inte för Träning, Liten tävling och Rogaining.",
         "”Ladda ner IOF-fil för Eventor”: filen att ladda upp i Eventor.",
         "”Gör resultaten preliminära igen”: ångrar.",
-        "”Exportera tävlingen” under ”Inställningar”: allt om tävlingen i en fil. Spara den efter tävlingen."
+        "”Ladda ner säkerhetskopia” under ”Inställningar”: hela tävlingen i en fil. Ta den efter lottningen, före start och efter sista målgång.",
+        "”Återställ tävling från säkerhetskopia” på Mina tävlingar: filen blir en ny tävling, också på en annan server."
       ]
     ]
   },

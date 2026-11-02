@@ -9,6 +9,7 @@ import { registerUserAccount } from "../../src/user-account";
 import { importCourseSettingAsAdmin, previewCourseSettingTransferAsAdmin, readCourseSettingAsAdmin } from "../../src/course-setting";
 import { listCourseSettingInspectionsAsAdmin, setCourseSettingInspectionAsAdmin } from "../../src/course-setting-inspections";
 import { exportRaceAsAdmin } from "../../src/race-export";
+import { readBackup } from "./backup";
 import { copyRaceAsAdmin } from "../../src/race-copy";
 import { purgeRows } from "../../src/purge";
 import { accountOnRace, grantRacePerson, raceAuth, registerTestAccount } from "./accounts";
@@ -127,8 +128,8 @@ describe("steg 67: kollad per kontroll", { timeout: 180_000 }, () => {
     // Export ja (också avbockade), kopia nej; borttagen tävling tar dem med sig.
     const exported = await exportRaceAsAdmin(db, owner);
     if (exported.status !== "ok") throw new Error("Exporten misslyckades");
-    const json = JSON.parse(new TextDecoder().decode(exported.bytes)) as { courseSettingInspections: { control_id: string; checked: boolean }[] };
-    expect(json.courseSettingInspections.map(row => [row.control_id, row.checked]).sort())
+    const inspections = readBackup(exported.bytes).table<{ control_id: string; checked: boolean }>("course_setting_inspection");
+    expect(inspections.map(row => [row.control_id, row.checked]).sort())
       .toEqual([[c31.id, true], [c32.id, true]].sort());
     const copied = await copyRaceAsAdmin(db, { ...owner, request: { formatVersion: 1, requestId: randomUUID(), eventName: "Kollad v2",
       raceName: "Torsdag", raceDate: "2026-10-15", includePeople: false } });

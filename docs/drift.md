@@ -387,6 +387,36 @@ Efter övergången till databasroller körs kommandot som `otid_owner` (backuptj
 
 4. Peka DNS-posten på den nya serverns adress (se [Server och domän](#server-och-domän)).
 
+## Arrangörens säkerhetskopia
+
+ADR-0187 ([docs/export.md](export.md)): utöver serverns backup kan arrangören själv ladda ner hela tävlingen under
+Inställningar → Säkerhetskopia (bara administratör). Filen (`otid-sakerhetskopia-…zip`) har banor, kartfil, deltagare, brickor,
+starttider, avläsningar, resultat och journal, men inga konton, lösenord, sessioner eller Eventor-nycklar. Den ersätter inte
+serverns backup: konton, andra tävlingar och behörigheternas historik finns bara i dumpen. Råd till arrangören:
+
+- ladda ner efter lottningen, före start och efter sista målgång (Inställningar visar när den senast laddades ner),
+- spara filen på en dator som följer med till tävlingen och utanför servern, och ta bort gamla kopior: **filen innehåller
+  personuppgifter, och kopior på arrangörens dator är arrangörens ansvar** (står också på `/integritet`).
+
+**Servern går sönder på tävlingsdagen.** Det går snabbare än att återställa hela databasen när bara en tävling behövs:
+
+1. Starta O-Tid på en annan server (se [Starta](#starta) och [Server och domän](#server-och-domän)), eller använd en annan
+   installation som redan finns. Den behöver inte samma `.env`; Eventor-nyckeln klistras in igen.
+2. Skapa ett konto (eller logga in) och välj Mina tävlingar → **Återställ tävling från säkerhetskopia**. Välj filen och
+   "Kontrollera filen": servern kontrollerar kontrollsummorna och varje rad och visar tävlingen, datum, antal klasser,
+   deltagare och avläsningar och formatversionen innan något sparas.
+3. "Skapa tävlingen". Det blir en **ny** tävling (nya id, ny kort adress, opublicerad) med samma resultat och sträcktider;
+   en befintlig tävling skrivs aldrig över. Med "Ge dem samma behörighet här" får administratörer och funktionärer med konto
+   (samma e-post) på servern sin roll igen; övriga räknas upp och läggs till under Personer med behörighet när de har konto.
+4. Publicera tävlingen, slå på radiokontrollerna och klistra in Eventor-nyckeln under Inställningar om de användes. Avläsningen
+   kopplas till den nya tävlingen (öppna Avläsning i den nya arbetsytan). Det som lästes ut efter att kopian togs finns inte i
+   den: jämför med Resultat och läs ut de brickorna igen (kön i avläsningsdatorn gäller den gamla tävlingen; att den skickas
+   om till den nya är inte provat).
+5. Peka om domänen eller ge funktionärerna den nya adressen.
+
+En kopia med en formatversion som servern inte känner till (gjord med en nyare O-Tid) avvisas med versionen i beskedet:
+uppdatera servern och försök igen. Uppladdningen får vara högst 200 MB; Caddy har ingen lägre gräns.
+
 ## Databasroller
 
 ADR-0186: före övergången använder alla tjänster databasens superuser (`otid`, `POSTGRES_USER`). Efter den har varje tjänst

@@ -27,6 +27,7 @@ import {
 } from "../../src/course-setting-notes";
 import { courseSettingProjection } from "../../src/course-setting-transfer";
 import { exportRaceAsAdmin } from "../../src/race-export";
+import { readBackup } from "./backup";
 import { copyRaceAsAdmin } from "../../src/race-copy";
 import { listEntryClassesAsAdmin } from "../../src/results";
 import { listRacePeopleAsAdmin, revokeRacePersonAsAdmin } from "../../src/race-people";
@@ -245,11 +246,11 @@ describe("steg 66: samarbete i banläggningen", { timeout: 180_000 }, () => {
     // Adminexporten och kopian har notiserna (med fotot); borttagen tävling tar dem med sig.
     const exported = await exportRaceAsAdmin(db, owner);
     if (exported.status !== "ok") throw new Error("Exporten misslyckades");
-    const json = JSON.parse(new TextDecoder().decode(exported.bytes)) as { courseSettingNotes: { text: string; photo_base64: string | null }[];
-      courseSettingNoteReplies: unknown[] };
-    expect(json.courseSettingNotes.map(row => row.text).sort()).toEqual(["Notis 0", "Notis 1", "Notis 2", "Notis 3"]);
-    expect(json.courseSettingNotes.find(row => row.text === "Notis 1")!.photo_base64!.replace(/\s/g, "")).toBe(jpeg());
-    expect(json.courseSettingNoteReplies).toHaveLength(1);
+    const backup = readBackup(exported.bytes);
+    const notes = backup.table<{ text: string; photo: unknown }>("course_setting_note");
+    expect(notes.map(row => row.text).sort()).toEqual(["Notis 0", "Notis 1", "Notis 2", "Notis 3"]);
+    expect(backup.file(notes.find(row => row.text === "Notis 1")!.photo).toString("base64")).toBe(jpeg().replace(/\s/g, ""));
+    expect(backup.table("course_setting_note_reply")).toHaveLength(1);
     // Översynen 2026-11-02: notiserna och banläggningens behörigheter följer bara med personerna (`includePeople`).
     const count = async (table: string, raceId: string) =>
       (await pool.query<{ n: number }>(`select count(*)::int as n from ${table} where race_id = $1`, [raceId])).rows[0]!.n;

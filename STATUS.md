@@ -14,7 +14,7 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - `SET_APPEARANCE` skriver om `<course-appearance>` som Purple Pen bara när något ändrats; mm på papperet per skala och varningar mot ISOM 2017-2/ISSprOM 2019-2; konfliktnycklar per fält.
 - Inställningar → Utseende: snabbval (standard, förstorat 1:10 000, ISSprOM:s ring, 3,0 mm nummer), fria kvoter, skalning, avbrott vid sträckor, tabell per skala.
 - Banor → Vid kontrollen: Nummer/Kod/Nummer och kod (1, 31, 1-31), poäng bara för poängbanor, samma för alla stafettbanor eller banor; texter som Purple Pen (3/7-31, 31(30)).
-- Verifierat: se slutet av raden nedan. Återstår: ägaren provar med en riktig nattbana; centrumpunkt, typsnitt och vit kant runt numren finns inte.
+- Verifierat: lint, typecheck, test (Purple Pens 151 filer fram och tillbaka med ändrat utseende), Playwright banlaggning-utseende lokalt (1280/390), CI grönt med test:integration och alla specar. Återstår: ägaren provar en riktig nattbana; centrumpunkt, typsnitt och vit kant runt numren finns inte i O-Tid.
 
 ### 2026-11-02 – Steg 65: PDF för tryck med dekorfärger och övertryck (grenen steg65-pdf, ADR-0184)
 - Paketet `print-pdf` (pdf-lib + fontkit, MIT): arken ur steg 64 som PDF utan omräkning; kartan som vektorer via `drawMap` med en PDF-kontext (`MapDrawingContext`, ingen dubbel geometri), ett Form XObject per utsnitt; Roboto/Roboto Condensed (OFL) inbäddade som delmängd.

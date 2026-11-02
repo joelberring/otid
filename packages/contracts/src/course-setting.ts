@@ -65,8 +65,11 @@ export type CourseSettingDocumentDto = z.infer<typeof courseSettingDocumentSchem
 
 const actor = z.object({ accountId: uuid, displayName: z.string().max(200).nullable() }).strict();
 
-/** Steg 66: behörigheten i banläggningen (ADR-0181 beslut 5) och arbetssättet (beslut 2). */
-export const courseSettingLevelSchema = z.enum(["EDIT", "SUGGEST", "COMMENT"]);
+/**
+ * Steg 66: behörigheten i banläggningen (ADR-0181 beslut 5) och arbetssättet (beslut 2). MAP (kartritaren, beslut 8)
+ * ser bara kartan och kartfelen, aldrig banläggningens dokument.
+ */
+export const courseSettingLevelSchema = z.enum(["EDIT", "SUGGEST", "COMMENT", "MAP"]);
 export type CourseSettingLevel = z.infer<typeof courseSettingLevelSchema>;
 export const courseSettingModeSchema = z.enum(["LEAD", "SHARED"]);
 export type CourseSettingMode = z.infer<typeof courseSettingModeSchema>;

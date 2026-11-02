@@ -127,7 +127,8 @@ export async function readRaceMapSourceFileAsAdmin(db: Database, input: Omit<Rac
   : Promise<Failure | { status: "ok"; fileName: string; format: "OCD" | "OMAP"; file: Buffer }> {
   if (!uuid.test(input.raceId)) return { status: "invalid-request" };
   return db.transaction(async tx => {
-    const auth = await requireCourseSettingAccess(tx, { ...input, required: "COMMENT" }, now, "share");
+    // ADR-0181 beslut 8: också kartritaren (kartan är inte hemlig, banorna är det).
+    const auth = await requireCourseSettingAccess(tx, { ...input, required: "MAP" }, now, "share");
     if (auth.status !== "authenticated") return auth;
     const [row] = await tx.select({ fileName: schema.raceMapSources.fileName, format: schema.raceMapSources.format, file: schema.raceMapSources.file })
       .from(schema.raceMapSources).where(eq(schema.raceMapSources.raceId, input.raceId));

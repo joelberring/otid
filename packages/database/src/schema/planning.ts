@@ -370,7 +370,7 @@ export const courseSettingGrants = pgTable("course_setting_grant", {
   id: uuid("id").primaryKey(),
   raceId: uuid("race_id").notNull().references(() => races.id),
   accountId: uuid("account_id").notNull().references(() => userAccounts.id),
-  level: text("level").$type<"EDIT" | "SUGGEST" | "COMMENT">().notNull(),
+  level: text("level").$type<"EDIT" | "SUGGEST" | "COMMENT" | "MAP">().notNull(),
   grantedAt: timestamp("granted_at", { withTimezone: true }).notNull(),
   grantedBy: uuid("granted_by").notNull(),
   requestId: uuid("request_id").notNull()
@@ -392,7 +392,10 @@ export const courseSettingChanges = pgTable("course_setting_change", {
 export const courseSettingNotes = pgTable("course_setting_note", {
   id: uuid("id").primaryKey(),
   raceId: uuid("race_id").notNull().references(() => races.id),
-  target: text("target").$type<"POINT" | "CONTROL" | "LEG" | "COURSE">().notNull(),
+  target: text("target").$type<"POINT" | "CONTROL" | "LEG" | "COURSE" | "SKETCH">().notNull(),
+  /** ADR-0181 beslut 8: banläggning eller kartfel (bara på punkt eller ritning) och ritningens linjer och ytor (mm). */
+  kind: text("kind").$type<"COURSE_SETTING" | "MAP_ERROR">().notNull().default("COURSE_SETTING"),
+  sketch: jsonb("sketch").$type<unknown[]>(),
   atX: doublePrecision("at_x"),
   atY: doublePrecision("at_y"),
   controlId: text("control_id"),

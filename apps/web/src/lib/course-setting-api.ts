@@ -135,6 +135,17 @@ export async function setCourseSettingNoteStatus(raceId: string, noteId: string,
     courseSettingNoteSchema);
 }
 
+/** ADR-0181 beslut 8: ta bort notisen (svar och foto med); 404 om den redan är borta. */
+export async function deleteCourseSettingNote(raceId: string, noteId: string): Promise<void> {
+  const response = await write(raceId, `/course-setting/notes/${encodeURIComponent(noteId)}`, "DELETE", {});
+  if (!response.ok) throw new HttpStatusError(response.status);
+}
+
+export async function deleteCourseSettingNoteReply(raceId: string, noteId: string, replyId: string): Promise<CourseSettingNote> {
+  return parsed(await write(raceId, `/course-setting/notes/${encodeURIComponent(noteId)}/replies/${encodeURIComponent(replyId)}`, "DELETE", {}),
+    courseSettingNoteSchema);
+}
+
 export const courseSettingNotePhotoUrl = (raceId: string, noteId: string) => `${base(raceId)}/course-setting/notes/${encodeURIComponent(noteId)}/photo`;
 export const courseSettingEventsUrl = (raceId: string) => `${base(raceId)}/course-setting/events`;
 

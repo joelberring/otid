@@ -11,7 +11,7 @@ import styles from "./people-section.module.css";
 import { formErrorsSv } from "../../i18n/form-errors-sv";
 
 const text = raceTypeSv.settings.people;
-const GRANTABLE = ["ADMIN", "FUNCTIONARY", "COURSE_EDIT", "COURSE_SUGGEST", "COURSE_COMMENT"] as const;
+const GRANTABLE = ["ADMIN", "FUNCTIONARY", "COURSE_EDIT", "COURSE_SUGGEST", "COURSE_COMMENT", "COURSE_MAP"] as const;
 type Message = { tone: "ok" | "error"; text: string };
 
 /**
@@ -121,6 +121,7 @@ export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: s
           <option value="COURSE_EDIT">{text.roles.COURSE_EDIT}</option>
           <option value="COURSE_SUGGEST">{text.roles.COURSE_SUGGEST}</option>
           <option value="COURSE_COMMENT">{text.roles.COURSE_COMMENT}</option>
+          <option value="COURSE_MAP">{text.roles.COURSE_MAP}</option>
         </select>
       </Field>
       <Button type="submit" disabled={locked || !email.trim()}>{text.add}</Button>

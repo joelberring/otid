@@ -14,6 +14,7 @@ import { HttpStatusError } from "./course-setting-sync";
  *   version), utan nät öppnas editorn ur posten. En begäran som var på väg när sidan stängdes skickas med samma
  *   requestId, så att servern inte gör den två gånger.
  * - **Notiser (med foto) och bockar för "kollad"** i en kö (`QueuedItem`) som skickas i ordning (`drainQueue`).
+ *   ADR-0181 beslut 8: borttagna notiser och svar går samma väg (en redan borttagen räknas som gjord).
  * - **Kartfilen** när banläggaren väljer "Spara för offline" (`StoredMap`). Då behålls också posten utan väntande åtgärder,
  *   så att editorn kan öppnas utan nät.
  *
@@ -40,7 +41,12 @@ export type QueuedItem =
   | { readonly id: string; readonly raceId: string; readonly kind: "note"; readonly createdAt: string;
       readonly request: Omit<CourseSettingNoteCreate, "formatVersion"> }
   | { readonly id: string; readonly raceId: string; readonly kind: "inspection"; readonly createdAt: string;
-      readonly request: CourseSettingInspectionRequest };
+      readonly request: CourseSettingInspectionRequest }
+  /** Ta bort notisen (eller bara svaret `replyId`). */
+  | { readonly id: string; readonly raceId: string; readonly kind: "note-delete"; readonly createdAt: string;
+      readonly request: NoteDeleteRequest };
+
+export interface NoteDeleteRequest { readonly noteId: string; readonly replyId?: string | undefined }
 
 export interface StoredMapInfo {
   readonly raceId: string;
@@ -108,6 +114,7 @@ export function usableRecord(record: FieldRecord | undefined, raceId: string): F
 export interface QueueTransport {
   readonly note: (raceId: string, request: Omit<CourseSettingNoteCreate, "formatVersion">) => Promise<unknown>;
   readonly inspection: (raceId: string, request: CourseSettingInspectionRequest) => Promise<unknown>;
+  readonly deleteNote: (raceId: string, request: NoteDeleteRequest) => Promise<unknown>;
 }
 
 export interface DrainResult {
@@ -139,9 +146,22 @@ export async function drainQueue(store: FieldStore, raceId: string, transport: Q
   for (const item of await store.listQueue(raceId)) {
     try {
       if (item.kind === "note") await transport.note(raceId, item.request);
+      else if (item.kind === "note-delete") await transport.deleteNote(raceId, item.request);
       else await transport.inspection(raceId, item.request);
     } catch (error) {
       const kind = classify(error);
+      // Redan borttagen (av någon annan, eller ett försök som nådde fram men vars svar inte kom tillbaka).
+      if (item.kind === "note-delete" && typeof kind === "object" && kind.status === 404) {
+        await store.removeQueued(item.id);
+        sent.push(item);
+        continue;
+      }
+      // Inte din notis och du får inte ändra: ett besked om just den, inte utloggad (resten av kön skickas).
+      if (item.kind === "note-delete" && error instanceof HttpStatusError && error.status === 403) {
+        await store.removeQueued(item.id);
+        rejected.push({ item, status: 403 });
+        continue;
+      }
       if (kind === "offline" || kind === "auth") return { sent, rejected, stopped: kind };
       await store.removeQueued(item.id);
       rejected.push({ item, status: kind.status });

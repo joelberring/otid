@@ -1,0 +1,25 @@
+/* ADR-0181 beslut 8: notisernas slag, ritläget och exporten av kartfel. */
+.kind { margin-left: 6px; padding: 0 4px; border: 1px solid rgb(220, 20, 30); color: rgb(170, 10, 20); }
+.small { font-size: var(--text-sm); }
+
+.sketch { display: grid; gap: 6px; }
+.sketch h3 { margin: 0; font-size: var(--text-md, 1rem); }
+.group { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.group > span { min-width: 4.5em; font-size: var(--text-sm); font-weight: 600; }
+.group button[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: var(--surface); }
+.swatch { display: inline-block; width: 0.9em; height: 0.9em; margin-right: 4px; vertical-align: -0.1em; border: 1px solid rgba(0, 0, 0, .4); }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.help { margin: 0; }
+.srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.select select { min-height: 40px; font: inherit; }
+/* Listans rubrik: inte den globala svarta hover-färgen (läsbar också efter ett tryck på telefonen). */
+.head.head:hover:not(:disabled), .head.head:focus { background: var(--surface-strong, rgba(0, 0, 0, .05)); color: inherit; }
+
+/* Telefonen: stora knappar för en hand, kartan ska synas ovanför. */
+.compact { gap: 4px; }
+.compact .group, .compact .actions { flex-wrap: nowrap; }
+.compact .group button, .compact .actions button { min-height: 40px; padding: 0 8px; white-space: nowrap; }
+.compact .help { font-size: var(--text-sm); }
+.compact .select { flex: none; }
+.compact .group > [role="status"] { min-width: 0; font-size: var(--text-sm); }

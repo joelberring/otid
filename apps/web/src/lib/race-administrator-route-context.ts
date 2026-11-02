@@ -34,6 +34,7 @@ import { loadStartDrawSetupAsAdmin, previewStartDrawAsAdmin, commitStartDrawAsAd
   readCourseSettingAsAdmin, saveCourseSettingAsAdmin, importCourseSettingAsAdmin, listCourseSettingRevisionsAsAdmin,
   requireCourseSettingAccess, saveCourseSettingEditsAsAdmin, setCourseSettingModeAsAdmin, listCourseSettingNotesAsAdmin,
   createCourseSettingNoteAsAdmin, replyCourseSettingNoteAsAdmin, setCourseSettingNoteStatusAsAdmin, readCourseSettingNotePhotoAsAdmin,
+  deleteCourseSettingNoteAsAdmin, deleteCourseSettingNoteReplyAsAdmin,
   listCourseSettingInspectionsAsAdmin, setCourseSettingInspectionAsAdmin,
   listPrintJobsAsAdmin, createPrintJobAsAdmin, readPrintJobPdfAsAdmin, deletePrintJobAsAdmin,
   listCourseSettingSuggestionsAsAdmin, createCourseSettingSuggestionAsAdmin, decideCourseSettingSuggestionAsAdmin, type CourseSettingPrincipal,
@@ -125,6 +126,8 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   courseSettingMode: setCourseSettingModeAsAdmin, courseSettingNotes: listCourseSettingNotesAsAdmin, courseSettingNote: createCourseSettingNoteAsAdmin,
   courseSettingNoteReply: replyCourseSettingNoteAsAdmin, courseSettingNoteStatus: setCourseSettingNoteStatusAsAdmin,
   courseSettingNotePhoto: readCourseSettingNotePhotoAsAdmin, courseSettingSuggestions: listCourseSettingSuggestionsAsAdmin,
+  // ADR-0181 beslut 8: ta bort notiser och svar.
+  courseSettingNoteDelete: deleteCourseSettingNoteAsAdmin, courseSettingNoteReplyDelete: deleteCourseSettingNoteReplyAsAdmin,
   courseSettingSuggestion: createCourseSettingSuggestionAsAdmin, courseSettingSuggestionDecision: decideCourseSettingSuggestionAsAdmin,
   // Steg 67: "kollad" per kontroll.
   courseSettingInspections: listCourseSettingInspectionsAsAdmin, courseSettingInspection: setCourseSettingInspectionAsAdmin,
@@ -191,6 +194,7 @@ export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: str
   { kind: "course-setting-edits" } | { kind: "course-setting-mode" } | { kind: "course-setting-notes" } |
   { kind: "course-setting-note-reply"; noteId: string } | { kind: "course-setting-note-status"; noteId: string } |
   { kind: "course-setting-note-photo"; noteId: string } | { kind: "course-setting-suggestions" } |
+  { kind: "course-setting-note"; noteId: string } | { kind: "course-setting-note-reply-item"; noteId: string; replyId: string } |
   { kind: "course-setting-suggestion-decision"; suggestionId: string } | { kind: "course-setting-events" } | { kind: "course-setting-inspections" } |
   { kind: "course-setting-print-jobs" } | { kind: "course-setting-print-job"; jobId: string } | { kind: "course-setting-print-job-pdf"; jobId: string } |
   { kind: "people" } | { kind: "race-publication" } | { kind: "course-secrecy" } | { kind: "control-map" } | { kind: "entry-control-map"; entryId: string } | { kind: "radio" } | { kind: "radio-fetch" } |

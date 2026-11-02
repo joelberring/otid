@@ -13,7 +13,7 @@ import { testDocument } from "./course-setting-test-document";
 /** Steg 66: notisernas lägen och träff-test, förslagens skillnader och text, och strömmens besked. */
 const actor = { accountId: "10000000-0000-4000-8000-000000000001", displayName: "Anna" };
 function note(id: string, target: CourseSettingNote["target"], status: "OPEN" | "DONE" = "OPEN", course: string | null = null): CourseSettingNote {
-  return { id, target, at: { x: 99, y: 99 }, course, text: "x", status, createdAt: "2026-11-01T10:00:00.000Z", createdBy: actor,
+  return { id, target, kind: "COURSE_SETTING", at: { x: 99, y: 99 }, course, text: "x", status, createdAt: "2026-11-01T10:00:00.000Z", createdBy: actor,
     resolvedAt: null, resolvedBy: null, photo: null, replies: [] };
 }
 

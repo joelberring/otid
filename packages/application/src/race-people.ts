@@ -42,8 +42,8 @@ async function eventOf(tx: Transaction, raceId: string, lock: "share" | "update"
   return event;
 }
 
-const ROLE_ORDER = { OWNER: 0, ADMIN: 1, FUNCTIONARY: 2, COURSE_EDIT: 3, COURSE_SUGGEST: 4, COURSE_COMMENT: 5 } as const;
-const COURSE_LEVELS = { COURSE_EDIT: "EDIT", COURSE_SUGGEST: "SUGGEST", COURSE_COMMENT: "COMMENT" } as const;
+const ROLE_ORDER = { OWNER: 0, ADMIN: 1, FUNCTIONARY: 2, COURSE_EDIT: 3, COURSE_SUGGEST: 4, COURSE_COMMENT: 5, COURSE_MAP: 6 } as const;
+const COURSE_LEVELS = { COURSE_EDIT: "EDIT", COURSE_SUGGEST: "SUGGEST", COURSE_COMMENT: "COMMENT", COURSE_MAP: "MAP" } as const;
 type CourseRole = keyof typeof COURSE_LEVELS;
 const isCourseRole = (role: string): role is CourseRole => role in COURSE_LEVELS;
 

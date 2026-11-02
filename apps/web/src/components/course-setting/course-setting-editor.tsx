@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import type {
-  CourseSettingMode, CourseSettingNote, CourseSettingNoteTarget, CourseSettingState, CourseSettingSuggestionDecided
+  CourseSettingMode, CourseSettingState, CourseSettingSuggestionDecided
 } from "@o-tid/contracts";
 import {
   applyEdit, checkDocument, courseControlOrder, courseSummaries, describeControl, descriptionSymbols, layoutCoursePage, layoutOverprint, nextFreeCode,
@@ -19,7 +19,7 @@ import {
 } from "../../lib/course-setting-description";
 import {
   createCourseSettingSuggestion, decideCourseSettingSuggestion, fetchCourseSetting, fetchCourseSettingRevision,
-  importCourseSetting, replyCourseSettingNote, restoreCourseSetting, saveCourseSettingEdits, setCourseSettingMode, setCourseSettingNoteStatus
+  importCourseSetting, restoreCourseSetting, saveCourseSettingEdits, setCourseSettingMode
 } from "../../lib/course-setting-api";
 import {
   addBend, addPoint, addSplit, applySteps, beginDrag, cancelTool, canRedo, canUndo, createEditor, dragTo, endDrag, endSuggestion, insertExisting,
@@ -28,7 +28,7 @@ import {
 import { symbolLookup } from "../../lib/course-setting-description-draw";
 import { ALL_CONTROLS, hitTest, nearestBend } from "../../lib/course-setting-hit";
 import { MapRenderSession } from "../../lib/course-setting-map-protocol";
-import { noteInView, noteMarks, notePosition, noteTargetAt } from "../../lib/course-setting-note-marks";
+import { noteTargetAt } from "../../lib/course-setting-note-marks";
 import { previewSuggestion, suggestionOverlay } from "../../lib/course-setting-suggestion";
 import { CourseSettingSync, EditorStore, type LostEdit, type SyncStatus } from "../../lib/course-setting-sync";
 import { inspectedPoints, inspectionRows, mergeInspections } from "../../lib/course-setting-inspections";
@@ -53,12 +53,12 @@ import { FieldSuggestionLine, useDescriptionSuggestions } from "./course-setting
 import { drawSuggestionHighlight } from "../../lib/course-setting-suggest";
 import { InspectionsPanel, OfflinePanel } from "./course-setting-inspections";
 import { CourseSettingMap, type CourseSettingMapHandle, type MapPointerHandlers } from "./course-setting-map";
-import { NoteForm, NotesPanel } from "./course-setting-notes";
 import { ChecksPanel, CourseList, LegPanel, SelectedPanel, SelectionCard } from "./course-setting-panels";
 import { SuggestionDraft, SuggestionsPanel } from "./course-setting-suggestions";
 import { TransferPanel } from "./course-setting-transfer";
 import { Dialog, Drawer, ToolBar, TopBar, type DrawerTab } from "./course-setting-workspace";
 import { useCourseSettingCollaboration } from "./use-course-setting-collaboration";
+import { rejectedNoteText, useCourseSettingNotes } from "./use-course-setting-notes";
 import { loadMapFile, useCourseSettingOffline } from "./use-course-setting-offline";
 import styles from "./course-setting.module.css";
 
@@ -176,11 +176,11 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
   // Steg 67: kön utan nät (notiser och bockar), åtgärderna i telefonen och "Spara för offline".
   const offline = useCourseSettingOffline({ raceId, state, store, sync, version, status, mapSha256: state.mapFile?.sha256, say,
     notes: collaboration.notes, inspections: collaboration.inspections,
-    describe: (item: QueuedItem, code: number) => item.kind === "note" ? offlineSv.rejectedNote(item.request.text, code)
+    describe: (item: QueuedItem, code: number) => item.kind !== "inspection" ? rejectedNoteText(item, code)
       : offlineSv.rejectedInspection(store.state.document.controls[item.request.control] ? controlLabel(store.state.document, item.request.control)
         : item.request.control, code),
     onSent: result => {
-      if (result.sent.some(item => item.kind === "note")) void collaboration.reloadNotes();
+      if (result.sent.some(item => item.kind !== "inspection")) void collaboration.reloadNotes();
       if (result.sent.some(item => item.kind === "inspection") || result.rejected.length > 0) void collaboration.reloadInspections();
     } });
 
@@ -292,43 +292,14 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
   const routeRows = analysis?.best ? [analysis.best, ...analysis.alternatives] : [];
   const highlightRoute = highlighted !== undefined ? routeRows[highlighted]?.points : undefined;
 
-  // Notiser (ADR-0181 beslut 1): markeringar som går att dölja, en ny fästs med verktyget Notis.
-  const [showNotes, setShowNotes] = useState(true);
-  const [selectedNote, setSelectedNote] = useState<string>();
-  const [noteDraft, setNoteDraft] = useState<CourseSettingNoteTarget>();
+  // Notiser (ADR-0181 beslut 1 och 8): markeringar och ritningar, filter, ny notis, ritläget och borttagning (`useCourseSettingNotes`).
   const controlsInView = useMemo(() => new Set(view === ALL_CONTROLS ? Object.keys(document.controls)
     : legCourseControls.map(id => document.courseControls[id]?.control).filter((id): id is string => id !== undefined)), [document, view, legCourseControls]);
-  // Steg 67: notiser som väntar i telefonens kö visas också (märkta "väntar på nät").
+  const notes = useCourseSettingNotes({ raceId, document, view, allControls: ALL_CONTROLS, controlsInView, serverNotes: collaboration.notes,
+    reloadNotes: collaboration.reloadNotes, offline, saved: id => Boolean(sync.document.controls[id]), access, say, map: mapHandle,
+    readOnlyCourse: readOnly });
+  const { selectedNote, setSelectedNote, setNoteDraft, mapNotes } = notes;
   const me = { accountId: access.accountId, displayName: access.displayName };
-  const pendingNotes = useMemo(() => offline.queue.flatMap((item): CourseSettingNote[] => item.kind !== "note" ? [] : [{ id: item.id,
-    target: item.request.target, at: item.request.at, course: item.request.course, text: item.request.text, status: "OPEN",
-    createdAt: item.createdAt, createdBy: me, resolvedAt: null, resolvedBy: null, photo: null, replies: [] }]), [offline.queue]);
-  const pendingNoteIds = useMemo(() => new Set(pendingNotes.map(note => note.id)), [pendingNotes]);
-  const notesInView = useMemo(() => [...collaboration.notes, ...pendingNotes].filter(note => noteInView(note, view, controlsInView)),
-    [collaboration.notes, pendingNotes, view, controlsInView]);
-  const mapNotes = useMemo(() => showNotes ? noteMarks(notesInView.filter(note => note.status === "OPEN" || note.id === selectedNote), document) : [],
-    [showNotes, notesInView, selectedNote, document]);
-  /**
-   * Steg 67: en notis går alltid genom kön i telefonen (skickas direkt med nät, annars när nätet kommer). En notis på en
-   * ny kontroll som inte är sparad än fästs vid punkten (kontrollens id finns inte på servern än).
-   */
-  async function queueNote(target: CourseSettingNoteTarget, at: { x: number; y: number } | null, value: string,
-    photo: { mediaType: "image/jpeg"; base64: string } | null): Promise<void> {
-    const saved = (id: string) => Boolean(sync.document.controls[id]);
-    const fixed: CourseSettingNoteTarget = target.kind === "CONTROL" && !saved(target.control) && at ? { kind: "POINT", at }
-      : target.kind === "LEG" && (!saved(target.from) || !saved(target.to)) && at ? { kind: "POINT", at } : target;
-    await offline.enqueueNote({ requestId: crypto.randomUUID(), target: fixed, at, course: fixed.kind === "COURSE" ? fixed.course
-      : view === ALL_CONTROLS ? null : view, text: value, photo });
-  }
-  async function saveNote(input: { text: string; photo: { mediaType: "image/jpeg"; base64: string } | null }): Promise<boolean> {
-    if (!noteDraft) return false;
-    try {
-      await queueNote(noteDraft, notePosition({ target: noteDraft, at: null }, document) ?? null, input.text, input.photo);
-      setNoteDraft(undefined);
-      if (offline.offline) say({ tone: "ok", text: offlineSv.noteHere.queued });
-      return true;
-    } catch (error) { console.error("Notisen sparades inte i telefonen", error); return false; }
-  }
 
   // Steg 67: kollad per kontroll – serverns bockar med de väntande i kön ovanpå.
   const inspections = useMemo(() => mergeInspections(collaboration.inspections,
@@ -567,7 +538,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
   const label = text.map(course?.name ?? text.courses.all);
   const others = collaboration.presence.filter(person => person.accountId !== access.accountId).map(person => person.displayName ?? copy.someone);
   const openSuggestions = collaboration.suggestions.filter(row => row.status === "OPEN").length;
-  const openNotes = notesInView.filter(note => note.status === "OPEN").length;
+  const openNotes = notes.openCount;
   const tools = readOnly ? (["SELECT", "NOTE"] as const) : EDIT_TOOLS;
   const draft = suggesting ? <SuggestionDraft count={editor.log.length} onSend={sendSuggestion}
     onDiscard={() => store.update(next => endSuggestion(next, true))} /> : undefined;
@@ -621,12 +592,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
         if (row.controls.length === 1) apply(current => select(current, { kind: "control", control: row.controls[0]! }));
         mapHandle.current?.reveal(row.controls.flatMap(id => document.controls[id] ? [document.controls[id].at] : []));
       }} />;
-      case "notes": return <NotesPanel raceId={raceId} notes={notesInView} pending={pendingNoteIds} document={document} show={showNotes} onShow={setShowNotes}
-        selected={selectedNote} onSelect={setSelectedNote} view={view}
-        onReveal={note => { const at = notePosition(note, document); if (at) mapHandle.current?.focus(at); }}
-        onReply={async (id, value) => { try { await replyCourseSettingNote(raceId, id, value); await collaboration.reloadNotes(); return true; } catch { return false; } }}
-        onStatus={async (id, value) => { try { await setCourseSettingNoteStatus(raceId, id, value); await collaboration.reloadNotes(); return true; } catch { return false; } }}
-        onCourseNote={() => { if (course) setNoteDraft({ kind: "COURSE", course: course.id }); }} />;
+      case "notes": return notes.panel;
       case "inspections": return <InspectionsPanel rows={inspectionList} selected={selection?.kind === "control" ? selection.control : undefined}
         offline={offline.offline}
         onSelect={control => {
@@ -666,7 +632,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
     inspection: selectedControl ? inspections.get(selectedControl) : undefined, saved: id => Boolean(sync.document.controls[id]),
     onInspect: (control, checked, position) => void offline.enqueueInspection({ formatVersion: 1, control, checked, at: new Date().toISOString(),
       position }).catch(error => console.error("Bocken sparades inte i telefonen", error)),
-    onNote: ({ target, at, text: value, photo }) => queueNote(target, at, value, photo),
+    onNote: ({ target, at, text: value, photo }) => notes.queueNote(target, at, value, photo), onSketch: () => notes.startSketch("MAP_ERROR"),
     onList: () => { setTab("inspections"); setReveal(value => value + 1); },
     onOffline: () => setOfflineDialog(true),
     suggestion: readOnly ? undefined : <FieldSuggestionLine document={document} control={selectedControl} state={suggestions} symbols={symbols}
@@ -696,14 +662,16 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
     <div className={styles.stage} data-compact={field.narrow && !field.expanded && editor.tool !== "SPECIAL" ? "true" : undefined}>
       <div className={styles.mapArea}>
         <CourseSettingMap session={mapSession} mapBounds={mapBounds} primitives={primitives} faded={faded} marks={marks} analysis={analysis}
-          label={label} cursor={CURSOR[editor.tool]} handlers={handlers} handle={mapHandle} noteMarks={mapNotes} selectedNote={selectedNote}
-          onNoteTap={id => { setSelectedNote(id); setTab("notes"); }} suggestion={suggestionDrawing} cursorAt={cursorAt} highlightRoute={highlightRoute}
+          label={label} cursor={notes.sketching ? "crosshair" : CURSOR[editor.tool]} handlers={notes.sketching ? notes.handlers : handlers}
+          handle={mapHandle} noteMarks={mapNotes} selectedNote={selectedNote} sketches={notes.sketchLayer}
+          onNoteTap={id => { setSelectedNote(id); setTab("notes"); }} suggestion={suggestionDrawing} cursorAt={notes.sketching ? undefined : cursorAt}
+          highlightRoute={highlightRoute}
           position={field.position} inspected={inspectedMarks} onPan={field.onPan} symbols={symbols} overlayExtra={overlayExtra} cross={selection?.kind === "control" && document.controls[selection.control]
             ? { at: document.controls[selection.control]!.at, dragging: editor.dragBase !== undefined } : undefined} />
         {field.narrow ? <div className={styles.bottomStack}>
           {toolBar}
-          {noteDraft && <div className={styles.cardStatic}><NoteForm target={noteDraft} document={document} onSave={saveNote} onCancel={() => setNoteDraft(undefined)} /></div>}
-          <div className={styles.fieldBar} data-testid="course-setting-field">{field.bar}</div>
+          {notes.card && <div className={styles.cardStatic}>{notes.card}</div>}
+          {!notes.sketching && <div className={styles.fieldBar} data-testid="course-setting-field">{field.bar}</div>}
         </div> : <>{toolBar}<div className={styles.fieldTools}>{field.tools}</div></>}
         <div className={styles.toasts}>
           {mapStatus === "reading" && <p role="status" className={styles.toast}>{text.readingMap}</p>}
@@ -720,7 +688,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
             <Button variant="quiet" aria-label={copy.topbar.close} onClick={() => dismiss(message.id)}>×</Button>
           </div>)}
         </div>
-        {field.narrow ? null : noteDraft ? <div className={styles.card}><NoteForm target={noteDraft} document={document} onSave={saveNote} onCancel={() => setNoteDraft(undefined)} /></div>
+        {field.narrow ? null : notes.card ? <div className={styles.card}>{notes.card}</div>
           // Rutan med vald kontroll bara med Välj: när man sätter ut kontroller eller notiser ligger den inte i vägen.
           : editor.tool === "SELECT" && <SelectionCard state={editor} described={describedControl} readOnly={readOnly}
             onCode={(control, value) => edit(current => applySteps(current, [{ type: "SET_CONTROL_CODE", control, code: value }], applyEdit))}

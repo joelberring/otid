@@ -16,6 +16,9 @@ export const raceWorkspaceNavigationSv = {
   entriesEmpty: "Inga anmälda ännu.",
   entriesEmptyHelp: "Lägg till deltagarna en i taget. Formuläret står kvar mellan deltagarna.",
   entriesImport: "eller importera anmälningar",
+  /** ADR-0191 beslut 3: importen av anmälda har sin plats här. */
+  entriesImportLink: "Importera anmälda (IOF XML)",
+  entriesImportHelp: "Från Eventor: Inställningar → Eventor.",
   selectedHelp: "Välj en deltagare i tabellen för uppgifter, kontrolltider och ändringar.",
   selectedContext: "Vald deltagare utanför synlig tabellsida",
   selected: "Vald",

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import styles from "../race-administrator-workspace.module.css";
 import { raceTypeSv } from "../../i18n/race-type-sv";
 import { raceInfoSv } from "../../i18n/race-info-sv";
@@ -55,7 +54,7 @@ function DateMoveReview({ ws }: { ws: Workspace }) {
 /**
  * Inställningar (ADR-0170 beslut 1): namn, datum och tävlingstyp. Att byta typ ändrar bara vilka delar som
  * syns; inget tas bort. Här finns också en länk till steget Publicera, personer med behörighet (ADR-0172), Eventor (typer som använder Eventor), radiokontroller
- * (typer med tävlingsmoment), länken till importen, "Ny tävling som den här" (PLAN.md steg 21), "Exportera tävlingen" (steg 27) och
+ * (typer med tävlingsmoment), hänvisningen till importen under Anmälda (ADR-0191), "Ny tävling som den här" (PLAN.md steg 21), "Exportera tävlingen" (steg 27) och
  * (för ägaren) att ta bort tävlingen.
  */
 export function SettingsPanel({ ws }: { ws: Workspace }) {
@@ -72,6 +71,7 @@ export function SettingsPanel({ ws }: { ws: Workspace }) {
   const locked = saving || workflowLocked;
   const id = `settings-${raceId}`;
   const publish = sectionForPanel(profile, "PUBLISH");
+  const entries = sectionForPanel(profile, "ENTRIES");
   const drawStart = profile.features.draw ? sectionForPanel(profile, "START") : undefined;
   return <div className={styles.workflowGroup}>
     <Section id={id} title={text.title} help={text.help}>
@@ -127,8 +127,9 @@ export function SettingsPanel({ ws }: { ws: Workspace }) {
     <PeopleSection raceId={raceId} disabled={locked} onPendingChange={setPeoplePending} />
     {(profile.features.eventor || profile.features.eventorRunners) && <EventorSection ws={ws} runnersOnly={!profile.features.eventor} />}
     {profile.features.radio && <RadioSection raceId={raceId} disabled={locked} />}
-    {profile.features.import && <Section id={`${id}-import`} title={text.import} help={text.importHelp}>
-      <p><Link href={`/admin/${raceId}/imports`}>{text.importLink}</Link></p>
+    {/* ADR-0191 beslut 3: importen av anmälda finns under Anmälda; här bara vägen dit. */}
+    {profile.features.import && entries && <Section id={`${id}-import`} title={text.import} help={text.importHelp}>
+      <div><Button variant="secondary" onClick={() => navigateStep(entries.id)}>{text.importOpen}</Button></div>
     </Section>}
     <Section id={`${id}-copy`} title={raceCopySv.settingsTitle} help={raceCopySv.settingsHelp}>
       <div><Button variant="secondary" disabled={locked} onClick={() => setCopySource({ raceId, eventName: data.eventName,

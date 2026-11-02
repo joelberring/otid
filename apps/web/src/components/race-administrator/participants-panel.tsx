@@ -82,6 +82,9 @@ export function ParticipantList({ ws }: { ws: Workspace }) {
         <Button disabled={disabled || !data} onClick={newParticipant}>{text.newParticipant}</Button>
         {rentalEntries.length > 0 && <Button variant="secondary" disabled={disabled}
           onClick={() => printPrivate("RENTAL")}>{text.rentalPrint}</Button>}
+        {/* ADR-0191 beslut 3: importen av anmälda har sin plats här (Inställningar hänvisar hit). */}
+        {profile.features.import && <Link href={`/admin/${raceId}/imports`} title={navigationText.entriesImportHelp}>
+          {navigationText.entriesImportLink}</Link>}
       </div>}
     </div>
     {/* PLAN.md steg 46: städa bort självregistrerade som inte läst ut, efter förhandsvisning. */}

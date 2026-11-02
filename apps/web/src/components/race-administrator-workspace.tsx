@@ -55,6 +55,10 @@ export function RaceAdministratorWorkspace({ raceId }: { raceId: string }) {
     return () => clearTimeout(timer);
   }, [expiresAt, lock]);
   useEffect(() => {
+    // ADR-0191 beslut 3: importsidans "Tillbaka till Anmälda" (`?del=anmalda`) öppnar Anmälda.
+    if (new URLSearchParams(window.location.search).get("del") === "anmalda") ws.setStep("ENTRIES");
+  }, [raceId]);
+  useEffect(() => {
     const clearPrintTarget = () => setPrintTarget(undefined);
     window.addEventListener("afterprint", clearPrintTarget);
     return () => window.removeEventListener("afterprint", clearPrintTarget);

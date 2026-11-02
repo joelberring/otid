@@ -52,7 +52,7 @@ export const sv = {
   resultRecalculationInvalidAttempt: "Omräkningsförsöket är ogiltigt.",
   importPageHeading: "Importera anmälda eller startlista",
   importPageLead: "Läs in anmälda eller en startlista från en fil (IOF XML 3.0), till exempel från Eventor eller ett annat tävlingsprogram. Banfiler läses in under Banor.",
-  importBackToRace: "Tillbaka till tävlingen",
+  importBackToRace: "Tillbaka till Anmälda",
   importSecurityHeading: "Vem kan importera?",
   importSecurityBoundary: "Tävlingens administratörer. Anmälningar (EntryList), startlistor (StartList) och banor (CourseData) i IOF XML 3.0 kan läsas in.",
   importLoginHeading: "Logga in för att importera",

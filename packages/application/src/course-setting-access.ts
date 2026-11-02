@@ -8,7 +8,8 @@ import { authorizeUserAccountSession } from "./user-account";
 /**
  * Steg 66 (ADR-0181 beslut 5): behörigheten i banläggningen. Ägare och administratörer på eventet har EDIT (och `admin`:
  * överföring till tävlingen, arbetssättet, behörigheterna). Andra har den nivå som står i `course_setting_grant` för
- * tävlingen: EDIT ändrar, SUGGEST föreslår, COMMENT läser och skriver notiser. Den behörigheten ger bara banläggningens
+ * tävlingen: EDIT ändrar, SUGGEST föreslår, COMMENT läser och skriver notiser, MAP (kartritaren, ADR-0181 beslut 8) ser
+ * bara kartfilen och kartfelen. Den behörigheten ger bara banläggningens
  * sidor och API (den här kontrollen); resten av tävlingen kräver `requireRaceRole`, som den inte påverkar.
  * Banhemligheten gäller alla nivåer: inget av detta är publikt.
  */
@@ -26,7 +27,7 @@ export interface CourseSettingPrincipal {
 export type CourseSettingAccessResult = { status: "unauthorized" } | { status: "forbidden" }
   | { status: "authenticated"; principal: CourseSettingPrincipal };
 
-const RANK: Record<CourseSettingLevel, number> = { COMMENT: 0, SUGGEST: 1, EDIT: 2 };
+const RANK: Record<CourseSettingLevel, number> = { MAP: -1, COMMENT: 0, SUGGEST: 1, EDIT: 2 };
 
 /** Nivån räcker för kravet. */
 export function courseSettingAllows(principal: Pick<CourseSettingPrincipal, "level" | "admin">, required: CourseSettingRequirement): boolean {

@@ -1,0 +1,34 @@
+/* ADR-0181 beslut 8: kartfelen till kartritaren. Skärmen: val och förhandsvisning; utskriften: bara arket. */
+.page { display: grid; gap: 16px; max-width: 900px; margin: 0 auto; padding: 16px; }
+.controls { display: grid; gap: 10px; }
+.controls h1, .controls h2, .controls p { margin: 0; }
+.row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.row button[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: var(--surface); }
+.choices { display: grid; gap: 8px; margin: 0; padding-left: 1.4em; }
+.choices li { display: grid; gap: 4px; padding: 6px 8px; border: 1px solid var(--line); }
+.choices li[data-near] { border-color: rgb(200, 120, 0); border-left-width: 4px; }
+.check { display: flex; gap: 8px; align-items: baseline; }
+.warning { margin: 0; color: rgb(150, 70, 0); font-weight: 600; }
+.reminder { padding: 6px 8px; border-left: 4px solid rgb(200, 120, 0); background: rgba(255, 190, 60, .12); font-weight: 600; }
+.muted { color: var(--muted, #555); font-size: var(--text-sm, .9rem); }
+.text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.thread { display: grid; gap: 4px; }
+.thread ul { margin: 0; padding-left: 1.2em; }
+.thread label { display: grid; gap: 2px; flex: 1 1 12em; }
+
+.sheet { display: grid; gap: 14px; padding: 16px; border: 1px solid var(--line); background: #fff; color: #000; }
+.sheet h1 { margin: 0; font-size: 1.4rem; }
+.item { display: grid; gap: 6px; break-inside: avoid; }
+.item h2 { margin: 0; font-size: 1.1rem; }
+.item p { margin: 0; }
+.crop { display: block; max-width: 100%; height: auto; border: 1px solid #000; }
+.photo { display: block; max-width: 100%; max-height: 90mm; object-fit: contain; }
+
+@media (max-width: 699px) { .page { padding: 8px; } .sheet { padding: 8px; } }
+
+@media print {
+  .controls, .thread, :global(body > header), :global(body > footer) { display: none !important; }
+  :global(body) { background: #fff; }
+  .page { display: block; max-width: none; padding: 0; }
+  .sheet { border: none; padding: 0; }
+}

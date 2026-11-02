@@ -137,17 +137,51 @@ export type CourseSettingEditsSaved = z.infer<typeof courseSettingEditsSavedSche
 export const courseSettingModeRequestSchema = z.object({ formatVersion: z.literal(1), mode: courseSettingModeSchema }).strict();
 
 // Notiser (ADR-0181 beslut 1): utanför dokumentet.
+/**
+ * ADR-0181 beslut 8: en ritning i notisen (linjer och ytor i kartans mm). Slaget ger färgen: kartfel röd, snitsel och
+ * markering orange, allmänt blå. `intent`: "är fel" streckad, "ska vara här" heldragen med pil, null bara markering.
+ * Antalet punkter är begränsat (webbläsaren förenklar en frihandslinje innan den sparas).
+ */
+export const COURSE_SETTING_SKETCH_MAX_SHAPES = 20;
+export const COURSE_SETTING_SKETCH_MAX_POINTS = 1000;
+export const COURSE_SETTING_SKETCH_STYLES = ["MAP_ERROR", "MARKING", "GENERAL"] as const;
+export const courseSettingSketchShapeSchema = z.object({
+  kind: z.enum(["LINE", "AREA"]), style: z.enum(COURSE_SETTING_SKETCH_STYLES), intent: z.enum(["WRONG", "RIGHT"]).nullable(),
+  points: z.array(point).min(2).max(COURSE_SETTING_SKETCH_MAX_POINTS)
+}).strict().refine(shape => shape.kind === "LINE" || shape.points.length >= 3, { message: "En yta har minst tre punkter" });
+export type CourseSettingSketchShape = z.infer<typeof courseSettingSketchShapeSchema>;
+export const courseSettingSketchSchema = z.array(courseSettingSketchShapeSchema).min(1).max(COURSE_SETTING_SKETCH_MAX_SHAPES)
+  .refine(shapes => shapes.reduce((sum, shape) => sum + shape.points.length, 0) <= COURSE_SETTING_SKETCH_MAX_POINTS,
+    { message: `Högst ${COURSE_SETTING_SKETCH_MAX_POINTS} punkter i en ritning` });
+
 export const courseSettingNoteTargetSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("POINT"), at: point }).strict(),
   z.object({ kind: z.literal("CONTROL"), control: id }).strict(),
   z.object({ kind: z.literal("LEG"), from: id, to: id }).strict(),
-  z.object({ kind: z.literal("COURSE"), course: id }).strict()
+  z.object({ kind: z.literal("COURSE"), course: id }).strict(),
+  z.object({ kind: z.literal("SKETCH"), shapes: courseSettingSketchSchema }).strict()
 ]);
 export type CourseSettingNoteTarget = z.infer<typeof courseSettingNoteTargetSchema>;
+/**
+ * Notisens slag: banläggning (förval) eller kartfel. Ett kartfel sitter på en punkt eller en ritning, aldrig på en kontroll,
+ * en sträcka eller en bana (exporten till kartritaren får inte avslöja banorna, ADR-0181 beslut 8).
+ */
+export const courseSettingNoteKindSchema = z.enum(["COURSE_SETTING", "MAP_ERROR"]);
+export type CourseSettingNoteKind = z.infer<typeof courseSettingNoteKindSchema>;
+/** Ritningens mitt (rutan runt alla punkter): notisens läge i listan och på kartan. */
+export function sketchCenter(shapes: readonly { readonly points: readonly { x: number; y: number }[] }[]): { x: number; y: number } {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const shape of shapes) for (const at of shape.points) {
+    minX = Math.min(minX, at.x); maxX = Math.max(maxX, at.x); minY = Math.min(minY, at.y); maxY = Math.max(maxY, at.y);
+  }
+  if (!Number.isFinite(minX)) return { x: 0, y: 0 };
+  return { x: Math.round((minX + maxX) / 2 * 100) / 100, y: Math.round((minY + maxY) / 2 * 100) / 100 };
+}
+export const mapErrorTargetAllowed = (target: CourseSettingNoteTarget) => target.kind === "POINT" || target.kind === "SKETCH";
 
 const photoTypeSchema = z.enum(COURSE_SETTING_NOTE_PHOTO_TYPES);
 export const courseSettingNoteSchema = z.object({
-  id: uuid, target: courseSettingNoteTargetSchema,
+  id: uuid, target: courseSettingNoteTargetSchema, kind: courseSettingNoteKindSchema,
   /** Läget när notisen skrevs (null för en bana). */
   at: point.nullable(),
   /** Banan som visades när notisen skrevs (eller som den gäller). */
@@ -165,8 +199,11 @@ export type CourseSettingNotes = z.infer<typeof courseSettingNotesSchema>;
 export const courseSettingNoteCreateSchema = z.object({
   formatVersion: z.literal(1), requestId: uuid, target: courseSettingNoteTargetSchema, at: point.nullable(), course: id.nullable(), text,
   photo: z.object({ mediaType: photoTypeSchema, base64: z.string().min(4).max(Math.ceil(COURSE_SETTING_NOTE_PHOTO_MAX_BYTES * 4 / 3) + 4)
-    .regex(/^[A-Za-z0-9+/]+={0,2}$/) }).strict().nullable()
-}).strict();
+    .regex(/^[A-Za-z0-9+/]+={0,2}$/) }).strict().nullable(),
+  /** Saknas = banläggning (köer i telefonen från före beslut 8). */
+  kind: courseSettingNoteKindSchema.optional()
+}).strict().refine(request => request.kind !== "MAP_ERROR" || mapErrorTargetAllowed(request.target),
+  { message: "Ett kartfel sitter på en punkt eller en ritning" });
 export type CourseSettingNoteCreate = z.infer<typeof courseSettingNoteCreateSchema>;
 
 export const courseSettingNoteReplySchema = z.object({ formatVersion: z.literal(1), requestId: uuid, text }).strict();

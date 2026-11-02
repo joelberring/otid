@@ -1,6 +1,6 @@
 # ADR-0181: Samarbete i banläggningen och fältläge i mobilen
 
-Status: beslutad 2026-11-01 (PLAN.md steg 66 och 67, ägarens önskemål samma dag). Bygger på ADR-0180. Stegen görs efter
+Status: beslutad 2026-11-01 (PLAN.md steg 66 och 67, ägarens önskemål samma dag); beslut 8 2026-11-02. Bygger på ADR-0180. Stegen görs efter
 steg 63 och före steg 64–65 (som steg 61 gjordes före 60).
 
 **Bakgrund.** Flera arbetar ofta med samma banor: huvudbanläggare, medhjälpare och bankontrollant. De behöver lämna
@@ -29,6 +29,23 @@ kontroll lite, skriva in stenens höjd, vilken sida flaggan sitter på och likna
    "2x3") och G (läge, t.ex. sidan med väderstreck, fot, topp), notis med foto, och bocka av kontrollen som kollad.
 7. **Utan täckning:** sidan och kartfilen sparas i telefonen, och ändringar och notiser köas och skickas när nätet är
    tillbaka, med samma uppspelning som i beslut 4.
+8. **Notiser med ritning, kartfel och borttagning** (ägarens synpunkter 2026-11-02 efter rekognosering: stigar fel,
+   beståndsgränser felplacerade). En notis kan ha en ritning (target `SKETCH`): linjer och ytor i kartans mm, högst 20
+   delar och 1 000 punkter, ritade fritt (dra) eller punkt för punkt (klick); i mobilen ritar ett finger och två fingrar
+   flyttar kartan. Färgen följer slaget (kartfel röd, snitsel/markering orange, allmänt blå) och betydelsen ("är fel"
+   streckad, "ska vara här" med pil). Ritningen är notisens markering på kartan och ritas aldrig i banpåtryck, PDF, .ppen
+   eller överföring (beslut 1). Notisen har ett slag, banläggning (förval) eller **kartfel**; ett kartfel sitter bara på
+   en punkt eller en ritning, aldrig på en kontroll, sträcka eller bana (kontrakt och databas). Den som skrev en notis
+   eller ett svar, och den med *ändra*, tar bort den (svar och foto följer med), genom telefonens kö som allt annat.
+   **Exporten till kartritaren** (`/course-setting/map-errors`) görs i webbläsaren: utskrift/PDF med kartutsnitt per
+   kartfel och GeoJSON (kartans projicerade koordinater med `crs` när kartfilen är georefererad, annars kartans mm).
+   Kartritaren kan tävla själv, så exporten följer banhemligheten (ADR-0176): bara kartan och kartfelets ritning (inga
+   ringar, sträckor, nummer, objekt eller tryckyta), löpnummer, text och status; inga bannamn, kontrollkoder, kopplingar
+   till kontroller eller vem som skrev och när. Utsnittet förskjuts slumpvis från kartfelet, ett kartfel inom ringen
+   eller 50 m från en kontroll varnas för och är inte med som förval, fotot är avbockat som förval, och texten visas med
+   påminnelsen att den inte får avslöja kontrollplatser. Förhandsvisningen är exakt det som skrivs ut och laddas ned.
+   **Kartritaren** är en egen behörighet (nivå `MAP`, rollen "Kartritare"): kartfilen och kartfelen (utan bana och foto)
+   på samma sida, svara och markera klara; aldrig banläggningens dokument, versioner, förslag eller andra notiser.
 
 **Konsekvenser.** Ingen ny teknik för realtid (som CRDT) behövs, eftersom ändringarna redan är små åtgärder. GPS i skog
 är ofta 5–15 m fel, så GPS-läget visar var man står men ersätter inte kartbilden; finjusteringen avgör.
@@ -38,3 +55,5 @@ kontroll lite, skriva in stenens höjd, vilken sida flaggan sitter på och likna
 - **GPS-noggrannheten** i skog och nära hus. Provas av ägaren i terrängen.
 - **Kartfilen i telefonen:** stora OCAD-filer kan vara tunga att rita. Provas med Högdalen och Djurgården.
 - **Foton** tar plats; storleken begränsas och de tas bort med tävlingen.
+- **Kartritaren** ser alla kartfel; ett kartfel nära en kontroll kan avslöja den (arrangören väljer vem som får rollen).
+- **GeoJSON i OCAD:** QGIS läser `crs`; OCAD:s import av GeoJSON är inte provad med en riktig kartfil.

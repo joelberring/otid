@@ -51,6 +51,8 @@ export const organizerSv = {
   noEventMatches: "Ingen tävling eller något lopp matchar sökningen.",
   eventRole: { OWNER: "Ägare", ADMIN: "Administratör", FUNCTIONARY: "Funktionär", COURSE_SETTER: "Banläggning" },
   openCourseSetting: "Öppna banläggningen",
+  /** ADR-0181 beslut 8: kartritaren ser bara kartfelen. */
+  openMapErrors: "Öppna kartfelen",
   raceCountLabel: "lopp",
   refresh: "Uppdatera",
   loadingEvents: "Hämtar tävlingar …",

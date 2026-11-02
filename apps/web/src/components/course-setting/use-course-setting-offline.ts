@@ -5,9 +5,9 @@ import type {
   CourseSettingInspection, CourseSettingInspectionRequest, CourseSettingNote, CourseSettingNoteCreate, CourseSettingState
 } from "@o-tid/contracts";
 import { offlineSv as text } from "../../i18n/course-setting-offline-sv";
-import { createCourseSettingNote, setCourseSettingInspection } from "../../lib/course-setting-api";
+import { createCourseSettingNote, deleteCourseSettingNote, deleteCourseSettingNoteReply, setCourseSettingInspection } from "../../lib/course-setting-api";
 import {
-  drainQueue, memoryFieldStore, recordToKeep, type DrainResult, type FieldStore, type QueuedItem, type StoredMapInfo
+  drainQueue, memoryFieldStore, recordToKeep, type DrainResult, type FieldStore, type NoteDeleteRequest, type QueuedItem, type StoredMapInfo
 } from "../../lib/course-setting-offline";
 import { indexedDbFieldStore } from "../../lib/course-setting-offline-idb";
 import { refreshShell, removeShell, saveShell, shellSupported } from "../../lib/course-setting-offline-shell";
@@ -138,11 +138,13 @@ export function useCourseSettingOffline(input: OfflineInput) {
     try {
       const result = await drainQueue(storage, raceId, {
         note: (race, request) => createCourseSettingNote(race, request),
-        inspection: (race, request) => setCourseSettingInspection(race, request)
+        inspection: (race, request) => setCourseSettingInspection(race, request),
+        deleteNote: (race, request) => request.replyId ? deleteCourseSettingNoteReply(race, request.noteId, request.replyId)
+          : deleteCourseSettingNote(race, request.noteId)
       });
       setQueueOffline(result.stopped === "offline");
       setAuthStopped(result.stopped === "auth");
-      for (const item of result.sent) counts.current[item.kind === "note" ? "notes" : "inspections"] += 1;
+      for (const item of result.sent) counts.current[item.kind === "inspection" ? "inspections" : "notes"] += 1;
       if (result.rejected.length > 0) {
         latest.current.say({ tone: "attention", text: text.rejected(result.rejected.length),
           list: result.rejected.map(row => latest.current.describe(row.item, row.status)) });
@@ -163,6 +165,14 @@ export function useCourseSettingOffline(input: OfflineInput) {
   }, [storage, reloadQueue, drain]);
   const enqueueNote = useCallback((request: Omit<CourseSettingNoteCreate, "formatVersion">) =>
     enqueue({ id: request.requestId, raceId, kind: "note", createdAt: new Date().toISOString(), request }), [enqueue, raceId]);
+  /**
+   * ADR-0181 beslut 8: ta bort en notis eller ett svar genom kön. En notis som ännu inte skickats tas ur kön också
+   * (borttagningen efter den blir då "redan borttagen").
+   */
+  const enqueueDelete = useCallback(async (request: NoteDeleteRequest) => {
+    if (!request.replyId) await storage.removeQueued(request.noteId);
+    await enqueue({ id: crypto.randomUUID(), raceId, kind: "note-delete", createdAt: new Date().toISOString(), request });
+  }, [enqueue, storage, raceId]);
   const enqueueInspection = useCallback((request: CourseSettingInspectionRequest) =>
     enqueue({ id: crypto.randomUUID(), raceId, kind: "inspection", createdAt: request.at, request }), [enqueue, raceId]);
 
@@ -244,7 +254,7 @@ export function useCourseSettingOffline(input: OfflineInput) {
   }
 
   const statusText = loggedOut && waiting > 0 ? text.status.loggedOut(waiting) : offline ? text.status.offline(waiting) : undefined;
-  return { storage, queue, waiting, offline, loggedOut, statusText, enqueueNote, enqueueInspection, retry, mapInfo, offlineSaved, busy,
+  return { storage, queue, waiting, offline, loggedOut, statusText, enqueueNote, enqueueDelete, enqueueInspection, retry, mapInfo, offlineSaved, busy,
     panelMessage, saveOffline, removeOffline };
 }
 

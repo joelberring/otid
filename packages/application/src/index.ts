@@ -91,8 +91,8 @@ export {
   setCourseSettingModeAsAdmin
 } from "./course-setting-collaboration";
 export {
-  createCourseSettingNoteAsAdmin, listCourseSettingNotesAsAdmin, readCourseSettingNotePhotoAsAdmin, replyCourseSettingNoteAsAdmin,
-  setCourseSettingNoteStatusAsAdmin
+  createCourseSettingNoteAsAdmin, deleteCourseSettingNoteAsAdmin, deleteCourseSettingNoteReplyAsAdmin, listCourseSettingNotesAsAdmin,
+  readCourseSettingNotePhotoAsAdmin, replyCourseSettingNoteAsAdmin, setCourseSettingNoteStatusAsAdmin
 } from "./course-setting-notes";
 export { listCourseSettingInspectionsAsAdmin, setCourseSettingInspectionAsAdmin } from "./course-setting-inspections";
 export {

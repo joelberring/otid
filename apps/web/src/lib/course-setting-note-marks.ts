@@ -9,6 +9,8 @@ import { ALL_CONTROLS, type HitTarget } from "./course-setting-hit";
  * den vid. Inga antaganden om mus eller skärmstorlek: träffytan ges i mm (steg 67 bygger mobilvyn på detta).
  */
 export type NoteFilter = "OPEN" | "DONE" | "ALL";
+/** ADR-0181 beslut 8: slaget (banläggning eller kartfel) eller alla. */
+export type NoteKindFilter = "ALL" | CourseSettingNote["kind"];
 
 export interface NoteMark {
   readonly id: string;
@@ -46,8 +48,8 @@ export function notePosition(note: Pick<CourseSettingNote, "target" | "at">, doc
   return note.at ?? undefined;
 }
 
-export function filterNotes(notes: readonly CourseSettingNote[], filter: NoteFilter): CourseSettingNote[] {
-  return notes.filter(note => filter === "ALL" || note.status === filter);
+export function filterNotes(notes: readonly CourseSettingNote[], filter: NoteFilter, kind: NoteKindFilter = "ALL"): CourseSettingNote[] {
+  return notes.filter(note => (filter === "ALL" || note.status === filter) && (kind === "ALL" || note.kind === kind));
 }
 
 /** Notisen hör till vyn: alla i Alla kontroller; i en bana de som gäller banan, dess kontroller och sträckor, eller punkter. */
@@ -60,10 +62,11 @@ export function noteInView(note: CourseSettingNote, view: string, controlsInView
   return note.course === null || note.course === view;
 }
 
-/** Markeringarna: en per notis med läge, flera på samma ställe slås ihop (antalet visas). */
+/** Markeringarna: en per notis med läge, flera på samma ställe slås ihop (antalet visas). En ritning är sin egen markering. */
 export function noteMarks(notes: readonly CourseSettingNote[], document: CourseSettingDocument): NoteMark[] {
   const marks: NoteMark[] = [];
   for (const note of notes) {
+    if (note.target.kind === "SKETCH") continue;
     const at = notePosition(note, document);
     if (!at) continue;
     const same = marks.findIndex(mark => Math.hypot(mark.at.x - at.x, mark.at.y - at.y) < 0.01);

@@ -49,10 +49,13 @@ const COURSE_SETTING: Record<string, Record<string, CourseSettingRequirement>> =
   "admin/races/[raceId]/administrator/course-setting/transfer": { POST: "ADMIN" },
   "admin/races/[raceId]/administrator/course-setting/edits": { POST: "EDIT" },
   "admin/races/[raceId]/administrator/course-setting/mode": { PUT: "ADMIN" },
-  "admin/races/[raceId]/administrator/course-setting/notes": { GET: "COMMENT", POST: "COMMENT" },
-  "admin/races/[raceId]/administrator/course-setting/notes/[noteId]/replies": { POST: "COMMENT" },
-  "admin/races/[raceId]/administrator/course-setting/notes/[noteId]/status": { PUT: "COMMENT" },
+  // ADR-0181 beslut 8: kartritaren (MAP) läser kartfelen, svarar, markerar klart och tar bort sina svar.
+  "admin/races/[raceId]/administrator/course-setting/notes": { GET: "MAP", POST: "COMMENT" },
+  "admin/races/[raceId]/administrator/course-setting/notes/[noteId]/replies": { POST: "MAP" },
+  "admin/races/[raceId]/administrator/course-setting/notes/[noteId]/status": { PUT: "MAP" },
   "admin/races/[raceId]/administrator/course-setting/notes/[noteId]/photo": { GET: "COMMENT" },
+  "admin/races/[raceId]/administrator/course-setting/notes/[noteId]": { DELETE: "COMMENT" },
+  "admin/races/[raceId]/administrator/course-setting/notes/[noteId]/replies/[replyId]": { DELETE: "MAP" },
   "admin/races/[raceId]/administrator/course-setting/suggestions": { GET: "COMMENT", POST: "SUGGEST" },
   "admin/races/[raceId]/administrator/course-setting/suggestions/[suggestionId]/decision": { POST: "EDIT" },
   "admin/races/[raceId]/administrator/course-setting/events": { GET: "COMMENT" },
@@ -62,18 +65,18 @@ const COURSE_SETTING: Record<string, Record<string, CourseSettingRequirement>> =
   "admin/races/[raceId]/administrator/course-setting/print-jobs": { GET: "ADMIN", POST: "ADMIN" },
   "admin/races/[raceId]/administrator/course-setting/print-jobs/[jobId]": { DELETE: "ADMIN" },
   "admin/races/[raceId]/administrator/course-setting/print-jobs/[jobId]/pdf": { GET: "ADMIN" },
-  "admin/races/[raceId]/administrator/map/source": { GET: "COMMENT" }
+  "admin/races/[raceId]/administrator/map/source": { GET: "MAP" }
 };
 /** Publika routes under api/races (startlistor) har ingen inloggning och ingår inte. */
 const PUBLIC = ["races/[raceId]/start-list", "races/[raceId]/start-list/iof"];
 
 const origin = "http://127.0.0.1:3100";
 const uuid = "10000000-0000-4000-8000-000000000001";
-const state = vi.hoisted(() => ({ role: "FUNCTIONARY" as "FUNCTIONARY" | "ADMIN" | "COURSE_COMMENT", calls: 0 }));
+const state = vi.hoisted(() => ({ role: "FUNCTIONARY" as "FUNCTIONARY" | "ADMIN" | "COURSE_COMMENT" | "COURSE_MAP", calls: 0 }));
 const authenticate = vi.hoisted(() => async (_db: unknown, input: RaceRoleRequest) => {
   state.calls += 1;
   // Banläggning utan roll på eventet: ingen roll på tävlingen alls.
-  if (state.role === "COURSE_COMMENT") return { status: "unauthorized" as const };
+  if (state.role === "COURSE_COMMENT" || state.role === "COURSE_MAP") return { status: "unauthorized" as const };
   // Samma regel som tjänsterna: administratören får allt, funktionären bara funktionärens åtgärder.
   if (state.role === "FUNCTIONARY" && input.role === "ADMIN") return { status: "forbidden" as const };
   const id = "10000000-0000-4000-8000-000000000001";
@@ -89,9 +92,10 @@ const authenticateCourseSetting = vi.hoisted(() => async (_db: unknown, input: {
   const id = "10000000-0000-4000-8000-000000000001";
   // Funktionären har ingen banläggning (403); den med läsa och kommentera når bara COMMENT.
   if (state.role === "FUNCTIONARY") return { status: "forbidden" as const };
-  if (state.role === "COURSE_COMMENT" && input.required !== "COMMENT") return { status: "forbidden" as const };
+  if (state.role === "COURSE_COMMENT" && input.required !== "COMMENT" && input.required !== "MAP") return { status: "forbidden" as const };
+  if (state.role === "COURSE_MAP" && input.required !== "MAP") return { status: "forbidden" as const };
   return { status: "authenticated" as const, principal: { accountId: id, displayName: "Anna", raceId: input.raceId, eventId: id,
-    level: state.role === "ADMIN" ? "EDIT" as const : "COMMENT" as const, admin: state.role === "ADMIN" } };
+    level: state.role === "ADMIN" ? "EDIT" as const : state.role === "COURSE_MAP" ? "MAP" as const : "COMMENT" as const, admin: state.role === "ADMIN" } };
 });
 
 vi.mock("@o-tid/application", async (importOriginal) => ({
@@ -112,7 +116,7 @@ const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
 async function call(route: { file: string; path: string }, method: string): Promise<number> {
   const handlers = await import(route.file) as Record<string, (request: Request, context: unknown) => Promise<Response>>;
   const params = Promise.resolve({ raceId: uuid, entryId: uuid, classId: uuid, courseId: uuid, finalizationId: uuid, noteId: uuid,
-    suggestionId: uuid, jobId: uuid, version: "1" });
+    replyId: uuid, suggestionId: uuid, jobId: uuid, version: "1" });
   const write = method !== "GET";
   const response = await handlers[method]!(new Request(`${origin}/api/${route.path.replaceAll(/\[[a-zA-Z]+\]/g, uuid)}`, {
     method, ...(write ? { body: "{}" } : {}), headers: {
@@ -167,12 +171,31 @@ describe("behörighet per adminroute (ADR-0172 beslut 3)", () => {
         const status = await call(route, method);
         const required = COURSE_SETTING[route.path]?.[method];
         const label = `${method} /api/${route.path} → ${status}`;
-        if (required === "COMMENT") { expect([401, 403, 405], label).not.toContain(status); reached += 1; }
+        if (required === "COMMENT" || required === "MAP") { expect([401, 403, 405], label).not.toContain(status); reached += 1; }
         else if (required) expect(status, label).toBe(403);
         else expect([401, 403], label).toContain(status);
       }
     }
     expect(reached).toBeGreaterThan(8);
+  });
+
+  it("ger kartritaren bara kartfilen och kartfelen (läsa, svara, klar), inte banläggningens dokument", { timeout: 60_000 }, async () => {
+    state.role = "COURSE_MAP";
+    const reached: string[] = [];
+    for (const route of routes) {
+      const handlers = await import(route.file) as Record<string, unknown>;
+      for (const method of METHODS.filter(name => typeof handlers[name] === "function")) {
+        if (route.path.endsWith("course-setting/events") || route.path.endsWith("administrator/session")) continue;
+        const status = await call(route, method);
+        const label = `${method} /api/${route.path} → ${status}`;
+        if (COURSE_SETTING[route.path]?.[method] === "MAP") { expect([401, 403, 405], label).not.toContain(status); reached.push(`${method} ${route.path}`); }
+        else expect([401, 403], label).toContain(status);
+      }
+    }
+    expect(reached.sort()).toEqual(["DELETE admin/races/[raceId]/administrator/course-setting/notes/[noteId]/replies/[replyId]",
+      "GET admin/races/[raceId]/administrator/course-setting/notes", "GET admin/races/[raceId]/administrator/map/source",
+      "POST admin/races/[raceId]/administrator/course-setting/notes/[noteId]/replies",
+      "PUT admin/races/[raceId]/administrator/course-setting/notes/[noteId]/status"]);
   });
 
   it("ger administratören (som också har funktionärens rättigheter) tillträde till varje route", { timeout: 60_000 }, async () => {

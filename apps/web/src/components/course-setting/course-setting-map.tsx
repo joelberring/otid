@@ -14,14 +14,16 @@ import { drawPosition } from "../../lib/course-setting-field";
 import { drawInspected } from "../../lib/course-setting-inspections";
 import type { MapPosition } from "../../lib/course-setting-geo";
 import { hitNoteMark, noteMarkGeometry, type NoteMark } from "../../lib/course-setting-note-marks";
+import { drawSketchShapes } from "../../lib/course-setting-draw-sketch";
+import { hitSketch } from "../../lib/course-setting-sketch";
+import type { CourseSettingSketchShape } from "@o-tid/contracts";
 import { MAX_RENDER_SIDE, type MapRenderSession } from "../../lib/course-setting-map-protocol";
 import {
-  bitmapPlacement, fitBounds, panBy, resize, toMap, topLeft, wheelAction, wheelFactor, zoomAt, type Bounds, type Viewport
+  bitmapPlacement, fitBounds, panBy, resize, toMap, toScreen, topLeft, wheelAction, wheelFactor, zoomAt, type Bounds, type Viewport
 } from "../../lib/course-setting-viewport";
 import { Button } from "../ui";
 import styles from "./course-setting.module.css";
 
-/** Det kartan behöver veta om ett tryck: kartpunkten och om det var en dragning. */
 /** ADR-0180 beslut 13: tangenterna och fingrarna vid ett klick eller en dragning. */
 export interface PointerModifiers {
   readonly alt: boolean;
@@ -32,6 +34,7 @@ export interface PointerModifiers {
   readonly pxPerMm: number;
 }
 
+/** Det kartan behöver veta om ett tryck: kartpunkten och om det var en dragning. */
 export interface MapPointerHandlers {
   /** Ett klick (utan att dra). `toleranceMm` är träffytan för fingret eller musen. */
   readonly onTap: (point: Point, toleranceMm: number, modifiers: PointerModifiers) => void;
@@ -44,6 +47,16 @@ export interface MapPointerHandlers {
   readonly onHover?: ((point: Point | undefined, modifiers: PointerModifiers) => void) | undefined;
   /** Ett andra finger under en dragning: sant = dragningen fortsätter (fri vinkel), falskt = kartan zoomas. */
   readonly onSecondPointer?: (() => boolean) | undefined;
+  /** ADR-0181 beslut 8: ett andra finger kom under dragningen (ritläget kastar strecket; annars `onDragEnd`). */
+  readonly onDragCancel?: (() => void) | undefined;
+  /** Dragningen följer fingret där det är (ritläget), inte en bit ovanför (`liftedPoint`). */
+  readonly unlifted?: boolean | undefined;
+}
+
+/** ADR-0181 beslut 8: notisernas ritningar (ett klick väljer notisen) och ritningen som pågår. Bara på skärmen. */
+export interface SketchLayer {
+  readonly notes: readonly { readonly id: string; readonly shapes: readonly CourseSettingSketchShape[]; readonly done: boolean }[];
+  readonly draft?: readonly CourseSettingSketchShape[] | undefined;
 }
 
 export interface CourseSettingMapHandle {
@@ -71,7 +84,7 @@ const tolerancePx = (pointerType: string) => pointerType === "touch" ? 18 : 8;
  * ett eget lager som bara finns på skärmen; en dragning med fingret lyfts ovanför fingret (`liftedPoint`).
  */
 export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts, others, marks, analysis, label, cursor, handlers, handle, noteMarks,
-  selectedNote, onNoteTap, suggestion, cursorAt, highlightRoute, position, cross, inspected, onPan, symbols, overlayExtra }: {
+  selectedNote, onNoteTap, suggestion, cursorAt, highlightRoute, position, cross, inspected, onPan, symbols, overlayExtra, sketches }: {
   session: MapRenderSession | undefined;
   mapBounds: Bounds | undefined;
   primitives: readonly OverprintPrimitive[];
@@ -105,6 +118,7 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
   symbols?: SymbolLookup | undefined;
   /** Steg 64: ritas ovanpå banpåtrycket (specialobjektets punkter under redigering, tryckytans ram). */
   overlayExtra?: ((ctx: CanvasRenderingContext2D, view: Viewport) => void) | undefined;
+  sketches?: SketchLayer | undefined;
 }) {
   const [imageVersion, setImageVersion] = useState(0);
   const [hoverCursor, setHoverCursor] = useState<string>();
@@ -223,11 +237,14 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
     if (suggestion) drawSuggestion(ctx, view, suggestion);
     drawMarks(ctx, view, marks);
     if (inspected) drawInspected(ctx, view, inspected, marks.radiusMm);
+    const atScreen = (point: Point) => toScreen(view, point);
+    for (const note of sketches?.notes ?? []) drawSketchShapes(ctx, atScreen, note.shapes, { done: note.done, selected: note.id === selectedNote });
     if (noteMarks) drawNoteMarks(ctx, view, noteMarks.map(mark => ({ ...mark, selected: mark.id === selectedNote })));
+    if (sketches?.draft) drawSketchShapes(ctx, atScreen, sketches.draft);
     if (position) drawPosition(ctx, view, position.position, position.heading);
     overlayExtra?.(ctx, view);
   }, [view, primitives, faded, ghosts, others, marks, analysis, suggestion, noteMarks, selectedNote, highlightRoute, position, inspected, symbols, imageVersion,
-    overlayExtra]);
+    overlayExtra, sketches]);
   // Skärmlagret: det stora krysset medan man drar (och fingrets linje). Aldrig i banpåtrycket, dolt vid utskrift.
   const crossX = cross?.at.x, crossY = cross?.at.y, crossDragging = cross?.dragging, radiusMm = marks.radiusMm;
   useEffect(() => {
@@ -268,7 +285,7 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
       return;
     }
     if (pointers.current.size === 2) {
-      if (gesture.current?.kind === "drag") handlers.onDragEnd();
+      if (gesture.current?.kind === "drag") (handlers.onDragCancel ?? handlers.onDragEnd)();
       const [a, b] = [...pointers.current.values()];
       const middle = a && b ? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : at;
       onPan?.();
@@ -291,7 +308,8 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
     if (!current && view && cursorAt && event.pointerType === "mouse") {
       const point = toMap(view, local(event));
       const tolerance = tolerancePx(event.pointerType) / view.pxPerMm;
-      const overNote = noteMarks && hitNoteMark(noteMarks, point, tolerance, noteMarkGeometry(view.pxPerMm));
+      const overNote = (noteMarks && hitNoteMark(noteMarks, point, tolerance, noteMarkGeometry(view.pxPerMm)))
+        || (sketches && !sketches.draft && hitSketch(sketches.notes, point, tolerance));
       setHoverCursor(overNote ? "pointer" : cursorAt(point, tolerance));
     }
     if (!current && view && event.pointerType === "mouse") handlers.onHover?.(toMap(view, local(event)), modifiersOf(event, view));
@@ -323,8 +341,8 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
       if (current.kind === "pan") { setGrabbing(true); onPan?.(); }
     }
     if (current.kind === "drag") {
-      handlers.onDragMove(toMap(view, liftedPoint(at, current.pointerType)), modifiersOf(event, view, current.free));
-      if (current.pointerType === "touch") setFinger(at);
+      handlers.onDragMove(toMap(view, handlers.unlifted ? at : liftedPoint(at, current.pointerType)), modifiersOf(event, view, current.free));
+      if (current.pointerType === "touch" && !handlers.unlifted) setFinger(at);
     }
     else {
       // Förflyttningen räknas nu, inte i uppdateringen: React kan köra den efter att `lastX`/`lastY` har flyttats fram
@@ -348,7 +366,9 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
     if (current.kind === "pending" && event.type === "pointerup") {
       const point = toMap(view, { x: current.startX, y: current.startY });
       const tolerance = tolerancePx(current.pointerType) / view.pxPerMm;
-      const note = noteMarks && onNoteTap ? hitNoteMark(noteMarks, point, tolerance, noteMarkGeometry(view.pxPerMm)) : undefined;
+      const tappable = onNoteTap && !sketches?.draft;
+      const note = tappable ? (noteMarks && hitNoteMark(noteMarks, point, tolerance, noteMarkGeometry(view.pxPerMm)))
+        || (sketches && hitSketch(sketches.notes, point, tolerance)) : undefined;
       if (note) onNoteTap!(note.id);
       else handlers.onTap(point, tolerance, { alt: current.alt ?? false, free: current.shift ?? false, pointerType: current.pointerType, pxPerMm: view.pxPerMm });
     } else if (current.kind === "drag") handlers.onDragEnd();
@@ -383,7 +403,8 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
   }
   return <div className={styles.mapFrame}>
     <div ref={box} className={styles.map} role="img" aria-label={label} tabIndex={0} onKeyDown={onKeyDown}
-      style={{ cursor: grabbing ? "grabbing" : hoverCursor ?? cursor }} data-testid="course-setting-map"
+      style={{ cursor: grabbing ? "grabbing" : (cursorAt && hoverCursor) || cursor }} data-testid="course-setting-map"
+      data-sketching={sketches?.draft ? "true" : undefined}
       data-px-per-mm={view ? view.pxPerMm.toFixed(3) : undefined}
       data-center={view ? `${view.centerX.toFixed(2)},${view.centerY.toFixed(2)}` : undefined}
       data-heading={position?.heading} data-follow={position?.follow || undefined}

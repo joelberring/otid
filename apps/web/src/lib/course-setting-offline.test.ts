@@ -164,7 +164,8 @@ describe("steg 67: kön med notiser och bockar", () => {
     let online = false;
     const transport: QueueTransport = {
       note: async (_race, request) => { if (!online) throw new TypeError("Failed to fetch"); sent.push(request.requestId); },
-      inspection: async (_race, request) => { if (!online) throw new TypeError("Failed to fetch"); sent.push(`check:${request.checked}`); }
+      inspection: async (_race, request) => { if (!online) throw new TypeError("Failed to fetch"); sent.push(`check:${request.checked}`); },
+      deleteNote: async () => undefined
     };
     expect(await drainQueue(store, raceId, transport)).toEqual({ sent: [], rejected: [], stopped: "offline" });
     expect((await store.listQueue(raceId)).map(item => item.id)).toEqual(["n1", "c1", "n2"]);
@@ -181,7 +182,8 @@ describe("steg 67: kön med notiser och bockar", () => {
     let failure: unknown = new HttpStatusError(401);
     const transport: QueueTransport = {
       note: async () => { if (failure) throw failure as Error; },
-      inspection: async () => { throw new HttpStatusError(400); }
+      inspection: async () => { throw new HttpStatusError(400); },
+      deleteNote: async () => undefined
     };
     expect((await drainQueue(store, raceId, transport)).stopped).toBe("auth");
     failure = new Error("csrf");
@@ -193,6 +195,33 @@ describe("steg 67: kön med notiser och bockar", () => {
     const result = await drainQueue(store, raceId, transport);
     expect(result.sent.map(item => item.id)).toEqual(["n1", "n2"]);
     expect(result.rejected.map(row => [row.item.id, row.status])).toEqual([["c1", 400]]);
+    expect(await store.listQueue(raceId)).toEqual([]);
+  });
+
+  it("ADR-0181 beslut 8: borttagning går genom kön; redan borttagen (404) räknas som gjord, ej tillåten (403) är ett besked", async () => {
+    const store = memoryFieldStore();
+    const remove = (id: string, noteId: string, replyId?: string): QueuedItem => ({ id, raceId, kind: "note-delete", createdAt: "2026-11-02T10:00:00.000Z",
+      request: { noteId, ...(replyId ? { replyId } : {}) } });
+    for (const item of [note("n1"), remove("d1", "n1"), remove("d2", "x"), remove("d3", "y", "r"), remove("d4", "z")]) await store.addQueued(item);
+    const calls: string[] = [];
+    let online = false;
+    const transport: QueueTransport = {
+      note: async (_race, request) => { calls.push(`note:${request.requestId}`); },
+      inspection: async () => undefined,
+      deleteNote: async (_race, request) => {
+        if (!online) throw new TypeError("Failed to fetch");
+        calls.push(`delete:${request.noteId}${request.replyId ? `/${request.replyId}` : ""}`);
+        if (request.noteId === "x") throw new HttpStatusError(404);
+        if (request.noteId === "z") throw new HttpStatusError(403);
+      }
+    };
+    expect((await drainQueue(store, raceId, transport)).stopped).toBe("offline");
+    expect((await store.listQueue(raceId)).map(item => item.id)).toEqual(["d1", "d2", "d3", "d4"]);
+    online = true;
+    const result = await drainQueue(store, raceId, transport);
+    expect(calls).toEqual(["note:n1", "delete:n1", "delete:x", "delete:y/r", "delete:z"]);
+    expect(result.sent.map(item => item.id)).toEqual(["d1", "d2", "d3"]);
+    expect(result.rejected.map(row => [row.item.id, row.status])).toEqual([["d4", 403]]);
     expect(await store.listQueue(raceId)).toEqual([]);
   });
 });

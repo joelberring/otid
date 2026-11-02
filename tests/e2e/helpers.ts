@@ -269,7 +269,7 @@ export async function addEntry(owner: Page, entry: { className: string; givenNam
  * Arbetsytan måste vara öppen som administratör.
  */
 export async function addPerson(owner: Page, email: string, role: "Funktionär" | "Administratör" | "Banläggning: ändra" | "Banläggning: föreslå"
-  | "Banläggning: läsa och kommentera"): Promise<void> {
+  | "Banläggning: läsa och kommentera" | "Kartritare: bara kartan och kartfelen"): Promise<void> {
   await openStep(owner, "Inställningar");
   const people = owner.getByRole("region", { name: "Personer med behörighet" });
   const form = people.getByRole("form", { name: "Lägg till person" });

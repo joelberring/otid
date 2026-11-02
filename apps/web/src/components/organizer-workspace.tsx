@@ -281,7 +281,7 @@ export function OrganizerWorkspace() {
   }
 
   /** Kontots session gäller tävlingen direkt (ADR-0173 beslut 4): arbetsytan öppnas utan eget steg. */
-  function enterRace(raceId: string, page: "manage" | "course-setting" = "manage") {
+  function enterRace(raceId: string, page: "manage" | "course-setting" | "course-setting/map-errors" = "manage") {
     setEnteringRaceId(raceId);
     setMessage(copy.openingRace);
     window.location.assign(`/admin/${encodeURIComponent(raceId)}/${page}`);
@@ -396,7 +396,8 @@ export function OrganizerWorkspace() {
                   aria-busy={enteringRaceId === race.raceId} onClick={() => enterRace(race.raceId)}>
                   {enteringRaceId === race.raceId ? copy.opening : copy.openRace}</button>}
                 {race.courseSetting && <button type="button" className={styles.secondary} disabled={busy || enteringRaceId !== undefined}
-                  onClick={() => enterRace(race.raceId, "course-setting")}>{copy.openCourseSetting}</button>}
+                  onClick={() => enterRace(race.raceId, race.courseSetting === "MAP" ? "course-setting/map-errors" : "course-setting")}>
+                  {race.courseSetting === "MAP" ? copy.openMapErrors : copy.openCourseSetting}</button>}
               </div>
             </li>;
             })}</ul>

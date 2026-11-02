@@ -143,6 +143,7 @@ function allowedMethods(action: Action): string[] {
     action.kind === "course-setting-inspections" ? ["GET", "PUT"] :
     action.kind === "course-setting-print-jobs" ? ["GET", "POST"] : action.kind === "course-setting-print-job" ? ["DELETE"] :
     action.kind === "course-setting-print-job-pdf" ? ["GET"] :
+    action.kind === "course-setting-note" || action.kind === "course-setting-note-reply-item" ? ["DELETE"] :
     action.kind === "course-setting-note-photo" || action.kind === "course-setting-events" ? ["GET"] :
     action.kind === "participant-route" ? ["POST", "DELETE"] : action.kind === "eventor" ? ["GET", "PUT", "DELETE"] :
     action.kind === "runner-database" ? ["GET", "POST", "DELETE"] : action.kind === "runner-search" ? ["POST"] :

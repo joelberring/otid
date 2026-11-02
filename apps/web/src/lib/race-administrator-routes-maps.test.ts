@@ -105,14 +105,14 @@ describe("administratörsroutes: kartfilen", () => {
     expect((await raceAdministratorRoute(db, get, id, action, services, environment)).status).toBe(404);
   });
 
-  it("kräver administratör för att ladda upp; originalfilen kräver banläggningens behörighet (steg 66)", async () => {
+  it("kräver administratör för att ladda upp; originalfilen kräver banläggningens behörighet (steg 66, kartritaren räcker)", async () => {
     const services = dependencies();
     services.authenticate.mockResolvedValue({ status: "authenticated", principal: { accountId: id, sessionId: id, raceId: id, eventId: id,
       grantId: id, grantRole: "FUNCTIONARY", role: "FUNCTIONARY", expiresAt: "2026-09-12T13:00:00Z" } });
     services.authenticateCourseSetting.mockResolvedValue({ status: "forbidden" });
     const get = new Request("https://otid.example/api/admin", { headers: { cookie: `__Host-otid-organizer-session=${token}` } });
     expect((await raceAdministratorRoute(db, get, id, action, services, environment)).status).toBe(403);
-    expect(services.authenticateCourseSetting.mock.calls[0]![1]).toMatchObject({ required: "COMMENT" });
+    expect(services.authenticateCourseSetting.mock.calls[0]![1]).toMatchObject({ required: "MAP" }); // ADR-0181 beslut 8: också kartritaren.
     expect(services.authenticate).not.toHaveBeenCalled();
     const remove = new Request("https://otid.example/api/admin", { method: "DELETE", headers: { origin: environment.O_TID_PUBLIC_ORIGIN,
       "x-otid-csrf": csrf, cookie: `__Host-otid-organizer-session=${token}; __Host-otid-organizer-csrf=${csrf}` } });

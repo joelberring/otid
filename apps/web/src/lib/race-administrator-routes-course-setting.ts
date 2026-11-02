@@ -139,6 +139,15 @@ export async function handleCourseSettingRoute(context: RaceAdministratorRouteCo
       if (value === undefined) return failure(400, "INVALID_REQUEST");
       return note(await dependencies.courseSettingNoteStatus(db, { ...input, noteId: action.noteId, request: value }), raceId, by);
     }
+    // ADR-0181 beslut 8: ta bort en notis (med svar och foto) eller ett svar; öppna editorer får beskedet i strömmen.
+    case "course-setting-note": {
+      const result = await dependencies.courseSettingNoteDelete(db, { ...input, noteId: action.noteId });
+      if (result.status !== "ok") return resultFailure(result.status);
+      publishCourseSettingEvent(raceId, { type: "notes", by });
+      return new Response(null, { status: 204, headers: privateHeaders });
+    }
+    case "course-setting-note-reply-item":
+      return note(await dependencies.courseSettingNoteReplyDelete(db, { ...input, noteId: action.noteId, replyId: action.replyId }), raceId, by);
     case "course-setting-note-photo": {
       const result = await dependencies.courseSettingNotePhoto(db, { ...input, noteId: action.noteId });
       if (result.status !== "ok") return resultFailure(result.status);

@@ -11,3 +11,9 @@ export async function DELETE(request: Request, context: { params: Promise<{ race
   const { raceId } = await context.params;
   return raceAdministratorRoute(db, request, raceId, { kind: "course-secrecy" });
 }
+
+/** ADR-0185: Publicera → före start: varianten och kartan publikt (PATCH med valen). */
+export async function PATCH(request: Request, context: { params: Promise<{ raceId: string }> }) {
+  const { raceId } = await context.params;
+  return raceAdministratorRoute(db, request, raceId, { kind: "course-secrecy" });
+}

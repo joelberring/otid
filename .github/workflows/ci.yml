@@ -4,12 +4,16 @@ on:
   push:
   pull_request:
 
+# ADR-0185: jobben läser bara koden; inget skrivs tillbaka till repot.
+permissions:
+  contents: read
+
 jobs:
   verify:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:17
+        image: postgres:17.11-trixie
         env:
           POSTGRES_USER: otid
           POSTGRES_PASSWORD: otid
@@ -70,12 +74,26 @@ jobs:
           printf 'OTID_SMTP_URL=smtp://host.docker.internal:4325\nOTID_MAIL_FROM=O-Tid test <noreply@o-tid.test>\n' >> .env
           printf 'OTID_REGISTRATION_LIMIT_PER_HOUR=1000\n' >> .env
           printf 'OTID_ROC_BASE_URL=http://host.docker.internal:4331\n' >> .env
+          # Hälsokontrollen: CI-maskinens disk är ofta fullare än 80 %.
+          printf 'OTID_DISK_ALERT_PERCENT=97\n' >> .env
       - run: docker compose -f docker-compose.prod.yml up -d --build --wait --wait-timeout 600
+      - run: curl -sfk --retry 30 --retry-delay 2 --retry-all-errors -o /dev/null https://localhost/organizer
+      # ADR-0185: övergången till databasroller på den körande servern, med samma steg som docs/drift.md; webbläsartesterna
+      # körs sedan med rollerna (otid_app i webben, otid_print i utskriftsarbetaren, otid_owner för migrering och backup).
+      - run: sh deploy/db-roles.sh setup
+      - run: sh deploy/db-roles.sh check | tee roles-check.txt && ! grep -q '^FEL' roles-check.txt
+      - run: docker compose -f docker-compose.prod.yml up -d --wait --wait-timeout 600
+      - run: |
+          docker compose -f docker-compose.prod.yml exec -T postgres psql -U otid -d otid -Atc \
+            "select usename from pg_stat_activity where datname = 'otid' and backend_type = 'client backend' group by 1 order by 1" | tee roles-used.txt
+          grep -q otid_app roles-used.txt
       - run: curl -sfk --retry 30 --retry-delay 2 --retry-all-errors -o /dev/null https://localhost/organizer
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:e2e
         env:
           E2E_BASE_URL: https://localhost
-      - run: ls -lR backups && ls backups/hourly/otid-*.dump backups/daily/otid-*.dump
+      # ADR-0185: dumpen före migreringen, timdumpen och dagsbackupen; hälsokontrollen en gång.
+      - run: ls -lR backups && ls backups/hourly/otid-*.dump backups/daily/otid-*.dump backups/fore-migrering/otid-*.dump
+      - run: docker compose -f docker-compose.prod.yml exec -T monitor sh /monitor.sh once
       - if: failure()
         run: docker compose -f docker-compose.prod.yml logs --tail 200

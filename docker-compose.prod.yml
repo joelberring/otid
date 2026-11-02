@@ -1,5 +1,13 @@
 # Drift på en vanlig VPS (ADR-0168, steg 6). Se docs/drift.md.
 # Kräver en .env bredvid filen med OTID_DOMAIN och POSTGRES_PASSWORD.
+#
+# ADR-0185: databasroller. Utan OTID_DB_*_PASSWORD i .env använder alla tjänster databasens superuser (otid) som förut. Efter
+# `deploy/db-roles.sh setup` (docs/drift.md, Databasroller) står rollerna och lösenorden i .env, och då använder
+#   - migrate och backup ägarrollen (otid_owner, äger tabellerna, ingen superuser),
+#   - web, web-public och web-public2 applikationsrollen (otid_app, läser och skriver data, kan inte ändra schemat),
+#   - print-worker utskriftsrollen (otid_print, bara utskriftskön, tävlingens namn och kartfilen).
+# Hemligheter ges bara till tjänster som behöver dem: Eventors masternyckel och e-posten bara till web, inte till publikens
+# instanser eller utskriftsarbetaren.
 name: otid
 
 # Steg 45: loggarna får inte fylla disken (högst 5 × 10 MB per tjänst).
@@ -9,11 +17,34 @@ x-logging: &logging
     max-size: "10m"
     max-file: "5"
 
+# Backupens avbildning: postgres med restic och curl (deploy/backup.Dockerfile). Samma inställningar för dumpen före
+# migreringen, backuptjänsten och hälsokontrollen.
+x-backup-environment: &backup-environment
+  PGHOST: postgres
+  PGUSER: ${OTID_DB_OWNER_USER:-otid}
+  PGPASSWORD: ${OTID_DB_OWNER_PASSWORD:-${POSTGRES_PASSWORD}}
+  PGDATABASE: otid
+  BACKUP_DIR: /backups
+  TZ: Europe/Stockholm
+  # ADR-0185: en dump varje hel timme dygnet runt (tidigare 08–23); de 48 senaste och en dagsbackup i 14 dagar.
+  BACKUP_INTERVAL_MINUTES: ${BACKUP_INTERVAL_MINUTES:-60}
+  BACKUP_KEEP_HOURLY: ${BACKUP_KEEP_HOURLY:-48}
+  BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+  # Valfri krypterad kopia utanför servern med restic (docs/drift.md, Kopia utanför servern). Tomt = ingen kopia.
+  RESTIC_REPOSITORY: ${RESTIC_REPOSITORY:-}
+  RESTIC_PASSWORD: ${RESTIC_PASSWORD:-}
+  B2_ACCOUNT_ID: ${B2_ACCOUNT_ID:-}
+  B2_ACCOUNT_KEY: ${B2_ACCOUNT_KEY:-}
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+  # Valfri bevakning (t.ex. healthchecks.io): pingas efter varje lyckad backup, med /fail när den misslyckas.
+  OTID_HEARTBEAT_BACKUP_URL: ${OTID_HEARTBEAT_BACKUP_URL:-}
+
 services:
   postgres:
     logging: *logging
-    # Vanlig PostgreSQL för alla arkitekturer (steg 28); samma datakatalog som den tidigare PostGIS-bilden.
-    image: postgres:17
+    # Vanlig PostgreSQL för alla arkitekturer (steg 28), fast version (ADR-0185); samma datakatalog som förut.
+    image: postgres:17.11-trixie
     restart: unless-stopped
     environment:
       POSTGRES_USER: otid
@@ -32,26 +63,58 @@ services:
       timeout: 3s
       retries: 30
 
-  # Steg 54: tävlingens instans – arbetsytan, avläsningen, funktionärerna, inloggningen och admin-API:t. Migrerar databasen
-  # och hämtar radiostämplingar. Caddy skickar hit allt utom publika sidor för besökare utan inloggning.
-  web:
+  # ADR-0185: en dump före varje start av webben (och därmed före en migrering). Misslyckas den startar inget nytt; den
+  # gamla webben kör vidare. Hamnar i ./backups/hourly som de andra dumparna.
+  backup-before-migrate:
+    logging: *logging
+    build:
+      context: ./deploy
+      dockerfile: backup.Dockerfile
+    image: otid-backup
+    restart: "no"
+    cpu_shares: 128
+    mem_limit: 192m
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment: *backup-environment
+    volumes:
+      - ./backups:/backups
+      - ./deploy/backup.sh:/backup.sh:ro
+    entrypoint: ["/bin/sh", "/backup.sh", "dump", "fore-migrering"]
+
+  # ADR-0185: migreringen som egen tjänst med ägarrollen; webben själv har bara applikationsrollen.
+  migrate:
     logging: *logging
     build: .
+    image: otid-web
+    restart: "no"
+    depends_on:
+      backup-before-migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql://${OTID_DB_OWNER_USER:-otid}:${OTID_DB_OWNER_PASSWORD:-${POSTGRES_PASSWORD}}@postgres:5432/otid
+    command: ["node", "migrate.mjs"]
+
+  # Steg 54: tävlingens instans – arbetsytan, avläsningen, funktionärerna, inloggningen och admin-API:t. Startar när
+  # databasen är migrerad och hämtar radiostämplingar. Caddy skickar hit allt utom publika sidor för besökare utan inloggning.
+  web:
+    logging: *logging
     image: otid-web
     restart: unless-stopped
     cpu_shares: 1024
     mem_limit: 1g
     depends_on:
-      postgres:
-        condition: service_healthy
-    environment: &web-environment
-      DATABASE_URL: postgresql://otid:${POSTGRES_PASSWORD}@postgres:5432/otid
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql://${OTID_DB_APP_USER:-otid}:${OTID_DB_APP_PASSWORD:-${POSTGRES_PASSWORD}}@postgres:5432/otid
       O_TID_PUBLIC_ORIGIN: https://${OTID_DOMAIN:?Sätt OTID_DOMAIN i .env}
-      # Eventor (docs/drift.md): masternyckel för klubbarnas API-nycklar. Tom = Eventor avstängt.
+      # Eventor (docs/drift.md): masternyckel för klubbarnas API-nycklar. Tom = Eventor avstängt. Bara i web.
       OTID_EVENTOR_MASTER_KEY: ${OTID_EVENTOR_MASTER_KEY:-}
       # Endast test (CI pekar på en falsk Eventor på värden). Tom i drift = Eventor Sverige.
       OTID_EVENTOR_BASE_URL: ${OTID_EVENTOR_BASE_URL:-}
-      # E-post för återställningslänkar (docs/drift.md). Tom = ingen e-post; superadmin skapar länken.
+      # E-post för återställningslänkar och bekräftelse av e-postadressen (docs/drift.md). Tom = ingen e-post. Bara i web.
       OTID_SMTP_URL: ${OTID_SMTP_URL:-}
       OTID_MAIL_FROM: ${OTID_MAIL_FROM:-}
       OTID_CONTACT_EMAIL: ${OTID_CONTACT_EMAIL:-}
@@ -65,6 +128,7 @@ services:
       OTID_RADIO_POLLER: ${OTID_RADIO_POLLER:-}
       OTID_INSTANCE_ROLE: competition
       NODE_OPTIONS: --max-old-space-size=768
+    command: ["node", "apps/web/server.js"]
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:
@@ -77,7 +141,8 @@ services:
   # eftersom en Node-process bara använder en kärna; Caddy fördelar publiken mellan dem. Lägre CPU-vikt än web och
   # databasen (256 mot 1024): när processorn inte räcker blir resultatredovisningen långsammare, inte avläsningen. Egen
   # liten databaspool med tidsgräns och lastavlastning (äldre lista, glesare uppdatering, sist 503 med Retry-After).
-  # Startar när web har migrerat, migrerar inte och hämtar inga radiostämplingar.
+  # Startar när web är igång, migrerar inte och hämtar inga radiostämplingar. ADR-0185: ingen Eventor-nyckel och ingen
+  # e-post (självregistreringen och festen behöver ingen av dem).
   web-public: &web-public
     logging: *logging
     image: otid-web
@@ -88,13 +153,15 @@ services:
       web:
         condition: service_healthy
     environment:
-      <<: *web-environment
+      DATABASE_URL: postgresql://${OTID_DB_APP_USER:-otid}:${OTID_DB_APP_PASSWORD:-${POSTGRES_PASSWORD}}@postgres:5432/otid
+      O_TID_PUBLIC_ORIGIN: https://${OTID_DOMAIN:?Sätt OTID_DOMAIN i .env}
+      OTID_CONTACT_EMAIL: ${OTID_CONTACT_EMAIL:-}
+      OTID_THROTTLE_SECRET: ${OTID_THROTTLE_SECRET:-}
+      OTID_REGISTRATION_LIMIT_PER_HOUR: ${OTID_REGISTRATION_LIMIT_PER_HOUR:-}
       OTID_RADIO_POLLER: "off"
       OTID_INSTANCE_ROLE: public
       NODE_OPTIONS: --max-old-space-size=448
     command: ["node", "apps/web/server.js"]
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/om').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
       interval: 5s
@@ -105,7 +172,9 @@ services:
 
   # Steg 65 (ADR-0184, ADR-0177): utskriftsarbetaren skriver PDF:erna för tryck, ett jobb i taget ur kön i databasen. Lägsta
   # CPU-vikt (64) och prioritet (nice 19 i processen), egen liten databaspool (2) och eget minnestak: avläsningen och
-  # arbetsytan i `web` väntar aldrig på en utskrift. Startar när web har migrerat; ingen port, inga anrop utifrån.
+  # arbetsytan i `web` väntar aldrig på en utskrift. Startar när databasen är migrerad; ingen port, inga anrop utifrån.
+  # ADR-0185: varje jobb körs i en egen barnprocess med tidsgräns (OTID_PRINT_JOB_TIMEOUT_MS, förval 10 min); ett jobb som
+  # hänger avbryts och kön går vidare. Hälsokontrollen ser att arbetaren lever (filen uppdateras minst var 30:e sekund).
   print-worker:
     logging: *logging
     image: otid-web
@@ -113,16 +182,23 @@ services:
     cpu_shares: 64
     mem_limit: 384m
     depends_on:
-      web:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     environment:
-      DATABASE_URL: postgresql://otid:${POSTGRES_PASSWORD}@postgres:5432/otid
-      NODE_OPTIONS: --max-old-space-size=256
+      DATABASE_URL: postgresql://${OTID_DB_PRINT_USER:-otid}:${OTID_DB_PRINT_PASSWORD:-${POSTGRES_PASSWORD}}@postgres:5432/otid
+      OTID_PRINT_JOB_TIMEOUT_MS: ${OTID_PRINT_JOB_TIMEOUT_MS:-}
+      NODE_OPTIONS: --max-old-space-size=96
     command: ["node", "print-worker.mjs"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "const s=require('fs').statSync('/tmp/otid-print-worker-alive');process.exit(Date.now()-s.mtimeMs<120000?0:1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   caddy:
     logging: *logging
-    image: caddy:2
+    image: caddy:2.11.7
     restart: unless-stopped
     depends_on:
       web:
@@ -146,29 +222,44 @@ services:
 
   backup:
     logging: *logging
-    image: postgres:17
+    image: otid-backup
     restart: unless-stopped
     cpu_shares: 128
     mem_limit: 192m
     depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      PGHOST: postgres
-      PGUSER: otid
-      PGPASSWORD: ${POSTGRES_PASSWORD}
-      PGDATABASE: otid
-      BACKUP_DIR: /backups
-      # Steg 45: varje hel timme kl. 08–23 svensk tid; de 48 senaste timdumparna och en dagsbackup i 14 dagar.
-      TZ: Europe/Stockholm
-      BACKUP_FIRST_HOUR: "8"
-      BACKUP_LAST_HOUR: "23"
-      BACKUP_KEEP_HOURLY: "48"
-      BACKUP_KEEP_DAYS: "14"
+      backup-before-migrate:
+        condition: service_completed_successfully
+    environment: *backup-environment
     volumes:
       - ./backups:/backups
       - ./deploy/backup.sh:/backup.sh:ro
+      # Valfritt: SSH-nyckeln för en Hetzner Storage Box (sftp:) som restic-mål. Tom katalog = ingen nyckel.
+      - ./deploy/backup-ssh:/root/.ssh:ro
     entrypoint: ["/bin/sh", "/backup.sh"]
+
+  # ADR-0185: hälsokontrollen var 15:e minut – webben och databasen (/api/health), publikens instanser, utskriftskön, disken
+  # (larm över 80 %) och att den senaste dumpen är färsk. Pingar OTID_HEARTBEAT_HEALTH_URL när allt är bra och .../fail med
+  # beskrivningen annars; skriver alltid i loggen (`logs monitor`).
+  monitor:
+    logging: *logging
+    image: otid-backup
+    restart: unless-stopped
+    cpu_shares: 64
+    mem_limit: 64m
+    depends_on:
+      web:
+        condition: service_healthy
+    environment:
+      TZ: Europe/Stockholm
+      BACKUP_DIR: /backups
+      OTID_HEARTBEAT_HEALTH_URL: ${OTID_HEARTBEAT_HEALTH_URL:-}
+      OTID_HEALTH_INTERVAL_MINUTES: ${OTID_HEALTH_INTERVAL_MINUTES:-15}
+      OTID_DISK_ALERT_PERCENT: ${OTID_DISK_ALERT_PERCENT:-80}
+      BACKUP_INTERVAL_MINUTES: ${BACKUP_INTERVAL_MINUTES:-60}
+    volumes:
+      - ./backups:/backups:ro
+      - ./deploy/monitor.sh:/monitor.sh:ro
+    entrypoint: ["/bin/sh", "/monitor.sh"]
 
 volumes:
   postgres-data:

@@ -176,6 +176,17 @@ export async function heartbeatPrintJob(db: Database, id: string, worker: string
   return updated.length > 0;
 }
 
+/**
+ * ADR-0185: jobbet avbröts av arbetaren (tidsgränsen passerades eller barnprocessen dog). FAILED med texten, bara om jobbet
+ * fortfarande är arbetarens. Kön går vidare med nästa jobb.
+ */
+export async function failPrintJob(db: Database, id: string, worker: string, message: string, now = new Date()): Promise<boolean> {
+  const updated = await db.update(schema.courseSettingPrintJobs).set({ status: "FAILED", finishedAt: now, error: message.slice(0, 2000) })
+    .where(and(eq(schema.courseSettingPrintJobs.id, id), eq(schema.courseSettingPrintJobs.status, "RUNNING"), eq(schema.courseSettingPrintJobs.worker, worker)))
+    .returning({ id: schema.courseSettingPrintJobs.id });
+  return updated.length > 0;
+}
+
 export interface PrintWorkerOptions {
   readonly fonts: FontFiles;
   readonly worker: string;

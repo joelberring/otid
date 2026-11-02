@@ -3,6 +3,7 @@ import { schema } from "@o-tid/database";
 import type { DbExecutor } from "./snapshot";
 import { authorizeUserAccountSession } from "./user-account";
 import { groupLeaderGrant } from "./training-group-access";
+import { accountEmailVerified } from "./email-verification";
 
 /**
  * En sessionsnivå (ADR-0168 beslut 4, ADR-0172 beslut 3, ADR-0173 beslut 4). En adminförfrågan bär kontots
@@ -60,7 +61,8 @@ const ROLE_ORDER: Record<EventGrantRole, number> = { OWNER: 0, ADMIN: 1, FUNCTIO
 /**
  * Kontots gällande behörighet på eventet. `roles` begränsar vilka roller som räknas (förval: OWNER och ADMIN).
  * Har kontot flera gäller den starkaste (ägare före administratör före funktionär). Steg 68: en ledare i evenemangets
- * träningsgrupp får ADMIN (id:t är då ledarraden i `training_group_member`).
+ * träningsgrupp får ADMIN (id:t är då ledarraden i `training_group_member`). ADR-0185: utan bekräftad e-postadress gäller
+ * bara ägarskapet (tävlingar kontot självt skapat); administratör, funktionär och ledarskapet kommer från någon annan.
  */
 export async function activeEventAdministrationGrant(
   tx: DbExecutor,
@@ -77,14 +79,17 @@ export async function activeEventAdministrationGrant(
       input.ownerOnly ? eq(schema.eventAdministrationGrants.role, "OWNER") :
         inArray(schema.eventAdministrationGrants.role, [...(input.roles ?? ["OWNER", "ADMIN"])])))
     .orderBy(asc(schema.eventAdministrationGrants.grantedAt), asc(schema.eventAdministrationGrants.id));
-  const grants = (lock === "share" ? await grantQuery.for("share") : lock === "update" ? await grantQuery.for("update") :
+  const all = (lock === "share" ? await grantQuery.for("share") : lock === "update" ? await grantQuery.for("update") :
     await grantQuery).sort((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role]);
+  const verified = all.every(grant => grant.role === "OWNER") && (input.ownerOnly || input.grantId || input.explicitOnly)
+    ? true : await accountEmailVerified(tx, input.accountId);
+  const grants = verified ? all : all.filter(grant => grant.role === "OWNER");
   const explicit = await activeGrantOf(tx, grants, lock);
   if (explicit && explicit.role !== "FUNCTIONARY") return explicit;
   // Steg 68 (ADR-0182 beslut 1): en ledare i evenemangets träningsgrupp är administratör, utan egen rad på evenemanget.
   // Gäller inte frågor om ägaren eller om en bestämd behörighet (grantId).
   const roles = input.roles ?? ["OWNER", "ADMIN"];
-  if (!input.ownerOnly && !input.grantId && !input.explicitOnly && roles.includes("ADMIN")) {
+  if (verified && !input.ownerOnly && !input.grantId && !input.explicitOnly && roles.includes("ADMIN")) {
     const leader = await groupLeaderGrant(tx, { accountId: input.accountId, eventId: input.eventId }, lock);
     if (leader) return { id: leader.id, role: "ADMIN" };
   }

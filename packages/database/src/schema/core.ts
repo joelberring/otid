@@ -117,8 +117,12 @@ export const races = pgTable("race", {
   startDrawSettings: jsonb("start_draw_settings"),
   /** "Resultaten är klara" (migration 0006): loppets fastställande som gäller som officiellt. NULL = preliminära. */
   officialResultFinalizationId: uuid("official_result_finalization_id"),
-  /** Steg 33 (migration 0011): bricknummer i den publika startlistan. Påslaget som standard. */
-  publicStartListCardNumbers: boolean("public_start_list_card_numbers").notNull().default(true),
+  /** Steg 33 (migration 0011): bricknummer i den publika startlistan. Av för nya tävlingar sedan migration 0038 (ADR-0185). */
+  publicStartListCardNumbers: boolean("public_start_list_card_numbers").notNull().default(false),
+  /** ADR-0185 (migration 0038): variantens bokstav publikt efter löparens start (förval) eller alltid. */
+  publicVariantTiming: text("public_variant_timing").$type<"AFTER_START" | "ALWAYS">().notNull().default("AFTER_START"),
+  /** ADR-0185: kartbilden publikt efter tävlingens start (förval) eller direkt när tävlingen publiceras. */
+  publicMapTiming: text("public_map_timing").$type<"AFTER_START" | "ON_PUBLISH">().notNull().default("AFTER_START"),
   /** Steg 33: kort info om tävlingen (fritext, högst 1000 tecken) och första start (HH:MM, bara information). */
   info: text("info"),
   firstStartTime: text("first_start_time"),
@@ -137,6 +141,8 @@ export const races = pgTable("race", {
   check("race_info_check", sql`${table.info} IS NULL OR char_length(${table.info}) BETWEEN 1 AND 1000`),
   check("race_first_start_time_check", sql`${table.firstStartTime} IS NULL OR ${table.firstStartTime} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'`),
   check("race_type_check", sql`${table.raceType} in ('TRAINING', 'SMALL', 'STANDARD', 'FORKED', 'RELAY', 'ROGAINING', 'PARTY')`),
+  check("race_public_variant_timing_check", sql`${table.publicVariantTiming} in ('AFTER_START', 'ALWAYS')`),
+  check("race_public_map_timing_check", sql`${table.publicMapTiming} in ('AFTER_START', 'ON_PUBLISH')`),
   check("race_short_code_check", sql`${table.shortCode} ~ '^[2-9a-hjkmnp-z]{6}$'`),
   uniqueIndex("race_short_code_uidx").on(table.shortCode),
   index("race_event_idx").on(table.eventId),

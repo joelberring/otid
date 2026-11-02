@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { schema } from "@o-tid/database";
 import type { DbExecutor } from "./snapshot";
+import { accountEmailVerified } from "./email-verification";
 
 /**
  * Steg 68 (ADR-0182 beslut 1): behörigheten via gruppen. En ledare i gruppen som evenemanget hör till är ADMIN på
@@ -19,22 +20,32 @@ export async function groupLeaderGrant(tx: DbExecutor, input: { accountId: strin
   return leaderMembership(tx, { accountId: input.accountId, groupId: event.groupId }, lock);
 }
 
+/**
+ * ADR-0185: ledare och medlemmar läggs till med e-postadressen av någon annan, så rollen gäller först när kontots adress är
+ * bekräftad. Den som skapade gruppen (lade till sig själv) är ledare ändå.
+ */
+async function counts(tx: DbExecutor, accountId: string, row: { addedBy: string } | undefined): Promise<boolean> {
+  return row !== undefined && (row.addedBy === accountId || await accountEmailVerified(tx, accountId));
+}
+
 /** Kontots ledarskap i gruppen (raden i `training_group_member`), eller undefined. */
 export async function leaderMembership(tx: DbExecutor, input: { accountId: string; groupId: string },
   lock: "none" | "share" | "update"): Promise<{ id: string; groupId: string } | undefined> {
-  const query = tx.select({ id: schema.trainingGroupMembers.id, groupId: schema.trainingGroupMembers.groupId })
+  const query = tx.select({ id: schema.trainingGroupMembers.id, groupId: schema.trainingGroupMembers.groupId,
+    addedBy: schema.trainingGroupMembers.addedBy })
     .from(schema.trainingGroupMembers)
     .where(and(eq(schema.trainingGroupMembers.groupId, input.groupId), eq(schema.trainingGroupMembers.accountId, input.accountId),
       eq(schema.trainingGroupMembers.role, "LEADER")));
   const [row] = lock === "share" ? await query.for("share") : lock === "update" ? await query.for("update") : await query;
-  return row;
+  return row && await counts(tx, input.accountId, row) ? { id: row.id, groupId: row.groupId } : undefined;
 }
 
 /** Kontots roll i gruppen (ledare eller medlem), eller undefined. */
 export async function groupMembership(tx: DbExecutor, input: { accountId: string; groupId: string })
   : Promise<{ id: string; role: "LEADER" | "MEMBER" } | undefined> {
-  const [row] = await tx.select({ id: schema.trainingGroupMembers.id, role: schema.trainingGroupMembers.role })
+  const [row] = await tx.select({ id: schema.trainingGroupMembers.id, role: schema.trainingGroupMembers.role,
+    addedBy: schema.trainingGroupMembers.addedBy })
     .from(schema.trainingGroupMembers)
     .where(and(eq(schema.trainingGroupMembers.groupId, input.groupId), eq(schema.trainingGroupMembers.accountId, input.accountId)));
-  return row;
+  return row && await counts(tx, input.accountId, row) ? { id: row.id, role: row.role } : undefined;
 }

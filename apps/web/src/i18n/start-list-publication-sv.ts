@@ -11,6 +11,8 @@ export const startListPublicationSv = {
   publicLoading: "Hämtar startlistan…",
   publicHelp: "Planerad start, inte bekräftelse på faktisk start. Listan uppdateras automatiskt var femte sekund.",
   publicRefreshFailed: "Startlistan kunde inte uppdateras. Senast hämtade lista visas.",
+  /** ADR-0185: varianten är dold publikt före löparens start. */
+  publicVariantsHidden: "Variantens bokstav visas när löparen har startat.",
   publishedAt: "Publicerad",
   /** "Uppdatera startlistan löpande". */
   publicLive: "Uppdateras löpande",

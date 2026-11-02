@@ -8,12 +8,22 @@ import { requireRaceRole } from "../../src/race-session";
 
 export const TEST_PASSWORD = "hemligt-lösen";
 
-/** Registrerar ett testkonto med e-post `<namn>@test.o-tid.se` (unikt namn om inget anges). */
-export async function registerTestAccount(db: Database, name = `konto.${randomUUID().slice(0, 8)}`, now?: Date) {
+/**
+ * ADR-0185: kontots e-postadress bekräftad, som för alla konton från före bekräftelsen och för den som öppnat länken. Behörigheter
+ * som andra ger kontot gäller först då.
+ */
+export async function verifyTestAccount(db: Database, accountId: string, now = new Date()): Promise<void> {
+  await db.update(schema.userAccounts).set({ emailVerifiedAt: now }).where(eq(schema.userAccounts.id, accountId));
+}
+
+/** Registrerar ett testkonto med e-post `<namn>@test.o-tid.se` (unikt namn om inget anges), med bekräftad adress. */
+export async function registerTestAccount(db: Database, name = `konto.${randomUUID().slice(0, 8)}`, now?: Date,
+  options: { verified?: boolean } = {}) {
   const email = `${name}@test.o-tid.se`;
   const login = await registerUserAccount(db, { formatVersion: 1, email, displayName: `Arrangör ${name}`, password: TEST_PASSWORD },
     now ? { now } : {});
   if (login.status !== "authenticated") throw new Error(`Testkontot kunde inte skapas: ${login.status}`);
+  if (options.verified !== false) await verifyTestAccount(db, login.response.accountId, now);
   return {
     accountId: login.response.accountId, email, password: TEST_PASSWORD, login,
     proof: { sessionToken: login.sessionToken, csrfCookie: login.csrfToken, csrfHeader: login.csrfToken }

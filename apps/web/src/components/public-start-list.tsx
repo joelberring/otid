@@ -35,8 +35,9 @@ export function PublicStartList({ raceId, initial }: { raceId: string; initial: 
         const result = publicStartListResponseSchema.parse(await response.json());
         if (!stopped) {
           setFailed(false);
+          // ADR-0185: med dolda varianter ändras listan när starttiderna passerar, utan ny revision.
           setData(previous => !result.live && !previous?.live && previous?.revision === result.revision && previous.iofExportAvailable === result.iofExportAvailable &&
-            previous.showCardNumbers === result.showCardNumbers ? previous : result);
+            previous.showCardNumbers === result.showCardNumbers && !result.variantsHiddenUntilStart && !previous.variantsHiddenUntilStart ? previous : result);
         }
       } catch {
         // Visas som besked; senast hämtade lista ligger kvar och nästa försök sker om fem sekunder.
@@ -57,7 +58,8 @@ export function PublicStartList({ raceId, initial }: { raceId: string; initial: 
     <section className="public-list-heading"><h1>{data.content.eventName}</h1>
       <p>{raceDetails(data.content.eventName, data.content.raceName, [data.content.raceDate])} · {data.live ? text.publicLive
         : <>{text.publishedAt} {zonedDate(data.publishedAt, zone)} {formatClockTime(data.publishedAt, zone).slice(0, 5)}</>}</p>
-      <p className="public-list-help">{text.publicHelp}</p></section>
+      <p className="public-list-help">{text.publicHelp}</p>
+      {data.variantsHiddenUntilStart && <p className="public-list-help" data-testid="public-variants-hidden">{text.publicVariantsHidden}</p>}</section>
     {failed && <p className={styles.notice} role="alert">{text.publicRefreshFailed}</p>}
     <StartLists model={model}
       iof={data.iofExportAvailable ? { href: `/api/races/${encodeURIComponent(raceId)}/start-list/iof` } : undefined} />

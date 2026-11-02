@@ -51,17 +51,17 @@ const isCourseRole = (role: string): role is CourseRole => role in COURSE_LEVELS
 async function courseSetters(tx: Transaction, raceId: string): Promise<RacePerson[]> {
   const grants = schema.courseSettingGrants;
   const rows = await tx.select({ grantId: grants.id, accountId: grants.accountId, level: grants.level, grantedAt: grants.grantedAt,
-    email: schema.userAccounts.email, displayName: schema.userAccounts.displayName })
+    email: schema.userAccounts.email, displayName: schema.userAccounts.displayName, verifiedAt: schema.userAccounts.emailVerifiedAt })
     .from(grants).innerJoin(schema.userAccounts, eq(schema.userAccounts.id, grants.accountId))
     .where(eq(grants.raceId, raceId)).orderBy(asc(grants.grantedAt), asc(grants.id)).limit(1000);
   return rows.map(row => ({ grantId: row.grantId, accountId: row.accountId, email: row.email, displayName: row.displayName,
-    role: `COURSE_${row.level}`, grantedAt: row.grantedAt.toISOString() }));
+    role: `COURSE_${row.level}`, grantedAt: row.grantedAt.toISOString(), ...(row.verifiedAt ? {} : { pendingVerification: true }) }));
 }
 
 async function activePeople(tx: Transaction, eventId: string, raceId?: string): Promise<RacePerson[]> {
   const rows = await tx.select({ grantId: schema.eventAdministrationGrants.id, accountId: schema.eventAdministrationGrants.accountId,
     role: schema.eventAdministrationGrants.role, grantedAt: schema.eventAdministrationGrants.grantedAt,
-    email: schema.userAccounts.email, displayName: schema.userAccounts.displayName })
+    email: schema.userAccounts.email, displayName: schema.userAccounts.displayName, verifiedAt: schema.userAccounts.emailVerifiedAt })
     .from(schema.eventAdministrationGrants)
     .innerJoin(schema.userAccounts, eq(schema.userAccounts.id, schema.eventAdministrationGrants.accountId))
     .leftJoin(schema.eventAdministrationGrantRevocations,
@@ -69,8 +69,9 @@ async function activePeople(tx: Transaction, eventId: string, raceId?: string): 
     .where(and(eq(schema.eventAdministrationGrants.eventId, eventId), isNull(schema.eventAdministrationGrantRevocations.id)))
     .orderBy(asc(schema.eventAdministrationGrants.grantedAt), asc(schema.eventAdministrationGrants.id)).limit(10_001);
   if (rows.length > 10_000) throw new Error("För många personer med behörighet");
+  // ADR-0185: en behörighet från någon annan väntar tills kontots e-postadress är bekräftad (ägarskapet gäller alltid).
   const people: RacePerson[] = rows.map(row => ({ grantId: row.grantId, accountId: row.accountId, email: row.email, displayName: row.displayName,
-    role: row.role, grantedAt: row.grantedAt.toISOString() }));
+    role: row.role, grantedAt: row.grantedAt.toISOString(), ...(row.verifiedAt || row.role === "OWNER" ? {} : { pendingVerification: true }) }));
   return [...people, ...(raceId ? await courseSetters(tx, raceId) : [])].sort((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role]);
 }
 

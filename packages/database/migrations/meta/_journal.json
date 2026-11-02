@@ -37,6 +37,7 @@
     { "idx": 32, "version": "7", "when": 1800460800000, "tag": "0034_kollad", "breakpoints": true },
     { "idx": 33, "version": "7", "when": 1800547200000, "tag": "0035_traningsgrupper", "breakpoints": true },
     { "idx": 34, "version": "7", "when": 1800633600000, "tag": "0036_utskriftsjobb", "breakpoints": true },
-    { "idx": 35, "version": "7", "when": 1800720000000, "tag": "0037_notiser_ritning", "breakpoints": true }
+    { "idx": 35, "version": "7", "when": 1800720000000, "tag": "0037_notiser_ritning", "breakpoints": true },
+    { "idx": 36, "version": "7", "when": 1800806400000, "tag": "0038_sakerhet_drift", "breakpoints": true }
   ]
 }

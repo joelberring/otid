@@ -112,6 +112,9 @@ describe("steg 28: PostgreSQL utan PostGIS", () => {
     await pool.query("ALTER TABLE race ADD COLUMN map_reserve jsonb");
     // …och träningsgruppen (steg 68, 0035 lägger till kolumnerna om de saknas och nycklarna efteråt).
     await pool.query("ALTER TABLE event ADD COLUMN training_group_id uuid, ADD COLUMN training_group_series_id uuid");
+    // …och ADR-0185 (0038 lägger till kolumnerna om de saknas): valen före start och bekräftad e-post.
+    await pool.query("ALTER TABLE race ADD COLUMN public_variant_timing text NOT NULL DEFAULT 'AFTER_START', ADD COLUMN public_map_timing text NOT NULL DEFAULT 'AFTER_START'");
+    await pool.query("ALTER TABLE user_account ADD COLUMN email_verified_at timestamptz");
     const { ids, cards } = await seedRace(db, pool);
     await ingest(db, ids.race, [run(cards.ada, "10:02:00", 30), run(cards.bo, "10:05:00", 41)]);
     await pool.query("DROP TABLE race_station_correction");

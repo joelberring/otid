@@ -4,7 +4,10 @@ import {
   listMyEvents,
   loginUserAccount,
   logoutUserAccountSession,
-  registerUserAccount
+  registerUserAccount,
+  registerUserAccountWithVerification,
+  verifyEmailAndLogIn,
+  type EmailVerificationDelivery
 } from "@o-tid/application";
 import {
   organizerAccountLoginRequestSchema,
@@ -13,7 +16,9 @@ import {
   organizerEventCreateResponseSchema,
   organizerEventCreateRequestSchema,
   organizerMyEventsResponseSchema,
-  organizerAccountSessionStatusSchema
+  organizerAccountSessionStatusSchema,
+  organizerAccountRegistrationPendingSchema,
+  organizerAccountRegistrationRequestSchema
 } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
 import {
@@ -31,10 +36,18 @@ import {
   sessionProof,
   setSessionCookies
 } from "./security-policy";
+import {
+  alreadyRegisteredMessage, emailVerificationMessage, mailEnabled, runInBackground, sendMessage, type Background, type MailConfiguration
+} from "./mail";
 
-type Environment = Partial<Pick<NodeJS.ProcessEnv, "NODE_ENV" | "O_TID_PUBLIC_ORIGIN" | "OTID_REGISTRATION_LIMIT_PER_HOUR">>;
+type Environment = Partial<Pick<NodeJS.ProcessEnv, "NODE_ENV" | "O_TID_PUBLIC_ORIGIN" | "OTID_REGISTRATION_LIMIT_PER_HOUR" | "OTID_SMTP_URL" |
+  "OTID_MAIL_FROM">>;
+type Mail = Extract<MailConfiguration, { status: "on" }>;
+type Send = typeof sendMessage;
 type Login = typeof loginUserAccount;
 type Register = typeof registerUserAccount;
+type RegisterWithVerification = typeof registerUserAccountWithVerification;
+type Verify = typeof verifyEmailAndLogIn;
 type Authenticate = typeof authenticateUserAccountSession;
 type Logout = typeof logoutUserAccountSession;
 type Create = typeof createOrganizerEvent;
@@ -63,8 +76,20 @@ function requestFailure(status: string): Response {
   }
 }
 
+/** ADR-0185: mejlet med bekräftelselänken, eller att adressen redan har ett konto. */
+async function sendVerification(mail: Mail, origin: string, delivery: EmailVerificationDelivery, send: Send): Promise<void> {
+  if (delivery.kind === "ALREADY_REGISTERED") {
+    await send(mail, delivery.email, alreadyRegisteredMessage({ displayName: delivery.displayName, loginLink: `${origin}/organizer`,
+      recoverLink: `${origin}/recover` }));
+    return;
+  }
+  await send(mail, delivery.email, emailVerificationMessage({ to: delivery.email, displayName: delivery.displayName,
+    link: `${origin}/verify#token=${delivery.token}`, expiresAt: delivery.expiresAt }));
+}
+
 export async function organizerLoginRoute(
-  db: Database, request: Request, login: Login = loginUserAccount, environment: Environment = process.env
+  db: Database, request: Request, login: Login = loginUserAccount, environment: Environment = process.env,
+  send: Send = sendMessage, background: Background = runInBackground
 ): Promise<Response> {
   const configured = policy(environment);
   if ("response" in configured) return configured.response;
@@ -74,7 +99,13 @@ export async function organizerLoginRoute(
   const parsed = organizerAccountLoginRequestSchema.safeParse(body);
   if (!parsed.success) return organizerFailure(400, "INVALID_REQUEST");
   try {
-    const result = await login(db, parsed.data, { clientKey: clientAddress(request) });
+    // ADR-0185: med e-post loggas ett obekräftat konto inte in (samma svar som fel lösenord); det får en ny länk.
+    const mail = mailEnabled(environment);
+    const result = await login(db, parsed.data, { clientKey: clientAddress(request), ...(mail ? { requireVerifiedEmail: true } : {}) });
+    if (result.status === "unauthorized" && result.verification && mail) {
+      const delivery = result.verification;
+      background("Bekräftelsemejlet", () => sendVerification(mail, configured.value.publicOrigin, delivery, send));
+    }
     if (result.status !== "authenticated") {
       return result.status === "rate-limited" ? accountFailure(429, "RATE_LIMITED")
         : result.status === "blocked" ? accountFailure(403, "ACCOUNT_BLOCKED") : organizerFailure(401, "UNAUTHORIZED");
@@ -92,15 +123,32 @@ export function registrationsPerHour(environment: Environment): number | undefin
   return value && /^[1-9]\d{0,5}$/.test(value) ? Number(value) : undefined;
 }
 
-/** Öppen registrering (ADR-0172): skapar konto och loggar in direkt, med spärr per IP. */
+/**
+ * Öppen registrering (ADR-0172), med spärr per IP. ADR-0185: med e-post inställd blir svaret detsamma oavsett om adressen
+ * redan har ett konto (202, "kolla e-posten"), och allt arbete görs efter svaret; kontot loggas in när länken öppnas. Utan
+ * e-post skapas kontot och loggas in direkt som förut (adressen är då obekräftad tills superadmin bekräftar den).
+ */
 export async function organizerRegisterRoute(
-  db: Database, request: Request, register: Register = registerUserAccount, environment: Environment = process.env
+  db: Database, request: Request, register: Register = registerUserAccount, environment: Environment = process.env,
+  registerWithVerification: RegisterWithVerification = registerUserAccountWithVerification, send: Send = sendMessage,
+  background: Background = runInBackground
 ): Promise<Response> {
   const configured = policy(environment);
   if ("response" in configured) return configured.response;
   if (!hasExpectedOrigin(request, configured.value)) return organizerFailure(403, "FORBIDDEN");
   let body: unknown;
   try { body = await readJsonBody(request); } catch { return organizerFailure(400, "INVALID_REQUEST"); }
+  const mail = mailEnabled(environment);
+  if (mail) {
+    if (!organizerAccountRegistrationRequestSchema.safeParse(body).success) return organizerFailure(400, "INVALID_REQUEST");
+    const limit = registrationsPerHour(environment);
+    const clientKey = clientAddress(request);
+    background("Registreringen", async () => {
+      const result = await registerWithVerification(db, body, { clientKey, ...(limit ? { registrationsPerHour: limit } : {}) });
+      if (result.delivery) await sendVerification(mail, configured.value.publicOrigin, result.delivery, send);
+    });
+    return privateJson(organizerAccountRegistrationPendingSchema.parse({ formatVersion: 1, status: "check-email" }), 202);
+  }
   try {
     const limit = registrationsPerHour(environment);
     const result = await register(db, body, { clientKey: clientAddress(request), ...(limit ? { registrationsPerHour: limit } : {}) });
@@ -108,6 +156,26 @@ export async function organizerRegisterRoute(
     if (result.status !== "authenticated") return requestFailure(result.status);
     const response = organizerAccountLoginResponseSchema.parse(result.response);
     return setSessionCookies(privateJson(response, 201), configured.value, {
+      sessionToken: result.sessionToken, csrfToken: result.csrfToken, expiresAt: response.expiresAt
+    });
+  } catch { return organizerFailure(500, "INTERNAL_ERROR"); }
+}
+
+/** ADR-0185: länken i bekräftelsemejlet med lösenordet från registreringen. Bekräftar adressen och loggar in. */
+export async function organizerVerifyEmailRoute(
+  db: Database, request: Request, verify: Verify = verifyEmailAndLogIn, environment: Environment = process.env
+): Promise<Response> {
+  const configured = policy(environment);
+  if ("response" in configured) return configured.response;
+  if (!hasExpectedOrigin(request, configured.value)) return organizerFailure(403, "FORBIDDEN");
+  let body: unknown;
+  try { body = await readJsonBody(request); } catch { return organizerFailure(400, "INVALID_REQUEST"); }
+  try {
+    const result = await verify(db, body);
+    if (result.status === "invalid-request") return organizerFailure(400, "INVALID_REQUEST");
+    if (result.status !== "authenticated") return accountFailure(404, "NOT_FOUND");
+    const response = organizerAccountLoginResponseSchema.parse(result.response);
+    return setSessionCookies(privateJson(response), configured.value, {
       sessionToken: result.sessionToken, csrfToken: result.csrfToken, expiresAt: response.expiresAt
     });
   } catch { return organizerFailure(500, "INTERNAL_ERROR"); }
@@ -127,7 +195,8 @@ export async function organizerSessionStatusRoute(
     if (result.status !== "authenticated") return authenticationFailure(result.status);
     return privateJson(organizerAccountSessionStatusSchema.parse({
       formatVersion: 1, accountId: result.principal.accountId, email: result.principal.email,
-      displayName: result.principal.displayName, superadmin: result.principal.superadmin, expiresAt: result.principal.expiresAt
+      displayName: result.principal.displayName, superadmin: result.principal.superadmin, expiresAt: result.principal.expiresAt,
+      emailVerified: result.principal.emailVerified
     }));
   } catch { return organizerFailure(500, "INTERNAL_ERROR"); }
 }

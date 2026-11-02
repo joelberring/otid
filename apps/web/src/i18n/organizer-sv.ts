@@ -5,7 +5,6 @@ export const organizerSv = {
   eventsLoadError: (status: number) => `Kunde inte hämta tävlingarna (${status}).`,
   sessionCheckError: (status: number) => `Kunde inte kontrollera sessionen (${status}).`,
   loggingIn: "Loggar in …",
-  invalidCredentials: "E-postadressen eller lösenordet stämmer inte.",
   loginRateLimited: "För många misslyckade försök med den här adressen. Vänta 15 minuter och försök igen.",
   accountBlocked: "Kontot är spärrat. Kontakta den som driver O-Tid.",
   loginError: (status: number) => `Inloggningen misslyckades (${status}).`,
@@ -30,6 +29,10 @@ export const organizerSv = {
   displayName: "Ditt namn",
   passwordRule: "Minst 8 tecken.",
   registering: "Skapar konto …",
+  /** ADR-0185: registrering med e-post. Samma besked oavsett om adressen redan har ett konto. */
+  checkEmail: (email: string) => `Vi har skickat ett mejl till ${email}. Öppna länken i mejlet för att bekräfta adressen och logga in. Titta också i skräpposten.`,
+  invalidCredentialsOrUnverified: "E-postadressen eller lösenordet stämmer inte. Har du nyss skapat kontot? Öppna länken i mejlet först; vi skickar en ny om den gamla har gått ut.",
+  unverifiedNotice: "Din e-postadress är inte bekräftad. Tävlingar du själv skapar fungerar som vanligt, men behörigheter som andra ger dig gäller först när adressen är bekräftad. Be den som driver O-Tid att bekräfta den.",
   emailTaken: "Det finns redan ett konto med den e-postadressen. Logga in, eller välj Glömt lösenordet.",
   registerInvalid: "Kontrollera e-postadress, namn och lösenord (minst 8 tecken).",
   registerRateLimited: "För många nya konton från den här anslutningen. Vänta en timme och försök igen.",

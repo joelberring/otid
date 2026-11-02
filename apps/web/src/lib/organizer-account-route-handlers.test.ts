@@ -201,3 +201,70 @@ describe("ADR-0168 självregistrering", () => {
     expect(register).not.toHaveBeenCalled();
   });
 });
+
+describe("ADR-0185 registrering med bekräftad e-post", () => {
+  const mail = { ...prod, OTID_SMTP_URL: "smtp://127.0.0.1:2525", OTID_MAIL_FROM: "O-Tid <noreply@klubb.se>" };
+  const body = (email: string) => JSON.stringify({ formatVersion: 1, email, displayName: "Ny Arrangör", password: "hemligt-lösen" });
+  const registerRequest = (email: string) => req("POST", body(email), { origin: prod.O_TID_PUBLIC_ORIGIN, "content-type": "application/json" },
+    "https://otid.example/api/organizer/register");
+  function later() {
+    const tasks: (() => Promise<void>)[] = [];
+    return { background: (_label: string, task: () => Promise<void>) => { tasks.push(task); },
+      run: async () => { for (const task of tasks.splice(0)) await task(); } };
+  }
+
+  it("svarar likadant för en ny och en upptagen adress, utan kakor, och gör arbetet efter svaret", async () => {
+    const legacy = vi.fn() as unknown as typeof registerUserAccount;
+    const withVerification = vi.fn(async (_db: unknown, value: unknown) => (value as { email: string }).email === "finns@klubb.se"
+      ? { status: "accepted" as const, delivery: { kind: "ALREADY_REGISTERED" as const, email: "finns@klubb.se", displayName: "Finns" } }
+      : { status: "accepted" as const, delivery: { kind: "VERIFY" as const, email: "ny@klubb.se", displayName: "Ny", token: "V".repeat(43),
+        expiresAt: new Date("2026-12-09T18:00:00Z") } });
+    const send = vi.fn(async () => undefined);
+    const queue = later();
+    const fresh = await organizerRegisterRoute(db, registerRequest("ny@klubb.se"), legacy, mail, withVerification as never, send, queue.background);
+    const taken = await organizerRegisterRoute(db, registerRequest("finns@klubb.se"), legacy, mail, withVerification as never, send, queue.background);
+    expect([fresh.status, taken.status]).toEqual([202, 202]);
+    expect(await fresh.text()).toBe(await taken.text());
+    expect([...fresh.headers.getSetCookie(), ...taken.headers.getSetCookie()]).toEqual([]);
+    expect(withVerification).not.toHaveBeenCalled();
+    expect(legacy).not.toHaveBeenCalled();
+    await queue.run();
+    expect(withVerification).toHaveBeenCalledTimes(2);
+    const messages = (send.mock.calls as unknown as [unknown, string, { subject: string; text: string }][]).map(([, to, message]) => ({ to, ...message }));
+    expect(messages).toEqual([
+      expect.objectContaining({ to: "ny@klubb.se", subject: "Bekräfta din e-postadress i O-Tid",
+        text: expect.stringContaining(`https://otid.example/verify#token=${"V".repeat(43)}`) as string }),
+      expect.objectContaining({ to: "finns@klubb.se", subject: "Du har redan ett konto i O-Tid",
+        text: expect.stringContaining("https://otid.example/recover") as string })
+    ]);
+  });
+
+  it("avvisar en ogiltig begäran direkt (beror bara på det som skickades) och registrerar som förut utan e-post", async () => {
+    const withVerification = vi.fn();
+    const invalid = req("POST", JSON.stringify({ formatVersion: 1, email: "ny@klubb.se", displayName: "Ny", password: "kort" }),
+      { origin: prod.O_TID_PUBLIC_ORIGIN, "content-type": "application/json" }, "https://otid.example/api/organizer/register");
+    expect((await organizerRegisterRoute(db, invalid, vi.fn() as never, mail, withVerification as never, vi.fn(), later().background)).status).toBe(400);
+    const legacy = vi.fn(async () => ({ status: "conflict" as const })) as unknown as typeof registerUserAccount;
+    expect((await organizerRegisterRoute(db, registerRequest("finns@klubb.se"), legacy, prod, withVerification as never)).status).toBe(409);
+    expect(withVerification).not.toHaveBeenCalled();
+  });
+
+  it("loggar inte in ett obekräftat konto när e-post är på, men skickar en ny länk efter samma svar som fel lösenord", async () => {
+    const loginRequest = () => req("POST", JSON.stringify({ formatVersion: 1, email: "ny@klubb.se", password: "hemligt-lösen" }),
+      { origin: prod.O_TID_PUBLIC_ORIGIN, "content-type": "application/json" }, "https://otid.example/api/organizer/login");
+    const login = vi.fn(async () => ({ status: "unauthorized" as const, verification: { kind: "VERIFY" as const, email: "ny@klubb.se",
+      displayName: "Ny", token: "W".repeat(43), expiresAt: new Date() } })) as unknown as typeof loginUserAccount;
+    const send = vi.fn(async () => undefined);
+    const queue = later();
+    const response = await organizerLoginRoute(db, loginRequest(), login, mail, send, queue.background);
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ formatVersion: 1, error: "UNAUTHORIZED" });
+    expect(login).toHaveBeenCalledWith(db, expect.anything(), expect.objectContaining({ requireVerifiedEmail: true }));
+    await queue.run();
+    expect(send).toHaveBeenCalledWith(expect.anything(), "ny@klubb.se", expect.objectContaining({
+      text: expect.stringContaining(`/verify#token=${"W".repeat(43)}`) as string }));
+    const withoutMail = vi.fn(async () => ({ status: "unauthorized" as const })) as unknown as typeof loginUserAccount;
+    await organizerLoginRoute(db, loginRequest(), withoutMail, prod);
+    expect(withoutMail).toHaveBeenCalledWith(db, expect.anything(), expect.not.objectContaining({ requireVerifiedEmail: true }));
+  });
+});

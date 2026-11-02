@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { courseSecrecyResponseSchema, racePublicationResponseSchema } from "@o-tid/contracts";
+import { courseSecrecyResponseSchema, publicTimingResponseSchema, racePublicationResponseSchema, type PublicTimingRequest } from "@o-tid/contracts";
 import { publicRaceSv } from "../../i18n/public-race-sv";
 import { courseSecrecySv as secrecyText } from "../../i18n/course-secrecy-sv";
 import { displayAddress, formatRaceInstant, raceHubPath, raceQrPath } from "../../lib/public-race-format";
@@ -106,9 +106,55 @@ function CourseSecrecySection({ ws, id }: { ws: Workspace; id: string }) {
   </Section>;
 }
 
+/**
+ * ADR-0185: före start. Variantens bokstav och kartan publikt efter start (standard) eller direkt. Sparas direkt när ett val
+ * ändras; inget resultat ändras.
+ */
+function PublicTimingSection({ ws, id }: { ws: Workspace; id: string }) {
+  const { begin, busy, writingRef, csrf, current, data, finish, load, pending, raceId, request, json, requireSession, workflowLocked } = ws;
+  const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
+  const timing = data?.courseSecrecy?.publicTiming;
+  if (!timing) return null;
+  const text = secrecyText.timing;
+
+  async function change(choice: Omit<PublicTimingRequest, "formatVersion">) {
+    if (writingRef.current || pending.current || !requireSession()) return;
+    setMessage(undefined);
+    const op = begin(true);
+    try {
+      const response = await request("/course-secrecy", op, { method: "PATCH", headers: { "content-type": "application/json", "x-otid-csrf": csrf() },
+        body: JSON.stringify({ formatVersion: 1, ...choice }) });
+      if (!response.ok) throw new Error("Public timing failed");
+      const receipt = publicTimingResponseSchema.parse(await json(response, op));
+      if (receipt.raceId !== raceId) throw new Error("Public timing receipt mismatch");
+      await load(op);
+      setMessage({ tone: "ok", text: text.saved });
+    } catch { if (current(op)) setMessage({ tone: "error", text: text.failed }); }
+    finally { finish(op); }
+  }
+
+  const disabled = busy || workflowLocked;
+  return <Section id={id} title={text.title} help={text.help}>
+    <fieldset className={styles.choiceGroup} data-testid="public-variant-timing"><legend>{text.variant}</legend>
+      <label className={styles.check}><input type="radio" name={`${id}-variant`} checked={timing.variant === "AFTER_START"} disabled={disabled}
+        onChange={() => void change({ variant: "AFTER_START" })} /> {text.variantAfterStart}</label>
+      <label className={styles.check}><input type="radio" name={`${id}-variant`} checked={timing.variant === "ALWAYS"} disabled={disabled}
+        onChange={() => void change({ variant: "ALWAYS" })} /> {text.variantAlways}</label>
+    </fieldset>
+    <fieldset className={styles.choiceGroup} data-testid="public-map-timing"><legend>{text.map}</legend>
+      <label className={styles.check}><input type="radio" name={`${id}-map`} checked={timing.map === "AFTER_START"} disabled={disabled}
+        onChange={() => void change({ map: "AFTER_START" })} /> {text.mapAfterStart}</label>
+      <label className={styles.check}><input type="radio" name={`${id}-map`} checked={timing.map === "ON_PUBLISH"} disabled={disabled}
+        onChange={() => void change({ map: "ON_PUBLISH" })} /> {text.mapOnPublish}</label>
+    </fieldset>
+    {message && <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>{message.text}</Notice>}
+  </Section>;
+}
+
 /** Steget Publicera i sidopanelen. */
 export function PublishPanel({ ws }: { ws: Workspace }) {
   if (!ws.shows("PUBLISH") || !ws.data) return null;
   return <div className={styles.workflowGroup}><RacePublicationSection ws={ws} id={`publish-${ws.raceId}`} />
-    <CourseSecrecySection ws={ws} id={`course-secrecy-${ws.raceId}`} /></div>;
+    <CourseSecrecySection ws={ws} id={`course-secrecy-${ws.raceId}`} />
+    <PublicTimingSection ws={ws} id={`public-timing-${ws.raceId}`} /></div>;
 }

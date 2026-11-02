@@ -1,6 +1,7 @@
 /**
  * `pnpm account:superadmin grant|revoke <e-post> [skäl]` – ger eller tar bort superadmin (ADR-0172 beslut 2).
  * Rollen sätts bara här, på servern, aldrig i appen. Åtgärden loggas som "Serverkommando" på superadminsidan.
+ * `pnpm account:superadmin verify <e-post>` – bekräftar kontots e-postadress (ADR-0185), t.ex. när servern saknar e-post.
  *
  * I drift finns kommandot paketerat i webbens avbildning:
  *   docker compose -f docker-compose.prod.yml exec web node superadmin.mjs grant anna@klubb.se
@@ -8,8 +9,9 @@
  */
 import { createDatabase } from "../packages/database/src/index.ts";
 import { setSuperadmin } from "../packages/application/src/superadmin.ts";
+import { markEmailVerifiedByCommand } from "../packages/application/src/email-verification.ts";
 
-const USAGE = "Användning: account:superadmin grant|revoke <e-postadress> [skäl]";
+const USAGE = "Användning: account:superadmin grant|revoke <e-postadress> [skäl] | verify <e-postadress>";
 
 export function parseSuperadminArguments(args: readonly string[]): { superadmin: boolean; email: string; reason?: string } {
   const [command, email, ...reason] = args;
@@ -18,9 +20,21 @@ export function parseSuperadminArguments(args: readonly string[]): { superadmin:
 }
 
 async function main(): Promise<void> {
-  const input = parseSuperadminArguments(process.argv.slice(2));
+  const args = process.argv.slice(2);
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("Sätt DATABASE_URL till databasen.");
+  if (args[0] === "verify") {
+    if (!args[1]) throw new Error(USAGE);
+    const { db, pool } = createDatabase(url);
+    try {
+      const result = await markEmailVerifiedByCommand(db, args[1]);
+      if (result.status === "not-found") throw new Error("Det finns inget konto med den e-postadressen.");
+      process.stdout.write(result.status === "unchanged" ? "Ingen ändring: adressen är redan bekräftad.\n"
+        : "Klart: adressen är bekräftad. Behörigheter som andra gett kontot gäller nu.\n");
+    } finally { await pool.end(); }
+    return;
+  }
+  const input = parseSuperadminArguments(args);
   const { db, pool } = createDatabase(url);
   try {
     const result = await setSuperadmin(db, input);

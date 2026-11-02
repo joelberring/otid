@@ -24,7 +24,9 @@ test("tävlingsinfo på tävlingssidan och i arbetsytan, bricka i den publika st
   await expect(settings.getByText("Skriv klockslaget som TT:MM")).toBeVisible();
   await settings.getByLabel("Kort info om tävlingen").fill("Samling vid klubbstugan.\nParkering vid skolan.\n<b>Ta med pannlampa</b>");
   await settings.getByLabel("Första start").fill("18.30");
-  await expect(settings.getByLabel("Visa bricknummer i den publika startlistan")).toBeChecked();
+  // ADR-0185: av som standard för nya tävlingar; arrangören slår på det.
+  await expect(settings.getByLabel("Visa bricknummer i den publika startlistan")).not.toBeChecked();
+  await settings.getByLabel("Visa bricknummer i den publika startlistan").check();
   await settings.getByRole("button", { name: "Spara inställningar" }).click();
   await expect(settings.getByText("Inställningarna är sparade.")).toBeVisible();
   await expect(settings.getByLabel("Första start")).toHaveValue("18:30");

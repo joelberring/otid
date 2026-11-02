@@ -4,6 +4,7 @@ import type { CourseSettingLevel } from "@o-tid/contracts";
 import { activeEventAdministrationGrant, type RaceRoleLock, type RaceSessionProof } from "./race-session";
 import type { DbExecutor } from "./snapshot";
 import { authorizeUserAccountSession } from "./user-account";
+import { accountEmailVerified } from "./email-verification";
 
 /**
  * Steg 66 (ADR-0181 beslut 5): behörigheten i banläggningen. Ägare och administratörer på eventet har EDIT (och `admin`:
@@ -50,7 +51,8 @@ async function authorize(tx: DbExecutor, request: RaceSessionProof & { required:
   let principal: CourseSettingPrincipal | undefined;
   if (grant && grant.role !== "FUNCTIONARY") {
     principal = { accountId, displayName: named?.displayName ?? "", raceId: race.id, eventId: race.eventId, level: "EDIT", admin: true };
-  } else {
+  } else if (await accountEmailVerified(tx, accountId)) {
+    // ADR-0185: banläggningens behörighet kommer från någon annan och gäller först med bekräftad e-postadress.
     const query = tx.select({ level: schema.courseSettingGrants.level }).from(schema.courseSettingGrants)
       .where(and(eq(schema.courseSettingGrants.raceId, race.id), eq(schema.courseSettingGrants.accountId, accountId)));
     const [row] = lock === "share" ? await query.for("share") : lock === "update" ? await query.for("update") : await query;

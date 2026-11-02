@@ -101,6 +101,7 @@ export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: s
         <span className={styles.who}>
           <strong>{person.displayName}{person.accountId === data.viewer.accountId && <span className={styles.muted}> ({text.you})</span>}</strong>
           <span className={styles.email}>{person.email}</span>
+          {person.pendingVerification && <span className={styles.muted} data-testid="person-pending-verification">{text.pendingVerification}</span>}
         </span>
         <span className={styles.role} data-role={person.role}>{text.roles[person.role]}</span>
         <span className={styles.action}>{removable(person) &&

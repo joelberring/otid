@@ -33,8 +33,35 @@ test("banorna är hemliga publikt tills arrangören visar dem, och arrangören s
     finishPunchedAt: new Date(start + (variantAd.length + 1) * 120_000).toISOString(),
     punches: variantAd.map((code, index) => ({ code, punchedAt: new Date(start + (index + 1) * 120_000).toISOString() })) });
 
-  // Besökaren: Cia med variant och sträcktider, men ingen gafflingsbild i listan, på deltagarsidan eller i API:t.
+  // ADR-0185: den publika startlistan visar inte varianten för den som inte har startat (fri start = efter start eller när
+  // banorna blir publika), också i API:t; arrangören ser den. Valet under Publicera → Före start ändrar det.
+  await openStep(owner, "Start");
+  await owner.getByRole("button", { name: "Publicera startlistan" }).click();
+  await expect(owner.getByText("Startlistan är publicerad.")).toBeVisible();
   const visitor = await (await browser.newContext()).newPage();
+  await visitor.goto(`/starts/${raceId}`);
+  await expect(visitor.getByRole("row", { name: /Cia Holm/ }).first()).toBeVisible();
+  await expect(visitor.getByTestId("public-variants-hidden")).toHaveText("Variantens bokstav visas när löparen har startat.");
+  await expect(visitor.getByRole("row", { name: /Cia Holm/ }).first()).not.toContainText("AD");
+  const startList = await (await visitor.request.get(`/api/races/${raceId}/start-list`)).text();
+  expect(startList).not.toContain("courseVariantCode");
+  expect(startList).toContain("\"variantsHiddenUntilStart\":true");
+  expect((await visitor.request.get(`/api/races/${raceId}/start-list/iof`)).status()).not.toBe(200);
+  await openStep(owner, "Publicera");
+  const timing = owner.getByRole("region", { name: "Före start" });
+  await expect(timing.getByLabel("När löparen har startat (standard)")).toBeChecked();
+  await expect(timing.getByLabel("När tävlingen har startat (standard)")).toBeChecked();
+  await timing.getByLabel("Direkt, också före start").check();
+  await expect(timing.getByText("Sparat.")).toBeVisible();
+  await expect(async () => {
+    await visitor.goto(`/starts/${raceId}`);
+    await expect(visitor.getByRole("row", { name: /Cia Holm/ }).first()).toContainText("AD", { timeout: 2_000 });
+  }).toPass({ timeout: 45_000 });
+  await expect(visitor.getByTestId("public-variants-hidden")).toHaveCount(0);
+  await timing.getByLabel("När löparen har startat (standard)").check();
+  await expect(timing.getByLabel("När löparen har startat (standard)")).toBeChecked();
+
+  // Besökaren: Cia med variant och sträcktider, men ingen gafflingsbild i listan, på deltagarsidan eller i API:t.
   await expect(async () => {
     await visitor.goto(`/results/${raceId}`);
     await expect(visitor.getByRole("row", { name: /Cia Holm/ })).toContainText("Godkänd", { timeout: 2_000 });

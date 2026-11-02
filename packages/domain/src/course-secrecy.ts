@@ -32,3 +32,33 @@ export function courseSecrecy(facts: CourseSecrecyFacts): CourseSecrecy {
     : facts.entries.length > 0 && remaining === 0 ? "ALL_FINISHED" : null;
   return { public: reason !== null, reason, remaining };
 }
+
+/**
+ * ADR-0185: före start. Variantens bokstav och kartbilden är ofta hemliga före start; publikt visas de först efter start
+ * (förval) eller, om arrangören valt det under Publicera, alltid (varianten) eller direkt när tävlingen publiceras (kartan).
+ * När banorna är publika enligt banhemligheten ovan visas båda.
+ */
+export type PublicVariantTiming = "AFTER_START" | "ALWAYS";
+export type PublicMapTiming = "AFTER_START" | "ON_PUBLISH";
+
+/** Har tiden `startTime` (ISO 8601) passerat? En saknad eller oläslig tid räknas som inte passerad. */
+export function startHasPassed(startTime: string | null | undefined, now: Date): boolean {
+  if (!startTime) return false;
+  const at = Date.parse(startTime);
+  return Number.isFinite(at) && at <= now.getTime();
+}
+
+/**
+ * Löparens variant publikt: alltid med valet ALWAYS eller när banorna är publika; annars först när löparen har startat
+ * (`started`, t.ex. ett resultat eller en växling) eller starttiden har passerat. Utan känd start visas den inte.
+ */
+export function publicVariantVisible(input: { readonly timing: PublicVariantTiming; readonly coursesPublic: boolean;
+  readonly startTime?: string | null; readonly started?: boolean; readonly now: Date }): boolean {
+  return input.timing === "ALWAYS" || input.coursesPublic || input.started === true || startHasPassed(input.startTime, input.now);
+}
+
+/** Kartbilden publikt: direkt med valet ON_PUBLISH eller när banorna är publika, annars när tävlingen har startat. */
+export function publicMapVisible(input: { readonly timing: PublicMapTiming; readonly coursesPublic: boolean;
+  readonly started: boolean }): boolean {
+  return input.timing === "ON_PUBLISH" || input.coursesPublic || input.started;
+}

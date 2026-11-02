@@ -40,7 +40,7 @@ import { loadStartDrawSetupAsAdmin, previewStartDrawAsAdmin, commitStartDrawAsAd
   listCourseSettingSuggestionsAsAdmin, createCourseSettingSuggestionAsAdmin, decideCourseSettingSuggestionAsAdmin, type CourseSettingPrincipal,
   readCourseSettingRevisionAsAdmin, restoreCourseSettingRevisionAsAdmin, readCourseSettingOriginalAsAdmin, previewCourseSettingTransferAsAdmin,
   listRacePeopleAsAdmin, grantRacePersonAsAdmin, revokeRacePersonAsAdmin,
-  setRacePublicationAsAdmin, setCoursesPublicAsAdmin, readControlMapAsAdmin, readEntryControlMapAsAdmin, getRadioSettingsAsAdmin, saveRadioSettingsAsAdmin,
+  setRacePublicationAsAdmin, setCoursesPublicAsAdmin, setPublicTimingAsAdmin, readControlMapAsAdmin, readEntryControlMapAsAdmin, getRadioSettingsAsAdmin, saveRadioSettingsAsAdmin,
   fetchRadioNowAsAdmin, registerReadoutCard, previewRemainingRunnersAsAdmin, markRemainingDidNotStartAsAdmin,
   saveCourseDetailsAsAdmin, removeEntryAsAdmin, removeClassAsAdmin, removeCourseAsAdmin, readResultsOfficialAsAdmin,
   setResultsOfficialAsAdmin, exportRaceAsAdmin, getRunnerDatabaseSettingsAsAdmin, refreshRunnerDatabaseAsAdmin,
@@ -136,6 +136,8 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   participantRouteSave: saveParticipantRouteAsAdmin, participantRouteRemove: removeParticipantRouteAsAdmin,
   people: listRacePeopleAsAdmin, grantPerson: grantRacePersonAsAdmin, revokePerson: revokeRacePersonAsAdmin,
   racePublication: setRacePublicationAsAdmin, courseSecrecy: setCoursesPublicAsAdmin,
+  // ADR-0185: Publicera → före start (varianten och kartan publikt).
+  publicTiming: setPublicTimingAsAdmin,
   // Steg 52: kontrollkartan och löparens bana på kartan.
   controlMap: readControlMapAsAdmin, entryControlMap: readEntryControlMapAsAdmin,
   radioSettings: getRadioSettingsAsAdmin, radioSave: saveRadioSettingsAsAdmin, radioFetch: fetchRadioNowAsAdmin,

@@ -2,7 +2,7 @@ import nodemailer from "nodemailer";
 import { normalizeAccountEmail } from "@o-tid/contracts";
 
 /**
- * E-post från servern (ADR-0172 beslut 1), bara för återställningslänkar. Inställt i serverns miljö:
+ * E-post från servern (ADR-0172 beslut 1): återställningslänkar och (ADR-0185) bekräftelse av e-postadressen. Inställt i serverns miljö:
  * `OTID_SMTP_URL` (smtp://användare:lösen@värd:587 med STARTTLS, eller smtps://…:465) och `OTID_MAIL_FROM`
  * (avsändare, t.ex. "O-Tid <noreply@klubb.se>"). Utan `OTID_SMTP_URL` är e-post avstängd och sidan
  * "Glömt lösenord" hänvisar till den som driver O-Tid. Inga adresser, länkar eller lösenord loggas.
@@ -62,6 +62,49 @@ export function passwordResetMessage(mail: PasswordResetMail): { subject: string
   };
 }
 
+/** ADR-0185: bekräftelselänken efter registreringen (eller en inloggning på ett obekräftat konto). */
+export function emailVerificationMessage(mail: PasswordResetMail): { subject: string; text: string } {
+  const time = new Intl.DateTimeFormat("sv-SE", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Stockholm" }).format(mail.expiresAt);
+  return {
+    subject: "Bekräfta din e-postadress i O-Tid",
+    text: [
+      `Hej ${mail.displayName}!`,
+      "",
+      "Någon (förhoppningsvis du) skapade ett konto i O-Tid med den här adressen. Öppna länken och skriv lösenordet du valde,",
+      "så är adressen bekräftad och du loggas in:",
+      "",
+      mail.link,
+      "",
+      `Länken fungerar en gång och gäller till ${time}. Behörigheter som andra ger dig i O-Tid gäller först när adressen är bekräftad.`,
+      "Har du inte skapat något konto kan du strunta i meddelandet; utan bekräftelse kan ingen logga in med adressen.",
+      "",
+      "O-Tid"
+    ].join("\n")
+  };
+}
+
+/** ADR-0185: registrering med en adress som redan har ett konto. Samma svar på sidan; bara ägaren av adressen får veta. */
+export function alreadyRegisteredMessage(mail: { displayName: string; loginLink: string; recoverLink: string }): { subject: string; text: string } {
+  return {
+    subject: "Du har redan ett konto i O-Tid",
+    text: [
+      `Hej ${mail.displayName}!`,
+      "",
+      "Någon (förhoppningsvis du) försökte skapa ett nytt konto i O-Tid med den här adressen, men du har redan ett. Logga in här:",
+      "",
+      mail.loginLink,
+      "",
+      "Har du glömt lösenordet kan du välja ett nytt här:",
+      "",
+      mail.recoverLink,
+      "",
+      "Har du inte försökt skapa något konto kan du strunta i meddelandet; ingenting har ändrats.",
+      "",
+      "O-Tid"
+    ].join("\n")
+  };
+}
+
 type Transport = { sendMail(message: { from: string; to: string; subject: string; text: string }): Promise<unknown> };
 export type TransportFactory = (smtpUrl: string) => Transport;
 
@@ -73,6 +116,27 @@ export async function sendPasswordResetMail(
   const message = passwordResetMessage(mail);
   await createTransport(configuration.smtpUrl).sendMail({ from: configuration.from, to: mail.to, ...message });
 }
+
+/** Ett meddelande (ämne och text) till en mottagare. */
+export async function sendMessage(
+  configuration: Extract<MailConfiguration, { status: "on" }>,
+  to: string,
+  message: { subject: string; text: string },
+  createTransport: TransportFactory = (smtpUrl) => nodemailer.createTransport(smtpUrl)
+): Promise<void> {
+  await createTransport(configuration.smtpUrl).sendMail({ from: configuration.from, to, ...message });
+}
+
+/**
+ * ADR-0185: arbete efter svaret (registrering, glömt lösenord, inloggning på obekräftat konto), så att svarstiden inte avslöjar
+ * om adressen har ett konto. Fel loggas med en kort beskrivning, aldrig med adress eller länk.
+ */
+export type Background = (label: string, task: () => Promise<void>) => void;
+export const runInBackground: Background = (label, task) => {
+  setImmediate(() => {
+    task().catch((error: unknown) => console.error(`${label} misslyckades (${mailErrorSummary(error)}).`));
+  });
+};
 
 /** Felets kod, utan meddelandet (som kan innehålla mottagarens adress). */
 export function mailErrorSummary(error: unknown): string {

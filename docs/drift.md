@@ -2,15 +2,17 @@
 
 O-Tid körs med `docker-compose.prod.yml` på en vanlig VPS:
 
-- PostgreSQL 17 (den officiella bilden `postgres:17`, finns för både x86 och ARM),
+- PostgreSQL 17 (den officiella bilden, fast version `postgres:17.11-trixie`, finns för både x86 och ARM),
+- `backup-before-migrate` och `migrate` (ADR-0185): vid varje `up` tas först en dump och sedan migreras databasen, i var sin
+  engångstjänst; webben startar först när båda har lyckats,
 - webben (Next standalone) i två slags instanser (steg 54, [ADR-0177](adr/ADR-0177-tavlingen-forst.md)):
-  - `web` – tävlingen: arbetsytan, avläsningen, funktionärerna, inloggningen och admin-API:t. Migrerar databasen vid start
-    och hämtar radiostämplingar.
+  - `web` – tävlingen: arbetsytan, avläsningen, funktionärerna, inloggningen och admin-API:t. Hämtar radiostämplingar.
   - `web-public` och `web-public2` – publiken: publika sidor och API:er, Live och resultatströmmen. Två, eftersom en
     Node-process bara använder en kärna (steg 51). Startar när `web` har migrerat.
   Se [Tävlingen först](#tävlingen-först),
-- Caddy (HTTPS med Let's Encrypt, skickar publika anrop till `web-public`/`web-public2` och allt annat till `web`),
-- en backuptjänst.
+- Caddy (HTTPS med Let's Encrypt och HSTS, skickar publika anrop till `web-public`/`web-public2` och allt annat till `web`),
+- utskriftsarbetaren `print-worker`,
+- en backuptjänst (dump varje timme, valfri krypterad kopia utanför servern) och hälsokontrollen `monitor` (ADR-0185).
 
 All data, även kartbilder, kartfiler från OCAD och Mapper (steg 59, högst 60 MB per tävling) och GPS-rutter för vägval
 (PLAN.md steg 16), ligger i PostgreSQL och kommer med i backupen. MinIO behövs inte. Kartfilens uppladdning är den enda
@@ -45,14 +47,16 @@ Gör sedan dig själv till superadmin (se nedan).
 **Uppdatera:**
 
 ```bash
-docker compose -f docker-compose.prod.yml exec backup sh /backup.sh dump   # dump före uppdateringen
 git pull
 docker compose -f docker-compose.prod.yml build
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-Webben kör nya migreringar innan den startar. Om en migrering misslyckas startar webben inte, och sidan svarar
-502 (se [Om en migrering misslyckas](#om-en-migrering-misslyckas)).
+(eller `git pull && docker compose -f docker-compose.prod.yml up -d --build`). ADR-0185: `up` tar först en dump
+(`./backups/fore-migrering/`, de 10 senaste sparas) och kör sedan nya migreringar i tjänsten `migrate`; först därefter
+startas den nya webben. Misslyckas dumpen eller en migrering fortsätter den gamla webben att köra (se
+[Om en migrering misslyckas](#om-en-migrering-misslyckas)); `docker compose -f docker-compose.prod.yml logs backup-before-migrate migrate`
+visar varför.
 
 Loggarna begränsas till fem filer på 10 MB per tjänst (`logging` i `docker-compose.prod.yml`), så de fyller inte disken.
 
@@ -88,11 +92,15 @@ långsammare. Servern skalas inte upp (CX23 räcker), utan tävlingen får gå f
   kör med nice 19). Vikterna gäller bara när processorn inte räcker till alla: då går
   tävlingen och databasen före publiken. Annars får publiken all ledig tid.
 - **Minne (CX23, 4 GB):** `postgres` 1 GB, `web` 1 GB (Node 768 MB), `web-public` och `web-public2` 640 MB var (Node
-  448 MB), utskriftsarbetaren 384 MB (Node 256 MB; 300 kartor per löpare på Högdalen 2026 tog 130 MB), Caddy och backupen
-  192 MB var. Summan 4,0 GB (taken är gränser, inte reserverat minne); swappen räcker till bygget.
+  448 MB), utskriftsarbetaren 384 MB (huvudprocessen 96 MB, varje jobb i en barnprocess med 256 MB; 300 kartor per löpare
+  på Högdalen 2026 tog 130 MB), Caddy och backupen 192 MB var, hälsokontrollen 64 MB. Summan 4,1 GB (taken är gränser, inte
+  reserverat minne); swappen räcker till bygget.
 - **Utskrift (steg 65, ADR-0184):** PDF:er för tryck skrivs av `print-worker`, ett jobb i taget ur tabellen
-  `course_setting_print_job`. Klara PDF:er sparas 7 dagar (högst 10 per tävling) och tas inte med i säkerhetskopian.
-  Står tjänsten stilla väntar jobben i kön; `docker compose -f docker-compose.prod.yml logs print-worker` visar vad den gör.
+  `course_setting_print_job`. Klara PDF:er sparas 7 dagar (högst 10 per tävling) och tas inte med i säkerhetskopian;
+  raden om jobbet sparas 30 dagar. ADR-0185: varje jobb körs i en barnprocess med tidsgräns (`OTID_PRINT_JOB_TIMEOUT_MS`,
+  förval 600000 = 10 minuter); ett jobb som hänger eller tar slut på minnet blir FAILED med en förklaring och kön går vidare.
+  Står tjänsten stilla väntar jobben i kön och hälsokontrollen larmar efter 15 minuter;
+  `docker compose -f docker-compose.prod.yml logs print-worker` visar vad den gör.
 - **Databasen:** separata pooler. `web` har tävlingens pool (högst 10 anslutningar, inga tidsgränser) och en liten pool
   för de publika listorna (3). `web-public` och `web-public2` har bara publikens pool (8 var). Publikens frågor avbryts
   efter 5 s (`statement_timeout`), väntar högst 2 s på lås och en transaktion får inte stå öppen i mer än 10 s. Totalt
@@ -193,7 +201,19 @@ Ett skäl kan läggas sist (`… grant anna@exempelklubb.se "Driftansvarig"`); d
 
 Med e-post inställd skickar O-Tid en återställningslänk till den som har glömt sitt lösenord. Länken gäller
 en timme och en gång, och alla kontots inloggningar slutar gälla när lösenordet byts. Svaret på sidan är
-detsamma oavsett om adressen har ett konto. Lägg till i `.env` och starta om:
+detsamma oavsett om adressen har ett konto, och mejlet skickas efter svaret (ADR-0185).
+
+ADR-0185: med e-post bekräftar nya konton sin adress med en länk (gäller ett dygn) innan de kan logga in, och registreringen
+svarar likadant oavsett om adressen redan har ett konto. Behörigheter som andra ger ett konto (administratör, funktionär,
+banläggning, gruppledare och gruppmedlem) gäller först när adressen är bekräftad; under Personer med behörighet står
+"väntar på bekräftad e-post". Konton från före 2026-11-02 räknas som bekräftade. **Utan e-post** loggar registreringen in
+direkt som förut, men då måste superadmin bekräfta adressen för hand innan någon annans behörighet gäller:
+
+```bash
+docker compose -f docker-compose.prod.yml exec web node superadmin.mjs verify anna@exempelklubb.se
+```
+
+(ett lösenordsbyte med en återställningslänk från superadmin bekräftar också adressen). Lägg till e-post i `.env` och starta om:
 
 ```bash
 OTID_SMTP_URL=smtp://användare:lösenord@smtp.exempelklubb.se:587   # STARTTLS; eller smtps://…:465
@@ -234,22 +254,21 @@ sättas i drift.
 
 ## Backup
 
-Tjänsten `backup` (`deploy/backup.sh`) tar en `pg_dump` direkt vid start och sedan varje hel timme kl. 08–23 svensk
-tid (steg 45; tidigare bara en gång per natt). Den kör hela tiden, så på tävlingsdagen finns det högst en timme gammal
-dump.
+Tjänsten `backup` (`deploy/backup.sh`, avbildningen `otid-backup` = `postgres:17.11-trixie` med restic och curl) tar en
+`pg_dump` direkt vid start och sedan varje hel timme **dygnet runt** (ADR-0185; tidigare bara 08–23). Före varje start av
+webben tar `backup-before-migrate` dessutom en dump (`./backups/fore-migrering/`, de 10 senaste).
 
-- `./backups/hourly/otid-<tid>.dump`: de 48 senaste timdumparna.
+- `./backups/hourly/otid-<tid>.dump`: de 48 senaste timdumparna (två dygn).
 - `./backups/daily/otid-<datum>.dump`: dagens senaste dump, sparad i 14 dagar.
 - En dump skrivs först till en dold fil (`.….partial`) och byter namn när `pg_dump` är klar, så en avbruten dump ser
   aldrig ut som en hel.
 - Ett misslyckat försök loggas som `BACKUP MISSLYCKADES` i `docker compose -f docker-compose.prod.yml logs backup` och
-  görs om nästa timme.
+  görs om nästa timme. Med bevakning (nedan) får du också ett mejl.
 
-Tiderna och antalen ställs in i `docker-compose.prod.yml` (`TZ`, `BACKUP_FIRST_HOUR`, `BACKUP_LAST_HOUR`,
-`BACKUP_KEEP_HOURLY`, `BACKUP_KEEP_DAYS`). Dumpar från före steg 45 ligger kvar direkt i `./backups/` och tas inte bort
-av tjänsten.
+Intervallet och antalen ställs in i `.env` (`BACKUP_INTERVAL_MINUTES`, förval 60; `BACKUP_KEEP_HOURLY`, `BACKUP_KEEP_DAYS`).
+Dumpar från före steg 45 ligger kvar direkt i `./backups/` och tas inte bort av tjänsten.
 
-**Dump nu** (före och efter ett arrangemang, och före en uppdatering):
+**Dump nu** (före och efter ett arrangemang):
 
 ```bash
 docker compose -f docker-compose.prod.yml exec backup sh /backup.sh dump
@@ -257,41 +276,165 @@ docker compose -f docker-compose.prod.yml exec backup sh /backup.sh dump
 
 Kommandot skriver `Backup klar: hourly/otid-<tid>.dump` och avslutas med fel om dumpen misslyckades.
 
-**Kopiera till din Mac.** En backup på samma server skyddar inte mot att servern försvinner (eller raderas efter
-tävlingen). Kör på din Mac, med serverns adress och användare:
+### Kopia utanför servern (valfri, krypterad)
+
+En backup på samma server skyddar inte mot att servern försvinner. Med restic skickas hela `./backups` krypterad efter varje
+dump (bara det som är nytt går över nätet). restic gallrar en gång per dygn: en kopia per timme i två dygn, en per dag i 30
+dagar och en per månad i 12 månader. Lösenordet krypterar kopian; **utan det går kopian inte att läsa**, så spara det
+också utanför servern (t.ex. i en lösenordshanterare). Utan `RESTIC_REPOSITORY` görs ingen kopia och allt fungerar som förut.
+
+Lägg i `.env` (ett av målen) och kör `docker compose -f docker-compose.prod.yml up -d`:
+
+```bash
+RESTIC_PASSWORD=<långt slumpat lösenord, t.ex. openssl rand -base64 32>
+
+# Backblaze B2 (en "Application Key" med åtkomst till en egen bucket):
+RESTIC_REPOSITORY=b2:<bucket>:otid
+B2_ACCOUNT_ID=<keyID>
+B2_ACCOUNT_KEY=<applicationKey>
+
+# eller S3 (t.ex. AWS, Hetzner Object Storage):
+RESTIC_REPOSITORY=s3:https://<endpoint>/<bucket>/otid
+AWS_ACCESS_KEY_ID=<nyckel>
+AWS_SECRET_ACCESS_KEY=<hemlighet>
+
+# eller Hetzner Storage Box över SFTP (port 23). Lägg en egen SSH-nyckel utan lösenfras i deploy/backup-ssh/
+# (id_ed25519 och en known_hosts-rad för boxen) och lägg den publika nyckeln i Storage Boxens inställningar:
+RESTIC_REPOSITORY=sftp:u123456@u123456.your-storagebox.de:23/otid
+```
+
+För Storage Box: `mkdir -p deploy/backup-ssh && ssh-keygen -t ed25519 -N '' -f deploy/backup-ssh/id_ed25519` och
+`ssh-keyscan -p 23 u123456.your-storagebox.de > deploy/backup-ssh/known_hosts` (katalogen är inte med i git).
+
+Kontrollera efter en timme: `docker compose -f docker-compose.prod.yml logs backup | grep -E "Kopia|KOPIA"` ska visa
+`Kopia klar (restic).` Lista kopiorna:
+
+```bash
+docker compose -f docker-compose.prod.yml run --rm --entrypoint restic backup snapshots
+```
+
+### Bevakning (valfri)
+
+Skapa två kontroller hos t.ex. [healthchecks.io](https://healthchecks.io) (gratis upp till 20 kontroller) och lägg deras
+ping-adresser i `.env`:
+
+```bash
+OTID_HEARTBEAT_BACKUP_URL=https://hc-ping.com/<uuid-1>    # period 1 timme, grace 1 timme
+OTID_HEARTBEAT_HEALTH_URL=https://hc-ping.com/<uuid-2>    # period 15 minuter, grace 15 minuter
+```
+
+- Backupen pingar efter varje lyckad dump (och kopia), och `…/fail` när något misslyckades.
+- Hälsokontrollen (`monitor`) pingar var 15:e minut (`OTID_HEALTH_INTERVAL_MINUTES`) när webben och databasen svarar
+  (`/api/health`), publikens instanser svarar, inget utskriftsjobb har väntat mer än 15 minuter, disken är högst 80 % full
+  (`OTID_DISK_ALERT_PERCENT`) och den senaste dumpen är färsk; annars `…/fail` med vad som är fel.
+- Går servern ner kommer inga pingar alls, och tjänsten mejlar dig när perioden och grace har gått.
+
+Utan adresserna skriver tjänsterna bara i loggen (`logs monitor`, `HÄLSOKONTROLL MISSLYCKADES`). Prova nu:
+`docker compose -f docker-compose.prod.yml exec monitor sh /monitor.sh once`.
+
+Webben skriver också fel inställningar i loggen när den startar (`KONFIGURATIONSFEL: …`, t.ex. fel `O_TID_PUBLIC_ORIGIN`
+eller `OTID_SMTP_URL`): `docker compose -f docker-compose.prod.yml logs web | grep KONFIGURATIONSFEL`.
+
+**Kopiera till din Mac** (behövs inte med kopian utanför servern, men skadar inte). Kör på din Mac, med serverns adress och
+användare:
 
 ```bash
 mkdir -p ~/otid-backup
-scp 'otid@tid.exempelklubb.se:otid/backups/daily/*.dump' ~/otid-backup/       # dagsbackuperna
-scp 'otid@tid.exempelklubb.se:otid/backups/hourly/*.dump' ~/otid-backup/      # alla timdumpar
-# eller allt på en gång, och bara det som är nytt:
 rsync -av otid@tid.exempelklubb.se:otid/backups/ ~/otid-backup/
 ```
 
-Gör det efter varje arrangemang, och alltid innan en server som betalas per timme raderas.
-
 ## Återställa
 
-Provat lokalt 2026-10-03: dump och återställning gav samma antal deltagare,
-resultatrevisioner och råavläsningar. Så här gör du:
+Provat lokalt 2026-10-03 och 2026-11-02 (dagens schema med migration 0038, dump som ägarrollen `otid_owner`, återställd i en
+tom databas: samma antal anmälda, konton, avläsningar, resultatrevisioner och tävlingar). Så här gör du på samma server:
 
 ```bash
-docker compose -f docker-compose.prod.yml stop web web-public web-public2
+docker compose -f docker-compose.prod.yml stop web web-public web-public2 print-worker
 docker compose -f docker-compose.prod.yml exec -T backup \
   pg_restore --clean --if-exists --no-owner -d otid /backups/daily/otid-<datum>.dump
-docker compose -f docker-compose.prod.yml start web web-public web-public2
+docker compose -f docker-compose.prod.yml start web web-public web-public2 print-worker
 ```
 
-Välj en fil i `/backups/hourly/` för en senare tidpunkt samma dag. `pg_restore -l <fil> | head` visar när dumpen
-togs. För att återställa på en ny server: starta enligt ovan, kopiera filen från din Mac till serverns `./backups/`
-(`scp ~/otid-backup/otid-<datum>.dump otid@<server>:otid/backups/`) och kör kommandona med `/backups/otid-<datum>.dump`.
+Välj en fil i `/backups/hourly/` för en senare tidpunkt samma dag. `pg_restore -l <fil> | head` visar när dumpen togs.
+Efter övergången till databasroller körs kommandot som `otid_owner` (backuptjänstens användare); kör sedan
+`sh deploy/db-roles.sh setup` igen så att rättigheterna gäller också för det återställda.
+
+### Till en ny server
+
+1. Skapa servern och starta O-Tid enligt [Starta](#starta) med **samma** `.env` som den gamla servern (spara den, och
+   `OTID_EVENTOR_MASTER_KEY`, utanför servern) men **utan** raderna `OTID_DB_*`: rollerna finns inte än i en ny databas.
+   Vänta tills sidan svarar. Databasen är då tom men migrerad.
+2. Hämta dumpen till `./backups/` på den nya servern: från din Mac (`scp ~/otid-backup/daily/otid-<datum>.dump
+   otid@<ny-server>:otid/backups/`) eller från kopian utanför servern:
+
+   ```bash
+   docker compose -f docker-compose.prod.yml run --rm --entrypoint restic backup snapshots
+   docker compose -f docker-compose.prod.yml run --rm --entrypoint restic -v ./backups/aterstallt:/aterstallt backup \
+     restore latest --target /aterstallt --include /backups/daily
+   ls backups/aterstallt/backups/daily/       # dagsbackuperna; flytta den du vill ha till backups/daily/
+   ```
+
+3. Återställ som superusern i en tom databas och starta webben:
+
+   ```bash
+   docker compose -f docker-compose.prod.yml stop web web-public web-public2 print-worker
+   docker compose -f docker-compose.prod.yml exec postgres dropdb -U otid otid
+   docker compose -f docker-compose.prod.yml exec postgres createdb -U otid otid
+   docker compose -f docker-compose.prod.yml exec -T postgres pg_restore -U otid --no-owner -d otid < backups/daily/otid-<datum>.dump
+   sh deploy/db-roles.sh setup      # skapar rollerna igen (nya lösenord i .env) och ger dem ägarskap och rättigheter
+   docker compose -f docker-compose.prod.yml up -d
+   ```
+
+4. Peka DNS-posten på den nya serverns adress (se [Server och domän](#server-och-domän)).
+
+## Databasroller
+
+ADR-0185: före övergången använder alla tjänster databasens superuser (`otid`, `POSTGRES_USER`). Efter den har varje tjänst
+bara det den behöver:
+
+| Roll | Tjänster | Får |
+| --- | --- | --- |
+| `otid_owner` | `migrate`, `backup`, `backup-before-migrate` | äger tabellerna, ändrar schemat, läser allt för dumpen |
+| `otid_app` | `web`, `web-public`, `web-public2` | läsa och skriva data, inte ändra schemat |
+| `otid_print` | `print-worker` | utskriftskön, tävlingens namn och kartfilen, inget annat |
+
+Superusern finns kvar för `deploy/db-roles.sh` och underhåll för hand. Ingen data flyttas, bara ägare och rättigheter.
+Provat 2026-11-02 mot en kopia med data (PostgreSQL 16, 1 286 anmälda och 689 konton): övergången, migrering 0038 som
+`otid_owner`, appens vanliga flöden som `otid_app` (registrering, tävling, IOF-import, publicering, borttagning av konto
+med tävling), utskriftsarbetaren som `otid_print`, dump som ägaren och återställning, tillbakagång och övergång igen. CI gör
+övergången på den körande driftmiljön och kör sedan alla webbläsartester med rollerna.
+
+**Övergången** (på servern, i repots katalog, gärna inte under en tävling):
+
+```bash
+git pull && docker compose -f docker-compose.prod.yml up -d --build      # den nya versionen, fortfarande som superuser
+docker compose -f docker-compose.prod.yml exec backup sh /backup.sh dump  # en dump för säkerhets skull
+sh deploy/db-roles.sh setup     # skapar rollerna, lägger OTID_DB_*-raderna i .env, ger ägarskap och rättigheter
+sh deploy/db-roles.sh check     # sex rader som börjar med OK
+docker compose -f docker-compose.prod.yml up -d                           # tjänsterna byter till rollerna
+docker compose -f docker-compose.prod.yml ps                              # alla "running"/"healthy"; migrate och backup-before-migrate "exited (0)"
+docker compose -f docker-compose.prod.yml exec postgres psql -U otid -d otid -c \
+  "select usename, application_name, count(*) from pg_stat_activity where datname = 'otid' group by 1, 2"
+```
+
+Den sista frågan ska visa `otid_app` (otid-web, otid-public), `otid_print` (otid-print-worker) och inga anslutningar från
+tjänsterna som `otid`. Logga in och öppna en tävling för att se att allt fungerar. Spärrarnas räknare (inloggning,
+registrering) börjar om, eftersom deras hemlighet härleds ur `DATABASE_URL` när `OTID_THROTTLE_SECRET` saknas.
+
+**Tillbaka** (om något inte fungerar): ta bort raderna `OTID_DB_OWNER_*`, `OTID_DB_APP_*` och `OTID_DB_PRINT_*` ur `.env`
+och kör `docker compose -f docker-compose.prod.yml up -d`; då använder alla tjänster superusern igen och allt fungerar som
+före övergången (superusern når allt oavsett ägare). Vill du också ta bort rollerna: `sh deploy/db-roles.sh rollback`.
+
+En framtida migrering som kräver superuser (t.ex. `CREATE EXTENSION`) misslyckas i `migrate`; kör den då för hand med
+`docker compose -f docker-compose.prod.yml exec postgres psql -U otid -d otid`. Det står i så fall i STATUS.md.
 
 ## Om en migrering misslyckas
 
-Webben migrerar databasen innan den startar (`node migrate.mjs` i `Dockerfile`). Varje migrering körs i en egen
-transaktion, så en som misslyckas lämnar inga halva ändringar, men webben startar inte och sidan svarar 502.
+Tjänsten `migrate` migrerar databasen innan webben startar (`node migrate.mjs`, ADR-0185; före det gjorde webben det själv).
+Varje migrering körs i en egen transaktion, så en som misslyckas lämnar inga halva ändringar; den nya webben startar inte,
+och den gamla kör vidare om den var igång (annars svarar sidan 502). En dump togs strax före (`./backups/fore-migrering/`).
 
-1. Läs felet: `docker compose -f docker-compose.prod.yml logs --tail=100 web`.
+1. Läs felet: `docker compose -f docker-compose.prod.yml logs --tail=100 migrate`.
 2. Gå tillbaka till förra versionen, som fungerade med databasen:
 
    ```bash
@@ -301,8 +444,8 @@ transaktion, så en som misslyckas lämnar inga halva ändringar, men webben sta
    docker compose -f docker-compose.prod.yml up -d
    ```
 
-3. Startar den inte heller (en tidigare migrering i samma uppdatering hann köras): återställ dumpen som togs före
-   uppdateringen enligt [Återställa](#återställa), med förra versionen igång.
+3. Startar den inte heller (en tidigare migrering i samma uppdatering hann köras): återställ dumpen i
+   `./backups/fore-migrering/` enligt [Återställa](#återställa), med förra versionen igång.
 4. Skicka felet till den som driver O-Tid. När det är rättat: `git checkout main`, `git pull`, bygg och starta igen.
 
 ## Prova driftuppsättningen lokalt

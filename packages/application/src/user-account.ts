@@ -12,6 +12,7 @@ import { schema } from "@o-tid/database";
 import type { DbExecutor } from "./snapshot";
 import { consumeAccountRequestAllowance, DEFAULT_REGISTRATIONS_PER_HOUR, purgeStaleThrottles, throttleHmac } from "./account-throttle";
 import { UUID_PATTERN, sha256Hex as sha256 } from "./serialization";
+import { verificationForUnverifiedLogin, type EmailVerificationDelivery } from "./email-verification";
 
 const TOKEN_PREFIX = "otid_user_session_v1";
 const SECRET_PATTERN = /^[A-Za-z0-9_-]{43}$/;
@@ -41,6 +42,8 @@ export interface UserAccountPrincipal {
   displayName: string;
   superadmin: boolean;
   expiresAt: string;
+  /** ADR-0185: adressen är bekräftad; behörigheter som andra ger kontot gäller först då. */
+  emailVerified: boolean;
 }
 
 export interface UserAccountSessionProof {
@@ -55,7 +58,9 @@ export type UserAccountAuthenticationResult =
   | { status: "authenticated"; principal: UserAccountPrincipal };
 
 export type UserAccountLoginResult =
-  | { status: "unauthorized" | "rate-limited" | "blocked" }
+  | { status: "rate-limited" | "blocked" }
+  /** ADR-0185: rätt lösenord men obekräftad adress (med e-post inställd): samma svar, och `verification` att skicka. */
+  | { status: "unauthorized"; verification?: EmailVerificationDelivery }
   | { status: "authenticated"; response: OrganizerAccountLoginResponse; sessionToken: string; csrfToken: string };
 
 export interface UserAccountRuntimeOptions {
@@ -67,6 +72,8 @@ export interface UserAccountRuntimeOptions {
   csrfSecretBytes?: Uint8Array;
   /** Klientens adress (inloggningens spärr per IP, steg 46); sparas bara som HMAC. */
   clientKey?: string;
+  /** ADR-0185: med e-post inställd loggas ett obekräftat konto inte in; det får en ny bekräftelselänk i stället. */
+  requireVerifiedEmail?: boolean;
 }
 
 function validDate(value: Date): Date {
@@ -182,7 +189,7 @@ export async function issueUserAccountSession(
     status: "authenticated",
     response: organizerAccountLoginResponseSchema.parse({
       formatVersion: 1, accountId: account.id, email: account.email, displayName: account.displayName,
-      superadmin: account.isSuperadmin, expiresAt: expiresAt.toISOString()
+      superadmin: account.isSuperadmin, expiresAt: expiresAt.toISOString(), emailVerified: account.emailVerifiedAt !== null
     }),
     sessionToken: token(sessionId, sessionSecret),
     csrfToken: csrfSecret.toString("base64url")
@@ -294,6 +301,11 @@ export async function loginUserAccount(
     await clearUserAccountLoginThrottle(tx, account.email, now);
     // Ett spärrat konto får veta det först när lösenordet stämmer.
     if (account.blockedAt) return { status: "blocked" } as const;
+    // ADR-0185: samma svar som fel lösenord, så att registreringen inte avslöjar om adressen fanns; länken kommer med e-post.
+    if (options.requireVerifiedEmail && !account.emailVerifiedAt) {
+      const verification = await verificationForUnverifiedLogin(tx, account, verifier, now);
+      return verification ? { status: "unauthorized", verification } as const : { status: "unauthorized" } as const;
+    }
     await tx.update(schema.userAccounts).set({ lastLoginAt: now }).where(eq(schema.userAccounts.id, account.id));
     return issueUserAccountSession(tx, account, verifier.version, now, options);
   });
@@ -347,7 +359,7 @@ export async function authorizeUserAccountSession(
   }
   return { status: "authenticated", principal: {
     accountId: account.id, sessionId: session.id, email: account.email, displayName: account.displayName,
-    superadmin: account.isSuperadmin, expiresAt: session.expiresAt.toISOString()
+    superadmin: account.isSuperadmin, expiresAt: session.expiresAt.toISOString(), emailVerified: account.emailVerifiedAt !== null
   } };
 }
 

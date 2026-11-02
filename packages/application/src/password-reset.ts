@@ -94,6 +94,8 @@ export async function completePasswordReset(
     await appendUserAccountPasswordVerifier(tx, {
       accountId: account.id, password: parsed.data.password, previousVersion: verifier.version
     }, now);
+    // ADR-0185: länken kom till adressen (eller från superadmin, som lämnat den till personen): adressen är bekräftad.
+    if (!account.emailVerifiedAt) await tx.update(schema.userAccounts).set({ emailVerifiedAt: now }).where(eq(schema.userAccounts.id, account.id));
     await tx.update(schema.passwordResetTokens).set({ usedAt: now })
       .where(and(eq(schema.passwordResetTokens.accountId, account.id), isNull(schema.passwordResetTokens.usedAt)));
     await revokeAllUserAccountSessions(tx, account.id, now, "PASSWORD_RESET");

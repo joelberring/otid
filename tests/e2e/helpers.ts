@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { expect, type Browser, type Page } from "@playwright/test";
+import { latestMailTo } from "./fake-smtp";
 
 /** Gemensamma steg för webbläsartesterna (ADR-0168, ADR-0172). */
 export const password = "hemligt-lösen-1";
@@ -67,7 +68,10 @@ export async function newContext(browser: Browser) {
   return context;
 }
 
-/** Registrerar ett konto med e-post (ADR-0172) i en egen webbläsarkontext och landar i Mina tävlingar. */
+/**
+ * Registrerar ett konto med e-post (ADR-0172) i en egen webbläsarkontext och landar i Mina tävlingar. ADR-0185: servern i
+ * testerna har e-post, så kontot bekräftas med länken i mejlet (den falska SMTP-servern) och lösenordet.
+ */
 export async function registerAccount(browser: Browser, email: string, displayName: string): Promise<Page> {
   const page = await (await newContext(browser)).newPage();
   await page.goto("/organizer");
@@ -76,8 +80,27 @@ export async function registerAccount(browser: Browser, email: string, displayNa
   await page.getByLabel("E-postadress").fill(email);
   await page.getByLabel("Lösenord").fill(password);
   await page.getByRole("button", { name: "Skapa konto" }).click();
-  await expect(page.getByRole("heading", { name: "Dina tävlingar" })).toBeVisible();
+  await expect(page.getByText("Vi har skickat ett mejl till")).toBeVisible();
+  await verifyEmail(page, email);
   return page;
+}
+
+/** ADR-0185: länken i det senaste bekräftelsemejlet till adressen (väntar tills mejlet har kommit). */
+export async function verificationLink(email: string): Promise<string> {
+  let link: string | undefined;
+  await expect.poll(() => {
+    link = /https?:\/\/\S+\/verify#token=[A-Za-z0-9_-]{43}/.exec(latestMailTo(email)?.text ?? "")?.[0];
+    return link;
+  }, { timeout: 20_000 }).toBeTruthy();
+  return link!;
+}
+
+/** ADR-0185: öppnar bekräftelselänken och skriver lösenordet; kontot är sedan bekräftat och inloggat. */
+export async function verifyEmail(page: Page, email: string, secret = password): Promise<void> {
+  await page.goto(await verificationLink(email));
+  await page.getByLabel("Lösenord").fill(secret);
+  await page.getByRole("button", { name: "Bekräfta och logga in" }).click();
+  await expect(page.getByRole("heading", { name: "Dina tävlingar" })).toBeVisible();
 }
 
 /** Loggar in på /organizer med e-post och lösenord. */

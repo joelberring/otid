@@ -29,7 +29,7 @@ import { raceListName } from "../lib/race-list-name";
 import { MyGroups } from "./training-group/my-groups";
 import styles from "./organizer-workspace.module.css";
 
-type Session = { accountId: string; email: string; displayName: string; superadmin: boolean; expiresAt: string };
+type Session = { accountId: string; email: string; displayName: string; superadmin: boolean; expiresAt: string; emailVerified?: boolean | undefined };
 
 async function responseJson(response: Response): Promise<unknown> {
   try {
@@ -44,7 +44,7 @@ function errorMessage(error: unknown): string {
 }
 
 /** Besked vid inloggning som är fel (läses upp direkt); övriga är lägesbesked. */
-const loginProblems = new Set<string>([copy.invalidCredentials, copy.loginRateLimited, copy.accountBlocked]);
+const loginProblems = new Set<string>([copy.invalidCredentialsOrUnverified, copy.loginRateLimited, copy.accountBlocked]);
 
 export function OrganizerWorkspace() {
   const [session, setSession] = useState<Session>();
@@ -135,6 +135,12 @@ export function OrganizerWorkspace() {
       });
       if (!response.ok) throw new Error(response.status === 409 ? copy.emailTaken : response.status === 429 ? copy.registerRateLimited
         : response.status === 400 ? copy.registerInvalid : copy.registerError(response.status));
+      // ADR-0185: med e-post på servern kommer länken med e-post (samma besked oavsett om adressen redan hade ett konto).
+      if (response.status === 202) {
+        setMode("login");
+        setMessage(copy.checkEmail(email.trim()));
+        return;
+      }
       setSession(parseOrganizerSession(await responseJson(response)));
       setMessage("");
       try {
@@ -162,7 +168,7 @@ export function OrganizerWorkspace() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(request)
       });
-      if (!response.ok) throw new Error(response.status === 401 ? copy.invalidCredentials
+      if (!response.ok) throw new Error(response.status === 401 ? copy.invalidCredentialsOrUnverified
         : response.status === 429 ? copy.loginRateLimited : response.status === 403 ? copy.accountBlocked
           : copy.loginError(response.status));
       setSession(parseOrganizerSession(await responseJson(response)));
@@ -311,6 +317,7 @@ export function OrganizerWorkspace() {
     </header>
 
     {!sessionChecked && <section className={styles.panel} aria-live="polite"><p>{copy.checkSession}</p></section>}
+    {session?.emailVerified === false && <section className={styles.panel} data-testid="unverified-email"><p>{copy.unverifiedNotice}</p></section>}
 
     {sessionChecked && !session && mode === "login" && <section className={`${styles.panel} ${styles.narrow} ${styles.loginPanel}`}>
       <h2>{copy.login}</h2>

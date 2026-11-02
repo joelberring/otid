@@ -24,7 +24,9 @@ export const racePersonSchema = z.object({
   email: storedAccountEmailSchema,
   displayName: z.string().trim().min(1).max(120),
   role: racePersonRoleSchema,
-  grantedAt: instantSchema
+  grantedAt: instantSchema,
+  /** ADR-0185: kontots e-postadress är inte bekräftad; behörigheten gäller först när den är det (ägaren alltid). */
+  pendingVerification: z.boolean().optional()
 }).strict();
 
 export const racePeopleResponseSchema = z.object({

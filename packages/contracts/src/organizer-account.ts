@@ -35,7 +35,25 @@ export const organizerAccountLoginResponseSchema = z.object({
   email: storedAccountEmailSchema,
   displayName: z.string().trim().min(1).max(120),
   superadmin: z.boolean(),
-  expiresAt: instant
+  expiresAt: instant,
+  /** ADR-0185: om e-postadressen är bekräftad. Behörigheter som andra ger kontot gäller först då. Saknas i äldre svar. */
+  emailVerified: z.boolean().optional()
+}).strict();
+
+/**
+ * ADR-0185: registrering med e-post inställd. Samma svar oavsett om adressen redan har ett konto; länken kommer med e-post.
+ * Utan e-post loggar registreringen in direkt (`organizerAccountLoginResponseSchema`, 201).
+ */
+export const organizerAccountRegistrationPendingSchema = z.object({
+  formatVersion: z.literal(1),
+  status: z.literal("check-email")
+}).strict();
+
+/** ADR-0185: länken i bekräftelsemejlet och lösenordet från registreringen. */
+export const emailVerificationRequestSchema = z.object({
+  formatVersion: z.literal(1),
+  token: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+  password: z.string().min(1).max(1024)
 }).strict();
 
 /** GET /api/organizer/session utan inloggning: 200 med `authenticated: false` i stället för 401 (PLAN.md steg 22). */

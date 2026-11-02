@@ -13,10 +13,13 @@ import type { DbExecutor } from "./snapshot";
  */
 export interface LoadedCourseSecrecy extends CourseSecrecy {
   readonly revealedAt: Date | null;
+  /** ADR-0185: arrangörens val för varianten och kartan före start. */
+  readonly publicTiming?: { readonly variant: "AFTER_START" | "ALWAYS"; readonly map: "AFTER_START" | "ON_PUBLISH" };
 }
 
 export async function loadCourseSecrecy(tx: DbExecutor, raceId: string): Promise<LoadedCourseSecrecy> {
-  const [race] = await tx.select({ revealedAt: schema.races.coursesPublicAt, finalization: schema.races.officialResultFinalizationId })
+  const [race] = await tx.select({ revealedAt: schema.races.coursesPublicAt, finalization: schema.races.officialResultFinalizationId,
+    variant: schema.races.publicVariantTiming, map: schema.races.publicMapTiming })
     .from(schema.races).where(eq(schema.races.id, raceId));
   if (!race) return { public: false, reason: null, remaining: 0, revealedAt: null };
   const entries = await tx.select({ id: schema.entries.id }).from(schema.entries)
@@ -27,7 +30,7 @@ export async function loadCourseSecrecy(tx: DbExecutor, raceId: string): Promise
   const withResult = new Set(heads.filter(head => head.cause !== "MANUAL_RESULT_REMOVED").map(head => head.entryId));
   const secrecy = courseSecrecy({ entries: entries.map(entry => ({ hasResult: withResult.has(entry.id) })),
     finalized: race.finalization !== null, revealed: race.revealedAt !== null });
-  return { ...secrecy, revealedAt: race.revealedAt };
+  return { ...secrecy, revealedAt: race.revealedAt, publicTiming: { variant: race.variant, map: race.map } };
 }
 
 /** Banorna publikt: när ett publikt svar får visa gafflingsbilden, kontrollägena och kontrollkartan. */
@@ -36,7 +39,8 @@ export async function coursesArePublic(tx: DbExecutor, raceId: string): Promise<
 }
 
 export function courseSecrecyState(secrecy: LoadedCourseSecrecy): CourseSecrecyState {
-  return { public: secrecy.public, reason: secrecy.reason, remaining: secrecy.remaining, revealedAt: secrecy.revealedAt?.toISOString() ?? null };
+  return { public: secrecy.public, reason: secrecy.reason, remaining: secrecy.remaining, revealedAt: secrecy.revealedAt?.toISOString() ?? null,
+    ...(secrecy.publicTiming ? { publicTiming: { ...secrecy.publicTiming } } : {}) };
 }
 
 export type CourseSecrecyResult =

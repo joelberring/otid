@@ -8,7 +8,7 @@ import type { DbExecutor } from "./snapshot";
  * IP och e-post, räknade i ett fast fönster om en timme. Nyckeln lagras bara som HMAC med en serverhemlighet (steg 46),
  * så att en adress inte kan räknas fram ur databasen eller en backup. Rader äldre än två dygn tas bort vid nästa skrivning.
  */
-export type AccountThrottleScope = "REGISTER_IP" | "RESET_IP" | "RESET_EMAIL" | "SELF_REGISTRATION_IP" | "SELF_REGISTRATION_RACE";
+export type AccountThrottleScope = "REGISTER_IP" | "RESET_IP" | "RESET_EMAIL" | "SELF_REGISTRATION_IP" | "SELF_REGISTRATION_RACE" | "VERIFY_EMAIL";
 export const ACCOUNT_THROTTLE_WINDOW_MS = 60 * 60 * 1000;
 export const DEFAULT_REGISTRATIONS_PER_HOUR = 10;
 export const RESET_REQUESTS_PER_IP_AND_HOUR = 10;

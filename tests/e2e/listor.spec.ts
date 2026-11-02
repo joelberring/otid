@@ -149,7 +149,7 @@ test("start- och resultatlistor: vyer, sök, utskrift och export i arbetsytan oc
   expect(startXml).toContain("<StartTime>");
   expect(startXml).not.toContain("8301003");
 
-  // Publicering: en åtgärd. Den publika listan har samma vyer, och bricka (steg 33: påslaget som standard).
+  // Publicering: en åtgärd. Den publika listan har samma vyer, men ingen bricka (ADR-0185: av som standard för nya tävlingar).
   await view(toolbar, "Per klass");
   await owner.getByRole("button", { name: "Publicera startlistan" }).click();
   await expect(owner.getByText("Startlistan är publicerad.")).toBeVisible();
@@ -160,8 +160,8 @@ test("start- och resultatlistor: vyer, sök, utskrift och export i arbetsytan oc
   await visitor.goto(`/starts/${raceId}`);
   const publicToolbar = visitor.getByRole("toolbar", { name: "Listans verktyg" });
   await expect(visitor.getByRole("region", { name: "H21", exact: true }).getByRole("row", { name: /Anna Ek/ })).toBeVisible();
-  await expect(visitor.getByRole("columnheader", { name: "Bricka" }).first()).toBeVisible();
-  await expect(visitor.getByRole("region", { name: "H21", exact: true }).getByRole("row", { name: /Anna Ek/ })).toContainText("8301001");
+  await expect(visitor.getByRole("columnheader", { name: "Bricka" })).toHaveCount(0);
+  await expect(visitor.getByRole("region", { name: "H21", exact: true }).getByRole("row", { name: /Anna Ek/ })).not.toContainText("8301001");
   await view(publicToolbar, "Per starttid");
   // Båda startfållorna har en start den minuten.
   const now = visitor.locator("tbody[data-current]");

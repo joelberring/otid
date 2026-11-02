@@ -1,8 +1,9 @@
-import { courseSecrecyResponseSchema, racePublicationResponseSchema } from "@o-tid/contracts";
+import { courseSecrecyResponseSchema, publicTimingResponseSchema, racePublicationResponseSchema } from "@o-tid/contracts";
 import {
   adminFailure as failure,
   hasNoRequestBody,
-  privateJson as json
+  privateJson as json,
+  readJsonBody
 } from "./security-policy";
 import { resultFailure, type RaceAdministratorRouteContext } from "./race-administrator-route-context";
 
@@ -12,6 +13,15 @@ import { resultFailure, type RaceAdministratorRouteContext } from "./race-admini
  */
 export async function handlePublicationRoute(context: RaceAdministratorRouteContext): Promise<Response | undefined> {
   const { db, request, raceId, action, dependencies, proof } = context;
+  if (action.kind === "course-secrecy" && request.method === "PATCH") {
+    // ADR-0185: före start – varianten (efter start/alltid) och kartan (efter start/direkt) publikt.
+    let body: unknown;
+    try { body = await readJsonBody(request); } catch { return failure(400, "INVALID_REQUEST"); }
+    const result = await dependencies.publicTiming(db, { ...proof, raceId, request: body });
+    if (result.status !== "saved") return resultFailure(result.status);
+    const response = publicTimingResponseSchema.parse(result.response);
+    return response.raceId === raceId ? json(response) : failure(500, "INTERNAL_ERROR");
+  }
   if (action.kind === "course-secrecy") {
     // Steg 52 (ADR-0176): PUT = "Visa banorna publikt nu", DELETE = ångra valet.
     if (!await hasNoRequestBody(request)) return failure(400, "INVALID_REQUEST");

@@ -18,6 +18,7 @@ import { imageDimensions } from "./image-dimensions";
 import { readAdminRaceMapSource } from "./race-map-source";
 import { loadPublishedBestRoute, runnerCourseOf } from "./route-choice";
 import { racePublicMapBlocked } from "./training-group-maps";
+import { publicMapAllowedNow } from "./public-before-start";
 import { UUID_PATTERN as uuid, sha256Hex as sha256 } from "./serialization";
 
 /**
@@ -225,9 +226,17 @@ async function publicRead<T>(db: Database, raceId: string, read: (tx: DatabaseTr
   }, { isolationLevel: "repeatable read" });
 }
 
-/** Den georefererade kartan för de publika vägvalen och GPS-rutterna; undefined också när avtalet spärrar publik visning. */
+/**
+ * Kartbilden är dold publikt: avtalet i träningsgruppen spärrar den (steg 68), eller (ADR-0185) tävlingen har inte startat och
+ * banorna är inte publika, om inte arrangören valt "Visa kartan publikt: direkt" under Publicera.
+ */
+async function publicMapHidden(tx: DatabaseTransaction, raceId: string): Promise<boolean> {
+  return await racePublicMapBlocked(tx, raceId) || !await publicMapAllowedNow(tx, raceId);
+}
+
+/** Den georefererade kartan för de publika vägvalen och GPS-rutterna; undefined också när kartan är dold publikt. */
 async function georeferencedMap(tx: DatabaseTransaction, raceId: string) {
-  if (await racePublicMapBlocked(tx, raceId)) return undefined;
+  if (await publicMapHidden(tx, raceId)) return undefined;
   const [map] = await tx.select({ width: schema.raceMaps.width, height: schema.raceMaps.height, sha256: schema.raceMaps.sha256,
     transform: schema.raceMaps.transform }).from(schema.raceMaps).where(eq(schema.raceMaps.raceId, raceId));
   return map?.transform ? { ...map, transform: map.transform } : undefined;
@@ -235,13 +244,14 @@ async function georeferencedMap(tx: DatabaseTransaction, raceId: string) {
 
 /**
  * Kartbilden publikt, bara när den är georefererad (annars finns inga vägval att visa). Steg 68 (ADR-0182 beslut 4): inte
- * när kartans avtal har gått ut eller inte tillåter publik visning, om inte admin medvetet valt att visa den ändå. Den
+ * när kartans avtal har gått ut eller inte tillåter publik visning, om inte admin medvetet valt att visa den ändå. ADR-0185:
+ * inte heller före start (`publicMapHidden`). Den
  * publika vägvalskartan, GPS-rutterna och kontrollkartan ritas alla på den här bilden.
  */
 export async function readPublicRaceMapImage(db: Database, raceId: string)
   : Promise<{ mediaType: string; image: Buffer; sha256: string } | undefined> {
   return publicRead(db, raceId, async tx => {
-    if (await racePublicMapBlocked(tx, raceId)) return undefined;
+    if (await publicMapHidden(tx, raceId)) return undefined;
     const [map] = await tx.select({ mediaType: schema.raceMaps.mediaType, image: schema.raceMaps.image, sha256: schema.raceMaps.sha256,
       transform: schema.raceMaps.transform }).from(schema.raceMaps).where(eq(schema.raceMaps.raceId, raceId));
     return map?.transform ? { mediaType: map.mediaType, image: map.image, sha256: map.sha256 } : undefined;

@@ -10,6 +10,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-02 – Säkerhet, integritet och drift efter översynen (grenen sakerhet-drift, ADR-0185, migration 0038)
+- Beroenden: next 16.4.3, sharp 0.35.5, fast-xml-parser 5.11.2, nodemailer 10.3.1, drizzle-orm 0.45.4, zod 4.6.7; `images.unoptimized`; Mapper avvisar DOCTYPE. Kvar i `pnpm audit --prod`: playwright 1.55.0 (bara test).
+- Inget publikt om löpare indexeras (robots.txt, X-Robots-Tag, meta); HSTS. Varianten (startlista, IOF XML, stafett) och kartbilden publikt först efter start, val under Publicera → Före start; bricknummer av för nya tävlingar.
+- Behörigheter från andra kräver bekräftad e-post; registrering och glömt lösenord svarar likadant och arbetar efter svaret; `superadmin.mjs verify`.
+- Drift: roller otid_owner/otid_app/otid_print (`deploy/db-roles.sh`, provad mot kopia med data, i CI före alla specar), hemligheter bara i web, egen `migrate` med dump före, backup dygnet runt + valfri restic, `monitor` med bevakningspingar, disk > 80 %, utskriftsjobb i barnprocess med tidsgräns, KONFIGURATIONSFEL i loggen, fasta bildversioner, CI `contents: read`.
+- Verifierat: se slutrapporten (lint, typecheck, test, test:integration, berörda specar lokalt; CI).
+- Ägaren: SMTP behövs för att nya personer ska få behörigheter utan `verify`; följ docs/drift.md (Databasroller, Kopia utanför servern, Bevakning).
+
 ### 2026-11-02 – Banläggningens editor mer som Purple Pen (grenen banlaggning-ux, ADR-0180 beslut 14)
 - Objekt i verktygsraden (och bakom "Mer") öppnar en palett i fyra grupper med ikoner ritade av kartans ritare; obligatorisk passage ("Obl. passage", tooltip) skiljs från valfri; kartbyte och bild (uppladdning) läggs därifrån.
 - Vridhandtag för obligatorisk och valfri passage (5°-steg, Skift/andra fingret fritt), "Vrid efter sträckan", en ny passage i en bana vrids efter sträckan; ny ändring `SET_CONTROL_ORIENTATION`.

@@ -45,7 +45,7 @@ export const raceTypeSv = {
     failed: "Inställningarna kunde inte sparas. Försök igen.",
     people: {
       title: "Personer med behörighet",
-      help: "Funktionärer når avläsning, direktanmälan av okänd bricka, kvar i skogen, start och speaker. De ser deltagarnas fulla namn och kan ladda ner festens köp som CSV-fil. Administratörer når allt. Banläggning ger bara banläggningen på den här tävlingen: ändra, föreslå ändringar eller läsa och kommentera. Kartritaren ser bara kartan och kartfelen (inga banor eller kontroller, inga foton), svarar och markerar dem klara; ett kartfel nära en kontroll kan ändå avslöja den. Personen loggar in med sitt eget konto.",
+      help: "Funktionärer når avläsning, direktanmälan av okänd bricka, kvar i skogen, start och speaker. De ser deltagarnas fulla namn och kan ladda ner festens köp som CSV-fil. Administratörer når allt. Banläggning ger bara banläggningen på den här tävlingen: ändra, föreslå ändringar eller läsa och kommentera. Kartritaren ser bara kartan och kartfelen (inga banor eller kontroller, inga foton), svarar och markerar dem klara; ett kartfel nära en kontroll kan ändå avslöja den. Personen loggar in med sitt eget konto; behörigheten gäller när personen har bekräftat sin e-postadress.",
       loading: "Hämtar personer …",
       loadError: "Listan kunde inte hämtas. Försök igen.",
       name: "Namn",
@@ -55,6 +55,8 @@ export const raceTypeSv = {
         COURSE_SUGGEST: "Banläggning: föreslå", COURSE_COMMENT: "Banläggning: läsa och kommentera",
         COURSE_MAP: "Kartritare: bara kartan och kartfelen" },
       you: "du",
+      /** ADR-0185: behörigheten gäller först när personen har bekräftat sin e-postadress. */
+      pendingVerification: "väntar på bekräftad e-post",
       remove: "Ta bort",
       removeLabel: (name: string) => `Ta bort behörigheten för ${name}`,
       confirmRemove: (name: string) => `Ta bort ${name}s behörighet? Personen förlorar åtkomsten direkt.`,

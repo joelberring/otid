@@ -3,21 +3,29 @@
  * skriver PDF:erna, i en egen process med lägsta prioritet (nice 19) och en egen liten databaspool, så att avläsning och
  * tävlingsarbete aldrig väntar på en utskrift. Rensar gamla PDF:er var tionde minut.
  *
+ * ADR-0185: varje jobb skrivs i en egen barnprocess med tidsgräns (`OTID_PRINT_JOB_TIMEOUT_MS`, förval 10 minuter) och eget
+ * minnestak (`OTID_PRINT_JOB_MEMORY_MB`, förval 256). Ett jobb som hänger eller tar slut på minnet avbryts och blir FAILED med
+ * en förklaring, och kön går vidare med nästa. Huvudprocessen rör filen `/tmp/otid-print-worker-alive` minst var 30:e sekund,
+ * så att hälsokontrollen i docker-compose.prod.yml ser att arbetaren lever.
+ *
  * I drift: tjänsten `print-worker` i docker-compose.prod.yml (`node print-worker.mjs`, egen CPU-vikt och minnestak).
  * Lokalt startar `pnpm dev` den (apps/web/scripts/dev.mjs) om inte OTID_PRINT_WORKER=off.
  *
  *   tsx scripts/print-worker.ts           kör tills processen stoppas
  *   tsx scripts/print-worker.ts --once    tar högst ett jobb och avslutar (tester)
+ *   (internt) print-worker --job <id> --race <id> --attempts <n> --worker <namn>   skriver ett jobb (barnprocessen)
  */
-import { existsSync, readFileSync } from "node:fs";
+import { fork } from "node:child_process";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { hostname, setPriority } from "node:os";
 import { fileURLToPath } from "node:url";
 import { createDatabase } from "../packages/database/src/index.ts";
-import { claimPrintJob, cleanupPrintJobs, heartbeatPrintJob, runPrintJob } from "../packages/application/src/course-setting-print.ts";
+import { claimPrintJob, cleanupPrintJobs, failPrintJob, heartbeatPrintJob, runPrintJob } from "../packages/application/src/course-setting-print.ts";
 import { FONT_FILE_NAMES, FONT_VARIANTS, type FontFiles } from "../packages/print-pdf/src/index.ts";
 
 const CLEANUP_MS = 10 * 60_000;
 const HEARTBEAT_MS = 30_000;
+export const ALIVE_FILE = "/tmp/otid-print-worker-alive";
 
 /** Typsnitten: OTID_PRINT_FONT_DIR, mappen `fonts` bredvid det paketerade kommandot eller paketets egen mapp. */
 export function loadFonts(environment: NodeJS.ProcessEnv = process.env): FontFiles {
@@ -28,27 +36,86 @@ export function loadFonts(environment: NodeJS.ProcessEnv = process.env): FontFil
   return Object.fromEntries(FONT_VARIANTS.map(variant => [variant, new Uint8Array(readFileSync(`${dir.replace(/\/$/, "")}/${FONT_FILE_NAMES[variant]}`))])) as unknown as FontFiles;
 }
 
+/** Tidsgränsen och minnestaket för ett jobb ur miljön (ogiltiga värden ger förvalen). */
+export function jobLimits(environment: NodeJS.ProcessEnv = process.env): { timeoutMs: number; memoryMb: number } {
+  const timeout = Number(environment.OTID_PRINT_JOB_TIMEOUT_MS);
+  const memory = Number(environment.OTID_PRINT_JOB_MEMORY_MB);
+  return { timeoutMs: Number.isFinite(timeout) && timeout >= 1_000 ? timeout : 10 * 60_000,
+    memoryMb: Number.isFinite(memory) && memory >= 64 ? Math.round(memory) : 256 };
+}
+
 const sleep = (ms: number, signal: AbortSignal) => new Promise<void>(resolve => {
   const timer = setTimeout(resolve, ms);
   signal.addEventListener("abort", () => { clearTimeout(timer); resolve(); }, { once: true });
 });
 
+function alive(): void {
+  try { writeFileSync(ALIVE_FILE, String(Date.now())); } catch (error) {
+    console.warn("Utskriftsarbetaren kunde inte skriva sitt livstecken", error instanceof Error ? error.message : error);
+  }
+}
+
+function argument(name: string): string | undefined {
+  const index = process.argv.indexOf(name);
+  return index >= 0 ? process.argv[index + 1] : undefined;
+}
+
+/** Barnprocessen: skriver ett taget jobb och skickar utfallet till huvudprocessen. */
+async function runChild(url: string): Promise<void> {
+  const id = argument("--job"), raceId = argument("--race"), worker = argument("--worker"), attempts = Number(argument("--attempts"));
+  if (!id || !raceId || !worker || !Number.isInteger(attempts)) throw new Error("Barnprocessen saknar jobbets uppgifter");
+  try { setPriority(19); } catch { /* ärvs redan från huvudprocessen */ }
+  const { db, pool } = createDatabase(url, { max: 1, applicationName: "otid-print-job", statementTimeoutMs: 120_000, idleInTransactionTimeoutMs: 30_000 });
+  try {
+    const outcome = await runPrintJob(db, { id, raceId, attempts }, { fonts: loadFonts(), worker });
+    process.send?.({ outcome });
+  } finally { await pool.end(); }
+}
+
+/** Kör jobbet i en barnprocess; avbryter den efter tidsgränsen. Ger utfallet eller felet att spara. */
+function runInChild(job: { id: string; raceId: string; attempts: number }, worker: string, limits: { timeoutMs: number; memoryMb: number })
+  : Promise<{ outcome?: string; failure?: string }> {
+  return new Promise(resolve => {
+    const environment = { ...process.env };
+    delete environment.NODE_OPTIONS;
+    const child = fork(process.argv[1]!, ["--job", job.id, "--race", job.raceId, "--attempts", String(job.attempts), "--worker", worker], {
+      execArgv: [...process.execArgv, `--max-old-space-size=${limits.memoryMb}`], env: environment, stdio: "inherit" });
+    let outcome: string | undefined;
+    let timedOut = false;
+    const timer = setTimeout(() => { timedOut = true; child.kill("SIGKILL"); }, limits.timeoutMs);
+    child.on("message", (message: unknown) => {
+      if (message && typeof message === "object" && "outcome" in message) outcome = String((message as { outcome: unknown }).outcome);
+    });
+    child.on("error", error => console.error(`Utskriftsjobb ${job.id}: barnprocessen kunde inte startas`, error.message));
+    child.on("exit", (code, signal) => {
+      clearTimeout(timer);
+      if (timedOut) resolve({ failure: `Jobbet tog längre tid än ${Math.round(limits.timeoutMs / 60_000)} minuter och avbröts. Dela upp utskriften eller försök igen.` });
+      else if (outcome) resolve({ outcome });
+      else resolve({ failure: `PDF:en kunde inte skrivas (processen avslutades${signal ? ` med ${signal}` : ` med kod ${code}`}, till exempel när minnet tog slut). Dela upp utskriften eller försök igen.` });
+    });
+  });
+}
+
 async function main(): Promise<void> {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("Sätt DATABASE_URL till databasen.");
+  if (argument("--job")) return runChild(url);
   const once = process.argv.includes("--once");
   const pollMs = Math.max(200, Number(process.env.OTID_PRINT_POLL_MS ?? 2000) || 2000);
-  // Lägsta prioritet: tävlingens processer får processorn först (ADR-0177). Kräver inga rättigheter.
+  const limits = jobLimits();
+  // Lägsta prioritet: tävlingens processer får processorn först (ADR-0177). Kräver inga rättigheter; barnen ärver den.
   try { setPriority(19); } catch (error) { console.warn("Utskriftsarbetaren kunde inte sänka sin prioritet", error); }
-  const fonts = loadFonts();
+  loadFonts(); // fel tidigt om typsnitten saknas
   const { db, pool } = createDatabase(url, { max: 2, applicationName: "otid-print-worker", statementTimeoutMs: 120_000, idleInTransactionTimeoutMs: 30_000 });
   const worker = `${hostname()}:${process.pid}`;
   const stop = new AbortController();
   for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, () => stop.abort());
   let cleaned = 0;
-  console.log(`Utskriftsarbetaren startad (${worker})`);
+  console.log(`Utskriftsarbetaren startad (${worker}, tidsgräns ${Math.round(limits.timeoutMs / 1000)} s per jobb)`);
+  alive();
   try {
     while (!stop.signal.aborted) {
+      alive();
       if (Date.now() - cleaned > CLEANUP_MS) {
         cleaned = Date.now();
         const result = await cleanupPrintJobs(db).catch((error: unknown) => {
@@ -73,15 +140,19 @@ async function main(): Promise<void> {
         await sleep(pollMs, stop.signal);
         continue;
       }
-      const heartbeat = setInterval(() => { void heartbeatPrintJob(db, job.id, worker).catch((error: unknown) => console.warn("Livstecknet för utskriftsjobbet misslyckades", error)); }, HEARTBEAT_MS);
+      const claimed = job;
+      const heartbeat = setInterval(() => {
+        alive();
+        void heartbeatPrintJob(db, claimed.id, worker).catch((error: unknown) => console.warn("Livstecknet för utskriftsjobbet misslyckades", error));
+      }, HEARTBEAT_MS);
       try {
         const started = Date.now();
-        const outcome = await runPrintJob(db, job, { fonts, worker });
-        console.log(`Utskriftsjobb ${job.id}: ${outcome} på ${Math.round((Date.now() - started) / 100) / 10} s`);
-      } catch (error) {
-        // Jobbet står kvar som RUNNING och görs om när livstecknen uteblivit (claimPrintJob).
-        if (once) throw error;
-        console.error(`Utskriftsjobb ${job.id} avbröts`, error);
+        const result = await runInChild(claimed, worker, limits);
+        if (result.failure) {
+          await failPrintJob(db, claimed.id, worker, result.failure);
+          console.error(`Utskriftsjobb ${claimed.id}: FAILED på ${Math.round((Date.now() - started) / 100) / 10} s (${result.failure})`);
+          if (once) throw new Error(result.failure);
+        } else console.log(`Utskriftsjobb ${claimed.id}: ${result.outcome} på ${Math.round((Date.now() - started) / 100) / 10} s`);
       } finally { clearInterval(heartbeat); }
       if (once) break;
     }

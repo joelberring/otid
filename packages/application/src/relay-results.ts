@@ -2,10 +2,11 @@ import { and, asc, desc, eq, inArray, isNotNull, max } from "drizzle-orm";
 import { publicRelayResultsSchema, relayOverviewSchema, relayReadoutSchema, type PublicRelayResults, type RelayOverview,
   type RelayReadout } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { rankRelayLegs, rankRelayTeams, relayClassLegStarts, relayParallelLegOutcome, relayTeamResult, teamSprintMissingReadouts, type RelayLegRestart, type RelayTeamResult,
+import { publicVariantVisible, startHasPassed, rankRelayLegs, rankRelayTeams, relayClassLegStarts, relayParallelLegOutcome, relayTeamResult, teamSprintMissingReadouts, type RelayLegRestart, type RelayTeamResult,
   type UnfairRelayTeam } from "@o-tid/domain";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForSnapshot } from "./concurrency";
+import { loadPublicVariantPolicy } from "./public-before-start";
 import { loadCourseVersionVariants } from "./course-variants";
 import {
   loadRelayClassConfigs, loadRelayLegEntries, loadRelayLegFinishTimes, loadRelayLegResults, loadRelayTeams, relayLegCourseVersionId,
@@ -233,10 +234,21 @@ function severalCourses(row: { courseId: string; config: RelayClassConfig; legCo
   return new Set(row.config.legs.map(leg => row.legCourses.get(leg.leg)?.courseId ?? row.courseId)).size > 1;
 }
 
-export async function publicRelayResults(db: Database, raceId: string): Promise<PublicRelayResults> {
+export async function publicRelayResults(db: Database, raceId: string, now = new Date()): Promise<PublicRelayResults> {
   return db.transaction(async tx => {
     await lockRaceForSnapshot(tx, raceId);
     const { classes } = await loadRelayView(tx, raceId);
+    // ADR-0185: sträckans variant publikt först när sträckan har startat (masstart/omstart passerad, föregående sträcka klar,
+    // egen starttid passerad eller ett resultat), när banorna är publika eller när arrangören valt "alltid".
+    const policy = await loadPublicVariantPolicy(tx, raceId, now);
+    const legVariant = (row: RelayClassView, view: RelayTeamView, leg: RelayTeamView["legs"][number]) => {
+      const rule = row.config.legs.find(item => item.leg === leg.entry.leg);
+      const previous = view.legs.filter(other => other.entry.leg === leg.entry.leg - 1);
+      const started = leg.result !== undefined || leg.changedOver || startHasPassed(rule?.startTime, now) ||
+        (previous.length > 0 && previous.every(other => other.result !== undefined || other.changedOver));
+      return publicVariantVisible({ ...policy, startTime: leg.entry.fixedStartTime?.toISOString() ?? null, started })
+        ? leg.entry.courseVariantCode : null;
+    };
     return publicRelayResultsSchema.parse({ formatVersion: 1, classes: classes.map(row => ({
       name: row.name, legCount: row.config.legs.length, restartRanking: row.config.restartRanking,
       legRules: row.config.legs.map(leg => ({ leg: leg.leg, changeoverRule: leg.changeoverRule, approvalRule: leg.approvalRule })),
@@ -247,7 +259,7 @@ export async function publicRelayResults(db: Database, raceId: string): Promise<
           organisationName: leg.entry.organisationName, publicResultId: leg.entry.publicResultId,
           status: leg.waiting ? null : leg.result?.status ?? null,
           elapsedMs: leg.result?.elapsedMs ?? null, legPosition: row.legRankings.get(leg.entry.id)?.position ?? null,
-          restarted: leg.restarted, variantCode: leg.entry.courseVariantCode,
+          restarted: leg.restarted, variantCode: legVariant(row, view, leg),
           courseName: severalCourses(row) ? row.legCourses.get(leg.entry.leg)?.courseName ?? row.courseName : null, legOrder: leg.entry.legOrder,
           changedOver: leg.changedOver })), restarted: view.result.restarted })),
       legs: row.config.legs.map(rule => ({ leg: rule.leg, results: row.teams.flatMap(view => view.legs

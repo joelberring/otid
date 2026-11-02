@@ -29,6 +29,17 @@ export const accountSv = {
     newLink: "Be om en ny länk",
     backToLogin: "Tillbaka till inloggningen"
   },
+  /** ADR-0185: bekräftelselänken. */
+  verify: {
+    kicker: "O-Tid · Konto",
+    title: "Bekräfta e-postadressen",
+    intro: "Skriv lösenordet du valde när du skapade kontot. Då är adressen bekräftad och du loggas in.",
+    password: "Lösenord",
+    submit: "Bekräfta och logga in",
+    verifying: "Bekräftar …",
+    invalid: "Länken är ogiltig, redan använd eller har gått ut, eller så stämmer inte lösenordet. Logga in med e-post och lösenord så skickar vi en ny länk.",
+    noToken: "Länken saknar sin nyckel. Öppna länken i mejlet igen."
+  },
   me: {
     kicker: "O-Tid · Konto",
     title: "Mitt konto",
@@ -72,26 +83,33 @@ export const accountSv = {
     title: "Personuppgifter i O-Tid",
     intro: "O-Tid sparar bara det som behövs för att arrangera tävlingar och visa resultat.",
     whatTitle: "Vad som sparas",
-    accounts: "Konton: e-postadress, namn och lösenordet i krypterad form (det går inte att läsa tillbaka), när kontot skapades och senast loggade in.",
+    accounts: "Konton: e-postadress, namn och lösenordet i krypterad form (det går inte att läsa tillbaka), när kontot skapades och senast loggade in, och när e-postadressen bekräftades. Bekräftelse- och återställningslänkar sparas bara som en hash och gäller ett dygn respektive en timme.",
     races: "Tävlingar: löparnas namn, klubbar, klasser, bricknummer, starttider, stämplingar och resultat, råa avläsningar från stationerna, radiostämplingar från ROC eller OResults och, om arrangören laddar upp dem, karta och GPS-rutter.",
     runners: "Löpardatabasen (om en arrangör hämtar den från Eventor): klubbens löpare, och tillagda klubbars eller hela landets om arrangören väljer det, med Eventors id, namn, födelseår (inte hela födelsedatumet), kön, klubb och SPORTident-brickor, samt Eventors lista över klubbar. Den sparas en gång per klubb och delas av klubbens tävlingar.",
+    groups: "Träningsgrupper: gruppens namn och inställningar, ledare och medlemmar (deras konton, tillagda med e-postadress av en ledare) och gruppens tillfällen. Närvaro och poäng räknas fram ur tillfällenas publicerade resultat och sparas inte separat.",
+    courseSetting: "Banläggning: banorna, kontrollerna och ändringarna med vem som gjorde dem, notiser och kartfel med text, ritning, svar och foto (fotot görs om i webbläsaren innan det skickas, så att kamerans uppgifter som plats och tid inte följer med), vem som har kollat en kontroll och utskriftsjobben. Telefonens position i fältläget sparas inte som sådan; den används bara när du själv flyttar en kontroll eller lägger en notis där du står.",
+    printJobs: "Utskrifter: en PDF för tryck sparas i 7 dagar (högst tio per tävling) och raden om jobbet (vem, när, vad) i 30 dagar. PDF:erna tas inte med i säkerhetskopian.",
+    backup: "Säkerhetskopior: hela databasen kopieras varje timme. På servern sparas timkopiorna i två dygn och en kopia per dag i 14 dagar. Om den som driver installationen har slagit på det skickas kopiorna dessutom krypterade till en lagringstjänst utanför servern och sparas där i upp till ett år (en per timme i två dygn, en per dag i 30 dagar, en per månad i 12 månader).",
     party: "Fester: gästens namn, klubb och visningsnamn kopplat till pinnen, köpen (vara och klockslag, räknade ur pinnens stämplingar), när gästen checkade in och ut i baren, ångrade köp och vem i baren som gjorde vad.",
     selfRegistration: "Självregistrering på tävlingsdagen: namn, klubb, klass (eller visningsnamn på en fest) och bricknummer, märkt som självregistrerad. IP-adressen sparas bara som en hash med en hemlig nyckel, för spärren mot för många registreringar, och tas bort efter två dygn.",
     logs: "Loggar: vem som ändrade vad i en tävling och vad superadmin har gjort (dolt eller tagit bort tävlingar, spärrat eller tagit bort konton). Antal försök att logga in, skapa konto, återställa lösenord och självregistrera räknas per adress, som bara sparas som en hash med en hemlig nyckel.",
     whyTitle: "Varför",
     why: "För att arrangörer ska kunna genomföra tävlingen eller festen, räkna fram resultat och köp och publicera start- och resultatlistor, och för att skydda kontona mot intrång och missbruk. Löpardatabasen används för att föreslå namn, klubb och klass när en okänd bricka läses av eller en ny deltagare anmäls, även utan nät.",
     howLongTitle: "Hur länge",
-    howLong: "Tills tävlingen (festen) eller kontot tas bort. Då tas allt som hör till bort, också råa avläsningar, köp och loggar. Arrangören tar bort sin tävling under Inställningar och du tar bort ditt konto under Mitt konto. Strukna deltagare finns kvar i tävlingen men visas inte publikt. Räknarna för spärrarna tas bort efter två dygn. Löpardatabasen ersätts helt varje gång den uppdateras från Eventor och finns kvar tills den uppdateras eller raderas (Inställningar → Eventor → Radera löpardatabasen). Säkerhetskopior skrivs över efter 14 dagar.",
+    howLong: "Tills tävlingen (festen) eller kontot tas bort. Då tas allt som hör till bort, också råa avläsningar, köp och loggar. Arrangören tar bort sin tävling under Inställningar och du tar bort ditt konto under Mitt konto. Strukna deltagare finns kvar i tävlingen men visas inte publikt. Räknarna för spärrarna tas bort efter två dygn. Löpardatabasen ersätts helt varje gång den uppdateras från Eventor och finns kvar tills den uppdateras eller raderas (Inställningar → Eventor → Radera löpardatabasen). Det som tagits bort finns kvar i säkerhetskopiorna tills de skrivs över: efter 14 dagar på servern och, om kopian utanför servern är påslagen, efter upp till 12 månader där.",
     publicTitle: "Vad som är publikt",
-    public: "När arrangören har publicerat tävlingen kan alla läsa startlistor och resultat med namn, klubb och tider utan att logga in.",
+    public: "När arrangören har publicerat tävlingen kan alla läsa startlistor och resultat med namn, klubb och tider utan att logga in. Sidorna med löpare (tävlingssidan, start- och resultatlistor, fester och träningsgrupper) är stängda för sökmotorer och AI-tjänster.",
     publicItems: [
-      "Startlistan visar bricknummer som förval. Arrangören stänger av det under Inställningar → Information till löparna → ”Visa bricknummer i den publika startlistan”.",
+      "Startlistan visar inte bricknummer i nya tävlingar. Arrangören kan slå på det under Inställningar → Information till löparna → ”Visa bricknummer i den publika startlistan” (tävlingar skapade före november 2026 behåller sitt val).",
+      "Variantens bokstav i en gafflad bana och kartan visas publikt först efter start, om inte arrangören har valt annat under Publicera.",
       "Resultaten har sträcktider. Live visar senast i mål, ledare per klass och radiokontrollernas tider. Vilka löpare du följer sparas bara i din webbläsare.",
       "Självregistrerade syns i startlistan märkta ”självreg.”.",
       "Fest-sidan visar antal köp, varor och klockslag, aldrig belopp, bricknummer eller fullt namn. Visningsnamnen visas bara om arrangören slår på ”Visa namn på den publika sidan” (av från början). Fest-sidan är stängd för sökmotorer.",
       "Speakersidan, Kvar i skogen, avläsningen, baren och CSV-filerna är bara för arrangörens administratörer och funktionärer, som ser fullt namn."
     ],
     runnersPublic: "Löpardatabasen är aldrig publik: bara tävlingens administratörer och funktionärer ser den (som förslag), och den följer med avläsningssidans paket för att fungera utan nät.",
+    responsibleTitle: "Vem som ansvarar",
+    responsible: "Servern och kontona sköts av den som driver den här O-Tid-installationen (kontakt nedan). Vilka löpare och uppgifter som läggs in i en tävling, träningsgrupp eller fest bestämmer arrangören, det vill säga den som skapade den och de som den gett behörighet.",
     contactTitle: "Kontakt",
     contact: "Frågor om dina uppgifter, eller om du vill att något tas bort, skickar du till den som driver den här O-Tid-installationen:"
   }

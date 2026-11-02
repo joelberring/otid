@@ -6,7 +6,7 @@ import { createDatabase } from "@o-tid/database";
 import { requireRaceRole } from "../../src/race-session";
 import { registerUserAccount } from "../../src/user-account";
 import { createOrganizerEvent } from "../../src/organizer-events";
-import { grantRacePerson, accountOnRace } from "./accounts";
+import { grantRacePerson, accountOnRace, verifyTestAccount } from "./accounts";
 import { importIofXmlAsAdmin } from "../../src/import-iof";
 
 const base = process.env.TEST_DATABASE_URL;
@@ -59,6 +59,9 @@ describe("ADR-0168 två behörighetsnivåer", () => {
     expect((await accountOnRace(db, { ...helper.proof, raceId })).status).toBe("unauthorized");
     const granted = await grantRacePerson(db, owner.proof, raceId, `hjalp.${suffix}@test.o-tid.se`, "ADMIN");
     expect(granted.status).toBe("granted");
+    // ADR-0185: behörigheten gäller när personens e-postadress är bekräftad.
+    expect((await accountOnRace(db, { ...helper.proof, raceId })).status).toBe("unauthorized");
+    await verifyTestAccount(db, helper.result.response.accountId);
 
     const entered = await accountOnRace(db, { ...helper.proof, raceId });
     if (entered.status !== "authenticated") throw new Error("Administratören kom inte in");

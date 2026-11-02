@@ -117,3 +117,17 @@ transaktion. Vilka personuppgifter som sparas står på `/integritet` (kontakt: 
   ("Dina köp visas med ditt visningsnamn på den här sidan."). Belopp, bricknummer och fullt namn visas aldrig publikt.
 - Funktionären ser fullt namn och kan ladda ner festens köp som CSV; det är avsiktligt och står i hjälpen och under
   Personer med behörighet.
+
+## Översynen 2026-11-02 (ADR-0185)
+
+- Inget publikt om löpare indexeras: `/results`, `/starts`, `/t`, `/fest`, `/g` och hela `/api` har robots.txt-spärr (också för
+  kända AI-robotar), `X-Robots-Tag` och robots-meta (`lib/no-index.ts`). HSTS i Caddy. `/_next/image` är avstängd.
+- Före start: variantens bokstav (startlistan, dess IOF XML, stafettlistan) och kartbilden är dolda publikt tills löparen
+  (varianten) eller tävlingen (kartan) har startat eller banorna är publika, om inte arrangören valt "Direkt" under Publicera.
+  Bricknummer i den publika startlistan är av för nya tävlingar.
+- Behörigheter som andra ger med e-postadressen gäller först när adressen är bekräftad (`user_account.email_verified_at`).
+  Med e-post svarar registreringen och glömt lösenord likadant oavsett om adressen finns, och arbetet görs efter svaret.
+  Bekräftelselänken kräver lösenordet från samma registrering.
+- Databasen: `otid_app` för webben (ingen superuser, inga schemaändringar), `otid_print` för utskriftsarbetaren (bara kön,
+  tävlingens namn och kartfilen), `otid_owner` för migrering och backup. Eventors masternyckel och SMTP bara i `web`.
+- Alla XML-läsare (IOF, GPX, Eventor och Mapper) avvisar DTD/DOCTYPE/ENTITY.

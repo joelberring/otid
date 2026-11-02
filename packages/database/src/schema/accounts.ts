@@ -29,6 +29,8 @@ export const userAccounts = pgTable("user_account", {
   isSuperadmin: boolean("is_superadmin").notNull().default(false),
   blockedAt: timestamp("blocked_at", { withTimezone: true }),
   lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+  /** ADR-0185 (migration 0038): när adressen bekräftades. NULL = obekräftad; behörigheter från andra gäller då inte. */
+  emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (table) => [
   uniqueIndex("user_account_email_uidx").on(table.email),
@@ -72,13 +74,13 @@ export const userAccountLoginThrottles = pgTable("user_account_login_throttle", 
 
 /** Spärr mot upprepade registreringar och återställningsförfrågningar; nyckeln (IP eller e-post) lagras hashad. */
 export const accountRequestThrottles = pgTable("account_request_throttle", {
-  scope: text("scope").$type<"REGISTER_IP" | "RESET_IP" | "RESET_EMAIL" | "SELF_REGISTRATION_IP" | "SELF_REGISTRATION_RACE">().notNull(),
+  scope: text("scope").$type<"REGISTER_IP" | "RESET_IP" | "RESET_EMAIL" | "SELF_REGISTRATION_IP" | "SELF_REGISTRATION_RACE" | "VERIFY_EMAIL">().notNull(),
   keyHash: text("key_hash").notNull(),
   windowStartedAt: timestamp("window_started_at", { withTimezone: true }).notNull(),
   attempts: integer("attempts").notNull()
 }, (table) => [
   primaryKey({ columns: [table.scope, table.keyHash] }),
-  check("account_request_throttle_scope_check", sql`${table.scope} IN ('REGISTER_IP', 'RESET_IP', 'RESET_EMAIL', 'SELF_REGISTRATION_IP', 'SELF_REGISTRATION_RACE')`),
+  check("account_request_throttle_scope_check", sql`${table.scope} IN ('REGISTER_IP', 'RESET_IP', 'RESET_EMAIL', 'SELF_REGISTRATION_IP', 'SELF_REGISTRATION_RACE', 'VERIFY_EMAIL')`),
   check("account_request_throttle_key_check", sql`${table.keyHash} ~ '^[a-f0-9]{64}$'`),
   check("account_request_throttle_attempts_check", sql`${table.attempts} >= 0`)
 ]);
@@ -98,6 +100,26 @@ export const passwordResetTokens = pgTable("password_reset_token", {
   check("password_reset_token_hash_check", sql`${table.tokenHash} ~ '^[a-f0-9]{64}$'`),
   check("password_reset_token_lifetime_check",
     sql`${table.expiresAt} > ${table.createdAt} AND ${table.expiresAt} <= ${table.createdAt} + interval '1 hour'`)
+]);
+
+/** ADR-0185: bekräftelselänken för e-postadressen. Hash av engångsnyckeln och registreringens lösenord, ett dygn, en gång. */
+export const emailVerificationTokens = pgTable("email_verification_token", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  accountId: uuid("account_id").notNull().references(() => userAccounts.id),
+  tokenHash: text("token_hash").notNull(),
+  saltHex: text("salt_hex").notNull(),
+  verifierHex: text("verifier_hex").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  usedAt: timestamp("used_at", { withTimezone: true })
+}, (table) => [
+  uniqueIndex("email_verification_token_hash_uidx").on(table.tokenHash),
+  index("email_verification_token_account_idx").on(table.accountId, table.createdAt),
+  check("email_verification_token_hash_check", sql`${table.tokenHash} ~ '^[a-f0-9]{64}$'`),
+  check("email_verification_token_salt_check", sql`${table.saltHex} ~ '^[a-f0-9]{32}$'`),
+  check("email_verification_token_verifier_check", sql`${table.verifierHex} ~ '^[a-f0-9]{64}$'`),
+  check("email_verification_token_lifetime_check",
+    sql`${table.expiresAt} > ${table.createdAt} AND ${table.expiresAt} <= ${table.createdAt} + interval '1 day'`)
 ]);
 
 export type SuperadminActionKind = "GRANT_SUPERADMIN" | "REVOKE_SUPERADMIN" | "HIDE_RACE" | "UNHIDE_RACE" |

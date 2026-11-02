@@ -15,6 +15,7 @@ import {
   passwordResetAvailabilitySchema,
   passwordResetCompleteResponseSchema,
   passwordResetRequestResponseSchema,
+  passwordResetRequestSchema,
   raceCopyResponseSchema
 } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
@@ -32,7 +33,7 @@ import {
   sessionProof,
   setSessionCookies
 } from "./security-policy";
-import { mailEnabled, mailErrorSummary, sendPasswordResetMail } from "./mail";
+import { mailEnabled, runInBackground, sendPasswordResetMail, type Background } from "./mail";
 import { operatorContactEmail } from "./operator-contact";
 import { UUID_PATTERN as UUID } from "@o-tid/contracts";
 
@@ -81,28 +82,27 @@ export async function passwordResetAvailabilityRoute(request: Request, environme
   }));
 }
 
-/** Samma svar oavsett om adressen finns. Bara ett befintligt, ospärrat konto får ett mejl. */
+/**
+ * Samma svar oavsett om adressen finns. Bara ett befintligt, ospärrat konto får ett mejl. ADR-0185: allt utom formatkontrollen
+ * görs efter svaret (`background`), så att svarstiden inte heller avslöjar om adressen har ett konto.
+ */
 export async function passwordResetRequestRoute(
   db: Database, request: Request, environment: Environment = process.env, send: SendMail = sendPasswordResetMail,
-  reset: typeof requestPasswordReset = requestPasswordReset
+  reset: typeof requestPasswordReset = requestPasswordReset, background: Background = runInBackground
 ): Promise<Response> {
   const input = await mutation(request, environment);
   if ("response" in input) return input.response;
   const mail = mailEnabled(environment);
   if (!mail) return accountFailure(503, "MAIL_DISABLED");
-  try {
-    const result = await reset(db, input.body, { clientKey: clientAddress(request) });
-    if (result.status === "invalid-request") return failure(result.status);
-    if (result.delivery) {
-      const link = `${input.policy.publicOrigin}/recover#token=${result.delivery.token}`;
-      try {
-        await send(mail, { to: result.delivery.email, displayName: result.delivery.displayName, link, expiresAt: result.delivery.expiresAt });
-      } catch (error) {
-        console.error(`Återställningsmejlet kunde inte skickas (${mailErrorSummary(error)}).`);
-      }
-    }
-    return privateJson(passwordResetRequestResponseSchema.parse({ formatVersion: 1, status: "accepted" }), 202);
-  } catch { return accountFailure(500, "INTERNAL_ERROR"); }
+  if (!passwordResetRequestSchema.safeParse(input.body).success) return failure("invalid-request");
+  const clientKey = clientAddress(request);
+  background("Återställningsmejlet", async () => {
+    const result = await reset(db, input.body, { clientKey });
+    if (result.status !== "accepted" || !result.delivery) return;
+    const link = `${input.policy.publicOrigin}/recover#token=${result.delivery.token}`;
+    await send(mail, { to: result.delivery.email, displayName: result.delivery.displayName, link, expiresAt: result.delivery.expiresAt });
+  });
+  return privateJson(passwordResetRequestResponseSchema.parse({ formatVersion: 1, status: "accepted" }), 202);
 }
 
 export async function passwordResetCompleteRoute(db: Database, request: Request, environment: Environment = process.env): Promise<Response> {

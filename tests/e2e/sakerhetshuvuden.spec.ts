@@ -104,4 +104,22 @@ test("säkerhetshuvuden: publika sidor, admin, avläsningen, festen och API:t", 
   expect(api.headers()["content-security-policy"]).toBe("default-src 'none'; frame-ancestors 'none'");
   expect((await visitor.request.get(`/api/public/parties/${raceId}/logo`)).headers()["content-security-policy"]).toBe("default-src 'none'; sandbox");
   expect(ownerErrors).toEqual([]);
+
+  // ADR-0185: inget publikt om löpare indexeras (robots.txt, X-Robots-Tag och robots-meta), startsidan och Om gör det.
+  const robots = await (await visitor.request.get("/robots.txt")).text();
+  for (const path of ["/results/", "/starts/", "/t/", "/fest/", "/g/", "/api/"]) expect(robots).toContain(`Disallow: ${path}`);
+  expect(robots).toContain("User-Agent: GPTBot");
+  expect(robots).toContain("User-Agent: ClaudeBot");
+  for (const path of [`/results/${raceId}`, `/starts/${raceId}`, `/api/public/races/${raceId}/results`, `/api/races/${raceId}/start-list`]) {
+    expect((await visitor.request.get(path)).headers()["x-robots-tag"], path).toBe("noindex, nofollow, noarchive, nosnippet, noai, noimageai");
+  }
+  for (const path of ["/", "/om"]) expect((await visitor.request.get(path)).headers()["x-robots-tag"], path).toBeUndefined();
+  await visitor.goto(`/results/${raceId}`);
+  await expect(visitor.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex, nofollow/);
+  // Bildoptimeringen är avstängd (next/image används inte).
+  expect((await visitor.request.get("/_next/image?url=%2Ffavicon.ico&w=64&q=75")).status()).toBe(404);
+  // HSTS kommer från Caddy, alltså bara mot driftmiljön.
+  if (process.env.E2E_BASE_URL?.startsWith("https://")) {
+    expect((await visitor.request.get("/om")).headers()["strict-transport-security"]).toBe("max-age=31536000");
+  }
 });

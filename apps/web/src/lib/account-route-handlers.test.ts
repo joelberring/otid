@@ -10,6 +10,14 @@ const post = (email: string) => new Request("https://tid.klubb.se/api/account/pa
   headers: { origin: env.O_TID_PUBLIC_ORIGIN, "content-type": "application/json", "x-forwarded-for": "198.51.100.4" },
   body: JSON.stringify({ formatVersion: 1, email }) });
 
+/** ADR-0185: arbetet efter svaret samlas här och körs när testet vill (som `runInBackground` i drift, fast styrt). */
+function laterQueue() {
+  const tasks: (() => Promise<void>)[] = [];
+  const labels: string[] = [];
+  return { background: (label: string, task: () => Promise<void>) => { labels.push(label); tasks.push(task); }, labels,
+    run: async () => { for (const task of tasks.splice(0)) await task(); } };
+}
+
 describe("ADR-0172 glömt lösenord", () => {
   it("visar om e-post är påslagen och vem man annars kontaktar", async () => {
     const off = await passwordResetAvailabilityRoute(new Request("https://tid.klubb.se/api/account/password-reset"),
@@ -26,10 +34,15 @@ describe("ADR-0172 glömt lösenord", () => {
       ? { status: "accepted" as const, delivery: { accountId: "x", email: "anna@klubb.se", displayName: "Anna", token: "T".repeat(43),
         expiresAt: new Date("2026-10-05T16:30:00Z") } }
       : { status: "accepted" as const }) as unknown as typeof requestPasswordReset;
-    const known = await passwordResetRequestRoute(db, post("anna@klubb.se"), env, send, reset);
-    const unknown = await passwordResetRequestRoute(db, post("okand@klubb.se"), env, send, reset);
+    const later = laterQueue();
+    const known = await passwordResetRequestRoute(db, post("anna@klubb.se"), env, send, reset, later.background);
+    const unknown = await passwordResetRequestRoute(db, post("okand@klubb.se"), env, send, reset, later.background);
     expect([known.status, unknown.status]).toEqual([202, 202]);
     expect(await known.text()).toBe(await unknown.text());
+    // ADR-0185: svaret ges innan kontot slås upp och mejlet skickas, så svarstiden avslöjar inget.
+    expect(reset).not.toHaveBeenCalled();
+    expect(send).not.toHaveBeenCalled();
+    await later.run();
     expect(send).toHaveBeenCalledTimes(1);
     expect(send).toHaveBeenCalledWith(expect.objectContaining({ status: "on" }), expect.objectContaining({
       to: "anna@klubb.se", link: `https://tid.klubb.se/recover#token=${"T".repeat(43)}` }));
@@ -41,7 +54,10 @@ describe("ADR-0172 glömt lösenord", () => {
     const send = vi.fn(async () => { throw Object.assign(new Error("550 <anna@klubb.se>"), { code: "EENVELOPE" }); });
     const reset = vi.fn(async () => ({ status: "accepted" as const, delivery: { accountId: "x", email: "anna@klubb.se", displayName: "Anna",
       token: "T".repeat(43), expiresAt: new Date() } })) as unknown as typeof requestPasswordReset;
-    expect((await passwordResetRequestRoute(db, post("anna@klubb.se"), env, send, reset)).status).toBe(202);
+    const later = laterQueue();
+    expect((await passwordResetRequestRoute(db, post("anna@klubb.se"), env, send, reset, later.background)).status).toBe(202);
+    // Som i drift (`runInBackground`): felet fångas och loggas utan adress.
+    await later.run().catch((error: unknown) => console.error(`Återställningsmejlet misslyckades (${(error as { code?: string }).code}).`));
     expect(log.mock.calls.join(" ")).toContain("EENVELOPE");
     expect(log.mock.calls.join(" ")).not.toContain("anna@klubb.se");
     log.mockRestore();

@@ -511,7 +511,9 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
         ...(event.printProfiles ? { printProfiles: event.printProfiles } : {}), ...(event.printProfileId ? { printProfileId: event.printProfileId } : {}),
         ...(event.layoutTemplates ? { layoutTemplates: event.layoutTemplates } : {}),
         // Ringklippen står inte heller i .ppen-filen (ADR-0180 beslut 10).
-        ...(event.circleCutting ? { circleCutting: event.circleCutting } : {}) } };
+        ...(event.circleCutting ? { circleCutting: event.circleCutting } : {}) },
+        // ADR-0192 beslut 10: en fil som sparats i Purple Pen saknar träningen; den nuvarande följer då med.
+        ...(!file.document.training && document.training ? { training: document.training } : {}) };
       file = { ...file, document: imported };
       const outcome = await importCourseSetting(raceId, { document: file.document, expectedVersion: sync.version, fileName: file.fileName, ppen: file.ppen });
       if (outcome.kind === "conflict") { say({ tone: "error", text: text.status.conflict }); sync.remote(outcome.conflict.current?.version ?? sync.version + 1); return; }

@@ -74,9 +74,9 @@
 .fieldBar { box-shadow: 0 -2px 10px rgba(0, 0, 0, .15); }
 .cardHead { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 
-.drawer { --drawer-width: 380px; position: relative; display: grid; grid-template-columns: 6px 48px minmax(0, 1fr); width: var(--drawer-width);
+.drawer { --drawer-width: 380px; position: relative; display: grid; grid-template-columns: 6px 84px minmax(0, 1fr); width: var(--drawer-width);
   min-height: 0; border-left: 1px solid var(--line-strong); background: var(--surface); }
-.drawer[data-collapsed] { grid-template-columns: 0 48px 0; width: 48px; }
+.drawer[data-collapsed] { grid-template-columns: 0 84px 0; width: 84px; }
 .drawer[data-collapsed] .tabpanel, .drawer[data-collapsed] .resize { display: none; }
 .resize { cursor: col-resize; background: var(--line); touch-action: none; }
 .resize:hover, .resize:focus-visible { background: var(--ink); outline: none; }
@@ -87,7 +87,16 @@
 .tab[aria-selected="true"] { background: var(--ink); color: var(--surface); font-weight: 700; }
 .tab:hover:not([aria-selected="true"]), .collapse:hover { background: var(--surface-strong, rgba(0, 0, 0, .06)); }
 .tabIcon { font-size: 1.1rem; }
-.tabLabel { max-width: 44px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* ADR-0188: hela namnet under ikonen (inte avkortat). */
+.tabLabel { max-width: 80px; line-height: 1.15; text-align: center; overflow-wrap: anywhere; }
+.tab { font-size: 0.7rem; }
+/* "Mer" finns bara på telefonen. */
+.tabMore { display: none; position: relative; }
+.tabMenu { position: absolute; right: 0; bottom: calc(100% + 4px); z-index: 20; display: grid; min-width: 12rem; padding: 4px;
+  border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); box-shadow: 0 4px 16px rgba(0, 0, 0, .22); }
+.tabMenu > button { min-height: 40px; padding: 6px 10px; border: none; border-radius: 6px; background: none; color: inherit; font: inherit;
+  text-align: left; cursor: pointer; }
+.tabMenu > button:hover { background: var(--surface-strong, rgba(0, 0, 0, .06)); }
 .badge { position: absolute; top: 2px; right: 2px; min-width: 18px; padding: 0 4px; border-radius: 9px; background: var(--attention, #c60);
   color: #fff; font-size: 0.65rem; font-weight: 700; line-height: 18px; }
 .tabpanel { display: grid; align-content: start; gap: 10px; min-height: 0; padding: 10px; overflow-y: auto; overscroll-behavior: contain; }
@@ -226,10 +235,13 @@
   .topbar select { flex: 0 1 auto; min-width: 7.5em; max-width: 45vw; }
   .topbar button { min-width: 36px; padding-inline: 8px; }
   .toasts { right: 56px; }
-  /* Alla tio flikarna får plats på 390 px: ikonen för de andra, namnet bara på vald flik (namnet finns kvar för skärmläsare). */
-  .tabs { gap: 0; overflow-x: hidden; }
-  .tab { flex: 1 1 auto; min-width: 32px; padding-inline: 2px; }
-  .tab:not([aria-selected="true"]) .tabLabel { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  /* ADR-0188: de vanligaste flikarna med namn, vald flik och resten under "Mer". */
+  .tabs { gap: 0; overflow: visible; }
+  .tab { flex: 1 1 auto; min-width: 32px; padding-inline: 4px; }
+  .tab[data-phone-more]:not([aria-selected="true"]) { display: none; }
+  .tabMore { display: flex; flex: 0 0 auto; }
+  /* Sparstatusen står i fältets rad nertill; inte en gång till överst. */
+  .topbar .status { display: none; }
 }
 
 /* Steg 64: fliken Objekt – slagen att rita och objekten på kartan. */

@@ -554,6 +554,20 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
   const draft = suggesting ? <SuggestionDraft count={editor.log.length} onSend={sendSuggestion}
     onDiscard={() => store.update(next => endSuggestion(next, true))} /> : undefined;
 
+  // Fältläget (grenen faltlage-snabb, steg 67 bygger vidare): position, Flytta hit, pilar och Uppgifter; på smal skärm i
+  // raden nertill i stället för rutan med vald kontroll.
+  // Banväljaren finns i fältets rad på telefonen (raden överst har den på bredare skärm).
+  const variantsByCourse = useMemo(() => Object.fromEntries(summaries.map(row => [row.course, row.variants.map(item => item.code)])), [summaries]);
+  const field = useFieldMode({ raceId, state: editor, apply: edit, georeference, mapBounds, status, statusText: shownStatus, offline: offline.offline,
+    readOnly, onView: (next, code) => apply(current => setView(current, next, code)), variants: variantsByCourse, variant,
+    inspection: selectedControl ? inspections.get(selectedControl) : undefined, saved: id => Boolean(sync.document.controls[id]),
+    onInspect: (control, checked, position) => void offline.enqueueInspection({ formatVersion: 1, control, checked, at: new Date().toISOString(),
+      position }).catch(error => console.error("Bocken sparades inte i telefonen", error)),
+    onNote: ({ target, at, text: value, photo }) => notes.queueNote(target, at, value, photo), onSketch: () => notes.startSketch("MAP_ERROR"),
+    onList: () => { setTab("inspections"); setReveal(value => value + 1); },
+    onOffline: () => setOfflineDialog(true),
+    suggestion: readOnly ? undefined : <FieldSuggestionLine document={document} control={selectedControl} state={suggestions} symbols={symbols}
+      onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} /> });
   const panel = (() => {
     switch (tab) {
       case "courses": return <><CourseList document={document} summaries={summaries} view={view} readOnly={readOnly}
@@ -610,7 +624,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
       }} />;
       case "notes": return notes.panel;
       case "inspections": return <InspectionsPanel rows={inspectionList} selected={selection?.kind === "control" ? selection.control : undefined}
-        offline={offline.offline}
+        offline={offline.offline} action={field.inspect}
         onSelect={control => {
           apply(current => select(current, { kind: "control", control }));
           const at = document.controls[control]?.at;
@@ -639,20 +653,6 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
     }
   })();
 
-  // Fältläget (grenen faltlage-snabb, steg 67 bygger vidare): position, Flytta hit, pilar och Uppgifter; på smal skärm i
-  // raden nertill i stället för rutan med vald kontroll.
-  // Banväljaren finns i fältets rad på telefonen (raden överst har den på bredare skärm).
-  const variantsByCourse = useMemo(() => Object.fromEntries(summaries.map(row => [row.course, row.variants.map(item => item.code)])), [summaries]);
-  const field = useFieldMode({ raceId, state: editor, apply: edit, georeference, mapBounds, status, statusText: shownStatus, offline: offline.offline,
-    readOnly, onView: (next, code) => apply(current => setView(current, next, code)), variants: variantsByCourse, variant,
-    inspection: selectedControl ? inspections.get(selectedControl) : undefined, saved: id => Boolean(sync.document.controls[id]),
-    onInspect: (control, checked, position) => void offline.enqueueInspection({ formatVersion: 1, control, checked, at: new Date().toISOString(),
-      position }).catch(error => console.error("Bocken sparades inte i telefonen", error)),
-    onNote: ({ target, at, text: value, photo }) => notes.queueNote(target, at, value, photo), onSketch: () => notes.startSketch("MAP_ERROR"),
-    onList: () => { setTab("inspections"); setReveal(value => value + 1); },
-    onOffline: () => setOfflineDialog(true),
-    suggestion: readOnly ? undefined : <FieldSuggestionLine document={document} control={selectedControl} state={suggestions} symbols={symbols}
-      onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} /> });
   useLockedPage();
   // ADR-0180 beslut 14: Objekt öppnar paletten (också i telefonens kompakta läge, bakom "Mer").
   const toolBar = <ToolBar tool={ux.palette ? "SPECIAL" : editor.tool} tools={tools} inCourse={view !== ALL_CONTROLS} onTool={tool => {

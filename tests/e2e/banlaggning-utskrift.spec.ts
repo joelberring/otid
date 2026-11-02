@@ -133,8 +133,10 @@ test("banläggning-utskrift: förbjudet område, beskrivningen på kartan, A4 li
   await expect(phone.getByRole("tab", { name: "Utskrift" })).toBeHidden();
   await more.click();
   await expect(phone.getByRole("button", { name: /Specialobjekt/ })).toBeVisible();
+  // ADR-0188: Utskrift ligger under lådans "Mer" (de vanligaste flikarna syns med namn).
+  await phone.getByTestId("course-setting-tab-more").click();
+  await phone.getByRole("menuitem", { name: /Utskrift/ }).click();
   await expect(phone.getByRole("tab", { name: "Utskrift" })).toBeVisible();
-  await phone.getByRole("tab", { name: "Utskrift" }).click();
   await expect(phone.getByTestId("course-setting-print")).toBeVisible();
   if (process.env.E2E_SCREENSHOT_DIR) await phone.screenshot({ path: `${process.env.E2E_SCREENSHOT_DIR}/banlaggning-utskrift-telefon-mer.png` });
   await phoneContext.close();

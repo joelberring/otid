@@ -74,7 +74,9 @@ test("banläggning-utseende: större ringar och nummer och kod (1-31) på kartan
   const more = phone.getByTestId("course-setting-field-more");
   await expect(more).toBeVisible({ timeout: 60_000 });
   await more.click();
-  await phone.getByRole("tab", { name: "Inställningar" }).click();
+  // ADR-0188: flikarna som inte får plats ligger under lådans "Mer".
+  await phone.getByTestId("course-setting-tab-more").click();
+  await phone.getByRole("menuitem", { name: /Inställningar/ }).click();
   await expect(phone.getByTestId("appearance-circleSize")).toHaveValue("1.25");
   expect(await phone.evaluate(() => window.document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   const shots = process.env.E2E_SCREENSHOT_DIR;

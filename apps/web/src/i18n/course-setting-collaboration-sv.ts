@@ -43,6 +43,7 @@ export const collaborationSv = {
     collapse: "Fäll ihop panelerna",
     expand: "Visa panelerna",
     resize: "Ändra panelernas bredd",
+    more: "Mer",
     tabs: { courses: "Banor", description: "Beskrivning", selected: "Vald", objects: "Objekt", print: "Utskrift", checks: "Varningar", notes: "Notiser",
       inspections: "Kollat",
       suggestions: "Förslag", settings: "Inställningar" },

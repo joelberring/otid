@@ -1,6 +1,8 @@
+import { fileURLToPath } from "node:url";
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { createRace, daysFromToday, openStep, registerAccount, unique } from "./helpers";
+import { createRace, daysFromToday, openStep, registerAccount, unique, warmCourseSetting } from "./helpers";
 
+const fixture = (path: string) => fileURLToPath(new URL(`../../fixtures/${path}`, import.meta.url));
 const CLASSES = ["D10", "D12", "D14", "D16", "D21", "H10", "H12", "H14", "H16", "H21"] as const;
 
 /** Påhittad banfil: en bana per klass, klasserna i par med samma första kontroll. */
@@ -189,4 +191,53 @@ test("arbetsytan går inte utanför skärmen på 390 px", async ({ browser }) =>
     await owner.waitForTimeout(500);
     await fitsWidth(owner);
   }
+});
+
+/**
+ * ADR-0188: banläggningen. På datorn har lådans flikar hela namn och fältlägets Kollad och Notis här syns inte utanför
+ * fältläget; på telefonen syns de vanligaste flikarna med namn och resten under Mer, och Sparat och Ångra finns en gång.
+ */
+test("banläggningen: hela fliknamn, fältknappar bara i fältet och inga dubbletter i mobilen", async ({ browser }) => {
+  test.setTimeout(300_000);
+  const suffix = unique();
+  const owner = await registerAccount(browser, `ux.bana.${suffix}@exempel.se`, "Bo Bana");
+  const raceId = await createRace(owner, `UX banläggning ${suffix}`, daysFromToday(30));
+  await warmCourseSetting(owner, raceId);
+  await owner.goto(`/admin/${raceId}/course-setting`);
+  await owner.getByLabel("Kartfil (.ocd, .omap eller .xmap, högst 60 MB)").setInputFiles(fixture("maps/kartfil.omap"));
+  await owner.getByRole("button", { name: "Ladda upp kartfil (OCAD eller Mapper)" }).click();
+  await expect(owner.getByRole("heading", { name: "Ingen banläggning än" })).toBeVisible({ timeout: 60_000 });
+  await owner.getByLabel("Purple Pen-fil (.ppen)").setInputFiles(fixture("course-setting/kartfil.ppen"));
+  await owner.getByRole("button", { name: "Läs in .ppen" }).click();
+  await expect(owner.getByText(/Inläst: 2 banor och 9 kontroller\./)).toBeVisible();
+  await owner.setViewportSize({ width: 1280, height: 900 });
+  await owner.reload();
+  await expect(owner.getByText("Läser kartfilen …")).toHaveCount(0, { timeout: 60_000 });
+  // Hela namn, inget avkortat.
+  for (const name of ["Banor", "Beskrivning", "Vald", "Objekt", "Utskrift", "Varningar", "Notiser", "Kollat", "Förslag", "Inställningar"]) {
+    const tab = owner.getByRole("tab", { name: new RegExp(`^${name}`) });
+    await expect(tab).toBeVisible();
+    expect(await tab.evaluate(element => element.scrollWidth <= element.clientWidth + 1), name).toBe(true);
+  }
+  await owner.getByTestId("course-setting-view").selectOption({ label: "Lång" });
+  await owner.getByText("kontroll 31", { exact: true }).click();
+  await expect(owner.getByTestId("course-setting-inspect")).toHaveCount(0);
+  await expect(owner.getByTestId("course-setting-note-here-button")).toHaveCount(0);
+  if (shots) await owner.screenshot({ path: `${shots}/efter-banlaggning-1280.png` });
+
+  const phone = await (await browser.newContext({ storageState: await owner.context().storageState(), viewport: { width: 390, height: 844 },
+    hasTouch: true, isMobile: true })).newPage();
+  await phone.goto(`/admin/${raceId}/course-setting`);
+  await expect(phone.getByText("Läser kartfilen …")).toHaveCount(0, { timeout: 60_000 });
+  await phone.getByTestId("course-setting-field-course").selectOption({ label: "Lång" });
+  await expect(phone.locator("[role=status]:visible", { hasText: /^Sparat$/ })).toHaveCount(1);
+  await phone.getByTestId("course-setting-field-more").click();
+  await expect(phone.getByRole("button", { name: "Ångra" })).toHaveCount(1);
+  await expect(phone.getByRole("tab", { name: "Inställningar" })).toBeHidden();
+  await phone.getByTestId("course-setting-tab-more").click();
+  await expect(phone.getByRole("menuitem", { name: /Inställningar/ })).toBeVisible();
+  if (shots) await phone.screenshot({ path: `${shots}/efter-banlaggning-390.png` });
+  await phone.getByRole("menuitem", { name: /Inställningar/ }).click();
+  await expect(phone.getByRole("tab", { name: "Inställningar" })).toBeVisible();
+  await fitsWidth(phone);
 });

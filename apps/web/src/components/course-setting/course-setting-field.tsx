@@ -7,7 +7,7 @@ import type { MapGeoreference, Point } from "@o-tid/map-file";
 import { courseSettingFieldSv as text } from "../../i18n/course-setting-field-sv";
 import { offlineSv as copy } from "../../i18n/course-setting-offline-sv";
 import { notesSv } from "../../i18n/course-setting-notes-sv";
-import { applySteps, undo, type EditorState } from "../../lib/course-setting-editor";
+import { applySteps, type EditorState } from "../../lib/course-setting-editor";
 import type { SyncStatus } from "../../lib/course-setting-sync";
 import { withFieldDescription } from "../../lib/course-setting-field";
 import {
@@ -131,6 +131,8 @@ export interface FieldMode {
   readonly tools: ReactNode;
   /** Raden nertill (smal skärm). */
   readonly bar: ReactNode;
+  /** ADR-0188: "Kollad" för vald kontroll i fliken Kollat (datorn, utanför fältläget). */
+  readonly inspect: ReactNode;
   /**
    * Smal skärm: "Mer" är öppnat (verktygen, flikarna och de mindre vanliga knapparna syns). Annars är raden så liten som
    * möjligt så att kartan får plats (ägaren 2026-11-01: "måste kunna se kartan … oftast vill man bara justera och
@@ -317,7 +319,8 @@ export function useFieldMode(input: FieldInput): FieldMode {
   const tools = <div className={css.tools}>
     {positionButton}
     {active && !readOnly && <>{moveButton}{selected && arrows}</>}
-    {selected && <>{inspectButton}{noteButton}</>}
+    {/* ADR-0188: Kollad och Notis här hör till fältet – på datorn bara när positionen är på (fältläget). */}
+    {active && selected && <>{inspectButton}{noteButton}</>}
     {!selected && active && noteButton}
     {(info || note || inspectedLine) && <div className={css.toolLines}>{lines}{inspectedLine}</div>}
     {cameraInput}{noteSheet}
@@ -369,7 +372,6 @@ export function useFieldMode(input: FieldInput): FieldMode {
         onClick={() => { setExpanded(false); input.onSketch!(); }}>{notesSv.sketch.drawMapError}</button>}
       <button type="button" className={css.big} onClick={input.onList}>{copy.list}</button>
       <button type="button" className={css.big} onClick={input.onOffline}>{copy.offlineButton}</button>
-      {!readOnly && <button type="button" className={css.big} disabled={state.past.length === 0} onClick={() => apply(undo)}>{text.undo}</button>}
     </div>}
     {cameraInput}{noteSheet}
     {details && selected && selectedPoint?.kind === "NORMAL" && <DetailsSheet key={selected} label={label ?? ""}
@@ -384,7 +386,10 @@ export function useFieldMode(input: FieldInput): FieldMode {
   </div>;
 
   return { narrow, position: position ? { position, follow: mode === "follow", heading } : undefined,
-    onPan: () => setMode(current => current === "follow" ? "on" : current), tools, bar, expanded };
+    onPan: () => setMode(current => current === "follow" ? "on" : current), tools, bar, expanded,
+    inspect: !narrow && !active && canInspect ? <button type="button" className={css.big} aria-pressed={inspected}
+      data-testid="course-setting-inspect-selected" onClick={inspect}>{inspected ? copy.inspection.checked : copy.inspection.selected(label ?? "")}</button>
+      : undefined };
 }
 
 /**

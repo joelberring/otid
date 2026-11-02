@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { offlineSv as text } from "../../i18n/course-setting-offline-sv";
 import { filterInspectionRows, type InspectionFilter, type InspectionRow } from "../../lib/course-setting-inspections";
 import type { StoredMapInfo } from "../../lib/course-setting-offline";
@@ -8,14 +8,17 @@ import { Button } from "../ui";
 import styles from "./course-setting.module.css";
 
 /** Steg 67: kontrollerna i banan som visas (eller alla) med "kollad", filtret "Ej kollade" och klick som visar kontrollen. */
-export function InspectionsPanel({ rows, selected, onSelect, offline }: { rows: readonly InspectionRow[]; selected: string | undefined;
-  onSelect: (control: string) => void; offline: boolean }) {
+export function InspectionsPanel({ rows, selected, onSelect, offline, action }: { rows: readonly InspectionRow[]; selected: string | undefined;
+  onSelect: (control: string) => void; offline: boolean;
+  /** ADR-0188: "Kollad" för vald kontroll (datorn, utanför fältläget). */
+  action?: ReactNode }) {
   const [filter, setFilter] = useState<InspectionFilter>("UNCHECKED");
   const visible = filterInspectionRows(rows, filter);
   const checked = rows.filter(row => row.inspection).length;
   return <section className={styles.panel} aria-labelledby="course-setting-inspections" data-testid="course-setting-inspections">
     <h2 id="course-setting-inspections">{text.inspection.heading}</h2>
     <p className={styles.muted}>{text.inspection.count(checked, rows.length)}</p>
+    {action && <div className={styles.row}>{action}</div>}
     <div className={styles.segmented} role="group" aria-label={text.inspection.filter}>
       {(["UNCHECKED", "ALL"] as const).map(value => <Button key={value} variant="secondary" aria-pressed={filter === value}
         onClick={() => setFilter(value)}>{text.inspection.filters[value]}</Button>)}

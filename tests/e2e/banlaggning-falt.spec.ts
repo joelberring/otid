@@ -223,7 +223,9 @@ test("fältläget: kollad, notis med foto och ändringar utan nät som sparas n�
   await expect(kimList.getByRole("button", { name: /^33 ✓ Kollad av Bea Banläggare/ })).toBeVisible();
   // Bankontrollanten bockar 31; telefonen ser det via strömmen.
   await kimList.getByRole("button", { name: /^31 / }).click();
-  await kim.getByTestId("course-setting-inspect").click();
+  // ADR-0188: på datorn utanför fältläget bockas kontrollen i fliken Kollat.
+  await expect(kim.getByTestId("course-setting-inspect")).toHaveCount(0);
+  await kim.getByTestId("course-setting-inspect-selected").click();
   await expect(kim.getByTestId("course-setting-inspected-by")).toContainText("Kollad av Kim Kontrollant");
   await screenshot(kim, "falt-kontrollant");
   await expect.poll(async () => ((await (await phone.request.get(`${admin}/course-setting/inspections`)).json()) as Inspections).inspections

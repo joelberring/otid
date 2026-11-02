@@ -104,6 +104,11 @@ export function ToolBar({ tool, tools, onTool, onFork, inCourse, help }: { tool:
 export type DrawerTab = "courses" | "description" | "selected" | "objects" | "print" | "checks" | "notes" | "inspections" | "suggestions" | "settings";
 const TAB_ICON: Record<DrawerTab, string> = { courses: "☰", description: "▦", selected: "◉", objects: "◇", print: "⎙", checks: "⚠", notes: "✎",
   inspections: "✓", suggestions: "⇄", settings: "⚙" };
+/**
+ * ADR-0188: flikarna har hela namn. På datorn står alla i lådans list; på telefonen (under 700 px) syns de här, vald flik
+ * och "Mer" med resten.
+ */
+const PHONE_TABS: readonly DrawerTab[] = ["courses", "selected", "description", "notes"];
 const WIDTH_KEY = "otid.course-setting.drawer";
 
 function readWidth(): number {
@@ -118,11 +123,21 @@ export function Drawer({ tab, onTab, counts, children, reveal }: { tab: DrawerTa
   const [collapsed, setCollapsed] = useState(false);
   const [width, setWidth] = useState(380);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
   useEffect(() => { setWidth(readWidth()); }, []);
+  useEffect(() => {
+    if (!moreOpen) return;
+    const close = (event: PointerEvent) => { if (!moreRef.current?.contains(event.target as Node)) setMoreOpen(false); };
+    window.addEventListener("pointerdown", close);
+    return () => window.removeEventListener("pointerdown", close);
+  }, [moreOpen]);
   useEffect(() => { if (reveal) { setCollapsed(false); setSheetOpen(true); } }, [reveal]);
   const drag = useRef<{ startX: number; width: number } | undefined>(undefined);
   const sheetDrag = useRef<number | undefined>(undefined);
   const tabs = Object.keys(TAB_ICON) as DrawerTab[];
+  const more = tabs.filter(item => !PHONE_TABS.includes(item) && item !== tab);
+  const moreCount = more.reduce((sum, item) => sum + (counts[item] ?? 0), 0);
   return <aside className={styles.drawer} data-collapsed={collapsed || undefined} data-sheet-open={sheetOpen || undefined}
     style={{ "--drawer-width": `${width}px` } as React.CSSProperties} aria-label={copy.drawer.label}>
     <div className={styles.resize} role="separator" aria-orientation="vertical" aria-label={copy.drawer.resize} tabIndex={0}
@@ -157,12 +172,24 @@ export function Drawer({ tab, onTab, counts, children, reveal }: { tab: DrawerTa
         const label = copy.drawer.tabs[item];
         return <button key={item} type="button" role="tab" id={`course-setting-tab-${item}`} aria-selected={tab === item}
           aria-controls="course-setting-tabpanel" title={copy.drawer.count(label, count)} className={styles.tab}
+          data-phone-more={PHONE_TABS.includes(item) ? undefined : "true"}
           onClick={() => { onTab(item); setCollapsed(false); setSheetOpen(true); }}>
           <span aria-hidden="true" className={styles.tabIcon}>{TAB_ICON[item]}</span>
           <span className={styles.tabLabel}>{label}</span>
           {count > 0 && <span className={styles.badge} aria-label={copy.drawer.count(label, count)}>{count}</span>}
         </button>;
       })}
+      <div className={styles.tabMore} ref={moreRef}>
+        <button type="button" className={styles.tab} aria-haspopup="menu" aria-expanded={moreOpen} data-testid="course-setting-tab-more"
+          onClick={() => setMoreOpen(value => !value)}>
+          <span aria-hidden="true" className={styles.tabIcon}>⋯</span><span className={styles.tabLabel}>{copy.drawer.more}</span>
+          {moreCount > 0 && <span className={styles.badge} aria-hidden="true">{moreCount}</span>}
+        </button>
+        {moreOpen && <div role="menu" className={styles.tabMenu} aria-label={copy.drawer.more}>
+          {more.map(item => <button key={item} type="button" role="menuitem" onClick={() => { setMoreOpen(false); onTab(item); setSheetOpen(true); }}>
+            <span aria-hidden="true">{TAB_ICON[item]}</span> {copy.drawer.tabs[item]}{(counts[item] ?? 0) > 0 ? ` (${counts[item]})` : ""}</button>)}
+        </div>}
+      </div>
     </div>
     <div className={styles.tabpanel} role="tabpanel" id="course-setting-tabpanel" aria-labelledby={`course-setting-tab-${tab}`}>{children}</div>
   </aside>;

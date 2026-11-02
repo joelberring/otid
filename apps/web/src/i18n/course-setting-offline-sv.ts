@@ -55,6 +55,7 @@ export const offlineSv = {
   inspection: {
     button: "Kollad",
     checked: "Kollad ✓",
+    selected: (label: string) => `Bocka ${label.toLowerCase()} som kollad`,
     by: (name: string | null, at: string) => `Kollad av ${name ?? "någon"} ${when(at)}`,
     pending: "väntar på nät",
     sending: "skickas …",

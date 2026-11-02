@@ -203,7 +203,8 @@ test("fest: bardisken checkar in, verifierar köp och checkar ut med mål", asyn
   expect(logo.headers()["content-type"]).toBe("image/png");
   expect(logo.headers()["x-content-type-options"]).toBe("nosniff");
   const robots = await (await visitor.request.get("/robots.txt")).text();
-  expect(robots).toContain("Disallow: /api/public/parties/");
+  // ADR-0185: hela API:t är stängt för robotar (också festens).
+  expect(robots).toContain("Disallow: /api/\n");
   expect(robots).toContain("User-Agent: GPTBot");
   await visitor.goto(publicPath!);
   await expect(visitor.getByTestId("party-numbers")).toContainText("sålda");

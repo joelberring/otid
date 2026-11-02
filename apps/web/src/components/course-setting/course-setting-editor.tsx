@@ -10,7 +10,7 @@ import {
   printAreaOf, type CourseSettingDocument, type DescriptionSymbol, type MapRect, type OverprintPrimitive
 } from "@o-tid/course-setting";
 import type { MapGeoreference } from "@o-tid/map-file";
-import type { LegAnalysis, RouteChoiceSettings } from "@o-tid/route-choice";
+import type { LegAnalysis } from "@o-tid/route-choice";
 import { courseSettingSv as text } from "../../i18n/course-setting-sv";
 import { collaborationSv as copy } from "../../i18n/course-setting-collaboration-sv";
 import { offlineSv } from "../../i18n/course-setting-offline-sv";
@@ -41,8 +41,6 @@ import { clickSpecial, finishDrawing, moveSpecialEdit, nearestHandle, specialHan
 import { PrintPanel } from "./course-setting-print-panel";
 import { SpecialsPanel } from "./course-setting-specials";
 import { controlledWorker } from "../../lib/course-setting-worker";
-import { fetchRouteChoice } from "../../lib/route-choice-api";
-import { RouteChoiceSession } from "../../lib/route-choice-client";
 import { describeEdit } from "../../lib/course-setting-suggestion";
 import { Button, Notice } from "../ui";
 import { AppearancePanel, LabelPanel } from "./course-setting-appearance";
@@ -63,11 +61,11 @@ import { ControlList } from "./course-setting-controls";
 import { useCourseSettingUx } from "./use-course-setting-ux";
 import { rejectedNoteText, useCourseSettingNotes } from "./use-course-setting-notes";
 import { loadMapFile, useCourseSettingOffline } from "./use-course-setting-offline";
+import { useRouteChoiceWorker } from "./use-route-choice-worker";
 import styles from "./course-setting.module.css";
 
 // Steg 67: styrda av service workern när sidan är sparad för offline (`controlledWorker`).
 const createMapWorker = () => controlledWorker(() => new Worker(new URL("../../lib/course-setting-map-worker.ts", import.meta.url), { type: "module" }));
-const createRouteWorker = () => controlledWorker(() => new Worker(new URL("../../lib/route-choice-worker.ts", import.meta.url), { type: "module" }));
 
 
 type Drag = { kind: "control"; control: string; dx: number; dy: number } | { kind: "number"; courseControl: string } | { kind: "rotate" }
@@ -188,14 +186,12 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
   const apply = (change: (current: EditorState) => EditorState) => { store.update(change); sync.changed(); };
   const edit = (change: (current: EditorState) => EditorState) => { if (!readOnly) apply(change); };
 
-  // Kartfilen: en Worker ritar kartan, en annan räknar vägvalen.
+  // Kartfilen: en Worker ritar kartan; vägvalens Worker startas först när en sträcka väljs (`useRouteChoiceWorker`).
   const [mapSession, setMapSession] = useState<MapRenderSession>();
   const [mapBounds, setMapBounds] = useState<Bounds | undefined>(state.mapFile?.bounds);
   const [mapStatus, setMapStatus] = useState<"none" | "reading" | "ready" | "failed">(state.mapFile ? "reading" : "none");
   const [georeference, setGeoreference] = useState<MapGeoreference | null>();
   const [mapBytes, setMapBytes] = useState<number>();
-  const routes = useRef<RouteChoiceSession | undefined>(undefined);
-  const [routeReady, setRouteReady] = useState(false);
   useEffect(() => {
     if (!state.mapFile) return;
     const controller = new AbortController();
@@ -203,26 +199,21 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
     let session: MapRenderSession | undefined;
     void (async () => {
       try {
-        // Vägvalens inställningar är admins; den som bara har banläggningen räknar med standardinställningarna.
-        const [file, settings] = await Promise.all([loadMapFile(raceId, state.mapFile!.sha256, offline.storage, controller.signal, () => say({
-          tone: "attention", text: offlineSv.olderMap })), access.admin
-          ? fetchRouteChoice(raceId, controller.signal).then(value => value.settings as RouteChoiceSettings, () => ({ version: 1 }) as RouteChoiceSettings)
-          : Promise.resolve({ version: 1 } as RouteChoiceSettings)]);
+        const file = await loadMapFile(raceId, state.mapFile!.sha256, offline.storage, controller.signal, () => say({
+          tone: "attention", text: offlineSv.olderMap }));
         if (closed) return;
         setMapBytes(file.bytes.byteLength);
         session = new MapRenderSession(createMapWorker, (bounds, _scale, georef) => {
           if (!closed) { setMapBounds(bounds); setGeoreference(georef); setMapStatus("ready"); }
         },
           () => { if (!closed) setMapStatus("failed"); });
-        session.load(file.bytes.slice(0), file.fileName);
+        // Kartfilen går över till Workern (ingen kopia stannar här).
+        session.load(file.bytes, file.fileName);
         setMapSession(session);
-        const worker = new RouteChoiceSession(createRouteWorker);
-        routes.current = worker;
-        worker.load(file.bytes, file.fileName, settings, () => { if (!closed) setRouteReady(true); }, () => { if (!closed) setRouteReady(false); });
       } catch { if (!closed) setMapStatus("failed"); }
     })();
-    return () => { closed = true; controller.abort(); session?.close(); routes.current?.close(); routes.current = undefined; };
-  }, [raceId, state.mapFile, access.admin]);
+    return () => { closed = true; controller.abort(); session?.close(); };
+  }, [raceId, state.mapFile]);
 
   const { document, view, selection } = editor;
   const course = document.courses.find(row => row.id === view);
@@ -284,9 +275,13 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
     () => courseControlOrder(document, view, variant), () => [] as readonly string[]), [document, view, variant]);
   const input = selection?.kind === "leg" && view !== ALL_CONTROLS ? legInput(document, selection.from, selection.to, legCourseControls, view) : undefined;
   const inputKey = input?.key;
+  const routeWorker = useRouteChoiceWorker({ raceId, mapSha256: state.mapFile?.sha256, admin: access.admin, storage: offline.storage,
+    wanted: input !== undefined });
+  const routes = routeWorker.session, routeReady = routeWorker.ready;
   useEffect(() => {
     setAnalysis(undefined); setHighlighted(undefined);
     if (!input) { setLegStatus("idle"); return; }
+    if (routeWorker.failed) { setLegStatus("failed"); return; }
     if (!routeReady || !routes.current) { setLegStatus("waiting"); return; }
     setLegStatus("analysing");
     const worker = routes.current;
@@ -295,7 +290,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
     }, 250);
     return () => { clearTimeout(timer); worker.cancel(); };
     // Nyckeln ändras med ändarnas lägen; övriga kontroller räknas med när sträckan räknas.
-  }, [inputKey, routeReady]);
+  }, [inputKey, routeReady, routeWorker.failed]);
   const code = (id: string, end: "S" | "F") => document.controls[id]?.kind === "NORMAL" ? `${document.controls[id].code ?? "?"}.1` : end;
   const legKey = selection?.kind === "leg" && view !== ALL_CONTROLS ? `${code(selection.from, "S")}-${code(selection.to, "F")}` : undefined;
   const routeRows = analysis?.best ? [analysis.best, ...analysis.alternatives] : [];

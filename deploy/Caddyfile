@@ -14,6 +14,13 @@
 		max_size 100MB
 	}
 
+	# ADR-0194: klubbarkivets kartfiler (importen från ägarens dator och en ny version i arkivet), högst 100 MB i appen
+	# (CLUB_ARCHIVE_MAP_MAX_BYTES).
+	@clubmaps path /api/club-import/*/content/* /api/organizer/clubs/*/maps /api/organizer/clubs/*/maps/*
+	request_body @clubmaps {
+		max_size 105MB
+	}
+
 	# ADR-0187: säkerhetskopian av en tävling (förhandsvisning och återställning), högst 200 MB i appen (RACE_BACKUP_MAX_BYTES).
 	@restore path /api/organizer/restore /api/organizer/restore/preview
 	request_body @restore {

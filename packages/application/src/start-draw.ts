@@ -320,6 +320,11 @@ export async function commitStartDrawAsAdmin(db: Database, input: Authentication
       snapshotVersionBefore: race.snapshotVersion, snapshotVersionAfter, drawnAt: now.toISOString() });
     const saved = await writeDraw(tx, { raceId, requestId: intent.requestId, computed, settings: intent, seed: intent.seed,
       actorAccountId: auth.principal.accountId, snapshotVersionBefore: race.snapshotVersion, response, now });
+    // ADR-0187 beslut 2: lottningens första start är tävlingens första start (samma värde som Inställningar visar).
+    const { timeZone } = await raceMetadata(tx, raceId);
+    const firstStartClock = new Intl.DateTimeFormat("sv-SE", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+      .format(new Date(intent.firstStartTime));
+    await tx.update(schema.races).set({ firstStartTime: firstStartClock }).where(eq(schema.races.id, raceId));
     await bumpReadoutPackageVersion(tx, raceId);
     // Omräkning mot det sparade läget; databasen sätter varje ny revisions underlagshash.
     const courseVersions = new Map(computed.classes.map(row => [row.id, row.courseVersionId]));
@@ -328,7 +333,7 @@ export async function commitStartDrawAsAdmin(db: Database, input: Authentication
     await tx.insert(schema.auditEvents).values({ raceId, entityType: "start_draw", entityId: saved.id, requestId: intent.requestId,
       actorKind: "USER_ACCOUNT", actorId: auth.principal.accountId, action: "START_DRAW_COMMITTED",
       before: { snapshotVersion: race.snapshotVersion },
-      after: { snapshotVersion: snapshotVersionAfter, classIds: intent.classes.map(row => row.classId),
+      after: { snapshotVersion: snapshotVersionAfter, firstStartTime: firstStartClock, classIds: intent.classes.map(row => row.classId),
         changedEntryCount: computed.changedEntryIds.size, recalculatedCount: recalculated.length }, createdAt: now });
     if (recalculated.length > 0) {
       await tx.insert(schema.auditEvents).values(recalculated.map(item => ({ raceId, entityType: "result_revision",

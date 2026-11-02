@@ -11,6 +11,8 @@ async function previewDraw(owner: Page, draw: Locator, className: string) {
   await draw.getByRole("button", { name: "Visa lottning" }).click();
   const preview = owner.getByRole("region", { name: "Så blir startlistan" });
   await expect(preview).toBeVisible();
+  // ADR-0187 beslut 1: en rad per klass; löparna syns efter ett klick.
+  await preview.getByRole("button", { name: "Visa alla löpare" }).click();
   return preview;
 }
 
@@ -94,6 +96,7 @@ test("lotta en klass, lotta en efteranmäld klass för sig och en klass med sena
   await expect(seeding.getByText("1 seedad")).toBeVisible();
   await draw.getByRole("button", { name: "Visa lottning" }).click();
   preview = owner.getByRole("region", { name: "Så blir startlistan" });
+  await preview.getByRole("button", { name: "Visa alla löpare" }).click();
   const h16 = preview.getByRole("region", { name: "H16", exact: true });
   await expect(h16.getByRole("row").nth(1)).toContainText("10:30:00");
   await expect(h16.getByRole("row").last()).toContainText("H16D Löpare · seedad 1");

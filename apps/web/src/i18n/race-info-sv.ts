@@ -7,6 +7,10 @@ export const raceInfoSv = {
     infoTooLong: (max: number) => `Högst ${max} tecken.`,
     firstStart: "Första start",
     firstStartHelp: "Klockslag, t.ex. 18:30. Bara information: ändrar inte starttider, lottning eller tävlingsklocka.",
+    /** ADR-0187 beslut 2: tävlingar med lottning har en första start, den i Start → Lottning. */
+    firstStartUnset: "Inte satt än",
+    firstStartFromDraw: "Sätts i Start → Lottning och sparas med lottningen. Samma tid visas för löparna.",
+    firstStartOpenDraw: "Ändra i Lottning",
     firstStartInvalid: "Skriv klockslaget som TT:MM, till exempel 18:30, eller lämna fältet tomt.",
     cardNumbers: "Visa bricknummer i den publika startlistan",
     cardNumbersHelp: "Bricknumret syns bara i startlistan, inte i resultat, Live eller speaker. En ändrad bricka syns först när startlistan publiceras igen. Avstängt döljs bricknumret direkt."

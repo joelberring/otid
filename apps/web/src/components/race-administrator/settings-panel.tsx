@@ -40,6 +40,7 @@ export function SettingsPanel({ ws }: { ws: Workspace }) {
   const locked = saving || workflowLocked;
   const id = `settings-${raceId}`;
   const publish = sectionForPanel(profile, "PUBLISH");
+  const drawStart = profile.features.draw ? sectionForPanel(profile, "START") : undefined;
   return <div className={styles.workflowGroup}>
     <Section id={id} title={text.title} help={text.help}>
       <form className={styles.settingsForm} noValidate onSubmit={event => { event.preventDefault(); void saveSettings(); }}>
@@ -59,10 +60,17 @@ export function SettingsPanel({ ws }: { ws: Workspace }) {
           <Field label={infoText.info} error={settingsErrors.info} help={infoText.infoHelp(form.info.length, RACE_INFO_MAX)}>
             <textarea value={form.info} rows={4} maxLength={RACE_INFO_MAX} disabled={locked || !!settingsAttempt}
               onChange={event => changeSettings({ info: event.target.value })} /></Field>
-          <Field label={infoText.firstStart} error={settingsErrors.firstStartTime} help={infoText.firstStartHelp}>
+          {/* ADR-0187 beslut 2: med lottning sätts första start i Start → Lottning; här visas den med en länk dit. */}
+          {drawStart ? <div className={styles.fieldWithHelpBlock}>
+            <span className={styles.fieldLabel}>{infoText.firstStart}</span>
+            <p><strong>{data.firstStartTime ?? infoText.firstStartUnset}</strong></p>
+            <p className={styles.workflowHelp}>{infoText.firstStartFromDraw}</p>
+            <div><Button variant="secondary" onClick={() => navigateStep(drawStart.id)}>{infoText.firstStartOpenDraw}</Button></div>
+          </div>
+          : <Field label={infoText.firstStart} error={settingsErrors.firstStartTime} help={infoText.firstStartHelp}>
             <input className={styles.settingsTime} value={form.firstStartTime} type="text" inputMode="numeric" autoComplete="off"
               spellCheck={false} placeholder="TT:MM" maxLength={5} disabled={locked || !!settingsAttempt}
-              onChange={event => changeSettings({ firstStartTime: event.target.value })} /></Field>
+              onChange={event => changeSettings({ firstStartTime: event.target.value })} /></Field>}
           <div className={styles.fieldWithHelpBlock}>
             <label className={styles.check}><input type="checkbox" checked={form.publicStartListCardNumbers}
               disabled={locked || !!settingsAttempt} aria-describedby={`${id}-cards-help`}

@@ -52,6 +52,8 @@ test("lotta tre klasser, publicera startlistan och placera en efteranmäld på v
   await draw.getByRole("button", { name: "Visa lottning" }).click();
   const preview = owner.getByRole("region", { name: "Så blir startlistan" });
   await expect(preview).toBeVisible();
+  // ADR-0187 beslut 1: en rad per klass; löparna syns efter ett klick (här alla på en gång).
+  await preview.getByRole("button", { name: "Visa alla löpare" }).click();
   await expect(preview.getByText(/H21 har samma första kontroll och startar varannan minut|D21 och H21 har samma första kontroll och startar varannan minut/))
     .toBeVisible();
   for (const className of ["H21", "D21", "H16"]) {

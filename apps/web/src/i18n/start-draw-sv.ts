@@ -5,9 +5,25 @@ const names = (list: readonly string[]) =>
 
 export const startDrawSv = {
   title: "Lottning",
-  help: "Välj startsätt för klasserna och kryssa i de som ska lottas. Klasser vars banor har samma första kontroll startar aldrig samma minut. Vakanser sprids i klassen och efteranmälda får första lediga vakanta tid.",
+  help: "Ställ in startsätt, intervall och vakanser en gång för alla klasser och tryck på Använd för alla. Ändra sedan bara de klasser som ska avvika. Klasser vars banor har samma första kontroll startar aldrig samma minut. Vakanser sprids i klassen och efteranmälda får första lediga vakanta tid.",
   load: "Visa klasserna", loading: "Läser klasserna…",
   first: "Första start (klockslag)", firstExample: "10:00",
+  /** ADR-0187 beslut 2: en enda första start för tävlingen; Inställningar visar den och länkar hit. */
+  firstHelp: "Tävlingens första start. Sparas med lottningen och visas för löparna (står också under Inställningar).",
+  common: {
+    title: "Gemensamt för klasserna",
+    help: "Värdena läggs på alla klasser, eller bara på de ikryssade. Ändra sedan enstaka klasser i tabellen.",
+    methodLabel: "Startsätt för klasserna", intervalLabel: "Intervall (min) för klasserna", vacanciesLabel: "Vakanser för klasserna",
+    vacancyKindLabel: "Vakanser för klasserna som",
+    laterStart: "Klassernas första start (valfritt)",
+    laterStartHelp: "Klockslag om klasserna ska börja senare än tävlingens första start. Tomt = som förut.",
+    applyAll: "Använd för alla",
+    applySelected: (count: number) => `Använd för valda (${count})`,
+    applied: (count: number) => count === 1 ? "Inställningarna gäller nu 1 klass." : `Inställningarna gäller nu ${count} klasser.`,
+    noneSelected: "Kryssa i klasserna först, eller använd för alla."
+  },
+  selectAll: "Lotta alla klasser",
+  laterStartShort: (time: string) => `Första start ${time}`,
   clubSeparation: "Klubbseparering: två från samma klubb startar inte efter varandra",
   className: "Klass", method: rule.label, interval: "Intervall (min)", vacancies: "Vakanser", draw: "Lotta", entries: "Anmälda",
   methods: rule.methods,
@@ -24,6 +40,10 @@ export const startDrawSv = {
   conflict: "Något har ändrats sedan lottningen visades. Visa lottningen igen.",
   saved: "Lottningen är sparad. Har startlistan redan publicerats behöver den publiceras igen.",
   previewTitle: "Så blir startlistan",
+  previewHelp: "En rad per klass. Öppna en klass för att se löparna och tiderna.",
+  expandAll: "Visa alla löpare", collapseAll: "Dölj alla löpare",
+  summaryClass: "Klass", summaryMethod: "Startsätt", summaryRunners: "Löpare", summaryTimes: "Första–sista start",
+  summaryRunnersValue: (runners: number, vacant: number) => `${runners}${vacant > 0 ? ` + ${vacant} vakant${vacant === 1 ? "" : "a"}` : ""}`,
   vacant: "Vakant",
   time: "Start", name: "Namn", club: "Klubb", card: "Bricka", none: "–",
   freeStart: "Fri start: löparna stämplar start. Klassen får inga starttider.",

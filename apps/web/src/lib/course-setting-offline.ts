@@ -3,6 +3,7 @@ import type {
 } from "@o-tid/contracts";
 import { replayEdits, type CourseSettingDocument, type IdMap } from "@o-tid/course-setting";
 import type { LoggedEdit } from "./course-setting-editor";
+import type { StoredHistory } from "./course-setting-history";
 import { HttpStatusError, type GoneIds } from "./course-setting-sync";
 
 /**
@@ -118,6 +119,10 @@ export interface FieldStore {
   removeQueued(id: string): Promise<void>;
   /** Byter en post i kön (samma plats i ordningen). */
   updateQueued(item: QueuedItem): Promise<void>;
+  /** ADR-0190: ångra-historiken för sessionen (skrivs för sig; tas bort med `clearHistory`, `clearAll` och kopian). */
+  readHistory(raceId: string): Promise<StoredHistory | undefined>;
+  writeHistory(history: StoredHistory): Promise<void>;
+  clearHistory(raceId: string): Promise<void>;
   mapInfo(raceId: string): Promise<StoredMapInfo | undefined>;
   readMap(raceId: string): Promise<StoredMap | undefined>;
   writeMap(map: StoredMap): Promise<void>;
@@ -127,6 +132,7 @@ export interface FieldStore {
 /** Lagret i minnet (testerna, och webbläsare utan IndexedDB: då tål inget en omladdning). */
 export function memoryFieldStore(): FieldStore {
   const logs = new Map<string, StoredLog>(), bases = new Map<string, StoredBase>(), queue: QueuedItem[] = [], maps = new Map<string, StoredMap>();
+  const histories = new Map<string, StoredHistory>();
   return {
     readRecord: async raceId => joinRecord(structuredClone(logs.get(raceId)), structuredClone(bases.get(raceId))),
     writeRecord: async (record, withBase) => {
@@ -135,7 +141,10 @@ export function memoryFieldStore(): FieldStore {
       logs.set(record.raceId, structuredClone(parts.log));
     },
     clearRecord: async raceId => { logs.delete(raceId); bases.delete(raceId); },
-    clearAll: async () => { logs.clear(); bases.clear(); queue.splice(0); maps.clear(); },
+    clearAll: async () => { logs.clear(); bases.clear(); queue.splice(0); maps.clear(); histories.clear(); },
+    readHistory: async raceId => structuredClone(histories.get(raceId)),
+    writeHistory: async history => { histories.set(history.raceId, structuredClone(history)); },
+    clearHistory: async raceId => { histories.delete(raceId); },
     listQueue: async raceId => queue.filter(item => item.raceId === raceId),
     addQueued: async item => { if (!queue.some(row => row.id === item.id)) queue.push(structuredClone(item)); },
     removeQueued: async id => { const index = queue.findIndex(item => item.id === id); if (index >= 0) queue.splice(index, 1); },

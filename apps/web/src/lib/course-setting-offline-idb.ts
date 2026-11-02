@@ -1,3 +1,4 @@
+import type { StoredHistory } from "./course-setting-history";
 import { joinRecord, splitRecord, type FieldRecord, type FieldStore, type QueuedItem, type StoredBase, type StoredLog, type StoredMapInfo } from "./course-setting-offline";
 
 /**
@@ -6,10 +7,11 @@ import { joinRecord, splitRecord, type FieldRecord, type FieldStore, type Queued
  * - `base`: serverns version som åtgärderna bygger på, med notiser och bockar (skrivs bara när den ändrats; version 2).
  * - `queue`: notiser och bockar i ordning (löpnummer som nyckel).
  * - `mapInfo` och `mapData`: kartfilen (5–60 MB) i två delar, så att storleken kan visas utan att filen läses.
+ * - `history`: ångra-historiken för sessionen per tävling (ADR-0190, version 3); tas bort vid utloggning.
  */
 const DB_NAME = "otid-course-setting";
-const DB_VERSION = 2;
-const STORES = ["record", "base", "queue", "mapInfo", "mapData"];
+const DB_VERSION = 3;
+const STORES = ["record", "base", "queue", "mapInfo", "mapData", "history"];
 
 function request<T>(value: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -41,6 +43,7 @@ function open(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains("mapInfo")) db.createObjectStore("mapInfo", { keyPath: "raceId" });
       if (!db.objectStoreNames.contains("mapData")) db.createObjectStore("mapData", { keyPath: "raceId" });
+      if (!db.objectStoreNames.contains("history")) db.createObjectStore("history", { keyPath: "raceId" });
     };
     value.onsuccess = () => resolve(value.result);
     value.onerror = () => reject(value.error ?? new Error("IndexedDB kunde inte öppnas"));
@@ -111,6 +114,9 @@ export function indexedDbFieldStore(): FieldStore | undefined {
       if (key !== undefined) store.put({ ...item, seq: key });
       await done(transaction);
     },
+    readHistory: raceId => read<StoredHistory>("history", raceId),
+    writeHistory: history => write(["history"], transaction => { transaction.objectStore("history").put(history); }),
+    clearHistory: raceId => write(["history"], transaction => { transaction.objectStore("history").delete(raceId); }),
     mapInfo: raceId => read<StoredMapInfo>("mapInfo", raceId),
     readMap: async raceId => {
       const info = await read<StoredMapInfo>("mapInfo", raceId);

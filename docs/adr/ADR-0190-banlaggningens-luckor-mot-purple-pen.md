@@ -27,3 +27,11 @@ som .ppen eller genom "Överför till tävlingen".
    längd och stigning sparas för en befintlig bana bara när dess rad är vald. Ny ordning i dokumentet ger inga rader
    (banorna matchas på id och namn); ordningen avgör bara vilken bana en klass som står på två banor får, som i Purple Pen.
    En borttagen stigning tas inte bort i tävlingen (en banfil utan `Climb` ska inte nollställa).
+4. **Ångra efter omladdning.** Editorns ångra-historik (stegen med `PUT_OBJECTS` som sätter tillbaka objekten) sparas i
+   telefonen i IndexedDB-databasen för offline-posten (`otid-course-setting`, ny tabell `history`, version 3), per tävling,
+   med kontot och dokumentet som stegen gäller för; högst 200 steg bakåt och 200 framåt. När editorn öppnas läggs stegen
+   tillbaka bara för samma konto och bara de steg vars objekt ingen annan har ändrat sedan dess (`documentChanges` mellan
+   det sparade dokumentet och det editorn öppnas med, samma regel som för andras ändringar medan sidan är öppen); egna
+   sparade ändringar krockar inte. Gör om finns kvar bara om inget ändrats sedan sidan öppnades. Ångra skickas som vanligt
+   som en åtgärd och prövas mot servern. Historiken tas bort vid utloggning, när tillgången försvinner (403), med
+   tävlingens kopia och när dokumentet byts (inläst .ppen, återställd version). Förslagsläget sparar ingen historik.

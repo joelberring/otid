@@ -61,6 +61,7 @@ import { ControlList } from "./course-setting-controls";
 import { CourseProperties } from "./course-setting-course-properties";
 import { moveCourseEdit } from "../../lib/course-setting-properties";
 import { useCourseSettingUx } from "./use-course-setting-ux";
+import { useCourseSettingHistory } from "./use-course-setting-history";
 import { rejectedNoteText, useCourseSettingNotes } from "./use-course-setting-notes";
 import { loadMapFile, useCourseSettingOffline } from "./use-course-setting-offline";
 import { useRouteChoiceWorker } from "./use-route-choice-worker";
@@ -183,6 +184,9 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
       if (result.sent.some(item => item.kind !== "inspection")) void collaboration.reloadNotes();
       if (result.sent.some(item => item.kind === "inspection") || result.rejected.length > 0) void collaboration.reloadInspections();
     } });
+
+  // ADR-0190: ångra efter omladdning (egna steg, i telefonen för sessionen).
+  useCourseSettingHistory({ raceId, accountId: access.accountId, store, storage: offline.storage, enabled: access.level === "EDIT", say });
 
   /** En ändring: editorns läge och sedan sparandet. */
   const apply = (change: (current: EditorState) => EditorState) => { store.update(change); sync.changed(); };

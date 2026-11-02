@@ -13,9 +13,10 @@ export function fieldStore(): FieldStore {
   return shared;
 }
 
-/** Tävlingens kopia: posten, kön, kartfilen och den sparade sidan. */
+/** Tävlingens kopia: posten, ångra-historiken (ADR-0190), kön, kartfilen och den sparade sidan. */
 export async function forgetCourseSettingCopy(raceId: string, store: FieldStore = fieldStore()): Promise<void> {
   await store.clearRecord(raceId);
+  await store.clearHistory(raceId);
   for (const item of await store.listQueue(raceId)) await store.removeQueued(item.id);
   await store.clearMap(raceId);
   await removeShell(raceId);

@@ -3,7 +3,7 @@ import {
   RACE_MAP_MEDIA_TYPES, RACE_MAP_SOURCE_MAX_BYTES, RACE_MAP_SOURCE_PARTS, RACE_MAP_SOURCE_UPLOAD_MAX_BYTES, raceMapProblemSchema,
   type RaceMapProblem
 } from "@o-tid/contracts";
-import { multipartBoundary, parseMultipart } from "./multipart";
+import { forEachMultipartPart, MultipartError, multipartBoundary, partBytes } from "./multipart";
 import {
   RequestBodyError,
   adminFailure as failure,
@@ -16,7 +16,7 @@ import {
 } from "./security-policy";
 import { resultFailure, type RaceAdministratorRouteContext } from "./race-administrator-route-context";
 import { UUID_PATTERN as uuid } from "@o-tid/contracts";
-import type { MapQuotaExceeded } from "@o-tid/application";
+import type { MapQuotaExceeded, StagedMapContent, StageResult } from "@o-tid/application";
 
 
 const MB = 1024 * 1024;
@@ -73,12 +73,19 @@ export async function handleMapRoute(context: RaceAdministratorRouteContext): Pr
         const result = await dependencies.raceMapRemove(db, input);
         return result.status === "ok" ? new Response(null, { status: 204, headers: privateHeaders }) : resultFailure(result.status);
       }
-      const bytes = await binaryBody(request, RACE_MAP_MEDIA_TYPES, RACE_MAP_MAX_BYTES);
-      if (bytes === "too-large") return problem("IMAGE_TOO_LARGE");
-      if (!bytes) return failure(400, "INVALID_REQUEST");
-      const result = await dependencies.raceMapSave(db, { ...input, bytes, fileName: headerFileName(request) });
-      if (result.status === "problem") return problem(result.problem, result.quota);
-      return result.status === "ok" ? new Response(null, { status: 204, headers: privateHeaders }) : resultFailure(result.status);
+      // ADR-0189 beslut 2: bilden strömmas till databasen i delar; webben håller aldrig hela bilden i minnet.
+      if (!(RACE_MAP_MEDIA_TYPES as readonly string[]).includes(request.headers.get("content-type") ?? "") || !request.body) {
+        return failure(400, "INVALID_REQUEST");
+      }
+      if (!validDeclaredLength(request, RACE_MAP_MAX_BYTES)) return problem("IMAGE_TOO_LARGE");
+      const staged = await dependencies.mapContentStage(db, streamChunks(request.body), { maxBytes: RACE_MAP_MAX_BYTES });
+      if (staged.kind === "too-large") return problem("IMAGE_TOO_LARGE");
+      if (staged.kind === "empty") return failure(400, "INVALID_REQUEST");
+      try {
+        const result = await dependencies.raceMapSave(db, { ...input, bytes: staged, fileName: headerFileName(request) });
+        if (result.status === "problem") return problem(result.problem, result.quota);
+        return result.status === "ok" ? new Response(null, { status: 204, headers: privateHeaders }) : resultFailure(result.status);
+      } finally { await dependencies.mapContentDiscard(db, staged.contentId); }
     }
     case "race-map-image": {
       const result = await dependencies.raceMapImage(db, input);
@@ -131,28 +138,67 @@ export async function handleMapRoute(context: RaceAdministratorRouteContext): Pr
   }
 }
 
-/** Steg 59: kartfilen, bilden och metadata som multipart. Storleken kontrolleras innan något tolkas. */
+/** Bodyn som bitar. */
+async function* streamChunks(body: ReadableStream<Uint8Array>): AsyncGenerator<Uint8Array> {
+  const reader = body.getReader();
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) return;
+      yield value;
+    }
+  } finally { await reader.cancel().catch(() => undefined); }
+}
+
+class UploadRejected extends Error {
+  constructor(readonly response: Response) { super("Uppladdningen avvisades"); }
+}
+
+/**
+ * Steg 59: kartfilen, bilden och metadata som multipart. ADR-0189 beslut 2: bodyn läses som en ström; kartfilen och bilden
+ * skrivs del för del till databasen medan de läses (`mapContentStage`), och storleken kontrolleras under tiden. Det som
+ * strömmats men inte sparats tas bort efteråt (`mapContentDiscard`), oavsett utfall.
+ */
 async function uploadMapSource(context: RaceAdministratorRouteContext): Promise<Response> {
   const { db, request, raceId, dependencies, proof } = context;
   const boundary = multipartBoundary(request.headers.get("content-type"));
   if (!boundary) return failure(400, "INVALID_REQUEST");
   if (!validDeclaredLength(request, RACE_MAP_SOURCE_UPLOAD_MAX_BYTES)) return problem("MAP_FILE_TOO_LARGE");
-  let body: Uint8Array;
-  try { body = await readBoundedBytes(request, RACE_MAP_SOURCE_UPLOAD_MAX_BYTES); }
-  catch (error) {
-    if (error instanceof RequestBodyError) return error.message === "Bodyn är för stor" ? problem("MAP_FILE_TOO_LARGE") : failure(400, "INVALID_REQUEST");
-    throw error;
+  const staged: StagedMapContent[] = [];
+  let file: StagedMapContent | undefined, image: StagedMapContent | undefined, meta: Uint8Array | undefined;
+  let fileName = "", count = 0;
+  const stage = async (chunks: AsyncIterable<Uint8Array>, maxBytes: number, tooLarge: RaceMapProblem) => {
+    const result: StageResult = await dependencies.mapContentStage(db, chunks, { maxBytes });
+    if (result.kind === "too-large") throw new UploadRejected(problem(tooLarge));
+    if (result.kind === "empty") throw new UploadRejected(failure(400, "INVALID_REQUEST"));
+    staged.push(result);
+    return result;
+  };
+  try {
+    try {
+      await forEachMultipartPart(request.body, boundary, { maxBytes: RACE_MAP_SOURCE_UPLOAD_MAX_BYTES, maxParts: 3 }, async part => {
+        count += 1;
+        if (part.name === RACE_MAP_SOURCE_PARTS.file && !file) {
+          fileName = (part.fileName ?? "").slice(0, 200);
+          file = await stage(part.chunks, RACE_MAP_SOURCE_MAX_BYTES, "MAP_FILE_TOO_LARGE");
+        } else if (part.name === RACE_MAP_SOURCE_PARTS.image && !image) {
+          image = await stage(part.chunks, RACE_MAP_MAX_BYTES, "IMAGE_TOO_LARGE");
+        } else if (part.name === RACE_MAP_SOURCE_PARTS.metadata && !meta) {
+          meta = await partBytes(part.chunks, 256 * 1024);
+        } else throw new MultipartError("invalid");
+      });
+    } catch (error) {
+      if (error instanceof UploadRejected) return error.response;
+      if (error instanceof MultipartError) return error.kind === "too-large" ? problem("MAP_FILE_TOO_LARGE") : failure(400, "INVALID_REQUEST");
+      throw error;
+    }
+    if (count !== 3 || !file || !image || !meta) return failure(400, "INVALID_REQUEST");
+    let metadata: unknown;
+    try { metadata = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(meta)); } catch { return failure(400, "INVALID_REQUEST"); }
+    const result = await dependencies.raceMapSourceSave(db, { ...proof, raceId, file, image, metadata, fileName });
+    if (result.status === "problem") return problem(result.problem, result.quota);
+    return result.status === "ok" ? new Response(null, { status: 204, headers: privateHeaders }) : resultFailure(result.status);
+  } finally {
+    for (const content of staged) await dependencies.mapContentDiscard(db, content.contentId);
   }
-  const parts = parseMultipart(body, boundary);
-  const part = (name: string) => { const found = parts?.filter(item => item.name === name) ?? []; return found.length === 1 ? found[0] : undefined; };
-  const file = part(RACE_MAP_SOURCE_PARTS.file), image = part(RACE_MAP_SOURCE_PARTS.image), meta = part(RACE_MAP_SOURCE_PARTS.metadata);
-  if (!parts || parts.length !== 3 || !file || !image || !meta || meta.bytes.byteLength > 256 * 1024) return failure(400, "INVALID_REQUEST");
-  if (file.bytes.byteLength > RACE_MAP_SOURCE_MAX_BYTES) return problem("MAP_FILE_TOO_LARGE");
-  if (image.bytes.byteLength > RACE_MAP_MAX_BYTES) return problem("IMAGE_TOO_LARGE");
-  let metadata: unknown;
-  try { metadata = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(meta.bytes)); } catch { return failure(400, "INVALID_REQUEST"); }
-  const result = await dependencies.raceMapSourceSave(db, { ...proof, raceId, file: file.bytes, image: image.bytes, metadata,
-    fileName: (file.fileName ?? "").slice(0, 200) });
-  if (result.status === "problem") return problem(result.problem, result.quota);
-  return result.status === "ok" ? new Response(null, { status: 204, headers: privateHeaders }) : resultFailure(result.status);
 }

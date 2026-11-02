@@ -29,7 +29,7 @@ import { loadStartDrawSetupAsAdmin, previewStartDrawAsAdmin, commitStartDrawAsAd
   previewRogainingChangeAsAdmin, changeRogainingAsAdmin,
   readRaceMapStateAsAdmin, readRaceMapImageAsAdmin, saveRaceMapAsAdmin, georeferenceRaceMapAsAdmin,
   removeRaceMapAsAdmin, saveParticipantRouteAsAdmin, removeParticipantRouteAsAdmin,
-  saveRaceMapSourceAsAdmin, readRaceMapSourceFileAsAdmin, removeRaceMapSourceAsAdmin,
+  saveRaceMapSourceAsAdmin, readRaceMapSourceFileAsAdmin, removeRaceMapSourceAsAdmin, stageMapContent, discardStagedMapContent,
   readRouteChoiceAsAdmin, saveRouteChoiceSettingsAsAdmin, publishRouteChoiceAsAdmin, readRouteChoiceCalibrationAsAdmin,
   readCourseSettingAsAdmin, saveCourseSettingAsAdmin, importCourseSettingAsAdmin, listCourseSettingRevisionsAsAdmin,
   requireCourseSettingAccess, saveCourseSettingEditsAsAdmin, setCourseSettingModeAsAdmin, listCourseSettingNotesAsAdmin,
@@ -115,6 +115,8 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   raceMapGeoreference: georeferenceRaceMapAsAdmin, raceMapRemove: removeRaceMapAsAdmin,
   // Steg 59: kartfilen (OCAD eller Mapper).
   raceMapSourceSave: saveRaceMapSourceAsAdmin, raceMapSourceFile: readRaceMapSourceFileAsAdmin, raceMapSourceRemove: removeRaceMapSourceAsAdmin,
+  // ADR-0189 beslut 2: kartfilen och bilden strömmas till databasen innan de sparas.
+  mapContentStage: stageMapContent, mapContentDiscard: discardStagedMapContent,
   // Steg 60: vägvalsanalysen (inställningar, publicering och rutterna för kalibreringen).
   routeChoice: readRouteChoiceAsAdmin, routeChoiceSettings: saveRouteChoiceSettingsAsAdmin, routeChoicePublish: publishRouteChoiceAsAdmin,
   routeChoiceCalibration: readRouteChoiceCalibrationAsAdmin,

@@ -168,8 +168,11 @@ describe("TASK029 shared class capacity guard, real PostgreSQL", () => {
     const beforeRetry = await footprint(f.raceId);
     const replay = await importIofXmlAsAdmin(db, input, now);
     expect(replay.status === "stored" && replay.response.replayed).toBe(true);
-    await importIofXml(db, f.raceId, initial);
-    expect(await footprint(f.raceId)).toBe(beforeRetry);
+    // ADR-0191 beslut 4: via produktionsvägen journalförs den nya begäran som en dubblett; anmälan, klasserna, brickorna och
+    // importfilerna ändras inte.
+    expect((await importIofXml(db, f.raceId, initial)).duplicate).toBe(true);
+    const { entries, race, classes, cards, imports } = JSON.parse(beforeRetry) as Record<string, unknown>;
+    expect(JSON.parse(await footprint(f.raceId))).toMatchObject({ entries, race, classes, cards, imports });
     expect((await pool.query<{ max_entries: number; capacity_version: number }>("SELECT max_entries,capacity_version FROM class WHERE id=$1", [f.targetId])).rows[0])
       .toEqual({ max_entries: 1, capacity_version: 2 });
   });

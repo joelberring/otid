@@ -1,6 +1,6 @@
 # ADR-0181: Samarbete i banläggningen och fältläge i mobilen
 
-Status: beslutad 2026-11-01 (PLAN.md steg 66 och 67, ägarens önskemål samma dag); beslut 8 2026-11-02. Bygger på ADR-0180. Stegen görs efter
+Status: beslutad 2026-11-01 (PLAN.md steg 66 och 67, ägarens önskemål samma dag); beslut 8 och 9 2026-11-02. Bygger på ADR-0180. Stegen görs efter
 steg 63 och före steg 64–65 (som steg 61 gjordes före 60).
 
 **Bakgrund.** Flera arbetar ofta med samma banor: huvudbanläggare, medhjälpare och bankontrollant. De behöver lämna
@@ -46,6 +46,23 @@ kontroll lite, skriva in stenens höjd, vilken sida flaggan sitter på och likna
    påminnelsen att den inte får avslöja kontrollplatser. Förhandsvisningen är exakt det som skrivs ut och laddas ned.
    **Kartritaren** är en egen behörighet (nivå `MAP`, rollen "Kartritare"): kartfilen och kartfelen (utan bana och foto)
    på samma sida, svara och markera klara; aldrig banläggningens dokument, versioner, förslag eller andra notiser.
+9. **Översynen 2026-11-02 (sparande, utan nät och samarbete).**
+   - *Sparandet* skickas i omgångar (högst 500 åtgärder och ungefär 1 MB). Servern svarar 413 för för stor kropp och fler
+     än 5 000 åtgärder; klienten halverar då omgången. 400 för hela begäran betyder "läs om och försök igen", aldrig att
+     åtgärderna är avvisade. Bara en ensam åtgärd som är för stor (eller oläslig två gånger efter omläsning) stryks, med
+     besked; det som servern avvisar per åtgärd stryks som förut.
+   - *Konflikterna* (beslut 4) prövas mot det som åtgärderna faktiskt ändrade: servern lagrar touches ur skillnaden mellan
+     dokumenten före och efter varje åtgärd (`diffTouches`, fält för fält, banornas ordning undantagen), så att också
+     strukturändringar (lägga in, ta bort, gafflingar) krockar. Ångra av en inställning sätter tillbaka bara de fält som
+     ändrades (`PUT_OBJECTS.eventFields`), inte hela händelsen med profiler och logotyper.
+   - *Telefonens kö* (beslut 7) skickas efter ändringarna, och notiser och bockar översätts till de id som servern gav
+     kontroller som skapades utan nät. Servern avvisar (409) notiser och bockar på en kontroll eller bana som inte finns.
+     Posten skrivs i två delar: grunden när den ändrats, loggen efter varje ändring. Ett lagringsfel syns i statusraden.
+   - *Banhemligheten:* telefonens kopia tas bort vid utloggning och när servern svarar 403. En kopia av tävlingen tar med
+     banläggningens behörigheter (också kartritaren) och notiserna bara när personerna följer med (`includePeople`);
+     träningsgruppens tillfällen tar aldrig med dem.
+   - *Minnet i mobilen:* vägvalens Worker startas först när en sträcka väljs. Högdalen (5 MB OCAD): kartans Worker 20 MB,
+     vägvalens 48 MB (kostnadsmodellen 28 MB); fältläget håller nu bara kartans.
 
 **Konsekvenser.** Ingen ny teknik för realtid (som CRDT) behövs, eftersom ändringarna redan är små åtgärder. GPS i skog
 är ofta 5–15 m fel, så GPS-läget visar var man står men ersätter inte kartbilden; finjusteringen avgör.
@@ -53,7 +70,8 @@ kontroll lite, skriva in stenens höjd, vilken sida flaggan sitter på och likna
 ## Risker och öppna frågor
 
 - **GPS-noggrannheten** i skog och nära hus. Provas av ägaren i terrängen.
-- **Kartfilen i telefonen:** stora OCAD-filer kan vara tunga att rita. Provas med Högdalen och Djurgården.
+- **Kartfilen i telefonen:** stora OCAD-filer kan vara tunga att rita. Provas med Högdalen och Djurgården. Minnet
+  räknat i Node (V8): Högdalen 20 MB för kartans Worker; i webbläsaren på en riktig telefon är det inte mätt.
 - **Foton** tar plats; storleken begränsas och de tas bort med tävlingen.
 - **Kartritaren** ser alla kartfel; ett kartfel nära en kontroll kan avslöja den (arrangören väljer vem som får rollen).
 - **GeoJSON i OCAD:** QGIS läser `crs`; OCAD:s import av GeoJSON är inte provad med en riktig kartfil.

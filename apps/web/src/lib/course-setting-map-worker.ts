@@ -1,5 +1,5 @@
 /// <reference lib="webworker" />
-import { detailCircleGaps } from "@o-tid/course-setting";
+import { detailCircleGaps, suggestAt, type DescriptionSuggestion } from "@o-tid/course-setting";
 import { drawMap, MapFileError, readMapFile, type ParsedMap } from "@o-tid/map-file";
 import { MAX_RENDER_SIDE, type MapRenderRequest, type MapRenderResponse } from "./course-setting-map-protocol";
 
@@ -55,6 +55,14 @@ self.onmessage = (event: MessageEvent<MapRenderRequest>) => {
     try { if (map) gaps = detailCircleGaps(map, request.circles, { sprint: request.sprint }); }
     catch (error) { console.error("Ringklippen kunde inte räknas", error); }
     post({ type: "detailGaps", id: request.id, gaps });
+    return;
+  }
+  if (request.type === "suggest") {
+    // ADR-0180 beslut 12: förslagen på kartfilen som redan är inläst (indexeras första gången, sparas per karta).
+    const suggestions: Record<string, DescriptionSuggestion[]> = {};
+    try { if (map) for (const point of request.points) suggestions[point.id] = suggestAt(map, point.at, request.options); }
+    catch (error) { console.error("Förslagen på kontrollbeskrivning kunde inte räknas", error); }
+    post({ type: "suggestions", id: request.id, suggestions });
     return;
   }
   try {

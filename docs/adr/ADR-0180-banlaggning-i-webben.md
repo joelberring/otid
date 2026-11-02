@@ -58,6 +58,20 @@ Samarbete och fältläge i mobilen (66–67, ADR-0181) lades till 2026-11-01 och
     passera och passager som öppningar, som motorn tar emot per sträcka (`LegInput.barriers`) och rastrerar som kartans
     ej passerbara symboler respektive genomgångar; kontrollerna varnar när en sträckas linje går genom en spärr.
     Utskriftsprofilen (kartans färger och banans dekorfärg), layoutmallarna och en karta per löpare beskrivs i ADR-0183.
+12. **Förslag på kontrollbeskrivning ur kartfilen** (ägarens önskemål 2026-11-02, "andra banläggningsprogram har
+    autoförslag"). `suggestAt`/`suggestForDocument` i paketet är rena funktioner över `ParsedMap`: en tabell ISOM 2017-2 /
+    ISSprOM 2019-2 → IOF 2018 kolumn D (`suggest-symbols.ts`; numren kontrollerade mot ISOM-dokumentet och omapwiki, vilken
+    detalj en kartsymbol är står inte i någon standard och är vår tolkning, med alternativ där symbolen kan betyda flera).
+    OCAD:s nummer matchas på hela numret och sedan huvudnumret; kartor med egna nummer på symbolens namn (lägre säkerhet).
+    Objekten i och nära ringen rangordnas: punktobjekt i centrum, korsningar och förgreningar (F 10.1/10.2, andra linjen i
+    E), linjers ändar och hörn, branter (fot på taggarnas sida, annars uppe på; utan taggar antas foten), ytors kanter och
+    hörn (inner/yttre), små slutna höjdkurvor (höjd; grop med lutningsstreck), mellan två punktobjekt. G får väderstreck
+    från kartans norr: nordlinjerna (601) om de finns, annars papperets upp (OCAD och Mapper ritar georefererade kartor med
+    magnetisk norr upp; grivationen beskriver rutnätets norr och används därför inte). C när flera likadana punktobjekt
+    ligger i ringen, E bara när symbolen säger det (raserad, djup) eller omgivningen (sank, stenig). Mått i F föreslås aldrig.
+    Varje förslag har säkerhet, förklaring och objekten (markeras på kartan). Webben räknar i kartans Worker; förslagen
+    förhandsvisas ljusare för kontroller utan D och skrivs in först när någon godtar, som en vanlig `SET_DESCRIPTION`
+    (samarbetet och ångra som förut). Inget sparas om förslagen.
 
 **Konsekvenser.** Purple Pen och macpurplepen kan användas parallellt: .ppen in och ut. Stockholm by Night (9 december)
 läggs i Purple Pen som vanligt; .ppen-importen gör att banor och gafflingar går rakt in. Editorn blir inte lika snabb att

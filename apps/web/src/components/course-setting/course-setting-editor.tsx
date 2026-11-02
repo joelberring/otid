@@ -48,6 +48,8 @@ import { CircleCuttingPanel, useDetailGaps } from "./course-setting-circle-cutti
 import { useFieldMode, useLockedPage } from "./course-setting-field";
 import { FilePanel, type ReadFile } from "./course-setting-file";
 import { DescriptionPanel } from "./course-setting-description";
+import { FieldSuggestionLine, useDescriptionSuggestions } from "./course-setting-suggest";
+import { drawSuggestionHighlight } from "../../lib/course-setting-suggest";
 import { InspectionsPanel, OfflinePanel } from "./course-setting-inspections";
 import { CourseSettingMap, type CourseSettingMapHandle, type MapPointerHandlers } from "./course-setting-map";
 import { NoteForm, NotesPanel } from "./course-setting-notes";
@@ -223,6 +225,9 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
 
   const { document, view, variant, selection } = editor;
   const cutting = useDetailGaps(mapSession, document);
+  // ADR-0180 beslut 12: förslag på kontrollbeskrivning ur kartfilen; objektet markeras när man pekar på ett förslag.
+  const suggestions = useDescriptionSuggestions(mapSession, document, view, variant, selection?.kind === "control" ? selection.control : undefined);
+  const [suggestionHover, setSuggestionHover] = useState<Parameters<typeof drawSuggestionHighlight>[2]>();
   const options = { course: view, ...(variant ? { variant } : {}), ...cutting.options };
   const primitives = useMemo(() => safely("Banpåtrycket", () => layoutOverprint(document, options), [] as readonly OverprintPrimitive[]),
     [document, view, variant, cutting.options]);
@@ -245,7 +250,8 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
     const at = (point: { x: number; y: number }) => toScreen(mapView, point);
     if (printPage) drawPrintFrame(ctx, at, [printPage.page.mapArea], mapView);
     drawSpecialEditing(ctx, at, { drawing: editor.tool === "SPECIAL" ? editor.drawing : undefined, handles: selectedSpecial ? specialHandles(selectedSpecial) : undefined });
-  }, [printPage, editor.tool, editor.drawing, selectedSpecial]);
+    if (suggestionHover) drawSuggestionHighlight(ctx, at, suggestionHover, mapView.pxPerMm);
+  }, [printPage, editor.tool, editor.drawing, selectedSpecial, suggestionHover]);
   const mapHandle = useRef<CourseSettingMapHandle>(null);
   const course = document.courses.find(row => row.id === view);
   const radiusMm = 3 * (course?.printScale ?? document.event.mapScale) / document.event.mapScale;
@@ -582,7 +588,8 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
         }}
         onSelect={target => apply(current => select(current, target))}
         onEdit={edits => edit(current => applySteps(current, edits, applyEdit))}
-        onPrint={() => void flush().finally(() => router.push(`/admin/${raceId}/course-setting/descriptions`))} />;
+        onPrint={() => void flush().finally(() => router.push(`/admin/${raceId}/course-setting/descriptions`))}
+        suggestions={suggestions} readOnly={readOnly} onHoverSuggestion={setSuggestionHover} />;
       case "selected": return <>
         <SelectedPanel state={editor} described={describedControl} readOnly={readOnly}
           onCode={(control, value) => edit(current => applySteps(current, [{ type: "SET_CONTROL_CODE", control, code: value }], applyEdit))}
@@ -655,7 +662,9 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
       position }).catch(error => console.error("Bocken sparades inte i telefonen", error)),
     onNote: ({ target, at, text: value, photo }) => queueNote(target, at, value, photo),
     onList: () => { setTab("inspections"); setReveal(value => value + 1); },
-    onOffline: () => setOfflineDialog(true) });
+    onOffline: () => setOfflineDialog(true),
+    suggestion: readOnly ? undefined : <FieldSuggestionLine document={document} control={selectedControl} state={suggestions} symbols={symbols}
+      onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} /> });
   useLockedPage();
   const toolBar = <ToolBar tool={editor.tool} tools={tools} inCourse={view !== ALL_CONTROLS} onTool={tool => {
     if (tool === "SPECIAL") setTab("objects");

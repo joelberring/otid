@@ -20,6 +20,10 @@ import { controlLabel } from "../../lib/course-setting-text";
 import { Button } from "../ui";
 import { DescriptionPicker, type PickedValue } from "./course-setting-description-picker";
 import { DescriptionSvg } from "./description-svg";
+import { SuggestionPanel, type SuggestionsState } from "./course-setting-suggest";
+import { acceptEmptyEdits, previewDocument } from "../../lib/course-setting-suggest";
+import { courseSettingSuggestSv as suggestText } from "../../i18n/course-setting-suggest-sv";
+import type { Point } from "@o-tid/map-file";
 import styles from "./course-setting.module.css";
 
 /** Paketets uträkningar får inte fälla editorn; ett fel syns i konsolen och panelen säger att beskrivningen inte gick. */
@@ -34,17 +38,26 @@ type Picking = { readonly ref: string; readonly control: string; readonly box: s
  * (och vald kontroll på kartan markerar raden); en ruta C–H öppnar väljaren. Textrader före och efter vald kontroll,
  * standard, språk och visningssätt. Ändringarna går genom editorns `applyEdit` (ångra och autosparande).
  */
-export function DescriptionPanel({ document, view, variant, selection, settings, onSettings, onSelect, onEdit, onPrint }: {
+export function DescriptionPanel({ document, view, variant, selection, settings, onSettings, onSelect, onEdit, onPrint, suggestions, readOnly = false,
+  onHoverSuggestion }: {
   document: CourseSettingDocument; view: string; variant: string | undefined; selection: Selection | undefined;
   settings: DescriptionSettings; onSettings: (settings: DescriptionSettings) => void; onSelect: (selection: Selection) => void;
   onEdit: (edits: readonly CourseSettingEdit[]) => void; onPrint: () => void;
+  /** ADR-0180 beslut 12: förslagen ur kartfilen (förhandsvisas för kontroller utan detalj, godtas här). */
+  suggestions?: SuggestionsState | undefined; readOnly?: boolean | undefined;
+  onHoverSuggestion?: ((shapes: readonly (readonly Point[])[] | undefined) => void) | undefined;
 }) {
   const standard = document.event.descriptionStandard;
   const symbols = useMemo(() => safely("Symbolerna", () => descriptionSymbols(standard), [] as readonly DescriptionSymbol[]), [standard]);
   const lookup = useMemo(() => symbolLookup(symbols), [symbols]);
-  const layout = useMemo(() => safely("Kontrollbeskrivningen", () => layoutDescription(document,
+  // Förslagen syns ljusare i rader utan detalj tills någon godtar dem (dokumentet här ritas bara, det sparas aldrig).
+  const shown = useMemo(() => suggestions ? previewDocument(document, suggestions.byControl) : { document, preview: new Set<string>() },
+    [document, suggestions?.byControl]);
+  const layout = useMemo(() => safely("Kontrollbeskrivningen", () => layoutDescription(shown.document,
     { course: view, ...(variant ? { variant } : {}), kind: settings.kind, language: settings.language }), undefined as DescriptionLayout | undefined),
-  [document, view, variant, settings.kind, settings.language]);
+  [shown.document, view, variant, settings.kind, settings.language]);
+  const emptyEdits = useMemo(() => suggestions ? acceptEmptyEdits(document, view, variant, suggestions.byControl) : [],
+    [document, view, variant, suggestions?.byControl]);
   const [picking, setPicking] = useState<Picking>();
   const [focusLine, setFocusLine] = useState<"before" | "after">();
   const [recent, setRecent] = useState(() => readRecent(browserStorage()));
@@ -108,8 +121,13 @@ export function DescriptionPanel({ document, view, variant, selection, settings,
     {!layout && <p role="alert" className={styles.muted}>{text.failed}</p>}
     {layout && <div className={styles.description}>
       <DescriptionSvg layout={layout} symbols={lookup} fluid label={text.label(course?.name ?? courseSettingSv.courses.all)}
-        highlight={rowArea(layout, ref)} active={picking} onHit={onHit} hitLabel={hitLabel} testId="description-svg" />
+        highlight={rowArea(layout, ref)} active={picking} onHit={onHit} hitLabel={hitLabel} testId="description-svg"
+        preview={shown.preview} previewLabel={suggestText.preview} />
     </div>}
+    {shown.preview.size > 0 && <p className={styles.muted} data-testid="description-preview-count">{suggestText.previewHelp(shown.preview.size)}</p>}
+    {suggestions && selectedPoint?.kind === "NORMAL" && !picking && <SuggestionPanel document={document} control={selectedPoint.id}
+      label={label(selectedPoint.id)} state={suggestions} symbols={lookup} readOnly={readOnly} emptyEdits={emptyEdits} onEdits={onEdit}
+      onHover={shapes => onHoverSuggestion?.(shapes)} />}
     {picking && <DescriptionPicker label={label(picking.control)} box={picking.box} symbols={boxSymbols} recent={recent[picking.box] ?? []}
       current={boxValue(document.controls[picking.control]?.descriptions ?? [], picking.box)} language={settings.language}
       onPick={pick} onClose={() => setPicking(undefined)} />}

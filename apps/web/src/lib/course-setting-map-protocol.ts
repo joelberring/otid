@@ -1,4 +1,4 @@
-import type { CircleArc, DetailCircle } from "@o-tid/course-setting";
+import type { CircleArc, DescriptionSuggestion, DetailCircle, SuggestOptions } from "@o-tid/course-setting";
 import type { ColorAdjust, MapColor, MapGeoreference, Point } from "@o-tid/map-file";
 import type { Bounds } from "./course-setting-viewport";
 
@@ -13,7 +13,12 @@ export type MapRenderRequest =
       /** Steg 64: kartans färger enligt utskriftsprofilen (kartfilen ändras inte). */
       readonly colorAdjust?: Readonly<Record<number, ColorAdjust>> | undefined }
   /** Ringklipp (ADR-0180 beslut 10): detaljgapen för ringarna, räknade på kartfilen som redan är inläst. */
-  | { readonly type: "detailGaps"; readonly id: number; readonly circles: readonly DetailCircle[]; readonly sprint: boolean };
+  | { readonly type: "detailGaps"; readonly id: number; readonly circles: readonly DetailCircle[]; readonly sprint: boolean }
+  /** ADR-0180 beslut 12: förslag på kontrollbeskrivning för punkterna (kontrollens id och läge). */
+  | { readonly type: "suggest"; readonly id: number; readonly points: readonly SuggestPoint[]; readonly options: SuggestOptions };
+
+export interface SuggestPoint { readonly id: string; readonly at: Point }
+export type SuggestionsByControl = Readonly<Record<string, readonly DescriptionSuggestion[]>>;
 
 export type MapRenderErrorCode = "NOT_A_MAP_FILE" | "UNSUPPORTED_VERSION" | "TRUNCATED" | "INVALID" | "EMPTY" | "NO_CANVAS" | "FAILED";
 
@@ -24,6 +29,8 @@ export type MapRenderResponse =
   | { readonly type: "rendered"; readonly id: number; readonly bitmap: ImageBitmap }
   /** Tomt när kartan inte gick att läsa eller uträkningen misslyckades (ringarna ritas då hela). */
   | { readonly type: "detailGaps"; readonly id: number; readonly gaps: Readonly<Record<string, readonly CircleArc[]>> }
+  /** Tomt när kartan inte gick att läsa eller uträkningen misslyckades (inga förslag visas då). */
+  | { readonly type: "suggestions"; readonly id: number; readonly suggestions: SuggestionsByControl }
   | { readonly type: "error"; readonly code: MapRenderErrorCode };
 
 /** Bildens största sida i pixlar (webbläsarnas gräns för en canvas med marginal). */
@@ -36,6 +43,8 @@ export class MapRenderSession {
   private onRendered: ((id: number, bitmap: ImageBitmap) => void) | undefined;
   private latestGaps = 0;
   private onGaps: ((gaps: Readonly<Record<string, readonly CircleArc[]>>) => void) | undefined;
+  private latestSuggest = 0;
+  private onSuggestions: ((suggestions: SuggestionsByControl) => void) | undefined;
 
   constructor(createWorker: () => Worker, private readonly onLoaded: (bounds: Bounds, scale: number, georeference: MapGeoreference | null,
     colors: readonly MapColor[]) => void,
@@ -46,6 +55,7 @@ export class MapRenderSession {
       if (message.type === "loaded") this.onLoaded(message.bounds, message.scale, message.georeference, message.colors);
       else if (message.type === "error") this.onError(message.code);
       else if (message.type === "detailGaps") { if (message.id === this.latestGaps) this.onGaps?.(message.gaps); }
+      else if (message.type === "suggestions") { if (message.id === this.latestSuggest) this.onSuggestions?.(message.suggestions); }
       else if (message.id === this.latest && this.onRendered) this.onRendered(message.id, message.bitmap);
       else message.bitmap.close();
     };
@@ -68,5 +78,12 @@ export class MapRenderSession {
     this.worker.postMessage({ type: "detailGaps", id, circles, sprint } satisfies MapRenderRequest);
   }
 
-  close() { this.onRendered = undefined; this.onGaps = undefined; this.worker.terminate(); }
+  /** Förslag på kontrollbeskrivning för punkterna; bara svaret på den senaste beställningen används. */
+  suggest(points: readonly SuggestPoint[], options: SuggestOptions, onSuggestions: (suggestions: SuggestionsByControl) => void): void {
+    const id = ++this.latestSuggest;
+    this.onSuggestions = onSuggestions;
+    this.worker.postMessage({ type: "suggest", id, points, options } satisfies MapRenderRequest);
+  }
+
+  close() { this.onRendered = undefined; this.onGaps = undefined; this.onSuggestions = undefined; this.worker.terminate(); }
 }

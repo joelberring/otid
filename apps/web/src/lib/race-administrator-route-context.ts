@@ -1,4 +1,4 @@
-import { loadStartDrawSetupAsAdmin, previewStartDrawAsAdmin, commitStartDrawAsAdmin,
+import { loadStartDrawSetupAsAdmin, previewStartDrawAsAdmin, commitStartDrawAsAdmin, previewRaceDateMoveAsAdmin,
   listResultFinalizationCandidatesAsAdmin, finalizeResultsAsAdmin,
   exportIofResultListAsAdmin, exportFrozenIofResultListAsAdmin, listFrozenRaceFinalizationsAsAdmin,
   requireRaceRole, changeEntryClassAsAdmin, listEntryClassesAsAdmin, logoutUserAccountSession,
@@ -70,6 +70,8 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
       sharedForestWatch(`forest-watch:${raceId}:${raceChangeGeneration(raceId)}`, compute)), publicationPreview: getStartListPublicationPreviewAsAdmin, publication: decideStartListPublicationAsAdmin,
   startListExport: exportCurrentStartListXmlAsAdmin,
   drawSetup: loadStartDrawSetupAsAdmin, drawPreview: previewStartDrawAsAdmin, draw: commitStartDrawAsAdmin,
+  // ADR-0187 beslut 3: vad som händer när tävlingen flyttas till ett annat datum.
+  raceDateMovePreview: previewRaceDateMoveAsAdmin,
   finalizationCandidates: listResultFinalizationCandidatesAsAdmin, finalize: finalizeResultsAsAdmin,
   frozenResults: listFrozenRaceFinalizationsAsAdmin, frozenResult: exportFrozenIofResultListAsAdmin,
   resultExport: exportIofResultListAsAdmin, authenticate: requireRaceRole,
@@ -162,7 +164,7 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   party: readPartyAsAdmin, partyChange: changePartyAsAdmin, partyGuest: setPartyGuestAsAdmin, partyDeskEvent: registerPartyDeskEventAsAdmin, partyLogo: savePartyLogoAsAdmin,
   // PLAN.md steg 46: stryk självregistrerade som inte läst ut.
   selfRegistrationCleanup: previewSelfRegistrationCleanupAsAdmin, strikeSelfRegistered: strikeSelfRegisteredAsAdmin };
-export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: string } | { kind: "review-conflicts" } | { kind: "checkin-history"; entryId: string } | { kind: "start-correction" } | { kind: "manual-return-withdrawal" } | { kind: "manual-return" } | { kind: "forest-watch" } | { kind: "publication-preview" } | { kind: "publication" } | { kind: "start-list-export" } | { kind: "draw-preview" } | { kind: "draw" } |
+export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: string } | { kind: "review-conflicts" } | { kind: "checkin-history"; entryId: string } | { kind: "start-correction" } | { kind: "manual-return-withdrawal" } | { kind: "manual-return" } | { kind: "forest-watch" } | { kind: "publication-preview" } | { kind: "publication" } | { kind: "start-list-export" } | { kind: "draw-preview" } | { kind: "draw" } | { kind: "race-date-move-preview" } |
   { kind: "finalization-candidates" } | { kind: "finalize" } | { kind: "frozen-results" } | { kind: "frozen-result"; finalizationId: string } |
   { kind: "result-export" } | { kind: "session" } | { kind: "participants" } | { kind: "transfer-candidates" } |
   { kind: "class"; entryId: string } | { kind: "transfer"; entryId: string } | { kind: "capacity"; classId: string } |

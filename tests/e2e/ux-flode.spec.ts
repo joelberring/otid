@@ -60,6 +60,18 @@ async function shotOf(page: Page, locator: Locator, name: string) {
   await page.setViewportSize({ width: 1280, height: 900 });
 }
 
+/** Hela sidan i dator och 390 px, överst först. */
+async function shotPage(page: Page, name: string) {
+  if (!shots) return;
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.waitForTimeout(300);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({ path: `${shots}/${name}-${width}.png`, fullPage: true });
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+}
+
 /** Tävling med tio klasser och 300 löpare, inläst från IOF XML. */
 async function raceWithClasses(page: Page, eventName: string, date = daysFromToday(30)) {
   const raceId = await createRace(page, eventName, date);
@@ -131,4 +143,50 @@ test("lotta tio klasser med gemensamma inställningar och en kompakt förhandsvi
   await expect(info.getByText("10:00", { exact: true })).toBeVisible();
   await info.getByRole("button", { name: "Ändra i Lottning" }).click();
   await expect(owner.getByLabel("Första start (klockslag)")).toHaveValue("10:00");
+
+  // ADR-0187 beslut 3: tävlingen skjuts upp en vecka efter lottningen; starttiderna följer med efter en bekräftelse.
+  await openStep(owner, "Inställningar");
+  const later = daysFromToday(37);
+  await owner.getByLabel("Datum", { exact: true }).fill(later);
+  await owner.getByRole("button", { name: "Spara inställningar" }).click();
+  const move = owner.getByRole("status", { name: "Flytta tävlingen" });
+  await expect(move).toContainText("300 löpare med starttid 10:00–");
+  await expect(move).toContainText("Lottningen för 10 klasser följer med");
+  await expect(move).toContainText(`Efter flytten: ${later} 10:00–`);
+  if (shots) await move.screenshot({ path: `${shots}/efter-datumflytt-1280.png` });
+  await move.getByRole("button", { name: "Flytta tävlingen och starttiderna" }).click();
+  await expect(owner.getByText(`Tävlingen är flyttad till ${later} med samma starttider.`)).toBeVisible();
+  await openStep(owner, "Start");
+  await expect(owner.getByRole("region", { name: "Startlistan" }).getByRole("row", { name: /Alva Testsson0/ }).first()).toContainText(/1[01]:\d\d/);
+});
+
+/** Sidan går inte utanför skärmen i sidled. */
+async function fitsWidth(page: Page) {
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width);
+}
+
+/**
+ * ADR-0187: på 390 px blir Banor och Klasser kort (namnet överst, uppgifterna med etikett, knapparna under) och ingen del
+ * av arbetsytan går utanför skärmen.
+ */
+test("arbetsytan går inte utanför skärmen på 390 px", async ({ browser }) => {
+  test.setTimeout(300_000);
+  const suffix = unique();
+  const owner = await registerAccount(browser, `ux.mobil.${suffix}@exempel.se`, "Mo Mobil");
+  await raceWithClasses(owner, `UX mobil ${suffix}`);
+  await owner.setViewportSize({ width: 390, height: 844 });
+  await openStep(owner, "Banor");
+  const courses = owner.getByRole("region", { name: "Banor" });
+  await expect(courses.getByRole("rowheader", { name: "Bana H21" })).toBeVisible();
+  await fitsWidth(owner);
+  await shotPage(owner, "efter-banor");
+  await openStep(owner, "Klasser");
+  await expect(owner.getByRole("rowheader", { name: "H21" })).toBeVisible();
+  await fitsWidth(owner);
+  await shotPage(owner, "efter-klasser");
+  for (const step of ["Anmälda", "Start", "Publicera", "Avläsning", "Resultat", "Inställningar"] as const) {
+    await openStep(owner, step);
+    await owner.waitForTimeout(500);
+    await fitsWidth(owner);
+  }
 });

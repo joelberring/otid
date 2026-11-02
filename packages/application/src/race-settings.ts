@@ -1,10 +1,12 @@
-import { and, eq, isNotNull, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import {
   raceSettingsIdempotencyKeySchema, raceSettingsRequestSchema, raceSettingsResponseSchema, type RaceSettingsResponse
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation } from "./concurrency";
+import { applyRaceDateMove, hasStartTimes, planRaceDateMove, type RaceDateMovePlan } from "./race-date-move";
+import { bumpReadoutPackageVersion } from "./snapshot";
 import { UUID_PATTERN as uuid } from "./serialization";
 
 type Authentication = RaceSessionProof;
@@ -48,16 +50,16 @@ export async function saveRaceSettingsAsAdmin(db: Database, input: Authenticatio
     const [race] = await tx.select({ eventId: schema.races.eventId, name: schema.races.name, raceDate: schema.races.raceDate,
       raceType: schema.races.raceType, eventName: schema.events.name, publicStartListCardNumbers: schema.races.publicStartListCardNumbers,
       info: schema.races.info, firstStartTime: schema.races.firstStartTime, startListLive: schema.races.startListLive,
-      selfRegistration: schema.races.selfRegistration })
+      selfRegistration: schema.races.selfRegistration, timeZone: schema.events.timeZone })
       .from(schema.races).innerJoin(schema.events, eq(schema.events.id, schema.races.eventId))
       .where(eq(schema.races.id, raceId));
     if (!race) return { status: "not-found" };
+    // ADR-0187 beslut 3: med starttider följer de med till det nya datumet (samma klockslag) när arrangören har sett
+    // förhandsvisningen. Har tävlingen börjat (avläsning, stämpling, incheckning eller resultat) ändras inget datum.
+    let datePlan: RaceDateMovePlan | undefined;
     if (race.raceDate !== intent.raceDate) {
-      const [fixedStart] = await tx.select({ id: schema.entries.id }).from(schema.entries)
-        .where(and(eq(schema.entries.raceId, raceId), isNotNull(schema.entries.fixedStartTime))).limit(1);
-      const [readout] = await tx.select({ id: schema.cardReadouts.id }).from(schema.cardReadouts)
-        .where(eq(schema.cardReadouts.raceId, raceId)).limit(1);
-      if (fixedStart || readout) return { status: "conflict" };
+      datePlan = await planRaceDateMove(tx, raceId, race.raceDate, intent.raceDate, race.timeZone);
+      if (datePlan.blocked.length > 0 || (hasStartTimes(datePlan) && intent.moveStartTimes !== true)) return { status: "conflict" };
     }
     const snapshotVersionAfter = locked.snapshotVersion + 1;
     // Steg 33: fält som saknas i förfrågan (äldre klient) behåller sitt värde.
@@ -69,6 +71,11 @@ export async function saveRaceSettingsAsAdmin(db: Database, input: Authenticatio
       selfRegistration: intent.raceType === "RELAY" ? false : intent.selfRegistration ?? race.selfRegistration };
     await tx.update(schema.races).set({ name: intent.raceName, raceDate: intent.raceDate, raceType: intent.raceType, ...info,
       snapshotVersion: snapshotVersionAfter }).where(eq(schema.races.id, raceId));
+    if (datePlan && hasStartTimes(datePlan)) {
+      await applyRaceDateMove(tx, { raceId, plan: datePlan, requestId: intent.requestId, actorAccountId: auth.principal.accountId,
+        snapshotVersionBefore: locked.snapshotVersion, now });
+      await bumpReadoutPackageVersion(tx, raceId);
+    }
     // Ett event med ett enda lopp (så skapar kontot tävlingar) får samma namn och startdatum som loppet.
     const [otherRace] = await tx.select({ id: schema.races.id }).from(schema.races)
       .where(and(eq(schema.races.eventId, race.eventId), sql`${schema.races.id} <> ${raceId}`)).limit(1);

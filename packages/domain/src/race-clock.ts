@@ -86,3 +86,34 @@ export function parseRaceClockNear(date: string, clock: string, timeZone: string
   const nextDay = parseRaceClock(nextRaceDate(date), clock, timeZone);
   return near(nextDay) ? nextDay : sameDay;
 }
+
+/** Antal dagar från `from` till `to` (ÅÅÅÅ-MM-DD). */
+function daysBetween(from: string, to: string): number {
+  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
+}
+
+/** Datumet `days` dagar efter (ÅÅÅÅ-MM-DD). */
+function addDays(date: string, days: number): string {
+  const [year, month, day] = date.split("-").map(Number) as [number, number, number];
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+}
+
+/**
+ * ADR-0187 beslut 3: en starttid flyttad till tävlingens nya datum med samma klockslag i tävlingens tidszon. En tid efter
+ * midnatt (dagen efter tävlingsdagen, ADR-0178) hamnar dagen efter det nya datumet. Sommartid räknas om: 10:00 är 10:00 också
+ * när förskjutningen mot UTC är en annan. Ett klockslag som inte finns det nya datumet (övergången till sommartid) flyttas
+ * en timme fram, som klockan gör. Null om datumen inte går att läsa.
+ */
+export function moveToRaceDate(instant: Date, fromDate: string, toDate: string, timeZone: string): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fromDate) || !/^\d{4}-\d{2}-\d{2}$/.test(toDate) || !Number.isFinite(instant.getTime())) return null;
+  const localDate = localRaceDate(instant, timeZone);
+  const clock = new Intl.DateTimeFormat("sv-SE", { timeZone, hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" })
+    .format(instant);
+  const targetDate = addDays(toDate, daysBetween(fromDate, localDate));
+  const moved = parseRaceClock(targetDate, clock, timeZone);
+  if (moved) return new Date(Date.parse(moved) + instant.getMilliseconds());
+  const [hour, minute, second] = clock.split(":").map(Number) as [number, number, number];
+  const pad = (value: number) => String(value).padStart(2, "0");
+  const later = hour < 23 ? parseRaceClock(targetDate, `${pad(hour + 1)}:${pad(minute)}:${pad(second)}`, timeZone) : null;
+  return later ? new Date(Date.parse(later) + instant.getMilliseconds()) : null;
+}

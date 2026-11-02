@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { raceSettingsResponseSchema, type RaceSettingsRequest, type RaceType } from "@o-tid/contracts";
+import { raceDateMovePreviewResponseSchema, raceSettingsResponseSchema, type RaceDateMovePreviewResponse, type RaceSettingsRequest,
+  type RaceType } from "@o-tid/contracts";
 import { raceTypeSv } from "../../i18n/race-type-sv";
 import { raceInfoSv } from "../../i18n/race-info-sv";
 import { startListPublicationSv } from "../../i18n/start-list-publication-sv";
@@ -44,25 +45,42 @@ export function useSettingsState() {
   const [settingsErrors, setSettingsErrors] = useState<FieldErrors<"eventName" | "raceName" | "raceDate" | "info" | "firstStartTime">>({});
   const [startListLiveMessage, setStartListLiveMessage] = useState<{ tone: "ok" | "error"; text: string }>();
   const [selfRegistrationMessage, setSelfRegistrationMessage] = useState<{ tone: "ok" | "error"; text: string }>();
-  return { selfRegistrationMessage, setSelfRegistrationMessage, startListLiveMessage, setStartListLiveMessage, settingsErrors, setSettingsErrors, settingsForm, setSettingsForm, settingsAttempt, setSettingsAttempt, settingsMessage, setSettingsMessage };
+  /** ADR-0187 beslut 3: vad som händer med starttiderna när datumet ändras, visas innan det sparas. */
+  const [dateMovePreview, setDateMovePreview] = useState<RaceDateMovePreviewResponse>();
+  return { dateMovePreview, setDateMovePreview, selfRegistrationMessage, setSelfRegistrationMessage, startListLiveMessage, setStartListLiveMessage, settingsErrors, setSettingsErrors, settingsForm, setSettingsForm, settingsAttempt, setSettingsAttempt, settingsMessage, setSettingsMessage };
 }
 
 export function createSettingsActions(ws: Base & RaceDataActions) {
   const { raceId, data, writingRef, pending, settingsForm, settingsAttempt, requireSession, begin, finish, current, request, json, csrf, load,
-    setSettingsForm, setSettingsAttempt, setSettingsMessage, setSettingsErrors, setStartListLiveMessage, setSelfRegistrationMessage } = ws;
+    setSettingsForm, setSettingsAttempt, setSettingsMessage, setSettingsErrors, setStartListLiveMessage, setSelfRegistrationMessage,
+    setDateMovePreview } = ws;
   const text = raceTypeSv.settings;
 
   function changeSettings(change: Partial<SettingsForm>) {
     if (!data) return;
     setSettingsMessage(undefined); setSettingsErrors({});
+    if (change.raceDate !== undefined) setDateMovePreview(undefined);
     setSettingsForm({ ...(settingsForm ?? settingsFormFrom(data)), ...change });
+  }
+
+  /**
+   * ADR-0187 beslut 3: förhandsvisningen av ett nytt datum. Undefined = inga starttider att flytta (spara direkt), "blocked"
+   * = tävlingen har börjat (beskedet visas), annars visas förhandsvisningen och arrangören bekräftar.
+   */
+  async function readDateMove(raceDate: string, op: ReturnType<typeof begin>) {
+    const response = await request("/settings/date-preview", op, { method: "POST", headers: { "content-type": "application/json",
+      "x-otid-csrf": csrf() }, body: JSON.stringify({ formatVersion: 1, raceDate }) });
+    if (!response.ok) throw new Error("Date move preview unavailable");
+    const preview = raceDateMovePreviewResponseSchema.parse(await json(response, op));
+    if (preview.raceId !== raceId || preview.toDate !== raceDate) throw new Error("Date move preview mismatch");
+    return preview;
   }
 
   /**
    * Sparas direkt (inget resultat ändras). Ett försök som inte fick svar skickas om med samma request-id;
    * 400/404/409 betyder att något ändrats under tiden och försöket släpps.
    */
-  async function saveSettings() {
+  async function saveSettings(confirmedMove = false) {
     if (writingRef.current || pending.current || !requireSession() || !data) return;
     const form = settingsForm ?? settingsFormFrom(data);
     const info = normalizeRaceInfo(form.info), firstStartTime = normalizeFirstStart(form.firstStartTime);
@@ -74,11 +92,23 @@ export function createSettingsActions(ws: Base & RaceDataActions) {
       firstStartTime: firstStartTime === undefined ? raceInfoSv.settings.firstStartInvalid : undefined };
     setSettingsErrors(errors);
     if (!settingsAttempt && Object.values(errors).some(Boolean)) return;
+    // Nytt datum: visa först vad som händer med starttiderna (ADR-0187 beslut 3).
+    if (!settingsAttempt && !confirmedMove && form.raceDate !== data.raceDate) {
+      const op = begin(true);
+      try {
+        const preview = await readDateMove(form.raceDate, op);
+        if (preview.blocked.length > 0 || preview.startTimeCount + preview.drawClassCount + preview.relayLegCount > 0) {
+          setDateMovePreview(preview);
+          return;
+        }
+      } catch { if (current(op)) setSettingsMessage({ tone: "error", text: text.failed }); return; }
+      finally { finish(op); }
+    }
     const attempt: RaceSettingsRequest = settingsAttempt ?? { formatVersion: 1, requestId: crypto.randomUUID(),
       eventName: form.eventName.trim(), raceName: form.raceName.trim(),
       raceDate: form.raceDate, raceType: form.raceType, publicStartListCardNumbers: form.publicStartListCardNumbers,
-      info, firstStartTime: firstStartTime ?? null };
-    setSettingsAttempt(attempt); setSettingsMessage(undefined);
+      info, firstStartTime: firstStartTime ?? null, ...(confirmedMove ? { moveStartTimes: true } : {}) };
+    setSettingsAttempt(attempt); setSettingsMessage(undefined); setDateMovePreview(undefined);
     const op = begin(true);
     try {
       const response = await request("/settings", op, { method: "POST", headers: { "content-type": "application/json",
@@ -92,7 +122,7 @@ export function createSettingsActions(ws: Base & RaceDataActions) {
       const receipt = raceSettingsResponseSchema.parse(await json(response, op));
       if (receipt.raceId !== raceId || receipt.requestId !== attempt.requestId) throw new Error("Settings receipt mismatch");
       setSettingsAttempt(undefined); setSettingsForm(undefined);
-      setSettingsMessage({ tone: "ok", text: text.saved });
+      setSettingsMessage({ tone: "ok", text: attempt.moveStartTimes ? text.dateMove.saved(attempt.raceDate) : text.saved });
       await load(op);
     } catch { if (current(op)) setSettingsMessage({ tone: "error", text: text.failed }); }
     finally { finish(op); }
@@ -139,6 +169,7 @@ export function createSettingsActions(ws: Base & RaceDataActions) {
     } catch { if (current(op)) setSelfRegistrationMessage({ tone: "error", text: selfRegistrationSv.setting.failed }); }
     finally { finish(op); }
   }
-  return { changeSettings, saveSettings, saveStartListLive, saveSelfRegistration };
+  function cancelDateMove() { setDateMovePreview(undefined); }
+  return { changeSettings, saveSettings, cancelDateMove, saveStartListLive, saveSelfRegistration };
 }
 export type SettingsActions = ReturnType<typeof createSettingsActions>;

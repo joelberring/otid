@@ -38,7 +38,27 @@ export const raceTypeSv = {
     raceName: "Etapp/lopp",
     raceNameHelp: "Till exempel Etapp 1 eller Torsdag. Lämna tomt om evenemanget bara har ett lopp.",
     raceDate: "Datum",
-    raceDateLocked: "Datumet kan inte ändras när det finns starttider eller avläsningar.",
+    raceDateLocked: "Datumet kan inte ändras när någon har läst ut eller har resultat.",
+    /** ADR-0187 beslut 3: datumet flyttas med starttiderna. */
+    dateMove: {
+      help: "Starttiderna följer med till det nya datumet med samma klockslag. Du ser vad som händer innan det sparas.",
+      title: "Flytta tävlingen",
+      summary: (from: string, to: string) => `Tävlingen flyttas från ${from} till ${to}. Starttiderna behåller sina klockslag.`,
+      startTimes: (count: number, first: string, last: string) =>
+        `${count === 1 ? "1 löpare" : `${count} löpare`} med starttid ${first === last ? first : `${first}–${last}`} får samma tid det nya datumet.`,
+      drawClasses: (count: number) => count === 1 ? "Lottningen för 1 klass följer med, med vakanta tider." : `Lottningen för ${count} klasser följer med, med vakanta tider.`,
+      relayLegs: (count: number) => count === 1 ? "1 stafettsträcka med masstart eller omstart följer med." : `${count} stafettsträckor med masstart eller omstart följer med.`,
+      after: (firstDay: string, first: string, lastDay: string, last: string) => firstDay === lastDay
+        ? `Efter flytten: ${firstDay} ${first}–${last}.` : `Efter flytten: ${firstDay} ${first} till ${lastDay} ${last}.`,
+      republish: "Startlistan är publicerad. Publicera den igen under Start när tävlingen är flyttad.",
+      journal: "Flytten sparas i en enda ändring och står i tävlingens historik med varje löpares gamla och nya tid.",
+      confirm: "Flytta tävlingen och starttiderna",
+      cancel: "Avbryt",
+      saved: (date: string) => `Tävlingen är flyttad till ${date} med samma starttider.`,
+      blockedTitle: (date: string) => `Tävlingen kan inte flyttas till ${date}: den har redan börjat.`,
+      blocked: { READOUTS: "Någon har läst ut sin bricka.", PUNCHES: "Det finns stämplingar från radiokontroller.",
+        CHECKINS: "Någon är incheckad vid starten.", RESULTS: "Det finns resultat." }
+    },
     save: "Spara inställningar",
     saved: "Inställningarna är sparade.",
     conflict: "Inställningarna kunde inte sparas: något har ändrats under tiden. Uppdatera och försök igen.",

@@ -10,7 +10,7 @@ import { classCapacityKeySchema, classCapacityRequestSchema, classCapacityRespon
   startDrawIdempotencyKeySchema, startDrawResponseSchema, startListPublicationPreviewResponseSchema,
   startListPublicationRequestSchema, startListPublicationIdempotencyKeySchema, rogainingChangePreviewRequestSchema,
   rogainingChangePreviewResponseSchema, rogainingChangeIdempotencyKeySchema, rogainingChangeRequestSchema,
-  rogainingChangeResponseSchema } from "@o-tid/contracts";
+  rogainingChangeResponseSchema, raceDateMovePreviewRequestSchema, raceDateMovePreviewResponseSchema } from "@o-tid/contracts";
 import {
   adminFailure as failure,
   hasNoRequestBody,
@@ -159,6 +159,17 @@ export async function handlePreparationRoute(context: RaceAdministratorRouteCont
     const result = await dependencies.drawSetup(db, { ...proof, raceId });
     if (result.status !== "ok") return resultFailure(result.status);
     const response = startDrawSetupResponseSchema.parse(result.response);
+    if (response.raceId !== raceId) return failure(500, "INTERNAL_ERROR");
+    return json(response);
+  }
+  if (action.kind === "race-date-move-preview") {
+    let body: unknown;
+    try { body = await readJsonBody(request, 4 * 1024); } catch { return failure(400, "INVALID_REQUEST"); }
+    const parsed = raceDateMovePreviewRequestSchema.safeParse(body);
+    if (!parsed.success) return failure(400, "INVALID_REQUEST");
+    const result = await dependencies.raceDateMovePreview(db, { ...proof, raceId, request: parsed.data });
+    if (result.status !== "ok") return resultFailure(result.status);
+    const response = raceDateMovePreviewResponseSchema.parse(result.response);
     if (response.raceId !== raceId) return failure(500, "INTERNAL_ERROR");
     return json(response);
   }

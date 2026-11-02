@@ -76,6 +76,7 @@ export * from "./relay-admin";
 export * from "./relay-admin-edit";
 export * from "./relay-results";
 export * from "./race-settings";
+export * from "./race-date-move";
 export { synchronizeRelayTeams } from "./relay-sync";
 export * from "./eventor-link";
 export * from "./source-sync";

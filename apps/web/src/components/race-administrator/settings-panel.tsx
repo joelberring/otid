@@ -11,6 +11,7 @@ import { raceCopySv } from "../../i18n/race-copy-sv";
 import { RaceTypeChoice } from "../race-type-choice";
 import { CopyRaceDialog, type CopySource } from "../copy-race-dialog";
 import { Button, DateInput, Field, Notice, Section } from "../ui";
+import { formatClockTime, zonedDate } from "../../lib/clock-time";
 import { EventorSection } from "./eventor-section";
 import { RaceDeleteSection } from "./race-delete-section";
 import { RaceExportSection } from "./race-export-section";
@@ -21,6 +22,35 @@ import { selfRegistrationSv } from "../../i18n/self-registration-sv";
 import type { Workspace } from "./workspace-state";
 
 const text = raceTypeSv.settings;
+
+/** ADR-0187 beslut 3: vad som händer med starttiderna när datumet ändras, eller varför det inte går. */
+function DateMoveReview({ ws }: { ws: Workspace }) {
+  const preview = ws.dateMovePreview!;
+  const move = text.dateMove;
+  const clock = (instant: string | null) => instant ? formatClockTime(instant, preview.timeZone).slice(0, 5) : "";
+  const day = (instant: string | null) => instant ? zonedDate(instant, preview.timeZone) : "";
+  if (preview.blocked.length > 0) return <Notice tone="error" role="alert"><div className={styles.review}>
+    <p><strong>{move.blockedTitle(preview.toDate)}</strong></p>
+    <ul className={styles.changeList}>{preview.blocked.map(block => <li key={block}>{move.blocked[block]}</li>)}</ul>
+    <div><Button variant="secondary" onClick={ws.cancelDateMove}>{move.cancel}</Button></div>
+  </div></Notice>;
+  return <section className={styles.review} role="status" aria-label={move.title}>
+    <h3>{move.title}</h3>
+    <p>{move.summary(preview.fromDate, preview.toDate)}</p>
+    <ul className={styles.changeList}>
+      {preview.startTimeCount > 0 && <li>{move.startTimes(preview.startTimeCount, clock(preview.firstBefore), clock(preview.lastBefore))}</li>}
+      {preview.drawClassCount > 0 && <li>{move.drawClasses(preview.drawClassCount)}</li>}
+      {preview.relayLegCount > 0 && <li>{move.relayLegs(preview.relayLegCount)}</li>}
+      {preview.firstAfter && <li>{move.after(day(preview.firstAfter), clock(preview.firstAfter), day(preview.lastAfter), clock(preview.lastAfter))}</li>}
+      {preview.startListPublished && <li>{move.republish}</li>}
+    </ul>
+    <p className={styles.workflowHelp}>{move.journal}</p>
+    <div className={styles.actions}>
+      <Button disabled={ws.saving} onClick={() => void ws.saveSettings(true)}>{move.confirm}</Button>
+      <Button variant="secondary" disabled={ws.saving} onClick={ws.cancelDateMove}>{move.cancel}</Button>
+    </div>
+  </section>;
+}
 
 /**
  * Inställningar (ADR-0170 beslut 1): namn, datum och tävlingstyp. Att byta typ ändrar bara vilka delar som
@@ -35,21 +65,23 @@ export function SettingsPanel({ ws }: { ws: Workspace }) {
   if (!shows("SETTINGS") || !data) return null;
   const form = settingsForm ?? settingsFormFrom(data);
   const infoText = raceInfoSv.settings;
-  // Tiderna tolkas mot loppets datum: med starttider eller resultat går datumet inte att ändra (servern kontrollerar också).
-  const dateLocked = data.entries.some(entry => entry.fixedStartTime !== null || entry.effectiveResult.state !== "NO_PUBLISHED_RESULT");
+  // ADR-0187 beslut 3: starttider följer med till ett nytt datum; med resultat går datumet inte att ändra (servern kontrollerar
+  // också avläsningar, stämplingar och incheckning).
+  const dateLocked = data.entries.some(entry => entry.effectiveResult.state !== "NO_PUBLISHED_RESULT");
+  const withStartTimes = data.entries.some(entry => entry.fixedStartTime !== null);
   const locked = saving || workflowLocked;
   const id = `settings-${raceId}`;
   const publish = sectionForPanel(profile, "PUBLISH");
   const drawStart = profile.features.draw ? sectionForPanel(profile, "START") : undefined;
   return <div className={styles.workflowGroup}>
     <Section id={id} title={text.title} help={text.help}>
-      <form className={styles.settingsForm} noValidate onSubmit={event => { event.preventDefault(); void saveSettings(); }}>
+      <form className={styles.settingsForm} noValidate onSubmit={event => { event.preventDefault(); if (!ws.dateMovePreview) void saveSettings(); }}>
         <div className={styles.settingsFields}>
           <Field label={text.eventName} error={settingsErrors.eventName}><input value={form.eventName} minLength={2} maxLength={160} required disabled={locked || !!settingsAttempt}
             onChange={event => changeSettings({ eventName: event.target.value })} /></Field>
           <Field label={text.raceName} error={settingsErrors.raceName} help={text.raceNameHelp}><input value={form.raceName} maxLength={160} disabled={locked || !!settingsAttempt}
             onChange={event => changeSettings({ raceName: event.target.value })} /></Field>
-          <Field label={text.raceDate} error={settingsErrors.raceDate} help={dateLocked ? text.raceDateLocked : undefined}><DateInput value={form.raceDate}
+          <Field label={text.raceDate} error={settingsErrors.raceDate} help={dateLocked ? text.raceDateLocked : withStartTimes ? text.dateMove.help : undefined}><DateInput value={form.raceDate}
             disabled={locked || dateLocked || !!settingsAttempt} onChange={event => changeSettings({ raceDate: event.target.value })} /></Field>
         </div>
         <RaceTypeChoice name={`${id}-type`} value={form.raceType} disabled={locked || !!settingsAttempt}
@@ -78,9 +110,10 @@ export function SettingsPanel({ ws }: { ws: Workspace }) {
             <p className={styles.workflowHelp} id={`${id}-cards-help`}>{infoText.cardNumbersHelp}</p>
           </div>
         </fieldset>
+        {ws.dateMovePreview && <DateMoveReview ws={ws} />}
         {settingsMessage && <Notice tone={settingsMessage.tone} role={settingsMessage.tone === "ok" ? "status" : "alert"}>
           {settingsMessage.text}</Notice>}
-        <div><Button type="submit" disabled={locked}>{text.save}</Button></div>
+        {!ws.dateMovePreview && <div><Button type="submit" disabled={locked}>{text.save}</Button></div>}
       </form>
     </Section>
     {/* Steg 41: för en fest finns valet i fest-arbetsytan; stafett har inget. */}

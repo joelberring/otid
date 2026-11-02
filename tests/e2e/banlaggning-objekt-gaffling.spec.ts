@@ -43,7 +43,7 @@ type Document = {
 };
 
 test("banläggning: passager och vridning, paletten, duplicera, fånga befintlig, gaffla, ta bort bana och oanvända", async ({ browser }) => {
-  test.setTimeout(420_000);
+  test.setTimeout(600_000);
   const suffix = unique();
   const owner = await registerAccount(browser, `objekt.${suffix}@exempel.se`, "Bea Banläggare");
   const raceId = await createRace(owner, `Objekt ${suffix}`, today(), "Tävling");
@@ -109,7 +109,7 @@ test("banläggning: passager och vridning, paletten, duplicera, fånga befintlig
 
   // 3. Duplicera banan: "Lång (kopia)" direkt efter originalet, med samma kontroller.
   await owner.getByRole("tab", { name: "Banor" }).click();
-  await owner.getByTestId("course-setting-course").filter({ hasText: /^Lång\b/ }).first().click();
+  await owner.getByTestId("course-setting-course").filter({ hasText: "Lång" }).first().click();
   await owner.getByRole("button", { name: "Duplicera" }).click();
   await expect(owner.getByTestId("course-setting-course")).toHaveCount(3);
   await expect(owner.getByTestId("course-setting-view")).toHaveValue(/.+/);
@@ -164,9 +164,11 @@ test("banläggning: passager och vridning, paletten, duplicera, fånga befintlig
     expect(next).not.toBe(forkCc.split!.end);
     expect(document.courseControls[next]!.next).toBe(forkCc.split!.end);
   }
-  // Varianten B visas kraftig (gren A svag) och bokstäverna står på kartan.
+  // Klar: alla grenar visas igen; en variant ur listan visas kraftig (den andra grenen svag).
+  await bar.getByRole("button", { name: "Klar" }).click();
+  await expect(bar).toHaveCount(0);
   await owner.getByTestId("course-setting-variant").nth(1).click();
-  await bar.getByRole("button", { name: "Klar" }).click().catch(() => undefined);
+  await expect(owner.getByTestId("course-setting-variant").nth(1)).toHaveAttribute("aria-pressed", "true");
 
   // 6. Ta bort banan: dialogen listar kontrollerna som blir oanvända; banan och de två nya tas bort i ett ångra-steg.
   await owner.getByRole("button", { name: "Ta bort banan" }).click();

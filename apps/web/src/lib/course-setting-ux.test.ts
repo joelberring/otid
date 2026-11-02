@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyEdit as apply, courseControlOrder, emptyDocument, type CourseSettingDocument } from "@o-tid/course-setting";
+import { applyEdit as apply, courseControlOrder, emptyDocument, readPpen, writePpen, type CourseSettingDocument } from "@o-tid/course-setting";
 import { addPoint, addSplit, applySteps, createEditor, select, setView, workInBranch, type EditorState } from "./course-setting-editor";
 import { allBranches, branchLabels, branchOf, branchVariant, courseTree, forkOfBranch } from "./course-setting-forks";
 import { ALL_CONTROLS } from "./course-setting-hit";
@@ -8,7 +8,8 @@ import {
   angleTowards, handlePosition, legOrientation, nearestLegOrientation, nearHandle, rotatableOf, rotateEdit
 } from "./course-setting-rotate";
 import { ghostPrimitives, otherCoursesPrimitives, snapAt, snapCandidates } from "./course-setting-snap";
-import { clickSpecial } from "./course-setting-specials";
+import { clickSpecial, SPECIAL_TOOL_KINDS, specialInput } from "./course-setting-specials";
+import { describeEdit } from "./course-setting-suggestion";
 import { testDocument } from "./course-setting-test-document";
 
 /** ADR-0180 beslut 12: fångst av befintliga kontroller, vridning, grenarnas presentation och paletten. */
@@ -211,4 +212,44 @@ describe("ta bort bana och oanvända kontroller i ett ångra-steg", () => {
     expect(next.past).toHaveLength(1);
     expect(Object.keys(next.document.controls).sort()).toEqual(["f", "s"]);
   });
+});
+
+describe("förslagens text för de nya ändringarna", () => {
+  it("vridning och kopia beskrivs i en mening", () => {
+    const document = apply(testDocument(), { type: "ADD_CONTROL", kind: "CROSSING_POINT", at: { x: 5, y: 5 } });
+    expect(describeEdit({ type: "SET_CONTROL_ORIENTATION", control: document.created!, orientation: 92.4 }, document.document)).toBe("Vrid passage till 92°");
+    expect(describeEdit({ type: "DUPLICATE_COURSE", course: "k", name: "Lång (kopia)" }, document.document)).toBe("Kopiera banan Lång som Lång (kopia)");
+  });
+});
+
+describe("varje specialobjekt går att skapa, flytta, ändra och ta bort", () => {
+  const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+  const points = (kind: string) => kind === "boundary" || kind === "line" ? [{ x: 0, y: 0 }, { x: 10, y: 5 }]
+    : ["out-of-bounds", "dangerous-area", "temporary-construction", "white-out"].includes(kind) ? [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 5, y: 8 }]
+      : ["rectangle", "ellipse"].includes(kind) ? [{ x: 0, y: 10 }, { x: 10, y: 0 }] : [{ x: 2, y: 3 }];
+  for (const kind of SPECIAL_TOOL_KINDS) {
+    it(kind, () => {
+      const course = apply(emptyDocument({ title: "", mapScale: 10000 }), { type: "ADD_COURSE", name: "A" });
+      let document = course.document;
+      const k = course.created!;
+      const input = specialInput(document, k, kind, points(kind), kind === "image" ? { format: "png", data: PNG, aspect: 1 } : undefined);
+      const created = apply(document, { type: "ADD_SPECIAL", special: input });
+      document = created.document;
+      const id = created.created!;
+      const before = document.specialObjects.find(item => item.id === id)!;
+      document = apply(document, { type: "MOVE_SPECIAL", special: id, points: before.points.map(p => ({ x: p.x + 1, y: p.y + 1 })) }).document;
+      const changes = { courses: [k], ...(kind === "text" ? { text: "Hej", color: "black" } : {}),
+        ...(["line", "rectangle", "ellipse"].includes(kind) ? { color: "black" } : {}) };
+      document = apply(document, { type: "UPDATE_SPECIAL", special: id, changes }).document;
+      const moved = document.specialObjects.find(item => item.id === id)!;
+      expect(moved.points[0]).toEqual({ x: before.points[0]!.x + 1, y: before.points[0]!.y + 1 });
+      expect(moved.courses).toEqual([k]);
+      if (kind === "text") expect(moved.text).toBe("Hej");
+      // Rundresa till .ppen och tillbaka, och borttaget.
+      const back = readPpen(writePpen(document)).document.specialObjects.find(item => item.id === id)!;
+      expect(back.kind).toBe(kind);
+      expect(back.courses).toEqual([k]);
+      expect(apply(document, { type: "DELETE_SPECIAL", special: id }).document.specialObjects).toHaveLength(0);
+    });
+  }
 });

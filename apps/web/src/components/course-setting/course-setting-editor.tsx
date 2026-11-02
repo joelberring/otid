@@ -584,7 +584,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
         onRename={(id, name) => edit(current => applySteps(current, [{ type: "UPDATE_COURSE", course: id, changes: { name } }], applyEdit))}
         onClasses={(id, classes) => edit(current => applySteps(current, [{ type: "UPDATE_COURSE", course: id, changes: { secondaryTitle: classes } }], applyEdit))}
         onRemove={ux.requestDelete} onDuplicate={ux.duplicate} />
-        <ControlList document={document} summaries={summaries} view={view} variant={editor.variant} branch={ux.active?.start} readOnly={readOnly}
+        <ControlList document={document} summaries={summaries} view={view} variant={variant} branch={ux.active?.start} readOnly={readOnly}
           selected={selection?.kind === "control" ? (view === ALL_CONTROLS ? selection.control : selection.courseControl) : undefined} unused={ux.unused}
           onSelect={target => { apply(current => select(current, { kind: "control", ...target })); const at = document.controls[target.control]?.at;
             if (at) mapHandle.current?.reveal([at]); }}

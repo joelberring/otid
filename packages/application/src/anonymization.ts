@@ -99,13 +99,16 @@ class Scrubber {
     return other ? "other" : undefined;
   }
 
+  /**
+   * Ett värde som pekar ut personen: hela namnet eller ett id (Eventor, externt, bricka; minst fem tecken). Ett förnamn eller
+   * efternamn ensamt ersätts bara i fält med det namnet (`ruleFor`), så att t.ex. ett efternamn som råkar vara "Ok" aldrig
+   * ändrar ett resultats status. Tal ändras aldrig efter värdet (en tid kan vara lika med ett bricknummer).
+   */
   private matches(value: string, scope: readonly Person[]): Rule | undefined {
-    const key = lower(value);
+    const key = lower(value), trimmed = value.trim();
     for (const person of scope) {
       if (person.phrases.has(key)) return "name";
-      if (person.given.has(key)) return "given";
-      if (person.family.has(key)) return "family";
-      if (person.identifiers.has(value.trim())) return "delete";
+      if (trimmed.length >= 5 && person.identifiers.has(trimmed)) return "delete";
     }
     return undefined;
   }
@@ -130,26 +133,29 @@ class Scrubber {
     return this.phrase ? value.replace(this.phrase, ANONYMOUS_NAME) : value;
   }
 
-  json(value: unknown, scope: readonly Person[]): unknown {
-    if (typeof value === "string") return this.string(value, scope);
-    if (Array.isArray(value)) return value.map(item => this.json(item, scope));
-    if (value === null || typeof value !== "object") {
-      if (typeof value === "number" && scope.some(person => person.identifiers.has(String(value)))) return null;
-      return value;
-    }
+  /**
+   * JSON: i ett objekt som pekar på personen (id eller samma för- och efternamn), eller överallt i en rad som handlar om
+   * personen (`rowScope`), ersätts fälten efter namn. Ett objekt om personen i en lista ger inte sina barn personen (ett
+   * inbäddat klassobjekt behåller sitt id); ett objekt som pekar på en annan deltagare lämnas orört.
+   */
+  json(value: unknown, rowScope: readonly Person[]): unknown {
+    if (typeof value === "string") return this.string(value, rowScope);
+    if (Array.isArray(value)) return value.map(item => this.json(item, rowScope));
+    if (value === null || typeof value !== "object") return value;
     const object = value as Record<string, unknown>;
     const owners = this.owners(object);
-    const here = owners === "other" ? [] : owners ?? scope;
+    const here = owners === "other" ? [] : owners ?? rowScope;
+    const inherited = owners === "other" ? [] : rowScope;
     const result: Record<string, unknown> = {};
     for (const [key, item] of Object.entries(object)) {
       const rule = here.length > 0 ? ruleFor(key) : undefined;
       if (rule && (typeof item === "string" || typeof item === "number" || (rule === "null" && item !== null && typeof item === "object"))) {
-        if (rule === "name" && !(typeof item === "string" && this.matches(item, here))) { result[key] = this.json(item, here); continue; }
+        if (rule === "name" && !(typeof item === "string" && this.matches(item, here))) { result[key] = this.json(item, inherited); continue; }
         const next = this.replacement(rule, true);
         if (next !== undefined) result[key] = next;
         continue;
       }
-      result[key] = this.json(item, here);
+      result[key] = typeof item === "string" ? this.string(item, here) : this.json(item, inherited);
     }
     return result;
   }

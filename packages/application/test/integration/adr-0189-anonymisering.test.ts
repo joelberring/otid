@@ -10,6 +10,10 @@ import { createEvent } from "../../src/events";
 import { retentionCutoff, runRetention } from "../../src/retention";
 import { db, importedRace, pool, useRaceDatabase } from "./race-fixtures";
 import { raceAuth } from "./accounts";
+import { setEntryStatus } from "../../src/entry-status";
+import { setResultsOfficialAsAdmin } from "../../src/result-official";
+import { exportFrozenIofResultListAsAdmin } from "../../src/result-finalization";
+import { ingest, NOW as RACE_NOW, run, seedRace } from "./steg-25-fixtures";
 
 /**
  * ADR-0189 beslut 5–6: en arrangör anonymiserar en deltagare; resultatet och sträcktiderna står kvar som "Anonym deltagare",
@@ -96,6 +100,41 @@ describe("ADR-0189: anonymisera en deltagare", () => {
     // Samma begäran igen ger samma kvitto.
     expect(await removeEntryAsAdmin(db, { ...admin, idempotencyKey: `entry-removal:${requestId}`, request }, NOW))
       .toMatchObject({ status: "saved", response: { replayed: true, result: { outcome: "ANONYMIZED" } } });
+  });
+});
+
+describe("ADR-0189: anonymisering efter fastställandet", () => {
+  it("listan förblir officiell och den fastställda IOF-filen har Anonym deltagare i stället för namnet", async () => {
+    const { ids, cards, admin } = await seedRace(db, pool);
+    await ingest(db, ids.race, [run(cards.ada, "10:02:00", 40), run(cards.cia, "11:00:00", 30), run(cards.dan, "11:05:00", 33)]);
+    for (const entryId of [ids.bo, ids.eva]) {
+      const requestId = randomUUID();
+      expect((await setEntryStatus(db, { ...admin, entryId, idempotencyKey: `entry-status:${requestId}`,
+        request: { formatVersion: 1, requestId, expectedRevision: 0, decision: { kind: "DID_NOT_START" } } }, RACE_NOW)).status).toBe("decided");
+    }
+    const officialRequest = randomUUID();
+    const official = await setResultsOfficialAsAdmin(db, { ...admin, idempotencyKey: `results-official:${officialRequest}`,
+      request: { formatVersion: 1, requestId: officialRequest, action: "OFFICIAL" } }, new Date(RACE_NOW.getTime() + 60_000));
+    if (official.status !== "saved" || official.response.result.outcome !== "OFFICIAL") throw new Error("Inte fastställd");
+    const finalizationId = official.response.result.finalization.id;
+
+    const [ada] = await db.select().from(schema.entries).where(eq(schema.entries.id, ids.ada));
+    const requestId = randomUUID();
+    const saved = await removeEntryAsAdmin(db, { ...admin, idempotencyKey: `entry-removal:${requestId}`, request: { formatVersion: 1, requestId,
+      entryId: ids.ada, mode: "ANONYMIZE", expectedEntryVersion: ada!.version } }, new Date(RACE_NOW.getTime() + 120_000));
+    expect(saved).toMatchObject({ status: "saved", response: { result: { outcome: "ANONYMIZED" } } });
+
+    const list = await publicResults(db, ids.race);
+    if (list.formatVersion !== 7) throw new Error("Fel format");
+    expect(list.standing).toMatchObject({ kind: "OFFICIAL" });
+    const xml = await exportFrozenIofResultListAsAdmin(db, { ...admin, finalizationId }, RACE_NOW);
+    if (xml.status !== "ok") throw new Error(xml.status);
+    const text = new TextDecoder().decode(xml.bytes);
+    expect(text).toContain("<Given>Anonym</Given>");
+    expect(text).not.toContain("<Given>Ada</Given>");
+    expect(text).toContain("<Given>Cia</Given>");
+    expect(text).not.toContain(cards.ada);
+    expect(text).not.toContain("610001");
   });
 });
 

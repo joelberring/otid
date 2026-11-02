@@ -10,6 +10,7 @@ import {
   type AccountErrorCode,
   type EntryClassAdminErrorCode,
   type EventCreationErrorCode,
+  type IofEntryListChange,
   type IofImportErrorCode,
   type IofResultListExportAdminErrorCode
 } from "@o-tid/contracts";
@@ -56,6 +57,8 @@ export interface AcceptedIofImportBody {
 
 export class SecurityConfigurationError extends Error {}
 export class RequestBodyError extends Error {}
+/** Översynen 2026-11-02: filens teckenkodning stöds inte; meddelandet går att visa för administratören. */
+export class IofEncodingError extends RequestBodyError {}
 
 function exactOrigin(value: string): URL {
   let url: URL;
@@ -151,13 +154,16 @@ export async function readJsonBody(request: Request, maxBytes = JSON_MAX_BODY_BY
   catch { throw new RequestBodyError("Ogiltig JSON"); }
 }
 
-export async function readIofImportBody(request: Request): Promise<AcceptedIofImportBody> {
+export async function readIofImportBody(request: Request,
+  decode: (bytes: Uint8Array) => { readonly xml: string } | { readonly issue: string }): Promise<AcceptedIofImportBody> {
   if (request.headers.get("content-type") !== IOF_IMPORT_CONTENT_TYPE || !validDeclaredLength(request, IOF_IMPORT_MAX_BYTES)) {
     throw new RequestBodyError("Ogiltig XML-request");
   }
   const bytes = await readBoundedBytes(request, IOF_IMPORT_MAX_BYTES);
-  try { return { bytes, xml: new TextDecoder("utf-8", { fatal: true }).decode(bytes) }; }
-  catch { throw new RequestBodyError("XML måste vara strikt UTF-8"); }
+  // UTF-8, eller ISO-8859-1 när XML-deklarationen säger det (`decodeIofXml` i @o-tid/application, som anroparen skickar in).
+  const decoded = decode(bytes);
+  if ("issue" in decoded) throw new IofEncodingError(decoded.issue);
+  return { bytes, xml: decoded.xml.replace(/^\uFEFF/, "") };
 }
 
 export async function hasNoRequestBody(request: Request): Promise<boolean> {
@@ -217,9 +223,11 @@ export function adminFailure(status: 400 | 401 | 403 | 404 | 409 | 500 | 503, co
 }
 
 /** Fel från IOF-importen, med högst 50 korta förklaringar. */
-export function importFailure(status: 400 | 401 | 403 | 409 | 422 | 500, code: IofImportErrorCode, issues?: readonly string[]): Response {
+export function importFailure(status: 400 | 401 | 403 | 409 | 422 | 500, code: IofImportErrorCode, issues?: readonly string[],
+  changes?: readonly IofEntryListChange[]): Response {
   return privateJson(iofImportErrorResponseSchema.parse({ formatVersion: 1, error: code,
-    ...(issues && issues.length > 0 ? { issues: issues.slice(0, 50).map(issue => issue.slice(0, 500)) } : {}) }), status);
+    ...(issues && issues.length > 0 ? { issues: issues.slice(0, 50).map(issue => issue.slice(0, 500)) } : {}),
+    ...(changes && changes.length > 0 ? { changes: changes.slice(0, 500) } : {}) }), status);
 }
 
 /** Fel från IOF-resultatexporten. */

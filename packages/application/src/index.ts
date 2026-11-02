@@ -14,6 +14,7 @@ export * from "./course-secrecy";
 export { readControlMapAsAdmin, readEntryControlMapAsAdmin, readPublicRunnerControlMap } from "./control-map";
 export * from "./serialization";
 export * from "./import-iof";
+export { decodeIofXml } from "@o-tid/iof-xml";
 export * from "./ingest";
 export * from "./overview";
 export * from "./race-session";

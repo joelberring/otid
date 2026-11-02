@@ -1,16 +1,18 @@
-import { and, desc, eq, isNotNull, max, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, max, sql } from "drizzle-orm";
 import {
   IOF_IMPORT_MAX_BYTES,
   IOF_IMPORT_MIN_BYTES,
   iofImportIdempotencyKeySchema,
   iofImportReportSchema,
   iofImportResponseSchema,
+  type IofEntryListChange,
   type IofImportReport,
   type IofImportResponse
 } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
 import { schema } from "@o-tid/database";
 import {
+  decodeIofXml,
   IofValidationError,
   parseIofXml,
   type CourseDataImport,
@@ -32,6 +34,9 @@ import { bumpReadoutPackageVersion } from "./snapshot";
 import { loadRelayClassConfigs } from "./relay-model";
 import { recomputeRelayStarts } from "./relay-sync";
 import { planNewRelayTeamVariants } from "./relay-variants";
+import { assignCard, CardInUseError, linkUnresolvedReadouts } from "./card-assignment";
+import { applyCourseDataAfterReadout, assertEntryListChanges, CourseFileSyncRequiredError, entryListChanges, EntryListChangesError,
+  raceHasRun } from "./import-iof-guard";
 
 async function importCourses(tx: DbExecutor, raceId: string, parsed: CourseDataImport) {
   const versionByCourse = new Map<string, string>();
@@ -272,7 +277,19 @@ export async function importTeamCourseAssignments(tx: DbExecutor, raceId: string
   return { assigned, warnings };
 }
 
-async function importEntries(tx: DbExecutor, raceId: string, parsed: EntryListImport) {
+async function importEntries(tx: DbExecutor, raceId: string, parsed: EntryListImport, actorAccountId: string | null): Promise<number> {
+  // Översynen 2026-11-02: brickor som byts släpps först, så att två löpare kan byta med varandra (som synken från Eventor).
+  const importedCards = new Map(parsed.entries.flatMap(row => row.cardNumber ? [[row.externalId, row.cardNumber] as const] : []));
+  if (importedCards.size > 0) {
+    const current = await tx.select({ id: schema.cardAssignments.id, cardNumber: schema.cardAssignments.cardNumber,
+      externalId: schema.entries.externalId }).from(schema.cardAssignments)
+      .innerJoin(schema.entries, eq(schema.entries.id, schema.cardAssignments.entryId))
+      .where(and(eq(schema.cardAssignments.raceId, raceId), eq(schema.cardAssignments.active, true), eq(schema.entries.externalSource, "iof")));
+    const changing = current.filter(row => row.externalId && importedCards.has(row.externalId) && importedCards.get(row.externalId) !== row.cardNumber);
+    if (changing.length > 0) await tx.update(schema.cardAssignments).set({ active: false })
+      .where(inArray(schema.cardAssignments.id, changing.map(row => row.id)));
+  }
+  const links: { entryId: string; cardNumber: string }[] = [];
   for (const imported of parsed.entries) {
     const [raceClass] = await tx.select().from(schema.classes).where(and(
       eq(schema.classes.raceId, raceId),
@@ -298,7 +315,10 @@ async function importEntries(tx: DbExecutor, raceId: string, parsed: EntryListIm
       familyName: imported.familyName,
       organisationName: imported.organisationName ?? null,
       externalSource: "iof",
-      externalId: imported.externalId
+      externalId: imported.externalId,
+      // Översynen 2026-11-02: Person.Id (Eventors person-id i en fil från Eventor), så att en startlista utan EntryId matchar.
+      ...(imported.personExternalId && /^[0-9A-Za-z_-]{1,64}$/.test(imported.personExternalId)
+        ? { eventorPersonId: imported.personExternalId } : {})
     };
     await tx.insert(schema.entries).values({ ...values, fixedStartTime: null }).onConflictDoUpdate({
       target: [schema.entries.raceId, schema.entries.externalSource, schema.entries.externalId],
@@ -311,35 +331,45 @@ async function importEntries(tx: DbExecutor, raceId: string, parsed: EntryListIm
     ));
     if (!entry) throw new Error("Deltagaren kunde inte sparas");
     if (imported.cardNumber) {
-      const assignments = await tx.select().from(schema.cardAssignments).where(and(
-        eq(schema.cardAssignments.raceId, raceId), eq(schema.cardAssignments.entryId, entry.id)
-      ));
-      if (assignments.length > 0) {
-        const active = assignments.filter((row) => row.active);
-        if (active.length !== 1 || active[0]?.cardNumber !== imported.cardNumber) {
-          throw new EntryCardImportConflictError("Brickkopplingen skiljer sig. Använd explicit brickbyte före ny import.");
-        }
-        continue;
+      // Reglerna i `card-assignment.ts`: bara en aktiv koppling hos någon annan hindrar. Bytet har bekräftats före sparandet.
+      try {
+        const assigned = await assignCard(tx, { raceId, entryId: entry.id, cardNumber: imported.cardNumber });
+        if (!assigned.unchanged) links.push({ entryId: entry.id, cardNumber: imported.cardNumber });
+      } catch (error) {
+        if (error instanceof CardInUseError) throw new EntryCardImportConflictError("Brickan används av en annan deltagare i loppet.");
+        throw error;
       }
-      const [owner] = await tx.select({ id: schema.cardAssignments.id }).from(schema.cardAssignments).where(and(
-        eq(schema.cardAssignments.raceId, raceId), eq(schema.cardAssignments.cardNumber, imported.cardNumber)
-      ));
-      if (owner) throw new EntryCardImportConflictError("Brickan har redan en historisk ägare i loppet.");
-      await tx.insert(schema.cardAssignments).values({
-        raceId,
-        entryId: entry.id,
-        cardNumber: imported.cardNumber
-      });
     }
   }
+  // En avläsning som redan finns för en ny eller bytt bricka kopplas och räknas.
+  return (await linkUnresolvedReadouts(tx, raceId, links, actorAccountId)).length;
 }
 
 interface AppliedImport {
   readonly report: IofImportReport;
   readonly snapshotChanged: boolean;
+  /** Paketversionen är redan höjd (banfilens väg gör det själv); höj den inte en gång till. */
+  readonly bumped?: boolean;
 }
 
-async function applyParsedImport(tx: DbExecutor, raceId: string, parsed: IofImport): Promise<AppliedImport> {
+interface ImportContext {
+  readonly actorAccountId: string | null;
+  readonly snapshotVersionAfter: number;
+  readonly now: Date;
+  /** Administratören har sett och bekräftat anmälningslistans brickbyten. */
+  readonly confirmChanges: boolean;
+}
+
+async function applyParsedImport(tx: DbExecutor, raceId: string, parsed: IofImport, context: ImportContext): Promise<AppliedImport> {
+  if (parsed.kind === "CourseData" && await raceHasRun(tx, raceId)) {
+    // Översynen 2026-11-02: efter avläsning samma väg som "Läs in ny banfil" (behåll varianten för den som sprungit,
+    // räkna om resultaten). Ändras någons resultat avvisas importen med hänvisning till banfilsjämförelsen.
+    const recalculated = await applyCourseDataAfterReadout(tx, { raceId, ...context }, parsed);
+    const variantCount = parsed.courses.reduce((sum, course) => sum + (course.variants?.length ?? 0), 0);
+    const warnings = [...parsed.warnings, ...(recalculated > 0 ? [`${recalculated} resultat räknades om mot de nya banorna`] : [])];
+    return { snapshotChanged: true, bumped: true, report: { kind: parsed.kind, warnings: warnings.slice(0, 100),
+      imported: { courses: parsed.courses.length, classes: parsed.assignments.length, ...(variantCount > 0 ? { variants: variantCount } : {}) } } };
+  }
   if (parsed.kind === "CourseData") {
     await importCourses(tx, raceId, parsed);
     const legWarnings = await importLegCourses(tx, raceId, parsed);
@@ -357,12 +387,17 @@ async function applyParsedImport(tx: DbExecutor, raceId: string, parsed: IofImpo
     } };
   }
   if (parsed.kind === "EntryList") {
-    await importEntries(tx, raceId, parsed);
+    // Översynen 2026-11-02: skillnaderna visas före sparandet; brickbyten bekräftas, krockar avvisas med vem och vad.
+    const changes = await entryListChanges(tx, raceId, parsed);
+    assertEntryListChanges(changes, context.confirmChanges);
+    const linked = await importEntries(tx, raceId, parsed, context.actorAccountId);
     const teams = await importRelayTeams(tx, raceId, parsed);
     await assertRaceClassCapacities(tx, raceId);
+    const cards = changes.filter(change => change.field === "CARD").length;
     return { snapshotChanged: true, report: {
       kind: parsed.kind,
-      warnings: [...parsed.warnings, ...teams.warnings],
+      warnings: [...parsed.warnings, ...teams.warnings, ...(cards > 0 ? [`${cards} brickbyten sparades`] : []),
+        ...(linked > 0 ? [`${linked} avläsningar som redan fanns kopplades och räknades`] : [])],
       imported: { entries: parsed.entries.length, ...(parsed.teams.length > 0 ? { teams: teams.imported } : {}) }
     } };
   }
@@ -388,7 +423,7 @@ export async function importIofXml(db: DbExecutor, raceId: string, xml: string) 
   const parsed = parseIofXml(xml);
   const hash = contentHash(xml);
   return db.transaction(async (tx) => {
-    await lockRaceForMutation(tx, raceId);
+    const race = await lockRaceForMutation(tx, raceId);
     const [existing] = await tx.select().from(schema.importFiles).where(and(
       eq(schema.importFiles.raceId, raceId),
       eq(schema.importFiles.kind, parsed.kind),
@@ -396,7 +431,8 @@ export async function importIofXml(db: DbExecutor, raceId: string, xml: string) 
     ));
     if (existing) return { duplicate: true, importFileId: existing.id, report: existing.report };
 
-    const applied = await applyParsedImport(tx, raceId, parsed);
+    const applied = await applyParsedImport(tx, raceId, parsed, { actorAccountId: null, snapshotVersionAfter: race.snapshotVersion + 1,
+      now: new Date(), confirmChanges: false });
     const report = applied.report;
     const [saved] = await tx.insert(schema.importFiles).values({
       raceId,
@@ -406,7 +442,7 @@ export async function importIofXml(db: DbExecutor, raceId: string, xml: string) 
       report
     }).returning();
     if (!saved) throw new Error("Importfilen kunde inte sparas");
-    if (applied.snapshotChanged) {
+    if (applied.snapshotChanged && !applied.bumped) {
       await bumpReadoutPackageVersion(tx, raceId);
     }
     return { duplicate: false, importFileId: saved.id, report };
@@ -414,13 +450,20 @@ export async function importIofXml(db: DbExecutor, raceId: string, xml: string) 
 }
 
 export type AuthenticatedIofImportResult =
-  | { status: "unauthorized" | "forbidden" | "invalid-request" | "conflict" }
+  | { status: "unauthorized" | "forbidden" | "invalid-request" }
+  /** `changes`: anmälningslistans krockar (vem och vad), översynen 2026-11-02. */
+  | { status: "conflict"; changes?: readonly IofEntryListChange[] }
+  /** Anmälningslistan byter brickor: visa listan och importera igen med `confirmChanges`. */
+  | { status: "entry-list-changes"; changes: readonly IofEntryListChange[] }
+  | { status: "course-file-sync-required"; issues: readonly string[] }
   | { status: "invalid-iof-xml"; issues: readonly string[] }
   | { status: "stored" | "duplicate"; response: IofImportResponse };
 
 export type AuthenticatedIofImportInput = RaceSessionProof & {
   idempotencyKey: string | null;
   xmlBytes: Uint8Array;
+  /** Översynen 2026-11-02: administratören har sett anmälningslistans brickbyten och bekräftat dem. */
+  confirmChanges?: boolean;
 };
 
 /**
@@ -468,14 +511,11 @@ export async function importIofXmlAsAdmin(
     return { status: "conflict" };
   }
 
-  let xml: string;
-  try {
-    // ignoreBOM=true retains U+FEFF in the decoded string, making a valid UTF-8
-    // BOM round-trip to the exact accepted bytes kept by import_file.
-    xml = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes);
-  } catch {
-    return { status: "invalid-request" };
-  }
+  // UTF-8 (en BOM behålls, så att texten motsvarar de mottagna bytes som import_file sparar) eller, översynen 2026-11-02,
+  // ISO-8859-1 när XML-deklarationen säger det. Annan kodning ger ett begripligt besked.
+  const decoded = decodeIofXml(bytes);
+  if ("issue" in decoded) return { status: "invalid-iof-xml", issues: [decoded.issue] };
+  const xml = decoded.xml;
 
   let parsed: IofImport;
   try {
@@ -557,7 +597,8 @@ export async function importIofXmlAsAdmin(
       return { status: "duplicate", response };
     }
 
-    const applied = await applyParsedImport(tx, input.raceId, parsed);
+    const applied = await applyParsedImport(tx, input.raceId, parsed, { actorAccountId: authorization.principal.accountId,
+      snapshotVersionAfter: race.snapshotVersion + 1, now: importedAt, confirmChanges: input.confirmChanges === true });
     const report = applied.report;
     const [saved] = await tx.insert(schema.importFiles).values({
       raceId: input.raceId,
@@ -568,7 +609,7 @@ export async function importIofXmlAsAdmin(
     }).returning();
     if (!saved) throw new Error("Importfilen kunde inte sparas");
     const snapshotVersionAfter = race.snapshotVersion + (applied.snapshotChanged ? 1 : 0);
-    if (applied.snapshotChanged) {
+    if (applied.snapshotChanged && !applied.bumped) {
       await bumpReadoutPackageVersion(tx, input.raceId);
     }
     await tx.insert(schema.iofImportRequests).values({
@@ -615,6 +656,10 @@ export async function importIofXmlAsAdmin(
       return { status: "stored", response };
     });
   } catch (error) {
+    if (error instanceof EntryListChangesError) {
+      return error.blocking ? { status: "conflict", changes: error.changes } : { status: "entry-list-changes", changes: error.changes };
+    }
+    if (error instanceof CourseFileSyncRequiredError) return { status: "course-file-sync-required", issues: error.issues };
     if (error instanceof StartListImportConflictError || error instanceof EntryCardImportConflictError ||
       error instanceof EntryIdentityImportConflictError || error instanceof ClassCapacityConflictError) return { status: "conflict" };
     if (error instanceof DuplicateNameError) return { status: "invalid-iof-xml", issues: [error.message] };

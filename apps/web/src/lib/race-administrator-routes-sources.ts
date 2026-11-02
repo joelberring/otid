@@ -8,10 +8,12 @@ import {
   adminFailure as failure,
   hasNoRequestBody,
   importFailure,
+  IofEncodingError,
   privateJson as json,
   readIofImportBody,
   readJsonBody
 } from "./security-policy";
+import { decodeIofXml } from "@o-tid/application";
 import { eventorRuntime } from "./eventor-runtime";
 import { resultFailure, type RaceAdministratorRouteContext } from "./race-administrator-route-context";
 
@@ -90,7 +92,10 @@ export async function handleSourceRoute(context: RaceAdministratorRouteContext):
     }
     case "course-file-preview": {
       let xml: string;
-      try { ({ xml } = await readIofImportBody(request)); } catch { return failure(400, "INVALID_REQUEST"); }
+      try { ({ xml } = await readIofImportBody(request, decodeIofXml)); } catch (error) {
+        if (error instanceof IofEncodingError) return importFailure(422, "INVALID_IOF_XML", [error.message]);
+        return failure(400, "INVALID_REQUEST");
+      }
       let fileName = "banfil.xml";
       try { fileName = decodeURIComponent(request.headers.get("x-otid-file-name") ?? fileName); } catch { return failure(400, "INVALID_REQUEST"); }
       const result = await dependencies.courseFilePreview(db, { ...input, xml, fileName });

@@ -96,9 +96,8 @@ describe("TASK 005G importadmin-routes", () => {
   it.each([
     ["text/xml", `iof-import:${requestId}`, new TextEncoder().encode("<CourseData/>"), 400],
     ["application/xml; charset=utf-8", `iof-import:${requestId}`, new TextEncoder().encode("<CourseData/>"), 400],
-    ["application/xml", "iof-import:NOT-A-UUID", new TextEncoder().encode("<CourseData/>"), 400],
-    ["application/xml", `iof-import:${requestId}`, new Uint8Array([0xff]), 400]
-  ] as const)("avvisar content-type/idempotens/UTF-8 stabilt", async (contentType, key, body, expected) => {
+    ["application/xml", "iof-import:NOT-A-UUID", new TextEncoder().encode("<CourseData/>"), 400]
+  ] as const)("avvisar content-type/idempotens stabilt", async (contentType, key, body, expected) => {
     const authenticate = vi.fn(async () => authenticated()) as unknown as typeof requireRaceRole;
     const runImport = vi.fn() as unknown as typeof importIofXmlAsAdmin;
     const response = await authenticatedIofImportRoute(db, request("POST", body, unsafeHeaders({
@@ -106,6 +105,17 @@ describe("TASK 005G importadmin-routes", () => {
     })), raceId, authenticate, runImport, environment);
     expect(response.status).toBe(expected);
     expect(await response.json()).toEqual({ formatVersion: 1, error: "INVALID_REQUEST" });
+    expect(runImport).not.toHaveBeenCalled();
+  });
+
+  it("säger begripligt att filen inte är UTF-8 (översynen 2026-11-02)", async () => {
+    const authenticate = vi.fn(async () => authenticated()) as unknown as typeof requireRaceRole;
+    const runImport = vi.fn() as unknown as typeof importIofXmlAsAdmin;
+    const response = await authenticatedIofImportRoute(db, request("POST", new Uint8Array([0xff]), unsafeHeaders({
+      "content-type": "application/xml", "idempotency-key": `iof-import:${requestId}`
+    })), raceId, authenticate, runImport, environment);
+    expect(response.status).toBe(422);
+    expect(await response.json()).toMatchObject({ formatVersion: 1, error: "INVALID_IOF_XML" });
     expect(runImport).not.toHaveBeenCalled();
   });
 
@@ -137,6 +147,30 @@ describe("TASK 005G importadmin-routes", () => {
     expect(response.headers.get("access-control-allow-origin")).toBeNull();
   });
 
+
+  it("visar anmälningslistans skillnader och skickar bekräftelsen vidare (översynen 2026-11-02)", async () => {
+    const authenticate = vi.fn(async () => authenticated()) as unknown as typeof requireRaceRole;
+    const changes = [{ name: "Ada Löpare", className: "H21", field: "CARD" as const, from: "12345", to: "2001848", readOut: false, blocking: false }];
+    const runImport = vi.fn(async (): Promise<{ status: "entry-list-changes" | "conflict"; changes: typeof changes }> =>
+      ({ status: "entry-list-changes", changes }));
+    const send = (extra: Record<string, string> = {}) => authenticatedIofImportRoute(db, request("POST", "<EntryList/>", unsafeHeaders({
+      "content-type": "application/xml", "idempotency-key": `iof-import:${requestId}`, ...extra
+    })), raceId, authenticate, runImport as unknown as typeof importIofXmlAsAdmin, environment);
+    const response = await send();
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ formatVersion: 1, error: "CHANGES_REQUIRE_CONFIRMATION", changes });
+    expect(runImport).toHaveBeenLastCalledWith(db, expect.objectContaining({ confirmChanges: false }));
+    await send({ "x-otid-confirm-changes": "1" });
+    expect(runImport).toHaveBeenLastCalledWith(db, expect.objectContaining({ confirmChanges: true }));
+    runImport.mockImplementationOnce(async () => ({ status: "conflict", changes }));
+    expect(await (await send()).json()).toMatchObject({ error: "CONFLICT", changes });
+    const courseFile = vi.fn(async () => ({ status: "course-file-sync-required" as const, issues: ["Använd Läs in ny banfil"] }));
+    const refused = await authenticatedIofImportRoute(db, request("POST", "<CourseData/>", unsafeHeaders({
+      "content-type": "application/xml", "idempotency-key": `iof-import:${requestId}` })), raceId, authenticate,
+    courseFile as unknown as typeof importIofXmlAsAdmin, environment);
+    expect(refused.status).toBe(409);
+    expect(await refused.json()).toEqual({ formatVersion: 1, error: "COURSE_FILE_SYNC_REQUIRED", issues: ["Använd Läs in ny banfil"] });
+  });
 
   it("maskerar oväntade fel och rå Error.message", async () => {
     const authenticate = vi.fn(async () => { throw new Error("hemlig databasdetalj"); }) as unknown as typeof requireRaceRole;

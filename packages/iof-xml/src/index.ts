@@ -35,11 +35,11 @@ export {
 } from "./export-start-list";
 
 import {
-  array, count, IofValidationError, record, rejectUnexpectedKeys, requireText, text, type XmlRecord
+  array, count, IofValidationError, record, rejectUnexpectedKeys, requireText, text, withLines, type XmlRecord
 } from "./xml";
 import { readCourseData, type CourseDataImport } from "./course-data";
 
-export { IofValidationError } from "./xml";
+export { IofValidationError, decodeIofXml } from "./xml";
 /** Steg 62: variantkoden ur familjens och banans namn (banläggningens överföring gör som inläsningen). */
 export { courseVariantCode } from "./course-data";
 export type {
@@ -49,6 +49,8 @@ export type {
 
 export interface EntryImport {
   readonly externalId: string;
+  /** `Person.Id` (i en fil från Eventor personens id i Eventor); startlistan kan matcha på den när `EntryId` saknas. */
+  readonly personExternalId?: string;
   readonly givenName: string;
   readonly familyName: string;
   readonly organisationName?: string;
@@ -87,7 +89,9 @@ export interface EntryListImport {
 }
 
 export interface StartImport {
+  /** Tom när filen saknar `EntryId`; då matchas `personExternalId` (översynen 2026-11-02). */
   readonly entryExternalId: string;
+  readonly personExternalId?: string;
   readonly startTime: string;
 }
 
@@ -138,6 +142,7 @@ function readEntryList(root: XmlRecord): EntryListImport {
     const classExternalId = requireText(classValue.Id ?? classValue.Name, `PersonEntry[${index}].Class.Id`, issues);
     const className = text(classValue.Name) || classExternalId;
     const organisationName = text(organisation.Name);
+    const personExternalId = text(person.Id);
     const cardNumber = text(array(entry.ControlCard)[0]);
     // Samma regel som Eventor och avläsningens kontrakt: 1–9 siffror utan inledande nolla (PLAN.md steg 22).
     if (cardNumber && !CONTROL_CARD_PATTERN.test(cardNumber)) {
@@ -145,6 +150,7 @@ function readEntryList(root: XmlRecord): EntryListImport {
     }
     return {
       externalId,
+      ...(personExternalId ? { personExternalId } : {}),
       givenName,
       familyName,
       classExternalId,
@@ -277,9 +283,15 @@ function readStartList(root: XmlRecord): StartListImport {
       const personStart = record(rawPersonStart);
       const personPath = `${classPath}.PersonStart[${personIndex}]`;
       rejectUnexpectedKeys(personStart, ["EntryId", "Person", "Organisation", "Start", "Extensions", "@_modifyTime"], personPath, issues);
-      const entryExternalId = requireText(personStart.EntryId, `${personPath}.EntryId`, issues);
-      if (entryExternalId && entryIds.has(entryExternalId)) issues.push(`${personPath}.EntryId ${entryExternalId} förekommer flera gånger`);
-      if (entryExternalId) entryIds.add(entryExternalId);
+      // Översynen 2026-11-02: utan EntryId matchas löparen på Person.Id (som många program skriver i stället).
+      const entryExternalId = text(personStart.EntryId);
+      const personExternalId = text(record(personStart.Person).Id);
+      if (!entryExternalId && !personExternalId) issues.push(`${personPath}.EntryId saknas (och Person.Id saknas, så löparen går inte att hitta)`);
+      const identity = entryExternalId || `person:${personExternalId}`;
+      if ((entryExternalId || personExternalId) && entryIds.has(identity)) {
+        issues.push(`${personPath} ${entryExternalId ? `EntryId ${entryExternalId}` : `Person.Id ${personExternalId}`} förekommer flera gånger`);
+      }
+      entryIds.add(identity);
 
       const startValues = array(personStart.Start);
       if (startValues.length !== 1) {
@@ -297,7 +309,7 @@ function readStartList(root: XmlRecord): StartListImport {
       const startTimeValues = array(start.StartTime);
       if (startTimeValues.length !== 1) issues.push(`${personPath}.Start.StartTime måste förekomma exakt en gång`);
       const startTime = readStartTime(startTimeValues[0], `${personPath}.Start.StartTime`, issues);
-      starts.push({ entryExternalId, startTime });
+      starts.push({ entryExternalId, ...(!entryExternalId && personExternalId ? { personExternalId } : {}), startTime });
     }
     totalStarts += personValues.length;
     if (classExternalId) classStarts.push({ classExternalId, starts });
@@ -308,12 +320,26 @@ function readStartList(root: XmlRecord): StartListImport {
   return { kind: "StartList", classes: classStarts, warnings };
 }
 
+/**
+ * Tolkar IOF XML 3.0. Översynen 2026-11-02: felen säger vilket element och vilken rad i filen (`Rad 12: …`).
+ */
 export function parseIofXml(xml: string): IofImport {
+  try {
+    return parseIofXmlStrict(xml);
+  } catch (error) {
+    if (error instanceof IofValidationError) throw new IofValidationError(withLines(xml, error.issues));
+    throw error;
+  }
+}
+
+function parseIofXmlStrict(xml: string): IofImport {
   if (FORBIDDEN_DECLARATION_PATTERN.test(xml)) {
     throw new IofValidationError(["DTD, DOCTYPE och ENTITY-deklarationer stöds inte"]);
   }
   const syntax = XMLValidator.validate(xml);
-  if (syntax !== true) throw new IofValidationError([syntax.err.msg]);
+  if (syntax !== true) {
+    throw new IofValidationError([`Rad ${syntax.err.line}, kolumn ${syntax.err.col}: filen är inte giltig XML (${syntax.err.msg})`]);
+  }
   const document = record(parser.parse(xml));
   const rootName = document.CourseData
     ? "CourseData"

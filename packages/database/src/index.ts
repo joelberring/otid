@@ -27,7 +27,39 @@ export function createDatabase(connectionString: string, options: DatabaseOption
     ...(options.lockTimeoutMs !== undefined ? { lock_timeout: options.lockTimeoutMs } : {}),
     ...(options.idleInTransactionTimeoutMs !== undefined ? { idle_in_transaction_session_timeout: options.idleInTransactionTimeoutMs } : {}),
     ...(options.applicationName !== undefined ? { application_name: options.applicationName } : {}) });
-  return { db: drizzle(pool, { schema }), pool };
+  const db = drizzle(pool, { schema });
+  retryTopLevelTransactions(db);
+  return { db, pool };
+}
+
+/** PostgreSQL avbröt transaktionen för en samtidig ändring: 40001 (serialisering) eller 40P01 (dödläge). */
+export function isTransactionConflict(error: unknown): boolean {
+  for (let current: unknown = error, depth = 0; current && depth < 6; current = (current as { cause?: unknown }).cause, depth += 1) {
+    const code = (current as { code?: unknown }).code;
+    if (code === "40001" || code === "40P01") return true;
+  }
+  return false;
+}
+
+const TRANSACTION_ATTEMPTS = 3;
+
+/**
+ * Översynen 2026-11-02: en transaktion som PostgreSQL avbröt med 40001 eller 40P01 har rullats tillbaka helt och görs om,
+ * högst tre försök med växande väntan (med lite slump). Gäller bara poolens egna transaktioner; en savepoint i en
+ * transaktion (`tx.transaction`) görs inte om, eftersom hela den yttre transaktionen redan är avbruten.
+ * Transaktionens funktion får därför inte ha sidoeffekter utanför databasen (det har ingen i O-Tid).
+ */
+export function retryTopLevelTransactions(db: { transaction: (...args: never[]) => Promise<unknown> }): void {
+  const original = db.transaction.bind(db);
+  const retrying = async (...args: Parameters<typeof original>) => {
+    for (let attempt = 1; ; attempt += 1) {
+      try { return await original(...args); } catch (error) {
+        if (attempt >= TRANSACTION_ATTEMPTS || !isTransactionConflict(error)) throw error;
+        await new Promise((resolve) => setTimeout(resolve, 40 * attempt + Math.floor(Math.random() * 40)));
+      }
+    }
+  };
+  db.transaction = retrying as unknown as typeof db.transaction;
 }
 
 export * as schema from "./schema";

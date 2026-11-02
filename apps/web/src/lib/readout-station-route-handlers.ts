@@ -93,8 +93,8 @@ export async function readoutIngestRoute(db: Database, request: Request, raceId:
   const parsed = deviceBatchSchema.safeParse(body);
   if (!parsed.success) return failure(400, "INVALID_REQUEST");
   try {
-    // Översynen 2026-11-02: mottagningen är idempotent (enhet, löpnummer, hash), så ett försök som PostgreSQL avbröt
-    // (40001, 40P01) görs om här i stället för att avläsningen får 500.
+    // Översynen 2026-11-02: mottagningen är idempotent (enhet, löpnummer, hash). En transaktion som PostgreSQL avbröt
+    // (40001, 40P01) görs om i databaspoolen (`createDatabase`); kvarstår felet görs hela mottagningen om en gång till här.
     const result = await retryTransactionConflicts(() => dependencies.ingest(db, { ...proof, raceId, batch: parsed.data }));
     if (result.status !== "ok") return authFailure(result.status);
     return json(deviceBatchAcknowledgementSchema.parse(await dependencies.place(db, raceId, result.response)));

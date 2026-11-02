@@ -2,7 +2,8 @@
 
 import React, { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { IOF_IMPORT_CONTENT_TYPE, raceSessionStatusSchema } from "@o-tid/contracts";
+import { IOF_IMPORT_CONFIRM_HEADER, IOF_IMPORT_CONTENT_TYPE, iofImportErrorResponseSchema, raceSessionStatusSchema,
+  type IofEntryListChange } from "@o-tid/contracts";
 import { importIssues } from "../lib/import-issues";
 import { sv } from "../i18n/sv";
 import { courseVariantsSv as variantText } from "../i18n/course-variants-sv";
@@ -55,6 +56,9 @@ export function ImportAdmin({ raceId }: { raceId: string }) {
   const [lastResult, setLastResult] = useState<IofImportResponse>();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string>(sv.importCheckingSession);
+  // Översynen 2026-11-02: anmälningslistans skillnader mot de anmälda (vem och vad), före sparandet.
+  const [changes, setChanges] = useState<{ blocking: boolean; rows: readonly IofEntryListChange[] }>();
+  const [courseFileIssues, setCourseFileIssues] = useState<readonly string[]>();
   const fileInput = useRef<HTMLInputElement>(null);
   // ADR-0168: importen använder samma administratörsinloggning som /manage.
   const sessionUrl = `/api/admin/races/${raceId}/administrator/session`;
@@ -97,12 +101,16 @@ export function ImportAdmin({ raceId }: { raceId: string }) {
 
   function clearAttempt() {
     setAttempt(undefined);
+    setChanges(undefined);
+    setCourseFileIssues(undefined);
     setAttemptUncertain(false);
     if (fileInput.current) fileInput.current.value = "";
   }
 
-  async function submitAttempt(current: IofImportAttempt) {
+  async function submitAttempt(current: IofImportAttempt, confirmChanges = false) {
     setBusy(true);
+    setChanges(undefined);
+    setCourseFileIssues(undefined);
     setAttemptUncertain(false);
     setMessage(sv.importUploading);
     let commitMayBeUnknown = false;
@@ -115,7 +123,8 @@ export function ImportAdmin({ raceId }: { raceId: string }) {
         headers: {
           "content-type": IOF_IMPORT_CONTENT_TYPE,
           "idempotency-key": `iof-import:${current.requestId}`,
-          "x-otid-csrf": csrf
+          "x-otid-csrf": csrf,
+          ...(confirmChanges ? { [IOF_IMPORT_CONFIRM_HEADER]: "1" } : {})
         },
         body: current.file
       });
@@ -123,6 +132,20 @@ export function ImportAdmin({ raceId }: { raceId: string }) {
         commitMayBeUnknown = false;
         if (response.status === 401 || response.status === 403) setAuthenticated(false);
         if (response.status === 422) throw new Error(`${sv.importRejected} ${await importIssues(response, sv.importInvalidXml)}`);
+        if (response.status === 409) {
+          const refusal = iofImportErrorResponseSchema.safeParse(await response.json().catch(() => undefined));
+          if (refusal.success && refusal.data.changes?.length) {
+            setChanges({ blocking: refusal.data.error !== "CHANGES_REQUIRE_CONFIRMATION", rows: refusal.data.changes });
+            setMessage(refusal.data.error === "CHANGES_REQUIRE_CONFIRMATION" ? sv.importChangesConfirm : sv.importChangesBlocked);
+            return;
+          }
+          if (refusal.success && refusal.data.error === "COURSE_FILE_SYNC_REQUIRED") {
+            setCourseFileIssues(refusal.data.issues ?? []);
+            setMessage(sv.importCourseFileSync);
+            return;
+          }
+          throw new Error(`${sv.importFailed} (409). ${refusal.success && refusal.data.issues?.length ? refusal.data.issues.join(" · ") : sv.importConflictHelp}`);
+        }
         const suffix = response.status === 401 || response.status === 403
           ? sv.importLoginAgain
           : sv.importRetrySameHelp;
@@ -195,10 +218,34 @@ export function ImportAdmin({ raceId }: { raceId: string }) {
       </div>
     </section>}
 
+    {changes !== undefined && attempt !== undefined && <section className="panel stack" role="alert" aria-labelledby="import-changes-heading"
+      data-testid="import-changes">
+      <h2 id="import-changes-heading">{changes.blocking ? sv.importChangesBlockedHeading : sv.importChangesHeading}</h2>
+      <div style={{ overflowX: "auto" }}><table>
+        <thead><tr><th>{sv.importChangeRunner}</th><th>{sv.importChangeClass}</th><th>{sv.importChangeWhat}</th>
+          <th>{sv.importChangeFrom}</th><th>{sv.importChangeTo}</th><th>{sv.importChangeNote}</th></tr></thead>
+        <tbody>{changes.rows.map((row, index) => <tr key={`${row.name}-${row.field}-${index}`} data-blocking={row.blocking}>
+          <td>{row.name}</td><td>{row.className}</td><td>{sv.importChangeField[row.field]}{row.readOut ? ` · ${sv.importChangeReadOut}` : ""}</td>
+          <td>{row.from ?? "–"}</td><td><strong>{row.to ?? "–"}</strong></td><td>{row.blocking ? "△ " : ""}{row.note ?? ""}</td>
+        </tr>)}</tbody>
+      </table></div>
+      {!changes.blocking && <div className="pairing-actions">
+        <button type="button" disabled={busy} onClick={() => void submitAttempt(attempt, true)}>{sv.importChangesApply}</button>
+      </div>}
+    </section>}
+
+    {courseFileIssues !== undefined && <section className="panel stack" role="alert" aria-labelledby="import-course-file-heading"
+      data-testid="import-course-file-sync">
+      <h2 id="import-course-file-heading">{sv.importCourseFileSyncHeading}</h2>
+      <ul>{courseFileIssues.map((issue) => <li key={issue}>{issue}</li>)}</ul>
+      <p><Link href={`/admin/${raceId}/manage`}>{sv.importOpenAdministrator}</Link></p>
+    </section>}
+
     {lastResult !== undefined && <section className="panel import-result" aria-labelledby="import-result-heading">
       <h2 id="import-result-heading">✓ {sv.importConfirmed}</h2>
       <p>{lastResult.status === "stored" ? sv.importStored : sv.importDuplicate}</p>
       <p>{reportSummary(lastResult)} · {sv.importByteCount(lastResult.byteCount)}</p>
+      {lastResult.report.warnings.length > 0 && <ul>{lastResult.report.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>}
     </section>}
 
     <p className="pairing-message" role="status" aria-live="polite">{message}</p>

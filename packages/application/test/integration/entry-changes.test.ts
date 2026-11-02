@@ -64,7 +64,7 @@ describe("TASK 006Q direktanmälan PostgreSQL", () => {
     const before = await db.select().from(schema.entries).where(eq(schema.entries.raceId, raceId));
     expect((await registerEntryAsAdmin(db, { ...request, csrfHeader: null }, now)).status).toBe("forbidden");
     expect((await listEntryRegistrationClassesAsAdmin(db, await auth(raceId, "FUNCTIONARY"), now)).status).toBe("forbidden");
-    await db.update(schema.cardAssignments).set({ active: false }).where(and(eq(schema.cardAssignments.raceId, raceId), eq(schema.cardAssignments.cardNumber, "67890")));
+    // Översynen 2026-11-02 (card-assignment.ts): bara en aktiv koppling hindrar; inaktiv historik prövas i tavlingsdag-brickor.
     for (const change of [{ classId: crypto.randomUUID() },
       { expectedCourseVersionId: crypto.randomUUID() }, { cardNumber: "12345" }, { cardNumber: "67890" }]) {
       expect((await registerEntryAsAdmin(db, { ...request, request: { ...request.request, ...change } }, now)).status).toBe("conflict");
@@ -79,7 +79,7 @@ describe("TASK 006Q direktanmälan PostgreSQL", () => {
     expect(await db.select().from(schema.entries).where(eq(schema.entries.raceId, raceId))).toHaveLength(before.length + 1);
     expect(await db.select().from(schema.entryRegistrationRequests).where(eq(schema.entryRegistrationRequests.raceId, raceId))).toHaveLength(1);
   });
-  it("kräver FIXED-tid, tillåter utan bricka och löser tidigare okänd avläsning endast genom separat omräkning", async () => {
+  it("kräver FIXED-tid, tillåter utan bricka och kopplar en tidigare okänd avläsning direkt (översynen 2026-11-02)", async () => {
     const { raceId } = await importedRace();
     const authentication = await auth(raceId);
     const initial = await input(authentication);
@@ -88,17 +88,12 @@ describe("TASK 006Q direktanmälan PostgreSQL", () => {
     expect(unknown.acknowledgements[0]).toMatchObject({ serverResult: { status: "UNKNOWN_CARD" } });
     const registration = await registerEntryAsAdmin(db, initial, now);
     if (registration.status !== "registered") throw new Error("Registrering misslyckades");
+    expect(registration.response.linkedReadout).toMatchObject({ cardNumber: "54321", status: "OK", revision: 1 });
     const recalcAuth = await auth(raceId, "ADMIN");
     const list = await listResultRecalculationCandidatesAsAdmin(db, recalcAuth, now);
     if (list.status !== "ok") throw new Error("Omräkningslista saknas");
     const candidate = list.response.entries.find((row) => row.id === registration.response.entryId)!;
-    expect(candidate.latestResultRevision).toBeNull();
-    expect((await recalculateEntryAsAdmin(db, { ...recalcAuth, entryId: candidate.id,
-      idempotencyKey: `result-recalculation:${crypto.randomUUID()}`, request: { formatVersion: 1,
-        expectedEntryVersion: candidate.entryVersion, expectedClassId: candidate.classId,
-        expectedCardAssignmentId: candidate.cardAssignmentId,
-        expectedReadoutId: candidate.latestReadout!.id, expectedLatestResultRevision: null,
-        expectedEngineVersion: list.response.engineVersion } }, now)).status).toBe("recalculated");
+    expect(candidate.latestResultRevision).toMatchObject({ revision: 1 });
     expect((await ingestDeviceBatch(db, raceId, unknownBatch)).acknowledgements[0]).toEqual({ ...unknown.acknowledgements[0], status: "duplicate" });
     await db.update(schema.classes).set({ startRule: "FIXED" }).where(eq(schema.classes.id, initial.request.classId));
     const fixed = await input(authentication);
@@ -180,11 +175,12 @@ describe("TASK 006P individuellt brickbyte PostgreSQL", () => {
     expect((await changeEntryCardAsAdmin(db, { ...request, csrfHeader: null }, now)).status).toBe("forbidden");
     expect((await listEntryCardsAsAdmin(db, await auth(raceId, "FUNCTIONARY"), now)).status).toBe("forbidden");
     for (const changed of [{ expectedEntryVersion: 99 }, { expectedClassId: crypto.randomUUID() },
-      { expectedAssignment: null }, { cardNumber: "12345" }, { cardNumber: "67890" }]) {
+      { expectedAssignment: null }, { cardNumber: "12345" }]) {
       expect((await changeEntryCardAsAdmin(db, { ...request, request: { ...request.request, ...changed } }, now)).status).toBe("conflict");
     }
+    // Översynen 2026-11-02: en bricka som är aktiv hos en annan ger vem som har den.
+    expect((await changeEntryCardAsAdmin(db, { ...request, request: { ...request.request, cardNumber: "67890" } }, now)).status).toBe("card-in-use");
     await db.update(schema.cardAssignments).set({ active: false }).where(and(eq(schema.cardAssignments.raceId, raceId), eq(schema.cardAssignments.cardNumber, "67890")));
-    expect((await changeEntryCardAsAdmin(db, { ...request, request: { ...request.request, cardNumber: "67890" } }, now)).status).toBe("conflict");
     const other = { ...request, idempotencyKey: `entry-card-change:${crypto.randomUUID()}` };
     const results = await Promise.all([request, other].map((r) => changeEntryCardAsAdmin(db, r, now)));
     expect(results.map((row) => row.status).sort()).toEqual(["changed", "conflict"]);
@@ -197,6 +193,8 @@ describe("TASK 006P individuellt brickbyte PostgreSQL", () => {
     expect(recalc.response.entries.find((row) => row.id === request.entryId)).toMatchObject({ readiness: "NO_READOUT", latestReadout: null });
     await db.update(schema.cardAssignments).set({ active: false }).where(eq(schema.cardAssignments.entryId, request.entryId));
     expect((await changeEntryCardAsAdmin(db, await input(authentication, "33333"), now)).status).toBe("changed");
+    // Inaktiv historik hos en annan deltagare hindrar inte längre (card-assignment.ts regel 2).
+    expect((await changeEntryCardAsAdmin(db, await input(authentication, "67890"), now)).status).toBe("changed");
     await db.insert(schema.cardAssignments).values({ raceId, entryId: request.entryId, cardNumber: "44444" });
     const multiple = await listEntryCardsAsAdmin(db, authentication, now);
     if (multiple.status !== "ok") throw new Error("Brickbyteslista saknas");
@@ -208,7 +206,8 @@ describe("TASK 006P individuellt brickbyte PostgreSQL", () => {
     const authentication = await auth(raceId);
     await changeEntryCardAsAdmin(db, await input(authentication), now);
     const before = await trustedRaceFixtureOverview(raceId);
-    await expect(importIofXml(db, raceId, entryXml.replace("Ada", "Ändrat namn"))).rejects.toThrow(/brickbyte/);
+    // Översynen 2026-11-02: brickbytet i filen visas och kräver bekräftelse (importIofXmlAsAdmin med confirmChanges).
+    await expect(importIofXml(db, raceId, entryXml.replace("Ada", "Ändrat namn"))).rejects.toThrow(/byter brickor|ändrar brickor/);
     expect(await trustedRaceFixtureOverview(raceId)).toEqual(before);
     await expect(importIofXml(db, raceId, entryXml.replace("12345", "67890"))).rejects.toThrow();
     expect(await trustedRaceFixtureOverview(raceId)).toEqual(before);

@@ -1,8 +1,8 @@
 /**
  * Steg 51 (lasttest): läsningar i en transaktion med upprepbar läsning kan avbrytas av PostgreSQL när en funktionär ändrar
  * tävlingen samtidigt (40001 serialiseringsfel, 40P01 dödläge). En läsning har inga sidoeffekter och kan göras om.
- * Översynen 2026-11-02: samma sak för skrivningar. Ett avbrutet försök har rullats tillbaka helt, och skrivningarna är
- * idempotenta på begärans id, så hela åtgärden görs om (högst tre försök).
+ * Översynen 2026-11-02: skrivningarnas transaktioner görs om i databaspoolen (`createDatabase` i @o-tid/database);
+ * `retryTransactionConflicts` används där hela åtgärden är idempotent (avläsningens mottagning).
  */
 export function isRetryableReadConflict(error: unknown): boolean {
   for (let current: unknown = error, depth = 0; current && depth < 4; current = (current as { cause?: unknown }).cause, depth += 1) {

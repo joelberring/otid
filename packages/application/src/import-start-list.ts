@@ -59,6 +59,7 @@ export async function applyStartListImport(
     classId: schema.entries.classId,
     externalSource: schema.entries.externalSource,
     externalId: schema.entries.externalId,
+    eventorPersonId: schema.entries.eventorPersonId,
     fixedStartTime: schema.entries.fixedStartTime,
     version: schema.entries.version
   }).from(schema.entries).where(and(
@@ -77,9 +78,20 @@ export async function applyStartListImport(
   }
 
   const desiredStarts = new Map<string, string>();
-  for (const importedClass of parsed.classes) {
-    const raceClass = classByExternalId.get(importedClass.classExternalId);
+  for (const listedClass of parsed.classes) {
+    const raceClass = classByExternalId.get(listedClass.classExternalId);
     if (!raceClass) throw new StartListImportConflictError("StartList-klassen saknas i loppet");
+    // Översynen 2026-11-02: en start utan EntryId matchas på Person.Id (anmälans Person.Id, eller id:t från anmälningsfilen
+    // när den saknade EntryId). Matchningen måste vara entydig inom klassen.
+    const importedClass = { ...listedClass, starts: listedClass.starts.map((start) => {
+      if (start.entryExternalId || !start.personExternalId) return start;
+      const matches = entryRows.filter((entry) => entry.classId === raceClass.id &&
+        (entry.eventorPersonId === start.personExternalId || entry.externalId === start.personExternalId));
+      if (matches.length !== 1 || !matches[0]!.externalId) {
+        throw new StartListImportConflictError(`Person.Id ${start.personExternalId} matchar ${matches.length === 0 ? "ingen" : "flera"} anmälda i klassen`);
+      }
+      return { ...start, entryExternalId: matches[0]!.externalId };
+    }) };
     const expectedEntries = entryRows.filter((entry) => entry.classId === raceClass.id);
     const importedIds = new Set(importedClass.starts.map((start) => start.entryExternalId));
     if (expectedEntries.length !== importedClass.starts.length ||

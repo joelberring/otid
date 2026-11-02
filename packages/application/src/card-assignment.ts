@@ -1,7 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import { schema } from "@o-tid/database";
 import { courseVariantForReadout, withProposedEntryVariants } from "@o-tid/domain";
-import { bumpReadoutPackageVersion, loadRaceSnapshot, type DbExecutor } from "./snapshot";
+import { loadRaceSnapshot, type DbExecutor } from "./snapshot";
 import { evaluateAndStore, normalizedReadout } from "./result-revisions";
 import { latestResultReadAt, latestUnresolvedReadout } from "./readout-lookup";
 
@@ -111,7 +111,7 @@ export async function linkUnresolvedReadout(tx: DbExecutor, input: { raceId: str
     status: stored.evaluation.status, revision: stored.revision.revision };
 }
 
-/** Bumpar paketet och kopplar okända avläsningar för flera nya kopplingar (importen och synken). */
+/** Kopplar okända avläsningar för flera nya kopplingar (importen). Anroparen höjer paketversionen. */
 export async function linkUnresolvedReadouts(tx: DbExecutor, raceId: string, links: readonly { entryId: string; cardNumber: string;
   detectVariant?: boolean }[], actorAccountId: string | null): Promise<LinkedReadout[]> {
   const linked: LinkedReadout[] = [];
@@ -119,6 +119,5 @@ export async function linkUnresolvedReadouts(tx: DbExecutor, raceId: string, lin
     const result = await linkUnresolvedReadout(tx, { raceId, ...link, actorAccountId });
     if (result) linked.push(result);
   }
-  if (linked.length > 0) await bumpReadoutPackageVersion(tx, raceId);
   return linked;
 }

@@ -82,15 +82,39 @@ export const iofImportErrorCodeSchema = z.enum([
   "INVALID_REQUEST",
   "INVALID_IOF_XML",
   "CONFLICT",
-  "INTERNAL_ERROR"
+  "INTERNAL_ERROR",
+  /** Översynen 2026-11-02: anmälningslistan byter brickor; listan visas och importen görs om med bekräftelse. */
+  "CHANGES_REQUIRE_CONFIRMATION",
+  /** Översynen 2026-11-02: banfilen ändrar resultat för löpare som läst ut; använd banfilsjämförelsen. */
+  "COURSE_FILE_SYNC_REQUIRED"
 ]);
+
+/** En skillnad mellan anmälningslistan och de anmälda: vem, vad och om den hindrar importen. */
+export const iofEntryListChangeSchema = z.object({
+  name: z.string().min(1).max(321),
+  className: z.string().max(160),
+  field: z.enum(["CARD", "CLASS", "NAME"]),
+  from: z.string().max(321).nullable(),
+  to: z.string().max(321).nullable(),
+  /** Löparen har läst ut eller har ett resultat. */
+  readOut: z.boolean(),
+  /** Kan inte bekräftas: rätta i O-Tid eller i filen först. */
+  blocking: z.boolean(),
+  note: z.string().max(300).optional()
+}).strict();
+
+/** Header som bekräftar anmälningslistans brickbyten (samma fil och samma begärans-id som försöket som visade listan). */
+export const IOF_IMPORT_CONFIRM_HEADER = "x-otid-confirm-changes";
 
 export const iofImportErrorResponseSchema = z.object({
   formatVersion: z.literal(1),
   error: iofImportErrorCodeSchema,
   /** INVALID_IOF_XML: tolkens fel i klartext, t.ex. vilken anmälan som har ett ogiltigt bricknummer. */
-  issues: z.array(z.string().trim().min(1).max(500)).max(50).optional()
+  issues: z.array(z.string().trim().min(1).max(500)).max(50).optional(),
+  /** CONFLICT och CHANGES_REQUIRE_CONFIRMATION för en anmälningslista: skillnaderna. */
+  changes: z.array(iofEntryListChangeSchema).max(500).optional()
 }).strict();
+export type IofEntryListChange = z.infer<typeof iofEntryListChangeSchema>;
 
 export type IofImportRequestId = z.infer<typeof iofImportRequestIdSchema>;
 export type IofCourseDataImportReport = z.infer<typeof iofCourseDataImportReportSchema>;

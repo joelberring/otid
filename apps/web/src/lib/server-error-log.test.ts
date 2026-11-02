@@ -52,28 +52,17 @@ describe("serverfel loggas utan personuppgifter (översynen 2026-11-02)", () => 
     expect(calls).toBe(1);
   });
 
-  it("administratörens skrivning görs om med en ny kopia av begäran och ett 500 loggas med åtgärden", async () => {
+  it("ett 500 från administratörens skrivning loggas med åtgärd och felkod men utan personuppgifter", async () => {
     const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const body = { formatVersion: 1, classId: id, expectedCourseVersionId: id, expectedStartRule: "PUNCH",
       givenName: "Ny", familyName: "Testperson", organisationName: null, cardNumber: null, fixedStartTime: null };
-    const receipt = { formatVersion: 1 as const, replayed: false, requestId: id, raceId: id, entryId: id, entryVersion: 1 as const,
-      classId: id, givenName: "Ny", familyName: "Testperson", organisationName: null, cardNumber: null, assignmentId: null,
-      fixedStartTime: null, startTimeAssigned: false, snapshotVersionBefore: 6, snapshotVersionAfter: 7, createdAt: "2026-09-12T12:00:00Z" };
-    const seen: unknown[] = [];
-    let calls = 0;
-    const registration = vi.fn(async (_db: unknown, input: { request: unknown }) => {
-      seen.push(input.request); calls += 1;
-      if (calls === 1) throw pgError("40P01", "deadlock detected");
-      return { status: "registered" as const, response: receipt };
-    });
+    const registration = vi.fn(async () => { throw new Error("Brickan 2001848 saknas", { cause: pgError("23505", "dup") }); });
     const services = { ...dependencies(), registration };
     const req = () => request("POST", JSON.stringify(body), { "idempotency-key": `entry-registration:${id}` });
-    expect((await raceAdministratorRoute(db, req(), id, { kind: "registration" }, services, environment)).status).toBe(200);
-    expect(seen).toEqual([body, body]);
-    registration.mockImplementation(async () => { throw new Error("Anna Andersson 2001848 saknas"); });
     expect((await raceAdministratorRoute(db, req(), id, { kind: "registration" }, services, environment)).status).toBe(500);
     const line = String(logged.mock.calls.at(-1)?.[0]);
-    expect(line).toContain("\"action\":\"POST registration\"");
+    expect(line).toContain('"action":"POST registration"');
+    expect(line).toContain('"code":"23505"');
     expect(line).not.toContain("2001848");
   });
 

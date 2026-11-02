@@ -473,3 +473,19 @@ export function dumpDescription(lines: readonly DescriptionLine[]): string {
   }
   return out;
 }
+
+/** ADR-0190: en kontroll i banans vy för IOF-exporten (Purple Pens CourseView.ControlView). */
+export interface ExportControlView {
+  readonly control: string;
+  readonly courseControl: string | undefined;
+  /** Kontrollens nummer (> 0 för vanliga kontroller på en vanlig bana). */
+  readonly ordinal: number;
+  /** Sträckans längd till nästa kontroll i meter (första sträckan vid en gaffling); saknas = ingen sträcka. */
+  readonly legLengthMeters: number | undefined;
+}
+
+/** ADR-0190: banans vy (variant eller ogafflad bana, poängbanan sorterad som Purple Pen) för IOF-exporten. */
+export function courseViewForExport(document: CourseSettingDocument, courseId: string, variant: string | undefined): ExportControlView[] {
+  return courseView(document, courseId, variant).views.map(view => ({ control: view.control, courseControl: view.courseControls[0],
+    ordinal: view.ordinal, legLengthMeters: view.legTo && view.legTo.length > 0 ? view.legLength![0] : undefined }));
+}

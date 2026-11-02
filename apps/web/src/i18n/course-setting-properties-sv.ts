@@ -24,6 +24,16 @@ export const coursePropertiesSv = {
     downLabel: (name: string) => `Flytta ${name} ned i listan`,
     drag: "Dra banorna för att ändra ordningen. Ordningen gäller listan, utskriften, .ppen och överföringen till tävlingen."
   },
+  /** Exporten av banor (Fil). */
+  iof: {
+    download: "Ladda ned IOF XML (banor)",
+    help: "Banorna som IOF XML 3.0 CourseData, som Purple Pens export: en gafflad bana blir en bana per variant med banans namn som " +
+      "familj (\"Lång AC\", \"Lång AD\"), så att MeOS, OLA och andra tidtagningsprogram läser varianterna. Klasserna tas från " +
+      "banans klasser. Stafettlagens fördelning av varianter följer inte med.",
+    ocad: "OCAD: O-Tid skriver inget eget OCAD-format. OCAD:s banläggning kan läsa banor i IOF XML 3.0 (importera banor från " +
+      "IOF XML), med kontrollerna på samma kartlägen i mm. Kontrollbeskrivningar, specialobjekt och utskriftsinställningar följer " +
+      "inte med; använd .ppen när banorna ska fortsätta i Purple Pen."
+  },
   /** Ångra efter omladdning. */
   history: {
     restored: (steps: number) => `Ångra fungerar för ${steps} ${steps === 1 ? "ändring" : "ändringar"} från förra gången.`,

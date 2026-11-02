@@ -35,3 +35,11 @@ som .ppen eller genom "Överför till tävlingen".
    sparade ändringar krockar inte. Gör om finns kvar bara om inget ändrats sedan sidan öppnades. Ångra skickas som vanligt
    som en åtgärd och prövas mot servern. Historiken tas bort vid utloggning, när tillgången försvinner (403), med
    tävlingens kopia och när dokumentet byts (inläst .ppen, återställd version). Förslagsläget sparar ingen historik.
+5. **Export av banor.** "Ladda ned IOF XML (banor)" under Fil skriver IOF XML 3.0 CourseData som Purple Pens
+   ExportXmlVersion3 (`writeIofCourseData` i paketet): en gafflad bana blir en `Course` per variant ("Lång AC" med
+   `CourseFamily` "Lång"), som MeOS och OLA läser; klasserna ur undertiteln; kartfilens yta och, med georefererad kartfil,
+   `Position` i WGS 84. Purple Pens förväntade filer (marymoor, mapexchange1, relay) blir likadana rad för rad utom tid och
+   program; stafettlagens varianter (`TeamCourseAssignment`, Purple Pens RelayVariations med .NET:s slumptal) skrivs inte.
+   IOF:s XSD finns inte i repot, så testet jämför mot Purple Pens filer; alla 151 testfilers export validerades mot
+   `IOF.xsd` (datastandard 3.0) med xmllint utanför repot 2026-11-02. Inget eget OCAD-format: OCAD läser banor i IOF XML
+   3.0, vilket står i hjälpen (inte provat med en riktig OCAD).

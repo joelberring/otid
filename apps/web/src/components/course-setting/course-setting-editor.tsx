@@ -736,7 +736,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
     </div>
     {dialog === "file" && <Dialog title={text.file.heading} onClose={() => setDialog(undefined)}>
       <FilePanel raceId={raceId} document={document} original={state.original} busy={busy || access.level !== "EDIT"} onImport={onImport}
-        onRestore={onRestore} />
+        onRestore={onRestore} mapBounds={mapBounds} georeference={georeference} />
     </Dialog>}
     {dialog === "transfer" && access.admin && <Dialog title={text.transfer.heading} onClose={() => setDialog(undefined)}>
       <TransferPanel raceId={raceId} ready={!busy} flush={flush} version={() => sync.version} />

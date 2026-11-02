@@ -7,7 +7,9 @@ texter; svenska för fyra 2018-symboler är O-Tids egna, se `scripts/generate-de
 `src/description-*.ts` är portade från SymbolDB.cs, Textifier.cs, CourseView.cs, DescriptionFormatter.cs och
 DescriptionRenderer.cs. Steg 64: specialobjekten och utskriftslayouten (`src/specials.ts`, `src/special-*.ts`,
 `src/ppen-special.ts`, `src/page-layout.ts`) bygger på CourseObject.cs, CourseFormatter.cs, CourseLayout.cs,
-CoursePageLayout.cs, Controller.cs (tryckytan), CoreMapUtil.cs och EventDB.cs (Special, PrintArea):
+CoursePageLayout.cs, Controller.cs (tryckytan), CoreMapUtil.cs och EventDB.cs (Special, PrintArea). ADR-0190: IOF XML 3.0
+CourseData (`src/iof-export.ts`) skrivs som ExportXml.cs (ExportXmlVersion3), och banans egenskaper (`src/course-properties.ts`)
+följer ChangeEvent.cs:
 
 ```
 Copyright (c) 2006-2008, Peter Golde

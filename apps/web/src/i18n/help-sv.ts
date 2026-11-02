@@ -70,7 +70,9 @@ export const helpArticles: readonly HelpArticle[] = [
       [
         "Banfil från Purple Pen, OCAD eller Condes: exportera banorna som IOF XML 3.0 och välj ”Läs in banfil”. Du ser skillnaderna innan något sparas.",
         "”Redigera”: rätta en bana, även när löpare har läst ut. Tryck på ”Visa vad som händer” och ”Spara ändringen”. Resultaten räknas om.",
-        "”Ta bort bana”: går när ingen klass springer banan och inga resultat finns."
+        "”Ta bort bana”: går när ingen klass springer banan och inga resultat finns.",
+        "Banläggningen, Fil: ”Ladda ned IOF XML (banor)” ger en banfil som från Purple Pen. MeOS och OLA läser den.",
+        "OCAD: inget eget format från O-Tid. OCAD:s banläggning kan läsa samma IOF XML-fil. Till Purple Pen: ”Ladda ned .ppen”."
       ]
     ]
   },

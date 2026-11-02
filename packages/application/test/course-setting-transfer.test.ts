@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
-import { applyEdit, readPpen } from "@o-tid/course-setting";
+import { applyEdit, readPpen, writeIofCourseData } from "@o-tid/course-setting";
 import { parseIofXml } from "@o-tid/iof-xml";
 import { classNamesOf, courseSettingProjection } from "../src/course-setting-transfer";
 
@@ -90,5 +90,18 @@ describe("banläggningen som banfil", () => {
     const byName = (courses: readonly { name: string }[]) => [...courses].sort((a, b) => a.name.localeCompare(b.name));
     expect(byName(again.projection.data.courses)).toEqual(byName(built.projection.data.courses));
     expect(again.projection.data.courses.at(-1)!.name).toBe("Lång");
+  });
+
+  it("ADR-0190: O-Tids IOF-export läses in som samma banor som överföringen ger", async () => {
+    const ppen = await readFile(new URL("../../../fixtures/course-setting/kartfil.ppen", import.meta.url), "utf8");
+    const document = readPpen(ppen).document;
+    const built = courseSettingProjection(document);
+    if (!("projection" in built)) throw new Error(built.problem.error);
+    const parsed = parseIofXml(writeIofCourseData(document, { mapBounds: { minX: -10, minY: -10, maxX: 110, maxY: 90 } }));
+    if (parsed.kind !== "CourseData") throw new Error("Inte en banfil");
+    expect(parsed.courses).toEqual(built.projection.data.courses);
+    expect(parsed.assignments).toEqual(built.projection.data.assignments);
+    expect(parsed.controlMapPositions).toEqual(built.projection.data.controlMapPositions);
+    expect(parsed.mapScale).toBe(built.projection.data.mapScale);
   });
 });

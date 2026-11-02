@@ -71,6 +71,8 @@ export * from "./print-profile";
 export * from "./print-reference";
 export * from "./color-match";
 export * from "./layout-template";
+// ADR-0190: banorna som IOF XML 3.0 CourseData (som Purple Pens export).
+export { classNamesOfCourse, writeIofCourseData, type IofCourseDataOptions } from "./iof-export";
 export { printSheetGroups, type SheetGroup, type SheetGroupOptions, type SheetLayout } from "./print-sheets";
 
 /** Läs en Purple Pen-fil (.ppen, XML). Kastar `CourseSettingEditError("INVALID")` om filen inte är en .ppen. */

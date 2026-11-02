@@ -3,7 +3,10 @@
 import { useRef, useState } from "react";
 import { COURSE_SETTING_PPEN_MAX_BYTES, type CourseSettingRevisions } from "@o-tid/contracts";
 import { CourseSettingEditError, readPpen, writePpen, type CourseSettingDocument, type PpenReadWarning } from "@o-tid/course-setting";
+import type { MapGeoreference } from "@o-tid/map-file";
 import { courseSettingSv as text } from "../../i18n/course-setting-sv";
+import { coursePropertiesSv } from "../../i18n/course-setting-properties-sv";
+import { iofCourseFile } from "../../lib/course-setting-iof";
 import { courseSettingBase, downloadText, fetchCourseSettingRevisions } from "../../lib/course-setting-api";
 import { Button, Notice } from "../ui";
 import styles from "./course-setting.module.css";
@@ -53,9 +56,11 @@ export function PpenImport({ onRead, busy, label = text.file.import }: { onRead:
 }
 
 /** Fil: läs in, ladda ned som .ppen (writePpen), den inlästa filen orörd och tidigare versioner. */
-export function FilePanel({ raceId, document, original, busy, onImport, onRestore }: {
+export function FilePanel({ raceId, document, original, busy, onImport, onRestore, mapBounds, georeference }: {
   raceId: string; document: CourseSettingDocument; original: { fileName: string } | null; busy: boolean;
   onImport: (file: ReadFile) => Promise<void>; onRestore: (version: number) => Promise<boolean>;
+  /** ADR-0190: kartfilens yta och georeferens för IOF-exporten. */
+  mapBounds?: { minX: number; minY: number; maxX: number; maxY: number } | undefined; georeference?: MapGeoreference | null | undefined;
 }) {
   const [revisions, setRevisions] = useState<CourseSettingRevisions["revisions"]>();
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
@@ -66,6 +71,15 @@ export function FilePanel({ raceId, document, original, busy, onImport, onRestor
     const title = document.event.title.trim().replace(/[^\p{L}\p{N} ._-]/gu, "_") || "banlaggning";
     downloadText(`${title}.ppen`, writePpen(document));
   }
+  function downloadIof() {
+    try {
+      const file = iofCourseFile(document, { mapBounds, georeference });
+      downloadText(file.fileName, file.xml);
+    } catch (error) {
+      console.error("IOF XML kunde inte skrivas", error);
+      setMessage({ tone: "error", text: text.file.failed });
+    }
+  }
   return <section className={styles.panel} aria-labelledby="course-setting-file">
     <h2 id="course-setting-file">{text.file.heading}</h2>
     <PpenImport onRead={onImport} busy={busy} />
@@ -74,6 +88,11 @@ export function FilePanel({ raceId, document, original, busy, onImport, onRestor
       <Button variant="secondary" onClick={download}>{text.file.download}</Button>
       {original && <a href={`${courseSettingBase(raceId)}/course-setting/original`} download>{text.file.downloadOriginal(original.fileName)}</a>}
     </div>
+    <div className={styles.row}>
+      <Button variant="secondary" onClick={downloadIof} data-testid="course-setting-iof">{coursePropertiesSv.iof.download}</Button>
+    </div>
+    <p className={styles.muted}>{coursePropertiesSv.iof.help}</p>
+    <p className={styles.muted}>{coursePropertiesSv.iof.ocad}</p>
     {!revisions && <div className={styles.row}><Button variant="quiet" onClick={() => void showRevisions()}>{text.revisions.show}</Button></div>}
     {revisions && <>
       <h3 className={styles.muted}>{text.revisions.heading}</h3>

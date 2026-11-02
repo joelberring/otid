@@ -28,6 +28,8 @@ export default function PrivacyPage() {
       <p>{text.public}</p>
       <ul className={styles.list}>{text.publicItems.map(item => <li key={item}>{item}</li>)}</ul>
       <p>{text.runnersPublic}</p>
+      <h2>{text.organizerCopyTitle}</h2>
+      <p>{text.organizerCopy}</p>
       <h2>{text.responsibleTitle}</h2>
       <p>{text.responsible}</p>
       <h2>{text.contactTitle}</h2>

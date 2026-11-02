@@ -1,7 +1,7 @@
 import { classRemovalRequestSchema, classRemovalResponseSchema, courseRemovalRequestSchema, courseRemovalResponseSchema,
   entryRemovalRequestSchema, entryRemovalResponseSchema, resultsOfficialRequestSchema, resultsOfficialResponseSchema,
   resultsOfficialStateSchema, selfRegistrationCleanupPreviewSchema, selfRegistrationCleanupRequestSchema,
-  selfRegistrationCleanupResponseSchema } from "@o-tid/contracts";
+  selfRegistrationCleanupResponseSchema, raceBackupStatusSchema } from "@o-tid/contracts";
 import { adminFailure as failure, hasNoRequestBody, privateHeaders, privateJson as json } from "./security-policy";
 import { resultFailure, type RaceAdministratorRouteContext } from "./race-administrator-route-context";
 import { write } from "./race-administrator-routes-relay";
@@ -16,7 +16,7 @@ function matching<T extends { requestId: string }>(schema: { safeParse(value: un
 }
 
 /**
- * PLAN.md steg 27: ta bort eller stryk deltagare, ta bort klass och bana, "Resultaten är klara" och "Exportera tävlingen".
+ * PLAN.md steg 27: ta bort eller stryk deltagare, ta bort klass och bana, "Resultaten är klara" och säkerhetskopian (ADR-0187).
  * Bara administratören (`race-roles.ts`). Ger undefined för åtgärder som inte hör till gruppen.
  */
 export async function handleRemovalRoute(context: RaceAdministratorRouteContext): Promise<Response | undefined> {
@@ -64,8 +64,15 @@ export async function handleRemovalRoute(context: RaceAdministratorRouteContext)
       const result = await dependencies.raceExport(db, { sessionToken: proof.sessionToken, raceId });
       if (result.status !== "ok") return resultFailure(result.status);
       const bytes = Uint8Array.from(result.bytes);
-      return new Response(bytes, { headers: { ...privateHeaders, "content-type": "application/json; charset=utf-8",
+      return new Response(bytes, { headers: { ...privateHeaders, "content-type": "application/zip",
         "content-disposition": `attachment; filename="${result.fileName}"`, "content-length": String(bytes.byteLength) } });
+    }
+    case "race-backup-status": {
+      // ADR-0187: när säkerhetskopian senast laddades ner (bara tiden).
+      if (!await hasNoRequestBody(request)) return failure(400, "INVALID_REQUEST");
+      const result = await dependencies.raceBackupStatus(db, { sessionToken: proof.sessionToken, raceId });
+      if (result.status !== "ok") return resultFailure(result.status);
+      return json(raceBackupStatusSchema.parse({ formatVersion: 1, lastDownloadedAt: result.lastDownloadedAt }));
     }
     default:
       return undefined;

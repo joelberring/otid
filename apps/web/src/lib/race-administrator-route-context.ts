@@ -43,7 +43,7 @@ import { loadStartDrawSetupAsAdmin, previewStartDrawAsAdmin, commitStartDrawAsAd
   setRacePublicationAsAdmin, setCoursesPublicAsAdmin, setPublicTimingAsAdmin, readControlMapAsAdmin, readEntryControlMapAsAdmin, getRadioSettingsAsAdmin, saveRadioSettingsAsAdmin,
   fetchRadioNowAsAdmin, registerReadoutCard, previewRemainingRunnersAsAdmin, markRemainingDidNotStartAsAdmin,
   saveCourseDetailsAsAdmin, removeEntryAsAdmin, removeClassAsAdmin, removeCourseAsAdmin, readResultsOfficialAsAdmin,
-  setResultsOfficialAsAdmin, exportRaceAsAdmin, getRunnerDatabaseSettingsAsAdmin, refreshRunnerDatabaseAsAdmin,
+  setResultsOfficialAsAdmin, exportRaceAsAdmin, readRaceBackupStatusAsAdmin, getRunnerDatabaseSettingsAsAdmin, refreshRunnerDatabaseAsAdmin,
   deleteRunnerDatabaseAsAdmin, searchRunnerDatabaseAsAdmin, listRaceCorrectionsAsAdmin, previewRaceCorrectionAsAdmin,
   applyRaceCorrectionAsAdmin, previewReadoutRereadAsAdmin, applyReadoutRereadAsAdmin,
   receiveUninterpretedReadout, listUninterpretedReadoutsAsAdmin, rereadUninterpretedReadoutAsAdmin,
@@ -146,7 +146,7 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   markRemainingDidNotStart: markRemainingDidNotStartAsAdmin, courseDetails: saveCourseDetailsAsAdmin,
   // PLAN.md steg 27: ta bort och stryk, "Resultaten är klara" och export av hela tävlingen.
   removeEntry: removeEntryAsAdmin, removeClass: removeClassAsAdmin, removeCourse: removeCourseAsAdmin,
-  resultsOfficial: setResultsOfficialAsAdmin, resultsOfficialState: readResultsOfficialAsAdmin, raceExport: exportRaceAsAdmin,
+  resultsOfficial: setResultsOfficialAsAdmin, resultsOfficialState: readResultsOfficialAsAdmin, raceExport: exportRaceAsAdmin, raceBackupStatus: readRaceBackupStatusAsAdmin,
   // PLAN.md steg 29: löpardatabasen från Eventor.
   runnerDatabase: getRunnerDatabaseSettingsAsAdmin, runnerDatabaseRefresh: refreshRunnerDatabaseAsAdmin,
   runnerDatabaseDelete: deleteRunnerDatabaseAsAdmin, runnerSearch: searchRunnerDatabaseAsAdmin,
@@ -202,7 +202,7 @@ export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: str
   { kind: "people" } | { kind: "race-publication" } | { kind: "course-secrecy" } | { kind: "control-map" } | { kind: "entry-control-map"; entryId: string } | { kind: "radio" } | { kind: "radio-fetch" } |
   { kind: "readout-registrations" } | { kind: "remaining-runners" } | { kind: "course-details"; courseId: string } |
   { kind: "entry-removal"; entryId: string } | { kind: "class-removal"; classId: string } | { kind: "course-removal"; courseId: string } |
-  { kind: "results-official" } | { kind: "race-export" } | { kind: "runner-database" } | { kind: "runner-search" } |
+  { kind: "results-official" } | { kind: "race-export" } | { kind: "race-backup-status" } | { kind: "runner-database" } | { kind: "runner-search" } |
   { kind: "race-corrections" } | { kind: "race-corrections-preview" } | { kind: "readout-reread" } | { kind: "readout-reread-preview" } |
   { kind: "uninterpreted-readouts" } | { kind: "uninterpreted-readouts-reread" } |
   { kind: "party" } | { kind: "party-guests" } | { kind: "party-desk-events" } | { kind: "party-logo" } | { kind: "self-registration-cleanup" };

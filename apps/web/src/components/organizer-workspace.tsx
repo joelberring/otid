@@ -21,6 +21,8 @@ import { raceTypeSv } from "../i18n/race-type-sv";
 import { RaceTypeChoice } from "./race-type-choice";
 import { HelpButton } from "./help/help-panel";
 import { CopyRaceDialog, type CopySource } from "./copy-race-dialog";
+import { RestoreRaceDialog } from "./restore-race-dialog";
+import { raceBackupSv } from "../i18n/race-backup-sv";
 import { raceCopySv } from "../i18n/race-copy-sv";
 import { hasErrors, validateCreateRace, type CreateRaceInput, type FieldErrors } from "../lib/form-validation";
 import { DateInput, Field, focusFirstError } from "./ui";
@@ -63,6 +65,7 @@ export function OrganizerWorkspace() {
   const [busy, setBusy] = useState(false);
   const [enteringRaceId, setEnteringRaceId] = useState<string>();
   const [copySource, setCopySource] = useState<CopySource>();
+  const [restoreOpen, setRestoreOpen] = useState(false);
   const [message, setMessage] = useState("");
   const createHeadingRef = useRef<HTMLHeadingElement>(null);
 
@@ -433,7 +436,12 @@ export function OrganizerWorkspace() {
                 defaultValue="Europe/Stockholm" maxLength={100} disabled={busy} /></Field>
             </details>
             <button type="submit" disabled={busy} aria-busy={busy}>{copy.createEvent}</button>
-          </form></>}
+          </form>
+          {/* ADR-0187: en säkerhetskopia blir en ny tävling (t.ex. på en ny server när den gamla har gått sönder). */}
+          <div className={styles.restore}>
+            <p className={styles.muted}>{raceBackupSv.restore.openHint}</p>
+            <button type="button" className={styles.secondary} disabled={busy} onClick={() => setRestoreOpen(true)}>{raceBackupSv.restore.open}</button>
+          </div></>}
         {attempt && <div className={styles.uncertain} role="alert">
           <h3>{attemptMatchesSession ? copy.createUnconfirmed : copy.savedAttemptOtherAccountTitle}</h3>
           <p>{attemptBelongsToOtherAccount ? copy.attemptBelongsToOtherAccount : copy.createUnconfirmedHint}</p>
@@ -452,6 +460,8 @@ export function OrganizerWorkspace() {
 
     {session && <MyGroups />}
     {session && <p className={styles.message} role="status" aria-live="polite">{message}</p>}
+    <RestoreRaceDialog open={restoreOpen} onClose={() => setRestoreOpen(false)}
+      onRestored={() => void loadEvents().catch((error) => setMessage(errorMessage(error)))} />
     <CopyRaceDialog source={copySource} onClose={() => setCopySource(undefined)}
       onCopied={() => void loadEvents().catch((error) => setMessage(errorMessage(error)))} />
   </main>;

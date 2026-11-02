@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 import {
   BASE_SECURITY_HEADERS, READOUT_PERMISSIONS_POLICY, READOUT_SHELL_CSP
 } from "./src/lib/content-security-policy";
+import { NO_INDEX_HEADER, NO_INDEX_HEADER_SOURCES } from "./src/lib/no-index";
 
 /**
  * Svarshuvuden (PLAN.md steg 46). Ordningen spelar roll: när flera regler sätter samma huvud gäller den sista.
@@ -13,14 +14,15 @@ import {
 const nextConfig: NextConfig = {
   output: "standalone",
   allowedDevOrigins: ["127.0.0.1"],
+  // O-Tid använder inte next/image. Utan optimering svarar /_next/image 404, så bildoptimeringens angreppsyta (SSRF,
+  // GHSA för Image Optimization) finns inte alls. Playwright sakerhetshuvuden kontrollerar det.
+  images: { unoptimized: true },
   async headers() {
     const privateAdminHeaders = [
       { key: "Cache-Control", value: "private, no-store" },
       { key: "Permissions-Policy", value: "camera=(), geolocation=(), microphone=()" },
       { key: "Referrer-Policy", value: "no-referrer" }
     ];
-    // PLAN.md steg 40: fest-sidan och dess API ska inte indexeras eller sparas (namn på gäster). Bara fester har /fest/.
-    const noIndex = { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive, nosnippet, noai, noimageai" };
     const readout = { key: "Permissions-Policy", value: READOUT_PERMISSIONS_POLICY };
     return [
       { source: "/:path*", headers: [...BASE_SECURITY_HEADERS] },
@@ -30,13 +32,10 @@ const nextConfig: NextConfig = {
       // Festens logga och kartan har en egen, striktare CSP (samma som i rutten).
       { source: "/api/public/parties/:raceId/logo", headers: [{ key: "Content-Security-Policy", value: "default-src 'none'; sandbox" }] },
       { source: "/api/public/races/:raceId/map", headers: [{ key: "Content-Security-Policy", value: "default-src 'none'" }] },
-      { source: "/fest/:code", headers: [noIndex] },
-      // Steg 42: QR-skylten har samma skydd.
-      { source: "/fest/:code/qr", headers: [noIndex] },
-      { source: "/api/public/parties/:path*", headers: [noIndex, { key: "Cache-Control", value: "private, no-store" }] },
-      // Steg 68 (ADR-0182 beslut 7): träningsgruppens sida och QR-skylt indexeras aldrig (som festen).
-      { source: "/g/:code", headers: [noIndex] },
-      { source: "/g/:code/qr", headers: [noIndex] },
+      // Inga publika sidor om löpare och inget API indexeras (ADR-0185, `lib/no-index.ts`; fest steg 40, grupper steg 68).
+      ...NO_INDEX_HEADER_SOURCES.map((source) => ({ source, headers: [NO_INDEX_HEADER] })),
+      // Festens API (namn på gäster) sparas inte heller i någon cache.
+      { source: "/api/public/parties/:path*", headers: [{ key: "Cache-Control", value: "private, no-store" }] },
       ...["", "/manage", "/readout", "/speaker", "/imports", "/party-labels", "/course-setting"].map((surface) => ({
         source: `/admin/:raceId${surface}`, headers: [...privateAdminHeaders]
       })),

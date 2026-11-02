@@ -37,7 +37,8 @@ const startCheckinActionSchema = z.discriminatedUnion("kind", [
   finishCorrectionActionSchema
 ]);
 
-export const StartCheckinOperationSchema = z.object({
+/** Utan förfining, så att delar kan väljas ut (zod 4.6+ tillåter inte `.pick()` på ett förfinat schema). */
+export const StartCheckinOperationObjectSchema = z.object({
   formatVersion: z.literal(1),
   requestId: canonicalUuidSchema,
   dependsOnRequestId: canonicalUuidSchema.nullable(),
@@ -51,7 +52,9 @@ export const StartCheckinOperationSchema = z.object({
   expectedRevision: nonnegativePostgresIntegerSchema,
   observedAt: canonicalUtcMillisecondSchema,
   action: startCheckinActionSchema
-}).strict().superRefine((operation, context) => {
+}).strict();
+
+export const StartCheckinOperationSchema = StartCheckinOperationObjectSchema.superRefine((operation, context) => {
   if (operation.dependsOnRequestId === operation.requestId) {
     context.addIssue({
       code: "custom",

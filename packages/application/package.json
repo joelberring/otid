@@ -22,7 +22,7 @@
     "@o-tid/print-pdf": "workspace:*",
     "@o-tid/roc": "workspace:*",
     "@o-tid/sportident": "workspace:*",
-    "drizzle-orm": "0.44.5"
+    "drizzle-orm": "0.45.4"
   },
   "devDependencies": { "tsx": "4.20.5" }
 }

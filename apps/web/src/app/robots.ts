@@ -1,14 +1,12 @@
 import type { MetadataRoute } from "next";
+import { AI_BOTS, NO_INDEX_PATH_PREFIXES } from "../lib/no-index";
 
 /**
- * robots.txt (PLAN.md steg 40): fest-sidorna (/fest/) och deras API stängs för alla robotar och särskilt för kända
- * AI-robotar. Tävlingssidorna påverkas inte. Fest-sidan har dessutom X-Robots-Tag (next.config) och en robots-meta.
- * Steg 68 (ADR-0182 beslut 7): träningsgruppernas sidor (/g/) på samma sätt – grupperna är ofta barn.
+ * robots.txt: de publika sidorna om löpare (resultat, startlistor, tävlingssidan /t/, fester och träningsgrupper) och hela
+ * API:t stängs för alla robotar och uttryckligen för kända AI-robotar (ägarens beslut 2026-10-24, ADR-0185; tidigare bara
+ * /fest/ och /g/). Sidorna har dessutom X-Robots-Tag (next.config) och robots-meta (`lib/no-index.ts`).
  */
-const PARTY = ["/fest/", "/api/public/parties/", "/g/"];
-const AI_BOTS = ["GPTBot", "ChatGPT-User", "ClaudeBot", "anthropic-ai", "CCBot", "Google-Extended", "PerplexityBot", "Bytespider",
-  "Applebot-Extended"];
-
 export default function robots(): MetadataRoute.Robots {
-  return { rules: [{ userAgent: "*", disallow: PARTY }, { userAgent: AI_BOTS, disallow: PARTY }] };
+  const disallow = [...NO_INDEX_PATH_PREFIXES];
+  return { rules: [{ userAgent: "*", disallow }, { userAgent: [...AI_BOTS], disallow }] };
 }

@@ -162,6 +162,21 @@ describe("Mapper-läsaren", () => {
     const broken = OMAP.replace("<colors count=\"4\">", "<colors count=\"4\"><<");
     expect(() => read(broken)).toThrow(MapFileError);
   });
+
+  it("avvisar DOCTYPE och ENTITY (billion laughs) innan något tolkas", () => {
+    const entities = ["<!ENTITY lol \"lol\">"];
+    for (let level = 1; level <= 9; level += 1) entities.push(`<!ENTITY lol${level} "${`&lol${level === 1 ? "" : level - 1};`.repeat(10)}">`);
+    const laughs = OMAP.replace("<map xmlns", `<!DOCTYPE map [\n${entities.join("\n")}\n]>\n<map xmlns`)
+      .replace("Gul &amp; grön", "&lol9;");
+    const started = performance.now();
+    expect(() => read(laughs)).toThrow(expect.objectContaining({ code: "INVALID", message: expect.stringContaining("DOCTYPE") as string }) as Error);
+    expect(performance.now() - started).toBeLessThan(500);
+    // Också en DOCTYPE utan entiteter, med annan skiftläge och mellanrum, och en lös ENTITY efter objekten.
+    expect(() => read(OMAP.replace("<map xmlns", "<! doctype map>\n<map xmlns"))).toThrow(MapFileError);
+    expect(() => read(OMAP.replace("</barrier>", "<!ENTITY x SYSTEM \"file:///etc/passwd\"></barrier>"))).toThrow(MapFileError);
+    // En vanlig fil med de inbyggda entiteterna läses som förut.
+    expect(read().colors[2]?.name).toBe("Gul & grön");
+  });
 });
 
 describe("Mapper-läsaren på trasiga filer", () => {

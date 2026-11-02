@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { NO_INDEX_ROBOTS } from "../../../lib/no-index";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { sv } from "../../../i18n/sv";
@@ -24,13 +25,12 @@ type Params = { params: Promise<{ code: string }> };
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const hub = await loadRaceHub((await params).code);
-  if (!hub) return { title: `${publicRaceSv.notPublished.title} – ${sv.appName}`, robots: { index: false } };
+  if (!hub) return { title: `${publicRaceSv.notPublished.title} – ${sv.appName}`, robots: NO_INDEX_ROBOTS };
   const title = `${hub.eventName} – ${sv.appName}`;
   const description = `${raceDetails(hub.eventName, hub.raceName, [formatRaceDate(hub.raceDate)], ", ")}. ` +
     `${text.startList}, ${text.results.toLowerCase()} och sträcktider.`;
   const url = new URL(raceHubPath(hub.shortCode), await publicOrigin()).toString();
-  return { title, description, alternates: { canonical: url }, openGraph: { title, description, url, siteName: sv.appName, type: "website" },
-    ...(hub.access === "PREVIEW" ? { robots: { index: false } } : {}) };
+  return { title, description, alternates: { canonical: url }, openGraph: { title, description, url, siteName: sv.appName, type: "website" }, robots: NO_INDEX_ROBOTS };
 }
 
 /**

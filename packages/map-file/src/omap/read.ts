@@ -16,9 +16,16 @@ import { asArray, attr, child, decodeEntities, num, tagAttributes, text, type Xm
 
 export const MAPPER_NAMESPACE = "http://openorienteering.org/apps/mapper/xml/v2";
 
+// Som IOF-, GPX- och Eventor-läsarna: en DTD kan definiera entiteter som växer exponentiellt ("billion laughs") eller pekar
+// på externa resurser. Mapper skriver aldrig någon, så filen avvisas innan något tolkas.
+const FORBIDDEN_DECLARATION = /<!\s*(?:DTD|DOCTYPE|ENTITY)\b/i;
+
 const ARRAY_TAGS = new Set(["color", "component", "symbol", "part", "element", "pattern", "border", "object", "coord", "namedcolor"]);
 
 export function readOmap(textContent: string): ParsedMap {
+  if (FORBIDDEN_DECLARATION.test(textContent)) {
+    throw new MapFileError("INVALID", "Mapper-filen innehåller en DOCTYPE- eller ENTITY-deklaration, som inte stöds.");
+  }
   const partsStart = findTag(textContent, "<parts", 0);
   const partsEnd = partsStart < 0 ? -1 : textContent.indexOf("</parts>", partsStart);
   if (partsStart >= 0 && partsEnd < 0) throw new MapFileError("TRUNCATED", "Mapper-filen är avkortad (objekten tar slut mitt i).");
@@ -71,6 +78,7 @@ function parseHeader(header: string): XmlNode {
       parseTagValue: false,
       parseAttributeValue: false,
       trimValues: false,
+      // Bara XML:s fem inbyggda entiteter och teckenreferenser; egna entiteter finns inte (deklarationerna avvisas ovan).
       processEntities: true,
       isArray: name => ARRAY_TAGS.has(name)
     });

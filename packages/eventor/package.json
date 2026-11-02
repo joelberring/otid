@@ -10,5 +10,5 @@
     "test": "vitest run",
     "build": "tsc -p tsconfig.build.json"
   },
-  "dependencies": { "fast-xml-parser": "5.2.5" }
+  "dependencies": { "fast-xml-parser": "5.11.2" }
 }

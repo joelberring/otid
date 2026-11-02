@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { NO_INDEX_ROBOTS } from "../../../../lib/no-index";
 import Link from "next/link";
 import { sv } from "../../../../i18n/sv";
 import { liveSv as text } from "../../../../i18n/live-sv";
@@ -16,8 +17,8 @@ type Params = { params: Promise<{ code: string }> };
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const hub = await loadRaceHub((await params).code);
-  if (!hub) return { title: `${publicRaceSv.notPublished.title} – ${sv.appName}`, robots: { index: false } };
-  return { title: `${text.metaTitle(hub.eventName)} – ${sv.appName}`, robots: { index: false } };
+  if (!hub) return { title: `${publicRaceSv.notPublished.title} – ${sv.appName}`, robots: NO_INDEX_ROBOTS };
+  return { title: `${text.metaTitle(hub.eventName)} – ${sv.appName}`, robots: NO_INDEX_ROBOTS };
 }
 
 /**

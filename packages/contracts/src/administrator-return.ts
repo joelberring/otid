@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { canonicalJsonBytes } from "./canonical-json";
-import { StartCheckinOperationSchema, StartCheckinReceiptSchema } from "./start-checkin";
+import { StartCheckinOperationObjectSchema, StartCheckinReceiptSchema } from "./start-checkin";
 
 /** Online return only. Actor, source, sequence and action are server-owned. */
-export const administratorReturnRequestSchema = StartCheckinOperationSchema.pick({
+export const administratorReturnRequestSchema = StartCheckinOperationObjectSchema.pick({
   formatVersion: true, requestId: true, entryId: true, packageVersion: true,
   expectedEntryVersion: true, expectedRevision: true, observedAt: true
 }).extend({ expectedStartState: z.enum(["UNMARKED", "STARTED", "REPORTED_NOT_STARTED"]) }).strict();

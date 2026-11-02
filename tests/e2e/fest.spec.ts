@@ -262,7 +262,7 @@ test("fest: bardisken checkar in, verifierar köp och checkar ut med mål", asyn
   expect(await qr.locator("h1").evaluate(element => getComputedStyle(element).fontFamily)).toContain("Poppins");
   await reviewScreenshots(visitor, "fest-qr");
 
-  // En vanlig tävlings publika sida har inga av fest-sidans huvuden.
+  // ADR-0185: en vanlig tävlings publika sida indexeras inte heller (ägarens beslut 2026-10-24), men saknar festens egna rader.
   await owner.goto("/organizer");
   await createRace(owner, `Vanlig ${suffix}`, today(), "Träning");
   await publishRace(owner);
@@ -270,7 +270,7 @@ test("fest: bardisken checkar in, verifierar köp och checkar ut med mål", asyn
   const racePath = /\/t\/[2-9a-hjkmnp-z]{6}/.exec(hubText ?? "")![0];
   const race = await visitor.request.get(racePath);
   expect(race.status()).toBe(200);
-  expect(race.headers()["x-robots-tag"]).toBeUndefined();
-  expect(await race.text()).not.toContain("noai");
+  expect(race.headers()["x-robots-tag"]).toContain("noindex");
+  expect(await race.text()).not.toContain("Jubileumsbaren");
 });
 

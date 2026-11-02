@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { NO_INDEX_ROBOTS } from "../../../../lib/no-index";
 import QRCode from "qrcode";
 import { sv } from "../../../../i18n/sv";
 import { publicRaceSv } from "../../../../i18n/public-race-sv";
@@ -16,7 +17,7 @@ type Params = { params: Promise<{ code: string }> };
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const hub = await loadRaceHub((await params).code);
   return { title: hub ? `${publicRaceSv.qr.title}: ${hub.eventName} – ${sv.appName}` : `${publicRaceSv.notPublished.title} – ${sv.appName}`,
-    robots: { index: false } };
+    robots: NO_INDEX_ROBOTS };
 }
 
 /**

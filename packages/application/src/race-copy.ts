@@ -83,7 +83,8 @@ export async function copyRaceAsAdmin(db: Database, input: UserAccountSessionPro
     if (!race) throw new Error("Loppet kunde inte skapas");
 
     const content = await copyRaceContent(tx, { sourceRaceId: source.id, raceId: race.id, timeZone: source.timeZone,
-      dayShift: Math.round((Date.parse(intent.raceDate) - Date.parse(source.raceDate)) / DAY_MS), now, accountId });
+      dayShift: Math.round((Date.parse(intent.raceDate) - Date.parse(source.raceDate)) / DAY_MS), now, accountId,
+      includePeople: intent.includePeople });
     const people = await copyPeople(tx, { sourceEventId: source.eventId, eventId: event.id, accountId, include: intent.includePeople, now });
     const [eventor] = await tx.select({ raceId: schema.raceEventorLinks.raceId }).from(schema.raceEventorLinks)
       .where(eq(schema.raceEventorLinks.raceId, source.id));
@@ -103,7 +104,15 @@ export async function copyRaceAsAdmin(db: Database, input: UserAccountSessionPro
   });
 }
 
-export interface ContentInput { sourceRaceId: string; raceId: string; timeZone: string; dayShift: number; now: Date; accountId: string }
+export interface ContentInput {
+  sourceRaceId: string; raceId: string; timeZone: string; dayShift: number; now: Date; accountId: string;
+  /**
+   * Översynen 2026-11-02: banläggningens behörigheter (också kartritaren) och notiserna (med svar och foton) följer bara med
+   * när personerna gör det. Förra årets bankontrollant ska inte se nästa års banor. Träningsgruppens tillfällen kopierar
+   * dem aldrig.
+   */
+  includePeople: boolean;
+}
 
 /**
  * Kontroller, banor (versioner, kontrollföljd, varianter), klasser, sträckor, karta och radiokontroller som nya rader.
@@ -189,8 +198,8 @@ export async function copyRaceContent(tx: Transaction, input: ContentInput) {
   await tx.execute(sql`insert into race_route_choice (race_id, settings, published, updated_at)
     select ${raceId}, settings, null, ${now} from race_route_choice where race_id = ${sourceRaceId}`);
   // Steg 62: banläggningen följer med som första versionen (med den inlästa .ppen-filen); tidigare versioner gör det inte.
-  // Steg 66: med arbetssättet, behörigheterna för banläggningen och notiserna (med svar och foton); förslagen gäller den
-  // gamla tävlingens versioner och följer inte med.
+  // Steg 66: med arbetssättet; behörigheterna för banläggningen och notiserna (med svar och foton) bara med personerna
+  // (`includePeople`); förslagen gäller den gamla tävlingens versioner och följer inte med.
   await tx.execute(sql`insert into course_setting (race_id, document, version, updated_at, updated_by, original_ppen, original_file_name,
       original_imported_at, mode)
     select ${raceId}, document, 1, ${now}, ${input.accountId}, original_ppen, original_file_name,
@@ -198,6 +207,21 @@ export async function copyRaceContent(tx: Transaction, input: ContentInput) {
     from course_setting where race_id = ${sourceRaceId}`);
   await tx.execute(sql`insert into course_setting_change (race_id, version, touches, created_at, created_by)
     select ${raceId}, 1, '"ALL"'::jsonb, ${now}, ${input.accountId} from course_setting where race_id = ${raceId}`);
+  if (input.includePeople) await copyCourseSettingPeople(tx, input);
+  // Steg 67: "kollad" (course_setting_inspection) kopieras inte; kontrollerna kollas på nytt.
+
+  const [radio] = await tx.select().from(schema.raceRadioLinks).where(eq(schema.raceRadioLinks.raceId, sourceRaceId));
+  if (radio) await tx.insert(schema.raceRadioLinks).values({ raceId, source: radio.source, unitId: radio.unitId, enabled: false, updatedAt: now });
+  const radioControls = await tx.select().from(schema.raceRadioControls).where(eq(schema.raceRadioControls.raceId, sourceRaceId));
+  if (radioControls.length > 0) await tx.insert(schema.raceRadioControls).values(radioControls.map(row => ({ ...row, raceId })));
+
+  return { courses: courses.length, classes: classes.length, controls: controls.length, relayLegs: legs.length,
+    radioControls: radioControls.length, map: (map.rowCount ?? 0) > 0 };
+}
+
+/** Banläggningens behörigheter och notiser (med svar och foton) till kopian. */
+async function copyCourseSettingPeople(tx: Transaction, input: ContentInput): Promise<void> {
+  const { sourceRaceId, raceId, now } = input;
   await tx.execute(sql`insert into course_setting_grant (id, race_id, account_id, level, granted_at, granted_by, request_id)
     select gen_random_uuid(), ${raceId}, account_id, level, ${now}, ${input.accountId}, gen_random_uuid()
     from course_setting_grant where race_id = ${sourceRaceId}`);
@@ -212,15 +236,6 @@ export async function copyRaceContent(tx: Transaction, input: ContentInput) {
     select gen_random_uuid(), c.new_id, ${raceId}, r.text, r.created_at, r.created_by, gen_random_uuid()
     from course_setting_note_reply r join course_setting_note_copy c on c.old_id = r.note_id`);
   await tx.execute(sql`drop table course_setting_note_copy`);
-  // Steg 67: "kollad" (course_setting_inspection) kopieras inte; kontrollerna kollas på nytt.
-
-  const [radio] = await tx.select().from(schema.raceRadioLinks).where(eq(schema.raceRadioLinks.raceId, sourceRaceId));
-  if (radio) await tx.insert(schema.raceRadioLinks).values({ raceId, source: radio.source, unitId: radio.unitId, enabled: false, updatedAt: now });
-  const radioControls = await tx.select().from(schema.raceRadioControls).where(eq(schema.raceRadioControls.raceId, sourceRaceId));
-  if (radioControls.length > 0) await tx.insert(schema.raceRadioControls).values(radioControls.map(row => ({ ...row, raceId })));
-
-  return { courses: courses.length, classes: classes.length, controls: controls.length, relayLegs: legs.length,
-    radioControls: radioControls.length, map: (map.rowCount ?? 0) > 0 };
 }
 
 /** Samma klockslag i tävlingens tidszon, `days` dagar senare (även över sommartidsskiftet). */

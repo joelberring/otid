@@ -29,13 +29,14 @@ kurvbild till 8, fönster till mål, sista säkra på några sträckor.
    - `BAND`: ett bälte kring sträckorna (bredd i meter, förval 300 m) där filtret gäller, t.ex. bara kurvbild 4–8.
    - `NO_MAP`: sträckorna utan karta (relä/kompass): bältet är vitt.
    - `marker`: markering vid bytet (vid avsnittets första kontroll): ingen, kort text (förval formens namn och "→", t.ex.
-     "Kurvbild →") eller ett tvärstreck över sträckan strax efter kontrollen. Ritas i banans färg (roll `TRAINING`).
+     "Kurvbild →") eller ett tvärstreck över sträckan strax efter kontrollen. Ritas i banans färg (roll `TRAINING`); pilen
+     ritas som två linjer i sträckans riktning, eftersom tecknet → saknas i PDF:ens typsnitt.
    Avsnitten följer varianten som skrivs ut: positionerna slås upp i variantens kontrollföljd (id, annars samma kontroll),
    och "alla grenar" ger unionen av varianternas ytor. Gafflingsvarianter får därmed sin egen korridor.
 3. **Hur kartan sätts ihop** (en ren funktion, `trainingMapPasses`): banans grundfilter gäller överallt. Har banan avsnitt
    visar varje avsnitts yta kartan med avsnittets filter; där ytor går in i varandra gäller det tidigare avsnittet i banan
    (ytorna görs disjunkta), så maskningen byter vid kontrollen. Utanför alla avsnitt gäller `outside`: hela kartan, vitt,
-   tonat (alla färger ljusare med samma mekanism som utskriftsprofilen, förval 75 %) eller ett filter (t.ex. bara kurvbild).
+   tonat (alla kartans färger med lägre andel, förval 25 % kvar; `drawMap` `tint`) eller ett filter (t.ex. bara kurvbild).
    Banans ritade områden snävar in filtret inom sin polygon (det första området gäller där två överlappar). Resultatet är
    en lista med pass: klippning (inom unionen av ytor, utanför andra), filter och ljusning. Antalet pass är
    (avsnitt + 1) × (områden + 1); områden och avsnitt utanför utsnittet hoppas över.
@@ -79,7 +80,8 @@ kurvbild till 8, fönster till mål, sista säkra på några sträckor.
    serverns PDF ritar samma sak. Maskningen görs i kartlagret: varje pass ritas med `drawMap` med klippning (`clip`: inom
    unionen av ytor, utanför andra) och dolda symboler (`hiddenSymbols`); inga vita fält läggs över banpåtrycket. Kartans
    dekorfärger, BL-profilen och lagerordningen (ADR-0183 beslut 7, kartan under och över banan) gäller oförändrat: passen
-   ritas i båda delarna. Tonat är profilens ljusare-justering på kartans färger, alltså lägre andel av samma dekorfärg.
+   ritas i båda delarna. Tonat är en lägre andel av samma dekorfärg (skärmen ritar färgen genomskinlig, PDF:en skriver
+   dekorfärgen med andelen), så plåtarna är desamma som utan träning.
 10. **.ppen.** Träningen skrivs sist i filen som ett eget element i O-Tid:s namnrymd:
     `<otid:training xmlns:otid="https://o-tid.se/ns/ppen-training/1" schema-version="1">…JSON…</otid:training>`. Purple Pen
     (EventDB.Load via XmlInput.FindSubElement) hoppar över element det inte känner till, så filen går att öppna och ändra där;

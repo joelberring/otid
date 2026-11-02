@@ -75,6 +75,11 @@ export interface DrawMapOptions {
   readonly clip?: MapClip | undefined;
   /** Träningsläget: objekt med dessa symboler (id) ritas inte. */
   readonly hiddenSymbols?: ReadonlySet<string> | undefined;
+  /**
+   * Träningsläget (tonad karta): andel av färgen (0–1). Skärmen ritar färgen genomskinlig över papperet; PDF:en får färgen
+   * utan tonen i `beforeColor` och skriver samma dekorfärg med lägre andel.
+   */
+  readonly tint?: number | undefined;
 }
 
 /**
@@ -420,7 +425,9 @@ export function drawMap(ctx: MapCanvasContext, map: ParsedMap, options: DrawMapO
   simplifications.add("Text ritas med standardtypsnitt och vänsterställd");
   if (map.colors.some(color => color.spot)) simplifications.add("Dekorfärger och övertryck visas som vanliga färger");
   const colors = new Map(map.colors.map(color => [color.id, adjustedColor(color, options.colorAdjust?.[color.id])]));
-  const plan = new Plan(colors, simplifications);
+  const ink = options.tint === undefined ? 1 : clamp01(options.tint);
+  const drawColors = ink < 1 ? new Map([...colors].map(([id, color]) => [id, { ...color, opacity: color.opacity * ink }])) : colors;
+  const plan = new Plan(drawColors, simplifications);
   let parts = 0;
   for (const object of map.objects) parts += planObject(plan, map, object, options);
   if (options.background !== false) {

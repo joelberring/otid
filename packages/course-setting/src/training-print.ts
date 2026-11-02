@@ -13,13 +13,16 @@ import { trainingOf } from "./training-passes";
 
 export const DEFAULT_PIECES: PieceTraining = { sizeMm: 60, marginMeters: 40, order: "COURSE" };
 
-/** Stjärnans uddar: positionerna från en mittkontroll till nästa (och start → mitt, mitt → mål). */
+/**
+ * Stjärnans uddar: positionerna från en mittkontroll till nästa (ut och tillbaka). Start före den första mitten hör till den
+ * första udden och mål efter den sista till den sista.
+ */
 export function starSpokes(document: CourseSettingDocument, sequence: readonly string[], center: string): { from: number; to: number }[] {
   const at = sequence.flatMap((ccId, index) => document.courseControls[ccId]?.control === center ? [index] : []);
-  if (at.length === 0) return [];
-  const cuts = [...new Set([0, ...at, sequence.length - 1])].sort((a, b) => a - b);
-  const out: { from: number; to: number }[] = [];
-  for (let i = 0; i + 1 < cuts.length; i++) if (cuts[i + 1]! > cuts[i]!) out.push({ from: cuts[i]!, to: cuts[i + 1]! });
+  if (at.length < 2) return at.length === 1 ? [{ from: 0, to: sequence.length - 1 }] : [];
+  const out = at.slice(0, -1).map((from, index) => ({ from, to: at[index + 1]! }));
+  out[0] = { ...out[0]!, from: 0 };
+  out[out.length - 1] = { ...out[out.length - 1]!, to: sequence.length - 1 };
   return out;
 }
 
@@ -74,7 +77,7 @@ export function trainingPieceSheets(document: CourseSettingDocument, item: Sheet
   const legs: { from: number; to: number; label: string }[] = [];
   for (let i = 0; i + 1 < sequence.length; i++) {
     if (control(i)?.id === control(i + 1)?.id) continue;
-    legs.push({ from: i, to: i + 1, label: `${names[i]} → ${names[i + 1]}` });
+    legs.push({ from: i, to: i + 1, label: `${names[i]}–${names[i + 1]}` });
   }
   const ordered = settings.order === "SHUFFLED"
     ? seededShuffle(legs, `${item.course}|${item.variant ?? ""}`).map((leg, index) => ({ ...leg, label: String.fromCharCode(65 + (index % 26)) + (index >= 26 ? String(Math.floor(index / 26)) : "") }))

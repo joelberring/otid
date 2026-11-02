@@ -140,11 +140,24 @@ function markerFigures(document: CourseSettingDocument, training: CourseTraining
           width: sizes.line * 1.5, ref: `section:${section.id}` });
       } else {
         const height = sizes.numberHeight * 0.75;
-        const label = sectionMarkerText(section);
+        const full = sectionMarkerText(section);
+        // Pilen sist ritas som figur (tecknet → finns inte i alla typsnitt, t.ex. PDF:ens), i sträckans riktning.
+        const arrow = /\s*→\s*$/.test(full);
+        const label = full.replace(/\s*→\s*$/, "");
+        const em = height * 1.39;
+        const width = Math.max(1, label.length) * 0.55 * em;
         // Texten på sträckans vänstra sida, strax efter ringen.
-        const along = radius + label.length * 0.3 * height;
+        const along = radius + width / 2;
         const at = { x: here.at.x + d.x * along + n.x * (height * 1.1), y: here.at.y + d.y * along + n.y * (height * 1.1) };
-        out.push({ kind: "text", role: "TRAINING", color: "COURSE", at, text: label, heightMm: height * 1.39, align: "center", ref: `section:${section.id}` });
+        out.push({ kind: "text", role: "TRAINING", color: "COURSE", at, text: label, heightMm: em, align: "center", ref: `section:${section.id}` });
+        if (arrow) {
+          const shaft = 2.2 * sizes.ratio, head = 0.8 * sizes.ratio;
+          const from = { x: at.x + width / 2 + 0.6 * sizes.ratio, y: at.y };
+          const to = { x: from.x + d.x * shaft, y: from.y + d.y * shaft };
+          const back = (side: number) => ({ x: to.x - d.x * head + side * n.x * head * 0.6, y: to.y - d.y * head + side * n.y * head * 0.6 });
+          out.push({ kind: "polyline", role: "TRAINING", color: "COURSE", points: [from, to], width: sizes.line, ref: `section:${section.id}` });
+          out.push({ kind: "polyline", role: "TRAINING", color: "COURSE", points: [back(1), to, back(-1)], width: sizes.line, ref: `section:${section.id}` });
+        }
       }
     }
   }

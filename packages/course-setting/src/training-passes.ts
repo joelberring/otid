@@ -2,7 +2,7 @@
  * Hur kartan sätts ihop för en träningsbana (ADR-0192 beslut 3) och hur passen ritas (beslut 9). Samma funktioner i
  * editorns Worker, förhandsvisningen och serverns PDF.
  */
-import { drawMap, type ColorAdjust, type DrawMapOptions, type DrawMapReport, type MapCanvasContext, type ParsedMap } from "@o-tid/map-file";
+import { drawMap, type DrawMapOptions, type DrawMapReport, type MapCanvasContext, type ParsedMap } from "@o-tid/map-file";
 import type { CourseSettingDocument, MapRect } from "./types";
 import type { CourseTraining, SymbolFilter, TrainingArea, TrainingMapPass, TrainingSettings } from "./training-types";
 import { sectionRegion, unionRegion, type Region } from "./training-regions";
@@ -80,17 +80,6 @@ export function trainingMapPasses(document: CourseSettingDocument, options: { re
     ...(cell.white ? { white: true } : {}), ...(cell.lighten !== undefined ? { lighten: cell.lighten } : {}) }));
 }
 
-/** Kartans färger ljusare (andel mot vitt), ovanpå utskriftsprofilens justering. */
-function lightenAll(map: Pick<ParsedMap, "colors">, adjust: Readonly<Record<number, ColorAdjust>> | undefined, amount: number): Record<number, ColorAdjust> {
-  const out: Record<number, ColorAdjust> = {};
-  for (const color of map.colors) {
-    const own = adjust?.[color.id];
-    const l0 = own?.lighten ?? 0;
-    out[color.id] = { ...own, lighten: 1 - (1 - Math.max(0, l0)) * (1 - Math.max(0, Math.min(1, amount))) + Math.min(0, l0) };
-  }
-  return out;
-}
-
 /**
  * Kartan med passen: varje pass ritas med klippning och dolda symboler (papperets vitt bara först). Utan pass som vanligt.
  * Passen som är vita ritas inte (papperet syns).
@@ -105,8 +94,9 @@ export function drawTrainingMap(ctx: MapCanvasContext, map: ParsedMap, options: 
     const key = JSON.stringify(pass.filters);
     let hiddenSymbols = hidden.get(key);
     if (!hiddenSymbols) { hiddenSymbols = hiddenSymbolIds(map, pass.filters); hidden.set(key, hiddenSymbols); }
-    const colorAdjust = pass.lighten !== undefined && pass.lighten > 0 ? lightenAll(map, options.colorAdjust, pass.lighten) : options.colorAdjust;
-    const next = drawMap(ctx, map, { ...options, ...(colorAdjust ? { colorAdjust } : {}), ...(index > 0 ? { background: false } : {}),
+    // Tonat: samma färger med lägre andel (PDF:en skriver samma dekorfärger, ADR-0192 beslut 9).
+    const tint = pass.lighten !== undefined && pass.lighten > 0 ? 1 - Math.min(1, pass.lighten) : undefined;
+    const next = drawMap(ctx, map, { ...options, ...(tint !== undefined ? { tint } : {}), ...(index > 0 ? { background: false } : {}),
       clip: { within: pass.within, without: pass.without }, ...(hiddenSymbols.size > 0 ? { hiddenSymbols } : {}) });
     report = { parts: report.parts + next.parts, simplifications: [...new Set([...report.simplifications, ...next.simplifications])] };
   });

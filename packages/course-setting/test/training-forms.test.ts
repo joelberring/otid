@@ -53,7 +53,9 @@ describe("korridor, bälte och fönster (ADR-0192 beslut 2)", () => {
     expect(inside(passes[0]!.within[0]!, { x: 25, y: 5 })).toBe(false);
     expect(inside(passes[1]!.within[0]!, { x: 25, y: 5 })).toBe(true);
     const marker = layoutOverprint(b.document, { course }).find(f => f.role === "TRAINING" && f.kind === "text");
-    expect(marker?.kind === "text" ? marker.text : "").toBe("Kurvbild →");
+    expect(marker?.kind === "text" ? marker.text : "").toBe("Kurvbild");
+    // Pilen är två linjer (skaft och spets), så att den syns i alla typsnitt.
+    expect(layoutOverprint(b.document, { course }).filter(f => f.role === "TRAINING" && f.kind === "polyline")).toHaveLength(2);
     // Tvärstreck i stället för text; utan träningen (före) inga figurer.
     b.edit({ type: "PUT_TRAINING", courses: { [course]: training({ sections: [corridor("ANGULAR", { to: at32 }), { ...band, marker: { kind: "BAR" } }] }) } });
     expect(layoutOverprint(b.document, { course }).filter(f => f.role === "TRAINING").map(f => f.kind)).toEqual(["polyline"]);

@@ -24,6 +24,15 @@ describe("drawMap i träningsläget (ADR-0192)", () => {
     expect(calls.filter(call => call.op === "stroke")).toHaveLength(1);
   });
 
+  it("tonad: skärmen ritar färgen med andelen som alfa, PDF:en får färgen utan ton", () => {
+    const { ctx, calls } = fakeContext();
+    const before: number[] = [];
+    drawMap(ctx, map, { pxPerMm: 10, origin: { x: 0, y: 10 }, tint: 0.25, beforeColor: color => before.push(color.opacity) });
+    const styles = calls.filter(call => call.op === "stroke").map(call => String(call.state.strokeStyle));
+    expect(styles.every(style => style.endsWith(", 0.25)"))).toBe(true);
+    expect(before).toEqual([1, 1]);
+  });
+
   it("klipper jämn–udda inom och utanför ytor efter transformen och släpper klippningen efteråt", () => {
     const { ctx, calls } = fakeContext();
     const square = [{ x: 1, y: 1 }, { x: 4, y: 1 }, { x: 4, y: 4 }, { x: 1, y: 4 }];

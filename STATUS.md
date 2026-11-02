@@ -17,7 +17,7 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Fel visas i stället för att sväljas (vägvalens spärrar, banpåtrycket, ringklipp, förslag, beskrivningar och varianter i utskriften); ringklippen följer med ny .ppen; describeEdit komplett; fältets variantväljare.
 - Kopia av tävling: banläggningens behörigheter och notiser bara med `includePeople`, aldrig i träningsgruppens tillfällen.
 - Vägvalets Worker startas när en sträcka väljs (Högdalen: kartans Worker 20 MB, vägvalets 48 MB, mätt i Node). `circleArcs` och arkvalet (`printSheetGroups`) i paketet.
-- Verifierat: se slutet av grenens CI; steg-65:s rensningstest räknar nu från nu (fast tidpunkt hade passerats). Återstår: minnet på en riktig telefon.
+- Verifierat: lint, typecheck, test, test:integration och alla 77 Playwright-specar (ny: banlaggning-sparande) gröna i CI; lokalt lib-, paket- och integrationstesterna för grenen, specen mot dev-servern. steg-65:s rensningstest räknar från nu (dess fasta tidpunkt hade passerats). Återstår: minnet på en riktig telefon.
 
 ### 2026-11-02 – Banläggningens editor mer som Purple Pen (grenen banlaggning-ux, ADR-0180 beslut 14)
 - Objekt i verktygsraden (och bakom "Mer") öppnar en palett i fyra grupper med ikoner ritade av kartans ritare; obligatorisk passage ("Obl. passage", tooltip) skiljs från valfri; kartbyte och bild (uppladdning) läggs därifrån.

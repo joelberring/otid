@@ -181,6 +181,13 @@ function scoreView(document: CourseSettingDocument, course: Course): CourseView 
   return { kind: "SCORE", course, fullName: course.name, views, scoreColumn };
 }
 
+/** Poängbanans nummer per kontroll, samma som i beskrivningen (inga när poängen står i kolumn A eller etiketten saknar nummer). */
+export function scoreOrdinals(document: CourseSettingDocument, course: Course): Map<string, number[]> {
+  const out = new Map<string, number[]>();
+  for (const view of scoreView(document, course).views) if (view.ordinal > 0) out.set(view.control, [view.ordinal]);
+  return out;
+}
+
 function courseView(document: CourseSettingDocument, courseId: string, variant: string | undefined): CourseView {
   if (courseId === "ALL_CONTROLS") return allControlsView(document);
   const course = findCourse(document, courseId);

@@ -11,6 +11,7 @@
  *   ändrat samma sak sedan författarens version (den första vinner, ADR-0181 beslut 4).
  * - `objectPatch`: objekten som skiljer två dokument, som en `PUT_OBJECTS` (ångra och gör om).
  */
+import { appearanceOf } from "./appearance";
 import { applyDocumentEdit } from "./edit";
 import { legKey } from "./ppen-common";
 import type {
@@ -108,6 +109,8 @@ export function editTouches(edit: CourseSettingEdit): string[] {
     case "SET_LEG_GAPS": return [`leg:${legKey(edit.from, edit.to)}:gaps`];
     case "SET_CIRCLE_GAPS": return [`control:${edit.control}:circleGaps`];
     case "SET_EVENT": return Object.keys(edit.changes).sort().map(key => `event:${key}`);
+    // Utseendet per fält: två som ändrar ringstorlek respektive nummerstorlek samtidigt krockar inte.
+    case "SET_APPEARANCE": return Object.keys(edit.changes).sort().map(key => `event:appearance:${key}`);
     case "SET_DESCRIPTION": return [`control:${edit.control}:descriptions`];
     case "SET_DESCRIPTION_TEXT_LINE":
       return [`control:${edit.control}:${edit.location === "before" ? "descriptionTextBefore" : "descriptionTextAfter"}`];
@@ -136,6 +139,11 @@ export function touchesOverlap(a: string, b: string): boolean {
 
 function touchValue(document: CourseSettingDocument, touch: string): unknown {
   const [kind, id, field] = touch.split(":");
+  if (kind === "event" && id === "appearance") {
+    // Utseendet står i händelsens råa <course-appearance>; jämför värdena som Purple Pen läser dem.
+    const appearance = appearanceOf(document);
+    return field === undefined ? appearance : (appearance as unknown as Record<string, unknown>)[field];
+  }
   if (kind === "event") return id === undefined ? document.event : (document.event as unknown as Record<string, unknown>)[id];
   let object: unknown;
   if (kind === "control") object = document.controls[id!];
@@ -176,7 +184,7 @@ function editRefs(edit: CourseSettingEdit): [Kind, string][] {
     case "ADD_SPLIT": case "REMOVE_SPLIT": return [["courses", edit.course], ["courseControls", edit.at]];
     case "MOVE_NUMBER": return [["courses", edit.course], ["courseControls", edit.courseControl]];
     case "SET_LEG_BENDS": case "SET_LEG_GAPS": return [["controls", edit.from], ["controls", edit.to]];
-    case "SET_EVENT": return [];
+    case "SET_EVENT": case "SET_APPEARANCE": return [];
     case "ADD_SPECIAL": return courseRefs(edit.special.courses);
     case "MOVE_SPECIAL": case "DELETE_SPECIAL": return [["specialObjects", edit.special]];
     case "UPDATE_SPECIAL": return [["specialObjects", edit.special], ...courseRefs(edit.changes.courses)];
@@ -241,7 +249,7 @@ export function remapEdit(edit: CourseSettingEdit, idMap: IdMap): CourseSettingE
 function remapWith(edit: CourseSettingEdit, map: Lookup): CourseSettingEdit {
   const c = (id: string) => map("controls", id), cc = (id: string) => map("courseControls", id), co = (id: string) => map("courses", id);
   switch (edit.type) {
-    case "ADD_CONTROL": case "ADD_COURSE": case "SET_EVENT": return edit;
+    case "ADD_CONTROL": case "ADD_COURSE": case "SET_EVENT": case "SET_APPEARANCE": return edit;
     case "MOVE_CONTROL": case "DELETE_CONTROL": case "SET_CONTROL_CODE": case "SET_CIRCLE_GAPS": case "SET_DESCRIPTION":
     case "SET_DESCRIPTION_TEXT_LINE": return { ...edit, control: c(edit.control) };
     case "UPDATE_COURSE": case "DELETE_COURSE": return { ...edit, course: co(edit.course) };

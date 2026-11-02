@@ -9,6 +9,7 @@
  * Purple Pen är BSD-licensierad (Peter Golde); se `NOTICE.md` i paketet för det som bygger på dess format och kod.
  */
 import type { Point } from "@o-tid/map-file";
+import type { Appearance } from "./appearance";
 import type { DescriptionEdit, DescriptionLayout } from "./description-types";
 import type { LayoutTemplate } from "./layout-template";
 import type { PrintProfile } from "./print-profile";
@@ -293,6 +294,8 @@ export type CourseSettingEdit =
   | { readonly type: "SET_LEG_GAPS"; readonly from: string; readonly to: string; readonly gaps: Leg["gaps"] }
   | { readonly type: "SET_CIRCLE_GAPS"; readonly control: string; readonly gaps: readonly CircleGap[] }
   | { readonly type: "SET_EVENT"; readonly changes: Partial<Pick<CourseSettingDocument["event"], "title" | "mapScale" | "overprintStandard" | "descriptionStandard" | "numbering" | "descriptionLanguage" | "circleCutting" | "allControlsPrintScale" | "printProfileId">> }
+  /** Banans utseende för hela banläggningen (Purple Pens `<course-appearance>`, ADR-0180 beslut 12). */
+  | { readonly type: "SET_APPEARANCE"; readonly changes: Partial<Appearance> }
   /** Steg 63: kontrollbeskrivningen. */
   | DescriptionEdit
   /** Steg 66: sätt (eller ta bort, null) hela objekt per id – ångra och gör om när flera arbetar samtidigt. */

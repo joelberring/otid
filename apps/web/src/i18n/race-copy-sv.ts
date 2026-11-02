@@ -12,9 +12,9 @@ export const raceCopySv = {
   eventName: "Tävlingens namn",
   raceName: "Etapp/lopp",
   raceDate: "Datum",
-  includePeople: "Ta med funktionärer och administratörer",
-  includePeopleHelp: "Du blir ägare. Övriga administratörer (även nuvarande ägare) blir administratörer, funktionärer blir funktionärer.",
-  includePeopleOff: "Bara du får behörighet till den nya tävlingen.",
+  includePeople: "Ta med funktionärer och administratörer (också banläggningens personer)",
+  includePeopleHelp: "Du blir ägare. Övriga administratörer (även nuvarande ägare) blir administratörer, funktionärer blir funktionärer. Banläggningens behörigheter (medhjälpare, bankontrollant, kartritare) och notiserna följer med.",
+  includePeopleOff: "Bara du får behörighet till den nya tävlingen. Banläggningens behörigheter och notiser följer inte med.",
   copiedTitle: "Följer med",
   copiedList: "Banor med kontroller och gafflingar, klasser med startsätt och maxantal, stafettens sträckor, rogainingpoäng, " +
     "karta med georeferens och radiokontroller (avstängda tills du slår på dem).",

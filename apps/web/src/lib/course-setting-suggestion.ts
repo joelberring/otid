@@ -4,6 +4,7 @@ import {
 } from "@o-tid/course-setting";
 import type { Point } from "@o-tid/map-file";
 import { appearanceSv, labelSv } from "../i18n/course-setting-appearance-sv";
+import { coursePrintSv } from "../i18n/course-setting-print-sv";
 import { formatRatio } from "./course-setting-appearance";
 import { controlLabel } from "./course-setting-text";
 
@@ -66,6 +67,10 @@ export function describeEdit(edit: CourseSettingEdit, document: CourseSettingDoc
   const label = (id: string) => document.controls[id] ? controlLabel(document, id) : "en ny kontroll";
   const course = (id: string) => document.courses.find(row => row.id === id)?.name ?? "en ny bana";
   const onCourse = (id: string) => { const control = document.courseControls[id]?.control; return control ? label(control) : "en kontroll"; };
+  const kind = (value: string | undefined) => (value ? coursePrintSv.kinds[value] : undefined)?.toLowerCase() ?? "specialobjekt";
+  const special = (id: string) => kind(document.specialObjects.find(row => row.id === id)?.kind);
+  const profileName = (id: string) => document.event.printProfiles?.find(row => row.id === id)?.name;
+  const templateName = (id: string) => document.event.layoutTemplates?.find(row => row.id === id)?.name;
   switch (edit.type) {
     case "ADD_CONTROL": return `Ny ${KINDS[edit.kind] ?? "kontroll"}${edit.code ? ` ${edit.code}` : ""} vid ${mm(edit.at)}`;
     case "MOVE_CONTROL": {
@@ -95,6 +100,16 @@ export function describeEdit(edit: CourseSettingEdit, document: CourseSettingDoc
     case "SET_DESCRIPTION": return `Beskrivningen för ${label(edit.control)}`;
     case "SET_DESCRIPTION_TEXT_LINE": return `Textraden ${edit.location === "before" ? "före" : "efter"} ${label(edit.control)}`;
     case "PUT_OBJECTS": return "Ångra en ändring";
+    // Översynen 2026-11-02: specialobjekt, tryckyta, utskriftsprofiler och layoutmallar.
+    case "ADD_SPECIAL": return `Nytt objekt: ${kind(edit.special.kind)}`;
+    case "MOVE_SPECIAL": return `Flytta ${special(edit.special)}`;
+    case "UPDATE_SPECIAL": return `Ändra ${special(edit.special)}`;
+    case "DELETE_SPECIAL": return `Ta bort ${special(edit.special)}`;
+    case "SET_PRINT_AREA": return `Tryckytan för ${edit.course === "ALL_CONTROLS" ? "Alla kontroller" : course(edit.course)}`;
+    case "PUT_PRINT_PROFILE": return `Utskriftsprofilen ${edit.profile.name}`;
+    case "DELETE_PRINT_PROFILE": return `Ta bort utskriftsprofilen ${profileName(edit.id) ?? ""}`.trim();
+    case "PUT_LAYOUT_TEMPLATE": return `Layoutmallen ${edit.template.name}`;
+    case "DELETE_LAYOUT_TEMPLATE": return `Ta bort layoutmallen ${templateName(edit.id) ?? ""}`.trim();
     default: return "Ändring";
   }
 }

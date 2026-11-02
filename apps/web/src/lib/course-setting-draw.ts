@@ -1,4 +1,4 @@
-import type { OverprintPrimitive } from "@o-tid/course-setting";
+import { circleArcs, type OverprintPrimitive } from "@o-tid/course-setting";
 import type { Point } from "@o-tid/map-file";
 import { toScreen, type Viewport } from "./course-setting-viewport";
 import { alternativeColor, alternativeLabels, ROUTE_CHOICE_COLORS } from "./route-choice-view";
@@ -15,23 +15,6 @@ const DEGREES = Math.PI / 180;
 
 type Context = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
-/** Bågarna som ritas när ringen har avbrott (grader moturs i kartan; skärmen har y nedåt). */
-export function circleArcs(gaps: readonly { startDegrees: number; endDegrees: number }[] | undefined): [number, number][] {
-  if (!gaps || gaps.length === 0) return [[0, 360]];
-  const normalized = gaps.map(gap => {
-    const start = ((gap.startDegrees % 360) + 360) % 360;
-    let end = ((gap.endDegrees % 360) + 360) % 360;
-    if (end <= start) end += 360;
-    return [start, end] as [number, number];
-  }).sort((left, right) => left[0] - right[0]);
-  const arcs: [number, number][] = [];
-  let cursor = normalized[0]![1];
-  for (const [start, end] of [...normalized.slice(1), [normalized[0]![0] + 360, normalized[0]![1] + 360] as [number, number]]) {
-    if (start > cursor) arcs.push([cursor, start]);
-    cursor = Math.max(cursor, end);
-  }
-  return arcs;
-}
 
 function path(ctx: Context, view: Viewport, points: readonly Point[], closed: boolean) {
   ctx.beginPath();

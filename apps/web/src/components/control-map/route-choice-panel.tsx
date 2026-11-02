@@ -40,21 +40,35 @@ export function RouteChoicePanel({ raceId, data, imageHref, onGoToMapFile }: {
   const session = useRef<RouteChoiceSession | undefined>(undefined);
   const options = useMemo(() => routeChoiceOptions(data.courses), [data.courses]);
   const option = options.find(row => row.id === optionId) ?? options[0];
-  // Steg 64: banläggningens dokument (om det finns) ger förbjudna områden och passager som kartfilen saknar.
-  const [setting, setSetting] = useState<CourseSettingDocument>();
+  // Steg 64: banläggningens dokument (om det finns) ger förbjudna områden och passager som kartfilen saknar. Översynen
+  // 2026-11-02: går spärrarna inte att läsa räknas inga vägval (de kunde annars gå genom förbjudet område), med besked.
+  const [setting, setSetting] = useState<{ kind: "loading" } | { kind: "ready"; document?: CourseSettingDocument | undefined } | { kind: "failed" }>(
+    { kind: "loading" });
+  const [settingTry, setSettingTry] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
-    fetchCourseSetting(raceId, controller.signal).then(next => setSetting((next.setting?.document ?? undefined) as unknown as CourseSettingDocument | undefined),
-      () => setSetting(undefined));
+    setSetting({ kind: "loading" });
+    fetchCourseSetting(raceId, controller.signal).then(
+      next => setSetting({ kind: "ready", document: (next.setting?.document ?? undefined) as unknown as CourseSettingDocument | undefined }),
+      error => {
+        if (controller.signal.aborted) return;
+        console.error("Banläggningen kunde inte läsas för vägvalens spärrar", error);
+        setSetting({ kind: "failed" });
+      });
     return () => controller.abort();
-  }, [raceId]);
-  const legs = useMemo(() => {
-    if (!option || !state) return [];
+  }, [raceId, settingTry]);
+  const { legs, barriersFailed } = useMemo(() => {
+    if (!option || !state || setting.kind === "loading") return { legs: [], barriersFailed: false };
+    if (setting.kind === "failed") return { legs: [], barriersFailed: true };
     const name = data.courses.find(course => course.courseId === option.courseId)?.name;
-    let barriers;
-    try { barriers = setting ? routeBarriers(setting, setting.courses.find(course => course.name === name)?.id) : undefined; }
-    catch (error) { console.error("Banläggningens spärrar kunde inte läsas", error); }
-    return withRouteBarriers(plannedLegs(option, state), barriers);
+    const document = setting.document;
+    try {
+      const barriers = document ? routeBarriers(document, document.courses.find(course => course.name === name)?.id) : undefined;
+      return { legs: withRouteBarriers(plannedLegs(option, state), barriers), barriersFailed: false };
+    } catch (error) {
+      console.error("Banläggningens spärrar kunde inte läsas", error);
+      return { legs: [], barriersFailed: true };
+    }
   }, [option, state, setting, data.courses]);
 
   // Läget och kartfilen; Workern lever så länge vyn är öppen.
@@ -158,7 +172,9 @@ export function RouteChoicePanel({ raceId, data, imageHref, onGoToMapFile }: {
       </select>
     </label>
     {state.mapFile!.mismatch && <Notice tone="attention">{text.mismatch}</Notice>}
-    {count === 0 && <Notice tone="info">{text.noPlaces}</Notice>}
+    {barriersFailed && <Notice tone="error" role="alert"><p>{text.barriersFailed}</p>
+      <div><Button variant="secondary" onClick={() => setSettingTry(value => value + 1)}>{text.retry}</Button></div></Notice>}
+    {count === 0 && !barriersFailed && setting.kind !== "loading" && <Notice tone="info">{text.noPlaces}</Notice>}
     <p role="status" className={styles.status}>{status === "reading" ? text.reading : status === "analysing" ? text.analysing(done, count)
       : status === "readFailed" ? text.readFailed : status === "failed" ? text.failed : text.done(count)}</p>
     {selected && <>
@@ -187,7 +203,8 @@ export function RouteChoicePanel({ raceId, data, imageHref, onGoToMapFile }: {
         {text.legWarning(legName(warning.key))} {warning.text}</li>)}</ul>
     </section>}
     <div className={styles.actions}>
-      <Button variant="secondary" onClick={() => void publish(false)} disabled={status !== "done"}>{text.publish.button}</Button>
+      <Button variant="secondary" onClick={() => void publish(false)} disabled={status !== "done" || barriersFailed || setting.kind === "loading"}>
+        {text.publish.button}</Button>
       {published && !oldMap && <Button variant="quiet" onClick={() => void publish(true)}>{text.publish.withdraw}</Button>}
     </div>
     <p className={styles.muted}>{text.publish.help}</p>

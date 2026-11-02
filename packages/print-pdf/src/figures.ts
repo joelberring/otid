@@ -3,7 +3,7 @@
  * nedåt) som PDF-operatorer, med samma mått som förhandsvisningens SVG (`apps/web/src/lib/course-setting-print.ts`).
  * Ingenting räknas om: figurerna kommer ur `layoutTemplateSheets`/`layoutCoursePage` som de är.
  */
-import type { DescriptionLayout, DescriptionSymbol, OverprintPrimitive, SymbolShape } from "@o-tid/course-setting";
+import { circleArcs, type DescriptionLayout, type DescriptionSymbol, type OverprintPrimitive, type SymbolShape } from "@o-tid/course-setting";
 import { num, type Content } from "./content";
 import { fontVariant, printable, variantForFamily, type Fonts } from "./fonts";
 import { multiply } from "./pdf-canvas";
@@ -52,23 +52,6 @@ function arcPath(m: Matrix, center: Pt, radius: number, start: number, end: numb
   return out.join(" ");
 }
 
-/** Ringens bågar mellan avbrotten (grader moturs); utan avbrott hela ringen (samma som `circleArcs` i webben). */
-export function circleArcs(gaps: readonly { startDegrees: number; endDegrees: number }[] | undefined): [number, number][] {
-  if (!gaps || gaps.length === 0) return [[0, 360]];
-  const normalized = gaps.map(gap => {
-    const start = ((gap.startDegrees % 360) + 360) % 360;
-    let end = ((gap.endDegrees % 360) + 360) % 360;
-    if (end <= start) end += 360;
-    return [start, end] as [number, number];
-  }).sort((left, right) => left[0] - right[0]);
-  const arcs: [number, number][] = [];
-  let cursor = normalized[0]![1];
-  for (const [start, end] of [...normalized.slice(1), [normalized[0]![0] + 360, normalized[0]![1] + 360] as [number, number]]) {
-    if (start > cursor) arcs.push([cursor, start]);
-    cursor = Math.max(cursor, end);
-  }
-  return arcs;
-}
 
 function paintOf(context: FigureContext, primitive: Exclude<OverprintPrimitive, { kind: "image" }>): Paint {
   switch (primitive.color) {

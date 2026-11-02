@@ -214,12 +214,17 @@ describe("notiser med ritning, kartfel och borttagning (ADR-0181 beslut 8)", { t
     const json = JSON.parse(new TextDecoder().decode(exported.bytes)) as { courseSettingNotes: { kind: string; target: string; sketch: unknown }[] };
     expect(json.courseSettingNotes).toMatchObject([{ kind: "MAP_ERROR", target: "SKETCH", sketch: [stig, yta] }]);
 
+    // Översynen 2026-11-02: notiserna följer bara med personerna.
     const copied = await copyRaceAsAdmin(db, { ...owner, request: { formatVersion: 1, requestId: randomUUID(), eventName: "Notiser v2",
-      raceName: "Rekognosering", raceDate: "2026-11-09", includePeople: false } });
+      raceName: "Rekognosering", raceDate: "2026-11-09", includePeople: true } });
     if (copied.status !== "copied") throw new Error(`Kopian skapades inte: ${copied.status}`);
     const copy = await pool.query<{ kind: string; target: string; sketch: unknown }>(
       "select kind, target, sketch from course_setting_note where race_id = $1", [copied.response.raceId]);
     expect(copy.rows).toEqual([{ kind: "MAP_ERROR", target: "SKETCH", sketch: [stig, yta] }]);
+    const without = await copyRaceAsAdmin(db, { ...owner, request: { formatVersion: 1, requestId: randomUUID(), eventName: "Notiser v3",
+      raceName: "Rekognosering", raceDate: "2026-11-16", includePeople: false } });
+    if (without.status !== "copied") throw new Error(`Kopian skapades inte: ${without.status}`);
+    expect((await pool.query("select 1 from course_setting_note where race_id = $1", [without.response.raceId])).rowCount).toBe(0);
   });
 
   it("kartritaren ser bara kartfelen (utan bana, kontroller och foto), svarar och markerar klart; aldrig banläggningens dokument", async () => {

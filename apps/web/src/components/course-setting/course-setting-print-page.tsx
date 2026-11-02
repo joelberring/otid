@@ -4,8 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { CourseSettingEditsRequest, MapBundleResponse } from "@o-tid/contracts";
 import {
-  BUILT_IN_PRINT_PROFILES, BUILT_IN_TEMPLATES, cmykToCss, descriptionSymbols, layoutCoursePage, layoutTemplateSheets, mapColorAdjust, printVariants,
-  sheetOfPage, type CourseSettingDocument, type CourseSettingEdit, type DescriptionSymbol, type LayoutTemplate, type MapColorAdjust, type MapRect,
+  BUILT_IN_PRINT_PROFILES, BUILT_IN_TEMPLATES, cmykToCss, descriptionSymbols, mapColorAdjust, printSheetGroups, printVariants,
+  type CourseSettingDocument, type CourseSettingEdit, type DescriptionSymbol, type LayoutTemplate, type MapColorAdjust, type MapRect,
   type Sheet, type SheetItem
 } from "@o-tid/course-setting";
 import type { ColorUsage, MapColor } from "@o-tid/map-file";
@@ -183,51 +183,49 @@ export function CoursePrintPage({ raceId }: { raceId: string }) {
     ? runnerPrintItems(document, bundles, clockIn(bundles.timeZone), order) : undefined, [document, bundles, order]);
 
   // Kartorna i banläget (samma som arken nedan) för PDF:en.
-  const courseItems = useMemo<SheetItem[]>(() => {
-    if (!document) return [];
-    const items: SheetItem[] = [];
+  // Översynen 2026-11-02: en bana vars varianter inte går att räkna hoppas inte tyst över (felet visas med de andra).
+  const { courseItems, variantErrors } = useMemo(() => {
+    const items: SheetItem[] = [], failed: string[] = [];
+    if (!document) return { courseItems: items, variantErrors: failed };
     for (const course of [ALL_CONTROLS, ...courses.map(item => item.id)].filter(id => chosen.includes(id))) {
       try {
         for (const variant of printVariants(document, course, eachVariant)) items.push({ course, ...(variant ? { variant } : {}) });
-      } catch (error) { console.error("Varianterna misslyckades", error); }
+      } catch (error) {
+        console.error("Varianterna misslyckades", error);
+        failed.push(course === ALL_CONTROLS ? text.print.allControls : courses.find(item => item.id === course)?.name ?? course);
+      }
     }
-    return items;
+    return { courseItems: items, variantErrors: failed };
   }, [document, courses, chosen, eachVariant]);
 
+  // Arken som servern också lägger ut för PDF:en (`printSheetGroups` i paketet), med etikett per ark och vad som inte gick.
   const { sheets, errors } = useMemo(() => {
-    const out: Printed[] = [], bad: string[] = [];
+    const out: Printed[] = [], bad: string[] = mode === "RUNNERS" ? [] : [...variantErrors];
     if (!document) return { sheets: out, errors: bad };
-    const options = { mapBounds, ...(bundles ? { date: bundles.raceDate } : {}) };
-    if (mode === "RUNNERS") {
-      if (!runners || !template) return { sheets: out, errors: bad };
-      runners.items.forEach((item, index) => {
-        try {
-          // En löpare per ark: remsan och baksidan gäller arkets löpare.
-          for (const [part, sheet] of layoutTemplateSheets(document, template, [item], { ...options, duplexBacks: duplex }).entries()) {
-            out.push({ key: `r${index}|${part}`, sheet, label: [sheet.frames[0]?.title ?? "", item.runner?.name ?? item.runner?.kind ?? ""].filter(Boolean).join(" – ") });
-          }
-        } catch (error) { console.error("Utskriftslayouten misslyckades", error); bad.push(item.runner?.name ?? item.course); }
-      });
-      return { sheets: out, errors: bad };
-    }
-    const items = courseItems;
+    const runnerMode = mode === "RUNNERS";
+    if (runnerMode && (!runners || !template)) return { sheets: out, errors: bad };
+    const items: readonly SheetItem[] = runnerMode ? runners!.items : courseItems;
     const nameOf = (course: string) => course === ALL_CONTROLS ? text.print.allControls : courses.find(item => item.id === course)?.name ?? course;
-    if (template) {
-      try {
-        layoutTemplateSheets(document, template, items, { ...options, mode: fill }).forEach((sheet, index) =>
-          out.push({ key: `t${index}`, sheet, label: sheet.frames.map(frame => frame.title).join(", ") }));
-      } catch (error) { console.error("Utskriftslayouten misslyckades", error); bad.push(template.name); }
-      return { sheets: out, errors: bad };
-    }
-    for (const item of items) {
-      try {
-        for (const page of layoutCoursePage(document, { course: item.course, ...(item.variant ? { variant: item.variant } : {}), mapBounds, header })) {
-          out.push({ key: `${item.course}|${item.variant ?? ""}|${page.sheet}`, sheet: sheetOfPage(page), label: text.page.sheet(page.title, page.sheet, page.sheets) });
-        }
-      } catch (error) { console.error("Utskriftslayouten misslyckades", error); bad.push(nameOf(item.course)); }
+    const layout = template ? { kind: "TEMPLATE" as const, template, perRunner: runnerMode, duplex, fill } : { kind: "COURSE" as const, header };
+    const groups = printSheetGroups(document, layout, items, { mapBounds, ...(bundles ? { date: bundles.raceDate } : {}),
+      onError: ({ item, error }) => {
+        console.error("Utskriftslayouten misslyckades", error);
+        const row = item === undefined ? undefined : items[item];
+        bad.push(!row ? template?.name ?? "" : runnerMode ? row.runner?.name ?? row.course : nameOf(row.course));
+      } });
+    for (const group of groups) {
+      const row = group.item === undefined ? undefined : items[group.item];
+      group.sheets.forEach((sheet, part) => {
+        const page = group.pages?.[part];
+        if (page && row) out.push({ key: `${row.course}|${row.variant ?? ""}|${page.sheet}`, sheet, label: text.page.sheet(page.title, page.sheet, page.sheets) });
+        // En löpare per ark: remsan och baksidan gäller arkets löpare.
+        else if (runnerMode && row) out.push({ key: `r${group.item}|${part}`, sheet,
+          label: [sheet.frames[0]?.title ?? "", row.runner?.name ?? row.runner?.kind ?? ""].filter(Boolean).join(" – ") });
+        else out.push({ key: `t${part}`, sheet, label: sheet.frames.map(frame => frame.title).join(", ") });
+      });
     }
     return { sheets: out, errors: bad };
-  }, [document, courses, courseItems, header, mapBounds, mode, template, fill, runners, duplex, bundles]);
+  }, [document, courses, courseItems, variantErrors, header, mapBounds, mode, template, fill, runners, duplex, bundles]);
 
   // Kartbilderna per utsnitt och färger (samma utsnitt, skala och profil ritas en gång).
   const [images, setImages] = useState<Readonly<Record<string, string>>>({});

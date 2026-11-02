@@ -7,7 +7,7 @@ import {
   type CourseSettingSuggestion, type CourseSettingSuggestionDecided, type CourseSettingSuggestions
 } from "@o-tid/contracts";
 import {
-  editTouches, replayEdits, touchedConflict, type CourseSettingDocument, type CourseSettingEdit, type CreatedIds
+  replayEdits, touchedConflict, type CourseSettingDocument, type CourseSettingEdit, type CreatedIds
 } from "@o-tid/course-setting";
 import { schema, type Database } from "@o-tid/database";
 import {
@@ -22,7 +22,8 @@ import type { RaceSessionProof } from "./race-session";
  * `replayEdits`/`applyEdit` (ren TS, inga tunga jobb: en sparning är några åtgärder). Bygger de på en äldre version spelas de
  * upp på den aktuella, och det som någon annan ändrat sedan dess (`course_setting_change`) avvisas: den första vinner. En
  * sparning med samma `requestId` ger samma svar igen (nätet kan tappa svaret). Ny version och tidigare versioner som vid
- * vanligt sparande.
+ * vanligt sparande. Konfliktloggen får det som åtgärderna faktiskt ändrade (skillnaden mellan dokumenten, `diffTouches`),
+ * så att också strukturändringar (lägga in, ta bort, gafflingar) krockar med andras.
  *
  * Förslag (`course_setting_suggestion`): den med SUGGEST skickar åtgärder mot en version med kommentar; den med EDIT
  * godkänner alla eller några (spelas upp på aktuell version på samma sätt) eller avböjer med kommentar.
@@ -59,7 +60,8 @@ async function applyEdits(tx: Transaction, input: { raceId: string; actorId: str
   const document = courseSettingDocumentSchema.safeParse(replay.document);
   if (!document.success) return { status: "invalid-request" };
   const saved = await store(tx, { raceId, actorId, now, current, kind: "SAVE", document: document.data, change: {
-    touches: replay.applied.flatMap(row => editTouches(row.edit)), requestId,
+    // Det som varje åtgärd faktiskt ändrade (`diffTouches`, också banornas struktur), inte bara det åtgärden säger.
+    touches: [...new Set(replay.applied.flatMap(row => row.touches))], requestId,
     result: version => ({ response: respond(version, now), appliedIndexes }) } });
   return { status: "ok", response: respond(saved.version, now), appliedIndexes };
 }

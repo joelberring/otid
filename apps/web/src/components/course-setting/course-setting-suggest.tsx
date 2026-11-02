@@ -21,6 +21,8 @@ export interface SuggestionsState {
   readonly pending: boolean;
   /** Kartfilen är inläst (annars finns inga förslag). */
   readonly available: boolean;
+  /** Workern kunde inte räkna förslagen. */
+  readonly failed: boolean;
 }
 
 /**
@@ -34,18 +36,18 @@ export function useDescriptionSuggestions(session: MapRenderSession | undefined,
   const key = suggestKey(points, options);
   const latest = useRef({ points, options });
   latest.current = { points, options };
-  const [result, setResult] = useState<{ key: string; points: readonly SuggestPoint[]; suggestions: SuggestionsByControl }>();
+  const [result, setResult] = useState<{ key: string; points: readonly SuggestPoint[]; suggestions: SuggestionsByControl; failed?: boolean }>();
   useEffect(() => {
     if (!session) return;
     const timer = setTimeout(() => {
       const current = latest.current;
       if (current.points.length === 0) { setResult({ key, points: [], suggestions: {} }); return; }
-      session.suggest(current.points, current.options, suggestions => setResult({ key, points: current.points, suggestions }));
+      session.suggest(current.points, current.options, (suggestions, failed) => setResult({ key, points: current.points, suggestions, failed }));
     }, result === undefined ? 0 : SUGGEST_DELAY_MS);
     return () => clearTimeout(timer);
   }, [session, key]);
   const byControl = useMemo(() => currentSuggestions(result, document), [result, document]);
-  return { byControl, pending: session !== undefined && result?.key !== key, available: session !== undefined };
+  return { byControl, pending: session !== undefined && result?.key !== key, available: session !== undefined, failed: result?.failed === true };
 }
 
 /** Förslaget som en rad i beskrivningen: rutorna C–H med riktiga symboler (tomma rutor tomma). */
@@ -71,6 +73,7 @@ export function SuggestionPanel({ document, control, label, state, symbols, read
   const list = state.byControl[control];
   useEffect(() => () => onHover(undefined), [control]);
   if (!state.available) return <p className={css.reason} data-testid="description-suggestion-none">{text.noMap}</p>;
+  if (state.failed) return <p role="alert" className={css.reason} data-testid="description-suggestion-failed">{text.failed}</p>;
   if (!list) return state.pending ? <p role="status" className={css.reason}>{text.computing}</p> : null;
   const [best, ...others] = list;
   const accept = (suggestion: DescriptionSuggestion) => {

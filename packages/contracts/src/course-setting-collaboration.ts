@@ -97,7 +97,10 @@ export const courseSettingEditSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("PUT_OBJECTS"), controls: nullableRecord(id, part.control).optional(),
     courseControls: nullableRecord(id, part.courseControl).optional(), courses: nullableRecord(id, part.course).optional(),
     legs: nullableRecord(z.string().max(140), part.leg).optional(), specialObjects: nullableRecord(id, part.specialObject).optional(),
-    event: part.event.optional() }).strict()
+    event: part.event.optional(),
+    // Händelsens fält per namn (null = tas bort); hela dokumentet prövas mot schemat efteråt.
+    eventFields: z.record(z.string().regex(/^[A-Za-z][A-Za-z0-9]{0,59}$/), z.unknown()).refine(record => Object.keys(record).length <= 100).optional()
+  }).strict()
 ]);
 export type CourseSettingEditDto = z.infer<typeof courseSettingEditSchema>;
 

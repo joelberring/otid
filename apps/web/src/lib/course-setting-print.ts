@@ -1,6 +1,5 @@
-import { toPage, type CoursePage, type OverprintPrimitive } from "@o-tid/course-setting";
+import { circleArcs, toPage, type CoursePage, type OverprintPrimitive } from "@o-tid/course-setting";
 
-import { circleArcs } from "./course-setting-draw";
 import { cachedDescriptionNodes, screenColor } from "./course-setting-draw-special";
 import type { SvgNode, SymbolLookup } from "./course-setting-description-draw";
 import { MAX_RENDER_SIDE } from "./course-setting-map-protocol";

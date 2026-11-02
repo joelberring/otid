@@ -17,6 +17,8 @@ export interface DetailGapsState {
   readonly options: { readonly detailGaps?: DetailGaps };
   readonly pending: boolean;
   readonly available: boolean;
+  /** Workern kunde inte räkna gapen (ringarna ritas hela). */
+  readonly failed: boolean;
 }
 
 /**
@@ -29,14 +31,14 @@ export function useDetailGaps(session: MapRenderSession | undefined, document: C
   const latest = useRef(request);
   latest.current = request;
   const key = request?.key;
-  const [result, setResult] = useState<DetailResult & { key: string }>();
+  const [result, setResult] = useState<DetailResult & { key: string; failed?: boolean }>();
   const first = result === undefined;
   useEffect(() => {
     if (!session || !key) return;
     const timer = setTimeout(() => {
       const current = latest.current;
       if (!current) return;
-      session.detailGaps(current.circles, current.sprint, gaps => setResult({ circles: current.circles, gaps, key: current.key }));
+      session.detailGaps(current.circles, current.sprint, (gaps, failed) => setResult({ circles: current.circles, gaps, key: current.key, failed }));
     }, first ? 0 : DETAIL_GAPS_DELAY_MS);
     return () => clearTimeout(timer);
   }, [session, key, first]);
@@ -44,7 +46,8 @@ export function useDetailGaps(session: MapRenderSession | undefined, document: C
   const gaps = useMemo(() => currentDetailGaps(result, latest.current), [result, key]);
   const shown = on ? gaps : undefined;
   const options = useMemo(() => shown ? { detailGaps: shown } : {}, [shown]);
-  return { gaps: shown, options, pending: on && session !== undefined && result?.key !== key, available: session !== undefined };
+  return { gaps: shown, options, pending: on && session !== undefined && result?.key !== key, available: session !== undefined,
+    failed: on && result?.failed === true };
 }
 
 /** Valen för ringklipp och knappen som gör detaljklippen fasta (de följer då med till Purple Pen). */
@@ -66,6 +69,7 @@ export function CircleCuttingPanel({ document, cutting, onEdits }: {
     </label>
     {choice.details && !cutting.available && <p className={styles.muted}>{text.noMap}</p>}
     {choice.details && cutting.pending && <p role="status" className={styles.muted}>{text.computing}</p>}
+    {choice.details && cutting.failed && <p role="alert" className={styles.muted}>{text.failed}</p>}
     {choice.details && cutting.available && <div className={styles.row}>
       <Button variant="secondary" disabled={cutting.pending || !cutting.gaps} title={text.bakeHelp} data-testid="cutting-bake"
         onClick={() => {

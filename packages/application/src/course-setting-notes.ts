@@ -5,7 +5,7 @@ import {
   courseSettingNoteStatusSchema, courseSettingNotesSchema, sketchCenter, type CourseSettingNote, type CourseSettingNotes
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { actor, actors, courseSettingRead, courseSettingWrite, type Failure, type ReadProof, type Transaction } from "./course-setting";
+import { actor, actors, courseSettingRead, courseSettingWrite, loadRow, type Failure, type ReadProof, type Transaction } from "./course-setting";
 import { courseSettingAllows, type CourseSettingPrincipal } from "./course-setting-access";
 import type { RaceSessionProof } from "./race-session";
 
@@ -17,7 +17,22 @@ import type { RaceSessionProof } from "./race-session";
  * ADR-0181 beslut 8: en notis kan ha en ritning (target SKETCH) och vara ett kartfel. Den som skrev en notis eller ett
  * svar och den som får ändra (EDIT) kan ta bort den; svaren och fotot försvinner med notisen. Kartritaren (MAP) ser bara
  * kartfelen (utan bana och foto, som kan visa en kontrollplats), svarar och markerar dem klara, men skriver inga notiser.
+ *
+ * Översynen 2026-11-02: en ny notis på en kontroll, sträcka eller bana som inte finns i dokumentet avvisas (409). Telefonens
+ * kö skickas efter ändringarna med id översatta (`remapQueuedItem`), så en notis på en kontroll som skapades utan nät
+ * hamnar på rätt kontroll eller får ett besked, aldrig på någon annans kontroll med samma lokala id.
  */
+
+/** Kontrollerna och banan som en notis pekar på finns i banläggningens dokument. */
+export async function noteTargetExists(tx: Transaction, raceId: string,
+  refs: { readonly controls: readonly string[]; readonly courses: readonly string[] }): Promise<boolean> {
+  if (refs.controls.length === 0 && refs.courses.length === 0) return true;
+  const row = await loadRow(tx, raceId);
+  const document = row?.document as { controls?: Record<string, unknown>; courses?: { id: string }[] } | undefined;
+  if (!document) return false;
+  return refs.controls.every(id => Object.hasOwn(document.controls ?? {}, id)) &&
+    refs.courses.every(id => (document.courses ?? []).some(course => course.id === id));
+}
 type NoteRow = typeof schema.courseSettingNotes.$inferSelect;
 const notes = schema.courseSettingNotes;
 const replies = schema.courseSettingNoteReplies;
@@ -106,6 +121,9 @@ export async function createCourseSettingNoteAsAdmin(db: Database, input: RaceSe
     const id = existing?.id ?? randomUUID();
     if (!existing) {
       const target = request.target;
+      const controls = target.kind === "CONTROL" ? [target.control] : target.kind === "LEG" ? [target.from, target.to] : [];
+      const course = target.kind === "COURSE" ? target.course : request.course;
+      if (!await noteTargetExists(tx, raceId, { controls, courses: course ? [course] : [] })) return { status: "conflict" as const };
       const at = target.kind === "POINT" ? target.at : target.kind === "SKETCH" ? sketchCenter(target.shapes) : request.at;
       await tx.insert(notes).values({ id, raceId, target: target.kind, kind: request.kind ?? "COURSE_SETTING",
         sketch: target.kind === "SKETCH" ? target.shapes : null, atX: at?.x ?? null, atY: at?.y ?? null,

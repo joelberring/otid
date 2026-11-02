@@ -110,7 +110,7 @@ export async function createGroupSessions(db: Database, input: Proof & { groupId
       if (!race) throw new Error("Träningen kunde inte skapas");
       if (source.raceId && facts) {
         await copyRaceContent(tx, { sourceRaceId: source.raceId, raceId: race.id, timeZone: facts.timeZone,
-          dayShift: Math.round((Date.parse(date) - Date.parse(facts.raceDate)) / DAY_MS), now, accountId });
+          dayShift: Math.round((Date.parse(date) - Date.parse(facts.raceDate)) / DAY_MS), now, accountId, includePeople: false });
       }
       if (map) await applyLibraryMapToRace(tx, { mapId: map.mapId, groupId: input.groupId, raceId: race.id,
         includeCourseSetting: intent.includeCourseSetting, accountId, now });

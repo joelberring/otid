@@ -1,13 +1,15 @@
-import type { FieldRecord, FieldStore, QueuedItem, StoredMapInfo } from "./course-setting-offline";
+import { joinRecord, splitRecord, type FieldRecord, type FieldStore, type QueuedItem, type StoredBase, type StoredLog, type StoredMapInfo } from "./course-setting-offline";
 
 /**
  * Steg 67: banläggningens lager i telefonen (IndexedDB `otid-course-setting`, skilt från avläsningens `otid-readout`).
- * - `record`: editorns väntande åtgärder och versionen de bygger på, per tävling.
+ * - `record`: editorns väntande åtgärder och versionen de bygger på, per tävling (liten, skrivs efter varje ändring).
+ * - `base`: serverns version som åtgärderna bygger på, med notiser och bockar (skrivs bara när den ändrats; version 2).
  * - `queue`: notiser och bockar i ordning (löpnummer som nyckel).
  * - `mapInfo` och `mapData`: kartfilen (5–60 MB) i två delar, så att storleken kan visas utan att filen läses.
  */
 const DB_NAME = "otid-course-setting";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
+const STORES = ["record", "base", "queue", "mapInfo", "mapData"];
 
 function request<T>(value: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -31,6 +33,7 @@ function open(): Promise<IDBDatabase> {
     value.onupgradeneeded = () => {
       const db = value.result;
       if (!db.objectStoreNames.contains("record")) db.createObjectStore("record", { keyPath: "raceId" });
+      if (!db.objectStoreNames.contains("base")) db.createObjectStore("base", { keyPath: "raceId" });
       if (!db.objectStoreNames.contains("queue")) {
         const queue = db.createObjectStore("queue", { keyPath: "seq", autoIncrement: true });
         queue.createIndex("raceId", "raceId");
@@ -62,9 +65,18 @@ async function write(names: string[], change: (transaction: IDBTransaction) => v
 export function indexedDbFieldStore(): FieldStore | undefined {
   if (typeof indexedDB === "undefined") return undefined;
   return {
-    readRecord: raceId => read<FieldRecord>("record", raceId),
-    writeRecord: record => write(["record"], transaction => { transaction.objectStore("record").put(record); }),
-    clearRecord: raceId => write(["record"], transaction => { transaction.objectStore("record").delete(raceId); }),
+    readRecord: async raceId => joinRecord(await read<StoredLog | FieldRecord>("record", raceId), await read<StoredBase>("base", raceId)),
+    // Grunden och loggen i samma transaktion: antingen båda eller ingen.
+    writeRecord: (record, withBase) => write(withBase ? ["record", "base"] : ["record"], transaction => {
+      const parts = splitRecord(record);
+      if (withBase) transaction.objectStore("base").put(parts.base);
+      transaction.objectStore("record").put(parts.log);
+    }),
+    clearRecord: raceId => write(["record", "base"], transaction => {
+      transaction.objectStore("record").delete(raceId);
+      transaction.objectStore("base").delete(raceId);
+    }),
+    clearAll: () => write(STORES, transaction => { for (const name of STORES) transaction.objectStore(name).clear(); }),
     listQueue: async raceId => {
       const db = await open();
       const rows = await request(db.transaction("queue").objectStore("queue").index("raceId").getAll(raceId)) as (QueuedItem & { seq: number })[];
@@ -89,6 +101,14 @@ export function indexedDbFieldStore(): FieldStore | undefined {
       const store = transaction.objectStore("queue");
       const key = await request(store.index("id").getKey(id));
       if (key !== undefined) store.delete(key);
+      await done(transaction);
+    },
+    updateQueued: async item => {
+      const db = await open();
+      const transaction = db.transaction("queue", "readwrite");
+      const store = transaction.objectStore("queue");
+      const key = await request(store.index("id").getKey(item.id));
+      if (key !== undefined) store.put({ ...item, seq: key });
       await done(transaction);
     },
     mapInfo: raceId => read<StoredMapInfo>("mapInfo", raceId),

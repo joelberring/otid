@@ -350,7 +350,10 @@ export interface PutObjectsEdit {
   readonly courses?: Readonly<Record<string, Course | null>> | undefined;
   readonly legs?: Readonly<Record<string, Leg | null>> | undefined;
   readonly specialObjects?: Readonly<Record<string, SpecialObject | null>> | undefined;
+  /** Hela händelsen (äldre klienter och sparade förslag). */
   readonly event?: CourseSettingDocument["event"] | undefined;
+  /** Händelsens fält som ändras (null = tas bort); ångra av en inställning rör bara den (översynen 2026-11-02). */
+  readonly eventFields?: Readonly<Record<string, unknown>> | undefined;
 }
 
 export interface EditResult {

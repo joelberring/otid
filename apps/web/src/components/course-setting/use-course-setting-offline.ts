@@ -5,11 +5,13 @@ import type {
   CourseSettingInspection, CourseSettingInspectionRequest, CourseSettingNote, CourseSettingNoteCreate, CourseSettingState
 } from "@o-tid/contracts";
 import { offlineSv as text } from "../../i18n/course-setting-offline-sv";
-import { createCourseSettingNote, deleteCourseSettingNote, deleteCourseSettingNoteReply, setCourseSettingInspection } from "../../lib/course-setting-api";
 import {
-  drainQueue, memoryFieldStore, recordToKeep, type DrainResult, type FieldStore, type NoteDeleteRequest, type QueuedItem, type StoredMapInfo
+  createCourseSettingNote, deleteCourseSettingNote, deleteCourseSettingNoteReply, fetchCourseSetting, HttpError, setCourseSettingInspection
+} from "../../lib/course-setting-api";
+import {
+  drainQueue, recordToKeep, RecordWriter, remapQueue, type DrainResult, type FieldStore, type NoteDeleteRequest, type QueuedItem, type StoredMapInfo
 } from "../../lib/course-setting-offline";
-import { indexedDbFieldStore } from "../../lib/course-setting-offline-idb";
+import { fieldStore, forgetCourseSettingCopy } from "../../lib/course-setting-offline-forget";
 import { refreshShell, removeShell, saveShell, shellSupported } from "../../lib/course-setting-offline-shell";
 import type { CourseSettingSync, EditorStore, SyncStatus } from "../../lib/course-setting-sync";
 import { fetchMapSource } from "../../lib/route-choice-api";
@@ -19,12 +21,13 @@ import { fetchMapSource } from "../../lib/route-choice-api";
  * strax efter varje ändring och när en ny version läses), skickar kön med notiser och bockar när nätet finns (vid start,
  * när nätet kommer tillbaka, när sidan visas igen och var 15:e sekund medan något väntar), och "Spara för offline"
  * (kartfilen i IndexedDB och sidskalet i service workern). Säger vad som hände när kön skickades.
+ *
+ * Översynen 2026-11-02: kön skickas först när editorns ändringar är sparade, och dess id översätts när editorns id byts
+ * (`sync.listenIds`), i samma ordning som allt annat i kön. Ett fel när telefonen sparar (t.ex. full lagring på iOS) syns
+ * i statusraden. Posten skrivs i två delar: grunden bara när den ändrats, loggen efter varje ändring. Säger servern att
+ * man inte längre har tillgång (403 på läsningen) tas telefonens kopia av tävlingen bort.
  */
-let shared: FieldStore | undefined;
-export function fieldStore(): FieldStore {
-  shared ??= indexedDbFieldStore() ?? memoryFieldStore();
-  return shared;
-}
+export { fieldStore };
 
 /**
  * Kartfilen: från telefonen när den sparade är samma fil som på servern (ingen ny hämtning av 5–60 MB), annars från
@@ -78,6 +81,8 @@ export interface OfflineInput {
   /** Serverns notiser och bockar senast de hämtades (sparas med posten). */
   readonly notes: readonly CourseSettingNote[];
   readonly inspections: readonly CourseSettingInspection[];
+  /** Tillgången är borttagen och kopian i telefonen likaså. */
+  readonly onAccessGone: () => void;
 }
 
 export function useCourseSettingOffline(input: OfflineInput) {
@@ -95,6 +100,22 @@ export function useCourseSettingOffline(input: OfflineInput) {
   const offlineSaved = mapInfo !== undefined;
   const offlineRef = useRef(offlineSaved);
   offlineRef.current = offlineSaved;
+  const [storageError, setStorageError] = useState(false);
+  const storageErrorRef = useRef(false);
+  const storageFailed = useCallback((what: string, error: unknown) => {
+    console.error(what, error);
+    if (!storageErrorRef.current) latest.current.say({ tone: "error", text: text.storageFailed });
+    storageErrorRef.current = true;
+    setStorageError(true);
+  }, []);
+  const storageOk = useCallback(() => { storageErrorRef.current = false; setStorageError(false); }, []);
+  /** Allt som ändrar kön görs i tur och ordning (lägga till, översätta id, skicka). */
+  const queueOps = useRef<Promise<unknown>>(Promise.resolve());
+  const serial = useCallback(<T,>(op: () => Promise<T>): Promise<T> => {
+    const next = queueOps.current.then(op, op);
+    queueOps.current = next.catch(() => undefined);
+    return next;
+  }, []);
 
   const reloadQueue = useCallback(async () => {
     try { setQueue(await storage.listQueue(raceId)); } catch (error) { console.error("Kön i telefonen kunde inte läsas", error); }
@@ -104,17 +125,19 @@ export function useCourseSettingOffline(input: OfflineInput) {
     void storage.mapInfo(raceId).then(setMapInfo, error => console.error("Kartfilen i telefonen kunde inte läsas", error));
   }, [storage, raceId, reloadQueue]);
 
-  // Editorns väntande åtgärder i telefonen: strax efter varje ändring och varje ny version.
+  // Editorns väntande åtgärder i telefonen: strax efter varje ändring och varje ny version. Grunden (dokumentet, notiserna
+  // och bockarna) skrivs bara när den ändrats sedan den senast skrevs.
+  const writer = useMemo(() => new RecordWriter(storage, error => {
+    if (error === undefined) storageOk(); else storageFailed("Ändringarna kunde inte sparas i telefonen", error);
+  }), [storage, storageOk, storageFailed]);
   const persist = useCallback(async () => {
     const current = latest.current;
     const editor = store.state;
     const record = recordToKeep({ raceId, state: current.state, version: sync.version, base: sync.document, document: editor.document,
       log: editor.suggesting ? [] : editor.log, inFlight: sync.pendingRequest, offline: offlineRef.current, now: new Date(),
       notes: current.notes, inspections: current.inspections });
-    try {
-      if (record) await storage.writeRecord(record); else await storage.clearRecord(raceId);
-    } catch (error) { console.error("Ändringarna kunde inte sparas i telefonen", error); }
-  }, [storage, raceId, store, sync]);
+    await writer.write(raceId, record, { version: sync.version, parts: [sync.document, current.notes, current.inspections, current.state] });
+  }, [writer, raceId, store, sync]);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const schedulePersist = useCallback(() => {
     if (timer.current) clearTimeout(timer.current);
@@ -129,19 +152,20 @@ export function useCourseSettingOffline(input: OfflineInput) {
     return () => { document.removeEventListener("visibilitychange", now); window.removeEventListener("pagehide", now); };
   }, [persist]);
 
-  // Kön: skickas i ordning; det som inte gick ligger kvar.
+  // Kön: skickas i ordning efter editorns ändringar (en notis kan gälla en kontroll som just skapats); det som inte gick
+  // ligger kvar.
   const draining = useRef(false);
   const counts = useRef({ edits: 0, notes: 0, inspections: 0 });
   const drain = useCallback(async () => {
-    if (draining.current) return;
+    if (draining.current || sync.dirty) return;
     draining.current = true;
     try {
-      const result = await drainQueue(storage, raceId, {
+      const result = await serial(() => drainQueue(storage, raceId, {
         note: (race, request) => createCourseSettingNote(race, request),
         inspection: (race, request) => setCourseSettingInspection(race, request),
         deleteNote: (race, request) => request.replyId ? deleteCourseSettingNoteReply(race, request.noteId, request.replyId)
           : deleteCourseSettingNote(race, request.noteId)
-      });
+      }));
       setQueueOffline(result.stopped === "offline");
       setAuthStopped(result.stopped === "auth");
       for (const item of result.sent) counts.current[item.kind === "inspection" ? "inspections" : "notes"] += 1;
@@ -156,13 +180,23 @@ export function useCourseSettingOffline(input: OfflineInput) {
       draining.current = false;
       await reloadQueue();
     }
-  }, [storage, raceId, reloadQueue]);
+  }, [storage, raceId, reloadQueue, serial, sync]);
+
+  // Editorns id har bytts: kön översätts direkt (före det som läggs i kön efter bytet); det som pekar på något som inte
+  // finns tas ur kön med besked.
+  useEffect(() => sync.listenIds((map, gone) => {
+    void serial(() => remapQueue(storage, raceId, map, gone)).then(removed => {
+      if (removed.length > 0) latest.current.say({ tone: "attention", text: text.rejected(removed.length),
+        list: removed.map(item => `${latest.current.describe(item, 409)}`) });
+      return reloadQueue();
+    }, error => storageFailed("Kön i telefonen kunde inte översättas", error));
+  }), [sync, serial, storage, raceId, reloadQueue, storageFailed]);
 
   const enqueue = useCallback(async (item: QueuedItem) => {
-    await storage.addQueued(item);
+    try { await serial(() => storage.addQueued(item)); } catch (error) { storageFailed("Kön i telefonen kunde inte sparas", error); throw error; }
     await reloadQueue();
     void drain();
-  }, [storage, reloadQueue, drain]);
+  }, [storage, reloadQueue, drain, serial, storageFailed]);
   const enqueueNote = useCallback((request: Omit<CourseSettingNoteCreate, "formatVersion">) =>
     enqueue({ id: request.requestId, raceId, kind: "note", createdAt: new Date().toISOString(), request }), [enqueue, raceId]);
   /**
@@ -170,9 +204,9 @@ export function useCourseSettingOffline(input: OfflineInput) {
    * (borttagningen efter den blir då "redan borttagen").
    */
   const enqueueDelete = useCallback(async (request: NoteDeleteRequest) => {
-    if (!request.replyId) await storage.removeQueued(request.noteId);
+    if (!request.replyId) await serial(() => storage.removeQueued(request.noteId));
     await enqueue({ id: crypto.randomUUID(), raceId, kind: "note-delete", createdAt: new Date().toISOString(), request });
-  }, [enqueue, storage, raceId]);
+  }, [enqueue, storage, raceId, serial]);
   const enqueueInspection = useCallback((request: CourseSettingInspectionRequest) =>
     enqueue({ id: crypto.randomUUID(), raceId, kind: "inspection", createdAt: request.at, request }), [enqueue, raceId]);
 
@@ -194,6 +228,20 @@ export function useCourseSettingOffline(input: OfflineInput) {
     const interval = setInterval(() => void drain(), 15_000);
     return () => clearInterval(interval);
   }, [queue.length, drain]);
+  // Ändringarna är sparade: nu kan kön gå.
+  useEffect(() => { if (status === "saved" && queue.length > 0) void drain(); }, [status, queue.length, drain]);
+
+  // Utloggad eller avvisad: har tillgången tagits bort (403 när banläggningen läses) tas telefonens kopia bort.
+  const checkedAccess = useRef(false);
+  useEffect(() => {
+    if (!(authStopped || status === "stopped") || checkedAccess.current) return;
+    checkedAccess.current = true;
+    void fetchCourseSetting(raceId).then(() => undefined, async error => {
+      if (!(error instanceof HttpError && error.status === 403)) return;
+      await serial(() => forgetCourseSettingCopy(raceId, storage)).catch(problem => console.error("Kopian i telefonen kunde inte tas bort", problem));
+      latest.current.onAccessGone();
+    }).finally(() => { checkedAccess.current = false; });
+  }, [authStopped, status, raceId, storage, serial]);
 
   const unsentEdits = store.state.suggesting ? 0 : store.state.log.length;
   const waiting = unsentEdits + queue.length;
@@ -253,9 +301,10 @@ export function useCourseSettingOffline(input: OfflineInput) {
     } catch (error) { console.error("Det sparade kunde inte tas bort", error); setPanelMessage(text.panel.failed); } finally { setBusy(false); }
   }
 
-  const statusText = loggedOut && waiting > 0 ? text.status.loggedOut(waiting) : offline ? text.status.offline(waiting) : undefined;
-  return { storage, queue, waiting, offline, loggedOut, statusText, enqueueNote, enqueueDelete, enqueueInspection, retry, mapInfo, offlineSaved, busy,
-    panelMessage, saveOffline, removeOffline };
+  const statusText = storageError ? text.status.storageFailed(waiting) : loggedOut && waiting > 0 ? text.status.loggedOut(waiting)
+    : offline ? text.status.offline(waiting) : undefined;
+  return { storage, queue, waiting, offline, loggedOut, storageError, statusText, enqueueNote, enqueueDelete, enqueueInspection, retry, mapInfo,
+    offlineSaved, busy, panelMessage, saveOffline, removeOffline };
 }
 
 export type CourseSettingOffline = ReturnType<typeof useCourseSettingOffline>;

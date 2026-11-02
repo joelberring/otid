@@ -507,3 +507,15 @@ export const raceCopyRequests = pgTable("race_copy_request", {
   check("race_copy_request_distinct_check", sql`${table.sourceRaceId} <> ${table.raceId}`),
   foreignKey({ name: "race_copy_request_race_event_fk", columns: [table.raceId, table.eventId], foreignColumns: [races.id, races.eventId] })
 ]);
+
+/** ADR-0187 (migration 0041): kvittot för "Återställ tävling från säkerhetskopia", idempotent på `requestId`. */
+export const raceRestoreRequests = pgTable("race_restore_request", {
+  requestId: uuid("request_id").primaryKey(),
+  actorAccountId: uuid("actor_account_id").notNull().references(() => userAccounts.id),
+  eventId: uuid("event_id").notNull().references(() => events.id),
+  raceId: uuid("race_id").notNull().references(() => races.id),
+  fileSha256: text("file_sha256").notNull(),
+  people: text("people").$type<"link" | "skip">().notNull(),
+  response: jsonb("response").$type<Record<string, unknown>>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull()
+}, (table) => [uniqueIndex("race_restore_request_race_uidx").on(table.raceId)]);

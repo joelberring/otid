@@ -22,6 +22,7 @@ import {
 } from "../../src/course-setting-notes";
 import { courseSettingProjection } from "../../src/course-setting-transfer";
 import { exportRaceAsAdmin } from "../../src/race-export";
+import { readBackup } from "./backup";
 import { copyRaceAsAdmin } from "../../src/race-copy";
 import { accountOnRace, grantRacePerson, registerTestAccount } from "./accounts";
 
@@ -211,8 +212,7 @@ describe("notiser med ritning, kartfel och borttagning (ADR-0181 beslut 8)", { t
 
     const exported = await exportRaceAsAdmin(db, owner);
     if (exported.status !== "ok") throw new Error("Exporten misslyckades");
-    const json = JSON.parse(new TextDecoder().decode(exported.bytes)) as { courseSettingNotes: { kind: string; target: string; sketch: unknown }[] };
-    expect(json.courseSettingNotes).toMatchObject([{ kind: "MAP_ERROR", target: "SKETCH", sketch: [stig, yta] }]);
+    expect(readBackup(exported.bytes).table("course_setting_note")).toMatchObject([{ kind: "MAP_ERROR", target: "SKETCH", sketch: [stig, yta] }]);
 
     // Översynen 2026-11-02: notiserna följer bara med personerna.
     const copied = await copyRaceAsAdmin(db, { ...owner, request: { formatVersion: 1, requestId: randomUUID(), eventName: "Notiser v2",

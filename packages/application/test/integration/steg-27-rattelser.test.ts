@@ -12,6 +12,7 @@ import { removeClassAsAdmin, removeCourseAsAdmin, removeEntryAsAdmin } from "../
 import { readResultsOfficialAsAdmin, setResultsOfficialAsAdmin } from "../../src/result-official";
 import { exportFrozenIofResultListAsAdmin } from "../../src/result-finalization";
 import { exportRaceAsAdmin } from "../../src/race-export";
+import { readBackup } from "./backup";
 import { auth, ingest, NOW, RACE_DATE, run, seedRace } from "./steg-25-fixtures";
 
 /**
@@ -227,22 +228,23 @@ describe("Exportera tävlingen (punkt 6)", () => {
     expect(ack.acknowledgements[0]?.status).toBe("stored");
     const exported = await exportRaceAsAdmin(db, admin, NOW);
     if (exported.status !== "ok") throw new Error(exported.status);
-    expect(exported.fileName).toBe(`otid-steg-25-${RACE_DATE}.json`);
-    const file = JSON.parse(new TextDecoder().decode(exported.bytes)) as Record<string, unknown[]> & { format: string; formatVersion: number;
-      race: { id: string } };
-    expect(file).toMatchObject({ format: "otid-race-export", formatVersion: 1, race: { id: ids.race } });
-    expect(file.courses).toHaveLength(1);
-    expect(file.courseControls).toHaveLength(2);
-    expect(file.classes).toHaveLength(2);
-    expect(file.entries).toHaveLength(5);
-    expect(file.cardAssignments).toHaveLength(4);
-    const raw = file.rawReadouts as { raw_payload: { frames: string[] } }[];
+    // ADR-0187: säkerhetskopian (zip) ersätter steg 27:s JSON-fil.
+    expect(exported.fileName).toMatch(new RegExp(`^otid-sakerhetskopia-steg-25-${RACE_DATE}-\\d{8}-\\d{4}\\.zip$`));
+    const file = readBackup(exported.bytes);
+    expect(file.manifest).toMatchObject({ format: "otid-sakerhetskopia", formatVersion: 2 });
+    expect(file.table("race")).toEqual([expect.objectContaining({ id: ids.race })]);
+    expect(file.table("course")).toHaveLength(1);
+    expect(file.table("course_control")).toHaveLength(2);
+    expect(file.table("class")).toHaveLength(2);
+    expect(file.table("entry")).toHaveLength(5);
+    expect(file.table("card_assignment")).toHaveLength(4);
+    const raw = file.table<{ raw_payload: { frames: string[] } }>("raw_device_message");
     expect(raw.map((row) => row.raw_payload.frames)).toEqual([[frame]]);
-    expect(file.resultRevisions).toEqual([expect.objectContaining({ entry_id: ids.ada, status: "OK", cause: "CARD_READOUT" })]);
-    for (const section of ["maps", "participantRoutes", "radioPunches", "auditEvents", "startDrawSlots", "resultFinalizations"]) {
-      expect(Array.isArray(file[section])).toBe(true);
+    expect(file.table("result_revision")).toEqual([expect.objectContaining({ entry_id: ids.ada, status: "OK", cause: "CARD_READOUT" })]);
+    for (const section of ["race_map", "participant_route", "radio_punch", "audit_event", "start_draw_slot", "result_finalization"]) {
+      expect(Array.isArray(file.table(section))).toBe(true);
     }
-    expect(JSON.stringify(file)).not.toMatch(/ciphertext|password|session_token/);
+    expect(JSON.stringify(file.manifest.tables.map(table => file.table(table.name)))).not.toMatch(/ciphertext|password|session_token/);
     // Bara administratören.
     const functionary = await auth(db, ids.race, "FUNCTIONARY");
     expect((await exportRaceAsAdmin(db, functionary, NOW)).status).toBe("forbidden");

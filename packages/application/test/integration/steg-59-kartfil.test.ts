@@ -13,6 +13,7 @@ import { readControlMapAsAdmin } from "../../src/control-map";
 import { readRaceMapImageAsAdmin, readRaceMapStateAsAdmin, saveRaceMapAsAdmin, removeRaceMapAsAdmin, georeferenceRaceMapAsAdmin } from "../../src/race-map";
 import { readRaceMapSourceFileAsAdmin, removeRaceMapSourceAsAdmin, saveRaceMapSourceAsAdmin } from "../../src/race-map-source";
 import { exportRaceAsAdmin } from "../../src/race-export";
+import { readBackup } from "./backup";
 import { accountOnRace, raceAuth } from "./accounts";
 
 /**
@@ -153,12 +154,13 @@ describe("steg 59: kartfilen", () => {
     // Via WGS 84: 30 m = 24 px åt höger om kartläget.
     expect(shifted.response.controls.find(control => control.code === 32)!.position!.x).toBeCloseTo(376, -1);
 
-    // Exporten har kartfilen i base64.
+    // Säkerhetskopian har kartfilen orörd som egen fil (ADR-0187).
     const exported = await exportRaceAsAdmin(db, proof);
     if (exported.status !== "ok") throw new Error("Exporten misslyckades");
-    const json = JSON.parse(new TextDecoder().decode(exported.bytes)) as { mapSources: { file_base64: string; format: string }[] };
-    expect(json.mapSources).toHaveLength(1);
-    expect(Buffer.from(json.mapSources[0]!.file_base64, "base64").byteLength).toBe(omap.byteLength);
+    const backup = readBackup(exported.bytes);
+    const sources = backup.table<{ file: unknown; format: string }>("race_map_source");
+    expect(sources).toHaveLength(1);
+    expect(backup.file(sources[0]!.file).equals(Buffer.from(omap))).toBe(true);
   });
 
   it("utan georeferens i filen sparas bilden ogeorefererad; tre punkter för hand fungerar som förut", async () => {

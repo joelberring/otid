@@ -303,3 +303,4 @@ export * from "./course-setting";
 export * from "./course-setting-collaboration";
 export * from "./course-setting-print";
 export * from "./training-group";
+export * from "./race-backup";

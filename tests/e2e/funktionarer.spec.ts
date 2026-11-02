@@ -44,12 +44,15 @@ test("admin lägger till funktionär som läser av från två enheter men inte n
   const staff = await registerAccount(browser, staffEmail, "Frida Funktionär");
   await expect(staff.getByText("Inga tävlingar ännu")).toBeVisible();
 
-  // En adress utan konto avvisas med besked; ingen inbjudan skickas.
+  // ADR-0188 beslut 6: en adress utan konto får samma svar som en med konto; behörigheten väntar på inloggning.
   await openStep(owner, "Inställningar");
   const people = owner.getByRole("region", { name: "Personer med behörighet" });
   await people.getByRole("form", { name: "Lägg till person" }).getByLabel("E-postadress").fill(`ingen.${suffix}@exempel.se`);
   await people.getByRole("button", { name: "Lägg till" }).click();
-  await expect(people.getByRole("alert")).toContainText("Be personen skapa ett konto med den adressen först");
+  await expect(people.getByRole("status")).toHaveText(
+    `Behörigheten är sparad för ingen.${suffix}@exempel.se som funktionär. Den gäller när personen loggar in med adressen.`);
+  await expect(people.getByTestId("person-invitation").filter({ hasText: `ingen.${suffix}@exempel.se` }))
+    .toContainText("väntar på att personen loggar in med adressen");
   await addPerson(owner, staffEmail, "Funktionär");
   const staffRow = people.getByRole("listitem").filter({ hasText: staffEmail });
   await expect(staffRow).toContainText("Funktionär");

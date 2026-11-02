@@ -377,6 +377,25 @@ export const courseSettingGrants = pgTable("course_setting_grant", {
 }, (table) => [uniqueIndex("course_setting_grant_race_account_key").on(table.raceId, table.accountId),
   uniqueIndex("course_setting_grant_request_key").on(table.requestId)]);
 
+/**
+ * ADR-0188 beslut 6 (migration 0043): en behörighet sparad för en e-postadress. Den blir en vanlig behörighet när ett konto
+ * med adressen och bekräftad e-post loggar in eller öppnar tävlingen; svaret avslöjar aldrig om adressen har ett konto.
+ */
+export const racePersonInvitations = pgTable("race_person_invitation", {
+  id: uuid("id").primaryKey(),
+  requestId: uuid("request_id").notNull().unique("race_person_invitation_request_uidx"),
+  raceId: uuid("race_id").notNull().references(() => races.id),
+  eventId: uuid("event_id").notNull().references(() => events.id),
+  email: text("email").notNull(),
+  role: text("role").$type<"ADMIN" | "FUNCTIONARY" | "COURSE_EDIT" | "COURSE_SUGGEST" | "COURSE_COMMENT" | "COURSE_MAP">().notNull(),
+  actorAccountId: uuid("actor_account_id").notNull().references(() => userAccounts.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+  acceptedAccountId: uuid("accepted_account_id").references(() => userAccounts.id),
+  acceptedGrantId: uuid("accepted_grant_id"),
+  revokedAt: timestamp("revoked_at", { withTimezone: true })
+}, (table) => [index("race_person_invitation_race_idx").on(table.raceId, table.createdAt)]);
+
 /** Steg 66: vad varje version ändrade (konflikter) och svaret på sparningen (idempotens). */
 export const courseSettingChanges = pgTable("course_setting_change", {
   raceId: uuid("race_id").notNull().references(() => races.id),

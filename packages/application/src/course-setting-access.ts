@@ -1,4 +1,5 @@
 import { and, eq } from "drizzle-orm";
+import { acceptRacePersonInvitations } from "./race-person-invitations";
 import { schema } from "@o-tid/database";
 import type { CourseSettingLevel } from "@o-tid/contracts";
 import { activeEventAdministrationGrant, type RaceRoleLock, type RaceSessionProof } from "./race-session";
@@ -36,7 +37,7 @@ export function courseSettingAllows(principal: Pick<CourseSettingPrincipal, "lev
 }
 
 async function authorize(tx: DbExecutor, request: RaceSessionProof & { required: CourseSettingRequirement; requireCsrf?: boolean },
-  now: Date, lock: RaceRoleLock): Promise<CourseSettingAccessResult> {
+  now: Date, lock: RaceRoleLock, accepted = false): Promise<CourseSettingAccessResult> {
   const account = await authorizeUserAccountSession(tx, {
     sessionToken: request.sessionToken, csrfCookie: request.csrfCookie ?? null, csrfHeader: request.csrfHeader ?? null,
     ...(request.requireCsrf ? { requireCsrf: true } : {})
@@ -57,6 +58,10 @@ async function authorize(tx: DbExecutor, request: RaceSessionProof & { required:
       .where(and(eq(schema.courseSettingGrants.raceId, race.id), eq(schema.courseSettingGrants.accountId, accountId)));
     const [row] = lock === "share" ? await query.for("share") : lock === "update" ? await query.for("update") : await query;
     if (row) principal = { accountId, displayName: named?.displayName ?? "", raceId: race.id, eventId: race.eventId, level: row.level, admin: false };
+  }
+  // ADR-0188 beslut 6: en behörighet sparad för kontots adress på tävlingen gäller från första besöket.
+  if (!principal && !accepted && await acceptRacePersonInvitations(tx, accountId, now, race.id) > 0) {
+    return authorize(tx, request, now, lock, true);
   }
   // Funktionären utan banläggning är inloggad på tävlingen men får inte se banorna (403); övriga har ingen roll (401).
   if (!principal) return grant ? { status: "forbidden" } : { status: "unauthorized" };

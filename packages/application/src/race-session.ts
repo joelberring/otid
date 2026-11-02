@@ -1,4 +1,5 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
+import { acceptRacePersonInvitations } from "./race-person-invitations";
 import { schema } from "@o-tid/database";
 import type { DbExecutor } from "./snapshot";
 import { authorizeUserAccountSession } from "./user-account";
@@ -113,7 +114,7 @@ async function activeGrantOf(tx: DbExecutor, grants: readonly { id: string; role
   return undefined;
 }
 
-async function authorize(tx: DbExecutor, request: RaceRoleRequest, now: Date, lock: RaceRoleLock): Promise<RaceRoleResult> {
+async function authorize(tx: DbExecutor, request: RaceRoleRequest, now: Date, lock: RaceRoleLock, accepted = false): Promise<RaceRoleResult> {
   const account = await authorizeUserAccountSession(tx, {
     sessionToken: request.sessionToken, csrfCookie: request.csrfCookie ?? null, csrfHeader: request.csrfHeader ?? null,
     ...(request.requireCsrf ? { requireCsrf: true } : {})
@@ -124,7 +125,13 @@ async function authorize(tx: DbExecutor, request: RaceRoleRequest, now: Date, lo
   if (!race) return { status: "unauthorized" };
   const grant = await activeEventAdministrationGrant(tx, { accountId: account.principal.accountId, eventId: race.eventId,
     roles: ["OWNER", "ADMIN", "FUNCTIONARY"] }, lock);
-  if (!grant) return { status: "unauthorized" };
+  if (!grant) {
+    // ADR-0188 beslut 6: en behörighet sparad för kontots adress på tävlingen gäller från första besöket.
+    if (!accepted && await acceptRacePersonInvitations(tx, account.principal.accountId, now, race.id) > 0) {
+      return authorize(tx, request, now, lock, true);
+    }
+    return { status: "unauthorized" };
+  }
   const role: RaceRole = grant.role === "FUNCTIONARY" ? "FUNCTIONARY" : "ADMIN";
   if (request.role === "ADMIN" && role !== "ADMIN") return { status: "forbidden" };
   return { status: "authenticated", principal: {

@@ -32,7 +32,8 @@ import { copyRaceAsAdmin } from "../../src/race-copy";
 import { listEntryClassesAsAdmin } from "../../src/results";
 import { listRacePeopleAsAdmin, revokeRacePersonAsAdmin } from "../../src/race-people";
 import { purgeRows } from "../../src/purge";
-import { accountOnRace, grantRacePerson, raceAuth, registerTestAccount } from "./accounts";
+import { accountOnRace, grantIdOf, grantRacePerson, raceAuth, registerTestAccount } from "./accounts";
+import { acceptRacePersonInvitations } from "../../src/race-person-invitations";
 
 /**
  * Steg 66 (ADR-0181 beslut 1–5): samarbete i banläggningen – behörigheten ändra/föreslå/läsa och kommentera på alla
@@ -84,7 +85,9 @@ async function courseSetter(owner: Proof, level: "COURSE_EDIT" | "COURSE_SUGGEST
   const account = await registerTestAccount(db);
   const granted = await grantRacePerson(db, owner, owner.raceId, account.email, level as never);
   if (granted.status !== "granted") throw new Error(`Behörigheten gavs inte: ${granted.status}`);
-  return { raceId: owner.raceId, ...account.proof, accountId: account.accountId, grantId: granted.response.person.grantId };
+  // ADR-0188 beslut 6: behörigheten blir en rad när personen öppnar tävlingen (här direkt, som vid inloggningen).
+  await acceptRacePersonInvitations(db, account.accountId, new Date(), owner.raceId);
+  return { raceId: owner.raceId, ...account.proof, accountId: account.accountId, grantId: await grantIdOf(db, granted) };
 }
 
 function png(width: number, height: number): Uint8Array {

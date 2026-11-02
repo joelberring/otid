@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
 import { registerUserAccount } from "../../src/user-account";
 import { grantRacePersonAsAdmin } from "../../src/race-people";
+import { acceptRacePersonInvitations } from "../../src/race-person-invitations";
 import { setRacePublicationAsAdmin } from "../../src/race-publication";
 import { requireRaceRole } from "../../src/race-session";
 
@@ -39,8 +40,22 @@ type AccountProof = { sessionToken: string; csrfCookie: string; csrfHeader: stri
 export async function grantRacePerson(db: Database, actor: AccountProof, raceId: string, email: string,
   role: "ADMIN" | "FUNCTIONARY", now?: Date) {
   const requestId = randomUUID();
-  return grantRacePersonAsAdmin(db, { ...actor, raceId, idempotencyKey: `race-person-grant:${requestId}`,
+  const granted = await grantRacePersonAsAdmin(db, { ...actor, raceId, idempotencyKey: `race-person-grant:${requestId}`,
     readBody: async () => ({ formatVersion: 1, requestId, email, role }) }, now);
+  // ADR-0188 beslut 6: personen loggar in med adressen och tar behörigheten (som i appen vid inloggningen).
+  const [account] = await db.select({ id: schema.userAccounts.id }).from(schema.userAccounts).where(eq(schema.userAccounts.email, email.toLowerCase()));
+  if (granted.status === "granted" && account) await db.transaction(tx => acceptRacePersonInvitations(tx, account.id, now ?? new Date(), raceId));
+  return granted;
+}
+
+/**
+ * ADR-0188 beslut 6: behörighetens id när personen har tagit den (loggat in eller öppnat tävlingen), annars den sparade
+ * behörighetens id (som går att ta bort innan den tagits).
+ */
+export async function grantIdOf(db: Database, granted: { response: { invitation: { invitationId: string } } }): Promise<string> {
+  const [row] = await db.select({ grantId: schema.racePersonInvitations.acceptedGrantId }).from(schema.racePersonInvitations)
+    .where(eq(schema.racePersonInvitations.id, granted.response.invitation.invitationId));
+  return row?.grantId ?? granted.response.invitation.invitationId;
 }
 
 /** Publicerar tävlingen (eller slutar publicera den) som admin gör i arbetsytan (ADR-0172 beslut 4). */

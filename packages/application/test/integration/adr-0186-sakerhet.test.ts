@@ -214,8 +214,9 @@ describe("ADR-0186: behörigheter kräver bekräftad e-post", () => {
     expect(await requireCourseSettingAccess(db, { ...targetProof, required: "COMMENT" })).toEqual({ status: "unauthorized" });
     const people = await listRacePeopleAsAdmin(db, proof);
     if (people.status !== "ok") throw new Error("Listan kunde inte läsas");
-    expect(people.response.people.filter(person => person.email === email).map(person => [person.role, person.pendingVerification]))
-      .toEqual([["FUNCTIONARY", true], ["COURSE_EDIT", true]]);
+    // ADR-0188 beslut 6: behörigheterna väntar för adressen tills kontot har bekräftat den.
+    expect(people.response.people.filter(person => person.email === email)).toEqual([]);
+    expect(people.response.invitations.filter(row => row.email === email).map(row => row.role)).toEqual(["FUNCTIONARY", "COURSE_EDIT"]);
     expect(people.response.people.find(person => person.role === "OWNER")?.pendingVerification).toBeUndefined();
 
     // Bekräftad (här med serverkommandot): behörigheterna gäller direkt, i samma session.

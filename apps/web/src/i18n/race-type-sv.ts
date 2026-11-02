@@ -66,7 +66,7 @@ export const raceTypeSv = {
     failed: "Inställningarna kunde inte sparas. Försök igen.",
     people: {
       title: "Personer med behörighet",
-      help: "Funktionärer når avläsning, direktanmälan av okänd bricka, kvar i skogen, start och speaker. De ser deltagarnas fulla namn och kan ladda ner festens köp som CSV-fil. Administratörer når allt. Banläggning ger bara banläggningen på den här tävlingen: ändra, föreslå ändringar eller läsa och kommentera. Kartritaren ser bara kartan och kartfelen (inga banor eller kontroller, inga foton), svarar och markerar dem klara; ett kartfel nära en kontroll kan ändå avslöja den. Personen loggar in med sitt eget konto; behörigheten gäller när personen har bekräftat sin e-postadress.",
+      help: "Funktionärer når avläsning, direktanmälan av okänd bricka, kvar i skogen, start och speaker. De ser deltagarnas fulla namn och kan ladda ner festens köp som CSV-fil. Administratörer når allt. Banläggning ger bara banläggningen på den här tävlingen: ändra, föreslå ändringar eller läsa och kommentera. Kartritaren ser bara kartan och kartfelen (inga banor eller kontroller, inga foton), svarar och markerar dem klara; ett kartfel nära en kontroll kan ändå avslöja den. Behörigheten sparas för e-postadressen och gäller när personen loggar in med den adressen (med eget konto och bekräftad e-post).",
       loading: "Hämtar personer …",
       loadError: "Listan kunde inte hämtas. Försök igen.",
       name: "Namn",
@@ -87,8 +87,9 @@ export const raceTypeSv = {
       addEmailHelp: "Samma adress som personen loggar in med.",
       addRole: "Roll",
       add: "Lägg till",
-      added: (name: string, role: string) => `${name} är tillagd som ${role.toLowerCase()}.`,
-      noAccount: "Det finns inget konto med den adressen. Be personen skapa ett konto med den adressen först.",
+      /** ADR-0188 beslut 6: samma besked oavsett om adressen har ett konto. */
+      invited: (email: string, role: string) => `Behörigheten är sparad för ${email} som ${role.toLowerCase()}. Den gäller när personen loggar in med adressen.`,
+      waitingForLogin: "väntar på att personen loggar in med adressen",
       already: "Personen har redan behörighet på tävlingen.",
       ownerOnly: "Bara ägaren kan lägga till och ta bort administratörer.",
       failed: "Ändringen kunde inte sparas. Försök igen.",

@@ -12,6 +12,9 @@ import { commitStartDrawAsAdmin } from "../../src/start-draw";
 import { saveRaceSettingsAsAdmin } from "../../src/race-settings";
 import { previewRaceDateMoveAsAdmin } from "../../src/race-date-move";
 import { importIofXml } from "../../src/import-iof";
+import { grantRacePersonAsAdmin, listRacePeopleAsAdmin } from "../../src/race-people";
+import { requireRaceRole } from "../../src/race-session";
+import { markEmailVerifiedByCommand } from "../../src/email-verification";
 import { accountOnRace } from "./accounts";
 
 const base = process.env.TEST_DATABASE_URL;
@@ -190,5 +193,44 @@ describe("ADR-0188 beslut 5: Tävling med gafflade banor är ett alias för Täv
     await pool.query("update race set race_type = 'FORKED' where id = $1", [created.raceId]);
     expect(await settings(created, RACE_DATE, { raceType: "FORKED" })).toMatchObject({ status: "saved" });
     expect(await raceType(created.raceId)).toBe("STANDARD");
+  });
+});
+
+describe("ADR-0188 beslut 6: Personer med behörighet avslöjar inga konton", () => {
+  it("svarar likadant med och utan konto, och behörigheten gäller när kontot skapas och adressen bekräftas", async () => {
+    const owner = await race(await account());
+    const existing = await registerUserAccount(db, { formatVersion: 1, email: `finns.${randomUUID().slice(0, 8)}@test.o-tid.se`,
+      displayName: "Finns Redan", password: "hemligt-lösen" });
+    if (existing.status !== "authenticated") throw new Error("Kontot kunde inte skapas");
+    const later = `senare.${randomUUID().slice(0, 8)}@test.o-tid.se`;
+    const grant = async (email: string) => {
+      const requestId = randomUUID();
+      return grantRacePersonAsAdmin(db, { ...owner, idempotencyKey: `race-person-grant:${requestId}`,
+        readBody: async () => ({ formatVersion: 1, requestId, email, role: "FUNCTIONARY" }) });
+    };
+    const withAccount = await grant(existing.response.email);
+    const withoutAccount = await grant(later);
+    if (withAccount.status !== "granted" || withoutAccount.status !== "granted") throw new Error("Behörigheten sparades inte");
+    // Samma form på svaret; inget namn eller konto-id.
+    const shape = (value: unknown) => JSON.stringify(value).replace(/"[^"]*@test\.o-tid\.se"/, "E").replace(/[0-9a-f-]{36}/g, "U")
+      .replace(/"\d{4}-[^"]+"/g, "T");
+    expect(shape(withAccount.response)).toBe(shape(withoutAccount.response));
+    expect(JSON.stringify(withAccount.response)).not.toContain("Finns Redan");
+    const list = await listRacePeopleAsAdmin(db, owner);
+    if (list.status !== "ok") throw new Error(list.status);
+    expect(list.response.invitations.map(row => row.email).sort()).toEqual([existing.response.email, later].sort());
+
+    // Kontot skapas efteråt; behörigheten gäller först när adressen är bekräftad.
+    const created = await registerUserAccount(db, { formatVersion: 1, email: later, displayName: "Senare", password: "hemligt-lösen" });
+    if (created.status !== "authenticated") throw new Error("Kontot kunde inte skapas");
+    const proof = { raceId: owner.raceId, sessionToken: created.sessionToken, csrfCookie: created.csrfToken, csrfHeader: created.csrfToken };
+    await pool.query("update user_account set email_verified_at = null where id = $1", [created.response.accountId]);
+    expect(await requireRaceRole(db, { ...proof, role: "FUNCTIONARY" })).toEqual({ status: "unauthorized" });
+    expect(await markEmailVerifiedByCommand(db, later)).toEqual({ status: "verified" });
+    expect(await requireRaceRole(db, { ...proof, role: "FUNCTIONARY" })).toMatchObject({ status: "authenticated", principal: { role: "FUNCTIONARY" } });
+    const after = await listRacePeopleAsAdmin(db, owner);
+    if (after.status !== "ok") throw new Error(after.status);
+    expect(after.response.invitations.map(row => row.email)).toEqual([existing.response.email]);
+    expect(after.response.people.map(person => [person.email, person.role])).toContainEqual([later, "FUNCTIONARY"]);
   });
 });

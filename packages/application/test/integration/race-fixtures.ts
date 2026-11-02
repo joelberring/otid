@@ -37,6 +37,8 @@ export async function importedRace() {
   const { race } = await createEvent(db, {
     name: `Test ${suffix}`, raceName: "Individuellt", raceDate: "2026-08-30", timeZone: "Europe/Stockholm"
   });
+  // ADR-0188 beslut 4: fixturens klasser har fri start, som i en Liten tävling (i en vanlig Tävling blir de lottade).
+  await db.update(schema.races).set({ raceType: "SMALL" }).where(eq(schema.races.id, race.id));
   await importIofXml(db, race.id, courseXml);
   await importIofXml(db, race.id, entryXml);
   return { raceId: race.id, overview: await trustedRaceFixtureOverview(race.id) };

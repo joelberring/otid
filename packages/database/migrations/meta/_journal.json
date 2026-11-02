@@ -41,6 +41,8 @@
     { "idx": 36, "version": "7", "when": 1800806400000, "tag": "0038_resultat_per_avlasning_index", "breakpoints": true },
     { "idx": 37, "version": "7", "when": 1800892800000, "tag": "0039_brickbyte_utfall", "breakpoints": true },
     { "idx": 38, "version": "7", "when": 1800979200000, "tag": "0040_sakerhet_drift", "breakpoints": true },
-    { "idx": 39, "version": "7", "when": 1801065600000, "tag": "0041_aterstallning", "breakpoints": true }
+    { "idx": 39, "version": "7", "when": 1801065600000, "tag": "0041_aterstallning", "breakpoints": true },
+    { "idx": 40, "version": "7", "when": 1801152000000, "tag": "0042_aterstallning_inaktuella", "breakpoints": true },
+    { "idx": 41, "version": "7", "when": 1801238400000, "tag": "0043_behorighet_inbjudan", "breakpoints": true }
   ]
 }

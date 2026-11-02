@@ -1,4 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
+import { acceptRacePersonInvitations } from "./race-person-invitations";
 import { and, eq, isNull } from "drizzle-orm";
 import { emailVerificationRequestSchema, organizerAccountRegistrationRequestSchema } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
@@ -138,6 +139,8 @@ export async function verifyEmailAndLogIn(db: Database, request: unknown, option
       .where(eq(schema.userAccounts.id, account.id)).returning();
     await tx.update(schema.emailVerificationTokens).set({ usedAt: now })
       .where(and(eq(schema.emailVerificationTokens.accountId, account.id), isNull(schema.emailVerificationTokens.usedAt)));
+    // ADR-0188 beslut 6: behörigheter sparade för adressen gäller när den är bekräftad.
+    await acceptRacePersonInvitations(tx, account.id, now);
     return issueUserAccountSession(tx, verified!, version, now, options);
   });
 }

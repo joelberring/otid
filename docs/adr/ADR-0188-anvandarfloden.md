@@ -44,6 +44,6 @@ var en egen tävlingstyp och att formuläret för behörigheter avslöjade om en
 
 ## Konsekvenser
 
-- Migration 0042 (endast tillägg): väntande behörigheter per e-postadress.
+- Migration 0043 (endast tillägg): väntande behörigheter per e-postadress.
 - Lottningsspecarna öppnar förhandsvisningens klasser med "Visa alla löpare".
 - `FORKED` kan tas bort ur databasens tillåtna värden när inga rader har det (steg två).

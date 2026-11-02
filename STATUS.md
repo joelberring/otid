@@ -10,6 +10,17 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-02 – Användarflöden efter granskningen (grenen ux-flode, ADR-0188, migration 0043)
+- Lottning: "Gemensamt för klasserna" (startsätt, intervall, klassernas första start, vakanser) med Använd för alla/valda, kryssruta för alla, nya lottbara klasser ikryssade; förhandsvisningen en rad per klass med löparna bakom ett klick (10 klasser/300 löpare: 887 px i stället för ~25 000). Första start sätts i Lottning och sparas med lottningen; Inställningar visar den och länkar dit (typer utan lottning skriver den där som förut).
+- Datumet kan ändras efter lottningen: förhandsvisning, bekräftelse och flytt av fasta starttider, lottningar (ny lottningspost) och stafettstarter med samma klockslag i samma transaktion, journal per löpare; avläsning, radiostämpling, incheckning eller resultat stoppar.
+- 390 px: Banor och Klasser som kort; Playwright kontrollerar att ingen del av arbetsytan går utanför skärmen.
+- Klasser från banfil/Eventor får lottad start i Tävling (fri i Träning, Liten tävling, Rogaining, Fest); gafflad klass med löpare utan variant är "Inte klar".
+- Texter: Kartor till starten länkar till utskriften per löpare, inga interna ord, bricka i stället för pinne, rätt hänvisningar, datum ÅÅÅÅ-MM-DD i alla formulär (Ny träning, kartans avtal, festen, omläsningen).
+- Banläggningen: hela fliknamn på datorn, telefonens fyra flikar och resten under Mer; Kollad/Notis här bara i fältläget (Kollad i fliken Kollat annars); Sparat och Ångra en gång i mobilen.
+- "Tävling med gafflade banor" ingår i Tävling (FORKED alias för STANDARD; steg två: skriv om raderna och ta bort värdet). Personer med behörighet svarar likadant med och utan konto; behörigheten sparas för adressen (`race_person_invitation`) och tas vid inloggning, bekräftelse, Mina tävlingar eller första besöket på tävlingen.
+- Verifierat: lint, typecheck, test, test:integration (ny adr-0188-anvandarfloden), Playwright ux-flode (ny), lottning, lottning-avancerad, tavlingsinfo m.fl. lokalt; skärmbilder före/efter i 1280/390 px.
+- Ej gjort: rättelseverktygen (senare punkt); träningsgruppens medlemmar avslöjar fortfarande om en adress har konto (samma lösning kan användas där).
+
 ### 2026-11-02 – Arrangörens säkerhetskopia och återställning (grenen aterstallning, ADR-0187, migration 0041)
 - "Exportera tävlingen" (JSON v1, gick inte att läsa in och saknade bl.a. avprickningen, kortbaneöverflyttningen, begärandenas journaler och festen) är ersatt av "Ladda ner säkerhetskopia": zip med `manifest.json` (formatVersion 2, sha256 per fil), en JSON per tabell och binärdata (kartfil, bild, foton, GPX) som egna filer. Alla tävlingens tabeller utom fyra uttryckligen uteslutna (integrationstestet jämför med katalogen).
 - Aldrig med: konton, lösenord, sessioner, Eventor-nyckeln; kontonas id är slumpade referenser, behörigheter följer med som e-post (`personer.json`). Inställningar säger när kopian tas, att den har personuppgifter och när den senast laddades ner (`race.last_backup_at`, journalen utan namn).

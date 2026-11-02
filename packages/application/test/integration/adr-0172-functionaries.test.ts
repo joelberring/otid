@@ -24,7 +24,7 @@ import { getStartListPublicationPreviewAsAdmin } from "../../src/start-list-publ
 import { saveRaceSettingsAsAdmin } from "../../src/race-settings";
 import { getEntryStatusAsAdmin } from "../../src/entry-status";
 import { listCheckinHistoryAsAdmin } from "../../src/checkin-history";
-import { registerTestAccount, accountOnRace } from "./accounts";
+import { registerTestAccount, accountOnRace, grantIdOf } from "./accounts";
 
 /**
  * ADR-0172 beslut 3 / PLAN.md steg 18: rollen Funktionär. Admin lägger till ett befintligt konto med e-post;
@@ -116,17 +116,21 @@ async function setup() {
 describe("ADR-0172 funktionärer", () => {
   it("admin lägger till en funktionär med e-post; funktionären når bara avläsning, direktanmälan, kvar i skogen, start och speaker", async () => {
     const f = await setup();
-    // Bara befintliga konton; ingen inbjudan.
-    expect((await grant(f.ownerRace, "finns.inte@test.o-tid.se", "FUNCTIONARY")).status).toBe("not-found");
+    // ADR-0188 beslut 6: samma svar med och utan konto; behörigheten sparas för adressen.
+    const nobody = await grant(f.ownerRace, "finns.inte@test.o-tid.se", "FUNCTIONARY");
+    expect(nobody.status).toBe("granted");
     const granted = await grant(f.ownerRace, f.staff.email.toUpperCase(), "FUNCTIONARY");
-    if (granted.status !== "granted") throw new Error(`Funktionären lades inte till: ${granted.status}`);
-    expect(granted.response.person).toMatchObject({ email: f.staff.email, role: "FUNCTIONARY" });
+    if (granted.status !== "granted" || nobody.status !== "granted") throw new Error(`Funktionären lades inte till: ${granted.status}`);
+    expect(granted.response.invitation).toMatchObject({ email: f.staff.email, role: "FUNCTIONARY" });
+    expect(Object.keys(granted.response.invitation)).toEqual(Object.keys(nobody.response.invitation));
+    expect(JSON.stringify(granted.response)).not.toContain(f.staff.accountId);
     expect((await grant(f.ownerRace, f.staff.email, "ADMIN")).status).toBe("conflict");
 
-    // Listan: ägare och funktionär med roll per person.
+    // Listan: ägaren som person, de två adresserna väntar på inloggning.
     const people = await listRacePeopleAsAdmin(db, f.ownerRace);
-    expect(people.status === "ok" && people.response.people.map(person => [person.email, person.role])).toEqual([
-      [f.owner.email, "OWNER"], [f.staff.email, "FUNCTIONARY"]]);
+    expect(people.status === "ok" && people.response.people.map(person => [person.email, person.role])).toEqual([[f.owner.email, "OWNER"]]);
+    expect(people.status === "ok" && people.response.invitations.map(row => [row.email, row.role])).toEqual([
+      ["finns.inte@test.o-tid.se", "FUNCTIONARY"], [f.staff.email, "FUNCTIONARY"]]);
     expect(people.status === "ok" && people.response.viewer.role).toBe("OWNER");
 
     // Mina tävlingar visar tävlingen med rollen Funktionär; kontot går in som funktionär.
@@ -222,7 +226,7 @@ describe("ADR-0172 funktionärer", () => {
     expect((await readReadoutPackageAsAdmin(db, device1)).status).toBe("ok");
 
     // Borttagen funktionär: öppna sessioner slutar gälla direkt och kontot kommer inte in igen.
-    expect((await revoke(f.ownerRace, granted.response.person.grantId)).status).toBe("revoked");
+    expect((await revoke(f.ownerRace, await grantIdOf(db, granted))).status).toBe("revoked");
     expect((await listAdministratorForestWatch(db, device1)).status).toBe("unauthorized");
     expect((await ingestReadoutsAsAdmin(db, { ...device1, batch: batch(now, "7201", [[31, 1]], 2) })).status).toBe("unauthorized");
     expect((await accountOnRace(db, { ...f.staff.proof, raceId: f.raceId })).status).toBe("unauthorized");
@@ -254,10 +258,10 @@ describe("ADR-0172 funktionärer", () => {
     expect(owner.response.viewer.role).toBe("ADMIN");
     const ownerGrant = owner.response.people.find(person => person.role === "OWNER")!;
     expect((await revoke(coadminRace, ownerGrant.grantId)).status).toBe("forbidden");
-    expect((await revoke(coadminRace, coadmin.response.person.grantId)).status).toBe("forbidden");
-    expect((await revoke(coadminRace, functionary.response.person.grantId)).status).toBe("revoked");
+    expect((await revoke(coadminRace, await grantIdOf(db, coadmin))).status).toBe("forbidden");
+    expect((await revoke(coadminRace, await grantIdOf(db, functionary))).status).toBe("revoked");
     // Ägaren tar bort medadministratören; dess session slutar gälla.
-    expect((await revoke(f.ownerRace, coadmin.response.person.grantId)).status).toBe("revoked");
+    expect((await revoke(f.ownerRace, await grantIdOf(db, coadmin))).status).toBe("revoked");
     expect((await listAdministratorForestWatch(db, coadminRace)).status).toBe("unauthorized");
     // Samma person kan läggas till igen, nu som funktionär.
     expect((await grant(f.ownerRace, f.coadmin.email, "FUNCTIONARY")).status).toBe("granted");

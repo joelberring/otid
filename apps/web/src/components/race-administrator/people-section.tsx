@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { racePeopleResponseSchema, racePersonGrantResponseSchema, racePersonRevokeResponseSchema,
-  type RacePeopleResponse, type RacePerson, type RacePersonGrantRequest } from "@o-tid/contracts";
+  type RacePeopleResponse, type RacePerson, type RacePersonGrantRequest, type RacePersonInvitation } from "@o-tid/contracts";
 import { raceTypeSv } from "../../i18n/race-type-sv";
 import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
 import { readAccountCsrfCookie } from "../../lib/organizer-account-cookies";
@@ -16,8 +16,9 @@ type Message = { tone: "ok" | "error"; text: string };
 
 /**
  * Inställningar → Personer med behörighet (ADR-0172 beslut 3): ägaren, administratörer och funktionärer i en lista.
- * En administratör lägger till ett befintligt konto med e-post som funktionär; ägaren kan också lägga till och ta bort
- * administratörer. Servern kontrollerar allt; vyn visar bara det som den inloggade får göra.
+ * En administratör lägger till en e-postadress som funktionär; ägaren kan också lägga till och ta bort administratörer.
+ * ADR-0188 beslut 6: svaret är detsamma oavsett om adressen har ett konto; behörigheten väntar i listan tills personen
+ * loggar in med adressen. Servern kontrollerar allt; vyn visar bara det som den inloggade får göra.
  */
 export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: string; disabled: boolean;
   onPendingChange: (pending: boolean) => void }) {
@@ -51,7 +52,7 @@ export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: s
   }
 
   function failure(status: number): string {
-    return status === 404 ? text.noAccount : status === 409 ? text.already : status === 403 ? text.ownerOnly
+    return status === 409 ? text.already : status === 403 ? text.ownerOnly
       : status === 401 ? text.sessionExpired : text.failed;
   }
 
@@ -67,13 +68,13 @@ export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: s
       if (result.status !== 200) { setMessage({ tone: "error", text: failure(result.status) }); return; }
       const receipt = racePersonGrantResponseSchema.parse(result.value);
       setEmail(""); setRole("FUNCTIONARY");
-      setMessage({ tone: "ok", text: text.added(receipt.person.displayName, text.roles[receipt.person.role]) });
+      setMessage({ tone: "ok", text: text.invited(receipt.invitation.email, text.roles[receipt.invitation.role]) });
       await load();
     } catch { setMessage({ tone: "error", text: text.failed }); }
     finally { setBusy(false); onPendingChange(false); }
   }
 
-  async function remove(person: RacePerson) {
+  async function remove(person: Pick<RacePerson, "grantId" | "displayName">) {
     if (busy || !window.confirm(text.confirmRemove(person.displayName))) return;
     const requestId = crypto.randomUUID();
     setBusy(true); onPendingChange(true); setMessage(undefined);
@@ -91,6 +92,7 @@ export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: s
   // Steg 66: banläggningens behörigheter tas bort av alla administratörer, som funktionärer.
   const removable = (person: RacePerson) => person.accountId !== data?.viewer.accountId &&
     (person.role === "FUNCTIONARY" || person.role.startsWith("COURSE_") || (person.role === "ADMIN" && owner));
+  const invitationRemovable = (invitation: RacePersonInvitation) => invitation.role !== "ADMIN" || owner;
   const locked = busy || disabled;
   return <Section id={`settings-${raceId}-people`} title={text.title} help={text.help}>
     {!data && !loadFailed && <p className={styles.muted} role="status">{text.loading}</p>}
@@ -107,6 +109,16 @@ export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: s
         <span className={styles.action}>{removable(person) &&
           <Button variant="secondary" disabled={locked} aria-label={text.removeLabel(person.displayName)}
             onClick={() => void remove(person)}>{text.remove}</Button>}</span>
+      </li>)}
+      {data.invitations.map(invitation => <li key={invitation.invitationId} data-testid="person-invitation">
+        <span className={styles.who}>
+          <strong>{invitation.email}</strong>
+          <span className={styles.muted}>{text.waitingForLogin}</span>
+        </span>
+        <span className={styles.role} data-role={invitation.role}>{text.roles[invitation.role]}</span>
+        <span className={styles.action}>{invitationRemovable(invitation) &&
+          <Button variant="secondary" disabled={locked} aria-label={text.removeLabel(invitation.email)}
+            onClick={() => void remove({ grantId: invitation.invitationId, displayName: invitation.email })}>{text.remove}</Button>}</span>
       </li>)}
     </ul>}
     {message && <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>{message.text}</Notice>}

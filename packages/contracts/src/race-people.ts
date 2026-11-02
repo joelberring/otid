@@ -4,7 +4,7 @@ import { UUID_SOURCE as canonicalUuidPattern } from "./ids";
 
 /**
  * Personer med behörighet på tävlingen (ADR-0172 beslut 3): ägaren, administratörer och funktionärer.
- * Administratören lägger till ett befintligt konto med dess e-postadress; inga inbjudningar eller koder.
+ * ADR-0188 beslut 6: administratören lägger till en e-postadress; behörigheten gäller när personen loggar in med den.
  */
 const canonicalUuidSchema = z.string().regex(new RegExp(`^${canonicalUuidPattern}$`));
 const instantSchema = z.iso.datetime({ offset: true });
@@ -29,12 +29,25 @@ export const racePersonSchema = z.object({
   pendingVerification: z.boolean().optional()
 }).strict();
 
+/**
+ * ADR-0188 beslut 6: en behörighet sparad för en e-postadress. Den gäller när personen loggar in med adressen (och har
+ * bekräftat den); svaret är detsamma oavsett om adressen har ett konto.
+ */
+export const racePersonInvitationSchema = z.object({
+  invitationId: canonicalUuidSchema,
+  email: storedAccountEmailSchema,
+  role: racePersonGrantableRoleSchema,
+  invitedAt: instantSchema
+}).strict();
+
 export const racePeopleResponseSchema = z.object({
   formatVersion: z.literal(1),
   raceId: canonicalUuidSchema,
   /** Den inloggade: bara ägaren får lägga till och ta bort administratörer. */
   viewer: z.object({ accountId: canonicalUuidSchema, role: z.enum(["OWNER", "ADMIN"]) }).strict(),
-  people: z.array(racePersonSchema).max(10_000)
+  people: z.array(racePersonSchema).max(10_000),
+  /** ADR-0188 beslut 6: sparade behörigheter som väntar på att personen loggar in med adressen. */
+  invitations: z.array(racePersonInvitationSchema).max(1_000)
 }).strict();
 
 export const racePersonGrantIdempotencyKeySchema = z.string().regex(
@@ -57,7 +70,8 @@ export const racePersonGrantResponseSchema = z.object({
   formatVersion: z.literal(1),
   replayed: z.boolean(),
   requestId: canonicalUuidSchema,
-  person: racePersonSchema
+  /** ADR-0188 beslut 6: alltid en sparad behörighet för adressen, aldrig kontots namn. */
+  invitation: racePersonInvitationSchema
 }).strict();
 
 export const racePersonRevokeRequestSchema = z.object({
@@ -81,3 +95,4 @@ export type RacePersonGrantRequest = z.infer<typeof racePersonGrantRequestSchema
 export type RacePersonGrantResponse = z.infer<typeof racePersonGrantResponseSchema>;
 export type RacePersonRevokeRequest = z.infer<typeof racePersonRevokeRequestSchema>;
 export type RacePersonRevokeResponse = z.infer<typeof racePersonRevokeResponseSchema>;
+export type RacePersonInvitation = z.infer<typeof racePersonInvitationSchema>;

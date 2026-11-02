@@ -1,4 +1,5 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
+import { acceptRacePersonInvitations } from "./race-person-invitations";
 import { sql } from "drizzle-orm";
 import {
   organizerEventCreateIdempotencyKeySchema,
@@ -119,6 +120,8 @@ export async function listMyEvents(
   return db.transaction(async (tx) => {
     const auth = await authenticateUserAccountSessionForProtectedRead(tx, proof, validDate(now));
     if (auth.status !== "authenticated") return auth;
+    // ADR-0188 beslut 6: behörigheter sparade för kontots adress gäller från nu.
+    await acceptRacePersonInvitations(tx, auth.principal.accountId, validDate(now));
     const grants = await tx.select({ id: schema.eventAdministrationGrants.id,
       eventId: schema.eventAdministrationGrants.eventId,
       role: schema.eventAdministrationGrants.role })

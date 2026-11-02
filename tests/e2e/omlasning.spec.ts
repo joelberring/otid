@@ -7,7 +7,7 @@ import { addCourseAndClass, addEntry, createRace, daysFromToday, openStep, regis
 /**
  * PLAN.md steg 36: läs om avläsningar från rådata. Som på natt-KM 2026-10-20 sparade avläsningen fel stämplingar (brickans
  * inställningar) men riktiga råramar. Deltagarkortet erbjuder "Läs om"; omläsningen ger kvällens 14 stämplingar och
- * godkänd 53:23, och Avläsning → Läs om avläsningar från rådata hittar sedan inget mer.
+ * godkänd 53:23, och Avläsning → Mer → Läs om avläsningar från rådata hittar sedan inget mer.
  */
 const CARD = 8_001_234;
 const toHex = (bytes: Uint8Array) => Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
@@ -74,6 +74,8 @@ test("läs om en felaktig avläsning från rådata i deltagarkortet och under Av
 
   // Hela tävlingen: inget mer att läsa om.
   await openStep(owner, "Avläsning");
+  // ADR-0191 beslut 1: verktygen för hela tävlingen ligger under Mer.
+  await owner.getByText("Mer: verktyg för hela tävlingen", { exact: true }).click();
   const panel = owner.getByRole("region", { name: "Läs om avläsningar från rådata" });
   await panel.getByRole("button", { name: "Visa vad som händer" }).click();
   const all = panel.getByRole("alert", { name: "Läs om avläsningar från rådata" });

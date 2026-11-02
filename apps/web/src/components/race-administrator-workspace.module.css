@@ -186,6 +186,15 @@
 .participantSequence span { color: var(--muted); font-size: var(--text-xs); text-align: center; }
 .resultSummary { display: grid; gap: 3px; min-width: 0; padding-top: 10px; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
 .resultSummary strong { font-size: var(--text-md); }
+/* ADR-0191 beslut 1: deltagarkortets Rätta – alla rättelser för löparen, grupperade, med Mer för de sällsynta. */
+.fixPanel { padding-top: 12px; border-top: 2px solid var(--ink); scroll-margin-top: var(--sticky-top, 72px); }
+.fixPanel:focus { outline: none; }
+.fixPanel:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+.fixPanel > h3 { font-size: var(--text-lg); }
+.fixGroup { display: grid; gap: 8px; min-width: 0; padding-top: 8px; border-top: 1px solid var(--line); }
+.fixGroup > h4 { font-size: var(--text-sm); font-weight: 600; }
+.fixShortcut { display: grid; gap: 8px; min-width: 0; max-width: 70ch; padding: 12px 0; }
+.fixShortcut .toolbarRow { align-items: end; }
 .resultStale { color: var(--attention); font-weight: 600; }
 .changeHistory { display: grid; gap: 4px; min-width: 0; }
 .changeHistory details { border-top: 1px solid var(--line); overflow-wrap: anywhere; }

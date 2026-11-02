@@ -19,7 +19,7 @@ import { Button, Notice } from "../ui";
  */
 export function ReadoutControlView({ ws }: { ws: Workspace }) {
   const { authenticated, busy, data, disabled, forestData, forestStale, functionary, loadRaceDayAttention, operation, pending, profile, raceId,
-    select, shows, workflowLocked } = ws;
+    openCorrection, shows, workflowLocked } = ws;
   // PLAN.md steg 24: läget läses in av sig självt när steget visas (en gång; sedan finns Uppdatera).
   const attempted = useRef(false);
   const visible = shows("READOUT");
@@ -60,7 +60,7 @@ export function ReadoutControlView({ ws }: { ws: Workspace }) {
                   row.cardNumber ? `${text.rosterCard} ${row.cardNumber}` : text.rosterNoActiveCard].join(" · ")}</span></span>
               {/* Steg 35: deltagarkortet direkt ur kvar i skogen (t.ex. "Deltog utan tid" för den som sprang utan bricka). */}
               {!functionary && <Button variant="secondary" disabled={disabled} aria-label={text.controlOpenFor(row.displayName)}
-                onClick={() => select(row.entryId)}>{text.controlOpen}</Button>}
+                onClick={() => openCorrection(row.entryId)}>{text.controlOpen}</Button>}
             </li>)}
           </ul>}
         </>}
@@ -80,7 +80,7 @@ export function ReadoutControlView({ ws }: { ws: Workspace }) {
 
 /** Felstämplade att titta på, med "Öppna" till deltagarkortet. Visas i kontrollvyn och under Resultat. */
 export function MispunchedList({ ws }: { ws: Workspace }) {
-  const { classNames, data, disabled, functionary, raceId, select } = ws;
+  const { classNames, data, disabled, functionary, raceId, openCorrection } = ws;
   const rows = data ? mispunchedEntries(data) : [];
   return <>
     <h3 id={`control-mp-${raceId}`}>{text.controlMispunched}{" "}<strong className={styles.controlCount}>{rows.length}</strong></h3>
@@ -90,7 +90,7 @@ export function MispunchedList({ ws }: { ws: Workspace }) {
           <span>{[entry.organisationName ?? text.none, classNames.get(entry.classId)].join(" · ")}</span></span>
         {/* Deltagarkortet är administratörens; funktionären ser bara listan (ADR-0172 beslut 3). */}
         {!functionary && <Button variant="secondary" disabled={disabled} aria-label={text.controlOpenFor(entry.displayName)}
-          onClick={() => select(entry.id)}>{text.controlOpen}</Button>}
+          onClick={() => openCorrection(entry.id)}>{text.controlOpen}</Button>}
       </li>)}
     </ul>}
   </>;

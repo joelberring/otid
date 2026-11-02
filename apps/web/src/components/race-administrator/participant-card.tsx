@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import type { AdministratorEffectiveResultResponse } from "@o-tid/contracts";
 import styles from "../race-administrator-workspace.module.css";
 import { raceAdministratorSv as adminText } from "../../i18n/race-administrator-sv";
@@ -9,7 +8,6 @@ import { participantCardSv as text } from "../../i18n/participant-card-sv";
 import { courseVariantsSv as variantText } from "../../i18n/course-variants-sv";
 import { sv } from "../../i18n/sv";
 import { formatClockTime } from "../../lib/clock-time";
-import { availableStatusChoices, isStatusChoice } from "../../lib/participant-status-choices";
 import { RaceParticipantFacts } from "../race-participant-facts";
 import { RaceResultControls } from "../race-result-controls";
 import { AdministratorEntryChanges } from "../administrator-entry-changes";
@@ -19,17 +17,15 @@ import { EntryActionForms, RegistrationForm } from "./entry-action-forms";
 import { CardPunches } from "./card-punches";
 import { ParticipantControlMap } from "../control-map/runner-control-map";
 import { RemovalReview } from "./removal-review";
-import { ManualResult } from "./manual-result";
 import { DecisionReviewNotice } from "./decision-review";
-import { ParticipantReadoutReread } from "../readout-reread";
+import { ParticipantFix } from "./participant-fix";
 import { removalSv as removalText } from "../../i18n/removal-sv";
 import { Button } from "../ui";
-import type { StatusAttempt } from "./result-decisions";
 import type { Workspace } from "./workspace-state";
 
 /**
  * Deltagarkortet (ADR-0169 beslut 4): allt om en löpare på ett ställe – namn, klubb,
- * klass, bricka, starttid, resultat med sträcktider, historik och "Ändra status".
+ * klass, bricka, starttid, resultat med sträcktider, Rätta (ADR-0191) och historik.
  */
 export function ParticipantCard({ ws }: { ws: Workspace }) {
   const { action, cardAttempt, classesById, data, disabled, effectiveResult, effectiveResultError, filtered,
@@ -63,7 +59,6 @@ export function ParticipantCard({ ws }: { ws: Workspace }) {
     {!selected && action !== "REGISTRATION" && <p>{navigationText.selectedHelp}</p>}
     <EntryActionForms ws={ws} />
     {selected && action !== "REGISTRATION" && !entryEditing && <>
-      {selectedClass && selectedClass.courseVariants.length > 0 && <ParticipantVariant ws={ws} />}
       <CardResult ws={ws} result={result} error={effectiveResultError} />
       {/* Steg 45: ett beslut gäller men en senare avläsning ger något annat. */}
       {selected.decisionReview && !ws.functionary && <DecisionReviewNotice ws={ws} review={selected.decisionReview} />}
@@ -72,55 +67,14 @@ export function ParticipantCard({ ws }: { ws: Workspace }) {
       {/* Steg 52: löparens bana på kartan med stämplade, saknade och i fel ordning. */}
       {!ws.functionary && <ParticipantControlMap key={`map-${selected.id}`} raceId={raceId} entryId={selected.id}
         refreshKey={result ? `${result.history[0]?.revision ?? 0}:${result.snapshotVersion}` : ""} />}
-      {/* PLAN.md steg 36: avläsningen blir annorlunda om den läses om från rådata (bara administratören). */}
-      {/* Står kvar medan kortet läses in på nytt, så att beskedet efter sparandet syns. */}
-      {!ws.functionary && <ParticipantReadoutReread key={`reread-${selected.id}`} raceId={raceId} entryId={selected.id} disabled={disabled}
-        active={!!result?.cardPunches} refreshKey={result ? `${result.history[0]?.revision ?? 0}:${result.snapshotVersion}` : ""}
-        onChanged={ws.reloadQuietly} />}
-      <ManualResult key={selected.id} ws={ws} result={result} />
-      <StatusChange ws={ws} result={result} />
+      {/* ADR-0191 beslut 1: alla rättelser för löparen på ett ställe. */}
+      <ParticipantFix ws={ws} result={result} />
       {data && <RaceResultControls result={result} resultError={effectiveResultError} timeZone={data.timeZone} />}
       {result && data && <ResultHistory result={result} timeZone={data.timeZone} />}
       <EntryChanges ws={ws} />
       <EntryRemoval ws={ws} result={result} />
     </>}
     <RegistrationForm ws={ws} />
-  </section>;
-}
-
-/**
- * Gafflad klass: löparens variant och "Byt variant". Bytet sparas direkt om resultatet inte
- * ändras; annars visas beskedet och arrangören bekräftar (ADR-0169 beslut 2).
- */
-function ParticipantVariant({ ws }: { ws: Workspace }) {
-  const { busy, cancelEntryVariant, chooseEntryVariant, confirmEntryVariant, disabled, entryVariantError, entryVariantMessage,
-    entryVariantPreview, raceId, selected, selectedClass } = ws;
-  if (!selected || !selectedClass) return null;
-  const id = `entry-variant-${raceId}`;
-  const current = selected.courseVariantCode !== null && selectedClass.courseVariants.includes(selected.courseVariantCode)
-    ? selected.courseVariantCode : null;
-  return <section className={styles.workspace} aria-label={variantText.variant}>
-    <h3>{current ? variantText.variantShort(current) : variantText.variant}</h3>
-    {current === null && <p><strong>{variantText.noVariant}</strong></p>}
-    <label htmlFor={id}>{variantText.chooseVariant}</label>
-    <select id={id} value={current ?? ""} disabled={disabled}
-      onChange={event => void chooseEntryVariant(event.target.value)}>
-      {current === null && <option value="">–</option>}
-      {selectedClass.courseVariants.map(code => <option key={code} value={code}>{code}</option>)}
-    </select>
-    {entryVariantMessage && <p role="status" className={styles.saved}>{entryVariantMessage}</p>}
-    {entryVariantError && <p role="alert" className={styles.warning}>{entryVariantError}</p>}
-    {entryVariantPreview && <div className={styles.review} role="alert">
-      <p><strong>{variantText.variantConfirmTitle}</strong></p>
-      <ul className={styles.changeList}>{entryVariantPreview.changes.map(change => <li key={change.entryId}>
-        {variantText.variantResultChange(change.displayName, adminText.courseEditStatus[change.before], adminText.courseEditStatus[change.after])}
-      </li>)}</ul>
-      <div className={styles.actions}>
-        <button type="button" disabled={busy} onClick={() => void confirmEntryVariant()}>
-          {variantText.variantConfirm} {entryVariantPreview.variantCode}</button>
-        <button type="button" className="secondary" disabled={busy} onClick={cancelEntryVariant}>{variantText.variantCancel}</button>
-      </div>
-    </div>}
   </section>;
 }
 
@@ -163,55 +117,6 @@ function CardResult({ ws, result, error }: { ws: Workspace; result: Administrato
               {text.choices.RECALCULATION}</button>
           </>}
         </>}
-  </section>;
-}
-
-function consequence(attempt: StatusAttempt): string {
-  if (attempt.kind === "RECALCULATION") return text.consequences.RECALCULATION;
-  switch (attempt.choice) {
-    case "APPROVAL_WITHDRAWAL": case "DSQ_WITHDRAWAL": case "NT_WITHDRAWAL": case "OOC_WITHDRAWAL": case "DNF_WITHDRAWAL":
-    case "MANUAL_TIME_WITHDRAWAL": case "CONTROL_APPROVAL_WITHDRAWAL":
-      return attempt.restores ? text.withdrawalConsequence(sv.publicResultsStatusLabels[attempt.restores.status])
-        : text.noDecisionWithdrawalConsequence;
-    case "DNS_WITHDRAWAL": return text.dnsWithdrawalConsequence;
-    default: return text.consequences[attempt.choice];
-  }
-}
-
-/** "Ändra status": ett val, ett besked i en mening och en bekräftelse. */
-function StatusChange({ ws, result }: { ws: Workspace; result: AdministratorEffectiveResultResponse | undefined }) {
-  const { busy, cancelStatusChange, chooseStatusChange, confirmStatusChange, decisionAttempt, disabled, raceId,
-    recalculationAttempt, statusBlocked, statusChoice, unknown } = ws;
-  const attempt: StatusAttempt | undefined = decisionAttempt ?? recalculationAttempt;
-  const choices = availableStatusChoices(result);
-  const id = `status-change-${raceId}`;
-  const [reason, setReason] = useState("");
-  const asksReason = attempt?.kind === "DECISION" && (attempt.choice === "DSQ" || attempt.choice === "APPROVAL" ||
-    attempt.choice === "CONFIRM_MP");
-  const reasonLabel = attempt?.kind === "DECISION" && attempt.choice === "APPROVAL" ? text.approvalReason
-    : attempt?.kind === "DECISION" && attempt.choice === "CONFIRM_MP" ? text.confirmMpReason : text.dsqReason;
-  return <section className={styles.workspace}>
-    <label htmlFor={id}>{text.changeStatus}</label>
-    <select id={id} value={statusChoice} disabled={disabled || choices.length === 0}
-      onChange={event => void chooseStatusChange(isStatusChoice(event.target.value) ? event.target.value : "")}>
-      <option value="">{text.chooseStatus}</option>
-      {choices.map(choice => <option key={choice} value={choice}>{text.choices[choice]}</option>)}
-    </select>
-    {statusBlocked && <p className={styles.warning} role="status">{statusBlocked}</p>}
-    {attempt && <div className={styles.review} role="alert">
-      <p><strong>{consequence(attempt)}</strong></p>
-      {/* Disk med orsak (PLAN.md steg 25): orsaken visas bara i arbetsytan, aldrig publikt. */}
-      {asksReason && <label className={styles.narrowField} htmlFor={`${id}-reason`}>{reasonLabel}
-        <input id={`${id}-reason`} value={reason} maxLength={240} disabled={busy || unknown} autoComplete="off"
-          onChange={event => setReason(event.target.value)} /></label>}
-      {unknown && <p>{text.unknown}</p>}
-      <div className={styles.actions}>
-        <button type="button" disabled={busy} onClick={() => {
-          void confirmStatusChange(attempt, reason).then(() => { if (!ws.pending.current) setReason(""); }); }}>
-          {unknown ? text.retry : text.confirm}</button>
-        {!unknown && <button type="button" className="secondary" disabled={busy} onClick={() => cancelStatusChange(attempt)}>{text.cancel}</button>}
-      </div>
-    </div>}
   </section>;
 }
 

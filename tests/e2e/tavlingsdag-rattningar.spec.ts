@@ -4,7 +4,7 @@ import { addCourseAndClass, addEntry, createRace, daysFromToday, ongoingRaceTime
 
 /**
  * PLAN.md steg 31 (del A): rättningar för hela tävlingen. Målklockan gick en timme fel, så Ada får mål före start och
- * blir felstämplad. Under Avläsning → Rättningar för hela tävlingen justeras målets tid för alla: förhandsbeskedet visar
+ * blir felstämplad. Under Avläsning → Mer → Rättningar för hela tävlingen justeras målets tid för alla: förhandsbeskedet visar
  * att Ada blir godkänd, sparandet räknar om, deltagarkortet visar att tiden är justerad, och "Ta bort" räknar om tillbaka.
  */
 const TIME_ZONE = ongoingRaceTimeZone();
@@ -45,6 +45,8 @@ test("justera tid för en station räknar om alla och kan tas bort", async ({ br
   }
   await owner.reload();
   await openStep(owner, "Avläsning");
+  // ADR-0191 beslut 1: verktygen för hela tävlingen ligger under Mer.
+  await owner.getByText("Mer: verktyg för hela tävlingen", { exact: true }).click();
   const panel = owner.getByRole("region", { name: "Rättningar för hela tävlingen" });
   await expect(panel.getByText("Inga rättningar.")).toBeVisible();
   // Steg 45: avläsningar vars tider inte gick att tolka listas under Avläsning.

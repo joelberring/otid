@@ -21,7 +21,7 @@ function when(instant: string, timeZone: string) {
  */
 export function ResultsOfficialSection({ ws }: { ws: Workspace }) {
   const { authenticated, busy, data, disabled, downloadOfficialResults, functionary, loadResultsOfficial, markResults, operation, pending,
-    raceId, resultsOfficial, resultsOfficialBlocked, resultsOfficialMessage, resultsOfficialRequest, select, shows } = ws;
+    raceId, resultsOfficial, resultsOfficialBlocked, resultsOfficialMessage, resultsOfficialRequest, openCorrection, shows } = ws;
   const visible = shows("RESULTS");
   // Läses när Resultat visas och på nytt när arbetsytans lista läses om (ett beslut kan göra resultaten inaktuella),
   // men först när inget annat anrop pågår.
@@ -58,7 +58,7 @@ export function ResultsOfficialSection({ ws }: { ws: Workspace }) {
               ...entries.map(issue => <li key={`${issue.entryId}-${issue.code}`} className={styles.issueRow}>
                 <span>{text.entryIssue(row.className, issue.displayName, text.entryIssues[issue.code]!)}</span>
                 {!functionary && <Button variant="secondary" disabled={disabled} aria-label={text.openEntryFor(issue.displayName)}
-                  onClick={() => select(issue.entryId)}>{text.openEntry}</Button>}
+                  onClick={() => openCorrection(issue.entryId)}>{text.openEntry}</Button>}
               </li>)
             ];
           })}

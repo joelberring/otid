@@ -10,10 +10,12 @@ import styles from "./race-administrator-workspace.module.css";
 
 /**
  * Ändrad mål- eller starttid och borttagning av ändringen (ADR-0173 beslut 1). Alla fyra går genom löparens
- * statusflöde: läget läses, arbetsytan visar vad som ändras och arrangören bekräftar.
+ * statusflöde: läget läses, arbetsytan visar vad som ändras och arrangören bekräftar. ADR-0191 beslut 1: verktygen gäller
+ * den löpare som deltagarkortet visar (Rätta → Mer); Avläsning har ingen egen variant med löparval längre.
  */
-type Entry = { id: string; displayName: string };
-type Props = { raceId: string; entries: readonly Entry[]; timeZone: string; onPendingChange?: (pending: boolean) => void };
+type Props = { raceId: string; entryId: string; timeZone: string; onPendingChange?: (pending: boolean) => void;
+  /** Efter en sparad ändring: deltagarkortet läser in resultatet på nytt. */
+  onSaved?: () => Promise<void> | void };
 type Timing = NonNullable<EntryStatusResponse["timing"]>;
 type Candidate = { status: EntryStatusResponse; timing: Timing };
 type Attempt = { candidate: Candidate; request: EntryStatusRequest; time: string };
@@ -31,9 +33,10 @@ function inputInstant(reference: string, clock: string, timeZone: string): strin
   return parseRaceClockNear(zonedDate(reference, timeZone), clock, timeZone, reference);
 }
 
-/** Gemensamt för alla fyra: vald löpare, läsning, försök, kvitto och att arbetsytan vet att något pågår. */
+/** Gemensamt för alla fyra: läsning, försök, kvitto och att arbetsytan vet att något pågår. */
 function useCorrection(props: Props) {
-  const [entryId, setEntryId] = useState(""), [candidate, setCandidate] = useState<Candidate>();
+  const { entryId } = props;
+  const [candidate, setCandidate] = useState<Candidate>();
   const [acknowledged, setAcknowledged] = useState(false), [attempt, setAttempt] = useState<Attempt>();
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [saved, setSaved] = useState("");
   const [outcomeUncertain, setOutcomeUncertain] = useState(false), [isOpen, setIsOpen] = useState(false);
@@ -60,20 +63,17 @@ function useCorrection(props: Props) {
       const result = await postEntryStatus(props.raceId, attempt.candidate.status.entryId, attempt.request);
       setOutcomeUncertain(false);
       clear(); onDone();
-      if (result.status === "conflict") setError(conflictText); else setSaved(savedText);
+      if (result.status === "conflict") setError(conflictText);
+      else { await props.onSaved?.(); setSaved(savedText); }
     } catch { setError(text.unreachable); } finally { setBusy(false); }
   }
   const disclosure = (event: SyntheticEvent<HTMLDetailsElement>) => {
     if (pending && !event.currentTarget.open) event.currentTarget.open = true;
     else if (!pending) setIsOpen(event.currentTarget.open);
   };
-  const participant = <label>{text.finishTimeCorrectionParticipant}<select value={entryId} disabled={busy || !!attempt}
-    onChange={(event) => { setEntryId(event.target.value); clear(); setError(""); setSaved(""); }}>
-    <option value="">{text.chooseEntry}</option>{props.entries.map((entry) => <option key={entry.id} value={entry.id}>{entry.displayName}</option>)}
-  </select></label>;
   const messages = <>{error && <p className={styles.warning} role="alert">{error}</p>}{saved && <p role="status">{saved}</p>}</>;
   return { entryId, candidate, setCandidate, acknowledged, setAcknowledged, attempt, setAttempt, busy, error, setError, saved,
-    setSaved, outcomeUncertain, open: isOpen || pending, disclosure, clear, load, commit, participant, messages };
+    setSaved, outcomeUncertain, open: isOpen || pending, disclosure, clear, load, commit, messages };
 }
 
 export function ManualFinishTimeCorrection(props: Props) {
@@ -99,7 +99,6 @@ export function ManualFinishTimeCorrection(props: Props) {
     <summary>{text.finishTimeCorrectionTitle}</summary>
     <form className={styles.disclosureBody} onSubmit={inspect}>
       <p>{text.finishTimeCorrectionHelp}</p>
-      {c.participant}
       {!candidate && !attempt && <button type="button" disabled={!c.entryId || c.busy} onClick={() => {
         setFinishLocal("");
         void c.load((status) => status.readiness.FINISH_TIME === "READY" ? status.timing : null, text.finishTimeCorrectionLoadError);
@@ -157,7 +156,7 @@ export function ManualPunchStartTimeCorrection(props: Props) {
   const firstControl = source?.splits[0];
   return <details className={styles.disclosure} open={c.open} onToggle={c.disclosure}>
     <summary>{text.punchStartTimeCorrectionTitle}</summary><form className={styles.disclosureBody} onSubmit={inspect}>
-      <p>{text.punchStartTimeCorrectionHelp}</p>{c.participant}
+      <p>{text.punchStartTimeCorrectionHelp}</p>
       {!candidate && !attempt && <button type="button" disabled={!c.entryId || c.busy} onClick={() => {
         setStartLocal("");
         void c.load((status) => status.readiness.START_TIME === "READY" ? status.timing : null, text.punchStartTimeCorrectionLoadError);
@@ -198,7 +197,7 @@ function ManualTimeCorrectionWithdrawal({ field, labels, ...props }: Props & { f
   }
   return <details className={styles.disclosure} open={c.open} onToggle={c.disclosure}><summary>{labels.title}</summary>
     <section className={styles.disclosureBody}>
-      <p>{labels.help}</p>{c.participant}
+      <p>{labels.help}</p>
       {!candidate && !attempt && <button type="button" disabled={!c.entryId || c.busy} onClick={() => void c.load((status) =>
         status.governingDecision === governing && status.readiness.WITHDRAW === "READY" && status.withdrawTiming ? status.timing : null,
         labels.loadError)}>{labels.load}</button>}

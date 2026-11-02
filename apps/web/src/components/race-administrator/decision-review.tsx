@@ -21,7 +21,7 @@ export function DecisionReviewNotice({ ws, review }: { ws: Workspace; review: De
 
 /** Steg 45: Resultat → Efterarbete → "Beslut att se över". */
 export function DecisionReviewList({ ws }: { ws: Workspace }) {
-  const { classNames, data, disabled, select } = ws;
+  const { classNames, data, disabled, openCorrection } = ws;
   const rows = (data?.entries ?? []).filter((entry) => entry.decisionReview);
   return <div data-testid="decision-review-list">
     <p className={styles.workflowHelp}>{text.listHelp}</p>
@@ -30,7 +30,7 @@ export function DecisionReviewList({ ws }: { ws: Workspace }) {
         <span><strong>{entry.displayName}</strong>
           <span>{[entry.organisationName ?? adminText.none, classNames.get(entry.classId)].join(" · ")} · {decisionReviewText(entry.decisionReview!)}</span></span>
         <Button variant="secondary" disabled={disabled} aria-label={`${text.open} ${entry.displayName}`}
-          onClick={() => select(entry.id)}>{text.open}</Button>
+          onClick={() => openCorrection(entry.id)}>{text.open}</Button>
       </li>)}
     </ul>}
   </div>;

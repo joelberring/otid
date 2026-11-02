@@ -2,7 +2,7 @@ import { useState } from "react";
 import { flushSync } from "react-dom";
 import { filterAdministratorRoster, missingFixedStartTime, orderAdministratorRoster,
   type AdministratorRosterOrder, type AdministratorRosterResultFilter } from "../../lib/administrator-roster-filter";
-import type { Action } from "./types";
+import { participantFixId, type Action } from "./types";
 import type { Base, WorkspaceState } from "./workspace-state";
 import { deriveSections, type MobileNavigation } from "./navigation";
 import type { RaceDataActions } from "./race-data";
@@ -92,6 +92,9 @@ export function createParticipantActions(ws: Base & MobileNavigation & RaceDataA
     setStatusChoice(""); setStatusBlocked("");
     if (openJournal) {
       if (checkinHistoryPanel.current) {
+        // ADR-0191 beslut 1: journalen ligger under Avläsning → Mer; den yttre luckan öppnas också.
+        for (let outer = checkinHistoryPanel.current.parentElement?.closest("details"); outer;
+          outer = outer.parentElement?.closest("details")) outer.open = true;
         checkinHistoryPanel.current.open = true;
         checkinHistoryPanel.current.querySelector("summary")?.focus();
         checkinHistoryPanel.current.scrollIntoView({ block: "start" });
@@ -105,6 +108,21 @@ export function createParticipantActions(ws: Base & MobileNavigation & RaceDataA
     else if (data) {
       const op = begin(); void loadEffectiveResult(id, data, op).finally(() => finish(op));
     }
+  }
+  /**
+   * ADR-0191 beslut 1: genvägarna från Avläsning och Resultat ("Öppna", "Rätta en löpare") öppnar deltagarkortet och visar
+   * Rätta. Panelen ritas när resultatet är inläst, så den söks några bildrutor i rad.
+   */
+  function openCorrection(id: string) {
+    if (writingRef.current || pending.current || !requireSession()) return;
+    select(id);
+    let frames = 0;
+    const reveal = () => {
+      const panel = document.getElementById(participantFixId(ws.raceId));
+      if (panel) { panel.scrollIntoView({ block: "start" }); panel.focus({ preventScroll: true }); return; }
+      if (++frames < 120) window.requestAnimationFrame(reveal);
+    };
+    window.requestAnimationFrame(reveal);
   }
   function openMissingStartTime(id: string) {
     if (writingRef.current || pending.current || !requireSession()) return;
@@ -160,7 +178,7 @@ export function createParticipantActions(ws: Base & MobileNavigation & RaceDataA
     setPage(Math.floor(nextIndex / pageSize));
     select(next.id);
   }
-  return { select, openMissingStartTime, chooseAction, newParticipant, selectRegistrationCandidate,
+  return { select, openCorrection, openMissingStartTime, chooseAction, newParticipant, selectRegistrationCandidate,
     revealSelected, navigateParticipantSequence };
 }
 export type ParticipantActions = ReturnType<typeof createParticipantActions>;

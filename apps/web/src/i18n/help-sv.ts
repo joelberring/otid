@@ -98,7 +98,7 @@ export const helpArticles: readonly HelpArticle[] = [
         "”Byt tävling” om det blev fel tävling. ”Uppdatera från Eventor” när anmälningarna ändras.",
         "”Uppdatera löpardatabasen från Eventor” ger ”Förslag ur löpardatabasen” när du skriver ett namn."
       ],
-      "Klicka på en löpare i listan för att öppna deltagarkortet. Där ändrar du namn, klass, bricka och status."
+      "Klicka på en löpare i listan för att öppna deltagarkortet. Där ändrar du namn, klubb och starttid, och under ”Rätta” allt som ändrar resultatet: status, tid, kontroller, klass, variant och bricka."
     ]
   },
   {
@@ -154,18 +154,20 @@ export const helpArticles: readonly HelpArticle[] = [
     title: "Nödlägen under tävlingen",
     views: ["READOUT", "RESULTS", "ENTRIES"],
     body: [
-      "Under ”Avläsning” → ”Rättningar för hela tävlingen”:",
+      "Under ”Avläsning” → ”Mer: verktyg för hela tävlingen” → ”Rättningar för hela tävlingen”:",
       [
         "”Justera tid för en station”: när en enhet haft fel klocka. Tiden ändras för alla som stämplat där.",
         "”Kontroll ur funktion”: kontrollen krävs inte på någon bana."
       ],
       "Tryck på ”Visa vad som händer” och sedan ”Spara och räkna om”. Allt kan tas bort igen.",
-      "För en löpare, i deltagarkortet:",
+      "För en löpare finns allt under ”Rätta” i deltagarkortet, även via ”Rätta en löpare” och ”Öppna”:",
       [
         "”Ange tid manuellt”: när mål eller start saknas, eller brickan är borttappad.",
-        "”Godkänn saknade kontroller”: när löparen bevisligen varit vid kontrollen."
+        "”Godkänn saknade kontroller”: när löparen bevisligen varit vid kontrollen.",
+        "”Byt bricka” och ”Byt klass”: avläsningen följer med till rätt löpare och räknas om.",
+        "”Mer”: rätta en enstaka stämplad mål- eller starttid och ta bort en sådan rättning."
       ],
-      "Stämmer avläsningarna inte efter en uppdatering av O-Tid: ”Läs om avläsningar från rådata”. Den gamla avläsningen sparas alltid."
+      "Fel efter en uppdatering av O-Tid: ”Läs om avläsningar från rådata” under samma ”Mer”."
     ]
   },
   {
@@ -173,7 +175,7 @@ export const helpArticles: readonly HelpArticle[] = [
     title: "Ej start, brutit, disk och andra statusval",
     views: ["ENTRIES", "READOUT", "RESULTS"],
     body: [
-      "Öppna löparens deltagarkort. Välj under ”Ändra status” och tryck på ”Bekräfta ändringen”.",
+      "Öppna löparens deltagarkort och gå till ”Rätta”. Välj under ”Ändra status” och tryck på ”Bekräfta ändringen”.",
       [
         "”Ej start”: löparen startade inte.",
         "”Brutit”: löparen bröt loppet.",

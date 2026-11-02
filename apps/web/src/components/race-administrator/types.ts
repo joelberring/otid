@@ -55,6 +55,9 @@ export type PendingAttempt = ConflictReviewAttempt | StartCorrectionAttempt | Re
   CourseEditAttempt | ClassEditAttempt | RogainingAttempt |
   UnknownReadoutResolutionAttempt;
 
+/** Deltagarkortets "Rätta" (ADR-0191 beslut 1); genvägarna från Avläsning och Resultat visar den. */
+export const participantFixId = (raceId: string) => `participant-fix-${raceId}`;
+
 export type Action = "INFO" | "TRANSFER" | "CARD" | "TIME" | "IDENTITY" | "REGISTRATION" | "HISTORY";
 export type Operation = { generation: number; controller: AbortController; timer: ReturnType<typeof setTimeout> };
 

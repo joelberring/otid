@@ -9,10 +9,10 @@ import { checkinConflictReviewSv as reviewText } from "../../i18n/checkin-confli
 import { ForestWatchReport } from "../forest-watch-report";
 import { CheckinHistoryTable } from "../checkin-history-table";
 import { AdministratorConflictEvidence } from "../administrator-conflict-evidence";
-import { ManualFinishTimeCorrection, ManualFinishTimeCorrectionWithdrawal, ManualPunchStartTimeCorrection,
-  ManualPunchStartTimeCorrectionWithdrawal } from "../manual-time-correction";
 import { administratorStartCorrectionRequestSchema } from "@o-tid/contracts";
 import { ReadoutControlView } from "./readout-control-view";
+import { CorrectionShortcut } from "./correction-shortcut";
+import { correctionSv } from "../../i18n/correction-sv";
 import { RaceCorrectionsPanel } from "../race-corrections";
 import { raceCorrectionsSv } from "../../i18n/race-corrections-sv";
 import { ReadoutRereadPanel } from "../readout-reread";
@@ -89,33 +89,16 @@ export function DuringRaceOverview({ ws }: { ws: Workspace }) {
 }
 
 /**
- * Avläsning: incheckningsjournal, konfliktgranskning, start- och målrättningar. Funktionären ser bara granskningen
- * av sin egen återkomst eller sitt startläge; journalen, konflikterna och tidsrättningarna är administratörens.
+ * Avläsning: incheckningsjournal, konfliktgranskning, genvägen till deltagarkortets Rätta och verktygen för hela tävlingen
+ * under Mer (ADR-0191 beslut 1). Funktionären ser bara granskningen av sin egen återkomst eller sitt startläge.
  */
 export function DuringRaceFollowUp({ ws }: { ws: Workspace }) {
   const { busy, checkinHistory, checkinHistoryPanel, data, disabled, entryId, functionary, loadCheckinHistory,
     loadConflictReview, pending, raceId, returnAttempt, reviewAttempt, reviewCandidate, reviewConfirmed,
-    reviewReason, sent, setFinishCorrectionPending, setFinishWithdrawalPending,
-    setReturnAttempt, setReviewCandidate, setReviewConfirmed, setReviewReason, setStartCorrection,
-    setStartCorrectionPending, setStartWithdrawalPending, startCorrection, submitConflictReview, submitReturn,
+    reviewReason, sent, setReturnAttempt, setReviewCandidate, setReviewConfirmed, setReviewReason, setStartCorrection, startCorrection, submitConflictReview, submitReturn,
     submitStartCorrection, shows, unknown } = ws;
   return <>
     <section className={styles.workflowGroup} aria-label={text.followUpTitle} hidden={!shows("READOUT")}>
-    {!functionary && <details ref={checkinHistoryPanel} className={styles.disclosure}>
-      <summary>{checkinHistorySv.title}</summary>
-      <div className={styles.disclosureBody}>
-      <p className={styles.workflowHelp}>{checkinHistorySv.help}</p>
-      <p><strong>{data?.entries.find(entry => entry.id === entryId)?.displayName ?? checkinHistorySv.choose}</strong></p>
-      <div className={styles.actions}>
-        <Button variant="secondary" disabled={disabled || !entryId} onClick={() => void loadCheckinHistory()}>{checkinHistorySv.latest}</Button>
-        <Button variant="secondary" disabled={disabled || !entryId} onClick={() => void loadConflictReview()}>{reviewText.load}</Button>
-      </div>
-      {checkinHistory?.entryId === entryId && <section aria-label={checkinHistorySv.title}>
-        <CheckinHistoryTable data={checkinHistory} timeZone={data?.timeZone ?? "UTC"} />
-        {checkinHistory.nextCursor && <Button variant="secondary" disabled={disabled} onClick={() => void loadCheckinHistory(checkinHistory.nextCursor!)}>{checkinHistorySv.older}</Button>}
-      </section>}
-      </div>
-    </details>}
     {(reviewAttempt || reviewCandidate) && <section className={styles.review} aria-label={reviewText.title}>
       <h2>{reviewText.title}</h2><p>{reviewText.adminHelp}</p>
       <AdministratorConflictEvidence candidate={reviewAttempt?.candidate ?? reviewCandidate!} timeZone={data?.timeZone ?? "UTC"} />
@@ -145,26 +128,39 @@ export function DuringRaceFollowUp({ ws }: { ws: Workspace }) {
       <button type="button" disabled={busy} onClick={() => void submitReturn(returnAttempt)}>{unknown ? text.retry : returnAttempt.withdraw ? text.returnWithdrawalConfirm : text.returnConfirm}</button>
       {!unknown && <button type="button" className="secondary" disabled={busy} onClick={() => { pending.current = undefined; sent.current = false; setReturnAttempt(undefined); }}>{text.cancel}</button>}
     </section>}
-    {data && !functionary && <Section id={`corrections-${raceId}`} title={text.correctionTools} help={text.correctionToolsHelp}>
-      <div className={styles.disclosureList}>
-      <ManualFinishTimeCorrection raceId={raceId} entries={data.entries} timeZone={data.timeZone} onPendingChange={setFinishCorrectionPending} />
-      <ManualPunchStartTimeCorrection raceId={raceId} entries={data.entries} timeZone={data.timeZone} onPendingChange={setStartCorrectionPending} />
-      <ManualPunchStartTimeCorrectionWithdrawal raceId={raceId} entries={data.entries} timeZone={data.timeZone} onPendingChange={setStartWithdrawalPending} />
-      <ManualFinishTimeCorrectionWithdrawal raceId={raceId} entries={data.entries} timeZone={data.timeZone} onPendingChange={setFinishWithdrawalPending} />
+    {/* ADR-0191 beslut 1: en löpares rättelser görs i deltagarkortet; här finns bara vägen dit. */}
+    <CorrectionShortcut ws={ws} />
+    {/* Verktygen för hela tävlingen (PLAN.md steg 31, 36 och 45) under Mer; bara administratören. */}
+    {data && !functionary && <details className={styles.disclosure} id={`readout-more-${raceId}`}>
+      <summary>{correctionSv.readoutMore}</summary>
+      <div className={styles.disclosureBody}>
+      <p className={styles.workflowHelp}>{correctionSv.readoutMoreHelp}</p>
+      <details ref={checkinHistoryPanel} className={styles.disclosure}>
+        <summary>{checkinHistorySv.title}</summary>
+        <div className={styles.disclosureBody}>
+        <p className={styles.workflowHelp}>{checkinHistorySv.help}</p>
+        <p><strong>{data?.entries.find(entry => entry.id === entryId)?.displayName ?? checkinHistorySv.choose}</strong></p>
+        <div className={styles.actions}>
+          <Button variant="secondary" disabled={disabled || !entryId} onClick={() => void loadCheckinHistory()}>{checkinHistorySv.latest}</Button>
+          <Button variant="secondary" disabled={disabled || !entryId} onClick={() => void loadConflictReview()}>{reviewText.load}</Button>
+        </div>
+        {checkinHistory?.entryId === entryId && <section aria-label={checkinHistorySv.title}>
+          <CheckinHistoryTable data={checkinHistory} timeZone={data?.timeZone ?? "UTC"} />
+          {checkinHistory.nextCursor && <Button variant="secondary" disabled={disabled} onClick={() => void loadCheckinHistory(checkinHistory.nextCursor!)}>{checkinHistorySv.older}</Button>}
+        </section>}
+        </div>
+      </details>
+      <Section id={`race-corrections-${raceId}`} title={raceCorrectionsSv.title} help={raceCorrectionsSv.help}>
+        <RaceCorrectionsPanel raceId={raceId} onChanged={ws.reloadQuietly} />
+      </Section>
+      <Section id={`readout-reread-${raceId}`} title={readoutRereadSv.title}>
+        <ReadoutRereadPanel raceId={raceId} onChanged={ws.reloadQuietly} />
+      </Section>
+      <Section id={`uninterpreted-readouts-${raceId}`} title={uninterpretedReadoutsSv.title}>
+        <UninterpretedReadoutsPanel raceId={raceId} timeZone={data.timeZone} onChanged={ws.reloadQuietly} />
+      </Section>
       </div>
-    </Section>}
-    {/* PLAN.md steg 31: rättningar som gäller alla löpare; bara administratören. */}
-    {data && !functionary && <Section id={`race-corrections-${raceId}`} title={raceCorrectionsSv.title} help={raceCorrectionsSv.help}>
-      <RaceCorrectionsPanel raceId={raceId} onChanged={ws.reloadQuietly} />
-    </Section>}
-    {/* PLAN.md steg 36: läs om avläsningar från de sparade råramarna; bara administratören. */}
-    {data && !functionary && <Section id={`readout-reread-${raceId}`} title={readoutRereadSv.title}>
-      <ReadoutRereadPanel raceId={raceId} onChanged={ws.reloadQuietly} />
-    </Section>}
-    {/* Steg 45: avläsningar vars tider inte gick att tolka; bara administratören. */}
-    {data && !functionary && <Section id={`uninterpreted-readouts-${raceId}`} title={uninterpretedReadoutsSv.title}>
-      <UninterpretedReadoutsPanel raceId={raceId} timeZone={data.timeZone} onChanged={ws.reloadQuietly} />
-    </Section>}
+    </details>}
     </section>
   </>;
 }

@@ -11,6 +11,7 @@ import { raceWorkspaceNavigationSv as navigationText } from "../../i18n/race-wor
 import { Button, Field, Notice, Section } from "../ui";
 import { mispunchedEntries } from "../../lib/section-status";
 import { MispunchedList } from "./readout-control-view";
+import { CorrectionShortcut } from "./correction-shortcut";
 import controlStyles from "./readout-control.module.css";
 import { ResultLists } from "../lists/result-lists";
 import { useResultListData } from "../lists/use-result-list-data";
@@ -79,6 +80,8 @@ export function AfterRacePanel({ ws }: { ws: Workspace }) {
     <AdminResultLists ws={ws} />
     {profile.features.finalization && <ResultsOfficialSection ws={ws} />}
     <Section id={`results-follow-up-${raceId}`} title={text.followUpHeading} help={text.followUpHelp}>
+    {/* ADR-0191 beslut 1: en löpares rättelser görs i deltagarkortet; här finns bara vägen dit. */}
+    <CorrectionShortcut ws={ws} />
     <div className={styles.disclosureList}>
     {/* Steg 45: beslut som döljer en senare avläsning. */}
     {data && <details className={styles.disclosure} open={data.entries.some((entry) => entry.decisionReview) ? true : undefined}>

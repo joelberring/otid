@@ -46,6 +46,9 @@
     { "idx": 41, "version": "7", "when": 1801238400000, "tag": "0043_behorighet_inbjudan", "breakpoints": true },
     { "idx": 42, "version": "7", "when": 1801324800000, "tag": "0044_kartinnehall", "breakpoints": true },
     { "idx": 43, "version": "7", "when": 1801411200000, "tag": "0045_anonymisering", "breakpoints": true },
-    { "idx": 44, "version": "7", "when": 1801497600000, "tag": "0046_sparrar_och_grupper", "breakpoints": true }
+    { "idx": 44, "version": "7", "when": 1801497600000, "tag": "0046_sparrar_och_grupper", "breakpoints": true },
+    { "idx": 45, "version": "7", "when": 1802620800000, "tag": "0059_klubb", "breakpoints": true },
+    { "idx": 46, "version": "7", "when": 1802707200000, "tag": "0060_klubbarkiv", "breakpoints": true },
+    { "idx": 47, "version": "7", "when": 1802793600000, "tag": "0061_klubbarkiv_innehall", "breakpoints": true }
   ]
 }

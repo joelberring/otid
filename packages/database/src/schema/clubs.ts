@@ -1,0 +1,143 @@
+import { boolean, customType, date, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { userAccounts } from "./accounts";
+
+/**
+ * ADR-0194 (migration 0059–0061): klubben och klubbarkivet. Kartversionernas filer ligger i `map_content` (ADR-0189);
+ * banfilerna (små) ligger i `club_archive_course_file.content`.
+ */
+export type ClubRole = "OWNER" | "ADMIN" | "READER";
+export type ClubMapFormat = "OCD" | "OMAP";
+export type ClubCourseFileKind = "PPEN" | "COURSE_DATA";
+export type ClubMapResolution = "FOLDER" | "NAME" | "MANUAL" | "MISSING" | "NONE";
+
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => "bytea" });
+
+export const clubs = pgTable("club", {
+  id: uuid("id").primaryKey(),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  createdBy: uuid("created_by").notNull(),
+  requestId: uuid("request_id").notNull()
+});
+
+export const clubMembers = pgTable("club_member", {
+  id: uuid("id").primaryKey(),
+  clubId: uuid("club_id").notNull().references(() => clubs.id),
+  accountId: uuid("account_id").notNull().references(() => userAccounts.id),
+  role: text("role").$type<ClubRole>().notNull(),
+  addedAt: timestamp("added_at", { withTimezone: true }).notNull(),
+  addedBy: uuid("added_by").notNull(),
+  requestId: uuid("request_id").notNull()
+});
+
+export const clubInvitations = pgTable("club_invitation", {
+  id: uuid("id").primaryKey(),
+  requestId: uuid("request_id").notNull(),
+  clubId: uuid("club_id").notNull().references(() => clubs.id),
+  email: text("email").notNull(),
+  role: text("role").$type<ClubRole>().notNull(),
+  actorAccountId: uuid("actor_account_id").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+  acceptedAccountId: uuid("accepted_account_id").references(() => userAccounts.id),
+  revokedAt: timestamp("revoked_at", { withTimezone: true })
+});
+
+export const clubImportTokens = pgTable("club_import_token", {
+  id: uuid("id").primaryKey(),
+  clubId: uuid("club_id").notNull().references(() => clubs.id),
+  accountId: uuid("account_id").notNull().references(() => userAccounts.id),
+  tokenSha256: text("token_sha256").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  lastUsedAt: timestamp("last_used_at", { withTimezone: true })
+});
+
+export const clubJournal = pgTable("club_journal", {
+  id: uuid("id").primaryKey(),
+  clubId: uuid("club_id").notNull().references(() => clubs.id),
+  action: text("action").notNull(),
+  actorAccountId: uuid("actor_account_id"),
+  details: jsonb("details").$type<Record<string, unknown>>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull()
+});
+
+export const clubMaps = pgTable("club_map", {
+  id: uuid("id").primaryKey(),
+  clubId: uuid("club_id").notNull().references(() => clubs.id),
+  name: text("name").notNull(),
+  ownership: text("ownership").$type<"CLUB" | "EXTERNAL">().notNull(),
+  ownerKind: text("owner_kind").$type<"CLUB" | "MUNICIPALITY" | "MAPPER" | "OTHER">(),
+  ownerName: text("owner_name"),
+  agreement: text("agreement"),
+  validUntil: date("valid_until"),
+  contact: text("contact"),
+  trainingOnly: boolean("training_only").notNull(),
+  feePerPrint: boolean("fee_per_print").notNull(),
+  noPublicDisplay: boolean("no_public_display").notNull(),
+  importKey: text("import_key"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  createdBy: uuid("created_by").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull()
+});
+
+export const clubMapVersions = pgTable("club_map_version", {
+  id: uuid("id").primaryKey(),
+  clubId: uuid("club_id").notNull().references(() => clubs.id),
+  mapId: uuid("map_id").notNull().references(() => clubMaps.id),
+  contentSha256: text("content_sha256").notNull(),
+  fileName: text("file_name").notNull(),
+  format: text("format").$type<ClubMapFormat>().notNull(),
+  byteLength: integer("byte_length").notNull(),
+  versionDate: date("version_date"),
+  note: text("note"),
+  uploadedBy: uuid("uploaded_by").notNull(),
+  uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull(),
+  sourcePath: text("source_path")
+});
+
+export const clubArchiveEntries = pgTable("club_archive_entry", {
+  id: uuid("id").primaryKey(),
+  clubId: uuid("club_id").notNull().references(() => clubs.id),
+  trainingDate: date("training_date"),
+  year: integer("year"),
+  place: text("place").notNull(),
+  title: text("title").notNull(),
+  leader: text("leader"),
+  tags: text("tags").array().notNull(),
+  notes: text("notes"),
+  sourcePath: text("source_path"),
+  importKey: text("import_key"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  createdBy: uuid("created_by").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull()
+});
+
+export const clubArchiveEntryMaps = pgTable("club_archive_entry_map", {
+  entryId: uuid("entry_id").notNull().references(() => clubArchiveEntries.id),
+  versionId: uuid("version_id").notNull().references(() => clubMapVersions.id)
+}, (table) => [primaryKey({ columns: [table.entryId, table.versionId] })]);
+
+/** Sammanfattningen av en banfil (räknad på servern när filen tas emot). */
+export interface ClubCourseFileSummary {
+  readonly courses: readonly { readonly name: string; readonly controls: number; readonly lengthM: number | null }[];
+  readonly scale: number | null;
+  readonly problem?: string | undefined;
+}
+
+export const clubArchiveCourseFiles = pgTable("club_archive_course_file", {
+  id: uuid("id").primaryKey(),
+  entryId: uuid("entry_id").notNull().references(() => clubArchiveEntries.id),
+  clubId: uuid("club_id").notNull().references(() => clubs.id),
+  kind: text("kind").$type<ClubCourseFileKind>().notNull(),
+  fileName: text("file_name").notNull(),
+  content: bytea("content").notNull(),
+  sha256: text("sha256").notNull(),
+  byteLength: integer("byte_length").notNull(),
+  summary: jsonb("summary").$type<ClubCourseFileSummary>().notNull(),
+  mapVersionId: uuid("map_version_id").references(() => clubMapVersions.id),
+  mapReference: text("map_reference"),
+  mapResolution: text("map_resolution").$type<ClubMapResolution>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull()
+});

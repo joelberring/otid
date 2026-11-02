@@ -142,3 +142,8 @@ export * from "./training-groups";
 export * from "./training-group-maps";
 export * from "./training-group-sessions";
 export * from "./training-group-public";
+export { acceptClubInvitations, clubMembership, requireClubRole, type ClubFailure, type ClubRole } from "./club-access";
+export * from "./clubs";
+export * from "./club-archive";
+export * from "./club-maps";
+export * from "./club-archive-import";

@@ -12,6 +12,7 @@
     "test:e2e": "playwright test",
     "build": "pnpm -r build",
     "db:migrate": "pnpm --filter @o-tid/database migrate",
+    "archive-import": "pnpm --silent --filter @o-tid/club-archive archive-import",
     "demo": "tsx --env-file-if-exists=.env scripts/demo.ts",
     "account:superadmin": "tsx --env-file-if-exists=.env scripts/account-superadmin.ts",
     "print:worker": "tsx --env-file-if-exists=.env scripts/print-worker.ts",

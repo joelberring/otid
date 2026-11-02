@@ -3,6 +3,7 @@ import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { schema } from "@o-tid/database";
 import type { DbExecutor } from "./snapshot";
 import { acceptGroupInvitations } from "./training-group-invitations";
+import { acceptClubInvitations } from "./club-invitations";
 
 /**
  * ADR-0188 beslut 6: en behörighet som en administratör ger sparas för e-postadressen, oavsett om adressen har ett konto,
@@ -53,6 +54,8 @@ export async function acceptRacePersonInvitations(tx: DbExecutor, accountId: str
   // ADR-0189 beslut 9: träningsgruppernas inbjudningar tas samtidigt (inloggning, bekräftelse, Mina tävlingar, tävlingen; en
   // ledare i gruppen är administratör på gruppens tävlingar).
   let accepted = await acceptGroupInvitations(tx, accountId, now);
+  // ADR-0194 beslut 1: klubbens inbjudningar på samma tillfällen.
+  accepted += await acceptClubInvitations(tx, accountId, now);
   const pending = await tx.select({ id: invitations.id }).from(invitations)
     .where(and(eq(invitations.email, account.email), open, raceId ? eq(invitations.raceId, raceId) : undefined))
     .orderBy(asc(invitations.createdAt)).limit(200);

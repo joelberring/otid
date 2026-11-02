@@ -3,6 +3,7 @@ import { Pool } from "pg";
 import * as schema from "./schema";
 
 export type { Pool, PoolClient } from "pg";
+export type { ClubCourseFileSummary } from "./schema/clubs";
 
 export type Database = ReturnType<typeof createDatabase>["db"];
 

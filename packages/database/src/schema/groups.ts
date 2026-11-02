@@ -23,6 +23,8 @@ export const trainingGroups = pgTable("training_group", {
   statsVisibility: text("stats_visibility").$type<TrainingGroupStatsVisibility>().notNull().default("LEADERS"),
   pointsMode: text("points_mode").$type<TrainingGroupPointsMode>().notNull().default("NONE"),
   templateRaceId: uuid("template_race_id"),
+  /** ADR-0194 (migration 0059): klubben som äger gruppen (ADR-0182 beslut 8). Sätts inte än. */
+  clubId: uuid("club_id"),
   settingsVersion: integer("settings_version").notNull().default(1),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   createdBy: uuid("created_by").notNull(),
@@ -90,6 +92,8 @@ export const trainingGroupMaps = pgTable("training_group_map", {
   fileName: text("file_name").notNull(),
   /** ADR-0189: bilden i `map_content` (nya rader); gamla rader har den i kolumnen `image`, som läses med SQL. */
   contentSha256: text("content_sha256"),
+  /** ADR-0194 beslut 5 (migration 0060): kartan kommer från klubbens karta och följer dess versioner och rättigheter. */
+  clubMapId: uuid("club_map_id"),
   sha256: text("sha256").notNull(),
   byteLength: integer("byte_length").notNull(),
   width: integer("width").notNull(),

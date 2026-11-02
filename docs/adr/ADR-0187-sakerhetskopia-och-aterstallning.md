@@ -1,6 +1,6 @@
 # ADR-0187: Arrangörens säkerhetskopia och återställning av en tävling
 
-Status: beslutad 2026-11-02 (grenen `aterstallning`, migration 0041). Ersätter steg 27:s "Exportera tävlingen" (JSON,
+Status: beslutad 2026-11-02 (grenen `aterstallning`, migration 0041 och 0042). Ersätter steg 27:s "Exportera tävlingen" (JSON,
 formatVersion 1), som inte gick att läsa in igen.
 
 ## Bakgrund
@@ -36,9 +36,12 @@ journalerna för begäranden, festen), skrev binärdata i base64 i en enda JSON 
    också, så samma kopia kan läsas in flera gånger på samma server. Den fastställda XML:ens kontrollsumma räknas om.
 5. **Samma resultat.** Avläsningar, resultatrevisioner, beslut och fastställanden läses in som de är; ingenting räknas om. Den
    publika resultatlistan, sträcktiderna, stafetten och IOF-resultatlistan blir desamma (integrationstestet `aterstallning`
-   och Playwright `aterstallning`). Undantag: databasutlösaren sätter resultatrevisionens underlagshash när raden läses in, så en
-   revision som behövde räknas om när kopian togs räknas som aktuell i den nya tävlingen. Manifestet och förhandsvisningen
-   säger hur många sådana det fanns.
+   och Playwright `aterstallning`). Ett resultat som väntade på omräkning när kopian togs förblir inaktuellt: exporten listar
+   revisionerna vars underlagshash inte stämde (`staleResultRevisions` i manifestet), och återställningen behåller deras gamla
+   hash (som aldrig stämmer med de nya id:na). Databasutlösaren räknar annars ut hashen för varje ny revision; migration 0042
+   låter den behålla en medförd hash bara när transaktionen har satt `otid.restore` och hashen skiljer sig från den uträknade,
+   så en återställning kan göra ett resultat inaktuellt men aldrig aktuellt. Inget räknas om (resultaten ska vara desamma som i
+   kopian). Kopior från före fältet saknar listan; där räknas alla som aktuella.
 6. **Kontrollen är strikt** och görs innan något sparas: arkivets gränser (200 MB fil, 96 MB per tabellfil, 72 MB per binärfil,
    400 MB uppackat, 10 000 filer, bara kända filnamn, inga dubbletter eller krypterade poster, uppackning med tak och CRC),
    manifestet och personerna med zod, sha256 för varje fil och varje rad med zod efter databasens katalog (bara kända kolumner,

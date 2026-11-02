@@ -106,10 +106,14 @@ export async function exportRaceAsAdmin(db: Database, input: Omit<RaceSessionPro
     }
     for (const [name, rows] of tables) tables.set(name, rows.map(row => remapDeep(row, accounts) as Row));
 
-    // Deltagare vars senaste resultat bygger på ett annat underlag än det som gäller nu (behöver räknas om).
+    // Deltagare vars senaste resultat bygger på ett annat underlag än det som gäller nu (behöver räknas om), och alla revisioner
+    // med ett sådant underlag: de förblir inaktuella efter återställningen (ADR-0187 beslut 5).
     const stale = await tx.execute<{ count: number }>(sql`select count(*)::int as count from (
       select distinct on (entry_id) entry_id, basis_hash from result_revision where race_id = ${raceId} order by entry_id, revision desc) r
       where r.basis_hash is not null and r.basis_hash is distinct from otid_result_basis_hash(r.entry_id)`);
+    const staleRevisions = await tx.execute<{ id: string }>(sql`select r.id from result_revision r
+      where r.race_id = ${raceId} and r.basis_hash is not null and r.basis_hash is distinct from otid_result_basis_hash(r.entry_id)
+      order by r.id`);
 
     const peopleBytes = new TextEncoder().encode(JSON.stringify(raceBackupPeopleSchema.parse([...people.values()])));
     const entries: ZipEntry[] = [];
@@ -125,7 +129,8 @@ export async function exportRaceAsAdmin(db: Database, input: Omit<RaceSessionPro
       format: RACE_BACKUP_FORMAT, formatVersion: RACE_BACKUP_FORMAT_VERSION, createdAt: now.toISOString(),
       engineVersion: RESULT_ENGINE_VERSION, containsPersonalData: true,
       race: { eventName: race.eventName, raceName: race.name, raceDate: race.raceDate, raceType: race.raceType, timeZone: race.timeZone },
-      counts: counted(tables, files.size, people.size), staleResults: stale.rows[0]?.count ?? 0, tables: tableEntries,
+      counts: counted(tables, files.size, people.size), staleResults: stale.rows[0]?.count ?? 0,
+      staleResultRevisions: staleRevisions.rows.map(row => row.id), tables: tableEntries,
       people: { sha256: sha256Hex(peopleBytes), bytes: peopleBytes.byteLength },
       files: fileEntries.map(([sha, data]) => ({ sha256: sha, bytes: data.byteLength }))
     });

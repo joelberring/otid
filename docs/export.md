@@ -20,7 +20,7 @@ filer/<sha256>         binärdata: kartfilen (OCAD/Mapper), kartbilden, foton i 
 ```json
 { "format": "otid-sakerhetskopia", "formatVersion": 2, "createdAt": "…", "engineVersion": "…", "containsPersonalData": true,
   "race": { "eventName": "…", "raceName": "…", "raceDate": "…", "raceType": "…", "timeZone": "…" },
-  "counts": { "classes": 2, "entries": 120, "cardReadouts": 118, … }, "staleResults": 0,
+  "counts": { "classes": 2, "entries": 120, "cardReadouts": 118, … }, "staleResults": 0, "staleResultRevisions": [],
   "tables": [{ "name": "entry", "rows": 120, "sha256": "…", "bytes": 51234 }, …],
   "people": { "sha256": "…", "bytes": 312 }, "files": [{ "sha256": "…", "bytes": 4183022 }, …] }
 ```
@@ -44,7 +44,8 @@ Mina tävlingar → "Återställ tävling från säkerhetskopia": välj filen, "
 klasser, deltagare och avläsningar, formatversion och personer med behörighet, och först "Skapa tävlingen" sparar.
 
 - Den nya tävlingen får nya id genomgående och en egen kort adress, och är opublicerad. Resultaten och sträcktiderna är
-  desamma; inget räknas om.
+  desamma; inget räknas om. Resultat som väntade på omräkning när kopian togs (`staleResultRevisions`) är inaktuella också i
+  den nya tävlingen.
 - Den som återställer blir ägare. "Ge dem samma behörighet här" ger personerna i kopian sin roll igen om de har ett konto med
   samma e-post på servern (ägare blir administratör); de som saknar konto räknas upp.
 - Radiohämtningen är avstängd och Eventor-nyckeln saknas: slå på radion och klistra in nyckeln under Inställningar.

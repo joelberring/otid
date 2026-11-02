@@ -86,8 +86,10 @@ test("notiser på datorn: rita ett kartfel, välj det på kartan, filtrera, expo
   const raceId = await createRace(owner, `Notiser ${suffix}`, today(), "Tävling");
   const admin = await setUp(owner, raceId);
   const kimEmail = `kim.${suffix}@exempel.se`, miaEmail = `mia.${suffix}@exempel.se`;
-  const kim = await registerAccount(browser, kimEmail, "Kim Kontrollant");
-  const mia = await registerAccount(browser, miaEmail, "Mia Kartritare");
+  // Kim och Mia loggas in och sparas; deras webbläsare öppnas först när de behövs (mindre minne under testet).
+  const saved = async (page: Page) => { const state = await page.context().storageState(); await page.context().close(); return state; };
+  const kimState = await saved(await registerAccount(browser, kimEmail, "Kim Kontrollant"));
+  const miaState = await saved(await registerAccount(browser, miaEmail, "Mia Kartritare"));
   const manage = await owner.context().newPage();
   await manage.goto(`/admin/${raceId}/manage`);
   await addPerson(manage, kimEmail, "Banläggning: läsa och kommentera");
@@ -230,6 +232,7 @@ test("notiser på datorn: rita ett kartfel, välj det på kartan, filtrera, expo
   await panel.getByRole("group", { name: "Visa" }).getByRole("button", { name: "Alla" }).click();
 
   // 7. Ta bort (med bekräftelse); bankontrollanten som har editorn öppen ser att den är borta, och får inte ta bort ägarens.
+  const kim = await (await browser.newContext({ storageState: kimState })).newPage();
   await openEditor(kim, raceId);
   await kim.getByRole("tab", { name: /Notiser/ }).click();
   const kimPanel = kim.getByTestId("course-setting-notes");
@@ -247,6 +250,7 @@ test("notiser på datorn: rita ett kartfel, välj det på kartan, filtrera, expo
   await kim.context().close();
 
   // 8. Kartritaren: Mina tävlingar leder till kartfelen; inget av banläggningen, svarar och markerar klart.
+  const mia = await (await browser.newContext({ storageState: miaState })).newPage();
   await mia.goto("/organizer");
   await mia.getByRole("button", { name: "Öppna kartfelen" }).click();
   await expect(mia.getByRole("heading", { name: "Kartfel till kartritaren" })).toBeVisible({ timeout: 30_000 });

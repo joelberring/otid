@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { CourseSettingDocument, CourseSummary } from "@o-tid/course-setting";
 import type { LegAnalysis } from "@o-tid/route-choice";
 import { courseSettingSv as text } from "../../i18n/course-setting-sv";
+import { courseSettingUxSv as ux } from "../../i18n/course-setting-ux-sv";
 import { routeChoiceSv } from "../../i18n/route-choice-sv";
 import { warningText } from "../../lib/route-choice-view";
 import { ALL_CONTROLS } from "../../lib/course-setting-hit";
@@ -13,10 +14,12 @@ import { Button } from "../ui";
 import styles from "./course-setting.module.css";
 
 /** Steg 62: banläggningens spalt – banlistan, verktygen, det valda, kontrollerna och vald sträckas vägval. Tunna vyer. */
-export function CourseList({ document, summaries, view, variant, readOnly = false, onView, onAdd, onRename, onClasses, onRemove }: {
-  document: CourseSettingDocument; summaries: readonly CourseSummary[]; view: string; variant: string | undefined; readOnly?: boolean;
+export function CourseList({ document, summaries, view, readOnly = false, onView, onAdd, onRename, onClasses, onRemove, onDuplicate }: {
+  document: CourseSettingDocument; summaries: readonly CourseSummary[]; view: string; readOnly?: boolean;
   onView: (view: string, variant?: string) => void; onAdd: (name: string) => void; onRename: (course: string, name: string) => void;
-  onClasses: (course: string, classes: string) => void; onRemove: (course: string) => void;
+  onClasses: (course: string, classes: string) => void;
+  /** ADR-0180 beslut 14: borttagningen frågar om kontrollerna som blir oanvända; kopian heter "<namn> (kopia)". */
+  onRemove: (course: string) => void; onDuplicate: (course: string) => void;
 }) {
   const [renaming, setRenaming] = useState<string>();
   const [name, setName] = useState("");
@@ -24,7 +27,6 @@ export function CourseList({ document, summaries, view, variant, readOnly = fals
   const courses = [...document.courses].sort((left, right) => left.order - right.order);
   const summary = new Map(summaries.map(row => [row.course, row]));
   const selected = courses.find(course => course.id === view);
-  const variants = selected ? summary.get(selected.id)?.variants ?? [] : [];
   return <section className={styles.panel} aria-labelledby="course-setting-courses">
     <h2 id="course-setting-courses">{text.courses.heading}</h2>
     <ul className={styles.courses}>
@@ -39,16 +41,11 @@ export function CourseList({ document, summaries, view, variant, readOnly = fals
         </button></li>;
       })}
     </ul>
-    {selected && variants.length > 1 && <label className={styles.row}>{text.courses.variant}
-      <select value={variant ?? ""} onChange={event => onView(selected.id, event.target.value || undefined)}>
-        <option value="">{text.courses.allVariants}</option>
-        {variants.map(row => <option key={row.code} value={row.code}>{row.code}</option>)}
-      </select></label>}
     {selected && !readOnly && renaming !== selected.id && <div className={styles.row}>
       <Button variant="secondary" onClick={() => { setRenaming(selected.id); setName(selected.name); setClasses(selected.secondaryTitle ?? ""); }}>
         {text.courses.rename}</Button>
-      <Button variant="quiet" onClick={() => { if (window.confirm(text.courses.removeConfirm(selected.name))) onRemove(selected.id); }}>
-        {text.courses.remove}</Button>
+      <Button variant="secondary" onClick={() => onDuplicate(selected.id)}>{ux.courses.duplicate}</Button>
+      <Button variant="quiet" onClick={() => onRemove(selected.id)}>{text.courses.remove}</Button>
     </div>}
     {selected && renaming === selected.id && <form className={styles.row} onSubmit={event => {
       event.preventDefault();
@@ -74,9 +71,11 @@ export function CourseList({ document, summaries, view, variant, readOnly = fals
 }
 
 /** Steg 66: vald kontroll eller sträcka i en liten ruta på kartan, med de vanligaste åtgärderna. */
-export function SelectionCard({ state, described, readOnly, onCode, onRemoveFromCourse, onDelete, onDescription, onMore, onClose }: {
+export function SelectionCard({ state, described, readOnly, onCode, onRemoveFromCourse, onDelete, onDescription, onMore, onClose, extra }: {
   state: EditorState; described?: string | undefined; readOnly: boolean; onCode: (control: string, code: string) => void;
   onRemoveFromCourse: () => void; onDelete: () => void; onDescription: () => void; onMore: () => void; onClose: () => void;
+  /** ADR-0180 beslut 14: passagens vinkel. */
+  extra?: ReactNode;
 }) {
   const { selection, document } = state;
   if (!selection || selection.kind === "special") return null;
@@ -104,14 +103,17 @@ export function SelectionCard({ state, described, readOnly, onCode, onRemoveFrom
       <Button variant="quiet" onClick={onDescription}>{text.selected.description}</Button>
       <Button variant="quiet" onClick={onMore}>{text.selected.more}</Button>
     </div>}
+    {extra}
     {selection.kind === "leg" && <div className={styles.row}><Button variant="quiet" onClick={onMore}>{text.selected.more}</Button></div>}
   </section>;
 }
 
 export function SelectedPanel({ state, described, readOnly = false, onCode, onRemoveFromCourse, onDelete, onSplit, onRemoveSplit, onResetNumber,
-  onStraighten }: {
+  onStraighten, extra }: {
   state: EditorState; described?: string | undefined; readOnly?: boolean; onCode: (control: string, code: string) => void; onRemoveFromCourse: () => void; onDelete: () => void;
   onSplit: (kind: "FORK" | "LOOP", branches: number) => void; onRemoveSplit: () => void; onResetNumber: () => void; onStraighten: () => void;
+  /** ADR-0180 beslut 14: vinkeln för en passage. */
+  extra?: ReactNode;
 }) {
   const [branches, setBranches] = useState(2);
   const { selection, document } = state;
@@ -131,6 +133,7 @@ export function SelectedPanel({ state, described, readOnly = false, onCode, onRe
         <label>{text.selected.code}<input type="text" name="code" defaultValue={control.code ?? ""} inputMode="numeric" maxLength={8} size={6} /></label>
         <Button type="submit" variant="secondary">{text.selected.saveCode}</Button>
       </form>}
+      {extra}
       {!readOnly && <div className={styles.row}>
         {courseControl && <Button variant="secondary" onClick={onRemoveFromCourse}>{text.tools.removeFromCourse}</Button>}
         <Button variant="quiet" onClick={onDelete}>{text.tools.deleteControl}</Button>

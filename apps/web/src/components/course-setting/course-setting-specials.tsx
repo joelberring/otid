@@ -7,6 +7,7 @@ import type { EditorState } from "../../lib/course-setting-editor";
 import { ALL_CONTROLS } from "../../lib/course-setting-hit";
 import { paperToMap, SPECIAL_TOOL_KINDS } from "../../lib/course-setting-specials";
 import { Button } from "../ui";
+import { RotateControls } from "./course-setting-ux";
 import styles from "./course-setting.module.css";
 
 const round = (value: number, digits = 2) => Math.round(value * 10 ** digits) / 10 ** digits;
@@ -16,10 +17,12 @@ const round = (value: number, digits = 2) => Math.round(value * 10 ** digits) / 
  * som ritas (Klar/Avbryt), objekten som syns i vald bana och valt objekts egenskaper: vilka banor det syns på, text,
  * storlek, färg, spalter och vinkel. Ändringarna går som åtgärder (`UPDATE_SPECIAL`, `DELETE_SPECIAL`).
  */
-export function SpecialsPanel({ document, state, readOnly, onKind, onFinish, onCancel, onSelect, onEdits }: {
+export function SpecialsPanel({ document, state, readOnly, onKind, onFinish, onCancel, onSelect, onEdits, onAlong }: {
   document: CourseSettingDocument; state: EditorState; readOnly: boolean;
   onKind: (kind: SpecialKind) => void; onFinish: () => void; onCancel: () => void; onSelect: (id: string) => void;
   onEdits: (edits: readonly CourseSettingEdit[]) => void;
+  /** ADR-0180 beslut 14: "Vrid efter sträckan" för en valfri passage. */
+  onAlong?: (() => void) | undefined;
 }) {
   const view = state.view;
   const shown = document.specialObjects.filter(special => specialVisible(special, view));
@@ -29,7 +32,7 @@ export function SpecialsPanel({ document, state, readOnly, onKind, onFinish, onC
     <h2 id="course-setting-specials">{text.objects.heading}</h2>
     <p className={styles.muted}>{text.objects.help}</p>
     {!readOnly && <div className={styles.specialKinds} role="group" aria-label={text.objects.heading}>
-      {SPECIAL_TOOL_KINDS.map(kind => <button key={kind} type="button" className={styles.specialKind}
+      {SPECIAL_TOOL_KINDS.filter(kind => kind !== "image").map(kind => <button key={kind} type="button" className={styles.specialKind}
         aria-pressed={state.tool === "SPECIAL" && state.specialKind === kind} onClick={() => onKind(kind)}>{text.kinds[kind]}</button>)}
     </div>}
     {drawing.length > 0 && <div className={styles.row} role="status">
@@ -37,7 +40,7 @@ export function SpecialsPanel({ document, state, readOnly, onKind, onFinish, onC
       <Button onClick={onFinish}>{text.objects.finish}</Button>
       <Button variant="secondary" onClick={onCancel}>{text.objects.cancel}</Button>
     </div>}
-    {selected && <SpecialEditor key={selected.id} document={document} view={view} special={selected} readOnly={readOnly} onEdits={onEdits} />}
+    {selected && <SpecialEditor key={selected.id} document={document} view={view} special={selected} readOnly={readOnly} onEdits={onEdits} onAlong={onAlong} />}
     <h3>{text.objects.onMap}</h3>
     {shown.length === 0 ? <p className={styles.muted}>{text.objects.none}</p>
       : <ul className={styles.specialList}>{shown.map(special => <li key={special.id}>
@@ -48,8 +51,9 @@ export function SpecialsPanel({ document, state, readOnly, onKind, onFinish, onC
   </section>;
 }
 
-function SpecialEditor({ document, view, special, readOnly, onEdits }: {
+function SpecialEditor({ document, view, special, readOnly, onEdits, onAlong }: {
   document: CourseSettingDocument; view: string; special: SpecialObject; readOnly: boolean; onEdits: (edits: readonly CourseSettingEdit[]) => void;
+  onAlong?: (() => void) | undefined;
 }) {
   const update = (changes: Extract<CourseSettingEdit, { type: "UPDATE_SPECIAL" }>["changes"]) =>
     onEdits([{ type: "UPDATE_SPECIAL", special: special.id, changes }]);
@@ -116,9 +120,8 @@ function SpecialEditor({ document, view, special, readOnly, onEdits }: {
             .sort((a, b) => a - b).map(value => <option key={value} value={value}>{String(value).replace(".", ",")}</option>)}
         </select></label>
     </>}
-    {special.kind === "optional-crossing-point" && <label className={styles.stack}>{text.objects.orientation}
-      <input type="number" step={5} disabled={readOnly} defaultValue={round(special.orientation ?? 0, 1)}
-        onChange={event => { const value = Number(event.target.value); if (Number.isFinite(value)) update({ orientation: value }); }} /></label>}
+    {special.kind === "optional-crossing-point" && <RotateControls orientation={special.orientation ?? 0} readOnly={readOnly}
+      onSet={value => update({ orientation: value })} onAlong={onAlong} />}
     {!readOnly && <div className={styles.row}><Button variant="secondary" onClick={() => onEdits([{ type: "DELETE_SPECIAL", special: special.id }])}>
       {text.objects.remove}</Button></div>}
   </div>;

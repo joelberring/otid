@@ -12,8 +12,11 @@ import { ALL_CONTROLS } from "./course-setting-hit";
  */
 export const SPECIAL_TOOL_KINDS: readonly SpecialKind[] = [
   "out-of-bounds", "white-out", "optional-crossing-point", "descriptions", "text", "forbidden-route", "dangerous-area", "temporary-construction",
-  "boundary", "line", "rectangle", "ellipse", "first-aid", "water", "registration-mark"
+  "boundary", "line", "rectangle", "ellipse", "first-aid", "water", "registration-mark", "image"
 ];
+
+/** Bildens bredd på papperet när den läggs ut (mm); höjden följer bildens proportioner. */
+export const IMAGE_WIDTH_PAPER_MM = 25;
 
 /** Mått på papperet (mm) som kartans mm vid banans utskriftsskala. */
 export function paperToMap(document: CourseSettingDocument, view: string, paperMm: number): number {
@@ -27,9 +30,16 @@ export function descriptionOn(document: CourseSettingDocument, view: string): Sp
 }
 
 /** Ett nytt objekt med Purple Pens förval (text 4 mm siffhöjd på papperet, beskrivning 6 mm rutor). */
-export function specialInput(document: CourseSettingDocument, view: string, kind: SpecialKind, points: readonly Point[]): SpecialInput {
+export function specialInput(document: CourseSettingDocument, view: string, kind: SpecialKind, points: readonly Point[],
+  image?: { readonly format: string; readonly data: string; readonly aspect: number }): SpecialInput {
   const at = points[0]!;
   switch (kind) {
+    case "image": {
+      // ADR-0180 beslut 14: ett klick ger övre vänstra hörnet; bredden 25 mm på papperet och bildens proportioner.
+      if (!image || points.length > 1) return { kind, points: [...points] };
+      const width = paperToMap(document, view, IMAGE_WIDTH_PAPER_MM);
+      return { kind, points: [at, { x: at.x + width, y: at.y - width * image.aspect }], image: { format: image.format, data: image.data } };
+    }
     case "text": {
       const height = paperToMap(document, view, 4);
       return { kind, points: [at, { x: at.x + 12 * height, y: at.y - 1.5 * height }], text: "Text", font: { name: "Arial", bold: false, italic: false, height },
@@ -47,8 +57,8 @@ export function specialInput(document: CourseSettingDocument, view: string, kind
 }
 
 /** Antal klick som slaget tar (Infinity = tills det avslutas). */
-export function clicksFor(kind: SpecialKind): number {
-  if (kind === "text" || kind === "descriptions") return 1;
+export function clicksFor(kind: SpecialKind, image?: unknown): number {
+  if (kind === "text" || kind === "descriptions" || (kind === "image" && image)) return 1;
   const { min, max } = specialPointCount(kind);
   return min === max ? max : Infinity;
 }
@@ -60,8 +70,8 @@ function create(state: EditorState, points: readonly Point[], apply: Apply): Edi
   const edit: CourseSettingEdit = existing
     ? { type: "MOVE_SPECIAL", special: existing.id, points: [points[0]!, { x: points[0]!.x + (existing.points[1]!.x - existing.points[0]!.x),
       y: points[0]!.y + (existing.points[1]!.y - existing.points[0]!.y) }] }
-    : { type: "ADD_SPECIAL", special: specialInput(state.document, state.view, kind, points) };
-  const next = applySteps({ ...state, drawing: undefined }, [edit], apply,
+    : { type: "ADD_SPECIAL", special: specialInput(state.document, state.view, kind, points, state.specialImage) };
+  const next = applySteps({ ...state, drawing: undefined, ...(kind === "image" ? { specialImage: undefined } : {}) }, [edit], apply,
     (created, document) => {
       const id = existing?.id ?? created;
       return id && document.specialObjects.some(special => special.id === id) ? { kind: "special", special: id } : undefined;
@@ -74,7 +84,8 @@ export function clickSpecial(state: EditorState, at: Point, apply: Apply, closeM
   const kind = state.specialKind;
   if (!kind) return state;
   const points = [...(state.drawing ?? []), at];
-  const clicks = clicksFor(kind);
+  if (kind === "image" && !state.specialImage) return { ...state, error: "Välj en bild först (Objekt → Bild)." };
+  const clicks = clicksFor(kind, state.specialImage);
   if (points.length >= clicks) return create(state, points, apply);
   const first = state.drawing?.[0];
   if (clicks === Infinity && first && points.length > specialPointCount(kind).min && Math.hypot(at.x - first.x, at.y - first.y) <= closeMm) {

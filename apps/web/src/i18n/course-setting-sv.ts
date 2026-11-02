@@ -36,11 +36,12 @@ export const courseSettingSv = {
     rename: "Döp om",
     renameLabel: (name: string) => `Nytt namn på ${name}`,
     remove: "Ta bort banan",
-    removeConfirm: (name: string) => `Ta bort banan ${name}? Kontrollerna finns kvar.`,
     save: "Spara",
     cancel: "Avbryt",
     variant: "Variant",
     allVariants: "Alla grenar",
+    /** ADR-0180 beslut 14: variantväljaren med antal kontroller. */
+    variantOption: (code: string, controls: number) => `${code} · ${controls} ${controls === 1 ? "kontroll" : "kontroller"}`,
     classes: "Klasser (som i Purple Pen, t.ex. H21, D21)"
   },
   tools: {
@@ -49,25 +50,32 @@ export const courseSettingSv = {
     ADD_CONTROL: "Ny kontroll",
     ADD_START: "Ny start",
     ADD_FINISH: "Nytt mål",
-    ADD_CROSSING: "Ny passage",
+    ADD_CROSSING: "Ny obligatorisk passage",
+    ADD_MAP_EXCHANGE: "Nytt kartbyte",
     INSERT_EXISTING: "Lägg in befintlig kontroll",
     ADD_BEND: "Brytpunkt på sträcka",
     NOTE: "Ny notis",
-    SPECIAL: "Specialobjekt (förbjudet område, text, vit bakgrund …)",
+    SPECIAL: "Specialobjekt (förbjudet område, valfri passage, text …)",
+    /** ADR-0180 beslut 14: förklaringen i verktygets tooltip där namnet inte räcker. */
+    title: {
+      ADD_CROSSING: "Obligatorisk passage – ingår i banan och numreras inte; löparen måste passera. Valfri passage finns under Objekt",
+      SPECIAL: "Objekt – passager, spärrar, service, text och grafik"
+    } as Record<string, string>,
     /** Steg 66: korta etiketter i verktygsraden och tangenterna. */
-    short: { SELECT: "Välj", ADD_CONTROL: "Kontroll", ADD_START: "Start", ADD_FINISH: "Mål", ADD_CROSSING: "Passage",
+    short: { SELECT: "Välj", ADD_CONTROL: "Kontroll", ADD_START: "Start", ADD_FINISH: "Mål", ADD_CROSSING: "Obl. passage",
       INSERT_EXISTING: "Lägg in", ADD_BEND: "Brytpunkt", NOTE: "Notis", FORK: "Gaffling", SPECIAL: "Objekt" } as Record<string, string>,
     shortcut: { SELECT: "V", ADD_CONTROL: "K", ADD_START: "S", ADD_FINISH: "M", ADD_CROSSING: "P", INSERT_EXISTING: "L", ADD_BEND: "B",
       NOTE: "N", FORK: "G", SPECIAL: "O" } as Record<string, string>,
-    forkTool: "Gaffling vid vald kontroll",
+    forkTool: "Gaffla här (vid vald kontroll)",
     forkNeedsSelection: "Välj en kontroll på banan först.",
     withKey: (label: string, key: string) => `${label} (${key})`,
     help: {
       SELECT: "Klicka för att välja. Dra en kontroll, ett nummer eller en brytpunkt för att flytta. Dra kartan för att panorera.",
-      ADD_CONTROL: "Klicka på kartan där kontrollen ska stå. I en bana läggs den in efter vald kontroll.",
+      ADD_CONTROL: "Klicka på kartan där kontrollen ska stå. I en bana läggs den in efter vald kontroll; ett klick i en svag ring lägger in den befintliga kontrollen (Alt: alltid ny).",
       ADD_START: "Klicka där starten ska stå.",
       ADD_FINISH: "Klicka där målet ska stå.",
-      ADD_CROSSING: "Klicka där passagen ska stå.",
+      ADD_CROSSING: "Klicka där den obligatoriska passagen ska stå. I en bana vrids den efter sträckan.",
+      ADD_MAP_EXCHANGE: "Klicka där kartbytet ska stå. I en bana läggs det in efter vald kontroll.",
       INSERT_EXISTING: "Klicka på en kontrollring för att lägga in kontrollen i banan efter vald kontroll.",
       ADD_BEND: "Välj en sträcka och klicka där linjen ska brytas.",
       NOTE: "Klicka på kartan, en kontroll eller en sträcka där notisen ska sitta.",

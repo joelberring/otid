@@ -50,7 +50,7 @@ export function TopBar({ raceId, document, summaries, view, variant, onView, sta
     {variants.length > 1 && <label className={`${styles.inline} ${styles.viewPicker}`}><span className={styles.srOnly}>{copy.topbar.variant}</span>
       <select value={variant ?? ""} onChange={event => onView(view, event.target.value || undefined)}>
         <option value="">{text.courses.allVariants}</option>
-        {variants.map(row => <option key={row.code} value={row.code}>{row.code}</option>)}
+        {variants.map(row => <option key={row.code} value={row.code}>{text.courses.variantOption(row.code, row.controlCodes.length)}</option>)}
       </select></label>}
     {status}
     <span className={`${styles.access} ${styles.wide}`}>{access}</span>
@@ -81,6 +81,7 @@ export function TopBar({ raceId, document, summaries, view, variant, onView, sta
 }
 
 const TOOL_ICON: Record<string, string> = { SELECT: "↖", ADD_CONTROL: "○", ADD_START: "△", ADD_FINISH: "◎", ADD_CROSSING: ")(", INSERT_EXISTING: "⊕",
+  ADD_MAP_EXCHANGE: "▷",
   ADD_BEND: "⌒", NOTE: "✎", FORK: "⑂", SPECIAL: "◇" };
 
 /** Verktygen ovanpå kartan: ikon och kort etikett, tangenten i tooltip, valt läge tydligt markerat. */
@@ -88,7 +89,7 @@ export function ToolBar({ tool, tools, onTool, onFork, inCourse, help }: { tool:
   onFork?: (() => void) | undefined; inCourse: boolean; help: string }) {
   return <div className={styles.toolbar} role="toolbar" aria-label={text.tools.heading} title={help}>
     {tools.map(item => <button key={item} type="button" className={styles.tool} aria-pressed={tool === item} aria-label={text.tools[item]}
-      title={text.tools.withKey(text.tools[item], text.tools.shortcut[item] ?? "")}
+      title={text.tools.withKey(text.tools.title[item] ?? text.tools[item], text.tools.shortcut[item] ?? "")}
       disabled={(item === "INSERT_EXISTING" || item === "ADD_BEND") && !inCourse} onClick={() => onTool(item)}>
       <span aria-hidden="true" className={styles.toolIcon}>{TOOL_ICON[item]}</span><span aria-hidden="true">{text.tools.short[item]}</span>
       <kbd aria-hidden="true" className={styles.key}>{text.tools.shortcut[item]}</kbd>

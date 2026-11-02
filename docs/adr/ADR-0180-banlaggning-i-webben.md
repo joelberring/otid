@@ -87,6 +87,32 @@ Samarbete och fältläge i mobilen (66–67, ADR-0181) lades till 2026-11-01 och
     Varje förslag har säkerhet, förklaring och objekten (markeras på kartan). Webben räknar i kartans Worker; förslagen
     förhandsvisas ljusare för kontroller utan D och skrivs in först när någon godtar, som en vanlig `SET_DESCRIPTION`
     (samarbetet och ångra som förut). Inget sparas om förslagen.
+14. **Editorn mer som Purple Pen (ägarens synpunkter 2026-11-02).** *Objekt:* knappen Objekt i verktygsraden (också i
+    telefonens "Mer") öppnar en palett i fyra grupper (Passager och kartbyte, Spärrar, Service, Text och grafik); varje slag
+    har en ikon som räknas med `layoutOverprint` och ritas med kartans `drawOverprint`, ett namn och en förklarande rad.
+    Obligatorisk passage (kontrollslaget i banan, "Obl. passage" i verktygsraden) och valfri passage (specialobjekt på alla
+    eller valda banor) förklaras i paletten och verktygets tooltip; kartbyte (MAP_EXCHANGE) läggs också från paletten. Bild
+    väljs från datorn (högst 1 MB) och läggs med ett klick, 25 mm bred på papperet. *Vridning:* som Purple Pens CanRotate går
+    bara obligatorisk och valfri passage att vrida (inte kartbyte, text eller bild: Purple Pen kan inte lagra vinkeln för
+    dem). Handtaget pekar i vinkelns riktning (RotateMode), fäster i 5°-steg, Skift eller ett andra finger ger fri vinkel;
+    sifferfältet och "Vrid efter sträckan" finns kvar. Ny ändring `SET_CONTROL_ORIENTATION` (bara passager, 0–360°, skrivs som
+    `orientation` i .ppen). **Avvikelse:** Purple Pen ger en ny passage vinkeln 0; O-Tid ställer en ny obligatorisk passage i
+    en bana rätt mot sträckan genom den (medelriktningen in och ut, löparen går mellan bågarna), i samma ångra-steg. *Kopia:*
+    `DUPLICATE_COURSE` (ChangeEvent.DuplicateCourse) ger "<namn> (kopia)" direkt efter originalet med egna banans kontroller i
+    samma ordning, gafflingar, nummerlägen, tryckyta, skala, etikett och råa inställningar; banans specialobjekt syns också på
+    kopian (`<course part>` blir hela banan). Båda ändringarna har samarbetsstöd (touches, referenser, id-översättning; nya id
+    skapas i genomgångsordning så att uppspelningen ger samma ordning). *Befintliga kontroller:* när man lägger till i en bana
+    syns kontrollerna utanför banan svagt med kod (som Purple Pens SetTemporaryControlView); ett klick inom ringen plus 10 px
+    (finger 22 px) lägger in den befintliga av samma slag, markerad före klicket ("Lägg in 45"); Alt eller "Alltid ny" ger en
+    ny. "Lägg in befintlig" finns kvar för alla slag. "Visa andra banor svagt" i kartans Visa-meny. *Gafflingar:* kontrollistan
+    i fliken Banor visar banan som Purple Pens topologi (grenarna bredvid varandra med bokstav, var de går ihop); ett klick på
+    en gren arbetar i den (nya kontroller efter grenens sista); "Gaffla här" frågar 2/3/4 grenar, slinga eller 2 slingor och
+    ställer editorn i gren A, "Nästa gren" byter. Grenen man arbetar i visas som den första varianten genom den (kraftig, de
+    andra svaga) och bokstäverna står på kartan. Varianterna listas med kod, antal kontroller, längd och en liten bild.
+    *Ta bort bana:* som Purple Pens DeleteCurrentCourse frågar editorn om kontrollerna som bara banan använde ska tas bort; banan
+    och kontrollerna är ett ångra-steg (`DELETE_COURSE` + `DELETE_CONTROL` i samma steg, ingen ny ändringstyp). *Oanvända:* i
+    Alla kontroller ritas kontroller utan bana grå och streckade med ett kryss (valbart), kontrollistan har "Bara oanvända",
+    antalet och "Ta bort alla oanvända" med bekräftelse som listar koderna (Purple Pens RemoveUnusedControls).
 
 **Konsekvenser.** Purple Pen och macpurplepen kan användas parallellt: .ppen in och ut. Stockholm by Night (9 december)
 läggs i Purple Pen som vanligt; .ppen-importen gör att banor och gafflingar går rakt in. Editorn blir inte lika snabb att

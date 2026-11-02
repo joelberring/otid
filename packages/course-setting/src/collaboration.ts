@@ -102,6 +102,7 @@ export function editTouches(edit: CourseSettingEdit): string[] {
     case "MOVE_CONTROL": return [`control:${edit.control}:at`];
     case "DELETE_CONTROL": return [`control:${edit.control}`];
     case "SET_CONTROL_CODE": return [`control:${edit.control}:code`];
+    case "SET_CONTROL_ORIENTATION": return [`control:${edit.control}:orientation`];
     case "UPDATE_COURSE": return Object.keys(edit.changes).sort().map(key => `course:${edit.course}:${key}`);
     case "DELETE_COURSE": return [`course:${edit.course}`];
     case "MOVE_NUMBER": return [`courseControl:${edit.courseControl}:numberAt`];
@@ -176,8 +177,8 @@ function editRefs(edit: CourseSettingEdit): [Kind, string][] {
   switch (edit.type) {
     case "ADD_CONTROL": case "ADD_COURSE": return [];
     case "MOVE_CONTROL": case "DELETE_CONTROL": case "SET_CONTROL_CODE": case "SET_CIRCLE_GAPS": case "SET_DESCRIPTION":
-    case "SET_DESCRIPTION_TEXT_LINE": return [["controls", edit.control]];
-    case "UPDATE_COURSE": case "DELETE_COURSE": return [["courses", edit.course]];
+    case "SET_DESCRIPTION_TEXT_LINE": case "SET_CONTROL_ORIENTATION": return [["controls", edit.control]];
+    case "UPDATE_COURSE": case "DELETE_COURSE": case "DUPLICATE_COURSE": return [["courses", edit.course]];
     case "INSERT_COURSE_CONTROL": return [["courses", edit.course], ["controls", edit.control],
       ...(typeof edit.after === "string" ? [["courseControls", edit.after] as [Kind, string]] : [])];
     case "REMOVE_COURSE_CONTROL": return [["courses", edit.course], ["courseControls", edit.courseControl]];
@@ -251,8 +252,8 @@ function remapWith(edit: CourseSettingEdit, map: Lookup): CourseSettingEdit {
   switch (edit.type) {
     case "ADD_CONTROL": case "ADD_COURSE": case "SET_EVENT": case "SET_APPEARANCE": return edit;
     case "MOVE_CONTROL": case "DELETE_CONTROL": case "SET_CONTROL_CODE": case "SET_CIRCLE_GAPS": case "SET_DESCRIPTION":
-    case "SET_DESCRIPTION_TEXT_LINE": return { ...edit, control: c(edit.control) };
-    case "UPDATE_COURSE": case "DELETE_COURSE": return { ...edit, course: co(edit.course) };
+    case "SET_DESCRIPTION_TEXT_LINE": case "SET_CONTROL_ORIENTATION": return { ...edit, control: c(edit.control) };
+    case "UPDATE_COURSE": case "DELETE_COURSE": case "DUPLICATE_COURSE": return { ...edit, course: co(edit.course) };
     case "INSERT_COURSE_CONTROL": return { ...edit, course: co(edit.course), control: c(edit.control),
       ...(typeof edit.after === "string" ? { after: cc(edit.after) } : {}) };
     case "REMOVE_COURSE_CONTROL": return { ...edit, course: co(edit.course), courseControl: cc(edit.courseControl) };

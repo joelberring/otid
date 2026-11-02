@@ -75,6 +75,8 @@ export function describeEdit(edit: CourseSettingEdit, document: CourseSettingDoc
     }
     case "DELETE_CONTROL": return `Ta bort ${label(edit.control)}`;
     case "SET_CONTROL_CODE": return `Ny kod ${edit.code} för ${label(edit.control)}`;
+    case "SET_CONTROL_ORIENTATION": return `Vrid ${label(edit.control)} till ${Math.round(edit.orientation)}°`;
+    case "DUPLICATE_COURSE": return `Kopiera banan ${course(edit.course)} som ${edit.name}`;
     case "ADD_COURSE": return `Ny bana ${edit.name}`;
     case "UPDATE_COURSE": return edit.changes.labelKind !== undefined && Object.keys(edit.changes).length === 1
       ? `Vid kontrollerna på ${course(edit.course)}: ${labelSv.kinds[edit.changes.labelKind].toLowerCase()}`

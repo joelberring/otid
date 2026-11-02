@@ -10,12 +10,21 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-02 – Banläggningens editor mer som Purple Pen (grenen banlaggning-ux, ADR-0180 beslut 14)
+- Objekt i verktygsraden (och bakom "Mer") öppnar en palett i fyra grupper med ikoner ritade av kartans ritare; obligatorisk passage ("Obl. passage", tooltip) skiljs från valfri; kartbyte och bild (uppladdning) läggs därifrån.
+- Vridhandtag för obligatorisk och valfri passage (5°-steg, Skift/andra fingret fritt), "Vrid efter sträckan", en ny passage i en bana vrids efter sträckan; ny ändring `SET_CONTROL_ORIENTATION`.
+- Duplicera bana (`DUPLICATE_COURSE`, med gafflingar, nummer, tryckyta och specialobjekt); båda nya ändringarna i samarbetet, kontraktet och förslagens text.
+- Kontroller utanför banan syns svagt med kod och fångas med ett klick i ringen ("Lägg in 45"; Alt/"Alltid ny" ger ny); "Visa andra banor svagt".
+- Kontrollistan i Banor visar gafflingen som träd (grenar bredvid varandra, klick = arbeta i grenen), "Gaffla här" (2/3/4 grenar, slinga), Nästa gren, bokstäver på kartan, varianter med antal och bild.
+- Ta bort bana frågar om kontrollerna som blir oanvända (ett ångra-steg); oanvända i Alla kontroller ritas grå streckade, filter, antal och "Ta bort alla oanvända".
+- Verifierat: lint, typecheck, test (paketet: kopia, vinkel, uppspelning och rundresa till .ppen; webben: fångst, vridning, grenar, alla 16 specialobjekt); Playwright banlaggning-objekt-gaffling (ny, skärmbilder 1280/390 granskade), banlaggning, -utskrift, -mobil, -samarbete, -falt, -utseende och kontrollbeskrivning gröna lokalt; CI grönt.
+
 ### 2026-11-02 – BL-profiler och förslaget att godkänna (grenen bl-profil, ADR-0183 beslut 7)
 - "BL skog" och "BL sprint" (tabellerna kontrollerade mot BL:s sidor 2026-11-02, källa och datum i profilen, tomma celler tolkade och märkta); ny tabell = ny profilversion, de gamla låsta och markerade som ersatta.
 - Förslaget per kartfärg (namn, OCAD-id, CMYK, användning via `colorUsage`, ordning): säker, bekräfta, tvetydig. Godkännandet i förhandsvisningen: färgrutor före/efter, kartbit per färg, hela kartan före/efter med reglage, lagren som bild; beslut sparas i tävlingens kopia, kartfilen orörd.
 - PDF med BL: CMYK (banan 35/95/0/0 som processfärg), banan i kartans färgordning under brunt, svart och 100 % blå (valbart); förhandskontrollen visar obekräftade färger och stoppar passmärket.
 - Högdalen (BL skog): 20 säkra, 12 att bekräfta, 2 tvetydiga, 8 oanvända; banan hamnar under brun höjdkurva, grön punktsymbol över banan blir varning.
-- Verifierat: lint, typecheck, test (Högdalen via `OTID_REAL_MAP`), test:integration, Ghostscript-rendering av ordningen (Högdalen/SBN26_2 före och efter: samma linjebredd, banan under brunt och svart); CI grönt med Playwright utskrift-bl mot driftbygget. Lokalt föll specen på maskinens last (andra jobb), Högdalen-varianten är inte körd.
+- Verifierat: lint, typecheck, test (Högdalen via `OTID_REAL_MAP`), test:integration, Ghostscript-rendering av ordningen (Högdalen/SBN26_2 före och efter: samma linjebredd, banan under brunt och svart); CI grönt med Playwright utskrift-bl mot driftbygget. Högdalen-varianten (`OTID_E2E_SBN_DIR`) grön lokalt med delbilder i 1280/390 px (jämförelsen, lagren, säker, bekräfta, tvetydig med "Välj BL-rad" utfälld), inget utanför skärmen.
 - Återstår: provtryck hos BL; webbläsarens utkast lägger inte banan i färgordningen.
 
 ### 2026-11-02 – Förslag på kontrollbeskrivning ur kartfilen (grenen beskrivningsforslag, ADR-0180 beslut 13)

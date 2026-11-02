@@ -52,6 +52,10 @@ export { approximateTextWidth, DIGIT_HEIGHT_EM, expandText, specialVisible, TEXT
 export { SPECIAL_KIND_LIST, specialPointCount } from "./special-edit";
 export { specialImage } from "./ppen-special";
 export { printScaleOf } from "./overprint";
+// Banläggningens UX (ADR-0180 beslut 14): kopia av bana, oanvända kontroller, grenarnas bokstäver och vinklar.
+export { controlsOnlyIn, unusedControls } from "./course-duplicate";
+export { legPath, variantLetters, variations, type Variation } from "./walk";
+export { normalizeDegrees } from "./edit";
 export { BARRIER_KINDS, routeBarriers, type RouteBarrierGeometry } from "./barriers";
 // ADR-0180 beslut 13: förslag på kontrollbeskrivning ur kartfilen.
 export {

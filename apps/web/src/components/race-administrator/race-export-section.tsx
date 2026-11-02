@@ -46,7 +46,7 @@ export function RaceExportSection({ ws }: { ws: Workspace }) {
     finally { finish(op); }
   }
   return <Section id={`settings-${raceId}-export`} title={text.title} help={text.help}>
-    <ul>{text.when.map(line => <li key={line}>{line}</li>)}</ul>
+    <p><strong>{text.when}</strong></p>
     <Notice tone="info"><strong>{text.personalDataTitle}</strong> {text.personalData}</Notice>
     {message && <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>{message.text}</Notice>}
     <div><Button disabled={saving || workflowLocked} onClick={() => void download()}>{text.action}</Button></div>

@@ -10,6 +10,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-02 – Arrangörens säkerhetskopia och återställning (grenen aterstallning, ADR-0187, migration 0041)
+- "Exportera tävlingen" (JSON v1, gick inte att läsa in och saknade bl.a. avprickningen, kortbaneöverflyttningen, begärandenas journaler och festen) är ersatt av "Ladda ner säkerhetskopia": zip med `manifest.json` (formatVersion 2, sha256 per fil), en JSON per tabell och binärdata (kartfil, bild, foton, GPX) som egna filer. Alla tävlingens tabeller utom fyra uttryckligen uteslutna (integrationstestet jämför med katalogen).
+- Aldrig med: konton, lösenord, sessioner, Eventor-nyckeln; kontonas id är slumpade referenser, behörigheter följer med som e-post (`personer.json`). Inställningar säger när kopian tas, att den har personuppgifter och när den senast laddades ner (`race.last_backup_at`, journalen utan namn).
+- "Återställ tävling från säkerhetskopia" (Mina tävlingar, inloggat konto): strikt kontroll (zip-gränser, zod per rad efter katalogen, sha256, okänd formatversion/kolumn med begripligt besked), förhandsvisning, sedan en NY tävling med nya id (också inuti JSON/XML), opublicerad, radio av; personerna kopplas på e-post eller lämnas bort. Idempotent (`race_restore_request`).
+- Verifierat: lint, typecheck, test (zip-läsaren), test:integration (ny `aterstallning`: samma publika lista, sträcktider, IOF-lista, fastställande och teamsprint efter återställning; felaktiga filer; de nio testerna som läste JSON-exporten läser nu zip), Playwright `aterstallning` (nedladdning, fel fil, förhandsvisning, återställning, samma publika lista och sträcktider; skärmbilder 1280/390 granskade).
+- Kvar: en revision som behövde räknas om när kopian togs räknas som aktuell efter återställningen (antalet visas); avläsningsdatorns kö skickas inte om till den nya tävlingen (inte provat); stora kopior nära 200 MB är inte provade mot webbens minnestak.
+
 ### 2026-11-02 – Säkerhet, integritet och drift efter översynen (grenen sakerhet-drift, ADR-0186, migration 0040)
 - Beroenden: next 16.4.3, sharp 0.35.5, fast-xml-parser 5.11.2, nodemailer 10.3.1, drizzle-orm 0.45.4, zod 4.6.7; `images.unoptimized`; Mapper avvisar DOCTYPE. Kvar i `pnpm audit --prod`: playwright 1.55.0 (bara test).
 - Inget publikt om löpare indexeras (robots.txt, X-Robots-Tag, meta); HSTS. Varianten (startlista, IOF XML, stafett) och kartbilden publikt först efter start, val under Publicera → Före start; bricknummer av för nya tävlingar.

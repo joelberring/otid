@@ -2,14 +2,15 @@ import type { RaceBackupCounts, RaceBackupProblem } from "@o-tid/contracts";
 
 const dateTime = (value: Date) => value.toLocaleString("sv-SE", { dateStyle: "long", timeStyle: "short" });
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
-const megabytes = (bytes: number) => `${(bytes / 1024 / 1024).toLocaleString("sv-SE", { maximumFractionDigits: 1 })} MB`;
+const megabytes = (bytes: number) => bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} kB`
+  : `${(bytes / 1024 / 1024).toLocaleString("sv-SE", { maximumFractionDigits: 1 })} MB`;
 
 /** Säkerhetskopian och återställningen (ADR-0187): Inställningar och Mina tävlingar. */
 export const raceBackupSv = {
   title: "Säkerhetskopia",
   help: "En fil med allt om tävlingen: banor, kartfil, klasser, deltagare, brickor, starttider, avläsningar, resultat och historik. " +
     "Går servern sönder kan filen återställas som en ny tävling, också på en annan server.",
-  when: ["Ta en kopia efter lottningen,", "en före start", "och en efter sista målgång."],
+  when: "Ta en kopia efter lottningen, en före start och en efter sista målgång.",
   personalDataTitle: "Filen innehåller personuppgifter.",
   personalData: "Namn, klubbar, bricknummer, resultat och e-post för dem som har behörighet. Spara den där bara arrangörerna kommer åt " +
     "den och ta bort den när den inte behövs. Du ansvarar för kopiorna på din dator. Konton, lösenord och Eventor-nyckeln finns inte med.",

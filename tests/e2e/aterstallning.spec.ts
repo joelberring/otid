@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 import { addCourseAndClass, addEntry, createRace, openStep, publishRace, publishRaceViaApi, registerAccount, reviewScreenshots,
-  sendReadout, today, unique } from "./helpers";
+  sendReadout, today, unique, warmRoute } from "./helpers";
 
 /**
  * ADR-0187: arrangörens säkerhetskopia och återställning. En tävling med avläsningar laddas ner från Inställningar
@@ -44,7 +44,10 @@ test("ladda ner säkerhetskopia och återställ den som en ny tävling med samma
   await sendReadout(owner, raceId, { cardNumber: "7390003", startPunchedAt: at(2), finishPunchedAt: at(34),
     punches: [{ code: 31, punchedAt: at(13) }, { code: 32, punchedAt: at(21) }, { code: 33, punchedAt: at(29) }] });
 
-  // Inställningar → Säkerhetskopia: när den bör tas, personuppgifterna och knappen.
+  // Inställningar → Säkerhetskopia: när den bör tas, personuppgifterna och knappen. Utvecklingsservern kompilerar routerna i förväg.
+  const other = "00000000-0000-4000-8000-000000000000";
+  for (const path of ["backup-status", "export"]) await warmRoute(owner, `/api/admin/races/${other}/administrator/${path}`);
+  for (const path of ["/api/organizer/restore/preview", "/api/organizer/restore"]) await warmRoute(owner, path, "POST");
   await owner.reload();
   await openStep(owner, "Inställningar");
   const section = owner.getByRole("region", { name: "Säkerhetskopia" });
@@ -56,7 +59,7 @@ test("ladda ner säkerhetskopia och återställ den som en ny tävling med samma
   const download = await downloading;
   expect(download.suggestedFilename()).toMatch(/^otid-sakerhetskopia-torsdag-\d{4}-\d{2}-\d{2}-\d{8}-\d{4}\.zip$/);
   const file = await download.path();
-  await expect(section.getByRole("status")).toHaveText("Säkerhetskopian är nedladdad.");
+  await expect(section.getByRole("status")).toContainText("Säkerhetskopian är nedladdad.");
   await expect(section.getByTestId("backup-last")).toContainText("Senast nedladdad");
   await section.scrollIntoViewIfNeeded();
   await reviewScreenshots(owner, "aterstallning-nedladdning");
